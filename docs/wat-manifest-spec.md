@@ -207,8 +207,8 @@ Exit codes follow the verify-CLI contract: `0` verified, `1` failed,
   manifest at all, the next emitted hour records `prev_hour_root:
   null`. The gap itself is not silently bridged. A `--chain-check`
   verifier reports `chain-skipped` rather than walking across the
-  gap. (Mira default-decision, Tag-8: no walk-back across gaps.
-  A separate Phase-1b feature may add explicit gap markers.)
+  gap. (default-decision Tag-8, decision-owner: no walk-back across
+  gaps. A separate Phase-1b feature may add explicit gap markers.)
 - **Mismatched chain.** A non-null `prev_hour_root` that does not
   equal the previous hour's `merkle_root` is the only chain-state
   that yields `chain-mismatch` and exit code 4. The inclusion proof

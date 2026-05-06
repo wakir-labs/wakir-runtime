@@ -49,8 +49,9 @@ Before invoking the driver:
 Submit-cadence limits per the test plan §2:
 
 - **Default budget**: `H × 4 = 16` calendar submits per run.
-- **Stretch budget**: `H = 6 → 24` submits. Coordinate with Kai
-  (zone C) before running stretch back-to-back inside one calendar
+- **Stretch budget**: `H = 6 → 24` submits. Coordinate with the
+  container-identity-eng (zone C) before running stretch
+  back-to-back inside one calendar
   day; the public calendars publish a daily-budget guideline that
   the stretch run alone consumes ~50% of for a single project.
 - **Inter-hour sleep**: default 2 s. Drop to 1 s only if the
@@ -176,17 +177,17 @@ re-verify reads.
 
 ## 9. Cross-review hooks
 
-- **Reza (zone 2)** — `prev_hour_root` is v1-optional; the driver
-  threads it explicitly. If Reza's manifest-v2 work tightens the
+- **wirelang-eng (zone 2)** — `prev_hour_root` is v1-optional; the
+  driver threads it explicitly. If the manifest-v2 work tightens the
   contract, see test plan §6 for the migration constraint and surface
   any drift via `agents-workspaces/dev-engineering/outbox/` as a
   zone-2 sync item.
-- **Kai (zone C)** — `H × 4` calendar submits per run. The default
-  `H=4` is well inside daily budget; `H=6` is a stretch. Coordinate
-  before scheduling a TV-2 live-run in CI (the gated pytest is
-  manual-only, see test plan §7).
-- **Noa (zone H/I)** — `WAKIR_ESPLORA_BASE_URL` override is
+- **container-identity-eng (zone C)** — `H × 4` calendar submits per
+  run. The default `H=4` is well inside daily budget; `H=6` is a
+  stretch. Coordinate before scheduling a TV-2 live-run in CI (the
+  gated pytest is manual-only, see test plan §7).
+- **sre-eng (zone H/I)** — `WAKIR_ESPLORA_BASE_URL` override is
   available the same way as for TV-1. The block-heights harvest at
   §7 uses it transparently when no local Bitcoin node is present.
 
-— Tomás
+— wat-eng

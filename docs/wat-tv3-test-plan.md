@@ -125,14 +125,14 @@ assume systemd-user is available in CI). TV-3 instead asserts:
   and 0 in the clean case, matching the contract documented in
   README §"WAT hourly operations".
 
-## 6. Cross-Review-Hinweis — Reza (spool-format-drift)
+## 6. Cross-Review-Hinweis — wirelang-eng (spool-format-drift)
 
 TV-3 generates synthetic `.ots` files via mock substitution rather
 than a real OTS submission. If the spool format spec
 (`docs/wat-spool-spec.md`) shifts in a way that adds required
 sidecar files next to the `.ots` (e.g. a separate manifest JSON
 that the upgrade path reads), the TV-3 fixture builder must be
-extended to write those sidecars too. **Owner: Reza.** Surface as
+extended to write those sidecars too. **Owner: wirelang-eng.** Surface as
 a Tag-12 cross-review-zone-2 sync item if detected during TV-3
 implementation rather than patching the fixture inline.
 

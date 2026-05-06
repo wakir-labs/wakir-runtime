@@ -146,7 +146,7 @@ A1-A5 are each independent fail-points: any single failure blocks
 TV-2 sign-off. Soft-budgets (calendar latency p95, build time
 p50) carry over from TV-1 §3 and are recorded but do not gate.
 
-## 6. Cross-Review-Hinweis — Reza (manifest-v1/v2-boundary)
+## 6. Cross-Review-Hinweis — wirelang-eng (manifest-v1/v2-boundary)
 
 Per `docs/wat-manifest-spec.md` §"chain semantics by manifest
 version", the `prev_hour_root` slot is **optional in v1** and
@@ -167,21 +167,22 @@ Two coordination risks against the v2 boundary:
   fixture must explicitly opt into `version = "v1"` rather than
   inheriting the production default.
 
-**Owner: Reza (Identity-Substrate / WAT manifest schema).** Surface
-as a Tag-12 cross-review-zone-2 sync item if drift is detected
-during TV-2 implementation rather than patching the fixture
+**Owner: wirelang-eng (Identity-Substrate / WAT manifest schema).**
+Surface as a Tag-12 cross-review-zone-2 sync item if drift is
+detected during TV-2 implementation rather than patching the fixture
 inline. The wirelang-↔-WAT contract for hour-to-hour wiring lives
-under his consensus owner hat.
+under that consensus-owner hat.
 
-## 7. Cross-Review-Hinweis — Kai (multi-hour calendar load)
+## 7. Cross-Review-Hinweis — container-identity-eng (multi-hour calendar load)
 
 The 16-24 calendar submits per TV-2 run sit comfortably inside
 the public-calendar daily budget, but the cadence (`H` consecutive
 hours over wall-clock minutes, not hours) is unusual for the
-calendar operators. If Kai's Phase-1c container-identity work
+calendar operators. If the Phase-1c container-identity work
 ends up running CI on the gated suite, the TV-2 nightly should
 **not** be scheduled in CI — it stays a manual, operator-driven
-test. **Owner: Kai (infra / CI).** Surface as a Tag-13
+test. **Owner: container-identity-eng (infra / CI).** Surface as
+a Tag-13
 cross-review-zone-C sync item if a CI-side trigger is proposed.
 
 ## 8. Operator runbook

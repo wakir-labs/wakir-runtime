@@ -260,4 +260,4 @@ The file path layout matches the production aggregator's archive
 shape, so the same `wakir-verify` workflow that runs against the
 ephemeral test archive runs unchanged against this persistent one.
 
-— Tomás
+— wat-eng

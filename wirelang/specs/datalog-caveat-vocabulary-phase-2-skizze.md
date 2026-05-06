@@ -30,8 +30,8 @@ The intent of this sketch is to (a) reserve predicate names so
 v0.1 producers do not collide with future predicates by accident,
 (b) pre-position the JSON-Schema pattern for additive growth, and
 (c) document the cross-review hooks each predicate touches so the
-implementation order can be planned across Tomás (WAT/audit) and
-Reza (Wirelang/identity) in Phase-2.
+implementation order can be planned across wat-eng (WAT/audit)
+and wirelang-eng (Wirelang/identity) in Phase-2.
 
 ## 1. Scope and non-goals
 
@@ -170,7 +170,7 @@ migration window — is sketched in §6 below.
   reachable from verifier.
 - **Cross-review hook.** Wirelang + WAT.
 
-### 3.4 WAT-aware caveats (Tomás cross-review)
+### 3.4 WAT-aware caveats (wat-eng cross-review)
 
 #### `wat_inclusion_proof_valid(leaf_hash: bytes_hex, manifest_id: string)`
 
@@ -183,7 +183,7 @@ migration window — is sketched in §6 below.
 - **Phase-2 dep.** Verifier carries a manifest-resolver for the
   WAT manifest registry; the `leaf_hash`+`manifest_id` pair is
   resolvable offline against a WAT export.
-- **Cross-review hook.** **WAT (Tomás-owned)** — the verifier
+- **Cross-review hook.** **WAT (wat-eng-owned)** — the verifier
   extension lives at the WAT-Wirelang boundary. Cross-review
   zone 2 follow-up.
 
@@ -199,7 +199,7 @@ migration window — is sketched in §6 below.
   caveats but keeps the signature.
 - **Phase-2 dep.** None new; the canonicalisation rule is
   already JCS. Could be a v0.1.x patch.
-- **Cross-review hook.** **WAT × Wirelang** — Tomás review for
+- **Cross-review hook.** **WAT × Wirelang** — wat-eng review for
   the `caveat_hash → WAT-leaf` projection. The intent is that
   the leaf-tuple `capability_token_hash` plus the in-token
   `caveat_hash` predicate together let an offline auditor verify
@@ -219,8 +219,8 @@ migration window — is sketched in §6 below.
 | `persona_state` | 1 | persona-state registry | Wirelang × persona-engine × WAT | v0.2 |
 | `persona_pin` | 1 | none new | Wirelang | v0.1.x patch (optional) |
 | `persona_attested_after` | 1 | attestation registry | Wirelang × WAT | v0.2 |
-| `wat_inclusion_proof_valid` | 2 | WAT manifest resolver | **Tomás (WAT)** | v0.2 |
-| `caveat_hash` | 1 | none new | **Tomás × Reza (WAT × Wirelang)** | v0.1.x patch (optional) |
+| `wat_inclusion_proof_valid` | 2 | WAT manifest resolver | **wat-eng (WAT)** | v0.2 |
+| `caveat_hash` | 1 | none new | **wat-eng × wirelang-eng (WAT × Wirelang)** | v0.1.x patch (optional) |
 
 Two candidates (`persona_pin`, `caveat_hash`) require no new
 infrastructure and could move forward as v0.1.x patches if the
@@ -263,28 +263,28 @@ consideration:
 ADR work (out of scope for this sketch): operational risk model,
 migration-window length, alert thresholds, audit-event schema.
 
-## 7. Cross-review note for Tomás
+## 7. Cross-review note for wat-eng
 
-Two items in §3 explicitly cross into Tomás's domain:
+Two items in §3 explicitly cross into the wat-eng domain:
 
 1. **`wat_inclusion_proof_valid`** — the verifier extension is
    most cleanly built at the WAT side, since the manifest-
-   resolver code already lives there. Reza writes the predicate
-   spec; Tomás builds the resolver and the WAT-side caveat
-   evaluator hook. Cross-review-zone 2 follow-up.
-2. **`caveat_hash`** — Reza spec, but the WAT leaf-projection
-   (`specs/wat-leaf-projection.md`) currently records
-   `capability_token_hash` only at the four-tuple level. If the
-   token additionally carries `caveat_hash` self-reference, an
-   auditor can verify caveat-set integrity offline against the
-   anchored leaf. Tomás cross-review for whether the leaf-
-   projection v2 should hash the caveat-set into a separate
-   leaf-tuple field, or whether the caveat-hash being inside
-   the token-binary (and thus already covered by the token-
-   hash that the leaf records) is sufficient.
+   resolver code already lives there. wirelang-eng writes the
+   predicate spec; wat-eng builds the resolver and the WAT-side
+   caveat evaluator hook. Cross-review-zone 2 follow-up.
+2. **`caveat_hash`** — wirelang-eng spec, but the WAT
+   leaf-projection (`specs/wat-leaf-projection.md`) currently
+   records `capability_token_hash` only at the four-tuple level.
+   If the token additionally carries `caveat_hash`
+   self-reference, an auditor can verify caveat-set integrity
+   offline against the anchored leaf. wat-eng cross-review for
+   whether the leaf-projection v2 should hash the caveat-set
+   into a separate leaf-tuple field, or whether the caveat-hash
+   being inside the token-binary (and thus already covered by
+   the token-hash that the leaf records) is sufficient.
 
-Operative coordination via Tomás-first escalation path
-(ADR-0033) when Phase-2 vocabulary work begins.
+Operative coordination via matrix-lead escalation path
+(ADR-0033 / ADR-0045) when Phase-2 vocabulary work begins.
 
 ## 8. Brand-Guide §9 compliance
 

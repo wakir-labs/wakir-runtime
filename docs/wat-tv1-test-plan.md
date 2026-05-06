@@ -95,8 +95,9 @@ TV-1 consumes the four-field B1 leaf tuple defined in
 `wirelang/specs/wat-leaf-projection.md` §2. The TV-1 generator does
 not synthesise full Wirelang Layer-1 frames — only the projected
 fields — so spec drift between Wirelang frame shape and the WAT
-leaf tuple is a coordination risk. Reza is the consensus owner for
-that contract; if drift is detected during TV-1 implementation, flag
+leaf tuple is a coordination risk. The Identity-Substrate-Owner
+(wirelang-eng) is the consensus owner for that contract; if drift
+is detected during TV-1 implementation, flag
 it as a Tag-10 cross-review-zone-2 sync item rather than patching
 the projection inline.
 

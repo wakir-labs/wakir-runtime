@@ -163,7 +163,7 @@ The envelope additionally carries:
 - Overlapping-validity-window declarations for soft schema migration.
 - An optional OTS-anchor path under
   `meta/timestamps/wirelang-(schema|vocab)/` (cross-review zone 3
-  with the WAT module — consensus marker pending Tomás stamp at
+  with the WAT module — consensus marker pending wat-eng stamp at
   v0.2 publication time; v0.2 does not depend on the marker for
   validation).
 
