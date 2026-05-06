@@ -123,21 +123,31 @@ class VerificationResult:
         Block height that confirms the OTS attestation, or ``None``
         if still pending or never reached.
     verification_status:
-        One of ``"verified"``, ``"pending"``, ``"failed"``.
+        One of ``"verified"``, ``"pending"``, ``"failed"``,
+        ``"chain-mismatch"``.
     error_msg:
         Human-readable diagnostic when ``verification_status`` is
         not ``"verified"``; empty otherwise.
     hour_slot:
         ``YYYY-MM-DDTHH`` slot label of the hour the event was found
         in, or empty string when the event was not located.
+    chain_status:
+        Optional chain-check outcome when ``--chain-check`` is set:
+        ``"chain-verified"`` (prev_hour_root walked and matched),
+        ``"chain-skipped"`` (prev_hour_root is null at this hour --
+        cold-start or empty-hour boundary), ``"chain-mismatch"``
+        (prev_hour_root recorded does not match the previous hour's
+        actual root). Empty string when the chain-check was not
+        requested.
     """
 
     event_id: str
     merkle_root: str
     bitcoin_block_height: Optional[int]
-    verification_status: str  # "verified" | "pending" | "failed"
+    verification_status: str  # "verified" | "pending" | "failed" | "chain-mismatch"
     error_msg: str = ""
     hour_slot: str = ""
+    chain_status: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -292,9 +302,100 @@ def _find_hour_slot_for_event(
     return None
 
 
+def _previous_hour_slot(hour_slot: str) -> Optional[str]:
+    """Return the ``YYYY-MM-DDTHH`` label one hour before ``hour_slot``.
+
+    The slot label is parseable as ``%Y-%m-%dT%H``; we add a
+    ``:00:00Z`` suffix to make it RFC-3339 and walk back via stdlib
+    datetime so DST and month-boundary edge cases come out right.
+    Returns ``None`` if the slot label is unparseable -- defensive
+    only; the writer guarantees the format.
+    """
+    import datetime as _dt
+
+    try:
+        anchor = _dt.datetime.strptime(hour_slot, "%Y-%m-%dT%H").replace(
+            tzinfo=_dt.timezone.utc
+        )
+    except ValueError:
+        return None
+    prev = anchor - _dt.timedelta(hours=1)
+    return prev.strftime("%Y-%m-%dT%H")
+
+
+def _check_hour_chain(
+    archive: Path,
+    hour_slot: str,
+    manifest: dict[str, Any],
+) -> Tuple[str, str]:
+    """Validate the ``prev_hour_root`` link at the start of ``hour_slot``.
+
+    Returns a 2-tuple ``(chain_status, error_msg)`` where
+    ``chain_status`` is one of ``"chain-verified"``, ``"chain-skipped"``,
+    ``"chain-mismatch"``. ``error_msg`` is empty on the verified and
+    skipped paths, populated on a mismatch.
+
+    Skipped cases:
+
+    - Manifest does not carry the ``prev_hour_root`` key at all
+      (legacy pre-Tag-8 manifest from before the always-emit fix).
+    - ``prev_hour_root`` is ``null`` -- cold-start of the audit trail
+      or post-gap chain boundary; either way there is no link to walk.
+
+    Mismatch cases:
+
+    - Previous-hour manifest exists and its ``merkle_root`` does NOT
+      match the ``prev_hour_root`` recorded in the current manifest.
+    - Previous-hour manifest cannot be located while
+      ``prev_hour_root`` is non-null (gap-with-claimed-link is itself
+      a chain break).
+    """
+    prev_hour_root = manifest.get("prev_hour_root", "__missing__")
+    if prev_hour_root == "__missing__" or prev_hour_root is None:
+        return ("chain-skipped", "")
+
+    prev_slot = _previous_hour_slot(hour_slot)
+    if prev_slot is None:
+        return (
+            "chain-mismatch",
+            f"hour_slot {hour_slot!r} unparseable; cannot resolve previous hour",
+        )
+
+    prev_manifest_path = archive / prev_slot / MANIFEST_FILENAME
+    if not prev_manifest_path.exists():
+        return (
+            "chain-mismatch",
+            (
+                f"prev_hour_root claims {prev_hour_root} but no manifest "
+                f"exists at {prev_manifest_path} -- chain break at gap"
+            ),
+        )
+
+    try:
+        prev_manifest = _load_manifest(prev_manifest_path)
+    except (json.JSONDecodeError, ValueError) as exc:
+        return (
+            "chain-mismatch",
+            f"previous-hour manifest at {prev_manifest_path} unreadable: {exc}",
+        )
+
+    actual_prev_root = prev_manifest.get("merkle_root")
+    if actual_prev_root != prev_hour_root:
+        return (
+            "chain-mismatch",
+            (
+                f"prev_hour_root drift: manifest claims {prev_hour_root!r} "
+                f"but {prev_slot} actual root is {actual_prev_root!r}"
+            ),
+        )
+    return ("chain-verified", "")
+
+
 def verify_event(
     event_id: str,
     archive_dir: str | Path,
+    *,
+    chain_check: bool = False,
 ) -> VerificationResult:
     """Verify a single event end-to-end against the WAT archive.
 
@@ -305,6 +406,9 @@ def verify_event(
     3. Rebuild the inclusion proof and check it against the
        manifest's stored Merkle root.
     4. Run ``ots verify`` on the hour's receipt against that root.
+    5. (optional, ``chain_check=True``) Resolve the previous-hour
+       manifest and confirm its ``merkle_root`` matches the current
+       manifest's ``prev_hour_root`` slot.
     """
     archive = Path(archive_dir)
     if not archive.exists() or not archive.is_dir():
@@ -433,6 +537,24 @@ def verify_event(
         except ValueError:
             block_height = None
 
+    # Optional chain-check: walk one step back via prev_hour_root and
+    # confirm the link. Failure here downgrades the result to
+    # ``chain-mismatch`` even though the inclusion proof itself was
+    # clean -- a chain break is still an audit-trail integrity event.
+    chain_status = ""
+    if chain_check:
+        chain_status, chain_err = _check_hour_chain(archive, hour_slot, manifest)
+        if chain_status == "chain-mismatch":
+            return VerificationResult(
+                event_id=event_id,
+                merkle_root=expected_root_hex,
+                bitcoin_block_height=block_height,
+                verification_status="chain-mismatch",
+                error_msg=chain_err,
+                hour_slot=hour_slot,
+                chain_status=chain_status,
+            )
+
     return VerificationResult(
         event_id=event_id,
         merkle_root=expected_root_hex,
@@ -440,6 +562,7 @@ def verify_event(
         verification_status="verified",
         error_msg="",
         hour_slot=hour_slot,
+        chain_status=chain_status,
     )
 
 
@@ -471,11 +594,26 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Suppress per-step progress; emit only the result line.",
     )
+    parser.add_argument(
+        "--chain-check",
+        action="store_true",
+        help=(
+            "Additionally validate the prev_hour_root link by loading the "
+            "previous hour's manifest and comparing roots. Skipped when "
+            "prev_hour_root is null (cold-start or empty-hour boundary). "
+            "Mismatch yields exit code 4."
+        ),
+    )
     return parser
 
 
 def _format_human(result: VerificationResult, *, quiet: bool) -> str:
     if quiet:
+        if result.chain_status:
+            return (
+                f"{result.verification_status}\t{result.chain_status}\t"
+                f"{result.event_id}"
+            )
         return f"{result.verification_status}\t{result.event_id}"
     lines = [
         f"event_id:       {result.event_id}",
@@ -484,23 +622,40 @@ def _format_human(result: VerificationResult, *, quiet: bool) -> str:
         f"block_height:   {result.bitcoin_block_height if result.bitcoin_block_height is not None else '(none)'}",
         f"status:         {result.verification_status}",
     ]
+    if result.chain_status:
+        lines.append(f"chain_status:   {result.chain_status}")
     if result.error_msg:
         lines.append(f"error:          {result.error_msg}")
     return "\n".join(lines)
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    """CLI entry point. Returns a Unix exit code (0 on verified)."""
+    """CLI entry point. Returns a Unix exit code.
+
+    Exit codes
+    ----------
+
+    0   verified (and chain-verified, if ``--chain-check`` was set)
+    1   failed (proof or OTS-receipt mismatch, missing manifest, ...)
+    3   pending (proof OK, OTS receipt not yet finalised on Bitcoin)
+    4   chain-mismatch (Tag-8 addition; ``--chain-check`` only)
+    """
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    result = verify_event(args.event_id, args.archive_dir)
+    result = verify_event(
+        args.event_id,
+        args.archive_dir,
+        chain_check=args.chain_check,
+    )
     print(_format_human(result, quiet=args.quiet))
 
     if result.verification_status == "verified":
         return 0
     if result.verification_status == "pending":
         return 3
+    if result.verification_status == "chain-mismatch":
+        return 4
     return 1
 
 
