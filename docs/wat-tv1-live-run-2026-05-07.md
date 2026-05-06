@@ -186,22 +186,62 @@ resolves, the 2-of-N policy is met by Bitcoin attestation alone
 attestation, with the Bitcoin attestation independently
 cross-validated via Esplora).
 
-### Acceptance recap vs. §3 (Tag-15)
+### Tag-16 long-tail re-check
+
+Re-ran `bash scripts/wat-block-heights-collect.sh .runtime/wat-tv1-archive`
+on **2026-05-06 17:20:24Z** (~26 h 21 min post-submit). The Esplora
+fallback is now the default verify path on the host, so the upgrade
+leg is decoupled from the local-Bitcoin-node story.
+
+```
+[wat-block-heights] found 1 receipt(s); running ots upgrade on each
+[wat-block-heights] finalised 2026-05-06T14/root.bin.ots heights=948183
+[wat-block-heights] summary: receipts=1 finalised=1 pending=0
+```
+
+Per-calendar status from `ots info` on the same receipt at
+**2026-05-06 17:20Z** (Tag-16):
+
+| calendar                                    | status                              |
+| ------------------------------------------- | ----------------------------------- |
+| bob.btc.calendar.opentimestamps.org         | finalised → block **948183** (Tag-14) |
+| alice.btc.calendar.opentimestamps.org       | still pending                       |
+| btc.calendar.catallaxy.com                  | still pending                       |
+| finney.calendar.eternitywall.com            | still pending                       |
+
+The collect-script's per-receipt summary line reports the unique
+*set* of resolved heights across all calendar branches inside one
+receipt; with three branches still in `PendingAttestation` and one
+in `BitcoinBlockHeaderAttestation(948183)`, that set is `{948183}`
+and the script logs `pending=0` at receipt-level (the receipt is
+finalised on Bitcoin via at least one branch). The branch-level
+breakdown above is the operator-visible long-tail picture.
+
+Long-tail status at Tag-16 (~26 h post-submit) is **1/4 calendar
+branches finalised**, unchanged from Tag-15 17:03Z. This is still
+inside the spec corridor: the public-calendar FAQ and historical
+operator notes both place the median Bitcoin-anchor batch cadence
+at 1-6 h with a long tail to ~24-72 h, and 26 h on three of four
+non-bob calendars is unremarkable. **A Tag-17 re-check is queued**
+to capture the remaining long-tail finalisations as they arrive.
+
+### Acceptance recap vs. §3 (Tag-16)
 
 | acceptance criterion (§3)                                                  | status                                                |
 | -------------------------------------------------------------------------- | ----------------------------------------------------- |
 | At least one calendar branch resolves `BitcoinBlockHeaderAttestation`      | yes — bob branch → block 948183 (Tag-14)              |
-| All four calendar branches resolve `BitcoinBlockHeaderAttestation`         | partial: 1/4 at Tag-15 17:03Z; long-tail re-check open |
+| All four calendar branches resolve `BitcoinBlockHeaderAttestation`         | partial: 1/4 at Tag-16 17:20Z (~26 h post-submit); Tag-17 re-check queued |
 | `wakir-verify evt-tv1-0050` returns 0                                      | **yes** (Tag-15, Esplora fallback)                    |
 | `wakir-verify evt-tv1-0050 --chain-check` returns 0                        | **yes** (Tag-15, chain-skipped on cold-start hour)    |
 | Bitcoin block height present in receipt                                    | yes — 948183                                          |
 | Block 948183 cross-validated against canonical chain                       | **yes** (Tag-15, via Esplora HTTP)                    |
 
-The §3 acceptance is now functionally complete. The remaining open
-item — full 4-of-4 finalisation — depends on Bitcoin-batch cadence
-on the alice / finney / catallaxy calendars and is not a WAT or
-verifier issue. A Tag-16 re-check will record the long-tail
-finalisations as they arrive.
+The §3 acceptance is functionally complete on the verifier side;
+five of six rows are green. The remaining open item — full 4-of-4
+finalisation — depends on Bitcoin-batch cadence on the
+alice / finney / catallaxy calendars and is not a WAT or verifier
+issue. The Tag-17 re-check will record the long-tail finalisations
+as they arrive.
 
 ## 6. Brand / Aufsichtsrat note
 
