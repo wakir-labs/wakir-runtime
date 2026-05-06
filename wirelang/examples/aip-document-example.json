@@ -1,0 +1,36 @@
+{
+  "aip": "1.0",
+  "id": "aip:web:wakir.dev/treasury-issuer",
+  "name": "treasury-issuer",
+  "public_keys": [
+    {
+      "kid": "key-1",
+      "alg": "Ed25519",
+      "key_hex": "abababababababababababababababababababababababababababababababab",
+      "validafter": "2026-05-06T00:00:00Z",
+      "validuntil": null,
+      "purpose": "aip-signing"
+    },
+    {
+      "kid": "biscuit-root-1",
+      "alg": "Ed25519",
+      "key_hex": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+      "validafter": "2026-05-06T00:00:00Z",
+      "validuntil": null,
+      "purpose": "biscuit-root"
+    }
+  ],
+  "delegation": {
+    "mode": "chained",
+    "max_depth": 3,
+    "allowed_audiences": ["role=treasury-agent", "role=cfo-agent"]
+  },
+  "protocols": ["wirelang/0.1", "biscuit/3.3"],
+  "expires": "2027-05-06T00:00:00Z",
+  "document_signature": {
+    "alg": "Ed25519",
+    "kid": "key-1",
+    "signature": "3333333333333333333333333333333333333333333333333333333333333333cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  },
+  "biscuit_root_pubkey": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+}

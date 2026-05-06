@@ -1,0 +1,30 @@
+{
+  "version": "biscuit-v3",
+  "biscuit_format_version": 6,
+  "aip_document_ref": "https://wakir.dev/.well-known/aip/treasury-issuer.json",
+  "authority_block": {
+    "issuer_did": "aip:web:wakir.dev/treasury-issuer",
+    "audience_pattern": "role=treasury-agent",
+    "caveats": [
+      "check if action(\"read.balance\")",
+      "check if env(\"prod\")",
+      "check if time($t), $t < 2026-05-13T00:00:00Z"
+    ],
+    "not_before": "2026-05-06T00:00:00Z",
+    "not_after": "2026-05-13T00:00:00Z",
+    "nonce": "9f2b1c4a7d8e3f60a1b2c3d4e5f60718",
+    "signature": "1111111111111111111111111111111111111111111111111111111111111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "next_pubkey": "abababababababababababababababababababababababababababababababab"
+  },
+  "append_blocks": [
+    {
+      "audience_pattern": "role=treasury-agent,scope=read-only",
+      "caveats": [
+        "check if action(\"read.balance\")",
+        "check if rate_limit($n), $n <= 100"
+      ],
+      "signature": "2222222222222222222222222222222222222222222222222222222222222222bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "next_pubkey": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+    }
+  ]
+}
