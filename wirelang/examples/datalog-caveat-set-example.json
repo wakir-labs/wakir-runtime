@@ -1,0 +1,14 @@
+[
+  "time($t), $t > 2026-05-06T00:00:00Z, $t < 2026-05-13T00:00:00Z",
+  "audience(\"did:web:wakir.dev:personas:treasury-agent\")",
+  "agent_did(\"did:web:wakir.dev:personas:cfo-agent\")",
+  "operation(\"read_balance\")",
+  "action_count_max(10)",
+  "read_only(true)",
+  "env(\"prod\")",
+  "rate_limit(100)",
+  "attenuation_depth_max(2)",
+  "spawn_counter_max(8)",
+  "geo_region(\"EU\")",
+  "wat_anchor(\"anchor-2026-05-06-w19\")"
+]

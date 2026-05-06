@@ -1,0 +1,31 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/did/v1",
+    "https://w3id.org/security/suites/secp256k1-2019/v1",
+    "https://w3id.org/security/suites/ed25519-2020/v1"
+  ],
+  "id": "did:web:wakir.dev:personas:treasury-issuer",
+  "verificationMethod": [
+    {
+      "id": "did:web:wakir.dev:personas:treasury-issuer#keys-secp256k1-1",
+      "type": "EcdsaSecp256k1VerificationKey2019",
+      "controller": "did:web:wakir.dev:personas:treasury-issuer",
+      "publicKeyHex": "0339a36013301597daef41fbe593a02cc513d0b55527ec2df1050e2e8ff49c85c2"
+    },
+    {
+      "id": "did:web:wakir.dev:personas:treasury-issuer#keys-ed25519-1",
+      "type": "Ed25519VerificationKey2020",
+      "controller": "did:web:wakir.dev:personas:treasury-issuer",
+      "publicKeyHex": "a4b2856bfec510abab89753fac1ac0e1112364e7d250545963f135f2a33188ed"
+    }
+  ],
+  "authentication": [
+    "did:web:wakir.dev:personas:treasury-issuer#keys-secp256k1-1",
+    "did:web:wakir.dev:personas:treasury-issuer#keys-ed25519-1"
+  ],
+  "assertionMethod": [
+    "did:web:wakir.dev:personas:treasury-issuer#keys-secp256k1-1",
+    "did:web:wakir.dev:personas:treasury-issuer#keys-ed25519-1"
+  ],
+  "wakirVersion": 1
+}
