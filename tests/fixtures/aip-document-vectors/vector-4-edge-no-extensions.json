@@ -1,0 +1,55 @@
+{
+  "label": "aip-vector-4-edge-no-extensions",
+  "spec": "draft-prakash-aip-00 + Wakir extensions",
+  "url_200_stamped": "2026-05-06",
+  "generation_inputs": {
+    "persona_id": "frontend-agent",
+    "did_uri": "did:web:wakir.dev:personas:frontend-agent",
+    "ed25519_pub_hex_32": "8fe9693f8fa62a4305a140b9764c5ee01e455963744fe18204b4fb948249308a",
+    "ed25519_priv_hex_32": "171cb88b1b3c1db25add599712e36245d75bc65a1a5c9e18d76f9f2b1eab4012",
+    "valid_after": "2026-05-06T00:00:00Z",
+    "valid_until": null,
+    "expires": "2027-05-06T00:00:00Z",
+    "delegation_mode": "chained",
+    "protocols": [
+      "wirelang/0.1"
+    ],
+    "post_generation_mutations": [
+      "drop verification_methods (Wakir extension)",
+      "drop biscuit_root_pubkey (Wakir extension)"
+    ]
+  },
+  "document": {
+    "aip": "1.0",
+    "id": "aip:web:wakir.dev/personas/frontend-agent",
+    "name": "frontend-agent",
+    "public_keys": [
+      {
+        "kid": "biscuit-root-1",
+        "alg": "Ed25519",
+        "key_hex": "8fe9693f8fa62a4305a140b9764c5ee01e455963744fe18204b4fb948249308a",
+        "validafter": "2026-05-06T00:00:00Z",
+        "validuntil": null,
+        "purpose": "biscuit-root"
+      }
+    ],
+    "delegation": {
+      "mode": "chained"
+    },
+    "protocols": [
+      "wirelang/0.1"
+    ],
+    "expires": "2027-05-06T00:00:00Z",
+    "document_signature": {
+      "alg": "Ed25519",
+      "kid": "biscuit-root-1",
+      "signature": "60e5e2ae00fad489eab7a245dd62066795115b38157e63f364a10fb06a19f3d2835118eed1f6e89e2fe982827dd486db5b97a986f75cd5197ede6b3bebdfbe03"
+    }
+  },
+  "document_jcs_sha256": "e0a88749a3c8f2529f647dd159efb9e84bf43cad2caef9efa1985860b5cc6955",
+  "signature_block": {
+    "alg": "Ed25519",
+    "kid": "biscuit-root-1",
+    "signature": "60e5e2ae00fad489eab7a245dd62066795115b38157e63f364a10fb06a19f3d2835118eed1f6e89e2fe982827dd486db5b97a986f75cd5197ede6b3bebdfbe03"
+  }
+}

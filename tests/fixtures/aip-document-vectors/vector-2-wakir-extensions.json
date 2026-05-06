@@ -1,0 +1,79 @@
+{
+  "label": "aip-vector-2-wakir-extensions",
+  "spec": "draft-prakash-aip-00 + Wakir extensions",
+  "url_200_stamped": "2026-05-06",
+  "generation_inputs": {
+    "persona_id": "audit-broker",
+    "did_uri": "did:web:wakir.dev:personas:audit-broker",
+    "ed25519_pub_hex_32": "8fe9693f8fa62a4305a140b9764c5ee01e455963744fe18204b4fb948249308a",
+    "ed25519_priv_hex_32": "171cb88b1b3c1db25add599712e36245d75bc65a1a5c9e18d76f9f2b1eab4012",
+    "valid_after": "2026-05-06T00:00:00Z",
+    "valid_until": null,
+    "expires": "2027-05-06T00:00:00Z",
+    "delegation_mode": "both",
+    "protocols": [
+      "wirelang/0.1",
+      "wirelang/0.2-datalog"
+    ],
+    "post_generation_mutations": [
+      "set delegation.max_depth=3",
+      "set delegation.allowed_audiences",
+      "add service_endpoints (Wakir extension)"
+    ]
+  },
+  "document": {
+    "aip": "1.0",
+    "id": "aip:web:wakir.dev/personas/audit-broker",
+    "name": "audit-broker",
+    "public_keys": [
+      {
+        "kid": "biscuit-root-1",
+        "alg": "Ed25519",
+        "key_hex": "8fe9693f8fa62a4305a140b9764c5ee01e455963744fe18204b4fb948249308a",
+        "validafter": "2026-05-06T00:00:00Z",
+        "validuntil": null,
+        "purpose": "biscuit-root"
+      }
+    ],
+    "delegation": {
+      "mode": "both",
+      "max_depth": 3,
+      "allowed_audiences": [
+        "urn:wakir:audit-broker",
+        "urn:wakir:internal-audit"
+      ]
+    },
+    "protocols": [
+      "wirelang/0.1",
+      "wirelang/0.2-datalog"
+    ],
+    "expires": "2027-05-06T00:00:00Z",
+    "document_signature": {
+      "alg": "Ed25519",
+      "kid": "biscuit-root-1",
+      "signature": "03b0bedf7009b76cf5c756630b85143ab24e795a411ef685e4fda179ca13c7e01b7886179191bb53655a645de3d756d547ab4388cad61931b177f505acf74c0e"
+    },
+    "verification_methods": [
+      {
+        "id": "did:web:wakir.dev:personas:audit-broker#keys-ed25519-1",
+        "type": "Ed25519VerificationKey2020",
+        "controller": "did:web:wakir.dev:personas:audit-broker",
+        "publicKeyHex": "8fe9693f8fa62a4305a140b9764c5ee01e455963744fe18204b4fb948249308a"
+      }
+    ],
+    "biscuit_root_pubkey": "8fe9693f8fa62a4305a140b9764c5ee01e455963744fe18204b4fb948249308a",
+    "service_endpoints": [
+      {
+        "id": "did:web:wakir.dev:personas:audit-broker#audit-stream",
+        "type": "WakirAuditStream",
+        "serviceEndpoint": "https://audit.wakir.dev/v1/events"
+      }
+    ]
+  },
+  "document_jcs_sha256": "c0106413172d469814123e67eedad0a8a11b40ac9f4b641282744ae8d10efeac",
+  "signature_block": {
+    "alg": "Ed25519",
+    "kid": "biscuit-root-1",
+    "signature": "03b0bedf7009b76cf5c756630b85143ab24e795a411ef685e4fda179ca13c7e01b7886179191bb53655a645de3d756d547ab4388cad61931b177f505acf74c0e"
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "label": "aip-vector-3-multi-cap-keys",
+  "spec": "draft-prakash-aip-00 + Wakir extensions",
+  "url_200_stamped": "2026-05-06",
+  "generation_inputs": {
+    "persona_id": "cfo-agent",
+    "did_uri": "did:web:wakir.dev:personas:cfo-agent",
+    "ed25519_pub_hex_32": "a4b2856bfec510abab89753fac1ac0e1112364e7d250545963f135f2a33188ed",
+    "ed25519_priv_hex_32": "2b4be7f19ee27bbf30c667b642d5f4aa69fd169872f8fc3059c08ebae2eb19e7",
+    "valid_after": "2026-05-06T00:00:00Z",
+    "valid_until": "2026-08-06T00:00:00Z",
+    "expires": "2027-05-06T00:00:00Z",
+    "delegation_mode": "chained",
+    "protocols": [
+      "wirelang/0.1"
+    ],
+    "post_generation_mutations": [
+      "append public_keys[secp256k1 wat-anchor]",
+      "append public_keys[Ed25519 frame-signing]"
+    ]
+  },
+  "document": {
+    "aip": "1.0",
+    "id": "aip:web:wakir.dev/personas/cfo-agent",
+    "name": "cfo-agent",
+    "public_keys": [
+      {
+        "kid": "biscuit-root-1",
+        "alg": "Ed25519",
+        "key_hex": "a4b2856bfec510abab89753fac1ac0e1112364e7d250545963f135f2a33188ed",
+        "validafter": "2026-05-06T00:00:00Z",
+        "validuntil": "2026-08-06T00:00:00Z",
+        "purpose": "biscuit-root"
+      },
+      {
+        "kid": "wat-anchor-1",
+        "alg": "secp256k1",
+        "key_hex": "0339a36013301597daef41fbe593a02cc513d0b55527ec2df1050e2e8ff49c85c2",
+        "validafter": "2026-05-06T00:00:00Z",
+        "validuntil": "2026-12-31T00:00:00Z",
+        "purpose": "wat-anchor"
+      },
+      {
+        "kid": "frame-signing-1",
+        "alg": "Ed25519",
+        "key_hex": "a4b2856bfec510abab89753fac1ac0e1112364e7d250545963f135f2a33188ed",
+        "validafter": "2026-05-06T00:00:00Z",
+        "validuntil": null,
+        "purpose": "frame-signing"
+      }
+    ],
+    "delegation": {
+      "mode": "chained"
+    },
+    "protocols": [
+      "wirelang/0.1"
+    ],
+    "expires": "2027-05-06T00:00:00Z",
+    "document_signature": {
+      "alg": "Ed25519",
+      "kid": "biscuit-root-1",
+      "signature": "2bf70d02f8e5e99d571fa5e26c3015ffbf78e2e3f6111d21c1f970793eb0bf3c4fa716a6584fbf73283108e134ada259c4afce3b34c9b2868c45b7a7545f3a01"
+    },
+    "verification_methods": [
+      {
+        "id": "did:web:wakir.dev:personas:cfo-agent#keys-ed25519-1",
+        "type": "Ed25519VerificationKey2020",
+        "controller": "did:web:wakir.dev:personas:cfo-agent",
+        "publicKeyHex": "a4b2856bfec510abab89753fac1ac0e1112364e7d250545963f135f2a33188ed"
+      }
+    ],
+    "biscuit_root_pubkey": "a4b2856bfec510abab89753fac1ac0e1112364e7d250545963f135f2a33188ed"
+  },
+  "document_jcs_sha256": "2f4800a6395aa120fd0c11841814aa260d3fbad32fafd9e6c3c54879de3c7779",
+  "signature_block": {
+    "alg": "Ed25519",
+    "kid": "biscuit-root-1",
+    "signature": "2bf70d02f8e5e99d571fa5e26c3015ffbf78e2e3f6111d21c1f970793eb0bf3c4fa716a6584fbf73283108e134ada259c4afce3b34c9b2868c45b7a7545f3a01"
+  }
+}

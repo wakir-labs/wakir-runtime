@@ -1,0 +1,61 @@
+{
+  "label": "aip-vector-1-minimal-default",
+  "spec": "draft-prakash-aip-00 + Wakir extensions",
+  "url_200_stamped": "2026-05-06",
+  "generation_inputs": {
+    "persona_id": "treasury-issuer",
+    "did_uri": "did:web:wakir.dev:personas:treasury-issuer",
+    "ed25519_pub_hex_32": "a4b2856bfec510abab89753fac1ac0e1112364e7d250545963f135f2a33188ed",
+    "ed25519_priv_hex_32": "2b4be7f19ee27bbf30c667b642d5f4aa69fd169872f8fc3059c08ebae2eb19e7",
+    "valid_after": "2026-05-06T00:00:00Z",
+    "valid_until": null,
+    "expires": "2027-05-06T00:00:00Z",
+    "delegation_mode": "chained",
+    "protocols": [
+      "wirelang/0.1"
+    ],
+    "post_generation_mutations": []
+  },
+  "document": {
+    "aip": "1.0",
+    "id": "aip:web:wakir.dev/personas/treasury-issuer",
+    "name": "treasury-issuer",
+    "public_keys": [
+      {
+        "kid": "biscuit-root-1",
+        "alg": "Ed25519",
+        "key_hex": "a4b2856bfec510abab89753fac1ac0e1112364e7d250545963f135f2a33188ed",
+        "validafter": "2026-05-06T00:00:00Z",
+        "validuntil": null,
+        "purpose": "biscuit-root"
+      }
+    ],
+    "delegation": {
+      "mode": "chained"
+    },
+    "protocols": [
+      "wirelang/0.1"
+    ],
+    "expires": "2027-05-06T00:00:00Z",
+    "document_signature": {
+      "alg": "Ed25519",
+      "kid": "biscuit-root-1",
+      "signature": "d66436768515645792916d89279f45932bac5b20658b1a66da7a85715a0bf281a5acc9f79c2797f2303f2449277820d3487c756227b750af699e204b4eff420b"
+    },
+    "verification_methods": [
+      {
+        "id": "did:web:wakir.dev:personas:treasury-issuer#keys-ed25519-1",
+        "type": "Ed25519VerificationKey2020",
+        "controller": "did:web:wakir.dev:personas:treasury-issuer",
+        "publicKeyHex": "a4b2856bfec510abab89753fac1ac0e1112364e7d250545963f135f2a33188ed"
+      }
+    ],
+    "biscuit_root_pubkey": "a4b2856bfec510abab89753fac1ac0e1112364e7d250545963f135f2a33188ed"
+  },
+  "document_jcs_sha256": "518fc166d5d2e80cc6f95e95e4eeb7d8466a670ddac3b78f0dd9144b25f4eb72",
+  "signature_block": {
+    "alg": "Ed25519",
+    "kid": "biscuit-root-1",
+    "signature": "d66436768515645792916d89279f45932bac5b20658b1a66da7a85715a0bf281a5acc9f79c2797f2303f2449277820d3487c756227b750af699e204b4eff420b"
+  }
+}
