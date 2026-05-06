@@ -74,6 +74,7 @@ test = [
 [project.scripts]
 wakir-merkle = "wat.cmd.aggregator_cli:main"
 wakir-anchor = "wat.cmd.anchor_cli:main"
+wakir-verify = "wat.verify.cli:main"
 
 [project.urls]
 Homepage = "https://wakir.dev"
