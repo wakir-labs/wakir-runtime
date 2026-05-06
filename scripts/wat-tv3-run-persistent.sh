@@ -134,7 +134,7 @@ HOUR_SLOT="${WAT_TV3_HOUR_BASE:-2026-05-26T17}"
 AGE_HOURS="${WAT_TV3_AGE_HOURS:-192}"
 LIVE_STAMP="${WAT_TV3_LIVE_STAMP:-0}"
 DAILY_BUDGET="${WAT_TV3_DAILY_SUBMIT_BUDGET:-4}"
-BUDGET_FILE="${REPO_ROOT}/.runtime/wat-tv3-archive/.daily-budget.json"
+BUDGET_FILE="${WAT_TV3_BUDGET_FILE:-${REPO_ROOT}/.runtime/wat-tv3-archive/.daily-budget.json}"
 
 # Validate HOUR_SLOT shape (YYYY-MM-DDTHH) — same regex as TV-1/TV-2.
 if [[ ! "${HOUR_SLOT}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}$ ]]; then

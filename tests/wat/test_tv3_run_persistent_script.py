@@ -296,84 +296,76 @@ def test_tv3_live_stamp_off_by_default_skips_budget(tmp_path: Path) -> None:
 
 
 def test_tv3_live_stamp_within_budget_succeeds(tmp_path: Path) -> None:
-    """LIVE_STAMP=1 with budget=4 and used=0 stamps OK and bumps the budget."""
+    """LIVE_STAMP=1 with budget=4 and used=0 stamps OK and bumps the budget.
+
+    Test isolation: ``WAT_TV3_BUDGET_FILE`` is pointed at a tmp_path
+    location so concurrent / pre-existing repo-root budget state
+    cannot poison the assertion. Driver supports the override since
+    Tag-20 (2026-05-07).
+    """
     mock_bin = tmp_path / "mock-bin"
     archive = tmp_path / "tv3-archive"
+    budget_file = tmp_path / "isolated-budget.json"
 
     result = _run_driver(
         mock_bin,
         archive,
-        env_overrides={"WAT_TV3_LIVE_STAMP": "1"},
+        env_overrides={
+            "WAT_TV3_LIVE_STAMP": "1",
+            "WAT_TV3_BUDGET_FILE": str(budget_file),
+        },
     )
     assert result.returncode == 0, (
         f"unexpected rc={result.returncode}\n{result.stdout}\n{result.stderr}"
     )
-    # The budget file lives under the repo's .runtime, but since the
-    # script computes REPO_ROOT from its own location, the budget
-    # path is anchored to the repo. We assert that the script logged
-    # an OK budget update rather than asserting on a path that may
-    # collide with concurrent test runs.
     combined = result.stdout + result.stderr
     assert "[budget]" in combined
     assert "OK" in combined
+    # The isolated budget file should now hold today's count = 1.
+    assert budget_file.exists(), "budget file was not created at the override path"
+    parsed = json.loads(budget_file.read_text())
+    assert sum(parsed.values()) == 1, (
+        f"expected budget file to record one submit; got {parsed}"
+    )
 
 
 def test_tv3_live_stamp_budget_breach_returns_exit_6(tmp_path: Path) -> None:
     """Pre-populating the budget file at the day's limit forces exit 6.
 
-    We point WAT_TV3_RESUME_FROM at a fresh archive and pre-write a
-    budget file at the repo's .runtime location. Because the budget
-    file is anchored to the repo (not the archive), we have to set
-    it via a dedicated test-only env var if the script supports it,
-    or accept that this test asserts the script's *budget refusal
-    branch* by using a temp HOME-style override. The driver places
-    the budget under REPO_ROOT/.runtime/wat-tv3-archive/, so we
-    pre-write directly there but with a far-future UTC date pinned
-    via the budget file content.
+    Test isolation: budget file lives at ``WAT_TV3_BUDGET_FILE``
+    (tmp_path), pre-filled at the cap for the next 30 UTC days so
+    whichever date the script reads, the cap is breached. No repo-
+    root mutation, no concurrent-test interference.
     """
     mock_bin = tmp_path / "mock-bin"
     archive = tmp_path / "tv3-archive"
+    budget_path = tmp_path / "isolated-budget.json"
 
-    # Pre-stage the budget file at the cap. The script reads "today"
-    # via ``date -u +%Y-%m-%d`` which we cannot inject — instead we
-    # pre-fill *every* date for the next month at the cap, ensuring
-    # whichever date the script reads, the cap is breached.
     import datetime as dt
 
-    budget_path = (
-        REPO_ROOT / ".runtime" / "wat-tv3-archive" / ".daily-budget.json"
+    today = dt.datetime.now(tz=dt.timezone.utc).date()
+    prefill = {
+        (today + dt.timedelta(days=i)).isoformat(): 4 for i in range(30)
+    }
+    budget_path.write_text(json.dumps(prefill, sort_keys=True))
+
+    result = _run_driver(
+        mock_bin,
+        archive,
+        env_overrides={
+            "WAT_TV3_LIVE_STAMP": "1",
+            "WAT_TV3_DAILY_SUBMIT_BUDGET": "4",
+            "WAT_TV3_BUDGET_FILE": str(budget_path),
+        },
     )
-    budget_path.parent.mkdir(parents=True, exist_ok=True)
-    # Save existing budget so we can restore it.
-    saved = budget_path.read_text() if budget_path.exists() else None
-    try:
-        today = dt.datetime.now(tz=dt.timezone.utc).date()
-        prefill = {
-            (today + dt.timedelta(days=i)).isoformat(): 4 for i in range(30)
-        }
-        budget_path.write_text(json.dumps(prefill, sort_keys=True))
 
-        result = _run_driver(
-            mock_bin,
-            archive,
-            env_overrides={
-                "WAT_TV3_LIVE_STAMP": "1",
-                "WAT_TV3_DAILY_SUBMIT_BUDGET": "4",
-            },
-        )
-
-        assert result.returncode == 6, (
-            f"expected exit 6 (budget breach); got {result.returncode}\n"
-            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-        )
-        assert "REFUSE" in (result.stdout + result.stderr) or "budget" in (
-            result.stdout + result.stderr
-        )
-    finally:
-        if saved is not None:
-            budget_path.write_text(saved)
-        elif budget_path.exists():
-            budget_path.unlink()
+    assert result.returncode == 6, (
+        f"expected exit 6 (budget breach); got {result.returncode}\n"
+        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    )
+    assert "REFUSE" in (result.stdout + result.stderr) or "budget" in (
+        result.stdout + result.stderr
+    )
 
 
 # ---------------------------------------------------------------------------
