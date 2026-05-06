@@ -85,23 +85,27 @@ log "event_count=${EVENT_COUNT} spool=${SPOOL_FILE}"
 
 # --- 4. Build the hour manifest via wakir-merkle.
 #
-# The aggregator CLI lands in full form on Phase-1a-Tag-5; today the
-# driver invokes it with the contract that day-5 will satisfy. If
-# the binary still raises NotImplementedError the run fails loudly
-# rather than anchoring an empty root.
+# Day-5 contract: ``wakir-merkle build`` writes a manifest in the
+# format documented under ``docs/wat-manifest-spec.md``. Empty hours
+# produce a manifest with ``merkle_root: null`` and skip the anchor.
 MANIFEST_FILE="${HOUR_ARCHIVE}/manifest.json"
-if ! wakir-merkle \
-        --input-file "${SPOOL_FILE}" \
-        --output-receipt "${MANIFEST_FILE}" \
-        --hour "${HOUR_SLOT}"; then
-    fail "wakir-merkle failed for hour ${HOUR_SLOT}" 1
+if ! wakir-merkle build \
+        --hour "${HOUR_SLOT}" \
+        --input-events "${SPOOL_FILE}" \
+        --output-manifest "${MANIFEST_FILE}"; then
+    fail "wakir-merkle build failed for hour ${HOUR_SLOT}" 1
 fi
 
 # Pull the root out of the manifest. ``python -c`` is acceptable
-# here because the venv is always available next to the driver.
-ROOT_HEX="$(python -c "import json,sys; print(json.load(open('${MANIFEST_FILE}'))['merkle_root'])")"
+# here because the venv is always available next to the driver. The
+# null literal is mapped to an empty string so the empty-hour branch
+# below is a clean string comparison.
+ROOT_HEX="$(python -c "import json; r=json.load(open('${MANIFEST_FILE}'))['merkle_root']; print('' if r is None else r)")"
 if [[ -z "${ROOT_HEX}" ]]; then
-    fail "manifest at ${MANIFEST_FILE} has empty merkle_root" 1
+    log "merkle_root=null event_count=0 — empty hour, skipping anchor"
+    log "anchor_status=skipped hour_slot=${HOUR_SLOT}"
+    log "archive=${HOUR_ARCHIVE}"
+    exit 0
 fi
 log "merkle_root=${ROOT_HEX}"
 
