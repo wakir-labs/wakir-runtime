@@ -141,6 +141,42 @@ A backfill exit code of `1` means at least one pending receipt has
 aged past the seven-day soft window; the audit-alarm channel surfaces
 those for human review (WAT-Phase-1a-Spec §3.4).
 
+## Smoke test
+
+Two layers of smoke coverage land under `tests/wat/` and `scripts/`.
+
+### Realistic OTS integration tests
+
+`tests/wat/test_ots_integration.py` walks the production code path
+against the public OpenTimestamps calendar pool. The tests are
+opt-in and gated on the `OTS_INTEGRATION_TEST` environment variable
+so CI never touches the public calendars on every push.
+
+```sh
+OTS_INTEGRATION_TEST=1 pytest tests/wat/test_ots_integration.py
+```
+
+Without the env variable set the four cases skip cleanly. Calendar
+operators run the public infrastructure for free; please do not run
+the suite in a tight loop.
+
+### One-command smoke driver
+
+`scripts/wat-smoke-test.sh` is the auditor / pipeline-friendly
+single-command driver: it spools 8 synthetic events, walks
+`build -> stamp -> verify-pending`, and exits with the same code
+shape as `wakir-verify` (`0` finalised, `1` failed, `3` pending,
+`4` chain-mismatch).
+
+```sh
+bash scripts/wat-smoke-test.sh           # full run, 5-min sleep
+bash scripts/wat-smoke-test.sh --quick   # skip the upgrade wait
+```
+
+The full Tag-22 smoke plan, including 100-event vectors and
+calendar-failover drills, is documented in
+[`docs/wat-smoke-test-plan.md`](docs/wat-smoke-test-plan.md).
+
 ## WAT bridge — Wirelang frame ingestion
 
 The bridge that sits between the Wirelang Layer-1 frame stream and
