@@ -73,6 +73,45 @@ SPOOL_FILE="${EVENT_SPOOL}/${HOUR_SLOT}.jsonl"
 HOUR_ARCHIVE="${RECEIPT_ARCHIVE}/${HOUR_SLOT}"
 mkdir -p "${HOUR_ARCHIVE}"
 
+# --- 2a. Previous-hour root discovery (Phase-1a-Tag-8 / consensus A5).
+#
+# Look up the immediately preceding hour's manifest in the same archive
+# tree and extract its ``merkle_root`` for the chain-check reservation
+# slot. Behaviour table:
+#
+#   prev manifest exists, root != null  -> emit hex root via flag
+#   prev manifest exists, root == null  -> empty hour upstream; null
+#   prev manifest missing               -> first hour or backfill gap;
+#                                          null (no walk-back-by-N --
+#                                          gap == audit gap == chain
+#                                          break, recorded as null)
+#
+# We deliberately do NOT walk backwards across multiple missing hours.
+# A gap between hours is itself an audit signal and the v2 chain-check
+# is supposed to surface it as a chain boundary, not paper over it.
+PREV_HOUR_SLOT="$(date -u -d "${HOUR_SLOT/T/ }:00:00 UTC -1 hour" '+%Y-%m-%dT%H' 2>/dev/null || true)"
+PREV_HOUR_MANIFEST="${RECEIPT_ARCHIVE}/${PREV_HOUR_SLOT}/manifest.json"
+PREV_HOUR_ROOT=""
+if [[ -n "${PREV_HOUR_SLOT}" && -f "${PREV_HOUR_MANIFEST}" ]]; then
+    PREV_HOUR_ROOT="$(python -c "
+import json, sys
+try:
+    with open('${PREV_HOUR_MANIFEST}', 'r', encoding='utf-8') as fh:
+        m = json.load(fh)
+    r = m.get('merkle_root')
+    print('' if r is None else r)
+except Exception:
+    sys.exit(0)
+")"
+    if [[ -n "${PREV_HOUR_ROOT}" ]]; then
+        log "prev_hour_root=${PREV_HOUR_ROOT} prev_hour=${PREV_HOUR_SLOT}"
+    else
+        log "prev_hour_root=null (prev hour ${PREV_HOUR_SLOT} was empty)"
+    fi
+else
+    log "prev_hour_root=null (no manifest at ${PREV_HOUR_MANIFEST})"
+fi
+
 # --- 3. Sealed-rename (Phase-1a-Tag-7 bridge contract).
 #
 # Per ``docs/wat-spool-spec.md`` §5 the bridge must seal the open
@@ -120,10 +159,15 @@ log "event_count=${EVENT_COUNT} spool=${SEALED_FILE}"
 # ``docs/wat-manifest-spec.md``. Empty hours produce a manifest with
 # ``merkle_root: null`` and skip the anchor.
 MANIFEST_FILE="${HOUR_ARCHIVE}/manifest.json"
-if ! wakir-merkle build \
-        --hour "${HOUR_SLOT}" \
-        --input-events "${SEALED_FILE}" \
-        --output-manifest "${MANIFEST_FILE}"; then
+BUILD_ARGS=(
+    --hour "${HOUR_SLOT}"
+    --input-events "${SEALED_FILE}"
+    --output-manifest "${MANIFEST_FILE}"
+)
+if [[ -n "${PREV_HOUR_ROOT}" ]]; then
+    BUILD_ARGS+=(--prev-hour-root "${PREV_HOUR_ROOT}")
+fi
+if ! wakir-merkle build "${BUILD_ARGS[@]}"; then
     fail "wakir-merkle build failed for hour ${HOUR_SLOT}" 1
 fi
 
