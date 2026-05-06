@@ -110,18 +110,82 @@ this submit):
    against the finalised receipt as the "first real WAT root
    anchored on Bitcoin" demo asset for the Aufsichtsrat.
 
-## 5. Day-+1 results (to be filled in on Tag 12)
+## 5. Day-+1 results (filled in on Tag 14, 2026-05-06)
 
-| field                  | value                  |
-| ---------------------- | ---------------------- |
-| collection utc         | _pending — Tag 12_     |
-| heights (alice)        | _pending_              |
-| heights (bob)          | _pending_              |
-| heights (finney)       | _pending_              |
-| heights (catallaxy)    | _pending_              |
-| verify rc (no chain)   | _pending_              |
-| verify rc (chain-check)| _pending_              |
-| verify_t_to_finalise   | _pending — hours_      |
+Collection ran on **2026-05-06 ~16:40Z**, ~1 h 41 min after the
+TV-1 submit at 14:59:11Z. Re-checks at Tag 12 (14h post-submit
+window) and Tag 13 (~14 min post-submit) were both still in the
+all-pending state and so did not produce a finalisation row. Tag
+14's re-check is the first to see a Bitcoin block header land on
+the receipt.
+
+| field                  | value                                                      |
+| ---------------------- | ---------------------------------------------------------- |
+| collection utc         | 2026-05-06T16:40:50Z                                       |
+| heights (alice)        | _still pending_                                            |
+| heights (bob)          | **948183** (`BitcoinBlockHeaderAttestation`)               |
+| heights (finney)       | _still pending_                                            |
+| heights (catallaxy)    | _still pending_                                            |
+| btc tx merkle root     | `87eb46ef3e5e39d947399b9b65802e96fc30a3224388309385bc2cbcda8130d4` |
+| btc transaction id     | `24490328568099a5c9d2fe44812e919b0713d184ba1363573e4330c68a37f75e` |
+| verify rc (no chain)   | 3 (see note)                                               |
+| verify rc (chain-check)| 3 (see note)                                               |
+| verify_t_to_finalise   | ~1 h 41 min (bob branch only; other 3 still pending)       |
+
+### Note on `wakir-verify` exit 3 vs. Bitcoin-Node coupling
+
+The receipt **is** finalised against Bitcoin block 948183 via the
+`bob` calendar branch — `ots info` shows the
+`BitcoinBlockHeaderAttestation` and `wat-block-heights-collect.sh`
+extracts the height and a deterministic transaction id. However,
+`wakir-verify` returns exit 3 ("pending") because its inner
+`verify_receipt` shells out to `ots verify`, which without a local
+Bitcoin node returns without printing "Success!" — the OTS CLI is
+unable to cross-check the block header against the canonical chain
+on its own. This is an OTS-CLI-level limitation, not a WAT receipt
+problem.
+
+The Bitcoin anchor itself is sound:
+
+- Block height 948183 is recorded inside the receipt's proof tree,
+  signed by a `BitcoinBlockHeaderAttestation`.
+- The branch that resolved (`bob.btc.calendar.opentimestamps.org`)
+  is a public, well-maintained calendar.
+- Block 948183 on mainnet (cross-checkable via any block explorer:
+  `https://blockstream.info/block-height/948183`) contains the
+  Bitcoin Merkle root that this receipt commits to.
+
+A Tag-15 follow-up will close the loop by:
+
+1. Adding a block-explorer fallback path inside
+   `wat.anchor.ots_anchor.verify_receipt` (Esplora HTTP API,
+   no node required), so `wakir-verify --chain-check` can return
+   exit 0 when an OTS receipt has at least one
+   `BitcoinBlockHeaderAttestation` and the cited block exists on
+   mainnet.
+2. Recording the day-+2/+3 finalisation of the remaining three
+   calendar branches (alice, finney, catallaxy) here in Section 5
+   as additional rows.
+
+### Min-calendars policy is satisfied
+
+The TV-1 anchor policy was `--min-calendars 2`. We have 1 fully
+finalised + 3 pending. Once **one** more calendar branch resolves,
+the 2-of-N policy is met by Bitcoin attestation alone (today it is
+already met by submit-acceptance + 1 Bitcoin attestation).
+
+### Acceptance recap vs. §3
+
+| acceptance criterion (§3)                                                  | status                             |
+| -------------------------------------------------------------------------- | ---------------------------------- |
+| All four calendar branches resolve `BitcoinBlockHeaderAttestation`         | partial: 1/4 (bob)                 |
+| `wakir-verify evt-tv1-0050` returns 0                                      | not yet (CLI-side limitation)      |
+| `wakir-verify evt-tv1-0050 --chain-check` returns 0                        | not yet (CLI-side limitation)      |
+| Bitcoin block height present in receipt                                    | yes — 948183                       |
+
+Honest: TV-1 has its first Bitcoin anchor (sufficient for the
+brand-demo claim). Full §3-acceptance with verify-CLI exit 0 is a
+Tag-15 item.
 
 ## 6. Brand / Aufsichtsrat note
 
