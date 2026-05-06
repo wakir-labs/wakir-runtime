@@ -73,6 +73,43 @@ checks the proof against the stored Merkle root, and runs `ots verify`
 on the per-hour receipt. Exit codes are `0` (verified), `1` (failed),
 `3` (pending Bitcoin confirmation).
 
+## End-to-end flow
+
+The three console scripts compose into a single contract:
+
+```sh
+# 1. Spool one JSONL event per line for an hour, with the four
+#    B1-consensus fields on every event.
+cat > /tmp/2026-05-06T17.jsonl <<'EOF'
+{"event_id":"evt-0000","time":"2026-05-06T17:00:00Z","payload_hash":"00...","capability_token_hash":"01..."}
+{"event_id":"evt-0001","time":"2026-05-06T17:01:00Z","payload_hash":"02...","capability_token_hash":"03..."}
+EOF
+
+# 2. Build the hour manifest. Output is JSON in the format documented
+#    in docs/wat-manifest-spec.md; the same file is later read by
+#    wakir-verify.
+mkdir -p /tmp/wat-archive/2026-05-06T17
+wakir-merkle build \
+    --hour 2026-05-06T17 \
+    --input-events /tmp/2026-05-06T17.jsonl \
+    --output-manifest /tmp/wat-archive/2026-05-06T17/manifest.json
+
+# 3. Anchor the resulting Merkle root via OpenTimestamps. Reads the
+#    root from the manifest and writes root.bin and root.bin.ots
+#    into the per-hour archive directory.
+ROOT_HEX=$(python -c "import json; print(json.load(open('/tmp/wat-archive/2026-05-06T17/manifest.json'))['merkle_root'])")
+wakir-anchor stamp "$ROOT_HEX" --out /tmp/wat-archive/2026-05-06T17 --min-calendars 2
+
+# 4. Verify a single event end-to-end. Exit 0 means the event is in
+#    the manifest, the inclusion proof rebuilds to the manifest root,
+#    and the OTS receipt has been finalised on Bitcoin.
+wakir-verify evt-0001 --archive-dir /tmp/wat-archive
+```
+
+Empty hours short-circuit cleanly: `wakir-merkle build` emits a
+manifest with `merkle_root: null` and the hourly driver
+(`scripts/wat-hourly.sh`) skips the anchor step.
+
 ## WAT hourly operations
 
 Two systemd timer templates land under `scripts/systemd/`. The
