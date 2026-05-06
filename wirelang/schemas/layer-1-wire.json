@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wakir.dev/wirelang/schema/layer-1-wire/0.1.0",
+  "title": "Wirelang Layer 1 — Wire Format (CloudEvents 1.0 + Wakir Extensions)",
+  "description": "Schema for Wakir Wirelang frames. A Wakir frame is a CloudEvents 1.0 envelope with eight Wakir-reserved extension attributes. SPDX-License-Identifier: Apache-2.0",
+  "type": "object",
+  "required": [
+    "specversion",
+    "type",
+    "source",
+    "id",
+    "wirelangversion",
+    "schemaid",
+    "schemaversion",
+    "actorrole"
+  ],
+  "properties": {
+    "specversion": {
+      "type": "string",
+      "const": "1.0",
+      "description": "CloudEvents spec version. Wakir is fixed to 1.0."
+    },
+    "type": {
+      "type": "string",
+      "pattern": "^wakir\\.[a-z][a-z0-9._-]*$",
+      "description": "Reverse-DNS event type. Matches the NATS subject's <event-type> token."
+    },
+    "source": {
+      "type": "string",
+      "pattern": "^did:web:[a-z0-9.\\-:%]+$",
+      "description": "DID of the sending agent. Phase-1 only allows did:web."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Event id. Wakir convention: UUIDv7 for time-ordered hash-stable sorting."
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 timestamp. Wakir frames MUST set this even though CloudEvents marks it OPTIONAL."
+    },
+    "datacontenttype": {
+      "type": "string",
+      "description": "Content type of the data payload. Wakir default: application/wirelang+json."
+    },
+    "dataschema": {
+      "type": "string",
+      "format": "uri",
+      "description": "URI of the schema-registry entry that 'data' conforms to."
+    },
+    "subject": {
+      "type": "string",
+      "description": "Optional CloudEvents subject. Free for application use."
+    },
+    "data": {
+      "description": "Wirelang Layer-2 semantic payload. Validated by the schema referenced via 'schemaid'+'schemaversion'."
+    },
+    "wirelangversion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Wirelang spec version (semver)."
+    },
+    "schemaid": {
+      "type": "string",
+      "pattern": "^wakir\\.[a-z][a-z0-9._-]*$",
+      "description": "Schema-registry identifier. Reverse-DNS, identical in shape to 'type'."
+    },
+    "schemaversion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Semver of the referenced schema."
+    },
+    "actorrole": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Role of the sending agent (audit-specialist, treasury-operator, ...). Pseudonymisation field. No clear name."
+    },
+    "caprefs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      },
+      "description": "List of Layer-3 capability-token hashes carried by this frame. Validity is checked at Layer 3, not here."
+    },
+    "attestationref": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "TEE-attestation report hash. Reserved for V-904 phase 3."
+    },
+    "personahash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "Hash of the agent's persona-markdown definition. Reserved for V-907 phase 3."
+    },
+    "imagedigest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "Container image digest of the sending agent. Reserved for phase-1b container provenance."
+    },
+    "dataschemaref": {
+      "type": "string",
+      "format": "uri",
+      "description": "Optional alternate or pinned schema-document reference. Used when 'dataschema' carries a registry alias and the consumer needs the resolved location."
+    },
+    "agentid": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "Stable agent identifier within the sending org. Pseudonymisation-compatible (no clear name). Independent of 'source' DID for cross-org federation per ADR-0031."
+    },
+    "personapin": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "Persona-pinning hash. Distinct from 'personahash': a 'pin' is a deployment-time commitment and may differ from the runtime persona-markdown hash during overlapping migration windows."
+    }
+  },
+  "additionalProperties": true
+}
