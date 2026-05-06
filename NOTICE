@@ -1,0 +1,13 @@
+Wakir Runtime
+Copyright © 2026 Callandor GmbH and contributors
+
+This product is part of Wakir Labs, a project of Callandor GmbH
+(Falkenstr. 31, 81541 München, Germany; Amtsgericht München HRB 270414).
+
+Wakir Labs operates as an AI-first organization with human governance:
+code is produced by typed AI agent personas under continuous direction,
+review, and approval by the supervisory board (human governance per
+Brand Statement 4). Architecture decisions, design reviews, and final
+release approvals are human acts documented as Architecture Decision
+Records (ADRs) anchored to Bitcoin via OpenTimestamps. The relevant
+ADR record forms part of the work attribution for each release.

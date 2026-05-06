@@ -1,0 +1,29 @@
+# Build artefacts
+target/
+build/
+dist/
+out/
+*.pyc
+__pycache__/
+*.egg-info/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*~
+
+# Local environment
+.env
+.env.local
+.venv/
+venv/
+node_modules/
+
+# Logs
+*.log
+logs/
+
+# Local OTS staging (gets committed only when finalized)
+*.ots.tmp
