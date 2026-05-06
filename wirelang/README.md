@@ -6,6 +6,12 @@ Agents inside an organisation, and across organisations through federation,
 exchange messages as **Wirelang frames** that are wire-stable, hash-stable,
 and schema-versioned.
 
+**Current spec version:** v0.2.0 (consolidated). See
+[`specs/wirelang-spec-v0-2.md`](specs/wirelang-spec-v0-2.md) for the
+full Phase-1a-stable specification covering Layers 0–3 plus the
+identity substrate. Phase-2 vocabulary candidates are sketched in
+[`specs/datalog-caveat-vocabulary-phase-2-skizze.md`](specs/datalog-caveat-vocabulary-phase-2-skizze.md).
+
 ## Layer architecture
 
 Wirelang is a four-layer stack. This module currently ships Layers 0–2.
