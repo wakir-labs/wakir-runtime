@@ -27,3 +27,10 @@ logs/
 
 # Local OTS staging (gets committed only when finalized)
 *.ots.tmp
+
+# Persistent local runtime archives (TV-1 live runs, ad-hoc drills).
+# These are intentionally NOT public: they hold pending OTS receipts
+# that are only useful on the originating host until block-height
+# collection finalises them. The merkle_root + manifest are
+# reproducible offline from the deterministic test fixtures.
+.runtime/
