@@ -146,6 +146,53 @@ This is a **commitment**, not just an implementation detail. Changing
 the rule (e.g. switching to "last entry" or "lexicographic minimum")
 breaks every previously-anchored receipt. v2 must be additive.
 
+#### 3.4.2 AIP-Document hash hook (Phase-1b sketch, non-normative for v1)
+
+Status: **non-normative sketch for Phase-1b**. v1 leaf projection is
+unchanged by this subsection.
+
+A capability token's `aip_refs[]` field (Capability-Token-Layer §2.E,
+wirelang-eng Tag-23 vector pin pack) carries one or more
+`sha256:<64-char-hex>` references to AIP-Documents that authenticate
+the token issuer. Phase-1b will likely want to commit a single
+`aip_document_hash` field into the leaf projection so that the audit
+trail records *which issuer-document was in force at frame-emission
+time* without requiring the receipt verifier to fetch the
+AIP-Document over the network.
+
+Possible Phase-1b additions, all subject to a v2 wirelang spec bump
+and wat-leaf-projection v2:
+
+- **Option A — fifth tuple field**: extend the four-field B1 tuple
+  to a five-field B2 tuple `(event_id, time, payload_hash,
+  capability_token_hash, aip_document_hash)`. Strongest binding,
+  largest spec break.
+- **Option B — separate audit-trail leaf**: emit a second
+  `wat.aip-document-anchor` leaf type per frame, with its own
+  one-shot tuple `(event_id, aip_document_hash)`. Requires a leaf
+  type discriminator at the Merkle layer (currently single-type).
+- **Option C — bind into payload_hash**: include `aip_document_hash`
+  in the payload-hash JCS canonicalisation step. Simplest, but
+  silently re-defines what "payload" means and conflicts with the
+  Layer-2 `data` semantics.
+
+wirelang-eng Tag-23 + wat-eng 2.E-Ack defer the choice to Phase-1b.
+The Tag-25 Phase-1b-tracking-doc Item I-13 captures the discussion. v1 leaf
+projection treats `aip_refs[]` as **out-of-scope** at the leaf layer:
+the field is carried by the capability token itself and is
+recoverable by a receipt verifier that has the original frame.
+
+The first-entry-wins discipline of §3.4.1 carries forward to any
+v2 `aip_document_hash` derivation: if `aip_refs[]` has multiple
+entries, the v2 projection MUST commit to `aip_refs[0]` for
+compatibility with the v1 capability-token-hash precedent.
+
+Empty-sentinel treatment (wirelang-eng 2.E-Ack 2026-05-06): a frame
+whose capability-token has empty `aip_refs[]` projects
+`aip_document_hash` to the empty string `""` under v2, mirroring the
+§3.4 empty-`caprefs` treatment. This keeps the v1 → v2 migration byte-stable for frames
+without AIP-Document binding.
+
 ## 4. Examples
 
 ### 4.1 Minimal frame — capability action
