@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wakir.dev/wirelang/schema/layer-3-capability-token/0.1.0",
+  "title": "Wirelang Layer 3 — Capability Token (Biscuit v3 Wrapper)",
+  "description": "JSON envelope around a Biscuit v3 token (eclipse-biscuit/biscuit SPECIFICATIONS.md, sections 'Format', 'Blocks', 'Signature (one block)', 'Signature (appending)', 'Signature (sealing)', 'Ed25519'). The on-the-wire token is the Biscuit binary; this schema describes the JSON-side projection that travels inside Wirelang Layer-1 frames or that is stored in registries. Authority block carries Wakir-specific intent fields (issuer, audience_pattern, caveats, validity window, nonce). Append blocks attenuate. Optional proof_block seals the token. SPDX-License-Identifier: Apache-2.0",
+  "type": "object",
+  "required": ["version", "authority_block", "append_blocks"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "biscuit-v3",
+      "description": "Token format version. Pinned to biscuit-v3 family (Biscuit SPECIFICATIONS.md 'Format' section: integer encodings 3..6 for v3.0..v3.3). Wakir Phase 1a defaults to v3.3 / Ed25519."
+    },
+    "biscuit_format_version": {
+      "type": "integer",
+      "minimum": 3,
+      "maximum": 6,
+      "description": "Concrete Biscuit integer format version (3=v3.0, 4=v3.1, 5=v3.2, 6=v3.3). Optional; absence means v3.3 default."
+    },
+    "aip_document_ref": {
+      "type": "string",
+      "format": "uri",
+      "description": "URI of the AIP document (draft-prakash-aip-00 section 2.3) that anchors the issuer's root public key. The pubkey used to verify authority_block.signature MUST appear in that document's public_keys array (or biscuit_root_pubkey Wakir extension)."
+    },
+    "authority_block": {
+      "type": "object",
+      "description": "Biscuit block 0 (root). Wakir projection of Datalog facts/checks into structured JSON for registry storage and review. The binary Biscuit token remains canonical.",
+      "required": [
+        "issuer_did",
+        "audience_pattern",
+        "caveats",
+        "not_before",
+        "not_after",
+        "nonce",
+        "signature"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "issuer_did": {
+          "type": "string",
+          "description": "Issuer identifier. Accepts AIP identifiers (aip:web:<domain>/<path> | aip:key:ed25519:<multibase>) per draft-prakash-aip-00 section 2.2, plus did:web for cross-compat with Wirelang Layer-1 source field.",
+          "pattern": "^(aip:web:[a-zA-Z0-9.-]+(/[a-zA-Z0-9._/-]+)?|aip:key:ed25519:[a-zA-Z0-9]+|did:web:[a-zA-Z0-9.:%-]+)$"
+        },
+        "audience_pattern": {
+          "type": "string",
+          "description": "Audience pattern this token is intended for. Glob-like role/agent expression evaluated by the verifier (e.g., role=treasury-agent or aip:web:wakir.dev:cfo-agent).",
+          "minLength": 1
+        },
+        "caveats": {
+          "type": "array",
+          "description": "Datalog caveat strings (Biscuit checks/rules). Each entry is a single Datalog statement as defined in eclipse-biscuit/biscuit SPECIFICATIONS.md ('Datalog' section).",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0
+        },
+        "not_before": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Validity window start (RFC 3339)."
+        },
+        "not_after": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Validity window end (RFC 3339). MUST be strictly greater than not_before (verifier-enforced; not expressible in pure JSON Schema)."
+        },
+        "nonce": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32,}$",
+          "description": "Replay-protection nonce, lowercase hex, at least 16 bytes (32 hex chars)."
+        },
+        "signature": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{128}$",
+          "description": "Ed25519 signature over the canonical authority-block payload, lowercase hex, 64 bytes (128 hex chars). Algorithm per RFC 8032 / Biscuit SPECIFICATIONS.md 'Ed25519' section."
+        },
+        "next_pubkey": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Public key (pk_1) that signs the next block. Ed25519 compressed Edwards-Y, 32 bytes (64 hex chars). Per Biscuit 'Signature (one block)'."
+        }
+      }
+    },
+    "append_blocks": {
+      "type": "array",
+      "description": "Attenuation blocks (Biscuit SPECIFICATIONS.md 'Signature (appending)'). Each block adds caveats and is signed with the previous block's next_pubkey's secret. Empty array allowed (token never attenuated).",
+      "items": {
+        "type": "object",
+        "required": ["audience_pattern", "caveats", "signature", "next_pubkey"],
+        "additionalProperties": false,
+        "properties": {
+          "audience_pattern": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Narrowed audience for this attenuation."
+          },
+          "caveats": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "description": "Additional Datalog caveats (only restrict, never expand)."
+          },
+          "signature": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{128}$",
+            "description": "Ed25519 signature, lowercase hex, 64 bytes."
+          },
+          "next_pubkey": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Public key for the next block. Ed25519 compressed, 32 bytes."
+          },
+          "external_signature": {
+            "type": "object",
+            "description": "Optional third-party block signature (Biscuit v1 'Signature version' for third-party blocks).",
+            "required": ["signer_pubkey", "signature"],
+            "additionalProperties": false,
+            "properties": {
+              "signer_pubkey": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "signature": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{128}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "proof_block": {
+      "type": "object",
+      "description": "Optional sealing block (Biscuit SPECIFICATIONS.md 'Signature (sealing)'). When present the token is sealed and MUST NOT be further attenuated; final_signature replaces the attenuable next_secret/next_pubkey continuation.",
+      "required": ["final_signature"],
+      "additionalProperties": false,
+      "properties": {
+        "final_signature": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{128}$",
+          "description": "Ed25519 final signature, lowercase hex, 64 bytes. Covers (last block data || algorithm || public key || previous signature)."
+        },
+        "sealed_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Wall-clock time at which sealing was performed (informational; not part of Biscuit core spec)."
+        }
+      }
+    }
+  }
+}

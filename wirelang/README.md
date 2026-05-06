@@ -15,10 +15,10 @@ Wirelang is a four-layer stack. This module currently ships Layers 0–2.
 | **0 — Transport** | Subject routing, durable streams, delivery semantics | NATS + JetStream |
 | **1 — Wire format** | Envelope, mandatory and extension attributes, hash stability | CloudEvents 1.0 + Wakir extensions, JSON canonical (RFC 8785) |
 | **2 — Semantic** | Schema-registry references, vocabulary anchors, validity windows | JSON Schema 2020-12 |
-| 3 — Trust *(later)* | Capability tokens, attenuation, identity-document anchoring | AIP + Biscuit |
+| **3 — Trust** | Capability tokens, attenuation, identity-document anchoring | AIP `draft-prakash-aip-00` + Biscuit v3 (Ed25519) |
 
-Layer 3 (trust) and the audit-anchor layer that sits above it are not part
-of the Tag-1 deliverable. They will land in dedicated follow-up modules.
+Layer 4 (WAT audit anchoring) sits above Layer 3 and is owned by the
+WAT module.
 
 ## Layout
 
@@ -37,8 +37,10 @@ pip install jsonschema pytest
 pytest wirelang/tests
 ```
 
-The test suite covers schema self-validity, the example frames, and at least
-five positive and five negative cases per layer.
+The test suite covers schema self-validity, the example frames and tokens,
+and at least five positive and five negative cases per layer (Layers 0–2)
+plus seven positive and ten negative cases each for Layer-3 capability
+tokens and AIP documents.
 
 ## Design notes
 
