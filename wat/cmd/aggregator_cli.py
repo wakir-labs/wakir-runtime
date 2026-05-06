@@ -165,12 +165,21 @@ def _build_manifest_object(
     hour_slot: str,
     events: Sequence[dict[str, Any]],
     build_time: str,
+    prev_hour_root: Optional[str] = None,
 ) -> dict[str, Any]:
     """Assemble the manifest dict for a non-empty hour.
 
     Returns the manifest as an in-memory dict so callers can either
     serialise it to disk (production path) or assert on it directly
     (tests).
+
+    ``prev_hour_root`` is the v1 reservation slot (``docs/wat-manifest-
+    spec.md`` "prev_hour_root reservation"). It is optional in v1 with
+    ``null`` as the default; v1 verifiers ignore the value, but writing
+    it now lets v2 chain-check work over historical hours once the v2
+    verifier ships. Phase-1a-Tag-7: emit only when explicitly supplied;
+    Phase-1a-Tag-8 will wire the previous-hour discovery into the
+    hourly driver so the field is populated automatically.
     """
     leaves_bytes: List[bytes] = []
     leaf_entries: List[dict[str, str]] = []
@@ -197,7 +206,7 @@ def _build_manifest_object(
         [node.hex() for node in level] for level in levels
     ]
 
-    return {
+    manifest: dict[str, Any] = {
         "version": MANIFEST_VERSION,
         "hour_slot": hour_slot,
         "merkle_root": root.hex(),
@@ -211,16 +220,34 @@ def _build_manifest_object(
         "tree_levels": tree_levels_hex,
         "build_time": build_time,
     }
+    if prev_hour_root is not None:
+        # Reservation slot per ``docs/wat-manifest-spec.md`` -- v1
+        # writers MAY emit, v1 readers MUST tolerate. Default-omit
+        # keeps existing fixtures byte-stable; opt-in emission lets
+        # the Tag-8 chain-check wiring start populating without
+        # breaking older verifiers.
+        manifest["prev_hour_root"] = prev_hour_root
+    return manifest
 
 
-def _build_empty_manifest(*, hour_slot: str, build_time: str) -> dict[str, Any]:
+def _build_empty_manifest(
+    *,
+    hour_slot: str,
+    build_time: str,
+    prev_hour_root: Optional[str] = None,
+) -> dict[str, Any]:
     """Assemble the manifest for an empty hour.
 
     An empty hour writes a manifest with ``merkle_root: null``. The
     pipeline driver checks this field and skips the anchor call so we
     never submit an all-zero or placeholder root to the OTS calendars.
+
+    ``prev_hour_root`` follows the same v1-optional rule as the non-
+    empty path. v2 will document the empty-hour-after-empty-hour case
+    explicitly; until then writers MAY chain across empty hours by
+    forwarding the previous root through.
     """
-    return {
+    manifest: dict[str, Any] = {
         "version": MANIFEST_VERSION,
         "hour_slot": hour_slot,
         "merkle_root": None,
@@ -230,6 +257,9 @@ def _build_empty_manifest(*, hour_slot: str, build_time: str) -> dict[str, Any]:
         "tree_levels": [],
         "build_time": build_time,
     }
+    if prev_hour_root is not None:
+        manifest["prev_hour_root"] = prev_hour_root
+    return manifest
 
 
 def _write_manifest(manifest: dict[str, Any], output_path: Path) -> None:
@@ -291,6 +321,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--output-manifest",
         required=True,
         help="Path where the receipt manifest JSON will be written.",
+    )
+    p_build.add_argument(
+        "--prev-hour-root",
+        default=None,
+        help=(
+            "Optional 64-char hex Merkle root of the preceding hour. "
+            "Reservation slot in v1; required in v2 for chain-check."
+        ),
     )
 
     # --- Legacy aliases (day-3 cron contract). Kept on the top-level
@@ -370,6 +408,7 @@ def build_command(
     hour: str,
     input_events: str | Path,
     output_manifest: str | Path,
+    prev_hour_root: Optional[str] = None,
 ) -> dict[str, Any]:
     """Execute the ``build`` subcommand and return the written manifest.
 
@@ -377,6 +416,11 @@ def build_command(
     test code assert on it without re-reading the file. The function
     is also reusable by an in-process driver if we ever decide to
     skip the subprocess boundary.
+
+    ``prev_hour_root`` is the v1 reservation slot. When supplied it
+    is emitted into the manifest under the same field name; when
+    omitted the field is absent (consensus marker A5: additive,
+    v1-compatible).
     """
     input_path = Path(input_events)
     output_path = Path(output_manifest)
@@ -385,7 +429,11 @@ def build_command(
     raw_events = _read_events(input_path)
 
     if not raw_events:
-        manifest = _build_empty_manifest(hour_slot=hour, build_time=build_time)
+        manifest = _build_empty_manifest(
+            hour_slot=hour,
+            build_time=build_time,
+            prev_hour_root=prev_hour_root,
+        )
         _write_manifest(manifest, output_path)
         return manifest
 
@@ -395,6 +443,7 @@ def build_command(
         hour_slot=hour,
         events=sorted_events,
         build_time=build_time,
+        prev_hour_root=prev_hour_root,
     )
     _write_manifest(manifest, output_path)
     return manifest
@@ -426,6 +475,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 hour=args.hour,
                 input_events=args.input_events,
                 output_manifest=args.output_manifest,
+                prev_hour_root=getattr(args, "prev_hour_root", None),
             )
         except ValidationError as exc:
             print(f"validation error: {exc}", file=sys.stderr)
