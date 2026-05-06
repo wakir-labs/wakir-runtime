@@ -141,6 +141,57 @@ A backfill exit code of `1` means at least one pending receipt has
 aged past the seven-day soft window; the audit-alarm channel surfaces
 those for human review (WAT-Phase-1a-Spec §3.4).
 
+### Backfill operations setup
+
+The backfill driver is the failsafe for the hourly anchor: when
+the public OpenTimestamps calendars are unreachable for several
+consecutive hours, pending receipts accumulate in the archive and
+need to be upgraded once the calendars come back. The 4×/day
+cadence (00:30, 06:30, 12:30, 18:30 UTC) is documented in
+`scripts/systemd/wakir-wat-backfill.timer` and is the expected
+operational frequency: a single Bitcoin-confirmation delay never
+holds a pending receipt for more than ~6 hours.
+
+Soft-window behaviour:
+
+- pending receipts ≤ 7 days old are silently retried every pass,
+- pending receipts > 7 days old trigger the hard alarm path (exit
+  code 1, ERROR-level log line `backfill: receipt … pending for
+  N days (soft window 7)` in the journal),
+- finalised receipts are reported once with their Bitcoin block
+  height and then ignored on subsequent passes (the upgrade is
+  a no-op).
+
+To override the default soft window for a specific deployment,
+set `WAKIR_BACKFILL_MAX_AGE` (in days) in the service environment.
+This should be a deliberate, documented choice — the seven-day
+default is a soft commitment to anyone reading
+`docs/wat-tv3-test-plan.md` §3.
+
+#### SRE persona handoff (post-ADR-0042)
+
+Backfill alarm channel design — journal-grep cadence, ntfy topic,
+escalation policy, dashboard rendering — is operational concern,
+not implementation concern. Once the SRE persona is activated in
+KW 22-23 of 2026 (per ADR-0042), the following items move to the
+SRE inbox:
+
+- decide on a journal-grep tool and cadence for surfacing
+  `[wat-backfill]` ERROR lines,
+- pick an ntfy.sh topic and message template for breached
+  receipts,
+- define escalation steps (auto-page vs. dashboard accumulation),
+- own the runbook for the case where an aged receipt cannot be
+  upgraded (calendar permanently lost a record, manifest needs
+  re-anchoring).
+
+Until the SRE persona is active, the operator runs
+`journalctl --user -u wakir-wat-backfill.service --since '1 day
+ago' | grep ERROR` once a day as the manual stand-in. The
+implementation contract — exit code 1 on breach, `ERROR` log line
+on each breached receipt — is fixed by `tests/wat/test_tv3_
+backfill_leg.py` and will not shift under SRE.
+
 ## Smoke test
 
 Two layers of smoke coverage land under `tests/wat/` and `scripts/`.
