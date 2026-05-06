@@ -141,6 +141,31 @@ A backfill exit code of `1` means at least one pending receipt has
 aged past the seven-day soft window; the audit-alarm channel surfaces
 those for human review (WAT-Phase-1a-Spec §3.4).
 
+## Specifications
+
+The cross-module contracts between Wirelang and WAT are documented in
+plain Markdown under `docs/` and `wirelang/specs/`:
+
+- [`wirelang/specs/wat-leaf-projection.md`](wirelang/specs/wat-leaf-projection.md)
+  — how a Layer-1 frame projects onto the four-field WAT leaf tuple.
+- [`docs/wat-spool-spec.md`](docs/wat-spool-spec.md) — the JSONL hour-
+  spool format the bridge writes and the aggregator reads.
+- [`docs/wat-hash-spec.md`](docs/wat-hash-spec.md) — the cross-domain
+  JCS+SHA-256+hex-lower hash contract shared by all WAT-anchored data.
+- [`docs/wat-manifest-spec.md`](docs/wat-manifest-spec.md) — the
+  hourly manifest format that the verify CLI consumes.
+- [`wirelang/specs/recovery-drill-leaf-projection.md`](wirelang/specs/recovery-drill-leaf-projection.md)
+  — Phase-1b sketch: how quarterly cold-storage recovery drills
+  project onto WAT leaves for three-year audit beyond the operator's
+  own logs.
+
+Test vectors for the JCS+SHA-256 leaf hash live under
+[`tests/fixtures/jcs-leaf-vectors/`](tests/fixtures/jcs-leaf-vectors/).
+Five vectors cover empty payloads, typical capability-bound frames,
+the no-capability-token path, multi-byte UTF-8, and large nested
+payloads. Each vector ships with a pre-computed `expected_leaf_hash`
+that matches `wat.merkle.aggregator.compute_leaf_hash`.
+
 ## Repository layout
 
 ```

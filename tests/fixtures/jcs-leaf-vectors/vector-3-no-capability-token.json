@@ -1,0 +1,17 @@
+{
+  "_spdx": "SPDX-License-Identifier: Apache-2.0",
+  "_copyright": "Copyright (c) 2026 Callandor GmbH and contributors",
+  "_notes": "Vector 3: frame with no capability token. capability_token_hash is the empty string sentinel, which compute_leaf_hash accepts per the leaf-projection spec section 3.4. Models an unauthenticated public announcement.",
+  "input": {
+    "event_id": "01HK4P8X3W2N5Q9V0R6T7S8YZ3",
+    "time": "2026-05-06T12:02:15Z",
+    "payload_hash": "f5cc2bd8539bab52b640f67993975645010dea80c7092bab400cd442c4664247",
+    "capability_token_hash": "",
+    "source": "did:web:wakir.dev:comms-agent",
+    "actorrole": "comms-operator",
+    "agentid": "comms-agent-001",
+    "schemaid": "wakir.comms.announcement",
+    "schemaversion": "0.1.0"
+  },
+  "expected_leaf_hash": "1913315be2014bcc85642ba08f8049f11246a39f54d94b49eef0ed4b5d7854bd"
+}

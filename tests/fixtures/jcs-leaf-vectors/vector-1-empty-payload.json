@@ -1,0 +1,17 @@
+{
+  "_spdx": "SPDX-License-Identifier: Apache-2.0",
+  "_copyright": "Copyright (c) 2026 Callandor GmbH and contributors",
+  "_notes": "Vector 1: empty payload. data={} produces JCS({}) = '{}', SHA-256 of which is the documented payload_hash. Capability token present (single caprefs entry). Tests the absent-or-empty-data clause of the leaf-projection spec.",
+  "input": {
+    "event_id": "01HK4P8X3W2N5Q9V0R6T7S8YZ1",
+    "time": "2026-05-06T12:00:00Z",
+    "payload_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "capability_token_hash": "c0ffee01cafef00dc0ffee01cafef00dc0ffee01cafef00dc0ffee01cafef00d",
+    "source": "did:web:wakir.dev:hr-agent",
+    "actorrole": "org-designer",
+    "agentid": "hr-agent-001",
+    "schemaid": "wakir.agent.spawn",
+    "schemaversion": "0.1.0"
+  },
+  "expected_leaf_hash": "4f9cd13a523f7bb23df1a4506bd3fa66141d635efaa58f5cc1410da67531740b"
+}

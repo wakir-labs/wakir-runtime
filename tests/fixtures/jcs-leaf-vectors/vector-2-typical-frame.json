@@ -1,0 +1,17 @@
+{
+  "_spdx": "SPDX-License-Identifier: Apache-2.0",
+  "_copyright": "Copyright (c) 2026 Callandor GmbH and contributors",
+  "_notes": "Vector 2: typical capability-bound frame with a small structured payload. Tests the common case: single capability token, well-formed RFC-3339 time, alphanumeric event_id.",
+  "input": {
+    "event_id": "01HK4P8X3W2N5Q9V0R6T7S8YZ2",
+    "time": "2026-05-06T12:01:30Z",
+    "payload_hash": "b0b0f6cf24bfc58adbc163c9e1ac3a4c4590b2ee79fae18dec71a1e83eda5718",
+    "capability_token_hash": "deadbeef12345678deadbeef12345678deadbeef12345678deadbeef12345678",
+    "source": "did:web:wakir.dev:treasury-agent",
+    "actorrole": "treasury-operator",
+    "agentid": "treasury-agent-001",
+    "schemaid": "wakir.treasury.read",
+    "schemaversion": "0.1.0"
+  },
+  "expected_leaf_hash": "846a012d3bb8de89d80414c3747cbcc561f938c5a04e52be422dc932e2bbc969"
+}

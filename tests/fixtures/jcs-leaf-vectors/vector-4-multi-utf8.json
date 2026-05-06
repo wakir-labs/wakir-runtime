@@ -1,0 +1,17 @@
+{
+  "_spdx": "SPDX-License-Identifier: Apache-2.0",
+  "_copyright": "Copyright (c) 2026 Callandor GmbH and contributors",
+  "_notes": "Vector 4: multi-byte UTF-8 in the payload. The payload was 'Über die Brücke gehen — Πέρασμα — 橋を渡る' inside a comment field. Tests that JCS round-trips non-ASCII characters byte-stably and that downstream JSON encoders do not silently re-escape (e.g. ASCII-only mode would mutate the digest).",
+  "input": {
+    "event_id": "01HK4P8X3W2N5Q9V0R6T7S8YZ4",
+    "time": "2026-05-06T12:03:00Z",
+    "payload_hash": "14ff2fb5bcf9ff31378c4bed5e1bedd673499bcbfda14b5e2df7418d1bd31ea5",
+    "capability_token_hash": "abc123abc123abc123abc123abc123abc123abc123abc123abc123abc123abcd",
+    "source": "did:web:wakir.dev:audit-agent",
+    "actorrole": "audit-specialist",
+    "agentid": "audit-agent-001",
+    "schemaid": "wakir.audit.comment",
+    "schemaversion": "0.1.0"
+  },
+  "expected_leaf_hash": "7a8aaeb55b6975825027ef26f3331e6b2854bfdaea3871e5f07bebe3a8190e05"
+}

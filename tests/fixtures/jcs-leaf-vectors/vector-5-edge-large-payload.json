@@ -1,0 +1,17 @@
+{
+  "_spdx": "SPDX-License-Identifier: Apache-2.0",
+  "_copyright": "Copyright (c) 2026 Callandor GmbH and contributors",
+  "_notes": "Vector 5: large nested payload with arrays. The original frame.data contained a 20-element batch array with nested objects and string arrays plus a summary object. Tests JCS recursive sorting through nested structures and confirms hash stability for non-trivial Layer-2 payloads.",
+  "input": {
+    "event_id": "01HK4P8X3W2N5Q9V0R6T7S8YZ5",
+    "time": "2026-05-06T12:04:42Z",
+    "payload_hash": "0eac91e7c3c49684b90b09af3518e4a50d46b919d893e73a275d7dd5b1a26a73",
+    "capability_token_hash": "f00dbabef00dbabef00dbabef00dbabef00dbabef00dbabef00dbabef00dbabe",
+    "source": "did:web:wakir.dev:batch-processor",
+    "actorrole": "batch-operator",
+    "agentid": "batch-agent-001",
+    "schemaid": "wakir.batch.process",
+    "schemaversion": "0.1.0"
+  },
+  "expected_leaf_hash": "a1adfb2a821d671e2e6bce3bdb5f6bf4c3d607bc189880dfb95214c02279d361"
+}
