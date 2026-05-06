@@ -57,6 +57,30 @@ def layer_2_validator(layer_2_schema: dict) -> Draft202012Validator:
 
 
 @pytest.fixture(scope="session")
+def layer_3_capability_token_schema() -> dict:
+    return _load_json(SCHEMA_DIR / "layer-3-capability-token.json")
+
+
+@pytest.fixture(scope="session")
+def aip_document_schema() -> dict:
+    return _load_json(SCHEMA_DIR / "aip-document.json")
+
+
+@pytest.fixture(scope="session")
+def layer_3_capability_token_validator(
+    layer_3_capability_token_schema: dict,
+) -> Draft202012Validator:
+    Draft202012Validator.check_schema(layer_3_capability_token_schema)
+    return Draft202012Validator(layer_3_capability_token_schema)
+
+
+@pytest.fixture(scope="session")
+def aip_document_validator(aip_document_schema: dict) -> Draft202012Validator:
+    Draft202012Validator.check_schema(aip_document_schema)
+    return Draft202012Validator(aip_document_schema)
+
+
+@pytest.fixture(scope="session")
 def example_domain_event() -> dict:
     return _load_json(EXAMPLE_DIR / "frame-domain-event-example.json")
 
@@ -64,3 +88,13 @@ def example_domain_event() -> dict:
 @pytest.fixture(scope="session")
 def example_meta_event() -> dict:
     return _load_json(EXAMPLE_DIR / "frame-meta-event-example.json")
+
+
+@pytest.fixture(scope="session")
+def example_capability_token() -> dict:
+    return _load_json(EXAMPLE_DIR / "capability-token-example.json")
+
+
+@pytest.fixture(scope="session")
+def example_aip_document() -> dict:
+    return _load_json(EXAMPLE_DIR / "aip-document-example.json")
