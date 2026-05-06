@@ -50,6 +50,60 @@ top-level `wakir_verify` package as a Phase 1a deliverable; that
 verifier is the public brand-proof tool and runs without any
 WAT-side state.
 
+## Setup
+
+The setup script provisions a project-local venv at `.venv`, installs
+the package in editable mode with the `[test]` extras, and verifies
+that the `ots` CLI from `opentimestamps-client` is on `PATH`. After
+that the three console scripts are available:
+
+```sh
+bash scripts/setup.sh
+source .venv/bin/activate
+
+wakir-merkle --help
+wakir-anchor --help
+wakir-verify --help
+```
+
+`wakir-verify` rebuilds the inclusion proof for an event from the
+hour manifest, recomputes the leaf hash from the four B1-consensus
+fields (`event_id`, `time`, `payload_hash`, `capability_token_hash`),
+checks the proof against the stored Merkle root, and runs `ots verify`
+on the per-hour receipt. Exit codes are `0` (verified), `1` (failed),
+`3` (pending Bitcoin confirmation).
+
+## WAT hourly operations
+
+Two systemd timer templates land under `scripts/systemd/`. The
+hourly anchor timer drives `scripts/wat-hourly.sh` five minutes past
+each UTC hour boundary; the backfill timer drives
+`scripts/wat-backfill.sh` four times a day.
+
+```sh
+mkdir -p ~/.config/systemd/user
+cp scripts/systemd/wakir-wat-hourly.{service,timer} ~/.config/systemd/user/
+cp scripts/systemd/wakir-wat-backfill.{service,timer} ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now wakir-wat-hourly.timer wakir-wat-backfill.timer
+```
+
+Both services need `WAKIR_EVENT_SPOOL` (input) and
+`WAKIR_RECEIPT_ARCHIVE` (output) defined in your user environment, e.g.
+in `~/.config/environment.d/wakir.conf`.
+
+The drivers log to systemd-journald with the `[wat-hourly]` and
+`[wat-backfill]` prefixes:
+
+```sh
+journalctl --user -u wakir-wat-hourly.service -f
+journalctl --user -u wakir-wat-backfill.service --since '1 day ago'
+```
+
+A backfill exit code of `1` means at least one pending receipt has
+aged past the seven-day soft window; the audit-alarm channel surfaces
+those for human review (WAT-Phase-1a-Spec §3.4).
+
 ## Repository layout
 
 ```
