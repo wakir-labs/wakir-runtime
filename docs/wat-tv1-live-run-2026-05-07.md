@@ -304,6 +304,36 @@ next meaningful checkpoint. The bob → 948183 finalisation continues
 to satisfy `BitcoinBlockHeaderAttestation` for the Brand-Demo and
 Aufsichtsrat-Datapunkt minimum-claim.
 
+### Tag-20 re-check (2026-05-06 18:48Z, ~3 h 49 min post-submit)
+
+Re-ran the same harness on **2026-05-06 18:48:46Z**
+(~3 h 49 min post-submit) for the Tag-20 long-tail data point.
+
+```
+[wat-block-heights] found 1 receipt(s); running ots upgrade on each
+[wat-block-heights] finalised root.bin.ots heights=948183
+[wat-block-heights] summary: receipts=1 finalised=1 pending=0
+```
+
+Per-calendar status from `ots info` at **2026-05-06 18:48Z** (Tag-20):
+
+| calendar                                    | status                              |
+| ------------------------------------------- | ----------------------------------- |
+| bob.btc.calendar.opentimestamps.org         | finalised → block **948183** (Tag-14) |
+| alice.btc.calendar.opentimestamps.org       | still pending                       |
+| btc.calendar.catallaxy.com                  | still pending                       |
+| finney.calendar.eternitywall.com            | still pending                       |
+
+Long-tail status at Tag-20 (~3 h 49 min post-submit) is still **1/4
+calendar branches finalised**, unchanged from Tag-15 / Tag-16 / Tag-17 /
+Tag-18 / Tag-19. We are still well inside the typical 24-72 h Bitcoin
+batch-cadence corridor for alice / finney / catallaxy. The Tag-21
+morning re-check (~46-48 h post-submit) is the next meaningful
+checkpoint per Mira's Tag-20 brief. The bob → 948183 finalisation
+continues to satisfy the minimum-claim for Brand-Demo /
+Aufsichtsrat-Datapunkt purposes — Section 5 full-table close-out is
+deferred to Tag-21 (or whenever 2-3-of-4 lands).
+
 ## 6. Brand / Aufsichtsrat note
 
 Once Section 5 lands, this run is the **first real Bitcoin-anchored
