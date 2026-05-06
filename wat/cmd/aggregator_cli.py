@@ -246,14 +246,14 @@ def _build_manifest_object(
         "leaves": leaf_entries,
         "tree_levels": tree_levels_hex,
         "build_time": build_time,
-    }
-    if prev_hour_root is not None:
         # Reservation slot per ``docs/wat-manifest-spec.md`` -- v1
-        # writers MAY emit, v1 readers MUST tolerate. Default-omit
-        # keeps existing fixtures byte-stable; opt-in emission lets
-        # the Tag-8 chain-check wiring start populating without
-        # breaking older verifiers.
-        manifest["prev_hour_root"] = prev_hour_root
+        # writers always emit the field, defaulting to ``null`` when
+        # no previous-hour root was discovered. v1 readers MUST
+        # tolerate; v2 readers under ``--chain-check`` use the value
+        # to walk the chain. Phase-1a-Tag-8 wires this from the
+        # hourly driver via ``wat-hourly.sh`` automatic discovery.
+        "prev_hour_root": prev_hour_root,
+    }
     return manifest
 
 
@@ -283,9 +283,13 @@ def _build_empty_manifest(
         "leaves": [],
         "tree_levels": [],
         "build_time": build_time,
+        # Reservation slot per ``docs/wat-manifest-spec.md`` -- always
+        # emitted in v1, defaulting to ``null``. An empty hour MAY
+        # forward the previous-hour root through (operator-driven
+        # decision; the v1 reader ignores either way), but the default
+        # is a clean ``null`` so empty hours always compare equal.
+        "prev_hour_root": prev_hour_root,
     }
-    if prev_hour_root is not None:
-        manifest["prev_hour_root"] = prev_hour_root
     return manifest
 
 
