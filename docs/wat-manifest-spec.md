@@ -50,7 +50,7 @@ late events settle before aggregation.
 | `build_time`     | string           | yes      | RFC 3339 UTC, when the manifest was emitted |
 | `submission_time`| string           | no       | RFC 3339 UTC, written by anchor pipeline |
 | `calendar_responses` | object       | no       | OTS calendar URL → `"ok"` or error string |
-| `prev_hour_root` | string \| null   | no       | reservation slot, see §"prev_hour_root reservation" |
+| `prev_hour_root` | string \| null   | no (v1) / yes (v2) | hex root of the preceding hour, or null at chain boundaries; see "Manifest versions v1 / v2 — chain semantics" |
 
 `events` and `leaves` carry the same payload. `events` is the legacy
 key that the verify-CLI reads; `leaves` matches the aggregator-side
@@ -132,35 +132,115 @@ This keeps the archive structurally consistent (one directory per
 hour, including silent ones) without anchoring an all-zero or
 placeholder root that would force a verify-time special case.
 
-## prev_hour_root reservation
+## Manifest versions v1 / v2 — chain semantics
 
-`prev_hour_root` is reserved in v1 as an **optional** field with
-`null` as its default. Its purpose, formalised in v2, is to chain
-adjacent hours together: each hour's manifest carries the root of the
-preceding hour, so an auditor verifying a contiguous range can walk
-the chain forward without re-fetching every intermediate manifest in
-parallel.
+`prev_hour_root` chains adjacent hours: each hour's manifest carries
+the root of the preceding hour, so an auditor verifying a contiguous
+range can walk the chain backward without trusting any intermediate
+manifest in isolation. Two manifest versions are defined:
 
-| version                       | semantics of `prev_hour_root`                              |
-| ----------------------------- | ---------------------------------------------------------- |
-| `wakir-wat-manifest/v1`       | optional. Default `null`. Writers MAY emit it; readers MUST tolerate it. No verification semantics — a v1 verifier ignores the value. |
-| `wakir-wat-manifest/v2` (Phase-1b) | required. Must equal the previous hour's `merkle_root` (or `null` for the first anchored hour, or for the hour immediately following an empty hour). Verifiers running in `--chain-check` mode fail if the chain breaks. |
+| version                            | `prev_hour_root` slot | `--chain-check` flag (verify CLI) |
+| ---------------------------------- | ---------------------------- | ---------------------------------- |
+| `wakir-wat-manifest/v1` (Phase-1a) | **optional**, default `null` | **opt-in** — `--chain-check` exists, off by default |
+| `wakir-wat-manifest/v2` (Phase-1b) | **required** (`null` only for legitimate edge cases — see below) | **default-on** — chain check runs unless explicitly disabled |
 
-Reserving the slot in v1 lets the aggregator start writing it now,
-so by the time the v2 verifier ships there is already historical
-chain data to walk. Writing it is harmless because v1 verifiers
-ignore unknown-semantics fields and the field is optional in their
-schema.
+### v1 (Phase-1a) — current behaviour
 
-### `--chain-check` flag
+- The `prev_hour_root` field is **optional** at the manifest layer.
+  Writers SHOULD emit it (default `null` when no parent exists);
+  readers MUST tolerate both presence and absence.
+- The verify CLI accepts `--chain-check` as an **opt-in flag**. When
+  set, it walks one step back through `prev_hour_root` and compares
+  the value against the previous hour's `merkle_root`.
+- A v1 verifier without `--chain-check` performs the inclusion proof
+  and OTS check only and ignores `prev_hour_root` entirely.
+- Legacy v1 manifests written before the always-emit aggregator fix
+  may lack the `prev_hour_root` key altogether. A `--chain-check`
+  verifier MUST treat a missing key as `chain-skipped`, not as an
+  error.
 
-The verify CLI (`wakir-verify`) gains an optional `--chain-check` flag
-in v2: when set, the verifier walks `prev_hour_root` backward from
-the target hour and confirms each link matches. The flag is opt-in
-because chain-walking requires access to every manifest in the
-range, which is not the default verifier use case. Phase-1a verifiers
-do not support the flag; the flag is documented here so writers can
-populate the field consistently from day one.
+The opt-in design is deliberate: chain-walking requires access to
+the previous-hour archive, which is not always co-located with the
+target hour (selective replication, offline audit, single-event spot
+checks). Forcing chain-check would break those use cases.
+
+### v2 (Phase-1b) — planned behaviour
+
+- The `prev_hour_root` field becomes **required**. Aggregators MUST
+  emit it for every hour. `null` remains valid only at well-defined
+  boundaries (genesis hour, post-gap restart — see edge cases).
+- The verify CLI runs `--chain-check` by default. A new `--no-chain-
+  check` flag re-enables the v1-style inclusion-proof-only mode for
+  cases where the previous-hour manifest is intentionally unavailable.
+- A v2 verifier reading a v1 manifest behaves as in v1: the `--chain-
+  check` decision is honoured per-flag, missing keys are tolerated.
+
+### Verification behaviour matrix
+
+| manifest version           | `prev_hour_root` value | `--chain-check` (v1 / v2 default) | result            |
+| -------------------------- | ---------------------- | ----------------------------------- | ----------------- |
+| v1 or v2                   | absent (key missing)   | off                                 | `verified` (chain not consulted) |
+| v1 or v2                   | absent (key missing)   | on                                  | `verified`, `chain_status=chain-skipped` |
+| v1 or v2                   | `null`                 | off                                 | `verified` |
+| v1 or v2                   | `null`                 | on                                  | `verified`, `chain_status=chain-skipped` |
+| v1 or v2                   | hex root, prev exists, matches  | off                        | `verified` |
+| v1 or v2                   | hex root, prev exists, matches  | on                         | `verified`, `chain_status=chain-verified` |
+| v1 or v2                   | hex root, prev exists, mismatches | on                       | `chain-mismatch`, exit code 4 |
+| v1 or v2                   | hex root, prev manifest missing | on                         | `chain-mismatch`, exit code 4 |
+| v2 (writer side, not verify) | absent                | n/a                                 | aggregator MUST refuse to emit; v2 writers always emit the slot |
+
+Exit codes follow the verify-CLI contract: `0` verified, `1` failed,
+`3` pending (OTS not yet finalised on Bitcoin), `4` chain-mismatch
+(introduced Tag-8 alongside the opt-in flag).
+
+### Edge cases
+
+- **Genesis hour.** The first anchored hour of an audit trail has no
+  predecessor. Aggregators emit `prev_hour_root: null`. Verifiers
+  treat this as `chain-skipped`, not as an error, in both v1 and v2.
+- **Empty hour.** An hour with zero events writes a manifest with
+  `merkle_root: null` and emits no `root.bin`. The next hour's
+  `prev_hour_root` is set to `null` rather than chaining over the
+  empty hour — there is no root to chain. A non-empty hour following
+  an empty hour is therefore a legitimate `chain-skipped` boundary.
+- **Hour gap.** If the aggregator was offline and an hour has no
+  manifest at all, the next emitted hour records `prev_hour_root:
+  null`. The gap itself is not silently bridged. A `--chain-check`
+  verifier reports `chain-skipped` rather than walking across the
+  gap. (Mira default-decision, Tag-8: no walk-back across gaps.
+  A separate Phase-1b feature may add explicit gap markers.)
+- **Mismatched chain.** A non-null `prev_hour_root` that does not
+  equal the previous hour's `merkle_root` is the only chain-state
+  that yields `chain-mismatch` and exit code 4. The inclusion proof
+  for the current hour may still be valid; chain-mismatch is
+  reported as an audit-trail integrity event in addition to the
+  proof outcome.
+- **Legacy manifest (no `prev_hour_root` key).** Treated identically
+  to `prev_hour_root: null`: `chain-skipped`. This keeps pre-Tag-8
+  archives verifiable with a current `--chain-check` verifier
+  without any backfill.
+
+### v1 → v2 migration
+
+The transition from v1 to v2 is **additive at the writer side and
+default-flip at the reader side**:
+
+- v1 → v2 writer: bump the `version` field to `wakir-wat-manifest/v2`
+  and refuse to emit a manifest without `prev_hour_root`. No new
+  fields are added; the v1 reservation slot becomes required.
+- v1 → v2 reader: flip `--chain-check` to default-on; introduce
+  `--no-chain-check` for opt-out.
+- Backfill: existing v1 manifests that already carry
+  `prev_hour_root` (per the always-emit aggregator path shipped at
+  Tag-8) need no rewrite. v1 manifests that lack the key can be
+  read by v2 verifiers as `chain-skipped` indefinitely; an offline
+  backfill tool to compute and inject the missing values is a
+  Phase-1b deliverable, not a v2-prerequisite.
+
+The version bump does not invalidate v1 manifests. A v2 verifier
+reads v1 manifests with v1 semantics (per the matrix above), and a
+v1 verifier ignores any v2-only fields per the forward-compatibility
+rule below.
 
 ## Forward compatibility
 
@@ -174,9 +254,9 @@ Likely v2 additions (non-binding, for context):
 
 - a `proof_extension_slot` field carrying a zero-knowledge inclusion
   proof produced by a future companion module;
-- the `prev_hour_root` slot reserved in v1 (see "prev_hour_root
-  reservation" above) graduates to a required field, with `--chain-
-  check` enforcement in the verifier;
+- the `prev_hour_root` slot transitions from optional-with-`null`-
+  default to required-with-default-on `--chain-check` (specified in
+  detail under "Manifest versions v1 / v2 — chain semantics" above);
 - a `signer` block recording the agent identity that produced the
   manifest, signed with the AIP-document key from the identity
   substrate (Phase 1a, day 4).
