@@ -273,6 +273,37 @@ alice / finney / catallaxy calendars and is not a WAT or verifier
 issue. The Tag-18 re-check will record the long-tail finalisations
 as they arrive.
 
+### Tag-18 re-check (2026-05-06 17:55Z, ~2 h 56 min post-submit)
+
+Re-ran `bash scripts/wat-block-heights-collect.sh
+.runtime/wat-tv1-archive/2026-05-06T14/` on **2026-05-06 17:55:44Z**
+(~2 h 56 min post-submit). Same harness, Esplora fallback active.
+
+```
+[wat-block-heights] found 1 receipt(s); running ots upgrade on each
+[wat-block-heights] finalised .runtime/wat-tv1-archive/2026-05-06T14/root.bin.ots heights=948183
+[wat-block-heights] summary: receipts=1 finalised=1 pending=0
+```
+
+Per-calendar status from `ots info` directly on the receipt at
+**2026-05-06 17:55Z** (Tag-18):
+
+| calendar                                    | status                              |
+| ------------------------------------------- | ----------------------------------- |
+| bob.btc.calendar.opentimestamps.org         | finalised → block **948183** (Tag-14) |
+| alice.btc.calendar.opentimestamps.org       | still pending                       |
+| btc.calendar.catallaxy.com                  | still pending                       |
+| finney.calendar.eternitywall.com            | still pending                       |
+
+Long-tail status at Tag-18 (~2 h 56 min post-submit) is **1/4
+calendar branches finalised**, unchanged from Tag-15 / Tag-16 /
+Tag-17. The Tag-18 re-check window (~3 h post-submit) was earlier
+than the typical alice / finney / catallaxy long-tail (24-72 h post-
+submit per spec); the Tag-19 re-check at ~24 h post-submit is the
+next meaningful checkpoint. The bob → 948183 finalisation continues
+to satisfy `BitcoinBlockHeaderAttestation` for the Brand-Demo and
+Aufsichtsrat-Datapunkt minimum-claim.
+
 ## 6. Brand / Aufsichtsrat note
 
 Once Section 5 lands, this run is the **first real Bitcoin-anchored
