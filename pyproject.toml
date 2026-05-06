@@ -1,0 +1,103 @@
+# SPDX-License-Identifier: Apache-2.0 AND BUSL-1.1
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# Build configuration for the wakir-runtime distribution.
+#
+# License posture
+# ---------------
+#
+# Most modules under this project ship under Apache-2.0. The WAT
+# (Wakir Audit Trail) operations module under `wat/` ships under
+# Business Source License 1.1 with an automatic four-year conversion
+# to Apache-2.0; see `wat/LICENSE-BSL.md` for the per-module text and
+# the top-level `LICENSE` for Apache-2.0. Each source file carries its
+# own SPDX identifier; the project-level identifier above is the
+# union expression.
+#
+# Build backend
+# -------------
+#
+# Setuptools is the boring-tech default: every Python install has it,
+# every CI pipeline already knows how to drive it, and no extra wheel
+# build dependency is pulled in. Hatchling would also work fine but
+# adds a build-time dep without buying us anything for a pure-Python
+# package with a flat module layout.
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wakir-runtime"
+version = "0.0.1.dev0"
+description = "Wakir Labs reference runtime: Wirelang, WAT, and capability tokens."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0 AND BUSL-1.1" }
+authors = [
+    { name = "Callandor GmbH and contributors" },
+]
+keywords = [
+    "audit-trail",
+    "merkle",
+    "opentimestamps",
+    "bitcoin",
+    "agents",
+    "capability-tokens",
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    # JCS (RFC 8785) canonical JSON serialisation.
+    # PyPI: https://pypi.org/project/rfc8785/  (URL-200-stamped 2026-05-06)
+    # Maintainer: Trail of Bits. License: Apache-2.0.
+    "rfc8785>=0.1.4",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    # JSON Schema validation for Wirelang Layer 0/1/2 conformance tests
+    # (Reza Tag-1 dependency).
+    "jsonschema>=4.21",
+]
+
+[project.scripts]
+wakir-merkle = "wat.cmd.aggregator_cli:main"
+wakir-anchor = "wat.cmd.anchor_cli:main"
+
+[project.urls]
+Homepage = "https://wakir.dev"
+Repository = "https://github.com/wakir-labs/wakir-runtime"
+
+# ---------------------------------------------------------------------------
+# Setuptools layout
+# ---------------------------------------------------------------------------
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["wat*", "wirelang*"]
+exclude = ["tests*", "docs*", "scripts*", "tooling*"]
+
+[tool.setuptools.package-data]
+wirelang = ["**/*.json"]
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = [
+    "error::DeprecationWarning:wat.*",
+]
