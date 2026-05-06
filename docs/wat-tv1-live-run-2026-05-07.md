@@ -225,12 +225,42 @@ at 1-6 h with a long tail to ~24-72 h, and 26 h on three of four
 non-bob calendars is unremarkable. **A Tag-17 re-check is queued**
 to capture the remaining long-tail finalisations as they arrive.
 
-### Acceptance recap vs. §3 (Tag-16)
+### Tag-17 long-tail re-check
+
+Re-ran `bash scripts/wat-block-heights-collect.sh .runtime/wat-tv1-archive`
+on **2026-05-06 17:37:39Z** (~26 h 47 min post-submit, ~17 min after
+the Tag-16 re-check). Same harness, Esplora fallback active.
+
+```
+[wat-block-heights] found 1 receipt(s); running ots upgrade on each
+[wat-block-heights] finalised 2026-05-06T14/root.bin.ots heights=948183
+[wat-block-heights] summary: receipts=1 finalised=1 pending=0
+```
+
+Per-calendar status from `ots info` directly on the receipt at
+**2026-05-06 17:37Z** (Tag-17):
+
+| calendar                                    | status                              |
+| ------------------------------------------- | ----------------------------------- |
+| bob.btc.calendar.opentimestamps.org         | finalised → block **948183** (Tag-14) |
+| alice.btc.calendar.opentimestamps.org       | still pending                       |
+| btc.calendar.catallaxy.com                  | still pending                       |
+| finney.calendar.eternitywall.com            | still pending                       |
+
+Long-tail status at Tag-17 (~26 h 47 min post-submit) is **1/4
+calendar branches finalised**, unchanged from Tag-15 / Tag-16.
+Still inside the spec corridor (long tail to ~24-72 h on
+non-bob calendars). The bob → 948183 finalisation continues to
+satisfy `BitcoinBlockHeaderAttestation` for the Brand-Demo and
+Aufsichtsrat-Datapunkt minimum-claim. The Tag-18 re-check is queued
+to capture remaining long-tail finalisations.
+
+### Acceptance recap vs. §3 (Tag-17)
 
 | acceptance criterion (§3)                                                  | status                                                |
 | -------------------------------------------------------------------------- | ----------------------------------------------------- |
 | At least one calendar branch resolves `BitcoinBlockHeaderAttestation`      | yes — bob branch → block 948183 (Tag-14)              |
-| All four calendar branches resolve `BitcoinBlockHeaderAttestation`         | partial: 1/4 at Tag-16 17:20Z (~26 h post-submit); Tag-17 re-check queued |
+| All four calendar branches resolve `BitcoinBlockHeaderAttestation`         | partial: 1/4 at Tag-17 17:37Z (~26 h 47 min post-submit); Tag-18 re-check queued |
 | `wakir-verify evt-tv1-0050` returns 0                                      | **yes** (Tag-15, Esplora fallback)                    |
 | `wakir-verify evt-tv1-0050 --chain-check` returns 0                        | **yes** (Tag-15, chain-skipped on cold-start hour)    |
 | Bitcoin block height present in receipt                                    | yes — 948183                                          |
@@ -240,7 +270,7 @@ The §3 acceptance is functionally complete on the verifier side;
 five of six rows are green. The remaining open item — full 4-of-4
 finalisation — depends on Bitcoin-batch cadence on the
 alice / finney / catallaxy calendars and is not a WAT or verifier
-issue. The Tag-17 re-check will record the long-tail finalisations
+issue. The Tag-18 re-check will record the long-tail finalisations
 as they arrive.
 
 ## 6. Brand / Aufsichtsrat note
