@@ -1,0 +1,57 @@
+{
+  "label": "did-vector-3-staging-host",
+  "spec": "W3C DID-Core (did:web) + Wakir two-curve extension",
+  "url_200_stamped": "2026-05-06",
+  "generation_inputs": {
+    "persona_id": "cfo-agent",
+    "host": "staging.wakir.dev",
+    "version": 2,
+    "secp256k1_pub_hex_33": "0339a36013301597daef41fbe593a02cc513d0b55527ec2df1050e2e8ff49c85c2",
+    "secp256k1_priv_hex_32": "e8f32e723decf4051aefac8e2c93c9c5b214313817cdb01a1494b917c8436b35",
+    "ed25519_pub_hex_32": "a4b2856bfec510abab89753fac1ac0e1112364e7d250545963f135f2a33188ed"
+  },
+  "document": {
+    "@context": [
+      "https://www.w3.org/ns/did/v1",
+      "https://w3id.org/security/suites/secp256k1-2019/v1",
+      "https://w3id.org/security/suites/ed25519-2020/v1"
+    ],
+    "id": "did:web:staging.wakir.dev:personas:cfo-agent",
+    "verificationMethod": [
+      {
+        "id": "did:web:staging.wakir.dev:personas:cfo-agent#keys-secp256k1-1",
+        "type": "EcdsaSecp256k1VerificationKey2019",
+        "controller": "did:web:staging.wakir.dev:personas:cfo-agent",
+        "publicKeyHex": "0339a36013301597daef41fbe593a02cc513d0b55527ec2df1050e2e8ff49c85c2"
+      },
+      {
+        "id": "did:web:staging.wakir.dev:personas:cfo-agent#keys-ed25519-1",
+        "type": "Ed25519VerificationKey2020",
+        "controller": "did:web:staging.wakir.dev:personas:cfo-agent",
+        "publicKeyHex": "a4b2856bfec510abab89753fac1ac0e1112364e7d250545963f135f2a33188ed"
+      }
+    ],
+    "authentication": [
+      "did:web:staging.wakir.dev:personas:cfo-agent#keys-secp256k1-1",
+      "did:web:staging.wakir.dev:personas:cfo-agent#keys-ed25519-1"
+    ],
+    "assertionMethod": [
+      "did:web:staging.wakir.dev:personas:cfo-agent#keys-secp256k1-1",
+      "did:web:staging.wakir.dev:personas:cfo-agent#keys-ed25519-1"
+    ],
+    "wakirVersion": 2,
+    "proof": {
+      "type": "EcdsaSecp256k1Signature2019",
+      "verificationMethod": "did:web:staging.wakir.dev:personas:cfo-agent#keys-secp256k1-1",
+      "alg": "ES256K",
+      "signatureHex": "d4ae6e935e89a9115eb366537f736eae3f9b23d4c75b25bdce60f9d2e7d8ce0340721422bf9080561a69702fa86e43d41cd46e4008065751fd85254f59f0c94a"
+    }
+  },
+  "document_jcs_sha256": "f99f58493552a5a54efe43482f0ca0c45b126d050de86cca80f4d0b38d1c5c0c",
+  "proof_block": {
+    "type": "EcdsaSecp256k1Signature2019",
+    "verificationMethod": "did:web:staging.wakir.dev:personas:cfo-agent#keys-secp256k1-1",
+    "alg": "ES256K",
+    "signatureHex": "d4ae6e935e89a9115eb366537f736eae3f9b23d4c75b25bdce60f9d2e7d8ce0340721422bf9080561a69702fa86e43d41cd46e4008065751fd85254f59f0c94a"
+  }
+}
