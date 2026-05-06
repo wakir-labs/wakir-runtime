@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# Hourly trigger for the WAT anchor pipeline. Fires five minutes
+# past every UTC hour boundary so late events from the closing hour
+# have time to settle into the spool before aggregation
+# (WAT-Phase-1a-Spec §3.2 five-minute slack).
+#
+# ``Persistent=true`` ensures a missed hour (laptop suspended,
+# machine offline) is replayed on next boot; the WAT pipeline is
+# idempotent per hour slot so a late replay simply re-anchors an
+# already-anchored hour.
+
+[Unit]
+Description=Wakir Audit Trail — hourly anchor trigger
+Documentation=https://github.com/wakir-labs/wakir-runtime
+
+[Timer]
+# OnCalendar=hourly fires at minute 0; the :05 offset shifts the
+# trigger to five minutes past the hour.
+OnCalendar=*-*-* *:05:00 UTC
+Persistent=true
+Unit=wakir-wat-hourly.service
+
+[Install]
+WantedBy=timers.target

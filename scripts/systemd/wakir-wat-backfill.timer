@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# Backfill trigger — four times a day at 30 minutes past the hour
+# at 00, 06, 12, 18 UTC. Spaced out so a single Bitcoin-confirmation
+# delay never holds a pending receipt for more than ~6 hours, which
+# stays well within the seven-day soft window
+# (WAT-Phase-1a-Spec §3.4).
+#
+# The 30-minute offset deliberately avoids overlap with the hourly
+# anchor at minute 05 — both timers can fire under the same user
+# session without contending on the OTS subprocess slot.
+
+[Unit]
+Description=Wakir Audit Trail — backfill trigger (4x/day)
+Documentation=https://github.com/wakir-labs/wakir-runtime
+
+[Timer]
+OnCalendar=*-*-* 00:30:00 UTC
+OnCalendar=*-*-* 06:30:00 UTC
+OnCalendar=*-*-* 12:30:00 UTC
+OnCalendar=*-*-* 18:30:00 UTC
+Persistent=true
+Unit=wakir-wat-backfill.service
+
+[Install]
+WantedBy=timers.target

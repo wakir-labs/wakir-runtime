@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# Wakir Audit Trail — hourly anchor service (user unit).
+#
+# Operator install (per WAT operator):
+#
+#   mkdir -p ~/.config/systemd/user
+#   cp scripts/systemd/wakir-wat-hourly.{service,timer} \
+#      ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now wakir-wat-hourly.timer
+#
+# Two environment knobs are required and intentionally have no
+# defaults — pointing the driver at the wrong directory would
+# silently drop events. Set them in
+# ``~/.config/environment.d/wakir.conf`` or in a drop-in for this
+# service (``systemctl --user edit wakir-wat-hourly.service``).
+#
+# The unit deliberately leaves ``ExecStart`` pointing at a path the
+# operator must adjust: a copy-paste install should fail loudly
+# until the runtime checkout location is set, rather than picking up
+# a stale or wrong tree.
+
+[Unit]
+Description=Wakir Audit Trail — hourly Merkle anchor
+Documentation=https://github.com/wakir-labs/wakir-runtime
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Replace ``%h/wakir-runtime`` with the actual checkout location.
+WorkingDirectory=%h/wakir-runtime
+# The driver picks up ``wakir-merkle`` and ``wakir-anchor`` from the
+# venv on PATH; activate the venv via the wrapper's first line, or
+# install the project into the user's site-packages.
+Environment=PATH=%h/wakir-runtime/.venv/bin:/usr/local/bin:/usr/bin:/bin
+# WAKIR_EVENT_SPOOL and WAKIR_RECEIPT_ARCHIVE must be defined in a
+# user-level environment file or a drop-in. Failing to set them
+# causes the driver to exit 2 with a clear error in the journal.
+ExecStart=%h/wakir-runtime/scripts/wat-hourly.sh
+# A 1 exit means calendar-threshold-under-met; the systemd unit
+# itself does not retry, the next hour's run picks the work up via
+# the backfill timer (see wakir-wat-backfill.timer).
+SuccessExitStatus=0
+Nice=10
+
+[Install]
+WantedBy=default.target

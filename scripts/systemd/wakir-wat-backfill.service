@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# Wakir Audit Trail — backfill service (user unit).
+#
+# Walks the receipt archive, attempts ``ots upgrade`` on every
+# pending receipt, and surfaces receipts older than the soft window
+# (default 7 days, WAT-Phase-1a-Spec §3.4) for human review.
+#
+# Driver: ``scripts/wat-backfill.sh`` — calls
+# :func:`wat.anchor.backfill.process_pending_queue` and exits 1 if
+# any pending receipt has aged past the soft window so journal
+# greps can surface it to the audit-alarm channel.
+
+[Unit]
+Description=Wakir Audit Trail — pending-receipt backfill
+Documentation=https://github.com/wakir-labs/wakir-runtime
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/wakir-runtime
+Environment=PATH=%h/wakir-runtime/.venv/bin:/usr/local/bin:/usr/bin:/bin
+# WAKIR_RECEIPT_ARCHIVE must be defined in a user-level environment
+# file or a drop-in.
+ExecStart=%h/wakir-runtime/scripts/wat-backfill.sh
+Nice=15
+
+[Install]
+WantedBy=default.target
