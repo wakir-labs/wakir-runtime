@@ -23,6 +23,12 @@ Public API:
 - :func:`derive_sub_key_ed25519`
 - :func:`generate_persona_did_document`
 - :func:`generate_aip_document`
+- :func:`split_master_secret`
+- :func:`combine_shamir_shares`
+- :func:`simulate_recovery`
+- :func:`sign_aip_document` / :func:`verify_aip_signature`
+- :func:`sign_did_document` / :func:`verify_did_signature`
+- :class:`ShamirShare`, :class:`RecoveryDrillResult`
 - :data:`WAKIR_COIN_TYPE`
 """
 
@@ -35,13 +41,34 @@ from .key_derivation import (
 )
 from .did_document import generate_persona_did_document
 from .aip_document import generate_aip_document
+from .shamir_split import (
+    PHASE_1A_THRESHOLD,
+    PHASE_1A_TOTAL_SHARES,
+    ShamirShare,
+    combine_shamir_shares,
+    split_master_secret,
+)
+from .recovery_drill import RecoveryDrillResult, simulate_recovery
+from .aip_signing import sign_aip_document, verify_aip_signature
+from .did_document_signing import sign_did_document, verify_did_signature
 
 __all__ = [
     "WAKIR_COIN_TYPE",
+    "PHASE_1A_THRESHOLD",
+    "PHASE_1A_TOTAL_SHARES",
     "derive_persona_master_secp256k1",
     "derive_persona_master_ed25519",
     "derive_sub_key_secp256k1",
     "derive_sub_key_ed25519",
     "generate_persona_did_document",
     "generate_aip_document",
+    "ShamirShare",
+    "RecoveryDrillResult",
+    "split_master_secret",
+    "combine_shamir_shares",
+    "simulate_recovery",
+    "sign_aip_document",
+    "verify_aip_signature",
+    "sign_did_document",
+    "verify_did_signature",
 ]
