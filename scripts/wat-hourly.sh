@@ -73,25 +73,56 @@ SPOOL_FILE="${EVENT_SPOOL}/${HOUR_SLOT}.jsonl"
 HOUR_ARCHIVE="${RECEIPT_ARCHIVE}/${HOUR_SLOT}"
 mkdir -p "${HOUR_ARCHIVE}"
 
-# --- 3. Empty-hour short-circuit.
-if [[ ! -s "${SPOOL_FILE}" ]]; then
-    log "spool ${SPOOL_FILE} is empty or missing; nothing to anchor"
+# --- 3. Sealed-rename (Phase-1a-Tag-7 bridge contract).
+#
+# Per ``docs/wat-spool-spec.md`` §5 the bridge must seal the open
+# hour-spool file before the aggregator reads it. Sealing is an
+# atomic ``rename(2)`` from ``<hour>.jsonl`` to ``<hour>.jsonl.sealed``.
+# This driver runs at H_end + 5min (the systemd timer schedule), so
+# the late-frame window has elapsed by the time we reach this step.
+SEALED_FILE="${SPOOL_FILE}.sealed"
+log "[wat-bridge] checking spool=${SPOOL_FILE} sealed=${SEALED_FILE}"
+if [[ -f "${SPOOL_FILE}" && ! -f "${SEALED_FILE}" ]]; then
+    # Drive the seal via the in-tree helper. ``--enforce-window`` is
+    # the default; the cron schedule already places us past H_end+5min,
+    # so the helper accepts the seal cleanly.
+    if ! python -m wat.ingestion.cli seal \
+            --spool-dir "${EVENT_SPOOL}" \
+            --hour "${HOUR_SLOT}"; then
+        fail "[wat-bridge] sealed-rename failed for hour ${HOUR_SLOT}" 1
+    fi
+    log "[wat-bridge] sealed open spool -> ${SEALED_FILE}"
+elif [[ -f "${SEALED_FILE}" ]]; then
+    log "[wat-bridge] hour already sealed (idempotent fast path)"
+fi
+
+# --- 4. Empty-hour short-circuit.
+#
+# After sealing, the empty-hour case is "no .sealed file at all". We
+# also tolerate a sealed file with zero lines (a producer flushed an
+# empty hour as a heartbeat). Either way: nothing to anchor.
+if [[ ! -s "${SEALED_FILE}" ]]; then
+    log "spool ${SEALED_FILE} is empty or missing; nothing to anchor"
     log "status=skipped event_count=0 hour_slot=${HOUR_SLOT}"
     exit 0
 fi
 
-EVENT_COUNT="$(wc -l < "${SPOOL_FILE}" | tr -d ' ')"
-log "event_count=${EVENT_COUNT} spool=${SPOOL_FILE}"
+EVENT_COUNT="$(wc -l < "${SEALED_FILE}" | tr -d ' ')"
+log "event_count=${EVENT_COUNT} spool=${SEALED_FILE}"
 
-# --- 4. Build the hour manifest via wakir-merkle.
+# --- 5. Build the hour manifest via wakir-merkle.
 #
-# Day-5 contract: ``wakir-merkle build`` writes a manifest in the
-# format documented under ``docs/wat-manifest-spec.md``. Empty hours
-# produce a manifest with ``merkle_root: null`` and skip the anchor.
+# Pre-build invariant: the input file must be a ``.sealed`` artefact.
+# This is enforced by the if-test above plus the script's input-file
+# argument pointing at ``${SEALED_FILE}`` rather than the open
+# ``${SPOOL_FILE}``. Day-5 contract still applies: ``wakir-merkle
+# build`` writes a manifest in the format documented under
+# ``docs/wat-manifest-spec.md``. Empty hours produce a manifest with
+# ``merkle_root: null`` and skip the anchor.
 MANIFEST_FILE="${HOUR_ARCHIVE}/manifest.json"
 if ! wakir-merkle build \
         --hour "${HOUR_SLOT}" \
-        --input-events "${SPOOL_FILE}" \
+        --input-events "${SEALED_FILE}" \
         --output-manifest "${MANIFEST_FILE}"; then
     fail "wakir-merkle build failed for hour ${HOUR_SLOT}" 1
 fi
