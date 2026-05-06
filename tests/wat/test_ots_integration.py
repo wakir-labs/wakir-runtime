@@ -411,3 +411,115 @@ def test_real_calendar_failover_simulated(tmp_path: Path) -> None:
         f"failover not surfaced: rc={failover.returncode} "
         f"stdout={failover.stdout!r} stderr={failover.stderr!r}"
     )
+
+
+def test_real_block_height_finalisation(tmp_path: Path) -> None:
+    """Validate the upgrade-then-extract path on a fixture receipt.
+
+    Tag-9 demonstrated the submit + pending-receipt half of the
+    pipeline. This test covers the other half: take an OTS receipt
+    that is old enough for the calendar batch to have hit Bitcoin,
+    upgrade it, and assert the parsed receipt carries at least one
+    ``BitcoinBlockHeaderAttestation`` block height.
+
+    Receipt source resolution
+    -------------------------
+
+    1. Environment variable ``WAT_TEST_FINALISED_RECEIPT`` if set —
+       expected to point at a ``.ots`` file paired with a sibling
+       data file (the receipt's original input). This is the path
+       used by the Tag-10 outbox memo: a dev runs the test against a
+       receipt that survived overnight.
+    2. Fallback: ``.runtime/ots-smoketest.txt.ots`` under the
+       AI-Corp dev-engineering workspace, which the operator
+       provisions during the OTS bootstrap drill (older than 24 h
+       on any host that has been running >1 day).
+
+    If neither is present, the test is a structural skip — fresh
+    hosts will hit this case and that is fine.
+
+    The test never resubmits to a calendar; only ``ots upgrade`` and
+    ``ots info`` are invoked. Both are read-only with respect to the
+    public OTS infrastructure (upgrade is idempotent and merely
+    pulls the current attestation state from the calendars).
+    """
+    _require_ots_binary()
+
+    candidates: List[Path] = []
+    env_path = os.environ.get("WAT_TEST_FINALISED_RECEIPT", "").strip()
+    if env_path:
+        candidates.append(Path(env_path))
+    # Workspace fallback: bootstrap-drill receipt.
+    candidates.append(
+        Path.home()
+        / "AI-Corp"
+        / "agents-workspaces"
+        / "dev-engineering"
+        / ".runtime"
+        / "ots-smoketest.txt.ots"
+    )
+
+    source: Path | None = next((p for p in candidates if p.exists()), None)
+    if source is None:
+        pytest.skip(
+            "no finalisation fixture: set WAT_TEST_FINALISED_RECEIPT to "
+            "a .ots receipt older than 24h, or provision "
+            ".runtime/ots-smoketest.txt.ots via scripts/setup.sh."
+        )
+
+    # Work on a copy so a slow-finalising fixture is never mutated in
+    # place by ``ots upgrade``.
+    work_receipt = tmp_path / source.name
+    shutil.copy2(source, work_receipt)
+    sibling = source.with_suffix("")
+    if sibling.exists():
+        shutil.copy2(sibling, work_receipt.with_suffix(""))
+
+    upgrade = subprocess.run(  # noqa: S603 — explicit args, no shell.
+        ["ots", "upgrade", str(work_receipt)],
+        capture_output=True,
+        text=True,
+        timeout=SUBPROCESS_TIMEOUT_S,
+        check=False,
+    )
+    # Upgrade returns 0 even if nothing changed; non-zero indicates a
+    # network glitch and we still try to read whatever attestations
+    # are already in the file.
+    info = subprocess.run(  # noqa: S603 — explicit args, no shell.
+        ["ots", "info", str(work_receipt)],
+        capture_output=True,
+        text=True,
+        timeout=SUBPROCESS_TIMEOUT_S,
+        check=False,
+    )
+    blob = (info.stdout or "") + "\n" + (info.stderr or "")
+
+    block_heights: List[int] = []
+    for line in blob.splitlines():
+        stripped = line.strip()
+        # The OTS CLI emits lines like:
+        #   verify BitcoinBlockHeaderAttestation(947491)
+        if "BitcoinBlockHeaderAttestation(" not in stripped:
+            continue
+        start = stripped.index("BitcoinBlockHeaderAttestation(") + len(
+            "BitcoinBlockHeaderAttestation("
+        )
+        end = stripped.index(")", start)
+        token = stripped[start:end].strip()
+        if token.isdigit():
+            block_heights.append(int(token))
+
+    if not block_heights:
+        pytest.skip(
+            f"fixture {source} not yet finalised on Bitcoin; "
+            f"upgrade rc={upgrade.returncode}; rerun once the calendar "
+            "batch lands (typical 10 min - 6 h, worst case 24 h)."
+        )
+
+    # Sanity: Bitcoin height is well above 800k as of 2026.
+    for height in block_heights:
+        assert height > 800_000, f"implausible block height: {height}"
+    print(
+        f"\n[ots-int] real_finalisation source={source.name} "
+        f"block_heights={sorted(set(block_heights))}"
+    )
