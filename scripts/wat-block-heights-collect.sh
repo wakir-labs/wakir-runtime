@@ -99,15 +99,24 @@ for receipt in "${RECEIPTS[@]}"; do
     fi
 
     # Parse ots info for block heights and pending markers per calendar.
+    #
+    # NOTE on pipefail (Tag-14 fix): with ``set -euo pipefail`` an empty
+    # ``grep`` (no matches) returns exit 1 inside a ``$(...)`` substitution
+    # and kills the whole script before the report block ever runs. That
+    # is exactly the pending-receipt path. We therefore wrap each pipeline
+    # in ``|| true`` so a no-match grep yields an empty string and the
+    # script continues to the report. The trailing ``|| true`` after
+    # ``paste`` is technically redundant once the inner grep is permitted
+    # to return non-zero, but kept for paranoia.
     INFO_BLOB="$(ots info "${receipt}" 2>&1 || true)"
-    HEIGHTS="$(printf '%s' "${INFO_BLOB}" \
-        | grep -E 'BitcoinBlockHeaderAttestation\([0-9]+\)' \
+    HEIGHTS="$( { printf '%s\n' "${INFO_BLOB}" \
+        | grep -E 'BitcoinBlockHeaderAttestation\([0-9]+\)' || true; } \
         | sed -E 's/.*BitcoinBlockHeaderAttestation\(([0-9]+)\).*/\1/' \
-        | sort -un | paste -sd, -)"
-    PENDING_CALS="$(printf '%s' "${INFO_BLOB}" \
-        | grep -E 'PendingAttestation' \
+        | sort -un | paste -sd, - )"
+    PENDING_CALS="$( { printf '%s\n' "${INFO_BLOB}" \
+        | grep -E 'PendingAttestation' || true; } \
         | sed -E "s/.*PendingAttestation\('([^']+)'\).*/\1/" \
-        | sort -u | paste -sd, -)"
+        | sort -u | paste -sd, - )"
 
     REL="${receipt#${ARCHIVE_DIR}/}"
     # In a finalised receipt the original ``PendingAttestation`` lines
