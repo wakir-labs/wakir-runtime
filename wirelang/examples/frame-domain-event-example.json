@@ -1,0 +1,35 @@
+{
+  "specversion": "1.0",
+  "type": "wakir.agent.spawn",
+  "source": "did:web:wakir.dev:hr-agent",
+  "id": "01HK4P8X3W2N5Q9V0R6T7S8YZA",
+  "time": "2026-05-06T11:35:00.000Z",
+  "datacontenttype": "application/wirelang+json",
+  "dataschema": "https://wakir.dev/wirelang/schema/agent.spawn/0.1.0",
+  "wirelangversion": "0.1.0",
+  "schemaid": "wakir.agent.spawn",
+  "schemaversion": "0.1.0",
+  "actorrole": "org-designer",
+  "agentid": "hr-agent-001",
+  "personapin": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "caprefs": [
+    "sha256:c0ffee01cafef00dc0ffee01cafef00dc0ffee01cafef00dc0ffee01cafef00d"
+  ],
+  "data": {
+    "spawn_target_role": "treasury-operator",
+    "spawn_target_did": "did:web:wakir.dev:treasury-agent",
+    "wave": "phase-1a",
+    "wirelang_layer_2_envelope": {
+      "frame_class": "domain-event",
+      "schema_id": "wakir.agent.spawn",
+      "schema_version": "0.1.0",
+      "validafter": "2026-05-06T00:00:00Z",
+      "validuntil": null,
+      "vocabulary": {
+        "id": "wakir.core",
+        "version": "0.1.0",
+        "anchor_url": "https://wakir.dev/wirelang/vocab/0.1.0.json"
+      }
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "specversion": "1.0",
+  "type": "wakir.meta.capability.issued",
+  "source": "did:web:wakir.dev:capability-issuer",
+  "id": "01HK4P8YZ9N7Q5V0R6T7S8YZAB",
+  "time": "2026-05-06T11:36:42.123Z",
+  "datacontenttype": "application/wirelang+json",
+  "dataschema": "https://wakir.dev/wirelang/schema/meta.capability.issued/0.1.0",
+  "wirelangversion": "0.1.0",
+  "schemaid": "wakir.meta.capability.issued",
+  "schemaversion": "0.1.0",
+  "actorrole": "capability-issuer",
+  "agentid": "cap-issuer-001",
+  "caprefs": [
+    "sha256:deadbeef12345678deadbeef12345678deadbeef12345678deadbeef12345678"
+  ],
+  "data": {
+    "wirelang_layer_2_envelope": {
+      "frame_class": "meta-event",
+      "schema_id": "wakir.meta.capability.issued",
+      "schema_version": "0.1.0",
+      "validafter": "2026-05-06T00:00:00Z",
+      "validuntil": null,
+      "ots_anchor_path": "meta/timestamps/wirelang-schema/wakir.meta.capability.issued-0.1.0.ots"
+    },
+    "issued_to": "did:web:wakir.dev:treasury-agent",
+    "capability_token_hash": "sha256:deadbeef12345678deadbeef12345678deadbeef12345678deadbeef12345678",
+    "scope": {
+      "actions": ["read.balance"],
+      "validafter": "2026-05-06T11:36:42Z",
+      "validuntil": "2026-05-13T11:36:42Z"
+    }
+  }
+}
