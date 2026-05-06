@@ -50,6 +50,7 @@ late events settle before aggregation.
 | `build_time`     | string           | yes      | RFC 3339 UTC, when the manifest was emitted |
 | `submission_time`| string           | no       | RFC 3339 UTC, written by anchor pipeline |
 | `calendar_responses` | object       | no       | OTS calendar URL → `"ok"` or error string |
+| `prev_hour_root` | string \| null   | no       | reservation slot, see §"prev_hour_root reservation" |
 
 `events` and `leaves` carry the same payload. `events` is the legacy
 key that the verify-CLI reads; `leaves` matches the aggregator-side
@@ -131,6 +132,36 @@ This keeps the archive structurally consistent (one directory per
 hour, including silent ones) without anchoring an all-zero or
 placeholder root that would force a verify-time special case.
 
+## prev_hour_root reservation
+
+`prev_hour_root` is reserved in v1 as an **optional** field with
+`null` as its default. Its purpose, formalised in v2, is to chain
+adjacent hours together: each hour's manifest carries the root of the
+preceding hour, so an auditor verifying a contiguous range can walk
+the chain forward without re-fetching every intermediate manifest in
+parallel.
+
+| version                       | semantics of `prev_hour_root`                              |
+| ----------------------------- | ---------------------------------------------------------- |
+| `wakir-wat-manifest/v1`       | optional. Default `null`. Writers MAY emit it; readers MUST tolerate it. No verification semantics — a v1 verifier ignores the value. |
+| `wakir-wat-manifest/v2` (Phase-1b) | required. Must equal the previous hour's `merkle_root` (or `null` for the first anchored hour, or for the hour immediately following an empty hour). Verifiers running in `--chain-check` mode fail if the chain breaks. |
+
+Reserving the slot in v1 lets the aggregator start writing it now,
+so by the time the v2 verifier ships there is already historical
+chain data to walk. Writing it is harmless because v1 verifiers
+ignore unknown-semantics fields and the field is optional in their
+schema.
+
+### `--chain-check` flag
+
+The verify CLI (`wakir-verify`) gains an optional `--chain-check` flag
+in v2: when set, the verifier walks `prev_hour_root` backward from
+the target hour and confirms each link matches. The flag is opt-in
+because chain-walking requires access to every manifest in the
+range, which is not the default verifier use case. Phase-1a verifiers
+do not support the flag; the flag is documented here so writers can
+populate the field consistently from day one.
+
 ## Forward compatibility
 
 `version` is the schema version, not the implementation version. A
@@ -143,9 +174,9 @@ Likely v2 additions (non-binding, for context):
 
 - a `proof_extension_slot` field carrying a zero-knowledge inclusion
   proof produced by a future companion module;
-- a `prev_hour_root` field linking adjacent hours into a chain so an
-  auditor can verify a contiguous range without retrieving every
-  intermediate manifest;
+- the `prev_hour_root` slot reserved in v1 (see "prev_hour_root
+  reservation" above) graduates to a required field, with `--chain-
+  check` enforcement in the verifier;
 - a `signer` block recording the agent identity that produced the
   manifest, signed with the AIP-document key from the identity
   substrate (Phase 1a, day 4).
