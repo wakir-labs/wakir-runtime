@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wakir.dev/wirelang/schema/aip-document/0.1.0",
+  "title": "AIP Document (draft-prakash-aip-00 conformance + Wakir extensions)",
+  "description": "JSON Schema for an Agent Identity Protocol document. Conforms to the structure described in draft-prakash-aip-00 section 2.3 (required: aip, id, public_keys, name, delegation, protocols, document_signature, expires; identifiers per section 2.2). Adds Wakir-scoped optional extensions (verification_methods, service_endpoints, biscuit_root_pubkey) that do not break a strict AIP parser when stripped. SPDX-License-Identifier: Apache-2.0",
+  "type": "object",
+  "required": [
+    "aip",
+    "id",
+    "public_keys",
+    "name",
+    "delegation",
+    "protocols",
+    "document_signature",
+    "expires"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "aip": {
+      "type": "string",
+      "const": "1.0",
+      "description": "AIP protocol version (draft-prakash-aip-00 section 2.3 'aip')."
+    },
+    "id": {
+      "type": "string",
+      "description": "AIP identifier. DNS-based aip:web:<domain>/<path> or self-certifying aip:key:ed25519:<multibase>. did:web is accepted as a Wakir cross-compat alias.",
+      "pattern": "^(aip:web:[a-zA-Z0-9.-]+(/[a-zA-Z0-9._/-]+)?|aip:key:ed25519:[a-zA-Z0-9]+|did:web:[a-zA-Z0-9.:%-]+)$"
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable agent name. Per Wakir Brand-Guide §9 use role-strings, never clear personal names.",
+      "minLength": 1
+    },
+    "public_keys": {
+      "type": "array",
+      "description": "Array of public-key entries with validity windows (draft-prakash-aip-00 section 2.3 'public_keys').",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["kid", "alg", "key_hex", "validafter"],
+        "additionalProperties": false,
+        "properties": {
+          "kid": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Key identifier, stable inside this document."
+          },
+          "alg": {
+            "type": "string",
+            "enum": ["Ed25519", "secp256k1"],
+            "description": "Signing algorithm. Wakir Phase 1a two-curve stack: Ed25519 (default for Biscuit / AIP signatures) and secp256k1 (BIP32 derivation root)."
+          },
+          "key_hex": {
+            "type": "string",
+            "pattern": "^[0-9a-f]+$",
+            "description": "Lowercase hex public key. Length is algorithm-specific (Ed25519=64 hex, secp256k1 compressed=66 hex)."
+          },
+          "validafter": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "validuntil": {
+            "anyOf": [
+              { "type": "null" },
+              { "type": "string", "format": "date-time" }
+            ]
+          },
+          "purpose": {
+            "type": "string",
+            "enum": ["aip-signing", "biscuit-root", "wat-anchor", "frame-signing"],
+            "description": "Wakir-scoped purpose tag. Optional, informational."
+          }
+        }
+      }
+    },
+    "delegation": {
+      "type": "object",
+      "description": "Delegation preferences (draft-prakash-aip-00 section 2.3 'delegation'). Constrains who may attenuate tokens issued by this identity.",
+      "required": ["mode"],
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["compact", "chained", "both"],
+          "description": "AIP delegation mode. 'compact' = JWT/EdDSA tokens only; 'chained' = Biscuit attenuation tokens only; 'both' = either accepted (draft-prakash-aip-00 sections 3.1/3.2)."
+        },
+        "max_depth": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum attenuation depth (chained mode)."
+        },
+        "allowed_audiences": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "protocols": {
+      "type": "array",
+      "description": "Supported protocol bindings (draft-prakash-aip-00 section 2.3 'protocols'). Wakir frames advertise 'wirelang/0.1' here.",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "expires": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Document expiration timestamp (draft-prakash-aip-00 section 2.3 'expires')."
+    },
+    "document_signature": {
+      "type": "object",
+      "description": "Self-signature over the JCS-canonicalised document (draft-prakash-aip-00 section 2.3 'document_signature'). Verification per RFC 8785 + RFC 8032 (Ed25519).",
+      "required": ["alg", "kid", "signature"],
+      "additionalProperties": false,
+      "properties": {
+        "alg": {
+          "type": "string",
+          "const": "Ed25519"
+        },
+        "kid": {
+          "type": "string",
+          "minLength": 1,
+          "description": "kid of the signing public key inside public_keys."
+        },
+        "signature": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{128}$",
+          "description": "Ed25519 signature, lowercase hex, 64 bytes (128 hex chars)."
+        }
+      }
+    },
+    "verification_methods": {
+      "type": "array",
+      "description": "Wakir-scoped optional extension (DID-document-style verification methods). Not part of the strict AIP draft; ignored by AIP-only verifiers.",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "controller", "publicKeyHex"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "type": {
+            "type": "string",
+            "enum": ["Ed25519VerificationKey2020", "EcdsaSecp256k1VerificationKey2019"]
+          },
+          "controller": { "type": "string", "minLength": 1 },
+          "publicKeyHex": {
+            "type": "string",
+            "pattern": "^[0-9a-f]+$"
+          }
+        }
+      }
+    },
+    "service_endpoints": {
+      "type": "array",
+      "description": "Wakir-scoped optional extension. Service endpoints in DID-document style (id, type, serviceEndpoint URI).",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "serviceEndpoint"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "type": { "type": "string", "minLength": 1 },
+          "serviceEndpoint": { "type": "string", "format": "uri" }
+        }
+      }
+    },
+    "biscuit_root_pubkey": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Wakir-scoped optional extension. Lowercase-hex Ed25519 public key (64 hex chars) used to verify Biscuit authority-block signatures issued by this identity. When present, capability tokens referencing this AIP document via aip_document_ref MUST verify authority_block.signature against this key. When absent, verifiers fall back to public_keys with purpose='biscuit-root'."
+    }
+  }
+}
