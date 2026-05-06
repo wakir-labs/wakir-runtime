@@ -3,9 +3,9 @@
 
 Ensures the repository root is on ``sys.path`` so test modules can
 ``import wirelang`` (and ``import wat`` etc.) without requiring a
-``pip install -e .`` step. Once Tomas's day-3 ``pyproject.toml``
-lands with proper editable-install support, this file may become
-redundant; it is harmless either way.
+``pip install -e .`` step. With ``pyproject.toml`` providing proper
+editable-install support, this file becomes redundant once an editable
+install is performed; it is harmless either way.
 """
 
 from __future__ import annotations

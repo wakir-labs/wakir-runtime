@@ -61,13 +61,20 @@ dependencies = [
     # PyPI: https://pypi.org/project/rfc8785/  (URL-200-stamped 2026-05-06)
     # Maintainer: Trail of Bits. License: Apache-2.0.
     "rfc8785>=0.1.4",
+    # SLIP-39 Shamir reference implementation.
+    # PyPI: https://pypi.org/project/shamir-mnemonic/  (URL-200-stamped 2026-05-06)
+    # Maintainer: SatoshiLabs. License: MIT.
+    "shamir-mnemonic>=0.3.0",
+    # EC and Ed25519 primitives for Two-Curve identity stack
+    # (BIP-32 secp256k1 + SLIP-0010 Ed25519 derivation).
+    # License: Apache-2.0 + BSD.
+    "cryptography>=42",
 ]
 
 [project.optional-dependencies]
 test = [
     "pytest>=8.0",
-    # JSON Schema validation for Wirelang Layer 0/1/2 conformance tests
-    # (Reza Tag-1 dependency).
+    # JSON Schema validation for Wirelang Layer 0/1/2 conformance tests.
     "jsonschema>=4.21",
 ]
 
