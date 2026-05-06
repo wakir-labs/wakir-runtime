@@ -263,14 +263,148 @@ def test_build_event_sorting_deterministic(tmp_path: Path) -> None:
     data_a = json.loads(manifest_a.read_text(encoding="utf-8"))
     data_b = json.loads(manifest_b.read_text(encoding="utf-8"))
     assert data_a["merkle_root"] == data_b["merkle_root"]
-    # Event entries land in the same canonical (sorted-by-event_id) order.
+    # Event entries land in the same canonical sort order; the
+    # spool-spec §4 contract is lexicographic on (time, event_id).
     assert [e["event_id"] for e in data_a["events"]] == [
         e["event_id"] for e in data_b["events"]
     ]
 
-    # Independent re-derivation: hash the manifest's leaf entries with
-    # the public leaf-hash function and rebuild the tree; compare to
-    # the manifest-claimed root.
+
+# ---------------------------------------------------------------------------
+# Tag-8 sort-drift fix: cross-module-vertrag with docs/wat-spool-spec.md §4.
+#
+# The aggregator now sorts on the 2-tuple (time, event_id). The two
+# tests below cover the disambiguation cases where event_id-only sort
+# and (time, event_id) sort diverge.
+# ---------------------------------------------------------------------------
+
+
+def test_aggregator_sort_time_then_event_id(tmp_path: Path) -> None:
+    """Sort key is the (time, event_id) tuple per spool-spec §4.
+
+    Two coverage cases:
+
+    1. Identical ``time`` across two events -> tiebreak by ``event_id``
+       so the canonical order is deterministic.
+    2. Distinct ``time`` with reversed ``event_id`` order -> ``time``
+       wins over ``event_id`` in the sort key.
+
+    A drift back to event_id-only sort (the Tag-7 bug) would flip the
+    second case's leaf order and produce a different Merkle root, which
+    is the exact cross-module-vertrag-drift this test is designed to
+    catch.
+    """
+    # Case 1: same time, different event_id. event_id breaks the tie.
+    same_time = "2026-05-06T17:30:00Z"
+    events_same_time = [
+        {
+            "event_id": "evt-zzz-late",
+            "time": same_time,
+            "payload_hash": "11" * 32,
+            "capability_token_hash": "22" * 32,
+        },
+        {
+            "event_id": "evt-aaa-early",
+            "time": same_time,
+            "payload_hash": "33" * 32,
+            "capability_token_hash": "44" * 32,
+        },
+    ]
+    spool = tmp_path / "same-time.jsonl"
+    _write_jsonl(spool, events_same_time)
+    manifest_path = tmp_path / "same-time-manifest.json"
+    result = _run_build(
+        hour="2026-05-06T17",
+        input_events=spool,
+        output_manifest=manifest_path,
+    )
+    assert result.returncode == 0, result.stderr
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    # Lexicographic event_id order: 'evt-aaa-early' < 'evt-zzz-late'.
+    assert [e["event_id"] for e in manifest["events"]] == [
+        "evt-aaa-early",
+        "evt-zzz-late",
+    ]
+
+    # Case 2: time wins over event_id. Earlier time, lexicographically
+    # later event_id -> still sorts first because the time key is
+    # primary in the tuple.
+    events_time_wins = [
+        {
+            # Later time, lexicographically earlier event_id.
+            "event_id": "evt-aaa",
+            "time": "2026-05-06T17:45:00Z",
+            "payload_hash": "55" * 32,
+            "capability_token_hash": "66" * 32,
+        },
+        {
+            # Earlier time, lexicographically later event_id.
+            "event_id": "evt-zzz",
+            "time": "2026-05-06T17:15:00Z",
+            "payload_hash": "77" * 32,
+            "capability_token_hash": "88" * 32,
+        },
+    ]
+    spool_b = tmp_path / "time-wins.jsonl"
+    _write_jsonl(spool_b, events_time_wins)
+    manifest_b_path = tmp_path / "time-wins-manifest.json"
+    result_b = _run_build(
+        hour="2026-05-06T17",
+        input_events=spool_b,
+        output_manifest=manifest_b_path,
+    )
+    assert result_b.returncode == 0, result_b.stderr
+    manifest_b = json.loads(manifest_b_path.read_text(encoding="utf-8"))
+    # Time-primary sort: 17:15 entry first (event_id evt-zzz), then 17:45.
+    # If the aggregator regressed to event_id-only sort, this assertion
+    # would flip ('evt-aaa' would land first lexicographically), so it
+    # is the cross-module-vertrag-canary.
+    assert [e["event_id"] for e in manifest_b["events"]] == [
+        "evt-zzz",
+        "evt-aaa",
+    ]
+
+
+def test_aggregator_sort_invariance_across_input_permutations(
+    tmp_path: Path,
+) -> None:
+    """Same event set in different input orders -> identical Merkle root.
+
+    Stronger sibling of ``test_build_event_sorting_deterministic``:
+    walks three permutations (identity, reverse, manual shuffle) and
+    asserts byte-equality of the Merkle root across all three. This is
+    the property the Tag-8 fix is supposed to preserve regardless of
+    which sort key the implementation uses, but is recorded explicitly
+    so any future sort-key tweak (e.g. adding a tertiary tiebreaker)
+    cannot regress it silently.
+    """
+    base = [_make_event(i) for i in range(6)]
+    permutations = [
+        list(base),
+        list(reversed(base)),
+        [base[3], base[0], base[5], base[1], base[4], base[2]],
+    ]
+    roots: List[str] = []
+    for idx, perm in enumerate(permutations):
+        spool = tmp_path / f"perm-{idx}.jsonl"
+        manifest = tmp_path / f"perm-{idx}-manifest.json"
+        _write_jsonl(spool, perm)
+        result = _run_build(
+            hour="2026-05-06T17",
+            input_events=spool,
+            output_manifest=manifest,
+        )
+        assert result.returncode == 0, result.stderr
+        roots.append(json.loads(manifest.read_text(encoding="utf-8"))["merkle_root"])
+    # All three roots must agree.
+    assert len(set(roots)) == 1, f"sort drifted across permutations: {roots}"
+
+    # Independent re-derivation against the first permutation: hash
+    # the manifest's leaf entries with the public leaf-hash function
+    # and rebuild the tree; compare to the manifest-claimed root.
+    data_first = json.loads(
+        (tmp_path / "perm-0-manifest.json").read_text(encoding="utf-8")
+    )
     leaves = [
         compute_leaf_hash(
             event_id=e["event_id"],
@@ -278,10 +412,10 @@ def test_build_event_sorting_deterministic(tmp_path: Path) -> None:
             payload_hash=e["payload_hash"],
             capability_token_hash=e["capability_token_hash"],
         )
-        for e in data_a["events"]
+        for e in data_first["events"]
     ]
     rebuilt_root, _levels = build_merkle_tree(leaves)
-    assert rebuilt_root.hex() == data_a["merkle_root"]
+    assert rebuilt_root.hex() == data_first["merkle_root"]
 
 
 def test_build_validates_4_field_input(tmp_path: Path) -> None:

@@ -148,16 +148,43 @@ def _validate_events(events: Iterable[dict[str, Any]]) -> List[dict[str, Any]]:
     return validated
 
 
-def _sorted_by_event_id(events: Sequence[dict[str, Any]]) -> List[dict[str, Any]]:
-    """Return events sorted by ``event_id`` ascending.
+def _sorted_by_time_then_event_id(
+    events: Sequence[dict[str, Any]],
+) -> List[dict[str, Any]]:
+    """Return events sorted by the ``(time, event_id)`` tuple, ascending.
+
+    Per ``docs/wat-spool-spec.md`` §4 the canonical aggregator sort is
+    lexicographic on the 2-tuple ``(time, event_id)``. Both fields are
+    strings; the Wakir conventions (RFC 3339 ``Z``-suffixed UTC and
+    UUIDv7 event IDs) are designed so lexicographic sort is also
+    time-ordered. ``event_id`` breaks ties when two events share the
+    same ``time`` value -- this is rare but possible at sub-second
+    coalescing points.
 
     Sorting at build time is the deterministic-Merkle-root contract:
     two operators replaying the same hour with the same spool produce
     bit-identical manifests regardless of source ordering. The verify
     CLI relies on this property to recompute the leaf list in manifest
     order without consulting an external index.
+
+    Phase-1a-Tag-8 fix: the previous implementation sorted by
+    ``event_id`` only, which drifted from the spool-spec contract.
+    The two sort keys agree for typical traffic (UUIDv7 monotonic with
+    time) but disagree under coalesced timestamps or out-of-order
+    bridge restart replays. Hash-consistency vectors are unaffected --
+    they pin individual leaf hashes, not pack-roots.
     """
-    return sorted(events, key=lambda ev: ev["event_id"])
+    return sorted(events, key=lambda ev: (ev["time"], ev["event_id"]))
+
+
+# ---------------------------------------------------------------------------
+# Backwards-compat alias. The Tag-7 internals re-exported this name on
+# the module surface; keep it pointing at the new implementation so any
+# in-repo or downstream caller that imported it directly does not break
+# silently. The alias is private (leading underscore) so it is not part
+# of the public API and can be removed in a later cleanup pass.
+# ---------------------------------------------------------------------------
+_sorted_by_event_id = _sorted_by_time_then_event_id
 
 
 def _build_manifest_object(
@@ -438,7 +465,7 @@ def build_command(
         return manifest
 
     validated = _validate_events(raw_events)
-    sorted_events = _sorted_by_event_id(validated)
+    sorted_events = _sorted_by_time_then_event_id(validated)
     manifest = _build_manifest_object(
         hour_slot=hour,
         events=sorted_events,
