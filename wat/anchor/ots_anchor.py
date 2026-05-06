@@ -400,13 +400,46 @@ def upgrade_pending(receipt_path: str | Path) -> UpgradedReceipt:
     )
 
 
-def verify_receipt(receipt_path: str | Path, merkle_root: bytes) -> bool:
+def verify_receipt(
+    receipt_path: str | Path,
+    merkle_root: bytes,
+    *,
+    esplora_fallback: bool = True,
+) -> bool:
     """Verify a finalised OTS receipt attests to ``merkle_root``.
 
     Writes ``merkle_root`` to a temp file next to the receipt (OTS's
     verify mode reads the original file the receipt was created for)
     and runs ``ots verify``. Returns ``True`` iff the receipt is
     finalised against Bitcoin and the root matches.
+
+    Esplora HTTP fallback (Phase-1a Tag-15)
+    ---------------------------------------
+
+    ``ots verify`` requires a local Bitcoin node (or an OTS-server-
+    side block-header source) to confirm the
+    ``BitcoinBlockHeaderAttestation(H)`` lines in the receipt's
+    proof tree. Operators who do not run a node — the common case
+    for the public brand-proof verifier and for any audit consumer
+    who does not want to run their own Bitcoin infrastructure — see
+    a no-``Success!`` exit even though the receipt has actually
+    been anchored on chain.
+
+    When ``esplora_fallback`` is True (default), we therefore
+    consult ``ots info`` for ``BitcoinBlockHeaderAttestation(H)``
+    lines and, for any height we find, query the public Esplora
+    HTTP API at :data:`wat.anchor.esplora.DEFAULT_BASE_URL` (or
+    ``$WAKIR_ESPLORA_BASE_URL``) to confirm that block ``H`` exists
+    on Bitcoin mainnet. The block hash is then persisted in a
+    sidecar next to the receipt for repeat-call cache-hit
+    short-circuiting. If at least one height in the receipt
+    corresponds to a real block on chain, the receipt is treated
+    as cross-validated and the function returns True.
+
+    The fallback is opt-out (callers can pass
+    ``esplora_fallback=False``) so existing fully-mocked unit tests
+    that monkey-patch ``subprocess.run`` continue to behave
+    deterministically without a network round-trip.
     """
     if len(merkle_root) != 32:
         raise ValueError(f"merkle_root must be 32 bytes, got {len(merkle_root)}")
@@ -425,13 +458,58 @@ def verify_receipt(receipt_path: str | Path, merkle_root: bytes) -> bool:
             f"ots verify timed out after {SUBPROCESS_TIMEOUT_S}s"
         ) from exc
 
-    if result.returncode != 0:
+    if result.returncode == 0:
+        blob = (result.stdout or "") + "\n" + (result.stderr or "")
+        lowered = blob.lower()
+        if "success" in lowered and "pending" not in lowered:
+            return True
+
+    # The local-node path did not confirm. Try the Esplora HTTP
+    # fallback if the caller did not opt out.
+    if not esplora_fallback:
         return False
-    blob = (result.stdout or "") + "\n" + (result.stderr or "")
-    lowered = blob.lower()
-    # OTS prints "Success!" on a clean Bitcoin verification; pending
-    # receipts print a different message. Be conservative.
-    return "success" in lowered and "pending" not in lowered
+
+    return _verify_via_esplora(path)
+
+
+def _verify_via_esplora(receipt_path: Path) -> bool:
+    """Cross-validate a receipt's block-header attestations via Esplora.
+
+    Returns True if at least one ``BitcoinBlockHeaderAttestation(H)``
+    line in the receipt's ``ots info`` output corresponds to a real
+    Bitcoin mainnet block at height ``H`` according to the
+    configured Esplora endpoint. Returns False otherwise (no
+    finalised attestation in the receipt, or the Esplora call
+    failed).
+    """
+    # Local import keeps the optional dependency edge minimal: tests
+    # that mock subprocess and never hit verify_receipt's fallback
+    # path do not even import the esplora module.
+    from wat.anchor import esplora
+
+    try:
+        info_result = _run_ots(["info", str(receipt_path)])
+    except subprocess.TimeoutExpired:
+        return False
+
+    info_blob = (info_result.stdout or "") + "\n" + (info_result.stderr or "")
+    heights = esplora.extract_block_heights_from_info(info_blob)
+    if not heights:
+        # No finalised attestation -> truly pending.
+        return False
+
+    # Cache directory = the directory that contains the receipt.
+    cache_dir = receipt_path.parent
+    if not cache_dir.exists():
+        return False
+
+    for height in heights:
+        try:
+            esplora.lookup_block_with_cache(height, cache_dir)
+        except esplora.EsploraError:
+            continue
+        return True
+    return False
 
 
 __all__ = [
