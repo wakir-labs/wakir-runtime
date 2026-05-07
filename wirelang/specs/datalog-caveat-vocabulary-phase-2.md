@@ -491,6 +491,116 @@ Test coverage:
 `wirelang/tests/test_federation_route_registry_nats_kv_backend.py`
 — 13 tests green (T-NKV-01..10 plus 3 sanity probes).
 
+### 5.7 Phase-1b N3 multi-FTD chain walker implementation note (informative)
+
+Phase-1b Sprint-2 Tag-5 (S2-4) lands the N3 multi-FTD delegation-chain
+walker in `wirelang/federation/n3_chain_walker.py`. N3 is the third
+iteration after N1 (Sprint-1 stub: vocabulary reservation only) and
+N2 (Sprint-2 Tag-3 single-hop live evaluator). N3 implements the
+`peer_org` predicate's delegation-chain-walking extension that §5.1
+already reserved as the Phase-2 evolution path ("rooted at, or be
+reachable via a delegation chain that includes, the AIP `aip_id`")
+and that §5.5 N2-implementation-note marked as the next iteration
+after the single-hop FTD-id-equality match.
+
+Module surface:
+
+- `MAX_DEPTH_DEFAULT = 4` — default maximum number of inter-FTD
+  hops a chain may traverse. Phase-1b informed by typical multi-org
+  capability flow (issuer -> processor -> partner -> end-org) plus
+  one slack hop. Operators may tighten the bound at construction.
+- `CHAIN_HOP_SEPARATOR = "-|->"` — canonical ASCII separator for
+  chain-hop `route_id` derivation. Distinct from `did:` syntax
+  tokens; chosen to not collide with operator-defined arrow-style
+  human-readable labels (e.g. `"wakir->partner-A->treasury"`).
+- `derive_chain_hop_route_id(source_ftd_id, target_ftd_id) -> str`
+  — canonical `route_id` for a (source, target) FTD pair:
+  `"<source_ftd_id>" + CHAIN_HOP_SEPARATOR + "<target_ftd_id>"`.
+- `ChainWalker(context, *, max_depth=MAX_DEPTH_DEFAULT)` — pure
+  walker class. Public method: `walk(target_ftd_id,
+  intermediate_ftd_ids=None) -> ChainVerdict`.
+- `walk_delegation_chain(context, target_ftd_id,
+  intermediate_ftd_ids, *, max_depth=MAX_DEPTH_DEFAULT) ->
+  ChainVerdict` — convenience wrapper for one-shot calls.
+- `ChainVerdict(target_ftd_id, hops, wat_anchor_chain, depth)` —
+  frozen dataclass. `hops` is the ordered tuple of per-hop verdicts;
+  `wat_anchor_chain` is the parallel tuple of registry-entry
+  WAT-anchor manifest ids (Z2 surface, unchanged from registry).
+- `ChainHopVerdict(hop_index, source_ftd_id, target_ftd_id,
+  route_id, wat_anchor_manifest_id)` — per-hop verdict dataclass.
+- Errors (all derive from `FederationPredicateError`):
+  `ChainWalkerArgumentError`, `ChainWalkerCycleError`,
+  `ChainWalkerDepthError`, `ChainWalkerSchemaError`. Hop-level
+  failures re-use the N2 typed errors `FederationRouteUnknownError`
+  and `FederationRouteExpiredError` so callers that already
+  short-circuit on N2 errors uniformly handle N3 hop failures.
+
+Walk semantics:
+
+The full chain is `ctx_ftd_id -> intermediate_ftd_ids[0] -> ... ->
+intermediate_ftd_ids[-1] -> target_ftd_id`. The walker derives one
+hop per arrow. For each hop `(src, tgt)` it:
+
+1. Computes the canonical `route_id` via
+   `derive_chain_hop_route_id(src, tgt)`.
+2. Looks up the entry in the caller's `RouteRegistry`. A registry
+   miss is a typed `FederationRouteUnknownError`.
+3. Cross-checks the entry's `source_ftd_id` against `src`. A
+   mismatch (registered route under an unrelated peer) is also
+   surfaced as `FederationRouteUnknownError` to keep forensics
+   consistent with N2 §5.2 source-FTD handling.
+4. Cross-checks the entry's window against `context.eval_now`. An
+   inactive window is a typed `FederationRouteExpiredError`.
+
+Cycle detection: the walker rejects any chain that visits an FTD
+id twice. Depth bound: chains longer than `max_depth` are rejected.
+Zero-hop degenerate case (no intermediates, `target == ctx_ftd_id`)
+is handled before cycle detection and produces a verdict with
+`hops=()`, equivalent to the N2 `peer_org` exact-match accept.
+
+Determinism contract (T-N3-09): two invocations of `walk(...)` over
+the same context, target, and chain spec yield byte-identical
+verdicts (or the same typed error). The walker does not consult the
+network, the wall-clock outside `context.eval_now`, or any state
+beyond the supplied chain spec and registry handle.
+
+Phase-1b boundary (informative; the §5.1 ratification of the
+predicate does not depend on these implementation choices):
+
+- Per-hop FTD-doc resolution is NOT performed by the walker. The
+  walker relies on the registry entry's `source_ftd_id` field as
+  the hop-identity binding. A Phase-2 hardening will likely require
+  per-hop FTD-doc verification; the current Phase-1b form is the
+  minimum viable contract.
+- The chain-hop `route_id` derivation is a Phase-1b convention.
+  Operators emitting registry entries that witness chain hops MUST
+  use `derive_chain_hop_route_id` to produce the canonical
+  `route_id`. The walker does NOT fall back to scanning the registry
+  for a matching (source, target) pair, which would otherwise make
+  verdicts ordering-dependent under last-write-wins semantics.
+- The walker surfaces the per-hop `wat_anchor_manifest_id` chain
+  unchanged for downstream Z2 consumers; the walker itself does
+  NOT anchor multi-hop chain-snapshot versions to WAT.
+
+Cross-review hooks:
+
+This module touches Cross-Review Zone 1 (Identity-Substrate) at
+substantially deeper substance than the N2 evaluator: every hop in
+the chain is an FTD-doc cross-check anchor. A Z1 cross-review memo
+is delivered to the WAT-engineering inbox covering: the per-hop
+`source_ftd_id` binding (without per-hop FTD-doc resolution), the
+chain-hop `route_id` derivation convention, and the question of
+whether the WAT-Identity-Layer signers should be Multi-Hop-Chain-Aware
+in Phase-1b or whether that is Phase-2-deferred. The walker is
+non-blocking for Z1: Phase-1b form ships under the existing N2 Z1
+consensus marker; a Phase-2 hardening triggers a fresh marker.
+
+Test coverage:
+`wirelang/tests/test_federation_n3_chain_walker.py` — 15 tests
+green (T-N3-01..10 plus 5 aux probes covering expired-hop,
+derive-helper validation, walk-fn equivalence, ctx-revisit cycle,
+and the unreachable zero-hop-mismatch defensive branch).
+
 ## 6. TV-W-2 Pin-Stability Guarantee
 
 TV-W-2 (`wirelang/specs/wirelang-tv-strategy.md` §2) pins three
