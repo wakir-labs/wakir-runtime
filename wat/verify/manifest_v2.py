@@ -57,21 +57,25 @@ What this module checks
 Provisional / OQ-1
 ------------------
 
-Per ``docs/wat-manifest-v2-spec.md`` §9 OQ-1, the canonical Merkle
-ordering for ``caprefs_root`` is open pending Zone-2 sign-off.
-Current proposal: **ordered Merkle** (preserves producer intent).
-This stub implements the ordered convention behind a strict-mode
-flag:
+Per ``docs/wat-manifest-v2-spec.md`` §9 OQ-1 (ratified
+2026-05-07 by wirelang-engineering Cross-Review-Zone-2), the
+canonical Merkle ordering for ``caprefs_root`` is **ordered
+Merkle** (preserves producer / issuance intent). This stub
+implements the ordered convention; strict-mode is the default
+since Sprint-2 Tag-4:
 
-- ``--strict-multi-cap-root`` (default off) — recompute
-  ``caprefs_root`` and reject on mismatch with exit code 1 and
-  reason ``multi_cap_root_mismatch``.
-- Default lenient mode — emit a warning ``multi_cap_root not yet
+- ``--strict-multi-cap-root`` (default **on** since Sprint-2
+  Tag-4) — recompute ``caprefs_root`` and reject on mismatch
+  with exit code 1 and reason ``multi_cap_root_mismatch``.
+- ``--no-strict-multi-cap-root`` (lenient escape hatch for
+  third-party verifiers that have not yet adopted the locked
+  ordering) — emit a warning ``multi_cap_root not yet
   verified (OQ-1 pending)`` and continue.
 
-This matches the spec §8 verifier-posture matrix: lenient is the
-forward-compat default for downstream verifiers; strict is what the
-reference verifier eventually flips to once Zone-2 locks ordering.
+This matches the spec §8 verifier-posture matrix: strict is the
+reference-verifier default since Sprint-2 Tag-4; lenient remains
+available as a forward-compat escape hatch for downstream
+verifiers that have not yet adopted the locked ordering.
 
 Exit codes
 ----------
@@ -670,7 +674,7 @@ def verify_manifest_v2_file(
     manifest_path: str | Path,
     *,
     schema_path: str | Path | None = None,
-    strict_multi_cap_root: bool = False,
+    strict_multi_cap_root: bool = True,
 ) -> ManifestV2Result:
     """Verify a single WAT manifest file end-to-end.
 
@@ -685,11 +689,13 @@ def verify_manifest_v2_file(
         ``wirelang/schemas/wat-manifest-v2.json`` next to the
         repo-root.
     strict_multi_cap_root:
-        When True, recompute ``caprefs_root`` for every entry in
-        ``multi_cap_events`` and reject on mismatch (provisional;
-        ordered-Merkle convention per OQ-1). When False (default),
-        skip the recompute and report ``multi_cap_root_status =
-        "deferred"`` so external callers can wire their own posture.
+        When True (default since Sprint-2 Tag-4, OQ-1 ratified
+        ordered-Merkle 2026-05-07), recompute ``caprefs_root`` for
+        every entry in ``multi_cap_events`` and reject on mismatch.
+        When False (lenient escape hatch for third-party verifiers
+        that have not yet adopted the locked ordering), skip the
+        recompute and report ``multi_cap_root_status = "deferred"``
+        so external callers can wire their own posture.
     """
     path = Path(manifest_path)
     if not path.exists():
@@ -828,12 +834,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--strict-multi-cap-root",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=True,
         help=(
             "Recompute caprefs_root from caprefs_full under the ordered-"
-            "Merkle convention (OQ-1 proposal) and reject on mismatch. "
-            "Off by default while OQ-1 is open; lenient mode emits a "
-            "deferred-warning instead."
+            "Merkle convention (OQ-1 ratified 2026-05-07 by wirelang-"
+            "engineering Cross-Review-Zone-2) and reject on mismatch. "
+            "On by default since Sprint-2 Tag-4. Use "
+            "--no-strict-multi-cap-root for lenient mode (deferred-"
+            "warning) — escape hatch for third-party verifiers that "
+            "have not yet adopted the locked ordering."
         ),
     )
     parser.add_argument(

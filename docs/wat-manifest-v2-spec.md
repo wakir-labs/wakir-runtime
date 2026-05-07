@@ -347,12 +347,17 @@ These mirror the open questions in the stub spec
 (`docs/wat-manifest-v2-multi-cap-stub.md` §8) but are restated here
 because they directly affect external-verifier interop.
 
-**OQ-1: Ordered vs sorted Merkle for `caprefs_root`.**
-Current proposal: ordered Merkle (preserves producer intent per
-WAT-Phase-1a-Spec §3.4.1). Sign-off pending wirelang-engineering
-Zone-2 review (open as of Tag-27, expected Sprint-2 Tag-1). External verifier authors MUST NOT independently choose an
-ordering; the canonical decision will be locked in §4 of this spec
-once Zone-2 signs off.
+**OQ-1 — RATIFIED 2026-05-07: Ordered Merkle for `caprefs_root`.**
+Decision: **ordered Merkle** (Variante A) — preserves producer /
+issuance intent per WAT-Phase-1a-Spec §3.4.1. Sign-off:
+wirelang-engineering Cross-Review-Zone-2, 2026-05-07T11:48:09Z.
+External verifier authors MUST adopt
+the ordered convention; the reference verifier
+(`wat.verify.manifest_v2`) ships with strict-mode default ON
+since Sprint-2 Tag-4 (2026-05-07). Lenient mode
+(`--no-strict-multi-cap-root`) remains available as an escape
+hatch for downstream verifiers that have not yet adopted the
+locked ordering.
 
 **OQ-2: Empty `multi_cap_events: {}` on a forced v2 manifest.**
 Current proposal: never. Trigger condition is strict — v2 manifests
@@ -373,11 +378,17 @@ Coordinated with qa-engineering at the QA-handover slot. External
 verifier conformance suites will pin against TV-4 once it lands
 (Sprint-2 Tag-7+).
 
-When OQ-1 resolves, this spec gets a §4.1.1 sub-section pinning
-the canonical Merkle ordering and a normative reference to the
-implementation. Until then, external verifiers in strict mode
-should treat the multi-cap-root check as **provisional** and may
-emit a warning indicating the ordering is not yet locked.
+**OQ-1 implementation pin (post-ratification, Sprint-2 Tag-4):**
+the canonical Merkle ordering is the ordered-Merkle convention
+implemented in
+`wat.verify.manifest_v2._caprefs_canonical_root_ordered`
+(`caprefs_full[i]` is hashed left-to-right in producer / issuance
+order; SHA-256 leaves; standard pair-hash internal nodes;
+duplicate-last-on-odd-count pad). External verifiers that adopt
+this convention can run in strict mode and validate
+`caprefs_root` against the recompute. Verifiers that have not
+yet adopted it MUST use lenient mode and emit a
+`multi_cap_root_status="deferred"` warning.
 
 ## 10. Reference artefacts
 
@@ -417,7 +428,7 @@ manifest-centric record rather than expecting a 1:1 field map.
 | `ok` | boolean | True iff `schema_ok` and `integrity_ok` both true. |
 | `schema_ok` | boolean | JSON-Schema validation outcome. |
 | `integrity_ok` | boolean | Cross-module integrity outcome (event-count / leaves / merkle_root / multi-cap sidecar consistency). |
-| `multi_cap_root_status` | string enum: `"verified" \| "deferred" \| "mismatch" \| ""` | Empty string for v1 manifests. `"deferred"` is the lenient-mode default while OQ-1 is open. |
+| `multi_cap_root_status` | string enum: `"verified" \| "deferred" \| "mismatch" \| ""` | Empty string for v1 manifests. `"verified"` is the strict-mode default since Sprint-2 Tag-4 (OQ-1 ratified ordered-Merkle 2026-05-07); `"deferred"` is emitted only under explicit `--no-strict-multi-cap-root` lenient mode. |
 | `failure_reason` | string | `"<phase>: <message>"` on failure where `<phase>` is one of `schema`, `integrity`, `multi_cap_root`. Empty on success. |
 
 JSON keys are sorted (`json.dumps(..., sort_keys=True)`) so the
@@ -448,7 +459,7 @@ Pinned eleven keys, additive-only across `schema_version`
 | `hour_slot` | string | The manifest's `hour_slot` if available, else empty string. |
 | `event_count` | int | Number of events in the manifest, else `-1`. Never `null`. |
 | `anchor_root_hex` | string | The manifest's `merkle_root` (64 lowercase hex, NO `"sha256:"` prefix), else empty string. The frontend re-prefixes at render-time when desired. |
-| `branches` | list | Exactly one entry: `{label: "manifest-validity", verdict: "verified" \| "rejected" \| "pending", detail: <human string>}`. `pending` is the lenient-mode-deferred-OQ-1 honesty case. |
+| `branches` | list | Exactly one entry: `{label: "manifest-validity", verdict: "verified" \| "rejected" \| "pending", detail: <human string>}`. `verified` is the strict-mode default for clean v2 manifests since Sprint-2 Tag-4 (OQ-1 ratified). `pending` is emitted only under explicit `--no-strict-multi-cap-root` lenient mode (escape hatch for downstream verifiers that have not yet adopted the locked ordering). |
 | `ok` | bool | Mirror of `--output json` `ok`. Allows short-circuit without parsing `branches`. |
 | `failure_reason` | string | `"<phase>: <message>"` on failure, empty on success. Mirrors `--output json`. |
 
@@ -489,6 +500,24 @@ is informative only.
 
 ## 11. Change log
 
+- **2026-05-07 (Sprint-2 Tag-4):** OQ-1 ratified
+  (wirelang-engineering Cross-Review-Zone-2, sign-off
+  2026-05-07T11:48:09Z): canonical Merkle for `caprefs_root` is
+  **ordered Merkle** (Variante A — preserves producer / issuance
+  intent). Reference verifier `wat.verify.manifest_v2`
+  default-flips strict-mode ON (`strict_multi_cap_root=True` is
+  the new default in `verify_manifest_v2_file`; CLI flag now
+  `argparse.BooleanOptionalAction` — `--strict-multi-cap-root`
+  default ON, `--no-strict-multi-cap-root` lenient escape
+  hatch). Zero-line implementation patch on the recompute
+  itself: `_caprefs_canonical_root_ordered` was already the
+  ratified algorithm. Spec §9 OQ-1 status moves from "open" to
+  "RATIFIED"; §10 verifier-stub-schema and audit-trail-entry
+  status descriptions updated; 3 additional hermetic tests
+  (32 total in the stub suite, 205 / 19 across the full repo).
+  Frontend audit-trail-entry consumer gets `verdict="verified"`
+  for clean v2 manifests by default; lenient `verdict="pending"`
+  remains available under explicit `--no-strict-multi-cap-root`.
 - **2026-05-07 (Sprint-2 Tag-3):** Verifier-stub gains
   `--output audit-trail-entry` CLI mode and
   `ManifestV2Result.as_audit_trail_entry()`. Eleven-field

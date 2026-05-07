@@ -152,12 +152,15 @@ def test_v1_minimal_manifest_validates_and_is_consistent(tmp_path: Path) -> None
     assert result.multi_cap_root_status == ""
 
 
-def test_v2_manifest_multi_event_passes_lenient_default(tmp_path: Path) -> None:
-    """v2 with two multi-cap events validates in lenient (default) mode.
+def test_v2_manifest_multi_event_passes_strict_default(tmp_path: Path) -> None:
+    """v2 with two multi-cap events validates in strict (default) mode.
 
-    Lenient mode skips the caprefs_root recompute and reports
-    ``deferred`` status — that is the OQ-1-pending posture per
-    docs/wat-manifest-v2-spec.md §8.
+    Strict mode is the default since Sprint-2 Tag-4 (OQ-1 ratified
+    ordered-Merkle 2026-05-07 by wirelang-engineering Cross-Review-
+    Zone-2). The reference verifier recomputes ``caprefs_root`` over
+    ``caprefs_full`` using the ordered convention and reports
+    ``verified``. See docs/wat-manifest-v2-spec.md §8 verifier-
+    posture matrix.
     """
     events = [
         _make_event(1, capref_hash_hex="a" * 64),
@@ -176,6 +179,36 @@ def test_v2_manifest_multi_event_passes_lenient_default(tmp_path: Path) -> None:
 
     assert result.ok, result.failure_reason
     assert result.version == "wat-manifest/2.0"
+    assert result.multi_cap_root_status == "verified"
+
+
+def test_v2_manifest_lenient_mode_explicit_off_reports_deferred(
+    tmp_path: Path,
+) -> None:
+    """The lenient escape hatch remains available for downstream verifiers.
+
+    Third-party verifiers that have not yet adopted the locked
+    ordering can opt out of the strict recompute by passing
+    ``strict_multi_cap_root=False``; the result then carries
+    ``multi_cap_root_status="deferred"`` (the pre-OQ-1-ratification
+    semantics).
+    """
+    events = [
+        _make_event(1, capref_hash_hex="a" * 64),
+        _make_event(2, capref_hash_hex="b" * 64),
+    ]
+    manifest = _build_v2_manifest(
+        events,
+        multi_cap={
+            "evt-1": [_CAPREF_1, _CAPREF_2],
+            "evt-2": [_CAPREF_1, _CAPREF_2, _CAPREF_3],
+        },
+    )
+    path = _write_manifest(tmp_path, manifest)
+
+    result = verify_manifest_v2_file(path, strict_multi_cap_root=False)
+
+    assert result.ok, result.failure_reason
     assert result.multi_cap_root_status == "deferred"
 
 
@@ -301,7 +334,12 @@ def test_integrity_failure_multi_cap_event_id_not_in_events(tmp_path: Path) -> N
 
 
 def test_strict_mode_multi_cap_root_mismatch_detected(tmp_path: Path) -> None:
-    """A tampered ``caprefs_root`` is caught only in strict mode."""
+    """A tampered ``caprefs_root`` is caught in strict mode (default).
+
+    Lenient mode (explicit ``strict_multi_cap_root=False``, escape
+    hatch for third-party verifiers) skips the recompute and accepts
+    the manifest with ``deferred`` status.
+    """
     events = [_make_event(1, capref_hash_hex="a" * 64)]
     manifest = _build_v2_manifest(
         events,
@@ -311,13 +349,14 @@ def test_strict_mode_multi_cap_root_mismatch_detected(tmp_path: Path) -> None:
     manifest["multi_cap_events"]["evt-1"]["caprefs_root"] = "1" * 64
     path = _write_manifest(tmp_path, manifest)
 
-    # Lenient: passes (deferred). This is the explicit OQ-1 trade-off.
-    lenient = verify_manifest_v2_file(path)
+    # Lenient (explicit opt-out): passes (deferred). Escape hatch for
+    # downstream verifiers that have not yet adopted the locked ordering.
+    lenient = verify_manifest_v2_file(path, strict_multi_cap_root=False)
     assert lenient.ok
     assert lenient.multi_cap_root_status == "deferred"
 
-    # Strict: fails.
-    strict = verify_manifest_v2_file(path, strict_multi_cap_root=True)
+    # Strict (default since Sprint-2 Tag-4): fails.
+    strict = verify_manifest_v2_file(path)
     assert not strict.ok
     assert strict.multi_cap_root_status == "mismatch"
     assert strict.failure_reason.startswith("multi_cap_root:")
@@ -396,7 +435,13 @@ def test_as_dict_returns_pinned_schema_keys() -> None:
 def test_cli_output_json_emits_single_line_object_on_success(
     tmp_path: Path, capsys
 ) -> None:
-    """``--output json`` emits a JSON object on stdout, exit-code 0."""
+    """``--output json`` emits a JSON object on stdout, exit-code 0.
+
+    Default-strict-mode (Sprint-2 Tag-4 onwards) reports
+    ``multi_cap_root_status="verified"`` for a clean v2 manifest
+    whose ``caprefs_root`` is the ordered-Merkle hash of
+    ``caprefs_full``.
+    """
     events = [_make_event(1, capref_hash_hex="a" * 64)]
     manifest = _build_v2_manifest(
         events,
@@ -413,10 +458,36 @@ def test_cli_output_json_emits_single_line_object_on_success(
     assert payload["schema_ok"] is True
     assert payload["integrity_ok"] is True
     assert payload["manifest_version"] == "wat-manifest/2.0"
-    assert payload["multi_cap_root_status"] == "deferred"
+    assert payload["multi_cap_root_status"] == "verified"
     assert payload["schema_version"] == "wakir-verify-manifest-v2/0"
     # Single-line: exactly one trailing newline from print, no embedded newlines.
     assert "\n" not in out
+
+
+def test_cli_output_json_no_strict_flag_emits_deferred_status(
+    tmp_path: Path, capsys
+) -> None:
+    """``--no-strict-multi-cap-root`` emits the lenient ``deferred`` posture.
+
+    Escape hatch for third-party verifiers that have not yet adopted
+    the OQ-1-ratified ordered-Merkle convention; preserved as a CLI
+    flag since Sprint-2 Tag-4 default-flip.
+    """
+    events = [_make_event(1, capref_hash_hex="a" * 64)]
+    manifest = _build_v2_manifest(
+        events,
+        multi_cap={"evt-1": [_CAPREF_1, _CAPREF_2]},
+    )
+    path = _write_manifest(tmp_path, manifest)
+
+    rc = verifier_main(
+        [str(path), "--output", "json", "--no-strict-multi-cap-root"]
+    )
+
+    out = capsys.readouterr().out.strip()
+    assert rc == 0
+    payload = json.loads(out)
+    assert payload["multi_cap_root_status"] == "deferred"
 
 
 def test_cli_output_json_on_tampered_manifest_carries_failure_reason(
@@ -761,9 +832,41 @@ def test_cli_output_audit_trail_entry_emits_eleven_field_object(
     assert payload["event_count"] == 2
     assert payload["anchor_root_hex"] == manifest["merkle_root"]
     assert payload["identity"] == "wat-hour 2026-05-26T17"
-    assert payload["branches"][0]["verdict"] == "pending"  # lenient default
+    # Strict default since Sprint-2 Tag-4 (OQ-1 ratified ordered-Merkle):
+    # verdict is "verified" for a clean v2 manifest whose caprefs_root is
+    # the ordered hash of caprefs_full.
+    assert payload["branches"][0]["verdict"] == "verified"
     # No embedded newlines: single-line wire format.
     assert "\n" not in out
+
+
+def test_cli_output_audit_trail_entry_lenient_mode_yields_pending_verdict(
+    tmp_path: Path, capsys
+) -> None:
+    """``--no-strict-multi-cap-root`` keeps the lenient ``pending`` verdict.
+
+    Lenient escape hatch for third-party verifiers — the pre-OQ-1-
+    ratification ``deferred`` semantics maps to ``verdict="pending"``
+    in the audit-trail-entry shape (honesty bucket).
+    """
+    events = [
+        _make_event(1, capref_hash_hex="a" * 64),
+        _make_event(2, capref_hash_hex="b" * 64),
+    ]
+    manifest = _build_v2_manifest(
+        events,
+        multi_cap={"evt-1": [_CAPREF_1, _CAPREF_2]},
+    )
+    path = _write_manifest(tmp_path, manifest)
+
+    rc = verifier_main(
+        [str(path), "--output", "audit-trail-entry", "--no-strict-multi-cap-root"]
+    )
+
+    out = capsys.readouterr().out.strip()
+    assert rc == 0
+    payload = json.loads(out)
+    assert payload["branches"][0]["verdict"] == "pending"
 
 
 def test_cli_output_audit_trail_entry_keys_are_sorted(tmp_path: Path, capsys) -> None:
