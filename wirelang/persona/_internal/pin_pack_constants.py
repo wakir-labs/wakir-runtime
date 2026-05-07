@@ -69,3 +69,32 @@ PERSONA_HASH_PIN_V9: Final[str] = (
 #: re-ordering, default injection drift) breaks an explicit assertion
 #: and not just an indirect equality.
 PERSONA_HASH_PIN_V8_MIGRATED_TO_V1: Final[str] = PERSONA_HASH_PIN_V9
+
+
+#: Self-migration target pin (V9-to-V2): hash of the canonical subset
+#: produced by ``V1ToV2Step.apply`` on the v9 fixture (Phase-1b
+#: Sprint-3 Tag-3, V10-Migration-Pfad). The V9-to-V2 lift is a
+#: ``schema_version`` const flip from ``persona-v1`` to ``persona-v2``;
+#: every other canonical-subset byte is preserved. Because the
+#: canonical-subset *includes* ``schema_version``, this pin is **not**
+#: equal to :data:`PERSONA_HASH_PIN_V9` (Tag-1-Sketch §3 explicit
+#: design choice). The hex tail below was computed from the
+#: ``v9-persona-framework-native.md`` fixture during Sprint-3 Tag-3
+#: implementation; updating the v9 fixture front-matter forces a
+#: re-pin sweep here.
+PERSONA_HASH_PIN_V9_MIGRATED_TO_V2: Final[str] = (
+    "sha256:f719fce4bedd8522874ae214ec2f982ef87964b535ca368134b3636207eb6669"
+)
+
+#: Self-migration target pin (V8-via-chain-to-V2): hash of the
+#: canonical subset produced by chaining
+#: ``[V0ToV1Step(), V1ToV2Step()]`` on the v8 fixture. By construction
+#: EQUAL to :data:`PERSONA_HASH_PIN_V9_MIGRATED_TO_V2` — the v8 and v9
+#: fixtures share every canonical-subset key except ``schema_version``,
+#: and the chain endpoint sets ``schema_version=persona-v2`` either
+#: way. This is the **M-1 (linear-chain) direct-anchor** that the
+#: Sprint-2 M-Konsens-Marker companion memo flagged as currently
+#: indirect. Pinning it explicitly so a chain-resolver regression
+#: (e.g. accidental short-circuit at v1) trips an explicit assertion
+#: and not just an indirect equality.
+PERSONA_HASH_PIN_V8_MIGRATED_TO_V2: Final[str] = PERSONA_HASH_PIN_V9_MIGRATED_TO_V2

@@ -57,6 +57,25 @@ import yaml
 
 SUPPORTED_SCHEMA_VERSION: Final[str] = "persona-v1"
 
+#: All schema-versions the canonical-subset extractor accepts.
+#:
+#: Phase-1b Sprint-1 Tag-2 introduced ``persona-v1``. Phase-1b Sprint-3
+#: Tag-3 appends ``persona-v2`` (the converter's next-major target via
+#: :class:`wirelang.persona._internal.migration_steps.V1ToV2Step`) so
+#: that a migrated v2-shape dict can route through
+#: :func:`extract_canonical_subset` for post-migration pin verification
+#: without a separate v2-only extractor. The canonical-subset *shape*
+#: is identical for v1 and v2 (Default-Lock A-2 additiv-only-no-
+#: narrowing); only the ``schema_version`` const value changes.
+#: Additive optional fields from the persona-v2 schema are **not**
+#: included in the canonical subset on Tag-3 — they default to absent
+#: in both the lifted v9 input and the projected canonical-subset,
+#: which preserves the Tag-1-Sketch §3 pin-symmetry argument.
+ACCEPTED_SCHEMA_VERSIONS: Final[tuple[str, ...]] = (
+    "persona-v1",
+    "persona-v2",
+)
+
 #: Front-matter keys preserved in the canonical subset, in *insertion*
 #: order. JCS will sort them lexicographically anyway, but listing them
 #: explicitly here documents the contract.
@@ -171,10 +190,10 @@ def extract_canonical_subset(frontmatter: dict[str, Any]) -> dict[str, Any]:
         )
 
     schema_version = frontmatter["schema_version"]
-    if schema_version != SUPPORTED_SCHEMA_VERSION:
+    if schema_version not in ACCEPTED_SCHEMA_VERSIONS:
         raise ValueError(
             f"persona schema_version={schema_version!r} is not supported; "
-            f"expected {SUPPORTED_SCHEMA_VERSION!r}"
+            f"expected one of {ACCEPTED_SCHEMA_VERSIONS!r}"
         )
 
     identity_pinned_raw = frontmatter["identity_pinned"]

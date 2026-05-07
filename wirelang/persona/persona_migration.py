@@ -77,9 +77,18 @@ from wirelang.persona.persona_hash import (
 
 
 PERSONA_SCHEMA_VERSION_LATEST: Final[str] = SUPPORTED_SCHEMA_VERSION
+#: Ordered tuple of all schema-versions known to this build.
+#:
+#: Phase-1b Sprint-3 Tag-3 appends ``persona-v2`` as the converter's
+#: registered next major (``V1ToV2Step``). ``PERSONA_SCHEMA_VERSION_LATEST``
+#: deliberately stays at ``persona-v1`` until HR-slot ratifies the
+#: persona-v2 content (ADR-0029-Annex) or the T-B Default-Lock window
+#: lifts the engine-default-mock — neither has happened on Tag-3, so a
+#: bare ``migrate_persona(definition)`` call still targets v1 by default.
 PERSONA_SCHEMA_VERSION_LIST: Final[tuple[str, ...]] = (
     "persona-v0",
     "persona-v1",
+    "persona-v2",
 )
 
 #: Safety guard against cycles in the step registry. The Phase-1b

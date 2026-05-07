@@ -475,6 +475,29 @@ Verification of §9 cleanness is at the bottom (§10).
    (Sprint-2 Tag-5 M-Konsens-Marker T-B trigger pattern).
 2. **`V1ToV2Step` implementation + `REGISTERED_STEPS` extension.**
    ~30 LoC + step rule 4 strict source-version check.
+   **Status (Sprint-3 Tag-3):** done — `V1ToV2Step` lands beside
+   `V0ToV1Step` in `wirelang/persona/_internal/migration_steps.py`,
+   `REGISTERED_STEPS` carries both lifts in linear order,
+   `PERSONA_SCHEMA_VERSION_LIST` extends to `("persona-v0",
+   "persona-v1", "persona-v2")` (`PERSONA_SCHEMA_VERSION_LATEST`
+   stays at `persona-v1` until HR-slot content ratifies or a T-B
+   Default-Lock window lifts the engine-default-mock — neither has
+   happened on Tag-3). The canonical-subset extractor's accepted-set
+   widens from `{persona-v1}` to `{persona-v1, persona-v2}` so the
+   post-migration pin-verification path in
+   `migrate_persona(..., expected_post_migration_hash=...)` routes
+   cleanly through `extract_canonical_subset` without a separate
+   v2-only extractor (the canonical-subset *shape* is identical for
+   v1 and v2 by Default-Lock A-2 additiv-only-no-narrowing; only the
+   `schema_version` const value changes). Test pack
+   `wirelang/tests/test_persona_migration_v1_to_v2.py` with 6 tests
+   green (4 positive + 1 negative + 1 multi-step chain anchor).
+   Pin-pack constants `PERSONA_HASH_PIN_V9_MIGRATED_TO_V2` and
+   `PERSONA_HASH_PIN_V8_MIGRATED_TO_V2` (aliased to V9-migrated-V2
+   by construction) added to `pin_pack_constants.py`. Item 5 (V9-
+   migrated-V2 + V8-migrated-V2 pin constants) and Item 10 (M-1
+   direct-anchor test vector) collapse partially under this Tag-3
+   landing — see Status sub-entries on those items below.
 3. **`persona-v2.json` JSON-Schema authoring.** ~120 LoC, mirroring
    `persona-v1.json` with additive optional fields and reserved-
    field allow-list. `additionalProperties: false` retained at
@@ -491,6 +514,15 @@ Verification of §9 cleanness is at the bottom (§10).
    `PERSONA_HASH_PIN_V9_MIGRATED_TO_V2`, `PERSONA_HASH_PIN_V11`,
    `PERSONA_HASH_PIN_V8_MIGRATED_TO_V2` (alias to V9-migrated-V2 by
    construction).
+   **Status (Sprint-3 Tag-3):** partially done — the two
+   migration-target pins (`PERSONA_HASH_PIN_V9_MIGRATED_TO_V2` and
+   the aliased `PERSONA_HASH_PIN_V8_MIGRATED_TO_V2`) landed at Tag-3
+   alongside the converter step, with hex tail
+   `f719fce4bedd8522874ae214ec2f982ef87964b535ca368134b3636207eb6669`
+   computed from the v9 fixture. The two native-fixture pins
+   (`PERSONA_HASH_PIN_V10` for the v10 native fixture and
+   `PERSONA_HASH_PIN_V11` for the v11 mutation-class fixture) remain
+   pending under Item 4 (fixtures not yet authored).
 6. **Test-pack extension.** ~16 tests across the four classes in §4.
 7. **Spec doc paired update.** `self-migration-konverter-spec.md` §6
    "step registry contract" and §8 "test posture" paired-edited.
@@ -509,6 +541,17 @@ Verification of §9 cleanness is at the bottom (§10).
     Once Sprint-3 Tag-N tests are green, file an hr-slot-side
     trigger memo upgrading M-1 and M-4 from indirect-anchor to
     direct-anchor. pengine-side drafts; hr-slot commits.
+    **Status (Sprint-3 Tag-3):** M-1 direct-anchor *test vector*
+    landed —
+    `test_v0_to_v2_full_chain_pin_match` in the new
+    `test_persona_migration_v1_to_v2.py` exercises the multi-step
+    chain `[V0ToV1Step(), V1ToV2Step()]` end-to-end and asserts
+    pin-equality to `PERSONA_HASH_PIN_V8_MIGRATED_TO_V2` (which
+    aliases `PERSONA_HASH_PIN_V9_MIGRATED_TO_V2`). The hr-slot-side
+    trigger memo to upgrade the M-Konsens-Marker-Aggregat from
+    indirect-anchor to direct-anchor remains pengine-Hand-pendent
+    and will be drafted in a Tag-N follow-up box (separate from
+    code-landing).
 
 ## 10. §9-sweep self-verification (this file)
 
