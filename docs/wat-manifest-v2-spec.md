@@ -500,6 +500,32 @@ is informative only.
 
 ## 11. Change log
 
+- **2026-05-07 (Sprint-3 Tag-4):** off-default `ots verify`-Voll-
+  Integration landed. The pin-anchor side-file check (Sprint-2 Tag-5)
+  stops at the OpenTimestamps magic header for hermeticity reasons —
+  enough to assert that `root.bin.ots` is a well-formed proof file but
+  silent on whether the receipt is actually finalised on Bitcoin. The
+  new `--ots-full-verify` CLI flag, the `WAKIR_OTS_FULL_VERIFY=1` env
+  var, and the `ots_full_verify` keyword on
+  `verify_real_manifest_file` opt callers into invoking
+  `wat.anchor.ots_anchor.verify_receipt`, which shells out to the
+  `ots` CLI and consults the Esplora HTTP fallback for cross-
+  validation when no local Bitcoin node is reachable. Three new
+  fields land on `OtsAnchorCheck` and the JSON output schema:
+  `full_verify_attempted`, `full_verify_ok`, and
+  `full_verify_skipped_reason`. Soft-failure semantics are explicit:
+  a soft skip (`ots` CLI missing, receipt still pending) does not
+  flip `ok` because the magic-header pin still holds; a hard reject
+  (verifier returned False against a real receipt) does flip `ok`
+  with a populated `failure_reason`. The Bitcoin-RPC dependency is
+  thereby gated to a single off-default code path; the default
+  invocation surface stays hermetic. Test module
+  `tests/wat/test_ots_full_verify.py` lands six hermetic tests
+  (default magic-header path unchanged, kwarg-green, kwarg-hard-
+  reject, AnchorError-soft-skipped, env-flag-flips-on, CLI-flag-
+  flows-through-with-JSON-keys) and three live-gated tests under
+  `OTS_INTEGRATION_TEST=1` (TV-2 + TV-3 fixture full-verify contract,
+  CLI smoke). Test-suite delta +6 (290 -> 296).
 - **2026-05-07 (Sprint-3 Tag-3):** TV-3 real-manifest cohort + receipt-
   persistence edge-case hardening landed. The single-hour TV-3
   close-out run hour-receipt (run 2026-05-07T07:25:38Z, hour-slot

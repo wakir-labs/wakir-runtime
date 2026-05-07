@@ -1141,6 +1141,26 @@ class OtsAnchorCheck:
     ots_magic_ok:
         True iff ``root.bin.ots`` starts with the OpenTimestamps magic
         header. False on missing file or magic-byte mismatch.
+    full_verify_attempted:
+        True iff the caller asked for the off-default
+        ``ots verify``-Voll-Integration (Sprint-3 Tag-4) by passing
+        ``ots_full_verify=True`` (or via env / CLI flag — see
+        :func:`_full_verify_enabled` below). False means the
+        ``full_verify_*`` fields are not load-bearing and the OTS
+        check stops at the magic-header level (the pin-anchor
+        contract).
+    full_verify_ok:
+        When ``full_verify_attempted`` is True: True iff
+        :func:`wat.anchor.ots_anchor.verify_receipt` returned True
+        for the receipt sitting next to the manifest (with the merkle
+        root as the original-file payload). False on any verifier-
+        side rejection. When ``full_verify_attempted`` is False this
+        field is False but does not gate :attr:`ok`.
+    full_verify_skipped_reason:
+        Diagnostic when full-verify was requested but skipped at
+        runtime (e.g. ``ots`` CLI missing, receipt not finalised yet,
+        Esplora HTTP fallback unreachable). Empty when full-verify
+        was not requested or completed successfully.
     failure_reason:
         Diagnostic on first failure; empty when all sub-checks passed
         or when ``checked`` is False.
@@ -1151,22 +1171,108 @@ class OtsAnchorCheck:
     root_bin_matches_manifest: bool = False
     ots_present: bool = False
     ots_magic_ok: bool = False
+    full_verify_attempted: bool = False
+    full_verify_ok: bool = False
+    full_verify_skipped_reason: str = ""
     failure_reason: str = ""
 
     @property
     def ok(self) -> bool:
         if not self.checked:
             return True
-        return (
+        magic_ok = (
             self.root_bin_present
             and self.root_bin_matches_manifest
             and self.ots_present
             and self.ots_magic_ok
         )
+        if not magic_ok:
+            return False
+        # Full-verify is off-default; only gates ``ok`` when it was
+        # actually attempted AND reached a definitive verdict.
+        # Skipped-with-reason (e.g. ots CLI missing, receipt still
+        # pending, Esplora unreachable) is treated as a soft outcome
+        # at the magic-header level — ``full_verify_skipped_reason``
+        # surfaces the detail without blocking the manifest pipeline.
+        if self.full_verify_attempted and not self.full_verify_skipped_reason:
+            return self.full_verify_ok
+        return True
+
+
+#: Environment variable that flips the off-default
+#: ``ots verify``-Voll-Integration on without changing call sites.
+#: When set to a truthy value (``1``, ``true``, ``yes``, ``on``),
+#: :func:`verify_real_manifest_file` runs the full verifier even
+#: without an explicit ``ots_full_verify=True`` argument. The CLI
+#: ``--ots-full-verify`` flag is the explicit-and-preferred path;
+#: the env-flag exists for cron-style invocations that cannot
+#: easily inject CLI flags. Sprint-3 Tag-4.
+_OTS_FULL_VERIFY_ENV_VAR = "WAKIR_OTS_FULL_VERIFY"
+
+
+def _full_verify_env_enabled() -> bool:
+    """Return True iff :data:`_OTS_FULL_VERIFY_ENV_VAR` is truthy."""
+    import os  # local — keeps the module-level surface clean.
+
+    raw = os.environ.get(_OTS_FULL_VERIFY_ENV_VAR, "").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
+def _run_ots_full_verify(
+    manifest_path: Path, merkle_root_bytes: bytes
+) -> tuple[bool, str]:
+    """Invoke :func:`wat.anchor.ots_anchor.verify_receipt`.
+
+    Returns ``(ok, skipped_reason)``:
+
+    - ``ok=True, skipped_reason=""`` — receipt finalised on Bitcoin
+      (or cross-validated via Esplora HTTP) and attests to
+      ``merkle_root_bytes``.
+    - ``ok=False, skipped_reason=""`` — verifier rejected the
+      receipt (mismatch, tampered, fake).
+    - ``ok=False, skipped_reason=<msg>`` — verifier could not
+      conclude either way (``ots`` CLI missing, receipt still
+      pending and Esplora HTTP unreachable). Caller treats this as
+      a soft outcome — does NOT gate ``ok`` because the magic-
+      header pin still passed.
+
+    The receipt path is hard-coded as ``root.bin.ots`` next to the
+    manifest, matching the aggregator-side persistence convention
+    enforced by :func:`_check_ots_anchor_side_files`. The 90s
+    subprocess timeout in :mod:`wat.anchor.ots_anchor` is inherited.
+    """
+    receipt_path = manifest_path.parent / "root.bin.ots"
+    # Lazy import keeps the call cheap on the default
+    # magic-header-only path: the anchor module pulls in subprocess
+    # + esplora + urllib transitively.
+    try:
+        from wat.anchor import ots_anchor  # noqa: WPS433 — lazy on purpose.
+    except ImportError as exc:  # pragma: no cover — anchor is in-repo.
+        return False, f"ots_anchor module import failed: {exc}"
+
+    try:
+        verified = ots_anchor.verify_receipt(
+            receipt_path,
+            merkle_root_bytes,
+            esplora_fallback=True,
+        )
+    except ots_anchor.AnchorError as exc:
+        # AnchorError is the documented soft-failure path for
+        # missing CLI / receipt, timeouts, etc. Surface as a
+        # skipped_reason so the caller can decide whether to gate.
+        return False, f"ots verifier soft-failure: {exc}"
+    except Exception as exc:  # pragma: no cover — defensive.
+        return False, f"ots verifier unexpected error: {exc}"
+
+    if verified:
+        return True, ""
+    # Hard-False — receipt did not validate. No skipped_reason
+    # because the verifier reached a definitive verdict.
+    return False, ""
 
 
 def _check_ots_anchor_side_files(
-    manifest_path: Path, declared_root_hex: str
+    manifest_path: Path, declared_root_hex: str, *, full_verify: bool = False
 ) -> OtsAnchorCheck:
     """Verify root.bin + root.bin.ots side-files next to a real-manifest.
 
@@ -1231,12 +1337,59 @@ def _check_ots_anchor_side_files(
             ),
         )
 
+    # Magic-header pin passed. Off-default: run full ``ots verify``
+    # if the caller asked. Bitcoin-RPC dependency is gated here:
+    # this branch is the only one that may shell out to ``ots`` and
+    # potentially hit the network (Esplora HTTP fallback).
+    if not full_verify:
+        return OtsAnchorCheck(
+            checked=True,
+            root_bin_present=True,
+            root_bin_matches_manifest=True,
+            ots_present=True,
+            ots_magic_ok=True,
+            failure_reason="",
+        )
+
+    full_ok, skipped_reason = _run_ots_full_verify(manifest_path, raw)
+    if skipped_reason:
+        # Soft outcome — magic-header still authoritative for the
+        # pin contract; surface diagnostic without flipping ``ok``.
+        return OtsAnchorCheck(
+            checked=True,
+            root_bin_present=True,
+            root_bin_matches_manifest=True,
+            ots_present=True,
+            ots_magic_ok=True,
+            full_verify_attempted=True,
+            full_verify_ok=False,
+            full_verify_skipped_reason=skipped_reason,
+            failure_reason="",
+        )
+    if not full_ok:
+        return OtsAnchorCheck(
+            checked=True,
+            root_bin_present=True,
+            root_bin_matches_manifest=True,
+            ots_present=True,
+            ots_magic_ok=True,
+            full_verify_attempted=True,
+            full_verify_ok=False,
+            failure_reason=(
+                "ots: full ots verify rejected the receipt — Bitcoin "
+                "attestation does not attest to manifest.merkle_root "
+                f"{declared_root_hex}"
+            ),
+        )
+
     return OtsAnchorCheck(
         checked=True,
         root_bin_present=True,
         root_bin_matches_manifest=True,
         ots_present=True,
         ots_magic_ok=True,
+        full_verify_attempted=True,
+        full_verify_ok=True,
         failure_reason="",
     )
 
@@ -1270,6 +1423,7 @@ def verify_real_manifest_file(
     strict_multi_cap_root: bool = True,
     use_schema_file: bool = False,
     real_schema_path: str | Path | None = None,
+    ots_full_verify: bool = False,
 ) -> RealManifestResult:
     """Verify a real on-disk manifest file (v1 or v2 wire-form).
 
@@ -1310,6 +1464,19 @@ def verify_real_manifest_file(
     real_schema_path:
         Override the default location of the v1 schema file. Useful
         for tests; production callers should leave this None.
+    ots_full_verify:
+        When True (off-default since Sprint-3 Tag-4), additionally
+        invoke :func:`wat.anchor.ots_anchor.verify_receipt` against
+        ``root.bin.ots`` to confirm the OTS receipt is finalised on
+        Bitcoin (or cross-validated via the Esplora HTTP fallback)
+        and attests to ``manifest.merkle_root``. This Bitcoin-RPC-
+        dependent path is the strongest available proof but adds a
+        subprocess call (and potentially a single network round-
+        trip to the configured Esplora endpoint), which is why it
+        is off by default. The CLI ``--ots-full-verify`` flag and
+        the ``WAKIR_OTS_FULL_VERIFY=1`` env var both flip this on.
+        See ``docs/wat-manifest-v2-spec.md`` §11 (Sprint-3 Tag-4
+        entry).
     """
     path = Path(manifest_path)
     if not path.exists():
@@ -1426,7 +1593,15 @@ def verify_real_manifest_file(
 
     ots = OtsAnchorCheck()
     if check_ots_anchor:
-        ots = _check_ots_anchor_side_files(path, manifest["merkle_root"])
+        # Env-flag flips full-verify on without changing call sites.
+        # The explicit kwarg still wins; env is only checked when the
+        # caller did not pass an explicit decision.
+        effective_full_verify = ots_full_verify or _full_verify_env_enabled()
+        ots = _check_ots_anchor_side_files(
+            path,
+            manifest["merkle_root"],
+            full_verify=effective_full_verify,
+        )
         if not ots.ok:
             return RealManifestResult(
                 manifest_path=str(path),
@@ -1543,6 +1718,22 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--ots-full-verify",
+        action="store_true",
+        help=(
+            "In --real-manifest mode, additionally invoke "
+            "'wat.anchor.ots_anchor.verify_receipt' against root.bin.ots "
+            "to confirm the OpenTimestamps receipt is finalised on "
+            "Bitcoin (or cross-validated via the Esplora HTTP fallback) "
+            "and attests to manifest.merkle_root. Off by default since "
+            "Sprint-3 Tag-4: the magic-header pin is the hermetic path; "
+            "full verify shells out to the 'ots' CLI and may consult "
+            "Esplora over the network. Equivalent to setting "
+            "WAKIR_OTS_FULL_VERIFY=1 in the environment. See "
+            "docs/wat-manifest-v2-spec.md §11 (Sprint-3 Tag-4 entry)."
+        ),
+    )
+    parser.add_argument(
         "--quiet",
         action="store_true",
         help="Suppress per-step reporting; emit only ok / fail line.",
@@ -1605,6 +1796,15 @@ def _format_human_real(result: RealManifestResult, *, quiet: bool) -> str:
     if result.ots_anchor.checked:
         lines.append(f"ots_root_bin:    {result.ots_anchor.root_bin_matches_manifest}")
         lines.append(f"ots_magic_ok:    {result.ots_anchor.ots_magic_ok}")
+        if result.ots_anchor.full_verify_attempted:
+            lines.append(
+                f"ots_full_verify: {result.ots_anchor.full_verify_ok}"
+            )
+            if result.ots_anchor.full_verify_skipped_reason:
+                lines.append(
+                    "ots_full_verify_skipped: "
+                    f"{result.ots_anchor.full_verify_skipped_reason}"
+                )
     if result.failure_reason:
         lines.append(f"failure_reason:  {result.failure_reason}")
     return "\n".join(lines)
@@ -1629,6 +1829,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             strict_multi_cap_root=args.strict_multi_cap_root,
             use_schema_file=args.use_schema_file,
             real_schema_path=args.real_schema,
+            ots_full_verify=args.ots_full_verify,
         )
         if args.output == "json":
             payload = {
@@ -1641,6 +1842,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 "multi_cap_root_status": real_result.multi_cap_root_status,
                 "ots_anchor_checked": real_result.ots_anchor.checked,
                 "ots_anchor_ok": real_result.ots_anchor.ok,
+                "ots_full_verify_attempted": (
+                    real_result.ots_anchor.full_verify_attempted
+                ),
+                "ots_full_verify_ok": real_result.ots_anchor.full_verify_ok,
+                "ots_full_verify_skipped_reason": (
+                    real_result.ots_anchor.full_verify_skipped_reason
+                ),
                 "failure_reason": real_result.failure_reason,
             }
             print(json.dumps(payload, sort_keys=True))
