@@ -1,0 +1,31 @@
+{
+  "version": "wakir-wat-manifest/v1",
+  "hour_slot": "2026-05-26T17",
+  "merkle_root": "7a9c2ffee000ed8cbb22a5d450323bf34f2ac7bd780d4958ef8ca492d43dd2ea",
+  "event_count": 1,
+  "events": [
+    {
+      "event_id": "evt-tv3-00-0000",
+      "time": "2026-05-26T17:00:00.000Z",
+      "payload_hash": "bffdcd51adb3bdc5480ad536bd519cf4dee2736202b2462b53e810d158250782",
+      "capability_token_hash": "6d82dc872ec795fe95b12f1eb4dd05b2485c9eef27262c004d70d2c0bd2d7ee5",
+      "leaf_hash": "7a9c2ffee000ed8cbb22a5d450323bf34f2ac7bd780d4958ef8ca492d43dd2ea"
+    }
+  ],
+  "leaves": [
+    {
+      "event_id": "evt-tv3-00-0000",
+      "time": "2026-05-26T17:00:00.000Z",
+      "payload_hash": "bffdcd51adb3bdc5480ad536bd519cf4dee2736202b2462b53e810d158250782",
+      "capability_token_hash": "6d82dc872ec795fe95b12f1eb4dd05b2485c9eef27262c004d70d2c0bd2d7ee5",
+      "leaf_hash": "7a9c2ffee000ed8cbb22a5d450323bf34f2ac7bd780d4958ef8ca492d43dd2ea"
+    }
+  ],
+  "tree_levels": [
+    [
+      "7a9c2ffee000ed8cbb22a5d450323bf34f2ac7bd780d4958ef8ca492d43dd2ea"
+    ]
+  ],
+  "build_time": "2026-05-07T07:25:39Z",
+  "prev_hour_root": null
+}

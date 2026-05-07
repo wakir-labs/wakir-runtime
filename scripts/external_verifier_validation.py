@@ -75,6 +75,13 @@ TV2_HOUR_SLOTS: tuple[str, ...] = (
     "2026-05-27T03",
 )
 
+#: Real-manifest fixture cohort used by ``--real-tv3``. Single-hour
+#: TV-3 close-out run (Sprint-3 Tag-3 commit). Same triple shape as
+#: TV-2; reuses the same code paths via the generic
+#: ``run_real_manifest_pipeline_for`` helper.
+TV3_FIXTURE_ROOT = REPO_ROOT / "tests" / "fixtures" / "wat-tv3-real"
+TV3_HOUR_SLOTS: tuple[str, ...] = ("2026-05-26T17",)
+
 
 # ---------------------------------------------------------------------------
 # Validators
@@ -233,26 +240,31 @@ def compare_reports(py: dict, node: dict | None) -> tuple[bool, list[str]]:
 # ---------------------------------------------------------------------------
 
 
-def load_tv2_real_vectors() -> list[dict]:
-    """Load the four TV-2 real-manifest hour-receipts as accept-vectors.
+def load_real_vectors_for(
+    fixture_root: Path, hour_slots: tuple[str, ...], tag: str
+) -> list[dict]:
+    """Generic real-manifest cohort loader.
 
-    The vectors carry ``expect="accept"`` and a ``manifest`` field
-    matching the on-disk JSON; the ajv side feeds them through the
-    same v1-schema validator that exercises the synthetic test-set.
+    ``tag`` is the cohort label (e.g. ``"tv2"``, ``"tv3"``) used to
+    name the vectors in driver output. Each loaded hour-receipt
+    becomes an accept-vector matching the synthetic test-vectors
+    shape so the Node.js ajv side ingests them through the same code
+    path.
     """
     vectors: list[dict] = []
-    for slot in TV2_HOUR_SLOTS:
-        manifest_path = TV2_FIXTURE_ROOT / slot / "manifest.json"
+    for slot in hour_slots:
+        manifest_path = fixture_root / slot / "manifest.json"
         if not manifest_path.exists():
             raise SystemExit(
-                f"TV-2 real-manifest fixture missing: {manifest_path}. "
-                "Run from a repo with the wat-tv2-real fixtures committed."
+                f"{tag.upper()} real-manifest fixture missing: "
+                f"{manifest_path}. Run from a repo with the "
+                f"wat-{tag}-real fixtures committed."
             )
         with manifest_path.open("r", encoding="utf-8") as fh:
             manifest = json.load(fh)
         vectors.append(
             {
-                "name": f"tv2-real-{slot}",
+                "name": f"{tag}-real-{slot}",
                 "expect": "accept",
                 "manifest": manifest,
             }
@@ -260,10 +272,25 @@ def load_tv2_real_vectors() -> list[dict]:
     return vectors
 
 
-def run_real_manifest_pipeline(
-    *, check_ots_anchor: bool = True, use_schema_file: bool = True
+def load_tv2_real_vectors() -> list[dict]:
+    """Backward-compat wrapper for TV-2 cohort (Sprint-3 Tag-2 surface)."""
+    return load_real_vectors_for(TV2_FIXTURE_ROOT, TV2_HOUR_SLOTS, "tv2")
+
+
+def load_tv3_real_vectors() -> list[dict]:
+    """Load TV-3 single-hour real-manifest receipt as accept-vector."""
+    return load_real_vectors_for(TV3_FIXTURE_ROOT, TV3_HOUR_SLOTS, "tv3")
+
+
+def run_real_manifest_pipeline_for(
+    fixture_root: Path,
+    hour_slots: tuple[str, ...],
+    tag: str,
+    *,
+    check_ots_anchor: bool = True,
+    use_schema_file: bool = True,
 ) -> dict:
-    """Run ``verify_real_manifest_file`` against each TV-2 hour.
+    """Generic ``verify_real_manifest_file`` runner over a cohort.
 
     Returns a report dict in the same shape as the schema-side reports
     so the entry-point can render parity output uniformly.
@@ -273,13 +300,13 @@ def run_real_manifest_pipeline(
     report = {
         "tool": "wat.verify.manifest_v2.verify_real_manifest_file",
         "schema_id": None,
-        "total": len(TV2_HOUR_SLOTS),
+        "total": len(hour_slots),
         "matched": 0,
         "mismatched": 0,
         "results": [],
     }
-    for slot in TV2_HOUR_SLOTS:
-        manifest_path = TV2_FIXTURE_ROOT / slot / "manifest.json"
+    for slot in hour_slots:
+        manifest_path = fixture_root / slot / "manifest.json"
         result = verify_real_manifest_file(
             manifest_path,
             check_ots_anchor=check_ots_anchor,
@@ -293,7 +320,7 @@ def run_real_manifest_pipeline(
             report["mismatched"] += 1
         report["results"].append(
             {
-                "name": f"tv2-real-{slot}",
+                "name": f"{tag}-real-{slot}",
                 "expect": "accept",
                 "verdict": verdict,
                 "matched": matched,
@@ -305,6 +332,19 @@ def run_real_manifest_pipeline(
             }
         )
     return report
+
+
+def run_real_manifest_pipeline(
+    *, check_ots_anchor: bool = True, use_schema_file: bool = True
+) -> dict:
+    """Backward-compat wrapper for TV-2 cohort (Sprint-3 Tag-2 surface)."""
+    return run_real_manifest_pipeline_for(
+        TV2_FIXTURE_ROOT,
+        TV2_HOUR_SLOTS,
+        "tv2",
+        check_ots_anchor=check_ots_anchor,
+        use_schema_file=use_schema_file,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -350,10 +390,28 @@ def main(argv: list[str] | None = None) -> int:
             "all four hour-receipts must accept on every configured side"
         ),
     )
+    parser.add_argument(
+        "--real-tv3",
+        action="store_true",
+        help=(
+            "live-run the TV-3 real-manifest fixture cohort "
+            "(tests/fixtures/wat-tv3-real/) through both the schema-file "
+            "validators AND the verify_real_manifest_file pipeline; "
+            "the single hour-receipt must accept on every configured side"
+        ),
+    )
     args = parser.parse_args(argv)
 
     if args.python_only and args.node_only:
         print("--python-only and --node-only are mutually exclusive", file=sys.stderr)
+        return 2
+
+    if args.real_tv2 and args.real_tv3:
+        print(
+            "--real-tv2 and --real-tv3 are mutually exclusive "
+            "(re-run the script per cohort)",
+            file=sys.stderr,
+        )
         return 2
 
     if not SCHEMA_PATH.exists():
@@ -362,20 +420,39 @@ def main(argv: list[str] | None = None) -> int:
 
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
 
+    cohort_tag: str | None = None
+    cohort_fixture_root: Path | None = None
+    cohort_hour_slots: tuple[str, ...] | None = None
     if args.real_tv2:
-        # In --real-tv2 mode the vectors source is the on-disk fixture
+        cohort_tag = "tv2"
+        cohort_fixture_root = TV2_FIXTURE_ROOT
+        cohort_hour_slots = TV2_HOUR_SLOTS
+    elif args.real_tv3:
+        cohort_tag = "tv3"
+        cohort_fixture_root = TV3_FIXTURE_ROOT
+        cohort_hour_slots = TV3_HOUR_SLOTS
+
+    if cohort_tag is not None:
+        # In --real-tvN mode the vectors source is the on-disk fixture
         # cohort; the synthetic vectors file is not consulted. The
         # real-manifest pipeline runs in addition to the schema-file
         # validators so we cover both code paths against the same
         # production manifests.
-        vectors = load_tv2_real_vectors()
+        assert cohort_fixture_root is not None
+        assert cohort_hour_slots is not None
+        vectors = load_real_vectors_for(
+            cohort_fixture_root, cohort_hour_slots, cohort_tag
+        )
         # Persist the wrapped vectors to a tmp-file so the Node.js
         # side can read them; the synthetic test-vectors.json shape
         # is identical so no driver-side changes are needed.
         import tempfile
 
         tmp = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", prefix="tv2-real-vectors-", delete=False
+            mode="w",
+            suffix=".json",
+            prefix=f"{cohort_tag}-real-vectors-",
+            delete=False,
         )
         json.dump(vectors, tmp)
         tmp.close()
@@ -408,9 +485,15 @@ def main(argv: list[str] | None = None) -> int:
             return 2
 
     real_pipeline_report: dict[str, Any] | None = None
-    if args.real_tv2:
-        real_pipeline_report = run_real_manifest_pipeline(
-            check_ots_anchor=True, use_schema_file=True
+    if cohort_tag is not None:
+        assert cohort_fixture_root is not None
+        assert cohort_hour_slots is not None
+        real_pipeline_report = run_real_manifest_pipeline_for(
+            cohort_fixture_root,
+            cohort_hour_slots,
+            cohort_tag,
+            check_ots_anchor=True,
+            use_schema_file=True,
         )
 
     # Render
@@ -452,11 +535,10 @@ def main(argv: list[str] | None = None) -> int:
             for d in diffs:
                 print(f"  {d}", file=sys.stderr)
         else:
-            label = (
-                "real-tv2 cross-tool"
-                if args.real_tv2
-                else "cross-tool"
-            )
+            if cohort_tag is not None:
+                label = f"real-{cohort_tag} cross-tool"
+            else:
+                label = "cross-tool"
             print(
                 f"{label} parity OK ({py_report['total']} vectors, "
                 "verdicts agree)"

@@ -500,6 +500,29 @@ is informative only.
 
 ## 11. Change log
 
+- **2026-05-07 (Sprint-3 Tag-3):** TV-3 real-manifest cohort + receipt-
+  persistence edge-case hardening landed. The single-hour TV-3
+  close-out run hour-receipt (run 2026-05-07T07:25:38Z, hour-slot
+  `2026-05-26T17`, run-genesis with `prev_hour_root: null`) is
+  committed under `tests/fixtures/wat-tv3-real/` as a second
+  Bitcoin-anchored reference cohort alongside TV-2. New test module
+  `tests/wat/test_tv3_real_manifest_live_run.py` (12 tests) covers
+  the same per-hour pipeline the TV-2 module asserts plus three new
+  receipt-persistence edge-case rejects: a `root.bin` truncated to
+  16 bytes; a one-byte-truncated `root.bin.ots`; and a `root.bin`
+  whose first byte is flipped relative to `merkle_root` (a side-file
+  that lies about the stamped root). The shape pair (TV-2 four-hour
+  multi-hop chain + TV-3 single-hour run-genesis) is what proves the
+  verifier path is not coincidentally tuned to TV-2 specifics; the
+  edge-case cluster is hardening substance proving the OTS-anchor
+  side-file check rejects realistic on-disk corruptions, not only
+  schema-side and integrity-rebuild errors. Driver
+  `scripts/external_verifier_validation.py` gains a parallel
+  `--real-tv3` mode plus a generic
+  `run_real_manifest_pipeline_for(fixture_root, hour_slots, tag, ...)`
+  helper; the legacy `--real-tv2` and `run_real_manifest_pipeline()`
+  surfaces are preserved as backward-compat wrappers. Test-suite
+  delta +12 (278 -> 290).
 - **2026-05-07 (Sprint-3 Tag-2):** Real-manifest live-run validation
   cohort landed. The four hour-receipts produced by the TV-2
   multi-hour audit-trail run (2026-05-06; submit
