@@ -9,14 +9,14 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wirelang-schema-registry
-version: 0.3.0
+version: 0.4.0
 status: draft
 date: 2026-05-07
 audience: implementers, integrators, operators
 license: CC-BY-4.0
 ---
 
-# Wirelang Schema Registry — NATS-KV Backend Specification (v0.3.0)
+# Wirelang Schema Registry — NATS-KV Backend Specification (v0.4.0)
 
 **Change log**
 
@@ -25,6 +25,7 @@ license: CC-BY-4.0
 | 0.1.0   | 2026-05-07 | Initial draft (Phase-1b Sprint-3 Tag-1).               |
 | 0.2.0   | 2026-05-07 | Phase-1c CAS-pin contract reclassified from Phase-2 to Phase-1c and lands in Tag-3 (`put_with_revision` / `get_with_revision` / `SchemaRegistryConflictError`); §5.3 Phase-1c-Slot consumed; §5.4 added. Additive-only change relative to v0.1.0; M-2 / M-4 conformance preserved. |
 | 0.3.0   | 2026-05-07 | Phase-1c watch-stream surface lands in Tag-4 (`watch()` / `WatchOp` / `WatchEvent` / `LiveSchemaSnapshot` / `open_watch_stream`); §5.3 OI-7-Phase-1c-watch slot CONSUMED; §5.5 added (watch-stream operational contract); §6.2 added (T-SR-WS-01..10 + 2 aux probes test inventory). Additive-only change relative to v0.2.0; M-2 / M-4 conformance preserved. |
+| 0.4.0   | 2026-05-07 | Phase-1c publisher CLI lands in Tag-5 (`wirelang.schemas.publisher_cli`: `wakir-schema-registry publish` / `dry-run` argparse surface, `PublishReceipt`, `ExitCode` matrix); §5.3 OI-7-Phase-1c-publisher slot CONSUMED; §5.6 added (publisher CLI operational contract); §6.3 added (T-SR-PUB-01..12 test inventory). Additive-only change relative to v0.3.0; M-2 / M-4 conformance preserved. The CLI is a thin operator-input layer over the Tag-3 CAS-pin and Tag-1 LWW backends; it introduces no new on-the-wire envelope and no new validation gate. |
 
 This specification defines the Wakir Wirelang **Schema Registry**: a
 persistent, drift-aware store for the JSON-Schema documents that
@@ -114,10 +115,32 @@ JCS-canonical envelope that is byte-stable for audit anchoring.
 - 8-12 hermetic determinism tests for the watch-stream path
   (T-SR-WS-01..10 + aux probes).
 
+**Phase-1b Sprint-3 Tag-5 (this revision, additive over Tag-4):**
+
+- The publisher CLI (`wirelang/schemas/publisher_cli.py`) exposing a
+  `wakir-schema-registry` argparse surface with two subcommands:
+  `publish` (operator publish flow with LWW / CAS-pin / create-only
+  modes over the Tag-1 + Tag-3 backends) and `dry-run` (validate
+  inputs and print the canonical receipt without touching the bucket).
+- The CLI is a *thin* operator-input layer: it derives the canonical
+  KV key (`schemas/<layer>/<name>/<version>`) and body-hash from
+  operator input, runs two CLI-side gates (body has a non-empty
+  `$id`; `--registered-by` is non-empty), then routes the entry into
+  `NatsKvSchemaRegistry.put` (LWW) or `put_with_revision` (CAS / create-only).
+- A stable `ExitCode` matrix (`OK=0`, `USAGE_ERROR=2`,
+  `INPUT_ERROR=3`, `VALIDATION_ERROR=4`, `CAS_CONFLICT=5`,
+  `BACKEND_ERROR=6`) for CI / pipeline gating.
+- A canonical JSON receipt (`PublishReceipt`) on stdout for success
+  and a JSON error envelope on stderr for failure; both are single
+  lines of stable JSON for downstream tools.
+- 12 hermetic determinism tests (T-SR-PUB-01..12) over an in-memory
+  CAS-aware KV mock; the live-cluster connect path is the
+  `_default_connect_factory`, which is never exercised at the test
+  layer.
+- This slot consumes **OI-7-Phase-1c-publisher**.
+
 **Phase-1c (still out of scope, reserved):**
 
-- The publisher CLI that pushes module-shipped schemas onto the
-  bucket on operator command (**OI-7-Phase-1c-publisher** reserved).
 - Cross-bucket schema replication for multi-region clusters
   (**OI-7-Phase-1c-replication** reserved).
 
@@ -132,8 +155,9 @@ JCS-canonical envelope that is byte-stable for audit anchoring.
 The reserved Phase-1c items above are tracked as
 **OI-7-Phase-1c-publisher / -watch / -replication** in the Phase-1b
 backlog; the Phase-2 items as **OI-7-Phase-2-quorum / -deprecation /
--ipfs / -sig**. Tag-3 consumes the **OI-7-Phase-1c-CAS** slot only;
-the other three Phase-1c slots remain reserved.
+-ipfs / -sig**. Tag-3 consumed **OI-7-Phase-1c-CAS**, Tag-4 consumed
+**OI-7-Phase-1c-watch**, Tag-5 consumes **OI-7-Phase-1c-publisher**;
+**OI-7-Phase-1c-replication** is the only remaining Phase-1c slot.
 
 ## 2. Bucket identity (cross-reference Kai inventory)
 
@@ -372,7 +396,7 @@ These gates protect the determinism contract: a poisoned or
 mis-anchored envelope cannot reach the bucket through the typed
 backend.
 
-### 5.3 What Phase-1b Sprint-3 Tag-1 + Tag-3 + Tag-4 covers, and what Phase-1c / Phase-2 still does NOT do
+### 5.3 What Phase-1b Sprint-3 Tag-1 + Tag-3 + Tag-4 + Tag-5 covers, and what Phase-1c / Phase-2 still does NOT do
 
 **Tag-1 (v0.1.0) lands:**
 
@@ -424,15 +448,48 @@ backend.
   does NOT silently swallow envelope poison on the stream.
 - **OI-7-Phase-1c-watch slot consumed.**
 
+**Tag-5 (v0.4.0) lands (additive over Tag-4):**
+
+- The publisher CLI module `wirelang.schemas.publisher_cli` with two
+  argparse subcommands:
+  - `publish`: operator publish flow with three modes:
+    *last-write-wins* (default; routes through `put`),
+    *CAS-pin* (`--expected-revision N`; routes through
+    `put_with_revision`), and *create-only* (`--create-only`,
+    equivalent to `put_with_revision` with revision 0; succeeds only
+    if the entry is absent on the bucket).
+  - `dry-run`: validate inputs and emit the canonical receipt without
+    touching the bucket.
+- A stable `ExitCode` matrix (`OK=0`, `USAGE_ERROR=2`,
+  `INPUT_ERROR=3`, `VALIDATION_ERROR=4`, `CAS_CONFLICT=5`,
+  `BACKEND_ERROR=6`) so CI / pipeline integrators can gate on
+  specific failure classes.
+- A `PublishReceipt` JSON object emitted on stdout for success
+  (single line, `mode` / `key` / triple / `schema_id` / `schema_body_sha256`
+  / `revision` / `expected_revision` / `registered_by` /
+  `registered_at` / `supersedes`); a JSON error envelope on stderr
+  for failure (`error` / `exit_code` / `message`).
+- 8-12 additional hermetic determinism tests (T-SR-PUB-01..12) that
+  pin the parser shape, exit-code matrix, receipt schema, error
+  envelope, validation gate ordering, and bucket-state invariants
+  on conflict.
+- A `connect_factory` injection point so tests exercise the CLI
+  end-to-end against an in-memory CAS-aware KV mock without a live
+  NATS cluster. The default factory wires `nats.aio.client.Client`
+  plus `js.key_value(BUCKET_NAME)` for production operators.
+- **OI-7-Phase-1c-publisher slot consumed.**
+
 **Phase-1c still does NOT include (remaining reserved slots):**
 
-- No publisher CLI that pushes module-shipped schemas onto the
-  bucket on operator command (`OI-7-Phase-1c-publisher` reserved).
 - No cross-bucket schema replication for multi-region clusters
   (`OI-7-Phase-1c-replication` reserved).
 - No watch-stream resume-from-revision policy (Phase-2 concern;
   nats-py supports it via `watchall(..., resume_from=...)`, but the
   Phase-1c stream wrapper does not bake in resume policy).
+- The publisher CLI does NOT itself implement multi-replica
+  rollout sequencing; it publishes one entry per invocation.
+  Multi-replica rollout sequencing is an integrator concern and a
+  Phase-2 hardening item.
 
 **Phase-2 still does NOT include:**
 
@@ -615,6 +672,159 @@ The backend supports three watcher adapter shapes:
   e.g. routes + schemas) is an integrator concern; each backend
   exposes its own `watch()` and the integrator composes them.
 
+### 5.6 Publisher CLI operational contract (Tag-5)
+
+The publisher CLI is the canonical operator-input layer onto the
+`wakir-schemas` bucket. It is a thin shell: every gate the CLI
+applies is either an operator-input shape gate (so a malformed
+JSON file is rejected at the file-read layer) or a routing decision
+into the existing Tag-1 / Tag-3 backend gates.
+
+**Subcommand surface:**
+
+```text
+wakir-schema-registry publish    \
+    --schema-body PATH            \
+    --layer {identity,wire,federation}  \
+    --name NAME                   \
+    --version VERSION             \
+    --registered-by ACTOR         \
+    [--registered-at RFC3339Z]    \
+    [--supersedes SCHEMA_ID]      \
+    [(--expected-revision N | --create-only)]  \
+    [--connect-url URL]
+
+wakir-schema-registry dry-run    \
+    --schema-body PATH            \
+    --layer {identity,wire,federation}  \
+    --name NAME                   \
+    --version VERSION             \
+    --registered-by ACTOR         \
+    [--registered-at RFC3339Z]    \
+    [--supersedes SCHEMA_ID]
+```
+
+**Mode resolution:**
+
+- No CAS flag → mode `lww`; routes through `NatsKvSchemaRegistry.put`.
+- `--expected-revision N` (N ≥ 0) → mode `cas`; routes through
+  `NatsKvSchemaRegistry.put_with_revision(entry, expected_revision=N)`.
+- `--create-only` → mode `create-only`; routes through
+  `put_with_revision(entry, expected_revision=0)`. Succeeds only if
+  the entry is absent.
+- `--expected-revision` and `--create-only` are mutually exclusive
+  at the argparse layer (USAGE_ERROR / exit 2).
+
+**Subject-mapping pattern (mirror of V-908 NATS-subject mapping):**
+
+The CLI mirrors the V-908 federation NATS-subject-to-route_id
+convention applied at the operator-input layer: the user supplies
+the canonical identity triple (`--layer / --name / --version`) plus
+a schema-body file. The CLI derives:
+
+- The canonical KV key (`schemas/<layer>/<name>/<version>`) via
+  `key_for_triple`; identity-triple validation runs eagerly so a
+  malformed triple cannot reach the bucket.
+- The canonical body-hash (`schema_body_sha256(body)` over JCS-canonical
+  bytes) as the entry's `schema_body_sha256` field.
+- The entry's `schema_id` from `body['$id']`; the backend's gate 1
+  (`schema_id ↔ schema_body.$id`) therefore always matches by
+  construction. The CLI does NOT permit operator-supplied
+  `schema_id` overrides; the body is the canonical source.
+
+There is no intermediate "subject" namespace; the triple is the
+subject and the key derivation is the mapping. Mirror principle
+preserved without introducing a parallel namespace.
+
+**Gate ordering (REQUIRED):**
+
+1. argparse parse → USAGE_ERROR (exit 2) for bad flag combinations.
+2. File read of `--schema-body` → INPUT_ERROR (exit 3) for missing
+   file, permission error, non-UTF-8 bytes, malformed JSON, or
+   non-object root.
+3. CLI-side validation gates → VALIDATION_ERROR (exit 4):
+   - `schema_body['$id']` is a non-empty string.
+   - `--registered-by` is a non-empty string after whitespace strip.
+4. Identity-triple key derivation (`key_for_triple`) → INPUT_ERROR
+   (exit 3) on a malformed triple component (this surfaces as
+   `ValueError`).
+5. Backend write gates (only on `publish`):
+   - Tag-1 gates 1-3 (`schema_id ↔ $id`, body-hash match, key↔triple
+     match) → VALIDATION_ERROR (exit 4).
+   - Tag-3 CAS-pin call (only for `cas` and `create-only` modes) →
+     CAS_CONFLICT (exit 5) on a `SchemaRegistryConflictError`.
+   - Any other backend / transport exception → BACKEND_ERROR (exit 6).
+6. Receipt emission on stdout for success; exit 0.
+
+Gates 1-4 run BEFORE any NATS connect; on `dry-run`, gate 5 is
+skipped entirely. The CLI is therefore safe to gate a CI pipeline:
+a `dry-run` that returns OK guarantees that a subsequent `publish`
+will not fail at gates 1-4.
+
+**Receipt schema (success on stdout, single JSON line):**
+
+```json
+{
+  "mode": "lww" | "cas" | "create-only" | "dry-run",
+  "key": "schemas/<layer>/<name>/<version>",
+  "layer": "<layer>",
+  "name": "<name>",
+  "version": "<version>",
+  "schema_id": "<schema-body $id>",
+  "schema_body_sha256": "<hex digest>",
+  "revision": <int> | null,
+  "expected_revision": <int> | null,
+  "registered_by": "<actor>",
+  "registered_at": "<RFC 3339 UTC>",
+  "supersedes": "<schema_id>" | null
+}
+```
+
+`revision` is the new live KV revision after a successful publish;
+`null` for `dry-run`. `expected_revision` echoes the operator's
+input (or 0 for `create-only`, `null` for LWW / dry-run).
+
+**Error envelope (failure on stderr, single JSON line):**
+
+```json
+{
+  "error": "<ExitCode name>",
+  "exit_code": <int>,
+  "message": "<human-readable message>"
+}
+```
+
+`exit_code` matches the process exit status; `error` is one of
+`USAGE_ERROR` / `INPUT_ERROR` / `VALIDATION_ERROR` / `CAS_CONFLICT` /
+`BACKEND_ERROR`.
+
+**Determinism contract (Tag-5 invariant):**
+
+- Stdout and stderr are disjoint per invocation. On success, stderr
+  is empty; on failure, stdout is empty.
+- A failed publish (any non-OK exit code) leaves the bucket state
+  byte-equal to the pre-call state. CAS conflicts are observable but
+  non-mutating; validation errors abort BEFORE the network call;
+  input errors abort BEFORE entry construction.
+- Two identical `dry-run` invocations on the same `--schema-body`
+  file produce byte-equal receipts (modulo `registered_at` if the
+  operator omits the override flag). Test paths supply
+  `--registered-at` explicitly so the receipt is byte-stable.
+
+**Phase-1c boundary:**
+
+- The publisher CLI is a *write-side* surface; it does NOT consume
+  the watch-stream and does NOT post-verify the publish through the
+  Tag-4 watch surface. Operators who want post-publish observability
+  compose the CLI with a separate `LiveSchemaSnapshot` consumer (see
+  §5.5).
+- Multi-replica rollout sequencing is an integrator concern; the
+  CLI publishes one entry per invocation.
+- Authentication / capability enforcement is not in scope for
+  Phase-1c; the CLI runs with whatever NATS credentials the
+  operator's environment provides. Capability-token enforcement at
+  the publisher boundary is an OI-7-Phase-2-sig hardening item.
+
 ## 6. Test inventory
 
 Phase-1b Sprint-3 Tag-1 ships hermetic tests at
@@ -746,6 +956,58 @@ Auxiliary probes:
 Total Tag-4 test additions: 10 primary watch-stream tests + 2
 auxiliary probes = 12.
 
+### 6.3 Publisher CLI tests (Tag-5, additive over Tag-4)
+
+Phase-1b Sprint-3 Tag-5 ships hermetic publisher-CLI tests at
+`wirelang/tests/test_schema_registry_publisher_cli.py`. Inventory
+T-SR-PUB-01..12:
+
+- **T-SR-PUB-01:** parser shape — `publish` and `dry-run` are both
+  registered subcommands; required flags missing → exit 2; the
+  `--create-only` / `--expected-revision` mutual-exclusion is
+  enforced at the argparse layer.
+- **T-SR-PUB-02:** `dry-run` happy path — receipt JSON has the stable
+  schema; `mode` is "dry-run"; `key` is `schemas/<layer>/<name>/<version>`;
+  `schema_body_sha256` matches a fresh `schema_body_sha256` over the
+  body; `revision` is `null`; stderr is empty.
+- **T-SR-PUB-03:** `publish` (LWW) — no CAS flags; the bucket gains
+  exactly one entry; receipt `mode` is "lww"; `revision >= 1`;
+  `expected_revision` is `null`; stderr is empty.
+- **T-SR-PUB-04:** `publish --expected-revision N` (CAS-pin) — the
+  supplied `N` matches live revision; CAS publish succeeds; receipt
+  `mode` is "cas"; `expected_revision` echoes `N`; the new
+  `revision` is exactly `N + 1`.
+- **T-SR-PUB-05:** `publish --expected-revision N` (CAS-pin conflict)
+  — `N` is stale; exit 5 (CAS_CONFLICT); error envelope on stderr;
+  bucket state is byte-equal to the pre-call snapshot (no mutation
+  on a failed CAS).
+- **T-SR-PUB-06:** `publish --create-only` (success) — entry absent;
+  bucket gains revision 1; receipt `mode` is "create-only";
+  `expected_revision` is `0`; `revision` is `1`.
+- **T-SR-PUB-07:** `publish --create-only` (conflict) — entry already
+  present; exit 5; error envelope on stderr; bucket revision NOT
+  advanced past the seed.
+- **T-SR-PUB-08:** input error — `--schema-body` path does not exist;
+  exit 3 (INPUT_ERROR); error envelope on stderr; bucket untouched.
+- **T-SR-PUB-09:** input error — `--schema-body` is not valid JSON;
+  exit 3; error envelope mentions the JSON parse failure; bucket
+  untouched.
+- **T-SR-PUB-10:** validation error — `schema_body` has no `$id`
+  field; CLI gate raises `SchemaRegistryValidationError`; exit 4
+  (VALIDATION_ERROR); bucket untouched.
+- **T-SR-PUB-11:** validation error — `--registered-by` is whitespace-
+  only; CLI gate raises `SchemaRegistryValidationError`; exit 4;
+  bucket untouched.
+- **T-SR-PUB-12:** stdout / stderr separation — on success, stdout
+  carries exactly one line of valid JSON and stderr is empty; on
+  failure, stderr carries exactly one line of valid JSON and stdout
+  is empty.
+
+Total Tag-5 test additions: 12 hermetic determinism tests
+(T-SR-PUB-01..12). The CLI's `_default_connect_factory` is NOT
+exercised at the test layer (it would require a live NATS cluster);
+production operators verify it manually against their local cluster.
+
 ## 7. Cross-references and Open-Items
 
 - V-908 backend pattern source:
@@ -759,9 +1021,11 @@ auxiliary probes = 12.
   `scripts/init-nats-buckets.py` `PHASE_1_BUCKETS[0]` (`wakir-schemas`).
 - **Phase-1c CAS-pin: OI-7-Phase-1c-CAS — CONSUMED in Tag-3.**
 - **Phase-1c watch-stream: OI-7-Phase-1c-watch — CONSUMED in Tag-4.**
-- Phase-1c publisher CLI: **OI-7-Phase-1c-publisher** (reserved).
+- **Phase-1c publisher CLI: OI-7-Phase-1c-publisher — CONSUMED in
+  Tag-5.** Module: `wirelang/schemas/publisher_cli.py`. Tests:
+  `wirelang/tests/test_schema_registry_publisher_cli.py`.
 - Phase-1c cross-bucket replication: **OI-7-Phase-1c-replication**
-  (reserved).
+  (reserved; only remaining Phase-1c slot).
 - Phase-2 CAS-quorum: **OI-7-Phase-2-quorum** (reserved).
 - Phase-2 envelope signature: **OI-7-Phase-2-sig** (reserved).
 - Phase-2 deprecation policy: **OI-7-Phase-2-deprecation** (reserved).
@@ -824,6 +1088,28 @@ itself is still Phase-2.
   views continue to function unchanged when the producer is a
   `LiveSchemaSnapshot.as_registry()` instead of `backend.snapshot()`.
 - Spec semver bump 0.2.0 → 0.3.0 reflects the additive minor change
+  (M-2 §3.2 versioning policy: minor for additive).
+
+**Tag-5 (v0.4.0) is additive relative to Tag-4 (v0.3.0):**
+
+- All Tag-1 + Tag-3 + Tag-4 surfaces remain unchanged. Tag-5
+  introduces no new method on `NatsKvSchemaRegistry`, no new field
+  on `SchemaRegistryEntry`, and no new on-the-wire envelope.
+- The Tag-5 addition is a *separate module*
+  (`wirelang.schemas.publisher_cli`) consisting of an argparse
+  surface, an `ExitCode` enum, a `PublishReceipt` dataclass, and a
+  `run()` entry-point. Existing callers that consume the backend
+  directly (verifier modules, watch-stream consumers) are untouched.
+- M-2 conformance (additive-only schema evolution): Tag-5 adds no
+  new envelope fields and modifies no existing field. The on-the-wire
+  envelope schema remains `wakir.wirelang.schema-registry-entry/1`.
+  The CLI is a routing layer onto the existing backend gates; it
+  does not introduce an alternative codec.
+- M-4 conformance (multi-version-aware registry): Tag-5 is orthogonal
+  to the version axis. The CLI publishes one `(layer, name, version)`
+  entry per invocation; multi-version coexistence on the bucket is
+  unaffected.
+- Spec semver bump 0.3.0 → 0.4.0 reflects the additive minor change
   (M-2 §3.2 versioning policy: minor for additive).
 
 — End of spec —
