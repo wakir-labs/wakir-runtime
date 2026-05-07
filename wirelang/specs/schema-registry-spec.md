@@ -9,14 +9,14 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wirelang-schema-registry
-version: 0.4.0
+version: 0.5.0
 status: draft
 date: 2026-05-07
 audience: implementers, integrators, operators
 license: CC-BY-4.0
 ---
 
-# Wirelang Schema Registry — NATS-KV Backend Specification (v0.4.0)
+# Wirelang Schema Registry — NATS-KV Backend Specification (v0.5.0)
 
 **Change log**
 
@@ -26,6 +26,7 @@ license: CC-BY-4.0
 | 0.2.0   | 2026-05-07 | Phase-1c CAS-pin contract reclassified from Phase-2 to Phase-1c and lands in Tag-3 (`put_with_revision` / `get_with_revision` / `SchemaRegistryConflictError`); §5.3 Phase-1c-Slot consumed; §5.4 added. Additive-only change relative to v0.1.0; M-2 / M-4 conformance preserved. |
 | 0.3.0   | 2026-05-07 | Phase-1c watch-stream surface lands in Tag-4 (`watch()` / `WatchOp` / `WatchEvent` / `LiveSchemaSnapshot` / `open_watch_stream`); §5.3 OI-7-Phase-1c-watch slot CONSUMED; §5.5 added (watch-stream operational contract); §6.2 added (T-SR-WS-01..10 + 2 aux probes test inventory). Additive-only change relative to v0.2.0; M-2 / M-4 conformance preserved. |
 | 0.4.0   | 2026-05-07 | Phase-1c publisher CLI lands in Tag-5 (`wirelang.schemas.publisher_cli`: `wakir-schema-registry publish` / `dry-run` argparse surface, `PublishReceipt`, `ExitCode` matrix); §5.3 OI-7-Phase-1c-publisher slot CONSUMED; §5.6 added (publisher CLI operational contract); §6.3 added (T-SR-PUB-01..12 test inventory). Additive-only change relative to v0.3.0; M-2 / M-4 conformance preserved. The CLI is a thin operator-input layer over the Tag-3 CAS-pin and Tag-1 LWW backends; it introduces no new on-the-wire envelope and no new validation gate. |
+| 0.5.0   | 2026-05-07 | Phase-1c cross-bucket replication lands in Tag-6 (`wirelang.schemas.replication`: `SchemaReplicator`, `bootstrap_target_from_source`, `ReplicationConflictPolicy`, `ReplicationFilter`, `ReplicationMetrics`); §5.3 OI-7-Phase-1c-replication slot CONSUMED; §5.7 added (replication operational contract); §6.4 added (T-SR-REP-01..12 test inventory). Additive-only change relative to v0.4.0; M-2 / M-4 conformance preserved. The replication layer is a thin composition of Tag-1 LWW + Tag-3 CAS-pin + Tag-4 watch-stream surfaces; it introduces no new on-the-wire envelope, no new validation gate, and no new method on `NatsKvSchemaRegistry`. **Phase-1c is now feature-complete.** |
 
 This specification defines the Wakir Wirelang **Schema Registry**: a
 persistent, drift-aware store for the JSON-Schema documents that
@@ -139,10 +140,37 @@ JCS-canonical envelope that is byte-stable for audit anchoring.
   layer.
 - This slot consumes **OI-7-Phase-1c-publisher**.
 
-**Phase-1c (still out of scope, reserved):**
+**Phase-1b Sprint-3 Tag-6 (this revision, additive over Tag-5):**
 
-- Cross-bucket schema replication for multi-region clusters
-  (**OI-7-Phase-1c-replication** reserved).
+- The cross-bucket replication layer (`wirelang/schemas/replication.py`)
+  exposing `SchemaReplicator` (one-way source → target replicator
+  composing Tag-4 source-side watch-stream with Tag-1 / Tag-3
+  target-side write paths), `bootstrap_target_from_source` (initial
+  full-snapshot pass), `ReplicationConflictPolicy`
+  (`SOURCE_WINS` LWW vs `CAS_PIN` CAS-pinned target writes),
+  `ReplicationFilter` (curated-subset replication), and
+  `ReplicationMetrics` (per-run counters surfacing bootstrap /
+  live-tail / filter / conflict / envelope-error counts).
+- The replicator is a *thin composition*: it adds no new method on
+  `NatsKvSchemaRegistry`, no new field on `SchemaRegistryEntry`, and
+  no new on-the-wire envelope. It is a separate module that consumes
+  the existing Tag-1 + Tag-3 + Tag-4 surfaces.
+- Tag-6 covers two production scenarios: multi-org federation (one
+  upstream registry replicated into a downstream org's local cluster
+  for offline lookup) and cross-cluster mirror (active-cluster →
+  hot-standby tracking for fail-over readiness).
+- 12 hermetic determinism tests (T-SR-REP-01..12) over the same
+  in-memory CAS-aware KV mock used by Tag-3 / Tag-4 / Tag-5.
+- This slot consumes **OI-7-Phase-1c-replication**. **Phase-1c is
+  now feature-complete: all four Phase-1c slots (CAS, watch,
+  publisher, replication) are consumed.**
+
+**Phase-1c (out of scope, all slots now consumed):**
+
+- ~~OI-7-Phase-1c-CAS~~ (CONSUMED in Tag-3).
+- ~~OI-7-Phase-1c-watch~~ (CONSUMED in Tag-4).
+- ~~OI-7-Phase-1c-publisher~~ (CONSUMED in Tag-5).
+- ~~OI-7-Phase-1c-replication~~ (CONSUMED in Tag-6).
 
 **Phase-2 (out of scope here):**
 
@@ -151,13 +179,17 @@ JCS-canonical envelope that is byte-stable for audit anchoring.
 - Schema-deprecation policy with overlapping-validity windows.
 - IPFS-anchored schema-document hashes.
 - Envelope-side signature with AIP-id-tied `registered_by`.
+- Bidirectional replication with conflict-free CRDT-style merges
+  (**OI-7-Phase-2-bidir-replication** reserved).
+- Watch-stream resume-from-revision policy
+  (**OI-7-Phase-2-resume** reserved).
 
-The reserved Phase-1c items above are tracked as
-**OI-7-Phase-1c-publisher / -watch / -replication** in the Phase-1b
-backlog; the Phase-2 items as **OI-7-Phase-2-quorum / -deprecation /
--ipfs / -sig**. Tag-3 consumed **OI-7-Phase-1c-CAS**, Tag-4 consumed
-**OI-7-Phase-1c-watch**, Tag-5 consumes **OI-7-Phase-1c-publisher**;
-**OI-7-Phase-1c-replication** is the only remaining Phase-1c slot.
+The Phase-1c slots are all consumed: Tag-3 consumed
+**OI-7-Phase-1c-CAS**, Tag-4 consumed **OI-7-Phase-1c-watch**, Tag-5
+consumed **OI-7-Phase-1c-publisher**, Tag-6 consumes
+**OI-7-Phase-1c-replication**. The Phase-2 reserved slots are tracked
+as **OI-7-Phase-2-quorum / -deprecation / -ipfs / -sig /
+-bidir-replication / -resume**.
 
 ## 2. Bucket identity (cross-reference Kai inventory)
 
@@ -396,7 +428,7 @@ These gates protect the determinism contract: a poisoned or
 mis-anchored envelope cannot reach the bucket through the typed
 backend.
 
-### 5.3 What Phase-1b Sprint-3 Tag-1 + Tag-3 + Tag-4 + Tag-5 covers, and what Phase-1c / Phase-2 still does NOT do
+### 5.3 What Phase-1b Sprint-3 Tag-1 + Tag-3 + Tag-4 + Tag-5 + Tag-6 covers, and what Phase-2 still does NOT do
 
 **Tag-1 (v0.1.0) lands:**
 
@@ -479,17 +511,38 @@ backend.
   plus `js.key_value(BUCKET_NAME)` for production operators.
 - **OI-7-Phase-1c-publisher slot consumed.**
 
-**Phase-1c still does NOT include (remaining reserved slots):**
+**Tag-6 (v0.5.0) lands (additive over Tag-5):**
 
-- No cross-bucket schema replication for multi-region clusters
-  (`OI-7-Phase-1c-replication` reserved).
-- No watch-stream resume-from-revision policy (Phase-2 concern;
-  nats-py supports it via `watchall(..., resume_from=...)`, but the
-  Phase-1c stream wrapper does not bake in resume policy).
-- The publisher CLI does NOT itself implement multi-replica
-  rollout sequencing; it publishes one entry per invocation.
-  Multi-replica rollout sequencing is an integrator concern and a
-  Phase-2 hardening item.
+- The cross-bucket replication module
+  `wirelang.schemas.replication` exposing `SchemaReplicator` (one-way
+  source → target replicator), `bootstrap_target_from_source` (initial
+  full-snapshot pass), and the supporting types
+  `ReplicationConflictPolicy`, `ReplicationDecision`,
+  `ReplicationFilter`, `ReplicationMetrics`.
+- Composition contract: source-side reads use Tag-4 watch-stream
+  surfaces (`open_watch_stream`, `WatchEvent`, `LiveSchemaSnapshot`
+  via `snapshot()` for bootstrap); target-side writes use Tag-1 LWW
+  (`put`) under `SOURCE_WINS` policy or Tag-3 CAS-pin
+  (`put_with_revision`) under `CAS_PIN` policy.
+- Two production scenarios covered: **multi-org federation** (a
+  curated subset of an upstream registry mirrored into a downstream
+  org's local cluster) and **cross-cluster mirror** (active-cluster →
+  hot-standby tracking for fail-over readiness).
+- Bootstrap is idempotent: a re-run on a byte-equal target advances
+  the `bootstrap_skipped_idempotent` counter without touching the
+  bucket. Idempotency is byte-comparison via the envelope codec
+  (`_entry_to_envelope(a) == _entry_to_envelope(b)`).
+- 12 additional hermetic determinism tests (T-SR-REP-01..12).
+- A poisoned envelope on the source watch-stream halts replication
+  with `SchemaRegistryEnvelopeError`; the metrics counter
+  `envelope_errors` is incremented before re-raise. The target
+  state is NOT corrupted (the poisoned event never reaches the
+  target write path).
+- **OI-7-Phase-1c-replication slot consumed. Phase-1c is now
+  feature-complete.**
+
+**Phase-1c is feature-complete; all four Phase-1c slots are
+consumed (Tag-3 / Tag-4 / Tag-5 / Tag-6).**
 
 **Phase-2 still does NOT include:**
 
@@ -825,6 +878,162 @@ input (or 0 for `create-only`, `null` for LWW / dry-run).
   operator's environment provides. Capability-token enforcement at
   the publisher boundary is an OI-7-Phase-2-sig hardening item.
 
+### 5.7 Replication operational contract (Tag-6)
+
+The replication layer is the canonical one-way (source → target)
+mirror substrate for the `wakir-schemas` bucket. It is a thin
+composition of three Phase-1c surfaces (Tag-1 LWW, Tag-3 CAS-pin,
+Tag-4 watch-stream); the replicator itself adds no new method on
+`NatsKvSchemaRegistry`, no new envelope field, and no new
+validation gate.
+
+**Composition contract:**
+
+- **Source side (Tag-4):** the replicator opens a watch-stream over
+  the source backend via `open_watch_stream(source)` and consumes
+  decoded `WatchEvent` instances. Bootstrap is taken from
+  `source.snapshot()` so the target starts from a complete,
+  self-consistent view; the watch-stream then fills in the live tail.
+- **Target side (Tag-3 CAS-pin or Tag-1 LWW):** writes go through
+  `target.put` (under `SOURCE_WINS`) or
+  `target.put_with_revision` (under `CAS_PIN`), depending on the
+  configured `ReplicationConflictPolicy`.
+- **Operator-input side (Tag-5):** the publisher CLI is the
+  *separate* operator-driven write path; an operator can use it
+  against the target bucket to forcibly re-apply a divergent entry
+  from the source. The replicator does NOT itself bake an
+  operator-override into the event loop.
+
+**Conflict policy:**
+
+```python
+class ReplicationConflictPolicy(enum.Enum):
+    SOURCE_WINS = "source-wins"  # target.put (LWW)
+    CAS_PIN     = "cas-pin"      # target.put_with_revision
+```
+
+- `SOURCE_WINS` (default): source-of-truth is the source bucket;
+  whatever the source emits lands on the target unconditionally.
+  Concurrent target-side mutations are silently overwritten on the
+  next source emit.
+- `CAS_PIN`: target writes carry the target's currently-observed
+  revision (read via `target.get_with_revision` just before the
+  write). A target-side concurrent mutation between the read and
+  the write surfaces as `SchemaRegistryConflictError` from the
+  underlying backend; the replicator catches it, increments
+  `metrics.cas_conflicts`, and continues with the next event by
+  default. `halt_on_conflict=True` re-raises on first conflict.
+
+**Filter contract:**
+
+```python
+ReplicationFilter = Callable[[WatchEvent], ReplicationDecision]
+
+class ReplicationDecision(enum.Enum):
+    APPLY = "apply"
+    SKIP  = "skip"
+```
+
+The optional `filter_fn` is invoked on every observed event
+(bootstrap synthetic events and live tail events alike). A `SKIP`
+decision means the event is NOT applied to the target; the relevant
+`*_skipped_by_filter` counter advances. Filters are pure (no I/O)
+by contract.
+
+**Metrics contract:**
+
+```python
+@dataclass
+class ReplicationMetrics:
+    bootstrap_applied: int
+    bootstrap_skipped_by_filter: int
+    bootstrap_skipped_idempotent: int
+    events_applied_put: int
+    events_applied_delete: int
+    events_skipped_by_filter: int
+    cas_conflicts: int
+    envelope_errors: int
+```
+
+The replicator updates these counters synchronously inside its
+event loop. Tests assert against the final shape; production
+operators expose them via a metrics-pull endpoint (out of scope
+for Tag-6).
+
+**Bootstrap idempotency:**
+
+`bootstrap_target_from_source` is byte-comparison-idempotent: if the
+target already holds an entry that round-trips to the same envelope
+bytes as the source-side entry (`_entry_to_envelope(a) ==
+_entry_to_envelope(b)`), the bootstrap pass treats it as a no-op
+(`bootstrap_skipped_idempotent` counter advances). Re-running the
+bootstrap on a partially-replicated target is therefore safe.
+
+Bootstrap ordering: source entries are written in `keys_sorted()`
+order (lexicographic) for log-replay determinism in tests; nats-py
+KV does not guarantee cross-key ordering anyway.
+
+**Run loop:**
+
+```python
+replicator = SchemaReplicator(
+    source=source_backend,
+    target=target_backend,
+    conflict_policy=ReplicationConflictPolicy.SOURCE_WINS,
+    filter_fn=only_wire_layer,  # optional
+)
+metrics = await replicator.run()  # bootstrap + watch-tail
+```
+
+By default, `run()` runs the bootstrap pass then opens the source
+watch-stream and consumes events until the stream terminates.
+`run(bootstrap=False)` skips the bootstrap pass for callers that
+have already seeded the target.
+
+**Halt policy:**
+
+- `halt_on_envelope_error` (default `True`): a poisoned source
+  watch-stream event terminates `run` with a re-raised
+  `SchemaRegistryEnvelopeError`. The metrics counter
+  `envelope_errors` is incremented to 1 before re-raise.
+- `halt_on_conflict` (default `False`): under `CAS_PIN`, a target
+  CAS conflict terminates `run` with a re-raised
+  `SchemaRegistryConflictError`. The metrics counter
+  `cas_conflicts` is incremented before re-raise.
+
+**Determinism contract (Tag-6 invariants):**
+
+1. A bootstrap-only run leaves the target's keysets byte-equal to
+   the source's keysets (modulo entries filtered out). Re-running
+   the bootstrap on the same source state is a no-op for entries
+   already byte-equal on the target.
+2. A poisoned envelope on the source watch-stream raises
+   `SchemaRegistryEnvelopeError` from the run loop and terminates
+   replication. The target state is NOT corrupted because the
+   poisoned event never reaches the target write path.
+3. A target-side CAS conflict (under `CAS_PIN`) is observable
+   through `metrics.cas_conflicts`; the replicator continues with
+   the next event by default.
+4. Source==target is rejected at construction with `ValueError`
+   (no self-replication; the constructor enforces distinct backend
+   instances).
+
+**Phase-1c boundary:**
+
+- Tag-6 is **one-way**: source → target. Bidirectional replication
+  with conflict-free CRDT-style merges is `OI-7-Phase-2-bidir-replication`
+  reserved.
+- Tag-6 is **single-source / single-target** per replicator. Multi-source
+  fan-in is achieved by running multiple `SchemaReplicator` instances
+  against one target backend.
+- Tag-6 has **no resume-from-revision policy**: a connection drop
+  forces a full bootstrap-and-tail restart. Resume policies are
+  `OI-7-Phase-2-resume` reserved.
+- Tag-6 has **no envelope-side capability-token enforcement**; the
+  replicator inherits whatever NATS credentials the operator's
+  environment provides on each backend. Capability-token enforcement
+  at the replication boundary is `OI-7-Phase-2-sig` reserved.
+
 ## 6. Test inventory
 
 Phase-1b Sprint-3 Tag-1 ships hermetic tests at
@@ -1008,6 +1217,61 @@ Total Tag-5 test additions: 12 hermetic determinism tests
 exercised at the test layer (it would require a live NATS cluster);
 production operators verify it manually against their local cluster.
 
+### 6.4 Replication tests (Tag-6, additive over Tag-5)
+
+Phase-1b Sprint-3 Tag-6 ships hermetic replication tests at
+`wirelang/tests/test_schema_registry_replication.py`. Inventory
+T-SR-REP-01..12:
+
+- **T-SR-REP-01:** bootstrap copies every source entry onto an empty
+  target in keys-sorted order; `bootstrap_applied` advances by the
+  number of source entries; the target's keyset is byte-equal to
+  the source's keyset post-bootstrap.
+- **T-SR-REP-02:** a second bootstrap pass on a byte-equal target
+  is a no-op via the `bootstrap_skipped_idempotent` counter
+  (idempotency contract; the second-pass `bootstrap_applied` is 0
+  because the new metrics object starts fresh).
+- **T-SR-REP-03:** a `ReplicationFilter` skips entries that do not
+  match a layer constraint during the bootstrap pass; the
+  filtered-out entry is NOT written to the target;
+  `bootstrap_skipped_by_filter` advances.
+- **T-SR-REP-04:** live PUT events on the source land on the target
+  via the watch-stream tail; `events_applied_put` advances per event.
+- **T-SR-REP-05:** a live DELETE on the source removes the entry
+  from the target via the watch-stream tail; `events_applied_delete`
+  advances.
+- **T-SR-REP-06:** under `ReplicationConflictPolicy.CAS_PIN`, a
+  target-side mutation that lands between the replicator's
+  read-revision and CAS-pinned-write surfaces as a CAS conflict
+  on the underlying backend; the replicator catches it, increments
+  `cas_conflicts`, and continues with subsequent events. The
+  replicator does NOT overwrite the target's out-of-band state.
+- **T-SR-REP-07:** `halt_on_conflict=True` re-raises
+  `SchemaRegistryConflictError` on the first CAS conflict;
+  `cas_conflicts` is incremented before re-raise.
+- **T-SR-REP-08:** a poisoned envelope on the source watch-stream
+  (non-JSON `value` on a PUT update) halts `run` with
+  `SchemaRegistryEnvelopeError`; `envelope_errors` is 1.
+- **T-SR-REP-09:** a `ReplicationFilter` that returns `SKIP` on a
+  live PUT event prevents the event from reaching the target;
+  `events_skipped_by_filter` advances.
+- **T-SR-REP-10:** the `SchemaReplicator` constructor rejects
+  source==target with `ValueError` (no self-replication contract).
+- **T-SR-REP-11:** a malformed PUT `WatchEvent` arriving with
+  `entry=None` (handcrafted, bypassing the decoder) is rejected at
+  the replicator's apply boundary as
+  `SchemaRegistryEnvelopeError` (defence-in-depth).
+- **T-SR-REP-12:** `run(bootstrap=False)` skips the bootstrap pass;
+  the pre-existing source entry is NOT pre-loaded onto the target,
+  but the live tail events still land. Bootstrap counters stay 0
+  while live counters advance.
+
+Total Tag-6 test additions: 12 hermetic determinism tests
+(T-SR-REP-01..12). The replication module does NOT establish NATS
+connections itself; tests inject the same in-memory `_MockKv` shape
+used by Tag-3 / Tag-4 / Tag-5, with a wrapper that simulates the
+read-then-mutate race window for the CAS-conflict path.
+
 ## 7. Cross-references and Open-Items
 
 - V-908 backend pattern source:
@@ -1024,12 +1288,19 @@ production operators verify it manually against their local cluster.
 - **Phase-1c publisher CLI: OI-7-Phase-1c-publisher — CONSUMED in
   Tag-5.** Module: `wirelang/schemas/publisher_cli.py`. Tests:
   `wirelang/tests/test_schema_registry_publisher_cli.py`.
-- Phase-1c cross-bucket replication: **OI-7-Phase-1c-replication**
-  (reserved; only remaining Phase-1c slot).
+- **Phase-1c cross-bucket replication: OI-7-Phase-1c-replication
+  — CONSUMED in Tag-6.** Module: `wirelang/schemas/replication.py`.
+  Tests: `wirelang/tests/test_schema_registry_replication.py`.
+- **Phase-1c is feature-complete; all four Phase-1c slots are
+  consumed (Tag-3 / Tag-4 / Tag-5 / Tag-6).**
 - Phase-2 CAS-quorum: **OI-7-Phase-2-quorum** (reserved).
 - Phase-2 envelope signature: **OI-7-Phase-2-sig** (reserved).
 - Phase-2 deprecation policy: **OI-7-Phase-2-deprecation** (reserved).
 - Phase-2 IPFS schema-hash: **OI-7-Phase-2-ipfs** (reserved).
+- Phase-2 bidirectional replication: **OI-7-Phase-2-bidir-replication**
+  (reserved; CRDT-style merge contract for two-way mirror).
+- Phase-2 watch-stream resume: **OI-7-Phase-2-resume** (reserved;
+  resume-from-revision policy on connection drop).
 
 ## 8. Compatibility statement
 
@@ -1110,6 +1381,33 @@ itself is still Phase-2.
   entry per invocation; multi-version coexistence on the bucket is
   unaffected.
 - Spec semver bump 0.3.0 → 0.4.0 reflects the additive minor change
+  (M-2 §3.2 versioning policy: minor for additive).
+
+**Tag-6 (v0.5.0) is additive relative to Tag-5 (v0.4.0):**
+
+- All Tag-1 + Tag-3 + Tag-4 + Tag-5 surfaces remain unchanged.
+  Tag-6 introduces no new method on `NatsKvSchemaRegistry`, no new
+  field on `SchemaRegistryEntry`, and no new on-the-wire envelope.
+- The Tag-6 addition is a *separate module*
+  (`wirelang.schemas.replication`) consisting of `SchemaReplicator`,
+  `bootstrap_target_from_source`, `ReplicationConflictPolicy`,
+  `ReplicationDecision`, `ReplicationFilter`, and
+  `ReplicationMetrics`. The replication module is a *consumer* of
+  Tag-1 LWW + Tag-3 CAS-pin + Tag-4 watch-stream surfaces; it
+  imports them but does not modify them.
+- Existing callers that consume the backend directly (verifier
+  modules, watch-stream consumers, the publisher CLI) are untouched.
+- M-2 conformance (additive-only schema evolution): Tag-6 adds no
+  new envelope fields and modifies no existing field. The on-the-wire
+  envelope schema remains `wakir.wirelang.schema-registry-entry/1`.
+  The replicator transports the same envelope bytes across buckets;
+  the encoder / decoder is shared (`_entry_to_envelope` /
+  `_envelope_to_entry` from the Tag-1 backend).
+- M-4 conformance (multi-version-aware registry): Tag-6 is orthogonal
+  to the version axis. The replicator mirrors entries per bucket key
+  (`schemas/<layer>/<name>/<version>`) without depending on whether
+  multiple versions are simultaneously active on either bucket.
+- Spec semver bump 0.4.0 → 0.5.0 reflects the additive minor change
   (M-2 §3.2 versioning policy: minor for additive).
 
 — End of spec —
