@@ -82,6 +82,9 @@ test = [
 wakir-merkle = "wat.cmd.aggregator_cli:main"
 wakir-anchor = "wat.cmd.anchor_cli:main"
 wakir-verify = "wat.verify.cli:main"
+# Persona self-migration converter CLI (ADR-0036, V-907 third pillar);
+# see wirelang/specs/self-migration-konverter-spec.md §7.
+wakir-persona = "wirelang.persona.cli:main"
 
 [project.urls]
 Homepage = "https://wakir.dev"
