@@ -1,0 +1,100 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wirelang sandbox-CI lane (Phase-1b Tag-11)
+# ------------------------------------------
+#
+# Purpose: prove that the wirelang test suite stays green when the two
+# optional third-party libraries `rfc8785` and `jsonschema` are NOT
+# installed. This exercises the pure-Python fallback path
+# (`wirelang/identity/_jcs_pure.py` and `_schema_pure.py`) and the
+# resolver indirection wired into `aip_signing`, `did_document_signing`,
+# and `verify_bridge`.
+#
+# Lane policy
+# -----------
+# - Sandbox lane (this workflow): minimal install set; suite must be
+#   green with the jsonschema/rfc8785-dependent tests skipped via
+#   `pytest.importorskip`.
+# - Production lane (companion workflow `tests.yml`, follow-up Tag-12+):
+#   full install set including `rfc8785` and `jsonschema`; suite must
+#   be green with zero skips on those keys.
+#
+# Trigger surface kept narrow on purpose: PRs touching the wirelang
+# tree, plus a manual dispatch for ad-hoc verification. The sandbox
+# lane is a hermetic correctness gate, not a perf gate.
+#
+# This workflow is the Tag-11 deliverable for Phase-1b-I-5
+# closeout (Tag-9 acceptance gap "suite green without rfc8785 /
+# jsonschema") and acts as the regression net for any future change
+# that might silently re-introduce a hard dependency on either library.
+
+name: sandbox-ci
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'wirelang/**'
+      - 'pyproject.toml'
+      - '.github/workflows/sandbox-ci.yml'
+  pull_request:
+    paths:
+      - 'wirelang/**'
+      - 'pyproject.toml'
+      - '.github/workflows/sandbox-ci.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  sandbox-suite:
+    name: wirelang suite without rfc8785 / jsonschema
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install minimal sandbox deps
+        # Deliberate set: NO rfc8785, NO jsonschema. The suite must
+        # green out via the pure-Python fallback path and the
+        # `pytest.importorskip` skip-on-missing-imports pattern in
+        # the three test modules that need them
+        # (test_aip_document_golden, test_did_document_golden,
+        # test_datalog_caveat_schema).
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            "pytest>=8.0" \
+            "pytest-subtests>=0.11" \
+            "cryptography>=42" \
+            "shamir-mnemonic>=0.3.0"
+
+      - name: Verify rfc8785 + jsonschema are absent
+        # Hard-fail the lane if either library is somehow present;
+        # otherwise the lane silently degrades into a duplicate of the
+        # production lane.
+        run: |
+          python - <<'PY'
+          import importlib.util, sys
+          forbidden = ("rfc8785", "jsonschema")
+          present = [m for m in forbidden if importlib.util.find_spec(m) is not None]
+          if present:
+              print(f"sandbox-ci invariant broken: {present} unexpectedly importable", file=sys.stderr)
+              sys.exit(1)
+          print("sandbox-ci invariant ok: rfc8785 and jsonschema are absent")
+          PY
+
+      - name: Run wirelang test suite (sandbox lane)
+        # Expectation: all collected tests pass; tests that need the
+        # absent libraries are skipped via pytest.importorskip. Zero
+        # failures, zero errors.
+        run: |
+          python -m pytest wirelang/ -v --tb=short

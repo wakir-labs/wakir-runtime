@@ -13,7 +13,13 @@ import json
 from pathlib import Path
 
 import pytest
-from jsonschema import Draft202012Validator
+
+# Sandbox-CI: skip the entire module when jsonschema is not installed.
+# The Datalog-caveat schema-conformance suite is a jsonschema-validator
+# test by construction; pure-Python schema coverage at the AIP-document
+# level is exercised in test_pure_python_fallback.py.
+jsonschema = pytest.importorskip("jsonschema")
+Draft202012Validator = jsonschema.Draft202012Validator
 
 WIRELANG_ROOT = Path(__file__).resolve().parent.parent
 SCHEMA_PATH = WIRELANG_ROOT / "schemas" / "datalog-caveat.json"

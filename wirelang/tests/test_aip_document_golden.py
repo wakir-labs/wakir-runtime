@@ -28,7 +28,14 @@ import json
 from pathlib import Path
 
 import pytest
-import rfc8785
+
+# Sandbox-CI: skip the entire module when rfc8785 is not installed.
+# This module recomputes JCS-SHA-256 directly via rfc8785.dumps for
+# golden-vector parity with the production-anchor manifests. The
+# pure-Python JCS path (test_pure_python_fallback.py #29) anchors
+# byte-equivalence to rfc8785, so the fallback CI lane is still
+# covered for the JCS-canonicalisation invariants.
+rfc8785 = pytest.importorskip("rfc8785")
 
 from wirelang.identity import (
     generate_aip_document,
