@@ -278,4 +278,109 @@ finalisation by then.
       (chain-tip at spot-check time), 1-of-6 confirmations.
 - [x] Spot-check result documented as Tag-26-doc extension §8.
 
+## 9 / Tag-27.5 zwischen-run (T+~22 min post-submit)
+
+### Trigger
+
+A Tag-27.5 zwischen-box was triggered by the possibility of 6-confirmations
+landing within ~60 minutes of the Tag-27 spot-check (Tag-27 noted
+2-of-4 alice+bob in chain at 1-of-6). A small zwischen-box was
+allocated to either capture an early `ots upgrade` to a 2-of-4
+partial-anchor state, or document that the wall-clock did not yet
+allow it.
+
+### Bitcoin chain state at zwischen-run
+
+Esplora cross-check at 2026-05-07T07:48Z (T+~22 min post-Tag-26-
+submit at 07:25:38Z):
+
+| anchor                      | confirmed | block height | confirmations |
+|-----------------------------|-----------|--------------|---------------|
+| chain-tip (mempool.space)   | n/a       | **948288**   | n/a           |
+| `2519dd36…85d9fa` (alice)   | true      | 948286       | **3**         |
+| `fe2208c7…7e1dc69` (bob)    | true      | 948286       | **3**         |
+
+Tip advanced by 2 blocks since Tag-27 (was 948286, now 948288), so
+both alice+bob TXs gained 2 confirmations. Still 3 short of the
+6-confirmation threshold the OTS calendar requires before emitting
+a `BitcoinBlockHeaderAttestation`.
+
+### `ots upgrade` zwischen-run result
+
+```
+[wat-block-heights] archive=.runtime/wat-tv3-archive
+[wat-block-heights] found 1 receipt(s); running ots upgrade on each
+[wat-block-heights] warn: ots upgrade non-zero for ... (continuing)
+[wat-block-heights] pending   20260507T072538Z/2026-05-26T17/root.bin.ots
+[wat-block-heights] summary: receipts=1 finalised=0 pending=1
+```
+
+Outcome: **0-of-4 finalised, 4-of-4 pending** — unchanged from
+Tag-27. `ots upgrade` correctly returns non-zero on the alice+bob
+branches (3 confirmations is below the calendar's 6-confirmation
+threshold) and the receipt remains a pure pending-attestation
+proof tree.
+
+The Esplora cross-check **does** show 2-of-4 in-chain (alice+bob)
+but the `BitcoinBlockHeaderAttestation` payload — the only thing
+that lifts a `PendingAttestation` from `pending` to `finalised` in
+the OTS-CLI surface — does not yet exist. This is the designed
+Esplora-fallback gap (ADR-0007 §3) and matches the Tag-27
+prediction.
+
+Report file:
+`.runtime/wat-tv3-archive/_reports/block-heights-20260507T074424Z.md`.
+
+### Stand dokumentiert, Tag-28-Voll-Closure-Erwartung
+
+The 60-minute lookahead from the Tag-27 spot-check has not yet
+materialised because the Bitcoin block cadence in this hour is
+running slightly slower than the historical mean (only 2 blocks
+in ~22 minutes vs the ~6.6-blocks-in-60-minutes implied by Tag-27's
+projection). The 6-confirmation threshold for alice+bob is
+expected at chain-tip ≥ 948291 (3 more blocks, ~30 minutes at the
+mean cadence).
+
+Tag-27.5 closes with the receipt explicitly **still pending**, no
+shift in `ots verify` output, and the projection deferred:
+
+- **Earliest plausible 2-of-4 partial-anchor:** ~08:15-08:25 UTC
+  if the next 3 blocks land at the historical mean.
+- **Tag-28 box (12Z):** ~4 hours after Tag-27.5; both 2-of-4 alice+
+  bob anchoring **and** 4-of-4 finney+catallaxy catch-up are
+  expected to have completed by then. This is unchanged from the
+  Tag-27 projection.
+
+### Brand-asset implication note
+
+The Tag-27.5 briefing flagged TV-3 as a candidate brand-asset
+on the frontend-engineering Sprint-2 plan (analogous to the
+TV-2 4-of-4 Tag-22 card).
+The brand-asset story remains contingent on TV-3 reaching at least
+2-of-4 partial-anchor — which Tag-27.5 did **not** deliver. The
+asset payload is unchanged for the frontend-engineering Sprint-2
+planning:
+
+- TV-2 Bitcoin-anchor card: 4-of-4 finalised, ready to ship.
+- TV-3 Bitcoin-anchor card: still pending 2-of-4 minimum.
+  Defer to Tag-28 box for the substrate update.
+
+No frontend trigger from Tag-27.5. The frontend-engineering
+Sprint-2 plan can scope
+TV-3 brand-asset as **conditional on Tag-28-Voll-Closure** without
+waiting for Tag-27.5 input.
+
+### Acceptance — Tag-27.5 zwischen-run
+
+- [x] `wat-block-heights-collect.sh` walked the Tag-26 archive
+      again without error.
+- [x] Esplora cross-check confirms tip advanced by 2 blocks since
+      Tag-27 spot-check; alice+bob now at 3-of-6 confirmations.
+- [x] `ots upgrade` correctly does NOT lift the receipt from
+      `pending` (3 < 6 calendar threshold).
+- [x] Stand explicitly documented as "still pending, Tag-28-Voll-
+      Closure-target unchanged".
+- [x] Brand-asset implication for frontend-engineering Sprint-2
+      explicitly resolved as **deferred to Tag-28**.
+
 — Tomás
