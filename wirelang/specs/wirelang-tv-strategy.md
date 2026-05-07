@@ -337,4 +337,26 @@ All examples use role-strings (`<role-string>`, `consumer-A`,
 `consumer-B`, etc.). No personal names, no project-internal aliases
 that would leak through to public golden fixtures.
 
+## Annex A — Crystallised pin values
+
+Pin values are added here as each TV-W vector is implemented. A
+re-baseline of any pin is an explicit engineering event and requires
+an updated entry below plus a workflow-PR note.
+
+### A.1 TV-W-1 (Phase-1b Tag-14, 2026-05-07)
+
+- Golden fixture: `wirelang/tests/fixtures/tv-w-1/pin-pack.json`.
+- Builder / regenerator: `wirelang.tests._tv_w_1_pin_pack_builder`
+  (also exposes `--check` for hash-only verification).
+- `pin_pack_sha256`:
+  `82149029a34d3595f587000073e62535491f47216ee6cf4aaa224345fe7d88bb`
+- Coverage: 9 personas (`persona_idx` ∈ {0,1,2} × `spawn_counter` ∈
+  {0,1,2}), each with secp256k1 pub, Ed25519 pub, JCS-SHA-256 of the
+  unsigned DID-document body, JCS-SHA-256 of the signed AIP document,
+  and the deterministic Ed25519 AIP signature.
+- Determinism note: ECDSA-secp256k1 in the `cryptography.hazmat`
+  stack is non-deterministic; the DID-document `proof` slot is
+  excluded from the pin-pack. The unsigned DID-body JCS-SHA-256 is
+  the byte-stable substitute.
+
 — Reza
