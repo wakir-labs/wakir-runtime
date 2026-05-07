@@ -49,8 +49,9 @@ memos and are referenced here only by name.
 | 6.5 | Federation-routes bucket creation (Phase-1b bring-up)              | Tag-7       |
 | 7   | Open follow-ups (sprint-by-sprint backlog)                         | Tag-2..Tag-8, Sprint-3 Tag-2 |
 | 7.1 | Build-host activation procedure (nine-step, expanded)              | Sprint-3 Tag-2 |
+| 7.1.10 | Post-install live-smoke driver                                  | Sprint-3 Tag-4 |
 | 7.2 | systemd-timer wiring + Prometheus textfile-collector adapter       | Sprint-3 Tag-3 |
-| 8   | Verification stamps (P5/P7)                                        | Tag-2..Tag-8, Sprint-3 Tag-2..Tag-3 |
+| 8   | Verification stamps (P5/P7)                                        | Tag-2..Tag-8, Sprint-3 Tag-2..Tag-4 |
 
 The four operator artefacts (compose substrate, bucket initialiser,
 NATS-KV substrate health check, federation evaluator health check)
@@ -860,6 +861,15 @@ pytest tests/orchestrator/ -v 2>&1 | tail -20
 #           "55 passed, 4 skipped" without it.
 ```
 
+A convenience driver that chains steps 6-8 (image-pull, compose-
+up, wait-ready, bucket-init, real-adapter round-trip, KV health
+check, teardown) into a single invocation lives at
+`scripts/post-install-live-smoke.sh`. The driver is the canonical
+post-install verification surface — once steps 2-5 of this section
+are done on the build-host, the operator runs the driver and
+confirms `highest_exit: 0` from its JSON summary on stdout. See
+§7.1.10 for the driver's exit-code contract and CLI surface.
+
 #### 7.1.9 Step 9 — cleanup / rollback procedure
 
 Reverse-sequence for build-host deactivation (Phase-1c hand-off
@@ -907,7 +917,66 @@ which gcc podman nats 2>&1   # all "not found" expected
 ls ~/wakir-runtime 2>&1       # "No such file or directory" expected
 ```
 
-#### 7.1.10 Risk register
+#### 7.1.10 Post-install live-smoke driver
+
+`scripts/post-install-live-smoke.sh` chains the seven post-step-5
+verification actions (image-pull, compose-up, wait-ready, bucket-
+init, real-`nats-py` adapter round-trip, NATS-KV health check,
+teardown) into a single idempotent invocation. It is the canonical
+"build-host activation done" smoke; the gated pytest run in §7.1.8
+is the broader regression contract that runs after the smoke.
+
+```bash
+# Default: podman engine, full run, volume dropped on teardown.
+cd ~/wakir-runtime
+source .venv/bin/activate
+./scripts/post-install-live-smoke.sh
+deactivate
+
+# Useful operator-driven variants:
+./scripts/post-install-live-smoke.sh --dry-run         # plan only
+./scripts/post-install-live-smoke.sh --skip-teardown   # leave up
+./scripts/post-install-live-smoke.sh --keep-volume     # state survives
+./scripts/post-install-live-smoke.sh --no-real-adapter # skip step 6
+./scripts/post-install-live-smoke.sh --engine docker   # docker variant
+```
+
+Stdout is a single-line JSON summary keyed by the seven step names,
+each with a `result` (`ok`/`fail`/`skip`) and a `duration_s`. Stderr
+is a human-readable line log; one `[step N/7]` line per step plus
+an `ok`/`error` closing line. The exit code mirrors the strictest
+sub-step:
+
+| exit | meaning                                              |
+| ---- | ---------------------------------------------------- |
+| 0    | all steps clean                                      |
+| 1    | preflight failure (a tool is missing or `.venv` not there) |
+| 2    | substrate up or wait-ready failed                    |
+| 3    | bucket init exit non-zero                            |
+| 4    | real-adapter round-trip failed                       |
+| 5    | KV health check exit non-zero                        |
+| 6    | teardown failed (substrate state may persist)        |
+
+The driver's test plan lives at
+`tests/orchestrator/test_post_install_live_smoke_plan.md` and
+covers fourteen cases (one happy path, five operator-driven
+variants, six fault-injection scenarios, two idempotency
+re-runs). The plan is markdown rather than pytest because the
+driver needs a real container substrate; a hermetic pytest
+would either lose that property or duplicate it as a mock. The
+existing hermetic compose-shape regression in
+`tests/orchestrator/test_compose_nats.py` is the static-side
+complement of this live-side smoke.
+
+A first-time run on a fresh build-host should be operator-
+supervised (watch the stderr line log); subsequent runs (post-
+image-bump, post-bucket-inventory-change) can be unattended in
+CI. A Prometheus textfile-collector wrapper for the driver is
+a Sprint-4 follow-up; for now the JSON summary on stdout is the
+machine-parseable hook (`./scripts/post-install-live-smoke.sh |
+jq '.highest_exit'`).
+
+#### 7.1.11 Risk register
 
 | risk                                                       | likelihood | impact      | mitigation                                                                  |
 | ---------------------------------------------------------- | ---------- | ----------- | --------------------------------------------------------------------------- |
@@ -919,7 +988,7 @@ ls ~/wakir-runtime 2>&1       # "No such file or directory" expected
 | approval-pass latency stalls activation                    | medium     | medium      | the dev-engineering-3-side outbox sketch is the pre-approval staging item   |
 | upstream API drift (`nats-py` 2.x → 3.x)                   | low        | low         | hermetic suite stays green; the live-smoke adapter is robust to 2.x→3.x    |
 
-#### 7.1.11 Cross-review zone touch
+#### 7.1.12 Cross-review zone touch
 
 | zone                                                  | step touches                                    | sprint follow-up                                 |
 | ----------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------ |
@@ -1252,3 +1321,30 @@ atomic-write semantics, and the CLI exit-code matrix.
   installed in `.venv/`; operators on a different layout adjust
   via `systemctl edit` drop-ins rather than mutating the upstream
   files.
+- Sprint-3 Tag-4 §7.1.10 post-install-live-smoke driver stamp:
+  `date -u` 2026-05-07T17:37:17Z (CEST 2026-05-07T19:37). This
+  pass adds `scripts/post-install-live-smoke.sh` (a bash-driver
+  that chains image-pull, compose-up, wait-ready, bucket-init,
+  real-`nats-py` adapter round-trip, NATS-KV health check, and
+  teardown into a single idempotent invocation with a JSON summary
+  on stdout, an exit-code-via-trap discipline, and seven CLI
+  options for operator-driven variants), the companion test plan
+  `tests/orchestrator/test_post_install_live_smoke_plan.md` (14
+  cases: 1 happy-path, 5 operator-driven variants, 6 fault-
+  injection, 2 idempotency re-runs), and the §7.1.10 runbook sub-
+  section that documents the driver's CLI surface and exit-code
+  contract. The §0 section index gains a `7.1.10` row; the §7.1
+  sub-section renumbering shifts the existing 7.1.10 (risk
+  register) to 7.1.11 and the 7.1.11 (cross-review zone touch)
+  to 7.1.12. The driver runs `bash -n` clean and a `--dry-run`
+  smoke from the authoring sandbox (no podman/nats/nats-py
+  available — the post-gcc activation wave is partially landed,
+  the rest pending) correctly fails preflight at step 1 with
+  exit 1 and emits a parseable JSON summary; the same dry-run
+  on a fully-activated build-host should record `1-preflight: ok`
+  and `2-7-pre, 7-teardown: skip` for an `highest_exit: 0`. Test
+  surface is unchanged in pytest terms: project-wide 218 passed +
+  23 skipped, `tests/orchestrator/` 84 passed + 4 skipped — the
+  new test plan is markdown-only by design (§7.1.10 motivates
+  why a hermetic pytest of a real-substrate driver would lose
+  the property under test).
