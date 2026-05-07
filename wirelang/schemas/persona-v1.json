@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wakir.dev/schemas/persona-v1.json",
+  "title": "Wakir persona-definition canonical subset (V-907, Phase-1b mock)",
+  "description": "Canonical subset of a persona-definition front-matter that is hashed into the WAT persona-pin pillar (V-907). The markdown body is OUT-OF-HASH and intentionally NOT covered by this schema. Format is the engine-default mock pending HR-slot ratification (ADR-0029).",
+  "type": "object",
+  "required": [
+    "name",
+    "description",
+    "tools",
+    "schema_version",
+    "identity_pinned"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Subagent slug / role-string per Brand-Guide §9. Never a clear personal name.",
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "description": {
+      "type": "string",
+      "description": "Spawn-time human-readable description (also used as the dispatcher hint for the parent supervisor)."
+    },
+    "tools": {
+      "type": "array",
+      "description": "Allow-list of tool names this persona may invoke (Read, Glob, Bash, etc.).",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "persona-v1"
+    },
+    "identity_pinned": {
+      "type": "object",
+      "description": "Authority and cross-review parameters that are part of the persona's audit-pinned surface.",
+      "required": [
+        "cross_review_zones",
+        "authority",
+        "hierarchy"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "cross_review_zones": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["zone", "partner", "trigger"],
+            "additionalProperties": false,
+            "properties": {
+              "zone": {
+                "type": "string",
+                "minLength": 1
+              },
+              "partner": {
+                "type": "string",
+                "description": "Role-string of the cross-review partner.",
+                "pattern": "^[a-z0-9][a-z0-9-]*$"
+              },
+              "trigger": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "authority": {
+          "type": "object",
+          "required": [
+            "push_remote",
+            "budget_cap_eur_per_month",
+            "sub_delegation"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "push_remote": {
+              "type": "boolean"
+            },
+            "budget_cap_eur_per_month": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sub_delegation": {
+              "type": "boolean"
+            }
+          }
+        },
+        "hierarchy": {
+          "type": "object",
+          "required": ["reports_to", "escalation"],
+          "additionalProperties": false,
+          "properties": {
+            "reports_to": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "escalation": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            }
+          }
+        }
+      }
+    }
+  }
+}

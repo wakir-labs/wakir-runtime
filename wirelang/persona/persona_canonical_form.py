@@ -1,0 +1,232 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Persona-definition canonical-form extraction (V-907 mock format).
+
+The persona-hash is computed over the **canonical subset** of a
+persona definition, not over the raw markdown body. Phase-1b Sprint-1
+mock format (HR-slot decision pending):
+
+- Persona definitions ship as markdown files with a YAML front-matter
+  block delimited by ``---`` lines (analogous to Jekyll/Hugo style).
+- Front-matter keys covered by the canonical subset:
+  ``name``, ``description``, ``tools``, ``schema_version``,
+  ``identity_pinned`` (nested object).
+- Markdown body **after** the closing ``---`` is *out-of-hash*. The
+  body holds free narrative (Werdegang, Arbeitsstil, Stärken,
+  Blind Spots) and may evolve without forcing a persona-hash drift.
+- Unknown front-matter keys are *ignored* by the canonical extractor
+  (forward-compat posture; HR can pull a strict-mode flag in a
+  later format revision without an API break).
+
+Canonical-JSON shape (the JCS-input bytes):
+
+.. code-block:: json
+
+    {
+      "name": "<role-string>",
+      "description": "<text>",
+      "tools": ["<tool-1>", "<tool-2>"],
+      "schema_version": "persona-v1",
+      "identity_pinned": {
+        "cross_review_zones": [
+          {"zone": "K", "partner": "wat-eng", "trigger": "v-907-impl"}
+        ],
+        "authority": {
+          "push_remote": false,
+          "budget_cap_eur_per_month": 10,
+          "sub_delegation": false
+        },
+        "hierarchy": {
+          "reports_to": "cto",
+          "escalation": "cto"
+        }
+      }
+    }
+
+JCS canonicalisation (RFC 8785) is applied *outside* this module — see
+:mod:`wirelang.persona.persona_hash`. This module only produces the
+canonical Python ``dict`` that JCS consumes.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Final
+
+import yaml
+
+
+SUPPORTED_SCHEMA_VERSION: Final[str] = "persona-v1"
+
+#: Front-matter keys preserved in the canonical subset, in *insertion*
+#: order. JCS will sort them lexicographically anyway, but listing them
+#: explicitly here documents the contract.
+CANONICAL_TOP_LEVEL_KEYS: Final[tuple[str, ...]] = (
+    "name",
+    "description",
+    "tools",
+    "schema_version",
+    "identity_pinned",
+)
+
+#: Required keys inside ``identity_pinned``.
+CANONICAL_IDENTITY_PINNED_KEYS: Final[tuple[str, ...]] = (
+    "cross_review_zones",
+    "authority",
+    "hierarchy",
+)
+
+
+class PersonaFrontmatterMissingError(ValueError):
+    """Raised when no YAML front-matter block can be parsed."""
+
+
+class PersonaFrontmatterMalformedError(ValueError):
+    """Raised when the YAML front-matter is not a mapping."""
+
+
+def split_frontmatter(text: str) -> tuple[str, str]:
+    """Split a persona markdown file into ``(frontmatter_yaml, body)``.
+
+    The front-matter block must start at byte 0 with a literal
+    ``---`` line and end at the next standalone ``---`` line.
+    Anything after the closing fence is the body and is **not**
+    returned in the canonical subset.
+
+    Raises:
+        PersonaFrontmatterMissingError: if the file does not start
+            with ``---`` or has no closing fence.
+    """
+    if not text.startswith("---"):
+        raise PersonaFrontmatterMissingError(
+            "persona-definition must open with a '---' YAML front-matter fence"
+        )
+    # Strip the opening fence (with its trailing newline if present).
+    rest = text[3:]
+    if rest.startswith("\n"):
+        rest = rest[1:]
+    elif rest.startswith("\r\n"):
+        rest = rest[2:]
+    # Locate the closing fence: a line containing only "---".
+    lines = rest.splitlines(keepends=True)
+    fm_lines: list[str] = []
+    body_start_idx: int | None = None
+    for idx, line in enumerate(lines):
+        stripped = line.rstrip("\r\n")
+        if stripped == "---":
+            body_start_idx = idx + 1
+            break
+        fm_lines.append(line)
+    if body_start_idx is None:
+        raise PersonaFrontmatterMissingError(
+            "persona-definition front-matter has no closing '---' fence"
+        )
+    frontmatter = "".join(fm_lines)
+    body = "".join(lines[body_start_idx:])
+    return frontmatter, body
+
+
+def parse_frontmatter(frontmatter_yaml: str) -> dict[str, Any]:
+    """Parse the YAML front-matter into a Python dict.
+
+    Raises:
+        PersonaFrontmatterMalformedError: if the YAML is not a mapping
+            (e.g. a scalar, list, or empty document).
+    """
+    parsed = yaml.safe_load(frontmatter_yaml)
+    if parsed is None:
+        raise PersonaFrontmatterMalformedError(
+            "persona-definition front-matter is empty"
+        )
+    if not isinstance(parsed, dict):
+        raise PersonaFrontmatterMalformedError(
+            "persona-definition front-matter must be a YAML mapping, "
+            f"got {type(parsed).__name__}"
+        )
+    return parsed
+
+
+def extract_canonical_subset(frontmatter: dict[str, Any]) -> dict[str, Any]:
+    """Project a parsed front-matter dict onto the V-907 canonical subset.
+
+    Keys not in :data:`CANONICAL_TOP_LEVEL_KEYS` are dropped. The
+    ``identity_pinned`` block is recursively narrowed to its
+    canonical sub-keys.
+
+    Returns:
+        A plain ``dict`` ready for JCS canonicalisation. Keys appear
+        in the order listed in :data:`CANONICAL_TOP_LEVEL_KEYS`; JCS
+        will re-sort them lexicographically before hashing, so the
+        order has no effect on the resulting hash but is preserved
+        for human inspection of the intermediate dict.
+
+    Raises:
+        KeyError: if a required top-level key is missing.
+        ValueError: if ``schema_version`` is unsupported, or if the
+            ``identity_pinned`` block is malformed.
+    """
+    missing = [k for k in CANONICAL_TOP_LEVEL_KEYS if k not in frontmatter]
+    if missing:
+        raise KeyError(
+            f"persona front-matter missing required keys: {missing}"
+        )
+
+    schema_version = frontmatter["schema_version"]
+    if schema_version != SUPPORTED_SCHEMA_VERSION:
+        raise ValueError(
+            f"persona schema_version={schema_version!r} is not supported; "
+            f"expected {SUPPORTED_SCHEMA_VERSION!r}"
+        )
+
+    identity_pinned_raw = frontmatter["identity_pinned"]
+    if not isinstance(identity_pinned_raw, dict):
+        raise ValueError(
+            "persona identity_pinned must be a mapping, "
+            f"got {type(identity_pinned_raw).__name__}"
+        )
+
+    missing_ip = [
+        k for k in CANONICAL_IDENTITY_PINNED_KEYS if k not in identity_pinned_raw
+    ]
+    if missing_ip:
+        raise ValueError(
+            f"persona identity_pinned missing required keys: {missing_ip}"
+        )
+
+    identity_pinned_canon = {
+        k: identity_pinned_raw[k] for k in CANONICAL_IDENTITY_PINNED_KEYS
+    }
+
+    tools_raw = frontmatter["tools"]
+    if isinstance(tools_raw, str):
+        # Tolerate a comma-separated string in the source; canonical
+        # form is always a list of strings.
+        tools_canon = [
+            t.strip() for t in tools_raw.split(",") if t.strip()
+        ]
+    elif isinstance(tools_raw, list):
+        tools_canon = [str(t) for t in tools_raw]
+    else:
+        raise ValueError(
+            "persona tools must be a list or a comma-separated string, "
+            f"got {type(tools_raw).__name__}"
+        )
+
+    canonical = {
+        "name": str(frontmatter["name"]),
+        "description": str(frontmatter["description"]),
+        "tools": tools_canon,
+        "schema_version": str(schema_version),
+        "identity_pinned": identity_pinned_canon,
+    }
+    return canonical
+
+
+def read_canonical_subset(persona_definition_text: str) -> dict[str, Any]:
+    """End-to-end helper: markdown text → canonical subset dict.
+
+    Equivalent to::
+
+        fm, _body = split_frontmatter(text)
+        return extract_canonical_subset(parse_frontmatter(fm))
+    """
+    fm, _body = split_frontmatter(persona_definition_text)
+    return extract_canonical_subset(parse_frontmatter(fm))
