@@ -218,10 +218,16 @@ beyond the authority-block fields). Vocabulary spec:
 of Wirelang spec version: vocabulary v0.1 is bound to Wirelang
 v0.1 *and* v0.2.
 
-Future vocabulary growth is tracked in
-`specs/datalog-caveat-vocabulary-phase-2-skizze.md` (companion
-document to v0.2). Phase-2 vocabulary changes will be additive
-under the forward-compat rule (§8).
+Phase-2 vocabulary growth is ratified in
+`specs/datalog-caveat-vocabulary-phase-2.md` (Phase-1b Tag-15,
+2026-05-07). The ratified document supersedes the earlier sketch
+(`specs/datalog-caveat-vocabulary-phase-2-skizze.md`); it
+classifies all predicates into N1 / N2 / R / P, ratifies the
+Caveat-Set Canonicalisation Rule (§4-CSC), promotes `peer_org`
+and `federation_route` to schema-admitted N2-federation
+predicates, and pins the TV-W-2 pin-stability guarantee.
+Phase-2 vocabulary changes remain additive under the
+forward-compat rule (§8).
 
 ## 7. Identity substrate
 
@@ -377,8 +383,11 @@ guide.md` §9 at v0.2 publication.
 - `specs/layer-3-capability-token.md` — Layer-3 trust concerns.
 - `specs/datalog-caveat-vocabulary.md` — vocabulary v0.1 (18+2
   predicates).
-- `specs/datalog-caveat-vocabulary-phase-2-skizze.md` — Phase-2
-  candidate predicates.
+- `specs/datalog-caveat-vocabulary-phase-2.md` — Phase-2 ratified
+  vocabulary (v0.2, Tag-15): N1/N2/R/P classification,
+  Caveat-Set Canonicalisation Rule, V-908 federation extension,
+  TV-W-2 pin-stability guarantee. **Supersedes** the sketch
+  document `datalog-caveat-vocabulary-phase-2-skizze.md`.
 - `specs/identity-substrate.md` — persona substrate.
 - `specs/wat-leaf-projection.md` — Wirelang→WAT bridge contract.
 - `specs/recovery-drill-leaf-projection.md` — recovery-drill

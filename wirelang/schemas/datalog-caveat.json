@@ -1,16 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://wakir.dev/wirelang/schema/datalog-caveat/0.1.0",
-  "title": "Wakir Datalog Caveat (Phase 1a Wirelang vocabulary v0.1)",
-  "description": "JSON Schema for the array of Datalog caveat statements that can appear inside a Layer-3 capability token's authority_block.caveats and append_blocks[*].caveats. The schema encodes the Wakir Phase-1a vocabulary registered in wirelang/specs/datalog-caveat-vocabulary.md, validating predicate name and arity. Predicate-argument-type checking beyond the surface syntax is performed at Biscuit-Datalog evaluation time, not by this schema. SPDX-License-Identifier: Apache-2.0",
+  "$id": "https://wakir.dev/wirelang/schema/datalog-caveat/0.2.0",
+  "title": "Wakir Datalog Caveat (Phase 1b Wirelang vocabulary v0.2)",
+  "description": "JSON Schema for the array of Datalog caveat statements that can appear inside a Layer-3 capability token's authority_block.caveats and append_blocks[*].caveats. The schema encodes the Wakir Phase-1b vocabulary: 20 Phase-1a (v0.1) predicates plus 2 Phase-1b federation predicates (peer_org, federation_route) ratified in datalog-caveat-vocabulary-phase-2.md §3.2 / §5. Predicate-argument-type checking beyond the surface syntax is performed at Biscuit-Datalog evaluation time, not by this schema. Class R (reserved) and Class P (patch-eligible) predicates are deliberately NOT admitted by this schema; producers that emit them fail at validation time. SPDX-License-Identifier: Apache-2.0",
   "type": "array",
   "minItems": 0,
   "items": {
     "type": "string",
     "minLength": 1,
     "maxLength": 4096,
-    "description": "A single Datalog caveat statement. Wakir Phase-1a vocabulary recognises 20 predicates (see datalog-caveat-vocabulary.md). The pattern below admits `<predicate>(<arg-list>)` syntax where the predicate is one of the registered Wakir predicates and the argument list contains the expected number of comma-separated tokens. Variable references are written `$name`. Caveats that compose multiple predicates (e.g. `time($t), $t < 2026-12-31T00:00:00Z`) are admitted as a comma-separated chain.",
-    "pattern": "^(action|env|time|audience|operation|action_count_max|read_only|attests|wat_anchor|rate_limit|agent_did|parent_token|nonce|spawn_counter_max|attenuation_depth_max|tee_required|allowed_methods|geo_region|not_before|not_after)\\([^)]*\\)(,\\s*[^,]+)*$"
+    "description": "A single Datalog caveat statement. Wakir Phase-1b vocabulary recognises 22 schema-admitted predicates (see datalog-caveat-vocabulary.md and datalog-caveat-vocabulary-phase-2.md §7). The pattern below admits `<predicate>(<arg-list>)` syntax where the predicate is one of the registered Wakir predicates and the argument list contains the expected number of comma-separated tokens. Variable references are written `$name`. Caveats that compose multiple predicates (e.g. `time($t), $t < 2026-12-31T00:00:00Z`) are admitted as a comma-separated chain.",
+    "pattern": "^(action|env|time|audience|operation|action_count_max|read_only|attests|wat_anchor|rate_limit|agent_did|parent_token|nonce|spawn_counter_max|attenuation_depth_max|tee_required|allowed_methods|geo_region|not_before|not_after|peer_org|federation_route)\\([^)]*\\)(,\\s*[^,]+)*$"
   },
-  "$comment": "The pattern restricts the leading predicate name to the registered Wakir vocabulary. Argument-list contents are deliberately permissive (`[^)]*`) because Datalog supports a rich set of argument forms (literals, variables, comparators); type-level validation lives in the Biscuit-Datalog evaluator. This schema is the syntactic gate for static-analysis tooling and registry-side checks; it is NOT the security boundary."
+  "$comment": "The pattern restricts the leading predicate name to the schema-admitted Wakir vocabulary (Class N1 + Class N2). Argument-list contents are deliberately permissive (`[^)]*`) because Datalog supports a rich set of argument forms (literals, variables, comparators); type-level validation lives in the Biscuit-Datalog evaluator. This schema is the syntactic gate for static-analysis tooling and registry-side checks; it is NOT the security boundary. Class R (zk_proof_valid, zk_reputation_threshold, cross_org_quota, persona_state, persona_attested_after, wat_inclusion_proof_valid) and Class P (persona_pin, caveat_hash) predicates are reserved at the vocabulary level but not admitted at the schema level — producers fail-closed at validate time."
 }

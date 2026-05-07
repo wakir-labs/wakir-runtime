@@ -21,7 +21,16 @@
 #
 # Drift envelope
 # --------------
-# Tag-11 empirical baseline: production 435, sandbox 291, delta 144.
+# Lineage:
+#   - Tag-11 baseline:  production 435, sandbox 291, delta 144.
+#   - Tag-14 (TV-W-1):  production 448, sandbox 303 + 86 skip,
+#     delta 145 (drift 1, no re-baseline).
+#   - Tag-15 (Phase-2 datalog ratification): production 464,
+#     sandbox 315 + 90 skip, delta 149 (drift 5 = tol 5, at-edge).
+#     Re-baselined to 149 because the new schema-admission tests for
+#     `peer_org` / `federation_route` are jsonschema-gated by design;
+#     §6.3 re-baseline list item 1 in
+#     wirelang/specs/datalog-caveat-vocabulary-phase-2.md.
 # We allow ±5 tests of slack to absorb routine churn (a single new
 # test module added under one lane only, or a single fixture-driven
 # parametrise expansion). Anything outside that envelope means either
@@ -222,8 +231,17 @@ jobs:
 
     steps:
       - name: Compare collected-counts
-        # Tag-11 empirical baseline: production 435, sandbox 291,
-        # expected delta 144. Tolerance ±5 absorbs routine churn.
+        # Baseline lineage:
+        # - Tag-11: production 435, sandbox 291, delta 144.
+        # - Tag-14: production 448, sandbox 303 + 86 skip → delta 145
+        #   (drift 1 ≤ tol 5, no re-baseline).
+        # - Tag-15: production 464, sandbox 315 + 90 skip → delta 149
+        #   (drift 5 = tol 5, at-edge — re-baselined to 149 here per
+        #   the §6.3 re-baseline list of
+        #   datalog-caveat-vocabulary-phase-2.md, item 1: vocabulary
+        #   addition `peer_org` / `federation_route` triggered the
+        #   schema-admission test additions).
+        # Tolerance ±5 absorbs routine churn going forward.
         # If the observed delta drifts outside the envelope, fail
         # loud — either a test was silently re-classified across the
         # importorskip boundary or a new dependency-gated module
@@ -231,7 +249,7 @@ jobs:
         env:
           PRODUCTION_COUNT: ${{ needs.production-suite.outputs.collected }}
           SANDBOX_COUNT: ${{ needs.sandbox-suite-shadow.outputs.collected }}
-          EXPECTED_DELTA: '144'
+          EXPECTED_DELTA: '149'
           DELTA_TOLERANCE: '5'
         run: |
           python - <<'PY'

@@ -271,12 +271,20 @@ bump (see §6). The JSON-Schema pattern MUST be regenerated in lockstep.
 | Vocabulary version | Wirelang version | Predicate count | Notes |
 |---|---|---|---|
 | v0.1 (this document) | wirelang/0.1 | 18 + 2 (`not_before`, `not_after`) | Phase-1a working set |
+| v0.2 (Phase-2 ratified) | wirelang/0.2 | 22 schema-admitted (N1 + N2) | `datalog-caveat-vocabulary-phase-2.md`, Tag-15 |
 
 Future revisions:
 
-- v0.2 (Phase 1b): adds `attests` enforcement and richer TEE
-  vocabulary once attestation evaluators land.
-- v0.3 (Phase 2): cross-org delegation predicates per ADR-0031 D2.
+- v0.2 (Phase-1b ratified, Tag-15 2026-05-07):
+  `datalog-caveat-vocabulary-phase-2.md` adds the Caveat-Set
+  Canonicalisation Rule (§4-CSC), promotes `peer_org` and
+  `federation_route` to schema-admitted N2-federation predicates,
+  pins the TV-W-2 pin-stability guarantee, and ratifies the
+  N1/N2/R/P predicate classification. The schema bumps to
+  `https://wakir.dev/wirelang/schema/datalog-caveat/0.2.0`.
+- v0.3 (Phase 2): zk-backend predicates, persona-state predicates,
+  WAT-manifest-resolver predicates per ADR-0031 D2 — currently
+  Class R reserved.
 
 ## 6. Brand-Guide §9 compliance
 
