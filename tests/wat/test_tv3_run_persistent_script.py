@@ -140,7 +140,12 @@ if [[ "$1" == "-m" && "$2" == "wat.cmd.aggregator_cli" ]]; then
     exit 0
 fi
 
-# Anchor: write a placeholder root.bin.ots in --out dir.
+# Anchor: write a placeholder root.bin.ots in --out dir. The
+# placeholder is sized to clear the driver's >=700-byte
+# persistence sanity check (Tag-25 defect-fix); a real OTS
+# pending receipt for a 4-calendar submit measures 800-900 bytes
+# in production, so 1024 bytes of deterministic filler matches
+# that floor while staying byte-stable across runs.
 if [[ "$1" == "-m" && "$2" == "wat.cmd.anchor_cli" ]]; then
     OUT_DIR=""
     shift 2
@@ -152,7 +157,7 @@ if [[ "$1" == "-m" && "$2" == "wat.cmd.anchor_cli" ]]; then
             *)     shift ;;
         esac
     done
-    printf 'STUB_OTS_RECEIPT' > "$OUT_DIR/root.bin.ots"
+    "$REAL_PYTHON" -c "import sys; open(sys.argv[1],'wb').write(b'STUB_OTS_RECEIPT_' + b'\\x00' * 1007)" "$OUT_DIR/root.bin.ots"
     exit 0
 fi
 
@@ -505,3 +510,142 @@ def test_tv3_manifest_prev_hour_root_is_null(tmp_path: Path) -> None:
         (archive / "2026-05-26T17" / "manifest.json").read_text()
     )
     assert manifest["prev_hour_root"] is None
+
+
+# ---------------------------------------------------------------------------
+# Cluster 6: live-stamp receipt persistence (Tag-25 defect-fix).
+#
+# Background: in Phase-1b Tag-22 + Tag-24 we discovered that the
+# step-3 synthetic marker (``SYNTHETIC_TV3_OTS_RECEIPT``, 25 bytes)
+# was still on disk at the path ``ots stamp`` would write the real
+# pending receipt to, and ``ots stamp`` does NOT overwrite an
+# existing ``root.bin.ots``. The real receipt was silently dropped
+# and the archived audit-trail file was the 25-byte synthetic
+# marker — which fails downstream ``ots info`` cross-checks.
+#
+# The driver fix unlinks ``root.bin.ots`` before the live stamp and
+# adds a >=700-byte sanity check after it. These two tests pin both
+# halves of that contract.
+# ---------------------------------------------------------------------------
+
+
+def test_tv3_live_stamp_receipt_is_not_synthetic_marker(tmp_path: Path) -> None:
+    """After a successful live-stamp run, the receipt file must not
+    be the 25-byte synthetic marker from step 3.
+
+    Regression for the Tag-22/Tag-24 defect: the synthetic marker
+    text ``SYNTHETIC_TV3_OTS_RECEIPT`` may not appear at the head of
+    ``root.bin.ots`` after step 6 has run.
+    """
+    mock_bin = tmp_path / "mock-bin"
+    archive = tmp_path / "tv3-archive"
+    budget_file = tmp_path / "isolated-budget.json"
+
+    result = _run_driver(
+        mock_bin,
+        archive,
+        env_overrides={
+            "WAT_TV3_LIVE_STAMP": "1",
+            "WAT_TV3_BUDGET_FILE": str(budget_file),
+        },
+    )
+    assert result.returncode == 0, (
+        f"unexpected rc={result.returncode}\n{result.stdout}\n{result.stderr}"
+    )
+
+    receipt = archive / "2026-05-26T17" / "root.bin.ots"
+    assert receipt.exists(), "receipt file must exist after live stamp"
+
+    payload = receipt.read_bytes()
+    assert b"SYNTHETIC_TV3_OTS_RECEIPT" not in payload[:64], (
+        "step-3 synthetic marker still present at head of root.bin.ots — "
+        "step 6 did not unlink it before stamping"
+    )
+
+
+def test_tv3_live_stamp_receipt_size_clears_floor(tmp_path: Path) -> None:
+    """After a successful live-stamp run, the receipt file must be
+    at least 700 bytes — the conservative floor below which we
+    treat the file as a failed persistence (synthetic marker still
+    present, or partial write).
+
+    Tag-25 sanity-check pinning: the driver must enforce this and
+    exit 7 when the floor is missed; the happy-path mock writes
+    1024 bytes so the assertion holds positively.
+    """
+    mock_bin = tmp_path / "mock-bin"
+    archive = tmp_path / "tv3-archive"
+    budget_file = tmp_path / "isolated-budget.json"
+
+    result = _run_driver(
+        mock_bin,
+        archive,
+        env_overrides={
+            "WAT_TV3_LIVE_STAMP": "1",
+            "WAT_TV3_BUDGET_FILE": str(budget_file),
+        },
+    )
+    assert result.returncode == 0, (
+        f"unexpected rc={result.returncode}\n{result.stdout}\n{result.stderr}"
+    )
+
+    receipt = archive / "2026-05-26T17" / "root.bin.ots"
+    size = receipt.stat().st_size
+    assert size >= 700, (
+        f"receipt at {receipt} is {size} bytes (<700); persistence broken"
+    )
+
+    log = (archive / "run.log").read_text()
+    assert "receipt persisted" in log, (
+        "driver did not log the persistence sanity-check confirmation"
+    )
+
+
+def test_tv3_live_stamp_undersized_receipt_returns_exit_7(tmp_path: Path) -> None:
+    """If the stamp produces a too-small receipt (e.g. a stamper bug
+    leaves the 25-byte marker in place), the driver must exit 7.
+
+    We model this by overriding the python shim so the anchor_cli
+    branch writes only 16 bytes — well below the 700-byte floor.
+    """
+    mock_bin = tmp_path / "mock-bin"
+    archive = tmp_path / "tv3-archive"
+    budget_file = tmp_path / "isolated-budget.json"
+
+    real_python = subprocess.run(
+        ["which", "python3"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    _write_mock_bin(mock_bin, real_python)
+
+    # Patch the anchor_cli shim to write a 16-byte stub (below floor).
+    python_shim = mock_bin / "python3"
+    text = python_shim.read_text()
+    text = text.replace(
+        "b'STUB_OTS_RECEIPT_' + b'\\x00' * 1007",
+        "b'TOO_SMALL_RECEIPT'",
+    )
+    python_shim.write_text(text)
+    python_shim.chmod(0o755)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{mock_bin}:/usr/bin:/bin"
+    env["PYTHONPATH"] = (
+        f"{REPO_ROOT}{os.pathsep}{env.get('PYTHONPATH', '')}".rstrip(os.pathsep)
+    )
+    env["WAT_TV3_LIVE_STAMP"] = "1"
+    env["WAT_TV3_BUDGET_FILE"] = str(budget_file)
+
+    result = subprocess.run(
+        ["bash", str(SCRIPT), str(archive)],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert result.returncode == 7, (
+        f"expected exit 7 (persistence broken); got {result.returncode}\n"
+        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+    )
+    combined = result.stdout + result.stderr
+    assert "persistence broken" in combined or "<700" in combined

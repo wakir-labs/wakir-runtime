@@ -105,6 +105,8 @@
 #   4  hard-alarm NOT flagged (bug in the backfill code path)
 #   5  resume-state corruption (state.json malformed)
 #   6  daily submit budget breach (live-stamp refused)
+#   7  live-stamp receipt persistence broken (file too small or
+#      synthetic marker still present after stamp)
 
 set -euo pipefail
 
@@ -483,13 +485,38 @@ PY
             exit 6
         fi
 
+        # Defect-fix Tag-25 (2026-05-07): the synthetic marker from
+        # step 3 lives at the same path that ``ots stamp`` would write
+        # the real receipt to. Empirically (Tag-22 + Tag-24 audit-trail
+        # checks) ``ots stamp`` does NOT overwrite an existing
+        # ``root.bin.ots`` — the real receipt is silently dropped and
+        # the audit-trail file remains the 25-byte synthetic marker.
+        # We unlink the placeholder before stamping so the real OTS
+        # receipt persists. ``root.bin`` (the binary Merkle root) is
+        # left untouched: ``ots stamp`` re-reads it as input.
+        log "step 6/6: removing synthetic marker before live stamp"
+        rm -f "${RECEIPT_FILE}"
+
         log "step 6/6: stamping merkle_root via 4 default calendars"
         python3 -m wat.cmd.anchor_cli stamp "${ROOT_HEX}" \
             --out "${HOUR_DIR}" \
             --min-calendars 2
-        # ``ots stamp`` overwrites our synthetic placeholder; aging
-        # only matters for the behavioural probe, not for the live
-        # receipt that lands here.
+
+        # Sanity check: a real OTS pending receipt is at least ~700
+        # bytes (TV-1/TV-2 production receipts measured 800-900 bytes
+        # for 4-calendar submits; the floor is conservative). A file
+        # smaller than that — or a still-present 25-byte synthetic
+        # marker — means the receipt did not persist correctly.
+        if [[ ! -f "${RECEIPT_FILE}" ]]; then
+            log "ERROR: live stamp completed but no receipt at ${RECEIPT_FILE}"
+            exit 7
+        fi
+        RECEIPT_SIZE="$(wc -c < "${RECEIPT_FILE}" | tr -d ' ')"
+        if [[ "${RECEIPT_SIZE}" -lt 700 ]]; then
+            log "ERROR: receipt at ${RECEIPT_FILE} is ${RECEIPT_SIZE} bytes (<700); persistence broken"
+            exit 7
+        fi
+        log "step 6/6: receipt persisted (${RECEIPT_SIZE} bytes)"
         STAMP_RC=0
         mark_done stamp
     fi
