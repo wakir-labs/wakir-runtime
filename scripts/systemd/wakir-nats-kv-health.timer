@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# 5-minute cadence for the NATS-KV health check. The recommended
+# Phase-1b cadence (runbook §5.2) is once every five minutes from a
+# node with a read-only NATS token.
+#
+# RandomizedDelaySec spreads the trigger across hosts when several
+# orchestrators are deployed; cuts thundering-herd risk against the
+# /jsz HTTP endpoint.
+
+[Unit]
+Description=Wakir orchestrator — NATS-KV health check (5-min cadence)
+Documentation=https://github.com/wakir-labs/wakir-runtime
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+RandomizedDelaySec=30s
+Persistent=true
+Unit=wakir-nats-kv-health.service
+
+[Install]
+WantedBy=timers.target

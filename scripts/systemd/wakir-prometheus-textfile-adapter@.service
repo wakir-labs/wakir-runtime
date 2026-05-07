@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# Wakir Prometheus textfile-collector adapter (template unit).
+#
+# One template unit covers both health-check flavours; instantiate
+# with the report basename:
+#
+#   wakir-prometheus-textfile-adapter@nats-kv-health.service
+#   wakir-prometheus-textfile-adapter@federation-evaluator-health.service
+#
+# These instances are wired as OnSuccess/OnFailure consequence units
+# from the corresponding health-check service files, so the textfile
+# is rewritten exactly once per timer cycle without an additional
+# timer.
+#
+# Operator install:
+#
+#   sudo install -d -m 0755 /var/lib/node_exporter/textfile_collector
+#   # node_exporter already runs and reads that directory; nothing
+#   # else is needed for the metrics to be scraped.
+#
+# The output directory is the node_exporter default; override on the
+# command line via a drop-in if your deployment uses a different
+# path.
+
+[Unit]
+Description=Wakir Prometheus textfile adapter for %i
+Documentation=https://github.com/wakir-labs/wakir-runtime
+# Run only after the source JSON has been (re)written. The
+# OnSuccess/OnFailure wiring on the health-check service guarantees
+# the JSON is on disk before this template fires.
+ConditionPathExists=/var/log/wakir/%i.json
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/wakir-runtime
+Environment=PATH=/opt/wakir-runtime/.venv/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/opt/wakir-runtime/.venv/bin/python3 \
+    /opt/wakir-runtime/scripts/prometheus-textfile-adapter.py \
+    --input /var/log/wakir/%i.json \
+    --output /var/lib/node_exporter/textfile_collector/%i.prom
+ProtectSystem=strict
+ReadWritePaths=/var/lib/node_exporter/textfile_collector
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+Nice=15

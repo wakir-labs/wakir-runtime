@@ -49,7 +49,8 @@ memos and are referenced here only by name.
 | 6.5 | Federation-routes bucket creation (Phase-1b bring-up)              | Tag-7       |
 | 7   | Open follow-ups (sprint-by-sprint backlog)                         | Tag-2..Tag-8, Sprint-3 Tag-2 |
 | 7.1 | Build-host activation procedure (nine-step, expanded)              | Sprint-3 Tag-2 |
-| 8   | Verification stamps (P5/P7)                                        | Tag-2..Tag-8, Sprint-3 Tag-2 |
+| 7.2 | systemd-timer wiring + Prometheus textfile-collector adapter       | Sprint-3 Tag-3 |
+| 8   | Verification stamps (P5/P7)                                        | Tag-2..Tag-8, Sprint-3 Tag-2..Tag-3 |
 
 The four operator artefacts (compose substrate, bucket initialiser,
 NATS-KV substrate health check, federation evaluator health check)
@@ -936,6 +937,197 @@ zone-C consensus is required for this sub-section.
   initialiser already plumbs that field end-to-end and the health
   check's drift detector compares it.
 
+### 7.2 systemd-timer wiring + Prometheus textfile-collector adapter (Phase-1b Sprint-3 Tag-3)
+
+The cron snippet in §5.2 is the same-day minimum-viable deployment
+for the NATS-KV health check. This sub-section is the production
+form: two systemd timers on a 5-minute cadence, two oneshot service
+units that capture the JSON report to a fixed path, one template-
+unit textfile adapter that translates the JSON into Prometheus
+textfile-collector format, and a small alerting rule set on top of
+the resulting metrics. The wiring is shipped under
+`scripts/systemd/` and `scripts/prometheus-textfile-adapter.py`.
+
+**Why systemd-timer over cron.** The cron path in §5.2 leaves three
+gaps: cron's environment is brittle (the operator notes called out
+the `WAKIR_NATS_TOKEN` injection problem), cron does not capture
+exit-code distribution into a journal that an on-call can grep, and
+cron offers no observable surface for "the timer is itself stuck"
+beyond the absence of the JSON file. systemd timers solve all three:
+`EnvironmentFile=` is a clean knob, `journalctl -u
+wakir-nats-kv-health.service` shows the per-run distribution, and a
+stuck timer is observable both via `systemctl list-timers` and via
+the textfile-adapter's last-run-seconds gauge in Prometheus.
+
+#### 7.2.1 Operator install
+
+Drop the unit files in place, create the env files (one per check),
+ensure the log directory exists, and reload:
+
+```bash
+sudo install -m 0644 \
+    scripts/systemd/wakir-nats-kv-health.service \
+    scripts/systemd/wakir-nats-kv-health.timer \
+    scripts/systemd/wakir-federation-evaluator-health.service \
+    scripts/systemd/wakir-federation-evaluator-health.timer \
+    scripts/systemd/wakir-prometheus-textfile-adapter@.service \
+    /etc/systemd/system/
+sudo install -d -m 0750 /var/log/wakir
+sudo install -d -m 0755 /var/lib/node_exporter/textfile_collector
+
+# Per-check env files (read-only NATS token, optional URL overrides).
+sudo install -d -m 0750 /etc/wakir
+sudo install -m 0640 /dev/null /etc/wakir/nats-kv-health.env
+sudo install -m 0640 /dev/null /etc/wakir/federation-evaluator-health.env
+# Edit and add WAKIR_NATS_TOKEN=... in each.
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now wakir-nats-kv-health.timer
+sudo systemctl enable --now wakir-federation-evaluator-health.timer
+```
+
+The unit files ship with `WorkingDirectory=/opt/wakir-runtime`. If
+the orchestrator host installs the runtime elsewhere, edit the unit
+or use a drop-in (`systemctl edit wakir-nats-kv-health.service`)
+rather than mutating the upstream file.
+
+#### 7.2.2 Cadence and timer tuning
+
+Both timers fire every 5 minutes (`OnUnitActiveSec=5min`) with a
+`RandomizedDelaySec=30s` jitter to spread load across hosts when
+multiple orchestrators are deployed. `OnBootSec=2min` (KV check)
+and `OnBootSec=3min` (federation check) stagger the first run after
+boot so the KV check completes (or fails) before the federation
+check runs against potentially-empty buckets. `Persistent=true`
+replays a missed cycle on next boot; the health checks are
+idempotent so a late replay simply rewrites the JSON.
+
+#### 7.2.3 Adapter contract
+
+`scripts/prometheus-textfile-adapter.py` is a single-pass, stdlib-
+only translator. It takes a JSON report on `--input` and writes a
+textfile-collector `.prom` on `--output` via an atomic rename. It
+auto-detects the report flavour by inspecting the top-level keys
+(`checks` + `summary` → NATS-KV; `snapshot` + `bucket_name` →
+federation-evaluator); ambiguous or unknown payloads are rejected
+with exit 1.
+
+The adapter is wired as `OnSuccess=` and `OnFailure=` consequence
+units on each health-check service, so the textfile is rewritten
+exactly once per timer cycle without an additional timer. The
+adapter unit is a template (`wakir-prometheus-textfile-adapter@`)
+instantiated with the report basename:
+
+* `wakir-prometheus-textfile-adapter@nats-kv-health.service`
+* `wakir-prometheus-textfile-adapter@federation-evaluator-health.service`
+
+The atomic-rename contract guarantees node_exporter never reads a
+partial file.
+
+Adapter exit codes:
+
+* `0` — output file written.
+* `1` — input missing, malformed JSON, or unknown flavour.
+* `2` — output directory not writable.
+
+#### 7.2.4 Emitted metrics
+
+| metric | flavour | type | meaning |
+| ------ | ------- | ---- | ------- |
+| `wakir_nats_kv_jsz_up{servers}` | nats-kv | gauge | 1 if `/jsz` returned 2xx, else 0 |
+| `wakir_nats_kv_buckets_total` | nats-kv | gauge | Documented bucket count (Phase-1: 4) |
+| `wakir_nats_kv_buckets_{ok,missing,drift,error}` | nats-kv | gauge | Per-status counts from the summary block |
+| `wakir_nats_kv_bucket_status{bucket}` | nats-kv | gauge | Per-bucket status (`0=ok 1=missing 2=drift 3=error`) |
+| `wakir_nats_kv_adapter_last_run_seconds` | nats-kv | gauge | Unix timestamp of the most recent adapter run |
+| `wakir_federation_evaluator_jsz_up{servers}` | federation | gauge | 1 if `/jsz` returned 2xx, else 0 |
+| `wakir_federation_evaluator_bucket_status{bucket}` | federation | gauge | Federation-routes bucket status (same encoding) |
+| `wakir_federation_evaluator_routes_{total,active,expired,not_yet_active,with_wat_anchor}` | federation | gauge | Snapshot counters |
+| `wakir_federation_evaluator_poisoned_keys_total` | federation | gauge | Poisoned-key count from the snapshot |
+| `wakir_federation_evaluator_probe_status` | federation | gauge | Optional N2-evaluator probe (`0=ok 1=skipped 2=reject 3=error`) |
+| `wakir_federation_evaluator_adapter_last_run_seconds` | federation | gauge | Unix timestamp of the most recent adapter run |
+
+The status enums are stable; downstream alerts rely on the integer
+encoding rather than label values.
+
+#### 7.2.5 Suggested alerting rules
+
+```yaml
+groups:
+  - name: wakir-orchestrator-substrate
+    rules:
+      - alert: WakirNatsKvJsZUnreachable
+        expr: wakir_nats_kv_jsz_up == 0
+        for: 5m
+        labels: {severity: warning, team: orchestrator}
+        annotations:
+          summary: "NATS /jsz unreachable for 5m on {{ $labels.servers }}"
+
+      - alert: WakirNatsKvBucketDrift
+        expr: wakir_nats_kv_buckets_drift > 0
+        for: 10m
+        labels: {severity: warning, team: orchestrator}
+        annotations:
+          summary: "NATS-KV bucket configuration drift on {{ $labels.servers }}"
+
+      - alert: WakirNatsKvBucketMissing
+        expr: wakir_nats_kv_buckets_missing > 0
+        for: 5m
+        labels: {severity: critical, team: orchestrator}
+        annotations:
+          summary: "Documented NATS-KV bucket missing"
+
+      - alert: WakirHealthCheckStale
+        expr: time() - wakir_nats_kv_adapter_last_run_seconds > 900
+        for: 5m
+        labels: {severity: warning, team: orchestrator}
+        annotations:
+          summary: "NATS-KV health adapter has not run in 15m"
+
+      - alert: WakirFederationRoutesPoisoned
+        expr: wakir_federation_evaluator_poisoned_keys_total > 0
+        for: 10m
+        labels: {severity: warning, team: orchestrator}
+        annotations:
+          summary: "Federation route registry has poisoned keys"
+```
+
+The 5/10/15-minute windows match the timer cadence: a 5-minute
+window guarantees one full cycle between the alert window and the
+next-run-cycle, eliminating false positives from a single missed
+cycle. The "Stale" alert fires from the adapter's last-run-seconds
+gauge; this is the symptom that catches "the systemd timer itself
+hung" — the JSON file would still be on disk but the gauge would
+stop advancing.
+
+#### 7.2.6 What this sub-section does not cover
+
+* **Build-host gating.** The systemd units assume the build-host
+  activation procedure (§7.1) has been completed: `nats-py` must be
+  on `PATH` inside the venv, and the federation-evaluator unit
+  additionally needs the wirelang-eng modules importable via
+  `PYTHONPATH`. The unit files set this up declaratively; the
+  *contents* of the venv are §7.1's responsibility.
+* **node_exporter installation.** The textfile-collector path
+  (`/var/lib/node_exporter/textfile_collector`) assumes node_exporter
+  is already installed and configured to read it. That is a
+  deployment-side decision (typically already in place on hosts that
+  run Prometheus); the orchestrator runbook does not prescribe a
+  node_exporter install.
+* **SVID auth.** The unit files consume `WAKIR_NATS_TOKEN` from the
+  per-check env file; the SPIFFE/SVID upgrade (Sprint-3 Cross-Review
+  Zone A) replaces this with a workload-API call. The unit contract
+  remains the same — only the env-file content changes — so the
+  upgrade is a drop-in.
+* **Multi-host federation.** The recommended `RandomizedDelaySec`
+  jitter is the only built-in concession to multi-host deployments;
+  for Phase-1b's single-node assumption it is over-engineered but
+  cheap. A genuine multi-host topology is a Phase-3 follow-up.
+
+The hermetic test suite for the adapter
+(`tests/orchestrator/test_prometheus_textfile_adapter.py`, 29
+tests) covers flavour detection, render output for both flavours,
+atomic-write semantics, and the CLI exit-code matrix.
+
 ## 8. Verification stamps (P5/P7)
 
 - Authoring date (Tag-3 update): `date -u` 2026-05-07T (CEST
@@ -1035,3 +1227,28 @@ zone-C consensus is required for this sub-section.
   outbox sketch `2026-05-07-phase-1b-sprint-3-tag-1-build-host-
   aktivierung-skizze` (Tag-1 deliverable) plus the Sprint-3 Tag-2
   outbox slug `2026-05-07-phase-1b-sprint-3-tag-2`.
+- Sprint-3 Tag-3 §7.2 wiring stamp: `date -u`
+  2026-05-07T14:20:46Z (CEST 2026-05-07T16:20). This pass adds
+  five systemd unit files under `scripts/systemd/`
+  (`wakir-nats-kv-health.{service,timer}`,
+  `wakir-federation-evaluator-health.{service,timer}`, and the
+  template unit `wakir-prometheus-textfile-adapter@.service`),
+  one Prometheus textfile-collector adapter
+  (`scripts/prometheus-textfile-adapter.py`, ~330 LOC, stdlib-
+  only), and the §7.2 runbook sub-section. Test surface adds 29
+  hermetic tests under
+  `tests/orchestrator/test_prometheus_textfile_adapter.py` covering
+  flavour detection (4), NATS-KV render (6), federation render
+  (6), top-level render + last-run-stamp (3), atomic write (3),
+  and the CLI exit-code matrix (7). Zero-drift verification:
+  `tests/orchestrator/` 84 passed + 4 skipped (was 55 + 4 before
+  Tag-3; +29 from the new adapter suite); project-wide 218 passed
+  + 23 skipped (was 189 + 23 before Tag-3; +29 from the new
+  adapter suite); zero regressions. The adapter never opens a
+  network socket; the systemd units never write outside
+  `/var/log/wakir` and `/var/lib/node_exporter/textfile_collector`
+  (`ProtectSystem=strict` + `ReadWritePaths=` enforce this). The
+  units assume a `/opt/wakir-runtime` checkout with the project
+  installed in `.venv/`; operators on a different layout adjust
+  via `systemctl edit` drop-ins rather than mutating the upstream
+  files.

@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# Wakir orchestrator — NATS-KV health-check service (system unit).
+#
+# Operator install (per orchestrator host):
+#
+#   sudo install -m 0644 \
+#       scripts/systemd/wakir-nats-kv-health.{service,timer} \
+#       /etc/systemd/system/
+#   sudo install -m 0644 \
+#       scripts/systemd/wakir-prometheus-textfile-adapter@.service \
+#       /etc/systemd/system/
+#   sudo install -d -m 0750 /var/log/wakir
+#   sudo install -m 0640 /dev/null /etc/wakir/nats-kv-health.env
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now wakir-nats-kv-health.timer
+#
+# /etc/wakir/nats-kv-health.env contract (operator-supplied):
+#   WAKIR_NATS_TOKEN=<read-only token>
+#   WAKIR_NATS_SERVERS=nats://127.0.0.1:4222   (optional override)
+#   WAKIR_NATS_JSZ_URL=http://127.0.0.1:8222/jsz   (optional override)
+#
+# The unit deliberately leaves WorkingDirectory pointing at a path the
+# operator must adjust: a copy-paste install should fail loudly until
+# the runtime checkout location is set.
+
+[Unit]
+Description=Wakir orchestrator — NATS-KV health check
+Documentation=https://github.com/wakir-labs/wakir-runtime
+# Re-emit the textfile after this service finishes; the @-template
+# unit (one per check) reads /var/log/wakir/<name>.json and writes
+# /var/lib/node_exporter/textfile_collector/<name>.prom.
+OnSuccess=wakir-prometheus-textfile-adapter@nats-kv-health.service
+OnFailure=wakir-prometheus-textfile-adapter@nats-kv-health.service
+
+[Service]
+Type=oneshot
+# Replace with the actual checkout path on the orchestrator host.
+WorkingDirectory=/opt/wakir-runtime
+EnvironmentFile=/etc/wakir/nats-kv-health.env
+# The venv is the supported runtime; its path is fixed here so an
+# operator installing the unit gets the project's dependency closure.
+Environment=PATH=/opt/wakir-runtime/.venv/bin:/usr/local/bin:/usr/bin:/bin
+# stdout (the JSON report) is captured to a fixed file consumed by
+# the textfile adapter; stderr goes to the journal for triage.
+ExecStart=/bin/sh -c '/opt/wakir-runtime/.venv/bin/python3 \
+    /opt/wakir-runtime/scripts/check-nats-kv-health.py \
+    > /var/log/wakir/nats-kv-health.json'
+# Exit codes 0/1/2 are all acceptable end states for the unit; the
+# adapter renders the per-bucket detail and Prometheus alert rules
+# fire on the metrics, not on the unit's exit status. Without
+# SuccessExitStatus=, exit 1 and 2 would mark the unit "failed" and
+# block the next timer trigger.
+SuccessExitStatus=0 1 2
+# Hardening: read-only system, except for the log dir.
+ProtectSystem=strict
+ReadWritePaths=/var/log/wakir
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+# The check is a network read; no need for raw sockets or capabilities.
+CapabilityBoundingSet=
+AmbientCapabilities=
+Nice=10
+
+[Install]
+WantedBy=multi-user.target
