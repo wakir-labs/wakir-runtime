@@ -51,6 +51,7 @@ from __future__ import annotations
 
 from typing import Any, Final
 
+import rfc8785
 import yaml
 
 
@@ -230,3 +231,30 @@ def read_canonical_subset(persona_definition_text: str) -> dict[str, Any]:
     """
     fm, _body = split_frontmatter(persona_definition_text)
     return extract_canonical_subset(parse_frontmatter(fm))
+
+
+def canonical_jcs_bytes(canonical_subset: dict[str, Any]) -> bytes:
+    """Serialise a canonical-subset dict to JCS (RFC 8785) bytes.
+
+    This is the bytes-level boundary that feeds into the SHA-256 step
+    in :func:`wirelang.persona.persona_hash.compute_persona_hash_from_canonical`.
+    Exposing it directly is the parity-anchor for the Phase-1c Rust
+    crate ``persona-canonical-form`` (Sprint-2 Tag-4 outbox §A2):
+    Python and Rust must produce **byte-identical** JCS-bytes for the
+    same canonical-subset, otherwise the V-907 pin-pack drifts across
+    language boundaries.
+
+    Args:
+        canonical_subset: dict produced by
+            :func:`extract_canonical_subset` (or an equivalent
+            hand-built dict). Must be JSON-serialisable; JCS does the
+            lexicographic key sorting and number-canonicalisation.
+
+    Returns:
+        The JCS-canonical UTF-8 byte string (RFC 8785).
+
+    Raises:
+        TypeError, ValueError: surfaced from ``rfc8785.dumps`` for
+            non-serialisable inputs (NaN, non-string keys, custom types).
+    """
+    return rfc8785.dumps(canonical_subset)
