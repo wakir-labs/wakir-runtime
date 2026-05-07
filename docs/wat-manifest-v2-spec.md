@@ -500,6 +500,30 @@ is informative only.
 
 ## 11. Change log
 
+- **2026-05-07 (Sprint-2 Tag-6):** Formal v1 JSON-Schema file
+  `wirelang/schemas/wakir-wat-manifest-v1.json` landed as the sibling
+  of `wat-manifest-v2.json`. Pins the eight mandatory fields
+  (`version`, `hour_slot`, `merkle_root`, `event_count`, `events`,
+  `leaves`, `tree_levels`, `build_time`) plus the optional
+  `anchor_height` (positive integer when present) and `prev_hour_root`
+  (null or 64-lower-hex). The `version` enum reserves both
+  `wakir-wat-manifest/v1` and `wakir-wat-manifest/v2`; the v2 producer
+  will not require a schema-file edit when it lands. The schema file
+  faithfully describes the v1 wire-form including the `leaf_hash`
+  field on each event and the leaves-as-objects shape (one-of:
+  64-lower-hex string OR object with `leaf_hash` and arbitrary
+  additional B1-tuple fields). Verifier-stub gains a
+  `use_schema_file` parameter and `--use-schema-file` CLI flag (both
+  off-default); when set, the schema-file validator runs *before* the
+  in-code field-by-field validator. The in-code path remains the
+  redundant hermetic-no-deps fallback so a missing `jsonschema`
+  install does not block real-manifest verification. New
+  `DEFAULT_REAL_SCHEMA_PATH` module constant; new `--real-schema`
+  CLI flag for path override. Cross-reference: `docs/verifier-cli-
+  schema-sync.md` will pin the schema-file path for the frontend-side
+  TypeScript-interface generator (Tag-7+ hook). 10 additional
+  hermetic tests (57 total in the stub suite, 230 / 19 across the
+  full repo).
 - **2026-05-07 (Sprint-2 Tag-5):** Verifier-stub gains real-manifest
   mode for the on-disk wire-form emitted by today's aggregator
   (`wakir-wat-manifest/v1`). New `verify_real_manifest_file()` API

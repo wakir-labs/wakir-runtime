@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wakir.dev/wirelang/schema/wakir-wat-manifest-v1/0.1.0",
+  "title": "WAT Hour-Manifest — wakir-wat-manifest/v1 wire-form",
+  "description": "JSON-Schema for the wakir-wat-manifest/v1 wire-form, i.e. the on-disk shape emitted by wat/aggregator.py and stored under .runtime/wat-tv*-archive/<RUN>/<HOUR>/manifest.json. This schema-file is the v1 sibling of wat-manifest-v2.json. It is the contract with external verifier implementers and is the source-of-truth pin for the eight mandatory fields plus the optional anchor_height / prev_hour_root extensions. v2 (multi-cap) is intentionally a separate schema file: v1 manifests carry leaves as objects (with leaf_hash, payload_hash, etc.), whereas v2 carries leaves as hex strings; the two cannot be unified without lossy coercion. Domain field-by-field descriptions track docs/wat-manifest-v2-spec.md §10 (the manifest-version field's enum surface is documented there). STUB / DRAFT — Sprint-2 Tag-6 prep, lands together with the verifier --use-schema-file flag (off-default; in-code field-validation remains the redundant hermetic-no-deps path). SPDX-License-Identifier: Apache-2.0",
+  "type": "object",
+  "required": [
+    "version",
+    "hour_slot",
+    "merkle_root",
+    "event_count",
+    "events",
+    "leaves",
+    "tree_levels",
+    "build_time"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "enum": ["wakir-wat-manifest/v1", "wakir-wat-manifest/v2"],
+      "description": "Manifest version discriminator. v1 hours emit 'wakir-wat-manifest/v1' verbatim. The future v2 producer (wat/aggregator.py v2 branch) will emit 'wakir-wat-manifest/v2' once it lands; until then the v2 string is reserved here so the schema accepts both readings without a separate file. Verifier code path (verify_real_manifest_file) recognises the same set; see _REAL_VERSIONS in wat/verify/manifest_v2.py."
+    },
+    "hour_slot": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}$",
+      "description": "UTC hour slot in YYYY-MM-DDTHH form. Same shape as the v2 schema and TV-1/TV-2/TV-3 driver harnesses; aggregator emits this string as the natural-key for the archive directory."
+    },
+    "merkle_root": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 hex of the canonical Merkle root over the events[]/leaves[] for this hour. The merkle_root is what gets OTS-stamped against the public Bitcoin calendar substrate; root.bin (32 raw bytes equal to bytes.fromhex(merkle_root)) sits next to manifest.json and root.bin.ots is its OpenTimestamps proof."
+    },
+    "event_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of audit-event frames ingested for this hour. Equal to len(events) and len(leaves). Verifier rejects on drift between this field and the array lengths."
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "event_id",
+          "time",
+          "payload_hash",
+          "capability_token_hash",
+          "leaf_hash"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Producer-assigned event identifier. Stable across the manifest lifecycle."
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO-8601 UTC timestamp at which the event entered the aggregator. Part of the leaf-hash B1-tuple."
+          },
+          "payload_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "SHA-256 hex of the canonical event payload. Part of the leaf-hash B1-tuple."
+          },
+          "capability_token_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "SHA-256 hex of the capability-token reference. Part of the leaf-hash B1-tuple. v1 manifests carry exactly one capref per event in this projected field; v2 manifests carry caprefs[] separately under multi_cap_events (see wat-manifest-v2.json)."
+          },
+          "leaf_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "SHA-256 hex of the canonical leaf computed from the B1-tuple. Verifier cross-checks this against the recomputed value during integrity-rebuild."
+          }
+        }
+      },
+      "description": "Per-event metadata array. Each item carries the B1-tuple plus leaf_hash. v1-shape uses leaf_hash (NOT leaf as in the v2 schema); the verifier's _check_real_event_leaves accepts either field name for forward-compat with the future v2 producer."
+    },
+    "leaves": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "v2-spec shape: ordered SHA-256 leaf hashes feeding the Merkle tree, one per event."
+          },
+          {
+            "type": "object",
+            "required": ["leaf_hash"],
+            "additionalProperties": true,
+            "properties": {
+              "leaf_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$",
+                "description": "SHA-256 hex of the canonical leaf for this event. The verifier's _normalise_real_leaves extracts this field when the entry is an object."
+              }
+            },
+            "description": "v1-aggregator shape: leaves[i] is a full event-shaped object carrying at minimum leaf_hash (the actual aggregator emits the full B1-tuple here verbatim, hence additionalProperties: true). Verifier normalises both shapes onto a unified hex-string list before Merkle rebuild."
+          }
+        ]
+      },
+      "description": "Ordered leaves array. v1 aggregator emits per-event objects with leaf_hash; v2 spec emits hex strings. Both shapes are accepted; verifier normalises before Merkle rebuild."
+    },
+    "tree_levels": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "description": "Reconstructable Merkle tree levels (leaves at index 0, root at last index). Used for inclusion-proof rebuilding by the verifier without re-walking the leaves. Verifier rejects on shape or node-hash drift."
+    },
+    "build_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp at which the manifest was constructed by the aggregator. Informational only; not part of the merkle_root computation."
+    },
+    "anchor_height": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Optional. Bitcoin block-height at which the merkle_root anchor confirmed. Today (Sprint-2 Tag-6) the v1 aggregator does not emit this field; it is reserved for a future TV-pin-pack-aggregator update that pins the actual block-height post-confirmation. Verifier accepts any positive integer when present and rejects non-positive values."
+    },
+    "prev_hour_root": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256 hex of the previous hour's merkle_root, when one exists."
+        },
+        {
+          "type": "null",
+          "description": "Null on the first hour of an aggregator run, where there is no predecessor."
+        }
+      ],
+      "description": "Optional chain-pointer to the previous hour. Aggregator emits null on the first hour and the previous merkle_root hex on subsequent hours. Not currently consulted by the verifier; reserved for future hour-chain integrity checks."
+    }
+  }
+}

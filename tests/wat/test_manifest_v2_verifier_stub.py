@@ -24,6 +24,7 @@ import pytest
 
 from wat.merkle.aggregator import build_merkle_tree, compute_leaf_hash
 from wat.verify.manifest_v2 import (
+    DEFAULT_REAL_SCHEMA_PATH,
     ManifestV2Result,
     OtsAnchorCheck,
     RealManifestResult,
@@ -1278,3 +1279,231 @@ def test_real_manifest_audit_trail_entry_bridges_to_v2_shape(
     assert payload["event_count"] == 2
     assert payload["ok"] is True
     assert payload["branches"][0]["verdict"] == "verified"
+
+
+# ---------------------------------------------------------------------------
+# Real-manifest schema-file mode (Sprint-2 Tag-6)
+# ---------------------------------------------------------------------------
+
+
+def test_real_manifest_schema_file_validates_published_fixture() -> None:
+    """``use_schema_file=True`` accepts the in-repo TV-3 fixture.
+
+    Pins that the v1 schema file (``wakir-wat-manifest-v1.json``)
+    accepts the verbatim shape emitted by the real aggregator. Any
+    drift between the schema file and the producer's emit-shape will
+    fail this test before it lands in production.
+    """
+    fixture_dir = (
+        Path(__file__).resolve().parents[1]
+        / "fixtures"
+        / "wat-real-manifest"
+    )
+    mpath = fixture_dir / "manifest.json"
+    assert mpath.exists()
+
+    result = verify_real_manifest_file(
+        mpath, check_ots_anchor=True, use_schema_file=True
+    )
+
+    assert result.ok, result.failure_reason
+    assert result.fields_ok and result.integrity_ok
+    assert result.version == "wakir-wat-manifest/v1"
+
+
+def test_real_manifest_schema_file_default_path_resolves() -> None:
+    """``DEFAULT_REAL_SCHEMA_PATH`` points at the v1 schema file."""
+    assert DEFAULT_REAL_SCHEMA_PATH.exists(), (
+        f"v1 schema file missing: {DEFAULT_REAL_SCHEMA_PATH}"
+    )
+    with DEFAULT_REAL_SCHEMA_PATH.open("r", encoding="utf-8") as fh:
+        schema = json.load(fh)
+    assert schema["$id"].endswith("/wakir-wat-manifest-v1/0.1.0")
+    assert "wakir-wat-manifest/v1" in schema["properties"]["version"]["enum"]
+    assert "wakir-wat-manifest/v2" in schema["properties"]["version"]["enum"]
+    assert set(schema["required"]) == {
+        "version",
+        "hour_slot",
+        "merkle_root",
+        "event_count",
+        "events",
+        "leaves",
+        "tree_levels",
+        "build_time",
+    }
+
+
+def test_real_manifest_schema_file_rejects_missing_required(
+    tmp_path: Path,
+) -> None:
+    """Schema-file path rejects missing-required field with /pointer diagnostic."""
+    events = [_make_event(i, capref_hash_hex="4" * 64) for i in (0,)]
+    manifest = _build_real_v1_manifest(events)
+    del manifest["hour_slot"]
+    mpath = _write_real_manifest_with_ots(tmp_path, manifest)
+
+    result = verify_real_manifest_file(
+        mpath, check_ots_anchor=False, use_schema_file=True
+    )
+
+    assert not result.ok
+    assert not result.fields_ok
+    # Schema-file diagnostic surfaces before the in-code validator;
+    # both name the same offender.
+    assert "hour_slot" in result.failure_reason
+    assert result.failure_reason.startswith("fields:")
+
+
+def test_real_manifest_schema_file_rejects_type_mismatch(
+    tmp_path: Path,
+) -> None:
+    """Schema-file path rejects wrong-type field with /pointer diagnostic."""
+    events = [_make_event(i, capref_hash_hex="5" * 64) for i in (0,)]
+    manifest = _build_real_v1_manifest(events)
+    # event_count must be integer; supply a string.
+    manifest["event_count"] = "1"
+    mpath = _write_real_manifest_with_ots(tmp_path, manifest)
+
+    result = verify_real_manifest_file(
+        mpath, check_ots_anchor=False, use_schema_file=True
+    )
+
+    assert not result.ok
+    assert not result.fields_ok
+    assert "/event_count" in result.failure_reason
+    assert result.failure_reason.startswith("fields:")
+
+
+def test_real_manifest_schema_file_rejects_unknown_version(
+    tmp_path: Path,
+) -> None:
+    """Schema-file path rejects out-of-domain ``version`` enum value."""
+    events = [_make_event(i, capref_hash_hex="6" * 64) for i in (0,)]
+    manifest = _build_real_v1_manifest(events)
+    manifest["version"] = "wakir-wat-manifest/vX"
+    mpath = _write_real_manifest_with_ots(tmp_path, manifest)
+
+    result = verify_real_manifest_file(
+        mpath, check_ots_anchor=False, use_schema_file=True
+    )
+
+    assert not result.ok
+    assert not result.fields_ok
+    assert "/version" in result.failure_reason
+    assert result.failure_reason.startswith("fields:")
+
+
+def test_real_manifest_schema_file_rejects_short_merkle_root(
+    tmp_path: Path,
+) -> None:
+    """Schema-file path catches malformed merkle_root (pattern mismatch)."""
+    events = [_make_event(i, capref_hash_hex="7" * 64) for i in (0,)]
+    manifest = _build_real_v1_manifest(events)
+    # merkle_root must match ^[0-9a-f]{64}$; truncate to 32 chars.
+    manifest["merkle_root"] = manifest["merkle_root"][:32]
+    mpath = _write_real_manifest_with_ots(tmp_path, manifest, write_root_bin=False)
+
+    result = verify_real_manifest_file(
+        mpath, check_ots_anchor=False, use_schema_file=True
+    )
+
+    assert not result.ok
+    assert not result.fields_ok
+    assert "/merkle_root" in result.failure_reason
+    assert result.failure_reason.startswith("fields:")
+
+
+def test_real_manifest_schema_file_off_default_runs_in_code_validator(
+    tmp_path: Path,
+) -> None:
+    """``use_schema_file=False`` (default) runs only the in-code validator.
+
+    Sanity-check that Sprint-2 Tag-5 behaviour is preserved: the
+    in-code validator alone accepts a happy-path real-manifest, and
+    the schema-file path is opt-in.
+    """
+    events = [_make_event(i, capref_hash_hex="8" * 64) for i in (0,)]
+    manifest = _build_real_v1_manifest(events)
+    mpath = _write_real_manifest_with_ots(tmp_path, manifest)
+
+    result = verify_real_manifest_file(mpath, check_ots_anchor=True)
+
+    assert result.ok
+    assert result.fields_ok and result.integrity_ok
+
+
+def test_real_manifest_schema_file_cli_flag_against_fixture(capsys) -> None:
+    """``--use-schema-file`` CLI flag drives the schema-file path."""
+    fixture_dir = (
+        Path(__file__).resolve().parents[1]
+        / "fixtures"
+        / "wat-real-manifest"
+    )
+    mpath = fixture_dir / "manifest.json"
+
+    rc = verifier_main(
+        [str(mpath), "--real-manifest", "--use-schema-file", "--output", "json"]
+    )
+    out = capsys.readouterr().out.strip()
+    assert rc == 0
+    payload = json.loads(out)
+    assert payload["ok"] is True
+    assert payload["fields_ok"] is True
+    assert payload["integrity_ok"] is True
+    assert payload["manifest_version"] == "wakir-wat-manifest/v1"
+
+
+def test_real_manifest_schema_file_cli_flag_with_override_path(
+    tmp_path: Path, capsys
+) -> None:
+    """``--real-schema`` overrides the default schema-file location."""
+    # Copy the canonical schema to a tmp location so we can verify the
+    # override path is read (not the default).
+    schema_src = DEFAULT_REAL_SCHEMA_PATH.read_text(encoding="utf-8")
+    alt_schema = tmp_path / "alt-schema.json"
+    alt_schema.write_text(schema_src, encoding="utf-8")
+
+    events = [_make_event(i, capref_hash_hex="9" * 64) for i in (0,)]
+    manifest = _build_real_v1_manifest(events)
+    mpath = _write_real_manifest_with_ots(tmp_path, manifest)
+
+    rc = verifier_main(
+        [
+            str(mpath),
+            "--real-manifest",
+            "--use-schema-file",
+            "--real-schema",
+            str(alt_schema),
+            "--no-check-ots-anchor",
+            "--output",
+            "json",
+        ]
+    )
+    out = capsys.readouterr().out.strip()
+    assert rc == 0
+    payload = json.loads(out)
+    assert payload["ok"] is True
+    assert payload["fields_ok"] is True
+
+
+def test_real_manifest_schema_file_accepts_v2_version_string(
+    tmp_path: Path,
+) -> None:
+    """Schema-file enum reserves the future ``wakir-wat-manifest/v2`` string.
+
+    Even though the current aggregator does not emit v2, the schema
+    file accepts that version string so the future v2 producer does
+    not require a schema-file edit. Verifier-side _REAL_VERSIONS keeps
+    the same set in lockstep.
+    """
+    events = [_make_event(i, capref_hash_hex="a" * 64) for i in (0,)]
+    manifest = _build_real_v1_manifest(events)
+    manifest["version"] = "wakir-wat-manifest/v2"
+    mpath = _write_real_manifest_with_ots(tmp_path, manifest)
+
+    result = verify_real_manifest_file(
+        mpath, check_ots_anchor=True, use_schema_file=True
+    )
+
+    assert result.ok, result.failure_reason
+    assert result.version == "wakir-wat-manifest/v2"

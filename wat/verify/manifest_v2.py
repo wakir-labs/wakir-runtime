@@ -162,6 +162,18 @@ DEFAULT_SCHEMA_PATH = (
     _REPO_ROOT / "wirelang" / "schemas" / "wat-manifest-v2.json"
 )
 
+#: Default location of the v1 (real-manifest) schema relative to the
+#: repo. Used by ``verify_real_manifest_file`` when called with
+#: ``use_schema_file=True`` (off-default since Sprint-2 Tag-6) and by
+#: the CLI ``--use-schema-file`` flag. The v1 schema is the
+#: source-of-truth pin for the on-disk wakir-wat-manifest/v1 wire-form
+#: emitted by the aggregator; the in-code field-by-field validator
+#: remains the redundant hermetic-no-deps path so that a missing
+#: ``jsonschema`` install does not block manifest verification.
+DEFAULT_REAL_SCHEMA_PATH = (
+    _REPO_ROOT / "wirelang" / "schemas" / "wakir-wat-manifest-v1.json"
+)
+
 #: Wat-manifest version strings recognised by this stub. A future
 #: ``wat-manifest/3.0`` would land here as a separate code path; until
 #: then anything outside this set fails schema validation up-front.
@@ -448,6 +460,50 @@ def _validate_schema(
     first = errors[0]
     pointer = "/" + "/".join(str(p) for p in first.absolute_path) if first.absolute_path else "/"
     return (False, f"schema: {pointer}: {first.message}")
+
+
+def _validate_real_manifest_against_schema(
+    manifest: dict,
+    schema_path: Path,
+) -> Tuple[bool, str]:
+    """Return ``(ok, failure_reason)`` for a v1-schema validation pass.
+
+    Sister of :func:`_validate_schema` for the v1 wire-form. Imports
+    ``jsonschema`` lazily; when the package is missing this returns a
+    descriptive failure rather than raising — callers (most notably
+    ``verify_real_manifest_file`` with ``use_schema_file=True``) can
+    surface the failure directly to the operator. The in-code
+    field-by-field validator (:func:`_validate_real_manifest_fields`)
+    remains the redundant hermetic-no-deps path so that a missing
+    install does not block real-manifest verification.
+
+    Failure-reason format mirrors :func:`_validate_schema`: a
+    pointer-style ``"field /<pointer>: <jsonschema-message>"`` so the
+    schema-file-based diagnostic is byte-comparable to the in-code
+    validator's diagnostic for the same field.
+    """
+    try:
+        import jsonschema  # noqa: F401  (used below as Draft202012Validator)
+        from jsonschema import Draft202012Validator
+    except ImportError:
+        return (
+            False,
+            "schema: jsonschema package not available; install jsonschema",
+        )
+
+    schema = _load_schema(schema_path)
+    Draft202012Validator.check_schema(schema)
+    validator = Draft202012Validator(schema)
+
+    errors = sorted(validator.iter_errors(manifest), key=lambda e: e.path)
+    if not errors:
+        return (True, "")
+
+    first = errors[0]
+    pointer = "/" + "/".join(str(p) for p in first.absolute_path) if first.absolute_path else ""
+    if pointer:
+        return (False, f"field {pointer}: {first.message}")
+    return (False, f"schema: {first.message}")
 
 
 # ---------------------------------------------------------------------------
@@ -1212,6 +1268,8 @@ def verify_real_manifest_file(
     *,
     check_ots_anchor: bool = True,
     strict_multi_cap_root: bool = True,
+    use_schema_file: bool = False,
+    real_schema_path: str | Path | None = None,
 ) -> RealManifestResult:
     """Verify a real on-disk manifest file (v1 or v2 wire-form).
 
@@ -1238,6 +1296,20 @@ def verify_real_manifest_file(
         :func:`verify_manifest_v2_file` *if* the manifest carries
         ``multi_cap_events``. v1 manifests do not, so this flag is
         a no-op against today's real manifests.
+    use_schema_file:
+        When True (off-default since Sprint-2 Tag-6), additionally
+        validate the manifest against the formal v1 JSON-Schema file
+        at ``real_schema_path`` (or :data:`DEFAULT_REAL_SCHEMA_PATH`
+        when not given) before running the in-code field-by-field
+        validator. The schema-file path is the contract with external
+        verifier implementers; the in-code path is the redundant
+        hermetic-no-deps fallback. Both paths are run together when
+        this flag is True so that drift between the two is caught
+        immediately. When False (default) the in-code path alone
+        validates, matching Sprint-2 Tag-5 behaviour.
+    real_schema_path:
+        Override the default location of the v1 schema file. Useful
+        for tests; production callers should leave this None.
     """
     path = Path(manifest_path)
     if not path.exists():
@@ -1270,8 +1342,27 @@ def verify_real_manifest_file(
             failure_reason="fields: top-level JSON must be an object",
         )
 
-    field_msg = _validate_real_manifest_fields(manifest)
     version = manifest.get("version", "") if isinstance(manifest, dict) else ""
+
+    if use_schema_file:
+        schema_p = (
+            Path(real_schema_path)
+            if real_schema_path is not None
+            else DEFAULT_REAL_SCHEMA_PATH
+        )
+        schema_ok, schema_failure = _validate_real_manifest_against_schema(
+            manifest, schema_p
+        )
+        if not schema_ok:
+            return RealManifestResult(
+                manifest_path=str(path),
+                version=version if isinstance(version, str) else "",
+                fields_ok=False,
+                integrity_ok=False,
+                failure_reason=f"fields: {schema_failure}",
+            )
+
+    field_msg = _validate_real_manifest_fields(manifest)
     if field_msg:
         return RealManifestResult(
             manifest_path=str(path),
@@ -1430,6 +1521,28 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--use-schema-file",
+        action="store_true",
+        help=(
+            "In --real-manifest mode, additionally validate against the "
+            "formal v1 JSON-Schema file (wirelang/schemas/wakir-wat-"
+            "manifest-v1.json by default). Off by default; the in-code "
+            "field-by-field validator runs in either case as the "
+            "redundant hermetic-no-deps path. See "
+            "docs/wat-manifest-v2-spec.md §11 (Sprint-2 Tag-6 entry)."
+        ),
+    )
+    parser.add_argument(
+        "--real-schema",
+        default=None,
+        help=(
+            "Override the v1 JSON-Schema file path used by "
+            "--use-schema-file. Defaults to the in-tree "
+            "wirelang/schemas/wakir-wat-manifest-v1.json. Most callers "
+            "should leave this unset."
+        ),
+    )
+    parser.add_argument(
         "--quiet",
         action="store_true",
         help="Suppress per-step reporting; emit only ok / fail line.",
@@ -1514,6 +1627,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             args.manifest,
             check_ots_anchor=args.check_ots_anchor,
             strict_multi_cap_root=args.strict_multi_cap_root,
+            use_schema_file=args.use_schema_file,
+            real_schema_path=args.real_schema,
         )
         if args.output == "json":
             payload = {
@@ -1630,6 +1745,7 @@ if __name__ == "__main__":  # pragma: no cover
 
 
 __all__ = [
+    "DEFAULT_REAL_SCHEMA_PATH",
     "DEFAULT_SCHEMA_PATH",
     "ManifestV2Result",
     "OtsAnchorCheck",
