@@ -425,7 +425,45 @@ which is substantively richer than the TV-1 1/4 single-calendar
 datapoint and replaces the Tag-15 brand-demo memo as primary brand-
 launch reference.
 
-### Section 5b — Long-tail full table (deferred to Tag-24)
+### Tag-24 re-check (2026-05-07 07:05Z, ~16 h 6 min post-submit)
+
+Re-ran the harness on **2026-05-07 07:05:37Z** as the Tag-24 box's
+opening long-tail spot-check.
+
+```
+[wat-block-heights] found 1 receipt(s); running ots upgrade on each
+[wat-block-heights] finalised 2026-05-06T14/root.bin.ots heights=948183
+[wat-block-heights] summary: receipts=1 finalised=1 pending=0
+```
+
+Per-calendar status from `ots info` at **2026-05-07 07:05Z** (Tag-24):
+
+| calendar                                    | status                              |
+| ------------------------------------------- | ----------------------------------- |
+| bob.btc.calendar.opentimestamps.org         | finalised -> block **948183** (Tag-14) |
+| alice.btc.calendar.opentimestamps.org       | still pending                       |
+| btc.calendar.catallaxy.com                  | still pending                       |
+| finney.calendar.eternitywall.com            | still pending                       |
+
+Long-tail status at Tag-24 (~16 h 6 min post-submit) is still **1/4
+calendar branches finalised**, unchanged from Tag-15 through Tag-23.
+This is the third consecutive ~16 h lower-bound datapoint with no
+calendar-confirm progress in the ~24 h span between Tag-22 06:44Z
+and Tag-24 07:05Z. Trend suggests consistently slow public-OTS
+calendar cadence for `alice` / `catallaxy` / `finney`; still inside
+spec 24-72 h corridor.
+
+The proper ~46 h post-submit checkpoint (full long-tail close-out
+target) lands ~2026-05-08 12:00Z, which is the Tag-25 box (re-check
+schedule below revised; the Tag-21-brief Tag-24 row is in fact the
+Tag-25 row in the realised execution timeline, because the Tag-24
+box opened at ~16 h post-submit, not ~46 h).
+
+The Tag-24 box did **not** trigger Section-5b voll-table crystallisation
+(no 4-of-4 closure yet). Brand-Demo direktive remains TV-2 4-of-4
+voll-anker (Tag-23-Memo); no TV-1 brand-demo update.
+
+### Section 5b — Long-tail full table (deferred to Tag-25)
 
 The Tag-21 brief assumed the box would execute at ~46-48 h post-
 submit; in fact box-execution is at ~5 h post-submit (UTC start-time
@@ -438,12 +476,13 @@ the Phase-1a-Endspurt schedule. The re-check schedule going forward:
 | ------ | -------------------- | -------------- | ---- | ----------- |
 | Tag-22 | 2026-05-07 ~06:44Z   | ~16 h          | day-+1 | early-corridor pass (1/4) |
 | Tag-23 | 2026-05-07 ~06:52Z   | ~16 h          | day-+1 | repeat early-corridor pass (1/4) |
-| Tag-24 | 2026-05-08 ~12:00Z   | ~46 h          | day-+2 | full long-tail close-out target |
-| Tag-25 | 2026-05-08 ~22:00Z   | ~56 h          | day-+2 | optional final pass if 4/4 still not landed |
+| Tag-24 | 2026-05-07 ~07:05Z   | ~16 h          | day-+1 | third early-corridor pass (1/4) |
+| Tag-25 | 2026-05-08 ~12:00Z   | ~46 h          | day-+2 | full long-tail close-out target |
+| Tag-26 | 2026-05-08 ~22:00Z   | ~56 h          | day-+2 | optional final pass if 4/4 still not landed |
 
 If 4/4 finalisation lands inside any one of these checkpoints,
 Section 5b crystallises into the full table (per-calendar block
-heights + tx-hashes + finalize timestamps). If at Tag-25 we are still
+heights + tx-hashes + finalize timestamps). If at Tag-26 we are still
 <4/4, the WAT-Phase-1a-Schluss-Bilanz can land with `bob` finalised +
 the spec-corridor caveat for the long tail (consistent with
 WAT-Phase-1a-Spec §3.3 single-calendar-bitcoin-anchor minimum).
