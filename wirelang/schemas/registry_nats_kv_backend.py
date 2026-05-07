@@ -123,6 +123,32 @@ Phase-2 hardening on top of Phase-1c CAS-pin (out of scope for
 Tag-3): replication-aware quorum upserts, deprecation policy with
 overlapping-validity windows, IPFS-anchored schema-document hashes.
 
+Phase-1c watch-stream contract (Sprint-3 Tag-4, OI-7-Phase-1c-watch)
+--------------------------------------------------------------------
+
+Long-running consumers can subscribe to a watch-stream over the
+``wakir-schemas`` bucket via :meth:`NatsKvSchemaRegistry.watch`. The
+watch-stream yields decoded :class:`WatchEvent` instances; consumers
+feed the events into a :class:`LiveSchemaSnapshot` to maintain an
+incremental in-memory view without re-snapshotting on every change.
+
+The pattern mirrors the V-908 Tag-6 watch-stream-snapshot layer
+shipped in :mod:`wirelang.federation.route_registry_nats_kv_backend`
+(``WatchOp`` / ``WatchEvent`` / ``LiveSnapshot.from_backend``). The
+schema-registry side adds:
+
+- :class:`WatchOp` / :class:`WatchEvent` / :class:`LiveSchemaSnapshot`
+  with the same byte-decoder semantics; a poisoned PUT envelope on
+  the stream raises :class:`SchemaRegistryEnvelopeError` and
+  terminates the iterator (no silent envelope poison).
+- Determinism contract: a frozen :class:`InMemorySchemaRegistry`
+  returned from :meth:`LiveSchemaSnapshot.as_registry` does NOT
+  mutate when subsequent watch events arrive; verifier passes can
+  treat the frozen view as a stable snapshot.
+- Adapter compatibility: the underlying nats-py ``KeyValue.watchall``
+  surface and a manually-fed mock (Shape-2 with ``await updates()``)
+  are both supported, plus the Shape-1 native async-iter shape.
+
 Hermetic test contract
 ----------------------
 
@@ -131,20 +157,26 @@ The test suite at
 the backend against an in-memory mock that mirrors the V-908 mock
 shape (``_MockKv`` / ``_MockKvEntry``). The mock is intentionally
 the same surface so the orchestrator-side and Wirelang-side both
-validate against the same nats-py contract.
+validate against the same nats-py contract. The Tag-4 watch-stream
+tests live in ``wirelang/tests/test_schema_registry_watch_stream.py``
+and mirror the V-908 Tag-6 ``test_..._watch_stream`` pattern with a
+schema-registry-shaped fixture.
 
 References (URL-stamped 2026-05-07 by wirelang-eng):
 
 - Spec: ``wirelang/specs/schema-registry-spec.md`` (Phase-1b
-  Sprint-3 Tag-1).
+  Sprint-3 Tag-1 / Tag-3 / Tag-4).
 - V-908 backend pattern source:
   ``wirelang/federation/route_registry_nats_kv_backend.py``.
+- V-908 Tag-6 watch-stream pattern source: same module, ``WatchOp`` /
+  ``WatchEvent`` / ``LiveSnapshot`` section.
 - Bucket inventory source: ``scripts/init-nats-buckets.py``
   ``PHASE_1_BUCKETS[0]`` (``wakir-schemas``).
 """
 
 from __future__ import annotations
 
+import enum
 import hashlib
 import json
 from dataclasses import dataclass, field
@@ -790,6 +822,27 @@ class NatsKvSchemaRegistry:
             in_memory.add(entry)
         return in_memory
 
+    # ------------------------------------------------------------------
+    # Watch-stream (Phase-1b Sprint-3 Tag-4, OI-7-Phase-1c-watch)
+    # ------------------------------------------------------------------
+
+    async def watch(self) -> "_SchemaWatchStreamHandle":
+        """Open a watch-stream over the schema-registry bucket.
+
+        Returns an async iterable / context manager that yields
+        decoded :class:`WatchEvent` instances. See
+        :func:`open_watch_stream` for details.
+
+        Phase-1c boundary: the watch-stream is a *consumer* surface;
+        it does NOT replace :meth:`snapshot`. Use a
+        :class:`LiveSchemaSnapshot` (bootstrapped from
+        :meth:`snapshot`, fed by :meth:`watch`) to maintain a
+        long-running incremental view; pass frozen
+        :meth:`LiveSchemaSnapshot.as_registry` copies to verifier
+        modules when they need a stable point-in-time view.
+        """
+        return await open_watch_stream(self)
+
 
 # ---------------------------------------------------------------------------
 # Helpers (KV adapter shims for nats-py vs. test mock)
@@ -955,3 +1008,313 @@ async def _list_keys(kv: Any) -> list:
             return collected
         return list(result)
     raise SchemaRegistryBackendError("KV handle has no keys() method")
+
+
+# ---------------------------------------------------------------------------
+# Watch-Stream-Snapshot Layer (Phase-1b Sprint-3 Tag-4, OI-7-Phase-1c-watch)
+# ---------------------------------------------------------------------------
+#
+# Tag-1 (S3-1) shipped get/put/delete/snapshot. Snapshot is full-bucket:
+# every verifier pass that wants fresh state takes a fresh full snapshot.
+# That is correct for determinism but costly when schema turnover is high
+# or when a long-running supervisor wants to track changes between
+# snapshots without re-listing.
+#
+# Tag-4 (S3-4) adds a watch-based incremental layer that consumes
+# nats-py's ``KeyValue.watchall()`` (or a mock-equivalent) and surfaces
+# decoded :class:`WatchEvent` instances. The synchronous verifier
+# surface (:class:`InMemorySchemaRegistry.lookup`) is UNCHANGED: a
+# watch-stream is a substrate for materialising live deltas into an
+# :class:`InMemorySchemaRegistry` snapshot, not a new verifier
+# substrate. The bridge contract is: each verifier pass takes one
+# *frozen* :class:`InMemorySchemaRegistry` view; the watch-stream is
+# the producer of that view, the verifier does not query the live
+# stream.
+#
+# A :class:`LiveSchemaSnapshot` keeps an in-memory copy of the
+# registry, initialises it from a full
+# :meth:`NatsKvSchemaRegistry.snapshot`, and then applies decoded
+# :class:`WatchEvent` instances as they arrive. Callers get a
+# deterministic frozen :class:`InMemorySchemaRegistry` for each
+# verifier pass via :meth:`LiveSchemaSnapshot.as_registry`. The
+# frozen copy is taken at call time; subsequent watch events do NOT
+# mutate the returned registry (T-SR-WS-determinism contract).
+#
+# Boundary (Phase-1b, Sprint-3 Tag-4):
+#
+# - The watch-stream is a *consumer* surface. Operators connect the
+#   stream to a long-running supervisor task; the supervisor keeps a
+#   :class:`LiveSchemaSnapshot` warm and hands frozen
+#   :class:`InMemorySchemaRegistry` instances to verifier modules per
+#   pass. The watch-stream itself is not the registry.
+# - A poisoned envelope on the stream raises
+#   :class:`SchemaRegistryEnvelopeError` from the consumer iterator
+#   and terminates the iterator. The operator must observe the error,
+#   drop the :class:`LiveSchemaSnapshot`, and re-bootstrap from a fresh
+#   :meth:`NatsKvSchemaRegistry.snapshot`. Phase-1c does not silently
+#   swallow envelope poison (same contract as full snapshot).
+# - Watch-stream resumption / replay-from-revision is a Phase-2
+#   concern (nats-py supports it via ``watchall(..., resume_from=...)``;
+#   the Phase-1c stream wrapper exposes the underlying revision but
+#   does not bake in resume policy).
+
+
+class WatchOp(enum.Enum):
+    """Operation kind surfaced by the schema-registry watch-stream.
+
+    Matches nats-py's ``KeyValueOp`` shape: ``PUT`` for insert/update,
+    ``DELETE`` for tombstone (explicit delete), ``PURGE`` for
+    history-clearing purge. Verifier-side consumers treat ``DELETE``
+    and ``PURGE`` identically (the schema is gone); they are surfaced
+    separately so audit consumers can distinguish them.
+    """
+
+    PUT = "PUT"
+    DELETE = "DELETE"
+    PURGE = "PURGE"
+
+
+@dataclass(frozen=True)
+class WatchEvent:
+    """A single decoded operation from the schema-registry watch-stream.
+
+    Fields:
+
+    - ``op``: the :class:`WatchOp`. PUT means ``entry`` is set;
+      DELETE/PURGE mean ``entry`` is ``None``.
+    - ``key``: the registry KV key string
+      (``schemas/<layer>/<name>/<version>``).
+    - ``entry``: the decoded :class:`SchemaRegistryEntry` for PUT;
+      ``None`` for DELETE/PURGE.
+    - ``revision``: the KV revision at which this event was observed.
+      Monotonically increasing per bucket; useful for resume policies
+      and audit cross-references.
+    """
+
+    op: WatchOp
+    key: str
+    entry: Optional[SchemaRegistryEntry]
+    revision: int
+
+
+def _decode_watch_update(update: Any) -> WatchEvent:
+    """Decode one nats-py ``KeyValue.Entry`` (or mock-equivalent) into
+    a :class:`WatchEvent`.
+
+    nats-py exposes the operation kind via an ``operation`` attribute
+    that is a ``KeyValueOp`` enum; on a ``PUT`` the ``value`` attr
+    carries the envelope bytes, on ``DELETE``/``PURGE`` it is empty
+    (``b""`` or ``None``). We mirror that contract and accept both
+    the enum and a string (mock-friendliness).
+    """
+    op_raw = getattr(update, "operation", None)
+    if op_raw is None and isinstance(update, Mapping):
+        op_raw = update.get("operation")
+    if op_raw is None:
+        raise SchemaRegistryEnvelopeError(
+            f"watch update has no 'operation' attribute: "
+            f"type={type(update).__name__}"
+        )
+    op_name = getattr(op_raw, "name", None) or str(op_raw)
+    op_name = op_name.upper()
+    if op_name not in {"PUT", "DELETE", "PURGE"}:
+        raise SchemaRegistryEnvelopeError(
+            f"watch update has unknown operation: {op_name!r}"
+        )
+    op = WatchOp(op_name)
+
+    key = getattr(update, "key", None)
+    if key is None and isinstance(update, Mapping):
+        key = update.get("key")
+    if not isinstance(key, str) or not key:
+        raise SchemaRegistryEnvelopeError(
+            f"watch update has empty/non-string key: {key!r}"
+        )
+
+    revision = getattr(update, "revision", None)
+    if revision is None and isinstance(update, Mapping):
+        revision = update.get("revision")
+    revision_int = int(revision) if revision is not None else 0
+
+    if op is WatchOp.PUT:
+        try:
+            blob = _coerce_value_bytes(update)
+        except SchemaRegistryEnvelopeError:
+            # The PUT carried no .value handle; that is poisoned.
+            raise
+        entry = _envelope_to_entry(blob)
+        return WatchEvent(op=op, key=key, entry=entry, revision=revision_int)
+
+    return WatchEvent(op=op, key=key, entry=None, revision=revision_int)
+
+
+@dataclass
+class _SchemaWatchStreamHandle:
+    """Internal wrapper around the underlying nats-py watcher.
+
+    Adapts to two mock shapes:
+
+    1. The watcher is itself an async iterator (``__aiter__`` /
+       ``__anext__``); ``stop()`` (sync or async) closes it.
+    2. The watcher exposes ``await updates()`` returning the next
+       update or ``None`` for end-of-stream; ``stop()`` closes it.
+
+    nats-py's real ``KeyWatcher`` matches shape 2 with a sentinel
+    ``None`` between the initial snapshot replay and the live tail;
+    we surface that sentinel as a stream-internal marker only and
+    do NOT emit it to the consumer.
+    """
+
+    underlying: Any
+
+    async def __aenter__(self) -> "_SchemaWatchStreamHandle":
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        stop = getattr(self.underlying, "stop", None)
+        if stop is None:
+            return
+        result = stop()
+        if hasattr(result, "__await__"):
+            await result
+
+    def __aiter__(self) -> "_SchemaWatchStreamHandle":
+        return self
+
+    async def __anext__(self) -> WatchEvent:
+        # Shape 1: native async iterator.
+        if hasattr(self.underlying, "__anext__"):
+            while True:
+                update = await self.underlying.__anext__()
+                if update is None:
+                    # nats-py end-of-initial-replay sentinel; skip it
+                    # but keep the iterator alive for the live tail.
+                    continue
+                return _decode_watch_update(update)
+        # Shape 2: ``await updates()`` returns next or None.
+        updates = getattr(self.underlying, "updates", None)
+        if updates is not None:
+            while True:
+                update = await updates()
+                if update is None:
+                    # End-of-stream; stop the iterator.
+                    raise StopAsyncIteration
+                return _decode_watch_update(update)
+        raise SchemaRegistryBackendError(
+            f"watch handle has neither __anext__ nor updates(): "
+            f"type={type(self.underlying).__name__}"
+        )
+
+
+async def _open_watcher(kv: Any) -> Any:
+    """Open the underlying watcher on the KV handle.
+
+    nats-py exposes ``await kv.watchall()`` returning an awaitable
+    watcher; some mocks expose the same name without async, or use
+    ``watch()`` as the entry point.
+    """
+    watch_fn = getattr(kv, "watchall", None)
+    if watch_fn is None:
+        watch_fn = getattr(kv, "watch", None)
+    if watch_fn is None:
+        raise SchemaRegistryBackendError(
+            "KV handle exposes neither watchall() nor watch()"
+        )
+    result = watch_fn()
+    if hasattr(result, "__await__"):
+        result = await result
+    return result
+
+
+async def open_watch_stream(
+    backend: "NatsKvSchemaRegistry",
+) -> _SchemaWatchStreamHandle:
+    """Open a watch-stream over the backend's KV bucket.
+
+    Use as an async context manager OR consume directly; either way,
+    ``stop()`` is called on close. Each iteration yields one
+    :class:`WatchEvent`. Decoder errors raise
+    :class:`SchemaRegistryEnvelopeError` and terminate the iterator.
+    """
+    if not isinstance(backend, NatsKvSchemaRegistry):
+        raise TypeError("backend must be a NatsKvSchemaRegistry")
+    underlying = await _open_watcher(backend.kv)
+    return _SchemaWatchStreamHandle(underlying=underlying)
+
+
+@dataclass
+class LiveSchemaSnapshot:
+    """Live, watch-stream-fed snapshot of the schema registry.
+
+    Phase-1b Sprint-3 Tag-4 (S3-4) substrate. Initialises an in-memory
+    copy from a full backend snapshot, then applies decoded
+    :class:`WatchEvent` instances to keep the copy in sync.
+
+    The class is NOT itself an :class:`InMemorySchemaRegistry`. To
+    pass it to a verifier module, call :meth:`as_registry` to take a
+    frozen copy at the current state. Subsequent watch events do not
+    mutate the returned copy (determinism contract: a frozen copy
+    passed to one verifier pass yields stable verdicts).
+
+    Concurrency: a :class:`LiveSchemaSnapshot` is intended for a
+    single-consumer pattern within one asyncio task. Cross-task
+    sharing requires the caller to lock; the class itself does no
+    locking because asyncio guarantees in-task atomicity between
+    awaits, and ``apply()`` is synchronous.
+    """
+
+    initial: InMemorySchemaRegistry
+    last_revision: int = 0
+    _live: InMemorySchemaRegistry = field(init=False)
+
+    def __post_init__(self) -> None:
+        # Defensive copy: callers may keep a reference to ``initial``
+        # and we must not mutate it as deltas arrive.
+        self._live = InMemorySchemaRegistry()
+        for entry in self.initial.entries.values():
+            self._live.add(entry)
+
+    def apply(self, event: WatchEvent) -> None:
+        """Apply one :class:`WatchEvent` to the live state.
+
+        PUT updates / inserts the entry; DELETE / PURGE remove it
+        (no-op if already absent). The ``last_revision`` counter
+        advances monotonically: an event with a revision lower than
+        the current ``last_revision`` does NOT regress the counter.
+        """
+        if not isinstance(event, WatchEvent):
+            raise TypeError("event must be a WatchEvent")
+        if event.op is WatchOp.PUT:
+            if event.entry is None:
+                raise SchemaRegistryEnvelopeError(
+                    "PUT WatchEvent must carry a non-None entry"
+                )
+            self._live.add(event.entry)
+        else:
+            # DELETE / PURGE: remove the key if present.
+            self._live.entries.pop(event.key, None)
+        if event.revision > self.last_revision:
+            self.last_revision = event.revision
+
+    def as_registry(self) -> InMemorySchemaRegistry:
+        """Return a frozen :class:`InMemorySchemaRegistry` copy of the
+        current live state.
+
+        The returned registry does not share storage with the live
+        state; subsequent :meth:`apply` calls do not mutate it.
+        """
+        frozen = InMemorySchemaRegistry()
+        for entry in self._live.entries.values():
+            frozen.add(entry)
+        return frozen
+
+    @classmethod
+    async def from_backend(
+        cls, backend: "NatsKvSchemaRegistry"
+    ) -> "LiveSchemaSnapshot":
+        """Bootstrap a :class:`LiveSchemaSnapshot` from a full backend
+        snapshot. The caller is responsible for opening a watch-stream
+        and feeding events to :meth:`apply`.
+        """
+        initial = await backend.snapshot()
+        return cls(initial=initial, last_revision=0)

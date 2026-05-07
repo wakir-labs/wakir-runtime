@@ -9,14 +9,14 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wirelang-schema-registry
-version: 0.2.0
+version: 0.3.0
 status: draft
 date: 2026-05-07
 audience: implementers, integrators, operators
 license: CC-BY-4.0
 ---
 
-# Wirelang Schema Registry — NATS-KV Backend Specification (v0.2.0)
+# Wirelang Schema Registry — NATS-KV Backend Specification (v0.3.0)
 
 **Change log**
 
@@ -24,6 +24,7 @@ license: CC-BY-4.0
 |---------|------------|--------------------------------------------------------|
 | 0.1.0   | 2026-05-07 | Initial draft (Phase-1b Sprint-3 Tag-1).               |
 | 0.2.0   | 2026-05-07 | Phase-1c CAS-pin contract reclassified from Phase-2 to Phase-1c and lands in Tag-3 (`put_with_revision` / `get_with_revision` / `SchemaRegistryConflictError`); §5.3 Phase-1c-Slot consumed; §5.4 added. Additive-only change relative to v0.1.0; M-2 / M-4 conformance preserved. |
+| 0.3.0   | 2026-05-07 | Phase-1c watch-stream surface lands in Tag-4 (`watch()` / `WatchOp` / `WatchEvent` / `LiveSchemaSnapshot` / `open_watch_stream`); §5.3 OI-7-Phase-1c-watch slot CONSUMED; §5.5 added (watch-stream operational contract); §6.2 added (T-SR-WS-01..10 + 2 aux probes test inventory). Additive-only change relative to v0.2.0; M-2 / M-4 conformance preserved. |
 
 This specification defines the Wakir Wirelang **Schema Registry**: a
 persistent, drift-aware store for the JSON-Schema documents that
@@ -84,7 +85,7 @@ JCS-canonical envelope that is byte-stable for audit anchoring.
 - Bucket-config drift-test against Kai's `wakir-schemas` inventory
   entry (cross-reference test).
 
-**Phase-1b Sprint-3 Tag-3 (this revision, additive over Tag-1):**
+**Phase-1b Sprint-3 Tag-3 (additive over Tag-1):**
 
 - The CAS-pin upsert path
   (`NatsKvSchemaRegistry.put_with_revision` /
@@ -96,13 +97,27 @@ JCS-canonical envelope that is byte-stable for audit anchoring.
 - 8-12 hermetic determinism tests for the CAS-pin path
   (T-SR-CAS-01..10).
 
+**Phase-1b Sprint-3 Tag-4 (this revision, additive over Tag-3):**
+
+- The watch-stream surface
+  (`NatsKvSchemaRegistry.watch()` / `open_watch_stream` /
+  `WatchOp` / `WatchEvent` / `LiveSchemaSnapshot`) — pattern-mirror
+  on V-908 Tag-6 watch-stream-snapshot layer, lands here as
+  **OI-7-Phase-1c-watch** (consumed).
+- The synchronous verifier surface (`InMemorySchemaRegistry.lookup`)
+  is UNCHANGED. The watch-stream is a *consumer* surface that feeds
+  a `LiveSchemaSnapshot`; verifier passes consume frozen
+  `InMemorySchemaRegistry` views taken via `as_registry()`.
+- Poisoned envelopes on the stream raise
+  `SchemaRegistryEnvelopeError` and terminate the iterator (no
+  silent envelope poison; same contract as full snapshot).
+- 8-12 hermetic determinism tests for the watch-stream path
+  (T-SR-WS-01..10 + aux probes).
+
 **Phase-1c (still out of scope, reserved):**
 
 - The publisher CLI that pushes module-shipped schemas onto the
   bucket on operator command (**OI-7-Phase-1c-publisher** reserved).
-- The watch-stream consumer that materialises a `LiveSnapshot`-like
-  registry for long-running supervisors
-  (**OI-7-Phase-1c-watch** reserved).
 - Cross-bucket schema replication for multi-region clusters
   (**OI-7-Phase-1c-replication** reserved).
 
@@ -297,6 +312,36 @@ class NatsKvSchemaRegistry:
     async def delete(self, key: str) -> None: ...
     async def list_keys(self) -> list[str]: ...
     async def snapshot(self) -> InMemorySchemaRegistry: ...
+    async def watch(self) -> _SchemaWatchStreamHandle: ...   # Phase-1c (Tag-4)
+```
+
+The Tag-4 watch-stream additions also expose:
+
+```python
+class WatchOp(enum.Enum):                                # Phase-1c (Tag-4)
+    PUT = "PUT"
+    DELETE = "DELETE"
+    PURGE = "PURGE"
+
+@dataclass(frozen=True)
+class WatchEvent:                                        # Phase-1c (Tag-4)
+    op: WatchOp
+    key: str
+    entry: Optional[SchemaRegistryEntry]
+    revision: int
+
+@dataclass
+class LiveSchemaSnapshot:                                # Phase-1c (Tag-4)
+    initial: InMemorySchemaRegistry
+    last_revision: int = 0
+
+    def apply(self, event: WatchEvent) -> None: ...
+    def as_registry(self) -> InMemorySchemaRegistry: ...
+
+    @classmethod
+    async def from_backend(cls, backend) -> "LiveSchemaSnapshot": ...
+
+async def open_watch_stream(backend) -> _SchemaWatchStreamHandle: ...
 ```
 
 The `InMemorySchemaRegistry` class is a synchronous read-only view
@@ -327,7 +372,7 @@ These gates protect the determinism contract: a poisoned or
 mis-anchored envelope cannot reach the bucket through the typed
 backend.
 
-### 5.3 What Phase-1b Sprint-3 Tag-1 + Tag-3 covers, and what Phase-1c / Phase-2 still does NOT do
+### 5.3 What Phase-1b Sprint-3 Tag-1 + Tag-3 + Tag-4 covers, and what Phase-1c / Phase-2 still does NOT do
 
 **Tag-1 (v0.1.0) lands:**
 
@@ -354,15 +399,40 @@ backend.
   integrity.
 - **OI-7-Phase-1c-CAS slot consumed.**
 
+**Tag-4 (v0.3.0) lands (additive over Tag-3):**
+
+- Async `watch() → _SchemaWatchStreamHandle` exposing decoded
+  `WatchEvent` instances over the bucket. Adapter compatibility
+  with two underlying watcher shapes: nats-py canonical `watchall()`
+  yielding a Shape-2 watcher (`await updates()` returning next or
+  None) and the alternative Shape-1 native async-iter watcher.
+- `WatchOp` enum (`PUT` / `DELETE` / `PURGE`) and `WatchEvent`
+  dataclass (`op` / `key` / `entry` / `revision`) carry the decoded
+  operation kind, key, entry (None for DELETE/PURGE), and KV revision.
+- `LiveSchemaSnapshot` keeps an in-memory copy of the registry
+  (bootstrapped from `NatsKvSchemaRegistry.snapshot`), applies
+  `WatchEvent` deltas via `apply()`, and hands out frozen
+  `InMemorySchemaRegistry` copies via `as_registry()` for verifier
+  passes. Determinism contract: a frozen copy does NOT mutate when
+  subsequent watch events arrive.
+- `open_watch_stream(backend)` is the entry-point; `backend.watch()`
+  is the convenience wrapper.
+- 8-12 additional hermetic determinism tests (T-SR-WS-01..10 + aux).
+- A poisoned envelope on a `PUT` watch event raises
+  `SchemaRegistryEnvelopeError` and terminates the iterator. An
+  unknown `operation` kind raises the same typed error. Phase-1c
+  does NOT silently swallow envelope poison on the stream.
+- **OI-7-Phase-1c-watch slot consumed.**
+
 **Phase-1c still does NOT include (remaining reserved slots):**
 
-- No watch-stream surface (`OI-7-Phase-1c-watch` reserved). The
-  pattern source is `route_registry_nats_kv_backend.py` Tag-6
-  (`WatchOp` / `WatchEvent` / `LiveSnapshot.from_backend`).
 - No publisher CLI that pushes module-shipped schemas onto the
   bucket on operator command (`OI-7-Phase-1c-publisher` reserved).
 - No cross-bucket schema replication for multi-region clusters
   (`OI-7-Phase-1c-replication` reserved).
+- No watch-stream resume-from-revision policy (Phase-2 concern;
+  nats-py supports it via `watchall(..., resume_from=...)`, but the
+  Phase-1c stream wrapper does not bake in resume policy).
 
 **Phase-2 still does NOT include:**
 
@@ -454,6 +524,97 @@ the orchestrator-side mock JetStream surface.
   envelope-integrity gates fail; the envelope-integrity gates run
   first and raise their own typed errors.
 
+### 5.5 Watch-stream operational contract (Tag-4)
+
+The watch-stream contract is the canonical incremental-view idiom for
+long-running supervisors. It mirrors the V-908 Tag-6 watch-stream
+pattern shipped in `wirelang/federation/route_registry_nats_kv_backend.py`.
+
+**Bootstrap-and-apply loop:**
+
+```python
+backend = NatsKvSchemaRegistry(kv=kv_handle)
+
+# 1. Take a full snapshot to bootstrap the in-memory view.
+live = await LiveSchemaSnapshot.from_backend(backend)
+
+# 2. Open the watch-stream and apply incoming events.
+async with await backend.watch() as stream:
+    async for event in stream:
+        live.apply(event)
+        if some_external_trigger:
+            # Hand a frozen view to a verifier pass.
+            frozen = live.as_registry()
+            verify_with_registry(frozen)
+```
+
+**Event kinds:**
+
+- `WatchOp.PUT`: a new or updated schema entry. The `WatchEvent.entry`
+  field carries the decoded `SchemaRegistryEntry`. `LiveSchemaSnapshot.apply`
+  inserts or replaces the entry.
+- `WatchOp.DELETE`: an explicit tombstone on the bucket key. The
+  `WatchEvent.entry` field is `None`. `LiveSchemaSnapshot.apply`
+  removes the key from the live state (no-op if already absent).
+- `WatchOp.PURGE`: a history-clearing purge on the key. Treated
+  identically to DELETE for live-state purposes; surfaced separately
+  so audit consumers can distinguish a purge from a tombstone.
+
+**Adapter contract:**
+
+The backend supports three watcher adapter shapes:
+
+- nats-py canonical: `await kv.watchall()` returning a Shape-2 watcher
+  (`await updates()` yielding next or `None` for end-of-stream).
+- Shape-1 fallback: a native async-iter watcher (`__aiter__` /
+  `__anext__`) raising `StopAsyncIteration` at end-of-stream.
+- nats-py end-of-initial-replay sentinel (`None` between snapshot
+  replay and live tail) is filtered out at the handle layer; consumers
+  do NOT see it.
+
+**Decoder contract (REQUIRED gate ordering on each event):**
+
+1. Read `operation` attribute (or `Mapping["operation"]`); reject
+   missing / unknown values with `SchemaRegistryEnvelopeError`.
+2. Read `key` attribute (or `Mapping["key"]`); reject empty /
+   non-string keys with `SchemaRegistryEnvelopeError`.
+3. Read `revision` attribute (or `Mapping["revision"]`); coerce to
+   `int` (default `0` if missing).
+4. For `PUT`: decode `value` bytes through `_envelope_to_entry`
+   (re-runs the Tag-1 envelope codec gates; a poisoned envelope
+   surfaces `SchemaRegistryEnvelopeError`). For `DELETE` / `PURGE`:
+   `entry` is `None`, no value-decode.
+
+**Determinism contract (Tag-4 invariant):**
+
+- A frozen `InMemorySchemaRegistry` returned from
+  `LiveSchemaSnapshot.as_registry` does NOT mutate when subsequent
+  `apply()` calls arrive. Verifier passes that hold a frozen view
+  observe a stable point-in-time snapshot.
+- `LiveSchemaSnapshot.last_revision` advances monotonically: an
+  event with a revision lower than the current `last_revision` does
+  NOT regress the counter (out-of-order or duplicate events do not
+  corrupt the high-water mark).
+- A poisoned envelope on a `PUT` event raises
+  `SchemaRegistryEnvelopeError` from the iterator; the consumer must
+  drop the `LiveSchemaSnapshot` and re-bootstrap from a fresh
+  `NatsKvSchemaRegistry.snapshot`. Phase-1c does NOT attempt
+  partial-recovery on the stream.
+
+**Phase-1c boundary:**
+
+- The watch-stream is a *consumer* surface; it does NOT replace
+  `snapshot()`. Verifier passes always consume frozen
+  `InMemorySchemaRegistry` views; the watch-stream is the *producer*
+  of those views, not a new verifier substrate.
+- Watch-stream resume-from-revision is a Phase-2 concern; the Tag-4
+  wrapper exposes `WatchEvent.revision` so callers can implement
+  resume policies on top, but the wrapper itself does not bake in
+  any resume contract.
+- Multi-watch federation (one supervisor watching multiple buckets,
+  e.g. routes + schemas) is an integrator concern; each backend
+  exposes its own `watch()` and the integrator composes them.
+
 ## 6. Test inventory
 
 Phase-1b Sprint-3 Tag-1 ships hermetic tests at
@@ -537,19 +698,68 @@ Auxiliary probes:
 Total Tag-3 test additions: 10 primary CAS-pin tests + 2 auxiliary
 probes = 12.
 
+### 6.2 Watch-stream tests (Tag-4, additive over Tag-3)
+
+Phase-1b Sprint-3 Tag-4 ships hermetic watch-stream tests at
+`wirelang/tests/test_schema_registry_watch_stream.py`. Inventory
+T-SR-WS-01..10 plus T-SR-WS-aux probes:
+
+- **T-SR-WS-01:** `watch()` opens a stream and yields one decoded
+  `WatchEvent` per upsert; events carry the correct `op` (`PUT`),
+  `key`, `entry`, and `revision`.
+- **T-SR-WS-02:** a DELETE on the bucket surfaces a DELETE
+  `WatchEvent`; the `entry` field is `None`.
+- **T-SR-WS-03:** `LiveSchemaSnapshot.from_backend` bootstraps from
+  a full snapshot; subsequent `apply(PUT)` updates the live state.
+  An entry present in the bootstrap is preserved.
+- **T-SR-WS-04:** `LiveSchemaSnapshot.apply(DELETE)` removes the
+  key from the live state.
+- **T-SR-WS-05:** A frozen `InMemorySchemaRegistry` returned from
+  `as_registry()` does NOT mutate when subsequent `apply()` calls
+  arrive. The frozen copy preserves the entry-set at the moment of
+  the call. (Determinism contract, the Tag-4 invariant for verifier
+  passes.)
+- **T-SR-WS-06:** A poisoned watch update (non-JSON `value` on
+  `PUT`) raises `SchemaRegistryEnvelopeError` from the iterator and
+  terminates the stream.
+- **T-SR-WS-07:** An update with an unrecognised `operation` kind
+  raises `SchemaRegistryEnvelopeError`.
+- **T-SR-WS-08:** `LiveSchemaSnapshot.last_revision` advances
+  monotonically with each applied event; an out-of-order earlier-
+  revision event does NOT regress the counter.
+- **T-SR-WS-09:** A frozen registry from a watch-fed `LiveSchemaSnapshot`
+  exposes `lookup` / `lookup_by_triple` / `keys_sorted` consistent
+  with a fresh full-bucket snapshot from `backend.snapshot()`. Cross-
+  reference T-SR-05 (full snapshot path).
+- **T-SR-WS-10:** `open_watch_stream` rejects a non-`NatsKvSchemaRegistry`
+  argument with `TypeError`.
+
+Auxiliary probes:
+
+- **T-SR-WS-aux-async-iter:** the watch handle is async-iter
+  compatible with the Shape-1 (native `__aiter__` / `__anext__`)
+  watcher mock. The nats-py end-of-initial-replay `None` sentinel is
+  filtered at the handle layer (consumers do NOT see it).
+- **T-SR-WS-aux-purge-removes:** a `WatchOp.PURGE` event removes the
+  key from the live state identically to `DELETE`.
+
+Total Tag-4 test additions: 10 primary watch-stream tests + 2
+auxiliary probes = 12.
+
 ## 7. Cross-references and Open-Items
 
 - V-908 backend pattern source:
   `wirelang/federation/route_registry_nats_kv_backend.py`.
 - V-908 conflict-error pattern source:
   `RouteRegistryConflictError` in the same module (Tag-3 mirror).
-- V-908 watch-stream pattern source: Tag-6 `LiveSnapshot.from_backend`
-  + `_MockWatcher` (Phase-1c-watch reference).
+- V-908 watch-stream pattern source: Tag-6 `WatchOp` / `WatchEvent` /
+  `LiveSnapshot.from_backend` / `_MockWatcher` in the same module
+  (Tag-4 mirror).
 - Bucket inventory source:
   `scripts/init-nats-buckets.py` `PHASE_1_BUCKETS[0]` (`wakir-schemas`).
 - **Phase-1c CAS-pin: OI-7-Phase-1c-CAS — CONSUMED in Tag-3.**
+- **Phase-1c watch-stream: OI-7-Phase-1c-watch — CONSUMED in Tag-4.**
 - Phase-1c publisher CLI: **OI-7-Phase-1c-publisher** (reserved).
-- Phase-1c watch-stream: **OI-7-Phase-1c-watch** (reserved).
 - Phase-1c cross-bucket replication: **OI-7-Phase-1c-replication**
   (reserved).
 - Phase-2 CAS-quorum: **OI-7-Phase-2-quorum** (reserved).
@@ -585,6 +795,35 @@ itself is still Phase-2.
   (`schemas/<layer>/<name>/<version>`) and does not depend on whether
   multiple versions are simultaneously active.
 - Spec semver bump 0.1.0 → 0.2.0 reflects the additive minor change
+  (M-2 §3.2 versioning policy: minor for additive).
+
+**Tag-4 (v0.3.0) is additive relative to Tag-3 (v0.2.0):**
+
+- All Tag-1 + Tag-3 surfaces remain unchanged. Tag-4 introduces
+  no breaking change to `get` / `put` / `delete` / `list_keys` /
+  `snapshot` / `get_by_triple` / `get_with_revision` /
+  `put_with_revision`. Their contracts are preserved byte-equal.
+- The Tag-4 additions (`watch` / `WatchOp` / `WatchEvent` /
+  `LiveSchemaSnapshot` / `open_watch_stream`) are NEW surfaces.
+  Callers that do not need an incremental view continue to take
+  full snapshots; they are not forced onto the watch-stream path.
+- M-2 conformance (additive-only schema evolution): Tag-4 adds no
+  new envelope fields and modifies no existing field. The on-the-wire
+  envelope schema remains `wakir.wirelang.schema-registry-entry/1`.
+  Watch events carry the same envelope bytes as a full-snapshot
+  read; the decoder is shared (`_envelope_to_entry`).
+- M-4 conformance (multi-version-aware registry): Tag-4 is orthogonal
+  to the version axis; the watch-stream surfaces `WatchEvent` per
+  bucket key (`schemas/<layer>/<name>/<version>`) and does not depend
+  on whether multiple versions are simultaneously active. A
+  `LiveSchemaSnapshot` materialises the same multi-version-aware
+  `InMemorySchemaRegistry` as the full-snapshot path.
+- The synchronous verifier surface (`InMemorySchemaRegistry.lookup`
+  / `lookup_by_triple` / `keys_sorted`) is unchanged. Verifier
+  modules that already consume frozen `InMemorySchemaRegistry`
+  views continue to function unchanged when the producer is a
+  `LiveSchemaSnapshot.as_registry()` instead of `backend.snapshot()`.
+- Spec semver bump 0.2.0 → 0.3.0 reflects the additive minor change
   (M-2 §3.2 versioning policy: minor for additive).
 
 — End of spec —
