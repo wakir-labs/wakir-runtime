@@ -171,4 +171,47 @@ The Tag-17 baseline rows are green on the wiring + verifier side.
 The Bitcoin-anchor rows depend on calendar batch cadence and are
 day-+1 items, mirroring TV-1's Tag-14/15 pattern.
 
+## 8. Tag-22 Bitcoin-anchor close-out (2026-05-07 06:44Z, ~13 h 7 min post-submit)
+
+Re-ran `bash scripts/wat-block-heights-collect.sh .runtime/wat-tv2-archive`
+on **2026-05-07 06:44:13Z** (TV-2 submit was 2026-05-06T17:37:26Z,
+so ~13 h 7 min post-submit). All four hour-receipts of the 4-hour
+chain are finalised, and on every receipt all four calendar branches
+resolved to a Bitcoin block height.
+
+```
+[wat-block-heights] found 4 receipt(s); running ots upgrade on each
+[wat-block-heights] finalised 20260506T173726Z/2026-05-27T00/root.bin.ots heights=948198,948199,948223,948254
+[wat-block-heights] finalised 20260506T173726Z/2026-05-27T01/root.bin.ots heights=948198,948199,948223,948254
+[wat-block-heights] finalised 20260506T173726Z/2026-05-27T02/root.bin.ots heights=948198,948199,948223,948254
+[wat-block-heights] finalised 20260506T173726Z/2026-05-27T03/root.bin.ots heights=948198,948199,948223,948254
+[wat-block-heights] summary: receipts=4 finalised=4 pending=0
+```
+
+Per-receipt full 4-of-4 calendar finalisation:
+
+| hour slot         | finalised heights         | branches |
+| ----------------- | ------------------------- | -------- |
+| 2026-05-27T00     | {948198, 948199, 948223, 948254} | 4/4      |
+| 2026-05-27T01     | {948198, 948199, 948223, 948254} | 4/4      |
+| 2026-05-27T02     | {948198, 948199, 948223, 948254} | 4/4      |
+| 2026-05-27T03     | {948198, 948199, 948223, 948254} | 4/4      |
+
+This is the **first full 4-of-4 calendar-branch Bitcoin
+finalisation** in the Sprint-1 Live-Run dataset (TV-1 Section-5
+remains 1/4 long-tail; TV-2 4-of-4 closed first at the ~13 h mark).
+The set of distinct block heights `{948198, 948199, 948223, 948254}`
+spans roughly 56 blocks (~9 h on the May-2026 chain tip), consistent
+with public-OTS-calendar batch cadence.
+
+### Acceptance recap update vs. §5 (Tag-22)
+
+| acceptance criterion                                                       | status                                                |
+| -------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Each hour resolves at least one `BitcoinBlockHeaderAttestation`            | **yes** (4-of-4 hour slots, 4-of-4 calendar branches) |
+| Verify-CLI `--chain-check` exit 0 once batches land                        | unblocked — runner-host can now exercise this; queued for Tag-23 spot-check |
+
+The TV-2 row "Each hour resolves at least one `BitcoinBlockHeaderAttestation`"
+is now **green at Tag-22**, completing the day-+1 pending row from §7.
+
 — Tomás

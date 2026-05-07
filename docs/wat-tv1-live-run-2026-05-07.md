@@ -357,6 +357,39 @@ calendar branches finalised**, unchanged from Tag-15 through Tag-20.
 We are still well inside the typical 24-72 h Bitcoin batch-cadence
 corridor.
 
+### Tag-22 re-check (2026-05-07 06:44Z, ~15 h 45 min post-submit)
+
+Re-ran the same harness on **2026-05-07 06:44:00Z**
+(~15 h 45 min post-submit) for the Tag-22 long-tail data point.
+Box runs ~17.5 h after the Tag-15-Section-5 submit (the Tag-11
+calendar funding traffic is older but the Section-5 receipt is
+the active artefact under observation).
+
+```
+[wat-block-heights] found 1 receipt(s); running ots upgrade on each
+[wat-block-heights] finalised root.bin.ots heights=948183
+[wat-block-heights] summary: receipts=1 finalised=1 pending=0
+```
+
+Per-calendar status from `ots info` at **2026-05-07 06:44Z** (Tag-22):
+
+| calendar                                    | status                              |
+| ------------------------------------------- | ----------------------------------- |
+| bob.btc.calendar.opentimestamps.org         | finalised -> block **948183** (Tag-14) |
+| alice.btc.calendar.opentimestamps.org       | still pending                       |
+| btc.calendar.catallaxy.com                  | still pending                       |
+| finney.calendar.eternitywall.com            | still pending                       |
+
+Long-tail status at Tag-22 (~15 h 45 min post-submit) is still **1/4
+calendar branches finalised**, unchanged from Tag-15 through Tag-21.
+The Tag-22 box-execution time at 06:44Z is **earlier** than the
+~24 h checkpoint anticipated in the Section-5b schedule (which
+planned for ~14:00Z); the data point is therefore the lower bound
+of the 24 h re-check window. The 24 h checkpoint proper falls in
+the next box (Tag-23 morning) at which point a fresh harness run
+can repeat. Still well inside the typical 24-72 h Bitcoin batch-
+cadence corridor.
+
 ### Section 5b — Long-tail full table (deferred to Tag-23)
 
 The Tag-21 brief assumed the box would execute at ~46-48 h post-
