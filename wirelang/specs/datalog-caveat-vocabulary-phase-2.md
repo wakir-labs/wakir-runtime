@@ -438,6 +438,59 @@ Test coverage:
 `wirelang/tests/test_federation_n2_evaluator.py` — 14 tests
 green (T-N2-01..10 plus 4 sanity probes).
 
+### 5.6 Phase-1b NATS-KV backend implementation note (informative)
+
+Phase-1b Sprint-2 Tag-4 (S2-3) lands the production-target backend
+for the V-908 federation-route registry as
+`wirelang/federation/route_registry_nats_kv_backend.py`. The Tag-3
+N2 evaluator reserved `RouteRegistry` as a Protocol; this backend
+supplies the durable form (item I-11 vocabulary). The Tag-3 module
+surface is unchanged.
+
+Module surface:
+
+- `BUCKET_NAME = "wakir-federation-routes"` — the Phase-1b NATS-KV
+  bucket name. Cross-reference: the orchestrator bucket-init
+  inventory (`scripts/init-nats-buckets.py` `PHASE_1_BUCKETS`).
+- `BUCKET_CONFIG` — documented configuration mapping (history=5,
+  ttl_seconds=0, max_value_size=4096 B, storage=file, replicas=1).
+  The drift-policy follows the same contract as the four Phase-1
+  buckets: any deviation between the live cluster and these
+  values is reported as drift, never auto-corrected.
+- `VALUE_SCHEMA = "wakir.federation.route-registry-entry/1"` —
+  embedded in every value envelope.
+- `NatsKvRouteRegistry(kv, bucket_name=BUCKET_NAME)` — async
+  backend with `get` / `put` / `delete` / `snapshot`.
+- `RouteRegistryEnvelopeError`, `RouteRegistryConflictError`,
+  `RouteRegistryBackendError` — typed errors.
+
+Synchronous-evaluator bridge:
+
+The N2 evaluator's `RouteRegistry` Protocol is synchronous. The
+NATS-KV backend is async. The bridge is `snapshot()`: it
+materialises the live bucket into an `InMemoryRouteRegistry`
+which is then passed into a `FederationContext`. Per token, the
+caller takes one snapshot and passes it through a single
+evaluator pass; the determinism contract T-N2-10 is preserved
+because the evaluator queries a frozen view, not the live KV.
+
+Phase-1b boundary (informative):
+
+- The bucket is single-node (replicas=1). Phase-2 will raise
+  this to a multi-node KV with consistency guarantees.
+- The orchestrator must register `BUCKET_NAME` in the
+  `init-nats-buckets` driver before any production deployment;
+  the backend assumes the bucket exists and is configured per
+  `BUCKET_CONFIG`. The backend itself does NOT auto-create or
+  auto-correct.
+- Snapshot is full-bucket. Phase-2 may add a watch-based
+  incremental snapshot; the synchronous-bridge contract makes
+  the swap source-compatible.
+
+Test coverage:
+`wirelang/tests/test_federation_route_registry_nats_kv_backend.py`
+— 13 tests green (T-NKV-01..10 plus 3 sanity probes).
+
 ## 6. TV-W-2 Pin-Stability Guarantee
 
 TV-W-2 (`wirelang/specs/wirelang-tv-strategy.md` §2) pins three
