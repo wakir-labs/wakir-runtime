@@ -500,6 +500,36 @@ is informative only.
 
 ## 11. Change log
 
+- **2026-05-07 (Sprint-3 Tag-2):** Real-manifest live-run validation
+  cohort landed. The four hour-receipts produced by the TV-2
+  multi-hour audit-trail run (2026-05-06; submit
+  2026-05-06T17:37:26Z, close-out 2026-05-07T06:44:13Z, four
+  hour-slots `2026-05-27T00..T03`, all four OpenTimestamps calendar
+  branches finalised on each receipt within ~13 h) are committed
+  under `tests/fixtures/wat-tv2-real/` as the canonical
+  Bitcoin-anchored reference cohort. Each hour-receipt directory
+  carries the production triple `manifest.json` + `root.bin` (32
+  bytes equal to `bytes.fromhex(merkle_root)`) + `root.bin.ots`.
+  New test module `tests/wat/test_tv2_real_manifest_live_run.py`
+  (17 tests) asserts: per-hour `verify_real_manifest_file
+  (use_schema_file=True, check_ots_anchor=True)` returns fully
+  green; the formal v1 JSON-Schema accepts each hour-manifest
+  directly; `root.bin` matches the `merkle_root` field;
+  cross-hour `prev_hour_root` chain is contiguous (T00 is genesis
+  with `prev_hour_root: null`, T01..T03 each chain back); two
+  negative-path tests against mutated copies of the T00 fixture
+  exercise the integrity-rebuild and schema-enum reject paths.
+  Driver `scripts/external_verifier_validation.py` gains
+  `--real-tv2` mode that wraps the four real manifests as
+  accept-vectors, runs them through both schema-side validators
+  AND the `verify_real_manifest_file` pipeline (with
+  OTS-side-file smoke), and asserts cross-tool parity plus
+  pipeline-green. This is the acceptance evidence for the
+  Phase-1b→1c criterion that the v1 schema-file plumbing accepts
+  artefacts produced by the production aggregator against real
+  Bitcoin-anchored side-files, not only hand-authored synthetic
+  vectors. Test-suite delta +17 (261 → 278). Cross-tool parity on
+  the four real hour-receipts: clean.
 - **2026-05-07 (Sprint-3 Tag-1):** External-verifier validation
   substrate landed. The formal v1 schema file
   `wirelang/schemas/wakir-wat-manifest-v1.json` is now exercised by

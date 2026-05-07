@@ -62,6 +62,19 @@ SCHEMA_PATH = REPO_ROOT / "wirelang" / "schemas" / "wakir-wat-manifest-v1.json"
 AJV_TOOL_DIR = REPO_ROOT / "tooling" / "external-verifier-ajv"
 DEFAULT_VECTORS = AJV_TOOL_DIR / "test-vectors.json"
 
+#: Real-manifest fixture cohort used by ``--real-tv2``. Each entry is
+#: an hour-receipt directory carrying ``manifest.json`` + ``root.bin``
+#: + ``root.bin.ots``. The four hours together form the TV-2
+#: Bitcoin-anchored multi-hour reference run committed to the repo
+#: in Sprint-3 Tag-2.
+TV2_FIXTURE_ROOT = REPO_ROOT / "tests" / "fixtures" / "wat-tv2-real"
+TV2_HOUR_SLOTS: tuple[str, ...] = (
+    "2026-05-27T00",
+    "2026-05-27T01",
+    "2026-05-27T02",
+    "2026-05-27T03",
+)
+
 
 # ---------------------------------------------------------------------------
 # Validators
@@ -216,6 +229,85 @@ def compare_reports(py: dict, node: dict | None) -> tuple[bool, list[str]]:
 
 
 # ---------------------------------------------------------------------------
+# Real-TV-2 mode
+# ---------------------------------------------------------------------------
+
+
+def load_tv2_real_vectors() -> list[dict]:
+    """Load the four TV-2 real-manifest hour-receipts as accept-vectors.
+
+    The vectors carry ``expect="accept"`` and a ``manifest`` field
+    matching the on-disk JSON; the ajv side feeds them through the
+    same v1-schema validator that exercises the synthetic test-set.
+    """
+    vectors: list[dict] = []
+    for slot in TV2_HOUR_SLOTS:
+        manifest_path = TV2_FIXTURE_ROOT / slot / "manifest.json"
+        if not manifest_path.exists():
+            raise SystemExit(
+                f"TV-2 real-manifest fixture missing: {manifest_path}. "
+                "Run from a repo with the wat-tv2-real fixtures committed."
+            )
+        with manifest_path.open("r", encoding="utf-8") as fh:
+            manifest = json.load(fh)
+        vectors.append(
+            {
+                "name": f"tv2-real-{slot}",
+                "expect": "accept",
+                "manifest": manifest,
+            }
+        )
+    return vectors
+
+
+def run_real_manifest_pipeline(
+    *, check_ots_anchor: bool = True, use_schema_file: bool = True
+) -> dict:
+    """Run ``verify_real_manifest_file`` against each TV-2 hour.
+
+    Returns a report dict in the same shape as the schema-side reports
+    so the entry-point can render parity output uniformly.
+    """
+    from wat.verify.manifest_v2 import verify_real_manifest_file
+
+    report = {
+        "tool": "wat.verify.manifest_v2.verify_real_manifest_file",
+        "schema_id": None,
+        "total": len(TV2_HOUR_SLOTS),
+        "matched": 0,
+        "mismatched": 0,
+        "results": [],
+    }
+    for slot in TV2_HOUR_SLOTS:
+        manifest_path = TV2_FIXTURE_ROOT / slot / "manifest.json"
+        result = verify_real_manifest_file(
+            manifest_path,
+            check_ots_anchor=check_ots_anchor,
+            use_schema_file=use_schema_file,
+        )
+        verdict = "accept" if result.ok else "reject"
+        matched = result.ok  # expect-accept on production hour-receipts
+        if matched:
+            report["matched"] += 1
+        else:
+            report["mismatched"] += 1
+        report["results"].append(
+            {
+                "name": f"tv2-real-{slot}",
+                "expect": "accept",
+                "verdict": verdict,
+                "matched": matched,
+                "fields_ok": result.fields_ok,
+                "integrity_ok": result.integrity_ok,
+                "ots_anchor_ok": result.ots_anchor.ok,
+                "failure_reason": result.failure_reason,
+                "version": result.version,
+            }
+        )
+    return report
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -248,21 +340,52 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="suppress the per-vector verdict table",
     )
+    parser.add_argument(
+        "--real-tv2",
+        action="store_true",
+        help=(
+            "live-run the TV-2 real-manifest fixture cohort "
+            "(tests/fixtures/wat-tv2-real/) through both the schema-file "
+            "validators AND the verify_real_manifest_file pipeline; "
+            "all four hour-receipts must accept on every configured side"
+        ),
+    )
     args = parser.parse_args(argv)
 
     if args.python_only and args.node_only:
         print("--python-only and --node-only are mutually exclusive", file=sys.stderr)
         return 2
 
-    if not args.vectors.exists():
-        print(f"vectors file not found: {args.vectors}", file=sys.stderr)
-        return 2
     if not SCHEMA_PATH.exists():
         print(f"schema file not found: {SCHEMA_PATH}", file=sys.stderr)
         return 2
 
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
-    vectors = json.loads(args.vectors.read_text(encoding="utf-8"))
+
+    if args.real_tv2:
+        # In --real-tv2 mode the vectors source is the on-disk fixture
+        # cohort; the synthetic vectors file is not consulted. The
+        # real-manifest pipeline runs in addition to the schema-file
+        # validators so we cover both code paths against the same
+        # production manifests.
+        vectors = load_tv2_real_vectors()
+        # Persist the wrapped vectors to a tmp-file so the Node.js
+        # side can read them; the synthetic test-vectors.json shape
+        # is identical so no driver-side changes are needed.
+        import tempfile
+
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", prefix="tv2-real-vectors-", delete=False
+        )
+        json.dump(vectors, tmp)
+        tmp.close()
+        vectors_path = Path(tmp.name)
+    else:
+        if not args.vectors.exists():
+            print(f"vectors file not found: {args.vectors}", file=sys.stderr)
+            return 2
+        vectors = json.loads(args.vectors.read_text(encoding="utf-8"))
+        vectors_path = args.vectors
 
     if not isinstance(vectors, list):
         print("vectors file must contain a JSON array", file=sys.stderr)
@@ -274,7 +397,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.node_only:
         py_report = run_python_validator(schema, vectors)
     if not args.python_only:
-        node_report = run_node_validator(args.vectors)
+        node_report = run_node_validator(vectors_path)
         if node_report is None and args.require_node:
             print(
                 "node validator unavailable (no `node` on PATH or "
@@ -284,6 +407,12 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 2
 
+    real_pipeline_report: dict[str, Any] | None = None
+    if args.real_tv2:
+        real_pipeline_report = run_real_manifest_pipeline(
+            check_ots_anchor=True, use_schema_file=True
+        )
+
     # Render
     if not args.quiet:
         if py_report is not None:
@@ -292,6 +421,11 @@ def main(argv: list[str] | None = None) -> int:
             _render_report("node (ajv)", node_report)
         elif not args.python_only:
             print("node side: SKIPPED (validator unavailable)")
+        if real_pipeline_report is not None:
+            _render_report(
+                "wat.verify.manifest_v2.verify_real_manifest_file",
+                real_pipeline_report,
+            )
 
     # Verdict
     fail = False
@@ -318,9 +452,38 @@ def main(argv: list[str] | None = None) -> int:
             for d in diffs:
                 print(f"  {d}", file=sys.stderr)
         else:
+            label = (
+                "real-tv2 cross-tool"
+                if args.real_tv2
+                else "cross-tool"
+            )
             print(
-                f"cross-tool parity OK ({py_report['total']} vectors, "
+                f"{label} parity OK ({py_report['total']} vectors, "
                 "verdicts agree)"
+            )
+
+    if real_pipeline_report is not None:
+        if real_pipeline_report["mismatched"] > 0:
+            fail = True
+            print(
+                f"verify_real_manifest_file: "
+                f"{real_pipeline_report['mismatched']} of "
+                f"{real_pipeline_report['total']} hour-receipts failed",
+                file=sys.stderr,
+            )
+            for r in real_pipeline_report["results"]:
+                if not r["matched"]:
+                    print(
+                        f"  {r['name']}: fields={r['fields_ok']} "
+                        f"integrity={r['integrity_ok']} "
+                        f"ots={r['ots_anchor_ok']} "
+                        f"reason={r['failure_reason']!r}",
+                        file=sys.stderr,
+                    )
+        else:
+            print(
+                f"verify_real_manifest_file pipeline OK "
+                f"({real_pipeline_report['total']} hour-receipts, all green)"
             )
 
     return 1 if fail else 0
