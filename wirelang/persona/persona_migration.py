@@ -170,21 +170,45 @@ def _coerce_to_dict(
     - ``str``: raw markdown text (heuristic — strings starting with
       ``---`` are treated as raw markdown; everything else is rejected
       to keep the call-site explicit).
+
+    Defensive posture (Sprint-2 Tag-2 S2-T1-03):
+    Front-matter parse failures from
+    :mod:`wirelang.persona.persona_canonical_form` (missing fence,
+    malformed YAML, non-mapping) are re-wrapped as
+    :class:`PersonaMigrationError` so call-sites only need to import
+    one converter-error class. The original exception is chained via
+    ``__cause__`` for forensic inspection.
     """
     if isinstance(definition, dict):
         return copy.deepcopy(definition)
     if isinstance(definition, Path):
-        text = definition.read_text(encoding="utf-8")
-        fm, _body = split_frontmatter(text)
-        return parse_frontmatter(fm)
+        try:
+            text = definition.read_text(encoding="utf-8")
+            fm, _body = split_frontmatter(text)
+            return parse_frontmatter(fm)
+        except (
+            PersonaFrontmatterMissingError,
+            PersonaFrontmatterMalformedError,
+        ) as exc:
+            raise PersonaMigrationError(
+                f"persona-definition at {definition} is irreparable: {exc}"
+            ) from exc
     if isinstance(definition, str):
         if not definition.startswith("---"):
             raise PersonaMigrationError(
                 "raw-markdown input must start with a '---' YAML "
                 "front-matter fence; pass a Path or a dict otherwise"
             )
-        fm, _body = split_frontmatter(definition)
-        return parse_frontmatter(fm)
+        try:
+            fm, _body = split_frontmatter(definition)
+            return parse_frontmatter(fm)
+        except (
+            PersonaFrontmatterMissingError,
+            PersonaFrontmatterMalformedError,
+        ) as exc:
+            raise PersonaMigrationError(
+                f"raw-markdown persona-definition is irreparable: {exc}"
+            ) from exc
     raise TypeError(
         "migrate_persona expects dict | str | Path, got "
         f"{type(definition).__name__}"
@@ -218,13 +242,16 @@ def migrate_persona(
     Raises:
         PersonaMigrationError: when the chain cannot be resolved
             (unknown source, unknown target, no path, suspected cycle,
-            or invalid raw-markdown shape).
+            invalid raw-markdown shape, missing/malformed front-matter,
+            or non-string ``schema_version``). Front-matter parse
+            failures from
+            :mod:`wirelang.persona.persona_canonical_form` are
+            re-wrapped here with ``__cause__`` chained.
         PersonaMigrationDeterminismError: when the optional post-pin
             disagrees with the freshly-computed hash.
-        PersonaFrontmatterMissingError / PersonaFrontmatterMalformedError:
-            when ``definition`` is a markdown source that cannot be
-            parsed (re-raised from
-            :mod:`wirelang.persona.persona_canonical_form`).
+        TypeError: when ``definition`` is not ``dict | str | Path``.
+        FileNotFoundError: when a :class:`~pathlib.Path` input does
+            not exist on disk.
     """
     fm_dict = _coerce_to_dict(definition)
 
