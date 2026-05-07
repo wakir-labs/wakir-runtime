@@ -89,7 +89,39 @@ The :meth:`NatsKvSchemaRegistry.put` method enforces at write time:
 3. The KV key derived from the entry's triple matches the explicit
    key (defence in depth against mis-keying).
 
-These gates keep poisoned envelopes off the bucket.
+These gates keep poisoned envelopes off the bucket. The Phase-1c
+:meth:`NatsKvSchemaRegistry.put_with_revision` CAS-pin path runs the
+same three gates BEFORE the revision-pin call (see Phase-1c CAS-pin
+contract below).
+
+Phase-1c CAS-pin contract (Sprint-3 Tag-3, OI-7-Phase-1c-CAS)
+-------------------------------------------------------------
+
+Lost-update protection for concurrent schema upserts is added in
+Phase-1c via :meth:`NatsKvSchemaRegistry.put_with_revision` and
+:meth:`NatsKvSchemaRegistry.get_with_revision`. The pair implements
+the canonical compare-and-swap idiom:
+
+1. Caller reads ``(entry, observed_revision) = get_with_revision(key)``.
+2. Caller mutates the entry locally, recomputes the ``schema_body_sha256``
+   anchor.
+3. Caller writes via ``put_with_revision(new_entry, observed_revision)``.
+4. The backend forwards ``observed_revision`` to the underlying NATS-KV
+   ``update(key, value, last=observed_revision)`` call. If the live
+   revision has advanced (concurrent writer landed first), the call
+   raises :class:`SchemaRegistryConflictError` with the expected and
+   actual revisions; the caller can re-read and retry.
+
+The CAS-pin is a Phase-1c addition: the substrate to support it
+(revision integer threading through the KV adapter, conflict-class
+name detection) was already present in the V-908 Tag-4 backend
+pattern; Phase-1b Sprint-3 Tag-3 lands the schema-registry side of
+the same surface. The :class:`SchemaRegistryConflictError` mirrors
+the V-908 :class:`RouteRegistryConflictError`.
+
+Phase-2 hardening on top of Phase-1c CAS-pin (out of scope for
+Tag-3): replication-aware quorum upserts, deprecation policy with
+overlapping-validity windows, IPFS-anchored schema-document hashes.
 
 Hermetic test contract
 ----------------------
@@ -174,6 +206,45 @@ class SchemaRegistryValidationError(SchemaRegistryBackendError):
     """Raised when a write-time validation gate fails (schema-id
     mismatch, body-hash mismatch, or key-triple mismatch).
     """
+
+
+class SchemaRegistryConflictError(SchemaRegistryBackendError):
+    """Raised when a CAS-pinned upsert is rejected because the live KV
+    revision has drifted from the caller's expected revision.
+
+    Phase-1c CAS-pin contract (Sprint-3 Tag-3, OI-7-Phase-1c-CAS).
+
+    The caller of :meth:`NatsKvSchemaRegistry.put_with_revision`
+    declares the revision it observed when it last read the entry.
+    The backend forwards that revision to the underlying NATS-KV
+    ``update`` call. If the live revision has advanced (concurrent
+    writer landed first), the underlying KV layer raises a
+    nats-py-flavoured ``KeyWrongLastSequenceError`` (or any error whose
+    class name contains ``WrongLastSequence`` or ``Conflict``); the
+    backend translates that into this typed exception.
+
+    Carries the observed ``key``, ``expected_revision``, and (when
+    available) the ``actual_revision`` reported by the underlying
+    layer. ``actual_revision`` is ``None`` if the KV adapter does not
+    surface it; callers can re-read the entry and retry.
+
+    Mirror of :class:`RouteRegistryConflictError` from the V-908
+    backend (``wirelang/federation/route_registry_nats_kv_backend.py``)
+    extended into a fully-implemented CAS-pin surface here.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        key: Optional[str] = None,
+        expected_revision: Optional[int] = None,
+        actual_revision: Optional[int] = None,
+    ) -> None:
+        super().__init__(message)
+        self.key = key
+        self.expected_revision = expected_revision
+        self.actual_revision = actual_revision
 
 
 # ---------------------------------------------------------------------------
@@ -529,6 +600,42 @@ class NatsKvSchemaRegistry:
             return None
         return await self.get(key)
 
+    async def get_with_revision(
+        self, key: str
+    ) -> Optional[tuple[SchemaRegistryEntry, int]]:
+        """Return ``(entry, revision)`` for ``key`` or ``None``.
+
+        Phase-1c CAS-pin helper: the revision is the same integer that
+        :meth:`put_with_revision` expects as ``expected_revision``.
+
+        The implementation reuses the same KV adapter path as
+        :meth:`get`; the revision is read from the KV entry handle's
+        ``.revision`` attribute (nats-py shape) or from a ``revision``
+        key on a Mapping-shaped entry.
+
+        Raises :class:`SchemaRegistryEnvelopeError` if the value is
+        unparseable, identical to :meth:`get`.
+        """
+        if not isinstance(key, str) or not key:
+            return None
+        try:
+            kve = await self.kv.get(key)
+        except Exception as exc:
+            cls_name = type(exc).__name__
+            if (
+                "NotFound" in cls_name
+                or "DoesNotExist" in cls_name
+                or isinstance(exc, KeyError)
+            ):
+                return None
+            raise
+        if kve is None:
+            return None
+        blob = _coerce_value_bytes(kve)
+        entry = _envelope_to_entry(blob)
+        revision = _coerce_revision_from_entry(kve)
+        return entry, revision
+
     async def put(self, entry: SchemaRegistryEntry) -> int:
         """Upsert an entry; returns the new KV revision number.
 
@@ -562,6 +669,71 @@ class NatsKvSchemaRegistry:
         key = entry.key
         blob = _entry_to_envelope(entry)
         revision = await self.kv.put(key, blob)
+        return _coerce_revision(revision)
+
+    async def put_with_revision(
+        self, entry: SchemaRegistryEntry, expected_revision: int
+    ) -> int:
+        """CAS-pinned upsert. Returns the new KV revision number.
+
+        Phase-1c CAS-pin (Sprint-3 Tag-3, OI-7-Phase-1c-CAS).
+
+        Lost-update protection contract:
+
+        - The caller observed ``expected_revision`` when it last read
+          the entry (via :meth:`get_with_revision`).
+        - This method forwards ``expected_revision`` to the underlying
+          NATS-KV ``update(key, value, last=expected_revision)`` call.
+        - If the live revision has advanced since the caller's read
+          (a concurrent writer landed first), the underlying layer
+          raises a ``KeyWrongLastSequenceError`` (nats-py shape) or
+          analogous ``ConflictError``. The backend translates that
+          into :class:`SchemaRegistryConflictError`.
+
+        For an entry that does not yet exist in the bucket, callers
+        MUST use :meth:`put` (which has last-write-wins semantics).
+        ``put_with_revision`` with ``expected_revision == 0`` is
+        reserved for the create-if-absent case but only succeeds if
+        the underlying KV adapter supports the
+        ``KeyValue.create(key, value)`` contract; if the adapter does
+        not surface that semantic, the call raises
+        :class:`SchemaRegistryConflictError`.
+
+        Validation gates (identical to :meth:`put`):
+
+        1. ``entry.schema_id == entry.schema_body["$id"]``.
+        2. ``entry.schema_body_sha256 == sha256(jcs(schema_body))``.
+        3. Triple-derived key matches the entry.
+
+        These run BEFORE the revision-pin call so that a malformed
+        envelope cannot leave the validation surface even if the
+        revision happened to be stale.
+        """
+        if not isinstance(entry, SchemaRegistryEntry):
+            raise TypeError("entry must be a SchemaRegistryEntry")
+        if not isinstance(expected_revision, int) or expected_revision < 0:
+            raise ValueError(
+                "expected_revision must be a non-negative int, "
+                f"got {expected_revision!r}"
+            )
+        # Same validation gates as put. CAS does NOT relax them.
+        body_id = entry.schema_body.get("$id")
+        if body_id != entry.schema_id:
+            raise SchemaRegistryValidationError(
+                f"envelope schema_id {entry.schema_id!r} does not match "
+                f"schema_body.$id {body_id!r}"
+            )
+        recomputed = schema_body_sha256(entry.schema_body)
+        if recomputed != entry.schema_body_sha256:
+            raise SchemaRegistryValidationError(
+                f"envelope schema_body_sha256 {entry.schema_body_sha256!r} "
+                f"does not match recomputed {recomputed!r}"
+            )
+        key = entry.key
+        blob = _entry_to_envelope(entry)
+        revision = await _kv_update_with_revision(
+            self.kv, key, blob, expected_revision
+        )
         return _coerce_revision(revision)
 
     async def delete(self, key: str) -> None:
@@ -656,6 +828,115 @@ def _coerce_revision(rv: Any) -> int:
     if revision is None:
         return 0
     return int(revision)
+
+
+def _coerce_revision_from_entry(kve: Any) -> int:
+    """Read the revision integer from a KV entry handle.
+
+    nats-py exposes ``kve.revision``; some mocks expose the same field
+    on a Mapping-shaped entry. A missing revision is returned as ``0``
+    (sentinel for "create-if-absent" CAS contract) but the caller
+    should normally observe a positive revision because it just read
+    the entry from the bucket.
+    """
+    if isinstance(kve, (bytes, bytearray)):
+        return 0
+    revision = getattr(kve, "revision", None)
+    if revision is None and isinstance(kve, Mapping):
+        revision = kve.get("revision")
+    if revision is None:
+        return 0
+    return int(revision)
+
+
+_CONFLICT_CLS_MARKERS = (
+    "WrongLastSequence",
+    "Conflict",
+    "RevisionMismatch",
+)
+
+
+async def _kv_update_with_revision(
+    kv: Any,
+    key: str,
+    value: bytes,
+    expected_revision: int,
+) -> Any:
+    """CAS-pinned KV write.
+
+    nats-py exposes ``KeyValue.update(key, value, last=revision)``
+    which raises ``KeyWrongLastSequenceError`` if the live revision
+    differs. We accept three KV adapter shapes here:
+
+    1. ``kv.update(key, value, last=revision)`` — the canonical
+       nats-py shape.
+    2. ``kv.update(key, value, expected_revision)`` — positional
+       fallback for mocks.
+    3. ``kv.put(key, value, expected_revision=...)`` — keyword
+       fallback for mocks that overload ``put``.
+
+    On conflict (any exception whose class name carries one of the
+    markers in :data:`_CONFLICT_CLS_MARKERS`), the function raises
+    :class:`SchemaRegistryConflictError` with the observed metadata.
+    """
+    update = getattr(kv, "update", None)
+    if update is not None:
+        try:
+            try:
+                return await update(key, value, last=expected_revision)
+            except TypeError:
+                # Mock that doesn't accept the ``last`` keyword.
+                return await update(key, value, expected_revision)
+        except Exception as exc:
+            if _is_conflict_exception(exc):
+                actual = _extract_actual_revision(exc)
+                raise SchemaRegistryConflictError(
+                    f"CAS-pin rejected for key {key!r}: "
+                    f"expected_revision={expected_revision}, "
+                    f"actual_revision={actual}",
+                    key=key,
+                    expected_revision=expected_revision,
+                    actual_revision=actual,
+                ) from exc
+            raise
+    # Fallback: try put with kwarg.
+    try:
+        return await kv.put(key, value, expected_revision=expected_revision)
+    except TypeError as exc:
+        raise SchemaRegistryBackendError(
+            "KV adapter has neither .update(last=...) nor "
+            ".put(expected_revision=...); CAS-pin not supported"
+        ) from exc
+    except Exception as exc:
+        if _is_conflict_exception(exc):
+            actual = _extract_actual_revision(exc)
+            raise SchemaRegistryConflictError(
+                f"CAS-pin rejected for key {key!r}: "
+                f"expected_revision={expected_revision}, "
+                f"actual_revision={actual}",
+                key=key,
+                expected_revision=expected_revision,
+                actual_revision=actual,
+            ) from exc
+        raise
+
+
+def _is_conflict_exception(exc: BaseException) -> bool:
+    """True if ``exc``'s class name matches a CAS-conflict marker."""
+    cls_name = type(exc).__name__
+    return any(marker in cls_name for marker in _CONFLICT_CLS_MARKERS)
+
+
+def _extract_actual_revision(exc: BaseException) -> Optional[int]:
+    """Pull an actual-revision integer off a conflict exception, if
+    the underlying KV adapter surfaces one. Best-effort, returns
+    ``None`` when not available.
+    """
+    for attr in ("actual_revision", "actual", "revision", "last"):
+        value = getattr(exc, attr, None)
+        if isinstance(value, int):
+            return value
+    return None
 
 
 async def _list_keys(kv: Any) -> list:

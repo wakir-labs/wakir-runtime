@@ -9,14 +9,21 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wirelang-schema-registry
-version: 0.1.0
+version: 0.2.0
 status: draft
 date: 2026-05-07
 audience: implementers, integrators, operators
 license: CC-BY-4.0
 ---
 
-# Wirelang Schema Registry — NATS-KV Backend Specification (v0.1.0)
+# Wirelang Schema Registry — NATS-KV Backend Specification (v0.2.0)
+
+**Change log**
+
+| Version | Date       | Change                                                 |
+|---------|------------|--------------------------------------------------------|
+| 0.1.0   | 2026-05-07 | Initial draft (Phase-1b Sprint-3 Tag-1).               |
+| 0.2.0   | 2026-05-07 | Phase-1c CAS-pin contract reclassified from Phase-2 to Phase-1c and lands in Tag-3 (`put_with_revision` / `get_with_revision` / `SchemaRegistryConflictError`); §5.3 Phase-1c-Slot consumed; §5.4 added. Additive-only change relative to v0.1.0; M-2 / M-4 conformance preserved. |
 
 This specification defines the Wakir Wirelang **Schema Registry**: a
 persistent, drift-aware store for the JSON-Schema documents that
@@ -77,22 +84,41 @@ JCS-canonical envelope that is byte-stable for audit anchoring.
 - Bucket-config drift-test against Kai's `wakir-schemas` inventory
   entry (cross-reference test).
 
-**Phase-1c (out of scope here):**
+**Phase-1b Sprint-3 Tag-3 (this revision, additive over Tag-1):**
+
+- The CAS-pin upsert path
+  (`NatsKvSchemaRegistry.put_with_revision` /
+  `get_with_revision`) — Phase-1c reclassification of the Tag-1
+  Phase-2 reservation, lands here as
+  **OI-7-Phase-1c-CAS** (consumed).
+- The `SchemaRegistryConflictError` typed exception for lost-update
+  rejection.
+- 8-12 hermetic determinism tests for the CAS-pin path
+  (T-SR-CAS-01..10).
+
+**Phase-1c (still out of scope, reserved):**
 
 - The publisher CLI that pushes module-shipped schemas onto the
-  bucket on operator command.
+  bucket on operator command (**OI-7-Phase-1c-publisher** reserved).
 - The watch-stream consumer that materialises a `LiveSnapshot`-like
-  registry for long-running supervisors.
-- Cross-bucket schema replication for multi-region clusters.
+  registry for long-running supervisors
+  (**OI-7-Phase-1c-watch** reserved).
+- Cross-bucket schema replication for multi-region clusters
+  (**OI-7-Phase-1c-replication** reserved).
 
 **Phase-2 (out of scope here):**
 
-- CAS-revision-pinned upserts (anti-clobber under concurrent edits).
+- CAS-quorum upserts on top of multi-replica clusters (extension of
+  the Tag-3 single-replica CAS-pin to replicated clusters).
 - Schema-deprecation policy with overlapping-validity windows.
 - IPFS-anchored schema-document hashes.
+- Envelope-side signature with AIP-id-tied `registered_by`.
 
-The Phase-1c and Phase-2 items are reserved as **OI-7-Phase-2..4**
-in the Phase-1b backlog; this document does not implement them.
+The reserved Phase-1c items above are tracked as
+**OI-7-Phase-1c-publisher / -watch / -replication** in the Phase-1b
+backlog; the Phase-2 items as **OI-7-Phase-2-quorum / -deprecation /
+-ipfs / -sig**. Tag-3 consumes the **OI-7-Phase-1c-CAS** slot only;
+the other three Phase-1c slots remain reserved.
 
 ## 2. Bucket identity (cross-reference Kai inventory)
 
@@ -261,7 +287,13 @@ class NatsKvSchemaRegistry:
     async def get_by_triple(
         self, layer: str, name: str, version: str
     ) -> Optional[SchemaRegistryEntry]: ...
+    async def get_with_revision(                         # Phase-1c (Tag-3)
+        self, key: str
+    ) -> Optional[tuple[SchemaRegistryEntry, int]]: ...
     async def put(self, entry: SchemaRegistryEntry) -> int: ...
+    async def put_with_revision(                         # Phase-1c (Tag-3)
+        self, entry: SchemaRegistryEntry, expected_revision: int
+    ) -> int: ...
     async def delete(self, key: str) -> None: ...
     async def list_keys(self) -> list[str]: ...
     async def snapshot(self) -> InMemorySchemaRegistry: ...
@@ -295,16 +327,132 @@ These gates protect the determinism contract: a poisoned or
 mis-anchored envelope cannot reach the bucket through the typed
 backend.
 
-### 5.3 What Phase-1b does NOT do
+### 5.3 What Phase-1b Sprint-3 Tag-1 + Tag-3 covers, and what Phase-1c / Phase-2 still does NOT do
 
-- No CAS-revision-pinned upsert (`put_with_revision` reserved for
-  Phase-2; OI-7-Phase-2 slot).
-- No watch-stream surface (Phase-1c; OI-7-Phase-1c slot).
-- No automatic schema-document loading from the on-disk
-  `wirelang/schemas/` tree (publisher CLI is Phase-1c; the backend
-  here is the *transport* surface, not the *publisher*).
-- No envelope-side signature (Phase-2 with AIP-id-tied
-  `registered_by`; OI-7-Phase-2 slot).
+**Tag-1 (v0.1.0) lands:**
+
+- Async `get`/`put`/`delete`/`list_keys`/`snapshot` against a
+  NATS-KV bucket.
+- Synchronous `InMemorySchemaRegistry` view with bijective
+  triple↔key derivation.
+- 12 hermetic determinism tests (T-SR-01..10 + 2 aux probes).
+
+**Tag-3 (v0.2.0) lands (additive over Tag-1):**
+
+- Async `put_with_revision(entry, expected_revision)` for CAS-pinned
+  upsert. Lost-update protection contract enforced through the
+  underlying NATS-KV `update(key, value, last=expected_revision)`
+  call. Conflict surfaces as `SchemaRegistryConflictError` carrying
+  the observed `key`, `expected_revision`, and (when available)
+  `actual_revision`.
+- Async `get_with_revision(key) → Optional[(entry, revision)]` as the
+  read pair: callers pass the returned revision back into
+  `put_with_revision` to close the CAS loop.
+- 8-12 additional hermetic determinism tests (T-SR-CAS-01..10).
+- The same write-time validation gates from §5.2 run on the CAS-pin
+  path BEFORE the revision-pin call. CAS does NOT relax envelope
+  integrity.
+- **OI-7-Phase-1c-CAS slot consumed.**
+
+**Phase-1c still does NOT include (remaining reserved slots):**
+
+- No watch-stream surface (`OI-7-Phase-1c-watch` reserved). The
+  pattern source is `route_registry_nats_kv_backend.py` Tag-6
+  (`WatchOp` / `WatchEvent` / `LiveSnapshot.from_backend`).
+- No publisher CLI that pushes module-shipped schemas onto the
+  bucket on operator command (`OI-7-Phase-1c-publisher` reserved).
+- No cross-bucket schema replication for multi-region clusters
+  (`OI-7-Phase-1c-replication` reserved).
+
+**Phase-2 still does NOT include:**
+
+- No CAS-quorum upserts on top of multi-replica clusters (Tag-3
+  CAS-pin assumes the operator's `replicas: 1` Phase-1 setup; the
+  contract holds bit-equally on a multi-replica bucket but is not
+  exercised at the test layer).
+- No envelope-side signature (`OI-7-Phase-2-sig` reserved).
+- No deprecation policy (`OI-7-Phase-2-deprecation` reserved).
+- No IPFS-anchored schema hashes (`OI-7-Phase-2-ipfs` reserved).
+
+### 5.4 CAS-pin operational contract (Tag-3)
+
+The CAS-pin contract is the canonical compare-and-swap idiom.
+
+**Read-modify-write loop:**
+
+```python
+read = await registry.get_with_revision("schemas/wire/layer-1-wire/0.1.0")
+if read is None:
+    raise NotFoundError(...)
+entry, observed_revision = read
+
+new_body = mutate(entry.schema_body)
+new_entry = SchemaRegistryEntry(
+    layer=entry.layer,
+    name=entry.name,
+    version=entry.version,
+    schema_id=entry.schema_id,
+    schema_body=new_body,
+    schema_body_sha256=schema_body_sha256(new_body),
+    registered_at=now_utc(),
+    registered_by=entry.registered_by,
+    supersedes=entry.supersedes,
+)
+
+try:
+    new_revision = await registry.put_with_revision(
+        new_entry, observed_revision
+    )
+except SchemaRegistryConflictError as exc:
+    # Re-read and retry; or surface to the operator.
+    ...
+```
+
+**Validation gate ordering (REQUIRED):**
+
+1. Envelope `schema_id ↔ schema_body.$id` (gate 1, §5.2 / Tag-1).
+2. Envelope `schema_body_sha256` ↔ recomputed JCS-anchored hash
+   (gate 2, §5.2 / Tag-1).
+3. Triple-derived key matches the entry (gate 3, §5.2 / Tag-1).
+4. NATS-KV `update(key, value, last=expected_revision)` call;
+   raises a backend-specific `KeyWrongLastSequenceError` if the live
+   revision has advanced. The Tag-3 backend translates that into
+   `SchemaRegistryConflictError`.
+
+Gates 1-3 run BEFORE gate 4 so a malformed envelope cannot poison
+the bucket even if the revision happened to be stale. Gate 4 runs
+LAST so the network call only happens for envelopes that have
+already passed integrity checks.
+
+**KV adapter contract:**
+
+The backend supports three KV adapter shapes (mock-friendliness):
+
+- `kv.update(key, value, last=revision)` — canonical nats-py shape
+  (KeyValue.update; raises KeyWrongLastSequenceError on conflict).
+- `kv.update(key, value, expected_revision)` — positional fallback
+  for mocks that don't accept the `last` keyword.
+- `kv.put(key, value, expected_revision=...)` — keyword fallback for
+  mocks that overload `put`.
+
+Conflict detection is class-name-based: any exception whose class
+name carries one of `WrongLastSequence` / `Conflict` /
+`RevisionMismatch` is translated into
+`SchemaRegistryConflictError`. This matches nats-py 2.x as well as
+the orchestrator-side mock JetStream surface.
+
+**Determinism contract (Tag-3 invariant):**
+
+- Successful CAS-pin on the same `(key, expected_revision)` from two
+  different callers: exactly one succeeds; the other receives a
+  `SchemaRegistryConflictError`. The accepted writer's revision is
+  monotonically greater than `expected_revision`.
+- Any sequence of CAS-pins that all observe consistent revisions
+  composes into a deterministic bucket state regardless of operator
+  interleaving.
+- A `SchemaRegistryConflictError` is **never** raised AFTER the
+  envelope-integrity gates fail; the envelope-integrity gates run
+  first and raise their own typed errors.
 
 ## 6. Test inventory
 
@@ -335,16 +483,79 @@ T-SR-01..10 plus T-SR-aux probes:
 
 Total: 10 primary determinism tests + 2 auxiliary probes = 12.
 
+### 6.1 CAS-pin tests (Tag-3, additive over Tag-1)
+
+Phase-1b Sprint-3 Tag-3 ships hermetic CAS-pin tests at
+`wirelang/tests/test_schema_registry_cas_pin.py`. Inventory
+T-SR-CAS-01..10 plus T-SR-CAS-aux probes:
+
+- **T-SR-CAS-01:** `get_with_revision` round-trips an entry through
+  `put_with_revision` (entry equality + revision monotonic).
+- **T-SR-CAS-02:** `get_with_revision` on an unknown key returns
+  `None` (no exception, mirrors `get` for absent keys).
+- **T-SR-CAS-03:** `put_with_revision` succeeds when the
+  `expected_revision` matches the live revision.
+- **T-SR-CAS-04:** `put_with_revision` raises
+  `SchemaRegistryConflictError` when the live revision has advanced
+  (concurrent writer landed first). The error carries the observed
+  `key`, `expected_revision`, and `actual_revision`.
+- **T-SR-CAS-05:** Validation gate 1 (`schema_id` ↔ `$id`) runs
+  BEFORE the CAS call; mismatch raises
+  `SchemaRegistryValidationError` and the bucket revision does NOT
+  advance.
+- **T-SR-CAS-06:** Validation gate 2 (`schema_body_sha256`) runs
+  BEFORE the CAS call; mismatch raises `SchemaRegistryValidationError`
+  and the bucket revision does NOT advance.
+- **T-SR-CAS-07:** `put_with_revision` rejects a negative
+  `expected_revision` with `ValueError` (defence in depth).
+- **T-SR-CAS-08:** Two interleaved CAS-pin loops on the same key:
+  exactly one succeeds, the other receives
+  `SchemaRegistryConflictError` with `actual_revision >
+  expected_revision` (lost-update protection contract).
+- **T-SR-CAS-09:** A successful `put_with_revision` followed by a
+  non-CAS `put` is observable: the non-CAS `put` wins
+  (last-write-wins for the LWW path; CAS-pin and LWW remain orthogonal).
+- **T-SR-CAS-10:** A KV adapter without an `update` method falls
+  through to `put(key, value, expected_revision=...)`; if the
+  adapter does not accept that keyword either, the backend raises
+  `SchemaRegistryBackendError` ("CAS-pin not supported"), not a
+  silent demotion to LWW.
+
+Auxiliary probes:
+
+- **T-SR-CAS-aux-determinism:** ten back-to-back interleaved CAS-pin
+  pairs over a single key yield a deterministic outcome: exactly
+  five winners, five conflicts; the final revision is exactly five
+  more than the starting revision (one increment per accepted
+  writer).
+- **T-SR-CAS-aux-conflict-class-detection:** the class-name marker
+  detection (`_is_conflict_exception`) recognises
+  `KeyWrongLastSequenceError`, `RevisionMismatchError`, and
+  `KeyValueConflictError` and rejects unrelated exceptions like
+  `ValueError`.
+
+Total Tag-3 test additions: 10 primary CAS-pin tests + 2 auxiliary
+probes = 12.
+
 ## 7. Cross-references and Open-Items
 
 - V-908 backend pattern source:
   `wirelang/federation/route_registry_nats_kv_backend.py`.
+- V-908 conflict-error pattern source:
+  `RouteRegistryConflictError` in the same module (Tag-3 mirror).
+- V-908 watch-stream pattern source: Tag-6 `LiveSnapshot.from_backend`
+  + `_MockWatcher` (Phase-1c-watch reference).
 - Bucket inventory source:
   `scripts/init-nats-buckets.py` `PHASE_1_BUCKETS[0]` (`wakir-schemas`).
-- Phase-1c publisher CLI: **OI-7-Phase-1c** (reserved).
-- Phase-2 CAS-revision pin: **OI-7-Phase-2** (reserved).
+- **Phase-1c CAS-pin: OI-7-Phase-1c-CAS — CONSUMED in Tag-3.**
+- Phase-1c publisher CLI: **OI-7-Phase-1c-publisher** (reserved).
+- Phase-1c watch-stream: **OI-7-Phase-1c-watch** (reserved).
+- Phase-1c cross-bucket replication: **OI-7-Phase-1c-replication**
+  (reserved).
+- Phase-2 CAS-quorum: **OI-7-Phase-2-quorum** (reserved).
 - Phase-2 envelope signature: **OI-7-Phase-2-sig** (reserved).
 - Phase-2 deprecation policy: **OI-7-Phase-2-deprecation** (reserved).
+- Phase-2 IPFS schema-hash: **OI-7-Phase-2-ipfs** (reserved).
 
 ## 8. Compatibility statement
 
@@ -354,6 +565,26 @@ is forced to switch to the registry. Verifiers that already load
 schemas via `importlib.resources` continue to function unchanged.
 The registry is a **production-target substrate** that Phase-2
 deployment will switch to; Phase-1b Sprint-3 Tag-1 lands the
-substrate, not the cutover.
+substrate, Tag-3 hardens it with the CAS-pin path. The cutover
+itself is still Phase-2.
+
+**Tag-3 (v0.2.0) is additive relative to Tag-1 (v0.1.0):**
+
+- All Tag-1 surfaces (`get` / `put` / `delete` / `list_keys` /
+  `snapshot` / `get_by_triple`) remain unchanged. Their
+  contracts are preserved byte-equal.
+- The Tag-3 additions (`get_with_revision` / `put_with_revision` /
+  `SchemaRegistryConflictError`) are NEW surfaces. Callers that do
+  not need lost-update protection continue to use `put` (LWW); they
+  are not forced onto the CAS-pin path.
+- M-2 conformance (additive-only schema evolution): Tag-3 adds no
+  new envelope fields and modifies no existing field. The on-the-wire
+  envelope schema remains `wakir.wirelang.schema-registry-entry/1`.
+- M-4 conformance (multi-version-aware registry): Tag-3 is orthogonal
+  to the version axis; CAS-pin operates on a single key
+  (`schemas/<layer>/<name>/<version>`) and does not depend on whether
+  multiple versions are simultaneously active.
+- Spec semver bump 0.1.0 → 0.2.0 reflects the additive minor change
+  (M-2 §3.2 versioning policy: minor for additive).
 
 — End of spec —
