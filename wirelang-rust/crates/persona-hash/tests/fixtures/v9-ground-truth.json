@@ -1,0 +1,28 @@
+{
+  "_comment": "V-907 cross-language ground-truth vector for the V9 persona fixture. Captured 2026-05-07T11:59:42Z (UTC) by Python wirelang.persona, rfc8785 0.1.x, hashlib stdlib. Re-pin requires re-running the extraction script and updating wirelang/persona/_internal/pin_pack_constants.py::PERSONA_HASH_PIN_V9 plus this file in lockstep. SPDX-License-Identifier: Apache-2.0",
+  "source_fixture": "wirelang/tests/fixtures/persona_definitions/v9-persona-framework-native.md",
+  "captured_utc": "2026-05-07T11:59:42Z",
+  "captured_by": "pengine-eng",
+  "canonical_subset": {
+    "description": "Pre-framework persona fixture for self-migration vector (v8, schema persona-v0-ish — flagged as unsupported).",
+    "identity_pinned": {
+      "authority": {
+        "budget_cap_eur_per_month": 0,
+        "push_remote": false,
+        "sub_delegation": false
+      },
+      "cross_review_zones": [],
+      "hierarchy": {
+        "escalation": "cto",
+        "reports_to": "cto"
+      }
+    },
+    "name": "pre-framework-agent",
+    "schema_version": "persona-v1",
+    "tools": ["Read"]
+  },
+  "jcs_bytes_len": 387,
+  "jcs_bytes_hex": "7b226465736372697074696f6e223a225072652d6672616d65776f726b20706572736f6e61206669787475726520666f722073656c662d6d6967726174696f6e20766563746f72202876382c20736368656d6120706572736f6e612d76302d69736820e2809420666c616767656420617320756e737570706f72746564292e222c226964656e746974795f70696e6e6564223a7b22617574686f72697479223a7b226275646765745f6361705f6575725f7065725f6d6f6e7468223a302c22707573685f72656d6f7465223a66616c73652c227375625f64656c65676174696f6e223a66616c73657d2c2263726f73735f7265766965775f7a6f6e6573223a5b5d2c22686965726172636879223a7b22657363616c6174696f6e223a2263746f222c227265706f7274735f746f223a2263746f227d7d2c226e616d65223a227072652d6672616d65776f726b2d6167656e74222c22736368656d615f76657273696f6e223a22706572736f6e612d7631222c22746f6f6c73223a5b2252656164225d7d",
+  "expected_hash_full": "sha256:0f298894204e6117e42ad7073b7a3af8ada1851de74d585fc5cb4c4d70e1d793",
+  "python_pin_constant": "PERSONA_HASH_PIN_V9"
+}

@@ -1,0 +1,91 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wakir-Runtime / wirelang Rust workspace — Phase-1c migration scaffolding
+# (parallel to the Python tree, not replacing it).
+#
+# ADR anchors
+# -----------
+#
+# - ADR-0035 Errata 1 (2026-05-07 12:55 CEST) — Phase-1 bootstrap may
+#   be Python; Phase-1c is the Rust migration window.
+# - ADR-0036 — Self-Migration-Konverter requirements (V-907 pin pack
+#   is the determinism anchor that Rust must match byte-for-byte).
+# - Tag-8 phase-1c skizze (2026-05-07) — module order:
+#     canonical_form -> hash -> steps -> migration.
+#
+# Crate roster (Phase-1c step-1 = persona-hash only)
+# --------------------------------------------------
+#
+# - persona-hash : V-907 hash primitive Rust pendant. Must produce
+#   byte-identical output to the Python `compute_persona_hash_from_canonical`
+#   for the V9 ground-truth vector (and, in future steps, all 9 pin-pack
+#   vectors).
+#
+# Crates explicitly NOT in this workspace yet (Phase-1c follow-up boxes):
+# - persona-canonical-form (YAML front-matter parser + canonical-subset
+#   extractor)
+# - persona-migration (V0->V1 step + registry + linear-chain walker)
+# - persona-cli (Rust pendant for `wakir-persona migrate`)
+#
+# Default-Lock posture (pengine-eng engine-side, ratified 2026-05-07 ~10:00 CEST)
+# ------------------------------------------------------------------------
+#
+# - A-1 Mock-Format-Baseline: persona-hash crate consumes the
+#   *already-extracted* canonical subset (a serde_json::Value object).
+#   YAML front-matter parsing stays out-of-scope for THIS crate; it is
+#   the next-layer-up's job (persona-canonical-form, future crate).
+# - A-2 Additiv-only: this workspace is added next to the Python tree,
+#   does not delete or move any Python file.
+# - A-3 Body out-of-hash: same posture as Python — only the canonical
+#   subset goes into JCS; Markdown body bytes never reach this crate.
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/persona-hash",
+]
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.85"
+license = "Apache-2.0"
+repository = "https://github.com/wakir-labs/wakir-runtime"
+authors = ["pengine-eng <pengine@wakir.local>"]
+
+# Pinned crate versions — explicit, auditable, byte-stability-relevant.
+# Rationale (verified against Tag-8 skizze §4 crate selection):
+#
+# - sha2 0.10.x : SHA-256 implementation. The 0.10 line is the
+#   long-term-stable major; 0.11 was floated in the Tag-8 skizze but
+#   0.10.8 is what currently ships in the Rust ecosystem and matches
+#   stdlib `Sha256` semantics. Pinned to ^0.10 with explicit minor for
+#   reproducibility.
+# - serde 1.0.x and serde_json 1.0.x : the canonical subset is built
+#   as a serde_json::Value tree (Map preserves insertion order; we sort
+#   keys lexicographically ourselves to match JCS).
+# - serde_jcs 0.2.x : RFC 8785 JCS canonicaliser. Pre-1.0 (P2 risk
+#   acknowledged in Tag-8 skizze §4); behaviour cross-checked against
+#   Python `rfc8785` for the V9 vector before this crate is trusted.
+# - hex 0.4.x : lower-case hex tail emission to match Python
+#   `hashlib.sha256().hexdigest()`.
+#
+# Dev-only:
+# - serde_json (already in deps) covers test-fixture loading; no
+#   separate test crate.
+
+[workspace.dependencies]
+sha2       = { version = "=0.10.8", default-features = false }
+serde      = { version = "=1.0.219", features = ["derive"] }
+serde_json = { version = "=1.0.140", features = ["preserve_order"] }
+serde_jcs  = { version = "=0.2.0" }
+hex        = { version = "=0.4.3" }
+
+[profile.release]
+opt-level = 3
+lto       = "thin"
+codegen-units = 1
+strip = "symbols"
+
+[profile.dev]
+opt-level = 0
+debug     = true

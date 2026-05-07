@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# persona-hash — V-907 persona-hash primitive (Rust pendant).
+#
+# Mirrors `wirelang/persona/persona_hash.py`:
+# - input: a canonical-subset object (serde_json::Value, must be a JSON
+#   object whose keys are the canonical-subset keys)
+# - canonicalisation: RFC 8785 JCS via serde_jcs
+# - digest: SHA-256
+# - return: "sha256:<64-lower-hex>" (full form)
+#
+# This crate intentionally does NOT parse YAML front-matter or read
+# Markdown files. Those concerns belong to the (future) persona-
+# canonical-form crate. Layering matches the Python module split.
+
+[package]
+name = "persona-hash"
+version = "0.1.0"
+description = "V-907 persona-hash primitive (Rust pendant of wirelang.persona.persona_hash)"
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+
+[lib]
+name = "persona_hash"
+path = "src/lib.rs"
+
+[dependencies]
+sha2       = { workspace = true, features = ["std"] }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+serde_jcs  = { workspace = true }
+hex        = { workspace = true }
+
+[dev-dependencies]
+# (none beyond the workspace deps; tests use serde_json + std::fs.)
