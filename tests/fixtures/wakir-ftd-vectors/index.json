@@ -1,0 +1,10 @@
+{
+  "consensus_marker": "V-908 Phase-1b PS-4 (FTD verifier wiring)",
+  "label": "wakir-ftd-vectors",
+  "spec": "V-908 Federation Resolver section 2 (Phase-1b 0.1.0)",
+  "vectors": [
+    "vector-1-single-issuer-key.json",
+    "vector-2-multi-key-window.json",
+    "vector-3-rotation-overlap.json"
+  ]
+}

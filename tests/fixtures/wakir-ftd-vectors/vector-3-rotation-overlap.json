@@ -1,0 +1,43 @@
+{
+  "document": {
+    "anchor": {
+      "fingerprint_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "host": "_wakir-ftd.peer-org.example",
+      "kind": "dns-txt"
+    },
+    "document_signature": {
+      "alg": "Ed25519",
+      "kid": "ftd-root-1",
+      "signature": "acc38e6b9b80bb07db429a68aa4e822719260e46d927bdb750b3e8339a8e910326d5fadc5e728bff0a3c43a27c728cf6d07693116c9eb6ae36bf5dde499ea302"
+    },
+    "domain": "peer-org.example",
+    "expires": "2027-06-01T00:00:00Z",
+    "ftd_root_pubkey": "d04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9778737",
+    "id": "did:web:peer-org.example:ftd:v3",
+    "issued_at": "2026-06-01T00:00:00Z",
+    "issuer_keys": [
+      {
+        "alg": "Ed25519",
+        "kid": "issuer-old",
+        "public_key": "a09aa5f47a6759802ff955f8dc2d2a14a5c99d23be97f864127ff9383455a4f0",
+        "purpose": "biscuit-root",
+        "valid_from": "2026-01-01T00:00:00Z",
+        "valid_until": "2026-06-01T00:00:00Z"
+      },
+      {
+        "alg": "Ed25519",
+        "kid": "issuer-new",
+        "public_key": "17cb79fb2b4120f2b1ec65e4198d6e08b28e813feb01e4a400839b85e18080ce",
+        "purpose": "biscuit-root",
+        "valid_from": "2026-05-15T00:00:00Z",
+        "valid_until": null
+      }
+    ],
+    "wakir_ftd": "0.1.0"
+  },
+  "fingerprint_sha256": "d21b46af44f0064a70273e798211f700fb20198677ebf188cb77f0646cd67714",
+  "label": "wakir-ftd-vector-3-rotation-overlap",
+  "notes": "Issuer-key rotation: old key past, new key live. Verifier returns only the new key.",
+  "spec": "V-908 Federation Resolver section 2 (Phase-1b 0.1.0)",
+  "verify_now": "2026-06-15T00:00:00Z"
+}
