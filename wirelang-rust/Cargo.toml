@@ -13,17 +13,23 @@
 # - Tag-8 phase-1c skizze (2026-05-07) — module order:
 #     canonical_form -> hash -> steps -> migration.
 #
-# Crate roster (Phase-1c step-1 = persona-hash only)
-# --------------------------------------------------
+# Crate roster (Phase-1c step-2 = persona-hash + persona-canonical-form)
+# ----------------------------------------------------------------------
 #
 # - persona-hash : V-907 hash primitive Rust pendant. Must produce
 #   byte-identical output to the Python `compute_persona_hash_from_canonical`
 #   for the V9 ground-truth vector (and, in future steps, all 9 pin-pack
 #   vectors).
+# - persona-canonical-form : JCS-bytes boundary helper. Mirrors the
+#   Python `wirelang.persona.persona_canonical_form.canonical_jcs_bytes`
+#   helper (Sprint-2 Tag-5 cross-lang parity anchor). Consumes an
+#   already-extracted canonical subset (`serde_json::Value::Object`) and
+#   emits the RFC 8785 JCS UTF-8 byte string. YAML front-matter parsing
+#   is intentionally out-of-scope for this crate (Phase-1c-Tag-N item).
 #
 # Crates explicitly NOT in this workspace yet (Phase-1c follow-up boxes):
-# - persona-canonical-form (YAML front-matter parser + canonical-subset
-#   extractor)
+# - persona-canonical-form-yaml (YAML front-matter parser + canonical-
+#   subset extractor)
 # - persona-migration (V0->V1 step + registry + linear-chain walker)
 # - persona-cli (Rust pendant for `wakir-persona migrate`)
 #
@@ -43,6 +49,7 @@
 resolver = "2"
 members = [
     "crates/persona-hash",
+    "crates/persona-canonical-form",
 ]
 
 [workspace.package]

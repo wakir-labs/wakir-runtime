@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# persona-canonical-form — JCS-bytes boundary helper (Rust pendant).
+#
+# Mirrors `wirelang.persona.persona_canonical_form.canonical_jcs_bytes`:
+# - input: a canonical-subset object (serde_json::Value, must be a JSON
+#   object whose keys are the canonical-subset keys)
+# - canonicalisation: RFC 8785 JCS via serde_jcs
+# - return: UTF-8 byte vector (no hashing — that is persona-hash's job)
+#
+# This crate intentionally does NOT parse YAML front-matter. Front-matter
+# parsing (Python: `split_frontmatter` + `parse_frontmatter` +
+# `extract_canonical_subset`) belongs to a future
+# `persona-canonical-form-yaml` crate. The split mirrors the explicit
+# Python public surface: `canonical_jcs_bytes` is the bytes-level
+# boundary that the Phase-1c Rust crate must reproduce byte-for-byte
+# (Sprint-2 Tag-5 outbox §A6 cross-lang parity contract).
+
+[package]
+name = "persona-canonical-form"
+version = "0.1.0"
+description = "JCS-bytes boundary helper (Rust pendant of wirelang.persona.persona_canonical_form.canonical_jcs_bytes)"
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+
+[lib]
+name = "persona_canonical_form"
+path = "src/lib.rs"
+
+[dependencies]
+serde      = { workspace = true }
+serde_json = { workspace = true }
+serde_jcs  = { workspace = true }
+
+[dev-dependencies]
+# Used in t2 to cross-check sha256(jcs_bytes) against PERSONA_HASH_PIN_V9
+# without depending on the sister `persona-hash` crate (keeps the
+# JCS-bytes boundary cross-checkable in isolation).
+sha2 = { workspace = true, features = ["std"] }
