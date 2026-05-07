@@ -472,3 +472,309 @@ def test_cli_output_json_keys_are_sorted(tmp_path: Path, capsys) -> None:
     # Verify the bytes are key-sorted JSON (sort_keys=True at print site).
     payload = json.loads(out)
     assert out == json.dumps(payload, sort_keys=True)
+
+
+# ---------------------------------------------------------------------------
+# Audit-trail-entry export contract (Sprint-2 Tag-3 — paired-update with
+# frontend AuditTrailEntry consumer)
+# ---------------------------------------------------------------------------
+
+
+_PINNED_AUDIT_TRAIL_ENTRY_KEYS = frozenset(
+    {
+        "kind",
+        "schema_version",
+        "identity",
+        "manifest_version",
+        "manifest_path",
+        "hour_slot",
+        "event_count",
+        "anchor_root_hex",
+        "branches",
+        "ok",
+        "failure_reason",
+    }
+)
+
+
+def test_as_audit_trail_entry_returns_pinned_eleven_keys() -> None:
+    """The entry exposes exactly the documented eleven keys, always."""
+    result = ManifestV2Result(
+        manifest_path="/tmp/x.json",
+        version="wat-manifest/2.0",
+        schema_ok=True,
+        integrity_ok=True,
+        multi_cap_root_status="deferred",
+        failure_reason="",
+    )
+
+    entry = result.as_audit_trail_entry()
+
+    assert set(entry.keys()) == _PINNED_AUDIT_TRAIL_ENTRY_KEYS
+
+
+def test_as_audit_trail_entry_kind_is_pinned_string() -> None:
+    """``kind`` is the string literal ``"wat-tv-pin-pack"`` for every result."""
+    for ok_state in (True, False):
+        result = ManifestV2Result(
+            manifest_path="/tmp/x.json",
+            version="wat-manifest/2.0",
+            schema_ok=ok_state,
+            integrity_ok=ok_state,
+        )
+        entry = result.as_audit_trail_entry()
+        assert entry["kind"] == "wat-tv-pin-pack"
+
+
+def test_as_audit_trail_entry_schema_version_matches_as_dict() -> None:
+    """``schema_version`` is the same string as the ``--output json`` mode."""
+    result = ManifestV2Result(
+        manifest_path="/tmp/x.json",
+        version="wat-manifest/1.0",
+        schema_ok=True,
+        integrity_ok=True,
+    )
+
+    assert (
+        result.as_audit_trail_entry()["schema_version"]
+        == result.as_dict()["schema_version"]
+    )
+
+
+def test_as_audit_trail_entry_verdict_verified_on_clean_strict() -> None:
+    """v2-strict-clean -> verdict == "verified", detail mentions all phases."""
+    result = ManifestV2Result(
+        manifest_path="/tmp/x.json",
+        version="wat-manifest/2.0",
+        schema_ok=True,
+        integrity_ok=True,
+        multi_cap_root_status="verified",
+    )
+
+    entry = result.as_audit_trail_entry()
+    assert entry["ok"] is True
+    assert entry["branches"] == [
+        {
+            "label": "manifest-validity",
+            "verdict": "verified",
+            "detail": "schema + integrity + multi_cap_root",
+        }
+    ]
+
+
+def test_as_audit_trail_entry_verdict_pending_on_lenient_deferred() -> None:
+    """v2-lenient-deferred -> verdict == "pending" (OQ-1 honesty)."""
+    result = ManifestV2Result(
+        manifest_path="/tmp/x.json",
+        version="wat-manifest/2.0",
+        schema_ok=True,
+        integrity_ok=True,
+        multi_cap_root_status="deferred",
+    )
+
+    entry = result.as_audit_trail_entry()
+    assert entry["ok"] is True
+    assert entry["branches"][0]["verdict"] == "pending"
+    assert "OQ-1" in entry["branches"][0]["detail"]
+
+
+def test_as_audit_trail_entry_verdict_rejected_carries_failure_reason() -> None:
+    """A failed result puts the failure_reason into the branch detail."""
+    result = ManifestV2Result(
+        manifest_path="/tmp/x.json",
+        version="wat-manifest/2.0",
+        schema_ok=True,
+        integrity_ok=False,
+        multi_cap_root_status="",
+        failure_reason="integrity: merkle_root mismatch: rebuilt aaaa from leaves[]",
+    )
+
+    entry = result.as_audit_trail_entry()
+    assert entry["ok"] is False
+    branch = entry["branches"][0]
+    assert branch["verdict"] == "rejected"
+    assert branch["detail"] == result.failure_reason
+    assert entry["failure_reason"] == result.failure_reason
+
+
+def test_as_audit_trail_entry_identity_prefers_hour_slot() -> None:
+    """``identity`` is hour-slot-derived when available, else manifest_path."""
+    base = ManifestV2Result(
+        manifest_path="/tmp/x.json",
+        version="wat-manifest/2.0",
+        schema_ok=True,
+        integrity_ok=True,
+    )
+
+    with_slot = base.as_audit_trail_entry(hour_slot="2026-05-26T17")
+    without_slot = base.as_audit_trail_entry()
+
+    assert with_slot["identity"] == "wat-hour 2026-05-26T17"
+    assert without_slot["identity"] == "/tmp/x.json"
+
+
+def test_as_audit_trail_entry_anchor_root_hex_validated() -> None:
+    """``anchor_root_hex`` rejects non-canonical input early."""
+    result = ManifestV2Result(
+        manifest_path="/tmp/x.json",
+        version="wat-manifest/2.0",
+        schema_ok=True,
+        integrity_ok=True,
+    )
+
+    # Empty is fine.
+    entry = result.as_audit_trail_entry(anchor_root_hex="")
+    assert entry["anchor_root_hex"] == ""
+
+    # 64 lowercase-hex is fine.
+    entry = result.as_audit_trail_entry(anchor_root_hex="a" * 64)
+    assert entry["anchor_root_hex"] == "a" * 64
+
+    # Anything else raises — the wire format must match the schema.
+    with pytest.raises(ValueError):
+        result.as_audit_trail_entry(anchor_root_hex="A" * 64)  # uppercase
+    with pytest.raises(ValueError):
+        result.as_audit_trail_entry(anchor_root_hex="a" * 63)  # short
+    with pytest.raises(ValueError):
+        result.as_audit_trail_entry(anchor_root_hex="sha256:" + "a" * 64)
+
+
+def test_as_audit_trail_entry_field_types_are_stable() -> None:
+    """Per-field type contract holds across ok and failure paths.
+
+    Field-by-field type pin (downstream snapshot-test tauglich):
+    no ``None`` values, every list is a list, every int an int,
+    every string a str.
+    """
+    samples = [
+        ManifestV2Result(
+            manifest_path="/tmp/a.json",
+            version="wat-manifest/2.0",
+            schema_ok=True,
+            integrity_ok=True,
+            multi_cap_root_status="verified",
+        ),
+        ManifestV2Result(
+            manifest_path="/tmp/b.json",
+            version="wat-manifest/1.0",
+            schema_ok=False,
+            integrity_ok=False,
+            multi_cap_root_status="",
+            failure_reason="schema: /events: missing",
+        ),
+    ]
+
+    expected_types = {
+        "kind": str,
+        "schema_version": str,
+        "identity": str,
+        "manifest_version": str,
+        "manifest_path": str,
+        "hour_slot": str,
+        "event_count": int,
+        "anchor_root_hex": str,
+        "branches": list,
+        "ok": bool,
+        "failure_reason": str,
+    }
+
+    for result in samples:
+        entry = result.as_audit_trail_entry()
+        for key, expected_type in expected_types.items():
+            assert key in entry, f"missing key {key!r}"
+            assert isinstance(entry[key], expected_type), (
+                f"field {key!r} is {type(entry[key]).__name__}, "
+                f"expected {expected_type.__name__}"
+            )
+            # No None anywhere.
+            assert entry[key] is not None, f"field {key!r} is None"
+
+
+def test_as_audit_trail_entry_dump_roundtrip_is_byte_stable() -> None:
+    """sort_keys + ensure_ascii=False produce a canonical wire-form.
+
+    Two dumps of the same result must produce identical bytes; a
+    re-parse-then-redump must produce the same bytes again. This is
+    the snapshot-test / content-hash tauglich determinism guarantee.
+    """
+    result = ManifestV2Result(
+        manifest_path="/tmp/x.json",
+        version="wat-manifest/2.0",
+        schema_ok=True,
+        integrity_ok=True,
+        multi_cap_root_status="deferred",
+    )
+    entry = result.as_audit_trail_entry(
+        hour_slot="2026-05-26T17",
+        anchor_root_hex="a" * 64,
+        event_count=4,
+    )
+
+    bytes_1 = json.dumps(entry, sort_keys=True, ensure_ascii=False)
+    bytes_2 = json.dumps(entry, sort_keys=True, ensure_ascii=False)
+    assert bytes_1 == bytes_2
+
+    reparsed = json.loads(bytes_1)
+    bytes_3 = json.dumps(reparsed, sort_keys=True, ensure_ascii=False)
+    assert bytes_1 == bytes_3
+
+
+def test_as_audit_trail_entry_event_count_defaults_to_minus_one() -> None:
+    """Missing event_count renders as -1, never as None or absent key."""
+    result = ManifestV2Result(
+        manifest_path="/tmp/x.json",
+        version="wat-manifest/2.0",
+        schema_ok=True,
+        integrity_ok=True,
+    )
+
+    default_entry = result.as_audit_trail_entry()
+    assert default_entry["event_count"] == -1
+
+    populated_entry = result.as_audit_trail_entry(event_count=7)
+    assert populated_entry["event_count"] == 7
+
+
+def test_cli_output_audit_trail_entry_emits_eleven_field_object(
+    tmp_path: Path, capsys
+) -> None:
+    """End-to-end: ``--output audit-trail-entry`` emits the pinned shape."""
+    events = [
+        _make_event(1, capref_hash_hex="a" * 64),
+        _make_event(2, capref_hash_hex="b" * 64),
+    ]
+    manifest = _build_v2_manifest(
+        events,
+        multi_cap={"evt-1": [_CAPREF_1, _CAPREF_2]},
+    )
+    path = _write_manifest(tmp_path, manifest)
+
+    rc = verifier_main([str(path), "--output", "audit-trail-entry"])
+
+    out = capsys.readouterr().out.strip()
+    assert rc == 0
+    payload = json.loads(out)
+    assert set(payload.keys()) == _PINNED_AUDIT_TRAIL_ENTRY_KEYS
+    assert payload["kind"] == "wat-tv-pin-pack"
+    assert payload["schema_version"] == "wakir-verify-manifest-v2/0"
+    assert payload["hour_slot"] == "2026-05-26T17"
+    assert payload["event_count"] == 2
+    assert payload["anchor_root_hex"] == manifest["merkle_root"]
+    assert payload["identity"] == "wat-hour 2026-05-26T17"
+    assert payload["branches"][0]["verdict"] == "pending"  # lenient default
+    # No embedded newlines: single-line wire format.
+    assert "\n" not in out
+
+
+def test_cli_output_audit_trail_entry_keys_are_sorted(tmp_path: Path, capsys) -> None:
+    """CLI byte-output is key-sorted (downstream snapshot-test tauglich)."""
+    events = [_make_event(1, capref_hash_hex="a" * 64)]
+    manifest = _build_v1_manifest(events)
+    path = _write_manifest(tmp_path, manifest)
+
+    verifier_main([str(path), "--output", "audit-trail-entry"])
+
+    out = capsys.readouterr().out.strip()
+    payload = json.loads(out)
+    # ensure_ascii=False matches the Python-side dump in main()
+    assert out == json.dumps(payload, sort_keys=True, ensure_ascii=False)

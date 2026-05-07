@@ -424,6 +424,62 @@ JSON keys are sorted (`json.dumps(..., sort_keys=True)`) so the
 byte-output is stable for downstream diffing / snapshot-tests.
 Exit codes are unchanged from human-mode (0 ok, 1 fail).
 
+### Audit-trail-entry export contract
+
+The CLI `python -m wat.verify.manifest_v2 --output audit-trail-entry`
+emits a single-line JSON object that matches the **paired-update
+contract** with the frontend `AuditTrailEntry` consumer
+(`infra/repos-skeleton/site/src/data/wakir-audit-trail-sample.ts`,
+published in Sprint-Frontend-1 Tag-3 outbox memo). It is shape-
+distinct from the manifest-centric `--output json` schema above —
+this format is for the audit-trail-browser timeline, that one is
+for single-file verifier-result snapshots.
+
+Pinned eleven keys, additive-only across `schema_version`
+`wakir-verify-manifest-v2/0`:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `kind` | string literal `"wat-tv-pin-pack"` | Pinned kind discriminator. A future v3 producer would land as a separate kind, never re-purpose this one. |
+| `schema_version` | string literal `"wakir-verify-manifest-v2/0"` | Same string as `--output json`. Consumers branch on a single field. |
+| `identity` | string | Short display string. `"wat-hour <slot>"` if `hour_slot` known, else echo of `manifest_path`. Render-only; never load-bearing. |
+| `manifest_version` | string | The manifest's `version` field (e.g. `"wat-manifest/2.0"`). Empty if parsing failed before that field. |
+| `manifest_path` | string | Echo of input path. |
+| `hour_slot` | string | The manifest's `hour_slot` if available, else empty string. |
+| `event_count` | int | Number of events in the manifest, else `-1`. Never `null`. |
+| `anchor_root_hex` | string | The manifest's `merkle_root` (64 lowercase hex, NO `"sha256:"` prefix), else empty string. The frontend re-prefixes at render-time when desired. |
+| `branches` | list | Exactly one entry: `{label: "manifest-validity", verdict: "verified" \| "rejected" \| "pending", detail: <human string>}`. `pending` is the lenient-mode-deferred-OQ-1 honesty case. |
+| `ok` | bool | Mirror of `--output json` `ok`. Allows short-circuit without parsing `branches`. |
+| `failure_reason` | string | `"<phase>: <message>"` on failure, empty on success. Mirrors `--output json`. |
+
+**Determinism guarantees:**
+
+- Key set is exactly the eleven keys above. No optional / conditional
+  keys appear. Missing data renders as empty string / `-1` / empty
+  list — never as `null` or absent.
+- `json.dumps(..., sort_keys=True, ensure_ascii=False)` over the dict
+  yields a canonical wire-form suitable for snapshot tests, content-
+  hashing, and re-import.
+- Field types are stable across ok-paths and failure-paths
+  (pinned in
+  `tests/wat/test_manifest_v2_verifier_stub.py::test_as_audit_trail_entry_field_types_are_stable`).
+- `anchor_root_hex` rejects non-canonical input (uppercase, wrong
+  length, with `"sha256:"` prefix) — wire-format must match the
+  `wat-manifest-v2.json` schema's bare-hex pattern.
+
+**Schema-version evolution rule:** a future revision that adds a
+field stays at `/0` if the addition is purely additive (e.g., a new
+optional `caprefs_root_hex` field is additive). A breaking change
+(rename, type change of an existing field) bumps to `/1`. Consumers
+that need to handle both versions branch on `schema_version`.
+
+The Python in-process API is `ManifestV2Result.as_audit_trail_entry(
+*, anchor_root_hex="", hour_slot="", event_count=None)`. Callers
+that already have the parsed manifest in hand should pass the three
+optional fields explicitly; the CLI re-parses the manifest under
+the hood for these fields, which is wasted I/O when caller-side data
+is available.
+
 The schema file is the contract; this document describes the
 contract in prose. If the two ever disagree, the schema is
 authoritative for structural validation and this document is
@@ -433,6 +489,17 @@ is informative only.
 
 ## 11. Change log
 
+- **2026-05-07 (Sprint-2 Tag-3):** Verifier-stub gains
+  `--output audit-trail-entry` CLI mode and
+  `ManifestV2Result.as_audit_trail_entry()`. Eleven-field
+  paired-update contract pinned in §10 sub-section "Audit-trail-
+  entry export contract" (`kind: "wat-tv-pin-pack"`,
+  `schema_version: "wakir-verify-manifest-v2/0"`). 13 additional
+  hermetic tests (29 total in the stub suite); field-by-field-
+  determinism + dump-roundtrip-byte-stability covered. Frontend
+  Sprint-Frontend-1 Tag-3 paired-update unblocked — `AuditTrailEntry`
+  TypeScript interface for `wat-tv-pin-pack` kind can converge on
+  this shape without schema invention.
 - **2026-05-07 (Sprint-2 Tag-2):** Verifier-stub gains
   `--output {human,json}` CLI mode and `ManifestV2Result.as_dict()`.
   JSON schema pinned in §10 sub-section "Verifier-stub JSON-output

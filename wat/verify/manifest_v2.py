@@ -212,6 +212,152 @@ class ManifestV2Result:
             "failure_reason": self.failure_reason,
         }
 
+    def as_audit_trail_entry(
+        self,
+        *,
+        anchor_root_hex: str = "",
+        hour_slot: str = "",
+        event_count: Optional[int] = None,
+    ) -> dict:
+        """Return the audit-trail-browser export shape for this result.
+
+        This is the **paired-update contract** between
+        ``wat/verify/manifest_v2.py`` (this module) and the frontend
+        ``AuditTrailEntry`` consumer (per
+        ``infra/repos-skeleton/site/src/data/wakir-audit-trail-sample.ts``,
+        published in Sprint-Frontend-1 Tag-3 outbox memo). The frontend
+        provisional interface treats every entry as one of three
+        ``kind`` values; a manifest-v2 verifier-result maps to
+        ``"wat-tv-pin-pack"`` — the kind for "the runtime pinned a set
+        of facts about an hour-aggregate".
+
+        Encoding contract (additive-only across ``schema_version``
+        ``wakir-verify-manifest-v2/0``):
+
+        - ``kind`` — string literal ``"wat-tv-pin-pack"``. Pinned;
+          a future v3 format would land as a separate kind, never
+          re-purpose this one.
+        - ``schema_version`` — string literal ``"wakir-verify-manifest-v2/0"``.
+          Same string as :meth:`as_dict` so consumers can branch on a
+          single field.
+        - ``identity`` — short display string. ``manifest_path`` if
+          ``hour_slot`` not provided; otherwise ``"wat-hour " + hour_slot``.
+          NOT load-bearing for verification — only for rendering.
+        - ``manifest_version`` — string, the ``version`` field of the
+          underlying manifest (``"wat-manifest/2.0"`` etc.).
+        - ``manifest_path`` — string, echo of input path.
+        - ``hour_slot`` — string, the ``hour_slot`` from the manifest
+          if known, else empty string. Caller passes it because
+          ``ManifestV2Result`` does not carry the parsed manifest.
+        - ``event_count`` — integer, number of events in the manifest,
+          or ``-1`` if not provided. Caller passes it for the same
+          reason as ``hour_slot``.
+        - ``anchor_root_hex`` — string, the merkle_root of the hour
+          (64 lowercase hex, NO ``"sha256:"`` prefix). Empty string if
+          not provided. The frontend's display-convention is to
+          re-prefix with ``"sha256:"`` at render-time when desired —
+          we emit the raw hex here so the wire-format stays canonical
+          (matches ``wat-manifest-v2.json`` schema's bare-hex pattern).
+        - ``branches`` — list of one branch dict, the
+          manifest-validity verdict:
+
+          .. code-block:: text
+
+              {
+                "label": "manifest-validity",
+                "verdict": "verified" | "rejected" | "pending",
+                "detail": "<failure_reason or 'schema + integrity + multi_cap_root'>"
+              }
+
+          ``verdict`` is ``"verified"`` iff ``ok`` and not
+          ``multi_cap_root_status == "deferred"``. ``"rejected"`` on
+          any failure. ``"pending"`` is reserved for the
+          deferred-multi-cap-root case (lenient + v2). The detail
+          string is a human-readable diagnostic, never load-bearing.
+
+        - ``ok`` — boolean, mirror of :meth:`as_dict` ``ok``. Provided
+          redundantly so a renderer can short-circuit without parsing
+          ``branches``.
+        - ``failure_reason`` — string, mirror of :meth:`as_dict`
+          ``failure_reason``. Empty on success.
+
+        Determinism guarantees:
+
+        - Key set is exactly the eleven keys above. No optional keys
+          conditionally appear.
+        - Field types are stable: every string is a Python ``str``,
+          every list is a list, every int is an int. No ``None``
+          values — missing data renders as empty string / -1 / empty
+          list.
+        - ``json.dumps(..., sort_keys=True, ensure_ascii=False)`` over
+          the returned dict yields a canonical byte-string suitable
+          for snapshot tests, content-hashing, and re-import.
+
+        Schema-version evolution rule: a future revision that adds a
+        field bumps the trailing kind-suffix once the field becomes
+        load-bearing for downstream verification (e.g., a new
+        ``caprefs_root_hex`` field would be additive and stay at
+        ``/0``; renaming ``manifest_path`` to ``manifest_uri`` would
+        bump to ``/1``).
+        """
+        if anchor_root_hex and not _is_lower_hex_64(anchor_root_hex):
+            raise ValueError(
+                "anchor_root_hex must be 64 lowercase-hex chars or empty; "
+                f"got {anchor_root_hex!r}"
+            )
+
+        if self.ok and self.multi_cap_root_status == "deferred":
+            verdict = "pending"
+            detail = "schema + integrity ok; multi_cap_root deferred (OQ-1)"
+        elif self.ok:
+            verdict = "verified"
+            detail = "schema + integrity + multi_cap_root"
+        else:
+            verdict = "rejected"
+            detail = self.failure_reason or "verification failed"
+
+        if hour_slot:
+            identity = f"wat-hour {hour_slot}"
+        else:
+            identity = self.manifest_path
+
+        return {
+            "kind": "wat-tv-pin-pack",
+            "schema_version": "wakir-verify-manifest-v2/0",
+            "identity": identity,
+            "manifest_version": self.version,
+            "manifest_path": self.manifest_path,
+            "hour_slot": hour_slot,
+            "event_count": event_count if event_count is not None else -1,
+            "anchor_root_hex": anchor_root_hex,
+            "branches": [
+                {
+                    "label": "manifest-validity",
+                    "verdict": verdict,
+                    "detail": detail,
+                }
+            ],
+            "ok": self.ok,
+            "failure_reason": self.failure_reason,
+        }
+
+
+def _is_lower_hex_64(value: str) -> bool:
+    """Return True iff ``value`` is exactly 64 lowercase-hex chars.
+
+    Mirrors the ``^[0-9a-f]{64}$`` pattern enforced by
+    ``wirelang/schemas/wat-manifest-v2.json`` for ``merkle_root``.
+    Kept module-private — there is exactly one shape we accept for
+    the audit-trail export contract, and it is the same shape the
+    schema enforces on the wire.
+    """
+    if len(value) != 64:
+        return False
+    for ch in value:
+        if ch not in "0123456789abcdef":
+            return False
+    return True
+
 
 # ---------------------------------------------------------------------------
 # Schema validation
@@ -697,15 +843,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--output",
-        choices=("human", "json"),
+        choices=("human", "json", "audit-trail-entry"),
         default="human",
         help=(
             "Output format. 'human' (default) emits the multi-line "
             "diagnostic block; 'json' emits a single-line JSON object "
             "with the manifest-centric verifier-result schema "
-            "(schema_version 'wakir-verify-manifest-v2/0'). The JSON "
-            "schema is pinned in docs/wat-manifest-v2-spec.md §10. "
-            "--quiet is ignored when --output json is set."
+            "(schema_version 'wakir-verify-manifest-v2/0'); "
+            "'audit-trail-entry' emits the eleven-field paired-update "
+            "shape consumed by the frontend audit-trail-browser "
+            "(see ManifestV2Result.as_audit_trail_entry). The JSON "
+            "schema and the audit-trail-entry contract are pinned in "
+            "docs/wat-manifest-v2-spec.md §10. --quiet is ignored when "
+            "--output is not 'human'."
         ),
     )
     return parser
@@ -752,6 +902,35 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     if args.output == "json":
         print(json.dumps(result.as_dict(), sort_keys=True))
+    elif args.output == "audit-trail-entry":
+        # Re-parse the manifest only for the optional fields the
+        # audit-trail-entry shape carries (hour_slot, merkle_root,
+        # event_count). Failures here are non-fatal: a malformed
+        # manifest already failed verification above and the entry
+        # still renders with empty defaults so consumers see the
+        # rejected branch.
+        hour_slot = ""
+        anchor_root_hex = ""
+        event_count: Optional[int] = None
+        try:
+            with open(args.manifest, "r", encoding="utf-8") as fh:
+                manifest = json.load(fh)
+            if isinstance(manifest, dict):
+                hour_slot = str(manifest.get("hour_slot", "") or "")
+                root_candidate = manifest.get("merkle_root", "") or ""
+                if isinstance(root_candidate, str) and _is_lower_hex_64(root_candidate):
+                    anchor_root_hex = root_candidate
+                ec = manifest.get("event_count")
+                if isinstance(ec, int):
+                    event_count = ec
+        except (OSError, json.JSONDecodeError):
+            pass
+        entry = result.as_audit_trail_entry(
+            anchor_root_hex=anchor_root_hex,
+            hour_slot=hour_slot,
+            event_count=event_count,
+        )
+        print(json.dumps(entry, sort_keys=True, ensure_ascii=False))
     else:
         print(_format_human(result, quiet=args.quiet))
     return 0 if result.ok else 1
