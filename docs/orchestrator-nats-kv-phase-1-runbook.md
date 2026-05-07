@@ -5,11 +5,18 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 
 # Orchestrator NATS-JetStream KV Phase-1 — Operator Runbook
 
-Status: draft, Phase 1b Sprint-2 Tag-3.
+Status: draft, Phase 1b Sprint-2 Tag-7.
 Companion to `compose/nats.yaml` (substrate),
-`scripts/init-nats-buckets.py` (driver), and
+`scripts/init-nats-buckets.py` (Phase-1 four-bucket driver),
+`scripts/check-nats-kv-health.py` (Phase-1 substrate health
+check),
+`scripts/check-federation-evaluator-health.py` (Phase-1b V-908
+federation evaluator health check),
 `tests/orchestrator/test_init_nats_buckets.py` +
-`tests/orchestrator/test_compose_nats.py` (hermetic regressions).
+`tests/orchestrator/test_compose_nats.py` +
+`tests/orchestrator/test_check_nats_kv_health.py` +
+`tests/orchestrator/test_check_federation_evaluator_health.py`
+(hermetic regressions).
 
 This runbook is the operator-facing checklist for bringing up and
 maintaining the four Phase-1 NATS-JetStream KV buckets that back the
@@ -280,6 +287,92 @@ minimum-viable deployment that an on-call can drop in same-day. A
 proper systemd unit set will land alongside the OTel collector
 in Sprint-3.
 
+### 5.3 `check-federation-evaluator-health` tool (Sprint-2 Tag-7)
+
+The federation-evaluator health-check tool is the next layer above
+the NATS-KV substrate probe. It targets the V-908 federation route
+registry that the N2 evaluator (wirelang-eng-side
+`wirelang/federation/n2_evaluator.py`) consumes and reports on
+operator-relevant statistics that the substrate-only tool cannot
+see.
+
+Cross-reference: this tool consumes the wirelang-eng-side modules
+`wirelang/federation/route_registry_nats_kv_backend.py` (Tag-4)
+and `wirelang/federation/n2_evaluator.py` (Tag-3) byte-precisely;
+the bucket name and configuration come from the wirelang-eng module's
+`BUCKET_NAME` / `BUCKET_CONFIG` constants (single source of truth,
+no duplication).
+
+| check                                  | mechanism                                                            | reports                                                |
+| -------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------ |
+| `wakir-federation-routes` bucket exists | `await js.key_value(bucket="wakir-federation-routes")`               | `missing` / `error` / `ok`                              |
+| Bucket configuration drift             | `kv.status()` compared against wirelang-eng-side `BUCKET_CONFIG`             | per-field `{want, got}` for `history` / `ttl` / `max_value_size` / `storage` / `replicas` |
+| Snapshot decode + tally                | `NatsKvRouteRegistry.snapshot()` walk over all keys                  | total / active / expired / not-yet-active / with_wat_anchor / poisoned_keys |
+| Optional N2-evaluator smoke            | one `FederationEvaluator.evaluate_federation_route` call             | `ok` / `reject` (`error_kind`) / `error`                |
+| Connectivity (`/jsz`)                  | HTTP probe (re-used from Tag-6)                                      | 2xx healthy / unreachable / skipped                     |
+
+Usage:
+
+```bash
+# Plan-only (dry-run; no NATS connection)
+python3 scripts/check-federation-evaluator-health.py --dry-run
+
+# Full structural check against the local cluster
+python3 scripts/check-federation-evaluator-health.py
+
+# Optional N2-evaluator smoke (operator must know the route_id)
+python3 scripts/check-federation-evaluator-health.py \
+    --probe-route "wakir->partner-A->treasury" \
+    --probe-ftd-id "did:web:wakir.dev:ftd:v1"
+```
+
+Exit codes:
+
+- `0` -- bucket present at documented config; snapshot decoded
+  cleanly; `/jsz` healthy (or skipped); evaluator probe accepted
+  (or not requested).
+- `1` -- unrecoverable: connection failure, `nats-py` missing,
+  `/jsz` HTTP non-2xx (when not skipped), wirelang-eng-side modules not on
+  PYTHONPATH, invalid CLI arguments.
+- `2` -- bucket missing OR drift OR snapshot poisoned OR evaluator
+  rejected the probe.
+
+JSON output shape (top-level keys, `sort_keys=True`):
+
+```json
+{
+  "bucket": {"detail": "...", "drift": {}, "name": "wakir-federation-routes", "status": "ok"},
+  "bucket_name": "wakir-federation-routes",
+  "dry_run": false,
+  "evaluator": {"detail": "...", "error_kind": null, "ftd_id": null, "route_id": null, "status": "skipped"},
+  "jsz": {"detail": "...", "http_status": 200, "status": "ok"},
+  "jsz_url": "http://127.0.0.1:8222/jsz",
+  "servers": "nats://127.0.0.1:4222",
+  "snapshot": {"active": 2, "detail": "...", "expired": 0, "not_yet_active": 0, "poisoned_keys": [], "status": "ok", "total": 2, "with_wat_anchor": 1}
+}
+```
+
+The `snapshot.with_wat_anchor` counter is the Z2 cross-review
+surface: it counts entries carrying a non-`null`
+`wat_anchor_manifest_id` field, which downstream WAT-leaf consumers
+will use to bind a route-registry version to a WAT manifest. The
+counter is informational on the Phase-1b path; no Phase-1b code
+asserts a non-zero value.
+
+Pre-condition for non-dry-run usage: the `wakir-federation-routes`
+bucket must exist on the live cluster. Phase-1b does not auto-create
+the bucket from this tool (read-only contract); see §6.5 for the
+operator-side bucket-creation procedure when the federation
+evaluator is being brought up.
+
+PYTHONPATH note: this tool imports from `wirelang.federation.*` and
+must therefore be run with the `wakir-runtime` repo root on
+`PYTHONPATH`, or with the package installed in the operator's
+virtualenv. The Tag-6 NATS-KV health-check has no wirelang-eng-side
+dependency and runs with no PYTHONPATH gymnastics; the federation
+evaluator tool is one layer up and accepts that import cost as the
+price of single-source-of-truth bucket constants.
+
 ## 6. Recovery scenarios
 
 ### 6.1 NATS down
@@ -320,6 +413,37 @@ operationally tolerable size (Phase-1 working assumption: < 10k
 entries), trigger a manual audit review. Eviction policy beyond
 audit review is a Phase-2 follow-up; do not auto-evict in Phase-1.
 
+### 6.5 Federation-routes bucket creation (Phase-1b bring-up)
+
+The `wakir-federation-routes` bucket is the V-908 federation route
+registry consumed by the N2 evaluator. Phase-1b does not yet
+include this bucket in the `init-nats-buckets.py` driver inventory
+(documented divergence; see §7 follow-up); for Phase-1b bring-up
+the operator creates the bucket by hand using the documented
+configuration:
+
+```bash
+nats kv add wakir-federation-routes \
+    --history=5 \
+    --ttl=0 \
+    --max-value-size=4096 \
+    --storage=file \
+    --replicas=1 \
+    --description="V-908 federation-route registry (Phase-1b)"
+```
+
+The values mirror the constant
+`wirelang.federation.route_registry_nats_kv_backend.BUCKET_CONFIG`
+byte-precisely. The
+`scripts/check-federation-evaluator-health.py` tool verifies the
+match on every run; drift surfaces as exit code 2 with a per-field
+`{want, got}` diff.
+
+After bucket creation, populate the registry with the operator's
+documented routes (out-of-scope for this runbook; see the V-908
+operator playbook). Re-run
+`scripts/check-federation-evaluator-health.py` and confirm exit 0.
+
 ## 7. Open follow-ups
 
 - Sprint-2 Box-3: ~~pin the NATS server image tag in `compose/nats.yaml`~~
@@ -343,6 +467,22 @@ audit review is a Phase-2 follow-up; do not auto-evict in Phase-1.
   §5.1/§5.2 runbook entries. Build-host live-smoke (`WAKIR_NATS_LIVE=1`)
   is the Tag-6 follow-up: the two gated smoke tests need a Box-3
   compose stack to exercise.
+- Sprint-2 Tag-7: ~~ship a federation-evaluator health-check tool~~
+  done — `scripts/check-federation-evaluator-health.py` plus its
+  hermetic test suite
+  (`tests/orchestrator/test_check_federation_evaluator_health.py`,
+  20 hermetic + 2 live-smoke gated) and the §5.3 + §6.5 runbook
+  entries. Cross-script parity tests pin the wirelang-eng-side `BUCKET_NAME`
+  / `BUCKET_CONFIG` / drift-field-set against the Tag-6 health
+  check.
+- Sprint-3: extend `init-nats-buckets.py` `PHASE_1_BUCKETS` to
+  include `wakir-federation-routes` as a fifth bucket so the
+  bring-up procedure in §6.5 collapses into the routine `init`
+  pass. The Tag-7 federation evaluator health check already
+  consumes the bucket-config constant from the wirelang-eng-side module;
+  the orchestrator-side init driver has not yet picked up the
+  fifth entry. Cross-Review Zone B (NATS-KV × Wirelang)
+  paired-update with the wirelang-eng track when this lands.
 - Sprint-3: full systemd-timer wiring for the health-check tool plus
   a Prometheus textfile-collector adapter consuming the JSON report's
   `summary` block. The §5.2 cron snippet is the Phase-1b minimum-viable
@@ -377,17 +517,35 @@ audit review is a Phase-2 follow-up; do not auto-evict in Phase-1.
 - `nats-py` version: not pinned in this runbook. Pinning belongs in
   the orchestrator container's Python dependency manifest, not in
   this operator-facing document.
-- Hermetic regression suite (Tag-6 update): 35 tests pass + 2 skipped
+- Hermetic regression suite (Tag-7 update): 55 tests pass + 4 skipped
   (live smoke, gated on `WAKIR_NATS_LIVE=1`) under Python 3.14.4 +
   pytest 9.0.3 (Phase-1b shared `.venv`); `tests/orchestrator/`.
   Composition: 10 tests for the bucket initialiser (Tag-2), 9 tests
-  for the compose substrate (Tag-3), 16 tests for the health-check
-  tool (Tag-6) including a cross-script inventory-parity regression
-  (`test_inventory_matches_init_nats_buckets`). Test stamp:
-  `date -u` 2026-05-07T12:39:46Z (CEST 14:39).
+  for the compose substrate (Tag-3), 16 tests for the NATS-KV
+  health-check tool (Tag-6) including a cross-script inventory-parity
+  regression (`test_inventory_matches_init_nats_buckets`), 20 tests
+  for the federation evaluator health-check tool (Tag-7) including
+  three cross-tool parity regressions
+  (`test_bucket_name_matches_route_registry_backend`,
+  `test_bucket_config_matches_route_registry_backend`,
+  `test_drift_comparator_field_set_matches_phase_1_health_check`).
+  Test stamp: `date -u` 2026-05-07T13:09:42Z (CEST 15:09).
 - Health-check tool authoring date (Tag-6 addition): `date -u`
   2026-05-07T12:39:46Z (CEST 2026-05-07, Sprint-2 Tag-6).
   `scripts/check-nats-kv-health.py` is read-only by construction;
   it does not introduce a new image-tag dependency, a new auth
   surface, or a new schema surface. The tool consumes the existing
   Tag-2 inventory and the existing Tag-3 compose `/jsz` endpoint.
+- Federation-evaluator health-check tool authoring date (Tag-7
+  addition): `date -u` 2026-05-07T13:09:42Z (CEST 2026-05-07,
+  Sprint-2 Tag-7).
+  `scripts/check-federation-evaluator-health.py` is read-only by
+  construction; it consumes the wirelang-eng-side
+  `wirelang/federation/route_registry_nats_kv_backend.py` (Tag-4)
+  and `wirelang/federation/n2_evaluator.py` (Tag-3) byte-precisely
+  via direct constant import (single source of truth, no
+  duplication). The tool introduces no new image-tag dependency,
+  no new auth surface, and no new schema surface; it does require
+  the wakir-runtime repo root on PYTHONPATH so the
+  `wirelang.federation.*` imports resolve. Full project-wide test
+  suite stamp post-Tag-7: `189 passed, 23 skipped, 0 regressions`.
