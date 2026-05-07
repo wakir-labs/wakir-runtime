@@ -5,7 +5,8 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 
 # Orchestrator NATS-JetStream KV Phase-1 — Operator Runbook
 
-Status: draft, Phase 1b Sprint-2 Tag-8 (Sprint-2 closing consolidation).
+Status: draft, Phase 1b Sprint-3 Tag-2 (build-host activation
+procedure expansion in §7.1).
 Companion to `compose/nats.yaml` (substrate),
 `scripts/init-nats-buckets.py` (Phase-1 four-bucket driver),
 `scripts/check-nats-kv-health.py` (Phase-1 substrate health
@@ -46,8 +47,9 @@ memos and are referenced here only by name.
 | 6.3 | Configuration drift                                                | Tag-2, Tag-6 |
 | 6.4 | FTD poison-list growth                                             | Tag-2       |
 | 6.5 | Federation-routes bucket creation (Phase-1b bring-up)              | Tag-7       |
-| 7   | Open follow-ups (sprint-by-sprint backlog)                         | Tag-2..Tag-8 |
-| 8   | Verification stamps (P5/P7)                                        | Tag-2..Tag-8 |
+| 7   | Open follow-ups (sprint-by-sprint backlog)                         | Tag-2..Tag-8, Sprint-3 Tag-2 |
+| 7.1 | Build-host activation procedure (nine-step, expanded)              | Sprint-3 Tag-2 |
+| 8   | Verification stamps (P5/P7)                                        | Tag-2..Tag-8, Sprint-3 Tag-2 |
 
 The four operator artefacts (compose substrate, bucket initialiser,
 NATS-KV substrate health check, federation evaluator health check)
@@ -536,22 +538,399 @@ operator playbook). Re-run
   SVID path will replace this with a workload-API call. The health
   check inherits the same token contract today and will inherit the
   SVID upgrade for free.
-- Sprint-3: build-host activation. The Sprint-2 hermetic test suite
-  is complete (55 + 4 skipped under `tests/orchestrator/`), but four
-  live-smoke contracts are gated on `WAKIR_NATS_LIVE=1` and require
-  a build host with `gcc` (for `nats-py` compilation), a container
-  engine (`podman` or `docker`) for the compose substrate, and the
-  `nats` CLI for the `kv add` step in §6.5. Activation order:
-  (i) install gcc + podman + nats-py + nats-cli, (ii) `docker
-  compose -f compose/nats.yaml up -d` (Box-3 substrate), (iii)
-  `python3 scripts/init-nats-buckets.py` (Phase-1 four-bucket
-  init), (iv) `nats kv add wakir-federation-routes ...` per §6.5
-  (Phase-1b fifth bucket), (v) `WAKIR_NATS_LIVE=1 python3 -m
-  pytest tests/orchestrator/` to exercise the four live-smoke
-  contracts (Box-5 real-nats-py-adapter + Tag-6 NATS-KV health +
-  Tag-7 federation-evaluator health). Until that activation, the
-  hermetic suite is the production-grade contract surface; the
+- Sprint-3 Tag-2: build-host activation. The Sprint-2 hermetic test
+  suite is complete (55 + 4 skipped under `tests/orchestrator/`),
+  but four live-smoke contracts are gated on `WAKIR_NATS_LIVE=1`
+  and require a build host with `gcc` (for `nats-py` C-extension
+  compilation, notably the `nkeys` CFFI dep), a container engine
+  (`podman` or `docker`) for the compose substrate, and the `nats`
+  CLI for the `kv add` step in §6.5. The expanded nine-step
+  activation procedure is documented in §7.1 below; the operator-
+  side checklist there carries the per-step footprint estimate,
+  reversibility note, and security-review hint that the supervisory-
+  board-side approval pass needs to triage. Until that activation,
+  the hermetic suite is the production-grade contract surface; the
   live-smoke tests are activation-gated future work.
+
+### 7.1 Build-host activation procedure (Phase-1b Sprint-3 Tag-2)
+
+This sub-section is the operator-facing nine-step procedure that
+brings a fresh build host up to the live-smoke-test contract
+surface defined in Sprint-2 Tag-6 / Tag-7. It is the public-form
+counterpart to the dev-engineering-3-side outbox sketch
+`2026-05-07-phase-1b-sprint-3-tag-1-build-host-aktivierung-skizze`
+filed for the supervisory-board-side approval pass.
+
+The procedure assumes a Fedora-43-class host (dnf-based) with at
+least 2 GB free disk, 2 GB RAM, and 2 cores. apt-based equivalents
+(Debian / Ubuntu) substitute trivially; the dnf commands below are
+the default. Each step lists: command(s), footprint estimate,
+reversibility, security note, verification, and approval-pass
+status (whether the supervisory-board-side approval pass needs to
+gate the step before execution). The footprint and time estimates
+are conjecture (P2): they are derived from upstream package-
+metadata (Fedora repo metadata, PyPI, Synadia GitHub releases) and
+not from a sandbox install — order-of-magnitude stable, absolute
+values may drift ±20 %.
+
+**Total disk footprint (steps 2–8, fresh install):** ~500 MB.
+**Total network download (steps 2–8):** ~210 MB.
+**Total wallclock (steps 1–8, install-only, excludes approval
+latency):** ~15–23 minutes.
+
+#### 7.1.1 Step 1 — pre-check (host platform detection)
+
+Read-only. No approval-pass gate.
+
+```bash
+cat /etc/os-release
+python3 --version
+df -h /var/lib /usr /home
+free -h
+nproc
+```
+
+Verification: `os-release` shows `ID=fedora` and a recent
+`VERSION_ID`; `python3 --version` ≥ 3.11; `df` shows ≥ 2 GB free
+on `/var/lib` (for podman image storage) and ≥ 1 GB on `/usr`;
+`nproc` ≥ 2.
+
+#### 7.1.2 Step 2 — install gcc + python3-devel
+
+C-compile toolchain for any `nats-py` dep-tree C-extensions
+(`nkeys` CFFI). Approval-pass gate: yes.
+
+```bash
+sudo dnf install -y gcc python3-devel
+# apt equivalent:
+# sudo apt-get update && sudo apt-get install -y gcc python3-dev
+```
+
+Footprint: ~250 MB disk; ~80 MB download.
+Reversibility: full (`sudo dnf remove gcc python3-devel`).
+Security note: official Fedora repo, signed packages; no third-
+party repo; gcc itself exposes no network surface.
+Verification: `gcc --version` ≥ 13.x (Fedora-43 default);
+`python3-config --includes` returns valid include paths.
+
+#### 7.1.3 Step 3 — install podman + podman-compose
+
+Rootless container engine plus compose-file interpreter. The
+Phase-1b compose substrate (`compose/nats.yaml`) targets the
+docker-compose v3 schema and is compatible with both podman-
+compose and `docker compose`. Approval-pass gate: yes.
+
+```bash
+sudo dnf install -y podman podman-compose
+# docker-ce alternative requires the docker-ce repo:
+# sudo dnf install -y dnf-plugins-core
+# sudo dnf config-manager --add-repo \
+#   https://download.docker.com/linux/fedora/docker-ce.repo
+# sudo dnf install -y docker-ce docker-ce-cli containerd.io \
+#   docker-compose-plugin
+```
+
+Footprint: ~155 MB disk (podman ~80 MB + conmon/runc ~70 MB +
+podman-compose ~5 MB); ~60 MB download.
+Reversibility: full (`sudo dnf remove podman podman-compose`).
+Container volumes under `~/.local/share/containers/` survive
+package-removal; bulk cleanup via `podman system reset` is
+destructive and must be approved separately.
+Security note: official Fedora repo, signed packages. podman
+defaults to rootless — no daemon, no privileged socket.
+docker-ce alternative runs a root daemon and exposes
+`/var/run/docker.sock`; that is a higher-risk choice and a
+strategic-side decision, not a default.
+Verification: `podman --version` ≥ 5.x; `podman info` shows
+`graphRoot` under the user's home and `runRoot` under `/run/user`.
+
+#### 7.1.4 Step 4 — install the `nats` CLI
+
+Synadia upstream Go binary for bucket inspection, KV-add, and
+pub/sub testing. Not packaged in Fedora repos as of Sprint-2
+authoring (P2 conjecture, last checked Sprint-2 Tag-3); install
+from upstream GitHub release with SHA256 verification.
+Approval-pass gate: yes (curl-from-internet plus sudo install).
+
+```bash
+# (1) discover the latest release tag:
+curl -fsSL \
+  https://api.github.com/repos/nats-io/natscli/releases/latest \
+  | grep '"tag_name"' | head -1
+# (2) download the corresponding linux-amd64 archive (substitute
+#     v0.1.x with the discovered tag):
+curl -fsSL -o /tmp/nats.zip \
+  "https://github.com/nats-io/natscli/releases/download/v0.1.x/nats-0.1.x-linux-amd64.zip"
+# (3) download and verify the SHA256SUMS file:
+curl -fsSL -o /tmp/SHA256SUMS \
+  "https://github.com/nats-io/natscli/releases/download/v0.1.x/SHA256SUMS"
+( cd /tmp && sha256sum --check --ignore-missing SHA256SUMS )
+# (4) install:
+unzip /tmp/nats.zip -d /tmp/nats-cli
+sudo install -m 0755 \
+  /tmp/nats-cli/nats-0.1.x-linux-amd64/nats \
+  /usr/local/bin/nats
+rm -rf /tmp/nats.zip /tmp/nats-cli /tmp/SHA256SUMS
+```
+
+Alternative (if `go` ≥ 1.21 is already installed):
+
+```bash
+go install github.com/nats-io/natscli/nats@latest
+# binary lands in $GOPATH/bin or ~/go/bin
+```
+
+Footprint: ~25 MB disk; ~10 MB download.
+Reversibility: full (`sudo rm /usr/local/bin/nats` or
+`rm ~/go/bin/nats`).
+Security note: SHA256-verify before `sudo install` is mandatory.
+The procedure deliberately avoids the `curl ... | sh` pattern;
+each artefact is downloaded to `/tmp` and verified before it is
+moved into a privileged location. The two upstream URLs
+(`api.github.com/repos/nats-io/natscli/releases/latest` and
+`github.com/nats-io/natscli/releases/download/...`) are conjecture
+(P2): they follow the GitHub-API and GitHub-Releases conventions
+but were not 200-verified during runbook authoring (the authoring
+sandbox has no internet egress). The supervisory-board-side
+approval pass should perform a one-shot HTTP-200 check on those
+two URLs before greenlighting this step.
+Verification: `nats --version` returns a non-zero version string;
+`nats --help | head -10` prints the upstream usage banner.
+
+#### 7.1.5 Step 5 — install `nats-py` (PyPI, in repo-local venv)
+
+Python async client for the real-nats-py-adapter (Sprint-2 Box-5
+follow-up) and the bucket-init driver. Approval-pass gate: yes
+(PyPI install, supply-chain surface).
+
+```bash
+# precondition: the wakir-runtime repo has been cloned (step 6)
+cd ~/wakir-runtime
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install nats-py
+deactivate
+```
+
+Footprint: ~5 MB disk in the venv (nats-py + nkeys + asyncio
+deps); ~2 MB download.
+Reversibility: full (`rm -rf .venv`).
+Security note: `nats-py` is Synadia-published on PyPI; the
+maintainer is verifiable on `pypi.org/project/nats-py/`. Pip-
+hash-pinning (`pip install --require-hashes -r requirements.txt`)
+is a Phase-3 reproducibility item (Sprint-4+) and is not gated by
+this step. The repo-local venv pattern is preferred over a global
+install so that an `rm -rf .venv` rolls the install back without
+affecting the host's system Python.
+Verification:
+
+```bash
+source .venv/bin/activate
+python3 -c "import nats; print(nats.__version__)"
+deactivate
+```
+
+Expected: a non-zero version string ≥ 2.6 (Sprint-2 Tag-3
+authoring baseline; PyPI HEAD may be higher; the API surface used
+by the adapter is stable across the 2.x line).
+
+#### 7.1.6 Step 6 — clone the repo and run a compose smoke test
+
+Clone `wakir-runtime`, bring the NATS substrate up via the Tag-3
+compose file, ping the server, then bring it back down.
+Approval-pass gate: yes (clone + image-pull from internet).
+
+```bash
+git clone \
+  https://github.com/wakir-labs/wakir-runtime.git \
+  ~/wakir-runtime
+cd ~/wakir-runtime
+podman-compose -f compose/nats.yaml up -d
+sleep 10
+podman ps  # the nats container should be "Up"
+nats --server=nats://localhost:4222 server check connection
+podman-compose -f compose/nats.yaml down
+```
+
+Footprint: ~30 MB repo + ~25 MB image-pull = ~55 MB disk;
+network ~55 MB.
+Reversibility: full. `podman-compose down` stops the container.
+`podman volume rm <name>` removes the JetStream state volume
+(destructive; `nats-jetstream`). `rm -rf ~/wakir-runtime` removes
+the repo.
+Security note: HTTPS-only clone (no SSH key needed for read-only
+access). The compose file pins `nats:2.11-alpine` by tag; the
+Sprint-3 image-pipeline-side digest-pin upgrade (Cross-Review
+Zone C) replaces the tag with `@sha256:<digest>` once the
+build-host operator resolves it. `nats server check connection`
+is a read-only operation. If the host's firewall is active, the
+NATS port `4222/tcp` may need to be opened temporarily for the
+test (`sudo firewall-cmd --add-port=4222/tcp`) and closed again
+afterwards.
+Verification: `podman ps --filter name=nats` shows one running
+container; `nats ... server check connection` exits 0; localhost
+roundtrip ≤ 5 ms.
+
+#### 7.1.7 Step 7 — initialise the four Phase-1 KV buckets
+
+Run `scripts/init-nats-buckets.py` against the running NATS
+container. Approval-pass gate: yes (first live bucket-write
+operation on this host).
+
+```bash
+cd ~/wakir-runtime
+podman-compose -f compose/nats.yaml up -d
+sleep 10
+source .venv/bin/activate
+python3 scripts/init-nats-buckets.py --server nats://localhost:4222
+nats --server=nats://localhost:4222 kv ls
+deactivate
+```
+
+Footprint: ~5 MB JetStream storage in the `nats-jetstream`
+volume.
+Reversibility: full. `nats ... kv del <bucket>` removes a single
+bucket; `podman volume rm nats-jetstream` is the bulk-cleanup
+path (destructive). `podman-compose down` does not touch the
+volume.
+Security note: the Phase-1b NATS substrate runs without
+authentication (Cross-Review Zone A SPIFFE/SVID auth is a
+Sprint-3 follow-up). The four buckets are publicly readable and
+writable inside the local NATS container. **Do not connect this
+substrate to a production NATS without first completing the
+Zone-A auth setup.**
+Verification:
+
+```bash
+nats --server=nats://localhost:4222 kv ls
+# expected: four bucket names:
+#   wakir-schemas, wakir-aip-cache,
+#   wakir-ftd-cache, wakir-ftd-poisoned
+nats --server=nats://localhost:4222 kv info wakir-schemas
+# expected: bucket details (max-bytes, history, ttl) matching §1
+```
+
+For Phase-1b operators who also need the V-908 federation routes
+bucket, follow §6.5 immediately after step 7 (one additional
+`nats kv add wakir-federation-routes ...` invocation; a Sprint-3
+follow-up collapses this into the routine `init` driver pass).
+
+#### 7.1.8 Step 8 — activate the live-smoke regression contract
+
+Re-export `WAKIR_NATS_LIVE=1` and run the gated test suite to
+exercise the four live-smoke contracts (Box-5 real-nats-py-
+adapter + Tag-6 NATS-KV health + Tag-7 federation-evaluator
+health, two of which target the Tag-7 evaluator under §6.5).
+Approval-pass gate: yes (first-time live-smoke activation; the
+test run is read/write on JetStream state).
+
+```bash
+cd ~/wakir-runtime
+podman-compose -f compose/nats.yaml up -d
+sleep 10
+source .venv/bin/activate
+WAKIR_NATS_LIVE=1 \
+  WAKIR_NATS_SERVER=nats://localhost:4222 \
+  pytest tests/orchestrator/ -v
+deactivate
+podman-compose -f compose/nats.yaml down
+```
+
+Expected outcome: 55 hermetic + 4 live-smoke = 59 passed; 0
+skipped; 0 failed (assuming step 6.5 has been run for the
+federation-routes bucket; otherwise the two §6.5-dependent
+live-smoke tests fail with a per-field drift report). Without
+`WAKIR_NATS_LIVE=1` the four live-smoke tests stay skipped — that
+is the Sprint-2 default and the contract surface for the
+build-host-less authoring sandbox.
+Footprint: ~5 MB test-output logs.
+Reversibility: full. Test data writes leave the four (or five)
+KV buckets in a non-empty state; cleanup via `nats ... kv purge
+<bucket>` per bucket, or via `podman volume rm nats-jetstream`
+for bulk cleanup. The hermetic regression baseline is preserved
+(Tag-7 stamp: 55 + 4 skipped); zero-drift verification is the
+exit criterion for Sprint-3 Tag-2.
+Verification:
+
+```bash
+pytest tests/orchestrator/ -v 2>&1 | tail -20
+# expected: "59 passed in X.XXs" with WAKIR_NATS_LIVE=1, or
+#           "55 passed, 4 skipped" without it.
+```
+
+#### 7.1.9 Step 9 — cleanup / rollback procedure
+
+Reverse-sequence for build-host deactivation (Phase-1c hand-off
+or post-Sprint-3 cleanup). Approval-pass gate: yes (destructive:
+volume removal, package removal).
+
+```bash
+# (1) compose-down + volume cleanup (destructive: state loss)
+cd ~/wakir-runtime
+podman-compose -f compose/nats.yaml down
+podman volume ls --filter name=nats
+podman volume rm nats-jetstream
+
+# (2) repo removal
+deactivate 2>/dev/null || true
+rm -rf ~/wakir-runtime
+
+# (3) pip packages — non-issue when venv was used
+# global-install rollback (only if step 5 was global):
+# pip uninstall nats-py
+
+# (4) nats CLI removal
+sudo rm /usr/local/bin/nats
+
+# (5) image cleanup
+podman image rm nats:2.11-alpine
+
+# (6) optional system-package removal (if the host is no longer
+#     used as a build host)
+sudo dnf remove gcc python3-devel podman podman-compose
+sudo dnf autoremove
+```
+
+Footprint: reverse operation; ~460 MB disk freed.
+Security note: `podman volume rm nats-jetstream` is destructive;
+JetStream state is not recoverable afterwards. Sprint-2 has no
+state of operational value, so the bulk path is safe; Sprint-3
+Phase-3 introduces a JetStream backup pipeline before this
+becomes a live concern. `dnf remove` is a clean rollback for
+system packages.
+Verification:
+
+```bash
+which gcc podman nats 2>&1   # all "not found" expected
+ls ~/wakir-runtime 2>&1       # "No such file or directory" expected
+```
+
+#### 7.1.10 Risk register
+
+| risk                                                       | likelihood | impact      | mitigation                                                                  |
+| ---------------------------------------------------------- | ---------- | ----------- | --------------------------------------------------------------------------- |
+| dnf repo slowdown / mirror offline                         | low        | medium      | retry; alternative mirror URL                                               |
+| `nats` CLI GitHub release outage                           | low        | medium      | fallback: `go install` (step 4 alternative)                                 |
+| `nats-py` PyPI version conflict                            | low        | low         | repo-local venv isolates; hash-pinning is a Sprint-4 item                   |
+| compose image-pull drift (`nats:2.11-alpine` tag move)     | low        | medium      | digest-pin upgrade path documented in §3.1 (Cross-Review Zone C)            |
+| build-host disk full                                       | low        | high        | step 1 pre-check verifies ≥ 2 GB free                                       |
+| approval-pass latency stalls activation                    | medium     | medium      | the dev-engineering-3-side outbox sketch is the pre-approval staging item   |
+| upstream API drift (`nats-py` 2.x → 3.x)                   | low        | low         | hermetic suite stays green; the live-smoke adapter is robust to 2.x→3.x    |
+
+#### 7.1.11 Cross-review zone touch
+
+| zone                                                  | step touches                                    | sprint follow-up                                 |
+| ----------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------ |
+| Zone A (container-identity × identity-spec)           | none directly (Sprint-3 SPIFFE item is separate) | Sprint-3 SPIFFE/SVID auth integration            |
+| Zone B (NATS schema × wirelang)                       | step 7 + step 8 exercise the registry surface   | Sprint-3 paired-update with the wirelang-eng track |
+| Zone C (image pipeline × OTS)                         | step 6 image-pull (`nats:2.11-alpine`)          | Sprint-3 digest-pin upgrade (§3.1)               |
+| Zone D (Phala × identity-bridge)                      | none                                            | Sprint-3+                                        |
+
+The Zone-C touch in step 6 is operationalised under the existing
+ack/modify/veto memo filed in the dev-engineering inbox (slug
+`2026-05-07-kai-zone-c-image-pin-nats-2.11-alpine`); no new
+zone-C consensus is required for this sub-section.
 - Phase-3: replicated JetStream (replicas > 1) requires a multi-node
   cluster topology. Bucket spec changes are limited to `replicas`; the
   initialiser already plumbs that field end-to-end and the health
@@ -623,3 +1002,36 @@ operator playbook). Re-run
   `2026-05-07-phase-1b-sprint-2-acceptance-doku` in the
   dev-engineering-3 outbox) is the companion deliverable for the
   Sprint-2 closing gate.
+- Sprint-3 Tag-2 §7.1 expansion stamp: `date -u`
+  2026-05-07T14:07:19Z (CEST 2026-05-07T16:07). This pass is
+  documentation-only. No code surface is touched; no test surface
+  is added; no exit-code contract changes; no schema changes; no
+  auth-surface changes. The §7.1 nine-step build-host activation
+  procedure expands the Tag-8 §7 Sprint-3 build-host bullet into
+  per-step command, footprint, reversibility, security note,
+  verification, and approval-pass-gate metadata so an external
+  operator can execute the activation without reading the
+  dev-engineering-3-side workspace outbox sketch. The §0 section
+  index, the §7 Sprint-3 build-host bullet rewrite, the new
+  §7.1 sub-section (steps 7.1.1 through 7.1.11), and this
+  verification stamp are the only Sprint-3 Tag-2 additions to
+  the runbook. Zero-drift verification: `tests/orchestrator/`
+  55 passed + 4 skipped (Tag-7 baseline preserved); zero
+  regressions. The §7.1 footprint and time estimates are
+  conjecture (P2): they are derived from upstream package metadata
+  (Fedora dnf, PyPI, Synadia GitHub Releases) and not from a
+  sandbox install, so absolute values may drift ±20 % while
+  order-of-magnitude is stable. The two upstream URLs cited in
+  step 7.1.4 (`api.github.com/repos/nats-io/natscli/releases/latest`
+  and `github.com/nats-io/natscli/releases/download/...`) follow
+  GitHub-API and GitHub-Releases conventions but were not
+  HTTP-200-verified during runbook authoring (the authoring
+  sandbox has no internet egress); the supervisory-board-side
+  approval pass should run a one-shot 200-check on those URLs
+  before greenlighting step 7.1.4. The third URL
+  (`github.com/wakir-labs/wakir-runtime`) is verified-existing
+  via the Sprint-2 push history for this repo. Sprint-3 Tag-2
+  companion artefact: the dev-engineering-3-side workspace
+  outbox sketch `2026-05-07-phase-1b-sprint-3-tag-1-build-host-
+  aktivierung-skizze` (Tag-1 deliverable) plus the Sprint-3 Tag-2
+  outbox slug `2026-05-07-phase-1b-sprint-3-tag-2`.
