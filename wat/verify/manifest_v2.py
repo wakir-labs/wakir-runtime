@@ -86,6 +86,36 @@ two semantic tables:
 - ``0`` — manifest validates and is internally consistent.
 - ``1`` — schema-validation failure, cross-integrity failure, or
   ``multi_cap_root_mismatch`` under strict mode.
+
+Real-manifest mode (Sprint-2 Tag-5)
+-----------------------------------
+
+The v2-spec verifier above operates on manifests that conform to
+``wirelang/schemas/wat-manifest-v2.json``. The real aggregator
+(``wat/aggregator.py`` v1 branch) emits a sister shape today —
+``wakir-wat-manifest/v1`` — with ``leaf_hash`` (vs ``leaf``),
+``leaves`` as objects (vs hex strings), and an optional
+``prev_hour_root``. Real manifests live next to ``root.bin`` and
+``root.bin.ots`` (OpenTimestamps proof) under
+``.runtime/wat-tv*-archive/<RUN>/<HOUR>/manifest.json``.
+
+The :func:`verify_real_manifest_file` entry consumes that real
+on-disk shape directly, performs field-validation and Merkle-rebuild
+without going through the v2 JSON-Schema (which would reject the
+v1 wire-form), and optionally verifies the OTS-anchor side-files:
+
+- ``root.bin`` exists, is exactly 32 bytes, and its raw content
+  hex-encodes to the manifest's ``merkle_root``.
+- ``root.bin.ots`` exists and starts with the OpenTimestamps
+  ``\\x00OpenTimestamps\\x00\\x00Proof\\x00`` magic header (we do
+  not re-verify the timestamp itself — that is ``ots verify``
+  territory and would require Bitcoin RPC access).
+
+Multi-cap awareness in real-manifest mode is conditional: today's
+v1 aggregator does not emit ``multi_cap_events`` or
+``multi_cap_summary``. When a real manifest does carry those keys
+(future v2 producer-code), the same multi-cap consistency check
+(strict default ON since Sprint-2 Tag-4) runs against them.
 """
 
 from __future__ import annotations
@@ -103,6 +133,20 @@ from wat.merkle.aggregator import (
     compute_inner_hash,
     compute_leaf_hash,
 )
+
+
+# ---------------------------------------------------------------------------
+# OTS anchor magic header
+# ---------------------------------------------------------------------------
+
+#: OpenTimestamps proof-file magic header. Bytes 0-15 of any valid
+#: ``.ots`` file. We check the first 16 bytes (enough to disambiguate
+#: from any other file format we care about) without depending on the
+#: ``opentimestamps`` Python client — that dep is heavy and would make
+#: this stub non-hermetic. Full verification (Bitcoin attestation
+#: completion) is ``ots verify`` territory; this stub only asserts the
+#: file is well-formed at the magic-header level.
+_OTS_MAGIC_HEADER = b"\x00OpenTimestamps\x00"
 
 
 # ---------------------------------------------------------------------------
@@ -805,6 +849,516 @@ def verify_manifest_v2_file(
 
 
 # ---------------------------------------------------------------------------
+# Real-manifest mode (Sprint-2 Tag-5)
+# ---------------------------------------------------------------------------
+
+
+#: Manifest version strings recognised in real-manifest mode. The v1
+#: real aggregator emits ``wakir-wat-manifest/v1``; future v2 producer-
+#: code (``wat/aggregator.py`` v2 branch) will emit
+#: ``wakir-wat-manifest/v2`` once it lands. Anything outside this set
+#: is rejected up-front with an explicit field-validation diagnostic.
+_REAL_VERSION_V1 = "wakir-wat-manifest/v1"
+_REAL_VERSION_V2 = "wakir-wat-manifest/v2"
+_REAL_VERSIONS = frozenset({_REAL_VERSION_V1, _REAL_VERSION_V2})
+
+
+#: Mandatory top-level fields on every real-manifest. Field-by-field
+#: validation in real-manifest mode rejects on missing fields with a
+#: pointer-style diagnostic ``"/<field>"`` matching the JSON-Schema
+#: failure idiom even though we are not running the schema validator.
+_REAL_MANDATORY_FIELDS = (
+    "version",
+    "hour_slot",
+    "merkle_root",
+    "event_count",
+    "events",
+    "leaves",
+    "tree_levels",
+    "build_time",
+)
+
+
+def _validate_real_manifest_fields(manifest: dict) -> Optional[str]:
+    """Return a failure reason or None for real-manifest field shape.
+
+    Field-by-field validation independent of the v2 JSON-Schema. Real
+    manifests use ``leaf_hash`` (not ``leaf``) and carry full leaves
+    objects, so the v2 schema would reject them; we do the structural
+    check here with explicit diagnostics.
+    """
+    for field in _REAL_MANDATORY_FIELDS:
+        if field not in manifest:
+            return f"field /{field}: required field missing"
+
+    version = manifest["version"]
+    if version not in _REAL_VERSIONS:
+        return (
+            f"field /version: unrecognised real-manifest version {version!r}; "
+            f"expected one of {sorted(_REAL_VERSIONS)}"
+        )
+
+    if not isinstance(manifest["merkle_root"], str) or not _is_lower_hex_64(
+        manifest["merkle_root"]
+    ):
+        return (
+            "field /merkle_root: must be exactly 64 lowercase-hex chars; "
+            f"got {manifest['merkle_root']!r}"
+        )
+
+    if not isinstance(manifest["event_count"], int) or manifest["event_count"] < 0:
+        return (
+            "field /event_count: must be a non-negative integer; "
+            f"got {manifest['event_count']!r}"
+        )
+
+    if not isinstance(manifest["events"], list):
+        return "field /events: must be a JSON array"
+    if not isinstance(manifest["leaves"], list):
+        return "field /leaves: must be a JSON array"
+    if not isinstance(manifest["tree_levels"], list):
+        return "field /tree_levels: must be a JSON array"
+
+    if not isinstance(manifest["hour_slot"], str) or not manifest["hour_slot"]:
+        return "field /hour_slot: must be a non-empty string"
+
+    # Optional anchor_height — when present, must be a positive int.
+    if "anchor_height" in manifest:
+        ah = manifest["anchor_height"]
+        if not isinstance(ah, int) or ah <= 0:
+            return (
+                "field /anchor_height: must be a positive integer when present; "
+                f"got {ah!r}"
+            )
+
+    return None
+
+
+def _normalise_real_leaves(manifest: dict) -> Tuple[Optional[str], List[str]]:
+    """Extract the per-event leaf hashes from a real-manifest.
+
+    Real-manifest ``leaves[i]`` is one of:
+
+    - a hex string (v2-spec shape, also accepted),
+    - a dict with ``leaf_hash`` field (v1-aggregator shape).
+
+    Returns ``(failure_reason or None, normalised_hex_leaves)``.
+    """
+    out: List[str] = []
+    for idx, entry in enumerate(manifest["leaves"]):
+        if isinstance(entry, str):
+            if not _is_lower_hex_64(entry):
+                return (
+                    (
+                        f"field /leaves/{idx}: must be 64 lowercase-hex chars "
+                        f"or {{leaf_hash: ...}} object; got {entry!r}"
+                    ),
+                    [],
+                )
+            out.append(entry)
+        elif isinstance(entry, dict):
+            leaf_hex = entry.get("leaf_hash")
+            if not isinstance(leaf_hex, str) or not _is_lower_hex_64(leaf_hex):
+                return (
+                    (
+                        f"field /leaves/{idx}/leaf_hash: must be 64 "
+                        f"lowercase-hex chars; got {leaf_hex!r}"
+                    ),
+                    [],
+                )
+            out.append(leaf_hex)
+        else:
+            return (
+                (
+                    f"field /leaves/{idx}: must be a hex string or "
+                    f"{{leaf_hash: ...}} object; got {type(entry).__name__}"
+                ),
+                [],
+            )
+    return (None, out)
+
+
+def _check_real_event_leaves(
+    manifest: dict, normalised_leaves: Sequence[str]
+) -> Optional[str]:
+    """Cross-check events[].leaf_hash / leaf against normalised leaves.
+
+    Real v1 events carry ``leaf_hash``; v2-shape events carry ``leaf``;
+    we accept either. When both fields are present they must agree
+    with the corresponding entry in ``leaves[]``.
+    """
+    declared_count = manifest["event_count"]
+    n_events = len(manifest["events"])
+    n_leaves = len(normalised_leaves)
+    if declared_count != n_events:
+        return (
+            f"event_count drift: manifest claims {declared_count} but "
+            f"events[] has {n_events} entries"
+        )
+    if declared_count != n_leaves:
+        return (
+            f"event_count drift: manifest claims {declared_count} but "
+            f"leaves[] has {n_leaves} entries"
+        )
+
+    for idx, ev in enumerate(manifest["events"]):
+        leaf_in_event = ev.get("leaf_hash") or ev.get("leaf")
+        if leaf_in_event is None:
+            # Slim event without leaf — recompute from B1 fields if present.
+            b1 = ("event_id", "time", "payload_hash", "capability_token_hash")
+            if all(k in ev for k in b1):
+                recomputed = compute_leaf_hash(
+                    event_id=ev["event_id"],
+                    time=ev["time"],
+                    payload_hash=ev["payload_hash"],
+                    capability_token_hash=ev["capability_token_hash"],
+                )
+                if recomputed.hex() != normalised_leaves[idx]:
+                    return (
+                        f"leaf drift at index {idx} (event_id={ev.get('event_id')!r}): "
+                        f"events[] B1 fields hash to {recomputed.hex()} but "
+                        f"leaves[{idx}] is {normalised_leaves[idx]}"
+                    )
+            continue
+        if leaf_in_event != normalised_leaves[idx]:
+            return (
+                f"leaf drift at index {idx}: events[{idx}].leaf_hash is "
+                f"{leaf_in_event} but leaves[{idx}] is {normalised_leaves[idx]}"
+            )
+    return None
+
+
+def _check_real_merkle_root(
+    manifest: dict, normalised_leaves: Sequence[str]
+) -> Optional[str]:
+    """Rebuild the Merkle tree from real-manifest leaves and verify root."""
+    declared_root = manifest["merkle_root"]
+    if not normalised_leaves:
+        return (
+            "empty-hour real-manifest: leaves[] is empty but merkle_root is "
+            f"{declared_root}; real-aggregator should not emit a non-null "
+            "root for an empty hour."
+        )
+
+    leaves_bytes: List[bytes] = []
+    for idx, leaf_hex in enumerate(normalised_leaves):
+        try:
+            leaves_bytes.append(_hex_to_bytes(leaf_hex, label=f"leaves[{idx}]"))
+        except ValueError as exc:
+            return f"leaves shape: {exc}"
+
+    rebuilt_root, rebuilt_levels = build_merkle_tree(leaves_bytes)
+    if rebuilt_root.hex() != declared_root:
+        return (
+            f"merkle_root mismatch: rebuilt {rebuilt_root.hex()} from "
+            f"leaves[] but manifest claims {declared_root}"
+        )
+
+    declared_levels = manifest["tree_levels"]
+    rebuilt_levels_hex = [[node.hex() for node in level] for level in rebuilt_levels]
+    if rebuilt_levels_hex != declared_levels:
+        return (
+            "tree_levels mismatch: rebuilt tree shape differs from manifest "
+            "tree_levels (length / node-hash mismatch)."
+        )
+    return None
+
+
+@dataclasses.dataclass(frozen=True)
+class OtsAnchorCheck:
+    """Outcome of the OTS-pin-anchor side-file verification.
+
+    Attributes
+    ----------
+    checked:
+        True iff the caller asked for the OTS-anchor check (i.e.
+        :func:`verify_real_manifest_file` was called with
+        ``check_ots_anchor=True``). False means the fields below are
+        not load-bearing.
+    root_bin_present:
+        True iff ``root.bin`` exists next to the manifest.
+    root_bin_matches_manifest:
+        True iff ``root.bin`` is exactly 32 bytes and its hex matches
+        ``manifest.merkle_root``.
+    ots_present:
+        True iff ``root.bin.ots`` exists next to the manifest.
+    ots_magic_ok:
+        True iff ``root.bin.ots`` starts with the OpenTimestamps magic
+        header. False on missing file or magic-byte mismatch.
+    failure_reason:
+        Diagnostic on first failure; empty when all sub-checks passed
+        or when ``checked`` is False.
+    """
+
+    checked: bool = False
+    root_bin_present: bool = False
+    root_bin_matches_manifest: bool = False
+    ots_present: bool = False
+    ots_magic_ok: bool = False
+    failure_reason: str = ""
+
+    @property
+    def ok(self) -> bool:
+        if not self.checked:
+            return True
+        return (
+            self.root_bin_present
+            and self.root_bin_matches_manifest
+            and self.ots_present
+            and self.ots_magic_ok
+        )
+
+
+def _check_ots_anchor_side_files(
+    manifest_path: Path, declared_root_hex: str
+) -> OtsAnchorCheck:
+    """Verify root.bin + root.bin.ots side-files next to a real-manifest.
+
+    The aggregator places ``root.bin`` (32 bytes, raw merkle_root) and
+    ``root.bin.ots`` (OpenTimestamps proof) in the same directory as
+    ``manifest.json``. We assert (a) ``root.bin`` exists, is 32 bytes,
+    and its hex equals ``manifest.merkle_root``; (b) ``root.bin.ots``
+    exists and starts with the OTS magic header.
+
+    We deliberately do not run ``ots verify`` — that needs Bitcoin RPC
+    and would make the verifier non-hermetic. ``ots verify`` belongs in
+    the operator-tool chain, not in the manifest-validity stub.
+    """
+    parent = manifest_path.parent
+    root_bin = parent / "root.bin"
+    ots_file = parent / "root.bin.ots"
+
+    if not root_bin.exists():
+        return OtsAnchorCheck(
+            checked=True,
+            failure_reason=f"ots: root.bin not found next to manifest at {root_bin}",
+        )
+
+    raw = root_bin.read_bytes()
+    if len(raw) != 32:
+        return OtsAnchorCheck(
+            checked=True,
+            root_bin_present=True,
+            failure_reason=(
+                f"ots: root.bin is {len(raw)} bytes, expected 32 raw bytes"
+            ),
+        )
+
+    if raw.hex() != declared_root_hex:
+        return OtsAnchorCheck(
+            checked=True,
+            root_bin_present=True,
+            failure_reason=(
+                f"ots: root.bin hex {raw.hex()} does not match "
+                f"manifest.merkle_root {declared_root_hex}"
+            ),
+        )
+
+    if not ots_file.exists():
+        return OtsAnchorCheck(
+            checked=True,
+            root_bin_present=True,
+            root_bin_matches_manifest=True,
+            failure_reason=f"ots: root.bin.ots not found at {ots_file}",
+        )
+
+    head = ots_file.read_bytes()[: len(_OTS_MAGIC_HEADER)]
+    if head != _OTS_MAGIC_HEADER:
+        return OtsAnchorCheck(
+            checked=True,
+            root_bin_present=True,
+            root_bin_matches_manifest=True,
+            ots_present=True,
+            failure_reason=(
+                "ots: root.bin.ots does not start with OpenTimestamps magic "
+                f"header; first {len(_OTS_MAGIC_HEADER)} bytes are {head!r}"
+            ),
+        )
+
+    return OtsAnchorCheck(
+        checked=True,
+        root_bin_present=True,
+        root_bin_matches_manifest=True,
+        ots_present=True,
+        ots_magic_ok=True,
+        failure_reason="",
+    )
+
+
+@dataclasses.dataclass(frozen=True)
+class RealManifestResult:
+    """Outcome of verifying a real on-disk manifest file.
+
+    Sister type to :class:`ManifestV2Result`; carries the same
+    schema/integrity flags plus an :class:`OtsAnchorCheck` for the
+    OTS-pin-anchor side-files.
+    """
+
+    manifest_path: str
+    version: str
+    fields_ok: bool
+    integrity_ok: bool
+    multi_cap_root_status: str = ""
+    ots_anchor: OtsAnchorCheck = dataclasses.field(default_factory=OtsAnchorCheck)
+    failure_reason: str = ""
+
+    @property
+    def ok(self) -> bool:
+        return self.fields_ok and self.integrity_ok and self.ots_anchor.ok
+
+
+def verify_real_manifest_file(
+    manifest_path: str | Path,
+    *,
+    check_ots_anchor: bool = True,
+    strict_multi_cap_root: bool = True,
+) -> RealManifestResult:
+    """Verify a real on-disk manifest file (v1 or v2 wire-form).
+
+    Parameters
+    ----------
+    manifest_path:
+        Filesystem path to ``manifest.json`` produced by the real
+        aggregator (``.runtime/wat-tv*-archive/<RUN>/<HOUR>/``). Real
+        manifests use ``wakir-wat-manifest/v1`` (current) or
+        ``wakir-wat-manifest/v2`` (future v2 producer); the v2-spec
+        JSON-Schema is *not* applied here because the on-disk shape
+        diverges in additive ways (``leaf_hash`` vs ``leaf``, leaves
+        as objects vs hex strings).
+    check_ots_anchor:
+        When True (default), verify ``root.bin`` (32 raw bytes equal
+        to ``merkle_root``) and ``root.bin.ots`` (OpenTimestamps magic
+        header) side-files next to the manifest. The actual
+        timestamp-completeness check is delegated to ``ots verify``;
+        this stub only asserts the side-files exist and are
+        well-formed.
+    strict_multi_cap_root:
+        When True (default since Sprint-2 Tag-4), runs the same
+        ordered-Merkle ``caprefs_root`` recompute as
+        :func:`verify_manifest_v2_file` *if* the manifest carries
+        ``multi_cap_events``. v1 manifests do not, so this flag is
+        a no-op against today's real manifests.
+    """
+    path = Path(manifest_path)
+    if not path.exists():
+        return RealManifestResult(
+            manifest_path=str(path),
+            version="",
+            fields_ok=False,
+            integrity_ok=False,
+            failure_reason=f"fields: manifest file not found: {path}",
+        )
+
+    try:
+        with path.open("r", encoding="utf-8") as fh:
+            manifest = json.load(fh)
+    except json.JSONDecodeError as exc:
+        return RealManifestResult(
+            manifest_path=str(path),
+            version="",
+            fields_ok=False,
+            integrity_ok=False,
+            failure_reason=f"fields: malformed JSON: {exc}",
+        )
+
+    if not isinstance(manifest, dict):
+        return RealManifestResult(
+            manifest_path=str(path),
+            version="",
+            fields_ok=False,
+            integrity_ok=False,
+            failure_reason="fields: top-level JSON must be an object",
+        )
+
+    field_msg = _validate_real_manifest_fields(manifest)
+    version = manifest.get("version", "") if isinstance(manifest, dict) else ""
+    if field_msg:
+        return RealManifestResult(
+            manifest_path=str(path),
+            version=version if isinstance(version, str) else "",
+            fields_ok=False,
+            integrity_ok=False,
+            failure_reason=f"fields: {field_msg}",
+        )
+
+    leaves_msg, normalised_leaves = _normalise_real_leaves(manifest)
+    if leaves_msg:
+        return RealManifestResult(
+            manifest_path=str(path),
+            version=version,
+            fields_ok=False,
+            integrity_ok=False,
+            failure_reason=f"fields: {leaves_msg}",
+        )
+
+    event_msg = _check_real_event_leaves(manifest, normalised_leaves)
+    if event_msg:
+        return RealManifestResult(
+            manifest_path=str(path),
+            version=version,
+            fields_ok=True,
+            integrity_ok=False,
+            failure_reason=f"integrity: {event_msg}",
+        )
+
+    root_msg = _check_real_merkle_root(manifest, normalised_leaves)
+    if root_msg:
+        return RealManifestResult(
+            manifest_path=str(path),
+            version=version,
+            fields_ok=True,
+            integrity_ok=False,
+            failure_reason=f"integrity: {root_msg}",
+        )
+
+    multi_cap_status = ""
+    if "multi_cap_events" in manifest or "multi_cap_summary" in manifest:
+        # Treat any multi-cap presence as an opt-in to the v2 multi-cap
+        # consistency check; the same strict/lenient flag governs.
+        multi_msg, multi_cap_status = _check_multi_cap_consistency(
+            manifest, strict_multi_cap_root=strict_multi_cap_root
+        )
+        if multi_msg:
+            phase = (
+                "multi_cap_root"
+                if multi_cap_status == "mismatch"
+                else "integrity"
+            )
+            return RealManifestResult(
+                manifest_path=str(path),
+                version=version,
+                fields_ok=True,
+                integrity_ok=False,
+                multi_cap_root_status=multi_cap_status,
+                failure_reason=f"{phase}: {multi_msg}",
+            )
+
+    ots = OtsAnchorCheck()
+    if check_ots_anchor:
+        ots = _check_ots_anchor_side_files(path, manifest["merkle_root"])
+        if not ots.ok:
+            return RealManifestResult(
+                manifest_path=str(path),
+                version=version,
+                fields_ok=True,
+                integrity_ok=True,
+                multi_cap_root_status=multi_cap_status,
+                ots_anchor=ots,
+                failure_reason=ots.failure_reason,
+            )
+
+    return RealManifestResult(
+        manifest_path=str(path),
+        version=version,
+        fields_ok=True,
+        integrity_ok=True,
+        multi_cap_root_status=multi_cap_status,
+        ots_anchor=ots,
+        failure_reason="",
+    )
+
+
+# ---------------------------------------------------------------------------
 # CLI plumbing
 # ---------------------------------------------------------------------------
 
@@ -844,6 +1398,35 @@ def build_parser() -> argparse.ArgumentParser:
             "--no-strict-multi-cap-root for lenient mode (deferred-"
             "warning) — escape hatch for third-party verifiers that "
             "have not yet adopted the locked ordering."
+        ),
+    )
+    parser.add_argument(
+        "--real-manifest",
+        action="store_true",
+        help=(
+            "Treat the input as a real on-disk manifest "
+            "(wakir-wat-manifest/v1 wire-form, as emitted by "
+            "wat/aggregator.py and stored under "
+            ".runtime/wat-tv*-archive/<RUN>/<HOUR>/manifest.json) "
+            "instead of v2-spec-shaped. Skips JSON-Schema validation "
+            "and runs field-by-field validation + Merkle rebuild + "
+            "OTS-anchor side-file check. See "
+            "docs/wat-manifest-v2-spec.md §10 (Sprint-2 Tag-5 entry)."
+        ),
+    )
+    parser.add_argument(
+        "--check-ots-anchor",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "In --real-manifest mode, verify root.bin (32 raw bytes "
+            "equal to merkle_root) and root.bin.ots (OpenTimestamps "
+            "magic header) side-files next to manifest.json. Default "
+            "ON. Use --no-check-ots-anchor for hermetic test fixtures "
+            "or staged manifests where the anchor is not yet present. "
+            "Note: this stub only checks well-formedness of the .ots "
+            "file at the magic-header level; full Bitcoin-attestation "
+            "completeness is delegated to 'ots verify'."
         ),
     )
     parser.add_argument(
@@ -893,6 +1476,27 @@ def _format_human(result: ManifestV2Result, *, quiet: bool) -> str:
     return "\n".join(lines)
 
 
+def _format_human_real(result: RealManifestResult, *, quiet: bool) -> str:
+    if quiet:
+        if result.ok:
+            return f"ok\t{result.version or '(unknown)'}\t{result.manifest_path}"
+        return f"fail\t{result.failure_reason}\t{result.manifest_path}"
+    lines = [
+        f"manifest:        {result.manifest_path}",
+        f"version:         {result.version or '(unknown)'}",
+        f"fields_ok:       {result.fields_ok}",
+        f"integrity_ok:    {result.integrity_ok}",
+    ]
+    if result.multi_cap_root_status:
+        lines.append(f"multi_cap_root:  {result.multi_cap_root_status}")
+    if result.ots_anchor.checked:
+        lines.append(f"ots_root_bin:    {result.ots_anchor.root_bin_matches_manifest}")
+        lines.append(f"ots_magic_ok:    {result.ots_anchor.ots_magic_ok}")
+    if result.failure_reason:
+        lines.append(f"failure_reason:  {result.failure_reason}")
+    return "\n".join(lines)
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     """CLI entry point. Returns a Unix exit code.
 
@@ -904,6 +1508,81 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     """
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.real_manifest:
+        real_result = verify_real_manifest_file(
+            args.manifest,
+            check_ots_anchor=args.check_ots_anchor,
+            strict_multi_cap_root=args.strict_multi_cap_root,
+        )
+        if args.output == "json":
+            payload = {
+                "schema_version": "wakir-verify-manifest-v2/0",
+                "manifest_path": real_result.manifest_path,
+                "manifest_version": real_result.version,
+                "ok": real_result.ok,
+                "fields_ok": real_result.fields_ok,
+                "integrity_ok": real_result.integrity_ok,
+                "multi_cap_root_status": real_result.multi_cap_root_status,
+                "ots_anchor_checked": real_result.ots_anchor.checked,
+                "ots_anchor_ok": real_result.ots_anchor.ok,
+                "failure_reason": real_result.failure_reason,
+            }
+            print(json.dumps(payload, sort_keys=True))
+        elif args.output == "audit-trail-entry":
+            # Audit-trail-entry shape mirrors the v2-spec output. Real-
+            # manifest mode carries the same eleven keys, mapping
+            # ots_anchor sub-status into the branch detail when relevant.
+            try:
+                with open(args.manifest, "r", encoding="utf-8") as fh:
+                    manifest_dict = json.load(fh)
+                hour_slot = (
+                    str(manifest_dict.get("hour_slot", "") or "")
+                    if isinstance(manifest_dict, dict)
+                    else ""
+                )
+                root_candidate = (
+                    manifest_dict.get("merkle_root", "")
+                    if isinstance(manifest_dict, dict)
+                    else ""
+                ) or ""
+                anchor_root_hex = (
+                    root_candidate
+                    if isinstance(root_candidate, str)
+                    and _is_lower_hex_64(root_candidate)
+                    else ""
+                )
+                ec = (
+                    manifest_dict.get("event_count")
+                    if isinstance(manifest_dict, dict)
+                    else None
+                )
+                event_count: Optional[int] = ec if isinstance(ec, int) else None
+            except (OSError, json.JSONDecodeError):
+                hour_slot = ""
+                anchor_root_hex = ""
+                event_count = None
+
+            # Bridge to ManifestV2Result.as_audit_trail_entry by
+            # constructing a synthetic equivalent (preserves the
+            # eleven-field paired-update contract).
+            bridge = ManifestV2Result(
+                manifest_path=real_result.manifest_path,
+                version=real_result.version,
+                schema_ok=real_result.fields_ok,
+                integrity_ok=real_result.integrity_ok and real_result.ots_anchor.ok,
+                multi_cap_root_status=real_result.multi_cap_root_status,
+                failure_reason=real_result.failure_reason,
+            )
+            entry = bridge.as_audit_trail_entry(
+                anchor_root_hex=anchor_root_hex,
+                hour_slot=hour_slot,
+                event_count=event_count,
+            )
+            print(json.dumps(entry, sort_keys=True, ensure_ascii=False))
+        else:
+            print(_format_human_real(real_result, quiet=args.quiet))
+        return 0 if real_result.ok else 1
 
     result = verify_manifest_v2_file(
         args.manifest,
@@ -953,7 +1632,10 @@ if __name__ == "__main__":  # pragma: no cover
 __all__ = [
     "DEFAULT_SCHEMA_PATH",
     "ManifestV2Result",
+    "OtsAnchorCheck",
+    "RealManifestResult",
     "build_parser",
     "main",
     "verify_manifest_v2_file",
+    "verify_real_manifest_file",
 ]

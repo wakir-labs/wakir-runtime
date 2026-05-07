@@ -25,8 +25,11 @@ import pytest
 from wat.merkle.aggregator import build_merkle_tree, compute_leaf_hash
 from wat.verify.manifest_v2 import (
     ManifestV2Result,
+    OtsAnchorCheck,
+    RealManifestResult,
     main as verifier_main,
     verify_manifest_v2_file,
+    verify_real_manifest_file,
 )
 
 
@@ -881,3 +884,397 @@ def test_cli_output_audit_trail_entry_keys_are_sorted(tmp_path: Path, capsys) ->
     payload = json.loads(out)
     # ensure_ascii=False matches the Python-side dump in main()
     assert out == json.dumps(payload, sort_keys=True, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# Sprint-2 Tag-5: Real-manifest mode + OTS-pin-anchor side-files
+# ---------------------------------------------------------------------------
+#
+# These tests exercise the verifier against the on-disk wire-form the
+# real aggregator emits today (``wakir-wat-manifest/v1`` with
+# ``leaf_hash`` field name and full leaves objects). They build a
+# hermetic real-manifest in-memory, write it to a tmp_path with
+# sibling ``root.bin`` / ``root.bin.ots`` files, and assert the
+# verifier accepts it. Negative cases cover field-validation,
+# integrity-rebuild, and OTS-anchor side-file failure modes.
+
+
+_OTS_MAGIC = b"\x00OpenTimestamps\x00"
+
+
+def _build_real_v1_manifest(
+    events: Sequence[Dict[str, str]],
+    *,
+    hour_slot: str = "2026-05-26T17",
+    anchor_height: int | None = None,
+) -> Dict:
+    """Build a wakir-wat-manifest/v1 wire-form manifest.
+
+    Mirrors the on-disk shape emitted by ``wat/aggregator.py`` for
+    real TV-2 / TV-3 hours: ``leaf_hash`` field on each event, leaves
+    are full objects (not hex strings), ``prev_hour_root`` defaults
+    to None.
+    """
+    leaves_bytes = [
+        compute_leaf_hash(
+            event_id=ev["event_id"],
+            time=ev["time"],
+            payload_hash=ev["payload_hash"],
+            capability_token_hash=ev["capability_token_hash"],
+        )
+        for ev in events
+    ]
+    root, levels = build_merkle_tree(leaves_bytes)
+    enriched = []
+    leaves_obj = []
+    for i, ev in enumerate(events):
+        e = dict(ev)
+        e["leaf_hash"] = leaves_bytes[i].hex()
+        enriched.append(e)
+        leaves_obj.append(dict(e))
+    out: Dict = {
+        "version": "wakir-wat-manifest/v1",
+        "hour_slot": hour_slot,
+        "merkle_root": root.hex(),
+        "event_count": len(events),
+        "events": enriched,
+        "leaves": leaves_obj,
+        "tree_levels": [[node.hex() for node in level] for level in levels],
+        "build_time": "2026-05-26T17:25:39Z",
+        "prev_hour_root": None,
+    }
+    if anchor_height is not None:
+        out["anchor_height"] = anchor_height
+    return out
+
+
+def _write_real_manifest_with_ots(
+    tmp_path: Path,
+    manifest: Dict,
+    *,
+    write_root_bin: bool = True,
+    write_ots: bool = True,
+    ots_magic: bytes = _OTS_MAGIC,
+) -> Path:
+    """Write manifest.json + root.bin + root.bin.ots to tmp_path.
+
+    Returns the manifest path. Set ``write_root_bin`` / ``write_ots``
+    False to simulate missing-side-file failure modes; pass a custom
+    ``ots_magic`` to simulate a corrupt OTS header.
+    """
+    mpath = tmp_path / "manifest.json"
+    mpath.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
+    if write_root_bin:
+        (tmp_path / "root.bin").write_bytes(bytes.fromhex(manifest["merkle_root"]))
+    if write_ots:
+        # Magic header + a couple of trailing bytes so the file is
+        # plausibly proof-shaped (we only check the magic).
+        (tmp_path / "root.bin.ots").write_bytes(ots_magic + b"\x01\x02\x03")
+    return mpath
+
+
+def test_real_manifest_v1_happy_path_with_ots_anchor(tmp_path: Path) -> None:
+    """Real v1 manifest + matching root.bin + valid OTS-magic passes."""
+    events = [_make_event(i, capref_hash_hex="a" * 64) for i in (0, 1)]
+    manifest = _build_real_v1_manifest(events, anchor_height=900_000)
+    mpath = _write_real_manifest_with_ots(tmp_path, manifest)
+
+    result = verify_real_manifest_file(mpath, check_ots_anchor=True)
+
+    assert result.ok
+    assert result.fields_ok and result.integrity_ok
+    assert result.version == "wakir-wat-manifest/v1"
+    assert result.ots_anchor.ok
+    assert result.ots_anchor.root_bin_matches_manifest
+    assert result.ots_anchor.ots_magic_ok
+    assert result.failure_reason == ""
+
+
+def test_real_manifest_v1_against_published_fixture() -> None:
+    """The in-repo TV-3 fixture validates end-to-end including OTS-magic.
+
+    The fixture under ``tests/fixtures/wat-real-manifest/`` is a
+    verbatim copy of a real TV-3 archive hour (``.runtime/wat-tv3-
+    archive/20260507T072538Z/2026-05-26T17/``) — manifest.json +
+    root.bin + root.bin.ots. Pinning verification against this
+    fixture catches regressions in either the verifier or the real-
+    aggregator emit-shape.
+    """
+    fixture_dir = (
+        Path(__file__).resolve().parents[1]
+        / "fixtures"
+        / "wat-real-manifest"
+    )
+    mpath = fixture_dir / "manifest.json"
+    assert mpath.exists(), f"fixture missing: {mpath}"
+    assert (fixture_dir / "root.bin").exists()
+    assert (fixture_dir / "root.bin.ots").exists()
+
+    result = verify_real_manifest_file(mpath, check_ots_anchor=True)
+
+    assert result.ok, result.failure_reason
+    assert result.version == "wakir-wat-manifest/v1"
+    assert result.ots_anchor.ok
+
+
+def test_real_manifest_field_validation_rejects_unknown_version(
+    tmp_path: Path,
+) -> None:
+    """Unknown ``version`` field yields a /version pointer-style diagnostic."""
+    events = [_make_event(i, capref_hash_hex="b" * 64) for i in (0,)]
+    manifest = _build_real_v1_manifest(events)
+    manifest["version"] = "wakir-wat-manifest/vX"
+    mpath = _write_real_manifest_with_ots(tmp_path, manifest)
+
+    result = verify_real_manifest_file(mpath, check_ots_anchor=False)
+
+    assert not result.ok
+    assert not result.fields_ok
+    assert result.failure_reason.startswith("fields: field /version:")
+
+
+def test_real_manifest_field_validation_rejects_missing_required(
+    tmp_path: Path,
+) -> None:
+    """Missing ``hour_slot`` yields a /hour_slot pointer-style diagnostic."""
+    events = [_make_event(i, capref_hash_hex="c" * 64) for i in (0,)]
+    manifest = _build_real_v1_manifest(events)
+    del manifest["hour_slot"]
+    mpath = _write_real_manifest_with_ots(tmp_path, manifest)
+
+    result = verify_real_manifest_file(mpath, check_ots_anchor=False)
+
+    assert not result.ok
+    assert not result.fields_ok
+    assert "field /hour_slot" in result.failure_reason
+    assert result.failure_reason.startswith("fields:")
+
+
+def test_real_manifest_field_validation_rejects_negative_anchor_height(
+    tmp_path: Path,
+) -> None:
+    """Optional ``anchor_height`` must be a positive int when present."""
+    events = [_make_event(i, capref_hash_hex="d" * 64) for i in (0,)]
+    manifest = _build_real_v1_manifest(events, anchor_height=-1)
+    mpath = _write_real_manifest_with_ots(tmp_path, manifest)
+
+    result = verify_real_manifest_file(mpath, check_ots_anchor=False)
+
+    assert not result.ok
+    assert not result.fields_ok
+    assert "anchor_height" in result.failure_reason
+
+
+def test_real_manifest_merkle_rebuild_catches_root_drift(tmp_path: Path) -> None:
+    """Tampering with ``merkle_root`` after build is caught by integrity rebuild."""
+    events = [_make_event(i, capref_hash_hex="e" * 64) for i in (0, 1, 2)]
+    manifest = _build_real_v1_manifest(events)
+    # Tamper with merkle_root: flip the last hex char.
+    original = manifest["merkle_root"]
+    flipped = original[:-1] + ("0" if original[-1] != "0" else "1")
+    manifest["merkle_root"] = flipped
+    mpath = _write_real_manifest_with_ots(tmp_path, manifest, write_root_bin=False)
+
+    result = verify_real_manifest_file(mpath, check_ots_anchor=False)
+
+    assert not result.ok
+    assert result.fields_ok
+    assert not result.integrity_ok
+    assert "merkle_root mismatch" in result.failure_reason
+
+
+def test_real_manifest_ots_check_detects_missing_root_bin(tmp_path: Path) -> None:
+    """OTS-anchor sub-check: missing root.bin yields a clear diagnostic."""
+    events = [_make_event(i, capref_hash_hex="f" * 64) for i in (0,)]
+    manifest = _build_real_v1_manifest(events)
+    mpath = _write_real_manifest_with_ots(
+        tmp_path, manifest, write_root_bin=False, write_ots=True
+    )
+
+    result = verify_real_manifest_file(mpath, check_ots_anchor=True)
+
+    assert not result.ok
+    assert result.fields_ok and result.integrity_ok
+    assert result.ots_anchor.checked
+    assert not result.ots_anchor.root_bin_present
+    assert "root.bin not found" in result.failure_reason
+
+
+def test_real_manifest_ots_check_detects_root_bin_mismatch(tmp_path: Path) -> None:
+    """OTS-anchor sub-check: root.bin content not matching manifest fails."""
+    events = [_make_event(i, capref_hash_hex="9" * 64) for i in (0, 1)]
+    manifest = _build_real_v1_manifest(events)
+    mpath = _write_real_manifest_with_ots(tmp_path, manifest)
+    # Overwrite root.bin with 32 wrong bytes
+    (tmp_path / "root.bin").write_bytes(b"\x00" * 32)
+
+    result = verify_real_manifest_file(mpath, check_ots_anchor=True)
+
+    assert not result.ok
+    assert result.ots_anchor.root_bin_present
+    assert not result.ots_anchor.root_bin_matches_manifest
+    assert "root.bin hex" in result.failure_reason
+    assert "does not match" in result.failure_reason
+
+
+def test_real_manifest_ots_check_detects_corrupt_ots_magic(tmp_path: Path) -> None:
+    """OTS-anchor sub-check: wrong magic bytes in root.bin.ots fails."""
+    events = [_make_event(i, capref_hash_hex="8" * 64) for i in (0,)]
+    manifest = _build_real_v1_manifest(events)
+    mpath = _write_real_manifest_with_ots(
+        tmp_path, manifest, ots_magic=b"NOT-AN-OTS-FILE\x00"
+    )
+
+    result = verify_real_manifest_file(mpath, check_ots_anchor=True)
+
+    assert not result.ok
+    assert result.ots_anchor.root_bin_present
+    assert result.ots_anchor.root_bin_matches_manifest
+    assert result.ots_anchor.ots_present
+    assert not result.ots_anchor.ots_magic_ok
+    assert "OpenTimestamps magic" in result.failure_reason
+
+
+def test_real_manifest_no_check_ots_anchor_skips_side_files(tmp_path: Path) -> None:
+    """``check_ots_anchor=False`` skips the side-file check entirely."""
+    events = [_make_event(i, capref_hash_hex="7" * 64) for i in (0,)]
+    manifest = _build_real_v1_manifest(events)
+    # Write only the manifest, no root.bin / .ots. Should still pass.
+    mpath = tmp_path / "manifest.json"
+    mpath.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
+
+    result = verify_real_manifest_file(mpath, check_ots_anchor=False)
+
+    assert result.ok
+    assert not result.ots_anchor.checked
+    assert result.ots_anchor.ok  # vacuously True when not checked
+
+
+def test_real_manifest_cli_real_flag_against_fixture(capsys) -> None:
+    """CLI ``--real-manifest`` emits human output for the in-repo fixture."""
+    fixture_dir = (
+        Path(__file__).resolve().parents[1]
+        / "fixtures"
+        / "wat-real-manifest"
+    )
+    rc = verifier_main([str(fixture_dir / "manifest.json"), "--real-manifest"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "version:         wakir-wat-manifest/v1" in out
+    assert "fields_ok:       True" in out
+    assert "integrity_ok:    True" in out
+    assert "ots_root_bin:    True" in out
+    assert "ots_magic_ok:    True" in out
+
+
+def test_real_manifest_cli_json_output_is_canonical(tmp_path: Path, capsys) -> None:
+    """CLI ``--real-manifest --output json`` is sorted single-line JSON."""
+    events = [_make_event(i, capref_hash_hex="6" * 64) for i in (0,)]
+    manifest = _build_real_v1_manifest(events)
+    mpath = _write_real_manifest_with_ots(tmp_path, manifest)
+
+    rc = verifier_main(
+        [str(mpath), "--real-manifest", "--output", "json"]
+    )
+    out = capsys.readouterr().out.strip()
+    assert rc == 0
+    # No newlines inside; sorted keys.
+    assert "\n" not in out
+    payload = json.loads(out)
+    assert out == json.dumps(payload, sort_keys=True)
+    assert payload["schema_version"] == "wakir-verify-manifest-v2/0"
+    assert payload["ok"] is True
+    assert payload["ots_anchor_ok"] is True
+
+
+def test_real_manifest_no_check_ots_cli_flag_skips_side_files(
+    tmp_path: Path, capsys
+) -> None:
+    """CLI ``--no-check-ots-anchor`` makes side-file absence non-fatal."""
+    events = [_make_event(i, capref_hash_hex="5" * 64) for i in (0,)]
+    manifest = _build_real_v1_manifest(events)
+    mpath = tmp_path / "manifest.json"
+    mpath.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
+
+    rc = verifier_main(
+        [str(mpath), "--real-manifest", "--no-check-ots-anchor"]
+    )
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "ots_root_bin" not in out  # not displayed when not checked
+
+
+def test_real_manifest_with_multi_cap_uses_strict_default(tmp_path: Path) -> None:
+    """Real manifest carrying multi-cap sidecar runs strict-mode by default.
+
+    Future v2 producer-code will emit ``multi_cap_events`` /
+    ``multi_cap_summary``. The same Sprint-2 Tag-4 strict default
+    governs the recompute on the real-manifest path.
+    """
+    events = [_make_event(i, capref_hash_hex="a" * 64) for i in (0, 1)]
+    manifest = _build_real_v1_manifest(events)
+    # Bolt on a multi-cap sidecar with a deliberately wrong caprefs_root.
+    manifest["multi_cap_events"] = {
+        "evt-0": {
+            "caprefs_full": [
+                "sha256:" + ("a" * 64),
+                "sha256:" + ("b" * 64),
+            ],
+            "caprefs_root": "0" * 64,  # wrong
+        }
+    }
+    manifest["multi_cap_summary"] = {
+        "events_with_multi_cap": 1,
+        "max_caprefs_in_any_event": 2,
+        "distinct_capability_token_hashes_in_hour": 2,
+    }
+    mpath = _write_real_manifest_with_ots(tmp_path, manifest)
+
+    result = verify_real_manifest_file(mpath, check_ots_anchor=False)
+
+    assert not result.ok
+    assert result.multi_cap_root_status == "mismatch"
+    assert "multi_cap_root" in result.failure_reason
+
+    # Same input under lenient mode passes the multi-cap subcheck.
+    lenient = verify_real_manifest_file(
+        mpath, check_ots_anchor=False, strict_multi_cap_root=False
+    )
+    assert lenient.fields_ok and lenient.integrity_ok
+    assert lenient.multi_cap_root_status == "deferred"
+
+
+def test_real_manifest_audit_trail_entry_bridges_to_v2_shape(
+    tmp_path: Path, capsys
+) -> None:
+    """``--real-manifest --output audit-trail-entry`` emits the eleven-field shape."""
+    events = [_make_event(i, capref_hash_hex="3" * 64) for i in (0, 1)]
+    manifest = _build_real_v1_manifest(events)
+    mpath = _write_real_manifest_with_ots(tmp_path, manifest)
+
+    rc = verifier_main(
+        [str(mpath), "--real-manifest", "--output", "audit-trail-entry"]
+    )
+    out = capsys.readouterr().out.strip()
+    assert rc == 0
+    payload = json.loads(out)
+    # Same eleven keys as the v2-spec audit-trail-entry contract.
+    assert set(payload.keys()) == {
+        "kind",
+        "schema_version",
+        "identity",
+        "manifest_version",
+        "manifest_path",
+        "hour_slot",
+        "event_count",
+        "anchor_root_hex",
+        "branches",
+        "ok",
+        "failure_reason",
+    }
+    assert payload["kind"] == "wat-tv-pin-pack"
+    assert payload["schema_version"] == "wakir-verify-manifest-v2/0"
+    assert payload["manifest_version"] == "wakir-wat-manifest/v1"
+    assert payload["event_count"] == 2
+    assert payload["ok"] is True
+    assert payload["branches"][0]["verdict"] == "verified"

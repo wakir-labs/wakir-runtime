@@ -500,6 +500,31 @@ is informative only.
 
 ## 11. Change log
 
+- **2026-05-07 (Sprint-2 Tag-5):** Verifier-stub gains real-manifest
+  mode for the on-disk wire-form emitted by today's aggregator
+  (`wakir-wat-manifest/v1`). New `verify_real_manifest_file()` API
+  and `--real-manifest` CLI flag. Real-manifest mode performs
+  field-by-field validation (mandatory fields,
+  `version` ∈ {`wakir-wat-manifest/v1`, `wakir-wat-manifest/v2`},
+  `merkle_root` 64-lower-hex pattern, `event_count` non-negative int,
+  optional `anchor_height` positive int when present), handles the
+  `leaf_hash`-vs-`leaf` field-name divergence and the
+  leaves-as-objects shape, and re-runs the same Merkle-rebuild
+  + multi-cap consistency check (strict default ON since Tag-4) when
+  `multi_cap_events` is present. New OTS-pin-anchor side-file check
+  (`--check-ots-anchor`, default ON) verifies `root.bin` (32 raw
+  bytes equal to `merkle_root`) and `root.bin.ots` (OpenTimestamps
+  magic header `\x00OpenTimestamps\x00`) exist next to `manifest.json`;
+  full Bitcoin-attestation completeness is delegated to `ots verify`
+  (not in-scope for the hermetic stub). New `RealManifestResult` +
+  `OtsAnchorCheck` dataclasses; `--output json` and
+  `--output audit-trail-entry` work in real-manifest mode and emit
+  the same `wakir-verify-manifest-v2/0` schema-version (audit-trail-
+  entry bridges via the existing eleven-field paired-update
+  contract). 15 additional hermetic tests (47 total in the stub
+  suite, 220 / 19 across the full repo). New fixture at
+  `tests/fixtures/wat-real-manifest/` (manifest.json + root.bin +
+  root.bin.ots, verbatim copy of a real TV-3 archive hour).
 - **2026-05-07 (Sprint-2 Tag-4):** OQ-1 ratified
   (wirelang-engineering Cross-Review-Zone-2, sign-off
   2026-05-07T11:48:09Z): canonical Merkle for `caprefs_root` is
