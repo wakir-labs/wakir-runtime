@@ -388,8 +388,16 @@ emit a warning indicating the ordering is not yet locked.
 - v1 spec (companion document): `docs/wat-manifest-spec.md`.
 - Aggregator implementation: `wat/aggregator.py` (Sprint-2 Tag-1
   code-touchpoint, not yet landed).
-- Verifier implementation: `wat.verify.cli` (Sprint-2 Tag-4-5 code-
-  touchpoint, not yet landed).
+- Event-centric verifier: `wat.verify.cli` (Sprint-2 Tag-4-5
+  code-touchpoint for the multi-cap-root recompute branch, not yet
+  landed).
+- **Manifest verifier-stub:** `wat.verify.manifest_v2` (Sprint-2
+  Tag-1 code-touchpoint, **landed**) — single-file cross-module
+  integrity checker complementing the schema-only smoke tests.
+  Reference fixture at
+  `tests/fixtures/wat-manifest-v2/sample-multi-cap-hour.json`;
+  hermetic test suite in
+  `tests/wat/test_manifest_v2_verifier_stub.py`.
 
 The schema file is the contract; this document describes the
 contract in prose. If the two ever disagree, the schema is
@@ -400,6 +408,14 @@ is informative only.
 
 ## 11. Change log
 
+- **2026-05-07 (Sprint-2 Tag-1):** Verifier-stub
+  `wat.verify.manifest_v2` landed. Implements schema-validation +
+  cross-module integrity (events/leaves/tree_levels/merkle_root
+  rebuild + multi-cap sidecar consistency) with a
+  `--strict-multi-cap-root` flag for the OQ-1-provisional ordered-
+  Merkle recompute. 11 hermetic tests added; reference fixture at
+  `tests/fixtures/wat-manifest-v2/sample-multi-cap-hour.json`. OQ-1
+  still open; lenient mode is the default until Zone-2 sign-off.
 - **2026-05-07 (Tag-27.5):** Initial draft of this consolidated
   external-verifier spec. Schema-File and 22 pin-tests already
   landed in Tag-26 / Tag-27. OQ-1 still open pending Zone-2.
