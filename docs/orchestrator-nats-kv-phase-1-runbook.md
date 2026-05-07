@@ -5,9 +5,11 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 
 # Orchestrator NATS-JetStream KV Phase-1 — Operator Runbook
 
-Status: draft, Phase 1b Sprint-2 Tag-2.
-Companion to `scripts/init-nats-buckets.py` (driver) and
-`tests/orchestrator/test_init_nats_buckets.py` (hermetic regression).
+Status: draft, Phase 1b Sprint-2 Tag-3.
+Companion to `compose/nats.yaml` (substrate),
+`scripts/init-nats-buckets.py` (driver), and
+`tests/orchestrator/test_init_nats_buckets.py` +
+`tests/orchestrator/test_compose_nats.py` (hermetic regressions).
 
 This runbook is the operator-facing checklist for bringing up and
 maintaining the four Phase-1 NATS-JetStream KV buckets that back the
@@ -47,6 +49,47 @@ the orchestrator node. The script itself is dependency-free apart from
 
 ## 3. Bring-up (cold start)
 
+Phase-1 cold-start is a two-step procedure: bring the substrate up
+(NATS server + JetStream + named volume) via the compose file, then
+initialise the four KV buckets via the python driver.
+
+### 3.1 Substrate-up (compose)
+
+```bash
+# 1. Bring the NATS substrate up in the background. Loopback-only
+#    publishing; named volume ``wakir-nats-jetstream-data`` survives
+#    container recreate.
+docker compose -f compose/nats.yaml up -d
+
+# 2. Substrate readiness gates (each must be green before §3.2):
+nc -z 127.0.0.1 4222 && echo client-port-ok        # NATS protocol
+curl -s http://127.0.0.1:8222/jsz | jq -r .config  # JetStream live
+docker compose -f compose/nats.yaml ps             # health: healthy
+```
+
+The compose file pins the image to a maintained alpine variant of the
+official `nats` repository (see §8 verification stamp), drops all
+Linux capabilities on the container, sets `no-new-privileges`, and
+publishes only the loopback interface. The JetStream HTTP endpoint
+(`/jsz`) is also loopback-only — never expose it without
+authentication.
+
+To upgrade the image-pin from tag-only to digest-pinned form (the
+recommended Box-3-follow-up for the build host):
+
+```bash
+docker pull nats:2.11-alpine
+docker inspect --format '{{index .RepoDigests 0}}' nats:2.11-alpine
+# => nats@sha256:<full-digest>
+# Replace the ``image:`` line in compose/nats.yaml with:
+#     image: nats:2.11-alpine@sha256:<full-digest>
+```
+
+The hermetic test `test_nats_service_uses_documented_image_tag`
+accepts both forms.
+
+### 3.2 Buckets-init
+
 ```bash
 # 1. Plan-only first; nothing is mutated.
 python3 scripts/init-nats-buckets.py --dry-run
@@ -78,6 +121,20 @@ To re-initialise a single bucket (idempotent on the rest):
 ```bash
 python3 scripts/init-nats-buckets.py --bucket wakir-schemas
 ```
+
+### 3.3 Tear-down
+
+```bash
+# Stop the container, keep the volume (cache survives).
+docker compose -f compose/nats.yaml down
+
+# Stop the container and drop the volume (deliberate cache loss).
+docker compose -f compose/nats.yaml down -v
+```
+
+`down -v` is the documented Phase-1 disk-loss recovery path (§6.2).
+The cache is by definition not source-of-truth, so a deliberate drop
+is a routine operation.
 
 ## 4. Idempotency contract
 
@@ -152,9 +209,18 @@ audit review is a Phase-2 follow-up; do not auto-evict in Phase-1.
 
 ## 7. Open follow-ups
 
-- Sprint-2 Box-3: pin the NATS server image tag in `compose/nats.yaml`.
-  Verification snapshot recorded in §8 below; the active candidate is
-  `nats:2.11-alpine`. The bucket initialiser is image-tag-agnostic.
+- Sprint-2 Box-3: ~~pin the NATS server image tag in `compose/nats.yaml`~~
+  done in Sprint-2 Tag-3 — `compose/nats.yaml` pins `nats:2.11-alpine`
+  with a documented digest-pin upgrade path (§3.1) for build-host
+  operators with a container engine. Cross-Review Zone C (Image-
+  Pipeline × OTS-Anchoring) sync with Engineering-Lead pending; the
+  ack/modify/veto memo is logged in the dev-engineering inbox under
+  `2026-05-07-kai-zone-c-image-pin-nats-2.11-alpine.md`.
+- Sprint-2 Box-3 build-host follow-up: an operator on a machine with
+  a container engine resolves the digest (`docker pull` +
+  `docker inspect`) and replaces the tag-pin with the
+  `@sha256:<digest>` form. No code change required — the hermetic
+  test suite accepts both forms.
 - Sprint-2 Box-5: real `nats-py` (`nats.aio`) sync-adapter for the
   read-through wrapper. The initialiser already uses the async API; no
   rework expected on the bucket side.
@@ -167,18 +233,25 @@ audit review is a Phase-2 follow-up; do not auto-evict in Phase-1.
 
 ## 8. Verification stamps (P5/P7)
 
-- Authoring date: `date -u` 2026-05-07T (CEST 2026-05-07, Sprint-2 Tag-2).
+- Authoring date (Tag-3 update): `date -u` 2026-05-07T (CEST
+  2026-05-07, Sprint-2 Tag-3).
 - NATS server image-tag candidate verification (Phase-1b production
   baseline): the official `nats` Docker Hub repository lists
   `2.11-alpine` as a maintained alpine variant, last pushed 9 days
-  before authoring. The 2.10 line is no longer in the official
+  before Tag-2 authoring. The 2.10 line is no longer in the official
   maintained-tags listing; operators upgrading from a Phase-0 PoC that
-  pinned `2.10-alpine` should move to `2.11-alpine` in Box-3.
-  Verification was a Docker Hub web snapshot; a `docker pull` on the
-  build host before Box-3 commit is mandatory and must reproduce the
-  digest in the `compose/nats.yaml` image-pin line.
+  pinned `2.10-alpine` should move to `2.11-alpine`. The 2.14 line is
+  fresh-GA (released ~7 days before Tag-2 authoring) and is rejected
+  for Phase-1b under boring-tech-bias. Verification was a Docker Hub
+  web snapshot from Tag-2 (2026-05-07T11:36 UTC); the authoring
+  sandbox has no container engine, so digest-reproduction was
+  deferred to a build-host follow-up. The `image:` line in
+  `compose/nats.yaml` is therefore tag-pinned; the upgrade procedure
+  to digest-pinned form is documented in §3.1.
 - `nats-py` version: not pinned in this runbook. Pinning belongs in
   the orchestrator container's Python dependency manifest, not in
   this operator-facing document.
-- Hermetic regression suite: 10 tests pass under Python 3.14.4 +
-  pytest 9.0.3 (Phase-1b shared `.venv`); `tests/orchestrator/`.
+- Hermetic regression suite (Tag-3): 19 tests pass under Python
+  3.14.4 + pytest 9.0.3 (Phase-1b shared `.venv`);
+  `tests/orchestrator/`. Composition: 10 tests for the bucket
+  initialiser (Tag-2) plus 9 tests for the compose substrate (Tag-3).

@@ -1,0 +1,116 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-1b Sprint-2 Box-3 — single-node NATS-JetStream substrate for
+# the orchestrator read-through cache (4 KV buckets: wakir-schemas,
+# wakir-aip-cache, wakir-ftd-cache, wakir-ftd-poisoned).
+#
+# This compose file is the operator-facing bring-up artefact. It is
+# pinned to a maintained alpine variant of the official ``nats``
+# image and exposes only the loopback by default. JetStream storage
+# is mapped to a named volume so that an operator-driven recreate
+# (``docker compose down`` / ``up``) does not destroy the cache; a
+# disk loss is the documented Phase-1 recovery path (see
+# ``docs/orchestrator-nats-kv-phase-1-runbook.md`` §6.2).
+#
+# What this file does NOT do:
+#   * No multi-node cluster (Phase-3 follow-up; ``replicas`` field on
+#     the bucket initialiser is plumbed end-to-end already).
+#   * No TLS termination (mTLS / SPIFFE JWT-SVID is a Sprint-3 item;
+#     Phase-1b uses token auth via Infisical-injected env on the
+#     orchestrator client side).
+#   * No metrics scrape config (OTel collector is a separate compose
+#     unit that joins this NATS via the user-defined network).
+#
+# Bring-up:
+#
+#   docker compose -f compose/nats.yaml up -d
+#   nc -z 127.0.0.1 4222 && echo ok           # client port
+#   curl -s http://127.0.0.1:8222/jsz | jq .  # JetStream introspection
+#   python3 scripts/init-nats-buckets.py      # idempotent bucket init
+#
+# Tear-down (cache loss is acceptable in Phase-1):
+#
+#   docker compose -f compose/nats.yaml down -v   # -v drops the volume
+
+services:
+
+  nats:
+    # NATS Phase-1b production-baseline pin.
+    #
+    # Tag rationale (Box-3 verification stamp; full provenance in the
+    # operator runbook §8):
+    #   * ``2.10-alpine`` is no longer in the maintained-tags listing
+    #     of the official ``nats`` Docker Hub repo.
+    #   * ``2.14`` is fresh GA (released ~7 days before authoring) —
+    #     boring-tech-bias rules it out for Phase-1b.
+    #   * ``2.11-alpine`` is the conservative maintained choice
+    #     (2.11.17 GA, last alpine-tag push ~9 days before authoring).
+    #
+    # Digest-pin upgrade-path: an operator on a machine with a
+    # container engine MUST resolve the digest (``docker pull
+    # nats:2.11-alpine`` then read ``RepoDigests``) and replace the
+    # tag-pin below with ``nats:2.11-alpine@sha256:<full-digest>``.
+    # The hermetic test suite (compose-parse) accepts both forms.
+    # Sandbox-side digest reproduction is a Box-3 follow-up (no
+    # container engine in the authoring sandbox; see runbook §8).
+    image: nats:2.11-alpine
+    container_name: wakir-nats
+    command:
+      - "--jetstream"
+      - "--store_dir=/data/jetstream"
+      - "--http_port=8222"
+      - "--name=wakir-nats-phase1"
+    ports:
+      # Client port (NATS protocol). Loopback-only by default; an
+      # operator who wants to expose this beyond the host can drop
+      # the ``127.0.0.1:`` prefix.
+      - "127.0.0.1:4222:4222"
+      # Monitoring HTTP endpoint (``/varz``, ``/jsz``). Loopback-only
+      # — never expose unauthenticated to a non-loopback interface.
+      - "127.0.0.1:8222:8222"
+    volumes:
+      # JetStream persistence: a named volume survives container
+      # recreate. ``docker compose down -v`` drops it deliberately.
+      - jetstream_data:/data/jetstream
+    networks:
+      - wakir
+    restart: unless-stopped
+    # Health probe: hit the JetStream HTTP endpoint and require a
+    # successful response. ``wget`` ships with the alpine variant of
+    # the NATS image, ``curl`` does not — wget is the lower-friction
+    # choice here.
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "wget -q -O - http://127.0.0.1:8222/jsz >/dev/null 2>&1 || exit 1"
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    # Container-init hardening: drop all Linux capabilities (NATS
+    # does not need any beyond the default network sockets, which it
+    # gets via the unprivileged port mapping). ``no-new-privileges``
+    # is a defence-in-depth: if a future bind to a privileged port
+    # is needed, the operator must opt in explicitly.
+    cap_drop:
+      - ALL
+    security_opt:
+      - "no-new-privileges:true"
+    # Phase-1 single-node: small resource envelope. These limits are
+    # advisory under compose v2 (they apply on Swarm); they document
+    # the expected shape for the Box-5 Helm-chart follow-up.
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: "512M"
+
+volumes:
+  jetstream_data:
+    name: wakir-nats-jetstream-data
+
+networks:
+  wakir:
+    name: wakir-orchestrator
+    driver: bridge
