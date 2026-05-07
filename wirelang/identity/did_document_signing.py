@@ -51,8 +51,6 @@ from __future__ import annotations
 import copy
 import hashlib
 
-import rfc8785
-
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -65,6 +63,24 @@ from cryptography.hazmat.primitives.serialization import (
     PublicFormat,
 )
 
+from . import _jcs_pure
+
+
+# Resolver indirection (Tag-9): see ``aip_signing._jcs_canonicalize``.
+try:
+    import rfc8785 as _rfc8785_lib
+
+    _HAS_RFC8785 = True
+except ImportError:  # pragma: no cover -- exercised when rfc8785 absent
+    _rfc8785_lib = None
+    _HAS_RFC8785 = False
+
+
+def _jcs_canonicalize(value: object) -> bytes:
+    if _HAS_RFC8785:
+        return _rfc8785_lib.dumps(value)
+    return _jcs_pure.canonicalize(value)
+
 
 _PROOF_TYPE: str = "EcdsaSecp256k1Signature2019"
 _DEFAULT_ALG: str = "ES256K"
@@ -73,7 +89,7 @@ _DEFAULT_ALG: str = "ES256K"
 def _canonical_signing_payload(did_doc: dict) -> bytes:
     body = copy.deepcopy(did_doc)
     body.pop("proof", None)
-    canonical = rfc8785.dumps(body)
+    canonical = _jcs_canonicalize(body)
     return hashlib.sha256(canonical).digest()
 
 

@@ -38,13 +38,39 @@ from __future__ import annotations
 import copy
 import hashlib
 
-import rfc8785
-
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey,
     Ed25519PublicKey,
 )
+
+from . import _jcs_pure
+
+
+# Resolver indirection (Tag-9 Phase-1b): production deployments
+# install the ``rfc8785`` PyPI package and we delegate to it; sandbox
+# environments that lack the package fall back to the pure-Python
+# canonicaliser in :mod:`wirelang.identity._jcs_pure`. The two paths
+# produce byte-identical output for the Phase-1b document shape;
+# cross-equivalence is verified by the Tag-9 test suite.
+try:
+    import rfc8785 as _rfc8785_lib
+
+    _HAS_RFC8785 = True
+except ImportError:  # pragma: no cover -- exercised when rfc8785 absent
+    _rfc8785_lib = None
+    _HAS_RFC8785 = False
+
+
+def _jcs_canonicalize(value: object) -> bytes:
+    """JCS-canonicalise ``value``.
+
+    Production path: ``rfc8785.dumps``. Fallback path: the pure-Python
+    canonicaliser. See module docstring on resolver indirection.
+    """
+    if _HAS_RFC8785:
+        return _rfc8785_lib.dumps(value)
+    return _jcs_pure.canonicalize(value)
 
 
 _DEFAULT_KID: str = "biscuit-root-1"
@@ -55,12 +81,13 @@ def _canonical_signing_payload(aip_doc: dict) -> bytes:
 
     The ``document_signature`` field is removed from a deep copy of
     the input so the caller's document is not mutated. JCS canonical
-    form is computed with ``rfc8785``; SHA-256 of that byte-string is
-    the signing input.
+    form is computed via the resolver indirection (``rfc8785`` when
+    available, the pure-Python fallback otherwise); SHA-256 of that
+    byte-string is the signing input.
     """
     body = copy.deepcopy(aip_doc)
     body.pop("document_signature", None)
-    canonical = rfc8785.dumps(body)
+    canonical = _jcs_canonicalize(body)
     return hashlib.sha256(canonical).digest()
 
 
