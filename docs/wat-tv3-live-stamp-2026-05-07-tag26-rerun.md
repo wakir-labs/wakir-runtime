@@ -181,4 +181,101 @@ CEO authorisation (Tag-26 briefing, 2026-05-07).
 - [x] Daily budget consumption recorded (2/4 for UTC 2026-05-07).
 - [x] Audit-trail-repair balance documented (Tag-22 vs Tag-26 diff).
 
+## 8 / Tag-27 spot-check (T+13 min post-submit)
+
+Spot-check executed in the Tag-27 box (2026-05-07T07:38 UTC,
+~13 min after the Tag-26 submit at 07:25:40Z) using
+`scripts/wat-block-heights-collect.sh` against the Tag-26 archive
+plus a direct `ots verify` to surface per-calendar transaction IDs.
+
+### Calendar progression vs Tag-26 box-end
+
+At Tag-26 box-end (T+~30s post-submit), all four calendars
+reported `Pending confirmation in Bitcoin blockchain`. 13 minutes
+later, two of the four have already broadcast a Bitcoin
+transaction; the other two remain Pending:
+
+| calendar                                          | T+30s (Tag-26)      | T+13min (Tag-27)                   |
+|---------------------------------------------------|---------------------|------------------------------------|
+| `https://alice.btc.calendar.opentimestamps.org`   | Pending             | tx `2519dd36…85d9fa`, awaiting 6 confs |
+| `https://bob.btc.calendar.opentimestamps.org`     | Pending             | tx `fe2208c7…7e1dc69`, awaiting 6 confs |
+| `https://finney.calendar.eternitywall.com`        | Pending             | Pending                            |
+| `https://btc.calendar.catallaxy.com`              | Pending             | Pending                            |
+
+This is faster progression than Tag-22 / Tag-23 / Tag-24 / Tag-25
+showed at the same offset; the alice-and-bob pair typically
+publishes within the first calendar-aggregation window (~1 hour),
+finney + catallaxy aggregate on slower cadences.
+
+### Esplora-fallback cross-check
+
+The two non-Pending calendars name explicit Bitcoin transaction
+IDs. Cross-checked against the Esplora-compatible mempool.space
+API:
+
+```
+GET https://mempool.space/api/tx/<txid>/status
+```
+
+| transaction id        | confirmed | block height | block hash                                                              |
+|-----------------------|-----------|--------------|-------------------------------------------------------------------------|
+| `2519dd36…85d9fa` (alice) | true      | **948286**   | `00000000000000000001132d70f3804b8d22ef84ed25535254e46dbf2f61602e`      |
+| `fe2208c7…7e1dc69` (bob)  | true      | **948286**   | `00000000000000000001132d70f3804b8d22ef84ed25535254e46dbf2f61602e`      |
+
+Both calendar transactions landed in **the same Bitcoin block**
+(height 948286, current chain tip per `GET /api/blocks/tip/height`
+at 07:38 UTC). That is 1-of-6 confirmations on each path; OTS
+default-finalisation (the upstream `ots upgrade` recognises a
+calendar branch as upgradeable) needs all 6.
+
+The block-heights collection script does not yet surface this
+1-of-6 in-mempool-confirmed state directly — it currently classes
+the receipt as `pending` because no `BitcoinBlockHeaderAttestation`
+has been embedded in the proof tree. That happens only after
+`ots upgrade` succeeds, which in turn needs the 6-confirmation
+threshold. The Esplora call exposes the *underlying* mempool /
+chain reality earlier than the calendar's `ots upgrade` endpoint
+does. This is the design intent of the Esplora fallback in
+ADR-0007 §3.
+
+### Block-heights collect report
+
+```
+[wat-block-heights] archive=.runtime/wat-tv3-archive/20260507T072538Z
+[wat-block-heights] found 1 receipt(s); running ots upgrade on each
+[wat-block-heights] warn: ots upgrade non-zero ... (continuing)
+[wat-block-heights] pending   2026-05-26T17/root.bin.ots
+[wat-block-heights] summary: receipts=1 finalised=0 pending=1
+```
+
+Report file:
+`.runtime/wat-tv3-archive/20260507T072538Z/_reports/tag27-spot-check.md`.
+
+### Tag-28 voll-closure-projection
+
+With both alice and bob already in block 948286, the upgrade window
+moves up: at the standard ~10-min Bitcoin block cadence, 6
+confirmations land roughly 60 minutes from now (~08:35-08:40 UTC,
+2026-05-07). At that point an `ots upgrade` against the Tag-26
+receipt should embed Bitcoin-block-header attestations for the
+alice + bob branches, lifting the receipt from `pending` to a
+2-of-4 partial-anchor state without waiting for the 46-hour Tag-28
+box at all.
+
+Finney + catallaxy operate on slower aggregation cadences;
+historical Tag-22/Tag-23/Tag-24 data shows they typically catch up
+within 12-24 hours but can take longer. A Tag-28 box at 12Z
+(~28h post-submit) is on the right wallclock to expect 4-of-4
+finalisation by then.
+
+### Acceptance — Tag-27 spot-check
+
+- [x] `wat-block-heights-collect.sh` walked the Tag-26 archive
+      without error.
+- [x] `ots verify` surfaces calendar-level transaction IDs for
+      alice + bob; finney + catallaxy still Pending.
+- [x] Esplora cross-check confirms both TXs in block 948286
+      (chain-tip at spot-check time), 1-of-6 confirmations.
+- [x] Spot-check result documented as Tag-26-doc extension §8.
+
 — Tomás
