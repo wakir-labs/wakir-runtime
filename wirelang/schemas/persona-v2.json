@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wakir.dev/schemas/persona-v2.json",
+  "title": "Wakir persona-definition canonical subset (V-907, persona-v2 / V10)",
+  "description": "persona-v2 schema, additive-only successor to persona-v1 per engine-default Default-Lock A-2 (semver-major-only + additiv-only + linear chain). Adds two top-level optional fields (model_pin, spawn_constraints), three optional fields under identity_pinned (identity_doc_ref, persona_owner_role, governance_revision), and reserves three top-level keys (recovery_drill, wat_bridge_overrides, container_bridge_spec) without defining semantics. Anti-changes: no field removal, no type narrowing, no required-set extension, no body changes, no JCS-norm change, no hash-function change. Field semantics for additive and reserved fields are HR-slot-ratification-pending (ADR-0029-Annex). The markdown body is OUT-OF-HASH and intentionally NOT covered by this schema.",
+  "type": "object",
+  "required": [
+    "name",
+    "description",
+    "tools",
+    "schema_version",
+    "identity_pinned"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Subagent slug / role-string per Brand-Guide §9. Never a clear personal name.",
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "description": {
+      "type": "string",
+      "description": "Spawn-time human-readable description (also used as the dispatcher hint for the parent supervisor)."
+    },
+    "tools": {
+      "type": "array",
+      "description": "Allow-list of tool names this persona may invoke (Read, Glob, Bash, etc.).",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "persona-v2"
+    },
+    "identity_pinned": {
+      "type": "object",
+      "description": "Authority and cross-review parameters that are part of the persona's audit-pinned surface. v2 adds three optional fields (identity_doc_ref, persona_owner_role, governance_revision) on top of the v1 required-set.",
+      "required": [
+        "cross_review_zones",
+        "authority",
+        "hierarchy"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "cross_review_zones": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["zone", "partner", "trigger"],
+            "additionalProperties": false,
+            "properties": {
+              "zone": {
+                "type": "string",
+                "minLength": 1
+              },
+              "partner": {
+                "type": "string",
+                "description": "Role-string of the cross-review partner.",
+                "pattern": "^[a-z0-9][a-z0-9-]*$"
+              },
+              "trigger": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "authority": {
+          "type": "object",
+          "required": [
+            "push_remote",
+            "budget_cap_eur_per_month",
+            "sub_delegation"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "push_remote": {
+              "type": "boolean"
+            },
+            "budget_cap_eur_per_month": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sub_delegation": {
+              "type": "boolean"
+            }
+          }
+        },
+        "hierarchy": {
+          "type": "object",
+          "required": ["reports_to", "escalation"],
+          "additionalProperties": false,
+          "properties": {
+            "reports_to": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "escalation": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            }
+          }
+        },
+        "identity_doc_ref": {
+          "type": "string",
+          "description": "OPTIONAL. Forward-link to a Z-L identity-substrate document hash (identity-eng-slot domain, Zone L). HR-slot-ratification-pending; identity-eng-slot Forward-link-pending. Format is a URI string; precise URI scheme is Sprint-3-Tag-N consensus item.",
+          "format": "uri",
+          "minLength": 1
+        },
+        "persona_owner_role": {
+          "type": "string",
+          "description": "OPTIONAL. HR-side ownership role-string, distinct from hierarchy.reports_to (which is reporting/escalation only). hr-slot domain ratification.",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "governance_revision": {
+          "type": "integer",
+          "description": "OPTIONAL. Allows persona-definition governance revisions to be pinned without forcing a schema-version shift. Distinct from schema_version (engine-side) and from file-level git history (operator-side).",
+          "minimum": 1
+        }
+      }
+    },
+    "model_pin": {
+      "type": "object",
+      "description": "OPTIONAL. Carries an explicit model-version pin so a persona's behaviour is reproducible across model upgrades. Phase-2 alignment item; Sprint-3 records the hash-input shape so v2-inputs that supply it are byte-stable. Field semantics HR-slot-ratification-pending (ADR-0029-Annex)."
+    },
+    "spawn_constraints": {
+      "type": "object",
+      "description": "OPTIONAL. Captures spawn-time validations (e.g. parent-supervisor allow-list, max-concurrent-instances). Currently lives implicitly in supervisor code; v2 makes it persona-pinnable. Field semantics HR-slot-ratification-pending."
+    },
+    "recovery_drill": {
+      "type": "object",
+      "description": "RESERVED, no semantics in persona-v2. Anticipated owner: identity-eng-slot (recovery-drill-leaf-projection.md may want a persona-pin slot for drill membership). Reserved-but-empty hashes the same as absent under the canonical-subset extractor's drop-empty discipline (Default-Lock A-2 / D-A; see persona-schema-v10-migration-vorbereitung.md §6)."
+    },
+    "wat_bridge_overrides": {
+      "type": "object",
+      "description": "RESERVED, no semantics in persona-v2. Anticipated owner: wat-eng-slot (per-persona WAT-frame ingestion overrides). Reserved-but-empty hashes the same as absent under the canonical-subset drop-empty discipline."
+    },
+    "container_bridge_spec": {
+      "type": "object",
+      "description": "RESERVED, no semantics in persona-v2. Anticipated owner: container-ops-slot (Zone-J persona-container-bridge override; Sprint-3 likely consumes it). Reserved-but-empty hashes the same as absent under the canonical-subset drop-empty discipline."
+    }
+  }
+}

@@ -479,6 +479,12 @@ Verification of §9 cleanness is at the bottom (§10).
    `persona-v1.json` with additive optional fields and reserved-
    field allow-list. `additionalProperties: false` retained at
    `identity_pinned` boundary.
+   **Status (Sprint-3 Tag-2):** done — schema-file landed at
+   `wirelang/schemas/persona-v2.json` with 6 schema-validation
+   tests under `wirelang/tests/test_persona_v2_schema.py` (3
+   positive + 3 negative). Field-spec mirrors §2.1.1 + §2.1.2 +
+   §2.1.3 of this sketch. HR-slot content ratification still
+   pending; the schema-file is structure-only.
 4. **v10 native fixture + v11 mutation-class fixture.** Two new
    markdown files under `wirelang/tests/fixtures/persona_definitions/`.
 5. **Pin-pack constant additions.** `PERSONA_HASH_PIN_V10`,
