@@ -5,7 +5,7 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 
 # Orchestrator NATS-JetStream KV Phase-1 — Operator Runbook
 
-Status: draft, Phase 1b Sprint-2 Tag-7.
+Status: draft, Phase 1b Sprint-2 Tag-8 (Sprint-2 closing consolidation).
 Companion to `compose/nats.yaml` (substrate),
 `scripts/init-nats-buckets.py` (Phase-1 four-bucket driver),
 `scripts/check-nats-kv-health.py` (Phase-1 substrate health
@@ -16,13 +16,48 @@ federation evaluator health check),
 `tests/orchestrator/test_compose_nats.py` +
 `tests/orchestrator/test_check_nats_kv_health.py` +
 `tests/orchestrator/test_check_federation_evaluator_health.py`
-(hermetic regressions).
+(hermetic regressions, 55 passed + 4 live-smoke skipped under
+`tests/orchestrator/`; 189 passed + 23 skipped project-wide
+post-Tag-7).
 
 This runbook is the operator-facing checklist for bringing up and
-maintaining the four Phase-1 NATS-JetStream KV buckets that back the
-read-through cache layer used by the orchestrator. It is not a design
-document — the substrate spec and the bucket value-envelope contract
-live in their own memos and are referenced here only by name.
+maintaining the Phase-1b NATS-JetStream KV buckets that back the
+read-through cache layer used by the orchestrator and the V-908
+federation route registry consumed by the N2 evaluator. It is not
+a design document — the substrate spec, the bucket value-envelope
+contract, and the federation-evaluator semantics live in their own
+memos and are referenced here only by name.
+
+## 0. Section index (Tag-8 consolidation)
+
+| §   | Topic                                                              | Source tags |
+| --- | ------------------------------------------------------------------ | ----------- |
+| 1   | Bucket inventory (Phase-1, four-bucket cache layer)                | Tag-2       |
+| 2   | Pre-flight check                                                   | Tag-2       |
+| 3   | Bring-up (cold start: substrate + buckets-init + tear-down)        | Tag-2, Tag-3 |
+| 4   | Idempotency contract                                               | Tag-2       |
+| 5   | Health checks                                                      | Tag-2, Tag-6, Tag-7 |
+| 5.1 | `check-nats-kv-health` tool                                        | Tag-6       |
+| 5.2 | Cron-slot deployment                                               | Tag-6       |
+| 5.3 | `check-federation-evaluator-health` tool                           | Tag-7       |
+| 6   | Recovery scenarios                                                 | Tag-2, Tag-7 |
+| 6.1 | NATS down                                                          | Tag-2       |
+| 6.2 | JetStream disk loss                                                | Tag-2       |
+| 6.3 | Configuration drift                                                | Tag-2, Tag-6 |
+| 6.4 | FTD poison-list growth                                             | Tag-2       |
+| 6.5 | Federation-routes bucket creation (Phase-1b bring-up)              | Tag-7       |
+| 7   | Open follow-ups (sprint-by-sprint backlog)                         | Tag-2..Tag-8 |
+| 8   | Verification stamps (P5/P7)                                        | Tag-2..Tag-8 |
+
+The four operator artefacts (compose substrate, bucket initialiser,
+NATS-KV substrate health check, federation evaluator health check)
+share a common JSON output shape and exit-code contract; cron and
+systemd consumers see one consistent surface across all four tools.
+Cross-tool drift is pinned by hermetic regression tests
+(`test_inventory_matches_init_nats_buckets`,
+`test_bucket_name_matches_route_registry_backend`,
+`test_bucket_config_matches_route_registry_backend`,
+`test_drift_comparator_field_set_matches_phase_1_health_check`).
 
 ## 1. Bucket inventory (Phase-1, single-node)
 
@@ -475,6 +510,15 @@ operator playbook). Re-run
   entries. Cross-script parity tests pin the wirelang-eng-side `BUCKET_NAME`
   / `BUCKET_CONFIG` / drift-field-set against the Tag-6 health
   check.
+- Sprint-2 Tag-8: ~~runbook consolidation pass~~ done — header
+  bumped to Sprint-2 closing state, §0 section index added, §8
+  verification stamps refreshed for the full Tag-2..Tag-7 surface,
+  cross-references between §5 and §6.5 verified. No new tool, no
+  new test surface; this pass is documentation-only and ships
+  alongside the Sprint-2 dev-engineering-3-side acceptance memo
+  (see the dev-engineering-3 outbox under
+  `agents-workspaces/<dev-engineering-3>/outbox/`, file slug
+  `2026-05-07-phase-1b-sprint-2-acceptance-doku`).
 - Sprint-3: extend `init-nats-buckets.py` `PHASE_1_BUCKETS` to
   include `wakir-federation-routes` as a fifth bucket so the
   bring-up procedure in §6.5 collapses into the routine `init`
@@ -492,6 +536,22 @@ operator playbook). Re-run
   SVID path will replace this with a workload-API call. The health
   check inherits the same token contract today and will inherit the
   SVID upgrade for free.
+- Sprint-3: build-host activation. The Sprint-2 hermetic test suite
+  is complete (55 + 4 skipped under `tests/orchestrator/`), but four
+  live-smoke contracts are gated on `WAKIR_NATS_LIVE=1` and require
+  a build host with `gcc` (for `nats-py` compilation), a container
+  engine (`podman` or `docker`) for the compose substrate, and the
+  `nats` CLI for the `kv add` step in §6.5. Activation order:
+  (i) install gcc + podman + nats-py + nats-cli, (ii) `docker
+  compose -f compose/nats.yaml up -d` (Box-3 substrate), (iii)
+  `python3 scripts/init-nats-buckets.py` (Phase-1 four-bucket
+  init), (iv) `nats kv add wakir-federation-routes ...` per §6.5
+  (Phase-1b fifth bucket), (v) `WAKIR_NATS_LIVE=1 python3 -m
+  pytest tests/orchestrator/` to exercise the four live-smoke
+  contracts (Box-5 real-nats-py-adapter + Tag-6 NATS-KV health +
+  Tag-7 federation-evaluator health). Until that activation, the
+  hermetic suite is the production-grade contract surface; the
+  live-smoke tests are activation-gated future work.
 - Phase-3: replicated JetStream (replicas > 1) requires a multi-node
   cluster topology. Bucket spec changes are limited to `replicas`; the
   initialiser already plumbs that field end-to-end and the health
@@ -549,3 +609,17 @@ operator playbook). Re-run
   the wakir-runtime repo root on PYTHONPATH so the
   `wirelang.federation.*` imports resolve. Full project-wide test
   suite stamp post-Tag-7: `189 passed, 23 skipped, 0 regressions`.
+- Tag-8 consolidation stamp: `date -u` 2026-05-07T13:29:47Z
+  (CEST 2026-05-07T15:29). This pass is documentation-only. No
+  code surface is touched; no test surface is added; no exit-code
+  contract changes; no schema changes; no auth-surface changes.
+  The verification stamp re-runs the full test suite to confirm
+  zero-drift: `tests/orchestrator/` 55 passed + 4 skipped (Tag-7
+  baseline preserved); project-wide 189 passed + 23 skipped
+  (Tag-7 baseline preserved); zero regressions. The §0 section
+  index, the §7 Tag-8 entry, and this verification stamp are the
+  only Tag-8 additions to the runbook proper. The Sprint-2
+  dev-engineering-3-side acceptance memo (slug
+  `2026-05-07-phase-1b-sprint-2-acceptance-doku` in the
+  dev-engineering-3 outbox) is the companion deliverable for the
+  Sprint-2 closing gate.
