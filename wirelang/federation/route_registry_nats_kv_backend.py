@@ -56,6 +56,13 @@ evaluation time; instead the backend exposes:
   pass; this matches the determinism contract of T-N2-10
   (re-querying the same registry instance MUST yield identical
   results).
+- :meth:`NatsKvRouteRegistry.watch` — async watch-stream surface
+  added in Phase-1b Sprint-2 Tag-6 (S2-5). Yields decoded
+  :class:`WatchEvent` instances for incremental delta tracking.
+  Operators feed events into a :class:`LiveSnapshot` to maintain a
+  long-running incremental view; the synchronous evaluator surface
+  is unchanged and continues to query frozen
+  :class:`InMemoryRouteRegistry` copies.
 
 The snapshot pattern keeps the synchronous evaluator surface
 unchanged, makes test isolation trivial, and gives a clean
@@ -112,10 +119,11 @@ References (URL-stamped 2026-05-07 by wirelang-eng):
 
 from __future__ import annotations
 
+import enum
 import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Mapping, Optional
+from typing import Any, AsyncIterator, Mapping, Optional
 
 from .n2_evaluator import (
     InMemoryRouteRegistry,
@@ -392,6 +400,26 @@ class NatsKvRouteRegistry:
             in_memory.add(entry)
         return in_memory
 
+    # ------------------------------------------------------------------
+    # Watch-stream (Phase-1b Sprint-2 Tag-6, S2-5)
+    # ------------------------------------------------------------------
+
+    async def watch(self) -> "_WatchStreamHandle":
+        """Open a watch-stream over this backend's bucket.
+
+        Returns an async iterable / context manager that yields
+        decoded :class:`WatchEvent` instances. See
+        :func:`open_watch_stream` for details.
+
+        Phase-1b boundary: the watch-stream is a *consumer* surface;
+        it does NOT replace :meth:`snapshot`. Use a
+        :class:`LiveSnapshot` (bootstrapped from :meth:`snapshot`,
+        fed by :meth:`watch`) to maintain a long-running incremental
+        view; pass frozen :meth:`LiveSnapshot.as_registry` copies to
+        the synchronous evaluator surface.
+        """
+        return await open_watch_stream(self)
+
 
 # ---------------------------------------------------------------------------
 # Helpers (KV adapter shims for nats-py vs. the test mock)
@@ -452,3 +480,306 @@ async def _list_keys(kv: Any) -> list:
             return collected
         return list(result)
     raise RouteRegistryBackendError("KV handle has no keys() method")
+
+
+# ---------------------------------------------------------------------------
+# Watch-Stream-Snapshot Layer (Phase-1b Sprint-2 Tag-6, S2-5)
+# ---------------------------------------------------------------------------
+#
+# Tag-4 (S2-3) shipped get/put/delete/snapshot. Snapshot is full-bucket:
+# every evaluator pass that wants fresh state takes a fresh full
+# snapshot. That is correct for determinism but costly when route
+# turnover is high or when a long-running supervisor wants to track
+# changes between snapshots without re-listing.
+#
+# Tag-6 (S2-5) adds a watch-based incremental layer that consumes
+# nats-py's ``KeyValue.watch()`` (or a mock-equivalent) and surfaces
+# decoded :class:`WatchEvent` instances. The synchronous evaluator
+# surface (`RouteRegistry.lookup`) is UNCHANGED: a watch-stream is a
+# substrate for materialising live deltas into an
+# :class:`InMemoryRouteRegistry` snapshot, not a new evaluator
+# substrate. The bridge contract is: each evaluator pass takes one
+# *frozen* :class:`InMemoryRouteRegistry` view; the watch-stream is
+# the producer of that view, the evaluator does not query the live
+# stream.
+#
+# A :class:`LiveSnapshot` keeps an in-memory copy of the registry,
+# initialises it from a full :meth:`NatsKvRouteRegistry.snapshot`,
+# and then applies decoded :class:`WatchEvent` instances as they
+# arrive. Callers get a deterministic frozen
+# :class:`InMemoryRouteRegistry` for each evaluator pass via
+# :meth:`LiveSnapshot.as_registry`. The frozen copy is taken at
+# call time; subsequent watch events do NOT mutate the returned
+# registry (T-LS-determinism contract).
+#
+# Boundary (Phase-1b, Sprint-2 Tag-6):
+#
+# - The watch-stream is a *consumer* surface. Operators connect the
+#   stream to a long-running supervisor task; the supervisor keeps a
+#   :class:`LiveSnapshot` warm and hands frozen
+#   :class:`InMemoryRouteRegistry` instances to the evaluator per
+#   token. The watch-stream itself is not the registry.
+# - A poisoned envelope on the stream raises
+#   :class:`RouteRegistryEnvelopeError` from the consumer iterator and
+#   terminates the iterator. The operator must observe the error,
+#   drop the :class:`LiveSnapshot`, and re-bootstrap from a fresh
+#   :meth:`NatsKvRouteRegistry.snapshot`. Phase-1b does not silently
+#   swallow envelope poison (same contract as full snapshot).
+# - Watch-stream resumption / replay-from-revision is a Phase-2
+#   concern (nats-py supports it via ``watch(..., resume_from=...)``;
+#   the Phase-1b stream wrapper exposes the underlying revision but
+#   does not bake in resume policy).
+
+
+class WatchOp(enum.Enum):
+    """Operation kind surfaced by the watch-stream.
+
+    Matches nats-py's ``KeyValueOp`` shape: ``PUT`` for insert/update,
+    ``DELETE`` for tombstone (explicit delete), ``PURGE`` for
+    history-clearing purge. The evaluator-side consumer treats
+    ``DELETE`` and ``PURGE`` identically (the route is gone); they
+    are surfaced separately so audit consumers can distinguish them.
+    """
+
+    PUT = "PUT"
+    DELETE = "DELETE"
+    PURGE = "PURGE"
+
+
+@dataclass(frozen=True)
+class WatchEvent:
+    """A single decoded operation from the registry watch-stream.
+
+    Fields:
+
+    - ``op``: the :class:`WatchOp`. PUT means ``entry`` is set;
+      DELETE/PURGE mean ``entry`` is ``None``.
+    - ``route_id``: the registry route_id (KV key).
+    - ``entry``: the decoded :class:`RouteRegistryEntry` for PUT;
+      ``None`` for DELETE/PURGE.
+    - ``revision``: the KV revision at which this event was observed.
+      Monotonically increasing per bucket; useful for resume policies
+      and audit cross-references.
+    """
+
+    op: WatchOp
+    route_id: str
+    entry: Optional[RouteRegistryEntry]
+    revision: int
+
+
+def _decode_watch_update(update: Any) -> WatchEvent:
+    """Decode one nats-py ``KeyValue.Entry`` (or mock-equivalent) into
+    a :class:`WatchEvent`.
+
+    nats-py exposes the operation kind via an ``operation`` attribute
+    that is a ``KeyValueOp`` enum; on a ``PUT`` the ``value`` attr
+    carries the envelope bytes, on ``DELETE``/``PURGE`` it is empty
+    (``b""`` or ``None``). We mirror that contract and accept both
+    the enum and a string (mock-friendliness).
+    """
+    op_raw = getattr(update, "operation", None)
+    if op_raw is None and isinstance(update, Mapping):
+        op_raw = update.get("operation")
+    if op_raw is None:
+        raise RouteRegistryEnvelopeError(
+            f"watch update has no 'operation' attribute: type={type(update).__name__}"
+        )
+    op_name = getattr(op_raw, "name", None) or str(op_raw)
+    op_name = op_name.upper()
+    if op_name not in {"PUT", "DELETE", "PURGE"}:
+        raise RouteRegistryEnvelopeError(
+            f"watch update has unknown operation: {op_name!r}"
+        )
+    op = WatchOp(op_name)
+
+    key = getattr(update, "key", None)
+    if key is None and isinstance(update, Mapping):
+        key = update.get("key")
+    if not isinstance(key, str) or not key:
+        raise RouteRegistryEnvelopeError(
+            f"watch update has empty/non-string key: {key!r}"
+        )
+
+    revision = getattr(update, "revision", None)
+    if revision is None and isinstance(update, Mapping):
+        revision = update.get("revision")
+    revision_int = int(revision) if revision is not None else 0
+
+    if op is WatchOp.PUT:
+        try:
+            blob = _coerce_value_bytes(update)
+        except RouteRegistryEnvelopeError:
+            # The PUT carried no .value handle; that is poisoned.
+            raise
+        entry = _envelope_to_entry(blob)
+        return WatchEvent(op=op, route_id=key, entry=entry, revision=revision_int)
+
+    return WatchEvent(op=op, route_id=key, entry=None, revision=revision_int)
+
+
+@dataclass
+class _WatchStreamHandle:
+    """Internal wrapper around the underlying nats-py watcher.
+
+    Adapts to two mock shapes:
+
+    1. The watcher is itself an async iterator (``__aiter__`` /
+       ``__anext__``); ``stop()`` (sync or async) closes it.
+    2. The watcher exposes ``await updates()`` returning the next
+       update or ``None`` for end-of-stream; ``stop()`` closes it.
+
+    nats-py's real ``KeyWatcher`` matches shape 2 with a sentinel
+    ``None`` between the initial snapshot replay and the live tail;
+    we surface that sentinel as a stream-internal marker only and
+    do NOT emit it to the consumer.
+    """
+
+    underlying: Any
+
+    async def __aenter__(self) -> "_WatchStreamHandle":
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        stop = getattr(self.underlying, "stop", None)
+        if stop is None:
+            return
+        result = stop()
+        if hasattr(result, "__await__"):
+            await result
+
+    def __aiter__(self) -> "_WatchStreamHandle":
+        return self
+
+    async def __anext__(self) -> WatchEvent:
+        # Shape 1: native async iterator.
+        if hasattr(self.underlying, "__anext__"):
+            while True:
+                update = await self.underlying.__anext__()
+                if update is None:
+                    # nats-py end-of-initial-replay sentinel; skip it
+                    # but keep the iterator alive for the live tail.
+                    continue
+                return _decode_watch_update(update)
+        # Shape 2: ``await updates()`` returns next or None.
+        updates = getattr(self.underlying, "updates", None)
+        if updates is not None:
+            while True:
+                update = await updates()
+                if update is None:
+                    # End-of-stream; stop the iterator.
+                    raise StopAsyncIteration
+                return _decode_watch_update(update)
+        raise RouteRegistryBackendError(
+            f"watch handle has neither __anext__ nor updates(): "
+            f"type={type(self.underlying).__name__}"
+        )
+
+
+async def _open_watcher(kv: Any) -> Any:
+    """Open the underlying watcher on the KV handle.
+
+    nats-py exposes ``await kv.watchall()`` returning an awaitable
+    watcher; some mocks expose the same name without async.
+    """
+    watch_fn = getattr(kv, "watchall", None)
+    if watch_fn is None:
+        watch_fn = getattr(kv, "watch", None)
+    if watch_fn is None:
+        raise RouteRegistryBackendError(
+            "KV handle exposes neither watchall() nor watch()"
+        )
+    result = watch_fn()
+    if hasattr(result, "__await__"):
+        result = await result
+    return result
+
+
+async def open_watch_stream(backend: "NatsKvRouteRegistry") -> _WatchStreamHandle:
+    """Open a watch-stream over the backend's KV bucket.
+
+    Use as an async context manager OR consume directly; either way,
+    ``stop()`` is called on close. Each iteration yields one
+    :class:`WatchEvent`. Decoder errors raise
+    :class:`RouteRegistryEnvelopeError` and terminate the iterator.
+    """
+    if not isinstance(backend, NatsKvRouteRegistry):
+        raise TypeError("backend must be a NatsKvRouteRegistry")
+    underlying = await _open_watcher(backend.kv)
+    return _WatchStreamHandle(underlying=underlying)
+
+
+@dataclass
+class LiveSnapshot:
+    """Live, watch-stream-fed snapshot of the route registry.
+
+    Phase-1b Sprint-2 Tag-6 (S2-5) substrate. Initialises an
+    in-memory copy from a full backend snapshot, then applies decoded
+    :class:`WatchEvent` instances to keep the copy in sync.
+
+    The class is NOT itself a :class:`RouteRegistry`. To pass it to
+    the synchronous evaluator surface, call :meth:`as_registry` to
+    take a frozen copy at the current state. Subsequent watch events
+    do not mutate the returned copy (determinism contract: a frozen
+    copy passed to one evaluator pass yields stable verdicts).
+
+    Concurrency: a :class:`LiveSnapshot` is intended for a
+    single-consumer pattern within one asyncio task. Cross-task
+    sharing requires the caller to lock; the class itself does no
+    locking because asyncio guarantees in-task atomicity between
+    awaits, and ``apply()`` is synchronous.
+    """
+
+    initial: InMemoryRouteRegistry
+    last_revision: int = 0
+    _live: InMemoryRouteRegistry = field(init=False)
+
+    def __post_init__(self) -> None:
+        # Defensive copy: callers may keep a reference to ``initial``
+        # and we must not mutate it as deltas arrive.
+        self._live = InMemoryRouteRegistry()
+        for entry in self.initial.entries.values():
+            self._live.add(entry)
+
+    def apply(self, event: WatchEvent) -> None:
+        """Apply one :class:`WatchEvent` to the live state.
+
+        PUT updates / inserts the entry; DELETE / PURGE remove it
+        (no-op if already absent).
+        """
+        if not isinstance(event, WatchEvent):
+            raise TypeError("event must be a WatchEvent")
+        if event.op is WatchOp.PUT:
+            if event.entry is None:
+                raise RouteRegistryEnvelopeError(
+                    "PUT WatchEvent must carry a non-None entry"
+                )
+            self._live.add(event.entry)
+        else:
+            # DELETE / PURGE: remove the route_id if present.
+            self._live.entries.pop(event.route_id, None)
+        if event.revision > self.last_revision:
+            self.last_revision = event.revision
+
+    def as_registry(self) -> InMemoryRouteRegistry:
+        """Return a frozen :class:`InMemoryRouteRegistry` copy of the
+        current live state.
+
+        The returned registry does not share storage with the live
+        state; subsequent :meth:`apply` calls do not mutate it.
+        """
+        frozen = InMemoryRouteRegistry()
+        for entry in self._live.entries.values():
+            frozen.add(entry)
+        return frozen
+
+    @classmethod
+    async def from_backend(
+        cls, backend: "NatsKvRouteRegistry"
+    ) -> "LiveSnapshot":
+        """Bootstrap a :class:`LiveSnapshot` from a full backend
+        snapshot. The caller is responsible for opening a watch-stream
+        and feeding events to :meth:`apply`.
+        """
+        initial = await backend.snapshot()
+        return cls(initial=initial, last_revision=0)

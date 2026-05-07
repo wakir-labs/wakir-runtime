@@ -601,6 +601,127 @@ green (T-N3-01..10 plus 5 aux probes covering expired-hop,
 derive-helper validation, walk-fn equivalence, ctx-revisit cycle,
 and the unreachable zero-hop-mismatch defensive branch).
 
+### 5.8 Phase-1b NATS-KV watch-stream snapshot layer (informative)
+
+Phase-1b Sprint-2 Tag-6 (S2-5) extends the Tag-4 backend
+(`wirelang/federation/route_registry_nats_kv_backend.py`) with a
+watch-based incremental snapshot layer. The Tag-4 §5.6 implementation
+note explicitly reserved this evolution path: "Snapshot is full-bucket.
+Phase-2 may add a watch-based incremental snapshot; the
+synchronous-bridge contract makes the swap source-compatible." Tag-6
+delivers that layer at the source-compatible boundary while keeping
+the synchronous evaluator surface unchanged.
+
+Module surface (additive over Tag-4):
+
+- `WatchOp` — enum of update kinds surfaced on the stream
+  (`PUT`, `DELETE`, `PURGE`). Mirrors nats-py's `KeyValueOp` shape.
+- `WatchEvent(op, route_id, entry, revision)` — frozen dataclass
+  encoding one decoded update. PUT carries a non-None
+  `RouteRegistryEntry`; DELETE/PURGE carry `entry=None`. The
+  `revision` field exposes the bucket revision at which the event
+  was observed.
+- `NatsKvRouteRegistry.watch()` — async method that opens a
+  watch-stream on the backend's bucket. Returns an async-iter /
+  context-manager handle that yields decoded `WatchEvent`
+  instances.
+- `open_watch_stream(backend)` — module-level async function that
+  opens the same stream; the method form is a thin wrapper.
+- `LiveSnapshot(initial, last_revision=0)` — long-running
+  incremental view of the registry. Bootstrapped from a full
+  `NatsKvRouteRegistry.snapshot()` and fed by `WatchEvent`
+  instances via `apply()`. Emits frozen `InMemoryRouteRegistry`
+  copies via `as_registry()`.
+- `LiveSnapshot.from_backend(backend)` — async classmethod that
+  bootstraps from a backend snapshot in one call.
+
+Synchronous-evaluator bridge (unchanged):
+
+The N2 evaluator's `RouteRegistry` Protocol is synchronous and
+queried by the determinism contract T-N2-10. The watch-stream is a
+*producer* substrate, NOT a new evaluator substrate. Operators who
+want incremental tracking pattern as:
+
+1. Bootstrap a `LiveSnapshot` from a full backend snapshot
+   (`LiveSnapshot.from_backend(backend)`).
+2. Open a watch-stream (`backend.watch()`).
+3. Pump events into the live snapshot via `live.apply(event)`.
+4. Per evaluator pass, take a frozen copy via
+   `live.as_registry()` and pass that to a `FederationContext`.
+   The frozen copy is a deep-copy of the entries dict; subsequent
+   `apply()` calls do NOT mutate it (T-NKV-WS-05 contract).
+
+The full-snapshot path (`backend.snapshot()`) remains the simple
+deterministic option for callers without a long-running supervisor;
+the watch-stream is the optimisation for high-turnover or
+long-lived consumers.
+
+Decode contract:
+
+`WatchEvent`s are decoded from the underlying watcher's update
+records. The decoder accepts two watcher shapes (Phase-1b
+mock-flexibility, mirroring the Tag-4 `_coerce_value_bytes` /
+`_list_keys` pattern):
+
+- Shape A: `await watcher.updates()` returns the next update or
+  `None` for end-of-stream (this is the nats-py `KeyWatcher`
+  shape).
+- Shape B: native async-iter (`__aiter__` / `__anext__`).
+
+A poisoned PUT envelope on the stream raises
+`RouteRegistryEnvelopeError` and terminates the iterator. An
+unknown `operation` kind also raises
+`RouteRegistryEnvelopeError`. The Phase-1b contract is: errors
+are not silently swallowed; the operator must observe the error,
+drop the `LiveSnapshot`, and re-bootstrap from a fresh
+`NatsKvRouteRegistry.snapshot()`.
+
+Phase-1b boundary (informative):
+
+- Resume / replay-from-revision is a Phase-2 concern. nats-py
+  supports `watch(..., resume_from=...)`; the Phase-1b stream
+  exposes `WatchEvent.revision` so callers can record progress,
+  but the wrapper itself does not bake in a resume policy.
+- `LiveSnapshot` is single-consumer per asyncio task. Cross-task
+  sharing requires the caller to lock; the class itself does no
+  locking because asyncio guarantees in-task atomicity between
+  awaits and `apply()` is synchronous.
+- `LiveSnapshot.last_revision` is monotonic (T-NKV-WS-08): an
+  apply with an older revision does NOT regress the counter.
+  The counter tracks "highest revision observed", not "latest
+  revision applied".
+- Watch-stream backpressure / queue-depth bounds are nats-py
+  responsibilities; the wrapper does not introduce a queue. Tests
+  use a single-task push/consume pattern.
+
+Cross-review hooks:
+
+- Zone B (NATS-KV × Wirelang): the watch-stream consumes Kai's
+  Phase-1 NATS-JetStream substrate (orchestrator I-3 Tag-3 compose
+  + Tag-1/Tag-2 bucket inventory). The Tag-4 `BUCKET_NAME`
+  contract is unchanged; the watch-stream operates on the same
+  `wakir-federation-routes` bucket. Operators running the
+  orchestrator Phase-1 substrate can consume the watch-stream
+  without additional configuration. A non-blocking consumer-side
+  Z-B note may be delivered to Kai's inbox documenting the
+  expected `watchall()` surface; no Aisha-Z-B-marker is required
+  because Phase-1b form ships under the existing Tag-4 marker
+  and the watch-stream is additive.
+- Zone 1 (Identity-Substrate): unchanged. The watch-stream
+  surfaces the same `RouteRegistryEntry` shape as the Tag-4 full
+  snapshot; the `source_ftd_id` field continues to be the hop
+  identity binding consumed by N2 §5.5 and the N3 §5.7 chain
+  walker.
+- Zone 2 (WAT × Wirelang): unchanged. The
+  `wat_anchor_manifest_id` field is surfaced unchanged through
+  `WatchEvent.entry`.
+
+Test coverage:
+`wirelang/tests/test_federation_route_registry_nats_kv_backend.py`
+— 26 tests green (13 Tag-4 T-NKV-01..10 + 3 aux probes, plus 13
+Tag-6 T-NKV-WS-01..10 + 3 aux probes covering Shape-1 async-iter,
+non-WatchEvent rejection, and PUT-without-entry rejection).
+
 ## 6. TV-W-2 Pin-Stability Guarantee
 
 TV-W-2 (`wirelang/specs/wirelang-tv-strategy.md` §2) pins three
