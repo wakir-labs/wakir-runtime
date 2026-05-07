@@ -356,3 +356,119 @@ def test_cli_main_returns_one_on_tampered_manifest(tmp_path: Path, capsys) -> No
     out = capsys.readouterr().out
     assert rc == 1
     assert "merkle_root mismatch" in out
+
+
+# ---------------------------------------------------------------------------
+# JSON output mode (Sprint-2 Tag-2 — frontend-cross-review pickup)
+# ---------------------------------------------------------------------------
+
+
+def test_as_dict_returns_pinned_schema_keys() -> None:
+    """``ManifestV2Result.as_dict`` exposes the documented JSON schema.
+
+    Pins the exact set of keys consumers (notably the frontend
+    ``VerifierResultCard`` aggregation layer) can rely on across
+    additive future revisions of the verifier.
+    """
+    result = ManifestV2Result(
+        manifest_path="/tmp/x.json",
+        version="wat-manifest/2.0",
+        schema_ok=True,
+        integrity_ok=True,
+        multi_cap_root_status="deferred",
+        failure_reason="",
+    )
+
+    payload = result.as_dict()
+
+    assert payload == {
+        "schema_version": "wakir-verify-manifest-v2/0",
+        "manifest_path": "/tmp/x.json",
+        "manifest_version": "wat-manifest/2.0",
+        "ok": True,
+        "schema_ok": True,
+        "integrity_ok": True,
+        "multi_cap_root_status": "deferred",
+        "failure_reason": "",
+    }
+
+
+def test_cli_output_json_emits_single_line_object_on_success(
+    tmp_path: Path, capsys
+) -> None:
+    """``--output json`` emits a JSON object on stdout, exit-code 0."""
+    events = [_make_event(1, capref_hash_hex="a" * 64)]
+    manifest = _build_v2_manifest(
+        events,
+        multi_cap={"evt-1": [_CAPREF_1, _CAPREF_2]},
+    )
+    path = _write_manifest(tmp_path, manifest)
+
+    rc = verifier_main([str(path), "--output", "json"])
+
+    out = capsys.readouterr().out.strip()
+    assert rc == 0
+    payload = json.loads(out)
+    assert payload["ok"] is True
+    assert payload["schema_ok"] is True
+    assert payload["integrity_ok"] is True
+    assert payload["manifest_version"] == "wat-manifest/2.0"
+    assert payload["multi_cap_root_status"] == "deferred"
+    assert payload["schema_version"] == "wakir-verify-manifest-v2/0"
+    # Single-line: exactly one trailing newline from print, no embedded newlines.
+    assert "\n" not in out
+
+
+def test_cli_output_json_on_tampered_manifest_carries_failure_reason(
+    tmp_path: Path, capsys
+) -> None:
+    """JSON output mirrors the human-mode failure_reason field."""
+    events = [_make_event(1, capref_hash_hex="a" * 64)]
+    manifest = _build_v1_manifest(events)
+    manifest["merkle_root"] = "0" * 64  # forced mismatch
+    path = _write_manifest(tmp_path, manifest)
+
+    rc = verifier_main([str(path), "--output", "json"])
+
+    out = capsys.readouterr().out.strip()
+    assert rc == 1
+    payload = json.loads(out)
+    assert payload["ok"] is False
+    assert payload["integrity_ok"] is False
+    assert "merkle_root mismatch" in payload["failure_reason"]
+    assert payload["failure_reason"].startswith("integrity:")
+
+
+def test_cli_output_json_strict_mode_reports_verified_status(
+    tmp_path: Path, capsys
+) -> None:
+    """Strict-mode + clean v2 manifest -> ``multi_cap_root_status="verified"``."""
+    events = [_make_event(1, capref_hash_hex="a" * 64)]
+    manifest = _build_v2_manifest(
+        events,
+        multi_cap={"evt-1": [_CAPREF_1, _CAPREF_2]},
+    )
+    path = _write_manifest(tmp_path, manifest)
+
+    rc = verifier_main(
+        [str(path), "--output", "json", "--strict-multi-cap-root"]
+    )
+
+    out = capsys.readouterr().out.strip()
+    assert rc == 0
+    payload = json.loads(out)
+    assert payload["multi_cap_root_status"] == "verified"
+
+
+def test_cli_output_json_keys_are_sorted(tmp_path: Path, capsys) -> None:
+    """Stable byte-output for downstream diffing / snapshot tests."""
+    events = [_make_event(1, capref_hash_hex="a" * 64)]
+    manifest = _build_v1_manifest(events)
+    path = _write_manifest(tmp_path, manifest)
+
+    verifier_main([str(path), "--output", "json"])
+
+    out = capsys.readouterr().out.strip()
+    # Verify the bytes are key-sorted JSON (sort_keys=True at print site).
+    payload = json.loads(out)
+    assert out == json.dumps(payload, sort_keys=True)

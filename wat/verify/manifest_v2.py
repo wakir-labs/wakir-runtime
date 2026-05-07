@@ -172,6 +172,46 @@ class ManifestV2Result:
         """True when both schema and integrity checks passed."""
         return self.schema_ok and self.integrity_ok
 
+    def as_dict(self) -> dict:
+        """Return a JSON-serialisable dict representation.
+
+        This is the **manifest-centric** verifier-result schema —
+        single-file manifest validation outcome. It is intentionally
+        *separate* from the event-centric ``wakir verify`` output
+        (per-event-id audit-result, aggregated across an archive).
+        Frontend consumers that render hour-aggregate / multi-receipt
+        snapshots should aggregate on top of this rather than expect
+        a 1:1 field map. Schema fields and meanings are pinned in
+        ``docs/wat-manifest-v2-spec.md`` §10.
+
+        Schema (stable for v0; additive-only changes promised):
+
+        - ``schema_version`` — string literal ``"wakir-verify-manifest-v2/0"``
+          so consumers can branch on a future ``/1`` without
+          probe-by-field heuristics.
+        - ``manifest_path`` — string, echo of the input path.
+        - ``manifest_version`` — string, the ``version`` field as
+          read from the manifest (e.g. ``"wat-manifest/2.0"``); empty
+          string when parsing did not reach the version field.
+        - ``ok`` — boolean, true iff schema and integrity both passed.
+        - ``schema_ok`` — boolean, JSON-Schema validation outcome.
+        - ``integrity_ok`` — boolean, cross-module integrity outcome.
+        - ``multi_cap_root_status`` — string, one of
+          ``"verified" | "deferred" | "mismatch" | ""`` (empty for v1).
+        - ``failure_reason`` — string, ``"<phase>: <message>"`` on
+          failure, empty on success.
+        """
+        return {
+            "schema_version": "wakir-verify-manifest-v2/0",
+            "manifest_path": self.manifest_path,
+            "manifest_version": self.version,
+            "ok": self.ok,
+            "schema_ok": self.schema_ok,
+            "integrity_ok": self.integrity_ok,
+            "multi_cap_root_status": self.multi_cap_root_status,
+            "failure_reason": self.failure_reason,
+        }
+
 
 # ---------------------------------------------------------------------------
 # Schema validation
@@ -655,6 +695,19 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Suppress per-step reporting; emit only ok / fail line.",
     )
+    parser.add_argument(
+        "--output",
+        choices=("human", "json"),
+        default="human",
+        help=(
+            "Output format. 'human' (default) emits the multi-line "
+            "diagnostic block; 'json' emits a single-line JSON object "
+            "with the manifest-centric verifier-result schema "
+            "(schema_version 'wakir-verify-manifest-v2/0'). The JSON "
+            "schema is pinned in docs/wat-manifest-v2-spec.md §10. "
+            "--quiet is ignored when --output json is set."
+        ),
+    )
     return parser
 
 
@@ -697,7 +750,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         schema_path=args.schema,
         strict_multi_cap_root=args.strict_multi_cap_root,
     )
-    print(_format_human(result, quiet=args.quiet))
+    if args.output == "json":
+        print(json.dumps(result.as_dict(), sort_keys=True))
+    else:
+        print(_format_human(result, quiet=args.quiet))
     return 0 if result.ok else 1
 
 

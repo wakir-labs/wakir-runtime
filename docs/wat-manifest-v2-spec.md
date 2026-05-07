@@ -399,6 +399,31 @@ emit a warning indicating the ordering is not yet locked.
   hermetic test suite in
   `tests/wat/test_manifest_v2_verifier_stub.py`.
 
+### Verifier-stub JSON-output schema
+
+The CLI `python -m wat.verify.manifest_v2 --output json` emits a
+single-line JSON object per run. Schema is **manifest-centric**
+(single-file outcome) and is intentionally distinct from the
+event-centric `wakir verify --output json` schema (Tag-25 pickup,
+per-event-id audit-result aggregated across an archive). Frontend
+hour-aggregate / multi-receipt snapshots aggregate on top of the
+manifest-centric record rather than expecting a 1:1 field map.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `schema_version` | string literal `"wakir-verify-manifest-v2/0"` | Version-pin so consumers can branch on a future `/1` without probe-by-field heuristics. Additive-only changes within `/0`. |
+| `manifest_path` | string | Echo of the input path (operators do not have to reconstruct from CLI invocation). |
+| `manifest_version` | string | The `version` field as read from the manifest (e.g. `"wat-manifest/2.0"`); empty string when parsing did not reach that field. |
+| `ok` | boolean | True iff `schema_ok` and `integrity_ok` both true. |
+| `schema_ok` | boolean | JSON-Schema validation outcome. |
+| `integrity_ok` | boolean | Cross-module integrity outcome (event-count / leaves / merkle_root / multi-cap sidecar consistency). |
+| `multi_cap_root_status` | string enum: `"verified" \| "deferred" \| "mismatch" \| ""` | Empty string for v1 manifests. `"deferred"` is the lenient-mode default while OQ-1 is open. |
+| `failure_reason` | string | `"<phase>: <message>"` on failure where `<phase>` is one of `schema`, `integrity`, `multi_cap_root`. Empty on success. |
+
+JSON keys are sorted (`json.dumps(..., sort_keys=True)`) so the
+byte-output is stable for downstream diffing / snapshot-tests.
+Exit codes are unchanged from human-mode (0 ok, 1 fail).
+
 The schema file is the contract; this document describes the
 contract in prose. If the two ever disagree, the schema is
 authoritative for structural validation and this document is
@@ -408,6 +433,13 @@ is informative only.
 
 ## 11. Change log
 
+- **2026-05-07 (Sprint-2 Tag-2):** Verifier-stub gains
+  `--output {human,json}` CLI mode and `ManifestV2Result.as_dict()`.
+  JSON schema pinned in §10 sub-section "Verifier-stub JSON-output
+  schema" (`schema_version: "wakir-verify-manifest-v2/0"`,
+  manifest-centric). 5 additional hermetic tests (16 total in the
+  stub suite). Frontend cross-review-sync handover unblocked
+  (manifest-centric vs event-centric distinction documented).
 - **2026-05-07 (Sprint-2 Tag-1):** Verifier-stub
   `wat.verify.manifest_v2` landed. Implements schema-validation +
   cross-module integrity (events/leaves/tree_levels/merkle_root
