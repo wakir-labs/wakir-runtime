@@ -1,0 +1,109 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright (c) 2026 Callandor GmbH and contributors -->
+
+# tooling/external-verifier-ajv
+
+Cross-tool parity validator for `wakir-wat-manifest-v1` JSON-Schema.
+
+## Why
+
+The formal schema file
+[`wirelang/schemas/wakir-wat-manifest-v1.json`](../../wirelang/schemas/wakir-wat-manifest-v1.json)
+is the contract handed to third-party verifier implementers. Schema
+correctness is meaningless if the only validator that confirms it is
+the one we ourselves wrote. This directory is the second-implementation
+half of the parity contract: a Node.js + [ajv](https://ajv.js.org/)
+validator that runs the same test-vector set as the Python
+`jsonschema` reference and asserts identical per-vector verdicts.
+
+When the verdicts disagree, the schema is ambiguous between
+implementations and must be tightened **before** it lands in any
+third-party hands. Cross-tool parity gives the schema-correctness
+conversation objective ground truth.
+
+## Files
+
+- `package.json` — pins `ajv` and `ajv-formats`; no other runtime deps.
+- `validate.js` — Node.js CLI; loads the schema and a vectors file,
+  prints a JSON report with per-vector verdicts, exits non-zero on
+  mismatch with the declared `expect` field.
+- `test-vectors.json` — the shared test-vector set. **Authoritative**:
+  both the Python `jsonschema` smoke-test
+  ([tests/wat/test_manifest_v1_schema_smoke.py](../../tests/wat/test_manifest_v1_schema_smoke.py))
+  and the Node.js / ajv side consume vectors from here. Edit this
+  file and **both sides** run the new vectors automatically.
+
+Each vector has the shape:
+
+```json
+{
+  "name": "v1-minimal-string-leaves",
+  "expect": "accept" | "reject",
+  "manifest": { ... wakir-wat-manifest/v1 wire-form ... }
+}
+```
+
+## Install
+
+```sh
+cd tooling/external-verifier-ajv
+npm install
+```
+
+`node_modules/` is in `.gitignore` (Node.js convention). The
+`package.json` pins major versions so re-installation produces a
+predictable validator.
+
+## Run
+
+```sh
+# Direct run, prints full JSON report to stdout
+node validate.js
+
+# Custom paths
+node validate.js \
+  --schema=../../wirelang/schemas/wakir-wat-manifest-v1.json \
+  --vectors=test-vectors.json
+```
+
+Exit codes: `0` all matched, `1` at least one vector mismatched its
+expected verdict, `2` CLI / file-loading error.
+
+## Cross-tool parity (the actual contract)
+
+The reference driver is
+[`scripts/external_verifier_validation.py`](../../scripts/external_verifier_validation.py).
+It runs the Python `jsonschema` validator and shells out to this
+directory's `validate.js`, then compares per-vector verdicts:
+
+```sh
+python scripts/external_verifier_validation.py
+```
+
+The pytest wrapper
+[`tests/wat/test_external_verifier_parity.py`](../../tests/wat/test_external_verifier_parity.py)
+gates on the same parity contract. Node.js side is `pytest.mark.skipif`
+when `node` is unavailable or `node_modules/` is missing; that is the
+posture for Sprint-3 (substrate available, not yet a hard CI gate).
+
+## Adding a third validator
+
+The vector format is intentionally portable. To bring a Rust /
+JavaScript / Java validator into the parity check:
+
+1. Read `test-vectors.json`.
+2. For each vector, validate `manifest` against the schema.
+3. Emit a JSON report with the same shape as `validate.js` (one
+   `results[]` entry per vector, with `matched` derived from
+   `expect == verdict`).
+4. Wire your tool into `scripts/external_verifier_validation.py`'s
+   parity-comparison alongside the existing two sides, or compare
+   reports out-of-band with `jq`.
+
+Adding implementations strengthens the schema-correctness signal
+linearly; every passing parity check across an additional tool buys
+the schema another standards-conformance witness.
+
+## License
+
+Apache License 2.0; see [../../LICENSE](../../LICENSE).

@@ -500,6 +500,33 @@ is informative only.
 
 ## 11. Change log
 
+- **2026-05-07 (Sprint-3 Tag-1):** External-verifier validation
+  substrate landed. The formal v1 schema file
+  `wirelang/schemas/wakir-wat-manifest-v1.json` is now exercised by
+  two independent JSON-Schema validators against a shared test-vector
+  set: the Python `jsonschema` Draft-2020-12 reference (already in
+  use) and a Node.js `ajv` implementation under
+  `tooling/external-verifier-ajv/`. The shared vectors file
+  `tooling/external-verifier-ajv/test-vectors.json` carries 17
+  vectors (5 accept + 12 reject) covering required-field coverage,
+  pattern pins (hour_slot, merkle_root, prev_hour_root), enum
+  closure (version), additionalProperties closure, anchor_height
+  domain, and both leaves shapes (hex strings + full-event objects).
+  Driver `scripts/external_verifier_validation.py` runs every
+  vector through both validators and asserts identical per-vector
+  verdicts; cross-tool parity is the schema-correctness contract.
+  Pytest wrapper `tests/wat/test_external_verifier_parity.py` gates
+  on the same contract (Node.js side `pytest.mark.skipif` when
+  `node` or `node_modules` unavailable; Python side always runs).
+  Net new: 1 schema-smoke-test module
+  (`tests/wat/test_manifest_v1_schema_smoke.py`, 26 tests covering
+  the v1 schema directly), 1 parity test module (5 tests, 4 of
+  which require Node.js), 1 reference driver script, 1 Node.js
+  tooling package, 1 cross-validator vectors file. Test-suite delta
+  +31 (230 → 261) when Node.js + ajv are installed; +27 (230 → 257)
+  Python-only. The Node.js side remains substrate (not a hard CI
+  gate) for Sprint-3; promoting it to `--require-node` is a
+  follow-up Open-Item once a CI step pins the node toolchain.
 - **2026-05-07 (Sprint-2 Tag-6):** Formal v1 JSON-Schema file
   `wirelang/schemas/wakir-wat-manifest-v1.json` landed as the sibling
   of `wat-manifest-v2.json`. Pins the eight mandatory fields

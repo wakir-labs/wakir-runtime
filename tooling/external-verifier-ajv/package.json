@@ -1,0 +1,15 @@
+{
+  "name": "wakir-external-verifier-ajv",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cross-tool parity validator for wakir-wat-manifest-v1 JSON-Schema using Node.js + ajv. Mirrors the Python jsonschema-side validation surface to prove schema correctness across implementations.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "validate": "node validate.js"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  }
+}
