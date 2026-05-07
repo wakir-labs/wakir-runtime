@@ -396,4 +396,60 @@ an updated entry below plus a workflow-PR note.
   envelope at 150 (drift 1, tolerance 5) — no `EXPECTED_DELTA`
   re-baseline required.
 
+### A.3 TV-W-3 (Phase-1b Tag-17, 2026-05-07)
+
+- Golden fixture: `wirelang/tests/fixtures/tv-w-3/pin-pack.json`.
+- Replay bundle: `wirelang/tests/fixtures/tv-w-3/replay/` (DNS TXT
+  record, FTD-doc body bytes, AIP-doc body bytes, captured-at.txt).
+- Builder / regenerator: `wirelang.tests._tv_w_3_pin_pack_builder`
+  (also exposes `--check` for hash-only verification, `--write-replay`
+  to refresh the replay bundle in lockstep with the pin-pack).
+- `pin_pack_sha256`:
+  `a4bc3df2c5716f79efabe407d3824dcc5e3ae645654c190ab6fc2b6ee4349213`
+- Coverage: full federation pipeline (DNS-anchor → FTD-verify →
+  AIP-resolve → consumer-side Ed25519 verify), one hermetic context
+  with ten pinned trace fields:
+  - `dns_anchor_payload` / `dns_anchor_hash` (V-908 §3.4 TXT format).
+  - `ftd_doc_hash` / `ftd_fingerprint_sha256` (signed-FTD body bytes
+    vs. fingerprint-from-body without document_signature).
+  - `aip_doc_hash` / `aip_jcs_sha256` (signed-AIP body bytes vs.
+    Phase-1a-AIP-resolver `jcs_sha256` from body without
+    document_signature).
+  - `biscuit_root_pubkey_hex` / `matched_issuer_kid` (federation
+    cross-check outcome).
+  - `frame_verify_status` / `frame_verify_kind` (Tag-9
+    consumer-side bridge gate).
+- AIP-issuer key: TV-W-1 persona-(1, 0) Ed25519 sub-key. The biscuit-
+  root pubkey
+  `c8efd3cbfb88ae70d094f1b68da5587a65b5bc05d1aedaa7f03832fbf64ab63c`
+  is cross-pinned by the TV-W-1 fixture and asserted both ways
+  (TV-W-1 forward-anchor in
+  `test_cross_compat_persona_1_0_aligns_with_aip_doc_pin`; TV-W-3
+  reverse-anchor in
+  `TestCrossCompatTvW1Anchor.test_biscuit_root_matches_tv_w_1_pin_pack_record`).
+- FTD-root key: out-of-band federation trust anchor with pinned
+  constant seed
+  `5555555555555555555555555555555555555555555555555555555555555555`
+  (not derived from any TV-W-1 persona; FTD-root is operationally a
+  separate identity in the V-908 model).
+- Live-mode gate: `WIRELANG_LIVE_FEDERATION=1` enables the
+  `TestLiveFederation` class (skipped by default). When operator-run,
+  the live DoH lookup against `_wakir-ftd.wakir.dev` MUST produce a
+  TXT record whose SHA-256 matches the hermetic
+  `dns_anchor_hash`.
+- Replay-bundle freshness: `captured-at.txt` carries the pinned ISO-
+  8601 timestamp `2026-09-01T12:00:00Z`. The §3.4-A5 freshness check
+  warns (does not fail) if the bundle is older than 90 days against
+  the verifier wall-clock; the pin-pack hash is stable across
+  re-baselines that do not change the substrate.
+- Determinism note: Ed25519 signatures (RFC 8032) are deterministic;
+  all signing primitives in the pipeline (FTD root signs FTD body,
+  AIP issuer signs AIP body) produce byte-stable bytes. JCS resolver
+  indirection (rfc8785 vs pure-Python) is byte-equivalent for the
+  document shapes used here.
+- Drift envelope (Tag-12 §5): TV-W-3 module additions (+24 production
+  collected / +24 sandbox collected = ±0 net delta over Tag-16
+  baseline) leave the envelope unchanged — no `EXPECTED_DELTA`
+  re-baseline required.
+
 — Reza

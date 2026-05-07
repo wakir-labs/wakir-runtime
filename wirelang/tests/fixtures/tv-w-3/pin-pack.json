@@ -1,0 +1,33 @@
+{
+  "label": "tv-w-3-federation-resolver-roundtrip",
+  "spec": "wirelang/specs/wirelang-tv-strategy.md \u00a73 (Phase-1b Tag-17)",
+  "seed_hex": "000102030405060708090a0b0c0d0e0f",
+  "aip_issuer_persona": [
+    1,
+    0
+  ],
+  "aip_issuer_role": "tv-w-3-issuer-1-0",
+  "domain": "wakir.dev",
+  "ftd_id": "did:web:wakir.dev:ftd:v1",
+  "aip_id": "aip:web:wakir.dev/tv-w-3-issuer-1-0",
+  "ftd_issued_at": "2026-05-07T00:00:00Z",
+  "ftd_expires": "2027-05-07T00:00:00Z",
+  "aip_valid_after": "2026-05-07T00:00:00Z",
+  "aip_expires": "2027-05-07T00:00:00Z",
+  "verify_now": "2026-09-01T12:00:00Z",
+  "issuer_kid": "federated-issuer-1",
+  "ftd_root_seed_hex": "5555555555555555555555555555555555555555555555555555555555555555",
+  "trace_hermetic": {
+    "dns_anchor_payload": "v=1; sha256=bdccce31ff33cdf78be5e1b1cc34e8f610d42bb3e04ec911a0ec879ac3a04f91",
+    "dns_anchor_hash": "885116c74296957106e4e69a2ed5f4ab8e02e5198b36f50b9a77885939d55b90",
+    "ftd_doc_hash": "273aaf78fbdd96d9a3eff1491f9741b003e97d425ecc9c6d163a6a90de3b5b67",
+    "ftd_fingerprint_sha256": "bdccce31ff33cdf78be5e1b1cc34e8f610d42bb3e04ec911a0ec879ac3a04f91",
+    "aip_doc_hash": "6a20f07d676940f91064fefb0fc022937f8d0981594749bd836f2888bfc623a6",
+    "aip_jcs_sha256": "6cb5584d53d7bf5f15b2a77c0a59d81ba3ab90fde8471e719d0c532b991413e5",
+    "biscuit_root_pubkey_hex": "c8efd3cbfb88ae70d094f1b68da5587a65b5bc05d1aedaa7f03832fbf64ab63c",
+    "matched_issuer_kid": "federated-issuer-1",
+    "frame_verify_status": "ok",
+    "frame_verify_kind": null
+  },
+  "pin_pack_sha256": "a4bc3df2c5716f79efabe407d3824dcc5e3ae645654c190ab6fc2b6ee4349213"
+}
