@@ -359,4 +359,41 @@ an updated entry below plus a workflow-PR note.
   excluded from the pin-pack. The unsigned DID-body JCS-SHA-256 is
   the byte-stable substitute.
 
+### A.2 TV-W-2 (Phase-1b Tag-16, 2026-05-07)
+
+- Golden fixture: `wirelang/tests/fixtures/tv-w-2/pin-pack.json`.
+- Builder / regenerator: `wirelang.tests._tv_w_2_pin_pack_builder`
+  (also exposes `--check` for hash-only verification).
+- `pin_pack_sha256`:
+  `ddf115456893bd5b15c0ab1c501f22a0b68caaf39a06ec2d2b103e940bdd7532`
+- Coverage: authority block (Block 0) + 2 append blocks (Block 1
+  scope-narrowing, Block 2 rate-limit) + sealing block, with three
+  presentation-context verifier traces:
+  - α: verifier-time inside window, audience matches → `accept`.
+  - β: verifier-time `2027-06-01T12:00:00Z` (> `not_after`) →
+    `reject(time-bound-violated)`.
+  - γ: claimed audience `role=consumer-B` against authority pattern
+    `role=consumer-A` → `reject(audience-pattern-mismatch)`.
+- Issuer key: TV-W-1 persona-(0, 0) Ed25519 sub-key. The issuer pubkey
+  `37ca8d3c4cb9d4638b347c26a40b7584e3fb4bfaf624fc3323afbdce847b041b`
+  is cross-pinned by the TV-W-1 fixture and asserted both ways
+  (TV-W-1 → TV-W-2 cross-compat anchor and TV-W-2 → TV-W-1 reverse
+  anchor in `test_tv_w_2_capability_token_multi_step.py`).
+- §4-CSC: each block's `caveat_set_hash` is computed via
+  `wirelang.canonical.caveat_set.canonical_caveat_set_hash`. Producer
+  caveat order in the builder is deliberately non-lex-sorted so the
+  CSC sort step is exercised at fixture generation time. The α/β/γ
+  traces share identical `block_hashes`, `caveat_set_hashes`, and
+  `next_pubkeys` lists (verification context is producer-immutable);
+  only `verify_status` and `verify_reason` differ across contexts.
+- Determinism note: Ed25519 signatures (RFC 8032) are deterministic;
+  all four chain signers (issuer + three `next_pubkey` slots) produce
+  byte-stable signatures. Chain `next_pubkey` slots are derived
+  deterministically from the TV-W-1 seed via labelled SHA-256
+  expansion (see `_derive_chain_seed` in the builder).
+- Drift envelope (Tag-12 §5): TV-W-2 module additions (+29 production
+  / +28 sandbox = +1 net delta over Tag-15 baseline 149) leave the
+  envelope at 150 (drift 1, tolerance 5) — no `EXPECTED_DELTA`
+  re-baseline required.
+
 — Reza
