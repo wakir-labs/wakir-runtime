@@ -815,6 +815,56 @@ Test coverage:
 Tag-6 T-NKV-WS-01..10 + 3 aux probes covering Shape-1 async-iter,
 non-WatchEvent rejection, and PUT-without-entry rejection).
 
+### 5.5 Phase-1b N2 evaluator implementation note (informative)
+
+Phase-1b Sprint-2 Tag-3 (S2-2) lands the live N2 evaluator for
+`peer_org` and `federation_route` in
+`wirelang/federation/n2_evaluator.py`. The evaluator is a pure
+layer over an already-verified
+`wirelang.identity.federation_resolver.FederatedResolveResult`
+and a caller-supplied `RouteRegistry`. It does not consult the
+network, the wall-clock outside of `eval_now`, or any state
+beyond the supplied :class:`FederationContext`.
+
+Module surface:
+
+- `FederationEvaluator(context).evaluate_peer_org(aip_id_arg)`
+  raises `PeerOrgMismatchError` /
+  `FederationPredicateArgumentError` on rejection, returns
+  `True` on accept.
+- `FederationEvaluator(context).evaluate_federation_route(route_id_arg)`
+  raises `FederationRouteUnknownError` /
+  `FederationRouteExpiredError` /
+  `FederationPredicateArgumentError` on rejection, returns
+  `True` on accept.
+- `evaluate_all(peer_org_arg=..., federation_route_arg=...)`
+  short-circuits on the first failure (Biscuit-Datalog
+  abort-on-failed-caveat semantics).
+
+Phase-1b boundary (informative; the §5 ratification of the
+predicates does not depend on these implementation choices):
+
+- The `peer_org` argument is matched against the federation
+  context's FTD `id` exactly. Phase-2 will extend this to
+  delegation-chain walking (V-908 spec §6, out of scope here).
+- The `federation_route` registry is the caller-supplied
+  `RouteRegistry` Protocol; the Phase-1b reference is
+  `InMemoryRouteRegistry`, the Phase-2 production target is a
+  NATS-KV-backed registry (item I-11 vocabulary).
+- The evaluator surfaces the registry entry's
+  `wat_anchor_manifest_id` unchanged for Z2-cross-review-zone
+  consumers; the evaluator itself does NOT anchor route-registry
+  versions to WAT.
+
+Determinism contract (T-N2-10): two re-runs of
+`evaluate_all(...)` over the same context and registry instance
+yield identical verdicts. The freshness of the underlying
+FTD-doc is an upstream concern.
+
+Test coverage:
+`wirelang/tests/test_federation_n2_evaluator.py` — 14 tests
+green (T-N2-01..10 plus 4 sanity probes).
+
 ## 6. TV-W-2 Pin-Stability Guarantee
 
 TV-W-2 (`wirelang/specs/wirelang-tv-strategy.md` §2) pins three
