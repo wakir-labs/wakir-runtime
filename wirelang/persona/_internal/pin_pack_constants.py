@@ -58,3 +58,14 @@ PERSONA_HASH_PIN_V6: Final[str] = (
 PERSONA_HASH_PIN_V9: Final[str] = (
     "sha256:0f298894204e6117e42ad7073b7a3af8ada1851de74d585fc5cb4c4d70e1d793"
 )
+
+#: Self-migration target pin: hash of the canonical subset produced
+#: by ``V0ToV1Step.apply`` on the v8 fixture (Sprint-2 Tag-1 S2-T1-06).
+#:
+#: By design EQUAL to :data:`PERSONA_HASH_PIN_V9` — the v8 and v9
+#: fixtures share every front-matter key except ``schema_version``,
+#: and the migration step lifts exactly that key. Pinned as its own
+#: constant so a future converter regression (e.g. accidental key
+#: re-ordering, default injection drift) breaks an explicit assertion
+#: and not just an indirect equality.
+PERSONA_HASH_PIN_V8_MIGRATED_TO_V1: Final[str] = PERSONA_HASH_PIN_V9

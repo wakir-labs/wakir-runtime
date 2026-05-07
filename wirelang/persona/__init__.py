@@ -37,14 +37,26 @@ from wirelang.persona.persona_hash import (
     compute_persona_hash,
     compute_persona_hash_from_canonical,
 )
+from wirelang.persona.persona_migration import (
+    PERSONA_SCHEMA_VERSION_LATEST,
+    PERSONA_SCHEMA_VERSION_LIST,
+    PersonaMigrationDeterminismError,
+    PersonaMigrationError,
+    migrate_persona,
+)
 
 __all__ = [
     "PERSONA_EMPTY_REF_SENTINEL",
     "PERSONA_HASH_HEX_LENGTH",
     "PERSONA_HASH_PREFIX",
+    "PERSONA_SCHEMA_VERSION_LATEST",
+    "PERSONA_SCHEMA_VERSION_LIST",
     "PersonaDefinitionInvalidError",
     "PersonaHashMismatchError",
+    "PersonaMigrationDeterminismError",
+    "PersonaMigrationError",
     "PersonaSchemaUnsupportedError",
     "compute_persona_hash",
     "compute_persona_hash_from_canonical",
+    "migrate_persona",
 ]

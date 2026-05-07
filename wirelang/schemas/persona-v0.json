@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wakir.dev/schemas/persona-v0.json",
+  "title": "Wakir persona-definition canonical subset (legacy v0, registry-only)",
+  "description": "Legacy schema for pre-framework persona-definitions (schema_version=persona-v0). Loaded by the schema-registry for self-migration validation only; never used as a hash-input shape. The migration converter (ADR-0036) reads v0 inputs and produces persona-v1 outputs that are then hashed under wirelang/schemas/persona-v1.json. Format mirrors persona-v1 exactly except for the schema_version const value, reflecting the v0 to v1 lift being a schema-version-only edit (engine-default-lock A-2 ratified 2026-05-07).",
+  "type": "object",
+  "required": [
+    "name",
+    "description",
+    "tools",
+    "schema_version",
+    "identity_pinned"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "description": {
+      "type": "string"
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "persona-v0"
+    },
+    "identity_pinned": {
+      "type": "object",
+      "required": [
+        "cross_review_zones",
+        "authority",
+        "hierarchy"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "cross_review_zones": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["zone", "partner", "trigger"],
+            "additionalProperties": false,
+            "properties": {
+              "zone": {
+                "type": "string",
+                "minLength": 1
+              },
+              "partner": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*$"
+              },
+              "trigger": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "authority": {
+          "type": "object",
+          "required": [
+            "push_remote",
+            "budget_cap_eur_per_month",
+            "sub_delegation"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "push_remote": {
+              "type": "boolean"
+            },
+            "budget_cap_eur_per_month": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sub_delegation": {
+              "type": "boolean"
+            }
+          }
+        },
+        "hierarchy": {
+          "type": "object",
+          "required": ["reports_to", "escalation"],
+          "additionalProperties": false,
+          "properties": {
+            "reports_to": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "escalation": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            }
+          }
+        }
+      }
+    }
+  }
+}
