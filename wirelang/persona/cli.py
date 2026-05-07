@@ -12,10 +12,21 @@ Synopsis
 ::
 
     wakir-persona migrate <persona-file>
-                          [--target persona-v1]
+                          [--target {persona-v0,persona-v1,persona-v2}]
                           [--expect-hash <pin>]
                           [--emit-hash]
                           [--quiet]
+
+The ``--target`` choice list is sourced from
+:data:`wirelang.persona.PERSONA_SCHEMA_VERSION_LIST`. Phase-1b
+Sprint-3 Tag-3 extended the list with ``persona-v2``; Tag-4 then
+contracted the v2-target operator surface explicitly via
+``tests/test_persona_migration_cli_v2_target.py`` (single-step
+v9->v2, multi-step v8->v0->v1->v2 chain, ``--expect-hash`` against
+the V8/V9-MIGRATED-V2 pin, forward-only-rejection negative).
+The default ``--target`` is :data:`PERSONA_SCHEMA_VERSION_LATEST`,
+which deliberately remains at ``persona-v1`` until ADR-0029-Annex
+content ratification or the T-B Default-Lock window resolves.
 
 See ``wirelang/specs/self-migration-konverter-spec.md`` §7 for the
 full operator surface (inputs, outputs, exit codes, examples).

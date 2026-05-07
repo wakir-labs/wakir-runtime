@@ -117,7 +117,7 @@ converter re-hashes the migrated canonical subset and raises
 ```python
 from wirelang.persona import (
     PERSONA_SCHEMA_VERSION_LATEST,    # "persona-v1"
-    PERSONA_SCHEMA_VERSION_LIST,      # ("persona-v0", "persona-v1")
+    PERSONA_SCHEMA_VERSION_LIST,      # ("persona-v0", "persona-v1", "persona-v2")
     PersonaMigrationDeterminismError,
     PersonaMigrationError,
     migrate_persona,
@@ -181,9 +181,15 @@ Concrete step requirements (audit-grade):
 5. **No JSON-Schema default inference.** All injected defaults are
    written explicitly (D-2 mitigation).
 
-The active registry as of Sprint-2 Tag-3 carries one entry,
-`V0ToV1Step`, which performs only the schema-version lift
-(Tag-4-Skizze §3.2 R1-R4). Future entries append in linear order.
+The active registry as of Sprint-3 Tag-3 carries two entries,
+`V0ToV1Step` and `V1ToV2Step`, each performing only the
+schema-version lift (Tag-4-Skizze §3.2 R1-R4 and Sprint-3 Tag-1
+sketch §3 respectively). Future entries append in linear order.
+The resolver chains them automatically: a `persona-v0` input with
+`target_schema_version="persona-v2"` runs
+`[V0ToV1Step(), V1ToV2Step()]` end to end; `PERSONA_SCHEMA_VERSION_LATEST`
+deliberately stays at `persona-v1` until HR-slot ratifies the
+`persona-v2` content (ADR-0029-Annex pendency).
 
 ## 7. Operator CLI (`wakir-persona migrate`)
 
@@ -195,11 +201,20 @@ self-migration shell scripts that ADR-0036 anticipates.
 
 ```
 wakir-persona migrate <persona-file>
-                      [--target persona-v1]
+                      [--target {persona-v0,persona-v1,persona-v2}]
                       [--expect-hash <pin>]
                       [--emit-hash]
                       [--quiet]
 ```
+
+`--target` defaults to `PERSONA_SCHEMA_VERSION_LATEST` (currently
+`persona-v1`). `persona-v2` is reachable via single-step lift from
+v9 inputs and via `[V0ToV1Step(), V1ToV2Step()]` chain from v8 inputs
+(Sprint-3 Tag-4). `persona-v0` is in choices for symmetry with
+`PERSONA_SCHEMA_VERSION_LIST`, but a forward-only chain (Default-Lock
+A-2) means it only resolves when source equals target (no-op);
+otherwise the resolver raises `PersonaMigrationError` and the CLI
+exits 1.
 
 ### 7.2 Inputs
 
@@ -262,28 +277,32 @@ $ echo $?
 
 ## 8. Test posture
 
-The Sprint-2 implementation ships with three test files:
+The Sprint-2 + Sprint-3 implementation ships with five converter
+test files:
 
-| File | Coverage | Test count (Sprint-2 Tag-3) |
+| File | Coverage | Sprint anchor |
 |---|---|---|
-| `tests/test_persona_migration.py` | Public-API happy paths (S2-T1-01, S2-T1-02). | 6 |
-| `tests/test_persona_migration_edge_cases.py` | Defensive belt: degraded front-matter, malformed inputs, immutability, cycle-guard (S2-T1-03). | 19 |
-| `tests/test_persona_migration_roundtrip.py` | Cross-version round-trip + idempotence + input-shape-equivalence (S2-T1-04). | 9 |
-| `tests/test_persona_migration_cli.py` | Operator CLI (Sprint-2 Tag-3, S2-T1-06). | (see test file) |
+| `tests/test_persona_migration.py` | Public-API happy paths (S2-T1-01, S2-T1-02). | Sprint-2 Tag-1+2 |
+| `tests/test_persona_migration_edge_cases.py` | Defensive belt: degraded front-matter, malformed inputs, immutability, cycle-guard (S2-T1-03). | Sprint-2 Tag-2 |
+| `tests/test_persona_migration_roundtrip.py` | Cross-version round-trip + idempotence + input-shape-equivalence (S2-T1-04). | Sprint-2 Tag-2 |
+| `tests/test_persona_migration_cli.py` | Operator CLI (`wakir-persona migrate`) v1-target surface. | Sprint-2 Tag-3 |
+| `tests/test_persona_migration_v1_to_v2.py` | `V1ToV2Step` direct + V0->V2 chain pin-match + M-1 direct anchor + non-invertibility negative. | Sprint-3 Tag-3 |
+| `tests/test_persona_migration_cli_v2_target.py` | Operator CLI `--target persona-v2`: single-step v9->v2, multi-step v8->v0->v1->v2 chain, `--expect-hash` against the V8/V9-MIGRATED-V2 pin, forward-only-rejection negative. | Sprint-3 Tag-4 |
 
 The existing fixtures `wirelang/tests/fixtures/persona_definitions/v8-persona-pre-framework.md`
 and `v9-persona-framework-native.md` form the Sprint-2 round-trip
-anchor: a successful `v8 -> v1` migration must reproduce the
-`PERSONA_HASH_PIN_V9` constant byte-for-byte.
+anchor (`v8 -> v1` reproduces `PERSONA_HASH_PIN_V9`) and the Sprint-3
+chain anchor (`v8 -> v2` reproduces `PERSONA_HASH_PIN_V8_MIGRATED_TO_V2`,
+which by construction equals `PERSONA_HASH_PIN_V9_MIGRATED_TO_V2`).
 
-## 9. Cross-review zones (status as of Sprint-2 Tag-3)
+## 9. Cross-review zones (status as of Sprint-3 Tag-4)
 
 | Zone | Partner | Status | Trigger |
 |---|---|---|---|
-| **K** (WAT-Hash V-907) | wat-eng-slot | tracking only | Phase-2 item P2-01 (migration-audit-trail in WAT-leaf-slot). No converter-side change required for Sprint-2. |
-| **L** (Identity-Substrate) | identity-eng-slot | I-15 schema-registry loader pending | Once I-15 lands, swap direct `wirelang/schemas/persona-v_n.json` reads for `SchemaRegistry.validate`. |
-| **J** (Container-Bridge) | container-ops-slot | not initiated | Phase-1b Sprint-3 or later. |
-| **HR** (Persona-Definition format) | hr-slot | A-2 marker pending until ADR-0029-Annex deadline KW 23 (2026-06-02). | If HR ratifies a `persona-v2` shape, a `V1ToV2Step` is added to the registry; the resolver chains v0 inputs through `[V0ToV1Step(), V1ToV2Step()]` automatically. |
+| **K** (WAT-Hash V-907) | wat-eng-slot | tracking only | Phase-2 item P2-01 (migration-audit-trail in WAT-leaf-slot). No converter-side change required for Sprint-3. Reserved-field slot `wat_bridge_overrides` carries zero-semantics in v2. |
+| **L** (Identity-Substrate) | identity-eng-slot | I-15 schema-registry loader pending | Once I-15 lands, swap direct `wirelang/schemas/persona-v_n.json` reads for `SchemaRegistry.validate`. Reserved-field slot `identity_pinned.identity_doc_ref` carries zero-semantics in v2. |
+| **J** (Container-Bridge) | container-ops-slot | not initiated | Phase-1b Sprint-3 or later. Reserved-field slot `container_bridge_spec` carries zero-semantics in v2. |
+| **HR** (Persona-Definition format) | hr-slot | `V1ToV2Step` registered (Sprint-3 Tag-3) and reachable via the operator CLI `--target persona-v2` (Sprint-3 Tag-4). `PERSONA_SCHEMA_VERSION_LATEST` deliberately remains at `persona-v1` until ADR-0029-Annex content ratification (deadline KW 23, 2026-06-02) or the T-B Default-Lock window lifts the engine-default-mock — neither has happened on Tag-4. | A bare `migrate_persona(definition)` call still defaults to v1 target; v2 reachability is opt-in via explicit `target_schema_version="persona-v2"` or `--target persona-v2` until the LATEST bump. |
 
 A re-pin sweep on HR ratification is mechanical: re-run the chain on
 each fixture, record the new pin in `_internal/pin_pack_constants.py`,
