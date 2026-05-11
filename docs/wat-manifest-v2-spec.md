@@ -629,6 +629,53 @@ is informative only.
 
 ## 11. Change log
 
+- **2026-05-11 (Phase-2 Sprint-6 Tag-1):** External-verifier
+  conformance substrate broadened. Three substantive changes:
+  (1) Test-vector set extended 17 → 31 (+4 accept, +10 reject) in
+  `tooling/external-verifier-ajv/test-vectors.json`. New coverage
+  surface: multi-event happy-path with three leaves and three tree-
+  levels, duplicate-leaf accept-vector (semantic-allowed, not a
+  schema-correctness violation), explicit-null `prev_hour_root`
+  accept-vector (distinct from "field absent"), uppercase-hex
+  reject-vector (pattern `[0-9a-f]{64}` is lowercase-only by design),
+  over-length-merkle-root reject, non-string-merkle-root type-mismatch
+  reject, missing-event-id and empty-event-id reject (minLength: 1
+  pinned), bad-leaf-hash-length and bad-payload-hash-hex per-event
+  field rejects, events-not-array and tree-levels-not-array type-
+  mismatch rejects, object-leaves without `leaf_hash` reject. Vectors
+  curated to pin design-intent corners that escape from a casual
+  "round-trip a valid manifest" smoke. (2) Third reference validator
+  added: Python `fastjsonschema` joins Python `jsonschema` and Node.js
+  `ajv` as the third independent Draft-2020-12 implementation in the
+  parity set. `scripts/external_verifier_validation.py` gains
+  `run_fastjsonschema_validator()`, two new CLI flags
+  (`--skip-fastjsonschema`, `--require-fastjsonschema`), and an N-way
+  parity helper `compare_reports_multi()` that replaces the previous
+  two-validator-only `compare_reports()` (kept for backward-compat).
+  The three validators triangulate Python-vs-Node *and* Python-vs-
+  Python: a single-library bug now requires two independent
+  implementations to share it before the parity check goes green.
+  (3) Schema-file `examples` block added (two real-shape examples —
+  empty hour + single-event hour with anchor-height and prev-hour-
+  root); schema-file `description` updated to point external
+  implementers at the conformance vector set and parity driver.
+  Adoption doc landed at `docs/external-verifier-conformance.md`
+  (seven sections including a conformance-statement template).
+  Test cohort: `tests/wat/test_external_verifier_parity.py` grew
+  from 5 to 10 tests (3 new fastjsonschema-side tests +
+  `test_three_way_parity_python_node_fastjsonschema` +
+  `test_compare_reports_multi_handles_missing_validator` +
+  `test_compare_reports_multi_detects_disagreement`). Real-TV-2
+  cohort (4 Bitcoin-anchored hour-receipts) and real-TV-3 cohort
+  still produce 3-validator parity OK on the schema-file path
+  (`--real-tv2 --quiet` and `--real-tv3 --quiet` rc=0).
+  Test-count delta: 353/27 → 361/24 (+8 passed; 3 skipped tests
+  now run because node + fastjsonschema are in-environment).
+  Schema-correctness contract is unchanged at $id
+  `https://wakir.dev/wirelang/schema/wakir-wat-manifest-v1/0.2.0`
+  (additive-only evolution; conformance-set tightens, accept/reject
+  semantics do not).
+
 - **2026-05-11 (Phase-2 Sprint-5 Tag-5):** Real-manifest signature
   verification wired against TV-2 cohort. The Sprint-5 Tag-2
   `_verify_signature_slot` helper is now consumed by the

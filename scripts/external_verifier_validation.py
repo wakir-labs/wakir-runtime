@@ -10,10 +10,15 @@ and a shared test-vector file, then runs every vector through:
 2. The Node.js ``ajv`` validator under
    ``tooling/external-verifier-ajv/`` (shells out to ``node validate.js``
    with the same vectors file; the Node.js side prints a JSON report).
+3. The Python ``fastjsonschema`` validator (Phase-2 Sprint-6 Tag-1).
+   A second independent Python-side implementation that compiles the
+   schema to native Python code. Triangulating against ``jsonschema``
+   catches bugs in either library's Draft-2020-12 implementation that
+   would otherwise be invisible behind a single-implementation pin.
 
 Cross-tool parity is the contract: each vector's verdict (accept /
-reject) must agree across both validators *and* must equal the
-``expect`` field declared in the vector. Any drift is a schema-
+reject) must agree across every configured validator *and* must equal
+the ``expect`` field declared in the vector. Any drift is a schema-
 correctness bug, not an implementation peculiarity.
 
 This script exists for two purposes:
@@ -40,6 +45,8 @@ Usage:
   python scripts/external_verifier_validation.py --node-only
   python scripts/external_verifier_validation.py --python-only
   python scripts/external_verifier_validation.py --vectors path/to/file.json
+  python scripts/external_verifier_validation.py --skip-fastjsonschema
+  python scripts/external_verifier_validation.py --require-fastjsonschema
 """
 
 from __future__ import annotations
@@ -153,6 +160,84 @@ def run_python_validator(schema: dict, vectors: list[dict]) -> dict:
     return report
 
 
+def run_fastjsonschema_validator(schema: dict, vectors: list[dict]) -> dict | None:
+    """Validate every vector with Python ``fastjsonschema``.
+
+    Returns ``None`` if ``fastjsonschema`` is not installed (treated
+    like the Node.js skip path). Returns a report dict matching the
+    other validators' shape when available.
+
+    ``fastjsonschema`` compiles the schema to native Python code and is
+    a completely separate implementation from ``jsonschema``; this is
+    the third pole that makes cross-tool parity a genuine triangulation
+    rather than a one-library pin.
+    """
+    try:
+        import fastjsonschema
+    except ImportError:
+        return None
+
+    # fastjsonschema does not have a Draft-2020-12-specific compile flag
+    # at the API level; it dispatches by ``$schema``. Our schema already
+    # carries ``"$schema": "https://json-schema.org/draft/2020-12/schema"``
+    # so the compile path picks Draft-2020-12 automatically.
+    try:
+        validate = fastjsonschema.compile(schema)
+    except Exception as e:  # pragma: no cover (schema-side)
+        raise SystemExit(f"fastjsonschema compile failure: {e}")
+
+    report = {
+        "tool": "python-fastjsonschema",
+        "schema_id": schema.get("$id"),
+        "total": len(vectors),
+        "matched": 0,
+        "mismatched": 0,
+        "results": [],
+    }
+
+    for v in vectors:
+        name = v.get("name", "<unnamed>")
+        expect = v.get("expect")
+        manifest = v.get("manifest")
+
+        if expect not in ("accept", "reject"):
+            raise SystemExit(
+                f'vector "{name}": expect must be "accept" or "reject"'
+            )
+
+        try:
+            validate(manifest)
+            verdict = "accept"
+            errors: list[dict] = []
+        except fastjsonschema.JsonSchemaException as e:
+            verdict = "reject"
+            errors = [
+                {
+                    "instancePath": "/" + "/".join(
+                        str(p) for p in getattr(e, "path", []) or []
+                    ),
+                    "keyword": getattr(e, "rule", "<unknown>"),
+                    "message": e.message,
+                }
+            ]
+        matched = verdict == expect
+        if matched:
+            report["matched"] += 1
+        else:
+            report["mismatched"] += 1
+        report["results"].append(
+            {
+                "name": name,
+                "expect": expect,
+                "verdict": verdict,
+                "matched": matched,
+                "errors": errors,
+            }
+        )
+
+    return report
+
+
 def run_node_validator(vectors_path: Path) -> dict | None:
     """Shell out to ``node tooling/external-verifier-ajv/validate.js``.
 
@@ -200,11 +285,12 @@ def run_node_validator(vectors_path: Path) -> dict | None:
 
 
 def compare_reports(py: dict, node: dict | None) -> tuple[bool, list[str]]:
-    """Return ``(parity_ok, diffs)``.
+    """Return ``(parity_ok, diffs)`` for python-vs-node parity.
 
     parity_ok is ``True`` when every vector has the same verdict on
     both sides. ``diffs`` lists human-readable lines describing the
-    differences.
+    differences. Kept for backward-compat with the original two-way
+    parity-API; use :func:`compare_reports_multi` for the N-way path.
     """
     diffs: list[str] = []
     if node is None:
@@ -230,6 +316,58 @@ def compare_reports(py: dict, node: dict | None) -> tuple[bool, list[str]]:
             parity_ok = False
             diffs.append(
                 f"{name}: python={py_v} node={node_v} (parity violation)"
+            )
+
+    return parity_ok, diffs
+
+
+def compare_reports_multi(reports: list[dict]) -> tuple[bool, list[str]]:
+    """Return ``(parity_ok, diffs)`` for N-way validator parity.
+
+    Each report dict must carry a ``tool`` label (used to identify the
+    validator in diff messages) and a ``results`` list with per-vector
+    verdicts. parity_ok is True when every vector that appears in *any*
+    report yields the same verdict in *every* report it appears in.
+
+    Reports may be a subset (e.g. node skipped because Node.js absent);
+    only the validators that did run participate in the comparison.
+    """
+    diffs: list[str] = []
+    reports = [r for r in reports if r is not None]
+    if len(reports) < 2:
+        return True, [
+            "fewer than 2 validators ran; parity not assessed"
+        ]
+
+    all_names: set[str] = set()
+    for r in reports:
+        all_names.update(x["name"] for x in r["results"])
+
+    parity_ok = True
+    for name in sorted(all_names):
+        verdicts: dict[str, str] = {}
+        for r in reports:
+            for x in r["results"]:
+                if x["name"] == name:
+                    verdicts[r["tool"]] = x["verdict"]
+                    break
+            else:
+                verdicts[r["tool"]] = "<missing>"
+
+        unique = set(verdicts.values()) - {"<missing>"}
+        if len(unique) > 1:
+            parity_ok = False
+            rendered = " ".join(
+                f"{tool}={v}" for tool, v in sorted(verdicts.items())
+            )
+            diffs.append(f"{name}: {rendered} (parity violation)")
+        elif "<missing>" in verdicts.values():
+            missing_tools = [
+                tool for tool, v in verdicts.items() if v == "<missing>"
+            ]
+            parity_ok = False
+            diffs.append(
+                f"{name}: missing in reports from {missing_tools}"
             )
 
     return parity_ok, diffs
@@ -376,6 +514,22 @@ def main(argv: list[str] | None = None) -> int:
         help="hard-fail if node is unavailable instead of skipping",
     )
     parser.add_argument(
+        "--skip-fastjsonschema",
+        action="store_true",
+        help=(
+            "skip the Python fastjsonschema third-pole validator "
+            "(default: run if fastjsonschema is importable)"
+        ),
+    )
+    parser.add_argument(
+        "--require-fastjsonschema",
+        action="store_true",
+        help=(
+            "hard-fail if fastjsonschema is not importable instead of "
+            "skipping silently"
+        ),
+    )
+    parser.add_argument(
         "--quiet",
         action="store_true",
         help="suppress the per-vector verdict table",
@@ -470,6 +624,7 @@ def main(argv: list[str] | None = None) -> int:
 
     py_report: dict[str, Any] | None = None
     node_report: dict[str, Any] | None = None
+    fjs_report: dict[str, Any] | None = None
 
     if not args.node_only:
         py_report = run_python_validator(schema, vectors)
@@ -480,6 +635,21 @@ def main(argv: list[str] | None = None) -> int:
                 "node validator unavailable (no `node` on PATH or "
                 "node_modules missing); rerun without --require-node "
                 "or `cd tooling/external-verifier-ajv && npm install`",
+                file=sys.stderr,
+            )
+            return 2
+
+    # fastjsonschema third-pole. Default-on (skipped only when missing
+    # from the environment or when --skip-fastjsonschema is passed). The
+    # --node-only mode also skips it because that mode explicitly asks
+    # to run only the Node.js side.
+    if not args.node_only and not args.skip_fastjsonschema:
+        fjs_report = run_fastjsonschema_validator(schema, vectors)
+        if fjs_report is None and args.require_fastjsonschema:
+            print(
+                "fastjsonschema validator unavailable (library not "
+                "importable); rerun without --require-fastjsonschema "
+                "or `pip install fastjsonschema`",
                 file=sys.stderr,
             )
             return 2
@@ -504,6 +674,12 @@ def main(argv: list[str] | None = None) -> int:
             _render_report("node (ajv)", node_report)
         elif not args.python_only:
             print("node side: SKIPPED (validator unavailable)")
+        if fjs_report is not None:
+            _render_report("python (fastjsonschema)", fjs_report)
+        elif not args.node_only and not args.skip_fastjsonschema:
+            print(
+                "fastjsonschema side: SKIPPED (library not importable)"
+            )
         if real_pipeline_report is not None:
             _render_report(
                 "wat.verify.manifest_v2.verify_real_manifest_file",
@@ -526,22 +702,35 @@ def main(argv: list[str] | None = None) -> int:
             f"{node_report['total']} vectors mismatched expected verdict",
             file=sys.stderr,
         )
+    if fjs_report and fjs_report["mismatched"] > 0:
+        fail = True
+        print(
+            f"fastjsonschema validator: {fjs_report['mismatched']} of "
+            f"{fjs_report['total']} vectors mismatched expected verdict",
+            file=sys.stderr,
+        )
 
-    if py_report is not None and node_report is not None:
-        parity_ok, diffs = compare_reports(py_report, node_report)
+    # N-way parity (covers 2 or 3 validators depending on environment).
+    participating = [
+        r for r in (py_report, node_report, fjs_report) if r is not None
+    ]
+    if len(participating) >= 2:
+        parity_ok, diffs = compare_reports_multi(participating)
         if not parity_ok:
             fail = True
             print("CROSS-TOOL PARITY VIOLATION:", file=sys.stderr)
             for d in diffs:
                 print(f"  {d}", file=sys.stderr)
         else:
+            tools = ", ".join(sorted(r["tool"] for r in participating))
             if cohort_tag is not None:
                 label = f"real-{cohort_tag} cross-tool"
             else:
                 label = "cross-tool"
+            total = participating[0]["total"]
             print(
-                f"{label} parity OK ({py_report['total']} vectors, "
-                "verdicts agree)"
+                f"{label} parity OK ({total} vectors, "
+                f"{len(participating)} validators: {tools})"
             )
 
     if real_pipeline_report is not None:

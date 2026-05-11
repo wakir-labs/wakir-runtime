@@ -2,7 +2,43 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://wakir.dev/wirelang/schema/wakir-wat-manifest-v1/0.2.0",
   "title": "WAT Hour-Manifest — wakir-wat-manifest/v1 wire-form",
-  "description": "JSON-Schema for the wakir-wat-manifest/v1 wire-form, i.e. the on-disk shape emitted by wat/aggregator.py and stored under .runtime/wat-tv*-archive/<RUN>/<HOUR>/manifest.json. This schema-file is the v1 sibling of wat-manifest-v2.json. It is the contract with external verifier implementers and is the source-of-truth pin for the eight mandatory fields plus the optional anchor_height / prev_hour_root extensions. v2 (multi-cap) is intentionally a separate schema file: v1 manifests carry leaves as objects (with leaf_hash, payload_hash, etc.), whereas v2 carries leaves as hex strings; the two cannot be unified without lossy coercion. Domain field-by-field descriptions track docs/wat-manifest-v2-spec.md §10 (the manifest-version field's enum surface is documented there). 0.2.0 (Phase-2 Sprint-5 Tag-5) adds an additive optional top-level `signature` slot (Ed25519 detached-signature block) byte-for-byte identical to the wat-manifest-v2 schema 0.2.0 signature slot; absence is permitted (the Production aggregator does not emit signed manifests today). The optional slot is what enables `verify_real_manifest_file(verify_signature=True, ...)` to consume hand-signed real-manifest fixtures and (later) the signing-aggregator branch output through the same pipeline. SPDX-License-Identifier: Apache-2.0",
+  "description": "JSON-Schema for the wakir-wat-manifest/v1 wire-form, i.e. the on-disk shape emitted by wat/aggregator.py and stored under .runtime/wat-tv*-archive/<RUN>/<HOUR>/manifest.json. This schema-file is the v1 sibling of wat-manifest-v2.json. It is the contract with external verifier implementers and is the source-of-truth pin for the eight mandatory fields plus the optional anchor_height / prev_hour_root extensions. v2 (multi-cap) is intentionally a separate schema file: v1 manifests carry leaves as objects (with leaf_hash, payload_hash, etc.), whereas v2 carries leaves as hex strings; the two cannot be unified without lossy coercion. Domain field-by-field descriptions track docs/wat-manifest-v2-spec.md §10 (the manifest-version field's enum surface is documented there). 0.2.0 (Phase-2 Sprint-5 Tag-5) adds an additive optional top-level `signature` slot (Ed25519 detached-signature block) byte-for-byte identical to the wat-manifest-v2 schema 0.2.0 signature slot; absence is permitted (the Production aggregator does not emit signed manifests today). The optional slot is what enables `verify_real_manifest_file(verify_signature=True, ...)` to consume hand-signed real-manifest fixtures and (later) the signing-aggregator branch output through the same pipeline. External-verifier conformance set: tooling/external-verifier-ajv/test-vectors.json plus the cross-tool parity driver scripts/external_verifier_validation.py (covering python-jsonschema + Node.js ajv + Python fastjsonschema). Third-party implementers SHOULD validate against the test-vector set before claiming v1 conformance. SPDX-License-Identifier: Apache-2.0",
+  "examples": [
+    {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 0,
+      "events": [],
+      "leaves": [],
+      "tree_levels": [[]],
+      "build_time": "2026-05-26T17:00:00Z"
+    },
+    {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 1,
+      "events": [
+        {
+          "event_id": "evt-1",
+          "time": "2026-05-26T17:00:00.000Z",
+          "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "capability_token_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "leaf_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ],
+      "leaves": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "tree_levels": [
+        ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+      ],
+      "build_time": "2026-05-26T17:00:00Z",
+      "anchor_height": 948286,
+      "prev_hour_root": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  ],
   "type": "object",
   "required": [
     "version",

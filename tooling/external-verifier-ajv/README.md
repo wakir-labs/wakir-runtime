@@ -73,23 +73,37 @@ expected verdict, `2` CLI / file-loading error.
 
 The reference driver is
 [`scripts/external_verifier_validation.py`](../../scripts/external_verifier_validation.py).
-It runs the Python `jsonschema` validator and shells out to this
-directory's `validate.js`, then compares per-vector verdicts:
+It runs three validators (one Node.js, two Python) and compares
+per-vector verdicts in an N-way parity check:
 
 ```sh
 python scripts/external_verifier_validation.py
 ```
 
+Configured validators (Sprint-6 Tag-1):
+
+| Tool                       | Language | Library            | Role                |
+|----------------------------|----------|--------------------|---------------------|
+| `python-jsonschema`        | Python   | `jsonschema` 4.x   | Reference validator |
+| `ajv`                      | Node.js  | `ajv` 8.x          | Cross-stack witness |
+| `python-fastjsonschema`    | Python   | `fastjsonschema`   | Cross-library witness |
+
+The Python triangulation (`jsonschema` vs. `fastjsonschema`) catches
+library-side bugs that a pure Python-vs-Node check would miss; the
+Node.js side catches stack-side bugs that two Python libraries would
+share.
+
 The pytest wrapper
 [`tests/wat/test_external_verifier_parity.py`](../../tests/wat/test_external_verifier_parity.py)
 gates on the same parity contract. Node.js side is `pytest.mark.skipif`
-when `node` is unavailable or `node_modules/` is missing; that is the
-posture for Sprint-3 (substrate available, not yet a hard CI gate).
+when `node` is unavailable or `node_modules/` is missing;
+fastjsonschema side is `skipif` when the library is not installed.
+The Python-jsonschema side always runs.
 
-## Adding a third validator
+## Adding a fourth validator
 
-The vector format is intentionally portable. To bring a Rust /
-JavaScript / Java validator into the parity check:
+The vector format is intentionally portable. To bring a Rust / Java /
+Go validator into the parity check:
 
 1. Read `test-vectors.json`.
 2. For each vector, validate `manifest` against the schema.
@@ -97,12 +111,17 @@ JavaScript / Java validator into the parity check:
    `results[]` entry per vector, with `matched` derived from
    `expect == verdict`).
 4. Wire your tool into `scripts/external_verifier_validation.py`'s
-   parity-comparison alongside the existing two sides, or compare
-   reports out-of-band with `jq`.
+   parity-comparison alongside the three existing sides
+   (`compare_reports_multi` is N-way, no two-validator-only assumption
+   in the comparison helper), or compare reports out-of-band with
+   `jq`.
 
 Adding implementations strengthens the schema-correctness signal
 linearly; every passing parity check across an additional tool buys
 the schema another standards-conformance witness.
+
+See [`docs/external-verifier-conformance.md`](../../docs/external-verifier-conformance.md)
+for the adoption guide and the conformance-statement template.
 
 ## License
 
