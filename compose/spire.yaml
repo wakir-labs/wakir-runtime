@@ -1,0 +1,157 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-6 Tag-6 — SPIRE-Server hermetic sidecar substrate.
+#
+# What this file is:
+#   A hermetic, Mock/Stub-only compose unit that declares a SPIRE-Server
+#   container as a sidecar to the existing NATS-JetStream substrate
+#   (``compose/nats.yaml``). It is the SPIFFE Z-A Phase-2.1 substrate
+#   per docs/spiffe-z-a-jwt-svid-skizze.md §9 Phase-2.1.
+#
+# What this file is NOT:
+#   * No live SPIRE-Server bring-up against a production trust-domain
+#     (uses the IANA-reserved ``example.test`` trust-domain, NOT the
+#     Phase-3a federation-trust-domain ``<FTD-ID>.wakir.dev``).
+#   * No real workload registrations — the ``registration-entries.yaml``
+#     stub is empty (see Phase-2.2 Tag for entry-generation).
+#   * No SVID issuance round-trip — that is the Phase-2.3 live-gated
+#     test slot (``WAKIR_SPIRE_LIVE=1``).
+#   * No X.509-CA trust-bundle rotation — that is Phase-2.6 §7.8 runbook
+#     extension (Trust-Bundle-Rotation-Sequence; Reza-Z-A-Ack §4.4).
+#   * No NATS-JWT-Auth integration — the NATS service continues to run
+#     in Phase-1b auth-free mode in ``compose/nats.yaml``; JWT-Auth
+#     switch is Phase-2.4.
+#   * No cosign digest-pin on the SPIRE-Server image — the digest-pin
+#     follows the Tag-3-Cosign-Skizze cadence (Cross-Review Zone-C
+#     Tomás-Hand). Tag-only form is sufficient for this hermetic
+#     surface; the test-suite accepts both forms in advance, so a
+#     follow-up Cosign-Pin patch does not break the contract surface.
+#
+# Bring-up (operator-hand, NOT auto):
+#
+#   docker compose -f compose/spire.yaml up -d
+#   docker compose -f compose/spire.yaml -f compose/nats.yaml up -d
+#       # the spire-server + nats-server coexist on the shared
+#       # ``wakir-orchestrator`` network.
+#
+# Tear-down:
+#
+#   docker compose -f compose/spire.yaml down -v   # -v drops the volume
+#
+# Hermetic test acceptance (no operator hand):
+#
+#   pytest tests/orchestrator/test_compose_spire.py
+#       # parse the file; assert image-form, trust-domain literal,
+#       # socket-path mounts, hardening, health-probe shape, and
+#       # coexistence-with-nats invariants.
+#
+# Trust-Domain rationale (hermetic-only):
+#   The trust-domain ``example.test`` is IANA-reserved
+#   (RFC 6761 §6.5) and explicitly recommended as a test-only TLD.
+#   This compose unit MUST NOT be used to issue SVIDs that any
+#   production NATS-Server or persona-container would accept, because
+#   ``example.test`` is not the Wakir-Federation Phase-2 trust-domain
+#   (``wakir.local``) or the Phase-3a federation trust-domain
+#   (``<FTD-ID>.wakir.dev``). The intent is to keep the hermetic
+#   substrate clearly distinguishable from any future live-gated
+#   bring-up by name alone — an operator who sees ``example.test``
+#   in a container's ``trust_domain`` config knows immediately this
+#   is the Sprint-6-Tag-6 hermetic skeleton, not a production stand.
+#
+# Image-Tag rationale (P7 verified 2026-05-11):
+#   * Image: ``ghcr.io/spiffe/spire-server``
+#   * Tag:   ``1.14.6``
+#   * Latest stable release at authoring time: SPIRE v1.14.6
+#     (released 2026-04-27 23:58 UTC per
+#     https://github.com/spiffe/spire/releases — WebFetch verified
+#     Sprint-6-Tag-6 box).
+#   * Apache-2.0, CNCF-graduated project.
+#   * Tag-only pin (NOT digest-pinned) deliberate for the hermetic
+#     surface — digest-pinning is the Tag-3-Cosign-Skizze cadence and
+#     a Tomás-Hand Zone-C cross-review item (see
+#     ``docs/spiffe-z-a-jwt-svid-skizze.md`` §6 ¶1 P2 note).
+
+services:
+
+  spire-server:
+    # SPIRE-Server Phase-2-Hermetic sidecar.
+    #
+    # The image runs the upstream SPIRE-Server with a Mock/Stub config
+    # bind-mounted into ``/etc/spire/server/server.conf``. No
+    # workload-registrations are pre-loaded — the
+    # ``registration-entries.yaml`` is an empty stub for Phase-2.2.
+    image: ghcr.io/spiffe/spire-server:1.14.6
+    container_name: wakir-spire-server
+    command:
+      - "run"
+      - "-config"
+      - "/etc/spire/server/server.conf"
+    volumes:
+      # SPIRE-Server config (read-only bind-mount of the Mock/Stub
+      # config file). The Mock config declares trust-domain
+      # ``example.test`` and binds the gRPC server on 127.0.0.1:8081.
+      - ./config/spire-server.conf:/etc/spire/server/server.conf:ro
+      # SPIRE-Server data directory (datastore, key material).
+      # Named volume so an operator-driven recreate does not destroy
+      # the bootstrap-CA. ``compose down -v`` deliberately drops it.
+      - spire_server_data:/var/lib/spire/server
+      # SPIRE-Server Unix-socket directory (for SPIRE-Agent gRPC).
+      # Phase-2.1 declares the socket-mount shape; no consumer is
+      # attached yet (the Workload-API socket is on the SPIRE-Agent
+      # side, which is a Phase-2.2 follow-up).
+      - spire_server_sockets:/run/spire/sockets
+    networks:
+      - wakir
+    restart: unless-stopped
+    # Health probe: the SPIRE-Server exposes a built-in healthcheck
+    # subcommand. Hermetic-friendly: no external HTTP endpoint, no
+    # /healthz handler — just exec the binary's own self-check.
+    #
+    # The ``spire-server healthcheck`` subcommand exits non-zero if
+    # the server is not responsive on the configured admin socket.
+    # See the SPIRE-Server CLI reference (P7 conjecture — exact CLI
+    # surface verified once the Phase-2.3 live-gated test runs;
+    # documented as a known follow-up in §7.8 of the SPIFFE skizze).
+    healthcheck:
+      test:
+        - "CMD"
+        - "/opt/spire/bin/spire-server"
+        - "healthcheck"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # Container-init hardening: drop all Linux capabilities. The SPIRE-
+    # Server binary does not need privileged capabilities for the
+    # in-memory disk-KeyManager + sqlite3 DataStore Phase-2 setup.
+    # ``no-new-privileges`` is a defence-in-depth.
+    cap_drop:
+      - ALL
+    security_opt:
+      - "no-new-privileges:true"
+    # Phase-2 single-node: small resource envelope. Advisory under
+    # compose v2; documents the expected shape for the Phase-3 Helm-
+    # chart follow-up (Box-5 from ADR-0020).
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "256M"
+
+volumes:
+  spire_server_data:
+    name: wakir-spire-server-data
+  spire_server_sockets:
+    name: wakir-spire-server-sockets
+
+networks:
+  # Shared with ``compose/nats.yaml`` — the SPIRE-Server-Sidecar and
+  # the NATS-Substrate coexist on the same user-defined bridge network.
+  # ``external: false`` so that ``docker compose -f spire.yaml up``
+  # alone is sufficient to create the network if it does not exist
+  # yet; subsequent NATS bring-up on the same network is then a
+  # ``compose -f nats.yaml up`` no-op for network creation.
+  wakir:
+    name: wakir-orchestrator
+    driver: bridge

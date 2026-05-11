@@ -529,9 +529,21 @@ Sprint-6/7-Items abrufbar. Phase-Marker `Sprint-5` in den
 folgenden Unter-Punkten ist historisch; effektiver Start-Slot ist
 Aisha-Marker-bound.
 
-**Phase-2.1 (Sprint-5 Tag-1):** SPIRE-Server-Container als Sidecar
-zum NATS-Substrate addieren. Compose-Erweiterung
-`compose/spire.yaml`. Hermetic Test: SPIRE-Server-Container starts.
+**Phase-2.1 (Sprint-6 Tag-6, DONE):** SPIRE-Server-Container als
+Sidecar zum NATS-Substrate addieren. Compose-Erweiterung
+`compose/spire.yaml` + Mock/Stub-Config `config/spire-server.conf`
+(hermetic-only Trust-Domain `example.test` per RFC 6761 §6.5).
+Hermetic Test: 16 Acceptance-Tests in
+`tests/orchestrator/test_compose_spire.py` (compose-parse,
+image-form, trust-domain-Hermetic-Marker, bind-mount-Pfade,
+named-Volumes-Coexistenz, Hardening-Defaults, Health-Probe-Shape,
+NATS-Substrate-Coexistenz-Invariant via gemeinsamer
+`wakir-orchestrator`-Bridge, HCL-Config-Plugin-Pins). Image-Pin:
+`ghcr.io/spiffe/spire-server:1.14.6` (tag-only; Digest-Pin
+ist Cross-Review-Zone-C Cosign-Skizze-Folge-Slot pro
+Sprint-6-Tag-3-Konsolidat-Sweep). Phase-2.1 ist hermetic only —
+keine echten Registrations, kein SVID-Lauf, kein Host-podman-
+Socket (per Mira-Direktive Sprint-6-Tag-6).
 
 **Phase-2.2 (Sprint-5 Tag-2):** Workload-API-Client-Setup in
 Persona-Container-Base-Image (PyPI-Package `spiffe`-Dependency,
