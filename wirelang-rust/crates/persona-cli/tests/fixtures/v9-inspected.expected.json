@@ -1,0 +1,24 @@
+{
+  "canonical_subset": {
+    "description": "Pre-framework persona fixture for self-migration vector (v8, schema persona-v0-ish \u2014 flagged as unsupported).",
+    "identity_pinned": {
+      "authority": {
+        "budget_cap_eur_per_month": 0,
+        "push_remote": false,
+        "sub_delegation": false
+      },
+      "cross_review_zones": [],
+      "hierarchy": {
+        "escalation": "cto",
+        "reports_to": "cto"
+      }
+    },
+    "name": "pre-framework-agent",
+    "schema_version": "persona-v1",
+    "tools": [
+      "Read"
+    ]
+  },
+  "persona_hash": "sha256:0f298894204e6117e42ad7073b7a3af8ada1851de74d585fc5cb4c4d70e1d793",
+  "report_schema_version": "persona-inspect-v1"
+}

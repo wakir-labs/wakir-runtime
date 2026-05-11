@@ -1,0 +1,32 @@
+{
+  "canonical_subset": {
+    "description": "Chief executive role-string for the wakir org test fixture (vector v1).",
+    "identity_pinned": {
+      "authority": {
+        "budget_cap_eur_per_month": 1000,
+        "push_remote": true,
+        "sub_delegation": true
+      },
+      "cross_review_zones": [
+        {
+          "partner": "aufsichtsrat",
+          "trigger": "strategic-decision",
+          "zone": "A"
+        }
+      ],
+      "hierarchy": {
+        "escalation": "aufsichtsrat",
+        "reports_to": "aufsichtsrat"
+      }
+    },
+    "name": "ceo",
+    "schema_version": "persona-v1",
+    "tools": [
+      "Read",
+      "Glob",
+      "Bash"
+    ]
+  },
+  "persona_hash": "sha256:ef6915339c7e11df38a0d56d21e2ea02b828223bf2fe3f4bc12710a239349fff",
+  "report_schema_version": "persona-inspect-v1"
+}

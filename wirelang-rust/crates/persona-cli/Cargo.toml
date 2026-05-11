@@ -1,25 +1,34 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # persona-cli — Rust pendant of `wirelang.persona.cli` (the
-# `wakir-persona migrate` / `wakir-persona validate` operator CLI).
+# `wakir-persona migrate` / `wakir-persona validate` /
+# `wakir-persona inspect` operator CLI).
 #
-# Scope (Phase-1c Sprint-5 Tag-1 + Sprint-6 Tag-2):
+# Scope (Phase-1c Sprint-5 Tag-1 + Sprint-6 Tag-2 + Sprint-6 Tag-3):
 # - `wakir-persona migrate <persona-file>` binary entry-point.
 # - `--target {persona-v0,persona-v1,persona-v2}` schema-version
 #   selector (sourced from `PERSONA_SCHEMA_VERSION_LIST`).
 # - `--expect-hash <pin>` post-migration pin assertion (full
 #   `sha256:<64hex>` or bare 64-hex form).
 # - `--emit-hash` post-migration pin emission on stderr.
-# - `--quiet` progress-line suppression (both subcommands).
+# - `--quiet` progress-line suppression (all three subcommands).
 # - `wakir-persona validate <persona-file>` (Sprint-6 Tag-2 addition):
 #   read-only validator over the Crate-7 `persona-validator` library.
 #   Emits the canonical-subset PersonaValidationReport as JSON on
 #   stdout; exit 0 on is_valid, 1 on not is_valid.
-# - Exit-code mapping per spec §7.4 (extended for validate):
-#     0 = success (migrate) / is_valid (validate)
-#     1 = PersonaMigrationError (migrate) / not is_valid (validate)
+# - `wakir-persona inspect <persona-file>` (Sprint-6 Tag-3 addition):
+#   read-only canonical-subset + persona-hash emitter over the
+#   `persona-canonical-form-yaml` and `persona-hash` libraries.
+#   Emits a PersonaInspectReport (canonical_subset + persona_hash +
+#   report_schema_version) as JSON on stdout; exit 0 on success,
+#   1 on extractor / canonicalisation failure. Optional --emit-hash
+#   for stderr pin capture (mirror of `migrate --emit-hash`).
+# - Exit-code mapping per spec §7.4 (extended for validate + inspect):
+#     0 = success (migrate) / is_valid (validate) / extract-ok (inspect)
+#     1 = PersonaMigrationError (migrate) / not is_valid (validate) /
+#         canonical-subset-extractor failure (inspect)
 #     2 = PersonaMigrationDeterminismError (migrate only)
-#     3 = persona-file not found (both subcommands)
+#     3 = persona-file not found (all three subcommands)
 #    64 = argparse usage error (clap default: 2, mapped to 64 to
 #         mirror Python argparse's EX_USAGE).
 #
@@ -79,6 +88,12 @@ persona-canonical-form     = { path = "../persona-canonical-form" }
 # thin shim over `persona_validator::validate_persona` (Markdown
 # input branch).
 persona-validator          = { path = "../persona-validator" }
+# Sprint-6 Tag-3: read-only canonical-subset extractor + persona-hash.
+# The inspect subcommand is a thin shim over
+# `persona_canonical_form_yaml::read_canonical_subset` +
+# `persona_hash::compute_persona_hash_from_canonical`.
+persona-canonical-form-yaml = { path = "../persona-canonical-form-yaml" }
+persona-hash                = { path = "../persona-hash" }
 sha2                       = { workspace = true, features = ["std"] }
 # JSON serialisation for stdout (sorted keys, two-space indent,
 # trailing newline). The CLI re-uses the same `serde_json::Value`

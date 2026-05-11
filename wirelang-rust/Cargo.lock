@@ -179,6 +179,8 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "persona-canonical-form",
+ "persona-canonical-form-yaml",
+ "persona-hash",
  "persona-migration-resolver",
  "persona-validator",
  "serde_json",

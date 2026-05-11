@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Operator CLI for the persona self-migration converter + validator.
+"""Operator CLI for the persona self-migration converter + validator + inspect.
 
 Phase-1b Sprint-2 Tag-3 implementation (S2-T1-06). Thin wrapper around
 :func:`wirelang.persona.migrate_persona` for ad-hoc operator use,
@@ -11,6 +11,15 @@ Sprint-6 Tag-2 added the ``validate`` subcommand (Phase-1c follow-up
 :func:`wirelang.persona.validate_persona` that emits the structured
 :class:`PersonaValidationReport` as canonical-subset JSON on stdout
 and maps ``is_valid`` to exit-code 0 / 1.
+
+Sprint-6 Tag-3 added the ``inspect`` subcommand (Phase-1c follow-up
+items #1 + #8): read-only sister of ``migrate`` / ``validate``. Runs
+no migration, no validation — only the canonical-subset extractor
+and the V-907 persona-hash. Emits a ``PersonaInspectReport``
+(``report_schema_version=persona-inspect-v1``) on stdout containing
+``canonical_subset`` + ``persona_hash`` + ``persona_file``. Maps a
+parser/extractor failure to exit 1 (the persona-definition was
+unreadable as a canonical subset).
 
 Synopsis
 ========
@@ -25,6 +34,10 @@ Synopsis
 
     wakir-persona validate <persona-file>
                            [--quiet]
+
+    wakir-persona inspect <persona-file>
+                          [--emit-hash]
+                          [--quiet]
 
 The ``--target`` choice list is sourced from
 :data:`wirelang.persona.PERSONA_SCHEMA_VERSION_LIST`. Phase-1b
@@ -58,13 +71,16 @@ Exit codes
 Per spec §7.4:
 
 - ``0``: ``migrate`` success (and pin-match if ``--expect-hash`` was
-  supplied); ``validate`` success (``is_valid=True``).
+  supplied); ``validate`` success (``is_valid=True``); ``inspect``
+  success (canonical subset + persona-hash emitted).
 - ``1``: ``migrate`` :class:`PersonaMigrationError`; ``validate``
-  ``is_valid=False`` (one or more structured errors emitted).
+  ``is_valid=False`` (one or more structured errors emitted);
+  ``inspect`` parse / canonical-subset-extraction failure (the
+  persona-definition is unreadable as a canonical subset).
 - ``2``: ``migrate`` :class:`PersonaMigrationDeterminismError`
-  (``--expect-hash`` mismatch). Not used by ``validate``.
+  (``--expect-hash`` mismatch). Not used by ``validate`` / ``inspect``.
 - ``3``: :class:`FileNotFoundError` on the ``<persona-file>``
-  argument (both subcommands).
+  argument (all three subcommands).
 - ``64``: argparse usage error (mirrors Unix ``EX_USAGE``). Emitted
   by argparse itself on a parse failure.
 """
@@ -77,6 +93,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
+from wirelang.persona.persona_canonical_form import read_canonical_subset
 from wirelang.persona.persona_hash import compute_persona_hash_from_canonical
 from wirelang.persona.persona_migration import (
     PERSONA_SCHEMA_VERSION_LATEST,
@@ -107,6 +124,17 @@ EXIT_INPUT_NOT_FOUND = 3
 #: a migration chain failure but mapped to the same code so a single
 #: ``$?`` check in a shell pipeline branches the same way.
 EXIT_VALIDATION_FAILED = EXIT_MIGRATION_ERROR
+
+#: Alias for the inspect failure path (canonical-subset extraction
+#: failed). Same posture as :data:`EXIT_VALIDATION_FAILED` — one
+#: shell-script ``$?`` check covers all three failure modes.
+EXIT_INSPECT_FAILED = EXIT_MIGRATION_ERROR
+
+#: ``report_schema_version`` value on the inspect-stdout report. Bumped
+#: lock-step with breaking shape changes; the byte-identity fixtures
+#: under ``wirelang-rust/crates/persona-cli/tests/fixtures/v*-inspected.
+#: expected.json`` pin the v1 shape.
+PERSONA_INSPECT_REPORT_SCHEMA_VERSION = "persona-inspect-v1"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -193,6 +221,38 @@ def build_parser() -> argparse.ArgumentParser:
         help="Filesystem path to a UTF-8 markdown persona-definition.",
     )
     validate.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress the human-readable progress line on stderr.",
+    )
+
+    inspect = subparsers.add_parser(
+        "inspect",
+        help="Inspect a persona-definition file (read-only canonical-subset + hash).",
+        description=(
+            "Run the read-only canonical-subset extractor + V-907 "
+            "persona-hash on a persona-definition file and emit the "
+            "PersonaInspectReport on stdout as JSON. Exit code 0 on "
+            "success, 1 on parse / extractor failure. See "
+            "wirelang/persona/persona_canonical_form.py for the "
+            "canonical-subset shape (persona-inspect-v1)."
+        ),
+    )
+    inspect.add_argument(
+        "persona_file",
+        type=Path,
+        help="Filesystem path to a UTF-8 markdown persona-definition.",
+    )
+    inspect.add_argument(
+        "--emit-hash",
+        action="store_true",
+        help=(
+            "Emit the V-907 persona-hash on stderr in "
+            "'sha256:<64hex>' form, suitable for shell capture. Same "
+            "stderr-line shape as `migrate --emit-hash`."
+        ),
+    )
+    inspect.add_argument(
         "--quiet",
         action="store_true",
         help="Suppress the human-readable progress line on stderr.",
@@ -325,6 +385,124 @@ def _run_validate(args: argparse.Namespace) -> int:
     return 0 if report.is_valid else EXIT_VALIDATION_FAILED
 
 
+def _serialise_inspect_report(report_dict: dict) -> str:
+    """Serialise the inspect-report canonical dict for stdout.
+
+    Sorted keys + two-space indent + trailing newline. Identical
+    posture to :func:`_serialise_canonical_subset` /
+    :func:`_serialise_validation_report` so the Rust ↔ Python
+    byte-stability harness can re-use the same expected-fixture
+    pattern (V8 / V9 `.expected.json` files under
+    ``wirelang-rust/crates/persona-cli/tests/fixtures/``).
+    """
+    return json.dumps(report_dict, indent=2, sort_keys=True) + "\n"
+
+
+def _build_inspect_report(
+    canonical_subset: dict,
+    persona_hash: str,
+) -> dict:
+    """Assemble the ``persona-inspect-v1`` report dict.
+
+    Keys (lexicographic order is enforced at serialisation time by
+    :func:`_serialise_inspect_report`, but we keep insertion order
+    stable here too for ``preserve_order``-friendly readers):
+
+    - ``canonical_subset``: the V-907 canonical-subset dict produced
+      by :func:`read_canonical_subset`. JSON-serialisable; the shape
+      is anchored by ``persona_canonical_form.extract_canonical_subset``
+      and the V8 / V9 fixtures.
+    - ``persona_hash``: the V-907 ``"sha256:<64hex>"`` pin computed
+      over the canonical subset. By construction this equals the
+      Sprint-4 ``PERSONA_HASH_PIN_V9`` for the V9 fixture.
+    - ``report_schema_version``: ``"persona-inspect-v1"``. Bumped
+      lock-step with breaking shape changes.
+
+    Deliberately **no** ``persona_file`` field: the path-as-passed
+    would break the cross-language byte-identity anchor between
+    Python (pytest cwd) and Rust (cargo manifest dir) invocations,
+    and the operator can recover the path from the stderr progress
+    line anyway. Keeping the report path-free also makes inspect-
+    pipeline composition trivial (cat / sort / diff over the
+    JSON blob across files of identical canonical content).
+    """
+    return {
+        "canonical_subset": canonical_subset,
+        "persona_hash": persona_hash,
+        "report_schema_version": PERSONA_INSPECT_REPORT_SCHEMA_VERSION,
+    }
+
+
+def _run_inspect(args: argparse.Namespace) -> int:
+    """Execute the ``inspect`` subcommand. Return a Unix exit code.
+
+    Mirror posture of :func:`_run_validate` but with a different
+    failure semantics: parser / extractor exceptions on the canonical
+    subset (missing front-matter, malformed YAML, missing required
+    keys) map to :data:`EXIT_INSPECT_FAILED` (1) rather than being
+    accumulated into a structured-report. The rationale: inspect is
+    a debugging / pipeline-introspection tool, not a governance
+    gate; if the file is unreadable the right answer is a non-zero
+    exit + a one-line stderr marker, not a JSON report-of-errors.
+    """
+    persona_file: Path = args.persona_file
+    if not persona_file.exists():
+        print(
+            f"wakir-persona: persona-file not found: {persona_file}",
+            file=sys.stderr,
+        )
+        return EXIT_INPUT_NOT_FOUND
+
+    try:
+        text = persona_file.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        # Mid-run race: vanished between the existence check and the
+        # read. Mirror of migrate / validate posture.
+        print(
+            f"wakir-persona: persona-file vanished mid-run: {exc}",
+            file=sys.stderr,
+        )
+        return EXIT_INPUT_NOT_FOUND
+
+    try:
+        canonical_subset = read_canonical_subset(text)
+    except (ValueError, KeyError) as exc:
+        # ValueError covers PersonaFrontmatterMissingError /
+        # PersonaFrontmatterMalformedError / unsupported-schema_version;
+        # KeyError covers missing required canonical-subset keys.
+        # Both are surfaced under one "inspect failed" banner: an
+        # operator running `wakir-persona inspect` on a broken file
+        # wants the diagnostic + non-zero exit, not a stack trace.
+        print(f"wakir-persona: inspect failed: {exc}", file=sys.stderr)
+        return EXIT_INSPECT_FAILED
+
+    try:
+        persona_hash = compute_persona_hash_from_canonical(canonical_subset)
+    except (ValueError, TypeError) as exc:
+        # JCS canonicalisation failure on an unserialisable subset
+        # (should be unreachable on a successfully-extracted subset
+        # but kept defensive for hand-built non-canonical inputs).
+        print(f"wakir-persona: inspect failed: {exc}", file=sys.stderr)
+        return EXIT_INSPECT_FAILED
+
+    report = _build_inspect_report(canonical_subset, persona_hash)
+    sys.stdout.write(_serialise_inspect_report(report))
+
+    if args.emit_hash:
+        # Same stderr-line shape as `migrate --emit-hash` so a shell
+        # script can pipe either subcommand into the same capture:
+        # `pin=$(wakir-persona inspect file.md --emit-hash --quiet 2>&1 >/dev/null)`.
+        print(persona_hash, file=sys.stderr)
+
+    if not args.quiet:
+        print(
+            f"wakir-persona: inspected {persona_file} -> {persona_hash}",
+            file=sys.stderr,
+        )
+
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """CLI entry point. Returns a Unix exit code.
 
@@ -338,6 +516,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_migrate(args)
     if args.command == "validate":
         return _run_validate(args)
+    if args.command == "inspect":
+        return _run_inspect(args)
 
     # argparse with required=True on the subparser dest already
     # rejects unknown commands with exit code 2 from argparse's
