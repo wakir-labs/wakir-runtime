@@ -46,8 +46,16 @@
 #   three migration vectors (V8→V1, V9→V2, V8→chain→V2). Added
 #   Phase-1b Sprint-4 Tag-5 (2026-05-11).
 #
+# - persona-cli : Operator-facing `wakir-persona migrate` binary.
+#   Rust pendant of `wirelang.persona.cli`. Thin shim over
+#   `persona-migration-resolver::migrate_persona`: clap 4.x argparse,
+#   file IO, sorted-keys JSON stdout, exit-code mapping per spec
+#   §7.4 (0/1/2/3/64). Byte-identical stdout / stderr / exit-code
+#   cross-check against the Python CLI for the V8 / V9 fixture
+#   vectors. Added Phase-1b Sprint-5 Tag-1 (2026-05-11).
+#
 # Crates explicitly NOT in this workspace yet (Phase-1c follow-up boxes):
-# - persona-cli (Rust pendant for `wakir-persona migrate`)
+# - (none — Crate-6 closes the Sprint-4 Open-Item §1.)
 #
 # Default-Lock posture (pengine-eng engine-side, ratified 2026-05-07 ~10:00 CEST)
 # ------------------------------------------------------------------------
@@ -69,6 +77,7 @@ members = [
     "crates/persona-canonical-form-yaml",
     "crates/persona-migration",
     "crates/persona-migration-resolver",
+    "crates/persona-cli",
 ]
 
 [workspace.package]
