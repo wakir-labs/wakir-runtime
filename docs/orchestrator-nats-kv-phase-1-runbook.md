@@ -52,7 +52,8 @@ memos and are referenced here only by name.
 | 7.1.10 | Post-install live-smoke driver                                  | Sprint-3 Tag-4 |
 | 7.2 | systemd-timer wiring + Prometheus textfile-collector adapter       | Sprint-3 Tag-3 |
 | 7.3 | Live-NATS-Test-Mode driver (hermetic-default + Mock-vs-Live)       | Phase-2 Sprint-4 Tag-1 |
-| 8   | Verification stamps (P5/P7)                                        | Tag-2..Tag-8, Sprint-3 Tag-2..Tag-4, Phase-2 Sprint-4 Tag-1 |
+| 7.4 | First-time live-smoke execution record (host-substrate evidence)   | Phase-2 Sprint-4 Tag-2 |
+| 8   | Verification stamps (P5/P7)                                        | Tag-2..Tag-8, Sprint-3 Tag-2..Tag-4, Phase-2 Sprint-4 Tag-1..Tag-2 |
 
 The four operator artefacts (compose substrate, bucket initialiser,
 NATS-KV substrate health check, federation evaluator health check)
@@ -1372,6 +1373,151 @@ second invocation.
   destructive (`compose down -v` between scenarios) workflow at a
   shared cluster.
 
+### 7.4 First-time live-smoke execution record (Phase-2 Sprint-4 Tag-2)
+
+The §7.3 driver is *substrate-agnostic by design* — it presupposes that
+some operator hand brought the NATS substrate up before the pytest gate
+runs. This sub-section is the first execution record against a real
+host substrate, written down so a future operator who reads §7.3 has
+empirical evidence — not just contract prose — that the byte-identity
+gate actually fires on a live cluster.
+
+**Substrate.** Aufsichtsrat-Operator brought up a `wakir-nats` container
+on the workstation host at 2026-05-11 ~16:30 CEST (Mira-Hand pass; the
+Mira-Sandbox itself remains closed per ADR-0051-rejected-but-retained
+operative practice). Substrate-side smoke at hand-off:
+
+| probe        | result                                                  |
+| ------------ | ------------------------------------------------------- |
+| TCP 4222     | reachable from toolbox loopback                         |
+| HTTP /jsz    | 200 OK; `streams: 0` (empty JetStream)                  |
+| server id    | `NDYYBKTP4TOVSAYZ2IKVYTEAYCFKK2YRF7YEYAB2ZIHXUZZ32THQQ3PO` |
+| store dir    | `/tmp/nats/jetstream` (ephemeral, container-scoped)     |
+
+**Driver run, Phase A — empty cluster.** `WAKIR_NATS_LIVE=1 bash
+scripts/run-live-smoke-tests.sh` against a fresh substrate
+(`streams: 0`) at 2026-05-11T16:53Z:
+
+| field                | value                                          |
+| -------------------- | ---------------------------------------------- |
+| preflight tcp_4222   | ok                                             |
+| preflight jsz_8222   | ok                                             |
+| preflight nats-cli   | unreachable (CLI not on toolbox `PATH`; documented best-effort) |
+| preflight venv       | ok (after `.venv/bin/pip install nats-py` → 2.14.0) |
+| pytest exit          | 0                                              |
+| tests passed         | 55                                             |
+| tests skipped        | 1                                              |
+| live empty matched   | byte-identical (`would_create` × 4)            |
+| live populated       | skipped (cluster not populated; expected)      |
+
+Skip diagnostic for `test_live_populated_cluster_...` was exactly the
+§7.3.5 documented behaviour: skip-not-fail with the observed status
+map printed, no false-positive failure.
+
+**Driver run, Phase B — populated cluster.** `.venv/bin/python3
+scripts/init-nats-buckets.py --servers nats://127.0.0.1:4222` created
+the four Phase-1 buckets (`wakir-schemas`, `wakir-aip-cache`,
+`wakir-ftd-cache`, `wakir-ftd-poisoned`; all four `status:created`,
+summary `{created:4, total:4}`). Immediately followed by
+`WAKIR_NATS_LIVE=1 bash scripts/run-live-smoke-tests.sh` again at
+2026-05-11T16:54Z:
+
+| field                | value                                          |
+| -------------------- | ---------------------------------------------- |
+| preflight all probes | identical to Phase A (only `nats-cli` flagged) |
+| pytest exit          | 0                                              |
+| tests passed         | 55                                             |
+| tests skipped        | 1                                              |
+| live populated       | byte-identical (`unchanged` × 4)               |
+| live empty           | skipped (cluster no longer empty; expected)    |
+
+**Byte-identity proof (out-of-band SHA256).** As an additional check
+beyond the assertEqual inside the pytest gate, the populated-scenario
+JSON was captured from both transports separately and digested:
+
+```
+live JSON  len=594 sha256=4eceed0338840f34696fd7913e95566d25637fdcde44978727a8a40cf65da9cc
+mock JSON  len=594 sha256=4eceed0338840f34696fd7913e95566d25637fdcde44978727a8a40cf65da9cc
+match: True
+```
+
+The two byte sequences are character-for-character identical across
+the live `nats-py` 2.14.0 transport and the in-memory `_MockJetStream`
+surface: `nats-py` 2.14.0's `KeyValueStatus` does not surface a field
+the mock omits, and vice versa. The §7.3.4 contract is met in
+practice, not just by hermetic baseline.
+
+**Side-effects on the live substrate.** The Phase-1 buckets are now
+present on the host `wakir-nats` container. Per Mira's hand-off note,
+the Operator will `podman stop wakir-nats` later this evening, which
+discards the ephemeral `/tmp/nats/jetstream` store; the buckets do
+not persist beyond that. Operators reproducing this record must redo
+the `init-nats-buckets.py` step after any subsequent substrate
+bring-up.
+
+**What this record demonstrates that the §7.3 contract alone does
+not.**
+
+1. The state-machine semantics (operator drives cluster between
+   `empty` and `populated`; driver does not) work in practice: a
+   single substrate session covered both scenarios via one
+   `init-nats-buckets` invocation between two `run-live-smoke-tests.sh`
+   runs.
+2. The `nats-py` 2.14.0 transport produces byte-output indistinguishable
+   from the mock for the two cross-validated scenarios. No drift
+   reconciliation was required for this release.
+3. The pre-flight venv probe correctly distinguishes a usable venv
+   from one without `nats-py`: the same `.venv/` reported `venv: ok`
+   only after `pip install nats-py` and `venv: missing` before.
+   That gate is what keeps a Mira-Sandbox-equivalent run from
+   silently activating the live tests under false pretences.
+4. The `nats` CLI probe being best-effort is operationally correct on
+   a toolbox that does not ship `nats`: the gate still fires and the
+   live tests still run. A build host with `nats` CLI installed will
+   see `nats_cli_ping: ok`; a toolbox without it sees `unreachable`
+   and the run still completes.
+
+**What this record explicitly does not cover.**
+
+* **Persistent storage.** The host substrate writes JetStream to
+  `/tmp/nats/jetstream`, which does not survive a container restart.
+  The Phase-1b build-host activation pass (§7.1) uses
+  `compose/nats.yaml` with a named volume; a build-host execution
+  record is a separate Sprint-4 deliverable (Tag-3 onward) and is
+  not covered here.
+* **`nats` CLI probe in `ok` state.** The toolbox does not ship the
+  CLI; a build-host activation pass that does will produce a
+  `nats_cli_ping: ok` line in the JSON summary. The driver does not
+  treat the absence of the CLI as a fault.
+* **Token-auth path.** The host substrate is no-auth (Phase-1
+  default). `WAKIR_NATS_TOKEN` was unset throughout; the
+  cross-validation contract is independent of the auth surface.
+* **SPIFFE/SVID.** Cross-Review Zone A is unchanged by this record.
+
+**Reproduction recipe.**
+
+```bash
+# Pre-conditions: live wakir-nats container reachable on host:4222.
+cd /path/to/wakir-runtime
+.venv/bin/pip install nats-py            # if not already present
+
+# Phase A — empty cluster gate.
+curl -fsS 'http://127.0.0.1:8222/jsz' | jq '.streams'   # expect: 0
+WAKIR_NATS_LIVE=1 bash scripts/run-live-smoke-tests.sh
+# expect: pytest_exit=0, 55 passed, 1 skipped (populated)
+
+# Phase B — populate cluster, then gate.
+.venv/bin/python3 scripts/init-nats-buckets.py \
+    --servers nats://127.0.0.1:4222
+curl -fsS 'http://127.0.0.1:8222/jsz' | jq '.streams'   # expect: 4
+WAKIR_NATS_LIVE=1 bash scripts/run-live-smoke-tests.sh
+# expect: pytest_exit=0, 55 passed, 1 skipped (empty)
+```
+
+If both runs report `pytest_exit: 0` with one scenario passed and the
+other scenario skipped (for the documented reason), the byte-identity
+contract holds on the live substrate for this release.
+
 ## 8. Verification stamps (P5/P7)
 
 - Authoring date (Tag-3 update): `date -u` 2026-05-07T (CEST
@@ -1568,3 +1714,35 @@ second invocation.
   `test_check_federation_evaluator_health.py` (20 hermetic + 2
   gated-live) — the Tag-1 driver re-uses these under the same
   `WAKIR_NATS_LIVE=1` flag.
+- Phase-2 Sprint-4 Tag-2 §7.4 first-time live-smoke execution record
+  stamp: `date -u` 2026-05-11T16:56:08Z (CEST 2026-05-11T18:56). This
+  pass is documentation-only. No code surface is touched; no test
+  surface is added; no exit-code contract changes; no schema changes;
+  no auth-surface changes. The Tag-2 record captures the first
+  end-to-end run of `scripts/run-live-smoke-tests.sh` against a real
+  host `wakir-nats` substrate (Aufsichtsrat-Operator brought it up at
+  ~16:30 CEST); it documents the two scenario passes (empty cluster
+  and populated cluster, driven via the state machine described in
+  §7.3.2), the SHA256-equality of the populated-scenario live and mock
+  `InitReport.to_json()` byte sequences (594-byte payload,
+  sha256 `4eceed0338840f34696fd7913e95566d25637fdcde44978727a8a40cf65da9cc`
+  on both transports), the pre-flight result breakdown (TCP+JSZ+venv
+  ok; `nats` CLI unreachable as documented best-effort), and the
+  side-effects on the live substrate (four Phase-1 buckets created,
+  ephemeral storage, operator-driven teardown). The host substrate
+  uses `nats-py` 2.14.0 (installed into the repo `.venv/` for the
+  duration of this record; pinning belongs in the orchestrator
+  container's Python dependency manifest per §8 nats-py policy).
+  Zero-drift verification on the pytest gate: `tests/orchestrator/`
+  88 passed + 6 skipped under hermetic invocation (matches Tag-1
+  baseline); under `WAKIR_NATS_LIVE=1` against the live substrate,
+  55 passed + 1 skipped per scenario for both empty and populated
+  states (4 of 6 cross-validation tests run hermetically every time;
+  the 2 live-gated tests fire exactly one match + one skip per
+  scenario depending on cluster state). No regressions. The Tag-2
+  ADR-0051 context is unchanged: ADR-0051 rejected, Mira-Hand-Regel
+  retained; the Mira-Sandbox did not touch the container lifecycle
+  for the record run (host bring-up is Aufsichtsrat-Operator hand,
+  Mira-Sandbox connects via NATS protocol on `localhost:4222` only).
+  Reproduction recipe is embedded in §7.4 so a future operator can
+  re-run the record without reading the outbox closeout note.
