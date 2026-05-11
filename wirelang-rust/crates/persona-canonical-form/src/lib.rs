@@ -368,6 +368,30 @@ mod tests {
         "f719fce4bedd8522874ae214ec2f982ef87964b535ca368134b3636207eb6669";
 
     // -------------------------------------------------------------------
+    // V8 Hex-Pin Hard-Freeze (Sprint-5 Tag-4 ceo-mandate, Option A).
+    //
+    // Background — Sprint-5 Tag-3 design-choice §3.4 deliberately did
+    // NOT freeze a V8 hex pin on the JCS-bytes layer either, mirroring
+    // the persona-hash crate's reasoning. Tag-4 overrides that and pins
+    // V8 hex on this layer too: sha256(canonical_jcs_bytes(v8_subset))
+    // is locked Rust-only. No Python pendant exists or is needed
+    // (Python's V8 rejection class fires at the YAML/schema layer
+    // upstream of canonical_jcs_bytes). This pin enables a direct
+    // cross-language anchor for the JCS-bytes layer's V8 hash semantic
+    // without going through the persona-hash crate.
+    //
+    // Captured 2026-05-11 via
+    //   `sha256(serde_jcs::to_vec(v8_canonical_subset()))`
+    // on `b23860a`.
+    // -------------------------------------------------------------------
+
+    /// V8 hex-pin (Rust-only hard-freeze, Sprint-5 Tag-4). Pins
+    /// `sha256(canonical_jcs_bytes(v8_canonical_subset()))` byte-for-byte.
+    /// No Python pendant by design — see Tag-4 outbox §3 rationale.
+    const V8_PIN_HEX_RUST_ONLY: &str =
+        "88d7ae38b6b37cfdbfcf80c236bae842bd91104ee34aa565a59ebc6e1c022228";
+
+    // -------------------------------------------------------------------
     // 7 / V8 canonical-subset JCS bytes length must equal V9 length
     //     (both schema_version values are 10 ASCII bytes).
     // -------------------------------------------------------------------
@@ -380,6 +404,12 @@ mod tests {
             blob.len(),
             V9_JCS_BYTES_LEN,
             "V8 JCS length must equal V9 (schema_version values are equal-length ASCII)"
+        );
+        // Sprint-5 Tag-4 hard-freeze: V8 hex tail is pinned Rust-only.
+        let got_hex = sha256_hex(&blob);
+        assert_eq!(
+            got_hex, V8_PIN_HEX_RUST_ONLY,
+            "sha256(canonical_jcs_bytes(v8)) must equal V8_PIN_HEX_RUST_ONLY"
         );
     }
 
@@ -451,8 +481,9 @@ mod tests {
     #[test]
     #[allow(clippy::type_complexity)]
     fn t10_determinism_stress_10_iterations_jcs_and_sha256() {
+        // Sprint-5 Tag-4: V8 row promoted from None to V8_PIN_HEX_RUST_ONLY.
         let fixtures: [(&str, fn() -> Value, Option<&str>); 3] = [
-            ("v8", v8_canonical_subset, None),
+            ("v8", v8_canonical_subset, Some(V8_PIN_HEX_RUST_ONLY)),
             ("v9", v9_canonical_subset, Some(V9_PIN_HEX)),
             (
                 "v9_to_v2",
@@ -490,5 +521,37 @@ mod tests {
                 );
             }
         }
+    }
+
+    // -------------------------------------------------------------------
+    // 11 / V8 hard-freeze sha256 anchor (Sprint-5 Tag-4).
+    //
+    //      Mirrors t2 (V9 ground-truth hash parity) for V8 on this
+    //      JCS-bytes layer. Without this anchor, V8 hash semantics on
+    //      the canonical_jcs_bytes layer are only locked indirectly via
+    //      the persona-hash crate's t6 / t11. Pinning here makes the
+    //      bytes layer self-sufficient: a regression in serde_jcs that
+    //      affected V8 specifically (but not V9) would surface here
+    //      without depending on persona-hash being green first.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t11_v8_canonical_jcs_bytes_sha256_matches_v8_hard_freeze_pin() {
+        let canon = v8_canonical_subset();
+        let blob = canonical_jcs_bytes(&canon).expect("v8 must canonicalise");
+        let got_hex = sha256_hex(&blob);
+        assert_eq!(
+            got_hex, V8_PIN_HEX_RUST_ONLY,
+            "sha256(canonical_jcs_bytes(v8)) must equal Rust-only V8 hard-freeze pin"
+        );
+        // Mutual-exclusion sanity: V8 hex must differ from V9 and V9->V2.
+        assert_ne!(
+            got_hex, V9_PIN_HEX,
+            "V8 hex must differ from V9 hex (schema_version is in-hash)"
+        );
+        assert_ne!(
+            got_hex, V9_MIGRATED_TO_V2_PIN_HEX,
+            "V8 hex must differ from V9->V2 hex (schema_version is in-hash)"
+        );
     }
 }

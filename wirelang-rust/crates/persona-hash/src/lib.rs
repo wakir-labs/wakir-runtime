@@ -391,6 +391,47 @@ mod tests {
         "sha256:f719fce4bedd8522874ae214ec2f982ef87964b535ca368134b3636207eb6669";
 
     // -------------------------------------------------------------------
+    // V8 Hex-Pin Hard-Freeze (Sprint-5 Tag-4 ceo-mandate, Option A).
+    //
+    // Background — Sprint-5 Tag-3 design-choice §3.4 deliberately did
+    // NOT freeze a V8 hex pin, on the reasoning that V8 is REJECTED
+    // schema-v0 input and has no Python pendant in
+    // `pin_pack_constants.py`. That reasoning is overridden in Tag-4
+    // (ceo-slot mandate, Option A): the Rust crate IS allowed to be stricter
+    // than the Python pin pack. V8 hashes deterministically; pinning its
+    // hex tail catches a future regression in `v8_canonical_subset()`
+    // construction (e.g. accidental key-name typo, value drift) or in
+    // the serde_jcs / sha2 pipeline that would otherwise only surface
+    // indirectly via the t7 V8->V1 schema-flip equality.
+    //
+    // Asymmetry rationale (Rust-only pin):
+    //   - Python `pin_pack_constants.py` keeps V8 as REJECTED vector
+    //     without a hex pin, because the Python suite asserts the
+    //     rejection class via `PersonaHashRejectedSchemaError` at the
+    //     YAML-parse + schema-check layer (upstream of the canonical
+    //     hash). V8 never reaches the Python `compute_persona_hash`
+    //     code-path in production.
+    //   - The Rust `persona-hash` crate operates ONE layer below: it
+    //     consumes an already-built canonical subset and emits a hash.
+    //     At that layer V8 IS a well-formed deterministic input, and
+    //     pinning its hex tail is the strictest local invariant.
+    //   - This is therefore a deliberate Rust-strictness move, not an
+    //     attempt to mirror Python. Python remains unchanged.
+    //
+    // Hex captured 2026-05-11 via local cargo run on `b23860a`:
+    //   `sha256(serde_jcs::to_vec(v8_canonical_subset()))`
+    //   = sha256:88d7ae38b6b37cfdbfcf80c236bae842bd91104ee34aa565a59ebc6e1c022228
+    // V8 JCS bytes length: 387 (equal to V9 — schema_version literals
+    // are equal-length ASCII).
+    // -------------------------------------------------------------------
+
+    /// V8 hex-pin (Rust-only hard-freeze, Sprint-5 Tag-4). Pins
+    /// `sha256(jcs(v8_canonical_subset()))` byte-for-byte. No Python
+    /// pendant by design — see module-level rationale above the const.
+    const V8_PIN_RUST_ONLY: &str =
+        "sha256:88d7ae38b6b37cfdbfcf80c236bae842bd91104ee34aa565a59ebc6e1c022228";
+
+    // -------------------------------------------------------------------
     // 6 / V8 canonical-subset hashes deterministically. V8 has no
     //     frozen hex pin (it is the REJECTED self-migration input);
     //     anchor here is hash-stability + non-equality to V9 (because
@@ -415,6 +456,12 @@ mod tests {
         // Sanity: V8 hash must still be a well-formed full-form pin.
         assert!(h_v8_first.starts_with(PERSONA_HASH_PREFIX));
         assert_eq!(h_v8_first.len(), PERSONA_HASH_FULL_LENGTH);
+        // Sprint-5 Tag-4 hard-freeze: V8 hex tail is pinned Rust-only.
+        // See module-level rationale on `V8_PIN_RUST_ONLY`.
+        assert_eq!(
+            h_v8_first, V8_PIN_RUST_ONLY,
+            "V8 hash must match Rust-only V8_PIN_RUST_ONLY hard-freeze"
+        );
     }
 
     // -------------------------------------------------------------------
@@ -474,8 +521,10 @@ mod tests {
     fn t9_determinism_stress_10_iterations_byte_identical() {
         // Build each subset fresh on each iteration to also cover
         // parser-construction determinism (not just intra-call stability).
+        // Sprint-5 Tag-4: V8 row promoted from None to V8_PIN_RUST_ONLY
+        // (Rust-only hard-freeze). The other two rows are unchanged.
         let fixtures: [(&str, fn() -> Value, Option<&str>); 3] = [
-            ("v8", v8_canonical_subset, None),
+            ("v8", v8_canonical_subset, Some(V8_PIN_RUST_ONLY)),
             ("v9", v9_canonical_subset, Some(V9_PIN)),
             (
                 "v9_to_v2",
@@ -520,8 +569,13 @@ mod tests {
 
     #[test]
     fn t10_hash_equals_sha256_of_jcs_canonicalise_roundtrip() {
+        // Sprint-5 Tag-4: V8 row promoted from None to V8_PIN_RUST_ONLY.
         for (label, builder, expected_pin) in [
-            ("v8", v8_canonical_subset as fn() -> Value, None),
+            (
+                "v8",
+                v8_canonical_subset as fn() -> Value,
+                Some(V8_PIN_RUST_ONLY),
+            ),
             ("v9", v9_canonical_subset as fn() -> Value, Some(V9_PIN)),
             (
                 "v9_to_v2",
@@ -545,6 +599,54 @@ mod tests {
             if let Some(pin) = expected_pin {
                 assert_eq!(via_api, pin, "{label}: re-derived hash must match pin");
             }
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // 11 / V8 hard-freeze pin-argument mechanics (Sprint-5 Tag-4).
+    //
+    //      Mirrors t3 (V9 pin-argument mechanics): full-form pin passes,
+    //      bare-hex pin passes, drift produces a Mismatch. This is the
+    //      dedicated anchor for the V8 hex-pin hard-freeze; the assertion
+    //      in t6 is the value-equality anchor, t11 is the API-shape
+    //      anchor. Both are needed: t6 locks the const, t11 locks that
+    //      callers can pin via the `expected` argument exactly as for V9.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t11_v8_hard_freeze_pin_argument_mechanics() {
+        let canon = v8_canonical_subset();
+
+        // Full form passes.
+        compute_persona_hash_from_canonical(&canon, Some(V8_PIN_RUST_ONLY))
+            .expect("V8 full-form pin match must succeed");
+
+        // Bare-hex form passes (Python-tolerance parity at the API shape).
+        let bare_hex = &V8_PIN_RUST_ONLY[PERSONA_HASH_PREFIX.len()..];
+        compute_persona_hash_from_canonical(&canon, Some(bare_hex))
+            .expect("V8 bare-hex pin match must succeed");
+
+        // V9 pin against V8 input must Mismatch (cross-vector drift).
+        let err = compute_persona_hash_from_canonical(&canon, Some(V9_PIN))
+            .expect_err("V9 pin against V8 input must Mismatch");
+        match err {
+            PersonaHashError::Mismatch { expected, computed } => {
+                assert_eq!(expected, V9_PIN);
+                assert_eq!(computed, V8_PIN_RUST_ONLY);
+            }
+            other => panic!("expected Mismatch, got {other:?}"),
+        }
+
+        // Generic-drift Mismatch (mirrors t3 last assertion).
+        let bad = "sha256:dead000000000000000000000000000000000000000000000000000000000000";
+        let err2 = compute_persona_hash_from_canonical(&canon, Some(bad))
+            .expect_err("V8 drift pin must Mismatch");
+        match err2 {
+            PersonaHashError::Mismatch { expected, computed } => {
+                assert_eq!(expected, bad);
+                assert_eq!(computed, V8_PIN_RUST_ONLY);
+            }
+            other => panic!("expected Mismatch, got {other:?}"),
         }
     }
 }
