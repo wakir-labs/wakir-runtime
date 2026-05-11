@@ -1453,13 +1453,13 @@ selection against it, with byte-identity cross-validation on top.
 Splitting the two lets an operator re-run only the pytest gate on a
 stable substrate without paying the compose-up cost again.
 
-**Operator-hand-only.** ADR-0051 (Mira-Sandbox vs. Host-Operations
+**Operator-hand-only.** ADR-0051 (CEO-side-sandbox vs. host-operations
 trennung) was rejected, but the operative practice it formalised
-remains as a Mira-Hand-Regel: the Mira-Sandbox cannot reach the
-host NATS substrate, so live-NATS smoke is driven from the operator
-hand and never from inside the orchestrator container or a
-Mira-spawned agent. The driver enforces this implicitly via its
-pre-flight (a Mira-Sandbox invocation hits a TCP-unreachable probe
+remains as an operative-side hand-off rule: the CEO-side sandbox cannot
+reach the host NATS substrate, so live-NATS smoke is driven from the
+operator hand and never from inside the orchestrator container or a
+CEO-side-spawned agent. The driver enforces this implicitly via its
+pre-flight (a CEO-side-sandbox invocation hits a TCP-unreachable probe
 and exits 1 before any test runs).
 
 #### 7.3.1 Hermetic-default + Live opt-in contract
@@ -1616,9 +1616,10 @@ empirical evidence — not just contract prose — that the byte-identity
 gate actually fires on a live cluster.
 
 **Substrate.** Aufsichtsrat-Operator brought up a `wakir-nats` container
-on the workstation host at 2026-05-11 ~16:30 CEST (Mira-Hand pass; the
-Mira-Sandbox itself remains closed per ADR-0051-rejected-but-retained
-operative practice). Substrate-side smoke at hand-off:
+on the workstation host at 2026-05-11 ~16:30 CEST (operative-side
+hand pass; the CEO-side sandbox itself remains closed per
+ADR-0051-rejected-but-retained operative practice). Substrate-side
+smoke at hand-off:
 
 | probe        | result                                                  |
 | ------------ | ------------------------------------------------------- |
@@ -1681,12 +1682,12 @@ the mock omits, and vice versa. The §7.3.4 contract is met in
 practice, not just by hermetic baseline.
 
 **Side-effects on the live substrate.** The Phase-1 buckets are now
-present on the host `wakir-nats` container. Per Mira's hand-off note,
-the Operator will `podman stop wakir-nats` later this evening, which
-discards the ephemeral `/tmp/nats/jetstream` store; the buckets do
-not persist beyond that. Operators reproducing this record must redo
-the `init-nats-buckets.py` step after any subsequent substrate
-bring-up.
+present on the host `wakir-nats` container. Per the operator-side
+hand-off note, the Operator will `podman stop wakir-nats` later this
+evening, which discards the ephemeral `/tmp/nats/jetstream` store;
+the buckets do not persist beyond that. Operators reproducing this
+record must redo the `init-nats-buckets.py` step after any
+subsequent substrate bring-up.
 
 **What this record demonstrates that the §7.3 contract alone does
 not.**
@@ -1702,7 +1703,7 @@ not.**
 3. The pre-flight venv probe correctly distinguishes a usable venv
    from one without `nats-py`: the same `.venv/` reported `venv: ok`
    only after `pip install nats-py` and `venv: missing` before.
-   That gate is what keeps a Mira-Sandbox-equivalent run from
+   That gate is what keeps a CEO-side-sandbox-equivalent run from
    silently activating the live tests under false pretences.
 4. The `nats` CLI probe being best-effort is operationally correct on
    a toolbox that does not ship `nats`: the gate still fires and the
@@ -2298,9 +2299,9 @@ Z-B scope.
   `tests/orchestrator/` 88 passed + 6 skipped (was 84 + 4 before
   Tag-1; +4 hermetic and +2 gated-live from the new suite); zero
   regressions. The Sprint-4 Tag-1 ADR-0051 context: ADR-0051
-  (Mira-Sandbox vs. Host-Operations trennung) was rejected (per
-  CEO closeout 2026-05-07 ~18:10 CEST); the operative
-  Mira-Hand-Regel that the Mira-Sandbox cannot reach the host NATS
+  (CEO-side-sandbox vs. host-operations trennung) was rejected (per
+  CEO closeout 2026-05-07 ~18:10 CEST); the operative-side
+  hand-off rule that the CEO-side sandbox cannot reach the host NATS
   substrate is retained and is the binding rationale for the
   driver's operator-hand-only posture. The byte-identity contract
   is the cross-validation gate that lets the §7.1.10 post-install
@@ -2340,10 +2341,11 @@ Z-B scope.
   states (4 of 6 cross-validation tests run hermetically every time;
   the 2 live-gated tests fire exactly one match + one skip per
   scenario depending on cluster state). No regressions. The Tag-2
-  ADR-0051 context is unchanged: ADR-0051 rejected, Mira-Hand-Regel
-  retained; the Mira-Sandbox did not touch the container lifecycle
-  for the record run (host bring-up is Aufsichtsrat-Operator hand,
-  Mira-Sandbox connects via NATS protocol on `localhost:4222` only).
+  ADR-0051 context is unchanged: ADR-0051 rejected, operative-side
+  hand-off rule retained; the CEO-side sandbox did not touch the
+  container lifecycle for the record run (host bring-up is
+  Aufsichtsrat-Operator hand, the CEO-side sandbox connects via
+  NATS protocol on `localhost:4222` only).
   Reproduction recipe is embedded in §7.4 so a future operator can
   re-run the record without reading the outbox closeout note.
 - Phase-2 Sprint-4 Tag-3 §7.5 image-digest verification gate stamp:
