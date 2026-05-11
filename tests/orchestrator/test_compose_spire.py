@@ -121,19 +121,28 @@ def test_compose_has_single_phase_2_1_service_named_spire_server(
 
 def test_spire_server_uses_upstream_ghcr_image(compose_doc: dict) -> None:
     image = compose_doc["services"]["spire-server"]["image"]
-    # Two valid forms (mirrors the Phase-1b NATS image-pin convention):
-    #   * tag-only:      ``ghcr.io/spiffe/spire-server:<semver>``
-    #   * digest-pinned: ``ghcr.io/spiffe/spire-server:<semver>@sha256:<64-hex>``
+    # Three valid forms (Tag-8 rebase: Tag-7 Cosign-Pin-Form merged in):
+    #   * tag-only:                ``ghcr.io/spiffe/spire-server:<semver>``
+    #   * digest-pinned (real):    ``ghcr.io/spiffe/spire-server:<semver>@sha256:<64-hex>``
+    #   * digest-pinned (pending): ``ghcr.io/spiffe/spire-server:<semver>@sha256:DIGEST_PENDING_TOMAS_REVIEW``
+    # The pending-placeholder form is the Tag-8 default; Operator-Hand
+    # substitutes a real 64-hex digest after ``cosign verify`` +
+    # ``skopeo inspect`` (see ``docs/spire-server-phase-2-1.md`` §2).
     tag_only = re.fullmatch(
         r"ghcr\.io/spiffe/spire-server:\d+\.\d+\.\d+", image
     )
-    digest_pin = re.fullmatch(
+    digest_pin_real = re.fullmatch(
         r"ghcr\.io/spiffe/spire-server:\d+\.\d+\.\d+@sha256:[0-9a-f]{64}",
         image,
     )
-    assert tag_only or digest_pin, (
+    digest_pin_placeholder = re.fullmatch(
+        r"ghcr\.io/spiffe/spire-server:\d+\.\d+\.\d+@sha256:DIGEST_PENDING_TOMAS_REVIEW",
+        image,
+    )
+    assert tag_only or digest_pin_real or digest_pin_placeholder, (
         f"image must be 'ghcr.io/spiffe/spire-server:<semver>' "
-        f"(tag-only) or digest-pinned form; got: {image!r}"
+        f"(tag-only), digest-pinned (64-hex), or pending-placeholder "
+        f"form; got: {image!r}"
     )
 
 

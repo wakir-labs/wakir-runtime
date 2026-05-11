@@ -2,6 +2,15 @@
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
 # Phase-2 Sprint-6 Tag-6 — SPIRE-Server hermetic sidecar substrate.
+# Phase-2 Sprint-6 Tag-8 — Cosign-Digest-Pin form (Pfad B) added on
+#   top of the Tag-6 substrate per Mira-Box-Brief Tag-8 (rebase of
+#   Tag-7 substance that was authored on a /tmp-worktree without
+#   origin-setup). Header preserved; Tag-6 hermetic posture (trust-
+#   domain ``example.test``, networks, deploy-limits, named volumes)
+#   is unchanged. The added items are: image @sha256-digest-pin form,
+#   read_only rootfs, non-root user, tmpfs for /run/spire, and an
+#   explicit loopback ports mapping. See ``docs/spire-server-phase-
+#   2-1.md`` for the Operator-Hand digest-substitution workflow.
 #
 # What this file is:
 #   A hermetic, Mock/Stub-only compose unit that declares a SPIRE-Server
@@ -59,7 +68,8 @@
 #   in a container's ``trust_domain`` config knows immediately this
 #   is the Sprint-6-Tag-6 hermetic skeleton, not a production stand.
 #
-# Image-Tag rationale (P7 verified 2026-05-11):
+# Image-Tag rationale (P7 verified 2026-05-11; Cosign-Digest-Pin form
+# added Sprint-6-Tag-8 rebase per Mira-Box-Brief):
 #   * Image: ``ghcr.io/spiffe/spire-server``
 #   * Tag:   ``1.14.6``
 #   * Latest stable release at authoring time: SPIRE v1.14.6
@@ -67,10 +77,20 @@
 #     https://github.com/spiffe/spire/releases — WebFetch verified
 #     Sprint-6-Tag-6 box).
 #   * Apache-2.0, CNCF-graduated project.
-#   * Tag-only pin (NOT digest-pinned) deliberate for the hermetic
-#     surface — digest-pinning is the Tag-3-Cosign-Skizze cadence and
-#     a Tomás-Hand Zone-C cross-review item (see
-#     ``docs/spiffe-z-a-jwt-svid-skizze.md`` §6 ¶1 P2 note).
+#   * Cosign-Digest-Pin form (Pfad B, added Sprint-6-Tag-8):
+#     ``ghcr.io/spiffe/spire-server:1.14.6@sha256:<digest>``.
+#     The literal ``@sha256:<digest>`` suffix is the verbindlich pin
+#     (tag is moveable, digest is not). The placeholder token
+#     ``DIGEST_PENDING_TOMAS_REVIEW`` is intentionally NOT a real
+#     digest — Operator-Hand must run ``cosign verify`` and
+#     ``skopeo inspect`` to resolve the canonical digest and commit
+#     the substitution before any live bring-up. The acceptance
+#     suite accepts both the placeholder token and a 64-hex sha256
+#     digest, so the follow-up substitution does not break tests.
+#   * Cross-Review-Gate: Tomás Zone-C (Container-Image-Pipeline ×
+#     OTS-Anchoring) confirms before substrate goes live (see
+#     ``dev-engineering/inbox/2026-05-12-zone-c-cross-review-spire-
+#     server-image-pin.md``).
 
 services:
 
@@ -81,26 +101,51 @@ services:
     # bind-mounted into ``/etc/spire/server/server.conf``. No
     # workload-registrations are pre-loaded — the
     # ``registration-entries.yaml`` is an empty stub for Phase-2.2.
-    image: ghcr.io/spiffe/spire-server:1.14.6
+    #
+    # Image-pin form (Sprint-6-Tag-8 rebase, Pfad B Cosign-Digest-Pin):
+    # ``tag@sha256:<digest>``. The digest token below is a documented
+    # placeholder; Operator-Hand resolves the canonical digest via
+    # ``cosign verify`` + ``skopeo inspect`` before any live bring-up.
+    image: "ghcr.io/spiffe/spire-server:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW"
     container_name: wakir-spire-server
     command:
       - "run"
       - "-config"
       - "/etc/spire/server/server.conf"
+    # Read-only root filesystem (Tag-8 hardening addition). The SPIRE-
+    # Server writes only to the named volume mounted at
+    # ``/var/lib/spire/server`` and the tmpfs at ``/run/spire``.
+    read_only: true
+    # Run as a non-root uid:gid. Upstream image ships with /opt/spire
+    # owned by uid 1000, and the data-volume permissions are managed
+    # by SPIRE itself on first run.
+    user: "1000:1000"
     volumes:
       # SPIRE-Server config (read-only bind-mount of the Mock/Stub
       # config file). The Mock config declares trust-domain
       # ``example.test`` and binds the gRPC server on 127.0.0.1:8081.
-      - ./config/spire-server.conf:/etc/spire/server/server.conf:ro
+      - "./config/spire-server.conf:/etc/spire/server/server.conf:ro"
       # SPIRE-Server data directory (datastore, key material).
       # Named volume so an operator-driven recreate does not destroy
       # the bootstrap-CA. ``compose down -v`` deliberately drops it.
-      - spire_server_data:/var/lib/spire/server
+      - "spire_server_data:/var/lib/spire/server"
       # SPIRE-Server Unix-socket directory (for SPIRE-Agent gRPC).
       # Phase-2.1 declares the socket-mount shape; no consumer is
       # attached yet (the Workload-API socket is on the SPIRE-Agent
       # side, which is a Phase-2.2 follow-up).
-      - spire_server_sockets:/run/spire/sockets
+      - "spire_server_sockets:/run/spire/sockets"
+    # tmpfs for ephemeral SPIRE runtime paths (Tag-8 hardening
+    # addition). Keeps the root filesystem strictly read-only.
+    tmpfs:
+      - "/run/spire:rw,size=16m,mode=0700"
+    # Loopback-only port mapping for the SPIRE-Server gRPC API
+    # (Tag-8 explicit port-mapping addition). The hermetic Tag-6
+    # form omitted ports entirely; Tag-8 adds an explicit
+    # 127.0.0.1-bound mapping so that an operator running on the
+    # host can ``spire-server`` CLI-introspect during bring-up
+    # without exposing the API to other hosts.
+    ports:
+      - "127.0.0.1:8081:8081"
     networks:
       - wakir
     restart: unless-stopped
