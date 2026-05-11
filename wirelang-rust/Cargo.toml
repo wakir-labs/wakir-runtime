@@ -35,9 +35,18 @@
 #   V8_MIGRATED_TO_V2 via the sister `persona-canonical-form` crate.
 #   Added Phase-1b Sprint-4 Tag-4 (2026-05-11).
 #
+# - persona-migration-resolver : multi-input `migrate_persona`
+#   dispatcher + linear chain resolver Rust pendant. Mirrors
+#   `wirelang.persona.persona_migration`: `migrate_persona(dict|str|Path)`,
+#   `_resolve_chain`, `_find_step_by_source`, and the
+#   `expected_post_migration_hash` re-hash assertion. Reuses
+#   `persona-canonical-form-yaml` for `&str` / `&Path` front-matter
+#   parsing and the `persona-migration` step registry for the chain
+#   walk. Cross-checked byte-identical against Python pins for all
+#   three migration vectors (V8→V1, V9→V2, V8→chain→V2). Added
+#   Phase-1b Sprint-4 Tag-5 (2026-05-11).
+#
 # Crates explicitly NOT in this workspace yet (Phase-1c follow-up boxes):
-# - persona-migration-resolver (chain resolver / `_resolve_chain` /
-#   `migrate_persona` multi-input dispatcher pendant)
 # - persona-cli (Rust pendant for `wakir-persona migrate`)
 #
 # Default-Lock posture (pengine-eng engine-side, ratified 2026-05-07 ~10:00 CEST)
@@ -59,6 +68,7 @@ members = [
     "crates/persona-canonical-form",
     "crates/persona-canonical-form-yaml",
     "crates/persona-migration",
+    "crates/persona-migration-resolver",
 ]
 
 [workspace.package]
