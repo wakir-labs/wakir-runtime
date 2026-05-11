@@ -1,8 +1,12 @@
 # SPIFFE/SPIRE Z-A JWT-SVID Container-Identity-Skizze (Phase-2+)
 
-- **Status:** Skizze (Phase-2-Sprint-5-Vorbereitung; Phase-3-Anker).
-  Kein Implementations-Auftrag. Cross-Review-Zone-A-Vorbereitungs-
-  Material.
+- **Status:** Skizze, Re-Write-Pass Sprint-6-Tag-5 nach Reza-Z-A-
+  Ack 2026-05-11T21:16Z. Vier Z-A-Slots beantwortet
+  (Ack/Ack/Ack-with-correction/Ack-with-hard-correction); Aisha-
+  Konsens-Marker-Recording pending. Skizze ist nicht mehr reines
+  Vorbereitungs-Material — die Refinement-/Korrektur-Items sind
+  eingearbeitet. Phase-2-Sprint-5-Z-A-Implementations-Start nach
+  Aisha-Marker.
 - **Owner:** DevOps-track (Container-Orchestration / Workload-Identity-
   Substrate).
 - **Cross-Review Konsument:** Wirelang-side track (Identity-Document-
@@ -36,16 +40,24 @@
 
 **Was diese Skizze liefert:**
 
-- **SPIFFE-Trust-Domain-Vorschlag:** `spiffe://wakir.local/` für
-  Phase-2 Single-Node-PoC; Phase-3 `spiffe://<org-id>.wakir.dev/`
-  für federation-fähige Multi-Org-Setups (V-908-Vorbereitung).
-- **SPIFFE-ID-Pattern-Vorschlag:** `spiffe://<trust-domain>/agent/
-  <persona-slug>/<persona-hash-short>` für Persona-Container;
+- **SPIFFE-Trust-Domain (Z-A-Ack-Stand Sprint-6-Tag-5):**
+  `spiffe://wakir.local/` für Phase-2 Single-Node-PoC; Phase-3a
+  `spiffe://<FTD-ID>.wakir.dev/` für federation-fähige Multi-Org-
+  Setups (V-908-Vorbereitung; `<FTD-ID>` ist V-908-Federation-
+  Pattern, NICHT freie Customer-Subdomain). Phase-3b White-Label
+  deferred.
+- **SPIFFE-ID-Pattern (Z-A-Ack-Stand):** `spiffe://<trust-domain>/
+  agent/<persona-slug>/<persona-hash-12>` für Persona-Container;
   `spiffe://<trust-domain>/service/<service-name>` für Substrate-
-  Komponenten (NATS, Orchestrator).
+  Komponenten. V-907-Hash full-form `sha256:<64-hex>` bleibt
+  audit-anker; 12-Hex-Char-Component-3 ist Display-Slice (hash-
+  algorithm-agnostic).
 - **JWT-SVID-Ausstellungs-Pfad:** SPIRE-Server-Sidecar (Phase-2,
-  single-node) → Workload-API Unix-Socket → Agent-Container fragt
-  SVID an → NATS-Connection mit JWT-Auth.
+  single-node) → Workload-API Unix-Socket → Persona-Container holt
+  SVID per Wirelang-side Adapter-Layer
+  (`wirelang/adapters/spiffe_workload_api.py`) → NATS-Connection
+  via `nats-py` `user_jwt_cb`-Callback-Pattern (Client-Side-
+  Refresh-on-Reconnect, kein NATS-Server-Feature).
 - **6-Schritt-Phase-Plan:** Phase 2.1–2.6 mit klarer
   Phase-Übergangs-Gate-Bedingung.
 - **Test-Substanz (Skizze-Beweis):** drei hermetic Tests im
@@ -86,14 +98,19 @@ Substrate ist im Phase-1b-Compose-Layout authentifizierungs-frei
 (Runbook §"Security note" Z. 965–970). Z-A-Auth-Upgrade ist
 explizit Sprint-3/Phase-2-Folge-Slot.
 
-**A3 (P2 conjecture).** Cross-Review-Zone-A-Konsens hat noch nicht
-stattgefunden (kein HR-track-Konsens-Protokoll für Z-A in `wakir-corp`
-oder `kai/inbox/` sichtbar). Diese Skizze ist Vorbereitungs-Material
-für die Z-A-Session, nicht das Resultat einer abgeschlossenen
-Session. **Daher gilt:** jeder konkrete Format-Vorschlag in §3
-und §4 ist **vorgeschlagen, nicht entschieden**. Wirelang-side
-track owned die Identity-Document-Schema-Spec; DevOps-track owns
-Container-Identity-Substrate-Implementation.
+**A3 (Sprint-6-Tag-5 upgraded — Z-A-Konsens vier Slots
+beantwortet).** Cross-Review-Zone-A: Reza-Ack 2026-05-11T21:16Z
+hat die vier offenen Slots adressiert (Trust-Domain-Format, SPIFFE-
+ID-Path-Pattern, `spiffe`-Package-Maintenance, NATS-JWT-Refresh).
+Aisha-Konsens-Marker-Recording-Step ist Operations-pending. Diese
+Skizze enthält die Re-Write-Items aus der Reza-Ack-Counter-Spalte:
+PyPI-Naming-Correction (`spiffe`), `user_jwt_cb`-Callback-Pattern,
+FTD-ID-Pattern-Refinement, Adapter-Layer-Indirection-Constraint.
+**Daher gilt Sprint-6-Tag-5:** Format-Vorschläge in §3, §4 sind
+mit Refinements ratifiziert (Reza-Ack-Slot-1+2); Implementation-
+Slots in §9 sind Aisha-Marker-bound. Wirelang-side owned die
+Identity-Document-Schema-Spec; DevOps-track owned Container-
+Identity-Substrate-Implementation.
 
 **A4 (verified).** Vault-1.21 hat native SPIFFE-Auth-Methode
 (ADR-0020 §"Vault 1.21 SPIFFE-Auth seit"). Phase-3-Vault-
@@ -128,18 +145,35 @@ Diese Skizze plant Phase-2 mit SQLite-Datastore (boring-default).
 | Phase | Trust-Domain                  | Begründung                                                                                           |
 | ----- | ----------------------------- | ---------------------------------------------------------------------------------------------------- |
 | 2     | `wakir.local`                 | Single-Node, kein DNS-Resolve-Risiko, kein Lock-in auf öffentliche Domain                            |
-| 3a    | `<org-id>.wakir.dev`          | Federation-fähig; Wakir-Labs als Mutter-Domain; per-Org-Subdomain (V-908-Cross-Org-Vorbereitung)     |
-| 3b    | `<org-id>.<custom-domain>`    | White-label-Pfad für Customer-Self-Hosting (Phase-3-Multi-Tenancy)                                   |
+| 3a    | `<FTD-ID>.wakir.dev`          | Federation-fähig; Wakir-Labs als Mutter-Domain; per-Org-Subdomain (V-908-Cross-Org-Vorbereitung). `<FTD-ID>` ist V-908-Term-of-Art (Federated-Trust-Domain-Identifier) — siehe Refinement unten     |
+| 3b    | deferred                      | White-Label-Pfad für Customer-Self-Hosting (Phase-3-Multi-Tenancy); Reza-Ack-Slot-1 §1.4 deferred Phase-3-Reopen-Slot, kein Phase-2/3a-Konsens-Scope     |
 
 **Phase-Übergang 2 → 3a:** SPIRE-Server-Config-Edit + DNS-Setup +
 SVID-Reissue-Pass. Keine Persona-Hash-Änderung nötig (Path-Components
 2 + 3 bleiben stabil; nur Trust-Domain ändert).
 
-**Decision-Slot:** Wirelang-side Z-A-Konsens muss bestätigen, dass
-das Trust-Domain-Format kompatibel mit dem Identity-Document-
-Schema-Issuer-Feld ist. Falls Z-A-Spec ein anderes Format verlangt
-(z.B. `spiffe://wakir/<env>/` ohne Org-Komponente), dann ist diese
-Skizze Z-A-bound zu überschreiben.
+**Refinement Sprint-6-Tag-5 (Reza-Ack-Slot-1):**
+`<FTD-ID>` ist **literal Federated-Trust-Domain-Identifier**
+(V-908-Federation-Spec-Pattern, NICHT freie Customer-Subdomain).
+FTD-ID-Constraints (Wirelang-side V-908-spec gem. Reza-Ack §1.3):
+
+- Slug-Form: `[a-z][a-z0-9-]{2,30}` (lower-case, kein
+  DNS-special-char in der Slug-Komponente, kein dot/underscore)
+- Registriert in der Federation-Routes-NATS-KV-Bucket
+  `wakir-federation-routes` (Phase-1b-Sprint-2-Substanz, DevOps-
+  track + Wirelang-side gemeinsam)
+
+**Phase-3a-Migration-Gate:** FTD-ID-Pattern muss eingehalten sein
+bevor `<FTD-ID>.wakir.dev`-Trust-Domain in SPIRE-Server-Config-
+Render-Step gezogen wird. SPIRE-Config Phase-2 muss noch nichts
+daran ändern (Trust-Domain ist `wakir.local`), aber der Phase-3a-
+Migration-Plan in §9 muss FTD-ID-Pattern-Validation als
+Pre-Migration-Step haben.
+
+**Z-A-Status Sprint-6-Tag-5:** Trust-Domain-Format `wakir.local`
+(Phase-2) + `<FTD-ID>.wakir.dev` (Phase-3a) ist Identity-Document-
+Schema-`issuer`-URI-kompatibel (Reza-Ack §1.2). Phase-3b ist
+deferred bis Phase-3-Reopen-Session.
 
 ---
 
@@ -169,9 +203,44 @@ spiffe://<trust-domain>/agent/<persona-slug>/<persona-hash-12>
   ausreichend; Vergleich erfolgt nur innerhalb derselben
   `<persona-slug>`-Untermenge.
 
-**Decision-Slot:** die `<persona-hash-12>`-Länge (12 vs. 16 vs. 8
-Hex-Chars) ist Z-A-Cross-Review-Slot. 12 ist Skizze-Vorschlag;
-Wirelang-side Identity-Document-Schema kann andere Länge verlangen.
+**Z-A-Konsens-Hard-Pin Sprint-6-Tag-5 (Reza-Ack-Slot-2 §2.2-§2.3):**
+
+- V-907-Persona-Hash full-form ist **immer**
+  `sha256:<64-lower-case-hex>` (RFC-8785 JCS + sha256, P7-verified
+  Reza-Ack `pengine/wakir-runtime/wirelang/specs/persona-hash-spec.md`
+  §3). Das ist der einzige byte-stabile Hash-Audit-Anker und der
+  WAT-Leaf-Input (Matrix-Lead-Domain).
+- SPIFFE-ID-Path-Component-3 ist ein **12-Hex-Char-Display-Slice**:
+  `sha256_hex(JCS(canonical_subset))[:12]` (12-Char-Prefix des hex-
+  Output ohne `sha256:`-Präfix). Beispiel: full-hash
+  `sha256:a3f2c1e8d4b7...64-hex...` → SPIFFE-ID-Component
+  `a3f2c1e8d4b7`. Kein Hash-Format-Variant, nur Display-Slice.
+- Kein Drift zwischen V-907-Hash und SPIFFE-ID: beide leiten sich
+  aus demselben byte-stabilen JCS-canonical-subset her.
+- **Hash-Algorithm-Agnostic:** falls V-907 in Phase-3 zu blake3
+  oder sha3 migriert wird, bleibt das 12-Hex-Char-Prefix-Pattern
+  stabil — die SPIFFE-ID-Format-Konstante muss nicht geändert
+  werden (Z-A-Konsens-Fixpunkt Reza-Ack §2.3).
+
+**12-Hex-Char-Akzeptanz (Reza-Ack §2.3):**
+
+- Kollisionsraum 2^48 = 2.8 × 10^14 — für ≤10^6 Persona-Versions
+  pro `<slug>`-Untermenge Birthday-Bound < 10^-3.
+- Industrie-Range: Git-Short-SHA 7 Hex (28 Bits), Docker-Image-
+  Short-Tag 12 Hex (48 Bits).
+- Display-Friendly (12 Chars lesbar in einer Zeile).
+
+**Cross-Reference WAT-Leaf-Hash (Matrix-Lead-Owner Tomás):** WAT-
+Leaf-Hash konsumiert die full-form `sha256:<64-hex>`; SPIFFE-ID
+konsumiert das 12-Char-Slice. Disjunkt, keine Z-A-Touch.
+
+**Persona-vs-Service-Disambiguation auf Component-1 (Reza-Ack
+§2.4):** `/agent/` darf Capability-Tokens **minten** (Wirelang-
+side Identity-Document-Schema-Constraint, Issuer-Role per AIP-
+Document); `/service/` darf Capability-Tokens **konsumieren** aber
+NICHT minten. Diese Constraint ist Wirelang-side-owned, kein
+DevOps-track-Slot — aber relevant für SPIRE-Registration-Entry-
+Generation (Phase-3-Folge-Skizze, siehe §10 Risiko-Tabelle).
 
 ### 3.2 Substrate-Service-IDs
 
@@ -245,14 +314,30 @@ spiffe://<trust-domain>/service/<service-name>
    - `exp` = 15 min ab Issue-Time (boring-default)
    - `iss` = `https://wakir.local/spire-server`
 6. **NATS-Connection.** Persona-Container connectet zu NATS mit
-   `nats.connect(url, user_jwt=<jwt>, ...)`. NATS-Server validiert
-   JWT gegen SPIRE-Trust-Bundle-Public-Key.
-7. **Refresh-Loop.** Persona-Container hält
-   `WatchJWTSVIDs`-Stream offen; SPIRE-Server pushed neue SVID
-   bevor `exp - 5 min`. Persona-Container reconnected NATS mit
-   neuer SVID (NATS-2.10+ unterstützt JWT-Refresh ohne
-   Connection-Drop, per `nats.io`-Roadmap-Item — P2 conjecture,
-   muss in Z-A-Session verifiziert werden).
+   `nats.connect(url, user_jwt_cb=<callable returning JWT bytes>,
+   ...)`. NATS-Server validiert das im CONNECT-Frame eingebettete
+   JWT gegen SPIRE-Trust-Bundle-Public-Key. Der Callback liest die
+   zuletzt von `WatchJWTSVIDs` gepushte SVID — kein statisches
+   `user_jwt`-String-Argument (siehe §6 §3 für Adapter-Pfad).
+7. **Refresh-Loop (Client-Side-Callback-Pattern).** Persona-
+   Container hält `WatchJWTSVIDs`-Stream zum SPIRE-Server für
+   Background-Refresh; SPIRE-Server pushed neue SVID vor
+   `exp - 5 min`. Der `nats-py`-Client wurde mit `user_jwt_cb=
+   <callable>` initialisiert; das Callback liest die zuletzt
+   gepushte JWT-SVID. Bei NATS-Reconnect (Network-Glitch oder
+   periodischer Server-Restart) ruft `nats-py` das Callback
+   automatisch auf und sendet die aktuelle SVID im neuen
+   CONNECT-Frame. NATS-Server validiert das neue JWT gegen
+   Trust-Bundle-Public-Key. Solange eine NATS-Connection lebt
+   bleibt sie unter dem aktuellen Token gültig bis Token-`exp`.
+   **Kein expliziter `connection.close() + connection.connect()`
+   durch Persona-Container nötig — `nats-py` Reconnect-Mechanik
+   plus Callback-Closure leisten den Refresh.**
+   P7-verified: `nats/aio/client.py` Zeilen 110, 315–317, 370,
+   1666–1668 (Reza-Z-A-Ack 2026-05-11T21:16Z, Skizze §11).
+   **Korrektur Sprint-6-Tag-5:** ältere Skizze-Version sprach von
+   "NATS-2.10+-Roadmap-Feature" — das ist falsch; Refresh-on-
+   Reconnect ist Client-Side-Callback, kein Server-Feature.
 
 ### 4.3 JWT-Claims-Set (Vorschlag)
 
@@ -331,20 +416,55 @@ SPIRE ist Go-Native. Der DevOps-track schreibt keinen Go-Code (ADR-0035
    `ghcr.io/spiffe/spire-server` (P2 conjecture — Image-Tag-
    Konkretisierung ist Cosign-Pinning-Slot analog Tag-3 NATS-
    Image-Pin-Praxis).
-2. **SPIRE-Workload-API-Client (Python):** das Python-Package
-   `py-spiffe` (CNCF-spiffe-Sub-Project) hat einen Workload-API-
-   Client. P2 conjecture: das Package ist maintained und
-   PyPI-published. **Verifikation pflichtig in Z-A-Session.**
-3. **NATS-JWT-Auth-Adapter:** `nats-py` 2.x+ unterstützt
-   `user_jwt`-Connection-Parameter (P7 verified — `nats-py` README
-   listet `user_jwt` als `connect()`-Argument; bei nächster
-   `nats-py`-Upgrade ist die API-Stabilität zu prüfen).
+2. **SPIRE-Workload-API-Client (Python):** das PyPI-Package
+   `spiffe` (CNCF SPIFFE-Sub-Project, GitHub-Repo
+   `HewlettPackard/py-spiffe`, Apache-2.0) liefert den Workload-
+   API-Client und SVID-Management.
+   **PyPI-Naming-Correction Sprint-6-Tag-5:** dependency-line
+   ist `spiffe>=<min-version>`, NICHT `py-spiffe>=<min-version>`.
+   Der GitHub-Repo-Name `py-spiffe` ist nicht der pip-install-Name.
+   P7-verified (Reza-Z-A-Ack 2026-05-11T21:16Z): latest release
+   `spiffe-tls v0.3.2` 2026-05-11, Apache-2.0, active maintenance,
+   19 total releases, 0 open issues + 0 open PRs.
+   **Wirelang-side-Constraint (Reza-Counter-Vorschlag Z-A-Slot-3):**
+   kein Direkt-Import von `spiffe.workload_api` in Persona-
+   Container-Code. Stattdessen ein Adapter-Modul
+   `wirelang/adapters/spiffe_workload_api.py` (Wirelang-side
+   Surface-Owner, siehe Reza-Sprint-6-Tag-5/6-Folge-Skizze) als
+   Indirection-Layer mit eigener Surface (z.B.
+   `fetch_jwt_svid(audience: str) -> JwtSvid`). Begründung:
+   Library-Drift (Breaking-API-Change in `spiffe` oder
+   Maintenance-Drop) bleibt Wirelang-side-Surface-stabil, ohne
+   Persona-Container-Code-Mass-Edits. Adapter-Layer eröffnet
+   zusätzlich einen AIP-Document-Validation-Hook beim SVID-Fetch
+   (Wirelang-side Capability-Layer-Slot).
+3. **NATS-JWT-Auth-Adapter (Client-Side-Callback-Pattern).**
+   `nats-py` 2.x+ unterstützt **`user_jwt_cb=<callable returning
+   JWT bytes>`** als `connect()`-Parameter — Callback-Pattern, nicht
+   statisches `user_jwt`-String-Argument. P7-verified Sprint-6-
+   Tag-5 (Reza-Z-A-Ack): `nats/aio/client.py` Zeile 110 deklariert
+   `JWTCallback = Callable[[], Union[bytearray, bytes]]`; Zeile
+   315–317 + 370 binden das Callback an `_user_jwt_cb`; Zeile
+   1666–1668 ruft das Callback **bei jedem CONNECT-Frame-Build**
+   auf (also auch bei Reconnect). Konsequenz für den Adapter-
+   Pfad: das Callback bezieht die zuletzt von `WatchJWTSVIDs`
+   gepushte JWT-SVID aus einem Background-Refresh-Stream-Holder
+   (z.B. eine `wirelang.adapters.spiffe_workload_api.JwtSvidCache`-
+   Surface). Bei NATS-Reconnect wird die aktuelle SVID automatisch
+   eingebettet — kein Force-Reconnect durch Persona-Container nötig.
+   **Korrektur Sprint-6-Tag-5:** ältere Skizze-Version sprach von
+   `user_jwt`-Connection-Parameter (statisches String-Argument);
+   das ist `nats-py`-API-falsch. Der korrekte Parameter ist
+   `user_jwt_cb`-Callback.
 
 **Wichtig:** kein Eigenbau von SPIRE-Server-Logik oder
 Workload-API-RPC-Protokoll. Der DevOps-track konsumiert die existierende
 SPIRE-Implementation als Container-Sidecar und ruft die
-Workload-API per `py-spiffe`-Client. Drift gegen SPIFFE-Spec ist
-SPIRE-Upstream-Concern, nicht DevOps-track-Concern.
+Workload-API per `spiffe`-Package indirekt über den
+Wirelang-side Adapter-Layer (`wirelang/adapters/spiffe_workload_api.py`).
+Drift gegen SPIFFE-Spec ist SPIRE-Upstream-Concern, nicht DevOps-
+track-Concern; Drift gegen `spiffe`-Library ist Wirelang-side
+Adapter-Layer-Concern, nicht Persona-Container-Concern.
 
 ---
 
@@ -381,11 +501,12 @@ Diese Skizze wird im Runbook unter §7.8 als Sprint-Anker
 registriert:
 
 > §7.8 SPIFFE/SPIRE Z-A JWT-SVID Container-Identity-Skizze
-> (Phase-2 Sprint-4 Tag-6, docs/spiffe-z-a-jwt-svid-skizze.md).
-> Cross-Review-Zone-A-Vorbereitungs-Material. Keine Substrate-
-> Änderung; reine Doku-Skizze plus 3 hermetic Format-Konstanten-
-> Tests. Z-A-Konsens-Trigger erforderlich bevor Phase-2-Sprint-5
-> Workload-API-Adapter-Implementation startet.
+> (Phase-2 Sprint-4 Tag-6 Origin + Sprint-6-Tag-5 Re-Write nach
+> Reza-Z-A-Ack 2026-05-11T21:16Z, docs/spiffe-z-a-jwt-svid-skizze.md).
+> Cross-Review-Zone-A-Konsens vier Slots beantwortet (Aisha-Marker-
+> Recording pending). Keine Substrate-Änderung; reine Doku-Skizze
+> plus 3 hermetic Format-Konstanten-Tests. Phase-2-Sprint-5/6
+> Workload-API-Adapter-Implementation entblockt nach Aisha-Marker.
 
 Die §7.8-Sektion im Runbook-Body führt die Skizze als
 "siehe docs/spiffe-z-a-jwt-svid-skizze.md" mit Bucket-summary
@@ -396,17 +517,27 @@ Record führt.
 
 ## 9. Phase-2 Sprint-5-Vorbereitung (Phase-Plan)
 
-Phase-2-Sprint-5 ist der **frühestmögliche** Sprint für Z-A-
+Phase-2-Sprint-5/6 ist der **frühestmögliche** Sprint für Z-A-
 Implementation. Bedingung: Z-A-Konsens-Marker abgeschlossen
-(HR-track Cross-Review-Protokoll); ohne Konsens kein Sprint-5-Z-A-Item.
+(HR-track Cross-Review-Protokoll, Aisha-Marker-Recording-Step
+Sprint-6-Tag-5 pending nach Reza-Ack 2026-05-11T21:16Z); ohne
+Marker-Stamp kein Implementation-Start.
+
+**Sprint-6-Tag-5-Refinement:** wegen Sprint-5-Re-Prioritization
+(Quadlet/cosign/capability-policies) sind die Phase-2.x-Slots als
+Sprint-6/7-Items abrufbar. Phase-Marker `Sprint-5` in den
+folgenden Unter-Punkten ist historisch; effektiver Start-Slot ist
+Aisha-Marker-bound.
 
 **Phase-2.1 (Sprint-5 Tag-1):** SPIRE-Server-Container als Sidecar
 zum NATS-Substrate addieren. Compose-Erweiterung
 `compose/spire.yaml`. Hermetic Test: SPIRE-Server-Container starts.
 
 **Phase-2.2 (Sprint-5 Tag-2):** Workload-API-Client-Setup in
-Persona-Container-Base-Image (`py-spiffe`-Dependency).
-Hermetic Test: Workload-API-Client-Module imports without error.
+Persona-Container-Base-Image (PyPI-Package `spiffe`-Dependency,
+konsumiert über Wirelang-side Adapter-Layer
+`wirelang/adapters/spiffe_workload_api.py` — siehe §6 §2).
+Hermetic Test: Adapter-Layer-Module imports without error.
 
 **Phase-2.3 (Sprint-5 Tag-3):** SVID-Fetch-Smoke-Test. Live-gated
 (`WAKIR_SPIRE_LIVE=1`): start SPIRE-Server + register a test
@@ -439,13 +570,16 @@ TEE-Attestor-Plugin-konsumierbar sind.
 
 | Risiko / Slot | Disposition |
 | --- | --- |
-| Z-A-Konsens-Marker noch nicht abgeschlossen | Skizze ist Vorbereitungs-Material; kein Phase-2-Sprint-5-Z-A-Implementation-Start ohne Konsens |
-| Trust-Domain-Format-Vorschlag (`wakir.local` Phase-2) ist nicht authoritative | Z-A-Schema-Spec kann anderes Format verlangen; Skizze ist Z-A-bound überschreibbar |
-| Persona-Hash-Pfad-Länge (12 Hex) ist Skizze-Vorschlag | Wirelang-side Identity-Document-Schema kann andere Länge fordern (8, 16, 32) — formales Z-A-Slot |
-| `py-spiffe`-Paket-Maintenance-Status nicht verifiziert | Z-A-Session-Pflicht: PyPI-Status + Maintainer-Aktivität + License-Check vor Sprint-5-Tag-2-Implementation |
-| NATS-2.10+-JWT-Refresh-on-Reconnect-Verhalten P2 | Z-A-Session-Pflicht: Roadmap-Item-Status verifizieren oder Workaround dokumentieren |
+| Z-A-Konsens-Marker recorded with refinements 2026-05-11 (Reza-Ack) | Sprint-6-Tag-5 Status: vier Slots beantwortet (Ack/Ack/Ack-with-correction/Ack-with-hard-correction). Aisha-Marker-Recording pending (Konsens-Stamp); Refinement-Items in §5 dieser Skizze + Reza-Ack §5 dokumentiert |
+| Trust-Domain-Format `wakir.local` (Phase-2) + `<FTD-ID>.wakir.dev` (Phase-3a) | Ack mit Refinement Reza-Ack-Slot-1: `<org-id>` in §2 ist literal FTD-ID (V-908-Federation-Pattern, Slug-Form `[a-z][a-z0-9-]{2,30}`, registriert in `wakir-federation-routes`-Bucket). Phase-3b White-Label-Pfad ist deferred (kein Z-A-Slot in Phase-2/3a-Scope) |
+| Persona-Hash-Pfad-Länge (12 Hex) | Ack mit Hard-Pin Reza-Ack-Slot-2: V-907-Hash full-form bleibt `sha256:<64-hex>` (audit-anker, WAT-Leaf-Input); SPIFFE-ID-Component-3 ist 12-Hex-Char-Prefix-Display (hash-algorithm-agnostic, stabil bei Phase-3-Hash-Algorithm-Migration zu blake3/sha3) |
+| `spiffe`-Paket (PyPI) Maintenance-Status | Ack mit Correction Reza-Ack-Slot-3 (P2→P7-Upgrade 2026-05-11T21:16Z): GitHub `HewlettPackard/py-spiffe`, PyPI-Package `spiffe`, Apache-2.0, latest release `spiffe-tls v0.3.2` 2026-05-11, 19 releases, 0 open issues+PRs. **PyPI-Naming-Correction:** `spiffe`, NICHT `py-spiffe`. Wirelang-side Adapter-Layer-Constraint: kein Direkt-Import in Persona-Container-Code |
+| NATS-JWT-Refresh-on-Reconnect-Verhalten | Ack mit Hard-Correction Reza-Ack-Slot-4 (P2→P7-Upgrade): `nats-py` `user_jwt_cb`-Callback-Pattern (`nats/aio/client.py` Z. 1666–1668), NICHT NATS-Server-2.10+-Feature. Refresh-on-Reconnect ist Client-Side-Callback-Pattern; das Callback wird bei jedem CONNECT-Frame-Build aufgerufen |
+| Trust-Bundle-Rotation-Sequence | Phase-2-Sprint-5-Tag-6 Operator-Runbook §7.8-Erweiterungs-Item (NATS-Config-Reload + Trust-Bundle-Watch); DevOps-track-Operations, kein Wirelang-side-Block (Reza-Ack-Slot-4 §4.4) |
 | Phase-3-Trust-Domain-FQDN-Migration | Kein Substrat-Wechsel, aber SVID-Reissue-Pass nötig; Phase-Plan §9 listet das nicht — Folge-Skizze in Phase-3 |
-| V-907-Persona-Hash-Format-Drift | Wirelang-track-Owner-Hash-Format-Spec gilt; falls die Spec sich noch ändert, ist Path-Component-3 dieser Skizze automatisch bound |
+| V-907-Persona-Hash-Format-Drift | Wirelang-track-Owner-Hash-Format-Spec gilt; SPIFFE-ID-Component-3-Pattern bleibt hash-algorithm-agnostic stabil (Reza-Ack-Slot-2 Z-A-Konsens-Fixpunkt) |
+| AIP-Document-zu-SPIRE-Registration-Entry-Generator | Phase-3-Folge-Skizze-Slot (nicht Sprint-5/6-Scope, Reza-Ack-Slot-2 §2.5); Cross-Track-Owner: AIP-Document-Schema Wirelang-side, SPIRE-Registration-Entry-Generation DevOps-track, Drift-Risk-Surface |
+| `spiffe`-Library-Maintenance-Drop (mittelfristig) | Z-A-Folge-Slot Phase-3-Reopen (Reza-Ack-Slot-3 §3.5); Indikator: kein Release > 12 Monate, > 5 open security-issues. Adapter-Layer-Indirection isoliert Persona-Container-Code von Library-Wechsel |
 | Vault-Backend-Integration | Z-A-Folge-Slot; nicht Sprint-5-Phase-2-Scope; ADR-0020 hat Pfad benannt aber nicht spezifiziert |
 
 ---
@@ -454,6 +588,9 @@ TEE-Attestor-Plugin-konsumierbar sind.
 
 - **Authoring-Zeitstempel:** `date -u` 2026-05-11T18:30:01Z
   (CEST 20:30, Phase-2 Sprint-4 Tag-6).
+- **Re-Write-Zeitstempel Sprint-6-Tag-5:** `date -u`
+  2026-05-11T21:35:08Z (CEST 23:35, Re-Write nach Reza-Z-A-Ack
+  2026-05-11T21:16Z).
 - **Runbook-Z-A-Referenzen verified:** Zeilen 704, 966, 1161,
   1352, 1527, 1659 in `docs/orchestrator-nats-kv-phase-1-runbook.md`
   (Tag-5-Branch-Stand, commit `7fc13ee`).
@@ -470,15 +607,44 @@ TEE-Attestor-Plugin-konsumierbar sind.
   §"Stash-Drop-Status"). Verified via `git stash drop stash@{0}`
   → `Dropped stash@{0} (fa598a48...)`; post-drop `git stash list`
   ist leer.
+- **Reza-Z-A-Ack-Anker (P7-upgrades Sprint-6-Tag-5):** File
+  `reza/outbox/2026-05-11-z-a-cross-review-ack.md` Zeilen 18–22
+  (TL;DR-Tabelle aller vier Slot-Positionen), §3.2 (PyPI-Package-
+  Name-Correction `spiffe`), §4.2 (NATS-JWT `user_jwt_cb`-Callback-
+  Pattern), §5 (DevOps-track-Edit-Items für diese Skizze). Read via
+  Read-tool 2026-05-11T21:35:08Z.
+- **`nats-py` `user_jwt_cb`-Pattern verified durch Reza:**
+  `kai/wakir-runtime/.venv/lib/python3.14/site-packages/nats/aio/
+  client.py` Zeilen 110 (JWTCallback-Typdef), 315–317 (Field-
+  Binding), 370 (connect-signature), 1666–1668 (CONNECT-Frame-
+  Builder Callback-Invocation). Sprint-6-Tag-5 P7-Übernahme.
+- **`spiffe` PyPI-Package-Name verified durch Reza:** WebFetch
+  `https://github.com/HewlettPackard/py-spiffe` 2026-05-11T21:16Z.
+  PyPI-Packages `spiffe` (core) + `spiffe-tls` (experimental).
+  Repo-Name `py-spiffe` ist NICHT pip-install-Name.
 
-**P2 Vermutungs-Kennzeichnungen:**
+**P2 Vermutungs-Kennzeichnungen (Sprint-6-Tag-5 reduziert):**
 
-- A3, A5, A7 sind explizit P2 markiert (Z-A-Konsens-Status,
-  Trust-Domain-FQDN-Annahme, SPIRE-Single-Node-Phase-2-Ausreichend-
-  Annahme).
-- `py-spiffe`-PyPI-Status, NATS-JWT-Refresh-Verhalten, SPIRE-Image-
-  Tag-Konkretisierung sind alle P2 in §10 dokumentiert.
-- Custom-Claims-Schema-Slot ist explizit Wirelang-side-Decision.
+- A3, A5, A7 bleiben P2 markiert (Trust-Domain-FQDN-Annahme,
+  SPIRE-Single-Node-Phase-2-Ausreichend-Annahme).
+  **Re-Klassifikation:** A3 (Z-A-Konsens-Status) ist Sprint-6-Tag-5
+  nicht mehr P2 — Konsens vier Slots beantwortet (Reza-Ack); Aisha-
+  Marker-Recording-Step ist Operations-pending, nicht Skizze-
+  Substanz-P2.
+- **P2→P7-upgraded Sprint-6-Tag-5 (Reza-Ack):**
+  - `spiffe`-PyPI-Status (active maintenance 2026-05-11, verified).
+  - NATS-JWT-Refresh-Verhalten (`user_jwt_cb`-Callback-Pattern,
+    Client-Side, verified `nats/aio/client.py` Z. 1666–1668).
+- **P2 verbleibend:**
+  - SPIRE-Image-Tag-Konkretisierung (Cosign-Pinning-Slot Phase-2-
+    Sprint-5-Tag-1-Folge-Item).
+  - Custom-Claims-Schema-Slot ist Wirelang-side-Decision.
+  - Python-Version-Range für `spiffe`-Package (Reza-Ack §7 P2-
+    Note: vermutlich 3.9+; Direct-PyPI-Metadata-Read Sprint-5-Tag-2-
+    Vorbereitungs-Item).
+  - FTD-ID-Slug-Pattern-Konstanten `[a-z][a-z0-9-]{2,30}` basieren
+    auf V-908-Spec-Annahme (Reza-Ack §7 P2-Note); Re-read der V-908-
+    Spec ist Z-A-Folge-Slot.
 
 ---
 

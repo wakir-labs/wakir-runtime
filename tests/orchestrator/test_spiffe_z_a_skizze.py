@@ -196,8 +196,10 @@ def test_workload_api_socket_path_is_documented_phase_2_default(constants):
 
     Pins: §4.1 ``/run/spire/sockets/agent.sock`` as the boring-default
     Phase-2 socket path, plus ``SPIFFE_ENDPOINT_SOCKET`` as the SPIFFE-
-    spec-defined override env-var (matches the ``go-spiffe`` /
-    ``py-spiffe`` upstream conventions).
+    spec-defined override env-var (matches the ``go-spiffe`` and
+    ``HewlettPackard/py-spiffe`` GitHub-repo upstream conventions; the
+    PyPI package name for the Python client is ``spiffe``, see Skizze
+    §6 §2 Sprint-6-Tag-5 re-write).
     """
     # §4.1 default.
     assert (
@@ -211,7 +213,8 @@ def test_workload_api_socket_path_is_documented_phase_2_default(constants):
 
     # Env-var name follows SPIFFE-spec convention (``SPIFFE_ENDPOINT_SOCKET``).
     # Pinning the spelling here prevents a silent drift to a wakir-local
-    # name that would break ``py-spiffe`` consumers.
+    # name that would break ``spiffe`` PyPI-package consumers (the Python
+    # client published from the ``HewlettPackard/py-spiffe`` GitHub repo).
     assert constants.WORKLOAD_API_SOCKET_ENV_VAR == "SPIFFE_ENDPOINT_SOCKET"
 
     # JWT-SVID TTL default is 15 minutes (SPIRE boring-default).
