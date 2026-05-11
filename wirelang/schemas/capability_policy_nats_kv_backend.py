@@ -345,6 +345,46 @@ class CapabilityPolicyConflictError(CapabilityPolicyBackendError):
         self.actual_revision = actual_revision
 
 
+class CapabilityPolicyRevocationConflict(CapabilityPolicyBackendError):
+    """Raised when a write would un-revoke a policy that is already
+    revoked, or would advance the ``revoked_at`` instant strictly
+    later than the live one.
+
+    Phase-2 Sprint-6 Tag-1: revocation is a one-way state transition.
+    Once a policy carries a ``revoked_at`` instant, subsequent writes
+    MUST either preserve that instant byte-equally (idempotent
+    re-write, e.g. note refresh) or refuse. A later revocation
+    instant is rejected because revocation is an authority gesture
+    that cannot be retroactively softened. An ``un-revoke`` (revoked
+    policy → unrevoked policy) is rejected because the revocation
+    represents an authority statement of compromise; the operator
+    MUST mint a new ``policy_id`` instead.
+
+    This invariant is enforced on
+    :meth:`NatsKvCapabilityPolicyBackend.put_with_revision` (the
+    CAS-pinned write path); the unsafe LWW ``put`` path does NOT
+    enforce it (consistent with the Sprint-5 Tag-4 rationale: LWW
+    writes are operator-deliberate, CAS-pinned writes guard the
+    safety invariants).
+
+    Carries ``key`` and the conflicting ``existing_revoked_at`` /
+    ``proposed_revoked_at`` instants for downstream audit.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        key: Optional[str] = None,
+        existing_revoked_at: Optional[datetime] = None,
+        proposed_revoked_at: Optional[datetime] = None,
+    ) -> None:
+        super().__init__(message)
+        self.key = key
+        self.existing_revoked_at = existing_revoked_at
+        self.proposed_revoked_at = proposed_revoked_at
+
+
 # ---------------------------------------------------------------------------
 # Identity pair ↔ key derivation
 # ---------------------------------------------------------------------------
@@ -546,6 +586,16 @@ def _record_to_envelope(record: CapabilityPolicyRecord) -> bytes:
         ),
         "disabled": policy.disabled,
         "note": policy.note,
+        # Phase-2 Sprint-6 Tag-1: additive revocation surface.
+        # Both fields default to ``None`` (no revocation); a Sprint-5
+        # Tag-2..5 envelope without these keys decodes byte-equally
+        # via :func:`_envelope_to_record` to an unrevoked policy.
+        "revoked_at": (
+            _dt_to_rfc3339(policy.revoked_at)
+            if policy.revoked_at is not None
+            else None
+        ),
+        "revocation_reason": policy.revocation_reason,
         "registered_at": _dt_to_rfc3339(record.registered_at),
         "registered_by_publisher": record.registered_by_publisher,
     }
@@ -653,6 +703,30 @@ def _envelope_to_record(blob: bytes) -> CapabilityPolicyRecord:
             f"envelope note must be a string or null: type="
             f"{type(note_raw).__name__}"
         )
+    # Phase-2 Sprint-6 Tag-1: optional revocation fields (additive).
+    # Older Sprint-5 Tag-2..5 envelopes omit these keys; the decoder
+    # treats absence as ``None`` (unrevoked) so back-compat is
+    # byte-precise. New envelopes carry RFC-3339 ``revoked_at`` and
+    # a free-form ``revocation_reason`` string (or both ``null``).
+    revoked_at_raw = payload.get("revoked_at")
+    try:
+        revoked_at = (
+            _rfc3339_to_dt(revoked_at_raw)
+            if revoked_at_raw is not None
+            else None
+        )
+    except ValueError as exc:
+        raise CapabilityPolicyEnvelopeError(
+            f"envelope revoked_at parse error: {exc!r}"
+        ) from exc
+    revocation_reason_raw = payload.get("revocation_reason")
+    if revocation_reason_raw is not None and not isinstance(
+        revocation_reason_raw, str
+    ):
+        raise CapabilityPolicyEnvelopeError(
+            f"envelope revocation_reason must be a string or null: type="
+            f"{type(revocation_reason_raw).__name__}"
+        )
     # Round-trip through the Sprint-4 Tag-6 CapabilityPolicy
     # constructor so every invariant (non-empty registered_by,
     # non-empty allowed_kids, valid window, etc.) is enforced
@@ -668,6 +742,8 @@ def _envelope_to_record(blob: bytes) -> CapabilityPolicyRecord:
             not_after=not_after,
             disabled=disabled_raw,
             note=note_raw,
+            revoked_at=revoked_at,
+            revocation_reason=revocation_reason_raw,
         )
     except RegisteredByCapabilityError as exc:
         raise CapabilityPolicyEnvelopeError(
@@ -888,6 +964,47 @@ class NatsKvCapabilityPolicyBackend:
             )
         # Gate 2: pair ↔ key (raises on malformed components).
         key = record.key
+        # Gate 3 (Phase-2 Sprint-6 Tag-1): revocation-monotonic.
+        # If the live record at this key carries a revocation, the
+        # incoming record MUST either preserve the same ``revoked_at``
+        # instant or refuse. An incoming ``revoked_at=None`` against a
+        # live revoked policy is an un-revoke attempt and is rejected
+        # (the operator MUST mint a new policy_id instead). An
+        # incoming ``revoked_at`` strictly greater than the live one
+        # is rejected because revocation cannot be retroactively
+        # softened; equal-instant rewrites are permitted (so a
+        # ``revocation_reason`` note refresh remains legal).
+        try:
+            existing = await self.get(key)
+        except CapabilityPolicyEnvelopeError:
+            # A poisoned live envelope is surfaced by ``get``; the
+            # CAS-pin path forwards that failure up. Reza-Hand: a
+            # poisoned-on-disk policy must not be silently overwritten
+            # by CAS-pin either.
+            raise
+        if existing is not None and existing.policy.revoked_at is not None:
+            live_revoked_at = existing.policy.revoked_at
+            new_revoked_at = record.policy.revoked_at
+            if new_revoked_at is None:
+                raise CapabilityPolicyRevocationConflict(
+                    "cannot un-revoke a revoked policy via CAS-pin: "
+                    f"key={key!r} live_revoked_at={live_revoked_at!r} "
+                    "(mint a new policy_id instead)",
+                    key=key,
+                    existing_revoked_at=live_revoked_at,
+                    proposed_revoked_at=None,
+                )
+            if new_revoked_at != live_revoked_at:
+                raise CapabilityPolicyRevocationConflict(
+                    "cannot change the revocation instant of an already-"
+                    f"revoked policy: key={key!r} "
+                    f"live_revoked_at={live_revoked_at!r} "
+                    f"proposed_revoked_at={new_revoked_at!r} "
+                    "(equal-instant idempotent rewrites are permitted)",
+                    key=key,
+                    existing_revoked_at=live_revoked_at,
+                    proposed_revoked_at=new_revoked_at,
+                )
         blob = _record_to_envelope(record)
         revision = await _kv_update_with_revision(
             self.kv, key, blob, expected_revision
@@ -1595,6 +1712,7 @@ __all__ = [
     "CapabilityPolicyBackendError",
     "CapabilityPolicyConflictError",
     "CapabilityPolicyEnvelopeError",
+    "CapabilityPolicyRevocationConflict",
     "CapabilityPolicyValidationError",
     "CapabilityPolicyRecord",
     "CapabilityPolicyWatchEvent",

@@ -9,19 +9,20 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wirelang-schema-registry
-version: 0.15.0
+version: 0.16.0
 status: draft
 date: 2026-05-11
 audience: implementers, integrators, operators
 license: CC-BY-4.0
 ---
 
-# Wirelang Schema Registry — NATS-KV Backend Specification (v0.15.0)
+# Wirelang Schema Registry — NATS-KV Backend Specification (v0.16.0)
 
 **Change log**
 
 | Version | Date       | Change                                                 |
 |---------|------------|--------------------------------------------------------|
+| 0.16.0  | 2026-05-11 | Phase-2 Sprint-6 Tag-1 lands the **explicit capability-policy revocation** surface (`wirelang.schemas.registered_by_capability` gains `CapabilityPolicy.revoked_at: Optional[datetime]` and `CapabilityPolicy.revocation_reason: Optional[str]`; `DecisionSource.POLICY_REVOKED` added; gate precedence amended so a revoked policy denies categorically — outranks the Sprint-4 Tag-6 `POLICY_DISABLED` / `KID_NOT_ALLOWED` / `TRIPLE_NOT_ALLOWED` / `OUTSIDE_VALIDITY_WINDOW` fallback ordering; the revocation check denies even when `as_of=None` — deliberately stricter than the `not_before` / `not_after` window which skips on `as_of=None`); `wirelang.schemas.capability_policy_nats_kv_backend` envelope additive (`revoked_at` and `revocation_reason` keys added to the `wakir.wirelang.capability-policy-entry/1` value schema; both optional, both null-default for back-compat with Sprint-5 Tag-2..5 envelopes); new typed exception `CapabilityPolicyRevocationConflict` carrying `key` / `existing_revoked_at` / `proposed_revoked_at`; `NatsKvCapabilityPolicyBackend.put_with_revision` enforces *revocation-monotonicity* (a revoked policy MUST preserve its `revoked_at` instant byte-equally on subsequent CAS-pin writes; un-revoke and advance-instant attempts raise `CapabilityPolicyRevocationConflict`; equal-instant idempotent rewrites are permitted so `revocation_reason` refreshes remain legal); the LWW `put` path does NOT enforce monotonicity (consistent with the Sprint-5 Tag-4 rationale that LWW writes are operator-deliberate and the CAS-pin path is the safety-invariant guard); §5.12 extended with a "Revocation operational contract (Sprint-6 Tag-1, additive over Sprint-4 Tag-6 and Sprint-5 Tag-2..5)" subsection covering the bundle-shape additions, gate-precedence amendment, envelope-additive contract, CAS-pin monotonicity contract, and the LWW non-enforcement boundary; §6 extended with §6.14 T-CPP-REV-01..10 + 2 auxiliary probes test inventory (suite 842 → 854, +12 net); §5.12 boundary item "explicit revocation" CONSUMED; §7 Phase-3-Reservation "capability-policy explicit revocation slot" CONSUMED. The Sprint-6 Tag-1 path is **additive over Sprint-5 Tag-5**: Tag-2 LWW surface, Tag-3 publisher-CLI integration, Tag-4 CAS-pin surface, and Tag-5 watch-stream surface are byte-unchanged in shape; the CAS-pin write path gains the pre-CAS `Gate 3` revocation-monotonicity check that runs strictly BEFORE the underlying KV update, so a rejected revocation attempt does not advance the live revision. Verifier-side gate decisions are byte-equal regardless of registry source (full `snapshot_registry`, watch-fed `LiveCapabilityPolicySnapshot.as_registry`, or operator-local JSON file path); a revoked policy denies through all three. M-2 conformance preserved (envelope schema additive only; older Sprint-5 envelopes decode byte-equally via the additive decoder); M-4 conformance preserved (orthogonal to version axis). Cross-Review-Zone-1 non-touched (no Identity-Substrate touch; revocation is a policy-layer authority gesture, not a cryptographic primitive; the four Z-1-K-Sprint-4 consensus points remain byte-identical). Cross-Review-Zone-B non-touched (the `wakir-capability-policies` bucket configuration is byte-unchanged — the `history=5` audit-trail depth already retains the pre-revocation envelope for audit; no new bucket; the Z-B paired-update memo from Sprint-5 Tag-2 remains the canonical orchestrator-side action item). Phase-3 reservations preserved: full Biscuit v3 binary token revocation-list interpretation (the Sprint-6 Tag-1 surface is policy-revocation, *not* token-revocation; token-level revocation lives in the Phase-3 Datalog substrate via the `wirelang/schemas/layer-3-capability-token.json` spec). Sprint-6 Tag-1+ candidates: publisher-CLI `--revoke` flag composing the CAS-pin revocation path; watch-stream consumer-side revocation-event filter (filter on `event.record.policy.revoked_at != None`); cross-bucket revocation-replication (extend Sprint-3 Tag-6 replication to carry revoked policies byte-precisely). Additive-only change relative to v0.15.0. |
 | 0.15.0  | 2026-05-11 | Phase-2 Sprint-5 Tag-5 lands the **capability-policy watch-stream** path (pattern-mirror on the Phase-1b Sprint-3 Tag-4 schema-registry watch-stream contract): `wirelang.schemas.capability_policy_nats_kv_backend` gains `CapabilityPolicyWatchOp` (enum: PUT / DELETE / PURGE), `CapabilityPolicyWatchEvent` (frozen dataclass with `op` / `key` / `record` / `revision` fields; `record` is `Optional[CapabilityPolicyRecord]` — None for DELETE / PURGE), `NatsKvCapabilityPolicyBackend.watch`, top-level `open_capability_policy_watch_stream`, internal handle `_CapabilityPolicyWatchStreamHandle`, decoder `_decode_capability_policy_watch_update`, watcher-opener `_open_capability_policy_watcher`, and the live-tail consumer `LiveCapabilityPolicySnapshot` (`from_backend` / `apply` / `as_registry` / `records` / `last_revision`; internal per-key map indexed by `capability-policies/<registered_by>/<policy_id>` so deltas can update / remove a specific record). `__all__` extended with the five new public names. §5.14 extended with a "Watch-stream operational contract (Sprint-5 Tag-5, additive over Sprint-5 Tag-4)" subsection: producer-consumer pattern (long-running supervisor task feeds a `LiveCapabilityPolicySnapshot` from `watch()` and hands frozen `CapabilityPolicyRegistry` copies to the Sprint-4 Tag-6 `check_registered_by_capability` gate per verifier pass), async-iter contract (two watcher shapes — native `__aiter__` / `__anext__` and `await updates()` returning next-or-None), poison-handling (envelope errors raise `CapabilityPolicyEnvelopeError` from the iterator and terminate it; operator must drop the live view and re-bootstrap; no silent swallow), revision-monotonicity contract (`last_revision` advances monotonically; earlier-revision events do not regress), frozen-registry determinism contract for verifier passes (`as_registry()` rebuilds a `CapabilityPolicyRegistry` from a sorted-key view; the returned registry does not share storage with the live state), orthogonality to Tag-2 LWW and Tag-4 CAS-pin write paths (the watch-stream is a strict suffix of the durable bucket history; CAS-pin writes appear as one PUT event identical to LWW writes; rejected stale CAS-pin writes appear as NO event). §6 extended with §6.13 T-CPP-WS-01..10 + 2 auxiliary probes test inventory (suite 830 → 842, +12 net). §5.14 boundary item "live tail reserved as a Phase-3 slot (analogous to the schema-registry watch-stream, Sprint-3 Tag-4)" CONSUMED. §7 Phase-3-Reservation "capability-policy watch-stream slot" CONSUMED. The Sprint-5 Tag-5 path is **additive over Sprint-5 Tag-4**: the existing Tag-2 `put` / `get` / `delete` / `snapshot` / `snapshot_registry` LWW surface and the Tag-4 `put_with_revision` / `get_with_revision` / `CapabilityPolicyConflictError` CAS-pin surface are byte-unchanged. Verifier-side gate decisions are byte-equal regardless of registry source (full `snapshot_registry` or watch-fed `LiveCapabilityPolicySnapshot.as_registry`); T-CPP-WS-09 cross-references the Sprint-4 Tag-6 gate to prove byte-equal decisions. M-2 / M-4 conformance preserved (no envelope-field added, orthogonal to version axis; the watch-stream consumes the same `wakir.wirelang.capability-policy-entry/1` envelope). Cross-Review-Zone-1 non-touched (no Identity-Substrate touch; the watch-stream is a producer surface, not a verifier contract; the four Z-1-K-Sprint-4 consensus points remain byte-identical). Cross-Review-Zone-B non-touched (the `wakir-capability-policies` bucket configuration is byte-unchanged — `history=5` already exposes the watch-stream; the Z-B paired-update memo from Sprint-5 Tag-2 remains the canonical orchestrator-side action item; no new bucket). Phase-3 reservations preserved: watch-stream resumption / replay-from-revision (`watchall(..., resume_from=...)`), CAS-quorum (multi-replica CAS), Biscuit v3 binary token interpretation. Sprint-5 Tag-5+ candidate (not Tag-5): publisher-CLI composition of the live-tail consumer (a `--capability-bucket-watch` flag or daemon-mode subcommand). Additive-only change relative to v0.14.0. |
 | 0.14.0  | 2026-05-11 | Phase-2 Sprint-5 Tag-4 lands the **capability-policy CAS-pin** path (pattern-mirror on the Phase-1b Sprint-3 Tag-3 schema-registry CAS-pin contract): `wirelang.schemas.capability_policy_nats_kv_backend` gains `NatsKvCapabilityPolicyBackend.get_with_revision`, `NatsKvCapabilityPolicyBackend.get_with_revision_by_pair`, `NatsKvCapabilityPolicyBackend.put_with_revision`, plus a new typed exception `CapabilityPolicyConflictError` (with `key` / `expected_revision` / `actual_revision` fields). New module-level helpers `_coerce_revision_from_entry`, `_kv_update_with_revision`, `_is_conflict_exception`, `_extract_actual_revision`, and constant `_CONFLICT_CLS_MARKERS` (byte-equal to the schema-registry CAS-pin helpers, allowing independent module evolution). §5.14 extended with a "CAS-pin operational contract (Sprint-5 Tag-4, additive over Sprint-5 Tag-2)" subsection: read-modify-write loop, validation-gate ordering (gates run BEFORE CAS, identical to Sprint-3 Tag-3 contract), KV-adapter contract (3 shapes: nats-py canonical `update(last=)`, positional fallback, `put(expected_revision=)` keyword fallback), determinism contract (3 invariants). §6.11 extended with T-CPP-CAS-01..10 + 2 auxiliary probes test inventory. §5.14 boundary item "future CAS-pinned upsert path" CONSUMED. §7 Phase-3-Reservation "capability-policy CAS-pin slot" CONSUMED. The Sprint-5 Tag-4 path is **additive over Sprint-5 Tag-2**: the existing `put` / `get` / `delete` / `snapshot` / `snapshot_registry` LWW surface is byte-unchanged, and the new CAS-pin path is the opt-in lost-update-protection surface for operators editing policies concurrently (e.g. rotating `allowed_kids` on a key-rollover; renaming `note` while preserving the validity window). The gate decision is byte-equal regardless of write path (LWW `put` or CAS `put_with_revision`). M-2 / M-4 conformance preserved (no envelope-field added, orthogonal to version axis). Cross-Review-Zone-1 non-touched (no Identity-Substrate touch; CAS-pin is a write-path concurrency contract, not a verifier contract). Cross-Review-Zone-B non-touched (the `wakir-capability-policies` bucket configuration is byte-unchanged — `history=5` already supports CAS-pin naturally; the Z-B paired-update memo from Sprint-5 Tag-2 remains the canonical orchestrator-side action item, no new bucket). Phase-2 hardening list updated: Phase-3 CAS-quorum (multi-replica CAS) remains reserved as a Phase-3 promotion slot. Additive-only change relative to v0.13.0. |
 | 0.13.0  | 2026-05-11 | Phase-2 Sprint-5 Tag-3 closes the publisher-CLI capability-policy-source end-to-end (`wirelang.schemas.publisher_cli`: new flag `--capability-bucket` mutually exclusive with `--capability-registry`; new flag `--capability-bucket-connect-url` defaulting to `nats://127.0.0.1:4222`; new optional `capability_bucket_factory` injection on `run()`; new receipt field `gate_policy_source: Optional[str]` carrying `"file"` / `"bucket"` / `None`; new helper `_load_capability_registry_from_bucket`; new module-level `_default_capability_bucket_factory`; `_run_dry_run` promoted from a synchronous routine to an `asyncio.run` wrapper over `_run_dry_run_async` so the bucket factory is reachable from the dry-run path); §5.13 extended with a "Bucket policy source (Sprint-5 Tag-3)" subsection (additive over the Sprint-5 Tag-1 file-source contract); §6.10 extended with T-SR-PUB-CB-01..10 test inventory plus an auxiliary bucket-loader contract probe; §5.14 boundary item "future publisher-CLI integration slot" CONSUMED; §7 Phase-3-Reservation "publisher-CLI integration of the Sprint-5 Tag-2 persistent capability-policy backend" CONSUMED with the Sprint-5 Tag-3 flag reference. The Sprint-5 Tag-3 integration is **additive over Sprint-5 Tag-2** and additive over Sprint-5 Tag-1: the persistent-distribution tier (`NatsKvCapabilityPolicyBackend.snapshot_registry`) is invoked exactly once per CLI run if `--capability-bucket` is set, returning a Sprint-4 Tag-6 `CapabilityPolicyRegistry` that the gate consumes byte-identical to the operator-local JSON-file path. The gate decision is byte-equal regardless of source; the only receipt difference between the two sources is the `gate_policy_source` audit field. The capability-policy bucket connection is closed via the factory's cleanup callback before either the publish proceeds or the deny short-circuit fires; on a deny the schema-registry bucket is never touched (consistent with the Sprint-5 Tag-1 short-circuit contract). M-2 / M-4 conformance preserved. Cross-Review-Zone-1 non-touched (the four Z-1-K-Sprint-4 consensus points remain byte-identical; this slot is a pure operator-CLI composition of Sprint-5 Tag-2 bucket-snapshot + Sprint-4 Tag-6 gating + Sprint-5 Tag-1 sign-then-gate pipeline). Cross-Review-Zone-B non-touched (no new bucket; the Sprint-5 Tag-2 bucket `wakir-capability-policies` is consumed as-is; the Z-B paired-update memo from Sprint-5 Tag-2 remains the canonical orchestrator-side action item). Receipt-shape forward-compat: pre-Sprint-5 receipts now carry four optional fields at default-off values (`signed=false`, `kid=null`, `gate_decision=null`, `gate_policy_source=null`); consumers that index by the legacy field set continue to read byte-equal pre-existing fields. Additive-only change relative to v0.12.0. |
@@ -2818,6 +2819,126 @@ the validity-window semantics (inclusive `not_before`, exclusive
 T-RBC-12 pins the registry's defensive-snapshot semantics and the
 deny-precedence ordering.
 
+#### 5.12.1 Revocation operational contract (Phase-2 Sprint-6 Tag-1, additive over Sprint-4 Tag-6 and Sprint-5 Tag-2..5)
+
+Phase-2 Sprint-6 Tag-1 adds an *explicit revocation* axis to
+`CapabilityPolicy` that is distinct from the Sprint-4 Tag-6
+`disabled` soft kill-switch. The split is deliberate:
+
+- `disabled=True` is a **reversible operator-side state** ("this
+  policy is paused for now; we may re-enable it later"). The
+  Sprint-4 Tag-6 spec wording is intentionally non-committal.
+- `revoked_at != None` is an **irreversible authority gesture**
+  ("this policy MUST never be re-enabled; the operator declared a
+  compromise"). Revocation is monotonic at the CAS-pin write path.
+
+The on-the-wire envelope (`wakir.wirelang.capability-policy-entry/1`)
+remains the single value schema; Tag-1 adds two optional fields:
+
+| Field | Type | Default | Semantics |
+|---|---|---|---|
+| `revoked_at` | RFC-3339 datetime string \| null | null | wall-clock instant at which the policy becomes categorically revoked |
+| `revocation_reason` | string \| null | null | free-form audit string; requires `revoked_at` to be set |
+
+The decoder treats missing keys as `None` so Sprint-5 Tag-2..5
+envelopes (without these keys) decode byte-equally to unrevoked
+policies. The encoder always emits both keys (`null`-explicit when
+absent) so on-the-wire payloads are deterministic.
+
+**Gate-precedence amendment.** The Sprint-4 Tag-6 fallback ordering
+(`POLICY_DISABLED` → `KID_NOT_ALLOWED` → `TRIPLE_NOT_ALLOWED` →
+`OUTSIDE_VALIDITY_WINDOW`) is amended: `POLICY_REVOKED` outranks
+all four. The gate inspects each candidate policy in order:
+
+1. If `_is_revoked(policy, as_of)` is True, set the deny-fallback
+   to `POLICY_REVOKED` (unless already set; the first revoked
+   candidate fixes the decision policy reference).
+2. Otherwise fall through to the Sprint-4 Tag-6 disabled / kid /
+   triple / window cascade.
+3. The first allow-match short-circuits to `POLICY_MATCH` as
+   before; a revoked candidate **never** produces an allow.
+
+The `_is_revoked` predicate is *categorical*: when `as_of=None` a
+revoked policy is treated as revoked unconditionally. This is
+deliberately stricter than `_window_contains`, which skips on
+`as_of=None`. A revocation must never be silently bypassed by a
+verifier that omits a clock.
+
+**CAS-pin monotonicity contract.** The
+`NatsKvCapabilityPolicyBackend.put_with_revision` path gains a
+pre-CAS `Gate 3` check (Gates 1 and 2 are the Sprint-5 Tag-4
+record-type and pair-key-derivation gates; Gate 3 is the new
+revocation-monotonic gate). The gate reads the live record at the
+key; if it carries `revoked_at != None`, the incoming record MUST
+either preserve that instant byte-equally or refuse:
+
+| Live state | Incoming state | Outcome |
+|---|---|---|
+| `revoked_at=None` | any | permitted (this is a fresh write or non-revoked update) |
+| `revoked_at=T` | `revoked_at=T` (same instant) | permitted (idempotent rewrite; `revocation_reason` refresh is legal) |
+| `revoked_at=T` | `revoked_at=None` | `CapabilityPolicyRevocationConflict` (un-revoke is forbidden) |
+| `revoked_at=T` | `revoked_at=T'` (T' ≠ T) | `CapabilityPolicyRevocationConflict` (revocation instant cannot be moved, whether earlier or later) |
+
+Gate 3 runs **before** the underlying KV update call, so a rejected
+revocation attempt does not advance the live revision. The
+exception carries the `key`, the `existing_revoked_at`, and the
+`proposed_revoked_at` for downstream audit.
+
+**LWW non-enforcement.** The Sprint-5 Tag-2 `put` (LWW) path does
+NOT enforce revocation-monotonicity. This is consistent with the
+Sprint-5 Tag-4 rationale: LWW writes are operator-deliberate and
+the CAS-pin path is the safety-invariant guard. An operator who
+deliberately wants to un-revoke must use the LWW path AND accept
+the audit consequences (the revocation event remains in the bucket
+history depth, retrievable for the configured `history=5` window).
+
+**Watch-stream surface (Sprint-5 Tag-5 unchanged).** A revocation
+write appears as one PUT event with `event.record.policy.revoked_at
+!= None`. Consumer-side filters can subscribe to revocation events
+specifically by filtering on this predicate; the watch-stream
+substrate itself remains a strict suffix of the durable bucket
+history without any revocation-specific handling.
+
+**Cross-Review-Zone-1 (Identity-Substrate) non-touched.** Revocation
+is a policy-layer authority gesture, not a cryptographic primitive.
+The four Z-1-K-Sprint-4 consensus points (kid-resolver shape,
+JCS-resolver lock, curve choice Ed25519, STRICT-mode activation
+owner) remain byte-identical.
+
+**Cross-Review-Zone-B (Kai NATS-KV) non-touched.** The
+`wakir-capability-policies` bucket configuration is byte-unchanged
+— `history=5` already retains the pre-revocation envelope for
+audit. No new bucket; no `BucketSpec` mutation on the
+orchestrator-side `PHASE_1_BUCKETS` inventory.
+
+**Boundary: Sprint-6 Tag-1 does NOT ship (explicit).**
+
+1. Publisher-CLI `--revoke` flag composing the CAS-pin revocation
+   path — Sprint-6 Tag-1+ candidate; the API surface is reachable
+   today via direct Python use of `put_with_revision`.
+2. Watch-stream consumer-side revocation-event filter helper — the
+   client-side filter is one-liner Python (`event.record.policy.
+   revoked_at != None`); a dedicated helper is Sprint-6 Tag-1+
+   candidate.
+3. Cross-bucket revocation replication (extend Sprint-3 Tag-6
+   replication to carry revoked policies byte-precisely) —
+   Sprint-6 Tag-2+ candidate.
+4. Full Biscuit v3 binary-token revocation-list interpretation —
+   Phase-3 substrate; lives in the Datalog evaluation layer per
+   `wirelang/schemas/layer-3-capability-token.json`. Sprint-6
+   Tag-1 ships *policy-level* revocation, not *token-level*
+   revocation. A revoked policy denies all future entries that
+   would have been signed under it; an issued-and-presented
+   token-burst is not invalidated retroactively (token-burst
+   freshness is a separate Phase-3 axis).
+5. `NatsKvSchemaRegistry` mutation — schema-registry backend
+   byte-unchanged. Revocation lives entirely on the capability-
+   policy backend.
+6. Authority delegation (e.g. an operator-side multi-signature
+   guard on revocation writes) — bucket-level access control is
+   operator-side; the Wirelang layer ships the monotonicity
+   invariant and leaves the authority gesture to operator policy.
+
 ### 5.13 Publisher-CLI capability integration (Phase-2 Sprint-5 Tag-1)
 
 Phase-2 Sprint-5 Tag-1 lifts the Sprint-4 Tag-6 capability gate into
@@ -4926,6 +5047,83 @@ Sprint-5 Tag-4 capability-policy CAS-pin inventory
 Sprint-5 Tag-5 tests are additive and exercise a parallel test
 module.
 
+### 6.14 Capability-policy revocation tests (Phase-2 Sprint-6 Tag-1, additive over Sprint-5 Tag-5)
+
+Phase-2 Sprint-6 Tag-1 ships hermetic tests at
+`wirelang/tests/test_capability_policy_revocation.py`. Inventory
+T-CPP-REV-01..10 plus 2 auxiliary probes; all twelve are green at
+the Sprint-6 Tag-1 tip:
+
+- **T-CPP-REV-01:** `CapabilityPolicy` admits `revoked_at` (tz-aware
+  datetime) and `revocation_reason` (string); unrevoked defaults
+  preserved. A naive (tz-unaware) `revoked_at` is rejected.
+- **T-CPP-REV-02:** `revocation_reason` set without `revoked_at` is
+  structurally invalid and raises `RegisteredByCapabilityError` at
+  the bundle constructor.
+- **T-CPP-REV-03:** the gate denies with
+  `DecisionSource.POLICY_REVOKED` when `as_of >= revoked_at` (both
+  exact-match and strictly-after). The decision's `reason` includes
+  the `revoked_at` instant and the `revocation_reason` text.
+- **T-CPP-REV-04:** the gate evaluates normally when
+  `as_of < revoked_at` — revocation has not yet taken effect; a
+  policy that would otherwise match returns
+  `DecisionSource.POLICY_MATCH`.
+- **T-CPP-REV-05:** the gate denies with `POLICY_REVOKED` even when
+  `as_of=None`. Revocation is categorical and never silently
+  bypassed by a verifier that omits a clock. Cross-reference T-RBC-09
+  (Sprint-4 Tag-6 window semantics): the validity-window check
+  *does* skip on `as_of=None` (intentional, documented bypass); the
+  revocation check does *not* (intentional asymmetry).
+- **T-CPP-REV-06:** revocation outranks `POLICY_DISABLED` /
+  `KID_NOT_ALLOWED` / `TRIPLE_NOT_ALLOWED` /
+  `OUTSIDE_VALIDITY_WINDOW` in the fallback-source ordering. Three
+  policies are registered for one issuer (one revoked, one with
+  kid-mismatch, one disabled); regardless of insertion order, the
+  final deny carries `source=POLICY_REVOKED` and references the
+  revoked policy.
+- **T-CPP-REV-07:** the on-the-wire envelope round-trips
+  `revoked_at` and `revocation_reason` byte-equally via
+  `_record_to_envelope` / `_envelope_to_record`. The serialised
+  JSON carries both keys; the decoded record carries the same
+  tz-aware datetime (UTC-normalised, `Z` suffix).
+- **T-CPP-REV-08:** an older Sprint-5 Tag-2..5 envelope (omitting
+  the two new keys entirely) decodes via the Sprint-6 Tag-1 decoder
+  to an unrevoked policy. Back-compat is byte-precise; the
+  envelope-additive contract is verified.
+- **T-CPP-REV-09:** `put_with_revision` enforces the un-revoke
+  veto. A revoked record at the key, followed by a CAS-pinned write
+  with `revoked_at=None`, raises
+  `CapabilityPolicyRevocationConflict` with `existing_revoked_at`
+  set to the live instant and `proposed_revoked_at=None`. The live
+  KV revision is unchanged after the rejection.
+- **T-CPP-REV-10:** `put_with_revision` admits the equal-instant
+  idempotent rewrite. A revoked record, followed by a CAS-pinned
+  write with the *same* `revoked_at` but a refreshed
+  `revocation_reason`, advances the live revision by one and is
+  observable via `get`. Audit-trail refresh remains legal.
+- **T-CPP-REV-aux-advance-rejected:** `put_with_revision` rejects an
+  attempt to advance `revoked_at` strictly later than the live
+  instant. Revocation cannot be retroactively softened; the
+  exception carries both instants for downstream audit.
+- **T-CPP-REV-aux-lww-allows-unrevoke:** the Sprint-5 Tag-2 LWW
+  `put` path does NOT enforce revocation-monotonicity. An operator
+  who deliberately calls `put` (not `put_with_revision`) with an
+  unrevoked record against a revoked live state can un-revoke; the
+  revocation event remains in the bucket history depth for audit.
+  Cross-reference T-CPP-REV-09: the safety invariant lives on the
+  CAS-pin path, consistent with the Sprint-5 Tag-4 rationale.
+
+**Suite-level effect.** `wirelang/tests/` was 842 passing before
+Sprint-6 Tag-1; Sprint-6 Tag-1 brings the count to **854** (+12
+net). The Sprint-4 Tag-6 `registered_by`-capability-gating
+inventory (T-RBC-01..12), the Sprint-5 Tag-2 capability-policy LWW
+inventory (T-CPP-01..10 + 2 aux), the Sprint-5 Tag-3 publisher-CLI
+bucket-source inventory (T-SR-PUB-CB-01..10 + aux), the Sprint-5
+Tag-4 CAS-pin inventory (T-CPP-CAS-01..10 + 2 aux) and the
+Sprint-5 Tag-5 watch-stream inventory (T-CPP-WS-01..10 + 2 aux) all
+remain unchanged and green; the Sprint-6 Tag-1 tests are additive
+and exercise a parallel test module.
+
 ## 7. Cross-references and Open-Items
 
 - V-908 backend pattern source:
@@ -5106,6 +5304,34 @@ module.
 - Phase-2 STRICT-mode activation toggle: reserved (Z-1-K-Sprint-4-4
   open; operator-controlled toggle is a Phase-2-roadmap consensus
   question).
+- **Phase-2 capability-policy explicit revocation: CONSUMED in
+  Sprint-6 Tag-1.** Modules:
+  `wirelang/schemas/registered_by_capability.py` (additive: `CapabilityPolicy.revoked_at`,
+  `CapabilityPolicy.revocation_reason`, `DecisionSource.POLICY_REVOKED`,
+  `_is_revoked`; gate-precedence amendment) and
+  `wirelang/schemas/capability_policy_nats_kv_backend.py` (additive:
+  envelope keys `revoked_at` / `revocation_reason`, typed exception
+  `CapabilityPolicyRevocationConflict`, `put_with_revision` Gate-3
+  revocation-monotonicity check). Tests:
+  `wirelang/tests/test_capability_policy_revocation.py`
+  (T-CPP-REV-01..10 + 2 aux). Revocation is distinct from the
+  Sprint-4 Tag-6 `disabled` soft kill-switch: `disabled` is a
+  reversible operator-side state; `revoked_at` is an irreversible
+  authority gesture monotonic at the CAS-pin write path. The
+  Sprint-6 Tag-1 surface is *policy-level* revocation; *token-level*
+  revocation (binary-token revocation-list interpretation) lives in
+  the Phase-3 Datalog substrate per
+  `wirelang/schemas/layer-3-capability-token.json` and remains a
+  Phase-3 slot. Sprint-6 Tag-1+ candidates: publisher-CLI `--revoke`
+  flag composing the CAS-pin revocation path; watch-stream
+  consumer-side revocation-event filter helper; cross-bucket
+  revocation replication (extend Sprint-3 Tag-6 replication to carry
+  revoked policies byte-precisely). Cross-Review-Zone-1 non-touched
+  (the four Z-1-K-Sprint-4 consensus points remain byte-identical;
+  revocation is policy-layer authority, not a cryptographic
+  primitive). Cross-Review-Zone-B non-touched (the
+  `wakir-capability-policies` bucket configuration is byte-unchanged
+  — `history=5` retains the pre-revocation envelope for audit).
 
 ## 8. Compatibility statement
 

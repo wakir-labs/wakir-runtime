@@ -159,6 +159,7 @@ class DecisionSource(enum.Enum):
     KID_NOT_ALLOWED = "kid_not_allowed"
     TRIPLE_NOT_ALLOWED = "triple_not_allowed"
     OUTSIDE_VALIDITY_WINDOW = "outside_validity_window"
+    POLICY_REVOKED = "policy_revoked"
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +184,18 @@ class CapabilityPolicy:
     not_after: Optional[datetime] = None
     disabled: bool = False
     note: Optional[str] = None
+    # Phase-2 Sprint-6 Tag-1: explicit revocation surface.
+    # ``revoked_at`` is the wall-clock instant at which the policy
+    # becomes revoked; if supplied, the gate denies any call with
+    # ``as_of >= revoked_at`` with source ``POLICY_REVOKED``.
+    # ``revocation_reason`` is a free-form audit string (carried into
+    # the decision for downstream logs). Both fields default to
+    # ``None`` (no revocation); shape is additive to the
+    # Sprint-4 Tag-6 bundle. Revocation has *precedence* over disabled
+    # / kid / triple / window checks: a revoked policy denies
+    # categorically once the revocation instant has passed.
+    revoked_at: Optional[datetime] = None
+    revocation_reason: Optional[str] = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.registered_by, str) or self.registered_by == "":
@@ -247,6 +260,29 @@ class CapabilityPolicy:
             raise RegisteredByCapabilityError(
                 f"note must be a string or None: type="
                 f"{type(self.note).__name__}"
+            )
+        # Phase-2 Sprint-6 Tag-1: revocation field validation.
+        if self.revoked_at is not None and not isinstance(
+            self.revoked_at, datetime
+        ):
+            raise RegisteredByCapabilityError(
+                f"revoked_at must be a datetime or None: type="
+                f"{type(self.revoked_at).__name__}"
+            )
+        if self.revoked_at is not None and self.revoked_at.tzinfo is None:
+            raise RegisteredByCapabilityError(
+                "revoked_at must be timezone-aware"
+            )
+        if self.revocation_reason is not None and not isinstance(
+            self.revocation_reason, str
+        ):
+            raise RegisteredByCapabilityError(
+                f"revocation_reason must be a string or None: type="
+                f"{type(self.revocation_reason).__name__}"
+            )
+        if self.revocation_reason is not None and self.revoked_at is None:
+            raise RegisteredByCapabilityError(
+                "revocation_reason requires revoked_at to be set"
             )
 
     def covers_triple(self, layer: str, name: str) -> bool:
@@ -345,6 +381,30 @@ class CapabilityPolicyRegistry:
 # ---------------------------------------------------------------------------
 # Gating function.
 # ---------------------------------------------------------------------------
+
+
+def _is_revoked(
+    policy: CapabilityPolicy, as_of: Optional[datetime]
+) -> bool:
+    """Return True iff the policy carries an explicit revocation and
+    ``as_of`` has reached or passed the revocation instant.
+
+    Phase-2 Sprint-6 Tag-1: an unrevoked policy returns False
+    regardless of ``as_of``. A revoked policy returns True for any
+    ``as_of`` greater than or equal to ``policy.revoked_at``. When
+    ``as_of`` is ``None`` (callers that omit time-gating intent), a
+    revoked policy is treated as revoked unconditionally — revocation
+    is a categorical authority gesture, not a window. This is
+    deliberately stricter than the Sprint-4 Tag-6 ``_window_contains``
+    semantics for ``not_before`` / ``not_after`` (which skip on
+    ``as_of=None``); a revocation must never be silently bypassed by
+    a verifier that omits a clock.
+    """
+    if policy.revoked_at is None:
+        return False
+    if as_of is None:
+        return True
+    return as_of >= policy.revoked_at
 
 
 def _window_contains(
@@ -451,6 +511,34 @@ def check_registered_by_capability(
     all_disabled = True
 
     for policy in candidates:
+        # Phase-2 Sprint-6 Tag-1: revocation has top precedence.
+        # An issuer's revoked policy is filtered out before the
+        # disabled / kid / triple / window checks; a revoked policy
+        # never produces an allow decision, regardless of any other
+        # field. The fallback deny-source ordering is amended:
+        # POLICY_REVOKED outranks POLICY_DISABLED / KID_NOT_ALLOWED /
+        # TRIPLE_NOT_ALLOWED / OUTSIDE_VALIDITY_WINDOW so that a
+        # mixed-state registry (one revoked + one stale-fallback
+        # policy) reports the revocation as the canonical reason.
+        if _is_revoked(policy, as_of):
+            if fallback is None or fallback.source is not DecisionSource.POLICY_REVOKED:
+                reason_suffix = (
+                    f" reason={policy.revocation_reason!r}"
+                    if policy.revocation_reason is not None
+                    else ""
+                )
+                fallback = CapabilityGateDecision(
+                    allowed=False,
+                    reason=(
+                        f"policy for registered_by="
+                        f"{entry.registered_by!r} was revoked at "
+                        f"{policy.revoked_at!r}{reason_suffix}"
+                    ),
+                    source=DecisionSource.POLICY_REVOKED,
+                    policy=policy,
+                )
+            continue
+
         if policy.disabled:
             if fallback is None:
                 fallback = CapabilityGateDecision(
