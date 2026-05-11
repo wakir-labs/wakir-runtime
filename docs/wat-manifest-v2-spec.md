@@ -500,6 +500,28 @@ is informative only.
 
 ## 11. Change log
 
+- **2026-05-11 (Sprint-4 Tag-6):** WAT-manifest signing layer landed
+  (`wat/identity/manifest_signing.py`). Adds the WAT-side Ed25519
+  signing primitive (`sign_manifest`, `verify_manifest_signature`),
+  the `SignedWatManifest` wrapper dataclass, the
+  `WatManifestSignatureError` typed exception, the `VerifyMode`
+  policy surface (`PERMISSIVE` / `STRICT`) and the envelope-codec
+  helpers (`envelope_with_signature`, `envelope_to_signed_manifest`).
+  The signing primitive is shape-byte-identical to
+  `wirelang.identity.aip_signing` and to the
+  Identity-Substrate-engineering schema-registry-entry-signing layer
+  (`wirelang.schemas.entry_signing`, Phase-2 Sprint-4 Tag-1): JCS +
+  SHA-256 + Ed25519 over the manifest payload minus the `signature`
+  slot. The hour-manifest envelope gains an OPTIONAL top-level
+  `signature` field; the schema URI is unchanged (no v3), the slot
+  is additive on both `wat-manifest/1.0` and `wat-manifest/2.0`.
+  This Tag-6 ships only the signing primitive — formalisation of the
+  optional `signature` slot in `wirelang/schemas/wat-manifest-v2.json`
+  is a follow-up coordination item with Identity-Substrate-engineering
+  (the schema-file lives under their Cross-Review-Zone-1 boundary).
+  The verifier (`wat/verify/manifest_v2.py`) is NOT wired to consume
+  the signature today; that is a Tag-7+ item. 8 hermetic determinism
+  tests (`tests/wat/test_manifest_signing.py`, T-WAT-MAN-SIG-01..08).
 - **2026-05-11 (Sprint-4 Tag-5):** WAT-side Identity-Layer landed
   (`wat/identity/anchor_kid.py`). Adds the WAT-domain anchor-kid
   reference shape (`WatAnchorKidRef`), the WAT-domain typed

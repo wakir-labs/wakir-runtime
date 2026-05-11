@@ -59,13 +59,33 @@ from wat.identity.anchor_kid import (
     resolve_wat_anchor_kid,
     validate_anchor_kid_ref_shape,
 )
+from wat.identity.manifest_signing import (
+    SIGNATURE_ALG,
+    SIGNATURE_FIELD,
+    SignedWatManifest,
+    VerifyMode,
+    WatManifestSignatureError,
+    envelope_to_signed_manifest,
+    envelope_with_signature,
+    sign_manifest,
+    verify_manifest_signature,
+)
 
 __all__ = [
     "PURPOSE_WAT_ANCHOR",
     "ResolvedAnchorKey",
+    "SIGNATURE_ALG",
+    "SIGNATURE_FIELD",
+    "SignedWatManifest",
+    "VerifyMode",
     "WatAnchorKidError",
     "WatAnchorKidRef",
+    "WatManifestSignatureError",
+    "envelope_to_signed_manifest",
+    "envelope_with_signature",
     "is_kid_resolver_available",
     "resolve_wat_anchor_kid",
+    "sign_manifest",
     "validate_anchor_kid_ref_shape",
+    "verify_manifest_signature",
 ]
