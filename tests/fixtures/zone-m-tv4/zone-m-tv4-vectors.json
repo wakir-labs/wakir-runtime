@@ -1,0 +1,271 @@
+[
+  {
+    "name": "zone-m-tv4-signature-slot-well-formed",
+    "zone_m_axis": "WAT (Tomas) x Wirelang.identity.aip_signing (Reza)",
+    "boundary": "signature-slot positive path: alg-enum + kid + hex-128 signature accepted",
+    "expect": "accept",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "aa9fe297826a47bb178901f8cca7c2e0d1ab161eaa1aa642bede938dea614f2d",
+      "event_count": 1,
+      "events": [
+        {
+          "event_id": "evt-zone-m-1",
+          "time": "2026-05-26T17:00:00.000Z",
+          "payload_hash": "2e6709af8dbfe7cd5abb2f716924848e527b4486c30c4509b0e4aa8171987335",
+          "capability_token_hash": "5d7faa270725129691029988b9de51d36dc1e6c5dbea738775f5cdbec4db282b",
+          "leaf_hash": "5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761"
+        }
+      ],
+      "leaves": [
+        "5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761"
+      ],
+      "tree_levels": [
+        ["5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761"]
+      ],
+      "build_time": "2026-05-26T17:00:00Z",
+      "signature": {
+        "alg": "Ed25519",
+        "kid": "wat-anchor-2026-05-test",
+        "signature": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    }
+  },
+  {
+    "name": "zone-m-tv4-signature-alg-not-ed25519",
+    "zone_m_axis": "WAT (Tomas) x Wirelang.identity.aip_signing (Reza)",
+    "boundary": "signature.alg closed-enum: only Ed25519 is accepted today (Sprint-5 Tag-1, schema 0.2.0). HMAC-SHA256 must be rejected at the schema level even if the verifier-pipeline would also reject it downstream.",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "aa9fe297826a47bb178901f8cca7c2e0d1ab161eaa1aa642bede938dea614f2d",
+      "event_count": 1,
+      "events": [
+        {
+          "event_id": "evt-zone-m-1",
+          "time": "2026-05-26T17:00:00.000Z",
+          "payload_hash": "2e6709af8dbfe7cd5abb2f716924848e527b4486c30c4509b0e4aa8171987335",
+          "capability_token_hash": "5d7faa270725129691029988b9de51d36dc1e6c5dbea738775f5cdbec4db282b",
+          "leaf_hash": "5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761"
+        }
+      ],
+      "leaves": [
+        "5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761"
+      ],
+      "tree_levels": [
+        ["5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761"]
+      ],
+      "build_time": "2026-05-26T17:00:00Z",
+      "signature": {
+        "alg": "HMAC-SHA256",
+        "kid": "wat-anchor-2026-05-test",
+        "signature": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    }
+  },
+  {
+    "name": "zone-m-tv4-signature-kid-empty",
+    "zone_m_axis": "WAT (Tomas) x Wirelang.identity.aip_signing (Reza) x AIP-document.public_keys",
+    "boundary": "signature.kid minLength: 1 -- empty kid would prevent AIP-document public-key lookup (wat.identity.anchor_kid.resolve_wat_anchor_kid); rejected at schema level before resolver bridge is even invoked.",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "aa9fe297826a47bb178901f8cca7c2e0d1ab161eaa1aa642bede938dea614f2d",
+      "event_count": 1,
+      "events": [
+        {
+          "event_id": "evt-zone-m-1",
+          "time": "2026-05-26T17:00:00.000Z",
+          "payload_hash": "2e6709af8dbfe7cd5abb2f716924848e527b4486c30c4509b0e4aa8171987335",
+          "capability_token_hash": "5d7faa270725129691029988b9de51d36dc1e6c5dbea738775f5cdbec4db282b",
+          "leaf_hash": "5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761"
+        }
+      ],
+      "leaves": [
+        "5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761"
+      ],
+      "tree_levels": [
+        ["5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761"]
+      ],
+      "build_time": "2026-05-26T17:00:00Z",
+      "signature": {
+        "alg": "Ed25519",
+        "kid": "",
+        "signature": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    }
+  },
+  {
+    "name": "zone-m-tv4-signature-hex-off-by-one",
+    "zone_m_axis": "WAT (Tomas) x Wirelang.identity.aip_signing (Reza)",
+    "boundary": "signature.signature pattern ^[0-9a-f]{128}$: 127 chars (off-by-one short, Ed25519 sig is exactly 64 bytes = 128 hex). Off-by-one boundary catches accidental drop of a trailing nibble.",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "aa9fe297826a47bb178901f8cca7c2e0d1ab161eaa1aa642bede938dea614f2d",
+      "event_count": 1,
+      "events": [
+        {
+          "event_id": "evt-zone-m-1",
+          "time": "2026-05-26T17:00:00.000Z",
+          "payload_hash": "2e6709af8dbfe7cd5abb2f716924848e527b4486c30c4509b0e4aa8171987335",
+          "capability_token_hash": "5d7faa270725129691029988b9de51d36dc1e6c5dbea738775f5cdbec4db282b",
+          "leaf_hash": "5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761"
+        }
+      ],
+      "leaves": [
+        "5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761"
+      ],
+      "tree_levels": [
+        ["5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761"]
+      ],
+      "build_time": "2026-05-26T17:00:00Z",
+      "signature": {
+        "alg": "Ed25519",
+        "kid": "wat-anchor-2026-05-test",
+        "signature": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    }
+  },
+  {
+    "name": "zone-m-tv4-signature-additional-property",
+    "zone_m_axis": "WAT (Tomas) x Wirelang.identity.aip_signing (Reza)",
+    "boundary": "signature block additionalProperties: false -- closed-shape pin. Catches accidental shape-drift if a future implementer adds an undeclared signature-block field (e.g. wrong-place 'pubkey' or 'created_at') without coordinating an additive schema bump.",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "aa9fe297826a47bb178901f8cca7c2e0d1ab161eaa1aa642bede938dea614f2d",
+      "event_count": 1,
+      "events": [
+        {
+          "event_id": "evt-zone-m-1",
+          "time": "2026-05-26T17:00:00.000Z",
+          "payload_hash": "2e6709af8dbfe7cd5abb2f716924848e527b4486c30c4509b0e4aa8171987335",
+          "capability_token_hash": "5d7faa270725129691029988b9de51d36dc1e6c5dbea738775f5cdbec4db282b",
+          "leaf_hash": "5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761"
+        }
+      ],
+      "leaves": [
+        "5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761"
+      ],
+      "tree_levels": [
+        ["5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761"]
+      ],
+      "build_time": "2026-05-26T17:00:00Z",
+      "signature": {
+        "alg": "Ed25519",
+        "kid": "wat-anchor-2026-05-test",
+        "signature": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "pubkey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    }
+  },
+  {
+    "name": "zone-m-tv4-multi-event-distinct-caprefs",
+    "zone_m_axis": "WAT (Tomas) x Pengine.capability-token (Selin) x Wirelang.capability-schema (Reza)",
+    "boundary": "Multi-event hour with two distinct capability_token_hash values per event. Pins the WAT x Pengine boundary: each event carries a hash of its own capref, schema accepts distinct hashes (Pengine multi-token issuance pattern). Schema-level pin only; integrity rebuild and capref-validity are out-of-scope here.",
+    "expect": "accept",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "aa9fe297826a47bb178901f8cca7c2e0d1ab161eaa1aa642bede938dea614f2d",
+      "event_count": 2,
+      "events": [
+        {
+          "event_id": "evt-zone-m-1",
+          "time": "2026-05-26T17:00:00.000Z",
+          "payload_hash": "2e6709af8dbfe7cd5abb2f716924848e527b4486c30c4509b0e4aa8171987335",
+          "capability_token_hash": "5d7faa270725129691029988b9de51d36dc1e6c5dbea738775f5cdbec4db282b",
+          "leaf_hash": "5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761"
+        },
+        {
+          "event_id": "evt-zone-m-2",
+          "time": "2026-05-26T17:30:00.000Z",
+          "payload_hash": "2e6709af8dbfe7cd5abb2f716924848e527b4486c30c4509b0e4aa8171987335",
+          "capability_token_hash": "386a1d2573f1a014e600569e6b448c776cb63d9c8b09e12994b12ced8128b91d",
+          "leaf_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ],
+      "leaves": [
+        "5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761",
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      ],
+      "tree_levels": [
+        [
+          "5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761",
+          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        ],
+        ["aa9fe297826a47bb178901f8cca7c2e0d1ab161eaa1aa642bede938dea614f2d"]
+      ],
+      "build_time": "2026-05-26T17:59:00Z"
+    }
+  },
+  {
+    "name": "zone-m-tv4-version-v2-with-v1-shape",
+    "zone_m_axis": "WAT (Tomas) x Wirelang.schema-version (Reza)",
+    "boundary": "Schema-version enum accepts BOTH 'wakir-wat-manifest/v1' and 'wakir-wat-manifest/v2' per the v1 schema-file (forward-compat reservation). A producer that emits 'wakir-wat-manifest/v2' carrying v1-shape leaves[] (object-shape with leaf_hash) is schema-valid here; the v2-multi-cap shape lives in a separate schema-file. Pins the v1 forward-compat contract documented in the schema's version-field description.",
+    "expect": "accept",
+    "manifest": {
+      "version": "wakir-wat-manifest/v2",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "aa9fe297826a47bb178901f8cca7c2e0d1ab161eaa1aa642bede938dea614f2d",
+      "event_count": 1,
+      "events": [
+        {
+          "event_id": "evt-zone-m-1",
+          "time": "2026-05-26T17:00:00.000Z",
+          "payload_hash": "2e6709af8dbfe7cd5abb2f716924848e527b4486c30c4509b0e4aa8171987335",
+          "capability_token_hash": "5d7faa270725129691029988b9de51d36dc1e6c5dbea738775f5cdbec4db282b",
+          "leaf_hash": "5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761"
+        }
+      ],
+      "leaves": [
+        {
+          "event_id": "evt-zone-m-1",
+          "leaf_hash": "5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761"
+        }
+      ],
+      "tree_levels": [
+        ["5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761"]
+      ],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "zone-m-tv4-signature-block-missing-required-alg",
+    "zone_m_axis": "WAT (Tomas) x Wirelang.identity.aip_signing (Reza)",
+    "boundary": "signature block 'required: alg,kid,signature' -- omitting alg must be rejected at the schema level. Pins that a partial signature block is not silently treated as 'unsigned' (the absence-of-slot path is what means unsigned; a present-but-incomplete slot is a schema error, not a permissive-mode allowance).",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "aa9fe297826a47bb178901f8cca7c2e0d1ab161eaa1aa642bede938dea614f2d",
+      "event_count": 1,
+      "events": [
+        {
+          "event_id": "evt-zone-m-1",
+          "time": "2026-05-26T17:00:00.000Z",
+          "payload_hash": "2e6709af8dbfe7cd5abb2f716924848e527b4486c30c4509b0e4aa8171987335",
+          "capability_token_hash": "5d7faa270725129691029988b9de51d36dc1e6c5dbea738775f5cdbec4db282b",
+          "leaf_hash": "5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761"
+        }
+      ],
+      "leaves": [
+        "5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761"
+      ],
+      "tree_levels": [
+        ["5a1ce5a7d8cd2b95aa2d59a81f513c2e132650c885b95702c21a5b5d6ae55761"]
+      ],
+      "build_time": "2026-05-26T17:00:00Z",
+      "signature": {
+        "kid": "wat-anchor-2026-05-test",
+        "signature": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    }
+  }
+]
