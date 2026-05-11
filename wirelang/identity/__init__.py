@@ -65,6 +65,11 @@ from .aip_document_transport_fetch import (
     aip_web_to_https_url,
     fetch_aip_document,
 )
+from .aip_signature_verification_cache import (
+    AipSignatureVerificationCache,
+    CacheStats,
+    cached_verify_aip_signature,
+)
 
 __all__ = [
     "WAKIR_COIN_TYPE",
@@ -95,4 +100,7 @@ __all__ = [
     "AipUrlSchemeError",
     "aip_web_to_https_url",
     "fetch_aip_document",
+    "AipSignatureVerificationCache",
+    "CacheStats",
+    "cached_verify_aip_signature",
 ]

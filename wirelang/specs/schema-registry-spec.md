@@ -9,14 +9,14 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wirelang-schema-registry
-version: 0.8.0
+version: 0.9.0
 status: draft
 date: 2026-05-11
 audience: implementers, integrators, operators
 license: CC-BY-4.0
 ---
 
-# Wirelang Schema Registry — NATS-KV Backend Specification (v0.8.0)
+# Wirelang Schema Registry — NATS-KV Backend Specification (v0.9.0)
 
 **Change log**
 
@@ -27,6 +27,7 @@ license: CC-BY-4.0
 | 0.3.0   | 2026-05-07 | Phase-1c watch-stream surface lands in Tag-4 (`watch()` / `WatchOp` / `WatchEvent` / `LiveSchemaSnapshot` / `open_watch_stream`); §5.3 OI-7-Phase-1c-watch slot CONSUMED; §5.5 added (watch-stream operational contract); §6.2 added (T-SR-WS-01..10 + 2 aux probes test inventory). Additive-only change relative to v0.2.0; M-2 / M-4 conformance preserved. |
 | 0.4.0   | 2026-05-07 | Phase-1c publisher CLI lands in Tag-5 (`wirelang.schemas.publisher_cli`: `wakir-schema-registry publish` / `dry-run` argparse surface, `PublishReceipt`, `ExitCode` matrix); §5.3 OI-7-Phase-1c-publisher slot CONSUMED; §5.6 added (publisher CLI operational contract); §6.3 added (T-SR-PUB-01..12 test inventory). Additive-only change relative to v0.3.0; M-2 / M-4 conformance preserved. The CLI is a thin operator-input layer over the Tag-3 CAS-pin and Tag-1 LWW backends; it introduces no new on-the-wire envelope and no new validation gate. |
 | 0.5.0   | 2026-05-07 | Phase-1c cross-bucket replication lands in Tag-6 (`wirelang.schemas.replication`: `SchemaReplicator`, `bootstrap_target_from_source`, `ReplicationConflictPolicy`, `ReplicationFilter`, `ReplicationMetrics`); §5.3 OI-7-Phase-1c-replication slot CONSUMED; §5.7 added (replication operational contract); §6.4 added (T-SR-REP-01..12 test inventory). Additive-only change relative to v0.4.0; M-2 / M-4 conformance preserved. The replication layer is a thin composition of Tag-1 LWW + Tag-3 CAS-pin + Tag-4 watch-stream surfaces; it introduces no new on-the-wire envelope, no new validation gate, and no new method on `NatsKvSchemaRegistry`. **Phase-1c is now feature-complete.** |
+| 0.9.0   | 2026-05-11 | Phase-2 Sprint-4 Tag-5 lands the AIP-document signature-verification cache tier (`wirelang.identity.aip_signature_verification_cache`: `AipSignatureVerificationCache`, `CacheStats`, `cached_verify_aip_signature`, module-level constants `DEFAULT_MAX_ENTRIES=256`, `DEFAULT_TTL_SECONDS=300.0`); §5.11 added (verification-cache operational contract); §6.8 added (T-AIP-SVC-01..12 test inventory). The cache is a stateful in-process LRU+TTL tier on top of the Sprint-4 Tag-1 `wirelang.identity.verify_aip_signature` primitive; cache hits are byte-equal to fresh verify outcomes (the cache is a pure performance optimisation, not a behavioural layer). The cache key is `SHA-256` over the 5-tuple `(SHA-256(JCS(body without document_signature)), alg, kid, signature_hex, pub_key_hex)`, byte-identical in shape to the Sprint-4 Tag-4 `jcs_sha256_hex` byte-anchor (the cache reuses the Tag-4 ↔ Tag-1 JCS-resolver-indirection lock, Z-1-K-Sprint-4-2). Negative outcomes (`verify` returns `False`) are memoised the same way as positive outcomes; structural failures (`ValueError` from the verifier) are NOT cached and propagate verbatim. TTL defaults to 300 seconds with an injectable monotonic clock for hermetic test determinism; LRU eviction is by insertion-order (hits do NOT promote — byte-consistent with V-908 `HTTPSAipResolverCache` semantics). The cache surface is byte-orthogonal to `wirelang.identity.verify_aip_signature` (UNCHANGED), `wirelang.identity.kid_resolver` (UNCHANGED), `wirelang.identity.aip_document_transport_fetch` (UNCHANGED), and the schema-registry backend (`NatsKvSchemaRegistry` UNCHANGED, no new method). Additive-only change relative to v0.8.0; M-2 / M-4 conformance preserved. Cross-Review-Zone-1 non-touched (the four Z-1-K-Sprint-4 consensus points remain byte-identical; the cache is curve-agnostic, policy-agnostic, and resolver-independent). |
 | 0.8.0   | 2026-05-11 | Phase-2 Sprint-4 Tag-4 lands the AIP-document transport-fetch composition layer (`wirelang.identity.aip_document_transport_fetch`: `fetch_aip_document`, `aip_web_to_https_url`, `AipFetchResult`, `AipDocumentTransportError`, `AipUrlSchemeError`, `AipDnsAnchorMismatchError`); §5.10 added (transport-fetch operational contract); §6.7 added (T-AIP-FT-01..12 test inventory). The module is a pure composition of the V-908 Phase-1b HTTPS-transport (`HTTPSDocumentTransport`) and the V-908 §3.4 DNS-anchor pattern, extended from FTD-doc to AIP-doc via the parallel TXT-record prefix `_wakir-aip.<host>` (same `v=1; sha256=<64-hex>` format). The transport-fetch layer is byte-orthogonal to AIP-document signature verification (`wirelang.identity.verify_aip_signature` is unchanged), the kid-resolver (Tag-3, §5.9) and the schema-registry backend (no method added to `NatsKvSchemaRegistry`); it closes the Sprint-4 Tag-3 §5.9 boundary item "AIP-document transport-fetch" so the Phase-2 canonical verifier flow is now end-to-end composable from an `aip:web:` identifier through to `verify_entry_signature`. Additive-only change relative to v0.7.0; M-2 / M-4 conformance preserved. Cross-Review-Zone-1 non-touched (the four Z-1-K-Sprint-4 consensus points remain byte-identical; `anchor_required` is an orthogonal Tag-4 hard-vs-soft toggle, not the Z-1-K-Sprint-4-4 STRICT-mode toggle). |
 | 0.7.0   | 2026-05-11 | Phase-2 Sprint-4 Tag-3 lands the kid → Ed25519 public-key resolver (`wirelang.identity.kid_resolver`: `resolve_kid`, `list_resolvable_kids`, `ResolvedPublicKey`, `KidResolverError`); §5.9 added (kid-resolver operational contract); §6.6 added (T-KID-RES-01..12 test inventory); §5.8 `kid` resolution forward-reference linked. Z-1-K-Sprint-4-1 (kid-Resolver-Shape) closed by this module — `kid` matches `public_keys[i].kid` (the byte-accurate AIP-document JSON-Schema field; the Z-1-Sprint-4-Anhang consensus marker's "public_keys[i].id" wording refers to the same identifier slot). Z-1-K-Sprint-4-3 (Curve-Choice = Ed25519) reinforced: the resolver filters out `alg == "secp256k1"` entries (those belong to the Biscuit capability-token-burst layer per the two-curve-stack consensus). The resolver does NOT fetch the AIP document over transport, does NOT validate the AIP-document signature, and does NOT mutate the schema-registry backend surface (no new method on `NatsKvSchemaRegistry`). Additive-only change relative to v0.6.0; M-2 / M-4 conformance preserved. |
 | 0.6.0   | 2026-05-11 | Phase-2 entry-signing layer lands in Sprint-4 Tag-1 (`wirelang.schemas.entry_signing`: `SignedSchemaRegistryEntry`, `sign_entry`, `verify_entry_signature`, `envelope_with_signature`, `envelope_to_signed_entry`, `SchemaRegistrySignatureError`, `VerifyMode`); §5.3 OI-7-Phase-2-sig slot CONSUMED (Phase-2 hardening begins); §5.8 added (entry-signing operational contract); §6.5 added (T-SR-SIG-01..12 test inventory). Envelope schema **additive only**: optional `signature` slot on the existing `wakir.wirelang.schema-registry-entry/1` envelope (no `/2` envelope; backward-compatible with v0.5.0 readers). Tag-1 codec is unchanged; new `envelope_with_signature` / `envelope_to_signed_entry` helpers ship the round-trip for the optional slot. M-2 conformance preserved (additive-only field; absent slot is valid under permissive Phase-2-transition verify mode); M-4 conformance preserved (orthogonal to version axis). Cross-Review-Zone-1 (Identity-Substrate) **TRIGGERED**: signing reuses `wirelang.identity.aip_signing` Ed25519 + JCS + SHA-256 primitive byte-identical; the kid binds the signature to an AIP-document `public_keys` entry. `NatsKvSchemaRegistry` surface remains zero-new-method (signing happens at envelope-build time before `put` / `put_with_revision`). |
@@ -392,6 +393,127 @@ JCS-canonical envelope that is byte-stable for audit anchoring.
   the federation pipeline); does NOT mutate the schema-registry
   backend surface.
 
+**Phase-2 Sprint-4 Tag-5 (this revision, additive over Sprint-4 Tag-4):**
+
+- The AIP-document signature-verification cache tier
+  (`wirelang/identity/aip_signature_verification_cache.py`) exposing
+  the bounded LRU+TTL `AipSignatureVerificationCache` class
+  (`__init__(*, max_entries=256, ttl_seconds=300.0, clock=time.monotonic)`,
+  `verify(aip_doc, signature_block, pub_key) -> bool`, `clear()`,
+  `evict_expired() -> int`, `stats` property returning a
+  `CacheStats` snapshot, `max_entries` / `ttl_seconds` read-only
+  properties), the frozen counter dataclass `CacheStats`
+  (`hits` / `misses` / `evictions` / `expired` / `size`), the free
+  function `cached_verify_aip_signature(aip_doc, signature_block,
+  pub_key, *, cache)` (a one-call wrapper for type-signature
+  flexibility), and the module-level constants
+  `DEFAULT_MAX_ENTRIES=256` / `DEFAULT_TTL_SECONDS=300.0`.
+- **Stateful tier on the stateless verifier**: the underlying
+  `wirelang.identity.verify_aip_signature` (Sprint-4 Tag-1) is
+  UNCHANGED. The cache calls it verbatim on miss and memoises the
+  Boolean outcome. A cache hit is byte-equal to a fresh verify
+  (the cache is a pure performance optimisation; callers can rely
+  on hit/miss being indistinguishable in semantics).
+- **Cache-key construction**: `SHA-256` over the byte-deterministic
+  5-tuple
+  `(SHA-256(JCS(body without document_signature)),
+  alg, kid, signature_hex, pub_key_hex)` with explicit `\x00`
+  separators. The 5-tuple captures every input of the underlying
+  verify call; different inputs (body, alg, kid, signature hex, or
+  public-key bytes) produce different cache keys; reflexive
+  inputs collide. The body digest reuses the same
+  resolver-indirected JCS canonicaliser used by
+  `wirelang.identity.aip_signing` (Z-1-K-Sprint-4-2 JCS-Resolver-Lock
+  is preserved; no new JCS path).
+- **Cache-key body digest is byte-equal to the Sprint-4 Tag-4
+  `jcs_sha256_hex` byte-anchor**: the cache-key construction reuses
+  the same `SHA-256(JCS(body without document_signature))`
+  computation as `aip_document_transport_fetch._jcs_anchor_hex`.
+  Production callers that have already fetched the body via Tag-4
+  pay the JCS+SHA-256 cost once: the Tag-4 transport-fetch produces
+  the byte-anchor; the Tag-5 cache key reuses the same byte-anchor
+  shape. The two computations are byte-equal by construction (same
+  helper layer); the Tag-5 module recomputes from the body for API
+  simplicity, not because of a shape difference.
+- **TTL-based invalidation**: the default TTL is 300 seconds
+  (`DEFAULT_TTL_SECONDS`). On lookup, an entry whose
+  `(now - inserted_at) >= ttl_seconds` is dropped; the lookup falls
+  through to a fresh verify and the `expired` counter increments.
+  The clock is injectable via the `clock` constructor argument
+  (defaults to `time.monotonic`); tests inject a controllable
+  callable for hermetic determinism. TTL bounds staleness for two
+  scenarios: key rotation (an AIP-document `public_keys` entry's
+  `validuntil` window) and document re-publication (a re-published
+  body with mutated semantics under the same JCS-anchor — unlikely
+  but defence-in-depth). An out-of-band `evict_expired()` method
+  walks the cache for a periodic-sweep hygiene pass.
+- **LRU eviction in insertion-order**: the cache is bounded by
+  `max_entries` (default 256). On an at-capacity insert, the oldest
+  entry by insertion-order is evicted. A cache *hit* does NOT
+  promote the entry; this matches the V-908 `HTTPSAipResolverCache`
+  semantics byte-consistent across the Identity-Substrate cache
+  tiers. Callers that want hit-promotion semantics should
+  construct a separate cache tier.
+- **Negative caching**: both `True` and `False` verify outcomes are
+  cached. A bad signature (verify returns `False`) is just as
+  memoisable as a good one — the cryptographic primitive is
+  deterministic on `(payload, key, signature)` regardless of
+  outcome. Production fleets that see retries against known-bad
+  inputs (expired key rotations, replayed malicious signatures)
+  benefit from the negative cache.
+- **Structural failures are NOT cached**: when
+  `wirelang.identity.verify_aip_signature` raises `ValueError` (a
+  malformed signature block, wrong algorithm, wrong key length),
+  the exception propagates verbatim and no cache entry is written.
+  The cache contract: "cache stores Boolean verify outcomes;
+  structural failures bubble through unchanged".
+- 12 hermetic determinism tests (T-AIP-SVC-01..12) over: construction
+  defaults and bad-arg validation; hit on second verify with
+  outcome-equality vs. fresh verify; TTL-based invalidation with a
+  fake clock; LRU eviction in insertion-order (with a hit-does-not-
+  promote probe); negative caching round-trip; cache-key construction
+  distinctness across all 5 components; cache-key `KeyError` on
+  malformed signature_block; structural-failure non-caching;
+  `evict_expired()` bulk sweep semantics; `document_signature`-slot
+  stripping (the cache key is byte-equal across documents that differ
+  only in the attached signature slot); `clear()` semantics
+  (drops entries, preserves lifetime counters); free-function
+  `cached_verify_aip_signature` wrapper byte-equivalence to the
+  method form.
+- This slot consumes the **AIP-document signature-verification
+  cache tier** Phase-2-roadmap item (previously listed as a Phase-3
+  Identity-Substrate slot in §5.3; Sprint-4 Tag-5 ships it now to
+  round out the Phase-2 verifier-pipeline performance profile).
+- **`NatsKvSchemaRegistry` surface remains UNCHANGED**. No backend
+  method added, no new envelope schema introduced, no new
+  validation gate at write time. The cache tier is orthogonal to
+  the schema-registry backend; it sits at the Identity-Substrate
+  layer alongside `verify_aip_signature` (Sprint-4 Tag-1) and the
+  kid-resolver (Sprint-4 Tag-3) / transport-fetch (Sprint-4 Tag-4).
+- **Cross-Review-Zone-1 (Identity-Substrate) non-touched**: the four
+  Z-1-K-Sprint-4 consensus points remain byte-identical. The cache
+  is curve-agnostic (the `alg` field is part of the cache key but
+  the cache does not enforce a curve choice — Z-1-K-Sprint-4-3
+  reinforced rather than touched). The cache is policy-agnostic:
+  it memoises the Boolean outcome of the verifier; the caller's
+  STRICT-mode policy (Sprint-4 Tag-1 `VerifyMode.STRICT`) is
+  upstream and unchanged (Z-1-K-Sprint-4-4 non-touched). The cache
+  does not import `kid_resolver`; it takes a `pub_key` argument
+  the caller has already resolved (Z-1-K-Sprint-4-1 non-touched).
+  The cache reuses the `aip_signing._jcs_canonicalize` resolver-
+  indirection byte-identical for the body-digest computation
+  (Z-1-K-Sprint-4-2 non-touched; no new JCS path).
+- **Boundary**: this slot does NOT replace
+  `wirelang.identity.verify_aip_signature` (the underlying
+  verifier remains the single source of truth for cryptographic
+  correctness); does NOT cache transport-fetch outputs (the V-908
+  `HTTPSAipResolverCache` and the Sprint-4 Tag-4 transport-fetch
+  layer are upstream and unchanged); does NOT persist across
+  process boundaries (in-process only; distributed-cache contracts
+  are Phase-3 slots); does NOT mutate
+  `wirelang.identity.sign_aip_document` or any signing-side
+  surface (Tag-5 is read-side only).
+
 **Phase-2 (remaining reserved, out of scope here):**
 
 - CAS-quorum upserts on top of multi-replica clusters
@@ -407,10 +529,9 @@ JCS-canonical envelope that is byte-stable for audit anchoring.
 - ~~AIP-document transport-fetch (`did:web` / `aip:web` HTTPS
   bridge)~~ (**CONSUMED in Sprint-4 Tag-4** by
   `wirelang.identity.aip_document_transport_fetch`; see §5.10).
-- AIP-document signature-verification cache tier for the
-  transport-fetch layer (the Tag-4 module is stateless; production
-  callers compose with the V-908 `HTTPSAipResolverCache` or an outer
-  tier). Phase-3 Identity-Substrate slot.
+- ~~AIP-document signature-verification cache tier for the
+  transport-fetch layer~~ (**CONSUMED in Sprint-4 Tag-5** by
+  `wirelang.identity.aip_signature_verification_cache`; see §5.11).
 - STRICT-mode operator-activation toggle (Z-1-K-Sprint-4-4 remains
   open — the resolver is policy-agnostic; the toggle question is
   a Phase-2-roadmap consensus decision).
@@ -421,7 +542,10 @@ consumed **OI-7-Phase-1c-publisher**, Tag-6 consumes
 **OI-7-Phase-1c-replication**. Phase-2 Sprint-4 Tag-1 consumes
 **OI-7-Phase-2-sig**; Sprint-4 Tag-3 closes the Z-1-Sprint-4-Anhang
 follow-up `kid → public-key resolver`; Sprint-4 Tag-4 closes the
-Sprint-4 Tag-3 §5.9 boundary item `AIP-document transport-fetch`.
+Sprint-4 Tag-3 §5.9 boundary item `AIP-document transport-fetch`;
+Sprint-4 Tag-5 ships the AIP-document signature-verification cache
+tier (previously listed as a Phase-3 Identity-Substrate slot) so the
+Phase-2 verifier-pipeline performance profile is rounded out.
 The Phase-2 reserved slots are tracked as **OI-7-Phase-2-quorum /
 -deprecation / -ipfs / -bidir-replication / -resume** plus the
 STRICT-toggle follow-up slot noted above.
@@ -663,7 +787,7 @@ These gates protect the determinism contract: a poisoned or
 mis-anchored envelope cannot reach the bucket through the typed
 backend.
 
-### 5.3 What Phase-1b Sprint-3 Tag-1 + Tag-3 + Tag-4 + Tag-5 + Tag-6 + Phase-2 Sprint-4 Tag-1 + Tag-3 + Tag-4 covers, and what Phase-2 still does NOT do
+### 5.3 What Phase-1b Sprint-3 Tag-1 + Tag-3 + Tag-4 + Tag-5 + Tag-6 + Phase-2 Sprint-4 Tag-1 + Tag-3 + Tag-4 + Tag-5 covers, and what Phase-2 still does NOT do
 
 **Tag-1 (v0.1.0) lands:**
 
@@ -1951,6 +2075,265 @@ RFC-8032 Ed25519 test-vector seeds; the resolver feed-through to
 `T-KID-RES-03`. The two tests together pin the end-to-end Phase-2
 verifier pattern.
 
+### 5.11 AIP-document signature-verification cache tier (Phase-2 Sprint-4 Tag-5)
+
+The verification-cache tier is a stateful, bounded LRU+TTL cache on
+top of the Sprint-4 Tag-1 AIP-document signing primitive
+(`wirelang.identity.verify_aip_signature`). The Tag-1 verifier is
+pure and stateless; the §5.11 cache memoises its Boolean outcome
+to short-circuit re-verification cost on repeated calls with the
+same `(body, signature, public_key)` triple. The module is
+`wirelang.identity.aip_signature_verification_cache`; it does NOT
+mutate the schema-registry backend, does NOT add a method to
+`NatsKvSchemaRegistry`, and does NOT introduce a new envelope.
+
+**Module location and rationale:**
+
+The cache lives in `wirelang.identity` alongside the kid-resolver
+(§5.9), the transport-fetch (§5.10), `aip_signing.py`, and the
+V-908 transport primitives. The placement keeps the AIP-document
+trust layer self-contained: the schema-registry signing module
+(§5.8) is unchanged; the kid-resolver (§5.9) is unchanged; the
+transport-fetch (§5.10) is unchanged. The cache sits at the same
+Identity-Substrate layer as the underlying verifier and composes
+with it byte-orthogonally (the verifier is the cache's single
+miss-path target; no other module's surface is touched).
+
+**Public API:**
+
+```python
+DEFAULT_MAX_ENTRIES: int = 256
+DEFAULT_TTL_SECONDS: float = 300.0
+
+@dataclass
+class CacheStats:
+    hits: int = 0
+    misses: int = 0
+    evictions: int = 0
+    expired: int = 0
+    size: int = 0   # live snapshot, not cumulative
+
+class AipSignatureVerificationCache:
+    def __init__(
+        self,
+        *,
+        max_entries: int = DEFAULT_MAX_ENTRIES,
+        ttl_seconds: float = DEFAULT_TTL_SECONDS,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None: ...
+
+    @property
+    def stats(self) -> CacheStats: ...   # defensive copy
+    @property
+    def max_entries(self) -> int: ...
+    @property
+    def ttl_seconds(self) -> float: ...
+
+    def verify(
+        self, aip_doc: dict, signature_block: dict, pub_key: bytes,
+    ) -> bool: ...
+
+    def clear(self) -> None: ...
+    def evict_expired(self) -> int: ...
+
+def cached_verify_aip_signature(
+    aip_doc: dict,
+    signature_block: dict,
+    pub_key: bytes,
+    *,
+    cache: AipSignatureVerificationCache,
+) -> bool: ...
+```
+
+**Cache-key construction:**
+
+The cache key is the SHA-256 of an explicit 5-tuple, byte-serialised
+with `\x00` separators (no JSON, no canonicalisation cost — the
+inputs are already canonicalised individually):
+
+1. `SHA-256(JCS(body without document_signature))` hex of the
+   AIP-document body. Identical in shape to the Sprint-4 Tag-4
+   `jcs_sha256_hex` byte-anchor; reuses the same resolver-indirected
+   `_jcs_canonicalize` from `aip_signing` (Z-1-K-Sprint-4-2 lock
+   preserved).
+2. `signature_block["alg"]` (`"Ed25519"` for the Phase-2 default
+   curve; future-proof for additional curves).
+3. `signature_block["kid"]` string.
+4. `signature_block["signature"]` hex (128 chars for Ed25519).
+5. `pub_key.hex()` (the 32-byte raw Ed25519 public key, in hex).
+
+The 5-tuple captures every input of the underlying verify call.
+Distinct inputs (different body, different alg, different kid,
+different signature hex, different public-key bytes) produce
+different cache keys; reflexive inputs collide. The
+`document_signature` slot is stripped from the body before JCS-
+canonicalisation; re-publishing the same body with a different
+`document_signature` slot produces the same cache key (the cache
+is bound to the body content, not to whatever attached signature
+it travelled with at fetch time).
+
+The SHA-256 indirection keeps the cache-key memory cost
+bounded regardless of the AIP-document size; the document is hashed
+upstream of the cache, and the cache only stores the digest.
+
+**Cache semantics:**
+
+- **Hits return the memoised Boolean unchanged.** A hit does not
+  re-invoke `verify_aip_signature`. The contract is "cache hit is
+  byte-equal to a fresh verify" — production callers can rely on
+  hit/miss being a pure performance optimisation, not a behavioural
+  difference.
+- **TTL expiry on lookup**: when a hit is found but
+  `now - entry.inserted_at >= ttl_seconds`, the entry is removed
+  and the lookup falls through to a fresh verify. The `expired`
+  counter increments; the `hits` counter does NOT. The clock is
+  injectable via the `clock` constructor argument (defaults to
+  `time.monotonic`); hermetic tests inject a controllable callable.
+- **LRU eviction on insertion**: if the cache is at `max_entries`
+  capacity, the oldest entry by insertion-order is removed. A
+  cache *hit* does NOT promote the entry; LRU is by insertion-
+  order, byte-identical to the V-908 `HTTPSAipResolverCache`
+  semantics for cross-cache consistency.
+- **Negative caching**: a `False` verify outcome is cached the
+  same way as a `True` outcome. Production fleets that see retries
+  against known-bad inputs (expired key rotations, replayed
+  malicious signatures, etc.) benefit from the negative cache.
+- **Structural failures are NOT cached**: when
+  `verify_aip_signature` raises `ValueError` (malformed signature
+  block, wrong algorithm, wrong key length), the exception
+  propagates verbatim and no cache entry is written. The cache
+  contract: "cache stores Boolean verify outcomes; structural
+  failures bubble through unchanged".
+- **clear() drops entries; counters survive**: `clear()` empties
+  the cache contents but does NOT reset the lifetime counters
+  (`hits` / `misses` / `evictions` / `expired` survive). The
+  `size` field on `stats` is live and naturally drops to zero.
+- **evict_expired() out-of-band sweep**: an explicit method walks
+  the cache and removes every entry beyond the TTL window. Useful
+  for production callers that want a periodic timer-driven sweep
+  to keep the live size bounded by freshness rather than by LRU.
+
+**TTL window rationale:**
+
+The default TTL of 300 seconds balances two production scenarios:
+
+1. **Key rotation**: an AIP document's `public_keys` entry has a
+   `validuntil` window. A cached verify outcome past that window
+   may no longer reflect current trust policy; the TTL forces a
+   re-verify with the latest document-state at most every
+   `ttl_seconds`.
+2. **Document mutation**: an AIP document may be re-published with
+   a new `document_signature` slot at the same identifier. The
+   cache key includes the body's JCS-anchor so a re-publication
+   with a different body is a different cache key naturally; the
+   TTL is defence-in-depth for the unlikely case where the same
+   JCS-anchor reappears under mutated semantics.
+
+Callers with stricter freshness requirements can construct a
+shorter-TTL cache or call `evict_expired()` on their own cadence.
+
+**Determinism contract (Phase-2 Sprint-4 Tag-5 invariants):**
+
+1. **Byte-equal hit vs miss outcomes**: for any `(aip_doc,
+   signature_block, pub_key)` triple, `cache.verify(...)` returns
+   the same Boolean whether the call is a hit or a miss. The cache
+   is a pure performance optimisation.
+2. **Deterministic cache-key construction**: `_build_cache_key`
+   is byte-deterministic on its inputs. Repeated calls with byte-
+   equal inputs produce equal keys; any byte-difference in the
+   5-tuple produces a different key.
+3. **Hermetic-clean TTL semantics**: the `clock` parameter accepts
+   any callable returning a monotonic float. Tests inject a
+   controllable clock; production injects `time.monotonic`. TTL
+   transitions are deterministic on the injected clock.
+4. **Negative-vs-structural-failure split**: cryptographically-
+   wrong outcomes (`False`) are memoised; structural failures
+   (`ValueError`) are NOT. Callers can rely on the cache to bound
+   re-verification cost for stable inputs without masking
+   structural bugs at the input layer.
+
+**Phase-2 Sprint-4 Tag-5 boundary:**
+
+The verification-cache tier deliberately does NOT:
+
+- Replace `wirelang.identity.verify_aip_signature`. The cache is a
+  thin composition on top; the underlying verifier remains the
+  single source of truth for cryptographic correctness.
+- Cache transport-fetch outputs. The Sprint-4 Tag-4
+  `aip_document_transport_fetch` layer is upstream and stateless;
+  the V-908 `HTTPSAipResolverCache` caches *documents* (by URI and
+  ETag) at the federation pipeline. The Tag-5 cache memoises the
+  *verify outcome*, a different cache key shape.
+- Persist across process boundaries. The cache is in-process only;
+  distributed-cache contracts (Redis / NATS-KV / shared filesystem)
+  are Phase-3 slots.
+- Mutate `wirelang.identity.sign_aip_document` or any signing-side
+  surface. Tag-5 is read-side only.
+- Bind the cached verify outcome to a schema-registry capability
+  envelope (`registered_by` gating remains a future Phase-2 slot).
+
+**Cross-Review-Zone-1 (Identity-Substrate) — non-touched:**
+
+- **Z-1-K-Sprint-4-1 (kid-Resolver-Shape)** non-touched; the cache
+  takes a `pub_key` argument the caller has already resolved (via
+  the §5.9 kid-resolver). The cache does NOT import `kid_resolver`
+  or invoke it.
+- **Z-1-K-Sprint-4-2 (JCS-Resolver-Lock)** non-touched; this module
+  consumes `aip_signing._jcs_canonicalize` byte-identical via a
+  direct import. No new JCS path; the cache-key body digest is
+  byte-equal to the Sprint-4 Tag-4 `_jcs_anchor_hex` shape.
+- **Z-1-K-Sprint-4-3 (Curve-Choice = Ed25519)** non-touched; the
+  cache is curve-agnostic by construction. The `alg` field is part
+  of the cache key but the cache does not enforce a curve choice —
+  the underlying verifier enforces it.
+- **Z-1-K-Sprint-4-4 (STRICT-Mode-Activation-Owner)** non-touched;
+  the cache is policy-agnostic. It memoises the Boolean outcome of
+  the verifier; the caller's STRICT-mode policy (Sprint-4 Tag-1
+  `VerifyMode.STRICT`) is upstream and unchanged.
+
+**Composition pattern (canonical end-to-end Phase-2 cached-verifier flow):**
+
+```python
+from wirelang.identity import (
+    AipSignatureVerificationCache,
+    fetch_aip_document,
+    resolve_kid,
+)
+from wirelang.identity.aip_https_backend import HTTPSDocumentTransport
+from wirelang.identity.dns_anchor import StdlibDoHResolver
+
+# 1. Fetch and (optionally) DNS-anchor-cross-check the AIP document
+#    (Sprint-4 Tag-4, §5.10).
+transport = HTTPSDocumentTransport()
+dns = StdlibDoHResolver()
+fetched = fetch_aip_document(
+    "aip:web:wakir.dev/personas/treasury-issuer",
+    transport=transport,
+    dns_resolver=dns,
+    anchor_required=True,
+)
+
+# 2. Resolve the document_signature.kid to an Ed25519 public key
+#    (Sprint-4 Tag-3, §5.9).
+sig_block = fetched.aip_doc["document_signature"]
+resolved = resolve_kid(
+    fetched.aip_doc, sig_block["kid"], as_of=now_utc(),
+)
+
+# 3. Verify the AIP-document signature through the cache tier
+#    (Sprint-4 Tag-5, this section). Repeated calls with byte-equal
+#    inputs short-circuit through the memoised outcome.
+cache = AipSignatureVerificationCache()  # singleton in production
+ok = cache.verify(fetched.aip_doc, sig_block, resolved.public_key)
+```
+
+Sprint-4 Tag-5 test `T-AIP-SVC-02` pins the hit-on-second-verify
+byte-equality with a fresh `verify_aip_signature` call; T-AIP-SVC-03
+pins the TTL invalidation through an injectable clock; T-AIP-SVC-04
+pins the LRU eviction by insertion-order; T-AIP-SVC-05 pins the
+negative-caching round-trip; T-AIP-SVC-08 pins the structural-
+failure non-caching contract.
+
 ## 6. Test inventory
 
 Phase-1b Sprint-3 Tag-1 ships hermetic tests at
@@ -2406,6 +2789,97 @@ suite grows from **683 passed** (post-Sprint-4 Tag-3) to **695 passed**
 Tag-3 kid-resolver tests (T-KID-RES-01..12) remain unchanged and
 green.
 
+### 6.8 AIP-document signature-verification cache tier tests (Phase-2 Sprint-4 Tag-5, additive over Sprint-4 Tag-4)
+
+Phase-2 Sprint-4 Tag-5 ships hermetic verification-cache tests at
+`wirelang/tests/test_aip_signature_verification_cache.py`. Inventory
+T-AIP-SVC-01..12. All tests are hermetic: no real time (an
+injectable `_FakeClock` provides deterministic monotonic ticks),
+no I/O, no transport, no NATS. The Ed25519 signing primitive runs
+in-process via the existing `cryptography` dependency; RFC 8032
+test-vector seeds 1 and 2 are reused from the Sprint-4 Tag-3 / Tag-4
+test fixtures.
+
+- **T-AIP-SVC-01** — construction and defaults. Default
+  construction yields `max_entries=DEFAULT_MAX_ENTRIES=256` and
+  `ttl_seconds=DEFAULT_TTL_SECONDS=300.0`. Initial stats are all
+  zero. Bad-arg-grid: `max_entries <= 0` and `ttl_seconds <= 0`
+  both raise `ValueError` with documented messages.
+- **T-AIP-SVC-02** — hit on second verify; outcome byte-equal to
+  fresh. First `cache.verify(...)` is a miss (`stats.misses == 1`,
+  `stats.size == 1`); second call with byte-equal inputs is a hit
+  (`stats.hits == 1`, `stats.misses` unchanged). The hit outcome
+  is byte-equal (`is`-identity for the Boolean) to a fresh
+  `verify_aip_signature` call.
+- **T-AIP-SVC-03** — TTL-based invalidation. A `_FakeClock` walks
+  the cache window. At `t=9.999s < 10s ttl`, the second lookup is
+  a hit. At `t=10.001s > 10s ttl`, the third lookup is a miss-via-
+  expiry: the `expired` counter increments AND `misses` increments;
+  `hits` does NOT. After the re-insertion, the cache still has one
+  entry (the freshly re-inserted one at `t=10.001`), not two.
+- **T-AIP-SVC-04** — LRU eviction in insertion order. Three
+  distinct `(doc, sig, pub)` triples in a 2-slot cache. After
+  insert-A + insert-B, a *hit* on A does NOT promote A (insertion-
+  order LRU, hit-does-not-promote contract). Inserting C evicts
+  A; a re-verify of A is a miss that evicts B (`evictions == 2`);
+  a re-verify of B is a miss that evicts C (`evictions == 3`).
+- **T-AIP-SVC-05** — negative caching. Sign with priv_A, verify
+  against pub_B → `False`. The first call is a miss; the second
+  call is a hit returning `False`. The cached negative outcome is
+  byte-equal to a fresh `verify_aip_signature(... pub_B)` call.
+- **T-AIP-SVC-06** — cache-key construction distinctness across
+  all 5 components. Five probes — body, alg, kid, signature_hex,
+  pub_key — each producing a distinct cache key. Reflexivity:
+  byte-equal inputs produce byte-equal keys.
+- **T-AIP-SVC-07** — cache-key `KeyError` on malformed
+  `signature_block`. Missing `alg` / `kid` / `signature` each
+  raises `KeyError(f"missing {field}")` from the cache-key
+  function (the underlying verifier would also raise
+  `ValueError`; the cache distinguishes the two failure modes).
+- **T-AIP-SVC-08** — structural failures NOT cached. A
+  `signature_block` with `alg="Ed448"` raises `ValueError` from
+  the underlying verifier. The cache propagates the exception
+  verbatim; `stats.size` stays at `0`; `stats.misses` and
+  `stats.hits` are unchanged. A repeat call raises the same
+  `ValueError` (deterministic) without producing a cache entry.
+- **T-AIP-SVC-09** — `evict_expired()` bulk sweep. Two entries
+  inserted at `t=0`. Within TTL (`t=9s`), the sweep is a no-op.
+  Past TTL (`t=10.5s > 10s ttl`), the sweep removes both;
+  `expired` counter rises by 2; `size == 0`.
+- **T-AIP-SVC-10** — `document_signature` slot stripped before
+  cache-key body digest. Two documents that differ only in their
+  attached `document_signature` slot produce the same cache key
+  (the cache key is bound to the body content, not to whatever
+  signature was attached at fetch time). The `_jcs_body_digest_hex`
+  helper is also byte-equal across the two documents.
+- **T-AIP-SVC-11** — `clear()` drops entries but preserves
+  lifetime counters. After miss + hit, `clear()` empties the cache
+  (`size == 0`) but `hits` / `misses` / `evictions` / `expired`
+  survive. A repeat verify after `clear()` is a miss (the cache
+  was emptied).
+- **T-AIP-SVC-12** — free-function `cached_verify_aip_signature`
+  routes through the supplied cache. Two calls via the free
+  function produce a miss followed by a hit on the same cache; the
+  function is byte-equivalent to `cache.verify(...)`. Calling
+  `cache.verify(...)` directly after the free-function form
+  registers a second hit. The free-function outcome is byte-equal
+  to a fresh `verify_aip_signature` call. `CacheStats` is a
+  defensive copy: mutating the returned snapshot does NOT mutate
+  the live cache counters.
+
+Total Phase-2 Sprint-4 Tag-5 test additions: 12 hermetic determinism
+tests (T-AIP-SVC-01..12). The cache is a pure performance
+optimisation: no signature verification logic, no schema validation,
+no transport-fetch coupling. Tests use an injectable `_FakeClock`
+for hermetic TTL determinism; RFC 8032 Ed25519 test-vector seeds
+are reused from the Sprint-4 Tag-3 / Tag-4 fixtures.
+
+**Suite-level effect (post-Sprint-4 Tag-5):** the wirelang test
+suite grows from **695 passed** (post-Sprint-4 Tag-4) to **707 passed**
+(+12 net). The Tag-1 entry-signing tests (T-SR-SIG-01..12), the
+Tag-3 kid-resolver tests (T-KID-RES-01..12) and the Tag-4
+transport-fetch tests (T-AIP-FT-01..12) remain unchanged and green.
+
 ## 7. Cross-references and Open-Items
 
 - V-908 backend pattern source:
@@ -2464,6 +2938,31 @@ green.
   verifier flow is now end-to-end composable from an `aip:web:`
   identifier through to `verify_entry_signature` — see §5.10
   composition pattern.
+- **Phase-2 AIP-document signature-verification cache tier: CONSUMED
+  in Sprint-4 Tag-5.** Module:
+  `wirelang/identity/aip_signature_verification_cache.py`. Tests:
+  `wirelang/tests/test_aip_signature_verification_cache.py`
+  (T-AIP-SVC-01..12). Previously listed as a Phase-3 Identity-
+  Substrate slot in §5.3; Sprint-4 Tag-5 ships it now to round out
+  the Phase-2 verifier-pipeline performance profile. The cache is
+  a bounded LRU+TTL tier (default `max_entries=256`,
+  `ttl_seconds=300.0`, `clock=time.monotonic`) on top of the
+  Sprint-4 Tag-1 `wirelang.identity.verify_aip_signature`
+  primitive; cache hits are byte-equal to fresh verify outcomes.
+  The cache key is SHA-256 over the 5-tuple
+  `(SHA-256(JCS(body without document_signature)), alg, kid,
+  signature_hex, pub_key_hex)` — byte-identical in shape to the
+  Sprint-4 Tag-4 `jcs_sha256_hex` byte-anchor (Z-1-K-Sprint-4-2
+  JCS-Resolver-Lock preserved). Negative outcomes (`verify`
+  returns `False`) are memoised the same way as positive outcomes;
+  structural failures (`ValueError` from the verifier) are NOT
+  cached and propagate verbatim. The cache is byte-orthogonal to
+  `wirelang.identity.verify_aip_signature` (UNCHANGED),
+  `wirelang.identity.kid_resolver` (UNCHANGED),
+  `wirelang.identity.aip_document_transport_fetch` (UNCHANGED), and
+  the schema-registry backend (`NatsKvSchemaRegistry` UNCHANGED, no
+  new method, no new envelope). See §5.11 composition pattern for
+  the end-to-end Phase-2 cached-verifier flow.
 - Phase-2 STRICT-mode activation toggle: reserved (Z-1-K-Sprint-4-4
   open; operator-controlled toggle is a Phase-2-roadmap consensus
   question).
@@ -2722,6 +3221,73 @@ itself is still Phase-2.
   warranted by the new §5.10 operational contract and §6.7 test
   inventory; no breaking-change to any consumer.
 
+**Phase-2 Sprint-4 Tag-5 (v0.9.0) is additive relative to Sprint-4 Tag-4 (v0.8.0):**
+
+- All Tag-1 + Tag-3 + Tag-4 + Tag-5 + Tag-6 + Sprint-4 Tag-1 +
+  Sprint-4 Tag-3 + Sprint-4 Tag-4 surfaces remain unchanged.
+  Sprint-4 Tag-5 introduces no new method on
+  `NatsKvSchemaRegistry`, no modification to
+  `wirelang.schemas.entry_signing`, no modification to
+  `wirelang.identity.kid_resolver` (Sprint-4 Tag-3),
+  no modification to `wirelang.identity.aip_document_transport_fetch`
+  (Sprint-4 Tag-4), and no modification to
+  `wirelang.identity.aip_signing` (the underlying
+  `verify_aip_signature` primitive is the cache miss-path target
+  and remains the single source of truth for cryptographic
+  correctness).
+- The Sprint-4 Tag-5 addition is a *separate module*
+  (`wirelang.identity.aip_signature_verification_cache`) consisting
+  of the bounded LRU+TTL class `AipSignatureVerificationCache`,
+  the frozen counter dataclass `CacheStats`, the free function
+  `cached_verify_aip_signature`, and the module-level constants
+  `DEFAULT_MAX_ENTRIES=256` / `DEFAULT_TTL_SECONDS=300.0`. The
+  cache is exposed via the `wirelang.identity` package `__init__`.
+- The on-the-wire envelope schema is UNCHANGED. The cache memoises
+  the Boolean outcome of a verify call; it does not emit, write,
+  or canonicalise schema-registry envelope bytes.
+- `wirelang.schemas.entry_signing` is UNCHANGED.
+  `wirelang.identity.kid_resolver` is UNCHANGED.
+  `wirelang.identity.aip_document_transport_fetch` is UNCHANGED.
+  `wirelang.identity.aip_signing` is UNCHANGED. The cache consumes
+  `wirelang.identity.aip_signing._jcs_canonicalize` byte-identical
+  for the body-digest computation (the Z-1-K-Sprint-4-2 JCS-
+  Resolver-Lock is preserved; no new JCS path introduced).
+- The cache's body-digest helper (`_jcs_body_digest_hex`) is
+  byte-equal in shape and output to the Sprint-4 Tag-4
+  `aip_document_transport_fetch._jcs_anchor_hex` helper. The two
+  helpers are deliberate siblings (parallel modules, not a stack);
+  the byte-equality is by construction (same JCS canonicaliser,
+  same SHA-256, same `document_signature`-strip).
+- M-2 conformance (additive-only schema evolution): Sprint-4 Tag-5
+  adds NO new envelope field. The schema-registry on-the-wire
+  surface (envelope shape, value-schema URI
+  `wakir.wirelang.schema-registry-entry/1`, signature-block shape)
+  is bit-equal to v0.8.0. M-2 is preserved trivially.
+- M-4 conformance (multi-version-aware registry): Sprint-4 Tag-5
+  is orthogonal to the version axis. The cache operates on AIP-
+  document verify outcomes, not on registry entries.
+- The AIP-document JSON-Schema (`wirelang/schemas/aip-document.json`)
+  is UNCHANGED. The cache reads the body opaquely and does not
+  validate it against the schema.
+- Cross-Review-Zone-1 (Identity-Substrate) non-touched: the four
+  Z-1-K-Sprint-4 consensus points remain byte-identical. The cache
+  is curve-agnostic (Z-1-K-Sprint-4-3 non-touched / reinforced),
+  policy-agnostic (Z-1-K-Sprint-4-4 non-touched), and
+  resolver-independent (Z-1-K-Sprint-4-1 non-touched — the cache
+  takes a `pub_key` argument the caller has already resolved).
+  Z-1-K-Sprint-4-2 (JCS-Resolver-Lock) is preserved byte-identical
+  via the direct `aip_signing._jcs_canonicalize` reuse.
+- The synchronous verifier surface (`InMemorySchemaRegistry.lookup`
+  / `lookup_by_triple` / `keys_sorted`) is unchanged. The cache
+  tier is opt-in: verifiers that re-validate the same triple at
+  fleet scale benefit from the cache; verifiers that validate each
+  triple once can call `verify_aip_signature` directly without
+  going through the cache surface.
+- Spec semver bump 0.8.0 → 0.9.0 reflects the additive minor
+  change (M-2 §3.2 versioning policy: minor for additive). The
+  bump is warranted by the new §5.11 operational contract and
+  §6.8 test inventory; no breaking-change to any consumer.
+
 ## 9. Brand-Guide §9 sweep
 
 This document has been swept against the Wakir Brand-Guide §9
@@ -2752,5 +3318,22 @@ references (`wirelang.identity.aip_document_transport_fetch`,
 V-908 spec sections) appear in the spec body. No external-tool
 clear-name leakage and no internal-persona-clear-name leakage in
 the Tag-4 spec body additions.
+
+The Sprint-4 Tag-5 additions (§5.11, §6.8, change-log v0.9.0 entry,
+§1.2 Phase-2 Sprint-4 Tag-5 block, §5.3 lands-update — Sprint-4
+Tag-5 added to the §5.3 header, AIP-document signature-verification
+cache tier item moved from Phase-3-reserved to CONSUMED-in-Sprint-4-
+Tag-5, §7 cross-references update — verification-cache tier slot
+CONSUMED, §8 compatibility statement update for v0.8.0 → v0.9.0)
+have been swept identically — only role-strings (none in this spec
+body), module-path references
+(`wirelang.identity.aip_signature_verification_cache`,
+`wirelang.identity.verify_aip_signature`,
+`wirelang.identity.aip_signing._jcs_canonicalize`),
+`wakir.*` URIs (carried unchanged from prior tags), and IETF / RFC
+references (RFC 8785 JCS, RFC 8032 Ed25519, V-908 spec sections)
+appear in the spec body. No external-tool clear-name leakage and
+no internal-persona-clear-name leakage in the Tag-5 spec body
+additions.
 
 — End of spec —
