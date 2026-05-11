@@ -9,19 +9,20 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wirelang-schema-registry
-version: 0.12.0
+version: 0.13.0
 status: draft
 date: 2026-05-11
 audience: implementers, integrators, operators
 license: CC-BY-4.0
 ---
 
-# Wirelang Schema Registry — NATS-KV Backend Specification (v0.12.0)
+# Wirelang Schema Registry — NATS-KV Backend Specification (v0.13.0)
 
 **Change log**
 
 | Version | Date       | Change                                                 |
 |---------|------------|--------------------------------------------------------|
+| 0.13.0  | 2026-05-11 | Phase-2 Sprint-5 Tag-3 closes the publisher-CLI capability-policy-source end-to-end (`wirelang.schemas.publisher_cli`: new flag `--capability-bucket` mutually exclusive with `--capability-registry`; new flag `--capability-bucket-connect-url` defaulting to `nats://127.0.0.1:4222`; new optional `capability_bucket_factory` injection on `run()`; new receipt field `gate_policy_source: Optional[str]` carrying `"file"` / `"bucket"` / `None`; new helper `_load_capability_registry_from_bucket`; new module-level `_default_capability_bucket_factory`; `_run_dry_run` promoted from a synchronous routine to an `asyncio.run` wrapper over `_run_dry_run_async` so the bucket factory is reachable from the dry-run path); §5.13 extended with a "Bucket policy source (Sprint-5 Tag-3)" subsection (additive over the Sprint-5 Tag-1 file-source contract); §6.10 extended with T-SR-PUB-CB-01..10 test inventory plus an auxiliary bucket-loader contract probe; §5.14 boundary item "future publisher-CLI integration slot" CONSUMED; §7 Phase-3-Reservation "publisher-CLI integration of the Sprint-5 Tag-2 persistent capability-policy backend" CONSUMED with the Sprint-5 Tag-3 flag reference. The Sprint-5 Tag-3 integration is **additive over Sprint-5 Tag-2** and additive over Sprint-5 Tag-1: the persistent-distribution tier (`NatsKvCapabilityPolicyBackend.snapshot_registry`) is invoked exactly once per CLI run if `--capability-bucket` is set, returning a Sprint-4 Tag-6 `CapabilityPolicyRegistry` that the gate consumes byte-identical to the operator-local JSON-file path. The gate decision is byte-equal regardless of source; the only receipt difference between the two sources is the `gate_policy_source` audit field. The capability-policy bucket connection is closed via the factory's cleanup callback before either the publish proceeds or the deny short-circuit fires; on a deny the schema-registry bucket is never touched (consistent with the Sprint-5 Tag-1 short-circuit contract). M-2 / M-4 conformance preserved. Cross-Review-Zone-1 non-touched (the four Z-1-K-Sprint-4 consensus points remain byte-identical; this slot is a pure operator-CLI composition of Sprint-5 Tag-2 bucket-snapshot + Sprint-4 Tag-6 gating + Sprint-5 Tag-1 sign-then-gate pipeline). Cross-Review-Zone-B non-touched (no new bucket; the Sprint-5 Tag-2 bucket `wakir-capability-policies` is consumed as-is; the Z-B paired-update memo from Sprint-5 Tag-2 remains the canonical orchestrator-side action item). Receipt-shape forward-compat: pre-Sprint-5 receipts now carry four optional fields at default-off values (`signed=false`, `kid=null`, `gate_decision=null`, `gate_policy_source=null`); consumers that index by the legacy field set continue to read byte-equal pre-existing fields. Additive-only change relative to v0.12.0. |
 | 0.1.0   | 2026-05-07 | Initial draft (Phase-1b Sprint-3 Tag-1).               |
 | 0.2.0   | 2026-05-07 | Phase-1c CAS-pin contract reclassified from Phase-2 to Phase-1c and lands in Tag-3 (`put_with_revision` / `get_with_revision` / `SchemaRegistryConflictError`); §5.3 Phase-1c-Slot consumed; §5.4 added. Additive-only change relative to v0.1.0; M-2 / M-4 conformance preserved. |
 | 0.3.0   | 2026-05-07 | Phase-1c watch-stream surface lands in Tag-4 (`watch()` / `WatchOp` / `WatchEvent` / `LiveSchemaSnapshot` / `open_watch_stream`); §5.3 OI-7-Phase-1c-watch slot CONSUMED; §5.5 added (watch-stream operational contract); §6.2 added (T-SR-WS-01..10 + 2 aux probes test inventory). Additive-only change relative to v0.2.0; M-2 / M-4 conformance preserved. |
@@ -3001,10 +3002,17 @@ relative to the in-process code-block:
   `wakir-capability-policies` bucket and the
   `NatsKvCapabilityPolicyBackend` surface; see §5.14. Sprint-5 Tag-1
   publisher CLI is byte-unchanged: the `--capability-registry` flag
-  still reads operator-local JSON. A future `--capability-bucket`
+  still reads operator-local JSON. ~~A future `--capability-bucket`
   publisher-CLI flag that reads from the Sprint-5 Tag-2 bucket is a
   Sprint-5 Tag-3+ candidate; Sprint-5 Tag-2 is the substrate, not
-  the CLI integration.)
+  the CLI integration.~~ — **CONSUMED in Sprint-5 Tag-3**: the
+  `--capability-bucket` flag and the
+  `_load_capability_registry_from_bucket` helper close the
+  operator-experience gap end-to-end, mutually exclusive with
+  `--capability-registry`; the bucket-side gate decision is byte-equal
+  to the file-side path, with the receipt's `gate_policy_source`
+  field as the only audit difference. See §5.13's "Bucket policy
+  source (Sprint-5 Tag-3)" subsection.)
 
 - Does NOT introduce on-the-wire Biscuit binary tokens. The
   `--capability-registry` JSON file is operator-side only; the
@@ -3080,6 +3088,145 @@ or key source); `T-SR-PUB-CG-09` pins the dry-run sign+gate path
 including the deny-on-dry-run case; `T-SR-PUB-CG-10` pins the
 receipt-shape forward-compat (default-off values for callers that
 omit the capability flags).
+
+#### Bucket policy source (Sprint-5 Tag-3, additive over Sprint-5 Tag-1)
+
+Sprint-5 Tag-3 closes the operator-experience gap left by §5.14: the
+publisher CLI gains the `--capability-bucket` flag (mutually
+exclusive with `--capability-registry`) so a sign+gate publish can
+draw its policies from the Sprint-5 Tag-2 persistent bucket
+(`wakir-capability-policies`) instead of an operator-local JSON file.
+
+**Public surface additions:**
+
+- New flag `--capability-bucket` (argparse `store_true`, mutually
+  exclusive with `--capability-registry` via an argparse
+  `add_mutually_exclusive_group`).
+- New flag `--capability-bucket-connect-url` (default
+  `nats://127.0.0.1:4222`; routed to the capability-bucket factory
+  on dispatch). The default is non-None so the flag does not need
+  an "orphan" check when bucket mode is off — the connect URL is
+  simply ignored.
+- New receipt field `gate_policy_source: Optional[str]` with three
+  possible values: `"file"` when `--capability-registry` was used,
+  `"bucket"` when `--capability-bucket` was used, and `None` when
+  `--gate` was not requested. The audit field is the only receipt
+  difference between the two sources — gate decisions are byte-equal.
+- New optional `capability_bucket_factory` kwarg on
+  `publisher_cli.run()` (analogous to `connect_factory`). The
+  default factory is
+  `publisher_cli._default_capability_bucket_factory`, which connects
+  to NATS-JetStream and opens
+  `js.key_value("wakir-capability-policies")`. Tests inject a factory
+  returning an in-memory mock backend.
+- New helper `_load_capability_registry_from_bucket(factory,
+  connect_url) -> CapabilityPolicyRegistry`: opens the bucket via
+  the factory, calls
+  `NatsKvCapabilityPolicyBackend.snapshot_registry()`, and closes
+  the connection (cleanup is awaited in a `finally` block so the
+  bucket connection is released even on a snapshot raise).
+- The synchronous `_run_dry_run` is now a wrapper over the new
+  async `_run_dry_run_async` (via `asyncio.run`); the bucket factory
+  is reachable from the dry-run path on the same surface as
+  `_run_publish`.
+
+**Pipeline ordering:**
+
+```text
+1. argparse parse + mutex enforcement (--capability-registry XOR
+   --capability-bucket).
+2. _validate_capability_flag_consistency  (--gate requires one of the
+   two sources; orphan flags rejected).
+3. _load_schema_body + _build_entry.
+4. sign_entry (if --sign).
+5. Policy-source dispatch:
+   - if --capability-bucket: open bucket factory →
+     snapshot_registry() → close cleanup. registry materialised.
+   - else if --capability-registry: _load_capability_registry(path).
+   registry materialised.
+6. gate_signed_entry(signed_entry, registry, as_of=as_of).
+7. if not allowed: print CAPABILITY_DENY envelope, return 7
+   (schema bucket NEVER touched).
+8. if allowed (publish path): connect to schema bucket, put / put_with_revision.
+   if allowed (dry-run path): print receipt directly.
+9. Receipt carries gate_policy_source ∈ {"file", "bucket"}.
+```
+
+The bucket connection is opened once per CLI invocation and released
+before any further work proceeds, mirroring the schema-bucket
+connect / cleanup contract from Sprint-3 Tag-5. A poisoned bucket
+envelope (non-JSON value, schema-URI mismatch, malformed
+`allowed_triples`, etc.) raises `CapabilityPolicyBackendError` which
+the CLI routes to `ExitCode.VALIDATION_ERROR = 4`; the schema bucket
+remains untouched in that case.
+
+**Flag-consistency table** (`_validate_capability_flag_consistency`
+extended in Sprint-5 Tag-3):
+
+| `--sign` | `--gate` | `--capability-registry` | `--capability-bucket` | Outcome |
+|----------|----------|-------------------------|------------------------|---------|
+| Y        | Y        | path                    | -                      | Y file source |
+| Y        | Y        | -                       | Y                      | Y bucket source |
+| Y        | Y        | path                    | Y                      | argparse mutex → exit 2 |
+| Y        | Y        | -                       | -                      | INPUT_ERROR (exit 3): `--gate` needs a source |
+| Y        | -        | path                    | -                      | INPUT_ERROR (exit 3): orphan `--capability-registry` |
+| Y        | -        | -                       | Y                      | INPUT_ERROR (exit 3): orphan `--capability-bucket` |
+| -        | -        | path or Y               | -                      | INPUT_ERROR (exit 3): orphan flags require `--gate` |
+
+**Cross-source byte-equality** (T-SR-PUB-CB-10): for an operator
+that stages byte-identical policies under both sources (e.g. a
+JSON-file containing the same `(registered_by, allowed_kids,
+allowed_triples)` triples as a bucket-side
+`CapabilityPolicyRegistry.snapshot`), the resulting CLI receipt is
+byte-equal *except* for `gate_policy_source`. The bucket is the
+authoritative source on multi-host deployments; the JSON-file source
+remains the operator-local single-host convenience.
+
+**Boundary (Sprint-5 Tag-3 boundary, NOT shipped):**
+
+- No CAS-pin tier on the capability-policy bucket
+  (`NatsKvCapabilityPolicyBackend.put` is LWW; Phase-3 slot).
+- No watch-stream on the capability-policy bucket (full-snapshot
+  only; Phase-3 slot).
+- No `--capability-bucket` Biscuit-v3-binary-token interpretation
+  (the bucket envelope is the Sprint-5 Tag-2 JSON shape; promotion
+  to a Biscuit-binary-token shape is Phase-3).
+- No mutation of `NatsKvSchemaRegistry` (the schema-registry
+  backend's `put` / `put_with_revision` are byte-unchanged).
+- No mutation of `NatsKvCapabilityPolicyBackend` (Sprint-5 Tag-2 is
+  consumed byte-unchanged; the Tag-3 layer reads from the existing
+  `snapshot_registry()` surface).
+- No new bucket on the orchestrator inventory (Z-B non-touched;
+  `wakir-capability-policies` is the Sprint-5 Tag-2 bucket consumed
+  as-is).
+
+**Composition pattern (canonical operator invocation, bucket source):**
+
+```sh
+# 1. Author publishes a policy to the bucket (one-time per
+#    issuer / per policy-id; uses NatsKvCapabilityPolicyBackend.put,
+#    e.g. via an operator script that materialises a
+#    CapabilityPolicyRecord and writes it to wakir-capability-policies).
+
+# 2. Operator publishes a schema body with sign + bucket-source gate:
+python -m wirelang.schemas.publisher_cli publish \
+    --schema-body layer-1-wire/0.1.0.json \
+    --layer wire --name layer-1-wire --version 0.1.0 \
+    --registered-by wirelang-eng \
+    --sign \
+    --kid biscuit-root-1 \
+    --ed25519-priv-key-file ~/.config/wakir/biscuit-root-1.seed \
+    --gate \
+    --capability-bucket
+```
+
+The Sprint-5 Tag-3 test inventory `T-SR-PUB-CB-01..10` (see §6.10
+addendum) pins the bucket-source happy path, the three deny axes
+through the bucket source, the mutex enforcement, the orphan-flag
+rejection, the poisoned-envelope route, the dry-run bucket path, and
+the cross-source byte-equality contract. The auxiliary
+`TestAuxBucketLoader` pins the factory-cleanup invariant and the
+multi-policy sorted-key iteration order.
 
 ### 5.14 Capability-policy persistent distribution (Phase-2 Sprint-5 Tag-2)
 
@@ -3247,10 +3394,15 @@ entirely by calling `delete` and re-snapshotting.
   operator-driven and rate-limited; the CAS-pin path is reserved as
   a Phase-3 slot (analogous to the schema-registry CAS-pin,
   Sprint-3 Tag-3). Sprint-5 Tag-2 ships PUT (LWW) only.
-- This module does NOT modify the Sprint-5 Tag-1 publisher CLI. A
+- ~~This module does NOT modify the Sprint-5 Tag-1 publisher CLI. A
   future `--capability-bucket` flag that reads policies from this
   bucket is a Sprint-5 Tag-3+ candidate; Sprint-5 Tag-2 is the
-  substrate, not the CLI integration.
+  substrate, not the CLI integration.~~ (**CONSUMED in Sprint-5
+  Tag-3** — the `--capability-bucket` flag now reads policies from
+  this bucket via `NatsKvCapabilityPolicyBackend.snapshot_registry`,
+  exposing the persistent-policy source on the operator surface
+  end-to-end; see §5.13's "Bucket policy source (Sprint-5 Tag-3)"
+  subsection. Sprint-5 Tag-2 substrate is consumed byte-unchanged.)
 - This module does NOT modify `NatsKvSchemaRegistry`. The
   schema-registry backend (`wakir-schemas` bucket) is
   byte-unchanged.
@@ -4071,6 +4223,94 @@ Tag-6 capability-gating inventory (T-RBC-01..12) remain unchanged
 and green; the Sprint-5 Tag-1 tests are additive and exercise a
 parallel test module.
 
+#### Bucket policy source tests (Phase-2 Sprint-5 Tag-3, additive)
+
+Sprint-5 Tag-3 ships hermetic tests at
+`wirelang/tests/test_publisher_cli_capability_bucket.py`. The
+inventory is **T-SR-PUB-CB-01..10** plus an auxiliary
+`TestAuxBucketLoader` class. Tests are hermetic: no NATS, no real
+transport, no real DNS, no wall-clock dependency for receipt
+determinism (`--registered-at` is supplied; the Ed25519 seed is the
+RFC 8032 test-vector 1 32-byte seed; both backends use in-memory
+mocks `_MockKvCas` for the schema-registry bucket and
+`_MockKvCapability` for the capability-policy bucket).
+
+- **T-SR-PUB-CB-01:** bucket loader happy path — a single
+  `CapabilityPolicyRecord` seeded on the in-memory
+  `_MockKvCapability` round-trips through
+  `NatsKvCapabilityPolicyBackend.snapshot_registry` into the
+  `CapabilityPolicyRegistry` the gate consumes. Receipt carries
+  `signed=true`, `gate_policy_source="bucket"`,
+  `gate_decision.allowed=true`, `gate_decision.source="policy_match"`.
+
+- **T-SR-PUB-CB-02:** `--sign --gate --capability-bucket` happy path
+  (LWW publish) — receipt `mode="lww"`, `revision=1`,
+  `gate_policy_source="bucket"`; the schema bucket holds the
+  canonical entry envelope and `schema_kv.revision == 1`.
+
+- **T-SR-PUB-CB-03:** `--capability-bucket` deny on unknown
+  `registered_by` — the bucket holds a policy for a different issuer.
+  Exit 7 (`CAPABILITY_DENY`); JSON error envelope carries
+  `no_policy_for_issuer`; schema bucket NOT touched
+  (`store == {}`, `revision == 0`).
+
+- **T-SR-PUB-CB-04:** `--capability-bucket` deny on disallowed `kid`
+  — bucket policy allows only `biscuit-root-2`; signing uses
+  `biscuit-root-1`. Exit 7 with `kid_not_allowed`; schema bucket NOT
+  touched.
+
+- **T-SR-PUB-CB-05:** `--capability-bucket` deny on triple mismatch
+  — bucket policy allows only `semantic` layer; publish targets
+  `wire`. Exit 7 with `triple_not_allowed`; schema bucket NOT touched.
+
+- **T-SR-PUB-CB-06:** mutex between `--capability-registry` and
+  `--capability-bucket` — argparse `add_mutually_exclusive_group`
+  enforcement; supplying both raises `SystemExit(2)`; no factory is
+  ever invoked.
+
+- **T-SR-PUB-CB-07:** orphan `--capability-bucket` without `--gate`
+  — `_validate_capability_flag_consistency` rejects; exit 3
+  (`INPUT_ERROR`) with message containing `--capability-bucket` and
+  `require --gate`. Schema bucket NOT touched.
+
+- **T-SR-PUB-CB-08:** poisoned bucket envelope (non-JSON value on a
+  valid-looking bucket key) raises `CapabilityPolicyEnvelopeError`
+  from the loader; the CLI routes it through `ExitCode.VALIDATION_ERROR
+  = 4`; schema bucket NOT touched.
+
+- **T-SR-PUB-CB-09:** dry-run with `--sign --gate --capability-bucket`
+  — allow path produces a receipt with `mode="dry-run"`,
+  `signed=true`, `revision=null`, `gate_policy_source="bucket"`, and
+  an allow `gate_decision`. Empty-bucket deny path on dry-run also
+  exits 7. 2 sub-tests.
+
+- **T-SR-PUB-CB-10:** cross-source byte-equality — for an operator
+  who stages byte-identical policies under both
+  `--capability-registry` (JSON file) and `--capability-bucket`
+  (NATS-KV bucket), the resulting receipts differ ONLY in the
+  `gate_policy_source` field (`"file"` vs. `"bucket"`); all other
+  fields including `gate_decision`, `kid`, `signed`, `key`,
+  `schema_body_sha256`, `registered_at`, and `revision` are
+  byte-equal.
+
+- **Auxiliary bucket-loader coverage** (`TestAuxBucketLoader`):
+  factory's `_cleanup` callback is invoked on the happy path;
+  `_cleanup` is also invoked when `snapshot_registry` raises (poisoned
+  envelope); multi-policy bucket preserves sorted-key snapshot order
+  (the gate consumes policies in `(registered_by, policy_id)`
+  sort order). 3 sub-tests.
+
+**Suite-level effect (post-Sprint-5 Tag-3):** the wirelang test
+suite grows from **804 passed, 1 skipped, 7 subtests passed**
+(post-Sprint-5 Tag-2) to **818 passed, 1 skipped, 7 subtests passed**
+(+14 net through the T-SR-PUB-CB-01..10 family and the auxiliary
+class). The Sprint-3 Tag-5 publisher-CLI inventory
+(T-SR-PUB-01..12), the Sprint-4 Tag-6 capability-gating inventory
+(T-RBC-01..12), the Sprint-5 Tag-1 inventory (T-SR-PUB-CG-01..10),
+and the Sprint-5 Tag-2 inventory (T-CPP-01..10) remain unchanged and
+green; the Sprint-5 Tag-3 tests are additive and exercise a parallel
+test module.
+
 ### 6.11 Capability-policy persistent distribution tests (Phase-2 Sprint-5 Tag-2, additive over Sprint-5 Tag-1)
 
 Sprint-5 Tag-2 ships hermetic tests at
@@ -4272,10 +4512,15 @@ module.
   the Sprint-4 Tag-6 in-process `CapabilityPolicyRegistry` remains
   the gate-evaluation surface and is materialised from the bucket
   via `NatsKvCapabilityPolicyBackend.snapshot_registry`. CAS-pinned
-  upserts (LWW-only in Sprint-5 Tag-2; Phase-3 slot), watch-stream
-  tail (full-snapshot only in Sprint-5 Tag-2; Phase-3 slot), and
-  publisher-CLI `--capability-bucket` integration (Sprint-5 Tag-3+
-  candidate) remain follow-up slots.)
+  upserts (LWW-only in Sprint-5 Tag-2; Phase-3 slot) and watch-stream
+  tail (full-snapshot only in Sprint-5 Tag-2; Phase-3 slot) remain
+  follow-up slots. ~~Publisher-CLI `--capability-bucket` integration
+  (Sprint-5 Tag-3+ candidate)~~ **CONSUMED in Sprint-5 Tag-3** via
+  the `--capability-bucket` flag in `wirelang.schemas.publisher_cli`;
+  the bucket-source gate decision is byte-equal to the file-source
+  path with `gate_policy_source` as the only receipt audit difference;
+  see §5.13's "Bucket policy source (Sprint-5 Tag-3)" subsection and
+  §6.10's "Bucket policy source tests" addendum.)
 - ~~Phase-2 publisher-CLI integration of the Sprint-4 Tag-6 gate:
   reserved (`wakir-schema-registry publish` flag that runs
   `gate_signed_entry` between `sign_entry` and `put`).~~
@@ -4830,6 +5075,71 @@ itself is still Phase-2.
   bump is warranted by the new §5.14 operational contract and
   §6.11 test inventory; no breaking-change to any consumer.
 
+**Sprint-5 Tag-3 (v0.13.0) is additive relative to Sprint-5 Tag-2 (v0.12.0):**
+
+- The `wirelang.schemas.publisher_cli` module gains the
+  `--capability-bucket` flag and the
+  `--capability-bucket-connect-url` flag in
+  `_add_capability_flags`. The new policy-source axis is enforced
+  at argparse level by an
+  `add_mutually_exclusive_group` containing
+  `--capability-registry` and `--capability-bucket`; supplying both
+  raises `SystemExit(2)`. The
+  `_validate_capability_flag_consistency` invariants are extended
+  so `--gate` requires exactly one of the two sources and an
+  orphan `--capability-bucket` (without `--gate`) is rejected with
+  `INPUT_ERROR (exit 3)`.
+- The `PublishReceipt` dataclass gains a fourth optional field
+  `gate_policy_source: Optional[str]` (default `None`). Pre-Sprint-5
+  receipts now carry the field at its default-off value; consumers
+  that index by the legacy field set continue to read byte-equal
+  pre-existing fields. Sort-keys JSON serialisation places the new
+  field after `gate_decision` and before `kid` in the sorted output
+  (because `g` < `k`); callers performing whole-document byte-compare
+  across tag versions see the additive key. Per-key consumers see
+  byte-equal values for the prior fields.
+- The receipt's `gate_policy_source` is `"file"` for the Sprint-5
+  Tag-1 file path, `"bucket"` for the new Sprint-5 Tag-3 bucket
+  path, and `None` for any bare publish (no `--gate`). The gate
+  decision itself is byte-equal regardless of source (verified by
+  T-SR-PUB-CB-10 cross-source byte-equality).
+- A new optional `capability_bucket_factory` kwarg on
+  `publisher_cli.run()` carries the dependency-injection point for
+  tests; the default factory
+  `_default_capability_bucket_factory` connects to NATS-JetStream
+  and opens `js.key_value("wakir-capability-policies")` via lazy
+  import (the CLI module continues to load cleanly in environments
+  without nats-py).
+- The synchronous `_run_dry_run` is replaced by a thin
+  `asyncio.run` wrapper over a new `_run_dry_run_async`. The change
+  is invisible to operators (the CLI entry-point is unchanged) and
+  to callers passing only the publish path. Hermetic test
+  invocations of `dry-run` with `--capability-bucket` work
+  byte-equal to the publish path through the same factory shape.
+- The Sprint-5 Tag-2 `NatsKvCapabilityPolicyBackend` surface is
+  byte-unchanged. Sprint-5 Tag-3 consumes
+  `snapshot_registry()` exactly once per CLI invocation; no `put`,
+  `delete`, or `watch` is invoked from the CLI path.
+- The Sprint-5 Tag-2 bucket `wakir-capability-policies` is consumed
+  as-is. No new bucket is requested; Cross-Review-Zone-B is
+  non-touched at the Sprint-5 Tag-3 axis (the Sprint-5 Tag-2
+  paired-update memo remains the canonical Z-B trigger).
+- The schema-registry bucket (`wakir-schemas`) write path is
+  byte-unchanged. A `CAPABILITY_DENY` on the bucket-source path
+  short-circuits before the schema-bucket connect, identical to
+  the Sprint-5 Tag-1 file-source short-circuit (verified by
+  T-SR-PUB-CB-03..05).
+- A poisoned bucket envelope (non-JSON value, schema-URI mismatch,
+  malformed `allowed_triples`) raises
+  `CapabilityPolicyBackendError` which the CLI routes through
+  `ExitCode.VALIDATION_ERROR = 4` (T-SR-PUB-CB-08). The schema
+  bucket remains untouched in that case.
+- Spec semver bump 0.12.0 → 0.13.0 reflects the additive minor
+  change (M-2 §3.2 versioning policy: minor for additive). The
+  bump is warranted by the new §5.13 bucket-source subsection, the
+  §6.10 bucket-source test addendum, and the new receipt field
+  `gate_policy_source`; no breaking-change to any consumer.
+
 ## 9. Brand-Guide §9 sweep
 
 This document has been swept against the Wakir Brand-Guide §9
@@ -4946,5 +5256,26 @@ strings (`default`, `tier-1-ingress`, `wire-scope`,
 operator-side identifiers consistent with prior tag conventions.
 No external-tool clear-name leakage and no internal-persona-clear-name
 leakage in the Tag-2 (Sprint-5) spec body additions.
+
+The Sprint-5 Tag-3 additions (§5.13 "Bucket policy source (Sprint-5
+Tag-3)" subsection, §6.10 "Bucket policy source tests" addendum,
+change-log v0.13.0 entry, §5.13 boundary item "future
+`--capability-bucket`" CONSUMED, §5.14 boundary item "publisher-CLI
+integration" CONSUMED, §7 Phase-3-Reservation "publisher-CLI
+`--capability-bucket` integration" CONSUMED, §8 compatibility
+statement update for v0.12.0 → v0.13.0) have been swept identically
+— only module-path references (`wirelang.schemas.publisher_cli`,
+`wirelang.schemas.capability_policy_nats_kv_backend`,
+`wirelang.schemas.registered_by_capability`), `wakir.*` URIs
+(`wakir-capability-policies` carried unchanged from Sprint-5 Tag-2;
+no new bucket added), the new flag names (`--capability-bucket`,
+`--capability-bucket-connect-url`), the new receipt field name
+(`gate_policy_source`), the new receipt-source values (`"file"`,
+`"bucket"`), and the canonical operator examples (`wirelang-eng`,
+`biscuit-root-1`, `nats://127.0.0.1:4222` connect URL placeholder)
+are role-strings / operator-side identifiers consistent with prior
+tag conventions. No external-tool clear-name leakage and no
+internal-persona-clear-name leakage in the Tag-3 (Sprint-5) spec
+body additions.
 
 — End of spec —

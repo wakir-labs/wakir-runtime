@@ -4,6 +4,7 @@
 
 Phase-1b Sprint-3 Tag-5 — OI-7-Phase-1c-publisher.
 Phase-2 Sprint-5 Tag-1 — capability-gating end-to-end integration.
+Phase-2 Sprint-5 Tag-3 — ``--capability-bucket`` persistent-policy source.
 
 This module exposes an argparse surface that lets an operator publish
 a module-shipped schema body onto the ``wakir-schemas`` NATS-KV bucket.
@@ -17,6 +18,15 @@ Sprint-5 Tag-1 adds three optional flags (``--sign``, ``--gate``,
 capability-gated publish flow (Sprint-4 Tag-6 §5.12 Composition
 Pattern) onto the operator surface without altering the backend
 contract or the receipt's bare-publish shape.
+
+Sprint-5 Tag-3 adds the ``--capability-bucket`` flag, an alternative
+policy source that loads the capability registry from the persistent
+``wakir-capability-policies`` NATS-KV bucket (Sprint-5 Tag-2
+``capability_policy_nats_kv_backend.NatsKvCapabilityPolicyBackend``)
+via :meth:`snapshot_registry`. Operators choose exactly one of
+``--capability-registry`` (operator-local JSON file) or
+``--capability-bucket`` (cluster-distributed persistent policies); the
+gate decision is byte-identical regardless of source.
 
 Design philosophy
 -----------------
@@ -110,6 +120,11 @@ from wirelang.schemas.registered_by_capability import (
     RegisteredByCapabilityError,
     gate_signed_entry,
 )
+from wirelang.schemas.capability_policy_nats_kv_backend import (
+    BUCKET_NAME as CAPABILITY_BUCKET_NAME,
+    CapabilityPolicyBackendError,
+    NatsKvCapabilityPolicyBackend,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +181,19 @@ class PublishReceipt:
     ``--sign`` / ``--gate`` continue to receive the exact pre-Sprint-5
     receipt shape (with the three optional fields all set to their
     default-off values).
+
+    Sprint-5 Tag-3 additions
+    ------------------------
+
+    One further field audits the policy-source axis:
+
+    - ``gate_policy_source``: ``"file"`` when ``--capability-registry``
+      was used; ``"bucket"`` when ``--capability-bucket`` was used;
+      ``None`` when ``--gate`` was not requested. The gate decision
+      itself is byte-identical regardless of source; this audit field
+      records the operator's chosen source so deploy pipelines can
+      assert on it (e.g. "all production publishes must use
+      ``gate_policy_source == 'bucket'``").
     """
 
     mode: str  # "lww" | "cas" | "create-only" | "dry-run"
@@ -183,6 +211,7 @@ class PublishReceipt:
     signed: bool = False
     kid: Optional[str] = None
     gate_decision: Optional[dict[str, Any]] = None
+    gate_policy_source: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -201,6 +230,7 @@ class PublishReceipt:
             "signed": self.signed,
             "kid": self.kid,
             "gate_decision": self.gate_decision,
+            "gate_policy_source": self.gate_policy_source,
         }
 
 
@@ -326,18 +356,28 @@ def _add_publish_flags(p: argparse.ArgumentParser) -> None:
 
 
 def _add_capability_flags(p: argparse.ArgumentParser) -> None:
-    """Sprint-5 Tag-1 capability flags (shared by ``publish`` and ``dry-run``).
+    """Sprint-5 Tag-1/3 capability flags (shared by ``publish`` and
+    ``dry-run``).
 
-    Three concerns are wired in:
+    Four concerns are wired in:
 
     - ``--sign`` plus a private-key source (``--ed25519-priv-key-hex``
       XOR ``--ed25519-priv-key-file``) plus ``--kid`` enable signing
       via :func:`wirelang.schemas.entry_signing.sign_entry`.
 
-    - ``--gate`` plus ``--capability-registry <path>`` enable gating
-      via :func:`wirelang.schemas.registered_by_capability.gate_signed_entry`.
+    - ``--gate`` enables gating via
+      :func:`wirelang.schemas.registered_by_capability.gate_signed_entry`.
       ``--gate`` requires ``--sign`` (the gate reads ``kid`` from the
-      signature block).
+      signature block) AND exactly one policy source.
+
+    - **Policy source** (Sprint-5 Tag-3): exactly one of
+      ``--capability-registry <path>`` (operator-local JSON file,
+      Sprint-5 Tag-1) or ``--capability-bucket`` (persistent
+      ``wakir-capability-policies`` NATS-KV bucket loaded via
+      :meth:`NatsKvCapabilityPolicyBackend.snapshot_registry`,
+      Sprint-5 Tag-3). The two sources are mutually exclusive at
+      argparse level; the gate decision is byte-identical regardless
+      of source.
 
     - ``--gate-as-of`` is an optional RFC-3339 timestamp passed to the
       gate as ``as_of``. When omitted, the gate skips validity-window
@@ -391,16 +431,41 @@ def _add_capability_flags(p: argparse.ArgumentParser) -> None:
         action="store_true",
         help=(
             "Run the Sprint-4 Tag-6 capability gate on the signed entry "
-            "before publishing (requires --sign and "
-            "--capability-registry)."
+            "before publishing (requires --sign and exactly one of "
+            "--capability-registry or --capability-bucket)."
         ),
     )
-    p.add_argument(
+    policy_src = p.add_mutually_exclusive_group()
+    policy_src.add_argument(
         "--capability-registry",
         default=None,
         help=(
             "Path to a capability-registry JSON file (top-level "
-            "{policies: [...]}). Required when --gate is set."
+            "{policies: [...]}). Operator-local source. Mutually "
+            "exclusive with --capability-bucket. Required when --gate "
+            "is set unless --capability-bucket is supplied."
+        ),
+    )
+    policy_src.add_argument(
+        "--capability-bucket",
+        action="store_true",
+        help=(
+            "Load capability policies from the persistent NATS-KV "
+            "bucket wakir-capability-policies (Sprint-5 Tag-2 backend) "
+            "via NatsKvCapabilityPolicyBackend.snapshot_registry(). "
+            "Mutually exclusive with --capability-registry. Connection "
+            "URL defaults to --capability-bucket-connect-url. Required "
+            "when --gate is set unless --capability-registry is "
+            "supplied."
+        ),
+    )
+    p.add_argument(
+        "--capability-bucket-connect-url",
+        default="nats://127.0.0.1:4222",
+        help=(
+            "NATS connect URL for the capability-policy bucket "
+            "(default %(default)s). Used only with "
+            "--capability-bucket."
         ),
     )
     p.add_argument(
@@ -484,12 +549,20 @@ def _validate_capability_flag_consistency(args: argparse.Namespace) -> None:
        argparse; absence is checked here).
     3. ``--gate`` requires ``--sign`` (kid must be present in the
        signature block).
-    4. ``--gate`` requires ``--capability-registry`` (no implicit
-       empty registry — the deny semantics differ from explicit
-       empty).
+    4. ``--gate`` requires exactly one of ``--capability-registry`` or
+       ``--capability-bucket`` (no implicit empty registry — the deny
+       semantics differ from explicit empty). The two sources are
+       mutex at the argparse layer; absence is checked here.
     5. ``--kid`` / ``--ed25519-priv-key-*`` / ``--capability-registry``
-       / ``--gate-as-of`` without ``--sign`` / ``--gate`` is a usage
-       error (no-op flag is reported, not silently ignored).
+       / ``--capability-bucket`` / ``--gate-as-of`` without
+       ``--sign`` / ``--gate`` is a usage error (no-op flag is
+       reported, not silently ignored).
+
+    Sprint-5 Tag-3 adds invariant 4's bucket-source axis. The
+    ``--capability-bucket-connect-url`` flag has a non-None default
+    so it is not an "orphan" when present without
+    ``--capability-bucket``; the connect URL is simply ignored when
+    bucket mode is off.
     """
 
     sign = getattr(args, "sign", False)
@@ -498,6 +571,7 @@ def _validate_capability_flag_consistency(args: argparse.Namespace) -> None:
     hex_key = getattr(args, "ed25519_priv_key_hex", None)
     file_key = getattr(args, "ed25519_priv_key_file", None)
     cap_path = getattr(args, "capability_registry", None)
+    cap_bucket = getattr(args, "capability_bucket", False)
     gate_as_of = getattr(args, "gate_as_of", None)
 
     if sign:
@@ -518,14 +592,16 @@ def _validate_capability_flag_consistency(args: argparse.Namespace) -> None:
     if gate:
         if not sign:
             raise ValueError("--gate requires --sign")
-        if cap_path is None:
+        if cap_path is None and not cap_bucket:
             raise ValueError(
-                "--gate requires --capability-registry <path>"
+                "--gate requires --capability-registry <path> or "
+                "--capability-bucket"
             )
     else:
-        if cap_path is not None or gate_as_of is not None:
+        if cap_path is not None or cap_bucket or gate_as_of is not None:
             raise ValueError(
-                "--capability-registry / --gate-as-of require --gate"
+                "--capability-registry / --capability-bucket / "
+                "--gate-as-of require --gate"
             )
 
 
@@ -804,6 +880,16 @@ ConnectFactory = Callable[
     [str], Awaitable[Tuple[NatsKvSchemaRegistry, Callable[[], Awaitable[None]]]]
 ]
 
+#: Sprint-5 Tag-3 capability-bucket factory type. Mirrors
+#: :data:`ConnectFactory` but yields a
+#: :class:`NatsKvCapabilityPolicyBackend` against the
+#: ``wakir-capability-policies`` bucket. Tests inject a factory that
+#: returns an in-memory mock backend.
+CapabilityBucketConnectFactory = Callable[
+    [str],
+    Awaitable[Tuple[NatsKvCapabilityPolicyBackend, Callable[[], Awaitable[None]]]],
+]
+
 
 async def _default_connect_factory(
     connect_url: str,
@@ -831,6 +917,57 @@ async def _default_connect_factory(
         await nc.close()
 
     return backend, _cleanup
+
+
+async def _default_capability_bucket_factory(
+    connect_url: str,
+) -> Tuple[NatsKvCapabilityPolicyBackend, Callable[[], Awaitable[None]]]:
+    """Default capability-bucket factory (Sprint-5 Tag-3).
+
+    Connects to NATS and returns a
+    :class:`NatsKvCapabilityPolicyBackend` against the
+    ``wakir-capability-policies`` bucket. Late-imports nats-py so the
+    CLI module loads cleanly in hermetic test environments.
+    """
+
+    # Late import: hermetic test paths never exercise this branch.
+    import nats  # type: ignore
+
+    nc = await nats.connect(connect_url)
+    js = nc.jetstream()
+    kv = await js.key_value(CAPABILITY_BUCKET_NAME)
+    backend = NatsKvCapabilityPolicyBackend(kv=kv)
+
+    async def _cleanup() -> None:
+        await nc.drain()
+        await nc.close()
+
+    return backend, _cleanup
+
+
+async def _load_capability_registry_from_bucket(
+    factory: CapabilityBucketConnectFactory, connect_url: str
+) -> CapabilityPolicyRegistry:
+    """Load a :class:`CapabilityPolicyRegistry` from the persistent
+    capability-policy bucket (Sprint-5 Tag-3).
+
+    Opens the bucket via ``factory(connect_url)``, calls
+    :meth:`NatsKvCapabilityPolicyBackend.snapshot_registry` and closes
+    the connection. Any backend / decode error propagates verbatim so
+    the caller can route it through ``ExitCode.BACKEND_ERROR`` (live
+    backend transport) or ``ExitCode.VALIDATION_ERROR`` (poisoned
+    envelope on the bucket).
+    """
+
+    backend, cleanup = await factory(connect_url)
+    try:
+        return await backend.snapshot_registry()
+    finally:
+        try:
+            await cleanup()
+        except Exception:
+            # Cleanup failures must NOT mask the snapshot outcome.
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -865,10 +1002,12 @@ async def _run_publish(
     connect_factory: ConnectFactory,
     stdout,
     stderr,
+    capability_bucket_factory: Optional[CapabilityBucketConnectFactory] = None,
 ) -> int:
     mode, expected_revision = _resolve_mode(args)
     signed_entry: Optional[SignedSchemaRegistryEntry] = None
     gate_decision: Optional[CapabilityGateDecision] = None
+    gate_policy_source: Optional[str] = None
     try:
         _validate_capability_flag_consistency(args)
         schema_body = _load_schema_body(args.schema_body)
@@ -894,7 +1033,20 @@ async def _run_publish(
             signed_entry = sign_entry(entry, priv_key, kid=args.kid)
         if getattr(args, "gate", False):
             assert signed_entry is not None  # consistency check above
-            registry = _load_capability_registry(args.capability_registry)
+            # Sprint-5 Tag-3: two policy sources, mutually exclusive.
+            if getattr(args, "capability_bucket", False):
+                factory = (
+                    capability_bucket_factory
+                    if capability_bucket_factory is not None
+                    else _default_capability_bucket_factory
+                )
+                registry = await _load_capability_registry_from_bucket(
+                    factory, args.capability_bucket_connect_url
+                )
+                gate_policy_source = "bucket"
+            else:
+                registry = _load_capability_registry(args.capability_registry)
+                gate_policy_source = "file"
             as_of = _parse_optional_rfc3339(
                 args.gate_as_of, flag="--gate-as-of"
             )
@@ -929,6 +1081,10 @@ async def _run_publish(
         _print_error_stderr(ExitCode.VALIDATION_ERROR, str(exc), stderr)
         return int(ExitCode.VALIDATION_ERROR)
     except RegisteredByCapabilityError as exc:
+        _print_error_stderr(ExitCode.VALIDATION_ERROR, str(exc), stderr)
+        return int(ExitCode.VALIDATION_ERROR)
+    except CapabilityPolicyBackendError as exc:
+        # Sprint-5 Tag-3: poisoned bucket envelope or non-JSON value.
         _print_error_stderr(ExitCode.VALIDATION_ERROR, str(exc), stderr)
         return int(ExitCode.VALIDATION_ERROR)
 
@@ -985,16 +1141,21 @@ async def _run_publish(
         gate_decision=(
             _decision_to_dict(gate_decision) if gate_decision is not None else None
         ),
+        gate_policy_source=gate_policy_source,
     )
     _print_receipt_stdout(receipt, stdout)
     return int(ExitCode.OK)
 
 
-def _run_dry_run(
-    args: argparse.Namespace, stdout, stderr
+async def _run_dry_run_async(
+    args: argparse.Namespace,
+    stdout,
+    stderr,
+    capability_bucket_factory: Optional[CapabilityBucketConnectFactory] = None,
 ) -> int:
     signed_entry: Optional[SignedSchemaRegistryEntry] = None
     gate_decision: Optional[CapabilityGateDecision] = None
+    gate_policy_source: Optional[str] = None
     try:
         _validate_capability_flag_consistency(args)
         schema_body = _load_schema_body(args.schema_body)
@@ -1020,7 +1181,20 @@ def _run_dry_run(
             signed_entry = sign_entry(entry, priv_key, kid=args.kid)
         if getattr(args, "gate", False):
             assert signed_entry is not None
-            registry = _load_capability_registry(args.capability_registry)
+            # Sprint-5 Tag-3: two policy sources, mutually exclusive.
+            if getattr(args, "capability_bucket", False):
+                factory = (
+                    capability_bucket_factory
+                    if capability_bucket_factory is not None
+                    else _default_capability_bucket_factory
+                )
+                registry = await _load_capability_registry_from_bucket(
+                    factory, args.capability_bucket_connect_url
+                )
+                gate_policy_source = "bucket"
+            else:
+                registry = _load_capability_registry(args.capability_registry)
+                gate_policy_source = "file"
             as_of = _parse_optional_rfc3339(
                 args.gate_as_of, flag="--gate-as-of"
             )
@@ -1057,6 +1231,10 @@ def _run_dry_run(
     except RegisteredByCapabilityError as exc:
         _print_error_stderr(ExitCode.VALIDATION_ERROR, str(exc), stderr)
         return int(ExitCode.VALIDATION_ERROR)
+    except CapabilityPolicyBackendError as exc:
+        # Sprint-5 Tag-3: poisoned bucket envelope or non-JSON value.
+        _print_error_stderr(ExitCode.VALIDATION_ERROR, str(exc), stderr)
+        return int(ExitCode.VALIDATION_ERROR)
 
     receipt = PublishReceipt(
         mode="dry-run",
@@ -1076,15 +1254,35 @@ def _run_dry_run(
         gate_decision=(
             _decision_to_dict(gate_decision) if gate_decision is not None else None
         ),
+        gate_policy_source=gate_policy_source,
     )
     _print_receipt_stdout(receipt, stdout)
     return int(ExitCode.OK)
+
+
+def _run_dry_run(
+    args: argparse.Namespace,
+    stdout,
+    stderr,
+    capability_bucket_factory: Optional[CapabilityBucketConnectFactory] = None,
+) -> int:
+    """Synchronous wrapper around :func:`_run_dry_run_async`.
+
+    Dry-run uses a single short-lived ``asyncio.run`` only when the
+    capability-bucket path is active; the pure-file path does not need
+    an event loop at all but the wrapper is uniformly async-routed so
+    the surface is the same for both sources.
+    """
+    return asyncio.run(
+        _run_dry_run_async(args, stdout, stderr, capability_bucket_factory)
+    )
 
 
 def run(
     argv: Optional[Sequence[str]] = None,
     *,
     connect_factory: Optional[ConnectFactory] = None,
+    capability_bucket_factory: Optional[CapabilityBucketConnectFactory] = None,
     stdout=None,
     stderr=None,
 ) -> int:
@@ -1092,7 +1290,10 @@ def run(
 
     ``argv`` defaults to ``sys.argv[1:]``. ``connect_factory`` defaults
     to :func:`_default_connect_factory` which requires nats-py at
-    runtime. Tests inject a factory that returns an in-memory backend.
+    runtime. ``capability_bucket_factory`` (Sprint-5 Tag-3) defaults to
+    :func:`_default_capability_bucket_factory` and is used only when
+    ``--capability-bucket`` is set. Tests inject factories that return
+    in-memory backends.
     """
 
     parser = build_parser()
@@ -1101,12 +1302,14 @@ def run(
     err = stderr if stderr is not None else sys.stderr
 
     if args.cmd == "dry-run":
-        return _run_dry_run(args, out, err)
+        return _run_dry_run(args, out, err, capability_bucket_factory)
 
     factory = (
         connect_factory if connect_factory is not None else _default_connect_factory
     )
-    return asyncio.run(_run_publish(args, factory, out, err))
+    return asyncio.run(
+        _run_publish(args, factory, out, err, capability_bucket_factory)
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover
