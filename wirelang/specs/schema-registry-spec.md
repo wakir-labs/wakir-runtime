@@ -9,14 +9,14 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wirelang-schema-registry
-version: 0.9.0
+version: 0.10.0
 status: draft
 date: 2026-05-11
 audience: implementers, integrators, operators
 license: CC-BY-4.0
 ---
 
-# Wirelang Schema Registry — NATS-KV Backend Specification (v0.9.0)
+# Wirelang Schema Registry — NATS-KV Backend Specification (v0.10.0)
 
 **Change log**
 
@@ -27,6 +27,7 @@ license: CC-BY-4.0
 | 0.3.0   | 2026-05-07 | Phase-1c watch-stream surface lands in Tag-4 (`watch()` / `WatchOp` / `WatchEvent` / `LiveSchemaSnapshot` / `open_watch_stream`); §5.3 OI-7-Phase-1c-watch slot CONSUMED; §5.5 added (watch-stream operational contract); §6.2 added (T-SR-WS-01..10 + 2 aux probes test inventory). Additive-only change relative to v0.2.0; M-2 / M-4 conformance preserved. |
 | 0.4.0   | 2026-05-07 | Phase-1c publisher CLI lands in Tag-5 (`wirelang.schemas.publisher_cli`: `wakir-schema-registry publish` / `dry-run` argparse surface, `PublishReceipt`, `ExitCode` matrix); §5.3 OI-7-Phase-1c-publisher slot CONSUMED; §5.6 added (publisher CLI operational contract); §6.3 added (T-SR-PUB-01..12 test inventory). Additive-only change relative to v0.3.0; M-2 / M-4 conformance preserved. The CLI is a thin operator-input layer over the Tag-3 CAS-pin and Tag-1 LWW backends; it introduces no new on-the-wire envelope and no new validation gate. |
 | 0.5.0   | 2026-05-07 | Phase-1c cross-bucket replication lands in Tag-6 (`wirelang.schemas.replication`: `SchemaReplicator`, `bootstrap_target_from_source`, `ReplicationConflictPolicy`, `ReplicationFilter`, `ReplicationMetrics`); §5.3 OI-7-Phase-1c-replication slot CONSUMED; §5.7 added (replication operational contract); §6.4 added (T-SR-REP-01..12 test inventory). Additive-only change relative to v0.4.0; M-2 / M-4 conformance preserved. The replication layer is a thin composition of Tag-1 LWW + Tag-3 CAS-pin + Tag-4 watch-stream surfaces; it introduces no new on-the-wire envelope, no new validation gate, and no new method on `NatsKvSchemaRegistry`. **Phase-1c is now feature-complete.** |
+| 0.10.0  | 2026-05-11 | Phase-2 Sprint-4 Tag-6 lands the `registered_by`-capability-gating layer (`wirelang.schemas.registered_by_capability`: `CapabilityPolicy`, `CapabilityPolicyRegistry`, `CapabilityGateDecision`, `DecisionSource`, `check_registered_by_capability`, `gate_signed_entry`, `RegisteredByCapabilityError`); §5.12 added (capability-gating operational contract); §6.9 added (T-RBC-01..12 test inventory). The gating layer binds the `registered_by` field of a `SchemaRegistryEntry` to a policy bundle that constrains *which* signing keys (`kid`) and *which* `(layer, name_glob)` schema triples a given publisher identity is authorised to register. The gate is **additive** authorisation on top of `wirelang.schemas.entry_signing.verify_entry_signature`: a cryptographically valid signature can still be denied if the issuer lacks capability over the registered triple. The cryptographic primitive (`verify_entry_signature`) remains the single source of truth for signature correctness and is UNCHANGED. The gate is a separate, pure-policy function returning a `CapabilityGateDecision` (`allowed: bool`, `reason: str`, `source: DecisionSource`, `policy: Optional[CapabilityPolicy]`); structural failures (malformed policy, bad arg, missing `kid` in the signature block) raise `RegisteredByCapabilityError`. Policy semantics: `allowed_kids` (set-membership), `allowed_triples` (literal `layer` plus `fnmatch` glob on `name`; layer `"*"` is the all-layers wildcard), optional RFC-3339 `not_before` / `not_after` validity window (inclusive of `not_before`, exclusive of `not_after`), `disabled` kill-switch, and free-form `note` audit string. Boundary: this slot does NOT ship full Biscuit binary token encode/decode + Datalog evaluation (those remain Phase-3 slots — see `wirelang/schemas/layer-3-capability-token.json`); does NOT mutate `NatsKvSchemaRegistry` (no new method, no envelope change, no validation gate at write time); does NOT fetch policies from a transport (in-process registry only; persisted distribution is Phase-3); does NOT touch the kid → public-key resolver (Z-1-K-Sprint-4-1 consumed upstream). Cross-Review-Zone-1 non-touched (the four Z-1-K-Sprint-4 consensus points remain byte-identical; the gate is curve-agnostic, JCS-free, resolver-independent, and orthogonal to `VerifyMode`). Additive-only change relative to v0.9.0; M-2 / M-4 conformance preserved. |
 | 0.9.0   | 2026-05-11 | Phase-2 Sprint-4 Tag-5 lands the AIP-document signature-verification cache tier (`wirelang.identity.aip_signature_verification_cache`: `AipSignatureVerificationCache`, `CacheStats`, `cached_verify_aip_signature`, module-level constants `DEFAULT_MAX_ENTRIES=256`, `DEFAULT_TTL_SECONDS=300.0`); §5.11 added (verification-cache operational contract); §6.8 added (T-AIP-SVC-01..12 test inventory). The cache is a stateful in-process LRU+TTL tier on top of the Sprint-4 Tag-1 `wirelang.identity.verify_aip_signature` primitive; cache hits are byte-equal to fresh verify outcomes (the cache is a pure performance optimisation, not a behavioural layer). The cache key is `SHA-256` over the 5-tuple `(SHA-256(JCS(body without document_signature)), alg, kid, signature_hex, pub_key_hex)`, byte-identical in shape to the Sprint-4 Tag-4 `jcs_sha256_hex` byte-anchor (the cache reuses the Tag-4 ↔ Tag-1 JCS-resolver-indirection lock, Z-1-K-Sprint-4-2). Negative outcomes (`verify` returns `False`) are memoised the same way as positive outcomes; structural failures (`ValueError` from the verifier) are NOT cached and propagate verbatim. TTL defaults to 300 seconds with an injectable monotonic clock for hermetic test determinism; LRU eviction is by insertion-order (hits do NOT promote — byte-consistent with V-908 `HTTPSAipResolverCache` semantics). The cache surface is byte-orthogonal to `wirelang.identity.verify_aip_signature` (UNCHANGED), `wirelang.identity.kid_resolver` (UNCHANGED), `wirelang.identity.aip_document_transport_fetch` (UNCHANGED), and the schema-registry backend (`NatsKvSchemaRegistry` UNCHANGED, no new method). Additive-only change relative to v0.8.0; M-2 / M-4 conformance preserved. Cross-Review-Zone-1 non-touched (the four Z-1-K-Sprint-4 consensus points remain byte-identical; the cache is curve-agnostic, policy-agnostic, and resolver-independent). |
 | 0.8.0   | 2026-05-11 | Phase-2 Sprint-4 Tag-4 lands the AIP-document transport-fetch composition layer (`wirelang.identity.aip_document_transport_fetch`: `fetch_aip_document`, `aip_web_to_https_url`, `AipFetchResult`, `AipDocumentTransportError`, `AipUrlSchemeError`, `AipDnsAnchorMismatchError`); §5.10 added (transport-fetch operational contract); §6.7 added (T-AIP-FT-01..12 test inventory). The module is a pure composition of the V-908 Phase-1b HTTPS-transport (`HTTPSDocumentTransport`) and the V-908 §3.4 DNS-anchor pattern, extended from FTD-doc to AIP-doc via the parallel TXT-record prefix `_wakir-aip.<host>` (same `v=1; sha256=<64-hex>` format). The transport-fetch layer is byte-orthogonal to AIP-document signature verification (`wirelang.identity.verify_aip_signature` is unchanged), the kid-resolver (Tag-3, §5.9) and the schema-registry backend (no method added to `NatsKvSchemaRegistry`); it closes the Sprint-4 Tag-3 §5.9 boundary item "AIP-document transport-fetch" so the Phase-2 canonical verifier flow is now end-to-end composable from an `aip:web:` identifier through to `verify_entry_signature`. Additive-only change relative to v0.7.0; M-2 / M-4 conformance preserved. Cross-Review-Zone-1 non-touched (the four Z-1-K-Sprint-4 consensus points remain byte-identical; `anchor_required` is an orthogonal Tag-4 hard-vs-soft toggle, not the Z-1-K-Sprint-4-4 STRICT-mode toggle). |
 | 0.7.0   | 2026-05-11 | Phase-2 Sprint-4 Tag-3 lands the kid → Ed25519 public-key resolver (`wirelang.identity.kid_resolver`: `resolve_kid`, `list_resolvable_kids`, `ResolvedPublicKey`, `KidResolverError`); §5.9 added (kid-resolver operational contract); §6.6 added (T-KID-RES-01..12 test inventory); §5.8 `kid` resolution forward-reference linked. Z-1-K-Sprint-4-1 (kid-Resolver-Shape) closed by this module — `kid` matches `public_keys[i].kid` (the byte-accurate AIP-document JSON-Schema field; the Z-1-Sprint-4-Anhang consensus marker's "public_keys[i].id" wording refers to the same identifier slot). Z-1-K-Sprint-4-3 (Curve-Choice = Ed25519) reinforced: the resolver filters out `alg == "secp256k1"` entries (those belong to the Biscuit capability-token-burst layer per the two-curve-stack consensus). The resolver does NOT fetch the AIP document over transport, does NOT validate the AIP-document signature, and does NOT mutate the schema-registry backend surface (no new method on `NatsKvSchemaRegistry`). Additive-only change relative to v0.6.0; M-2 / M-4 conformance preserved. |
@@ -514,6 +515,128 @@ JCS-canonical envelope that is byte-stable for audit anchoring.
   `wirelang.identity.sign_aip_document` or any signing-side
   surface (Tag-5 is read-side only).
 
+**Phase-2 Sprint-4 Tag-6 (this revision, additive over Sprint-4 Tag-5):**
+
+- The `registered_by`-capability-gating layer
+  (`wirelang/schemas/registered_by_capability.py`) exposing the
+  frozen policy bundle `CapabilityPolicy`
+  (`registered_by`, `allowed_kids: tuple[str, ...]`,
+  `allowed_triples: tuple[tuple[str, str], ...]`,
+  optional `not_before` / `not_after`, `disabled`, optional `note`),
+  the in-memory `CapabilityPolicyRegistry` (`add_policy`,
+  `policies_for`, `list_issuers`), the frozen decision dataclass
+  `CapabilityGateDecision` (`allowed`, `reason`, `source`,
+  `policy`), the `DecisionSource` enum
+  (`POLICY_MATCH` / `POLICY_DISABLED` / `NO_POLICY_FOR_ISSUER` /
+  `KID_NOT_ALLOWED` / `TRIPLE_NOT_ALLOWED` /
+  `OUTSIDE_VALIDITY_WINDOW`), the pure gating function
+  `check_registered_by_capability(entry, signature_block, registry, *, as_of=None)`,
+  the composition helper
+  `gate_signed_entry(signed, registry, *, as_of=None)`, and the
+  typed exception `RegisteredByCapabilityError`.
+- **Additive authorisation on top of cryptographic verification.**
+  The gate is a *separate* policy layer; it does NOT re-verify the
+  cryptographic signature, does NOT mutate
+  `wirelang.schemas.entry_signing.verify_entry_signature`, and does
+  NOT replace any signing-side surface. The Tag-1 signing primitive
+  remains the single source of truth for signature correctness; the
+  Tag-6 gate is an *additional* check that callers MUST run
+  alongside cryptographic verification when capability-gating is in
+  force. A cryptographically valid signature can still be denied if
+  the `registered_by` identity does not hold capability over the
+  schema triple it is attempting to register.
+- **Policy bundle shape**: a `CapabilityPolicy` carries
+  (`registered_by`, `allowed_kids`, `allowed_triples`,
+  `not_before?`, `not_after?`, `disabled`, `note?`).
+  `allowed_kids` is a non-empty tuple of `kid` strings the policy
+  authorises; the entry's `signature_block["kid"]` MUST be a
+  member. `allowed_triples` is a non-empty tuple of
+  `(layer, name_glob)` pairs; the entry's `(layer, name)` MUST
+  match at least one pair (layer is matched literally with `"*"`
+  as wildcard; name uses `fnmatch` glob grammar — `*` / `?` /
+  `[seq]`). Optional `not_before` / `not_after` define a validity
+  window (inclusive of `not_before`, exclusive of `not_after`);
+  `disabled=True` is a kill-switch that always denies. The
+  construction-time validation raises `RegisteredByCapabilityError`
+  on shape violations (empty kids/triples, inverted window,
+  type mismatch).
+- **Registry contract**: an in-memory `CapabilityPolicyRegistry`
+  indexed by `registered_by` identity. Multiple policies per
+  identity are explicitly supported (one per kid generation, one
+  per schema layer); the gate iterates and short-circuits on the
+  first allowing match. `policies_for` returns a defensive tuple
+  snapshot; `list_issuers` returns sorted issuers. The registry is
+  in-process only; persisted policy distribution (NATS-KV bucket
+  `wakir-capability-policies` or analogous) is a Phase-3 slot.
+- **Gate decision shape**: `CapabilityGateDecision(allowed, reason,
+  source, policy)`. Frozen; equality-by-value. The `reason` is a
+  free-form audit string suitable for downstream logs;
+  the `source` enum lets downstream consumers distinguish *why* a
+  decision was reached without parsing the string. `policy` is
+  the matched policy for an allow / the attempted-but-rejected
+  policy for a deny-by-policy / `None` for
+  `NO_POLICY_FOR_ISSUER`.
+- **Deny precedence ordering**: when no policy allows, the most-
+  specific failure is recorded:
+  `POLICY_DISABLED` < `KID_NOT_ALLOWED` < `TRIPLE_NOT_ALLOWED` <
+  `OUTSIDE_VALIDITY_WINDOW`. A later policy's higher-precedence
+  deny *replaces* an earlier lower-precedence deny in the
+  recorded fallback so the audit log surfaces the most specific
+  failure (e.g. a triple mismatch is more informative than a kid
+  mismatch). This is structural ordering only; the iteration
+  itself is FIFO over the registry's per-issuer list.
+- **12 hermetic determinism tests** (T-RBC-01..12) over: construction
+  defaults + bad-arg-grid (10 parametrised cases + inverted-window
+  case); matching-policy allow with policy-reference roundtrip;
+  unknown-issuer + empty-registry deny; kid-not-allowed deny +
+  multi-policy short-circuit; layer-name triple mismatch (layer and
+  name dimensions separately); layer-wildcard `"*"` + full
+  `("*", "*")` wildcard; name-glob fnmatch (prefix `frame-*` and
+  single-char `frame-?`); disabled-policy deny + disabled-alongside-
+  enabled allow; validity-window before/after/inside + as_of-omitted
+  bypass; `gate_signed_entry` end-to-end with `sign_entry`
+  composition; decision dataclass immutability/equality + 7 arg-grid
+  structural-failure probes on the gate-call surface;
+  `CapabilityPolicyRegistry.list_issuers` + `policies_for`
+  defensive-snapshot semantics + deny-precedence ordering.
+- This slot consumes the **Phase-2 `registered_by`-capability-gating**
+  roadmap item (mentioned as a future Phase-2 slot in spec §5.8
+  boundary block since Sprint-4 Tag-1).
+- **`NatsKvSchemaRegistry` surface remains UNCHANGED**. No backend
+  method added, no new envelope schema introduced, no new
+  validation gate at write time. The gate is a *callable*
+  authorisation layer that consumers wire into their publish flow
+  (e.g. the `publisher_cli` could call `gate_signed_entry` after
+  `sign_entry` and before `put`, but that integration is a future
+  CLI-level slot, not Tag-6 substance).
+- **Cross-Review-Zone-1 (Identity-Substrate) non-touched**: the
+  four Z-1-K-Sprint-4 consensus points remain byte-identical. The
+  gate consumes `signature_block["kid"]` byte-equal as the caller
+  supplied it and checks set-membership against `allowed_kids`; it
+  does NOT call `wirelang.identity.kid_resolver.resolve_kid` (the
+  kid → public-key resolution is upstream and unchanged — Z-1-K-
+  Sprint-4-1 non-touched). The gate does not canonicalise anything
+  (Z-1-K-Sprint-4-2 JCS-Resolver-Lock non-touched). The gate is
+  curve-agnostic — it operates on the entry-signing layer which is
+  Ed25519, but the gate carries no curve choice of its own (Z-1-K-
+  Sprint-4-3 reinforced rather than touched). The gate is
+  orthogonal to `wirelang.schemas.entry_signing.VerifyMode`
+  (Z-1-K-Sprint-4-4 non-touched; the STRICT-mode-activation-owner
+  question is unaffected).
+- **Boundary**: this slot does NOT ship Biscuit binary token
+  encode/decode + Datalog caveat evaluation (those remain Phase-3
+  slots; the on-the-wire Biscuit-v3 JSON envelope schema lives at
+  `wirelang/schemas/layer-3-capability-token.json` since Phase-1a
+  and is referenced as the *target* shape for Phase-3 substantiation);
+  does NOT distribute policies over a transport or persist them on
+  a NATS-KV bucket (Phase-3); does NOT plumb gating into the
+  backend write path (caller-driven; the publisher CLI integration
+  is a future slot); does NOT replace
+  `verify_entry_signature` (cryptographic correctness remains the
+  single source of truth in `wirelang.schemas.entry_signing`); does
+  NOT mutate `SignedSchemaRegistryEntry`, `sign_entry`, or any
+  signing-side surface.
+
 **Phase-2 (remaining reserved, out of scope here):**
 
 - CAS-quorum upserts on top of multi-replica clusters
@@ -787,7 +910,7 @@ These gates protect the determinism contract: a poisoned or
 mis-anchored envelope cannot reach the bucket through the typed
 backend.
 
-### 5.3 What Phase-1b Sprint-3 Tag-1 + Tag-3 + Tag-4 + Tag-5 + Tag-6 + Phase-2 Sprint-4 Tag-1 + Tag-3 + Tag-4 + Tag-5 covers, and what Phase-2 still does NOT do
+### 5.3 What Phase-1b Sprint-3 Tag-1 + Tag-3 + Tag-4 + Tag-5 + Tag-6 + Phase-2 Sprint-4 Tag-1 + Tag-3 + Tag-4 + Tag-5 + Tag-6 covers, and what Phase-2 still does NOT do
 
 **Tag-1 (v0.1.0) lands:**
 
@@ -1005,6 +1128,59 @@ consumed (Tag-3 / Tag-4 / Tag-5 / Tag-6).**
   `anchor_required` toggle is an orthogonal Tag-4 hard-vs-soft
   policy, NOT the Z-1-K-Sprint-4-4 STRICT-mode signing toggle).
 
+**Phase-2 Sprint-4 Tag-5 (v0.9.0) lands (additive over Sprint-4 Tag-4):**
+
+- The AIP-document signature-verification cache tier
+  (`wirelang.identity.aip_signature_verification_cache`: stateful
+  in-process bounded LRU+TTL cache around the Sprint-4 Tag-1
+  `verify_aip_signature` primitive). Hits are byte-equal to fresh
+  verify outcomes; negative outcomes are memoised the same way as
+  positive ones; structural failures are NOT cached.
+- 12 hermetic determinism tests (T-AIP-SVC-01..12).
+- `NatsKvSchemaRegistry` surface UNCHANGED; no new envelope.
+- Cross-Review-Zone-1 non-touched.
+
+**Phase-2 Sprint-4 Tag-6 (v0.10.0) lands (additive over Sprint-4 Tag-5):**
+
+- The `registered_by`-capability-gating layer
+  (`wirelang.schemas.registered_by_capability`) exposing the
+  `CapabilityPolicy` policy bundle, the `CapabilityPolicyRegistry`
+  in-memory registry, the `CapabilityGateDecision` frozen decision
+  dataclass with a `DecisionSource` enum, the pure gating function
+  `check_registered_by_capability(entry, signature_block, registry,
+  *, as_of=None)`, the composition helper `gate_signed_entry`, and
+  the typed exception `RegisteredByCapabilityError`.
+- The gate is additive authorisation on top of
+  `wirelang.schemas.entry_signing.verify_entry_signature`: a
+  cryptographically valid signature can still be denied if the
+  `registered_by` identity does not hold capability over the
+  schema triple it is attempting to register. The cryptographic
+  primitive remains the single source of truth and is UNCHANGED.
+- Policy semantics: `allowed_kids` (set-membership), `allowed_triples`
+  (literal `layer` plus `fnmatch` glob on `name`; layer `"*"` is the
+  all-layers wildcard), optional `not_before` / `not_after` validity
+  window (inclusive of `not_before`, exclusive of `not_after`),
+  `disabled` kill-switch, free-form `note` audit string.
+- 12 hermetic determinism tests (T-RBC-01..12) over construction
+  + bad-arg-grid + matching policy + unknown issuer + kid-not-
+  allowed + triple-not-allowed (layer/name) + layer wildcard +
+  name fnmatch glob (prefix + ?-single) + disabled-policy + validity
+  window (before/after/inside/as_of-omitted) + `gate_signed_entry`
+  composition with `sign_entry` + decision dataclass shape and 7
+  structural arg-grid probes + registry list/lookup defensive-
+  snapshot + deny-precedence ordering.
+- This slot consumes the **Phase-2 `registered_by`-capability-gating**
+  roadmap item (mentioned as a future Phase-2 slot in §5.8
+  boundary block since Sprint-4 Tag-1).
+- `NatsKvSchemaRegistry` surface UNCHANGED; no new envelope, no
+  new validation gate at write time; the gate is a callable
+  authorisation layer that consumers wire into their publish flow
+  (publisher-CLI integration is a future slot).
+- Cross-Review-Zone-1 non-touched (the four Z-1-K-Sprint-4 consensus
+  points remain byte-identical; the gate is curve-agnostic,
+  JCS-free, resolver-independent, and orthogonal to
+  `VerifyMode`).
+
 **Phase-2 still does NOT include:**
 
 - No CAS-quorum upserts on top of multi-replica clusters (Tag-3
@@ -1028,10 +1204,29 @@ consumed (Tag-3 / Tag-4 / Tag-5 / Tag-6).**
   the AIP document; transport-fetch is a separate Identity-Substrate
   slot.~~ (**CONSUMED in Sprint-4 Tag-4** by
   `wirelang.identity.aip_document_transport_fetch`; see §5.10.)
-- No AIP-document signature-verification cache tier (the Tag-4
+- ~~No AIP-document signature-verification cache tier (the Tag-4
   transport-fetch is stateless; production callers compose with
   the V-908 `HTTPSAipResolverCache` or an outer cache tier).
-  Phase-3 Identity-Substrate slot.
+  Phase-3 Identity-Substrate slot.~~ (**CONSUMED in Sprint-4 Tag-5**
+  by `wirelang.identity.aip_signature_verification_cache`; see
+  §5.11.)
+- ~~No `registered_by`-capability-gating on schema-registry entries
+  (the Tag-1 entry-signing layer accepts any free-form
+  `registered_by`; capability binding to issuer policy is a
+  follow-up Phase-2 slot).~~ (**CONSUMED in Sprint-4 Tag-6** by
+  `wirelang.schemas.registered_by_capability`; see §5.12.)
+- No Biscuit binary token encode/decode + Datalog caveat
+  evaluation (the Sprint-4 Tag-6 gate is in-process policy bundle;
+  full Biscuit-v3 machinery on top of
+  `wirelang/schemas/layer-3-capability-token.json` remains a
+  Phase-3 slot).
+- No persistent capability-policy distribution (the Sprint-4 Tag-6
+  registry is in-process only; persisted distribution over NATS-KV
+  or analogous is a Phase-3 slot).
+- No publisher-CLI integration of the Sprint-4 Tag-6 gate (the
+  capability check is caller-driven; a `wakir-schema-registry
+  publish` flag that runs `gate_signed_entry` between `sign_entry`
+  and `put` is a future slot).
 - No STRICT-mode activation toggle (Z-1-K-Sprint-4-4 still open;
   the resolver is policy-agnostic).
 
@@ -1671,9 +1866,15 @@ signing convention.
 - Sprint-4 Tag-1 ships the `STRICT` mode policy surface but NOT
   the activation switch (operator-controlled toggle is a future
   Phase-2 slot).
-- Capability-token gating on `registered_by` (mapping `kid` to
+- ~~Capability-token gating on `registered_by` (mapping `kid` to
   an issuer-policy bundle) is reserved for a follow-up Phase-2
-  slot; the current `registered_by` field stays free-form.
+  slot; the current `registered_by` field stays free-form.~~
+  (**CONSUMED in Sprint-4 Tag-6** by
+  `wirelang.schemas.registered_by_capability`; see §5.12 for the
+  capability-gating operational contract. The `registered_by`
+  field shape itself remains free-form; the Tag-6 layer is an
+  additive authorisation tier that runs alongside the Tag-1
+  cryptographic primitive.)
 - The Tag-1 backend codec is extended to round-trip the optional
   `signature` slot; it does NOT validate the signature at read
   time (consistent with the design that verification is a separate
@@ -2334,6 +2535,253 @@ pins the LRU eviction by insertion-order; T-AIP-SVC-05 pins the
 negative-caching round-trip; T-AIP-SVC-08 pins the structural-
 failure non-caching contract.
 
+### 5.12 `registered_by`-capability-gating operational contract (Phase-2 Sprint-4 Tag-6)
+
+The capability-gating layer is the Layer-3 authorisation tier for
+Phase-2 schema-registry signing. It binds the `registered_by`
+field of a `SchemaRegistryEntry` to an in-memory policy bundle that
+constrains *which* signing keys (`kid`) and *which* `(layer, name)`
+schema triples a given publisher identity is authorised to register.
+The gate is *additive* policy on top of the Sprint-4 Tag-1
+`verify_entry_signature` cryptographic primitive: a cryptographically
+valid signature can still be denied if the issuer lacks capability
+over the registered triple. Cryptographic correctness remains the
+single source of truth in `wirelang.schemas.entry_signing` and is
+UNCHANGED.
+
+**Module location and rationale:**
+
+The capability-gating module lives in `wirelang.schemas` alongside
+`entry_signing` (§5.8) and the existing registry-side surfaces
+(`registry_nats_kv_backend`, `publisher_cli`, `replication`). The
+placement keeps the schema-registry trust layer self-contained: the
+entry-signing module (§5.8) is unchanged; the kid-resolver (§5.9) is
+unchanged; the transport-fetch (§5.10) is unchanged; the
+verification cache (§5.11) is unchanged. The gate sits at the
+schema-registry-Layer-3 (capability-token-layer-prelude) and
+composes with the entry-signing module byte-orthogonally
+(`gate_signed_entry` takes a `SignedSchemaRegistryEntry` from §5.8
+and routes its `entry` and `signature` into the policy check).
+
+**Public API:**
+
+```python
+class RegisteredByCapabilityError(Exception): ...
+
+class DecisionSource(enum.Enum):
+    POLICY_MATCH = "policy_match"
+    POLICY_DISABLED = "policy_disabled"
+    NO_POLICY_FOR_ISSUER = "no_policy_for_issuer"
+    KID_NOT_ALLOWED = "kid_not_allowed"
+    TRIPLE_NOT_ALLOWED = "triple_not_allowed"
+    OUTSIDE_VALIDITY_WINDOW = "outside_validity_window"
+
+@dataclass(frozen=True)
+class CapabilityPolicy:
+    registered_by: str
+    allowed_kids: tuple[str, ...]
+    allowed_triples: tuple[tuple[str, str], ...]
+    not_before: Optional[datetime] = None
+    not_after: Optional[datetime] = None
+    disabled: bool = False
+    note: Optional[str] = None
+
+    def covers_triple(self, layer: str, name: str) -> bool: ...
+
+@dataclass(frozen=True)
+class CapabilityGateDecision:
+    allowed: bool
+    reason: str
+    source: DecisionSource
+    policy: Optional[CapabilityPolicy] = None
+
+class CapabilityPolicyRegistry:
+    def add_policy(self, policy: CapabilityPolicy) -> None: ...
+    def policies_for(self, registered_by: str) -> tuple[CapabilityPolicy, ...]: ...
+    def list_issuers(self) -> tuple[str, ...]: ...
+
+def check_registered_by_capability(
+    entry: SchemaRegistryEntry,
+    signature_block: Mapping[str, Any],
+    registry: CapabilityPolicyRegistry,
+    *,
+    as_of: Optional[datetime] = None,
+) -> CapabilityGateDecision: ...
+
+def gate_signed_entry(
+    signed: SignedSchemaRegistryEntry,
+    registry: CapabilityPolicyRegistry,
+    *,
+    as_of: Optional[datetime] = None,
+) -> CapabilityGateDecision: ...
+```
+
+**Policy bundle semantics:**
+
+1. **`registered_by`** is matched byte-exactly to the entry's
+   `registered_by` field. Two policies under the same identity are
+   explicitly supported (per-kid or per-layer splits); the gate
+   iterates the per-issuer list FIFO.
+2. **`allowed_kids`** is a non-empty tuple of `kid` strings. The
+   entry's `signature_block["kid"]` MUST be a member. Tag-6 ships
+   exact-string set-membership; glob/regex on the kid axis is a
+   Phase-3 slot.
+3. **`allowed_triples`** is a non-empty tuple of
+   `(layer, name_glob)` pairs. The entry's `(layer, name)` MUST
+   match at least one pair. Layer matching is literal with `"*"` as
+   the all-layers wildcard. Name matching follows :mod:`fnmatch`
+   grammar (`*` / `?` / `[seq]`). Tag-6's name-glob choice is
+   deliberately conservative: more expressive policy languages
+   (regex, Datalog) are Phase-3 slots.
+4. **`not_before` / `not_after`** define a validity window for the
+   policy itself (not for the entry being gated). When `as_of` is
+   supplied to the gate call, it MUST satisfy
+   `not_before <= as_of < not_after`. `None` on either bound
+   disables the corresponding check. Production verifier paths
+   SHOULD supply `as_of`; omitting it bypasses the window check
+   (consistent with the Sprint-4 Tag-3 `resolve_kid` `as_of`
+   contract).
+5. **`disabled=True`** is a kill-switch. A disabled policy never
+   matches; if all candidate policies for an issuer are disabled,
+   the gate returns a deny with source `POLICY_DISABLED`.
+6. **`note`** is a free-form audit string carried verbatim into
+   the decision's `policy` field (useful for downstream logs).
+
+**Gate decision shape:**
+
+`CapabilityGateDecision(allowed, reason, source, policy)`. Frozen;
+equality-by-value. The `reason` is a free-form audit string
+suitable for downstream logs; the `source` enum lets consumers
+distinguish *why* a decision was reached without parsing the
+string. The `policy` field is the matched policy for an allow / the
+attempted-but-rejected policy for a deny-by-policy / `None` for
+`NO_POLICY_FOR_ISSUER`.
+
+**Deny precedence ordering:**
+
+When iteration encounters multiple non-matching policies, the
+gate records the *most specific* failure for the audit log:
+
+```
+POLICY_DISABLED < KID_NOT_ALLOWED < TRIPLE_NOT_ALLOWED < OUTSIDE_VALIDITY_WINDOW
+```
+
+A later policy's higher-precedence deny *replaces* an earlier
+lower-precedence deny in the recorded fallback. This is structural
+ordering only; the iteration itself is FIFO over the registry's
+per-issuer policy list. Rationale: a deny by *missing window* is
+more informative than a deny by *wrong triple*, which is more
+informative than *wrong kid*, which is more informative than
+*disabled*. Audit logs surface the most-specific failure.
+
+**Determinism contract (Phase-2 Sprint-4 Tag-6 invariants):**
+
+1. **Pure-function gating:** `check_registered_by_capability` is a
+   pure function of `(entry, signature_block, registry-state,
+   as_of)`. Identical inputs produce byte-identical decisions
+   (frozen dataclass equality).
+2. **Caller-supplied `kid`:** the gate consumes
+   `signature_block["kid"]` byte-equal as the caller supplied it.
+   It does NOT call the Sprint-4 Tag-3 `kid_resolver`; the kid →
+   public-key resolution is upstream and unchanged.
+3. **No mutation of inputs:** the policy bundle is frozen, the
+   registry is mutated only via `add_policy`, and the gate call
+   never mutates anything. A defensive tuple snapshot is returned
+   from `policies_for`; subsequent `add_policy` calls do not
+   retroactively appear in earlier snapshots.
+4. **No transport, no I/O:** the gate is in-process only; no NATS
+   call, no DNS lookup, no HTTPS fetch. Production callers wire
+   policy distribution via a separate (Phase-3) channel.
+
+**Phase-2 Sprint-4 Tag-6 boundary:**
+
+- This module does NOT ship Biscuit binary token encode/decode +
+  Datalog caveat evaluation. The on-the-wire Biscuit-v3 JSON
+  envelope schema lives at
+  `wirelang/schemas/layer-3-capability-token.json` since Phase-1a
+  and is referenced as the *target* shape for Phase-3
+  substantiation. Tag-6 is a *prelude*: a simpler in-process policy
+  bundle that captures the Wakir-side intent without the full
+  Biscuit machinery.
+- This module does NOT distribute or persist policies. The
+  registry is in-process only; persisted distribution over a
+  NATS-KV bucket (`wakir-capability-policies` or analogous) is a
+  Phase-3 slot.
+- This module does NOT plumb gating into the schema-registry write
+  path. `NatsKvSchemaRegistry` is UNCHANGED. The gate is a
+  callable layer; consumers (publisher CLI, future write-path
+  middleware) wire it explicitly between `sign_entry` and `put`.
+- This module does NOT replace
+  `wirelang.schemas.entry_signing.verify_entry_signature`. The
+  cryptographic primitive remains the single source of truth for
+  signature correctness; the Tag-6 gate is *additional*
+  authorisation policy.
+
+**Cross-Review-Zone-1 (Identity-Substrate) non-touched:**
+
+- Z-1-K-Sprint-4-1 (kid-Resolver-Shape) is consumed *upstream* by
+  the caller; Tag-6 takes the `signature_block["kid"]` byte-equal
+  as the caller supplied it and checks set-membership against
+  `allowed_kids`. Tag-6 does NOT import or call
+  `wirelang.identity.kid_resolver`.
+- Z-1-K-Sprint-4-2 (JCS-Resolver-Lock) is non-touched: Tag-6 does
+  not canonicalise anything; it is policy-evaluation only.
+- Z-1-K-Sprint-4-3 (Curve-Choice = Ed25519) is reinforced
+  indirectly: Tag-6 operates on the entry-signing layer which is
+  Ed25519, but Tag-6 carries no curve choice of its own.
+- Z-1-K-Sprint-4-4 (STRICT-Mode-Activation-Owner) is non-touched:
+  Tag-6 is *additional* policy and is orthogonal to the
+  `VerifyMode` toggle (which gates the *cryptographic*
+  signature requirement). A registry running `VerifyMode.STRICT`
+  may also run Tag-6 capability-gating; the two checks compose
+  independently.
+
+**Composition pattern (canonical Phase-2 capability-gated publish flow):**
+
+```python
+# Production publish flow with capability gating:
+from wirelang.identity import fetch_aip_document, resolve_kid
+from wirelang.identity import AipSignatureVerificationCache
+from wirelang.schemas.entry_signing import (
+    sign_entry, verify_entry_signature, VerifyMode,
+)
+from wirelang.schemas.registered_by_capability import (
+    CapabilityPolicyRegistry, gate_signed_entry,
+)
+
+# 1. Author signs the entry.
+signed = sign_entry(entry, my_priv_key, kid="biscuit-root-1")
+
+# 2. Cryptographic verification (Sprint-4 Tag-1 §5.8).
+ok = verify_entry_signature(
+    signed, my_pub_key, mode=VerifyMode.STRICT,
+)
+assert ok, "signature does not verify"
+
+# 3. Capability gating (Sprint-4 Tag-6, this section).
+decision = gate_signed_entry(signed, capability_registry)
+if not decision.allowed:
+    raise RuntimeError(
+        f"capability deny ({decision.source.value}): "
+        f"{decision.reason}"
+    )
+
+# 4. Routine publish (Sprint-3 Tag-1 / Tag-3 / Tag-5).
+await backend.put_with_revision(
+    signed.entry, expected_revision=0,
+)
+```
+
+Sprint-4 Tag-6 test `T-RBC-02` pins the matching-policy allow with
+the policy-reference roundtrip; T-RBC-04 pins the kid-not-allowed
+deny and the multi-policy short-circuit; T-RBC-05 pins the layer
+and name dimensions of triple-not-allowed separately; T-RBC-09 pins
+the validity-window semantics (inclusive `not_before`, exclusive
+`not_after`, `as_of`-omitted bypass); T-RBC-10 pins the
+`gate_signed_entry` end-to-end composition with `sign_entry`;
+T-RBC-12 pins the registry's defensive-snapshot semantics and the
+deny-precedence ordering.
+
 ## 6. Test inventory
 
 Phase-1b Sprint-3 Tag-1 ships hermetic tests at
@@ -2880,6 +3328,103 @@ suite grows from **695 passed** (post-Sprint-4 Tag-4) to **707 passed**
 Tag-3 kid-resolver tests (T-KID-RES-01..12) and the Tag-4
 transport-fetch tests (T-AIP-FT-01..12) remain unchanged and green.
 
+### 6.9 `registered_by`-capability-gating tests (Phase-2 Sprint-4 Tag-6, additive over Sprint-4 Tag-5)
+
+Phase-2 Sprint-4 Tag-6 ships hermetic capability-gating tests at
+`wirelang/tests/test_registered_by_capability.py`. Inventory
+T-RBC-01..12. All tests are hermetic: no real time, no I/O, no
+transport, no NATS. Datetime arguments use timezone-aware UTC
+instances; the Ed25519 signing primitive (for the T-RBC-10
+composition test) runs in-process via the existing `cryptography`
+dependency with RFC 8032 test-vector seed 1.
+
+- **T-RBC-01** — construction defaults and bad-arg-grid. Minimal
+  `CapabilityPolicy` constructs with `not_before=None`,
+  `not_after=None`, `disabled=False`, `note=None`. A 10-row
+  parametrised bad-arg-grid covers empty `registered_by`, empty
+  `allowed_kids`, empty kid-string, empty `allowed_triples`,
+  malformed triple shape (wrong arity, empty name), non-datetime
+  `not_before`, non-datetime `not_after`, non-bool `disabled`, and
+  non-string `note`. A separate test pins the inverted-window
+  rejection (`not_before >= not_after` raises
+  `RegisteredByCapabilityError` with a "strictly less than"
+  message fragment).
+- **T-RBC-02** — matching policy yields `POLICY_MATCH` allow. The
+  decision carries the matched policy by reference; the policy's
+  `note` field round-trips unchanged.
+- **T-RBC-03** — unknown `registered_by` and empty-registry both
+  yield `NO_POLICY_FOR_ISSUER` deny with `policy=None`. The
+  audit-string `reason` contains the unknown identity fragment.
+- **T-RBC-04** — kid not in `allowed_kids` yields
+  `KID_NOT_ALLOWED` deny; the reason string carries both the
+  presented kid and the `allowed_kids` tuple. A separate test pins
+  the multi-policy iteration: two policies under the same issuer
+  with disjoint `allowed_kids`; the gate iterates and finds the
+  second policy that carries the presented kid.
+- **T-RBC-05** — triple not covered by `allowed_triples` yields
+  `TRIPLE_NOT_ALLOWED` deny on both the layer dimension (entry
+  `layer-2-semantic` vs policy `layer-1-wire`) and the name
+  dimension (entry `audit-trail-leaf` vs policy `frame-envelope`).
+- **T-RBC-06** — layer wildcard `"*"` matches any layer. A
+  `("*", "frame-envelope")` policy allows both
+  `layer-1-wire/frame-envelope` and `layer-2-semantic/frame-envelope`.
+  A `("*", "*")` policy allows any triple including a novel
+  layer-9-novel/exotic-shape probe.
+- **T-RBC-07** — name glob fnmatch. A `("layer-1-wire", "frame-*")`
+  policy allows `frame-envelope` and `frame-burst` but denies
+  `audit-trail`. A `("layer-1-wire", "frame-?")` (single-char glob)
+  policy allows `frame-a` but denies `frame-ab`.
+- **T-RBC-08** — disabled policy is invisible to the allow path.
+  A registry that only carries disabled policies for an issuer
+  returns `POLICY_DISABLED` deny. A registry with both a disabled
+  and a non-disabled policy yields `POLICY_MATCH` allow.
+- **T-RBC-09** — validity-window enforcement. A policy with
+  `[not_before=2026-06-01, not_after=2026-07-01)` denies a gate
+  call with `as_of=2026-05-01` (before-window) and
+  `as_of=2026-07-01` (exclusive after-window bound), and allows
+  `as_of=2026-06-15` (inside window). Omitting `as_of` bypasses
+  the window check entirely.
+- **T-RBC-10** — `gate_signed_entry` end-to-end composition with
+  `sign_entry`. A real Ed25519-signed
+  `SignedSchemaRegistryEntry` flows into the gate; a matching
+  policy yields `POLICY_MATCH` allow; an unauthorised issuer
+  yields `NO_POLICY_FOR_ISSUER` deny. Passing a bare
+  `SchemaRegistryEntry` (not a signed wrapper) raises
+  `RegisteredByCapabilityError`.
+- **T-RBC-11** — decision dataclass shape and structural-failure
+  arg-grid. `CapabilityGateDecision` is frozen
+  (attribute-assignment raises); equality is by value. The gate
+  call rejects a non-`SchemaRegistryEntry` `entry`, a
+  non-mapping `signature_block`, a `signature_block` missing
+  `kid`, a non-`CapabilityPolicyRegistry` registry, a non-datetime
+  `as_of`, and an empty `kid` string — each raises
+  `RegisteredByCapabilityError`.
+- **T-RBC-12** — `CapabilityPolicyRegistry.list_issuers` and
+  `policies_for` contract. `list_issuers` returns a sorted tuple
+  snapshot. `policies_for` returns a defensive tuple snapshot;
+  subsequent `add_policy` calls do NOT mutate earlier snapshots
+  but DO appear in fresh snapshots. `add_policy` rejects non-policy
+  input with `RegisteredByCapabilityError`. The deny-precedence
+  ordering is pinned: a registry with one policy denying by kid
+  followed by a policy denying by triple yields a final
+  `TRIPLE_NOT_ALLOWED` source (the higher-precedence deny replaces
+  the lower-precedence one in the audit log).
+
+Total Phase-2 Sprint-4 Tag-6 test additions: 12 hermetic test
+classes (T-RBC-01..12); 45 individual test functions when counting
+the parametrised bad-arg-grid and per-scenario sub-tests. The gate
+is a pure-function authorisation tier: no signature verification
+logic, no schema validation, no transport-fetch coupling, no clock
+dependency outside the explicit `as_of` argument.
+
+**Suite-level effect (post-Sprint-4 Tag-6):** the wirelang test
+suite grows from **707 passed** (post-Sprint-4 Tag-5) to **752 passed**
+(+45 net). The Tag-1 entry-signing tests (T-SR-SIG-01..12), the
+Tag-3 kid-resolver tests (T-KID-RES-01..12), the Tag-4
+transport-fetch tests (T-AIP-FT-01..12), and the Tag-5
+verification-cache tests (T-AIP-SVC-01..12) remain unchanged and
+green.
+
 ## 7. Cross-references and Open-Items
 
 - V-908 backend pattern source:
@@ -2963,6 +3508,40 @@ transport-fetch tests (T-AIP-FT-01..12) remain unchanged and green.
   the schema-registry backend (`NatsKvSchemaRegistry` UNCHANGED, no
   new method, no new envelope). See §5.11 composition pattern for
   the end-to-end Phase-2 cached-verifier flow.
+- **Phase-2 `registered_by`-capability-gating: CONSUMED in Sprint-4
+  Tag-6.** Module: `wirelang/schemas/registered_by_capability.py`.
+  Tests: `wirelang/tests/test_registered_by_capability.py`
+  (T-RBC-01..12; 45 sub-tests). Previously listed as a follow-up
+  Phase-2 slot in §5.8 boundary block (Sprint-4 Tag-1 noted that
+  capability-token gating on `registered_by` was reserved); Sprint-4
+  Tag-6 ships the in-process policy-bundle + gating-function tier
+  as a *prelude* to the full Biscuit-v3 binary-token machinery
+  (the on-the-wire envelope schema at
+  `wirelang/schemas/layer-3-capability-token.json` remains
+  unchanged; full Biscuit encode/decode + Datalog evaluation is a
+  Phase-3 slot). The gate is *additive* authorisation policy on
+  top of the Sprint-4 Tag-1 `verify_entry_signature` cryptographic
+  primitive; cryptographic correctness remains the single source
+  of truth in `wirelang.schemas.entry_signing`. The gate is
+  byte-orthogonal to `wirelang.schemas.entry_signing.sign_entry` /
+  `verify_entry_signature` (UNCHANGED),
+  `wirelang.identity.verify_aip_signature` (UNCHANGED),
+  `wirelang.identity.kid_resolver` (UNCHANGED),
+  `wirelang.identity.aip_document_transport_fetch` (UNCHANGED),
+  `wirelang.identity.aip_signature_verification_cache` (UNCHANGED),
+  and the schema-registry backend (`NatsKvSchemaRegistry`
+  UNCHANGED, no new method, no new envelope, no new validation
+  gate at write time). See §5.12 composition pattern for the
+  end-to-end Phase-2 capability-gated publish flow.
+- Phase-2 Biscuit binary token encode/decode + Datalog evaluation:
+  reserved (Phase-3 slot; the Sprint-4 Tag-6 gate is the in-process
+  policy-bundle prelude).
+- Phase-2 capability-policy distribution (persisted NATS-KV
+  bucket `wakir-capability-policies` or analogous): reserved
+  (Phase-3 slot; the Sprint-4 Tag-6 registry is in-process only).
+- Phase-2 publisher-CLI integration of the Sprint-4 Tag-6 gate:
+  reserved (`wakir-schema-registry publish` flag that runs
+  `gate_signed_entry` between `sign_entry` and `put`).
 - Phase-2 STRICT-mode activation toggle: reserved (Z-1-K-Sprint-4-4
   open; operator-controlled toggle is a Phase-2-roadmap consensus
   question).
@@ -3288,6 +3867,76 @@ itself is still Phase-2.
   bump is warranted by the new §5.11 operational contract and
   §6.8 test inventory; no breaking-change to any consumer.
 
+**Phase-2 Sprint-4 Tag-6 (v0.10.0) is additive relative to Sprint-4 Tag-5 (v0.9.0):**
+
+- All Sprint-4 Tag-1 + Tag-3 + Tag-4 + Tag-5 surfaces remain
+  unchanged. Tag-6 introduces no breaking change to
+  `wirelang.schemas.entry_signing` (`SignedSchemaRegistryEntry` /
+  `sign_entry` / `verify_entry_signature` /
+  `envelope_with_signature` / `envelope_to_signed_entry` /
+  `SchemaRegistrySignatureError` / `VerifyMode` UNCHANGED), to
+  `wirelang.identity.aip_signing`
+  (`sign_aip_document` / `verify_aip_signature` UNCHANGED), to
+  `wirelang.identity.kid_resolver` (`resolve_kid` /
+  `list_resolvable_kids` / `ResolvedPublicKey` / `KidResolverError`
+  UNCHANGED), to
+  `wirelang.identity.aip_document_transport_fetch`
+  (`fetch_aip_document` / `aip_web_to_https_url` / `AipFetchResult` /
+  error tree UNCHANGED), to
+  `wirelang.identity.aip_signature_verification_cache`
+  (`AipSignatureVerificationCache` / `CacheStats` /
+  `cached_verify_aip_signature` UNCHANGED), or to any
+  `NatsKvSchemaRegistry` surface. Their contracts are preserved
+  byte-equal.
+- The Tag-6 additions (`CapabilityPolicy` /
+  `CapabilityPolicyRegistry` / `CapabilityGateDecision` /
+  `DecisionSource` / `check_registered_by_capability` /
+  `gate_signed_entry` / `RegisteredByCapabilityError` plus the
+  module-level `__all__` listing) are NEW surfaces in a NEW
+  module (`wirelang/schemas/registered_by_capability.py`).
+  Callers that do not need capability-gating continue to use the
+  Tag-1 entry-signing layer directly; they are not forced onto
+  the gate.
+- M-2 conformance (additive-only schema evolution): Tag-6 adds no
+  new envelope fields and modifies no existing field. The
+  on-the-wire envelope schema remains
+  `wakir.wirelang.schema-registry-entry/1`. The on-the-wire
+  Biscuit-v3 capability-token JSON envelope schema
+  (`wirelang/schemas/layer-3-capability-token.json`) is
+  REFERENCED only (as the target shape for Phase-3
+  substantiation); the Tag-6 in-process policy bundle uses a
+  separate Python dataclass that does NOT yet round-trip through
+  that JSON envelope. The two surfaces are intentionally
+  separate at Tag-6: the in-process bundle ships now; the
+  on-the-wire serialisation is Phase-3.
+- M-4 conformance (multi-version-aware registry): Tag-6 is
+  orthogonal to the version axis; capability-gating operates on
+  the `(registered_by, kid, layer, name)` 4-tuple and does not
+  depend on whether multiple versions of the same triple are
+  simultaneously active.
+- Cross-Review-Zone-1 (Identity-Substrate) **non-touched**: the
+  four Z-1-K-Sprint-4 consensus points remain byte-identical
+  after Tag-6. The gate is curve-agnostic (Z-1-K-Sprint-4-3
+  reinforced — Ed25519 is the entry-signing curve, but the gate
+  carries no curve choice of its own); JCS-free (Z-1-K-Sprint-4-2
+  preserved — no canonicalisation in the gating module);
+  resolver-independent (Z-1-K-Sprint-4-1 non-touched — the gate
+  consumes the kid byte-equal as the caller supplied it, does not
+  call `kid_resolver`); and orthogonal to `VerifyMode`
+  (Z-1-K-Sprint-4-4 non-touched — the gate is *additional*
+  authorisation policy, not a swap for the cryptographic-
+  verification mode toggle).
+- The synchronous verifier surface (`InMemorySchemaRegistry.lookup`
+  / `lookup_by_triple` / `keys_sorted`) is unchanged. The gate is
+  opt-in: callers that want capability-gating wire
+  `check_registered_by_capability` or `gate_signed_entry` into
+  their publish flow between cryptographic verification and the
+  backend write; callers that do not are not forced onto the gate.
+- Spec semver bump 0.9.0 → 0.10.0 reflects the additive minor
+  change (M-2 §3.2 versioning policy: minor for additive). The
+  bump is warranted by the new §5.12 operational contract and
+  §6.9 test inventory; no breaking-change to any consumer.
+
 ## 9. Brand-Guide §9 sweep
 
 This document has been swept against the Wakir Brand-Guide §9
@@ -3335,5 +3984,23 @@ references (RFC 8785 JCS, RFC 8032 Ed25519, V-908 spec sections)
 appear in the spec body. No external-tool clear-name leakage and
 no internal-persona-clear-name leakage in the Tag-5 spec body
 additions.
+
+The Sprint-4 Tag-6 additions (§5.12, §6.9, change-log v0.10.0 entry,
+§1.2 Phase-2 Sprint-4 Tag-6 block, §5.3 lands-update — Sprint-4
+Tag-6 added to the §5.3 header, `registered_by`-capability-gating
+item moved from follow-up-Phase-2-slot (§5.8 Sprint-4 Tag-1
+boundary) to CONSUMED-in-Sprint-4-Tag-6, §7 cross-references update
+— `registered_by`-capability-gating slot CONSUMED, §8 compatibility
+statement update for v0.9.0 → v0.10.0) have been swept identically
+— only role-strings (none in this spec body), module-path references
+(`wirelang.schemas.registered_by_capability`,
+`wirelang.schemas.entry_signing`, `wirelang.schemas.registry_nats_kv_backend`),
+`wakir.*` URIs (`wakir.wirelang.schema-registry-entry/1`,
+`wakir-capability-policies` reserved bucket name, carried unchanged
+from prior tags), and Python-stdlib/IETF/RFC references
+(:mod:`fnmatch` grammar, RFC 8032 Ed25519, `wirelang/schemas/layer-3-capability-token.json`
+Biscuit-v3 JSON envelope schema) appear in the spec body. No
+external-tool clear-name leakage and no internal-persona-clear-name
+leakage in the Tag-6 spec body additions.
 
 — End of spec —
