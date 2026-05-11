@@ -51,7 +51,8 @@ memos and are referenced here only by name.
 | 7.1 | Build-host activation procedure (nine-step, expanded)              | Sprint-3 Tag-2 |
 | 7.1.10 | Post-install live-smoke driver                                  | Sprint-3 Tag-4 |
 | 7.2 | systemd-timer wiring + Prometheus textfile-collector adapter       | Sprint-3 Tag-3 |
-| 8   | Verification stamps (P5/P7)                                        | Tag-2..Tag-8, Sprint-3 Tag-2..Tag-4 |
+| 7.3 | Live-NATS-Test-Mode driver (hermetic-default + Mock-vs-Live)       | Phase-2 Sprint-4 Tag-1 |
+| 8   | Verification stamps (P5/P7)                                        | Tag-2..Tag-8, Sprint-3 Tag-2..Tag-4, Phase-2 Sprint-4 Tag-1 |
 
 The four operator artefacts (compose substrate, bucket initialiser,
 NATS-KV substrate health check, federation evaluator health check)
@@ -1197,6 +1198,180 @@ The hermetic test suite for the adapter
 tests) covers flavour detection, render output for both flavours,
 atomic-write semantics, and the CLI exit-code matrix.
 
+### 7.3 Live-NATS-Test-Mode driver (Phase-2 Sprint-4 Tag-1)
+
+The §7.1.10 post-install live-smoke driver and the §7.2 systemd
+wiring both presuppose that the pytest suite can be trusted to flag
+a regression *before* the build-host activation pass declares done.
+That trust is gated on a single contract: a Mock-vs-Live byte-identity
+cross-validation of the planner output that the orchestrator container's
+init step parses on start. This sub-section documents the
+operator-facing driver for that contract.
+
+**Why a dedicated driver over re-using §7.1.10.** The post-install
+live-smoke driver (`scripts/post-install-live-smoke.sh`) brings the
+substrate up, initialises buckets, and runs a single non-destructive
+round-trip — it is the substrate-side gate for the build-host
+activation pass. The Live-NATS-Test-Mode driver
+(`scripts/run-live-smoke-tests.sh`) is the pytest-side gate: it
+consumes an already-up substrate and runs the full gated test
+selection against it, with byte-identity cross-validation on top.
+Splitting the two lets an operator re-run only the pytest gate on a
+stable substrate without paying the compose-up cost again.
+
+**Operator-hand-only.** ADR-0051 (Mira-Sandbox vs. Host-Operations
+trennung) was rejected, but the operative practice it formalised
+remains as a Mira-Hand-Regel: the Mira-Sandbox cannot reach the
+host NATS substrate, so live-NATS smoke is driven from the operator
+hand and never from inside the orchestrator container or a
+Mira-spawned agent. The driver enforces this implicitly via its
+pre-flight (a Mira-Sandbox invocation hits a TCP-unreachable probe
+and exits 1 before any test runs).
+
+#### 7.3.1 Hermetic-default + Live opt-in contract
+
+The Sprint-4 Tag-1 cross-validation suite
+(`tests/orchestrator/test_live_nats_cross_validation.py`) ships
+four hermetic tests that run on every pytest invocation plus two
+live-gated tests that activate only when `WAKIR_NATS_LIVE=1` is set
+in the environment. The hermetic tests pin the byte-shape of
+`InitReport.to_json()` for the two cross-validated scenarios; the
+live tests assert that the real cluster produces the same byte
+sequence as the in-memory mock.
+
+| scenario      | cluster state           | dry-run | expected statuses (×4)                |
+| ------------- | ----------------------- | ------- | ------------------------------------- |
+| empty         | no Phase-1 buckets      | yes     | all four `would_create`               |
+| populated     | all four buckets at spec | yes     | all four `unchanged`                  |
+
+Both scenarios use `dry_run=True`, so the live cluster is touched
+read-only (the planner only calls `js.key_value` and `kv.status()`).
+Drift detection still runs — if a bucket exists with a divergent
+configuration, the live test reports `drift` instead of `unchanged`,
+diverges from the mock baseline, and fails byte-identity. That
+divergence is the contract: a quiet drift in the substrate becomes
+a loud pytest failure.
+
+#### 7.3.2 Operator install
+
+The driver and the test suite ship with the repo; no install step
+beyond the §7.1 build-host activation is required. Once `nats-py`
+is importable in `.venv/` and the compose substrate is up on
+`localhost:4222`, run:
+
+```bash
+# Scenario A: empty cluster (compose up, no init).
+sudo systemctl stop wakir-nats-kv-health.timer 2>/dev/null || true
+podman-compose -f compose/nats.yaml down -v
+podman-compose -f compose/nats.yaml up -d
+scripts/run-live-smoke-tests.sh --scenario empty
+
+# Scenario B: populated cluster (after bucket init).
+.venv/bin/python3 scripts/init-nats-buckets.py
+scripts/run-live-smoke-tests.sh --scenario populated
+
+# Both scenarios in one session (operator drives the state machine
+# between invocations; the driver does not).
+scripts/run-live-smoke-tests.sh --scenario both
+```
+
+The driver re-uses the existing gated live-smoke suites
+(`test_init_nats_buckets`, `test_check_nats_kv_health`,
+`test_check_federation_evaluator_health`) under the same
+`WAKIR_NATS_LIVE=1` flag, so a single invocation exercises all four
+gated test modules. `--no-cross-validation` runs the legacy three
+without the new byte-identity suite.
+
+#### 7.3.3 Pre-flight probes
+
+The driver runs four pre-flight probes before invoking pytest:
+
+| probe         | command-equivalent                                | gates                |
+| ------------- | ------------------------------------------------- | -------------------- |
+| TCP 4222      | `bash -c '>/dev/tcp/127.0.0.1/4222'` (2 s timeout) | hard fail            |
+| HTTP /jsz     | `curl --fail --max-time 2 ${JSZ_URL}`             | hard fail            |
+| `nats` CLI    | `nats server ping --count 1 --timeout 2s`         | best-effort (skip OK) |
+| venv          | `python3 -c 'import nats'` + `pytest` exists      | hard fail            |
+
+The `nats` CLI probe is best-effort because a build-host without the
+`nats` CLI installed is still valid for the pytest gate (the
+hermetic + gated-live suites do not call the CLI). Both TCP+JSZ
+probes are short-timeout to keep a wedged box bounded.
+
+The driver emits a JSON summary on stdout (machine-parseable) and a
+human-readable line log on stderr. Exit codes:
+
+| code | meaning                                                     |
+| ---- | ----------------------------------------------------------- |
+| 0    | pre-flight ok, pytest exit 0                                |
+| 1    | pre-flight failed (NATS unreachable, nats-py missing, etc.) |
+| 2    | pytest reported failure                                     |
+| 3    | bad CLI argument                                            |
+
+#### 7.3.4 Cross-validation byte-identity contract
+
+The byte-identity contract is *deliberately strict*. The planner
+output is constructed via `json.dumps(..., sort_keys=True,
+separators=(",", ":"))`, so the only sources of nondeterminism are
+the action list order (driven by `PHASE_1_BUCKETS` ordering, fixed)
+and any field that differs between the mock and the real
+`KeyValueStatus` surface. The hermetic test
+`test_hermetic_to_json_is_byte_stable_across_invocations` locks
+deterministic JSON across consecutive invocations; the live test
+catches transport drift.
+
+If a future `nats-py` release surfaces a new field on `KeyValueStatus`
+that the planner reads, the mock must be updated in lock-step or the
+live test will fail. That is by design: the mock is the contract;
+the live test is the regression detector. The runbook does not pin
+`nats-py` (see §8) precisely because the byte-identity contract is
+the binding artefact, not a version string.
+
+#### 7.3.5 Failure modes and recovery
+
+The live tests `skipTest` (not `fail`) if the cluster is in an
+unexpected state: an `--scenario empty` run against a populated
+cluster, or vice versa. The skip diagnostic prints the observed
+status map so the operator can correct the state and re-run. This
+matches the §6 recovery posture — operator-driven state corrections,
+never silent overwrite.
+
+A genuine byte-identity failure (live and mock disagree on
+`to_json()` output) means one of three things:
+
+1. **Mock drift.** The mock and the real `KeyValueStatus` have
+   diverged; the mock must be updated. Bisect against the
+   `nats-py` changelog.
+2. **Live cluster drift.** An operator changed a bucket out of band
+   (e.g. via `nats kv edit`). Re-run `scripts/init-nats-buckets.py`
+   in plan mode to see which bucket diverged; reconciliation is the
+   §6.3 procedure.
+3. **Planner regression.** A change to `init-nats-buckets.py` broke
+   the JSON contract. Revert the offending commit and re-add with a
+   matching hermetic baseline update.
+
+The live test failure message prints both byte sequences side by
+side so the diagnosis can be done from the operator log without a
+second invocation.
+
+#### 7.3.6 What this sub-section does not cover
+
+* **Substrate bring-up.** §7.1.10 owns that. Run
+  `scripts/post-install-live-smoke.sh` first; once it reports clean,
+  the §7.3 driver consumes the same substrate.
+* **SPIFFE/SVID auth.** The driver reads `WAKIR_NATS_TOKEN` if set;
+  the Cross-Review Zone A SVID upgrade replaces the token with a
+  workload-API call without changing the driver's CLI surface.
+* **Adapter-side cross-validation.** The Prometheus textfile-collector
+  adapter (§7.2.3) has its own 29-test hermetic suite; no live cross-
+  validation is required because the adapter is a pure JSON-to-text
+  translator with no NATS surface.
+* **Multi-host federation.** The pre-flight TCP probe is loopback by
+  default. A multi-host scenario sets `WAKIR_NATS_URL` to the remote
+  endpoint; the operator owns the consequences of pointing a
+  destructive (`compose down -v` between scenarios) workflow at a
+  shared cluster.
+
 ## 8. Verification stamps (P5/P7)
 
 - Authoring date (Tag-3 update): `date -u` 2026-05-07T (CEST
@@ -1348,3 +1523,48 @@ atomic-write semantics, and the CLI exit-code matrix.
   new test plan is markdown-only by design (§7.1.10 motivates
   why a hermetic pytest of a real-substrate driver would lose
   the property under test).
+- Phase-2 Sprint-4 Tag-1 §7.3 Live-NATS-Test-Mode driver stamp:
+  `date -u` 2026-05-11T16:34:55Z (CEST 2026-05-11T18:34). This pass
+  adds `scripts/run-live-smoke-tests.sh` (a bash-driver that runs
+  four pre-flight probes — TCP 4222, HTTP /jsz, optional `nats`-CLI
+  ping, repo venv `import nats` + `pytest` presence — then invokes
+  pytest with `WAKIR_NATS_LIVE=1` against an operator-selectable
+  subset of the gated orchestrator tests, emitting a JSON summary on
+  stdout with a four-state exit-code contract), the companion test
+  module `tests/orchestrator/test_live_nats_cross_validation.py`
+  (six tests: four hermetic baselines for the `InitReport.to_json()`
+  byte-shape in the empty-cluster and populated-cluster `dry_run=True`
+  scenarios plus a byte-stability lock-down across invocations and
+  across distinct mock instances, two `WAKIR_NATS_LIVE=1`-gated
+  cross-validation tests that assert the live cluster produces a
+  byte-identical JSON payload for both scenarios), and the §7.3
+  sub-section (7.3.1 hermetic-default contract, 7.3.2 operator
+  install, 7.3.3 pre-flight probes, 7.3.4 byte-identity contract,
+  7.3.5 failure modes and recovery, 7.3.6 out-of-scope). The §0
+  section index gains a `7.3` row; no existing sub-section is
+  renumbered. The driver runs `bash -n` clean and a `--dry-run`
+  from the authoring sandbox correctly skips both pre-flight and
+  pytest and emits a parseable JSON plan; a live `--no-cross-
+  validation --collect-only` against an up substrate but a venv
+  without `nats-py` correctly fails pre-flight at venv with exit 1
+  and emits the JSON summary. The new cross-validation suite adds
+  six tests to `tests/orchestrator/`: zero-drift verification:
+  `tests/orchestrator/` 88 passed + 6 skipped (was 84 + 4 before
+  Tag-1; +4 hermetic and +2 gated-live from the new suite); zero
+  regressions. The Sprint-4 Tag-1 ADR-0051 context: ADR-0051
+  (Mira-Sandbox vs. Host-Operations trennung) was rejected (per
+  CEO closeout 2026-05-07 ~18:10 CEST); the operative
+  Mira-Hand-Regel that the Mira-Sandbox cannot reach the host NATS
+  substrate is retained and is the binding rationale for the
+  driver's operator-hand-only posture. The byte-identity contract
+  is the cross-validation gate that lets the §7.1.10 post-install
+  driver and the §7.2 systemd wiring trust the pytest suite to flag
+  a substrate-side regression before the build-host activation pass
+  declares done. No image-tag dependency is introduced; no new
+  schema surface; no new auth surface (`WAKIR_NATS_TOKEN` flow
+  unchanged). The verification stamp also re-runs the legacy gated
+  suite manifest: `test_init_nats_buckets.py` (10 hermetic),
+  `test_check_nats_kv_health.py` (16 hermetic + 2 gated-live),
+  `test_check_federation_evaluator_health.py` (20 hermetic + 2
+  gated-live) — the Tag-1 driver re-uses these under the same
+  `WAKIR_NATS_LIVE=1` flag.
