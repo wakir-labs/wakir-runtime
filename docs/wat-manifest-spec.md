@@ -300,6 +300,40 @@ Both flags must be supplied together; partial configuration is
 rejected with exit code 2 so a half-edited cron does not silently
 emit unsigned manifests.
 
+### End-to-end example (Phase-2 Sprint-6 Tag-4)
+
+The end-to-end demonstration script
+`scripts/wat-e2e-aggregator-signed-tv2.py` ties the production-side
+signing to the verifier-side signature-status gate. It replays the
+TV-2 real-manifest cohort through `build_command(... sign_key=...,
+sign_kid=...)`, copies the original `root.bin` / `root.bin.ots`
+side-files into the staging directory byte-for-byte, then runs
+`verify_real_manifest_file(verify_signature=True, ...)` against the
+aggregator-signed output and asserts
+`signature_status == "verified"` on every hour:
+
+```text
+$ .venv/bin/python scripts/wat-e2e-aggregator-signed-tv2.py
+[2026-05-27T00] rows=5 merkle_match=True fields=True integrity=True
+                ots=True signature_status=verified verdict=OK
+[2026-05-27T01] rows=5 merkle_match=True fields=True integrity=True
+                ots=True signature_status=verified verdict=OK
+[2026-05-27T02] rows=5 merkle_match=True fields=True integrity=True
+                ots=True signature_status=verified verdict=OK
+[2026-05-27T03] rows=5 merkle_match=True fields=True integrity=True
+                ots=True signature_status=verified verdict=OK
+---
+end-to-end verdict: OK
+```
+
+The CI counterpart is `tests/wat/test_e2e_aggregator_signed_tv2.py`
+(five tests: one per-hour-parametrised plus one cohort-wide). The
+script's `--keep-staging` flag preserves the temp directory for
+post-mortem inspection. Exit code is 0 iff every hour passes every
+gate (fields + integrity + ots-anchor + signature) AND every
+rebuilt `merkle_root` matched the fixture's (the deterministic-sort
+contract from Tag-3).
+
 ## Reference implementations
 
 - Writer: `wat.cmd.aggregator_cli` (`wakir-merkle build` subcommand).
