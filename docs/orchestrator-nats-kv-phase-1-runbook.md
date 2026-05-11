@@ -5,11 +5,13 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 
 # Orchestrator NATS-JetStream KV Phase-1 — Operator Runbook
 
-Status: draft, Phase-2 Sprint-4 Tag-5 (Z-B 6th-bucket
-`wakir-federation-routes` paired-update — see §1, §6.5, §7 and the
-§8 Tag-5 stamp).
+Status: draft, Phase-2 Sprint-5 Tag-2 (Z-B 7th-bucket
+`wakir-capability-policies` paired-update — see §1, §3.2.3, §7.9
+and the §8 Sprint-5 Tag-2 stamp; Sprint-6 Tag-1/Tag-2 added the
+Quadlet/systemd dual-track sibling artefact under `quadlet/` and
+the §9 brand-guide sweep across public-form files).
 Companion to `compose/nats.yaml` (substrate),
-`scripts/init-nats-buckets.py` (Phase-1 six-bucket driver),
+`scripts/init-nats-buckets.py` (Phase-1 seven-bucket driver),
 `scripts/check-nats-kv-health.py` (Phase-1 substrate health
 check),
 `scripts/check-federation-evaluator-health.py` (Phase-1b V-908
@@ -30,31 +32,42 @@ a design document — the substrate spec, the bucket value-envelope
 contract, and the federation-evaluator semantics live in their own
 memos and are referenced here only by name.
 
-## 0. Section index (Tag-8 consolidation)
+## 0. Section index (Phase-1b Sprint-2 Tag-8 consolidation; Phase-2 Sprint-6 Tag-3 marker-consistency sweep)
+
+Phase-marker convention (Sprint-6 Tag-3 sweep): every "Source tags"
+cell carries an explicit Phase prefix (`Phase-1b Sprint-N Tag-M` or
+`Phase-2 Sprint-N Tag-M`). Phase-1b covers Sprint-2 (initial bring-
+up, six-bucket inventory drivers, hermetic regressions) and Sprint-3
+(build-host activation, post-install live-smoke driver). Phase-2
+covers Sprint-4 onward (live-mode cross-validation, image-digest
+pin, 5th/6th/7th-bucket paired-updates, SPIFFE Z-A skizze, Quadlet/
+systemd dual-track sibling artefact). Sub-section headers in §3
+through §7 carry the same Phase prefix in parentheses for direct
+inline confirmation.
 
 | §   | Topic                                                              | Source tags |
 | --- | ------------------------------------------------------------------ | ----------- |
-| 1   | Bucket inventory (Phase-1, seven-bucket layout)                    | Tag-2, Sprint-4 Tag-4, Sprint-4 Tag-5, Sprint-5 Tag-2 |
-| 2   | Pre-flight check                                                   | Tag-2       |
-| 3   | Bring-up (cold start: substrate + buckets-init + tear-down)        | Tag-2, Tag-3 |
-| 3.2.1 | Backfill 5th bucket on pre-Tag-4 cluster                         | Sprint-4 Tag-4 |
-| 3.2.2 | Backfill 6th bucket on pre-Tag-5 cluster                         | Sprint-4 Tag-5 |
+| 1   | Bucket inventory (Phase-1, seven-bucket layout)                    | Phase-1b Sprint-2 Tag-2, Phase-2 Sprint-4 Tag-4, Phase-2 Sprint-4 Tag-5, Phase-2 Sprint-5 Tag-2 |
+| 2   | Pre-flight check                                                   | Phase-1b Sprint-2 Tag-2 |
+| 3   | Bring-up (cold start: substrate + buckets-init + tear-down)        | Phase-1b Sprint-2 Tag-2, Phase-1b Sprint-2 Tag-3 |
+| 3.2.1 | Backfill 5th bucket on pre-Tag-4 cluster                         | Phase-2 Sprint-4 Tag-4 |
+| 3.2.2 | Backfill 6th bucket on pre-Tag-5 cluster                         | Phase-2 Sprint-4 Tag-5 |
 | 3.2.3 | Backfill 7th bucket on pre-Sprint-5-Tag-2 cluster                | Phase-2 Sprint-5 Tag-2 |
-| 4   | Idempotency contract                                               | Tag-2       |
-| 5   | Health checks                                                      | Tag-2, Tag-6, Tag-7 |
-| 5.1 | `check-nats-kv-health` tool                                        | Tag-6       |
-| 5.2 | Cron-slot deployment                                               | Tag-6       |
-| 5.3 | `check-federation-evaluator-health` tool                           | Tag-7       |
-| 6   | Recovery scenarios                                                 | Tag-2, Tag-7 |
-| 6.1 | NATS down                                                          | Tag-2       |
-| 6.2 | JetStream disk loss                                                | Tag-2       |
-| 6.3 | Configuration drift                                                | Tag-2, Tag-6 |
-| 6.4 | FTD poison-list growth                                             | Tag-2       |
-| 6.5 | Federation-routes bucket creation (now routine; fallback only)     | Tag-7, Phase-2 Sprint-4 Tag-5 |
-| 7   | Open follow-ups (sprint-by-sprint backlog)                         | Tag-2..Tag-8, Sprint-3 Tag-2 |
-| 7.1 | Build-host activation procedure (nine-step, expanded)              | Sprint-3 Tag-2 |
-| 7.1.10 | Post-install live-smoke driver                                  | Sprint-3 Tag-4 |
-| 7.2 | systemd-timer wiring + Prometheus textfile-collector adapter       | Sprint-3 Tag-3 |
+| 4   | Idempotency contract                                               | Phase-1b Sprint-2 Tag-2 |
+| 5   | Health checks                                                      | Phase-1b Sprint-2 Tag-2, Phase-1b Sprint-2 Tag-6, Phase-1b Sprint-2 Tag-7 |
+| 5.1 | `check-nats-kv-health` tool                                        | Phase-1b Sprint-2 Tag-6 |
+| 5.2 | Cron-slot deployment                                               | Phase-1b Sprint-2 Tag-6 |
+| 5.3 | `check-federation-evaluator-health` tool                           | Phase-1b Sprint-2 Tag-7 |
+| 6   | Recovery scenarios                                                 | Phase-1b Sprint-2 Tag-2, Phase-1b Sprint-2 Tag-7 |
+| 6.1 | NATS down                                                          | Phase-1b Sprint-2 Tag-2 |
+| 6.2 | JetStream disk loss                                                | Phase-1b Sprint-2 Tag-2 |
+| 6.3 | Configuration drift                                                | Phase-1b Sprint-2 Tag-2, Phase-1b Sprint-2 Tag-6 |
+| 6.4 | FTD poison-list growth                                             | Phase-1b Sprint-2 Tag-2 |
+| 6.5 | Federation-routes bucket creation (now routine; fallback only)     | Phase-1b Sprint-2 Tag-7, Phase-2 Sprint-4 Tag-5 |
+| 7   | Open follow-ups (sprint-by-sprint backlog)                         | Phase-1b Sprint-2 Tag-2..Tag-8, Phase-1b Sprint-3 Tag-2 |
+| 7.1 | Build-host activation procedure (nine-step, expanded)              | Phase-1b Sprint-3 Tag-2 |
+| 7.1.10 | Post-install live-smoke driver                                  | Phase-1b Sprint-3 Tag-4 |
+| 7.2 | systemd-timer wiring + Prometheus textfile-collector adapter       | Phase-1b Sprint-3 Tag-3 |
 | 7.3 | Live-NATS-Test-Mode driver (hermetic-default + Mock-vs-Live)       | Phase-2 Sprint-4 Tag-1 |
 | 7.4 | First-time live-smoke execution record (host-substrate evidence)   | Phase-2 Sprint-4 Tag-2 |
 | 7.5 | Image-digest verification gate (`verify-image-digest.sh`)          | Phase-2 Sprint-4 Tag-3 |
@@ -62,7 +75,7 @@ memos and are referenced here only by name.
 | 7.7 | 6th bucket: `wakir-federation-routes` (V-908 routine bring-up)     | Phase-2 Sprint-4 Tag-5 |
 | 7.8 | SPIFFE Z-A JWT-SVID container-identity skizze (Z-A preparation)    | Phase-2 Sprint-4 Tag-6 |
 | 7.9 | 7th bucket: `wakir-capability-policies` (Phase-3-reserved)         | Phase-2 Sprint-5 Tag-2 |
-| 8   | Verification stamps (P5/P7)                                        | Tag-2..Tag-8, Sprint-3 Tag-2..Tag-4, Phase-2 Sprint-4 Tag-1..Tag-6, Phase-2 Sprint-5 Tag-2 |
+| 8   | Verification stamps (P5/P7)                                        | Phase-1b Sprint-2 Tag-2..Tag-8, Phase-1b Sprint-3 Tag-2..Tag-4, Phase-2 Sprint-4 Tag-1..Tag-6, Phase-2 Sprint-5 Tag-2 |
 
 The four operator artefacts (compose substrate, bucket initialiser,
 NATS-KV substrate health check, federation evaluator health check)
@@ -262,7 +275,7 @@ To re-initialise a single bucket (idempotent on the rest):
 python3 scripts/init-nats-buckets.py --bucket wakir-schemas
 ```
 
-### 3.2.1 Backfill the 5th bucket on a pre-Tag-4 cluster
+### 3.2.1 Backfill the 5th bucket on a pre-Tag-4 cluster (Phase-2 Sprint-4 Tag-4)
 
 Clusters brought up before Sprint-4 Tag-4 have only the four
 Phase-1b-consumed buckets. After pulling the Tag-4 runtime onto the
@@ -291,7 +304,7 @@ performed at any operator-convenient window — there is no read or
 write traffic against the new bucket until the Phase-2 schema-registry
 storage migration lands. This is the no-downtime upgrade path.
 
-### 3.2.2 Backfill the 6th bucket on a pre-Tag-5 cluster
+### 3.2.2 Backfill the 6th bucket on a pre-Tag-5 cluster (Phase-2 Sprint-4 Tag-5)
 
 Clusters brought up before Sprint-4 Tag-5 either (a) used the §6.5
 hand-creation recipe to materialise `wakir-federation-routes`
@@ -425,7 +438,7 @@ After bring-up:
    trace fields are documented in the read-through wrapper module
    docstring.
 
-### 5.1 `check-nats-kv-health` tool (Sprint-2 Tag-6)
+### 5.1 `check-nats-kv-health` tool (Phase-1b Sprint-2 Tag-6)
 
 The `nats` CLI commands above are fine for a one-off operator check,
 but they do not produce a structured report and do not detect
@@ -504,7 +517,7 @@ rely on it):
 }
 ```
 
-### 5.2 Cron-slot deployment (Phase-1b operator hint)
+### 5.2 Cron-slot deployment (Phase-1b Sprint-2 Tag-6, operator hint)
 
 The health-check tool is designed to be run periodically. A
 recommended Phase-1b cadence is once every five minutes from a node
@@ -534,7 +547,7 @@ minimum-viable deployment that an on-call can drop in same-day. A
 proper systemd unit set will land alongside the OTel collector
 in Sprint-3.
 
-### 5.3 `check-federation-evaluator-health` tool (Sprint-2 Tag-7)
+### 5.3 `check-federation-evaluator-health` tool (Phase-1b Sprint-2 Tag-7)
 
 The federation-evaluator health-check tool is the next layer above
 the NATS-KV substrate probe. It targets the V-908 federation route
@@ -660,7 +673,7 @@ operationally tolerable size (Phase-1 working assumption: < 10k
 entries), trigger a manual audit review. Eviction policy beyond
 audit review is a Phase-2 follow-up; do not auto-evict in Phase-1.
 
-### 6.5 Federation-routes bucket creation (now routine; fallback only)
+### 6.5 Federation-routes bucket creation (now routine; fallback only) (Phase-1b Sprint-2 Tag-7, flip Phase-2 Sprint-4 Tag-5)
 
 The `wakir-federation-routes` bucket is the V-908 federation route
 registry consumed by the N2 evaluator. As of **Phase-2 Sprint-4 Tag-5**
@@ -2682,3 +2695,71 @@ Z-B scope.
   reader-side judgement, not a verifiable invariant. The
   retentions above (`— Kai` signature, `/agent/Mira/...` test
   fragment) are conservative choices documented for review.
+
+- Authoring date (Sprint-6 Tag-3 update): `date -u`
+  2026-05-11T21:05:33Z (lokal CEST 23:05), worktree
+  `/tmp/kai-sprint-6-tag-3-konsolidat-runtime` (ADR-0049-konform,
+  forked from Sprint-6 Tag-2 tip `1a05638`), branch
+  `kai/phase-2-sprint-6-tag-3-konsolidat-sweep`. Substance: Phase-2.x
+  Konsolidat-Sweep Tag-3+ — sub-item (1) Phase-marker-consistency
+  sweep across runbook §0 index plus six sub-section headers
+  (§3.2.1, §3.2.2, §5.1, §5.2, §5.3, §6.5) that previously carried
+  bare `Sprint-N Tag-M` or `Tag-M` markers without explicit Phase
+  prefix. The §0 index every "Source tags" cell now carries an
+  explicit `Phase-1b Sprint-N Tag-M` or `Phase-2 Sprint-N Tag-M`
+  prefix. The Status line at the runbook title also refreshed from
+  the stale "Phase-2 Sprint-4 Tag-5" stamp to "Phase-2 Sprint-5
+  Tag-2" with a Sprint-6 Tag-1/Tag-2 sibling-artefact reference.
+  A short Phase-marker-convention paragraph immediately under the
+  §0 header documents the convention for downstream contributors.
+  Sub-item (2) OI-9 Test-Counts-Re-Verify-Drift reproduction-audit:
+  the prior P2-hypothesis in Sprint-5-Tag-1 §1.2 ("WAKIR_NATS_LIVE
+  environment-change or nats-py-inconsistency") is **falsified by
+  reproduction**. The actual mechanism: three WAT-domain hermetic
+  tests in `tests/wat/test_aggregator_prev_hour_root.py` (L236,
+  L283, L321) are gated on `shutil.which("wakir-merkle")` resolving
+  to a non-None path. The `wakir-merkle` console-script is installed
+  inside the kai-side venv (`$VENV/bin/wakir-merkle`), but
+  `shutil.which` walks the **inherited PATH** of the pytest child
+  process. When pytest is launched via an absolute interpreter path
+  (`$VENV/bin/python -m pytest`) without a prior source-activation
+  of the venv, the venv's `bin/` directory is NOT prepended to PATH,
+  so `shutil.which` returns None and the three tests skip rather
+  than pass. When pytest is launched with `PATH=$VENV/bin:$PATH`
+  (equivalent to source-activation), the three tests pass. The
+  drift is reproducibly **shell-PATH-state-dependent**, not env-var
+  state-dependent. Audit verification (Sprint-6 Tag-3 worktree,
+  Tag-2 tip `1a05638` content, no edits yet):
+  - `$VENV/bin/python -m pytest` (no PATH prep): **270 passed +
+    28 skipped** (3 wakir-merkle-gated tests in WAT-aggregator-
+    domain skip).
+  - `PATH=$VENV/bin:$PATH $VENV/bin/python -m pytest`: **273 passed
+    + 25 skipped** (3 wakir-merkle-gated tests pass).
+  Delta: exactly +3 passed / -3 skipped between the two invocation
+  modes, matching the Sprint-4-Acceptance vs. Tag-6-Stempel +3/-3
+  drift observed in Sprint-5 Tag-1 §1.2. Fix-decision is
+  **WAT-Core-track-domain** (the affected tests live under
+  `tests/wat/`, which is WAT-Core-track-owned): the choice is between
+  (a) widening the skip-guard in `test_aggregator_prev_hour_root.py`
+  to consult `sys.prefix/bin/wakir-merkle` as a fallback before
+  falling back to skip, or (b) documenting the PATH-prepend
+  requirement in the build-host runbook §7.1. Container-
+  Orchestration-side did not modify the test file (WAT-Core-track-
+  domain boundary respected per persona §7 + workspace CLAUDE.md
+  "no WAT-Core/OTS-pipeline changes without WAT-Core-track
+  coordination"). The OI-9 reproduction-audit is now closed on the
+  audit side; the fix-decision lives in the WAT-Core-track-side
+  inbox / Sprint-N+1 backlog. P2-conjecture-correction logged. Test-counts
+  for this Sprint-6 Tag-3 box (no edits yet that would change
+  test surface; only doc edits in this runbook plus the Sprint-6
+  Tag-3 stamp itself): orchestrator-suite **136 passed + 9 skipped**
+  zero-drift vs. Sprint-6 Tag-2 baseline 136+9; project-wide
+  **270 passed + 28 skipped** zero-drift vs. Sprint-6 Tag-2
+  baseline 270+28 (no PATH prepend, the documented Tag-2 baseline
+  state). Cross-Review-Status: Z-A / Z-B / Z-C / Z-D **non-
+  touched** (this is a pure documentation-only pass; no SPIFFE
+  constants change, no NATS-Schema bucket inventory change, no
+  compose/quadlet directive surface change, no Phala/TEE
+  touchpoint). The WAT-Core-track-side fix-decision for OI-9
+  itself does cross into WAT-Core when it lands, but that is a
+  separate delivery on a separate track.

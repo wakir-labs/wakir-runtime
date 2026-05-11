@@ -337,7 +337,7 @@ or C, owner DevOps-side with Operator-Hand approval.**
 
 ---
 
-## 6 / Open items (Tag-4 box-end + Sprint-6 Tag-1 update)
+## 6 / Open items (Phase-2 Sprint-5 Tag-4 box-end + Phase-2 Sprint-6 Tag-1 update)
 
 - **OI-Q1 (still open):** validate the Quadlet shape against a live
   atomic host (Bluefin or Silverblue VM). This skizze is paper-form

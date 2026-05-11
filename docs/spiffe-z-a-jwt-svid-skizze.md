@@ -394,7 +394,7 @@ Record führt.
 
 ---
 
-## 9. Sprint-5-Vorbereitung (Phase-Plan)
+## 9. Phase-2 Sprint-5-Vorbereitung (Phase-Plan)
 
 Phase-2-Sprint-5 ist der **frühestmögliche** Sprint für Z-A-
 Implementation. Bedingung: Z-A-Konsens-Marker abgeschlossen
