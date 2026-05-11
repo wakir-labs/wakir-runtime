@@ -299,4 +299,196 @@ mod tests {
         let err2 = canonical_jcs_bytes(&scalar).expect_err("string must error");
         assert!(matches!(err2, PersonaCanonicalFormError::NotAnObject));
     }
+
+    // -------------------------------------------------------------------
+    // Sprint-5 Tag-3 Pin-Pack-Test-Coverage extension
+    // (Sprint-4-Closeout §539-541 Selin-recommendation).
+    //
+    // Adds:
+    //   - V8 canonical-subset bytes-length anchor (schema-v0 input)
+    //   - V9->V2 canonical-subset bytes-length anchor (schema-v2 output)
+    //   - V8 vs V9 byte-diff scoped to schema_version key only
+    //   - Determinism stress: 10-iteration byte-identical re-serialise
+    //
+    // V8 / V9 / V9->V2 share every canonical-subset key except
+    // schema_version. Their JCS bytes therefore share length modulo the
+    // schema_version-value byte-delta. Because all three schema-version
+    // values are exactly 10 ASCII bytes ("persona-v0", "persona-v1",
+    // "persona-v2"), the JCS byte lengths must be IDENTICAL. This is
+    // the cross-language anchor for the schema_version-flip migration
+    // step's bytes-level invariant.
+    // -------------------------------------------------------------------
+
+    /// V8 canonical subset (schema_version=persona-v0).
+    fn v8_canonical_subset() -> Value {
+        json!({
+            "description": "Pre-framework persona fixture for self-migration vector (v8, schema persona-v0-ish \u{2014} flagged as unsupported).",
+            "identity_pinned": {
+                "authority": {
+                    "budget_cap_eur_per_month": 0,
+                    "push_remote": false,
+                    "sub_delegation": false
+                },
+                "cross_review_zones": [],
+                "hierarchy": {
+                    "escalation": "cto",
+                    "reports_to": "cto"
+                }
+            },
+            "name": "pre-framework-agent",
+            "schema_version": "persona-v0",
+            "tools": ["Read"]
+        })
+    }
+
+    /// V9 canonical subset migrated to V2 (schema_version=persona-v2).
+    fn v9_migrated_to_v2_canonical_subset() -> Value {
+        json!({
+            "description": "Pre-framework persona fixture for self-migration vector (v8, schema persona-v0-ish \u{2014} flagged as unsupported).",
+            "identity_pinned": {
+                "authority": {
+                    "budget_cap_eur_per_month": 0,
+                    "push_remote": false,
+                    "sub_delegation": false
+                },
+                "cross_review_zones": [],
+                "hierarchy": {
+                    "escalation": "cto",
+                    "reports_to": "cto"
+                }
+            },
+            "name": "pre-framework-agent",
+            "schema_version": "persona-v2",
+            "tools": ["Read"]
+        })
+    }
+
+    /// V9->V2 pin hex (matches Python PERSONA_HASH_PIN_V9_MIGRATED_TO_V2).
+    const V9_MIGRATED_TO_V2_PIN_HEX: &str =
+        "f719fce4bedd8522874ae214ec2f982ef87964b535ca368134b3636207eb6669";
+
+    // -------------------------------------------------------------------
+    // 7 / V8 canonical-subset JCS bytes length must equal V9 length
+    //     (both schema_version values are 10 ASCII bytes).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t7_v8_canonical_jcs_bytes_length_equals_v9() {
+        let v8 = v8_canonical_subset();
+        let blob = canonical_jcs_bytes(&v8).expect("v8 must canonicalise");
+        assert_eq!(
+            blob.len(),
+            V9_JCS_BYTES_LEN,
+            "V8 JCS length must equal V9 (schema_version values are equal-length ASCII)"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // 8 / V9->V2 canonical-subset JCS bytes length anchor + sha256(blob)
+    //     must match V9_MIGRATED_TO_V2 pin.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t8_v9_to_v2_canonical_jcs_bytes_length_and_sha256_match_pin() {
+        let v9_to_v2 = v9_migrated_to_v2_canonical_subset();
+        let blob = canonical_jcs_bytes(&v9_to_v2).expect("v9->v2 must canonicalise");
+        assert_eq!(
+            blob.len(),
+            V9_JCS_BYTES_LEN,
+            "V9->V2 JCS length must equal V9 (schema_version values are equal-length ASCII)"
+        );
+        let got_hex = sha256_hex(&blob);
+        assert_eq!(
+            got_hex, V9_MIGRATED_TO_V2_PIN_HEX,
+            "sha256(canonical_jcs_bytes(v9->v2)) must equal V9_MIGRATED_TO_V2 pin"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // 9 / V8 vs V9 byte-diff is localised to the schema_version value.
+    //     V8 contains `"persona-v0"` literal; V9 contains
+    //     `"persona-v1"` literal; lengths are equal.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t9_v8_v9_byte_diff_localised_to_schema_version_value() {
+        let v8 = v8_canonical_subset();
+        let v9 = v9_canonical_subset();
+        let blob_v8 = canonical_jcs_bytes(&v8).expect("v8 must canonicalise");
+        let blob_v9 = canonical_jcs_bytes(&v9).expect("v9 must canonicalise");
+
+        let needle_v0 = b"\"persona-v0\"";
+        let needle_v1 = b"\"persona-v1\"";
+
+        assert!(
+            blob_v8.windows(needle_v0.len()).any(|w| w == needle_v0),
+            "V8 output must contain \"persona-v0\" literal"
+        );
+        assert!(
+            !blob_v8.windows(needle_v1.len()).any(|w| w == needle_v1),
+            "V8 output must NOT contain \"persona-v1\" literal"
+        );
+        assert!(
+            blob_v9.windows(needle_v1.len()).any(|w| w == needle_v1),
+            "V9 output must contain \"persona-v1\" literal"
+        );
+        assert!(
+            !blob_v9.windows(needle_v0.len()).any(|w| w == needle_v0),
+            "V9 output must NOT contain \"persona-v0\" literal"
+        );
+
+        // Byte arrays not equal but equal-length.
+        assert_ne!(blob_v8, blob_v9);
+        assert_eq!(blob_v8.len(), blob_v9.len());
+    }
+
+    // -------------------------------------------------------------------
+    // 10 / Determinism stress: 10-iteration byte-identical re-serialise
+    //      across V8, V9, V9->V2 with hash re-derivation as a second
+    //      anchor.
+    // -------------------------------------------------------------------
+
+    #[test]
+    #[allow(clippy::type_complexity)]
+    fn t10_determinism_stress_10_iterations_jcs_and_sha256() {
+        let fixtures: [(&str, fn() -> Value, Option<&str>); 3] = [
+            ("v8", v8_canonical_subset, None),
+            ("v9", v9_canonical_subset, Some(V9_PIN_HEX)),
+            (
+                "v9_to_v2",
+                v9_migrated_to_v2_canonical_subset,
+                Some(V9_MIGRATED_TO_V2_PIN_HEX),
+            ),
+        ];
+
+        for (label, builder, expected_hex) in fixtures {
+            let mut blobs: Vec<Vec<u8>> = Vec::with_capacity(10);
+            let mut hex_tails: Vec<String> = Vec::with_capacity(10);
+            for i in 0..10 {
+                let canon = builder();
+                let blob = canonical_jcs_bytes(&canon)
+                    .unwrap_or_else(|e| panic!("{label} iter {i} jcs failed: {e}"));
+                hex_tails.push(sha256_hex(&blob));
+                blobs.push(blob);
+            }
+            for (i, blob) in blobs.iter().enumerate().skip(1) {
+                assert_eq!(
+                    &blobs[0], blob,
+                    "{label} iter {i} JCS bytes drifted from iter 0"
+                );
+            }
+            for (i, h) in hex_tails.iter().enumerate().skip(1) {
+                assert_eq!(
+                    &hex_tails[0], h,
+                    "{label} iter {i} sha256 drifted from iter 0"
+                );
+            }
+            if let Some(expected) = expected_hex {
+                assert_eq!(
+                    hex_tails[0], expected,
+                    "{label} iter-0 sha256 must match pinned reference"
+                );
+            }
+        }
+    }
 }

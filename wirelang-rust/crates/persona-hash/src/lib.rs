@@ -318,4 +318,233 @@ mod tests {
         );
         assert_eq!(h1, V9_PIN);
     }
+
+    // -------------------------------------------------------------------
+    // Sprint-5 Tag-3 Pin-Pack-Test-Coverage extension
+    // (Sprint-4-Closeout §539-541 Selin-recommendation).
+    //
+    // Adds:
+    //   - V8 canonical-subset (schema_version=persona-v0) hash-stability
+    //   - V0/V8 -> V1 schema-flip roundtrip anchor (V8 -> V9 pin equality)
+    //   - V9 -> V2 schema-flip roundtrip anchor (V9-migrated-to-V2 pin)
+    //   - Determinism stress: 10-iteration byte-identical re-hash sweep
+    //   - Re-derivation roundtrip: sha256(jcs_canonicalise(canon)) parity
+    //
+    // V8 fixture has no own hex pin (it is the REJECTED schema-v0 input
+    // that must be migrated). The roundtrip tests therefore anchor the
+    // V8-as-input -> V1/V2-as-output identity: byte-identical to the
+    // V9 / V9-migrated-to-V2 pins respectively. This catches a future
+    // regression where the canonical-subset extractor or the JCS
+    // serialiser silently drops/reorders the schema_version key.
+    // -------------------------------------------------------------------
+
+    /// V8 canonical subset (schema_version=persona-v0). Identical to
+    /// `v9_canonical_subset()` except for `schema_version`. Mirrors the
+    /// V8 fixture in `persona-migration/src/lib.rs` tests.
+    fn v8_canonical_subset() -> Value {
+        json!({
+            "description": "Pre-framework persona fixture for self-migration vector (v8, schema persona-v0-ish \u{2014} flagged as unsupported).",
+            "identity_pinned": {
+                "authority": {
+                    "budget_cap_eur_per_month": 0,
+                    "push_remote": false,
+                    "sub_delegation": false
+                },
+                "cross_review_zones": [],
+                "hierarchy": {
+                    "escalation": "cto",
+                    "reports_to": "cto"
+                }
+            },
+            "name": "pre-framework-agent",
+            "schema_version": "persona-v0",
+            "tools": ["Read"]
+        })
+    }
+
+    /// V9 canonical subset migrated to V2 (schema_version=persona-v2).
+    /// Mirrors the Python `V1ToV2Step.apply(v9)` output.
+    fn v9_migrated_to_v2_canonical_subset() -> Value {
+        json!({
+            "description": "Pre-framework persona fixture for self-migration vector (v8, schema persona-v0-ish \u{2014} flagged as unsupported).",
+            "identity_pinned": {
+                "authority": {
+                    "budget_cap_eur_per_month": 0,
+                    "push_remote": false,
+                    "sub_delegation": false
+                },
+                "cross_review_zones": [],
+                "hierarchy": {
+                    "escalation": "cto",
+                    "reports_to": "cto"
+                }
+            },
+            "name": "pre-framework-agent",
+            "schema_version": "persona-v2",
+            "tools": ["Read"]
+        })
+    }
+
+    /// V9-migrated-to-V2 pin from Python `pin_pack_constants.py`,
+    /// `PERSONA_HASH_PIN_V9_MIGRATED_TO_V2`. Captured 2026-05-11.
+    const V9_MIGRATED_TO_V2_PIN: &str =
+        "sha256:f719fce4bedd8522874ae214ec2f982ef87964b535ca368134b3636207eb6669";
+
+    // -------------------------------------------------------------------
+    // 6 / V8 canonical-subset hashes deterministically. V8 has no
+    //     frozen hex pin (it is the REJECTED self-migration input);
+    //     anchor here is hash-stability + non-equality to V9 (because
+    //     `schema_version` IS in-hash).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t6_v8_canonical_subset_hashes_deterministically_and_differs_from_v9() {
+        let v8 = v8_canonical_subset();
+        let h_v8_first =
+            compute_persona_hash_from_canonical(&v8, None).expect("v8 canonical subset must hash");
+        let h_v8_second = compute_persona_hash_from_canonical(&v8, None)
+            .expect("v8 canonical subset must hash on second call");
+        assert_eq!(
+            h_v8_first, h_v8_second,
+            "V8 hash must be deterministic across repeated calls"
+        );
+        assert_ne!(
+            h_v8_first, V9_PIN,
+            "V8 hash MUST differ from V9 hash (schema_version is in-hash)"
+        );
+        // Sanity: V8 hash must still be a well-formed full-form pin.
+        assert!(h_v8_first.starts_with(PERSONA_HASH_PREFIX));
+        assert_eq!(h_v8_first.len(), PERSONA_HASH_FULL_LENGTH);
+    }
+
+    // -------------------------------------------------------------------
+    // 7 / V0/V8 -> V1 roundtrip anchor. The V8 canonical-subset with
+    //     `schema_version` flipped from persona-v0 to persona-v1 must
+    //     hash to PERSONA_HASH_PIN_V9 (= PERSONA_HASH_PIN_V8_MIGRATED_TO_V1
+    //     by construction). This is the cross-language anchor for the
+    //     V0ToV1Step migration's hash semantics, exercised here
+    //     standalone in the persona-hash crate without depending on
+    //     persona-migration.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t7_v8_with_v1_schema_flip_matches_v9_pin() {
+        let mut v8_to_v1 = v8_canonical_subset();
+        v8_to_v1["schema_version"] = json!("persona-v1");
+        let got = compute_persona_hash_from_canonical(&v8_to_v1, None)
+            .expect("v8-migrated-to-v1 canonical subset must hash");
+        assert_eq!(
+            got, V9_PIN,
+            "V8 + schema_version=persona-v1 must hash to V9 pin (V8_MIGRATED_TO_V1 anchor)"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // 8 / V9 -> V2 roundtrip anchor. V9 canonical-subset with
+    //     schema_version flipped to persona-v2 must hash to
+    //     PERSONA_HASH_PIN_V9_MIGRATED_TO_V2. Cross-language anchor
+    //     for the V1ToV2Step migration's hash semantics.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t8_v9_with_v2_schema_flip_matches_v9_migrated_to_v2_pin() {
+        let v9_to_v2 = v9_migrated_to_v2_canonical_subset();
+        let got = compute_persona_hash_from_canonical(&v9_to_v2, None)
+            .expect("v9-migrated-to-v2 canonical subset must hash");
+        assert_eq!(
+            got, V9_MIGRATED_TO_V2_PIN,
+            "V9 + schema_version=persona-v2 must hash to V9_MIGRATED_TO_V2 pin"
+        );
+        assert_ne!(
+            got, V9_PIN,
+            "V9 -> V2 migrated pin must DIFFER from V9 pin (schema_version is in-hash)"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // 9 / Determinism stress: 10-iteration byte-identical re-hash
+    //     sweep across V8, V9, V9->V2 subsets. Guards against any
+    //     hidden non-determinism in serde_jcs / serde_json / sha2 stack
+    //     (e.g. HashMap-iteration leakage, accidental random padding,
+    //     allocator-order-dependent canonicalisation).
+    // -------------------------------------------------------------------
+
+    #[test]
+    #[allow(clippy::type_complexity)]
+    fn t9_determinism_stress_10_iterations_byte_identical() {
+        // Build each subset fresh on each iteration to also cover
+        // parser-construction determinism (not just intra-call stability).
+        let fixtures: [(&str, fn() -> Value, Option<&str>); 3] = [
+            ("v8", v8_canonical_subset, None),
+            ("v9", v9_canonical_subset, Some(V9_PIN)),
+            (
+                "v9_to_v2",
+                v9_migrated_to_v2_canonical_subset,
+                Some(V9_MIGRATED_TO_V2_PIN),
+            ),
+        ];
+
+        for (label, builder, expected_pin) in fixtures {
+            let mut seen: Vec<String> = Vec::with_capacity(10);
+            for i in 0..10 {
+                let canon = builder();
+                let h = compute_persona_hash_from_canonical(&canon, None)
+                    .unwrap_or_else(|e| panic!("{label} iter {i} hash failed: {e}"));
+                seen.push(h);
+            }
+            // All 10 iterations must produce byte-identical hash strings.
+            for (i, h) in seen.iter().enumerate().skip(1) {
+                assert_eq!(
+                    &seen[0], h,
+                    "{label} iter {i} drifted from iter 0 (non-deterministic hash)"
+                );
+            }
+            if let Some(pin) = expected_pin {
+                assert_eq!(
+                    seen[0], pin,
+                    "{label} iter-0 hash must match pinned reference"
+                );
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // 10 / Roundtrip: hash -> jcs_canonicalise -> sha256 (re-derive) must
+    //      reproduce the same hash tail. This is the bytes <-> hash
+    //      bijection anchor: it locks the contract that
+    //      `compute_persona_hash_from_canonical` is exactly
+    //      `format!("sha256:{}", hex(sha256(jcs_canonicalise(canon))))`
+    //      with no hidden post-processing. Mirrors Python
+    //      `canonical_jcs_bytes` -> hashlib.sha256 roundtrip.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t10_hash_equals_sha256_of_jcs_canonicalise_roundtrip() {
+        for (label, builder, expected_pin) in [
+            ("v8", v8_canonical_subset as fn() -> Value, None),
+            ("v9", v9_canonical_subset as fn() -> Value, Some(V9_PIN)),
+            (
+                "v9_to_v2",
+                v9_migrated_to_v2_canonical_subset as fn() -> Value,
+                Some(V9_MIGRATED_TO_V2_PIN),
+            ),
+        ] {
+            let canon = builder();
+            let bytes = jcs_canonicalise(&canon)
+                .unwrap_or_else(|e| panic!("{label} jcs_canonicalise failed: {e}"));
+            let mut hasher = Sha256::new();
+            hasher.update(&bytes);
+            let digest = hasher.finalize();
+            let re_derived = format!("{}{}", PERSONA_HASH_PREFIX, hex::encode(digest));
+            let via_api = compute_persona_hash_from_canonical(&canon, None)
+                .unwrap_or_else(|e| panic!("{label} api-hash failed: {e}"));
+            assert_eq!(
+                via_api, re_derived,
+                "{label}: api hash must equal sha256(jcs_canonicalise(canon)) re-derivation"
+            );
+            if let Some(pin) = expected_pin {
+                assert_eq!(via_api, pin, "{label}: re-derived hash must match pin");
+            }
+        }
+    }
 }
