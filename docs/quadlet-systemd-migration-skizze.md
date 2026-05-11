@@ -343,7 +343,7 @@ or C, owner DevOps-side with Operator-Hand approval.**
   atomic host (Bluefin or Silverblue VM). This skizze is paper-form
   + Sprint-6 Tag-1 committed-runnable-file-form; the live-smoke test
   on a real atomic host is still operator-hand per ADR-0051
-  Mira-Sandbox-vs-Host-Operations-Trennung (no host-podman-socket
+  CEO-Sandbox-vs-Host-Operations-Trennung (no host-podman-socket
   access from sandbox). Estimated effort: 30-min operator box.
 - **OI-Q2 (resolved Sprint-6 Tag-1):** Quadlet directive names
   verified against Podman 5.8.2 (`podman --version` on the
@@ -428,7 +428,7 @@ or C, owner DevOps-side with Operator-Hand approval.**
   - **Branch:** `kai/phase-2-sprint-6-tag-1-quadlet-dual-track`,
     forked from Sprint-5 Tag-5 tip `fd0cc9e`.
   - **Sandbox-Trennung:** no host-podman-socket access from sandbox
-    (Mira-Direktive 2026-05-11 / ADR-0051 rejected). Directive
+    (CEO-side operative directive 2026-05-11 / ADR-0051 rejected). Directive
     verification is doc-form against `podman --version 5.8.2`
     output and docs.podman.io — no `podman run` invocations from
     sandbox.

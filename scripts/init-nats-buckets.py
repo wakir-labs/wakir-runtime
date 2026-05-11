@@ -79,7 +79,8 @@
 #                                           step. The consumer-side
 #                                           codec name and concrete
 #                                           ``BUCKET_CONFIG`` constant
-#                                           are owned by Reza
+#                                           are owned by the
+#                                           Wirelang-track
 #                                           (Capability-Token-Layer
 #                                           per Persona-Matrix §2);
 #                                           the orchestrator side
@@ -96,7 +97,7 @@
 #                                           against the Wirelang-side
 #                                           ``BUCKET_CONFIG`` lands as
 #                                           a follow-up once the
-#                                           Reza-side encoder/decoder
+#                                           Wirelang-side encoder/decoder
 #                                           module is committed
 #                                           upstream.
 #
@@ -241,8 +242,9 @@ class BucketSpec:
 #:   the routine ``init-nats-buckets.py`` pass (no manual ``nats kv
 #:   add`` step on the cluster). The concrete ``BUCKET_CONFIG``
 #:   constant on the Wirelang-side will be exported by the
-#:   Reza-owned encoder/decoder module when it lands (Capability-
-#:   Token-Layer is Reza-owner per Persona-Matrix §2); the
+#:   Wirelang-track-owned encoder/decoder module when it lands
+#:   (Capability-Token-Layer is Wirelang-track-owner per
+#:   Persona-Matrix §2); the
 #:   orchestrator side ships a reservation-form bucket-spec with
 #:   audit-friendly defaults: ``history=10`` (capability-policy
 #:   rotations want a deep audit trail, mirroring
@@ -257,8 +259,9 @@ class BucketSpec:
 #:   then this entry stays in reservation-form (no cross-import
 #:   pin). Sprint-5 Tag-2 paired-update with the Wirelang-side
 #:   ``wakir-capability-policies`` Phase-3 reservation reference
-#:   (Reza Sprint-5 Tag-1 §6 / Phase-3 follow-up slot, promoted to
-#:   Sprint-5 Tag-2 add per Mira-Strategie-Hand 2026-05-11).
+#:   (Wirelang-track Sprint-5 Tag-1 §6 / Phase-3 follow-up slot,
+#:   promoted to Sprint-5 Tag-2 add per CEO-side strategic call
+#:   2026-05-11).
 #:
 #: Phase-1b boundary: the 5th bucket ``wakir-schema-registry-entries``
 #: is created on cluster bring-up but is **not** consumed by any module

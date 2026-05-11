@@ -48,8 +48,8 @@
 #                                           (history=10, max 4 KiB,
 #                                           unbounded TTL) chosen as
 #                                           reservation-form until the
-#                                           Reza-owned encoder/decoder
-#                                           module commits a
+#                                           Wirelang-track-owned
+#                                           encoder/decoder module commits a
 #                                           ``BUCKET_CONFIG`` constant
 #                                           for byte-mirror anchoring.
 #

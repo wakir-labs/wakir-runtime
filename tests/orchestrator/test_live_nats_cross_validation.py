@@ -3,7 +3,7 @@
 """Live-NATS-Test-Mode cross-validation for ``scripts/init-nats-buckets.py``.
 
 This suite is the substrate for the Sprint-4 Tag-1 Live-NATS-Test-Mode
-contract (ADR-0051-rejected, Mira-Hand operative practice retained):
+contract (ADR-0051-rejected, CEO-side operative practice retained):
 
 * **Hermetic default.** All tests in :class:`HermeticCrossValidationTests`
   run without a live NATS-JetStream cluster. They exercise the
@@ -29,7 +29,7 @@ contract (ADR-0051-rejected, Mira-Hand operative practice retained):
   real surface or the live cluster is in an unexpected state.
 
 * **Operator-hand only.** Live tests are gated specifically because
-  the Mira-Sandbox cannot reach the host NATS substrate. Use
+  the agent sandbox cannot reach the host NATS substrate. Use
   ``scripts/run-live-smoke-tests.sh`` from the operator hand to drive
   this suite with the live flag set; see runbook §7.3.
 

@@ -153,6 +153,6 @@ test run).
   `sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00`.
   Parity test enforces this hermetically.
 - Hermetic-only: no container engine invocations during test runs.
-  Live-smoke remains operator-hand per Mira-Sandbox-Direktive
-  2026-05-11 (ADR-0051 rejected, host-podman-socket explicitly
-  off-limits to sandbox).
+  Live-smoke remains operator-hand per CEO-side sandbox/host-
+  operations separation directive 2026-05-11 (ADR-0051 rejected,
+  host-podman-socket explicitly off-limits to sandbox).

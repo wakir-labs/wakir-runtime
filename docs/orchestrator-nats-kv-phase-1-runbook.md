@@ -136,9 +136,10 @@ trail, mirroring `wakir-ftd-poisoned`), ttl unbounded (policies live
 until explicit rotation), max-value 4 KiB (a single serialised policy
 entry is small; mirrors the small-marker shape of
 `wakir-ftd-poisoned`). The concrete `BUCKET_CONFIG` constant on the
-Wirelang-side will be exported by the Reza-owned encoder/decoder module
-when it lands (Capability-Token-Layer is Reza-owner per Persona-Matrix
-§2); until then this entry stays in reservation-form (no
+Wirelang-side will be exported by the Wirelang-track-owned
+encoder/decoder module when it lands (Capability-Token-Layer is
+Wirelang-track-owner per Persona-Matrix §2); until then this entry
+stays in reservation-form (no
 cross-import-mirror anchor). The Sprint-4-Tag-4 pre-Phase-2-reservation
 pattern is the analogue; the Sprint-4-Tag-5 6th-bucket pattern is the
 post-consumer-commit anchor that the 7th bucket will reach as a
@@ -366,9 +367,9 @@ the Phase-3 capability-policy persistence promotion lands. This is
 the no-downtime upgrade path; identical reasoning to §3.2.1 (5th
 bucket Phase-2-reservation). The cross-import-mirror anchor against
 the Wirelang-side `BUCKET_CONFIG` constant lands as a Sprint-5
-Tag-N follow-up once the Reza-owned encoder/decoder module commits;
-until then the in-tree mirror against `wakir-ftd-poisoned` guards
-the reservation-form shape.
+Tag-N follow-up once the Wirelang-track-owned encoder/decoder
+module commits; until then the in-tree mirror against
+`wakir-ftd-poisoned` guards the reservation-form shape.
 
 ### 3.3 Tear-down
 
@@ -2033,9 +2034,10 @@ persistence bucket `wakir-capability-policies` into the routine
 `init-nats-buckets.py` inventory pass as the Z-B paired-update with
 the Wirelang-side Sprint-5 Tag-2 capability-policy persistence track.
 This entry closes the inventory-side gap that the Sprint-5 Tag-1
-Reza outbox §6 flagged as a future Phase-3 bucket-add ("Kai-
-coordination für Bucket-Inventory"); Mira-Strategie-Hand 2026-05-11
-promoted the slot to a paired Sprint-5 Tag-2 add.
+Wirelang-track outbox §6 flagged as a future Phase-3 bucket-add
+("orchestrator-side coordination for bucket inventory"); CEO-side
+strategic call 2026-05-11 promoted the slot to a paired Sprint-5
+Tag-2 add.
 
 **Context.** Sprint-5 Tag-1 (Wirelang) added a publisher-CLI
 `--gate` / `--capability-registry` flag pair to
@@ -2050,7 +2052,7 @@ policy rotations propagate to all CLI invocations without a
 file-distribution step.
 
 **Bucket-config (reservation-form).** Sprint-5 Tag-2 ships the
-bucket-spec with audit-friendly defaults; the Reza-owned
+bucket-spec with audit-friendly defaults; the Wirelang-track-owned
 encoder/decoder module commits the authoritative `BUCKET_CONFIG`
 constant as a follow-up, at which point the in-tree mirror against
 `wakir-ftd-poisoned` is replaced by a cross-import-mirror anchor
@@ -2097,8 +2099,9 @@ will see `missing` until they re-run `init-nats-buckets.py`, see
 with the Wirelang-side Sprint-5 Tag-2 capability-policy persistence
 track. The cross-import-mirror anchor (analogous to Tag-5 6th-bucket
 `test_t_tag5_02` pattern) lands as a Sprint-5 Tag-N follow-up once
-the Reza-owned encoder/decoder module commits a `BUCKET_CONFIG`
-constant upstream. Until then, the reservation-form mirror against
+the Wirelang-track-owned encoder/decoder module commits a
+`BUCKET_CONFIG` constant upstream. Until then, the reservation-form
+mirror against
 `wakir-ftd-poisoned` (test `test_t_tag2_02`) guards the in-tree
 shape. No Z-A (Container-Identity × SPIFFE-Spec) or Z-C
 (Container-Image-Pipeline × OTS-Anchoring) touchpoints; the
@@ -2107,17 +2110,17 @@ Z-B scope.
 
 **Out of scope for Sprint-5 Tag-2:**
 
-- No Wirelang-side encoder/decoder module (Reza-owner, separate
-  Sprint-5 Tag-2 deliverable on the Wirelang track).
+- No Wirelang-side encoder/decoder module (Wirelang-track-owner,
+  separate Sprint-5 Tag-2 deliverable on the Wirelang track).
 - No Phase-3 capability-policy persistence consumer (no service in
   Phase-1b / Phase-2 reads or writes the bucket).
 - No NATS-KV-CAS-quorum semantics for policy writes (Phase-3 design
-  decision on the Reza-side; the bucket-config does not pre-commit
-  to a specific consumer-side concurrency model).
+  decision on the Wirelang-side; the bucket-config does not
+  pre-commit to a specific consumer-side concurrency model).
 - No Biscuit-v3 binary-token codec on the bucket (the Sprint-5 Tag-1
   publisher-CLI `--capability-registry` JSON-file shape is the
   Phase-3 reservation; binary-token promotion is a separate Phase-3
-  slot on the Reza-side).
+  slot on the Wirelang-side).
 
 ## 8. Verification stamps (P5/P7)
 
@@ -2610,8 +2613,9 @@ Z-B scope.
   Sprint-5 Tag-2 capability-policy persistence track. The cross-
   import-mirror anchor against the Wirelang-side `BUCKET_CONFIG`
   constant (analogous to `test_t_tag5_02` 6th-bucket pattern) lands
-  as a Sprint-5 Tag-N follow-up once the Reza-owned encoder/decoder
-  module commits upstream; until then the in-tree mirror against
+  as a Sprint-5 Tag-N follow-up once the Wirelang-track-owned
+  encoder/decoder module commits upstream; until then the in-tree
+  mirror against
   `wakir-ftd-poisoned` (test `test_t_tag2_02`) guards the
   reservation-form shape. No Zone-A or Zone-C touchpoints.
   Test-count delta: orchestrator-suite 111 passed + 8 skipped
@@ -2625,11 +2629,56 @@ Z-B scope.
   drift flagged in the Sprint-4-acceptance-doku §9 (3 skip-statt-
   pass between Tag-6-authoring and Sprint-5-Tag-1-acceptance-box)
   resolves cleanly here: a `nats-py` reinstall and the cumulative
-  Reza-side Sprint-5 Tag-1 hermetic-test adds (no skip flips on the
-  Kai side) bring project-wide back to a passed-monotonic state
+  Wirelang-side Sprint-5 Tag-1 hermetic-test adds (no skip flips on
+  the orchestrator side) bring project-wide back to a
+  passed-monotonic state
   (245 → 253 = +8 passed; -2 skipped reflects gated-live additions
   net of the prior skip-statt-pass drift, see Sprint-4-acceptance-
   doku §9 P2-Hinweis for the prior baseline). Stash-disposition:
   Sprint-5 Tag-2 box-start `git stash list` empty (carried clean
   from Tag-6 box-end post-`stash drop stash@{0}`); no new stashes
   produced during the Tag-2 box.
+
+- Authoring date (Sprint-6 Tag-2 update): `date -u`
+  2026-05-11T20:58:10Z (lokal CEST 22:58:10), worktree
+  `/tmp/kai-sprint-6-tag-2-konsolidat-sweep` (ADR-0049-konform,
+  forked from Sprint-6 Tag-1 tip `8abd464`), branch
+  `kai/phase-2-sprint-6-tag-2-konsolidat-sweep`. Substance:
+  Phase-2.x Konsolidat-Sweep — §9 Brand-Guide-Hygiene-pass across
+  all Public-Form Files in scope (`docs/`, `scripts/`, `tests/`,
+  `compose/`, `quadlet/`, `pyproject.toml`). 36 persona-clear
+  identifiers (`Reza`, `Mira`, `Aisha` in technical commentary)
+  converted to role-strings (`Wirelang-track`/`Wirelang-side`/
+  `Wirelang-track-owned`/`Wirelang-track-owner`/`CEO-side`/
+  `CEO-Sandbox-Direktive`/`CEO-Strategie-Hand` ↔
+  `CEO-side strategic call`/`HR-track-protocol`/
+  `orchestrator-side` ↔ `Container-Orchestration-side`). 2
+  intentional persona-clear retentions stamped: `— Kai` skizze
+  signature (established convention per Sprint-4 outbox-pattern,
+  author-identifier) and the upper-case-slug rejection-test-case
+  `/agent/Mira/a3f2c1e8d4b7` in `test_spiffe_z_a_skizze.py` L93
+  (semantically required: the test exercises the SPIFFE slug
+  validator's lower-case rule and an upper-case persona-clear
+  fragment is the most explicit negative case). Source-File touch:
+  7 (1 spiffe-constants module, 2 scripts, 1 quadlet README,
+  1 skizze, 1 runbook, 3 test files; note: spiffe constants is the
+  same file as the spiffe-skizze constants module). Test-counts:
+  orchestrator-suite **136 passed + 9 skipped** zero-drift vs.
+  Sprint-6 Tag-1 baseline 136+9; project-wide **270 passed + 28
+  skipped** zero-drift vs. Sprint-6 Tag-1 baseline 270+28. No
+  test-semantics change, no schema change, no compose/quadlet
+  shape change, no SPIFFE constants-shape change (only the comment
+  block above the spiffe-constants module changes role-string).
+  Cross-Review-Status: Z-A / Z-B / Z-C / Z-D **non-touched** (Z-A
+  spiffe-skizze constants-shape unchanged; Z-B NATS-Schema bucket
+  inventory unchanged; Z-C image-pin / quadlet directive surface
+  unchanged; Z-D Phala/TEE non-touched). The skizze §6
+  ADR-0051-rejected-marker text now reads "CEO-Sandbox-vs-Host-
+  Operations-Trennung" instead of "Mira-Sandbox-...-Trennung" —
+  the operative content is identical, the language is role-form.
+  P2-Vermutungs-Kennzeichnung: the role-string conversion is a
+  brand-discipline pass; whether downstream readers parse the
+  role-strings as fluently as the prior persona-clear names is a
+  reader-side judgement, not a verifiable invariant. The
+  retentions above (`— Kai` signature, `/agent/Mira/...` test
+  fragment) are conservative choices documented for review.

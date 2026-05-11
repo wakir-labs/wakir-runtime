@@ -450,7 +450,8 @@ def test_phase_1_inventory_is_the_documented_seven_buckets(mod):
     Phase-3-reserved capability-policy persistence bucket
     (audit-friendly defaults; no Phase-1b / Phase-2 live consumer; the
     Wirelang-side ``BUCKET_CONFIG`` byte-mirror anchor lands as a
-    follow-up once the Reza-side encoder/decoder module commits). The
+    follow-up once the Wirelang-side encoder/decoder module commits).
+    The
     health-check inventory mirrors the init-script inventory;
     ``test_inventory_matches_init_nats_buckets`` guards the
     dual-source contract.

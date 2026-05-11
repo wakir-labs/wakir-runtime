@@ -33,9 +33,10 @@ Coverage:
    present in ``PHASE_1_BUCKETS`` in reservation-form (no live
    Phase-1b / Phase-2 consumer) with audit-friendly defaults
    (history=10, max_value_size=4 KiB, unbounded TTL) mirroring the
-   small-marker shape of ``wakir-ftd-poisoned``. The Reza-owned
-   Wirelang-side encoder/decoder module commits a ``BUCKET_CONFIG``
-   constant in a follow-up; the byte-mirror anchor lands at that
+   small-marker shape of ``wakir-ftd-poisoned``. The
+   Wirelang-track-owned encoder/decoder module commits a
+   ``BUCKET_CONFIG`` constant in a follow-up; the byte-mirror anchor
+   lands at that
    point. Pre-commit reservation is intentional: the Phase-3 operator
    bring-up procedure collapses into the routine
    ``init-nats-buckets.py`` pass without an out-of-band ``nats kv
@@ -691,25 +692,27 @@ def test_t_tag5_05_sixth_bucket_idempotent_replay_marks_unchanged(
 # of the planner cover it. The bucket has NO Phase-1b / Phase-2
 # consumer; the operator bring-up only needs to know that the cluster
 # has the bucket layout ready for the Phase-3 capability-policy-
-# persistence promotion that the Wirelang-side track (Reza-owned per
-# Persona-Matrix §2) will commit a ``BUCKET_CONFIG`` constant for.
+# persistence promotion that the Wirelang-side track
+# (Wirelang-track-owned per Persona-Matrix §2) will commit a
+# ``BUCKET_CONFIG`` constant for.
 # Until that lands, this is reservation-form (analogous to the Sprint-4
 # Tag-4 5th-bucket pattern, not the Tag-5 6th-bucket cross-import-
 # mirror pattern).
 #
-# Cross-reference: Sprint-5 Tag-1 Reza outbox §6 lists
+# Cross-reference: Sprint-5 Tag-1 Wirelang-track outbox §6 lists
 # ``wakir-capability-policies`` as the Phase-3 capability-policy
-# persistence slot; Mira-Strategie-Hand 2026-05-11 promoted the Kai-
-# side bucket-inventory-add to Sprint-5 Tag-2 as the paired update with
+# persistence slot; CEO-side strategic call 2026-05-11 promoted the
+# orchestrator-side bucket-inventory-add to Sprint-5 Tag-2 as the
+# paired update with
 # the Wirelang-side Sprint-5 Tag-2 capability-policy persistence track.
 #
 # Auftrags-Quota analogous to Tag-4 / Tag-5: 5 hermetic tests anchoring
 # slot, mirror-shape, create-call shape, selector path, and idempotency.
 # The live-gated parity probe lives in
 # ``test_check_nats_kv_health.py``. No cross-import-mirror anchor yet —
-# the Wirelang-side ``BUCKET_CONFIG`` constant is owned by Reza and not
-# yet exported. The follow-up byte-mirror anchor lands once the
-# Reza-side encoder/decoder module commits.
+# the Wirelang-side ``BUCKET_CONFIG`` constant is owned by the
+# Wirelang-track and not yet exported. The follow-up byte-mirror
+# anchor lands once the Wirelang-side encoder/decoder module commits.
 
 
 def test_t_tag2_01_wakir_capability_policies_is_the_seventh_bucket_in_documented_order(mod):
@@ -748,7 +751,7 @@ def test_t_tag2_02_seventh_bucket_config_mirrors_wakir_ftd_poisoned_small_marker
     persistence vs poison-list marker intent). Name is intentionally
     different (the whole point of the 7th bucket is to separate the
     capability-policy surface from the FTD poison-list surface). The
-    Reza-owned Wirelang-side ``BUCKET_CONFIG`` constant, when it
+    Wirelang-track-owned ``BUCKET_CONFIG`` constant, when it
     commits, will be the authoritative byte-mirror anchor; until then
     this in-tree mirror against ``wakir-ftd-poisoned`` guards the
     reservation-form shape.
@@ -776,8 +779,8 @@ def test_t_tag2_03_seventh_bucket_create_on_empty_cluster_carries_documented_kv_
     """An empty-cluster planner pass emits a single ``create_key_value``
     call for the 7th bucket with the documented kwargs.
 
-    A future Phase-3 capability-policy persistence consumer (Reza-
-    side) will read the live bucket on construction; if the
+    A future Phase-3 capability-policy persistence consumer
+    (Wirelang-side) will read the live bucket on construction; if the
     orchestrator created the bucket with the wrong ``max_value_size``
     the consumer would fail to put policy entries larger than the
     limit, and if the wrong ``history`` it would lose rotation-audit

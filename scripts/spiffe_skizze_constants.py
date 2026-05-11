@@ -19,7 +19,7 @@
 # Wirelang bucket-config mirror.
 #
 # Cross-Review-Zone-A Status (Tag-6 authoring stamp):
-# - Konsens not yet recorded; Aisha-protocol pending.
+# - Konsens not yet recorded; HR-track-protocol pending.
 # - All constants here are *proposals*, not decisions.
 #
 # Reference: docs/spiffe-z-a-jwt-svid-skizze.md (Tag-6).
