@@ -9,19 +9,20 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wirelang-schema-registry
-version: 0.14.0
+version: 0.15.0
 status: draft
 date: 2026-05-11
 audience: implementers, integrators, operators
 license: CC-BY-4.0
 ---
 
-# Wirelang Schema Registry — NATS-KV Backend Specification (v0.14.0)
+# Wirelang Schema Registry — NATS-KV Backend Specification (v0.15.0)
 
 **Change log**
 
 | Version | Date       | Change                                                 |
 |---------|------------|--------------------------------------------------------|
+| 0.15.0  | 2026-05-11 | Phase-2 Sprint-5 Tag-5 lands the **capability-policy watch-stream** path (pattern-mirror on the Phase-1b Sprint-3 Tag-4 schema-registry watch-stream contract): `wirelang.schemas.capability_policy_nats_kv_backend` gains `CapabilityPolicyWatchOp` (enum: PUT / DELETE / PURGE), `CapabilityPolicyWatchEvent` (frozen dataclass with `op` / `key` / `record` / `revision` fields; `record` is `Optional[CapabilityPolicyRecord]` — None for DELETE / PURGE), `NatsKvCapabilityPolicyBackend.watch`, top-level `open_capability_policy_watch_stream`, internal handle `_CapabilityPolicyWatchStreamHandle`, decoder `_decode_capability_policy_watch_update`, watcher-opener `_open_capability_policy_watcher`, and the live-tail consumer `LiveCapabilityPolicySnapshot` (`from_backend` / `apply` / `as_registry` / `records` / `last_revision`; internal per-key map indexed by `capability-policies/<registered_by>/<policy_id>` so deltas can update / remove a specific record). `__all__` extended with the five new public names. §5.14 extended with a "Watch-stream operational contract (Sprint-5 Tag-5, additive over Sprint-5 Tag-4)" subsection: producer-consumer pattern (long-running supervisor task feeds a `LiveCapabilityPolicySnapshot` from `watch()` and hands frozen `CapabilityPolicyRegistry` copies to the Sprint-4 Tag-6 `check_registered_by_capability` gate per verifier pass), async-iter contract (two watcher shapes — native `__aiter__` / `__anext__` and `await updates()` returning next-or-None), poison-handling (envelope errors raise `CapabilityPolicyEnvelopeError` from the iterator and terminate it; operator must drop the live view and re-bootstrap; no silent swallow), revision-monotonicity contract (`last_revision` advances monotonically; earlier-revision events do not regress), frozen-registry determinism contract for verifier passes (`as_registry()` rebuilds a `CapabilityPolicyRegistry` from a sorted-key view; the returned registry does not share storage with the live state), orthogonality to Tag-2 LWW and Tag-4 CAS-pin write paths (the watch-stream is a strict suffix of the durable bucket history; CAS-pin writes appear as one PUT event identical to LWW writes; rejected stale CAS-pin writes appear as NO event). §6 extended with §6.13 T-CPP-WS-01..10 + 2 auxiliary probes test inventory (suite 830 → 842, +12 net). §5.14 boundary item "live tail reserved as a Phase-3 slot (analogous to the schema-registry watch-stream, Sprint-3 Tag-4)" CONSUMED. §7 Phase-3-Reservation "capability-policy watch-stream slot" CONSUMED. The Sprint-5 Tag-5 path is **additive over Sprint-5 Tag-4**: the existing Tag-2 `put` / `get` / `delete` / `snapshot` / `snapshot_registry` LWW surface and the Tag-4 `put_with_revision` / `get_with_revision` / `CapabilityPolicyConflictError` CAS-pin surface are byte-unchanged. Verifier-side gate decisions are byte-equal regardless of registry source (full `snapshot_registry` or watch-fed `LiveCapabilityPolicySnapshot.as_registry`); T-CPP-WS-09 cross-references the Sprint-4 Tag-6 gate to prove byte-equal decisions. M-2 / M-4 conformance preserved (no envelope-field added, orthogonal to version axis; the watch-stream consumes the same `wakir.wirelang.capability-policy-entry/1` envelope). Cross-Review-Zone-1 non-touched (no Identity-Substrate touch; the watch-stream is a producer surface, not a verifier contract; the four Z-1-K-Sprint-4 consensus points remain byte-identical). Cross-Review-Zone-B non-touched (the `wakir-capability-policies` bucket configuration is byte-unchanged — `history=5` already exposes the watch-stream; the Z-B paired-update memo from Sprint-5 Tag-2 remains the canonical orchestrator-side action item; no new bucket). Phase-3 reservations preserved: watch-stream resumption / replay-from-revision (`watchall(..., resume_from=...)`), CAS-quorum (multi-replica CAS), Biscuit v3 binary token interpretation. Sprint-5 Tag-5+ candidate (not Tag-5): publisher-CLI composition of the live-tail consumer (a `--capability-bucket-watch` flag or daemon-mode subcommand). Additive-only change relative to v0.14.0. |
 | 0.14.0  | 2026-05-11 | Phase-2 Sprint-5 Tag-4 lands the **capability-policy CAS-pin** path (pattern-mirror on the Phase-1b Sprint-3 Tag-3 schema-registry CAS-pin contract): `wirelang.schemas.capability_policy_nats_kv_backend` gains `NatsKvCapabilityPolicyBackend.get_with_revision`, `NatsKvCapabilityPolicyBackend.get_with_revision_by_pair`, `NatsKvCapabilityPolicyBackend.put_with_revision`, plus a new typed exception `CapabilityPolicyConflictError` (with `key` / `expected_revision` / `actual_revision` fields). New module-level helpers `_coerce_revision_from_entry`, `_kv_update_with_revision`, `_is_conflict_exception`, `_extract_actual_revision`, and constant `_CONFLICT_CLS_MARKERS` (byte-equal to the schema-registry CAS-pin helpers, allowing independent module evolution). §5.14 extended with a "CAS-pin operational contract (Sprint-5 Tag-4, additive over Sprint-5 Tag-2)" subsection: read-modify-write loop, validation-gate ordering (gates run BEFORE CAS, identical to Sprint-3 Tag-3 contract), KV-adapter contract (3 shapes: nats-py canonical `update(last=)`, positional fallback, `put(expected_revision=)` keyword fallback), determinism contract (3 invariants). §6.11 extended with T-CPP-CAS-01..10 + 2 auxiliary probes test inventory. §5.14 boundary item "future CAS-pinned upsert path" CONSUMED. §7 Phase-3-Reservation "capability-policy CAS-pin slot" CONSUMED. The Sprint-5 Tag-4 path is **additive over Sprint-5 Tag-2**: the existing `put` / `get` / `delete` / `snapshot` / `snapshot_registry` LWW surface is byte-unchanged, and the new CAS-pin path is the opt-in lost-update-protection surface for operators editing policies concurrently (e.g. rotating `allowed_kids` on a key-rollover; renaming `note` while preserving the validity window). The gate decision is byte-equal regardless of write path (LWW `put` or CAS `put_with_revision`). M-2 / M-4 conformance preserved (no envelope-field added, orthogonal to version axis). Cross-Review-Zone-1 non-touched (no Identity-Substrate touch; CAS-pin is a write-path concurrency contract, not a verifier contract). Cross-Review-Zone-B non-touched (the `wakir-capability-policies` bucket configuration is byte-unchanged — `history=5` already supports CAS-pin naturally; the Z-B paired-update memo from Sprint-5 Tag-2 remains the canonical orchestrator-side action item, no new bucket). Phase-2 hardening list updated: Phase-3 CAS-quorum (multi-replica CAS) remains reserved as a Phase-3 promotion slot. Additive-only change relative to v0.13.0. |
 | 0.13.0  | 2026-05-11 | Phase-2 Sprint-5 Tag-3 closes the publisher-CLI capability-policy-source end-to-end (`wirelang.schemas.publisher_cli`: new flag `--capability-bucket` mutually exclusive with `--capability-registry`; new flag `--capability-bucket-connect-url` defaulting to `nats://127.0.0.1:4222`; new optional `capability_bucket_factory` injection on `run()`; new receipt field `gate_policy_source: Optional[str]` carrying `"file"` / `"bucket"` / `None`; new helper `_load_capability_registry_from_bucket`; new module-level `_default_capability_bucket_factory`; `_run_dry_run` promoted from a synchronous routine to an `asyncio.run` wrapper over `_run_dry_run_async` so the bucket factory is reachable from the dry-run path); §5.13 extended with a "Bucket policy source (Sprint-5 Tag-3)" subsection (additive over the Sprint-5 Tag-1 file-source contract); §6.10 extended with T-SR-PUB-CB-01..10 test inventory plus an auxiliary bucket-loader contract probe; §5.14 boundary item "future publisher-CLI integration slot" CONSUMED; §7 Phase-3-Reservation "publisher-CLI integration of the Sprint-5 Tag-2 persistent capability-policy backend" CONSUMED with the Sprint-5 Tag-3 flag reference. The Sprint-5 Tag-3 integration is **additive over Sprint-5 Tag-2** and additive over Sprint-5 Tag-1: the persistent-distribution tier (`NatsKvCapabilityPolicyBackend.snapshot_registry`) is invoked exactly once per CLI run if `--capability-bucket` is set, returning a Sprint-4 Tag-6 `CapabilityPolicyRegistry` that the gate consumes byte-identical to the operator-local JSON-file path. The gate decision is byte-equal regardless of source; the only receipt difference between the two sources is the `gate_policy_source` audit field. The capability-policy bucket connection is closed via the factory's cleanup callback before either the publish proceeds or the deny short-circuit fires; on a deny the schema-registry bucket is never touched (consistent with the Sprint-5 Tag-1 short-circuit contract). M-2 / M-4 conformance preserved. Cross-Review-Zone-1 non-touched (the four Z-1-K-Sprint-4 consensus points remain byte-identical; this slot is a pure operator-CLI composition of Sprint-5 Tag-2 bucket-snapshot + Sprint-4 Tag-6 gating + Sprint-5 Tag-1 sign-then-gate pipeline). Cross-Review-Zone-B non-touched (no new bucket; the Sprint-5 Tag-2 bucket `wakir-capability-policies` is consumed as-is; the Z-B paired-update memo from Sprint-5 Tag-2 remains the canonical orchestrator-side action item). Receipt-shape forward-compat: pre-Sprint-5 receipts now carry four optional fields at default-off values (`signed=false`, `kid=null`, `gate_decision=null`, `gate_policy_source=null`); consumers that index by the legacy field set continue to read byte-equal pre-existing fields. Additive-only change relative to v0.12.0. |
 | 0.1.0   | 2026-05-07 | Initial draft (Phase-1b Sprint-3 Tag-1).               |
@@ -3195,8 +3196,13 @@ remains the operator-local single-host convenience.
   read-only — `snapshot_registry()` — so the CAS-pin write path is
   reachable today only via direct backend use; an operator-CLI
   composition of the write path is a Sprint-5 Tag-5+ candidate.)
-- No watch-stream on the capability-policy bucket (full-snapshot
-  only; Phase-3 slot).
+- ~~No watch-stream on the capability-policy bucket (full-snapshot
+  only; Phase-3 slot).~~ (**CONSUMED in Sprint-5 Tag-5** — the
+  watch-stream consumer surface ships as
+  `NatsKvCapabilityPolicyBackend.watch()` plus
+  `LiveCapabilityPolicySnapshot`; the full-snapshot path remains
+  supported and orthogonal. See §5.14 Watch-stream operational
+  contract.)
 - No `--capability-bucket` Biscuit-v3-binary-token interpretation
   (the bucket envelope is the Sprint-5 Tag-2 JSON shape; promotion
   to a Biscuit-binary-token shape is Phase-3).
@@ -3392,12 +3398,26 @@ entirely by calling `delete` and re-snapshotting.
   register a policy. Bucket-level access control (NATS server
   authentication, account isolation) is the operator's
   responsibility.
-- This module does NOT auto-distribute policies to publisher-side
+- ~~This module does NOT auto-distribute policies to publisher-side
   in-process registries. Publishers materialise a registry from
   `snapshot_registry` on startup (or on a periodic refresh
   schedule); the live tail is reserved as a Phase-3 slot
   (analogous to the schema-registry watch-stream, Sprint-3 Tag-4).
-  The Phase-2 Sprint-5 Tag-2 slot is full-snapshot only.
+  The Phase-2 Sprint-5 Tag-2 slot is full-snapshot only.~~ (**CONSUMED
+  in Sprint-5 Tag-5** — the live tail
+  `NatsKvCapabilityPolicyBackend.watch()` plus the
+  `LiveCapabilityPolicySnapshot` consumer surface land here as the
+  pattern-mirror on the schema-registry watch-stream from Sprint-3
+  Tag-4. The full `snapshot_registry` path remains supported and
+  orthogonal: operators can choose between (a) periodic full-snapshot
+  refresh — cheap to reason about, expensive when policy turnover is
+  high — and (b) bootstrap-once-plus-watch-stream — a single
+  bootstrap snapshot followed by incremental `apply(event)` calls,
+  amortising long-running supervisor cost. The watch-stream is a
+  *consumer* surface; the synchronous gate
+  `check_registered_by_capability` is unchanged. See the **Watch-stream
+  operational contract (Sprint-5 Tag-5, additive over Sprint-5 Tag-4)**
+  subsection below for the full specification.)
 - ~~This module does NOT ship a CAS-pinned upsert path. Policies are
   LWW under the assumption that policy authorship is
   operator-driven and rate-limited; the CAS-pin path is reserved as
@@ -3679,9 +3699,13 @@ detected as long as the new class name carries one of the markers
 
 #### Boundary: Sprint-5 Tag-4 does NOT ship (explicit)
 
-- A watch-stream tail on the capability-policy bucket (`watch()` /
+- ~~A watch-stream tail on the capability-policy bucket (`watch()` /
   `WatchOp` / `LiveCapabilityPolicySnapshot`) — Phase-3 slot
-  mirroring Sprint-3 Tag-4.
+  mirroring Sprint-3 Tag-4.~~ (**CONSUMED in Sprint-5 Tag-5** — the
+  watch-stream tail `NatsKvCapabilityPolicyBackend.watch()` plus
+  `CapabilityPolicyWatchOp` / `CapabilityPolicyWatchEvent` /
+  `LiveCapabilityPolicySnapshot` ship in Tag-5; see the **Watch-stream
+  operational contract** subsection below.)
 - A `--capability-bucket-cas` CLI flag on the publisher CLI — the
   Sprint-5 Tag-3 `--capability-bucket` flag uses
   `snapshot_registry` (which never writes), so the CAS-pin path is
@@ -3695,6 +3719,161 @@ detected as long as the new class name carries one of the markers
 - A Biscuit v3 binary-token interpretation of the policy envelope —
   Phase-3 substrate; the in-bucket JSON envelope shape is
   Sprint-5 Tag-2 byte-unchanged.
+- A mutation of `NatsKvSchemaRegistry` — the schema-registry
+  backend is byte-unchanged.
+
+#### Watch-stream operational contract (Sprint-5 Tag-5, additive over Sprint-5 Tag-4)
+
+Phase-2 Sprint-5 Tag-4 shipped the CAS-pin write path on the
+`wakir-capability-policies` bucket. Sprint-5 Tag-5 adds the live-tail
+*read* path, mirroring the Phase-1b Sprint-3 Tag-4 schema-registry
+watch-stream contract byte-precisely (with the predictable shift of
+class identities and noun choices: `WatchOp` →
+`CapabilityPolicyWatchOp`, `WatchEvent` → `CapabilityPolicyWatchEvent`,
+`LiveSchemaSnapshot` → `LiveCapabilityPolicySnapshot`, `entry` →
+`record` on the event payload).
+
+**Why a watch-stream on capability-policies?** The Sprint-5 Tag-2 full
+`snapshot_registry` path is correct for determinism but costly when
+policy turnover is high (operator-side rotation campaigns rolling
+`allowed_kids` across many policies under a single `registered_by`),
+or when a long-running supervisor wants to track changes between
+snapshots without re-listing. The watch-stream is the cheap
+incremental layer: bootstrap once from a full
+`NatsKvCapabilityPolicyBackend.snapshot`, then apply
+`CapabilityPolicyWatchEvent` deltas as they arrive.
+
+**Read-modify-watch loop** (operator-side supervisor pseudocode):
+
+```python
+# 1. Bootstrap the live view from a full snapshot.
+live = await LiveCapabilityPolicySnapshot.from_backend(backend)
+
+# 2. Open the watch-stream and apply incoming events. Per verifier
+#    pass, hand a frozen registry to check_registered_by_capability.
+async with await backend.watch() as stream:
+    async for event in stream:
+        live.apply(event)
+        # Verifier pass on a stable snapshot:
+        frozen_registry = live.as_registry()
+        decision = check_registered_by_capability(
+            entry, signature_block, frozen_registry, as_of=now
+        )
+```
+
+**Async-iter contract.** The watch handle adapts to two underlying
+watcher shapes (byte-equal to the Sprint-3 Tag-4 schema-registry
+contract):
+
+- **Shape 1:** the watcher is itself an async iterator
+  (`__aiter__` / `__anext__`); `stop()` (sync or async) closes it.
+- **Shape 2:** the watcher exposes `await updates()` returning the
+  next update or `None` for end-of-stream; `stop()` closes it.
+
+nats-py's real `KeyWatcher` matches Shape 2 with a sentinel `None`
+between the initial snapshot replay and the live tail; the handle
+surfaces this sentinel as a stream-internal marker only and does NOT
+emit it to the consumer (T-CPP-WS-aux-async-iter Shape-1 probe and
+T-CPP-WS-01 Shape-2 probe both cross-check this).
+
+**Decoder contract.** `_decode_capability_policy_watch_update`
+extracts:
+
+- `operation` from the update's `operation` attribute (or mapping
+  key) and normalises to upper-case; recognised values are `PUT`,
+  `DELETE`, `PURGE`. An unknown operation raises
+  `CapabilityPolicyEnvelopeError` (T-CPP-WS-07).
+- `key` from `.key` (or mapping key); empty or non-string raises
+  `CapabilityPolicyEnvelopeError`.
+- `revision` from `.revision` (or mapping key); coerced to `int`,
+  defaulting to `0` when absent.
+- For `PUT`: the value bytes are extracted via
+  `_coerce_value_bytes` and decoded through `_envelope_to_record`
+  (the same path that backs `get` and `snapshot`); a poisoned
+  envelope raises `CapabilityPolicyEnvelopeError`
+  (T-CPP-WS-06).
+- For `DELETE` / `PURGE`: `record` is set to `None`.
+
+**Poison contract.** A decoder error raises
+`CapabilityPolicyEnvelopeError` from the iterator and terminates it.
+Operators must observe the error, drop the
+`LiveCapabilityPolicySnapshot`, and re-bootstrap from a fresh
+`NatsKvCapabilityPolicyBackend.snapshot`. Phase-2 Sprint-5 Tag-5 does
+NOT silently swallow envelope poison (same contract as the full
+`snapshot` path).
+
+**Revision-monotonicity contract.** `LiveCapabilityPolicySnapshot.apply`
+advances `last_revision` monotonically: an event with a revision
+lower than the current `last_revision` does NOT regress the counter
+(T-CPP-WS-08). The counter is useful for audit cross-references and
+for future Phase-3 `resume_from` policies.
+
+**Frozen-registry determinism contract.**
+`LiveCapabilityPolicySnapshot.as_registry()` rebuilds a
+`CapabilityPolicyRegistry` from a sorted-key view of the live
+per-key map; the returned registry does not share storage with the
+live state. Subsequent `apply()` calls do not mutate the returned
+registry (T-CPP-WS-05). This is the determinism contract for
+verifier passes against
+`check_registered_by_capability`: a frozen copy passed to one
+verifier pass yields stable verdicts, even as deltas arrive on the
+stream during the pass.
+
+**Orthogonality contract.** The watch-stream is a strict suffix of the
+durable bucket history:
+
+- A CAS-pin write (Sprint-5 Tag-4 `put_with_revision`) yields one PUT
+  event on the stream identical to a LWW PUT.
+- A LWW write (Sprint-5 Tag-2 `put`) yields one PUT event.
+- A stale CAS-pin write rejected by the bucket yields NO event (the
+  write was not durable; the bucket revision did not advance).
+
+The gate decision is byte-equal regardless of how the registry was
+materialised (`snapshot_registry` or watch-fed
+`LiveCapabilityPolicySnapshot.as_registry`); T-CPP-WS-09 cross-checks
+this against the Sprint-4 Tag-6 gate.
+
+**Concurrency contract.** A `LiveCapabilityPolicySnapshot` is intended
+for a single-consumer pattern within one asyncio task. Cross-task
+sharing requires the caller to lock; the class itself does no
+locking because asyncio guarantees in-task atomicity between
+awaits, and `apply()` is synchronous.
+
+**Internal storage rationale.** The
+`LiveCapabilityPolicySnapshot._live` map is keyed by the full KV
+key (`capability-policies/<registered_by>/<policy_id>`), not by
+`registered_by` alone. This indirection is intentional: the
+Sprint-4 Tag-6 `CapabilityPolicyRegistry` is indexed by
+`registered_by` only (a single issuer may carry multiple policies);
+the watch-stream needs per-`(issuer, policy_id)` update / delete
+semantics so a DELETE event on `capability-policies/<issuer>/<id-A>`
+does not nuke the issuer's other policies. `as_registry()` rebuilds
+the `registered_by`-indexed view from the per-key map on each call.
+
+#### Boundary: Sprint-5 Tag-5 does NOT ship (explicit)
+
+- Watch-stream resumption / replay-from-revision
+  (`watchall(..., resume_from=...)`) — Phase-3 slot. nats-py
+  supports it; the Sprint-5 Tag-5 wrapper exposes the underlying
+  revision via `CapabilityPolicyWatchEvent.revision` and
+  `LiveCapabilityPolicySnapshot.last_revision` but does not bake in
+  a resume policy.
+- Publisher-CLI composition of the live-tail consumer (a
+  `--capability-bucket-watch` flag or a daemon-mode subcommand on
+  `wakir-publisher`) — Sprint-5 Tag-5+ candidate. The Sprint-5
+  Tag-3 `--capability-bucket` flag remains a one-shot snapshot read
+  (no watch-stream tail). Operators who want the live tail use the
+  Python API directly (or a Sprint-5 Tag-6+ daemon).
+- Multi-consumer fanout of a single underlying watcher — the
+  per-task contract is sufficient for Phase-2; a Phase-3
+  broadcast tier may layer on top.
+- A `Replicator`-style cross-bucket capability-policy replication
+  (analogous to Sprint-3 Tag-6 schema-registry replication) —
+  Phase-3 slot. Tag-5 lands the watch-stream substrate; the
+  replication-tier composition is reserved.
+- A Biscuit v3 binary-token interpretation of the policy envelope —
+  Phase-3 substrate; the in-bucket JSON envelope shape is
+  Sprint-5 Tag-2 / Tag-4 byte-unchanged.
 - A mutation of `NatsKvSchemaRegistry` — the schema-registry
   backend is byte-unchanged.
 
@@ -4669,6 +4848,84 @@ Sprint-5 Tag-3 publisher-CLI bucket-source inventory
 Sprint-5 Tag-4 tests are additive and exercise a parallel test
 module.
 
+### 6.13 Capability-policy watch-stream tests (Phase-2 Sprint-5 Tag-5, additive over Sprint-5 Tag-4)
+
+Phase-2 Sprint-5 Tag-5 ships hermetic tests at
+`wirelang/tests/test_capability_policy_watch_stream.py`. Inventory
+T-CPP-WS-01..10 plus 2 auxiliary probes (byte-precise pattern-mirror
+on the Sprint-3 Tag-4 schema-registry watch-stream test inventory at
+`wirelang/tests/test_schema_registry_watch_stream.py`, with class
+identities shifted to the capability-policy module):
+
+- **T-CPP-WS-01:** `watch()` opens a stream and yields decoded PUT
+  events. Two records are written to a freshly-watched bucket; the
+  stream surfaces two PUT events with the correct `key`, `record`,
+  and `revision` fields, in put-order.
+- **T-CPP-WS-02:** a DELETE on the bucket surfaces a DELETE
+  `CapabilityPolicyWatchEvent`; the event's `record` is `None`. PUTs
+  issued *before* the watcher is open are NOT surfaced (the watcher
+  binds to the live tail; the bootstrap path is
+  `LiveCapabilityPolicySnapshot.from_backend`).
+- **T-CPP-WS-03:** `LiveCapabilityPolicySnapshot.from_backend`
+  bootstraps from a full snapshot; subsequent `apply(PUT)` updates
+  the live state. Verified via the `records()` accessor on the live
+  view (stable sorted-key order).
+- **T-CPP-WS-04:** `LiveCapabilityPolicySnapshot.apply(DELETE)`
+  removes the key from the live state; `records()` reflects the
+  removal.
+- **T-CPP-WS-05:** `LiveCapabilityPolicySnapshot.as_registry()`
+  returns a frozen copy; subsequent `apply()` calls do NOT mutate
+  the returned registry. Determinism contract for verifier passes.
+  Two registries — one frozen, one current — are taken across an
+  intervening apply, and only the current registry reflects the
+  delta (the frozen registry has the bootstrap state only).
+- **T-CPP-WS-06:** a poisoned watch update (non-JSON value on PUT)
+  raises `CapabilityPolicyEnvelopeError` from the iterator and
+  terminates it. The poison is hand-pushed onto the mock watcher to
+  bypass the put-helper (which would have rejected the bad value at
+  write time).
+- **T-CPP-WS-07:** an update with an unrecognised `operation` kind
+  raises `CapabilityPolicyEnvelopeError`. Cross-reference T-CPP-WS-06:
+  the watch-stream poison contract is symmetric across value-level
+  and operation-level malformation.
+- **T-CPP-WS-08:** `LiveCapabilityPolicySnapshot.last_revision`
+  advances monotonically and never regresses. Three events applied
+  with revisions `5`, `10`, `3` (in that order) leave
+  `last_revision = 10`.
+- **T-CPP-WS-09:** a frozen registry from a watch-fed snapshot gates
+  identically to the full-snapshot path against the Sprint-4 Tag-6
+  `check_registered_by_capability` gate. Cross-reference T-CPP-04
+  (full snapshot_registry). A `SchemaRegistryEntry` is constructed
+  with `registered_by="wirelang-eng"`, `layer="wire"`,
+  `name="layer-1-wire"`; a `signature_block` carries
+  `kid="biscuit-root-1"`; both registries (watch-fed and
+  full-snapshot) return `allowed=True` from the gate.
+- **T-CPP-WS-10:** `open_capability_policy_watch_stream` rejects a
+  non-backend argument with `TypeError`. Defence in depth against
+  caller-side type confusion.
+- **T-CPP-WS-aux-async-iter:** the watch handle is async-iter
+  compatible with the Shape-1 (native `__aiter__` / `__anext__`)
+  watcher. Cross-reference T-CPP-WS-01 (Shape-2 contract). Two
+  events plus an intervening `None` sentinel are pre-loaded; the
+  handle yields exactly two `CapabilityPolicyWatchEvent` instances
+  (the sentinel is filtered out at the handle layer).
+- **T-CPP-WS-aux-purge-removes:** a PURGE
+  `CapabilityPolicyWatchEvent` removes the key from the live state
+  identically to DELETE. The two operations are surfaced as distinct
+  enum values (so audit consumers can distinguish them) but their
+  effect on `LiveCapabilityPolicySnapshot._live` is identical.
+
+**Suite-level effect.** `wirelang/tests/` was 830 passing before
+Sprint-5 Tag-5; Sprint-5 Tag-5 brings the count to **842** (+12
+net). The Sprint-3 Tag-4 schema-registry watch-stream inventory
+(T-SR-WS-01..10 + 2 aux), the Sprint-5 Tag-2 capability-policy LWW
+inventory (T-CPP-01..10 + 2 aux), the Sprint-5 Tag-3 publisher-CLI
+bucket-source inventory (T-SR-PUB-CB-01..10 + aux), and the
+Sprint-5 Tag-4 capability-policy CAS-pin inventory
+(T-CPP-CAS-01..10 + 2 aux) all remain unchanged and green; the
+Sprint-5 Tag-5 tests are additive and exercise a parallel test
+module.
+
 ## 7. Cross-references and Open-Items
 
 - V-908 backend pattern source:
@@ -4835,9 +5092,17 @@ module.
   key-rollover). Cross-Review-Zone-1 non-touched; Cross-Review-
   Zone-B non-touched (the `wakir-capability-policies` bucket
   configuration is byte-unchanged — `history=5` already supports
-  CAS-pin naturally). The Phase-3 capability-policy watch-stream
-  slot and the Phase-3 multi-replica CAS-quorum slot remain
-  reserved.
+  CAS-pin naturally). ~~The Phase-3 capability-policy watch-stream
+  slot~~ (**CONSUMED in Sprint-5 Tag-5** — see §5.14 Watch-stream
+  operational contract; ships `NatsKvCapabilityPolicyBackend.watch`,
+  `CapabilityPolicyWatchEvent`, `CapabilityPolicyWatchOp`,
+  `LiveCapabilityPolicySnapshot`, `open_capability_policy_watch_stream`)
+  and the Phase-3 multi-replica CAS-quorum slot (still
+  reserved) remain on the Phase-2/Phase-3 boundary; the Sprint-5
+  Tag-5 watch-stream is the live-tail consumer substrate, not a
+  CAS-quorum promotion. Sprint-5 Tag-5+ candidate: publisher-CLI
+  composition of the live-tail consumer (a `--capability-bucket-watch`
+  flag or daemon-mode subcommand) — explicitly NOT Tag-5.
 - Phase-2 STRICT-mode activation toggle: reserved (Z-1-K-Sprint-4-4
   open; operator-controlled toggle is a Phase-2-roadmap consensus
   question).
@@ -5528,6 +5793,135 @@ itself is still Phase-2.
   subsection, and the new §6.12 test inventory; no
   breaking-change to any consumer.
 
+**Phase-2 Sprint-5 Tag-5 (v0.15.0) is additive over Sprint-5 Tag-4
+(v0.14.0):**
+
+- The Sprint-5 Tag-5 additions to
+  `wirelang.schemas.capability_policy_nats_kv_backend` are purely
+  additive surface:
+  - New enum `CapabilityPolicyWatchOp` with values `PUT`, `DELETE`,
+    `PURGE`. Byte-equal shape to the schema-registry
+    `WatchOp` (Sprint-3 Tag-4); the class identity is module-local
+    so the two backends can evolve independently.
+  - New frozen dataclass `CapabilityPolicyWatchEvent(op, key, record,
+    revision)` where `record` is `Optional[CapabilityPolicyRecord]`
+    (`None` on DELETE / PURGE; the decoded record on PUT). The
+    `entry → record` rename matches this module's canonical noun for
+    the persisted unit.
+  - New `NatsKvCapabilityPolicyBackend.watch()` async method
+    returning a `_CapabilityPolicyWatchStreamHandle`.
+  - New top-level `open_capability_policy_watch_stream(backend)`
+    helper (rejects non-backend argument with `TypeError`).
+  - New internal handle class `_CapabilityPolicyWatchStreamHandle`
+    supporting both Shape-1 (native async iterator) and Shape-2
+    (`await updates()` returning next-or-None) underlying watcher
+    contracts.
+  - New decoder `_decode_capability_policy_watch_update(update)`
+    raising `CapabilityPolicyEnvelopeError` on poisoned envelope or
+    unknown operation; reuses `_coerce_value_bytes` and
+    `_envelope_to_record` byte-identical to the `get` and `snapshot`
+    paths.
+  - New watcher-opener helper
+    `_open_capability_policy_watcher(kv)` supporting the
+    `watchall()` (nats-py canonical) and `watch()` (mock-friendly)
+    KV-handle conventions.
+  - New live-tail consumer dataclass
+    `LiveCapabilityPolicySnapshot(initial, last_revision=0)` with
+    `__post_init__` defensive copy into a per-KV-key map (`_live:
+    dict[str, CapabilityPolicyRecord]`), `apply(event)` for
+    incremental PUT / DELETE / PURGE updates, `as_registry()` for a
+    frozen Sprint-4 Tag-6 `CapabilityPolicyRegistry` view in sorted-
+    key order, `records()` for a stable list of the underlying
+    records, `last_revision` integer for revision monotonicity, and
+    `from_backend(backend)` classmethod for the full-snapshot
+    bootstrap.
+  - Module `__all__` extended with `CapabilityPolicyWatchOp`,
+    `CapabilityPolicyWatchEvent`,
+    `LiveCapabilityPolicySnapshot`, and
+    `open_capability_policy_watch_stream`.
+  - Module docstring boundary-item "live tail reserved as a
+    Phase-3 slot" rewritten to "added in Sprint-5 Tag-5
+    (pattern-mirror on the schema-registry watch-stream, Sprint-3
+    Tag-4)" with the orthogonality stamp (full-snapshot path
+    remains supported and orthogonal).
+- All Sprint-5 Tag-2 LWW surfaces (`put` / `get` / `get_by_pair` /
+  `delete` / `list_keys` / `snapshot` / `snapshot_registry`) and all
+  Sprint-5 Tag-4 CAS-pin surfaces (`get_with_revision` /
+  `get_with_revision_by_pair` / `put_with_revision`,
+  `CapabilityPolicyConflictError`, the five helper functions, and
+  `_CONFLICT_CLS_MARKERS`) are byte-unchanged. T-CPP-01..10 + 2 aux
+  (Sprint-5 Tag-2) and T-CPP-CAS-01..10 + 2 aux (Sprint-5 Tag-4)
+  remain green. Existing callers that prefer the full-snapshot path
+  continue to use `snapshot_registry`; they are not forced onto the
+  watch-stream path.
+- The on-the-wire envelope schema
+  (`wakir.wirelang.capability-policy-entry/1`) is byte-unchanged.
+  The watch-stream consumes the same envelope shape via the same
+  `_envelope_to_record` decoder; the only watch-stream-specific
+  decoding is the operation-kind + revision metadata, which is per-
+  KV-entry not per-envelope. M-2 conformance preserved.
+- The bucket configuration (`BUCKET_CONFIG`) is byte-unchanged.
+  `history=5` already exposes the watch-stream naturally (NATS-KV
+  `watchall` returns the initial replay over the live history depth
+  before tailing the live stream). M-4 conformance preserved
+  (orthogonal to version axis).
+- Cross-Review-Zone-1 (Identity-Substrate) non-touched: the
+  watch-stream is a producer surface for the
+  `CapabilityPolicyRegistry`, not a verifier contract. The four
+  Z-1-K-Sprint-4 consensus points (kid-Resolver-Shape, JCS-
+  Resolver-Lock, Curve-Choice = Ed25519,
+  STRICT-Mode-Activation-Owner) remain byte-identical. The gate
+  decision is byte-equal regardless of registry source
+  (`snapshot_registry` or watch-fed `as_registry`); T-CPP-WS-09
+  cross-checks this against `check_registered_by_capability`.
+- Cross-Review-Zone-B (Kai bucket inventory) non-touched: no new
+  bucket; the `wakir-capability-policies` bucket configuration is
+  byte-unchanged; the Sprint-5 Tag-2 paired-update memo remains the
+  canonical Z-B trigger.
+- The Sprint-5 Tag-3 publisher-CLI `--capability-bucket` flag is
+  read-only (`snapshot_registry()`) and the Sprint-5 Tag-5
+  watch-stream is NOT reachable from the operator CLI in Tag-5.
+  A `--capability-bucket-watch` (or similar daemon-mode subcommand)
+  is a Sprint-5 Tag-5+ candidate, explicitly NOT shipped in Tag-5.
+  Operators who want the live tail consume the Python API directly.
+- The Phase-1b Sprint-3 Tag-4 schema-registry watch-stream surface
+  (`WatchOp`, `WatchEvent`, `NatsKvSchemaRegistry.watch`,
+  `LiveSchemaSnapshot`, `open_watch_stream`) is byte-unchanged. The
+  Sprint-5 Tag-5 surface is a parallel module-local addition; the
+  schema-registry helpers are not re-exported, re-shimmed, or
+  refactored. The Sprint-5 Tag-5 module-local copies preserve the
+  evolution-decoupling stance set in Sprint-5 Tag-4 for the CAS-pin
+  helpers.
+- Phase-3 reservations preserved:
+  - Watch-stream resumption / replay-from-revision
+    (`watchall(..., resume_from=...)`) — nats-py supports it; the
+    Sprint-5 Tag-5 wrapper exposes the underlying revision via
+    `CapabilityPolicyWatchEvent.revision` and
+    `LiveCapabilityPolicySnapshot.last_revision` but does not bake
+    in a resume policy.
+  - Multi-consumer fanout — the Tag-5 contract is single-consumer
+    per asyncio task.
+  - Cross-bucket capability-policy replication (analogous to
+    Sprint-3 Tag-6 schema-registry replication) — Tag-5 lands the
+    watch-stream substrate; the replication-tier composition is
+    reserved.
+  - Multi-replica CAS-quorum — `replicas=1` Sprint-5 Tag-2 bucket
+    configuration is unchanged; CAS-pin operates on the single-
+    replica revision counter; the watch-stream operates on the
+    durable-history tail of the same single-replica stream.
+  - Biscuit v3 binary-token interpretation of the policy envelope —
+    the in-bucket JSON envelope shape is byte-unchanged.
+- Spec semver bump 0.14.0 → 0.15.0 reflects the additive minor
+  change (M-2 §3.2 versioning policy: minor for additive). The
+  bump is warranted by the new `CapabilityPolicyWatchOp` enum, the
+  new `CapabilityPolicyWatchEvent` dataclass, the new
+  `LiveCapabilityPolicySnapshot` consumer dataclass, the new
+  `NatsKvCapabilityPolicyBackend.watch` method, the new
+  `open_capability_policy_watch_stream` top-level function, the
+  new §5.14 "Watch-stream operational contract (Sprint-5 Tag-5,
+  additive over Sprint-5 Tag-4)" subsection, and the new §6.13
+  test inventory; no breaking change to any consumer.
+
 ## 9. Brand-Guide §9 sweep
 
 This document has been swept against the Wakir Brand-Guide §9
@@ -5690,5 +6084,35 @@ operator-side identifiers / public API names consistent with prior
 tag conventions. No external-tool clear-name leakage and no
 internal-persona-clear-name leakage in the Tag-4 (Sprint-5) spec
 body additions.
+
+The Sprint-5 Tag-5 additions (§5.14 "Watch-stream operational
+contract (Sprint-5 Tag-5, additive over Sprint-5 Tag-4)" subsection,
+§5.14 "Boundary: Sprint-5 Tag-5 does NOT ship (explicit)" subsection,
+§6.13 capability-policy watch-stream test inventory, change-log
+v0.15.0 entry, §5.14 boundary item "live tail reserved as a Phase-3
+slot" CONSUMED, §7 Phase-3 capability-policy watch-stream slot
+CONSUMED, §7 "No watch-stream on the capability-policy bucket"
+boundary CONSUMED, §8 compatibility statement update for
+v0.14.0 → v0.15.0) have been swept identically — only module-path
+references (`wirelang.schemas.capability_policy_nats_kv_backend`,
+`wirelang.schemas.registry_nats_kv_backend`,
+`wirelang.schemas.registered_by_capability`), `wakir.*` URIs
+(`wakir-capability-policies` carried unchanged from Sprint-5 Tag-2;
+no new bucket added), the new public class names
+(`CapabilityPolicyWatchOp`, `CapabilityPolicyWatchEvent`,
+`LiveCapabilityPolicySnapshot`), the new public function name
+(`open_capability_policy_watch_stream`), the new internal helper /
+handle names (`_CapabilityPolicyWatchStreamHandle`,
+`_decode_capability_policy_watch_update`,
+`_open_capability_policy_watcher`), the operation-kind markers
+(`PUT`, `DELETE`, `PURGE`), the canonical operator examples
+(`wirelang-eng`, `orchestrator-eng`, `biscuit-root-1`,
+`biscuit-root-2`, `biscuit-root-r1`, `biscuit-root-r2`,
+`rotation-1`, `rotation-2`, `default`), and the nats-py adapter
+shape names (`watchall`, `watch`, `updates`, `stop`, `__aiter__`,
+`__anext__`) are role-strings / operator-side identifiers / public
+API names consistent with prior tag conventions. No external-tool
+clear-name leakage and no internal-persona-clear-name leakage in
+the Tag-5 (Sprint-5) spec body additions.
 
 — End of spec —

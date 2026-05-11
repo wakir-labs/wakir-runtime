@@ -163,10 +163,17 @@ Phase-2 Sprint-5 Tag-2 boundary
   in-process registries. Publishers materialise a
   :class:`CapabilityPolicyRegistry` from
   :meth:`NatsKvCapabilityPolicyBackend.snapshot_registry` on
-  startup (or on a periodic refresh schedule); the live tail is
-  reserved as a Phase-3 slot (analogous to the schema-registry
-  watch-stream, Sprint-3 Tag-4). The Phase-2 Sprint-5 Tag-2 slot is
-  full-snapshot only.
+  startup (or on a periodic refresh schedule). The Sprint-5 Tag-2
+  slot was full-snapshot only; the live tail
+  (:meth:`NatsKvCapabilityPolicyBackend.watch` /
+  :class:`LiveCapabilityPolicySnapshot`) is **added in Sprint-5 Tag-5**
+  (pattern-mirror on the schema-registry watch-stream, Sprint-3 Tag-4)
+  and stays a *consumer* surface: a long-running supervisor task feeds
+  a :class:`LiveCapabilityPolicySnapshot` from :meth:`watch` and hands
+  frozen :class:`CapabilityPolicyRegistry` copies to verifier modules
+  via :meth:`LiveCapabilityPolicySnapshot.as_registry`. The full
+  :meth:`snapshot` / :meth:`snapshot_registry` path remains supported
+  and orthogonal; CAS-pin is unaffected.
 - Sprint-5 Tag-2 ships PUT (LWW) only. The CAS-pinned upsert path
   ``put_with_revision`` is **added in Sprint-5 Tag-4** (pattern-mirror
   on the schema-registry CAS-pin, Sprint-3 Tag-3) — see
@@ -969,6 +976,31 @@ class NatsKvCapabilityPolicyBackend:
             registry.add_policy(record.policy)
         return registry
 
+    # ------------------------------------------------------------------
+    # Watch-stream (Phase-2 Sprint-5 Tag-5, additive over Sprint-5 Tag-4)
+    # ------------------------------------------------------------------
+
+    async def watch(self) -> "_CapabilityPolicyWatchStreamHandle":
+        """Open a watch-stream over the capability-policy bucket.
+
+        Returns an async iterable / context manager that yields decoded
+        :class:`CapabilityPolicyWatchEvent` instances. See
+        :func:`open_capability_policy_watch_stream` for details.
+
+        Phase-2 Sprint-5 Tag-5 boundary: the watch-stream is a *consumer*
+        surface; it does NOT replace :meth:`snapshot_registry`. Use a
+        :class:`LiveCapabilityPolicySnapshot` (bootstrapped from
+        :meth:`snapshot_registry`, fed by :meth:`watch`) to maintain a
+        long-running incremental view; pass frozen
+        :meth:`LiveCapabilityPolicySnapshot.as_registry` copies to the
+        Sprint-4 Tag-6 :func:`check_registered_by_capability` gate when
+        it needs a stable point-in-time view.
+
+        Pattern-mirror on Sprint-3 Tag-4 schema-registry watch-stream
+        (:meth:`NatsKvSchemaRegistry.watch`).
+        """
+        return await open_capability_policy_watch_stream(self)
+
 
 # ---------------------------------------------------------------------------
 # Helpers (KV adapter shims for nats-py vs. test mock)
@@ -1155,6 +1187,407 @@ async def _list_keys(kv: Any) -> list:
     raise CapabilityPolicyBackendError("KV handle has no keys() method")
 
 
+# ---------------------------------------------------------------------------
+# Watch-Stream-Snapshot Layer (Phase-2 Sprint-5 Tag-5, additive over Tag-4)
+# ---------------------------------------------------------------------------
+#
+# Tag-2 (S5-2) shipped get/put/delete/snapshot/snapshot_registry. The
+# snapshot path is full-bucket: every verifier pass that wants fresh
+# state takes a fresh full snapshot. That is correct for determinism
+# but costly when policy turnover is high (e.g. operator-side rotation
+# campaigns rolling kids across many policies) or when a long-running
+# supervisor wants to track changes between snapshots without
+# re-listing.
+#
+# Tag-5 (S5-5) adds a watch-based incremental layer that consumes
+# nats-py's ``KeyValue.watchall()`` (or a mock-equivalent) and surfaces
+# decoded :class:`CapabilityPolicyWatchEvent` instances. The
+# synchronous verifier surface
+# (:func:`check_registered_by_capability`) is UNCHANGED: the
+# watch-stream is a substrate for materialising live deltas into a
+# :class:`CapabilityPolicyRegistry` snapshot, not a new verifier
+# substrate. The bridge contract is: each verifier pass takes one
+# *frozen* :class:`CapabilityPolicyRegistry` view; the watch-stream is
+# the producer of that view, the verifier does not query the live
+# stream.
+#
+# A :class:`LiveCapabilityPolicySnapshot` keeps an in-memory copy of
+# the registry (indexed by KV-key so deltas can update / remove a
+# specific ``(registered_by, policy_id)`` entry), initialises it from
+# a full :meth:`NatsKvCapabilityPolicyBackend.snapshot`, and then
+# applies decoded :class:`CapabilityPolicyWatchEvent` instances as
+# they arrive. Callers get a deterministic frozen
+# :class:`CapabilityPolicyRegistry` for each verifier pass via
+# :meth:`LiveCapabilityPolicySnapshot.as_registry`. The frozen copy
+# is taken at call time; subsequent watch events do NOT mutate the
+# returned registry (T-CPP-WS-determinism contract).
+#
+# Boundary (Phase-2 Sprint-5 Tag-5):
+#
+# - The watch-stream is a *consumer* surface. Operators connect the
+#   stream to a long-running supervisor task; the supervisor keeps a
+#   :class:`LiveCapabilityPolicySnapshot` warm and hands frozen
+#   :class:`CapabilityPolicyRegistry` instances to the
+#   :func:`check_registered_by_capability` gate per pass. The
+#   watch-stream itself is not the registry.
+# - A poisoned envelope on the stream raises
+#   :class:`CapabilityPolicyEnvelopeError` from the consumer iterator
+#   and terminates the iterator. The operator must observe the error,
+#   drop the :class:`LiveCapabilityPolicySnapshot`, and re-bootstrap
+#   from a fresh :meth:`NatsKvCapabilityPolicyBackend.snapshot`.
+#   Phase-2 Sprint-5 Tag-5 does not silently swallow envelope poison
+#   (same contract as the full snapshot path).
+# - Watch-stream resumption / replay-from-revision is a Phase-3
+#   concern (nats-py supports it via ``watchall(..., resume_from=...)``;
+#   the Sprint-5 Tag-5 stream wrapper exposes the underlying revision
+#   but does not bake in resume policy).
+# - The watch-stream is orthogonal to the Tag-4 CAS-pin surface. A
+#   CAS-pin PUT (lossless update) yields one PUT event on the stream
+#   identical to a LWW PUT; an LWW write yields one PUT event; a
+#   stale CAS-pin write rejected by the bucket yields NO event (the
+#   write was not durable). Determinism contract: the stream is a
+#   strict suffix of the durable bucket history.
+
+
+class CapabilityPolicyWatchOp(enum.Enum):
+    """Operation kind surfaced by the capability-policy watch-stream.
+
+    Matches nats-py's ``KeyValueOp`` shape: ``PUT`` for insert/update,
+    ``DELETE`` for tombstone (explicit delete), ``PURGE`` for
+    history-clearing purge. Verifier-side consumers treat ``DELETE``
+    and ``PURGE`` identically (the policy is gone); they are surfaced
+    separately so audit consumers can distinguish them.
+
+    Byte-equal mirror of
+    :class:`wirelang.schemas.registry_nats_kv_backend.WatchOp`
+    (Sprint-3 Tag-4). The class identity is module-local to keep the
+    two backends evolving independently.
+    """
+
+    PUT = "PUT"
+    DELETE = "DELETE"
+    PURGE = "PURGE"
+
+
+@dataclass(frozen=True)
+class CapabilityPolicyWatchEvent:
+    """A single decoded operation from the capability-policy watch-stream.
+
+    Fields:
+
+    - ``op``: the :class:`CapabilityPolicyWatchOp`. PUT means
+      ``record`` is set; DELETE/PURGE mean ``record`` is ``None``.
+    - ``key``: the registry KV key string
+      (``capability-policies/<registered_by>/<policy_id>``).
+    - ``record``: the decoded :class:`CapabilityPolicyRecord` for PUT;
+      ``None`` for DELETE/PURGE.
+    - ``revision``: the KV revision at which this event was observed.
+      Monotonically increasing per bucket; useful for resume policies
+      and audit cross-references.
+
+    Pattern-mirror on
+    :class:`wirelang.schemas.registry_nats_kv_backend.WatchEvent`
+    with ``entry`` renamed to ``record`` to match this module's
+    canonical noun for the persisted unit.
+    """
+
+    op: CapabilityPolicyWatchOp
+    key: str
+    record: Optional[CapabilityPolicyRecord]
+    revision: int
+
+
+def _decode_capability_policy_watch_update(
+    update: Any,
+) -> CapabilityPolicyWatchEvent:
+    """Decode one nats-py ``KeyValue.Entry`` (or mock-equivalent) into
+    a :class:`CapabilityPolicyWatchEvent`.
+
+    nats-py exposes the operation kind via an ``operation`` attribute
+    that is a ``KeyValueOp`` enum; on a ``PUT`` the ``value`` attr
+    carries the envelope bytes, on ``DELETE``/``PURGE`` it is empty
+    (``b""`` or ``None``). We mirror that contract and accept both
+    the enum and a string (mock-friendliness).
+
+    Byte-equal source mirror of
+    :func:`wirelang.schemas.registry_nats_kv_backend._decode_watch_update`
+    with module-local class identities
+    (:class:`CapabilityPolicyEnvelopeError` instead of
+    :class:`SchemaRegistryEnvelopeError`;
+    :class:`CapabilityPolicyWatchOp` /
+    :class:`CapabilityPolicyWatchEvent` instead of the schema-registry
+    siblings; :func:`_envelope_to_record` instead of
+    :func:`_envelope_to_entry`).
+    """
+    op_raw = getattr(update, "operation", None)
+    if op_raw is None and isinstance(update, Mapping):
+        op_raw = update.get("operation")
+    if op_raw is None:
+        raise CapabilityPolicyEnvelopeError(
+            f"watch update has no 'operation' attribute: "
+            f"type={type(update).__name__}"
+        )
+    op_name = getattr(op_raw, "name", None) or str(op_raw)
+    op_name = op_name.upper()
+    if op_name not in {"PUT", "DELETE", "PURGE"}:
+        raise CapabilityPolicyEnvelopeError(
+            f"watch update has unknown operation: {op_name!r}"
+        )
+    op = CapabilityPolicyWatchOp(op_name)
+
+    key = getattr(update, "key", None)
+    if key is None and isinstance(update, Mapping):
+        key = update.get("key")
+    if not isinstance(key, str) or not key:
+        raise CapabilityPolicyEnvelopeError(
+            f"watch update has empty/non-string key: {key!r}"
+        )
+
+    revision = getattr(update, "revision", None)
+    if revision is None and isinstance(update, Mapping):
+        revision = update.get("revision")
+    revision_int = int(revision) if revision is not None else 0
+
+    if op is CapabilityPolicyWatchOp.PUT:
+        try:
+            blob = _coerce_value_bytes(update)
+        except CapabilityPolicyEnvelopeError:
+            # The PUT carried no .value handle; that is poisoned.
+            raise
+        record = _envelope_to_record(blob)
+        return CapabilityPolicyWatchEvent(
+            op=op, key=key, record=record, revision=revision_int
+        )
+
+    return CapabilityPolicyWatchEvent(
+        op=op, key=key, record=None, revision=revision_int
+    )
+
+
+@dataclass
+class _CapabilityPolicyWatchStreamHandle:
+    """Internal wrapper around the underlying nats-py watcher.
+
+    Adapts to two mock shapes:
+
+    1. The watcher is itself an async iterator (``__aiter__`` /
+       ``__anext__``); ``stop()`` (sync or async) closes it.
+    2. The watcher exposes ``await updates()`` returning the next
+       update or ``None`` for end-of-stream; ``stop()`` closes it.
+
+    nats-py's real ``KeyWatcher`` matches shape 2 with a sentinel
+    ``None`` between the initial snapshot replay and the live tail;
+    we surface that sentinel as a stream-internal marker only and
+    do NOT emit it to the consumer.
+
+    Byte-equal source mirror of
+    :class:`wirelang.schemas.registry_nats_kv_backend._SchemaWatchStreamHandle`
+    with the decoder swapped for
+    :func:`_decode_capability_policy_watch_update` and the no-iter
+    fallback raise swapped for :class:`CapabilityPolicyBackendError`.
+    """
+
+    underlying: Any
+
+    async def __aenter__(self) -> "_CapabilityPolicyWatchStreamHandle":
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        stop = getattr(self.underlying, "stop", None)
+        if stop is None:
+            return
+        result = stop()
+        if hasattr(result, "__await__"):
+            await result
+
+    def __aiter__(self) -> "_CapabilityPolicyWatchStreamHandle":
+        return self
+
+    async def __anext__(self) -> CapabilityPolicyWatchEvent:
+        # Shape 1: native async iterator.
+        if hasattr(self.underlying, "__anext__"):
+            while True:
+                update = await self.underlying.__anext__()
+                if update is None:
+                    # nats-py end-of-initial-replay sentinel; skip it
+                    # but keep the iterator alive for the live tail.
+                    continue
+                return _decode_capability_policy_watch_update(update)
+        # Shape 2: ``await updates()`` returns next or None.
+        updates = getattr(self.underlying, "updates", None)
+        if updates is not None:
+            while True:
+                update = await updates()
+                if update is None:
+                    # End-of-stream; stop the iterator.
+                    raise StopAsyncIteration
+                return _decode_capability_policy_watch_update(update)
+        raise CapabilityPolicyBackendError(
+            f"watch handle has neither __anext__ nor updates(): "
+            f"type={type(self.underlying).__name__}"
+        )
+
+
+async def _open_capability_policy_watcher(kv: Any) -> Any:
+    """Open the underlying watcher on the KV handle.
+
+    nats-py exposes ``await kv.watchall()`` returning an awaitable
+    watcher; some mocks expose the same name without async, or use
+    ``watch()`` as the entry point.
+
+    Byte-equal source mirror of
+    :func:`wirelang.schemas.registry_nats_kv_backend._open_watcher`
+    with the backend-error class swapped.
+    """
+    watch_fn = getattr(kv, "watchall", None)
+    if watch_fn is None:
+        watch_fn = getattr(kv, "watch", None)
+    if watch_fn is None:
+        raise CapabilityPolicyBackendError(
+            "KV handle exposes neither watchall() nor watch()"
+        )
+    result = watch_fn()
+    if hasattr(result, "__await__"):
+        result = await result
+    return result
+
+
+async def open_capability_policy_watch_stream(
+    backend: "NatsKvCapabilityPolicyBackend",
+) -> _CapabilityPolicyWatchStreamHandle:
+    """Open a watch-stream over the backend's KV bucket.
+
+    Use as an async context manager OR consume directly; either way,
+    ``stop()`` is called on close. Each iteration yields one
+    :class:`CapabilityPolicyWatchEvent`. Decoder errors raise
+    :class:`CapabilityPolicyEnvelopeError` and terminate the iterator.
+
+    Pattern-mirror on
+    :func:`wirelang.schemas.registry_nats_kv_backend.open_watch_stream`.
+    """
+    if not isinstance(backend, NatsKvCapabilityPolicyBackend):
+        raise TypeError(
+            "backend must be a NatsKvCapabilityPolicyBackend"
+        )
+    underlying = await _open_capability_policy_watcher(backend.kv)
+    return _CapabilityPolicyWatchStreamHandle(underlying=underlying)
+
+
+@dataclass
+class LiveCapabilityPolicySnapshot:
+    """Live, watch-stream-fed snapshot of the capability-policy registry.
+
+    Phase-2 Sprint-5 Tag-5 (S5-5) substrate. Initialises an in-memory
+    copy from a full backend snapshot, then applies decoded
+    :class:`CapabilityPolicyWatchEvent` instances to keep the copy in
+    sync.
+
+    The class is NOT itself a :class:`CapabilityPolicyRegistry`. To
+    pass it to a verifier module
+    (:func:`check_registered_by_capability`), call
+    :meth:`as_registry` to take a frozen copy at the current state.
+    Subsequent watch events do not mutate the returned copy
+    (determinism contract: a frozen copy passed to one verifier pass
+    yields stable verdicts).
+
+    Internal storage: a per-key map of records
+    (``capability-policies/<registered_by>/<policy_id>`` -> record).
+    The map is the canonical state; :meth:`as_registry` rebuilds a
+    :class:`CapabilityPolicyRegistry` from the values on each call.
+    This indirection is intentional: the
+    :class:`CapabilityPolicyRegistry` from Sprint-4 Tag-6 is indexed by
+    ``registered_by`` only (a single issuer may carry multiple
+    policies); the watch-stream needs per-(issuer, policy_id) update /
+    delete semantics, so we keep the key-indexed map alongside.
+
+    Concurrency: a :class:`LiveCapabilityPolicySnapshot` is intended
+    for a single-consumer pattern within one asyncio task. Cross-task
+    sharing requires the caller to lock; the class itself does no
+    locking because asyncio guarantees in-task atomicity between
+    awaits, and :meth:`apply` is synchronous.
+
+    Pattern-mirror on
+    :class:`wirelang.schemas.registry_nats_kv_backend.LiveSchemaSnapshot`.
+    """
+
+    initial: list  # list[CapabilityPolicyRecord]
+    last_revision: int = 0
+    _live: dict = field(init=False)  # dict[str, CapabilityPolicyRecord]
+
+    def __post_init__(self) -> None:
+        # Defensive copy: callers may keep a reference to ``initial``
+        # and we must not mutate it as deltas arrive.
+        self._live = {}
+        for record in self.initial:
+            if not isinstance(record, CapabilityPolicyRecord):
+                raise CapabilityPolicyValidationError(
+                    f"initial snapshot must contain CapabilityPolicyRecord "
+                    f"instances: got type={type(record).__name__}"
+                )
+            self._live[record.key] = record
+
+    def apply(self, event: CapabilityPolicyWatchEvent) -> None:
+        """Apply one :class:`CapabilityPolicyWatchEvent` to the live state.
+
+        PUT updates / inserts the record; DELETE / PURGE remove it
+        (no-op if already absent). The ``last_revision`` counter
+        advances monotonically: an event with a revision lower than
+        the current ``last_revision`` does NOT regress the counter.
+        """
+        if not isinstance(event, CapabilityPolicyWatchEvent):
+            raise TypeError(
+                "event must be a CapabilityPolicyWatchEvent"
+            )
+        if event.op is CapabilityPolicyWatchOp.PUT:
+            if event.record is None:
+                raise CapabilityPolicyEnvelopeError(
+                    "PUT CapabilityPolicyWatchEvent must carry a "
+                    "non-None record"
+                )
+            self._live[event.key] = event.record
+        else:
+            # DELETE / PURGE: remove the key if present.
+            self._live.pop(event.key, None)
+        if event.revision > self.last_revision:
+            self.last_revision = event.revision
+
+    def as_registry(self) -> CapabilityPolicyRegistry:
+        """Return a frozen :class:`CapabilityPolicyRegistry` copy of the
+        current live state.
+
+        The returned registry does not share storage with the live
+        state; subsequent :meth:`apply` calls do not mutate it.
+
+        Records are added in sorted-key order, mirroring the
+        :meth:`NatsKvCapabilityPolicyBackend.snapshot_registry`
+        determinism contract.
+        """
+        registry = CapabilityPolicyRegistry()
+        for key in sorted(self._live.keys()):
+            registry.add_policy(self._live[key].policy)
+        return registry
+
+    def records(self) -> list:
+        """Return a stable list of records in sorted-key order.
+
+        Useful for audit consumers that want the full record
+        (including operator-side bookkeeping fields) rather than the
+        gate-ready :class:`CapabilityPolicyRegistry`.
+        """
+        return [self._live[key] for key in sorted(self._live.keys())]
+
+    @classmethod
+    async def from_backend(
+        cls, backend: "NatsKvCapabilityPolicyBackend"
+    ) -> "LiveCapabilityPolicySnapshot":
+        """Bootstrap a :class:`LiveCapabilityPolicySnapshot` from a
+        full backend snapshot. The caller is responsible for opening a
+        watch-stream and feeding events to :meth:`apply`.
+        """
+        initial = await backend.snapshot()
+        return cls(initial=initial, last_revision=0)
+
+
 __all__ = [
     "BUCKET_NAME",
     "BUCKET_CONFIG",
@@ -1164,7 +1597,11 @@ __all__ = [
     "CapabilityPolicyEnvelopeError",
     "CapabilityPolicyValidationError",
     "CapabilityPolicyRecord",
+    "CapabilityPolicyWatchEvent",
+    "CapabilityPolicyWatchOp",
+    "LiveCapabilityPolicySnapshot",
     "NatsKvCapabilityPolicyBackend",
     "key_for_policy_pair",
+    "open_capability_policy_watch_stream",
     "pair_for_key",
 ]
