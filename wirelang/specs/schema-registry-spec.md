@@ -9,14 +9,14 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wirelang-schema-registry
-version: 0.11.0
+version: 0.12.0
 status: draft
 date: 2026-05-11
 audience: implementers, integrators, operators
 license: CC-BY-4.0
 ---
 
-# Wirelang Schema Registry — NATS-KV Backend Specification (v0.11.0)
+# Wirelang Schema Registry — NATS-KV Backend Specification (v0.12.0)
 
 **Change log**
 
@@ -27,6 +27,7 @@ license: CC-BY-4.0
 | 0.3.0   | 2026-05-07 | Phase-1c watch-stream surface lands in Tag-4 (`watch()` / `WatchOp` / `WatchEvent` / `LiveSchemaSnapshot` / `open_watch_stream`); §5.3 OI-7-Phase-1c-watch slot CONSUMED; §5.5 added (watch-stream operational contract); §6.2 added (T-SR-WS-01..10 + 2 aux probes test inventory). Additive-only change relative to v0.2.0; M-2 / M-4 conformance preserved. |
 | 0.4.0   | 2026-05-07 | Phase-1c publisher CLI lands in Tag-5 (`wirelang.schemas.publisher_cli`: `wakir-schema-registry publish` / `dry-run` argparse surface, `PublishReceipt`, `ExitCode` matrix); §5.3 OI-7-Phase-1c-publisher slot CONSUMED; §5.6 added (publisher CLI operational contract); §6.3 added (T-SR-PUB-01..12 test inventory). Additive-only change relative to v0.3.0; M-2 / M-4 conformance preserved. The CLI is a thin operator-input layer over the Tag-3 CAS-pin and Tag-1 LWW backends; it introduces no new on-the-wire envelope and no new validation gate. |
 | 0.5.0   | 2026-05-07 | Phase-1c cross-bucket replication lands in Tag-6 (`wirelang.schemas.replication`: `SchemaReplicator`, `bootstrap_target_from_source`, `ReplicationConflictPolicy`, `ReplicationFilter`, `ReplicationMetrics`); §5.3 OI-7-Phase-1c-replication slot CONSUMED; §5.7 added (replication operational contract); §6.4 added (T-SR-REP-01..12 test inventory). Additive-only change relative to v0.4.0; M-2 / M-4 conformance preserved. The replication layer is a thin composition of Tag-1 LWW + Tag-3 CAS-pin + Tag-4 watch-stream surfaces; it introduces no new on-the-wire envelope, no new validation gate, and no new method on `NatsKvSchemaRegistry`. **Phase-1c is now feature-complete.** |
+| 0.12.0  | 2026-05-11 | Phase-2 Sprint-5 Tag-2 lands the persistent-distribution tier for capability policies (`wirelang.schemas.capability_policy_nats_kv_backend`: `NatsKvCapabilityPolicyBackend`, `CapabilityPolicyRecord`, `CapabilityPolicyBackendError`, `CapabilityPolicyEnvelopeError`, `CapabilityPolicyValidationError`, `BUCKET_NAME = "wakir-capability-policies"`, `BUCKET_CONFIG`, `VALUE_SCHEMA = "wakir.wirelang.capability-policy-entry/1"`, `key_for_policy_pair`, `pair_for_key`); §5.14 added (capability-policy persistent-distribution operational contract); §6.11 added (T-CPP-01..10 test inventory plus auxiliary key-derivation and envelope-shape probes); §5.12 Phase-2-Sprint-4-Tag-6-Boundary item "persistent capability-policy distribution" CONSUMED; §5.13 Sprint-5-Tag-1 boundary item "persistent capability-policy distribution" CONSUMED; §7 Phase-3-Reservierung "persistent capability-policy distribution (`wakir-capability-policies` NATS-KV bucket)" CONSUMED with the Sprint-5 Tag-2 module reference. The persistent-distribution tier is a Layer-3 substrate that mirrors the Sprint-3 Tag-1 schema-registry-backend pattern (`registry_nats_kv_backend.py`): a new dedicated NATS-KV bucket `wakir-capability-policies` keyed by `(registered_by, policy_id)` collapsed to `capability-policies/<registered_by>/<policy_id>`. The backend ships `get` / `put` / `delete` / `list_keys` / `snapshot` plus a `snapshot_registry` convenience that materialises a Sprint-4 Tag-6 `CapabilityPolicyRegistry` ready for the in-process `check_registered_by_capability` gate. Boundary: this slot does NOT replace the Sprint-5 Tag-1 `--capability-registry` operator-local JSON file format (both paths coexist; JSON-file is "policies you ship with your CLI invocation", NATS-KV is "policies you publish once for the cluster to discover"); does NOT bake CAS-pinned upserts (LWW only; Phase-3 slot mirroring Sprint-3 Tag-3); does NOT bake a watch-stream tail (full-snapshot only; Phase-3 slot mirroring Sprint-3 Tag-4); does NOT mutate `NatsKvSchemaRegistry` (the schema-registry backend is byte-unchanged); does NOT bake a publisher-CLI integration (a future `--capability-bucket` flag is a Sprint-5 Tag-3+ candidate); does NOT bake operator-side biometric / hardware key attestation on policy authorship (trust-on-write; bucket-level access control is operator-side). The on-the-wire envelope is **a new schema URI** (`wakir.wirelang.capability-policy-entry/1`) on a **new bucket** (`wakir-capability-policies`); the existing `wakir.wirelang.schema-registry-entry/1` envelope on `wakir-schemas` is byte-unchanged. M-2 conformance preserved (new envelope on new bucket; no breaking change to any existing envelope). M-4 conformance preserved (orthogonal to version axis). Cross-Review-Zone-1 non-touched (the four Z-1-K-Sprint-4 consensus points remain byte-identical; the persistence layer is curve-agnostic, JCS-free at the policy-envelope axis, kid-resolver-independent, and orthogonal to `VerifyMode`). Cross-Review-Zone-B **TRIGGERED**: the orchestrator-side `PHASE_1_BUCKETS` inventory currently lists 6 slots (post-Sprint-4 Tag-5); Sprint-5 Tag-2 requests a 7th slot via the paired-update memo to the DevOps track (`agents-workspaces/kai/inbox/2026-05-11-reza-z-b-seventh-bucket-capability-policies-paired-update.md`). The Wirelang-side `BUCKET_CONFIG` is the byte-anchor; the orchestrator-side `BucketSpec` will mirror it on `history` / `ttl_seconds` / `max_value_size` / `storage` / `replicas` byte-precisely on Kai-side acceptance. Additive-only change relative to v0.11.0. |
 | 0.11.0  | 2026-05-11 | Phase-2 Sprint-5 Tag-1 lifts the Sprint-4 Tag-6 capability gate into the publisher CLI operator surface (`wirelang.schemas.publisher_cli`: new flags `--sign`, `--kid`, `--ed25519-priv-key-hex`, `--ed25519-priv-key-file`, `--gate`, `--capability-registry`, `--gate-as-of`; new exit code `ExitCode.CAPABILITY_DENY = 7`; receipt extended with three additive optional fields `signed: bool`, `kid: Optional[str]`, `gate_decision: Optional[{allowed, source, reason}]`; helpers `_validate_capability_flag_consistency`, `_load_ed25519_priv_key`, `_load_capability_registry`, `_policy_from_dict`, `_parse_optional_rfc3339`, `_decision_to_dict`); §5.13 added (publisher-CLI capability integration operational contract); §6.10 added (T-SR-PUB-CG-01..10 test inventory, plus auxiliary loader-helper coverage); §5.3 OI-7-Phase-2-publisher-cli-capability slot CONSUMED (was the "publisher-CLI integration" Phase-3 reservation noted in §5.12 §7); §5.6 cross-references the Sprint-5 Tag-1 capability extension; §5.12 Phase-2-Sprint-4-Tag-6-Boundary item "publisher-CLI integration" CONSUMED. The Sprint-5 Tag-1 integration is **additive over Sprint-4 Tag-6**: signing reuses `wirelang.schemas.entry_signing.sign_entry` byte-identical; gating reuses `wirelang.schemas.registered_by_capability.gate_signed_entry` byte-identical; both run strictly between `_build_entry` and the backend `put` / `put_with_revision` call so the CAS-pin and LWW write paths are byte-unchanged; a `CAPABILITY_DENY` short-circuits before the backend connect (bucket never touched on deny). The capability-registry JSON file format is operator-side surface only (`{policies: [{registered_by, allowed_kids, allowed_triples, not_before?, not_after?, disabled?, note?}, ...]}`); the on-the-wire schema-registry envelope is UNCHANGED (no signature delivered to the bucket via the publisher path — Sprint-5 Tag-1 boundary: the bucket carries the unsigned entry; the signature is local-only authorisation glue, consistent with Sprint-4 Tag-6 §5.12). M-2 / M-4 conformance preserved. Cross-Review-Zone-1 non-touched (the four Z-1-K-Sprint-4 consensus points remain byte-identical; this slot is a pure operator-CLI composition of Tag-1 signing + Tag-6 gating + Tag-3/Tag-5 backend writes). Additive-only change relative to v0.10.0. Bare-publish receipt-shape forward-compat: pre-Sprint-5 receipts receive three new optional fields at default-off values (`signed=false`, `kid=null`, `gate_decision=null`); consumers that index by the legacy field set continue to read byte-equal pre-existing fields. |
 | 0.10.0  | 2026-05-11 | Phase-2 Sprint-4 Tag-6 lands the `registered_by`-capability-gating layer (`wirelang.schemas.registered_by_capability`: `CapabilityPolicy`, `CapabilityPolicyRegistry`, `CapabilityGateDecision`, `DecisionSource`, `check_registered_by_capability`, `gate_signed_entry`, `RegisteredByCapabilityError`); §5.12 added (capability-gating operational contract); §6.9 added (T-RBC-01..12 test inventory). The gating layer binds the `registered_by` field of a `SchemaRegistryEntry` to a policy bundle that constrains *which* signing keys (`kid`) and *which* `(layer, name_glob)` schema triples a given publisher identity is authorised to register. The gate is **additive** authorisation on top of `wirelang.schemas.entry_signing.verify_entry_signature`: a cryptographically valid signature can still be denied if the issuer lacks capability over the registered triple. The cryptographic primitive (`verify_entry_signature`) remains the single source of truth for signature correctness and is UNCHANGED. The gate is a separate, pure-policy function returning a `CapabilityGateDecision` (`allowed: bool`, `reason: str`, `source: DecisionSource`, `policy: Optional[CapabilityPolicy]`); structural failures (malformed policy, bad arg, missing `kid` in the signature block) raise `RegisteredByCapabilityError`. Policy semantics: `allowed_kids` (set-membership), `allowed_triples` (literal `layer` plus `fnmatch` glob on `name`; layer `"*"` is the all-layers wildcard), optional RFC-3339 `not_before` / `not_after` validity window (inclusive of `not_before`, exclusive of `not_after`), `disabled` kill-switch, and free-form `note` audit string. Boundary: this slot does NOT ship full Biscuit binary token encode/decode + Datalog evaluation (those remain Phase-3 slots — see `wirelang/schemas/layer-3-capability-token.json`); does NOT mutate `NatsKvSchemaRegistry` (no new method, no envelope change, no validation gate at write time); does NOT fetch policies from a transport (in-process registry only; persisted distribution is Phase-3); does NOT touch the kid → public-key resolver (Z-1-K-Sprint-4-1 consumed upstream). Cross-Review-Zone-1 non-touched (the four Z-1-K-Sprint-4 consensus points remain byte-identical; the gate is curve-agnostic, JCS-free, resolver-independent, and orthogonal to `VerifyMode`). Additive-only change relative to v0.9.0; M-2 / M-4 conformance preserved. |
 | 0.9.0   | 2026-05-11 | Phase-2 Sprint-4 Tag-5 lands the AIP-document signature-verification cache tier (`wirelang.identity.aip_signature_verification_cache`: `AipSignatureVerificationCache`, `CacheStats`, `cached_verify_aip_signature`, module-level constants `DEFAULT_MAX_ENTRIES=256`, `DEFAULT_TTL_SECONDS=300.0`); §5.11 added (verification-cache operational contract); §6.8 added (T-AIP-SVC-01..12 test inventory). The cache is a stateful in-process LRU+TTL tier on top of the Sprint-4 Tag-1 `wirelang.identity.verify_aip_signature` primitive; cache hits are byte-equal to fresh verify outcomes (the cache is a pure performance optimisation, not a behavioural layer). The cache key is `SHA-256` over the 5-tuple `(SHA-256(JCS(body without document_signature)), alg, kid, signature_hex, pub_key_hex)`, byte-identical in shape to the Sprint-4 Tag-4 `jcs_sha256_hex` byte-anchor (the cache reuses the Tag-4 ↔ Tag-1 JCS-resolver-indirection lock, Z-1-K-Sprint-4-2). Negative outcomes (`verify` returns `False`) are memoised the same way as positive outcomes; structural failures (`ValueError` from the verifier) are NOT cached and propagate verbatim. TTL defaults to 300 seconds with an injectable monotonic clock for hermetic test determinism; LRU eviction is by insertion-order (hits do NOT promote — byte-consistent with V-908 `HTTPSAipResolverCache` semantics). The cache surface is byte-orthogonal to `wirelang.identity.verify_aip_signature` (UNCHANGED), `wirelang.identity.kid_resolver` (UNCHANGED), `wirelang.identity.aip_document_transport_fetch` (UNCHANGED), and the schema-registry backend (`NatsKvSchemaRegistry` UNCHANGED, no new method). Additive-only change relative to v0.8.0; M-2 / M-4 conformance preserved. Cross-Review-Zone-1 non-touched (the four Z-1-K-Sprint-4 consensus points remain byte-identical; the cache is curve-agnostic, policy-agnostic, and resolver-independent). |
@@ -1225,9 +1226,17 @@ consumed (Tag-3 / Tag-4 / Tag-5 / Tag-6).**
   full Biscuit-v3 machinery on top of
   `wirelang/schemas/layer-3-capability-token.json` remains a
   Phase-3 slot).
-- No persistent capability-policy distribution (the Sprint-4 Tag-6
+- ~~No persistent capability-policy distribution (the Sprint-4 Tag-6
   registry is in-process only; persisted distribution over NATS-KV
-  or analogous is a Phase-3 slot).
+  or analogous is a Phase-3 slot).~~ (**CONSUMED in Sprint-5 Tag-2**
+  by `wirelang.schemas.capability_policy_nats_kv_backend`; see §5.14.
+  The persistent-distribution tier ships the `wakir-capability-policies`
+  NATS-KV bucket with `NatsKvCapabilityPolicyBackend.put` / `get` /
+  `delete` / `snapshot` / `snapshot_registry`, where `snapshot_registry`
+  materialises a Sprint-4 Tag-6 `CapabilityPolicyRegistry` directly
+  consumable by `check_registered_by_capability`. The in-process
+  registry from §5.12 remains the canonical evaluation tier; this
+  slot is its persistent-distribution back-end.)
 - ~~No publisher-CLI integration of the Sprint-4 Tag-6 gate (the
   capability check is caller-driven; a `wakir-schema-registry
   publish` flag that runs `gate_signed_entry` between `sign_entry`
@@ -2721,10 +2730,16 @@ informative than *wrong kid*, which is more informative than
   substantiation. Tag-6 is a *prelude*: a simpler in-process policy
   bundle that captures the Wakir-side intent without the full
   Biscuit machinery.
-- This module does NOT distribute or persist policies. The
+- ~~This module does NOT distribute or persist policies. The
   registry is in-process only; persisted distribution over a
   NATS-KV bucket (`wakir-capability-policies` or analogous) is a
-  Phase-3 slot.
+  Phase-3 slot.~~ (**CONSUMED in Sprint-5 Tag-2** —
+  `wirelang.schemas.capability_policy_nats_kv_backend` ships the
+  persistent-distribution tier on the `wakir-capability-policies`
+  bucket; see §5.14. The Sprint-4 Tag-6 in-process
+  `CapabilityPolicyRegistry` remains the evaluation surface;
+  Sprint-5 Tag-2 ships the source-of-truth substrate that
+  materialises it via `NatsKvCapabilityPolicyBackend.snapshot_registry`.)
 - This module does NOT plumb gating into the schema-registry write
   path. `NatsKvSchemaRegistry` is UNCHANGED. The gate is a
   callable layer; consumers (publisher CLI, future write-path
@@ -2978,10 +2993,18 @@ relative to the in-process code-block:
   the Sprint-4 Tag-1 / Tag-3 / Tag-4 / Tag-5 stack and lives outside
   the publisher CLI.
 
-- Does NOT distribute capability policies. The registry is loaded
+- ~~Does NOT distribute capability policies. The registry is loaded
   from a local JSON file every invocation. NATS-KV-distribution of
   policies (bucket `wakir-capability-policies`) remains the Phase-3
-  reservation per §5.12 / §7.
+  reservation per §5.12 / §7.~~ (**CONSUMED in Sprint-5 Tag-2** —
+  `wirelang.schemas.capability_policy_nats_kv_backend` ships the
+  `wakir-capability-policies` bucket and the
+  `NatsKvCapabilityPolicyBackend` surface; see §5.14. Sprint-5 Tag-1
+  publisher CLI is byte-unchanged: the `--capability-registry` flag
+  still reads operator-local JSON. A future `--capability-bucket`
+  publisher-CLI flag that reads from the Sprint-5 Tag-2 bucket is a
+  Sprint-5 Tag-3+ candidate; Sprint-5 Tag-2 is the substrate, not
+  the CLI integration.)
 
 - Does NOT introduce on-the-wire Biscuit binary tokens. The
   `--capability-registry` JSON file is operator-side only; the
@@ -3057,6 +3080,275 @@ or key source); `T-SR-PUB-CG-09` pins the dry-run sign+gate path
 including the deny-on-dry-run case; `T-SR-PUB-CG-10` pins the
 receipt-shape forward-compat (default-off values for callers that
 omit the capability flags).
+
+### 5.14 Capability-policy persistent distribution (Phase-2 Sprint-5 Tag-2)
+
+Sprint-5 Tag-2 ships
+`wirelang.schemas.capability_policy_nats_kv_backend`, the
+persistent-distribution tier for the Sprint-4 Tag-6 in-process
+`CapabilityPolicyRegistry`. The module persists capability policies
+on a dedicated NATS-JetStream-KV bucket
+(`wakir-capability-policies`) so policy authorship survives
+operator-process restarts and so multi-host deployments can
+distribute policies through the same cluster substrate that already
+carries the schema registry (`wakir-schemas`), AIP cache
+(`wakir-aip-cache`), FTD cache (`wakir-ftd-cache`), FTD poison-marker
+(`wakir-ftd-poisoned`), schema-registry-storage reservation
+(`wakir-schema-registry-entries`), and federation routes
+(`wakir-federation-routes`).
+
+#### Public surface
+
+The module exports (Phase-2 Sprint-5 Tag-2 surface):
+
+- `BUCKET_NAME = "wakir-capability-policies"` — the new 7th bucket
+  on Kai's `PHASE_1_BUCKETS` inventory (Z-B paired-update pending).
+- `BUCKET_CONFIG` — the mirror constant for the orchestrator-side
+  `BucketSpec`: `history=5`, `ttl_seconds=0`,
+  `max_value_size=16_384`, `storage="file"`, `replicas=1`,
+  `description="Wirelang capability-policy persistent registry
+  (Phase-2)"`. Drift-policy is identical to the Sprint-3 Tag-1
+  schema-registry-backend: any cluster-side deviation surfaces as
+  drift and is never auto-corrected.
+- `VALUE_SCHEMA = "wakir.wirelang.capability-policy-entry/1"` — the
+  schema-URI fragment embedded in every value envelope.
+- `CapabilityPolicyRecord` — a frozen dataclass wrapping a Sprint-4
+  Tag-6 `CapabilityPolicy` plus operator-side bookkeeping
+  (`policy_id`, `registered_at`, `registered_by_publisher`).
+- `NatsKvCapabilityPolicyBackend` — the async backend: `get`,
+  `get_by_pair`, `put`, `delete`, `list_keys`, `snapshot`,
+  `snapshot_registry`.
+- `key_for_policy_pair(registered_by, policy_id)` and
+  `pair_for_key(key)` — the bijective identity-pair-to-KV-key
+  derivation (kebab-case ASCII components; no slashes; permitted
+  regex on each axis).
+- `CapabilityPolicyBackendError` / `CapabilityPolicyEnvelopeError`
+  / `CapabilityPolicyValidationError` — the structural failure
+  classes (mirroring the schema-registry-backend `SchemaRegistry*`
+  hierarchy).
+
+#### Bucket identity
+
+The bucket is keyed by `(registered_by, policy_id)` collapsed into
+`capability-policies/<registered_by>/<policy_id>`. The
+`registered_by` axis matches the Sprint-4 Tag-6 `CapabilityPolicy`
+field byte-equal (i.e. the same value that the schema-registry-entry
+carries in its own `registered_by` field). The `policy_id` axis is
+operator-supplied free-form (kebab-case ASCII, non-empty, no
+slashes) and lets one issuer carry multiple independent policies
+(per-kid-rotation, per-layer-split, ...). The schema-registry-side
+analogue is the `(layer, name, version)` triple
+(`schemas/<layer>/<name>/<version>`); the persistent-policy side
+uses a 2-tuple because policies are issuer-bound, not
+triple-bound — the triple-set lives inside the policy's
+`allowed_triples` field.
+
+#### Value envelope
+
+The on-the-wire envelope is JSON with sorted keys and compact
+separators. Required fields:
+
+| Field                       | Type            | Notes                                      |
+|-----------------------------|-----------------|--------------------------------------------|
+| `schema`                    | string          | `"wakir.wirelang.capability-policy-entry/1"` exact |
+| `registered_by`             | string          | non-empty; matches policy bundle           |
+| `policy_id`                 | string          | non-empty, kebab-case ASCII                |
+| `allowed_kids`              | array<string>   | non-empty                                  |
+| `allowed_triples`           | array<[str,str]>| non-empty; each element a 2-tuple          |
+| `not_before`                | string or null  | RFC-3339 UTC                               |
+| `not_after`                 | string or null  | RFC-3339 UTC                               |
+| `disabled`                  | boolean         | strict boolean (not a string)              |
+| `note`                      | string or null  | free-form audit string                     |
+| `registered_at`             | string          | RFC-3339 UTC                               |
+| `registered_by_publisher`   | string          | non-empty; operator audit                  |
+
+Note: `allowed_triples` is a JSON array of 2-element JSON arrays
+(`[[layer, name_glob], ...]`), NOT an object map. This mirrors the
+Python tuple structure of `CapabilityPolicy.allowed_triples` exactly
+and is byte-stable across encoder runs.
+
+#### Validation gates at write
+
+`NatsKvCapabilityPolicyBackend.put` enforces at write time:
+
+1. The record's embedded `CapabilityPolicy` bundle has already
+   passed `CapabilityPolicy.__post_init__` (Sprint-4 Tag-6
+   invariants: non-empty `registered_by`, non-empty `allowed_kids`,
+   non-empty `allowed_triples`, valid validity window, ...). The
+   record's `__post_init__` re-asserts the embedded-policy class
+   and the operator-side bookkeeping (kebab-case `policy_id`,
+   tz-aware `registered_at`, non-empty
+   `registered_by_publisher`).
+2. The KV key derived from
+   `(record.policy.registered_by, record.policy_id)` matches the
+   explicit key (defence in depth against mis-keying).
+
+A malformed record raises `CapabilityPolicyValidationError` /
+`RegisteredByCapabilityError` before any bucket I/O.
+
+#### Decoder / poisoned-envelope contract
+
+The envelope decoder round-trips through the Sprint-4 Tag-6
+`CapabilityPolicy` constructor so every Sprint-4 Tag-6 invariant is
+re-enforced at decode time. Malformed envelopes surface as
+`CapabilityPolicyEnvelopeError` (the persistent layer wraps the
+Sprint-4 Tag-6 `RegisteredByCapabilityError` so consumers can catch
+on the persistence boundary). A poisoned (non-JSON, wrong schema,
+missing field, malformed `allowed_triples` shape, non-boolean
+`disabled`, ...) value raises
+`CapabilityPolicyEnvelopeError` from `get` and aborts `snapshot` /
+`snapshot_registry`; no half-broken registry is surfaced.
+
+#### Snapshot semantics
+
+`snapshot` returns a sorted-by-key list of `CapabilityPolicyRecord`
+instances. Determinism contract: two back-to-back snapshots over the
+same bucket state yield byte-equal records and byte-equal
+sorted-key lists (Sprint-3 Tag-1 determinism analogue).
+
+`snapshot_registry` is the convenience surface for verifier
+materialisation: it iterates the snapshot and feeds each
+`record.policy` into a fresh `CapabilityPolicyRegistry` via
+`add_policy`. The Sprint-4 Tag-6 gate
+(`check_registered_by_capability`) consumes the resulting registry
+byte-identical to the in-process path — the only difference is the
+registry's origin (NATS-KV-backed vs. operator-supplied at
+construction).
+
+Disabled policies are included in the materialised registry; the
+gate evaluates them (Sprint-4 Tag-6 semantics: a disabled policy
+contributes a fallback `POLICY_DISABLED` decision-source when no
+allowing match was found). Operators evict a policy from the gate
+entirely by calling `delete` and re-snapshotting.
+
+#### Phase-2 Sprint-5 Tag-2 boundary
+
+- This module ships the persistent-distribution tier. It does NOT
+  replace the Sprint-4 Tag-6 in-process registry: operators who
+  prefer the Sprint-5 Tag-1 `--capability-registry` JSON-file path
+  continue to use that path. Both coexist:
+  - JSON-file path: "policies you ship with your CLI invocation".
+  - NATS-KV path: "policies you publish once for the cluster to
+    discover".
+- This module does NOT bake operator-side biometric / hardware key
+  attestation into the policy envelope. Policy entries are
+  trust-on-write: any publisher with write access to the bucket can
+  register a policy. Bucket-level access control (NATS server
+  authentication, account isolation) is the operator's
+  responsibility.
+- This module does NOT auto-distribute policies to publisher-side
+  in-process registries. Publishers materialise a registry from
+  `snapshot_registry` on startup (or on a periodic refresh
+  schedule); the live tail is reserved as a Phase-3 slot
+  (analogous to the schema-registry watch-stream, Sprint-3 Tag-4).
+  The Phase-2 Sprint-5 Tag-2 slot is full-snapshot only.
+- This module does NOT ship a CAS-pinned upsert path. Policies are
+  LWW under the assumption that policy authorship is
+  operator-driven and rate-limited; the CAS-pin path is reserved as
+  a Phase-3 slot (analogous to the schema-registry CAS-pin,
+  Sprint-3 Tag-3). Sprint-5 Tag-2 ships PUT (LWW) only.
+- This module does NOT modify the Sprint-5 Tag-1 publisher CLI. A
+  future `--capability-bucket` flag that reads policies from this
+  bucket is a Sprint-5 Tag-3+ candidate; Sprint-5 Tag-2 is the
+  substrate, not the CLI integration.
+- This module does NOT modify `NatsKvSchemaRegistry`. The
+  schema-registry backend (`wakir-schemas` bucket) is
+  byte-unchanged.
+
+#### Cross-Review-Zone-1 non-touched (all four Z-1-K-Sprint-4 points)
+
+- **Z-1-K-Sprint-4-1 (kid-Resolver-Shape):** Sprint-5 Tag-2 does
+  NOT import `kid_resolver`. The `allowed_kids` field on a
+  persistent policy carries kid strings byte-equal to the in-process
+  Sprint-4 Tag-6 bundle; resolver chain is upstream of the gate
+  call.
+- **Z-1-K-Sprint-4-2 (JCS-Resolver-Lock):** Sprint-5 Tag-2 does
+  NOT canonicalise anything beyond the policy-envelope's
+  sorted-keys JSON serialisation (which is not a JCS-anchored hash
+  — there is no on-the-wire digest of the policy envelope analogous
+  to `schema_body_sha256`). The Sprint-4 Tag-1 entry-signing path
+  and its JCS canonicalisation are byte-unchanged.
+- **Z-1-K-Sprint-4-3 (Curve-Choice = Ed25519):** Sprint-5 Tag-2 is
+  curve-agnostic. The persistent policy carries `allowed_kids`
+  strings without a curve-axis; the Sprint-4 Tag-3 kid-resolver and
+  Sprint-4 Tag-1 entry-signing primitives remain the curve-binding
+  layer.
+- **Z-1-K-Sprint-4-4 (STRICT-Mode-Activation-Owner):** Sprint-5
+  Tag-2 is orthogonal to `VerifyMode`. The persistent-policy layer
+  ships persistence, not signature verification.
+
+#### Cross-Review-Zone-B paired-update (Kai-side action)
+
+Sprint-5 Tag-2 IS a Zone-B trigger. The orchestrator-side
+`PHASE_1_BUCKETS` inventory currently lists 6 slots
+(post-Sprint-4 Tag-5):
+
+| Slot | Name                              | Status                                    |
+|------|-----------------------------------|-------------------------------------------|
+| 0    | `wakir-schemas`                   | Live (Sprint-3 Tag-1 consumer)            |
+| 1    | `wakir-aip-cache`                 | Live (AIP resolver)                       |
+| 2    | `wakir-ftd-cache`                 | Live (FTD resolver)                       |
+| 3    | `wakir-ftd-poisoned`              | Live (FTD poison-marker)                  |
+| 4    | `wakir-schema-registry-entries`   | Phase-2 reservation (Sprint-4 Tag-4)      |
+| 5    | `wakir-federation-routes`         | Live (V-908 consumer)                     |
+
+Sprint-5 Tag-2 requests a 7th slot (`wakir-capability-policies`)
+via the paired-update memo to the DevOps track
+(`agents-workspaces/kai/inbox/2026-05-11-reza-z-b-seventh-bucket-capability-policies-paired-update.md`).
+The Wirelang-side `BUCKET_CONFIG` is the byte-anchor; the
+orchestrator-side `BucketSpec` will mirror it byte-precisely on
+`history` / `ttl_seconds` / `max_value_size` / `storage` /
+`replicas` on Kai-side acceptance (Sprint-5 Tag-3+ Kai-side slot).
+The Wirelang-side consumer is byte-functional once the bucket is
+materialised on the live cluster (operator-hand
+`nats kv add wakir-capability-policies ...` or routine init-script
+backfill — whichever the operator's chosen path).
+
+#### Composition pattern (capability-policy lifecycle)
+
+```python
+# 1. Author publishes a policy to the bucket (one-time per
+#    issuer / per policy-id):
+from datetime import datetime, timezone
+from wirelang.schemas.registered_by_capability import CapabilityPolicy
+from wirelang.schemas.capability_policy_nats_kv_backend import (
+    NatsKvCapabilityPolicyBackend,
+    CapabilityPolicyRecord,
+)
+
+policy = CapabilityPolicy(
+    registered_by="wirelang-eng",
+    allowed_kids=("biscuit-root-1",),
+    allowed_triples=(("wire", "layer-1-*"),),
+    note="Tier-1 ingress signing policy",
+)
+record = CapabilityPolicyRecord(
+    policy=policy,
+    policy_id="tier-1-ingress",
+    registered_at=datetime.now(timezone.utc),
+    registered_by_publisher="wirelang-eng",
+)
+
+backend = NatsKvCapabilityPolicyBackend(kv=open_kv_handle)
+await backend.put(record)
+
+# 2. Verifier-side publisher (or gate consumer) materialises the
+#    registry on startup or on a refresh schedule:
+from wirelang.schemas.registered_by_capability import (
+    check_registered_by_capability,
+)
+
+registry = await backend.snapshot_registry()
+decision = check_registered_by_capability(
+    entry, signature_block, registry, as_of=datetime.now(timezone.utc),
+)
+if not decision.allowed:
+    raise RuntimeError(decision.reason)
+```
+
+The lifecycle is **two-process by design**: policy authorship and
+schema-registry publication can run on different hosts. The
+persistent bucket is the synchronisation point.
 
 ## 6. Test inventory
 
@@ -3779,6 +4071,86 @@ Tag-6 capability-gating inventory (T-RBC-01..12) remain unchanged
 and green; the Sprint-5 Tag-1 tests are additive and exercise a
 parallel test module.
 
+### 6.11 Capability-policy persistent distribution tests (Phase-2 Sprint-5 Tag-2, additive over Sprint-5 Tag-1)
+
+Sprint-5 Tag-2 ships hermetic tests at
+`wirelang/tests/test_capability_policy_nats_kv_backend.py`. The
+inventory mirrors the Sprint-3 Tag-1
+`test_schema_registry_nats_kv_backend.py` structure (T-CPP-01..10 +
+auxiliary probes):
+
+- **T-CPP-01:** `put` round-trips a `CapabilityPolicyRecord` through
+  `get`; the embedded `CapabilityPolicy` field equality is asserted
+  byte-precisely; `get_by_pair(registered_by, policy_id)` returns the
+  same record (convenience helper).
+- **T-CPP-02:** `get` on an unknown key returns `None`;
+  `get_by_pair` on an absent pair returns `None`.
+- **T-CPP-03:** `put` is last-write-wins for the same
+  `(registered_by, policy_id)` pair; the second put's
+  `allowed_kids`, `allowed_triples`, and `note` overwrite the first;
+  the mock revision counter advances to `2`.
+- **T-CPP-04:** `delete` removes the record; subsequent `get`
+  returns `None`; subsequent `delete` is a no-op (tombstoned;
+  idempotent).
+- **T-CPP-05:** `snapshot` materialises a sorted-by-key list of
+  records (3 records across 2 issuers in the fixture);
+  `snapshot_registry` materialises a `CapabilityPolicyRegistry`
+  with the right `list_issuers()` set and the right
+  `policies_for(issuer)` cardinalities (the
+  multi-policy-per-issuer case is exercised explicitly).
+- **T-CPP-06:** a poisoned (non-JSON) value raises
+  `CapabilityPolicyEnvelopeError` from `get` and aborts `snapshot`;
+  the determinism contract requires complete, self-consistent
+  snapshots.
+- **T-CPP-07:** a value with the wrong `schema` field is rejected
+  with `CapabilityPolicyEnvelopeError` whose message mentions
+  `schema mismatch`.
+- **T-CPP-08:** bucket-config constants are byte-stable
+  (drift-protection at the test layer): `BUCKET_NAME`,
+  `BUCKET_CONFIG[name]`, `BUCKET_CONFIG[history]=5`,
+  `BUCKET_CONFIG[ttl_seconds]=0`,
+  `BUCKET_CONFIG[max_value_size]=16_384`,
+  `BUCKET_CONFIG[storage]="file"`, `BUCKET_CONFIG[replicas]=1`,
+  `VALUE_SCHEMA`, plus the `Phase-2` substring in the description.
+- **T-CPP-09:** a multi-policy-per-issuer bucket (two policies for
+  `wirelang-eng`, one with `(wire, layer-1-*)`, one with
+  `(identity, *)`) round-trips through `snapshot_registry` into a
+  registry where the Sprint-4 Tag-6 gate
+  (`check_registered_by_capability`) allows both triple sets
+  (`POLICY_MATCH` source) and denies a federation-side triple with
+  `TRIPLE_NOT_ALLOWED`. This is the end-to-end persistence ↔
+  gate-evaluation byte-anchor.
+- **T-CPP-10:** two back-to-back `snapshot` calls over the same
+  bucket state yield byte-equal sorted-key lists and byte-equal
+  envelope blobs per record (`_record_to_envelope` produces stable
+  bytes).
+- **`TestAuxKeyDerivation`** (auxiliary probes):
+  `key_for_policy_pair` ↔ `pair_for_key` round-trip across four
+  representative issuer / policy_id shapes; empty components
+  rejected; slashes in components rejected; invalid characters
+  (spaces) rejected; malformed keys (wrong prefix, too few
+  components, too many components) rejected; non-string inputs
+  rejected.
+- **`TestAuxEnvelopeShape`** (auxiliary probes): missing required
+  field rejected (`allowed_kids`); `allowed_triples` shape errors
+  (object instead of array, 3-element inner array, ...) rejected;
+  `disabled` must be a strict boolean (string `"false"` rejected);
+  empty `allowed_kids` rejected via the Sprint-4 Tag-6
+  `CapabilityPolicy` constructor's invariants (wrapped through to
+  `CapabilityPolicyEnvelopeError`); `CapabilityPolicyRecord`
+  rejects a naive (tz-unaware) `registered_at` at construction.
+
+**Suite-level effect (post-Sprint-5 Tag-2):** the wirelang test
+suite grows from **780 passed** (post-Sprint-5 Tag-1) to
+**804 passed, 1 skipped, 7 subtests passed** (+24 net through the
+T-CPP-01..10 family and the two auxiliary classes). The Sprint-3
+Tag-1 schema-registry-backend inventory (T-SR-01..10 + 2 aux), the
+Sprint-4 Tag-6 capability-gating inventory (T-RBC-01..12), and the
+Sprint-5 Tag-1 publisher-CLI-capability-integration inventory
+(T-SR-PUB-CG-01..10 + aux) all remain unchanged and green; the
+Sprint-5 Tag-2 tests are additive and exercise a parallel test
+module.
+
 ## 7. Cross-references and Open-Items
 
 - V-908 backend pattern source:
@@ -3890,9 +4262,20 @@ parallel test module.
 - Phase-2 Biscuit binary token encode/decode + Datalog evaluation:
   reserved (Phase-3 slot; the Sprint-4 Tag-6 gate is the in-process
   policy-bundle prelude).
-- Phase-2 capability-policy distribution (persisted NATS-KV
+- ~~Phase-2 capability-policy distribution (persisted NATS-KV
   bucket `wakir-capability-policies` or analogous): reserved
-  (Phase-3 slot; the Sprint-4 Tag-6 registry is in-process only).
+  (Phase-3 slot; the Sprint-4 Tag-6 registry is in-process only).~~
+  (**CONSUMED in Sprint-5 Tag-2** by
+  `wirelang.schemas.capability_policy_nats_kv_backend`; see §5.14.
+  The Sprint-5 Tag-2 module ships the persistent-distribution tier
+  for capability policies on the `wakir-capability-policies` bucket;
+  the Sprint-4 Tag-6 in-process `CapabilityPolicyRegistry` remains
+  the gate-evaluation surface and is materialised from the bucket
+  via `NatsKvCapabilityPolicyBackend.snapshot_registry`. CAS-pinned
+  upserts (LWW-only in Sprint-5 Tag-2; Phase-3 slot), watch-stream
+  tail (full-snapshot only in Sprint-5 Tag-2; Phase-3 slot), and
+  publisher-CLI `--capability-bucket` integration (Sprint-5 Tag-3+
+  candidate) remain follow-up slots.)
 - ~~Phase-2 publisher-CLI integration of the Sprint-4 Tag-6 gate:
   reserved (`wakir-schema-registry publish` flag that runs
   `gate_signed_entry` between `sign_entry` and `put`).~~
@@ -4372,6 +4755,81 @@ itself is still Phase-2.
   bump is warranted by the new §5.13 operational contract and
   §6.10 test inventory; no breaking-change to any consumer.
 
+**Sprint-5 Tag-2 (v0.12.0) is additive relative to Sprint-5 Tag-1 (v0.11.0):**
+
+- A new module `wirelang.schemas.capability_policy_nats_kv_backend`
+  is introduced. The Sprint-5 Tag-1 module
+  `wirelang.schemas.publisher_cli` is byte-unchanged; the Sprint-4
+  Tag-6 module `wirelang.schemas.registered_by_capability` is
+  byte-unchanged; the Sprint-4 Tag-1 module
+  `wirelang.schemas.entry_signing` is byte-unchanged; the Sprint-3
+  Tag-1 / Tag-3 / Tag-4 / Tag-5 / Tag-6 modules
+  (`registry_nats_kv_backend.py`, `publisher_cli.py`,
+  `replication.py`) are byte-unchanged.
+- A new dedicated NATS-KV bucket `wakir-capability-policies` is
+  introduced on the operator-side cluster substrate. The existing
+  six Phase-1 / Phase-2 buckets (`wakir-schemas`,
+  `wakir-aip-cache`, `wakir-ftd-cache`, `wakir-ftd-poisoned`,
+  `wakir-schema-registry-entries`, `wakir-federation-routes`) are
+  byte-unchanged. The new bucket is the 7th slot on Kai's
+  `PHASE_1_BUCKETS` inventory pending the Z-B paired-update
+  (Sprint-5 Tag-3+ Kai-side slot).
+- A new on-the-wire envelope schema URI
+  `wakir.wirelang.capability-policy-entry/1` is introduced on the
+  new bucket. The existing schema-registry envelope
+  (`wakir.wirelang.schema-registry-entry/1`) on `wakir-schemas`
+  remains byte-unchanged; no breaking-change to any pre-existing
+  envelope; no change to any pre-existing bucket.
+- M-2 conformance preserved: the new envelope is on a new bucket;
+  no existing envelope field, type, or shape is altered.
+  M-4 conformance preserved: the new module is on the same
+  semver axis as the spec; orthogonal to envelope-schema versioning
+  (the envelope is itself at `/1`, this is a new envelope-schema
+  axis distinct from `schema-registry-entry/1`).
+- Cross-Review-Zone-1 non-touched: the four Z-1-K-Sprint-4
+  consensus points are byte-identical (the persistence layer is
+  curve-agnostic at the `allowed_kids` axis, JCS-free at the
+  policy-envelope axis — no on-the-wire digest of the policy
+  envelope analogous to `schema_body_sha256`; kid-resolver-
+  independent — the resolver runs upstream of the gate;
+  orthogonal to `VerifyMode` — the persistence layer ships
+  persistence, not verification).
+- Cross-Review-Zone-B **TRIGGERED**: the orchestrator-side
+  `PHASE_1_BUCKETS` inventory gains a 7th slot. The Wirelang-side
+  `BUCKET_CONFIG` constant is the byte-anchor; the orchestrator-
+  side `BucketSpec` will mirror it byte-precisely on Kai-side
+  acceptance. The paired-update memo
+  (`agents-workspaces/kai/inbox/2026-05-11-reza-z-b-seventh-bucket-capability-policies-paired-update.md`)
+  lists the byte-precise mirror contract. The Wirelang-side
+  consumer is byte-functional once the bucket is materialised on
+  the live cluster.
+- The Sprint-4 Tag-6 in-process `CapabilityPolicyRegistry` remains
+  the canonical evaluation surface. Sprint-5 Tag-2 ships the
+  source-of-truth substrate that materialises it via
+  `NatsKvCapabilityPolicyBackend.snapshot_registry`. The Sprint-4
+  Tag-6 `check_registered_by_capability` function is byte-unchanged
+  and consumes a `CapabilityPolicyRegistry` byte-identical whether
+  the registry was assembled in-process from operator-supplied
+  JSON (Sprint-5 Tag-1 path) or materialised from the persistent
+  bucket (Sprint-5 Tag-2 path).
+- The Sprint-5 Tag-1 publisher-CLI `--capability-registry` flag is
+  byte-unchanged: it still reads operator-local JSON. A future
+  `--capability-bucket` flag that reads policies from the
+  Sprint-5 Tag-2 bucket is a Sprint-5 Tag-3+ candidate; Sprint-5
+  Tag-2 is the substrate, not the CLI integration.
+- The Sprint-5 Tag-2 backend ships PUT (LWW) only. A CAS-pin tier
+  (`put_with_revision`) is reserved as a Phase-3 slot mirroring
+  the Sprint-3 Tag-3 schema-registry CAS-pin pattern.
+- The Sprint-5 Tag-2 backend ships full-snapshot only. A
+  watch-stream tail (`watch()` / `WatchEvent` /
+  `LiveCapabilityPolicySnapshot`) is reserved as a Phase-3 slot
+  mirroring the Sprint-3 Tag-4 schema-registry watch-stream
+  pattern.
+- Spec semver bump 0.11.0 → 0.12.0 reflects the additive minor
+  change (M-2 §3.2 versioning policy: minor for additive). The
+  bump is warranted by the new §5.14 operational contract and
+  §6.11 test inventory; no breaking-change to any consumer.
+
 ## 9. Brand-Guide §9 sweep
 
 This document has been swept against the Wakir Brand-Guide §9
@@ -4459,5 +4917,34 @@ and the canonical operator examples (`wirelang-eng`, `biscuit-root-1`)
 are role-strings consistent with prior tag conventions. No
 external-tool clear-name leakage and no internal-persona-clear-name
 leakage in the Tag-1 (Sprint-5) spec body additions.
+
+The Sprint-5 Tag-2 additions (§5.14, §6.11, change-log v0.12.0
+entry, §5.12 boundary persistent-capability-policy-distribution
+item CONSUMED, §5.13 boundary persistent-capability-policy-
+distribution item CONSUMED, §7 Phase-3-Reservation persistent
+capability-policy-distribution slot CONSUMED, §8 compatibility
+statement update for v0.11.0 → v0.12.0) have been swept identically
+— only role-strings (none in this spec body), module-path references
+(`wirelang.schemas.capability_policy_nats_kv_backend`,
+`wirelang.schemas.registered_by_capability`,
+`wirelang.schemas.registry_nats_kv_backend`,
+`wirelang.schemas.publisher_cli`, `wirelang.schemas.entry_signing`),
+`wakir.*` URIs (`wakir-capability-policies` new bucket name,
+`wakir.wirelang.capability-policy-entry/1` new envelope schema,
+`wakir-schemas`, `wakir-aip-cache`, `wakir-ftd-cache`,
+`wakir-ftd-poisoned`, `wakir-schema-registry-entries`,
+`wakir-federation-routes` carried unchanged from prior tags), and
+IETF/RFC references (RFC 3339 timestamps, RFC 8259 JSON, RFC 8785
+JCS — though the persistent policy envelope is NOT a JCS-anchored
+digest at the policy-envelope axis). The persistent-bucket key
+prefix (`capability-policies/`), the policy-pair format
+(`capability-policies/<registered_by>/<policy_id>`), the canonical
+operator role-strings (`wirelang-eng`, `biscuit-root-1`,
+`federation-eng`, `biscuit-fed-1`), and the canonical policy_id
+strings (`default`, `tier-1-ingress`, `wire-scope`,
+`identity-scope`, `alpha`, `beta`, `gamma`) are role-strings /
+operator-side identifiers consistent with prior tag conventions.
+No external-tool clear-name leakage and no internal-persona-clear-name
+leakage in the Tag-2 (Sprint-5) spec body additions.
 
 — End of spec —
