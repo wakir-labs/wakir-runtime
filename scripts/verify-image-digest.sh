@@ -307,8 +307,16 @@ if [[ "${WITH_COSIGN}" -eq 1 ]]; then
   # confirm the upstream-specific verification recipe before relying
   # on the result.
   log "cosign-verify: ${TAG_PART}@sha256:${DIGEST_PART}"
-  COSIGN_OUT_RAW="$(cosign verify "${TAG_PART}@sha256:${DIGEST_PART}" 2>&1 || true)"
+  # Capture stdout+stderr without losing the exit code. The previous
+  # ``2>&1 || true`` form swallowed cosign's exit status into the
+  # ``|| true`` fallback so ``$?`` was always 0 (Sprint-6 Tag-4
+  # mock-cosign-test discovery; verify-image-digest.sh Tag-3 surface
+  # never actually wired the failure branch). Disable ``-e`` for the
+  # invocation so a non-zero cosign exit lands in COSIGN_EXIT cleanly.
+  set +e
+  COSIGN_OUT_RAW="$(cosign verify "${TAG_PART}@sha256:${DIGEST_PART}" 2>&1)"
   COSIGN_EXIT=$?
+  set -e
   if [[ ${COSIGN_EXIT} -eq 0 ]]; then
     COSIGN_STATUS="ok"
     log "cosign verify reports OK"

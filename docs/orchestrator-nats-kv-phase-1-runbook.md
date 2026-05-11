@@ -2763,3 +2763,57 @@ Z-B scope.
   touchpoint). The WAT-Core-track-side fix-decision for OI-9
   itself does cross into WAT-Core when it lands, but that is a
   separate delivery on a separate track.
+
+- Authoring date (Phase-2 Sprint-6 Tag-4 update): `date -u`
+  2026-05-11T~21:35Z (lokal CEST ~23:35), worktree
+  `/tmp/kai-sprint-6-tag-4-cosign-sign-runtime` (ADR-0049-konform,
+  forked from Sprint-6 Tag-3 tip `dddcac2`), branch
+  `kai/phase-2-sprint-6-tag-4-cosign-sign-skizze`. Substance:
+  Cosign + Synadia-Sign-Activation skizze (Tag-3 follow-item 6
+  NIEDRIG-but-substantial closeout) and Test-Counts-Convention
+  formalization (Tag-3 follow-item 5 MITTEL closeout).
+  New artefacts:
+  - `docs/cosign-synadia-sign-activation-skizze.md`: production-path
+    documentation for cosign-signing of Wakir-built container images
+    (Path A) and NATS NKey operator/account-signing (Path B); both
+    paths are operator-hand on the build-host per the
+    Sandbox-Host-Trennung directive; the skizze documents the
+    production-step sequence plus a hermetic mock-verification
+    harness for the script-side `--with-cosign` codepath.
+  - `tests/orchestrator/test_verify_image_digest_cosign_mock.py`:
+    six new hermetic tests covering the four
+    `verify-image-digest.sh --with-cosign` scenarios (mock-pass,
+    mock-fail, binary-missing, tag-only-form-gate) plus two
+    mock-harness self-checks. The Mock-cosign-binary pattern PATH-
+    shims a tiny shell script in `tmp_path / "bin" / "cosign"` so
+    the codepath is exercised without the real cosign binary,
+    without network, and without container engine.
+  - `docs/test-counts-convention.md`: convention document pinning
+    "no-PATH-prepend" as the acceptance-reference test-count form
+    for every wakir-runtime outbox `## Test-Progression` stamp,
+    with a wrapper script that enforces the convention from
+    arbitrary caller shell state.
+  - `scripts/run-tests-acceptance-baseline.sh`: PATH-strip wrapper
+    around `$VENV/bin/python -m pytest` that drops any
+    `*/.venv/bin` entry from PATH so the convention holds
+    regardless of caller source-activation state.
+  Bug-fix in existing surface: `scripts/verify-image-digest.sh`
+  L310-311 had a latent bug where the cosign-verify exit code was
+  swallowed by `|| true`, making the failure branch unreachable.
+  Tag-4 corrects with `set +e ... set -e` bracketing around the
+  command-substitution; the change preserves the script's
+  documented contract (exit 1 on cosign-verify-failure) which
+  Tomas-side acked in Sprint-4 Tag-3 Zone-C ack. Test-counts for
+  this Sprint-6 Tag-4 box (no-PATH-prepend, acceptance-reference
+  form per the new convention): orchestrator-suite **142 passed +
+  9 skipped** (+6 mock-cosign tests vs. Tag-3 baseline 136+9, all
+  +6 tests pass, zero new skips); project-wide **276 passed + 28
+  skipped** (+6 vs. Tag-3 baseline 270+28, zero new skips,
+  identical skip-count). Cross-Review-Status: Z-A / Z-B / Z-D
+  **non-touched**; Z-C **touched (bug-fix only, contract-
+  preserving)** — the `verify-image-digest.sh` script is a Zone-C
+  artefact, but the Tag-4 change is a behaviour-correcting bug-fix
+  that brings the script in line with its documented Sprint-4
+  Tag-3 contract (exit 1 on cosign-verify-failure), and the
+  hermetic mock-test surface confirms the corrected behaviour
+  end-to-end. Tomas-side notification via Sprint-6 Tag-4 outbox.
