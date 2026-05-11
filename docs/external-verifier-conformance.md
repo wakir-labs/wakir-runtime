@@ -5,7 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # External-Verifier Conformance Guide — wakir-wat-manifest-v1
 
-Status: Phase-2 Sprint-6 Tag-1 (2026-05-11).
+Status: Phase-2 Sprint-6 Tag-2 (2026-05-11).
 Schema: `wirelang/schemas/wakir-wat-manifest-v1.json`, `$id` pinned to
 `https://wakir.dev/wirelang/schema/wakir-wat-manifest-v1/0.2.0`.
 
@@ -195,19 +195,101 @@ These are not part of the schema-correctness conformance contract,
 but a verifier that lands on the floor without them is a
 schema-syntax validator, not a manifest verifier.
 
-## §7 — Change log
+## §7 — Real-cohort driver-mode (Sprint-6 Tag-2)
 
-| Schema version | Sprint            | Substance                                       |
-|----------------|-------------------|-------------------------------------------------|
-| 0.1.0          | Phase-1b Sprint-2 Tag-6 | Initial formal v1 schema-file                   |
-| 0.2.0          | Phase-2 Sprint-5 Tag-1  | Additive signature-slot (Ed25519)               |
-| 0.2.0          | Phase-2 Sprint-6 Tag-1  | Test-vector set 17→31; fastjsonschema 3rd pole; |
-|                |                   | schema-file `examples`; conformance guide      |
+The synthetic vector set in §3 pins schema-correctness. The
+**real-cohort driver-mode** pins the same schema *and* the rest of the
+verifier pipeline (integrity rebuild + OTS-anchor side-files + optional
+signature consumer) against actual Bitcoin-anchored production hour-
+receipts committed under `tests/fixtures/wat-tv2-real/` and
+`tests/fixtures/wat-tv3-real/`.
+
+### §7.1 — Schema-parity over the TV cohort
+
+```sh
+# TV-2 cohort: 4 hour-receipts, multi-hour chain (2026-05-27T00..T03)
+python scripts/external_verifier_validation.py --real-tv2
+
+# TV-3 cohort: 1 hour-receipt, single-hour close-out (2026-05-26T17)
+python scripts/external_verifier_validation.py --real-tv3
+```
+
+Each hour-receipt's `manifest.json` is wrapped as an accept-vector and
+fed through every configured schema validator (§1) plus the in-tree
+`verify_real_manifest_file` pipeline. Expected footer:
+
+```
+real-tv2 cross-tool parity OK (4 vectors, 3 validators: ...)
+verify_real_manifest_file pipeline OK (4 hour-receipts, all green)
+```
+
+### §7.2 — Signature-aware driver (`--verify-signature`)
+
+Sprint-6 Tag-2 adds `--verify-signature` to the `--real-tvN` driver.
+The production aggregator does not yet emit signed manifests
+(Sprint-5 Tag-5 open-item); the driver fills the gap by hand-signing
+in-memory deep-copies of every hour-receipt with a fresh ephemeral
+Ed25519 keypair, writing them to a tmp directory next to byte-for-byte
+copies of the `root.bin` + `root.bin.ots` side-files, then re-running
+the verifier pipeline against the staged signed cohort with
+`verify_signature=True`. The original repo fixtures are NOT mutated;
+the tmp directory is reaped at process exit.
+
+```sh
+# TV-2 cohort, signature gate exercised end-to-end.
+python scripts/external_verifier_validation.py --real-tv2 --verify-signature
+
+# Same plus VerifyMode.STRICT (rejects unsigned manifests — accepts
+# every hour here because the staged cohort is freshly signed).
+python scripts/external_verifier_validation.py --real-tv2 \
+    --verify-signature --verify-signature-strict
+```
+
+Expected footer additions:
+
+```
+verify_real_manifest_file (signed cohort) OK (4 hour-receipts, signature_status=['verified'])
+```
+
+Per-hour result dicts in the in-memory report carry the
+`signature_status` field on both the unsigned and signed paths (empty
+string on unsigned, one of `"verified" / "mismatch" / "unsigned-strict"
+/ "unsigned-permissive" / "structural-error"` on signed).
+
+### §7.3 — Driver-mode contract
+
+The `--real-tvN --verify-signature` driver-mode is the Brand-Demo TV-2
+external-verifier substrate: a third-party can verify our published
+hour-receipts with a single CLI invocation that exercises every gate
+(schema-file parity across three validators + integrity rebuild +
+OTS-anchor side-files + signature). When the production aggregator
+gains its own signing branch (Sprint-6+ follow-up), the driver becomes
+a no-op wrapper that just points at the on-disk signed manifests
+directly; the signature-gate code path is identical.
+
+Misuse guards:
+
+- `--verify-signature` without `--real-tv2` / `--real-tv3` exits with
+  rc=2 (synthetic vector mode does not stage signed copies).
+- `--verify-signature-strict` without `--verify-signature` exits with
+  rc=2 (flag composition).
+
+## §8 — Change log
+
+| Schema version | Sprint                  | Substance                                              |
+|----------------|-------------------------|--------------------------------------------------------|
+| 0.1.0          | Phase-1b Sprint-2 Tag-6 | Initial formal v1 schema-file                          |
+| 0.2.0          | Phase-2 Sprint-5 Tag-1  | Additive signature-slot (Ed25519)                      |
+| 0.2.0          | Phase-2 Sprint-6 Tag-1  | Test-vector set 17→31; fastjsonschema 3rd pole;        |
+|                |                         | schema-file `examples`; conformance guide              |
+| 0.2.0          | Phase-2 Sprint-6 Tag-2  | `--real-tvN --verify-signature` driver-mode;           |
+|                |                         | `stage_signed_cohort` helper; signature_status pin     |
 
 The 0.2.0 schema number remains pinned at 0.2.0 because the Sprint-6
 changes are additive to the schema-correctness substrate (more
-witnesses, more vectors), not to the schema's accept/reject contract.
-A wire-form-breaking change requires a $id bump to 0.3.0 and a
-parallel schema-file under the new version path.
+witnesses, more vectors, more verifier-pipeline coverage), not to the
+schema's accept/reject contract. A wire-form-breaking change requires
+a $id bump to 0.3.0 and a parallel schema-file under the new version
+path.
 
 — Tomás

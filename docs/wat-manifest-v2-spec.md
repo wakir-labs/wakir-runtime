@@ -629,6 +629,46 @@ is informative only.
 
 ## 11. Change log
 
+- **2026-05-11 (Phase-2 Sprint-6 Tag-2):** Real-cohort signature-aware
+  CLI driver-mode landed. `scripts/external_verifier_validation.py`
+  gains `--verify-signature` and `--verify-signature-strict` flags
+  composable with `--real-tv2` / `--real-tv3`. When the signature flag
+  is set the driver hand-signs in-memory deep-copies of every hour-
+  receipt in the cohort with a fresh ephemeral Ed25519 keypair (via the
+  new `stage_signed_cohort()` helper, recipe lifted from
+  `tests/wat/test_tv2_real_manifest_sig_verify.py::_stage_signed_hour`),
+  writes them to a tmp directory next to byte-for-byte copies of the
+  `root.bin` + `root.bin.ots` side-files, then runs
+  `verify_real_manifest_file(verify_signature=True, ...)` against the
+  staged signed cohort. The original repo fixtures are NOT mutated;
+  the tmp directory is reaped at process exit via
+  `tempfile.TemporaryDirectory` held by a module-level holder list for
+  lifetime safety across the CLI main(). The per-hour report dict
+  carries the `signature_status` field on both unsigned and signed
+  paths (empty string on unsigned; `"verified"` on the freshly-signed
+  cohort). The report tool label surfaces the gate-mode as
+  `wat.verify.manifest_v2.verify_real_manifest_file (sig:permissive)`
+  or `(sig:strict)` for honesty. Misuse guards: `--verify-signature`
+  without `--real-tvN` exits rc=2 with a stderr message;
+  `--verify-signature-strict` without `--verify-signature` exits rc=2.
+  Test cohort: new file `tests/wat/test_external_verifier_real_tv2_sig.py`
+  (9 tests) pins the unsigned-backward-compat path, the staging
+  helper, the all-green signed-cohort run, the strict-mode-on-signed
+  pass, the TV-3 single-hour symmetric run, both misuse-guard exits,
+  the tool-label honesty, and the per-result `signature_status` key.
+  Docs: `docs/external-verifier-conformance.md` §7 (Real-cohort
+  driver-mode) added, change-log row appended. Test-count delta:
+  361/24 → 370/24 (+9 passed; same skip count). This unblocks the
+  Sprint-5 Tag-5 open-item (b) "CLI `--real-tv2 --verify-signature`
+  driver-mode" — substrate substance for the Brand-Demo TV-2 external-
+  verifier card: a third-party can verify our published hour-receipts
+  end-to-end (schema-file parity × 3 + integrity + OTS-anchor +
+  signature) with a single CLI invocation. Schema-correctness contract
+  is unchanged at $id
+  `https://wakir.dev/wirelang/schema/wakir-wat-manifest-v1/0.2.0`
+  (no wire-form change; the driver-mode is a pure adoption-layer
+  addition).
+
 - **2026-05-11 (Phase-2 Sprint-6 Tag-1):** External-verifier
   conformance substrate broadened. Three substantive changes:
   (1) Test-vector set extended 17 → 31 (+4 accept, +10 reject) in

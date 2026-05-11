@@ -47,6 +47,10 @@ Usage:
   python scripts/external_verifier_validation.py --vectors path/to/file.json
   python scripts/external_verifier_validation.py --skip-fastjsonschema
   python scripts/external_verifier_validation.py --require-fastjsonschema
+  python scripts/external_verifier_validation.py --real-tv2
+  python scripts/external_verifier_validation.py --real-tv2 --verify-signature
+  python scripts/external_verifier_validation.py --real-tv2 --verify-signature --verify-signature-strict
+  python scripts/external_verifier_validation.py --real-tv3 --verify-signature
 """
 
 from __future__ import annotations
@@ -68,6 +72,15 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = REPO_ROOT / "wirelang" / "schemas" / "wakir-wat-manifest-v1.json"
 AJV_TOOL_DIR = REPO_ROOT / "tooling" / "external-verifier-ajv"
 DEFAULT_VECTORS = AJV_TOOL_DIR / "test-vectors.json"
+
+#: Module-level holder list keeping :class:`tempfile.TemporaryDirectory`
+#: handles alive across the duration of :func:`main`. Without this the
+#: staged-signed-cohort directory would be reaped before the verifier
+#: pipeline reads it (the TemporaryDirectory context manager would fire
+#: at the assignment site). This is the cheapest deterministic-lifetime
+#: pattern that survives a CLI entrypoint without a context-manager
+#: wrapper.
+_signed_tmp_holder: list[Any] = []
 
 #: Real-manifest fixture cohort used by ``--real-tv2``. Each entry is
 #: an hour-receipt directory carrying ``manifest.json`` + ``root.bin``
@@ -420,6 +433,67 @@ def load_tv3_real_vectors() -> list[dict]:
     return load_real_vectors_for(TV3_FIXTURE_ROOT, TV3_HOUR_SLOTS, "tv3")
 
 
+def stage_signed_cohort(
+    fixture_root: Path,
+    hour_slots: tuple[str, ...],
+    *,
+    out_root: Path,
+    kid: str = "kid-real-tv-driver",
+) -> tuple[Path, bytes, bytes]:
+    """Stage signed deep-copies of every hour-slot manifest under ``out_root``.
+
+    The production aggregator (``wat/cmd/aggregator_cli.py`` v1) does
+    NOT emit signed manifests today (Sprint-5 Tag-5 open-item). To run
+    the full ``verify_real_manifest_file(verify_signature=True, ...)``
+    path against the on-disk TV-2 cohort the driver hand-signs in-
+    memory deep-copies of each manifest and writes them to a temporary
+    directory next to byte-for-byte copies of the ``root.bin`` /
+    ``root.bin.ots`` side-files. The repository fixtures are NOT
+    mutated.
+
+    Pattern lifted from
+    ``tests/wat/test_tv2_real_manifest_sig_verify.py::_stage_signed_hour``;
+    the test and the driver share this code path through this helper
+    (Sprint-6 Tag-2 deduplication: the driver was assembled from the
+    same recipe the test had already validated).
+
+    Returns ``(staged_cohort_root, private_seed_bytes, public_key_bytes)``
+    so callers can pass the public key into the verifier and (in
+    negative-path drivers) the private seed back for additional
+    manipulations.
+    """
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    from wat.identity.manifest_signing import SIGNATURE_FIELD, sign_manifest
+
+    priv = Ed25519PrivateKey.generate()
+    private_seed = priv.private_bytes_raw()
+    public_key = priv.public_key().public_bytes_raw()
+
+    for slot in hour_slots:
+        src_dir = fixture_root / slot
+        dst_dir = out_root / slot
+        dst_dir.mkdir(parents=True, exist_ok=True)
+
+        with (src_dir / "manifest.json").open("r", encoding="utf-8") as fh:
+            manifest = json.load(fh)
+        signed = sign_manifest(manifest, private_seed, kid=kid)
+        signed_manifest = dict(signed.manifest)
+        signed_manifest[SIGNATURE_FIELD] = signed.signature
+
+        (dst_dir / "manifest.json").write_text(
+            json.dumps(signed_manifest, sort_keys=True, separators=(",", ":")),
+            encoding="utf-8",
+        )
+        # Byte-for-byte side-file copy so the OTS-anchor check passes
+        # against the same root.bin bytes the original receipt anchored.
+        (dst_dir / "root.bin").write_bytes((src_dir / "root.bin").read_bytes())
+        (dst_dir / "root.bin.ots").write_bytes(
+            (src_dir / "root.bin.ots").read_bytes()
+        )
+    return out_root, private_seed, public_key
+
+
 def run_real_manifest_pipeline_for(
     fixture_root: Path,
     hour_slots: tuple[str, ...],
@@ -427,28 +501,52 @@ def run_real_manifest_pipeline_for(
     *,
     check_ots_anchor: bool = True,
     use_schema_file: bool = True,
+    verify_signature: bool = False,
+    verify_signature_public_key: bytes | None = None,
+    verify_signature_strict: bool = False,
 ) -> dict:
     """Generic ``verify_real_manifest_file`` runner over a cohort.
 
     Returns a report dict in the same shape as the schema-side reports
     so the entry-point can render parity output uniformly.
+
+    When ``verify_signature=True`` the caller is responsible for staging
+    a signed copy of the cohort (see :func:`stage_signed_cohort`) and
+    pointing ``fixture_root`` at that staged copy. The signature-status
+    of each hour is included in the per-result dict under
+    ``signature_status``.
     """
-    from wat.verify.manifest_v2 import verify_real_manifest_file
+    from wat.verify.manifest_v2 import VerifyMode, verify_real_manifest_file
+
+    tool_label = "wat.verify.manifest_v2.verify_real_manifest_file"
+    if verify_signature:
+        # Surface the signature-mode in the tool label so the rendered
+        # report is unambiguous about which gate ran.
+        mode_label = "strict" if verify_signature_strict else "permissive"
+        tool_label = f"{tool_label} (sig:{mode_label})"
 
     report = {
-        "tool": "wat.verify.manifest_v2.verify_real_manifest_file",
+        "tool": tool_label,
         "schema_id": None,
         "total": len(hour_slots),
         "matched": 0,
         "mismatched": 0,
         "results": [],
     }
+    sig_mode = (
+        VerifyMode.STRICT
+        if verify_signature_strict
+        else VerifyMode.PERMISSIVE
+    )
     for slot in hour_slots:
         manifest_path = fixture_root / slot / "manifest.json"
         result = verify_real_manifest_file(
             manifest_path,
             check_ots_anchor=check_ots_anchor,
             use_schema_file=use_schema_file,
+            verify_signature=verify_signature,
+            verify_signature_public_key=verify_signature_public_key,
+            verify_signature_mode=sig_mode,
         )
         verdict = "accept" if result.ok else "reject"
         matched = result.ok  # expect-accept on production hour-receipts
@@ -465,6 +563,7 @@ def run_real_manifest_pipeline_for(
                 "fields_ok": result.fields_ok,
                 "integrity_ok": result.integrity_ok,
                 "ots_anchor_ok": result.ots_anchor.ok,
+                "signature_status": result.signature_status,
                 "failure_reason": result.failure_reason,
                 "version": result.version,
             }
@@ -554,6 +653,43 @@ def main(argv: list[str] | None = None) -> int:
             "the single hour-receipt must accept on every configured side"
         ),
     )
+    parser.add_argument(
+        "--verify-signature",
+        action="store_true",
+        help=(
+            "In --real-tv2 / --real-tv3 mode, ALSO run the "
+            "verify_real_manifest_file pipeline with verify_signature=True "
+            "against a tmp-dir signed copy of the cohort. The production "
+            "aggregator does not emit signed manifests today (Sprint-5 "
+            "Tag-5 open-item), so this driver hand-signs in-memory deep-"
+            "copies of every hour-receipt with a fresh ephemeral Ed25519 "
+            "keypair, writes the signed manifests to a tmp directory "
+            "next to byte-for-byte copies of root.bin + root.bin.ots, "
+            "and runs verify_real_manifest_file against the signed copy. "
+            "Each hour-receipt's signature_status is reported alongside "
+            "the existing fields/integrity/ots-anchor gates. The "
+            "schema-file parity validators (python-jsonschema, ajv, "
+            "fastjsonschema) consume the ORIGINAL unsigned cohort because "
+            "the signature slot is additive and the schema-file path "
+            "accepts both shapes -- the parity contract is preserved. "
+            "Sprint-6 Tag-2 wire-up; unblocks the Sprint-5 Tag-5 "
+            "real-manifest signature driver-mode follow-up."
+        ),
+    )
+    parser.add_argument(
+        "--verify-signature-strict",
+        action="store_true",
+        help=(
+            "When --verify-signature is set, run the signature pipeline "
+            "in VerifyMode.STRICT (reject unsigned manifests). Default "
+            "(without this flag) is VerifyMode.PERMISSIVE. In normal "
+            "--real-tvN --verify-signature usage the cohort has been "
+            "freshly hand-signed by stage_signed_cohort(), so strict and "
+            "permissive both accept; the flag exists for symmetry with "
+            "the wakir-verify-manifest-v2 CLI and to make follow-up "
+            "negative-path drivers explicit."
+        ),
+    )
     args = parser.parse_args(argv)
 
     if args.python_only and args.node_only:
@@ -564,6 +700,21 @@ def main(argv: list[str] | None = None) -> int:
         print(
             "--real-tv2 and --real-tv3 are mutually exclusive "
             "(re-run the script per cohort)",
+            file=sys.stderr,
+        )
+        return 2
+
+    if args.verify_signature and not (args.real_tv2 or args.real_tv3):
+        print(
+            "--verify-signature requires --real-tv2 or --real-tv3 "
+            "(synthetic vector mode does not yet stage signed copies)",
+            file=sys.stderr,
+        )
+        return 2
+
+    if args.verify_signature_strict and not args.verify_signature:
+        print(
+            "--verify-signature-strict requires --verify-signature",
             file=sys.stderr,
         )
         return 2
@@ -655,6 +806,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
 
     real_pipeline_report: dict[str, Any] | None = None
+    signed_pipeline_report: dict[str, Any] | None = None
     if cohort_tag is not None:
         assert cohort_fixture_root is not None
         assert cohort_hour_slots is not None
@@ -665,6 +817,35 @@ def main(argv: list[str] | None = None) -> int:
             check_ots_anchor=True,
             use_schema_file=True,
         )
+
+        if args.verify_signature:
+            # Stage hand-signed deep-copies of the cohort to a tmp
+            # directory, then run the verifier pipeline a second time
+            # with verify_signature=True against the staged copy. The
+            # tmp dir is cleaned up at process exit via TemporaryDirectory.
+            import tempfile as _tempfile
+
+            sig_tmp = _tempfile.TemporaryDirectory(
+                prefix=f"{cohort_tag}-real-signed-cohort-"
+            )
+            # Hold the handle for the duration of main() so the tmp
+            # directory survives until after the verifier run.
+            _signed_tmp_holder.append(sig_tmp)
+            staged_root, _priv, pub_key = stage_signed_cohort(
+                cohort_fixture_root,
+                cohort_hour_slots,
+                out_root=Path(sig_tmp.name),
+            )
+            signed_pipeline_report = run_real_manifest_pipeline_for(
+                staged_root,
+                cohort_hour_slots,
+                cohort_tag,
+                check_ots_anchor=True,
+                use_schema_file=True,
+                verify_signature=True,
+                verify_signature_public_key=pub_key,
+                verify_signature_strict=args.verify_signature_strict,
+            )
 
     # Render
     if not args.quiet:
@@ -684,6 +865,11 @@ def main(argv: list[str] | None = None) -> int:
             _render_report(
                 "wat.verify.manifest_v2.verify_real_manifest_file",
                 real_pipeline_report,
+            )
+        if signed_pipeline_report is not None:
+            _render_report(
+                "wat.verify.manifest_v2.verify_real_manifest_file (signed cohort)",
+                signed_pipeline_report,
             )
 
     # Verdict
@@ -755,6 +941,39 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 f"verify_real_manifest_file pipeline OK "
                 f"({real_pipeline_report['total']} hour-receipts, all green)"
+            )
+
+    if signed_pipeline_report is not None:
+        if signed_pipeline_report["mismatched"] > 0:
+            fail = True
+            print(
+                f"verify_real_manifest_file (signed cohort): "
+                f"{signed_pipeline_report['mismatched']} of "
+                f"{signed_pipeline_report['total']} hour-receipts failed",
+                file=sys.stderr,
+            )
+            for r in signed_pipeline_report["results"]:
+                if not r["matched"]:
+                    print(
+                        f"  {r['name']}: fields={r['fields_ok']} "
+                        f"integrity={r['integrity_ok']} "
+                        f"ots={r['ots_anchor_ok']} "
+                        f"sig={r['signature_status']!r} "
+                        f"reason={r['failure_reason']!r}",
+                        file=sys.stderr,
+                    )
+        else:
+            # Every hour-receipt's signature_status should be "verified"
+            # (the cohort was freshly hand-signed with the matching key).
+            # Surface the per-hour sig-status so the operator sees the
+            # gate result, not just an aggregate OK.
+            sig_statuses = sorted(
+                {r["signature_status"] for r in signed_pipeline_report["results"]}
+            )
+            print(
+                f"verify_real_manifest_file (signed cohort) OK "
+                f"({signed_pipeline_report['total']} hour-receipts, "
+                f"signature_status={sig_statuses})"
             )
 
     return 1 if fail else 0
