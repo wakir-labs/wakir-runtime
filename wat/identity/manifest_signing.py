@@ -142,8 +142,28 @@ _ED25519_KEY_LEN: int = 32
 # share the canonical signing payload (everything-except-signature);
 # the slot is additive on both. v3+ would need an explicit additive
 # allowlist entry here -- intentional.
+#
+# Two version conventions co-exist in the repo:
+#
+# - ``wat-manifest/1.0`` / ``wat-manifest/2.0``: the synthetic
+#   verifier-stub fixtures and the v2-spec JSON-Schema enum (see
+#   ``schemas/wat-manifest/v2/schema.json``).
+# - ``wakir-wat-manifest/v1`` / ``wakir-wat-manifest/v2``: the real
+#   on-disk wire-form emitted by ``wat/cmd/aggregator_cli.py``
+#   (Production output; see ``_REAL_VERSION_V1`` /
+#   ``_REAL_VERSION_V2`` in ``wat/verify/manifest_v2.py``).
+#
+# Both are signable because the canonical signing payload is
+# version-agnostic (JCS over everything-except-signature). The list
+# stays explicit so that adding v3 of either convention requires a
+# deliberate code edit (no implicit forward-compatibility).
 _SIGNABLE_VERSIONS: frozenset[str] = frozenset(
-    {"wat-manifest/1.0", "wat-manifest/2.0"}
+    {
+        "wat-manifest/1.0",
+        "wat-manifest/2.0",
+        "wakir-wat-manifest/v1",
+        "wakir-wat-manifest/v2",
+    }
 )
 
 

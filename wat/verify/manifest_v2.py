@@ -1809,6 +1809,13 @@ class RealManifestResult:
     Sister type to :class:`ManifestV2Result`; carries the same
     schema/integrity flags plus an :class:`OtsAnchorCheck` for the
     OTS-pin-anchor side-files.
+
+    ``signature_status`` (Sprint-5 Tag-5, additive) mirrors the slot
+    in :class:`ManifestV2Result`: empty string when the signature
+    check is OFF (legacy/default backward-compat), one of the six
+    pinned values otherwise (``verified`` /
+    ``unsigned-permissive`` / ``unsigned-strict`` / ``mismatch`` /
+    ``structural-error``). See ``_verify_signature_slot``.
     """
 
     manifest_path: str
@@ -1817,11 +1824,18 @@ class RealManifestResult:
     integrity_ok: bool
     multi_cap_root_status: str = ""
     ots_anchor: OtsAnchorCheck = dataclasses.field(default_factory=OtsAnchorCheck)
+    signature_status: str = ""
     failure_reason: str = ""
 
     @property
     def ok(self) -> bool:
-        return self.fields_ok and self.integrity_ok and self.ots_anchor.ok
+        sig_ok = self.signature_status in ("", "verified", "unsigned-permissive")
+        return (
+            self.fields_ok
+            and self.integrity_ok
+            and self.ots_anchor.ok
+            and sig_ok
+        )
 
 
 def verify_real_manifest_file(
@@ -1832,6 +1846,9 @@ def verify_real_manifest_file(
     use_schema_file: bool = False,
     real_schema_path: str | Path | None = None,
     ots_full_verify: bool = False,
+    verify_signature: bool = False,
+    verify_signature_public_key: Optional[bytes] = None,
+    verify_signature_mode: "VerifyMode" = VerifyMode.PERMISSIVE,
 ) -> RealManifestResult:
     """Verify a real on-disk manifest file (v1 or v2 wire-form).
 
@@ -1885,6 +1902,28 @@ def verify_real_manifest_file(
         the ``WAKIR_OTS_FULL_VERIFY=1`` env var both flip this on.
         See ``docs/wat-manifest-v2-spec.md`` §11 (Sprint-3 Tag-4
         entry).
+    verify_signature:
+        When True (off-default since Sprint-5 Tag-5), additionally
+        consume the optional ``signature`` slot on the real
+        manifest. Today the Production-aggregator does not emit
+        signed manifests; this opt-in path exists for hand-signed
+        real-manifest fixtures and the future signing-aggregator
+        branch. Phase-ordering: ``signature`` is the LAST gate
+        (after fields, integrity, multi-cap-root, and OTS anchor),
+        mirroring :func:`verify_manifest_v2_file`. When False, the
+        ``signature`` slot is ignored and ``signature_status`` is
+        left empty (backward-compat for all pre-Tag-5 callers).
+    verify_signature_public_key:
+        32-byte raw Ed25519 public key used to verify the
+        ``signature`` slot. Required when ``verify_signature=True``
+        AND the manifest carries a ``signature`` slot. Ignored
+        when ``verify_signature=False``. See
+        ``docs/wat-manifest-v2-spec.md`` §5.3.
+    verify_signature_mode:
+        :class:`VerifyMode` policy. ``PERMISSIVE`` (default)
+        accepts unsigned real-manifests as
+        ``signature_status="unsigned-permissive"``; ``STRICT``
+        rejects them as ``"unsigned-strict"`` with ``ok=False``.
     """
     path = Path(manifest_path)
     if not path.exists():
@@ -2021,6 +2060,31 @@ def verify_real_manifest_file(
                 failure_reason=ots.failure_reason,
             )
 
+    # Sprint-5 Tag-5: optional signature check (opt-in, default OFF
+    # for backward-compat — pre-Tag-5 callers see signature_status="").
+    # The real-aggregator (``wat/cmd/aggregator_cli.py``) does NOT
+    # emit signed manifests today; the wire-up exists so that hand-
+    # signed real-manifest fixtures (and the future signing aggregator
+    # branch) can be verified end-to-end through the same pipeline.
+    signature_status = ""
+    if verify_signature:
+        signature_status, sig_failure = _verify_signature_slot(
+            manifest,
+            public_key=verify_signature_public_key,
+            mode=verify_signature_mode,
+        )
+        if sig_failure:
+            return RealManifestResult(
+                manifest_path=str(path),
+                version=version,
+                fields_ok=True,
+                integrity_ok=True,
+                multi_cap_root_status=multi_cap_status,
+                ots_anchor=ots,
+                signature_status=signature_status,
+                failure_reason=f"signature: {sig_failure}",
+            )
+
     return RealManifestResult(
         manifest_path=str(path),
         version=version,
@@ -2028,6 +2092,7 @@ def verify_real_manifest_file(
         integrity_ok=True,
         multi_cap_root_status=multi_cap_status,
         ots_anchor=ots,
+        signature_status=signature_status,
         failure_reason="",
     )
 

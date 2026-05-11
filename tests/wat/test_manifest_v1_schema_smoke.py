@@ -147,9 +147,12 @@ def test_schema_id_pinned(schema: dict) -> None:
     """``$id`` matches the wakir.dev pattern at the pinned version.
 
     Convention: schema $id bumps when the on-wire shape changes.
+    0.1.0 -> 0.2.0 on Sprint-5 Tag-5 with the additive optional
+    ``signature`` top-level slot (byte-for-byte mirror of the
+    wat-manifest-v2 schema 0.2.0 signature slot landed in Tag-1).
     """
     assert schema["$id"] == (
-        "https://wakir.dev/wirelang/schema/wakir-wat-manifest-v1/0.1.0"
+        "https://wakir.dev/wirelang/schema/wakir-wat-manifest-v1/0.2.0"
     )
 
 

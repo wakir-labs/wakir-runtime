@@ -323,12 +323,31 @@ yet wired into the verifier — callers supply the raw public key
 directly. Resolver wire-up is a Tag-3+ item gated on the
 Cross-Review-Zone-1 boundary with Identity-Substrate-engineering.
 
-The `--real-manifest` path does NOT yet honour
-`--verify-signature`: real-aggregator output
-(`wakir-wat-manifest/v1`) does not currently emit a signed
-envelope, and adding the wire-up to the real-manifest path is a
-follow-up item once the aggregator learns to sign on-disk
-manifests.
+The `--real-manifest` path **does** honour the signature kwargs
+since Phase-2 Sprint-5 Tag-5: `verify_real_manifest_file` accepts
+the same three kwargs (`verify_signature`,
+`verify_signature_public_key`, `verify_signature_mode`) and
+`RealManifestResult` carries the same `signature_status` field
+with the same six pinned values. Phase-ordering is the same
+(signature is the LAST gate, after fields, integrity,
+multi-cap-root, and OTS-anchor). The wire-up is OFF by default,
+so every pre-Tag-5 caller of `verify_real_manifest_file` sees
+identical behaviour and `signature_status` left empty.
+
+The schema-file `wakir-wat-manifest-v1.json` was bumped
+`0.1.0 → 0.2.0` on Sprint-5 Tag-5 to add the optional `signature`
+top-level slot byte-for-byte identical to the v2-schema 0.2.0 slot
+(§4.4). Stock TV-2 real-manifest fixtures stay unsigned (the
+Production aggregator does not emit signed envelopes today); the
+Tag-5 hermetic tests hand-sign deep-copies in `tmp_path` and feed
+them through the full `verify_real_manifest_file` pipeline. When
+the signing-aggregator branch lands in Phase-2+, the verifier
+already accepts its output without further change. The CLI driver
+`scripts/external_verifier_validation.py --real-tv2` does NOT yet
+expose `--verify-signature`: the cohort is unsigned, so there is
+no signed real-manifest to drive — the driver-side wire-up is a
+Sprint-6+ follow-up gated on the signing-aggregator branch
+landing.
 
 ## 6. Aggregator behaviour (informational)
 
@@ -609,6 +628,48 @@ authoritative for semantic and behavioural rules (§3 trigger,
 is informative only.
 
 ## 11. Change log
+
+- **2026-05-11 (Phase-2 Sprint-5 Tag-5):** Real-manifest signature
+  verification wired against TV-2 cohort. The Sprint-5 Tag-2
+  `_verify_signature_slot` helper is now consumed by the
+  real-manifest path: `verify_real_manifest_file` gains three
+  optional kwargs (`verify_signature`, `verify_signature_public_key`,
+  `verify_signature_mode`) and a `signature_status` field on
+  `RealManifestResult` with the same six pinned values used by the
+  v2 path (`""` = OFF, `verified`, `unsigned-permissive`,
+  `unsigned-strict`, `mismatch`, `structural-error`). Default is OFF
+  (`verify_signature=False`), so every pre-Tag-5 caller sees
+  identical behaviour. Phase-ordering mirrors the v2 path: signature
+  is the LAST gate (fields → integrity → multi-cap-root → OTS-anchor
+  → signature) — tamper on `merkle_root` post-signing surfaces as
+  `integrity_ok=False` before the signature check runs, which is
+  asserted by `test_tv2_tampered_merkle_root_surfaces_before_signature_gate`.
+  Two enabling code-edits landed:
+  (1) `wat.identity.manifest_signing._SIGNABLE_VERSIONS` extended
+  with the real-wire-form strings `wakir-wat-manifest/v1` and
+  `wakir-wat-manifest/v2`. The two version conventions
+  (`wat-manifest/1.0` synthetic vs `wakir-wat-manifest/v1` real)
+  now both sign deterministically through the same JCS-canonical
+  pre-image. (2) Schema-file `wakir-wat-manifest-v1.json` bumped
+  `0.1.0 -> 0.2.0` with an additive optional top-level `signature`
+  slot byte-for-byte identical to the v2-schema 0.2.0 slot landed
+  in Tag-1. Test cohort: 13 new hermetic tests in
+  `test_tv2_real_manifest_sig_verify.py` exercising all four TV-2
+  hour-receipts through hand-signed deep-copies in `tmp_path` (the
+  repo fixture stays unsigned; the Production aggregator output is
+  unchanged). The signing-aggregator branch when it lands will see
+  the verifier accept its output without further change. Test-count
+  delta: 340/27 → 353/27 (+13 passed, 0 broken, 0 newly skipped).
+  Open items not closed by Tag-5: (a) Production-aggregator-side
+  signing (`wat/aggregator.py` does not emit signed envelopes
+  today; this remains a Phase-2+ aggregator-migration item).
+  (b) CLI `--real-tv2 --verify-signature` driver mode for
+  `scripts/external_verifier_validation.py` — same Production-
+  aggregator-output gap applies (no signed real-manifest to drive),
+  so the driver-side wire-up is a follow-up Sprint-6+ item once the
+  signing-aggregator branch lands. (c) `as_audit_trail_entry`
+  signature branch — Sprint-5 Tag-3 left this as a Cross-Review
+  follow-up with frontend-engineering; unchanged by Tag-5.
 
 - **2026-05-11 (Phase-2 Sprint-5 Tag-3):** Two Cross-Review items left
   open by Tag-2 closed.

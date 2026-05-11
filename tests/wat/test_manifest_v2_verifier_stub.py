@@ -1318,7 +1318,9 @@ def test_real_manifest_schema_file_default_path_resolves() -> None:
     )
     with DEFAULT_REAL_SCHEMA_PATH.open("r", encoding="utf-8") as fh:
         schema = json.load(fh)
-    assert schema["$id"].endswith("/wakir-wat-manifest-v1/0.1.0")
+    # Schema $id bumped 0.1.0 -> 0.2.0 on Sprint-5 Tag-5 (additive
+    # optional `signature` top-level slot).
+    assert schema["$id"].endswith("/wakir-wat-manifest-v1/0.2.0")
     assert "wakir-wat-manifest/v1" in schema["properties"]["version"]["enum"]
     assert "wakir-wat-manifest/v2" in schema["properties"]["version"]["enum"]
     assert set(schema["required"]) == {
