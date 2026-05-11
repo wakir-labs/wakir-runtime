@@ -554,8 +554,9 @@ distinct from the manifest-centric `--output json` schema above —
 this format is for the audit-trail-browser timeline, that one is
 for single-file verifier-result snapshots.
 
-Pinned eleven keys, additive-only across `schema_version`
-`wakir-verify-manifest-v2/0`:
+Pinned twelve keys, additive-only across `schema_version`
+`wakir-verify-manifest-v2/0` (eleven → twelve bumped in
+Phase-2 Sprint-5 Tag-3; `signature_status` added additively):
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -570,10 +571,11 @@ Pinned eleven keys, additive-only across `schema_version`
 | `branches` | list | Exactly one entry: `{label: "manifest-validity", verdict: "verified" \| "rejected" \| "pending", detail: <human string>}`. `verified` is the strict-mode default for clean v2 manifests since Sprint-2 Tag-4 (OQ-1 ratified). `pending` is emitted only under explicit `--no-strict-multi-cap-root` lenient mode (escape hatch for downstream verifiers that have not yet adopted the locked ordering). |
 | `ok` | bool | Mirror of `--output json` `ok`. Allows short-circuit without parsing `branches`. |
 | `failure_reason` | string | `"<phase>: <message>"` on failure, empty on success. Mirrors `--output json`. |
+| `signature_status` | string enum: `"" \| "verified" \| "unsigned-permissive" \| "unsigned-strict" \| "mismatch" \| "structural-error"` | Phase-2 Sprint-5 Tag-3 additive key. Mirrors `--output json` `signature_status`. Empty string when signature verification was NOT requested by the caller — frontends MUST treat empty-string as "no signature verdict available" rather than "unsigned" (the unsigned states are explicit values, not empty). The `branches[]` field is unchanged — the signature phase does NOT add a branch entry; consumers that want to render the signature verdict read this top-level key directly. A future tag may add a second `branches[]` entry for the signature phase, gated on Cross-Review with frontend-engineering. |
 
 **Determinism guarantees:**
 
-- Key set is exactly the eleven keys above. No optional / conditional
+- Key set is exactly the twelve keys above. No optional / conditional
   keys appear. Missing data renders as empty string / `-1` / empty
   list — never as `null` or absent.
 - `json.dumps(..., sort_keys=True, ensure_ascii=False)` over the dict
@@ -608,6 +610,44 @@ is informative only.
 
 ## 11. Change log
 
+- **2026-05-11 (Phase-2 Sprint-5 Tag-3):** Two Cross-Review items left
+  open by Tag-2 closed.
+  (1) `as_audit_trail_entry()` paired-update contract bumped from
+  eleven to twelve pinned keys — `signature_status` added additively
+  within `schema_version=wakir-verify-manifest-v2/0` (no version
+  bump; additive-only evolution rule applies). Top-level field
+  mirrors `as_dict()['signature_status']` exactly so frontend
+  AuditTrailEntry consumers (Lena, Sprint-Frontend-1 Tag-3 paired-
+  update memo) can branch on a single field. The `branches[]` field
+  remains single (`manifest-validity`) — adding a second
+  `signature` branch is gated on a follow-up Cross-Review.
+  Empty-string semantics pinned: `""` = "no verdict requested"
+  (NOT "unsigned"); explicit `unsigned-permissive` /
+  `unsigned-strict` are the unsigned states.
+  (2) Kid-Resolver-Bridge wired into the verifier. New kwargs
+  `verify_signature_aip_doc` + `verify_signature_as_of` on
+  `verify_manifest_v2_file`; new CLI flag
+  `--verify-signature-aip-doc <PATH>`. When the caller supplies an
+  AIP document (instead of a raw key), the verifier resolves the
+  signature slot's `kid` via the WAT-side
+  `wat.identity.anchor_kid.resolve_wat_anchor_kid` (Sprint-4 Tag-5),
+  which in turn delegates to the canonical Identity-Substrate
+  resolver `wirelang.identity.kid_resolver` (Reza Sprint-4 Tag-3,
+  Z-1-Cross-Review-substance). Bridge uses `importlib` so the
+  verifier remains importable when either branch is unmerged; a
+  missing canonical resolver surfaces as
+  `signature_status="structural-error"` with a "cross-branch
+  merge gap" diagnostic. Caller-supplied
+  `verify_signature_public_key=<bytes>` always wins over the bridge
+  (precedence pinned in T-WAT-KID-RESOLVER-BRIDGE-03).
+  4 hermetic wire-up tests added
+  (`tests/wat/test_manifest_v2_audit_trail_kid_resolver.py`,
+  T-WAT-AT-SIG-01..02 audit-trail + T-WAT-KID-RESOLVER-BRIDGE-01..04;
+  2 of the 4 BRIDGE tests skip cleanly when the canonical resolver
+  branch is not merged — auto-active when it merges). Sibling cohort:
+  `_PINNED_AUDIT_TRAIL_ENTRY_KEYS` and the real-manifest bridge test's
+  inline 11-key set bumped in-place to 12 keys. Test suite 333 → 337
+  passed (+4 net), 28 → 30 skipped (+2 net, cross-branch-gated).
 - **2026-05-11 (Phase-2 Sprint-5 Tag-2):** Verifier signature-slot
   wire-up landed (`wat/verify/manifest_v2.py`). Adds the opt-in
   consumer for the optional `signature` slot landed in Tag-1 (schema

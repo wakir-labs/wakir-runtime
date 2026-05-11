@@ -156,6 +156,18 @@ from wat.identity.manifest_signing import (
 _VERIFY_SIGNATURE_ENV: str = "WAKIR_VERIFY_MANIFEST_SIGNATURE"
 
 
+#: WAT-side anchor-kid bridge module. Lives in
+#: :mod:`wat.identity.anchor_kid` (Sprint-4 Tag-5). The bridge delegates
+#: to the canonical Identity-Substrate kid-resolver
+#: (:mod:`wirelang.identity.kid_resolver`, Reza Sprint-4 Tag-3) via
+#: importlib. The Tag-3 wire-up here (the verifier path) imports the
+#: WAT-side bridge — NOT the canonical resolver directly — so that
+#: the cross-branch dependency stays exactly one hop wide and the
+#: WAT-domain error type (:class:`WatAnchorKidError`) surfaces all
+#: resolution failures.
+_WAT_ANCHOR_KID_MODULE: str = "wat.identity.anchor_kid"
+
+
 # ---------------------------------------------------------------------------
 # OTS anchor magic header
 # ---------------------------------------------------------------------------
@@ -391,10 +403,20 @@ class ManifestV2Result:
           ``branches``.
         - ``failure_reason`` — string, mirror of :meth:`as_dict`
           ``failure_reason``. Empty on success.
+        - ``signature_status`` — string, mirror of :meth:`as_dict`
+          ``signature_status``. One of ``"" | "verified" |
+          "unsigned-permissive" | "unsigned-strict" | "mismatch" |
+          "structural-error"``. Added in Phase-2 Sprint-5 Tag-3 as
+          the twelfth pinned key (additive within
+          ``wakir-verify-manifest-v2/0``; no schema-version bump per
+          the additive-only evolution rule below). Empty string when
+          signature verification was not requested by the caller —
+          frontends MUST treat empty-string as "no signature verdict
+          available" rather than "unsigned".
 
         Determinism guarantees:
 
-        - Key set is exactly the eleven keys above. No optional keys
+        - Key set is exactly the twelve keys above. No optional keys
           conditionally appear.
         - Field types are stable: every string is a Python ``str``,
           every list is a list, every int is an int. No ``None``
@@ -450,6 +472,7 @@ class ManifestV2Result:
             ],
             "ok": self.ok,
             "failure_reason": self.failure_reason,
+            "signature_status": self.signature_status,
         }
 
 
@@ -898,6 +921,124 @@ def _verify_signature_slot(
     )
 
 
+def _resolve_signature_pubkey_via_aip_doc(
+    manifest: dict,
+    aip_doc: Any,
+    *,
+    as_of: Optional[Any] = None,
+) -> Tuple[Optional[bytes], str]:
+    """Resolve the signature-block ``kid`` to an Ed25519 public key
+    against an AIP document.
+
+    Bridge to :mod:`wat.identity.anchor_kid` (Sprint-4 Tag-5), which in
+    turn delegates to :mod:`wirelang.identity.kid_resolver` (Reza
+    Sprint-4 Tag-3, Z-1-Cross-Review-substance). Uses importlib so the
+    verifier remains importable even when the WAT-anchor-kid bridge or
+    the canonical resolver branch has not merged to ``main`` — failure
+    surfaces as a ``("structural-error", <reason>)`` from the caller.
+
+    Returns ``(public_key, failure_message)`` where ``public_key`` is
+    the 32-byte raw Ed25519 public key on success, or ``None`` on
+    failure with ``failure_message`` carrying the diagnostic. The
+    caller (``verify_manifest_v2_file``) translates the failure into
+    ``signature_status="structural-error"``.
+
+    Args:
+        manifest: the manifest dict (must carry a ``signature`` slot
+            with a ``kid`` field — caller guarantees this; the bridge
+            does NOT re-implement the slot-shape check).
+        aip_doc: an AIP document mapping. Same shape contract as
+            :func:`wat.identity.anchor_kid.resolve_wat_anchor_kid` and
+            :func:`wirelang.identity.kid_resolver.resolve_kid`.
+        as_of: optional point-in-time for validity-window checks.
+            Forwarded to the canonical resolver unchanged. ``None``
+            disables the window check (resolver-side default).
+
+    Bridge boundary (Z-1-Cross-Review):
+
+    - The slot-shape check (``kid`` non-empty string, ``alg=Ed25519``,
+      ``signature`` 128-hex-chars) is owned by
+      :func:`wat.identity.manifest_signing._validate_signature_block_shape`.
+    - The AIP-document shape check (``public_keys`` array,
+      per-entry mapping, duplicate-kid policy) is owned by
+      :func:`wirelang.identity.kid_resolver.resolve_kid`.
+    - The WAT-domain ``purpose="wat-anchor"`` filter is owned by
+      :func:`wat.identity.anchor_kid.resolve_wat_anchor_kid`.
+    - The verifier here (Tag-3 wire-up) only orchestrates the call
+      and converts errors to the ``signature_status`` enum.
+    """
+    if not isinstance(manifest, dict):
+        return (None, "manifest is not a dict (bridge expected dict)")
+    sig_block = manifest.get(SIGNATURE_FIELD)
+    if not isinstance(sig_block, dict):
+        return (
+            None,
+            "signature slot missing or malformed (bridge expected dict)",
+        )
+    kid = sig_block.get("kid")
+    if not isinstance(kid, str) or kid == "":
+        return (
+            None,
+            f"signature.kid must be a non-empty string for kid-resolver "
+            f"bridge; got {kid!r}",
+        )
+
+    import importlib
+
+    try:
+        anchor_kid_mod = importlib.import_module(_WAT_ANCHOR_KID_MODULE)
+    except ImportError as exc:
+        return (
+            None,
+            f"WAT anchor-kid bridge not available: "
+            f"{_WAT_ANCHOR_KID_MODULE} is not importable ({exc}). "
+            f"Pass verify_signature_public_key=<bytes> directly to "
+            f"skip the bridge.",
+        )
+
+    # Probe the canonical resolver upstream of the bridge so the
+    # diagnostic names the missing module rather than echoing
+    # WatAnchorKidError's generic 'cross-branch merge gap' message.
+    if hasattr(anchor_kid_mod, "is_kid_resolver_available"):
+        if not anchor_kid_mod.is_kid_resolver_available():
+            return (
+                None,
+                "canonical kid-resolver not available: "
+                "wirelang.identity.kid_resolver is not importable "
+                "(cross-branch merge gap; Identity-Substrate "
+                "Sprint-4 Tag-3 must merge before kid-resolver "
+                "bridge can run). Pass "
+                "verify_signature_public_key=<bytes> directly to "
+                "skip the bridge.",
+            )
+
+    WatAnchorKidRef = anchor_kid_mod.WatAnchorKidRef
+    WatAnchorKidError = anchor_kid_mod.WatAnchorKidError
+    resolve_wat_anchor_kid = anchor_kid_mod.resolve_wat_anchor_kid
+
+    try:
+        kid_ref = WatAnchorKidRef(kid=kid, as_of=as_of)
+        resolved = resolve_wat_anchor_kid(aip_doc, kid_ref)
+    except WatAnchorKidError as exc:
+        return (None, f"kid-resolver bridge rejected kid={kid!r}: {exc}")
+    except Exception as exc:  # noqa: BLE001 (bridge surface — keep narrow)
+        return (
+            None,
+            f"kid-resolver bridge raised unexpected error: "
+            f"{type(exc).__name__}: {exc}",
+        )
+
+    public_key = resolved.public_key
+    if not isinstance(public_key, (bytes, bytearray)) or len(public_key) != 32:
+        return (
+            None,
+            f"kid-resolver bridge returned unexpected public_key shape: "
+            f"type={type(public_key).__name__}, "
+            f"len={len(public_key) if hasattr(public_key, '__len__') else 'n/a'}",
+        )
+    return (bytes(public_key), "")
+
+
 def verify_manifest_v2_file(
     manifest_path: str | Path,
     *,
@@ -906,6 +1047,8 @@ def verify_manifest_v2_file(
     verify_signature: bool = False,
     verify_signature_public_key: Optional[bytes] = None,
     verify_signature_mode: "VerifyMode" = VerifyMode.PERMISSIVE,
+    verify_signature_aip_doc: Optional[Any] = None,
+    verify_signature_as_of: Optional[Any] = None,
 ) -> ManifestV2Result:
     """Verify a single WAT manifest file end-to-end.
 
@@ -953,6 +1096,29 @@ def verify_manifest_v2_file(
         ``signature_status="unsigned-strict"`` and flips ``integrity_ok
         = False``. The flag has no effect when ``verify_signature
         =False``.
+    verify_signature_aip_doc:
+        Phase-2 Sprint-5 Tag-3 wire-up. Optional AIP document mapping.
+        When supplied AND ``verify_signature=True`` AND
+        ``verify_signature_public_key=None`` AND the manifest carries a
+        ``signature`` slot, the verifier resolves the slot's ``kid``
+        field to a public key via the WAT anchor-kid bridge
+        (:mod:`wat.identity.anchor_kid`, Sprint-4 Tag-5) which in turn
+        delegates to the canonical Identity-Substrate kid-resolver
+        (:mod:`wirelang.identity.kid_resolver`, Reza Sprint-4 Tag-3,
+        Z-1-Cross-Review). Resolution failures (kid not found,
+        canonical resolver branch not merged, AIP-document malformed,
+        validity-window violation, wrong purpose) surface as
+        ``signature_status="structural-error"``. Caller-supplied
+        ``verify_signature_public_key`` always takes precedence over
+        the bridge — the bridge is the convenience path for callers
+        that hold an AIP-document but not a raw key.
+    verify_signature_as_of:
+        Optional point-in-time (``datetime``) for the kid-resolver's
+        validity-window check. Forwarded unchanged to
+        :func:`wat.identity.anchor_kid.resolve_wat_anchor_kid`.
+        ``None`` disables window enforcement (resolver-side default).
+        Has no effect when ``verify_signature_aip_doc`` is also
+        ``None``.
     """
     path = Path(manifest_path)
     if not path.exists():
@@ -1058,9 +1224,39 @@ def verify_manifest_v2_file(
     # only meaningful on a structurally consistent manifest.
     signature_status = ""
     if verify_signature:
+        # Sprint-5 Tag-3: Kid-Resolver-Bridge. When the caller has
+        # supplied an AIP document AND no direct public-key AND the
+        # manifest carries a signature slot, resolve the slot's kid
+        # via the WAT anchor-kid bridge -> canonical Identity-Substrate
+        # kid-resolver (Z-1-Cross-Review-substance). Caller-supplied
+        # raw pubkey always wins (the bridge is a convenience path).
+        effective_pubkey = verify_signature_public_key
+        if (
+            effective_pubkey is None
+            and verify_signature_aip_doc is not None
+            and isinstance(manifest, dict)
+            and SIGNATURE_FIELD in manifest
+        ):
+            resolved_key, resolve_msg = _resolve_signature_pubkey_via_aip_doc(
+                manifest,
+                verify_signature_aip_doc,
+                as_of=verify_signature_as_of,
+            )
+            if resolved_key is None:
+                return ManifestV2Result(
+                    manifest_path=str(path),
+                    version=version,
+                    schema_ok=True,
+                    integrity_ok=False,
+                    multi_cap_root_status=multi_cap_status,
+                    signature_status="structural-error",
+                    failure_reason=f"signature: kid-resolver bridge: {resolve_msg}",
+                )
+            effective_pubkey = resolved_key
+
         signature_status, sig_msg = _verify_signature_slot(
             manifest,
-            public_key=verify_signature_public_key,
+            public_key=effective_pubkey,
             mode=verify_signature_mode,
         )
         # Failure verdicts: mismatch, structural-error, unsigned-strict.
@@ -1987,6 +2183,24 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--verify-signature-aip-doc",
+        default=None,
+        help=(
+            "Path to a JSON file carrying an AIP document. When set "
+            "and --verify-signature is set and --verify-signature-"
+            "public-key-hex is NOT set, the verifier resolves the "
+            "signature slot's 'kid' field to an Ed25519 public key "
+            "via the WAT anchor-kid bridge "
+            "(wat.identity.anchor_kid, Phase-1b Sprint-4 Tag-5) "
+            "delegating to the canonical Identity-Substrate kid-"
+            "resolver (wirelang.identity.kid_resolver, Reza "
+            "Phase-2 Sprint-4 Tag-3, Z-1-Cross-Review). Resolution "
+            "failures surface as signature_status='structural-error'. "
+            "A caller-supplied --verify-signature-public-key-hex "
+            "always wins over the bridge."
+        ),
+    )
+    parser.add_argument(
         "--quiet",
         action="store_true",
         help="Suppress per-step reporting; emit only ok / fail line.",
@@ -2194,6 +2408,37 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         else VerifyMode.PERMISSIVE
     )
 
+    # Sprint-5 Tag-3: optional AIP-document load for the kid-resolver
+    # bridge. Caller-supplied raw pubkey wins; the AIP-document path is
+    # the convenience surface for callers that hold an AIP document but
+    # not a raw key. Load failures surface as exit 1 *before* the
+    # verifier runs — we cannot meaningfully proceed without the key
+    # the caller asked us to bridge to.
+    sig_aip_doc: Optional[Any] = None
+    if (
+        sig_opt_in
+        and args.verify_signature_aip_doc
+        and sig_public_key is None
+    ):
+        aip_path = Path(args.verify_signature_aip_doc)
+        try:
+            with aip_path.open("r", encoding="utf-8") as fh:
+                sig_aip_doc = json.load(fh)
+        except FileNotFoundError:
+            print(
+                "fail\tsignature: --verify-signature-aip-doc file not "
+                f"found: {aip_path}",
+                file=sys.stderr,
+            )
+            return 1
+        except json.JSONDecodeError as exc:
+            print(
+                "fail\tsignature: --verify-signature-aip-doc file is "
+                f"not valid JSON: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+
     result = verify_manifest_v2_file(
         args.manifest,
         schema_path=args.schema,
@@ -2201,6 +2446,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         verify_signature=sig_opt_in,
         verify_signature_public_key=sig_public_key,
         verify_signature_mode=sig_mode,
+        verify_signature_aip_doc=sig_aip_doc,
     )
     if args.output == "json":
         print(json.dumps(result.as_dict(), sort_keys=True))

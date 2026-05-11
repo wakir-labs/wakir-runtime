@@ -569,12 +569,20 @@ _PINNED_AUDIT_TRAIL_ENTRY_KEYS = frozenset(
         "branches",
         "ok",
         "failure_reason",
+        # Sprint-5 Tag-3 additive: signature_status (12th key, within
+        # wakir-verify-manifest-v2/0 — additive-only evolution rule).
+        "signature_status",
     }
 )
 
 
 def test_as_audit_trail_entry_returns_pinned_eleven_keys() -> None:
-    """The entry exposes exactly the documented eleven keys, always."""
+    """The entry exposes exactly the documented twelve keys, always.
+
+    Naming kept stable across the Sprint-5 Tag-3 11 -> 12 field bump
+    (renaming the test would touch CI logs / search indexes for no
+    contract gain).
+    """
     result = ManifestV2Result(
         manifest_path="/tmp/x.json",
         version="wat-manifest/2.0",
@@ -752,6 +760,7 @@ def test_as_audit_trail_entry_field_types_are_stable() -> None:
         "branches": list,
         "ok": bool,
         "failure_reason": str,
+        "signature_status": str,
     }
 
     for result in samples:
@@ -1260,20 +1269,10 @@ def test_real_manifest_audit_trail_entry_bridges_to_v2_shape(
     out = capsys.readouterr().out.strip()
     assert rc == 0
     payload = json.loads(out)
-    # Same eleven keys as the v2-spec audit-trail-entry contract.
-    assert set(payload.keys()) == {
-        "kind",
-        "schema_version",
-        "identity",
-        "manifest_version",
-        "manifest_path",
-        "hour_slot",
-        "event_count",
-        "anchor_root_hex",
-        "branches",
-        "ok",
-        "failure_reason",
-    }
+    # Same twelve keys as the v2-spec audit-trail-entry contract
+    # (bumped 11 -> 12 in Sprint-5 Tag-3, additive within
+    # wakir-verify-manifest-v2/0).
+    assert set(payload.keys()) == _PINNED_AUDIT_TRAIL_ENTRY_KEYS
     assert payload["kind"] == "wat-tv-pin-pack"
     assert payload["schema_version"] == "wakir-verify-manifest-v2/0"
     assert payload["manifest_version"] == "wakir-wat-manifest/v1"
