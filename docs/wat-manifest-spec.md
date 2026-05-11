@@ -264,6 +264,42 @@ Likely v2 additions (non-binding, for context):
 These are all additive; the v1 fields and their semantics will not
 be changed retroactively.
 
+## Production signing (Phase-2 Sprint-6 Tag-3)
+
+The aggregator emits an Ed25519 detached signature on the hour-
+manifest when both `--sign-key` and `--sign-kid` are supplied. The
+signature is written as an optional top-level `signature` slot on
+the same envelope; older v1 verifiers ignore the slot per the
+forward-compatibility rule, newer verifiers consume it via
+`wakir-verify --verify-signature ...`.
+
+The signature block shape is byte-identical to the AIP-document
+and schema-registry-entry signing conventions:
+
+```json
+"signature": {
+  "alg": "Ed25519",
+  "kid": "<kid-string, references AIP-document public_keys[].kid>",
+  "signature": "<128-char hex; 64-byte Ed25519 signature>"
+}
+```
+
+Canonical pre-image: SHA-256 of `rfc8785.dumps(manifest_without_signature)`.
+The slot is stripped from a deep copy before canonicalisation so
+the signature cannot be part of its own pre-image.
+
+The `--sign-key` argument is a path to a file containing the
+64-char hex-encoded 32-byte Ed25519 raw seed (trailing newline
+tolerated). The `--sign-kid` argument is a non-empty string that
+the operator binds to an AIP-document `public_keys[]` entry under
+the `wat-anchor` purpose; the kid is captured in the signature
+block for the verifier-side resolver path
+(`wat.identity.anchor_kid.resolve_wat_anchor_kid`).
+
+Both flags must be supplied together; partial configuration is
+rejected with exit code 2 so a half-edited cron does not silently
+emit unsigned manifests.
+
 ## Reference implementations
 
 - Writer: `wat.cmd.aggregator_cli` (`wakir-merkle build` subcommand).

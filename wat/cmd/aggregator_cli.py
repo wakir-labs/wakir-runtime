@@ -45,6 +45,13 @@ from wat.merkle.aggregator import (
     build_merkle_tree,
     compute_leaf_hash,
 )
+# wat.identity.manifest_signing is imported lazily inside
+# :func:`_sign_manifest_in_place` so the unsigned-aggregator path
+# (the dominant cron path on rollout) stays free of the rfc8785 /
+# cryptography import cost. The hourly subprocess driver in
+# ``scripts/wat-hourly.sh`` runs without the test venv on some
+# operator hosts; the lazy-import keeps that path importable when
+# only the merkle/aggregator stack is installed.
 
 
 # ---------------------------------------------------------------------------
@@ -293,6 +300,127 @@ def _build_empty_manifest(
     return manifest
 
 
+# ---------------------------------------------------------------------------
+# Aggregator-side signing (Phase-2 Sprint-6 Tag-3).
+#
+# The aggregator emits an Ed25519 detached signature on the hour-manifest
+# when both ``--sign-key`` and ``--sign-kid`` are supplied (or the
+# matching in-process ``sign_key`` / ``sign_kid`` arguments are passed
+# through :func:`build_command`). The signing primitive
+# (:func:`wat.identity.manifest_signing.sign_manifest`) is the same
+# byte-shaped routine the verifier consumes via
+# :func:`wat.verify.manifest_v2.verify_real_manifest_file` under
+# ``verify_signature=True``. Closing this loop means a production
+# manifest now ships with its signature slot embedded on disk; the
+# downstream verifier-side wire-up (Sprint-5 Tag-2 / Sprint-6 Tag-2)
+# accepts it end-to-end without further plumbing.
+#
+# Key-material handling is intentionally lightweight: the key file is a
+# 64-char hex string holding the 32-byte raw Ed25519 seed. PEM / PKCS#8
+# parsing is deferred to a later operator-tooling pass; the hex format
+# matches the conventions used by the test fixtures and the AIP-document
+# ``public_keys[].key_hex`` slot. A trailing newline is tolerated.
+# ---------------------------------------------------------------------------
+
+
+class _SigningConfigError(ValidationError):
+    """Raised when signing is mis-configured (e.g. partial flag pair)."""
+
+
+def _load_sign_key(path: str | Path) -> bytes:
+    """Load a 32-byte Ed25519 raw seed from ``path``.
+
+    Accepts a 64-char hex-encoded seed (matching the AIP-document
+    ``key_hex`` convention) with an optional trailing newline.
+    Operator-friendly errors: a missing file, a non-hex payload, and
+    a wrong-length payload each surface a distinct message so a cron
+    failure log points straight at the misconfiguration.
+    """
+    key_path = Path(path)
+    if not key_path.exists():
+        raise _SigningConfigError(f"signing key file not found: {key_path}")
+    raw = key_path.read_text(encoding="utf-8").strip()
+    try:
+        seed = bytes.fromhex(raw)
+    except ValueError as exc:
+        raise _SigningConfigError(
+            f"signing key file is not valid hex: {key_path}: {exc}"
+        ) from exc
+    if len(seed) != 32:
+        raise _SigningConfigError(
+            f"signing key must decode to 32 bytes; got {len(seed)} bytes "
+            f"from {key_path}"
+        )
+    return seed
+
+
+def _resolve_signing_config(
+    *,
+    sign_key: Optional[str | Path],
+    sign_kid: Optional[str],
+) -> Optional[tuple[bytes, str]]:
+    """Return ``(seed_bytes, kid)`` when signing is enabled, else ``None``.
+
+    Both ``sign_key`` and ``sign_kid`` must be supplied together. Partial
+    configuration (one set, the other absent) is a hard error so a
+    half-edited cron does not silently emit unsigned manifests while the
+    operator believes signing is on.
+    """
+    if sign_key is None and sign_kid is None:
+        return None
+    if sign_key is None or sign_kid is None:
+        raise _SigningConfigError(
+            "--sign-key and --sign-kid must be supplied together; got "
+            f"sign_key={sign_key!r}, sign_kid={sign_kid!r}"
+        )
+    if not isinstance(sign_kid, str) or sign_kid == "":
+        raise _SigningConfigError(
+            f"--sign-kid must be a non-empty string: got {sign_kid!r}"
+        )
+    seed = _load_sign_key(sign_key)
+    return seed, sign_kid
+
+
+def _sign_manifest_in_place(
+    manifest: dict[str, Any],
+    *,
+    seed: bytes,
+    kid: str,
+) -> dict[str, Any]:
+    """Return a new dict with the ``signature`` slot embedded.
+
+    The input manifest is not mutated. The signing primitive strips and
+    re-attaches the slot internally; we wrap that into the on-disk
+    envelope shape the verifier consumes (signed manifest dict with the
+    block under the top-level ``signature`` key).
+
+    Cryptographic errors surface as :class:`ValidationError` so the
+    aggregator main loop's existing handler reports them as a
+    operator-actionable error (exit code 2) rather than a stack trace.
+
+    The ``wat.identity.manifest_signing`` import is lazy here so the
+    unsigned-aggregator code path (operator host without rfc8785 /
+    cryptography in the active interpreter) keeps importing cleanly.
+    Only the signing path pays the import cost, and only on the hour
+    where signing is actually configured.
+    """
+    from wat.identity.manifest_signing import (  # noqa: PLC0415 — lazy by design
+        SIGNATURE_FIELD,
+        WatManifestSignatureError,
+        sign_manifest,
+    )
+
+    try:
+        signed = sign_manifest(manifest, seed, kid=kid)
+    except WatManifestSignatureError as exc:
+        raise _SigningConfigError(
+            f"manifest signing failed: {exc}"
+        ) from exc
+    out = dict(signed.manifest)
+    out[SIGNATURE_FIELD] = dict(signed.signature)
+    return out
+
+
 def _write_manifest(manifest: dict[str, Any], output_path: Path) -> None:
     """Serialise ``manifest`` to disk as pretty-printed UTF-8 JSON.
 
@@ -359,6 +487,26 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Optional 64-char hex Merkle root of the preceding hour. "
             "Reservation slot in v1; required in v2 for chain-check."
+        ),
+    )
+    p_build.add_argument(
+        "--sign-key",
+        default=None,
+        help=(
+            "Path to a file containing a 64-char hex-encoded 32-byte "
+            "Ed25519 raw seed used to sign the emitted manifest. Must "
+            "be paired with --sign-kid; signing is disabled when both "
+            "are omitted."
+        ),
+    )
+    p_build.add_argument(
+        "--sign-kid",
+        default=None,
+        help=(
+            "Key identifier embedded in the signature block. Must "
+            "match an AIP-document public_keys[].kid entry under the "
+            "'wat-anchor' purpose for the downstream resolver path. "
+            "Required when --sign-key is supplied."
         ),
     )
 
@@ -440,6 +588,8 @@ def build_command(
     input_events: str | Path,
     output_manifest: str | Path,
     prev_hour_root: Optional[str] = None,
+    sign_key: Optional[str | Path] = None,
+    sign_kid: Optional[str] = None,
 ) -> dict[str, Any]:
     """Execute the ``build`` subcommand and return the written manifest.
 
@@ -452,10 +602,19 @@ def build_command(
     is emitted into the manifest under the same field name; when
     omitted the field is absent (consensus marker A5: additive,
     v1-compatible).
+
+    ``sign_key`` + ``sign_kid`` enable production-side signing
+    (Sprint-6 Tag-3). When both are supplied, the manifest written to
+    disk carries the optional top-level ``signature`` slot populated
+    by :func:`wat.identity.manifest_signing.sign_manifest`. The
+    returned dict mirrors the on-disk shape. Partial configuration
+    (only one of the two) is a hard error.
     """
     input_path = Path(input_events)
     output_path = Path(output_manifest)
     build_time = _utc_now_rfc3339()
+
+    signing = _resolve_signing_config(sign_key=sign_key, sign_kid=sign_kid)
 
     raw_events = _read_events(input_path)
 
@@ -465,17 +624,20 @@ def build_command(
             build_time=build_time,
             prev_hour_root=prev_hour_root,
         )
-        _write_manifest(manifest, output_path)
-        return manifest
+    else:
+        validated = _validate_events(raw_events)
+        sorted_events = _sorted_by_time_then_event_id(validated)
+        manifest = _build_manifest_object(
+            hour_slot=hour,
+            events=sorted_events,
+            build_time=build_time,
+            prev_hour_root=prev_hour_root,
+        )
 
-    validated = _validate_events(raw_events)
-    sorted_events = _sorted_by_time_then_event_id(validated)
-    manifest = _build_manifest_object(
-        hour_slot=hour,
-        events=sorted_events,
-        build_time=build_time,
-        prev_hour_root=prev_hour_root,
-    )
+    if signing is not None:
+        seed, kid = signing
+        manifest = _sign_manifest_in_place(manifest, seed=seed, kid=kid)
+
     _write_manifest(manifest, output_path)
     return manifest
 
@@ -507,6 +669,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 input_events=args.input_events,
                 output_manifest=args.output_manifest,
                 prev_hour_root=getattr(args, "prev_hour_root", None),
+                sign_key=getattr(args, "sign_key", None),
+                sign_kid=getattr(args, "sign_kid", None),
             )
         except ValidationError as exc:
             print(f"validation error: {exc}", file=sys.stderr)
