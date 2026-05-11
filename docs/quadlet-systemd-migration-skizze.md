@@ -337,23 +337,44 @@ or C, owner DevOps-side with Operator-Hand approval.**
 
 ---
 
-## 6 / Open items (Tag-4 box-end)
+## 6 / Open items (Tag-4 box-end + Sprint-6 Tag-1 update)
 
-- **OI-Q1:** validate the Quadlet shape against a live atomic host
-  (Bluefin or Silverblue VM). This skizze is paper-form; a smoke
-  test on a real atomic host is the next step before committing
-  runnable `.container` files. Estimated effort: 30-min box.
-- **OI-Q2:** confirm `HealthCmd=` Quadlet directive name on Podman
-  4.9.x (current Fedora-41 ships Podman 5.x with possibly different
-  directive surface). The directive names above are Podman 4.4–4.9
-  doc-form; Podman 5.x may have renamed some. P2-stamp: conjecture
-  pending live-host verification.
-- **OI-Q3:** decide whether to commit Scenario-B dual-track at
-  Phase-2-Sprint-N+ or wait for Phase-3 trigger. Operator-Hand /
-  CEO-side strategy call, not DevOps-solo.
-- **OI-Q4:** if Quadlet becomes primary at Phase-3, the
-  `tests/orchestrator/test_compose_nats.py` contract assertions
-  need a Quadlet-equivalent test surface. Estimated effort: 1 box.
+- **OI-Q1 (still open):** validate the Quadlet shape against a live
+  atomic host (Bluefin or Silverblue VM). This skizze is paper-form
+  + Sprint-6 Tag-1 committed-runnable-file-form; the live-smoke test
+  on a real atomic host is still operator-hand per ADR-0051
+  Mira-Sandbox-vs-Host-Operations-Trennung (no host-podman-socket
+  access from sandbox). Estimated effort: 30-min operator box.
+- **OI-Q2 (resolved Sprint-6 Tag-1):** Quadlet directive names
+  verified against Podman 5.8.2 (`podman --version` on the
+  authoring host, 2026-05-11) and against the upstream
+  `podman-systemd.unit(5)` man-page (docs.podman.io, fetched
+  2026-05-11). The directive surface used in
+  `quadlet/wakir-nats.container` (`Image`, `Exec`, `PublishPort`,
+  `Volume`, `Network`, `DropCapability`, `NoNewPrivileges`,
+  `HealthCmd`, `HealthInterval`, `HealthTimeout`, `HealthRetries`,
+  `HealthStartPeriod`, `PodmanArgs`) is current in Podman 5.x —
+  no renames detected from the 4.4-doc-form. No directive deprecation
+  flagged in the upstream 5.x docs as of fetch time.
+- **OI-Q3 (partially resolved Sprint-6 Tag-1):** the **runnable
+  Scenario-B dual-track skeleton** is now committed
+  (`quadlet/wakir-nats.container` + sidecar `.network`/`.volume`
+  units + `tests/orchestrator/test_quadlet_nats.py` parity tests
+  16/16 green). This is **not** an adoption-decision shift —
+  compose remains the primary Phase-2 contract surface, and the
+  runbook §1 bring-up section still uses `docker compose -f
+  compose/nats.yaml up -d` as the primary path. Quadlet is
+  **available** for atomic-host operators who prefer host-native
+  systemd integration, enforced byte-precise-aligned with compose
+  via the parity tests. Scenario-C (Quadlet-as-primary) remains a
+  Phase-3-trigger decision and stays operator-hand / CEO-side.
+- **OI-Q4 (deferred to Phase-3):** if Quadlet becomes primary at
+  Phase-3, the `tests/orchestrator/test_compose_nats.py` contract
+  assertions need a Quadlet-equivalent refactor. The Sprint-6 Tag-1
+  parity-test surface (`test_quadlet_nats.py`) is a partial-credit
+  starting point — it currently asserts Quadlet-against-compose
+  drift, not compose-against-Quadlet drift. A Phase-3 flip would
+  reverse the dependency direction.
 
 ---
 
@@ -369,18 +390,22 @@ or C, owner DevOps-side with Operator-Hand approval.**
   Sprint-5 Tag-3 tip `83d3b0e` (digest-pin
   `sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00`
   preserved byte-precise in §2.1 Quadlet skizze).
-- **Tool-Verifikation (P7):**
+- **Tool-Verifikation (P7) — Tag-4 baseline + Sprint-6 Tag-1 update:**
   - Quadlet directives `Image=`, `Exec=`, `PublishPort=`, `Volume=`,
     `Network=`, `DropCapability=`, `NoNewPrivileges=`, `HealthCmd=`,
     `HealthInterval=`, `HealthTimeout=`, `HealthRetries=`,
-    `HealthStartPeriod=` are documented in the Podman 4.4+ Quadlet
-    man-page (`podman-systemd.unit(5)`). Reference: upstream Podman
-    documentation as of Podman 4.9 (Fedora 40 ship-state). Podman
-    5.x directive renames are flagged in OI-Q2 as P2 conjecture.
+    `HealthStartPeriod=`, `PodmanArgs=` are documented in the
+    Podman 4.4+ Quadlet man-page (`podman-systemd.unit(5)`).
+    **Sprint-6 Tag-1 verification:** the directive surface is also
+    current in Podman 5.8.2 (verified via `podman --version` on
+    authoring host plus docs.podman.io live-fetch 2026-05-11).
+    No directive renames detected from 4.x baseline. **OI-Q2
+    resolved.**
   - `podman generate systemd` deprecation status: deprecated as of
-    Podman 4.6 release notes (2023). P2-stamp: cited from memory of
-    Podman 4.6 release notes, not live-verified against current
-    upstream docs in this box.
+    Podman 4.6 release notes (2023). P2-stamp at Tag-4: cited from
+    memory; Sprint-6 Tag-1 not re-verified live (no behavior change
+    in this box — the dual-track does not use `podman generate
+    systemd` anywhere).
 - **Vermutungs-Kennzeichnung (P2):**
   - "Fedora 41+ Quadlet is the recommended lifecycle path" — based
     on Podman upstream documentation direction; not verified against
@@ -389,9 +414,24 @@ or C, owner DevOps-side with Operator-Hand approval.**
     of Fedora-Atomic family generally; the specific Bluefin (uBlue
     fork) shipping state is conjecture-pending if the operator-side
     host uses a non-stock uBlue variant.
-  - Quadlet `HealthCmd=` semantics: documented but not live-tested
-    in this box; the shape is from Podman 4.4 documentation. Live-host
-    verification is OI-Q1.
+  - Quadlet `HealthCmd=` semantics: documented and directive-name-
+    verified against Podman 5.8.2 in Sprint-6 Tag-1; runtime
+    behavior (probe execution + Podman healthcheck integration) is
+    still not live-tested in sandbox — remains OI-Q1 for operator-
+    hand live-host verification.
+
+- **Sprint-6 Tag-1 stamp:**
+  - **`date -Iseconds`:** 2026-05-11T22:38:02+02:00 (box-start).
+  - **Worktree:** `/tmp/kai-sprint-6-quadlet-dual-track` (own clone
+    via `git worktree add` from `agents-workspaces/kai/wakir-runtime`,
+    ADR-0049-konform).
+  - **Branch:** `kai/phase-2-sprint-6-tag-1-quadlet-dual-track`,
+    forked from Sprint-5 Tag-5 tip `fd0cc9e`.
+  - **Sandbox-Trennung:** no host-podman-socket access from sandbox
+    (Mira-Direktive 2026-05-11 / ADR-0051 rejected). Directive
+    verification is doc-form against `podman --version 5.8.2`
+    output and docs.podman.io — no `podman run` invocations from
+    sandbox.
 
 ---
 
@@ -399,18 +439,27 @@ or C, owner DevOps-side with Operator-Hand approval.**
 
 This skizze documents the Quadlet/systemd alternative lifecycle
 shape for the Phase-1b NATS-JetStream substrate, alongside the
-existing `compose/nats.yaml` primary contract surface. It is
-design-form only — no runnable `.container` file is committed.
+existing `compose/nats.yaml` primary contract surface.
 
-Recommendation for Phase-2: **Scenario A (stay on compose)**.
-Phase-3 trigger reviews: Scenario B (dual-track) or Scenario C
-(Quadlet primary) become live decision-points when the production
-atomic host carries 3+ long-running container services or when
-systemd-native logging / socket-activation becomes a substantive
-need.
+**Tag-4 deliverable (2026-05-11 21:51 CEST):** design-form skizze,
+no runnable `.container` file committed. Recommendation Scenario A
+(stay on compose) for Phase-2 default.
+
+**Sprint-6 Tag-1 update (2026-05-11 ~22:55 CEST):** **Scenario B
+dual-track upgraded to committed-runnable-file form.** The
+`quadlet/` directory now contains the runnable unit-file trio
+(`wakir-nats.container`, `wakir-orchestrator.network`,
+`wakir-nats-jetstream-data.volume`) plus a README and the
+hermetic parity-test surface
+`tests/orchestrator/test_quadlet_nats.py` (16/16 green). The
+adoption recommendation is **unchanged**: compose remains the
+primary Phase-2 contract surface; Quadlet is the host-native
+alternative for atomic-distro operators who want systemd-native
+lifecycle integration. Scenario C (Quadlet-as-primary) remains a
+Phase-3-trigger decision and stays operator-hand / CEO-side.
 
 No Z-A / Z-B / Z-C / Z-D cross-review touchpoints. No image-pin
-change, no schema change, no identity change, no Phala touch.
-Pure operator-side documentation deliverable.
+change (byte-precise mirror of compose), no schema change, no
+identity change, no Phala touch.
 
-— Kai
+— Kai (Tag-4 author; Sprint-6 Tag-1 update author)

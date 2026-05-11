@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-6 — Quadlet volume sidecar for JetStream persistence.
+# Mirror of compose/nats.yaml top-level volumes.jetstream_data.name.
+#
+# Install path: /etc/containers/systemd/wakir-nats-jetstream-data.volume
+# (rootful) or ~/.config/containers/systemd/ (rootless).
+#
+# This unit is referenced by wakir-nats.container via the directive
+# `Volume=wakir-nats-jetstream-data.volume:/data/jetstream`.
+#
+# Recovery: drop the volume to reset JetStream state — cache loss is
+# the documented Phase-1 recovery path
+# (docs/orchestrator-nats-kv-phase-1-runbook.md §6.2).
+
+[Unit]
+Description=Wakir NATS JetStream persistence volume (Quadlet dual-track)
+
+[Volume]
+# Mirror of compose volumes.jetstream_data.name. Same name string so
+# podman volume ls shows wakir-nats-jetstream-data regardless of which
+# lifecycle path created it.
+VolumeName=wakir-nats-jetstream-data
+
+[Install]
+WantedBy=multi-user.target default.target
