@@ -36,25 +36,52 @@
 services:
 
   nats:
-    # NATS Phase-1b production-baseline pin.
+    # NATS Phase-1b production-baseline pin (digest-pinned).
     #
     # Tag rationale (Box-3 verification stamp; full provenance in the
     # operator runbook §8):
     #   * ``2.10-alpine`` is no longer in the maintained-tags listing
     #     of the official ``nats`` Docker Hub repo.
-    #   * ``2.14`` is fresh GA (released ~7 days before authoring) —
-    #     boring-tech-bias rules it out for Phase-1b.
+    #   * ``2.14`` is fresh GA (released ~7 days before authoring of
+    #     the original Box-3 tag-pin) — boring-tech-bias rules it out
+    #     for Phase-1b.
     #   * ``2.11-alpine`` is the conservative maintained choice
-    #     (2.11.17 GA, last alpine-tag push ~9 days before authoring).
+    #     (2.11.17 GA, last alpine-tag push 2026-04-28).
     #
-    # Digest-pin upgrade-path: an operator on a machine with a
-    # container engine MUST resolve the digest (``docker pull
-    # nats:2.11-alpine`` then read ``RepoDigests``) and replace the
-    # tag-pin below with ``nats:2.11-alpine@sha256:<full-digest>``.
-    # The hermetic test suite (compose-parse) accepts both forms.
-    # Sandbox-side digest reproduction is a Box-3 follow-up (no
-    # container engine in the authoring sandbox; see runbook §8).
-    image: nats:2.11-alpine
+    # Digest-pin (Phase-2 Sprint-4 Tag-3, Cross-Review Zone-C upgrade
+    # over the Sprint-2-Tag-3 tag-pin):
+    #
+    #   tag:           nats:2.11-alpine
+    #   manifest-list: sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00
+    #   amd64-image:   sha256:a7d440bf0240e664ed74fc17c70d616e6ff4bb9890dc26f7276589daedd1e196
+    #   tag-pushed:    2026-04-28T01:57:25Z (UTC)
+    #   resolved:      2026-05-11 via Docker Hub public registry API
+    #                  https://registry.hub.docker.com/v2/repositories/library/nats/tags/2.11-alpine
+    #
+    # The manifest-list digest is the multi-arch-stable pin: every
+    # container engine resolves it to the per-architecture image at
+    # pull time without ambiguity. The amd64-image digest is recorded
+    # for the operator who wants to bypass the manifest-list lookup
+    # on amd64-only hosts (single ``--platform=linux/amd64`` pull
+    # resolves to that exact image).
+    #
+    # Cosign-verification (optional opt-in for Phase-1b operators):
+    # the official NATS image is not currently signed by Synadia with
+    # a published cosign key, so cosign-verify against a vendor key
+    # is a no-op in Phase-1b. An operator who wants signature-based
+    # trust today can use ``cosign verify`` against the sigstore
+    # public-good keyless transparency log for any future signed
+    # release; the digest-pin above is the substantive trust anchor
+    # for Phase-1b. See ``scripts/verify-image-digest.sh`` for the
+    # hermetic-by-default digest-format gate and the opt-in cosign
+    # invocation surface (``--with-cosign``).
+    #
+    # The hermetic test suite (``tests/orchestrator/test_compose_nats.py``)
+    # accepts both tag-only and digest-pinned forms, so a future
+    # operator who wants to roll back to tag-only for a debug bring-up
+    # (or roll forward to a fresher 2.11-alpine alpine push) does not
+    # break the contract surface.
+    image: nats:2.11-alpine@sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00
     container_name: wakir-nats
     command:
       - "--jetstream"

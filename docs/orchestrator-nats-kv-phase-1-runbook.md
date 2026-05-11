@@ -53,7 +53,8 @@ memos and are referenced here only by name.
 | 7.2 | systemd-timer wiring + Prometheus textfile-collector adapter       | Sprint-3 Tag-3 |
 | 7.3 | Live-NATS-Test-Mode driver (hermetic-default + Mock-vs-Live)       | Phase-2 Sprint-4 Tag-1 |
 | 7.4 | First-time live-smoke execution record (host-substrate evidence)   | Phase-2 Sprint-4 Tag-2 |
-| 8   | Verification stamps (P5/P7)                                        | Tag-2..Tag-8, Sprint-3 Tag-2..Tag-4, Phase-2 Sprint-4 Tag-1..Tag-2 |
+| 7.5 | Image-digest verification gate (`verify-image-digest.sh`)          | Phase-2 Sprint-4 Tag-3 |
+| 8   | Verification stamps (P5/P7)                                        | Tag-2..Tag-8, Sprint-3 Tag-2..Tag-4, Phase-2 Sprint-4 Tag-1..Tag-3 |
 
 The four operator artefacts (compose substrate, bucket initialiser,
 NATS-KV substrate health check, federation evaluator health check)
@@ -122,8 +123,24 @@ publishes only the loopback interface. The JetStream HTTP endpoint
 (`/jsz`) is also loopback-only — never expose it without
 authentication.
 
-To upgrade the image-pin from tag-only to digest-pinned form (the
-recommended Box-3-follow-up for the build host):
+**Image-pin form (post-Phase-2 Sprint-4 Tag-3, Cross-Review Zone-C):**
+
+The compose file is digest-pinned to the manifest-list digest of
+`nats:2.11-alpine` resolved 2026-05-11 via Docker Hub public registry
+API:
+
+```yaml
+image: nats:2.11-alpine@sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00
+```
+
+The digest-pin gate is enforced by `scripts/verify-image-digest.sh`
+(see §7.5). The hermetic test `test_nats_service_uses_documented_image_tag`
+continues to accept both the digest-pin and the tag-only fallback
+form, so a debug bring-up that intentionally rolls back to tag-only
+does not break the contract.
+
+To resolve a fresh digest from a build host (when upstream pushes a
+new 2.11-alpine alpine and the operator wants to advance the pin):
 
 ```bash
 docker pull nats:2.11-alpine
@@ -131,10 +148,8 @@ docker inspect --format '{{index .RepoDigests 0}}' nats:2.11-alpine
 # => nats@sha256:<full-digest>
 # Replace the ``image:`` line in compose/nats.yaml with:
 #     image: nats:2.11-alpine@sha256:<full-digest>
+# Then re-run scripts/verify-image-digest.sh (see §7.5).
 ```
-
-The hermetic test `test_nats_service_uses_documented_image_tag`
-accepts both forms.
 
 ### 3.2 Buckets-init
 
@@ -1518,6 +1533,89 @@ If both runs report `pytest_exit: 0` with one scenario passed and the
 other scenario skipped (for the documented reason), the byte-identity
 contract holds on the live substrate for this release.
 
+### 7.5 Image-digest verification gate (Phase-2 Sprint-4 Tag-3)
+
+`scripts/verify-image-digest.sh` is the operator-facing verification
+gate for the `compose/nats.yaml` image-pin. The script has three
+modes:
+
+| Mode | Flags | Touches network? | Requires cosign? | Use case |
+| --- | --- | --- | --- | --- |
+| Hermetic (default) | none | no | no | Sandbox + CI smoke; parses the compose file, asserts the image-pin is in one of the accepted forms, validates digest-hex shape |
+| Strict | `--strict` | no | no | Build-host policy gate; fails exit 2 on tag-only pins |
+| Registry cross-reference | `--with-registry` | yes (Docker Hub public registry API) | no | Build-host CI smoke; verifies the compose-pin digest matches the upstream tag's current manifest-list digest |
+| Cosign verify | `--with-cosign` | depends on cosign | yes | Build-host advanced trust gate; signature-based attestation (Phase-1b: official NATS image is not currently signed by Synadia, so this mode is a future opt-in) |
+
+Default invocation:
+
+```bash
+scripts/verify-image-digest.sh
+# => human log on stderr, JSON summary on stdout
+```
+
+JSON-only mode (for CI pipelines that consume the summary):
+
+```bash
+scripts/verify-image-digest.sh --json | jq .
+```
+
+Strict mode (rejects tag-only pins):
+
+```bash
+scripts/verify-image-digest.sh --strict
+# exit 2 if compose is tag-only; exit 0 if digest-pinned
+```
+
+Pin-to-a-specific-digest mode (CI smoke gate that pins both the tag
+and the digest):
+
+```bash
+scripts/verify-image-digest.sh \
+    --expected-tag nats:2.11-alpine \
+    --expected-digest e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00
+```
+
+Registry cross-reference (build-host operator hand only — the CEO-
+side authoring sandbox does not use this mode per the operative
+sandbox-host trennung):
+
+```bash
+scripts/verify-image-digest.sh --with-registry
+# resolves https://registry.hub.docker.com/v2/repositories/library/nats/tags/2.11-alpine
+# and asserts the manifest-list digest matches the compose-pin
+```
+
+Cosign verify (future opt-in once upstream signs):
+
+```bash
+scripts/verify-image-digest.sh --with-cosign
+# requires cosign on PATH; exits 1 if missing
+# Phase-1b: official NATS image is unsigned; this mode currently
+# returns verify-failed, which is a documented gap not a substrate
+# fault
+```
+
+Exit-code contract:
+
+| Code | Meaning |
+| --- | --- |
+| 0 | Image-pin accepted (form + optional cross-reference) |
+| 1 | Pin malformed, compose file missing, registry probe failed, cosign requested but binary missing, cosign verify failed |
+| 2 | Tag-only pin under `--strict` (rejected by policy, not by substrate) |
+
+Cross-Review Zone-C (digest-pin upgrade over the Sprint-2-Tag-3
+tag-pin) lands here: the manifest-list digest in `compose/nats.yaml`
+is the substantive trust anchor for Phase-1b; the hermetic gate
+catches drift between the compose file and the test fixture; the
+opt-in registry cross-reference catches drift between the compose
+file and the upstream tag.
+
+The hermetic gate is exercised in CI by
+`tests/orchestrator/test_verify_image_digest.py` (10 hermetic tests:
+digest-pin form, tag-only fallback, malformed pin rejection,
+`--strict` mode, `--expected-digest` mismatch, `--expected-tag`
+mismatch, executable bit, syntax gate).
+
 ## 8. Verification stamps (P5/P7)
 
 - Authoring date (Tag-3 update): `date -u` 2026-05-07T (CEST
@@ -1746,3 +1844,50 @@ contract holds on the live substrate for this release.
   Mira-Sandbox connects via NATS protocol on `localhost:4222` only).
   Reproduction recipe is embedded in §7.4 so a future operator can
   re-run the record without reading the outbox closeout note.
+- Phase-2 Sprint-4 Tag-3 §7.5 image-digest verification gate stamp:
+  `date -u` 2026-05-11T17:09:11Z (CEST 2026-05-11T19:09). This pass
+  is the Cross-Review Zone-C digest-pin upgrade over the Sprint-2-
+  Tag-3 tag-pin (Engineering-Lead-side ack 2026-05-07T12:07:19Z paired
+  with dev-engineering-3-side memo 2026-05-07T11:50:36Z; ack-condition:
+  digest-pin lands before
+  any OTS-anchor pipeline consumes `compose/*.yaml` as trusted
+  input). Substance: (a) `compose/nats.yaml` `services.nats.image`
+  upgraded from `nats:2.11-alpine` to
+  `nats:2.11-alpine@sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00`
+  (manifest-list digest; multi-arch-stable), with the amd64-image
+  digest `sha256:a7d440bf0240e664ed74fc17c70d616e6ff4bb9890dc26f7276589daedd1e196`
+  recorded in commentary for amd64-only hosts; (b) new operator
+  script `scripts/verify-image-digest.sh` providing a hermetic-by-
+  default digest-form gate with three opt-in modes (`--strict`,
+  `--with-registry`, `--with-cosign`) and a JSON summary surface
+  (exit codes 0/1/2 per §7.5 contract); (c) ten new hermetic tests
+  in `tests/orchestrator/test_verify_image_digest.py` (digest-pin
+  form, tag-only fallback, malformed pin, short-digest rejection,
+  `--expected-digest` match/mismatch, `--expected-tag` mismatch,
+  executable bit, `bash -n` syntax gate, repo-default contract
+  anchor). Image-digest resolution method: Docker Hub public
+  registry API
+  `https://registry.hub.docker.com/v2/repositories/library/nats/tags/2.11-alpine`
+  (HTTP 200 verified 2026-05-11T17:09Z; response body includes the
+  `digest` field with value `sha256:e4bf...8cc00` and
+  `last_updated` `2026-04-28T01:57:25Z`). The hermetic test surface
+  invokes the script via `subprocess.run` against synthetic
+  compose fixtures in tmpdir; no container engine, no network, no
+  cosign required for any of the ten tests. The cosign mode is a
+  surface-only future opt-in for Phase-1b — the official `nats`
+  image is not currently signed by Synadia with a published key,
+  so `cosign verify` against the sigstore public-good log returns
+  verify-failed for the unsigned image (the script surfaces this
+  diagnostic clearly so an operator opting in does not mistake the
+  gap for a substrate fault). Zero-drift verification:
+  `tests/orchestrator/` 98 passed + 6 skipped post-Tag-3 (Tag-2
+  baseline 88+6, net +10 hermetic from the new test file);
+  project-wide 232 passed + 25 skipped post-Tag-3 (Tag-2 baseline
+  222+25, net +10 hermetic). The four live-gated tests in the
+  orchestrator suite remain `WAKIR_NATS_LIVE=1`-gated; the image-
+  digest gate does not introduce a new live dependency. The
+  existing compose hermetic suite `test_compose_nats.py` (test
+  `test_nats_service_uses_documented_image_tag`) accepts both
+  tag-only and digest-pin forms by regex; the Tag-3 compose update
+  is digest-pin form, so the existing test stays green without
+  edits.
