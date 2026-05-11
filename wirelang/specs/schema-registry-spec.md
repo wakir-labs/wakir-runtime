@@ -9,14 +9,14 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wirelang-schema-registry
-version: 0.5.0
+version: 0.6.0
 status: draft
-date: 2026-05-07
+date: 2026-05-11
 audience: implementers, integrators, operators
 license: CC-BY-4.0
 ---
 
-# Wirelang Schema Registry — NATS-KV Backend Specification (v0.5.0)
+# Wirelang Schema Registry — NATS-KV Backend Specification (v0.6.0)
 
 **Change log**
 
@@ -27,6 +27,7 @@ license: CC-BY-4.0
 | 0.3.0   | 2026-05-07 | Phase-1c watch-stream surface lands in Tag-4 (`watch()` / `WatchOp` / `WatchEvent` / `LiveSchemaSnapshot` / `open_watch_stream`); §5.3 OI-7-Phase-1c-watch slot CONSUMED; §5.5 added (watch-stream operational contract); §6.2 added (T-SR-WS-01..10 + 2 aux probes test inventory). Additive-only change relative to v0.2.0; M-2 / M-4 conformance preserved. |
 | 0.4.0   | 2026-05-07 | Phase-1c publisher CLI lands in Tag-5 (`wirelang.schemas.publisher_cli`: `wakir-schema-registry publish` / `dry-run` argparse surface, `PublishReceipt`, `ExitCode` matrix); §5.3 OI-7-Phase-1c-publisher slot CONSUMED; §5.6 added (publisher CLI operational contract); §6.3 added (T-SR-PUB-01..12 test inventory). Additive-only change relative to v0.3.0; M-2 / M-4 conformance preserved. The CLI is a thin operator-input layer over the Tag-3 CAS-pin and Tag-1 LWW backends; it introduces no new on-the-wire envelope and no new validation gate. |
 | 0.5.0   | 2026-05-07 | Phase-1c cross-bucket replication lands in Tag-6 (`wirelang.schemas.replication`: `SchemaReplicator`, `bootstrap_target_from_source`, `ReplicationConflictPolicy`, `ReplicationFilter`, `ReplicationMetrics`); §5.3 OI-7-Phase-1c-replication slot CONSUMED; §5.7 added (replication operational contract); §6.4 added (T-SR-REP-01..12 test inventory). Additive-only change relative to v0.4.0; M-2 / M-4 conformance preserved. The replication layer is a thin composition of Tag-1 LWW + Tag-3 CAS-pin + Tag-4 watch-stream surfaces; it introduces no new on-the-wire envelope, no new validation gate, and no new method on `NatsKvSchemaRegistry`. **Phase-1c is now feature-complete.** |
+| 0.6.0   | 2026-05-11 | Phase-2 entry-signing layer lands in Sprint-4 Tag-1 (`wirelang.schemas.entry_signing`: `SignedSchemaRegistryEntry`, `sign_entry`, `verify_entry_signature`, `envelope_with_signature`, `envelope_to_signed_entry`, `SchemaRegistrySignatureError`, `VerifyMode`); §5.3 OI-7-Phase-2-sig slot CONSUMED (Phase-2 hardening begins); §5.8 added (entry-signing operational contract); §6.5 added (T-SR-SIG-01..12 test inventory). Envelope schema **additive only**: optional `signature` slot on the existing `wakir.wirelang.schema-registry-entry/1` envelope (no `/2` envelope; backward-compatible with v0.5.0 readers). Tag-1 codec is unchanged; new `envelope_with_signature` / `envelope_to_signed_entry` helpers ship the round-trip for the optional slot. M-2 conformance preserved (additive-only field; absent slot is valid under permissive Phase-2-transition verify mode); M-4 conformance preserved (orthogonal to version axis). Cross-Review-Zone-1 (Identity-Substrate) **TRIGGERED**: signing reuses `wirelang.identity.aip_signing` Ed25519 + JCS + SHA-256 primitive byte-identical; the kid binds the signature to an AIP-document `public_keys` entry. `NatsKvSchemaRegistry` surface remains zero-new-method (signing happens at envelope-build time before `put` / `put_with_revision`). |
 
 This specification defines the Wakir Wirelang **Schema Registry**: a
 persistent, drift-aware store for the JSON-Schema documents that
@@ -172,13 +173,78 @@ JCS-canonical envelope that is byte-stable for audit anchoring.
 - ~~OI-7-Phase-1c-publisher~~ (CONSUMED in Tag-5).
 - ~~OI-7-Phase-1c-replication~~ (CONSUMED in Tag-6).
 
-**Phase-2 (out of scope here):**
+**Phase-2 Sprint-4 Tag-1 (this revision, additive over Tag-6):**
 
-- CAS-quorum upserts on top of multi-replica clusters (extension of
-  the Tag-3 single-replica CAS-pin to replicated clusters).
-- Schema-deprecation policy with overlapping-validity windows.
-- IPFS-anchored schema-document hashes.
-- Envelope-side signature with AIP-id-tied `registered_by`.
+- The entry-signing layer (`wirelang/schemas/entry_signing.py`)
+  exposing `SignedSchemaRegistryEntry` (wrapper dataclass for
+  `SchemaRegistryEntry` + signature block), `sign_entry`,
+  `verify_entry_signature`, `envelope_with_signature`,
+  `envelope_to_signed_entry`, `SchemaRegistrySignatureError` (typed
+  exception for malformed signature blocks), and `VerifyMode` enum
+  (`PERMISSIVE` for Phase-2-transition, `STRICT` for Phase-2-end).
+- The signing primitive is **Ed25519 over SHA-256 of the
+  JCS-canonicalised entry envelope minus the `signature` slot** —
+  byte-identical to the AIP-document signing convention
+  (`wirelang.identity.aip_signing`). The signed pre-image is the
+  same JSON envelope the Tag-1 codec emits, with the `signature`
+  field stripped before canonicalisation.
+- The envelope schema gains an **optional** `signature` slot of
+  shape `{alg: "Ed25519", kid: <string>, signature: <128-hex>}`
+  on the existing `wakir.wirelang.schema-registry-entry/1`
+  envelope. No new envelope schema (`/2`) is introduced — v0.5.0
+  readers see an unknown optional field and tolerate it. The
+  Tag-1 envelope codec (`_entry_to_envelope` / `_envelope_to_entry`)
+  is unchanged in Sprint-4 Tag-1; the new `envelope_with_signature`
+  / `envelope_to_signed_entry` helpers in
+  `wirelang.schemas.entry_signing` provide the signed round-trip
+  while the Tag-1 codec stays bit-equal on unsigned envelopes.
+- The `kid` references a `public_keys` entry on the registering
+  agent's AIP document; the verification path resolves the kid
+  to a 32-byte Ed25519 public key. Phase-2-Sprint-4 Tag-1 does
+  NOT bundle a kid → key resolver (the resolver lives in
+  `wirelang.identity`; the signing layer treats the public key as
+  caller-supplied).
+- **VerifyMode** policy:
+  - `PERMISSIVE` (Phase-2-transition default): entries without a
+    `signature` slot verify as `True` (legacy v0.5.0 entries pass).
+  - `STRICT` (Phase-2-end): entries without a `signature` slot
+    raise `SchemaRegistrySignatureError`. Phase-2-end activation
+    is operator-controlled; Sprint-4 Tag-1 ships only the policy
+    surface, not the activation switch.
+- **`NatsKvSchemaRegistry` surface remains UNCHANGED** in Sprint-4
+  Tag-1. Signing happens at envelope-build time: caller signs the
+  entry, then `put` / `put_with_revision` accepts the signed
+  envelope bytes opaquely (the backend transports the bytes
+  unchanged through the NATS-KV layer). The backend's existing
+  codec (`_entry_to_envelope` / `_envelope_to_entry`) is left
+  unchanged in this slot; callers that need the round-trip with
+  the optional `signature` slot use the new
+  `envelope_with_signature` / `envelope_to_signed_entry` helpers
+  in `wirelang.schemas.entry_signing` directly on the raw envelope
+  bytes (the helpers parse and emit the same
+  `wakir.wirelang.schema-registry-entry/1` envelope shape with the
+  optional slot added).
+- 12 hermetic determinism tests (T-SR-SIG-01..12) over Ed25519
+  test vectors and the in-memory mock KV.
+- This slot consumes **OI-7-Phase-2-sig**.
+- **Cross-Review-Zone-1 (Identity-Substrate) TRIGGERED:** signing
+  reuses the `wirelang.identity.aip_signing` JCS+SHA-256+Ed25519
+  primitive byte-identical; the kid → AIP-document binding is the
+  Identity-Substrate consumer touch-point. Tomás-side WAT
+  Merkle-leaf builder is the natural downstream consumer of the
+  signed envelope (signed envelope is byte-anchored to the WAT
+  leaf via `schema_body_sha256`; the new `signature` slot extends
+  the anchored byte-string). Cross-Review-Memo to Tomás recorded
+  in Sprint-4 Tag-1 outbox §2.
+
+**Phase-2 (remaining reserved, out of scope here):**
+
+- CAS-quorum upserts on top of multi-replica clusters
+  (**OI-7-Phase-2-quorum** reserved).
+- Schema-deprecation policy with overlapping-validity windows
+  (**OI-7-Phase-2-deprecation** reserved).
+- IPFS-anchored schema-document hashes
+  (**OI-7-Phase-2-ipfs** reserved).
 - Bidirectional replication with conflict-free CRDT-style merges
   (**OI-7-Phase-2-bidir-replication** reserved).
 - Watch-stream resume-from-revision policy
@@ -187,9 +253,10 @@ JCS-canonical envelope that is byte-stable for audit anchoring.
 The Phase-1c slots are all consumed: Tag-3 consumed
 **OI-7-Phase-1c-CAS**, Tag-4 consumed **OI-7-Phase-1c-watch**, Tag-5
 consumed **OI-7-Phase-1c-publisher**, Tag-6 consumes
-**OI-7-Phase-1c-replication**. The Phase-2 reserved slots are tracked
-as **OI-7-Phase-2-quorum / -deprecation / -ipfs / -sig /
--bidir-replication / -resume**.
+**OI-7-Phase-1c-replication**. Phase-2 Sprint-4 Tag-1 consumes
+**OI-7-Phase-2-sig**. The Phase-2 reserved slots are tracked as
+**OI-7-Phase-2-quorum / -deprecation / -ipfs / -bidir-replication /
+-resume**.
 
 ## 2. Bucket identity (cross-reference Kai inventory)
 
@@ -428,7 +495,7 @@ These gates protect the determinism contract: a poisoned or
 mis-anchored envelope cannot reach the bucket through the typed
 backend.
 
-### 5.3 What Phase-1b Sprint-3 Tag-1 + Tag-3 + Tag-4 + Tag-5 + Tag-6 covers, and what Phase-2 still does NOT do
+### 5.3 What Phase-1b Sprint-3 Tag-1 + Tag-3 + Tag-4 + Tag-5 + Tag-6 + Phase-2 Sprint-4 Tag-1 covers, and what Phase-2 still does NOT do
 
 **Tag-1 (v0.1.0) lands:**
 
@@ -544,15 +611,62 @@ backend.
 **Phase-1c is feature-complete; all four Phase-1c slots are
 consumed (Tag-3 / Tag-4 / Tag-5 / Tag-6).**
 
+**Phase-2 Sprint-4 Tag-1 (v0.6.0) lands (additive over Tag-6):**
+
+- The entry-signing module `wirelang.schemas.entry_signing` exposing
+  the `SignedSchemaRegistryEntry` wrapper dataclass, the pure
+  functions `sign_entry` / `verify_entry_signature`, the envelope
+  helpers `envelope_with_signature` / `envelope_to_signed_entry`,
+  the typed exception `SchemaRegistrySignatureError`, and the
+  `VerifyMode` enum (`PERMISSIVE` / `STRICT`).
+- Signing reuses the Wakir AIP-document convention byte-identical:
+  Ed25519 over SHA-256 of the JCS-canonicalised envelope minus the
+  `signature` slot. The `signature` block is shaped
+  `{alg: "Ed25519", kid: <string>, signature: <128-hex>}` and is
+  byte-equal to the AIP-document signature block.
+- The on-the-wire envelope schema is **additive only**: the existing
+  `wakir.wirelang.schema-registry-entry/1` value-schema gains an
+  **OPTIONAL** `signature` slot. No `/2` envelope is introduced; v0.5.0
+  readers tolerate the new optional field (the Tag-1 backend codec is
+  extended to round-trip the slot but does NOT validate the signature
+  at read time).
+- The `kid` references a `public_keys` entry on the registering
+  agent's AIP document; resolving the kid to a 32-byte Ed25519
+  public key is the caller's responsibility (Sprint-4 Tag-1 does
+  not bundle a kid → key resolver; the resolver belongs in
+  `wirelang.identity`).
+- Verification policy is governed by `VerifyMode`:
+  - `PERMISSIVE` (Phase-2-transition default): entries WITHOUT a
+    `signature` slot verify as `True` (legacy v0.5.0 entries pass);
+    entries WITH a signature slot are checked end-to-end.
+  - `STRICT` (Phase-2-end): entries without a `signature` slot
+    raise `SchemaRegistrySignatureError`. Phase-2-end activation
+    is operator-controlled; Sprint-4 Tag-1 ships the policy
+    surface only, NOT the activation switch.
+- 12 additional hermetic determinism tests (T-SR-SIG-01..12) over
+  Ed25519 test vectors and the in-memory mock KV.
+- `NatsKvSchemaRegistry` surface is UNCHANGED. Signing happens at
+  envelope-build time before `put` / `put_with_revision`; the
+  signed envelope flows through the existing surfaces transparently.
+- **OI-7-Phase-2-sig slot consumed. Phase-2 hardening begins.**
+
 **Phase-2 still does NOT include:**
 
 - No CAS-quorum upserts on top of multi-replica clusters (Tag-3
   CAS-pin assumes the operator's `replicas: 1` Phase-1 setup; the
   contract holds bit-equally on a multi-replica bucket but is not
   exercised at the test layer).
-- No envelope-side signature (`OI-7-Phase-2-sig` reserved).
 - No deprecation policy (`OI-7-Phase-2-deprecation` reserved).
 - No IPFS-anchored schema hashes (`OI-7-Phase-2-ipfs` reserved).
+- No bidirectional replication (`OI-7-Phase-2-bidir-replication`
+  reserved).
+- No watch-stream resume-from-revision policy
+  (`OI-7-Phase-2-resume` reserved).
+- No kid → public-key resolver in the signing layer (separate
+  Identity-Substrate work item).
+- No automatic signature verification on the backend read path
+  (verification stays caller-driven; backend codec is pass-through
+  for the optional slot).
 
 ### 5.4 CAS-pin operational contract (Tag-3)
 
@@ -1034,6 +1148,170 @@ have already seeded the target.
   environment provides on each backend. Capability-token enforcement
   at the replication boundary is `OI-7-Phase-2-sig` reserved.
 
+### 5.8 Entry-signing operational contract (Phase-2 Sprint-4 Tag-1)
+
+The entry-signing layer is the canonical Ed25519 signature substrate
+for schema-registry entries. It is a thin composition over the Tag-1
+envelope codec and the existing `wirelang.identity.aip_signing`
+JCS + SHA-256 + Ed25519 primitive; it adds no new method on
+`NatsKvSchemaRegistry`, no new validation gate at the backend write
+path, and no new envelope schema URI (the existing
+`wakir.wirelang.schema-registry-entry/1` envelope gains an OPTIONAL
+`signature` slot only).
+
+**Signing primitive (byte-identical to AIP-document signing):**
+
+1. **Strip** the `signature` slot from a deep copy of the envelope
+   payload. The signature value cannot be part of its own pre-image.
+2. **Canonicalise** with RFC 8785 JCS (resolver indirection: `rfc8785`
+   when importable, the pure-Python fallback in
+   `wirelang.identity._jcs_pure` otherwise; the two paths produce
+   byte-identical output for the registry-entry envelope shape).
+3. **Hash** with SHA-256 of the JCS bytes; sign the digest with
+   Ed25519. Verification runs the same procedure in reverse.
+
+**Signature block shape:**
+
+```json
+{
+  "alg": "Ed25519",
+  "kid": "biscuit-root-1",
+  "signature": "<128-hex-char Ed25519 signature>"
+}
+```
+
+`alg` is fixed at `"Ed25519"` in v0.6.0; other algorithms are
+out of scope. `kid` references an AIP-document `public_keys` entry
+identifier (caller-supplied; the registry layer does NOT resolve
+kids to public keys). `signature` is the lowercase hex of the
+64-byte Ed25519 signature.
+
+**Wrapper dataclass:**
+
+```python
+@dataclass(frozen=True)
+class SignedSchemaRegistryEntry:
+    entry: SchemaRegistryEntry
+    signature: Mapping[str, Any]  # signature block, frozen at construct time
+```
+
+A `SignedSchemaRegistryEntry` is the in-memory pair of a Tag-1
+`SchemaRegistryEntry` and its detached signature block. The signature
+block is stored on the envelope under the optional `signature` slot;
+the wrapper makes the in-memory representation explicit.
+
+**Public API:**
+
+```python
+def sign_entry(
+    entry: SchemaRegistryEntry,
+    ed25519_priv_key: bytes,
+    *,
+    kid: str,
+) -> SignedSchemaRegistryEntry: ...
+
+def verify_entry_signature(
+    signed: SignedSchemaRegistryEntry | SchemaRegistryEntry,
+    ed25519_pub_key: bytes | None = None,
+    *,
+    mode: VerifyMode = VerifyMode.PERMISSIVE,
+    signature_block: Optional[Mapping[str, Any]] = None,
+) -> bool: ...
+
+def envelope_with_signature(
+    signed: SignedSchemaRegistryEntry,
+) -> bytes: ...
+
+def envelope_to_signed_entry(
+    blob: bytes,
+) -> SignedSchemaRegistryEntry | SchemaRegistryEntry: ...
+```
+
+`envelope_with_signature` emits the canonical envelope bytes
+(`wakir.wirelang.schema-registry-entry/1`) with the optional
+`signature` slot populated. `envelope_to_signed_entry` is its inverse:
+when the envelope carries a `signature` slot, it returns
+`SignedSchemaRegistryEntry`; otherwise it returns the unsigned
+`SchemaRegistryEntry` (parity with the Tag-1 codec).
+
+**Verify-mode policy:**
+
+```python
+class VerifyMode(enum.Enum):
+    PERMISSIVE = "permissive"  # Phase-2 transition default
+    STRICT     = "strict"      # Phase-2 end
+```
+
+- `PERMISSIVE`: an unsigned entry (no `signature` slot, or a
+  `SchemaRegistryEntry` passed to `verify_entry_signature` without
+  a `signature_block` argument) verifies as `True`. A signed entry
+  is verified end-to-end; a tampered signature raises
+  `SchemaRegistrySignatureError` for structural failures and returns
+  `False` for cryptographic failures.
+- `STRICT`: an unsigned entry raises `SchemaRegistrySignatureError`
+  with a missing-signature message. Phase-2-end activation is
+  operator-controlled (out of scope for Sprint-4 Tag-1).
+
+**Typed exception:**
+
+`SchemaRegistrySignatureError` is the structural-failure error
+class. It is raised on: missing `signature` slot under `STRICT`
+mode, missing `alg` / `kid` / `signature` fields in the signature
+block, unsupported `alg`, malformed signature hex, wrong signature
+length, and wrong public-key length. A *cryptographic* mismatch
+(valid structure, signature does not verify) returns `False` from
+`verify_entry_signature`. The distinction matches the AIP-document
+signing convention.
+
+**Determinism contract (Phase-2 Sprint-4 Tag-1 invariants):**
+
+1. **Byte-identical pre-image:** for any two `SchemaRegistryEntry`
+   instances `a` and `b` such that `_entry_to_envelope(a) ==
+   _entry_to_envelope(b)`, the SHA-256 of the JCS-canonicalised
+   envelope-minus-signature is byte-identical. Signing is therefore
+   deterministic with respect to entry content.
+2. **Self-reference exclusion:** the `signature` slot is removed
+   from the pre-image before canonicalisation. A signature can
+   never sign over itself.
+3. **Optional-slot backward compatibility:** envelopes WITHOUT a
+   `signature` slot round-trip through the Tag-1 codec unchanged.
+   v0.5.0 readers see v0.6.0 unsigned envelopes as byte-equal.
+4. **Signature block schema rigidity:** the signature block MUST
+   carry `alg == "Ed25519"`, a non-empty `kid`, and a 128-hex-char
+   `signature`. Any deviation raises
+   `SchemaRegistrySignatureError`. The block is the same shape as
+   the AIP-document `document_signature` block.
+
+**Cross-Review-Zone-1 (Identity-Substrate) touch:**
+
+- The signing primitive is byte-identical to
+  `wirelang.identity.aip_signing` (Ed25519 + JCS + SHA-256). The
+  schema-registry signing module re-uses the same JCS resolver
+  indirection (`rfc8785` with pure-Python fallback) for surface
+  consistency.
+- The `kid` field is a free-form string in Sprint-4 Tag-1; binding
+  it to an AIP-document `public_keys` entry is the kid → key
+  resolver's responsibility (out of scope for this slot). Cross-
+  Review-Memo to Tomás (WAT-side) is recorded in Sprint-4 Tag-1
+  outbox §2.
+
+**Phase-2 Sprint-4 Tag-1 boundary:**
+
+- Sprint-4 Tag-1 ships the signing primitive and verify-mode policy;
+  it does NOT ship the kid → key resolver.
+- Sprint-4 Tag-1 does NOT plumb signature verification into the
+  backend read path; verification is caller-driven.
+- Sprint-4 Tag-1 ships the `STRICT` mode policy surface but NOT
+  the activation switch (operator-controlled toggle is a future
+  Phase-2 slot).
+- Capability-token gating on `registered_by` (mapping `kid` to
+  an issuer-policy bundle) is reserved for a follow-up Phase-2
+  slot; the current `registered_by` field stays free-form.
+- The Tag-1 backend codec is extended to round-trip the optional
+  `signature` slot; it does NOT validate the signature at read
+  time (consistent with the design that verification is a separate
+  caller-driven step).
+
 ## 6. Test inventory
 
 Phase-1b Sprint-3 Tag-1 ships hermetic tests at
@@ -1272,6 +1550,70 @@ connections itself; tests inject the same in-memory `_MockKv` shape
 used by Tag-3 / Tag-4 / Tag-5, with a wrapper that simulates the
 read-then-mutate race window for the CAS-conflict path.
 
+### 6.5 Entry-signing tests (Phase-2 Sprint-4 Tag-1, additive over Tag-6)
+
+Phase-2 Sprint-4 Tag-1 ships hermetic entry-signing tests at
+`wirelang/tests/test_schema_registry_entry_signing.py`. Inventory
+T-SR-SIG-01..12:
+
+- **T-SR-SIG-01:** `sign_entry` → `verify_entry_signature` round-trip
+  on a freshly-generated Ed25519 key-pair returns `True`. The
+  returned `SignedSchemaRegistryEntry` carries the original entry
+  byte-equal (`entry == returned.entry`).
+- **T-SR-SIG-02:** signing is deterministic over the JCS canonical
+  form: two `SchemaRegistryEntry` instances with byte-equal envelopes
+  produce identical pre-image SHA-256 digests. (Ed25519 itself is
+  deterministic per RFC 8032; equality of the digest is the
+  necessary-and-sufficient invariant.)
+- **T-SR-SIG-03:** the signature block is structurally fixed:
+  `{alg: "Ed25519", kid: <given>, signature: <128-hex>}`. Any
+  deviation (missing field, wrong alg, malformed hex, wrong length)
+  raises `SchemaRegistrySignatureError` from
+  `verify_entry_signature`.
+- **T-SR-SIG-04:** tamper detection — mutating any envelope field
+  on a signed entry (layer / name / version / schema_id /
+  schema_body / schema_body_sha256 / registered_at /
+  registered_by / supersedes) and re-running `verify_entry_signature`
+  with the same signature block returns `False`.
+- **T-SR-SIG-05:** self-reference exclusion — modifying the
+  `signature` field of the envelope does NOT change the signing
+  pre-image. The signature slot is stripped before JCS
+  canonicalisation.
+- **T-SR-SIG-06:** `envelope_with_signature` emits the envelope
+  bytes that round-trip through `envelope_to_signed_entry` to a
+  byte-equal `SignedSchemaRegistryEntry`. The optional `signature`
+  slot is the only difference versus the Tag-1 codec.
+- **T-SR-SIG-07:** backward compatibility — a v0.5.0-style envelope
+  WITHOUT a `signature` slot round-trips through
+  `envelope_to_signed_entry` and returns a plain
+  `SchemaRegistryEntry` (parity with the Tag-1 codec).
+- **T-SR-SIG-08:** `PERMISSIVE` mode — an unsigned envelope (no
+  `signature` slot) verifies as `True` via
+  `verify_entry_signature(entry, mode=PERMISSIVE)`. A signed envelope
+  is verified end-to-end.
+- **T-SR-SIG-09:** `STRICT` mode — an unsigned envelope raises
+  `SchemaRegistrySignatureError` with a missing-signature message
+  via `verify_entry_signature(entry, mode=STRICT)`.
+- **T-SR-SIG-10:** wrong public key — `verify_entry_signature` with
+  a different Ed25519 public key on a validly-signed entry returns
+  `False` (cryptographic failure, not structural).
+- **T-SR-SIG-11:** wrong key length — supplying a non-32-byte
+  public key or non-32-byte private key raises a
+  `SchemaRegistrySignatureError` (structural).
+- **T-SR-SIG-12:** Tag-1 codec parity — a signed envelope emitted by
+  `envelope_with_signature` is byte-equal to the corresponding
+  unsigned Tag-1 envelope EXCEPT for the one optional `signature`
+  slot. Stripping the slot from the signed envelope and re-decoding
+  through the Tag-1 codec recovers the original entry byte-equal
+  (the Tag-1 codec is unchanged in Sprint-4 Tag-1).
+
+Total Phase-2 Sprint-4 Tag-1 test additions: 12 hermetic determinism
+tests (T-SR-SIG-01..12). The signing layer is pure: no NATS
+connections, no I/O. Tests use `cryptography.hazmat.primitives.
+asymmetric.ed25519` to generate ephemeral key-pairs from
+deterministic 32-byte seeds and known-answer Ed25519 vectors where
+applicable.
+
 ## 7. Cross-references and Open-Items
 
 - V-908 backend pattern source:
@@ -1293,14 +1635,22 @@ read-then-mutate race window for the CAS-conflict path.
   Tests: `wirelang/tests/test_schema_registry_replication.py`.
 - **Phase-1c is feature-complete; all four Phase-1c slots are
   consumed (Tag-3 / Tag-4 / Tag-5 / Tag-6).**
+- **Phase-2 entry-signing: OI-7-Phase-2-sig — CONSUMED in Sprint-4
+  Tag-1.** Module: `wirelang/schemas/entry_signing.py`. Tests:
+  `wirelang/tests/test_schema_registry_entry_signing.py`. Signing
+  primitive reuses `wirelang/identity/aip_signing.py` JCS+SHA-256+
+  Ed25519 byte-identical (Cross-Review-Zone-1 Identity-Substrate
+  touch).
 - Phase-2 CAS-quorum: **OI-7-Phase-2-quorum** (reserved).
-- Phase-2 envelope signature: **OI-7-Phase-2-sig** (reserved).
 - Phase-2 deprecation policy: **OI-7-Phase-2-deprecation** (reserved).
 - Phase-2 IPFS schema-hash: **OI-7-Phase-2-ipfs** (reserved).
 - Phase-2 bidirectional replication: **OI-7-Phase-2-bidir-replication**
   (reserved; CRDT-style merge contract for two-way mirror).
 - Phase-2 watch-stream resume: **OI-7-Phase-2-resume** (reserved;
   resume-from-revision policy on connection drop).
+- Phase-2 kid → public-key resolver: reserved as a future Identity-
+  Substrate slot (binds AIP-document `public_keys` entries to
+  signature-block `kid` references).
 
 ## 8. Compatibility statement
 
@@ -1409,5 +1759,56 @@ itself is still Phase-2.
   multiple versions are simultaneously active on either bucket.
 - Spec semver bump 0.4.0 → 0.5.0 reflects the additive minor change
   (M-2 §3.2 versioning policy: minor for additive).
+
+**Phase-2 Sprint-4 Tag-1 (v0.6.0) is additive relative to Tag-6 (v0.5.0):**
+
+- All Tag-1 + Tag-3 + Tag-4 + Tag-5 + Tag-6 surfaces remain
+  unchanged. Sprint-4 Tag-1 introduces no new method on
+  `NatsKvSchemaRegistry`.
+- The Sprint-4 Tag-1 addition is a *separate module*
+  (`wirelang.schemas.entry_signing`) consisting of
+  `SignedSchemaRegistryEntry`, `sign_entry`,
+  `verify_entry_signature`, `envelope_with_signature`,
+  `envelope_to_signed_entry`, `SchemaRegistrySignatureError`, and
+  `VerifyMode`. The signing module is a *consumer* of the Tag-1
+  envelope codec (`_entry_to_envelope` / `_envelope_to_entry`)
+  and of `wirelang.identity.aip_signing`'s JCS+SHA-256+Ed25519
+  primitive; it imports them but does not modify them.
+- The Tag-1 envelope codec (`_entry_to_envelope` /
+  `_envelope_to_entry`) is left UNCHANGED in Sprint-4 Tag-1. The
+  new `envelope_with_signature` / `envelope_to_signed_entry`
+  helpers in `wirelang.schemas.entry_signing` provide the
+  envelope-with-signature round-trip. Unsigned envelopes emitted by
+  the Tag-1 codec remain byte-equal to v0.5.0 output (backward
+  compatibility invariant); signed envelopes emitted by
+  `envelope_with_signature` differ from the Tag-1 output by exactly
+  the one optional `signature` slot.
+- M-2 conformance (additive-only schema evolution): Sprint-4 Tag-1
+  adds ONE optional field (`signature`) to the existing
+  `wakir.wirelang.schema-registry-entry/1` envelope; no field is
+  modified or removed. v0.5.0 readers tolerate the new optional
+  field. The on-the-wire envelope schema URI is unchanged (no `/2`
+  envelope is introduced).
+- M-4 conformance (multi-version-aware registry): Sprint-4 Tag-1
+  is orthogonal to the version axis. Signing operates on one entry
+  envelope (`schemas/<layer>/<name>/<version>`) and is independent
+  of whether multiple versions are simultaneously active.
+- The synchronous verifier surface (`InMemorySchemaRegistry.lookup`
+  / `lookup_by_triple` / `keys_sorted`) is unchanged. Verifier
+  modules that consume frozen `InMemorySchemaRegistry` views are
+  not forced onto the signing path; signing is opt-in at the
+  envelope-build boundary.
+- Spec semver bump 0.5.0 → 0.6.0 reflects the additive minor change
+  (M-2 §3.2 versioning policy: minor for additive).
+
+## 9. Brand-Guide §9 sweep
+
+This document has been swept against the Wakir Brand-Guide §9
+(role-strings, no clear-name leakage in module / file / module-doc
+content). The Sprint-4 Tag-1 additions (§5.8, §6.5, change-log
+v0.6.0 entry, Phase-2 boundary updates) use role-strings only
+(`Reza`, `Tomás`, `Mira`, `Aisha` appear in outbox documents and
+optional cross-review memos, not in this spec; the spec mentions
+only `wakir.*` URIs and module-path references).
 
 — End of spec —
