@@ -182,24 +182,43 @@ def test_empty_hour_with_flag_forwards_value(tmp_path: Path) -> None:
 def _aggregator_cli_invocable() -> bool:
     """Can the test driver invoke the aggregator CLI in *some* way?
 
-    Returns True when EITHER (a) the ``wakir-merkle`` console-script
-    is on ``PATH`` (the editable install is active in this venv), OR
-    (b) the ``wat.cmd.aggregator_cli`` module is importable in the
-    current Python and ``wat-hourly.sh`` can therefore fall back to
-    ``python -m wat.cmd.aggregator_cli``. The shell driver was
-    hardened to take the fallback path in Sprint-5-Tag-4 (OI-9
-    environment-state-fix), so the only environment in which these
-    tests cannot run is one where the package source tree is not on
-    the Python module path at all — a true install-missing
-    environment, not the much more common "venv without editable
-    install" environment that container-engineering Sprint-5-Tag-3
-    surfaced as a skip-statt-pass drift.
+    Returns True when ANY of the following hold:
+
+      (a) the ``wakir-merkle`` console-script is on ``PATH`` (the
+          editable install is active in this venv AND ``PATH`` is
+          configured to expose its ``bin/``);
+      (b) the console-script exists at ``<sys.prefix>/bin/wakir-merkle``
+          even though ``PATH`` does not include that ``bin/`` directory
+          (Sprint-6-Tag-4 OI-9 widening: pip-editable installs always
+          drop the console-script under the active interpreter's
+          ``sys.prefix/bin``, regardless of how the test runner was
+          invoked. Treating the script's *existence* as the signal
+          decouples the skip-guard from ``PATH`` mutation order — the
+          container-engineering Sprint-5-Tag-3 audit reproduced the
+          drift exactly here: 270+28 with no PATH-prepend vs 273+25
+          with ``PATH=$VENV/bin:$PATH``, identical interpreter and
+          editable install in both runs);
+      (c) the ``wat.cmd.aggregator_cli`` module is importable in the
+          current Python and ``wat-hourly.sh`` can therefore fall back
+          to ``python -m wat.cmd.aggregator_cli``. The shell driver
+          was hardened to take the fallback path in Sprint-5-Tag-4
+          (OI-9 environment-state-fix initial pass).
 
     Anchor for the skip-message: when this returns False the operator
     needs to run ``bash scripts/setup.sh`` (or ``pip install -e .``
     from the repository root) to make the WAT package importable.
     """
     if shutil.which("wakir-merkle") is not None:
+        return True
+    # Sprint-6-Tag-4 OI-9 fix: probe sys.prefix/bin directly. pip
+    # editable installs deposit the console-script there even if the
+    # test runner inherits a stripped PATH. This is the substantive
+    # PATH-state-decoupling — the shell driver's python -m fallback
+    # still handles the runtime invocation; this widening guarantees
+    # the skip-guard sees the same install state regardless of how
+    # the runner was launched.
+    prefix_script = Path(sys.prefix) / "bin" / "wakir-merkle"
+    if prefix_script.exists():
         return True
     # Importability check: cheaper than launching a subprocess and
     # gives a deterministic answer about whether ``python -m
