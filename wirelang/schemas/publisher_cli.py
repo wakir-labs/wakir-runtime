@@ -5,6 +5,8 @@
 Phase-1b Sprint-3 Tag-5 — OI-7-Phase-1c-publisher.
 Phase-2 Sprint-5 Tag-1 — capability-gating end-to-end integration.
 Phase-2 Sprint-5 Tag-3 — ``--capability-bucket`` persistent-policy source.
+Phase-2 Sprint-6 Tag-2 — ``revoke`` subcommand for explicit
+capability-policy revocation (Sprint-6 Tag-1 backend axis).
 
 This module exposes an argparse surface that lets an operator publish
 a module-shipped schema body onto the ``wakir-schemas`` NATS-KV bucket.
@@ -70,6 +72,21 @@ Subcommands
     the bucket. Useful for CI pipelines that want to gate on the
     canonical hash before granting write capability.
 
+``revoke`` (Sprint-6 Tag-2)
+    Apply an explicit revocation to an existing capability-policy
+    record on the ``wakir-capability-policies`` bucket. This
+    subcommand does NOT touch the ``wakir-schemas`` schema-registry
+    bucket; it mutates a capability-policy record in place by reading
+    the live record, attaching ``revoked_at`` / ``revocation_reason``,
+    and writing back via either CAS-pin (default, safe) or LWW
+    (``--lww`` opt-in, escape-hatch for operator-deliberate un-revoke
+    semantics — note that an un-revoke via CAS-pin is rejected by the
+    backend revocation-monotonicity invariant). The receipt records
+    the chosen mode, the old/new KV revision, and the revocation
+    instant; a CAS-pin conflict surfaces with the new
+    :class:`ExitCode.REVOCATION_CONFLICT` (8) so pipelines can
+    distinguish "stale revision" from "revocation-monotonic refusal".
+
 Receipt
 -------
 
@@ -123,7 +140,13 @@ from wirelang.schemas.registered_by_capability import (
 from wirelang.schemas.capability_policy_nats_kv_backend import (
     BUCKET_NAME as CAPABILITY_BUCKET_NAME,
     CapabilityPolicyBackendError,
+    CapabilityPolicyConflictError,
+    CapabilityPolicyEnvelopeError,
+    CapabilityPolicyRecord,
+    CapabilityPolicyRevocationConflict,
+    CapabilityPolicyValidationError,
     NatsKvCapabilityPolicyBackend,
+    key_for_policy_pair,
 )
 
 
@@ -149,6 +172,15 @@ class ExitCode(enum.IntEnum):
     CAS_CONFLICT = 5  # CAS-pin or create-only conflict
     BACKEND_ERROR = 6  # any other backend / transport failure
     CAPABILITY_DENY = 7  # Sprint-5 Tag-1: --gate decision was a deny
+    REVOCATION_CONFLICT = 8  # Sprint-6 Tag-2: revoke CAS-pin path tripped
+    #                          the Sprint-6 Tag-1 revocation-monotonicity
+    #                          invariant (un-revoke or advance-instant).
+    REVOKE_TARGET_NOT_FOUND = 9  # Sprint-6 Tag-2: revoke target
+    #                              (registered_by, policy_id) does not
+    #                              exist on the bucket. Distinct from
+    #                              INPUT_ERROR so pipelines can detect
+    #                              "policy never existed" vs. "operator
+    #                              typo in flag".
 
 
 # ---------------------------------------------------------------------------
@@ -235,6 +267,82 @@ class PublishReceipt:
 
 
 # ---------------------------------------------------------------------------
+# Revoke receipt shape (Sprint-6 Tag-2)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class RevokeReceipt:
+    """Canonical receipt printed on stdout on success of ``revoke``.
+
+    Phase-2 Sprint-6 Tag-2 — distinct from :class:`PublishReceipt`
+    because the revoke path operates on a different bucket
+    (``wakir-capability-policies``) with a different identity-pair
+    surface (``registered_by, policy_id``) and a different mutation
+    semantic (modify-in-place vs. publish-new). Two distinct dataclasses
+    keep each receipt's invariants narrow and self-documenting; the
+    receipt's top-level ``cmd`` field disambiguates them at the JSON
+    layer so downstream consumers can dispatch generically.
+
+    Fields
+    ------
+
+    - ``cmd``: always ``"revoke"``. Pipelines can use this to switch on
+      receipt shape without needing to inspect mode.
+    - ``mode``: ``"cas"`` (default, CAS-pinned write) or ``"lww"``
+      (last-write-wins escape-hatch; bypasses the revocation-monotonic
+      backend gate).
+    - ``key``: the canonical KV key
+      ``capability-policies/<registered_by>/<policy_id>``.
+    - ``registered_by`` / ``policy_id``: the policy identity pair.
+    - ``revoked_at``: RFC-3339 UTC instant of the applied revocation.
+    - ``revocation_reason``: the free-form audit string (or ``None``).
+    - ``expected_revision``: the revision the CLI pinned for CAS, or
+      ``None`` on the ``--lww`` path.
+    - ``previous_revision``: the live revision that the CLI READ from
+      the bucket before applying the write (always present so audit
+      trails can correlate the read↔write pair).
+    - ``new_revision``: the revision the bucket assigned after the
+      write succeeded.
+    - ``registered_at``: the new ``registered_at`` set on the rewritten
+      record (RFC-3339 UTC). Defaults to ``now`` unless the operator
+      passes ``--registered-at``.
+    - ``registered_by_publisher``: the operator-identifier of who
+      authored the revocation (audit field; mirrors the publish
+      receipt's audit gesture).
+    """
+
+    cmd: str  # always "revoke"
+    mode: str  # "cas" | "lww"
+    key: str
+    registered_by: str
+    policy_id: str
+    revoked_at: str
+    revocation_reason: Optional[str]
+    expected_revision: Optional[int]
+    previous_revision: int
+    new_revision: int
+    registered_at: str
+    registered_by_publisher: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "cmd": self.cmd,
+            "mode": self.mode,
+            "key": self.key,
+            "registered_by": self.registered_by,
+            "policy_id": self.policy_id,
+            "revoked_at": self.revoked_at,
+            "revocation_reason": self.revocation_reason,
+            "expected_revision": self.expected_revision,
+            "previous_revision": self.previous_revision,
+            "new_revision": self.new_revision,
+            "registered_at": self.registered_at,
+            "registered_by_publisher": self.registered_by_publisher,
+        }
+
+
+# ---------------------------------------------------------------------------
 # Argparse surface
 # ---------------------------------------------------------------------------
 
@@ -273,6 +381,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_input_flags(p_dry)
     _add_capability_flags(p_dry)
+
+    p_rev = sub.add_parser(
+        "revoke",
+        help=(
+            "Apply an explicit revocation to a capability-policy "
+            "record on the wakir-capability-policies bucket "
+            "(Sprint-6 Tag-2)."
+        ),
+    )
+    _add_revoke_flags(p_rev)
 
     return parser
 
@@ -475,6 +593,140 @@ def _add_capability_flags(p: argparse.ArgumentParser) -> None:
             "Optional RFC-3339 instant (with timezone) used as the "
             "gate's as_of value (validity-window enforcement). "
             "Defaults to None, which bypasses window enforcement."
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sprint-6 Tag-2 — revoke subcommand flags
+# ---------------------------------------------------------------------------
+
+
+def _add_revoke_flags(p: argparse.ArgumentParser) -> None:
+    """Operator-input flags for the ``revoke`` subcommand.
+
+    Five concerns are wired in:
+
+    - **Identity pair** (``--registered-by`` + ``--policy-id``):
+      identifies the capability-policy record on the
+      ``wakir-capability-policies`` bucket. Both required.
+
+    - **Revocation payload** (``--revoked-at`` + optional
+      ``--revocation-reason``): the wall-clock instant at which the
+      revocation takes effect (RFC-3339 with timezone) and an optional
+      free-form audit string. The instant is the canonical surface
+      that downstream gate decisions (Sprint-4 Tag-6 + Sprint-6 Tag-1)
+      use to deny.
+
+    - **Audit field** (``--registered-by-publisher``): who is
+      authoring the revocation, recorded on the rewritten record.
+      Required so the bucket history has a non-ambiguous audit trail
+      of which operator pressed the button.
+
+    - **Write mode** (``--expected-revision N`` XOR ``--lww``):
+      CAS-pin is the default (safer); LWW is an explicit opt-in
+      escape-hatch for operator-deliberate semantics. CAS-pin requires
+      the operator to declare the revision they observed via a prior
+      read; LWW does not. The Sprint-6 Tag-1 revocation-monotonic
+      backend invariant runs ONLY on CAS-pin, by design.
+
+    - **Connection** (``--connect-url``): NATS connect URL for the
+      capability-policy bucket; default ``nats://127.0.0.1:4222``.
+
+    Two further flags shape the rewritten record's bookkeeping fields
+    (mirrors the publish path):
+
+    - ``--registered-at``: optional RFC-3339 override for the
+      ``registered_at`` field on the rewritten record. Defaults to
+      current UTC when omitted; deterministic test paths supply it.
+    """
+
+    p.add_argument(
+        "--registered-by",
+        required=True,
+        help=(
+            "registered_by of the capability-policy record to revoke. "
+            "Component of the canonical KV key."
+        ),
+    )
+    p.add_argument(
+        "--policy-id",
+        required=True,
+        help=(
+            "policy_id of the capability-policy record to revoke. "
+            "Component of the canonical KV key."
+        ),
+    )
+    p.add_argument(
+        "--revoked-at",
+        required=True,
+        help=(
+            "Wall-clock instant of the revocation (RFC-3339, with "
+            "timezone, e.g. 2026-05-11T22:00:00Z). The gate denies any "
+            "as_of >= this instant with source POLICY_REVOKED."
+        ),
+    )
+    p.add_argument(
+        "--revocation-reason",
+        default=None,
+        help=(
+            "Optional free-form audit string surfaced in the gate's "
+            "deny reason and persisted on the record."
+        ),
+    )
+    p.add_argument(
+        "--registered-by-publisher",
+        required=True,
+        help=(
+            "Operator-identifier authoring the revocation write. "
+            "Recorded on the rewritten record's registered_by_publisher "
+            "field for audit. NOT the same as --registered-by (which "
+            "names the policy issuer being revoked)."
+        ),
+    )
+    p.add_argument(
+        "--registered-at",
+        default=None,
+        help=(
+            "Optional RFC-3339 instant (with timezone) set on the "
+            "rewritten record's registered_at field. Defaults to the "
+            "current UTC instant; deterministic test paths supply it "
+            "explicitly."
+        ),
+    )
+
+    mode = p.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--expected-revision",
+        type=int,
+        default=None,
+        help=(
+            "CAS-pin: pass the revision observed by a prior read "
+            "(get_with_revision_by_pair). The CLI ALSO reads the live "
+            "revision before the write so the receipt always records "
+            "previous_revision; --expected-revision MUST match that "
+            "live revision or the write fails with CAS_CONFLICT. "
+            "Mutually exclusive with --lww."
+        ),
+    )
+    mode.add_argument(
+        "--lww",
+        action="store_true",
+        help=(
+            "Last-write-wins escape-hatch. Bypasses the Sprint-6 "
+            "Tag-1 revocation-monotonic backend invariant; permits "
+            "operator-deliberate semantics (e.g. an authorised "
+            "un-revoke). Mutually exclusive with --expected-revision. "
+            "Default is CAS-pin (no --lww, no --expected-revision => "
+            "CLI auto-reads live revision and pins to it)."
+        ),
+    )
+    p.add_argument(
+        "--connect-url",
+        default="nats://127.0.0.1:4222",
+        help=(
+            "NATS connect URL for the wakir-capability-policies bucket "
+            "(default %(default)s)."
         ),
     )
 
@@ -1147,6 +1399,253 @@ async def _run_publish(
     return int(ExitCode.OK)
 
 
+async def _run_revoke(
+    args: argparse.Namespace,
+    capability_bucket_factory: CapabilityBucketConnectFactory,
+    stdout,
+    stderr,
+) -> int:
+    """Apply an explicit revocation to a capability-policy record.
+
+    Phase-2 Sprint-6 Tag-2 — operator surface for the Sprint-6 Tag-1
+    backend axis. The flow is intentionally narrow:
+
+    1. Parse + validate the revocation payload (``--revoked-at`` must
+       parse and carry a timezone; ``--registered-by-publisher`` must
+       be non-empty).
+    2. Connect to the capability-policy bucket via the injected
+       factory (tests inject a mock; production uses
+       :func:`_default_capability_bucket_factory`).
+    3. Read the live record via
+       :meth:`get_with_revision_by_pair`. A missing record raises
+       :class:`ExitCode.REVOKE_TARGET_NOT_FOUND` (9) — distinct from
+       INPUT_ERROR so pipelines can distinguish "policy never existed"
+       from "operator typo in argparse".
+    4. Construct the rewritten record by replacing the policy's
+       ``revoked_at`` / ``revocation_reason`` fields (all other
+       capability-bundle fields are preserved byte-equally; the
+       backend's revocation-monotonic invariant guards the CAS-pin
+       path against un-revoke / advance-instant).
+    5. Choose the write path:
+       - default + ``--expected-revision N``: CAS-pin via
+         :meth:`put_with_revision`. The CLI checks the operator's
+         ``--expected-revision`` against the live revision returned by
+         step 3; a mismatch surfaces with
+         :class:`ExitCode.CAS_CONFLICT` (5) BEFORE the write call
+         touches the bucket (saves a round-trip and gives a clearer
+         error than the backend's post-update CAS exception).
+       - default + no ``--expected-revision``: CAS-pin pinned to the
+         live revision read in step 3 (auto-pin path).
+       - ``--lww``: LWW via :meth:`put`. Bypasses the Sprint-6 Tag-1
+         backend revocation-monotonic invariant.
+    6. Emit the canonical :class:`RevokeReceipt` on stdout.
+
+    Connection cleanup runs in the ``finally`` block. Cleanup failures
+    never mask the write outcome (mirror of the publish path).
+    """
+
+    backend: Optional[NatsKvCapabilityPolicyBackend] = None
+    cleanup: Optional[Callable[[], Awaitable[None]]] = None
+    try:
+        # Step 1 — payload validation (pre-connect, so a malformed flag
+        # never opens a NATS connection).
+        try:
+            revoked_at = _parse_registered_at(args.revoked_at)
+        except ValueError as exc:
+            _print_error_stderr(
+                ExitCode.INPUT_ERROR,
+                f"--revoked-at parse error: {exc}",
+                stderr,
+            )
+            return int(ExitCode.INPUT_ERROR)
+        if not isinstance(args.registered_by_publisher, str) or not (
+            args.registered_by_publisher.strip()
+        ):
+            _print_error_stderr(
+                ExitCode.INPUT_ERROR,
+                "--registered-by-publisher must be a non-empty string",
+                stderr,
+            )
+            return int(ExitCode.INPUT_ERROR)
+        if (
+            args.revocation_reason is not None
+            and not isinstance(args.revocation_reason, str)
+        ):
+            # argparse always hands us str-or-None, but pin the
+            # invariant defensively (mirrors the publish-path style).
+            _print_error_stderr(
+                ExitCode.INPUT_ERROR,
+                "--revocation-reason must be a string (or omitted)",
+                stderr,
+            )
+            return int(ExitCode.INPUT_ERROR)
+        # Eagerly validate the identity-pair surface (raises ValueError
+        # for malformed components; the backend would catch it too but
+        # we want a clean INPUT_ERROR before any connect).
+        try:
+            key = key_for_policy_pair(args.registered_by, args.policy_id)
+        except ValueError as exc:
+            _print_error_stderr(
+                ExitCode.INPUT_ERROR,
+                f"--registered-by / --policy-id invalid: {exc}",
+                stderr,
+            )
+            return int(ExitCode.INPUT_ERROR)
+        registered_at = _parse_registered_at(args.registered_at)
+        use_lww = bool(getattr(args, "lww", False))
+        operator_expected_revision: Optional[int] = getattr(
+            args, "expected_revision", None
+        )
+
+        # Step 2 — connect.
+        backend, cleanup = await capability_bucket_factory(args.connect_url)
+
+        # Step 3 — read the live record.
+        try:
+            read_result = await backend.get_with_revision_by_pair(
+                args.registered_by, args.policy_id
+            )
+        except CapabilityPolicyEnvelopeError as exc:
+            _print_error_stderr(
+                ExitCode.VALIDATION_ERROR,
+                f"live capability-policy envelope is poisoned: {exc}",
+                stderr,
+            )
+            return int(ExitCode.VALIDATION_ERROR)
+        if read_result is None:
+            _print_error_stderr(
+                ExitCode.REVOKE_TARGET_NOT_FOUND,
+                (
+                    f"capability-policy record not found: "
+                    f"registered_by={args.registered_by!r} "
+                    f"policy_id={args.policy_id!r} (key={key!r})"
+                ),
+                stderr,
+            )
+            return int(ExitCode.REVOKE_TARGET_NOT_FOUND)
+        live_record, live_revision = read_result
+
+        # Step 4 — construct the rewritten record. We preserve every
+        # capability-bundle field byte-equally and overlay only
+        # revoked_at + revocation_reason. Re-using dataclasses.replace
+        # would also work but the explicit construction makes the
+        # invariant-preservation contract self-documenting.
+        from dataclasses import replace
+
+        try:
+            new_policy = replace(
+                live_record.policy,
+                revoked_at=revoked_at,
+                revocation_reason=args.revocation_reason,
+            )
+            new_record = CapabilityPolicyRecord(
+                policy=new_policy,
+                policy_id=live_record.policy_id,
+                registered_at=registered_at,
+                registered_by_publisher=args.registered_by_publisher,
+            )
+        except (RegisteredByCapabilityError, CapabilityPolicyValidationError) as exc:
+            _print_error_stderr(
+                ExitCode.VALIDATION_ERROR,
+                f"rewritten record is invalid: {exc}",
+                stderr,
+            )
+            return int(ExitCode.VALIDATION_ERROR)
+
+        # Step 5 — write path selection.
+        mode_label: str
+        expected_revision_recorded: Optional[int] = None
+        try:
+            if use_lww:
+                mode_label = "lww"
+                new_revision = await backend.put(new_record)
+            else:
+                mode_label = "cas"
+                # Operator-supplied --expected-revision MUST match the
+                # live revision the CLI just read. A mismatch is a
+                # CAS_CONFLICT surfaced BEFORE the backend call (no
+                # bucket touch on the publish side; the backend would
+                # also reject it but we save a round-trip and give a
+                # clearer error message).
+                if operator_expected_revision is not None:
+                    if operator_expected_revision != live_revision:
+                        _print_error_stderr(
+                            ExitCode.CAS_CONFLICT,
+                            (
+                                f"--expected-revision "
+                                f"{operator_expected_revision} does not "
+                                f"match live revision {live_revision} "
+                                f"for key {key!r}: re-read the record "
+                                f"and retry"
+                            ),
+                            stderr,
+                        )
+                        return int(ExitCode.CAS_CONFLICT)
+                    expected_revision_recorded = operator_expected_revision
+                else:
+                    expected_revision_recorded = live_revision
+                new_revision = await backend.put_with_revision(
+                    new_record, expected_revision=live_revision
+                )
+        except CapabilityPolicyRevocationConflict as exc:
+            _print_error_stderr(
+                ExitCode.REVOCATION_CONFLICT,
+                (
+                    f"revocation-monotonic backend invariant tripped: "
+                    f"{exc} (existing_revoked_at="
+                    f"{exc.existing_revoked_at!r}, proposed_revoked_at="
+                    f"{exc.proposed_revoked_at!r})"
+                ),
+                stderr,
+            )
+            return int(ExitCode.REVOCATION_CONFLICT)
+        except CapabilityPolicyConflictError as exc:
+            _print_error_stderr(ExitCode.CAS_CONFLICT, str(exc), stderr)
+            return int(ExitCode.CAS_CONFLICT)
+        except CapabilityPolicyValidationError as exc:
+            _print_error_stderr(ExitCode.VALIDATION_ERROR, str(exc), stderr)
+            return int(ExitCode.VALIDATION_ERROR)
+        except CapabilityPolicyEnvelopeError as exc:
+            _print_error_stderr(ExitCode.VALIDATION_ERROR, str(exc), stderr)
+            return int(ExitCode.VALIDATION_ERROR)
+        except CapabilityPolicyBackendError as exc:
+            _print_error_stderr(ExitCode.BACKEND_ERROR, str(exc), stderr)
+            return int(ExitCode.BACKEND_ERROR)
+        except Exception as exc:  # transport / unknown
+            _print_error_stderr(
+                ExitCode.BACKEND_ERROR,
+                f"backend error: {type(exc).__name__}: {exc}",
+                stderr,
+            )
+            return int(ExitCode.BACKEND_ERROR)
+
+        receipt = RevokeReceipt(
+            cmd="revoke",
+            mode=mode_label,
+            key=key,
+            registered_by=args.registered_by,
+            policy_id=args.policy_id,
+            revoked_at=revoked_at.isoformat().replace("+00:00", "Z"),
+            revocation_reason=args.revocation_reason,
+            expected_revision=expected_revision_recorded,
+            previous_revision=live_revision,
+            new_revision=new_revision,
+            registered_at=(
+                registered_at.isoformat().replace("+00:00", "Z")
+            ),
+            registered_by_publisher=args.registered_by_publisher,
+        )
+        _print_receipt_stdout(receipt, stdout)
+        return int(ExitCode.OK)
+    finally:
+        if cleanup is not None:
+            try:
+                await cleanup()
+            except Exception:
+                # Cleanup failures must NOT mask the revoke outcome.
+                pass
+
+
 async def _run_dry_run_async(
     args: argparse.Namespace,
     stdout,
@@ -1303,6 +1802,14 @@ def run(
 
     if args.cmd == "dry-run":
         return _run_dry_run(args, out, err, capability_bucket_factory)
+
+    if args.cmd == "revoke":
+        revoke_factory = (
+            capability_bucket_factory
+            if capability_bucket_factory is not None
+            else _default_capability_bucket_factory
+        )
+        return asyncio.run(_run_revoke(args, revoke_factory, out, err))
 
     factory = (
         connect_factory if connect_factory is not None else _default_connect_factory
