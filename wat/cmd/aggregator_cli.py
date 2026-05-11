@@ -315,11 +315,29 @@ def _build_empty_manifest(
 # downstream verifier-side wire-up (Sprint-5 Tag-2 / Sprint-6 Tag-2)
 # accepts it end-to-end without further plumbing.
 #
-# Key-material handling is intentionally lightweight: the key file is a
-# 64-char hex string holding the 32-byte raw Ed25519 seed. PEM / PKCS#8
-# parsing is deferred to a later operator-tooling pass; the hex format
-# matches the conventions used by the test fixtures and the AIP-document
-# ``public_keys[].key_hex`` slot. A trailing newline is tolerated.
+# Key-material handling accepts two formats:
+#
+# 1. 64-char hex-encoded raw seed (32 bytes). Matches the AIP-document
+#    ``public_keys[].key_hex`` slot and the test-fixture convention. A
+#    trailing newline is tolerated. This is the original Sprint-6-Tag-3
+#    format and remains the canonical compact form.
+#
+# 2. PEM-encoded PKCS#8 unencrypted Ed25519 private key. Matches the
+#    output of ``openssl genpkey -algorithm ed25519`` and the standard
+#    operator tooling format. The PEM is parsed via ``cryptography``'s
+#    ``load_pem_private_key``; non-Ed25519 PEMs (e.g. RSA / ECDSA /
+#    Ed448) are rejected with an algorithm-specific error so an
+#    operator who mis-pasted an RSA key gets an actionable message.
+#
+# Encrypted PEMs are intentionally NOT supported: the cron driver runs
+# unattended and has no place to source a passphrase. Operators who
+# need at-rest key encryption should decrypt into a tmpfs file ahead
+# of the cron call.
+#
+# Format detection is by content sniff (PEM begins with the
+# ``-----BEGIN`` marker after stripping whitespace); the file extension
+# is ignored so an operator-tooling pass that hands a ``.pem`` file
+# with hex contents (or vice versa) still works.
 # ---------------------------------------------------------------------------
 
 
@@ -330,18 +348,39 @@ class _SigningConfigError(ValidationError):
 def _load_sign_key(path: str | Path) -> bytes:
     """Load a 32-byte Ed25519 raw seed from ``path``.
 
-    Accepts a 64-char hex-encoded seed (matching the AIP-document
-    ``key_hex`` convention) with an optional trailing newline.
-    Operator-friendly errors: a missing file, a non-hex payload, and
-    a wrong-length payload each surface a distinct message so a cron
-    failure log points straight at the misconfiguration.
+    Accepts two formats; format is detected by content sniff:
+
+    * **Hex**: 64-char hex-encoded raw seed (32 bytes). Trailing
+      whitespace / newline tolerated. AIP-document ``key_hex`` slot
+      shape; the canonical compact form.
+    * **PEM / PKCS#8**: unencrypted PEM-encoded PKCS#8 Ed25519 private
+      key. Output shape of ``openssl genpkey -algorithm ed25519``.
+      Encrypted PEMs are not supported on this path; non-Ed25519 PEM
+      key types are rejected with an algorithm-specific message.
+
+    Operator-friendly errors: a missing file, a malformed PEM, a
+    non-Ed25519 PEM, a non-hex payload, and a wrong-length payload
+    each surface a distinct message so a cron failure log points
+    straight at the misconfiguration.
     """
     key_path = Path(path)
     if not key_path.exists():
         raise _SigningConfigError(f"signing key file not found: {key_path}")
-    raw = key_path.read_text(encoding="utf-8").strip()
+    raw_text = key_path.read_text(encoding="utf-8")
+    stripped = raw_text.strip()
+
+    # Format sniff: PEM begins with the ``-----BEGIN`` marker. We sniff
+    # on the stripped payload so leading whitespace in operator-pasted
+    # files does not push us off the PEM path.
+    if stripped.startswith("-----BEGIN"):
+        return _load_sign_key_pem(key_path, raw_text)
+    return _load_sign_key_hex(key_path, stripped)
+
+
+def _load_sign_key_hex(key_path: Path, stripped: str) -> bytes:
+    """Decode the original Sprint-6-Tag-3 hex format."""
     try:
-        seed = bytes.fromhex(raw)
+        seed = bytes.fromhex(stripped)
     except ValueError as exc:
         raise _SigningConfigError(
             f"signing key file is not valid hex: {key_path}: {exc}"
@@ -352,6 +391,51 @@ def _load_sign_key(path: str | Path) -> bytes:
             f"from {key_path}"
         )
     return seed
+
+
+def _load_sign_key_pem(key_path: Path, raw_text: str) -> bytes:
+    """Decode an unencrypted PEM/PKCS#8 Ed25519 private key.
+
+    The ``cryptography`` import is deliberately scoped to this
+    function so the hex path (and the broader unsigned-aggregator
+    code path that does not load any key at all) does not pay the
+    import cost. The hourly cron driver in ``scripts/wat-hourly.sh``
+    runs on operator hosts that may not have ``cryptography``
+    installed in the active interpreter; only operators who switch
+    their key material to PEM pay that dependency.
+    """
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import (  # noqa: PLC0415
+        Ed25519PrivateKey,
+    )
+    from cryptography.hazmat.primitives.serialization import (  # noqa: PLC0415
+        load_pem_private_key,
+    )
+
+    try:
+        priv = load_pem_private_key(
+            raw_text.encode("utf-8"),
+            password=None,
+        )
+    except TypeError as exc:
+        # ``cryptography`` raises TypeError when an encrypted PEM is
+        # presented without a password. Surface a clear operator-
+        # actionable message rather than the library default.
+        raise _SigningConfigError(
+            f"signing key PEM is encrypted; only unencrypted PEMs are "
+            f"supported on the aggregator signing path: {key_path}: {exc}"
+        ) from exc
+    except ValueError as exc:
+        raise _SigningConfigError(
+            f"signing key PEM is malformed: {key_path}: {exc}"
+        ) from exc
+
+    if not isinstance(priv, Ed25519PrivateKey):
+        raise _SigningConfigError(
+            f"signing key PEM must be an Ed25519 private key; got "
+            f"{type(priv).__name__} from {key_path}"
+        )
+
+    return priv.private_bytes_raw()
 
 
 def _resolve_signing_config(
@@ -493,10 +577,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--sign-key",
         default=None,
         help=(
-            "Path to a file containing a 64-char hex-encoded 32-byte "
-            "Ed25519 raw seed used to sign the emitted manifest. Must "
-            "be paired with --sign-kid; signing is disabled when both "
-            "are omitted."
+            "Path to a file containing the Ed25519 signing key. "
+            "Accepts either a 64-char hex-encoded 32-byte raw seed "
+            "(AIP-document key_hex convention) or an unencrypted "
+            "PEM/PKCS#8 Ed25519 private key (openssl genpkey -algorithm "
+            "ed25519 output). Format detected by content sniff. Must be "
+            "paired with --sign-kid; signing is disabled when both are "
+            "omitted."
         ),
     )
     p_build.add_argument(

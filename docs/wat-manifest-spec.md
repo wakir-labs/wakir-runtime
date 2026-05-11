@@ -289,11 +289,31 @@ The slot is stripped from a deep copy before canonicalisation so
 the signature cannot be part of its own pre-image.
 
 The `--sign-key` argument is a path to a file containing the
-64-char hex-encoded 32-byte Ed25519 raw seed (trailing newline
-tolerated). The `--sign-kid` argument is a non-empty string that
-the operator binds to an AIP-document `public_keys[]` entry under
-the `wat-anchor` purpose; the kid is captured in the signature
-block for the verifier-side resolver path
+Ed25519 signing key in one of two formats; format is detected by
+content sniff (no extension dependency):
+
+* **Hex** — 64-char hex-encoded 32-byte raw seed (trailing newline
+  tolerated). The original Sprint-6 Tag-3 format; matches the
+  AIP-document `public_keys[].key_hex` slot convention and remains
+  the canonical compact form.
+* **PEM/PKCS#8** (Sprint-6 Tag-5) — unencrypted PEM-encoded PKCS#8
+  Ed25519 private key. Matches the output of `openssl genpkey
+  -algorithm ed25519`. Encrypted PEMs are rejected on this path:
+  the unattended cron has no place to source a passphrase. Operators
+  who need at-rest key encryption should decrypt into a tmpfs file
+  ahead of the cron call. Non-Ed25519 PEM key types (RSA, ECDSA,
+  Ed448) are rejected with an algorithm-specific message so an
+  operator who mis-pasted a non-Ed25519 key gets an actionable error.
+
+For the same underlying seed the hex and PEM formats produce
+byte-identical signature bytes (Ed25519 is deterministic per
+RFC 8032), so an operator may rotate from hex to PEM without
+invalidating any historically-anchored manifest.
+
+The `--sign-kid` argument is a non-empty string that the operator
+binds to an AIP-document `public_keys[]` entry under the
+`wat-anchor` purpose; the kid is captured in the signature block
+for the verifier-side resolver path
 (`wat.identity.anchor_kid.resolve_wat_anchor_kid`).
 
 Both flags must be supplied together; partial configuration is
