@@ -500,6 +500,32 @@ is informative only.
 
 ## 11. Change log
 
+- **2026-05-11 (Sprint-4 Tag-2):** hermetic live-path coverage for the
+  off-default `ots verify`-Voll-Integration (Sprint-3 Tag-4). The
+  existing Tag-4 hermetic suite (`test_ots_full_verify.py`) monkey-
+  patches `wat.anchor.ots_anchor.verify_receipt` at the wrapper
+  surface; that pins the manifest-v2 verifier-contract but leaves
+  `verify_receipt` itself covered only by the live-gated
+  `OTS_INTEGRATION_TEST=1` smokes (real `ots` CLI on `$PATH`, real
+  network round-trip to Esplora). Tag-2 adds five hermetic tests that
+  mock the two boundaries below `verify_receipt` instead: the
+  `subprocess.run` call into the `ots` CLI (intercepted by patching
+  `ots_anchor.subprocess.run` plus `ots_anchor._resolve_ots_binary`)
+  and `wat.anchor.esplora.lookup_block_with_cache`. The five shapes
+  are (1) local-node `ots verify` returns `Success!`; (2) local-node
+  pending plus `ots info` yields one `BitcoinBlockHeaderAttestation`
+  height and Esplora confirms; (3) `ots info` yields zero heights,
+  truly unfinalised, hard reject; (4) heights present but Esplora
+  raises `EsploraError`, hard reject (no soft skip); (5) `ots verify`
+  raises `subprocess.TimeoutExpired`, translated to `AnchorError`,
+  surfaced as `full_verify_skipped_reason`, `ok` stays True at the
+  magic-header pin. Each test pins the
+  (`full_verify_attempted`, `full_verify_ok`, `full_verify_skipped_reason`)
+  discriminator triple, not just `ok`, so a future refactor that
+  silently re-classifies a hard reject as a soft skip breaks a test.
+  New module `tests/wat/test_ots_full_verify_live_path_hermetic.py`
+  (5 tests). Test-suite delta +5 (299 -> 304 passed; 25 skipped
+  unchanged).
 - **2026-05-11 (Sprint-4 Tag-1):** TV-3 receipt-persistence edge-case
   coverage extended by six hermetic shapes against the on-disk side-
   files: empty `root.bin` (0 bytes); `root.bin` removed entirely;
