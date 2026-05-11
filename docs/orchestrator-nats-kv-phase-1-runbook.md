@@ -59,7 +59,8 @@ memos and are referenced here only by name.
 | 7.5 | Image-digest verification gate (`verify-image-digest.sh`)          | Phase-2 Sprint-4 Tag-3 |
 | 7.6 | 5th bucket: `wakir-schema-registry-entries` (Phase-2-reserved)     | Phase-2 Sprint-4 Tag-4 |
 | 7.7 | 6th bucket: `wakir-federation-routes` (V-908 routine bring-up)     | Phase-2 Sprint-4 Tag-5 |
-| 8   | Verification stamps (P5/P7)                                        | Tag-2..Tag-8, Sprint-3 Tag-2..Tag-4, Phase-2 Sprint-4 Tag-1..Tag-5 |
+| 7.8 | SPIFFE Z-A JWT-SVID container-identity skizze (Z-A preparation)    | Phase-2 Sprint-4 Tag-6 |
+| 8   | Verification stamps (P5/P7)                                        | Tag-2..Tag-8, Sprint-3 Tag-2..Tag-4, Phase-2 Sprint-4 Tag-1..Tag-6 |
 
 The four operator artefacts (compose substrate, bucket initialiser,
 NATS-KV substrate health check, federation evaluator health check)
@@ -1892,6 +1893,70 @@ Wirelang track confirms the registration and lists the Phase-2
 follow-up (operator-hand population of routes is still out of scope
 for `init-nats-buckets.py`; see V-908 operator playbook).
 
+### 7.8 SPIFFE Z-A JWT-SVID Container-Identity-Skizze (Phase-2 Sprint-4 Tag-6)
+
+Sprint-4 Tag-6 added a stand-alone Skizze document
+`docs/spiffe-z-a-jwt-svid-skizze.md` describing the proposed
+SPIFFE/SPIRE Container-Identity substrate path for Phase-2 Sprint-5
+and beyond. The Skizze is **Cross-Review Zone A preparation
+material**: no substrate change has been applied, and no SPIRE
+container has been started. The Skizze collects:
+
+- **Trust-domain proposal** (§2): `wakir.local` for Phase-2 single-
+  node; `<org-id>.wakir.dev` for Phase-3a federation-ready.
+- **SPIFFE-ID path patterns** (§3): persona-container IDs as
+  `spiffe://<trust-domain>/agent/<persona-slug>/<persona-hash-12>`;
+  substrate-service IDs as `spiffe://<trust-domain>/service/<service-name>`.
+- **JWT-SVID issuance sequence** (§4): SPIRE-server sidecar →
+  Workload-API Unix-socket → persona container → NATS-JWT-Auth.
+- **SPIRE-server minimal config skizze** (§5): SQLite-DataStore, disk
+  KeyManager, Join-Token NodeAttestor as Phase-2 boring-defaults.
+- **Adapter-layer path** (§6, ADR-0035-bound): SPIRE container as
+  Sidecar (Go-native upstream), `py-spiffe` Workload-API client in
+  persona-container base image (Python adapter — no Go code written
+  by the DevOps owner), `nats-py` `user_jwt` connection parameter.
+- **Phase plan for Sprint-5** (§9): six-step Tag-by-Tag plan
+  (Phase-2.1..2.6), gated on Z-A consensus marker.
+
+**Test surface (Tag-6 additions):**
+
+`tests/orchestrator/test_spiffe_z_a_skizze.py` carries three
+hermetic Skizze-Validations tests under the `T-Tag6-Z-A-01..03`
+series. They validate the format constants exported by
+`scripts/spiffe_skizze_constants.py` (a new constants-only module
+with no runtime behaviour) against the Skizze §2 / §3.1 / §3.2 /
+§4.1 proposals:
+
+| # | Name (short) | What it pins |
+| --- | --- | --- |
+| T-Tag6-Z-A-01 | `..._spiffe_id_pattern_constants_are_well_formed` | Trust-domain default is `wakir.local`; persona-ID and service-ID regexes accept the §3.1 / §3.2 exemplars and reject obviously malformed inputs; known Phase-2 service set matches §3.2 table |
+| T-Tag6-Z-A-02 | `..._persona_hash_short_is_12_hex_chars` | `PERSONA_HASH_SHORT_LEN` is 12; regex enforces exactly that length and lower-case hex only |
+| T-Tag6-Z-A-03 | `..._workload_api_socket_path_is_documented_phase_2_default` | Socket path is `/run/spire/sockets/agent.sock`; override env-var name is `SPIFFE_ENDPOINT_SOCKET` (SPIFFE-spec convention); JWT-SVID TTL default is 15 min; NATS audience is `nats://wakir.local` |
+
+These tests do not require a running SPIRE server or NATS cluster.
+They are drift-detectors: when Cross-Review Zone A consensus later
+overrides a proposal (different trust-domain format, different
+hash-length, different socket path), the tests break loudly and force
+a co-edit of the constants module. This is the same drift-detection
+discipline the `test_inventory_matches_init_nats_buckets` parity test
+applies to the orchestrator-vs-Wirelang bucket-config mirror.
+
+**Cross-Review Zone A status (Tag-6 authoring stamp):** consensus
+marker not yet recorded; HR-track Cross-Review-protocol pending. All Skizze
+constants are *proposals*, not decisions. Phase-2 Sprint-5 Z-A
+implementation (Phase-2.1..2.6 per Skizze §9) is gated on the Z-A
+consensus marker.
+
+**Out of scope for the Tag-6 Skizze:**
+
+- No SPIRE-server image-tag selection (Cosign-pinning slot analogous
+  to the Tag-3 NATS-image-pin practice).
+- No NATS-JWT-Auth final claims-set specification (Wirelang-side
+  Identity-Document-Schema slot).
+- No Vault-backend integration (V-907 + Z-A follow-up slot, Phase-3).
+- No Phala-Cloud TEE-attestation integration (V-904 Z-D follow-up,
+  Phase-3).
+
 ## 8. Verification stamps (P5/P7)
 
 - Authoring date (Tag-3 update): `date -u` 2026-05-07T (CEST
@@ -2307,3 +2372,43 @@ for `init-nats-buckets.py`; see V-908 operator playbook).
   prose; the changes here are freshly written on the Tag-4 commit
   base (`16ddaba`), not a stash-pop apply — preserving the
   Tag-5 commit's full attribution chain.
+- Authoring date (Phase-2 Sprint-4 Tag-6 update): `date -u`
+  2026-05-11T18:30:01Z (CEST 2026-05-11 20:30). Sprint-4 Tag-6
+  60-min-box. Substance delivered: (a) new stand-alone Skizze
+  document `docs/spiffe-z-a-jwt-svid-skizze.md` (~430 lines)
+  describing the proposed SPIFFE/SPIRE Container-Identity substrate
+  path for Phase-2 Sprint-5 and beyond — Cross-Review Zone A
+  preparation material, no substrate change; (b) new constants-only
+  module `scripts/spiffe_skizze_constants.py` exporting the
+  Skizze §2 trust-domain default, §3.1 / §3.2 SPIFFE-ID regex
+  patterns, §3.1 `PERSONA_HASH_SHORT_LEN=12` proposal, §3.2
+  `KNOWN_PHASE_2_SERVICES` frozenset, §4.1 Workload-API socket-path
+  default `/run/spire/sockets/agent.sock` plus
+  `SPIFFE_ENDPOINT_SOCKET` override env-var convention, §4.3
+  JWT-SVID-TTL `15*60` seconds default and NATS audience
+  `nats://wakir.local`; (c) new hermetic test file
+  `tests/orchestrator/test_spiffe_z_a_skizze.py` with three Skizze-
+  Validations tests T-Tag6-Z-A-01..03 covering format-pattern
+  acceptors and rejecters, persona-hash short-form length pinning
+  (12 hex chars, lower-case enforced), Workload-API socket-path
+  defaults; (d) new runbook section §7.8 summarising the Skizze and
+  the Tag-6 test additions, with explicit out-of-scope statements
+  (no SPIRE image-tag selection, no NATS-JWT-Auth final claims-set,
+  no Vault-backend integration, no Phala-Cloud TEE attestation
+  here); (e) §0 section-index updated to list §7.8 and to extend
+  the §8 source-tags range to Phase-2 Sprint-4 Tag-1..Tag-6. Tag-6
+  zero-substrate-change discipline: no `compose/*.yaml` edits, no
+  `init-nats-buckets.py` edit, no `check-nats-kv-health.py` edit,
+  no Wirelang-side edit; this is a Skizze + tests delivery only.
+  Test-count delta: project-wide 245 passed + 24 skipped post-Tag-5
+  → 248 passed + 24 skipped post-Tag-6 (+3 new hermetic tests from
+  T-Tag6-Z-A-01..03; zero regression on the existing suite).
+  Cross-Review Zone A status: consensus marker not yet recorded;
+  HR-track Cross-Review-protocol pending. All Skizze constants are *proposals*,
+  not decisions. Phase-2 Sprint-5 Z-A implementation gated on the
+  Z-A consensus marker. Stash-disposition: the Tag-5 outbox §9
+  proposal to drop `stash@{0}` (`tag-4-federation-routes-prior-
+  attempt`) was actioned at Tag-6 box-start — verified via
+  `git stash drop stash@{0}` → `Dropped stash@{0} (fa598a48...)`;
+  post-drop `git stash list` is empty. The Tag-5 commit `7fc13ee`
+  remains authoritative for the 6th-bucket substance.
