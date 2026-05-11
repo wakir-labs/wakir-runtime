@@ -500,6 +500,43 @@ is informative only.
 
 ## 11. Change log
 
+- **2026-05-11 (Sprint-4 Tag-4):** Brand-Demo-Verifier Cross-Module
+  byte-coordination pinned. A hypothetical Brand-Demo-Snapshot emitter
+  (per `docs/wat-brand-asset-snapshot-spec.md` §3.5, §4) spans three
+  layers: the WAT-Identity-Layer verifier (`wat.verify.manifest_v2`),
+  the v1+v2 schema-files (`wirelang/schemas/wakir-wat-manifest-v1.json`
+  and `wat-manifest-v2.json`), and real OTS receipts (e.g. the TV-3
+  T17 fixture). Existing tests cover each layer in isolation. Tag-4
+  adds six Cross-Module tests that pin byte-coordination across layer
+  boundaries: (1) `manifest.merkle_root` hex equals `root.bin.hex()`
+  and `len(root.bin) == 32`; (2) `verify_real_manifest_file(...,
+  use_schema_file=True)` passes the TV-3 wire-form against the v1
+  schema-file end-to-end (schema + in-code fields + integrity rebuild
+  + OTS side-files); (3) feeding the v1 wire-form through
+  `verify_manifest_v2_file` correctly rejects at the schema layer
+  (`additionalProperties: false` on `prev_hour_root`, version enum
+  mismatch), pinning the intentional v1-vs-v2 wire-form divergence as
+  a test invariant; (4) the v2 sample-multi-cap-hour fixture passes
+  full v2 pipeline with `multi_cap_root_status == "verified"` under
+  strict mode; (5) the four Brand-Snapshot anchor fields (`hour_slot`,
+  `merkle_root`, `prev_hour_root`, `event_count`) are byte-pluckable
+  from the TV-3 manifest, satisfy v1-schema regex constraints
+  (`^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}$` for `hour_slot`,
+  `^[0-9a-f]{64}$` for `merkle_root`), and are byte-consistent with
+  `root.bin`; (6) end-to-end pipeline against a hermetic `tmp_path`
+  copy of TV-3 T17 with independent byte-pin of the OpenTimestamps
+  magic-header bytes (`\x00OpenTimestamps\x00`, 16 bytes) before the
+  verifier touches the file, asserting every `OtsAnchorCheck`
+  discriminator (`root_bin_present`, `root_bin_matches_manifest`,
+  `ots_present`, `ots_magic_ok`). All six tests are hermetic; tests
+  using the schema-file path use `pytest.importorskip("jsonschema")`
+  so they skip cleanly when the optional dependency is absent. New
+  module `tests/wat/test_brand_demo_cross_module_anchor_pins.py`
+  (6 tests). Test-suite delta +6 (304 -> 310 passed; 25 skipped
+  unchanged). Acceptance-belege Phase-1b -> 1c: this is the first
+  test module that asserts Cross-Module byte-coordination across all
+  three Brand-Demo-relevant layers in one place, replacing implicit
+  per-layer assumptions with explicit assertions.
 - **2026-05-11 (Sprint-4 Tag-2):** hermetic live-path coverage for the
   off-default `ots verify`-Voll-Integration (Sprint-3 Tag-4). The
   existing Tag-4 hermetic suite (`test_ots_full_verify.py`) monkey-
