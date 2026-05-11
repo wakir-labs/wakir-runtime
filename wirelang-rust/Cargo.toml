@@ -27,10 +27,17 @@
 #   emits the RFC 8785 JCS UTF-8 byte string. YAML front-matter parsing
 #   is intentionally out-of-scope for this crate (Phase-1c-Tag-N item).
 #
+# - persona-migration : V-907 self-migration step registry Rust pendant.
+#   Mirrors `wirelang.persona._internal.migration_steps`: V0ToV1Step +
+#   V1ToV2Step + flat `registered_steps()` registry. Cross-checked
+#   byte-identical against Python pin constants
+#   PERSONA_HASH_PIN_V8_MIGRATED_TO_V1 / V9_MIGRATED_TO_V2 /
+#   V8_MIGRATED_TO_V2 via the sister `persona-canonical-form` crate.
+#   Added Phase-1b Sprint-4 Tag-4 (2026-05-11).
+#
 # Crates explicitly NOT in this workspace yet (Phase-1c follow-up boxes):
-# - persona-canonical-form-yaml (YAML front-matter parser + canonical-
-#   subset extractor)
-# - persona-migration (V0->V1 step + registry + linear-chain walker)
+# - persona-migration-resolver (chain resolver / `_resolve_chain` /
+#   `migrate_persona` multi-input dispatcher pendant)
 # - persona-cli (Rust pendant for `wakir-persona migrate`)
 #
 # Default-Lock posture (pengine-eng engine-side, ratified 2026-05-07 ~10:00 CEST)
@@ -51,6 +58,7 @@ members = [
     "crates/persona-hash",
     "crates/persona-canonical-form",
     "crates/persona-canonical-form-yaml",
+    "crates/persona-migration",
 ]
 
 [workspace.package]

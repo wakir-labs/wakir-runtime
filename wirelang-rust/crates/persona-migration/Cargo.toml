@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# persona-migration — Rust pendant of `wirelang.persona.persona_migration`
+# and `wirelang.persona._internal.migration_steps`.
+#
+# Scope (Phase-1c Sprint-4 Tag-4):
+# - `V0ToV1Step` + `V1ToV2Step` schema-version lift steps.
+# - `registered_steps()` flat ordered registry mirroring Python
+#   `REGISTERED_STEPS`.
+# - Pin-pack mirror constants:
+#     PERSONA_HASH_PIN_V8_MIGRATED_TO_V1,
+#     PERSONA_HASH_PIN_V9_MIGRATED_TO_V2,
+#     PERSONA_HASH_PIN_V8_MIGRATED_TO_V2.
+# - Determinism contract: `step.apply(d)` is byte-identical to the
+#   Python helper at the canonical-subset granularity; verified at test
+#   time by feeding the output through the sister `persona-canonical-form`
+#   + SHA-256 crates and matching the Python pin constants.
+#
+# Out-of-scope (kept in Python for Sprint-4):
+# - The full `migrate_persona` multi-input dispatcher (dict | str | Path).
+#   The Rust pendant operates on already-extracted canonical-subset dicts
+#   (a `serde_json::Value::Object`), mirroring the Phase-1c crate-split
+#   discipline established by `persona-canonical-form` and `persona-hash`.
+# - The `expected_post_migration_hash` re-hash assertion; that lives in
+#   the test layer here and will move into a public surface in a follow-
+#   up Phase-1c box.
+# - The chain resolver / `_resolve_chain`. Sprint-4 Tag-4 deliberately
+#   keeps the resolver Python-side (the Tag-3 outbox §H2 90-min box scope)
+#   to keep this crate at "step-level Rust parity" and the resolver as
+#   a separate Phase-1c box. The chain is exercised here via direct
+#   composition of the two steps for the V8-via-chain-to-V2 test vector.
+
+[package]
+name = "persona-migration"
+version = "0.1.0"
+description = "Self-migration step registry (Rust pendant of wirelang.persona._internal.migration_steps)"
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+
+[lib]
+name = "persona_migration"
+path = "src/lib.rs"
+
+[dependencies]
+serde      = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+# Cross-check the step output against the Python pin constants by
+# running the canonical-subset Value through `persona-canonical-form`
+# + `sha2`. This is the byte-parity contract for Phase-1c Tag-4 and
+# is intentionally a dev-dep (the migration step itself does not hash;
+# the test layer does).
+persona-canonical-form = { path = "../persona-canonical-form" }
+sha2                   = { workspace = true, features = ["std"] }
