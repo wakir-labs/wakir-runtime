@@ -9,14 +9,14 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wirelang-schema-registry
-version: 0.6.0
+version: 0.7.0
 status: draft
 date: 2026-05-11
 audience: implementers, integrators, operators
 license: CC-BY-4.0
 ---
 
-# Wirelang Schema Registry — NATS-KV Backend Specification (v0.6.0)
+# Wirelang Schema Registry — NATS-KV Backend Specification (v0.7.0)
 
 **Change log**
 
@@ -27,6 +27,7 @@ license: CC-BY-4.0
 | 0.3.0   | 2026-05-07 | Phase-1c watch-stream surface lands in Tag-4 (`watch()` / `WatchOp` / `WatchEvent` / `LiveSchemaSnapshot` / `open_watch_stream`); §5.3 OI-7-Phase-1c-watch slot CONSUMED; §5.5 added (watch-stream operational contract); §6.2 added (T-SR-WS-01..10 + 2 aux probes test inventory). Additive-only change relative to v0.2.0; M-2 / M-4 conformance preserved. |
 | 0.4.0   | 2026-05-07 | Phase-1c publisher CLI lands in Tag-5 (`wirelang.schemas.publisher_cli`: `wakir-schema-registry publish` / `dry-run` argparse surface, `PublishReceipt`, `ExitCode` matrix); §5.3 OI-7-Phase-1c-publisher slot CONSUMED; §5.6 added (publisher CLI operational contract); §6.3 added (T-SR-PUB-01..12 test inventory). Additive-only change relative to v0.3.0; M-2 / M-4 conformance preserved. The CLI is a thin operator-input layer over the Tag-3 CAS-pin and Tag-1 LWW backends; it introduces no new on-the-wire envelope and no new validation gate. |
 | 0.5.0   | 2026-05-07 | Phase-1c cross-bucket replication lands in Tag-6 (`wirelang.schemas.replication`: `SchemaReplicator`, `bootstrap_target_from_source`, `ReplicationConflictPolicy`, `ReplicationFilter`, `ReplicationMetrics`); §5.3 OI-7-Phase-1c-replication slot CONSUMED; §5.7 added (replication operational contract); §6.4 added (T-SR-REP-01..12 test inventory). Additive-only change relative to v0.4.0; M-2 / M-4 conformance preserved. The replication layer is a thin composition of Tag-1 LWW + Tag-3 CAS-pin + Tag-4 watch-stream surfaces; it introduces no new on-the-wire envelope, no new validation gate, and no new method on `NatsKvSchemaRegistry`. **Phase-1c is now feature-complete.** |
+| 0.7.0   | 2026-05-11 | Phase-2 Sprint-4 Tag-3 lands the kid → Ed25519 public-key resolver (`wirelang.identity.kid_resolver`: `resolve_kid`, `list_resolvable_kids`, `ResolvedPublicKey`, `KidResolverError`); §5.9 added (kid-resolver operational contract); §6.6 added (T-KID-RES-01..12 test inventory); §5.8 `kid` resolution forward-reference linked. Z-1-K-Sprint-4-1 (kid-Resolver-Shape) closed by this module — `kid` matches `public_keys[i].kid` (the byte-accurate AIP-document JSON-Schema field; the Z-1-Sprint-4-Anhang consensus marker's "public_keys[i].id" wording refers to the same identifier slot). Z-1-K-Sprint-4-3 (Curve-Choice = Ed25519) reinforced: the resolver filters out `alg == "secp256k1"` entries (those belong to the Biscuit capability-token-burst layer per the two-curve-stack consensus). The resolver does NOT fetch the AIP document over transport, does NOT validate the AIP-document signature, and does NOT mutate the schema-registry backend surface (no new method on `NatsKvSchemaRegistry`). Additive-only change relative to v0.6.0; M-2 / M-4 conformance preserved. |
 | 0.6.0   | 2026-05-11 | Phase-2 entry-signing layer lands in Sprint-4 Tag-1 (`wirelang.schemas.entry_signing`: `SignedSchemaRegistryEntry`, `sign_entry`, `verify_entry_signature`, `envelope_with_signature`, `envelope_to_signed_entry`, `SchemaRegistrySignatureError`, `VerifyMode`); §5.3 OI-7-Phase-2-sig slot CONSUMED (Phase-2 hardening begins); §5.8 added (entry-signing operational contract); §6.5 added (T-SR-SIG-01..12 test inventory). Envelope schema **additive only**: optional `signature` slot on the existing `wakir.wirelang.schema-registry-entry/1` envelope (no `/2` envelope; backward-compatible with v0.5.0 readers). Tag-1 codec is unchanged; new `envelope_with_signature` / `envelope_to_signed_entry` helpers ship the round-trip for the optional slot. M-2 conformance preserved (additive-only field; absent slot is valid under permissive Phase-2-transition verify mode); M-4 conformance preserved (orthogonal to version axis). Cross-Review-Zone-1 (Identity-Substrate) **TRIGGERED**: signing reuses `wirelang.identity.aip_signing` Ed25519 + JCS + SHA-256 primitive byte-identical; the kid binds the signature to an AIP-document `public_keys` entry. `NatsKvSchemaRegistry` surface remains zero-new-method (signing happens at envelope-build time before `put` / `put_with_revision`). |
 
 This specification defines the Wakir Wirelang **Schema Registry**: a
@@ -237,6 +238,71 @@ JCS-canonical envelope that is byte-stable for audit anchoring.
   the anchored byte-string). Cross-Review-Memo to Tomás recorded
   in Sprint-4 Tag-1 outbox §2.
 
+**Phase-2 Sprint-4 Tag-3 (this revision, additive over Sprint-4 Tag-1):**
+
+- The kid → Ed25519 public-key resolver
+  (`wirelang/identity/kid_resolver.py`) exposing the pure functions
+  `resolve_kid(aip_doc, kid, *, as_of=None, require_purpose=None)` and
+  `list_resolvable_kids(aip_doc, *, as_of=None, require_purpose=None)`,
+  the frozen dataclass `ResolvedPublicKey` (`kid` / `public_key` /
+  `validafter` / `validuntil` / `purpose`), and the typed exception
+  `KidResolverError`.
+- The resolver lives in `wirelang.identity` (Reza-Default per
+  Z-1-K-Sprint-4-1: "resolver-layer in `wirelang.identity` separat";
+  the module is consumed by `wirelang.schemas.entry_signing` callers,
+  not imported from it — the schema-registry module stays decoupled
+  from the AIP-document trust layer).
+- **Byte-accurate AIP-document field**: the resolver matches the
+  caller-supplied `kid` argument against the `kid` field of each
+  `public_keys` entry (the AIP-document JSON-Schema
+  `wirelang/schemas/aip-document.json` defines the identifier field
+  as `kid`, not `id`). The Z-1-Sprint-4-Anhang consensus marker's
+  Reza-Default phrasing "public_keys[i].id" refers to the same
+  identifier slot; §5.9 captures the byte-accuracy note explicitly so
+  future implementations cannot drift on the field name.
+- **Curve-Choice filter** per Z-1-K-Sprint-4-3 (Identity-Document-
+  layer is Ed25519-only; secp256k1 entries belong to the capability-
+  token-burst layer per the two-curve-stack consensus): the resolver
+  filters out `alg != "Ed25519"` entries. A `kid` whose only
+  matching entry is `secp256k1` raises `KidResolverError` rather than
+  resolving across curves.
+- **Validity-window enforcement** (caller-driven): if the caller
+  supplies an `as_of` `datetime`, the resolver enforces
+  `validafter <= as_of < validuntil` (open-ended `validuntil`
+  treated as `+inf`). When `as_of` is omitted, no window check
+  runs (historical-signature use-case). Production verifier paths
+  SHOULD pass `as_of`.
+- **Duplicate-kid policy**: a duplicate kid in `public_keys` is a
+  structural failure of the AIP document; the resolver raises
+  `KidResolverError` rather than silently selecting one entry. The
+  AIP-document JSON-Schema does not forbid duplicates at write time;
+  the resolver enforces single-match at read time.
+- **Purpose filter**: optional `require_purpose` argument lets
+  callers narrow to a purpose tag (`"biscuit-root"`,
+  `"aip-signing"`, `"frame-signing"`, `"wat-anchor"`). Entries
+  without a `purpose` field do not match when `require_purpose` is
+  set.
+- 12 hermetic determinism tests (T-KID-RES-01..12) over hand-built
+  AIP-document fragments and a cross-layer test that ties the
+  resolver end-to-end into `verify_entry_signature`.
+- This slot closes **Z-1-K-Sprint-4-1** (kid-Resolver-Shape) and
+  **Z-1-K-Sprint-4-3** (Curve-Choice reinforcement). Z-1-K-Sprint-4-2
+  (JCS-Resolver-Lock) and Z-1-K-Sprint-4-4 (STRICT-Mode-Activation-
+  Owner) remain non-touched here (the resolver does not canonicalise
+  and is policy-agnostic).
+- **`NatsKvSchemaRegistry` surface remains UNCHANGED**. The resolver
+  is a pure function over the AIP document the caller supplies; no
+  backend method is added, no new envelope schema introduced, no new
+  validation gate at write time. The resolver is invoked by callers
+  who already hold an AIP document and a `SignedSchemaRegistryEntry`;
+  they feed `resolved.public_key` into `verify_entry_signature`.
+- **Boundary**: this slot does NOT fetch the AIP document over
+  transport (`did:web` / `aip:web`); it does NOT validate the
+  AIP-document `document_signature` (caller responsibility); it does
+  NOT plumb the resolver into the schema-registry backend read path
+  (verification stays caller-driven, consistent with Sprint-4 Tag-1
+  Phase-2 boundary).
+
 **Phase-2 (remaining reserved, out of scope here):**
 
 - CAS-quorum upserts on top of multi-replica clusters
@@ -249,14 +315,23 @@ JCS-canonical envelope that is byte-stable for audit anchoring.
   (**OI-7-Phase-2-bidir-replication** reserved).
 - Watch-stream resume-from-revision policy
   (**OI-7-Phase-2-resume** reserved).
+- AIP-document transport-fetch (`did:web` / `aip:web` HTTPS bridge)
+  for the kid-resolver — the resolver currently assumes the caller
+  has already fetched the AIP document; transport-fetch lives in a
+  follow-up Phase-2 / Phase-3 Identity-Substrate slot.
+- STRICT-mode operator-activation toggle (Z-1-K-Sprint-4-4 remains
+  open — the resolver is policy-agnostic; the toggle question is
+  a Phase-2-roadmap consensus decision).
 
 The Phase-1c slots are all consumed: Tag-3 consumed
 **OI-7-Phase-1c-CAS**, Tag-4 consumed **OI-7-Phase-1c-watch**, Tag-5
 consumed **OI-7-Phase-1c-publisher**, Tag-6 consumes
 **OI-7-Phase-1c-replication**. Phase-2 Sprint-4 Tag-1 consumes
-**OI-7-Phase-2-sig**. The Phase-2 reserved slots are tracked as
-**OI-7-Phase-2-quorum / -deprecation / -ipfs / -bidir-replication /
--resume**.
+**OI-7-Phase-2-sig**; Sprint-4 Tag-3 closes the Z-1-Sprint-4-Anhang
+follow-up `kid → public-key resolver`. The Phase-2 reserved slots are
+tracked as **OI-7-Phase-2-quorum / -deprecation / -ipfs / -bidir-
+replication / -resume** plus the transport-fetch / STRICT-toggle
+follow-up slots noted above.
 
 ## 2. Bucket identity (cross-reference Kai inventory)
 
@@ -495,7 +570,7 @@ These gates protect the determinism contract: a poisoned or
 mis-anchored envelope cannot reach the bucket through the typed
 backend.
 
-### 5.3 What Phase-1b Sprint-3 Tag-1 + Tag-3 + Tag-4 + Tag-5 + Tag-6 + Phase-2 Sprint-4 Tag-1 covers, and what Phase-2 still does NOT do
+### 5.3 What Phase-1b Sprint-3 Tag-1 + Tag-3 + Tag-4 + Tag-5 + Tag-6 + Phase-2 Sprint-4 Tag-1 + Tag-3 covers, and what Phase-2 still does NOT do
 
 **Tag-1 (v0.1.0) lands:**
 
@@ -650,6 +725,28 @@ consumed (Tag-3 / Tag-4 / Tag-5 / Tag-6).**
   signed envelope flows through the existing surfaces transparently.
 - **OI-7-Phase-2-sig slot consumed. Phase-2 hardening begins.**
 
+**Phase-2 Sprint-4 Tag-3 (v0.7.0) lands (additive over Sprint-4 Tag-1):**
+
+- The kid → Ed25519 public-key resolver module
+  `wirelang.identity.kid_resolver` exposing the pure functions
+  `resolve_kid` and `list_resolvable_kids`, the frozen dataclass
+  `ResolvedPublicKey`, and the typed exception `KidResolverError`.
+- The resolver walks `aip_doc["public_keys"]` and matches on the
+  `kid` field (byte-accurate per the AIP-document JSON-Schema).
+  Filters: `alg == "Ed25519"`, optional validity-window (`as_of`),
+  optional `require_purpose`.
+- 12 hermetic determinism tests (T-KID-RES-01..12) including a
+  cross-layer test that wires `resolve_kid` end-to-end into
+  `verify_entry_signature`.
+- The `wirelang.schemas.entry_signing` surface is UNCHANGED in this
+  slot; the resolver is consumed by callers, not invoked from within
+  the signing module (Reza-Default per Z-1-K-Sprint-4-1 places the
+  resolver in `wirelang.identity` and keeps schema-registry signing
+  decoupled from the AIP-document trust layer).
+- **Z-1-K-Sprint-4-1 (kid-Resolver-Shape) CLOSED.** Z-1-K-Sprint-4-3
+  (Curve-Choice = Ed25519 for the Identity-Document layer) is
+  reinforced by the resolver's alg filter.
+
 **Phase-2 still does NOT include:**
 
 - No CAS-quorum upserts on top of multi-replica clusters (Tag-3
@@ -662,11 +759,18 @@ consumed (Tag-3 / Tag-4 / Tag-5 / Tag-6).**
   reserved).
 - No watch-stream resume-from-revision policy
   (`OI-7-Phase-2-resume` reserved).
-- No kid → public-key resolver in the signing layer (separate
-  Identity-Substrate work item).
+- ~~No kid → public-key resolver in the signing layer~~
+  (**CONSUMED in Sprint-4 Tag-3** by
+  `wirelang.identity.kid_resolver`; see §5.9).
 - No automatic signature verification on the backend read path
   (verification stays caller-driven; backend codec is pass-through
   for the optional slot).
+- No AIP-document transport-fetch (`did:web` / `aip:web` HTTPS
+  bridge) — the kid-resolver assumes the caller has already fetched
+  the AIP document; transport-fetch is a separate Identity-Substrate
+  slot.
+- No STRICT-mode activation toggle (Z-1-K-Sprint-4-4 still open;
+  the resolver is policy-agnostic).
 
 ### 5.4 CAS-pin operational contract (Tag-3)
 
@@ -1312,6 +1416,169 @@ signing convention.
   time (consistent with the design that verification is a separate
   caller-driven step).
 
+**Forward reference (Sprint-4 Tag-3):** the `kid` referenced in
+`signature.kid` is resolved to a 32-byte Ed25519 public key by
+`wirelang.identity.kid_resolver.resolve_kid(aip_doc, kid)`. See §5.9
+for the resolver operational contract.
+
+### 5.9 kid-resolver operational contract (Phase-2 Sprint-4 Tag-3)
+
+The kid-resolver layer binds the free-form `kid` string carried on a
+signature block (§5.8) to a concrete 32-byte raw Ed25519 public key
+read from an AIP document. It is a pure function in
+`wirelang.identity.kid_resolver`; it does NOT mutate the
+schema-registry backend, does NOT add a method to
+`NatsKvSchemaRegistry`, and does NOT introduce a new envelope schema.
+
+**Module location and rationale:**
+
+The resolver lives in `wirelang.identity`, not in
+`wirelang.schemas.entry_signing`. This placement reflects the
+Z-1-K-Sprint-4-1 consensus marker default ("resolver-layer in
+`wirelang.identity` separat"): the schema-registry signing module
+treats the public key as caller-supplied, and the AIP-document trust
+layer is the natural home for the kid → key binding. Callers compose
+the two modules: read an AIP document, call `resolve_kid`, feed the
+resolved public key into `verify_entry_signature`.
+
+**Byte-accurate AIP-document field**
+
+The Reza-Default phrasing in the Z-1-Sprint-4-Anhang consensus marker
+("`kid` matched AIP-doc `public_keys[i].id` string") refers to the
+identifier slot on each `public_keys` entry. The AIP-document JSON
+Schema (`wirelang/schemas/aip-document.json` v0.1.0) defines this
+field as `kid`, not `id`. The resolver matches on the `kid` field
+byte-accurately; the consensus marker's `id` wording was a colloquial
+reference to "the identifier" and is reconciled here by this byte-
+accuracy note. Future implementations MUST match on `kid` to stay
+schema-compliant.
+
+**Public API:**
+
+```python
+@dataclass(frozen=True)
+class ResolvedPublicKey:
+    kid: str
+    public_key: bytes                # 32-byte raw Ed25519
+    validafter: Optional[datetime]
+    validuntil: Optional[datetime]
+    purpose: Optional[str]
+
+def resolve_kid(
+    aip_doc: Mapping[str, Any],
+    kid: str,
+    *,
+    as_of: Optional[datetime] = None,
+    require_purpose: Optional[str] = None,
+) -> ResolvedPublicKey: ...
+
+def list_resolvable_kids(
+    aip_doc: Mapping[str, Any],
+    *,
+    as_of: Optional[datetime] = None,
+    require_purpose: Optional[str] = None,
+) -> list[str]: ...
+
+class KidResolverError(Exception): ...
+```
+
+**Resolver filters (in order of application):**
+
+1. **Required field** `aip_doc["public_keys"]` is a non-empty
+   sequence of mappings; `kid` is a non-empty string. Violations
+   raise `KidResolverError`.
+2. **Kid match**: linear scan over `public_keys`, matching on
+   `entry["kid"] == kid`. Zero matches → `kid not found`.
+   ≥ 2 matches → `duplicate kid` (structural failure of the AIP
+   document; the resolver refuses to silently pick a winner).
+3. **Algorithm filter (Z-1-K-Sprint-4-3 reinforcement)**: the
+   matched entry MUST have `alg == "Ed25519"`. A `secp256k1` entry
+   raises `KidResolverError` — those keys belong to the Biscuit
+   capability-token-burst layer (two-curve-stack consensus).
+4. **Key-length validation**: `key_hex` MUST be a 64-char lowercase
+   hex string decoding to 32 raw bytes.
+5. **Validity-window enforcement (caller-driven)**: when `as_of` is
+   supplied, the resolver enforces
+   `validafter <= as_of < validuntil`. Open-ended `validuntil`
+   (`None` or `null`) is treated as `+infinity`. Naive `as_of`
+   datetimes are promoted to UTC. Production verifier paths SHOULD
+   pass `as_of` to bind signatures to a point in time.
+6. **Purpose filter (caller-driven)**: when `require_purpose` is
+   supplied, the matched entry MUST have a `purpose` field byte-
+   equal to the argument. Entries without a `purpose` field do not
+   match. Default: no purpose filter.
+
+**Determinism contract (Phase-2 Sprint-4 Tag-3 invariants):**
+
+1. **Pure function**: `resolve_kid` does not mutate its input
+   `aip_doc`. The frozen `ResolvedPublicKey` is the only output.
+2. **Reproducible**: repeated calls on a byte-equal `aip_doc` and
+   the same arguments produce equal `ResolvedPublicKey` instances
+   (frozen-dataclass equality).
+3. **Structural-vs-cryptographic split**: structural failures of
+   the AIP document raise `KidResolverError`. A successfully-
+   resolved key may still fail signature verification downstream —
+   that crypto-failure surfaces as `False` from
+   `verify_entry_signature`, not as `KidResolverError`. The split
+   matches the entry-signing module's exception convention.
+4. **Order-deterministic `list_resolvable_kids`**: returns a sorted
+   list. Repeated calls produce byte-equal lists.
+
+**Cross-Review-Zone-1 (Identity-Substrate) closure:**
+
+- **Z-1-K-Sprint-4-1 (kid-Resolver-Shape) CLOSED** by this module.
+- **Z-1-K-Sprint-4-3 (Curve-Choice for Schema-Registry-Sigs)
+  reinforced**: `alg == "Ed25519"` filter enforced. The resolver
+  cannot bridge from a secp256k1 entry to the Identity-Document
+  signing layer.
+- **Z-1-K-Sprint-4-2 (JCS-Resolver-Lock) non-touched**: the
+  resolver does not canonicalise — it is a pure structural read.
+- **Z-1-K-Sprint-4-4 (STRICT-Mode-Activation-Owner) non-touched**:
+  the resolver is policy-agnostic. The caller drives `VerifyMode`
+  and decides when to require resolution.
+
+**Phase-2 Sprint-4 Tag-3 boundary:**
+
+- The resolver does NOT fetch the AIP document over transport
+  (`did:web` / `aip:web` HTTPS bridge). Transport-fetch lives in a
+  follow-up Identity-Substrate slot.
+- The resolver does NOT validate the AIP-document
+  `document_signature` slot. Establishing AIP-document trust is the
+  caller's responsibility — `wirelang.identity.verify_aip_signature`
+  is the natural companion.
+- The resolver does NOT plumb into the schema-registry backend read
+  path. Verification stays caller-driven (consistent with Sprint-4
+  Tag-1 entry-signing boundary).
+- The resolver does NOT bind `kid` to the schema-registry
+  `registered_by` field. Capability-token gating on `registered_by`
+  remains a future Phase-2 slot.
+
+**Composition pattern (canonical end-to-end verifier flow):**
+
+```python
+# 1. Fetch and (caller-side) trust the AIP document.
+aip_doc = fetch_aip_document_for(entry.registered_by)  # caller path
+
+# 2. Resolve the signing kid to a public key.
+from wirelang.identity import resolve_kid
+resolved = resolve_kid(
+    aip_doc,
+    signed.signature["kid"],
+    as_of=now_utc(),
+    require_purpose="aip-signing",  # optional narrowing
+)
+
+# 3. Verify the schema-registry-entry signature end-to-end.
+from wirelang.schemas.entry_signing import verify_entry_signature, VerifyMode
+ok = verify_entry_signature(
+    signed, resolved.public_key, mode=VerifyMode.STRICT,
+)
+```
+
+This composition is the recommended Phase-2 verifier pattern.
+Sprint-4 Tag-3 test T-KID-RES-03 exercises it end-to-end against the
+RFC-8032 Ed25519 test-vector seeds.
+
 ## 6. Test inventory
 
 Phase-1b Sprint-3 Tag-1 ships hermetic tests at
@@ -1614,6 +1881,79 @@ asymmetric.ed25519` to generate ephemeral key-pairs from
 deterministic 32-byte seeds and known-answer Ed25519 vectors where
 applicable.
 
+### 6.6 kid-resolver tests (Phase-2 Sprint-4 Tag-3, additive over Sprint-4 Tag-1)
+
+Phase-2 Sprint-4 Tag-3 ships hermetic resolver tests at
+`wirelang/tests/test_identity_kid_resolver.py`. Inventory
+T-KID-RES-01..12:
+
+- **T-KID-RES-01** — happy-path resolve through the wired
+  `generate_aip_document` factory. Pins that the resolver agrees with
+  the byte-shape the generator emits: `kid="biscuit-root-1"`,
+  `alg="Ed25519"`, `purpose="biscuit-root"`, validity-window parsed.
+- **T-KID-RES-02** — multi-key resolve. Two distinct kids in
+  `public_keys` (`biscuit-root-1` + `aip-signing-1`), both Ed25519,
+  resolve independently to the right key.
+- **T-KID-RES-03** — cross-layer end-to-end. Sign a
+  `SchemaRegistryEntry` with `entry_signing.sign_entry`; resolve the
+  kid via `resolve_kid`; feed the resolved public key into
+  `verify_entry_signature(..., mode=VerifyMode.STRICT)`. Pins that
+  the composition pattern (§5.9) verifies under STRICT. Negative
+  branch: a wrong-key resolve returns `False` from verify (crypto
+  failure, not structural).
+- **T-KID-RES-04** — kid-not-found structural failure. A kid absent
+  from `public_keys` raises `KidResolverError` with a
+  `"kid not found"` message; the error message includes the list of
+  candidate kids.
+- **T-KID-RES-05** — duplicate-kid structural failure. Two
+  `public_keys` entries with the same `kid` raise `KidResolverError`
+  with a `"duplicate kid"` message; the resolver refuses to silently
+  pick a winner.
+- **T-KID-RES-06** — wrong-alg filter. A `secp256k1` entry on the
+  requested kid raises `KidResolverError` (`"alg is not 'Ed25519'"`).
+  Reinforces Z-1-K-Sprint-4-3: secp256k1 entries are invisible to
+  the Identity-Document signing-layer resolver.
+- **T-KID-RES-07** — validity-window enforcement. Three sub-cases
+  with the same `validafter`/`validuntil` window: `as_of` before
+  window raises `"not yet valid"`; inside window resolves
+  successfully; after window raises `"has expired"`. A fourth probe
+  confirms that no `as_of` argument disables the window check
+  (historical-signature use-case).
+- **T-KID-RES-08** — purpose-filter enforcement. `require_purpose`
+  matching the entry passes; mismatched purpose raises
+  `"purpose mismatch"`.
+- **T-KID-RES-09** — malformed `key_hex` structural failures
+  (three sub-cases): wrong hex-string length (62 chars); correct
+  length but non-hex characters; missing `key_hex` field entirely.
+  All three raise `KidResolverError`.
+- **T-KID-RES-10** — missing/malformed `public_keys` array (five
+  sub-cases): missing field; non-sequence (dict); a string in place
+  of the sequence (Python sees strings as sequences — the resolver
+  excludes `str`/`bytes` explicitly); empty array; non-mapping
+  `aip_doc` argument; plus an empty-kid argument probe.
+- **T-KID-RES-11** — `list_resolvable_kids` filter behaviour.
+  Asserts: no filters lists both kids in sorted order; window filter
+  excludes the expired key; purpose filter narrows to one kid;
+  wrong-alg entries are dropped; duplicate kids cause both copies
+  to be dropped (returns empty list when both kids of a 2-entry
+  document collide).
+- **T-KID-RES-12** — determinism. Repeated `resolve_kid` calls on
+  the same input produce equal `ResolvedPublicKey` instances
+  (frozen-dataclass equality); a JSON round-trip on the AIP document
+  does not affect the result; `list_resolvable_kids` is also
+  order-deterministic.
+
+Total Phase-2 Sprint-4 Tag-3 test additions: 12 hermetic determinism
+tests (T-KID-RES-01..12). The resolver is pure: no transport,
+no signature verification on the AIP document, no I/O. Tests use
+RFC 8032 Ed25519 test-vector seeds and hand-crafted minimal AIP-
+document fragments.
+
+**Suite-level effect (post-Sprint-4 Tag-3):** the wirelang test
+suite grows from 671 passed (post-Sprint-4 Tag-1) to **683 passed**
+(+12 net). The Tag-1 entry-signing tests (T-SR-SIG-01..12) remain
+unchanged and green.
+
 ## 7. Cross-references and Open-Items
 
 - V-908 backend pattern source:
@@ -1641,6 +1981,14 @@ applicable.
   primitive reuses `wirelang/identity/aip_signing.py` JCS+SHA-256+
   Ed25519 byte-identical (Cross-Review-Zone-1 Identity-Substrate
   touch).
+- **Phase-2 kid → public-key resolver: CONSUMED in Sprint-4 Tag-3.**
+  Module: `wirelang/identity/kid_resolver.py`. Tests:
+  `wirelang/tests/test_identity_kid_resolver.py` (T-KID-RES-01..12).
+  Closes Z-1-K-Sprint-4-1 (kid-Resolver-Shape) and reinforces
+  Z-1-K-Sprint-4-3 (Curve-Choice = Ed25519). The resolver is the
+  Identity-Substrate consumer of Sprint-4 Tag-1 signature blocks:
+  callers feed `resolved.public_key` into `verify_entry_signature`
+  (§5.9 composition pattern).
 - Phase-2 CAS-quorum: **OI-7-Phase-2-quorum** (reserved).
 - Phase-2 deprecation policy: **OI-7-Phase-2-deprecation** (reserved).
 - Phase-2 IPFS schema-hash: **OI-7-Phase-2-ipfs** (reserved).
@@ -1648,9 +1996,13 @@ applicable.
   (reserved; CRDT-style merge contract for two-way mirror).
 - Phase-2 watch-stream resume: **OI-7-Phase-2-resume** (reserved;
   resume-from-revision policy on connection drop).
-- Phase-2 kid → public-key resolver: reserved as a future Identity-
-  Substrate slot (binds AIP-document `public_keys` entries to
-  signature-block `kid` references).
+- Phase-2 AIP-document transport-fetch: reserved as a future
+  Identity-Substrate slot (the kid-resolver currently assumes the
+  caller has already fetched the AIP document via `did:web` /
+  `aip:web`).
+- Phase-2 STRICT-mode activation toggle: reserved (Z-1-K-Sprint-4-4
+  open; operator-controlled toggle is a Phase-2-roadmap consensus
+  question).
 
 ## 8. Compatibility statement
 
@@ -1801,6 +2153,49 @@ itself is still Phase-2.
 - Spec semver bump 0.5.0 → 0.6.0 reflects the additive minor change
   (M-2 §3.2 versioning policy: minor for additive).
 
+**Phase-2 Sprint-4 Tag-3 (v0.7.0) is additive relative to Sprint-4 Tag-1 (v0.6.0):**
+
+- All Tag-1 + Tag-3 + Tag-4 + Tag-5 + Tag-6 + Sprint-4 Tag-1 surfaces
+  remain unchanged. Sprint-4 Tag-3 introduces no new method on
+  `NatsKvSchemaRegistry` and no modification to
+  `wirelang.schemas.entry_signing`.
+- The Sprint-4 Tag-3 addition is a *separate module*
+  (`wirelang.identity.kid_resolver`) consisting of the pure
+  functions `resolve_kid` / `list_resolvable_kids`, the frozen
+  dataclass `ResolvedPublicKey`, and the typed exception
+  `KidResolverError`. The resolver is exposed via the
+  `wirelang.identity` package `__init__`.
+- The on-the-wire envelope schema is UNCHANGED. The resolver reads
+  from AIP documents (`wirelang/schemas/aip-document.json`); it
+  does not emit, write, or canonicalise envelope bytes.
+- The `wirelang.schemas.entry_signing` module is UNCHANGED. The
+  resolver is a *peer* layer — callers compose the two: read AIP
+  doc → `resolve_kid` → `verify_entry_signature`. The signing
+  module does NOT import the resolver; this preserves the Sprint-4
+  Tag-1 design that the signing module treats the public key as
+  caller-supplied.
+- M-2 conformance (additive-only schema evolution): Sprint-4 Tag-3
+  adds NO new envelope field. The schema-registry on-the-wire
+  surface (envelope shape, value-schema URI
+  `wakir.wirelang.schema-registry-entry/1`, signature-block shape)
+  is bit-equal to v0.6.0. M-2 is preserved trivially.
+- M-4 conformance (multi-version-aware registry): Sprint-4 Tag-3
+  is orthogonal to the version axis. The resolver operates on
+  AIP documents (one per agent identity), not on registry entries.
+- The AIP-document JSON-Schema
+  (`wirelang/schemas/aip-document.json`) is UNCHANGED. The resolver
+  reads existing fields (`kid`, `alg`, `key_hex`, `validafter`,
+  `validuntil`, `purpose`); no new field is introduced and no
+  field semantics is altered.
+- The synchronous verifier surface (`InMemorySchemaRegistry.lookup`
+  / `lookup_by_triple` / `keys_sorted`) is unchanged. The kid-
+  resolver is opt-in: verifiers that do not consume signatures are
+  not forced onto the resolver path.
+- Spec semver bump 0.6.0 → 0.7.0 reflects the additive minor change
+  (M-2 §3.2 versioning policy: minor for additive). The bump is
+  warranted by the new §5.9 operational contract and §6.6 test
+  inventory; no breaking-change to any consumer.
+
 ## 9. Brand-Guide §9 sweep
 
 This document has been swept against the Wakir Brand-Guide §9
@@ -1810,5 +2205,12 @@ v0.6.0 entry, Phase-2 boundary updates) use role-strings only
 (`Reza`, `Tomás`, `Mira`, `Aisha` appear in outbox documents and
 optional cross-review memos, not in this spec; the spec mentions
 only `wakir.*` URIs and module-path references).
+
+The Sprint-4 Tag-3 additions (§5.9, §6.6, change-log v0.7.0 entry,
+§1.2 Phase-2 Sprint-4 Tag-3 block, §7 cross-references update, §8
+compatibility statement update) have been swept identically — only
+role-strings, module-path references, `wakir.*` URIs, and IETF /
+RFC references appear in the spec body. No external-tool clear-name
+leakage and no internal-persona-clear-name leakage in the spec body.
 
 — End of spec —
