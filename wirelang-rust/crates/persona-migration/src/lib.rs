@@ -653,4 +653,184 @@ mod tests {
             "V9 and V9_MIGRATED_TO_V2 must differ (schema_version is in-hash)"
         );
     }
+
+    // -------------------------------------------------------------------
+    // 11 / 10-iteration determinism stress on V0->V1 apply (Phase-1b
+    //      Sprint-6 Tag-5 pin-pack coverage extension). Pattern mirror
+    //      of Crate-1 t10 / Crate-2 t10. Goal: any non-determinism in
+    //      `step.apply(d)` (e.g. dict-insertion-order leak, schema_version
+    //      string allocation drift) would surface as cross-iteration
+    //      drift here without needing the full chain resolver.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t11_v0_to_v1_apply_determinism_stress_10_iter() {
+        let v8 = v8_canonical_subset();
+        let baseline = V0ToV1Step.apply(&v8).expect("baseline apply");
+        let baseline_blob = canonical_jcs_bytes(&baseline).expect("baseline JCS");
+        let baseline_hex = sha256_hex(&baseline_blob);
+
+        for i in 0..10 {
+            let again = V0ToV1Step.apply(&v8).expect("iter apply");
+            let blob = canonical_jcs_bytes(&again).expect("iter JCS");
+            let hex = sha256_hex(&blob);
+            assert_eq!(
+                blob, baseline_blob,
+                "iter {i}: JCS bytes drifted from baseline (V0->V1 must be byte-stable across applies)"
+            );
+            assert_eq!(
+                hex, baseline_hex,
+                "iter {i}: sha256 drifted from baseline (V0->V1 must hash-stable across applies)"
+            );
+        }
+
+        // Baseline must equal V8_MIGRATED_TO_V1 pin (which equals
+        // V9 pin by construction). Cross-anchor at the end of the
+        // stress loop to catch a baseline-itself-drift across full
+        // crate rebuilds.
+        let baseline_pin = format!("sha256:{baseline_hex}");
+        assert_eq!(baseline_pin, PERSONA_HASH_PIN_V8_MIGRATED_TO_V1);
+        assert_eq!(baseline_pin, PERSONA_HASH_PIN_V9);
+    }
+
+    // -------------------------------------------------------------------
+    // 12 / 10-iteration determinism stress on V1->V2 apply. Sister of
+    //      t11; same posture, V1->V2 step.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t12_v1_to_v2_apply_determinism_stress_10_iter() {
+        let v9 = v9_canonical_subset();
+        let baseline = V1ToV2Step.apply(&v9).expect("baseline apply");
+        let baseline_blob = canonical_jcs_bytes(&baseline).expect("baseline JCS");
+        let baseline_hex = sha256_hex(&baseline_blob);
+
+        for i in 0..10 {
+            let again = V1ToV2Step.apply(&v9).expect("iter apply");
+            let blob = canonical_jcs_bytes(&again).expect("iter JCS");
+            let hex = sha256_hex(&blob);
+            assert_eq!(
+                blob, baseline_blob,
+                "iter {i}: JCS bytes drifted from baseline (V1->V2 must be byte-stable across applies)"
+            );
+            assert_eq!(
+                hex, baseline_hex,
+                "iter {i}: sha256 drifted from baseline (V1->V2 must hash-stable across applies)"
+            );
+        }
+
+        let baseline_pin = format!("sha256:{baseline_hex}");
+        assert_eq!(baseline_pin, PERSONA_HASH_PIN_V9_MIGRATED_TO_V2);
+    }
+
+    // -------------------------------------------------------------------
+    // 13 / V8-hex-pin hard-freeze on the POST-MIGRATION V0->V1 output.
+    //      Mirror of Crate-1 t11 / Crate-2 t11 but on the migration
+    //      output layer (not the input layer).
+    //
+    //      Pinning the raw hex tail here adds a second anchor that
+    //      catches drift in the V0ToV1Step apply() logic that happens
+    //      to produce a different but still pin-shaped output. The
+    //      existing t1 anchor uses PERSONA_HASH_PIN_V8_MIGRATED_TO_V1
+    //      ("sha256:..." form); the hex-tail variant here lets a
+    //      future Python-side V8_MIGRATED_TO_V1_HEX constant cross-
+    //      check without needing the full "sha256:" prefix re-derive.
+    //
+    //      Rust-only Sprint-6 Tag-5 addition. No Python pendant needed
+    //      because Python's pin-pack ships full "sha256:<64hex>"
+    //      constants and tests anchor against those directly.
+    // -------------------------------------------------------------------
+
+    /// V0->V1 migration output hex pin (Rust-only Sprint-6 Tag-5).
+    /// Equals the 64-hex tail of [`PERSONA_HASH_PIN_V8_MIGRATED_TO_V1`]
+    /// (= [`PERSONA_HASH_PIN_V9`] by construction). Pinning the hex
+    /// form separately catches a regression where a malformed prefix
+    /// would still match the full-form check.
+    const V8_MIGRATED_TO_V1_HEX_RUST_ONLY: &str =
+        "0f298894204e6117e42ad7073b7a3af8ada1851de74d585fc5cb4c4d70e1d793";
+
+    #[test]
+    fn t13_v0_to_v1_apply_output_hex_pin_hard_freeze() {
+        // Hex pin computed from the actual V0->V1 step output to keep
+        // this anchor self-consistent. If the constant ever drifts
+        // from PERSONA_HASH_PIN_V9, both the equality assertion AND
+        // the t1 / t11 baselines would surface the regression.
+        let v8 = v8_canonical_subset();
+        let migrated = V0ToV1Step.apply(&v8).expect("V0->V1 apply");
+        let blob = canonical_jcs_bytes(&migrated).expect("JCS");
+        let got_hex = sha256_hex(&blob);
+        assert_eq!(
+            got_hex, V8_MIGRATED_TO_V1_HEX_RUST_ONLY,
+            "V0->V1 output hex must match V8_MIGRATED_TO_V1_HEX_RUST_ONLY hard-freeze"
+        );
+        // Cross-anchor: the hex constant must equal the 64-hex tail
+        // of the canonical PERSONA_HASH_PIN_V9 constant.
+        assert!(
+            PERSONA_HASH_PIN_V9.ends_with(V8_MIGRATED_TO_V1_HEX_RUST_ONLY),
+            "V8_MIGRATED_TO_V1_HEX_RUST_ONLY must be the tail of PERSONA_HASH_PIN_V9"
+        );
+    }
+
+    /// V1->V2 migration output hex pin (Rust-only Sprint-6 Tag-5).
+    /// Equals the 64-hex tail of [`PERSONA_HASH_PIN_V9_MIGRATED_TO_V2`].
+    const V9_MIGRATED_TO_V2_HEX_RUST_ONLY: &str =
+        "f719fce4bedd8522874ae214ec2f982ef87964b535ca368134b3636207eb6669";
+
+    #[test]
+    fn t14_v1_to_v2_apply_output_hex_pin_hard_freeze() {
+        let v9 = v9_canonical_subset();
+        let migrated = V1ToV2Step.apply(&v9).expect("V1->V2 apply");
+        let blob = canonical_jcs_bytes(&migrated).expect("JCS");
+        let got_hex = sha256_hex(&blob);
+        assert_eq!(
+            got_hex, V9_MIGRATED_TO_V2_HEX_RUST_ONLY,
+            "V1->V2 output hex must match V9_MIGRATED_TO_V2_HEX_RUST_ONLY hard-freeze"
+        );
+        assert!(
+            PERSONA_HASH_PIN_V9_MIGRATED_TO_V2.ends_with(V9_MIGRATED_TO_V2_HEX_RUST_ONLY),
+            "V9_MIGRATED_TO_V2_HEX_RUST_ONLY must be the tail of PERSONA_HASH_PIN_V9_MIGRATED_TO_V2"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // 15 / Re-derivation roundtrip via registered_steps() iteration.
+    //
+    //      Walk the registry programmatically (not by hard-coded
+    //      V0ToV1Step / V1ToV2Step references) and run V8 through the
+    //      full chain. The final pin must match V8_MIGRATED_TO_V2.
+    //
+    //      Catches a regression where someone adds a new step to the
+    //      registry but forgets to wire it into the chain resolver
+    //      (Phase-1c follow-up crate); the registry order is the
+    //      single source of truth for the chain shape.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t15_re_derivation_via_registered_steps_iteration() {
+        let v8 = v8_canonical_subset();
+        let mut current = v8;
+        for step in registered_steps() {
+            let expected_source = step.source_version();
+            assert_eq!(
+                current["schema_version"], expected_source,
+                "registry-chain pre-step source mismatch"
+            );
+            current = step.apply(&current).expect("registry step apply");
+            assert_eq!(
+                current["schema_version"],
+                step.target_version(),
+                "registry-chain post-step target mismatch"
+            );
+        }
+        let final_blob = canonical_jcs_bytes(&current).expect("final JCS");
+        let final_pin = format!("sha256:{}", sha256_hex(&final_blob));
+        assert_eq!(
+            final_pin, PERSONA_HASH_PIN_V8_MIGRATED_TO_V2,
+            "registry-iteration chain must reach V8_MIGRATED_TO_V2"
+        );
+        assert_eq!(
+            final_pin, PERSONA_HASH_PIN_V9_MIGRATED_TO_V2,
+            "registry-iteration chain pin equals V9_MIGRATED_TO_V2 by construction"
+        );
+    }
 }

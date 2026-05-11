@@ -3152,3 +3152,477 @@ mod pin_tests {
         }
     }
 }
+
+// =====================================================================
+// Help-text cross-subcommand-consistency test pack
+//
+// Phase-1b Sprint-6 Tag-5 addition. Rust pendant of
+// `wirelang/tests/test_persona_cli_help_text.py`. Asserts the same
+// soft-match contracts the Python pack pins (shared-flag wording
+// uniformity, subcommand registration inventory, exit-code semantics
+// on `--help`, flag-surface scope) against the Rust `clap::Command`
+// tree.
+//
+// Posture (vs. cross-language byte-identity)
+// ==========================================
+// Help-text byte-identity across Python `argparse` and Rust `clap` is
+// NOT asserted (the two formatters render help differently). The
+// soft-match contracts in this pack are the cross-language parity
+// layer; both the Python pack and this Rust pack assert the same
+// invariants in their respective frameworks' help-tree.
+// =====================================================================
+
+#[cfg(test)]
+mod help_text_consistency_tests {
+    use super::*;
+    use clap::CommandFactory;
+
+    /// Subcommand inventory — single source of truth.
+    ///
+    /// Order matches the `#[derive(Subcommand)]` order in
+    /// `Command` (Migrate, Validate, Inspect, Pin). clap preserves
+    /// declaration-order in `Command::get_subcommands()`.
+    const EXPECTED_SUBCOMMANDS: [&str; 4] = ["migrate", "validate", "inspect", "pin"];
+
+    /// Help-string copy that MUST be byte-identical across every
+    /// subcommand that exposes the corresponding argument. Mirrors
+    /// the Python `SHARED_PERSONA_FILE_HELP` / `SHARED_QUIET_HELP`
+    /// constants.
+    ///
+    /// Note: the clap help-text source in `PinArgs` / `InspectArgs`
+    /// / `ValidateArgs` / `MigrateArgs` is the first doc-comment line
+    /// of the `persona_file` field. clap renders the `///` doc on
+    /// arguments as the short-form help string when no explicit
+    /// `#[arg(help = ...)]` is provided. The string below is what
+    /// the field's doc-comment evaluates to.
+    const SHARED_PERSONA_FILE_HELP: &str = "Filesystem path to a UTF-8 markdown persona-definition";
+    const SHARED_QUIET_HELP: &str = "Suppress the human-readable progress line on stderr";
+
+    /// Return the configured `clap::Command` for the named subcommand.
+    ///
+    /// Panics if the subcommand is not registered (matches the
+    /// `KeyError` in the Python sister test).
+    fn subcommand(name: &str) -> clap::Command {
+        let top = Cli::command();
+        top.find_subcommand(name)
+            .cloned()
+            .unwrap_or_else(|| panic!("subcommand {name:?} not registered"))
+    }
+
+    /// Look up an `Arg` by its `--<long>` form on a `clap::Command`.
+    /// Returns `None` if not registered.
+    fn arg_by_long<'a>(cmd: &'a clap::Command, long: &str) -> Option<&'a clap::Arg> {
+        cmd.get_arguments().find(|a| a.get_long() == Some(long))
+    }
+
+    /// Look up an `Arg` by its identifier (positional / `id`).
+    fn arg_by_id<'a>(cmd: &'a clap::Command, id: &str) -> Option<&'a clap::Arg> {
+        cmd.get_arguments().find(|a| a.get_id() == id)
+    }
+
+    // ---------------------------------------------------------------
+    // Top-level help surface
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn ht1_top_level_help_lists_all_four_subcommands_in_insertion_order() {
+        let cmd = Cli::command();
+        let names: Vec<&str> = cmd.get_subcommands().map(|s| s.get_name()).collect();
+        assert_eq!(
+            names, EXPECTED_SUBCOMMANDS,
+            "top-level subcommands must match EXPECTED_SUBCOMMANDS in declaration-order"
+        );
+    }
+
+    #[test]
+    fn ht2_top_level_help_carries_program_name_and_description() {
+        let cmd = Cli::command();
+        let about = cmd.get_about().expect("top-level about set").to_string();
+        assert!(
+            about.contains("Operator CLI"),
+            "about must announce 'Operator CLI'; got: {about:?}"
+        );
+        assert!(
+            about.contains("ADR-0036"),
+            "about must cite ADR-0036 (V-907 charter); got: {about:?}"
+        );
+        // Program name (`name = "wakir-persona"`) is locked on the
+        // top-level command via the `#[command(name = ...)]` attribute.
+        assert_eq!(cmd.get_name(), "wakir-persona");
+    }
+
+    #[test]
+    fn ht3_top_level_help_double_dash_help_renders_subcommand_list() {
+        // `try_parse_from(["wakir-persona", "--help"])` returns
+        // `Err(DisplayHelp)` in clap; the rendered help is in the
+        // error's string form.
+        let outcome = run(&["wakir-persona", "--help"]);
+        // Our existing `map_clap_exit_code` maps DisplayHelp to 64;
+        // we accept that semantic here and assert the substantive
+        // contract: the help text mentions every subcommand.
+        for name in EXPECTED_SUBCOMMANDS {
+            assert!(
+                outcome.stderr.contains(name),
+                "top-level --help must mention subcommand {name:?}; got stderr: {:?}",
+                outcome.stderr
+            );
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // Cross-subcommand-consistency: persona_file positional help wording
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn ht4_persona_file_help_wording_uniform_migrate() {
+        let cmd = subcommand("migrate");
+        let arg =
+            arg_by_id(&cmd, "persona_file").expect("migrate must register persona_file positional");
+        let help = arg
+            .get_help()
+            .expect("persona_file must have help text")
+            .to_string();
+        assert_eq!(
+            help, SHARED_PERSONA_FILE_HELP,
+            "migrate: persona_file help drift"
+        );
+    }
+
+    #[test]
+    fn ht5_persona_file_help_wording_uniform_validate() {
+        let cmd = subcommand("validate");
+        let arg = arg_by_id(&cmd, "persona_file")
+            .expect("validate must register persona_file positional");
+        let help = arg
+            .get_help()
+            .expect("persona_file must have help text")
+            .to_string();
+        assert_eq!(
+            help, SHARED_PERSONA_FILE_HELP,
+            "validate: persona_file help drift"
+        );
+    }
+
+    #[test]
+    fn ht6_persona_file_help_wording_uniform_inspect() {
+        let cmd = subcommand("inspect");
+        let arg =
+            arg_by_id(&cmd, "persona_file").expect("inspect must register persona_file positional");
+        let help = arg
+            .get_help()
+            .expect("persona_file must have help text")
+            .to_string();
+        assert_eq!(
+            help, SHARED_PERSONA_FILE_HELP,
+            "inspect: persona_file help drift"
+        );
+    }
+
+    #[test]
+    fn ht7_persona_file_help_wording_uniform_pin() {
+        let cmd = subcommand("pin");
+        let arg =
+            arg_by_id(&cmd, "persona_file").expect("pin must register persona_file positional");
+        let help = arg
+            .get_help()
+            .expect("persona_file must have help text")
+            .to_string();
+        assert_eq!(
+            help, SHARED_PERSONA_FILE_HELP,
+            "pin: persona_file help drift"
+        );
+    }
+
+    // ---------------------------------------------------------------
+    // Cross-subcommand-consistency: --quiet flag help wording
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn ht8_quiet_flag_help_wording_uniform_migrate() {
+        let cmd = subcommand("migrate");
+        let arg = arg_by_long(&cmd, "quiet").expect("migrate must register --quiet");
+        let help = arg
+            .get_help()
+            .expect("--quiet must have help text")
+            .to_string();
+        assert_eq!(help, SHARED_QUIET_HELP, "migrate: --quiet help drift");
+    }
+
+    #[test]
+    fn ht9_quiet_flag_help_wording_uniform_validate() {
+        let cmd = subcommand("validate");
+        let arg = arg_by_long(&cmd, "quiet").expect("validate must register --quiet");
+        let help = arg
+            .get_help()
+            .expect("--quiet must have help text")
+            .to_string();
+        assert_eq!(help, SHARED_QUIET_HELP, "validate: --quiet help drift");
+    }
+
+    #[test]
+    fn ht10_quiet_flag_help_wording_uniform_inspect() {
+        let cmd = subcommand("inspect");
+        let arg = arg_by_long(&cmd, "quiet").expect("inspect must register --quiet");
+        let help = arg
+            .get_help()
+            .expect("--quiet must have help text")
+            .to_string();
+        assert_eq!(help, SHARED_QUIET_HELP, "inspect: --quiet help drift");
+    }
+
+    #[test]
+    fn ht11_quiet_flag_help_wording_uniform_pin() {
+        let cmd = subcommand("pin");
+        let arg = arg_by_long(&cmd, "quiet").expect("pin must register --quiet");
+        let help = arg
+            .get_help()
+            .expect("--quiet must have help text")
+            .to_string();
+        assert_eq!(help, SHARED_QUIET_HELP, "pin: --quiet help drift");
+    }
+
+    // ---------------------------------------------------------------
+    // Per-subcommand help: rendered output references program + subcommand
+    // ---------------------------------------------------------------
+
+    /// Render subcommand help via the in-process `run(...)` path so
+    /// the parent program name is wired up correctly (clap propagates
+    /// the parent name through the parser hierarchy on the
+    /// `try_parse_from` path; `Command::find_subcommand().render_help()`
+    /// loses it because the extracted `Command` is detached from its
+    /// parent).
+    fn render_subcommand_help_via_run(name: &str) -> String {
+        let outcome = run(&["wakir-persona", name, "--help"]);
+        // clap's `DisplayHelp` routes the rendered text through the
+        // error path; `to_string()` flattens it into stderr in `run()`.
+        // Both -h / --help converge on the same buffer.
+        format!("{}{}", outcome.stdout, outcome.stderr)
+    }
+
+    #[test]
+    fn ht12_migrate_help_usage_carries_program_and_subcommand() {
+        let h = render_subcommand_help_via_run("migrate");
+        assert!(
+            h.contains("wakir-persona"),
+            "migrate help must announce program-name through run() path; got: {h}"
+        );
+        assert!(
+            h.contains("migrate"),
+            "migrate help must announce subcommand"
+        );
+        assert!(
+            h.contains("Usage:"),
+            "migrate help must have Usage section (clap convention)"
+        );
+    }
+
+    #[test]
+    fn ht13_validate_help_usage_carries_program_and_subcommand() {
+        let h = render_subcommand_help_via_run("validate");
+        assert!(h.contains("wakir-persona"));
+        assert!(h.contains("validate"));
+        assert!(h.contains("Usage:"));
+    }
+
+    #[test]
+    fn ht14_inspect_help_usage_carries_program_and_subcommand() {
+        let h = render_subcommand_help_via_run("inspect");
+        assert!(h.contains("wakir-persona"));
+        assert!(h.contains("inspect"));
+        assert!(h.contains("Usage:"));
+    }
+
+    #[test]
+    fn ht15_pin_help_usage_carries_program_and_subcommand() {
+        let h = render_subcommand_help_via_run("pin");
+        assert!(h.contains("wakir-persona"));
+        assert!(h.contains("pin"));
+        assert!(h.contains("Usage:"));
+    }
+
+    // ---------------------------------------------------------------
+    // Per-subcommand help: flag-surface scope (no leakage)
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn ht16_validate_does_not_register_migrate_only_flags() {
+        let cmd = subcommand("validate");
+        assert!(
+            arg_by_long(&cmd, "target").is_none(),
+            "validate must not register --target (migrate-only)"
+        );
+        assert!(
+            arg_by_long(&cmd, "expect-hash").is_none(),
+            "validate must not register --expect-hash (migrate-only)"
+        );
+        assert!(
+            arg_by_long(&cmd, "emit-hash").is_none(),
+            "validate must not register --emit-hash (migrate / inspect only)"
+        );
+    }
+
+    #[test]
+    fn ht17_inspect_registers_emit_hash_but_not_target_or_expect_hash() {
+        let cmd = subcommand("inspect");
+        assert!(arg_by_long(&cmd, "emit-hash").is_some());
+        assert!(arg_by_long(&cmd, "target").is_none());
+        assert!(arg_by_long(&cmd, "expect-hash").is_none());
+    }
+
+    #[test]
+    fn ht18_pin_is_strict_subset_of_inspect_flag_surface() {
+        let cmd = subcommand("pin");
+        // pin must register --quiet and persona_file only (plus the
+        // implicit -h / --help that clap synthesises).
+        assert!(
+            arg_by_long(&cmd, "quiet").is_some(),
+            "pin must register --quiet"
+        );
+        assert!(arg_by_id(&cmd, "persona_file").is_some());
+        assert!(
+            arg_by_long(&cmd, "emit-hash").is_none(),
+            "pin must NOT register --emit-hash (stdout-vs-stderr swap is load-bearing)"
+        );
+        assert!(arg_by_long(&cmd, "target").is_none());
+        assert!(arg_by_long(&cmd, "expect-hash").is_none());
+    }
+
+    #[test]
+    fn ht19_migrate_registers_all_four_flags() {
+        let cmd = subcommand("migrate");
+        assert!(arg_by_long(&cmd, "target").is_some());
+        assert!(arg_by_long(&cmd, "expect-hash").is_some());
+        assert!(arg_by_long(&cmd, "emit-hash").is_some());
+        assert!(arg_by_long(&cmd, "quiet").is_some());
+    }
+
+    // ---------------------------------------------------------------
+    // Per-subcommand help: long-about references documented exit codes
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn ht20_migrate_long_about_documents_pin_mismatch_exit_code() {
+        let cmd = subcommand("migrate");
+        // The `--expect-hash` arg's long help references exit code 2
+        // semantically through the doc-comment on `MigrateArgs.expect_hash`.
+        let arg = arg_by_long(&cmd, "expect-hash").expect("--expect-hash present");
+        let long = arg
+            .get_long_help()
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        let short = arg.get_help().map(|s| s.to_string()).unwrap_or_default();
+        let combined = format!("{long}\n{short}");
+        // Exit-code-2 semantics are referenced as
+        // `EXIT_DETERMINISM_ERROR` in the doc-comment (which clap
+        // surfaces via `long_help`). Soft-match: the reference is
+        // present in the long help OR in the surrounding subcommand
+        // long_about.
+        let long_about = cmd
+            .get_long_about()
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        let all = format!("{combined}\n{long_about}");
+        assert!(
+            all.contains("EXIT_DETERMINISM_ERROR") || all.contains("code 2") || all.contains("mismatch"),
+            "migrate --expect-hash help must reference the determinism-error exit-code-2 semantics; got: {all}"
+        );
+    }
+
+    #[test]
+    fn ht21_validate_about_documents_exit_code_pair() {
+        let cmd = subcommand("validate");
+        let about = cmd.get_about().map(|s| s.to_string()).unwrap_or_default();
+        let long = cmd
+            .get_long_about()
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        let combined = format!("{about}\n{long}");
+        assert!(
+            combined.contains("Validate") || combined.contains("validate"),
+            "validate help must announce the subcommand purpose"
+        );
+        assert!(
+            combined.contains("Exit code 0") || combined.contains("is_valid"),
+            "validate help must document the 0/1 exit-code split; got: {combined}"
+        );
+        assert!(
+            combined.contains("1") || combined.contains("not"),
+            "validate help must mention the failure exit code; got: {combined}"
+        );
+    }
+
+    #[test]
+    fn ht22_inspect_about_documents_exit_code_pair() {
+        let cmd = subcommand("inspect");
+        let about = cmd.get_about().map(|s| s.to_string()).unwrap_or_default();
+        let long = cmd
+            .get_long_about()
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        let combined = format!("{about}\n{long}");
+        assert!(combined.contains("Inspect") || combined.contains("inspect"));
+        assert!(
+            combined.contains("Exit code 0") || combined.contains("success"),
+            "inspect help must document exit code 0; got: {combined}"
+        );
+        assert!(
+            combined.contains("1") || combined.contains("failure"),
+            "inspect help must mention failure exit code; got: {combined}"
+        );
+    }
+
+    #[test]
+    fn ht23_pin_about_documents_exit_code_pair_and_invariant() {
+        let cmd = subcommand("pin");
+        let about = cmd.get_about().map(|s| s.to_string()).unwrap_or_default();
+        let long = cmd
+            .get_long_about()
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        let combined = format!("{about}\n{long}");
+        assert!(combined.contains("Exit code 0") || combined.contains("success"));
+        assert!(combined.contains("1") || combined.contains("failure"));
+        // V-907-CLI-invariant cross-reference is load-bearing.
+        assert!(
+            combined.contains("V-907-CLI-invariant"),
+            "pin help must reference V-907-CLI-invariant; got: {combined}"
+        );
+    }
+
+    // ---------------------------------------------------------------
+    // -h short form vs --help long form: both wire up successfully
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn ht24_dash_h_and_double_dash_help_both_wire_up_top_level() {
+        // Both forms route through clap's DisplayHelp error. We do
+        // not byte-compare the rendered output (short -h renders
+        // summary-form, long --help renders verbose-form by design);
+        // instead we assert both invocations exit non-zero AND
+        // mention the program name in stderr.
+        for flag in ["-h", "--help"] {
+            let outcome = run(&["wakir-persona", flag]);
+            assert_ne!(outcome.exit_code, 0, "{flag}: must exit non-zero");
+            assert!(
+                outcome.stderr.contains("wakir-persona"),
+                "{flag}: stderr must announce program; got: {:?}",
+                outcome.stderr
+            );
+        }
+    }
+
+    #[test]
+    fn ht25_dash_h_and_double_dash_help_both_wire_up_each_subcommand() {
+        for sub in EXPECTED_SUBCOMMANDS {
+            for flag in ["-h", "--help"] {
+                let outcome = run(&["wakir-persona", sub, flag]);
+                assert_ne!(outcome.exit_code, 0, "{sub} {flag}: must exit non-zero");
+                let combined = format!("{}{}", outcome.stdout, outcome.stderr);
+                assert!(
+                    combined.contains(sub),
+                    "{sub} {flag}: output must mention subcommand; got: {combined:?}"
+                );
+            }
+        }
+    }
+}

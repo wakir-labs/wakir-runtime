@@ -868,6 +868,7 @@ const _: V1ToV2Step = V1ToV2Step;
 mod tests {
     use super::*;
     use serde_json::json;
+    use sha2::{Digest, Sha256};
 
     // -------------------------------------------------------------------
     // Test fixtures: hand-built front-matter dicts matching the V8 / V9
@@ -1136,5 +1137,180 @@ mod tests {
         let migrated = migrate_persona(MigrationInput::Dict(&v9), Some("persona-v2"), Some(bare))
             .expect("bare-hex pin must be accepted");
         assert_eq!(migrated["schema_version"], "persona-v2");
+    }
+
+    // -------------------------------------------------------------------
+    // 13 / 10-iteration determinism stress on `migrate_persona` dispatcher
+    //      (Dict input, full V8 → V2 chain). Phase-1b Sprint-6 Tag-5
+    //      pin-pack coverage extension — mirror of Crate-4 t11 / t12 and
+    //      Crate-1+2 Tag-3 patterns at the dispatcher layer rather than
+    //      the per-step layer.
+    //
+    //      Goal: a hash-evaluation non-determinism that lurks across the
+    //      dispatcher's split_frontmatter → parse_frontmatter →
+    //      yaml-to-json → resolve_chain → apply-each-step →
+    //      canonical_jcs_bytes → sha256 pipeline would surface as
+    //      cross-iteration drift here.
+    // -------------------------------------------------------------------
+
+    fn sha256_hex(bytes: &[u8]) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(bytes);
+        let digest = hasher.finalize();
+        let mut s = String::with_capacity(64);
+        for byte in digest {
+            use std::fmt::Write;
+            write!(s, "{byte:02x}").expect("hex write");
+        }
+        s
+    }
+
+    /// Recompute the canonical-subset post-migration pin for a fully
+    /// migrated dict. Mirrors the `expected_post_migration_hash`
+    /// internal path without the assertion side-effect — useful for
+    /// the stress-loop's cross-iteration comparison and the
+    /// re-derivation roundtrip.
+    fn pin_of_migrated_dict(d: &Value) -> String {
+        // Project to canonical-subset (mirror what `extract_canonical_subset`
+        // does in Python — pick the canonical-subset keys; on a
+        // step-output dict the subset already equals the dict).
+        let subset = serde_json::json!({
+            "name": d["name"],
+            "description": d["description"],
+            "tools": d["tools"],
+            "schema_version": d["schema_version"],
+            "identity_pinned": d["identity_pinned"],
+        });
+        let blob = persona_canonical_form::canonical_jcs_bytes(&subset).expect("JCS");
+        format!("sha256:{}", sha256_hex(&blob))
+    }
+
+    #[test]
+    fn t13_migrate_persona_dict_v8_to_v2_determinism_stress_10_iter() {
+        let v8 = v8_dict();
+        // Baseline pin via the dispatcher's own re-hash path (using a
+        // pin that we know matches the V2 target). The baseline pin
+        // is then compared across 10 iterations.
+        let baseline = migrate_persona(
+            MigrationInput::Dict(&v8),
+            Some("persona-v2"),
+            Some(PERSONA_HASH_PIN_V8_MIGRATED_TO_V2),
+        )
+        .expect("baseline V8→V2 must migrate");
+        let baseline_pin = pin_of_migrated_dict(&baseline);
+        assert_eq!(baseline_pin, PERSONA_HASH_PIN_V8_MIGRATED_TO_V2);
+
+        for i in 0..10 {
+            let again = migrate_persona(
+                MigrationInput::Dict(&v8),
+                Some("persona-v2"),
+                Some(PERSONA_HASH_PIN_V8_MIGRATED_TO_V2),
+            )
+            .expect("iter V8→V2 must migrate");
+            let pin = pin_of_migrated_dict(&again);
+            assert_eq!(
+                pin, baseline_pin,
+                "iter {i}: dispatcher V8→V2 pin drifted from baseline"
+            );
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // 14 / 10-iteration determinism stress on `migrate_persona`
+    //      Markdown-input path (V9 fixture → V2). Sister of t13; this
+    //      time exercising the YAML-parse path additionally.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t14_migrate_persona_markdown_v9_to_v2_determinism_stress_10_iter() {
+        let baseline = migrate_persona(
+            MigrationInput::Markdown(V9_FIXTURE),
+            Some("persona-v2"),
+            Some(PERSONA_HASH_PIN_V9_MIGRATED_TO_V2),
+        )
+        .expect("baseline V9-markdown→V2 must migrate");
+        let baseline_pin = pin_of_migrated_dict(&baseline);
+        assert_eq!(baseline_pin, PERSONA_HASH_PIN_V9_MIGRATED_TO_V2);
+
+        for i in 0..10 {
+            let again = migrate_persona(
+                MigrationInput::Markdown(V9_FIXTURE),
+                Some("persona-v2"),
+                Some(PERSONA_HASH_PIN_V9_MIGRATED_TO_V2),
+            )
+            .expect("iter V9-markdown→V2 must migrate");
+            let pin = pin_of_migrated_dict(&again);
+            assert_eq!(
+                pin, baseline_pin,
+                "iter {i}: dispatcher V9-markdown→V2 pin drifted from baseline"
+            );
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // 15 / V8-chain-to-V2 hex-pin hard-freeze (Rust-only Sprint-6 Tag-5).
+    //
+    //      Mirrors Crate-4 t13 / t14 hard-freeze pattern at the
+    //      dispatcher layer. Pins the 64-hex tail of the
+    //      PERSONA_HASH_PIN_V8_MIGRATED_TO_V2 constant; catches a
+    //      regression where the dispatcher pipeline produces a
+    //      different but still pin-shaped output.
+    //
+    //      Rust-only: no Python pendant (Python anchors via the full
+    //      "sha256:<64hex>" constant directly).
+    // -------------------------------------------------------------------
+
+    const V8_CHAIN_TO_V2_HEX_RUST_ONLY: &str =
+        "f719fce4bedd8522874ae214ec2f982ef87964b535ca368134b3636207eb6669";
+
+    #[test]
+    fn t15_migrate_persona_v8_chain_to_v2_hex_pin_hard_freeze() {
+        let v8 = v8_dict();
+        let migrated = migrate_persona(
+            MigrationInput::Dict(&v8),
+            Some("persona-v2"),
+            None, // no expected-pin gate; we anchor on the hex tail manually
+        )
+        .expect("V8→V2 dispatcher must migrate");
+        let pin = pin_of_migrated_dict(&migrated);
+        let hex_tail = pin
+            .strip_prefix("sha256:")
+            .expect("pin must have sha256: prefix");
+        assert_eq!(
+            hex_tail, V8_CHAIN_TO_V2_HEX_RUST_ONLY,
+            "V8→V2 chain hex must match V8_CHAIN_TO_V2_HEX_RUST_ONLY hard-freeze"
+        );
+        assert!(
+            PERSONA_HASH_PIN_V8_MIGRATED_TO_V2.ends_with(V8_CHAIN_TO_V2_HEX_RUST_ONLY),
+            "V8_CHAIN_TO_V2_HEX_RUST_ONLY must equal the tail of PERSONA_HASH_PIN_V8_MIGRATED_TO_V2"
+        );
+        assert!(
+            PERSONA_HASH_PIN_V9_MIGRATED_TO_V2.ends_with(V8_CHAIN_TO_V2_HEX_RUST_ONLY),
+            "V8_CHAIN_TO_V2_HEX_RUST_ONLY must equal the tail of PERSONA_HASH_PIN_V9_MIGRATED_TO_V2 (by construction)"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // 16 / Re-derivation roundtrip: chain V8 → V1 (one step) and the
+    //      pin must match PERSONA_HASH_PIN_V8_MIGRATED_TO_V1 (= V9 pin
+    //      by construction). Mirrors Crate-4 t15 but at the dispatcher
+    //      layer.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t16_migrate_persona_v8_to_v1_re_derivation_roundtrip() {
+        let v8 = v8_dict();
+        let migrated = migrate_persona(MigrationInput::Dict(&v8), Some("persona-v1"), None)
+            .expect("V8→V1 dispatcher must migrate");
+        assert_eq!(migrated["schema_version"], "persona-v1");
+        let pin = pin_of_migrated_dict(&migrated);
+        assert_eq!(
+            pin, PERSONA_HASH_PIN_V8_MIGRATED_TO_V1,
+            "dispatcher V8→V1 pin must equal PERSONA_HASH_PIN_V8_MIGRATED_TO_V1"
+        );
+        assert_eq!(
+            pin, PERSONA_HASH_PIN_V9,
+            "V8_MIGRATED_TO_V1 pin equals V9 pin by construction"
+        );
     }
 }
