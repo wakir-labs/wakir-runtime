@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# persona-canonical-form-yaml — YAML front-matter parser + canonical-
+# subset extractor (Rust pendant).
+#
+# This crate is the byte-for-byte Rust pendant of the YAML-parser-and-
+# extractor surface of `wirelang.persona.persona_canonical_form`
+# (Python). It produces the canonical-subset `serde_json::Value` that
+# `persona-canonical-form` (Crate-2) then turns into RFC 8785 JCS
+# bytes, which in turn `persona-hash` (Crate-1) feeds into SHA-256.
+#
+# Public surface mirrors the Python four-function pipeline:
+# - split_frontmatter(text) -> (frontmatter_yaml, body)
+# - parse_frontmatter(yaml)  -> serde_yaml::Value (must be a mapping)
+# - extract_canonical_subset(parsed) -> serde_json::Value object
+# - read_canonical_subset(text) -> serde_json::Value object
+#
+# Cross-language parity contract (Sprint-3-Tag-5 outbox §A2 + Sprint-4-
+# Tag-1 box): for the V9 ground-truth fixture
+# `wirelang/tests/fixtures/persona_definitions/v9-persona-framework-native.md`,
+# the resulting canonical-subset must JCS-serialise to a byte string of
+# length 387 whose SHA-256 equals `PERSONA_HASH_PIN_V9`
+# (`0f298894...e1d793`). This binds Crate-3 + Crate-2 + Crate-1
+# together into the same V-907 pin-pack as the Python tree.
+#
+# Mira-Decision YAML-Parser (Sprint-3-Closeout-Stempel, ratified 2026-05-07
+# ~18:15 CEST): `serde_yaml = 0.9.34` is the default. Rationale: broadest
+# Rust-ecosystem footprint, MIT-licensed, byte-stable on the YAML 1.1
+# subset that the V-907 mock format uses (no anchors / no flow-style
+# floats / no exotic scalars). The crate is marked "deprecated" by its
+# upstream maintainer in version 0.9.34, but it remains the de-facto
+# YAML parser used by Cargo itself and by serde's own integration
+# tests; the deprecation marker reflects a maintainership transition,
+# not a behavioural regression. Phase-1c follow-up: re-evaluate
+# `saphyr` / `serde-saphyr` for strict YAML 1.2 conformance when
+# the persona-definition format moves beyond the current trivial
+# YAML 1.1 subset.
+
+[package]
+name = "persona-canonical-form-yaml"
+version = "0.1.0"
+description = "YAML front-matter parser + canonical-subset extractor (Rust pendant of wirelang.persona.persona_canonical_form)"
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+
+[lib]
+name = "persona_canonical_form_yaml"
+path = "src/lib.rs"
+
+[dependencies]
+serde      = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+
+[dev-dependencies]
+# Used in the cross-check test to verify end-to-end byte-parity against
+# the V9 pin without depending on the sister crates. Mirrors the
+# Crate-2 dev-dep posture.
+serde_jcs = { workspace = true }
+sha2      = { workspace = true, features = ["std"] }

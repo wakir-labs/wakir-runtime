@@ -50,6 +50,7 @@ resolver = "2"
 members = [
     "crates/persona-hash",
     "crates/persona-canonical-form",
+    "crates/persona-canonical-form-yaml",
 ]
 
 [workspace.package]
@@ -75,6 +76,15 @@ authors = ["pengine-eng <pengine@wakir.local>"]
 #   Python `rfc8785` for the V9 vector before this crate is trusted.
 # - hex 0.4.x : lower-case hex tail emission to match Python
 #   `hashlib.sha256().hexdigest()`.
+# - serde_yaml 0.9.34 : YAML 1.1 front-matter parser (Crate-3
+#   `persona-canonical-form-yaml`). Mira-ratified default per
+#   Sprint-3-Closeout-Stempel 2026-05-07 ~18:15 CEST. Pinned to
+#   =0.9.34 for byte-stability across CI machines. Marked "deprecated"
+#   upstream (maintainership transition) but behaviourally stable on
+#   the trivial YAML 1.1 subset the V-907 mock format uses (no
+#   anchors, no flow-style floats, no exotic scalars). Phase-1c
+#   follow-up: re-evaluate `saphyr` for strict YAML 1.2 if the
+#   persona-definition format grows beyond the current subset.
 #
 # Dev-only:
 # - serde_json (already in deps) covers test-fixture loading; no
@@ -85,6 +95,7 @@ sha2       = { version = "=0.10.8", default-features = false }
 serde      = { version = "=1.0.219", features = ["derive"] }
 serde_json = { version = "=1.0.140", features = ["preserve_order"] }
 serde_jcs  = { version = "=0.2.0" }
+serde_yaml = { version = "=0.9.34" }
 hex        = { version = "=0.4.3" }
 
 [profile.release]
