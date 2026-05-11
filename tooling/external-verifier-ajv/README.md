@@ -80,18 +80,21 @@ per-vector verdicts in an N-way parity check:
 python scripts/external_verifier_validation.py
 ```
 
-Configured validators (Sprint-6 Tag-1):
+Configured validators (Sprint-6 Tag-6):
 
-| Tool                       | Language | Library            | Role                |
-|----------------------------|----------|--------------------|---------------------|
-| `python-jsonschema`        | Python   | `jsonschema` 4.x   | Reference validator |
-| `ajv`                      | Node.js  | `ajv` 8.x          | Cross-stack witness |
-| `python-fastjsonschema`    | Python   | `fastjsonschema`   | Cross-library witness |
+| Tool                       | Language | Library                  | Role                  |
+|----------------------------|----------|--------------------------|-----------------------|
+| `python-jsonschema`        | Python   | `jsonschema` 4.x         | Reference validator   |
+| `ajv`                      | Node.js  | `ajv` 8.x                | Cross-stack witness   |
+| `python-fastjsonschema`    | Python   | `fastjsonschema`         | Cross-library witness (Python family) |
+| `hyperjump`                | Node.js  | `@hyperjump/json-schema` | Cross-library witness (JS family) |
 
 The Python triangulation (`jsonschema` vs. `fastjsonschema`) catches
 library-side bugs that a pure Python-vs-Node check would miss; the
-Node.js side catches stack-side bugs that two Python libraries would
-share.
+JS triangulation (`ajv` vs. `hyperjump`) does the same on the JS
+side. Both families are now two-deep, so the parity-OK signal
+witnesses both cross-stack AND within-stack interpretation
+agreement.
 
 The pytest wrapper
 [`tests/wat/test_external_verifier_parity.py`](../../tests/wat/test_external_verifier_parity.py)
@@ -100,10 +103,11 @@ when `node` is unavailable or `node_modules/` is missing;
 fastjsonschema side is `skipif` when the library is not installed.
 The Python-jsonschema side always runs.
 
-## Adding a fourth validator
+## Adding a fifth validator
 
 The vector format is intentionally portable. To bring a Rust / Java /
-Go validator into the parity check:
+Go validator into the parity check (cross-family witness beyond Python
+and JS):
 
 1. Read `test-vectors.json`.
 2. For each vector, validate `manifest` against the schema.

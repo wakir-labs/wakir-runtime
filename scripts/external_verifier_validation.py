@@ -15,6 +15,18 @@ and a shared test-vector file, then runs every vector through:
    schema to native Python code. Triangulating against ``jsonschema``
    catches bugs in either library's Draft-2020-12 implementation that
    would otherwise be invisible behind a single-implementation pin.
+4. The Node.js ``@hyperjump/json-schema`` validator
+   (Phase-2 Sprint-6 Tag-6). A pure-JS Draft-2020-12 implementation
+   maintained independently from ``ajv`` (Jason Desrosiers, not Ben
+   McMahen). Quadrangulating exposes JS-family cross-library drift
+   that would otherwise hide behind a one-implementation pin on the
+   JS side. Sprint-6 Tag-6 originally targeted a Rust/Go/Java pole
+   for second-language-family witness; the sandbox host has none of
+   those toolchains installed and no privilege to install system
+   packages, so Hyperjump replaces the intended foreign-language pole
+   as the substance-preserving in-scope choice. The Rust/Go/Java
+   pole remains open as a Phase-1c / operator-host follow-up
+   (see ``docs/external-verifier-conformance.md`` §7).
 
 Cross-tool parity is the contract: each vector's verdict (accept /
 reject) must agree across every configured validator *and* must equal
@@ -71,6 +83,7 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = REPO_ROOT / "wirelang" / "schemas" / "wakir-wat-manifest-v1.json"
 AJV_TOOL_DIR = REPO_ROOT / "tooling" / "external-verifier-ajv"
+HYPERJUMP_TOOL_DIR = REPO_ROOT / "tooling" / "external-verifier-hyperjump"
 DEFAULT_VECTORS = AJV_TOOL_DIR / "test-vectors.json"
 
 #: Module-level holder list keeping :class:`tempfile.TemporaryDirectory`
@@ -289,6 +302,46 @@ def run_node_validator(vectors_path: Path) -> dict | None:
     except json.JSONDecodeError as e:
         raise SystemExit(
             f"node validator stdout is not JSON: {e}; stdout={proc.stdout!r}"
+        )
+
+
+def run_hyperjump_validator(vectors_path: Path) -> dict | None:
+    """Shell out to ``node tooling/external-verifier-hyperjump/validate.js``.
+
+    Returns ``None`` if Node is unavailable or the Hyperjump tool's
+    ``node_modules`` is missing. Returns the parsed JSON report
+    otherwise. Symmetric to :func:`run_node_validator` but targets the
+    fourth pole (Sprint-6 Tag-6).
+    """
+    node_bin = shutil.which("node")
+    if node_bin is None:
+        return None
+
+    if not (HYPERJUMP_TOOL_DIR / "node_modules").exists():
+        return None
+
+    cmd = [
+        node_bin,
+        str(HYPERJUMP_TOOL_DIR / "validate.js"),
+        f"--schema={SCHEMA_PATH}",
+        f"--vectors={vectors_path}",
+    ]
+    proc = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        cwd=str(HYPERJUMP_TOOL_DIR),
+        check=False,
+    )
+    if proc.returncode == 2:
+        raise SystemExit(
+            f"hyperjump validator hard-failed (rc=2): stderr={proc.stderr!r}"
+        )
+    try:
+        return json.loads(proc.stdout)
+    except json.JSONDecodeError as e:
+        raise SystemExit(
+            f"hyperjump validator stdout is not JSON: {e}; stdout={proc.stdout!r}"
         )
 
 
@@ -629,6 +682,24 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--skip-hyperjump",
+        action="store_true",
+        help=(
+            "skip the Node.js @hyperjump/json-schema fourth-pole "
+            "validator (default: run if node + node_modules available "
+            "under tooling/external-verifier-hyperjump/)"
+        ),
+    )
+    parser.add_argument(
+        "--require-hyperjump",
+        action="store_true",
+        help=(
+            "hard-fail if hyperjump is unavailable (node missing or "
+            "tooling/external-verifier-hyperjump/node_modules absent) "
+            "instead of skipping"
+        ),
+    )
+    parser.add_argument(
         "--quiet",
         action="store_true",
         help="suppress the per-vector verdict table",
@@ -776,6 +847,7 @@ def main(argv: list[str] | None = None) -> int:
     py_report: dict[str, Any] | None = None
     node_report: dict[str, Any] | None = None
     fjs_report: dict[str, Any] | None = None
+    hyperjump_report: dict[str, Any] | None = None
 
     if not args.node_only:
         py_report = run_python_validator(schema, vectors)
@@ -801,6 +873,22 @@ def main(argv: list[str] | None = None) -> int:
                 "fastjsonschema validator unavailable (library not "
                 "importable); rerun without --require-fastjsonschema "
                 "or `pip install fastjsonschema`",
+                file=sys.stderr,
+            )
+            return 2
+
+    # Hyperjump fourth-pole. Default-on; skipped silently when the
+    # tool's node_modules is absent (operator may use --require-
+    # hyperjump in CI to make this a hard fail). The --python-only
+    # mode also skips it (Hyperjump is a Node.js validator and runs
+    # in the same flag-class as ajv).
+    if not args.python_only and not args.skip_hyperjump:
+        hyperjump_report = run_hyperjump_validator(vectors_path)
+        if hyperjump_report is None and args.require_hyperjump:
+            print(
+                "hyperjump validator unavailable (no `node` on PATH or "
+                "node_modules missing); rerun without --require-hyperjump "
+                "or `cd tooling/external-verifier-hyperjump && npm install`",
                 file=sys.stderr,
             )
             return 2
@@ -854,12 +942,18 @@ def main(argv: list[str] | None = None) -> int:
         if node_report is not None:
             _render_report("node (ajv)", node_report)
         elif not args.python_only:
-            print("node side: SKIPPED (validator unavailable)")
+            print("node (ajv) side: SKIPPED (validator unavailable)")
         if fjs_report is not None:
             _render_report("python (fastjsonschema)", fjs_report)
         elif not args.node_only and not args.skip_fastjsonschema:
             print(
                 "fastjsonschema side: SKIPPED (library not importable)"
+            )
+        if hyperjump_report is not None:
+            _render_report("node (hyperjump)", hyperjump_report)
+        elif not args.python_only and not args.skip_hyperjump:
+            print(
+                "hyperjump side: SKIPPED (validator unavailable)"
             )
         if real_pipeline_report is not None:
             _render_report(
@@ -895,10 +989,18 @@ def main(argv: list[str] | None = None) -> int:
             f"{fjs_report['total']} vectors mismatched expected verdict",
             file=sys.stderr,
         )
+    if hyperjump_report and hyperjump_report["mismatched"] > 0:
+        fail = True
+        print(
+            f"hyperjump validator: {hyperjump_report['mismatched']} of "
+            f"{hyperjump_report['total']} vectors mismatched expected verdict",
+            file=sys.stderr,
+        )
 
-    # N-way parity (covers 2 or 3 validators depending on environment).
+    # N-way parity (covers 2..4 validators depending on environment).
     participating = [
-        r for r in (py_report, node_report, fjs_report) if r is not None
+        r for r in (py_report, node_report, fjs_report, hyperjump_report)
+        if r is not None
     ]
     if len(participating) >= 2:
         parity_ok, diffs = compare_reports_multi(participating)

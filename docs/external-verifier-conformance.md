@@ -5,7 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # External-Verifier Conformance Guide — wakir-wat-manifest-v1
 
-Status: Phase-2 Sprint-6 Tag-2 (2026-05-11).
+Status: Phase-2 Sprint-6 Tag-6 (2026-05-12).
 Schema: `wirelang/schemas/wakir-wat-manifest-v1.json`, `$id` pinned to
 `https://wakir.dev/wirelang/schema/wakir-wat-manifest-v1/0.2.0`.
 
@@ -23,26 +23,29 @@ A v1-conforming verifier MUST:
    [`tooling/external-verifier-ajv/test-vectors.json`](../tooling/external-verifier-ajv/test-vectors.json)
    marked `"expect": "reject"`.
 2. Accept every vector marked `"expect": "accept"`.
-3. Reach the same per-vector verdict as at least two of the three
-   reference validators listed in §3 below.
+3. Reach the same per-vector verdict as at least two of the four
+   reference validators listed in §1 below.
 
 That is the floor. Implementations that go further (e.g. integrity-
 rebuild, OTS-anchor check, signature-slot consumer) are encouraged but
 are not part of the schema-correctness contract; see §6.
 
-## §1 — Why three reference validators
+## §1 — Why four reference validators
 
 Schema correctness is meaningless if the only validator that confirms
-it is the one we ourselves wrote. The three reference validators in
+it is the one we ourselves wrote. The four reference validators in
 this repo come from disjoint codebases:
 
-| Tool                    | Language | Library          | Code path                                 |
-|-------------------------|----------|------------------|-------------------------------------------|
-| `python-jsonschema`     | Python   | `jsonschema` 4.x | Interpreter over schema dict              |
-| `ajv`                   | Node.js  | `ajv` 8.x        | Compile-to-JavaScript via AOT codegen     |
-| `python-fastjsonschema` | Python   | `fastjsonschema` | Compile-to-Python via AOT codegen         |
+| Tool                    | Language | Library                  | Code path                                 |
+|-------------------------|----------|--------------------------|-------------------------------------------|
+| `python-jsonschema`     | Python   | `jsonschema` 4.x         | Interpreter over schema dict              |
+| `ajv`                   | Node.js  | `ajv` 8.x                | Compile-to-JavaScript via AOT codegen     |
+| `python-fastjsonschema` | Python   | `fastjsonschema`         | Compile-to-Python via AOT codegen         |
+| `hyperjump`             | Node.js  | `@hyperjump/json-schema` | Interpreter over schema dict (pure JS)    |
 
-A schema-correctness bug that only affects one library's
+Two Python validators (interpreter + AOT codegen) and two JS validators
+(AOT codegen + interpreter) give cross-family AND within-family
+witness. A schema-correctness bug that only affects one library's
 Draft-2020-12 implementation becomes visible the moment the N-way
 parity check goes red. The driver
 [`scripts/external_verifier_validation.py`](../scripts/external_verifier_validation.py)
@@ -54,13 +57,14 @@ exits non-zero on any mismatch.
 # From a clean repo clone:
 pip install jsonschema fastjsonschema
 (cd tooling/external-verifier-ajv && npm install)
+(cd tooling/external-verifier-hyperjump && npm install)
 python scripts/external_verifier_validation.py
 ```
 
 Expected output footer:
 
 ```
-cross-tool parity OK (31 vectors, 3 validators: ajv, python-fastjsonschema, python-jsonschema)
+cross-tool parity OK (31 vectors, 4 validators: ajv, hyperjump, python-fastjsonschema, python-jsonschema)
 ```
 
 Subset modes (useful for adoption-time CI):
@@ -69,8 +73,12 @@ Subset modes (useful for adoption-time CI):
 # Python-only (no Node.js dependency)
 python scripts/external_verifier_validation.py --python-only
 
-# Hard-fail if Node.js side cannot run (CI mode)
-python scripts/external_verifier_validation.py --require-node --require-fastjsonschema
+# Hard-fail if every pole must run (strict CI mode)
+python scripts/external_verifier_validation.py \
+    --require-node --require-fastjsonschema --require-hyperjump
+
+# Skip the fourth (Hyperjump) pole only
+python scripts/external_verifier_validation.py --skip-hyperjump
 
 # Run against your own vectors file
 python scripts/external_verifier_validation.py --vectors my-vectors.json
@@ -106,7 +114,7 @@ schema-correctness bugs that escape this set should be added as
 vectors before the schema is patched, so the regression-prevention
 contract is explicit.
 
-## §4 — Adding a fourth-language validator
+## §4 — Adding a fifth-language validator
 
 The vector-set is a single JSON array. Any language with a
 Draft-2020-12-conformant JSON-Schema validator can join the parity
@@ -135,20 +143,22 @@ check:
 
 4. Wire your validator into
    [`scripts/external_verifier_validation.py`](../scripts/external_verifier_validation.py)
-   alongside `run_python_validator`, `run_node_validator`, and
-   `run_fastjsonschema_validator`. The N-way comparison helper
-   `compare_reports_multi` is variadic and needs no two-validator
-   assumption.
+   alongside `run_python_validator`, `run_node_validator`,
+   `run_fastjsonschema_validator`, and `run_hyperjump_validator`. The
+   N-way comparison helper `compare_reports_multi` is variadic and
+   needs no fixed-arity validator-set assumption.
 
-Suggested fourth-language candidates (no preference, boring-tech
-choices):
+Suggested fifth-language candidates (no preference, boring-tech
+choices that cross the language-family boundary):
 
 - **Rust**: `jsonschema` crate
 - **Java**: `json-schema-validator` (networknt)
 - **Go**: `santhosh-tekuri/jsonschema`
 
 Each adds an independent code-path that strengthens the parity-OK
-signal linearly.
+signal linearly. The four existing poles cover the Python and JS
+families two-deep each (interpreter + AOT in both); a Rust/Go/Java
+fifth pole is the next strengthening step (see §9).
 
 ## §5 — Conformance statement template
 
@@ -284,6 +294,8 @@ Misuse guards:
 |                |                         | schema-file `examples`; conformance guide              |
 | 0.2.0          | Phase-2 Sprint-6 Tag-2  | `--real-tvN --verify-signature` driver-mode;           |
 |                |                         | `stage_signed_cohort` helper; signature_status pin     |
+| 0.2.0          | Phase-2 Sprint-6 Tag-6  | Fourth validator pole `@hyperjump/json-schema`;        |
+|                |                         | JS-family witness now two-deep (ajv + hyperjump)       |
 
 The 0.2.0 schema number remains pinned at 0.2.0 because the Sprint-6
 changes are additive to the schema-correctness substrate (more
@@ -291,5 +303,70 @@ witnesses, more vectors, more verifier-pipeline coverage), not to the
 schema's accept/reject contract. A wire-form-breaking change requires
 a $id bump to 0.3.0 and a parallel schema-file under the new version
 path.
+
+## §9 — Fourth-pole expansion (Sprint-6 Tag-6)
+
+Sprint-6 Tag-6 extended the cross-tool parity surface from three to
+four validators by adding `@hyperjump/json-schema` under
+[`tooling/external-verifier-hyperjump/`](../tooling/external-verifier-hyperjump/).
+
+### §9.1 — Why Hyperjump and not Rust/Go/Java
+
+The original Sprint-6 Tag-6 mandate targeted a Rust, Go, or Java
+fourth pole for **second-language-family witness** beyond Python and
+JS. Pragmatic substitution was forced by sandbox-host environment
+constraints: none of `cargo`, `rustc`, `go`, or `java` are present on
+the build host and the sandbox is not permitted to install system
+packages. Bootstrapping a foreign-language toolchain inside the
+box-time window was not feasible without making the choice
+operator-driven.
+
+The substitution preserves cross-library-witness substance with the
+following trade-off:
+
+- **What is preserved.** Hyperjump (Jason Desrosiers) is an
+  independently-maintained Draft-2020-12 implementation that is
+  listed by JSON-Schema-Org as a reference implementation. It does
+  not share code lineage with ajv. The JS family now has two-deep
+  parity (ajv: AOT codegen; Hyperjump: interpreter), mirroring the
+  Python family's two-deep parity (jsonschema: interpreter;
+  fastjsonschema: AOT codegen). A schema interpretation that ajv and
+  Hyperjump disagree on is a real schema-side ambiguity, not an
+  ajv-peculiarity.
+- **What is deferred.** Second-language-family witness (a non-Python,
+  non-JS implementation) remains an open follow-up. Drop-in points in
+  the driver (`run_*_validator`) and CLI flag-class (`--skip-*` /
+  `--require-*`) are designed for additive extension; a Rust /
+  Go / Java pole can join without touching the four-pole code paths.
+
+### §9.2 — Driver wire-up
+
+| Source                                                                                       | Function                       | Skip flag             | Require flag             |
+|----------------------------------------------------------------------------------------------|--------------------------------|-----------------------|--------------------------|
+| `scripts/external_verifier_validation.py::run_python_validator`                              | python-jsonschema              | `--node-only`         | (always available)       |
+| `scripts/external_verifier_validation.py::run_node_validator`                                | ajv                            | `--python-only`       | `--require-node`         |
+| `scripts/external_verifier_validation.py::run_fastjsonschema_validator`                      | fastjsonschema                 | `--skip-fastjsonschema` | `--require-fastjsonschema` |
+| `scripts/external_verifier_validation.py::run_hyperjump_validator` *(Sprint-6 Tag-6)*        | hyperjump                      | `--skip-hyperjump`    | `--require-hyperjump`    |
+
+Each `run_*_validator` returns either a uniform report dict (matching
+the JSON shape in §4) or `None`. The N-way comparator
+`compare_reports_multi` consumes the participating subset.
+
+### §9.3 — Foreign-language fifth pole follow-up
+
+Re-opened as an operator-host / Phase-1c task. Acceptance criteria:
+
+1. Choose Rust (`jsonschema` crate), Go (`gojsonschema` /
+   `santhosh-tekuri/jsonschema`), or Java
+   (`networknt/json-schema-validator`).
+2. Drop a `tooling/external-verifier-<lang>/` directory with a
+   minimal validator that emits the §4 JSON-report shape.
+3. Add `run_<lang>_validator` to
+   `scripts/external_verifier_validation.py` with matching
+   `--skip-<lang>` / `--require-<lang>` flags.
+4. Add a sibling test stanza to
+   `tests/wat/test_external_verifier_parity.py` (skip-guard +
+   accept-vector pin + pairwise parity pin + N-way parity bump from
+   four to five validators).
 
 — Tomás

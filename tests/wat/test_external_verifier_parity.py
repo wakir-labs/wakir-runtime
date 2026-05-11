@@ -41,6 +41,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "external_verifier_validation.py"
 AJV_TOOL_DIR = REPO_ROOT / "tooling" / "external-verifier-ajv"
+HYPERJUMP_TOOL_DIR = REPO_ROOT / "tooling" / "external-verifier-hyperjump"
 DEFAULT_VECTORS = AJV_TOOL_DIR / "test-vectors.json"
 
 
@@ -69,6 +70,14 @@ def _fastjsonschema_available() -> bool:
     try:
         import fastjsonschema  # noqa: F401
     except ImportError:
+        return False
+    return True
+
+
+def _hyperjump_available() -> bool:
+    if shutil.which("node") is None:
+        return False
+    if not (HYPERJUMP_TOOL_DIR / "node_modules").exists():
         return False
     return True
 
@@ -282,6 +291,160 @@ def test_three_way_parity_python_node_fastjsonschema():
     assert parity_ok, (
         "three-way parity violation:\n  " + "\n  ".join(diffs)
     )
+
+
+# ===========================================================================
+# Hyperjump fourth-pole parity (Sprint-6 Tag-6)
+# ===========================================================================
+
+
+@pytest.mark.skipif(
+    not _hyperjump_available(),
+    reason=(
+        "node and/or hyperjump node_modules unavailable; install via "
+        "`cd tooling/external-verifier-hyperjump && npm install`"
+    ),
+)
+def test_hyperjump_validator_accepts_every_expected_accept():
+    """@hyperjump/json-schema validator agrees with every declared expectation.
+
+    Hyperjump is the fourth Draft-2020-12 implementation in the parity
+    set (alongside python-jsonschema, ajv, and fastjsonschema). It is
+    a separately-maintained pure-JS implementation (Jason Desrosiers,
+    listed as a reference implementation by JSON-Schema-Org) and is
+    NOT derived from ajv; verdict drift against ajv on the same vector
+    set is therefore a real schema-side ambiguity and not a shared-
+    ancestor peculiarity.
+    """
+    mod = _import_validation_script()
+    report = mod.run_hyperjump_validator(DEFAULT_VECTORS)
+    assert report is not None, (
+        "hyperjump validator returned None despite gating"
+    )
+    mismatches = [r for r in report["results"] if not r["matched"]]
+    assert not mismatches, (
+        f"hyperjump validator disagreed on {len(mismatches)} vectors: "
+        + ", ".join(r["name"] for r in mismatches)
+    )
+
+
+@pytest.mark.skipif(
+    not (_node_available() and _hyperjump_available()),
+    reason="hyperjump-vs-ajv parity requires node + both node_modules trees",
+)
+def test_ajv_and_hyperjump_verdicts_agree_per_vector():
+    """Per-vector parity within the JS family: ajv vs Hyperjump.
+
+    Both validators are pure-JS Draft-2020-12 implementations with no
+    shared ancestry. A disagreement between them on the same vector
+    set means the schema is interpretation-dependent within the very
+    family that has the largest external-verifier adoption surface,
+    and the schema-correctness conversation must precede landing.
+    """
+    mod = _import_validation_script()
+    node_report = mod.run_node_validator(DEFAULT_VECTORS)
+    hyperjump_report = mod.run_hyperjump_validator(DEFAULT_VECTORS)
+    assert node_report is not None
+    assert hyperjump_report is not None
+
+    parity_ok, diffs = mod.compare_reports_multi(
+        [node_report, hyperjump_report]
+    )
+    assert parity_ok, (
+        "ajv-vs-hyperjump parity violation:\n  " + "\n  ".join(diffs)
+    )
+
+
+@pytest.mark.skipif(
+    not (
+        _node_available()
+        and _fastjsonschema_available()
+        and _hyperjump_available()
+    ),
+    reason=(
+        "full four-validator parity requires node + ajv + "
+        "fastjsonschema + hyperjump"
+    ),
+)
+def test_four_way_parity_python_node_fastjsonschema_hyperjump():
+    """Full four-way parity check across all configured validators.
+
+    This is the Sprint-6 Tag-6 substrate-extension: any third party
+    picking ANY of the four reference libraries inherits a verdict-
+    set that three other independent implementations agree with. The
+    JS-family witness is now two-deep (ajv + hyperjump) and the
+    Python-family witness is two-deep (jsonschema + fastjsonschema);
+    the cross-family parity is a four-way handshake.
+    """
+    import json
+
+    mod = _import_validation_script()
+    schema = json.loads(mod.SCHEMA_PATH.read_text(encoding="utf-8"))
+    vectors = json.loads(DEFAULT_VECTORS.read_text(encoding="utf-8"))
+
+    py_report = mod.run_python_validator(schema, vectors)
+    node_report = mod.run_node_validator(DEFAULT_VECTORS)
+    fjs_report = mod.run_fastjsonschema_validator(schema, vectors)
+    hyperjump_report = mod.run_hyperjump_validator(DEFAULT_VECTORS)
+    assert py_report is not None
+    assert node_report is not None
+    assert fjs_report is not None
+    assert hyperjump_report is not None
+
+    parity_ok, diffs = mod.compare_reports_multi(
+        [py_report, node_report, fjs_report, hyperjump_report]
+    )
+    assert parity_ok, (
+        "four-way parity violation:\n  " + "\n  ".join(diffs)
+    )
+
+
+@pytest.mark.skipif(
+    not _hyperjump_available(),
+    reason="hyperjump node_modules unavailable",
+)
+def test_hyperjump_report_schema_id_matches_python():
+    """Hyperjump and python-jsonschema agree on the loaded schema $id.
+
+    Catches a misconfigured ``--schema`` flag in the Hyperjump wrapper
+    or a path drift if a future PR moves the schema file but forgets
+    to update the relative path in the Hyperjump validate.js. Mirrors
+    the equivalent guard for the ajv pole.
+    """
+    import json
+
+    mod = _import_validation_script()
+    schema = json.loads(mod.SCHEMA_PATH.read_text(encoding="utf-8"))
+    vectors = json.loads(DEFAULT_VECTORS.read_text(encoding="utf-8"))
+
+    py_report = mod.run_python_validator(schema, vectors)
+    hyperjump_report = mod.run_hyperjump_validator(DEFAULT_VECTORS)
+    assert hyperjump_report is not None
+
+    assert py_report["schema_id"] == hyperjump_report["schema_id"], (
+        f"schema $id drift between python ({py_report['schema_id']!r}) "
+        f"and hyperjump ({hyperjump_report['schema_id']!r})"
+    )
+
+
+@pytest.mark.skipif(
+    not _hyperjump_available(),
+    reason="hyperjump node_modules unavailable",
+)
+def test_hyperjump_report_total_count_matches_vectors():
+    """Sanity: hyperjump report's total equals the test-vector array length.
+
+    Symmetric to the python-side total-count pin. Catches a stdout-
+    parsing or shape-drift bug in the Hyperjump wrapper.
+    """
+    import json
+
+    mod = _import_validation_script()
+    vectors = json.loads(DEFAULT_VECTORS.read_text(encoding="utf-8"))
+
+    hyperjump_report = mod.run_hyperjump_validator(DEFAULT_VECTORS)
+    assert hyperjump_report is not None
+    assert hyperjump_report["total"] == len(vectors)
 
 
 def test_compare_reports_multi_handles_missing_validator():

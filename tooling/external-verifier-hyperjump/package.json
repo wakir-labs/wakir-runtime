@@ -1,0 +1,14 @@
+{
+  "name": "wakir-external-verifier-hyperjump",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cross-tool parity validator for wakir-wat-manifest-v1 JSON-Schema using Node.js + @hyperjump/json-schema. Fourth validator pole alongside python-jsonschema, python-fastjsonschema, and ajv; independent implementation (Jason Desrosiers, not Ben McMahen / Ajv) gives genuine cross-library witness within the JS family without forcing a Rust/Go/Java toolchain dependency on the build host.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "validate": "node validate.js"
+  },
+  "dependencies": {
+    "@hyperjump/json-schema": "^1.17.6"
+  }
+}
