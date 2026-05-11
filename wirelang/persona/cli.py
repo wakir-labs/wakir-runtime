@@ -21,6 +21,17 @@ and the V-907 persona-hash. Emits a ``PersonaInspectReport``
 parser/extractor failure to exit 1 (the persona-definition was
 unreadable as a canonical subset).
 
+Sprint-6 Tag-4 added the ``pin`` subcommand (Phase-1c follow-up
+item #1 from the Tag-3 inspect rapport): minimal-footprint
+shell-pipeline wrapper that emits **only** the V-907 persona-hash
+on stdout (``sha256:<64hex>\\n``) — no JSON, no canonical-subset
+echo, no metadata. Mirror posture of ``inspect --emit-hash --quiet``
+but with the pin routed to stdout instead of stderr so
+``pin=$(wakir-persona pin file.md)`` works as a one-liner without
+``2>&1`` redirect gymnastics. Reuses the inspect read-only-path
+(canonical-subset extract + JCS-hash); failure semantics identical
+(exit 1 on parse / extractor failure, exit 3 on missing file).
+
 Synopsis
 ========
 
@@ -38,6 +49,9 @@ Synopsis
     wakir-persona inspect <persona-file>
                           [--emit-hash]
                           [--quiet]
+
+    wakir-persona pin <persona-file>
+                      [--quiet]
 
 The ``--target`` choice list is sourced from
 :data:`wirelang.persona.PERSONA_SCHEMA_VERSION_LIST`. Phase-1b
@@ -72,15 +86,17 @@ Per spec §7.4:
 
 - ``0``: ``migrate`` success (and pin-match if ``--expect-hash`` was
   supplied); ``validate`` success (``is_valid=True``); ``inspect``
-  success (canonical subset + persona-hash emitted).
+  success (canonical subset + persona-hash emitted); ``pin`` success
+  (persona-hash emitted on stdout).
 - ``1``: ``migrate`` :class:`PersonaMigrationError`; ``validate``
   ``is_valid=False`` (one or more structured errors emitted);
-  ``inspect`` parse / canonical-subset-extraction failure (the
-  persona-definition is unreadable as a canonical subset).
+  ``inspect`` / ``pin`` parse / canonical-subset-extraction failure
+  (the persona-definition is unreadable as a canonical subset).
 - ``2``: ``migrate`` :class:`PersonaMigrationDeterminismError`
-  (``--expect-hash`` mismatch). Not used by ``validate`` / ``inspect``.
+  (``--expect-hash`` mismatch). Not used by ``validate`` /
+  ``inspect`` / ``pin``.
 - ``3``: :class:`FileNotFoundError` on the ``<persona-file>``
-  argument (all three subcommands).
+  argument (all four subcommands).
 - ``64``: argparse usage error (mirrors Unix ``EX_USAGE``). Emitted
   by argparse itself on a parse failure.
 """
@@ -129,6 +145,12 @@ EXIT_VALIDATION_FAILED = EXIT_MIGRATION_ERROR
 #: failed). Same posture as :data:`EXIT_VALIDATION_FAILED` — one
 #: shell-script ``$?`` check covers all three failure modes.
 EXIT_INSPECT_FAILED = EXIT_MIGRATION_ERROR
+
+#: Alias for the pin failure path (canonical-subset extraction failed).
+#: Same posture as :data:`EXIT_INSPECT_FAILED` — ``pin`` shares the
+#: inspect read-only-path, so the failure mapping is identical. One
+#: ``$?`` check in a shell pipeline covers all four failure modes.
+EXIT_PIN_FAILED = EXIT_MIGRATION_ERROR
 
 #: ``report_schema_version`` value on the inspect-stdout report. Bumped
 #: lock-step with breaking shape changes; the byte-identity fixtures
@@ -253,6 +275,33 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     inspect.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress the human-readable progress line on stderr.",
+    )
+
+    pin = subparsers.add_parser(
+        "pin",
+        help="Emit the V-907 persona-hash on stdout (minimal-footprint).",
+        description=(
+            "Run the read-only canonical-subset extractor + V-907 "
+            "persona-hash on a persona-definition file and emit ONLY "
+            "the persona-hash on stdout (one line, 'sha256:<64hex>\\n'). "
+            "Designed for shell-pipeline capture: "
+            "`pin=$(wakir-persona pin file.md)` is a clean one-liner "
+            "with no JSON / 2>&1 redirect gymnastics. Exit code 0 on "
+            "success, 1 on parse / extractor failure. "
+            "V-907-CLI-invariant: stdout equals "
+            "`migrate --emit-hash` stderr-last-line equals "
+            "`inspect --emit-hash --quiet` stderr-pin."
+        ),
+    )
+    pin.add_argument(
+        "persona_file",
+        type=Path,
+        help="Filesystem path to a UTF-8 markdown persona-definition.",
+    )
+    pin.add_argument(
         "--quiet",
         action="store_true",
         help="Suppress the human-readable progress line on stderr.",
@@ -503,6 +552,86 @@ def _run_inspect(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_pin(args: argparse.Namespace) -> int:
+    """Execute the ``pin`` subcommand. Return a Unix exit code.
+
+    Shell-pipeline-shaped variant of ``inspect --emit-hash --quiet``:
+
+    - stdout = the V-907 persona-hash, one line, ``sha256:<64hex>\\n``.
+      Nothing else. No JSON envelope, no canonical-subset echo, no
+      metadata. The operator captures it directly:
+
+          ``pin=$(wakir-persona pin file.md)``
+
+      without the ``2>&1`` redirect dance that ``inspect --emit-hash
+      --quiet`` would require (inspect routes the pin to stderr to
+      keep the structured-JSON report on stdout).
+    - stderr (default) = one progress line
+      ``wakir-persona: pinned <file> -> <pin>``. Suppressed by
+      ``--quiet``.
+
+    Failure semantics identical to ``inspect``: extractor /
+    canonicaliser exceptions map to :data:`EXIT_PIN_FAILED` (= 1),
+    diagnostic goes to stderr as a one-line marker. Path-not-found
+    maps to :data:`EXIT_INPUT_NOT_FOUND` (= 3) before any IO.
+
+    V-907-CLI-invariant: this stdout equals
+    ``inspect --emit-hash --quiet`` stderr-pin equals
+    ``migrate --emit-hash`` stderr-last-line on a v9 (no-op-chain)
+    input. The Tag-4 test pack pins all three forms against
+    :data:`PERSONA_HASH_PIN_V9` for the V9 fixture.
+    """
+    persona_file: Path = args.persona_file
+    if not persona_file.exists():
+        print(
+            f"wakir-persona: persona-file not found: {persona_file}",
+            file=sys.stderr,
+        )
+        return EXIT_INPUT_NOT_FOUND
+
+    try:
+        text = persona_file.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        # Mid-run race: vanished between the existence check and the
+        # read. Mirror of inspect / migrate / validate posture.
+        print(
+            f"wakir-persona: persona-file vanished mid-run: {exc}",
+            file=sys.stderr,
+        )
+        return EXIT_INPUT_NOT_FOUND
+
+    try:
+        canonical_subset = read_canonical_subset(text)
+    except (ValueError, KeyError) as exc:
+        # Same exception surface as `_run_inspect`. Pin is a strict
+        # subset of inspect's behaviour (only the hash, no JSON
+        # envelope), so the failure marker reads identically.
+        print(f"wakir-persona: pin failed: {exc}", file=sys.stderr)
+        return EXIT_PIN_FAILED
+
+    try:
+        persona_hash = compute_persona_hash_from_canonical(canonical_subset)
+    except (ValueError, TypeError) as exc:
+        # Defensive belt: JCS canonicalisation should never fail on a
+        # successfully-extracted canonical subset, but a hand-built
+        # non-canonical input could still trip the type / value guards.
+        print(f"wakir-persona: pin failed: {exc}", file=sys.stderr)
+        return EXIT_PIN_FAILED
+
+    # Minimal-footprint stdout: just the pin + newline. No JSON, no
+    # canonical-subset echo. This is the load-bearing distinction from
+    # `inspect`; see V-907-CLI-invariant in the docstring.
+    print(persona_hash, file=sys.stdout)
+
+    if not args.quiet:
+        print(
+            f"wakir-persona: pinned {persona_file} -> {persona_hash}",
+            file=sys.stderr,
+        )
+
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """CLI entry point. Returns a Unix exit code.
 
@@ -518,6 +647,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_validate(args)
     if args.command == "inspect":
         return _run_inspect(args)
+    if args.command == "pin":
+        return _run_pin(args)
 
     # argparse with required=True on the subparser dest already
     # rejects unknown commands with exit code 2 from argparse's

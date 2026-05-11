@@ -146,6 +146,12 @@ pub const EXIT_VALIDATION_FAILED: i32 = EXIT_MIGRATION_ERROR;
 /// Python `EXIT_INSPECT_FAILED`. Sprint-6 Tag-3 addition.
 pub const EXIT_INSPECT_FAILED: i32 = EXIT_MIGRATION_ERROR;
 
+/// Alias for the pin failure path (canonical-subset extraction
+/// failed). Same posture as [`EXIT_INSPECT_FAILED`]; mirrors Python
+/// `EXIT_PIN_FAILED`. Sprint-6 Tag-4 addition. ``pin`` shares the
+/// inspect read-only-path, so the failure mapping is identical.
+pub const EXIT_PIN_FAILED: i32 = EXIT_MIGRATION_ERROR;
+
 /// `report_schema_version` value on the inspect-stdout report. Bumped
 /// lock-step with breaking shape changes; the byte-identity fixtures
 /// under `tests/fixtures/v*-inspected.expected.json` pin the v1
@@ -203,6 +209,19 @@ pub enum Command {
         long_about = "Run the read-only canonical-subset extractor + V-907 persona-hash on a persona-definition file and emit the PersonaInspectReport on stdout as JSON. Exit code 0 on success, 1 on parse / extractor failure. See wirelang/persona/persona_canonical_form.py for the canonical-subset shape (persona-inspect-v1)."
     )]
     Inspect(InspectArgs),
+    /// Emit the V-907 persona-hash on stdout (minimal-footprint).
+    ///
+    /// Sprint-6 Tag-4 addition; mirrors Python `pin` subcommand
+    /// byte-for-byte on stdout (single line `sha256:<64hex>\n`).
+    /// Designed for shell-pipeline capture:
+    /// `pin=$(wakir-persona pin file.md)`. Mirror of
+    /// `inspect --emit-hash --quiet` but with the pin on stdout
+    /// instead of stderr.
+    #[command(
+        about = "Emit the V-907 persona-hash on stdout (minimal-footprint).",
+        long_about = "Run the read-only canonical-subset extractor + V-907 persona-hash on a persona-definition file and emit ONLY the persona-hash on stdout (one line, 'sha256:<64hex>\\n'). Designed for shell-pipeline capture: `pin=$(wakir-persona pin file.md)` is a clean one-liner with no JSON / 2>&1 redirect gymnastics. Exit code 0 on success, 1 on parse / extractor failure. V-907-CLI-invariant: stdout equals `migrate --emit-hash` stderr-last-line equals `inspect --emit-hash --quiet` stderr-pin."
+    )]
+    Pin(PinArgs),
 }
 
 /// Arguments for the `migrate` subcommand.
@@ -276,6 +295,24 @@ pub struct InspectArgs {
     /// Same stderr-line shape as `migrate --emit-hash`.
     #[arg(long = "emit-hash", default_value_t = false)]
     pub emit_hash: bool,
+
+    /// Suppress the human-readable progress line on stderr.
+    #[arg(long = "quiet", default_value_t = false)]
+    pub quiet: bool,
+}
+
+/// Arguments for the `pin` subcommand.
+///
+/// Sprint-6 Tag-4 addition. Strict subset of [`InspectArgs`]: no
+/// `--emit-hash` flag (the subcommand already emits the pin on
+/// stdout — a redundant flag would be noise) and no `--target` /
+/// `--expect-hash` (pin is read-only, no schema-version gymnastics).
+/// Only `--quiet` is shared with the other subcommands for
+/// stderr-progress-line suppression.
+#[derive(Debug, Parser)]
+pub struct PinArgs {
+    /// Filesystem path to a UTF-8 markdown persona-definition.
+    pub persona_file: PathBuf,
 
     /// Suppress the human-readable progress line on stderr.
     #[arg(long = "quiet", default_value_t = false)]
@@ -788,6 +825,98 @@ pub fn run_inspect(args: &InspectArgs) -> CliOutcome {
 }
 
 // ---------------------------------------------------------------------
+// `pin` subcommand handler (Sprint-6 Tag-4)
+// ---------------------------------------------------------------------
+
+/// Execute the `pin` subcommand against the given arguments.
+///
+/// Mirrors Python `_run_pin(args) -> int` exactly. Minimal-footprint
+/// shell-pipeline wrapper: stdout = the V-907 persona-hash, one line,
+/// `sha256:<64hex>\n`. Nothing else. Mirror of `run_inspect` but with
+/// the pin routed to **stdout** instead of stderr so
+/// `pin=$(wakir-persona pin file.md)` works as a one-liner without
+/// the `2>&1` redirect dance.
+///
+/// Returns a fully-captured [`CliOutcome`]. Pure function: only IO
+/// is reading the persona-file via [`std::fs::read_to_string`].
+///
+/// Failure semantics identical to `run_inspect`: extractor /
+/// canonicaliser errors map to [`EXIT_PIN_FAILED`] (= 1); the
+/// diagnostic goes to stderr as a one-line `"wakir-persona: pin
+/// failed: ..."` marker.
+///
+/// V-907-CLI-invariant: on a v9 (no-op-chain) input, this stdout
+/// equals `inspect --emit-hash --quiet` stderr-pin equals
+/// `migrate --emit-hash` stderr-last-line. The Tag-4 test pack pins
+/// all three forms against `PERSONA_HASH_PIN_V9`.
+pub fn run_pin(args: &PinArgs) -> CliOutcome {
+    let mut outcome = CliOutcome::default();
+
+    if !args.persona_file.exists() {
+        outcome.stderr = format!(
+            "wakir-persona: persona-file not found: {}\n",
+            args.persona_file.display()
+        );
+        outcome.exit_code = EXIT_INPUT_NOT_FOUND;
+        return outcome;
+    }
+
+    let text = match fs::read_to_string(&args.persona_file) {
+        Ok(s) => s,
+        Err(e) => {
+            outcome.stderr = format!(
+                "wakir-persona: persona-file vanished mid-run: {}: {e}\n",
+                args.persona_file.display()
+            );
+            outcome.exit_code = EXIT_INPUT_NOT_FOUND;
+            return outcome;
+        }
+    };
+
+    let canonical_subset = match read_canonical_subset(&text) {
+        Ok(cs) => cs,
+        Err(e) => {
+            // Same exception surface as `run_inspect`. Pin is a strict
+            // subset of inspect's behaviour (only the hash, no JSON
+            // envelope), so the failure marker reads identically
+            // modulo the "pin failed" / "inspect failed" banner swap.
+            outcome.stderr = format!("wakir-persona: pin failed: {e}\n");
+            outcome.exit_code = EXIT_PIN_FAILED;
+            return outcome;
+        }
+    };
+
+    let persona_hash = match compute_persona_hash_from_canonical(&canonical_subset, None) {
+        Ok(h) => h,
+        Err(e) => {
+            // Defensive belt: JCS canonicalisation should never fail
+            // on a successfully-extracted canonical subset, but a
+            // hand-built non-canonical input could still trip the
+            // type / value guards.
+            outcome.stderr = format!("wakir-persona: pin failed: {e}\n");
+            outcome.exit_code = EXIT_PIN_FAILED;
+            return outcome;
+        }
+    };
+
+    // Minimal-footprint stdout: just the pin + newline. No JSON, no
+    // canonical-subset echo. This is the load-bearing distinction
+    // from `inspect`; see V-907-CLI-invariant in the docstring.
+    outcome.stdout.push_str(&persona_hash);
+    outcome.stdout.push('\n');
+
+    if !args.quiet {
+        outcome.stderr.push_str(&format!(
+            "wakir-persona: pinned {} -> {}\n",
+            args.persona_file.display(),
+            persona_hash
+        ));
+    }
+
+    outcome
+}
+
+// ---------------------------------------------------------------------
 // Canonical-subset projection (public mirror of the resolver's
 // `project_canonical_subset` private helper).
 // ---------------------------------------------------------------------
@@ -982,6 +1111,7 @@ pub fn run(argv: &[&str]) -> CliOutcome {
             Command::Migrate(args) => run_migrate(&args),
             Command::Validate(args) => run_validate(&args),
             Command::Inspect(args) => run_inspect(&args),
+            Command::Pin(args) => run_pin(&args),
         },
         Err(e) => {
             let exit_code = map_clap_exit_code(&e);
@@ -2500,6 +2630,520 @@ mod inspect_tests {
         assert_eq!(first.exit_code, 0);
         for i in 0..10 {
             let later = run_inspect_in_process(v9_fixture(), &["--quiet"]);
+            assert_eq!(
+                later.stdout, first.stdout,
+                "iteration {i} drifted from baseline"
+            );
+            assert_eq!(later.exit_code, 0);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------
+// `pin` subcommand test pack (Sprint-6 Tag-4)
+//
+// Pure-CLI-shim coverage for the `pin` subcommand. Minimal-footprint
+// shell-pipeline wrapper: stdout = the V-907 persona-hash, one line,
+// `sha256:<64hex>\n`. Strict subset of `inspect` (no JSON envelope,
+// no canonical-subset echo) optimised for
+// `pin=$(wakir-persona pin file.md)` capture.
+//
+// Cross-check Rust <-> Python: stdout shape is asserted byte-identical
+// via `include_str!` on the same frozen fixtures the Python CLI tests
+// load (`v1-pin.expected.txt`, `v9-pin.expected.txt`). Persona-hash
+// equality across all three "emit the pin" CLI forms (pin stdout,
+// inspect --emit-hash stderr, migrate --emit-hash stderr) anchors the
+// V-907-CLI-invariant inside the Rust CLI layer.
+//
+// Test-pairing with the Python `test_persona_pin_cli.py` pack:
+//
+// | Python                                          | Rust                                       |
+// |-------------------------------------------------|--------------------------------------------|
+// | test_build_parser_accepts_pin_subcommand        | vp1_parser_accepts_pin_subcommand          |
+// | ..._quiet_flag_parses                           | vp2_..._quiet_flag                         |
+// | ..._rejects_emit_hash_flag                      | vp3_..._rejects_emit_hash_flag             |
+// | ..._rejects_target_flag                         | vp4_..._rejects_target_flag                |
+// | ..._rejects_expect_hash_flag                    | vp5_..._rejects_expect_hash_flag           |
+// | test_pin_v9_returns_exit_code_0_and_pin         | vp6_pin_v9_returns_exit_0_and_pin          |
+// | test_pin_v9_stdout_is_single_line_pin_only      | vp7_pin_v9_stdout_single_line_pin_only     |
+// | test_pin_v9_stdout_has_no_json_envelope         | vp8_pin_v9_stdout_no_json_envelope         |
+// | test_pin_v8_returns_exit_code_1                 | vp9_pin_v8_returns_exit_1                  |
+// | test_pin_v9_progress_line_when_not_quiet        | vp10_pin_v9_progress_line_when_not_quiet   |
+// | test_pin_missing_file_returns_exit_code_3       | vp11_pin_missing_file_returns_exit_3       |
+// | test_pin_v9_stdout_byte_identical_..._fixture   | vp12_pin_v9_stdout_byte_identical_to_py    |
+// | test_pin_v1_stdout_byte_identical_..._fixture   | vp13_pin_v1_stdout_byte_identical_to_py    |
+// | test_pin_v9_idempotent_stdout                   | vp14_pin_v9_idempotent_stdout              |
+// | test_pin_v1_idempotent_stdout                   | vp15_pin_v1_idempotent_stdout              |
+// | test_pin_..._matches_inspect_emit_hash_..._v9   | vp16_pin_matches_inspect_emit_hash_v9      |
+// | test_pin_..._matches_migrate_emit_hash_..._v9   | vp17_pin_matches_migrate_emit_hash_v9      |
+// | test_migrate_subcommand_still_works             | vp18_migrate_..._works_after_pin           |
+// | test_validate_subcommand_still_works            | vp19_validate_..._works_after_pin          |
+// | test_inspect_subcommand_still_works             | vp20_inspect_..._works_after_pin           |
+// | (Rust-only)                                     | vp21_pin_v9_stdout_determinism_stress_10   |
+// ---------------------------------------------------------------------
+
+#[cfg(test)]
+mod pin_tests {
+    use super::*;
+    use persona_migration_resolver::PERSONA_HASH_PIN_V9;
+    use std::path::PathBuf;
+
+    fn fixture(name: &str) -> PathBuf {
+        let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        p.push("..");
+        p.push("..");
+        p.push("..");
+        p.push("wirelang");
+        p.push("tests");
+        p.push("fixtures");
+        p.push("persona_definitions");
+        p.push(name);
+        p
+    }
+
+    fn v1_fixture() -> PathBuf {
+        fixture("v1-persona-ceo.md")
+    }
+
+    fn v8_fixture() -> PathBuf {
+        fixture("v8-persona-pre-framework.md")
+    }
+
+    fn v9_fixture() -> PathBuf {
+        fixture("v9-persona-framework-native.md")
+    }
+
+    /// Helper that runs the in-process CLI against a fixture file via
+    /// the `pin` subcommand. Mirror of [`run_in_process`] (targets
+    /// `migrate`), `run_validate_in_process` (Tag-2), and
+    /// `run_inspect_in_process` (Tag-3).
+    fn run_pin_in_process(persona_file: PathBuf, extra: &[&str]) -> CliOutcome {
+        let path_str = persona_file.to_string_lossy().into_owned();
+        let mut argv: Vec<&str> = vec!["wakir-persona", "pin", &path_str];
+        argv.extend_from_slice(extra);
+        run(&argv)
+    }
+
+    // -------------------------------------------------------------------
+    // vp1 / Parser accepts the `pin` subcommand.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp1_parser_accepts_pin_subcommand() {
+        let path = v9_fixture();
+        let path_str = path.to_string_lossy().into_owned();
+        let cli = Cli::try_parse_from(["wakir-persona", "pin", &path_str])
+            .expect("clap should parse `pin <file>`");
+        match cli.command {
+            Command::Pin(args) => {
+                assert_eq!(args.persona_file, path);
+                assert!(!args.quiet, "default --quiet must be false");
+            }
+            _ => panic!("expected Command::Pin"),
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // vp2 / `--quiet` flag parses on the pin subcommand.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp2_parser_pin_subcommand_quiet_flag() {
+        let path = v9_fixture();
+        let path_str = path.to_string_lossy().into_owned();
+        let cli = Cli::try_parse_from(["wakir-persona", "pin", &path_str, "--quiet"])
+            .expect("clap should parse `pin <file> --quiet`");
+        match cli.command {
+            Command::Pin(args) => {
+                assert!(args.quiet, "--quiet must flip the flag to true");
+            }
+            _ => panic!("expected Command::Pin"),
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // vp3 / Pin subcommand rejects `--emit-hash` (inspect / migrate-only).
+    //
+    // Rationale: pin already emits the pin on stdout. Keeping the
+    // surface closed prevents accidental flag-overload as the subcommand
+    // grows.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp3_parser_pin_subcommand_rejects_emit_hash_flag() {
+        let path = v9_fixture();
+        let outcome = run(&[
+            "wakir-persona",
+            "pin",
+            &path.to_string_lossy(),
+            "--emit-hash",
+        ]);
+        assert_eq!(outcome.exit_code, EXIT_USAGE_ERROR);
+        assert!(
+            outcome.stderr.contains("--emit-hash") || outcome.stderr.contains("unexpected"),
+            "stderr should flag the unknown flag; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vp4 / Pin subcommand rejects `--target` (migrate-only).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp4_parser_pin_subcommand_rejects_target_flag() {
+        let path = v9_fixture();
+        let outcome = run(&[
+            "wakir-persona",
+            "pin",
+            &path.to_string_lossy(),
+            "--target",
+            "persona-v2",
+        ]);
+        assert_eq!(outcome.exit_code, EXIT_USAGE_ERROR);
+        assert!(
+            outcome.stderr.contains("--target") || outcome.stderr.contains("unexpected"),
+            "stderr should flag the unknown flag; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vp5 / Pin subcommand rejects `--expect-hash` (migrate-only).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp5_parser_pin_subcommand_rejects_expect_hash_flag() {
+        let path = v9_fixture();
+        let outcome = run(&[
+            "wakir-persona",
+            "pin",
+            &path.to_string_lossy(),
+            "--expect-hash",
+            PERSONA_HASH_PIN_V9,
+        ]);
+        assert_eq!(outcome.exit_code, EXIT_USAGE_ERROR);
+        assert!(
+            outcome.stderr.contains("--expect-hash") || outcome.stderr.contains("unexpected"),
+            "stderr should flag the unknown flag; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vp6 / V9 happy path: extract-ok, exit 0, stdout = pin + newline.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp6_pin_v9_returns_exit_0_and_pin() {
+        let outcome = run_pin_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        assert_eq!(
+            outcome.stdout,
+            format!("{PERSONA_HASH_PIN_V9}\n"),
+            "stdout must be exactly the V9 pin + newline; got: {:?}",
+            outcome.stdout
+        );
+        assert_eq!(outcome.stderr, "", "--quiet must yield empty stderr");
+    }
+
+    // -------------------------------------------------------------------
+    // vp7 / stdout is a single line, exactly the pin, no extras.
+    //
+    // Defensive belt against future "helpful" additions that would
+    // break `pin=$(wakir-persona pin f.md)` capture.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp7_pin_v9_stdout_single_line_pin_only() {
+        let outcome = run_pin_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0);
+        let lines: Vec<&str> = outcome.stdout.split_terminator('\n').collect();
+        assert_eq!(
+            lines.len(),
+            1,
+            "stdout must be exactly one line; got {}: {:?}",
+            lines.len(),
+            outcome.stdout
+        );
+        assert_eq!(lines[0], PERSONA_HASH_PIN_V9);
+        assert!(
+            outcome.stdout.ends_with('\n'),
+            "stdout must terminate with newline"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vp8 / stdout carries no JSON envelope.
+    //
+    // The load-bearing distinction from `inspect`: no JSON. Pinning a
+    // regression here keeps the `pin` subcommand valuable as a
+    // shell-pipeline primitive.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp8_pin_v9_stdout_no_json_envelope() {
+        let outcome = run_pin_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0);
+        assert!(!outcome.stdout.contains('{'));
+        assert!(!outcome.stdout.contains('}'));
+        assert!(!outcome.stdout.contains("canonical_subset"));
+        assert!(!outcome.stdout.contains("report_schema_version"));
+    }
+
+    // -------------------------------------------------------------------
+    // vp9 / V8 failure path: persona-v0 schema_version is rejected by
+    //        the canonical-subset extractor; exit 1.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp9_pin_v8_returns_exit_1() {
+        let outcome = run_pin_in_process(v8_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, EXIT_PIN_FAILED);
+        assert_eq!(outcome.exit_code, 1);
+        // No stdout on failure path; diagnostic goes to stderr.
+        assert_eq!(outcome.stdout, "");
+        assert!(
+            outcome.stderr.contains("wakir-persona: pin failed"),
+            "expected pin-failed marker; got: {}",
+            outcome.stderr
+        );
+        assert!(
+            outcome.stderr.contains("persona-v0"),
+            "expected schema_version diagnostic; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vp10 / Progress line on stderr when not --quiet.
+    //
+    // stdout stays exactly the pin; progress line lives on stderr.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp10_pin_v9_progress_line_when_not_quiet() {
+        let outcome = run_pin_in_process(v9_fixture(), &[]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        // stdout still has just the pin.
+        assert_eq!(outcome.stdout, format!("{PERSONA_HASH_PIN_V9}\n"));
+        // Progress line on stderr.
+        assert!(
+            outcome.stderr.contains("wakir-persona: pinned"),
+            "missing progress marker; got: {}",
+            outcome.stderr
+        );
+        assert!(
+            outcome.stderr.contains(PERSONA_HASH_PIN_V9),
+            "progress line should carry the persona-hash; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vp11 / Missing persona-file returns exit 3 with empty stdout.
+    //
+    // stdout stays empty so a downstream `$()` capture sees an empty
+    // string rather than a stale partial value.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp11_pin_missing_file_returns_exit_3() {
+        let outcome = run(&[
+            "wakir-persona",
+            "pin",
+            "/var/empty/this-file-does-not-exist.md",
+        ]);
+        assert_eq!(outcome.exit_code, EXIT_INPUT_NOT_FOUND);
+        assert_eq!(outcome.stdout, "");
+        assert!(
+            outcome.stderr.contains("not found"),
+            "expected not-found marker; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vp12 / V9 stdout byte-identical to the Python-frozen fixture.
+    //
+    // The fixture was generated on 2026-05-11 (Sprint-6 Tag-4 Box) by
+    // `python -m wirelang.persona.cli pin v9-persona-framework-native.md
+    //  --quiet > v9-pin.expected.txt`. A drift on either side breaks
+    // this anchor.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp12_pin_v9_stdout_byte_identical_to_python_cli() {
+        let outcome = run_pin_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let expected = include_str!("../tests/fixtures/v9-pin.expected.txt");
+        assert_eq!(
+            outcome.stdout, expected,
+            "stdout drifted from Python CLI byte-fingerprint (v9 pin)"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vp13 / V1 stdout byte-identical to the Python-frozen fixture.
+    //
+    // Second byte-identity anchor (different canonical-subset shape
+    // than V9) so a regression on a non-V9 surface also trips.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp13_pin_v1_stdout_byte_identical_to_python_cli() {
+        let outcome = run_pin_in_process(v1_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let expected = include_str!("../tests/fixtures/v1-pin.expected.txt");
+        assert_eq!(
+            outcome.stdout, expected,
+            "stdout drifted from Python CLI byte-fingerprint (v1 pin)"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vp14 / V9 idempotence: two invocations yield byte-identical stdout.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp14_pin_v9_idempotent_stdout() {
+        let first = run_pin_in_process(v9_fixture(), &["--quiet"]);
+        let second = run_pin_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(first.exit_code, 0);
+        assert_eq!(second.exit_code, 0);
+        assert_eq!(first.stdout, second.stdout, "pin must be idempotent");
+    }
+
+    // -------------------------------------------------------------------
+    // vp15 / V1 idempotence (second-anchor surface).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp15_pin_v1_idempotent_stdout() {
+        let first = run_pin_in_process(v1_fixture(), &["--quiet"]);
+        let second = run_pin_in_process(v1_fixture(), &["--quiet"]);
+        assert_eq!(first.exit_code, 0);
+        assert_eq!(second.exit_code, 0);
+        assert_eq!(
+            first.stdout, second.stdout,
+            "pin must be idempotent on the V1 anchor too"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vp16 / V-907-CLI-invariant arm 1: pin stdout == inspect
+    //        --emit-hash --quiet stderr-pin on v9.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp16_pin_matches_inspect_emit_hash_v9() {
+        let pin_outcome = run_pin_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(pin_outcome.exit_code, 0);
+        let pin_value = pin_outcome.stdout.trim_end_matches('\n').to_string();
+
+        let inspect_argv_path = v9_fixture().to_string_lossy().into_owned();
+        let inspect_outcome = run(&[
+            "wakir-persona",
+            "inspect",
+            &inspect_argv_path,
+            "--quiet",
+            "--emit-hash",
+        ]);
+        assert_eq!(inspect_outcome.exit_code, 0);
+        // inspect's stderr with --emit-hash --quiet is exactly the pin
+        // + newline.
+        let inspect_pin = inspect_outcome
+            .stderr
+            .lines()
+            .rfind(|l| !l.trim().is_empty())
+            .expect("inspect emit-hash stderr line")
+            .to_string();
+        assert_eq!(pin_value, inspect_pin);
+        assert_eq!(pin_value, PERSONA_HASH_PIN_V9);
+    }
+
+    // -------------------------------------------------------------------
+    // vp17 / V-907-CLI-invariant arm 2: pin stdout == migrate
+    //        --emit-hash stderr-last-line on v9 (no-op-chain).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp17_pin_matches_migrate_emit_hash_v9() {
+        let pin_outcome = run_pin_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(pin_outcome.exit_code, 0);
+        let pin_value = pin_outcome.stdout.trim_end_matches('\n').to_string();
+
+        let migrate_outcome = run_in_process(
+            "v9 migrate emit-hash",
+            v9_fixture(),
+            &["--quiet", "--emit-hash"],
+        );
+        assert_eq!(migrate_outcome.exit_code, 0);
+        let migrate_pin = migrate_outcome
+            .stderr
+            .lines()
+            .rfind(|l| !l.trim().is_empty())
+            .expect("migrate emit-hash stderr line")
+            .to_string();
+        assert_eq!(pin_value, migrate_pin);
+        assert_eq!(pin_value, PERSONA_HASH_PIN_V9);
+    }
+
+    // -------------------------------------------------------------------
+    // vp18 / Backward compatibility: migrate subcommand still works
+    //         after the pin subcommand was added.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp18_migrate_subcommand_still_works_after_pin_added() {
+        let outcome = run_in_process("backcompat-migrate-after-pin", v9_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let payload: Value = serde_json::from_str(&outcome.stdout).expect("stdout is JSON");
+        assert_eq!(payload["schema_version"], "persona-v1");
+    }
+
+    // -------------------------------------------------------------------
+    // vp19 / Backward compatibility: validate subcommand still works
+    //         after the pin subcommand was added.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp19_validate_subcommand_still_works_after_pin_added() {
+        let path = v9_fixture();
+        let path_str = path.to_string_lossy().into_owned();
+        let outcome = run(&["wakir-persona", "validate", &path_str, "--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let payload: Value = serde_json::from_str(&outcome.stdout).expect("stdout is JSON");
+        assert_eq!(payload["is_valid"], true);
+    }
+
+    // -------------------------------------------------------------------
+    // vp20 / Backward compatibility: inspect subcommand still works
+    //         after the pin subcommand was added.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp20_inspect_subcommand_still_works_after_pin_added() {
+        let path = v9_fixture();
+        let path_str = path.to_string_lossy().into_owned();
+        let outcome = run(&["wakir-persona", "inspect", &path_str, "--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let payload: Value = serde_json::from_str(&outcome.stdout).expect("stdout is JSON");
+        assert_eq!(payload["report_schema_version"], "persona-inspect-v1");
+        assert_eq!(payload["persona_hash"], PERSONA_HASH_PIN_V9);
+    }
+
+    // -------------------------------------------------------------------
+    // vp21 / Determinism stress: 10-iteration loop, all byte-identical.
+    //         Rust-only addition (mirror of vi19 / va15 patterns).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp21_pin_v9_stdout_determinism_stress_10_iter() {
+        let first = run_pin_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(first.exit_code, 0);
+        for i in 0..10 {
+            let later = run_pin_in_process(v9_fixture(), &["--quiet"]);
             assert_eq!(
                 later.stdout, first.stdout,
                 "iteration {i} drifted from baseline"
