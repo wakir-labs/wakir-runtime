@@ -60,8 +60,7 @@ pub const PERSONA_HASH_PREFIX: &str = "sha256:";
 pub const PERSONA_HASH_HEX_LENGTH: usize = 64;
 
 /// Total length of `"sha256:" + 64 hex chars`.
-pub const PERSONA_HASH_FULL_LENGTH: usize =
-    PERSONA_HASH_PREFIX.len() + PERSONA_HASH_HEX_LENGTH;
+pub const PERSONA_HASH_FULL_LENGTH: usize = PERSONA_HASH_PREFIX.len() + PERSONA_HASH_HEX_LENGTH;
 
 /// V-908 federation-stub sentinel: empty string when no persona is
 /// pinned. Mirrors Python `PERSONA_EMPTY_REF_SENTINEL`.
@@ -99,9 +98,7 @@ pub enum PersonaHashError {
 impl std::fmt::Display for PersonaHashError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PersonaHashError::NotAnObject => {
-                f.write_str("canonical subset must be a JSON object")
-            }
+            PersonaHashError::NotAnObject => f.write_str("canonical subset must be a JSON object"),
             PersonaHashError::CanonicaliseError(msg) => {
                 write!(f, "JCS canonicalisation failed: {msg}")
             }
@@ -223,8 +220,7 @@ mod tests {
 
     /// V9 ground-truth pin (lifted from `pin_pack_constants.py`,
     /// `PERSONA_HASH_PIN_V9`, captured 2026-05-07).
-    const V9_PIN: &str =
-        "sha256:0f298894204e6117e42ad7073b7a3af8ada1851de74d585fc5cb4c4d70e1d793";
+    const V9_PIN: &str = "sha256:0f298894204e6117e42ad7073b7a3af8ada1851de74d585fc5cb4c4d70e1d793";
 
     /// V9 JCS canonical bytes (UTF-8) — captured from Python
     /// `rfc8785.dumps(canon)` on 2026-05-07T11:59 UTC. 387 bytes.
@@ -263,8 +259,8 @@ mod tests {
 
         // Drift -> Mismatch.
         let bad = "sha256:dead000000000000000000000000000000000000000000000000000000000000";
-        let err = compute_persona_hash_from_canonical(&canon, Some(bad))
-            .expect_err("drift must error");
+        let err =
+            compute_persona_hash_from_canonical(&canon, Some(bad)).expect_err("drift must error");
         match err {
             PersonaHashError::Mismatch { expected, computed } => {
                 assert_eq!(expected, bad);
@@ -277,8 +273,8 @@ mod tests {
     #[test]
     fn t4_non_object_input_rejected() {
         let array = json!([1, 2, 3]);
-        let err = compute_persona_hash_from_canonical(&array, None)
-            .expect_err("array input must error");
+        let err =
+            compute_persona_hash_from_canonical(&array, None).expect_err("array input must error");
         assert!(matches!(err, PersonaHashError::NotAnObject));
 
         let scalar = json!("just-a-string");

@@ -115,9 +115,7 @@ impl std::error::Error for PersonaCanonicalFormError {}
 /// # Errors
 ///
 /// See [`PersonaCanonicalFormError`].
-pub fn canonical_jcs_bytes(
-    canonical_subset: &Value,
-) -> Result<Vec<u8>, PersonaCanonicalFormError> {
+pub fn canonical_jcs_bytes(canonical_subset: &Value) -> Result<Vec<u8>, PersonaCanonicalFormError> {
     if !canonical_subset.is_object() {
         return Err(PersonaCanonicalFormError::NotAnObject);
     }
@@ -163,8 +161,7 @@ mod tests {
     /// `PERSONA_HASH_PIN_V9`, captured 2026-05-07). Used here as a
     /// cross-check that `sha256(canonical_jcs_bytes(v9))` matches the
     /// canonical pin without going through the persona-hash crate.
-    const V9_PIN_HEX: &str =
-        "0f298894204e6117e42ad7073b7a3af8ada1851de74d585fc5cb4c4d70e1d793";
+    const V9_PIN_HEX: &str = "0f298894204e6117e42ad7073b7a3af8ada1851de74d585fc5cb4c4d70e1d793";
 
     /// V9 JCS canonical bytes (UTF-8) length — captured from Python
     /// `rfc8785.dumps(canon)` on 2026-05-07T11:59 UTC. 387 bytes.
