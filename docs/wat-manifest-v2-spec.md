@@ -163,6 +163,51 @@ The `version` enum is closed; schema-validators reject any other
 value. Adding a future `wat-manifest/3.0` requires a new schema
 file with a new `$id`.
 
+### 4.4 `signature` slot (schema 0.2.0, Phase-2 Sprint-5 Tag-1)
+
+Schema 0.2.0 adds an additive **optional** top-level `signature`
+slot. Absence is permitted on both `wat-manifest/1.0` and
+`wat-manifest/2.0` envelopes — legacy unsigned manifests continue
+to validate. When present, the slot is a detached Ed25519
+signature block with the following shape:
+
+| field       | type   | constraints                                                            |
+|-------------|--------|------------------------------------------------------------------------|
+| `alg`       | string | enum `["Ed25519"]` (closed; future algorithms require additive bump)   |
+| `kid`       | string | `minLength: 1` (non-empty key identifier)                              |
+| `signature` | string | `^[0-9a-f]{128}$` (64-byte Ed25519 signature as 128 lowercase hex)     |
+
+`additionalProperties` on the slot is `false`. The pre-image is
+SHA-256 of the RFC-8785 JCS canonicalisation of the manifest
+payload with the `signature` slot stripped (byte-identical to the
+AIP-document and schema-registry-entry signing conventions). The
+signing primitive that emits exactly this shape is
+`wat.identity.manifest_signing.sign_manifest` (Sprint-4 Tag-6).
+
+`kid` references an AIP-document `public_keys` entry under
+`PURPOSE_WAT_ANCHOR`; the resolver bridge is
+`wat.identity.anchor_kid.resolve_wat_anchor_kid` (Sprint-4 Tag-5).
+Schema-validation does NOT require the kid to resolve — that is a
+verifier-side concern (Tag-7+ wire-up).
+
+**Schema-version bump rationale (additive minor).** 0.1.0 → 0.2.0
+is additive only: `signature` is added to the top-level
+`properties` map, NOT to the top-level `required` array. Existing
+0.1.0-conformant manifests (with or without multi-cap sidecars,
+signed or unsigned) validate identically against 0.2.0. The `$id`
+URL changes from `…/wat-manifest-v2/0.1.0` to `…/wat-manifest-v2/0.2.0`;
+consumers that pin the URL must update their pin. Consumers that
+fetch by stem (`wat-manifest-v2`) and rely on schema-discovery
+need no change.
+
+**Interaction with the v1-`not.anyOf` clause.** The existing
+conditional that forbids `multi_cap_events` / `multi_cap_summary`
+on v1 manifests is unchanged: `signature` is not in that
+forbid-list, so v1 + `signature` is a valid combination
+(unsigned-aware verifiers reading a signed v1 manifest can ignore
+the slot just like they ignore the v2 sidecar keys when version
+is v1, but here on v1 manifests this slot is permitted).
+
 ## 5. Verifier behaviour
 
 A v2-aware verifier processing `wakir-verify <event_id>`:
@@ -500,6 +545,33 @@ is informative only.
 
 ## 11. Change log
 
+- **2026-05-11 (Phase-2 Sprint-5 Tag-1):** WAT-manifest schema-sig-slot
+  formalisation landed (`wirelang/schemas/wat-manifest-v2.json`,
+  schema `$id` bumped `…/wat-manifest-v2/0.1.0` → `…/wat-manifest-v2/0.2.0`,
+  additive-only minor). The optional top-level `signature` slot that
+  Sprint-4 Tag-6 introduced at the signing-primitive level (round-tripped
+  via `envelope_with_signature` / `envelope_to_signed_manifest`,
+  validated structurally by `wat.identity.manifest_signing`) is now
+  formally permitted by the v2-aware JSON-Schema on BOTH
+  `wat-manifest/1.0` and `wat-manifest/2.0` envelopes. Slot shape:
+  `{alg: "Ed25519", kid: <non-empty-string>, signature: <128-hex>}`
+  with `additionalProperties: false` on the slot. Absence remains
+  valid (legacy unsigned manifests continue to pass). The slot is
+  NOT added to the top-level `required` array; it stays optional.
+  The existing v1-`not.anyOf` clause that forbids `multi_cap_events`
+  / `multi_cap_summary` on v1 is unchanged — `signature` is permitted
+  on v1 (the slot is version-agnostic). The verifier
+  (`wat/verify/manifest_v2.py`) is NOT wired to consume the signature
+  today; that remains a Tag-2+ Phase-2 Sprint-5 item, gated on the
+  Cross-Review-Zone-1 boundary with Identity-Substrate-engineering
+  (entblockt durch Z-1-Sprint-4-Anhang T-A-KONSENS, ratifiziert
+  2026-05-11 17:30 CEST). 5 hermetic schema-validation tests
+  (`tests/wat/test_manifest_signing_schema.py`,
+  T-WAT-MAN-SIG-SCHEMA-01..05) + 1 round-trip pin test
+  (T-WAT-MAN-SIG-SCHEMA-RT-01) — total +6 new tests. Sibling cohort
+  (`test_manifest_v2_schema_smoke.test_schema_id_pinned`) is bumped
+  in-place to track the new 0.2.0 ``$id`` URL — no test-count delta.
+  Test suite 321 → 327 passed (+6 net).
 - **2026-05-11 (Sprint-4 Tag-6):** WAT-manifest signing layer landed
   (`wat/identity/manifest_signing.py`). Adds the WAT-side Ed25519
   signing primitive (`sign_manifest`, `verify_manifest_signature`),

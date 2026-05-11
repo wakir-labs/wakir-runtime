@@ -134,13 +134,17 @@ def test_schema_is_valid_draft_2020_12(schema: dict) -> None:
 
 
 def test_schema_id_pinned(schema: dict) -> None:
-    """``$id`` is the wakir.dev pattern at version 0.1.0.
+    """``$id`` is the wakir.dev pattern at the current schema version.
 
-    The Wirelang convention is to bump the schema version when the
-    on-wire shape changes; this test makes a silent ``$id`` rewrite
-    visible in CI.
+    Bumped 0.1.0 → 0.2.0 in Phase-2 Sprint-5 Tag-1 to formalise the
+    optional ``signature`` slot (additive minor). The Wirelang
+    convention is to bump the schema version when the on-wire shape
+    changes; this test makes a silent ``$id`` rewrite visible in CI.
+    The sibling cohort
+    (``test_manifest_signing_schema.test_schema_id_bumped_to_0_2_0``)
+    pins the same URL on the signing-side; both must move together.
     """
-    assert schema["$id"] == "https://wakir.dev/wirelang/schema/wat-manifest-v2/0.1.0"
+    assert schema["$id"] == "https://wakir.dev/wirelang/schema/wat-manifest-v2/0.2.0"
 
 
 # ===========================================================================

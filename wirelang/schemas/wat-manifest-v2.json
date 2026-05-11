@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://wakir.dev/wirelang/schema/wat-manifest-v2/0.1.0",
-  "title": "WAT Hour-Manifest v2 — Multi-Capability Trigger",
-  "description": "JSON-Schema for the WAT hour-manifest v2 envelope (multi-capability trigger). v2 is emitted iff at least one ingested frame in the hour has more than one capability-token reference (caprefs[]); hours where every frame has zero or one capref continue to emit v1 manifests. Schema is additive over v1: every v1 field MUST validate identically here, and v2 adds two top-level keys (multi_cap_events, multi_cap_summary). See docs/wat-manifest-v2-multi-cap-stub.md for the full spec, trigger condition, verifier behaviour, and open questions. STUB / DRAFT — Sprint-2 prep, not yet implementation directive. SPDX-License-Identifier: Apache-2.0",
+  "$id": "https://wakir.dev/wirelang/schema/wat-manifest-v2/0.2.0",
+  "title": "WAT Hour-Manifest v2 — Multi-Capability Trigger + Optional Signature Slot",
+  "description": "JSON-Schema for the WAT hour-manifest v2 envelope (multi-capability trigger). v2 is emitted iff at least one ingested frame in the hour has more than one capability-token reference (caprefs[]); hours where every frame has zero or one capref continue to emit v1 manifests. Schema is additive over v1: every v1 field MUST validate identically here, and v2 adds two top-level keys (multi_cap_events, multi_cap_summary). 0.2.0 (Phase-2 Sprint-5 Tag-1) adds an additive optional top-level `signature` slot (Ed25519 detached-signature block) that is valid on BOTH wat-manifest/1.0 and wat-manifest/2.0 envelopes; absence is permitted (legacy unsigned manifests continue to validate). Slot shape mirrors wirelang.identity.aip_signing / wirelang.schemas.entry_signing / wat.identity.manifest_signing byte-for-byte. See docs/wat-manifest-v2-multi-cap-stub.md and docs/wat-manifest-v2-spec.md §4.4 / §11 (Sprint-5 Tag-1) for the full spec, trigger condition, verifier behaviour, signing semantics, and open questions. SPDX-License-Identifier: Apache-2.0",
   "type": "object",
   "required": [
     "version",
@@ -117,6 +117,29 @@
           "type": "integer",
           "minimum": 1,
           "description": "Count of distinct capability_token_hash values across the union of caprefs[] from all events in this hour (v2 frames + v1-equivalent caprefs[0] from single-cap frames). Useful for audit-query 'how many capabilities were exercised in hour H?'."
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "description": "Optional detached Ed25519 signature block over the canonical (JCS-canonicalised, SHA-256-hashed) manifest payload with the `signature` slot removed. Additive on both wat-manifest/1.0 and wat-manifest/2.0 envelopes (Phase-2 Sprint-5 Tag-1, schema 0.2.0). Absence is permitted: legacy unsigned manifests continue to validate. Slot shape is byte-identical to wirelang.identity.aip_signing.SIGNATURE_BLOCK, wirelang.schemas.entry_signing._validate_signature_block_shape, and wat.identity.manifest_signing.SIGNATURE_FIELD. The kid field references an AIP-document public_keys entry under PURPOSE_WAT_ANCHOR; the resolver bridge is wat.identity.anchor_kid.resolve_wat_anchor_kid (Sprint-4 Tag-5). The signing primitive (wat.identity.manifest_signing.sign_manifest, Sprint-4 Tag-6) emits exactly this shape.",
+      "required": ["alg", "kid", "signature"],
+      "additionalProperties": false,
+      "properties": {
+        "alg": {
+          "type": "string",
+          "enum": ["Ed25519"],
+          "description": "Signature algorithm identifier. Closed enum: only Ed25519 is accepted today; future algorithm support requires a coordinated additive schema bump and a parallel allowlist entry in wat.identity.manifest_signing.SIGNATURE_ALG."
+        },
+        "kid": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Key identifier. Non-empty string. Caller binds this to an AIP-document public_keys entry under PURPOSE_WAT_ANCHOR (see wat.identity.anchor_kid)."
+        },
+        "signature": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{128}$",
+          "description": "Ed25519 detached signature, 64 bytes encoded as 128 lowercase hex chars. Pre-image: SHA-256 of the RFC-8785 JCS canonicalisation of the manifest payload with this `signature` slot stripped."
         }
       }
     }
