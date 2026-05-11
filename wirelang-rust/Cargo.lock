@@ -180,6 +180,7 @@ dependencies = [
  "clap",
  "persona-canonical-form",
  "persona-migration-resolver",
+ "persona-validator",
  "serde_json",
  "sha2",
 ]

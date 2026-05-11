@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
-//! Operator CLI for the persona self-migration converter (Rust pendant
-//! of `wirelang.persona.cli`).
+//! Operator CLI for the persona self-migration converter + validator
+//! (Rust pendant of `wirelang.persona.cli`).
 //!
 //! Phase-1c Sprint-5 Tag-1 implementation. Thin shim around
 //! [`persona_migration_resolver::migrate_persona`] for ad-hoc operator
 //! use, CI-pipeline integration, and the wakir-runtime self-migration
 //! shell scripts ADR-0036 anticipates.
+//!
+//! Sprint-6 Tag-2 added the `validate` subcommand: thin shim over
+//! [`persona_validator::validate_persona`] that emits the
+//! `PersonaValidationReport` as canonical-subset JSON on stdout and
+//! maps `is_valid` to exit-code 0 / 1.
 //!
 //! Synopsis
 //! ========
@@ -16,6 +21,9 @@
 //!                       [--expect-hash <pin>]
 //!                       [--emit-hash]
 //!                       [--quiet]
+//!
+//! wakir-persona validate <persona-file>
+//!                        [--quiet]
 //! ```
 //!
 //! The `--target` choice list mirrors
@@ -76,6 +84,7 @@ use persona_migration_resolver::{
     migrate_persona, MigratePersonaError, MigrationInput, PersonaMigrationError,
     PERSONA_SCHEMA_VERSION_LATEST, PERSONA_SCHEMA_VERSION_LIST,
 };
+use persona_validator::{validate_persona, ValidatorInput};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
@@ -110,6 +119,12 @@ pub const EXIT_INPUT_NOT_FOUND: i32 = 3;
 /// argparse using 2). The cross-check test pack pins the 64 form.
 pub const EXIT_USAGE_ERROR: i32 = 64;
 
+/// Alias for the validator failure path. Conceptually distinct from a
+/// migration chain failure but mapped to the same code so a single
+/// `$?` check in a shell pipeline branches the same way. Sprint-6
+/// Tag-2 addition; mirrors Python `EXIT_VALIDATION_FAILED`.
+pub const EXIT_VALIDATION_FAILED: i32 = EXIT_MIGRATION_ERROR;
+
 // ---------------------------------------------------------------------
 // clap parser surface
 // ---------------------------------------------------------------------
@@ -141,6 +156,16 @@ pub enum Command {
         long_about = "Run the registered migration chain on a persona-definition file and emit the canonical-subset dict on stdout as JSON. See wirelang/specs/self-migration-konverter-spec.md §7."
     )]
     Migrate(MigrateArgs),
+    /// Validate a persona-definition file (read-only, no migration).
+    ///
+    /// Sprint-6 Tag-2 addition; mirrors Python `validate` subcommand
+    /// byte-for-byte on stdout (canonical-subset
+    /// `PersonaValidationReport` JSON).
+    #[command(
+        about = "Validate a persona-definition file (read-only, no migration).",
+        long_about = "Run the read-only persona-validator on a persona-definition file and emit the canonical-subset PersonaValidationReport on stdout as JSON. Exit code 0 if is_valid, 1 if not. See wirelang/persona/persona_validator.py for the report schema (persona-validation-v1)."
+    )]
+    Validate(ValidateArgs),
 }
 
 /// Arguments for the `migrate` subcommand.
@@ -174,6 +199,22 @@ pub struct MigrateArgs {
     /// Hash is in `sha256:<64hex>` form, suitable for shell capture.
     #[arg(long = "emit-hash", default_value_t = false)]
     pub emit_hash: bool,
+
+    /// Suppress the human-readable progress line on stderr.
+    #[arg(long = "quiet", default_value_t = false)]
+    pub quiet: bool,
+}
+
+/// Arguments for the `validate` subcommand.
+///
+/// Sprint-6 Tag-2 addition. Deliberately narrower than [`MigrateArgs`]:
+/// the validator is read-only, so there is no `--target`,
+/// `--expect-hash`, or `--emit-hash` knob. Only `--quiet` is shared
+/// with `migrate` for stderr-progress-line suppression.
+#[derive(Debug, Parser)]
+pub struct ValidateArgs {
+    /// Filesystem path to a UTF-8 markdown persona-definition.
+    pub persona_file: PathBuf,
 
     /// Suppress the human-readable progress line on stderr.
     #[arg(long = "quiet", default_value_t = false)]
@@ -465,6 +506,89 @@ pub fn run_migrate(args: &MigrateArgs) -> CliOutcome {
 }
 
 // ---------------------------------------------------------------------
+// `validate` subcommand handler (Sprint-6 Tag-2)
+// ---------------------------------------------------------------------
+
+/// Serialise a [`persona_validator::ValidationReport`] canonical-value
+/// for stdout.
+///
+/// Same posture as [`serialise_canonical_subset`]: sort keys, two-space
+/// indent, terminate with `\n`, and re-escape non-ASCII characters
+/// inside string literals to match Python `json.dumps(...,
+/// ensure_ascii=True)`. Public so the test pack can call it on
+/// hand-built report dicts.
+pub fn serialise_validation_report(report: &Value) -> String {
+    // Posture is verbatim identical to `serialise_canonical_subset`;
+    // keep them as distinct entry points to document the two different
+    // callers (migrate vs validate) and allow them to diverge later
+    // without touching the migrate path.
+    let sorted = sort_keys_recursive(report);
+    let raw = serde_json::to_string_pretty(&sorted)
+        .expect("serde_json::to_string_pretty cannot fail on a Value tree");
+    let mut s = ascii_escape_non_ascii_in_strings(&raw);
+    s.push('\n');
+    s
+}
+
+/// Execute the `validate` subcommand against the given arguments.
+///
+/// Mirrors Python `_run_validate(args) -> int` exactly. Returns a
+/// fully-captured [`CliOutcome`]. Pure function: only IO is reading
+/// the persona-file via [`std::fs::read_to_string`].
+pub fn run_validate(args: &ValidateArgs) -> CliOutcome {
+    let mut outcome = CliOutcome::default();
+
+    if !args.persona_file.exists() {
+        outcome.stderr = format!(
+            "wakir-persona: persona-file not found: {}\n",
+            args.persona_file.display()
+        );
+        outcome.exit_code = EXIT_INPUT_NOT_FOUND;
+        return outcome;
+    }
+
+    let text = match fs::read_to_string(&args.persona_file) {
+        Ok(s) => s,
+        Err(e) => {
+            outcome.stderr = format!(
+                "wakir-persona: persona-file vanished mid-run: {}: {e}\n",
+                args.persona_file.display()
+            );
+            outcome.exit_code = EXIT_INPUT_NOT_FOUND;
+            return outcome;
+        }
+    };
+
+    // validate_persona is infallible (errors are accumulated into the
+    // report); no error branch beyond the IO above.
+    let report = validate_persona(ValidatorInput::MarkdownText(&text));
+    let canonical = report.to_canonical_value();
+    outcome.stdout = serialise_validation_report(&canonical);
+
+    if !args.quiet {
+        // Verdict-first progress line mirrors the Python pendant
+        // exactly: "valid" or "invalid: N error(s)".
+        let verdict = if report.is_valid {
+            "valid".to_string()
+        } else {
+            format!("invalid: {} error(s)", report.errors.len())
+        };
+        outcome.stderr.push_str(&format!(
+            "wakir-persona: validated {} -> {}\n",
+            args.persona_file.display(),
+            verdict
+        ));
+    }
+
+    outcome.exit_code = if report.is_valid {
+        0
+    } else {
+        EXIT_VALIDATION_FAILED
+    };
+    outcome
+}
+
+// ---------------------------------------------------------------------
 // Canonical-subset projection (public mirror of the resolver's
 // `project_canonical_subset` private helper).
 // ---------------------------------------------------------------------
@@ -657,6 +781,7 @@ pub fn run(argv: &[&str]) -> CliOutcome {
     match parsed {
         Ok(cli) => match cli.command {
             Command::Migrate(args) => run_migrate(&args),
+            Command::Validate(args) => run_validate(&args),
         },
         Err(e) => {
             let exit_code = map_clap_exit_code(&e);
@@ -1167,6 +1292,7 @@ mod v2_target_tests {
                 assert_eq!(args.target, "persona-v2");
                 assert_eq!(args.persona_file, path);
             }
+            other => panic!("expected Command::Migrate, got {other:?}"),
         }
     }
 
@@ -1362,5 +1488,351 @@ mod v2_target_tests {
             outcome.stderr, "",
             "--quiet without --emit-hash must yield empty stderr on happy path"
         );
+    }
+}
+
+// ---------------------------------------------------------------------
+// `validate` subcommand test pack (Phase-1b Sprint-6 Tag-2).
+//
+// Rust mirror of `wirelang/tests/test_persona_validator_cli.py`. Pairs
+// 1:1 with the Python tests so that a regression on either side fails
+// the matching test on the other side.
+//
+// Pairing:
+//
+// | Python test                                              | Rust test                                                |
+// |----------------------------------------------------------|----------------------------------------------------------|
+// | test_build_parser_accepts_validate_subcommand            | va1_parser_accepts_validate_subcommand                   |
+// | test_build_parser_validate_subcommand_quiet_flag_parses  | va2_parser_validate_subcommand_quiet_flag                |
+// | test_build_parser_validate_subcommand_rejects_unknown_*  | va3_parser_validate_subcommand_rejects_unknown_flag      |
+// | test_validate_v9_returns_exit_code_0_and_valid_report    | va4_validate_v9_returns_exit_0_and_valid_report          |
+// | test_validate_v9_stdout_sorted_and_newline_terminated    | va5_validate_v9_stdout_sorted_and_newline_terminated     |
+// | test_validate_v8_returns_exit_code_1_and_invalid_report  | va6_validate_v8_returns_exit_1_and_invalid_report        |
+// | test_validate_v9_progress_line_when_not_quiet            | va7_validate_v9_progress_line_when_not_quiet             |
+// | test_validate_v8_progress_line_carries_invalid_count     | va8_validate_v8_progress_line_carries_invalid_count      |
+// | test_validate_missing_file_returns_exit_code_3           | va9_validate_missing_file_returns_exit_3                 |
+// | test_validate_v9_stdout_byte_identical_to_frozen_fixture | va10_validate_v9_stdout_byte_identical_to_python_cli     |
+// | test_validate_v8_stdout_byte_identical_to_frozen_fixture | va11_validate_v8_stdout_byte_identical_to_python_cli     |
+// | test_validate_v9_idempotent_stdout                       | va12_validate_v9_idempotent_stdout                       |
+// | test_validate_v8_idempotent_stdout                       | va13_validate_v8_idempotent_stdout                       |
+// | test_migrate_subcommand_still_works_after_validate_added | va14_migrate_subcommand_still_works_after_validate_added |
+//
+// Cross-check Rust ↔ Python: stdout shape is asserted byte-identical
+// via `include_str!` on the same frozen fixtures the Python CLI tests
+// load (`v8-validated.expected.json`, `v9-validated.expected.json`).
+// ---------------------------------------------------------------------
+
+#[cfg(test)]
+mod validate_tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn fixture(name: &str) -> PathBuf {
+        let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        p.push("..");
+        p.push("..");
+        p.push("..");
+        p.push("wirelang");
+        p.push("tests");
+        p.push("fixtures");
+        p.push("persona_definitions");
+        p.push(name);
+        p
+    }
+
+    fn v8_fixture() -> PathBuf {
+        fixture("v8-persona-pre-framework.md")
+    }
+
+    fn v9_fixture() -> PathBuf {
+        fixture("v9-persona-framework-native.md")
+    }
+
+    /// Helper that runs the in-process CLI against a fixture file via
+    /// the `validate` subcommand. Mirror of [`run_in_process`] (which
+    /// targets `migrate`).
+    fn run_validate_in_process(persona_file: PathBuf, extra: &[&str]) -> CliOutcome {
+        let path_str = persona_file.to_string_lossy().into_owned();
+        let mut argv: Vec<&str> = vec!["wakir-persona", "validate", &path_str];
+        argv.extend_from_slice(extra);
+        run(&argv)
+    }
+
+    // -------------------------------------------------------------------
+    // va1 / Parser accepts the `validate` subcommand.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va1_parser_accepts_validate_subcommand() {
+        let path = v9_fixture();
+        let path_str = path.to_string_lossy().into_owned();
+        let cli = Cli::try_parse_from(["wakir-persona", "validate", &path_str])
+            .expect("clap should parse `validate <file>`");
+        match cli.command {
+            Command::Validate(args) => {
+                assert_eq!(args.persona_file, path);
+                assert!(!args.quiet, "default --quiet must be false");
+            }
+            _ => panic!("expected Command::Validate"),
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // va2 / `--quiet` flag parses on the validate subcommand.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va2_parser_validate_subcommand_quiet_flag() {
+        let path = v9_fixture();
+        let path_str = path.to_string_lossy().into_owned();
+        let cli = Cli::try_parse_from(["wakir-persona", "validate", &path_str, "--quiet"])
+            .expect("clap should parse `validate <file> --quiet`");
+        match cli.command {
+            Command::Validate(args) => {
+                assert!(args.quiet, "--quiet must flip the flag to true");
+            }
+            _ => panic!("expected Command::Validate"),
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // va3 / Validate subcommand rejects unknown flags (e.g. --target
+    //       which belongs to migrate).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va3_parser_validate_subcommand_rejects_unknown_flag() {
+        let path = v9_fixture();
+        let outcome = run(&[
+            "wakir-persona",
+            "validate",
+            &path.to_string_lossy(),
+            "--target",
+            "persona-v2",
+        ]);
+        assert_eq!(outcome.exit_code, EXIT_USAGE_ERROR);
+        assert!(
+            outcome.stderr.contains("--target") || outcome.stderr.contains("unexpected"),
+            "stderr should flag the unknown flag; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // va4 / V9 happy path: is_valid=true, exit 0.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va4_validate_v9_returns_exit_0_and_valid_report() {
+        let outcome = run_validate_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let payload: Value = serde_json::from_str(&outcome.stdout).expect("stdout is JSON");
+        assert_eq!(payload["is_valid"], true);
+        assert_eq!(payload["schema_version"], "persona-v1");
+        assert_eq!(payload["schema_supported"], true);
+        assert_eq!(payload["report_schema_version"], "persona-validation-v1");
+        assert!(payload["errors"]
+            .as_array()
+            .expect("errors is array")
+            .is_empty());
+        assert_eq!(outcome.stderr, "", "--quiet must yield empty stderr");
+    }
+
+    // -------------------------------------------------------------------
+    // va5 / stdout has lexical key order and terminates with `\n`.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va5_validate_v9_stdout_sorted_and_newline_terminated() {
+        let outcome = run_validate_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0);
+        assert!(
+            outcome.stdout.ends_with('\n'),
+            "stdout must end with newline"
+        );
+        // "errors" must precede "is_valid" in the rendered JSON.
+        let errors_pos = outcome.stdout.find("\"errors\"").expect("errors key");
+        let is_valid_pos = outcome.stdout.find("\"is_valid\"").expect("is_valid key");
+        assert!(
+            errors_pos < is_valid_pos,
+            "expected sorted key order; got errors@{errors_pos} is_valid@{is_valid_pos}"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // va6 / V8 failure path: is_valid=false, exit 1.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va6_validate_v8_returns_exit_1_and_invalid_report() {
+        let outcome = run_validate_in_process(v8_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, EXIT_VALIDATION_FAILED);
+        assert_eq!(outcome.exit_code, 1);
+        let payload: Value = serde_json::from_str(&outcome.stdout).expect("stdout is JSON");
+        assert_eq!(payload["is_valid"], false);
+        assert_eq!(payload["schema_version"], "persona-v0");
+        assert_eq!(payload["schema_supported"], false);
+        let errs = payload["errors"].as_array().expect("errors is array");
+        assert_eq!(errs.len(), 1);
+        assert_eq!(errs[0]["code"], "schema-version-unsupported");
+        assert_eq!(errs[0]["detail"], "persona-v0");
+        assert_eq!(outcome.stderr, "", "--quiet must yield empty stderr");
+    }
+
+    // -------------------------------------------------------------------
+    // va7 / Progress line on stderr when not --quiet (V9 = valid).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va7_validate_v9_progress_line_when_not_quiet() {
+        let outcome = run_validate_in_process(v9_fixture(), &[]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        assert!(
+            outcome.stderr.contains("wakir-persona: validated"),
+            "missing progress marker; got: {}",
+            outcome.stderr
+        );
+        assert!(
+            outcome.stderr.contains("-> valid"),
+            "missing 'valid' verdict; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // va8 / Progress line carries the invalid count (V8 = invalid).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va8_validate_v8_progress_line_carries_invalid_count() {
+        let outcome = run_validate_in_process(v8_fixture(), &[]);
+        assert_eq!(outcome.exit_code, EXIT_VALIDATION_FAILED);
+        assert!(
+            outcome.stderr.contains("wakir-persona: validated"),
+            "missing progress marker; got: {}",
+            outcome.stderr
+        );
+        assert!(
+            outcome.stderr.contains("-> invalid: 1 error(s)"),
+            "missing invalid-count verdict; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // va9 / Missing persona-file returns exit 3.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va9_validate_missing_file_returns_exit_3() {
+        let outcome = run(&[
+            "wakir-persona",
+            "validate",
+            "/var/empty/this-file-does-not-exist.md",
+        ]);
+        assert_eq!(outcome.exit_code, EXIT_INPUT_NOT_FOUND);
+        assert!(
+            outcome.stderr.contains("not found"),
+            "expected not-found marker; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // va10 / V9 stdout byte-identical to the Python-frozen fixture.
+    //
+    // The fixture was generated on 2026-05-11 (Sprint-6 Tag-2 Box) by
+    // `python -m wirelang.persona.cli validate v9-persona-framework-
+    // native.md --quiet > v9-validated.expected.json`. A drift on
+    // either side breaks this anchor.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va10_validate_v9_stdout_byte_identical_to_python_cli() {
+        let outcome = run_validate_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let expected = include_str!("../tests/fixtures/v9-validated.expected.json");
+        assert_eq!(
+            outcome.stdout, expected,
+            "stdout drifted from Python CLI byte-fingerprint (v9 validate)"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // va11 / V8 stdout byte-identical to the Python-frozen fixture.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va11_validate_v8_stdout_byte_identical_to_python_cli() {
+        let outcome = run_validate_in_process(v8_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, EXIT_VALIDATION_FAILED);
+        let expected = include_str!("../tests/fixtures/v8-validated.expected.json");
+        assert_eq!(
+            outcome.stdout, expected,
+            "stdout drifted from Python CLI byte-fingerprint (v8 validate)"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // va12 / V9 idempotence: two invocations yield byte-identical stdout.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va12_validate_v9_idempotent_stdout() {
+        let first = run_validate_in_process(v9_fixture(), &["--quiet"]);
+        let second = run_validate_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(first.exit_code, 0);
+        assert_eq!(second.exit_code, 0);
+        assert_eq!(first.stdout, second.stdout, "validate must be idempotent");
+    }
+
+    // -------------------------------------------------------------------
+    // va13 / V8 idempotence (failure-path).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va13_validate_v8_idempotent_stdout() {
+        let first = run_validate_in_process(v8_fixture(), &["--quiet"]);
+        let second = run_validate_in_process(v8_fixture(), &["--quiet"]);
+        assert_eq!(first.exit_code, EXIT_VALIDATION_FAILED);
+        assert_eq!(second.exit_code, EXIT_VALIDATION_FAILED);
+        assert_eq!(
+            first.stdout, second.stdout,
+            "validate must be idempotent on failure path too"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // va14 / Backward compatibility: migrate subcommand still works
+    //        after the validate subcommand was added.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va14_migrate_subcommand_still_works_after_validate_added() {
+        let outcome = run_in_process("v8->v1 backcompat", v8_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let payload: Value = serde_json::from_str(&outcome.stdout).expect("stdout is JSON");
+        assert_eq!(payload["schema_version"], "persona-v1");
+    }
+
+    // -------------------------------------------------------------------
+    // va15 / Determinism stress: 10-iteration loop, all byte-identical.
+    //        Mirror of Crate-7 t15 anchor pattern for the CLI surface.
+    //        Rust-only addition (no Python counterpart needed because
+    //        Python uses the same validator core).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va15_validate_v9_stdout_determinism_stress_10_iter() {
+        let first = run_validate_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(first.exit_code, 0);
+        for i in 0..10 {
+            let later = run_validate_in_process(v9_fixture(), &["--quiet"]);
+            assert_eq!(
+                later.stdout, first.stdout,
+                "iteration {i} drifted from baseline"
+            );
+            assert_eq!(later.exit_code, 0);
+        }
     }
 }

@@ -1,34 +1,40 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # persona-cli — Rust pendant of `wirelang.persona.cli` (the
-# `wakir-persona migrate` operator CLI).
+# `wakir-persona migrate` / `wakir-persona validate` operator CLI).
 #
-# Scope (Phase-1c Sprint-5 Tag-1):
+# Scope (Phase-1c Sprint-5 Tag-1 + Sprint-6 Tag-2):
 # - `wakir-persona migrate <persona-file>` binary entry-point.
 # - `--target {persona-v0,persona-v1,persona-v2}` schema-version
 #   selector (sourced from `PERSONA_SCHEMA_VERSION_LIST`).
 # - `--expect-hash <pin>` post-migration pin assertion (full
 #   `sha256:<64hex>` or bare 64-hex form).
 # - `--emit-hash` post-migration pin emission on stderr.
-# - `--quiet` progress-line suppression.
-# - Exit-code mapping per spec §7.4:
-#     0 = success
-#     1 = PersonaMigrationError
-#     2 = PersonaMigrationDeterminismError
-#     3 = persona-file not found
+# - `--quiet` progress-line suppression (both subcommands).
+# - `wakir-persona validate <persona-file>` (Sprint-6 Tag-2 addition):
+#   read-only validator over the Crate-7 `persona-validator` library.
+#   Emits the canonical-subset PersonaValidationReport as JSON on
+#   stdout; exit 0 on is_valid, 1 on not is_valid.
+# - Exit-code mapping per spec §7.4 (extended for validate):
+#     0 = success (migrate) / is_valid (validate)
+#     1 = PersonaMigrationError (migrate) / not is_valid (validate)
+#     2 = PersonaMigrationDeterminismError (migrate only)
+#     3 = persona-file not found (both subcommands)
 #    64 = argparse usage error (clap default: 2, mapped to 64 to
 #         mirror Python argparse's EX_USAGE).
 #
 # Posture (Phase-1c-Rust-Migration, Default-Lock conform):
-# - Thin shim over `persona-migration-resolver::migrate_persona`.
+# - Thin shim over `persona-migration-resolver::migrate_persona` for
+#   migrate and `persona-validator::validate_persona` for validate.
 # - No business logic in this crate: argparse + file IO + JSON
 #   serialisation + exit-code mapping only.
 # - Byte-stable stdout: same `serde_json::to_string_pretty` with
 #   sorted keys + trailing newline as the Python `json.dumps(...,
 #   indent=2, sort_keys=True) + "\n"`.
 # - Byte-identical cross-check against the Python CLI for the V8
-#   and V9 fixture vectors (and the `--expect-hash` happy / drift
-#   paths).
+#   and V9 fixture vectors (migrate: `--expect-hash` happy / drift
+#   paths; validate: `is_valid=true` / `is_valid=false` stdout-shape
+#   anchors).
 #
 # Out-of-scope:
 # - WAT-leaf migration-audit-trail (Phase-2 P2-01, Cross-Review
@@ -69,6 +75,10 @@ persona-migration-resolver = { path = "../persona-migration-resolver" }
 # recompute the post-migration pin (mirror of Python
 # `compute_persona_hash_from_canonical(migrated)`).
 persona-canonical-form     = { path = "../persona-canonical-form" }
+# Sprint-6 Tag-2: read-only validator. The validate subcommand is a
+# thin shim over `persona_validator::validate_persona` (Markdown
+# input branch).
+persona-validator          = { path = "../persona-validator" }
 sha2                       = { workspace = true, features = ["std"] }
 # JSON serialisation for stdout (sorted keys, two-space indent,
 # trailing newline). The CLI re-uses the same `serde_json::Value`

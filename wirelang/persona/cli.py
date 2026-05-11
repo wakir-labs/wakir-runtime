@@ -1,10 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Operator CLI for the persona self-migration converter.
+"""Operator CLI for the persona self-migration converter + validator.
 
 Phase-1b Sprint-2 Tag-3 implementation (S2-T1-06). Thin wrapper around
 :func:`wirelang.persona.migrate_persona` for ad-hoc operator use,
 CI-pipeline integration, and the wakir-runtime self-migration shell
 scripts ADR-0036 anticipates.
+
+Sprint-6 Tag-2 added the ``validate`` subcommand (Phase-1c follow-up
+#1 from the Tag-1 Crate-7 rapport): thin shim over
+:func:`wirelang.persona.validate_persona` that emits the structured
+:class:`PersonaValidationReport` as canonical-subset JSON on stdout
+and maps ``is_valid`` to exit-code 0 / 1.
 
 Synopsis
 ========
@@ -16,6 +22,9 @@ Synopsis
                           [--expect-hash <pin>]
                           [--emit-hash]
                           [--quiet]
+
+    wakir-persona validate <persona-file>
+                           [--quiet]
 
 The ``--target`` choice list is sourced from
 :data:`wirelang.persona.PERSONA_SCHEMA_VERSION_LIST`. Phase-1b
@@ -35,23 +44,27 @@ Posture
 =======
 
 The CLI is a thin shim. All migration logic lives in
-:mod:`wirelang.persona.persona_migration`; the CLI's only jobs are
-argparse parsing, file IO, JSON serialisation of the canonical
-subset, and exit-code mapping. There is no business logic in this
-module — keeping the CLI thin keeps the Phase-1c Rust re-write
-boundary clean.
+:mod:`wirelang.persona.persona_migration`; all validation logic
+lives in :mod:`wirelang.persona.persona_validator`. The CLI's only
+jobs are argparse parsing, file IO, JSON serialisation of the
+canonical subset / report, and exit-code mapping. There is no
+business logic in this module — keeping the CLI thin keeps the
+Phase-1c Rust re-write boundary clean (mirror crate ``persona-cli``
+re-implements only the same shim).
 
 Exit codes
 ==========
 
 Per spec §7.4:
 
-- ``0``: success (and pin-match if ``--expect-hash`` was supplied).
-- ``1``: :class:`PersonaMigrationError` (chain not resolvable,
-  malformed input, ...).
-- ``2``: :class:`PersonaMigrationDeterminismError` (``--expect-hash``
-  mismatch).
-- ``3``: :class:`FileNotFoundError` on the ``<persona-file>`` argument.
+- ``0``: ``migrate`` success (and pin-match if ``--expect-hash`` was
+  supplied); ``validate`` success (``is_valid=True``).
+- ``1``: ``migrate`` :class:`PersonaMigrationError`; ``validate``
+  ``is_valid=False`` (one or more structured errors emitted).
+- ``2``: ``migrate`` :class:`PersonaMigrationDeterminismError`
+  (``--expect-hash`` mismatch). Not used by ``validate``.
+- ``3``: :class:`FileNotFoundError` on the ``<persona-file>``
+  argument (both subcommands).
 - ``64``: argparse usage error (mirrors Unix ``EX_USAGE``). Emitted
   by argparse itself on a parse failure.
 """
@@ -72,18 +85,28 @@ from wirelang.persona.persona_migration import (
     PersonaMigrationError,
     migrate_persona,
 )
+from wirelang.persona.persona_validator import validate_persona
 
 
-#: Exit code emitted on :class:`PersonaMigrationError` (chain failure).
+#: Exit code emitted on :class:`PersonaMigrationError` (chain failure)
+#: and on ``validate`` when ``is_valid=False``. Sprint-6 Tag-2 re-uses
+#: the same 1-bit "operation failed" exit code for the validator's
+#: failure branch (mirror of `git diff --exit-code` convention: 1 means
+#: "the question has the negative answer").
 EXIT_MIGRATION_ERROR = 1
 
 #: Exit code emitted on :class:`PersonaMigrationDeterminismError`
-#: (``--expect-hash`` disagreement).
+#: (``--expect-hash`` disagreement). Not used by ``validate``.
 EXIT_DETERMINISM_ERROR = 2
 
 #: Exit code emitted when the ``<persona-file>`` argument does not
 #: exist on disk.
 EXIT_INPUT_NOT_FOUND = 3
+
+#: Alias for the validator failure path. Conceptually distinct from
+#: a migration chain failure but mapped to the same code so a single
+#: ``$?`` check in a shell pipeline branches the same way.
+EXIT_VALIDATION_FAILED = EXIT_MIGRATION_ERROR
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -152,6 +175,29 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Suppress the human-readable progress line on stderr.",
     )
+
+    validate = subparsers.add_parser(
+        "validate",
+        help="Validate a persona-definition file (read-only, no migration).",
+        description=(
+            "Run the read-only persona-validator on a persona-definition "
+            "file and emit the canonical-subset PersonaValidationReport "
+            "on stdout as JSON. Exit code 0 if is_valid, 1 if not. "
+            "See wirelang/persona/persona_validator.py for the report "
+            "schema (persona-validation-v1)."
+        ),
+    )
+    validate.add_argument(
+        "persona_file",
+        type=Path,
+        help="Filesystem path to a UTF-8 markdown persona-definition.",
+    )
+    validate.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress the human-readable progress line on stderr.",
+    )
+
     return parser
 
 
@@ -224,6 +270,61 @@ def _run_migrate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _serialise_validation_report(report_dict: dict) -> str:
+    """Serialise the validation-report canonical dict for stdout.
+
+    Sorted keys + two-space indent + trailing newline. Identical
+    posture to :func:`_serialise_canonical_subset` so a Rust ↔ Python
+    byte-stability harness can re-use the same expected-fixture
+    pattern.
+
+    The input dict comes from
+    :meth:`PersonaValidationReport.to_canonical_dict`; we re-sort
+    here defensively in case the upstream contract ever loosens.
+    """
+    return json.dumps(report_dict, indent=2, sort_keys=True) + "\n"
+
+
+def _run_validate(args: argparse.Namespace) -> int:
+    """Execute the ``validate`` subcommand. Return a Unix exit code."""
+    persona_file: Path = args.persona_file
+    if not persona_file.exists():
+        print(
+            f"wakir-persona: persona-file not found: {persona_file}",
+            file=sys.stderr,
+        )
+        return EXIT_INPUT_NOT_FOUND
+
+    try:
+        report = validate_persona(persona_file)
+    except FileNotFoundError as exc:
+        # Path was deleted between the existence check and the read.
+        # Mirrors the migrate subcommand's mid-run race posture.
+        print(
+            f"wakir-persona: persona-file vanished mid-run: {exc}",
+            file=sys.stderr,
+        )
+        return EXIT_INPUT_NOT_FOUND
+
+    sys.stdout.write(_serialise_validation_report(report.to_canonical_dict()))
+
+    if not args.quiet:
+        # One progress line on stderr mirrors the migrate subcommand.
+        # Verdict-first format ("valid" or "invalid: N error(s)") so an
+        # interactive operator gets the answer without parsing the JSON.
+        verdict = (
+            "valid"
+            if report.is_valid
+            else f"invalid: {len(report.errors)} error(s)"
+        )
+        print(
+            f"wakir-persona: validated {persona_file} -> {verdict}",
+            file=sys.stderr,
+        )
+
+    return 0 if report.is_valid else EXIT_VALIDATION_FAILED
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """CLI entry point. Returns a Unix exit code.
 
@@ -235,6 +336,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "migrate":
         return _run_migrate(args)
+    if args.command == "validate":
+        return _run_validate(args)
 
     # argparse with required=True on the subparser dest already
     # rejects unknown commands with exit code 2 from argparse's
