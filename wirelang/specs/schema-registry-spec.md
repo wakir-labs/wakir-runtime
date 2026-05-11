@@ -9,14 +9,14 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wirelang-schema-registry
-version: 0.10.0
+version: 0.11.0
 status: draft
 date: 2026-05-11
 audience: implementers, integrators, operators
 license: CC-BY-4.0
 ---
 
-# Wirelang Schema Registry — NATS-KV Backend Specification (v0.10.0)
+# Wirelang Schema Registry — NATS-KV Backend Specification (v0.11.0)
 
 **Change log**
 
@@ -27,6 +27,7 @@ license: CC-BY-4.0
 | 0.3.0   | 2026-05-07 | Phase-1c watch-stream surface lands in Tag-4 (`watch()` / `WatchOp` / `WatchEvent` / `LiveSchemaSnapshot` / `open_watch_stream`); §5.3 OI-7-Phase-1c-watch slot CONSUMED; §5.5 added (watch-stream operational contract); §6.2 added (T-SR-WS-01..10 + 2 aux probes test inventory). Additive-only change relative to v0.2.0; M-2 / M-4 conformance preserved. |
 | 0.4.0   | 2026-05-07 | Phase-1c publisher CLI lands in Tag-5 (`wirelang.schemas.publisher_cli`: `wakir-schema-registry publish` / `dry-run` argparse surface, `PublishReceipt`, `ExitCode` matrix); §5.3 OI-7-Phase-1c-publisher slot CONSUMED; §5.6 added (publisher CLI operational contract); §6.3 added (T-SR-PUB-01..12 test inventory). Additive-only change relative to v0.3.0; M-2 / M-4 conformance preserved. The CLI is a thin operator-input layer over the Tag-3 CAS-pin and Tag-1 LWW backends; it introduces no new on-the-wire envelope and no new validation gate. |
 | 0.5.0   | 2026-05-07 | Phase-1c cross-bucket replication lands in Tag-6 (`wirelang.schemas.replication`: `SchemaReplicator`, `bootstrap_target_from_source`, `ReplicationConflictPolicy`, `ReplicationFilter`, `ReplicationMetrics`); §5.3 OI-7-Phase-1c-replication slot CONSUMED; §5.7 added (replication operational contract); §6.4 added (T-SR-REP-01..12 test inventory). Additive-only change relative to v0.4.0; M-2 / M-4 conformance preserved. The replication layer is a thin composition of Tag-1 LWW + Tag-3 CAS-pin + Tag-4 watch-stream surfaces; it introduces no new on-the-wire envelope, no new validation gate, and no new method on `NatsKvSchemaRegistry`. **Phase-1c is now feature-complete.** |
+| 0.11.0  | 2026-05-11 | Phase-2 Sprint-5 Tag-1 lifts the Sprint-4 Tag-6 capability gate into the publisher CLI operator surface (`wirelang.schemas.publisher_cli`: new flags `--sign`, `--kid`, `--ed25519-priv-key-hex`, `--ed25519-priv-key-file`, `--gate`, `--capability-registry`, `--gate-as-of`; new exit code `ExitCode.CAPABILITY_DENY = 7`; receipt extended with three additive optional fields `signed: bool`, `kid: Optional[str]`, `gate_decision: Optional[{allowed, source, reason}]`; helpers `_validate_capability_flag_consistency`, `_load_ed25519_priv_key`, `_load_capability_registry`, `_policy_from_dict`, `_parse_optional_rfc3339`, `_decision_to_dict`); §5.13 added (publisher-CLI capability integration operational contract); §6.10 added (T-SR-PUB-CG-01..10 test inventory, plus auxiliary loader-helper coverage); §5.3 OI-7-Phase-2-publisher-cli-capability slot CONSUMED (was the "publisher-CLI integration" Phase-3 reservation noted in §5.12 §7); §5.6 cross-references the Sprint-5 Tag-1 capability extension; §5.12 Phase-2-Sprint-4-Tag-6-Boundary item "publisher-CLI integration" CONSUMED. The Sprint-5 Tag-1 integration is **additive over Sprint-4 Tag-6**: signing reuses `wirelang.schemas.entry_signing.sign_entry` byte-identical; gating reuses `wirelang.schemas.registered_by_capability.gate_signed_entry` byte-identical; both run strictly between `_build_entry` and the backend `put` / `put_with_revision` call so the CAS-pin and LWW write paths are byte-unchanged; a `CAPABILITY_DENY` short-circuits before the backend connect (bucket never touched on deny). The capability-registry JSON file format is operator-side surface only (`{policies: [{registered_by, allowed_kids, allowed_triples, not_before?, not_after?, disabled?, note?}, ...]}`); the on-the-wire schema-registry envelope is UNCHANGED (no signature delivered to the bucket via the publisher path — Sprint-5 Tag-1 boundary: the bucket carries the unsigned entry; the signature is local-only authorisation glue, consistent with Sprint-4 Tag-6 §5.12). M-2 / M-4 conformance preserved. Cross-Review-Zone-1 non-touched (the four Z-1-K-Sprint-4 consensus points remain byte-identical; this slot is a pure operator-CLI composition of Tag-1 signing + Tag-6 gating + Tag-3/Tag-5 backend writes). Additive-only change relative to v0.10.0. Bare-publish receipt-shape forward-compat: pre-Sprint-5 receipts receive three new optional fields at default-off values (`signed=false`, `kid=null`, `gate_decision=null`); consumers that index by the legacy field set continue to read byte-equal pre-existing fields. |
 | 0.10.0  | 2026-05-11 | Phase-2 Sprint-4 Tag-6 lands the `registered_by`-capability-gating layer (`wirelang.schemas.registered_by_capability`: `CapabilityPolicy`, `CapabilityPolicyRegistry`, `CapabilityGateDecision`, `DecisionSource`, `check_registered_by_capability`, `gate_signed_entry`, `RegisteredByCapabilityError`); §5.12 added (capability-gating operational contract); §6.9 added (T-RBC-01..12 test inventory). The gating layer binds the `registered_by` field of a `SchemaRegistryEntry` to a policy bundle that constrains *which* signing keys (`kid`) and *which* `(layer, name_glob)` schema triples a given publisher identity is authorised to register. The gate is **additive** authorisation on top of `wirelang.schemas.entry_signing.verify_entry_signature`: a cryptographically valid signature can still be denied if the issuer lacks capability over the registered triple. The cryptographic primitive (`verify_entry_signature`) remains the single source of truth for signature correctness and is UNCHANGED. The gate is a separate, pure-policy function returning a `CapabilityGateDecision` (`allowed: bool`, `reason: str`, `source: DecisionSource`, `policy: Optional[CapabilityPolicy]`); structural failures (malformed policy, bad arg, missing `kid` in the signature block) raise `RegisteredByCapabilityError`. Policy semantics: `allowed_kids` (set-membership), `allowed_triples` (literal `layer` plus `fnmatch` glob on `name`; layer `"*"` is the all-layers wildcard), optional RFC-3339 `not_before` / `not_after` validity window (inclusive of `not_before`, exclusive of `not_after`), `disabled` kill-switch, and free-form `note` audit string. Boundary: this slot does NOT ship full Biscuit binary token encode/decode + Datalog evaluation (those remain Phase-3 slots — see `wirelang/schemas/layer-3-capability-token.json`); does NOT mutate `NatsKvSchemaRegistry` (no new method, no envelope change, no validation gate at write time); does NOT fetch policies from a transport (in-process registry only; persisted distribution is Phase-3); does NOT touch the kid → public-key resolver (Z-1-K-Sprint-4-1 consumed upstream). Cross-Review-Zone-1 non-touched (the four Z-1-K-Sprint-4 consensus points remain byte-identical; the gate is curve-agnostic, JCS-free, resolver-independent, and orthogonal to `VerifyMode`). Additive-only change relative to v0.9.0; M-2 / M-4 conformance preserved. |
 | 0.9.0   | 2026-05-11 | Phase-2 Sprint-4 Tag-5 lands the AIP-document signature-verification cache tier (`wirelang.identity.aip_signature_verification_cache`: `AipSignatureVerificationCache`, `CacheStats`, `cached_verify_aip_signature`, module-level constants `DEFAULT_MAX_ENTRIES=256`, `DEFAULT_TTL_SECONDS=300.0`); §5.11 added (verification-cache operational contract); §6.8 added (T-AIP-SVC-01..12 test inventory). The cache is a stateful in-process LRU+TTL tier on top of the Sprint-4 Tag-1 `wirelang.identity.verify_aip_signature` primitive; cache hits are byte-equal to fresh verify outcomes (the cache is a pure performance optimisation, not a behavioural layer). The cache key is `SHA-256` over the 5-tuple `(SHA-256(JCS(body without document_signature)), alg, kid, signature_hex, pub_key_hex)`, byte-identical in shape to the Sprint-4 Tag-4 `jcs_sha256_hex` byte-anchor (the cache reuses the Tag-4 ↔ Tag-1 JCS-resolver-indirection lock, Z-1-K-Sprint-4-2). Negative outcomes (`verify` returns `False`) are memoised the same way as positive outcomes; structural failures (`ValueError` from the verifier) are NOT cached and propagate verbatim. TTL defaults to 300 seconds with an injectable monotonic clock for hermetic test determinism; LRU eviction is by insertion-order (hits do NOT promote — byte-consistent with V-908 `HTTPSAipResolverCache` semantics). The cache surface is byte-orthogonal to `wirelang.identity.verify_aip_signature` (UNCHANGED), `wirelang.identity.kid_resolver` (UNCHANGED), `wirelang.identity.aip_document_transport_fetch` (UNCHANGED), and the schema-registry backend (`NatsKvSchemaRegistry` UNCHANGED, no new method). Additive-only change relative to v0.8.0; M-2 / M-4 conformance preserved. Cross-Review-Zone-1 non-touched (the four Z-1-K-Sprint-4 consensus points remain byte-identical; the cache is curve-agnostic, policy-agnostic, and resolver-independent). |
 | 0.8.0   | 2026-05-11 | Phase-2 Sprint-4 Tag-4 lands the AIP-document transport-fetch composition layer (`wirelang.identity.aip_document_transport_fetch`: `fetch_aip_document`, `aip_web_to_https_url`, `AipFetchResult`, `AipDocumentTransportError`, `AipUrlSchemeError`, `AipDnsAnchorMismatchError`); §5.10 added (transport-fetch operational contract); §6.7 added (T-AIP-FT-01..12 test inventory). The module is a pure composition of the V-908 Phase-1b HTTPS-transport (`HTTPSDocumentTransport`) and the V-908 §3.4 DNS-anchor pattern, extended from FTD-doc to AIP-doc via the parallel TXT-record prefix `_wakir-aip.<host>` (same `v=1; sha256=<64-hex>` format). The transport-fetch layer is byte-orthogonal to AIP-document signature verification (`wirelang.identity.verify_aip_signature` is unchanged), the kid-resolver (Tag-3, §5.9) and the schema-registry backend (no method added to `NatsKvSchemaRegistry`); it closes the Sprint-4 Tag-3 §5.9 boundary item "AIP-document transport-fetch" so the Phase-2 canonical verifier flow is now end-to-end composable from an `aip:web:` identifier through to `verify_entry_signature`. Additive-only change relative to v0.7.0; M-2 / M-4 conformance preserved. Cross-Review-Zone-1 non-touched (the four Z-1-K-Sprint-4 consensus points remain byte-identical; `anchor_required` is an orthogonal Tag-4 hard-vs-soft toggle, not the Z-1-K-Sprint-4-4 STRICT-mode toggle). |
@@ -1175,7 +1176,11 @@ consumed (Tag-3 / Tag-4 / Tag-5 / Tag-6).**
 - `NatsKvSchemaRegistry` surface UNCHANGED; no new envelope, no
   new validation gate at write time; the gate is a callable
   authorisation layer that consumers wire into their publish flow
-  (publisher-CLI integration is a future slot).
+  (~~publisher-CLI integration is a future slot~~ — **CONSUMED in
+  Sprint-5 Tag-1**, §5.13: `wakir-schema-registry publish
+  --sign --gate --capability-registry <path>` ships the
+  operator-CLI projection of the canonical capability-gated
+  publish flow).
 - Cross-Review-Zone-1 non-touched (the four Z-1-K-Sprint-4 consensus
   points remain byte-identical; the gate is curve-agnostic,
   JCS-free, resolver-independent, and orthogonal to
@@ -1223,10 +1228,15 @@ consumed (Tag-3 / Tag-4 / Tag-5 / Tag-6).**
 - No persistent capability-policy distribution (the Sprint-4 Tag-6
   registry is in-process only; persisted distribution over NATS-KV
   or analogous is a Phase-3 slot).
-- No publisher-CLI integration of the Sprint-4 Tag-6 gate (the
+- ~~No publisher-CLI integration of the Sprint-4 Tag-6 gate (the
   capability check is caller-driven; a `wakir-schema-registry
   publish` flag that runs `gate_signed_entry` between `sign_entry`
-  and `put` is a future slot).
+  and `put` is a future slot).~~ **CONSUMED in Sprint-5 Tag-1**
+  (§5.13). The publisher CLI now ships `--sign --kid
+  --ed25519-priv-key-{hex,file}` for the signing primitive and
+  `--gate --capability-registry [--gate-as-of]` for the gate.
+  Exit-code 7 (`CAPABILITY_DENY`) is reserved for the deny path;
+  the bucket is never touched on a deny.
 - No STRICT-mode activation toggle (Z-1-K-Sprint-4-4 still open;
   the resolver is policy-agnostic).
 
@@ -1551,8 +1561,16 @@ input (or 0 for `create-only`, `null` for LWW / dry-run).
   CLI publishes one entry per invocation.
 - Authentication / capability enforcement is not in scope for
   Phase-1c; the CLI runs with whatever NATS credentials the
-  operator's environment provides. Capability-token enforcement at
-  the publisher boundary is an OI-7-Phase-2-sig hardening item.
+  operator's environment provides. ~~Capability-token enforcement at
+  the publisher boundary is an OI-7-Phase-2-sig hardening item.~~
+  **CONSUMED in Sprint-5 Tag-1** (§5.13). The CLI now exposes
+  `--sign` (with `--kid` and an Ed25519 key source) plus `--gate`
+  (with `--capability-registry`) flags; both are off by default
+  (pre-Sprint-5 behaviour is byte-equal under no flags). The
+  capability deny path exits with code 7 (`CAPABILITY_DENY`); the
+  Sprint-5 Tag-1 receipt adds three optional fields (`signed`,
+  `kid`, `gate_decision`) that default to `false` / `null` / `null`
+  when the capability flags are absent.
 
 ### 5.7 Replication operational contract (Tag-6)
 
@@ -2782,6 +2800,264 @@ the validity-window semantics (inclusive `not_before`, exclusive
 T-RBC-12 pins the registry's defensive-snapshot semantics and the
 deny-precedence ordering.
 
+### 5.13 Publisher-CLI capability integration (Phase-2 Sprint-5 Tag-1)
+
+Phase-2 Sprint-5 Tag-1 lifts the Sprint-4 Tag-6 capability gate into
+the publisher-CLI operator surface. The integration is **additive
+over Sprint-4 Tag-6**: the Sprint-4 Tag-1 `sign_entry` primitive and
+the Sprint-4 Tag-6 `gate_signed_entry` composition helper are wired
+in between `_build_entry` and the backend `put` / `put_with_revision`
+call. No new validation gate runs on the backend side; the on-the-wire
+envelope is byte-unchanged; a deny short-circuits before the backend
+connect so the `wakir-schemas` bucket is never touched on a deny.
+
+#### Public CLI surface additions
+
+```text
+publish | dry-run
+    [...pre-Sprint-5 flags unchanged...]
+    [--sign]
+    [--kid KID]
+    [--ed25519-priv-key-hex HEX | --ed25519-priv-key-file PATH]
+    [--gate]
+    [--capability-registry PATH]
+    [--gate-as-of RFC3339]
+```
+
+Three concerns are wired in:
+
+1. **Signing** — `--sign` plus exactly one of `--ed25519-priv-key-hex`
+   / `--ed25519-priv-key-file` and a `--kid` value. The CLI calls
+   `wirelang.schemas.entry_signing.sign_entry(entry, priv_key,
+   kid=kid)` and reflects `signed=True` / `kid=<value>` in the
+   receipt. Argparse's mutually-exclusive group enforces the
+   hex-vs-file disjunction at parse time; the consistency helper
+   (`_validate_capability_flag_consistency`) enforces that at least
+   one key source is present and that `--kid` is non-empty.
+
+2. **Gating** — `--gate` plus `--capability-registry <path>`. The CLI
+   loads the capability-registry JSON file via
+   `_load_capability_registry`, runs
+   `wirelang.schemas.registered_by_capability.gate_signed_entry(
+   signed, registry, as_of=<parsed --gate-as-of>)`, and either
+   short-circuits with `ExitCode.CAPABILITY_DENY` (7) on a deny or
+   records the decision dict in the receipt's `gate_decision` field
+   on an allow. The `--gate-as-of` flag is an optional RFC-3339
+   instant used as the gate's `as_of` value; absent, the gate
+   bypasses validity-window enforcement (byte-consistent with
+   Sprint-4 Tag-6 §5.12 contract).
+
+3. **Cross-flag invariants** — the consistency helper rejects all
+   inconsistent flag combinations as `INPUT_ERROR` (exit 3) before
+   any file is read or any backend connection is opened:
+
+   - `--sign` requires `--kid` (non-empty).
+   - `--sign` requires one of `--ed25519-priv-key-hex` /
+     `--ed25519-priv-key-file`.
+   - `--gate` requires `--sign` (the gate reads `kid` from the
+     signature block).
+   - `--gate` requires `--capability-registry`.
+   - Orphan capability flags without `--sign` / `--gate` are usage
+     errors (not silently ignored).
+
+#### Capability-registry JSON file format
+
+```json
+{
+  "policies": [
+    {
+      "registered_by": "wirelang-eng",
+      "allowed_kids": ["biscuit-root-1"],
+      "allowed_triples": [["wire", "layer-1-*"], ["*", "*"]],
+      "not_before": "2026-05-01T00:00:00Z",
+      "not_after":  "2027-05-01T00:00:00Z",
+      "disabled": false,
+      "note": "wirelang engineering publisher"
+    }
+  ]
+}
+```
+
+The top-level object MUST contain a `policies` array; each entry is
+mapped to a :class:`CapabilityPolicy` via `_policy_from_dict`.
+Optional `not_before` / `not_after` are RFC-3339 strings with a
+timezone (the loader normalises `Z` to `+00:00` and converts to UTC).
+The `allowed_triples` field is a JSON array of two-element arrays
+`[layer, name_glob]`; the loader converts each pair to a
+`(str, str)` tuple before construction so the `CapabilityPolicy`
+post-init validation runs on the canonical shape. Errors during
+loading raise :class:`TypeError` / :class:`ValueError` (file shape;
+surfaced as `INPUT_ERROR`) or
+:class:`RegisteredByCapabilityError` (policy shape; surfaced as
+`VALIDATION_ERROR`).
+
+#### Exit-code matrix extension
+
+The Sprint-5 Tag-1 matrix adds **one** code; pre-Sprint-5 codes are
+byte-unchanged:
+
+| Code | Symbol             | Meaning                                                        |
+|------|--------------------|----------------------------------------------------------------|
+| 0    | `OK`               | publish or dry-run succeeded                                   |
+| 2    | `USAGE_ERROR`      | argparse parse failure (missing required, mutex group)         |
+| 3    | `INPUT_ERROR`      | file not found / not UTF-8 / not JSON / flag-consistency error |
+| 4    | `VALIDATION_ERROR` | schema-body / signature / capability-policy structural failure |
+| 5    | `CAS_CONFLICT`     | CAS-pin or create-only conflict                                |
+| 6    | `BACKEND_ERROR`    | other backend / transport failure                              |
+| 7    | `CAPABILITY_DENY`  | **NEW** — `--gate` evaluated to a deny                         |
+
+#### Receipt-shape extension (additive)
+
+The Sprint-5 Tag-1 receipt adds three optional fields; pre-Sprint-5
+fields are byte-unchanged. Pre-Sprint-5 callers that omit the
+capability flags receive a receipt whose new fields are at their
+default-off values (`signed=false`, `kid=null`, `gate_decision=null`),
+so consumers indexing by the legacy field set continue to read
+byte-equal pre-existing fields and consumers indexing by the new
+fields receive an unambiguous "feature-off" marker:
+
+```json
+{
+  "mode": "lww",                       // unchanged
+  "key": "schemas/wire/layer-1-wire/0.1.0",
+  "layer": "wire",
+  "name": "layer-1-wire",
+  "version": "0.1.0",
+  "schema_id": "https://wakir.dev/wirelang/schema/layer-1-wire/0.1.0",
+  "schema_body_sha256": "<64 hex chars>",
+  "revision": 1,
+  "expected_revision": null,
+  "registered_by": "wirelang-eng",
+  "registered_at": "2026-05-11T13:00:00+00:00",
+  "supersedes": null,
+  "signed": true,                      // NEW: bool
+  "kid": "biscuit-root-1",             // NEW: Optional[str]
+  "gate_decision": {                   // NEW: Optional[dict]
+    "allowed": true,
+    "source": "policy_match",
+    "reason": "<freeform reason>"
+  }
+}
+```
+
+The `gate_decision` object's `source` field carries the snake_case
+:class:`DecisionSource` value (`policy_match` / `policy_disabled` /
+`no_policy_for_issuer` / `kid_not_allowed` / `triple_not_allowed` /
+`outside_validity_window`); consumers building audit pipelines can
+filter on this without parsing the free-form `reason` string.
+
+#### Pipeline ordering (canonical Sprint-5 capability-gated publish)
+
+The Sprint-5 Tag-1 flow is the operator-CLI projection of the
+Sprint-4 Tag-6 §5.12 Composition Pattern, with three differences
+relative to the in-process code-block:
+
+1. The verifier (`verify_entry_signature`) is NOT invoked on the
+   publisher path — the operator signs with their own private key,
+   so the signature is trusted by construction. Verification is the
+   consumer-side concern (Sprint-4 Tag-1 §5.8 + Tag-5 §5.11 caching
+   tier).
+
+2. The capability registry is loaded from disk every CLI invocation
+   (no caching across runs). This is a deliberate Sprint-5 Tag-1
+   boundary: cross-invocation registry distribution / caching /
+   subscription is the Phase-3 `wakir-capability-policies` NATS-KV
+   bucket reservation (§7).
+
+3. The signature block is **not** written to the bucket. Sprint-5
+   Tag-1 publishes the underlying `SchemaRegistryEntry` only; the
+   signature is local authorisation glue. Pushing the signed
+   envelope onto the bucket is the Sprint-5 Tag-2+ slot (CLI flag
+   `--sign --emit-envelope` plus a backend `put_envelope` method;
+   neither shipped in Sprint-5 Tag-1).
+
+#### Phase-2 Sprint-5 Tag-1 boundary (what this slot does NOT do)
+
+- Does NOT push the signature block onto the `wakir-schemas` bucket.
+  The signature stays operator-local; consumer-side verification is
+  the Sprint-4 Tag-1 / Tag-3 / Tag-4 / Tag-5 stack and lives outside
+  the publisher CLI.
+
+- Does NOT distribute capability policies. The registry is loaded
+  from a local JSON file every invocation. NATS-KV-distribution of
+  policies (bucket `wakir-capability-policies`) remains the Phase-3
+  reservation per §5.12 / §7.
+
+- Does NOT introduce on-the-wire Biscuit binary tokens. The
+  `--capability-registry` JSON file is operator-side only; the
+  Phase-3 Biscuit v3 envelope shape (`layer-3-capability-token.json`)
+  is unaffected.
+
+- Does NOT modify `NatsKvSchemaRegistry`. No new method, no envelope
+  shape change, no validation gate at write time. The backend
+  surface is byte-identical to Sprint-3 Tag-1 / Tag-3 / Tag-5.
+
+- Does NOT modify `entry_signing.sign_entry` or
+  `gate_signed_entry`. Sprint-4 Tag-1 + Tag-6 primitives are
+  imported and called byte-equal.
+
+- Does NOT alter pre-Sprint-5 receipts beyond adding three optional
+  fields at default-off values. The bare-publish path (no capability
+  flags) emits a receipt with the same pre-Sprint-5 field set plus
+  three trailing `false` / `null` / `null` values.
+
+#### Cross-Review-Zone-1 non-touched (all four Z-1-K-Sprint-4 points)
+
+- **Z-1-K-Sprint-4-1 (kid-Resolver-Shape):** Sprint-5 Tag-1 does NOT
+  import `kid_resolver`; the operator supplies `--kid` directly.
+- **Z-1-K-Sprint-4-2 (JCS-Resolver-Lock):** Sprint-5 Tag-1
+  canonicalises nothing; signing-side canonicalisation lives inside
+  `sign_entry` unchanged.
+- **Z-1-K-Sprint-4-3 (Curve-Choice = Ed25519):** Sprint-5 Tag-1
+  carries the operator's Ed25519 seed via flag, byte-consistent
+  with the entry-signing primitive.
+- **Z-1-K-Sprint-4-4 (STRICT-Mode-Activation-Owner):** Sprint-5
+  Tag-1 is orthogonal to `VerifyMode`; the publisher path does not
+  invoke `verify_entry_signature` at all.
+
+#### Composition pattern (canonical operator invocation)
+
+```sh
+# 1. Operator stages a policy file (one-time setup):
+cat > capability-registry.json <<'EOF'
+{
+  "policies": [
+    {
+      "registered_by": "wirelang-eng",
+      "allowed_kids": ["biscuit-root-1"],
+      "allowed_triples": [["wire", "layer-1-*"]],
+      "disabled": false
+    }
+  ]
+}
+EOF
+
+# 2. Operator publishes a schema body with sign + gate:
+python -m wirelang.schemas.publisher_cli publish \
+    --schema-body layer-1-wire/0.1.0.json \
+    --layer wire --name layer-1-wire --version 0.1.0 \
+    --registered-by wirelang-eng \
+    --sign \
+    --kid biscuit-root-1 \
+    --ed25519-priv-key-file ~/.config/wakir/biscuit-root-1.seed \
+    --gate \
+    --capability-registry capability-registry.json
+```
+
+Sprint-5 Tag-1 test `T-SR-PUB-CG-01` pins the loader round-trip;
+`T-SR-PUB-CG-02` pins the `--sign` happy path receipt shape and
+signature-verify round-trip; `T-SR-PUB-CG-03` pins the
+`--sign --gate` happy path (POLICY_MATCH on a single-policy
+registry); `T-SR-PUB-CG-04..06` pin the three deny axes
+(`no_policy_for_issuer`, `kid_not_allowed`, `triple_not_allowed`)
+each as exit-code 7 with the bucket left untouched;
+`T-SR-PUB-CG-07..08` pin the cross-flag consistency rejections
+(orphan flags, `--gate` without `--sign`, `--sign` without `--kid`
+or key source); `T-SR-PUB-CG-09` pins the dry-run sign+gate path
+including the deny-on-dry-run case; `T-SR-PUB-CG-10` pins the
+receipt-shape forward-compat (default-off values for callers that
+omit the capability flags).
+
 ## 6. Test inventory
 
 Phase-1b Sprint-3 Tag-1 ships hermetic tests at
@@ -3425,6 +3701,84 @@ transport-fetch tests (T-AIP-FT-01..12), and the Tag-5
 verification-cache tests (T-AIP-SVC-01..12) remain unchanged and
 green.
 
+### 6.10 Publisher-CLI capability integration tests (Phase-2 Sprint-5 Tag-1, additive over Sprint-4 Tag-6)
+
+Phase-2 Sprint-5 Tag-1 ships hermetic tests at
+`wirelang/tests/test_publisher_cli_capability_integration.py`. The
+inventory is **T-SR-PUB-CG-01..10** plus an auxiliary
+loader-helper coverage class. Tests are hermetic: no NATS, no real
+transport, no real DNS, no wall-clock dependency for receipt
+determinism (`--registered-at` is supplied; the Ed25519 seed is the
+RFC 8032 test-vector 1 32-byte seed).
+
+- **T-SR-PUB-CG-01:** capability-registry JSON loader — single
+  policy round-trip; optional `not_before` / `not_after` parsed to
+  UTC; multi-policy registration preserves FIFO; missing `policies`
+  array rejected with `TypeError`; non-object policy entry rejected
+  with `TypeError` carrying `policies[<i>]`; missing required key
+  (e.g. `registered_by`) rejected with `TypeError`. 6 sub-tests.
+
+- **T-SR-PUB-CG-02:** `--sign` happy path (LWW publish) — receipt
+  carries `signed=True`, `kid="biscuit-root-1"`, `gate_decision=None`;
+  bucket holds the canonical entry envelope at the expected key;
+  separately, a signature-verify round-trip with the same seed/kid
+  succeeds under `VerifyMode.STRICT`. 2 sub-tests.
+
+- **T-SR-PUB-CG-03:** `--sign --gate` happy path — POLICY_MATCH on
+  a single-policy registry. Receipt has both `signed=True` and
+  `gate_decision.allowed=True` with `source="policy_match"`; bucket
+  revision advances by exactly 1.
+
+- **T-SR-PUB-CG-04:** `--gate` deny on unknown `registered_by` —
+  exit 7 (`CAPABILITY_DENY`); JSON error envelope on stderr carries
+  `error=CAPABILITY_DENY`, `exit_code=7`, and a message containing
+  `no_policy_for_issuer`; bucket NOT touched (`store == {}`,
+  `revision == 0`).
+
+- **T-SR-PUB-CG-05:** `--gate` deny on disallowed `kid` — exit 7;
+  message contains `kid_not_allowed`; bucket NOT touched.
+
+- **T-SR-PUB-CG-06:** `--gate` deny on triple mismatch — two
+  sub-tests pin the layer-mismatch and name-glob-mismatch axes
+  separately; each exits 7 with `triple_not_allowed`; bucket NOT
+  touched. 2 sub-tests.
+
+- **T-SR-PUB-CG-07:** flag-consistency rejection — `--gate` without
+  `--sign` exits 3 with `--gate requires --sign`;
+  `--capability-registry` without `--gate` exits 3 with the orphan
+  flag message; bucket NOT touched in either case. 2 sub-tests.
+
+- **T-SR-PUB-CG-08:** sign-flag-consistency rejection — `--sign`
+  without `--kid` exits 3; `--sign` without a key source exits 3;
+  orphan `--kid` without `--sign` exits 3; both key sources
+  together fail at the argparse mutex layer with `SystemExit(2)`.
+  4 sub-tests.
+
+- **T-SR-PUB-CG-09:** dry-run with `--sign --gate` — allow path
+  produces a receipt with `mode="dry-run"`, `signed=True`,
+  `revision=null`, and an allow `gate_decision`; deny path on
+  dry-run also exits 7. 2 sub-tests.
+
+- **T-SR-PUB-CG-10:** receipt-shape forward-compat — bare publish
+  emits a receipt with `signed=false`, `kid=null`,
+  `gate_decision=null`; all pre-Sprint-5 fields remain present;
+  bare dry-run mirrors the same defaults. 2 sub-tests.
+
+- **Auxiliary loader-helper coverage** (`TestAuxLoaderHelpers`):
+  `_load_ed25519_priv_key` accepts a 64-hex string, a 32-byte
+  binary file, and a 64-hex ASCII file; rejects malformed-hex
+  inputs with `ValueError`; `_validate_capability_flag_consistency`
+  is a no-op for an all-default Namespace. 5 sub-tests.
+
+**Suite-level effect (post-Sprint-5 Tag-1):** the wirelang test
+suite grows from **752 passed** (post-Sprint-4 Tag-6) to
+**780 passed, 1 skipped, 7 subtests passed** (+28 net through the
+T-SR-PUB-CG-01..10 family and auxiliary coverage). The Sprint-3
+Tag-5 publisher-CLI inventory (T-SR-PUB-01..12) and the Sprint-4
+Tag-6 capability-gating inventory (T-RBC-01..12) remain unchanged
+and green; the Sprint-5 Tag-1 tests are additive and exercise a
+parallel test module.
+
 ## 7. Cross-references and Open-Items
 
 - V-908 backend pattern source:
@@ -3539,9 +3893,16 @@ green.
 - Phase-2 capability-policy distribution (persisted NATS-KV
   bucket `wakir-capability-policies` or analogous): reserved
   (Phase-3 slot; the Sprint-4 Tag-6 registry is in-process only).
-- Phase-2 publisher-CLI integration of the Sprint-4 Tag-6 gate:
+- ~~Phase-2 publisher-CLI integration of the Sprint-4 Tag-6 gate:
   reserved (`wakir-schema-registry publish` flag that runs
-  `gate_signed_entry` between `sign_entry` and `put`).
+  `gate_signed_entry` between `sign_entry` and `put`).~~
+  **CONSUMED in Sprint-5 Tag-1** (`wirelang/schemas/publisher_cli.py`
+  `--sign` / `--kid` / `--ed25519-priv-key-{hex,file}` / `--gate` /
+  `--capability-registry` / `--gate-as-of` flags; new exit code
+  `ExitCode.CAPABILITY_DENY = 7`; §5.13 ships the operator-CLI
+  contract; §6.10 ships T-SR-PUB-CG-01..10). Sprint-5 Tag-1
+  boundary leaves the on-the-wire envelope UNCHANGED (no signature
+  on the bucket; that is a Sprint-5 Tag-2+ slot).
 - Phase-2 STRICT-mode activation toggle: reserved (Z-1-K-Sprint-4-4
   open; operator-controlled toggle is a Phase-2-roadmap consensus
   question).
@@ -3937,6 +4298,80 @@ itself is still Phase-2.
   bump is warranted by the new §5.12 operational contract and
   §6.9 test inventory; no breaking-change to any consumer.
 
+**Sprint-5 Tag-1 (v0.11.0) is additive relative to Sprint-4 Tag-6 (v0.10.0):**
+
+- All Sprint-3 Tag-1 / Tag-3 / Tag-4 / Tag-5 / Tag-6 surfaces and
+  all Sprint-4 Tag-1 / Tag-3 / Tag-4 / Tag-5 / Tag-6 surfaces remain
+  unchanged. Their contracts are preserved byte-equal.
+- The Sprint-5 Tag-1 additions are *operator-CLI* surface extensions
+  on `wirelang/schemas/publisher_cli.py` only: seven new flags
+  (`--sign`, `--kid`, `--ed25519-priv-key-hex`,
+  `--ed25519-priv-key-file`, `--gate`, `--capability-registry`,
+  `--gate-as-of`), one new exit code
+  (`ExitCode.CAPABILITY_DENY = 7`), three additive optional fields
+  on `PublishReceipt` (`signed`, `kid`, `gate_decision`), and six
+  internal helpers (`_validate_capability_flag_consistency`,
+  `_load_ed25519_priv_key`, `_decode_hex_seed`,
+  `_load_capability_registry`, `_policy_from_dict`,
+  `_parse_optional_rfc3339`, `_decision_to_dict`). Pre-Sprint-5
+  invocations (no capability flags) emit a receipt with
+  `signed=false`, `kid=null`, `gate_decision=null` and exit codes
+  in the byte-equal pre-Sprint-5 matrix; no caller is forced onto
+  the capability path.
+- M-2 conformance (additive-only schema evolution): Sprint-5 Tag-1
+  adds no new on-the-wire envelope fields and modifies no existing
+  field. The schema-registry envelope schema remains
+  `wakir.wirelang.schema-registry-entry/1`. The capability-registry
+  JSON file is an *operator-side* file format only; it is NOT
+  written to the `wakir-schemas` bucket. The Biscuit-v3 capability
+  token JSON envelope (`wirelang/schemas/layer-3-capability-token.json`)
+  is REFERENCED only; the Sprint-5 Tag-1 file format is a separate,
+  simpler operator-side surface intended for Phase-3 promotion to
+  the Biscuit envelope.
+- M-4 conformance (multi-version-aware registry): Sprint-5 Tag-1 is
+  orthogonal to the version axis; the gate operates on the
+  `(registered_by, kid, layer, name)` 4-tuple per Tag-6 contract and
+  is unaffected by multiple versions of the same triple being
+  simultaneously active.
+- Receipt-shape additivity: the three new optional receipt fields
+  are at the end of the `PublishReceipt` dataclass and the
+  serialised JSON object's key set. Consumers that index by the
+  pre-Sprint-5 field set continue to read byte-equal pre-existing
+  fields; consumers that index by the new fields receive an
+  unambiguous "feature-off" marker. The JSON serialisation uses
+  `sort_keys=True` so the new fields are sorted into the canonical
+  position; consumers that compare full canonical JSON serialisations
+  byte-for-byte across Sprint-4 Tag-6 and Sprint-5 Tag-1 receipts
+  WILL see a difference (the three new keys), but consumers that
+  filter to the pre-Sprint-5 key set will not. The minor-version
+  bump reflects this.
+- Cross-Review-Zone-1 (Identity-Substrate) **non-touched**: the four
+  Z-1-K-Sprint-4 consensus points remain byte-identical after
+  Sprint-5 Tag-1. The integration is curve-agnostic at the
+  CLI-flag layer (operator supplies the seed; the underlying
+  `sign_entry` call is byte-identical to Tag-1); JCS-free at the
+  CLI layer (canonicalisation lives inside `sign_entry`);
+  resolver-independent (the operator supplies `--kid` directly;
+  the CLI does NOT call `kid_resolver`); orthogonal to `VerifyMode`
+  (the publisher path does NOT call `verify_entry_signature`).
+- `entry_signing.sign_entry`, `entry_signing.verify_entry_signature`,
+  `registered_by_capability.gate_signed_entry`, and
+  `registered_by_capability.check_registered_by_capability` are
+  imported and called byte-equal; none is modified. The
+  `NatsKvSchemaRegistry.put` / `put_with_revision` write paths are
+  byte-unchanged; the signed entry's underlying
+  `SchemaRegistryEntry` is what reaches the backend, identical to
+  the pre-Sprint-5 unsigned path. The signature block is consumed
+  CLI-side only.
+- The capability-deny short-circuit runs **before** the backend
+  connect (`connect_factory` is not even called on a deny). The
+  bucket is byte-untouched on a deny; the test inventory
+  (T-SR-PUB-CG-04..06) pins this explicitly.
+- Spec semver bump 0.10.0 → 0.11.0 reflects the additive minor
+  change (M-2 §3.2 versioning policy: minor for additive). The
+  bump is warranted by the new §5.13 operational contract and
+  §6.10 test inventory; no breaking-change to any consumer.
+
 ## 9. Brand-Guide §9 sweep
 
 This document has been swept against the Wakir Brand-Guide §9
@@ -4002,5 +4437,27 @@ from prior tags), and Python-stdlib/IETF/RFC references
 Biscuit-v3 JSON envelope schema) appear in the spec body. No
 external-tool clear-name leakage and no internal-persona-clear-name
 leakage in the Tag-6 spec body additions.
+
+The Sprint-5 Tag-1 additions (§5.13, §6.10, change-log v0.11.0 entry,
+§5.3 publisher-CLI-capability-integration-slot CONSUMED, §5.6
+publisher-CLI capability-flag cross-reference, §5.12 boundary
+publisher-CLI item CONSUMED, §7 publisher-CLI-integration-of-Sprint-4-Tag-6-gate
+slot CONSUMED, §8 compatibility statement update for v0.10.0 →
+v0.11.0) have been swept identically — only role-strings (none in
+this spec body), module-path references
+(`wirelang.schemas.publisher_cli`, `wirelang.schemas.entry_signing`,
+`wirelang.schemas.registered_by_capability`),
+`wakir.*` URIs (`wakir-schemas` bucket name,
+`wakir.wirelang.schema-registry-entry/1` envelope schema,
+`wakir-capability-policies` reserved Phase-3 bucket name,
+`wakir-schema-registry` CLI program name, carried unchanged from
+prior tags), and IETF/RFC references (RFC 8032 Ed25519, RFC 8259
+JSON, RFC 3339 timestamps, RFC 8785 JCS). The capability-registry
+JSON file path examples use generic placeholder paths
+(`~/.config/wakir/biscuit-root-1.seed`, `capability-registry.json`)
+and the canonical operator examples (`wirelang-eng`, `biscuit-root-1`)
+are role-strings consistent with prior tag conventions. No
+external-tool clear-name leakage and no internal-persona-clear-name
+leakage in the Tag-1 (Sprint-5) spec body additions.
 
 — End of spec —

@@ -3,6 +3,7 @@
 """Operator publisher CLI for the Wirelang schema registry.
 
 Phase-1b Sprint-3 Tag-5 — OI-7-Phase-1c-publisher.
+Phase-2 Sprint-5 Tag-1 — capability-gating end-to-end integration.
 
 This module exposes an argparse surface that lets an operator publish
 a module-shipped schema body onto the ``wakir-schemas`` NATS-KV bucket.
@@ -10,6 +11,12 @@ It is the natural composition of the Tag-3 CAS-pin contract
 (``put_with_revision``) and the Tag-1 last-write-wins surface
 (``put``); the watch-stream surface from Tag-4 is the consumer side
 (post-publish observability) and is not invoked from the publisher.
+
+Sprint-5 Tag-1 adds three optional flags (``--sign``, ``--gate``,
+``--capability-registry``) that lift the canonical Phase-2
+capability-gated publish flow (Sprint-4 Tag-6 §5.12 Composition
+Pattern) onto the operator surface without altering the backend
+contract or the receipt's bare-publish shape.
 
 Design philosophy
 -----------------
@@ -20,6 +27,12 @@ state that ``NatsKvSchemaRegistry`` already validates at the gate
 layer (schema-id, body-hash, identity-triple). The CLI does not
 introduce new validation; it routes operator intent into the
 existing backend gates.
+
+The Sprint-5 Tag-1 capability path is additive: signing and gating
+run between ``_build_entry`` and the backend write, leaving the
+backend's validation gates and the receipt's existing fields
+byte-equal. A deny short-circuits with :class:`ExitCode.CAPABILITY_DENY`
+(7) and the bucket is not touched.
 
 Subject-mapping pattern source
 ------------------------------
@@ -85,6 +98,18 @@ from wirelang.schemas.registry_nats_kv_backend import (
     key_for_triple,
     schema_body_sha256,
 )
+from wirelang.schemas.entry_signing import (
+    SchemaRegistrySignatureError,
+    SignedSchemaRegistryEntry,
+    sign_entry,
+)
+from wirelang.schemas.registered_by_capability import (
+    CapabilityGateDecision,
+    CapabilityPolicy,
+    CapabilityPolicyRegistry,
+    RegisteredByCapabilityError,
+    gate_signed_entry,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +133,7 @@ class ExitCode(enum.IntEnum):
     VALIDATION_ERROR = 4  # schema-body shape / id / hash gate failure
     CAS_CONFLICT = 5  # CAS-pin or create-only conflict
     BACKEND_ERROR = 6  # any other backend / transport failure
+    CAPABILITY_DENY = 7  # Sprint-5 Tag-1: --gate decision was a deny
 
 
 # ---------------------------------------------------------------------------
@@ -121,6 +147,25 @@ class PublishReceipt:
 
     The receipt is JSON-serialisable and stable across modes; the
     ``revision`` field is ``None`` for ``--dry-run``.
+
+    Sprint-5 Tag-1 additions
+    ------------------------
+
+    Three optional fields surface the capability path; each defaults
+    to its "feature-off" value so receipts from the original bare
+    publish path stay byte-equal:
+
+    - ``signed``: ``False`` when ``--sign`` was not requested; ``True``
+      when ``sign_entry`` was called successfully.
+    - ``kid``: the kid embedded in the signature block, or ``None``.
+    - ``gate_decision``: a small JSON object with ``allowed``,
+      ``source``, ``reason`` on the gate-allow path, or ``None`` when
+      ``--gate`` was not requested.
+
+    These fields are additive; pipelines that do not opt in to
+    ``--sign`` / ``--gate`` continue to receive the exact pre-Sprint-5
+    receipt shape (with the three optional fields all set to their
+    default-off values).
     """
 
     mode: str  # "lww" | "cas" | "create-only" | "dry-run"
@@ -135,6 +180,9 @@ class PublishReceipt:
     registered_by: str
     registered_at: str
     supersedes: Optional[str]
+    signed: bool = False
+    kid: Optional[str] = None
+    gate_decision: Optional[dict[str, Any]] = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -150,6 +198,9 @@ class PublishReceipt:
             "registered_by": self.registered_by,
             "registered_at": self.registered_at,
             "supersedes": self.supersedes,
+            "signed": self.signed,
+            "kid": self.kid,
+            "gate_decision": self.gate_decision,
         }
 
 
@@ -181,6 +232,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_input_flags(p_pub)
     _add_publish_flags(p_pub)
+    _add_capability_flags(p_pub)
 
     p_dry = sub.add_parser(
         "dry-run",
@@ -190,6 +242,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     _add_input_flags(p_dry)
+    _add_capability_flags(p_dry)
 
     return parser
 
@@ -272,6 +325,95 @@ def _add_publish_flags(p: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_capability_flags(p: argparse.ArgumentParser) -> None:
+    """Sprint-5 Tag-1 capability flags (shared by ``publish`` and ``dry-run``).
+
+    Three concerns are wired in:
+
+    - ``--sign`` plus a private-key source (``--ed25519-priv-key-hex``
+      XOR ``--ed25519-priv-key-file``) plus ``--kid`` enable signing
+      via :func:`wirelang.schemas.entry_signing.sign_entry`.
+
+    - ``--gate`` plus ``--capability-registry <path>`` enable gating
+      via :func:`wirelang.schemas.registered_by_capability.gate_signed_entry`.
+      ``--gate`` requires ``--sign`` (the gate reads ``kid`` from the
+      signature block).
+
+    - ``--gate-as-of`` is an optional RFC-3339 timestamp passed to the
+      gate as ``as_of``. When omitted, the gate skips validity-window
+      enforcement (consistent with Sprint-4 Tag-6 §5.12 contract).
+
+    All flags default off; pipelines that omit them retain the
+    pre-Sprint-5 publish surface byte-equal.
+    """
+
+    p.add_argument(
+        "--sign",
+        action="store_true",
+        help=(
+            "Sign the entry locally before publish/dry-run "
+            "(requires --kid and exactly one of --ed25519-priv-key-hex "
+            "or --ed25519-priv-key-file)."
+        ),
+    )
+    p.add_argument(
+        "--kid",
+        default=None,
+        help=(
+            "Key identifier embedded in the signature block. Required "
+            "when --sign is set. Should match an AIP-document "
+            "public_keys entry."
+        ),
+    )
+    key_src = p.add_mutually_exclusive_group()
+    key_src.add_argument(
+        "--ed25519-priv-key-hex",
+        default=None,
+        help=(
+            "Ed25519 private key as a 64-character hex string "
+            "(32-byte raw seed). Mutually exclusive with "
+            "--ed25519-priv-key-file. Test paths only; production "
+            "should prefer --ed25519-priv-key-file."
+        ),
+    )
+    key_src.add_argument(
+        "--ed25519-priv-key-file",
+        default=None,
+        help=(
+            "Path to a file containing a 32-byte raw Ed25519 private "
+            "key seed (binary, exactly 32 bytes, or 64 hex characters "
+            "for ASCII convenience). Mutually exclusive with "
+            "--ed25519-priv-key-hex."
+        ),
+    )
+    p.add_argument(
+        "--gate",
+        action="store_true",
+        help=(
+            "Run the Sprint-4 Tag-6 capability gate on the signed entry "
+            "before publishing (requires --sign and "
+            "--capability-registry)."
+        ),
+    )
+    p.add_argument(
+        "--capability-registry",
+        default=None,
+        help=(
+            "Path to a capability-registry JSON file (top-level "
+            "{policies: [...]}). Required when --gate is set."
+        ),
+    )
+    p.add_argument(
+        "--gate-as-of",
+        default=None,
+        help=(
+            "Optional RFC-3339 instant (with timezone) used as the "
+            "gate's as_of value (validity-window enforcement). "
+            "Defaults to None, which bypasses window enforcement."
+        ),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Input loading
 # ---------------------------------------------------------------------------
@@ -324,6 +466,275 @@ def _parse_registered_at(value: Optional[str]) -> _dt.datetime:
             f"--registered-at {value!r} requires a timezone (use Z)"
         )
     return parsed.astimezone(_dt.timezone.utc)
+
+
+# ---------------------------------------------------------------------------
+# Sprint-5 Tag-1 — capability-flag validation, key-loading, registry-loading
+# ---------------------------------------------------------------------------
+
+
+def _validate_capability_flag_consistency(args: argparse.Namespace) -> None:
+    """Check the cross-flag invariants for ``--sign`` / ``--gate``.
+
+    Invariants enforced (each raises :class:`ValueError`):
+
+    1. ``--sign`` requires ``--kid``.
+    2. ``--sign`` requires exactly one of ``--ed25519-priv-key-hex`` /
+       ``--ed25519-priv-key-file`` (mutual exclusion is enforced by
+       argparse; absence is checked here).
+    3. ``--gate`` requires ``--sign`` (kid must be present in the
+       signature block).
+    4. ``--gate`` requires ``--capability-registry`` (no implicit
+       empty registry — the deny semantics differ from explicit
+       empty).
+    5. ``--kid`` / ``--ed25519-priv-key-*`` / ``--capability-registry``
+       / ``--gate-as-of`` without ``--sign`` / ``--gate`` is a usage
+       error (no-op flag is reported, not silently ignored).
+    """
+
+    sign = getattr(args, "sign", False)
+    gate = getattr(args, "gate", False)
+    kid = getattr(args, "kid", None)
+    hex_key = getattr(args, "ed25519_priv_key_hex", None)
+    file_key = getattr(args, "ed25519_priv_key_file", None)
+    cap_path = getattr(args, "capability_registry", None)
+    gate_as_of = getattr(args, "gate_as_of", None)
+
+    if sign:
+        if kid is None or kid == "":
+            raise ValueError("--sign requires --kid (non-empty)")
+        if hex_key is None and file_key is None:
+            raise ValueError(
+                "--sign requires --ed25519-priv-key-hex or "
+                "--ed25519-priv-key-file"
+            )
+    else:
+        if kid is not None or hex_key is not None or file_key is not None:
+            raise ValueError(
+                "--kid / --ed25519-priv-key-hex / --ed25519-priv-key-file "
+                "require --sign"
+            )
+
+    if gate:
+        if not sign:
+            raise ValueError("--gate requires --sign")
+        if cap_path is None:
+            raise ValueError(
+                "--gate requires --capability-registry <path>"
+            )
+    else:
+        if cap_path is not None or gate_as_of is not None:
+            raise ValueError(
+                "--capability-registry / --gate-as-of require --gate"
+            )
+
+
+def _load_ed25519_priv_key(
+    *, hex_value: Optional[str], file_value: Optional[str]
+) -> bytes:
+    """Load a 32-byte Ed25519 private-key seed from the supplied source.
+
+    Exactly one of ``hex_value`` / ``file_value`` is non-``None``
+    (enforced by argparse mutual exclusion + the consistency check
+    in :func:`_validate_capability_flag_consistency`).
+
+    The file path accepts two encodings:
+
+    - **Binary**: exactly 32 bytes long.
+    - **ASCII hex**: exactly 64 hex characters (UTF-8), optionally
+      surrounded by whitespace. Useful for committing test vectors.
+
+    Raises :class:`ValueError` on malformed input; raises
+    :class:`FileNotFoundError` / :class:`PermissionError` for I/O
+    failures so the caller can route them through ExitCode.INPUT_ERROR.
+    """
+
+    if hex_value is not None:
+        return _decode_hex_seed(hex_value, source="--ed25519-priv-key-hex")
+    assert file_value is not None  # _validate_capability_flag_consistency
+    path = Path(file_value)
+    raw = path.read_bytes()
+    if len(raw) == 32:
+        return bytes(raw)
+    # Try ASCII-hex interpretation (RFC 8032 test-vector convention).
+    try:
+        text = raw.decode("ascii").strip()
+    except UnicodeDecodeError:
+        raise ValueError(
+            f"--ed25519-priv-key-file {file_value!r} must contain "
+            f"32 raw bytes or 64 hex characters (ASCII)"
+        )
+    return _decode_hex_seed(text, source=f"--ed25519-priv-key-file {file_value!r}")
+
+
+def _decode_hex_seed(value: str, *, source: str) -> bytes:
+    """Decode a 64-character hex string into a 32-byte seed.
+
+    Raises :class:`ValueError` on bad length or non-hex characters.
+    """
+
+    s = value.strip()
+    if len(s) != 64:
+        raise ValueError(
+            f"{source} must be exactly 64 hex characters (32-byte seed); "
+            f"got {len(s)}"
+        )
+    try:
+        seed = bytes.fromhex(s)
+    except ValueError as exc:
+        raise ValueError(f"{source} is not valid hex: {exc}") from exc
+    if len(seed) != 32:
+        # Defensive: bytes.fromhex on 64 hex chars yields 32 bytes,
+        # but pin the invariant.
+        raise ValueError(
+            f"{source} decoded to {len(seed)} bytes (expected 32)"
+        )
+    return seed
+
+
+def _load_capability_registry(path_str: str) -> CapabilityPolicyRegistry:
+    """Load a capability-policy registry from a JSON file.
+
+    File format::
+
+        {
+          "policies": [
+            {
+              "registered_by": "wirelang-eng",
+              "allowed_kids": ["biscuit-root-1"],
+              "allowed_triples": [["wire", "layer-1-*"], ["*", "*"]],
+              "not_before": "2026-05-01T00:00:00Z",
+              "not_after":  "2027-05-01T00:00:00Z",
+              "disabled": false,
+              "note": "wirelang engineering publisher"
+            },
+            ...
+          ]
+        }
+
+    The top-level object MUST contain a ``policies`` array. Each entry
+    is mapped to a :class:`CapabilityPolicy` via
+    :func:`_policy_from_dict`. Errors during loading raise
+    :class:`ValueError` (file-shape) or
+    :class:`RegisteredByCapabilityError` (policy-shape); the caller
+    routes them through ``ExitCode.INPUT_ERROR`` and
+    ``ExitCode.VALIDATION_ERROR`` respectively.
+    """
+
+    path = Path(path_str)
+    raw = path.read_bytes()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise UnicodeDecodeError(
+            exc.encoding,
+            exc.object,
+            exc.start,
+            exc.end,
+            f"--capability-registry file is not valid UTF-8: {path_str}",
+        )
+    parsed = json.loads(text)
+    if not isinstance(parsed, dict):
+        raise TypeError(
+            f"--capability-registry root must be a JSON object, "
+            f"got {type(parsed).__name__}"
+        )
+    policies = parsed.get("policies")
+    if not isinstance(policies, list):
+        raise TypeError(
+            "--capability-registry must contain a top-level 'policies' "
+            "array"
+        )
+    registry = CapabilityPolicyRegistry()
+    for i, item in enumerate(policies):
+        if not isinstance(item, dict):
+            raise TypeError(
+                f"--capability-registry policies[{i}] must be an object"
+            )
+        registry.add_policy(_policy_from_dict(item, index=i))
+    return registry
+
+
+def _policy_from_dict(item: Mapping[str, Any], *, index: int) -> CapabilityPolicy:
+    """Construct a :class:`CapabilityPolicy` from a parsed JSON object.
+
+    The function enforces the surface-level shape (required keys,
+    tuple-vs-list conversion, RFC-3339 parsing for the optional
+    validity window) and then defers structural validation to
+    :class:`CapabilityPolicy.__post_init__`.
+    """
+
+    try:
+        registered_by = item["registered_by"]
+        allowed_kids = tuple(item["allowed_kids"])
+        raw_triples = item["allowed_triples"]
+    except KeyError as exc:
+        raise TypeError(
+            f"--capability-registry policies[{index}] missing key {exc}"
+        )
+    if not isinstance(raw_triples, list):
+        raise TypeError(
+            f"--capability-registry policies[{index}].allowed_triples "
+            f"must be a list of [layer, name_glob] pairs"
+        )
+    triples: Tuple[Tuple[str, str], ...] = tuple(
+        (t[0], t[1]) if isinstance(t, list) and len(t) == 2 else (None, None)  # type: ignore[arg-type]
+        for t in raw_triples
+    )
+    not_before = _parse_optional_rfc3339(
+        item.get("not_before"),
+        flag=f"policies[{index}].not_before",
+    )
+    not_after = _parse_optional_rfc3339(
+        item.get("not_after"),
+        flag=f"policies[{index}].not_after",
+    )
+    disabled = bool(item.get("disabled", False))
+    note = item.get("note")
+    return CapabilityPolicy(
+        registered_by=registered_by,
+        allowed_kids=allowed_kids,
+        allowed_triples=triples,
+        not_before=not_before,
+        not_after=not_after,
+        disabled=disabled,
+        note=note,
+    )
+
+
+def _parse_optional_rfc3339(
+    value: Optional[str], *, flag: str
+) -> Optional[_dt.datetime]:
+    """Parse an optional RFC-3339 timestamp (with timezone) into UTC.
+
+    Mirrors :func:`_parse_registered_at` for the policy-side dates.
+    """
+
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise TypeError(f"--capability-registry {flag} must be a string or null")
+    s = value.strip()
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    parsed = _dt.datetime.fromisoformat(s)
+    if parsed.tzinfo is None:
+        raise ValueError(
+            f"--capability-registry {flag} {value!r} requires a timezone"
+        )
+    return parsed.astimezone(_dt.timezone.utc)
+
+
+def _decision_to_dict(decision: CapabilityGateDecision) -> dict[str, Any]:
+    """Render a :class:`CapabilityGateDecision` as a small JSON object
+    for the receipt's ``gate_decision`` field.
+    """
+
+    return {
+        "allowed": decision.allowed,
+        "source": decision.source.value,
+        "reason": decision.reason,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -456,7 +867,10 @@ async def _run_publish(
     stderr,
 ) -> int:
     mode, expected_revision = _resolve_mode(args)
+    signed_entry: Optional[SignedSchemaRegistryEntry] = None
+    gate_decision: Optional[CapabilityGateDecision] = None
     try:
+        _validate_capability_flag_consistency(args)
         schema_body = _load_schema_body(args.schema_body)
         registered_at = _parse_registered_at(args.registered_at)
         entry = _build_entry(
@@ -468,6 +882,35 @@ async def _run_publish(
             registered_at=registered_at,
             supersedes=args.supersedes,
         )
+        # Sprint-5 Tag-1: optional sign + gate pipeline. Both run
+        # strictly between entry construction and backend write; a
+        # deny short-circuits before the connect call so the bucket
+        # is not touched.
+        if getattr(args, "sign", False):
+            priv_key = _load_ed25519_priv_key(
+                hex_value=args.ed25519_priv_key_hex,
+                file_value=args.ed25519_priv_key_file,
+            )
+            signed_entry = sign_entry(entry, priv_key, kid=args.kid)
+        if getattr(args, "gate", False):
+            assert signed_entry is not None  # consistency check above
+            registry = _load_capability_registry(args.capability_registry)
+            as_of = _parse_optional_rfc3339(
+                args.gate_as_of, flag="--gate-as-of"
+            )
+            gate_decision = gate_signed_entry(
+                signed_entry, registry, as_of=as_of
+            )
+            if not gate_decision.allowed:
+                _print_error_stderr(
+                    ExitCode.CAPABILITY_DENY,
+                    (
+                        f"capability deny ({gate_decision.source.value}): "
+                        f"{gate_decision.reason}"
+                    ),
+                    stderr,
+                )
+                return int(ExitCode.CAPABILITY_DENY)
     except (FileNotFoundError, PermissionError, UnicodeDecodeError) as exc:
         _print_error_stderr(ExitCode.INPUT_ERROR, str(exc), stderr)
         return int(ExitCode.INPUT_ERROR)
@@ -480,6 +923,12 @@ async def _run_publish(
         _print_error_stderr(ExitCode.INPUT_ERROR, str(exc), stderr)
         return int(ExitCode.INPUT_ERROR)
     except SchemaRegistryValidationError as exc:
+        _print_error_stderr(ExitCode.VALIDATION_ERROR, str(exc), stderr)
+        return int(ExitCode.VALIDATION_ERROR)
+    except SchemaRegistrySignatureError as exc:
+        _print_error_stderr(ExitCode.VALIDATION_ERROR, str(exc), stderr)
+        return int(ExitCode.VALIDATION_ERROR)
+    except RegisteredByCapabilityError as exc:
         _print_error_stderr(ExitCode.VALIDATION_ERROR, str(exc), stderr)
         return int(ExitCode.VALIDATION_ERROR)
 
@@ -531,6 +980,11 @@ async def _run_publish(
         registered_by=entry.registered_by,
         registered_at=entry.registered_at.isoformat(),
         supersedes=entry.supersedes,
+        signed=signed_entry is not None,
+        kid=(signed_entry.signature["kid"] if signed_entry is not None else None),
+        gate_decision=(
+            _decision_to_dict(gate_decision) if gate_decision is not None else None
+        ),
     )
     _print_receipt_stdout(receipt, stdout)
     return int(ExitCode.OK)
@@ -539,7 +993,10 @@ async def _run_publish(
 def _run_dry_run(
     args: argparse.Namespace, stdout, stderr
 ) -> int:
+    signed_entry: Optional[SignedSchemaRegistryEntry] = None
+    gate_decision: Optional[CapabilityGateDecision] = None
     try:
+        _validate_capability_flag_consistency(args)
         schema_body = _load_schema_body(args.schema_body)
         registered_at = _parse_registered_at(args.registered_at)
         entry = _build_entry(
@@ -554,6 +1011,32 @@ def _run_dry_run(
         # Run the same key-derivation gate that put() runs (so a malformed
         # triple fails dry-run, not just the live publish).
         _ = key_for_triple(entry.layer, entry.name, entry.version)
+        # Sprint-5 Tag-1: optional sign + gate pipeline (dry-run also).
+        if getattr(args, "sign", False):
+            priv_key = _load_ed25519_priv_key(
+                hex_value=args.ed25519_priv_key_hex,
+                file_value=args.ed25519_priv_key_file,
+            )
+            signed_entry = sign_entry(entry, priv_key, kid=args.kid)
+        if getattr(args, "gate", False):
+            assert signed_entry is not None
+            registry = _load_capability_registry(args.capability_registry)
+            as_of = _parse_optional_rfc3339(
+                args.gate_as_of, flag="--gate-as-of"
+            )
+            gate_decision = gate_signed_entry(
+                signed_entry, registry, as_of=as_of
+            )
+            if not gate_decision.allowed:
+                _print_error_stderr(
+                    ExitCode.CAPABILITY_DENY,
+                    (
+                        f"capability deny ({gate_decision.source.value}): "
+                        f"{gate_decision.reason}"
+                    ),
+                    stderr,
+                )
+                return int(ExitCode.CAPABILITY_DENY)
     except (FileNotFoundError, PermissionError, UnicodeDecodeError) as exc:
         _print_error_stderr(ExitCode.INPUT_ERROR, str(exc), stderr)
         return int(ExitCode.INPUT_ERROR)
@@ -566,6 +1049,12 @@ def _run_dry_run(
         _print_error_stderr(ExitCode.INPUT_ERROR, str(exc), stderr)
         return int(ExitCode.INPUT_ERROR)
     except SchemaRegistryValidationError as exc:
+        _print_error_stderr(ExitCode.VALIDATION_ERROR, str(exc), stderr)
+        return int(ExitCode.VALIDATION_ERROR)
+    except SchemaRegistrySignatureError as exc:
+        _print_error_stderr(ExitCode.VALIDATION_ERROR, str(exc), stderr)
+        return int(ExitCode.VALIDATION_ERROR)
+    except RegisteredByCapabilityError as exc:
         _print_error_stderr(ExitCode.VALIDATION_ERROR, str(exc), stderr)
         return int(ExitCode.VALIDATION_ERROR)
 
@@ -582,6 +1071,11 @@ def _run_dry_run(
         registered_by=entry.registered_by,
         registered_at=entry.registered_at.isoformat(),
         supersedes=entry.supersedes,
+        signed=signed_entry is not None,
+        kid=(signed_entry.signature["kid"] if signed_entry is not None else None),
+        gate_decision=(
+            _decision_to_dict(gate_decision) if gate_decision is not None else None
+        ),
     )
     _print_receipt_stdout(receipt, stdout)
     return int(ExitCode.OK)
