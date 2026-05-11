@@ -415,11 +415,11 @@ def test_report_to_json_has_stable_shape_and_summary(mod, event_loop):
         "http_status": 200,
     }
     assert payload["summary"] == {
-        "ok": 5,
+        "ok": 6,
         "missing": 0,
         "drift": 0,
         "error": 0,
-        "total": 5,
+        "total": 6,
     }
     assert {a["name"] for a in payload["checks"]} == {
         spec.name for spec in mod.PHASE_1_BUCKETS
@@ -437,14 +437,18 @@ def test_unknown_bucket_selector_raises_value_error(mod):
     assert "wakir-schemas" in msg
 
 
-def test_phase_1_inventory_is_the_documented_five_buckets(mod):
-    """Phase-1 inventory contract (Sprint-4 Tag-4 onward).
+def test_phase_1_inventory_is_the_documented_six_buckets(mod):
+    """Phase-1 inventory contract (Sprint-4 Tag-5 onward).
 
     The 5th bucket ``wakir-schema-registry-entries`` was registered
     Sprint-4 Tag-4 as a Phase-2-reserved schema-registry storage
-    bucket. The health-check inventory mirrors the init-script
-    inventory; ``test_inventory_matches_init_nats_buckets`` guards
-    the dual-source contract.
+    bucket. The 6th bucket ``wakir-federation-routes`` was registered
+    Sprint-4 Tag-5 as the V-908 federation-route registry consumed by
+    the Wirelang-side ``NatsKvRouteRegistry`` backend, closing the
+    Sprint-2 Tag-7 Z-B inventory-drift open follow-up. The
+    health-check inventory mirrors the init-script inventory;
+    ``test_inventory_matches_init_nats_buckets`` guards the
+    dual-source contract.
     """
     names = [spec.name for spec in mod.PHASE_1_BUCKETS]
     assert names == [
@@ -453,6 +457,7 @@ def test_phase_1_inventory_is_the_documented_five_buckets(mod):
         "wakir-ftd-cache",
         "wakir-ftd-poisoned",
         "wakir-schema-registry-entries",
+        "wakir-federation-routes",
     ]
 
 
@@ -543,9 +548,9 @@ class CheckNatsKvHealthLiveSmokeTests(unittest.TestCase):
         checks = asyncio.run(_run())
         # We do not assert "ok" — the live cluster may be a stale
         # tear-down or in mid-bring-up. We DO assert the shape:
-        # exactly five checks (Sprint-4 Tag-4 onward), names match
+        # exactly six checks (Sprint-4 Tag-5 onward), names match
         # the inventory, no errors.
-        self.assertEqual(len(checks), 5)
+        self.assertEqual(len(checks), 6)
         self.assertEqual(
             {c.name for c in checks},
             {s.name for s in self.mod.PHASE_1_BUCKETS},
@@ -595,6 +600,56 @@ class CheckNatsKvHealthLiveSmokeTests(unittest.TestCase):
             fifth_checks[0].status,
             {"ok", "missing", "drift"},
             msg=(fifth_checks[0].status, fifth_checks[0].detail),
+        )
+
+    def test_smoke_sixth_bucket_present_in_live_inventory(self) -> None:
+        """Sprint-4 Tag-5 gated-live anchor: confirm the 6th bucket
+        ``wakir-federation-routes`` shows up in the live cluster
+        inventory after an init-pass against the running NATS.
+
+        Pre-condition: the live cluster has been initialised by
+        ``scripts/init-nats-buckets.py`` against the Sprint-4-Tag-5
+        six-bucket inventory, OR the bucket was pre-created
+        out-of-band per the legacy Runbook §6.5 hand-creation recipe
+        (Wirelang-side ``NatsKvRouteRegistry`` consumers shipped
+        Sprint-2 Tag-4, before Sprint-4 Tag-5 promoted the bucket
+        into the routine init pass). The test only asserts that the
+        inventory-check **produced a check** for the 6th bucket;
+        status semantics are runbook-documented.
+
+        Unlike the 5th bucket (Phase-2-reserved, no Phase-1b
+        consumer), the 6th bucket has a live Wirelang-side consumer,
+        so an ``ok`` status here also indirectly confirms the
+        consumer-bucket configuration alignment that the hermetic
+        ``test_inventory_matches_init_nats_buckets`` asserts at
+        unit-test time.
+        """
+        async def _run():
+            import nats  # type: ignore
+
+            nc = await nats.connect(self.servers, token=self.token)
+            try:
+                js = nc.jetstream()
+                return await self.mod.inspect_buckets(
+                    js, self.mod.PHASE_1_BUCKETS
+                )
+            finally:
+                await nc.drain()
+
+        checks = asyncio.run(_run())
+        sixth_checks = [
+            c for c in checks if c.name == "wakir-federation-routes"
+        ]
+        self.assertEqual(
+            len(sixth_checks), 1,
+            msg="exactly one check for the 6th bucket expected",
+        )
+        # Status must be one of the documented contract values; we
+        # accept ok/missing/drift but never error on a Phase-1b cluster.
+        self.assertIn(
+            sixth_checks[0].status,
+            {"ok", "missing", "drift"},
+            msg=(sixth_checks[0].status, sixth_checks[0].detail),
         )
 
 

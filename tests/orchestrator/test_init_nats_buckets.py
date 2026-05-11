@@ -9,8 +9,8 @@ small in-memory mock that mirrors the subset of the
 
 Coverage:
 
-1. Plan against an empty cluster: all five buckets get ``created``.
-2. Re-run after a successful create: all five become ``unchanged``.
+1. Plan against an empty cluster: all six buckets get ``created``.
+2. Re-run after a successful create: all six become ``unchanged``.
 3. ``--dry-run`` against an empty cluster reports ``would_create`` and
    does not mutate the mock state.
 4. Drift detection: a bucket whose live history differs from the spec
@@ -22,6 +22,13 @@ Coverage:
    is present in ``PHASE_1_BUCKETS`` and its config mirrors the
    ``wakir-schemas`` cache bucket so the Phase-2 schema-registry
    storage migration is a value-copy without a config-drift step.
+8. (Sprint-4 Tag-5) The 6th bucket ``wakir-federation-routes`` is
+   present in ``PHASE_1_BUCKETS`` and its config mirrors the
+   Wirelang-side ``BUCKET_CONFIG`` constant byte-precisely so the
+   V-908 federation-route registry consumer
+   (``wirelang.federation.route_registry_nats_kv_backend``) and the
+   orchestrator init driver agree on a single inventory entry,
+   closing the Sprint-2 Tag-7 Z-B inventory-drift open follow-up.
 
 The tests are hermetic (no I/O, no NATS, no filesystem).
 """
@@ -253,8 +260,8 @@ def test_unknown_bucket_selector_raises_value_error_with_known_set(mod):
     assert "wakir-schemas" in msg  # listed under "known"
 
 
-def test_phase_1_inventory_is_the_documented_five_buckets(mod):
-    """Phase-1 inventory contract (Sprint-4 Tag-4 onward).
+def test_phase_1_inventory_is_the_documented_six_buckets(mod):
+    """Phase-1 inventory contract (Sprint-4 Tag-5 onward).
 
     Order matters: the documented order is preserved across tooling
     (runbook, init script JSON output, drift reports). A re-ordering
@@ -267,6 +274,7 @@ def test_phase_1_inventory_is_the_documented_five_buckets(mod):
         "wakir-ftd-cache",
         "wakir-ftd-poisoned",
         "wakir-schema-registry-entries",
+        "wakir-federation-routes",
     ]
 
 
@@ -285,11 +293,11 @@ def test_report_to_json_has_stable_shape_and_summary(mod, event_loop):
     assert payload["servers"] == "nats://127.0.0.1:4222"
     assert payload["dry_run"] is False
     assert payload["summary"] == {
-        "created": 5,
+        "created": 6,
         "unchanged": 0,
         "drift": 0,
         "would_create": 0,
-        "total": 5,
+        "total": 6,
     }
     assert {a["name"] for a in payload["actions"]} == {
         spec.name for spec in mod.PHASE_1_BUCKETS
@@ -486,4 +494,176 @@ def test_t_tag4_05_fifth_bucket_idempotent_replay_marks_unchanged(
     assert fifth_action.status == "unchanged"
     assert js.create_calls == [], (
         "idempotent replay must not re-create the 5th bucket"
+    )
+
+
+# ---------------------------------------------------------------------
+# Sprint-4 Tag-5: 6th-bucket-paired-update tests (wakir-federation-routes)
+# ---------------------------------------------------------------------
+#
+# These tests anchor the contract that the new 6th bucket
+# ``wakir-federation-routes`` is registered with the documented config
+# (mirrors the Wirelang-side ``BUCKET_CONFIG`` constant byte-precisely)
+# and that the create/select/idempotency paths of the planner cover it.
+# Unlike the 5th bucket, the 6th bucket HAS a live Phase-1b consumer:
+# ``wirelang.federation.route_registry_nats_kv_backend.NatsKvRouteRegistry``
+# (Sprint-2 Tag-4 backend + Sprint-2 Tag-6 watch-stream layer). The
+# operator bring-up procedure previously created this bucket out of
+# band per Runbook §6.5; Sprint-4 Tag-5 promotes it into the routine
+# ``init-nats-buckets.py`` pass.
+#
+# Auftrags-Quota: "4-6 hermetic Tests". This file adds 5 tests (T-Tag5-
+# 01..05) anchoring slot, mirror, create-call shape, selector path,
+# and idempotency. The live-gated parity probe lives in
+# ``test_check_nats_kv_health.py``.
+
+
+def test_t_tag5_01_wakir_federation_routes_is_the_sixth_bucket_in_documented_order(mod):
+    """The 6th bucket entry exists with the documented Phase-1b config
+    (history=5, ttl unbounded, 4 KiB max_value_size, file storage,
+    replicas=1) byte-aligned with the Wirelang-side ``BUCKET_CONFIG``.
+
+    Order matters: the documented inventory ordering is preserved
+    across tooling output (runbook, JSON report, drift report); pin
+    the 6th-slot placement here so a re-ordering surfaces as a
+    contract change.
+    """
+    sixth = mod.PHASE_1_BUCKETS[5]
+    assert sixth.name == "wakir-federation-routes"
+    assert sixth.history == 5
+    assert sixth.ttl_seconds == 0
+    assert sixth.max_value_size == 4_096
+    assert sixth.storage == "file"
+    assert sixth.replicas == 1
+    assert "V-908" in sixth.description
+    assert "Phase-1b" in sixth.description
+
+
+def test_t_tag5_02_sixth_bucket_config_mirrors_wirelang_consumer_bucket_config(mod):
+    """The 6th bucket's config is byte-aligned with the Wirelang-side
+    consumer's ``BUCKET_CONFIG`` constant on the drift-relevant fields
+    (history, ttl_seconds, max_value_size, storage, replicas).
+
+    This is the dual-anchor parity contract: a drift between the
+    orchestrator-side init script and the Wirelang-side consumer is a
+    regression that would force the operator to run an out-of-band
+    ``nats kv add`` step. The Sprint-2 Tag-7 Z-B Schluss-Marker called
+    out exactly this gap; Sprint-4 Tag-5 closes it.
+
+    We import the Wirelang module lazily so this test does not depend
+    on import-time side effects of the consumer-side codec; if the
+    consumer module ever moves, the import-failure path here is a
+    loud regression signal.
+    """
+    from wirelang.federation.route_registry_nats_kv_backend import (  # type: ignore
+        BUCKET_CONFIG,
+        BUCKET_NAME,
+    )
+
+    sixth = next(
+        s for s in mod.PHASE_1_BUCKETS if s.name == "wakir-federation-routes"
+    )
+    assert sixth.name == BUCKET_NAME, (
+        "Wirelang BUCKET_NAME constant drifted from PHASE_1_BUCKETS slot 5"
+    )
+    assert sixth.history == BUCKET_CONFIG["history"]
+    assert sixth.ttl_seconds == BUCKET_CONFIG["ttl_seconds"]
+    assert sixth.max_value_size == BUCKET_CONFIG["max_value_size"]
+    assert sixth.storage == BUCKET_CONFIG["storage"]
+    assert sixth.replicas == BUCKET_CONFIG["replicas"]
+    # Description: orchestrator side mirrors the Wirelang module's
+    # documented description string verbatim so the operator log line
+    # is identical regardless of which side created the bucket.
+    assert sixth.description == BUCKET_CONFIG["description"]
+
+
+def test_t_tag5_03_sixth_bucket_create_on_empty_cluster_carries_documented_kv_config(
+    mod, event_loop
+):
+    """An empty-cluster planner pass emits a single ``create_key_value``
+    call for the 6th bucket with the documented kwargs.
+
+    The Wirelang-side consumer reads the live bucket on construction;
+    if the orchestrator created the bucket with the wrong
+    ``max_value_size`` the consumer would fail to put entries larger
+    than the limit. This test guards the create-call shape so the
+    contract surfaces in the hermetic suite before it can hit a live
+    cluster.
+    """
+    js = _MockJetStream()
+    actions = event_loop.run_until_complete(
+        mod.plan_and_apply(js, mod.PHASE_1_BUCKETS, dry_run=False)
+    )
+
+    sixth_actions = [
+        a for a in actions if a.name == "wakir-federation-routes"
+    ]
+    assert len(sixth_actions) == 1
+    assert sixth_actions[0].status == "created"
+
+    sixth_calls = [
+        c for c in js.create_calls
+        if c["bucket"] == "wakir-federation-routes"
+    ]
+    assert len(sixth_calls) == 1
+    call = sixth_calls[0]
+    assert call["history"] == 5
+    assert call["ttl"] == 0
+    assert call["max_value_size"] == 4_096
+    assert call["storage"] == "file"
+    assert call["replicas"] == 1
+    assert "V-908" in call["description"]
+
+
+def test_t_tag5_04_bucket_filter_can_select_sixth_bucket(mod, event_loop):
+    """``--bucket wakir-federation-routes`` selects only the 6th bucket.
+
+    Operationally useful: an operator can re-run the init script
+    against a cluster that already has the five pre-Tag-5 Phase-1
+    buckets to backfill only the new 6th bucket without churning the
+    others. This is the no-downtime upgrade path for a cluster that
+    came up before Sprint-4 Tag-5 landed (and was using the §6.5
+    hand-creation fallback for the V-908 bucket).
+    """
+    js = _MockJetStream()
+    selected = mod._select_specs(["wakir-federation-routes"])
+    assert [s.name for s in selected] == ["wakir-federation-routes"]
+
+    actions = event_loop.run_until_complete(
+        mod.plan_and_apply(js, selected, dry_run=False)
+    )
+    assert len(actions) == 1
+    assert actions[0].name == "wakir-federation-routes"
+    assert actions[0].status == "created"
+    assert set(js.buckets) == {"wakir-federation-routes"}
+
+
+def test_t_tag5_05_sixth_bucket_idempotent_replay_marks_unchanged(
+    mod, event_loop
+):
+    """Re-running the init script after the 6th bucket exists is a
+    no-op.
+
+    Idempotency contract for the full six-bucket layout: operators
+    can re-run ``init-nats-buckets.py`` on a cluster that already has
+    the complete inventory without side effects. The 6th bucket gets
+    the same idempotency guarantee as the five pre-Tag-5 buckets.
+    """
+    js = _MockJetStream()
+    # First pass: populate all six.
+    event_loop.run_until_complete(
+        mod.plan_and_apply(js, mod.PHASE_1_BUCKETS, dry_run=False)
+    )
+    js.create_calls.clear()
+
+    # Second pass: should be a no-op for the 6th bucket specifically.
+    actions = event_loop.run_until_complete(
+        mod.plan_and_apply(js, mod.PHASE_1_BUCKETS, dry_run=False)
+    )
+    sixth_action = next(
+        a for a in actions if a.name == "wakir-federation-routes"
+    )
+    assert sixth_action.status == "unchanged"
+    assert js.create_calls == [], (
+        "idempotent replay must not re-create the 6th bucket"
     )

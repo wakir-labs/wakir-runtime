@@ -175,6 +175,7 @@ def test_compose_commentary_references_all_phase_1_buckets(
         "wakir-ftd-cache",
         "wakir-ftd-poisoned",
         "wakir-schema-registry-entries",
+        "wakir-federation-routes",
     }, "Phase-1 inventory drift — update test or initialiser"
     for name in bucket_names:
         assert name in compose_text, (

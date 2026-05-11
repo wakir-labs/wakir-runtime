@@ -10,7 +10,7 @@
 #
 # 1. Connects to a NATS server (default ``nats://127.0.0.1:4222``)
 #    using ``nats-py`` and the JetStream KV API.
-# 2. Ensures the five Phase-1 buckets exist with the documented
+# 2. Ensures the six Phase-1 buckets exist with the documented
 #    history / TTL / max_value_size / replicas / storage settings:
 #
 #      - ``wakir-schemas``                  Wirelang schema-registry
@@ -37,6 +37,23 @@
 #                                           the entry-envelope codec
 #                                           ``wakir.wirelang.
 #                                           schema-registry-entry/1``)
+#      - ``wakir-federation-routes``        V-908 federation-route
+#                                           registry consumed by the
+#                                           Wirelang-side
+#                                           ``wirelang.federation.
+#                                           route_registry_nats_kv_
+#                                           backend.NatsKvRouteRegistry``
+#                                           (Sprint-2 Tag-4 backend +
+#                                           Sprint-2 Tag-6 watch-stream
+#                                           snapshot layer). Registered
+#                                           as the 6th bucket Sprint-4
+#                                           Tag-5 via the Z-B follow-up
+#                                           paired-update, closing the
+#                                           inventory-drift gap that
+#                                           previously required an
+#                                           operator-hand ``nats kv
+#                                           add`` step per Runbook
+#                                           §6.5
 #
 # 3. Idempotency contract: re-running the script on a cluster that
 #    already has the buckets is a no-op. If a bucket exists but with a
@@ -150,13 +167,35 @@ class BucketSpec:
 #:   which owns the schema-registry consumer-side codec
 #:   ``wakir.wirelang.schema-registry-entry/1``.
 #:
-#: Phase-1b boundary: the 5th bucket is created on cluster bring-up
-#: but is **not** consumed by any module shipped in Phase-1b. The
-#: Phase-2 schema-registry migration (Wirelang-side OI-7-Phase-2
-#: slot) will switch ``wirelang.schemas.registry_nats_kv_backend``
-#: to point at the new bucket (or layer a second backend over it;
-#: the storage-vs-cache split is the consumer-side design decision
-#: the Wirelang track owns).
+#: * ``wakir-federation-routes`` — consumed by
+#:   ``wirelang.federation.route_registry_nats_kv_backend.NatsKvRouteRegistry``
+#:   (Sprint-2 Tag-4 read/write backend, Sprint-2 Tag-6 watch-stream
+#:   snapshot layer). The Wirelang-side module exports
+#:   ``BUCKET_NAME = "wakir-federation-routes"`` and a ``BUCKET_CONFIG``
+#:   mapping (history=5, ttl_seconds=0, max_value_size=4096, storage=
+#:   "file", replicas=1, description="V-908 federation-route registry
+#:   (Phase-1b)"); the spec below mirrors those field values
+#:   byte-precisely. Drift between the orchestrator-side and Wirelang-
+#:   side constants is caught by the hermetic regression
+#:   ``test_wakir_federation_routes_matches_wirelang_consumer_bucket_config``
+#:   in the orchestrator suite plus the dual-anchor parity test
+#:   ``test_inventory_matches_init_nats_buckets`` in the health-check
+#:   suite. Sprint-4 Tag-5 paired-update closes the Sprint-2 Tag-7
+#:   Z-B Schluss-Marker open follow-up that asked for this exact
+#:   inventory entry; the hand-creation fallback (Runbook §6.5) is
+#:   retained only as an out-of-band recreate recipe.
+#:
+#: Phase-1b boundary: the 5th bucket ``wakir-schema-registry-entries``
+#: is created on cluster bring-up but is **not** consumed by any module
+#: shipped in Phase-1b (Phase-2-reserved). The 6th bucket
+#: ``wakir-federation-routes`` IS consumed by the Wirelang-side V-908
+#: backend; pre-Sprint-4-Tag-5 the bucket was created out-of-band per
+#: §6.5 of the runbook, this entry promotes it into the routine init
+#: pass. Phase-2 schema-registry migration (Wirelang-side OI-7-Phase-2
+#: slot) will later switch ``wirelang.schemas.registry_nats_kv_backend``
+#: to point at the new schema-registry-entries bucket (or layer a
+#: second backend over it; the storage-vs-cache split is the
+#: consumer-side design decision the Wirelang track owns).
 PHASE_1_BUCKETS: tuple[BucketSpec, ...] = (
     BucketSpec(
         name="wakir-schemas",
@@ -195,6 +234,13 @@ PHASE_1_BUCKETS: tuple[BucketSpec, ...] = (
         history=5,
         ttl_seconds=0,
         max_value_size=262_144,  # 256 KiB, mirrors wakir-schemas
+    ),
+    BucketSpec(
+        name="wakir-federation-routes",
+        description="V-908 federation-route registry (Phase-1b)",
+        history=5,
+        ttl_seconds=0,
+        max_value_size=4_096,  # mirrors Wirelang BUCKET_CONFIG
     ),
 )
 

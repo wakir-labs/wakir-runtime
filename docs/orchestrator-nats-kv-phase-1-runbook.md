@@ -5,10 +5,11 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 
 # Orchestrator NATS-JetStream KV Phase-1 — Operator Runbook
 
-Status: draft, Phase 1b Sprint-3 Tag-2 (build-host activation
-procedure expansion in §7.1).
+Status: draft, Phase-2 Sprint-4 Tag-5 (Z-B 6th-bucket
+`wakir-federation-routes` paired-update — see §1, §6.5, §7 and the
+§8 Tag-5 stamp).
 Companion to `compose/nats.yaml` (substrate),
-`scripts/init-nats-buckets.py` (Phase-1 four-bucket driver),
+`scripts/init-nats-buckets.py` (Phase-1 six-bucket driver),
 `scripts/check-nats-kv-health.py` (Phase-1 substrate health
 check),
 `scripts/check-federation-evaluator-health.py` (Phase-1b V-908
@@ -33,10 +34,11 @@ memos and are referenced here only by name.
 
 | §   | Topic                                                              | Source tags |
 | --- | ------------------------------------------------------------------ | ----------- |
-| 1   | Bucket inventory (Phase-1, five-bucket layout)                     | Tag-2, Sprint-4 Tag-4 |
+| 1   | Bucket inventory (Phase-1, six-bucket layout)                      | Tag-2, Sprint-4 Tag-4, Sprint-4 Tag-5 |
 | 2   | Pre-flight check                                                   | Tag-2       |
 | 3   | Bring-up (cold start: substrate + buckets-init + tear-down)        | Tag-2, Tag-3 |
 | 3.2.1 | Backfill 5th bucket on pre-Tag-4 cluster                         | Sprint-4 Tag-4 |
+| 3.2.2 | Backfill 6th bucket on pre-Tag-5 cluster                         | Sprint-4 Tag-5 |
 | 4   | Idempotency contract                                               | Tag-2       |
 | 5   | Health checks                                                      | Tag-2, Tag-6, Tag-7 |
 | 5.1 | `check-nats-kv-health` tool                                        | Tag-6       |
@@ -47,7 +49,7 @@ memos and are referenced here only by name.
 | 6.2 | JetStream disk loss                                                | Tag-2       |
 | 6.3 | Configuration drift                                                | Tag-2, Tag-6 |
 | 6.4 | FTD poison-list growth                                             | Tag-2       |
-| 6.5 | Federation-routes bucket creation (Phase-1b bring-up)              | Tag-7       |
+| 6.5 | Federation-routes bucket creation (now routine; fallback only)     | Tag-7, Phase-2 Sprint-4 Tag-5 |
 | 7   | Open follow-ups (sprint-by-sprint backlog)                         | Tag-2..Tag-8, Sprint-3 Tag-2 |
 | 7.1 | Build-host activation procedure (nine-step, expanded)              | Sprint-3 Tag-2 |
 | 7.1.10 | Post-install live-smoke driver                                  | Sprint-3 Tag-4 |
@@ -56,7 +58,8 @@ memos and are referenced here only by name.
 | 7.4 | First-time live-smoke execution record (host-substrate evidence)   | Phase-2 Sprint-4 Tag-2 |
 | 7.5 | Image-digest verification gate (`verify-image-digest.sh`)          | Phase-2 Sprint-4 Tag-3 |
 | 7.6 | 5th bucket: `wakir-schema-registry-entries` (Phase-2-reserved)     | Phase-2 Sprint-4 Tag-4 |
-| 8   | Verification stamps (P5/P7)                                        | Tag-2..Tag-8, Sprint-3 Tag-2..Tag-4, Phase-2 Sprint-4 Tag-1..Tag-4 |
+| 7.7 | 6th bucket: `wakir-federation-routes` (V-908 routine bring-up)     | Phase-2 Sprint-4 Tag-5 |
+| 8   | Verification stamps (P5/P7)                                        | Tag-2..Tag-8, Sprint-3 Tag-2..Tag-4, Phase-2 Sprint-4 Tag-1..Tag-5 |
 
 The four operator artefacts (compose substrate, bucket initialiser,
 NATS-KV substrate health check, federation evaluator health check)
@@ -70,13 +73,14 @@ Cross-tool drift is pinned by hermetic regression tests
 
 ## 1. Bucket inventory (Phase-1, single-node)
 
-| name                              | history | ttl        | max-value | storage | replicas | purpose                                                              |
-| --------------------------------- | ------- | ---------- | --------- | ------- | -------- | -------------------------------------------------------------------- |
-| `wakir-schemas`                   | 5       | unbounded  | 256 KiB   | file    | 1        | Wirelang schema-registry cache (Phase-1b consumer: Sprint-3 Tag-1)   |
-| `wakir-aip-cache`                 | 1       | 3600 s     | 64 KiB    | file    | 1        | AIP-Document resolver cache                                          |
-| `wakir-ftd-cache`                 | 1       | 3600 s     | 64 KiB    | file    | 1        | Federation-Trust-Document cache                                      |
-| `wakir-ftd-poisoned`              | 10      | unbounded  | 4 KiB     | file    | 1        | FTD poison-list marker (asymmetric vs. cache)                        |
-| `wakir-schema-registry-entries`   | 5       | unbounded  | 256 KiB   | file    | 1        | Wirelang schema-registry storage (Phase-2-reserved; no Phase-1b consumer) |
+| name                              | history | ttl        | max-value | storage | replicas | purpose                                                                                                       |
+| --------------------------------- | ------- | ---------- | --------- | ------- | -------- | ------------------------------------------------------------------------------------------------------------- |
+| `wakir-schemas`                   | 5       | unbounded  | 256 KiB   | file    | 1        | Wirelang schema-registry cache (Phase-1b consumer: Sprint-3 Tag-1)                                            |
+| `wakir-aip-cache`                 | 1       | 3600 s     | 64 KiB    | file    | 1        | AIP-Document resolver cache                                                                                   |
+| `wakir-ftd-cache`                 | 1       | 3600 s     | 64 KiB    | file    | 1        | Federation-Trust-Document cache                                                                               |
+| `wakir-ftd-poisoned`              | 10      | unbounded  | 4 KiB     | file    | 1        | FTD poison-list marker (asymmetric vs. cache)                                                                 |
+| `wakir-schema-registry-entries`   | 5       | unbounded  | 256 KiB   | file    | 1        | Wirelang schema-registry storage (Phase-2-reserved; no Phase-1b consumer)                                     |
+| `wakir-federation-routes`         | 5       | unbounded  | 4 KiB     | file    | 1        | V-908 federation-route registry (Phase-1b consumer: Wirelang-side `NatsKvRouteRegistry`, Sprint-2 Tag-4/Tag-6) |
 
 The `wakir-ftd-poisoned` asymmetry is deliberate: a poisoned FTD must
 outlive a cache-TTL window, so the bucket is unbounded and history is
@@ -95,6 +99,22 @@ cluster). The Wirelang-side Sprint-3 Tag-1 schema-registry backend
 (`wirelang.schemas.registry_nats_kv_backend`) continues to read and
 write `wakir-schemas` in Phase-1b; switching the backend onto the new
 storage bucket is the OI-7-Phase-2 slot the Wirelang-side track owns.
+
+The 6th bucket `wakir-federation-routes` was added Sprint-4 Tag-5 as
+the Z-B follow-up paired-update, closing the Sprint-2 Tag-7 Z-B
+inventory-drift open follow-up. Unlike the 5th bucket this entry HAS
+a live Phase-1b consumer: the Wirelang-side
+`wirelang.federation.route_registry_nats_kv_backend.NatsKvRouteRegistry`
+(Sprint-2 Tag-4 read/write backend + Sprint-2 Tag-6 watch-stream
+snapshot layer). Before Tag-5 the bucket was created out-of-band per
+the §6.5 hand-creation recipe; Tag-5 promotes it into the routine
+`init-nats-buckets.py` pass. Bucket-config mirrors the Wirelang-side
+`BUCKET_CONFIG` constant byte-precisely (history=5, ttl unbounded,
+4 KiB max-value, file storage, replicas=1); the dual-anchor parity
+contract is enforced by the hermetic
+`test_t_tag5_02_sixth_bucket_config_mirrors_wirelang_consumer_bucket_config`
+test plus the existing `test_inventory_matches_init_nats_buckets`
+cross-script parity test.
 
 ## 2. Pre-flight check
 
@@ -116,9 +136,13 @@ the orchestrator node. The script itself is dependency-free apart from
 
 Phase-1 cold-start is a two-step procedure: bring the substrate up
 (NATS server + JetStream + named volume) via the compose file, then
-initialise the **five** KV buckets via the python driver
-(four Phase-1b-consumed buckets + 1 Phase-2-reserved
-`wakir-schema-registry-entries`; see §1).
+initialise the **six** KV buckets via the python driver
+(five Phase-1b-consumed buckets + 1 Phase-2-reserved
+`wakir-schema-registry-entries`; see §1). The 6th bucket
+`wakir-federation-routes` is part of the routine init pass from
+Sprint-4 Tag-5 onward; pre-Tag-5 clusters that used the §6.5
+hand-creation recipe are no-downtime-upgradable via the §3.2.2
+backfill recipe.
 
 ### 3.1 Substrate-up (compose)
 
@@ -178,11 +202,13 @@ python3 scripts/init-nats-buckets.py --dry-run
 # 2. Apply.
 python3 scripts/init-nats-buckets.py
 
-# 3. Confirm exit 0 and a JSON report on stdout listing five
-#    "created" actions and a summary block of {created: 5, ...}.
-#    (Pre-Sprint-4-Tag-4 clusters report four created + one "would
-#    create" or "missing"; re-run after Tag-4 lands to backfill the
-#    5th bucket — see §3.2.1 below.)
+# 3. Confirm exit 0 and a JSON report on stdout listing six
+#    "created" actions and a summary block of {created: 6, ...}.
+#    (Pre-Sprint-4-Tag-4 clusters report four created + two "would
+#    create" or "missing"; pre-Sprint-4-Tag-5 clusters that already
+#    have the 5th bucket report five created + one "would create" or
+#    "missing" for `wakir-federation-routes`. Re-run after the new
+#    tag lands to backfill the missing bucket(s); see §3.2.1 + §3.2.2.)
 ```
 
 The script writes a structured JSON report to stdout (one document per
@@ -235,6 +261,46 @@ performed at any operator-convenient window — there is no read or
 write traffic against the new bucket until the Phase-2 schema-registry
 storage migration lands. This is the no-downtime upgrade path.
 
+### 3.2.2 Backfill the 6th bucket on a pre-Tag-5 cluster
+
+Clusters brought up before Sprint-4 Tag-5 either (a) used the §6.5
+hand-creation recipe to materialise `wakir-federation-routes`
+out-of-band, or (b) had no V-908 bucket yet (the consumer-side
+backend `wirelang.federation.route_registry_nats_kv_backend` would
+fail on first read or write against an absent bucket). After
+pulling the Tag-5 runtime onto the build host, an operator backfills
+the 6th bucket without churning the existing five:
+
+```bash
+# Plan-only first.
+python3 scripts/init-nats-buckets.py --dry-run \
+  --bucket wakir-federation-routes
+# Expect a single "would_create" action in the JSON report if the
+# bucket is absent; a single "unchanged" if §6.5 hand-creation
+# already established it with the documented config; a single
+# "drift" if a hand-create used non-documented values (operator
+# action: see §6.3 drift recovery).
+
+# Apply (only if the dry-run reported "would_create").
+python3 scripts/init-nats-buckets.py \
+  --bucket wakir-federation-routes
+# Expect exit 0 and a single "created" action.
+
+# Full-inventory confirmation:
+python3 scripts/init-nats-buckets.py
+# Expect: 5 unchanged + 1 unchanged (post-backfill), or
+# 5 unchanged + 1 created (if the backfill step above was skipped).
+```
+
+Unlike the 5th bucket, the 6th bucket has a live Wirelang-side
+consumer. If the V-908 consumer is actively reading or writing
+the bucket during the backfill pass, the operation is still safe
+because `init-nats-buckets.py` is read-mostly: it only issues a
+`create_key_value` call when the bucket is absent and never mutates
+an existing bucket. An operator who wants to coordinate with the
+consumer can run the backfill during a maintenance window, but it is
+not required. This is the no-downtime upgrade path.
+
 ### 3.3 Tear-down
 
 ```bash
@@ -275,12 +341,14 @@ Exit codes:
 
 After bring-up:
 
-1. `nats kv ls` — confirms the five bucket names are present
-   (Sprint-4 Tag-4 onward).
+1. `nats kv ls` — confirms the six bucket names are present
+   (Sprint-4 Tag-5 onward).
 2. `nats kv info wakir-schemas` — confirms history/TTL/replicas match
    §1 of this runbook. The same check applies to
    `wakir-schema-registry-entries` since the two buckets share their
-   storage config.
+   storage config; `nats kv info wakir-federation-routes` confirms the
+   V-908 bucket matches the Wirelang-side `BUCKET_CONFIG` (history=5,
+   ttl unbounded, 4 KiB max-value).
 3. Smoke read-through: from the orchestrator container, hit a known
    schema endpoint and confirm a cache miss populates the bucket on
    first hit and a hit returns from KV on second hit. The relevant
@@ -522,14 +590,20 @@ operationally tolerable size (Phase-1 working assumption: < 10k
 entries), trigger a manual audit review. Eviction policy beyond
 audit review is a Phase-2 follow-up; do not auto-evict in Phase-1.
 
-### 6.5 Federation-routes bucket creation (Phase-1b bring-up)
+### 6.5 Federation-routes bucket creation (now routine; fallback only)
 
 The `wakir-federation-routes` bucket is the V-908 federation route
-registry consumed by the N2 evaluator. Phase-1b does not yet
-include this bucket in the `init-nats-buckets.py` driver inventory
-(documented divergence; see §7 follow-up); for Phase-1b bring-up
-the operator creates the bucket by hand using the documented
-configuration:
+registry consumed by the N2 evaluator. As of **Phase-2 Sprint-4 Tag-5**
+this bucket is included in the `PHASE_1_BUCKETS` inventory of both
+`scripts/init-nats-buckets.py` and `scripts/check-nats-kv-health.py`,
+so the routine cold-start procedure in §3.2 materialises it together
+with the other five buckets. No separate bring-up step is required;
+pre-Tag-5 clusters that used this hand-creation recipe are
+no-downtime-upgradable via the §3.2.2 backfill recipe.
+
+The hand-creation fallback below remains documented for the rare case
+of an out-of-band recreate (e.g. an operator wiped only the V-908
+bucket and wants to rebuild it without touching the rest):
 
 ```bash
 nats kv add wakir-federation-routes \
@@ -539,14 +613,20 @@ nats kv add wakir-federation-routes \
     --storage=file \
     --replicas=1 \
     --description="V-908 federation-route registry (Phase-1b)"
+
+# Equivalent via the routine init driver (preferred):
+python3 scripts/init-nats-buckets.py --bucket wakir-federation-routes
 ```
 
 The values mirror the constant
 `wirelang.federation.route_registry_nats_kv_backend.BUCKET_CONFIG`
-byte-precisely. The
-`scripts/check-federation-evaluator-health.py` tool verifies the
-match on every run; drift surfaces as exit code 2 with a per-field
-`{want, got}` diff.
+byte-precisely. Dual-anchor contract:
+`test_t_tag5_02_sixth_bucket_config_mirrors_wirelang_consumer_bucket_config`
+(orchestrator suite) plus the existing
+`test_inventory_matches_init_nats_buckets` cross-script parity test
+keep all sides aligned. The `scripts/check-federation-evaluator-health.py`
+tool verifies the live cluster's match on every run; drift surfaces
+as exit code 2 with a per-field `{want, got}` diff.
 
 After bucket creation, populate the registry with the operator's
 documented routes (out-of-scope for this runbook; see the V-908
@@ -593,20 +673,30 @@ operator playbook). Re-run
   (see the dev-engineering-3 outbox under
   `agents-workspaces/<dev-engineering-3>/outbox/`, file slug
   `2026-05-07-phase-1b-sprint-2-acceptance-doku`).
-- Sprint-3: extend `init-nats-buckets.py` `PHASE_1_BUCKETS` to
+- Sprint-3: ~~extend `init-nats-buckets.py` `PHASE_1_BUCKETS` to
   include `wakir-federation-routes` as a fifth bucket so the
   bring-up procedure in §6.5 collapses into the routine `init`
-  pass. The Tag-7 federation evaluator health check already
-  consumes the bucket-config constant from the wirelang-eng-side module;
-  the orchestrator-side init driver has not yet picked up the
-  fifth entry. **Status (Phase-2 Sprint-4 Tag-4):** the Z-B
-  paired-update slot landed under a different scope —
-  `wakir-schema-registry-entries` was chosen as the 5th bucket per
-  the Sprint-4 Tag-4 re-spawn auftrag (see §7.6 below). The
-  `wakir-federation-routes` bucket remains an operator-hand
-  `nats kv add` step per §6.5 in Phase-1b; a future paired-update
-  slot can extend `PHASE_1_BUCKETS` to a 6th bucket without breaking
-  the Tag-4 contract.
+  pass~~ — **done in Phase-2 Sprint-4 Tag-5** as the 6th bucket
+  (the 5th-slot was claimed Tag-4 by `wakir-schema-registry-entries`;
+  see §7.6). Both `scripts/init-nats-buckets.py` and
+  `scripts/check-nats-kv-health.py` now register
+  `wakir-federation-routes` as the 6th `PHASE_1_BUCKETS` entry with
+  the documented Phase-1b config (history=5, ttl=0, max-value=4096B,
+  storage=file, replicas=1) byte-aligned with
+  `wirelang.federation.route_registry_nats_kv_backend.BUCKET_CONFIG`.
+  §6.5 above describes the new routine bring-up path; the
+  hand-creation fallback is retained only for out-of-band recreates.
+  Five new hermetic tests (`T-Tag5-01..05`) in
+  `test_init_nats_buckets.py` anchor the 6th-bucket contract
+  (slot/order, Wirelang-side `BUCKET_CONFIG` mirror, empty-cluster
+  create-call shape, single-bucket selector backfill path, idempotent
+  replay). One gated-live anchor in `test_check_nats_kv_health.py`
+  (`test_smoke_sixth_bucket_present_in_live_inventory`) probes the
+  live cluster for the new bucket. Cross-Review Zone B follow-up
+  paired-update closes the Sprint-2 Tag-7 Z-B Schluss-Marker open
+  follow-up from the Wirelang-side track (Wirelang-track 2026-05-07
+  Z-B-Konsument-Memo §4 / Sprint-4 Tag-4 paired-update §1
+  "orthogonale federation-routes-Frage zur Klärung in Folge-Box").
 - Sprint-3: full systemd-timer wiring for the health-check tool plus
   a Prometheus textfile-collector adapter consuming the JSON report's
   `summary` block. The §5.2 cron snippet is the Phase-1b minimum-viable
@@ -1737,6 +1827,71 @@ Memo from the DevOps track to the Wirelang track confirms the 5th-
 bucket creation and the Phase-2 reservation rationale (see
 `agents-workspaces/reza/inbox/2026-05-11-kai-zone-b-fifth-bucket-paired-update.md`).
 
+### 7.7 6th bucket: `wakir-federation-routes` (Phase-2 Sprint-4 Tag-5)
+
+Sprint-4 Tag-5 closed the Sprint-2 Tag-7 Z-B Schluss-Marker open
+follow-up by adding `wakir-federation-routes` as the 6th bucket in
+`PHASE_1_BUCKETS`. Unlike the 5th bucket, this entry has a live
+Phase-1b consumer: the Wirelang-side
+`wirelang.federation.route_registry_nats_kv_backend.NatsKvRouteRegistry`
+(Sprint-2 Tag-4 read/write backend + Sprint-2 Tag-6 watch-stream
+snapshot layer). Pre-Tag-5 the bucket was created out-of-band per the
+§6.5 hand-creation recipe; Tag-5 promotes it into the routine
+`init-nats-buckets.py` pass.
+
+**Bucket-config (mirrors Wirelang-side `BUCKET_CONFIG`):**
+
+| field            | value         |
+| ---------------- | ------------- |
+| history          | 5             |
+| ttl              | unbounded     |
+| max_value_size   | 4 KiB         |
+| storage          | file          |
+| replicas         | 1             |
+
+The byte-precise mirror is the design property: a drift between the
+orchestrator-side and the Wirelang-side constants is a regression that
+would force the operator to revert to the §6.5 hand-creation recipe.
+The dual-anchor parity contract is enforced by:
+
+- `test_t_tag5_02_sixth_bucket_config_mirrors_wirelang_consumer_bucket_config`
+  (orchestrator suite) — asserts the orchestrator-side `BucketSpec`
+  fields equal the Wirelang-side `BUCKET_CONFIG` mapping.
+- `test_inventory_matches_init_nats_buckets` (orchestrator suite) —
+  asserts the init script and the health-check script agree on the
+  full inventory; the 6th bucket inherits the parity contract for free.
+
+**Hermetic tests (Tag-5 additions):**
+
+`tests/orchestrator/test_init_nats_buckets.py` carries five new tests
+under the `T-Tag5-01..05` series:
+
+| # | Name (short) | What it pins |
+| --- | --- | --- |
+| T-Tag5-01 | `..._is_the_sixth_bucket_in_documented_order` | Slot 5 (0-indexed) is `wakir-federation-routes`, config matches the table above, description references V-908 and Phase-1b |
+| T-Tag5-02 | `..._config_mirrors_wirelang_consumer_bucket_config` | The 6th bucket's history / ttl / max_value_size / storage / replicas / description equal the Wirelang `BUCKET_CONFIG` mapping byte-for-byte |
+| T-Tag5-03 | `..._create_on_empty_cluster_carries_documented_kv_config` | An empty-cluster planner pass emits a single `create_key_value` call for the 6th bucket with the documented kwargs |
+| T-Tag5-04 | `..._bucket_filter_can_select_sixth_bucket` | `--bucket wakir-federation-routes` selects only the 6th bucket (no-churn backfill path, see §3.2.2) |
+| T-Tag5-05 | `..._idempotent_replay_marks_unchanged` | A second planner pass after the 6th bucket exists is a no-op (idempotency contract) |
+
+`tests/orchestrator/test_check_nats_kv_health.py` carries one new
+gated-live anchor: `test_smoke_sixth_bucket_present_in_live_inventory`
+(under `WAKIR_NATS_LIVE=1`). It asserts the live cluster's
+inspect-pass produces exactly one check for the 6th bucket whose
+status is one of `ok` / `missing` / `drift` (never `error`). Live
+gating mirrors the §7.6 5th-bucket gated-live anchor pattern; without
+the gate the test is skipped during the hermetic CI pass.
+
+**Cross-Review Zone B paired-update:** the Wirelang-side
+`NatsKvRouteRegistry` consumer continues to read and write
+`wakir-federation-routes` unchanged; the Tag-5 patch is purely an
+orchestrator-side inventory-registration change with no Wirelang-side
+code edit required. The dual-anchor parity test is the only new
+cross-side contract surface. A follow-up Cross-Review-Memo to the
+Wirelang track confirms the registration and lists the Phase-2
+follow-up (operator-hand population of routes is still out of scope
+for `init-nats-buckets.py`; see V-908 operator playbook).
+
 ## 8. Verification stamps (P5/P7)
 
 - Authoring date (Tag-3 update): `date -u` 2026-05-07T (CEST
@@ -2068,3 +2223,87 @@ bucket creation and the Phase-2 reservation rationale (see
   future paired-update slot can extend `PHASE_1_BUCKETS` to a 6th
   bucket without breaking the Tag-4 contract (see §7 follow-ups
   Sprint-3 line, updated annotation).
+- Phase-2 Sprint-4 Tag-5 §7.7 6th-bucket-paired-update stamp:
+  `date -u` 2026-05-11T18:20:17Z (CEST 2026-05-11T20:20). This pass
+  is the Cross-Review Zone-B follow-up paired-update slot per the
+  Sprint-4 Tag-5 auftrag, closing the Sprint-2 Tag-7 Z-B Schluss-
+  Marker open follow-up that asked for `wakir-federation-routes` to
+  be registered in the routine init inventory. The Tag-4 outbox
+  signalled this exact follow-up in §8 "future paired-update slot
+  can extend `PHASE_1_BUCKETS` to a 6th bucket without breaking the
+  Tag-4 contract"; Tag-5 lands the 6th-slot. Substance:
+  (a) `scripts/init-nats-buckets.py` `PHASE_1_BUCKETS` extended from
+  five to six entries with `wakir-federation-routes` appended at
+  slot index 5 (history=5, ttl unbounded, max_value_size 4096 B,
+  storage=file, replicas=1 — config mirrors the Wirelang-side
+  `wirelang.federation.route_registry_nats_kv_backend.BUCKET_CONFIG`
+  byte-precisely so the operator-hand fallback in §6.5 collapses
+  into the routine `init-nats-buckets.py` pass);
+  (b) `scripts/check-nats-kv-health.py` `PHASE_1_BUCKETS` extended
+  identically (cross-script parity test
+  `test_inventory_matches_init_nats_buckets` continues to enforce
+  the dual-source contract; the 6th bucket inherits parity for free);
+  (c) `compose/nats.yaml` header commentary updated to reference the
+  six-bucket layout (compose hermetic test
+  `test_compose_commentary_references_all_phase_1_buckets` pins the
+  inventory-set on the compose-side); (d) five new hermetic tests in
+  `tests/orchestrator/test_init_nats_buckets.py` under the
+  T-Tag5-01..05 series (slot ordering, Wirelang `BUCKET_CONFIG`
+  mirror via lazy import of the consumer module, empty-cluster create
+  kwargs, single-bucket backfill selector, idempotent replay) plus
+  the inventory-list expansion of two existing tests
+  (`test_phase_1_inventory_is_the_documented_six_buckets`,
+  `test_report_to_json_has_stable_shape_and_summary` summary block);
+  (e) one new gated-live anchor
+  `test_smoke_sixth_bucket_present_in_live_inventory` in
+  `tests/orchestrator/test_check_nats_kv_health.py` (under
+  `WAKIR_NATS_LIVE=1`); (f) runbook updates: new §3.2.2 backfill
+  recipe for pre-Tag-5 clusters (no-downtime upgrade path), §1
+  inventory table expanded to six rows with V-908 consumer
+  annotation, §3 cold-start intro updated to "six KV buckets",
+  §3.2 JSON-summary expectation updated to `{created: 6, ...}` with
+  upgrade-path-hint, §5 health-check guidance updated to expect six
+  buckets including the V-908 `nats kv info wakir-federation-routes`
+  check, §6.5 federation-routes section flipped from "Phase-1b
+  bring-up" to "now routine; fallback only" with the
+  `init-nats-buckets.py --bucket wakir-federation-routes` recipe
+  added next to the legacy `nats kv add` recipe, new §7.7 substance
+  section (config rationale with Wirelang-side `BUCKET_CONFIG`
+  byte-mirror, hermetic test inventory, gated-live anchor,
+  Cross-Review-Zone-B paired-update statement, dual-anchor parity
+  contract), §7 follow-up Sprint-3 line struck through and annotated
+  with "done in Phase-2 Sprint-4 Tag-5 as the 6th bucket". Cross-
+  Review Zone-B follow-up paired-update memo to the Wirelang track:
+  `agents-workspaces/reza/inbox/2026-05-11-kai-zone-b-sixth-bucket-paired-update.md`.
+  Domain-discipline statement: the 6th bucket is operator-side
+  infra (DevOps-track-owned per §1 Persona); the Wirelang-side
+  consumer (`wirelang.federation.route_registry_nats_kv_backend`)
+  is NOT touched by this Tag-5 delivery — the orchestrator-side
+  inventory addition is byte-equal verifiable against the existing
+  Wirelang `BUCKET_CONFIG` constant via the lazy-import parity test
+  T-Tag5-02. Phase-1b consumer status: the Wirelang-side
+  `NatsKvRouteRegistry` continues to read and write the bucket
+  exactly as before; the only operational change is that operators
+  bringing up a fresh cluster no longer need the §6.5 hand-creation
+  step (the routine `init-nats-buckets.py` pass materialises the
+  bucket together with the other five). Zero-drift verification:
+  `tests/orchestrator/` 108 passed + 8 skipped post-Tag-5 (Tag-4
+  baseline 103+6, net +5 hermetic + 2 gated-live skips — the new
+  T-Tag5-02 lazy-imports the Wirelang module so this also exercises
+  the orchestrator-suite parity probe against the consumer-side
+  `BUCKET_CONFIG`), project-wide 245 passed + 24 skipped post-Tag-5
+  (Tag-4 baseline 237+26, net +8 passed and -2 skipped — the net
+  delta reflects the +5 hermetic Tag-5 adds, the +1 new gated-live
+  skip, plus inventory test count adjustments where pre-existing
+  inventory tests now exercise a six-element set instead of five).
+  Auftrags-Wortlaut Bindung: the Tag-5 auftrag referenced
+  `wakir-federation-routes` as the 6th bucket explicitly, citing
+  the Wirelang-track Sprint-3-Tag-4 `NatsKvRouteRegistry` backend
+  as the consumer-side anchor; this Tag-5 pass binds to that wording. The
+  stash@{0} snapshot
+  `tag-4-federation-routes-prior-attempt` (created during the Tag-4
+  re-spawn pivot) was consulted as a substance-anchor for the
+  6th-bucket BucketSpec values and the runbook §6.5 transformation
+  prose; the changes here are freshly written on the Tag-4 commit
+  base (`16ddaba`), not a stash-pop apply — preserving the
+  Tag-5 commit's full attribution chain.

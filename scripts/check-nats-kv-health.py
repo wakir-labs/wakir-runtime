@@ -28,6 +28,17 @@
 #                                           Sprint-4 Tag-4, Phase-2-
 #                                           reserved; no Phase-1b
 #                                           consumer)
+#      - ``wakir-federation-routes``        V-908 federation-route
+#                                           registry consumed by the
+#                                           Wirelang-side
+#                                           ``NatsKvRouteRegistry``
+#                                           backend (6th bucket added
+#                                           Sprint-4 Tag-5; closes the
+#                                           Sprint-2 Tag-7 Z-B
+#                                           inventory-drift follow-up
+#                                           that previously required
+#                                           an out-of-band ``nats kv
+#                                           add`` step per Runbook §6.5)
 #
 # 3. Compares each bucket's live configuration to the documented
 #    Phase-1 inventory and reports any drift in {want, got} form.
@@ -160,6 +171,13 @@ PHASE_1_BUCKETS: tuple[BucketSpec, ...] = (
         history=5,
         ttl_seconds=0,
         max_value_size=262_144,  # 256 KiB, mirrors wakir-schemas
+    ),
+    BucketSpec(
+        name="wakir-federation-routes",
+        description="V-908 federation-route registry (Phase-1b)",
+        history=5,
+        ttl_seconds=0,
+        max_value_size=4_096,  # mirrors Wirelang BUCKET_CONFIG
     ),
 )
 
