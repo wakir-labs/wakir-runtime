@@ -432,6 +432,7 @@ def test_as_dict_returns_pinned_schema_keys() -> None:
         "schema_ok": True,
         "integrity_ok": True,
         "multi_cap_root_status": "deferred",
+        "signature_status": "",
         "failure_reason": "",
     }
 

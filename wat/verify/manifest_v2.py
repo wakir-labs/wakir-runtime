@@ -134,6 +134,27 @@ from wat.merkle.aggregator import (
     compute_leaf_hash,
 )
 
+# Manifest-signing primitive (Sprint-4 Tag-6). The verifier-sig wire-up
+# (Sprint-5 Tag-2) consumes ``verify_manifest_signature`` and the
+# ``VerifyMode`` policy surface; signing itself is the producer's job
+# and stays in :mod:`wat.identity.manifest_signing`.
+from wat.identity.manifest_signing import (
+    SIGNATURE_FIELD,
+    VerifyMode,
+    WatManifestSignatureError,
+    verify_manifest_signature,
+)
+
+
+#: Env-var flag mirroring the ``--verify-signature`` CLI flag. When set
+#: to ``"1"``, the manifest-v2 verifier opts in to manifest-signature
+#: verification without requiring the explicit CLI flag (useful for
+#: cron / systemd-unit invocations). The opt-in is the *only* path —
+#: the default-off posture protects backward compatibility for the 321
+#: pre-Sprint-5-Tag-1 tests and any external verifier that has not yet
+#: adopted the optional ``signature`` slot.
+_VERIFY_SIGNATURE_ENV: str = "WAKIR_VERIFY_MANIFEST_SIGNATURE"
+
 
 # ---------------------------------------------------------------------------
 # OTS anchor magic header
@@ -213,11 +234,35 @@ class ManifestV2Result:
         pending), ``"mismatch"`` (strict mode + recompute did not
         match — also forces ``integrity_ok = False``). Empty string
         for v1 manifests.
+    signature_status:
+        Outcome of the optional manifest-signature verification
+        (Phase-2 Sprint-5 Tag-2 wire-up). One of:
+
+        - ``""`` — signature verification was not requested (default
+          opt-in surface; the verifier never auto-runs the signature
+          check).
+        - ``"verified"`` — caller requested signature verification, a
+          ``signature`` slot was present on the manifest, and the
+          signature verified cryptographically against the supplied
+          public key.
+        - ``"unsigned-permissive"`` — caller requested verification,
+          no slot present, ``VerifyMode.PERMISSIVE`` accepted the
+          manifest.
+        - ``"unsigned-strict"`` — caller requested verification, no
+          slot present, ``VerifyMode.STRICT`` rejected the manifest.
+          Forces ``integrity_ok = False``.
+        - ``"mismatch"`` — slot present, well-formed, signature did
+          NOT verify cryptographically. Forces ``integrity_ok =
+          False``.
+        - ``"structural-error"`` — slot present but malformed (wrong
+          alg, wrong sig-length, missing kid, etc.) OR pre-condition
+          violation (e.g. missing public key under signed-manifest
+          verification). Forces ``integrity_ok = False``.
     failure_reason:
         Diagnostic for the first failure encountered, empty on the
         all-OK path. Format: ``<phase>: <human message>`` where
-        ``<phase>`` is ``schema``, ``integrity``, or
-        ``multi_cap_root``.
+        ``<phase>`` is ``schema``, ``integrity``, ``multi_cap_root``,
+        or ``signature``.
     """
 
     manifest_path: str
@@ -225,6 +270,7 @@ class ManifestV2Result:
     schema_ok: bool
     integrity_ok: bool
     multi_cap_root_status: str = ""
+    signature_status: str = ""
     failure_reason: str = ""
 
     @property
@@ -258,6 +304,10 @@ class ManifestV2Result:
         - ``integrity_ok`` — boolean, cross-module integrity outcome.
         - ``multi_cap_root_status`` — string, one of
           ``"verified" | "deferred" | "mismatch" | ""`` (empty for v1).
+        - ``signature_status`` — string, one of ``"" | "verified" |
+          "unsigned-permissive" | "unsigned-strict" | "mismatch" |
+          "structural-error"`` (empty when signature verification
+          was not requested — the default opt-in surface).
         - ``failure_reason`` — string, ``"<phase>: <message>"`` on
           failure, empty on success.
         """
@@ -269,6 +319,7 @@ class ManifestV2Result:
             "schema_ok": self.schema_ok,
             "integrity_ok": self.integrity_ok,
             "multi_cap_root_status": self.multi_cap_root_status,
+            "signature_status": self.signature_status,
             "failure_reason": self.failure_reason,
         }
 
@@ -770,11 +821,91 @@ def _check_trigger_discipline(manifest: dict) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 
+def _verify_signature_slot(
+    manifest: dict,
+    *,
+    public_key: Optional[bytes],
+    mode: "VerifyMode",
+) -> Tuple[str, str]:
+    """Run the optional manifest-signature check on a parsed manifest.
+
+    Returns ``(signature_status, failure_message)`` where
+    ``signature_status`` is one of ``"verified" |
+    "unsigned-permissive" | "unsigned-strict" | "mismatch" |
+    "structural-error"`` and ``failure_message`` is empty on success
+    or the diagnostic string (sans the ``"signature: "`` prefix; the
+    caller prepends it for symmetry with the ``schema``,
+    ``integrity``, and ``multi_cap_root`` phases).
+
+    Decision matrix:
+
+    - No ``signature`` slot on manifest:
+
+      - ``mode == PERMISSIVE`` -> ``("unsigned-permissive", "")``.
+        Verifier still passes (this is the "legacy unsigned hour-
+        manifest" path).
+      - ``mode == STRICT`` -> ``("unsigned-strict", "manifest is
+        unsigned and verify mode is STRICT")``.
+
+    - ``signature`` slot present, public-key missing -> ``("structural-
+      error", "ed25519_pub_key required for signed-manifest
+      verification")``. Caller is asking for a signature check
+      without supplying a key; surface this rather than skip.
+
+    - ``signature`` slot present, malformed (wrong alg, wrong length,
+      missing kid, ...) -> ``("structural-error", <reason>)``.
+
+    - ``signature`` slot present, well-formed, signature does NOT
+      verify cryptographically -> ``("mismatch", "signature does not
+      verify against supplied public key")``.
+
+    - ``signature`` slot present, well-formed, signature verifies ->
+      ``("verified", "")``.
+
+    The check runs on a *deep copy* path inside
+    :func:`verify_manifest_signature` so the caller's manifest dict
+    is not mutated by the slot-strip step.
+    """
+    has_slot = isinstance(manifest, dict) and SIGNATURE_FIELD in manifest
+
+    if not has_slot:
+        if mode is VerifyMode.STRICT:
+            return (
+                "unsigned-strict",
+                "manifest is unsigned and verify mode is STRICT",
+            )
+        return ("unsigned-permissive", "")
+
+    # Slot present -> public key required regardless of mode.
+    if public_key is None:
+        return (
+            "structural-error",
+            "ed25519_pub_key required for signed-manifest verification",
+        )
+
+    try:
+        ok = verify_manifest_signature(
+            manifest, public_key, mode=mode
+        )
+    except WatManifestSignatureError as exc:
+        return ("structural-error", str(exc))
+
+    if ok:
+        return ("verified", "")
+    return (
+        "mismatch",
+        "signature does not verify against supplied public key",
+    )
+
+
 def verify_manifest_v2_file(
     manifest_path: str | Path,
     *,
     schema_path: str | Path | None = None,
     strict_multi_cap_root: bool = True,
+    verify_signature: bool = False,
+    verify_signature_public_key: Optional[bytes] = None,
+    verify_signature_mode: "VerifyMode" = VerifyMode.PERMISSIVE,
 ) -> ManifestV2Result:
     """Verify a single WAT manifest file end-to-end.
 
@@ -796,6 +927,32 @@ def verify_manifest_v2_file(
         that have not yet adopted the locked ordering), skip the
         recompute and report ``multi_cap_root_status = "deferred"``
         so external callers can wire their own posture.
+    verify_signature:
+        Phase-2 Sprint-5 Tag-2 wire-up. When True, the verifier
+        consumes the optional manifest-level ``signature`` slot
+        (schema 0.2.0, Phase-2 Sprint-5 Tag-1) using the
+        :func:`wat.identity.manifest_signing.verify_manifest_signature`
+        primitive. When False (default), the slot round-trips through
+        the verifier without being checked — preserves the pre-Sprint-
+        5-Tag-2 behaviour and the 321 pre-existing tests. Opt-in is
+        the only path; there is no auto-detect from slot-presence to
+        avoid making the integrity verdict depend on the absence of a
+        caller-supplied public key.
+    verify_signature_public_key:
+        32-byte raw Ed25519 public key used to verify the manifest
+        signature. Required when ``verify_signature=True`` AND the
+        manifest carries a ``signature`` slot. When ``verify_signature
+        =True`` but the manifest is unsigned, this argument is
+        unused (and may be ``None``).
+    verify_signature_mode:
+        :class:`VerifyMode` policy controlling the
+        unsigned-manifest path under ``verify_signature=True``.
+        ``PERMISSIVE`` (default) accepts unsigned manifests as
+        ``signature_status="unsigned-permissive"`` and leaves the
+        integrity verdict untouched; ``STRICT`` rejects them as
+        ``signature_status="unsigned-strict"`` and flips ``integrity_ok
+        = False``. The flag has no effect when ``verify_signature
+        =False``.
     """
     path = Path(manifest_path)
     if not path.exists():
@@ -894,12 +1051,42 @@ def verify_manifest_v2_file(
                 failure_reason=f"{phase}: {multi_msg}",
             )
 
+    # Optional manifest-signature wire-up (Phase-2 Sprint-5 Tag-2).
+    # Default off; opt-in by the caller. Runs after schema +
+    # integrity + multi-cap-root because those phases are the
+    # cheaper, pre-existing contract — signature verification is
+    # only meaningful on a structurally consistent manifest.
+    signature_status = ""
+    if verify_signature:
+        signature_status, sig_msg = _verify_signature_slot(
+            manifest,
+            public_key=verify_signature_public_key,
+            mode=verify_signature_mode,
+        )
+        # Failure verdicts: mismatch, structural-error, unsigned-strict.
+        # unsigned-permissive and verified are pass-states.
+        if signature_status in (
+            "mismatch",
+            "structural-error",
+            "unsigned-strict",
+        ):
+            return ManifestV2Result(
+                manifest_path=str(path),
+                version=version,
+                schema_ok=True,
+                integrity_ok=False,
+                multi_cap_root_status=multi_cap_status,
+                signature_status=signature_status,
+                failure_reason=f"signature: {sig_msg}",
+            )
+
     return ManifestV2Result(
         manifest_path=str(path),
         version=version,
         schema_ok=True,
         integrity_ok=True,
         multi_cap_root_status=multi_cap_status,
+        signature_status=signature_status,
         failure_reason="",
     )
 
@@ -1759,6 +1946,47 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--verify-signature",
+        action="store_true",
+        help=(
+            "Opt in to manifest-signature verification (Phase-2 "
+            "Sprint-5 Tag-2 wire-up). Consumes the optional top-level "
+            "``signature`` slot (schema 0.2.0, Phase-2 Sprint-5 "
+            "Tag-1) and verifies it via "
+            "wat.identity.manifest_signing.verify_manifest_signature "
+            "against --verify-signature-public-key-hex. Default OFF "
+            "to preserve backward compatibility for the pre-Sprint-5 "
+            "test cohort and external verifiers that have not yet "
+            "adopted the optional slot. Equivalent to setting "
+            "WAKIR_VERIFY_MANIFEST_SIGNATURE=1 in the environment. "
+            "Does not apply in --real-manifest mode (real-manifest "
+            "signature wire-up is a follow-up item — the real "
+            "aggregator does not yet emit a signed envelope)."
+        ),
+    )
+    parser.add_argument(
+        "--verify-signature-public-key-hex",
+        default=None,
+        help=(
+            "32-byte (64-hex-char) raw Ed25519 public key used to "
+            "verify a signed manifest's signature slot. Required "
+            "when --verify-signature is set and the manifest carries "
+            "a signature slot. Ignored otherwise. Lowercase hex; "
+            "leading/trailing whitespace is stripped."
+        ),
+    )
+    parser.add_argument(
+        "--verify-signature-strict",
+        action="store_true",
+        help=(
+            "When --verify-signature is set, reject manifests that "
+            "do NOT carry a signature slot (VerifyMode.STRICT). "
+            "Default (without this flag) is VerifyMode.PERMISSIVE, "
+            "which accepts unsigned manifests as legacy hour-"
+            "manifests."
+        ),
+    )
+    parser.add_argument(
         "--quiet",
         action="store_true",
         help="Suppress per-step reporting; emit only ok / fail line.",
@@ -1796,6 +2024,8 @@ def _format_human(result: ManifestV2Result, *, quiet: bool) -> str:
     ]
     if result.multi_cap_root_status:
         lines.append(f"multi_cap_root:  {result.multi_cap_root_status}")
+    if result.signature_status:
+        lines.append(f"signature:       {result.signature_status}")
     if result.failure_reason:
         lines.append(f"failure_reason:  {result.failure_reason}")
     elif result.multi_cap_root_status == "deferred":
@@ -1932,10 +2162,45 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print(_format_human_real(real_result, quiet=args.quiet))
         return 0 if real_result.ok else 1
 
+    # Resolve signature-verification opt-in (CLI flag OR env-var).
+    # The env-var path mirrors WAKIR_OTS_FULL_VERIFY: useful for cron /
+    # systemd-unit invocations that cannot easily flip CLI flags.
+    import os as _os
+
+    env_opt_in = _os.environ.get(_VERIFY_SIGNATURE_ENV, "") == "1"
+    sig_opt_in = bool(args.verify_signature) or env_opt_in
+    sig_public_key: Optional[bytes] = None
+    if sig_opt_in and args.verify_signature_public_key_hex:
+        hex_str = args.verify_signature_public_key_hex.strip()
+        try:
+            sig_public_key = bytes.fromhex(hex_str)
+        except ValueError:
+            print(
+                "fail\tsignature: --verify-signature-public-key-hex is "
+                "not valid hex",
+                file=sys.stderr,
+            )
+            return 1
+        if len(sig_public_key) != 32:
+            print(
+                "fail\tsignature: --verify-signature-public-key-hex "
+                f"must decode to 32 bytes; got {len(sig_public_key)}",
+                file=sys.stderr,
+            )
+            return 1
+    sig_mode = (
+        VerifyMode.STRICT
+        if args.verify_signature_strict
+        else VerifyMode.PERMISSIVE
+    )
+
     result = verify_manifest_v2_file(
         args.manifest,
         schema_path=args.schema,
         strict_multi_cap_root=args.strict_multi_cap_root,
+        verify_signature=sig_opt_in,
+        verify_signature_public_key=sig_public_key,
+        verify_signature_mode=sig_mode,
     )
     if args.output == "json":
         print(json.dumps(result.as_dict(), sort_keys=True))

@@ -268,6 +268,68 @@ under this fallback, but the inclusion proof remains valid. Audit
 operators who need multi-cap data must upgrade their verifier; they
 do not need to re-anchor or re-emit any manifest.
 
+### 5.3 Optional manifest-signature wire-up (Phase-2 Sprint-5 Tag-2)
+
+Since Phase-2 Sprint-5 Tag-2 the reference verifier
+(`wat/verify/manifest_v2.py`) carries an **opt-in** consumer for the
+optional `signature` slot landed in Sprint-5 Tag-1 (schema 0.2.0,
+§4.4). The wire-up is OFF by default to preserve backward
+compatibility for the pre-Sprint-5 test cohort and for external
+verifiers that have not yet adopted the optional slot. Opt-in is
+the only path; the verifier never auto-detects slot presence to
+flip into signature-checking mode, because doing so would couple
+the integrity verdict to the absence of a caller-supplied public
+key.
+
+Surface:
+
+- Python API: `verify_manifest_v2_file(..., verify_signature=True,
+  verify_signature_public_key=<32 raw bytes>, verify_signature_mode=
+  VerifyMode.PERMISSIVE | VerifyMode.STRICT)`.
+- CLI: `--verify-signature` + `--verify-signature-public-key-hex
+  <64-hex>` + `--verify-signature-strict` (flag → STRICT mode,
+  default PERMISSIVE).
+- Env-var: `WAKIR_VERIFY_MANIFEST_SIGNATURE=1` flips opt-in without
+  changing call sites — mirrors `WAKIR_OTS_FULL_VERIFY=1`.
+
+The `signature_status` field on `ManifestV2Result` (mirrored in
+`as_dict()['signature_status']`) reports one of:
+
+| value | meaning |
+|---|---|
+| `""` | verification not requested (default opt-in surface). |
+| `"verified"` | slot present, signature verified cryptographically. |
+| `"unsigned-permissive"` | no slot, PERMISSIVE mode accepted. |
+| `"unsigned-strict"` | no slot, STRICT mode rejected (forces `integrity_ok=False`). |
+| `"mismatch"` | slot present, well-formed, did NOT verify (forces `integrity_ok=False`). |
+| `"structural-error"` | slot malformed OR public-key missing under a signed-manifest path (forces `integrity_ok=False`). |
+
+Phase ordering inside `verify_manifest_v2_file`: schema →
+trigger-discipline → event-count → leaves-match → merkle-root →
+multi-cap-root (v2 only) → signature (when opted in). The
+signature phase is the *last* verdict because cryptographic
+checking is only meaningful against a structurally consistent
+manifest; a tampered-body manifest that broke merkle-root upstream
+never reaches the signature phase.
+
+The signing primitive itself
+(`wat.identity.manifest_signing.verify_manifest_signature`) is the
+canonical implementation; this wire-up is a thin consumer that
+maps the primitive's return values into the verifier's failure-
+reason taxonomy. The `kid` field inside a signature slot is
+captured for downstream auditing; the kid → public-key resolver
+bridge (`wat.identity.anchor_kid.resolve_wat_anchor_kid`) is not
+yet wired into the verifier — callers supply the raw public key
+directly. Resolver wire-up is a Tag-3+ item gated on the
+Cross-Review-Zone-1 boundary with Identity-Substrate-engineering.
+
+The `--real-manifest` path does NOT yet honour
+`--verify-signature`: real-aggregator output
+(`wakir-wat-manifest/v1`) does not currently emit a signed
+envelope, and adding the wire-up to the real-manifest path is a
+follow-up item once the aggregator learns to sign on-disk
+manifests.
+
 ## 6. Aggregator behaviour (informational)
 
 This section is informational for verifier authors who want to
@@ -474,7 +536,8 @@ manifest-centric record rather than expecting a 1:1 field map.
 | `schema_ok` | boolean | JSON-Schema validation outcome. |
 | `integrity_ok` | boolean | Cross-module integrity outcome (event-count / leaves / merkle_root / multi-cap sidecar consistency). |
 | `multi_cap_root_status` | string enum: `"verified" \| "deferred" \| "mismatch" \| ""` | Empty string for v1 manifests. `"verified"` is the strict-mode default since Sprint-2 Tag-4 (OQ-1 ratified ordered-Merkle 2026-05-07); `"deferred"` is emitted only under explicit `--no-strict-multi-cap-root` lenient mode. |
-| `failure_reason` | string | `"<phase>: <message>"` on failure where `<phase>` is one of `schema`, `integrity`, `multi_cap_root`. Empty on success. |
+| `signature_status` | string enum: `"" \| "verified" \| "unsigned-permissive" \| "unsigned-strict" \| "mismatch" \| "structural-error"` | Phase-2 Sprint-5 Tag-2 opt-in field. Empty when signature verification not requested (default). See §5.3 for the full decision matrix. Additive within `wakir-verify-manifest-v2/0` (existing `/0` consumers see a new optional key, never a removed one). |
+| `failure_reason` | string | `"<phase>: <message>"` on failure where `<phase>` is one of `schema`, `integrity`, `multi_cap_root`, `signature`. Empty on success. |
 
 JSON keys are sorted (`json.dumps(..., sort_keys=True)`) so the
 byte-output is stable for downstream diffing / snapshot-tests.
@@ -545,6 +608,37 @@ is informative only.
 
 ## 11. Change log
 
+- **2026-05-11 (Phase-2 Sprint-5 Tag-2):** Verifier signature-slot
+  wire-up landed (`wat/verify/manifest_v2.py`). Adds the opt-in
+  consumer for the optional `signature` slot landed in Tag-1 (schema
+  0.2.0). Python API gains three kwargs (`verify_signature`,
+  `verify_signature_public_key`, `verify_signature_mode`) on
+  `verify_manifest_v2_file`. CLI gains three flags
+  (`--verify-signature`, `--verify-signature-public-key-hex`,
+  `--verify-signature-strict`) plus env-var
+  `WAKIR_VERIFY_MANIFEST_SIGNATURE=1`. `ManifestV2Result` gains the
+  `signature_status` field with six pinned values
+  (`"" | "verified" | "unsigned-permissive" | "unsigned-strict" |
+  "mismatch" | "structural-error"`); `as_dict()` exposes the new key.
+  Default-off opt-in preserves backward compatibility for the 327
+  pre-existing tests and for external verifiers that have not yet
+  adopted the slot. Phase ordering: schema → trigger-discipline →
+  event-count → leaves-match → merkle-root → multi-cap-root → signature.
+  The `--real-manifest` path does NOT yet honour `--verify-signature`
+  (real aggregator does not emit signed envelopes today); that wire-up
+  is a follow-up item. Kid → public-key resolver bridge
+  (`wat.identity.anchor_kid.resolve_wat_anchor_kid`) is not yet wired
+  into the verifier — callers supply the raw 32-byte public key
+  directly. Audit-trail-entry (`as_audit_trail_entry`, eleven-field
+  paired-update contract) is **not** extended in this Tag — that
+  shape stays at `wakir-verify-manifest-v2/0` until a Cross-Review
+  with frontend-engineering on a `signature_status` branch addition.
+  6 hermetic wire-up tests (`tests/wat/test_manifest_v2_verifier_sig_wireup.py`,
+  T-WAT-VERIFY-SIG-WIRE-01..06: signed happy path / default off /
+  unsigned PERMISSIVE / unsigned STRICT / mismatch / CLI end-to-end).
+  Sibling cohort (`test_manifest_v2_verifier_stub.test_as_dict_returns_pinned_schema_keys`)
+  bumped in-place to track the new `signature_status` key — no
+  test-count delta. Test suite 327 → 333 passed (+6 net).
 - **2026-05-11 (Phase-2 Sprint-5 Tag-1):** WAT-manifest schema-sig-slot
   formalisation landed (`wirelang/schemas/wat-manifest-v2.json`,
   schema `$id` bumped `…/wat-manifest-v2/0.1.0` → `…/wat-manifest-v2/0.2.0`,
