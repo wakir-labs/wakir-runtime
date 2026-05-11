@@ -78,6 +78,7 @@ members = [
     "crates/persona-migration",
     "crates/persona-migration-resolver",
     "crates/persona-cli",
+    "crates/persona-validator",
 ]
 
 [workspace.package]

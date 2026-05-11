@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# persona-validator — Rust pendant of `wirelang.persona.persona_validator`.
+#
+# Scope (Phase-1c Sprint-6 Tag-1, Crate-7):
+# - Read-only validator over a parsed front-matter mapping (Rust:
+#   `serde_json::Value::Object`). Mirrors the Python
+#   `validate_persona(input)` function.
+# - Closed-set error-code enum (`ValidationErrorCode`) byte-stable to
+#   the Python `VALIDATION_ERROR_CODES` registry.
+# - `ValidationReport` struct with `to_canonical_value() -> Value`
+#   that emits a JCS-stable dict matching Python
+#   `PersonaValidationReport.to_canonical_dict()` byte-for-byte.
+#
+# Posture (Phase-1c Rust migration, Default-Lock conform):
+# - This crate sees a `serde_json::Value` (already-parsed front-matter
+#   mapping). YAML parsing for `&str` / `&Path` inputs delegates to
+#   the sister `persona-canonical-form-yaml` crate (re-uses
+#   `split_frontmatter` + `parse_frontmatter` boundary).
+# - No hashing, no migration. The validator is a pure read-only
+#   classifier.
+# - Cross-checked byte-identical against the Python pendant for the V8
+#   (schema-rejected) and V9 (valid persona-v1) fixtures via a
+#   JCS-bytes anchor (`PERSONA_VALIDATOR_REPORT_PIN_V9_HEX`,
+#   `PERSONA_VALIDATOR_REPORT_PIN_V8_HEX`).
+#
+# Default-Lock posture:
+# - A-1 Mock-Format-Baseline: validator consumes the already-extracted
+#   canonical-or-near-canonical front-matter object. YAML parsing is
+#   out-of-scope for this crate's surface; the YAML branch delegates
+#   to persona-canonical-form-yaml.
+# - A-2 Additiv-only: adds Crate-7 next to the existing six crates.
+#   No file deletion, no API surface narrowing.
+# - A-3 Body out-of-hash: validator never reads the Markdown body.
+
+[package]
+name = "persona-validator"
+version = "0.1.0"
+description = "Read-only validator for V-907 persona-definitions (Rust pendant of wirelang.persona.persona_validator)"
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+
+[lib]
+name = "persona_validator"
+path = "src/lib.rs"
+
+[dependencies]
+# YAML front-matter parsing for `&str` / `&Path` inputs. The validator
+# re-uses the Python `split_frontmatter` + `parse_frontmatter`
+# boundary, which lives in this Rust crate for cross-lang parity.
+persona-canonical-form-yaml = { path = "../persona-canonical-form-yaml" }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+# Needed because the validator walks the parsed YAML mapping directly
+# (Python `Mapping` branch) — the upstream extractor only returns the
+# canonical-subset projection, but the validator's "list every error
+# instead of raising on the first" contract needs the original
+# pre-extraction YAML mapping.
+serde_yaml = { workspace = true }
+
+[dev-dependencies]
+# JCS-bytes parity anchor (V8/V9 fixture pin).
+serde_jcs = { workspace = true }
+sha2      = { workspace = true, features = ["std"] }
+hex       = { workspace = true }

@@ -44,6 +44,13 @@ from wirelang.persona.persona_migration import (
     PersonaMigrationError,
     migrate_persona,
 )
+from wirelang.persona.persona_validator import (
+    PERSONA_VALIDATION_REPORT_SCHEMA_VERSION,
+    VALIDATION_ERROR_CODES,
+    PersonaValidationReport,
+    ValidationError,
+    validate_persona,
+)
 
 __all__ = [
     "PERSONA_EMPTY_REF_SENTINEL",
@@ -51,12 +58,17 @@ __all__ = [
     "PERSONA_HASH_PREFIX",
     "PERSONA_SCHEMA_VERSION_LATEST",
     "PERSONA_SCHEMA_VERSION_LIST",
+    "PERSONA_VALIDATION_REPORT_SCHEMA_VERSION",
     "PersonaDefinitionInvalidError",
     "PersonaHashMismatchError",
     "PersonaMigrationDeterminismError",
     "PersonaMigrationError",
     "PersonaSchemaUnsupportedError",
+    "PersonaValidationReport",
+    "VALIDATION_ERROR_CODES",
+    "ValidationError",
     "compute_persona_hash",
     "compute_persona_hash_from_canonical",
     "migrate_persona",
+    "validate_persona",
 ]
