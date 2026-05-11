@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# Hash-pinned requirements file for the real-NATS-client adapter
+# (`nats-py`) used by Phase-2 live-NATS-test-mode (`tests/orchestrator/
+# test_live_nats_cross_validation.py`, `scripts/init-nats-buckets.py`,
+# `scripts/check-nats-kv-health.py`, `scripts/check-federation-
+# evaluator-health.py`).
+#
+# Why a separate file?
+# --------------------
+# pyproject.toml `[project.optional-dependencies]` cannot carry
+# `--hash=sha256:...` markers — that is a pip-requirements-file
+# feature (`--require-hashes`). This file is the canonical install
+# path on live-NATS-test-mode build hosts and gives Phase-2 supply-
+# chain provenance for nats-py installs.
+#
+# Install on a build host:
+# ------------------------
+#   pip install --require-hashes -r requirements-nats.txt
+#
+# `--require-hashes` causes pip to refuse the install if any wheel or
+# sdist does not match the listed hash byte-for-byte. This is the
+# pip-side analogue of compose/nats.yaml's `sha256:e4bf19f15fd...`
+# digest-pin: supply-chain pinning at install time, on the operator-
+# side host, complementing image-layer digest-pinning at container-
+# pull time.
+#
+# Provenance of the hashes:
+# -------------------------
+# 1. Validated byte-identity-clean against PyPI's JSON metadata
+#    endpoint (https://pypi.org/pypi/nats-py/2.14.0/json) on
+#    2026-05-11.
+# 2. Cross-validated by two independent local hashing tools on the
+#    same wheel/sdist payload:
+#      - `pip hash --algorithm sha256 nats_py-2.14.0-py3-none-any.whl`
+#      - `sha256sum nats_py-2.14.0-py3-none-any.whl`
+#    Both returned an identical hash to PyPI's published index value.
+# 3. Verified compatible with the first-time live-smoke run recorded
+#    in `agents-workspaces/kai/outbox/2026-05-11-phase-2-tag-2-first-
+#    time-live-smoke.md` (Sprint-4 Tag-2).
+#
+# Bump procedure (gated):
+# -----------------------
+# To upgrade past 2.14.0:
+#   1. Run a Live-Smoke session on a Bluefin/Silverblue build host
+#      against the candidate version.
+#   2. Cross-validate hashes with PyPI JSON metadata and two
+#      independent local hashing tools.
+#   3. Cross-Review Zone-B paired-update if any client-side wire-
+#      format semantics shift (mock-vs-live cross-validation suite
+#      in `tests/orchestrator/test_live_nats_cross_validation.py`
+#      covers this).
+#   4. Update both this file AND the `==` pin in `pyproject.toml`
+#      atomically in the same commit.
+
+nats-py==2.14.0 \
+    --hash=sha256:4116f5d2233ce16e63c3d5538fa40a5e207f75fcf42a741773929ddf1e29d19d \
+    --hash=sha256:4ed02cb8e3b55c68074a063aa2687087115d805d1513297da90cb2068fb07bed

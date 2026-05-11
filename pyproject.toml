@@ -77,6 +77,38 @@ test = [
     # JSON Schema validation for Wirelang Layer 0/1/2 conformance tests.
     "jsonschema>=4.21",
 ]
+# Real-NATS-client adapter, used by `scripts/init-nats-buckets.py`,
+# `scripts/check-nats-kv-health.py`, `scripts/check-federation-evaluator-
+# health.py` and the live-NATS-test-mode driver
+# (`tests/orchestrator/test_live_nats_cross_validation.py`).
+#
+# Pin posture
+# -----------
+# Version is hard-pinned (`==`) — not `>=` — because nats-py 2.14.0
+# is the version validated byte-identity-clean against the wheel
+# digest in Phase-2 Sprint-4 Tag-2 (First-Time-Live-Smoke record,
+# `agents-workspaces/kai/outbox/2026-05-11-phase-2-tag-2-first-time-
+# live-smoke.md`). Bumps to 2.15.x or later require an explicit
+# Live-Smoke re-run on a Bluefin/Silverblue build host plus a
+# Cross-Review Zone-B paired-update if any client-side wire-format
+# semantics shift (mock-vs-live cross-validation suite covers this).
+#
+# Hash pinning
+# ------------
+# pyproject.toml `[project.optional-dependencies]` cannot carry
+# `--hash=sha256:...` markers (that is a pip-requirements-file
+# feature, PEP-440 does not specify hash semantics for the project-
+# metadata field). The byte-precise hash pin lives in the sibling
+# `requirements-nats.txt` constraints file, which is the canonical
+# install path for live-NATS-test-mode build hosts. See file header
+# in `requirements-nats.txt` for hash provenance and install flow.
+#
+# PyPI: https://pypi.org/project/nats-py/  (URL-200-stamped 2026-05-11)
+# Maintainer: Synadia (Waldemar Quevedo <wally@synadia.com>).
+# License: Apache-2.0.
+nats = [
+    "nats-py==2.14.0",
+]
 
 [project.scripts]
 wakir-merkle = "wat.cmd.aggregator_cli:main"
