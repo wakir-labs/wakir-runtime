@@ -1705,6 +1705,405 @@ class LiveCapabilityPolicySnapshot:
         return cls(initial=initial, last_revision=0)
 
 
+# ---------------------------------------------------------------------------
+# Revocation Event Classifier (Phase-2 Sprint-6 Tag-3, consumer-side
+# symmetry to Sprint-6 Tag-1 backend revocation-axis)
+# ---------------------------------------------------------------------------
+#
+# Sprint-6 Tag-1 added the backend-write side of the revocation surface
+# (the ``CapabilityPolicy.revoked_at`` + ``revocation_reason`` fields,
+# the ``CapabilityPolicyRevocationConflict`` invariants on the write
+# path, the publisher-CLI ``revoke`` subcommand from Tag-2). The
+# consumer side – an audit-track observer that watches the bucket and
+# wants to know "WHICH watch-event was a revocation?" – had no
+# explicit surface: a downstream consumer had to compare PUT-event
+# records' ``policy.revoked_at`` against its own prior view to
+# classify each event.
+#
+# Sprint-6 Tag-3 closes that asymmetry. The
+# :class:`RevocationEventClassifier` keeps a per-key map of the last
+# observed ``revoked_at`` instant and turns each
+# :class:`CapabilityPolicyWatchEvent` into a
+# :class:`ClassifiedRevocationEvent` annotated with one of five
+# :class:`RevocationEventKind` values. The classifier is a pure-Python
+# value object: it owns no async resources, performs no IO, and is
+# safe to instantiate without a running event loop.
+#
+# Audit pattern: a consumer opens the watch-stream, drives both
+# :class:`LiveCapabilityPolicySnapshot.apply` (for the live registry
+# view) and :meth:`RevocationEventClassifier.classify` (for the
+# revocation-event-axis annotation) from the same event sequence. The
+# two are orthogonal: the live snapshot tracks "what is the active
+# policy state right now", the classifier tracks "what kind of
+# transition did each event represent".
+#
+# Symmetry with Sprint-6 Tag-1: the classifier mirrors the same
+# revocation-monotonic invariant the backend enforces on writes – once
+# a key is revoked, subsequent PUTs MUST preserve ``revoked_at``
+# byte-equally; an apparent un-revoke or an advanced ``revoked_at`` is
+# a witness of substrate corruption or out-of-band tampering and is
+# surfaced as :attr:`RevocationEventKind.REVOCATION_MONOTONIC_BREACH`.
+# The classifier does NOT raise on a breach – it surfaces the kind so
+# audit consumers can decide their policy (alert, halt, etc.). This is
+# deliberate: a classifier is an observation layer, not an enforcement
+# layer.
+
+
+class RevocationEventKind(enum.Enum):
+    """Classification of a capability-policy watch event with respect
+    to the revocation axis.
+
+    Five kinds cover the cross-product of {PUT, DELETE/PURGE} x
+    {prior-state present?} x {prior revoked?} x {incoming revoked?}.
+
+    - :attr:`NOT_REVOCATION_RELATED`: a PUT with ``revoked_at=None``
+      against a prior live state that was also ``revoked_at=None`` (or
+      no prior state). The event has no revocation-axis content.
+    - :attr:`REVOCATION_TRANSITION`: a PUT carrying ``revoked_at != None``
+      against a prior live state with ``revoked_at=None`` (or no prior
+      state). This is the *first* time the key carries a revocation
+      instant; downstream audit consumers should treat this as the
+      authoritative "policy became revoked at <instant>" moment.
+    - :attr:`REVOCATION_REFRESH`: a PUT carrying the same ``revoked_at``
+      instant as the prior live state (which was already revoked). This
+      is an audit-trail refresh (e.g. ``revocation_reason`` updated,
+      ``registered_at`` advanced) without altering the revocation
+      decision. Verifier-side gating is unchanged.
+    - :attr:`REVOCATION_MONOTONIC_BREACH`: a PUT against a prior-revoked
+      key that either (a) drops ``revoked_at`` to ``None`` (apparent
+      un-revoke) or (b) carries a strictly different ``revoked_at``
+      instant (advance or retreat). Backend-write invariants from
+      Sprint-6 Tag-1 forbid both transitions, so observing this on the
+      watch-stream is a *witness* that the bucket state was mutated
+      out-of-band (substrate corruption, manual override, or a
+      classifier-internal book-keeping error). The classifier surfaces
+      the kind; the consumer decides the response.
+    - :attr:`KEY_REMOVED`: a DELETE or PURGE event. The classifier
+      preserves no revocation history beyond the event; if the key is
+      later re-introduced via PUT, the next event will be classified
+      against a fresh prior-empty state. (Rationale: DELETE is a
+      hard removal in the KV substrate; the revocation lineage is
+      severed by definition.)
+
+    The enum is an :class:`enum.Enum`, not :class:`enum.IntEnum`, by
+    design: the values are not ordered and equality checks should be
+    explicit (``kind is RevocationEventKind.REVOCATION_TRANSITION``).
+    """
+
+    NOT_REVOCATION_RELATED = "not_revocation_related"
+    REVOCATION_TRANSITION = "revocation_transition"
+    REVOCATION_REFRESH = "revocation_refresh"
+    REVOCATION_MONOTONIC_BREACH = "revocation_monotonic_breach"
+    KEY_REMOVED = "key_removed"
+
+
+@dataclass(frozen=True)
+class ClassifiedRevocationEvent:
+    """A :class:`CapabilityPolicyWatchEvent` annotated with a
+    :class:`RevocationEventKind`.
+
+    Fields:
+
+    - ``event``: the underlying :class:`CapabilityPolicyWatchEvent`.
+      The classifier does not mutate or replace it; downstream
+      consumers can still apply it to a
+      :class:`LiveCapabilityPolicySnapshot` for the live-registry
+      axis.
+    - ``kind``: the :class:`RevocationEventKind`.
+    - ``prior_revoked_at``: the ``revoked_at`` instant observed for
+      this key before this event (or ``None`` if no prior state).
+      Useful for audit consumers that want to log the full state
+      transition (prior vs. incoming).
+    - ``current_revoked_at``: the ``revoked_at`` instant carried by
+      this event's record. ``None`` for DELETE / PURGE events, or for
+      PUT events whose record has ``revoked_at=None``.
+    - ``current_revocation_reason``: the ``revocation_reason`` carried
+      by this event's record. ``None`` for DELETE / PURGE events, or
+      for PUT events whose record carries no ``revocation_reason``.
+
+    Frozen: a classifier returns a stable value per event; consumers
+    can put :class:`ClassifiedRevocationEvent` into sets and use them
+    as dict keys without surprise.
+    """
+
+    event: CapabilityPolicyWatchEvent
+    kind: RevocationEventKind
+    prior_revoked_at: Optional[datetime]
+    current_revoked_at: Optional[datetime]
+    current_revocation_reason: Optional[str]
+
+
+class RevocationEventClassifier:
+    """Stateful classifier that annotates each
+    :class:`CapabilityPolicyWatchEvent` with a
+    :class:`RevocationEventKind`.
+
+    The classifier keeps a per-key ``revoked_at``-history map. The map
+    is the minimum state needed to classify a new event: only the
+    last-seen ``revoked_at`` instant per key is retained, not the full
+    record history (which the
+    :class:`LiveCapabilityPolicySnapshot` already maintains in
+    parallel).
+
+    Usage::
+
+        classifier = RevocationEventClassifier()
+        # Optionally seed from a snapshot for resume-after-restart
+        # scenarios:
+        classifier.seed_from_records(await backend.snapshot())
+        async with await backend.watch() as stream:
+            async for event in stream:
+                classified = classifier.classify(event)
+                if classified.kind is \\
+                        RevocationEventKind.REVOCATION_TRANSITION:
+                    audit_log.record_revocation(classified)
+                elif classified.kind is \\
+                        RevocationEventKind.REVOCATION_MONOTONIC_BREACH:
+                    alert.fire(classified)
+
+    Concurrency: the classifier is intended for a single-consumer
+    pattern in one asyncio task. :meth:`classify` and
+    :meth:`seed_from_records` are synchronous and mutate the internal
+    map; cross-task sharing requires caller-side locking.
+
+    Pattern-mirror on :class:`LiveCapabilityPolicySnapshot`: both are
+    "watch-stream-fed observer" objects. The split keeps each one's
+    concern narrow – the live snapshot tracks the *current registry*,
+    the classifier tracks the *revocation-axis transitions*.
+    """
+
+    def __init__(self) -> None:
+        # Per-key last-seen ``revoked_at`` instant. ``None`` value means
+        # the key has been observed but is not currently revoked. The
+        # absence of a key from the map means "no prior state".
+        self._revoked_at_by_key: dict = {}
+
+    def seed_from_records(self, records: list) -> None:
+        """Seed the classifier's per-key state from a list of
+        :class:`CapabilityPolicyRecord` instances (e.g. a full
+        ``await backend.snapshot()`` result).
+
+        Useful for resume-after-restart scenarios where the consumer
+        has bootstrapped its live snapshot from the backend and now
+        wants the classifier's prior-state map to reflect the same
+        baseline. Without seeding, the first watch event for each key
+        would be classified as a transition (or not-revocation) against
+        an empty prior state.
+
+        Idempotent: calling :meth:`seed_from_records` repeatedly with
+        the same input produces the same internal state. Subsequent
+        :meth:`classify` calls overwrite the seeded state as events
+        arrive.
+        """
+        for record in records:
+            if not isinstance(record, CapabilityPolicyRecord):
+                raise CapabilityPolicyValidationError(
+                    f"seed_from_records expects CapabilityPolicyRecord "
+                    f"instances: got type={type(record).__name__}"
+                )
+            self._revoked_at_by_key[record.key] = (
+                record.policy.revoked_at
+            )
+
+    def classify(
+        self, event: CapabilityPolicyWatchEvent
+    ) -> ClassifiedRevocationEvent:
+        """Classify one :class:`CapabilityPolicyWatchEvent`.
+
+        Returns a :class:`ClassifiedRevocationEvent`. Side-effect: the
+        classifier's internal per-key state map is updated to reflect
+        the event's effect, so the next event for the same key is
+        classified against the now-updated prior state.
+
+        Decision table:
+
+        ===========  ============  ============  ==================================
+        op           prior state   incoming      kind
+        ===========  ============  ============  ==================================
+        PUT          absent        None          NOT_REVOCATION_RELATED
+        PUT          absent        non-None      REVOCATION_TRANSITION
+        PUT          None          None          NOT_REVOCATION_RELATED
+        PUT          None          non-None      REVOCATION_TRANSITION
+        PUT          non-None      None          REVOCATION_MONOTONIC_BREACH
+        PUT          non-None X    non-None X    REVOCATION_REFRESH
+        PUT          non-None X    non-None Y    REVOCATION_MONOTONIC_BREACH
+        DELETE       any           N/A           KEY_REMOVED
+        PURGE        any           N/A           KEY_REMOVED
+        ===========  ============  ============  ==================================
+
+        After classification, the per-key state map is updated:
+
+        - PUT: prior-state := record.policy.revoked_at
+        - DELETE / PURGE: key is removed from the map
+        """
+        if not isinstance(event, CapabilityPolicyWatchEvent):
+            raise TypeError(
+                "event must be a CapabilityPolicyWatchEvent"
+            )
+
+        prior_revoked_at = self._revoked_at_by_key.get(event.key)
+        key_had_prior_state = event.key in self._revoked_at_by_key
+
+        if event.op in (
+            CapabilityPolicyWatchOp.DELETE,
+            CapabilityPolicyWatchOp.PURGE,
+        ):
+            # Drop the key from the classifier's map; revocation lineage
+            # is severed by definition (substrate-level hard removal).
+            self._revoked_at_by_key.pop(event.key, None)
+            return ClassifiedRevocationEvent(
+                event=event,
+                kind=RevocationEventKind.KEY_REMOVED,
+                prior_revoked_at=prior_revoked_at
+                if key_had_prior_state
+                else None,
+                current_revoked_at=None,
+                current_revocation_reason=None,
+            )
+
+        # PUT branch: the event MUST carry a record (the decoder's
+        # contract). A PUT with record=None would have been raised
+        # earlier in the pipeline by
+        # :func:`_decode_capability_policy_watch_update`; we re-assert
+        # the invariant defensively.
+        if event.record is None:
+            raise CapabilityPolicyEnvelopeError(
+                "PUT CapabilityPolicyWatchEvent must carry a "
+                "non-None record (classifier invariant)"
+            )
+
+        incoming_revoked_at = event.record.policy.revoked_at
+        incoming_revocation_reason = (
+            event.record.policy.revocation_reason
+        )
+
+        # Classification logic.
+        if prior_revoked_at is None:
+            # Prior state is either absent or unrevoked.
+            if incoming_revoked_at is None:
+                kind = RevocationEventKind.NOT_REVOCATION_RELATED
+            else:
+                kind = RevocationEventKind.REVOCATION_TRANSITION
+        else:
+            # Prior state is revoked.
+            if incoming_revoked_at is None:
+                # Apparent un-revoke (forbidden by backend invariants;
+                # observing on the watch-stream is a witness of
+                # substrate corruption or out-of-band tampering).
+                kind = RevocationEventKind.REVOCATION_MONOTONIC_BREACH
+            elif incoming_revoked_at == prior_revoked_at:
+                kind = RevocationEventKind.REVOCATION_REFRESH
+            else:
+                # Strictly different revoked_at (advance or retreat;
+                # both forbidden by backend invariants).
+                kind = RevocationEventKind.REVOCATION_MONOTONIC_BREACH
+
+        # Update the per-key state map AFTER classification so the
+        # classifier observes the prior state correctly for THIS event,
+        # then advances for the next.
+        self._revoked_at_by_key[event.key] = incoming_revoked_at
+
+        return ClassifiedRevocationEvent(
+            event=event,
+            kind=kind,
+            prior_revoked_at=prior_revoked_at
+            if key_had_prior_state
+            else None,
+            current_revoked_at=incoming_revoked_at,
+            current_revocation_reason=incoming_revocation_reason,
+        )
+
+    def known_keys(self) -> list:
+        """Return the sorted list of keys the classifier has observed.
+
+        Useful for audit-trail surfacing (e.g. "how many distinct
+        policy-pairs have we seen on this stream?") without exposing
+        the internal map.
+        """
+        return sorted(self._revoked_at_by_key.keys())
+
+    def last_revoked_at(self, key: str) -> Optional[datetime]:
+        """Return the last-observed ``revoked_at`` instant for ``key``,
+        or ``None`` if the key is not currently revoked (either it has
+        never been observed, has been observed as unrevoked, or has
+        been removed by DELETE / PURGE).
+
+        Note: the return value ``None`` is intentionally ambiguous
+        between "never observed" and "observed but unrevoked". Callers
+        that need the distinction should use :meth:`known_keys` or
+        track the membership themselves.
+        """
+        return self._revoked_at_by_key.get(key)
+
+
+async def filter_revocation_events(
+    stream: Any,
+    classifier: Optional["RevocationEventClassifier"] = None,
+    kinds: Optional[frozenset] = None,
+):
+    """Async generator that wraps an async iterator of
+    :class:`CapabilityPolicyWatchEvent` and yields the subset matching
+    ``kinds``, classified via ``classifier``.
+
+    Parameters:
+
+    - ``stream``: any async iterator yielding
+      :class:`CapabilityPolicyWatchEvent` instances. The
+      :class:`_CapabilityPolicyWatchStreamHandle` returned by
+      :meth:`NatsKvCapabilityPolicyBackend.watch` is the canonical
+      input.
+    - ``classifier``: optional :class:`RevocationEventClassifier`
+      instance. If ``None``, a fresh one is constructed. Pass an
+      existing classifier to preserve per-key state across multiple
+      filter calls or to share the classifier with another consumer.
+    - ``kinds``: optional frozenset of
+      :class:`RevocationEventKind` values to surface. If ``None``,
+      defaults to ``{REVOCATION_TRANSITION, REVOCATION_REFRESH,
+      REVOCATION_MONOTONIC_BREACH}`` (the three revocation-axis
+      kinds). Pass ``frozenset(RevocationEventKind)`` to surface every
+      classified event (useful for full-audit consumers).
+
+    Yields: :class:`ClassifiedRevocationEvent` instances whose ``kind``
+    is in ``kinds``. The classifier sees EVERY event in the stream
+    (so its state map stays consistent); only the kinds matching the
+    filter are yielded.
+
+    Closing semantics: when the underlying stream ends, this generator
+    completes naturally. The classifier remains usable for further
+    calls after the generator returns.
+    """
+    if classifier is None:
+        classifier = RevocationEventClassifier()
+    elif not isinstance(classifier, RevocationEventClassifier):
+        raise TypeError(
+            "classifier must be a RevocationEventClassifier or None"
+        )
+
+    if kinds is None:
+        kinds = frozenset({
+            RevocationEventKind.REVOCATION_TRANSITION,
+            RevocationEventKind.REVOCATION_REFRESH,
+            RevocationEventKind.REVOCATION_MONOTONIC_BREACH,
+        })
+    elif not isinstance(kinds, (frozenset, set)):
+        raise TypeError(
+            "kinds must be a frozenset/set of RevocationEventKind or None"
+        )
+    else:
+        for k in kinds:
+            if not isinstance(k, RevocationEventKind):
+                raise TypeError(
+                    f"kinds members must be RevocationEventKind: got "
+                    f"type={type(k).__name__}"
+                )
+        kinds = frozenset(kinds)
+
+    async for event in stream:
+        classified = classifier.classify(event)
+        if classified.kind in kinds:
+            yield classified
+
+
 __all__ = [
     "BUCKET_NAME",
     "BUCKET_CONFIG",
@@ -1717,8 +2116,12 @@ __all__ = [
     "CapabilityPolicyRecord",
     "CapabilityPolicyWatchEvent",
     "CapabilityPolicyWatchOp",
+    "ClassifiedRevocationEvent",
     "LiveCapabilityPolicySnapshot",
     "NatsKvCapabilityPolicyBackend",
+    "RevocationEventClassifier",
+    "RevocationEventKind",
+    "filter_revocation_events",
     "key_for_policy_pair",
     "open_capability_policy_watch_stream",
     "pair_for_key",
