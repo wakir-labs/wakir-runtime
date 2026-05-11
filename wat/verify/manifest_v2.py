@@ -1296,7 +1296,22 @@ def _check_ots_anchor_side_files(
             failure_reason=f"ots: root.bin not found next to manifest at {root_bin}",
         )
 
-    raw = root_bin.read_bytes()
+    # Sidecar read can fail on a present-but-unreadable file (e.g.
+    # restrictive umask on the aggregator side, ops sandbox that
+    # denies the verifier service account, transient I/O errors).
+    # The verifier must not crash; it must surface a structured
+    # rejection. Sprint-4 Tag-1 receipt-persistence-edge-case
+    # hardening (see tests/wat/test_tv3_receipt_persistence_edges.py).
+    try:
+        raw = root_bin.read_bytes()
+    except OSError as exc:
+        return OtsAnchorCheck(
+            checked=True,
+            root_bin_present=True,
+            failure_reason=(
+                f"ots: root.bin present but unreadable at {root_bin}: {exc}"
+            ),
+        )
     if len(raw) != 32:
         return OtsAnchorCheck(
             checked=True,
@@ -1324,7 +1339,17 @@ def _check_ots_anchor_side_files(
             failure_reason=f"ots: root.bin.ots not found at {ots_file}",
         )
 
-    head = ots_file.read_bytes()[: len(_OTS_MAGIC_HEADER)]
+    try:
+        head = ots_file.read_bytes()[: len(_OTS_MAGIC_HEADER)]
+    except OSError as exc:
+        return OtsAnchorCheck(
+            checked=True,
+            root_bin_present=True,
+            root_bin_matches_manifest=True,
+            failure_reason=(
+                f"ots: root.bin.ots present but unreadable at {ots_file}: {exc}"
+            ),
+        )
     if head != _OTS_MAGIC_HEADER:
         return OtsAnchorCheck(
             checked=True,

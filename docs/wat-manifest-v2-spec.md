@@ -500,6 +500,26 @@ is informative only.
 
 ## 11. Change log
 
+- **2026-05-11 (Sprint-4 Tag-1):** TV-3 receipt-persistence edge-case
+  coverage extended by six hermetic shapes against the on-disk side-
+  files: empty `root.bin` (0 bytes); `root.bin` removed entirely;
+  `root.bin.ots` removed entirely; `root.bin.ots` with the wrong magic
+  header at the correct length (16 bytes of `\xff`); `root.bin` padded
+  to 64 bytes; `root.bin` with all-bits-cleared permissions. Each test
+  pins the specific `OtsAnchorCheck` discriminator (`root_bin_present`,
+  `root_bin_matches_manifest`, `ots_present`, `ots_magic_ok`) so a
+  future verifier refactor that silently re-classifies a branch will
+  break a test. Tied to a small verifier hardening:
+  `_check_ots_anchor_side_files` now wraps both sidecar `read_bytes()`
+  calls in `try/except OSError` and surfaces a structured rejection
+  (`failure_reason` populated, `ots_anchor.ok` False) rather than
+  leaking `PermissionError`/`OSError` up the stack. This is additive
+  to the Tag-3 edge cluster (three shapes: truncated `root.bin`,
+  truncated `root.bin.ots`, `root.bin` flipped vs `merkle_root`) in
+  `tests/wat/test_tv3_real_manifest_live_run.py`; the Tag-3 module is
+  unchanged. New module `tests/wat/test_tv3_receipt_persistence_edges.py`
+  (6 tests). Test-suite delta +6 (293 -> 299 passed; 25 skipped
+  unchanged).
 - **2026-05-07 (Sprint-3 Tag-4):** off-default `ots verify`-Voll-
   Integration landed. The pin-anchor side-file check (Sprint-2 Tag-5)
   stops at the OpenTimestamps magic header for hermeticity reasons —
