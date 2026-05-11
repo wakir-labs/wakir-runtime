@@ -1061,3 +1061,306 @@ mod tests {
         );
     }
 }
+
+// ---------------------------------------------------------------------
+// `--target persona-v2` operator-CLI test pack (Phase-1b Sprint-5 Tag-2).
+//
+// Rust mirror of `wirelang/tests/test_persona_migration_cli_v2_target.py`
+// (7 Python tests). Covers the `wakir-persona migrate --target persona-v2`
+// surface that Sprint-3 Tag-3 wired into the CLI's `--target` choices via
+// `PERSONA_SCHEMA_VERSION_LIST`. Each Rust test is paired 1:1 with a
+// Python test so that a future regression in either tree fails the
+// matching test on the other side.
+//
+// Pairing:
+//
+// | Python test                                                | Rust test                                                  |
+// |------------------------------------------------------------|-----------------------------------------------------------|
+// | test_build_parser_accepts_target_persona_v2                | vt1_parser_accepts_target_persona_v2                       |
+// | test_cli_v9_to_v2_single_step_emits_v2_canonical_subset    | vt2_cli_v9_to_v2_single_step_emits_v2_canonical_subset     |
+// | test_cli_v9_to_v2_emit_hash_matches_v9_migrated_to_v2_pin  | vt3_cli_v9_to_v2_emit_hash_matches_v9_migrated_to_v2_pin   |
+// | test_cli_v8_to_v2_multi_step_chain_emits_v2_canonical_*    | vt4_cli_v8_to_v2_multi_step_chain_emits_v2_canonical_*     |
+// | test_cli_v8_to_v2_chain_expect_hash_passes                 | vt5_cli_v8_to_v2_chain_expect_hash_passes                  |
+// | test_cli_target_persona_v0_from_v9_input_rejects_with_*    | vt6_cli_target_persona_v0_from_v9_input_rejects_with_*     |
+// |  (no Python counterpart — Rust-only extra: V9 single-step  | vt7_cli_v9_to_v2_chain_expect_hash_passes                  |
+// |   expect-hash; matches the Python single-step contract     |   (paired with vt3 via expect-hash form; mirrors the      |
+// |   that vt3 exercises via emit-hash. Added so the bare-hex  |   Python emit-hash anchor as an expect-hash anchor)        |
+// |   expect-hash form has v2-target coverage.)                |                                                            |
+//
+// Cross-check Rust ↔ Python: each test's behaviour is byte-identical to
+// the Python test on stdout (JSON shape + schema_version field) and
+// load-bearing-identical on stderr (marker substrings + exit codes;
+// progress-line wording is irrelevant — all vt2..vt7 run under `--quiet`
+// where stderr is silent or carries only the pin / drift marker).
+// ---------------------------------------------------------------------
+
+#[cfg(test)]
+mod v2_target_tests {
+    use super::*;
+    use persona_migration_resolver::{
+        PERSONA_HASH_PIN_V8_MIGRATED_TO_V2, PERSONA_HASH_PIN_V9_MIGRATED_TO_V2,
+    };
+    use std::path::PathBuf;
+
+    // Repeat the fixture-resolver here instead of pulling it from the
+    // sibling `tests` mod: Rust's mod-private items are not visible to
+    // sibling test modules. This is a 12-LoC mirror, not a new contract.
+    fn fixture(name: &str) -> PathBuf {
+        let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        p.push("..");
+        p.push("..");
+        p.push("..");
+        p.push("wirelang");
+        p.push("tests");
+        p.push("fixtures");
+        p.push("persona_definitions");
+        p.push(name);
+        p
+    }
+
+    fn v8_fixture() -> PathBuf {
+        fixture("v8-persona-pre-framework.md")
+    }
+
+    fn v9_fixture() -> PathBuf {
+        fixture("v9-persona-framework-native.md")
+    }
+
+    // -------------------------------------------------------------------
+    // vt1 / Parser surface: --target persona-v2 must be an accepted
+    //       choice after Tag-3's PERSONA_SCHEMA_VERSION_LIST extension.
+    //
+    // Mirror of Python `test_build_parser_accepts_target_persona_v2`.
+    // Regression guard for the resolver's PERSONA_SCHEMA_VERSION_LIST
+    // tuple: if a future refactor narrows the list back to
+    // ("persona-v0", "persona-v1"), `validate_target("persona-v2")`
+    // rejects and clap's parse fails with EXIT_USAGE_ERROR — both
+    // assertions trip.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vt1_parser_accepts_target_persona_v2() {
+        // Direct call on the public validator.
+        assert_eq!(
+            validate_target("persona-v2"),
+            Ok("persona-v2".to_string()),
+            "validate_target must accept persona-v2 after Tag-3 list extension"
+        );
+
+        // Full clap parse path: argv shape mirrors the Python invocation
+        // `["migrate", str(V9_FIXTURE), "--target", "persona-v2"]`. Cli
+        // is a derive-Parser; we use try_parse_from so a clap regression
+        // (e.g. unknown subcommand) surfaces as `Err` rather than a
+        // process exit at test-time.
+        let path = v9_fixture();
+        let path_str = path.to_string_lossy().into_owned();
+        let cli = Cli::try_parse_from([
+            "wakir-persona",
+            "migrate",
+            &path_str,
+            "--target",
+            "persona-v2",
+        ])
+        .expect("clap should parse --target persona-v2");
+        match cli.command {
+            Command::Migrate(args) => {
+                assert_eq!(args.target, "persona-v2");
+                assert_eq!(args.persona_file, path);
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // vt2 / Single-step CLI path: v9 -> v2 (V1ToV2Step alone).
+    //
+    // Mirror of Python `test_cli_v9_to_v2_single_step_emits_v2_canonical_subset`.
+    // stdout JSON carries schema_version=persona-v2; stderr is silent
+    // under --quiet without --emit-hash.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vt2_cli_v9_to_v2_single_step_emits_v2_canonical_subset() {
+        let outcome = run_in_process(
+            "v9 -> v2 single-step",
+            v9_fixture(),
+            &["--target", "persona-v2", "--quiet"],
+        );
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let payload: Value =
+            serde_json::from_str(&outcome.stdout).expect("stdout is JSON-decodable");
+        assert_eq!(
+            payload["schema_version"], "persona-v2",
+            "schema_version must be lifted to persona-v2"
+        );
+        assert_eq!(
+            outcome.stderr, "",
+            "--quiet without --emit-hash must yield empty stderr"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vt3 / --emit-hash on the v9 -> v2 single-step path surfaces the
+    //       V9-migrated-to-V2 pin (PERSONA_HASH_PIN_V9_MIGRATED_TO_V2).
+    //
+    // Mirror of Python `test_cli_v9_to_v2_emit_hash_matches_v9_migrated_to_v2_pin`.
+    // Pinned-anchor assertion: a CLI-dispatch regression (e.g.
+    // accidentally re-hashing the v1 intermediate instead of the v2
+    // endpoint) trips this assertion rather than silently emitting the
+    // wrong pin.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vt3_cli_v9_to_v2_emit_hash_matches_v9_migrated_to_v2_pin() {
+        let outcome = run_in_process(
+            "v9 -> v2 emit-hash",
+            v9_fixture(),
+            &["--target", "persona-v2", "--quiet", "--emit-hash"],
+        );
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let nonempty: Vec<&str> = outcome
+            .stderr
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .collect();
+        assert_eq!(
+            nonempty,
+            vec![PERSONA_HASH_PIN_V9_MIGRATED_TO_V2],
+            "emit-hash stderr must be exactly the V9-migrated-to-V2 pin"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vt4 / Multi-step CLI path: v8 -> v0 -> v1 -> v2 (M-1 direct
+    //       anchor through the operator surface).
+    //
+    // Mirror of Python `test_cli_v8_to_v2_multi_step_chain_emits_v2_canonical_subset`.
+    // The resolver builds [V0ToV1Step(), V1ToV2Step()] automatically
+    // when the source is v0 (v8 fixture's recorded schema_version) and
+    // the target is v2. stdout JSON carries schema_version=persona-v2.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vt4_cli_v8_to_v2_multi_step_chain_emits_v2_canonical_subset() {
+        let outcome = run_in_process(
+            "v8 -> chain -> v2",
+            v8_fixture(),
+            &["--target", "persona-v2", "--quiet"],
+        );
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let payload: Value =
+            serde_json::from_str(&outcome.stdout).expect("stdout is JSON-decodable");
+        assert_eq!(
+            payload["schema_version"], "persona-v2",
+            "schema_version must be lifted to persona-v2 through the chain"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vt5 / --expect-hash against PERSONA_HASH_PIN_V8_MIGRATED_TO_V2 on
+    //       the v8 -> chain -> v2 path passes (M-1 direct anchor via
+    //       operator surface).
+    //
+    // Mirror of Python `test_cli_v8_to_v2_chain_expect_hash_passes`.
+    // Full sha256:<64hex> form (bare-hex form is exercised by t8b on
+    // the v1 surface; here we keep parity with the Python file which
+    // also uses full form on this v2-target test).
+    //
+    // By construction PERSONA_HASH_PIN_V8_MIGRATED_TO_V2 ==
+    // PERSONA_HASH_PIN_V9_MIGRATED_TO_V2 (v8 and v9 share every
+    // canonical-subset key except schema_version, and the chain
+    // endpoint sets v2 either way); we anchor on the V8 alias here.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vt5_cli_v8_to_v2_chain_expect_hash_passes() {
+        let outcome = run_in_process(
+            "v8 -> chain -> v2 expect-hash",
+            v8_fixture(),
+            &[
+                "--target",
+                "persona-v2",
+                "--quiet",
+                "--expect-hash",
+                PERSONA_HASH_PIN_V8_MIGRATED_TO_V2,
+            ],
+        );
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        // --quiet without --emit-hash: stderr silent.
+        assert_eq!(
+            outcome.stderr, "",
+            "--quiet without --emit-hash must yield empty stderr on happy path"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vt6 / Negative path: --target persona-v0 with a v9 input is
+    //       rejected at resolver time with exit code 1.
+    //
+    // Mirror of Python `test_cli_target_persona_v0_from_v9_input_rejects_with_exit_1`.
+    // Forward-only chain (Default-Lock A-2 additive-only): persona-v0
+    // is in PERSONA_SCHEMA_VERSION_LIST so clap accepts it, but no
+    // inverse migration step is registered, so the resolver raises
+    // PersonaMigrationError and the CLI maps that to EXIT_MIGRATION_ERROR
+    // = 1.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vt6_cli_target_persona_v0_from_v9_input_rejects_with_exit_1() {
+        let outcome = run_in_process(
+            "v9 -> v0 forward-only-reject",
+            v9_fixture(),
+            &["--target", "persona-v0", "--quiet"],
+        );
+        assert_eq!(
+            outcome.exit_code, EXIT_MIGRATION_ERROR,
+            "stderr: {}",
+            outcome.stderr
+        );
+        assert!(
+            outcome.stderr.contains("migration failed"),
+            "expected 'migration failed' marker; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vt7 / --expect-hash against PERSONA_HASH_PIN_V9_MIGRATED_TO_V2 on
+    //       the v9 -> v2 single-step path passes.
+    //
+    // Companion to vt5: that test pins the v8 -> chain -> v2 endpoint
+    // via PERSONA_HASH_PIN_V8_MIGRATED_TO_V2; this test pins the v9 ->
+    // v2 single-step path via PERSONA_HASH_PIN_V9_MIGRATED_TO_V2 (which
+    // is the same byte-blob by construction, but reached via a
+    // different dispatch path — single V1ToV2Step alone, no V0ToV1Step
+    // upfront). Catches a regression where the single-step path
+    // accidentally drops or duplicates a step.
+    //
+    // This is an additive Rust-side anchor not present 1:1 in the
+    // Python file (the Python file exercises the single-step path via
+    // emit-hash in test_cli_v9_to_v2_emit_hash_matches_*, see vt3
+    // above); we add the expect-hash form here for symmetry with vt5.
+    // The Python single-step expect-hash form is implicitly covered
+    // because the Python emit-hash test asserts byte-equality with the
+    // same pin constant.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vt7_cli_v9_to_v2_chain_expect_hash_passes() {
+        let outcome = run_in_process(
+            "v9 -> v2 single-step expect-hash",
+            v9_fixture(),
+            &[
+                "--target",
+                "persona-v2",
+                "--quiet",
+                "--expect-hash",
+                PERSONA_HASH_PIN_V9_MIGRATED_TO_V2,
+            ],
+        );
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        assert_eq!(
+            outcome.stderr, "",
+            "--quiet without --emit-hash must yield empty stderr on happy path"
+        );
+    }
+}
