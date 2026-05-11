@@ -167,11 +167,16 @@ Phase-2 Sprint-5 Tag-2 boundary
   reserved as a Phase-3 slot (analogous to the schema-registry
   watch-stream, Sprint-3 Tag-4). The Phase-2 Sprint-5 Tag-2 slot is
   full-snapshot only.
-- This module DOES NOT ship a CAS-pinned upsert path. Policies are
-  LWW under the assumption that policy authorship is operator-
-  driven and rate-limited; the CAS-pin path is reserved as a
-  Phase-3 slot (analogous to the schema-registry CAS-pin, Sprint-3
-  Tag-3). Sprint-5 Tag-2 ships PUT (LWW) only.
+- Sprint-5 Tag-2 ships PUT (LWW) only. The CAS-pinned upsert path
+  ``put_with_revision`` is **added in Sprint-5 Tag-4** (pattern-mirror
+  on the schema-registry CAS-pin, Sprint-3 Tag-3) — see
+  :meth:`NatsKvCapabilityPolicyBackend.put_with_revision` and
+  :class:`CapabilityPolicyConflictError` below. The Sprint-5 Tag-2
+  ``put`` LWW path remains supported and orthogonal: CAS-pin is the
+  opt-in lost-update-protection surface for operators who edit
+  policies concurrently (e.g. rotating ``allowed_kids`` on a
+  key-rollover), while LWW remains the default for create-once /
+  rarely-touched policy authorship flows.
 - This module DOES NOT replace the Sprint-5 Tag-1
   ``--capability-registry`` operator-local JSON file format. Both
   paths coexist: the JSON-file path is "policies you ship with your
@@ -284,6 +289,53 @@ class CapabilityPolicyValidationError(CapabilityPolicyBackendError):
     """Raised when a write-time validation gate fails (malformed
     :class:`CapabilityPolicy` bundle or key-pair mismatch).
     """
+
+
+class CapabilityPolicyConflictError(CapabilityPolicyBackendError):
+    """Raised when a CAS-pinned upsert is rejected because the live KV
+    revision has drifted from the caller's expected revision.
+
+    Phase-2 Sprint-5 Tag-4 CAS-pin contract (pattern-mirror on the
+    Phase-1b Sprint-3 Tag-3 schema-registry CAS-pin path; see
+    :class:`wirelang.schemas.registry_nats_kv_backend.SchemaRegistryConflictError`).
+
+    The caller of
+    :meth:`NatsKvCapabilityPolicyBackend.put_with_revision` declares
+    the revision it observed when it last read the record. The backend
+    forwards that revision to the underlying NATS-KV ``update`` call.
+    If the live revision has advanced (a concurrent policy-authorship
+    writer landed first), the underlying KV layer raises a
+    nats-py-flavoured ``KeyWrongLastSequenceError`` (or any error
+    whose class name contains ``WrongLastSequence``, ``Conflict``, or
+    ``RevisionMismatch``); the backend translates that into this typed
+    exception.
+
+    Carries the observed ``key``, ``expected_revision``, and (when
+    available) the ``actual_revision`` reported by the underlying
+    layer. ``actual_revision`` is ``None`` if the KV adapter does not
+    surface it; callers can re-read the record and retry.
+
+    Lost-update protection on capability-policy authorship is the
+    Sprint-5 Tag-4 substance: two operators editing the same
+    ``(registered_by, policy_id)`` pair concurrently — for example to
+    rotate ``allowed_kids`` after a key-rollover — would otherwise risk
+    one overwriting the other's edit silently under the Sprint-5
+    Tag-2 last-write-wins ``put`` contract. CAS-pin makes the conflict
+    explicit so the second writer can re-read and re-apply.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        key: Optional[str] = None,
+        expected_revision: Optional[int] = None,
+        actual_revision: Optional[int] = None,
+    ) -> None:
+        super().__init__(message)
+        self.key = key
+        self.expected_revision = expected_revision
+        self.actual_revision = actual_revision
 
 
 # ---------------------------------------------------------------------------
@@ -686,6 +738,58 @@ class NatsKvCapabilityPolicyBackend:
             return None
         return await self.get(key)
 
+    async def get_with_revision(
+        self, key: str
+    ) -> Optional[Tuple[CapabilityPolicyRecord, int]]:
+        """Return ``(record, revision)`` for ``key`` or ``None``.
+
+        Phase-2 Sprint-5 Tag-4 CAS-pin helper. The revision is the
+        same integer that :meth:`put_with_revision` expects as
+        ``expected_revision``.
+
+        The implementation reuses the same KV adapter path as
+        :meth:`get`; the revision is read from the KV entry handle's
+        ``.revision`` attribute (nats-py shape) or from a ``revision``
+        key on a Mapping-shaped entry.
+
+        Raises :class:`CapabilityPolicyEnvelopeError` if the value is
+        unparseable, identical to :meth:`get`.
+
+        Mirror of
+        :meth:`wirelang.schemas.registry_nats_kv_backend.NatsKvSchemaRegistry.get_with_revision`.
+        """
+        if not isinstance(key, str) or not key:
+            return None
+        try:
+            kve = await self.kv.get(key)
+        except Exception as exc:
+            cls_name = type(exc).__name__
+            if (
+                "NotFound" in cls_name
+                or "DoesNotExist" in cls_name
+                or isinstance(exc, KeyError)
+            ):
+                return None
+            raise
+        if kve is None:
+            return None
+        blob = _coerce_value_bytes(kve)
+        record = _envelope_to_record(blob)
+        revision = _coerce_revision_from_entry(kve)
+        return record, revision
+
+    async def get_with_revision_by_pair(
+        self, registered_by: str, policy_id: str
+    ) -> Optional[Tuple[CapabilityPolicyRecord, int]]:
+        """Convenience wrapper:
+        ``get_with_revision(key_for_policy_pair(...))``.
+        """
+        try:
+            key = key_for_policy_pair(registered_by, policy_id)
+        except ValueError:
+            return None
+        return await self.get_with_revision(key)
+
     async def put(self, record: CapabilityPolicyRecord) -> int:
         """Upsert a record; returns the new KV revision number.
 
@@ -715,6 +819,72 @@ class NatsKvCapabilityPolicyBackend:
         key = record.key
         blob = _record_to_envelope(record)
         revision = await self.kv.put(key, blob)
+        return _coerce_revision(revision)
+
+    async def put_with_revision(
+        self, record: CapabilityPolicyRecord, expected_revision: int
+    ) -> int:
+        """CAS-pinned upsert. Returns the new KV revision number.
+
+        Phase-2 Sprint-5 Tag-4 CAS-pin (pattern-mirror on the
+        Phase-1b Sprint-3 Tag-3 schema-registry CAS-pin path).
+
+        Lost-update protection contract:
+
+        - The caller observed ``expected_revision`` when it last read
+          the record (via :meth:`get_with_revision`).
+        - This method forwards ``expected_revision`` to the underlying
+          NATS-KV ``update(key, value, last=expected_revision)`` call.
+        - If the live revision has advanced since the caller's read
+          (a concurrent writer landed first), the underlying layer
+          raises a ``KeyWrongLastSequenceError`` (nats-py shape) or
+          analogous ``ConflictError``. The backend translates that
+          into :class:`CapabilityPolicyConflictError`.
+
+        For a record that does not yet exist in the bucket, callers
+        MUST use :meth:`put` (which has last-write-wins semantics).
+        ``put_with_revision`` with ``expected_revision == 0`` is
+        reserved for the create-if-absent case but only succeeds if
+        the underlying KV adapter supports the
+        ``KeyValue.create(key, value)`` contract; if the adapter does
+        not surface that semantic, the call raises
+        :class:`CapabilityPolicyConflictError`.
+
+        Validation gates (identical to :meth:`put`):
+
+        1. ``record`` is a :class:`CapabilityPolicyRecord` (and the
+           embedded :class:`CapabilityPolicy` round-trip is enforced by
+           the dataclass ``__post_init__``).
+        2. Pair ↔ key derivation succeeds (the
+           ``(record.policy.registered_by, record.policy_id)`` pair
+           matches the canonical key derivation).
+
+        These run BEFORE the revision-pin call so that a malformed
+        envelope cannot leave the validation surface even if the
+        revision happened to be stale. This mirrors the schema-registry
+        CAS-pin "validation gates run BEFORE CAS" determinism contract
+        (Sprint-3 Tag-3 spec §5.4).
+        """
+        if not isinstance(record, CapabilityPolicyRecord):
+            raise TypeError("record must be a CapabilityPolicyRecord")
+        if not isinstance(expected_revision, int) or expected_revision < 0:
+            raise ValueError(
+                "expected_revision must be a non-negative int, "
+                f"got {expected_revision!r}"
+            )
+        # Gate 1: bundle round-trip (already validated by the record
+        # and policy __post_init__; we re-validate here defensively).
+        if not isinstance(record.policy, CapabilityPolicy):
+            raise CapabilityPolicyValidationError(
+                f"record.policy must be a CapabilityPolicy: type="
+                f"{type(record.policy).__name__}"
+            )
+        # Gate 2: pair ↔ key (raises on malformed components).
+        key = record.key
+        blob = _record_to_envelope(record)
+        revision = await _kv_update_with_revision(
+            self.kv, key, blob, expected_revision
+        )
         return _coerce_revision(revision)
 
     async def delete(self, key: str) -> None:
@@ -839,6 +1009,134 @@ def _coerce_revision(rv: Any) -> int:
     return int(revision)
 
 
+def _coerce_revision_from_entry(kve: Any) -> int:
+    """Read the revision integer from a KV entry handle.
+
+    nats-py exposes ``kve.revision``; some mocks expose the same field
+    on a Mapping-shaped entry. A missing revision is returned as ``0``
+    (sentinel for "create-if-absent" CAS contract) but the caller
+    should normally observe a positive revision because it just read
+    the entry from the bucket.
+
+    Phase-2 Sprint-5 Tag-4 CAS-pin helper (pattern-mirror on the
+    schema-registry CAS-pin helper of the same name).
+    """
+    if isinstance(kve, (bytes, bytearray)):
+        return 0
+    revision = getattr(kve, "revision", None)
+    if revision is None and isinstance(kve, Mapping):
+        revision = kve.get("revision")
+    if revision is None:
+        return 0
+    return int(revision)
+
+
+_CONFLICT_CLS_MARKERS = (
+    "WrongLastSequence",
+    "Conflict",
+    "RevisionMismatch",
+)
+
+
+async def _kv_update_with_revision(
+    kv: Any,
+    key: str,
+    value: bytes,
+    expected_revision: int,
+) -> Any:
+    """CAS-pinned KV write.
+
+    nats-py exposes ``KeyValue.update(key, value, last=revision)``
+    which raises ``KeyWrongLastSequenceError`` if the live revision
+    differs. We accept three KV adapter shapes here:
+
+    1. ``kv.update(key, value, last=revision)`` — the canonical
+       nats-py shape.
+    2. ``kv.update(key, value, expected_revision)`` — positional
+       fallback for mocks.
+    3. ``kv.put(key, value, expected_revision=...)`` — keyword
+       fallback for mocks that overload ``put``.
+
+    On conflict (any exception whose class name carries one of the
+    markers in :data:`_CONFLICT_CLS_MARKERS`), the function raises
+    :class:`CapabilityPolicyConflictError` with the observed metadata.
+
+    Phase-2 Sprint-5 Tag-4 CAS-pin helper (pattern-mirror on the
+    schema-registry CAS-pin helper of the same name; the schema-
+    registry helper raises
+    :class:`SchemaRegistryConflictError`, this one raises
+    :class:`CapabilityPolicyConflictError`).
+    """
+    update = getattr(kv, "update", None)
+    if update is not None:
+        try:
+            try:
+                return await update(key, value, last=expected_revision)
+            except TypeError:
+                # Mock that doesn't accept the ``last`` keyword.
+                return await update(key, value, expected_revision)
+        except Exception as exc:
+            if _is_conflict_exception(exc):
+                actual = _extract_actual_revision(exc)
+                raise CapabilityPolicyConflictError(
+                    f"CAS-pin rejected for key {key!r}: "
+                    f"expected_revision={expected_revision}, "
+                    f"actual_revision={actual}",
+                    key=key,
+                    expected_revision=expected_revision,
+                    actual_revision=actual,
+                ) from exc
+            raise
+    # Fallback: try put with kwarg.
+    try:
+        return await kv.put(key, value, expected_revision=expected_revision)
+    except TypeError as exc:
+        raise CapabilityPolicyBackendError(
+            "KV adapter has neither .update(last=...) nor "
+            ".put(expected_revision=...); CAS-pin not supported"
+        ) from exc
+    except Exception as exc:
+        if _is_conflict_exception(exc):
+            actual = _extract_actual_revision(exc)
+            raise CapabilityPolicyConflictError(
+                f"CAS-pin rejected for key {key!r}: "
+                f"expected_revision={expected_revision}, "
+                f"actual_revision={actual}",
+                key=key,
+                expected_revision=expected_revision,
+                actual_revision=actual,
+            ) from exc
+        raise
+
+
+def _is_conflict_exception(exc: BaseException) -> bool:
+    """True if ``exc``'s class name matches a CAS-conflict marker.
+
+    Phase-2 Sprint-5 Tag-4 CAS-pin helper (pattern-mirror on the
+    schema-registry CAS-pin helper of the same name; both detect
+    nats-py-style conflict exception class names by class-name marker
+    rather than by isinstance check, so the backend stays
+    nats-py-version-agnostic).
+    """
+    cls_name = type(exc).__name__
+    return any(marker in cls_name for marker in _CONFLICT_CLS_MARKERS)
+
+
+def _extract_actual_revision(exc: BaseException) -> Optional[int]:
+    """Pull an actual-revision integer off a conflict exception, if
+    the underlying KV adapter surfaces one. Best-effort, returns
+    ``None`` when not available.
+
+    Phase-2 Sprint-5 Tag-4 CAS-pin helper (pattern-mirror on the
+    schema-registry CAS-pin helper of the same name).
+    """
+    for attr in ("actual_revision", "actual", "revision", "last"):
+        value = getattr(exc, attr, None)
+        if isinstance(value, int):
+            return value
+    return None
+
+
 async def _list_keys(kv: Any) -> list:
     """List all keys in the bucket. nats-py exposes
     ``await kv.keys()`` returning ``list[str]``; we also accept a
@@ -862,6 +1160,7 @@ __all__ = [
     "BUCKET_CONFIG",
     "VALUE_SCHEMA",
     "CapabilityPolicyBackendError",
+    "CapabilityPolicyConflictError",
     "CapabilityPolicyEnvelopeError",
     "CapabilityPolicyValidationError",
     "CapabilityPolicyRecord",

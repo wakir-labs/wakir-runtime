@@ -9,19 +9,20 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wirelang-schema-registry
-version: 0.13.0
+version: 0.14.0
 status: draft
 date: 2026-05-11
 audience: implementers, integrators, operators
 license: CC-BY-4.0
 ---
 
-# Wirelang Schema Registry — NATS-KV Backend Specification (v0.13.0)
+# Wirelang Schema Registry — NATS-KV Backend Specification (v0.14.0)
 
 **Change log**
 
 | Version | Date       | Change                                                 |
 |---------|------------|--------------------------------------------------------|
+| 0.14.0  | 2026-05-11 | Phase-2 Sprint-5 Tag-4 lands the **capability-policy CAS-pin** path (pattern-mirror on the Phase-1b Sprint-3 Tag-3 schema-registry CAS-pin contract): `wirelang.schemas.capability_policy_nats_kv_backend` gains `NatsKvCapabilityPolicyBackend.get_with_revision`, `NatsKvCapabilityPolicyBackend.get_with_revision_by_pair`, `NatsKvCapabilityPolicyBackend.put_with_revision`, plus a new typed exception `CapabilityPolicyConflictError` (with `key` / `expected_revision` / `actual_revision` fields). New module-level helpers `_coerce_revision_from_entry`, `_kv_update_with_revision`, `_is_conflict_exception`, `_extract_actual_revision`, and constant `_CONFLICT_CLS_MARKERS` (byte-equal to the schema-registry CAS-pin helpers, allowing independent module evolution). §5.14 extended with a "CAS-pin operational contract (Sprint-5 Tag-4, additive over Sprint-5 Tag-2)" subsection: read-modify-write loop, validation-gate ordering (gates run BEFORE CAS, identical to Sprint-3 Tag-3 contract), KV-adapter contract (3 shapes: nats-py canonical `update(last=)`, positional fallback, `put(expected_revision=)` keyword fallback), determinism contract (3 invariants). §6.11 extended with T-CPP-CAS-01..10 + 2 auxiliary probes test inventory. §5.14 boundary item "future CAS-pinned upsert path" CONSUMED. §7 Phase-3-Reservation "capability-policy CAS-pin slot" CONSUMED. The Sprint-5 Tag-4 path is **additive over Sprint-5 Tag-2**: the existing `put` / `get` / `delete` / `snapshot` / `snapshot_registry` LWW surface is byte-unchanged, and the new CAS-pin path is the opt-in lost-update-protection surface for operators editing policies concurrently (e.g. rotating `allowed_kids` on a key-rollover; renaming `note` while preserving the validity window). The gate decision is byte-equal regardless of write path (LWW `put` or CAS `put_with_revision`). M-2 / M-4 conformance preserved (no envelope-field added, orthogonal to version axis). Cross-Review-Zone-1 non-touched (no Identity-Substrate touch; CAS-pin is a write-path concurrency contract, not a verifier contract). Cross-Review-Zone-B non-touched (the `wakir-capability-policies` bucket configuration is byte-unchanged — `history=5` already supports CAS-pin naturally; the Z-B paired-update memo from Sprint-5 Tag-2 remains the canonical orchestrator-side action item, no new bucket). Phase-2 hardening list updated: Phase-3 CAS-quorum (multi-replica CAS) remains reserved as a Phase-3 promotion slot. Additive-only change relative to v0.13.0. |
 | 0.13.0  | 2026-05-11 | Phase-2 Sprint-5 Tag-3 closes the publisher-CLI capability-policy-source end-to-end (`wirelang.schemas.publisher_cli`: new flag `--capability-bucket` mutually exclusive with `--capability-registry`; new flag `--capability-bucket-connect-url` defaulting to `nats://127.0.0.1:4222`; new optional `capability_bucket_factory` injection on `run()`; new receipt field `gate_policy_source: Optional[str]` carrying `"file"` / `"bucket"` / `None`; new helper `_load_capability_registry_from_bucket`; new module-level `_default_capability_bucket_factory`; `_run_dry_run` promoted from a synchronous routine to an `asyncio.run` wrapper over `_run_dry_run_async` so the bucket factory is reachable from the dry-run path); §5.13 extended with a "Bucket policy source (Sprint-5 Tag-3)" subsection (additive over the Sprint-5 Tag-1 file-source contract); §6.10 extended with T-SR-PUB-CB-01..10 test inventory plus an auxiliary bucket-loader contract probe; §5.14 boundary item "future publisher-CLI integration slot" CONSUMED; §7 Phase-3-Reservation "publisher-CLI integration of the Sprint-5 Tag-2 persistent capability-policy backend" CONSUMED with the Sprint-5 Tag-3 flag reference. The Sprint-5 Tag-3 integration is **additive over Sprint-5 Tag-2** and additive over Sprint-5 Tag-1: the persistent-distribution tier (`NatsKvCapabilityPolicyBackend.snapshot_registry`) is invoked exactly once per CLI run if `--capability-bucket` is set, returning a Sprint-4 Tag-6 `CapabilityPolicyRegistry` that the gate consumes byte-identical to the operator-local JSON-file path. The gate decision is byte-equal regardless of source; the only receipt difference between the two sources is the `gate_policy_source` audit field. The capability-policy bucket connection is closed via the factory's cleanup callback before either the publish proceeds or the deny short-circuit fires; on a deny the schema-registry bucket is never touched (consistent with the Sprint-5 Tag-1 short-circuit contract). M-2 / M-4 conformance preserved. Cross-Review-Zone-1 non-touched (the four Z-1-K-Sprint-4 consensus points remain byte-identical; this slot is a pure operator-CLI composition of Sprint-5 Tag-2 bucket-snapshot + Sprint-4 Tag-6 gating + Sprint-5 Tag-1 sign-then-gate pipeline). Cross-Review-Zone-B non-touched (no new bucket; the Sprint-5 Tag-2 bucket `wakir-capability-policies` is consumed as-is; the Z-B paired-update memo from Sprint-5 Tag-2 remains the canonical orchestrator-side action item). Receipt-shape forward-compat: pre-Sprint-5 receipts now carry four optional fields at default-off values (`signed=false`, `kid=null`, `gate_decision=null`, `gate_policy_source=null`); consumers that index by the legacy field set continue to read byte-equal pre-existing fields. Additive-only change relative to v0.12.0. |
 | 0.1.0   | 2026-05-07 | Initial draft (Phase-1b Sprint-3 Tag-1).               |
 | 0.2.0   | 2026-05-07 | Phase-1c CAS-pin contract reclassified from Phase-2 to Phase-1c and lands in Tag-3 (`put_with_revision` / `get_with_revision` / `SchemaRegistryConflictError`); §5.3 Phase-1c-Slot consumed; §5.4 added. Additive-only change relative to v0.1.0; M-2 / M-4 conformance preserved. |
@@ -3184,8 +3185,16 @@ remains the operator-local single-host convenience.
 
 **Boundary (Sprint-5 Tag-3 boundary, NOT shipped):**
 
-- No CAS-pin tier on the capability-policy bucket
-  (`NatsKvCapabilityPolicyBackend.put` is LWW; Phase-3 slot).
+- ~~No CAS-pin tier on the capability-policy bucket
+  (`NatsKvCapabilityPolicyBackend.put` is LWW; Phase-3 slot).~~
+  (**CAS-pin CONSUMED in Sprint-5 Tag-4** via
+  `NatsKvCapabilityPolicyBackend.put_with_revision` /
+  `.get_with_revision` and `CapabilityPolicyConflictError`; see
+  §5.14's "CAS-pin operational contract (Sprint-5 Tag-4)"
+  subsection. The Sprint-5 Tag-3 `--capability-bucket` flag is
+  read-only — `snapshot_registry()` — so the CAS-pin write path is
+  reachable today only via direct backend use; an operator-CLI
+  composition of the write path is a Sprint-5 Tag-5+ candidate.)
 - No watch-stream on the capability-policy bucket (full-snapshot
   only; Phase-3 slot).
 - No `--capability-bucket` Biscuit-v3-binary-token interpretation
@@ -3389,11 +3398,17 @@ entirely by calling `delete` and re-snapshotting.
   schedule); the live tail is reserved as a Phase-3 slot
   (analogous to the schema-registry watch-stream, Sprint-3 Tag-4).
   The Phase-2 Sprint-5 Tag-2 slot is full-snapshot only.
-- This module does NOT ship a CAS-pinned upsert path. Policies are
+- ~~This module does NOT ship a CAS-pinned upsert path. Policies are
   LWW under the assumption that policy authorship is
   operator-driven and rate-limited; the CAS-pin path is reserved as
   a Phase-3 slot (analogous to the schema-registry CAS-pin,
-  Sprint-3 Tag-3). Sprint-5 Tag-2 ships PUT (LWW) only.
+  Sprint-3 Tag-3). Sprint-5 Tag-2 ships PUT (LWW) only.~~ (**CONSUMED
+  in Sprint-5 Tag-4** — the CAS-pin path `put_with_revision` is now
+  the opt-in lost-update-protection surface, byte-mirroring the
+  Phase-1b Sprint-3 Tag-3 schema-registry CAS-pin contract; see the
+  "CAS-pin operational contract (Sprint-5 Tag-4)" subsection below.
+  The Sprint-5 Tag-2 LWW `put` path remains supported and orthogonal
+  to the CAS-pin path.)
 - ~~This module does NOT modify the Sprint-5 Tag-1 publisher CLI. A
   future `--capability-bucket` flag that reads policies from this
   bucket is a Sprint-5 Tag-3+ candidate; Sprint-5 Tag-2 is the
@@ -3501,6 +3516,187 @@ if not decision.allowed:
 The lifecycle is **two-process by design**: policy authorship and
 schema-registry publication can run on different hosts. The
 persistent bucket is the synchronisation point.
+
+#### CAS-pin operational contract (Sprint-5 Tag-4, additive over Sprint-5 Tag-2)
+
+Sprint-5 Tag-4 adds an opt-in lost-update-protection surface to the
+persistent capability-policy backend. The substance is a
+pattern-mirror on the Phase-1b Sprint-3 Tag-3 schema-registry
+CAS-pin contract (see §5.4): identical typed-exception shape,
+identical KV-adapter shim contract, identical determinism
+invariants. The mirror is intentional — operators who already learn
+the schema-registry CAS-pin idiom (`get_with_revision` →
+`put_with_revision` → catch `*ConflictError` → re-read on conflict)
+see the same idiom on the capability-policy layer, with the only
+type-axis difference being the conflict exception class
+(`SchemaRegistryConflictError` ↔ `CapabilityPolicyConflictError`).
+
+**Why CAS-pin on capability-policy authorship.** The Sprint-5 Tag-2
+LWW `put` path is acceptable when policy authorship is rare and
+operator-coordinated (one operator hand-edits a policy at a time).
+The CAS-pin path is the opt-in upgrade for concurrent-authorship
+flows where two operators (or two automation pipelines) edit the
+same `(registered_by, policy_id)` pair near-simultaneously — for
+example to rotate `allowed_kids` after a key-rollover (one operator
+adds the new kid; another revokes the old kid; without CAS-pin one
+write overwrites the other silently). With CAS-pin the second
+writer receives a `CapabilityPolicyConflictError`, re-reads the
+current record, re-applies its intended edit on top, and re-tries.
+
+**Read-modify-write loop:**
+
+```python
+from wirelang.schemas.capability_policy_nats_kv_backend import (
+    NatsKvCapabilityPolicyBackend,
+    CapabilityPolicyConflictError,
+    CapabilityPolicyRecord,
+)
+from wirelang.schemas.registered_by_capability import CapabilityPolicy
+
+backend = NatsKvCapabilityPolicyBackend(kv=open_kv_handle)
+
+while True:
+    got = await backend.get_with_revision_by_pair(
+        "wirelang-eng", "tier-1-ingress"
+    )
+    if got is None:
+        # First write: use LWW put (CAS create-if-absent is
+        # adapter-dependent; see KV-adapter contract below).
+        new_record = build_initial_record(...)
+        await backend.put(new_record)
+        break
+    current_record, observed_revision = got
+    new_record = mutate(current_record, ...)
+    try:
+        await backend.put_with_revision(new_record, observed_revision)
+        break
+    except CapabilityPolicyConflictError as exc:
+        # A concurrent writer landed. Loop: re-read, re-apply,
+        # re-try. The exception carries the live revision for
+        # diagnostic surfacing.
+        log.info(
+            "policy CAS conflict on %s: expected=%s actual=%s; retrying",
+            exc.key, exc.expected_revision, exc.actual_revision,
+        )
+        continue
+```
+
+**Validation-gate ordering (REQUIRED).** Identical to the
+Sprint-3 Tag-3 schema-registry CAS-pin contract:
+
+1. **Gate 1 — record type.** The `record` argument MUST be a
+   `CapabilityPolicyRecord`. A non-record argument raises
+   `TypeError` BEFORE any KV I/O. The bucket revision does not
+   advance.
+2. **Gate 2 — pair ↔ key derivation.** The
+   `(record.policy.registered_by, record.policy_id)` pair derives
+   the canonical key via `key_for_policy_pair`. A malformed pair
+   would have been rejected by the `CapabilityPolicyRecord`
+   `__post_init__` already (so the record could not have been
+   constructed); the gate is a defence-in-depth re-check that
+   ensures the record carries a derivable key before the CAS write.
+3. **Gate 3 — non-negative expected-revision.** `expected_revision`
+   MUST be a non-negative integer. Negative inputs raise
+   `ValueError` BEFORE any KV I/O.
+
+All three gates run BEFORE the revision-pin call. A malformed
+record or invalid revision argument cannot leave the validation
+surface even if the bucket revision happened to be stale.
+
+**KV-adapter contract (3 shapes).** The
+`_kv_update_with_revision` helper is byte-equal to the
+schema-registry CAS-pin helper of the same name in
+`wirelang.schemas.registry_nats_kv_backend`:
+
+1. `kv.update(key, value, last=expected_revision)` — the canonical
+   nats-py shape.
+2. `kv.update(key, value, expected_revision)` — positional fallback
+   for mocks that don't accept the `last` keyword.
+3. `kv.put(key, value, expected_revision=...)` — keyword fallback
+   for mocks that overload `put`.
+
+A KV adapter that surfaces NONE of the three shapes raises
+`CapabilityPolicyBackendError` with the message
+`"CAS-pin not supported"`. Specifically the exception is NOT a
+`CapabilityPolicyConflictError`: silent demotion to LWW would be a
+correctness violation (the caller asked for CAS protection and got
+LWW semantics without realising). T-CPP-CAS-10 anchors this
+invariant.
+
+**Conflict-exception class-name marker detection.** The helper
+`_is_conflict_exception` recognises any exception whose class name
+contains one of `WrongLastSequence`, `Conflict`, or
+`RevisionMismatch`. This class-name marker is the same set as the
+schema-registry CAS-pin helper. The marker-based detection keeps
+the backend nats-py-version-agnostic: a future nats-py rename of
+`KeyWrongLastSequenceError` to something else continues to be
+detected as long as the new class name carries one of the markers
+(and a backend test pin can be added at that point if not).
+
+**Determinism contract (3 invariants).**
+
+1. **Conflict-exception class-name detection.** The marker set
+   `{"WrongLastSequence", "Conflict", "RevisionMismatch"}` is the
+   recognised conflict-class-name set. A future-nats-py error class
+   that introduces a new naming convention without one of these
+   markers is NOT translated to `CapabilityPolicyConflictError` and
+   propagates verbatim. T-CPP-CAS-aux-conflict-class-detection
+   anchors this.
+2. **Lost-update protection under bounded concurrency.** Given a
+   starting revision `R0`, two writers observing `R0` and racing to
+   `put_with_revision` produce exactly one winner and one
+   conflict. The post-race revision is exactly `R0 + 1`. Extended
+   to `N` interleaved pairs: exactly `N` winners and `N` conflicts;
+   post-race revision is exactly `R0 + N`. T-CPP-CAS-08 and
+   T-CPP-CAS-aux-determinism anchor this.
+3. **CAS + LWW orthogonality.** A non-CAS `put` after a successful
+   `put_with_revision` lands at the higher revision: the LWW path
+   is byte-unchanged by the existence of the CAS path. The gate
+   decision for the resulting policy is byte-equal regardless of
+   which write path landed it. T-CPP-CAS-09 anchors this.
+
+**Compatibility statement (Sprint-5 Tag-4 boundary).**
+
+- Sprint-5 Tag-2 LWW surface (`put` / `get` / `get_by_pair` /
+  `delete` / `list_keys` / `snapshot` / `snapshot_registry`) is
+  byte-unchanged. T-CPP-01..10 from §6.11 remain green.
+- Sprint-5 Tag-2 envelope (`wakir.wirelang.capability-policy-entry/1`
+  on `wakir-capability-policies`) is byte-unchanged. M-2 conformance
+  preserved.
+- Sprint-5 Tag-2 bucket configuration (`BUCKET_CONFIG`) is
+  byte-unchanged. `history=5` already supports CAS-pin (the
+  underlying NATS-KV `update` operation is unconditional on history
+  depth ≥ 1; the bucket history is independent of CAS semantics).
+  Cross-Review-Zone-B non-touched; no new bucket; no new
+  paired-update memo.
+- The Phase-1b Sprint-3 Tag-3 schema-registry CAS-pin surface
+  (`SchemaRegistryConflictError`, `NatsKvSchemaRegistry.get_with_revision`,
+  `NatsKvSchemaRegistry.put_with_revision`) is byte-unchanged. The
+  Sprint-5 Tag-4 capability-policy CAS-pin surface is a parallel
+  module-local addition, not a refactor of the existing surface.
+- The Phase-1c CAS-quorum slot (multi-replica CAS) remains reserved
+  as a Phase-3 promotion slot for both modules.
+
+#### Boundary: Sprint-5 Tag-4 does NOT ship (explicit)
+
+- A watch-stream tail on the capability-policy bucket (`watch()` /
+  `WatchOp` / `LiveCapabilityPolicySnapshot`) — Phase-3 slot
+  mirroring Sprint-3 Tag-4.
+- A `--capability-bucket-cas` CLI flag on the publisher CLI — the
+  Sprint-5 Tag-3 `--capability-bucket` flag uses
+  `snapshot_registry` (which never writes), so the CAS-pin path is
+  reachable only via direct backend use today. Operator-CLI
+  composition of the CAS-pin write path is a Sprint-5 Tag-5+
+  candidate (likely a separate `wakir-capability-policy publish`
+  subcommand surface) and explicitly NOT shipped in Tag-4.
+- A CAS-quorum (multi-replica CAS) — Phase-3 slot. `replicas=1`
+  Sprint-5 Tag-2 bucket configuration is unchanged; CAS-pin
+  operates on the single-replica revision counter.
+- A Biscuit v3 binary-token interpretation of the policy envelope —
+  Phase-3 substrate; the in-bucket JSON envelope shape is
+  Sprint-5 Tag-2 byte-unchanged.
+- A mutation of `NatsKvSchemaRegistry` — the schema-registry
+  backend is byte-unchanged.
 
 ## 6. Test inventory
 
@@ -4391,6 +4587,88 @@ Sprint-5 Tag-1 publisher-CLI-capability-integration inventory
 Sprint-5 Tag-2 tests are additive and exercise a parallel test
 module.
 
+### 6.12 Capability-policy CAS-pin tests (Phase-2 Sprint-5 Tag-4, additive over Sprint-5 Tag-3)
+
+Sprint-5 Tag-4 ships hermetic tests at
+`wirelang/tests/test_capability_policy_cas_pin.py`. The inventory
+is a **pattern-mirror** on the Phase-1b Sprint-3 Tag-3
+`test_schema_registry_cas_pin.py` structure (T-SR-CAS-01..10 + 2
+auxiliary probes). The mirror is byte-precise on test-shape; the
+only differences are the substrate module under test
+(`capability_policy_nats_kv_backend` vs. `registry_nats_kv_backend`)
+and the typed exception class
+(`CapabilityPolicyConflictError` vs. `SchemaRegistryConflictError`).
+
+- **T-CPP-CAS-01:** `get_with_revision` round-trips the record and
+  its KV revision; the revision matches the one returned from
+  `put`. `get_with_revision_by_pair` returns byte-equivalent result.
+- **T-CPP-CAS-02:** `get_with_revision` for an absent key returns
+  `None`; `get_with_revision_by_pair` for an absent pair returns
+  `None`; a malformed pair (empty `registered_by`) also returns
+  `None` (graceful degradation, no raise — mirrors `get_by_pair`
+  semantics).
+- **T-CPP-CAS-03:** `put_with_revision` succeeds when
+  `expected_revision == live_revision`. The updated record is
+  observable via `get_with_revision` at the new revision. The
+  scenario is a key-rollover: `allowed_kids = ("biscuit-root-1",)`
+  → `("biscuit-root-1", "biscuit-root-2")` via CAS-pin.
+- **T-CPP-CAS-04:** `put_with_revision` raises
+  `CapabilityPolicyConflictError` on stale `expected_revision`. The
+  error carries `key`, `expected_revision`, and `actual_revision`
+  (the CAS-mock surfaces the live revision). The bucket-revision
+  anchor is verified: `kv.revision` is unchanged from the rejected
+  stale write.
+- **T-CPP-CAS-05:** gate-1 (record-type) runs BEFORE the CAS call.
+  A non-`CapabilityPolicyRecord` argument raises `TypeError`; the
+  bucket revision does NOT advance.
+- **T-CPP-CAS-06:** gate-2 (pair ↔ key derivation) runs BEFORE the
+  CAS call. The Sprint-5 Tag-2 `CapabilityPolicyRecord`
+  `__post_init__` rejects a malformed `policy_id` (slashes
+  forbidden); the record cannot be constructed in the first place,
+  so the bucket revision does NOT advance from any
+  `put_with_revision` attempt.
+- **T-CPP-CAS-07:** negative `expected_revision` raises
+  `ValueError`. Defence in depth.
+- **T-CPP-CAS-08:** interleaved CAS pair: two writers observing
+  the same starting revision race to `put_with_revision`; exactly
+  one wins, the other receives `CapabilityPolicyConflictError` with
+  `actual_revision > expected_revision`. The lost-update protection
+  contract.
+- **T-CPP-CAS-09:** CAS+LWW orthogonality: a non-CAS `put` after a
+  successful `put_with_revision` lands as LWW. The Tag-2 LWW path
+  is byte-unchanged by the existence of the CAS path.
+  `get_with_revision` returns the LWW record at the higher
+  revision.
+- **T-CPP-CAS-10:** a KV adapter without an `update` method and
+  without a `put(expected_revision=...)` keyword path raises
+  `CapabilityPolicyBackendError` with message
+  `"CAS-pin not supported"`. Specifically NOT a
+  `CapabilityPolicyConflictError` (no silent LWW demotion).
+
+- **T-CPP-CAS-aux-determinism:** 5-pair interleaved CAS-pin pairs
+  over a single key yield exactly 5 winners and 5 conflicts; the
+  final revision is exactly `starting_revision + 5` (one increment
+  per accepted writer). Anchors the determinism contract under
+  bounded concurrency.
+- **T-CPP-CAS-aux-conflict-class-detection:** the class-name marker
+  detection (`_is_conflict_exception`) recognises typical nats-py
+  conflict exception class names (`KeyWrongLastSequenceError`,
+  `KeyValueConflictError`, `RevisionMismatchError`) and rejects
+  unrelated classes (`ValueError`, generic `Exception`,
+  `UnrelatedError`).
+
+**Suite-level effect (post-Sprint-5 Tag-4):** the wirelang test
+suite grows from **818 passed, 1 skipped, 7 subtests passed**
+(post-Sprint-5 Tag-3) to **830 passed, 1 skipped, 7 subtests
+passed** (+12 net through the T-CPP-CAS-01..10 family and the two
+auxiliary probes). The Sprint-3 Tag-3 schema-registry CAS-pin
+inventory (T-SR-CAS-01..10 + 2 aux), the Sprint-5 Tag-2
+capability-policy LWW inventory (T-CPP-01..10 + 2 aux), and the
+Sprint-5 Tag-3 publisher-CLI bucket-source inventory
+(T-SR-PUB-CB-01..10 + aux) all remain unchanged and green; the
+Sprint-5 Tag-4 tests are additive and exercise a parallel test
+module.
+
 ## 7. Cross-references and Open-Items
 
 - V-908 backend pattern source:
@@ -4531,6 +4809,35 @@ module.
   contract; §6.10 ships T-SR-PUB-CG-01..10). Sprint-5 Tag-1
   boundary leaves the on-the-wire envelope UNCHANGED (no signature
   on the bucket; that is a Sprint-5 Tag-2+ slot).
+- **Phase-2 capability-policy CAS-pin: CONSUMED in Sprint-5 Tag-4.**
+  Module: `wirelang/schemas/capability_policy_nats_kv_backend.py`
+  (additive on the Sprint-5 Tag-2 module; the LWW path is byte-
+  unchanged). Tests:
+  `wirelang/tests/test_capability_policy_cas_pin.py`
+  (T-CPP-CAS-01..10 + 2 aux). Closes the Sprint-5 Tag-2 §5.14
+  boundary item "future CAS-pinned upsert path on the capability-
+  policy bucket". The CAS-pin surface is a byte-precise
+  pattern-mirror on the Phase-1b Sprint-3 Tag-3 schema-registry
+  CAS-pin surface: identical typed-exception shape (
+  `CapabilityPolicyConflictError` mirrors
+  `SchemaRegistryConflictError`); identical helper functions
+  (`_kv_update_with_revision`, `_is_conflict_exception`,
+  `_extract_actual_revision`, `_coerce_revision_from_entry`,
+  `_CONFLICT_CLS_MARKERS`) inlined into the capability-policy module
+  rather than imported across modules (intentional decoupling so
+  the two backends can evolve independently); identical validation-
+  gate ordering (gates run BEFORE CAS); identical KV-adapter 3-shape
+  contract (`update(last=)` / positional / `put(expected_revision=)`).
+  The Sprint-5 Tag-2 LWW `put` path is byte-unchanged and remains
+  the default for create-once / rarely-touched policy authorship
+  flows. CAS-pin is the opt-in lost-update-protection surface for
+  concurrent-authorship flows (e.g. `allowed_kids` rotation on a
+  key-rollover). Cross-Review-Zone-1 non-touched; Cross-Review-
+  Zone-B non-touched (the `wakir-capability-policies` bucket
+  configuration is byte-unchanged — `history=5` already supports
+  CAS-pin naturally). The Phase-3 capability-policy watch-stream
+  slot and the Phase-3 multi-replica CAS-quorum slot remain
+  reserved.
 - Phase-2 STRICT-mode activation toggle: reserved (Z-1-K-Sprint-4-4
   open; operator-controlled toggle is a Phase-2-roadmap consensus
   question).
@@ -5140,6 +5447,87 @@ itself is still Phase-2.
   §6.10 bucket-source test addendum, and the new receipt field
   `gate_policy_source`; no breaking-change to any consumer.
 
+**Sprint-5 Tag-4 (v0.14.0) is additive relative to Sprint-5 Tag-3 (v0.13.0):**
+
+- The `wirelang.schemas.capability_policy_nats_kv_backend` module
+  gains:
+  - A new typed exception `CapabilityPolicyConflictError`
+    (subclass of `CapabilityPolicyBackendError`) with three
+    optional keyword-carrying fields: `key`, `expected_revision`,
+    `actual_revision`. Byte-precise shape mirror of
+    `SchemaRegistryConflictError` from
+    `wirelang.schemas.registry_nats_kv_backend`.
+  - New `NatsKvCapabilityPolicyBackend.get_with_revision(key)`
+    method returning `Optional[Tuple[CapabilityPolicyRecord, int]]`.
+    Mirror of
+    `NatsKvSchemaRegistry.get_with_revision`.
+  - New `NatsKvCapabilityPolicyBackend.get_with_revision_by_pair(registered_by, policy_id)`
+    convenience wrapper. Mirror of `get_by_pair` semantics applied
+    to the new CAS-pin helper.
+  - New `NatsKvCapabilityPolicyBackend.put_with_revision(record, expected_revision)`
+    method returning the new `int` revision; raises
+    `CapabilityPolicyConflictError` on stale revision; raises
+    `ValueError` on negative `expected_revision`; raises
+    `TypeError` on non-record argument; raises
+    `CapabilityPolicyBackendError("CAS-pin not supported")` if the
+    KV adapter exposes neither `update(last=...)` nor
+    `put(expected_revision=...)`.
+  - New module-level helpers
+    `_coerce_revision_from_entry`, `_kv_update_with_revision`,
+    `_is_conflict_exception`, `_extract_actual_revision`, and
+    constant `_CONFLICT_CLS_MARKERS = ("WrongLastSequence",
+    "Conflict", "RevisionMismatch")`. Byte-precise shape mirrors of
+    the schema-registry CAS-pin helpers. The helpers are inlined
+    into the capability-policy module (not imported across
+    modules) so the two backends can evolve independently.
+  - Module `__all__` extended with `CapabilityPolicyConflictError`.
+- All Sprint-5 Tag-2 LWW surfaces (`put` / `get` / `get_by_pair` /
+  `delete` / `list_keys` / `snapshot` / `snapshot_registry`) are
+  byte-unchanged. T-CPP-01..10 and the two auxiliary classes
+  remain green. Existing callers that do not need lost-update
+  protection continue to use `put` (LWW); they are not forced onto
+  the CAS-pin path.
+- The on-the-wire envelope schema
+  (`wakir.wirelang.capability-policy-entry/1`) is byte-unchanged.
+  CAS-pin operates on the same envelope shape as LWW; the only
+  difference is the underlying KV operation
+  (`update(last=...)` vs. `put(...)`). M-2 conformance preserved.
+- The bucket configuration (`BUCKET_CONFIG`) is byte-unchanged.
+  `history=5` already supports CAS-pin naturally (NATS-KV `update`
+  with `last=` is unconditional on history depth ≥ 1). M-4
+  conformance preserved (orthogonal to version axis).
+- Cross-Review-Zone-1 (Identity-Substrate) non-touched: the
+  CAS-pin path is a write-path concurrency contract, not a
+  verifier contract. The four Z-1-K-Sprint-4 consensus points
+  (kid-Resolver-Shape, JCS-Resolver-Lock, Curve-Choice = Ed25519,
+  STRICT-Mode-Activation-Owner) remain byte-identical.
+- Cross-Review-Zone-B (Kai bucket inventory) non-touched: no new
+  bucket; the `wakir-capability-policies` bucket configuration is
+  byte-unchanged; the Sprint-5 Tag-2 paired-update memo remains
+  the canonical Z-B trigger.
+- The Sprint-5 Tag-3 publisher-CLI `--capability-bucket` flag is
+  read-only (`snapshot_registry()`) so the CAS-pin write path is
+  not reachable from the operator CLI in Tag-4. A
+  `--capability-bucket-cas-rotate` (or similar) subcommand surface
+  is a Sprint-5 Tag-5+ candidate, explicitly NOT shipped in Tag-4.
+- The Phase-1b Sprint-3 Tag-3 schema-registry CAS-pin surface is
+  byte-unchanged. The Sprint-5 Tag-4 surface is a parallel module-
+  local addition; the schema-registry helpers are not re-exported,
+  re-shimmed, or refactored.
+- The Phase-3 capability-policy watch-stream slot (full-snapshot
+  only in Sprint-5 Tag-2/3/4; live-tail is Phase-3) and the
+  Phase-3 multi-replica CAS-quorum slot (single-replica
+  `replicas=1` in Sprint-5 Tag-2/3/4 configuration) remain
+  reserved.
+- Spec semver bump 0.13.0 → 0.14.0 reflects the additive minor
+  change (M-2 §3.2 versioning policy: minor for additive). The
+  bump is warranted by the new `CapabilityPolicyConflictError`
+  exception class, the new `get_with_revision` /
+  `get_with_revision_by_pair` / `put_with_revision` methods, the
+  new §5.14 "CAS-pin operational contract (Sprint-5 Tag-4)"
+  subsection, and the new §6.12 test inventory; no
+  breaking-change to any consumer.
+
 ## 9. Brand-Guide §9 sweep
 
 This document has been swept against the Wakir Brand-Guide §9
@@ -5276,6 +5664,31 @@ no new bucket added), the new flag names (`--capability-bucket`,
 are role-strings / operator-side identifiers consistent with prior
 tag conventions. No external-tool clear-name leakage and no
 internal-persona-clear-name leakage in the Tag-3 (Sprint-5) spec
+body additions.
+
+The Sprint-5 Tag-4 additions (§5.14 "CAS-pin operational contract
+(Sprint-5 Tag-4)" subsection, §6.12 capability-policy CAS-pin test
+inventory, change-log v0.14.0 entry, §5.14 boundary item "future
+CAS-pinned upsert path" CONSUMED, §7 Phase-2 capability-policy
+CAS-pin slot CONSUMED, §8 compatibility statement update for
+v0.13.0 → v0.14.0) have been swept identically — only module-path
+references (`wirelang.schemas.capability_policy_nats_kv_backend`,
+`wirelang.schemas.registry_nats_kv_backend`,
+`wirelang.schemas.registered_by_capability`), `wakir.*` URIs
+(`wakir-capability-policies` carried unchanged from Sprint-5 Tag-2;
+no new bucket added), the new exception class name
+(`CapabilityPolicyConflictError`), the new method names
+(`get_with_revision`, `get_with_revision_by_pair`,
+`put_with_revision`), the new module-level helper names
+(`_coerce_revision_from_entry`, `_kv_update_with_revision`,
+`_is_conflict_exception`, `_extract_actual_revision`,
+`_CONFLICT_CLS_MARKERS`), the conflict-class-name markers
+(`WrongLastSequence`, `Conflict`, `RevisionMismatch`), and the
+canonical operator examples (`wirelang-eng`, `tier-1-ingress`,
+`rollover`, `biscuit-root-1`, `biscuit-root-2`) are role-strings /
+operator-side identifiers / public API names consistent with prior
+tag conventions. No external-tool clear-name leakage and no
+internal-persona-clear-name leakage in the Tag-4 (Sprint-5) spec
 body additions.
 
 — End of spec —
