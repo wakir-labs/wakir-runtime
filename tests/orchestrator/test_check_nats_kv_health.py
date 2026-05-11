@@ -415,11 +415,11 @@ def test_report_to_json_has_stable_shape_and_summary(mod, event_loop):
         "http_status": 200,
     }
     assert payload["summary"] == {
-        "ok": 6,
+        "ok": 7,
         "missing": 0,
         "drift": 0,
         "error": 0,
-        "total": 6,
+        "total": 7,
     }
     assert {a["name"] for a in payload["checks"]} == {
         spec.name for spec in mod.PHASE_1_BUCKETS
@@ -437,15 +437,20 @@ def test_unknown_bucket_selector_raises_value_error(mod):
     assert "wakir-schemas" in msg
 
 
-def test_phase_1_inventory_is_the_documented_six_buckets(mod):
-    """Phase-1 inventory contract (Sprint-4 Tag-5 onward).
+def test_phase_1_inventory_is_the_documented_seven_buckets(mod):
+    """Phase-1 inventory contract (Sprint-5 Tag-2 onward).
 
     The 5th bucket ``wakir-schema-registry-entries`` was registered
     Sprint-4 Tag-4 as a Phase-2-reserved schema-registry storage
     bucket. The 6th bucket ``wakir-federation-routes`` was registered
     Sprint-4 Tag-5 as the V-908 federation-route registry consumed by
     the Wirelang-side ``NatsKvRouteRegistry`` backend, closing the
-    Sprint-2 Tag-7 Z-B inventory-drift open follow-up. The
+    Sprint-2 Tag-7 Z-B inventory-drift open follow-up. The 7th bucket
+    ``wakir-capability-policies`` was registered Sprint-5 Tag-2 as the
+    Phase-3-reserved capability-policy persistence bucket
+    (audit-friendly defaults; no Phase-1b / Phase-2 live consumer; the
+    Wirelang-side ``BUCKET_CONFIG`` byte-mirror anchor lands as a
+    follow-up once the Reza-side encoder/decoder module commits). The
     health-check inventory mirrors the init-script inventory;
     ``test_inventory_matches_init_nats_buckets`` guards the
     dual-source contract.
@@ -458,6 +463,7 @@ def test_phase_1_inventory_is_the_documented_six_buckets(mod):
         "wakir-ftd-poisoned",
         "wakir-schema-registry-entries",
         "wakir-federation-routes",
+        "wakir-capability-policies",
     ]
 
 
@@ -650,6 +656,51 @@ class CheckNatsKvHealthLiveSmokeTests(unittest.TestCase):
             sixth_checks[0].status,
             {"ok", "missing", "drift"},
             msg=(sixth_checks[0].status, sixth_checks[0].detail),
+        )
+
+    def test_smoke_seventh_bucket_present_in_live_inventory(self) -> None:
+        """Sprint-5 Tag-2 gated-live anchor: confirm the 7th bucket
+        ``wakir-capability-policies`` shows up in the live cluster
+        inventory after an init-pass against the running NATS.
+
+        Pre-condition: the live cluster has been initialised by
+        ``scripts/init-nats-buckets.py`` against the Sprint-5-Tag-2
+        seven-bucket inventory. Phase-1b / Phase-2 ships no live
+        consumer for this bucket; it is reservation-form for the
+        Phase-3 capability-policy persistence promotion (Wirelang-
+        side Sprint-5 Tag-2 paired-update). The test only asserts
+        that the inventory-check **produced a check** for the 7th
+        bucket; status semantics are runbook-documented (an
+        operator-side ``missing`` is the documented Phase-1b-tolerant
+        state for a freshly-bumped runtime that has not yet re-run
+        ``init-nats-buckets.py`` against the live cluster).
+        """
+        async def _run():
+            import nats  # type: ignore
+
+            nc = await nats.connect(self.servers, token=self.token)
+            try:
+                js = nc.jetstream()
+                return await self.mod.inspect_buckets(
+                    js, self.mod.PHASE_1_BUCKETS
+                )
+            finally:
+                await nc.drain()
+
+        checks = asyncio.run(_run())
+        seventh_checks = [
+            c for c in checks if c.name == "wakir-capability-policies"
+        ]
+        self.assertEqual(
+            len(seventh_checks), 1,
+            msg="exactly one check for the 7th bucket expected",
+        )
+        # Status must be one of the documented contract values; we
+        # accept ok/missing/drift but never error on a Phase-1b cluster.
+        self.assertIn(
+            seventh_checks[0].status,
+            {"ok", "missing", "drift"},
+            msg=(seventh_checks[0].status, seventh_checks[0].detail),
         )
 
 

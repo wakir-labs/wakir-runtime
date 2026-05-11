@@ -34,11 +34,12 @@ memos and are referenced here only by name.
 
 | §   | Topic                                                              | Source tags |
 | --- | ------------------------------------------------------------------ | ----------- |
-| 1   | Bucket inventory (Phase-1, six-bucket layout)                      | Tag-2, Sprint-4 Tag-4, Sprint-4 Tag-5 |
+| 1   | Bucket inventory (Phase-1, seven-bucket layout)                    | Tag-2, Sprint-4 Tag-4, Sprint-4 Tag-5, Sprint-5 Tag-2 |
 | 2   | Pre-flight check                                                   | Tag-2       |
 | 3   | Bring-up (cold start: substrate + buckets-init + tear-down)        | Tag-2, Tag-3 |
 | 3.2.1 | Backfill 5th bucket on pre-Tag-4 cluster                         | Sprint-4 Tag-4 |
 | 3.2.2 | Backfill 6th bucket on pre-Tag-5 cluster                         | Sprint-4 Tag-5 |
+| 3.2.3 | Backfill 7th bucket on pre-Sprint-5-Tag-2 cluster                | Phase-2 Sprint-5 Tag-2 |
 | 4   | Idempotency contract                                               | Tag-2       |
 | 5   | Health checks                                                      | Tag-2, Tag-6, Tag-7 |
 | 5.1 | `check-nats-kv-health` tool                                        | Tag-6       |
@@ -60,7 +61,8 @@ memos and are referenced here only by name.
 | 7.6 | 5th bucket: `wakir-schema-registry-entries` (Phase-2-reserved)     | Phase-2 Sprint-4 Tag-4 |
 | 7.7 | 6th bucket: `wakir-federation-routes` (V-908 routine bring-up)     | Phase-2 Sprint-4 Tag-5 |
 | 7.8 | SPIFFE Z-A JWT-SVID container-identity skizze (Z-A preparation)    | Phase-2 Sprint-4 Tag-6 |
-| 8   | Verification stamps (P5/P7)                                        | Tag-2..Tag-8, Sprint-3 Tag-2..Tag-4, Phase-2 Sprint-4 Tag-1..Tag-6 |
+| 7.9 | 7th bucket: `wakir-capability-policies` (Phase-3-reserved)         | Phase-2 Sprint-5 Tag-2 |
+| 8   | Verification stamps (P5/P7)                                        | Tag-2..Tag-8, Sprint-3 Tag-2..Tag-4, Phase-2 Sprint-4 Tag-1..Tag-6, Phase-2 Sprint-5 Tag-2 |
 
 The four operator artefacts (compose substrate, bucket initialiser,
 NATS-KV substrate health check, federation evaluator health check)
@@ -82,6 +84,7 @@ Cross-tool drift is pinned by hermetic regression tests
 | `wakir-ftd-poisoned`              | 10      | unbounded  | 4 KiB     | file    | 1        | FTD poison-list marker (asymmetric vs. cache)                                                                 |
 | `wakir-schema-registry-entries`   | 5       | unbounded  | 256 KiB   | file    | 1        | Wirelang schema-registry storage (Phase-2-reserved; no Phase-1b consumer)                                     |
 | `wakir-federation-routes`         | 5       | unbounded  | 4 KiB     | file    | 1        | V-908 federation-route registry (Phase-1b consumer: Wirelang-side `NatsKvRouteRegistry`, Sprint-2 Tag-4/Tag-6) |
+| `wakir-capability-policies`       | 10      | unbounded  | 4 KiB     | file    | 1        | Capability-policy persistence (Phase-3-reserved; no Phase-1b / Phase-2 consumer; audit-friendly small-marker shape) |
 
 The `wakir-ftd-poisoned` asymmetry is deliberate: a poisoned FTD must
 outlive a cache-TTL window, so the bucket is unbounded and history is
@@ -116,6 +119,31 @@ contract is enforced by the hermetic
 `test_t_tag5_02_sixth_bucket_config_mirrors_wirelang_consumer_bucket_config`
 test plus the existing `test_inventory_matches_init_nats_buckets`
 cross-script parity test.
+
+The 7th bucket `wakir-capability-policies` was added Sprint-5 Tag-2 as
+the Z-B paired-update with the Wirelang-side Sprint-5 Tag-2
+capability-policy persistence track. The bucket is **reserved for the
+Phase-3 promotion** of the operator-local `--capability-registry`
+JSON-file shape (Sprint-5 Tag-1 publisher-CLI; see
+`wirelang/schemas/publisher_cli.py` `--capability-registry` /
+`--gate` flags) onto a cluster-wide cross-invocation policy store.
+There is **no Phase-1b / Phase-2 live consumer** for this bucket; it is
+registered ahead of time so the Phase-3 operator bring-up procedure
+collapses into the routine `init-nats-buckets.py` pass (no manual
+`nats kv add` step on the cluster). Bucket-config uses audit-friendly
+defaults: history=10 (capability-policy rotations want a deep audit
+trail, mirroring `wakir-ftd-poisoned`), ttl unbounded (policies live
+until explicit rotation), max-value 4 KiB (a single serialised policy
+entry is small; mirrors the small-marker shape of
+`wakir-ftd-poisoned`). The concrete `BUCKET_CONFIG` constant on the
+Wirelang-side will be exported by the Reza-owned encoder/decoder module
+when it lands (Capability-Token-Layer is Reza-owner per Persona-Matrix
+§2); until then this entry stays in reservation-form (no
+cross-import-mirror anchor). The Sprint-4-Tag-4 pre-Phase-2-reservation
+pattern is the analogue; the Sprint-4-Tag-5 6th-bucket pattern is the
+post-consumer-commit anchor that the 7th bucket will reach as a
+follow-up. See §7.9 for substance, §3.2.3 for the no-downtime backfill
+recipe.
 
 ## 2. Pre-flight check
 
@@ -301,6 +329,46 @@ because `init-nats-buckets.py` is read-mostly: it only issues a
 an existing bucket. An operator who wants to coordinate with the
 consumer can run the backfill during a maintenance window, but it is
 not required. This is the no-downtime upgrade path.
+
+### 3.2.3 Backfill the 7th bucket on a pre-Sprint-5-Tag-2 cluster
+
+Clusters brought up before Sprint-5 Tag-2 have no
+`wakir-capability-policies` bucket. There is **no Phase-1b / Phase-2
+live consumer** for this bucket, so the absence is silent (no
+runtime error, no operator alert). The backfill is purely
+preparatory: an operator can run it whenever convenient before the
+Phase-3 capability-policy persistence promotion lands. After pulling
+the Sprint-5 Tag-2 runtime onto the build host, the no-downtime
+backfill is:
+
+```bash
+# Plan-only first.
+python3 scripts/init-nats-buckets.py --dry-run \
+  --bucket wakir-capability-policies
+# Expect a single "would_create" action in the JSON report if the
+# bucket is absent; a single "unchanged" if a previous pass
+# established it with the documented config.
+
+# Apply (only if the dry-run reported "would_create").
+python3 scripts/init-nats-buckets.py \
+  --bucket wakir-capability-policies
+# Expect exit 0 and a single "created" action.
+
+# Full-inventory confirmation:
+python3 scripts/init-nats-buckets.py
+# Expect: 6 unchanged + 1 unchanged (post-backfill), or
+# 6 unchanged + 1 created (if the backfill step above was skipped).
+```
+
+Because the 7th bucket has no Phase-1b / Phase-2 consumer, the
+backfill cannot cause runtime traffic against the new bucket until
+the Phase-3 capability-policy persistence promotion lands. This is
+the no-downtime upgrade path; identical reasoning to §3.2.1 (5th
+bucket Phase-2-reservation). The cross-import-mirror anchor against
+the Wirelang-side `BUCKET_CONFIG` constant lands as a Sprint-5
+Tag-N follow-up once the Reza-owned encoder/decoder module commits;
+until then the in-tree mirror against `wakir-ftd-poisoned` guards
+the reservation-form shape.
 
 ### 3.3 Tear-down
 
@@ -1957,6 +2025,99 @@ consensus marker.
 - No Phala-Cloud TEE-attestation integration (V-904 Z-D follow-up,
   Phase-3).
 
+### 7.9 7th bucket: `wakir-capability-policies` (Phase-2 Sprint-5 Tag-2)
+
+Sprint-5 Tag-2 promoted the Phase-3-reserved capability-policy
+persistence bucket `wakir-capability-policies` into the routine
+`init-nats-buckets.py` inventory pass as the Z-B paired-update with
+the Wirelang-side Sprint-5 Tag-2 capability-policy persistence track.
+This entry closes the inventory-side gap that the Sprint-5 Tag-1
+Reza outbox §6 flagged as a future Phase-3 bucket-add ("Kai-
+coordination für Bucket-Inventory"); Mira-Strategie-Hand 2026-05-11
+promoted the slot to a paired Sprint-5 Tag-2 add.
+
+**Context.** Sprint-5 Tag-1 (Wirelang) added a publisher-CLI
+`--gate` / `--capability-registry` flag pair to
+`wirelang.schemas.publisher_cli.py`. The capability-registry is an
+operator-local JSON-file containing a `policies` array; each policy
+entry is a small JSON object (issuer, allowed kids, allowed triples,
+optional validity window). The Sprint-5 Tag-1 implementation loads
+the policy registry from disk on every CLI invocation — no
+cluster-wide cross-invocation state. The Phase-3 promotion will move
+the policy registry onto a NATS-KV bucket so that operator-side
+policy rotations propagate to all CLI invocations without a
+file-distribution step.
+
+**Bucket-config (reservation-form).** Sprint-5 Tag-2 ships the
+bucket-spec with audit-friendly defaults; the Reza-owned
+encoder/decoder module commits the authoritative `BUCKET_CONFIG`
+constant as a follow-up, at which point the in-tree mirror against
+`wakir-ftd-poisoned` is replaced by a cross-import-mirror anchor
+analogous to `test_t_tag5_02_sixth_bucket_config_mirrors_wirelang_consumer_bucket_config`.
+
+| field            | value      | rationale                                                                         |
+| ---------------- | ---------- | --------------------------------------------------------------------------------- |
+| `history`        | 10         | capability-policy rotations want a deep audit trail (mirrors `wakir-ftd-poisoned`) |
+| `ttl_seconds`    | 0          | policies live until explicit rotation; no time-based eviction                     |
+| `max_value_size` | 4 KiB      | a single serialised policy entry is small (mirrors `wakir-ftd-poisoned`)          |
+| `storage`        | `file`     | Phase-1 single-node storage convention                                            |
+| `replicas`       | 1          | Phase-1 single-node replication convention                                        |
+
+**Operator surface (no Phase-1b / Phase-2 user-visible change).** The
+7th bucket has no live consumer in Phase-1b / Phase-2; the operator
+sees one extra `created` entry in the JSON report from
+`init-nats-buckets.py` and one extra `ok` entry in
+`check-nats-kv-health.py`. No service in the current runtime reads or
+writes the bucket. The §3.2.3 no-downtime backfill recipe covers
+pre-Sprint-5-Tag-2 clusters that did not get the bucket on first
+bring-up.
+
+**Test surface (hermetic).** Five hermetic tests in
+`tests/orchestrator/test_init_nats_buckets.py` (T-Tag2-01..05) anchor
+the slot, the in-tree mirror against `wakir-ftd-poisoned`, the
+create-call shape, the `--bucket` selector path, and the idempotent
+replay contract. The inventory-contract test
+`test_phase_1_inventory_is_the_documented_seven_buckets` is bumped
+from six- to seven-bucket. The cross-script parity test
+`test_inventory_matches_init_nats_buckets` covers the dual-source
+contract for the new entry automatically.
+
+**Test surface (gated-live).** One gated-live smoke test
+`test_smoke_seventh_bucket_present_in_live_inventory` in
+`test_check_nats_kv_health.py` confirms the 7th bucket shows up in
+the live cluster inventory after an init-pass. Skipped by default;
+runs under `WAKIR_NATS_LIVE=1`. The status semantics accept
+`ok`/`missing`/`drift` (the `missing` allowance reflects that the
+bucket is a fresh add — operators on a pre-Sprint-5-Tag-2 cluster
+will see `missing` until they re-run `init-nats-buckets.py`, see
+§3.2.3).
+
+**Cross-Review-Status.** Z-B (NATS-Schema × Wirelang) paired-update
+with the Wirelang-side Sprint-5 Tag-2 capability-policy persistence
+track. The cross-import-mirror anchor (analogous to Tag-5 6th-bucket
+`test_t_tag5_02` pattern) lands as a Sprint-5 Tag-N follow-up once
+the Reza-owned encoder/decoder module commits a `BUCKET_CONFIG`
+constant upstream. Until then, the reservation-form mirror against
+`wakir-ftd-poisoned` (test `test_t_tag2_02`) guards the in-tree
+shape. No Z-A (Container-Identity × SPIFFE-Spec) or Z-C
+(Container-Image-Pipeline × OTS-Anchoring) touchpoints; the
+bucket-add is in the NATS-KV substrate surface, fully within
+Z-B scope.
+
+**Out of scope for Sprint-5 Tag-2:**
+
+- No Wirelang-side encoder/decoder module (Reza-owner, separate
+  Sprint-5 Tag-2 deliverable on the Wirelang track).
+- No Phase-3 capability-policy persistence consumer (no service in
+  Phase-1b / Phase-2 reads or writes the bucket).
+- No NATS-KV-CAS-quorum semantics for policy writes (Phase-3 design
+  decision on the Reza-side; the bucket-config does not pre-commit
+  to a specific consumer-side concurrency model).
+- No Biscuit-v3 binary-token codec on the bucket (the Sprint-5 Tag-1
+  publisher-CLI `--capability-registry` JSON-file shape is the
+  Phase-3 reservation; binary-token promotion is a separate Phase-3
+  slot on the Reza-side).
+
 ## 8. Verification stamps (P5/P7)
 
 - Authoring date (Tag-3 update): `date -u` 2026-05-07T (CEST
@@ -2412,3 +2573,61 @@ consensus marker.
   `git stash drop stash@{0}` → `Dropped stash@{0} (fa598a48...)`;
   post-drop `git stash list` is empty. The Tag-5 commit `7fc13ee`
   remains authoritative for the 6th-bucket substance.
+- Phase-2 Sprint-5 Tag-2 §7.9 7th-bucket-paired-update stamp:
+  authoring `date -u` 2026-05-11T19:18:29Z (CEST 2026-05-11 21:18).
+  Sprint-5 Tag-2 60-min-box. Substance delivered: (a) 7th
+  `BucketSpec` entry `wakir-capability-policies` in
+  `scripts/init-nats-buckets.py` `PHASE_1_BUCKETS` (slot 6, after
+  `wakir-federation-routes`) plus mirror entry in
+  `scripts/check-nats-kv-health.py` with audit-friendly defaults
+  history=10, ttl_seconds=0, max_value_size=4096, storage="file",
+  replicas=1; (b) `compose/nats.yaml` header commentary bumped from
+  6 → 7 buckets with the Sprint-5 Tag-2 capability-policy-
+  reservation rationale embedded; (c) five hermetic tests T-Tag2-
+  01..05 in `test_init_nats_buckets.py` anchoring slot, in-tree
+  mirror against `wakir-ftd-poisoned`, create-call shape, selector
+  path, and idempotent replay; plus the bumped inventory contract
+  `test_phase_1_inventory_is_the_documented_seven_buckets`
+  (renamed-from-six in both `test_init_nats_buckets.py` and
+  `test_check_nats_kv_health.py`); plus the bumped summary-shape
+  test (`"created": 7`, `"total": 7`) and the compose-commentary
+  reference test (`bucket_names ==` seven-element set); (d) one
+  gated-live smoke test `test_smoke_seventh_bucket_present_in_live_inventory`
+  in `test_check_nats_kv_health.py` (skipped by default; runs under
+  `WAKIR_NATS_LIVE=1`); (e) §0 section-index updated to list §3.2.3
+  and §7.9 and to extend the §8 source-tags range to Phase-2
+  Sprint-5 Tag-2; (f) §1 inventory table bumped to seven-bucket
+  layout; (g) §3.2.3 no-downtime backfill recipe for the 7th bucket
+  modelled on the §3.2.1 pre-Tag-4 5th-bucket pattern; (h) §7.9
+  substance section covering context (Sprint-5 Tag-1 publisher-CLI
+  `--capability-registry` JSON-file shape as the Phase-3 promotion
+  source), bucket-config rationale table, operator-surface
+  no-change discipline, hermetic + gated-live test surface,
+  cross-review status, out-of-scope list. **Cross-Review Zone B**
+  (NATS-Schema × Wirelang) paired-update with the Wirelang-side
+  Sprint-5 Tag-2 capability-policy persistence track. The cross-
+  import-mirror anchor against the Wirelang-side `BUCKET_CONFIG`
+  constant (analogous to `test_t_tag5_02` 6th-bucket pattern) lands
+  as a Sprint-5 Tag-N follow-up once the Reza-owned encoder/decoder
+  module commits upstream; until then the in-tree mirror against
+  `wakir-ftd-poisoned` (test `test_t_tag2_02`) guards the
+  reservation-form shape. No Zone-A or Zone-C touchpoints.
+  Test-count delta: orchestrator-suite 111 passed + 8 skipped
+  post-Tag-6 → 116 passed + 9 skipped post-Sprint-5-Tag-2 (+5 new
+  hermetic from T-Tag2-01..05, +1 new gated-live from
+  `test_smoke_seventh_bucket_present_in_live_inventory`); zero
+  regression on the existing suite. Project-wide: 253 passed + 25
+  skipped at Sprint-5-Tag-2-acceptance-time (Sprint-5 Tag-1
+  Wirelang additions are included in the +8 net-passed swing since
+  Sprint-4-Tag-6-acceptance-doku reported 245+27). The Test-Counts
+  drift flagged in the Sprint-4-acceptance-doku §9 (3 skip-statt-
+  pass between Tag-6-authoring and Sprint-5-Tag-1-acceptance-box)
+  resolves cleanly here: a `nats-py` reinstall and the cumulative
+  Reza-side Sprint-5 Tag-1 hermetic-test adds (no skip flips on the
+  Kai side) bring project-wide back to a passed-monotonic state
+  (245 → 253 = +8 passed; -2 skipped reflects gated-live additions
+  net of the prior skip-statt-pass drift, see Sprint-4-acceptance-
+  doku §9 P2-Hinweis for the prior baseline). Stash-disposition:
+  Sprint-5 Tag-2 box-start `git stash list` empty (carried clean
+  from Tag-6 box-end post-`stash drop stash@{0}`); no new stashes
+  produced during the Tag-2 box.

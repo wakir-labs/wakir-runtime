@@ -10,7 +10,7 @@
 #
 # 1. Connects to a NATS server (default ``nats://127.0.0.1:4222``)
 #    using ``nats-py`` and the JetStream KV API.
-# 2. Ensures the six Phase-1 buckets exist with the documented
+# 2. Ensures the seven Phase-1 buckets exist with the documented
 #    history / TTL / max_value_size / replicas / storage settings:
 #
 #      - ``wakir-schemas``                  Wirelang schema-registry
@@ -54,6 +54,51 @@
 #                                           operator-hand ``nats kv
 #                                           add`` step per Runbook
 #                                           §6.5
+#      - ``wakir-capability-policies``      Capability-policy persistence
+#                                           bucket, **reserved** for the
+#                                           Phase-3 promotion of the
+#                                           operator-local
+#                                           ``--capability-registry``
+#                                           JSON-file shape (Sprint-5
+#                                           Tag-1 Wirelang publisher-CLI)
+#                                           onto a cluster-wide
+#                                           cross-invocation policy
+#                                           store. Phase-1b / Phase-2
+#                                           have NO live consumer on
+#                                           this bucket; it is
+#                                           registered ahead of time as
+#                                           the 7th bucket Sprint-5
+#                                           Tag-2 via the Z-B
+#                                           paired-update with the
+#                                           Wirelang-side track so the
+#                                           Phase-3 operator bring-up
+#                                           collapses into the routine
+#                                           ``init-nats-buckets.py``
+#                                           pass without an
+#                                           out-of-band ``nats kv add``
+#                                           step. The consumer-side
+#                                           codec name and concrete
+#                                           ``BUCKET_CONFIG`` constant
+#                                           are owned by Reza
+#                                           (Capability-Token-Layer
+#                                           per Persona-Matrix §2);
+#                                           the orchestrator side
+#                                           ships a reservation-form
+#                                           bucket-spec with
+#                                           audit-friendly defaults
+#                                           (history=10 for
+#                                           rotation-audit, ttl
+#                                           unbounded, 4 KiB max value
+#                                           size mirroring the small
+#                                           policy-marker shape of
+#                                           ``wakir-ftd-poisoned``).
+#                                           Cross-import mirror-test
+#                                           against the Wirelang-side
+#                                           ``BUCKET_CONFIG`` lands as
+#                                           a follow-up once the
+#                                           Reza-side encoder/decoder
+#                                           module is committed
+#                                           upstream.
 #
 # 3. Idempotency contract: re-running the script on a cluster that
 #    already has the buckets is a no-op. If a bucket exists but with a
@@ -185,17 +230,51 @@ class BucketSpec:
 #:   inventory entry; the hand-creation fallback (Runbook §6.5) is
 #:   retained only as an out-of-band recreate recipe.
 #:
+#: * ``wakir-capability-policies`` — **reserved** for the Phase-3
+#:   promotion of the operator-local ``--capability-registry``
+#:   JSON-file shape (Sprint-5 Tag-1 Wirelang publisher-CLI; cf.
+#:   ``wirelang/schemas/publisher_cli.py`` ``--capability-registry``
+#:   / ``--gate`` flags and the Sprint-5 Tag-1 spec §5.13) onto a
+#:   cluster-wide cross-invocation policy store. The bucket has NO
+#:   live consumer in Phase-1b / Phase-2; it is registered ahead of
+#:   time so the Phase-3 operator bring-up procedure collapses into
+#:   the routine ``init-nats-buckets.py`` pass (no manual ``nats kv
+#:   add`` step on the cluster). The concrete ``BUCKET_CONFIG``
+#:   constant on the Wirelang-side will be exported by the
+#:   Reza-owned encoder/decoder module when it lands (Capability-
+#:   Token-Layer is Reza-owner per Persona-Matrix §2); the
+#:   orchestrator side ships a reservation-form bucket-spec with
+#:   audit-friendly defaults: ``history=10`` (capability-policy
+#:   rotations want a deep audit trail, mirroring
+#:   ``wakir-ftd-poisoned``), ``ttl_seconds=0`` (policies live until
+#:   explicit rotation), ``max_value_size=4_096`` (a single
+#:   serialised policy entry is small; mirrors the small-marker
+#:   shape of ``wakir-ftd-poisoned``), ``storage="file"``,
+#:   ``replicas=1`` (Phase-1 single-node). When the Wirelang-side
+#:   module lands a ``BUCKET_CONFIG`` constant, a byte-mirror anchor
+#:   test analogous to ``test_t_tag5_02_sixth_bucket_config_mirrors_
+#:   wirelang_consumer_bucket_config`` lands as a follow-up; until
+#:   then this entry stays in reservation-form (no cross-import
+#:   pin). Sprint-5 Tag-2 paired-update with the Wirelang-side
+#:   ``wakir-capability-policies`` Phase-3 reservation reference
+#:   (Reza Sprint-5 Tag-1 §6 / Phase-3 follow-up slot, promoted to
+#:   Sprint-5 Tag-2 add per Mira-Strategie-Hand 2026-05-11).
+#:
 #: Phase-1b boundary: the 5th bucket ``wakir-schema-registry-entries``
 #: is created on cluster bring-up but is **not** consumed by any module
 #: shipped in Phase-1b (Phase-2-reserved). The 6th bucket
 #: ``wakir-federation-routes`` IS consumed by the Wirelang-side V-908
 #: backend; pre-Sprint-4-Tag-5 the bucket was created out-of-band per
 #: §6.5 of the runbook, this entry promotes it into the routine init
-#: pass. Phase-2 schema-registry migration (Wirelang-side OI-7-Phase-2
-#: slot) will later switch ``wirelang.schemas.registry_nats_kv_backend``
-#: to point at the new schema-registry-entries bucket (or layer a
-#: second backend over it; the storage-vs-cache split is the
-#: consumer-side design decision the Wirelang track owns).
+#: pass. The 7th bucket ``wakir-capability-policies`` is reserved for
+#: Phase-3 capability-policy persistence — no Phase-1b / Phase-2
+#: consumer ships on it; the bucket-spec lives in the inventory so the
+#: future Phase-3 bring-up is value-copy only. Phase-2 schema-registry
+#: migration (Wirelang-side OI-7-Phase-2 slot) will later switch
+#: ``wirelang.schemas.registry_nats_kv_backend`` to point at the new
+#: schema-registry-entries bucket (or layer a second backend over it;
+#: the storage-vs-cache split is the consumer-side design decision the
+#: Wirelang track owns).
 PHASE_1_BUCKETS: tuple[BucketSpec, ...] = (
     BucketSpec(
         name="wakir-schemas",
@@ -241,6 +320,16 @@ PHASE_1_BUCKETS: tuple[BucketSpec, ...] = (
         history=5,
         ttl_seconds=0,
         max_value_size=4_096,  # mirrors Wirelang BUCKET_CONFIG
+    ),
+    BucketSpec(
+        name="wakir-capability-policies",
+        description=(
+            "Capability-policy persistence (reserved Phase-3 promotion "
+            "of operator-local --capability-registry JSON-file shape)"
+        ),
+        history=10,
+        ttl_seconds=0,
+        max_value_size=4_096,  # mirrors wakir-ftd-poisoned small-marker shape
     ),
 )
 

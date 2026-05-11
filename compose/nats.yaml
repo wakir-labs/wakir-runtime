@@ -2,15 +2,21 @@
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
 # Phase-1b Sprint-2 Box-3 — single-node NATS-JetStream substrate for
-# the orchestrator read-through cache (6 KV buckets: wakir-schemas,
+# the orchestrator read-through cache (7 KV buckets: wakir-schemas,
 # wakir-aip-cache, wakir-ftd-cache, wakir-ftd-poisoned,
-# wakir-schema-registry-entries, wakir-federation-routes — the 5th
-# bucket added Sprint-4 Tag-4 is a Phase-2-reserved schema-registry
-# storage bucket with no Phase-1b consumer and bucket-config mirrors
-# wakir-schemas; the 6th bucket added Sprint-4 Tag-5 is the V-908
-# federation-route registry consumed by the Wirelang-side
-# NatsKvRouteRegistry backend with bucket-config mirroring the
-# Wirelang BUCKET_CONFIG byte-precisely).
+# wakir-schema-registry-entries, wakir-federation-routes,
+# wakir-capability-policies — the 5th bucket added Sprint-4 Tag-4 is
+# a Phase-2-reserved schema-registry storage bucket with no Phase-1b
+# consumer and bucket-config mirrors wakir-schemas; the 6th bucket
+# added Sprint-4 Tag-5 is the V-908 federation-route registry consumed
+# by the Wirelang-side NatsKvRouteRegistry backend with bucket-config
+# mirroring the Wirelang BUCKET_CONFIG byte-precisely; the 7th bucket
+# added Sprint-5 Tag-2 is a Phase-3-reserved capability-policy
+# persistence bucket for the Sprint-5 Tag-1 publisher-CLI
+# --capability-registry shape with audit-friendly defaults
+# (history=10, max_value_size=4 KiB) mirroring wakir-ftd-poisoned's
+# small-marker layout, registered ahead of time so the future Phase-3
+# bring-up needs no out-of-band nats kv add).
 #
 # This compose file is the operator-facing bring-up artefact. It is
 # pinned to a maintained alpine variant of the official ``nats``

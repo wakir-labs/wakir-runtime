@@ -39,6 +39,19 @@
 #                                           that previously required
 #                                           an out-of-band ``nats kv
 #                                           add`` step per Runbook §6.5)
+#      - ``wakir-capability-policies``      Capability-policy persistence
+#                                           bucket (7th bucket added
+#                                           Sprint-5 Tag-2, Phase-3-
+#                                           reserved; no Phase-1b /
+#                                           Phase-2 consumer ships on
+#                                           it). Audit-friendly defaults
+#                                           (history=10, max 4 KiB,
+#                                           unbounded TTL) chosen as
+#                                           reservation-form until the
+#                                           Reza-owned encoder/decoder
+#                                           module commits a
+#                                           ``BUCKET_CONFIG`` constant
+#                                           for byte-mirror anchoring.
 #
 # 3. Compares each bucket's live configuration to the documented
 #    Phase-1 inventory and reports any drift in {want, got} form.
@@ -178,6 +191,16 @@ PHASE_1_BUCKETS: tuple[BucketSpec, ...] = (
         history=5,
         ttl_seconds=0,
         max_value_size=4_096,  # mirrors Wirelang BUCKET_CONFIG
+    ),
+    BucketSpec(
+        name="wakir-capability-policies",
+        description=(
+            "Capability-policy persistence (reserved Phase-3 promotion "
+            "of operator-local --capability-registry JSON-file shape)"
+        ),
+        history=10,
+        ttl_seconds=0,
+        max_value_size=4_096,  # mirrors wakir-ftd-poisoned small-marker shape
     ),
 )
 

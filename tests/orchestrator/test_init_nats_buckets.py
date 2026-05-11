@@ -9,8 +9,8 @@ small in-memory mock that mirrors the subset of the
 
 Coverage:
 
-1. Plan against an empty cluster: all six buckets get ``created``.
-2. Re-run after a successful create: all six become ``unchanged``.
+1. Plan against an empty cluster: all seven buckets get ``created``.
+2. Re-run after a successful create: all seven become ``unchanged``.
 3. ``--dry-run`` against an empty cluster reports ``would_create`` and
    does not mutate the mock state.
 4. Drift detection: a bucket whose live history differs from the spec
@@ -29,6 +29,17 @@ Coverage:
    (``wirelang.federation.route_registry_nats_kv_backend``) and the
    orchestrator init driver agree on a single inventory entry,
    closing the Sprint-2 Tag-7 Z-B inventory-drift open follow-up.
+9. (Sprint-5 Tag-2) The 7th bucket ``wakir-capability-policies`` is
+   present in ``PHASE_1_BUCKETS`` in reservation-form (no live
+   Phase-1b / Phase-2 consumer) with audit-friendly defaults
+   (history=10, max_value_size=4 KiB, unbounded TTL) mirroring the
+   small-marker shape of ``wakir-ftd-poisoned``. The Reza-owned
+   Wirelang-side encoder/decoder module commits a ``BUCKET_CONFIG``
+   constant in a follow-up; the byte-mirror anchor lands at that
+   point. Pre-commit reservation is intentional: the Phase-3 operator
+   bring-up procedure collapses into the routine
+   ``init-nats-buckets.py`` pass without an out-of-band ``nats kv
+   add`` step.
 
 The tests are hermetic (no I/O, no NATS, no filesystem).
 """
@@ -260,8 +271,8 @@ def test_unknown_bucket_selector_raises_value_error_with_known_set(mod):
     assert "wakir-schemas" in msg  # listed under "known"
 
 
-def test_phase_1_inventory_is_the_documented_six_buckets(mod):
-    """Phase-1 inventory contract (Sprint-4 Tag-5 onward).
+def test_phase_1_inventory_is_the_documented_seven_buckets(mod):
+    """Phase-1 inventory contract (Sprint-5 Tag-2 onward).
 
     Order matters: the documented order is preserved across tooling
     (runbook, init script JSON output, drift reports). A re-ordering
@@ -275,6 +286,7 @@ def test_phase_1_inventory_is_the_documented_six_buckets(mod):
         "wakir-ftd-poisoned",
         "wakir-schema-registry-entries",
         "wakir-federation-routes",
+        "wakir-capability-policies",
     ]
 
 
@@ -293,11 +305,11 @@ def test_report_to_json_has_stable_shape_and_summary(mod, event_loop):
     assert payload["servers"] == "nats://127.0.0.1:4222"
     assert payload["dry_run"] is False
     assert payload["summary"] == {
-        "created": 6,
+        "created": 7,
         "unchanged": 0,
         "drift": 0,
         "would_create": 0,
-        "total": 6,
+        "total": 7,
     }
     assert {a["name"] for a in payload["actions"]} == {
         spec.name for spec in mod.PHASE_1_BUCKETS
@@ -666,4 +678,186 @@ def test_t_tag5_05_sixth_bucket_idempotent_replay_marks_unchanged(
     assert sixth_action.status == "unchanged"
     assert js.create_calls == [], (
         "idempotent replay must not re-create the 6th bucket"
+    )
+
+
+# ---------------------------------------------------------------------
+# Sprint-5 Tag-2: 7th-bucket-paired-update tests (wakir-capability-policies)
+# ---------------------------------------------------------------------
+#
+# These tests anchor the contract that the new 7th bucket
+# ``wakir-capability-policies`` is registered with the documented
+# Phase-3-reserved config, and that the create/select/idempotency paths
+# of the planner cover it. The bucket has NO Phase-1b / Phase-2
+# consumer; the operator bring-up only needs to know that the cluster
+# has the bucket layout ready for the Phase-3 capability-policy-
+# persistence promotion that the Wirelang-side track (Reza-owned per
+# Persona-Matrix §2) will commit a ``BUCKET_CONFIG`` constant for.
+# Until that lands, this is reservation-form (analogous to the Sprint-4
+# Tag-4 5th-bucket pattern, not the Tag-5 6th-bucket cross-import-
+# mirror pattern).
+#
+# Cross-reference: Sprint-5 Tag-1 Reza outbox §6 lists
+# ``wakir-capability-policies`` as the Phase-3 capability-policy
+# persistence slot; Mira-Strategie-Hand 2026-05-11 promoted the Kai-
+# side bucket-inventory-add to Sprint-5 Tag-2 as the paired update with
+# the Wirelang-side Sprint-5 Tag-2 capability-policy persistence track.
+#
+# Auftrags-Quota analogous to Tag-4 / Tag-5: 5 hermetic tests anchoring
+# slot, mirror-shape, create-call shape, selector path, and idempotency.
+# The live-gated parity probe lives in
+# ``test_check_nats_kv_health.py``. No cross-import-mirror anchor yet —
+# the Wirelang-side ``BUCKET_CONFIG`` constant is owned by Reza and not
+# yet exported. The follow-up byte-mirror anchor lands once the
+# Reza-side encoder/decoder module commits.
+
+
+def test_t_tag2_01_wakir_capability_policies_is_the_seventh_bucket_in_documented_order(mod):
+    """The 7th bucket entry exists with the documented Phase-3-reserved
+    config (history=10, ttl unbounded, 4 KiB max_value_size, file
+    storage, replicas=1).
+
+    The config mirrors ``wakir-ftd-poisoned`` on the small-marker
+    fields (max_value_size=4 KiB, ttl unbounded) so that a serialised
+    capability-policy entry fits comfortably. The history depth is
+    intentionally raised to 10 for rotation-audit retention (a
+    capability-policy rotation should leave a trail; analogous to the
+    poison-list marker bucket which also uses history=10). Order
+    matters: the documented inventory ordering is preserved across
+    tooling output (runbook, JSON report, drift report), so this test
+    pins the 7th-slot placement.
+    """
+    seventh = mod.PHASE_1_BUCKETS[6]
+    assert seventh.name == "wakir-capability-policies"
+    assert seventh.history == 10
+    assert seventh.ttl_seconds == 0
+    assert seventh.max_value_size == 4_096
+    assert seventh.storage == "file"
+    assert seventh.replicas == 1
+    assert "Phase-3" in seventh.description
+    assert "capability-policy" in seventh.description.lower()
+
+
+def test_t_tag2_02_seventh_bucket_config_mirrors_wakir_ftd_poisoned_small_marker_shape(mod):
+    """The 7th bucket's config is byte-aligned with
+    ``wakir-ftd-poisoned`` on the fields that establish the
+    audit-marker shape: history, ttl_seconds, max_value_size, storage,
+    replicas.
+
+    Description is intentionally **different** (capability-policy
+    persistence vs poison-list marker intent). Name is intentionally
+    different (the whole point of the 7th bucket is to separate the
+    capability-policy surface from the FTD poison-list surface). The
+    Reza-owned Wirelang-side ``BUCKET_CONFIG`` constant, when it
+    commits, will be the authoritative byte-mirror anchor; until then
+    this in-tree mirror against ``wakir-ftd-poisoned`` guards the
+    reservation-form shape.
+    """
+    poisoned = next(
+        s for s in mod.PHASE_1_BUCKETS if s.name == "wakir-ftd-poisoned"
+    )
+    seventh = next(
+        s for s in mod.PHASE_1_BUCKETS
+        if s.name == "wakir-capability-policies"
+    )
+    assert seventh.history == poisoned.history
+    assert seventh.ttl_seconds == poisoned.ttl_seconds
+    assert seventh.max_value_size == poisoned.max_value_size
+    assert seventh.storage == poisoned.storage
+    assert seventh.replicas == poisoned.replicas
+    # Names and descriptions diverge by design.
+    assert seventh.name != poisoned.name
+    assert seventh.description != poisoned.description
+
+
+def test_t_tag2_03_seventh_bucket_create_on_empty_cluster_carries_documented_kv_config(
+    mod, event_loop
+):
+    """An empty-cluster planner pass emits a single ``create_key_value``
+    call for the 7th bucket with the documented kwargs.
+
+    A future Phase-3 capability-policy persistence consumer (Reza-
+    side) will read the live bucket on construction; if the
+    orchestrator created the bucket with the wrong ``max_value_size``
+    the consumer would fail to put policy entries larger than the
+    limit, and if the wrong ``history`` it would lose rotation-audit
+    depth. This test guards the create-call shape so the contract
+    surfaces in the hermetic suite before it can hit a live cluster.
+    """
+    js = _MockJetStream()
+    actions = event_loop.run_until_complete(
+        mod.plan_and_apply(js, mod.PHASE_1_BUCKETS, dry_run=False)
+    )
+
+    seventh_actions = [
+        a for a in actions if a.name == "wakir-capability-policies"
+    ]
+    assert len(seventh_actions) == 1
+    assert seventh_actions[0].status == "created"
+
+    seventh_calls = [
+        c for c in js.create_calls
+        if c["bucket"] == "wakir-capability-policies"
+    ]
+    assert len(seventh_calls) == 1
+    call = seventh_calls[0]
+    assert call["history"] == 10
+    assert call["ttl"] == 0
+    assert call["max_value_size"] == 4_096
+    assert call["storage"] == "file"
+    assert call["replicas"] == 1
+    assert "Phase-3" in call["description"]
+
+
+def test_t_tag2_04_bucket_filter_can_select_seventh_bucket(mod, event_loop):
+    """``--bucket wakir-capability-policies`` selects only the 7th
+    bucket.
+
+    Operationally useful: an operator can re-run the init script
+    against a cluster that already has the six pre-Tag-2 Phase-1
+    buckets to backfill only the new 7th bucket without churning the
+    others. This is the no-downtime upgrade path for a cluster that
+    came up before Sprint-5 Tag-2 landed.
+    """
+    js = _MockJetStream()
+    selected = mod._select_specs(["wakir-capability-policies"])
+    assert [s.name for s in selected] == ["wakir-capability-policies"]
+
+    actions = event_loop.run_until_complete(
+        mod.plan_and_apply(js, selected, dry_run=False)
+    )
+    assert len(actions) == 1
+    assert actions[0].name == "wakir-capability-policies"
+    assert actions[0].status == "created"
+    assert set(js.buckets) == {"wakir-capability-policies"}
+
+
+def test_t_tag2_05_seventh_bucket_idempotent_replay_marks_unchanged(
+    mod, event_loop
+):
+    """Re-running the init script after the 7th bucket exists is a
+    no-op.
+
+    Idempotency contract for the full seven-bucket layout: operators
+    can re-run ``init-nats-buckets.py`` on a cluster that already has
+    the complete inventory without side effects. The 7th bucket gets
+    the same idempotency guarantee as the six pre-Tag-2 buckets.
+    """
+    js = _MockJetStream()
+    # First pass: populate all seven.
+    event_loop.run_until_complete(
+        mod.plan_and_apply(js, mod.PHASE_1_BUCKETS, dry_run=False)
+    )
+    js.create_calls.clear()
+
+    # Second pass: should be a no-op for the 7th bucket specifically.
+    actions = event_loop.run_until_complete(
+        mod.plan_and_apply(js, mod.PHASE_1_BUCKETS, dry_run=False)
+    )
+    seventh_action = next(
+        a for a in actions if a.name == "wakir-capability-policies"
+    )
+    assert seventh_action.status == "unchanged"
+    assert js.create_calls == [], (
+        "idempotent replay must not re-create the 7th bucket"
     )
