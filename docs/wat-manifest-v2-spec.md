@@ -500,6 +500,34 @@ is informative only.
 
 ## 11. Change log
 
+- **2026-05-11 (Sprint-4 Tag-5):** WAT-side Identity-Layer landed
+  (`wat/identity/anchor_kid.py`). Adds the WAT-domain anchor-kid
+  reference shape (`WatAnchorKidRef`), the WAT-domain typed
+  exception (`WatAnchorKidError`), the canonical-resolver bridge
+  (`resolve_wat_anchor_kid`) and the WAT-side `PURPOSE_WAT_ANCHOR`
+  re-export. The bridge delegates the 6-step filter (mapping-shape,
+  kid-found, single-match, alg-Ed25519, key_hex-shape, validity-
+  window) to the canonical Identity-Substrate kid-resolver
+  (`wirelang.identity.kid_resolver.resolve_kid`,
+  Identity-Substrate-engineering Phase-2 Sprint-4 Tag-3) under the
+  `require_purpose="wat-anchor"` filter —
+  DRY-consistent with spec §5.9, no resolver-logic re-implementation.
+  Deferred import (`importlib`) keeps the WAT-side primitives
+  importable when the canonical resolver has not merged yet; a
+  cross-branch merge-gap surfaces as a clean `WatAnchorKidError`
+  with the missing-module name in the diagnostic. The `wat-anchor`
+  purpose-tag is byte-pinned to the enum in
+  `wirelang/schemas/aip-document.json` §public_keys.purpose via a
+  schema-read drift detector test. 6 hermetic tests
+  (`tests/wat/test_anchor_kid_resolver.py`, T-WAT-ANCHOR-KID-01..06)
+  split into a standalone cohort (3 tests, always run) and a
+  bridge cohort (3 tests, `pytest.importorskip`-gated on the
+  canonical resolver). Manifest-level wire-up (adding an
+  `anchor_kid` optional field to `wat-manifest-v2.json`) is
+  intentionally deferred — that requires Cross-Review-Zone-1
+  coordination with Identity-Substrate-engineering on the canonical
+  reference shape inside
+  the AIP-document schema.
 - **2026-05-11 (Sprint-4 Tag-4):** Brand-Demo-Verifier Cross-Module
   byte-coordination pinned. A hypothetical Brand-Demo-Snapshot emitter
   (per `docs/wat-brand-asset-snapshot-spec.md` §3.5, §4) spans three
