@@ -9,14 +9,14 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wirelang-schema-registry
-version: 0.7.0
+version: 0.8.0
 status: draft
 date: 2026-05-11
 audience: implementers, integrators, operators
 license: CC-BY-4.0
 ---
 
-# Wirelang Schema Registry — NATS-KV Backend Specification (v0.7.0)
+# Wirelang Schema Registry — NATS-KV Backend Specification (v0.8.0)
 
 **Change log**
 
@@ -27,6 +27,7 @@ license: CC-BY-4.0
 | 0.3.0   | 2026-05-07 | Phase-1c watch-stream surface lands in Tag-4 (`watch()` / `WatchOp` / `WatchEvent` / `LiveSchemaSnapshot` / `open_watch_stream`); §5.3 OI-7-Phase-1c-watch slot CONSUMED; §5.5 added (watch-stream operational contract); §6.2 added (T-SR-WS-01..10 + 2 aux probes test inventory). Additive-only change relative to v0.2.0; M-2 / M-4 conformance preserved. |
 | 0.4.0   | 2026-05-07 | Phase-1c publisher CLI lands in Tag-5 (`wirelang.schemas.publisher_cli`: `wakir-schema-registry publish` / `dry-run` argparse surface, `PublishReceipt`, `ExitCode` matrix); §5.3 OI-7-Phase-1c-publisher slot CONSUMED; §5.6 added (publisher CLI operational contract); §6.3 added (T-SR-PUB-01..12 test inventory). Additive-only change relative to v0.3.0; M-2 / M-4 conformance preserved. The CLI is a thin operator-input layer over the Tag-3 CAS-pin and Tag-1 LWW backends; it introduces no new on-the-wire envelope and no new validation gate. |
 | 0.5.0   | 2026-05-07 | Phase-1c cross-bucket replication lands in Tag-6 (`wirelang.schemas.replication`: `SchemaReplicator`, `bootstrap_target_from_source`, `ReplicationConflictPolicy`, `ReplicationFilter`, `ReplicationMetrics`); §5.3 OI-7-Phase-1c-replication slot CONSUMED; §5.7 added (replication operational contract); §6.4 added (T-SR-REP-01..12 test inventory). Additive-only change relative to v0.4.0; M-2 / M-4 conformance preserved. The replication layer is a thin composition of Tag-1 LWW + Tag-3 CAS-pin + Tag-4 watch-stream surfaces; it introduces no new on-the-wire envelope, no new validation gate, and no new method on `NatsKvSchemaRegistry`. **Phase-1c is now feature-complete.** |
+| 0.8.0   | 2026-05-11 | Phase-2 Sprint-4 Tag-4 lands the AIP-document transport-fetch composition layer (`wirelang.identity.aip_document_transport_fetch`: `fetch_aip_document`, `aip_web_to_https_url`, `AipFetchResult`, `AipDocumentTransportError`, `AipUrlSchemeError`, `AipDnsAnchorMismatchError`); §5.10 added (transport-fetch operational contract); §6.7 added (T-AIP-FT-01..12 test inventory). The module is a pure composition of the V-908 Phase-1b HTTPS-transport (`HTTPSDocumentTransport`) and the V-908 §3.4 DNS-anchor pattern, extended from FTD-doc to AIP-doc via the parallel TXT-record prefix `_wakir-aip.<host>` (same `v=1; sha256=<64-hex>` format). The transport-fetch layer is byte-orthogonal to AIP-document signature verification (`wirelang.identity.verify_aip_signature` is unchanged), the kid-resolver (Tag-3, §5.9) and the schema-registry backend (no method added to `NatsKvSchemaRegistry`); it closes the Sprint-4 Tag-3 §5.9 boundary item "AIP-document transport-fetch" so the Phase-2 canonical verifier flow is now end-to-end composable from an `aip:web:` identifier through to `verify_entry_signature`. Additive-only change relative to v0.7.0; M-2 / M-4 conformance preserved. Cross-Review-Zone-1 non-touched (the four Z-1-K-Sprint-4 consensus points remain byte-identical; `anchor_required` is an orthogonal Tag-4 hard-vs-soft toggle, not the Z-1-K-Sprint-4-4 STRICT-mode toggle). |
 | 0.7.0   | 2026-05-11 | Phase-2 Sprint-4 Tag-3 lands the kid → Ed25519 public-key resolver (`wirelang.identity.kid_resolver`: `resolve_kid`, `list_resolvable_kids`, `ResolvedPublicKey`, `KidResolverError`); §5.9 added (kid-resolver operational contract); §6.6 added (T-KID-RES-01..12 test inventory); §5.8 `kid` resolution forward-reference linked. Z-1-K-Sprint-4-1 (kid-Resolver-Shape) closed by this module — `kid` matches `public_keys[i].kid` (the byte-accurate AIP-document JSON-Schema field; the Z-1-Sprint-4-Anhang consensus marker's "public_keys[i].id" wording refers to the same identifier slot). Z-1-K-Sprint-4-3 (Curve-Choice = Ed25519) reinforced: the resolver filters out `alg == "secp256k1"` entries (those belong to the Biscuit capability-token-burst layer per the two-curve-stack consensus). The resolver does NOT fetch the AIP document over transport, does NOT validate the AIP-document signature, and does NOT mutate the schema-registry backend surface (no new method on `NatsKvSchemaRegistry`). Additive-only change relative to v0.6.0; M-2 / M-4 conformance preserved. |
 | 0.6.0   | 2026-05-11 | Phase-2 entry-signing layer lands in Sprint-4 Tag-1 (`wirelang.schemas.entry_signing`: `SignedSchemaRegistryEntry`, `sign_entry`, `verify_entry_signature`, `envelope_with_signature`, `envelope_to_signed_entry`, `SchemaRegistrySignatureError`, `VerifyMode`); §5.3 OI-7-Phase-2-sig slot CONSUMED (Phase-2 hardening begins); §5.8 added (entry-signing operational contract); §6.5 added (T-SR-SIG-01..12 test inventory). Envelope schema **additive only**: optional `signature` slot on the existing `wakir.wirelang.schema-registry-entry/1` envelope (no `/2` envelope; backward-compatible with v0.5.0 readers). Tag-1 codec is unchanged; new `envelope_with_signature` / `envelope_to_signed_entry` helpers ship the round-trip for the optional slot. M-2 conformance preserved (additive-only field; absent slot is valid under permissive Phase-2-transition verify mode); M-4 conformance preserved (orthogonal to version axis). Cross-Review-Zone-1 (Identity-Substrate) **TRIGGERED**: signing reuses `wirelang.identity.aip_signing` Ed25519 + JCS + SHA-256 primitive byte-identical; the kid binds the signature to an AIP-document `public_keys` entry. `NatsKvSchemaRegistry` surface remains zero-new-method (signing happens at envelope-build time before `put` / `put_with_revision`). |
 
@@ -303,6 +304,94 @@ JCS-canonical envelope that is byte-stable for audit anchoring.
   (verification stays caller-driven, consistent with Sprint-4 Tag-1
   Phase-2 boundary).
 
+**Phase-2 Sprint-4 Tag-4 (this revision, additive over Sprint-4 Tag-3):**
+
+- The AIP-document transport-fetch composition layer
+  (`wirelang/identity/aip_document_transport_fetch.py`) exposing the
+  pure function `fetch_aip_document(aip_id, *, transport,
+  dns_resolver=None, anchor_required=False, dns_timeout_s=3.0)` and
+  the URL-mapping helper `aip_web_to_https_url(aip_id) -> (url, host)`,
+  the frozen dataclass `AipFetchResult` (`aip_id` / `url` / `host` /
+  `aip_doc` / `body_bytes` / `jcs_sha256_hex` / `dns_anchor` /
+  `anchor_matched`), and the typed exception tree
+  `AipDocumentTransportError` → {`AipUrlSchemeError`,
+  `AipDnsAnchorMismatchError`}.
+- **URL mapping**: `aip:web:host[:port]/path` →
+  `https://host[:port]/.well-known/aip/<path>.json` (RFC 8615
+  well-known namespace; the `aip` subspace is the Wakir convention
+  paralleling `_wakir-ftd` for FTD). A pre-resolved `https://...` URL
+  passes through verbatim. Plaintext `http://` is rejected — V-908
+  §3.3 is HTTPS-only end-to-end.
+- **Transport delegation**: HTTPS fetch is delegated wholesale to the
+  Phase-1b V-908 `HTTPSDocumentTransport` (Tag-8 PS-6 module); no
+  transport invariants re-implemented at this layer. Transport-level
+  failures (`HTTPSStatusError`, `HTTPSSchemeError`, etc.) propagate
+  unwrapped so callers retain typed access to the V-908 §3.3
+  invariants. The Tag-4 layer is therefore byte-thin over the existing
+  transport.
+- **DNS-anchor cross-check (Wakir-AIP variant of V-908 §3.4)**: the
+  optional `dns_resolver` argument enables a TXT-record lookup at
+  `_wakir-aip.<host>` returning a payload of shape
+  `v=1; sha256=<64-hex>`. The format is byte-identical to V-908 §3.4's
+  FTD-doc anchor; only the prefix differs (`_wakir-aip` vs
+  `_wakir-ftd`). The fingerprint is compared against
+  `SHA-256(JCS(body without document_signature))` computed locally
+  (the same canonicalisation used by `wirelang.identity.aip_signing`).
+- **Hard-vs-soft toggle**: `anchor_required` controls failure
+  semantics:
+  - `anchor_required=False` (default): DNS lookup is best-effort.
+    Missing / malformed / mismatching TXT surfaces as `dns_anchor=None`
+    or `anchor_matched=False` on the result; never raises from the
+    anchor layer. The caller decides what to do.
+  - `anchor_required=True`: any of {missing TXT, malformed TXT,
+    fingerprint mismatch} raises `AipDnsAnchorMismatchError` with
+    `expected` (the local JCS-anchor hex) and `observed` (the wire
+    fingerprint hex when available) attributes. Calling with
+    `dns_resolver=None` raises eagerly (the contract is unambiguous:
+    requiring an anchor without a resolver is a caller bug).
+- **JCS byte-anchor**: every successful fetch returns
+  `result.jcs_sha256_hex` — the canonical AIP-doc fingerprint —
+  computed via the same resolver-indirected JCS canonicaliser used by
+  `wirelang.identity.aip_signing` (`rfc8785` when present;
+  `_jcs_pure` fallback otherwise). This byte-anchor is the natural
+  consumer surface for downstream WAT-leaf builders and cache tiers.
+- 12 hermetic determinism tests (T-AIP-FT-01..12) over the URL
+  mapping (canonical + edge-cases + rejected shapes), the HTTPS
+  composition (happy path + 404 propagation + structural body
+  failure), the DNS-anchor cross-check (soft-match / soft-absent /
+  hard-mismatch / hard-absent), the eager-raise when
+  `anchor_required=True` with `dns_resolver=None`, and the
+  cross-layer composition with the Tag-3 `kid_resolver` plus a
+  determinism / passthrough probe.
+- This slot closes the Sprint-4 Tag-3 §5.9 boundary item
+  "AIP-document transport-fetch (`did:web` / `aip:web` HTTPS bridge)
+  for the kid-resolver"; the Phase-2 canonical verifier flow is now
+  composable end-to-end from an `aip:web:` identifier through the
+  fetch → resolve → verify chain without caller-side transport glue.
+- **`NatsKvSchemaRegistry` surface remains UNCHANGED**. No backend
+  method added, no new envelope schema introduced, no new validation
+  gate at write time. The transport-fetch layer is orthogonal to the
+  schema-registry backend; it sits at the Identity-Substrate boundary
+  between the V-908 HTTPS-transport and the kid-resolver / signing
+  verify path.
+- **Cross-Review-Zone-1 (Identity-Substrate) non-touched**: the four
+  Z-1-K-Sprint-4 consensus points remain byte-identical. The
+  `anchor_required` toggle is an orthogonal Tag-4 hard-vs-soft policy,
+  NOT the Z-1-K-Sprint-4-4 STRICT-mode signing toggle. JCS
+  canonicalisation reuses the Z-1-K-Sprint-4-2 resolver-indirection
+  byte-identical. Curve-choice is non-touched (the fetch layer is
+  curve-agnostic — it fetches a document, not a key). Kid-Resolver
+  surface is non-touched (the fetch layer feeds the resolver, does
+  not modify its API).
+- **Boundary**: this slot does NOT validate the AIP-document
+  `document_signature` (caller composes with
+  `wirelang.identity.verify_aip_signature`); does NOT validate the
+  body against the JSON-Schema (Phase-1a `aip_resolver` ships that,
+  sandbox-restricted to `rfc8785` + `jsonschema`); does NOT cache the
+  result (the V-908 `HTTPSAipResolverCache` lives one layer up for
+  the federation pipeline); does NOT mutate the schema-registry
+  backend surface.
+
 **Phase-2 (remaining reserved, out of scope here):**
 
 - CAS-quorum upserts on top of multi-replica clusters
@@ -315,10 +404,13 @@ JCS-canonical envelope that is byte-stable for audit anchoring.
   (**OI-7-Phase-2-bidir-replication** reserved).
 - Watch-stream resume-from-revision policy
   (**OI-7-Phase-2-resume** reserved).
-- AIP-document transport-fetch (`did:web` / `aip:web` HTTPS bridge)
-  for the kid-resolver — the resolver currently assumes the caller
-  has already fetched the AIP document; transport-fetch lives in a
-  follow-up Phase-2 / Phase-3 Identity-Substrate slot.
+- ~~AIP-document transport-fetch (`did:web` / `aip:web` HTTPS
+  bridge)~~ (**CONSUMED in Sprint-4 Tag-4** by
+  `wirelang.identity.aip_document_transport_fetch`; see §5.10).
+- AIP-document signature-verification cache tier for the
+  transport-fetch layer (the Tag-4 module is stateless; production
+  callers compose with the V-908 `HTTPSAipResolverCache` or an outer
+  tier). Phase-3 Identity-Substrate slot.
 - STRICT-mode operator-activation toggle (Z-1-K-Sprint-4-4 remains
   open — the resolver is policy-agnostic; the toggle question is
   a Phase-2-roadmap consensus decision).
@@ -328,10 +420,11 @@ The Phase-1c slots are all consumed: Tag-3 consumed
 consumed **OI-7-Phase-1c-publisher**, Tag-6 consumes
 **OI-7-Phase-1c-replication**. Phase-2 Sprint-4 Tag-1 consumes
 **OI-7-Phase-2-sig**; Sprint-4 Tag-3 closes the Z-1-Sprint-4-Anhang
-follow-up `kid → public-key resolver`. The Phase-2 reserved slots are
-tracked as **OI-7-Phase-2-quorum / -deprecation / -ipfs / -bidir-
-replication / -resume** plus the transport-fetch / STRICT-toggle
-follow-up slots noted above.
+follow-up `kid → public-key resolver`; Sprint-4 Tag-4 closes the
+Sprint-4 Tag-3 §5.9 boundary item `AIP-document transport-fetch`.
+The Phase-2 reserved slots are tracked as **OI-7-Phase-2-quorum /
+-deprecation / -ipfs / -bidir-replication / -resume** plus the
+STRICT-toggle follow-up slot noted above.
 
 ## 2. Bucket identity (cross-reference Kai inventory)
 
@@ -570,7 +663,7 @@ These gates protect the determinism contract: a poisoned or
 mis-anchored envelope cannot reach the bucket through the typed
 backend.
 
-### 5.3 What Phase-1b Sprint-3 Tag-1 + Tag-3 + Tag-4 + Tag-5 + Tag-6 + Phase-2 Sprint-4 Tag-1 + Tag-3 covers, and what Phase-2 still does NOT do
+### 5.3 What Phase-1b Sprint-3 Tag-1 + Tag-3 + Tag-4 + Tag-5 + Tag-6 + Phase-2 Sprint-4 Tag-1 + Tag-3 + Tag-4 covers, and what Phase-2 still does NOT do
 
 **Tag-1 (v0.1.0) lands:**
 
@@ -747,6 +840,47 @@ consumed (Tag-3 / Tag-4 / Tag-5 / Tag-6).**
   (Curve-Choice = Ed25519 for the Identity-Document layer) is
   reinforced by the resolver's alg filter.
 
+**Phase-2 Sprint-4 Tag-4 (v0.8.0) lands (additive over Sprint-4 Tag-3):**
+
+- The AIP-document transport-fetch composition module
+  `wirelang.identity.aip_document_transport_fetch` exposing the pure
+  function `fetch_aip_document(aip_id, *, transport,
+  dns_resolver=None, anchor_required=False)`, the URL helper
+  `aip_web_to_https_url`, the frozen dataclass `AipFetchResult`, and
+  the typed exception tree `AipDocumentTransportError` → {
+  `AipUrlSchemeError`, `AipDnsAnchorMismatchError` }.
+- The module is a pure composition over the Phase-1b V-908
+  `HTTPSDocumentTransport` (Tag-8 PS-6) and the V-908 §3.4 DNS-anchor
+  pattern (`dns_anchor.fetch_anchor`); it does not re-implement any
+  transport invariants and does not introduce any new envelope or
+  bucket-config surface.
+- URL mapping: `aip:web:host[:port]/path` →
+  `https://host[:port]/.well-known/aip/<path>.json` (Wakir
+  RFC-8615 well-known convention). Pre-resolved `https://...` URLs
+  pass through verbatim; plaintext `http://` is rejected (V-908 §3.3).
+- DNS-anchor cross-check uses a Wakir-AIP TXT record at
+  `_wakir-aip.<host>` (V-908 §3.4 pattern; same `v=1; sha256=<64-hex>`
+  format) compared against `SHA-256(JCS(body without
+  document_signature))`. The cross-check is toggled by
+  `anchor_required`; soft mode surfaces a missing/malformed/
+  mismatching anchor as `dns_anchor=None` or `anchor_matched=False`;
+  hard mode raises `AipDnsAnchorMismatchError`.
+- 12 hermetic determinism tests (T-AIP-FT-01..12) covering URL
+  mapping (canonical + edge cases + rejected shapes), transport
+  composition (happy path + 404 propagation + structural body
+  failure), DNS-anchor (soft-match / soft-absent / hard-mismatch /
+  hard-absent), eager-raise on missing resolver, cross-layer with
+  the Tag-3 `kid_resolver`, and a determinism / passthrough probe.
+- This slot closes the Sprint-4 Tag-3 §5.9 boundary item
+  "AIP-document transport-fetch (`did:web` / `aip:web` HTTPS
+  bridge)"; the Phase-2 canonical verifier flow is now end-to-end
+  composable from an `aip:web:` identifier through fetch → resolve →
+  verify.
+- Cross-Review-Zone-1 (Identity-Substrate) **non-touched**: the four
+  Z-1-K-Sprint-4 consensus points remain byte-identical (the
+  `anchor_required` toggle is an orthogonal Tag-4 hard-vs-soft
+  policy, NOT the Z-1-K-Sprint-4-4 STRICT-mode signing toggle).
+
 **Phase-2 still does NOT include:**
 
 - No CAS-quorum upserts on top of multi-replica clusters (Tag-3
@@ -765,10 +899,15 @@ consumed (Tag-3 / Tag-4 / Tag-5 / Tag-6).**
 - No automatic signature verification on the backend read path
   (verification stays caller-driven; backend codec is pass-through
   for the optional slot).
-- No AIP-document transport-fetch (`did:web` / `aip:web` HTTPS
+- ~~No AIP-document transport-fetch (`did:web` / `aip:web` HTTPS
   bridge) — the kid-resolver assumes the caller has already fetched
   the AIP document; transport-fetch is a separate Identity-Substrate
-  slot.
+  slot.~~ (**CONSUMED in Sprint-4 Tag-4** by
+  `wirelang.identity.aip_document_transport_fetch`; see §5.10.)
+- No AIP-document signature-verification cache tier (the Tag-4
+  transport-fetch is stateless; production callers compose with
+  the V-908 `HTTPSAipResolverCache` or an outer cache tier).
+  Phase-3 Identity-Substrate slot.
 - No STRICT-mode activation toggle (Z-1-K-Sprint-4-4 still open;
   the resolver is policy-agnostic).
 
@@ -1579,6 +1718,239 @@ This composition is the recommended Phase-2 verifier pattern.
 Sprint-4 Tag-3 test T-KID-RES-03 exercises it end-to-end against the
 RFC-8032 Ed25519 test-vector seeds.
 
+### 5.10 AIP-document transport-fetch operational contract (Phase-2 Sprint-4 Tag-4)
+
+The transport-fetch layer plugs the §5.9 boundary item "AIP-document
+transport-fetch": the kid-resolver (§5.9) presumes the caller has
+already obtained the AIP document, but does not specify how. Sprint-4
+Tag-4 ships that step as a pure composition of two existing Phase-1b
+primitives — the V-908 HTTPS-transport (`HTTPSDocumentTransport`) and
+the V-908 §3.4 DNS-anchor pattern — extended in shape from the FTD
+document to the AIP document. The module is
+`wirelang.identity.aip_document_transport_fetch`; it does NOT mutate
+the schema-registry backend, does NOT add a method to
+`NatsKvSchemaRegistry`, and does NOT introduce a new envelope.
+
+**Module location and rationale:**
+
+The fetcher lives in `wirelang.identity` alongside the kid-resolver
+(§5.9), `aip_document.py`, `aip_signing.py`, and the V-908 transport
+primitives (`aip_https_backend.py`, `dns_anchor.py`). This placement
+keeps the AIP-document trust layer self-contained: the schema-
+registry signing module (§5.8) sees only the resolved public key,
+and the resolver (§5.9) sees only the parsed AIP-document body. The
+transport step is upstream of both and is the natural concern of the
+Identity-Substrate module.
+
+**Public API:**
+
+```python
+@dataclass(frozen=True)
+class AipFetchResult:
+    aip_id: str                  # input identifier (aip:web: or https://)
+    url: str                     # canonical HTTPS URL fetched
+    host: str                    # lower-cased host (for the DNS-anchor lookup)
+    aip_doc: dict                # parsed JSON body, ready for resolve_kid
+    body_bytes: bytes            # raw HTTPS response bytes (for re-canonicalisation)
+    jcs_sha256_hex: str          # SHA-256(JCS(body without document_signature))
+    dns_anchor: Optional[DnsAnchor]
+    anchor_matched: bool
+
+def aip_web_to_https_url(aip_id: str) -> tuple[str, str]: ...
+
+def fetch_aip_document(
+    aip_id: str,
+    *,
+    transport: HTTPSDocumentTransport,
+    dns_resolver: Optional[TxtResolver] = None,
+    anchor_required: bool = False,
+    dns_timeout_s: float = 3.0,
+) -> AipFetchResult: ...
+
+class AipDocumentTransportError(Exception): ...
+class AipUrlSchemeError(AipDocumentTransportError): ...
+class AipDnsAnchorMismatchError(AipDocumentTransportError): ...
+
+WELL_KNOWN_AIP_PREFIX: str = "/.well-known/aip/"
+DNS_ANCHOR_PREFIX: str = "_wakir-aip."
+```
+
+**URL mapping rules:**
+
+| Input | Output URL | Output host |
+|---|---|---|
+| `aip:web:host/persona-path` | `https://host/.well-known/aip/persona-path.json` | `host` (lower-cased) |
+| `aip:web:host` (no path) | `https://host/.well-known/aip/index.json` | `host` (lower-cased) |
+| `aip:web:host/foo.json` | `https://host/.well-known/aip/foo.json` (trailing `.json` is stripped from path then added back so the canonical form is single-source) | `host` (lower-cased) |
+| `https://host/...` (pre-resolved) | unchanged | `host` parsed from URL |
+| `http://...` | (raises `AipUrlSchemeError`) | — |
+| empty / malformed | (raises `AipUrlSchemeError`) | — |
+
+The `aip:web:` shape is the Wakir Phase-2 convention paralleling the
+W3C `did:web:` shape; the canonical resolution under the `.well-known`
+namespace (RFC 8615) keeps AIP documents portable across any web host
+without a custom registry.
+
+**Transport delegation:**
+
+HTTPS fetch is delegated wholesale to the Phase-1b V-908
+`HTTPSDocumentTransport` (Tag-8 PS-6 module). The Tag-4 layer:
+
+- Adds no transport invariants on top of the V-908 §3.3 set
+  (HTTPS-only, TLS 1.2+, max redirect = 0, body size cap, JSON
+  Content-Type, parseable JSON object root). The V-908 transport
+  enforces them.
+- Does NOT wrap V-908 transport-level exceptions. `HTTPSStatusError`
+  (with `.status == 404` etc.), `HTTPSSchemeError`,
+  `HTTPSTransportError`, `HTTPSBodySizeError`, `HTTPSPayloadError`,
+  `HTTPSRedirectError`, `HTTPSDocumentNotModified`, and the base
+  `HTTPSBackendError` propagate verbatim. Callers retain typed
+  access to the V-908 §3.3 invariants and can implement
+  cache-revalidation strategies (`If-None-Match`) without going
+  through the Tag-4 surface.
+
+The result is that Tag-4 is byte-thin over the existing transport:
+no double-parsing, no transport-error-renaming, no JSON re-decode.
+
+**DNS-anchor cross-check (Wakir-AIP variant of V-908 §3.4):**
+
+The optional `dns_resolver` parameter enables an out-of-band TXT-record
+lookup at `_wakir-aip.<host>` (prefix `DNS_ANCHOR_PREFIX`). The
+TXT-record format is byte-identical to the V-908 §3.4 FTD-document
+anchor:
+
+```
+v=1; sha256=<64-hex>
+```
+
+Parsing reuses `wirelang.identity.dns_anchor.parse_anchor` verbatim.
+Only the prefix differs between the AIP variant (`_wakir-aip`) and the
+FTD variant (`_wakir-ftd`) — same trust model, same on-wire shape.
+
+The local fingerprint is computed as
+`SHA-256(JCS(body without document_signature))` using the resolver-
+indirected `_jcs_canonicalize` from `wirelang.identity.aip_signing`
+(the same canonicaliser the AIP-document signing path uses; the
+`document_signature` slot is removed from a deep-copy so the caller's
+body is not mutated).
+
+**Hard-vs-soft toggle (`anchor_required`):**
+
+| `anchor_required` | DNS TXT outcome | Result |
+|---|---|---|
+| `False` (default) | matches local JCS-anchor | `dns_anchor` set, `anchor_matched=True` |
+| `False` (default) | missing / malformed | `dns_anchor=None`, `anchor_matched=False`, no raise |
+| `False` (default) | mismatches | `dns_anchor` set, `anchor_matched=False`, no raise |
+| `False` (default) | no resolver supplied | `dns_anchor=None`, `anchor_matched=False`, no raise |
+| `True` | matches local JCS-anchor | `dns_anchor` set, `anchor_matched=True` |
+| `True` | missing / malformed | **`AipDnsAnchorMismatchError`** (with `expected` set, `observed=None`) |
+| `True` | mismatches | **`AipDnsAnchorMismatchError`** (with `expected` + `observed` set) |
+| `True` | no resolver supplied | **`AipDnsAnchorMismatchError`** ("dns_resolver is None") — eager raise contract |
+
+The `anchor_required` toggle is **orthogonal to** the Sprint-4 Tag-1
+`VerifyMode.STRICT` signature-policy toggle (Z-1-K-Sprint-4-4) — it
+governs the transport-trust step, not the signature-verification step.
+A production deployment composes both:
+
+- `VerifyMode.STRICT` for signature presence + cryptographic validity
+  on the schema-registry envelope.
+- `anchor_required=True` for DNS-anchored AIP-document trust.
+
+**Determinism contract (Phase-2 Sprint-4 Tag-4 invariants):**
+
+1. **Pure composition**: `fetch_aip_document` does not cache; it does
+   not mutate the transport or the resolver; the result dataclass is
+   frozen. Production callers compose with the existing V-908
+   `HTTPSAipResolverCache` or a separate caching tier if memoisation
+   is required.
+2. **Reproducible URL mapping**: `aip_web_to_https_url` is byte-
+   deterministic on its input. Repeated calls with the same `aip_id`
+   produce equal `(url, host)` tuples.
+3. **Reproducible byte-anchor**: `result.jcs_sha256_hex` is byte-equal
+   across repeated fetches of the same body (the JCS canonicaliser
+   is deterministic; the SHA-256 digest is deterministic).
+4. **Structural-vs-network split**: structural failures (URL scheme,
+   anchor mismatch in hard mode) raise the typed `AipDocument*`
+   errors; network-level failures propagate as V-908
+   `HTTPSBackendError` subclasses unchanged. Callers can branch on
+   exception type without parsing messages.
+
+**Phase-2 Sprint-4 Tag-4 boundary:**
+
+The transport-fetch layer deliberately does NOT:
+
+- Validate the AIP document's `document_signature` slot. Establishing
+  AIP-document signing-trust is the caller's responsibility — see
+  `wirelang.identity.verify_aip_signature`. The fetch layer returns
+  the parsed body unchanged and lets the caller drive signature-check.
+- Validate the AIP document against the JSON Schema
+  (`wirelang/schemas/aip-document.json`). Schema-validation lives in
+  Phase-1a `aip_resolver`; Tag-4 is shape-agnostic.
+- Mutate the schema-registry backend surface. `NatsKvSchemaRegistry`
+  is unchanged; no new method, no new envelope.
+- Cache the result. Tag-4 is a stateless pure composition. The V-908
+  `HTTPSAipResolverCache` exists in the HTTPS backend for the
+  federation pipeline; production callers compose with the cache or
+  layer their own tier on top.
+- Bind the resolved `aip_id` to a schema-registry capability
+  envelope (`registered_by` gating remains a future Phase-2 slot).
+
+**Cross-Review-Zone-1 (Identity-Substrate) — non-touched:**
+
+- **Z-1-K-Sprint-4-1 (kid-Resolver-Shape)** non-touched; Sprint-4
+  Tag-3 closed it. Tag-4 feeds the resolver, does not modify it.
+- **Z-1-K-Sprint-4-2 (JCS-Resolver-Lock)** non-touched; this module
+  consumes `aip_signing._jcs_canonicalize` byte-identical via a
+  lazy import. No new JCS path introduced.
+- **Z-1-K-Sprint-4-3 (Curve-Choice = Ed25519)** non-touched;
+  transport-fetch is curve-agnostic (it fetches a document, not a
+  key).
+- **Z-1-K-Sprint-4-4 (STRICT-Mode-Activation-Owner)** non-touched;
+  `anchor_required` is a Tag-4-local hard-vs-soft toggle and is
+  semantically independent of the schema-registry signing STRICT
+  toggle.
+
+**Composition pattern (canonical end-to-end Phase-2 verifier flow):**
+
+```python
+from wirelang.identity import (
+    fetch_aip_document,
+    resolve_kid,
+)
+from wirelang.identity.aip_https_backend import HTTPSDocumentTransport
+from wirelang.identity.dns_anchor import StdlibDoHResolver
+from wirelang.schemas.entry_signing import verify_entry_signature, VerifyMode
+
+# 1. Fetch and (optionally) DNS-anchor-cross-check the AIP document.
+transport = HTTPSDocumentTransport()
+dns = StdlibDoHResolver()
+fetched = fetch_aip_document(
+    "aip:web:wakir.dev/personas/treasury-issuer",
+    transport=transport,
+    dns_resolver=dns,
+    anchor_required=True,        # hard-trust path
+)
+
+# 2. Resolve the signing kid to an Ed25519 public key.
+resolved = resolve_kid(
+    fetched.aip_doc,
+    signed.signature["kid"],
+    as_of=now_utc(),
+    require_purpose="aip-signing",
+)
+
+# 3. Verify the schema-registry-entry signature end-to-end.
+ok = verify_entry_signature(
+    signed, resolved.public_key, mode=VerifyMode.STRICT,
+)
+```
+
+Sprint-4 Tag-4 test `T-AIP-FT-11` exercises steps 1-2 against the
+RFC-8032 Ed25519 test-vector seeds; the resolver feed-through to
+`verify_entry_signature` is covered by Sprint-4 Tag-3 test
+`T-KID-RES-03`. The two tests together pin the end-to-end Phase-2
+verifier pattern.
+
 ## 6. Test inventory
 
 Phase-1b Sprint-3 Tag-1 ships hermetic tests at
@@ -1954,6 +2326,86 @@ suite grows from 671 passed (post-Sprint-4 Tag-1) to **683 passed**
 (+12 net). The Tag-1 entry-signing tests (T-SR-SIG-01..12) remain
 unchanged and green.
 
+### 6.7 AIP-document transport-fetch tests (Phase-2 Sprint-4 Tag-4, additive over Sprint-4 Tag-3)
+
+Phase-2 Sprint-4 Tag-4 ships hermetic transport-fetch tests at
+`wirelang/tests/test_aip_document_transport_fetch.py`. Inventory
+T-AIP-FT-01..12. All tests are hermetic: a fake `urlopen` is injected
+into `HTTPSDocumentTransport` and a stub `TxtResolver` is supplied
+for the DNS-anchor path. No real HTTPS calls and no real DNS queries
+leave the process.
+
+- **T-AIP-FT-01** — `aip_web_to_https_url` canonical mappings. Four
+  sub-cases: `aip:web:host/persona-path` → canonical URL; no-path
+  `aip:web:host` → `index.json` under `.well-known/aip/`; trailing
+  `.json` on persona-path is stripped (single-source canonical form);
+  pre-resolved `https://...` URL passes through verbatim.
+- **T-AIP-FT-02** — URL-scheme structural failures. Six sub-cases:
+  empty string; bare `aip:web:`; `aip:web:` with empty-host; `did:web:`
+  (wrong scheme); plaintext `http://` (rejected with a V-908 §3.3
+  message); bare `https://`. All six raise `AipUrlSchemeError`.
+- **T-AIP-FT-03** — happy-path HTTPS fetch without DNS-anchor.
+  `fetch_aip_document` returns an `AipFetchResult` with correct
+  `aip_id`/`url`/`host`/`aip_doc`/`body_bytes`/`jcs_sha256_hex` and
+  `dns_anchor=None`, `anchor_matched=False`. Exactly one HTTPS call
+  at the mapped URL.
+- **T-AIP-FT-04** — V-908 transport error propagation. A `404` from
+  the fake `urlopen` surfaces as `HTTPSStatusError` (V-908 §3.3
+  invariant), not as an `AipDocumentTransportError`; the typed
+  `.status == 404` access is preserved (no wrapping).
+- **T-AIP-FT-05** — non-object root body. A JSON array (`[1,2,3]`)
+  as the body raises `HTTPSPayloadError` (the V-908 transport
+  enforces "JSON object root"; the Tag-4 defensive guard is dead
+  code in the production wire and is pinned to the transport here).
+- **T-AIP-FT-06** — DNS-anchor soft-match. `anchor_required=False`
+  with a matching TXT record (`v=1; sha256=<fp>` where `fp` equals
+  the local JCS-anchor hex) → `anchor_matched=True`, `dns_anchor`
+  populated, exactly one DNS resolver call at `_wakir-aip.<host>`
+  with the configured timeout.
+- **T-AIP-FT-07** — DNS-anchor soft-absent. `anchor_required=False`
+  with no TXT record at the anchor host → no raise; `dns_anchor=None`,
+  `anchor_matched=False`. The soft mode swallows the underlying
+  `DnsAnchorError`.
+- **T-AIP-FT-08** — DNS-anchor hard-mismatch. `anchor_required=True`
+  with a TXT record whose fingerprint disagrees with the local
+  JCS-anchor hex → `AipDnsAnchorMismatchError` with `expected` set
+  to the local hex and `observed` set to the wire hex; `host` and
+  `aip_id` carried on the exception.
+- **T-AIP-FT-09** — DNS-anchor hard-absent. `anchor_required=True`
+  with no TXT record at the anchor host → `AipDnsAnchorMismatchError`
+  with a `"lookup failed"` message; the underlying `DnsAnchorError`
+  is chained via `__cause__`.
+- **T-AIP-FT-10** — eager-raise on missing resolver.
+  `anchor_required=True` with `dns_resolver=None` → `AipDnsAnchorMismatchError`
+  with `"dns_resolver is None"`. The HTTPS fetch still occurs (the
+  eager raise happens post-fetch; the contract documents this).
+- **T-AIP-FT-11** — cross-layer composition. End-to-end:
+  `fetch_aip_document` → `resolve_kid`. The fetched body produces a
+  `ResolvedPublicKey` whose `public_key` byte-equals the RFC-8032
+  Ed25519 test-vector public key seeded into the AIP-doc fixture.
+  Pairs with Sprint-4 Tag-3 `T-KID-RES-03` (the resolver →
+  `verify_entry_signature` half) to pin the canonical Phase-2
+  verifier flow.
+- **T-AIP-FT-12** — determinism and pre-resolved-URL pass-through.
+  Repeated `fetch_aip_document` calls with the same `aip_id` and
+  byte-equal response produce byte-equal `(url, host, aip_doc,
+  jcs_sha256_hex)`. The `https://...` pre-resolved shape produces
+  the same `jcs_sha256_hex` as the `aip:web:` shape on the same body
+  (URL passes through; host is parsed identically).
+
+Total Phase-2 Sprint-4 Tag-4 test additions: 12 hermetic determinism
+tests (T-AIP-FT-01..12). The fetcher is pure-composition: no signature
+verification, no schema validation, no caching. Tests use a fake
+`urlopen` script + a stub `TxtResolver` for end-to-end determinism;
+RFC 8032 Ed25519 test-vector seeds are reused from the Sprint-4 Tag-3
+kid-resolver tests for the cross-layer composition probe.
+
+**Suite-level effect (post-Sprint-4 Tag-4):** the wirelang test
+suite grows from **683 passed** (post-Sprint-4 Tag-3) to **695 passed**
+(+12 net). The Tag-1 entry-signing tests (T-SR-SIG-01..12) and the
+Tag-3 kid-resolver tests (T-KID-RES-01..12) remain unchanged and
+green.
+
 ## 7. Cross-references and Open-Items
 
 - V-908 backend pattern source:
@@ -1996,10 +2448,22 @@ unchanged and green.
   (reserved; CRDT-style merge contract for two-way mirror).
 - Phase-2 watch-stream resume: **OI-7-Phase-2-resume** (reserved;
   resume-from-revision policy on connection drop).
-- Phase-2 AIP-document transport-fetch: reserved as a future
-  Identity-Substrate slot (the kid-resolver currently assumes the
-  caller has already fetched the AIP document via `did:web` /
-  `aip:web`).
+- **Phase-2 AIP-document transport-fetch: CONSUMED in Sprint-4
+  Tag-4.** Module: `wirelang/identity/aip_document_transport_fetch.py`.
+  Tests: `wirelang/tests/test_aip_document_transport_fetch.py`
+  (T-AIP-FT-01..12). Closes the Sprint-4 Tag-3 §5.9 boundary item
+  "AIP-document transport-fetch (`did:web` / `aip:web` HTTPS bridge)".
+  The module composes the V-908 Phase-1b HTTPS-transport
+  (`HTTPSDocumentTransport`) and the V-908 §3.4 DNS-anchor pattern
+  (extended from FTD-doc to AIP-doc via the parallel TXT-record
+  prefix `_wakir-aip.<host>`; same `v=1; sha256=<64-hex>` format).
+  The fetch layer is byte-orthogonal to AIP-document signature
+  verification (`wirelang.identity.verify_aip_signature` unchanged),
+  the kid-resolver (Tag-3, §5.9), and the schema-registry backend
+  (no method added to `NatsKvSchemaRegistry`). The Phase-2 canonical
+  verifier flow is now end-to-end composable from an `aip:web:`
+  identifier through to `verify_entry_signature` — see §5.10
+  composition pattern.
 - Phase-2 STRICT-mode activation toggle: reserved (Z-1-K-Sprint-4-4
   open; operator-controlled toggle is a Phase-2-roadmap consensus
   question).
@@ -2196,6 +2660,68 @@ itself is still Phase-2.
   warranted by the new §5.9 operational contract and §6.6 test
   inventory; no breaking-change to any consumer.
 
+**Phase-2 Sprint-4 Tag-4 (v0.8.0) is additive relative to Sprint-4 Tag-3 (v0.7.0):**
+
+- All Tag-1 + Tag-3 + Tag-4 + Tag-5 + Tag-6 + Sprint-4 Tag-1 +
+  Sprint-4 Tag-3 surfaces remain unchanged. Sprint-4 Tag-4 introduces
+  no new method on `NatsKvSchemaRegistry`, no modification to
+  `wirelang.schemas.entry_signing`, and no modification to
+  `wirelang.identity.kid_resolver` (the Sprint-4 Tag-3 surface).
+- The Sprint-4 Tag-4 addition is a *separate module*
+  (`wirelang.identity.aip_document_transport_fetch`) consisting of
+  the pure function `fetch_aip_document`, the URL-mapping helper
+  `aip_web_to_https_url`, the frozen dataclass `AipFetchResult`, the
+  typed exception tree `AipDocumentTransportError` →
+  {`AipUrlSchemeError`, `AipDnsAnchorMismatchError`}, and the
+  module-level constants `WELL_KNOWN_AIP_PREFIX` /
+  `DNS_ANCHOR_PREFIX`. The fetcher is exposed via the
+  `wirelang.identity` package `__init__`.
+- The on-the-wire envelope schema is UNCHANGED. The fetcher reads
+  AIP documents from HTTPS; it does not emit, write, or canonicalise
+  schema-registry envelope bytes.
+- `wirelang.schemas.entry_signing` is UNCHANGED. `wirelang.identity.kid_resolver`
+  is UNCHANGED. `wirelang.identity.aip_signing` is UNCHANGED. The
+  fetcher consumes `wirelang.identity.aip_signing._jcs_canonicalize`
+  via a lazy import (the canonicaliser is shared byte-identical with
+  the signing path; no new JCS path introduced).
+- The V-908 HTTPS-transport surface (`HTTPSDocumentTransport` and
+  its exception tree `HTTPSBackendError` + subclasses) is UNCHANGED.
+  The fetcher composes the existing transport without wrapping or
+  re-parsing.
+- The V-908 DNS-anchor surface (`dns_anchor.TxtResolver`,
+  `dns_anchor.fetch_anchor`, `dns_anchor.parse_anchor`,
+  `DnsAnchor`, `DnsAnchorError`) is UNCHANGED. The Wakir-AIP TXT-
+  record prefix (`_wakir-aip.`) is a parallel slot to the Wakir-FTD
+  prefix (`_wakir-ftd.`); the on-wire format is byte-identical
+  (`v=1; sha256=<64-hex>`); the parser is reused verbatim.
+- M-2 conformance (additive-only schema evolution): Sprint-4 Tag-4
+  adds NO new envelope field. The schema-registry on-the-wire surface
+  (envelope shape, value-schema URI
+  `wakir.wirelang.schema-registry-entry/1`, signature-block shape)
+  is bit-equal to v0.7.0. M-2 is preserved trivially.
+- M-4 conformance (multi-version-aware registry): Sprint-4 Tag-4
+  is orthogonal to the version axis. The fetcher operates on AIP
+  documents (one per agent identity), not on registry entries.
+- The AIP-document JSON-Schema (`wirelang/schemas/aip-document.json`)
+  is UNCHANGED. The fetcher reads the body opaquely and does not
+  validate it against the schema (schema-validation belongs to
+  Phase-1a `aip_resolver`).
+- Cross-Review-Zone-1 (Identity-Substrate) non-touched: the four
+  Z-1-K-Sprint-4 consensus points remain byte-identical. The Tag-4
+  `anchor_required` toggle is an *orthogonal* hard-vs-soft policy
+  governing the transport-trust step; it is semantically distinct
+  from the Sprint-4 Tag-1 `VerifyMode.STRICT` signature-policy toggle
+  (Z-1-K-Sprint-4-4).
+- The synchronous verifier surface (`InMemorySchemaRegistry.lookup`
+  / `lookup_by_triple` / `keys_sorted`) is unchanged. The transport-
+  fetch layer is opt-in: verifiers that consume out-of-band AIP
+  documents (e.g. from a sidecar cache) are not forced onto the
+  fetcher path.
+- Spec semver bump 0.7.0 → 0.8.0 reflects the additive minor change
+  (M-2 §3.2 versioning policy: minor for additive). The bump is
+  warranted by the new §5.10 operational contract and §6.7 test
+  inventory; no breaking-change to any consumer.
+
 ## 9. Brand-Guide §9 sweep
 
 This document has been swept against the Wakir Brand-Guide §9
@@ -2212,5 +2738,19 @@ compatibility statement update) have been swept identically — only
 role-strings, module-path references, `wakir.*` URIs, and IETF /
 RFC references appear in the spec body. No external-tool clear-name
 leakage and no internal-persona-clear-name leakage in the spec body.
+
+The Sprint-4 Tag-4 additions (§5.10, §6.7, change-log v0.8.0 entry,
+§1.2 Phase-2 Sprint-4 Tag-4 block, §5.3 lands-update,
+§7 cross-references update — transport-fetch slot CONSUMED, §8
+compatibility statement update for v0.7.0 → v0.8.0) have been swept
+identically — only role-strings (none in this spec body), module-path
+references (`wirelang.identity.aip_document_transport_fetch`,
+`wirelang.identity.aip_https_backend`, `wirelang.identity.dns_anchor`),
+`wakir.*` URIs (`_wakir-aip.`, `/.well-known/aip/`, `aip:web:`,
+`wakir.wirelang.schema-registry-entry/1`), and IETF / RFC references
+(RFC 8615 well-known namespace, RFC 8785 JCS, RFC 8032 Ed25519,
+V-908 spec sections) appear in the spec body. No external-tool
+clear-name leakage and no internal-persona-clear-name leakage in
+the Tag-4 spec body additions.
 
 — End of spec —

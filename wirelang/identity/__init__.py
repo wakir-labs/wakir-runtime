@@ -57,6 +57,14 @@ from .kid_resolver import (
     list_resolvable_kids,
     resolve_kid,
 )
+from .aip_document_transport_fetch import (
+    AipDocumentTransportError,
+    AipDnsAnchorMismatchError,
+    AipFetchResult,
+    AipUrlSchemeError,
+    aip_web_to_https_url,
+    fetch_aip_document,
+)
 
 __all__ = [
     "WAKIR_COIN_TYPE",
@@ -81,4 +89,10 @@ __all__ = [
     "ResolvedPublicKey",
     "resolve_kid",
     "list_resolvable_kids",
+    "AipDocumentTransportError",
+    "AipDnsAnchorMismatchError",
+    "AipFetchResult",
+    "AipUrlSchemeError",
+    "aip_web_to_https_url",
+    "fetch_aip_document",
 ]
