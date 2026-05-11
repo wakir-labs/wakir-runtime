@@ -1,11 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
-"""SPIFFE Workload API adapter — wirelang-side surface stub.
+"""SPIFFE Workload API adapter — wirelang-side surface stub + mock impl.
 
-Phase: Phase-2 Sprint-6 Tag-4 (skeleton — surface stub only, NO
-functional implementation).
-Status: surface contract, type annotations, docstrings. Functional
-implementation deferred to Sprint-6 Tag-5+ / Phase-2c (paired with the
-DevOps-track SPIRE-server integration on Kai's track).
+Phase: Phase-2 Sprint-6 Tag-5 (skeleton + MOCK functional implementation
+for ``fetch_jwt_svid``; ``fetch_x509_svid`` remains stub).
+Status: surface contract, type annotations, docstrings, mock impl. Real
+upstream-``spiffe``-backed implementation deferred to Sprint-6 Tag-6+ /
+Phase-2c (paired with the DevOps-track SPIRE-server integration on Kai's
+track).
+
+Sprint-6 Tag-5 additive note: :class:`MockSpiffeWorkloadApiAdapter` is
+added below the Protocol surface as a deterministic in-process
+implementation suitable for unit tests and orchestrator integration
+tests that need a typed adapter without provisioning a SPIRE agent.
+The mock makes NO network calls and NO file-system calls; it is fully
+hermetic.
 
 Purpose
 =======
@@ -307,11 +315,183 @@ class SpiffeWorkloadApiAdapter(Protocol):
 
 
 # ---------------------------------------------------------------------------
+# Mock implementation (Sprint-6 Tag-5; hermetic, no network, no FS)
+# ---------------------------------------------------------------------------
+
+
+_DEFAULT_MOCK_SPIFFE_ID = "spiffe://wakir.local/agent/reza/aabbccddeeff"
+_DEFAULT_MOCK_TRUST_DOMAIN = "wakir.local"
+
+
+@dataclass(frozen=True)
+class MockSvidRecord:
+    """Configurable mock SVID record consumed by
+    :class:`MockSpiffeWorkloadApiAdapter`.
+
+    A mock adapter is initialised with a sequence of records. Each
+    :meth:`MockSpiffeWorkloadApiAdapter.fetch_jwt_svid` call selects the
+    record whose ``spiffe_id`` matches the requested SPIFFE-ID (or the
+    first record when no ``spiffe_id`` is requested and the record set
+    is non-empty).
+
+    Behaviour flags:
+
+    - ``unavailable``: when ``True``, fetch raises
+      :class:`SpiffeAdapterUnavailable` (simulates SPIRE-agent down).
+    - ``attestation_failed``: when ``True``, fetch raises
+      :class:`SpiffeAdapterAttestationFailed`.
+    - ``permitted_audiences``: the set of audience strings the
+      registration entry would mint against. If the requested audience
+      is not in this set (and the set is non-empty), fetch raises
+      :class:`SpiffeAdapterAudienceRejected`. ``None`` (the default)
+      means "permit any audience" (a permissive mock; tests that need
+      audience-rejection coverage MUST set this).
+    """
+
+    spiffe_id: str = _DEFAULT_MOCK_SPIFFE_ID
+    token: str = "mock.jwt.token"
+    extra_audiences: tuple = ()
+    expires_at: Optional[datetime] = None
+    unavailable: bool = False
+    attestation_failed: bool = False
+    permitted_audiences: Optional[frozenset] = None
+
+
+class MockSpiffeWorkloadApiAdapter:
+    """Hermetic in-process mock for :class:`SpiffeWorkloadApiAdapter`.
+
+    Deterministic: a given (record-set, request) input pair produces a
+    byte-identical :class:`JwtSvid` output. No clock reads, no random,
+    no I/O. Suitable for unit tests and orchestrator integration tests
+    that need a typed adapter without provisioning a SPIRE agent.
+
+    Construction:
+
+    - ``records``: optional iterable of :class:`MockSvidRecord`
+      instances. If empty / omitted, a single default record is
+      synthesised (``_DEFAULT_MOCK_SPIFFE_ID``, permissive audiences).
+    - ``default_expires_at``: fallback timezone-aware datetime used when
+      a record's ``expires_at`` is ``None``. Defaults to
+      ``datetime(2099, 1, 1, tzinfo=UTC)`` so tests do not need to
+      provide one. Test callers needing expiry-semantics coverage MUST
+      pass an explicit instant.
+
+    Method semantics:
+
+    - :meth:`fetch_jwt_svid` looks up the record whose ``spiffe_id``
+      matches the requested ``spiffe_id`` (or uses the first record on
+      ``spiffe_id=None``). It then:
+
+      1. If the record is ``unavailable``, raises
+         :class:`SpiffeAdapterUnavailable`.
+      2. Else if ``attestation_failed``, raises
+         :class:`SpiffeAdapterAttestationFailed`.
+      3. Else if ``permitted_audiences`` is set and ``audience`` is not
+         in it, raises :class:`SpiffeAdapterAudienceRejected`.
+      4. Else returns a :class:`JwtSvid` with ``audiences =
+         (audience,) + extra_audiences``.
+
+      When ``spiffe_id`` is supplied but no record matches, raises
+      :class:`SpiffeAdapterAttestationFailed` (the Workload API
+      behaviour for a SPIFFE-ID the workload is not registered for).
+
+    - :meth:`fetch_x509_svid` raises :class:`NotImplementedError`
+      (Phase-2c surface; the mock follows the stub-Protocol convention).
+
+    Concurrency: instances are stateless after construction and safe
+    for concurrent use across asyncio tasks.
+    """
+
+    def __init__(
+        self,
+        records: Optional[tuple] = None,
+        *,
+        default_expires_at: Optional[datetime] = None,
+    ) -> None:
+        from datetime import timezone
+
+        if records is None:
+            records = (MockSvidRecord(),)
+        if not isinstance(records, tuple):
+            records = tuple(records)
+        if not records:
+            raise ValueError(
+                "MockSpiffeWorkloadApiAdapter: records must be non-empty "
+                "or omitted (pass None for the default record)."
+            )
+        self._records = records
+        self._default_expires_at = default_expires_at or datetime(
+            2099, 1, 1, tzinfo=timezone.utc
+        )
+
+    def _resolve_record(self, spiffe_id: Optional[str]) -> MockSvidRecord:
+        if spiffe_id is None:
+            return self._records[0]
+        for record in self._records:
+            if record.spiffe_id == spiffe_id:
+                return record
+        raise SpiffeAdapterAttestationFailed(
+            f"MockSpiffeWorkloadApiAdapter: no registered record for "
+            f"spiffe_id={spiffe_id!r}"
+        )
+
+    async def fetch_jwt_svid(
+        self,
+        audience: str,
+        *,
+        spiffe_id: Optional[str] = None,
+    ) -> JwtSvid:
+        if not isinstance(audience, str) or not audience:
+            raise SpiffeAdapterError(
+                "MockSpiffeWorkloadApiAdapter: audience must be a "
+                "non-empty string"
+            )
+        record = self._resolve_record(spiffe_id)
+        if record.unavailable:
+            raise SpiffeAdapterUnavailable(
+                f"MockSpiffeWorkloadApiAdapter: record for "
+                f"spiffe_id={record.spiffe_id!r} marked unavailable"
+            )
+        if record.attestation_failed:
+            raise SpiffeAdapterAttestationFailed(
+                f"MockSpiffeWorkloadApiAdapter: record for "
+                f"spiffe_id={record.spiffe_id!r} marked attestation_failed"
+            )
+        if (
+            record.permitted_audiences is not None
+            and audience not in record.permitted_audiences
+        ):
+            raise SpiffeAdapterAudienceRejected(
+                f"MockSpiffeWorkloadApiAdapter: audience={audience!r} "
+                f"not in permitted set for spiffe_id={record.spiffe_id!r}"
+            )
+        expires_at = record.expires_at or self._default_expires_at
+        return JwtSvid(
+            spiffe_id=record.spiffe_id,
+            token=record.token,
+            audiences=(audience,) + tuple(record.extra_audiences),
+            expires_at=expires_at,
+        )
+
+    async def fetch_x509_svid(
+        self,
+        *,
+        spiffe_id: Optional[str] = None,
+    ) -> X509Svid:
+        raise NotImplementedError(
+            "MockSpiffeWorkloadApiAdapter.fetch_x509_svid is Phase-2c "
+            "surface; not yet implemented in the mock"
+        )
+
+
+# ---------------------------------------------------------------------------
 # Public surface
 # ---------------------------------------------------------------------------
 
 __all__ = [
     "JwtSvid",
+    "MockSpiffeWorkloadApiAdapter",
+    "MockSvidRecord",
     "SpiffeAdapterAttestationFailed",
     "SpiffeAdapterAudienceRejected",
     "SpiffeAdapterError",
