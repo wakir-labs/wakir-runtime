@@ -179,8 +179,47 @@ def test_empty_hour_with_flag_forwards_value(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _wakir_merkle_available() -> bool:
-    return shutil.which("wakir-merkle") is not None
+def _aggregator_cli_invocable() -> bool:
+    """Can the test driver invoke the aggregator CLI in *some* way?
+
+    Returns True when EITHER (a) the ``wakir-merkle`` console-script
+    is on ``PATH`` (the editable install is active in this venv), OR
+    (b) the ``wat.cmd.aggregator_cli`` module is importable in the
+    current Python and ``wat-hourly.sh`` can therefore fall back to
+    ``python -m wat.cmd.aggregator_cli``. The shell driver was
+    hardened to take the fallback path in Sprint-5-Tag-4 (OI-9
+    environment-state-fix), so the only environment in which these
+    tests cannot run is one where the package source tree is not on
+    the Python module path at all — a true install-missing
+    environment, not the much more common "venv without editable
+    install" environment that container-engineering Sprint-5-Tag-3
+    surfaced as a skip-statt-pass drift.
+
+    Anchor for the skip-message: when this returns False the operator
+    needs to run ``bash scripts/setup.sh`` (or ``pip install -e .``
+    from the repository root) to make the WAT package importable.
+    """
+    if shutil.which("wakir-merkle") is not None:
+        return True
+    # Importability check: cheaper than launching a subprocess and
+    # gives a deterministic answer about whether ``python -m
+    # wat.cmd.aggregator_cli`` will resolve when ``wat-hourly.sh``
+    # takes the fallback branch.
+    try:
+        import wat.cmd.aggregator_cli  # noqa: F401 — existence probe.
+    except ImportError:
+        return False
+    return True
+
+
+_AGGREGATOR_UNAVAILABLE_REASON = (
+    "wat.cmd.aggregator_cli is not importable AND wakir-merkle is "
+    "not on PATH; run 'bash scripts/setup.sh' or 'pip install -e .' "
+    "from the repository root to activate the editable install "
+    "(environment-state anchor — this is not a test-source "
+    "regression and not a code-bug; cf. container-engineering "
+    "Sprint-5-Tag-3 open-item OI-9)"
+)
 
 
 @pytest.fixture
@@ -234,8 +273,8 @@ def _seed_hour_manifest(
 
 
 @pytest.mark.skipif(
-    not _wakir_merkle_available(),
-    reason="wakir-merkle console-script not on PATH",
+    not _aggregator_cli_invocable(),
+    reason=_AGGREGATOR_UNAVAILABLE_REASON,
 )
 def test_hourly_driver_picks_up_prev_hour_root(
     tmp_path: Path,
@@ -281,8 +320,8 @@ def test_hourly_driver_picks_up_prev_hour_root(
 
 
 @pytest.mark.skipif(
-    not _wakir_merkle_available(),
-    reason="wakir-merkle console-script not on PATH",
+    not _aggregator_cli_invocable(),
+    reason=_AGGREGATOR_UNAVAILABLE_REASON,
 )
 def test_hourly_driver_first_hour_emits_null(
     tmp_path: Path,
@@ -319,8 +358,8 @@ def test_hourly_driver_first_hour_emits_null(
 
 
 @pytest.mark.skipif(
-    not _wakir_merkle_available(),
-    reason="wakir-merkle console-script not on PATH",
+    not _aggregator_cli_invocable(),
+    reason=_AGGREGATOR_UNAVAILABLE_REASON,
 )
 def test_hourly_driver_gap_emits_null(
     tmp_path: Path,

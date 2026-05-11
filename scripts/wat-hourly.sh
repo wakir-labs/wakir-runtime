@@ -158,6 +158,18 @@ log "event_count=${EVENT_COUNT} spool=${SEALED_FILE}"
 # build`` writes a manifest in the format documented under
 # ``docs/wat-manifest-spec.md``. Empty hours produce a manifest with
 # ``merkle_root: null`` and skip the anchor.
+#
+# Sprint-5-Tag-4 (OI-9 environment-state-fix): prefer the
+# ``wakir-merkle`` console-script when the editable install is active,
+# but fall back to ``python -m wat.cmd.aggregator_cli`` when the
+# console-script is not on PATH (e.g. a venv without
+# ``pip install -e .``, or a system Python that knows the package via
+# ``PYTHONPATH`` only). Both invocation paths dispatch to the same
+# ``wat.cmd.aggregator_cli:main`` entrypoint, so the manifest output
+# is byte-identical. The fallback removes the "skip-statt-pass" drift
+# in ``tests/wat/test_aggregator_prev_hour_root.py`` that
+# container-engineering Sprint-5-Tag-3 surfaced as open-item OI-9
+# (environment-state-dependent skip-message ambiguity).
 MANIFEST_FILE="${HOUR_ARCHIVE}/manifest.json"
 BUILD_ARGS=(
     --hour "${HOUR_SLOT}"
@@ -167,7 +179,13 @@ BUILD_ARGS=(
 if [[ -n "${PREV_HOUR_ROOT}" ]]; then
     BUILD_ARGS+=(--prev-hour-root "${PREV_HOUR_ROOT}")
 fi
-if ! wakir-merkle build "${BUILD_ARGS[@]}"; then
+if command -v wakir-merkle >/dev/null 2>&1; then
+    MERKLE_CMD=(wakir-merkle build)
+else
+    log "wakir-merkle console-script not on PATH; using python -m fallback"
+    MERKLE_CMD=(python -m wat.cmd.aggregator_cli build)
+fi
+if ! "${MERKLE_CMD[@]}" "${BUILD_ARGS[@]}"; then
     fail "wakir-merkle build failed for hour ${HOUR_SLOT}" 1
 fi
 
