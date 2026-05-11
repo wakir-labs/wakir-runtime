@@ -2,8 +2,11 @@
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
 # Phase-1b Sprint-2 Box-3 — single-node NATS-JetStream substrate for
-# the orchestrator read-through cache (4 KV buckets: wakir-schemas,
-# wakir-aip-cache, wakir-ftd-cache, wakir-ftd-poisoned).
+# the orchestrator read-through cache (5 KV buckets: wakir-schemas,
+# wakir-aip-cache, wakir-ftd-cache, wakir-ftd-poisoned,
+# wakir-schema-registry-entries — the 5th bucket added Sprint-4 Tag-4
+# is a Phase-2-reserved schema-registry storage bucket with no Phase-1b
+# consumer; bucket-config mirrors wakir-schemas).
 #
 # This compose file is the operator-facing bring-up artefact. It is
 # pinned to a maintained alpine variant of the official ``nats``

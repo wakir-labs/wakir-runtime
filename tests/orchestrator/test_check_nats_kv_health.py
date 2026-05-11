@@ -415,11 +415,11 @@ def test_report_to_json_has_stable_shape_and_summary(mod, event_loop):
         "http_status": 200,
     }
     assert payload["summary"] == {
-        "ok": 4,
+        "ok": 5,
         "missing": 0,
         "drift": 0,
         "error": 0,
-        "total": 4,
+        "total": 5,
     }
     assert {a["name"] for a in payload["checks"]} == {
         spec.name for spec in mod.PHASE_1_BUCKETS
@@ -437,13 +437,22 @@ def test_unknown_bucket_selector_raises_value_error(mod):
     assert "wakir-schemas" in msg
 
 
-def test_phase_1_inventory_is_the_documented_four_buckets(mod):
+def test_phase_1_inventory_is_the_documented_five_buckets(mod):
+    """Phase-1 inventory contract (Sprint-4 Tag-4 onward).
+
+    The 5th bucket ``wakir-schema-registry-entries`` was registered
+    Sprint-4 Tag-4 as a Phase-2-reserved schema-registry storage
+    bucket. The health-check inventory mirrors the init-script
+    inventory; ``test_inventory_matches_init_nats_buckets`` guards
+    the dual-source contract.
+    """
     names = [spec.name for spec in mod.PHASE_1_BUCKETS]
     assert names == [
         "wakir-schemas",
         "wakir-aip-cache",
         "wakir-ftd-cache",
         "wakir-ftd-poisoned",
+        "wakir-schema-registry-entries",
     ]
 
 
@@ -534,14 +543,59 @@ class CheckNatsKvHealthLiveSmokeTests(unittest.TestCase):
         checks = asyncio.run(_run())
         # We do not assert "ok" — the live cluster may be a stale
         # tear-down or in mid-bring-up. We DO assert the shape:
-        # exactly four checks, names match the inventory, no errors.
-        self.assertEqual(len(checks), 4)
+        # exactly five checks (Sprint-4 Tag-4 onward), names match
+        # the inventory, no errors.
+        self.assertEqual(len(checks), 5)
         self.assertEqual(
             {c.name for c in checks},
             {s.name for s in self.mod.PHASE_1_BUCKETS},
         )
         for c in checks:
             self.assertNotEqual(c.status, "error", msg=(c.name, c.detail))
+
+    def test_smoke_fifth_bucket_present_in_live_inventory(self) -> None:
+        """Sprint-4 Tag-4 gated-live anchor: confirm the 5th bucket
+        ``wakir-schema-registry-entries`` shows up in the live cluster
+        inventory after an init-pass against the running NATS.
+
+        Pre-condition: the live cluster has been initialised by
+        ``scripts/init-nats-buckets.py`` against the Sprint-4-Tag-4
+        five-bucket inventory. If the cluster pre-dates Tag-4 and the
+        operator has not re-run init, the 5th bucket will be
+        ``missing`` (not ``error``) — that is a documented
+        upgrade-path state, not a failure of this gated probe. The
+        test only asserts that the inventory-check **produced a check**
+        for the 5th bucket (i.e. the inventory in the running script
+        contains the new bucket); status semantics are runbook-
+        documented.
+        """
+        async def _run():
+            import nats  # type: ignore
+
+            nc = await nats.connect(self.servers, token=self.token)
+            try:
+                js = nc.jetstream()
+                return await self.mod.inspect_buckets(
+                    js, self.mod.PHASE_1_BUCKETS
+                )
+            finally:
+                await nc.drain()
+
+        checks = asyncio.run(_run())
+        fifth_checks = [
+            c for c in checks if c.name == "wakir-schema-registry-entries"
+        ]
+        self.assertEqual(
+            len(fifth_checks), 1,
+            msg="exactly one check for the 5th bucket expected",
+        )
+        # Status must be one of the documented contract values; we
+        # accept ok/missing/drift but never error on a Phase-1b cluster.
+        self.assertIn(
+            fifth_checks[0].status,
+            {"ok", "missing", "drift"},
+            msg=(fifth_checks[0].status, fifth_checks[0].detail),
+        )
 
 
 if __name__ == "__main__":

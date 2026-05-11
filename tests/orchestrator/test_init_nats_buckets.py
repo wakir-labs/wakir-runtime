@@ -9,8 +9,8 @@ small in-memory mock that mirrors the subset of the
 
 Coverage:
 
-1. Plan against an empty cluster: all four buckets get ``created``.
-2. Re-run after a successful create: all four become ``unchanged``.
+1. Plan against an empty cluster: all five buckets get ``created``.
+2. Re-run after a successful create: all five become ``unchanged``.
 3. ``--dry-run`` against an empty cluster reports ``would_create`` and
    does not mutate the mock state.
 4. Drift detection: a bucket whose live history differs from the spec
@@ -18,6 +18,10 @@ Coverage:
 5. Bucket selection by name: ``--bucket wakir-schemas`` only touches
    that one bucket and leaves the others alone.
 6. Unknown bucket selector raises a clean ``ValueError``.
+7. (Sprint-4 Tag-4) The 5th bucket ``wakir-schema-registry-entries``
+   is present in ``PHASE_1_BUCKETS`` and its config mirrors the
+   ``wakir-schemas`` cache bucket so the Phase-2 schema-registry
+   storage migration is a value-copy without a config-drift step.
 
 The tests are hermetic (no I/O, no NATS, no filesystem).
 """
@@ -249,13 +253,20 @@ def test_unknown_bucket_selector_raises_value_error_with_known_set(mod):
     assert "wakir-schemas" in msg  # listed under "known"
 
 
-def test_phase_1_inventory_is_the_documented_four_buckets(mod):
+def test_phase_1_inventory_is_the_documented_five_buckets(mod):
+    """Phase-1 inventory contract (Sprint-4 Tag-4 onward).
+
+    Order matters: the documented order is preserved across tooling
+    (runbook, init script JSON output, drift reports). A re-ordering
+    of the inventory is a contract change that needs an ADR.
+    """
     names = [spec.name for spec in mod.PHASE_1_BUCKETS]
     assert names == [
         "wakir-schemas",
         "wakir-aip-cache",
         "wakir-ftd-cache",
         "wakir-ftd-poisoned",
+        "wakir-schema-registry-entries",
     ]
 
 
@@ -274,11 +285,11 @@ def test_report_to_json_has_stable_shape_and_summary(mod, event_loop):
     assert payload["servers"] == "nats://127.0.0.1:4222"
     assert payload["dry_run"] is False
     assert payload["summary"] == {
-        "created": 4,
+        "created": 5,
         "unchanged": 0,
         "drift": 0,
         "would_create": 0,
-        "total": 4,
+        "total": 5,
     }
     assert {a["name"] for a in payload["actions"]} == {
         spec.name for spec in mod.PHASE_1_BUCKETS
@@ -320,3 +331,159 @@ def test_exit_code_two_on_drift(mod, event_loop):
         actions=actions,
     )
     assert mod._exit_code_for(report) == 2
+
+
+# ---------------------------------------------------------------------
+# Sprint-4 Tag-4: 5th-bucket-paired-update tests
+# ---------------------------------------------------------------------
+#
+# These tests anchor the contract that the new 5th bucket
+# ``wakir-schema-registry-entries`` is registered with the documented
+# Phase-2-reserved config, and that the create/select/idempotency paths
+# of the planner cover it. The bucket has no Phase-1b consumer; the
+# operator bring-up only needs to know that the cluster has the bucket
+# layout ready for the Phase-2 schema-registry-storage migration that
+# the Wirelang-side track owns.
+#
+# Auftrags-Quota: "4-6 hermetic Tests". This file adds 5 tests (T-Tag4-
+# 01..05) plus a registry-entries-config mirror anchor. Live-gated
+# parity-test lives in ``test_check_nats_kv_health.py`` (single live
+# probe; gated by ``WAKIR_NATS_LIVE``).
+
+
+def test_t_tag4_01_wakir_schema_registry_entries_is_the_fifth_bucket_in_documented_order(mod):
+    """The 5th bucket entry exists with the documented Phase-2-reserved
+    config (history=5, ttl unbounded, 256 KiB max_value_size).
+
+    The config mirrors ``wakir-schemas`` so that the Phase-2 migration
+    off the cache bucket onto the storage bucket is a value-copy
+    without any config-drift step. Order matters: the documented
+    inventory ordering is preserved across tooling output (runbook,
+    JSON report, drift report), so this test pins the 5th-slot
+    placement.
+    """
+    fifth = mod.PHASE_1_BUCKETS[4]
+    assert fifth.name == "wakir-schema-registry-entries"
+    assert fifth.history == 5
+    assert fifth.ttl_seconds == 0
+    assert fifth.max_value_size == 262_144  # 256 KiB
+    assert fifth.storage == "file"
+    assert fifth.replicas == 1
+    assert "Phase-2" in fifth.description
+    assert "wakir-schemas" in fifth.description  # cross-reference to cache
+
+
+def test_t_tag4_02_fifth_bucket_config_mirrors_wakir_schemas_cache(mod):
+    """The 5th bucket's config is byte-aligned with the 1st (cache)
+    bucket on the fields that affect the schema-registry value-copy
+    migration: history, ttl_seconds, max_value_size, storage, replicas.
+
+    Description is intentionally **different** (cache vs storage
+    intent). Name is intentionally different (the whole point of the
+    5th bucket is to separate the surfaces).
+    """
+    first = next(s for s in mod.PHASE_1_BUCKETS if s.name == "wakir-schemas")
+    fifth = next(
+        s for s in mod.PHASE_1_BUCKETS
+        if s.name == "wakir-schema-registry-entries"
+    )
+    assert fifth.history == first.history
+    assert fifth.ttl_seconds == first.ttl_seconds
+    assert fifth.max_value_size == first.max_value_size
+    assert fifth.storage == first.storage
+    assert fifth.replicas == first.replicas
+    # Names and descriptions diverge by design.
+    assert fifth.name != first.name
+    assert fifth.description != first.description
+
+
+def test_t_tag4_03_fifth_bucket_create_on_empty_cluster_carries_documented_kv_config(
+    mod, event_loop
+):
+    """An empty-cluster run materialises the 5th bucket with the exact
+    kwargs the Phase-2 storage migration will expect.
+
+    The Wirelang-side consumer for Phase-2 will read the live bucket;
+    if the orchestrator created it with the wrong ``max_value_size``
+    or ``history``, the Phase-2 migration would either silently
+    truncate schema bodies (max_value_size too small) or fail to retain
+    the version-history depth that the consumer-side codec expects.
+    This test guards the create-call shape.
+    """
+    js = _MockJetStream()
+    actions = event_loop.run_until_complete(
+        mod.plan_and_apply(js, mod.PHASE_1_BUCKETS, dry_run=False)
+    )
+
+    fifth_actions = [
+        a for a in actions if a.name == "wakir-schema-registry-entries"
+    ]
+    assert len(fifth_actions) == 1
+    assert fifth_actions[0].status == "created"
+
+    fifth_calls = [
+        c for c in js.create_calls
+        if c["bucket"] == "wakir-schema-registry-entries"
+    ]
+    assert len(fifth_calls) == 1
+    call = fifth_calls[0]
+    assert call["history"] == 5
+    assert call["ttl"] == 0
+    assert call["max_value_size"] == 262_144
+    assert call["storage"] == "file"
+    assert call["replicas"] == 1
+    assert "Phase-2" in call["description"]
+
+
+def test_t_tag4_04_bucket_filter_can_select_fifth_bucket(mod, event_loop):
+    """``--bucket wakir-schema-registry-entries`` selects only the 5th
+    bucket.
+
+    Operationally useful: an operator can re-run the init script
+    against a cluster that already has the four pre-Tag-4 Phase-1
+    buckets to backfill only the new 5th bucket without churning the
+    others. This is the no-downtime upgrade path for a cluster that
+    came up before Sprint-4 Tag-4 landed.
+    """
+    js = _MockJetStream()
+    selected = mod._select_specs(["wakir-schema-registry-entries"])
+    assert [s.name for s in selected] == ["wakir-schema-registry-entries"]
+
+    actions = event_loop.run_until_complete(
+        mod.plan_and_apply(js, selected, dry_run=False)
+    )
+    assert len(actions) == 1
+    assert actions[0].name == "wakir-schema-registry-entries"
+    assert actions[0].status == "created"
+    assert set(js.buckets) == {"wakir-schema-registry-entries"}
+
+
+def test_t_tag4_05_fifth_bucket_idempotent_replay_marks_unchanged(
+    mod, event_loop
+):
+    """Re-running the init script after the 5th bucket exists is a
+    no-op.
+
+    Idempotency contract for the full five-bucket layout: operators
+    can re-run ``init-nats-buckets.py`` on a cluster that already has
+    the complete inventory without side effects. The 5th bucket gets
+    the same idempotency guarantee as the four pre-Tag-4 buckets.
+    """
+    js = _MockJetStream()
+    # First pass: populate all five.
+    event_loop.run_until_complete(
+        mod.plan_and_apply(js, mod.PHASE_1_BUCKETS, dry_run=False)
+    )
+    js.create_calls.clear()
+
+    # Second pass: should be a no-op for the 5th bucket specifically.
+    actions = event_loop.run_until_complete(
+        mod.plan_and_apply(js, mod.PHASE_1_BUCKETS, dry_run=False)
+    )
+    fifth_action = next(
+        a for a in actions if a.name == "wakir-schema-registry-entries"
+    )
+    assert fifth_action.status == "unchanged"
+    assert js.create_calls == [], (
+        "idempotent replay must not re-create the 5th bucket"
+    )

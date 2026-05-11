@@ -10,13 +10,33 @@
 #
 # 1. Connects to a NATS server (default ``nats://127.0.0.1:4222``)
 #    using ``nats-py`` and the JetStream KV API.
-# 2. Ensures the four Phase-1 buckets exist with the documented
+# 2. Ensures the five Phase-1 buckets exist with the documented
 #    history / TTL / max_value_size / replicas / storage settings:
 #
-#      - ``wakir-schemas``       Wirelang schema registry cache
-#      - ``wakir-aip-cache``     AIP-Document resolver cache
-#      - ``wakir-ftd-cache``     Federation-Trust-Document cache
-#      - ``wakir-ftd-poisoned``  FTD poison-list marker bucket
+#      - ``wakir-schemas``                  Wirelang schema-registry
+#                                           **cache** (Phase-1b; consumed
+#                                           by ``wirelang.schemas.
+#                                           registry_nats_kv_backend``,
+#                                           Sprint-3 Tag-1)
+#      - ``wakir-aip-cache``                AIP-Document resolver cache
+#      - ``wakir-ftd-cache``                Federation-Trust-Document
+#                                           cache
+#      - ``wakir-ftd-poisoned``             FTD poison-list marker bucket
+#      - ``wakir-schema-registry-entries``  Wirelang schema-registry
+#                                           **source-of-truth storage**
+#                                           (reserved for Phase-2
+#                                           migration off the
+#                                           ``wakir-schemas`` cache
+#                                           bucket; 5th bucket added
+#                                           Sprint-4 Tag-4 via the Z-B
+#                                           paired-update with the
+#                                           Wirelang-side track,
+#                                           analogous to the Sprint-3
+#                                           Tag-1 schema-registry
+#                                           surface that established
+#                                           the entry-envelope codec
+#                                           ``wakir.wirelang.
+#                                           schema-registry-entry/1``)
 #
 # 3. Idempotency contract: re-running the script on a cluster that
 #    already has the buckets is a no-op. If a bucket exists but with a
@@ -106,6 +126,37 @@ class BucketSpec:
     replicas: int = 1
 
 
+#: Inventory of Phase-1 NATS-JetStream KV buckets.
+#:
+#: Cross-references (Wirelang-side consumers, must stay byte-aligned;
+#: a drift in any of these constants surfaces as a hermetic-test failure
+#: in the consumer suite before it can hit a live cluster):
+#:
+#: * ``wakir-schemas`` — consumed by
+#:   ``wirelang.schemas.registry_nats_kv_backend.NatsKvSchemaRegistry``
+#:   (Phase-1b Sprint-3 Tag-1). The consumer pins its own
+#:   ``BUCKET_CONFIG`` constant to the same field values; test
+#:   ``T-SR-10`` (Wirelang suite) is the byte-precise anchor.
+#:
+#: * ``wakir-schema-registry-entries`` — **reserved** for the Phase-2
+#:   schema-registry-storage migration. Phase-1b has no live consumer
+#:   on this bucket; it is registered ahead of time so the operator
+#:   bring-up procedure for Phase-2 collapses into the routine
+#:   ``init-nats-buckets.py`` pass (no manual ``nats kv add`` step on
+#:   the cluster). The bucket-config mirrors ``wakir-schemas`` so the
+#:   Phase-2 migration is a value-copy without a config-drift step:
+#:   same history (5), same max_value_size (256 KiB), same unbounded
+#:   TTL. Sprint-4 Tag-4 paired-update with the Wirelang-side track,
+#:   which owns the schema-registry consumer-side codec
+#:   ``wakir.wirelang.schema-registry-entry/1``.
+#:
+#: Phase-1b boundary: the 5th bucket is created on cluster bring-up
+#: but is **not** consumed by any module shipped in Phase-1b. The
+#: Phase-2 schema-registry migration (Wirelang-side OI-7-Phase-2
+#: slot) will switch ``wirelang.schemas.registry_nats_kv_backend``
+#: to point at the new bucket (or layer a second backend over it;
+#: the storage-vs-cache split is the consumer-side design decision
+#: the Wirelang track owns).
 PHASE_1_BUCKETS: tuple[BucketSpec, ...] = (
     BucketSpec(
         name="wakir-schemas",
@@ -134,6 +185,16 @@ PHASE_1_BUCKETS: tuple[BucketSpec, ...] = (
         history=10,
         ttl_seconds=0,
         max_value_size=4_096,
+    ),
+    BucketSpec(
+        name="wakir-schema-registry-entries",
+        description=(
+            "Wirelang schema-registry source-of-truth storage "
+            "(reserved Phase-2 migration off wakir-schemas cache)"
+        ),
+        history=5,
+        ttl_seconds=0,
+        max_value_size=262_144,  # 256 KiB, mirrors wakir-schemas
     ),
 )
 

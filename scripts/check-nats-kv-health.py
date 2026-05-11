@@ -14,10 +14,20 @@
 # 2. Connects via ``nats-py`` (JetStream KV API) and confirms each
 #    documented Phase-1 bucket is present:
 #
-#      - ``wakir-schemas``       Wirelang schema registry cache
-#      - ``wakir-aip-cache``     AIP-Document resolver cache
-#      - ``wakir-ftd-cache``     Federation-Trust-Document cache
-#      - ``wakir-ftd-poisoned``  FTD poison-list marker bucket
+#      - ``wakir-schemas``                  Wirelang schema-registry
+#                                           cache (consumed by
+#                                           ``wirelang.schemas.
+#                                           registry_nats_kv_backend``,
+#                                           Sprint-3 Tag-1)
+#      - ``wakir-aip-cache``                AIP-Document resolver cache
+#      - ``wakir-ftd-cache``                Federation-Trust-Document
+#                                           cache
+#      - ``wakir-ftd-poisoned``             FTD poison-list marker bucket
+#      - ``wakir-schema-registry-entries``  Wirelang schema-registry
+#                                           storage (5th bucket added
+#                                           Sprint-4 Tag-4, Phase-2-
+#                                           reserved; no Phase-1b
+#                                           consumer)
 #
 # 3. Compares each bucket's live configuration to the documented
 #    Phase-1 inventory and reports any drift in {want, got} form.
@@ -140,6 +150,16 @@ PHASE_1_BUCKETS: tuple[BucketSpec, ...] = (
         history=10,
         ttl_seconds=0,
         max_value_size=4_096,
+    ),
+    BucketSpec(
+        name="wakir-schema-registry-entries",
+        description=(
+            "Wirelang schema-registry source-of-truth storage "
+            "(reserved Phase-2 migration off wakir-schemas cache)"
+        ),
+        history=5,
+        ttl_seconds=0,
+        max_value_size=262_144,  # 256 KiB, mirrors wakir-schemas
     ),
 )
 
