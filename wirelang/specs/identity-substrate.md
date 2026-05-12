@@ -7,7 +7,16 @@ License: This document is licensed under the Creative Commons Attribution
 <https://creativecommons.org/licenses/by/4.0/>.
 -->
 
-# Wakir Identity Substrate — Specification (Phase 1a)
+---
+spec: wakir-identity-substrate
+version: 0.29.0
+status: draft
+date: 2026-05-13
+audience: implementers, integrators, operators
+license: CC-BY-4.0
+---
+
+# Wakir Identity Substrate — Specification (v0.29.0, Phase 1a)
 
 This document specifies the persona-identity primitives used by the
 Wakir runtime in Phase 1a: hierarchical key derivation across two
@@ -21,6 +30,22 @@ marker (D-2: 2-of-3 SLIP-39 cold-storage default).
 Audience: implementers and operators. The text follows the Wakir
 brand-guide §9 convention: persona role-strings, never personal names,
 in all examples.
+
+**Version-synchronisation note (Sprint-8 Tag-2, 2026-05-13).** The
+frontmatter `version: 0.29.0` is set in lockstep with
+`schema-registry-spec.md` v0.29.0 (Sprint-8 Tag-2 consolidation
+anchor); the Sprint-7 v0.22 → v0.28 deferred-changelog batch and
+the Sprint-8 Tag-2 Cross-Org-Attenuation-Chain-Verifier hardening
+surface are folded into the companion spec's change-log. This
+identity-substrate document's content remains substrate-anchored
+on Phase-1a primitives (no Sprint-7 / Sprint-8 substance landed
+inside this file); the version bump is a synchronisation marker
+for cross-spec consistency, NOT a substance bump. Future
+substrate-substance bumps (e.g. SPIFFE-ID-Binding §5 evolution,
+real-`spiffe`-PyPI adapter functional implementation in Phase-2c)
+will track this spec independently from the schema-registry spec
+once the schema-registry tracks bucket-shape changes in its own
+versioning axis.
 
 ## 1. Two-curve stack
 
