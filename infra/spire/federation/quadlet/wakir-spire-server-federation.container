@@ -1,0 +1,123 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-8 Tag-1 — Quadlet unit for the SPIRE-Server-Federation-
+# Bundle-Endpoint substrate. This unit is the single-side Quadlet form
+# of the compose/spire-federation.yaml substrate; the SAME unit file is
+# installed twice (once per trust-domain side) with two different
+# bind-mounted config paths and two different host port-publish pairs.
+#
+# The Quadlet companion exists for atomic-distro hosts (Fedora Atomic /
+# Bluefin / Silverblue / Kinoite) that prefer host-native systemd
+# integration over ``podman compose up``. The compose surface remains
+# the primary Phase-2-Sprint-8 contract (the hermetic test surface in
+# infra/spire/federation/tests/ is compose-shape-asserted; the Quadlet
+# file is byte-precise mirrored).
+#
+# This file is the GENERIC Quadlet template — placeholders ``<SIDE>``,
+# ``<HOST_BUNDLE_PORT>``, and ``<HOST_GRPC_PORT>`` MUST be substituted
+# by the operator before install. Reference values:
+#
+#   wakir.test side:    SIDE=wakir,   HOST_BUNDLE_PORT=8443, HOST_GRPC_PORT=8082
+#   partner.test side:  SIDE=partner, HOST_BUNDLE_PORT=8444, HOST_GRPC_PORT=8083
+#
+# Operator install path (rootful Podman) — wakir side example:
+#
+#   sed -e 's/<SIDE>/wakir/g' \
+#       -e 's/<HOST_BUNDLE_PORT>/8443/g' \
+#       -e 's/<HOST_GRPC_PORT>/8082/g' \
+#       infra/spire/federation/quadlet/wakir-spire-server-federation.container \
+#     | sudo tee /etc/containers/systemd/wakir-spire-server-federation-wakir.container
+#   sudo install -m 644 infra/spire/federation/config/spire-server-wakir.conf \
+#       /etc/wakir/spire-federation/spire-server-wakir.conf
+#   sudo systemctl daemon-reload
+#   sudo systemctl start wakir-spire-server-federation-wakir.service
+#
+# Repeat for the partner side with SIDE=partner, HOST_BUNDLE_PORT=8444,
+# HOST_GRPC_PORT=8083, and the partner config file.
+#
+# Rootless Podman: copy to ~/.config/containers/systemd/ and use
+# ``systemctl --user``; adapt the bind-mount source path to the
+# rootless operator's filesystem layout.
+#
+# Verification (hermetic-by-default — no live-smoke from sandbox per
+# feedback_sandbox_host_trennung.md):
+#
+#   systemctl status wakir-spire-server-federation-<SIDE>.service
+#   podman healthcheck run wakir-spire-server-federation-<SIDE>
+#
+# Tear-down:
+#
+#   sudo systemctl stop wakir-spire-server-federation-<SIDE>.service
+#   podman volume rm wakir-spire-server-federation-<SIDE>-data
+#   podman volume rm wakir-spire-server-federation-<SIDE>-sockets
+#   podman volume rm wakir-spire-server-federation-<SIDE>-bundles
+
+[Unit]
+Description=Wakir Phase-2.1 SPIRE-Server-Federation-Bundle-Endpoint (<SIDE>)
+Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/infra/spire/federation/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+ContainerName=wakir-spire-server-federation-<SIDE>
+
+# Image pin: mirror of compose/spire-federation.yaml services.spire-
+# server-<SIDE>.image. The placeholder ``DIGEST_PENDING_TOMAS_REVIEW``
+# resolves to the canonical sha256 digest in the same Operator-Hand
+# Cross-Review Zone-C workflow as the Sprint-6 SPIRE-Server image-pin
+# (docs/spire-server-phase-2-1.md §2).
+Image=ghcr.io/spiffe/spire-server:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW
+
+Exec=run -config /etc/spire/server/server.conf
+
+# Bundle-endpoint listener (loopback-only on the host; the peer fetch
+# routes over the federation bridge's internal DNS, not over the
+# host's loopback). Operator-Hand substitutes <HOST_BUNDLE_PORT>.
+PublishPort=127.0.0.1:<HOST_BUNDLE_PORT>:8443
+
+# SPIRE-Server gRPC API (loopback-only). Operator-Hand substitutes
+# <HOST_GRPC_PORT> to avoid clashing with the compose/spire.yaml
+# 8081 mapping or the peer-side federation Quadlet's gRPC port.
+PublishPort=127.0.0.1:<HOST_GRPC_PORT>:8081
+
+ReadOnly=true
+User=1000
+Group=1000
+
+# Bind-mount the Mock/Stub config (read-only, SELinux-relabel-private).
+# The host-side path encodes the <SIDE> so two-sided install on the
+# same host does not clobber.
+Volume=/etc/wakir/spire-federation/spire-server-<SIDE>.conf:/etc/spire/server/server.conf:ro,Z
+
+# Named volume sidecars (per-side).
+Volume=wakir-spire-server-federation-<SIDE>-data.volume:/var/lib/spire/server
+Volume=wakir-spire-server-federation-<SIDE>-sockets.volume:/run/spire/sockets
+Volume=wakir-spire-server-federation-<SIDE>-bundles.volume:/var/lib/spire/bundles
+
+Tmpfs=/run/spire:rw,size=16m,mode=0700
+
+# Dedicated federation bridge network (mirror of compose
+# spire-federation.yaml). The two Quadlet-instances on the same host
+# share this network so each can reach the other's bundle-endpoint at
+# the SPIFFE-internal DNS name spire-server-<peer-side>.
+Network=wakir-federation.network
+
+DropCapability=ALL
+NoNewPrivileges=true
+
+PodmanArgs=--cpus=0.5 --memory=256m
+
+HealthCmd=/opt/spire/bin/spire-server healthcheck
+HealthInterval=10s
+HealthTimeout=5s
+HealthRetries=5
+HealthStartPeriod=30s
+
+[Service]
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=120s
+
+[Install]
+WantedBy=multi-user.target default.target

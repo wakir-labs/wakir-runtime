@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-8 Tag-1 — Quadlet sidecar volume: SPIRE-Server bundle
+# export/import directory. The ``spire-fed-bundle`` CLI writes the
+# exported JWKS into this volume on the source side; the operator
+# copies the JWKS file across to the peer's bundles volume and invokes
+# ``spire-fed-bundle import`` on the peer side. See README §3 for the
+# manual bootstrap roundtrip; the live https_spiffe federation-bundle-
+# endpoint fetch is the steady-state path after bootstrap.
+
+[Unit]
+Description=Wakir Phase-2.1 SPIRE-Server-Federation bundles volume (<SIDE>)
+
+[Volume]
+VolumeName=wakir-spire-server-federation-<SIDE>-bundles
+
+[Install]
+WantedBy=multi-user.target default.target
