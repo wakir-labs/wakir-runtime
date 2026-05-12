@@ -52,6 +52,16 @@ pluggable :class:`UnrevokeReasonClassifier`, and produces a
 route-scoped BLAKE2b-256 ``marker_id`` suitable for WAT-Audit-
 Federation-Annex leaf-anchoring.
 
+Phase-2 Sprint-7 Tag-6 adds the **multi-org-attestation live-tail
+replicator** sub-module
+(``multi_org_attestation_live_tail_replicator.py``) — the
+continuous-stream composition layer on top of the Sprint-7 Tag-2
+``bootstrap_multi_org_attestation_target_from_source`` one-shot
+bootstrap. Together the two surfaces form the full cross-bucket
+replication suite for the ``wakir-multi-org-attestations`` bucket
+(pattern-mirror on the Sprint-6 Tag-6 capability-policy
+cross-bucket replicator).
+
 Public surface:
 
 - :class:`wirelang.federation.n2_evaluator.FederationContext`
@@ -121,6 +131,9 @@ from .unrevoke_audit_marker_cross_org_export import (  # noqa: F401
     UnrevokeReasonClass,
     UnrevokeReasonClassifier,
 )
+from .multi_org_attestation_live_tail_replicator import (  # noqa: F401
+    MultiOrgAttestationReplicator,
+)
 
 __all__ = [
     "BRIDGE_RESOLUTION_SCHEMA",
@@ -157,4 +170,5 @@ __all__ = [
     "UnrevokeAuditMarkerShapeError",
     "UnrevokeReasonClass",
     "UnrevokeReasonClassifier",
+    "MultiOrgAttestationReplicator",
 ]
