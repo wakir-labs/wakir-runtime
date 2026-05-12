@@ -1,0 +1,137 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wakir-Runtime / wirelang Rust workspace — Phase-1c migration scaffolding
+# (parallel to the Python tree, not replacing it).
+#
+# ADR anchors
+# -----------
+#
+# - ADR-0035 Errata 1 (2026-05-07 12:55 CEST) — Phase-1 bootstrap may
+#   be Python; Phase-1c is the Rust migration window.
+# - ADR-0036 — Self-Migration-Konverter requirements (V-907 pin pack
+#   is the determinism anchor that Rust must match byte-for-byte).
+# - Tag-8 phase-1c skizze (2026-05-07) — module order:
+#     canonical_form -> hash -> steps -> migration.
+#
+# Crate roster (Phase-1c step-2 = persona-hash + persona-canonical-form)
+# ----------------------------------------------------------------------
+#
+# - persona-hash : V-907 hash primitive Rust pendant. Must produce
+#   byte-identical output to the Python `compute_persona_hash_from_canonical`
+#   for the V9 ground-truth vector (and, in future steps, all 9 pin-pack
+#   vectors).
+# - persona-canonical-form : JCS-bytes boundary helper. Mirrors the
+#   Python `wirelang.persona.persona_canonical_form.canonical_jcs_bytes`
+#   helper (Sprint-2 Tag-5 cross-lang parity anchor). Consumes an
+#   already-extracted canonical subset (`serde_json::Value::Object`) and
+#   emits the RFC 8785 JCS UTF-8 byte string. YAML front-matter parsing
+#   is intentionally out-of-scope for this crate (Phase-1c-Tag-N item).
+#
+# - persona-migration : V-907 self-migration step registry Rust pendant.
+#   Mirrors `wirelang.persona._internal.migration_steps`: V0ToV1Step +
+#   V1ToV2Step + flat `registered_steps()` registry. Cross-checked
+#   byte-identical against Python pin constants
+#   PERSONA_HASH_PIN_V8_MIGRATED_TO_V1 / V9_MIGRATED_TO_V2 /
+#   V8_MIGRATED_TO_V2 via the sister `persona-canonical-form` crate.
+#   Added Phase-1b Sprint-4 Tag-4 (2026-05-11).
+#
+# - persona-migration-resolver : multi-input `migrate_persona`
+#   dispatcher + linear chain resolver Rust pendant. Mirrors
+#   `wirelang.persona.persona_migration`: `migrate_persona(dict|str|Path)`,
+#   `_resolve_chain`, `_find_step_by_source`, and the
+#   `expected_post_migration_hash` re-hash assertion. Reuses
+#   `persona-canonical-form-yaml` for `&str` / `&Path` front-matter
+#   parsing and the `persona-migration` step registry for the chain
+#   walk. Cross-checked byte-identical against Python pins for all
+#   three migration vectors (V8→V1, V9→V2, V8→chain→V2). Added
+#   Phase-1b Sprint-4 Tag-5 (2026-05-11).
+#
+# - persona-cli : Operator-facing `wakir-persona migrate` binary.
+#   Rust pendant of `wirelang.persona.cli`. Thin shim over
+#   `persona-migration-resolver::migrate_persona`: clap 4.x argparse,
+#   file IO, sorted-keys JSON stdout, exit-code mapping per spec
+#   §7.4 (0/1/2/3/64). Byte-identical stdout / stderr / exit-code
+#   cross-check against the Python CLI for the V8 / V9 fixture
+#   vectors. Added Phase-1b Sprint-5 Tag-1 (2026-05-11).
+#
+# Crates explicitly NOT in this workspace yet (Phase-1c follow-up boxes):
+# - (none — Crate-6 closes the Sprint-4 Open-Item §1.)
+#
+# Default-Lock posture (pengine-eng engine-side, ratified 2026-05-07 ~10:00 CEST)
+# ------------------------------------------------------------------------
+#
+# - A-1 Mock-Format-Baseline: persona-hash crate consumes the
+#   *already-extracted* canonical subset (a serde_json::Value object).
+#   YAML front-matter parsing stays out-of-scope for THIS crate; it is
+#   the next-layer-up's job (persona-canonical-form, future crate).
+# - A-2 Additiv-only: this workspace is added next to the Python tree,
+#   does not delete or move any Python file.
+# - A-3 Body out-of-hash: same posture as Python — only the canonical
+#   subset goes into JCS; Markdown body bytes never reach this crate.
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/persona-hash",
+    "crates/persona-canonical-form",
+    "crates/persona-canonical-form-yaml",
+    "crates/persona-migration",
+    "crates/persona-migration-resolver",
+    "crates/persona-cli",
+    "crates/persona-validator",
+]
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.85"
+license = "Apache-2.0"
+repository = "https://github.com/wakir-labs/wakir-runtime"
+authors = ["pengine-eng <pengine@wakir.local>"]
+
+# Pinned crate versions — explicit, auditable, byte-stability-relevant.
+# Rationale (verified against Tag-8 skizze §4 crate selection):
+#
+# - sha2 0.10.x : SHA-256 implementation. The 0.10 line is the
+#   long-term-stable major; 0.11 was floated in the Tag-8 skizze but
+#   0.10.8 is what currently ships in the Rust ecosystem and matches
+#   stdlib `Sha256` semantics. Pinned to ^0.10 with explicit minor for
+#   reproducibility.
+# - serde 1.0.x and serde_json 1.0.x : the canonical subset is built
+#   as a serde_json::Value tree (Map preserves insertion order; we sort
+#   keys lexicographically ourselves to match JCS).
+# - serde_jcs 0.2.x : RFC 8785 JCS canonicaliser. Pre-1.0 (P2 risk
+#   acknowledged in Tag-8 skizze §4); behaviour cross-checked against
+#   Python `rfc8785` for the V9 vector before this crate is trusted.
+# - hex 0.4.x : lower-case hex tail emission to match Python
+#   `hashlib.sha256().hexdigest()`.
+# - serde_yaml 0.9.34 : YAML 1.1 front-matter parser (Crate-3
+#   `persona-canonical-form-yaml`). Mira-ratified default per
+#   Sprint-3-Closeout-Stempel 2026-05-07 ~18:15 CEST. Pinned to
+#   =0.9.34 for byte-stability across CI machines. Marked "deprecated"
+#   upstream (maintainership transition) but behaviourally stable on
+#   the trivial YAML 1.1 subset the V-907 mock format uses (no
+#   anchors, no flow-style floats, no exotic scalars). Phase-1c
+#   follow-up: re-evaluate `saphyr` for strict YAML 1.2 if the
+#   persona-definition format grows beyond the current subset.
+#
+# Dev-only:
+# - serde_json (already in deps) covers test-fixture loading; no
+#   separate test crate.
+
+[workspace.dependencies]
+sha2       = { version = "=0.10.8", default-features = false }
+serde      = { version = "=1.0.219", features = ["derive"] }
+serde_json = { version = "=1.0.140", features = ["preserve_order"] }
+serde_jcs  = { version = "=0.2.0" }
+serde_yaml = { version = "=0.9.34" }
+hex        = { version = "=0.4.3" }
+
+[profile.release]
+opt-level = 3
+lto       = "thin"
+codegen-units = 1
+strip = "symbols"
+
+[profile.dev]
+opt-level = 0
+debug     = true

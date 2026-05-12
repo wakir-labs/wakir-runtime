@@ -1,0 +1,107 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# persona-cli — Rust pendant of `wirelang.persona.cli` (the
+# `wakir-persona migrate` / `wakir-persona validate` /
+# `wakir-persona inspect` operator CLI).
+#
+# Scope (Phase-1c Sprint-5 Tag-1 + Sprint-6 Tag-2 + Sprint-6 Tag-3):
+# - `wakir-persona migrate <persona-file>` binary entry-point.
+# - `--target {persona-v0,persona-v1,persona-v2}` schema-version
+#   selector (sourced from `PERSONA_SCHEMA_VERSION_LIST`).
+# - `--expect-hash <pin>` post-migration pin assertion (full
+#   `sha256:<64hex>` or bare 64-hex form).
+# - `--emit-hash` post-migration pin emission on stderr.
+# - `--quiet` progress-line suppression (all three subcommands).
+# - `wakir-persona validate <persona-file>` (Sprint-6 Tag-2 addition):
+#   read-only validator over the Crate-7 `persona-validator` library.
+#   Emits the canonical-subset PersonaValidationReport as JSON on
+#   stdout; exit 0 on is_valid, 1 on not is_valid.
+# - `wakir-persona inspect <persona-file>` (Sprint-6 Tag-3 addition):
+#   read-only canonical-subset + persona-hash emitter over the
+#   `persona-canonical-form-yaml` and `persona-hash` libraries.
+#   Emits a PersonaInspectReport (canonical_subset + persona_hash +
+#   report_schema_version) as JSON on stdout; exit 0 on success,
+#   1 on extractor / canonicalisation failure. Optional --emit-hash
+#   for stderr pin capture (mirror of `migrate --emit-hash`).
+# - Exit-code mapping per spec §7.4 (extended for validate + inspect):
+#     0 = success (migrate) / is_valid (validate) / extract-ok (inspect)
+#     1 = PersonaMigrationError (migrate) / not is_valid (validate) /
+#         canonical-subset-extractor failure (inspect)
+#     2 = PersonaMigrationDeterminismError (migrate only)
+#     3 = persona-file not found (all three subcommands)
+#    64 = argparse usage error (clap default: 2, mapped to 64 to
+#         mirror Python argparse's EX_USAGE).
+#
+# Posture (Phase-1c-Rust-Migration, Default-Lock conform):
+# - Thin shim over `persona-migration-resolver::migrate_persona` for
+#   migrate and `persona-validator::validate_persona` for validate.
+# - No business logic in this crate: argparse + file IO + JSON
+#   serialisation + exit-code mapping only.
+# - Byte-stable stdout: same `serde_json::to_string_pretty` with
+#   sorted keys + trailing newline as the Python `json.dumps(...,
+#   indent=2, sort_keys=True) + "\n"`.
+# - Byte-identical cross-check against the Python CLI for the V8
+#   and V9 fixture vectors (migrate: `--expect-hash` happy / drift
+#   paths; validate: `is_valid=true` / `is_valid=false` stdout-shape
+#   anchors).
+#
+# Out-of-scope:
+# - WAT-leaf migration-audit-trail (Phase-2 P2-01, Cross-Review
+#   Zone K wat-eng-owned).
+# - Branching DAG resolver (Phase-2).
+# - persona-v2 target ratification (HR-slot, ADR-0029-Annex; default
+#   target remains `PERSONA_SCHEMA_VERSION_LATEST = "persona-v1"`
+#   until the HR-slot ratifies persona-v2).
+
+[package]
+name = "persona-cli"
+version = "0.1.0"
+description = "Operator CLI for the V-907 persona self-migration converter (Rust pendant of wirelang.persona.cli)"
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+
+# Binary crate, not library. The `wakir-persona` name matches the
+# Python `pyproject.toml` `[project.scripts]` entry exactly so that
+# operator muscle memory is preserved across the Python -> Rust
+# migration window (Phase-1c).
+[[bin]]
+name = "wakir-persona"
+path = "src/main.rs"
+
+[lib]
+name = "persona_cli"
+path = "src/lib.rs"
+
+[dependencies]
+# Migration dispatcher + chain resolver. The CLI is a pure shim
+# over `migrate_persona` (Dict / Markdown / Path inputs) +
+# `PersonaMigrationError` / `PersonaMigrationDeterminismError`.
+persona-migration-resolver = { path = "../persona-migration-resolver" }
+# Canonical-subset JCS + SHA-256 helpers, used by `--emit-hash` to
+# recompute the post-migration pin (mirror of Python
+# `compute_persona_hash_from_canonical(migrated)`).
+persona-canonical-form     = { path = "../persona-canonical-form" }
+# Sprint-6 Tag-2: read-only validator. The validate subcommand is a
+# thin shim over `persona_validator::validate_persona` (Markdown
+# input branch).
+persona-validator          = { path = "../persona-validator" }
+# Sprint-6 Tag-3: read-only canonical-subset extractor + persona-hash.
+# The inspect subcommand is a thin shim over
+# `persona_canonical_form_yaml::read_canonical_subset` +
+# `persona_hash::compute_persona_hash_from_canonical`.
+persona-canonical-form-yaml = { path = "../persona-canonical-form-yaml" }
+persona-hash                = { path = "../persona-hash" }
+sha2                       = { workspace = true, features = ["std"] }
+# JSON serialisation for stdout (sorted keys, two-space indent,
+# trailing newline). The CLI re-uses the same `serde_json::Value`
+# shape that the resolver emits.
+serde_json                 = { workspace = true }
+# clap 4.x derive — argparse-equivalent with subcommand support,
+# value-validators, and argparse-compatible default behaviour.
+# Pinned to =4.5.20 for byte-stability across CI machines (4.5
+# line is the current stable; 4.6 is the latest minor but introduces
+# new value parser behaviours we do not need).
+clap                       = { version = "=4.5.20", features = ["derive", "std", "help", "usage", "error-context"], default-features = false }

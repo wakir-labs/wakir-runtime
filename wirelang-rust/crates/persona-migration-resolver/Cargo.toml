@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# persona-migration-resolver — Rust pendant of
+# `wirelang.persona.persona_migration` (the chain resolver +
+# multi-input `migrate_persona` dispatcher + optional post-migration
+# re-hash assertion).
+#
+# Scope (Phase-1c Sprint-4 Tag-5):
+# - Multi-input `migrate_persona` dispatcher (JsonValue | &str | &Path)
+#   pendant of Python `migrate_persona(dict | str | Path)`.
+# - `resolve_chain` + `find_step_by_source` chain-resolver pendant of
+#   Python `_resolve_chain` + `_find_step_by_source` (cycle-guard,
+#   unknown-source-version, unknown-target-version,
+#   no-step-from-current-head).
+# - `expected_post_migration_hash` re-hash assertion pendant of the
+#   Python kwarg with same name. Accepts both `"sha256:<64hex>"` and
+#   bare 64-hex pin forms (matching Python tolerance).
+# - YAML front-matter parse-reuse via `persona-canonical-form-yaml`:
+#   `&str` and `&Path` inputs are routed through `split_frontmatter` +
+#   `parse_frontmatter` and the resulting YAML mapping is converted to
+#   a `serde_json::Value::Object` for the migration chain.
+# - Resolver-error mapping pendant of Python
+#   `PersonaMigrationError` / `PersonaMigrationDeterminismError`.
+#
+# Determinism contract: byte-identical post-migration JCS bytes to
+# Python's `migrate_persona(...)` for all three pin vectors
+# (V8→V1, V9→V2, V8→chain→V2), cross-checked in the test layer by
+# routing the migrated output through `persona-canonical-form` (JCS)
+# and `sha2` and matching the verbatim Python pin constants
+# re-exported from `persona-migration`.
+#
+# Out-of-scope (Phase-1c follow-up box, in the crate-doc-header):
+# - Persona-CLI binary (`wakir-persona migrate`) — separate `persona-cli`
+#   crate, Sprint-5/6 candidate.
+# - WAT-leaf migration-audit-trail (Phase-2 P2-01, Cross-Review Zone K
+#   wat-eng-owned).
+# - Branching DAG resolver (Phase-2) — linear chain only, same posture
+#   as Python `_MAX_CHAIN_LENGTH = 32` cycle-guard.
+
+[package]
+name = "persona-migration-resolver"
+version = "0.1.0"
+description = "Multi-input migrate_persona dispatcher + linear chain resolver (Rust pendant of wirelang.persona.persona_migration)"
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+
+[lib]
+name = "persona_migration_resolver"
+path = "src/lib.rs"
+
+[dependencies]
+serde      = { workspace = true }
+serde_json = { workspace = true }
+# `parse_frontmatter` returns a `serde_yaml::Value`, which we convert
+# to `serde_json::Value` for the migration chain. Same pin as the
+# `persona-canonical-form-yaml` crate (=0.9.34) so the workspace lock
+# stays single-version.
+serde_yaml = { workspace = true }
+# Step registry + per-step errors + pin-pack mirror constants.
+persona-migration = { path = "../persona-migration" }
+# YAML front-matter parsing reuse for &str / &Path inputs (split +
+# parse). The resolver does NOT call `extract_canonical_subset` here:
+# Python migration runs on the full front-matter dict and canonical
+# projection happens only at re-hash time (and even then, the resolver
+# only projects when an `expected_post_migration_hash` is supplied).
+persona-canonical-form-yaml = { path = "../persona-canonical-form-yaml" }
+# JCS canonicalisation + SHA-256 for the optional re-hash assertion
+# path (the `expected_post_migration_hash` kwarg pendant). Pulled in
+# as a regular dep, not dev-only, because the resolver itself hashes
+# when the caller supplies a pin. The cross-check tests below reuse
+# the same path for the byte-parity verification.
+persona-canonical-form = { path = "../persona-canonical-form" }
+sha2                   = { workspace = true, features = ["std"] }

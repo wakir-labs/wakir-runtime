@@ -1,0 +1,10 @@
+# Pin the toolchain so cross-machine determinism is anchored in tree.
+# 1.85 is the MSRV (declared in workspace Cargo.toml); the 'stable'
+# channel covers our target.
+#
+# Phase-1c-Tag-N follow-up: bump to a specific stable tag (e.g. 1.95.0)
+# once the host CI matrix is decided.
+[toolchain]
+channel = "stable"
+profile = "minimal"
+components = ["rustfmt", "clippy"]

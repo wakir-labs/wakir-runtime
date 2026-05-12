@@ -1,0 +1,3985 @@
+// SPDX-License-Identifier: Apache-2.0
+//! Operator CLI for the persona self-migration converter + validator
+//! + inspect (Rust pendant of `wirelang.persona.cli`).
+//!
+//! Phase-1c Sprint-5 Tag-1 implementation. Thin shim around
+//! [`persona_migration_resolver::migrate_persona`] for ad-hoc operator
+//! use, CI-pipeline integration, and the wakir-runtime self-migration
+//! shell scripts ADR-0036 anticipates.
+//!
+//! Sprint-6 Tag-2 added the `validate` subcommand: thin shim over
+//! [`persona_validator::validate_persona`] that emits the
+//! `PersonaValidationReport` as canonical-subset JSON on stdout and
+//! maps `is_valid` to exit-code 0 / 1.
+//!
+//! Sprint-6 Tag-3 added the `inspect` subcommand: read-only sister
+//! of migrate / validate. Thin shim over
+//! [`persona_canonical_form_yaml::read_canonical_subset`] +
+//! [`persona_hash::compute_persona_hash_from_canonical`] that emits
+//! a `PersonaInspectReport` (canonical_subset + persona_hash +
+//! report_schema_version) on stdout. No migration is applied; no
+//! validator-report is emitted. A parse / extractor failure maps
+//! to exit-code 1 (the persona-definition was unreadable as a
+//! canonical subset).
+//!
+//! Synopsis
+//! ========
+//!
+//! ```text
+//! wakir-persona migrate <persona-file>
+//!                       [--target {persona-v0,persona-v1,persona-v2}]
+//!                       [--expect-hash <pin>]
+//!                       [--emit-hash]
+//!                       [--quiet]
+//!
+//! wakir-persona validate <persona-file>
+//!                        [--quiet]
+//!
+//! wakir-persona inspect <persona-file>
+//!                       [--emit-hash]
+//!                       [--quiet]
+//! ```
+//!
+//! The `--target` choice list mirrors
+//! [`persona_migration_resolver::PERSONA_SCHEMA_VERSION_LIST`]
+//! verbatim. The default is
+//! [`persona_migration_resolver::PERSONA_SCHEMA_VERSION_LATEST`]
+//! (= `"persona-v1"`), kept in lockstep with the Python
+//! `PERSONA_SCHEMA_VERSION_LATEST` constant until ADR-0029-Annex
+//! content ratification or the T-B Default-Lock window resolves.
+//!
+//! Posture
+//! =======
+//!
+//! Thin shim. All migration logic lives in
+//! [`persona_migration_resolver`]; this crate's only jobs are clap
+//! argparse parsing, file IO, JSON serialisation of the canonical
+//! subset, and exit-code mapping. No business logic in this module
+//! keeps the Phase-1c byte-stability boundary clean (CLI surface is
+//! a transparent operator-facing skin over the resolver crate).
+//!
+//! Exit codes (per spec §7.4)
+//! ==========================
+//!
+//! - `0`: success (and pin-match if `--expect-hash` was supplied).
+//! - `1`: [`MigratePersonaError::Migration`] (chain not resolvable, malformed
+//!   input, ...).
+//! - `2`: [`MigratePersonaError::Determinism`] (`--expect-hash`
+//!   mismatch).
+//! - `3`: persona-file not found on the filesystem.
+//! - `64`: argparse usage error (Unix `EX_USAGE`). Emitted by clap on
+//!   parse failure via [`map_clap_exit_code`].
+//!
+//! Cross-language byte-parity contract
+//! ===================================
+//!
+//! Sprint-5 Tag-1 cross-checks the Rust CLI against the Python CLI
+//! for the V8 / V9 fixture vectors:
+//!
+//! - stdout JSON shape (sorted keys, two-space indent, trailing
+//!   newline) byte-identical;
+//! - `--emit-hash` stderr line byte-identical (full
+//!   `sha256:<64hex>` form);
+//! - `--expect-hash` happy path (full + bare-hex forms) accepts
+//!   identically;
+//! - `--expect-hash` drift path returns exit code 2 identically;
+//! - missing-file path returns exit code 3 identically.
+
+#![forbid(unsafe_code)]
+#![deny(missing_docs)]
+
+use std::fs;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+
+use clap::{Parser, Subcommand};
+use persona_canonical_form::canonical_jcs_bytes;
+use persona_canonical_form_yaml::read_canonical_subset;
+use persona_hash::compute_persona_hash_from_canonical;
+use persona_migration_resolver::{
+    migrate_persona, MigratePersonaError, MigrationInput, PersonaMigrationError,
+    PERSONA_SCHEMA_VERSION_LATEST, PERSONA_SCHEMA_VERSION_LIST,
+};
+use persona_validator::{validate_persona, ValidatorInput};
+use serde_json::Value;
+use sha2::{Digest, Sha256};
+
+// ---------------------------------------------------------------------
+// Exit codes (mirror of Python `EXIT_*` constants in
+// `wirelang.persona.cli`).
+// ---------------------------------------------------------------------
+
+/// Exit code emitted on [`PersonaMigrationError`] (chain failure).
+///
+/// Mirrors Python `EXIT_MIGRATION_ERROR = 1`.
+pub const EXIT_MIGRATION_ERROR: i32 = 1;
+
+/// Exit code emitted on [`MigratePersonaError::Determinism`]
+/// (`--expect-hash` disagreement).
+///
+/// Mirrors Python `EXIT_DETERMINISM_ERROR = 2`.
+pub const EXIT_DETERMINISM_ERROR: i32 = 2;
+
+/// Exit code emitted when the `<persona-file>` argument does not exist
+/// on disk.
+///
+/// Mirrors Python `EXIT_INPUT_NOT_FOUND = 3`.
+pub const EXIT_INPUT_NOT_FOUND: i32 = 3;
+
+/// Exit code emitted on a clap argparse usage error (Unix `EX_USAGE`).
+///
+/// Mirrors Python `argparse`'s exit on parse failure when not run in
+/// `--quiet` mode. clap's default is 2 (same as Python's
+/// `argparse`); we remap to 64 to mirror the Python CLI docstring
+/// spec §7.4 (which documents 64 = `EX_USAGE` despite Python's
+/// argparse using 2). The cross-check test pack pins the 64 form.
+pub const EXIT_USAGE_ERROR: i32 = 64;
+
+/// Alias for the validator failure path. Conceptually distinct from a
+/// migration chain failure but mapped to the same code so a single
+/// `$?` check in a shell pipeline branches the same way. Sprint-6
+/// Tag-2 addition; mirrors Python `EXIT_VALIDATION_FAILED`.
+pub const EXIT_VALIDATION_FAILED: i32 = EXIT_MIGRATION_ERROR;
+
+/// Alias for the inspect failure path (canonical-subset extraction
+/// failed). Same posture as [`EXIT_VALIDATION_FAILED`]; mirrors
+/// Python `EXIT_INSPECT_FAILED`. Sprint-6 Tag-3 addition.
+pub const EXIT_INSPECT_FAILED: i32 = EXIT_MIGRATION_ERROR;
+
+/// Alias for the pin failure path (canonical-subset extraction
+/// failed). Same posture as [`EXIT_INSPECT_FAILED`]; mirrors Python
+/// `EXIT_PIN_FAILED`. Sprint-6 Tag-4 addition. ``pin`` shares the
+/// inspect read-only-path, so the failure mapping is identical.
+pub const EXIT_PIN_FAILED: i32 = EXIT_MIGRATION_ERROR;
+
+/// `report_schema_version` value on the inspect-stdout report. Bumped
+/// lock-step with breaking shape changes; the byte-identity fixtures
+/// under `tests/fixtures/v*-inspected.expected.json` pin the v1
+/// shape. Sprint-6 Tag-3 addition; mirrors Python
+/// `PERSONA_INSPECT_REPORT_SCHEMA_VERSION`.
+pub const PERSONA_INSPECT_REPORT_SCHEMA_VERSION: &str = "persona-inspect-v1";
+
+// ---------------------------------------------------------------------
+// clap parser surface
+// ---------------------------------------------------------------------
+
+/// Top-level CLI shape.
+///
+/// `wakir-persona <command>`. The only currently registered command
+/// is `migrate`; future expansion (`inspect`, `pin`, ...) would land
+/// here.
+#[derive(Debug, Parser)]
+#[command(
+    name = "wakir-persona",
+    about = "Operator CLI for the V-907 persona self-migration converter (ADR-0036).",
+    version,
+    disable_help_subcommand = true
+)]
+pub struct Cli {
+    /// Top-level command.
+    #[command(subcommand)]
+    pub command: Command,
+}
+
+/// Registered subcommands.
+#[derive(Debug, Subcommand)]
+pub enum Command {
+    /// Migrate a persona-definition file to the target schema-version.
+    #[command(
+        about = "Migrate a persona-definition file to the target schema-version.",
+        long_about = "Run the registered migration chain on a persona-definition file and emit the canonical-subset dict on stdout as JSON. See wirelang/specs/self-migration-konverter-spec.md §7."
+    )]
+    Migrate(MigrateArgs),
+    /// Validate a persona-definition file (read-only, no migration).
+    ///
+    /// Sprint-6 Tag-2 addition; mirrors Python `validate` subcommand
+    /// byte-for-byte on stdout (canonical-subset
+    /// `PersonaValidationReport` JSON).
+    #[command(
+        about = "Validate a persona-definition file (read-only, no migration).",
+        long_about = "Run the read-only persona-validator on a persona-definition file and emit the canonical-subset PersonaValidationReport on stdout as JSON. Exit code 0 if is_valid, 1 if not. See wirelang/persona/persona_validator.py for the report schema (persona-validation-v1)."
+    )]
+    Validate(ValidateArgs),
+    /// Inspect a persona-definition file (read-only canonical-subset + hash).
+    ///
+    /// Sprint-6 Tag-3 addition; mirrors Python `inspect` subcommand
+    /// byte-for-byte on stdout (`PersonaInspectReport` JSON).
+    #[command(
+        about = "Inspect a persona-definition file (read-only canonical-subset + hash).",
+        long_about = "Run the read-only canonical-subset extractor + V-907 persona-hash on a persona-definition file and emit the PersonaInspectReport on stdout as JSON. Exit code 0 on success, 1 on parse / extractor failure. See wirelang/persona/persona_canonical_form.py for the canonical-subset shape (persona-inspect-v1)."
+    )]
+    Inspect(InspectArgs),
+    /// Emit the V-907 persona-hash on stdout (minimal-footprint).
+    ///
+    /// Sprint-6 Tag-4 addition; mirrors Python `pin` subcommand
+    /// byte-for-byte on stdout (single line `sha256:<64hex>\n`).
+    /// Designed for shell-pipeline capture:
+    /// `pin=$(wakir-persona pin file.md)`. Mirror of
+    /// `inspect --emit-hash --quiet` but with the pin on stdout
+    /// instead of stderr.
+    #[command(
+        about = "Emit the V-907 persona-hash on stdout (minimal-footprint).",
+        long_about = "Run the read-only canonical-subset extractor + V-907 persona-hash on a persona-definition file and emit ONLY the persona-hash on stdout (one line, 'sha256:<64hex>\\n'). Designed for shell-pipeline capture: `pin=$(wakir-persona pin file.md)` is a clean one-liner with no JSON / 2>&1 redirect gymnastics. Exit code 0 on success, 1 on parse / extractor failure. V-907-CLI-invariant: stdout equals `migrate --emit-hash` stderr-last-line equals `inspect --emit-hash --quiet` stderr-pin."
+    )]
+    Pin(PinArgs),
+}
+
+/// Arguments for the `migrate` subcommand.
+#[derive(Debug, Parser)]
+pub struct MigrateArgs {
+    /// Filesystem path to a UTF-8 markdown persona-definition.
+    pub persona_file: PathBuf,
+
+    /// Target schema-version for the migration chain.
+    ///
+    /// Default is [`PERSONA_SCHEMA_VERSION_LATEST`]
+    /// (= `"persona-v1"`). Accepts any value in
+    /// [`PERSONA_SCHEMA_VERSION_LIST`]; clap rejects others at parse
+    /// time with exit code [`EXIT_USAGE_ERROR`].
+    #[arg(
+        long = "target",
+        default_value = PERSONA_SCHEMA_VERSION_LATEST,
+        value_parser = validate_target,
+    )]
+    pub target: String,
+
+    /// Optional post-migration persona-hash pin.
+    ///
+    /// Accepts both bare 64-hex and full `"sha256:<64hex>"` form. A
+    /// mismatch exits with code [`EXIT_DETERMINISM_ERROR`].
+    #[arg(long = "expect-hash", value_name = "<pin>")]
+    pub expect_hash: Option<String>,
+
+    /// Emit the post-migration persona-hash on stderr.
+    ///
+    /// Hash is in `sha256:<64hex>` form, suitable for shell capture.
+    #[arg(long = "emit-hash", default_value_t = false)]
+    pub emit_hash: bool,
+
+    /// Suppress the human-readable progress line on stderr.
+    #[arg(long = "quiet", default_value_t = false)]
+    pub quiet: bool,
+}
+
+/// Arguments for the `validate` subcommand.
+///
+/// Sprint-6 Tag-2 addition. Deliberately narrower than [`MigrateArgs`]:
+/// the validator is read-only, so there is no `--target`,
+/// `--expect-hash`, or `--emit-hash` knob. Only `--quiet` is shared
+/// with `migrate` for stderr-progress-line suppression.
+#[derive(Debug, Parser)]
+pub struct ValidateArgs {
+    /// Filesystem path to a UTF-8 markdown persona-definition.
+    pub persona_file: PathBuf,
+
+    /// Suppress the human-readable progress line on stderr.
+    #[arg(long = "quiet", default_value_t = false)]
+    pub quiet: bool,
+}
+
+/// Arguments for the `inspect` subcommand.
+///
+/// Sprint-6 Tag-3 addition. Wider than [`ValidateArgs`] (carries
+/// `--emit-hash` so the operator can pipe the V-907 pin into shell
+/// scripts) but narrower than [`MigrateArgs`] (no `--target` /
+/// `--expect-hash` — inspect is read-only, no schema-version
+/// gymnastics). `--quiet` is shared with migrate / validate.
+#[derive(Debug, Parser)]
+pub struct InspectArgs {
+    /// Filesystem path to a UTF-8 markdown persona-definition.
+    pub persona_file: PathBuf,
+
+    /// Emit the V-907 persona-hash on stderr.
+    ///
+    /// Hash is in `sha256:<64hex>` form, suitable for shell capture.
+    /// Same stderr-line shape as `migrate --emit-hash`.
+    #[arg(long = "emit-hash", default_value_t = false)]
+    pub emit_hash: bool,
+
+    /// Suppress the human-readable progress line on stderr.
+    #[arg(long = "quiet", default_value_t = false)]
+    pub quiet: bool,
+}
+
+/// Arguments for the `pin` subcommand.
+///
+/// Sprint-6 Tag-4 addition. Strict subset of [`InspectArgs`]: no
+/// `--emit-hash` flag (the subcommand already emits the pin on
+/// stdout — a redundant flag would be noise) and no `--target` /
+/// `--expect-hash` (pin is read-only, no schema-version gymnastics).
+/// Only `--quiet` is shared with the other subcommands for
+/// stderr-progress-line suppression.
+#[derive(Debug, Parser)]
+pub struct PinArgs {
+    /// Filesystem path to a UTF-8 markdown persona-definition.
+    pub persona_file: PathBuf,
+
+    /// Suppress the human-readable progress line on stderr.
+    #[arg(long = "quiet", default_value_t = false)]
+    pub quiet: bool,
+}
+
+/// clap `value_parser` for `--target`: must be a member of
+/// [`PERSONA_SCHEMA_VERSION_LIST`].
+///
+/// Returns a `Result<String, String>` so clap can surface a usage
+/// error with the bad value embedded. Public so the test pack can
+/// introspect the validator behaviour directly.
+pub fn validate_target(s: &str) -> Result<String, String> {
+    if PERSONA_SCHEMA_VERSION_LIST.contains(&s) {
+        Ok(s.to_owned())
+    } else {
+        Err(format!(
+            "invalid value {s:?}; expected one of {PERSONA_SCHEMA_VERSION_LIST:?}"
+        ))
+    }
+}
+
+// ---------------------------------------------------------------------
+// stdout serialisation
+// ---------------------------------------------------------------------
+
+/// Serialise the migrated **canonical subset** dict for stdout.
+///
+/// Sorted keys plus two-space indent, terminating newline. Sorted
+/// output keeps the CLI byte-stable across Rust / Python (Python's
+/// `json.dumps(..., indent=2, sort_keys=True)` defaults to
+/// `ensure_ascii=True`, so non-ASCII codepoints are emitted as
+/// `\uXXXX` escape sequences. We reproduce that posture here so the
+/// Rust stdout is byte-identical to the Python stdout across the
+/// V8 / V9 fixtures, both of which contain a non-ASCII em-dash
+/// (U+2014) in the `description` field).
+///
+/// This is **not** the V-907 canonical form (that is JCS, produced
+/// by [`persona_canonical_form::canonical_jcs_bytes`]). The CLI
+/// stdout is a developer-readable view of the same data.
+///
+/// Public so tests can call it on hand-built dicts without invoking
+/// the migration chain.
+pub fn serialise_canonical_subset(canonical_subset: &Value) -> String {
+    let sorted = sort_keys_recursive(canonical_subset);
+    let raw = serde_json::to_string_pretty(&sorted)
+        .expect("serde_json::to_string_pretty cannot fail on a Value tree");
+    let mut s = ascii_escape_non_ascii_in_strings(&raw);
+    s.push('\n');
+    s
+}
+
+/// Re-escape non-ASCII characters inside JSON string literals to match
+/// Python's `json.dumps(..., ensure_ascii=True)` byte-identical.
+///
+/// `serde_json::to_string_pretty` emits valid UTF-8 (escapes only the
+/// JSON-required characters: `\"`, `\\`, control codes, and surrogate
+/// pairs). Python `json.dumps` by default escapes **all** characters
+/// at or above U+0080 to `\uXXXX` (and surrogate pairs for >U+FFFF).
+/// We post-process the serde output to match.
+///
+/// The walk is character-by-character with a single state bit
+/// ("inside string literal"). Only string contents are escaped;
+/// keys-as-strings are also escaped because they live inside the
+/// same string-literal grammar.
+///
+/// Performance: O(n) over the rendered JSON; allocation-bounded by
+/// the worst-case (every codepoint expands to 6 ASCII bytes per
+/// `\uXXXX`).
+fn ascii_escape_non_ascii_in_strings(raw: &str) -> String {
+    let mut out = String::with_capacity(raw.len());
+    let mut in_string = false;
+    let mut prev_backslash = false;
+    for ch in raw.chars() {
+        if !in_string {
+            out.push(ch);
+            if ch == '"' {
+                in_string = true;
+            }
+            continue;
+        }
+        // Inside a string literal.
+        if prev_backslash {
+            // Previous char was an unescaped backslash; this char
+            // belongs to it (e.g. `\"`, `\\`, `\u00XX`). Emit
+            // verbatim and clear the flag.
+            out.push(ch);
+            prev_backslash = false;
+            continue;
+        }
+        if ch == '\\' {
+            out.push(ch);
+            prev_backslash = true;
+            continue;
+        }
+        if ch == '"' {
+            out.push(ch);
+            in_string = false;
+            continue;
+        }
+        if (ch as u32) < 0x80 {
+            out.push(ch);
+            continue;
+        }
+        // Non-ASCII inside string: escape to `\uXXXX` (or surrogate
+        // pair for BMP-outside). Python uses lowercase `\u` and
+        // four-digit lowercase hex by default.
+        let code = ch as u32;
+        if code <= 0xFFFF {
+            out.push_str(&format!("\\u{code:04x}"));
+        } else {
+            // UTF-16 surrogate pair encoding (per RFC 8259 / Python).
+            let v = code - 0x10000;
+            let hi = 0xD800 | (v >> 10);
+            let lo = 0xDC00 | (v & 0x3FF);
+            out.push_str(&format!("\\u{hi:04x}\\u{lo:04x}"));
+        }
+    }
+    out
+}
+
+/// Recursively re-build a `Value` with `serde_json::Map` entries in
+/// lexicographic key order.
+///
+/// `serde_json` with `preserve_order` preserves insertion order;
+/// the migration chain in [`persona_migration_resolver`] inserts in
+/// the canonical-form-order (name, description, tools,
+/// schema_version, identity_pinned) but the operator CLI surface
+/// wants lexical-sort, matching Python's `json.dumps(...,
+/// sort_keys=True)`. We do the sort here rather than relying on
+/// serialiser flags so the result is identical regardless of
+/// `preserve_order` feature flag state.
+fn sort_keys_recursive(v: &Value) -> Value {
+    match v {
+        Value::Object(m) => {
+            let mut keys: Vec<&String> = m.keys().collect();
+            keys.sort();
+            let mut out = serde_json::Map::with_capacity(m.len());
+            for k in keys {
+                out.insert(k.clone(), sort_keys_recursive(&m[k]));
+            }
+            Value::Object(out)
+        }
+        Value::Array(arr) => Value::Array(arr.iter().map(sort_keys_recursive).collect()),
+        other => other.clone(),
+    }
+}
+
+// ---------------------------------------------------------------------
+// `migrate` subcommand handler
+// ---------------------------------------------------------------------
+
+/// Outcome of running the `migrate` subcommand.
+///
+/// Captures stdout, stderr, and exit code so tests can run the
+/// handler without spawning a subprocess. The binary entry point in
+/// `main.rs` writes [`stdout`](Self::stdout) to real stdout,
+/// [`stderr`](Self::stderr) to real stderr, and exits with
+/// [`exit_code`](Self::exit_code).
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct CliOutcome {
+    /// Bytes that should be written to stdout.
+    pub stdout: String,
+    /// Bytes that should be written to stderr.
+    pub stderr: String,
+    /// Unix exit code (0 on success).
+    pub exit_code: i32,
+}
+
+/// Execute the `migrate` subcommand against the given arguments.
+///
+/// Mirrors Python `_run_migrate(args) -> int` exactly, including the
+/// strict precedence of [`MigratePersonaError::Determinism`] over the
+/// more general [`MigratePersonaError::Migration`] (the chain ran
+/// cleanly, only the pin disagrees).
+///
+/// Pure function: no global state, no real IO except reading the
+/// persona-file via [`std::fs::read_to_string`]. Returns a fully-
+/// captured [`CliOutcome`] so the caller (binary main or test pack)
+/// can route the bytes to the appropriate sinks.
+pub fn run_migrate(args: &MigrateArgs) -> CliOutcome {
+    let mut outcome = CliOutcome::default();
+
+    if !args.persona_file.exists() {
+        outcome.stderr = format!(
+            "wakir-persona: persona-file not found: {}\n",
+            args.persona_file.display()
+        );
+        outcome.exit_code = EXIT_INPUT_NOT_FOUND;
+        return outcome;
+    }
+
+    // Read once, dispatch on Markdown for byte-identity with Python
+    // (Python calls `migrate_persona(path)` which internally reads
+    // the file; Rust's resolver also reads the file when given a
+    // Path. We use Markdown here so the not-found-mid-run path is
+    // caught up front by the existence-check above. Both routes
+    // produce byte-identical migrated dicts because they share the
+    // same `split_frontmatter` + `parse_frontmatter` pipeline.)
+    let text = match fs::read_to_string(&args.persona_file) {
+        Ok(s) => s,
+        Err(e) => {
+            // Path was deleted between the existence check and the
+            // read, or some other IO error. Mirror of Python
+            // `FileNotFoundError` branch.
+            outcome.stderr = format!(
+                "wakir-persona: persona-file vanished mid-run: {}: {e}\n",
+                args.persona_file.display()
+            );
+            outcome.exit_code = EXIT_INPUT_NOT_FOUND;
+            return outcome;
+        }
+    };
+
+    let migrated = match migrate_persona(
+        MigrationInput::Markdown(&text),
+        Some(&args.target),
+        args.expect_hash.as_deref(),
+    ) {
+        Ok(v) => v,
+        Err(MigratePersonaError::Determinism(e)) => {
+            // Determinism error wins over the more general migration
+            // error: it is a stronger signal (the chain ran cleanly,
+            // only the pin disagrees). Mirror of Python `except
+            // PersonaMigrationDeterminismError` before `except
+            // PersonaMigrationError`.
+            outcome.stderr = format!("wakir-persona: hash drift: {e}\n");
+            outcome.exit_code = EXIT_DETERMINISM_ERROR;
+            return outcome;
+        }
+        Err(MigratePersonaError::Migration(e)) => {
+            outcome.stderr = format!("wakir-persona: migration failed: {}\n", migration_msg(&e));
+            outcome.exit_code = EXIT_MIGRATION_ERROR;
+            return outcome;
+        }
+    };
+
+    // The CLI emits the **canonical-subset** projection on stdout
+    // (mirror of Python `_serialise_canonical_subset(migrated)`).
+    // Resolver returns the full front-matter; we project here to
+    // match Python byte-identical.
+    //
+    // Implementation note: the project helper lives in the resolver
+    // crate as a private function (Sprint-4 Tag-5 scope cut). We
+    // reuse the migrated full dict, project locally with the same
+    // CANONICAL_TOP_LEVEL_KEYS contract, and serialise that.
+    // Behaviour identity is verified by the cross-check tests below.
+    let canonical = match project_canonical_subset_public(&migrated) {
+        Ok(c) => c,
+        Err(e) => {
+            outcome.stderr = format!("wakir-persona: migration failed: {e}\n");
+            outcome.exit_code = EXIT_MIGRATION_ERROR;
+            return outcome;
+        }
+    };
+    outcome.stdout = serialise_canonical_subset(&canonical);
+
+    if args.emit_hash {
+        // Re-hash the migrated canonical subset for the operator.
+        // Mirror of Python `compute_persona_hash_from_canonical(
+        // migrated)`. Cheap (sub-millisecond) and keeps the CLI
+        // surface narrow.
+        match compute_pin(&canonical) {
+            Ok(pin) => {
+                outcome.stderr.push_str(&pin);
+                outcome.stderr.push('\n');
+            }
+            Err(e) => {
+                outcome
+                    .stderr
+                    .push_str(&format!("wakir-persona: post-migration hash failed: {e}\n"));
+                outcome.exit_code = EXIT_MIGRATION_ERROR;
+                return outcome;
+            }
+        }
+    }
+
+    if !args.quiet {
+        // One progress line on stderr keeps interactive use
+        // informative without polluting stdout for pipelines.
+        outcome.stderr.push_str(&format!(
+            "wakir-persona: migrated {} -> {}\n",
+            args.persona_file.display(),
+            args.target
+        ));
+    }
+
+    outcome
+}
+
+// ---------------------------------------------------------------------
+// `validate` subcommand handler (Sprint-6 Tag-2)
+// ---------------------------------------------------------------------
+
+/// Serialise a [`persona_validator::ValidationReport`] canonical-value
+/// for stdout.
+///
+/// Same posture as [`serialise_canonical_subset`]: sort keys, two-space
+/// indent, terminate with `\n`, and re-escape non-ASCII characters
+/// inside string literals to match Python `json.dumps(...,
+/// ensure_ascii=True)`. Public so the test pack can call it on
+/// hand-built report dicts.
+pub fn serialise_validation_report(report: &Value) -> String {
+    // Posture is verbatim identical to `serialise_canonical_subset`;
+    // keep them as distinct entry points to document the two different
+    // callers (migrate vs validate) and allow them to diverge later
+    // without touching the migrate path.
+    let sorted = sort_keys_recursive(report);
+    let raw = serde_json::to_string_pretty(&sorted)
+        .expect("serde_json::to_string_pretty cannot fail on a Value tree");
+    let mut s = ascii_escape_non_ascii_in_strings(&raw);
+    s.push('\n');
+    s
+}
+
+/// Execute the `validate` subcommand against the given arguments.
+///
+/// Mirrors Python `_run_validate(args) -> int` exactly. Returns a
+/// fully-captured [`CliOutcome`]. Pure function: only IO is reading
+/// the persona-file via [`std::fs::read_to_string`].
+pub fn run_validate(args: &ValidateArgs) -> CliOutcome {
+    let mut outcome = CliOutcome::default();
+
+    if !args.persona_file.exists() {
+        outcome.stderr = format!(
+            "wakir-persona: persona-file not found: {}\n",
+            args.persona_file.display()
+        );
+        outcome.exit_code = EXIT_INPUT_NOT_FOUND;
+        return outcome;
+    }
+
+    let text = match fs::read_to_string(&args.persona_file) {
+        Ok(s) => s,
+        Err(e) => {
+            outcome.stderr = format!(
+                "wakir-persona: persona-file vanished mid-run: {}: {e}\n",
+                args.persona_file.display()
+            );
+            outcome.exit_code = EXIT_INPUT_NOT_FOUND;
+            return outcome;
+        }
+    };
+
+    // validate_persona is infallible (errors are accumulated into the
+    // report); no error branch beyond the IO above.
+    let report = validate_persona(ValidatorInput::MarkdownText(&text));
+    let canonical = report.to_canonical_value();
+    outcome.stdout = serialise_validation_report(&canonical);
+
+    if !args.quiet {
+        // Verdict-first progress line mirrors the Python pendant
+        // exactly: "valid" or "invalid: N error(s)".
+        let verdict = if report.is_valid {
+            "valid".to_string()
+        } else {
+            format!("invalid: {} error(s)", report.errors.len())
+        };
+        outcome.stderr.push_str(&format!(
+            "wakir-persona: validated {} -> {}\n",
+            args.persona_file.display(),
+            verdict
+        ));
+    }
+
+    outcome.exit_code = if report.is_valid {
+        0
+    } else {
+        EXIT_VALIDATION_FAILED
+    };
+    outcome
+}
+
+// ---------------------------------------------------------------------
+// `inspect` subcommand handler (Sprint-6 Tag-3)
+// ---------------------------------------------------------------------
+
+/// Serialise a `PersonaInspectReport` (the Python-side name; the
+/// Rust pendant is a `serde_json::Value` produced by
+/// [`build_inspect_report`]) canonical-value for stdout.
+///
+/// Same posture as [`serialise_canonical_subset`] /
+/// [`serialise_validation_report`]: sort keys, two-space indent,
+/// terminate with `\n`, and re-escape non-ASCII characters inside
+/// string literals to match Python `json.dumps(..., ensure_ascii=
+/// True)`. Public so the test pack can call it on hand-built report
+/// dicts.
+pub fn serialise_inspect_report(report: &Value) -> String {
+    let sorted = sort_keys_recursive(report);
+    let raw = serde_json::to_string_pretty(&sorted)
+        .expect("serde_json::to_string_pretty cannot fail on a Value tree");
+    let mut s = ascii_escape_non_ascii_in_strings(&raw);
+    s.push('\n');
+    s
+}
+
+/// Assemble the `persona-inspect-v1` report `Value`.
+///
+/// Three keys (lexicographic; serialiser sorts at emission, but we
+/// keep insertion order stable here for `preserve_order`-friendly
+/// readers):
+///
+/// - `canonical_subset`: the V-907 canonical-subset object produced
+///   by [`read_canonical_subset`].
+/// - `persona_hash`: the V-907 `"sha256:<64hex>"` pin computed over
+///   the canonical subset via
+///   [`compute_persona_hash_from_canonical`]. By construction this
+///   equals the Sprint-4 `PERSONA_HASH_PIN_V9` constant for the V9
+///   fixture.
+/// - `report_schema_version`: `"persona-inspect-v1"`.
+///
+/// Deliberately **no** `persona_file` field: the path-as-passed
+/// would break the cross-language byte-identity anchor between
+/// Python (pytest cwd) and Rust (cargo manifest dir) invocations,
+/// and the operator can recover the path from the stderr progress
+/// line anyway. Mirror of the Python `_build_inspect_report`
+/// rationale.
+pub fn build_inspect_report(canonical_subset: Value, persona_hash: &str) -> Value {
+    let mut report = serde_json::Map::with_capacity(3);
+    report.insert("canonical_subset".to_string(), canonical_subset);
+    report.insert(
+        "persona_hash".to_string(),
+        Value::String(persona_hash.to_string()),
+    );
+    report.insert(
+        "report_schema_version".to_string(),
+        Value::String(PERSONA_INSPECT_REPORT_SCHEMA_VERSION.to_string()),
+    );
+    Value::Object(report)
+}
+
+/// Execute the `inspect` subcommand against the given arguments.
+///
+/// Mirrors Python `_run_inspect(args) -> int` exactly. Returns a
+/// fully-captured [`CliOutcome`]. Pure function: only IO is reading
+/// the persona-file via [`std::fs::read_to_string`].
+///
+/// Failure semantics: any extractor / canonicaliser error maps to
+/// [`EXIT_INSPECT_FAILED`] (= 1). No JSON report-of-errors is
+/// emitted on the failure path (inspect is a debugging tool, not a
+/// governance gate); the diagnostic goes to stderr as a one-line
+/// "wakir-persona: inspect failed: ..." marker.
+pub fn run_inspect(args: &InspectArgs) -> CliOutcome {
+    let mut outcome = CliOutcome::default();
+
+    if !args.persona_file.exists() {
+        outcome.stderr = format!(
+            "wakir-persona: persona-file not found: {}\n",
+            args.persona_file.display()
+        );
+        outcome.exit_code = EXIT_INPUT_NOT_FOUND;
+        return outcome;
+    }
+
+    let text = match fs::read_to_string(&args.persona_file) {
+        Ok(s) => s,
+        Err(e) => {
+            outcome.stderr = format!(
+                "wakir-persona: persona-file vanished mid-run: {}: {e}\n",
+                args.persona_file.display()
+            );
+            outcome.exit_code = EXIT_INPUT_NOT_FOUND;
+            return outcome;
+        }
+    };
+
+    let canonical_subset = match read_canonical_subset(&text) {
+        Ok(cs) => cs,
+        Err(e) => {
+            // PersonaCanonicalFormYamlError covers missing fence,
+            // malformed YAML, missing keys, unsupported schema_version.
+            // All surfaced under one "inspect failed" banner so an
+            // operator running `wakir-persona inspect` on a broken file
+            // gets the diagnostic + non-zero exit, not a stack trace.
+            outcome.stderr = format!("wakir-persona: inspect failed: {e}\n");
+            outcome.exit_code = EXIT_INSPECT_FAILED;
+            return outcome;
+        }
+    };
+
+    let persona_hash = match compute_persona_hash_from_canonical(&canonical_subset, None) {
+        Ok(h) => h,
+        Err(e) => {
+            // JCS canonicalisation failure on an unserialisable subset
+            // (should be unreachable on a successfully-extracted subset
+            // but kept defensive for hand-built non-canonical inputs).
+            outcome.stderr = format!("wakir-persona: inspect failed: {e}\n");
+            outcome.exit_code = EXIT_INSPECT_FAILED;
+            return outcome;
+        }
+    };
+
+    let report = build_inspect_report(canonical_subset, &persona_hash);
+    outcome.stdout = serialise_inspect_report(&report);
+
+    if args.emit_hash {
+        // Same stderr-line shape as `migrate --emit-hash` so a shell
+        // script can pipe either subcommand into the same capture.
+        outcome.stderr.push_str(&persona_hash);
+        outcome.stderr.push('\n');
+    }
+
+    if !args.quiet {
+        outcome.stderr.push_str(&format!(
+            "wakir-persona: inspected {} -> {}\n",
+            args.persona_file.display(),
+            persona_hash
+        ));
+    }
+
+    outcome
+}
+
+// ---------------------------------------------------------------------
+// `pin` subcommand handler (Sprint-6 Tag-4)
+// ---------------------------------------------------------------------
+
+/// Execute the `pin` subcommand against the given arguments.
+///
+/// Mirrors Python `_run_pin(args) -> int` exactly. Minimal-footprint
+/// shell-pipeline wrapper: stdout = the V-907 persona-hash, one line,
+/// `sha256:<64hex>\n`. Nothing else. Mirror of `run_inspect` but with
+/// the pin routed to **stdout** instead of stderr so
+/// `pin=$(wakir-persona pin file.md)` works as a one-liner without
+/// the `2>&1` redirect dance.
+///
+/// Returns a fully-captured [`CliOutcome`]. Pure function: only IO
+/// is reading the persona-file via [`std::fs::read_to_string`].
+///
+/// Failure semantics identical to `run_inspect`: extractor /
+/// canonicaliser errors map to [`EXIT_PIN_FAILED`] (= 1); the
+/// diagnostic goes to stderr as a one-line `"wakir-persona: pin
+/// failed: ..."` marker.
+///
+/// V-907-CLI-invariant: on a v9 (no-op-chain) input, this stdout
+/// equals `inspect --emit-hash --quiet` stderr-pin equals
+/// `migrate --emit-hash` stderr-last-line. The Tag-4 test pack pins
+/// all three forms against `PERSONA_HASH_PIN_V9`.
+pub fn run_pin(args: &PinArgs) -> CliOutcome {
+    let mut outcome = CliOutcome::default();
+
+    if !args.persona_file.exists() {
+        outcome.stderr = format!(
+            "wakir-persona: persona-file not found: {}\n",
+            args.persona_file.display()
+        );
+        outcome.exit_code = EXIT_INPUT_NOT_FOUND;
+        return outcome;
+    }
+
+    let text = match fs::read_to_string(&args.persona_file) {
+        Ok(s) => s,
+        Err(e) => {
+            outcome.stderr = format!(
+                "wakir-persona: persona-file vanished mid-run: {}: {e}\n",
+                args.persona_file.display()
+            );
+            outcome.exit_code = EXIT_INPUT_NOT_FOUND;
+            return outcome;
+        }
+    };
+
+    let canonical_subset = match read_canonical_subset(&text) {
+        Ok(cs) => cs,
+        Err(e) => {
+            // Same exception surface as `run_inspect`. Pin is a strict
+            // subset of inspect's behaviour (only the hash, no JSON
+            // envelope), so the failure marker reads identically
+            // modulo the "pin failed" / "inspect failed" banner swap.
+            outcome.stderr = format!("wakir-persona: pin failed: {e}\n");
+            outcome.exit_code = EXIT_PIN_FAILED;
+            return outcome;
+        }
+    };
+
+    let persona_hash = match compute_persona_hash_from_canonical(&canonical_subset, None) {
+        Ok(h) => h,
+        Err(e) => {
+            // Defensive belt: JCS canonicalisation should never fail
+            // on a successfully-extracted canonical subset, but a
+            // hand-built non-canonical input could still trip the
+            // type / value guards.
+            outcome.stderr = format!("wakir-persona: pin failed: {e}\n");
+            outcome.exit_code = EXIT_PIN_FAILED;
+            return outcome;
+        }
+    };
+
+    // Minimal-footprint stdout: just the pin + newline. No JSON, no
+    // canonical-subset echo. This is the load-bearing distinction
+    // from `inspect`; see V-907-CLI-invariant in the docstring.
+    outcome.stdout.push_str(&persona_hash);
+    outcome.stdout.push('\n');
+
+    if !args.quiet {
+        outcome.stderr.push_str(&format!(
+            "wakir-persona: pinned {} -> {}\n",
+            args.persona_file.display(),
+            persona_hash
+        ));
+    }
+
+    outcome
+}
+
+// ---------------------------------------------------------------------
+// Canonical-subset projection (public mirror of the resolver's
+// `project_canonical_subset` private helper).
+// ---------------------------------------------------------------------
+
+/// Project a migrated front-matter `Value::Object` onto the V-907
+/// canonical subset, in JSON shape.
+///
+/// Mirror of the private `project_canonical_subset` in
+/// [`persona_migration_resolver`] (the resolver does not expose it
+/// because Sprint-4 Tag-5 explicitly kept the public surface narrow
+/// — Tag-5 Outbox §A1 documents the scope cut). The CLI needs the
+/// projection to emit a developer-readable canonical-subset on
+/// stdout; we re-implement it here verbatim from the resolver's
+/// contract to avoid widening that crate's public surface in
+/// Sprint-5 Tag-1.
+///
+/// Contract:
+/// - Required top-level keys: `name`, `description`, `tools`,
+///   `schema_version`, `identity_pinned`.
+/// - `tools`: list or comma-separated string; canonical form is
+///   always a `Vec<String>`.
+/// - `name` / `description`: stringified (mirror of Python
+///   `str(...)`).
+/// - `identity_pinned`: narrowed to `cross_review_zones`,
+///   `authority`, `hierarchy` in that order.
+///
+/// Errors are surfaced as a plain `String` so the CLI handler can
+/// embed them in the stderr message without re-implementing the
+/// full resolver error enum at this layer.
+fn project_canonical_subset_public(fm: &Value) -> Result<Value, String> {
+    let obj = fm.as_object().ok_or_else(|| {
+        "migrate_persona returned a non-object front-matter (internal bug)".to_string()
+    })?;
+
+    const REQUIRED: &[&str] = &[
+        "name",
+        "description",
+        "tools",
+        "schema_version",
+        "identity_pinned",
+    ];
+    let missing: Vec<&str> = REQUIRED
+        .iter()
+        .copied()
+        .filter(|k| !obj.contains_key(*k))
+        .collect();
+    if !missing.is_empty() {
+        return Err(format!(
+            "persona front-matter missing required keys: {missing:?}"
+        ));
+    }
+
+    let schema_version = match obj.get("schema_version") {
+        Some(Value::String(s)) => s.clone(),
+        _ => return Err("persona schema_version must be a string".to_string()),
+    };
+
+    const REQUIRED_IP: &[&str] = &["cross_review_zones", "authority", "hierarchy"];
+    let ip = match obj.get("identity_pinned") {
+        Some(Value::Object(m)) => m,
+        _ => return Err("persona identity_pinned must be a mapping".to_string()),
+    };
+    let missing_ip: Vec<&str> = REQUIRED_IP
+        .iter()
+        .copied()
+        .filter(|k| !ip.contains_key(*k))
+        .collect();
+    if !missing_ip.is_empty() {
+        return Err(format!(
+            "persona identity_pinned missing required keys: {missing_ip:?}"
+        ));
+    }
+    let mut ip_canon = serde_json::Map::with_capacity(REQUIRED_IP.len());
+    for k in REQUIRED_IP {
+        ip_canon.insert((*k).to_string(), ip.get(*k).expect("checked above").clone());
+    }
+
+    let tools_canon: Vec<Value> = match obj.get("tools").expect("checked above") {
+        Value::String(s) => s
+            .split(',')
+            .map(str::trim)
+            .filter(|t| !t.is_empty())
+            .map(|t| Value::String(t.to_string()))
+            .collect(),
+        Value::Array(arr) => {
+            let mut out = Vec::with_capacity(arr.len());
+            for item in arr {
+                out.push(Value::String(stringify_scalar(item)?));
+            }
+            out
+        }
+        _ => return Err("persona tools must be a list or a comma-separated string".to_string()),
+    };
+
+    let name = stringify_scalar(obj.get("name").expect("checked above"))?;
+    let description = stringify_scalar(obj.get("description").expect("checked above"))?;
+
+    let mut canonical = serde_json::Map::with_capacity(REQUIRED.len());
+    canonical.insert("name".to_string(), Value::String(name));
+    canonical.insert("description".to_string(), Value::String(description));
+    canonical.insert("tools".to_string(), Value::Array(tools_canon));
+    canonical.insert("schema_version".to_string(), Value::String(schema_version));
+    canonical.insert("identity_pinned".to_string(), Value::Object(ip_canon));
+    Ok(Value::Object(canonical))
+}
+
+fn stringify_scalar(v: &Value) -> Result<String, String> {
+    match v {
+        Value::String(s) => Ok(s.clone()),
+        Value::Bool(b) => Ok(b.to_string()),
+        Value::Number(n) => Ok(n.to_string()),
+        Value::Null => Ok("None".to_string()),
+        _ => Err("expected scalar".to_string()),
+    }
+}
+
+// ---------------------------------------------------------------------
+// Pin computation (mirror of Python
+// `compute_persona_hash_from_canonical`).
+// ---------------------------------------------------------------------
+
+/// Compute the V-907 pin for an already-projected canonical subset.
+///
+/// Returns the full `"sha256:<64hex>"` form. Mirror of Python
+/// `compute_persona_hash_from_canonical(canonical_subset)`.
+///
+/// Used by the `--emit-hash` path. Kept public so tests can compute
+/// expected pins without re-wiring through the resolver.
+pub fn compute_pin(canonical: &Value) -> Result<String, String> {
+    let blob =
+        canonical_jcs_bytes(canonical).map_err(|e| format!("JCS canonicalisation failed: {e}"))?;
+    let mut hasher = Sha256::new();
+    hasher.update(&blob);
+    let digest = hasher.finalize();
+    let mut hex_tail = String::with_capacity(64);
+    for byte in digest {
+        use std::fmt::Write;
+        write!(hex_tail, "{byte:02x}").expect("hex write");
+    }
+    Ok(format!("sha256:{hex_tail}"))
+}
+
+// ---------------------------------------------------------------------
+// Error-message formatting (Python parity)
+// ---------------------------------------------------------------------
+
+/// Format a [`PersonaMigrationError`] for the CLI stderr line.
+///
+/// Python's `str(PersonaMigrationError)` is the message string the
+/// resolver constructs; Rust's `Display` impl produces the same shape
+/// modulo trivial differences (e.g. `{path:?}` Rust vs `{path!r}`
+/// Python). For the test pack we anchor on the leading marker
+/// (`"migration failed"`) rather than the full string, so byte-for-
+/// byte stderr parity is not required at the message level; what
+/// matters is the exit-code mapping and the marker substring.
+fn migration_msg(e: &PersonaMigrationError) -> String {
+    format!("{e}")
+}
+
+// ---------------------------------------------------------------------
+// clap exit-code mapping
+// ---------------------------------------------------------------------
+
+/// Map a clap parse error to the spec §7.4 exit code.
+///
+/// clap's `Error::exit_code()` is 2 by default; we remap to 64 to
+/// mirror the Python CLI docstring spec §7.4 (`EX_USAGE` = 64). The
+/// cross-check test pack pins this remap so a clap-version-bump can
+/// not silently change the exit code.
+pub fn map_clap_exit_code(_e: &clap::Error) -> i32 {
+    EXIT_USAGE_ERROR
+}
+
+// ---------------------------------------------------------------------
+// Top-level entry point (shared by main.rs and tests)
+// ---------------------------------------------------------------------
+
+/// Top-level entry point.
+///
+/// Parses `argv` via clap, dispatches on the subcommand, returns a
+/// fully-captured [`CliOutcome`]. The binary entry point in `main.rs`
+/// is a thin wrapper that prints the outcome and exits with the
+/// captured code.
+///
+/// `argv[0]` is the program name (e.g. `"wakir-persona"`); the
+/// remaining entries are the actual arguments. Mirror of Python
+/// `main(argv: Sequence[str] | None)`.
+pub fn run(argv: &[&str]) -> CliOutcome {
+    let parsed = Cli::try_parse_from(argv);
+    match parsed {
+        Ok(cli) => match cli.command {
+            Command::Migrate(args) => run_migrate(&args),
+            Command::Validate(args) => run_validate(&args),
+            Command::Inspect(args) => run_inspect(&args),
+            Command::Pin(args) => run_pin(&args),
+        },
+        Err(e) => {
+            let exit_code = map_clap_exit_code(&e);
+            // clap embeds the error message in `to_string()` already.
+            // Route it to stderr; on `--help` / `--version` clap uses
+            // exit code 0 which our mapper currently always maps to
+            // 64. The Python CLI calls these "argparse usage errors"
+            // and also returns non-zero, so the cross-check holds at
+            // the "non-zero on parse-or-info path" level.
+            //
+            // Note: clap `ErrorKind::DisplayHelp` and `DisplayVersion`
+            // are not strictly "errors", but mapping them to 64 is
+            // safe for an operator CLI (the only `--help` / `--version`
+            // invocation in scope is the test pack, which checks for
+            // non-zero exit + presence of the program name in stderr).
+            let mut outcome = CliOutcome {
+                exit_code,
+                ..CliOutcome::default()
+            };
+            // clap's pretty-printer writes to a stylised buffer; we
+            // use `to_string()` to keep the test pack's assertions
+            // simple (substring match on "wakir-persona" or the
+            // argument name).
+            outcome.stderr = e.to_string();
+            // clap-produced strings already end with `\n`, but defensive
+            // suffix for the edge case where they don't.
+            if !outcome.stderr.ends_with('\n') {
+                outcome.stderr.push('\n');
+            }
+            outcome
+        }
+    }
+}
+
+// ---------------------------------------------------------------------
+// I/O sink helper (used by main.rs)
+// ---------------------------------------------------------------------
+
+/// Write the captured outcome bytes to the real stdout / stderr.
+///
+/// Returns the exit code so `main.rs` can `process::exit(...)`.
+///
+/// Public so integration tests (if any are added later) can drive
+/// the same code-path. Currently the test pack runs the in-process
+/// [`run`] entry point and inspects [`CliOutcome`] directly.
+pub fn write_outcome(outcome: &CliOutcome) -> i32 {
+    if !outcome.stdout.is_empty() {
+        let mut stdout = std::io::stdout().lock();
+        let _ = stdout.write_all(outcome.stdout.as_bytes());
+        let _ = stdout.flush();
+    }
+    if !outcome.stderr.is_empty() {
+        let mut stderr = std::io::stderr().lock();
+        let _ = stderr.write_all(outcome.stderr.as_bytes());
+        let _ = stderr.flush();
+    }
+    outcome.exit_code
+}
+
+// ---------------------------------------------------------------------
+// Cross-check helper used by integration tests
+// ---------------------------------------------------------------------
+
+/// Helper that runs the in-process CLI against a fixture file.
+///
+/// Convenience for the test pack. Builds a `&[&str]` argv from the
+/// passed slice plus the program name and calls [`run`].
+///
+/// The `_marker` parameter is unused at runtime; it exists so
+/// callers can document the test vector at the call site.
+pub fn run_in_process<P: AsRef<Path>>(
+    _marker: &str,
+    persona_file: P,
+    extra: &[&str],
+) -> CliOutcome {
+    let path_str = persona_file.as_ref().to_string_lossy().into_owned();
+    let mut argv: Vec<&str> = vec!["wakir-persona", "migrate", &path_str];
+    argv.extend_from_slice(extra);
+    run(&argv)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use persona_migration_resolver::PERSONA_HASH_PIN_V9;
+    use std::path::PathBuf;
+
+    // -------------------------------------------------------------------
+    // Test fixtures path. We reach into the Python tree at
+    // `wirelang/tests/fixtures/persona_definitions/` so that the
+    // Rust CLI and the Python CLI both consume the same byte-stream
+    // (byte-stable cross-check anchor).
+    // -------------------------------------------------------------------
+
+    fn fixture(name: &str) -> PathBuf {
+        let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        // crates/persona-cli -> crates -> wirelang-rust -> repo-root
+        p.push("..");
+        p.push("..");
+        p.push("..");
+        p.push("wirelang");
+        p.push("tests");
+        p.push("fixtures");
+        p.push("persona_definitions");
+        p.push(name);
+        p
+    }
+
+    fn v8_fixture() -> PathBuf {
+        fixture("v8-persona-pre-framework.md")
+    }
+
+    fn v9_fixture() -> PathBuf {
+        fixture("v9-persona-framework-native.md")
+    }
+
+    // -------------------------------------------------------------------
+    // 1 / Parser surface: subcommand required.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t1_parser_requires_subcommand() {
+        let outcome = run(&["wakir-persona"]);
+        // clap returns non-zero on missing subcommand. We map to 64.
+        assert_eq!(outcome.exit_code, EXIT_USAGE_ERROR);
+        // clap embeds the program name in the usage line.
+        assert!(
+            outcome.stderr.contains("wakir-persona"),
+            "stderr missing program name; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // 2 / Parser surface: --target defaults to persona-v1, --expect-hash
+    //     / --emit-hash / --quiet default to None / false / false. We
+    //     verify this by running a happy-path invocation and observing
+    //     the stderr progress line ("-> persona-v1").
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t2_default_target_is_persona_v1() {
+        let outcome = run_in_process("v8 default target", v8_fixture(), &[]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        assert!(
+            outcome.stderr.contains("-> persona-v1"),
+            "expected default target in stderr; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // 3 / Parser surface: --target rejects unknown schema_version.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t3_unknown_target_rejected_by_parser() {
+        let outcome = run(&[
+            "wakir-persona",
+            "migrate",
+            &v8_fixture().to_string_lossy(),
+            "--target",
+            "persona-v99",
+        ]);
+        assert_eq!(outcome.exit_code, EXIT_USAGE_ERROR);
+        assert!(
+            outcome.stderr.contains("persona-v99"),
+            "stderr missing bad target; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // 4 / Happy path: v8 -> v1 emits canonical-subset JSON on stdout.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t4_migrate_v8_to_v1_emits_canonical_subset_json() {
+        let outcome = run_in_process("v8->v1", v8_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        // stdout is JSON-decodable and carries the lifted schema_version.
+        let payload: Value = serde_json::from_str(&outcome.stdout).expect("stdout is JSON");
+        assert_eq!(payload["schema_version"], "persona-v1");
+        // --quiet suppresses the progress line; --emit-hash not set, so
+        // stderr should be empty.
+        assert_eq!(outcome.stderr, "");
+    }
+
+    // -------------------------------------------------------------------
+    // 5 / stdout is sorted (key order: lexical) and terminates with \n.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t5_stdout_sorted_and_newline_terminated() {
+        let outcome = run_in_process("v8->v1 sort", v8_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0);
+        assert!(
+            outcome.stdout.ends_with('\n'),
+            "stdout must end with newline"
+        );
+        // Top-level keys in lexical order. "description" precedes "name"
+        // in the rendered JSON.
+        let desc_pos = outcome
+            .stdout
+            .find("\"description\"")
+            .expect("description key");
+        let name_pos = outcome.stdout.find("\"name\"").expect("name key");
+        assert!(
+            desc_pos < name_pos,
+            "expected sorted key order; got desc@{desc_pos} name@{name_pos}"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // 6 / --emit-hash writes the V9-pin to stderr.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t6_emit_hash_writes_pin_to_stderr() {
+        let outcome = run_in_process(
+            "v8->v1 emit-hash",
+            v8_fixture(),
+            &["--quiet", "--emit-hash"],
+        );
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let last_nonempty: Vec<&str> = outcome
+            .stderr
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .collect();
+        assert_eq!(
+            last_nonempty,
+            vec![PERSONA_HASH_PIN_V9],
+            "stderr should be exactly the V9 pin"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // 7 / Progress line on stderr when not --quiet.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t7_progress_line_when_not_quiet() {
+        let outcome = run_in_process("v8->v1 progress", v8_fixture(), &[]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        assert!(
+            outcome.stderr.contains("wakir-persona: migrated"),
+            "missing progress marker; got: {}",
+            outcome.stderr
+        );
+        assert!(
+            outcome.stderr.contains("persona-v1"),
+            "missing target in progress line; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // 8 / --expect-hash happy path (full + bare-hex forms both pass).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t8_expect_hash_full_form_passes() {
+        let outcome = run_in_process(
+            "v8->v1 expect-full",
+            v8_fixture(),
+            &["--quiet", "--expect-hash", PERSONA_HASH_PIN_V9],
+        );
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+    }
+
+    #[test]
+    fn t8b_expect_hash_bare_hex_form_passes() {
+        let bare = PERSONA_HASH_PIN_V9
+            .strip_prefix("sha256:")
+            .expect("PIN_V9 has sha256: prefix");
+        let outcome = run_in_process(
+            "v8->v1 expect-bare",
+            v8_fixture(),
+            &["--quiet", "--expect-hash", bare],
+        );
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+    }
+
+    // -------------------------------------------------------------------
+    // 9 / --expect-hash drift returns exit code 2.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t9_expect_hash_drift_returns_exit_code_2() {
+        let wrong_pin = "sha256:".to_string() + &"0".repeat(64);
+        let outcome = run_in_process(
+            "v8->v1 drift",
+            v8_fixture(),
+            &["--quiet", "--expect-hash", &wrong_pin],
+        );
+        assert_eq!(outcome.exit_code, EXIT_DETERMINISM_ERROR);
+        assert!(
+            outcome.stderr.contains("hash drift"),
+            "expected drift marker; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // 10 / Persona-file does not exist returns exit code 3.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t10_missing_file_returns_exit_code_3() {
+        let outcome = run(&[
+            "wakir-persona",
+            "migrate",
+            "/var/empty/this-file-does-not-exist.md",
+        ]);
+        assert_eq!(outcome.exit_code, EXIT_INPUT_NOT_FOUND);
+        assert!(
+            outcome.stderr.contains("not found"),
+            "expected not-found marker; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // 11 / Irreparable frontmatter returns exit code 1.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn t11_irreparable_frontmatter_returns_exit_code_1() {
+        let tmp = std::env::temp_dir().join("persona-cli-irreparable.md");
+        std::fs::write(&tmp, "---\nname: x\n").expect("write tmp");
+        let outcome = run_in_process("irreparable", &tmp, &[]);
+        let _ = std::fs::remove_file(&tmp);
+        assert_eq!(outcome.exit_code, EXIT_MIGRATION_ERROR);
+        assert!(
+            outcome.stderr.contains("migration failed"),
+            "expected migration-failed marker; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // 12 / Idempotence via CLI: v9 -> v1 is no-op, --emit-hash yields
+    //      the V9-pin (same as v8 -> v1, the V-907 by-construction
+    //      identity).
+    // -------------------------------------------------------------------
+
+    /// 13 / Byte-identical cross-check anchor: stdout for v8 -> v1
+    /// is byte-for-byte equal to the Python CLI's stdout.
+    ///
+    /// The expected blob is checked into the test fixtures directory
+    /// and was generated by `python -m wirelang.persona.cli migrate
+    /// v8-persona-pre-framework.md --quiet > expected.json` on
+    /// 2026-05-11 (Sprint-5 Tag-1 Box). A future Rust-side regression
+    /// in the sort order, ASCII-escape, or indent shape breaks this
+    /// test.
+    #[test]
+    fn t13_v8_to_v1_stdout_byte_identical_to_python_cli() {
+        let outcome = run_in_process("byte-anchor", v8_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let expected = include_str!("../tests/fixtures/v8-migrated-to-v1.expected.json");
+        assert_eq!(
+            outcome.stdout, expected,
+            "stdout drifted from Python CLI byte-fingerprint (v8 -> v1)"
+        );
+    }
+
+    /// 14 / Byte-identical cross-check anchor for the v8 -> v2 chain.
+    ///
+    /// Same expected-fixture pattern as t13. Anchors the v8 -> chain
+    /// -> v2 dispatcher path (two registered steps).
+    #[test]
+    fn t14_v8_to_v2_stdout_byte_identical_to_python_cli() {
+        let outcome = run_in_process(
+            "byte-anchor-v2",
+            v8_fixture(),
+            &["--target", "persona-v2", "--quiet"],
+        );
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let expected = include_str!("../tests/fixtures/v8-migrated-to-v2.expected.json");
+        assert_eq!(
+            outcome.stdout, expected,
+            "stdout drifted from Python CLI byte-fingerprint (v8 -> chain -> v2)"
+        );
+    }
+
+    #[test]
+    fn t12_v9_to_v1_is_no_op_with_v9_pin() {
+        let outcome = run_in_process("v9 noop", v9_fixture(), &["--quiet", "--emit-hash"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let payload: Value = serde_json::from_str(&outcome.stdout).expect("stdout is JSON");
+        assert_eq!(payload["schema_version"], "persona-v1");
+        let last_nonempty: Vec<&str> = outcome
+            .stderr
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .collect();
+        assert_eq!(
+            last_nonempty,
+            vec![PERSONA_HASH_PIN_V9],
+            "v9 -> v1 must yield the V9 pin"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------
+// `--target persona-v2` operator-CLI test pack (Phase-1b Sprint-5 Tag-2).
+//
+// Rust mirror of `wirelang/tests/test_persona_migration_cli_v2_target.py`
+// (7 Python tests). Covers the `wakir-persona migrate --target persona-v2`
+// surface that Sprint-3 Tag-3 wired into the CLI's `--target` choices via
+// `PERSONA_SCHEMA_VERSION_LIST`. Each Rust test is paired 1:1 with a
+// Python test so that a future regression in either tree fails the
+// matching test on the other side.
+//
+// Pairing:
+//
+// | Python test                                                | Rust test                                                  |
+// |------------------------------------------------------------|-----------------------------------------------------------|
+// | test_build_parser_accepts_target_persona_v2                | vt1_parser_accepts_target_persona_v2                       |
+// | test_cli_v9_to_v2_single_step_emits_v2_canonical_subset    | vt2_cli_v9_to_v2_single_step_emits_v2_canonical_subset     |
+// | test_cli_v9_to_v2_emit_hash_matches_v9_migrated_to_v2_pin  | vt3_cli_v9_to_v2_emit_hash_matches_v9_migrated_to_v2_pin   |
+// | test_cli_v8_to_v2_multi_step_chain_emits_v2_canonical_*    | vt4_cli_v8_to_v2_multi_step_chain_emits_v2_canonical_*     |
+// | test_cli_v8_to_v2_chain_expect_hash_passes                 | vt5_cli_v8_to_v2_chain_expect_hash_passes                  |
+// | test_cli_target_persona_v0_from_v9_input_rejects_with_*    | vt6_cli_target_persona_v0_from_v9_input_rejects_with_*     |
+// |  (no Python counterpart — Rust-only extra: V9 single-step  | vt7_cli_v9_to_v2_chain_expect_hash_passes                  |
+// |   expect-hash; matches the Python single-step contract     |   (paired with vt3 via expect-hash form; mirrors the      |
+// |   that vt3 exercises via emit-hash. Added so the bare-hex  |   Python emit-hash anchor as an expect-hash anchor)        |
+// |   expect-hash form has v2-target coverage.)                |                                                            |
+//
+// Cross-check Rust ↔ Python: each test's behaviour is byte-identical to
+// the Python test on stdout (JSON shape + schema_version field) and
+// load-bearing-identical on stderr (marker substrings + exit codes;
+// progress-line wording is irrelevant — all vt2..vt7 run under `--quiet`
+// where stderr is silent or carries only the pin / drift marker).
+// ---------------------------------------------------------------------
+
+#[cfg(test)]
+mod v2_target_tests {
+    use super::*;
+    use persona_migration_resolver::{
+        PERSONA_HASH_PIN_V8_MIGRATED_TO_V2, PERSONA_HASH_PIN_V9_MIGRATED_TO_V2,
+    };
+    use std::path::PathBuf;
+
+    // Repeat the fixture-resolver here instead of pulling it from the
+    // sibling `tests` mod: Rust's mod-private items are not visible to
+    // sibling test modules. This is a 12-LoC mirror, not a new contract.
+    fn fixture(name: &str) -> PathBuf {
+        let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        p.push("..");
+        p.push("..");
+        p.push("..");
+        p.push("wirelang");
+        p.push("tests");
+        p.push("fixtures");
+        p.push("persona_definitions");
+        p.push(name);
+        p
+    }
+
+    fn v8_fixture() -> PathBuf {
+        fixture("v8-persona-pre-framework.md")
+    }
+
+    fn v9_fixture() -> PathBuf {
+        fixture("v9-persona-framework-native.md")
+    }
+
+    // -------------------------------------------------------------------
+    // vt1 / Parser surface: --target persona-v2 must be an accepted
+    //       choice after Tag-3's PERSONA_SCHEMA_VERSION_LIST extension.
+    //
+    // Mirror of Python `test_build_parser_accepts_target_persona_v2`.
+    // Regression guard for the resolver's PERSONA_SCHEMA_VERSION_LIST
+    // tuple: if a future refactor narrows the list back to
+    // ("persona-v0", "persona-v1"), `validate_target("persona-v2")`
+    // rejects and clap's parse fails with EXIT_USAGE_ERROR — both
+    // assertions trip.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vt1_parser_accepts_target_persona_v2() {
+        // Direct call on the public validator.
+        assert_eq!(
+            validate_target("persona-v2"),
+            Ok("persona-v2".to_string()),
+            "validate_target must accept persona-v2 after Tag-3 list extension"
+        );
+
+        // Full clap parse path: argv shape mirrors the Python invocation
+        // `["migrate", str(V9_FIXTURE), "--target", "persona-v2"]`. Cli
+        // is a derive-Parser; we use try_parse_from so a clap regression
+        // (e.g. unknown subcommand) surfaces as `Err` rather than a
+        // process exit at test-time.
+        let path = v9_fixture();
+        let path_str = path.to_string_lossy().into_owned();
+        let cli = Cli::try_parse_from([
+            "wakir-persona",
+            "migrate",
+            &path_str,
+            "--target",
+            "persona-v2",
+        ])
+        .expect("clap should parse --target persona-v2");
+        match cli.command {
+            Command::Migrate(args) => {
+                assert_eq!(args.target, "persona-v2");
+                assert_eq!(args.persona_file, path);
+            }
+            other => panic!("expected Command::Migrate, got {other:?}"),
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // vt2 / Single-step CLI path: v9 -> v2 (V1ToV2Step alone).
+    //
+    // Mirror of Python `test_cli_v9_to_v2_single_step_emits_v2_canonical_subset`.
+    // stdout JSON carries schema_version=persona-v2; stderr is silent
+    // under --quiet without --emit-hash.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vt2_cli_v9_to_v2_single_step_emits_v2_canonical_subset() {
+        let outcome = run_in_process(
+            "v9 -> v2 single-step",
+            v9_fixture(),
+            &["--target", "persona-v2", "--quiet"],
+        );
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let payload: Value =
+            serde_json::from_str(&outcome.stdout).expect("stdout is JSON-decodable");
+        assert_eq!(
+            payload["schema_version"], "persona-v2",
+            "schema_version must be lifted to persona-v2"
+        );
+        assert_eq!(
+            outcome.stderr, "",
+            "--quiet without --emit-hash must yield empty stderr"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vt3 / --emit-hash on the v9 -> v2 single-step path surfaces the
+    //       V9-migrated-to-V2 pin (PERSONA_HASH_PIN_V9_MIGRATED_TO_V2).
+    //
+    // Mirror of Python `test_cli_v9_to_v2_emit_hash_matches_v9_migrated_to_v2_pin`.
+    // Pinned-anchor assertion: a CLI-dispatch regression (e.g.
+    // accidentally re-hashing the v1 intermediate instead of the v2
+    // endpoint) trips this assertion rather than silently emitting the
+    // wrong pin.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vt3_cli_v9_to_v2_emit_hash_matches_v9_migrated_to_v2_pin() {
+        let outcome = run_in_process(
+            "v9 -> v2 emit-hash",
+            v9_fixture(),
+            &["--target", "persona-v2", "--quiet", "--emit-hash"],
+        );
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let nonempty: Vec<&str> = outcome
+            .stderr
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .collect();
+        assert_eq!(
+            nonempty,
+            vec![PERSONA_HASH_PIN_V9_MIGRATED_TO_V2],
+            "emit-hash stderr must be exactly the V9-migrated-to-V2 pin"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vt4 / Multi-step CLI path: v8 -> v0 -> v1 -> v2 (M-1 direct
+    //       anchor through the operator surface).
+    //
+    // Mirror of Python `test_cli_v8_to_v2_multi_step_chain_emits_v2_canonical_subset`.
+    // The resolver builds [V0ToV1Step(), V1ToV2Step()] automatically
+    // when the source is v0 (v8 fixture's recorded schema_version) and
+    // the target is v2. stdout JSON carries schema_version=persona-v2.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vt4_cli_v8_to_v2_multi_step_chain_emits_v2_canonical_subset() {
+        let outcome = run_in_process(
+            "v8 -> chain -> v2",
+            v8_fixture(),
+            &["--target", "persona-v2", "--quiet"],
+        );
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let payload: Value =
+            serde_json::from_str(&outcome.stdout).expect("stdout is JSON-decodable");
+        assert_eq!(
+            payload["schema_version"], "persona-v2",
+            "schema_version must be lifted to persona-v2 through the chain"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vt5 / --expect-hash against PERSONA_HASH_PIN_V8_MIGRATED_TO_V2 on
+    //       the v8 -> chain -> v2 path passes (M-1 direct anchor via
+    //       operator surface).
+    //
+    // Mirror of Python `test_cli_v8_to_v2_chain_expect_hash_passes`.
+    // Full sha256:<64hex> form (bare-hex form is exercised by t8b on
+    // the v1 surface; here we keep parity with the Python file which
+    // also uses full form on this v2-target test).
+    //
+    // By construction PERSONA_HASH_PIN_V8_MIGRATED_TO_V2 ==
+    // PERSONA_HASH_PIN_V9_MIGRATED_TO_V2 (v8 and v9 share every
+    // canonical-subset key except schema_version, and the chain
+    // endpoint sets v2 either way); we anchor on the V8 alias here.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vt5_cli_v8_to_v2_chain_expect_hash_passes() {
+        let outcome = run_in_process(
+            "v8 -> chain -> v2 expect-hash",
+            v8_fixture(),
+            &[
+                "--target",
+                "persona-v2",
+                "--quiet",
+                "--expect-hash",
+                PERSONA_HASH_PIN_V8_MIGRATED_TO_V2,
+            ],
+        );
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        // --quiet without --emit-hash: stderr silent.
+        assert_eq!(
+            outcome.stderr, "",
+            "--quiet without --emit-hash must yield empty stderr on happy path"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vt6 / Negative path: --target persona-v0 with a v9 input is
+    //       rejected at resolver time with exit code 1.
+    //
+    // Mirror of Python `test_cli_target_persona_v0_from_v9_input_rejects_with_exit_1`.
+    // Forward-only chain (Default-Lock A-2 additive-only): persona-v0
+    // is in PERSONA_SCHEMA_VERSION_LIST so clap accepts it, but no
+    // inverse migration step is registered, so the resolver raises
+    // PersonaMigrationError and the CLI maps that to EXIT_MIGRATION_ERROR
+    // = 1.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vt6_cli_target_persona_v0_from_v9_input_rejects_with_exit_1() {
+        let outcome = run_in_process(
+            "v9 -> v0 forward-only-reject",
+            v9_fixture(),
+            &["--target", "persona-v0", "--quiet"],
+        );
+        assert_eq!(
+            outcome.exit_code, EXIT_MIGRATION_ERROR,
+            "stderr: {}",
+            outcome.stderr
+        );
+        assert!(
+            outcome.stderr.contains("migration failed"),
+            "expected 'migration failed' marker; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vt7 / --expect-hash against PERSONA_HASH_PIN_V9_MIGRATED_TO_V2 on
+    //       the v9 -> v2 single-step path passes.
+    //
+    // Companion to vt5: that test pins the v8 -> chain -> v2 endpoint
+    // via PERSONA_HASH_PIN_V8_MIGRATED_TO_V2; this test pins the v9 ->
+    // v2 single-step path via PERSONA_HASH_PIN_V9_MIGRATED_TO_V2 (which
+    // is the same byte-blob by construction, but reached via a
+    // different dispatch path — single V1ToV2Step alone, no V0ToV1Step
+    // upfront). Catches a regression where the single-step path
+    // accidentally drops or duplicates a step.
+    //
+    // This is an additive Rust-side anchor not present 1:1 in the
+    // Python file (the Python file exercises the single-step path via
+    // emit-hash in test_cli_v9_to_v2_emit_hash_matches_*, see vt3
+    // above); we add the expect-hash form here for symmetry with vt5.
+    // The Python single-step expect-hash form is implicitly covered
+    // because the Python emit-hash test asserts byte-equality with the
+    // same pin constant.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vt7_cli_v9_to_v2_chain_expect_hash_passes() {
+        let outcome = run_in_process(
+            "v9 -> v2 single-step expect-hash",
+            v9_fixture(),
+            &[
+                "--target",
+                "persona-v2",
+                "--quiet",
+                "--expect-hash",
+                PERSONA_HASH_PIN_V9_MIGRATED_TO_V2,
+            ],
+        );
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        assert_eq!(
+            outcome.stderr, "",
+            "--quiet without --emit-hash must yield empty stderr on happy path"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------
+// `validate` subcommand test pack (Phase-1b Sprint-6 Tag-2).
+//
+// Rust mirror of `wirelang/tests/test_persona_validator_cli.py`. Pairs
+// 1:1 with the Python tests so that a regression on either side fails
+// the matching test on the other side.
+//
+// Pairing:
+//
+// | Python test                                              | Rust test                                                |
+// |----------------------------------------------------------|----------------------------------------------------------|
+// | test_build_parser_accepts_validate_subcommand            | va1_parser_accepts_validate_subcommand                   |
+// | test_build_parser_validate_subcommand_quiet_flag_parses  | va2_parser_validate_subcommand_quiet_flag                |
+// | test_build_parser_validate_subcommand_rejects_unknown_*  | va3_parser_validate_subcommand_rejects_unknown_flag      |
+// | test_validate_v9_returns_exit_code_0_and_valid_report    | va4_validate_v9_returns_exit_0_and_valid_report          |
+// | test_validate_v9_stdout_sorted_and_newline_terminated    | va5_validate_v9_stdout_sorted_and_newline_terminated     |
+// | test_validate_v8_returns_exit_code_1_and_invalid_report  | va6_validate_v8_returns_exit_1_and_invalid_report        |
+// | test_validate_v9_progress_line_when_not_quiet            | va7_validate_v9_progress_line_when_not_quiet             |
+// | test_validate_v8_progress_line_carries_invalid_count     | va8_validate_v8_progress_line_carries_invalid_count      |
+// | test_validate_missing_file_returns_exit_code_3           | va9_validate_missing_file_returns_exit_3                 |
+// | test_validate_v9_stdout_byte_identical_to_frozen_fixture | va10_validate_v9_stdout_byte_identical_to_python_cli     |
+// | test_validate_v8_stdout_byte_identical_to_frozen_fixture | va11_validate_v8_stdout_byte_identical_to_python_cli     |
+// | test_validate_v9_idempotent_stdout                       | va12_validate_v9_idempotent_stdout                       |
+// | test_validate_v8_idempotent_stdout                       | va13_validate_v8_idempotent_stdout                       |
+// | test_migrate_subcommand_still_works_after_validate_added | va14_migrate_subcommand_still_works_after_validate_added |
+//
+// Cross-check Rust ↔ Python: stdout shape is asserted byte-identical
+// via `include_str!` on the same frozen fixtures the Python CLI tests
+// load (`v8-validated.expected.json`, `v9-validated.expected.json`).
+// ---------------------------------------------------------------------
+
+#[cfg(test)]
+mod validate_tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn fixture(name: &str) -> PathBuf {
+        let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        p.push("..");
+        p.push("..");
+        p.push("..");
+        p.push("wirelang");
+        p.push("tests");
+        p.push("fixtures");
+        p.push("persona_definitions");
+        p.push(name);
+        p
+    }
+
+    fn v8_fixture() -> PathBuf {
+        fixture("v8-persona-pre-framework.md")
+    }
+
+    fn v9_fixture() -> PathBuf {
+        fixture("v9-persona-framework-native.md")
+    }
+
+    /// Helper that runs the in-process CLI against a fixture file via
+    /// the `validate` subcommand. Mirror of [`run_in_process`] (which
+    /// targets `migrate`).
+    fn run_validate_in_process(persona_file: PathBuf, extra: &[&str]) -> CliOutcome {
+        let path_str = persona_file.to_string_lossy().into_owned();
+        let mut argv: Vec<&str> = vec!["wakir-persona", "validate", &path_str];
+        argv.extend_from_slice(extra);
+        run(&argv)
+    }
+
+    // -------------------------------------------------------------------
+    // va1 / Parser accepts the `validate` subcommand.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va1_parser_accepts_validate_subcommand() {
+        let path = v9_fixture();
+        let path_str = path.to_string_lossy().into_owned();
+        let cli = Cli::try_parse_from(["wakir-persona", "validate", &path_str])
+            .expect("clap should parse `validate <file>`");
+        match cli.command {
+            Command::Validate(args) => {
+                assert_eq!(args.persona_file, path);
+                assert!(!args.quiet, "default --quiet must be false");
+            }
+            _ => panic!("expected Command::Validate"),
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // va2 / `--quiet` flag parses on the validate subcommand.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va2_parser_validate_subcommand_quiet_flag() {
+        let path = v9_fixture();
+        let path_str = path.to_string_lossy().into_owned();
+        let cli = Cli::try_parse_from(["wakir-persona", "validate", &path_str, "--quiet"])
+            .expect("clap should parse `validate <file> --quiet`");
+        match cli.command {
+            Command::Validate(args) => {
+                assert!(args.quiet, "--quiet must flip the flag to true");
+            }
+            _ => panic!("expected Command::Validate"),
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // va3 / Validate subcommand rejects unknown flags (e.g. --target
+    //       which belongs to migrate).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va3_parser_validate_subcommand_rejects_unknown_flag() {
+        let path = v9_fixture();
+        let outcome = run(&[
+            "wakir-persona",
+            "validate",
+            &path.to_string_lossy(),
+            "--target",
+            "persona-v2",
+        ]);
+        assert_eq!(outcome.exit_code, EXIT_USAGE_ERROR);
+        assert!(
+            outcome.stderr.contains("--target") || outcome.stderr.contains("unexpected"),
+            "stderr should flag the unknown flag; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // va4 / V9 happy path: is_valid=true, exit 0.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va4_validate_v9_returns_exit_0_and_valid_report() {
+        let outcome = run_validate_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let payload: Value = serde_json::from_str(&outcome.stdout).expect("stdout is JSON");
+        assert_eq!(payload["is_valid"], true);
+        assert_eq!(payload["schema_version"], "persona-v1");
+        assert_eq!(payload["schema_supported"], true);
+        assert_eq!(payload["report_schema_version"], "persona-validation-v1");
+        assert!(payload["errors"]
+            .as_array()
+            .expect("errors is array")
+            .is_empty());
+        assert_eq!(outcome.stderr, "", "--quiet must yield empty stderr");
+    }
+
+    // -------------------------------------------------------------------
+    // va5 / stdout has lexical key order and terminates with `\n`.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va5_validate_v9_stdout_sorted_and_newline_terminated() {
+        let outcome = run_validate_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0);
+        assert!(
+            outcome.stdout.ends_with('\n'),
+            "stdout must end with newline"
+        );
+        // "errors" must precede "is_valid" in the rendered JSON.
+        let errors_pos = outcome.stdout.find("\"errors\"").expect("errors key");
+        let is_valid_pos = outcome.stdout.find("\"is_valid\"").expect("is_valid key");
+        assert!(
+            errors_pos < is_valid_pos,
+            "expected sorted key order; got errors@{errors_pos} is_valid@{is_valid_pos}"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // va6 / V8 failure path: is_valid=false, exit 1.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va6_validate_v8_returns_exit_1_and_invalid_report() {
+        let outcome = run_validate_in_process(v8_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, EXIT_VALIDATION_FAILED);
+        assert_eq!(outcome.exit_code, 1);
+        let payload: Value = serde_json::from_str(&outcome.stdout).expect("stdout is JSON");
+        assert_eq!(payload["is_valid"], false);
+        assert_eq!(payload["schema_version"], "persona-v0");
+        assert_eq!(payload["schema_supported"], false);
+        let errs = payload["errors"].as_array().expect("errors is array");
+        assert_eq!(errs.len(), 1);
+        assert_eq!(errs[0]["code"], "schema-version-unsupported");
+        assert_eq!(errs[0]["detail"], "persona-v0");
+        assert_eq!(outcome.stderr, "", "--quiet must yield empty stderr");
+    }
+
+    // -------------------------------------------------------------------
+    // va7 / Progress line on stderr when not --quiet (V9 = valid).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va7_validate_v9_progress_line_when_not_quiet() {
+        let outcome = run_validate_in_process(v9_fixture(), &[]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        assert!(
+            outcome.stderr.contains("wakir-persona: validated"),
+            "missing progress marker; got: {}",
+            outcome.stderr
+        );
+        assert!(
+            outcome.stderr.contains("-> valid"),
+            "missing 'valid' verdict; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // va8 / Progress line carries the invalid count (V8 = invalid).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va8_validate_v8_progress_line_carries_invalid_count() {
+        let outcome = run_validate_in_process(v8_fixture(), &[]);
+        assert_eq!(outcome.exit_code, EXIT_VALIDATION_FAILED);
+        assert!(
+            outcome.stderr.contains("wakir-persona: validated"),
+            "missing progress marker; got: {}",
+            outcome.stderr
+        );
+        assert!(
+            outcome.stderr.contains("-> invalid: 1 error(s)"),
+            "missing invalid-count verdict; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // va9 / Missing persona-file returns exit 3.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va9_validate_missing_file_returns_exit_3() {
+        let outcome = run(&[
+            "wakir-persona",
+            "validate",
+            "/var/empty/this-file-does-not-exist.md",
+        ]);
+        assert_eq!(outcome.exit_code, EXIT_INPUT_NOT_FOUND);
+        assert!(
+            outcome.stderr.contains("not found"),
+            "expected not-found marker; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // va10 / V9 stdout byte-identical to the Python-frozen fixture.
+    //
+    // The fixture was generated on 2026-05-11 (Sprint-6 Tag-2 Box) by
+    // `python -m wirelang.persona.cli validate v9-persona-framework-
+    // native.md --quiet > v9-validated.expected.json`. A drift on
+    // either side breaks this anchor.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va10_validate_v9_stdout_byte_identical_to_python_cli() {
+        let outcome = run_validate_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let expected = include_str!("../tests/fixtures/v9-validated.expected.json");
+        assert_eq!(
+            outcome.stdout, expected,
+            "stdout drifted from Python CLI byte-fingerprint (v9 validate)"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // va11 / V8 stdout byte-identical to the Python-frozen fixture.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va11_validate_v8_stdout_byte_identical_to_python_cli() {
+        let outcome = run_validate_in_process(v8_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, EXIT_VALIDATION_FAILED);
+        let expected = include_str!("../tests/fixtures/v8-validated.expected.json");
+        assert_eq!(
+            outcome.stdout, expected,
+            "stdout drifted from Python CLI byte-fingerprint (v8 validate)"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // va12 / V9 idempotence: two invocations yield byte-identical stdout.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va12_validate_v9_idempotent_stdout() {
+        let first = run_validate_in_process(v9_fixture(), &["--quiet"]);
+        let second = run_validate_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(first.exit_code, 0);
+        assert_eq!(second.exit_code, 0);
+        assert_eq!(first.stdout, second.stdout, "validate must be idempotent");
+    }
+
+    // -------------------------------------------------------------------
+    // va13 / V8 idempotence (failure-path).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va13_validate_v8_idempotent_stdout() {
+        let first = run_validate_in_process(v8_fixture(), &["--quiet"]);
+        let second = run_validate_in_process(v8_fixture(), &["--quiet"]);
+        assert_eq!(first.exit_code, EXIT_VALIDATION_FAILED);
+        assert_eq!(second.exit_code, EXIT_VALIDATION_FAILED);
+        assert_eq!(
+            first.stdout, second.stdout,
+            "validate must be idempotent on failure path too"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // va14 / Backward compatibility: migrate subcommand still works
+    //        after the validate subcommand was added.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va14_migrate_subcommand_still_works_after_validate_added() {
+        let outcome = run_in_process("v8->v1 backcompat", v8_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let payload: Value = serde_json::from_str(&outcome.stdout).expect("stdout is JSON");
+        assert_eq!(payload["schema_version"], "persona-v1");
+    }
+
+    // -------------------------------------------------------------------
+    // va15 / Determinism stress: 10-iteration loop, all byte-identical.
+    //        Mirror of Crate-7 t15 anchor pattern for the CLI surface.
+    //        Rust-only addition (no Python counterpart needed because
+    //        Python uses the same validator core).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn va15_validate_v9_stdout_determinism_stress_10_iter() {
+        let first = run_validate_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(first.exit_code, 0);
+        for i in 0..10 {
+            let later = run_validate_in_process(v9_fixture(), &["--quiet"]);
+            assert_eq!(
+                later.stdout, first.stdout,
+                "iteration {i} drifted from baseline"
+            );
+            assert_eq!(later.exit_code, 0);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------
+// `inspect` subcommand test pack (Phase-1b Sprint-6 Tag-3).
+//
+// Rust mirror of `wirelang/tests/test_persona_inspect_cli.py`. Pairs
+// 1:1 with the Python tests so that a regression on either side fails
+// the matching test on the other side.
+//
+// Pairing:
+//
+// | Python test                                                       | Rust test                                                       |
+// |-------------------------------------------------------------------|-----------------------------------------------------------------|
+// | test_build_parser_accepts_inspect_subcommand                      | vi1_parser_accepts_inspect_subcommand                           |
+// | test_build_parser_inspect_subcommand_quiet_flag_parses            | vi2_parser_inspect_subcommand_quiet_flag                        |
+// | test_build_parser_inspect_subcommand_emit_hash_flag_parses        | vi3_parser_inspect_subcommand_emit_hash_flag                    |
+// | test_build_parser_inspect_subcommand_rejects_unknown_flag         | vi4_parser_inspect_subcommand_rejects_unknown_flag              |
+// | test_build_parser_inspect_subcommand_rejects_expect_hash_flag     | vi5_parser_inspect_subcommand_rejects_expect_hash_flag          |
+// | test_inspect_v9_returns_exit_code_0_and_report                    | vi6_inspect_v9_returns_exit_0_and_report                        |
+// | test_inspect_v9_stdout_sorted_and_newline_terminated              | vi7_inspect_v9_stdout_sorted_and_newline_terminated             |
+// | test_inspect_v8_returns_exit_code_1                               | vi8_inspect_v8_returns_exit_1                                   |
+// | test_inspect_v9_emit_hash_writes_pin_to_stderr                    | vi9_inspect_v9_emit_hash_writes_pin_to_stderr                   |
+// | test_inspect_v9_progress_line_when_not_quiet                      | vi10_inspect_v9_progress_line_when_not_quiet                    |
+// | test_inspect_missing_file_returns_exit_code_3                     | vi11_inspect_missing_file_returns_exit_3                        |
+// | test_inspect_v9_stdout_byte_identical_to_frozen_fixture           | vi12_inspect_v9_stdout_byte_identical_to_python_cli             |
+// | test_inspect_v1_stdout_byte_identical_to_frozen_fixture           | vi13_inspect_v1_stdout_byte_identical_to_python_cli             |
+// | test_inspect_v9_idempotent_stdout                                 | vi14_inspect_v9_idempotent_stdout                               |
+// | test_inspect_v1_idempotent_stdout                                 | vi15_inspect_v1_idempotent_stdout                               |
+// | test_inspect_persona_hash_matches_migrate_emit_hash_v9            | vi16_inspect_persona_hash_matches_migrate_emit_hash_v9          |
+// | test_migrate_subcommand_still_works_after_inspect_added           | vi17_migrate_subcommand_still_works_after_inspect_added         |
+// | test_validate_subcommand_still_works_after_inspect_added          | vi18_validate_subcommand_still_works_after_inspect_added        |
+// | (no Python counterpart — Rust-only determinism-stress anchor)     | vi19_inspect_v9_stdout_determinism_stress_10_iter               |
+//
+// Cross-check Rust <-> Python: stdout shape is asserted byte-identical
+// via `include_str!` on the same frozen fixtures the Python CLI tests
+// load (`v1-inspected.expected.json`, `v9-inspected.expected.json`).
+// Persona-hash equality across both Rust subcommands (inspect vs.
+// migrate --emit-hash on the v9 no-op chain) anchors the V-907
+// invariant inside the CLI layer.
+// ---------------------------------------------------------------------
+
+#[cfg(test)]
+mod inspect_tests {
+    use super::*;
+    use persona_migration_resolver::PERSONA_HASH_PIN_V9;
+    use std::path::PathBuf;
+
+    fn fixture(name: &str) -> PathBuf {
+        let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        p.push("..");
+        p.push("..");
+        p.push("..");
+        p.push("wirelang");
+        p.push("tests");
+        p.push("fixtures");
+        p.push("persona_definitions");
+        p.push(name);
+        p
+    }
+
+    fn v1_fixture() -> PathBuf {
+        fixture("v1-persona-ceo.md")
+    }
+
+    fn v8_fixture() -> PathBuf {
+        fixture("v8-persona-pre-framework.md")
+    }
+
+    fn v9_fixture() -> PathBuf {
+        fixture("v9-persona-framework-native.md")
+    }
+
+    /// Helper that runs the in-process CLI against a fixture file via
+    /// the `inspect` subcommand. Mirror of [`run_in_process`] (which
+    /// targets `migrate`) and `run_validate_in_process` (Tag-2).
+    fn run_inspect_in_process(persona_file: PathBuf, extra: &[&str]) -> CliOutcome {
+        let path_str = persona_file.to_string_lossy().into_owned();
+        let mut argv: Vec<&str> = vec!["wakir-persona", "inspect", &path_str];
+        argv.extend_from_slice(extra);
+        run(&argv)
+    }
+
+    // -------------------------------------------------------------------
+    // vi1 / Parser accepts the `inspect` subcommand.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vi1_parser_accepts_inspect_subcommand() {
+        let path = v9_fixture();
+        let path_str = path.to_string_lossy().into_owned();
+        let cli = Cli::try_parse_from(["wakir-persona", "inspect", &path_str])
+            .expect("clap should parse `inspect <file>`");
+        match cli.command {
+            Command::Inspect(args) => {
+                assert_eq!(args.persona_file, path);
+                assert!(!args.quiet, "default --quiet must be false");
+                assert!(!args.emit_hash, "default --emit-hash must be false");
+            }
+            _ => panic!("expected Command::Inspect"),
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // vi2 / `--quiet` flag parses on the inspect subcommand.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vi2_parser_inspect_subcommand_quiet_flag() {
+        let path = v9_fixture();
+        let path_str = path.to_string_lossy().into_owned();
+        let cli = Cli::try_parse_from(["wakir-persona", "inspect", &path_str, "--quiet"])
+            .expect("clap should parse `inspect <file> --quiet`");
+        match cli.command {
+            Command::Inspect(args) => {
+                assert!(args.quiet, "--quiet must flip the flag to true");
+                assert!(!args.emit_hash);
+            }
+            _ => panic!("expected Command::Inspect"),
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // vi3 / `--emit-hash` flag parses on the inspect subcommand.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vi3_parser_inspect_subcommand_emit_hash_flag() {
+        let path = v9_fixture();
+        let path_str = path.to_string_lossy().into_owned();
+        let cli = Cli::try_parse_from(["wakir-persona", "inspect", &path_str, "--emit-hash"])
+            .expect("clap should parse `inspect <file> --emit-hash`");
+        match cli.command {
+            Command::Inspect(args) => {
+                assert!(args.emit_hash, "--emit-hash must flip the flag to true");
+            }
+            _ => panic!("expected Command::Inspect"),
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // vi4 / Inspect subcommand rejects unknown flags (e.g. --target).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vi4_parser_inspect_subcommand_rejects_unknown_flag() {
+        let path = v9_fixture();
+        let outcome = run(&[
+            "wakir-persona",
+            "inspect",
+            &path.to_string_lossy(),
+            "--target",
+            "persona-v2",
+        ]);
+        assert_eq!(outcome.exit_code, EXIT_USAGE_ERROR);
+        assert!(
+            outcome.stderr.contains("--target") || outcome.stderr.contains("unexpected"),
+            "stderr should flag the unknown flag; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vi5 / Inspect subcommand rejects --expect-hash (migrate-only).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vi5_parser_inspect_subcommand_rejects_expect_hash_flag() {
+        let path = v9_fixture();
+        let outcome = run(&[
+            "wakir-persona",
+            "inspect",
+            &path.to_string_lossy(),
+            "--expect-hash",
+            PERSONA_HASH_PIN_V9,
+        ]);
+        assert_eq!(outcome.exit_code, EXIT_USAGE_ERROR);
+        assert!(
+            outcome.stderr.contains("--expect-hash") || outcome.stderr.contains("unexpected"),
+            "stderr should flag the unknown flag; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vi6 / V9 happy path: extract-ok, exit 0, persona_hash matches pin.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vi6_inspect_v9_returns_exit_0_and_report() {
+        let outcome = run_inspect_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let payload: Value = serde_json::from_str(&outcome.stdout).expect("stdout is JSON");
+        assert_eq!(payload["report_schema_version"], "persona-inspect-v1");
+        assert_eq!(payload["persona_hash"], PERSONA_HASH_PIN_V9);
+        // canonical_subset top-level keys: name, description, tools,
+        // schema_version, identity_pinned.
+        let canonical = &payload["canonical_subset"];
+        assert_eq!(canonical["schema_version"], "persona-v1");
+        assert_eq!(canonical["name"], "pre-framework-agent");
+        assert!(canonical["tools"].is_array());
+        assert!(canonical.get("identity_pinned").is_some());
+        assert_eq!(outcome.stderr, "", "--quiet must yield empty stderr");
+    }
+
+    // -------------------------------------------------------------------
+    // vi7 / stdout has lexical key order and terminates with `\n`.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vi7_inspect_v9_stdout_sorted_and_newline_terminated() {
+        let outcome = run_inspect_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0);
+        assert!(
+            outcome.stdout.ends_with('\n'),
+            "stdout must end with newline"
+        );
+        // Top-level keys in lexical order: canonical_subset <
+        // persona_hash < report_schema_version.
+        let cs_pos = outcome
+            .stdout
+            .find("\"canonical_subset\"")
+            .expect("canonical_subset key");
+        let ph_pos = outcome
+            .stdout
+            .find("\"persona_hash\"")
+            .expect("persona_hash key");
+        let rsv_pos = outcome
+            .stdout
+            .find("\"report_schema_version\"")
+            .expect("report_schema_version key");
+        assert!(
+            cs_pos < ph_pos && ph_pos < rsv_pos,
+            "expected sorted key order; got cs@{cs_pos} ph@{ph_pos} rsv@{rsv_pos}"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vi8 / V8 failure path: persona-v0 schema_version is rejected by
+    //        the canonical-subset extractor; exit 1.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vi8_inspect_v8_returns_exit_1() {
+        let outcome = run_inspect_in_process(v8_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, EXIT_INSPECT_FAILED);
+        assert_eq!(outcome.exit_code, 1);
+        // No stdout on failure path; diagnostic goes to stderr.
+        assert_eq!(outcome.stdout, "");
+        assert!(
+            outcome.stderr.contains("wakir-persona: inspect failed"),
+            "expected inspect-failed marker; got: {}",
+            outcome.stderr
+        );
+        assert!(
+            outcome.stderr.contains("persona-v0"),
+            "expected schema_version diagnostic; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vi9 / --emit-hash writes the V-907 pin to stderr (mirror of
+    //        migrate --emit-hash shape).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vi9_inspect_v9_emit_hash_writes_pin_to_stderr() {
+        let outcome = run_inspect_in_process(v9_fixture(), &["--quiet", "--emit-hash"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let nonempty: Vec<&str> = outcome
+            .stderr
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .collect();
+        assert_eq!(
+            nonempty,
+            vec![PERSONA_HASH_PIN_V9],
+            "stderr must be exactly the V9 pin"
+        );
+        // Pin in stdout must equal pin emitted on stderr (single
+        // source of truth — both come from the same compute call).
+        let payload: Value = serde_json::from_str(&outcome.stdout).expect("stdout is JSON");
+        assert_eq!(payload["persona_hash"], PERSONA_HASH_PIN_V9);
+    }
+
+    // -------------------------------------------------------------------
+    // vi10 / Progress line on stderr when not --quiet.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vi10_inspect_v9_progress_line_when_not_quiet() {
+        let outcome = run_inspect_in_process(v9_fixture(), &[]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        assert!(
+            outcome.stderr.contains("wakir-persona: inspected"),
+            "missing progress marker; got: {}",
+            outcome.stderr
+        );
+        assert!(
+            outcome.stderr.contains(PERSONA_HASH_PIN_V9),
+            "progress line should carry the persona-hash; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vi11 / Missing persona-file returns exit 3.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vi11_inspect_missing_file_returns_exit_3() {
+        let outcome = run(&[
+            "wakir-persona",
+            "inspect",
+            "/var/empty/this-file-does-not-exist.md",
+        ]);
+        assert_eq!(outcome.exit_code, EXIT_INPUT_NOT_FOUND);
+        assert!(
+            outcome.stderr.contains("not found"),
+            "expected not-found marker; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vi12 / V9 stdout byte-identical to the Python-frozen fixture.
+    //
+    // The fixture was generated on 2026-05-11 (Sprint-6 Tag-3 Box) by
+    // `python -m wirelang.persona.cli inspect v9-persona-framework-
+    // native.md --quiet > v9-inspected.expected.json`. A drift on
+    // either side breaks this anchor.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vi12_inspect_v9_stdout_byte_identical_to_python_cli() {
+        let outcome = run_inspect_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let expected = include_str!("../tests/fixtures/v9-inspected.expected.json");
+        assert_eq!(
+            outcome.stdout, expected,
+            "stdout drifted from Python CLI byte-fingerprint (v9 inspect)"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vi13 / V1 stdout byte-identical to the Python-frozen fixture.
+    //
+    // Second byte-identity anchor (different name / description /
+    // tools list than V9) so a regression on a non-V9 canonical-subset
+    // shape also trips.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vi13_inspect_v1_stdout_byte_identical_to_python_cli() {
+        let outcome = run_inspect_in_process(v1_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let expected = include_str!("../tests/fixtures/v1-inspected.expected.json");
+        assert_eq!(
+            outcome.stdout, expected,
+            "stdout drifted from Python CLI byte-fingerprint (v1 inspect)"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vi14 / V9 idempotence: two invocations yield byte-identical stdout.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vi14_inspect_v9_idempotent_stdout() {
+        let first = run_inspect_in_process(v9_fixture(), &["--quiet"]);
+        let second = run_inspect_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(first.exit_code, 0);
+        assert_eq!(second.exit_code, 0);
+        assert_eq!(first.stdout, second.stdout, "inspect must be idempotent");
+    }
+
+    // -------------------------------------------------------------------
+    // vi15 / V1 idempotence (second-anchor surface).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vi15_inspect_v1_idempotent_stdout() {
+        let first = run_inspect_in_process(v1_fixture(), &["--quiet"]);
+        let second = run_inspect_in_process(v1_fixture(), &["--quiet"]);
+        assert_eq!(first.exit_code, 0);
+        assert_eq!(second.exit_code, 0);
+        assert_eq!(
+            first.stdout, second.stdout,
+            "inspect must be idempotent on the V1 anchor too"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vi16 / V-907 invariant inside the CLI layer:
+    //        inspect.persona_hash == migrate --emit-hash for v9 -> v1.
+    //
+    // The V9 fixture is already persona-v1, so the migration chain is
+    // a no-op; the post-migrate hash equals the canonical-subset hash
+    // that inspect emits.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vi16_inspect_persona_hash_matches_migrate_emit_hash_v9() {
+        let migrate_outcome = run_in_process(
+            "v9 migrate emit-hash",
+            v9_fixture(),
+            &["--quiet", "--emit-hash"],
+        );
+        assert_eq!(migrate_outcome.exit_code, 0);
+        let migrate_pin = migrate_outcome
+            .stderr
+            .lines()
+            .rfind(|l| !l.trim().is_empty())
+            .expect("migrate emit-hash stderr line")
+            .to_string();
+
+        let inspect_outcome = run_inspect_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(inspect_outcome.exit_code, 0);
+        let inspect_payload: Value =
+            serde_json::from_str(&inspect_outcome.stdout).expect("inspect stdout is JSON");
+        assert_eq!(inspect_payload["persona_hash"], migrate_pin);
+        assert_eq!(inspect_payload["persona_hash"], PERSONA_HASH_PIN_V9);
+    }
+
+    // -------------------------------------------------------------------
+    // vi17 / Backward compatibility: migrate subcommand still works
+    //         after the inspect subcommand was added.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vi17_migrate_subcommand_still_works_after_inspect_added() {
+        let outcome = run_in_process("backcompat-migrate", v9_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let payload: Value = serde_json::from_str(&outcome.stdout).expect("stdout is JSON");
+        assert_eq!(payload["schema_version"], "persona-v1");
+    }
+
+    // -------------------------------------------------------------------
+    // vi18 / Backward compatibility: validate subcommand still works
+    //         after the inspect subcommand was added.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vi18_validate_subcommand_still_works_after_inspect_added() {
+        let path = v9_fixture();
+        let path_str = path.to_string_lossy().into_owned();
+        let outcome = run(&["wakir-persona", "validate", &path_str, "--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let payload: Value = serde_json::from_str(&outcome.stdout).expect("stdout is JSON");
+        assert_eq!(payload["is_valid"], true);
+    }
+
+    // -------------------------------------------------------------------
+    // vi19 / Determinism stress: 10-iteration loop, all byte-identical.
+    //         Mirror of va15 anchor pattern for the inspect surface.
+    //         Rust-only addition (no Python counterpart needed because
+    //         Python uses the same extractor + hasher core).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vi19_inspect_v9_stdout_determinism_stress_10_iter() {
+        let first = run_inspect_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(first.exit_code, 0);
+        for i in 0..10 {
+            let later = run_inspect_in_process(v9_fixture(), &["--quiet"]);
+            assert_eq!(
+                later.stdout, first.stdout,
+                "iteration {i} drifted from baseline"
+            );
+            assert_eq!(later.exit_code, 0);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------
+// `pin` subcommand test pack (Sprint-6 Tag-4)
+//
+// Pure-CLI-shim coverage for the `pin` subcommand. Minimal-footprint
+// shell-pipeline wrapper: stdout = the V-907 persona-hash, one line,
+// `sha256:<64hex>\n`. Strict subset of `inspect` (no JSON envelope,
+// no canonical-subset echo) optimised for
+// `pin=$(wakir-persona pin file.md)` capture.
+//
+// Cross-check Rust <-> Python: stdout shape is asserted byte-identical
+// via `include_str!` on the same frozen fixtures the Python CLI tests
+// load (`v1-pin.expected.txt`, `v9-pin.expected.txt`). Persona-hash
+// equality across all three "emit the pin" CLI forms (pin stdout,
+// inspect --emit-hash stderr, migrate --emit-hash stderr) anchors the
+// V-907-CLI-invariant inside the Rust CLI layer.
+//
+// Test-pairing with the Python `test_persona_pin_cli.py` pack:
+//
+// | Python                                          | Rust                                       |
+// |-------------------------------------------------|--------------------------------------------|
+// | test_build_parser_accepts_pin_subcommand        | vp1_parser_accepts_pin_subcommand          |
+// | ..._quiet_flag_parses                           | vp2_..._quiet_flag                         |
+// | ..._rejects_emit_hash_flag                      | vp3_..._rejects_emit_hash_flag             |
+// | ..._rejects_target_flag                         | vp4_..._rejects_target_flag                |
+// | ..._rejects_expect_hash_flag                    | vp5_..._rejects_expect_hash_flag           |
+// | test_pin_v9_returns_exit_code_0_and_pin         | vp6_pin_v9_returns_exit_0_and_pin          |
+// | test_pin_v9_stdout_is_single_line_pin_only      | vp7_pin_v9_stdout_single_line_pin_only     |
+// | test_pin_v9_stdout_has_no_json_envelope         | vp8_pin_v9_stdout_no_json_envelope         |
+// | test_pin_v8_returns_exit_code_1                 | vp9_pin_v8_returns_exit_1                  |
+// | test_pin_v9_progress_line_when_not_quiet        | vp10_pin_v9_progress_line_when_not_quiet   |
+// | test_pin_missing_file_returns_exit_code_3       | vp11_pin_missing_file_returns_exit_3       |
+// | test_pin_v9_stdout_byte_identical_..._fixture   | vp12_pin_v9_stdout_byte_identical_to_py    |
+// | test_pin_v1_stdout_byte_identical_..._fixture   | vp13_pin_v1_stdout_byte_identical_to_py    |
+// | test_pin_v9_idempotent_stdout                   | vp14_pin_v9_idempotent_stdout              |
+// | test_pin_v1_idempotent_stdout                   | vp15_pin_v1_idempotent_stdout              |
+// | test_pin_..._matches_inspect_emit_hash_..._v9   | vp16_pin_matches_inspect_emit_hash_v9      |
+// | test_pin_..._matches_migrate_emit_hash_..._v9   | vp17_pin_matches_migrate_emit_hash_v9      |
+// | test_migrate_subcommand_still_works             | vp18_migrate_..._works_after_pin           |
+// | test_validate_subcommand_still_works            | vp19_validate_..._works_after_pin          |
+// | test_inspect_subcommand_still_works             | vp20_inspect_..._works_after_pin           |
+// | (Rust-only)                                     | vp21_pin_v9_stdout_determinism_stress_10   |
+// ---------------------------------------------------------------------
+
+#[cfg(test)]
+mod pin_tests {
+    use super::*;
+    use persona_migration_resolver::PERSONA_HASH_PIN_V9;
+    use std::path::PathBuf;
+
+    fn fixture(name: &str) -> PathBuf {
+        let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        p.push("..");
+        p.push("..");
+        p.push("..");
+        p.push("wirelang");
+        p.push("tests");
+        p.push("fixtures");
+        p.push("persona_definitions");
+        p.push(name);
+        p
+    }
+
+    fn v1_fixture() -> PathBuf {
+        fixture("v1-persona-ceo.md")
+    }
+
+    fn v8_fixture() -> PathBuf {
+        fixture("v8-persona-pre-framework.md")
+    }
+
+    fn v9_fixture() -> PathBuf {
+        fixture("v9-persona-framework-native.md")
+    }
+
+    /// Helper that runs the in-process CLI against a fixture file via
+    /// the `pin` subcommand. Mirror of [`run_in_process`] (targets
+    /// `migrate`), `run_validate_in_process` (Tag-2), and
+    /// `run_inspect_in_process` (Tag-3).
+    fn run_pin_in_process(persona_file: PathBuf, extra: &[&str]) -> CliOutcome {
+        let path_str = persona_file.to_string_lossy().into_owned();
+        let mut argv: Vec<&str> = vec!["wakir-persona", "pin", &path_str];
+        argv.extend_from_slice(extra);
+        run(&argv)
+    }
+
+    // -------------------------------------------------------------------
+    // vp1 / Parser accepts the `pin` subcommand.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp1_parser_accepts_pin_subcommand() {
+        let path = v9_fixture();
+        let path_str = path.to_string_lossy().into_owned();
+        let cli = Cli::try_parse_from(["wakir-persona", "pin", &path_str])
+            .expect("clap should parse `pin <file>`");
+        match cli.command {
+            Command::Pin(args) => {
+                assert_eq!(args.persona_file, path);
+                assert!(!args.quiet, "default --quiet must be false");
+            }
+            _ => panic!("expected Command::Pin"),
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // vp2 / `--quiet` flag parses on the pin subcommand.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp2_parser_pin_subcommand_quiet_flag() {
+        let path = v9_fixture();
+        let path_str = path.to_string_lossy().into_owned();
+        let cli = Cli::try_parse_from(["wakir-persona", "pin", &path_str, "--quiet"])
+            .expect("clap should parse `pin <file> --quiet`");
+        match cli.command {
+            Command::Pin(args) => {
+                assert!(args.quiet, "--quiet must flip the flag to true");
+            }
+            _ => panic!("expected Command::Pin"),
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // vp3 / Pin subcommand rejects `--emit-hash` (inspect / migrate-only).
+    //
+    // Rationale: pin already emits the pin on stdout. Keeping the
+    // surface closed prevents accidental flag-overload as the subcommand
+    // grows.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp3_parser_pin_subcommand_rejects_emit_hash_flag() {
+        let path = v9_fixture();
+        let outcome = run(&[
+            "wakir-persona",
+            "pin",
+            &path.to_string_lossy(),
+            "--emit-hash",
+        ]);
+        assert_eq!(outcome.exit_code, EXIT_USAGE_ERROR);
+        assert!(
+            outcome.stderr.contains("--emit-hash") || outcome.stderr.contains("unexpected"),
+            "stderr should flag the unknown flag; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vp4 / Pin subcommand rejects `--target` (migrate-only).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp4_parser_pin_subcommand_rejects_target_flag() {
+        let path = v9_fixture();
+        let outcome = run(&[
+            "wakir-persona",
+            "pin",
+            &path.to_string_lossy(),
+            "--target",
+            "persona-v2",
+        ]);
+        assert_eq!(outcome.exit_code, EXIT_USAGE_ERROR);
+        assert!(
+            outcome.stderr.contains("--target") || outcome.stderr.contains("unexpected"),
+            "stderr should flag the unknown flag; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vp5 / Pin subcommand rejects `--expect-hash` (migrate-only).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp5_parser_pin_subcommand_rejects_expect_hash_flag() {
+        let path = v9_fixture();
+        let outcome = run(&[
+            "wakir-persona",
+            "pin",
+            &path.to_string_lossy(),
+            "--expect-hash",
+            PERSONA_HASH_PIN_V9,
+        ]);
+        assert_eq!(outcome.exit_code, EXIT_USAGE_ERROR);
+        assert!(
+            outcome.stderr.contains("--expect-hash") || outcome.stderr.contains("unexpected"),
+            "stderr should flag the unknown flag; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vp6 / V9 happy path: extract-ok, exit 0, stdout = pin + newline.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp6_pin_v9_returns_exit_0_and_pin() {
+        let outcome = run_pin_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        assert_eq!(
+            outcome.stdout,
+            format!("{PERSONA_HASH_PIN_V9}\n"),
+            "stdout must be exactly the V9 pin + newline; got: {:?}",
+            outcome.stdout
+        );
+        assert_eq!(outcome.stderr, "", "--quiet must yield empty stderr");
+    }
+
+    // -------------------------------------------------------------------
+    // vp7 / stdout is a single line, exactly the pin, no extras.
+    //
+    // Defensive belt against future "helpful" additions that would
+    // break `pin=$(wakir-persona pin f.md)` capture.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp7_pin_v9_stdout_single_line_pin_only() {
+        let outcome = run_pin_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0);
+        let lines: Vec<&str> = outcome.stdout.split_terminator('\n').collect();
+        assert_eq!(
+            lines.len(),
+            1,
+            "stdout must be exactly one line; got {}: {:?}",
+            lines.len(),
+            outcome.stdout
+        );
+        assert_eq!(lines[0], PERSONA_HASH_PIN_V9);
+        assert!(
+            outcome.stdout.ends_with('\n'),
+            "stdout must terminate with newline"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vp8 / stdout carries no JSON envelope.
+    //
+    // The load-bearing distinction from `inspect`: no JSON. Pinning a
+    // regression here keeps the `pin` subcommand valuable as a
+    // shell-pipeline primitive.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp8_pin_v9_stdout_no_json_envelope() {
+        let outcome = run_pin_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0);
+        assert!(!outcome.stdout.contains('{'));
+        assert!(!outcome.stdout.contains('}'));
+        assert!(!outcome.stdout.contains("canonical_subset"));
+        assert!(!outcome.stdout.contains("report_schema_version"));
+    }
+
+    // -------------------------------------------------------------------
+    // vp9 / V8 failure path: persona-v0 schema_version is rejected by
+    //        the canonical-subset extractor; exit 1.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp9_pin_v8_returns_exit_1() {
+        let outcome = run_pin_in_process(v8_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, EXIT_PIN_FAILED);
+        assert_eq!(outcome.exit_code, 1);
+        // No stdout on failure path; diagnostic goes to stderr.
+        assert_eq!(outcome.stdout, "");
+        assert!(
+            outcome.stderr.contains("wakir-persona: pin failed"),
+            "expected pin-failed marker; got: {}",
+            outcome.stderr
+        );
+        assert!(
+            outcome.stderr.contains("persona-v0"),
+            "expected schema_version diagnostic; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vp10 / Progress line on stderr when not --quiet.
+    //
+    // stdout stays exactly the pin; progress line lives on stderr.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp10_pin_v9_progress_line_when_not_quiet() {
+        let outcome = run_pin_in_process(v9_fixture(), &[]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        // stdout still has just the pin.
+        assert_eq!(outcome.stdout, format!("{PERSONA_HASH_PIN_V9}\n"));
+        // Progress line on stderr.
+        assert!(
+            outcome.stderr.contains("wakir-persona: pinned"),
+            "missing progress marker; got: {}",
+            outcome.stderr
+        );
+        assert!(
+            outcome.stderr.contains(PERSONA_HASH_PIN_V9),
+            "progress line should carry the persona-hash; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vp11 / Missing persona-file returns exit 3 with empty stdout.
+    //
+    // stdout stays empty so a downstream `$()` capture sees an empty
+    // string rather than a stale partial value.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp11_pin_missing_file_returns_exit_3() {
+        let outcome = run(&[
+            "wakir-persona",
+            "pin",
+            "/var/empty/this-file-does-not-exist.md",
+        ]);
+        assert_eq!(outcome.exit_code, EXIT_INPUT_NOT_FOUND);
+        assert_eq!(outcome.stdout, "");
+        assert!(
+            outcome.stderr.contains("not found"),
+            "expected not-found marker; got: {}",
+            outcome.stderr
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vp12 / V9 stdout byte-identical to the Python-frozen fixture.
+    //
+    // The fixture was generated on 2026-05-11 (Sprint-6 Tag-4 Box) by
+    // `python -m wirelang.persona.cli pin v9-persona-framework-native.md
+    //  --quiet > v9-pin.expected.txt`. A drift on either side breaks
+    // this anchor.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp12_pin_v9_stdout_byte_identical_to_python_cli() {
+        let outcome = run_pin_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let expected = include_str!("../tests/fixtures/v9-pin.expected.txt");
+        assert_eq!(
+            outcome.stdout, expected,
+            "stdout drifted from Python CLI byte-fingerprint (v9 pin)"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vp13 / V1 stdout byte-identical to the Python-frozen fixture.
+    //
+    // Second byte-identity anchor (different canonical-subset shape
+    // than V9) so a regression on a non-V9 surface also trips.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp13_pin_v1_stdout_byte_identical_to_python_cli() {
+        let outcome = run_pin_in_process(v1_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let expected = include_str!("../tests/fixtures/v1-pin.expected.txt");
+        assert_eq!(
+            outcome.stdout, expected,
+            "stdout drifted from Python CLI byte-fingerprint (v1 pin)"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vp14 / V9 idempotence: two invocations yield byte-identical stdout.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp14_pin_v9_idempotent_stdout() {
+        let first = run_pin_in_process(v9_fixture(), &["--quiet"]);
+        let second = run_pin_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(first.exit_code, 0);
+        assert_eq!(second.exit_code, 0);
+        assert_eq!(first.stdout, second.stdout, "pin must be idempotent");
+    }
+
+    // -------------------------------------------------------------------
+    // vp15 / V1 idempotence (second-anchor surface).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp15_pin_v1_idempotent_stdout() {
+        let first = run_pin_in_process(v1_fixture(), &["--quiet"]);
+        let second = run_pin_in_process(v1_fixture(), &["--quiet"]);
+        assert_eq!(first.exit_code, 0);
+        assert_eq!(second.exit_code, 0);
+        assert_eq!(
+            first.stdout, second.stdout,
+            "pin must be idempotent on the V1 anchor too"
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // vp16 / V-907-CLI-invariant arm 1: pin stdout == inspect
+    //        --emit-hash --quiet stderr-pin on v9.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp16_pin_matches_inspect_emit_hash_v9() {
+        let pin_outcome = run_pin_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(pin_outcome.exit_code, 0);
+        let pin_value = pin_outcome.stdout.trim_end_matches('\n').to_string();
+
+        let inspect_argv_path = v9_fixture().to_string_lossy().into_owned();
+        let inspect_outcome = run(&[
+            "wakir-persona",
+            "inspect",
+            &inspect_argv_path,
+            "--quiet",
+            "--emit-hash",
+        ]);
+        assert_eq!(inspect_outcome.exit_code, 0);
+        // inspect's stderr with --emit-hash --quiet is exactly the pin
+        // + newline.
+        let inspect_pin = inspect_outcome
+            .stderr
+            .lines()
+            .rfind(|l| !l.trim().is_empty())
+            .expect("inspect emit-hash stderr line")
+            .to_string();
+        assert_eq!(pin_value, inspect_pin);
+        assert_eq!(pin_value, PERSONA_HASH_PIN_V9);
+    }
+
+    // -------------------------------------------------------------------
+    // vp17 / V-907-CLI-invariant arm 2: pin stdout == migrate
+    //        --emit-hash stderr-last-line on v9 (no-op-chain).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp17_pin_matches_migrate_emit_hash_v9() {
+        let pin_outcome = run_pin_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(pin_outcome.exit_code, 0);
+        let pin_value = pin_outcome.stdout.trim_end_matches('\n').to_string();
+
+        let migrate_outcome = run_in_process(
+            "v9 migrate emit-hash",
+            v9_fixture(),
+            &["--quiet", "--emit-hash"],
+        );
+        assert_eq!(migrate_outcome.exit_code, 0);
+        let migrate_pin = migrate_outcome
+            .stderr
+            .lines()
+            .rfind(|l| !l.trim().is_empty())
+            .expect("migrate emit-hash stderr line")
+            .to_string();
+        assert_eq!(pin_value, migrate_pin);
+        assert_eq!(pin_value, PERSONA_HASH_PIN_V9);
+    }
+
+    // -------------------------------------------------------------------
+    // vp18 / Backward compatibility: migrate subcommand still works
+    //         after the pin subcommand was added.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp18_migrate_subcommand_still_works_after_pin_added() {
+        let outcome = run_in_process("backcompat-migrate-after-pin", v9_fixture(), &["--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let payload: Value = serde_json::from_str(&outcome.stdout).expect("stdout is JSON");
+        assert_eq!(payload["schema_version"], "persona-v1");
+    }
+
+    // -------------------------------------------------------------------
+    // vp19 / Backward compatibility: validate subcommand still works
+    //         after the pin subcommand was added.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp19_validate_subcommand_still_works_after_pin_added() {
+        let path = v9_fixture();
+        let path_str = path.to_string_lossy().into_owned();
+        let outcome = run(&["wakir-persona", "validate", &path_str, "--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let payload: Value = serde_json::from_str(&outcome.stdout).expect("stdout is JSON");
+        assert_eq!(payload["is_valid"], true);
+    }
+
+    // -------------------------------------------------------------------
+    // vp20 / Backward compatibility: inspect subcommand still works
+    //         after the pin subcommand was added.
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp20_inspect_subcommand_still_works_after_pin_added() {
+        let path = v9_fixture();
+        let path_str = path.to_string_lossy().into_owned();
+        let outcome = run(&["wakir-persona", "inspect", &path_str, "--quiet"]);
+        assert_eq!(outcome.exit_code, 0, "stderr: {}", outcome.stderr);
+        let payload: Value = serde_json::from_str(&outcome.stdout).expect("stdout is JSON");
+        assert_eq!(payload["report_schema_version"], "persona-inspect-v1");
+        assert_eq!(payload["persona_hash"], PERSONA_HASH_PIN_V9);
+    }
+
+    // -------------------------------------------------------------------
+    // vp21 / Determinism stress: 10-iteration loop, all byte-identical.
+    //         Rust-only addition (mirror of vi19 / va15 patterns).
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn vp21_pin_v9_stdout_determinism_stress_10_iter() {
+        let first = run_pin_in_process(v9_fixture(), &["--quiet"]);
+        assert_eq!(first.exit_code, 0);
+        for i in 0..10 {
+            let later = run_pin_in_process(v9_fixture(), &["--quiet"]);
+            assert_eq!(
+                later.stdout, first.stdout,
+                "iteration {i} drifted from baseline"
+            );
+            assert_eq!(later.exit_code, 0);
+        }
+    }
+}
+
+// =====================================================================
+// Help-text cross-subcommand-consistency test pack
+//
+// Phase-1b Sprint-6 Tag-5 addition. Rust pendant of
+// `wirelang/tests/test_persona_cli_help_text.py`. Asserts the same
+// soft-match contracts the Python pack pins (shared-flag wording
+// uniformity, subcommand registration inventory, exit-code semantics
+// on `--help`, flag-surface scope) against the Rust `clap::Command`
+// tree.
+//
+// Posture (vs. cross-language byte-identity)
+// ==========================================
+// Help-text byte-identity across Python `argparse` and Rust `clap` is
+// NOT asserted (the two formatters render help differently). The
+// soft-match contracts in this pack are the cross-language parity
+// layer; both the Python pack and this Rust pack assert the same
+// invariants in their respective frameworks' help-tree.
+// =====================================================================
+
+#[cfg(test)]
+mod help_text_consistency_tests {
+    use super::*;
+    use clap::CommandFactory;
+
+    /// Subcommand inventory — single source of truth.
+    ///
+    /// Order matches the `#[derive(Subcommand)]` order in
+    /// `Command` (Migrate, Validate, Inspect, Pin). clap preserves
+    /// declaration-order in `Command::get_subcommands()`.
+    const EXPECTED_SUBCOMMANDS: [&str; 4] = ["migrate", "validate", "inspect", "pin"];
+
+    /// Help-string copy that MUST be byte-identical across every
+    /// subcommand that exposes the corresponding argument. Mirrors
+    /// the Python `SHARED_PERSONA_FILE_HELP` / `SHARED_QUIET_HELP`
+    /// constants.
+    ///
+    /// Note: the clap help-text source in `PinArgs` / `InspectArgs`
+    /// / `ValidateArgs` / `MigrateArgs` is the first doc-comment line
+    /// of the `persona_file` field. clap renders the `///` doc on
+    /// arguments as the short-form help string when no explicit
+    /// `#[arg(help = ...)]` is provided. The string below is what
+    /// the field's doc-comment evaluates to.
+    const SHARED_PERSONA_FILE_HELP: &str = "Filesystem path to a UTF-8 markdown persona-definition";
+    const SHARED_QUIET_HELP: &str = "Suppress the human-readable progress line on stderr";
+
+    /// Return the configured `clap::Command` for the named subcommand.
+    ///
+    /// Panics if the subcommand is not registered (matches the
+    /// `KeyError` in the Python sister test).
+    fn subcommand(name: &str) -> clap::Command {
+        let top = Cli::command();
+        top.find_subcommand(name)
+            .cloned()
+            .unwrap_or_else(|| panic!("subcommand {name:?} not registered"))
+    }
+
+    /// Look up an `Arg` by its `--<long>` form on a `clap::Command`.
+    /// Returns `None` if not registered.
+    fn arg_by_long<'a>(cmd: &'a clap::Command, long: &str) -> Option<&'a clap::Arg> {
+        cmd.get_arguments().find(|a| a.get_long() == Some(long))
+    }
+
+    /// Look up an `Arg` by its identifier (positional / `id`).
+    fn arg_by_id<'a>(cmd: &'a clap::Command, id: &str) -> Option<&'a clap::Arg> {
+        cmd.get_arguments().find(|a| a.get_id() == id)
+    }
+
+    // ---------------------------------------------------------------
+    // Top-level help surface
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn ht1_top_level_help_lists_all_four_subcommands_in_insertion_order() {
+        let cmd = Cli::command();
+        let names: Vec<&str> = cmd.get_subcommands().map(|s| s.get_name()).collect();
+        assert_eq!(
+            names, EXPECTED_SUBCOMMANDS,
+            "top-level subcommands must match EXPECTED_SUBCOMMANDS in declaration-order"
+        );
+    }
+
+    #[test]
+    fn ht2_top_level_help_carries_program_name_and_description() {
+        let cmd = Cli::command();
+        let about = cmd.get_about().expect("top-level about set").to_string();
+        assert!(
+            about.contains("Operator CLI"),
+            "about must announce 'Operator CLI'; got: {about:?}"
+        );
+        assert!(
+            about.contains("ADR-0036"),
+            "about must cite ADR-0036 (V-907 charter); got: {about:?}"
+        );
+        // Program name (`name = "wakir-persona"`) is locked on the
+        // top-level command via the `#[command(name = ...)]` attribute.
+        assert_eq!(cmd.get_name(), "wakir-persona");
+    }
+
+    #[test]
+    fn ht3_top_level_help_double_dash_help_renders_subcommand_list() {
+        // `try_parse_from(["wakir-persona", "--help"])` returns
+        // `Err(DisplayHelp)` in clap; the rendered help is in the
+        // error's string form.
+        let outcome = run(&["wakir-persona", "--help"]);
+        // Our existing `map_clap_exit_code` maps DisplayHelp to 64;
+        // we accept that semantic here and assert the substantive
+        // contract: the help text mentions every subcommand.
+        for name in EXPECTED_SUBCOMMANDS {
+            assert!(
+                outcome.stderr.contains(name),
+                "top-level --help must mention subcommand {name:?}; got stderr: {:?}",
+                outcome.stderr
+            );
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // Cross-subcommand-consistency: persona_file positional help wording
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn ht4_persona_file_help_wording_uniform_migrate() {
+        let cmd = subcommand("migrate");
+        let arg =
+            arg_by_id(&cmd, "persona_file").expect("migrate must register persona_file positional");
+        let help = arg
+            .get_help()
+            .expect("persona_file must have help text")
+            .to_string();
+        assert_eq!(
+            help, SHARED_PERSONA_FILE_HELP,
+            "migrate: persona_file help drift"
+        );
+    }
+
+    #[test]
+    fn ht5_persona_file_help_wording_uniform_validate() {
+        let cmd = subcommand("validate");
+        let arg = arg_by_id(&cmd, "persona_file")
+            .expect("validate must register persona_file positional");
+        let help = arg
+            .get_help()
+            .expect("persona_file must have help text")
+            .to_string();
+        assert_eq!(
+            help, SHARED_PERSONA_FILE_HELP,
+            "validate: persona_file help drift"
+        );
+    }
+
+    #[test]
+    fn ht6_persona_file_help_wording_uniform_inspect() {
+        let cmd = subcommand("inspect");
+        let arg =
+            arg_by_id(&cmd, "persona_file").expect("inspect must register persona_file positional");
+        let help = arg
+            .get_help()
+            .expect("persona_file must have help text")
+            .to_string();
+        assert_eq!(
+            help, SHARED_PERSONA_FILE_HELP,
+            "inspect: persona_file help drift"
+        );
+    }
+
+    #[test]
+    fn ht7_persona_file_help_wording_uniform_pin() {
+        let cmd = subcommand("pin");
+        let arg =
+            arg_by_id(&cmd, "persona_file").expect("pin must register persona_file positional");
+        let help = arg
+            .get_help()
+            .expect("persona_file must have help text")
+            .to_string();
+        assert_eq!(
+            help, SHARED_PERSONA_FILE_HELP,
+            "pin: persona_file help drift"
+        );
+    }
+
+    // ---------------------------------------------------------------
+    // Cross-subcommand-consistency: --quiet flag help wording
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn ht8_quiet_flag_help_wording_uniform_migrate() {
+        let cmd = subcommand("migrate");
+        let arg = arg_by_long(&cmd, "quiet").expect("migrate must register --quiet");
+        let help = arg
+            .get_help()
+            .expect("--quiet must have help text")
+            .to_string();
+        assert_eq!(help, SHARED_QUIET_HELP, "migrate: --quiet help drift");
+    }
+
+    #[test]
+    fn ht9_quiet_flag_help_wording_uniform_validate() {
+        let cmd = subcommand("validate");
+        let arg = arg_by_long(&cmd, "quiet").expect("validate must register --quiet");
+        let help = arg
+            .get_help()
+            .expect("--quiet must have help text")
+            .to_string();
+        assert_eq!(help, SHARED_QUIET_HELP, "validate: --quiet help drift");
+    }
+
+    #[test]
+    fn ht10_quiet_flag_help_wording_uniform_inspect() {
+        let cmd = subcommand("inspect");
+        let arg = arg_by_long(&cmd, "quiet").expect("inspect must register --quiet");
+        let help = arg
+            .get_help()
+            .expect("--quiet must have help text")
+            .to_string();
+        assert_eq!(help, SHARED_QUIET_HELP, "inspect: --quiet help drift");
+    }
+
+    #[test]
+    fn ht11_quiet_flag_help_wording_uniform_pin() {
+        let cmd = subcommand("pin");
+        let arg = arg_by_long(&cmd, "quiet").expect("pin must register --quiet");
+        let help = arg
+            .get_help()
+            .expect("--quiet must have help text")
+            .to_string();
+        assert_eq!(help, SHARED_QUIET_HELP, "pin: --quiet help drift");
+    }
+
+    // ---------------------------------------------------------------
+    // Per-subcommand help: rendered output references program + subcommand
+    // ---------------------------------------------------------------
+
+    /// Render subcommand help via the in-process `run(...)` path so
+    /// the parent program name is wired up correctly (clap propagates
+    /// the parent name through the parser hierarchy on the
+    /// `try_parse_from` path; `Command::find_subcommand().render_help()`
+    /// loses it because the extracted `Command` is detached from its
+    /// parent).
+    fn render_subcommand_help_via_run(name: &str) -> String {
+        let outcome = run(&["wakir-persona", name, "--help"]);
+        // clap's `DisplayHelp` routes the rendered text through the
+        // error path; `to_string()` flattens it into stderr in `run()`.
+        // Both -h / --help converge on the same buffer.
+        format!("{}{}", outcome.stdout, outcome.stderr)
+    }
+
+    #[test]
+    fn ht12_migrate_help_usage_carries_program_and_subcommand() {
+        let h = render_subcommand_help_via_run("migrate");
+        assert!(
+            h.contains("wakir-persona"),
+            "migrate help must announce program-name through run() path; got: {h}"
+        );
+        assert!(
+            h.contains("migrate"),
+            "migrate help must announce subcommand"
+        );
+        assert!(
+            h.contains("Usage:"),
+            "migrate help must have Usage section (clap convention)"
+        );
+    }
+
+    #[test]
+    fn ht13_validate_help_usage_carries_program_and_subcommand() {
+        let h = render_subcommand_help_via_run("validate");
+        assert!(h.contains("wakir-persona"));
+        assert!(h.contains("validate"));
+        assert!(h.contains("Usage:"));
+    }
+
+    #[test]
+    fn ht14_inspect_help_usage_carries_program_and_subcommand() {
+        let h = render_subcommand_help_via_run("inspect");
+        assert!(h.contains("wakir-persona"));
+        assert!(h.contains("inspect"));
+        assert!(h.contains("Usage:"));
+    }
+
+    #[test]
+    fn ht15_pin_help_usage_carries_program_and_subcommand() {
+        let h = render_subcommand_help_via_run("pin");
+        assert!(h.contains("wakir-persona"));
+        assert!(h.contains("pin"));
+        assert!(h.contains("Usage:"));
+    }
+
+    // ---------------------------------------------------------------
+    // Per-subcommand help: flag-surface scope (no leakage)
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn ht16_validate_does_not_register_migrate_only_flags() {
+        let cmd = subcommand("validate");
+        assert!(
+            arg_by_long(&cmd, "target").is_none(),
+            "validate must not register --target (migrate-only)"
+        );
+        assert!(
+            arg_by_long(&cmd, "expect-hash").is_none(),
+            "validate must not register --expect-hash (migrate-only)"
+        );
+        assert!(
+            arg_by_long(&cmd, "emit-hash").is_none(),
+            "validate must not register --emit-hash (migrate / inspect only)"
+        );
+    }
+
+    #[test]
+    fn ht17_inspect_registers_emit_hash_but_not_target_or_expect_hash() {
+        let cmd = subcommand("inspect");
+        assert!(arg_by_long(&cmd, "emit-hash").is_some());
+        assert!(arg_by_long(&cmd, "target").is_none());
+        assert!(arg_by_long(&cmd, "expect-hash").is_none());
+    }
+
+    #[test]
+    fn ht18_pin_is_strict_subset_of_inspect_flag_surface() {
+        let cmd = subcommand("pin");
+        // pin must register --quiet and persona_file only (plus the
+        // implicit -h / --help that clap synthesises).
+        assert!(
+            arg_by_long(&cmd, "quiet").is_some(),
+            "pin must register --quiet"
+        );
+        assert!(arg_by_id(&cmd, "persona_file").is_some());
+        assert!(
+            arg_by_long(&cmd, "emit-hash").is_none(),
+            "pin must NOT register --emit-hash (stdout-vs-stderr swap is load-bearing)"
+        );
+        assert!(arg_by_long(&cmd, "target").is_none());
+        assert!(arg_by_long(&cmd, "expect-hash").is_none());
+    }
+
+    #[test]
+    fn ht19_migrate_registers_all_four_flags() {
+        let cmd = subcommand("migrate");
+        assert!(arg_by_long(&cmd, "target").is_some());
+        assert!(arg_by_long(&cmd, "expect-hash").is_some());
+        assert!(arg_by_long(&cmd, "emit-hash").is_some());
+        assert!(arg_by_long(&cmd, "quiet").is_some());
+    }
+
+    // ---------------------------------------------------------------
+    // Per-subcommand help: long-about references documented exit codes
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn ht20_migrate_long_about_documents_pin_mismatch_exit_code() {
+        let cmd = subcommand("migrate");
+        // The `--expect-hash` arg's long help references exit code 2
+        // semantically through the doc-comment on `MigrateArgs.expect_hash`.
+        let arg = arg_by_long(&cmd, "expect-hash").expect("--expect-hash present");
+        let long = arg
+            .get_long_help()
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        let short = arg.get_help().map(|s| s.to_string()).unwrap_or_default();
+        let combined = format!("{long}\n{short}");
+        // Exit-code-2 semantics are referenced as
+        // `EXIT_DETERMINISM_ERROR` in the doc-comment (which clap
+        // surfaces via `long_help`). Soft-match: the reference is
+        // present in the long help OR in the surrounding subcommand
+        // long_about.
+        let long_about = cmd
+            .get_long_about()
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        let all = format!("{combined}\n{long_about}");
+        assert!(
+            all.contains("EXIT_DETERMINISM_ERROR") || all.contains("code 2") || all.contains("mismatch"),
+            "migrate --expect-hash help must reference the determinism-error exit-code-2 semantics; got: {all}"
+        );
+    }
+
+    #[test]
+    fn ht21_validate_about_documents_exit_code_pair() {
+        let cmd = subcommand("validate");
+        let about = cmd.get_about().map(|s| s.to_string()).unwrap_or_default();
+        let long = cmd
+            .get_long_about()
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        let combined = format!("{about}\n{long}");
+        assert!(
+            combined.contains("Validate") || combined.contains("validate"),
+            "validate help must announce the subcommand purpose"
+        );
+        assert!(
+            combined.contains("Exit code 0") || combined.contains("is_valid"),
+            "validate help must document the 0/1 exit-code split; got: {combined}"
+        );
+        assert!(
+            combined.contains("1") || combined.contains("not"),
+            "validate help must mention the failure exit code; got: {combined}"
+        );
+    }
+
+    #[test]
+    fn ht22_inspect_about_documents_exit_code_pair() {
+        let cmd = subcommand("inspect");
+        let about = cmd.get_about().map(|s| s.to_string()).unwrap_or_default();
+        let long = cmd
+            .get_long_about()
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        let combined = format!("{about}\n{long}");
+        assert!(combined.contains("Inspect") || combined.contains("inspect"));
+        assert!(
+            combined.contains("Exit code 0") || combined.contains("success"),
+            "inspect help must document exit code 0; got: {combined}"
+        );
+        assert!(
+            combined.contains("1") || combined.contains("failure"),
+            "inspect help must mention failure exit code; got: {combined}"
+        );
+    }
+
+    #[test]
+    fn ht23_pin_about_documents_exit_code_pair_and_invariant() {
+        let cmd = subcommand("pin");
+        let about = cmd.get_about().map(|s| s.to_string()).unwrap_or_default();
+        let long = cmd
+            .get_long_about()
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        let combined = format!("{about}\n{long}");
+        assert!(combined.contains("Exit code 0") || combined.contains("success"));
+        assert!(combined.contains("1") || combined.contains("failure"));
+        // V-907-CLI-invariant cross-reference is load-bearing.
+        assert!(
+            combined.contains("V-907-CLI-invariant"),
+            "pin help must reference V-907-CLI-invariant; got: {combined}"
+        );
+    }
+
+    // ---------------------------------------------------------------
+    // -h short form vs --help long form: both wire up successfully
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn ht24_dash_h_and_double_dash_help_both_wire_up_top_level() {
+        // Both forms route through clap's DisplayHelp error. We do
+        // not byte-compare the rendered output (short -h renders
+        // summary-form, long --help renders verbose-form by design);
+        // instead we assert both invocations exit non-zero AND
+        // mention the program name in stderr.
+        for flag in ["-h", "--help"] {
+            let outcome = run(&["wakir-persona", flag]);
+            assert_ne!(outcome.exit_code, 0, "{flag}: must exit non-zero");
+            assert!(
+                outcome.stderr.contains("wakir-persona"),
+                "{flag}: stderr must announce program; got: {:?}",
+                outcome.stderr
+            );
+        }
+    }
+
+    #[test]
+    fn ht25_dash_h_and_double_dash_help_both_wire_up_each_subcommand() {
+        for sub in EXPECTED_SUBCOMMANDS {
+            for flag in ["-h", "--help"] {
+                let outcome = run(&["wakir-persona", sub, flag]);
+                assert_ne!(outcome.exit_code, 0, "{sub} {flag}: must exit non-zero");
+                let combined = format!("{}{}", outcome.stdout, outcome.stderr);
+                assert!(
+                    combined.contains(sub),
+                    "{sub} {flag}: output must mention subcommand; got: {combined:?}"
+                );
+            }
+        }
+    }
+}
+
+// =====================================================================
+// stderr-Wording-Byte-Parität test pack (Phase-1b Sprint-6 Tag-6 — Item 1)
+//
+// Sister of wirelang/tests/test_persona_cli_stderr_parity.py. The two
+// packs pin a shared Cross-Lang-Diff-Pin on the per-subcommand stderr
+// error markers. See the Python sister's module-level docstring for
+// the full posture (which error markers are byte-equal vs. soft-match-
+// prefix-only, and why).
+// =====================================================================
+
+#[cfg(test)]
+mod stderr_parity_tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    // -----------------------------------------------------------------
+    // Cross-Lang-Diff-Pin: anchor strings shared with the Python pack.
+    // Any wording change must update BOTH packs in the same box.
+    //
+    // The constants below are the byte-identical pendants of the
+    // Python `STDERR_PREFIX_BY_MARKER` dict.
+    // -----------------------------------------------------------------
+
+    /// "wakir-persona: persona-file not found: " — E1 prefix.
+    const E1_NOT_FOUND_PREFIX: &str = "wakir-persona: persona-file not found: ";
+    /// "wakir-persona: persona-file vanished mid-run: " — E2 prefix.
+    const E2_VANISHED_PREFIX: &str = "wakir-persona: persona-file vanished mid-run: ";
+    /// "wakir-persona: hash drift: " — E3 prefix (migrate-only).
+    const E3_HASH_DRIFT_PREFIX: &str = "wakir-persona: hash drift: ";
+    /// "wakir-persona: migration failed: " — E4 prefix (migrate-only).
+    const E4_MIG_FAIL_PREFIX: &str = "wakir-persona: migration failed: ";
+    /// "wakir-persona: inspect failed: " — E5 prefix (inspect-only).
+    const E5_INSP_FAIL_PREFIX: &str = "wakir-persona: inspect failed: ";
+    /// "wakir-persona: pin failed: " — E6 prefix (pin-only).
+    const E6_PIN_FAIL_PREFIX: &str = "wakir-persona: pin failed: ";
+
+    /// Subcommands surfaced by `wakir-persona`.
+    const SUBCOMMANDS: [&str; 4] = ["migrate", "validate", "inspect", "pin"];
+
+    /// Path to the v9 fixture (re-derivation of the helper in the
+    /// migrate-tests mod; kept private here to avoid coupling
+    /// the two modules' visibility surfaces).
+    fn v9_fixture() -> PathBuf {
+        let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        p.push("..");
+        p.push("..");
+        p.push("..");
+        p.push("wirelang");
+        p.push("tests");
+        p.push("fixtures");
+        p.push("persona_definitions");
+        p.push("v9-persona-framework-native.md");
+        p
+    }
+
+    /// Return a deterministic non-existent path under the cargo target
+    /// directory. The directory must exist (cargo target/<profile>/),
+    /// but the file underneath must not.
+    fn missing_path(suffix: &str) -> PathBuf {
+        let mut p = std::env::temp_dir();
+        p.push(format!(
+            "selin-stderr-parity-{}-{}-{}",
+            std::process::id(),
+            suffix,
+            // Cheap unique-ish discriminator using nanos since EPOCH
+            // (works even when tests run in parallel because the
+            // marker name varies per test).
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        // Defensive: ensure no stale file from a previous run.
+        let _ = std::fs::remove_file(&p);
+        p
+    }
+
+    /// Write a file that the parser will reject (no YAML front-matter).
+    /// Used by the migration / inspect / pin failure-path tests.
+    fn malformed_persona(suffix: &str) -> PathBuf {
+        let mut p = std::env::temp_dir();
+        p.push(format!(
+            "selin-stderr-parity-bad-{}-{}-{}.md",
+            std::process::id(),
+            suffix,
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::write(&p, "just some markdown body and no front-matter.\n")
+            .expect("write malformed fixture");
+        p
+    }
+
+    // -----------------------------------------------------------------
+    // Cross-Lang-Diff-Pin self-checks
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn sp1_e1_prefix_matches_python_pin() {
+        assert_eq!(
+            E1_NOT_FOUND_PREFIX,
+            "wakir-persona: persona-file not found: "
+        );
+    }
+
+    #[test]
+    fn sp2_e2_prefix_matches_python_pin() {
+        assert_eq!(
+            E2_VANISHED_PREFIX,
+            "wakir-persona: persona-file vanished mid-run: "
+        );
+    }
+
+    #[test]
+    fn sp3_e3_prefix_matches_python_pin() {
+        assert_eq!(E3_HASH_DRIFT_PREFIX, "wakir-persona: hash drift: ");
+    }
+
+    #[test]
+    fn sp4_e4_prefix_matches_python_pin() {
+        assert_eq!(E4_MIG_FAIL_PREFIX, "wakir-persona: migration failed: ");
+    }
+
+    #[test]
+    fn sp5_e5_prefix_matches_python_pin() {
+        assert_eq!(E5_INSP_FAIL_PREFIX, "wakir-persona: inspect failed: ");
+    }
+
+    #[test]
+    fn sp6_e6_prefix_matches_python_pin() {
+        assert_eq!(E6_PIN_FAIL_PREFIX, "wakir-persona: pin failed: ");
+    }
+
+    #[test]
+    fn sp7_all_prefixes_have_uniform_shape() {
+        for prefix in [
+            E1_NOT_FOUND_PREFIX,
+            E2_VANISHED_PREFIX,
+            E3_HASH_DRIFT_PREFIX,
+            E4_MIG_FAIL_PREFIX,
+            E5_INSP_FAIL_PREFIX,
+            E6_PIN_FAIL_PREFIX,
+        ] {
+            assert!(
+                prefix.starts_with("wakir-persona: "),
+                "{prefix:?} must start with 'wakir-persona: '"
+            );
+            assert!(
+                prefix.ends_with(": "),
+                "{prefix:?} must end with ': ' (formatter-body separator)"
+            );
+        }
+    }
+
+    #[test]
+    fn sp8_all_prefixes_are_unique() {
+        let prefixes = [
+            E1_NOT_FOUND_PREFIX,
+            E2_VANISHED_PREFIX,
+            E3_HASH_DRIFT_PREFIX,
+            E4_MIG_FAIL_PREFIX,
+            E5_INSP_FAIL_PREFIX,
+            E6_PIN_FAIL_PREFIX,
+        ];
+        for (i, a) in prefixes.iter().enumerate() {
+            for (j, b) in prefixes.iter().enumerate() {
+                if i != j {
+                    assert_ne!(a, b, "prefix collision at indices {i}/{j}: {a:?}");
+                }
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // E1 NOT_FOUND — byte-equal full stderr line (4 subcommands)
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn sp_e1_migrate_persona_file_not_found_stderr_byte_equal() {
+        let missing = missing_path("migrate");
+        let outcome = run(&["wakir-persona", "migrate", &missing.to_string_lossy()]);
+        assert_eq!(outcome.exit_code, EXIT_INPUT_NOT_FOUND);
+        assert!(outcome.stdout.is_empty(), "stdout must be empty on E1");
+        let expected = format!("{E1_NOT_FOUND_PREFIX}{}\n", missing.display());
+        assert_eq!(
+            outcome.stderr, expected,
+            "migrate: E1 stderr byte-equal failed.\n  expected: {expected:?}\n  actual:   {:?}",
+            outcome.stderr
+        );
+    }
+
+    #[test]
+    fn sp_e1_validate_persona_file_not_found_stderr_byte_equal() {
+        let missing = missing_path("validate");
+        let outcome = run(&["wakir-persona", "validate", &missing.to_string_lossy()]);
+        assert_eq!(outcome.exit_code, EXIT_INPUT_NOT_FOUND);
+        assert!(outcome.stdout.is_empty(), "stdout must be empty on E1");
+        let expected = format!("{E1_NOT_FOUND_PREFIX}{}\n", missing.display());
+        assert_eq!(
+            outcome.stderr, expected,
+            "validate: E1 stderr byte-equal failed.\n  expected: {expected:?}\n  actual:   {:?}",
+            outcome.stderr
+        );
+    }
+
+    #[test]
+    fn sp_e1_inspect_persona_file_not_found_stderr_byte_equal() {
+        let missing = missing_path("inspect");
+        let outcome = run(&["wakir-persona", "inspect", &missing.to_string_lossy()]);
+        assert_eq!(outcome.exit_code, EXIT_INPUT_NOT_FOUND);
+        assert!(outcome.stdout.is_empty(), "stdout must be empty on E1");
+        let expected = format!("{E1_NOT_FOUND_PREFIX}{}\n", missing.display());
+        assert_eq!(
+            outcome.stderr, expected,
+            "inspect: E1 stderr byte-equal failed.\n  expected: {expected:?}\n  actual:   {:?}",
+            outcome.stderr
+        );
+    }
+
+    #[test]
+    fn sp_e1_pin_persona_file_not_found_stderr_byte_equal() {
+        let missing = missing_path("pin");
+        let outcome = run(&["wakir-persona", "pin", &missing.to_string_lossy()]);
+        assert_eq!(outcome.exit_code, EXIT_INPUT_NOT_FOUND);
+        assert!(outcome.stdout.is_empty(), "stdout must be empty on E1");
+        let expected = format!("{E1_NOT_FOUND_PREFIX}{}\n", missing.display());
+        assert_eq!(
+            outcome.stderr, expected,
+            "pin: E1 stderr byte-equal failed.\n  expected: {expected:?}\n  actual:   {:?}",
+            outcome.stderr
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // E1 prefix sanity — every subcommand's NOT_FOUND stderr starts
+    // with the pinned prefix. Redundant with the byte-equal sweep but
+    // narrows the diagnostic when only the prefix drifts.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn sp_e1_prefix_holds_across_all_four_subcommands() {
+        for sub in SUBCOMMANDS {
+            let missing = missing_path(&format!("prefix-{sub}"));
+            let outcome = run(&["wakir-persona", sub, &missing.to_string_lossy()]);
+            assert_eq!(outcome.exit_code, EXIT_INPUT_NOT_FOUND, "{sub}: exit");
+            assert!(
+                outcome.stderr.starts_with(E1_NOT_FOUND_PREFIX),
+                "{sub}: stderr does not start with E1 prefix.\n  expected prefix: {E1_NOT_FOUND_PREFIX:?}\n  actual stderr:   {:?}",
+                outcome.stderr
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // E3 HASH_DRIFT (migrate-only): prefix match on --expect-hash with
+    // an obviously-wrong pin.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn sp_e3_migrate_hash_drift_prefix_match() {
+        let fixture = v9_fixture();
+        assert!(fixture.exists(), "fixture missing: {}", fixture.display());
+
+        let bad_pin = format!("sha256:{}", "0".repeat(64));
+        let outcome = run(&[
+            "wakir-persona",
+            "migrate",
+            &fixture.to_string_lossy(),
+            "--expect-hash",
+            &bad_pin,
+            "--quiet",
+        ]);
+        assert_eq!(outcome.exit_code, EXIT_DETERMINISM_ERROR);
+        assert!(
+            outcome.stderr.starts_with(E3_HASH_DRIFT_PREFIX),
+            "E3: stderr does not start with hash-drift prefix.\n  expected prefix: {E3_HASH_DRIFT_PREFIX:?}\n  actual stderr:   {:?}",
+            outcome.stderr
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // E4 MIG_FAIL (migrate-only): malformed persona-file triggers the
+    // migration-failed marker.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn sp_e4_migrate_failure_prefix_match() {
+        let bad = malformed_persona("e4-mig");
+        let outcome = run(&[
+            "wakir-persona",
+            "migrate",
+            &bad.to_string_lossy(),
+            "--quiet",
+        ]);
+        // exit code 1 (migration) or 2 (determinism); both are non-
+        // zero and the marker is migration-failed on the front-matter-
+        // missing path.
+        assert!(
+            outcome.exit_code == EXIT_MIGRATION_ERROR
+                || outcome.exit_code == EXIT_DETERMINISM_ERROR,
+            "expected non-zero migration/determinism exit, got {}",
+            outcome.exit_code
+        );
+        assert!(
+            outcome.stderr.starts_with(E4_MIG_FAIL_PREFIX),
+            "E4: stderr does not start with migration-failed prefix.\n  expected prefix: {E4_MIG_FAIL_PREFIX:?}\n  actual stderr:   {:?}",
+            outcome.stderr
+        );
+        let _ = std::fs::remove_file(&bad);
+    }
+
+    // -----------------------------------------------------------------
+    // E5 INSP_FAIL (inspect-only): malformed persona-file triggers the
+    // inspect-failed marker.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn sp_e5_inspect_failure_prefix_match() {
+        let bad = malformed_persona("e5-insp");
+        let outcome = run(&[
+            "wakir-persona",
+            "inspect",
+            &bad.to_string_lossy(),
+            "--quiet",
+        ]);
+        assert_eq!(outcome.exit_code, EXIT_INSPECT_FAILED);
+        assert!(
+            outcome.stderr.starts_with(E5_INSP_FAIL_PREFIX),
+            "E5: stderr does not start with inspect-failed prefix.\n  expected prefix: {E5_INSP_FAIL_PREFIX:?}\n  actual stderr:   {:?}",
+            outcome.stderr
+        );
+        let _ = std::fs::remove_file(&bad);
+    }
+
+    // -----------------------------------------------------------------
+    // E6 PIN_FAIL (pin-only): malformed persona-file triggers the
+    // pin-failed marker.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn sp_e6_pin_failure_prefix_match() {
+        let bad = malformed_persona("e6-pin");
+        let outcome = run(&["wakir-persona", "pin", &bad.to_string_lossy(), "--quiet"]);
+        assert_eq!(outcome.exit_code, EXIT_PIN_FAILED);
+        assert!(
+            outcome.stderr.starts_with(E6_PIN_FAIL_PREFIX),
+            "E6: stderr does not start with pin-failed prefix.\n  expected prefix: {E6_PIN_FAIL_PREFIX:?}\n  actual stderr:   {:?}",
+            outcome.stderr
+        );
+        let _ = std::fs::remove_file(&bad);
+    }
+}

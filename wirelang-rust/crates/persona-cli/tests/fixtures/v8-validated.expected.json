@@ -1,0 +1,13 @@
+{
+  "errors": [
+    {
+      "code": "schema-version-unsupported",
+      "detail": "persona-v0",
+      "message": "persona schema_version='persona-v0' is not supported; expected one of ['persona-v1', 'persona-v2']"
+    }
+  ],
+  "is_valid": false,
+  "report_schema_version": "persona-validation-v1",
+  "schema_supported": false,
+  "schema_version": "persona-v0"
+}

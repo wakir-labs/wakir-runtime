@@ -1,0 +1,4 @@
+# Cargo build artefacts (Phase-1c Rust workspace)
+/target
+**/*.rs.bk
+Cargo.lock.bak
