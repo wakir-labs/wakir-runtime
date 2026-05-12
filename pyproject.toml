@@ -76,6 +76,21 @@ test = [
     "pytest>=8.0",
     # JSON Schema validation for Wirelang Layer 0/1/2 conformance tests.
     "jsonschema>=4.21",
+    # Hypothesis property-based testing for the external-verifier
+    # parser/aggregator surface (Sprint-8 Tag-4, TV-DET-3 deepening).
+    #
+    # SCOPE-CONTRACT: Hypothesis is test-only — it MUST NOT appear in
+    # the External-Verifier-Runtime-Surface, because that surface is
+    # the brand-proof contract third parties run without any
+    # Wakir-controlled deps. Keeping Hypothesis behind the `[test]`
+    # extra preserves the zero-PyPI-surface promise of the verifier
+    # itself; only the in-repo test suite imports it. Any future
+    # refactor that pulls hypothesis into `dependencies = [...]`
+    # above silently breaks ADR-0007 §verifier-surface posture.
+    #
+    # PyPI: https://pypi.org/project/hypothesis/  (URL-200-stamped 2026-05-13)
+    # Maintainer: David R. MacIver. License: MPL-2.0.
+    "hypothesis>=6.100",
 ]
 # Real-NATS-client adapter, used by `scripts/init-nats-buckets.py`,
 # `scripts/check-nats-kv-health.py`, `scripts/check-federation-evaluator-

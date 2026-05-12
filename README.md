@@ -228,6 +228,38 @@ The full Tag-22 smoke plan, including 100-event vectors and
 calendar-failover drills, is documented in
 [`docs/wat-smoke-test-plan.md`](docs/wat-smoke-test-plan.md).
 
+## CI matrix
+
+Three GitHub Actions workflows guard this repository:
+
+- **`tests.yml` — wirelang production lane.** Full install set
+  (`rfc8785` + `jsonschema` + everything in `dependencies`). Pairs
+  with the sandbox lane below for the two-sided drift envelope.
+- **`sandbox-ci.yml` — wirelang sandbox lane.** Minimal install set
+  (no `rfc8785`, no `jsonschema`). Proves the pure-Python fallback
+  path stays green. Drift between sandbox and production lane
+  collected-counts is itself a CI signal.
+- **`external-verifier-drift.yml` — python-bitcoinlib drift matrix.**
+  Phase-2 Sprint-8 Tag-4 Teil B. Runs the external-verifier test
+  surface against three pinned `python-bitcoinlib` versions
+  (`0.11.2`, `0.12.1`, `0.12.2` as of 2026-05-13) on Python 3.12. The
+  matrix probes three invariants any auditor-injected
+  `python-bitcoinlib`-backed `proof_reader` depends on:
+  block-hash byte-order canonicalisation (`b2lx` vs `b2x`),
+  OP_RETURN script serialisation round-trip, and
+  `bitcoin.__version__` packaging sanity. The verifier sub-package
+  itself does NOT import `python-bitcoinlib` (zero-PyPI-surface
+  brand-proof posture); the matrix instead pins the contract the
+  moment an auditor or operator chooses to layer it in via the
+  documented `proof_reader` injection seam. Matrix jobs that fail
+  to install a pinned version emit a `skip-with-marker` warning
+  rather than failing the workflow — a single version dropping out
+  of Python-interpreter support must not block the rest of the
+  matrix. New `python-bitcoinlib` releases land in the matrix by
+  explicit pin in a follow-up sprint, never as a floating `latest`
+  tag (a floating tag would make a future fail ambiguous between
+  verifier regression and upstream release).
+
 ## WAT bridge — Wirelang frame ingestion
 
 The bridge that sits between the Wirelang Layer-1 frame stream and
