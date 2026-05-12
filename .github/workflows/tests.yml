@@ -130,15 +130,16 @@ jobs:
       - name: Collect test count (production lane)
         id: collect
         # `pytest --collect-only` ends with a summary like
-        # "435 tests collected in 2.13s". We pull the integer for the
-        # drift-detection job below. NB: we explicitly override the
-        # repository-default `addopts = "-q"` (pyproject.toml) because
-        # adding another `-q` on the command line escalates to `-qq`,
-        # which suppresses the summary line entirely and breaks the
-        # parser below.
+        # "======================== 1258 tests collected in 0.44s ======="
+        # We pull the integer for the drift-detection job below. NB:
+        # we explicitly override the repository-default `addopts = "-q"`
+        # (pyproject.toml) because adding another `-q` on the command
+        # line escalates to `-qq`, which suppresses the summary line
+        # entirely. Two-stage grep: first isolate the summary fragment
+        # `<count> tests collected`, then pull the leading integer.
         run: |
           python -m pytest wirelang/ --collect-only --override-ini="addopts=" > collected.txt
-          COUNT=$(grep -E '[0-9]+ tests? collected' collected.txt | tail -1 | grep -oE '^[0-9]+')
+          COUNT=$(grep -oE '[0-9]+ tests? collected' collected.txt | tail -1 | grep -oE '^[0-9]+')
           if [ -z "$COUNT" ]; then
             echo "production-ci: failed to parse collected-count" >&2
             cat collected.txt >&2
@@ -224,10 +225,12 @@ jobs:
         id: collect
         # See parallel comment in production-suite.collect: we override
         # the pyproject `addopts = "-q"` to avoid escalating to `-qq`
-        # on the command line, which would suppress the summary.
+        # on the command line, which would suppress the summary. The
+        # two-stage grep isolates the summary fragment first because
+        # the pytest summary line is surrounded by `=` characters.
         run: |
           python -m pytest wirelang/ --collect-only --override-ini="addopts=" > collected.txt
-          COUNT=$(grep -E '[0-9]+ tests? collected' collected.txt | tail -1 | grep -oE '^[0-9]+')
+          COUNT=$(grep -oE '[0-9]+ tests? collected' collected.txt | tail -1 | grep -oE '^[0-9]+')
           if [ -z "$COUNT" ]; then
             echo "sandbox-shadow: failed to parse collected-count" >&2
             cat collected.txt >&2
