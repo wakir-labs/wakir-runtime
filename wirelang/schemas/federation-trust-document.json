@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wakir.dev/wirelang/schema/federation-trust-document/0.1.0",
+  "title": "Federation Trust Document (Wakir V-908 0.1.0)",
+  "description": "JSON Schema for a Wakir Federation Trust Document (FTD). Defines the bilateral trust artefact a verifier consults to accept AIP documents issued by a peer organisation. Schema follows V-908 spec section 2.1; signature procedure follows section 2.2 (deep-copy minus document_signature, JCS-canonicalise, SHA-256, Ed25519). SPDX-License-Identifier: Apache-2.0",
+  "type": "object",
+  "required": [
+    "wakir_ftd",
+    "id",
+    "domain",
+    "issued_at",
+    "expires",
+    "ftd_root_pubkey",
+    "issuer_keys",
+    "anchor",
+    "document_signature"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "wakir_ftd": {
+      "type": "string",
+      "const": "0.1.0",
+      "description": "Schema version. V-908 Phase-1b uses 0.1.0; bumps follow the Wirelang schema-versioning policy."
+    },
+    "id": {
+      "type": "string",
+      "description": "FTD-doc identifier. Phase-1b accepts only the 'did:web:<host>:ftd:v<N>' form per V-908 spec section 3.1.",
+      "pattern": "^did:web:[a-zA-Z0-9.-]+(:[a-zA-Z0-9._-]+)*:ftd:v[0-9]+$"
+    },
+    "domain": {
+      "type": "string",
+      "description": "Human-readable peer organisation name. Matched against the AIP fetch URL host per V-908 section 4.1 step 4 (FTDDomainMismatchError on mismatch).",
+      "minLength": 1
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 timestamp at which this FTD-doc generation was issued."
+    },
+    "expires": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 expiry timestamp. Verifier MUST reject FTD-doc whose expires is before the verifier clock (section 4.6 FTDExpiredError)."
+    },
+    "ftd_root_pubkey": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Ed25519 root public key, 32 bytes lowercase hex. The on-document copy of the FTD root; document_signature is verified against this key."
+    },
+    "issuer_keys": {
+      "type": "array",
+      "minItems": 1,
+      "description": "AIP-issuer keys this FTD accepts. Each entry carries its own valid_from/valid_until window so individual issuer keys can be retired without rotating the FTD-doc.",
+      "items": {
+        "type": "object",
+        "required": [
+          "kid",
+          "alg",
+          "public_key",
+          "purpose",
+          "valid_from"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "kid": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Key identifier, stable inside this FTD-doc."
+          },
+          "alg": {
+            "type": "string",
+            "enum": ["Ed25519"],
+            "description": "Signing algorithm. Phase-1b restricts to Ed25519; secp256k1 issuer keys are out of V-908 scope (Wakir AIP signatures are Ed25519 by Phase-1a convention)."
+          },
+          "public_key": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Ed25519 public key, 32 bytes lowercase hex."
+          },
+          "purpose": {
+            "type": "string",
+            "enum": ["biscuit-root"],
+            "description": "Purpose binding. Phase-1b accepts only 'biscuit-root'; the AIP-doc cross-check (section 4.1 step 7) demands purpose match."
+          },
+          "valid_from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "valid_until": {
+            "anyOf": [
+              { "type": "null" },
+              { "type": "string", "format": "date-time" }
+            ],
+            "description": "RFC 3339 upper bound, or null for an open-ended window."
+          }
+        }
+      }
+    },
+    "endpoints": {
+      "type": "array",
+      "description": "Discovery hint for resolving AIP documents inside this domain (section 3.2). Optional in Phase-1b.",
+      "items": {
+        "type": "object",
+        "required": ["rel", "url"],
+        "additionalProperties": false,
+        "properties": {
+          "rel": {
+            "type": "string",
+            "minLength": 1
+          },
+          "url": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "anchor": {
+      "type": "object",
+      "required": ["kind", "host", "fingerprint_sha256"],
+      "additionalProperties": false,
+      "description": "DNS anchor binding the FTD-doc fingerprint to peer DNS control (section 3.4).",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "dns-txt",
+          "description": "Phase-1b anchor kind. Phase-2 may add additional kinds."
+        },
+        "host": {
+          "type": "string",
+          "pattern": "^_wakir-ftd\\.[a-zA-Z0-9.-]+$",
+          "description": "DNS query name, including the '_wakir-ftd.' label (section 3.4)."
+        },
+        "fingerprint_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Lowercase hex of SHA-256(JCS(body without document_signature))."
+        }
+      }
+    },
+    "document_signature": {
+      "type": "object",
+      "required": ["alg", "kid", "signature"],
+      "additionalProperties": false,
+      "properties": {
+        "alg": {
+          "type": "string",
+          "const": "Ed25519"
+        },
+        "kid": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Phase-1b convention: 'ftd-root-1' denotes ftd_root_pubkey."
+        },
+        "signature": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{128}$",
+          "description": "Ed25519 signature, 64 bytes lowercase hex."
+        }
+      }
+    }
+  }
+}

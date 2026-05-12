@@ -1,0 +1,102 @@
+{
+  "label": "tv-w-1-identity-pin-pack",
+  "spec": "wirelang/specs/wirelang-tv-strategy.md \u00a71 (Phase-1b Tag-14)",
+  "seed_hex": "000102030405060708090a0b0c0d0e0f",
+  "valid_after": "2026-05-07T00:00:00Z",
+  "expires": "2027-05-07T00:00:00Z",
+  "wakir_coin_type_hex": "0x57414b49",
+  "derivation_path_template": "m / 44' / WAKIR_COIN_TYPE' / persona_idx' / spawn_counter'",
+  "records": [
+    {
+      "persona_idx": 0,
+      "spawn_counter": 0,
+      "role_string": "tv-w-1-persona-0-0",
+      "secp256k1_pub_hex_33": "027555295b86f2cfffefe6acc10465e8d644b35853d536fbf322c470704431368a",
+      "ed25519_pub_hex_32": "37ca8d3c4cb9d4638b347c26a40b7584e3fb4bfaf624fc3323afbdce847b041b",
+      "did_doc_jcs_sha256": "8805535a8fa8dd1658cf5ea8dd2d9ba9bbc7f66ef166a3f173e2133a8f95bf46",
+      "aip_doc_jcs_sha256": "099f783d131142acbcb1566cac6835301aa57558ba2c7c4970eb8468dbc61aab",
+      "aip_signature_hex": "a54386a5fffcd7c58717506c27177db05584eb23db70236375a3de3f5c78b2d172ae4995fa3a4703195de59a7a4b8c9986bc7e9f7eb0d8311c56f74f8c456907"
+    },
+    {
+      "persona_idx": 0,
+      "spawn_counter": 1,
+      "role_string": "tv-w-1-persona-0-1",
+      "secp256k1_pub_hex_33": "038776b51b0c267f6ebdb3a5f726651c340ce12369471858a4baad1a9eaca8d359",
+      "ed25519_pub_hex_32": "1efb36ea1a62ec416748b637783099120c373c71d22c0f06c4f10d10fbcd61e5",
+      "did_doc_jcs_sha256": "fa2b9cbfcc48da389449e679f290813a5d382d54f00ee2bf6de15901ac85d237",
+      "aip_doc_jcs_sha256": "6893115f20339d05a5593707dffe3ad2bb68810ea6b3c17563e72188da86e923",
+      "aip_signature_hex": "bbab58fd4f47d572f2ea94c1acfae7d4583e2be3d97941bf68aeb0c92a30b092e9ded6c20ddc2a61e24303a316b57b5b56baa6db01f1043eb380e2ed136f9403"
+    },
+    {
+      "persona_idx": 0,
+      "spawn_counter": 2,
+      "role_string": "tv-w-1-persona-0-2",
+      "secp256k1_pub_hex_33": "02f7e3115e4307fdd514d4e8dc332dd403a3bb8f15b33eea7ad95eadae2145f73a",
+      "ed25519_pub_hex_32": "ed5470503ec8af701a25e0ec5e811c87567bf43b7f3ed630eff9a608ca5d8315",
+      "did_doc_jcs_sha256": "4e09e453ddf32d29e023393852df3bdef09b00d1a280da7739f3299514aa3ddd",
+      "aip_doc_jcs_sha256": "09d4b11466f5943eb6062cc1a82e5d53a463b12abaf185f2c1b33c25fb6bc61f",
+      "aip_signature_hex": "eb6c7662a4c4b9e4f2ac483c11aed4cc92ce0569df6e056e72061bda6d3682b6b57c4f9609a0b4c5754569f6e9d5db4806f57345fcc0e7301bdb5a54ee4fd902"
+    },
+    {
+      "persona_idx": 1,
+      "spawn_counter": 0,
+      "role_string": "tv-w-1-persona-1-0",
+      "secp256k1_pub_hex_33": "0341d9b68526823ca67170cc19e47d85f619143f5e12976b2501e3c3a1b67e1b41",
+      "ed25519_pub_hex_32": "c8efd3cbfb88ae70d094f1b68da5587a65b5bc05d1aedaa7f03832fbf64ab63c",
+      "did_doc_jcs_sha256": "2355d100d4fb81bfc08154c492639fc11116531ec790156f542a8bb84a32f83f",
+      "aip_doc_jcs_sha256": "d095d4da4ebbe559e5c721544c57207693cd21e6bd99c6562ebcf30c3580de22",
+      "aip_signature_hex": "d11bcb06556b1eef0aac4a4fa084f098322409b8fc27905fa0117e2fd0ec7f524668a63d496420299c1cdd30c6c3ad05516f13d43eaac2d9dbe6bfdca8846a0e"
+    },
+    {
+      "persona_idx": 1,
+      "spawn_counter": 1,
+      "role_string": "tv-w-1-persona-1-1",
+      "secp256k1_pub_hex_33": "022ef484826431e53a97d49a0b6f89d677d5ead902e4d7b32357eca9d4375e262d",
+      "ed25519_pub_hex_32": "ccee0f0ac899c45a941187721c43de54e67471f93230cc847c77adf60a779f7c",
+      "did_doc_jcs_sha256": "ad83de59b7c476c9828ff7a253821f651498404751fdbbac30203f5130635101",
+      "aip_doc_jcs_sha256": "48e22c893d640209c82e8f61c57f68dadc079f2ca63aacc29b64468a9ab96d5c",
+      "aip_signature_hex": "955772a13fd315282c5e25e405988b4a6e6d8b028dfee1eec8d7e08beafc35e115518402758a7514a47101f8f489425aad5659cb2b06418237f9722cd3241500"
+    },
+    {
+      "persona_idx": 1,
+      "spawn_counter": 2,
+      "role_string": "tv-w-1-persona-1-2",
+      "secp256k1_pub_hex_33": "02571ca8c1d71d36c8067533719987d36d1fc5296850cfcb18ea5e6ed967d58201",
+      "ed25519_pub_hex_32": "8cda82c611853ba067d05923bc63a7bd1d7041b5e59f6d568f07a94d3807e88e",
+      "did_doc_jcs_sha256": "b881a3e1d120e0826734266fad25d3b38a99b748ceb01f5ae6ee1b0557756d74",
+      "aip_doc_jcs_sha256": "7fb225a86c881cbdb9e621d1fb54d085167c56a2fd6de5dee5cdb15256e5dfde",
+      "aip_signature_hex": "e5a49e768167c7f18e9c189c15e18e79f4a34a5cd684d96c791c44e1c972fdf3f6f9d850afb087b8d3cdb52dd6242468c576c9d1c791c49ea7f11ad6e27c650b"
+    },
+    {
+      "persona_idx": 2,
+      "spawn_counter": 0,
+      "role_string": "tv-w-1-persona-2-0",
+      "secp256k1_pub_hex_33": "032faa4c5602850eb9e91d9b411154f1a09ef7f4aa922955adf0f762eb8a7e6cb3",
+      "ed25519_pub_hex_32": "66c5e19936b9ee8ba83a3f4454d382f883bf39e81e86e8db476867ca0587c1b9",
+      "did_doc_jcs_sha256": "1de777285f6257b63939dd6e096de08b4d78dbec4cc335366f0a80bd5d1c77d8",
+      "aip_doc_jcs_sha256": "e1163fbb736ea6fe5505898039391ac684aaadd08ce2bdb21b0fed164ec6aa77",
+      "aip_signature_hex": "e1f1bb84e5ab70c9da6fd563f7ada5981782a8414d189af87ebab1fb889230c709375297f823fe531202362a192f2d0c9e546edf62c5882f7d56e9904c96590f"
+    },
+    {
+      "persona_idx": 2,
+      "spawn_counter": 1,
+      "role_string": "tv-w-1-persona-2-1",
+      "secp256k1_pub_hex_33": "0246950e4e4a6135c5b25efcc2c024917a608c5e8e0c3b9fbfa6d7fbe8f3454e93",
+      "ed25519_pub_hex_32": "f6ca60f0b9b8226af6bab074d86f8b6e87f0e4ac6fd7ad6b44fd95d020f59ce6",
+      "did_doc_jcs_sha256": "6ca0666dccb4f5ffbaf6377ef5591c1676414c38779eac9d58b2da5f2da5fadf",
+      "aip_doc_jcs_sha256": "0fe1584d1dea409bfc34093a32fe84c8ac43cc4d5d17f834e5fc27307db73df6",
+      "aip_signature_hex": "0e6a602ab942ab9384724712026e45f0924e6aa772d2be196db00032cf2ad88e06e021c4ad1d4233fd4e80605d660c5fd4e0c75267a980859e5a1bb658090400"
+    },
+    {
+      "persona_idx": 2,
+      "spawn_counter": 2,
+      "role_string": "tv-w-1-persona-2-2",
+      "secp256k1_pub_hex_33": "02789a7ce3ada10ddd0f251ffe396d082d604c706031e5765e4125589b71c1f9ce",
+      "ed25519_pub_hex_32": "d3171bf8674833166fd8dbc56dc179582d135406d10bd7ae4cfb5ac38a09fbab",
+      "did_doc_jcs_sha256": "9eff0a252d18fda35ed9a2591ed919ec27f6a34bbbfe26fc28bdf55b07a91474",
+      "aip_doc_jcs_sha256": "0e97760c11c36685d6910a92d960ca31fc7a8d7c233cc853a47d736fa618a40f",
+      "aip_signature_hex": "d4130bb44fa7b2e87bf90558869c2dff248b1597ebee4940531f4fea4b48cf34f7a227f0ba639434f714d785cdef2bf73f467dc5d6a9f8e9ef4fc3b918dd800b"
+    }
+  ],
+  "pin_pack_sha256": "82149029a34d3595f587000073e62535491f47216ee6cf4aaa224345fe7d88bb"
+}

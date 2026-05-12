@@ -51,6 +51,25 @@ from .shamir_split import (
 from .recovery_drill import RecoveryDrillResult, simulate_recovery
 from .aip_signing import sign_aip_document, verify_aip_signature
 from .did_document_signing import sign_did_document, verify_did_signature
+from .kid_resolver import (
+    KidResolverError,
+    ResolvedPublicKey,
+    list_resolvable_kids,
+    resolve_kid,
+)
+from .aip_document_transport_fetch import (
+    AipDocumentTransportError,
+    AipDnsAnchorMismatchError,
+    AipFetchResult,
+    AipUrlSchemeError,
+    aip_web_to_https_url,
+    fetch_aip_document,
+)
+from .aip_signature_verification_cache import (
+    AipSignatureVerificationCache,
+    CacheStats,
+    cached_verify_aip_signature,
+)
 
 __all__ = [
     "WAKIR_COIN_TYPE",
@@ -71,4 +90,17 @@ __all__ = [
     "verify_aip_signature",
     "sign_did_document",
     "verify_did_signature",
+    "KidResolverError",
+    "ResolvedPublicKey",
+    "resolve_kid",
+    "list_resolvable_kids",
+    "AipDocumentTransportError",
+    "AipDnsAnchorMismatchError",
+    "AipFetchResult",
+    "AipUrlSchemeError",
+    "aip_web_to_https_url",
+    "fetch_aip_document",
+    "AipSignatureVerificationCache",
+    "CacheStats",
+    "cached_verify_aip_signature",
 ]

@@ -1,0 +1,149 @@
+{
+  "label": "tv-w-2-capability-token-multi-step",
+  "spec": "wirelang/specs/wirelang-tv-strategy.md \u00a72 (Phase-1b Tag-16)",
+  "csc_spec": "wirelang/specs/datalog-caveat-vocabulary-phase-2.md \u00a74 + \u00a76",
+  "seed_hex": "000102030405060708090a0b0c0d0e0f",
+  "issuer_persona": [
+    0,
+    0
+  ],
+  "issuer_role": "tv-w-2-issuer-0-0",
+  "not_before": "2026-05-07T00:00:00Z",
+  "not_after": "2027-05-07T00:00:00Z",
+  "nonce": "9f2b1c4a7d8e3f60a1b2c3d4e5f60718",
+  "context_times": {
+    "alpha": "2026-09-01T12:00:00Z",
+    "beta": "2027-06-01T12:00:00Z",
+    "gamma": "2026-09-01T12:00:00Z"
+  },
+  "context_audience": {
+    "alpha": "role=consumer-A",
+    "beta": "role=consumer-A",
+    "gamma": "role=consumer-B"
+  },
+  "chain": {
+    "issuer_pub_hex_32": "37ca8d3c4cb9d4638b347c26a40b7584e3fb4bfaf624fc3323afbdce847b041b",
+    "block0_next_pub_hex_32": "45a7258d023f7c307070968f43cf27969ec372d9d94e590c01cb8eec691df914",
+    "block1_next_pub_hex_32": "6266ea0afa97bfa2e3ef4ae964d070e2e5427281de9f3960faf10b6c95be257d",
+    "block2_next_pub_hex_32": "819dac0a062bb705f2fc5f19739a4ccbdeb5e492674784d6aa338ef7bfe4d6a0",
+    "block0": {
+      "payload": {
+        "block_index": 0,
+        "issuer_did": "aip:web:wakir.dev/tv-w-2-issuer-0-0",
+        "audience_pattern": "role=consumer-A",
+        "caveats": [
+          "check if env(\"prod\")",
+          "check if action(\"read.balance\")",
+          "check if audience(\"role=consumer-A\")"
+        ],
+        "next_pubkey": "45a7258d023f7c307070968f43cf27969ec372d9d94e590c01cb8eec691df914",
+        "not_before": "2026-05-07T00:00:00Z",
+        "not_after": "2027-05-07T00:00:00Z",
+        "nonce": "9f2b1c4a7d8e3f60a1b2c3d4e5f60718"
+      },
+      "signature": "efadb8c8f1c5f1c4b69836d91ecbf2b659e5d96d57e815fdea89ff20b4d6de8e2e45fcce61efe3ebc8dc94350ebd0f4aa39fbaa4fa33facd601cefab94d19a0b",
+      "block_hash": "5be548dcf1c7d974271c6ba1529d6a2a1302d3a0997bf5aeace2b2761cf84812"
+    },
+    "block1": {
+      "payload": {
+        "block_index": 1,
+        "issuer_did": "aip:web:wakir.dev/tv-w-2-issuer-0-0",
+        "audience_pattern": "role=consumer-A,scope=read-only",
+        "caveats": [
+          "check if read_only(true)",
+          "check if action(\"read.balance\")"
+        ],
+        "next_pubkey": "6266ea0afa97bfa2e3ef4ae964d070e2e5427281de9f3960faf10b6c95be257d",
+        "prev_signature": "efadb8c8f1c5f1c4b69836d91ecbf2b659e5d96d57e815fdea89ff20b4d6de8e2e45fcce61efe3ebc8dc94350ebd0f4aa39fbaa4fa33facd601cefab94d19a0b"
+      },
+      "signature": "b7ef6d4374d331d3b2f3621da017f9eda488919347a096c6dc5267a2e927010b375b1b0658a86bccaead4d506772baf41aa90fa922db9c66a7d44477d162600a",
+      "block_hash": "457fde97f32023fd52de068aaba5fe04f3282344fadcb1053704d519036dd9e1"
+    },
+    "block2": {
+      "payload": {
+        "block_index": 2,
+        "issuer_did": "aip:web:wakir.dev/tv-w-2-issuer-0-0",
+        "audience_pattern": "role=consumer-A,scope=read-only,rate=capped",
+        "caveats": [
+          "check if rate_limit($n), $n <= 100"
+        ],
+        "next_pubkey": "819dac0a062bb705f2fc5f19739a4ccbdeb5e492674784d6aa338ef7bfe4d6a0",
+        "prev_signature": "b7ef6d4374d331d3b2f3621da017f9eda488919347a096c6dc5267a2e927010b375b1b0658a86bccaead4d506772baf41aa90fa922db9c66a7d44477d162600a"
+      },
+      "signature": "5c8b9fc0e4a8e82f23e32f746a8a260a570e4e69c29c052a9bb9bd2b96f28b7efccbdf942a6e7c6e08de00615f2e45b8997e2b38cc063ab828102c092d8fc10f",
+      "block_hash": "265df6326320de515a6a2455608da65e801cef89d6a4ba172868f64d8540d9e0"
+    },
+    "sealing": {
+      "input": {
+        "label": "tv-w-2-sealing",
+        "block2_signature": "5c8b9fc0e4a8e82f23e32f746a8a260a570e4e69c29c052a9bb9bd2b96f28b7efccbdf942a6e7c6e08de00615f2e45b8997e2b38cc063ab828102c092d8fc10f",
+        "block2_next_pubkey": "819dac0a062bb705f2fc5f19739a4ccbdeb5e492674784d6aa338ef7bfe4d6a0",
+        "sealed_at": "2026-05-07T01:00:00Z"
+      },
+      "signature": "f87e86727e40fe79bca09d3ba08675a6a5e460479f70a0fb4188fa0b9b61aa586fec482707c72b7b33a92b284aeb037dbc340b497907716feeda875f65489408"
+    }
+  },
+  "traces": {
+    "alpha": {
+      "context": "alpha",
+      "block_hashes": [
+        "5be548dcf1c7d974271c6ba1529d6a2a1302d3a0997bf5aeace2b2761cf84812",
+        "457fde97f32023fd52de068aaba5fe04f3282344fadcb1053704d519036dd9e1",
+        "265df6326320de515a6a2455608da65e801cef89d6a4ba172868f64d8540d9e0"
+      ],
+      "caveat_set_hashes": [
+        "a4efa032d8e74e393462fd536c010effb60893305de472a985061633c3f1a670",
+        "3fcf6754cd9f53fba58b619635973a0d2e4d199616ab62cadb6a2acbc469212f",
+        "c10d598788dbfb7e1054c513fbd866627f7d3aa960ed8e780019f6f504979919"
+      ],
+      "verify_status": "accept",
+      "verify_reason": null,
+      "next_pubkeys": [
+        "45a7258d023f7c307070968f43cf27969ec372d9d94e590c01cb8eec691df914",
+        "6266ea0afa97bfa2e3ef4ae964d070e2e5427281de9f3960faf10b6c95be257d",
+        "819dac0a062bb705f2fc5f19739a4ccbdeb5e492674784d6aa338ef7bfe4d6a0"
+      ]
+    },
+    "beta": {
+      "context": "beta",
+      "block_hashes": [
+        "5be548dcf1c7d974271c6ba1529d6a2a1302d3a0997bf5aeace2b2761cf84812",
+        "457fde97f32023fd52de068aaba5fe04f3282344fadcb1053704d519036dd9e1",
+        "265df6326320de515a6a2455608da65e801cef89d6a4ba172868f64d8540d9e0"
+      ],
+      "caveat_set_hashes": [
+        "a4efa032d8e74e393462fd536c010effb60893305de472a985061633c3f1a670",
+        "3fcf6754cd9f53fba58b619635973a0d2e4d199616ab62cadb6a2acbc469212f",
+        "c10d598788dbfb7e1054c513fbd866627f7d3aa960ed8e780019f6f504979919"
+      ],
+      "verify_status": "reject",
+      "verify_reason": "time-bound-violated",
+      "next_pubkeys": [
+        "45a7258d023f7c307070968f43cf27969ec372d9d94e590c01cb8eec691df914",
+        "6266ea0afa97bfa2e3ef4ae964d070e2e5427281de9f3960faf10b6c95be257d",
+        "819dac0a062bb705f2fc5f19739a4ccbdeb5e492674784d6aa338ef7bfe4d6a0"
+      ]
+    },
+    "gamma": {
+      "context": "gamma",
+      "block_hashes": [
+        "5be548dcf1c7d974271c6ba1529d6a2a1302d3a0997bf5aeace2b2761cf84812",
+        "457fde97f32023fd52de068aaba5fe04f3282344fadcb1053704d519036dd9e1",
+        "265df6326320de515a6a2455608da65e801cef89d6a4ba172868f64d8540d9e0"
+      ],
+      "caveat_set_hashes": [
+        "a4efa032d8e74e393462fd536c010effb60893305de472a985061633c3f1a670",
+        "3fcf6754cd9f53fba58b619635973a0d2e4d199616ab62cadb6a2acbc469212f",
+        "c10d598788dbfb7e1054c513fbd866627f7d3aa960ed8e780019f6f504979919"
+      ],
+      "verify_status": "reject",
+      "verify_reason": "audience-pattern-mismatch",
+      "next_pubkeys": [
+        "45a7258d023f7c307070968f43cf27969ec372d9d94e590c01cb8eec691df914",
+        "6266ea0afa97bfa2e3ef4ae964d070e2e5427281de9f3960faf10b6c95be257d",
+        "819dac0a062bb705f2fc5f19739a4ccbdeb5e492674784d6aa338ef7bfe4d6a0"
+      ]
+    }
+  },
+  "pin_pack_sha256": "ddf115456893bd5b15c0ab1c501f22a0b68caaf39a06ec2d2b103e940bdd7532"
+}

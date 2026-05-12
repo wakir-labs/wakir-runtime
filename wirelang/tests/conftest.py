@@ -3,6 +3,17 @@
 
 Loads the three Layer-0/1/2 JSON-Schema documents and the example frames,
 and exposes them as pytest fixtures consumed by the per-layer test modules.
+
+Sandbox-CI note (Tag-11)
+------------------------
+
+The validator fixtures lazy-import :mod:`jsonschema` via
+:func:`pytest.importorskip`. When ``jsonschema`` is not installed (the
+sandbox-CI baseline), the validator-consuming tests are skipped, while
+the schema-loading and pure-Python-fallback tests still run. This keeps
+the suite green in a `rfc8785`/`jsonschema`-free sandbox while preserving
+full coverage in the production-CI environment where both libraries are
+present.
 """
 
 from __future__ import annotations
@@ -11,7 +22,6 @@ import json
 from pathlib import Path
 
 import pytest
-from jsonschema import Draft202012Validator
 
 WIRELANG_ROOT = Path(__file__).resolve().parent.parent
 SCHEMA_DIR = WIRELANG_ROOT / "schemas"
@@ -39,21 +49,24 @@ def layer_2_schema() -> dict:
 
 
 @pytest.fixture(scope="session")
-def layer_0_validator(layer_0_schema: dict) -> Draft202012Validator:
-    Draft202012Validator.check_schema(layer_0_schema)
-    return Draft202012Validator(layer_0_schema)
+def layer_0_validator(layer_0_schema: dict):
+    jsonschema = pytest.importorskip("jsonschema")
+    jsonschema.Draft202012Validator.check_schema(layer_0_schema)
+    return jsonschema.Draft202012Validator(layer_0_schema)
 
 
 @pytest.fixture(scope="session")
-def layer_1_validator(layer_1_schema: dict) -> Draft202012Validator:
-    Draft202012Validator.check_schema(layer_1_schema)
-    return Draft202012Validator(layer_1_schema)
+def layer_1_validator(layer_1_schema: dict):
+    jsonschema = pytest.importorskip("jsonschema")
+    jsonschema.Draft202012Validator.check_schema(layer_1_schema)
+    return jsonschema.Draft202012Validator(layer_1_schema)
 
 
 @pytest.fixture(scope="session")
-def layer_2_validator(layer_2_schema: dict) -> Draft202012Validator:
-    Draft202012Validator.check_schema(layer_2_schema)
-    return Draft202012Validator(layer_2_schema)
+def layer_2_validator(layer_2_schema: dict):
+    jsonschema = pytest.importorskip("jsonschema")
+    jsonschema.Draft202012Validator.check_schema(layer_2_schema)
+    return jsonschema.Draft202012Validator(layer_2_schema)
 
 
 @pytest.fixture(scope="session")
@@ -69,15 +82,17 @@ def aip_document_schema() -> dict:
 @pytest.fixture(scope="session")
 def layer_3_capability_token_validator(
     layer_3_capability_token_schema: dict,
-) -> Draft202012Validator:
-    Draft202012Validator.check_schema(layer_3_capability_token_schema)
-    return Draft202012Validator(layer_3_capability_token_schema)
+):
+    jsonschema = pytest.importorskip("jsonschema")
+    jsonschema.Draft202012Validator.check_schema(layer_3_capability_token_schema)
+    return jsonschema.Draft202012Validator(layer_3_capability_token_schema)
 
 
 @pytest.fixture(scope="session")
-def aip_document_validator(aip_document_schema: dict) -> Draft202012Validator:
-    Draft202012Validator.check_schema(aip_document_schema)
-    return Draft202012Validator(aip_document_schema)
+def aip_document_validator(aip_document_schema: dict):
+    jsonschema = pytest.importorskip("jsonschema")
+    jsonschema.Draft202012Validator.check_schema(aip_document_schema)
+    return jsonschema.Draft202012Validator(aip_document_schema)
 
 
 @pytest.fixture(scope="session")

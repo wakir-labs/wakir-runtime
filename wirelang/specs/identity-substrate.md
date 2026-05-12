@@ -238,7 +238,182 @@ invalidates the signature. The placeholder content of the signature
 slot at signing time does not influence the produced signature — this
 is asserted by tests in `test_aip_signing.py`.
 
-## 5. Open items (Phase-2+ tracking)
+## 5. SPIFFE-ID-Binding
+
+This section specifies the **wirelang-side surface** for binding a
+persona (V-907 audit anchor) to a SPIFFE workload identity. It is the
+wirelang-track companion to the Z-A cross-review-zone consensus markers
+acknowledged on 2026-05-11 (Z-A-Ack §1–§8). DevOps-track implementation
+(SPIRE-server, SPIRE-agent, workload-attestation, JWT-SVID issuance,
+NATS-JWT integration) is Kai's Phase-2c+ track; the surface defined here
+is the wirelang-side contract those tracks must honor.
+
+### 5.1 SPIFFE-ID path pattern
+
+Two path patterns are recognized on the wirelang side:
+
+```
+spiffe://<trust-domain>/agent/<persona-slug>/<persona-hash-12>
+spiffe://<trust-domain>/service/<service-name>
+```
+
+- `<trust-domain>` — the SPIFFE trust domain. Two URI-forms are valid
+  per RFC 3986 + the SPIFFE specification:
+  - `spiffe://wakir.local/...` — Phase-1c local-only trust domain.
+  - `spiffe://<org-id>.wakir.dev/...` — Phase-2c+ federated trust
+    domain.
+  Both are compatible with the AIP-document `issuer` URI field (see §2.2).
+- `/agent/<persona-slug>/<persona-hash-12>` — **persona-mint workload**
+  path. The path identifies a workload that runs a Wakir persona (i.e.
+  has authority to mint capability tokens under the persona's biscuit
+  authority).
+- `/service/<service-name>` — **service-only workload** path. The path
+  identifies a workload that consumes capability tokens but does NOT
+  mint them.
+
+The Component-1 disambiguation (`/agent/` vs `/service/`) maps to the
+capability-mint surface authority: persona-mint workloads can mint,
+service-only workloads can only consume. The identity-document schema
+MAY enforce per-Component-Type caveat-sets in a later phase
+(Phase-2c+ Z-A follow-up; not Phase-2 scope).
+
+### 5.2 Persona-slug
+
+`<persona-slug>` is the persona's Klar-Slug as defined by the persona-v1
+schema (`name` field, slug-validation). The character class is the same
+as the schema-registry `registered_by` field convention:
+`^[A-Za-z0-9][A-Za-z0-9_.:\-]*$` (kebab-case ASCII).
+
+The persona-slug is the human-readable handle; the
+`<persona-hash-12>` (next section) is the cryptographic binding to the
+V-907 audit anchor and is the byte-stable input to any verifier.
+
+### 5.3 Persona-hash-12: hash-algorithm-agnostic 12-hex-char display slice
+
+The Component-3 hash slice is a **display slice**, NOT a hash-format
+variant. The full-form V-907 hash is the canonical audit anchor; the
+SPIFFE-ID slice is a fixed-width prefix for path-component use only.
+
+**Hard pin (wirelang-side):**
+
+1. **V-907 audit anchor (full form):** the persona-hash is ALWAYS the
+   full hash output, in the format `<alg>:<lower-case-hex>`. For the
+   Phase-1a/1b/2 baseline, the algorithm is `sha256` and the output is
+   `sha256:<64-lower-case-hex>` (computed over the RFC-8785 JCS
+   canonical subset of the persona-document; see
+   `wirelang/specs/persona-hash-spec.md` §3 for the canonical-subset
+   spec). This is the byte-stable WAT-leaf input (Tomás Matrix-Lead
+   cross-review consumes the full form).
+
+2. **SPIFFE-ID Component-3 (display slice):** the slice is the first
+   **12 lower-case hex characters of the hash hex output**, after
+   stripping the `<alg>:` prefix. The slice is the SPIFFE-ID
+   path-component-3 surface; it is NOT a hash-format substitute.
+
+3. **Hash-algorithm-agnostic:** the 12-hex-char prefix pattern is
+   stable across hash-algorithm migrations. If Phase-2c+ V-907 migrates
+   to `blake3` or `sha3-256` (currently a Phase-3 Wirelang-roadmap
+   slot, gated by ADR), the SPIFFE-ID format constant does NOT change:
+   `<persona-hash-12>` is always "the first 12 lower-case hex
+   characters of the V-907 hash hex output (after the `<alg>:` prefix
+   is stripped)", independent of which algorithm the prefix denotes.
+
+**Z-A consensus fixpoint:** the WAT-leaf hash (Matrix-Lead-Owner
+Tomás) consumes the full form `sha256:<64-hex>`; the SPIFFE-ID
+Component-3 consumes the 12-char slice. Both derive from the SAME
+byte-stable JCS-canonical-subset; there is no drift between the two
+displays.
+
+### 5.4 Compatibility with the AIP document `issuer` field
+
+The SPIFFE-ID trust-domain URI form is wire-compatible with the
+AIP-document `issuer` field. `issuer` is typed as a URI per §2.2; a
+SPIFFE-ID-format URI is a valid `issuer` value.
+
+This compatibility is the wirelang-side acknowledgement of Z-A-Marker §1
+(Trust-Domain-URI-Form): an AIP-document MAY carry an `issuer` of the
+form `spiffe://<trust-domain>/agent/<persona-slug>/<persona-hash-12>`
+without schema change. Verifier-side, the URI structure is parsed via
+the standard URI primitive; the SPIFFE-ID semantics are layered on top
+without altering the JCS pre-image.
+
+### 5.5 Adapter-layer indirection (wirelang-side constraint)
+
+Persona-container code MUST NOT directly import the upstream `spiffe`
+PyPI package (`spiffe.workload_api`, etc.). All SPIFFE-Workload-API
+calls go through a wirelang-owned adapter module:
+
+- **Adapter path:** `wirelang/adapters/spiffe_workload_api.py`
+  (skeleton in this Sprint-6 Tag-4; non-functional surface stub only).
+- **Adapter surface:** wirelang-owned Workload-API surface (e.g.
+  `fetch_jwt_svid(audience: str) -> JwtSvid`); the adapter delegates
+  internally to `spiffe.workload_api`-equivalents.
+
+**Begründung:**
+
+1. **PyPI-package name correction:** the actual PyPI package name is
+   **`spiffe`** (NOT `py-spiffe`); the GitHub repository is
+   `HewlettPackard/py-spiffe`. Pinning the import to the upstream name
+   in persona-container code would couple the wirelang-side surface
+   to upstream library maintenance risk. The adapter-layer absorbs that.
+
+2. **Library-maintenance-drop resilience:** if upstream `spiffe`
+   maintenance drops (Phase-3 risk), the adapter-layer-indirection
+   lets wirelang substitute its own Workload-API client implementation
+   while keeping persona-container code byte-unchanged. The adapter
+   surface is the wirelang-side stable surface; the upstream library
+   is an implementation detail behind it.
+
+3. **Workload-API breaking-change containment:** if upstream `spiffe`
+   makes a breaking API change, that is a **Z-A re-consensus trigger**
+   (it changes the assumed upstream API surface the adapter implements
+   against). The adapter-layer makes the trigger explicit: a wirelang
+   PR touching `wirelang/adapters/spiffe_workload_api.py` for an
+   upstream-API-change reason is a Z-A re-coordination signal.
+
+The adapter-layer stub for Sprint-6 Tag-4 is `imports + type
+annotations only`; the full functional implementation is a Sprint-6
+Tag-5+ or Phase-2c item (paired with the DevOps-track SPIRE-server
+integration).
+
+### 5.6 Capability-mint surface authority (per Component-Type)
+
+The Component-1 disambiguation (`/agent/` vs `/service/`) maps onto the
+wirelang-side capability-mint surface:
+
+- **`/agent/<persona-slug>/<persona-hash-12>`** — persona-mint authority.
+  The workload can mint capability tokens under the persona's biscuit
+  authority (Ed25519 master key from §1, axis 2). The
+  identity-document schema MAY surface a `cap_mint=true` claim or
+  caveat in a follow-up.
+- **`/service/<service-name>`** — service-only authority. The workload
+  can consume capability tokens but cannot mint. No biscuit-authority
+  key material is bound to a service-only SPIFFE-ID.
+
+This per-Component-Type split is the wirelang-side acknowledgement of
+Z-A-Marker §2 (Persona-vs-Service-Disambiguation): the capability-mint
+surface authority follows the SPIFFE-ID structure, not a separate flag.
+
+### 5.7 Implementation cross-references
+
+- **Wirelang-side stub (Sprint-6 Tag-4):**
+  `wirelang/adapters/spiffe_workload_api.py` — imports +
+  type-annotations + docstring contract; not yet functional.
+- **DevOps-track owner-items (Kai, post-Z-A-Ack):**
+  - SPIRE-server + SPIRE-agent operational topology.
+  - Workload-attestation policy + entry-generation from AIP documents
+    (the AIP-document-to-SPIRE-registration-entry-generator is a
+    Phase-3 wirelang-roadmap slot).
+  - NATS-JWT-Refresh `user_jwt_cb` callback pattern (Kai-track
+    correction from Z-A-Ack §4.2 / §6 §3).
+- **Phase-3 wirelang-roadmap slots:**
+  - AIP-document-to-SPIRE-registration-entry-generator.
+  - Per-Component-Type caveat-set enforcement in identity-document
+    schema.
+  - V-907 hash-algorithm migration (sha256 → blake3 or sha3-256), with
+    the SPIFFE-ID 12-hex-char slice constant unchanged.
+
+## 6. Open items (Phase-2+ tracking)
 
 - Wakir-native DID method (`did:wakir`) — requires an ADR before
   spec work begins. Until then, `did:web` is canonical.

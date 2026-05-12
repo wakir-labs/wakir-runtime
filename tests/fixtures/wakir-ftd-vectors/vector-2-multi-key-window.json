@@ -1,0 +1,43 @@
+{
+  "document": {
+    "anchor": {
+      "fingerprint_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "host": "_wakir-ftd.peer-org.example",
+      "kind": "dns-txt"
+    },
+    "document_signature": {
+      "alg": "Ed25519",
+      "kid": "ftd-root-1",
+      "signature": "5b5cf711aeff0d571e87e9330ceb7b2f0b6daf926343bbefba9de31a039c8cc40cd962243bb64428bb2db9c1fdbc1bc2a28c7273894e68955c053cf73c309f05"
+    },
+    "domain": "peer-org.example",
+    "expires": "2027-06-01T00:00:00Z",
+    "ftd_root_pubkey": "d04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9778737",
+    "id": "did:web:peer-org.example:ftd:v2",
+    "issued_at": "2026-06-01T00:00:00Z",
+    "issuer_keys": [
+      {
+        "alg": "Ed25519",
+        "kid": "issuer-1",
+        "public_key": "a09aa5f47a6759802ff955f8dc2d2a14a5c99d23be97f864127ff9383455a4f0",
+        "purpose": "biscuit-root",
+        "valid_from": "2026-06-01T00:00:00Z",
+        "valid_until": "2026-12-01T00:00:00Z"
+      },
+      {
+        "alg": "Ed25519",
+        "kid": "issuer-2",
+        "public_key": "17cb79fb2b4120f2b1ec65e4198d6e08b28e813feb01e4a400839b85e18080ce",
+        "purpose": "biscuit-root",
+        "valid_from": "2026-06-15T00:00:00Z",
+        "valid_until": null
+      }
+    ],
+    "wakir_ftd": "0.1.0"
+  },
+  "fingerprint_sha256": "31d883c43bde4942e16cb7ecf5564113db7db47e05233e4fb25cdecb93d34e0c",
+  "label": "wakir-ftd-vector-2-multi-key-window",
+  "notes": "Two issuer keys with overlapping windows. Verifier must surface both as valid_issuer_keys at a wall-clock inside the overlap.",
+  "spec": "V-908 Federation Resolver section 2 (Phase-1b 0.1.0)",
+  "verify_now": "2026-07-01T00:00:00Z"
+}
