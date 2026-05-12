@@ -348,7 +348,13 @@ def test_tv3_t17_root_bin_does_not_match_merkle_root_rejected(tmp_path):
 
 
 def test_tv3_driver_real_tv3_mode_runs_clean():
-    """``scripts/external_verifier_validation.py --real-tv3`` exits 0."""
+    """``scripts/external_verifier_validation.py --real-tv3`` exits 0.
+
+    Sprint-6-Tag-7 (F-5 fix family): see the matching test in
+    ``test_tv2_real_manifest_live_run.py`` for the worktree-clone
+    rationale behind the explicit ``PYTHONPATH`` hand-off.
+    """
+    import os
     import subprocess
     import sys
 
@@ -359,7 +365,14 @@ def test_tv3_driver_real_tv3_mode_runs_clean():
         "--real-tv3",
         "--quiet",
     ]
-    completed = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    env = os.environ.copy()
+    existing_pp = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = (
+        f"{repo_root}{os.pathsep}{existing_pp}" if existing_pp else str(repo_root)
+    )
+    completed = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=60, env=env
+    )
     assert completed.returncode == 0, (
         f"driver --real-tv3 exit {completed.returncode}\n"
         f"stdout: {completed.stdout}\nstderr: {completed.stderr}"

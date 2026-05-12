@@ -179,10 +179,21 @@ BUILD_ARGS=(
 if [[ -n "${PREV_HOUR_ROOT}" ]]; then
     BUILD_ARGS+=(--prev-hour-root "${PREV_HOUR_ROOT}")
 fi
-if command -v wakir-merkle >/dev/null 2>&1; then
+# Sprint-6-Tag-7 (F-5 fix): "presence on PATH" is not the same as
+# "actually invocable". When the operator works in a fresh worktree
+# (per ADR-0049) the editable install's __editable__.*.pth finder
+# may still point at a previous worktree path that has since been
+# pruned. ``command -v wakir-merkle`` succeeds (shim is on PATH) but
+# the shim's ``from wat.cmd.aggregator_cli import main`` raises
+# ModuleNotFoundError. Probe the shim with a no-op ``--help`` invocation
+# before committing to it; fall back to ``python -m`` whenever the
+# shim is broken. The ``python -m`` path inherits cwd into ``sys.path``
+# and resolves the local worktree's ``wat`` package deterministically.
+if command -v wakir-merkle >/dev/null 2>&1 \
+        && wakir-merkle --help >/dev/null 2>&1; then
     MERKLE_CMD=(wakir-merkle build)
 else
-    log "wakir-merkle console-script not on PATH; using python -m fallback"
+    log "wakir-merkle console-script unavailable or broken; using python -m fallback"
     MERKLE_CMD=(python -m wat.cmd.aggregator_cli build)
 fi
 if ! "${MERKLE_CMD[@]}" "${BUILD_ARGS[@]}"; then

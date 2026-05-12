@@ -285,7 +285,16 @@ def test_tv2_driver_real_tv2_mode_runs_clean():
     The driver iterates the TV-2 fixture cohort and re-runs the same
     pipeline this test module asserts; this is the CLI surface the
     Tag-2 outbox quotes.
+
+    Sprint-6-Tag-7 (F-5 fix family): when the test runs in a worktree
+    clone the editable install's ``__editable__.*.pth`` finder may
+    point at a pruned worktree, in which case ``from wat...`` inside
+    the driver script raises ``ModuleNotFoundError``. Set
+    ``PYTHONPATH`` to the current worktree so the driver resolves
+    ``wat`` from this repository regardless of the editable install's
+    finder state.
     """
+    import os
     import subprocess
     import sys
 
@@ -296,7 +305,14 @@ def test_tv2_driver_real_tv2_mode_runs_clean():
         "--real-tv2",
         "--quiet",
     ]
-    completed = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    env = os.environ.copy()
+    existing_pp = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = (
+        f"{repo_root}{os.pathsep}{existing_pp}" if existing_pp else str(repo_root)
+    )
+    completed = subprocess.run(
+        cmd, capture_output=True, text=True, timeout=60, env=env
+    )
     assert completed.returncode == 0, (
         f"driver --real-tv2 exit {completed.returncode}\n"
         f"stdout: {completed.stdout}\nstderr: {completed.stderr}"
