@@ -62,9 +62,9 @@
 //! ==========================
 //!
 //! - `0`: success (and pin-match if `--expect-hash` was supplied).
-//! - `1`: [`PersonaMigrationError`] (chain not resolvable, malformed
+//! - `1`: [`MigratePersonaError::Migration`] (chain not resolvable, malformed
 //!   input, ...).
-//! - `2`: [`PersonaMigrationDeterminismError`] (`--expect-hash`
+//! - `2`: [`MigratePersonaError::Determinism`] (`--expect-hash`
 //!   mismatch).
 //! - `3`: persona-file not found on the filesystem.
 //! - `64`: argparse usage error (Unix `EX_USAGE`). Emitted by clap on
@@ -114,7 +114,7 @@ use sha2::{Digest, Sha256};
 /// Mirrors Python `EXIT_MIGRATION_ERROR = 1`.
 pub const EXIT_MIGRATION_ERROR: i32 = 1;
 
-/// Exit code emitted on [`PersonaMigrationDeterminismError`]
+/// Exit code emitted on [`MigratePersonaError::Determinism`]
 /// (`--expect-hash` disagreement).
 ///
 /// Mirrors Python `EXIT_DETERMINISM_ERROR = 2`.
@@ -485,9 +485,9 @@ pub struct CliOutcome {
 /// Execute the `migrate` subcommand against the given arguments.
 ///
 /// Mirrors Python `_run_migrate(args) -> int` exactly, including the
-/// strict precedence of [`PersonaMigrationDeterminismError`] over the
-/// more general [`PersonaMigrationError`] (the chain ran cleanly,
-/// only the pin disagrees).
+/// strict precedence of [`MigratePersonaError::Determinism`] over the
+/// more general [`MigratePersonaError::Migration`] (the chain ran
+/// cleanly, only the pin disagrees).
 ///
 /// Pure function: no global state, no real IO except reading the
 /// persona-file via [`std::fs::read_to_string`]. Returns a fully-
@@ -690,7 +690,9 @@ pub fn run_validate(args: &ValidateArgs) -> CliOutcome {
 // `inspect` subcommand handler (Sprint-6 Tag-3)
 // ---------------------------------------------------------------------
 
-/// Serialise a [`PersonaInspectReport`] canonical-value for stdout.
+/// Serialise a `PersonaInspectReport` (the Python-side name; the
+/// Rust pendant is a `serde_json::Value` produced by
+/// [`build_inspect_report`]) canonical-value for stdout.
 ///
 /// Same posture as [`serialise_canonical_subset`] /
 /// [`serialise_validation_report`]: sort keys, two-space indent,
@@ -3624,5 +3626,360 @@ mod help_text_consistency_tests {
                 );
             }
         }
+    }
+}
+
+// =====================================================================
+// stderr-Wording-Byte-Parität test pack (Phase-1b Sprint-6 Tag-6 — Item 1)
+//
+// Sister of wirelang/tests/test_persona_cli_stderr_parity.py. The two
+// packs pin a shared Cross-Lang-Diff-Pin on the per-subcommand stderr
+// error markers. See the Python sister's module-level docstring for
+// the full posture (which error markers are byte-equal vs. soft-match-
+// prefix-only, and why).
+// =====================================================================
+
+#[cfg(test)]
+mod stderr_parity_tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    // -----------------------------------------------------------------
+    // Cross-Lang-Diff-Pin: anchor strings shared with the Python pack.
+    // Any wording change must update BOTH packs in the same box.
+    //
+    // The constants below are the byte-identical pendants of the
+    // Python `STDERR_PREFIX_BY_MARKER` dict.
+    // -----------------------------------------------------------------
+
+    /// "wakir-persona: persona-file not found: " — E1 prefix.
+    const E1_NOT_FOUND_PREFIX: &str = "wakir-persona: persona-file not found: ";
+    /// "wakir-persona: persona-file vanished mid-run: " — E2 prefix.
+    const E2_VANISHED_PREFIX: &str = "wakir-persona: persona-file vanished mid-run: ";
+    /// "wakir-persona: hash drift: " — E3 prefix (migrate-only).
+    const E3_HASH_DRIFT_PREFIX: &str = "wakir-persona: hash drift: ";
+    /// "wakir-persona: migration failed: " — E4 prefix (migrate-only).
+    const E4_MIG_FAIL_PREFIX: &str = "wakir-persona: migration failed: ";
+    /// "wakir-persona: inspect failed: " — E5 prefix (inspect-only).
+    const E5_INSP_FAIL_PREFIX: &str = "wakir-persona: inspect failed: ";
+    /// "wakir-persona: pin failed: " — E6 prefix (pin-only).
+    const E6_PIN_FAIL_PREFIX: &str = "wakir-persona: pin failed: ";
+
+    /// Subcommands surfaced by `wakir-persona`.
+    const SUBCOMMANDS: [&str; 4] = ["migrate", "validate", "inspect", "pin"];
+
+    /// Path to the v9 fixture (re-derivation of the helper in the
+    /// migrate-tests mod; kept private here to avoid coupling
+    /// the two modules' visibility surfaces).
+    fn v9_fixture() -> PathBuf {
+        let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        p.push("..");
+        p.push("..");
+        p.push("..");
+        p.push("wirelang");
+        p.push("tests");
+        p.push("fixtures");
+        p.push("persona_definitions");
+        p.push("v9-persona-framework-native.md");
+        p
+    }
+
+    /// Return a deterministic non-existent path under the cargo target
+    /// directory. The directory must exist (cargo target/<profile>/),
+    /// but the file underneath must not.
+    fn missing_path(suffix: &str) -> PathBuf {
+        let mut p = std::env::temp_dir();
+        p.push(format!(
+            "selin-stderr-parity-{}-{}-{}",
+            std::process::id(),
+            suffix,
+            // Cheap unique-ish discriminator using nanos since EPOCH
+            // (works even when tests run in parallel because the
+            // marker name varies per test).
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        // Defensive: ensure no stale file from a previous run.
+        let _ = std::fs::remove_file(&p);
+        p
+    }
+
+    /// Write a file that the parser will reject (no YAML front-matter).
+    /// Used by the migration / inspect / pin failure-path tests.
+    fn malformed_persona(suffix: &str) -> PathBuf {
+        let mut p = std::env::temp_dir();
+        p.push(format!(
+            "selin-stderr-parity-bad-{}-{}-{}.md",
+            std::process::id(),
+            suffix,
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::write(&p, "just some markdown body and no front-matter.\n")
+            .expect("write malformed fixture");
+        p
+    }
+
+    // -----------------------------------------------------------------
+    // Cross-Lang-Diff-Pin self-checks
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn sp1_e1_prefix_matches_python_pin() {
+        assert_eq!(
+            E1_NOT_FOUND_PREFIX,
+            "wakir-persona: persona-file not found: "
+        );
+    }
+
+    #[test]
+    fn sp2_e2_prefix_matches_python_pin() {
+        assert_eq!(
+            E2_VANISHED_PREFIX,
+            "wakir-persona: persona-file vanished mid-run: "
+        );
+    }
+
+    #[test]
+    fn sp3_e3_prefix_matches_python_pin() {
+        assert_eq!(E3_HASH_DRIFT_PREFIX, "wakir-persona: hash drift: ");
+    }
+
+    #[test]
+    fn sp4_e4_prefix_matches_python_pin() {
+        assert_eq!(E4_MIG_FAIL_PREFIX, "wakir-persona: migration failed: ");
+    }
+
+    #[test]
+    fn sp5_e5_prefix_matches_python_pin() {
+        assert_eq!(E5_INSP_FAIL_PREFIX, "wakir-persona: inspect failed: ");
+    }
+
+    #[test]
+    fn sp6_e6_prefix_matches_python_pin() {
+        assert_eq!(E6_PIN_FAIL_PREFIX, "wakir-persona: pin failed: ");
+    }
+
+    #[test]
+    fn sp7_all_prefixes_have_uniform_shape() {
+        for prefix in [
+            E1_NOT_FOUND_PREFIX,
+            E2_VANISHED_PREFIX,
+            E3_HASH_DRIFT_PREFIX,
+            E4_MIG_FAIL_PREFIX,
+            E5_INSP_FAIL_PREFIX,
+            E6_PIN_FAIL_PREFIX,
+        ] {
+            assert!(
+                prefix.starts_with("wakir-persona: "),
+                "{prefix:?} must start with 'wakir-persona: '"
+            );
+            assert!(
+                prefix.ends_with(": "),
+                "{prefix:?} must end with ': ' (formatter-body separator)"
+            );
+        }
+    }
+
+    #[test]
+    fn sp8_all_prefixes_are_unique() {
+        let prefixes = [
+            E1_NOT_FOUND_PREFIX,
+            E2_VANISHED_PREFIX,
+            E3_HASH_DRIFT_PREFIX,
+            E4_MIG_FAIL_PREFIX,
+            E5_INSP_FAIL_PREFIX,
+            E6_PIN_FAIL_PREFIX,
+        ];
+        for (i, a) in prefixes.iter().enumerate() {
+            for (j, b) in prefixes.iter().enumerate() {
+                if i != j {
+                    assert_ne!(a, b, "prefix collision at indices {i}/{j}: {a:?}");
+                }
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // E1 NOT_FOUND — byte-equal full stderr line (4 subcommands)
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn sp_e1_migrate_persona_file_not_found_stderr_byte_equal() {
+        let missing = missing_path("migrate");
+        let outcome = run(&["wakir-persona", "migrate", &missing.to_string_lossy()]);
+        assert_eq!(outcome.exit_code, EXIT_INPUT_NOT_FOUND);
+        assert!(outcome.stdout.is_empty(), "stdout must be empty on E1");
+        let expected = format!("{E1_NOT_FOUND_PREFIX}{}\n", missing.display());
+        assert_eq!(
+            outcome.stderr, expected,
+            "migrate: E1 stderr byte-equal failed.\n  expected: {expected:?}\n  actual:   {:?}",
+            outcome.stderr
+        );
+    }
+
+    #[test]
+    fn sp_e1_validate_persona_file_not_found_stderr_byte_equal() {
+        let missing = missing_path("validate");
+        let outcome = run(&["wakir-persona", "validate", &missing.to_string_lossy()]);
+        assert_eq!(outcome.exit_code, EXIT_INPUT_NOT_FOUND);
+        assert!(outcome.stdout.is_empty(), "stdout must be empty on E1");
+        let expected = format!("{E1_NOT_FOUND_PREFIX}{}\n", missing.display());
+        assert_eq!(
+            outcome.stderr, expected,
+            "validate: E1 stderr byte-equal failed.\n  expected: {expected:?}\n  actual:   {:?}",
+            outcome.stderr
+        );
+    }
+
+    #[test]
+    fn sp_e1_inspect_persona_file_not_found_stderr_byte_equal() {
+        let missing = missing_path("inspect");
+        let outcome = run(&["wakir-persona", "inspect", &missing.to_string_lossy()]);
+        assert_eq!(outcome.exit_code, EXIT_INPUT_NOT_FOUND);
+        assert!(outcome.stdout.is_empty(), "stdout must be empty on E1");
+        let expected = format!("{E1_NOT_FOUND_PREFIX}{}\n", missing.display());
+        assert_eq!(
+            outcome.stderr, expected,
+            "inspect: E1 stderr byte-equal failed.\n  expected: {expected:?}\n  actual:   {:?}",
+            outcome.stderr
+        );
+    }
+
+    #[test]
+    fn sp_e1_pin_persona_file_not_found_stderr_byte_equal() {
+        let missing = missing_path("pin");
+        let outcome = run(&["wakir-persona", "pin", &missing.to_string_lossy()]);
+        assert_eq!(outcome.exit_code, EXIT_INPUT_NOT_FOUND);
+        assert!(outcome.stdout.is_empty(), "stdout must be empty on E1");
+        let expected = format!("{E1_NOT_FOUND_PREFIX}{}\n", missing.display());
+        assert_eq!(
+            outcome.stderr, expected,
+            "pin: E1 stderr byte-equal failed.\n  expected: {expected:?}\n  actual:   {:?}",
+            outcome.stderr
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // E1 prefix sanity — every subcommand's NOT_FOUND stderr starts
+    // with the pinned prefix. Redundant with the byte-equal sweep but
+    // narrows the diagnostic when only the prefix drifts.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn sp_e1_prefix_holds_across_all_four_subcommands() {
+        for sub in SUBCOMMANDS {
+            let missing = missing_path(&format!("prefix-{sub}"));
+            let outcome = run(&["wakir-persona", sub, &missing.to_string_lossy()]);
+            assert_eq!(outcome.exit_code, EXIT_INPUT_NOT_FOUND, "{sub}: exit");
+            assert!(
+                outcome.stderr.starts_with(E1_NOT_FOUND_PREFIX),
+                "{sub}: stderr does not start with E1 prefix.\n  expected prefix: {E1_NOT_FOUND_PREFIX:?}\n  actual stderr:   {:?}",
+                outcome.stderr
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // E3 HASH_DRIFT (migrate-only): prefix match on --expect-hash with
+    // an obviously-wrong pin.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn sp_e3_migrate_hash_drift_prefix_match() {
+        let fixture = v9_fixture();
+        assert!(fixture.exists(), "fixture missing: {}", fixture.display());
+
+        let bad_pin = format!("sha256:{}", "0".repeat(64));
+        let outcome = run(&[
+            "wakir-persona",
+            "migrate",
+            &fixture.to_string_lossy(),
+            "--expect-hash",
+            &bad_pin,
+            "--quiet",
+        ]);
+        assert_eq!(outcome.exit_code, EXIT_DETERMINISM_ERROR);
+        assert!(
+            outcome.stderr.starts_with(E3_HASH_DRIFT_PREFIX),
+            "E3: stderr does not start with hash-drift prefix.\n  expected prefix: {E3_HASH_DRIFT_PREFIX:?}\n  actual stderr:   {:?}",
+            outcome.stderr
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // E4 MIG_FAIL (migrate-only): malformed persona-file triggers the
+    // migration-failed marker.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn sp_e4_migrate_failure_prefix_match() {
+        let bad = malformed_persona("e4-mig");
+        let outcome = run(&[
+            "wakir-persona",
+            "migrate",
+            &bad.to_string_lossy(),
+            "--quiet",
+        ]);
+        // exit code 1 (migration) or 2 (determinism); both are non-
+        // zero and the marker is migration-failed on the front-matter-
+        // missing path.
+        assert!(
+            outcome.exit_code == EXIT_MIGRATION_ERROR
+                || outcome.exit_code == EXIT_DETERMINISM_ERROR,
+            "expected non-zero migration/determinism exit, got {}",
+            outcome.exit_code
+        );
+        assert!(
+            outcome.stderr.starts_with(E4_MIG_FAIL_PREFIX),
+            "E4: stderr does not start with migration-failed prefix.\n  expected prefix: {E4_MIG_FAIL_PREFIX:?}\n  actual stderr:   {:?}",
+            outcome.stderr
+        );
+        let _ = std::fs::remove_file(&bad);
+    }
+
+    // -----------------------------------------------------------------
+    // E5 INSP_FAIL (inspect-only): malformed persona-file triggers the
+    // inspect-failed marker.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn sp_e5_inspect_failure_prefix_match() {
+        let bad = malformed_persona("e5-insp");
+        let outcome = run(&[
+            "wakir-persona",
+            "inspect",
+            &bad.to_string_lossy(),
+            "--quiet",
+        ]);
+        assert_eq!(outcome.exit_code, EXIT_INSPECT_FAILED);
+        assert!(
+            outcome.stderr.starts_with(E5_INSP_FAIL_PREFIX),
+            "E5: stderr does not start with inspect-failed prefix.\n  expected prefix: {E5_INSP_FAIL_PREFIX:?}\n  actual stderr:   {:?}",
+            outcome.stderr
+        );
+        let _ = std::fs::remove_file(&bad);
+    }
+
+    // -----------------------------------------------------------------
+    // E6 PIN_FAIL (pin-only): malformed persona-file triggers the
+    // pin-failed marker.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn sp_e6_pin_failure_prefix_match() {
+        let bad = malformed_persona("e6-pin");
+        let outcome = run(&["wakir-persona", "pin", &bad.to_string_lossy(), "--quiet"]);
+        assert_eq!(outcome.exit_code, EXIT_PIN_FAILED);
+        assert!(
+            outcome.stderr.starts_with(E6_PIN_FAIL_PREFIX),
+            "E6: stderr does not start with pin-failed prefix.\n  expected prefix: {E6_PIN_FAIL_PREFIX:?}\n  actual stderr:   {:?}",
+            outcome.stderr
+        );
+        let _ = std::fs::remove_file(&bad);
     }
 }

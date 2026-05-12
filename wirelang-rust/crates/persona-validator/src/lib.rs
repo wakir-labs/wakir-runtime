@@ -120,7 +120,7 @@ pub enum ValidationErrorCode {
     /// sub-key (`cross_review_zones`, `authority`, `hierarchy`).
     IdentityPinnedMissingKey,
     /// `schema_version` is present but is not in
-    /// [`ACCEPTED_SCHEMA_VERSIONS`].
+    /// `ACCEPTED_SCHEMA_VERSIONS`.
     SchemaVersionUnsupported,
     /// `tools` is present but is neither a list nor a string.
     ToolsWrongType,
@@ -176,7 +176,7 @@ pub struct ValidationReport {
     /// Declared `schema_version` from the front-matter, or `""` if no
     /// front-matter could be parsed.
     pub schema_version: String,
-    /// True iff `schema_version` is in [`ACCEPTED_SCHEMA_VERSIONS`].
+    /// True iff `schema_version` is in `ACCEPTED_SCHEMA_VERSIONS`.
     pub schema_supported: bool,
     /// Ordered list of validation-failure records. Empty when
     /// `is_valid == true`.
