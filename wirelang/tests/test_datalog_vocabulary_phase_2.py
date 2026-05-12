@@ -176,8 +176,12 @@ def datalog_caveat_validator_v02():
     with SCHEMA_PATH.open("r", encoding="utf-8") as fh:
         schema = json.load(fh)
     _Draft202012Validator.check_schema(schema)
-    # Sanity: this test module assumes v0.2.0 schema.
-    assert schema["$id"].endswith("/0.2.0"), schema["$id"]
+    # Sanity: this test module assumes v0.2.1 schema (post-ADR-0052
+    # Class-P-Promotion of `caveat_hash`; Sprint-6 Tag-8 ratification).
+    # Pre-ADR-0052 the assertion pinned ``/0.2.0``; the promotion bump
+    # is additive and is exercised by the dedicated T-V0.2.1-* probes
+    # below.
+    assert schema["$id"].endswith("/0.2.1"), schema["$id"]
     return _Draft202012Validator(schema)
 
 
@@ -221,24 +225,144 @@ def test_t_v02_03_schema_rejects_class_r_predicates(
         assert errors, f"Class R predicate accidentally admitted: {c!r}"
 
 
-def test_t_v02_04_schema_rejects_class_p_predicates(
+def test_t_v02_04_schema_rejects_residual_class_p_predicates(
     datalog_caveat_validator_v02,
 ) -> None:
-    """T-V0.2-04 — Class P (patch-eligible-not-ratified) is not admitted.
+    """T-V0.2-04 — residual Class P (not-yet-promoted) is not admitted.
 
-    `persona_pin` and `caveat_hash` are reserved-but-not-promoted in
-    v0.2; the schema MUST reject them. Promotion is its own
-    ratification event.
+    After the v0.2.1 ADR-0052 promotion of `caveat_hash`, `persona_pin`
+    is the only remaining Class-P predicate; the schema MUST still
+    reject it. Promotion of `persona_pin` is its own future
+    ratification event (no ADR yet).
+
+    Pre-ADR-0052 this test rejected both `persona_pin` AND
+    `caveat_hash`; the latter is now admitted by the v0.2.1 schema
+    and is exercised positively by T-V0.2.1-01 below.
     """
     class_p_samples = [
         'persona_pin("4f9c8a3b1e7d2c0a")',
-        'caveat_hash("c1b2d3e4f5061728")',
     ]
     for c in class_p_samples:
         errors = list(
             datalog_caveat_validator_v02.iter_errors([c])
         )
-        assert errors, f"Class P predicate accidentally admitted: {c!r}"
+        assert errors, f"Residual Class P predicate accidentally admitted: {c!r}"
+
+
+# ---------------------------------------------------------------------------
+# v0.2.1 ADR-0052 Class-P-Promotion schema-admission probes
+# ---------------------------------------------------------------------------
+#
+# ADR-0052 (approved 2026-05-12) promotes `caveat_hash(self_hash)` from
+# Class P (patch-eligible) to Class N1 via a v0.2.0 → v0.2.1 schema
+# patch. The promotion is additive: existing v0.2.0 caveats still
+# validate; v0.2.1 additionally admits the fixed-shape
+# `caveat_hash("<64-hex>")` literal. The verifier-side recompute
+# algorithm is specified in
+# `datalog-caveat-vocabulary-phase-2.md` §7 and is exercised by
+# `test_caveat_hash_promotion_substrate.py` (T-CHP-01..06).
+
+
+def test_t_v021_01_schema_admits_caveat_hash_with_lowercase_hex(
+    datalog_caveat_validator_v02,
+) -> None:
+    """T-V0.2.1-01 — v0.2.1 admits `caveat_hash("<64-lower-hex>")`."""
+    lower_hex = "a" * 64
+    datalog_caveat_validator_v02.validate([
+        f'caveat_hash("{lower_hex}")',
+    ])
+
+
+def test_t_v021_02_schema_rejects_caveat_hash_with_uppercase_hex(
+    datalog_caveat_validator_v02,
+) -> None:
+    """T-V0.2.1-02 — v0.2.1 rejects upper-case hex (lower-case only).
+
+    The dedicated pattern arm pins ``[0-9a-f]`` so a producer cannot
+    smuggle a mixed-case or upper-case hex literal past the schema.
+    Lower-case hex is the canonical pre-image form computed by
+    :func:`canonical_caveat_set_hash` (returning :class:`bytes`,
+    rendered via ``.hex()`` which is lower-case in Python).
+    """
+    upper_hex = "A" * 64
+    errors = list(
+        datalog_caveat_validator_v02.iter_errors([
+            f'caveat_hash("{upper_hex}")',
+        ])
+    )
+    assert errors, "Upper-case hex accidentally admitted"
+
+
+def test_t_v021_03_schema_rejects_caveat_hash_with_wrong_length(
+    datalog_caveat_validator_v02,
+) -> None:
+    """T-V0.2.1-03 — v0.2.1 rejects hex literals shorter or longer than 64."""
+    bad_samples = [
+        'caveat_hash("abc")',
+        'caveat_hash("' + "a" * 63 + '")',
+        'caveat_hash("' + "a" * 65 + '")',
+    ]
+    for c in bad_samples:
+        errors = list(datalog_caveat_validator_v02.iter_errors([c]))
+        assert errors, f"Bad-length caveat_hash literal admitted: {c!r}"
+
+
+def test_t_v021_04_schema_rejects_caveat_hash_with_unquoted_arg(
+    datalog_caveat_validator_v02,
+) -> None:
+    """T-V0.2.1-04 — v0.2.1 rejects bare-variable or unquoted argument.
+
+    The promotion pattern arm pins the argument to a quoted hex
+    literal; a producer emitting ``caveat_hash($h)`` or
+    ``caveat_hash(deadbeef…)`` (no quotes) fails the schema. This
+    protects the verifier-side recompute from variable-substitution
+    smuggling attacks.
+    """
+    bad_samples = [
+        'caveat_hash($h)',
+        'caveat_hash(' + "a" * 64 + ')',
+    ]
+    for c in bad_samples:
+        errors = list(datalog_caveat_validator_v02.iter_errors([c]))
+        assert errors, f"Unquoted caveat_hash argument admitted: {c!r}"
+
+
+def test_t_v021_05_schema_admission_is_additive_over_v020(
+    datalog_caveat_validator_v02,
+) -> None:
+    """T-V0.2.1-05 — every v0.2.0 caveat shape still validates on v0.2.1.
+
+    Additivity check: the 22 N1∪N2 predicate forms that were
+    schema-admitted on v0.2.0 remain admitted on v0.2.1. The
+    promotion of `caveat_hash` is a strict superset of the v0.2.0
+    admission surface.
+    """
+    n1_n2_samples = [
+        'action("read")',
+        'env("prod")',
+        'time($t), $t < 2026-12-31T23:59:59Z',
+        'audience("role=consumer-A")',
+        'operation("read")',
+        'action_count_max(10)',
+        'read_only(true)',
+        'attests("4f9c8a3b")',
+        'wat_anchor("manifest-id-x")',
+        'rate_limit(100)',
+        'agent_did("aip:web:wakir.dev/personas/cfo")',
+        'parent_token("token-id")',
+        'nonce("9f2b1c4a7d8e3f60a1b2c3d4e5f60718")',
+        'spawn_counter_max(5)',
+        'attenuation_depth_max(3)',
+        'tee_required(true)',
+        'allowed_methods("GET, POST")',
+        'geo_region("eu-central")',
+        'not_before(2026-05-01T00:00:00Z)',
+        'not_after(2027-05-01T00:00:00Z)',
+        'peer_org("aip:web:partner-a/personas/treasury-issuer")',
+        'federation_route("wakir->partner-a->treasury")',
+    ]
+    for c in n1_n2_samples:
+        datalog_caveat_validator_v02.validate([c])
 
 
 # ---------------------------------------------------------------------------

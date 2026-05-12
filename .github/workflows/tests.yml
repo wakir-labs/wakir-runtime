@@ -31,6 +31,11 @@
 #     `peer_org` / `federation_route` are jsonschema-gated by design;
 #     §6.3 re-baseline list item 1 in
 #     wirelang/specs/datalog-caveat-vocabulary-phase-2.md.
+#   - Phase-2 Sprint-6 Tag-8 (ADR-0052 Class-P promotion of
+#     `caveat_hash`): five new schema-admission probes
+#     (T-V0.2.1-01..05) land jsonschema-gated;
+#     EXPECTED_DELTA re-baselined 149 → 154 per §6.3 re-baseline
+#     list item 1.
 # We allow ±5 tests of slack to absorb routine churn (a single new
 # test module added under one lane only, or a single fixture-driven
 # parametrise expansion). Anything outside that envelope means either
@@ -241,6 +246,15 @@ jobs:
         #   datalog-caveat-vocabulary-phase-2.md, item 1: vocabulary
         #   addition `peer_org` / `federation_route` triggered the
         #   schema-admission test additions).
+        # - Phase-2 Sprint-6 Tag-8: ADR-0052 Class-P promotion of
+        #   `caveat_hash` lands five new jsonschema-gated probes in
+        #   test_datalog_vocabulary_phase_2.py (T-V0.2.1-01..05);
+        #   the five new ratification probes in
+        #   test_caveat_hash_promotion_substrate.py (T-CHP-07..11)
+        #   are regex-based and run in BOTH lanes (no drift impact).
+        #   Re-baselined to 154 here per §6.3 re-baseline list item
+        #   1 (vocabulary addition triggers schema-admission test
+        #   additions).
         # Tolerance ±5 absorbs routine churn going forward.
         # If the observed delta drifts outside the envelope, fail
         # loud — either a test was silently re-classified across the
@@ -249,7 +263,7 @@ jobs:
         env:
           PRODUCTION_COUNT: ${{ needs.production-suite.outputs.collected }}
           SANDBOX_COUNT: ${{ needs.sandbox-suite-shadow.outputs.collected }}
-          EXPECTED_DELTA: '149'
+          EXPECTED_DELTA: '154'
           DELTA_TOLERANCE: '5'
         run: |
           python - <<'PY'

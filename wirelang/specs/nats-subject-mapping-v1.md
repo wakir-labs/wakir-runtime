@@ -280,7 +280,7 @@ that carries an AIP-Frame envelope binds — via the CloudEvents
 |---|---|---|
 | `aip.document.*` | `https://wakir.dev/wirelang/schema/aip-document/0.1.0` | `aip-document.json` |
 | `cap.token.*` | `https://wakir.dev/wirelang/schema/layer-3-capability-token/0.1.0` | `layer-3-capability-token.json` |
-| `cap.token.*` (caveat-set body) | `https://wakir.dev/wirelang/schema/datalog-caveat/0.2.0` | `datalog-caveat.json` |
+| `cap.token.*` (caveat-set body) | `https://wakir.dev/wirelang/schema/datalog-caveat/0.2.1` | `datalog-caveat.json` |
 | `federation.ftd.*` | `https://wakir.dev/wirelang/schema/federation-trust-document/0.1.0` | `federation-trust-document.json` |
 | `*.*.*` (Layer-1 frame envelope) | `https://wakir.dev/wirelang/schema/layer-1-wire/0.1.0` | `layer-1-wire.json` |
 | `*.*.*` (Layer-2 semantic) | `https://wakir.dev/wirelang/schema/layer-2-semantic/0.1.0` | `layer-2-semantic.json` |

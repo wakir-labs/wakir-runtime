@@ -9,13 +9,21 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wakir-datalog-caveat-vocabulary
-version: 0.2.0
+version: 0.2.1
 status: ratified
 phase: 1b-production
 supersedes: datalog-caveat-vocabulary-phase-2-skizze.md (sketch)
 companion-to: datalog-caveat-vocabulary.md (v0.1, normative Phase-1a)
-date: 2026-05-07
+date: 2026-05-12
 license: CC-BY-4.0
+patch-history:
+  - version: 0.2.0
+    date: 2026-05-07
+    note: initial ratification (Phase-2 sketch supersession)
+  - version: 0.2.1
+    date: 2026-05-12
+    note: ADR-0052 Class-P promotion of `caveat_hash` to N1; §3.4
+      patched, §6.7 added, §7 tabular summary updated
 ---
 
 # Wakir Datalog Caveat Vocabulary — Phase-2 (v0.2 ratified)
@@ -57,6 +65,12 @@ becomes invalid under Phase-2.
 - The TV-W-2 pin-stability guarantee (§6): which producer changes
   may trigger a re-baseline of TV-W-2 verification-trace fixtures,
   and which may not.
+- **v0.2.1 patch (ADR-0052, Sprint-6 Tag-8 2026-05-12):** Class-P
+  promotion of `caveat_hash(self_hash)` to Class N1 with a
+  dedicated schema-pattern arm and a ratified verifier behaviour
+  (§6.7). The promotion is strictly additive (every v0.2.0 caveat
+  validates on v0.2.1) and TV-W-2-pin-stability-preserving (the
+  augment-with-self-reference invariant from §6.7.5).
 
 **Out of scope.**
 
@@ -152,74 +166,85 @@ verifiers MUST fail-closed on these predicates.
 ### 3.4 Class P — Phase-2 patch-eligible (no new substrate)
 
 Predicates that need no new infrastructure and could be promoted
-to N1 in a v0.1.x patch release. Listed here so implementers can
-distinguish "blocked by substrate" from "blocked by ADR".
+to N1 in a v0.1.x or v0.2.x patch release. Listed here so
+implementers can distinguish "blocked by substrate" from "blocked
+by ADR".
 
 | Predicate | Status | Promotion path |
 |---|---|---|
 | `persona_pin(pin_hash)` | reserved | v0.1.x patch on Wirelang Layer-1-attribute spec |
-| `caveat_hash(self_hash)` | **ADR-0052 approved (Option B); promotion pending Tag-8 / Sprint-7 implementation** | v0.2.1 schema-patch on JCS canonicalisation policy; see §3.4-N1-promotion-pending-slot below |
+| `caveat_hash(self_hash)` | **promoted to N1 in v0.2.1 (ADR-0052 approved 2026-05-12, landed Sprint-6 Tag-8 2026-05-12)** | landed — see §3.4-N1-promoted-slot below and §6.7 |
 
-Both Class-P predicates are out-of-band candidates: ratification
-requires only a clarifying ADR on the verifier behaviour, no
-infrastructure rollout.
+The residual Class-P predicate `persona_pin` is an out-of-band
+candidate: ratification requires only a clarifying ADR on the
+verifier behaviour, no infrastructure rollout.
 
-> **TODO(reza-tag-8-or-sprint-7): §3.4-N1-promotion-pending-slot
-> for `caveat_hash`.**
->
-> ADR-0052 (approved 2026-05-12) ratifies Option B: schema-patch
-> bump `datalog-caveat/0.2.0 → 0.2.1` + §3.4-N1-entry-pending
-> promotion. Implementation pending in a Tag-8 box or Sprint-7
-> Wirelang-Foundation slot per Mira-Trigger
-> `reza/inbox/2026-05-12-mira-adr-0052-class-p-promotion-implementation-trigger.md`.
->
-> Implementation pre-work in this Tag-7 box (skizze only, no
-> schema bump yet):
->
-> - **Algorithm definition.** The `caveat_hash(self_hash)`
->   predicate carries the SHA-256 of `canonical(C \ {c_h})` where
->   `c_h` is the literal caveat that asserts the hash itself and
->   `canonical` is the §4-CSC canonicalisation. Self-reference
->   exclusion is the §3-Algorithmus core invariant ("the hash
->   excludes itself from the input"); this prevents the
->   self-referential fixpoint problem and keeps the hash
->   deterministic for any caveat-set that contains a single
->   `caveat_hash` predicate.
-> - **TV-W-2 byte-stability.** Pin-Pack-Hash
->   `ddf11545…d7532` (TV-W-2-Pin-Pack-Hash on the wirelang-side
->   TV-W test vector pack) MUST verify byte-stably after the
->   §3-Algorithmus is implemented. Substance: the
->   `caveat_hash`-exclusion-from-Recompute rule was the
->   substance-vorlage anchor in Reza's ADR-0052 vorlage.
-> - **Test slot.** T-CHP-06 (Pin-Stability-Beleg) lands in
->   `wirelang/tests/test_caveat_hash_promotion_substrate.py`
->   (NEW; Tag-8 / Sprint-7 implementation). Tests assert:
->   (1) `caveat_hash` predicate emitted in a token verifies on
->   the v0.2.1 verifier; (2) self-reference exclusion preserves
->   TV-W-2-Pin-Pack-Hash byte-stably; (3) v0.2.0 producers MUST
->   NOT emit `caveat_hash` (§3.5 reservation still in force for
->   v0.2.0 — the promotion takes effect at v0.2.1); (4)
->   forward-compat: a v0.2.0 verifier encountering a v0.2.1
->   token carrying `caveat_hash` fails-closed per §3.5.
-> - **Schema bump.** `wirelang/schemas/datalog-caveat.json`
->   `version: 0.2.0` → `0.2.1`; additive only (new predicate
->   admitted in the predicate-name allowlist, no other schema
->   change). The Phase-2 forward-compat policy (§2) covers the
->   v0.2.0 → v0.2.1 patch hop without breaking v0.1 consumers.
-> - **§3.4 row update.** This row gets re-classified from
->   "reserved" to "N1 (Phase-2-Patch-Promoted)" with the
->   v0.2.1 ratification date and a cross-reference to ADR-0052
->   and to T-CHP-06.
->
-> The promotion is `not` ratified by the current document
-> (v0.2.0); the §3.4 row currently lists ADR-0052 status as
-> approved-implementation-pending. The Tag-8 / Sprint-7 box will
-> bump the spec version, land the implementation, and consume
-> this TODO slot.
+**§3.4-N1-promoted-slot for `caveat_hash` (v0.2.1 ratified, ADR-0052
+landed Sprint-6 Tag-8 2026-05-12).**
 
-They are **not** ratified by this document (v0.2.0). See
-§3.4-N1-promotion-pending-slot above for the in-flight ADR-0052
-promotion path.
+ADR-0052 (`decisions/0052-class-p-promotion-caveat-hash.md`,
+approved 2026-05-12 by the Aufsichtsrat on Option B) ratifies the
+v0.2.0 → v0.2.1 schema patch promoting `caveat_hash(self_hash)`
+from Class P (reserved-patch-eligible) to Class N1
+(normative-now). The Sprint-6 Tag-8 implementation landed the
+following:
+
+1. **Algorithm definition (ratified).** The `caveat_hash(self_hash)`
+   predicate carries the lower-case-hex SHA-256 of
+   `canonical(C \ {c_h})` where `c_h` is the literal caveat that
+   asserts the hash itself and `canonical` is the §4-CSC
+   canonicalisation. Self-reference exclusion is the
+   algorithm's core invariant ("the hash excludes itself from
+   the input"); this prevents the self-referential fixpoint
+   problem and keeps the hash deterministic for any caveat-set
+   that contains at most one `caveat_hash` predicate. Verifier
+   behaviour for 0 / 1 / ≥ 2 occurrences is specified in §6.7.
+2. **TV-W-2 byte-stability (verified).** Pin-Pack-Hash
+   `ddf11545…d7532` (TV-W-2-Pin-Pack-Hash on the wirelang-side
+   TV-W test vector pack) verifies byte-stably after the
+   promotion. The recompute algorithm excludes `caveat_hash`
+   from the input set, so the per-block `caveat_set_hashes`
+   pinned in the TV-W-2 golden fixture remain byte-identical.
+   Test T-CHP-07 (in
+   `wirelang/tests/test_caveat_hash_promotion_substrate.py`)
+   pins the golden hash explicitly; T-CHP-08 pins the
+   augment-with-self-reference invariant against the three
+   TV-W-2 block-caveat shapes.
+3. **Schema bump (landed).** `wirelang/schemas/datalog-caveat.json`
+   `$id` bumped from `datalog-caveat/0.2.0` to
+   `datalog-caveat/0.2.1`; pattern is additive — a dedicated
+   alternation arm
+   (`^\s*caveat_hash\(\s*"[0-9a-f]{64}"\s*\)\s*$`) admits the
+   canonical literal shape only (lower-case hex, exactly 64
+   chars, double-quoted). The first alternation arm
+   (the 22 N1∪N2 predicates) is byte-unchanged from v0.2.0; the
+   Phase-2 forward-compat policy (§2) covers the v0.2.0 →
+   v0.2.1 patch hop without breaking v0.1 consumers.
+4. **§3.5 alias reservation preserved.** The §3.5 list of
+   reserved aliases (`zk_valid`, `zk_score`, `org_peer`, `route`,
+   `persona`, `attested_after`, `wat_proof`,
+   `caveat_self_hash`) is unchanged. The v0.2.1 promotion lands
+   the canonical name `caveat_hash` only; `caveat_self_hash`
+   remains reserved-and-unadmitted (T-CHP-10 pins this).
+5. **Test inventory (landed).** Tag-8 adds five ratification
+   probes in
+   `wirelang/tests/test_caveat_hash_promotion_substrate.py`
+   (T-CHP-07..11) on top of the seven Tag-2 substrate probes
+   (T-CHP-01..06 + aux); plus five v0.2.1 schema-admission
+   probes in
+   `wirelang/tests/test_datalog_vocabulary_phase_2.py`
+   (T-V0.2.1-01..05). The existing T-V0.2-04 is reclassified
+   from "Class P (persona_pin + caveat_hash)" to "residual
+   Class P (persona_pin only)" since `caveat_hash` is now
+   schema-admitted on v0.2.1.
+
+The promotion is **strictly additive**: every v0.2.0 caveat
+shape still validates against the v0.2.1 schema (T-V0.2.1-05
+pins this), v0.1.x producers and verifiers are unaffected
+(they are forward-compat-incompatible with both v0.2.0 and
+v0.2.1 per §2), and TV-W-2 fixture re-baselining is not
+required (the augment-with-self-reference invariant in §6.7 is
+designed precisely to avoid that).
 
 ### 3.5 Reservation extends to obvious aliases
 
@@ -437,13 +462,24 @@ v0.1.0 → v0.2.0; v0.1.0 schema consumers continue to validate
 v0.1 caveats against v0.1 schema, and v0.2.0 schema consumers
 admit both v0.1 and v0.2 caveats.
 
+**v0.2.1 patch update (ADR-0052, Sprint-6 Tag-8).** A second
+alternation arm has been added to the items.pattern admitting the
+canonical literal shape `caveat_hash("<64-lower-hex>")`. The arm
+is dedicated rather than folded into the predicate-name list
+because the argument must be pinned to an exact regex
+(`[0-9a-f]{64}` quoted literal) — a producer cannot emit a
+variable or a non-canonical hex shape past the schema. The first
+arm (22 N1∪N2 predicates) is byte-unchanged. See §6.7 for the
+ratified verifier behaviour.
+
 The schema does NOT yet admit Class R reserved predicates (§3.3)
-or Class P patch-eligible predicates (§3.4); they are reserved at
-the vocabulary level (verifier fail-closed) but not admitted at
-the schema level. This is intentional: reserving names without
-schema-admission means a producer that accidentally emits a
-reserved predicate fails immediately at JCS-validation time, not
-later at Datalog-evaluation time.
+or the residual Class P patch-eligible predicate `persona_pin`
+(§3.4); they are reserved at the vocabulary level (verifier
+fail-closed) but not admitted at the schema level. This is
+intentional: reserving names without schema-admission means a
+producer that accidentally emits a reserved predicate fails
+immediately at JCS-validation time, not later at
+Datalog-evaluation time.
 
 ### 5.5 Phase-1b N2 evaluator implementation note (informative)
 
@@ -864,6 +900,147 @@ The drift envelope from Phase-1b Tag-12 (`production - sandbox =
 module bumps `EXPECTED_DELTA` per Tag-12 protocol; the workflow-
 PR re-baseline is the ratification event.
 
+### 6.6 Phase-1b N3 chain-walker note (re-anchored from §5.7)
+
+Reserved subsection number to keep §5.7's chain-walker
+implementation note distinct from the §6.7 ratification of the
+v0.2.1 self-reference predicate. No content here; see §5.7.
+
+### 6.7 v0.2.1 Self-Reference Predicate Verification (ADR-0052)
+
+ADR-0052 (decision date 2026-05-12, Aufsichtsrat ratified Option B
+on Mira-Empfehlung) promotes `caveat_hash(self_hash)` from
+Class P (§3.4) to Class N1 via the v0.2.0 → v0.2.1 schema patch.
+This subsection ratifies the verifier behaviour. Implementation
+landed in Sprint-6 Tag-8 (2026-05-12); test inventory is
+T-CHP-01..11 in
+`wirelang/tests/test_caveat_hash_promotion_substrate.py` and
+T-V0.2.1-01..05 in
+`wirelang/tests/test_datalog_vocabulary_phase_2.py`.
+
+#### 6.7.1 Wire form
+
+A v0.2.1-conformant caveat MAY include at most one occurrence of
+the predicate
+
+```
+caveat_hash("<64-lower-hex>")
+```
+
+The argument is a JSON-string-quoted 64-character lower-case
+hexadecimal literal. The schema (`datalog-caveat.json` v0.2.1)
+admits this literal shape exclusively via a dedicated pattern
+arm; variable arguments (`$h`), upper-case hex,
+non-hex-content, or wrong-length literals are rejected at
+schema-validation time. The dedicated arm tolerates leading and
+trailing ASCII whitespace inside the caveat string (so a producer
+that emits a cosmetically-indented caveat still validates); the
+inner shape is otherwise rigid.
+
+#### 6.7.2 Recompute algorithm
+
+For a caveat-set `C` from an authority block or an append block,
+a v0.2.1 verifier evaluates `caveat_hash` as follows:
+
+1. **Strip step.** Partition `C` into `(remaining, declared)`
+   where `declared` is the (zero, one, or many) caveat strings
+   matching the `caveat_hash("<64-lower-hex>")` regex and
+   `remaining` is every other caveat. Strip is regex-based on
+   the raw caveat strings; it does NOT depend on §4-CSC.
+2. **Cardinality gate.**
+   - If `|declared| == 0`: the token is unconstrained by
+     self-reference. Continue evaluation of `remaining` per the
+     remaining predicates' semantics. Return *accept-or-defer*.
+   - If `|declared| == 1`: extract the single declared hash
+     `h_decl = bytes.fromhex(<inner-hex-literal>)` and proceed
+     to step 3.
+   - If `|declared| >= 2`: **fail-closed** with reason
+     `caveat-hash-multiple-self-reference`. This is the
+     split-attack guard from ADR-0052 §4.2 — multiple
+     self-references either contradict each other or
+     deliberately attempt to confuse the recompute target.
+3. **Recompute step.** Compute
+   `h_exp = canonical_caveat_set_hash(remaining)` per §4-CSC
+   (`canonical(C) = JCS(sort(dedup(normalise(C))))`, SHA-256 of
+   the JCS bytes). The self-reference predicate is NOT included
+   in the input to §4-CSC; this is the load-bearing invariant
+   that preserves TV-W-2 pin-stability (§6.4 third bullet,
+   T-CHP-06, T-CHP-08).
+4. **Comparison.** If `h_decl == h_exp` (byte-equal),
+   self-reference verifies. Otherwise fail-closed with reason
+   `caveat-hash-mismatch`.
+
+The reference implementation is the `verify_caveat_hash_self_reference`
+helper in
+`wirelang/tests/test_caveat_hash_promotion_substrate.py` (lines
+~72–89). A Phase-1b production-side module
+`wirelang/canonical/self_reference.py` is reserved as the next
+implementation slot once a runtime token-evaluator consumes the
+predicate; the test-side helper carries the canonical algorithm
+until then.
+
+#### 6.7.3 Forward-compat with v0.2.0 verifiers
+
+Per §2 (fail-closed on unknown predicates), a v0.2.0 verifier
+encountering a v0.2.1 token that carries `caveat_hash(...)`
+rejects the token. This is correct fail-closed behaviour: a
+v0.2.0 verifier has no recompute algorithm and MUST NOT silently
+ignore the constraint. Lockstep upgrade applies per §2: producers
+emit `caveat_hash` only against verifiers that advertise
+`vocabulary_version >= 0.2.1` (or equivalent capability
+advertisement in the AIP document).
+
+#### 6.7.4 Backward-compat invariant
+
+Every v0.2.0 caveat-set is also a v0.2.1 caveat-set. The §4-CSC
+canonical hash of any v0.2.0 caveat-set is byte-identical to the
+v0.2.1 canonical hash of the same caveat-set (no `caveat_hash`
+predicate present → step 1 leaves the set untouched → §4-CSC
+operates on the same input bytes). Test T-V0.2.1-05 pins
+strictly-additive admission across the full v0.2.0 N1∪N2 surface;
+T-CHP-08 pins augment-with-self-reference invariance against the
+three TV-W-2 block-caveat shapes.
+
+#### 6.7.5 Why algorithm-self-reference exclusion is the load-bearing contract
+
+ADR-0052's §3-Algorithmus-core-invariant is *not* an optimisation
+or a convenience — it is the only definition that keeps the hash
+deterministic. A naive algorithm "hash over the full caveat-set
+including the `caveat_hash` predicate itself" is a fixed-point
+equation: the hash depends on the hash. No producer can solve it
+in one pass; verifiers would have to either reject the predicate
+or accept a brute-forced near-collision. By excluding the
+predicate from the recompute input, the algorithm becomes a
+single-pass deterministic check, the hash is computable in
+linear time over `remaining`, and the §4-CSC sort/dedup steps
+guarantee producer-emission-order independence.
+
+The exclusion contract is the same contract that preserves the
+TV-W-2 pin-stability (§6.4): a producer emitting a v0.2.1 token
+that augments a TV-W-2-shaped caveat-set with the canonical
+self-reference does NOT shift the per-block `caveat_set_hashes`
+pinned in the TV-W-2 golden fixture. T-CHP-08 pins this
+explicitly against the three TV-W-2 blocks; T-CHP-07 pins the
+top-level `pin_pack_sha256` byte-equal to ADR-0052's substance
+vorlage `ddf11545…d7532`.
+
+#### 6.7.6 Drift surface impact
+
+The Tag-8 implementation does NOT shift the
+production-vs-sandbox `EXPECTED_DELTA` envelope past tolerance.
+The five new Phase-B substrate-promotion probes (T-CHP-07..11)
+land in `test_caveat_hash_promotion_substrate.py` which does NOT
+gate on `jsonschema` (it operates on regex against the schema
+pattern directly) — they run in BOTH production and sandbox
+lanes. The five new schema-admission probes (T-V0.2.1-01..05)
+land in `test_datalog_vocabulary_phase_2.py` which DOES gate on
+`jsonschema` — they run in production lane only and contribute
++5 to the delta. Tag-15 baseline `EXPECTED_DELTA=149` becomes 154
+post-Tag-8 (drift 5 = tolerance 5, at-edge). The `tests.yml`
+EXPECTED_DELTA is re-baselined in this commit; the §6.3
+re-baseline-list item 1 (vocabulary additions) is the relevant
+re-baseline trigger.
+
 ## 7. Tabular ratification summary
 
 | Predicate | Class | Phase | Schema admit | Evaluator status |
@@ -897,10 +1074,12 @@ PR re-baseline is the ratification event.
 | `persona_attested_after` | R | 2 | no | reserved |
 | `wat_inclusion_proof_valid` | R | 2 | no | reserved |
 | `persona_pin` | P | 1a-patch (deferred) | no | reserved |
-| `caveat_hash` | P | 1a-patch (deferred) | no | reserved |
+| `caveat_hash` | N1 | 1b (NEW v0.2.1, ADR-0052) | yes (NEW v0.2.1) | self-reference recompute per §6.7 |
 
-Counts: N1 = 18, N2 = 4 (2 from Phase-1b, 2 NEW in v0.2), R = 6,
-P = 2, total = 30 names registered. Schema-admitted = N1 ∪ N2 = 22.
+Counts (post-v0.2.1): N1 = 19 (18 Phase-1a + 1 v0.2.1 promotion),
+N2 = 4 (2 from Phase-1b, 2 from v0.2), R = 6, P = 1
+(`persona_pin` residual), total = 30 names registered.
+Schema-admitted = N1 ∪ N2 = 23.
 
 ## 8. Implementation hooks
 

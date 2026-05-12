@@ -426,6 +426,11 @@ def test_t_sr_aux_key_derivation_round_trip():
         ("identity", "aip-document", "0.1.0"),
         ("wire", "layer-3-capability-token", "0.1.0"),
         ("federation", "datalog-caveat", "0.2.0"),
+        # ADR-0052 v0.2.1 patch coexists with v0.2.0 in the registry
+        # key-space (the registry tracks every version, not just the
+        # newest); the round-trip MUST stay bijective for the patch
+        # version too.
+        ("federation", "datalog-caveat", "0.2.1"),
     ]
     for layer, name, version in cases:
         key = key_for_triple(layer, name, version)
