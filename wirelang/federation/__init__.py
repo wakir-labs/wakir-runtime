@@ -41,6 +41,17 @@ cross-org-boundary-violation). Consumes
 the Sprint-6 Tag-1
 :class:`~wirelang.schemas.registered_by_capability.CapabilityPolicyRegistry`.
 
+Phase-2 Sprint-7 Tag-5 adds the **UnrevokeAuditMarker cross-org
+export-surface** sub-module
+(``unrevoke_audit_marker_cross_org_export.py``) — the
+Pseudonymisierung-Pattern-per-ADR-0031-D4 boundary between the
+Sprint-6 Tag-9 :class:`UnrevokeAuditMarker` (internal audit-trail
+artefact) and any cross-org publication. The exporter strips raw
+operator narrative, categorises the operator gesture via a
+pluggable :class:`UnrevokeReasonClassifier`, and produces a
+route-scoped BLAKE2b-256 ``marker_id`` suitable for WAT-Audit-
+Federation-Annex leaf-anchoring.
+
 Public surface:
 
 - :class:`wirelang.federation.n2_evaluator.FederationContext`
@@ -65,6 +76,9 @@ Public surface:
 - :class:`wirelang.federation.capability_attenuation_chain_verifier.AttenuationLink`
 - :class:`wirelang.federation.capability_attenuation_chain_verifier.VerifiedAttenuationChain`
 - :class:`wirelang.federation.capability_attenuation_chain_verifier.ResolvedAttenuationLink`
+- :class:`wirelang.federation.unrevoke_audit_marker_cross_org_export.UnrevokeAuditMarkerCrossOrgExporter`
+- :class:`wirelang.federation.unrevoke_audit_marker_cross_org_export.ExportedUnrevokeAuditMarker`
+- :class:`wirelang.federation.unrevoke_audit_marker_cross_org_export.UnrevokeReasonClass`
 """
 
 from .spiffe_cross_trust_domain_bridge import (  # noqa: F401
@@ -96,6 +110,17 @@ from .capability_attenuation_chain_verifier import (  # noqa: F401
     StaleAttenuationReplayError,
     VerifiedAttenuationChain,
 )
+from .unrevoke_audit_marker_cross_org_export import (  # noqa: F401
+    DEFAULT_CLASSIFIER,
+    EXPORT_SCHEMA,
+    ExportedUnrevokeAuditMarker,
+    RawNarrativeLeakError,
+    UnrevokeAuditMarkerCrossOrgExportError,
+    UnrevokeAuditMarkerCrossOrgExporter,
+    UnrevokeAuditMarkerShapeError,
+    UnrevokeReasonClass,
+    UnrevokeReasonClassifier,
+)
 
 __all__ = [
     "BRIDGE_RESOLUTION_SCHEMA",
@@ -123,4 +148,13 @@ __all__ = [
     "ResolvedAttenuationLink",
     "StaleAttenuationReplayError",
     "VerifiedAttenuationChain",
+    "DEFAULT_CLASSIFIER",
+    "EXPORT_SCHEMA",
+    "ExportedUnrevokeAuditMarker",
+    "RawNarrativeLeakError",
+    "UnrevokeAuditMarkerCrossOrgExportError",
+    "UnrevokeAuditMarkerCrossOrgExporter",
+    "UnrevokeAuditMarkerShapeError",
+    "UnrevokeReasonClass",
+    "UnrevokeReasonClassifier",
 ]
