@@ -123,12 +123,16 @@ jobs:
 
       - name: Collect test count (production lane)
         id: collect
-        # `pytest --collect-only -q` ends with a summary like
+        # `pytest --collect-only` ends with a summary like
         # "435 tests collected in 2.13s". We pull the integer for the
-        # drift-detection job below.
+        # drift-detection job below. NB: we explicitly override the
+        # repository-default `addopts = "-q"` (pyproject.toml) because
+        # adding another `-q` on the command line escalates to `-qq`,
+        # which suppresses the summary line entirely and breaks the
+        # parser below.
         run: |
-          python -m pytest wirelang/ --collect-only -q > collected.txt
-          COUNT=$(grep -E '^[0-9]+ tests? collected' collected.txt | head -1 | awk '{print $1}')
+          python -m pytest wirelang/ --collect-only --override-ini="addopts=" > collected.txt
+          COUNT=$(grep -E '[0-9]+ tests? collected' collected.txt | tail -1 | grep -oE '^[0-9]+')
           if [ -z "$COUNT" ]; then
             echo "production-ci: failed to parse collected-count" >&2
             cat collected.txt >&2
@@ -212,9 +216,12 @@ jobs:
 
       - name: Collect test count (sandbox shadow)
         id: collect
+        # See parallel comment in production-suite.collect: we override
+        # the pyproject `addopts = "-q"` to avoid escalating to `-qq`
+        # on the command line, which would suppress the summary.
         run: |
-          python -m pytest wirelang/ --collect-only -q > collected.txt
-          COUNT=$(grep -E '^[0-9]+ tests? collected' collected.txt | head -1 | awk '{print $1}')
+          python -m pytest wirelang/ --collect-only --override-ini="addopts=" > collected.txt
+          COUNT=$(grep -E '[0-9]+ tests? collected' collected.txt | tail -1 | grep -oE '^[0-9]+')
           if [ -z "$COUNT" ]; then
             echo "sandbox-shadow: failed to parse collected-count" >&2
             cat collected.txt >&2
@@ -255,6 +262,18 @@ jobs:
         #   Re-baselined to 154 here per §6.3 re-baseline list item
         #   1 (vocabulary addition triggers schema-admission test
         #   additions).
+        # - Phase-2 Sprint-7 CI-Fix (Lena, 2026-05-13): the 16
+        #   `test_persona_*.py` modules are now module-level
+        #   `pytest.importorskip("rfc8785"|"jsonschema")`-gated. They
+        #   used to silently crash collection in the sandbox lane
+        #   (the persona-package imports rfc8785 at module load
+        #   unconditionally); with the explicit guard they skip
+        #   cleanly. Persona-side delta: production 1258 collected,
+        #   sandbox 949 collected → delta 309. Re-baselined from 154
+        #   to 309. This is a one-time correction of a pre-existing
+        #   crash that was hidden behind the collect-output parse
+        #   bug; future drift over this baseline still warns at the
+        #   same ±5 tolerance.
         # Tolerance ±5 absorbs routine churn going forward.
         # If the observed delta drifts outside the envelope, fail
         # loud — either a test was silently re-classified across the
@@ -263,7 +282,7 @@ jobs:
         env:
           PRODUCTION_COUNT: ${{ needs.production-suite.outputs.collected }}
           SANDBOX_COUNT: ${{ needs.sandbox-suite-shadow.outputs.collected }}
-          EXPECTED_DELTA: '154'
+          EXPECTED_DELTA: '309'
           DELTA_TOLERANCE: '5'
         run: |
           python - <<'PY'
