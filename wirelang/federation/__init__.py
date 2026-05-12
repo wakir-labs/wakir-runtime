@@ -22,6 +22,15 @@ backend** sub-module
 CAS-pinned upsert, authority-gesture monotonic invariant,
 watch-stream + live-snapshot, and cross-bucket replication.
 
+Phase-2 Sprint-7 Tag-3 adds the **SPIFFE cross-trust-domain bridge**
+sub-module (``spiffe_cross_trust_domain_bridge.py``) — the live
+counterpart to the Tag-1 mock-bridge resolver. The bridge orchestrates
+peer trust-bundle fetch (via a pluggable
+:class:`PeerTrustBundleFetcher`), peer JWT-SVID verification (via a
+pluggable :class:`PeerSvidVerifier`), bundle-freshness enforcement,
+and optional local-workload SVID pairing. Hermetic by injection of
+Protocol fakes; live HTTPS-fetch impl is Phase-2c.
+
 Public surface:
 
 - :class:`wirelang.federation.n2_evaluator.FederationContext`
@@ -38,4 +47,38 @@ Public surface:
 - :class:`wirelang.federation.multi_org_attestation_nats_kv_backend.NatsKvMultiOrgAttestationRegistry`
 - :class:`wirelang.federation.multi_org_attestation_nats_kv_backend.LiveMultiOrgAttestationSnapshot`
 - :func:`wirelang.federation.multi_org_attestation_nats_kv_backend.bootstrap_multi_org_attestation_target_from_source`
+- :class:`wirelang.federation.spiffe_cross_trust_domain_bridge.SpiffeCrossTrustDomainBridge`
+- :class:`wirelang.federation.spiffe_cross_trust_domain_bridge.LiveBridgeResolution`
+- :class:`wirelang.federation.spiffe_cross_trust_domain_bridge.FetchedTrustBundle`
+- :class:`wirelang.federation.spiffe_cross_trust_domain_bridge.VerifiedPeerSvid`
 """
+
+from .spiffe_cross_trust_domain_bridge import (  # noqa: F401
+    BRIDGE_RESOLUTION_SCHEMA,
+    DEFAULT_BUNDLE_MAX_AGE_SECONDS,
+    FetchedTrustBundle,
+    LiveBridgeResolution,
+    PeerSvidSignatureError,
+    PeerSvidVerifier,
+    PeerTrustBundleExpiredError,
+    PeerTrustBundleFetchError,
+    PeerTrustBundleFetcher,
+    SpiffeCrossTrustDomainBridge,
+    SpiffeCrossTrustDomainBridgeError,
+    VerifiedPeerSvid,
+)
+
+__all__ = [
+    "BRIDGE_RESOLUTION_SCHEMA",
+    "DEFAULT_BUNDLE_MAX_AGE_SECONDS",
+    "FetchedTrustBundle",
+    "LiveBridgeResolution",
+    "PeerSvidSignatureError",
+    "PeerSvidVerifier",
+    "PeerTrustBundleExpiredError",
+    "PeerTrustBundleFetchError",
+    "PeerTrustBundleFetcher",
+    "SpiffeCrossTrustDomainBridge",
+    "SpiffeCrossTrustDomainBridgeError",
+    "VerifiedPeerSvid",
+]
