@@ -158,11 +158,68 @@ distinguish "blocked by substrate" from "blocked by ADR".
 | Predicate | Status | Promotion path |
 |---|---|---|
 | `persona_pin(pin_hash)` | reserved | v0.1.x patch on Wirelang Layer-1-attribute spec |
-| `caveat_hash(self_hash)` | reserved | v0.1.x patch on JCS canonicalisation policy |
+| `caveat_hash(self_hash)` | **ADR-0052 approved (Option B); promotion pending Tag-8 / Sprint-7 implementation** | v0.2.1 schema-patch on JCS canonicalisation policy; see §3.4-N1-promotion-pending-slot below |
 
 Both Class-P predicates are out-of-band candidates: ratification
 requires only a clarifying ADR on the verifier behaviour, no
-infrastructure rollout. They are **not** ratified by this document.
+infrastructure rollout.
+
+> **TODO(reza-tag-8-or-sprint-7): §3.4-N1-promotion-pending-slot
+> for `caveat_hash`.**
+>
+> ADR-0052 (approved 2026-05-12) ratifies Option B: schema-patch
+> bump `datalog-caveat/0.2.0 → 0.2.1` + §3.4-N1-entry-pending
+> promotion. Implementation pending in a Tag-8 box or Sprint-7
+> Wirelang-Foundation slot per Mira-Trigger
+> `reza/inbox/2026-05-12-mira-adr-0052-class-p-promotion-implementation-trigger.md`.
+>
+> Implementation pre-work in this Tag-7 box (skizze only, no
+> schema bump yet):
+>
+> - **Algorithm definition.** The `caveat_hash(self_hash)`
+>   predicate carries the SHA-256 of `canonical(C \ {c_h})` where
+>   `c_h` is the literal caveat that asserts the hash itself and
+>   `canonical` is the §4-CSC canonicalisation. Self-reference
+>   exclusion is the §3-Algorithmus core invariant ("the hash
+>   excludes itself from the input"); this prevents the
+>   self-referential fixpoint problem and keeps the hash
+>   deterministic for any caveat-set that contains a single
+>   `caveat_hash` predicate.
+> - **TV-W-2 byte-stability.** Pin-Pack-Hash
+>   `ddf11545…d7532` (TV-W-2-Pin-Pack-Hash on the wirelang-side
+>   TV-W test vector pack) MUST verify byte-stably after the
+>   §3-Algorithmus is implemented. Substance: the
+>   `caveat_hash`-exclusion-from-Recompute rule was the
+>   substance-vorlage anchor in Reza's ADR-0052 vorlage.
+> - **Test slot.** T-CHP-06 (Pin-Stability-Beleg) lands in
+>   `wirelang/tests/test_caveat_hash_promotion_substrate.py`
+>   (NEW; Tag-8 / Sprint-7 implementation). Tests assert:
+>   (1) `caveat_hash` predicate emitted in a token verifies on
+>   the v0.2.1 verifier; (2) self-reference exclusion preserves
+>   TV-W-2-Pin-Pack-Hash byte-stably; (3) v0.2.0 producers MUST
+>   NOT emit `caveat_hash` (§3.5 reservation still in force for
+>   v0.2.0 — the promotion takes effect at v0.2.1); (4)
+>   forward-compat: a v0.2.0 verifier encountering a v0.2.1
+>   token carrying `caveat_hash` fails-closed per §3.5.
+> - **Schema bump.** `wirelang/schemas/datalog-caveat.json`
+>   `version: 0.2.0` → `0.2.1`; additive only (new predicate
+>   admitted in the predicate-name allowlist, no other schema
+>   change). The Phase-2 forward-compat policy (§2) covers the
+>   v0.2.0 → v0.2.1 patch hop without breaking v0.1 consumers.
+> - **§3.4 row update.** This row gets re-classified from
+>   "reserved" to "N1 (Phase-2-Patch-Promoted)" with the
+>   v0.2.1 ratification date and a cross-reference to ADR-0052
+>   and to T-CHP-06.
+>
+> The promotion is `not` ratified by the current document
+> (v0.2.0); the §3.4 row currently lists ADR-0052 status as
+> approved-implementation-pending. The Tag-8 / Sprint-7 box will
+> bump the spec version, land the implementation, and consume
+> this TODO slot.
+
+They are **not** ratified by this document (v0.2.0). See
+§3.4-N1-promotion-pending-slot above for the in-flight ADR-0052
+promotion path.
 
 ### 3.5 Reservation extends to obvious aliases
 

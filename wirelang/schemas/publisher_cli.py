@@ -181,6 +181,19 @@ class ExitCode(enum.IntEnum):
     #                              INPUT_ERROR so pipelines can detect
     #                              "policy never existed" vs. "operator
     #                              typo in flag".
+    UNREVOKE_TARGET_NOT_REVOKED = 10  # Sprint-6 Tag-7: unrevoke target
+    #                                   exists on the bucket but is NOT
+    #                                   currently revoked. Distinct from
+    #                                   REVOKE_TARGET_NOT_FOUND so
+    #                                   pipelines can distinguish
+    #                                   "policy never existed" from
+    #                                   "policy exists but is already
+    #                                   unrevoked" — an unrevoke against
+    #                                   an unrevoked policy is a no-op
+    #                                   surface; refusing it keeps the
+    #                                   audit trail crisp (no spurious
+    #                                   unrevoke receipts for already-
+    #                                   unrevoked policies).
 
 
 # ---------------------------------------------------------------------------
@@ -343,6 +356,115 @@ class RevokeReceipt:
 
 
 # ---------------------------------------------------------------------------
+# Unrevoke receipt shape (Sprint-6 Tag-7)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class UnrevokeReceipt:
+    """Canonical receipt printed on stdout on success of ``unrevoke``.
+
+    Phase-2 Sprint-6 Tag-7 — distinct from :class:`RevokeReceipt`
+    because the unrevoke path is a **separate deliberate authority
+    gesture**, NOT an "undo" of a prior revoke. The audit trail
+    explicitly separates revocation events from unrevoke events so
+    a downstream auditor can distinguish "this policy was revoked
+    and the revocation is still in effect" from "this policy was
+    revoked, then unrevoked by an authorised operator at instant T".
+
+    Audit-trail separation rationale
+    --------------------------------
+
+    The Sprint-6 Tag-2 ``revoke`` subcommand sets ``revoked_at`` and
+    optionally ``revocation_reason`` on a live capability-policy
+    record. The Tag-7 ``unrevoke`` subcommand writes a fully-formed
+    record with ``revoked_at=None`` and ``revocation_reason=None``,
+    semantically restoring the policy to its pre-revoke state.
+
+    Because the Sprint-6 Tag-1 backend revocation-monotonic
+    invariant forbids ``revoked_at=None`` against a live revoked
+    record on the CAS-pin path, unrevoke MUST use the LWW path
+    (``put`` rather than ``put_with_revision``). The subcommand is
+    therefore implicitly LWW-only — no ``--lww`` flag, no
+    ``--expected-revision`` flag — the gesture is unambiguously
+    LWW-by-design.
+
+    The receipt records the prior revocation state
+    (``previous_revoked_at`` / ``previous_revocation_reason``) so
+    the audit trail captures both halves of the round-trip:
+    "what was the policy's revocation state immediately before the
+    unrevoke" and "by whom was the unrevoke authored".
+
+    Fields
+    ------
+
+    - ``cmd``: always ``"unrevoke"``. Pipelines can use this to
+      switch on receipt shape without inspecting mode.
+    - ``mode``: always ``"lww"`` (the unrevoke path is structurally
+      LWW; see rationale above). Recorded explicitly so receipts
+      from ``revoke`` and ``unrevoke`` have a parallel shape on the
+      ``mode`` axis.
+    - ``key``: the canonical KV key
+      ``capability-policies/<registered_by>/<policy_id>``.
+    - ``registered_by`` / ``policy_id``: the policy identity pair.
+    - ``previous_revoked_at``: the live record's ``revoked_at``
+      instant BEFORE the unrevoke (RFC-3339 UTC, ``Z``-suffixed).
+      Always present (the unrevoke path refuses unrevoked targets
+      via :class:`ExitCode.UNREVOKE_TARGET_NOT_REVOKED`).
+    - ``previous_revocation_reason``: the live record's
+      ``revocation_reason`` BEFORE the unrevoke (or ``None`` if the
+      original revoke carried no reason).
+    - ``previous_revision``: the revision the CLI READ from the
+      bucket before applying the unrevoke write. Mirrors the
+      :class:`RevokeReceipt` field of the same name; together the
+      revoke + unrevoke receipts pair to a complete audit trail.
+    - ``new_revision``: the revision the bucket assigned after the
+      unrevoke write succeeded.
+    - ``registered_at``: the new ``registered_at`` set on the
+      rewritten record (RFC-3339 UTC, ``Z``-suffixed). Defaults to
+      ``now`` unless the operator passes ``--registered-at``.
+    - ``registered_by_publisher``: the operator-identifier of who
+      authored the unrevoke (audit field; mirrors the revoke
+      receipt's audit gesture).
+    - ``unrevoke_reason``: optional free-form audit string supplied
+      by the operator via ``--unrevoke-reason``. Surfaced in the
+      receipt for audit traceability; NOT persisted on the
+      rewritten record (the rewritten record is byte-equal to the
+      original pre-revoke shape, modulo ``registered_at`` and
+      ``registered_by_publisher`` which are bookkeeping fields).
+    """
+
+    cmd: str  # always "unrevoke"
+    mode: str  # always "lww"
+    key: str
+    registered_by: str
+    policy_id: str
+    previous_revoked_at: str
+    previous_revocation_reason: Optional[str]
+    previous_revision: int
+    new_revision: int
+    registered_at: str
+    registered_by_publisher: str
+    unrevoke_reason: Optional[str]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "cmd": self.cmd,
+            "mode": self.mode,
+            "key": self.key,
+            "registered_by": self.registered_by,
+            "policy_id": self.policy_id,
+            "previous_revoked_at": self.previous_revoked_at,
+            "previous_revocation_reason": self.previous_revocation_reason,
+            "previous_revision": self.previous_revision,
+            "new_revision": self.new_revision,
+            "registered_at": self.registered_at,
+            "registered_by_publisher": self.registered_by_publisher,
+            "unrevoke_reason": self.unrevoke_reason,
+        }
+
+
+# ---------------------------------------------------------------------------
 # Argparse surface
 # ---------------------------------------------------------------------------
 
@@ -391,6 +513,22 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     _add_revoke_flags(p_rev)
+
+    p_unrev = sub.add_parser(
+        "unrevoke",
+        help=(
+            "Apply an operator-deliberate unrevoke to a previously "
+            "revoked capability-policy record on the "
+            "wakir-capability-policies bucket. Writes "
+            "revoked_at=None / revocation_reason=None via LWW "
+            "(bypassing the Sprint-6 Tag-1 revocation-monotonic "
+            "backend invariant). Separate subcommand (not a "
+            "revoke --undo flag) so the audit trail clearly "
+            "separates revocation events from unrevoke events "
+            "(Sprint-6 Tag-7)."
+        ),
+    )
+    _add_unrevoke_flags(p_unrev)
 
     return parser
 
@@ -719,6 +857,110 @@ def _add_revoke_flags(p: argparse.ArgumentParser) -> None:
             "un-revoke). Mutually exclusive with --expected-revision. "
             "Default is CAS-pin (no --lww, no --expected-revision => "
             "CLI auto-reads live revision and pins to it)."
+        ),
+    )
+    p.add_argument(
+        "--connect-url",
+        default="nats://127.0.0.1:4222",
+        help=(
+            "NATS connect URL for the wakir-capability-policies bucket "
+            "(default %(default)s)."
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sprint-6 Tag-7 — unrevoke subcommand flags
+# ---------------------------------------------------------------------------
+
+
+def _add_unrevoke_flags(p: argparse.ArgumentParser) -> None:
+    """Operator-input flags for the ``unrevoke`` subcommand.
+
+    The flag surface is narrower than ``revoke`` because the unrevoke
+    gesture is structurally LWW-only (the Sprint-6 Tag-1 revocation-
+    monotonic backend invariant forbids ``revoked_at=None`` against a
+    live revoked record on the CAS-pin path; an unrevoke is therefore
+    by construction a deliberate LWW write). Concretely:
+
+    - **Identity pair** (``--registered-by`` + ``--policy-id``):
+      identifies the capability-policy record on the
+      ``wakir-capability-policies`` bucket. Both required (same as
+      ``revoke``).
+
+    - **Audit field** (``--registered-by-publisher``): who is
+      authoring the unrevoke, recorded on the rewritten record.
+      Required. NOT the same as ``--registered-by`` (which names
+      the policy issuer being unrevoked).
+
+    - **Audit reason** (``--unrevoke-reason``): optional free-form
+      audit string surfaced on the receipt. NOT persisted on the
+      rewritten record (the rewritten record is byte-equal to a
+      fresh unrevoked policy modulo ``registered_at`` and
+      ``registered_by_publisher``). The reason is therefore an
+      out-of-band audit gesture; downstream pipelines that need it
+      MUST capture the receipt JSON and store it alongside the
+      bucket history.
+
+    - **Connection** (``--connect-url``): NATS connect URL for the
+      capability-policy bucket; default ``nats://127.0.0.1:4222``.
+
+    - **Bookkeeping** (``--registered-at``): optional RFC-3339
+      override for the ``registered_at`` field on the rewritten
+      record. Defaults to current UTC when omitted; deterministic
+      test paths supply it.
+
+    No ``--lww`` flag and no ``--expected-revision`` flag: the
+    unrevoke path is structurally LWW (see rationale above) and the
+    flag surface is intentionally narrow to keep the operator
+    contract crisp ("there is exactly one way to unrevoke").
+    """
+
+    p.add_argument(
+        "--registered-by",
+        required=True,
+        help=(
+            "registered_by of the capability-policy record to unrevoke. "
+            "Component of the canonical KV key."
+        ),
+    )
+    p.add_argument(
+        "--policy-id",
+        required=True,
+        help=(
+            "policy_id of the capability-policy record to unrevoke. "
+            "Component of the canonical KV key."
+        ),
+    )
+    p.add_argument(
+        "--registered-by-publisher",
+        required=True,
+        help=(
+            "Operator-identifier authoring the unrevoke write. "
+            "Recorded on the rewritten record's "
+            "registered_by_publisher field for audit. NOT the same "
+            "as --registered-by (which names the policy issuer "
+            "being unrevoked)."
+        ),
+    )
+    p.add_argument(
+        "--unrevoke-reason",
+        default=None,
+        help=(
+            "Optional free-form audit string surfaced on the "
+            "UnrevokeReceipt's unrevoke_reason field. NOT persisted "
+            "on the rewritten record (the rewritten record is "
+            "byte-equal to a fresh unrevoked policy)."
+        ),
+    )
+    p.add_argument(
+        "--registered-at",
+        default=None,
+        help=(
+            "Optional RFC-3339 instant (with timezone) set on the "
+            "rewritten record's registered_at field. Defaults to the "
+            "current UTC instant; deterministic test paths supply it "
+            "explicitly."
         ),
     )
     p.add_argument(
@@ -1646,6 +1888,219 @@ async def _run_revoke(
                 pass
 
 
+async def _run_unrevoke(
+    args: argparse.Namespace,
+    capability_bucket_factory: CapabilityBucketConnectFactory,
+    stdout,
+    stderr,
+) -> int:
+    """Apply an operator-deliberate unrevoke to a capability-policy record.
+
+    Phase-2 Sprint-6 Tag-7 — separate-subcommand counterpart of the
+    Sprint-6 Tag-2 ``revoke`` path. The unrevoke is structurally an
+    LWW write because the Sprint-6 Tag-1 revocation-monotonic backend
+    invariant forbids ``revoked_at=None`` against a live revoked
+    record on the CAS-pin path; the only authorised way to unrevoke
+    is therefore via the LWW path with a fully-formed unrevoked
+    record. This subcommand owns that gesture explicitly so the audit
+    trail clearly separates ``cmd="revoke"`` receipts from
+    ``cmd="unrevoke"`` receipts.
+
+    The flow is:
+
+    1. Validate the operator-input pair (``--registered-by-publisher``
+       must be non-empty, ``--unrevoke-reason`` must be a string or
+       absent, the identity-pair must derive a valid KV key).
+    2. Connect to the capability-policy bucket via the injected
+       factory.
+    3. Read the live record via
+       :meth:`get_with_revision_by_pair`. A missing record raises
+       :class:`ExitCode.REVOKE_TARGET_NOT_FOUND` (9) (reused — the
+       "target not found" semantics are identical for both subcommands;
+       a distinct code would create a Cartesian explosion of error
+       codes without semantic benefit).
+    4. **Refuse already-unrevoked targets.** If the live record's
+       ``policy.revoked_at is None``, the unrevoke is a no-op surface
+       and surfaces :class:`ExitCode.UNREVOKE_TARGET_NOT_REVOKED` (10)
+       — distinct from REVOKE_TARGET_NOT_FOUND so pipelines can
+       disambiguate "policy never existed" from "policy exists but is
+       already unrevoked".
+    5. Construct the rewritten record with ``revoked_at=None`` /
+       ``revocation_reason=None`` (preserving every other
+       capability-bundle field byte-equally).
+    6. Write via :meth:`put` (LWW path; bypasses revocation-monotonic).
+    7. Emit the canonical :class:`UnrevokeReceipt` on stdout, with
+       the live record's prior ``revoked_at`` / ``revocation_reason``
+       captured in ``previous_revoked_at`` / ``previous_revocation_reason``
+       for the audit trail.
+
+    Connection cleanup runs in the ``finally`` block. Cleanup failures
+    never mask the write outcome (mirror of the revoke + publish paths).
+    """
+
+    backend: Optional[NatsKvCapabilityPolicyBackend] = None
+    cleanup: Optional[Callable[[], Awaitable[None]]] = None
+    try:
+        # Step 1 — payload validation (pre-connect).
+        if not isinstance(args.registered_by_publisher, str) or not (
+            args.registered_by_publisher.strip()
+        ):
+            _print_error_stderr(
+                ExitCode.INPUT_ERROR,
+                "--registered-by-publisher must be a non-empty string",
+                stderr,
+            )
+            return int(ExitCode.INPUT_ERROR)
+        if (
+            args.unrevoke_reason is not None
+            and not isinstance(args.unrevoke_reason, str)
+        ):
+            # argparse always hands us str-or-None, but pin defensively.
+            _print_error_stderr(
+                ExitCode.INPUT_ERROR,
+                "--unrevoke-reason must be a string (or omitted)",
+                stderr,
+            )
+            return int(ExitCode.INPUT_ERROR)
+        try:
+            key = key_for_policy_pair(args.registered_by, args.policy_id)
+        except ValueError as exc:
+            _print_error_stderr(
+                ExitCode.INPUT_ERROR,
+                f"--registered-by / --policy-id invalid: {exc}",
+                stderr,
+            )
+            return int(ExitCode.INPUT_ERROR)
+        registered_at = _parse_registered_at(args.registered_at)
+
+        # Step 2 — connect.
+        backend, cleanup = await capability_bucket_factory(args.connect_url)
+
+        # Step 3 — read the live record.
+        try:
+            read_result = await backend.get_with_revision_by_pair(
+                args.registered_by, args.policy_id
+            )
+        except CapabilityPolicyEnvelopeError as exc:
+            _print_error_stderr(
+                ExitCode.VALIDATION_ERROR,
+                f"live capability-policy envelope is poisoned: {exc}",
+                stderr,
+            )
+            return int(ExitCode.VALIDATION_ERROR)
+        if read_result is None:
+            _print_error_stderr(
+                ExitCode.REVOKE_TARGET_NOT_FOUND,
+                (
+                    f"capability-policy record not found: "
+                    f"registered_by={args.registered_by!r} "
+                    f"policy_id={args.policy_id!r} (key={key!r})"
+                ),
+                stderr,
+            )
+            return int(ExitCode.REVOKE_TARGET_NOT_FOUND)
+        live_record, live_revision = read_result
+
+        # Step 4 — refuse unrevoked targets.
+        if live_record.policy.revoked_at is None:
+            _print_error_stderr(
+                ExitCode.UNREVOKE_TARGET_NOT_REVOKED,
+                (
+                    f"capability-policy record is not currently revoked: "
+                    f"registered_by={args.registered_by!r} "
+                    f"policy_id={args.policy_id!r} (key={key!r}); "
+                    f"unrevoke is a no-op surface against an unrevoked "
+                    f"policy and is refused so the audit trail stays crisp"
+                ),
+                stderr,
+            )
+            return int(ExitCode.UNREVOKE_TARGET_NOT_REVOKED)
+
+        previous_revoked_at = live_record.policy.revoked_at
+        previous_revocation_reason = live_record.policy.revocation_reason
+
+        # Step 5 — construct the rewritten record. revoked_at and
+        # revocation_reason are explicitly cleared; every other
+        # capability-bundle field is preserved byte-equally.
+        from dataclasses import replace
+
+        try:
+            new_policy = replace(
+                live_record.policy,
+                revoked_at=None,
+                revocation_reason=None,
+            )
+            new_record = CapabilityPolicyRecord(
+                policy=new_policy,
+                policy_id=live_record.policy_id,
+                registered_at=registered_at,
+                registered_by_publisher=args.registered_by_publisher,
+            )
+        except (RegisteredByCapabilityError, CapabilityPolicyValidationError) as exc:
+            _print_error_stderr(
+                ExitCode.VALIDATION_ERROR,
+                f"rewritten record is invalid: {exc}",
+                stderr,
+            )
+            return int(ExitCode.VALIDATION_ERROR)
+
+        # Step 6 — LWW write. The CAS-pin path is structurally
+        # unavailable for unrevoke (the Sprint-6 Tag-1 backend
+        # invariant would refuse revoked_at=None against a live
+        # revoked record). LWW is the only authorised path; making it
+        # implicit-only (no --lww flag) keeps the operator contract
+        # crisp.
+        try:
+            new_revision = await backend.put(new_record)
+        except CapabilityPolicyConflictError as exc:
+            _print_error_stderr(ExitCode.CAS_CONFLICT, str(exc), stderr)
+            return int(ExitCode.CAS_CONFLICT)
+        except CapabilityPolicyValidationError as exc:
+            _print_error_stderr(ExitCode.VALIDATION_ERROR, str(exc), stderr)
+            return int(ExitCode.VALIDATION_ERROR)
+        except CapabilityPolicyEnvelopeError as exc:
+            _print_error_stderr(ExitCode.VALIDATION_ERROR, str(exc), stderr)
+            return int(ExitCode.VALIDATION_ERROR)
+        except CapabilityPolicyBackendError as exc:
+            _print_error_stderr(ExitCode.BACKEND_ERROR, str(exc), stderr)
+            return int(ExitCode.BACKEND_ERROR)
+        except Exception as exc:  # transport / unknown
+            _print_error_stderr(
+                ExitCode.BACKEND_ERROR,
+                f"backend error: {type(exc).__name__}: {exc}",
+                stderr,
+            )
+            return int(ExitCode.BACKEND_ERROR)
+
+        receipt = UnrevokeReceipt(
+            cmd="unrevoke",
+            mode="lww",
+            key=key,
+            registered_by=args.registered_by,
+            policy_id=args.policy_id,
+            previous_revoked_at=(
+                previous_revoked_at.isoformat().replace("+00:00", "Z")
+            ),
+            previous_revocation_reason=previous_revocation_reason,
+            previous_revision=live_revision,
+            new_revision=new_revision,
+            registered_at=(
+                registered_at.isoformat().replace("+00:00", "Z")
+            ),
+            registered_by_publisher=args.registered_by_publisher,
+            unrevoke_reason=args.unrevoke_reason,
+        )
+        _print_receipt_stdout(receipt, stdout)
+        return int(ExitCode.OK)
+    finally:
+        if cleanup is not None:
+            try:
+                await cleanup()
+            except Exception:
+                # Cleanup failures must NOT mask the unrevoke outcome.
+                pass
+
+
 async def _run_dry_run_async(
     args: argparse.Namespace,
     stdout,
@@ -1810,6 +2265,14 @@ def run(
             else _default_capability_bucket_factory
         )
         return asyncio.run(_run_revoke(args, revoke_factory, out, err))
+
+    if args.cmd == "unrevoke":
+        unrevoke_factory = (
+            capability_bucket_factory
+            if capability_bucket_factory is not None
+            else _default_capability_bucket_factory
+        )
+        return asyncio.run(_run_unrevoke(args, unrevoke_factory, out, err))
 
     factory = (
         connect_factory if connect_factory is not None else _default_connect_factory
