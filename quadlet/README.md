@@ -1,13 +1,23 @@
-# Quadlet dual-track for the Phase-1b NATS substrate
+# Quadlet dual-track for the Wakir Phase-1b/2 substrates
 
 **Status:** Scenario-B dual-track (per
 `docs/quadlet-systemd-migration-skizze.md` §5.2). Committed as a
-runnable alternative to `compose/nats.yaml` for atomic-distro
+runnable alternative to `compose/*.yaml` for atomic-distro
 operator hosts. **Compose remains the primary Phase-2 contract
-surface.** Tests in `tests/orchestrator/test_compose_nats.py` are
-authoritative; `tests/orchestrator/test_quadlet_nats.py` asserts
+surface.** Tests in `tests/orchestrator/test_compose_*.py` are
+authoritative; `tests/orchestrator/test_quadlet_*.py` asserts
 that the Quadlet shape stays byte-precise-aligned with the compose
-state (in particular the image digest pin).
+state (in particular the image digest pin and the hardening
+posture).
+
+Substrates with Quadlet dual-track coverage:
+
+- **Phase-1b NATS-JetStream** (Sprint-6 Tag-1): mirror of
+  `compose/nats.yaml`.
+- **Phase-2.1 SPIRE-Server hermetic sidecar** (Sprint-6 Tag-11):
+  mirror of `compose/spire.yaml` services.spire-server.
+- **Phase-2.2 SPIRE-Agent hermetic sidecar** (Sprint-6 Tag-11):
+  mirror of `compose/spire.yaml` services.spire-agent.
 
 **Scope-disclaimer:** this dual-track is operator-facing
 infrastructure surface. It does **not**:
@@ -29,6 +39,12 @@ content alignment to the existing compose state.
 | `wakir-nats.container` | Quadlet container unit | Phase-1b NATS-JetStream substrate, mirror of `compose/nats.yaml` services.nats |
 | `wakir-orchestrator.network` | Quadlet network unit | Bridge network, mirror of `compose/nats.yaml` networks.wakir |
 | `wakir-nats-jetstream-data.volume` | Quadlet volume unit | JetStream persistence, mirror of `compose/nats.yaml` volumes.jetstream_data |
+| `wakir-spire-server.container` | Quadlet container unit | Phase-2.1 SPIRE-Server, mirror of `compose/spire.yaml` services.spire-server |
+| `wakir-spire-server-data.volume` | Quadlet volume unit | SPIRE-Server datastore + bootstrap-CA, mirror of `compose/spire.yaml` volumes.spire_server_data |
+| `wakir-spire-server-sockets.volume` | Quadlet volume unit | Admin-API gRPC socket-share (Server <-> Agent), mirror of `compose/spire.yaml` volumes.spire_server_sockets |
+| `wakir-spire-agent.container` | Quadlet container unit | Phase-2.2 SPIRE-Agent, mirror of `compose/spire.yaml` services.spire-agent |
+| `wakir-spire-agent-data.volume` | Quadlet volume unit | SPIRE-Agent SVID cache + bootstrap-bundle, mirror of `compose/spire.yaml` volumes.spire_agent_data |
+| `wakir-spire-agent-sockets.volume` | Quadlet volume unit | SPIFFE-Workload-API socket-share (Agent <-> persona-container), mirror of `compose/spire.yaml` volumes.spire_agent_sockets |
 
 ---
 
@@ -76,6 +92,65 @@ systemctl --user start wakir-nats.service
 
 ---
 
+## SPIRE bring-up (Phase-2.1/2.2 atomic-host-native path)
+
+The SPIRE substrate adds two container units (server + agent) and
+four named-volume sidecars on top of the NATS substrate. The agent
+depends on the server's healthcheck (see "systemd ordering" in
+`wakir-spire-agent.container`).
+
+### Rootful Podman (production atomic host)
+
+```bash
+# Pre-condition: NATS substrate already running (network is shared).
+
+# Install SPIRE-Server unit + named volumes.
+sudo install -m 644 quadlet/wakir-spire-server.container \
+    /etc/containers/systemd/wakir-spire-server.container
+sudo install -m 644 quadlet/wakir-spire-server-data.volume \
+    /etc/containers/systemd/wakir-spire-server-data.volume
+sudo install -m 644 quadlet/wakir-spire-server-sockets.volume \
+    /etc/containers/systemd/wakir-spire-server-sockets.volume
+
+# Install SPIRE-Agent unit + named volumes.
+sudo install -m 644 quadlet/wakir-spire-agent.container \
+    /etc/containers/systemd/wakir-spire-agent.container
+sudo install -m 644 quadlet/wakir-spire-agent-data.volume \
+    /etc/containers/systemd/wakir-spire-agent-data.volume
+sudo install -m 644 quadlet/wakir-spire-agent-sockets.volume \
+    /etc/containers/systemd/wakir-spire-agent-sockets.volume
+
+# Install the bind-mounted Mock/Stub configs (host-side).
+sudo install -m 644 config/spire-server.conf \
+    /etc/wakir/spire-server.conf
+sudo install -m 644 config/spire-agent.conf \
+    /etc/wakir/spire-agent.conf
+
+# Trigger the Quadlet generator and bring up.
+sudo systemctl daemon-reload
+sudo systemctl start wakir-spire-server.service
+sudo systemctl start wakir-spire-agent.service
+
+# Verify (host-operator-hand, NOT in sandbox).
+systemctl status wakir-spire-server.service
+systemctl status wakir-spire-agent.service
+podman healthcheck run wakir-spire-server
+podman healthcheck run wakir-spire-agent
+```
+
+### Image-digest-pin Operator-Hand workflow
+
+Both SPIRE unit files carry a Cosign-Digest-Pin placeholder token
+`DIGEST_PENDING_TOMAS_REVIEW`. Before any live bring-up, Operator-
+Hand resolves the canonical 64-hex digest via `cosign verify` +
+`skopeo inspect` and substitutes both surfaces (compose + Quadlet)
+in the same commit. The parity test
+`tests/orchestrator/test_quadlet_spire.py` accepts both forms so
+the substitution does not break the contract surface. Cross-Review
+Zone-C (Tomás-track) approves the digest before substitution.
+
+---
+
 ## Compose vs Quadlet — operator decision matrix
 
 | Host environment | Recommended path |
@@ -113,6 +188,43 @@ When any compose field changes, the corresponding Quadlet field
 **must** be updated in the same commit. The parity test surface
 catches drift hermetically (no container engine needed for the
 test run).
+
+### SPIRE-Server parity contract
+
+| Contract field | Compose (services.spire-server) | Quadlet (wakir-spire-server.container) | Parity test |
+|---|---|---|---|
+| Image (Cosign-Digest-Pin) | `image: ghcr.io/.../spire-server:1.14.6@sha256:...` | `[Container] Image=` | byte-precise digest or placeholder |
+| Container name | `container_name: wakir-spire-server` | `[Container] ContainerName=` | string match |
+| Port publication | `ports: ["127.0.0.1:8081:8081"]` | `[Container] PublishPort=` | loopback-only invariant |
+| Exec / command | `command: [run, -config, ...]` | `[Container] Exec=` | substring presence |
+| Config bind-mount | `volumes: ["./config/spire-server.conf:...:ro"]` | `[Container] Volume=...:ro,Z` | path + ro flag |
+| Data volume | `volumes: [spire_server_data:/var/lib/spire/server]` | `[Container] Volume=wakir-spire-server-data.volume:...` | named-volume + mountpoint |
+| Server-sockets volume | `volumes: [spire_server_sockets:/run/spire/sockets]` | `[Container] Volume=wakir-spire-server-sockets.volume:...` | shared with agent |
+| Network attach | `networks: [wakir]` | `[Container] Network=wakir-orchestrator.network` | shared with NATS substrate |
+| Read-only rootfs | `read_only: true` | `[Container] ReadOnly=true` | flag match |
+| User | `user: "1000:1000"` | `[Container] User=1000` + `Group=1000` | uid + gid match |
+| Tmpfs | `tmpfs: ["/run/spire:rw,size=16m,mode=0700"]` | `[Container] Tmpfs=/run/spire:...` | path presence |
+| Capabilities | `cap_drop: [ALL]` | `[Container] DropCapability=ALL` | enum match |
+| Privileges | `security_opt: [no-new-privileges:true]` | `[Container] NoNewPrivileges=true` | flag match |
+| Health probe binary | `healthcheck.test: [CMD, /opt/spire/bin/spire-server, healthcheck]` | `[Container] HealthCmd=/opt/spire/bin/spire-server healthcheck` | binary + subcommand |
+
+### SPIRE-Agent parity contract
+
+| Contract field | Compose (services.spire-agent) | Quadlet (wakir-spire-agent.container) | Parity test |
+|---|---|---|---|
+| Image (version-parity with server) | `image: ghcr.io/.../spire-agent:1.14.6@sha256:...` | `[Container] Image=` | digest or placeholder + SemVer match |
+| Container name | `container_name: wakir-spire-agent` | `[Container] ContainerName=` | string match |
+| No host ports | (no `ports:` field) | (no `PublishPort=` directive) | absence-of-port invariant |
+| Boot ordering | `depends_on: spire-server: condition: service_healthy` | `[Unit] After=/Requires=wakir-spire-server.service` | systemd-equivalent |
+| Config bind-mount | `volumes: ["./config/spire-agent.conf:...:ro"]` | `[Container] Volume=...:ro,Z` | path + ro flag |
+| Agent-data volume | `volumes: [spire_agent_data:/var/lib/spire/agent]` | `[Container] Volume=wakir-spire-agent-data.volume:...` | named-volume + mountpoint |
+| Server-sockets share | `volumes: [spire_server_sockets:/run/spire/sockets]` | `[Container] Volume=wakir-spire-server-sockets.volume:...` | mounted at same path as server |
+| Agent-sockets (Workload-API) | `volumes: [spire_agent_sockets:/run/spire/agent-sockets]` | `[Container] Volume=wakir-spire-agent-sockets.volume:...` | named-volume + mountpoint |
+| All other hardening directives | (parity with server) | (parity with server) | parametrised tests cover both |
+
+The `tests/orchestrator/test_quadlet_spire.py` suite enforces these
+contracts hermetically — no container engine, no systemd, no live
+SPIRE-Server, no SVID issuance.
 
 ---
 

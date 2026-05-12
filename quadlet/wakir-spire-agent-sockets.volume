@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-6 Tag-11 — Quadlet volume sidecar for the SPIFFE-
+# Workload-API socket-share. Mirror of compose/spire.yaml top-level
+# volumes.spire_agent_sockets.name.
+#
+# Install path: /etc/containers/systemd/wakir-spire-agent-sockets.volume
+# (rootful) or ~/.config/containers/systemd/ (rootless).
+#
+# This unit is referenced by:
+#   - wakir-spire-agent.container via the directive
+#     `Volume=wakir-spire-agent-sockets.volume:/run/spire/agent-sockets`.
+#   - Phase-2.3+ persona-containers (Operator-Hand) mount this volume
+#     read-only at the same path. The `spiffe.workload_api` client
+#     targets `unix:///run/spire/agent-sockets/api.sock`.
+#
+# This is the dedicated Workload-API channel; the Server-Admin gRPC
+# socket-share is on `wakir-spire-server-sockets.volume`.
+
+[Unit]
+Description=Wakir SPIFFE-Workload-API socket-share volume (Quadlet dual-track)
+
+[Volume]
+# Mirror of compose volumes.spire_agent_sockets.name.
+VolumeName=wakir-spire-agent-sockets
+
+[Install]
+WantedBy=multi-user.target default.target

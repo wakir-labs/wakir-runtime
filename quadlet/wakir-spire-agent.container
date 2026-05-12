@@ -1,0 +1,144 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-6 Tag-11 — Scenario-B dual-track Quadlet unit for the
+# Phase-2.2 SPIRE-Agent-Sidecar substrate. Byte-precise mirror of
+# compose/spire.yaml services.spire-agent. Pairs with
+# wakir-spire-server.container; the agent attests against the server
+# via the shared `wakir-spire-server-sockets.volume` (Admin-API gRPC
+# channel) and serves the SPIFFE-Workload-API on the dedicated
+# `wakir-spire-agent-sockets.volume` at
+# `/run/spire/agent-sockets/api.sock`.
+#
+# This file is the runnable Quadlet companion to the design-form Skizze
+# in `docs/quadlet-systemd-migration-skizze.md` and the SPIRE-Agent-
+# substrate description in `docs/spire-agent-phase-2-2.md`. Compose
+# remains the primary Phase-2 contract surface
+# (tests/orchestrator/test_compose_spire_agent.py is authoritative;
+# tests/orchestrator/test_quadlet_spire.py asserts that this file
+# stays byte-precise-aligned with the compose state).
+#
+# Operator install path (rootful Podman):
+#
+#   # Pre-condition: wakir-spire-server.service must already be
+#   # installed (the agent depends on the server-side socket-volume).
+#   sudo install -m 644 quadlet/wakir-spire-agent.container \
+#       /etc/containers/systemd/wakir-spire-agent.container
+#   sudo install -m 644 quadlet/wakir-spire-agent-data.volume \
+#       /etc/containers/systemd/wakir-spire-agent-data.volume
+#   sudo install -m 644 quadlet/wakir-spire-agent-sockets.volume \
+#       /etc/containers/systemd/wakir-spire-agent-sockets.volume
+#   sudo install -m 644 config/spire-agent.conf \
+#       /etc/wakir/spire-agent.conf
+#   sudo systemctl daemon-reload
+#   sudo systemctl start wakir-spire-agent.service
+#
+# systemd ordering: the [Unit] After= + Requires= directives below
+# encode the compose `depends_on: spire-server: condition:
+# service_healthy` invariant. systemd does not have a direct equivalent
+# of compose's `service_healthy` gate; the closest-equivalent is to
+# require the service unit and let the agent's own healthcheck +
+# restart-on-failure policy converge once the server is reachable.
+# The Phase-2.6 trust-bundle-rotation runbook covers the operator-
+# observable boot-race window.
+#
+# Verification (hermetic-by-default — no live-smoke from sandbox; live
+# verification is operator-hand per ADR-0051):
+#
+#   systemctl status wakir-spire-agent.service
+#   podman healthcheck run wakir-spire-agent
+#
+# Tear-down:
+#
+#   sudo systemctl stop wakir-spire-agent.service
+#   podman volume rm wakir-spire-agent-data
+#   podman volume rm wakir-spire-agent-sockets
+#
+# Image-Pin form (Cosign-Digest-Pin Pfad B, mirror of compose Sprint-6-
+# Tag-9 with parity to Tag-8 server form): placeholder token
+# `DIGEST_PENDING_TOMAS_REVIEW` resolved by Operator-Hand before live
+# bring-up (Cross-Review Zone-C, Tomás-track).
+
+[Unit]
+Description=Wakir Phase-2.2 SPIRE-Agent hermetic sidecar (Quadlet dual-track)
+Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/docs/spire-agent-phase-2-2.md
+After=network-online.target wakir-spire-server.service
+Wants=network-online.target
+Requires=wakir-spire-server.service
+
+[Container]
+# Container identity (mirror of compose/spire.yaml services.spire-agent
+# container_name).
+ContainerName=wakir-spire-agent
+
+# Image pin: byte-precise mirror of compose/spire.yaml services.spire-
+# agent.image. Version-parity with spire-server (1.14.6) by upstream
+# convention — SPIRE-Server and SPIRE-Agent are released as a paired
+# binary set.
+Image=ghcr.io/spiffe/spire-agent:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW
+
+# Command-line arguments (mirror of compose `command:` list).
+Exec=run -config /etc/spire/agent/agent.conf
+
+# Read-only root filesystem (mirror of compose `read_only: true`).
+ReadOnly=true
+
+# Run as non-root uid:gid (mirror of compose `user: "1000:1000"`).
+User=1000
+Group=1000
+
+# Bind-mounts and named volumes (mirror of compose `volumes:` list).
+#
+# 1) Read-only bind-mount of the Mock/Stub agent config. Operator-
+#    managed install path on host (parity with spire-server.conf).
+Volume=/etc/wakir/spire-agent.conf:/etc/spire/agent/agent.conf:ro,Z
+#
+# 2) SPIRE-Agent data directory (bootstrap-trust-bundle cache, SVID
+#    cache). Named volume sidecar so operator-driven recreate does not
+#    destroy the bootstrap trust-bundle.
+Volume=wakir-spire-agent-data.volume:/var/lib/spire/agent
+#
+# 3) Server-Admin-API channel — the SPIRE-Agent reaches the SPIRE-
+#    Server's admin socket on this shared volume. Server mounts the
+#    same volume at the same path.
+Volume=wakir-spire-server-sockets.volume:/run/spire/sockets
+#
+# 4) Workload-API socket — the SPIRE-Agent serves the SPIFFE-Workload-
+#    API on this volume. Phase-2.3+ persona-containers mount this
+#    volume read-only at the same path; the `spiffe.workload_api`
+#    client targets `unix:///run/spire/agent-sockets/api.sock`.
+Volume=wakir-spire-agent-sockets.volume:/run/spire/agent-sockets
+
+# tmpfs for ephemeral SPIRE runtime paths (parity with server). Keeps
+# the root filesystem strictly read-only.
+Tmpfs=/run/spire:rw,size=16m,mode=0700
+
+# User-defined bridge network shared with the NATS substrate and the
+# SPIRE-Server sidecar.
+Network=wakir-orchestrator.network
+
+# Container-init hardening (parity with server).
+DropCapability=ALL
+NoNewPrivileges=true
+
+# Resource envelope (mirror of compose `deploy.resources.limits`).
+PodmanArgs=--cpus=0.5 --memory=256m
+
+# Health probe (mirror of compose healthcheck:). The SPIRE-Agent ships
+# its own healthcheck subcommand (parity with server). Hermetic-
+# friendly, no HTTP endpoint.
+HealthCmd=/opt/spire/bin/spire-agent healthcheck
+HealthInterval=10s
+HealthTimeout=5s
+HealthRetries=5
+HealthStartPeriod=30s
+
+[Service]
+# Restart policy: compose `restart: unless-stopped` -> on-failure.
+# Parity with wakir-spire-server.container and wakir-nats.container.
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=120s
+
+[Install]
+WantedBy=multi-user.target default.target

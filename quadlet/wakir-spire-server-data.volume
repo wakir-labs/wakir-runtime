@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-6 Tag-11 — Quadlet volume sidecar for SPIRE-Server
+# state (datastore, key material, bootstrap-CA). Mirror of
+# compose/spire.yaml top-level volumes.spire_server_data.name.
+#
+# Install path: /etc/containers/systemd/wakir-spire-server-data.volume
+# (rootful) or ~/.config/containers/systemd/ (rootless).
+#
+# This unit is referenced by wakir-spire-server.container via the
+# directive `Volume=wakir-spire-server-data.volume:/var/lib/spire/server`.
+#
+# Recovery: drop the volume to reset bootstrap-CA + datastore state.
+# Trust-Bundle-Rotation-Runbook (docs/spire-trust-bundle-rotation.md)
+# §3.2 covers the operator-observable consequences.
+
+[Unit]
+Description=Wakir SPIRE-Server state volume (Quadlet dual-track)
+
+[Volume]
+# Mirror of compose volumes.spire_server_data.name. Same name string so
+# `podman volume ls` shows wakir-spire-server-data regardless of which
+# lifecycle path created it.
+VolumeName=wakir-spire-server-data
+
+[Install]
+WantedBy=multi-user.target default.target

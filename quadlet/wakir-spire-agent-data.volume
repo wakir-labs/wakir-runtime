@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-6 Tag-11 — Quadlet volume sidecar for SPIRE-Agent
+# state (bootstrap-trust-bundle cache, SVID cache). Mirror of
+# compose/spire.yaml top-level volumes.spire_agent_data.name.
+#
+# Install path: /etc/containers/systemd/wakir-spire-agent-data.volume
+# (rootful) or ~/.config/containers/systemd/ (rootless).
+#
+# This unit is referenced by wakir-spire-agent.container via the
+# directive `Volume=wakir-spire-agent-data.volume:/var/lib/spire/agent`.
+#
+# Recovery: drop the volume to reset SVID cache + bootstrap-bundle.
+# Trust-Bundle-Rotation-Runbook (docs/spire-trust-bundle-rotation.md)
+# §3.3 covers the operator-observable consequences (forces full
+# re-attestation against the SPIRE-Server).
+
+[Unit]
+Description=Wakir SPIRE-Agent state volume (Quadlet dual-track)
+
+[Volume]
+# Mirror of compose volumes.spire_agent_data.name. Same name string so
+# `podman volume ls` shows wakir-spire-agent-data regardless of which
+# lifecycle path created it.
+VolumeName=wakir-spire-agent-data
+
+[Install]
+WantedBy=multi-user.target default.target
