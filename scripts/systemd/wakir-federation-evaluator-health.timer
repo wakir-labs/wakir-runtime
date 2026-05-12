@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# 5-minute cadence for the federation-evaluator health check.
+
+[Unit]
+Description=Wakir orchestrator — federation-evaluator health check (5-min cadence)
+Documentation=https://github.com/wakir-labs/wakir-runtime
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+RandomizedDelaySec=30s
+Persistent=true
+Unit=wakir-federation-evaluator-health.service
+
+[Install]
+WantedBy=timers.target

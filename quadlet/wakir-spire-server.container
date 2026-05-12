@@ -1,0 +1,165 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-6 Tag-11 — Scenario-B dual-track Quadlet unit for the
+# Phase-2.1 SPIRE-Server-Sidecar substrate. Byte-precise mirror of
+# compose/spire.yaml services.spire-server so operators on atomic-
+# distro hosts (Fedora Atomic / Bluefin / Silverblue / Kinoite) can
+# consume the host-native systemd integration instead of
+# `podman compose -f compose/spire.yaml up -d`.
+#
+# This file is the runnable Quadlet companion to the design-form Skizze
+# in `docs/quadlet-systemd-migration-skizze.md` and the SPIRE-Server-
+# substrate description in `docs/spire-server-phase-2-1.md`. Compose
+# remains the primary Phase-2 contract surface
+# (tests/orchestrator/test_compose_spire.py +
+# tests/orchestrator/test_compose_spire_cosign_pin.py are the
+# authoritative test surfaces; tests/orchestrator/test_quadlet_spire.py
+# asserts that this file stays byte-precise-aligned with the compose
+# state — in particular the image digest pin placeholder and the
+# hardening posture).
+#
+# Operator install path (rootful Podman):
+#
+#   sudo install -m 644 quadlet/wakir-spire-server.container \
+#       /etc/containers/systemd/wakir-spire-server.container
+#   sudo install -m 644 quadlet/wakir-orchestrator.network \
+#       /etc/containers/systemd/wakir-orchestrator.network
+#   sudo install -m 644 quadlet/wakir-spire-server-data.volume \
+#       /etc/containers/systemd/wakir-spire-server-data.volume
+#   sudo install -m 644 quadlet/wakir-spire-server-sockets.volume \
+#       /etc/containers/systemd/wakir-spire-server-sockets.volume
+#   # Bind-mounted Mock/Stub config (read-only):
+#   sudo install -m 644 config/spire-server.conf \
+#       /etc/wakir/spire-server.conf
+#   sudo systemctl daemon-reload
+#   sudo systemctl start wakir-spire-server.service
+#
+# Rootless Podman: copy to ~/.config/containers/systemd/ and use
+# `systemctl --user` instead of `sudo systemctl`. The bind-mount source
+# path below MUST be adapted to the rootless operator's filesystem
+# layout (e.g. ~/.config/wakir/spire-server.conf).
+#
+# Verification (hermetic-by-default — no live-smoke from sandbox; live
+# verification is operator-hand per ADR-0051 Mira-Sandbox-vs-Host-
+# Operations-Trennung):
+#
+#   systemctl status wakir-spire-server.service
+#   podman healthcheck run wakir-spire-server
+#
+# Tear-down:
+#
+#   sudo systemctl stop wakir-spire-server.service
+#   # Optional volume drop — bootstrap-CA loss is acceptable in
+#   # hermetic mode (re-bootstrap on next start):
+#   podman volume rm wakir-spire-server-data
+#   podman volume rm wakir-spire-server-sockets
+#
+# Image-Pin form (Cosign-Digest-Pin Pfad B, mirror of compose Sprint-6-
+# Tag-8 rebase): the placeholder token `DIGEST_PENDING_TOMAS_REVIEW`
+# is intentionally NOT a real digest — Operator-Hand must run `cosign
+# verify` and `skopeo inspect` to resolve the canonical digest and
+# commit the substitution before any live bring-up. The parity test
+# accepts both the placeholder token and a 64-hex sha256 digest, so
+# the follow-up substitution does not break the contract.
+
+[Unit]
+Description=Wakir Phase-2.1 SPIRE-Server hermetic sidecar (Quadlet dual-track)
+Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/docs/spire-server-phase-2-1.md
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+# Container identity (mirror of compose/spire.yaml services.spire-server
+# container_name).
+ContainerName=wakir-spire-server
+
+# Image pin: byte-precise mirror of compose/spire.yaml services.spire-
+# server.image. The `@sha256:DIGEST_PENDING_TOMAS_REVIEW` suffix is the
+# Cosign-Digest-Pin placeholder; Operator-Hand substitutes the
+# canonical 64-hex digest before live bring-up (Cross-Review Zone-C,
+# Tomás-track). Parity test accepts both forms.
+Image=ghcr.io/spiffe/spire-server:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW
+
+# Command-line arguments (mirror of compose `command:` list, joined for
+# Quadlet's Exec= directive which takes a shell-form argument string).
+Exec=run -config /etc/spire/server/server.conf
+
+# Loopback-only port mapping for the SPIRE-Server gRPC API. Mirror of
+# the Tag-8 explicit ports: 127.0.0.1:8081:8081. The hermetic Phase-2.1
+# substrate must NEVER expose the SPIRE-Server gRPC API to non-loopback
+# without explicit operator opt-in (matches the compose invariant
+# tested by test_compose_spire.py).
+PublishPort=127.0.0.1:8081:8081
+
+# Read-only root filesystem (mirror of compose `read_only: true`). The
+# SPIRE-Server writes only to the named volume mounted at
+# `/var/lib/spire/server` and the tmpfs at `/run/spire`.
+ReadOnly=true
+
+# Run as non-root uid:gid (mirror of compose `user: "1000:1000"`).
+# Upstream image ships with /opt/spire owned by uid 1000.
+User=1000
+Group=1000
+
+# Bind-mounts and named volumes (mirror of compose `volumes:` list).
+#
+# 1) Read-only bind-mount of the Mock/Stub config. The host-side path
+#    `/etc/wakir/spire-server.conf` is the operator-managed install
+#    location for the Mock/Stub config; operators on rootless setups
+#    adapt to `~/.config/wakir/spire-server.conf`.
+Volume=/etc/wakir/spire-server.conf:/etc/spire/server/server.conf:ro,Z
+#
+# 2) SPIRE-Server data directory (datastore, key material). Named
+#    volume sidecar so an operator-driven recreate does not destroy
+#    the bootstrap-CA. `podman volume rm wakir-spire-server-data`
+#    deliberately drops it.
+Volume=wakir-spire-server-data.volume:/var/lib/spire/server
+#
+# 3) SPIRE-Server Unix-socket directory (for SPIRE-Agent gRPC channel).
+#    Shared with the SPIRE-Agent Quadlet unit at the same mountpoint.
+Volume=wakir-spire-server-sockets.volume:/run/spire/sockets
+
+# tmpfs for ephemeral SPIRE runtime paths (mirror of compose
+# `tmpfs: ["/run/spire:rw,size=16m,mode=0700"]`). Keeps the root
+# filesystem strictly read-only.
+Tmpfs=/run/spire:rw,size=16m,mode=0700
+
+# User-defined bridge network for orchestrator co-location (defined in
+# wakir-orchestrator.network sidecar, shared with the NATS substrate
+# and the SPIRE-Agent sidecar).
+Network=wakir-orchestrator.network
+
+# Container-init hardening (mirror of compose cap_drop + security_opt).
+# Phase-2.1 invariant: SPIRE-Server does not need any Linux
+# capabilities for the in-memory disk-KeyManager + sqlite3 DataStore
+# Phase-2 setup.
+DropCapability=ALL
+NoNewPrivileges=true
+
+# Resource envelope (mirror of compose `deploy.resources.limits`).
+# Unlike compose v2 `deploy.resources` (advisory only outside Swarm),
+# Quadlet maps these cleanly to cgroup-v2 limits under Podman 4.4+ via
+# PodmanArgs= passthrough.
+PodmanArgs=--cpus=0.5 --memory=256m
+
+# Health probe (mirror of compose healthcheck:). Hits the SPIRE-Server
+# binary's own healthcheck subcommand — no HTTP endpoint, no /healthz.
+# Hermetic-friendly: the subcommand exits non-zero if the server is
+# not responsive on the configured admin socket.
+HealthCmd=/opt/spire/bin/spire-server healthcheck
+HealthInterval=10s
+HealthTimeout=5s
+HealthRetries=5
+HealthStartPeriod=30s
+
+[Service]
+# Restart policy: compose `restart: unless-stopped` maps to
+# Restart=on-failure (restart only on non-zero exit, not on
+# operator-driven systemctl stop). Parity with wakir-nats.container.
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=120s
+
+[Install]
+WantedBy=multi-user.target default.target

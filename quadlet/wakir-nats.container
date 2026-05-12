@@ -1,0 +1,121 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-6 — Scenario-B dual-track Quadlet unit for the Phase-1b
+# NATS-JetStream substrate. Byte-precise mirror of compose/nats.yaml so
+# operators on atomic-distro hosts (Fedora Atomic / Bluefin / Silverblue /
+# Kinoite) can consume the host-native systemd integration instead of
+# `podman compose -f compose/nats.yaml up -d`.
+#
+# This file is the runnable Quadlet companion to the design-form Skizze
+# in `docs/quadlet-systemd-migration-skizze.md`. Compose remains the
+# primary Phase-2 contract surface (tests/orchestrator/test_compose_nats.py
+# is the authoritative test surface; tests/orchestrator/test_quadlet_nats.py
+# asserts that this file stays byte-precise-aligned with the compose
+# state, in particular the image digest pin).
+#
+# Operator install path (rootful Podman):
+#
+#   sudo install -m 644 quadlet/wakir-nats.container \
+#       /etc/containers/systemd/wakir-nats.container
+#   sudo install -m 644 quadlet/wakir-orchestrator.network \
+#       /etc/containers/systemd/wakir-orchestrator.network
+#   sudo install -m 644 quadlet/wakir-nats-jetstream-data.volume \
+#       /etc/containers/systemd/wakir-nats-jetstream-data.volume
+#   sudo systemctl daemon-reload
+#   sudo systemctl start wakir-nats.service
+#
+# Rootless Podman: copy to ~/.config/containers/systemd/ and use
+# `systemctl --user` instead of `sudo systemctl`.
+#
+# Verification (hermetic-by-default — no live-smoke from sandbox; live
+# verification is operator-hand per ADR-0051 Mira-Sandbox-vs-Host-
+# Operations-Trennung):
+#
+#   systemctl status wakir-nats.service
+#   podman healthcheck run wakir-nats
+#   nc -z 127.0.0.1 4222 && echo ok
+#   curl -s http://127.0.0.1:8222/jsz | jq .
+#
+# Tear-down:
+#
+#   sudo systemctl stop wakir-nats.service
+#   # Optional volume drop — cache loss is acceptable per runbook §6.2
+#   podman volume rm wakir-nats-jetstream-data
+#   podman network rm wakir-orchestrator
+
+[Unit]
+Description=Wakir Phase-1b NATS-JetStream substrate (Quadlet dual-track)
+Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/docs/quadlet-systemd-migration-skizze.md
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+# Container identity (mirror of compose/nats.yaml `container_name:`).
+ContainerName=wakir-nats
+
+# Image pin: byte-precise mirror of compose/nats.yaml `image:` field.
+# Manifest-list digest is the multi-arch-stable pin; every container
+# engine resolves to the per-architecture image at pull time without
+# ambiguity. Update path: any change here MUST also update
+# compose/nats.yaml and the digest must match byte-precise.
+#
+# Phase-2 Sprint-4 Tag-3 Cross-Review Zone-C digest-pin upgrade:
+#   tag:           nats:2.11-alpine
+#   manifest-list: sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00
+#   tag-pushed:    2026-04-28T01:57:25Z (UTC)
+Image=docker.io/library/nats:2.11-alpine@sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00
+
+# Command-line arguments (mirror of compose `command:` list, joined for
+# Quadlet's Exec= directive which takes a shell-form argument string).
+Exec=--jetstream --store_dir=/data/jetstream --http_port=8222 --name=wakir-nats-phase1
+
+# Port publication — loopback-only by default (mirror of compose
+# ports: with 127.0.0.1: prefix). Phase-1 substrate must never expose
+# either port to a non-loopback interface without explicit operator
+# opt-in (matches compose-file invariant tested by
+# test_compose_nats.py::test_nats_ports_are_loopback_only).
+PublishPort=127.0.0.1:4222:4222
+PublishPort=127.0.0.1:8222:8222
+
+# JetStream persistence: name-stable named volume defined in
+# wakir-nats-jetstream-data.volume sidecar. Quadlet references
+# .volume units by basename + .volume suffix.
+Volume=wakir-nats-jetstream-data.volume:/data/jetstream
+
+# User-defined bridge network for orchestrator co-location (defined in
+# wakir-orchestrator.network sidecar).
+Network=wakir-orchestrator.network
+
+# Container-init hardening (mirror of compose cap_drop + security_opt).
+# Phase-1 invariant: NATS does not need any Linux capabilities beyond
+# the default unprivileged port mapping.
+DropCapability=ALL
+NoNewPrivileges=true
+
+# Resource envelope. Unlike compose v2 `deploy.resources` (advisory
+# only outside Swarm), Quadlet maps these cleanly to cgroup-v2 limits
+# under Podman 4.4+ via PodmanArgs= passthrough.
+PodmanArgs=--cpus=1.0 --memory=512m
+
+# Health probe (mirror of compose healthcheck:). Hits the JetStream
+# introspection endpoint, not bare /, so a JetStream-disabled NATS
+# fails the probe (avoids false-positive green).
+HealthCmd=wget -q -O - http://127.0.0.1:8222/jsz >/dev/null 2>&1 || exit 1
+HealthInterval=10s
+HealthTimeout=3s
+HealthRetries=5
+HealthStartPeriod=5s
+
+[Service]
+# Restart policy: compose `restart: unless-stopped` maps to
+# Restart=on-failure (restart only on non-zero exit, not on
+# operator-driven systemctl stop). The closer-equivalent
+# Restart=always with RestartPreventExitStatus= is left as an
+# operator opt-in if exit-code-blind restart is desired.
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=120s
+
+[Install]
+WantedBy=multi-user.target default.target

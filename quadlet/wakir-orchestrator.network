@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-6 — Quadlet network sidecar for the Wakir orchestrator
+# bridge network. Mirror of compose/nats.yaml top-level networks: block.
+#
+# Install path: /etc/containers/systemd/wakir-orchestrator.network
+# (rootful) or ~/.config/containers/systemd/ (rootless).
+#
+# This unit is referenced by wakir-nats.container via the directive
+# `Network=wakir-orchestrator.network`.
+
+[Unit]
+Description=Wakir orchestrator bridge network (Quadlet dual-track)
+
+[Network]
+# Mirror of compose networks.wakir.name. The same name string is used
+# by the runtime so podman network ls shows wakir-orchestrator
+# regardless of which lifecycle path (compose or Quadlet) created it.
+NetworkName=wakir-orchestrator
+Driver=bridge
+
+[Install]
+WantedBy=multi-user.target default.target

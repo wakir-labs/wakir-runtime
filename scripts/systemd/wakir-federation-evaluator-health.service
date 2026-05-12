@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# Wakir orchestrator — federation-evaluator health-check service
+# (system unit; Sprint-2 Tag-7 tool).
+#
+# Same install pattern as wakir-nats-kv-health.service; see that
+# file for the per-host setup steps. The PYTHONPATH knob is the only
+# additional contract: the federation-evaluator tool imports from
+# wirelang.federation.* and therefore needs the repo root (or an
+# editable install) on PYTHONPATH.
+
+[Unit]
+Description=Wakir orchestrator — federation-evaluator health check
+Documentation=https://github.com/wakir-labs/wakir-runtime
+OnSuccess=wakir-prometheus-textfile-adapter@federation-evaluator-health.service
+OnFailure=wakir-prometheus-textfile-adapter@federation-evaluator-health.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/wakir-runtime
+EnvironmentFile=/etc/wakir/federation-evaluator-health.env
+Environment=PATH=/opt/wakir-runtime/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONPATH=/opt/wakir-runtime
+ExecStart=/bin/sh -c '/opt/wakir-runtime/.venv/bin/python3 \
+    /opt/wakir-runtime/scripts/check-federation-evaluator-health.py \
+    > /var/log/wakir/federation-evaluator-health.json'
+SuccessExitStatus=0 1 2
+ProtectSystem=strict
+ReadWritePaths=/var/log/wakir
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+Nice=10
+
+[Install]
+WantedBy=multi-user.target
