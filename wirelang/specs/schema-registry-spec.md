@@ -16,23 +16,31 @@ audience: implementers, integrators, operators
 license: CC-BY-4.0
 ---
 
-# Wirelang Schema Registry — NATS-KV Backend Specification (v0.29.0)
+# Wirelang Schema Registry — NATS-KV Backend Specification (v0.30.0)
 
-**Sprint-8 Tag-2 spec-consolidation anchor (2026-05-13).** This
-version closes the v0.22.0 → v0.28.0 deferred-changelog batch from
-the Sprint-7 closeout artefact (six additive minor bumps for the
-Multi-Org-Federation-Substrate achievement series) and adds the
-Sprint-8 Tag-2 Cross-Org-Attenuation-Chain-Verifier hardening
-surface on top. All bumps from v0.22.0 to v0.29.0 are **additive
-minor bumps** per §3.2 versioning policy; no breaking changes;
-all pre-existing frames remain valid against v0.29 verifiers.
+**Sprint-8 Tag-3 Multi-Marker-Policy-Composition anchor
+(2026-05-13).** This version adds the
+Multi-Marker-Policy-Composition engine
+(`wirelang.federation.marker_composition`) on top of the
+Sprint-8 Tag-2 Cross-Org-Attenuation-Chain-Verifier (v0.29.0).
+The composition engine collapses heterogeneous marker streams
+(`RevokeEvent`, `UnrevokeEvent`, `ReIssuanceEvent`,
+`CaveatOverrideEvent`, `BridgeRevokedEvent`) into a single
+deterministic lifecycle verdict per capability-token. v0.30.0
+is an **additive minor bump** per §3.2 versioning policy; no
+breaking changes; all pre-existing frames remain valid against
+v0.30 verifiers; the Tag-2 Cross-Org verifier surface remains
+byte-identical.
 
 Cross-reference: Sprint-7 closeout source at
 `agents-workspaces/reza/outbox/2026-05-13-sprint-7-wirelang-side-closeout-skizze.md`
-§2 (six achievement-blocks with per-tag substance and push-SHAs)
-and Sprint-8 Tag-2 outbox rapport at
+§2 (six achievement-blocks with per-tag substance and push-SHAs),
+Sprint-8 Tag-2 outbox rapport at
 `agents-workspaces/reza/outbox/2026-05-13-reza-sprint-8-tag-2-verifier-hardening.md`
-§A (Cross-Org verifier substance + tests).
+§A (Cross-Org verifier substance + tests), and Sprint-8 Tag-3
+outbox rapport at
+`agents-workspaces/reza/outbox/2026-05-13-reza-sprint-8-tag-3-multi-marker-policy.md`
+§A (Multi-Marker composition engine substance + tests).
 
 The Sprint-8 Tag-1 RealAdapter-Mirror
 (`wirelang/adapters/real_nats_adapter/`) remains documented in
@@ -46,6 +54,7 @@ schema-registry-spec change-log entry warranted.
 
 | Version | Date       | Change                                                 |
 |---------|------------|--------------------------------------------------------|
+| 0.30.0  | 2026-05-13 | **Sprint-8 Tag-3 Multi-Marker-Policy-Composition.** New module `wirelang.federation.marker_composition` providing a deterministic reducer over heterogeneous marker streams per capability-token lifecycle. Five event-marker dataclasses ratified: (1) `RevokeEvent` (event_at, revocation_reason, tie_break, wat_anchor_manifest_id) mirrors Sprint-6 Tag-1 capability-policy revocation on the composition axis. (2) `UnrevokeEvent` (event_at, previous_revoked_at, unrevoke_reason, tie_break, wat_anchor_manifest_id) mirrors Sprint-6 Tag-9 `UnrevokeAuditMarker` on the composition axis (preserves the causal-chain integrity invariant: `previous_revoked_at` MUST byte-equal the prior `RevokeEvent.event_at`). (3) `ReIssuanceEvent` (event_at, new_token_id, re_issuance_reason, tie_break, wat_anchor_manifest_id) introduces token-refresh lifecycle semantics: a re-issuance is only valid on a prior-revoked token and transitions the lifecycle to the terminal `RE_ISSUED` state with the new superseding token-id surfaced on the verdict. (4) `CaveatOverrideEvent` (event_at, original_caveat_set, narrowed_caveat_set, override_reason, tie_break, wat_anchor_manifest_id) surfaces verifier-observed issuer-side caveat-narrowing with mandatory causal-chain check: `original_caveat_set` MUST byte-equal `MarkerStack.original_caveat_set` or the reducer raises `MarkerCompositionConflictError`. The override transitions to terminal `CAVEAT_OVERRIDDEN`. (5) `BridgeRevokedEvent` wraps the Sprint-8 Tag-2 `BridgeRevocationMarker` on the composition axis with `tie_break` and `wat_anchor_manifest_id`; the event_at is the marker's `revoked_at` instant (sort axis). Bridge events do NOT alter the lifecycle state; they set an orthogonal `bridge_blocked` flag iff `marker.bridge_was_revoked_for_mint(stack.minted_at)` is true. `MarkerStack(token_id, minted_at, original_caveat_set, events)` is the frozen ordered carrier (event-order is observational, not authoritative; the reducer sorts on `(event_at, tie_break)` before applying rules). `reduce_marker_stack(stack: MarkerStack) -> CompositionVerdict` is pure (no I/O, no clock, no mutation), deterministic (byte-equal verdict across repeated calls), and exhaustive (every supported event family has an explicit reduction rule; unsupported state-event combinations raise `MarkerCompositionConflictError`). `CompositionState` is the closed lifecycle enumeration `{ACTIVE, REVOKED, RE_ISSUED, CAVEAT_OVERRIDDEN}`; `EffectiveVerdict` is the closed effective enumeration `{ACTIVE, REVOKED, RE_ISSUED, CAVEAT_OVERRIDDEN, BRIDGE_BLOCKED}` folding the bridge-blocking orthogonal axis (REVOKED supersedes BRIDGE_BLOCKED in the fold; BRIDGE_BLOCKED only surfaces if lifecycle would otherwise be ACTIVE). `CompositionVerdict` carries `(state, effective, bridge_blocked, revocation_reason, revoked_at, new_token_id, narrowed_caveat_set, audit_trace, wat_anchor_chain)`. The `audit_trace` is an ordered tuple of `AuditTraceEntry(event_at, tie_break, event_kind, outcome, wat_anchor_manifest_id)` records, one per consumed marker, deterministic across reductions. Error hierarchy: `MarkerCompositionError` (base, inherits from `FederationPredicateError`), `MarkerCompositionArgumentError` (syntactic-shape failures: wrong type, missing field, non-aware datetime), `MarkerCompositionConflictError` (semantic-chain failures: mismatched `previous_revoked_at`, re-issuance on active, caveat-override on terminal state or with broken original-caveat-chain, duplicate ordering key `(event_at, tie_break)`, unrevoke not strictly after prior revoke). Cross-review hooks: Zone 1 (Identity-Substrate) consumed via re-import of `BridgeRevocationMarker` from Sprint-8 Tag-2 module (single source of truth, no schema duplication); Zone 2 (WAT × Wirelang) preserved via per-event `wat_anchor_manifest_id` and aggregate `wat_anchor_chain` on the verdict for single-snapshot WAT-leaf audit emission across full lifecycle; Zone 3 (OTS-Schema-Anker) reserved for Phase-2 marker-composition schema-registry entry (four event-marker schemas + verdict envelope). Test surface: `wirelang/tests/test_federation_marker_composition.py` adds 20 deterministic tests T-MC-01..T-MC-12 (canonical reduction paths) + T-MC-edge-01..T-MC-edge-08 (edge cases) covering: empty stack → ACTIVE, single revoke → REVOKED, revoke+unrevoke → ACTIVE with audit, revoke+re-issuance → RE_ISSUED, bridge-before-mint → BRIDGE_BLOCKED, bridge-after-mint → ACTIVE, caveat-override → CAVEAT_OVERRIDDEN with narrowed set, complex lifecycle revoke+unrevoke+bridge → BRIDGE_BLOCKED (lifecycle ACTIVE), revoke+bridge (no unrevoke) → REVOKED supersedes, determinism (byte-equal verdict across calls), out-of-order arrivals collapse to same verdict (sort-stable), 4-marker full lifecycle revoke→unrevoke→revoke→re-issuance → RE_ISSUED; edges: unrevoke with mismatched previous_revoked_at → conflict, re-issuance on active → conflict, caveat-override with broken causal chain → conflict, duplicate ordering key → conflict (non-deterministic reduction guarded), naive datetime → argument error, caveat-override without MarkerStack.original_caveat_set → conflict, revoke after re-issuance (terminal state) → conflict, unrevoke at same event_at as revoke (not strictly after) → conflict. Total project-wide test count: 1207 (Sprint-8 Tag-2) → 1227 (Sprint-8 Tag-3), delta +20. The Sprint-8 Tag-3 path is **additive over Sprint-8 Tag-2**: Cross-Org-Attenuation-Chain-Verifier (Sprint-8 Tag-2) byte-unchanged; N3 chain walker / N2 evaluator byte-unchanged; capability-policy backend / replicator / unrevoke surfaces byte-unchanged; Multi-Org-Attestation-Live-Tail-Replicator (Sprint-7 Tag-6) byte-unchanged; SPIFFE-Cross-Trust-Domain-Bridge (Sprint-7 Tag-3) byte-unchanged. M-2 conformance preserved (no envelope-shape change). M-4 conformance preserved (orthogonal to version axis). Cross-Review-Zone-1 (Identity-Substrate) non-touched (composition consumes existing `BridgeRevocationMarker` surface). Cross-Review-Zone-B (NATS-KV × Wirelang) non-touched (the composition engine is a pure-reduction module; no NATS surface). Cross-Review-Zone-A (SPIFFE/SPIRE) non-touched. Cross-Review-Zone-M (TV-W manifest) non-touched. Cross-Review-Zone-O (Sprint-7 Cross-Org-Federation) non-touched (the composition engine is the lifecycle-axis layer over the Cross-Org substrate). Cross-Review-Zone-3 (OTS-Schema-Anker) reserved for Phase-2 marker-composition schema-registry entry; not opened in Tag-3. Phase-3 reservations preserved. Sprint-8 Tag-3+ candidates: Z3 OTS-anchored schema-registry entry for the five marker-event types and the `CompositionVerdict` envelope (Cross-Review-Zone-3 trigger); `CaveatOverrideEvent` cross-org-export-surface (mirror on Sprint-7 Tag-5 UnrevokeAuditMarker export); operator-CLI surface for marker-stack inspection (`reduce_marker_stack` wrapper that pretty-prints the audit-trace for forensic walks); persistent marker-stack bucket on NATS-KV with append-only semantics (operator-deliberate-only writes, pattern-mirror on capability-policy Sprint-5 Tag-2 backend). Additive-only change relative to v0.29.0. |
 | 0.29.0  | 2026-05-13 | **Sprint-8 Tag-2 Cross-Org-Attenuation-Chain-Verifier hardening + Spec-Sweep consolidation.** New module `wirelang.federation.cross_org_attenuation_verifier` composing three orthogonal replay-detector families on top of the N3 chain walker: (1) **Bridge-Revocation Replay Detector** — rejects tokens whose chain crosses a Trust-Domain-Bridge revoked at-or-before claimed mint time; the canonical replay/forgery signature for Cross-Org tokens. Surfaced via `BridgeRevocationMarker` frozen dataclass with `(source_ftd_id, target_ftd_id, revoked_at)` fields and per-instance `bridge_was_revoked_for_mint(minted_at: datetime) -> bool` predicate (`revoked_at <= minted_at`). (2) **Caveat-Mismatch Detector** — rejects when verifier-side caveat expectation set is NOT a subset of issuer-side delegated caveat chain (Org-B cannot expect a privilege Org-A did not delegate). Surfaced via `CaveatExpectation` frozen dataclass with `(predicate, arguments: Tuple)` fields and a set-containment check over `(predicate, arguments)` pairs. (3) **Chain-Length-Limit Detector** — rejects Cross-Org chains crossing strictly more than `cross_org_max_hops` distinct trust-domain boundaries (default `CROSS_ORG_MAX_HOPS_DEFAULT = 3`, tightening the N3-walker's `MAX_DEPTH_DEFAULT = 4` at the Cross-Org axis). Operators MAY raise the cap with paired Z3 OTS-anchored policy. `CrossOrgAttenuationVerifier.verify(n3_verdict, *, minted_at, bridge_revocations=None, issuer_caveat_chain=None, verifier_expected_caveats=None)` runs the three detectors in fixed order (3 → 1 → 2) for deterministic forensics. Returns `CrossOrgVerdict(n3_verdict, boundary_count, wat_anchor_chain)` on accept; raises `CrossOrgChainLengthLimitError`, `BridgeRevocationReplayError`, or `CrossOrgCaveatMismatchError` on rejection. The verifier is pure (no clock, no I/O), stateless, and deterministic; composes on top of pre-computed `ChainVerdict` rather than replacing the N3 walker. Convenience wrapper `verify_cross_org_attenuation(...)` mirrors the class-form for single-shot callers. Cross-review hooks: Zone 1 (Identity-Substrate) consumed via N3 per-hop FTD ids; Zone 2 (WAT × Wirelang) preserved via `CrossOrgVerdict.wat_anchor_chain` for single-snapshot WAT-leaf audit emission; Zone 3 (OTS-Schema-Anker) reserved for Phase-2 `BridgeRevocationMarker` schema-registry entry. Test surface: `wirelang/tests/test_cross_org_attenuation_verifier.py` adds 10 deterministic tests T-CO-01..T-CO-09 + T-CO-aux-convenience-fn-parity covering argument-shape gate, happy-path 2-hop chain, Detector-1 bridge-revoked-after-mint-accepted, Detector-1 bridge-revoked-before-mint-rejected, Detector-2 caveat mismatch rejected, Detector-2 subset-and-empty accepted, Detector-3 chain-length-limit rejected (default 3, raised to 4 by operator), determinism (verdict equality + error-message equality across calls), and detector-ordering invariant (Detector 3 fires first, then 1, then 2; test pins the order across three input topologies). Total project-wide test count: 1197 (Sprint-8 Tag-1) → 1207 (Sprint-8 Tag-2), delta +10. The Sprint-8 Tag-2 path is **additive over Sprint-8 Tag-1 (v0.28.0 implicit, this consolidation makes it explicit)**: N3 chain walker (Sprint-2 Tag-5) byte-unchanged; N2 evaluator (Sprint-2 Tag-3) byte-unchanged; federation-route registry byte-unchanged; capability-policy backend / replicator / unrevoke surfaces byte-unchanged; Multi-Org-Federation-Substrate / Multi-Org-Attestation-NatsKV-Backend / SPIFFE-Cross-Trust-Domain-Bridge / Capability-Attenuation-Chain-Verifier (Sprint-7 Tag-1..Tag-4) byte-unchanged; UnrevokeAuditMarker-Cross-Org-Export-Surface / Multi-Org-Attestation-Live-Tail-Replicator (Sprint-7 Tag-5..Tag-6) byte-unchanged. M-2 conformance preserved (no envelope-shape change). M-4 conformance preserved (orthogonal to version axis). Cross-Review-Zone-1 (Identity-Substrate) non-touched (Cross-Org verifier consumes existing N3 surface). Cross-Review-Zone-B (NATS-KV × Wirelang) non-touched. Cross-Review-Zone-A (SPIFFE/SPIRE) non-touched. Cross-Review-Zone-M (TV-W manifest) non-touched. Cross-Review-Zone-O (Sprint-7 Cross-Org-Federation) non-touched (the Cross-Org verifier is the hardening layer ON TOP OF the Zone-O ratified substrate; the four Zone-O consensus points remain byte-identical). Cross-Review-Zone-3 (OTS-Schema-Anker) reserved for Phase-2 BridgeRevocationMarker schema-registry entry; not opened in Tag-2. Phase-3 reservations preserved. Sprint-8 Tag-2+ candidates: per-hop FTD-doc re-resolution in the Cross-Org verifier (the current Tag-2 contract trusts the N3 walker's per-hop FTD-id binding; a Phase-2-hardening box may add per-hop FTD-doc resolution for stricter forensics), `BridgeRevocationMarker` OTS-anchored schema-registry entry (Z3 cross-review trigger), multi-marker policy composition (operator chains of revocation markers per FTD pair). Additive-only change relative to v0.28.0. |
 | 0.28.0  | 2026-05-12 | Phase-2 Sprint-7 Tag-6 lands the **Multi-Org-Attestation Live-Tail Replicator** — continuous-stream-composition layer on top of the Tag-2 `bootstrap_multi_org_attestation_target_from_source` one-shot. Together the two surfaces form the full cross-bucket replication suite for `wakir-multi-org-attestations` (pattern-mirror on Sprint-6 Tag-6 capability-policy cross-bucket replicator). New module `wirelang.federation.multi_org_attestation_live_tail_replicator` (~390 LOC + ~480 test LOC): `MultiOrgAttestationReplicator` async orchestrator dataclass composing the Tag-2 backend `snapshot` + `watch` + `put` / `put_with_revision` into a one-way source→target durable-stream replicator. Primary entry-point: `async run(*, bootstrap: bool = True) -> MultiOrgAttestationReplicationMetrics`. `async bootstrap()` delegates to the Tag-2 one-shot for initial sync. Live-tail loop opens `open_watch_stream(self.source)` and routes each decoded `MultiOrgAttestationWatchEvent` through filter → conflict-policy → target write/delete. Conflict policies (reused from Tag-2): `SOURCE_WINS` (LWW via `put`, default) and `CAS_PIN` (`put_with_revision` against `get_with_revision`-observed revision, create-if-absent fall-through to `put` for absent keys). Halt policy (three operator tunables, all default "continue and count"): `halt_on_envelope_error`, `halt_on_cas_conflict`, `halt_on_monotonic_breach`. Noisy or hostile source stream MUST NOT crash the replicator. Tests: +7 hermetic tests in `test_federation_multi_org_attestation_live_tail_replicator.py`. Additive-only change relative to v0.27.0. Push-SHA `f60d1fa5c6fc9f5343d92b5afeaf7d74c2f2019e`. |
 | 0.27.0  | 2026-05-12 | Phase-2 Sprint-7 Tag-5 lands the **UnrevokeAuditMarker Cross-Org-Export-Surface** — cross-org-export surface for `UnrevokeAuditMarker` records from Sprint-6 Tag-9 EXPLICIT_UNREVOKE classifier extension. Multi-org distribution of unrevoke-audit-trails via `MultiOrgAttestationEnvelope` wrapping (Tag-1 substrate). Export is a **pure-reading projection** (no write path on foreign org buckets); verifier-cross-org reads `UnrevokeAuditMarker` from source-org bucket and projects into own audit-trail annex. Consensus anchor: Sprint-6 Tag-9 classifier output remains byte-unchanged; only the transport layer is new. Additive-only change relative to v0.26.0. Push-SHA `d0669f957dd375274ae6751e584e2a9112871d8e`. |
@@ -4046,6 +4055,139 @@ the `registered_by`-indexed view from the per-key map on each call.
   Sprint-5 Tag-2 / Tag-4 byte-unchanged.
 - A mutation of `NatsKvSchemaRegistry` — the schema-registry
   backend is byte-unchanged.
+
+### 5.15 Multi-Marker-Policy-Composition (Phase-2 Sprint-8 Tag-3)
+
+**Status:** Tag-3 lands the deterministic Multi-Marker-Policy-
+Composition reducer in
+`wirelang/federation/marker_composition.py`. Phase-2 Sprint-8
+Tag-3 fixes the per-capability-token lifecycle reduction surface
+and the closed-enumeration verdict surface; the OTS-anchored
+schema-registry entry for the five marker-event types remains
+**reserved for a future tag** (Cross-Review-Zone-3 trigger).
+
+#### 5.15.1 Module surface
+
+The composition engine exposes five frozen-dataclass event
+markers, a frozen-dataclass `MarkerStack` carrier, a frozen
+`CompositionVerdict`, two closed enumerations
+(`CompositionState`, `EffectiveVerdict`), one ordered
+`AuditTraceEntry`, and a single public reducer entry-point
+`reduce_marker_stack(stack: MarkerStack) -> CompositionVerdict`.
+
+Event markers (all frozen, all timezone-aware `event_at`):
+
+- **`RevokeEvent(event_at, revocation_reason, tie_break, wat_anchor_manifest_id)`**:
+  mirrors Sprint-6 Tag-1 `policy.revoked_at` set; transitions
+  `ACTIVE → REVOKED`. Duplicate-revoke is accepted later-wins
+  with audit trace; revoke after re-issuance / caveat-override
+  raises `MarkerCompositionConflictError`.
+- **`UnrevokeEvent(event_at, previous_revoked_at, unrevoke_reason, tie_break, wat_anchor_manifest_id)`**:
+  mirrors Sprint-6 Tag-9 `UnrevokeAuditMarker` on the composition
+  axis. Transitions `REVOKED → ACTIVE` iff
+  `previous_revoked_at == prior_RevokeEvent.event_at` byte-equally
+  AND `event_at` strictly after the prior revoke. Any mismatch
+  raises `MarkerCompositionConflictError`.
+- **`ReIssuanceEvent(event_at, new_token_id, re_issuance_reason, tie_break, wat_anchor_manifest_id)`**:
+  superseding-token-refresh event. Transitions
+  `REVOKED → RE_ISSUED` (terminal). A re-issuance on `ACTIVE`
+  is structurally ill-formed and raises
+  `MarkerCompositionConflictError`. The `new_token_id` is
+  surfaced on the verdict for downstream resolvers.
+- **`CaveatOverrideEvent(event_at, original_caveat_set, narrowed_caveat_set, override_reason, tie_break, wat_anchor_manifest_id)`**:
+  verifier-observed issuer-side caveat-narrowing. Transitions
+  any non-terminal lifecycle state to `CAVEAT_OVERRIDDEN`
+  (terminal) iff `original_caveat_set` byte-equals
+  `MarkerStack.original_caveat_set`. Mismatch raises
+  `MarkerCompositionConflictError` with
+  `"caveat causal-chain is broken"` message.
+- **`BridgeRevokedEvent(marker: BridgeRevocationMarker, tie_break, wat_anchor_manifest_id)`**:
+  wraps the Sprint-8 Tag-2 `BridgeRevocationMarker`. Bridge
+  events are orthogonal to the lifecycle axis: they set the
+  verdict's `bridge_blocked` flag iff
+  `marker.bridge_was_revoked_for_mint(stack.minted_at)` is true.
+  Lifecycle state is unchanged. The `event_at` property mirrors
+  `marker.revoked_at` for the deterministic sort axis.
+
+#### 5.15.2 Deterministic reduction
+
+The reducer sorts events on `(event_at, tie_break)` ascending
+before applying rules; two events with the same ordering key
+raise `MarkerCompositionConflictError` (deterministic reduction
+is not possible). Caller-side event order is observational and
+does NOT affect the verdict (asserted by T-MC-11).
+
+The reduction is **pure**:
+
+- No I/O.
+- No wall-clock read.
+- No mutation (all inputs are frozen dataclasses; the verdict
+  is itself a frozen dataclass).
+- Same `MarkerStack` reduces to byte-equal `CompositionVerdict`
+  across repeated calls (asserted by T-MC-10).
+
+#### 5.15.3 Effective-verdict fold
+
+The `EffectiveVerdict` closed enumeration folds the orthogonal
+`bridge_blocked` flag into the lifecycle state:
+
+| lifecycle state    | `bridge_blocked` | effective         |
+|--------------------|------------------|-------------------|
+| `ACTIVE`           | `False`          | `ACTIVE`          |
+| `ACTIVE`           | `True`           | `BRIDGE_BLOCKED`  |
+| `REVOKED`          | (any)            | `REVOKED`         |
+| `RE_ISSUED`        | (any)            | `RE_ISSUED`       |
+| `CAVEAT_OVERRIDDEN`| (any)            | `CAVEAT_OVERRIDDEN`|
+
+`REVOKED`, `RE_ISSUED`, and `CAVEAT_OVERRIDDEN` always
+supersede `BRIDGE_BLOCKED` in the effective fold. The
+lifecycle `state` and `bridge_blocked` flag remain separately
+queryable on the verdict for forensics.
+
+#### 5.15.4 Audit-trace and WAT-anchor chain
+
+Every reduction emits an ordered `audit_trace: Tuple[AuditTraceEntry, ...]`
+of one record per consumed event, in event-time order. Each
+entry carries `(event_at, tie_break, event_kind, outcome, wat_anchor_manifest_id)`.
+`event_kind` is one of `{"revoke", "unrevoke", "re_issuance",
+"caveat_override", "bridge_revoked"}`; `outcome` is a short
+human-readable transition label (e.g. `"transition:active->revoked"`,
+`"duplicate_revoke:later_wins"`, `"bridge_block_armed"`,
+`"bridge_block_skipped:revoked_after_mint"`).
+
+The `wat_anchor_chain: Tuple[Optional[str], ...]` is the
+projection of `wat_anchor_manifest_id` across the audit trace
+in event-time order. Downstream WAT-leaf consumers can emit
+a single WAT snapshot per lifecycle reduction.
+
+#### 5.15.5 Cross-review hooks
+
+- **Zone 1 (Identity-Substrate):** `BridgeRevocationMarker` is
+  re-imported unchanged from
+  `wirelang.federation.cross_org_attenuation_verifier` (Sprint-8
+  Tag-2). The composition module does NOT duplicate the schema.
+- **Zone 2 (WAT × Wirelang):** preserved via per-event
+  `wat_anchor_manifest_id` and aggregate `wat_anchor_chain` on
+  the verdict; single-snapshot WAT-leaf audit emission across
+  the full lifecycle is supported.
+- **Zone 3 (OTS-Schema-Anker):** reserved for a future Tag-N
+  schema-registry entry (four event-marker schemas + verdict
+  envelope). Not opened in Tag-3.
+
+#### 5.15.6 What Tag-3 explicitly does NOT do
+
+- **No persistent marker-stack bucket.** The reducer is a pure
+  in-memory engine; persistence is Sprint-8 Tag-N+ candidate
+  (pattern-mirror on Sprint-5 Tag-2 capability-policy backend).
+- **No marker-stack cross-org-export-surface.** Mirror on
+  Sprint-7 Tag-5 `UnrevokeAuditMarker` export is Sprint-8 Tag-N+
+  candidate.
+- **No operator-CLI surface.** A `reduce-marker-stack` CLI
+  subcommand pretty-printing the audit-trace is Sprint-8 Tag-N+
+  candidate.
+- **No schema-registry envelope for marker events.** The five
+  event-marker dataclasses live in the runtime layer only; their
+  OTS-anchored schemas are Cross-Review-Zone-3 reserved.
 
 ## 6. Test inventory
 

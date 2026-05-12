@@ -19,4 +19,13 @@ Public surface:
   :class:`FederationRouteUnknownError`,
   :class:`FederationRouteExpiredError`,
   :class:`FederationPredicateArgumentError`.
+
+Sprint-8 Tag-3 adds the Multi-Marker-Policy-Composition reducer:
+
+- :func:`wirelang.federation.marker_composition.reduce_marker_stack`
+- :class:`wirelang.federation.marker_composition.MarkerStack`
+- :class:`wirelang.federation.marker_composition.CompositionVerdict`
+- event markers: ``RevokeEvent``, ``UnrevokeEvent``,
+  ``ReIssuanceEvent``, ``CaveatOverrideEvent``,
+  ``BridgeRevokedEvent``.
 """
