@@ -9,14 +9,29 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wirelang-schema-registry
-version: 0.21.0
+version: 0.22.0
 status: draft
-date: 2026-05-12
+date: 2026-05-13
 audience: implementers, integrators, operators
 license: CC-BY-4.0
 ---
 
 # Wirelang Schema Registry — NATS-KV Backend Specification (v0.22.0)
+
+**Sprint-8 Tag-1 anchor (2026-05-13).** The change-log table below is the
+v0.22.0 surface as of Sprint-6 Tag-9. Sprint-7 (Multi-Org-Federation-
+Substrate, six additive achievements) ratified on 2026-05-13 lands a
+batch of bumps to v0.28.0 which are tracked in the Sprint-7 closeout
+artefact at `agents-workspaces/reza/outbox/2026-05-13-sprint-7-wirelang-side-closeout-skizze.md`
+and will be folded into this change-log on the Sprint-8 Tag-N spec-
+consolidation box (Reza-side cleanup item). The Sprint-8 Tag-1
+RealAdapter-Mirror (`wirelang/adapters/real_nats_adapter/`) is
+documented in `identity-substrate.md` §5.8 (paired with
+`real_spiffe_workload_api.py` Sprint-6 Tag-7 Slot-2-Mirror); the
+schema-registry-spec change-log entry for the RealAdapter-Mirror is
+deferred to the same Sprint-8 Tag-N consolidation box (the adapter
+is an implementation surface, not a schema-registry surface — no
+bucket-shape change, no envelope-shape change).
 
 **Change log**
 
