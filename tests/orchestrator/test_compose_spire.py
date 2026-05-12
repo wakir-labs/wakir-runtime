@@ -102,15 +102,25 @@ def test_compose_file_is_present_and_parses(compose_doc: dict) -> None:
     assert "networks" in compose_doc, "compose file must declare a network"
 
 
-def test_compose_has_single_phase_2_1_service_named_spire_server(
+def test_compose_has_spire_server_service(
     compose_doc: dict,
 ) -> None:
+    """Phase-2.1 invariant generalised in Sprint-6 Tag-9 (Phase-2.2):
+
+    The compose file MUST declare a service named ``spire-server``. The
+    Tag-6 Phase-2.1 form required this to be the *only* service; the
+    Tag-9 Phase-2.2 form adds a paired ``spire-agent`` service block in
+    the same compose file (see ``test_compose_spire_agent.py``).
+    Generalising to "spire-server is present, agent may also be" keeps
+    the original invariant intact while letting Phase-2.2 land
+    additively. The exact 2-service shape is asserted in the Tag-9
+    suite; here we only require ``spire-server`` to be there.
+    """
     services = compose_doc["services"]
     assert isinstance(services, dict)
-    assert list(services.keys()) == ["spire-server"], (
-        "Phase-2.1 hermetic substrate must expose exactly one service "
-        "('spire-server'); the SPIRE-Agent sidecar is a Phase-2.2 follow-up "
-        "in its own service block."
+    assert "spire-server" in services, (
+        "compose/spire.yaml must declare a 'spire-server' service "
+        "(Phase-2.1 floor; Phase-2.2 adds 'spire-agent' alongside it)."
     )
 
 

@@ -11,6 +11,24 @@
 #   read_only rootfs, non-root user, tmpfs for /run/spire, and an
 #   explicit loopback ports mapping. See ``docs/spire-server-phase-
 #   2-1.md`` for the Operator-Hand digest-substitution workflow.
+# Phase-2 Sprint-6 Tag-9 — SPIRE-Agent hermetic sidecar substrate.
+#   Adds the paired ``spire-agent`` service block as the Phase-2.2
+#   companion to the Phase-2.1 ``spire-server`` block. The agent
+#   uses the ``join_token`` NodeAttestor in Mock/Stub form (no real
+#   join-token issuance, no live workload registration), shares the
+#   ``spire_server_sockets`` named volume with the server for the
+#   Admin-API gRPC channel (Server ↔ Agent), and serves the
+#   Workload-API on a separate named volume ``spire_agent_sockets``
+#   at the canonical SPIFFE-Workload-API socket-path
+#   ``/run/spire/agent-sockets/api.sock``. Persona-container Workload-
+#   API-consumers (Phase-2.3+, Operator-Hand) mount the
+#   ``spire_agent_sockets`` volume read-only at the same path.
+#   Cosign-Digest-Pin form mirrors the Tag-8 SPIRE-Server convention.
+#   See ``docs/spire-agent-phase-2-2.md`` for the SPIFFE-ID-Binding
+#   cross-reference (Reza ``wirelang/specs/identity-substrate.md`` §5,
+#   Mock-Adapter ``wirelang/adapters/spiffe_workload_api.py`` on the
+#   Reza-Sprint-6-Tag-5 track; real-adapter ``real_spiffe_workload_
+#   api.py`` is a Reza-Tag-7+ slot, not present in the Tag-9 baseline).
 #
 # What this file is:
 #   A hermetic, Mock/Stub-only compose unit that declares a SPIRE-Server
@@ -184,19 +202,110 @@ services:
           cpus: "0.5"
           memory: "256M"
 
+  spire-agent:
+    # SPIRE-Agent Phase-2.2 hermetic sidecar (Sprint-6 Tag-9).
+    #
+    # The agent runs the upstream SPIRE-Agent with a Mock/Stub config
+    # bind-mounted into ``/etc/spire/agent/agent.conf``. The Mock
+    # config attests against the SPIRE-Server using the ``join_token``
+    # NodeAttestor (no real token is issued in the hermetic substrate;
+    # the value is a documented placeholder). The agent serves the
+    # SPIFFE-Workload-API on a Unix-socket at
+    # ``/run/spire/agent-sockets/api.sock`` via the named volume
+    # ``spire_agent_sockets``. The Server-Admin-API gRPC channel
+    # (Server ↔ Agent) is on the shared ``spire_server_sockets``
+    # volume at ``/run/spire/sockets``.
+    #
+    # Image-pin form (Tag-9, Pfad B Cosign-Digest-Pin parity with
+    # spire-server): ``tag@sha256:<digest>``. Placeholder
+    # ``DIGEST_PENDING_TOMAS_REVIEW`` is resolved by Operator-Hand
+    # before any live bring-up (same workflow as spire-server in
+    # docs/spire-server-phase-2-1.md §2).
+    image: "ghcr.io/spiffe/spire-agent:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW"
+    container_name: wakir-spire-agent
+    # The agent needs the server to be reachable before it starts
+    # attesting; ``depends_on`` triggers compose to start spire-server
+    # first. Health-gating on spire-server's healthcheck is
+    # ``service_healthy`` so the agent does not race the server's
+    # bootstrap (CA gen + DB init).
+    depends_on:
+      spire-server:
+        condition: service_healthy
+    command:
+      - "run"
+      - "-config"
+      - "/etc/spire/agent/agent.conf"
+    read_only: true
+    user: "1000:1000"
+    volumes:
+      # SPIRE-Agent config (read-only bind-mount of the Mock/Stub
+      # config file). The Mock config declares trust-domain
+      # ``example.test`` (matching the server) and the server-admin
+      # socket-address at /run/spire/sockets (the shared volume).
+      - "./config/spire-agent.conf:/etc/spire/agent/agent.conf:ro"
+      # SPIRE-Agent data directory (bootstrap-trust-bundle cache,
+      # SVID cache). Named volume so an operator-driven recreate does
+      # not destroy the bootstrap trust-bundle.
+      - "spire_agent_data:/var/lib/spire/agent"
+      # Server-Admin-API channel — the SPIRE-Agent reaches the
+      # SPIRE-Server's admin socket on this shared volume. Server
+      # mounts the same volume at the same path.
+      - "spire_server_sockets:/run/spire/sockets"
+      # Workload-API socket — the SPIRE-Agent serves the SPIFFE-
+      # Workload-API on this volume. Phase-2.3+ persona-containers
+      # mount this volume read-only at the same path and the
+      # ``spiffe.workload_api`` client targets
+      # ``unix:///run/spire/agent-sockets/api.sock``.
+      - "spire_agent_sockets:/run/spire/agent-sockets"
+    # tmpfs for ephemeral SPIRE runtime paths (parity with server).
+    # Keeps the root filesystem strictly read-only.
+    tmpfs:
+      - "/run/spire:rw,size=16m,mode=0700"
+    networks:
+      - wakir
+    restart: unless-stopped
+    # Health probe: SPIRE-Agent ships its own healthcheck subcommand
+    # (parity with server). Hermetic-friendly, no HTTP endpoint, no
+    # host-side probe.
+    healthcheck:
+      test:
+        - "CMD"
+        - "/opt/spire/bin/spire-agent"
+        - "healthcheck"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    cap_drop:
+      - ALL
+    security_opt:
+      - "no-new-privileges:true"
+    # Phase-2 single-node: small resource envelope. Advisory under
+    # compose v2; mirrors the spire-server posture.
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "256M"
+
 volumes:
   spire_server_data:
     name: wakir-spire-server-data
   spire_server_sockets:
     name: wakir-spire-server-sockets
+  spire_agent_data:
+    name: wakir-spire-agent-data
+  spire_agent_sockets:
+    name: wakir-spire-agent-sockets
 
 networks:
-  # Shared with ``compose/nats.yaml`` — the SPIRE-Server-Sidecar and
-  # the NATS-Substrate coexist on the same user-defined bridge network.
-  # ``external: false`` so that ``docker compose -f spire.yaml up``
-  # alone is sufficient to create the network if it does not exist
-  # yet; subsequent NATS bring-up on the same network is then a
-  # ``compose -f nats.yaml up`` no-op for network creation.
+  # Shared with ``compose/nats.yaml`` — the SPIRE-Server-Sidecar,
+  # the SPIRE-Agent-Sidecar (Tag-9), and the NATS-Substrate coexist
+  # on the same user-defined bridge network. ``external: false`` so
+  # that ``docker compose -f spire.yaml up`` alone is sufficient to
+  # create the network if it does not exist yet; subsequent NATS
+  # bring-up on the same network is then a ``compose -f nats.yaml
+  # up`` no-op for network creation.
   wakir:
     name: wakir-orchestrator
     driver: bridge
