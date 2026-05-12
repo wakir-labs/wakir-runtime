@@ -96,6 +96,11 @@ jobs:
         # always-required runtime deps. This is the lane that exercises
         # the trail-of-bits rfc8785 implementation and the
         # Draft 2020-12 jsonschema validator path.
+        # NB: PyYAML is required by wirelang.persona.persona_canonical_form
+        # at module load (frontmatter parser); it is currently not
+        # declared in pyproject.toml's runtime deps. Add it explicitly
+        # here so the lane can import the persona package. Long-term fix
+        # belongs in pyproject.toml's `dependencies` list.
         run: |
           python -m pip install --upgrade pip
           python -m pip install \
@@ -104,7 +109,8 @@ jobs:
             "rfc8785>=0.1.4" \
             "jsonschema>=4.21" \
             "cryptography>=42" \
-            "shamir-mnemonic>=0.3.0"
+            "shamir-mnemonic>=0.3.0" \
+            "PyYAML>=6.0"
 
       - name: Verify rfc8785 + jsonschema are present
         # Hard-fail the lane if either library is somehow absent;
