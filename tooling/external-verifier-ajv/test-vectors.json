@@ -1,0 +1,629 @@
+[
+  {
+    "name": "v1-minimal-string-leaves",
+    "expect": "accept",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 1,
+      "events": [
+        {
+          "event_id": "evt-1",
+          "time": "2026-05-26T17:00:00.000Z",
+          "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "capability_token_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "leaf_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ],
+      "leaves": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "tree_levels": [
+        ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+      ],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "v1-minimal-object-leaves",
+    "expect": "accept",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 1,
+      "events": [
+        {
+          "event_id": "evt-1",
+          "time": "2026-05-26T17:00:00.000Z",
+          "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "capability_token_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "leaf_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ],
+      "leaves": [
+        {
+          "event_id": "evt-1",
+          "time": "2026-05-26T17:00:00.000Z",
+          "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "capability_token_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "leaf_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ],
+      "tree_levels": [
+        ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+      ],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "v1-zero-events",
+    "expect": "accept",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 0,
+      "events": [],
+      "leaves": [],
+      "tree_levels": [[]],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "v1-with-anchor-height",
+    "expect": "accept",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 1,
+      "events": [
+        {
+          "event_id": "evt-1",
+          "time": "2026-05-26T17:00:00.000Z",
+          "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "capability_token_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "leaf_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ],
+      "leaves": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "tree_levels": [
+        ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+      ],
+      "build_time": "2026-05-26T17:00:00Z",
+      "anchor_height": 800123,
+      "prev_hour_root": null
+    }
+  },
+  {
+    "name": "v1-prev-hour-root-hex",
+    "expect": "accept",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 1,
+      "events": [
+        {
+          "event_id": "evt-1",
+          "time": "2026-05-26T17:00:00.000Z",
+          "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "capability_token_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "leaf_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ],
+      "leaves": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "tree_levels": [
+        ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+      ],
+      "build_time": "2026-05-26T17:00:00Z",
+      "prev_hour_root": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  },
+  {
+    "name": "reject-missing-version",
+    "expect": "reject",
+    "manifest": {
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 0,
+      "events": [],
+      "leaves": [],
+      "tree_levels": [[]],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "reject-missing-merkle-root",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "event_count": 0,
+      "events": [],
+      "leaves": [],
+      "tree_levels": [[]],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "reject-unknown-version-string",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v3",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 0,
+      "events": [],
+      "leaves": [],
+      "tree_levels": [[]],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "reject-hour-slot-bad-pattern",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26 17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 0,
+      "events": [],
+      "leaves": [],
+      "tree_levels": [[]],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "reject-merkle-root-bad-pattern",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "BADHEX0000000000000000000000000000000000000000000000000000000000",
+      "event_count": 0,
+      "events": [],
+      "leaves": [],
+      "tree_levels": [[]],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "reject-merkle-root-truncated",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccc",
+      "event_count": 0,
+      "events": [],
+      "leaves": [],
+      "tree_levels": [[]],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "reject-event-count-negative",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": -1,
+      "events": [],
+      "leaves": [],
+      "tree_levels": [[]],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "reject-anchor-height-zero",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 0,
+      "events": [],
+      "leaves": [],
+      "tree_levels": [[]],
+      "build_time": "2026-05-26T17:00:00Z",
+      "anchor_height": 0
+    }
+  },
+  {
+    "name": "reject-prev-hour-root-truncated-hex",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 0,
+      "events": [],
+      "leaves": [],
+      "tree_levels": [[]],
+      "build_time": "2026-05-26T17:00:00Z",
+      "prev_hour_root": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  {
+    "name": "reject-unknown-top-level-property",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 0,
+      "events": [],
+      "leaves": [],
+      "tree_levels": [[]],
+      "build_time": "2026-05-26T17:00:00Z",
+      "future_field": "smuggled"
+    }
+  },
+  {
+    "name": "reject-tree-level-bad-hex",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 0,
+      "events": [],
+      "leaves": [],
+      "tree_levels": [["NOT-HEX"]],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "reject-leaves-bad-shape",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 1,
+      "events": [
+        {
+          "event_id": "evt-1",
+          "time": "2026-05-26T17:00:00.000Z",
+          "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "capability_token_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "leaf_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ],
+      "leaves": [12345],
+      "tree_levels": [
+        ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+      ],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "v1-multi-event-string-leaves",
+    "expect": "accept",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 3,
+      "events": [
+        {
+          "event_id": "evt-1",
+          "time": "2026-05-26T17:00:00.000Z",
+          "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "capability_token_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "leaf_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "event_id": "evt-2",
+          "time": "2026-05-26T17:05:00.000Z",
+          "payload_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+          "capability_token_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+          "leaf_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        {
+          "event_id": "evt-3",
+          "time": "2026-05-26T17:10:00.000Z",
+          "payload_hash": "5555555555555555555555555555555555555555555555555555555555555555",
+          "capability_token_hash": "6666666666666666666666666666666666666666666666666666666666666666",
+          "leaf_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        }
+      ],
+      "leaves": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      ],
+      "tree_levels": [
+        [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        ],
+        [
+          "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        ],
+        ["cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"]
+      ],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "v1-duplicate-leaf-allowed",
+    "expect": "accept",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 2,
+      "events": [
+        {
+          "event_id": "evt-1",
+          "time": "2026-05-26T17:00:00.000Z",
+          "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "capability_token_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "leaf_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "event_id": "evt-2",
+          "time": "2026-05-26T17:01:00.000Z",
+          "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "capability_token_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "leaf_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ],
+      "leaves": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "tree_levels": [
+        [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ],
+        ["cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"]
+      ],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "v1-anchor-height-large",
+    "expect": "accept",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 0,
+      "events": [],
+      "leaves": [],
+      "tree_levels": [[]],
+      "build_time": "2026-05-26T17:00:00Z",
+      "anchor_height": 2100000
+    }
+  },
+  {
+    "name": "v1-prev-hour-root-explicit-null",
+    "expect": "accept",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 0,
+      "events": [],
+      "leaves": [],
+      "tree_levels": [[]],
+      "build_time": "2026-05-26T17:00:00Z",
+      "prev_hour_root": null
+    }
+  },
+  {
+    "name": "reject-merkle-root-uppercase-hex",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+      "event_count": 0,
+      "events": [],
+      "leaves": [],
+      "tree_levels": [[]],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "reject-merkle-root-over-length",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 0,
+      "events": [],
+      "leaves": [],
+      "tree_levels": [[]],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "reject-merkle-root-non-string",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": 12345,
+      "event_count": 0,
+      "events": [],
+      "leaves": [],
+      "tree_levels": [[]],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "reject-event-missing-event-id",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 1,
+      "events": [
+        {
+          "time": "2026-05-26T17:00:00.000Z",
+          "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "capability_token_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "leaf_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ],
+      "leaves": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "tree_levels": [
+        ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+      ],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "reject-event-empty-event-id",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 1,
+      "events": [
+        {
+          "event_id": "",
+          "time": "2026-05-26T17:00:00.000Z",
+          "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "capability_token_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "leaf_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ],
+      "leaves": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "tree_levels": [
+        ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+      ],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "reject-event-leaf-hash-bad-length",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 1,
+      "events": [
+        {
+          "event_id": "evt-1",
+          "time": "2026-05-26T17:00:00.000Z",
+          "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "capability_token_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "leaf_hash": "aaaa"
+        }
+      ],
+      "leaves": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "tree_levels": [
+        ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+      ],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "reject-events-not-array",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 0,
+      "events": {},
+      "leaves": [],
+      "tree_levels": [[]],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "reject-object-leaves-without-leaf-hash",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 1,
+      "events": [
+        {
+          "event_id": "evt-1",
+          "time": "2026-05-26T17:00:00.000Z",
+          "payload_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "capability_token_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "leaf_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ],
+      "leaves": [
+        {
+          "event_id": "evt-1",
+          "time": "2026-05-26T17:00:00.000Z"
+        }
+      ],
+      "tree_levels": [
+        ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+      ],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "reject-tree-levels-non-array",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 0,
+      "events": [],
+      "leaves": [],
+      "tree_levels": "not-an-array",
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  },
+  {
+    "name": "reject-event-payload-hash-bad-hex",
+    "expect": "reject",
+    "manifest": {
+      "version": "wakir-wat-manifest/v1",
+      "hour_slot": "2026-05-26T17",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "event_count": 1,
+      "events": [
+        {
+          "event_id": "evt-1",
+          "time": "2026-05-26T17:00:00.000Z",
+          "payload_hash": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+          "capability_token_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "leaf_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ],
+      "leaves": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "tree_levels": [
+        ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+      ],
+      "build_time": "2026-05-26T17:00:00Z"
+    }
+  }
+]

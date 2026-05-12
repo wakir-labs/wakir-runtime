@@ -1,0 +1,105 @@
+{
+  "version": "wakir-wat-manifest/v1",
+  "hour_slot": "2026-05-27T01",
+  "merkle_root": "44046000e08faeb791af80792c4dd44ccec2497ea5eb593436244fd07ddf0f42",
+  "event_count": 5,
+  "events": [
+    {
+      "event_id": "evt-tv2-01-0000",
+      "time": "2026-05-27T01:00:00.000Z",
+      "payload_hash": "dd5c90a7cc4125a25e797008cd2751bc1ce4ff4f58fc6d697983233909d9bb1a",
+      "capability_token_hash": "f2d45b210c2fbc5ea1ba5d55614ea7fb9c61bb89bddfdffa538be3d9b29eec9a",
+      "leaf_hash": "aa5ee5c43f822e0f60ff9a8dd50f010f4b9d2bf342bc65772fb772e6809e2329"
+    },
+    {
+      "event_id": "evt-tv2-01-0001",
+      "time": "2026-05-27T01:10:00.000Z",
+      "payload_hash": "e1b9acc82b0e3c8c76196d2363964be2f85b16f7904ff9f8d3847d1f1fa15c60",
+      "capability_token_hash": "80d79f674ac8c066f40c7beab833f0926baf0b4547e0cdfc0b0c96bb628eb8e2",
+      "leaf_hash": "496fe46cf32130ab5d146f36d2b410665c6a6b6ceef6ae5e738f2bc254d82c9e"
+    },
+    {
+      "event_id": "evt-tv2-01-0002",
+      "time": "2026-05-27T01:20:00.000Z",
+      "payload_hash": "b96de717a4e490a966e1d1796203361d04d87aeb6b1f674ea8398206bb6f4074",
+      "capability_token_hash": "3bd09b9a275fccfae660a8ab2e4238cf8286019226ca0187205787920947dc40",
+      "leaf_hash": "34234ef584e7bcb90fbaef66a0bbb61342c9d0e0057a834bcebeec3fdfaa935c"
+    },
+    {
+      "event_id": "evt-tv2-01-0003",
+      "time": "2026-05-27T01:30:00.000Z",
+      "payload_hash": "e1c8c2026efac2094d0c648d1565be3f3ce666ad5ef44e56686276a9de8a11c4",
+      "capability_token_hash": "f2d45b210c2fbc5ea1ba5d55614ea7fb9c61bb89bddfdffa538be3d9b29eec9a",
+      "leaf_hash": "51ade285016b330c3e3953e9f06d41112b1dcc39f2c497f467ad98206889e5c0"
+    },
+    {
+      "event_id": "evt-tv2-01-0004",
+      "time": "2026-05-27T01:40:00.000Z",
+      "payload_hash": "f2d054cf423d25660bf455e5f3405f77b94720258a7c1329a94256ea28ac135f",
+      "capability_token_hash": "80d79f674ac8c066f40c7beab833f0926baf0b4547e0cdfc0b0c96bb628eb8e2",
+      "leaf_hash": "0b6fc164e0ad9a4035ce58c1c92c2aa99d6746773a79e88beeac7f2b6df45963"
+    }
+  ],
+  "leaves": [
+    {
+      "event_id": "evt-tv2-01-0000",
+      "time": "2026-05-27T01:00:00.000Z",
+      "payload_hash": "dd5c90a7cc4125a25e797008cd2751bc1ce4ff4f58fc6d697983233909d9bb1a",
+      "capability_token_hash": "f2d45b210c2fbc5ea1ba5d55614ea7fb9c61bb89bddfdffa538be3d9b29eec9a",
+      "leaf_hash": "aa5ee5c43f822e0f60ff9a8dd50f010f4b9d2bf342bc65772fb772e6809e2329"
+    },
+    {
+      "event_id": "evt-tv2-01-0001",
+      "time": "2026-05-27T01:10:00.000Z",
+      "payload_hash": "e1b9acc82b0e3c8c76196d2363964be2f85b16f7904ff9f8d3847d1f1fa15c60",
+      "capability_token_hash": "80d79f674ac8c066f40c7beab833f0926baf0b4547e0cdfc0b0c96bb628eb8e2",
+      "leaf_hash": "496fe46cf32130ab5d146f36d2b410665c6a6b6ceef6ae5e738f2bc254d82c9e"
+    },
+    {
+      "event_id": "evt-tv2-01-0002",
+      "time": "2026-05-27T01:20:00.000Z",
+      "payload_hash": "b96de717a4e490a966e1d1796203361d04d87aeb6b1f674ea8398206bb6f4074",
+      "capability_token_hash": "3bd09b9a275fccfae660a8ab2e4238cf8286019226ca0187205787920947dc40",
+      "leaf_hash": "34234ef584e7bcb90fbaef66a0bbb61342c9d0e0057a834bcebeec3fdfaa935c"
+    },
+    {
+      "event_id": "evt-tv2-01-0003",
+      "time": "2026-05-27T01:30:00.000Z",
+      "payload_hash": "e1c8c2026efac2094d0c648d1565be3f3ce666ad5ef44e56686276a9de8a11c4",
+      "capability_token_hash": "f2d45b210c2fbc5ea1ba5d55614ea7fb9c61bb89bddfdffa538be3d9b29eec9a",
+      "leaf_hash": "51ade285016b330c3e3953e9f06d41112b1dcc39f2c497f467ad98206889e5c0"
+    },
+    {
+      "event_id": "evt-tv2-01-0004",
+      "time": "2026-05-27T01:40:00.000Z",
+      "payload_hash": "f2d054cf423d25660bf455e5f3405f77b94720258a7c1329a94256ea28ac135f",
+      "capability_token_hash": "80d79f674ac8c066f40c7beab833f0926baf0b4547e0cdfc0b0c96bb628eb8e2",
+      "leaf_hash": "0b6fc164e0ad9a4035ce58c1c92c2aa99d6746773a79e88beeac7f2b6df45963"
+    }
+  ],
+  "tree_levels": [
+    [
+      "aa5ee5c43f822e0f60ff9a8dd50f010f4b9d2bf342bc65772fb772e6809e2329",
+      "496fe46cf32130ab5d146f36d2b410665c6a6b6ceef6ae5e738f2bc254d82c9e",
+      "34234ef584e7bcb90fbaef66a0bbb61342c9d0e0057a834bcebeec3fdfaa935c",
+      "51ade285016b330c3e3953e9f06d41112b1dcc39f2c497f467ad98206889e5c0",
+      "0b6fc164e0ad9a4035ce58c1c92c2aa99d6746773a79e88beeac7f2b6df45963",
+      "0b6fc164e0ad9a4035ce58c1c92c2aa99d6746773a79e88beeac7f2b6df45963"
+    ],
+    [
+      "ca8e2df30608d9ce1adc0e714f7ec1e159019c25042d24edf4582e11d60e93c6",
+      "772e91fef1ed1bb039123c164c9894f1e7bb987b88ce24e58ef371a6c6492c65",
+      "d0b8a6473a077e01455c9206709e5faf5c2470c33073c615e5a7f8c995f31d66",
+      "d0b8a6473a077e01455c9206709e5faf5c2470c33073c615e5a7f8c995f31d66"
+    ],
+    [
+      "24a0199014111c4b15cd25e84940bb04469b5490c5028f6c0f10f87d31b8eb58",
+      "2ef4c5e97a1eae7828966128e37ce79b6fb61578637fdefe5964d67c7a0aeb66"
+    ],
+    [
+      "44046000e08faeb791af80792c4dd44ccec2497ea5eb593436244fd07ddf0f42"
+    ]
+  ],
+  "build_time": "2026-05-06T17:37:31Z",
+  "prev_hour_root": "9f1a89598c934fe3c8569d6fd110872075b3c91a7fc13d2a5954662f3665584b"
+}

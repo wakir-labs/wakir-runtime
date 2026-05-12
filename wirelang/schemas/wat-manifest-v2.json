@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wakir.dev/wirelang/schema/wat-manifest-v2/0.2.0",
+  "title": "WAT Hour-Manifest v2 — Multi-Capability Trigger + Optional Signature Slot",
+  "description": "JSON-Schema for the WAT hour-manifest v2 envelope (multi-capability trigger). v2 is emitted iff at least one ingested frame in the hour has more than one capability-token reference (caprefs[]); hours where every frame has zero or one capref continue to emit v1 manifests. Schema is additive over v1: every v1 field MUST validate identically here, and v2 adds two top-level keys (multi_cap_events, multi_cap_summary). 0.2.0 (Phase-2 Sprint-5 Tag-1) adds an additive optional top-level `signature` slot (Ed25519 detached-signature block) that is valid on BOTH wat-manifest/1.0 and wat-manifest/2.0 envelopes; absence is permitted (legacy unsigned manifests continue to validate). Slot shape mirrors wirelang.identity.aip_signing / wirelang.schemas.entry_signing / wat.identity.manifest_signing byte-for-byte. See docs/wat-manifest-v2-multi-cap-stub.md and docs/wat-manifest-v2-spec.md §4.4 / §11 (Sprint-5 Tag-1) for the full spec, trigger condition, verifier behaviour, signing semantics, and open questions. SPDX-License-Identifier: Apache-2.0",
+  "type": "object",
+  "required": [
+    "version",
+    "hour_slot",
+    "merkle_root",
+    "event_count",
+    "events",
+    "leaves",
+    "tree_levels",
+    "build_time"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "enum": ["wat-manifest/1.0", "wat-manifest/2.0"],
+      "description": "Manifest version discriminator. v1 hours retain wat-manifest/1.0 verbatim. v2 hours (at least one frame with len(caprefs) > 1) emit wat-manifest/2.0 and MUST populate multi_cap_events + multi_cap_summary. Verifier and audit-query both fall back to v1 semantics on v1 manifests."
+    },
+    "hour_slot": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}$",
+      "description": "UTC hour slot in YYYY-MM-DDTHH form. Same shape as v1 manifests and TV-1/TV-2/TV-3 driver harnesses."
+    },
+    "merkle_root": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 hex of the canonical Merkle root over the events[] leaves[] for this hour. Identical derivation as v1; multi-cap metadata does NOT affect the merkle_root computation. The merkle_root is what gets OTS-stamped against the public Bitcoin calendar substrate."
+    },
+    "event_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of audit-event frames ingested for this hour. Equal to len(events) and len(leaves)."
+    },
+    "events": {
+      "type": "array",
+      "items": {"type": "object"},
+      "description": "Per-event metadata array, schema unchanged from v1. Each item carries event_id, leaf hash, and the v1-projected capability_token_hash (= caprefs[0] when caprefs is non-empty). Multi-cap frames are still represented here with caprefs[0] for backwards-compatible v1 audit queries; the full caprefs[] set is exposed separately under multi_cap_events."
+    },
+    "leaves": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "description": "Ordered SHA-256 leaf hashes feeding the Merkle tree, one per event."
+    },
+    "tree_levels": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "description": "Reconstructable Merkle tree levels (leaves at index 0, root at last index). Used for inclusion-proof rebuilding by the verifier without re-walking the leaves."
+    },
+    "build_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp at which the manifest was constructed by the aggregator. Informational only; not part of the merkle_root computation."
+    },
+    "multi_cap_events": {
+      "type": "object",
+      "description": "Per-event multi-capability sidecar. Present iff version == wat-manifest/2.0. Keys are event_id strings (matching events[].event_id). Each value carries the verbatim caprefs[] list as the producer emitted it plus a deterministic caprefs_root hash. Events with len(caprefs) <= 1 are NOT included here even on v2 manifests — only events that actually trigger the v2 condition.",
+      "patternProperties": {
+        "^[A-Za-z0-9_.:-]+$": {
+          "type": "object",
+          "required": ["caprefs_full", "caprefs_root"],
+          "additionalProperties": false,
+          "properties": {
+            "caprefs_full": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "description": "Verbatim ordered list of capability-token-hash references as the producer emitted them in caprefs[]. Order is significant — see open question 1 in the stub spec; current proposal is ordered Merkle (preserves producer intent), pending wirelang-engineering Zone-2 sign-off. minItems: 2 because by the trigger condition only events with >1 capref appear here."
+            },
+            "caprefs_root": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "SHA-256 hex of the canonical Merkle root over caprefs_full. Pinned hash so audit queries do not need to iterate the full list to compare two events; verifier re-derives this root and rejects on mismatch. Ordered semantics (proposal): the Merkle preserves caprefs_full ordering verbatim. Sorted semantics (alternative): caprefs_full is sorted lexicographically before Merkle. Open question 1 in the stub spec."
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "multi_cap_summary": {
+      "type": "object",
+      "description": "Hour-level multi-capability roll-up. Present iff version == wat-manifest/2.0. Pure summary; brand-page and ops-dashboard render this without scanning the per-event sidecar. All counts are integers; producers MUST keep them consistent with multi_cap_events.",
+      "required": [
+        "events_with_multi_cap",
+        "max_caprefs_in_any_event",
+        "distinct_capability_token_hashes_in_hour"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "events_with_multi_cap": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Count of events in this hour with len(caprefs) > 1. By the trigger condition this is >= 1 on v2 manifests."
+        },
+        "max_caprefs_in_any_event": {
+          "type": "integer",
+          "minimum": 2,
+          "description": "Largest len(caprefs) observed in any event in this hour. By the trigger condition this is >= 2 on v2 manifests."
+        },
+        "distinct_capability_token_hashes_in_hour": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Count of distinct capability_token_hash values across the union of caprefs[] from all events in this hour (v2 frames + v1-equivalent caprefs[0] from single-cap frames). Useful for audit-query 'how many capabilities were exercised in hour H?'."
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "description": "Optional detached Ed25519 signature block over the canonical (JCS-canonicalised, SHA-256-hashed) manifest payload with the `signature` slot removed. Additive on both wat-manifest/1.0 and wat-manifest/2.0 envelopes (Phase-2 Sprint-5 Tag-1, schema 0.2.0). Absence is permitted: legacy unsigned manifests continue to validate. Slot shape is byte-identical to wirelang.identity.aip_signing.SIGNATURE_BLOCK, wirelang.schemas.entry_signing._validate_signature_block_shape, and wat.identity.manifest_signing.SIGNATURE_FIELD. The kid field references an AIP-document public_keys entry under PURPOSE_WAT_ANCHOR; the resolver bridge is wat.identity.anchor_kid.resolve_wat_anchor_kid (Sprint-4 Tag-5). The signing primitive (wat.identity.manifest_signing.sign_manifest, Sprint-4 Tag-6) emits exactly this shape.",
+      "required": ["alg", "kid", "signature"],
+      "additionalProperties": false,
+      "properties": {
+        "alg": {
+          "type": "string",
+          "enum": ["Ed25519"],
+          "description": "Signature algorithm identifier. Closed enum: only Ed25519 is accepted today; future algorithm support requires a coordinated additive schema bump and a parallel allowlist entry in wat.identity.manifest_signing.SIGNATURE_ALG."
+        },
+        "kid": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Key identifier. Non-empty string. Caller binds this to an AIP-document public_keys entry under PURPOSE_WAT_ANCHOR (see wat.identity.anchor_kid)."
+        },
+        "signature": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{128}$",
+          "description": "Ed25519 detached signature, 64 bytes encoded as 128 lowercase hex chars. Pre-image: SHA-256 of the RFC-8785 JCS canonicalisation of the manifest payload with this `signature` slot stripped."
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"version": {"const": "wat-manifest/2.0"}}
+      },
+      "then": {
+        "required": ["multi_cap_events", "multi_cap_summary"],
+        "description": "v2 manifests MUST carry both multi_cap_events and multi_cap_summary. Trigger condition guarantees multi_cap_events has at least one entry."
+      }
+    },
+    {
+      "if": {
+        "properties": {"version": {"const": "wat-manifest/1.0"}}
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {"required": ["multi_cap_events"]},
+            {"required": ["multi_cap_summary"]}
+          ]
+        },
+        "description": "v1 manifests MUST NOT carry multi-cap sidecar keys. Producers that find themselves about to emit multi_cap_* on a v1 manifest have a trigger-condition bug."
+      }
+    }
+  ]
+}

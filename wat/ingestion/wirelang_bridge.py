@@ -250,11 +250,88 @@ def project_l1_frame_to_leaf(frame: Mapping[str, Any]) -> LeafRecord:
     )
 
 
+# ---------------------------------------------------------------------------
+# Phase-1b sketch: AIP-Document hash projection (I-13, non-normative for v1)
+# ---------------------------------------------------------------------------
+
+#: Sentinel for capability tokens whose ``aip_refs[]`` field is empty
+#: (no AIP-Document binding). Mirrors the §3.4 empty-``caprefs``
+#: discipline for v1 forward-compatibility — a frame without
+#: AIP-Document binding projects to the empty string under v2.
+#:
+#: Phase-1b sketch (Tag-21 stretch, full implementation in Tag-22-23).
+#: See ``wirelang/specs/wat-leaf-projection.md`` §3.4.2.
+NO_AIP_DOCUMENT_SENTINEL = ""
+
+#: Layer-1 ``aip_refs[]`` entries are constrained to the same form as
+#: ``caprefs[]``: ``sha256:<64-char-hex>``. The bridge strips this
+#: prefix and forwards the 64-char hex tail to a v2 leaf tuple.
+AIP_REF_PREFIX = "sha256:"
+
+
+def extract_aip_document_hash(token: Mapping[str, Any]) -> str:
+    """Project a capability-token's ``aip_refs`` onto a single hash.
+
+    **Phase-1b sketch — non-normative for v1.** This helper has a
+    type-stable signature and the empty-sentinel discipline pinned,
+    but no body yet. v1 leaf projection does not invoke it.
+
+    Spec reference
+    --------------
+
+    See ``wirelang/specs/wat-leaf-projection.md`` §3.4.2 (the
+    Phase-1b ``aip_document_hash`` hook). The first-entry-wins rule
+    of §3.4.1 carries forward: if ``aip_refs[]`` carries multiple
+    entries, this projection MUST commit to ``aip_refs[0]`` to keep
+    parity with the v1 ``capability_token_hash`` precedent.
+
+    Rules (target Phase-1b body)
+    ----------------------------
+
+    - ``aip_refs`` absent or empty → ``NO_AIP_DOCUMENT_SENTINEL``.
+    - ``aip_refs`` with one or more entries → first entry, with the
+      ``sha256:`` prefix stripped. Hex tail forwarded verbatim.
+    - Defensive: a malformed ``aip_refs[0]`` (non-string or no
+      ``sha256:`` prefix) projects to the sentinel; the downstream
+      audit query surfaces the anomaly.
+
+    Cross-Import disciplin (Tag-21 wirelang-eng memo, accepted)
+    -----------------------------------------------------------
+
+    The WAT-side hex pin test ``wat/tests/test_aip_refs_pin.py``
+    (wat-eng 2.E-Ack §3, Phase-1a closeout target) imports
+    ``AIP_DOC_HASH_PINS`` from
+    ``wirelang/tests/test_aip_document_pin.py`` instead of
+    duplicating the hex strings — bidirectional pin-drift detection.
+
+    Test-vector pin (Tag-23 wirelang-eng side)
+    ------------------------------------------
+
+    The Phase-1a vector pack pins three distinct AIP-Document JCS-
+    SHA-256 hashes (`AIP_DOC_HASH_PINS` keys: ``treasury-issuer``,
+    ``internal-audit``, ``wirelang-engineering``). Two personas
+    (``ceo-agent``, ``synthetic-persona-tv-cap``) carry the V-908
+    stub-resolver empty sentinel.
+
+    Returns
+    -------
+
+    A 64-char lowercase hex string OR the empty sentinel.
+    """
+    raise NotImplementedError(
+        "Phase-1b sketch only — see wat-leaf-projection.md §3.4.2. "
+        "Full implementation lands in I-13 Tag-22/23."
+    )
+
+
 __all__ = [
     "CAPREF_PREFIX",
     "NO_CAPABILITY_SENTINEL",
+    "AIP_REF_PREFIX",
+    "NO_AIP_DOCUMENT_SENTINEL",
     "LeafRecord",
     "compute_payload_hash",
     "extract_capability_token_hash",
+    "extract_aip_document_hash",
     "project_l1_frame_to_leaf",
 ]

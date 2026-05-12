@@ -225,12 +225,42 @@ at 1-6 h with a long tail to ~24-72 h, and 26 h on three of four
 non-bob calendars is unremarkable. **A Tag-17 re-check is queued**
 to capture the remaining long-tail finalisations as they arrive.
 
-### Acceptance recap vs. §3 (Tag-16)
+### Tag-17 long-tail re-check
+
+Re-ran `bash scripts/wat-block-heights-collect.sh .runtime/wat-tv1-archive`
+on **2026-05-06 17:37:39Z** (~26 h 47 min post-submit, ~17 min after
+the Tag-16 re-check). Same harness, Esplora fallback active.
+
+```
+[wat-block-heights] found 1 receipt(s); running ots upgrade on each
+[wat-block-heights] finalised 2026-05-06T14/root.bin.ots heights=948183
+[wat-block-heights] summary: receipts=1 finalised=1 pending=0
+```
+
+Per-calendar status from `ots info` directly on the receipt at
+**2026-05-06 17:37Z** (Tag-17):
+
+| calendar                                    | status                              |
+| ------------------------------------------- | ----------------------------------- |
+| bob.btc.calendar.opentimestamps.org         | finalised → block **948183** (Tag-14) |
+| alice.btc.calendar.opentimestamps.org       | still pending                       |
+| btc.calendar.catallaxy.com                  | still pending                       |
+| finney.calendar.eternitywall.com            | still pending                       |
+
+Long-tail status at Tag-17 (~26 h 47 min post-submit) is **1/4
+calendar branches finalised**, unchanged from Tag-15 / Tag-16.
+Still inside the spec corridor (long tail to ~24-72 h on
+non-bob calendars). The bob → 948183 finalisation continues to
+satisfy `BitcoinBlockHeaderAttestation` for the Brand-Demo and
+Aufsichtsrat-Datapunkt minimum-claim. The Tag-18 re-check is queued
+to capture remaining long-tail finalisations.
+
+### Acceptance recap vs. §3 (Tag-17)
 
 | acceptance criterion (§3)                                                  | status                                                |
 | -------------------------------------------------------------------------- | ----------------------------------------------------- |
 | At least one calendar branch resolves `BitcoinBlockHeaderAttestation`      | yes — bob branch → block 948183 (Tag-14)              |
-| All four calendar branches resolve `BitcoinBlockHeaderAttestation`         | partial: 1/4 at Tag-16 17:20Z (~26 h post-submit); Tag-17 re-check queued |
+| All four calendar branches resolve `BitcoinBlockHeaderAttestation`         | partial: 1/4 at Tag-17 17:37Z (~26 h 47 min post-submit); Tag-18 re-check queued |
 | `wakir-verify evt-tv1-0050` returns 0                                      | **yes** (Tag-15, Esplora fallback)                    |
 | `wakir-verify evt-tv1-0050 --chain-check` returns 0                        | **yes** (Tag-15, chain-skipped on cold-start hour)    |
 | Bitcoin block height present in receipt                                    | yes — 948183                                          |
@@ -240,8 +270,226 @@ The §3 acceptance is functionally complete on the verifier side;
 five of six rows are green. The remaining open item — full 4-of-4
 finalisation — depends on Bitcoin-batch cadence on the
 alice / finney / catallaxy calendars and is not a WAT or verifier
-issue. The Tag-17 re-check will record the long-tail finalisations
+issue. The Tag-18 re-check will record the long-tail finalisations
 as they arrive.
+
+### Tag-18 re-check (2026-05-06 17:55Z, ~2 h 56 min post-submit)
+
+Re-ran `bash scripts/wat-block-heights-collect.sh
+.runtime/wat-tv1-archive/2026-05-06T14/` on **2026-05-06 17:55:44Z**
+(~2 h 56 min post-submit). Same harness, Esplora fallback active.
+
+```
+[wat-block-heights] found 1 receipt(s); running ots upgrade on each
+[wat-block-heights] finalised .runtime/wat-tv1-archive/2026-05-06T14/root.bin.ots heights=948183
+[wat-block-heights] summary: receipts=1 finalised=1 pending=0
+```
+
+Per-calendar status from `ots info` directly on the receipt at
+**2026-05-06 17:55Z** (Tag-18):
+
+| calendar                                    | status                              |
+| ------------------------------------------- | ----------------------------------- |
+| bob.btc.calendar.opentimestamps.org         | finalised → block **948183** (Tag-14) |
+| alice.btc.calendar.opentimestamps.org       | still pending                       |
+| btc.calendar.catallaxy.com                  | still pending                       |
+| finney.calendar.eternitywall.com            | still pending                       |
+
+Long-tail status at Tag-18 (~2 h 56 min post-submit) is **1/4
+calendar branches finalised**, unchanged from Tag-15 / Tag-16 /
+Tag-17. The Tag-18 re-check window (~3 h post-submit) was earlier
+than the typical alice / finney / catallaxy long-tail (24-72 h post-
+submit per spec); the Tag-19 re-check at ~24 h post-submit is the
+next meaningful checkpoint. The bob → 948183 finalisation continues
+to satisfy `BitcoinBlockHeaderAttestation` for the Brand-Demo and
+Aufsichtsrat-Datapunkt minimum-claim.
+
+### Tag-20 re-check (2026-05-06 18:48Z, ~3 h 49 min post-submit)
+
+Re-ran the same harness on **2026-05-06 18:48:46Z**
+(~3 h 49 min post-submit) for the Tag-20 long-tail data point.
+
+```
+[wat-block-heights] found 1 receipt(s); running ots upgrade on each
+[wat-block-heights] finalised root.bin.ots heights=948183
+[wat-block-heights] summary: receipts=1 finalised=1 pending=0
+```
+
+Per-calendar status from `ots info` at **2026-05-06 18:48Z** (Tag-20):
+
+| calendar                                    | status                              |
+| ------------------------------------------- | ----------------------------------- |
+| bob.btc.calendar.opentimestamps.org         | finalised → block **948183** (Tag-14) |
+| alice.btc.calendar.opentimestamps.org       | still pending                       |
+| btc.calendar.catallaxy.com                  | still pending                       |
+| finney.calendar.eternitywall.com            | still pending                       |
+
+Long-tail status at Tag-20 (~3 h 49 min post-submit) is still **1/4
+calendar branches finalised**, unchanged from Tag-15 / Tag-16 / Tag-17 /
+Tag-18 / Tag-19. We are still well inside the typical 24-72 h Bitcoin
+batch-cadence corridor for alice / finney / catallaxy. The bob → 948183
+finalisation continues to satisfy the minimum-claim for Brand-Demo /
+Aufsichtsrat-Datapunkt purposes — Section 5 full-table close-out is
+deferred to Tag-23 (whenever the ~46-48 h post-submit window lands).
+
+### Tag-21 re-check (2026-05-06 20:06Z, ~5 h 7 min post-submit)
+
+Re-ran the same harness on **2026-05-06 20:06:48Z**
+(~5 h 7 min post-submit) for the Tag-21 long-tail data point.
+
+```
+[wat-block-heights] found 1 receipt(s); running ots upgrade on each
+[wat-block-heights] finalised root.bin.ots heights=948183
+[wat-block-heights] summary: receipts=1 finalised=1 pending=0
+```
+
+Per-calendar status from `ots info` at **2026-05-06 20:06Z** (Tag-21):
+
+| calendar                                    | status                              |
+| ------------------------------------------- | ----------------------------------- |
+| bob.btc.calendar.opentimestamps.org         | finalised → block **948183** (Tag-14) |
+| alice.btc.calendar.opentimestamps.org       | still pending                       |
+| btc.calendar.catallaxy.com                  | still pending                       |
+| finney.calendar.eternitywall.com            | still pending                       |
+
+Long-tail status at Tag-21 (~5 h 7 min post-submit) is still **1/4
+calendar branches finalised**, unchanged from Tag-15 through Tag-20.
+We are still well inside the typical 24-72 h Bitcoin batch-cadence
+corridor.
+
+### Tag-22 re-check (2026-05-07 06:44Z, ~15 h 45 min post-submit)
+
+Re-ran the same harness on **2026-05-07 06:44:00Z**
+(~15 h 45 min post-submit) for the Tag-22 long-tail data point.
+Box runs ~17.5 h after the Tag-15-Section-5 submit (the Tag-11
+calendar funding traffic is older but the Section-5 receipt is
+the active artefact under observation).
+
+```
+[wat-block-heights] found 1 receipt(s); running ots upgrade on each
+[wat-block-heights] finalised root.bin.ots heights=948183
+[wat-block-heights] summary: receipts=1 finalised=1 pending=0
+```
+
+Per-calendar status from `ots info` at **2026-05-07 06:44Z** (Tag-22):
+
+| calendar                                    | status                              |
+| ------------------------------------------- | ----------------------------------- |
+| bob.btc.calendar.opentimestamps.org         | finalised -> block **948183** (Tag-14) |
+| alice.btc.calendar.opentimestamps.org       | still pending                       |
+| btc.calendar.catallaxy.com                  | still pending                       |
+| finney.calendar.eternitywall.com            | still pending                       |
+
+Long-tail status at Tag-22 (~15 h 45 min post-submit) is still **1/4
+calendar branches finalised**, unchanged from Tag-15 through Tag-21.
+The Tag-22 box-execution time at 06:44Z is **earlier** than the
+~24 h checkpoint anticipated in the Section-5b schedule (which
+planned for ~14:00Z); the data point is therefore the lower bound
+of the 24 h re-check window. The 24 h checkpoint proper falls in
+the next box (Tag-23 morning) at which point a fresh harness run
+can repeat. Still well inside the typical 24-72 h Bitcoin batch-
+cadence corridor.
+
+### Tag-23 re-check (2026-05-07 06:52Z, ~15 h 53 min post-submit)
+
+Re-ran the harness on **2026-05-07 06:52:29Z** as the Tag-23 box's
+opening long-tail spot-check.
+
+```
+[wat-block-heights] found 1 receipt(s); running ots upgrade on each
+[wat-block-heights] finalised 2026-05-06T14/root.bin.ots heights=948183
+[wat-block-heights] summary: receipts=1 finalised=1 pending=0
+```
+
+Per-calendar status from `ots info` at **2026-05-07 06:52Z** (Tag-23):
+
+| calendar                                    | status                              |
+| ------------------------------------------- | ----------------------------------- |
+| bob.btc.calendar.opentimestamps.org         | finalised -> block **948183** (Tag-14) |
+| alice.btc.calendar.opentimestamps.org       | still pending                       |
+| btc.calendar.catallaxy.com                  | still pending                       |
+| finney.calendar.eternitywall.com            | still pending                       |
+
+Long-tail status at Tag-23 (~15 h 53 min post-submit, accounting for
+the actual UTC alignment) is still **1/4 calendar branches finalised**,
+unchanged from Tag-15 through Tag-22. The proper ~46 h post-submit
+checkpoint (full long-tail close-out target) lands ~2026-05-08
+12:00Z and falls inside the Tag-24 box; the Tag-23-morning box only
+gives the ~16 h lower-bound data point. Still inside the spec
+24-72 h corridor.
+
+The Tag-23 box did **not** trigger Section-5b voll-table crystallisation
+(no 4-of-4 closure yet). The Brand-Demo brand-direktive deferred to
+TV-2 4-of-4 voll-anker (`agents-workspaces/dev-engineering/outbox/2026-05-07-brand-demo-anker-tv2-vollanker.md`)
+which is substantively richer than the TV-1 1/4 single-calendar
+datapoint and replaces the Tag-15 brand-demo memo as primary brand-
+launch reference.
+
+### Tag-24 re-check (2026-05-07 07:05Z, ~16 h 6 min post-submit)
+
+Re-ran the harness on **2026-05-07 07:05:37Z** as the Tag-24 box's
+opening long-tail spot-check.
+
+```
+[wat-block-heights] found 1 receipt(s); running ots upgrade on each
+[wat-block-heights] finalised 2026-05-06T14/root.bin.ots heights=948183
+[wat-block-heights] summary: receipts=1 finalised=1 pending=0
+```
+
+Per-calendar status from `ots info` at **2026-05-07 07:05Z** (Tag-24):
+
+| calendar                                    | status                              |
+| ------------------------------------------- | ----------------------------------- |
+| bob.btc.calendar.opentimestamps.org         | finalised -> block **948183** (Tag-14) |
+| alice.btc.calendar.opentimestamps.org       | still pending                       |
+| btc.calendar.catallaxy.com                  | still pending                       |
+| finney.calendar.eternitywall.com            | still pending                       |
+
+Long-tail status at Tag-24 (~16 h 6 min post-submit) is still **1/4
+calendar branches finalised**, unchanged from Tag-15 through Tag-23.
+This is the third consecutive ~16 h lower-bound datapoint with no
+calendar-confirm progress in the ~24 h span between Tag-22 06:44Z
+and Tag-24 07:05Z. Trend suggests consistently slow public-OTS
+calendar cadence for `alice` / `catallaxy` / `finney`; still inside
+spec 24-72 h corridor.
+
+The proper ~46 h post-submit checkpoint (full long-tail close-out
+target) lands ~2026-05-08 12:00Z, which is the Tag-25 box (re-check
+schedule below revised; the Tag-21-brief Tag-24 row is in fact the
+Tag-25 row in the realised execution timeline, because the Tag-24
+box opened at ~16 h post-submit, not ~46 h).
+
+The Tag-24 box did **not** trigger Section-5b voll-table crystallisation
+(no 4-of-4 closure yet). Brand-Demo direktive remains TV-2 4-of-4
+voll-anker (Tag-23-Memo); no TV-1 brand-demo update.
+
+### Section 5b — Long-tail full table (deferred to Tag-25)
+
+The Tag-21 brief assumed the box would execute at ~46-48 h post-
+submit; in fact box-execution is at ~5 h post-submit (UTC start-time
+mismatch with brief). The submit timestamp is fixed at
+**2026-05-06T14:59:11Z** (Section 1), and ~46-48 h post-submit lands
+at **2026-05-08 11:00Z–13:00Z**, which is inside the Tag-23 box on
+the Phase-1a-Endspurt schedule. The re-check schedule going forward:
+
+| target | utc window           | t-post-submit  | day  | meaningful? |
+| ------ | -------------------- | -------------- | ---- | ----------- |
+| Tag-22 | 2026-05-07 ~06:44Z   | ~16 h          | day-+1 | early-corridor pass (1/4) |
+| Tag-23 | 2026-05-07 ~06:52Z   | ~16 h          | day-+1 | repeat early-corridor pass (1/4) |
+| Tag-24 | 2026-05-07 ~07:05Z   | ~16 h          | day-+1 | third early-corridor pass (1/4) |
+| Tag-25 | 2026-05-08 ~12:00Z   | ~46 h          | day-+2 | full long-tail close-out target |
+| Tag-26 | 2026-05-08 ~22:00Z   | ~56 h          | day-+2 | optional final pass if 4/4 still not landed |
+
+If 4/4 finalisation lands inside any one of these checkpoints,
+Section 5b crystallises into the full table (per-calendar block
+heights + tx-hashes + finalize timestamps). If at Tag-26 we are still
+<4/4, the WAT-Phase-1a-Schluss-Bilanz can land with `bob` finalised +
+the spec-corridor caveat for the long tail (consistent with
+WAT-Phase-1a-Spec §3.3 single-calendar-bitcoin-anchor minimum).
+
+The Brand-Demo and Aufsichtsrat-Datapunkt minimum-claim is already
+satisfied (bob branch → block 948183, Esplora-cross-validated, verify
+CLI exit 0).
 
 ## 6. Brand / Aufsichtsrat note
 

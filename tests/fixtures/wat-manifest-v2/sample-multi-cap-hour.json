@@ -1,0 +1,51 @@
+{
+  "build_time": "2026-06-02T17:00:00Z",
+  "event_count": 2,
+  "events": [
+    {
+      "capability_token_hash": "57e94f06b4acf41a572971e5f72bc40f90a6c3d23a8fffd686a217c32786f046",
+      "event_id": "evt-1",
+      "leaf": "00df8d393df502985dfb558a586c75acabdc4dc1cbad145a8ef4616834e0a1f9",
+      "payload_hash": "f64551fcd6f07823cb87971cfb91446425da18286b3ab1ef935e0cbd7a69f68a",
+      "time": "2026-06-02T17:00:01Z"
+    },
+    {
+      "capability_token_hash": "57e94f06b4acf41a572971e5f72bc40f90a6c3d23a8fffd686a217c32786f046",
+      "event_id": "evt-2",
+      "leaf": "bcd79bcc73d8cf243e036a44ee364b09a213f60126563e377dc591a7ab112abe",
+      "payload_hash": "3946ca64ff78d93ca61090a437cbb6b3d2ca0d488f5f9ccf3059608368b27693",
+      "time": "2026-06-02T17:00:02Z"
+    }
+  ],
+  "hour_slot": "2026-06-02T17",
+  "leaves": [
+    "00df8d393df502985dfb558a586c75acabdc4dc1cbad145a8ef4616834e0a1f9",
+    "bcd79bcc73d8cf243e036a44ee364b09a213f60126563e377dc591a7ab112abe"
+  ],
+  "merkle_root": "1892fa11122d60c790bc07c90f9c9ca6351ac94133575d1439f646479022febb",
+  "multi_cap_events": {
+    "evt-2": {
+      "caprefs_full": [
+        "sha256:57e94f06b4acf41a572971e5f72bc40f90a6c3d23a8fffd686a217c32786f046",
+        "sha256:03f2962a5a881cf91e7dda836ba1338e5841bb5585f55f4116fe263f2f999fd5",
+        "sha256:b24587d2af1683758f305393d8a71babc606d5a681a006dadd52b916db2a9328"
+      ],
+      "caprefs_root": "bba56e8a0e445b7fc5974c794d0af4ed10b5cbd7745df0113538a27299296d13"
+    }
+  },
+  "multi_cap_summary": {
+    "distinct_capability_token_hashes_in_hour": 3,
+    "events_with_multi_cap": 1,
+    "max_caprefs_in_any_event": 3
+  },
+  "tree_levels": [
+    [
+      "00df8d393df502985dfb558a586c75acabdc4dc1cbad145a8ef4616834e0a1f9",
+      "bcd79bcc73d8cf243e036a44ee364b09a213f60126563e377dc591a7ab112abe"
+    ],
+    [
+      "1892fa11122d60c790bc07c90f9c9ca6351ac94133575d1439f646479022febb"
+    ]
+  ],
+  "version": "wat-manifest/2.0"
+}

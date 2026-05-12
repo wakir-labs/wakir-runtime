@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -179,8 +178,61 @@ def test_empty_hour_with_flag_forwards_value(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _wakir_merkle_available() -> bool:
-    return shutil.which("wakir-merkle") is not None
+def _aggregator_cli_invocable() -> bool:
+    """Can the test driver invoke the aggregator CLI in *some* way?
+
+    Returns True when the ``wat.cmd.aggregator_cli`` module is
+    importable in the current Python. Importability is the *only*
+    signal that matters for the three shell-driver tests below,
+    because ``wat-hourly.sh`` falls back to ``python -m
+    wat.cmd.aggregator_cli`` whenever the ``wakir-merkle`` console
+    script is missing OR broken (Sprint-6-Tag-7 F-5 fix to the shell
+    driver). The driver's ``python -m`` fallback inherits the test
+    runner's interpreter and cwd-side ``sys.path``, so a successful
+    import here is equivalent to a working subprocess invocation.
+
+    Historical note — earlier widenings:
+
+      * Sprint-5-Tag-4 (OI-9 first pass) made the shell driver fall
+        back to ``python -m`` when ``wakir-merkle`` was not on ``PATH``.
+      * Sprint-6-Tag-4 (OI-9 second pass) widened the skip-guard to
+        ALSO accept ``<sys.prefix>/bin/wakir-merkle`` existence even
+        when ``PATH`` did not expose it.
+      * Sprint-6-Tag-7 (F-5 fix, this commit) collapses the guard to
+        importability-only. The previous ``shutil.which`` /
+        ``<sys.prefix>/bin`` probes returned True for the shim path
+        even when the shim itself was broken (editable install's
+        ``__editable__.*.pth`` finder pointing at a pruned worktree).
+        That false-positive was the substrate of the F-5 klon-state
+        drift: ``shutil.which("wakir-merkle")`` returned True, the
+        skip-guard let the test run, but the shell driver invoked the
+        broken shim instead of the working ``python -m`` fallback.
+        Collapsing to importability-only makes the guard *symmetrical*
+        with what the shell driver actually does on the failure path
+        and decouples the test outcome from how the venv was created.
+
+    Anchor for the skip-message: when this returns False the operator
+    needs to run ``bash scripts/setup.sh`` (or ``pip install -e .``
+    from the repository root) to make the WAT package importable.
+    """
+    # The single source of truth: can we import wat.cmd.aggregator_cli?
+    # If yes, the shell driver's ``python -m`` fallback will succeed.
+    # If no, no probe of PATH or sys.prefix/bin will rescue the run.
+    try:
+        import wat.cmd.aggregator_cli  # noqa: F401 — existence probe.
+    except ImportError:
+        return False
+    return True
+
+
+_AGGREGATOR_UNAVAILABLE_REASON = (
+    "wat.cmd.aggregator_cli is not importable AND wakir-merkle is "
+    "not on PATH; run 'bash scripts/setup.sh' or 'pip install -e .' "
+    "from the repository root to activate the editable install "
+    "(environment-state anchor — this is not a test-source "
+    "regression and not a code-bug; cf. container-engineering "
+    "Sprint-5-Tag-3 open-item OI-9)"
+)
 
 
 @pytest.fixture
@@ -234,8 +286,8 @@ def _seed_hour_manifest(
 
 
 @pytest.mark.skipif(
-    not _wakir_merkle_available(),
-    reason="wakir-merkle console-script not on PATH",
+    not _aggregator_cli_invocable(),
+    reason=_AGGREGATOR_UNAVAILABLE_REASON,
 )
 def test_hourly_driver_picks_up_prev_hour_root(
     tmp_path: Path,
@@ -281,8 +333,8 @@ def test_hourly_driver_picks_up_prev_hour_root(
 
 
 @pytest.mark.skipif(
-    not _wakir_merkle_available(),
-    reason="wakir-merkle console-script not on PATH",
+    not _aggregator_cli_invocable(),
+    reason=_AGGREGATOR_UNAVAILABLE_REASON,
 )
 def test_hourly_driver_first_hour_emits_null(
     tmp_path: Path,
@@ -319,8 +371,8 @@ def test_hourly_driver_first_hour_emits_null(
 
 
 @pytest.mark.skipif(
-    not _wakir_merkle_available(),
-    reason="wakir-merkle console-script not on PATH",
+    not _aggregator_cli_invocable(),
+    reason=_AGGREGATOR_UNAVAILABLE_REASON,
 )
 def test_hourly_driver_gap_emits_null(
     tmp_path: Path,
