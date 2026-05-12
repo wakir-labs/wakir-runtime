@@ -459,6 +459,92 @@ def pair_for_key(key: str) -> Tuple[str, str]:
 
 
 @dataclass(frozen=True)
+class UnrevokeAuditMarker:
+    """Operator-deliberate-unrevoke audit marker carried on a
+    :class:`CapabilityPolicyRecord` envelope.
+
+    Phase-2 Sprint-6 Tag-9 (additive over Sprint-6 Tag-7). The
+    publisher-CLI ``unrevoke`` subcommand (Sprint-6 Tag-7) writes a
+    rewritten record with ``policy.revoked_at = None`` against a
+    prior-revoked bucket entry. On the watch-stream that write is
+    *structurally indistinguishable* on the policy axis from an
+    out-of-band un-revoke (substrate corruption or manual override),
+    which the Sprint-6 Tag-3 classifier surfaces as
+    :attr:`RevocationEventKind.REVOCATION_MONOTONIC_BREACH`.
+
+    To let audit consumers separate operator-deliberate unrevoke from
+    accidental BREACH **on the watch-stream alone** (without
+    cross-referencing the receipts persisted on a separate audit
+    channel), the ``unrevoke`` subcommand attaches an
+    :class:`UnrevokeAuditMarker` to the envelope. The marker carries:
+
+    - ``unrevoke_reason``: the operator-supplied free-form audit
+      string from ``--unrevoke-reason`` (or ``None`` if omitted).
+      Mirrors the receipt's ``unrevoke_reason`` field. Persisted on
+      the envelope so the audit-trail surfaces it to every watch
+      consumer (not only to the operator who saw the receipt on
+      stdout).
+    - ``previous_revoked_at``: the prior live record's
+      ``policy.revoked_at`` instant (always non-None — the unrevoke
+      subcommand refuses unrevoked targets via
+      :attr:`ExitCode.UNREVOKE_TARGET_NOT_REVOKED`). The classifier
+      cross-checks this against its own per-key prior view: a marker
+      whose ``previous_revoked_at`` matches the classifier's prior
+      state validates the gesture; a mismatch is itself a witness of
+      tampering and falls through to BREACH.
+    - ``previous_revocation_reason``: the prior live record's
+      ``policy.revocation_reason`` (or ``None`` if the prior
+      revocation carried no reason). Audit-only; not cross-checked.
+
+    Backward compatibility: every envelope written before Sprint-6
+    Tag-9 omits the marker; the decoder treats absence as ``None``
+    (no marker) so legacy envelopes round-trip byte-equally. A
+    legacy operator-bypass un-revoke (or a substrate-corruption
+    un-revoke) still surfaces as BREACH on the classifier.
+
+    Forward compatibility: the marker is gate-orthogonal — the
+    :class:`CapabilityPolicy` bundle is unchanged by its presence.
+    Verifier-side gating (Sprint-4 Tag-6, Sprint-6 Tag-1 revocation
+    precedence) reads only ``policy.*`` fields; the marker is
+    audit-axis state living on the record-bookkeeping side of the
+    envelope, not on the policy bundle.
+
+    Frozen by construction; the embedded values are primitives /
+    ``datetime`` so the marker is fully immutable and safe to put
+    into sets / dict keys.
+    """
+
+    unrevoke_reason: Optional[str]
+    previous_revoked_at: datetime
+    previous_revocation_reason: Optional[str]
+
+    def __post_init__(self) -> None:
+        if self.unrevoke_reason is not None and not isinstance(
+            self.unrevoke_reason, str
+        ):
+            raise CapabilityPolicyValidationError(
+                f"unrevoke_reason must be a string or None: type="
+                f"{type(self.unrevoke_reason).__name__}"
+            )
+        if not isinstance(self.previous_revoked_at, datetime):
+            raise CapabilityPolicyValidationError(
+                f"previous_revoked_at must be a datetime: type="
+                f"{type(self.previous_revoked_at).__name__}"
+            )
+        if self.previous_revoked_at.tzinfo is None:
+            raise CapabilityPolicyValidationError(
+                "previous_revoked_at must be timezone-aware"
+            )
+        if self.previous_revocation_reason is not None and not isinstance(
+            self.previous_revocation_reason, str
+        ):
+            raise CapabilityPolicyValidationError(
+                f"previous_revocation_reason must be a string or None: "
+                f"type={type(self.previous_revocation_reason).__name__}"
+            )
+
+
+@dataclass(frozen=True)
 class CapabilityPolicyRecord:
     """One capability-policy record as persisted in the bucket.
 
@@ -476,6 +562,15 @@ class CapabilityPolicyRecord:
       as ``policy.registered_by``; this field audits the
       policy-authorship operator, that field audits the
       schema-registry publisher whose writes are being gated).
+    - ``unrevoke_audit_marker``: Phase-2 Sprint-6 Tag-9 additive
+      operator-deliberate-unrevoke marker. Default ``None`` for every
+      legacy write path (publish, revoke, replication). The
+      publisher-CLI ``unrevoke`` subcommand sets a non-None
+      :class:`UnrevokeAuditMarker` so the watch-side classifier can
+      distinguish the deliberate gesture from an accidental
+      out-of-band un-revoke (substrate corruption / manual override),
+      which still surfaces as
+      :attr:`RevocationEventKind.REVOCATION_MONOTONIC_BREACH`.
 
     The record is frozen by construction; the embedded
     :class:`CapabilityPolicy` is itself frozen, so the record is fully
@@ -486,6 +581,10 @@ class CapabilityPolicyRecord:
     policy_id: str
     registered_at: datetime
     registered_by_publisher: str
+    # Phase-2 Sprint-6 Tag-9: additive operator-deliberate-unrevoke
+    # marker. Default ``None`` for every non-unrevoke write path so
+    # the field is byte-equally invisible to existing callers.
+    unrevoke_audit_marker: Optional[UnrevokeAuditMarker] = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.policy, CapabilityPolicy):
@@ -520,6 +619,29 @@ class CapabilityPolicyRecord:
                 f"registered_by_publisher must be a non-empty string: "
                 f"got {self.registered_by_publisher!r}"
             )
+        # Phase-2 Sprint-6 Tag-9 invariant: the marker, if present,
+        # MUST refer to an unrevoked rewritten record. A marker on a
+        # record whose policy is still revoked is a contradiction
+        # (the marker witnesses the *transition to unrevoked*; if the
+        # policy is still revoked, the gesture has not been applied).
+        # The constructor rejects the contradiction so the bucket can
+        # never persist a self-inconsistent envelope.
+        if self.unrevoke_audit_marker is not None:
+            if not isinstance(
+                self.unrevoke_audit_marker, UnrevokeAuditMarker
+            ):
+                raise CapabilityPolicyValidationError(
+                    f"unrevoke_audit_marker must be an "
+                    f"UnrevokeAuditMarker or None: type="
+                    f"{type(self.unrevoke_audit_marker).__name__}"
+                )
+            if self.policy.revoked_at is not None:
+                raise CapabilityPolicyValidationError(
+                    "unrevoke_audit_marker requires policy.revoked_at "
+                    "to be None (the marker witnesses the operator-"
+                    "deliberate transition to unrevoked; carrying it "
+                    "on a still-revoked policy is contradictory)"
+                )
 
     @property
     def key(self) -> str:
@@ -599,6 +721,22 @@ def _record_to_envelope(record: CapabilityPolicyRecord) -> bytes:
         "registered_at": _dt_to_rfc3339(record.registered_at),
         "registered_by_publisher": record.registered_by_publisher,
     }
+    # Phase-2 Sprint-6 Tag-9: additive unrevoke-audit-marker. The key
+    # is only emitted when a marker is present so legacy / non-unrevoke
+    # write paths produce envelopes that are byte-equal to the
+    # Sprint-6 Tag-1..8 shape (back-compat invariant). The decoder's
+    # ``payload.get("unrevoke_audit_marker")`` mirrors the asymmetry.
+    if record.unrevoke_audit_marker is not None:
+        marker = record.unrevoke_audit_marker
+        payload["unrevoke_audit_marker"] = {
+            "unrevoke_reason": marker.unrevoke_reason,
+            "previous_revoked_at": _dt_to_rfc3339(
+                marker.previous_revoked_at
+            ),
+            "previous_revocation_reason": (
+                marker.previous_revocation_reason
+            ),
+        }
     return json.dumps(
         payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
     ).encode("utf-8")
@@ -727,6 +865,72 @@ def _envelope_to_record(blob: bytes) -> CapabilityPolicyRecord:
             f"envelope revocation_reason must be a string or null: type="
             f"{type(revocation_reason_raw).__name__}"
         )
+    # Phase-2 Sprint-6 Tag-9: optional unrevoke-audit-marker (additive,
+    # back-compat). Absence => marker is None; presence => fully-formed
+    # sub-object with three keys. The decoder rejects partial / wrong-
+    # shape sub-objects so a poisoned marker surfaces as an envelope
+    # error (not silently as a missing marker).
+    marker_raw = payload.get("unrevoke_audit_marker")
+    unrevoke_audit_marker: Optional[UnrevokeAuditMarker] = None
+    if marker_raw is not None:
+        if not isinstance(marker_raw, dict):
+            raise CapabilityPolicyEnvelopeError(
+                f"envelope unrevoke_audit_marker must be a JSON object "
+                f"or null: type={type(marker_raw).__name__}"
+            )
+        for required in (
+            "unrevoke_reason",
+            "previous_revoked_at",
+            "previous_revocation_reason",
+        ):
+            if required not in marker_raw:
+                raise CapabilityPolicyEnvelopeError(
+                    f"envelope unrevoke_audit_marker missing required "
+                    f"field: {required!r}"
+                )
+        marker_reason_raw = marker_raw["unrevoke_reason"]
+        if marker_reason_raw is not None and not isinstance(
+            marker_reason_raw, str
+        ):
+            raise CapabilityPolicyEnvelopeError(
+                f"envelope unrevoke_audit_marker.unrevoke_reason must "
+                f"be a string or null: type="
+                f"{type(marker_reason_raw).__name__}"
+            )
+        marker_prev_revoked_raw = marker_raw["previous_revoked_at"]
+        if marker_prev_revoked_raw is None:
+            raise CapabilityPolicyEnvelopeError(
+                "envelope unrevoke_audit_marker.previous_revoked_at "
+                "must be a non-null RFC-3339 string (the marker "
+                "witnesses an operator-deliberate transition AWAY "
+                "from a non-None revoked_at)"
+            )
+        try:
+            marker_prev_revoked = _rfc3339_to_dt(marker_prev_revoked_raw)
+        except ValueError as exc:
+            raise CapabilityPolicyEnvelopeError(
+                f"envelope unrevoke_audit_marker.previous_revoked_at "
+                f"parse error: {exc!r}"
+            ) from exc
+        marker_prev_reason_raw = marker_raw["previous_revocation_reason"]
+        if marker_prev_reason_raw is not None and not isinstance(
+            marker_prev_reason_raw, str
+        ):
+            raise CapabilityPolicyEnvelopeError(
+                f"envelope unrevoke_audit_marker."
+                f"previous_revocation_reason must be a string or null: "
+                f"type={type(marker_prev_reason_raw).__name__}"
+            )
+        try:
+            unrevoke_audit_marker = UnrevokeAuditMarker(
+                unrevoke_reason=marker_reason_raw,
+                previous_revoked_at=marker_prev_revoked,
+                previous_revocation_reason=marker_prev_reason_raw,
+            )
+        except CapabilityPolicyValidationError as exc:
+            raise CapabilityPolicyEnvelopeError(
+                f"envelope unrevoke_audit_marker is invalid: {exc!r}"
+            ) from exc
     # Round-trip through the Sprint-4 Tag-6 CapabilityPolicy
     # constructor so every invariant (non-empty registered_by,
     # non-empty allowed_kids, valid window, etc.) is enforced
@@ -755,6 +959,7 @@ def _envelope_to_record(blob: bytes) -> CapabilityPolicyRecord:
             policy_id=payload["policy_id"],
             registered_at=registered_at,
             registered_by_publisher=payload["registered_by_publisher"],
+            unrevoke_audit_marker=unrevoke_audit_marker,
         )
     except CapabilityPolicyValidationError as exc:
         raise CapabilityPolicyEnvelopeError(
@@ -1753,8 +1958,10 @@ class RevocationEventKind(enum.Enum):
     """Classification of a capability-policy watch event with respect
     to the revocation axis.
 
-    Five kinds cover the cross-product of {PUT, DELETE/PURGE} x
-    {prior-state present?} x {prior revoked?} x {incoming revoked?}.
+    Six kinds (Sprint-6 Tag-3 introduced five, Sprint-6 Tag-9 added
+    :attr:`EXPLICIT_UNREVOKE`) cover the cross-product of {PUT,
+    DELETE/PURGE} x {prior-state present?} x {prior revoked?} x
+    {incoming revoked?} x {operator-deliberate marker present?}.
 
     - :attr:`NOT_REVOCATION_RELATED`: a PUT with ``revoked_at=None``
       against a prior live state that was also ``revoked_at=None`` (or
@@ -1769,15 +1976,30 @@ class RevocationEventKind(enum.Enum):
       is an audit-trail refresh (e.g. ``revocation_reason`` updated,
       ``registered_at`` advanced) without altering the revocation
       decision. Verifier-side gating is unchanged.
+    - :attr:`EXPLICIT_UNREVOKE` (Sprint-6 Tag-9): a PUT against a
+      prior-revoked key that drops ``revoked_at`` to ``None`` AND
+      carries an :class:`UnrevokeAuditMarker` whose
+      ``previous_revoked_at`` matches the classifier's prior view.
+      This is the operator-deliberate counterpart of the publisher-
+      CLI ``unrevoke`` subcommand (Sprint-6 Tag-7); the marker
+      witnesses that an authorised operator performed the gesture and
+      lets watch-side audit consumers distinguish it from
+      :attr:`REVOCATION_MONOTONIC_BREACH` without cross-referencing a
+      separate receipt channel.
     - :attr:`REVOCATION_MONOTONIC_BREACH`: a PUT against a prior-revoked
-      key that either (a) drops ``revoked_at`` to ``None`` (apparent
-      un-revoke) or (b) carries a strictly different ``revoked_at``
-      instant (advance or retreat). Backend-write invariants from
-      Sprint-6 Tag-1 forbid both transitions, so observing this on the
-      watch-stream is a *witness* that the bucket state was mutated
-      out-of-band (substrate corruption, manual override, or a
-      classifier-internal book-keeping error). The classifier surfaces
-      the kind; the consumer decides the response.
+      key that either (a) drops ``revoked_at`` to ``None`` *without*
+      a valid :class:`UnrevokeAuditMarker` (no marker, marker whose
+      ``previous_revoked_at`` mismatches the classifier's prior view,
+      or marker present but the gesture is otherwise inconsistent) or
+      (b) carries a strictly different ``revoked_at`` instant
+      (advance or retreat). CAS-pin backend invariants from Sprint-6
+      Tag-1 forbid these transitions even via the LWW path's Sprint-6
+      Tag-7 unrevoke subcommand (which writes a fully-formed
+      unrevoked record on the LWW path); observing the unmarked
+      shape on the watch-stream is a *witness* that the bucket state
+      was mutated out-of-band (substrate corruption, manual override,
+      or a classifier-internal book-keeping error). The classifier
+      surfaces the kind; the consumer decides the response.
     - :attr:`KEY_REMOVED`: a DELETE or PURGE event. The classifier
       preserves no revocation history beyond the event; if the key is
       later re-introduced via PUT, the next event will be classified
@@ -1795,6 +2017,7 @@ class RevocationEventKind(enum.Enum):
     REVOCATION_REFRESH = "revocation_refresh"
     REVOCATION_MONOTONIC_BREACH = "revocation_monotonic_breach"
     KEY_REMOVED = "key_removed"
+    EXPLICIT_UNREVOKE = "explicit_unrevoke"
 
 
 @dataclass(frozen=True)
@@ -1915,21 +2138,44 @@ class RevocationEventClassifier:
         the event's effect, so the next event for the same key is
         classified against the now-updated prior state.
 
-        Decision table:
+        Decision table (Sprint-6 Tag-9 extended with marker column):
 
-        ===========  ============  ============  ==================================
-        op           prior state   incoming      kind
-        ===========  ============  ============  ==================================
-        PUT          absent        None          NOT_REVOCATION_RELATED
-        PUT          absent        non-None      REVOCATION_TRANSITION
-        PUT          None          None          NOT_REVOCATION_RELATED
-        PUT          None          non-None      REVOCATION_TRANSITION
-        PUT          non-None      None          REVOCATION_MONOTONIC_BREACH
-        PUT          non-None X    non-None X    REVOCATION_REFRESH
-        PUT          non-None X    non-None Y    REVOCATION_MONOTONIC_BREACH
-        DELETE       any           N/A           KEY_REMOVED
-        PURGE        any           N/A           KEY_REMOVED
-        ===========  ============  ============  ==================================
+        ===========  ============  ============  ============  ==================================
+        op           prior state   incoming      marker        kind
+        ===========  ============  ============  ============  ==================================
+        PUT          absent        None          any           NOT_REVOCATION_RELATED
+        PUT          absent        non-None      any           REVOCATION_TRANSITION
+        PUT          None          None          any           NOT_REVOCATION_RELATED
+        PUT          None          non-None      any           REVOCATION_TRANSITION
+        PUT          non-None X    None          marker.prev=X EXPLICIT_UNREVOKE
+        PUT          non-None X    None          absent / mismatch REVOCATION_MONOTONIC_BREACH
+        PUT          non-None X    non-None X    any           REVOCATION_REFRESH
+        PUT          non-None X    non-None Y    any           REVOCATION_MONOTONIC_BREACH
+        DELETE       any           N/A           N/A           KEY_REMOVED
+        PURGE        any           N/A           N/A           KEY_REMOVED
+        ===========  ============  ============  ============  ==================================
+
+        Marker semantics (Sprint-6 Tag-9): the
+        :class:`UnrevokeAuditMarker` on the incoming record carries
+        ``previous_revoked_at`` — the publisher-CLI ``unrevoke``
+        subcommand reads the live record before rewriting and
+        captures that instant on the marker. The classifier cross-
+        checks that against its own per-key prior view: a match
+        validates the operator-deliberate gesture
+        (``EXPLICIT_UNREVOKE``); a mismatch (or absence) means the
+        gesture cannot be authenticated against the observed prior
+        state and is itself a witness of tampering
+        (``REVOCATION_MONOTONIC_BREACH``).
+
+        Marker presence on non-unrevoke shapes (e.g. a marker on a
+        PUT that does not drop ``revoked_at`` to None — which the
+        :class:`CapabilityPolicyRecord` constructor already rejects
+        — or on a NOT_REVOCATION_RELATED / REVOCATION_TRANSITION /
+        REVOCATION_REFRESH shape) is *ignored* on the classification
+        axis: the gesture type is determined by the revocation-axis
+        transition, not by marker presence alone. The marker is only
+        load-bearing on the specific prior-revoked-to-unrevoked
+        transition.
 
         After classification, the per-key state map is updated:
 
@@ -1979,7 +2225,13 @@ class RevocationEventClassifier:
 
         # Classification logic.
         if prior_revoked_at is None:
-            # Prior state is either absent or unrevoked.
+            # Prior state is either absent or unrevoked. Marker (if
+            # any) is ignored — the operator-deliberate-unrevoke
+            # gesture is only meaningful AWAY from a non-None prior
+            # state. A marker carried on a non-unrevoke-shape record
+            # is structurally suppressed earlier by the record
+            # constructor (rejects marker + revoked_at != None) and
+            # ignored here for the no-prior-revoked-state branch.
             if incoming_revoked_at is None:
                 kind = RevocationEventKind.NOT_REVOCATION_RELATED
             else:
@@ -1987,10 +2239,26 @@ class RevocationEventClassifier:
         else:
             # Prior state is revoked.
             if incoming_revoked_at is None:
-                # Apparent un-revoke (forbidden by backend invariants;
-                # observing on the watch-stream is a witness of
-                # substrate corruption or out-of-band tampering).
-                kind = RevocationEventKind.REVOCATION_MONOTONIC_BREACH
+                # Apparent un-revoke. Sprint-6 Tag-9: branch on the
+                # operator-deliberate marker. A marker present AND
+                # whose ``previous_revoked_at`` matches the
+                # classifier's prior view authenticates the gesture.
+                # Any other shape (marker absent, marker with
+                # ``previous_revoked_at`` mismatching the prior view)
+                # falls through to BREACH — the watch-stream cannot
+                # tell apart an unmarked operator bypass from a
+                # substrate-corruption un-revoke, so the safe default
+                # is the louder kind.
+                marker = event.record.unrevoke_audit_marker
+                if (
+                    marker is not None
+                    and marker.previous_revoked_at == prior_revoked_at
+                ):
+                    kind = RevocationEventKind.EXPLICIT_UNREVOKE
+                else:
+                    kind = (
+                        RevocationEventKind.REVOCATION_MONOTONIC_BREACH
+                    )
             elif incoming_revoked_at == prior_revoked_at:
                 kind = RevocationEventKind.REVOCATION_REFRESH
             else:
@@ -2059,9 +2327,11 @@ async def filter_revocation_events(
     - ``kinds``: optional frozenset of
       :class:`RevocationEventKind` values to surface. If ``None``,
       defaults to ``{REVOCATION_TRANSITION, REVOCATION_REFRESH,
-      REVOCATION_MONOTONIC_BREACH}`` (the three revocation-axis
-      kinds). Pass ``frozenset(RevocationEventKind)`` to surface every
-      classified event (useful for full-audit consumers).
+      REVOCATION_MONOTONIC_BREACH, EXPLICIT_UNREVOKE}`` (the four
+      revocation-axis kinds — three from Sprint-6 Tag-3 plus the
+      Sprint-6 Tag-9 operator-deliberate-unrevoke kind). Pass
+      ``frozenset(RevocationEventKind)`` to surface every classified
+      event (useful for full-audit consumers).
 
     Yields: :class:`ClassifiedRevocationEvent` instances whose ``kind``
     is in ``kinds``. The classifier sees EVERY event in the stream
@@ -2084,6 +2354,11 @@ async def filter_revocation_events(
             RevocationEventKind.REVOCATION_TRANSITION,
             RevocationEventKind.REVOCATION_REFRESH,
             RevocationEventKind.REVOCATION_MONOTONIC_BREACH,
+            # Sprint-6 Tag-9: surface operator-deliberate unrevoke
+            # by default so audit consumers see the gesture on the
+            # same default filter as BREACH (the two are sister
+            # kinds on the prior-revoked-to-unrevoked transition).
+            RevocationEventKind.EXPLICIT_UNREVOKE,
         })
     elif not isinstance(kinds, (frozenset, set)):
         raise TypeError(
@@ -2121,6 +2396,7 @@ __all__ = [
     "NatsKvCapabilityPolicyBackend",
     "RevocationEventClassifier",
     "RevocationEventKind",
+    "UnrevokeAuditMarker",
     "filter_revocation_events",
     "key_for_policy_pair",
     "open_capability_policy_watch_stream",

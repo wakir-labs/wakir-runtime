@@ -661,3 +661,160 @@ class TestTSRUREV08RevokeUnrevokeRoundTrip:
             2026, 5, 13, 12, 0, 0, tzinfo=timezone.utc
         )
         assert live.policy.revocation_reason == "second incident"
+
+
+# ---------------------------------------------------------------------------
+# T-SR-UREV-09 (Sprint-6 Tag-9): unrevoke writes UnrevokeAuditMarker
+# on the envelope so the watch-side classifier can authenticate the
+# operator-deliberate gesture.
+# ---------------------------------------------------------------------------
+
+
+class TestTSRUREV09UnrevokeAuditMarkerOnWire:
+    """T-SR-UREV-09 (Sprint-6 Tag-9): the ``unrevoke`` subcommand
+    attaches an :class:`UnrevokeAuditMarker` to the rewritten record
+    so the watch-side classifier surfaces
+    :attr:`RevocationEventKind.EXPLICIT_UNREVOKE` (vs. accidental
+    :attr:`RevocationEventKind.REVOCATION_MONOTONIC_BREACH`).
+
+    The marker captures the prior revoked_at + revocation_reason
+    (from the live record before the unrevoke write) and the
+    operator-supplied --unrevoke-reason. The receipt and the
+    envelope-marker both carry the same audit fields so the audit
+    trail surfaces it twice (receipt-on-stdout for the operator,
+    envelope-on-wire for every watch consumer).
+    """
+
+    def test_unrevoke_attaches_marker_to_rewritten_envelope(self):
+        kv = _MockKvCapability()
+        revoked_policy = _make_policy(
+            revoked_at=_REVOKED_AT,
+            revocation_reason=_REVOCATION_REASON,
+        )
+        _seed_bucket(kv, _make_record(policy=revoked_policy))
+
+        out, err = _io_streams()
+        code = run(
+            _unrevoke_argv(),
+            capability_bucket_factory=_make_capability_factory(kv),
+            stdout=out,
+            stderr=err,
+        )
+        assert code == int(ExitCode.OK), err.getvalue()
+
+        # Decode the rewritten record from the bucket and verify the
+        # marker is on the wire with the prior revocation captured.
+        key = key_for_policy_pair("wirelang-eng", "default")
+        live = _envelope_to_record(kv.store[key].value)
+        # Policy axis: revocation cleared (Tag-7 invariant preserved).
+        assert live.policy.revoked_at is None
+        assert live.policy.revocation_reason is None
+        # Audit axis: marker present and fully populated.
+        assert live.unrevoke_audit_marker is not None
+        marker = live.unrevoke_audit_marker
+        assert marker.previous_revoked_at == _REVOKED_AT
+        assert marker.previous_revocation_reason == _REVOCATION_REASON
+        assert marker.unrevoke_reason == (
+            "post-incident review: original revocation rescinded"
+        )
+
+    def test_unrevoke_without_reason_writes_marker_with_none_reason(
+        self,
+    ):
+        """T-SR-UREV-09b: when --unrevoke-reason is omitted, the
+        marker is still written, but its ``unrevoke_reason`` field is
+        None. The marker is structurally REQUIRED to surface
+        EXPLICIT_UNREVOKE on the classifier; the audit-reason is a
+        downstream concern.
+        """
+        kv = _MockKvCapability()
+        revoked_policy = _make_policy(
+            revoked_at=_REVOKED_AT,
+            revocation_reason=_REVOCATION_REASON,
+        )
+        _seed_bucket(kv, _make_record(policy=revoked_policy))
+
+        out, err = _io_streams()
+        code = run(
+            _unrevoke_argv(unrevoke_reason=None),
+            capability_bucket_factory=_make_capability_factory(kv),
+            stdout=out,
+            stderr=err,
+        )
+        assert code == int(ExitCode.OK), err.getvalue()
+
+        key = key_for_policy_pair("wirelang-eng", "default")
+        live = _envelope_to_record(kv.store[key].value)
+        assert live.unrevoke_audit_marker is not None
+        marker = live.unrevoke_audit_marker
+        assert marker.unrevoke_reason is None
+        assert marker.previous_revoked_at == _REVOKED_AT
+        assert marker.previous_revocation_reason == _REVOCATION_REASON
+
+    def test_revoke_then_unrevoke_then_re_revoke_marker_is_transient(
+        self,
+    ):
+        """T-SR-UREV-09c: a subsequent revoke of the re-unrevoked
+        policy does NOT carry the marker (revoke is its own gesture;
+        the marker is only persisted by the unrevoke gesture). This
+        pins the marker as a per-write attribute, not a per-key
+        sticky state.
+        """
+        kv = _MockKvCapability()
+        # Seed revoked, then unrevoke.
+        _seed_bucket(
+            kv,
+            _make_record(
+                policy=_make_policy(
+                    revoked_at=_REVOKED_AT,
+                    revocation_reason=_REVOCATION_REASON,
+                )
+            ),
+        )
+        out, err = _io_streams()
+        run(
+            _unrevoke_argv(),
+            capability_bucket_factory=_make_capability_factory(kv),
+            stdout=out,
+            stderr=err,
+        )
+
+        # Marker is on the wire post-unrevoke.
+        key = key_for_policy_pair("wirelang-eng", "default")
+        post_unrevoke = _envelope_to_record(kv.store[key].value)
+        assert post_unrevoke.unrevoke_audit_marker is not None
+
+        # Re-revoke via the revoke subcommand (additive to Sprint-6
+        # Tag-2 — distinct gesture).
+        out2, err2 = _io_streams()
+        new_revoke_argv = [
+            "revoke",
+            "--registered-by",
+            "wirelang-eng",
+            "--policy-id",
+            "default",
+            "--revoked-at",
+            "2026-05-14T08:00:00Z",
+            "--revocation-reason",
+            "follow-up incident",
+            "--registered-by-publisher",
+            "incident-responder-4",
+            "--registered-at",
+            "2026-05-14T08:05:00Z",
+        ]
+        code2 = run(
+            new_revoke_argv,
+            capability_bucket_factory=_make_capability_factory(kv),
+            stdout=out2,
+            stderr=err2,
+        )
+        assert code2 == int(ExitCode.OK), err2.getvalue()
+
+        # Marker is GONE after re-revoke (revoke does not carry it;
+        # the record constructor would reject a marker on a still-
+        # revoked policy anyway).
+        post_revoke = _envelope_to_record(kv.store[key].value)
+        assert post_revoke.policy.revoked_at == datetime(
+            2026, 5, 14, 8, 0, 0, tzinfo=timezone.utc
+        )
+        assert post_revoke.unrevoke_audit_marker is None

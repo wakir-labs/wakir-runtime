@@ -146,6 +146,7 @@ from wirelang.schemas.capability_policy_nats_kv_backend import (
     CapabilityPolicyRevocationConflict,
     CapabilityPolicyValidationError,
     NatsKvCapabilityPolicyBackend,
+    UnrevokeAuditMarker,
     key_for_policy_pair,
 )
 
@@ -2021,8 +2022,34 @@ async def _run_unrevoke(
 
         # Step 5 — construct the rewritten record. revoked_at and
         # revocation_reason are explicitly cleared; every other
-        # capability-bundle field is preserved byte-equally.
+        # capability-bundle field is preserved byte-equally. Sprint-6
+        # Tag-9: attach an :class:`UnrevokeAuditMarker` so the
+        # watch-side classifier can authenticate the operator-
+        # deliberate gesture and surface
+        # :attr:`RevocationEventKind.EXPLICIT_UNREVOKE` (vs. the
+        # accidental-substrate-corruption
+        # :attr:`RevocationEventKind.REVOCATION_MONOTONIC_BREACH`).
+        # The marker captures the live record's prior revoked_at /
+        # revocation_reason (always non-None on the revoked_at side —
+        # the unrevoked-target check above refused the alternative)
+        # plus the operator-supplied --unrevoke-reason. The receipt
+        # printed on stdout carries the same field set so the audit
+        # trail surfaces it twice (receipt + envelope).
         from dataclasses import replace
+
+        try:
+            marker = UnrevokeAuditMarker(
+                unrevoke_reason=args.unrevoke_reason,
+                previous_revoked_at=previous_revoked_at,
+                previous_revocation_reason=previous_revocation_reason,
+            )
+        except CapabilityPolicyValidationError as exc:
+            _print_error_stderr(
+                ExitCode.VALIDATION_ERROR,
+                f"unrevoke-audit-marker is invalid: {exc}",
+                stderr,
+            )
+            return int(ExitCode.VALIDATION_ERROR)
 
         try:
             new_policy = replace(
@@ -2035,6 +2062,7 @@ async def _run_unrevoke(
                 policy_id=live_record.policy_id,
                 registered_at=registered_at,
                 registered_by_publisher=args.registered_by_publisher,
+                unrevoke_audit_marker=marker,
             )
         except (RegisteredByCapabilityError, CapabilityPolicyValidationError) as exc:
             _print_error_stderr(
