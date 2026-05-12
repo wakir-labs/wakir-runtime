@@ -31,6 +31,16 @@ pluggable :class:`PeerSvidVerifier`), bundle-freshness enforcement,
 and optional local-workload SVID pairing. Hermetic by injection of
 Protocol fakes; live HTTPS-fetch impl is Phase-2c.
 
+Phase-2 Sprint-7 Tag-4 adds the **Capability-Attenuation-Chain-
+Verifier** sub-module (``capability_attenuation_chain_verifier.py``)
+— a passive defence-in-depth layer that verifies cross-org
+capability-attenuation chains against three replay-class attacks
+(attenuation-order-violation, stale-attenuation-replay,
+cross-org-boundary-violation). Consumes
+:attr:`MultiOrgRouteAttestation.peer_capability_policy_pointer` and
+the Sprint-6 Tag-1
+:class:`~wirelang.schemas.registered_by_capability.CapabilityPolicyRegistry`.
+
 Public surface:
 
 - :class:`wirelang.federation.n2_evaluator.FederationContext`
@@ -51,6 +61,10 @@ Public surface:
 - :class:`wirelang.federation.spiffe_cross_trust_domain_bridge.LiveBridgeResolution`
 - :class:`wirelang.federation.spiffe_cross_trust_domain_bridge.FetchedTrustBundle`
 - :class:`wirelang.federation.spiffe_cross_trust_domain_bridge.VerifiedPeerSvid`
+- :class:`wirelang.federation.capability_attenuation_chain_verifier.CapabilityAttenuationChainVerifier`
+- :class:`wirelang.federation.capability_attenuation_chain_verifier.AttenuationLink`
+- :class:`wirelang.federation.capability_attenuation_chain_verifier.VerifiedAttenuationChain`
+- :class:`wirelang.federation.capability_attenuation_chain_verifier.ResolvedAttenuationLink`
 """
 
 from .spiffe_cross_trust_domain_bridge import (  # noqa: F401
@@ -67,6 +81,21 @@ from .spiffe_cross_trust_domain_bridge import (  # noqa: F401
     SpiffeCrossTrustDomainBridgeError,
     VerifiedPeerSvid,
 )
+from .capability_attenuation_chain_verifier import (  # noqa: F401
+    CHAIN_VERIFICATION_SCHEMA,
+    DEFAULT_MAX_LINK_AGE_SECONDS,
+    AttenuationChainShapeError,
+    AttenuationLink,
+    AttenuationLinkRevokedError,
+    AttenuationOrderViolationError,
+    CapabilityAttenuationChainError,
+    CapabilityAttenuationChainVerifier,
+    CrossOrgBoundaryViolationError,
+    PeerCapabilityPolicyResolver,
+    ResolvedAttenuationLink,
+    StaleAttenuationReplayError,
+    VerifiedAttenuationChain,
+)
 
 __all__ = [
     "BRIDGE_RESOLUTION_SCHEMA",
@@ -81,4 +110,17 @@ __all__ = [
     "SpiffeCrossTrustDomainBridge",
     "SpiffeCrossTrustDomainBridgeError",
     "VerifiedPeerSvid",
+    "CHAIN_VERIFICATION_SCHEMA",
+    "DEFAULT_MAX_LINK_AGE_SECONDS",
+    "AttenuationChainShapeError",
+    "AttenuationLink",
+    "AttenuationLinkRevokedError",
+    "AttenuationOrderViolationError",
+    "CapabilityAttenuationChainError",
+    "CapabilityAttenuationChainVerifier",
+    "CrossOrgBoundaryViolationError",
+    "PeerCapabilityPolicyResolver",
+    "ResolvedAttenuationLink",
+    "StaleAttenuationReplayError",
+    "VerifiedAttenuationChain",
 ]
