@@ -39,6 +39,8 @@ roundtrip is the Operator-Hand-pendet acceptance evidence (§3b below).
 | `config/spire-agent-partner.conf` | `partner.test` side SPIRE-Agent config. |
 | `bin/spire-agent-fed-attest` | Mock CLI for cross-trust-domain SVID issuance + JWT-SVID-fallback. |
 | `bin/spire_agent_fed_attest.py` | CLI module (import target for tests). |
+| `bin/spire-agent-fed-reload` | Bundle-Cache-Refresh Helper (Tag-3): cron-cycle + SIGHUP. |
+| `bin/spire_agent_fed_reload.py` | Reload helper module (import target for tests). |
 | `quadlet/wakir-spire-agent-federation.container` | Per-side Quadlet template (placeholders `<SIDE>`, `<TRUST_DOMAIN>`, `<SERVER_DNS>`). |
 | `quadlet/wakir-spire-agent-federation-data.volume` | Per-side data volume template. |
 | `quadlet/wakir-spire-agent-federation-sockets.volume` | Per-side Workload-API sockets volume template. |
@@ -46,6 +48,7 @@ roundtrip is the Operator-Hand-pendet acceptance evidence (§3b below).
 | `tests/test_spire_agent_federation_config.py` | Agent-config-shape invariants. |
 | `tests/test_spire_agent_fed_attest_cli.py` | CLI Mock determinism + JWT-fallback contract. |
 | `tests/test_quadlet_spire_agent_federation.py` | Quadlet template parity. |
+| `tests/test_spire_agent_fed_reload.py` | Reload-helper (Tag-3): snapshot determinism, change-detection, cron-cycle step, SIGHUP-style trigger, race-condition recovery. |
 
 ## 1. Compose substrate
 
@@ -255,7 +258,7 @@ evidence.
 pytest infra/spire/agent/tests/ -v
 ```
 
-Four test files, **63 tests, all green**:
+Five test files, **77 tests, all green** (Tag-3 adds 14 reload tests):
 
 * `test_compose_spire_agent_federation.py` — 16 compose-shape
   invariants (image-pin form, hardening posture, per-side volume
@@ -272,12 +275,90 @@ Four test files, **63 tests, all green**:
   parity invariants (placeholders, image-pin, hardening directives,
   unit ordering, per-side volume references, no bundles-volume re-
   declaration).
+* `test_spire_agent_fed_reload.py` — 14 reload-helper invariants
+  (Tag-3: snapshot determinism, change-detection vs. rotator
+  output, cron-cycle step, SIGHUP-style immediate trigger, race-
+  condition recovery, cross-trust-domain isolation, CLI shape).
 
 The Sprint-8 Tag-2 acceptance is **green hermetic test surface + this
 README shipped; live cross-trust SVID verify is Operator-Hand-pendet
 per ADR-0051**.
 
-## 8. Known follow-ups (Phase-2c / Sprint-9+)
+## 8. Bundle-Cache-Refresh (Phase-2 Sprint-8 Tag-3)
+
+The Tag-3 substrate adds the agent-side counterpart to the Tag-3
+server-side `spire-fed-bundle-rotator`. When the peer-side rotates
+its CA key, the federated bundle file under the agent's
+`trust_bundle_path` changes; the agent must re-read the file so the
+new key enters the JWKS-set cache.
+
+### Two reload-cadence patterns
+
+| Pattern | Trigger | Latency | Use-case |
+|---|---|---|---|
+| **Cron-cycle** | `spire-agent-fed-reload` running on an interval (default 1h) | Bounded by `--interval-seconds` | Background steady-state refresh |
+| **SIGHUP-reload** | Operator-hand: `podman kill --signal HUP <agent>` after a bundle-update | Sub-second | Planned rotation; verified roundtrip drill |
+
+### Operator-Hand recipe (post-rotation peer-side refresh)
+
+```bash
+cd infra/spire/agent/bin
+
+# After the server-side rotation distributed a new bundle to the peer,
+# the operator can verify the agent's view of the bundle:
+./spire-agent-fed-reload snapshot \
+    --bundle-path /var/lib/spire/bundles/wakir.jwks
+# Emits JSON: content_hash, kids, rotation_counters, n_keys.
+
+# For an immediate reload after operator-hand bundle-update:
+podman kill --signal HUP wakir-spire-agent-partner
+
+# For background steady-state, wire the helper into a Quadlet
+# .timer unit (1h cadence; the cron-cycle step_loop is the loop
+# body). Quadlet .timer wiring is the Phase-3 follow-up — Tag-3
+# ships the CLI surface; the .timer template is Sprint-9 scope.
+```
+
+### Race-condition-safety
+
+`poll_once` reads the bundle file as a single `read_bytes()` call. If
+the operator-hand bundle-update is non-atomic (truncate-then-write),
+the helper may observe a malformed JWKS mid-write and raise. The
+recommended operator-hand pattern is **write-temp-then-rename** —
+POSIX-atomic on the same filesystem; the agent never observes a
+partial bundle:
+
+```bash
+# Atomic peer-side bundle-update:
+podman cp /tmp/wakir-v2.jwks \
+    wakir-spire-server-partner:/var/lib/spire/bundles/wakir.jwks.new
+podman exec wakir-spire-server-partner \
+    mv /var/lib/spire/bundles/wakir.jwks.new \
+       /var/lib/spire/bundles/wakir.jwks
+```
+
+The reload helper's `step_loop` is hardened against malformed-bundle
+reads: it counts the error, KEEPS the previous snapshot intact, and
+calls the optional `on_error` callback. The next iteration retries
+the read after the operator's atomic-rename completes.
+
+### Hermetic test surface (Tag-3 invariants)
+
+* **Snapshot determinism**: identical bundle → identical snapshot.
+* **Change-detection**: rotator-produced two-key JWKS vs. pre-rotation
+  single-key snapshot yields exactly one `added` kid, zero `removed`.
+* **Expire-detection**: post-expire one-key JWKS vs. mid-grace two-
+  key snapshot yields exactly one `removed` kid, zero `added`.
+* **Race-condition recovery**: malformed mid-write read raises but
+  does NOT poison the cache; previous snapshot kept, error counter
+  bumped.
+* **SIGHUP-style trigger**: out-of-cycle `step_loop` call refreshes
+  the snapshot immediately, without waiting for the next interval.
+* **Cross-trust-domain isolation**: two independent `ReloadLoopState`
+  instances (one per trust-domain) do not interfere; rotation of
+  `wakir.test` does not bump `partner.test` state counters.
+
+## 9. Known follow-ups (Phase-2c / Sprint-9+)
 
 * **Phase-2.3 persona-Workload-API consumer wiring** — the
   `wakir-spire-agent-<SIDE>-sockets` volume is ready; the Phase-2.3
@@ -290,9 +371,10 @@ per ADR-0051**.
   needs the NATS-server-side JWT-callback impl. Phase-2.4 surface
   (separate from this Tag-2 substrate).
 * **Trust-Bundle-Rotation drill on the federation-agent surface** —
-  Sprint-6 Tag-12 rotation runbook covers the single-server case;
-  the federation-agent case needs the agent's federated-bundle
-  refresh cadence verified (refresh_hint cycle). Phase-3a tune slot.
+  hermetic substrate in place as of Sprint-8 Tag-3 (§8). The live-
+  bring-up rotation drill (Operator-Hand SIGHUP + Quadlet .timer
+  wiring for the cron-cycle) is the Sprint-9 follow-up; the §8
+  recipe is the canonical workflow.
 * **Live cross-trust X.509-SVID roundtrip evidence** — Operator-Hand,
   posted after first bring-up. The README §3b recipe is the canonical
   workflow.
