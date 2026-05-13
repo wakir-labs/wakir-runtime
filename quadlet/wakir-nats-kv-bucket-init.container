@@ -6,8 +6,18 @@
 # Phase-1b NATS substrate is healthy. Pilot-phase substrate sibling to
 # the Sprint-2 ``scripts/init-nats-buckets.py`` driver, which seeds
 # the FIXED Phase-1b seven-bucket inventory. This unit handles the
-# PER-ORG marker-stack-event bucket FAMILY introduced in Sprint-8
-# Tag-4 (``wirelang.federation.marker_stack_kv``).
+# PER-ORG bucket FAMILIES:
+#   - ``wakir-marker-stack-{org_id}`` (Sprint-8 Tag-4 marker-stack
+#     event log, ``wirelang.federation.marker_stack_kv``)
+#   - ``wakir-caveat-override-export-sequence-{org_id}`` (Sprint-9
+#     Tag-2 durable :class:`SequenceNumberLedger`,
+#     ``wirelang.federation.sequence_number_ledger_kv``)
+# The Tag-2 family is provisioned via the multi-family driver
+# registry; defensive-import: if the Wirelang-side Tag-2 module is
+# absent on the deployed tip (PR #25 still under review), the
+# registry stays at marker-stack only and the unit succeeds without
+# touching the ledger bucket family. Cross-Review Zone-B
+# (NATS-Schema × Wirelang) covers the consensus trail.
 #
 # Why a separate one-shot unit:
 #   * Cluster operators onboard new organisations over the lifetime
@@ -63,10 +73,19 @@
 #   systemctl status wakir-nats-kv-bucket-init.service
 #   journalctl -u wakir-nats-kv-bucket-init.service --since '5 min ago'
 #
-# Expected journal output on success (excerpt):
+# Expected journal output on success (excerpt, marker-stack only —
+# baseline tip without Reza-Tag-2 module):
 #
 #   [nats-kv-bucket-provision] org=acme bucket=wakir-marker-stack-acme: created
 #   [nats-kv-bucket-provision] org=orbit bucket=wakir-marker-stack-orbit: created
+#   wakir-nats-kv-bucket-init.service: Deactivated successfully.
+#
+# Expected journal output after Reza-PR #25 merge (multi-family):
+#
+#   [nats-kv-bucket-provision] org=acme bucket=wakir-marker-stack-acme: created
+#   [nats-kv-bucket-provision] org=acme bucket=wakir-caveat-override-export-sequence-acme: created
+#   [nats-kv-bucket-provision] org=orbit bucket=wakir-marker-stack-orbit: created
+#   [nats-kv-bucket-provision] org=orbit bucket=wakir-caveat-override-export-sequence-orbit: created
 #   wakir-nats-kv-bucket-init.service: Deactivated successfully.
 #
 # Re-run after onboarding a new org:

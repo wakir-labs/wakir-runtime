@@ -562,10 +562,11 @@ die VM auf den frischen OS-Install zurueck.
 
 - **Kein Phase-3a-Production-Trust-Domain.** Wir bleiben auf
   `wakir.test`. Live-`<FTD-ID>.wakir.dev` ist Sprint-10+-Thema.
-- **Kein Multi-Org-Federation.** Single-Org-Pilot mit `acme`-
-  Bucket. Der zweite Pilot-Org-Onboard (Sprint-9 Tag-2+) fuegt
-  einen zweiten Trust-Domain-Side (`partner.test`-Spiegel) hinzu;
-  die Quadlet-Substrate dafuer existiert bereits unter
+- **Kein Multi-Org-Federation in diesem Recipe.** Single-Org-
+  Pilot mit `acme`-Bucket. Der zweite Pilot-Org-Onboard
+  (`partner.test`-Spiegel) ist in `MULTI_ORG_ONBOARDING_RECIPE.md`
+  (Sprint-9 Tag-2) als Erweiterung dokumentiert; die Quadlet-
+  Substrate dafuer existiert bereits unter
   `infra/spire/federation/quadlet/` (per-side Templates).
 - **Kein SPIFFE-JWT-SVID-NATS-Auth.** Phase-1b NATS laeuft offen
   (loopback-only); Token-Auth ist Phase-2.4-Substrate. Phase-3
