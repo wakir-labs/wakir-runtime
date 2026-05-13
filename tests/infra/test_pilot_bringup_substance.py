@@ -793,7 +793,12 @@ def test_tv_bringup_06_server_health_start_period_is_generous_enough() -> None:
     20-40s on cold storage. ``HealthStartPeriod`` MUST be at least 30s
     so systemd does not mark the unit failed before the server is
     actually ready (this was one of the candidate root-causes for the
-    crash-loop in Bug 7)."""
+    crash-loop in Bug 7).
+
+    Sprint-9-Tag-5 substance-fix (Bug 7 H3): raised the threshold to
+    60s on cold Pilot-VM storage. The 30s lower-bound is retained as a
+    must-have; the 60s upper-bound is the Sprint-9-Tag-5 target.
+    """
     text = SERVER_FED_TPL.read_text(encoding="utf-8")
     m = re.search(r"HealthStartPeriod=(\d+)s", text)
     assert m, "server-federation-container declares no HealthStartPeriod"

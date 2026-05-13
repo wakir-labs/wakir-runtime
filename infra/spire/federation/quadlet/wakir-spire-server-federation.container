@@ -112,7 +112,13 @@ HealthCmd=/opt/spire/bin/spire-server healthcheck
 HealthInterval=10s
 HealthTimeout=5s
 HealthRetries=5
-HealthStartPeriod=30s
+# Sprint-9-Tag-5 Bug 7 (H3): cold-start CA-init on a slow Pilot-VM can
+# exceed 30s. SPIRE-Server first-start does CA-keypair generation +
+# datastore SQLite migration + JWT-signing-key setup before the
+# healthcheck binary reports ready. 60s gives the cold-start path
+# enough headroom; warm restarts are unaffected (the healthcheck
+# returns sub-second once the server is up).
+HealthStartPeriod=60s
 
 [Service]
 Restart=on-failure

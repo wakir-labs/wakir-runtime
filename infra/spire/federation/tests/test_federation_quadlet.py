@@ -123,7 +123,11 @@ def test_quadlet_health_probe(quadlet_text: str) -> None:
     assert "HealthInterval=10s" in quadlet_text
     assert "HealthTimeout=5s" in quadlet_text
     assert "HealthRetries=5" in quadlet_text
-    assert "HealthStartPeriod=30s" in quadlet_text
+    # Sprint-9-Tag-5 Bug 7 H3 substance-fix: HealthStartPeriod was 30s
+    # but cold-start CA-init on a slow Pilot-VM can exceed 30s. Raised
+    # to 60s. The 30s lower-bound is no longer correct as a HARD
+    # assertion; the 60s value is the new floor.
+    assert "HealthStartPeriod=60s" in quadlet_text
 
 
 def test_quadlet_publishes_bundle_endpoint(quadlet_text: str) -> None:
