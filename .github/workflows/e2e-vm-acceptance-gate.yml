@@ -1,0 +1,181 @@
+# SPDX-License-Identifier: BUSL-1.1
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# End-to-End disposable-VM Acceptance-Gate CI lane (Phase-2 Sprint-9 Tag-5).
+# ========================================================================
+#
+# Purpose: prove that the Sprint-9 Tag-5 acceptance-gate harness
+# (`infra/test-e2e/vm-lifecycle-harness/`) correctly grades a Federation-
+# Server live-substrate bring-up and surfaces the 2026-05-13 substance-bug
+# vectors as structured signal. Closes the sandbox-hermetic-test gap
+# documented in `feedback_live_bringup_sandbox_gap.md` (Mira-Memory).
+#
+# Two lanes
+# ---------
+# 1. `harness-logic` (every PR, always runs):
+#    Hermetic Python suite `tests/infra/test_vm_e2e_acceptance_gate.py`.
+#    Proves the gate grades correctly given synthetic smoke JSON + log
+#    fixtures. NO real VM. Sandbox-safe per ADR-0051.
+#
+# 2. `real-vm` (manual-dispatch + tagged-self-hosted runner only):
+#    Operator-Hand-triggered. Spins a disposable Fedora-CoreOS QEMU VM,
+#    drives `wakir-pilot-bootstrap.sh` end-to-end, grades through
+#    `proxmox-bringup-smoke --json`, uploads artefacts as PR evidence.
+#    Requires `/dev/kvm` access — default `ubuntu-latest` runners do
+#    NOT provide reliable nested-virt; this lane is gated on a self-
+#    hosted runner labelled `wakir-nested-kvm`.
+#
+# Trigger surface
+# ---------------
+# - PR or push touching the bootstrap script,
+# - PR or push touching SPIRE-federation/agent Quadlet templates,
+# - PR or push touching the smoke binary,
+# - PR or push touching the harness or its tests,
+# - Manual dispatch (with provider + branch inputs).
+#
+# Cross-Review Zone N (QA × Henrik-Audit)
+# ---------------------------------------
+# Harness-logic-lane evidence is audit-grade (deterministic, signed by
+# GH-Actions). real-vm-lane evidence (artefacts uploaded by the Operator-
+# Hand run) is the substrate Henrik samples for "did the Pilot-VM
+# bring-up actually pass acceptance-gate this run".
+
+name: e2e-vm-acceptance-gate
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'infra/spire/federation/wakir-pilot-bootstrap.sh'
+      - 'infra/spire/federation/quadlet/**'
+      - 'infra/spire/agent/quadlet/**'
+      - 'quadlet/wakir-nats-kv-bucket-init.container'
+      - 'bin/proxmox-bringup-smoke'
+      - 'infra/test-e2e/vm-lifecycle-harness/**'
+      - 'tests/infra/test_vm_e2e_acceptance_gate.py'
+      - '.github/workflows/e2e-vm-acceptance-gate.yml'
+  pull_request:
+    paths:
+      - 'infra/spire/federation/wakir-pilot-bootstrap.sh'
+      - 'infra/spire/federation/quadlet/**'
+      - 'infra/spire/agent/quadlet/**'
+      - 'quadlet/wakir-nats-kv-bucket-init.container'
+      - 'bin/proxmox-bringup-smoke'
+      - 'infra/test-e2e/vm-lifecycle-harness/**'
+      - 'tests/infra/test_vm_e2e_acceptance_gate.py'
+      - '.github/workflows/e2e-vm-acceptance-gate.yml'
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: 'VM provider for real-vm lane (qemu|proxmox)'
+        required: false
+        default: 'qemu'
+      branch:
+        description: 'wakir-runtime branch to fetch the bootstrap from'
+        required: false
+        default: 'main'
+      run_real_vm:
+        description: 'Run the real-VM lane (requires self-hosted runner)'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: read
+
+jobs:
+
+  harness-logic:
+    name: Harness-logic — hermetic gate grading
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install test deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+
+      - name: Run harness-logic suite
+        run: |
+          python -m pytest \
+            tests/infra/test_vm_e2e_acceptance_gate.py \
+            -v --color=yes
+
+      - name: Static-check shell scripts (shellcheck — non-blocking)
+        run: |
+          if command -v shellcheck >/dev/null 2>&1; then
+            shellcheck -S warning \
+              infra/test-e2e/vm-lifecycle-harness/*.sh || \
+              echo "::warning::shellcheck found issues (non-blocking)"
+          else
+            sudo apt-get install -y shellcheck
+            shellcheck -S warning \
+              infra/test-e2e/vm-lifecycle-harness/*.sh || \
+              echo "::warning::shellcheck found issues (non-blocking)"
+          fi
+
+  real-vm:
+    name: Real-VM — disposable Fedora-CoreOS acceptance-gate
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_real_vm == 'true' }}
+    runs-on: [self-hosted, wakir-nested-kvm]
+    needs: [harness-logic]
+    timeout-minutes: 45
+    env:
+      WAKIR_E2E_VM_PROVIDER: ${{ github.event.inputs.provider }}
+      WAKIR_REPO_BRANCH: ${{ github.event.inputs.branch }}
+      WAKIR_E2E_STATE_DIR: ${{ runner.temp }}/wakir-e2e
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pre-flight (KVM + butane + qemu)
+        run: |
+          test -c /dev/kvm || { echo "/dev/kvm missing on runner"; exit 1; }
+          command -v qemu-system-x86_64 || { echo "qemu missing"; exit 1; }
+          command -v butane || { echo "butane missing"; exit 1; }
+          command -v xz || { echo "xz missing"; exit 1; }
+
+      - name: Run acceptance-gate (one-shot)
+        id: gate
+        run: |
+          sudo \
+            WAKIR_E2E_STATE_DIR="$WAKIR_E2E_STATE_DIR" \
+            WAKIR_E2E_VM_PROVIDER="$WAKIR_E2E_VM_PROVIDER" \
+            WAKIR_REPO_BRANCH="$WAKIR_REPO_BRANCH" \
+            bash infra/test-e2e/vm-lifecycle-harness/run-acceptance-gate.sh \
+              --org acme \
+              --branch "$WAKIR_REPO_BRANCH" \
+              --provider "$WAKIR_E2E_VM_PROVIDER"
+        continue-on-error: true
+
+      - name: Collect artefacts
+        if: always()
+        run: |
+          mkdir -p artefacts
+          sudo cp -a "$WAKIR_E2E_STATE_DIR"/* artefacts/ 2>/dev/null || true
+          sudo chown -R "$(id -u):$(id -g)" artefacts || true
+          ls -la artefacts
+
+      - name: Upload artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-vm-acceptance-gate-run-${{ github.run_id }}
+          path: artefacts/
+          retention-days: 30
+
+      - name: Final gate verdict
+        run: |
+          # Re-evaluate the gate exit code into the job status.
+          if [[ "${{ steps.gate.outcome }}" == "success" ]]; then
+            echo "ACCEPTANCE-GATE: PASS"
+            exit 0
+          fi
+          echo "ACCEPTANCE-GATE: FAIL"
+          cat artefacts/gate-verdict.json 2>/dev/null || true
+          exit 2
