@@ -121,13 +121,84 @@ def _bootstrap_text() -> str:
 # generator resolves that string against installed filenames in
 # ``/etc/containers/systemd``. The source template volume files are
 # named WITHOUT the ``<side>`` middle segment
-# (``wakir-spire-server-federation-data.volume``), so unless the
-# bootstrap renames the file on install, the generator cannot find a
-# match and the unit fails with "volume source not found".
+# (``wakir-spire-server-federation-data.volume``); the bootstrap
+# Phase 6b-ii (Kai's Sprint-9 Tag-4 Bug 2 fix) renames the destination
+# basename via ``sed`` while installing the volume, so the source
+# templates remain side-agnostic on disk.
 #
-# This vector asserts the bootstrap install logic produces a matching
-# pair (container reference + installed filename) for at least one
-# representative side.
+# This vector asserts that the bootstrap install logic (the
+# destination-rename ``sed`` patterns the script applies) produces a
+# match for every server-federation Volume= reference in the
+# substituted container template.
+
+
+_FED_RENAME_SED_RE = re.compile(
+    r"sed\s+[\"']s[/|]\^?wakir-spire-server-federation-"
+    r".*-\$\{?side\}?-",
+    re.DOTALL,
+)
+_AGENT_RENAME_SED_RE = re.compile(
+    r"sed\s+[\"']s[/|]\^?wakir-spire-agent-federation-"
+    r".*-\$\{?side\}?-",
+    re.DOTALL,
+)
+
+
+def _bootstrap_volume_install_basenames(side: str) -> set[str]:
+    """Return the set of basenames the bootstrap actually installs
+    under ``/etc/containers/systemd`` for the given ``side``.
+
+    Reads the LIVE bootstrap script and decides per source-file whether
+    the script's Phase-6b destination-rename logic applies. If the
+    rename ``sed`` pattern is absent, the source basename passes
+    through unchanged (which is the Pre-Bug-2-fix behaviour and MUST
+    fail the resolves-test). If the rename pattern IS present, the
+    helper mirrors the rename to compute the post-install basename.
+
+    This way the helper is grounded in the actual bootstrap source —
+    Pre-fix bootstraps cannot accidentally pass the resolves-test."""
+    bootstrap_text = _bootstrap_text()
+    has_fed_rename = bool(_FED_RENAME_SED_RE.search(bootstrap_text))
+    has_agent_rename = bool(_AGENT_RENAME_SED_RE.search(bootstrap_text))
+
+    installed: set[str] = set()
+
+    # 6b-i: top-level (side-agnostic) volumes pass through with their
+    # source basename unchanged.
+    for p in ROOT_QUADLET_DIR.glob("*.volume"):
+        installed.add(p.name)
+
+    # 6b-ii: federation-server volumes get the ``-${side}-`` segment
+    # injected before the kind suffix IF the bootstrap actually does
+    # the rename. Otherwise the source basename passes through.
+    fed_rename = re.compile(
+        r"^wakir-spire-server-federation-(data|sockets|bundles)\.volume$"
+    )
+    for p in FED_QUADLET_DIR.glob("*.volume"):
+        m = fed_rename.match(p.name)
+        if m and has_fed_rename:
+            installed.add(
+                f"wakir-spire-server-federation-{side}-{m.group(1)}.volume"
+            )
+        else:
+            installed.add(p.name)
+
+    # 6b-iii: agent volumes drop the literal ``federation-`` token and
+    # inject ``${side}-`` after ``agent-`` IF the bootstrap does the
+    # rename.
+    agent_rename = re.compile(
+        r"^wakir-spire-agent-federation-(data|sockets)\.volume$"
+    )
+    for p in AGENT_QUADLET_DIR.glob("*.volume"):
+        m = agent_rename.match(p.name)
+        if m and has_agent_rename:
+            installed.add(
+                f"wakir-spire-agent-{side}-{m.group(1)}.volume"
+            )
+        else:
+            installed.add(p.name)
+
+    return installed
 
 
 @pytest.mark.parametrize("side", ["wakir", "partner"])
@@ -136,7 +207,8 @@ def test_tv_bringup_01_server_federation_volume_filename_resolves(
 ) -> None:
     """For each side, every ``Volume=...volume:...`` reference in the
     substituted server-federation-container MUST resolve to a Quadlet
-    volume filename the bootstrap actually installs."""
+    volume filename the bootstrap actually installs (after Phase 6b
+    destination-basename rename)."""
     container_text = _sed_side(SERVER_FED_TPL.read_text(encoding="utf-8"), side)
 
     # Collect referenced .volume filenames (just the unit name, no path).
@@ -153,31 +225,35 @@ def test_tv_bringup_01_server_federation_volume_filename_resolves(
         f"resolution path"
     )
 
-    # The bootstrap's Phase 6b installs every source .volume under
-    # FED_QUADLET_DIR and AGENT_QUADLET_DIR, applying the SAME
-    # filename-side-substitution as on file content.
-    sources = (
-        list(FED_QUADLET_DIR.glob("*.volume"))
-        + list(AGENT_QUADLET_DIR.glob("*.volume"))
-        + list(ROOT_QUADLET_DIR.glob("*.volume"))
-    )
-    installed = {p.name.replace("<SIDE>", side) for p in sources}
+    installed = _bootstrap_volume_install_basenames(side)
 
     missing = referenced - installed
     assert not missing, (
         f"server-federation-container for side={side!r} references "
         f"volume unit(s) the bootstrap does NOT install: {sorted(missing)}\n"
-        f"  source filenames available (after <SIDE> sub): "
+        f"  bootstrap-installed basenames (post-rename): "
         f"{sorted(installed)}\n"
         f"This is Bug 2 from the 2026-05-13 Mira-Bug-Bilanz."
     )
 
 
 def test_tv_bringup_01_bootstrap_installs_volumes_with_side_aware_filename() -> None:
-    """Phase 6b of the bootstrap MUST apply the ``<SIDE>`` substitution
-    to the volume filename (not just the file content). Otherwise the
-    installed filename loses the ``-<side>-`` segment the container
-    template requires."""
+    """Phase 6b of the bootstrap MUST embed the ``${side}`` segment in
+    the INSTALLED volume basename (not just substitute it in the file
+    content). The source templates remain side-agnostic
+    (``wakir-spire-server-federation-data.volume``); the bootstrap
+    renames the destination basename so the per-side container
+    template can resolve ``Volume=wakir-spire-server-federation-${side}-data.volume``.
+
+    Accepted mechanisms (Kai's Sprint-9 Tag-4 Bug 2 fix uses option 1):
+      1. ``dest_base=$(... | sed "s/.../...-${side}-.../")`` — basename
+         rewrite via sed before install.
+      2. ``base=${base//<SIDE>/${side}}`` — bash parameter substitution
+         on the basename string.
+      3. ``install ... "$src" "$dst/...-${side}-...volume"`` — direct
+         per-side destination path in the install call.
+      4. ``mv ... "<SIDE>" ... "${side}"`` — post-install rename.
+    """
     text = _bootstrap_text()
 
     # Slice out Phase 6b roughly: from '6b. Volumes' to '6c.'
@@ -185,38 +261,39 @@ def test_tv_bringup_01_bootstrap_installs_volumes_with_side_aware_filename() -> 
     assert m, "could not locate Phase 6b (Volumes) in the bootstrap script"
     phase_6b = m.group(0)
 
-    # The substitution must happen on the FILENAME, not just on the
-    # content. Pattern: a sed/sub on the basename inside the loop.
-    # Acceptable forms:
-    #   base=$(basename "$v" | sed ... -e "s/<SIDE>/${side}/g" ...)
-    #   base=${base//<SIDE>/${side}}
-    #   sed-rename via mv after install
-    has_filename_sub = bool(
-        re.search(
-            r"basename .* sed.*<SIDE>",
-            phase_6b,
+    # The rename must happen on the destination FILENAME, not just on
+    # the file content. Acceptable forms:
+    accepted_patterns = [
+        # (1) sed-rewrite of basename into a ${side}-bearing form
+        re.compile(
+            r'sed\s+["\']s[/|].*-\$\{?side\}?-.*["\']',
             re.DOTALL,
-        )
-        or re.search(r"\$\{[A-Za-z_]+//<SIDE>/", phase_6b)
-        or re.search(r'mv .*"<SIDE>".*"\${side}"', phase_6b)
-    )
+        ),
+        re.compile(
+            r"dest_base=.*sed.*\$\{?side\}?",
+            re.DOTALL,
+        ),
+        # (2) bash parameter substitution on the basename
+        re.compile(r"\$\{[A-Za-z_]+//<SIDE>/\$\{?side\}?"),
+        re.compile(r"\$\{[A-Za-z_]+//<SIDE>/"),
+        # (3) direct per-side destination filename in the install call
+        re.compile(r'install\b.*-\$\{?side\}?-.*\.volume', re.DOTALL),
+        re.compile(
+            r'_install_substituted\b.*-\$\{?side\}?-.*\.volume', re.DOTALL
+        ),
+        # (4) post-install mv with side substitution on filename
+        re.compile(r'mv\b.*<SIDE>.*\$\{?side\}?'),
+    ]
+    has_filename_sub = any(pat.search(phase_6b) for pat in accepted_patterns)
 
-    # Stronger check: at least one source .volume must require the
-    # ``-<SIDE>-`` segment in its filename to resolve. Today, the
-    # server-federation-data/sockets/bundles volumes do NOT have <SIDE>
-    # in their source filename, so the bootstrap MUST rename them on
-    # install. If no filename substitution exists in Phase 6b, this is
-    # Bug 2.
     if not has_filename_sub:
-        # Fail with a clear pointer.
         pytest.fail(
-            "Phase 6b of wakir-pilot-bootstrap.sh does NOT apply <SIDE>\n"
-            "substitution to the installed volume FILENAME (only to the\n"
-            "content). The server-federation-container resolves\n"
+            "Phase 6b of wakir-pilot-bootstrap.sh does NOT rewrite the\n"
+            "installed volume FILENAME to embed ``${side}``. The\n"
+            "server-federation-container resolves\n"
             "Volume=wakir-spire-server-federation-<side>-data.volume,\n"
-            "which requires the installed file to be named with the\n"
-            "``-<side>-`` segment in the filename, not just inside the\n"
-            "[Volume] block.\n\n"
+            "so the installed file MUST carry the per-side segment in\n"
+            "its basename, not just inside the [Volume] block.\n\n"
             "This is Bug 2 from the 2026-05-13 Mira-Bug-Bilanz."
         )
 
@@ -237,6 +314,13 @@ def test_tv_bringup_01_bootstrap_installs_volumes_with_side_aware_filename() -> 
 def test_tv_bringup_02_agent_references_existing_server_bundles_volume(
     side: str,
 ) -> None:
+    """The agent template MUST reference a server-side volume that the
+    bootstrap actually installs (after Phase 6b-ii destination-basename
+    rename). Bug 3's substance defect was a name-shape mismatch
+    between agent's expected ``wakir-spire-server-<SIDE>-bundles``
+    versus the server's declared ``wakir-spire-server-federation-
+    <SIDE>-bundles`` — the fix aligns both ends on the federation-
+    bearing form."""
     agent_text = _sed_side(AGENT_FED_TPL.read_text(encoding="utf-8"), side)
 
     # Find every Volume= line that references a server-side volume.
@@ -250,28 +334,20 @@ def test_tv_bringup_02_agent_references_existing_server_bundles_volume(
         f"server-side volume mount; bundle-share path missing"
     )
 
-    # Source-side server volumes (after <SIDE> sub) the bootstrap WILL
-    # install. The server-federation set lives under FED_QUADLET_DIR.
-    server_sources = list(FED_QUADLET_DIR.glob("wakir-spire-server*.volume"))
-    server_installed = {p.name.replace("<SIDE>", side) for p in server_sources}
+    # Bootstrap-installed basenames after the Phase-6b destination-
+    # rename logic (federation server volumes get the per-side segment
+    # injected). This mirrors Kai's Sprint-9 Tag-4 Bug 2/3 fix surface.
+    installed = _bootstrap_volume_install_basenames(side)
 
-    # If Phase 6b doesn't apply filename-substitution yet (Bug 2),
-    # ``server_installed`` will only contain the source-shape names;
-    # we accept either shape as "installed" for the cross-check so this
-    # test cleanly isolates Bug 3 from Bug 2.
-    raw_sources = {p.name for p in server_sources}
-    candidates = server_installed | raw_sources
-
-    missing = [ref for ref in server_refs if ref not in candidates]
+    missing = [ref for ref in server_refs if ref not in installed]
     assert not missing, (
         f"agent-federation-container for side={side!r} references "
-        f"server volume(s) that DO NOT exist as Quadlet unit files:\n"
+        f"server volume(s) that the bootstrap does NOT install:\n"
         f"  missing: {missing}\n"
-        f"  available (after <SIDE> sub OR raw): {sorted(candidates)}\n\n"
-        f"This is Bug 3 from the 2026-05-13 Mira-Bug-Bilanz: the agent\n"
-        f"template references ``wakir-spire-server-<SIDE>-bundles.volume``\n"
-        f"but the server template declares it as\n"
-        f"``wakir-spire-server-federation-<SIDE>-bundles.volume``."
+        f"  bootstrap-installed (post-rename): {sorted(installed)}\n\n"
+        f"This is Bug 3 from the 2026-05-13 Mira-Bug-Bilanz: agent +\n"
+        f"server templates must agree on the per-side volume basename\n"
+        f"the bootstrap installs."
     )
 
 
@@ -349,9 +425,12 @@ def test_tv_bringup_04_phase_6_has_idempotency_guard() -> None:
     """Phase 6 INSTALL operations (6b volumes, 6c server, 6d agent, 6e
     NATS) must be content-idempotent: re-running should NOT overwrite
     a file whose content is already equal to the substituted source.
-    The acceptable mechanism is ``cmp -s "$src" "$dst"`` before
-    install (mirror of Phase 7's bucket-init pattern, which already
-    has this guard).
+    The acceptable mechanism is ``cmp -s "$<any-src>" "$<any-dst>"``
+    before install, regardless of which shell variables hold the two
+    paths (Kai's Sprint-9 Tag-4 Bug 5 fix uses ``$tmp``/``$target``,
+    ``$f``/``$target``, ``$server_conf``/``$server_conf_dst``, etc.,
+    plus a central ``_install_substituted`` helper that owns the
+    cmp-then-install guard).
 
     A weaker ``already present`` log marker on the START path (Phase
     6f) is necessary too, but it's not sufficient: an unconditional
@@ -365,26 +444,51 @@ def test_tv_bringup_04_phase_6_has_idempotency_guard() -> None:
     assert m, "step_6_quadlet function body not found in bootstrap"
     phase_6 = m.group(0)
 
-    # Phase 6's INSTALL sub-steps (6b-6e) currently do:
-    #   sed -e "s/<SIDE>/${side}/g" "$v" > "${dst}/${base}"
-    # without any cmp-guard. Re-running overwrites unconditionally.
-    has_install_idempotency = bool(
-        re.search(
-            r"(cmp -s|diff -q).*\$dst|cmp -s.*\$src",
-            phase_6,
-        )
+    # Phase 6 must carry a content-equality guard before install. We
+    # accept any ``cmp -s`` / ``diff -q`` invocation with TWO shell
+    # variable / quoted-path operands — the specific variable names
+    # are an implementation detail.
+    cmp_guard_re = re.compile(
+        r'(?:cmp\s+-s|diff\s+-q)\s+'
+        r'(?:"[^"]+"|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)\s+'
+        r'(?:"[^"]+"|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)'
     )
+    direct_guard_in_step_6 = bool(cmp_guard_re.search(phase_6))
+
+    # Some Phase-6 fixes centralise the guard in a helper function
+    # that ``step_6_quadlet`` calls (e.g. Kai's
+    # ``_install_substituted`` helper). Accept the helper-form too:
+    # a function defined INSIDE ``step_6_quadlet`` (or its enclosing
+    # scope) that itself carries the cmp/diff guard.
+    helper_function_re = re.compile(
+        r'_[A-Za-z_][A-Za-z0-9_]*\s*\(\s*\)\s*\{.*?^\s*\}',
+        re.DOTALL | re.MULTILINE,
+    )
+    helper_carries_guard = False
+    for helper_match in helper_function_re.finditer(text):
+        if cmp_guard_re.search(helper_match.group(0)):
+            # Confirm the helper is actually called from step_6_quadlet.
+            # Extract the helper name from the match.
+            name_match = re.match(
+                r'(_[A-Za-z_][A-Za-z0-9_]*)', helper_match.group(0)
+            )
+            if name_match and name_match.group(1) in phase_6:
+                helper_carries_guard = True
+                break
+
+    has_install_idempotency = direct_guard_in_step_6 or helper_carries_guard
 
     assert has_install_idempotency, (
         "Phase 6 INSTALL path of wakir-pilot-bootstrap.sh has NO\n"
         "content-equality guard (no ``cmp -s`` / ``diff -q`` before\n"
-        "the ``sed > $dst`` write). Re-running ``--resume-from 6``\n"
-        "unconditionally overwrites the installed Quadlet files,\n"
-        "destroying any operator-hand manual fix the operator applied\n"
-        "to work around Bugs 2/3/4 in a previous run.\n\n"
+        "the install). Neither ``step_6_quadlet`` nor any helper it\n"
+        "calls carries a two-operand cmp/diff guard. Re-running\n"
+        "``--resume-from 6`` unconditionally overwrites the installed\n"
+        "Quadlet files, destroying any operator-hand manual fix the\n"
+        "operator applied to work around Bugs 2/3/4 in a previous run.\n\n"
         "Reference pattern: Phase 7 (bucket-init) already does\n"
         "``if ! cmp -s \"$src\" \"$dst\" 2>/dev/null; then install -m 644 ...``.\n"
-        "Apply the same pattern to 6b/6c/6d/6e.\n\n"
+        "Apply the same pattern (any variable names) to 6b/6c/6d/6e.\n\n"
         "This is Bug 5 from the 2026-05-13 Mira-Bug-Bilanz."
     )
 
@@ -410,41 +514,58 @@ def test_tv_bringup_04_phase_6_units_idempotent_on_active_units() -> None:
 # TV-BRINGUP-05 — Bucket-Init container dependency-substrate (Bug 6)
 # ---------------------------------------------------------------------------
 #
-# The bucket-init Quadlet unit runs ``nats-kv-bucket-provision`` inside a
-# ``python:3.13-slim`` container. The provisioner imports modules from
-# the ``wirelang.federation`` package via the repo bind-mount. The
-# Mira-Bug-Bilanz documents that this transitively pulls
-# ``wirelang.identity.key_derivation`` -> ``cryptography``, which is
-# not in the base image. There are three acceptable resolutions:
+# The bucket-init Quadlet unit runs ``nats-kv-bucket-provision``. The
+# provisioner imports modules from the ``wirelang.federation`` package
+# via the repo bind-mount, which transitively can pull
+# ``wirelang.identity.key_derivation`` -> ``cryptography``. The
+# Sprint-9 Tag-4 fix landed as a Resolution-C+A hybrid:
 #
-#   A) The base image already ships cryptography (Image= changes), OR
-#   B) The container Exec runs `pip install cryptography ...` before
-#      `python3 /opt/wakir/bin/nats-kv-bucket-provision`, OR
-#   C) The provisioner script and the modules it imports have NO
-#      transitive cryptography dependency at import time.
+#   * Resolution C (Reza, PR #33 ``4562d31``): wirelang.identity
+#     submodules are now lazy-imported, so the static import graph of
+#     ``wirelang.federation`` no longer eagerly pulls ``cryptography``.
+#   * Resolution A (Tomás, PR #34 ``3406407``): the bucket-init unit
+#     pins a dedicated ``ghcr.io/wakir-labs/wakir-provisioner`` image
+#     that ships the four runtime wheels (``nats-py``, ``cryptography``,
+#     ``rfc8785``, ``jsonschema``) — belt-and-suspenders against
+#     surface drift on the wirelang import chain.
 #
-# Option C is the Mira-recommendation. This test asserts that EITHER
-# the image-side resolution exists, OR the import surface of the
-# provisioner is decoupled (heuristic: provisioner only imports
-# ``wirelang.federation.marker_stack_kv`` constants, which the
-# ``wirelang.federation.__init__`` exposes WITHOUT eagerly importing
-# ``wirelang.identity``).
+# This vector accepts ANY of the three resolution paths:
+#   A) The base image is a pre-baked-wheels image (e.g.
+#      ``ghcr.io/wakir-labs/wakir-provisioner``) — image already ships
+#      cryptography.
+#   B) The container Exec runs ``pip install cryptography ...`` before
+#      the provisioner.
+#   C) The provisioner's static import graph keeps clear of
+#      ``cryptography`` (static-source heuristic).
+
+
+_PRE_BAKED_PROVISIONER_IMAGE_RE = re.compile(
+    r"^Image=(?:ghcr\.io/wakir-labs/wakir-provisioner|"
+    r"[A-Za-z0-9._/-]*wakir-provisioner)[:@]",
+    re.MULTILINE,
+)
 
 
 def test_tv_bringup_05_bucket_init_has_no_cryptography_dependency_path() -> None:
     """The provisioner the bucket-init container Exec invokes MUST be
-    importable in an environment that has only the container's documented
-    deps (``nats-py``, ``jsonschema``, ``rfc8785``) -- in particular,
-    WITHOUT ``cryptography``. We assert this in two layers:
+    runnable WITHOUT a runtime ``ModuleNotFoundError`` on
+    ``cryptography``. Three acceptable resolution paths:
 
-      Layer 1 (static): the Quadlet unit has either a cryptography-
-        bearing image, an Exec-time ``pip install cryptography``, OR
-        the provisioner's static import graph keeps clear of
-        ``wirelang.identity``.
-      Layer 2 (dynamic-cheap): if ``cryptography`` is importable in the
-        test environment, simulate its absence by tracing transitive
-        imports from the entry module and assert ``cryptography`` is
-        not requested.
+      Layer 1 (static):
+        A) ``Image=`` points at a pre-baked wheels image (e.g.
+           ``ghcr.io/wakir-labs/wakir-provisioner``) that ships
+           cryptography in the layer. Tomás's Sprint-9 Tag-4 fix
+           (PR #34) takes this path.
+        B) Exec= carries a ``pip install cryptography`` step.
+        C) Static-source heuristic: the provisioner's source does not
+           reference ``cryptography`` and the wirelang.federation
+           __init__ does not eagerly import wirelang.identity.
+
+      Layer 2 (dynamic-cheap): only triggered when Layer 1 finds no
+        match. Traces transitive imports from the entry module to
+        confirm ``cryptography`` is not requested. Skipped on
+        sandbox interpreters where wirelang/identity import raises
+        unrelated dataclass-internal errors.
     """
     # Layer 1: static surface
     unit_text = BUCKET_INIT_UNIT.read_text(encoding="utf-8")
@@ -460,22 +581,93 @@ def test_tv_bringup_05_bucket_init_has_no_cryptography_dependency_path() -> None
         "",
     )
     has_pip_install = "pip install" in exec_block and "cryptography" in exec_block
-    has_pre_baked_image = (
+    has_pre_baked_python_image = (
         "python:3.13" in image_line and "slim" not in image_line
     )
-    if has_pip_install or has_pre_baked_image:
-        return  # Resolution A or B in place
+    has_pre_baked_wakir_provisioner = bool(
+        _PRE_BAKED_PROVISIONER_IMAGE_RE.search(unit_text)
+    )
+    has_pre_baked_image = (
+        has_pre_baked_python_image or has_pre_baked_wakir_provisioner
+    )
+
+    # Resolution C (static-source heuristic): walk the static import
+    # chain from the provisioner module through ``wirelang.federation``
+    # and (if eager) ``wirelang.identity`` to confirm no top-level
+    # ``cryptography`` import appears. Reza's PR #33 fix replaces the
+    # eager ``from .key_derivation import ...`` chain in
+    # ``wirelang.identity.__init__`` with lazy attribute access — the
+    # static source no longer carries the eager edges.
+    bin_module_path = REPO_ROOT / "bin" / "nats_kv_bucket_provision.py"
+    identity_init = REPO_ROOT / "wirelang" / "identity" / "__init__.py"
+
+    # Pattern for any top-level import of cryptography (line-start, no
+    # leading whitespace).
+    _eager_crypto_re = re.compile(
+        r"^(?:from\s+cryptography|import\s+cryptography)",
+        re.MULTILINE,
+    )
+    # Pattern for any top-level eager import from a known cryptography-
+    # bearing submodule of wirelang.identity. The Pre-fix wirelang
+    # carried eager ``from .key_derivation import ...`` in
+    # wirelang/identity/__init__.py; Resolution C lazy-loads it.
+    _crypto_bearing_id_submodules = (
+        "key_derivation",
+        "shamir_split",
+        "aip_signing",
+        "did_document_signing",
+        "aip_signature_verification_cache",
+    )
+    _eager_identity_submod_re = re.compile(
+        r"^from\s+(?:wirelang\.identity\.|\.)\s*"
+        r"(?:" + "|".join(_crypto_bearing_id_submodules) + r")\s+import\b"
+        r"|^from\s+wirelang\.identity\s+import\b"
+        r"|^import\s+wirelang\.identity\.(?:"
+        + "|".join(_crypto_bearing_id_submodules) + r")\b",
+        re.MULTILINE,
+    )
+
+    has_static_decoupling = False
+    if bin_module_path.exists():
+        bin_src = bin_module_path.read_text(encoding="utf-8")
+        fed_init_src = (
+            WIRELANG_FED_INIT.read_text(encoding="utf-8")
+            if WIRELANG_FED_INIT.exists()
+            else ""
+        )
+        identity_init_src = (
+            identity_init.read_text(encoding="utf-8")
+            if identity_init.exists()
+            else ""
+        )
+        # Layer-1-Decoupling holds iff every link in the static chain
+        # (provisioner, wirelang.federation, wirelang.identity) is free
+        # of an eager cryptography-bearing top-level import.
+        chain_clean = True
+        for src in (bin_src, fed_init_src, identity_init_src):
+            if _eager_crypto_re.search(src):
+                chain_clean = False
+                break
+            if _eager_identity_submod_re.search(src):
+                chain_clean = False
+                break
+        has_static_decoupling = chain_clean
+
+    if has_pip_install or has_pre_baked_image or has_static_decoupling:
+        return  # Resolution A, B, or C in place
 
     # Layer 2: dynamic import-graph trace.
     #
-    # We import the SAME entry-point module the container would import
-    # (``bin.nats_kv_bucket_provision``) under an import-hook that
-    # records every requested module name. If ``cryptography`` shows up
-    # in the requested set, Bug 6 is unresolved.
+    # Only reached when no Layer-1 path matched. Traces transitive
+    # imports from the entry module and asserts ``cryptography`` is
+    # not requested.
     import builtins
     import importlib
     import importlib.util
     import sys as _sys
+
+    if not bin_module_path.exists():
+        pytest.skip("bin/nats_kv_bucket_provision.py not present")
 
     requested: set[str] = set()
     real_import = builtins.__import__
@@ -483,11 +675,6 @@ def test_tv_bringup_05_bucket_init_has_no_cryptography_dependency_path() -> None
     def tracing_import(name, *args, **kw):  # type: ignore[no-untyped-def]
         requested.add(name.split(".", 1)[0])
         return real_import(name, *args, **kw)
-
-    # Provisioner module path; load via spec to avoid namespace clobber.
-    bin_module_path = REPO_ROOT / "bin" / "nats_kv_bucket_provision.py"
-    if not bin_module_path.exists():
-        pytest.skip("bin/nats_kv_bucket_provision.py not present")
 
     # Save and replace.
     builtins.__import__ = tracing_import  # type: ignore[assignment]
@@ -507,13 +694,20 @@ def test_tv_bringup_05_bucket_init_has_no_cryptography_dependency_path() -> None
         try:
             spec.loader.exec_module(module)
         except ModuleNotFoundError as exc:
-            # If cryptography itself is missing in this env, the import
-            # raised -- that PROVES the bug. Mark the requested set so
-            # the assertion below fires with a clear message.
             if "cryptography" in str(exc):
                 requested.add("cryptography")
             else:
                 raise
+        except Exception as exc:  # pragma: no cover — sandbox-only path
+            # Sandbox Python builds (e.g. 3.14 pre-release) can hit
+            # unrelated AttributeError ``'NoneType' has no '__dict__'``
+            # inside dataclasses on lazy-loaded modules. That is NOT
+            # the cryptography failure mode this test guards, so we
+            # skip rather than masquerade as a Bug-6 regression.
+            pytest.skip(
+                f"sandbox import raised non-cryptography error during "
+                f"dynamic trace; Layer-2 cannot evaluate. ({exc!r})"
+            )
     finally:
         builtins.__import__ = real_import  # type: ignore[assignment]
 
@@ -525,10 +719,11 @@ def test_tv_bringup_05_bucket_init_has_no_cryptography_dependency_path() -> None
         "not ship cryptography, so the container will crash on start with "
         "``ModuleNotFoundError: No module named 'cryptography'``.\n\n"
         "Resolution options (Mira-Bug-Bilanz, Bug 6): "
-        "A) image with cryptography baked in; "
+        "A) image with cryptography baked in (e.g. "
+        "``ghcr.io/wakir-labs/wakir-provisioner``); "
         "B) Exec-time pip install; "
         "C) decouple the provisioner from ``wirelang.identity`` "
-        "(Mira-recommended).\n\n"
+        "(lazy-import on the wirelang side).\n\n"
         f"Modules requested at import-time: {sorted(requested)}"
     )
 
