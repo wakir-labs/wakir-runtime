@@ -18,7 +18,7 @@ all occurrences of the placeholder token across the listed files.
 | `ghcr.io/spiffe/spire-server` | `1.14.6` | `sha256:DIGEST_PENDING_TOMAS_REVIEW` | `compose/spire-federation.yaml` (×2), `quadlet/wakir-spire-server-federation.container` |
 | `ghcr.io/spiffe/spire-agent` | `1.14.6` | `sha256:DIGEST_PENDING_TOMAS_REVIEW` | `compose/spire-agent-federation.yaml` (×2), `quadlet/wakir-spire-agent-federation.container` |
 | `docker.io/library/python` | `3.13-slim` | `sha256:DIGEST_PENDING_TOMAS_REVIEW` | `infra/spire/federation/provisioner/Containerfile` (base layer for `wakir-provisioner`) |
-| `ghcr.io/wakir-labs/wakir-provisioner` | `0.1.0` | `sha256:DIGEST_PENDING_TOMAS_REVIEW` | `quadlet/wakir-nats-kv-bucket-init.container` |
+| `ghcr.io/wakir-labs/wakir-provisioner` | `0.1.1` | `sha256:DIGEST_PENDING_TOMAS_REVIEW` | `quadlet/wakir-nats-kv-bucket-init.container` |
 
 SPIRE-Server and SPIRE-Agent MUST stay version-parity: SPIRE upstream
 releases the server and agent as a paired binary set, and version-skew
@@ -35,10 +35,16 @@ bring-up on 2026-05-13 surfaced the gap as
 `ModuleNotFoundError: No module named 'cryptography'` (the
 provisioner's transitive imports through `wirelang.identity` also
 require `cryptography`, which the slim image does not carry). The
-`wakir-provisioner` image is the substitute substrate: it carries
-the four wheels the provisioner needs (`nats-py`, `cryptography`,
-`rfc8785`, `jsonschema`) and ships under Apache-2.0 with hash-pinned
-build inputs
+`wakir-provisioner` image is the substitute substrate. The v0.1.0
+image carried four wheels (`nats-py`, `cryptography`, `rfc8785`,
+`jsonschema`) to satisfy the provisioner's transitive imports
+through `wirelang.identity`. After Reza-PR #33
+(Wirelang-Import-Disentanglement, PEP-562 lazy `__getattr__` on
+`wirelang.federation`), the transitive identity-stack import chain
+no longer fires for the marker-stack-kv / sequence-number-ledger
+code paths the provisioner exercises, and the v0.1.1 image shrinks
+the wheel set to `nats-py` only. Both versions ship under Apache-2.0
+with hash-pinned build inputs
 (`infra/spire/federation/provisioner/requirements.txt`).
 
 Both layers stay digest-pinned: the base-image pin lives in the
@@ -218,14 +224,14 @@ Operator-Hand resolution recipe:
 cosign verify \
     --certificate-identity-regexp 'https://github\.com/wakir-labs/wakir-runtime/' \
     --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
-    ghcr.io/wakir-labs/wakir-provisioner:0.1.0
+    ghcr.io/wakir-labs/wakir-provisioner:0.1.1
 
 # Step 3: resolve the digest via crane (cross-check).
-PROVISIONER_DIGEST=$(crane digest ghcr.io/wakir-labs/wakir-provisioner:0.1.0)
+PROVISIONER_DIGEST=$(crane digest ghcr.io/wakir-labs/wakir-provisioner:0.1.1)
 echo "${PROVISIONER_DIGEST}"   # sha256:<64-hex>
 
 # Step 4: substitute the placeholder in the Quadlet.
-sed -i "s|wakir-provisioner:0.1.0@sha256:DIGEST_PENDING_TOMAS_REVIEW|wakir-provisioner:0.1.0@${PROVISIONER_DIGEST}|g" \
+sed -i "s|wakir-provisioner:0.1.1@sha256:DIGEST_PENDING_TOMAS_REVIEW|wakir-provisioner:0.1.1@${PROVISIONER_DIGEST}|g" \
     quadlet/wakir-nats-kv-bucket-init.container
 
 # Step 5: re-run the hermetic test surface.
@@ -321,10 +327,16 @@ was incorrect (the slim image ships the CPython stdlib only).
 
 Tag-4 substrate:
 
-- Added `ghcr.io/wakir-labs/wakir-provisioner:0.1.0` to the
-  inventory (§1, §2.5). The image carries the four wheels the
-  provisioner needs at runtime: `nats-py`, `cryptography`,
-  `rfc8785`, `jsonschema`. Build inputs are hash-pinned in
+- Added `ghcr.io/wakir-labs/wakir-provisioner` to the inventory
+  (§1, §2.5). The v0.1.0 image carried four wheels (`nats-py`,
+  `cryptography`, `rfc8785`, `jsonschema`) to satisfy the
+  provisioner's transitive imports through `wirelang.identity`.
+  After Reza-PR #33 (Wirelang-Import-Disentanglement, PEP-562 lazy
+  `__getattr__` on `wirelang.federation`), the transitive identity-
+  stack import chain no longer fires for the marker-stack-kv /
+  sequence-number-ledger code paths the provisioner exercises. The
+  v0.1.1 image (current inventory tag) shrinks the wheel set to
+  `nats-py` only. Build inputs are hash-pinned in
   `infra/spire/federation/provisioner/requirements.txt`.
 - Re-targeted the `python:3.13-slim` pin (§2.4) from the Quadlet
   directly to the `wakir-provisioner` Containerfile's `FROM` line.
@@ -358,9 +370,11 @@ Reza-Sprint-9-Tag-4 coordination (Wirelang-import-disentanglement):
   defensive probe is a no-op at that point. Tomás-side flips the
   probe target to the actual Reza-side name in a follow-up commit
   once Reza-PR lands.
-- The `wakir-provisioner` image carries `cryptography` regardless
-  of the Reza-side outcome: the image-gap closure unblocks the
-  Pilot bring-up today, the import-disentanglement closes a
-  hygiene gap on the Wirelang side.
+- The `wakir-provisioner` v0.1.0 image carried `cryptography`
+  regardless of the Reza-side outcome: the image-gap closure
+  unblocked the Pilot bring-up the same day. With Reza-PR #33
+  merged, the v0.1.1 hygiene-follow-up drops the now-unused wheels
+  (`cryptography`, `rfc8785`, `jsonschema`) and lands the lean
+  one-wheel image (Tomás-PR §"Sprint-9 Tag-4 hygiene").
 
 — Tomás

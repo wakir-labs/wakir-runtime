@@ -103,17 +103,20 @@
 # Image-Pin form (Cosign-Digest-Pin Pfad B): the provisioner runs
 # inside the dedicated ``ghcr.io/wakir-labs/wakir-provisioner`` image
 # (Sprint-9 Tag-4, see ``infra/spire/federation/provisioner/``). The
-# image ships the four wheels the provisioner needs at runtime
-# (``nats-py``, ``cryptography``, ``rfc8785``, ``jsonschema``) — the
-# Tag-1 author-time assumption that ``python:3.13-slim`` already
-# carries ``nats-py`` was incorrect (Mira-Bug-Bilanz 2026-05-13,
-# Bug 6: live-bring-up crashed with ``ModuleNotFoundError: No module
-# named 'cryptography'``). The wakir-provisioner image closes both
-# gaps in a single supply-chain artifact and stays digest-pinned via
-# the same Cross-Review Zone-C workflow as the SPIRE-Server pins
-# (``infra/spire/federation/IMAGE_PINS.md`` §1). The provisioner
-# script + wirelang tree stay bind-mounted from the host repo path
-# so a runtime-side bump does not require an image rebuild.
+# image v0.1.1 ships ``nats-py`` only — Reza-PR #33's
+# Wirelang-Import-Disentanglement (PEP-562 lazy ``__getattr__`` on
+# ``wirelang.federation``) shrank the previously-required wheel set
+# from four (``nats-py`` + ``cryptography`` + ``rfc8785`` +
+# ``jsonschema``) down to one. The Tag-1 author-time assumption that
+# ``python:3.13-slim`` already carries ``nats-py`` was incorrect
+# (Mira-Bug-Bilanz 2026-05-13, Bug 6: live-bring-up crashed with
+# ``ModuleNotFoundError: No module named 'cryptography'``). The
+# wakir-provisioner image closes the wheel-availability gap and stays
+# digest-pinned via the same Cross-Review Zone-C workflow as the
+# SPIRE-Server pins (``infra/spire/federation/IMAGE_PINS.md`` §1).
+# The provisioner script + wirelang tree stay bind-mounted from the
+# host repo path so a runtime-side bump does not require an image
+# rebuild.
 
 [Unit]
 Description=Wakir Phase-2 Sprint-9 Tag-1 per-org NATS-KV bucket provisioner (one-shot)
@@ -125,15 +128,16 @@ Requires=wakir-nats.service
 [Container]
 ContainerName=wakir-nats-kv-bucket-init
 
-# Image pin: wakir-provisioner ships the four runtime wheels the
-# provisioner needs at unit start (nats-py, cryptography, rfc8785,
-# jsonschema). The image digest is resolved Operator-Hand via the
-# same Cross-Review Zone-C workflow as the SPIRE-Server/Agent
-# digests; the placeholder token ``DIGEST_PENDING_TOMAS_REVIEW`` is
-# intentionally NOT a real digest. See
-# ``infra/spire/federation/provisioner/`` for the Containerfile, the
-# build recipe, and the hash-pinned requirements set.
-Image=ghcr.io/wakir-labs/wakir-provisioner:0.1.0@sha256:DIGEST_PENDING_TOMAS_REVIEW
+# Image pin: wakir-provisioner v0.1.1 ships ``nats-py`` only at unit
+# start (post Reza-PR #33 Wirelang-Import-Disentanglement; v0.1.0
+# also carried cryptography + rfc8785 + jsonschema for the transitive
+# import chain that no longer fires). The image digest is resolved
+# Operator-Hand via the same Cross-Review Zone-C workflow as the
+# SPIRE-Server/Agent digests; the placeholder token
+# ``DIGEST_PENDING_TOMAS_REVIEW`` is intentionally NOT a real digest.
+# See ``infra/spire/federation/provisioner/`` for the Containerfile,
+# the build recipe, and the hash-pinned requirements set.
+Image=ghcr.io/wakir-labs/wakir-provisioner:0.1.1@sha256:DIGEST_PENDING_TOMAS_REVIEW
 
 # Exec invokes the provisioner against the local NATS, sourcing the
 # onboarded-orgs roster from a bind-mounted file. The ``--orgs-file``

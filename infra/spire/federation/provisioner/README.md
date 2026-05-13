@@ -11,21 +11,28 @@ Pilot-VM bring-up regression (Mira-Bug-Bilanz 2026-05-13, Bug 6).
 
 ## Scope
 
-Minimal Python image carrying the four wheels the per-org NATS-KV
+Minimal Python image carrying the runtime wheel the per-org NATS-KV
 bucket provisioner (`bin/nats-kv-bucket-provision`, Sprint-9 Tag-1)
 needs at runtime:
 
 - `nats-py` (NATS-JetStream client)
-- `cryptography` (transitive via `wirelang.identity` until the
-  Reza-side Sprint-9 Tag-4 disentanglement lands)
-- `rfc8785` (JCS canonical JSON)
-- `jsonschema` (Wirelang Layer-0/1/2 conformance)
+
+### Wheel-set shrink (v0.1.1, post Reza-PR #33)
+
+The v0.1.0 image carried four wheels (`nats-py`, `cryptography`,
+`rfc8785`, `jsonschema`) to satisfy the provisioner's transitive
+imports through `wirelang.identity`. After Reza-PR #33
+(Wirelang-Import-Disentanglement, PEP-562 lazy `__getattr__` on
+`wirelang.federation`), the transitive identity-stack import chain
+no longer fires for the marker-stack-kv / sequence-number-ledger
+code paths the provisioner exercises. The v0.1.1 image drops the
+three now-unused wheels.
 
 The image deliberately does NOT carry the `wakir-runtime` tree
 itself. The runtime is bind-mounted into the container from the host
 at `/opt/wakir-runtime` (see Quadlet `Volume=` lines). Bumping the
 Wirelang/runtime tree does not require an image rebuild; bumping
-any of the four wheel pins above does.
+the `nats-py` wheel pin above does.
 
 ## Why a dedicated image (and not `python:3.13-slim` plus pip-install)
 
@@ -95,7 +102,7 @@ sed -i "s|python:3.13-slim@sha256:DIGEST_PENDING_TOMAS_REVIEW|python:3.13-slim@$
 ```sh
 # Build (rootless podman recommended):
 podman build \
-    --tag ghcr.io/wakir-labs/wakir-provisioner:0.1.0 \
+    --tag ghcr.io/wakir-labs/wakir-provisioner:0.1.1 \
     --label "org.opencontainers.image.revision=$(git rev-parse HEAD)" \
     --label "org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     -f infra/spire/federation/provisioner/Containerfile \
@@ -109,11 +116,11 @@ podman build \
 echo "$GHCR_TOKEN" | podman login ghcr.io -u "$GHCR_USER" --password-stdin
 
 # Push:
-podman push ghcr.io/wakir-labs/wakir-provisioner:0.1.0
+podman push ghcr.io/wakir-labs/wakir-provisioner:0.1.1
 
 # Resolve the pushed digest:
 PROVISIONER_DIGEST=$(podman image inspect \
-    ghcr.io/wakir-labs/wakir-provisioner:0.1.0 \
+    ghcr.io/wakir-labs/wakir-provisioner:0.1.1 \
     --format '{{ index .RepoDigests 0 }}' | sed 's|.*@||')
 
 # Sigstore keyless sign (OIDC against the GitHub Actions identity if
@@ -126,7 +133,7 @@ cosign sign \
 ### 5. Pin the digest in the Quadlet
 
 ```sh
-sed -i "s|wakir-provisioner:0.1.0@sha256:DIGEST_PENDING_TOMAS_REVIEW|wakir-provisioner:0.1.0@${PROVISIONER_DIGEST}|" \
+sed -i "s|wakir-provisioner:0.1.1@sha256:DIGEST_PENDING_TOMAS_REVIEW|wakir-provisioner:0.1.1@${PROVISIONER_DIGEST}|" \
     quadlet/wakir-nats-kv-bucket-init.container
 
 # Re-run the hermetic pin-form test:
@@ -138,7 +145,7 @@ pytest tests/infra/test_wakir_provisioner_image_pin_form.py
 ```sh
 git add infra/spire/federation/provisioner quadlet \
     infra/spire/federation/IMAGE_PINS.md
-git commit -m "chore(provisioner): pin wakir-provisioner:0.1.0 to verified digest"
+git commit -m "chore(provisioner): pin wakir-provisioner:0.1.1 to verified digest"
 ```
 
 ## Verification (hermetic, sandbox-safe)
