@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-8 Tag-1 — Quadlet sidecar volume: SPIRE-Server data
+# directory (datastore + key material) for the federation substrate.
+# The SAME file is installed twice with sed-substituted ``<SIDE>`` —
+# once for the wakir side, once for the partner side — so each side
+# has its own isolated CA + datastore (federation requires distinct
+# trust-domains and distinct CAs by definition).
+
+[Unit]
+Description=Wakir Phase-2.1 SPIRE-Server-Federation data volume (<SIDE>)
+
+[Volume]
+VolumeName=wakir-spire-server-federation-<SIDE>-data
+
+[Install]
+WantedBy=multi-user.target default.target
