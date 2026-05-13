@@ -26,12 +26,15 @@ substrate is the live impl those Protocols target in Phase-2c+.
 | `config/spire-server-partner.conf` | `partner.test` side SPIRE-Server config. |
 | `bin/spire-fed-bundle` | Bundle Export/Import CLI (hermetic-fixture JWKS). |
 | `bin/spire_fed_bundle.py` | CLI module (import target for tests). |
+| `bin/spire-fed-bundle-rotator` | Bundle-Rotation CLI (Tag-3). |
+| `bin/spire_fed_bundle_rotator.py` | Rotator CLI module (import target for tests). |
 | `quadlet/wakir-spire-server-federation.container` | Quadlet template (placeholders for `<SIDE>`, `<HOST_BUNDLE_PORT>`, `<HOST_GRPC_PORT>`). |
 | `quadlet/wakir-federation.network` | Quadlet bridge-network sidecar. |
 | `quadlet/wakir-spire-server-federation-{data,sockets,bundles}.volume` | Quadlet named-volume sidecars (per-side via placeholder). |
 | `tests/test_federation_compose.py` | Hermetic compose-shape + config-shape invariants. |
 | `tests/test_spire_fed_bundle_cli.py` | Hermetic CLI roundtrip + trust-domain mismatch guard. |
 | `tests/test_federation_quadlet.py` | Compose ↔ Quadlet byte-precision parity. |
+| `tests/test_spire_fed_bundle_rotator.py` | Rotation-Lifecycle (Tag-3): soft-cutover, hard-revoke, grace-window, cross-TD-isolation, determinism. |
 
 ## 1. Compose substrate
 
@@ -197,12 +200,118 @@ compose surface, not in scope for Sprint-8 Tag-1).
 pytest infra/spire/federation/tests/ -v
 ```
 
-Three test files; all hermetic (compose-parse + CLI-roundtrip + Quadlet
-byte-precision parity). None of them touch podman or pull images. The
-Sprint-8 Tag-1 acceptance is **green hermetic test surface + this README
-shipped; live cross-trust SVID verify is Operator-Hand-pendet**.
+Four test files (Tag-3 adds the rotator suite); all hermetic (compose-
+parse + CLI-roundtrip + Quadlet byte-precision parity + rotation-
+lifecycle). None of them touch podman or pull images. The Sprint-8
+Tag-3 acceptance is **green hermetic test surface + this README §7
+shipped; live cross-trust SVID verify and live rotation drill are
+Operator-Hand-pendet**.
 
-## 7. Known follow-ups (Phase-2c / Sprint-9+)
+## 7. Rotation (Phase-2 Sprint-8 Tag-3)
+
+The Tag-3 substrate adds the time-driven JWKS rotation surface on top
+of the Tag-1 static bundle endpoint. The lifecycle has four operator-
+hand steps wired through the `spire-fed-bundle-rotator` CLI:
+
+| Step | CLI | Trigger | Cron-cadence (recommended) |
+|---|---|---|---|
+| 1. Rotate | `spire-fed-bundle-rotator rotate` | Operator-hand, planned cadence | Daily (24h CA-rotation drift) |
+| 2. Distribute | `podman cp` rotated JWKS → peer | Operator-hand | Immediate after step 1 |
+| 3. Peer-reload | `spire-agent-fed-reload poll-once` (cron 1h) OR `podman kill --signal HUP <agent>` | Peer-side, automatic OR SIGHUP | 1h default |
+| 4. Expire | `spire-fed-bundle-rotator expire` | Operator-hand, after grace-window | Daily, T+24h after step 1 |
+
+### Operator-Hand recipe (canonical rotation drill)
+
+```bash
+cd infra/spire/federation/bin
+
+# Step 1: Rotate at T=now (24h grace-window for the OLD key).
+NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+./spire-fed-bundle-rotator rotate \
+    --trust-domain wakir.test \
+    --in-file /tmp/wakir.jwks \
+    --out /tmp/wakir-v2.jwks \
+    --now "$NOW" \
+    --grace-seconds 86400
+
+# Inspect the result: should show one 'valid' (new) + one 'grace' (old).
+./spire-fed-bundle-rotator list \
+    --in-file /tmp/wakir-v2.jwks \
+    --now "$NOW"
+
+# Step 2: Distribute (atomic write-temp-then-rename on the peer side).
+podman cp /tmp/wakir-v2.jwks \
+    wakir-spire-server-partner:/var/lib/spire/bundles/wakir.jwks.new
+podman exec wakir-spire-server-partner \
+    mv /var/lib/spire/bundles/wakir.jwks.new \
+       /var/lib/spire/bundles/wakir.jwks
+
+# Step 3: Peer-side agent re-reads the bundle. Either wait for the
+# cron-cycle (default 1h) or trigger immediately:
+podman kill --signal HUP wakir-spire-agent-partner
+
+# Step 4 (T+24h, after grace-window): expire the OLD key.
+EXPIRE_NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+./spire-fed-bundle-rotator expire \
+    --trust-domain wakir.test \
+    --in-file /tmp/wakir-v2.jwks \
+    --out /tmp/wakir-v3.jwks \
+    --now "$EXPIRE_NOW"
+
+# Verify the post-grace verify rejects the old kid (sanity check):
+OLD_KID="spiffe://wakir.test/spire/server/fixture-key"   # Tag-1 base kid
+./spire-fed-bundle-rotator verify \
+    --in-file /tmp/wakir-v3.jwks \
+    --kid "$OLD_KID" \
+    --now "$EXPIRE_NOW"
+# Expected exit-code 2 ('kid <...> not in bundle' after expire).
+```
+
+### Rotation invariants (hermetic-tested)
+
+* **Soft-cutover**: between step 1 and step 4, both OLD and NEW kids
+  verify accepted. A peer-side X.509-SVID signed by either key is
+  accepted by the federated agent.
+* **Hard-revoke**: after step 4 + a peer-side reload (step 3 re-run),
+  the OLD kid no longer verifies. Peer-side X.509-SVIDs signed by
+  the OLD key are rejected.
+* **Grace-window**: between `--now` of step 1 and step 4, the OLD
+  kid carries a `_wakir_not_after` marker. `verify` rejects the
+  OLD kid with an explicit `expired` reason once `--now > not_after`.
+* **Cross-trust-domain isolation**: rotation of `wakir.test` does NOT
+  touch `partner.test` bundles. The rotator refuses to operate on
+  a bundle whose hermetic-fixture trust-domain marker does not
+  match `--trust-domain`.
+* **Determinism**: same inputs (trust-domain, `--now`, grace-seconds,
+  base JWKS) yield bit-identical output JWKS. Two rotations with
+  identical inputs produce identical files.
+* **Empty-bundle guard**: `expire` refuses to leave the bundle with
+  zero valid keys. The operator MUST rotate before expiring the
+  last remaining key.
+
+### Live SPIRE-Server rotation (Operator-Hand, beyond hermetic scope)
+
+The hermetic rotator operates on the JWKS file format. For live
+SPIRE-Server CA rotation, the operator uses SPIRE-Server's native
+`bundle set` workflow as described in §3b, but with the rotator-
+produced multi-key JWKS as input:
+
+```bash
+# Replace the existing federated bundle with the multi-key version.
+podman cp /tmp/wakir-v2.jwks \
+    wakir-spire-server-partner:/var/lib/spire/bundles/wakir.jwks
+podman exec wakir-spire-server-partner \
+    /opt/spire/bin/spire-server bundle set \
+    -id spiffe://wakir.test \
+    -format jwks \
+    -path /var/lib/spire/bundles/wakir.jwks
+```
+
+The live SPIRE-Server accepts a JWKS with multiple keys and uses
+all of them for SVID verification, so the soft-cutover invariant
+holds in live mode without additional tooling.
+
+## 8. Known follow-ups (Phase-2c / Sprint-9+)
 
 * **Live HTTPS-fetch impl of `PeerTrustBundleFetcher`** — the bridge in
   `wirelang/federation/spiffe_cross_trust_domain_bridge.py` declares the
@@ -214,10 +323,10 @@ shipped; live cross-trust SVID verify is Operator-Hand-pendet**.
   is 5 min; production cadence may be longer to reduce HTTPS-load.
   Phase-3a tune slot.
 * **DataStore migration sqlite3 → postgres** — Phase-3a path.
-* **Trust-Bundle-Rotation drill on the federation surface** — the
-  Sprint-6 Tag-12 rotation runbook covers the single-server case; the
-  federation case needs a dedicated drill (`refresh_hint` re-fetch
-  forces peer-side to re-cache).
+* **Trust-Bundle-Rotation drill on the federation surface** —
+  hermetic substrate in place as of Sprint-8 Tag-3 (§7). The live-
+  bring-up rotation drill (Operator-Hand on the host SPIRE-Server
+  with native `bundle set`) is the next step; the recipe is in §7.
 * **K8s-native equivalent** — Phase-3 Helm-chart for K8s consumers
   (ADR-0020 Box-5).
 
