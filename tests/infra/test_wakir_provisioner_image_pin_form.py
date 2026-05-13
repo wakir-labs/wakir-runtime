@@ -13,7 +13,9 @@ SYNTAX invariants; this file targets the published-image surface:
   * The Quadlet pins
     ``ghcr.io/wakir-labs/wakir-provisioner:<tag>@sha256:<digest>``.
   * ``<tag>`` matches the documented Sprint-9 Tag-4 baseline
-    (``0.1.0``).
+    (``0.1.1`` — v0.1.0 carried four transitive-import-satisfying
+    wheels; v0.1.1 is the post Reza-PR #33 lean variant with
+    ``nats-py`` only).
   * ``<digest>`` is EITHER the placeholder token
     ``DIGEST_PENDING_TOMAS_REVIEW`` OR a canonical 64-hex sha256
     digest.
@@ -41,7 +43,7 @@ IMAGE_PINS_MD = (
 )
 
 PLACEHOLDER = "DIGEST_PENDING_TOMAS_REVIEW"
-EXPECTED_TAG = "0.1.0"
+EXPECTED_TAG = "0.1.1"
 EXPECTED_IMAGE_PATH = "ghcr.io/wakir-labs/wakir-provisioner"
 
 _DIGEST_RE = rf"(?:{PLACEHOLDER}|[a-f0-9]{{64}})"

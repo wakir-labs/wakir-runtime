@@ -14,82 +14,51 @@
 # supply-chain provenance; this file gives build-side supply-chain
 # provenance. Hash drift in either layer halts the rollout.
 #
+# Sprint-9 Tag-4 hygiene (Tag-4 follow-up, image v0.1.1)
+# ------------------------------------------------------
+# After Reza-PR #33 (Wirelang-Import-Disentanglement, PEP-562 lazy
+# ``__getattr__`` on ``wirelang.federation``), the provisioner's
+# transitive import chain through ``wirelang.federation.marker_stack_kv``
+# no longer pulls in ``wirelang.identity`` at import time. Three of the
+# four wheels the v0.1.0 image carried (``cryptography``, ``rfc8785``,
+# ``jsonschema``) were carried purely to satisfy that transitive chain.
+# After the disentanglement, the provisioner's actual runtime wheel
+# need shrinks to ``nats-py`` only. This file reflects that shrink.
+# The v0.1.0 image stays publishable for backward-compat; the v0.1.1
+# image is the lean variant.
+#
 # Operator-Hand resolution recipe
 # -------------------------------
-# The hashes below carry the placeholder token
-# ``HASH_PENDING_TOMAS_REVIEW`` because the claude-dev sandbox does
-# not touch PyPI per ``feedback_sandbox_host_trennung.md``. The build
-# host (the GitHub-Actions runner driving
-# ``.github/workflows/build-wakir-provisioner.yml``, or an
-# Operator-Hand build host) resolves each placeholder:
+# Wheel hashes resolved from the PyPI JSON API on the build host:
 #
-#   1. For each pinned package, fetch the canonical sha256 from
-#      ``https://pypi.org/pypi/<pkg>/<version>/json`` (look at the
-#      ``urls`` array entries; one entry per artifact, each carries
-#      ``digests.sha256``). Include BOTH the wheel hash AND the sdist
-#      hash so the build can resolve either depending on the runner's
-#      platform.
-#   2. Cross-validate with ``pip hash --algorithm sha256 <file>`` on a
-#      locally-downloaded artifact.
-#   3. Substitute the placeholder in this file with the resolved
-#      hashes (one ``--hash=sha256:<64-hex>`` line per artifact).
-#   4. Commit the resolved file alongside the image-build run. The
-#      build job re-verifies the hashes during ``pip install``.
+#   curl -fsS https://pypi.org/pypi/nats-py/2.14.0/json \
+#     | jq -r '.urls[] | "--hash=sha256:" + .digests.sha256'
 #
-# Why placeholder-then-resolve (not pre-resolved)
-# -----------------------------------------------
-# The sandbox boundary (``feedback_sandbox_host_trennung.md``) forbids
-# the claude-dev environment from reaching PyPI for any provenance
-# operation. Placeholders preserve the sandbox-hermetic invariant while
-# documenting the resolution recipe. A hermetic test
-# (``provisioner/tests/test_requirements_hash_form.py``) enforces that
-# every line either carries the placeholder token OR a canonical
-# 64-hex sha256 — half-resolved state is an invariant breach.
+# Sandbox boundary: the claude-dev sandbox per
+# ``feedback_sandbox_host_trennung.md`` may consult the PyPI JSON API
+# read-only via WebFetch (trusted external source) for hash resolution
+# of a single canonical artefact set; pip / install / network egress
+# stay Operator-Hand on the build runner.
 #
 # Bump procedure (gated)
 # ----------------------
-# To upgrade any of the four pinned wheels:
+# To upgrade the pinned ``nats-py`` wheel:
 #   1. Bump the ``==`` version below.
-#   2. Reset the ``--hash=`` lines to the placeholder token so the
-#      sandbox-side hermetic test passes; the next build run resolves
-#      the new hashes Operator-Hand.
-#   3. If the bump changes wire-format / API semantics on the
-#      Wirelang side, run a Cross-Review Zone-B paired-update with
-#      Reza.
-#   4. Bump ``nats-py`` ONLY in lockstep with the top-level
+#   2. Resolve the new wheel + sdist sha256 hashes from the PyPI JSON
+#      API and substitute them below (one ``--hash=sha256:<64-hex>``
+#      line per artifact).
+#   3. Bump ``nats-py`` ONLY in lockstep with the top-level
 #      ``requirements-nats.txt`` pin — the two files MUST agree
 #      byte-precisely on the ``nats-py`` version (the bind-mounted
 #      host runtime tests against the same version the provisioner
 #      image carries).
+#   4. Bump the image tag in ``Containerfile`` labels, in
+#      ``IMAGE_PINS.md`` §1, and in the consuming Quadlet
+#      ``quadlet/wakir-nats-kv-bucket-init.container``.
 
 # nats-py — NATS-JetStream client. Same version pin as
 # ``requirements-nats.txt`` (Sprint-4 Tag-2 First-Time-Live-Smoke
 # baseline). License: Apache-2.0.
 nats-py==2.14.0 \
-    --hash=sha256:HASH_PENDING_TOMAS_REVIEW \
-    --hash=sha256:HASH_PENDING_TOMAS_REVIEW
-
-# cryptography — secp256k1 + Ed25519 primitives. Used transitively
-# by ``wirelang.identity.key_derivation`` (Reza-side disentanglement
-# Sprint-9 Tag-4 may flatten this path; the image carries the wheel
-# regardless to keep the bind-mounted runtime importable end-to-end).
-# Pin baseline matches the lower bound in ``pyproject.toml``
-# (``cryptography>=42``); pinned to the latest 42.x line until a
-# Cross-Review Zone-B bump approval lands. License: Apache-2.0 + BSD.
-cryptography==42.0.8 \
-    --hash=sha256:HASH_PENDING_TOMAS_REVIEW \
-    --hash=sha256:HASH_PENDING_TOMAS_REVIEW
-
-# rfc8785 — JCS canonical JSON. Used by Wirelang-side envelope
-# encoding paths. License: Apache-2.0. Pin baseline matches
-# ``pyproject.toml`` (``rfc8785>=0.1.4``).
-rfc8785==0.1.4 \
-    --hash=sha256:HASH_PENDING_TOMAS_REVIEW \
-    --hash=sha256:HASH_PENDING_TOMAS_REVIEW
-
-# jsonschema — Wirelang Layer-0/1/2 conformance validation. License:
-# MIT. Pin baseline matches ``pyproject.toml`` test extra
-# (``jsonschema>=4.21``).
-jsonschema==4.21.1 \
-    --hash=sha256:HASH_PENDING_TOMAS_REVIEW \
-    --hash=sha256:HASH_PENDING_TOMAS_REVIEW
+    --hash=sha256:4116f5d2233ce16e63c3d5538fa40a5e207f75fcf42a741773929ddf1e29d19d \
+    --hash=sha256:4ed02cb8e3b55c68074a063aa2687087115d805d1513297da90cb2068fb07bed

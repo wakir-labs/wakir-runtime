@@ -50,9 +50,9 @@ on:
   workflow_dispatch:
     inputs:
       version_tag:
-        description: 'Semver tag to publish (e.g. 0.1.0)'
+        description: 'Semver tag to publish (e.g. 0.1.1)'
         required: true
-        default: '0.1.0'
+        default: '0.1.1'
       push:
         description: 'Push to GHCR (true) or dry-run build only (false)'
         required: false

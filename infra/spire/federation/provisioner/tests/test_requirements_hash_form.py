@@ -3,19 +3,23 @@
 """Hermetic hash-pin form invariants for the wakir-provisioner image's
 build-input requirements file (Phase-2 Sprint-9 Tag-4).
 
-The Containerfile installs the four runtime wheels (``nats-py``,
-``cryptography``, ``rfc8785``, ``jsonschema``) with
-``pip install --require-hashes -r requirements.txt``. This test
-suite asserts the on-disk SYNTAX of the requirements file without
-ever invoking pip / network resolvers:
+The Containerfile installs the runtime wheel set with
+``pip install --require-hashes -r requirements.txt``. After Reza-PR
+#33 (Wirelang-Import-Disentanglement, PEP-562 lazy ``__getattr__`` on
+``wirelang.federation``), the v0.1.1 image's wheel set shrinks to a
+single wheel — ``nats-py`` only. The v0.1.0 image carried three
+additional transitive-import-satisfying wheels (``cryptography``,
+``rfc8785``, ``jsonschema``); they no longer fire on the provisioner's
+code paths and the v0.1.1 image drops them. This test suite asserts
+the on-disk SYNTAX of the requirements file without ever invoking
+pip / network resolvers:
 
   * Every pinned package MUST use a ``==<version>`` strict pin.
   * Every package MUST carry at least one ``--hash=sha256:<value>``
     continuation, where ``<value>`` is EITHER the placeholder token
     ``HASH_PENDING_TOMAS_REVIEW`` OR a canonical 64-hex sha256.
-  * The exact four packages (``nats-py``, ``cryptography``,
-    ``rfc8785``, ``jsonschema``) are present and named exactly once
-    each.
+  * The exact one package (``nats-py``) is present and named exactly
+    once.
   * The pin version for ``nats-py`` matches the version in the
     sibling top-level ``requirements-nats.txt`` (the bind-mounted
     host runtime tests against the same nats-py version as the
@@ -23,8 +27,10 @@ ever invoking pip / network resolvers:
     against the hermetic test surface).
 
 Sandbox boundary: this test reads files on disk only. Live PyPI
-hash resolution is Operator-Hand per
-``feedback_sandbox_host_trennung.md``.
+hash resolution stays Operator-Hand per
+``feedback_sandbox_host_trennung.md``; one-shot read-only WebFetch
+of the PyPI JSON API for canonical sha256 lookup is permitted as a
+trusted external source.
 """
 
 from __future__ import annotations
@@ -48,7 +54,7 @@ TOP_LEVEL_NATS_REQUIREMENTS = REPO_ROOT / "requirements-nats.txt"
 
 PLACEHOLDER = "HASH_PENDING_TOMAS_REVIEW"
 
-EXPECTED_PACKAGES = ("nats-py", "cryptography", "rfc8785", "jsonschema")
+EXPECTED_PACKAGES = ("nats-py",)
 
 
 # Matches a ``<pkg>==<version>`` line (the actual pin), possibly with a
@@ -75,10 +81,13 @@ def test_requirements_file_exists() -> None:
 
 
 def test_every_expected_package_is_pinned_exactly_once() -> None:
-    """The four runtime wheels (``nats-py``, ``cryptography``,
-    ``rfc8785``, ``jsonschema``) MUST be pinned exactly once each.
-    A duplicate pin (e.g. two ``nats-py==...`` lines) indicates a
-    bump or rebase mistake."""
+    """The runtime wheel set (v0.1.1: ``nats-py`` only, post Reza-PR
+    #33) MUST be pinned exactly once each. A duplicate pin (e.g. two
+    ``nats-py==...`` lines) indicates a bump or rebase mistake. The
+    inverted assertion (extras-set is empty) also rejects accidental
+    re-introduction of the v0.1.0 transitive-import wheels
+    (``cryptography``, ``rfc8785``, ``jsonschema``) — adding them
+    back is allowed but must update :data:`EXPECTED_PACKAGES` first."""
     text = _read(REQUIREMENTS)
     pinned_packages: list[str] = []
     for match in _PIN_LINE_RE.finditer(text):

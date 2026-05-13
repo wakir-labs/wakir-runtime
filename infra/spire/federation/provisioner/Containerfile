@@ -13,55 +13,55 @@
 # live-bring-up on the Pilot-VM crashed at unit-start with
 # ``ModuleNotFoundError: cryptography`` because the provisioner's
 # transitive imports through ``wirelang.federation.marker_stack_kv``
-# pull in ``wirelang.identity`` which requires ``cryptography``.
+# pulled in ``wirelang.identity`` (the v0.1.0 image carried
+# ``cryptography``, ``rfc8785``, ``jsonschema`` to satisfy that chain).
 #
 # Three options were on the table (Mira-Bug-Bilanz 2026-05-13, Bug 6):
 #
 #   A) bump the base image to one that ships every wheel the
-#      provisioner needs (this image);
+#      provisioner needs (the v0.1.0 image);
 #   B) install wheels at unit start via ``ExecStartPre`` against a
 #      tmpfs target — depends on pip reaching PyPI from inside the
 #      hardened Quadlet (ReadOnly + DropCapability), and re-introduces
 #      a supply-chain network egress on every unit start;
 #   C) refactor the provisioner so the transitive Wirelang-imports
 #      don't trigger ``cryptography`` (Reza-side, Sprint-9 Tag-4
-#      Wirelang-import-disentanglement track).
+#      Wirelang-import-disentanglement track, PR #33).
 #
-# A and C are complementary, not exclusive. C tidies the Wirelang side
-# (no more identity-stack imports for a substrate-shaping driver); A
-# closes the wheel-availability gap that exists independent of C
-# (``nats-py`` is not on the slim base image regardless). This file is
-# the A-track substrate. The C-track surfaces on the Wirelang side in
-# Reza-Sprint-9-Tag-4.
+# A and C are complementary, not exclusive. A closed the wheel-
+# availability gap in v0.1.0; C landed in Reza-PR #33 (PEP-562 lazy
+# ``__getattr__`` on ``wirelang.federation``) and shrinks the
+# provisioner's runtime wheel need from four wheels to one. This
+# v0.1.1 image reflects the post-disentanglement minimum.
 #
-# Image scope
-# -----------
+# Image scope (v0.1.1, post Reza-PR #33)
+# --------------------------------------
 # The image carries exactly the runtime wheel set:
 #
 #   * ``nats-py`` — pinned to the same version the orchestrator-side
 #     ``requirements-nats.txt`` pins (Sprint-4 Tag-2 First-Time-Live-
-#     Smoke version), hash-pinned for supply-chain provenance;
-#   * ``cryptography`` — used by ``wirelang.identity.key_derivation``
-#     until the Reza-side disentanglement lands; the provisioner does
-#     not call ``cryptography`` directly, only transitively;
-#   * ``rfc8785`` — JCS canonicalisation, used by
-#     ``wirelang.federation`` envelope encoding paths;
-#   * ``jsonschema`` — Wirelang Layer-0/1/2 conformance validation,
-#     transitively imported on certain code paths.
+#     Smoke version), hash-pinned for supply-chain provenance.
+#
+# After Reza-PR #33, the previously transitive ``cryptography``,
+# ``rfc8785``, ``jsonschema`` imports are gated behind the lazy
+# ``wirelang.federation.__getattr__`` and resolve only on identity-
+# stack access paths the provisioner does not exercise. The
+# bind-mounted host runtime stays importable end-to-end for the
+# marker-stack-kv / sequence-number-ledger code paths the provisioner
+# does call.
 #
 # The image deliberately does NOT carry the wakir-runtime tree itself.
 # The runtime is bind-mounted into the container from the host at
 # ``/opt/wakir-runtime`` (see Quadlet ``Volume=`` lines). Bumping the
-# Wirelang/runtime tree does not require an image rebuild; bumping any
-# of the wheel pins above does.
+# Wirelang/runtime tree does not require an image rebuild; bumping
+# the ``nats-py`` pin above does.
 #
 # Apache-2.0 + image provenance
 # -----------------------------
-# All four wheels above ship under Apache-2.0 or BSD/MIT (rfc8785:
-# Apache-2.0; nats-py: Apache-2.0; cryptography: Apache-2.0 + BSD;
-# jsonschema: MIT). The image as a whole is published under
-# Apache-2.0; per-wheel licence texts ship in the wheels themselves
-# and are reachable via ``pip show <pkg>`` inside a running container.
+# ``nats-py`` ships under Apache-2.0. The image as a whole is published
+# under Apache-2.0; the per-wheel licence text ships in the wheel
+# itself and is reachable via ``pip show nats-py`` inside a running
+# container.
 #
 # Build path: ``.github/workflows/build-wakir-provisioner.yml``
 # (Operator-Hand ``workflow_dispatch`` only; pushes to
@@ -77,7 +77,8 @@ FROM docker.io/library/python:3.13-slim@sha256:DIGEST_PENDING_TOMAS_REVIEW
 # OCI metadata. The build workflow stamps build-time labels
 # (``org.opencontainers.image.revision`` etc.) at push time.
 LABEL org.opencontainers.image.title="wakir-provisioner"
-LABEL org.opencontainers.image.description="Runtime image for the Wakir per-org NATS-KV bucket provisioner (Sprint-9 Tag-4)."
+LABEL org.opencontainers.image.description="Runtime image for the Wakir per-org NATS-KV bucket provisioner (Sprint-9 Tag-4, v0.1.1 post-disentanglement: nats-py only)."
+LABEL org.opencontainers.image.version="0.1.1"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"
 LABEL org.opencontainers.image.url="https://github.com/wakir-labs/wakir-runtime"
