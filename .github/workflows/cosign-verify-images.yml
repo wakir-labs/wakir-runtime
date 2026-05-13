@@ -1,0 +1,226 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Cosign + digest-resolver pre-build verification of the SPIRE-Federation
+# image pins (Phase-2 Sprint-9 Tag-3, Tomás follow-up to Sprint-8 Tag-4).
+#
+# Posture:
+#   workflow_dispatch ONLY for the pilot phase. The job pulls from
+#   GHCR / DockerHub on every run, which is a supply-chain network
+#   egress that needs Zone-C cross-review before we wire it onto the
+#   PR-trigger surface. Activating push / pull_request triggers is a
+#   follow-up ADR (Tomás Zone-C) — until then the workflow is
+#   Operator-Hand: an authorised operator clicks "Run workflow" in
+#   the GitHub UI when they want to recheck the pins.
+#
+# Why a workflow at all if it's manual-only:
+#   * Reproducibility — the resolution recipe in
+#     infra/spire/federation/IMAGE_PINS.md is documented but ad-hoc;
+#     running it in GitHub Actions gives a logged, archived,
+#     git-rev-pinned attestation of who-ran-it-when.
+#   * Drift detection — an operator running this on a schedule (once
+#     the Zone-C policy approves the egress) catches an upstream
+#     re-push of a "stable" tag within hours, not days.
+#   * Eventual-PR-gate — when Zone-C approves the GHCR-network
+#     access, the trigger surface flips to `pull_request` with a path
+#     filter on the federation pin files, and CI refuses merges that
+#     reference a digest that does not match the live cosign verdict.
+#
+# Sandbox boundary:
+#   This workflow ONLY runs on GitHub-Actions runners, which are
+#   host-of-record (not the claude-dev sandbox). No part of this job
+#   is reachable from the sandbox per
+#   feedback_sandbox_host_trennung.md.
+
+name: cosign-verify-images
+
+on:
+  workflow_dispatch:
+    inputs:
+      verbose:
+        description: 'Verbose cosign output (true/false)'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: read
+
+jobs:
+  # ------------------------------------------------------------------
+  # Job 1: SPIRE-Server + SPIRE-Agent — GHCR + Sigstore cosign verify.
+  # ------------------------------------------------------------------
+  cosign-verify-spire:
+    name: cosign verify SPIRE images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Install crane (digest cross-resolver)
+        run: |
+          set -euo pipefail
+          CRANE_VERSION="0.20.2"
+          curl -fsSL "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" \
+            -o /tmp/crane.tar.gz
+          tar -C /tmp -xzf /tmp/crane.tar.gz crane
+          sudo install -m 0755 /tmp/crane /usr/local/bin/crane
+          crane version
+
+      - name: Extract pinned tag + digest from compose files
+        id: pins
+        run: |
+          set -euo pipefail
+          SERVER_PIN=$(grep -oE 'ghcr\.io/spiffe/spire-server:[^@ "]+@sha256:[^ "]+' \
+              infra/spire/federation/compose/spire-federation.yaml | head -n1)
+          AGENT_PIN=$(grep -oE 'ghcr\.io/spiffe/spire-agent:[^@ "]+@sha256:[^ "]+' \
+              infra/spire/agent/compose/spire-agent-federation.yaml | head -n1)
+
+          if [[ -z "$SERVER_PIN" || -z "$AGENT_PIN" ]]; then
+            echo "::error::failed to extract pinned image references"
+            exit 1
+          fi
+
+          # Split TAG@DIGEST.
+          SERVER_TAG=$(echo "$SERVER_PIN" | sed -E 's|.*spire-server:([^@]+)@.*|\1|')
+          SERVER_DIGEST=$(echo "$SERVER_PIN" | sed -E 's|.*@(sha256:[a-f0-9]+).*|\1|')
+          AGENT_TAG=$(echo "$AGENT_PIN" | sed -E 's|.*spire-agent:([^@]+)@.*|\1|')
+          AGENT_DIGEST=$(echo "$AGENT_PIN" | sed -E 's|.*@(sha256:[a-f0-9]+).*|\1|')
+
+          echo "server_tag=${SERVER_TAG}"       >> "$GITHUB_OUTPUT"
+          echo "server_digest=${SERVER_DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "agent_tag=${AGENT_TAG}"         >> "$GITHUB_OUTPUT"
+          echo "agent_digest=${AGENT_DIGEST}"   >> "$GITHUB_OUTPUT"
+
+          echo "Pinned server: ghcr.io/spiffe/spire-server:${SERVER_TAG}@${SERVER_DIGEST}"
+          echo "Pinned agent:  ghcr.io/spiffe/spire-agent:${AGENT_TAG}@${AGENT_DIGEST}"
+
+      - name: Halt if placeholder digests are still present
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.pins.outputs.server_digest }}" == "sha256:DIGEST_PENDING_TOMAS_REVIEW" || \
+                "${{ steps.pins.outputs.agent_digest }}" == "sha256:DIGEST_PENDING_TOMAS_REVIEW" ]]; then
+            echo "::error::pins still carry the DIGEST_PENDING_TOMAS_REVIEW placeholder — Operator-Hand resolution has not been applied yet."
+            exit 1
+          fi
+
+      - name: Cosign-verify spire-server
+        run: |
+          set -euo pipefail
+          cosign verify \
+            --certificate-identity-regexp 'https://github\.com/spiffe/spire/' \
+            --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+            ghcr.io/spiffe/spire-server:${{ steps.pins.outputs.server_tag }}@${{ steps.pins.outputs.server_digest }}
+
+      - name: Cosign-verify spire-agent
+        run: |
+          set -euo pipefail
+          cosign verify \
+            --certificate-identity-regexp 'https://github\.com/spiffe/spire/' \
+            --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+            ghcr.io/spiffe/spire-agent:${{ steps.pins.outputs.agent_tag }}@${{ steps.pins.outputs.agent_digest }}
+
+      - name: Cross-check digests via crane
+        run: |
+          set -euo pipefail
+          CRANE_SERVER=$(crane digest ghcr.io/spiffe/spire-server:${{ steps.pins.outputs.server_tag }})
+          CRANE_AGENT=$(crane digest ghcr.io/spiffe/spire-agent:${{ steps.pins.outputs.agent_tag }})
+
+          echo "crane server: $CRANE_SERVER"
+          echo "pinned server: ${{ steps.pins.outputs.server_digest }}"
+          echo "crane agent:  $CRANE_AGENT"
+          echo "pinned agent:  ${{ steps.pins.outputs.agent_digest }}"
+
+          if [[ "$CRANE_SERVER" != "${{ steps.pins.outputs.server_digest }}" ]]; then
+            echo "::error::server digest drift detected — possible upstream re-push"
+            exit 2
+          fi
+          if [[ "$CRANE_AGENT" != "${{ steps.pins.outputs.agent_digest }}" ]]; then
+            echo "::error::agent digest drift detected — possible upstream re-push"
+            exit 2
+          fi
+          echo "OK: pinned digests match the live registry digests"
+
+  # ------------------------------------------------------------------
+  # Job 2: python:3.13-slim — DockerHub, no Sigstore. crane + skopeo
+  #        cross-check only.
+  # ------------------------------------------------------------------
+  cosign-verify-python:
+    name: digest-verify python:3.13-slim
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install crane
+        run: |
+          set -euo pipefail
+          CRANE_VERSION="0.20.2"
+          curl -fsSL "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" \
+            -o /tmp/crane.tar.gz
+          tar -C /tmp -xzf /tmp/crane.tar.gz crane
+          sudo install -m 0755 /tmp/crane /usr/local/bin/crane
+          crane version
+
+      - name: Install skopeo
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends skopeo jq
+          skopeo --version
+
+      - name: Extract pinned tag + digest from quadlet
+        id: pin
+        run: |
+          set -euo pipefail
+          PIN=$(grep -oE 'docker\.io/library/python:[^@ "]+@sha256:[^ "]+' \
+              quadlet/wakir-nats-kv-bucket-init.container | head -n1)
+          if [[ -z "$PIN" ]]; then
+            echo "::error::failed to extract python image pin"
+            exit 1
+          fi
+          TAG=$(echo "$PIN" | sed -E 's|.*python:([^@]+)@.*|\1|')
+          DIGEST=$(echo "$PIN" | sed -E 's|.*@(sha256:[a-f0-9]+).*|\1|')
+          echo "tag=${TAG}"       >> "$GITHUB_OUTPUT"
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "Pinned: docker.io/library/python:${TAG}@${DIGEST}"
+
+      - name: Halt if placeholder digest is still present
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.pin.outputs.digest }}" == "sha256:DIGEST_PENDING_TOMAS_REVIEW" ]]; then
+            echo "::error::python pin still carries DIGEST_PENDING_TOMAS_REVIEW placeholder"
+            exit 1
+          fi
+
+      - name: skopeo inspect (manifest-list)
+        id: skopeo
+        run: |
+          set -euo pipefail
+          SKOPEO_DIGEST=$(skopeo inspect docker://python:${{ steps.pin.outputs.tag }} | jq -r '.Digest')
+          echo "skopeo_digest=${SKOPEO_DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "skopeo: $SKOPEO_DIGEST"
+
+      - name: crane digest cross-check
+        id: crane
+        run: |
+          set -euo pipefail
+          CRANE_DIGEST=$(crane digest python:${{ steps.pin.outputs.tag }})
+          echo "crane_digest=${CRANE_DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "crane: $CRANE_DIGEST"
+
+      - name: Refuse merge on digest drift
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.skopeo.outputs.skopeo_digest }}" != "${{ steps.crane.outputs.crane_digest }}" ]]; then
+            echo "::error::skopeo vs crane disagree — registry inconsistency, halt"
+            exit 2
+          fi
+          if [[ "${{ steps.skopeo.outputs.skopeo_digest }}" != "${{ steps.pin.outputs.digest }}" ]]; then
+            echo "::error::pinned python digest != live digest — possible upstream re-push"
+            echo "::error::pinned=${{ steps.pin.outputs.digest }}"
+            echo "::error::live  =${{ steps.skopeo.outputs.skopeo_digest }}"
+            exit 2
+          fi
+          echo "OK: pinned digest matches live registry digest (skopeo + crane)"
