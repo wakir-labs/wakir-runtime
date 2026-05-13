@@ -518,18 +518,30 @@ step_5_image_pins() {
 
   local image
   local -A digests=()
+  # Sprint-9 Tag-4: wakir-provisioner is OPTIONAL on first bring-up
+  # because the image may not yet be published. The loop tries it
+  # last; a skopeo-failure for wakir-provisioner is non-fatal and
+  # falls back to the placeholder-retain path (the Quadlet will not
+  # start the bucket-init service until Operator-Hand re-resolves).
   for image in \
       ghcr.io/spiffe/spire-server:1.14.6 \
       ghcr.io/spiffe/spire-agent:1.14.6 \
-      docker.io/library/python:3.13-slim
+      docker.io/library/python:3.13-slim \
+      ghcr.io/wakir-labs/wakir-provisioner:0.1.0
   do
     log_note "cosign + skopeo cross-check: ${image}"
 
     local cosign_digest=""
     local skopeo_digest=""
 
-    # cosign verify (only for SPIRE; python:3.13-slim is on DockerHub
-    # without Sigstore signing as of 2026-05-13 -- IMAGE_PINS.md §2.4).
+    # cosign verify path:
+    #   * ghcr.io/spiffe/*: Sigstore-keyless against the SPIRE
+    #     upstream OIDC identity (IMAGE_PINS.md §2.1).
+    #   * ghcr.io/wakir-labs/wakir-provisioner: Sigstore-keyless
+    #     against the wakir-labs build-workflow OIDC identity
+    #     (IMAGE_PINS.md §2.5).
+    #   * docker.io/library/python:3.13-slim: DockerHub, no
+    #     Sigstore signing — skopeo-only (IMAGE_PINS.md §2.4).
     if [[ "$image" == ghcr.io/spiffe/* ]]; then
       cosign_digest=$(cosign verify \
         --certificate-identity-regexp 'https://github\.com/spiffe/spire/' \
@@ -541,12 +553,31 @@ step_5_image_pins() {
         log_err "cosign verify failed or produced empty digest for ${image}"
         return 2
       fi
+    elif [[ "$image" == ghcr.io/wakir-labs/wakir-provisioner:* ]]; then
+      cosign_digest=$(cosign verify \
+        --certificate-identity-regexp 'https://github\.com/wakir-labs/wakir-runtime/' \
+        --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+        "$image" 2>/dev/null \
+        | jq -r '.[0].critical.image."docker-manifest-digest" // empty' \
+        || echo "")
+      if [[ -z "$cosign_digest" ]]; then
+        # Sprint-9 Tag-4: image may not yet be published on first
+        # bring-up. Log + continue with empty digest; the skopeo
+        # step below decides whether to treat this as fatal.
+        log_note "wakir-provisioner cosign verify failed (image may not be published yet)"
+      fi
     fi
 
     # skopeo inspect (cross-check OR primary for DockerHub).
     skopeo_digest=$(skopeo inspect "docker://${image}" 2>/dev/null \
       | jq -r '.Digest // empty' || echo "")
     if [[ -z "$skopeo_digest" ]]; then
+      if [[ "$image" == ghcr.io/wakir-labs/wakir-provisioner:* ]]; then
+        # Non-fatal for the optional image: skip its substitution
+        # and continue with the rest of the loop.
+        log_note "skopeo inspect failed for ${image} (image may not be published yet); skipping its pin substitution"
+        continue
+      fi
       log_err "skopeo inspect failed or produced empty digest for ${image}"
       return 2
     fi
@@ -563,12 +594,24 @@ step_5_image_pins() {
     log_ok "${image} -> ${skopeo_digest}"
   done
 
-  "$resolver" \
-    --spire-server-digest "${digests["ghcr.io/spiffe/spire-server:1.14.6"]}" \
-    --spire-agent-digest  "${digests["ghcr.io/spiffe/spire-agent:1.14.6"]}" \
-    --python-digest       "${digests["docker.io/library/python:3.13-slim"]}" \
-    --root                "$WAKIR_REPO_ROOT" \
-    --apply \
+  # Build the resolver argv. wakir-provisioner is only passed if the
+  # loop above resolved a digest for it.
+  local resolver_args=(
+    --spire-server-digest "${digests["ghcr.io/spiffe/spire-server:1.14.6"]}"
+    --spire-agent-digest  "${digests["ghcr.io/spiffe/spire-agent:1.14.6"]}"
+    --python-digest       "${digests["docker.io/library/python:3.13-slim"]}"
+    --root                "$WAKIR_REPO_ROOT"
+    --apply
+  )
+  if [[ -n "${digests["ghcr.io/wakir-labs/wakir-provisioner:0.1.0"]:-}" ]]; then
+    resolver_args+=(
+      --wakir-provisioner-digest "${digests["ghcr.io/wakir-labs/wakir-provisioner:0.1.0"]}"
+    )
+  else
+    log_note "skipping wakir-provisioner pin (image not yet resolvable; bucket-init service will not start until Operator-Hand re-runs the resolver)"
+  fi
+
+  "$resolver" "${resolver_args[@]}" \
     || { log_err "resolve-image-pins.sh --apply failed"; return 2; }
 
   log_ok "image-pin resolve applied"

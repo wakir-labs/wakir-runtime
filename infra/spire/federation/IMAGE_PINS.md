@@ -17,17 +17,35 @@ all occurrences of the placeholder token across the listed files.
 |---|---|---|---|
 | `ghcr.io/spiffe/spire-server` | `1.14.6` | `sha256:DIGEST_PENDING_TOMAS_REVIEW` | `compose/spire-federation.yaml` (×2), `quadlet/wakir-spire-server-federation.container` |
 | `ghcr.io/spiffe/spire-agent` | `1.14.6` | `sha256:DIGEST_PENDING_TOMAS_REVIEW` | `compose/spire-agent-federation.yaml` (×2), `quadlet/wakir-spire-agent-federation.container` |
-| `docker.io/library/python` | `3.13-slim` | `sha256:DIGEST_PENDING_TOMAS_REVIEW` | `quadlet/wakir-nats-kv-bucket-init.container` |
+| `docker.io/library/python` | `3.13-slim` | `sha256:DIGEST_PENDING_TOMAS_REVIEW` | `infra/spire/federation/provisioner/Containerfile` (base layer for `wakir-provisioner`) |
+| `ghcr.io/wakir-labs/wakir-provisioner` | `0.1.0` | `sha256:DIGEST_PENDING_TOMAS_REVIEW` | `quadlet/wakir-nats-kv-bucket-init.container` |
 
 SPIRE-Server and SPIRE-Agent MUST stay version-parity: SPIRE upstream
 releases the server and agent as a paired binary set, and version-skew
 between the two has been observed to break federation-bundle handshake
 in prior upstream releases.
 
-The `python:3.13-slim` image is the runtime base for the per-org
-NATS-KV bucket provisioner (Sprint-9 Tag-1, ADR-0048). It carries its
-own resolve path (DockerHub OCI registry, not GHCR Sigstore) — see
-§2.4 below.
+The `python:3.13-slim` image is the BASE LAYER for the
+`wakir-provisioner` image (Sprint-9 Tag-4, see
+`infra/spire/federation/provisioner/`). Until Sprint-9 Tag-4 the
+Quadlet `wakir-nats-kv-bucket-init.container` referenced
+`python:3.13-slim` directly; the Tag-1 author-time assumption that
+the slim image ships `nats-py` was incorrect, and the Pilot-VM
+bring-up on 2026-05-13 surfaced the gap as
+`ModuleNotFoundError: No module named 'cryptography'` (the
+provisioner's transitive imports through `wirelang.identity` also
+require `cryptography`, which the slim image does not carry). The
+`wakir-provisioner` image is the substitute substrate: it carries
+the four wheels the provisioner needs (`nats-py`, `cryptography`,
+`rfc8785`, `jsonschema`) and ships under Apache-2.0 with hash-pinned
+build inputs
+(`infra/spire/federation/provisioner/requirements.txt`).
+
+Both layers stay digest-pinned: the base-image pin lives in the
+`provisioner/Containerfile` `FROM` line and resolves via the
+DockerHub recipe in §2.4; the published Wakir image pin lives in
+`quadlet/wakir-nats-kv-bucket-init.container` and resolves via the
+Sigstore-keyless recipe in §2.5.
 
 ## 2. Operator-Hand resolution recipe
 
@@ -127,17 +145,20 @@ REVIEW` OR a 64-hex sha256 digest. A half-resolved state (server
 pinned, agent placeholder) is flagged by the test as a Phase-2 image-
 pin invariant breach.
 
-### 2.4 python:3.13-slim — DockerHub OCI resolution
+### 2.4 python:3.13-slim — DockerHub OCI resolution (base layer)
 
 Added in Phase-2 Sprint-9 Tag-3 alongside the per-org NATS-KV bucket
-provisioner Quadlet (ADR-0048). The `python:3.13-slim` image is
-published on DockerHub, not on the Sigstore-backed GHCR path used by
-SPIRE. The resolution path is a plain manifest-digest lookup
-(`cosign verify` against a Sigstore identity is NOT available, because
-Docker Official Images are not Sigstore-signed as of 2026-05-13 —
-DockerHub publishes a content-trust signature via Notary v1, which
-is end-of-life upstream, so we do not rely on it). The Operator-Hand
-recipe is a two-resolver cross-check:
+provisioner Quadlet (ADR-0048); re-targeted in Sprint-9 Tag-4 from
+the Quadlet directly to the `wakir-provisioner` image's
+`Containerfile` base layer (the Tag-1/3 direct-consume path
+surfaced as Bug 6 on the Pilot-VM bring-up). The `python:3.13-slim`
+image is published on DockerHub, not on the Sigstore-backed GHCR
+path used by SPIRE. The resolution path is a plain manifest-digest
+lookup (`cosign verify` against a Sigstore identity is NOT
+available, because Docker Official Images are not Sigstore-signed
+as of 2026-05-13 — DockerHub publishes a content-trust signature
+via Notary v1, which is end-of-life upstream, so we do not rely on
+it). The Operator-Hand recipe is a two-resolver cross-check:
 
 ```sh
 # Step 1: resolve the digest via skopeo (manifest-list aware).
@@ -148,12 +169,12 @@ echo "${PYTHON_DIGEST}"   # sha256:<64-hex>
 crane digest python:3.13-slim
 # must equal ${PYTHON_DIGEST}.
 
-# Step 3: substitute the placeholder in the referencing quadlet file.
+# Step 3: substitute the placeholder in the referencing Containerfile.
 sed -i "s|python:3.13-slim@sha256:DIGEST_PENDING_TOMAS_REVIEW|python:3.13-slim@${PYTHON_DIGEST}|g" \
-    quadlet/wakir-nats-kv-bucket-init.container
+    infra/spire/federation/provisioner/Containerfile
 
 # Step 4: re-run the hermetic test surface (python-pin tests).
-pytest tests/infra/test_python_image_pin_form.py
+pytest infra/spire/federation/provisioner/tests/test_containerfile.py
 ```
 
 Cross-arch note: `python:3.13-slim` is a manifest-list (multi-arch).
@@ -170,6 +191,54 @@ a community-relevant supply-chain event; if `skopeo inspect` returns
 a digest that does NOT match a previously-pinned value, halt the
 rollout and Zone-C cross-review the upstream announcement (Docker
 Library GitHub release notes + Python release notes).
+
+### 2.5 wakir-provisioner — GHCR Sigstore-keyless resolution
+
+Added in Phase-2 Sprint-9 Tag-4. The `wakir-provisioner` image is
+published by Wakir Labs to GHCR
+(`ghcr.io/wakir-labs/wakir-provisioner`); it is built from
+`infra/spire/federation/provisioner/Containerfile` against the
+hash-pinned wheel set in
+`infra/spire/federation/provisioner/requirements.txt`. The build
+runs in the workflow_dispatch-only
+`.github/workflows/build-wakir-provisioner.yml`; the resulting
+digest is signed keyless via Sigstore against the GitHub-Actions
+OIDC identity of the runner.
+
+Operator-Hand resolution recipe:
+
+```sh
+# Step 1: build the image on a build host (see
+#         infra/spire/federation/provisioner/README.md §3 for the
+#         full recipe including base-image digest resolution and
+#         hash-pinned wheel install).
+
+# Step 2: cosign verify against the GitHub-Actions OIDC identity
+#         of the build workflow.
+cosign verify \
+    --certificate-identity-regexp 'https://github\.com/wakir-labs/wakir-runtime/' \
+    --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+    ghcr.io/wakir-labs/wakir-provisioner:0.1.0
+
+# Step 3: resolve the digest via crane (cross-check).
+PROVISIONER_DIGEST=$(crane digest ghcr.io/wakir-labs/wakir-provisioner:0.1.0)
+echo "${PROVISIONER_DIGEST}"   # sha256:<64-hex>
+
+# Step 4: substitute the placeholder in the Quadlet.
+sed -i "s|wakir-provisioner:0.1.0@sha256:DIGEST_PENDING_TOMAS_REVIEW|wakir-provisioner:0.1.0@${PROVISIONER_DIGEST}|g" \
+    quadlet/wakir-nats-kv-bucket-init.container
+
+# Step 5: re-run the hermetic test surface.
+pytest tests/infra/test_wakir_provisioner_image_pin_form.py
+```
+
+Why this image and not `python:3.13-slim` directly? See the §1
+table notes — the Tag-1 author-time assumption that the slim image
+ships `nats-py` was incorrect, and the Pilot-VM bring-up surfaced
+the gap as `ModuleNotFoundError`. The `wakir-provisioner` image is
+the substrate that closes the wheel-availability gap in a single
+supply-chain artifact, hash-pinned at build time and digest-pinned
+at pull time.
 
 ## 3. CI integration (optional, Phase-2 Sprint-8 Tag-4 follow-up)
 
@@ -238,5 +307,60 @@ is Operator-Hand on a host that has registry network access and the
 - Added a hermetic test for the python pin form at
   `tests/infra/test_python_image_pin_form.py` mirroring the
   SPIRE-pin hermetic invariants.
+
+— Tomás
+
+## 6. Sprint-9 Tag-4 follow-up (Tomás) — Bucket-Init Bug-Fix-Welle
+
+Driver: Mira-Bug-Bilanz 2026-05-13, Bug 6
+(`agents-workspaces/mira/outbox/2026-05-13-pilot-bringup-bug-bilanz.md`).
+Pilot-VM bring-up crashed at unit start with
+`ModuleNotFoundError: No module named 'cryptography'` because the
+Tag-1 author-time assumption that `python:3.13-slim` ships `nats-py`
+was incorrect (the slim image ships the CPython stdlib only).
+
+Tag-4 substrate:
+
+- Added `ghcr.io/wakir-labs/wakir-provisioner:0.1.0` to the
+  inventory (§1, §2.5). The image carries the four wheels the
+  provisioner needs at runtime: `nats-py`, `cryptography`,
+  `rfc8785`, `jsonschema`. Build inputs are hash-pinned in
+  `infra/spire/federation/provisioner/requirements.txt`.
+- Re-targeted the `python:3.13-slim` pin (§2.4) from the Quadlet
+  directly to the `wakir-provisioner` Containerfile's `FROM` line.
+  The base-layer pin retains its DockerHub-skopeo+crane resolver
+  recipe; the published-image pin (§2.5) adds the
+  Sigstore-keyless resolver recipe.
+- Updated the consuming Quadlet
+  (`quadlet/wakir-nats-kv-bucket-init.container`) to reference the
+  `wakir-provisioner` image. The `Exec=`, `Volume=`, hardening, and
+  network attachments stay identical — only the image and the
+  outdated "pip-install at start" comment changed.
+- Added a hermetic pin-form test
+  (`tests/infra/test_wakir_provisioner_image_pin_form.py`) mirroring
+  the SPIRE-pin invariants; added Containerfile + requirements
+  invariant tests under
+  `infra/spire/federation/provisioner/tests/`.
+- Added a workflow_dispatch-only build workflow
+  (`.github/workflows/build-wakir-provisioner.yml`) for
+  Operator-Hand publishes; the existing
+  `cosign-verify-images.yml` learnt a third job for the
+  `wakir-provisioner` digest cross-check.
+
+Reza-Sprint-9-Tag-4 coordination (Wirelang-import-disentanglement):
+
+- The provisioner's `bin/nats_kv_bucket_provision.py` now probes
+  `wirelang.federation.marker_stack_kv_constants` (Reza-target
+  name, **assumed**) before falling back to
+  `wirelang.federation.marker_stack_kv`. Same shape for
+  `sequence_number_ledger_kv_constants`. If Reza picks a different
+  module name, the fallback still works on the baseline tip; the
+  defensive probe is a no-op at that point. Tomás-side flips the
+  probe target to the actual Reza-side name in a follow-up commit
+  once Reza-PR lands.
+- The `wakir-provisioner` image carries `cryptography` regardless
+  of the Reza-side outcome: the image-gap closure unblocks the
+  Pilot bring-up today, the import-disentanglement closes a
+  hygiene gap on the Wirelang side.
 
 — Tomás

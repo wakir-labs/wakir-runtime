@@ -177,17 +177,59 @@ from typing import Any, Iterable, List, Mapping, Optional, Sequence
 # Cross-reference: re-use the Wirelang-side single-source-of-truth
 # constants for every per-org bucket family. Importing them here
 # guarantees the driver and the consumers agree byte-precisely.
+#
+# Sprint-9 Tag-4 import-path posture
+# ----------------------------------
+# The provisioner is a SUBSTRATE-SHAPING driver: its job is to ensure
+# per-org JetStream KV buckets exist with the documented config. It
+# does NOT need any of the cryptographic / identity-stack machinery
+# the Wirelang Sprint-8 Tag-4 ``marker_stack_kv`` module pulls in
+# transitively (the identity-stack import chain on the live tip:
+# ``marker_stack_kv -> n2_evaluator -> identity.federation_resolver
+# -> identity.__init__ -> identity.key_derivation -> cryptography``).
+#
+# The Sprint-9 Tag-4 live-bring-up on the Pilot-VM exposed the
+# transitive import as a runtime crash on a base image that does not
+# ship ``cryptography`` (Mira-Bug-Bilanz 2026-05-13, Bug 6). The
+# wakir-provisioner image (Tomás Sprint-9 Tag-4, Option A) ships
+# ``cryptography`` so the transitive chain resolves regardless; the
+# constants-only import path below (Reza Sprint-9 Tag-4, Option C)
+# flattens the chain so a future image that does NOT ship
+# ``cryptography`` still works.
+#
+# The two tracks are additive defence-in-depth: the image gap closure
+# unblocks the Pilot bring-up TODAY without depending on Reza
+# Sprint-9 Tag-4 merge timing, and the constants-only import path
+# eliminates a class of unnecessary transitive dependencies once Reza
+# Sprint-9 Tag-4 lands on the consuming branch.
+#
+# The defensive try-chain below probes the lightweight constants-only
+# module first (Reza Sprint-9 Tag-4 target name) and falls back to
+# the full module on tips that don't yet carry the disentangled
+# layer. The Reza-side module name is documented in
+# ``2026-05-13-tomas-sprint-9-tag-4-bucket-init-image-fix.md`` as an
+# assumption to be ratified; if Reza picks a different name, the
+# fallback path still works.
 # ---------------------------------------------------------------------------
 
 # The Sprint-8 Tag-4 module is the canonical owner of the marker-stack
 # bucket name prefix, the bucket-config mapping, and the validated
 # bucket-name derivation. We import them and propagate them; we DO NOT
-# re-encode.
-from wirelang.federation.marker_stack_kv import (  # noqa: E402
-    BUCKET_CONFIG as MARKER_STACK_BUCKET_CONFIG,
-    BUCKET_NAME_PREFIX as MARKER_STACK_BUCKET_NAME_PREFIX,
-    bucket_name_for_org as _marker_stack_bucket_name_for_org,
-)
+# re-encode. Probe the constants-only target first (Reza Sprint-9
+# Tag-4 disentanglement); fall back to the full module on baseline
+# tips that don't yet carry it.
+try:  # pragma: no cover - import-path probe
+    from wirelang.federation.marker_stack_kv_constants import (  # noqa: E402
+        BUCKET_CONFIG as MARKER_STACK_BUCKET_CONFIG,
+        BUCKET_NAME_PREFIX as MARKER_STACK_BUCKET_NAME_PREFIX,
+        bucket_name_for_org as _marker_stack_bucket_name_for_org,
+    )
+except ImportError:  # pragma: no cover - baseline path
+    from wirelang.federation.marker_stack_kv import (  # noqa: E402
+        BUCKET_CONFIG as MARKER_STACK_BUCKET_CONFIG,
+        BUCKET_NAME_PREFIX as MARKER_STACK_BUCKET_NAME_PREFIX,
+        bucket_name_for_org as _marker_stack_bucket_name_for_org,
+    )
 
 # Tag-1 backwards-compatibility alias: the single-family era exposed
 # ``bucket_name_for_org`` as a module-level name. We keep that alias
@@ -199,19 +241,28 @@ bucket_name_for_org = _marker_stack_bucket_name_for_org
 # sequence-number-ledger bucket family. Defensive import: when the
 # consuming branch does not yet carry the Tag-2 module (e.g. the
 # Wirelang-side PR is still under review), the driver gracefully
-# degrades to the marker-stack family only.
-try:  # pragma: no cover - import-availability guarded path
-    from wirelang.federation.sequence_number_ledger_kv import (  # noqa: E402
+# degrades to the marker-stack family only. Same constants-only
+# probe + fallback as the marker-stack family above.
+try:  # pragma: no cover - constants-only probe
+    from wirelang.federation.sequence_number_ledger_kv_constants import (  # noqa: E402
         BUCKET_CONFIG as SEQUENCE_LEDGER_BUCKET_CONFIG,
         BUCKET_NAME_PREFIX as SEQUENCE_LEDGER_BUCKET_NAME_PREFIX,
         bucket_name_for_org as _sequence_ledger_bucket_name_for_org,
     )
     _HAS_SEQUENCE_LEDGER_FAMILY = True
-except ImportError:  # pragma: no cover - module-absent fallback
-    SEQUENCE_LEDGER_BUCKET_CONFIG = None  # type: ignore[assignment]
-    SEQUENCE_LEDGER_BUCKET_NAME_PREFIX = None  # type: ignore[assignment]
-    _sequence_ledger_bucket_name_for_org = None  # type: ignore[assignment]
-    _HAS_SEQUENCE_LEDGER_FAMILY = False
+except ImportError:  # pragma: no cover - fall back to full module
+    try:
+        from wirelang.federation.sequence_number_ledger_kv import (  # noqa: E402
+            BUCKET_CONFIG as SEQUENCE_LEDGER_BUCKET_CONFIG,
+            BUCKET_NAME_PREFIX as SEQUENCE_LEDGER_BUCKET_NAME_PREFIX,
+            bucket_name_for_org as _sequence_ledger_bucket_name_for_org,
+        )
+        _HAS_SEQUENCE_LEDGER_FAMILY = True
+    except ImportError:
+        SEQUENCE_LEDGER_BUCKET_CONFIG = None  # type: ignore[assignment]
+        SEQUENCE_LEDGER_BUCKET_NAME_PREFIX = None  # type: ignore[assignment]
+        _sequence_ledger_bucket_name_for_org = None  # type: ignore[assignment]
+        _HAS_SEQUENCE_LEDGER_FAMILY = False
 
 
 # ---------------------------------------------------------------------------
