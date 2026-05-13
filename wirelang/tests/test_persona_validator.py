@@ -30,7 +30,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-import rfc8785
+
+rfc8785 = pytest.importorskip("rfc8785")
 
 from wirelang.persona.persona_canonical_form import (
     parse_frontmatter,

@@ -87,6 +87,13 @@ from pathlib import Path
 
 import pytest
 
+# Skip the whole module when rfc8785 is absent: the wirelang.persona
+# package imports rfc8785 unconditionally at module-load time, so any
+# top-level `from wirelang.persona ...` below would crash collection
+# in the sandbox lane. Test-level importorskip is the conventional
+# guard for this case until the persona package adopts a lazy import.
+pytest.importorskip("rfc8785")
+
 from wirelang.persona.cli import main as cli_main
 
 
