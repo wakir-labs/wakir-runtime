@@ -1,0 +1,169 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-9 Tag-1 — One-shot Quadlet unit that ensures the
+# per-org NATS-JetStream marker-stack-event buckets exist after the
+# Phase-1b NATS substrate is healthy. Pilot-phase substrate sibling to
+# the Sprint-2 ``scripts/init-nats-buckets.py`` driver, which seeds
+# the FIXED Phase-1b seven-bucket inventory. This unit handles the
+# PER-ORG marker-stack-event bucket FAMILY introduced in Sprint-8
+# Tag-4 (``wirelang.federation.marker_stack_kv``).
+#
+# Why a separate one-shot unit:
+#   * Cluster operators onboard new organisations over the lifetime
+#     of the pilot; the per-org bucket-list is runtime data, not a
+#     compile-time inventory. Re-running this unit on each onboarded
+#     org is idempotent (the ``nats-kv-bucket-provision`` driver
+#     reports drift, never auto-corrects, and never re-creates).
+#   * Pre-Phase-3 SPIFFE-JWT-auth: this unit runs token-auth against
+#     the local NATS via ``WAKIR_NATS_TOKEN`` (Infisical-injected
+#     env, Phase-1b convention). Phase-3 promotes to SPIFFE-JWT-SVID
+#     workload identity.
+#
+# Onboarded-orgs roster:
+#   The host-side path ``/etc/wakir/onboarded-orgs`` carries one
+#   ``org_id`` per line (blank lines and ``#``-comments ignored). The
+#   operator updates this file when a new organisation is onboarded
+#   and then re-runs the one-shot:
+#
+#     sudo systemctl start wakir-nats-kv-bucket-init.service
+#
+# The unit is ``Type=oneshot`` and ``Restart=on-failure``: a successful
+# run exits 0 and stays inactive until the operator re-triggers; a
+# failed run (drift detected, malformed roster) keeps the unit in a
+# failed state so the operator notices and acts.
+#
+# Operator install path (rootful Podman):
+#
+#   sudo install -m 644 quadlet/wakir-nats-kv-bucket-init.container \
+#       /etc/containers/systemd/wakir-nats-kv-bucket-init.container
+#   # Pre-condition: wakir-nats.service must be installed and the
+#   # cluster must be reachable on 127.0.0.1:4222. The wakir-
+#   # orchestrator network sidecar must already exist (the Sprint-6
+#   # Quadlet bundle installs it).
+#   #
+#   # Onboarded-orgs roster (the operator maintains this file):
+#   sudo install -d -m 755 /etc/wakir
+#   printf '%s\n' acme orbit > /etc/wakir/onboarded-orgs
+#   #
+#   # Optional auth-token (Infisical-injected env):
+#   echo 'WAKIR_NATS_TOKEN=' | sudo tee /etc/wakir/nats-kv-bucket-init.env
+#   sudo chmod 600 /etc/wakir/nats-kv-bucket-init.env
+#   #
+#   sudo systemctl daemon-reload
+#   sudo systemctl start wakir-nats-kv-bucket-init.service
+#
+# Rootless Podman: copy to ~/.config/containers/systemd/ and use
+# ``systemctl --user``; adapt the bind-mount source paths to the
+# rootless operator's filesystem layout.
+#
+# Verification (hermetic-by-default — no live-smoke from sandbox per
+# ``feedback_sandbox_host_trennung.md``):
+#
+#   systemctl status wakir-nats-kv-bucket-init.service
+#   journalctl -u wakir-nats-kv-bucket-init.service --since '5 min ago'
+#
+# Expected journal output on success (excerpt):
+#
+#   [nats-kv-bucket-provision] org=acme bucket=wakir-marker-stack-acme: created
+#   [nats-kv-bucket-provision] org=orbit bucket=wakir-marker-stack-orbit: created
+#   wakir-nats-kv-bucket-init.service: Deactivated successfully.
+#
+# Re-run after onboarding a new org:
+#
+#   echo 'tertio' | sudo tee -a /etc/wakir/onboarded-orgs
+#   sudo systemctl start wakir-nats-kv-bucket-init.service
+#
+# Tear-down:
+#
+#   sudo systemctl stop wakir-nats-kv-bucket-init.service
+#   sudo systemctl disable wakir-nats-kv-bucket-init.service
+#   # Per-org buckets persist on the cluster until explicit operator
+#   # action: nats kv del wakir-marker-stack-<org_id>.
+#
+# Image-Pin form (Cosign-Digest-Pin Pfad B): the provisioner runs
+# inside a python:3.13-slim container that ships ``nats-py``. The
+# image-pin placeholder ``DIGEST_PENDING_TOMAS_REVIEW`` resolves via
+# the same Cross-Review Zone-C workflow as the SPIRE-Server pins
+# (``infra/spire/federation/IMAGE_PINS.md``). The provisioner module
+# is bind-mounted from the host repo path so a python image bump
+# does not require a wakir-runtime image rebuild.
+
+[Unit]
+Description=Wakir Phase-2 Sprint-9 Tag-1 per-org NATS-KV bucket provisioner (one-shot)
+Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/infra/spire/federation/PROXMOX_BRING_UP_RECIPE.md
+After=network-online.target wakir-nats.service
+Wants=network-online.target
+Requires=wakir-nats.service
+
+[Container]
+ContainerName=wakir-nats-kv-bucket-init
+
+# Image pin: python:3.13-slim with nats-py preinstalled. The image
+# digest is resolved Operator-Hand via Cross-Review Zone-C workflow
+# alongside the SPIRE-Server/Agent digests; the placeholder token
+# ``DIGEST_PENDING_TOMAS_REVIEW`` is intentionally NOT a real digest.
+Image=docker.io/library/python:3.13-slim@sha256:DIGEST_PENDING_TOMAS_REVIEW
+
+# Exec invokes the provisioner against the local NATS, sourcing the
+# onboarded-orgs roster from a bind-mounted file. The ``--orgs-file``
+# path resolves inside the container to the bind-mount target.
+Exec=python3 /opt/wakir/bin/nats-kv-bucket-provision \
+  --servers nats://wakir-nats:4222 \
+  --orgs-file /etc/wakir/onboarded-orgs
+
+# Bind-mount the repo provisioner (read-only). The host-side path
+# ``/opt/wakir/bin`` is the operator-managed install location; on
+# the Phase-1b/2 pilot the repo is cloned to /opt/wakir-runtime and
+# /opt/wakir is a symlink to the repo's ``bin/`` directory. The
+# wirelang package (the canonical source of BUCKET_CONFIG /
+# BUCKET_NAME_PREFIX / bucket_name_for_org) MUST be importable from
+# the same bind-mount.
+Volume=/opt/wakir-runtime:/opt/wakir-runtime:ro,Z
+Volume=/opt/wakir-runtime/bin:/opt/wakir/bin:ro,Z
+
+# Bind-mount the onboarded-orgs roster (read-only). The provisioner
+# reads it once at start; updates require a unit restart.
+Volume=/etc/wakir/onboarded-orgs:/etc/wakir/onboarded-orgs:ro,Z
+
+# Working directory: the repo root, so the provisioner can resolve
+# the ``wirelang.federation.marker_stack_kv`` import via conftest-
+# style sys.path.insert.
+WorkingDir=/opt/wakir-runtime
+
+# Environment: pip install runs at container start to ensure nats-py
+# is available; the env-file carries the optional WAKIR_NATS_TOKEN
+# (Infisical-injected; empty on Phase-1b open-token clusters).
+EnvironmentFile=/etc/wakir/nats-kv-bucket-init.env
+Environment=PYTHONPATH=/opt/wakir-runtime
+Environment=PYTHONDONTWRITEBYTECODE=1
+
+# Shared bridge network with wakir-nats so the provisioner reaches
+# the NATS server via its container DNS name ``wakir-nats``.
+Network=wakir-orchestrator.network
+
+# Container-init hardening (parity with sibling Quadlet units).
+ReadOnly=true
+DropCapability=ALL
+NoNewPrivileges=true
+User=1000
+Group=1000
+
+# tmpfs for any pip-cache / asyncio runtime scratch.
+Tmpfs=/tmp:rw,size=64m,mode=0700
+
+# Resource envelope.
+PodmanArgs=--cpus=0.5 --memory=256m
+
+# One-shot: no health-probe, no restart-on-success. Failure-state
+# restart is handled by [Service] Restart=on-failure.
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=120s
+
+[Install]
+WantedBy=multi-user.target default.target
