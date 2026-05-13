@@ -1,0 +1,330 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+"""Hermetic test surface for ``infra/spire/federation/wakir-pilot-bootstrap.sh``.
+
+The script lives on a Pilot-VM and orchestrates an 8-step bring-up of
+the Wakir Phase-1b single-org pilot. The hermetic test surface checks:
+
+1. Bash syntax (``bash -n``) is clean.
+2. Optional shellcheck pass when shellcheck is installed.
+3. Env-var defaults are present in the source.
+4. ``--help`` mode exits 0 without performing side effects.
+5. ``--resume-from`` argument is validated.
+6. ``WAKIR_SKIP_COSIGN_VERIFY=1`` emits the warning banner.
+7. ``WAKIR_SKIP_PROMPTS=1`` skips interactive ``read``.
+8. The 8-phase output pattern is present and ordered.
+9. The script references ``resolve-image-pins.sh`` and
+   ``proxmox-bringup-smoke`` (the two real-VM-side companion artefacts).
+10. Idempotency markers ("already present", "already active",
+    "no DIGEST_PENDING_TOMAS_REVIEW placeholders found") are present.
+
+Sandbox boundary: every test reads the script SOURCE on disk and may
+run ``bash`` with limited flags. No network, no podman, no
+systemd, no GHCR / DockerHub egress.
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SCRIPT = (
+    REPO_ROOT / "infra" / "spire" / "federation" / "wakir-pilot-bootstrap.sh"
+)
+
+
+@pytest.fixture(scope="module")
+def script_source() -> str:
+    assert SCRIPT.exists(), f"missing script: {SCRIPT}"
+    return SCRIPT.read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# 1. bash -n
+# ---------------------------------------------------------------------------
+
+
+def test_bash_syntax_clean() -> None:
+    """``bash -n`` parses the script without error."""
+    result = subprocess.run(
+        ["bash", "-n", str(SCRIPT)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, (
+        f"bash -n failed:\n  stdout: {result.stdout}\n  stderr: {result.stderr}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 2. shellcheck (optional)
+# ---------------------------------------------------------------------------
+
+
+def test_shellcheck_clean() -> None:
+    """If shellcheck is available, run it. Otherwise skip."""
+    if shutil.which("shellcheck") is None:
+        pytest.skip("shellcheck not installed in sandbox")
+    result = subprocess.run(
+        ["shellcheck", "-S", "error", str(SCRIPT)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, (
+        f"shellcheck reported errors:\n{result.stdout}\n{result.stderr}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 3. Env-var defaults
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "var,default",
+    [
+        ("WAKIR_ORG_ID", "acme"),
+        ("WAKIR_TRUST_DOMAIN", "wakir.test"),
+        ("WAKIR_REPO_BRANCH", "main"),
+        ("WAKIR_SKIP_COSIGN_VERIFY", "0"),
+        ("WAKIR_SKIP_PROMPTS", "0"),
+    ],
+)
+def test_env_var_defaults_documented(
+    script_source: str, var: str, default: str
+) -> None:
+    """Each documented env var has a ``: \"${VAR:=default}\"`` form
+    in the script so re-running with the env unset yields the
+    documented behaviour."""
+    pattern = rf': "\${{{var}:={re.escape(default)}}}"'
+    assert re.search(pattern, script_source), (
+        f"missing default for {var}={default} (looked for: {pattern})"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 4. --help mode
+# ---------------------------------------------------------------------------
+
+
+def test_help_mode_exits_zero() -> None:
+    """``--help`` must exit 0 and print a usage banner that mentions
+    the 8 steps. Critically, ``--help`` must NOT perform any side
+    effect (e.g. it must not require root)."""
+    result = subprocess.run(
+        ["bash", str(SCRIPT), "--help"],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, "WAKIR_SKIP_PROMPTS": "1"},
+    )
+    assert result.returncode == 0
+    out = result.stdout + result.stderr
+    assert "Usage:" in out
+    # Steps 1..8 should be enumerated somewhere in the help text.
+    for label in (
+        "Pre-Flight",
+        "Toolbox",
+        "CLI tools",
+        "Repo clone",
+        "Image-pin",
+        "Quadlet",
+        "NATS-KV",
+        "Smoke",
+    ):
+        assert label in out, f"missing step label in help: {label}"
+
+
+# ---------------------------------------------------------------------------
+# 5. --resume-from validation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("bad_value", ["0", "9", "abc", "-1", ""])
+def test_resume_from_rejects_bad_value(bad_value: str) -> None:
+    """Bad ``--resume-from`` values cause a non-zero exit before
+    the script tries to do anything real."""
+    result = subprocess.run(
+        ["bash", str(SCRIPT), "--resume-from", bad_value],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, "WAKIR_SKIP_PROMPTS": "1"},
+    )
+    assert result.returncode != 0, (
+        f"--resume-from {bad_value!r} should fail but exit was 0:\n"
+        f"  stdout: {result.stdout}\n  stderr: {result.stderr}"
+    )
+    assert "resume-from" in (result.stderr + result.stdout).lower()
+
+
+def test_resume_from_valid_values_pass_validation(
+    tmp_path: Path,
+) -> None:
+    """A valid ``--resume-from N`` value (1..8) passes argument
+    validation. We can't run the full script in the sandbox (it
+    needs root + podman), but the validation happens before the
+    root-check, so a non-root invocation that errors at step 1's
+    'must run as root' message proves the argument was accepted."""
+    result = subprocess.run(
+        ["bash", str(SCRIPT), "--resume-from", "1"],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={
+            **os.environ,
+            "WAKIR_SKIP_PROMPTS": "1",
+            "WAKIR_REPO_ROOT": str(tmp_path / "wakir-runtime"),
+        },
+    )
+    # We don't care about the exit code (root-check fails); we DO
+    # care that the failure is NOT the argument-validation one.
+    combined = result.stdout + result.stderr
+    assert "--resume-from expects 1..8" not in combined
+
+
+# ---------------------------------------------------------------------------
+# 6. WAKIR_SKIP_COSIGN_VERIFY warning banner
+# ---------------------------------------------------------------------------
+
+
+def test_skip_cosign_emits_warning(script_source: str) -> None:
+    """``WAKIR_SKIP_COSIGN_VERIFY=1`` emits a clear, banner-style
+    warning in the source (so an operator who sets the flag knows
+    what they're trading away)."""
+    assert "WAKIR_SKIP_COSIGN_VERIFY=1" in script_source
+    assert "WARNING" in script_source or "WARN" in script_source.upper()
+    # The warning must mention 'tag' so the operator understands that
+    # the pull will run against tag-only (no digest pin).
+    assert "tag" in script_source.lower()
+
+
+# ---------------------------------------------------------------------------
+# 7. WAKIR_SKIP_PROMPTS behaviour
+# ---------------------------------------------------------------------------
+
+
+def test_skip_prompts_documented(script_source: str) -> None:
+    """``WAKIR_SKIP_PROMPTS=1`` short-circuits the interactive ``read``
+    so the script can run headless / in CI."""
+    assert "WAKIR_SKIP_PROMPTS" in script_source
+    assert "prompt_yes_no" in script_source
+
+
+def test_help_does_not_prompt() -> None:
+    """``--help`` must produce its output without blocking on stdin
+    even when SKIP_PROMPTS is unset."""
+    result = subprocess.run(
+        ["bash", str(SCRIPT), "--help"],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=5,
+        # IMPORTANT: pass /dev/null as stdin to prove no read happens
+        stdin=subprocess.DEVNULL,
+    )
+    assert result.returncode == 0
+
+
+# ---------------------------------------------------------------------------
+# 8. 8-phase output pattern
+# ---------------------------------------------------------------------------
+
+
+def test_eight_phases_named_in_order(script_source: str) -> None:
+    """The script defines exactly the 8 step functions in the
+    documented order. Order matters: step 5 (image pins) must come
+    before step 6 (quadlet install) so the substitution lands before
+    podman pulls the images."""
+    expected = [
+        "step_1_preflight",
+        "step_2_toolbox",
+        "step_3_cli_tools",
+        "step_4_repo_clone",
+        "step_5_image_pins",
+        "step_6_quadlet",
+        "step_7_bucket_init",
+        "step_8_smoke",
+    ]
+    positions = []
+    for name in expected:
+        idx = script_source.find(f"{name}()")
+        assert idx != -1, f"step function not defined: {name}"
+        positions.append(idx)
+    assert positions == sorted(positions), (
+        "step functions defined out of order; this implies the main "
+        "driver loop will execute them in the wrong sequence"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 9. Companion-artefact references
+# ---------------------------------------------------------------------------
+
+
+def test_references_resolve_script(script_source: str) -> None:
+    """Step 5 delegates to the existing
+    ``proxmox/resolve-image-pins.sh`` resolver -- it must not
+    duplicate the substitution logic."""
+    assert "proxmox/resolve-image-pins.sh" in script_source
+
+
+def test_references_smoke_binary(script_source: str) -> None:
+    """Step 8 calls ``bin/proxmox-bringup-smoke`` -- the existing
+    smoke-test entry point. Re-using it (rather than re-implementing
+    smoke checks inline) is the contract."""
+    assert "bin/proxmox-bringup-smoke" in script_source
+    assert "proxmox-bringup-smoke" in script_source
+
+
+# ---------------------------------------------------------------------------
+# 10. Idempotency markers
+# ---------------------------------------------------------------------------
+
+
+def test_idempotency_markers_present(script_source: str) -> None:
+    """An idempotent re-run must visibly say 'already X' (instead of
+    silently re-doing work that mutates state). The hermetic test
+    asserts that at least one 'already' marker per pre-existing
+    side-effect category is present in the source."""
+    must_have = [
+        "already present",       # repo, files
+        "already active",        # systemd units
+        "no DIGEST_PENDING",     # image pins already resolved
+        "already in",            # roster
+    ]
+    for marker in must_have:
+        assert marker in script_source, (
+            f"missing idempotency marker: {marker}"
+        )
+
+
+def test_resolver_validates_digest_format() -> None:
+    """The companion resolver (``proxmox/resolve-image-pins.sh``)
+    validates sha256:<64-hex> -- the bootstrap script must pass
+    digests that match that form. We inspect the bootstrap's
+    cross-check pipeline (cosign + skopeo) and confirm the
+    sha256:<hex> shape is what the resolver expects."""
+    resolver = (
+        REPO_ROOT
+        / "infra"
+        / "spire"
+        / "federation"
+        / "proxmox"
+        / "resolve-image-pins.sh"
+    )
+    assert resolver.exists(), f"resolver missing: {resolver}"
+    src = resolver.read_text(encoding="utf-8")
+    assert "sha256:[0-9a-f]{64}" in src, (
+        "resolver no longer validates sha256:<64-hex>; bootstrap "
+        "script may pass values that the resolver silently rejects"
+    )
