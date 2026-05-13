@@ -1,0 +1,130 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-8 Tag-2 — Quadlet template for the SPIRE-Agent-Sidecar
+# wired into the Tag-1 Federation-Bundle-Endpoint substrate.
+#
+# This is a TEMPLATE with three placeholders that Operator-Hand
+# substitutes at install-time (mirror of the Tag-1
+# wakir-spire-server-federation.container template convention):
+#
+#   <SIDE>             → ``wakir`` or ``partner``
+#   <TRUST_DOMAIN>     → ``wakir.test`` or ``partner.test``
+#   <SERVER_DNS>       → ``spire-server-wakir`` or ``spire-server-partner``
+#
+# Install workflow (rootful Podman, per-side):
+#
+#   # Pre-condition: the Tag-1 SPIRE-Server-federation Quadlet must
+#   # already be installed on the same host for the desired side.
+#   #
+#   # For the wakir.test side:
+#   sed -e 's|<SIDE>|wakir|g' \
+#       -e 's|<TRUST_DOMAIN>|wakir.test|g' \
+#       -e 's|<SERVER_DNS>|spire-server-wakir|g' \
+#       quadlet/wakir-spire-agent-federation.container \
+#       > /etc/containers/systemd/wakir-spire-agent-wakir.container
+#   sudo install -m 644 quadlet/wakir-spire-agent-federation-data.volume \
+#       /etc/containers/systemd/wakir-spire-agent-wakir-data.volume
+#   sudo install -m 644 quadlet/wakir-spire-agent-federation-sockets.volume \
+#       /etc/containers/systemd/wakir-spire-agent-wakir-sockets.volume
+#   sudo install -m 644 config/spire-agent-wakir.conf \
+#       /etc/wakir/spire-agent-wakir.conf
+#   sudo systemctl daemon-reload
+#   sudo systemctl start wakir-spire-agent-wakir.service
+#
+# Tear-down:
+#
+#   sudo systemctl stop wakir-spire-agent-wakir.service
+#   podman volume rm wakir-spire-agent-wakir-data
+#   podman volume rm wakir-spire-agent-wakir-sockets
+#
+# Verification (hermetic-by-default — no live-smoke from sandbox; live
+# verification is operator-hand per ADR-0051):
+#
+#   systemctl status wakir-spire-agent-<SIDE>.service
+#   podman healthcheck run wakir-spire-agent-<SIDE>
+#   sudo podman exec wakir-spire-agent-<SIDE> \
+#       /opt/spire/bin/spire-agent api fetch x509 \
+#       -socketPath /run/spire/agent-sockets/api.sock
+#
+# Image-Pin form (Cosign-Digest-Pin Pfad B, mirror of Tag-1 server
+# template): placeholder token ``DIGEST_PENDING_TOMAS_REVIEW`` resolved
+# by Operator-Hand before live bring-up (Cross-Review Zone-C,
+# Tomás-track).
+
+[Unit]
+Description=Wakir Phase-2 Sprint-8 Tag-2 SPIRE-Agent (federation, <SIDE> side)
+Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/infra/spire/agent/README.md
+After=network-online.target wakir-spire-server-<SIDE>.service
+Wants=network-online.target
+Requires=wakir-spire-server-<SIDE>.service
+
+[Container]
+ContainerName=wakir-spire-agent-<SIDE>
+
+# Image pin: byte-precise mirror of compose/spire-agent-federation.yaml
+# services.spire-agent-<SIDE>.image. Version-parity with Tag-1
+# federation server (SPIRE v1.14.6 — upstream releases server+agent as
+# paired binary set).
+Image=ghcr.io/spiffe/spire-agent:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW
+
+# Command-line arguments (mirror of compose `command:` list).
+Exec=run -config /etc/spire/agent/agent.conf
+
+# Read-only root filesystem (mirror of compose `read_only: true`).
+ReadOnly=true
+
+# Run as non-root uid:gid (mirror of compose `user: "1000:1000"`).
+User=1000
+Group=1000
+
+# Bind-mounts and named volumes (mirror of compose `volumes:` list).
+#
+# 1) Read-only bind-mount of the per-side Mock/Stub agent config.
+Volume=/etc/wakir/spire-agent-<SIDE>.conf:/etc/spire/agent/agent.conf:ro,Z
+#
+# 2) SPIRE-Agent data directory (bootstrap-trust-bundle cache,
+#    federated-bundle cache, SVID cache).
+Volume=wakir-spire-agent-<SIDE>-data.volume:/var/lib/spire/agent
+#
+# 3) Federated-bundles ingest (read-only mount of the server-side
+#    bundles volume — the Tag-1 server-federation Quadlet creates
+#    this volume).
+Volume=wakir-spire-server-<SIDE>-bundles.volume:/var/lib/spire/bundles:ro
+#
+# 4) Workload-API socket — agents serve the SPIFFE-Workload-API on
+#    this volume. Phase-2.3+ persona-containers mount this volume
+#    read-only at the same path; the `spiffe.workload_api` client
+#    targets `unix:///run/spire/agent-sockets/api.sock`.
+Volume=wakir-spire-agent-<SIDE>-sockets.volume:/run/spire/agent-sockets
+
+# tmpfs for ephemeral SPIRE runtime paths (parity with server).
+Tmpfs=/run/spire:rw,size=16m,mode=0700
+
+# Federation bridge network (external, owned by Tag-1 Quadlet).
+Network=wakir-federation.network
+
+# Container-init hardening (parity with Tag-1 server template +
+# Sprint-6-Tag-9 agent).
+DropCapability=ALL
+NoNewPrivileges=true
+
+# Resource envelope (mirror of compose `deploy.resources.limits`).
+PodmanArgs=--cpus=0.5 --memory=256m
+
+# Health probe (mirror of compose healthcheck:). SPIRE-Agent
+# healthcheck subcommand.
+HealthCmd=/opt/spire/bin/spire-agent healthcheck
+HealthInterval=10s
+HealthTimeout=5s
+HealthRetries=5
+HealthStartPeriod=30s
+
+[Service]
+# Restart policy: compose `restart: unless-stopped` -> on-failure.
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=120s
+
+[Install]
+WantedBy=multi-user.target default.target

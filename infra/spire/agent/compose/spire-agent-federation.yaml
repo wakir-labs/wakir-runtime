@@ -1,0 +1,209 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-8 Tag-2 — SPIRE-Agent-Sidecar-Federation-Wiring.
+#
+# Substrate: two SPIRE-Agent containers paired with the two SPIRE-Server
+# containers from Sprint-8 Tag-1 federation substrate
+# (`infra/spire/federation/compose/spire-federation.yaml`). Each agent
+# attests against its own side's SPIRE-Server (wakir.test or
+# partner.test), pulls the federated peer-bundle via the Tag-1
+# bundle-endpoint listener, and serves the SPIFFE-Workload-API on a
+# per-side named volume. Workloads connected through one agent can
+# present X.509-SVIDs in their own trust-domain AND verify SVIDs
+# presented from the peer trust-domain via the federated-bundle entry.
+#
+# Layer-wiring (Tag-2 closes the loop between Tag-1 and Sprint-6):
+#   Sprint-6 Tag-9: SPIRE-Agent-Sidecar (single-trust-domain example.test).
+#   Sprint-8 Tag-1: SPIRE-Federation-Bundle-Endpoint (two SPIRE-Servers).
+#   Sprint-8 Tag-2 (this file): SPIRE-Agent-Sidecar wired into
+#                               Tag-1 Federation-Servers, so the agents
+#                               can mint X.509-SVIDs and consume
+#                               federated-bundles end-to-end.
+#
+# Bring-up (operator-hand, NOT auto from sandbox per
+# feedback_sandbox_host_trennung.md):
+#
+#   # Pre-condition: Tag-1 federation substrate must already be up.
+#   cd infra/spire/federation
+#   podman compose -f compose/spire-federation.yaml up -d
+#
+#   # Then bring up the Tag-2 agents alongside:
+#   cd ../agent
+#   podman compose -f compose/spire-agent-federation.yaml up -d
+#
+# Tear-down:
+#
+#   podman compose -f compose/spire-agent-federation.yaml down -v
+#   cd ../federation
+#   podman compose -f compose/spire-federation.yaml down -v
+#
+# Hermetic test acceptance (NO operator hand):
+#
+#   pytest infra/spire/agent/tests/
+#
+# Image-Tag rationale (mirror of Sprint-6 Tag-9 + Sprint-8 Tag-1):
+#   Image ``ghcr.io/spiffe/spire-agent`` Tag ``1.14.6`` — version-parity
+#   with SPIRE-Server in `compose/spire-federation.yaml` (upstream
+#   convention: SPIRE-Server and SPIRE-Agent are released as a paired
+#   binary set). Cosign-Digest-Pin form (Pfad B) with the same
+#   placeholder convention as Tag-1; Operator-Hand substitutes the
+#   canonical digest before live bring-up. Cross-Review Zone-C
+#   Tomás-track.
+#
+# Network rationale:
+#   The agents join the ``wakir-federation`` bridge network from Tag-1
+#   (declared external below). This is how each agent reaches its
+#   side's SPIRE-Server over internal DNS (``spire-server-wakir`` /
+#   ``spire-server-partner``). Workload-API consumers (persona-
+#   sidecars, Phase-2.3+) mount the agent-sockets volume read-only at
+#   the same path and do NOT need the bridge network — the Workload-
+#   API is unix-socket-only.
+
+services:
+
+  spire-agent-wakir:
+    # SPIRE-Agent for the ``wakir.test`` trust-domain side.
+    #
+    # Attests against ``spire-server-wakir`` (from Tag-1 federation
+    # substrate) via the ``join_token`` NodeAttestor (hermetic
+    # placeholder, no real token). Serves the SPIFFE-Workload-API on
+    # the ``spire_agent_wakir_sockets`` named volume at
+    # ``/run/spire/agent-sockets/api.sock``.
+    image: "ghcr.io/spiffe/spire-agent:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW"
+    container_name: wakir-spire-agent-wakir
+    command:
+      - "run"
+      - "-config"
+      - "/etc/spire/agent/agent.conf"
+    # Read-only root filesystem (Sprint-6-Tag-9 hardening parity).
+    read_only: true
+    # Run as non-root uid:gid (Sprint-6-Tag-9 parity).
+    user: "1000:1000"
+    volumes:
+      # SPIRE-Agent config (read-only bind-mount of the Mock/Stub
+      # config file). The Mock config declares trust-domain
+      # ``wakir.test`` (matching spire-server-wakir).
+      - "../config/spire-agent-wakir.conf:/etc/spire/agent/agent.conf:ro"
+      # SPIRE-Agent data directory (bootstrap-trust-bundle cache,
+      # federated-bundle cache, SVID cache). Named volume so an
+      # operator-driven recreate does not destroy the bootstrap
+      # trust-bundle. ``compose down -v`` deliberately drops it.
+      - "spire_agent_wakir_data:/var/lib/spire/agent"
+      # Federated-bundles ingest volume — the agent reads peer trust-
+      # bundles staged here by an Operator-Hand workflow (see README
+      # §3b). Read-only from the agent's perspective; the Operator
+      # writes the bundle via ``podman cp`` from the federation
+      # server-side bundles volume.
+      - "spire_server_wakir_bundles:/var/lib/spire/bundles:ro"
+      # Workload-API socket — the SPIRE-Agent serves the SPIFFE-
+      # Workload-API on this volume. Phase-2.3+ persona-containers
+      # mount this volume read-only at the same path and the
+      # ``spiffe.workload_api`` client targets
+      # ``unix:///run/spire/agent-sockets/api.sock``.
+      - "spire_agent_wakir_sockets:/run/spire/agent-sockets"
+    # tmpfs for ephemeral SPIRE runtime paths (Sprint-6-Tag-9 parity).
+    tmpfs:
+      - "/run/spire:rw,size=16m,mode=0700"
+    networks:
+      - wakir-federation
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - "CMD"
+        - "/opt/spire/bin/spire-agent"
+        - "healthcheck"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    cap_drop:
+      - ALL
+    security_opt:
+      - "no-new-privileges:true"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "256M"
+
+  spire-agent-partner:
+    # SPIRE-Agent for the ``partner.test`` trust-domain side.
+    #
+    # Mirror of spire-agent-wakir with the partner trust-domain
+    # literal. Attests against ``spire-server-partner`` (from Tag-1
+    # federation substrate); serves Workload-API on the
+    # ``spire_agent_partner_sockets`` named volume.
+    image: "ghcr.io/spiffe/spire-agent:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW"
+    container_name: wakir-spire-agent-partner
+    command:
+      - "run"
+      - "-config"
+      - "/etc/spire/agent/agent.conf"
+    read_only: true
+    user: "1000:1000"
+    volumes:
+      - "../config/spire-agent-partner.conf:/etc/spire/agent/agent.conf:ro"
+      - "spire_agent_partner_data:/var/lib/spire/agent"
+      - "spire_server_partner_bundles:/var/lib/spire/bundles:ro"
+      - "spire_agent_partner_sockets:/run/spire/agent-sockets"
+    tmpfs:
+      - "/run/spire:rw,size=16m,mode=0700"
+    networks:
+      - wakir-federation
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - "CMD"
+        - "/opt/spire/bin/spire-agent"
+        - "healthcheck"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    cap_drop:
+      - ALL
+    security_opt:
+      - "no-new-privileges:true"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "256M"
+
+volumes:
+  # Per-side agent data + sockets. Agents do NOT share data — each side
+  # has its own bootstrap-trust-bundle cache and Workload-API socket.
+  spire_agent_wakir_data:
+    name: wakir-spire-agent-wakir-data
+  spire_agent_wakir_sockets:
+    name: wakir-spire-agent-wakir-sockets
+  spire_agent_partner_data:
+    name: wakir-spire-agent-partner-data
+  spire_agent_partner_sockets:
+    name: wakir-spire-agent-partner-sockets
+
+  # External named volumes from the Sprint-8 Tag-1 federation
+  # substrate. Each agent reads its side's federated-bundles ingest
+  # path from the matching server-side bundles volume (read-only on
+  # the agent side). ``external: true`` means compose does NOT create
+  # or destroy these volumes; their lifecycle is owned by
+  # ``infra/spire/federation/compose/spire-federation.yaml``.
+  spire_server_wakir_bundles:
+    name: wakir-spire-server-wakir-bundles
+    external: true
+  spire_server_partner_bundles:
+    name: wakir-spire-server-partner-bundles
+    external: true
+
+networks:
+  # External named network from the Sprint-8 Tag-1 federation
+  # substrate. ``external: true`` means compose does NOT create or
+  # destroy this network; its lifecycle is owned by
+  # ``infra/spire/federation/compose/spire-federation.yaml``. Bringing
+  # up Tag-1 first is the documented pre-condition; bringing up Tag-2
+  # without Tag-1 first fails with a clear ``network not found`` error
+  # which is the intended ordering signal.
+  wakir-federation:
+    name: wakir-federation
+    external: true

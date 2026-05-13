@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+"""Entry-point wrapper for spire_fed_bundle (Phase-2 Sprint-8 Tag-1).
+
+This wrapper lets operators invoke the CLI as ``./bin/spire-fed-bundle``
+without a Python module-load incantation. It re-imports the
+``spire_fed_bundle`` module from the sibling file and delegates to
+``main()``.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+# Make the sibling module importable when invoked as a script.
+_HERE = Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
+
+import spire_fed_bundle  # noqa: E402
+
+if __name__ == "__main__":
+    raise SystemExit(spire_fed_bundle.main())
