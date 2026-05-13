@@ -9,14 +9,48 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wirelang-schema-registry
-version: 0.32.0
+version: 0.33.0
 status: draft
 date: 2026-05-13
 audience: implementers, integrators, operators
 license: CC-BY-4.0
 ---
 
-# Wirelang Schema Registry — NATS-KV Backend Specification (v0.32.0)
+# Wirelang Schema Registry — NATS-KV Backend Specification (v0.33.0)
+
+**Sprint-9 Tag-1 CaveatOverrideEvent Cross-Org-Export-Surface
+anchor (2026-05-13).** This version adds the cross-org export
+surface for the Sprint-8 Tag-3
+`CaveatOverrideEvent`
+(`wirelang.federation.caveat_override_export`). Pattern-mirror on
+the Sprint-7 Tag-5 `UnrevokeAuditMarker` cross-org-export. New
+load-bearing substantive additions over the Tag-5 pattern:
+(1) **replay-protection** via per-(route_id, original-caveat-
+chain-hash) monotonic sequence-numbers carried in the export
+envelope and validated on a pluggable
+`SequenceNumberLedger`; (2) **bridge-verification** —
+verifier-side `detect_replay` symmetric gate so Org-B can
+byte-deterministically consume an Org-A export against its own
+ledger; (3) **structural narrowing classifier**
+(`CaveatNarrowingClass`) computing SUBSET_PROPER / SUBSET_EQUAL /
+SUPERSET / INTERSECT_PARTIAL / DISJOINT from the pre/post
+caveat-set structure (no free-form text reveal); (4) **cross-org
+witnesses** as canonicalised tuple in the payload so the
+override_event_id carries witness-route bindings; (5) **audit-
+trace projection** stripped of free-form reason text. v0.33.0
+is an **additive minor bump** per §3.2; no breaking changes;
+all pre-existing frames remain valid against v0.33 verifiers;
+the Sprint-8 Tag-3/Tag-4 surfaces remain byte-identical.
+
+**v0.32.0 annex-note.** Version v0.32.0 is reserved for the
+parallel Selin Phase-2 `persona-engine-format-spec.md` bump
+(Sprint-9 parallel-deliverable). The two spec axes are
+orthogonal (persona-engine vs federation-export); v0.33.0 lives
+under the additive-minor convention and explicitly does not
+back-merge into v0.32. If the Selin v0.32.0 lands first, the
+schema-registry-spec changelog adopts a backfill v0.32.0 entry
+referencing the persona-engine-format-spec by URL and the
+v0.33.0 entry remains unchanged.
 
 **Sprint-Pengine-7 Tag-1 Persona-Engine-Format integration anchor
 (2026-05-13).** v0.32.0 adds §10 Persona-Engine-Format integration,
@@ -85,6 +119,7 @@ schema-registry-spec change-log entry warranted.
 
 | Version | Date       | Change                                                 |
 |---------|------------|--------------------------------------------------------|
+| 0.33.0  | 2026-05-13 | **Sprint-9 Tag-1 CaveatOverrideEvent Cross-Org-Export-Surface.** New module `wirelang.federation.caveat_override_export` providing the cross-org export surface for the Sprint-8 Tag-3 `CaveatOverrideEvent` (pattern-mirror on Sprint-7 Tag-5 `UnrevokeAuditMarker` cross-org-export, see v0.27.0 entry). Substantive load-bearing additions over the Tag-5 pattern: (1) **replay-protection** — exported envelope carries a monotonically-increasing integer `sequence_number` per (route_id, original_caveat_chain_hash) tuple. The exporter consults a pluggable `SequenceNumberLedger` Protocol; default in-memory `InMemorySequenceNumberLedger` for tests / single-process exporters; production NATS-KV-backed ledger is Sprint-9 Tag-N+ slot. Two replay-detection paths: same exporter rejecting re-export at less-or-equal sequence raises `CaveatOverrideExportReplayError`; symmetric verifier-side `detect_replay(*, exported, ledger)` blocks bridge-cycle re-replay where a hostile bridge cycles an Org-A export through Org-B back to Org-A at the same sequence. (2) **Pseudonymisation pattern (ADR-0031 D4)** — exporter strips raw `override_reason` (free-form), strips raw `original_caveat_set` and `narrowed_caveat_set` (chain content), retains only structural surfaces. Raw chains are replaced by route-scoped BLAKE2b-256-hex `original_caveat_chain_hash` and `narrowed_caveat_chain_hash` (route-scoping prevents cross-route equality-correlation; the same caveat-set under two different routes produces two different digests). Operator-supplied `override_reason` is classified via pluggable `CaveatOverrideReasonClassifier` Protocol into `CaveatOverrideReasonClass` enum (`UNSPECIFIED`, `KEY_COMPROMISE_RESPONSE`, `POLICY_AMENDMENT`, `SCOPE_TIGHTENING`, `OTHER`); default classifier is fail-safe (`None` -> `UNSPECIFIED`, else `OTHER`). Raw text additionally hashed (route-scoped) into `override_reason_hash` for equality-comparison without reveal. (3) **Structural narrowing classifier** `_classify_narrowing` projects the pre/post caveat-sets onto closed `CaveatNarrowingClass` enum (`SUBSET_PROPER`, `SUBSET_EQUAL`, `SUPERSET`, `INTERSECT_PARTIAL`, `DISJOINT`) by frozenset comparison over the (predicate, args) pairs. Structural-only — no free-form reveal. (4) **Cross-org witnesses** — `CrossOrgWitness(route_id, peer_trust_domain, observed_at)` tuple attached to the envelope. Witnesses are canonical-sorted by the exporter prior to canonicalisation so witness-insertion-order is irrelevant to byte-equal `override_event_id`. (5) **Audit-trace projection** — `AuditTraceEntry(event_at, event_kind, outcome, wat_anchor_manifest_id)` projects only structural fields from the composition-reducer's internal `AuditTraceEntry`; no free-form `outcome_reason` text. (6) **`override_event_id`** is a BLAKE2b-256 digest (32 bytes) over a JCS-canonical envelope payload mixing schema, route_id, sequence_number, event_at, chain-hashes, classification surfaces, audit-trace, and sorted witnesses. The `exported_at` field is excluded so re-exporting the same source event at a different wall-clock at the same sequence_number produces a byte-equal `override_event_id`. (7) **Defence-in-depth raw-narrative-leak gate** in `ExportedCaveatOverrideEvent.__post_init__`: any subclass declaring `override_reason`, `original_caveat_set`, or `narrowed_caveat_set` as additional fields raises `CaveatOverrideExportRawNarrativeLeakError`. Error hierarchy: `CaveatOverrideExportError` (base, inherits from `MultiOrgSubstrateError` so existing catch-base callers absorb every exporter surface uniformly), `CaveatOverrideExportShapeError` (malformed input — wrong type, tz-naive timestamp, missing route_id, negative sequence_number), `CaveatOverrideExportReplayError` (sequence-monotonicity breach; carries `route_id` / `chain_hash` / `last_seen_sequence` / `attempted_sequence`), `CaveatOverrideExportRawNarrativeLeakError` (defence-in-depth). Schema URI `wakir.federation.caveat-override-event-export/1` so the WAT-Audit-Federation-Annex (Tomás D-1, forthcoming) can anchor exported events into both peer-org and Wakir-org WAT merkle leaves. Test surface: `wirelang/tests/test_federation_caveat_override_export.py` adds 16 hermetic tests T-COX-01..T-COX-13 + 3 shape-gate auxiliaries covering: happy-path with default classifier, absent-reason path (UNSPECIFIED + no reason_hash), round-trip byte-equal event_id across exporter instances (exported_at differs but event_id stable), bridge-verifier byte-deterministic consumption via `detect_replay`, replay-detection within exporter at same sequence, descending-sequence-rejected (5 then 3 raises replay error), sequence-gap acceptance (1 then 5 accepted), cross-org-boundary route-scoping (event_id differs per attestation), witness canonical-sort byte-equal event_id, nested-CaveatOverride chain with per-original sequence-namespacing (three exports each receive sequence 1 in their own namespace because the original-chain-hash differs), structural narrowing classifier covering all five classes (SUBSET_PROPER, SUBSET_EQUAL, SUPERSET, INTERSECT_PARTIAL, DISJOINT), pluggable classifier honoured with raw text still stripped, raw-narrative-leak defence on subclass with `override_reason` attribute, shape-gate negatives (invalid event type, naive datetime on `AuditTraceEntry` / `CrossOrgWitness`). Total wirelang-side test count: 1306 (Sprint-8 Tag-4 post-merge) → 1322 (Sprint-9 Tag-1), delta +16; voll-projekt delta +16. The Sprint-9 Tag-1 path is **additive over Sprint-8 Tag-4**: marker-stack KV backend (Sprint-8 Tag-4) byte-unchanged; marker-composition reducer (Sprint-8 Tag-3) byte-unchanged; Cross-Org-Attenuation-Chain-Verifier (Sprint-8 Tag-2) byte-unchanged; UnrevokeAuditMarker-Cross-Org-Export-Surface (Sprint-7 Tag-5) byte-unchanged. M-2 conformance preserved (new envelope on new schema URI; no breaking change to any existing envelope). M-4 conformance preserved (orthogonal to version axis). Cross-Review-Zone-1 (Identity-Substrate) non-touched. Cross-Review-Zone-A (SPIFFE/SPIRE) non-touched. Cross-Review-Zone-M (TV-W manifest) non-touched. Cross-Review-Zone-O (Sprint-7 Cross-Org-Federation) **consumed** for `MultiOrgRouteAttestation` as the route carrier and for the `peer_org`-caveat semantics on witnesses; the four Zone-O consensus points remain byte-identical (the export surface is a projection layer over the Zone-O substrate). Cross-Review-Zone-B (NATS-KV × Wirelang) reserved for the durable `SequenceNumberLedger` NATS-KV backend (Sprint-9 Tag-N+ slot; Tag-1 lands the in-memory ledger only). Cross-Review-Zone-3 (OTS-Schema-Anker) reserved for Phase-2 `ExportedCaveatOverrideEvent` schema-registry entry (the JSON envelope shape is documented inline here but not yet OTS-anchored); not opened in Tag-1. Sprint-8 Tag-3+ open item "CaveatOverrideEvent cross-org-export-surface" CONSUMED. Sprint-9 Tag-1+ candidates: durable NATS-KV-backed `SequenceNumberLedger` implementation (Zone-B trigger), `ExportedCaveatOverrideEvent` OTS-anchored schema-registry entry (Zone-3 trigger), `detect_replay`-callsite-mirror in the multi-org-attestation live-tail replicator (Sprint-7 Tag-6) for bridge-cycle defence at the replicator layer (currently the replicator has no replay-protection on `CaveatOverrideEvent` payloads; Sprint-9 Tag-N+ extension). Additive-only change relative to v0.31.0. v0.32.0 reserved for parallel Selin `persona-engine-format-spec.md` bump (orthogonal axis, no overlap on schema-registry surfaces). |
 | 0.32.0  | 2026-05-13 | **Sprint-Pengine-7 Tag-1 Persona-Engine-Format integration.** Adds new §10 documenting the framework-native target format `wakir-persona-v1` and its byte-deterministic mapping from `.claude/agents/<slug>.md` (axis-A `persona-claude-native`). Three new artefacts: `wirelang/specs/persona-engine-format-spec.md` v1.0 (canonical spec, ~13 sections), `wirelang/schemas/persona-claude-native.json` (input-axis JSON-Schema validating the lossy production input shape), `wirelang/schemas/wakir-persona-v1.json` (target-axis JSON-Schema, strict additionalProperties=false at every level, embeds the V-907 persona-v1 canonical subset verbatim so the hash function is byte-unchanged). New crate `persona-engine-format` (Crate-8 in the wirelang-rust workspace): `map_claude_native_to_wakir_v1(text) -> serde_json::Value`, `wakir_persona_hash(doc) -> String` (delegates to unchanged `persona_hash::compute_persona_hash_from_canonical`), `jcs_canonicalise_wakir_persona_v1(doc) -> Vec<u8>`. Closed-set front-matter recognition: `name`, `description`, `tools`, `model`. `tools` accepted as comma-separated string or list of strings (Python-parity with `persona-canonical-form-yaml`). `model:` field (Claude-Code model override, e.g. `sonnet`) recognised as the hr.md edge case; resulting wakir-persona-v1 carries `model_override` and `tools: []`. Unknown front-matter keys preserved through lossless `claude_native_source` echo; dropped from V-907-hash `canonical_subset` per A-3 body-out-of-hash. Synthesised `identity_pinned` block uses safe defaults (`push_remote: false`, `budget_cap_eur_per_month: 10`, `sub_delegation: false`, `reports_to: "mira"`, `escalation: "mira"`); §4.3 of the persona-engine-format-spec marks these HR-slot-ratification-pending. Test surface: 11 hermetic tests in `crates/persona-engine-format/tests/integration.rs` covering all 13 active personae (T-PEF-AXIS-A through T-PEF-AXIS-D as four axis-level batched tests), aggregate determinism (T-PEF-DET-01/02/03), edge cases (T-PEF-EDGE-01/02/03), and V-907 unchanged-hash anchor (T-PEF-V907-01). 13/13 active personae produce stable V-907 persona-hashes (`sha256:` prefix, 64 hex tail). Cross-Review-Zone-K (WAT-bridge) **functionally non-touched** (V-907 hash function unchanged; only operator-side pin-pack registry derives 13 new hashes — engine-side V1..V11 pin-pack is byte-unchanged). Cross-Review-Zone-J (container-bridge, Kai) **TRIGGERED as shape-only**: the `container_bridge` block in §3.5 of persona-engine-format-spec defines image template / metadata labels / env injection; Sprint-Pengine-7 Tag-4 will implement the Kai-side Quadlet template (gated on Zone-J cross-review). Cross-Review-Zone-L (identity-substrate, Reza) **reservation only**: §4.3 records the synthesised default for hierarchy; no identity-doc forward-link URI scheme decision yet. HR-slot cross-review **TRIGGERED**: §4.3 synthesis defaults are HR-slot-ratification-pending before Sprint-Pengine-7 Tag-2 (converter cut-over). Cross-Review-Zone-B (NATS-KV × Wirelang) **reserved**: bucket-name family `wakir-persona-state-{persona_id}` documented in §3.4 of the persona-engine-format-spec; backend module is Sprint-Pengine-7 Tag-4 work. Schema-registry surface itself **byte-unchanged**: no new bucket configured at Tag-1; no envelope-shape change; entries currently held by `wakir-schemas` bucket. Additive-only change relative to v0.31.0. |
 | 0.31.0  | 2026-05-13 | **Sprint-8 Tag-4 Persistent Marker-Stack NATS-KV Backend.** New module `wirelang.federation.marker_stack_kv` providing per-org append-only NATS-KV persistence for the Sprint-8 Tag-3 marker-composition engine. Pattern-mirror on the Sprint-5 Tag-2 capability-policy backend, but with two deliberate deviations: (1) **append-only sequence-keyed event log** instead of single-key overwrites — each marker event is a distinct KV key `marker-events/<capability_token_id>/<sequence:012d>` (sequence is 1-indexed, monotonic per token-id, never re-used, never overwritten); (2) **per-organisation bucket isolation** — each org gets a dedicated bucket `wakir-marker-stack-{org_id}` (derived from a validated org_id matching the Sprint-7 peer_org permitted-character regex). Module surface: `NatsKvMarkerStackBackend(kv, org_id)` carries the bucket-bound async surface with four primary methods: `put_marker_stack(*, org_id, capability_token_id, marker_event, stack_context, appended_at=None, expected_next_sequence=None) -> MarkerStackVersion` appends one Sprint-8 Tag-3 event-dataclass instance under the next sequence (atomic on the KV `create` contract; two writers at the same sequence raise `MarkerStackConcurrencyConflictError` deterministically); `get_marker_stack(*, org_id, capability_token_id) -> Optional[MarkerStack]` reads all events for the token and re-constitutes the in-memory `MarkerStack` ready for the Sprint-8 Tag-3 `reduce_marker_stack` (the persistent verdict is byte-identical to the in-memory path, asserted by T-MSK-09 / T-MSK-12); `list_marker_stacks(*, org_id, prefix=None) -> List[str]` returns sorted distinct token-ids known to the org's bucket (with optional kebab-case ASCII prefix filter); `watch_marker_stack(*, org_id, capability_token_id) -> AsyncIterator[MarkerStackWatchEvent]` opens a live append-stream filtered to one token-id (foreign-token appends in the same bucket are silently dropped; cross-org watchers raise `MarkerStackCrossOrgBoundaryError`). `StackContext(minted_at, original_caveat_set)` is the frozen marker-stack identity persisted on every event and cross-checked across the sequence — a mismatch (e.g. second event under a different `minted_at`) raises `MarkerStackContextConflictError`. `MarkerStackVersion(capability_token_id, sequence, appended_at)` is the receipt returned by every put. `MarkerEventRecord(org_id, capability_token_id, sequence, event_kind, event, stack_context, appended_at)` is the decoded internal record carried in `MarkerStackWatchEvent(capability_token_id, record, revision)`. `MarkerEventKind` is the closed wire-string enumeration `{"revoke", "unrevoke", "re_issuance", "caveat_override", "bridge_revoked"}` (byte-equal mirror of the Sprint-8 Tag-3 dataclass families). Value envelope schema URI `wakir.wirelang.marker-stack-event/1` carries `(schema, org_id, capability_token_id, sequence, event_kind, event_payload, stack_context, appended_at)` with sorted-key compact-separator JSON encoding for byte-stable bytes. Bucket configuration: `history=1` (append-only, no overwrite-history needed because no key is ever re-written), `ttl_seconds=0`, `max_value_size=32_768` (32 KiB, enough for caveat-override payloads with large caveat sets), `storage="file"`, `replicas=1`. Cross-org-bridge contract: this module enforces hard per-org bucket isolation; cross-org reads MUST go through the explicit Sprint-7 `SpiffeCrossTrustDomainBridge` / `MultiOrgAttestationEnvelope` surfaces (out of scope for Tag-4). Convenience: `reduce_persistent_marker_stack(backend, *, org_id, capability_token_id) -> Optional[CompositionVerdict]` is a one-call shortcut that `get`s and `reduce`s. Error hierarchy: `MarkerStackBackendError` (base), `MarkerStackEnvelopeError` (envelope shape failure or org_id-bucket-cross-check failure), `MarkerStackArgumentError` (caller argument shape failure including naive datetimes on appended_at), `MarkerStackConcurrencyConflictError` (sequence conflict; carries `expected_sequence` / `observed_max_sequence`), `MarkerStackCrossOrgBoundaryError` (org_id mismatch; carries `backend_org_id` / `requested_org_id`), `MarkerStackContextConflictError` (stack_context byte-mismatch across events). Test surface: `wirelang/tests/test_federation_marker_stack_kv.py` adds 15 hermetic tests T-MSK-01..T-MSK-15 against an in-memory mock that mirrors the Sprint-5 Tag-2 `_MockKv` shape with an additional `create` contract for append-only semantics. Coverage: put-get round-trip, get-unknown returns None, append-only invariant (create-conflict), expected_next_sequence mismatch, cross-org boundary enforcement on all four methods, stack-context conflict, list with prefix filter, watch filter pre token-id (with `watchall` initial-replay contract), reducer-integration byte-identical verdict, poisoned envelope detection, per-org bucket isolation, convenience-fn parity, bucket-config drift-protection, key-derivation bijection (positive + negative cases), naive-datetime rejection. Total project-wide test count: 1227 (Sprint-8 Tag-3) → 1242 (Sprint-8 Tag-4 wirelang-side); voll-projekt 1881 → 1896, delta +15. The Sprint-8 Tag-4 path is **additive over Sprint-8 Tag-3**: marker-composition reducer (Sprint-8 Tag-3) byte-unchanged; Cross-Org-Attenuation-Chain-Verifier (Sprint-8 Tag-2) byte-unchanged; capability-policy backend / replicator / unrevoke surfaces byte-unchanged; Multi-Org-Attestation-Live-Tail-Replicator (Sprint-7 Tag-6) byte-unchanged; SPIFFE-Cross-Trust-Domain-Bridge (Sprint-7 Tag-3) byte-unchanged. M-2 conformance preserved (new envelope on a new bucket-name-family; no breaking change to any existing envelope). M-4 conformance preserved (orthogonal to version axis). Cross-Review-Zone-1 (Identity-Substrate) non-touched (no Identity-Substrate touch; the persistence layer consumes the existing event-dataclass surfaces from Sprint-8 Tag-3). Cross-Review-Zone-A (SPIFFE/SPIRE) non-touched. Cross-Review-Zone-M (TV-W manifest) non-touched. Cross-Review-Zone-O (Sprint-7 Cross-Org-Federation) non-touched (the persistent layer enforces the same cross-org boundary that Zone-O ratified at the federation axis; the four Zone-O consensus points remain byte-identical). Cross-Review-Zone-3 (OTS-Schema-Anker) reserved for Phase-2 marker-stack-event schema-registry entry (the JSON envelope shape is documented inline here but not yet OTS-anchored); not opened in Tag-4. Cross-Review-Zone-B (NATS-KV × Wirelang) **TRIGGERED**: the orchestrator-side bucket inventory currently lists the Phase-1/2 buckets; Sprint-8 Tag-4 introduces a new bucket-name family `wakir-marker-stack-{org_id}` requiring a paired-update on Kai-side bucket initialiser to support per-org template-bucket provisioning. Sprint-8 Tag-3 §5.15.6 boundary item "No persistent marker-stack bucket" CONSUMED with the §5.16 reference. Sprint-8 Tag-3+ candidates "Persistent Marker-Stack Bucket" CONSUMED. Remaining Sprint-8 Tag-3+ open items: cross-org-export-surface (Sprint-8 Tag-5+), operator-CLI (Sprint-8 Tag-5+), OTS-anchored schema-registry entry for marker events (Cross-Review-Zone-3 trigger). Additive-only change relative to v0.30.0. |
 | 0.30.0  | 2026-05-13 | **Sprint-8 Tag-3 Multi-Marker-Policy-Composition.** New module `wirelang.federation.marker_composition` providing a deterministic reducer over heterogeneous marker streams per capability-token lifecycle. Five event-marker dataclasses ratified: (1) `RevokeEvent` (event_at, revocation_reason, tie_break, wat_anchor_manifest_id) mirrors Sprint-6 Tag-1 capability-policy revocation on the composition axis. (2) `UnrevokeEvent` (event_at, previous_revoked_at, unrevoke_reason, tie_break, wat_anchor_manifest_id) mirrors Sprint-6 Tag-9 `UnrevokeAuditMarker` on the composition axis (preserves the causal-chain integrity invariant: `previous_revoked_at` MUST byte-equal the prior `RevokeEvent.event_at`). (3) `ReIssuanceEvent` (event_at, new_token_id, re_issuance_reason, tie_break, wat_anchor_manifest_id) introduces token-refresh lifecycle semantics: a re-issuance is only valid on a prior-revoked token and transitions the lifecycle to the terminal `RE_ISSUED` state with the new superseding token-id surfaced on the verdict. (4) `CaveatOverrideEvent` (event_at, original_caveat_set, narrowed_caveat_set, override_reason, tie_break, wat_anchor_manifest_id) surfaces verifier-observed issuer-side caveat-narrowing with mandatory causal-chain check: `original_caveat_set` MUST byte-equal `MarkerStack.original_caveat_set` or the reducer raises `MarkerCompositionConflictError`. The override transitions to terminal `CAVEAT_OVERRIDDEN`. (5) `BridgeRevokedEvent` wraps the Sprint-8 Tag-2 `BridgeRevocationMarker` on the composition axis with `tie_break` and `wat_anchor_manifest_id`; the event_at is the marker's `revoked_at` instant (sort axis). Bridge events do NOT alter the lifecycle state; they set an orthogonal `bridge_blocked` flag iff `marker.bridge_was_revoked_for_mint(stack.minted_at)` is true. `MarkerStack(token_id, minted_at, original_caveat_set, events)` is the frozen ordered carrier (event-order is observational, not authoritative; the reducer sorts on `(event_at, tie_break)` before applying rules). `reduce_marker_stack(stack: MarkerStack) -> CompositionVerdict` is pure (no I/O, no clock, no mutation), deterministic (byte-equal verdict across repeated calls), and exhaustive (every supported event family has an explicit reduction rule; unsupported state-event combinations raise `MarkerCompositionConflictError`). `CompositionState` is the closed lifecycle enumeration `{ACTIVE, REVOKED, RE_ISSUED, CAVEAT_OVERRIDDEN}`; `EffectiveVerdict` is the closed effective enumeration `{ACTIVE, REVOKED, RE_ISSUED, CAVEAT_OVERRIDDEN, BRIDGE_BLOCKED}` folding the bridge-blocking orthogonal axis (REVOKED supersedes BRIDGE_BLOCKED in the fold; BRIDGE_BLOCKED only surfaces if lifecycle would otherwise be ACTIVE). `CompositionVerdict` carries `(state, effective, bridge_blocked, revocation_reason, revoked_at, new_token_id, narrowed_caveat_set, audit_trace, wat_anchor_chain)`. The `audit_trace` is an ordered tuple of `AuditTraceEntry(event_at, tie_break, event_kind, outcome, wat_anchor_manifest_id)` records, one per consumed marker, deterministic across reductions. Error hierarchy: `MarkerCompositionError` (base, inherits from `FederationPredicateError`), `MarkerCompositionArgumentError` (syntactic-shape failures: wrong type, missing field, non-aware datetime), `MarkerCompositionConflictError` (semantic-chain failures: mismatched `previous_revoked_at`, re-issuance on active, caveat-override on terminal state or with broken original-caveat-chain, duplicate ordering key `(event_at, tie_break)`, unrevoke not strictly after prior revoke). Cross-review hooks: Zone 1 (Identity-Substrate) consumed via re-import of `BridgeRevocationMarker` from Sprint-8 Tag-2 module (single source of truth, no schema duplication); Zone 2 (WAT × Wirelang) preserved via per-event `wat_anchor_manifest_id` and aggregate `wat_anchor_chain` on the verdict for single-snapshot WAT-leaf audit emission across full lifecycle; Zone 3 (OTS-Schema-Anker) reserved for Phase-2 marker-composition schema-registry entry (four event-marker schemas + verdict envelope). Test surface: `wirelang/tests/test_federation_marker_composition.py` adds 20 deterministic tests T-MC-01..T-MC-12 (canonical reduction paths) + T-MC-edge-01..T-MC-edge-08 (edge cases) covering: empty stack → ACTIVE, single revoke → REVOKED, revoke+unrevoke → ACTIVE with audit, revoke+re-issuance → RE_ISSUED, bridge-before-mint → BRIDGE_BLOCKED, bridge-after-mint → ACTIVE, caveat-override → CAVEAT_OVERRIDDEN with narrowed set, complex lifecycle revoke+unrevoke+bridge → BRIDGE_BLOCKED (lifecycle ACTIVE), revoke+bridge (no unrevoke) → REVOKED supersedes, determinism (byte-equal verdict across calls), out-of-order arrivals collapse to same verdict (sort-stable), 4-marker full lifecycle revoke→unrevoke→revoke→re-issuance → RE_ISSUED; edges: unrevoke with mismatched previous_revoked_at → conflict, re-issuance on active → conflict, caveat-override with broken causal chain → conflict, duplicate ordering key → conflict (non-deterministic reduction guarded), naive datetime → argument error, caveat-override without MarkerStack.original_caveat_set → conflict, revoke after re-issuance (terminal state) → conflict, unrevoke at same event_at as revoke (not strictly after) → conflict. Total project-wide test count: 1207 (Sprint-8 Tag-2) → 1227 (Sprint-8 Tag-3), delta +20. The Sprint-8 Tag-3 path is **additive over Sprint-8 Tag-2**: Cross-Org-Attenuation-Chain-Verifier (Sprint-8 Tag-2) byte-unchanged; N3 chain walker / N2 evaluator byte-unchanged; capability-policy backend / replicator / unrevoke surfaces byte-unchanged; Multi-Org-Attestation-Live-Tail-Replicator (Sprint-7 Tag-6) byte-unchanged; SPIFFE-Cross-Trust-Domain-Bridge (Sprint-7 Tag-3) byte-unchanged. M-2 conformance preserved (no envelope-shape change). M-4 conformance preserved (orthogonal to version axis). Cross-Review-Zone-1 (Identity-Substrate) non-touched (composition consumes existing `BridgeRevocationMarker` surface). Cross-Review-Zone-B (NATS-KV × Wirelang) non-touched (the composition engine is a pure-reduction module; no NATS surface). Cross-Review-Zone-A (SPIFFE/SPIRE) non-touched. Cross-Review-Zone-M (TV-W manifest) non-touched. Cross-Review-Zone-O (Sprint-7 Cross-Org-Federation) non-touched (the composition engine is the lifecycle-axis layer over the Cross-Org substrate). Cross-Review-Zone-3 (OTS-Schema-Anker) reserved for Phase-2 marker-composition schema-registry entry; not opened in Tag-3. Phase-3 reservations preserved. Sprint-8 Tag-3+ candidates: Z3 OTS-anchored schema-registry entry for the five marker-event types and the `CompositionVerdict` envelope (Cross-Review-Zone-3 trigger); `CaveatOverrideEvent` cross-org-export-surface (mirror on Sprint-7 Tag-5 UnrevokeAuditMarker export); operator-CLI surface for marker-stack inspection (`reduce_marker_stack` wrapper that pretty-prints the audit-trace for forensic walks); persistent marker-stack bucket on NATS-KV with append-only semantics (operator-deliberate-only writes, pattern-mirror on capability-policy Sprint-5 Tag-2 backend). Additive-only change relative to v0.29.0. |
@@ -4437,6 +4472,270 @@ run against an in-memory mock that mirrors the Sprint-5 Tag-2
 append-only semantics. The mock's `watchall()` replays the
 bucket's current state to the watcher before the live tail
 (byte-equal to the nats-py `watchall()` contract).
+
+### 5.17 CaveatOverrideEvent Cross-Org-Export-Surface (Phase-2 Sprint-9 Tag-1)
+
+Sprint-9 Tag-1 ships the cross-org export surface for the
+Sprint-8 Tag-3 `CaveatOverrideEvent` so verifier-observed
+issuer-side caveat-narrowing events propagate across the
+Sprint-7 multi-org-federation substrate without leaking
+operator-supplied free-form text or the raw caveat-chains
+themselves. Pattern-mirror on Sprint-7 Tag-5
+`UnrevokeAuditMarker` cross-org export with substantive new
+load-bearing gates: replay-protection via monotonic sequence-
+numbers and a pluggable durable ledger, structural narrowing
+classifier, cross-org witness tuple, and a verifier-side
+symmetric replay-detection function `detect_replay`.
+
+#### 5.17.1 Module surface
+
+`wirelang.federation.caveat_override_export` exports:
+
+| Surface                                       | Kind        | Purpose                                                                    |
+|-----------------------------------------------|-------------|----------------------------------------------------------------------------|
+| `EXPORT_SCHEMA`                               | constant    | URI `wakir.federation.caveat-override-event-export/1`                      |
+| `CaveatOverrideReasonClass`                   | enum        | UNSPECIFIED / KEY_COMPROMISE_RESPONSE / POLICY_AMENDMENT / SCOPE_TIGHTENING / OTHER |
+| `CaveatOverrideReasonClassifier`              | Protocol    | Pluggable text -> class classifier                                         |
+| `DEFAULT_CLASSIFIER`                          | instance    | Fail-safe `None -> UNSPECIFIED`, else `OTHER`                              |
+| `CaveatNarrowingClass`                        | enum        | SUBSET_PROPER / SUBSET_EQUAL / SUPERSET / INTERSECT_PARTIAL / DISJOINT     |
+| `AuditTraceEntry`                             | dataclass   | Structural-only audit-trace projection                                     |
+| `CrossOrgWitness`                             | dataclass   | (route_id, peer_trust_domain, observed_at) witness entry                   |
+| `SequenceNumberLedger`                        | Protocol    | Durable per-(route_id, chain_hash) sequence ledger                         |
+| `InMemorySequenceNumberLedger`                | class       | In-memory `SequenceNumberLedger` (tests; single-process)                   |
+| `ExportedCaveatOverrideEvent`                 | dataclass   | The export envelope (frozen, equality-by-value)                            |
+| `CaveatOverrideEventCrossOrgExporter`         | class       | Stateless exporter (classifier + ledger + clock)                           |
+| `detect_replay`                               | function    | Symmetric verifier-side replay-detection                                   |
+| `CaveatOverrideExportError`                   | error base  | Inherits `MultiOrgSubstrateError`                                          |
+| `CaveatOverrideExportShapeError`              | error       | Malformed input                                                            |
+| `CaveatOverrideExportReplayError`             | error       | Sequence-monotonicity breach                                               |
+| `CaveatOverrideExportRawNarrativeLeakError`   | error       | Defence-in-depth raw-narrative-leak gate                                   |
+
+#### 5.17.2 Pseudonymisation pattern (ADR-0031 D4)
+
+The exporter applies the same pattern as Sprint-7 Tag-5
+(`UnrevokeAuditMarker` export) extended for the
+caveat-chain-axis:
+
+| Field (source)                  | Treatment                                         | Rationale                                |
+|---------------------------------|---------------------------------------------------|------------------------------------------|
+| `event_at`                      | raw (retained)                                    | Timing-only, no identity                 |
+| `override_reason` (raw)         | **stripped**                                      | Free-form operator narrative             |
+| `override_reason` (categorised) | `CaveatOverrideReasonClass` retained              | Categorical, finite-set                  |
+| `override_reason_hash`          | BLAKE2b-256-hex, route-scoped, optional           | Equality-comparable, not reversible      |
+| `original_caveat_set` (raw)     | **stripped**                                      | Caveat-chain content may carry prose     |
+| `narrowed_caveat_set` (raw)     | **stripped**                                      | Caveat-chain content may carry prose     |
+| `original_caveat_chain_hash`    | BLAKE2b-256-hex, route-scoped                     | Equality-comparable, not reversible      |
+| `narrowed_caveat_chain_hash`    | BLAKE2b-256-hex, route-scoped                     | Equality-comparable, not reversible      |
+| `caveat_narrowing_class`        | computed `CaveatNarrowingClass`                   | Structural projection, no reveal         |
+| `route_id`                      | raw (retained)                                    | Already a federation surface             |
+| `sequence_number`               | computed (retained)                               | Replay-protection                        |
+| `override_event_id`             | computed (retained)                               | Stable audit-leaf identifier             |
+| `audit_trace`                   | structural projection                             | No `outcome_reason` free-form            |
+| `cross_org_witnesses`           | canonical-sorted tuple                            | Byte-deterministic across orderings      |
+| `exported_at`                   | raw (retained, NOT in `override_event_id` payload) | Timing-only, no identity                 |
+
+Route-scoping prevents cross-route equality-correlation: the
+same caveat-chain under two different routes produces two
+different chain-hashes so a peer cannot accumulate a cross-route
+chain-fingerprint database. Hash personalisation
+(`_CHAIN_HASH_PERSONALISATION` and `_REASON_HASH_PERSONALISATION`)
+provides domain separation between chain-hashing and
+reason-hashing.
+
+#### 5.17.3 Replay-protection contract
+
+Each exported envelope carries a positive integer
+`sequence_number` per (route_id, original_caveat_chain_hash)
+tuple. Monotonicity contract:
+
+- The first export for any (route_id, chain_hash) pair is
+  `sequence_number = 1`. Sentinel `0` is reserved for "no prior
+  export".
+- Any subsequent export for the same pair MUST carry a
+  `sequence_number > last_seen`. Equal-or-less raises
+  `CaveatOverrideExportReplayError` with full diagnostic
+  attributes (`route_id`, `chain_hash`, `last_seen_sequence`,
+  `attempted_sequence`).
+- Gaps are allowed (e.g. `1 -> 5`); only equal-or-less is
+  forbidden. Operators MAY skip sequence-numbers for
+  out-of-band-emitted exports.
+- The sequence-namespace is per-(route_id, chain_hash). A
+  chain of narrowings (override-1 produces narrowed-1;
+  override-2 takes narrowed-1 as its original and produces
+  narrowed-2; etc.) traverses distinct namespaces; each export
+  in the chain starts at `sequence_number = 1` in its own
+  namespace.
+
+Bridge-cycle defence: a verifier in Org-B consuming an export
+from Org-A SHOULD call `detect_replay(exported=..., ledger=...)`
+against its own `SequenceNumberLedger`. The function records
+the exported event into the verifier-side ledger and raises
+`CaveatOverrideExportReplayError` iff the sequence is not
+strictly greater than the verifier's last seen. This blocks a
+hostile bridge that cycles an exported event back through
+Org-B's verifier at the same sequence_number.
+
+The `SequenceNumberLedger` Protocol abstracts the durable
+ledger. Sprint-9 Tag-1 ships only `InMemorySequenceNumberLedger`
+(hermetic-test-grade and single-process-exporter-grade); a
+durable NATS-KV-backed implementation lives in Sprint-9 Tag-N+
+(Cross-Review-Zone-B trigger).
+
+#### 5.17.4 Override event identity (`override_event_id`)
+
+BLAKE2b-256 digest (32 bytes) over a JCS-canonical envelope
+payload mixing:
+
+- `schema` (domain-separator).
+- `route_id` (export-route scope).
+- `sequence_number` (so replay-suppressed re-emission produces
+  a distinct id).
+- `event_at` (source event timing, ISO-8601 UTC).
+- `original_caveat_chain_hash`.
+- `narrowed_caveat_chain_hash`.
+- `caveat_narrowing_class`.
+- `override_reason_class`.
+- `override_reason_hash` (or null).
+- `audit_trace` (structural projection as list-of-objects).
+- `cross_org_witnesses` (canonical-sorted as list-of-objects).
+
+Notably the payload does NOT include `exported_at` so
+re-exporting the same source event at a different wall-clock at
+the same `sequence_number` produces a byte-equal
+`override_event_id`. This makes the `override_event_id` a stable
+audit-leaf identifier across re-exports.
+
+#### 5.17.5 Structural narrowing classifier
+
+`CaveatNarrowingClass` is computed from the frozenset comparison
+over the (predicate, args) pairs of the pre/post caveat-sets:
+
+| narrowed vs original                | class                | semantics                                     |
+|-------------------------------------|----------------------|-----------------------------------------------|
+| `narrowed == original`              | `SUBSET_EQUAL`       | Reason-only override (no chain change)        |
+| `narrowed < original` (proper)      | `SUBSET_PROPER`      | Canonical narrowing                           |
+| `narrowed > original` (proper)      | `SUPERSET`           | Structurally ill-formed (expansion)           |
+| Non-empty intersection, neither subset | `INTERSECT_PARTIAL` | Structurally suspicious (mixed)               |
+| Empty intersection                  | `DISJOINT`           | Structurally ill-formed (replacement)         |
+
+Operators MAY still export structurally-ill-formed events for
+forensic visibility; the categorical surface lets a peer-verifier
+filter or alert on them.
+
+#### 5.17.6 Cross-org-witnesses
+
+Each export MAY carry a tuple of `CrossOrgWitness` entries. A
+witness asserts that the override was independently observed
+under the given route-attestation by another peer in the
+federation. The exporter canonical-sorts witnesses by
+`(route_id, peer_trust_domain, observed_at-iso)` before
+canonicalisation so witness-insertion-order is irrelevant to the
+resulting `override_event_id`.
+
+Witnesses are part of the canonical payload — a verifier in
+Org-B can verify both that (a) the exporting Org-A signed the
+export under route_id `R`, and (b) the override was
+independently witnessed under the additional witness routes.
+
+#### 5.17.7 Audit-trace projection
+
+`AuditTraceEntry(event_at, event_kind, outcome,
+wat_anchor_manifest_id)` mirrors the composition-reducer's
+internal `AuditTraceEntry` but **without** the free-form
+`outcome_reason`. The exporter projects only structural fields.
+
+`event_kind` is one of the closed-string enumeration
+`{"revoke", "unrevoke", "re_issuance", "caveat_override",
+"bridge_revoked"}` (byte-equal mirror of the marker-composition
+event families). `outcome` is one of `{"applied", "skipped",
+"terminal"}`.
+
+The audit-trace is byte-included in the canonical payload so
+re-exports with different traces produce different
+`override_event_id` values (a forensically-helpful invariant:
+the trace is part of the export's identity).
+
+#### 5.17.8 Error hierarchy
+
+All errors parent on `MultiOrgSubstrateError` so existing
+catch-base callers absorb every exporter surface uniformly:
+
+```
+MultiOrgSubstrateError
+  └─ CaveatOverrideExportError (base)
+       ├─ CaveatOverrideExportShapeError
+       ├─ CaveatOverrideExportReplayError (attrs: route_id, chain_hash, last_seen_sequence, attempted_sequence)
+       └─ CaveatOverrideExportRawNarrativeLeakError (attrs: field_name, type_name)
+```
+
+The exporter is fail-closed on every shape gate: a malformed
+event yields no partial export.
+
+The defence-in-depth raw-narrative-leak gate in
+`ExportedCaveatOverrideEvent.__post_init__` raises on any subclass
+that declares `override_reason`, `original_caveat_set`, or
+`narrowed_caveat_set` as additional fields — the exporter never
+emits raw narrative; this protects against constructor-bypass
+call paths.
+
+#### 5.17.9 Cross-review hooks
+
+- **Zone 1 (Identity-Substrate)**: non-touched. The
+  `CaveatOverrideEvent` itself is a lifecycle-axis artefact;
+  the export surface adds no Identity-Substrate touch.
+- **Zone 2 (WAT × Wirelang)**: the
+  `wat_anchor_manifest_id` is carried verbatim on each
+  `AuditTraceEntry` in the projection so the
+  WAT-Audit-Federation-Annex can anchor the exported event
+  into a peer-org WAT merkle leaf with a stable label. The
+  `override_event_id` itself is the load-bearing leaf-anchor
+  field (BLAKE2b-256, 32 bytes, JCS-canonical, route-scoped).
+- **Zone 3 (OTS-Schema-Anker)**: reserved for Phase-2
+  `wakir.federation.caveat-override-event-export/1` schema-
+  registry entry. The JSON envelope shape is documented inline
+  here but not yet OTS-anchored.
+- **Zone A (SPIFFE/SPIRE)**: non-touched.
+- **Zone B (NATS-KV × Wirelang)**: reserved for the durable
+  NATS-KV-backed `SequenceNumberLedger` (Sprint-9 Tag-N+
+  trigger). Suggested bucket name family
+  `wakir-caveat-override-export-sequence-{org_id}`.
+- **Zone M (TV-W manifest)**: non-touched.
+- **Zone O (Sprint-7 Cross-Org-Federation)**: **consumed** for
+  `MultiOrgRouteAttestation` as the route carrier and for the
+  `peer_org`-caveat semantics on witnesses; the four Zone-O
+  consensus points remain byte-identical.
+
+#### 5.17.10 What Sprint-9 Tag-1 explicitly does NOT do
+
+- **No durable ledger.** `InMemorySequenceNumberLedger` is
+  hermetic-test-grade and single-process-exporter-grade;
+  restart-on-crash loses the ledger state. The durable
+  NATS-KV-backed implementation is Sprint-9 Tag-N+ slot.
+- **No OTS-anchored schema-registry entry** for the
+  `wakir.federation.caveat-override-event-export/1` envelope.
+  The JSON shape is documented inline in §5.17.4; the
+  schema-registry-entry slot is Cross-Review-Zone-3 reserved.
+- **No mutation of the Sprint-8 Tag-3 `CaveatOverrideEvent`
+  source dataclass.** The composition-reducer reads the
+  source unchanged; the export surface is a strict
+  consumer-projector over it.
+- **No mutation of the Sprint-7 Tag-5 `UnrevokeAuditMarker`
+  cross-org export.** The two exporters are sibling modules
+  with shared pattern (ADR-0031 D4) but independent envelopes.
+- **No live NATS interaction.** Live NATS connections are
+  operator-hand (per the Org's sandbox-vs-host separation
+  policy). All Sprint-9 Tag-1 tests are hermetic.
+- **No replay-protection on the multi-org-attestation
+  live-tail replicator** (Sprint-7 Tag-6). The replicator
+  currently has no per-payload replay-protection; a
+  `detect_replay`-callsite-mirror in the replicator is a
+  Sprint-9 Tag-N+ candidate.
+
+#### 5.17.11 Sandbox boundary
+
+Live NATS connections are operator-hand. All Sprint-9 Tag-1
+tests are hermetic and use the in-memory ledger; no FS
+interaction; no network interaction.
 
 ## 6. Test inventory
 

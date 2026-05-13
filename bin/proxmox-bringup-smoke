@@ -1,0 +1,329 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-9 Tag-1 — Operator-Hand Self-Verify nach Proxmox-VM
+# Bring-up. Companion zu PROXMOX_BRING_UP_RECIPE.md §6.
+#
+# Was es prueft:
+#   1. quadlet-units-active           — alle vier Pilot-Units aktiv
+#                                       (wakir-nats, wakir-spire-server-
+#                                       federation-wakir, wakir-spire-
+#                                       agent-wakir, wakir-nats-kv-
+#                                       bucket-init letzteres oneshot:
+#                                       "inactive (dead)" akzeptiert).
+#   2. nats-jetstream-reachable       — http://127.0.0.1:8222/jsz ok.
+#   3. spire-server-healthy           — spire-server healthcheck ok.
+#   4. spire-agent-healthy            — spire-agent healthcheck ok.
+#   5. spire-workload-api-reachable   — Workload-API-Socket existiert.
+#   6. marker-stack-bucket-present    — per-org Marker-Stack-Bucket
+#                                       (--org acme) ist in der KV-Liste.
+#
+# Sandbox-Grenze: dieses Skript SOLL auf der Pilot-VM laufen, nicht
+# in der Sandbox. Hermetische Tests fuer die Check-Logik selbst leben
+# unter tests/orchestrator/test_proxmox_bringup_smoke.py mit
+# Mock-Patterns fuer alle externen Aufrufe.
+#
+# Exit-Codes:
+#   0  alle Checks PASS
+#   1  Argument-Fehler / Pre-Flight-Fehler
+#   2  mindestens ein Check FAIL
+#
+# Aufruf:
+#   sudo /opt/wakir-runtime/bin/proxmox-bringup-smoke --org acme
+#   sudo /opt/wakir-runtime/bin/proxmox-bringup-smoke --org acme --json
+#
+# Test-Hooks (fuer hermetic-mode):
+#   WAKIR_SMOKE_SYSTEMCTL  Pfad zu einem alternativen systemctl-Wrapper
+#   WAKIR_SMOKE_PODMAN     Pfad zu einem alternativen podman-Wrapper
+#   WAKIR_SMOKE_CURL       Pfad zu einem alternativen curl-Wrapper
+#   WAKIR_SMOKE_NATS       Pfad zu einem alternativen nats-CLI-Wrapper
+# Default ist jeweils das System-Binary.
+
+set -u
+
+PROG=$(basename "$0")
+
+# ---------------------------------------------------------------------------
+# Argumente
+# ---------------------------------------------------------------------------
+
+ORG=""
+EMIT_JSON=0
+
+usage() {
+  cat <<'EOF'
+Usage: proxmox-bringup-smoke --org <ORG_ID> [--json]
+
+Phase-2 Sprint-9 Tag-1 Operator-Hand Self-Verify nach Proxmox-Bring-up.
+
+Required:
+  --org <ORG_ID>   pilot-org id (e.g. acme) — bucket=wakir-marker-stack-<ORG>
+
+Optional:
+  --json           emit a JSON report on stdout in addition to the human log
+  -h, --help       show this help and exit
+
+Exit codes:
+  0  all checks PASS
+  1  argument / pre-flight error
+  2  at least one check FAIL
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --org)
+      ORG="${2:-}"
+      shift 2
+      ;;
+    --json)
+      EMIT_JSON=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "[$PROG] ERROR: unknown argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -z "$ORG" ]]; then
+  echo "[$PROG] ERROR: --org is required" >&2
+  usage >&2
+  exit 1
+fi
+
+# Validate org_id (mirror of the Wirelang-side _IDENT_RE):
+if ! [[ "$ORG" =~ ^[A-Za-z0-9][A-Za-z0-9_.:\-]*$ ]]; then
+  echo "[$PROG] ERROR: --org $ORG does not match permitted-character pattern" >&2
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Tool-Wrapper (test-hook freundlich)
+# ---------------------------------------------------------------------------
+
+SYSTEMCTL="${WAKIR_SMOKE_SYSTEMCTL:-systemctl}"
+PODMAN="${WAKIR_SMOKE_PODMAN:-podman}"
+CURL="${WAKIR_SMOKE_CURL:-curl}"
+NATS="${WAKIR_SMOKE_NATS:-}"  # optional; via podman-run wenn leer
+
+# ---------------------------------------------------------------------------
+# Check-Framework
+# ---------------------------------------------------------------------------
+
+declare -a RESULTS_NAME=()
+declare -a RESULTS_STATUS=()
+declare -a RESULTS_DETAIL=()
+
+record() {
+  RESULTS_NAME+=("$1")
+  RESULTS_STATUS+=("$2")
+  RESULTS_DETAIL+=("$3")
+  printf '[bringup-smoke] %-32s %s' "$1" "$2"
+  if [[ -n "$3" ]]; then
+    printf '  (%s)' "$3"
+  fi
+  printf '\n'
+}
+
+# ---------------------------------------------------------------------------
+# Check 1: quadlet-units-active
+# ---------------------------------------------------------------------------
+
+check_quadlet_units_active() {
+  local units=(
+    wakir-nats.service
+    wakir-spire-server-federation-wakir.service
+    wakir-spire-agent-wakir.service
+  )
+  local missing=()
+  local unit
+  for unit in "${units[@]}"; do
+    local state
+    state=$("$SYSTEMCTL" is-active "$unit" 2>/dev/null || true)
+    if [[ "$state" != "active" ]]; then
+      missing+=("$unit:$state")
+    fi
+  done
+  # One-shot unit acceptable in inactive state after successful run.
+  local oneshot="wakir-nats-kv-bucket-init.service"
+  local oneshot_state
+  oneshot_state=$("$SYSTEMCTL" is-failed "$oneshot" 2>/dev/null || true)
+  if [[ "$oneshot_state" == "failed" ]]; then
+    missing+=("$oneshot:failed")
+  fi
+  if [[ ${#missing[@]} -eq 0 ]]; then
+    record "quadlet-units-active" "PASS" "all 3 long-running + 1 oneshot units ok"
+  else
+    record "quadlet-units-active" "FAIL" "${missing[*]}"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Check 2: nats-jetstream-reachable
+# ---------------------------------------------------------------------------
+
+check_nats_jetstream_reachable() {
+  local body
+  body=$("$CURL" -s --max-time 5 http://127.0.0.1:8222/jsz 2>/dev/null || true)
+  if [[ -z "$body" ]]; then
+    record "nats-jetstream-reachable" "FAIL" "no response from /jsz"
+    return
+  fi
+  if ! echo "$body" | grep -q '"streams"'; then
+    record "nats-jetstream-reachable" "FAIL" "no streams field in response"
+    return
+  fi
+  record "nats-jetstream-reachable" "PASS" "/jsz responded with streams field"
+}
+
+# ---------------------------------------------------------------------------
+# Check 3: spire-server-healthy
+# ---------------------------------------------------------------------------
+
+check_spire_server_healthy() {
+  local out
+  if out=$("$PODMAN" exec wakir-spire-server-federation-wakir \
+        /opt/spire/bin/spire-server healthcheck 2>&1); then
+    record "spire-server-healthy" "PASS" "$(echo "$out" | head -1)"
+  else
+    record "spire-server-healthy" "FAIL" "$(echo "$out" | head -1)"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Check 4: spire-agent-healthy
+# ---------------------------------------------------------------------------
+
+check_spire_agent_healthy() {
+  local out
+  if out=$("$PODMAN" exec wakir-spire-agent-wakir \
+        /opt/spire/bin/spire-agent healthcheck 2>&1); then
+    record "spire-agent-healthy" "PASS" "$(echo "$out" | head -1)"
+  else
+    record "spire-agent-healthy" "FAIL" "$(echo "$out" | head -1)"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Check 5: spire-workload-api-reachable
+# ---------------------------------------------------------------------------
+
+check_spire_workload_api_reachable() {
+  # The agent-sockets named volume mounts the Workload-API socket
+  # inside the container at /run/spire/agent-sockets/api.sock. We
+  # exec into the agent container and ask the SPIRE binary to dial it.
+  local out
+  if out=$("$PODMAN" exec wakir-spire-agent-wakir \
+        /opt/spire/bin/spire-agent api fetch x509 \
+          -socketPath /run/spire/agent-sockets/api.sock 2>&1); then
+    record "spire-workload-api-reachable" "PASS" \
+      "fetch x509 succeeded"
+  else
+    # "no identity issued" is acceptable for the bring-up smoke if
+    # no test workload entry has been registered yet (recipe §4.5).
+    if echo "$out" | grep -q "no identity issued"; then
+      record "spire-workload-api-reachable" "PASS" \
+        "socket reachable; no entry registered (acceptable pre-§4.5)"
+    else
+      record "spire-workload-api-reachable" "FAIL" \
+        "$(echo "$out" | head -1)"
+    fi
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Check 6: marker-stack-bucket-present
+# ---------------------------------------------------------------------------
+
+check_marker_stack_bucket_present() {
+  local bucket="wakir-marker-stack-${ORG}"
+  local out
+
+  if [[ -n "$NATS" ]]; then
+    # Direct nats-CLI on the host (test-hook).
+    if out=$("$NATS" kv ls --server nats://127.0.0.1:4222 2>&1); then
+      if echo "$out" | grep -qx "$bucket"; then
+        record "marker-stack-bucket-present" "PASS" "$bucket"
+      else
+        record "marker-stack-bucket-present" "FAIL" \
+          "$bucket not in nats kv ls output"
+      fi
+      return
+    fi
+    record "marker-stack-bucket-present" "FAIL" \
+      "nats-cli failure: $(echo "$out" | head -1)"
+    return
+  fi
+
+  # Default path: spawn a nats-box container on the orchestrator
+  # network and ask it.
+  if out=$("$PODMAN" run --rm --network wakir-orchestrator \
+        docker.io/natsio/nats-box:latest \
+        nats kv ls --server nats://wakir-nats:4222 2>&1); then
+    if echo "$out" | grep -qx "$bucket"; then
+      record "marker-stack-bucket-present" "PASS" "$bucket"
+    else
+      record "marker-stack-bucket-present" "FAIL" \
+        "$bucket not in nats kv ls output"
+    fi
+  else
+    record "marker-stack-bucket-present" "FAIL" \
+      "podman-run failure: $(echo "$out" | head -1)"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Run the suite
+# ---------------------------------------------------------------------------
+
+check_quadlet_units_active
+check_nats_jetstream_reachable
+check_spire_server_healthy
+check_spire_agent_healthy
+check_spire_workload_api_reachable
+check_marker_stack_bucket_present
+
+# ---------------------------------------------------------------------------
+# Summary + Exit
+# ---------------------------------------------------------------------------
+
+PASS=0
+FAIL=0
+for s in "${RESULTS_STATUS[@]}"; do
+  case "$s" in
+    PASS) PASS=$((PASS + 1)) ;;
+    FAIL) FAIL=$((FAIL + 1)) ;;
+  esac
+done
+TOTAL=$((PASS + FAIL))
+
+printf '[bringup-smoke] SUMMARY: %d/%d checks PASS\n' "$PASS" "$TOTAL"
+
+if [[ "$EMIT_JSON" -eq 1 ]]; then
+  # Compose a JSON report (no jq dependency; deterministic shape).
+  printf '{"summary":{"pass":%d,"fail":%d,"total":%d},"results":[' \
+    "$PASS" "$FAIL" "$TOTAL"
+  for i in "${!RESULTS_NAME[@]}"; do
+    if [[ "$i" -gt 0 ]]; then printf ','; fi
+    # JSON-escape the detail string minimally (no embedded quote).
+    safe_detail=${RESULTS_DETAIL[$i]//\"/\\\"}
+    printf '{"name":"%s","status":"%s","detail":"%s"}' \
+      "${RESULTS_NAME[$i]}" \
+      "${RESULTS_STATUS[$i]}" \
+      "$safe_detail"
+  done
+  printf ']}\n'
+fi
+
+if [[ "$FAIL" -gt 0 ]]; then
+  exit 2
+fi
+exit 0
