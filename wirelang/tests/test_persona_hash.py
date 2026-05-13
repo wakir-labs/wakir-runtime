@@ -34,9 +34,10 @@ import hashlib
 import json
 from pathlib import Path
 
-import jsonschema
 import pytest
-import rfc8785
+
+jsonschema = pytest.importorskip("jsonschema")
+rfc8785 = pytest.importorskip("rfc8785")
 
 from wirelang.persona import (
     PERSONA_EMPTY_REF_SENTINEL,
