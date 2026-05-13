@@ -17,11 +17,17 @@ all occurrences of the placeholder token across the listed files.
 |---|---|---|---|
 | `ghcr.io/spiffe/spire-server` | `1.14.6` | `sha256:DIGEST_PENDING_TOMAS_REVIEW` | `compose/spire-federation.yaml` (×2), `quadlet/wakir-spire-server-federation.container` |
 | `ghcr.io/spiffe/spire-agent` | `1.14.6` | `sha256:DIGEST_PENDING_TOMAS_REVIEW` | `compose/spire-agent-federation.yaml` (×2), `quadlet/wakir-spire-agent-federation.container` |
+| `docker.io/library/python` | `3.13-slim` | `sha256:DIGEST_PENDING_TOMAS_REVIEW` | `quadlet/wakir-nats-kv-bucket-init.container` |
 
-Both images MUST stay version-parity: SPIRE upstream releases the
-server and agent as a paired binary set, and version-skew between the
-two has been observed to break federation-bundle handshake in prior
-upstream releases.
+SPIRE-Server and SPIRE-Agent MUST stay version-parity: SPIRE upstream
+releases the server and agent as a paired binary set, and version-skew
+between the two has been observed to break federation-bundle handshake
+in prior upstream releases.
+
+The `python:3.13-slim` image is the runtime base for the per-org
+NATS-KV bucket provisioner (Sprint-9 Tag-1, ADR-0048). It carries its
+own resolve path (DockerHub OCI registry, not GHCR Sigstore) — see
+§2.4 below.
 
 ## 2. Operator-Hand resolution recipe
 
@@ -121,6 +127,50 @@ REVIEW` OR a 64-hex sha256 digest. A half-resolved state (server
 pinned, agent placeholder) is flagged by the test as a Phase-2 image-
 pin invariant breach.
 
+### 2.4 python:3.13-slim — DockerHub OCI resolution
+
+Added in Phase-2 Sprint-9 Tag-3 alongside the per-org NATS-KV bucket
+provisioner Quadlet (ADR-0048). The `python:3.13-slim` image is
+published on DockerHub, not on the Sigstore-backed GHCR path used by
+SPIRE. The resolution path is a plain manifest-digest lookup
+(`cosign verify` against a Sigstore identity is NOT available, because
+Docker Official Images are not Sigstore-signed as of 2026-05-13 —
+DockerHub publishes a content-trust signature via Notary v1, which
+is end-of-life upstream, so we do not rely on it). The Operator-Hand
+recipe is a two-resolver cross-check:
+
+```sh
+# Step 1: resolve the digest via skopeo (manifest-list aware).
+PYTHON_DIGEST=$(skopeo inspect docker://python:3.13-slim | jq -r '.Digest')
+echo "${PYTHON_DIGEST}"   # sha256:<64-hex>
+
+# Step 2 (defence-in-depth): cross-check with `crane digest`.
+crane digest python:3.13-slim
+# must equal ${PYTHON_DIGEST}.
+
+# Step 3: substitute the placeholder in the referencing quadlet file.
+sed -i "s|python:3.13-slim@sha256:DIGEST_PENDING_TOMAS_REVIEW|python:3.13-slim@${PYTHON_DIGEST}|g" \
+    quadlet/wakir-nats-kv-bucket-init.container
+
+# Step 4: re-run the hermetic test surface (python-pin tests).
+pytest tests/infra/test_python_image_pin_form.py
+```
+
+Cross-arch note: `python:3.13-slim` is a manifest-list (multi-arch).
+The `skopeo inspect` call above returns the digest of the
+**manifest-list**, which is the right pin form for a host-pull that
+delegates arch-selection to Podman. Operators who want to pin to a
+single arch can use `skopeo inspect --raw docker://python:3.13-slim`
+and select the per-arch manifest by hand — but pilot deployments stay
+on the manifest-list digest for portability across the Phase-1b
+Proxmox-x86_64 + future-ARM mixed inventory.
+
+Drift-alarm: an unannounced re-push of a Docker Official Image is
+a community-relevant supply-chain event; if `skopeo inspect` returns
+a digest that does NOT match a previously-pinned value, halt the
+rollout and Zone-C cross-review the upstream announcement (Docker
+Library GitHub release notes + Python release notes).
+
 ## 3. CI integration (optional, Phase-2 Sprint-8 Tag-4 follow-up)
 
 A CI job can run `cosign verify` as a pre-build gate. Sketch:
@@ -168,9 +218,25 @@ Activation is **gated on Tomás Zone-C cross-review** for two reasons:
 ## 4. Sandbox boundary
 
 This sandbox (claude-dev) MUST NOT call `cosign`, `skopeo`, or `crane`
-against `ghcr.io` per `feedback_sandbox_host_trennung.md`. The
-hermetic test surface validates the placeholder/digest SYNTAX only —
-the live verification is Operator-Hand on a host that has GHCR
-network access and the `cosign` CLI installed.
+against `ghcr.io` or `docker.io` per
+`feedback_sandbox_host_trennung.md`. The hermetic test surface
+validates the placeholder/digest SYNTAX only — the live verification
+is Operator-Hand on a host that has registry network access and the
+`cosign` / `skopeo` / `crane` CLIs installed.
 
 — Kai
+
+## 5. Sprint-9 Tag-3 follow-up (Tomás)
+
+- Added `python:3.13-slim` to the inventory (§1, §2.4) so the
+  Sprint-9 Tag-1 per-org NATS-KV bucket-init Quadlet stays in scope
+  for the Zone-C cross-review.
+- Promoted the §3 CI sketch into a real workflow file at
+  `.github/workflows/cosign-verify-images.yml`, gated on
+  `workflow_dispatch` so it remains Operator-Hand-only until the
+  Zone-C GHCR-network-egress policy is approved.
+- Added a hermetic test for the python pin form at
+  `tests/infra/test_python_image_pin_form.py` mirroring the
+  SPIRE-pin hermetic invariants.
+
+— Tomás
