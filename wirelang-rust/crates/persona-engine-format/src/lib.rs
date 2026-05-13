@@ -587,3 +587,232 @@ pub fn jcs_canonicalise_wakir_persona_v1(
 ) -> Result<Vec<u8>, PersonaEngineFormatError> {
     serde_jcs::to_vec(doc).map_err(|e| PersonaEngineFormatError::CanonicaliseError(e.to_string()))
 }
+
+// ---------------------------------------------------------------------
+// Sprint-Pengine-7 Tag-3 — Lifecycle Protocols (§3.7 of spec v1.2)
+// ---------------------------------------------------------------------
+//
+// Pure-data surface for the three operational protocols layered over
+// the §3.3 `spawn_lifecycle` state machine:
+//
+// - §3.7.1 `despawn_clean` — four phase-sequential operations P1..P4.
+// - §3.7.2 `recovery_drill` — three failure classes + four acceptance
+//   criteria.
+// - §3.7.3 `migrate_version` — trigger conditions + backward-compat.
+//
+// The JSON envelope (§3.3 / §3.4 / §3.5 / §3.6) is BYTE-UNCHANGED
+// from v1.1. Tag-3 only adds spec-level operator protocols; the
+// `map_claude_native_to_wakir_v1` output remains byte-identical.
+
+/// Sprint-Pengine-7 Tag-3 lifecycle-protocols surface (§3.7).
+pub mod lifecycle_protocols {
+    /// The four canonical phases of a clean despawn, in execution order
+    /// (§3.7.1.1). Re-ordering is a protocol violation — the audit-trail
+    /// invariant in §3.7.1 holds **only** under this fixed phase order.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum DespawnCleanPhase {
+        /// P1 — drain `wakir-persona-state-{persona_id}` NATS-KV bucket.
+        P1DrainNatsKv,
+        /// P2 — revoke all outstanding capability tokens for this persona.
+        P2RevokeCapabilityTokens,
+        /// P3 — run marker-stack final compose; emit WAT-frame.
+        P3FinalMarkerCompose,
+        /// P4 — stop the Quadlet persona container.
+        P4ContainerStop,
+    }
+
+    /// Canonical phase order (§3.7.1.1).
+    pub const DESPAWN_CLEAN_PHASE_ORDER: &[DespawnCleanPhase] = &[
+        DespawnCleanPhase::P1DrainNatsKv,
+        DespawnCleanPhase::P2RevokeCapabilityTokens,
+        DespawnCleanPhase::P3FinalMarkerCompose,
+        DespawnCleanPhase::P4ContainerStop,
+    ];
+
+    /// Terminal status string per phase (§3.7.1.1 "Terminal status"
+    /// column). A phase that does not reach this status surfaces a
+    /// `DespawnDirtyError{phase, reason}`.
+    pub const fn despawn_phase_terminal_status(phase: DespawnCleanPhase) -> &'static str {
+        match phase {
+            DespawnCleanPhase::P1DrainNatsKv => "drained",
+            DespawnCleanPhase::P2RevokeCapabilityTokens => "revoked",
+            DespawnCleanPhase::P3FinalMarkerCompose => "composed",
+            DespawnCleanPhase::P4ContainerStop => "stopped",
+        }
+    }
+
+    /// Cross-review zone for the phase (§3.7.1.1 "Cross-review zone"
+    /// column). Used by the engine-side audit-trail emitter so each
+    /// phase's audit annotation carries the canonical zone identifier.
+    pub const fn despawn_phase_cross_review_zone(phase: DespawnCleanPhase) -> &'static str {
+        match phase {
+            DespawnCleanPhase::P1DrainNatsKv => "B",
+            DespawnCleanPhase::P2RevokeCapabilityTokens => "L",
+            DespawnCleanPhase::P3FinalMarkerCompose => "K",
+            DespawnCleanPhase::P4ContainerStop => "J",
+        }
+    }
+
+    /// The three recovery-drill classes (§3.7.2.1).
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum RecoveryDrillClass {
+        /// Container `SIGKILL` mid-run; replay from marker-stack-kv.
+        ContainerCrash,
+        /// Per-persona bucket deleted; restore from WAT-anchored snapshot.
+        NatsBucketLost,
+        /// SPIFFE workload-API returns expired SVID; re-attestation flow.
+        SpireSvidExpired,
+    }
+
+    /// Closed enumeration of all three drill classes (§3.7.2.1).
+    pub const ALL_RECOVERY_DRILL_CLASSES: &[RecoveryDrillClass] = &[
+        RecoveryDrillClass::ContainerCrash,
+        RecoveryDrillClass::NatsBucketLost,
+        RecoveryDrillClass::SpireSvidExpired,
+    ];
+
+    /// Drill cadence in days (§3.7.2.1 "Frequency" column).
+    /// `ContainerCrash` is weekly (7d); `NatsBucketLost` and
+    /// `SpireSvidExpired` are monthly (30d). The cadence is a contract
+    /// surface for the operator-side scheduler (OI-PEF-9 Quadlet
+    /// `OnCalendar=` template, out of Tag-3 scope).
+    pub const fn recovery_drill_cadence_days(class: RecoveryDrillClass) -> u32 {
+        match class {
+            RecoveryDrillClass::ContainerCrash => 7,
+            RecoveryDrillClass::NatsBucketLost => 30,
+            RecoveryDrillClass::SpireSvidExpired => 30,
+        }
+    }
+
+    /// Substrate-layer label per drill class (§3.7.2.1 stratification).
+    pub const fn recovery_drill_substrate_layer(class: RecoveryDrillClass) -> &'static str {
+        match class {
+            RecoveryDrillClass::ContainerCrash => "engine-runtime",
+            RecoveryDrillClass::NatsBucketLost => "storage-substrate",
+            RecoveryDrillClass::SpireSvidExpired => "identity",
+        }
+    }
+
+    /// The four invariants a drill MUST satisfy to be PASSED
+    /// (§3.7.2.2). Drift in any invariant raises
+    /// `RecoveryDrillFailedError`.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum RecoveryDrillAcceptanceInvariant {
+        /// V-907 persona-hash MUST byte-equal pre-drill operator pin-pack hash.
+        HashPrePostIdentical,
+        /// Post-recovery audit-trace length MUST equal pre-drill length (no event lost).
+        AuditTrailGapZero,
+        /// All non-revoked capability tokens MUST verify against post-recovery N3 walker.
+        CapabilityTokenContinuity,
+        /// `recovered → running` MUST complete within 30s.
+        ContainerStateConvergenceWithinBudget,
+    }
+
+    /// Closed enumeration of all four acceptance invariants (§3.7.2.2).
+    pub const ALL_RECOVERY_DRILL_ACCEPTANCE_INVARIANTS: &[RecoveryDrillAcceptanceInvariant] = &[
+        RecoveryDrillAcceptanceInvariant::HashPrePostIdentical,
+        RecoveryDrillAcceptanceInvariant::AuditTrailGapZero,
+        RecoveryDrillAcceptanceInvariant::CapabilityTokenContinuity,
+        RecoveryDrillAcceptanceInvariant::ContainerStateConvergenceWithinBudget,
+    ];
+
+    /// Recovery budget in seconds (§3.7.2.2 invariant 4).
+    pub const RECOVERY_BUDGET_SECONDS: u32 = 30;
+
+    /// Migrate-version trigger condition (§3.7.3.1). All three MUST
+    /// hold for a `wakir-persona-vN` → `wakir-persona-v(N+1)`
+    /// transition to fire.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum MigrateVersionTriggerCondition {
+        /// (1) The spec bump is **major** (v1.x → v2.0), not minor.
+        SpecBumpMajor,
+        /// (2) The `canonical_subset` block shape changes (hash drift).
+        HashInputShapeChanges,
+        /// (3) HR-slot governance ratification is in place.
+        HrSlotGovernanceRatification,
+    }
+
+    /// Closed enumeration of all three trigger conditions (§3.7.3.1).
+    pub const ALL_MIGRATE_VERSION_TRIGGER_CONDITIONS: &[MigrateVersionTriggerCondition] = &[
+        MigrateVersionTriggerCondition::SpecBumpMajor,
+        MigrateVersionTriggerCondition::HashInputShapeChanges,
+        MigrateVersionTriggerCondition::HrSlotGovernanceRatification,
+    ];
+
+    /// Decide whether a migrate-version transition is permitted given
+    /// the three trigger conditions (§3.7.3.1).
+    ///
+    /// Returns `Ok(())` iff conditions (1), (2), AND (3) ALL hold.
+    /// Returns `Err(missing_condition)` naming the specific missing
+    /// condition for forensics. When (1) AND (2) hold but (3) is
+    /// missing, the runtime SHALL emit a
+    /// `MigrateVersionGovernanceGateError` (OI-PEF-12 future surface).
+    pub fn check_migrate_version_trigger(
+        spec_bump_major: bool,
+        hash_input_shape_changes: bool,
+        hr_slot_governance_ratification: bool,
+    ) -> Result<(), MigrateVersionTriggerCondition> {
+        if !spec_bump_major {
+            return Err(MigrateVersionTriggerCondition::SpecBumpMajor);
+        }
+        if !hash_input_shape_changes {
+            return Err(MigrateVersionTriggerCondition::HashInputShapeChanges);
+        }
+        if !hr_slot_governance_ratification {
+            return Err(MigrateVersionTriggerCondition::HrSlotGovernanceRatification);
+        }
+        Ok(())
+    }
+
+    /// Hash-pin-drift outcome (§3.7.3.3). The engine startup path
+    /// dispatches on this surface to decide whether to halt
+    /// (`UnexpectedDriftBug`), pass-through (`NoDrift`), or trigger
+    /// the Self-Migration-Konverter chain (`ExpectedMajorBumpDrift`).
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum HashPinDriftOutcome {
+        /// Hashes match — no migration triggered, normal startup.
+        NoDrift,
+        /// Hashes differ within the same v1.x family — startup halt
+        /// (`PersonaHashDriftError`); drift is a bug, not a migration.
+        UnexpectedDriftBug,
+        /// Hashes differ across a major spec bump — expected;
+        /// trigger Self-Migration-Konverter chain.
+        ExpectedMajorBumpDrift,
+    }
+
+    /// Classify a hash-pin-drift event (§3.7.3.3).
+    ///
+    /// Args:
+    /// - `computed_hash` — V-907 persona-hash freshly computed at startup.
+    /// - `pinned_hash` — V-907 persona-hash recorded in the operator pin-pack.
+    /// - `spec_version_axis_crossed_major_bump` — `true` iff the
+    ///   pinned hash was produced under a spec major-version axis
+    ///   that the current engine no longer matches.
+    pub fn classify_hash_pin_drift(
+        computed_hash: &str,
+        pinned_hash: &str,
+        spec_version_axis_crossed_major_bump: bool,
+    ) -> HashPinDriftOutcome {
+        if computed_hash == pinned_hash {
+            HashPinDriftOutcome::NoDrift
+        } else if spec_version_axis_crossed_major_bump {
+            HashPinDriftOutcome::ExpectedMajorBumpDrift
+        } else {
+            HashPinDriftOutcome::UnexpectedDriftBug
+        }
+    }
+
+    /// Per-instance migrate-version sequence (§3.7.3.4) — the ordered
+    /// state transitions for a single persona under a major bump.
+    ///
+    /// Each element is `(from_state, to_state)` from §3.3
+    /// `valid_transitions`. The sequence preserves a rollback window:
+    /// the `migrated → uninstantiated` transition fires only after
+    /// v2 reaches `running`.
+    pub const MIGRATE_VERSION_TRANSITION_SEQUENCE: &[(&str, &str)] = &[
+        ("running", "migrated"),
+        ("migrated", "uninstantiated"),
+        ("uninstantiated", "spawning"),
+        ("spawning", "running"),
+    ];
+}

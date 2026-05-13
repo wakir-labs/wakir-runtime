@@ -52,7 +52,7 @@ schema-registry-spec changelog adopts a backfill v0.32.0 entry
 referencing the persona-engine-format-spec by URL and the
 v0.33.0 entry remains unchanged.
 
-**Sprint-Pengine-7 Tag-1 Persona-Engine-Format integration anchor
+**Sprint-Pengine-7 Tag-1..Tag-3 Persona-Engine-Format integration anchor
 (2026-05-13).** v0.32.0 adds §10 Persona-Engine-Format integration,
 documenting the new axis-C `wakir-persona-v1` target format
 (`wirelang/schemas/wakir-persona-v1.json`), the new axis-A input
@@ -63,7 +63,13 @@ v0.32.0 is an **additive minor bump** per §3.2 versioning policy;
 no breaking changes; no envelope changes; no bucket-shape changes;
 the schema-registry surface itself remains byte-identical. The
 companion spec is `wirelang/specs/persona-engine-format-spec.md`
-v1.0. Cross-Review-Zone-K (WAT-bridge) **non-touched** functionally
+**v1.2** (Tag-1 landed v1.0, Tag-2 bumped to v1.1 for the
+Aisha-HR Counter-Vorschlag-1 `synthesis_default_exceptions` table,
+Tag-3 bumped to v1.2 for the §3.7 lifecycle protocols
+(`despawn_clean`, `recovery_drill`, `migrate_version`) layered over
+the byte-unchanged §3.3 state-machine envelope; the v0.32.0
+schema-registry surface is byte-stable across all three v1.x
+bumps). Cross-Review-Zone-K (WAT-bridge) **non-touched** functionally
 (V-907 hash function unchanged; §5 of persona-engine-format-spec).
 Cross-Review-Zone-J (container-bridge with Kai) **TRIGGERED** as
 shape-only reservation (no Kai-side Quadlet change yet).

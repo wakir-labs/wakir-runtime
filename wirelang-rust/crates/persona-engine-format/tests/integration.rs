@@ -16,6 +16,14 @@
 //! Total: 12 named tests (the 4 per-persona axes are batched per
 //! axis-level test, yielding 4 + 2 + 3 + 1 + 1 + 1 = 12).
 
+use persona_engine_format::lifecycle_protocols::{
+    check_migrate_version_trigger, classify_hash_pin_drift, despawn_phase_cross_review_zone,
+    despawn_phase_terminal_status, recovery_drill_cadence_days, recovery_drill_substrate_layer,
+    DespawnCleanPhase, HashPinDriftOutcome, MigrateVersionTriggerCondition,
+    RecoveryDrillAcceptanceInvariant, RecoveryDrillClass, ALL_MIGRATE_VERSION_TRIGGER_CONDITIONS,
+    ALL_RECOVERY_DRILL_ACCEPTANCE_INVARIANTS, ALL_RECOVERY_DRILL_CLASSES,
+    DESPAWN_CLEAN_PHASE_ORDER, MIGRATE_VERSION_TRANSITION_SEQUENCE, RECOVERY_BUDGET_SECONDS,
+};
 use persona_engine_format::{
     jcs_canonicalise_wakir_persona_v1, map_claude_native_to_wakir_v1, wakir_persona_hash,
     WAKIR_PERSONA_SCHEMA_VERSION,
@@ -492,4 +500,292 @@ fn t_pef_det_03_persona_hash_stable_across_json_roundtrip() {
             "[{slug}] persona-hash stable across JSON round-trip"
         );
     }
+}
+
+// ---------------------------------------------------------------------
+// Sprint-Pengine-7 Tag-3 — Lifecycle Protocols (§3.7 of spec v1.2)
+// ---------------------------------------------------------------------
+//
+// T-PEF-LIFE-01..08 — eight tests pinning the pure-data lifecycle
+// surfaces against the spec text. These tests do NOT exercise any
+// runtime behaviour; they pin the contract surface (phase order,
+// terminal-status strings, cross-review zones, cadence days, trigger
+// rules, drift classification, transition sequence) so a future spec
+// drift surfaces as a compile/test failure rather than a silent
+// inconsistency.
+
+#[test]
+fn t_pef_life_01_despawn_clean_phase_order_canonical() {
+    // §3.7.1.1: the four phases MUST appear in canonical P1..P4 order.
+    assert_eq!(DESPAWN_CLEAN_PHASE_ORDER.len(), 4);
+    assert_eq!(
+        DESPAWN_CLEAN_PHASE_ORDER[0],
+        DespawnCleanPhase::P1DrainNatsKv
+    );
+    assert_eq!(
+        DESPAWN_CLEAN_PHASE_ORDER[1],
+        DespawnCleanPhase::P2RevokeCapabilityTokens
+    );
+    assert_eq!(
+        DESPAWN_CLEAN_PHASE_ORDER[2],
+        DespawnCleanPhase::P3FinalMarkerCompose
+    );
+    assert_eq!(
+        DESPAWN_CLEAN_PHASE_ORDER[3],
+        DespawnCleanPhase::P4ContainerStop
+    );
+
+    // Distinctness: all four phases are distinct enum variants.
+    let unique: HashSet<_> = DESPAWN_CLEAN_PHASE_ORDER.iter().collect();
+    assert_eq!(unique.len(), 4, "despawn phases are pairwise distinct");
+}
+
+#[test]
+fn t_pef_life_02_despawn_phase_terminal_status_strings() {
+    // §3.7.1.1 "Terminal status" column.
+    assert_eq!(
+        despawn_phase_terminal_status(DespawnCleanPhase::P1DrainNatsKv),
+        "drained"
+    );
+    assert_eq!(
+        despawn_phase_terminal_status(DespawnCleanPhase::P2RevokeCapabilityTokens),
+        "revoked"
+    );
+    assert_eq!(
+        despawn_phase_terminal_status(DespawnCleanPhase::P3FinalMarkerCompose),
+        "composed"
+    );
+    assert_eq!(
+        despawn_phase_terminal_status(DespawnCleanPhase::P4ContainerStop),
+        "stopped"
+    );
+
+    // Distinctness: all four terminal status strings are distinct.
+    let statuses: HashSet<&str> = DESPAWN_CLEAN_PHASE_ORDER
+        .iter()
+        .copied()
+        .map(despawn_phase_terminal_status)
+        .collect();
+    assert_eq!(statuses.len(), 4, "terminal statuses are pairwise distinct");
+}
+
+#[test]
+fn t_pef_life_03_despawn_phase_cross_review_zones() {
+    // §3.7.1.1 "Cross-review zone" column.
+    // P1 drain → Zone B (NATS-KV × Wirelang)
+    // P2 revoke → Zone L (Identity-Substrate)
+    // P3 compose → Zone K (WAT-bridge)
+    // P4 stop → Zone J (container-bridge)
+    assert_eq!(
+        despawn_phase_cross_review_zone(DespawnCleanPhase::P1DrainNatsKv),
+        "B"
+    );
+    assert_eq!(
+        despawn_phase_cross_review_zone(DespawnCleanPhase::P2RevokeCapabilityTokens),
+        "L"
+    );
+    assert_eq!(
+        despawn_phase_cross_review_zone(DespawnCleanPhase::P3FinalMarkerCompose),
+        "K"
+    );
+    assert_eq!(
+        despawn_phase_cross_review_zone(DespawnCleanPhase::P4ContainerStop),
+        "J"
+    );
+
+    // The four phases consume the four canonical cross-review zones J/K/L/B
+    // — no zone is touched twice in a clean despawn.
+    let zones: HashSet<&str> = DESPAWN_CLEAN_PHASE_ORDER
+        .iter()
+        .copied()
+        .map(despawn_phase_cross_review_zone)
+        .collect();
+    assert_eq!(zones.len(), 4, "phases touch four distinct zones");
+    assert!(zones.contains("B"));
+    assert!(zones.contains("L"));
+    assert!(zones.contains("K"));
+    assert!(zones.contains("J"));
+}
+
+#[test]
+fn t_pef_life_04_recovery_drill_classes_and_cadence() {
+    // §3.7.2.1: three drill classes, each with documented cadence.
+    assert_eq!(ALL_RECOVERY_DRILL_CLASSES.len(), 3);
+    assert_eq!(
+        recovery_drill_cadence_days(RecoveryDrillClass::ContainerCrash),
+        7,
+        "ContainerCrash is weekly"
+    );
+    assert_eq!(
+        recovery_drill_cadence_days(RecoveryDrillClass::NatsBucketLost),
+        30,
+        "NatsBucketLost is monthly"
+    );
+    assert_eq!(
+        recovery_drill_cadence_days(RecoveryDrillClass::SpireSvidExpired),
+        30,
+        "SpireSvidExpired is monthly"
+    );
+
+    // Substrate-layer labels are distinct per class (§3.7.2.1 stratification).
+    let layers: HashSet<&str> = ALL_RECOVERY_DRILL_CLASSES
+        .iter()
+        .copied()
+        .map(recovery_drill_substrate_layer)
+        .collect();
+    assert_eq!(layers.len(), 3, "three distinct substrate layers");
+    assert!(layers.contains("engine-runtime"));
+    assert!(layers.contains("storage-substrate"));
+    assert!(layers.contains("identity"));
+}
+
+#[test]
+fn t_pef_life_05_recovery_drill_acceptance_invariants() {
+    // §3.7.2.2: four acceptance invariants — all four MUST hold for PASSED.
+    assert_eq!(ALL_RECOVERY_DRILL_ACCEPTANCE_INVARIANTS.len(), 4);
+
+    let invariants: HashSet<_> = ALL_RECOVERY_DRILL_ACCEPTANCE_INVARIANTS.iter().collect();
+    assert_eq!(invariants.len(), 4, "invariants pairwise distinct");
+    assert!(invariants.contains(&RecoveryDrillAcceptanceInvariant::HashPrePostIdentical));
+    assert!(invariants.contains(&RecoveryDrillAcceptanceInvariant::AuditTrailGapZero));
+    assert!(invariants.contains(&RecoveryDrillAcceptanceInvariant::CapabilityTokenContinuity));
+    assert!(invariants
+        .contains(&RecoveryDrillAcceptanceInvariant::ContainerStateConvergenceWithinBudget));
+
+    // Budget pin (§3.7.2.2 invariant 4).
+    assert_eq!(
+        RECOVERY_BUDGET_SECONDS, 30,
+        "recovery budget is 30s per §3.7.2.2"
+    );
+}
+
+#[test]
+fn t_pef_life_06_migrate_version_trigger_check() {
+    // §3.7.3.1: all three conditions MUST hold; otherwise return the
+    // missing condition for forensics.
+
+    // Happy path: all three conditions hold → Ok(())
+    assert_eq!(check_migrate_version_trigger(true, true, true), Ok(()));
+
+    // Condition 1 missing (minor bump only) → SpecBumpMajor returned.
+    assert_eq!(
+        check_migrate_version_trigger(false, true, true),
+        Err(MigrateVersionTriggerCondition::SpecBumpMajor)
+    );
+
+    // Condition 2 missing (hash-input shape stable) → HashInputShapeChanges.
+    assert_eq!(
+        check_migrate_version_trigger(true, false, true),
+        Err(MigrateVersionTriggerCondition::HashInputShapeChanges)
+    );
+
+    // Condition 3 missing (no HR-slot ratification) → HrSlotGovernanceRatification.
+    // This is the OI-PEF-12 MigrateVersionGovernanceGateError trigger surface.
+    assert_eq!(
+        check_migrate_version_trigger(true, true, false),
+        Err(MigrateVersionTriggerCondition::HrSlotGovernanceRatification)
+    );
+
+    // All three missing → still reports condition 1 first (deterministic
+    // ordering: 1 → 2 → 3 for forensics).
+    assert_eq!(
+        check_migrate_version_trigger(false, false, false),
+        Err(MigrateVersionTriggerCondition::SpecBumpMajor)
+    );
+
+    // The full enumeration carries three variants.
+    assert_eq!(ALL_MIGRATE_VERSION_TRIGGER_CONDITIONS.len(), 3);
+}
+
+#[test]
+fn t_pef_life_07_hash_pin_drift_classification() {
+    // §3.7.3.3: three outcomes — NoDrift, UnexpectedDriftBug, ExpectedMajorBumpDrift.
+
+    let h_a = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    let h_b = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+    // Case (3): hashes match → NoDrift regardless of bump.
+    assert_eq!(
+        classify_hash_pin_drift(h_a, h_a, false),
+        HashPinDriftOutcome::NoDrift
+    );
+    assert_eq!(
+        classify_hash_pin_drift(h_a, h_a, true),
+        HashPinDriftOutcome::NoDrift
+    );
+
+    // Case (4): hashes differ, same v1.x family → UnexpectedDriftBug (halt).
+    assert_eq!(
+        classify_hash_pin_drift(h_a, h_b, false),
+        HashPinDriftOutcome::UnexpectedDriftBug
+    );
+
+    // Case (5): hashes differ, major bump axis → ExpectedMajorBumpDrift (trigger).
+    assert_eq!(
+        classify_hash_pin_drift(h_a, h_b, true),
+        HashPinDriftOutcome::ExpectedMajorBumpDrift
+    );
+}
+
+#[test]
+fn t_pef_life_08_migrate_version_transition_sequence_preserves_rollback_window() {
+    // §3.7.3.4: the per-instance migrate-version sequence under a major
+    // bump preserves a rollback window:
+    //
+    //   running (v1) → migrated → uninstantiated → spawning → running (v2)
+    //
+    // Each (from, to) pair MUST appear in §3.3 valid_transitions.
+
+    // Sequence length and order.
+    assert_eq!(MIGRATE_VERSION_TRANSITION_SEQUENCE.len(), 4);
+
+    let expected: &[(&str, &str)] = &[
+        ("running", "migrated"),
+        ("migrated", "uninstantiated"),
+        ("uninstantiated", "spawning"),
+        ("spawning", "running"),
+    ];
+    assert_eq!(MIGRATE_VERSION_TRANSITION_SEQUENCE, expected);
+
+    // Cross-check: each (from, to) is a valid transition per §3.3 by
+    // virtue of having been ratified in the v1.0 spec. We inline-pin
+    // the §3.3 valid-transitions set here so a future §3.3 edit that
+    // accidentally drops one of these transitions surfaces as a test
+    // failure.
+    let valid_v33: HashSet<(&str, &str)> = [
+        ("uninstantiated", "spawning"),
+        ("spawning", "running"),
+        ("spawning", "uninstantiated"),
+        ("running", "despawning"),
+        ("despawning", "uninstantiated"),
+        ("uninstantiated", "recovered"),
+        ("recovered", "running"),
+        ("running", "migrated"),
+        ("migrated", "uninstantiated"),
+    ]
+    .iter()
+    .copied()
+    .collect();
+
+    for pair in MIGRATE_VERSION_TRANSITION_SEQUENCE {
+        assert!(
+            valid_v33.contains(pair),
+            "transition {pair:?} MUST appear in §3.3 valid_transitions"
+        );
+    }
+
+    // Rollback-window invariant: `migrated → uninstantiated` appears
+    // strictly BEFORE `spawning → running` (the v2 reach-running event).
+    let migrated_to_uninst_idx = MIGRATE_VERSION_TRANSITION_SEQUENCE
+        .iter()
+        .position(|p| *p == ("migrated", "uninstantiated"))
+        .expect("migrated→uninstantiated present");
+    let v2_running_idx = MIGRATE_VERSION_TRANSITION_SEQUENCE
+        .iter()
+        .position(|p| *p == ("spawning", "running"))
+        .expect("spawning→running present");
+    assert!(
+        migrated_to_uninst_idx < v2_running_idx,
+        "v1 despawn (migrated→uninstantiated) precedes v2 reach-running"
+    );
 }
