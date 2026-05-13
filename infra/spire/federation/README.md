@@ -28,6 +28,11 @@ substrate is the live impl those Protocols target in Phase-2c+.
 | `bin/spire_fed_bundle.py` | CLI module (import target for tests). |
 | `bin/spire-fed-bundle-rotator` | Bundle-Rotation CLI (Tag-3). |
 | `bin/spire_fed_bundle_rotator.py` | Rotator CLI module (import target for tests). |
+| `bin/spire-fed-health` | Federation Health-Check HTTP-server (Tag-4). |
+| `bin/spire_fed_health.py` | Health-server module (import target for tests). |
+| `bin/spire-fed-metrics` | Federation Prometheus-text-format metrics surface (Tag-4). |
+| `bin/spire_fed_metrics.py` | Metrics-server module (import target for tests). |
+| `IMAGE_PINS.md` | Cosign-Digest-Pin resolution index (Tag-4). |
 | `quadlet/wakir-spire-server-federation.container` | Quadlet template (placeholders for `<SIDE>`, `<HOST_BUNDLE_PORT>`, `<HOST_GRPC_PORT>`). |
 | `quadlet/wakir-federation.network` | Quadlet bridge-network sidecar. |
 | `quadlet/wakir-spire-server-federation-{data,sockets,bundles}.volume` | Quadlet named-volume sidecars (per-side via placeholder). |
@@ -35,6 +40,9 @@ substrate is the live impl those Protocols target in Phase-2c+.
 | `tests/test_spire_fed_bundle_cli.py` | Hermetic CLI roundtrip + trust-domain mismatch guard. |
 | `tests/test_federation_quadlet.py` | Compose ↔ Quadlet byte-precision parity. |
 | `tests/test_spire_fed_bundle_rotator.py` | Rotation-Lifecycle (Tag-3): soft-cutover, hard-revoke, grace-window, cross-TD-isolation, determinism. |
+| `tests/test_spire_fed_health.py` | Health-server (Tag-4): /live, /health, /ready, schema, rotation-mid-state. |
+| `tests/test_spire_fed_metrics.py` | Metrics-server (Tag-4): counters, gauges, Prometheus text-format, determinism. |
+| `tests/test_image_pin_digest_form.py` | Image-pin syntax invariants (Tag-4): server-agent version-parity, atomic resolution state. |
 
 ## 1. Compose substrate
 
@@ -311,7 +319,127 @@ The live SPIRE-Server accepts a JWKS with multiple keys and uses
 all of them for SVID verification, so the soft-cutover invariant
 holds in live mode without additional tooling.
 
-## 8. Known follow-ups (Phase-2c / Sprint-9+)
+## 8. Tag-4: Health + Metrics + Cosign-Digest-Pin
+
+### 8.1 Health-endpoint (`spire-fed-health`)
+
+Operator-Hand and Prometheus blackbox can introspect the bundle
+state without parsing JWKS. The CLI exposes three endpoints over a
+configurable bind port (default `127.0.0.1:8444`):
+
+| Path | Purpose | HTTP codes |
+|---|---|---|
+| `/live` | Liveness only — the endpoint answered → it is alive. | `200` always |
+| `/health` / `/healthz` | Full structured status document (readiness + introspection). | `200` healthy / `503` unready / `500` error |
+| `/ready` / `/readiness` | Compact readiness probe (single-field body). | same as `/health` |
+
+Status JSON shape (schema_version=1):
+
+```json
+{
+  "_schema_version": 1,
+  "status": "healthy" | "unready" | "error",
+  "trust_domain": "wakir.test",
+  "active_keys": 2,
+  "last_rotation_at": "2026-05-13T01:30:00+00:00",
+  "agent_connections": 3,
+  "checks": {
+    "bundle_present": true,
+    "bundle_non_empty": true,
+    "active_key_count_ok": true,
+    "rotation_error_state": false
+  }
+}
+```
+
+Readiness state mapping:
+
+* `healthy`: bundle present + non-empty + ≥ `--min-active-keys`
+  non-expired keys + rotation-error flag not set.
+* `unready`: bundle missing/empty/malformed OR insufficient
+  non-expired keys.
+* `error`: caller signalled `--rotation-error` (rotation system in
+  failure mode — operator inspection needed before bring-up
+  continues).
+
+Operator-Hand invocation example:
+
+```sh
+spire-fed-health \
+    --trust-domain wakir.test \
+    --bundle-path /var/lib/spire/bundles/wakir.jwks \
+    --bind-host 127.0.0.1 \
+    --bind-port 8444 \
+    --agent-connections 3
+```
+
+The `--agent-connections` value is operator-provided in Tag-4; Phase-
+2c+ wires it from the SPIRE-Agent Workload-API admin counter.
+
+### 8.2 Metrics-endpoint (`spire-fed-metrics`)
+
+Prometheus 0.0.4 text-format on a separate bind port (default
+`127.0.0.1:8445`):
+
+| Metric | Type | Labels |
+|---|---|---|
+| `wakir_federation_bundle_cache_hits_total` | counter | `trust_domain` |
+| `wakir_federation_bundle_cache_misses_total` | counter | `trust_domain` |
+| `wakir_federation_rotation_events_total` | counter | `trust_domain`, `type` ∈ `rotate`/`expire`/`cross-td-refuse` |
+| `wakir_federation_active_keys` | gauge | `trust_domain` |
+| `wakir_federation_agent_connections` | gauge | `trust_domain` |
+
+Gauges are read on each scrape from the JWKS bundle on disk (no
+caching). Counters are in-process additive — the rotation
+orchestration code holds a reference to the `MetricsRegistry` and
+calls `increment_*` for each lifecycle event.
+
+Empty-initial-state invariant: a freshly-constructed registry
+exposes ALL metric NAMES with value 0 (Prometheus convention — no
+silently-missing metrics).
+
+Operator-Hand smoke-check:
+
+```sh
+spire-fed-metrics \
+    --trust-domain wakir.test \
+    --bundle-path /var/lib/spire/bundles/wakir.jwks \
+    --bind-port 8445 \
+    --agent-connections 3 &
+
+curl -s http://127.0.0.1:8445/metrics | grep wakir_federation_
+```
+
+`spire-fed-metrics --render-once` skips the HTTP server and prints
+the text-format directly to stdout (hermetic-test surface + manual
+inspection).
+
+### 8.3 Cosign-Digest-Pin
+
+The image-pins for `ghcr.io/spiffe/spire-server:1.14.6` and
+`ghcr.io/spiffe/spire-agent:1.14.6` still carry the placeholder
+`DIGEST_PENDING_TOMAS_REVIEW`. The resolution recipe — including the
+canonical `cosign verify` invocation, the parity-check via skopeo /
+crane, and the multi-file `sed` substitution — is documented in
+[`IMAGE_PINS.md`](IMAGE_PINS.md).
+
+The hermetic test
+[`tests/test_image_pin_digest_form.py`](tests/test_image_pin_digest_form.py)
+enforces SYNTAX invariants on the four pinned files:
+
+* Canonical reference form `ghcr.io/spiffe/spire-{server,agent}:<tag>@sha256:<digest>`.
+* Server-agent tag version-parity (both pinned to `1.14.6`).
+* Atomic digest-resolution state across all four files (no
+  half-resolved state).
+* IMAGE_PINS.md index file references each pinned file by name.
+
+Live `cosign verify` is **Operator-Hand** per
+[`feedback_sandbox_host_trennung.md`][sandbox-trennung]; the sandbox
+does NOT touch GHCR. A CI activation sketch is in IMAGE_PINS.md §3
+(gated on Tomás Zone-C cross-review for the GHCR network egress
+policy).
+
+## 9. Known follow-ups (Phase-2c / Sprint-9+)
 
 * **Live HTTPS-fetch impl of `PeerTrustBundleFetcher`** — the bridge in
   `wirelang/federation/spiffe_cross_trust_domain_bridge.py` declares the

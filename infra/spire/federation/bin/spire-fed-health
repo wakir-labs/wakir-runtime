@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+"""Shim: invoke spire_fed_health.main() with sys.argv[1:].
+
+Kept as a thin shim so the module is import-safe for tests and the
+CLI entrypoint is a single line of glue.
+"""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+# Make the sibling module importable without requiring a package layout.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from spire_fed_health import main  # noqa: E402
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))
