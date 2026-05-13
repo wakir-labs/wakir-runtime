@@ -1,0 +1,183 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# CI-side image-pin idempotent resolver (Phase-2 Sprint-9 Tag-5).
+#
+# License posture: Apache-2.0 (CI / build tooling layer, consistent
+# with the rest of .github/workflows/). The script the workflow
+# invokes (scripts/image-pin-idempotent-resolver.sh) is BUSL-1.1 by
+# subject-following — it operates on Federation Quadlet pins which
+# carry BUSL-1.1 per ADR-0059.
+#
+# What this workflow does
+# -----------------------
+#   1. Fetches the live digest for each pinned image (via crane).
+#   2. Compares the committed pin against the live digest.
+#   3. If they ALL match — no-op exit. This is the steady-state for
+#      a daily cron run with no upstream re-pushes.
+#   4. If ANY pin differs (placeholder OR stale digest), substitutes
+#      in-place and opens a PR with the updated pins.
+#
+# Idempotency contract
+# --------------------
+# A re-run against an already-resolved repo state produces no commit,
+# no PR, no log noise beyond the summary line. This is the whole
+# reason the workflow exists as a separate job from
+# ``build-wakir-provisioner.yml`` — the build flow rotates a digest
+# on every run, this flow respects digest stability.
+#
+# See ``scripts/image-pin-idempotent-resolver.sh`` for the substance
+# and ``tests/ci/test_image_pin_idempotent_resolver.py`` for the
+# hermetic-test surface that pins the idempotency invariants.
+#
+# Posture
+# -------
+# workflow_dispatch ONLY for the pilot phase. A future ADR may
+# graduate this to a cron schedule (weekly drift check) once the
+# Zone-C GHCR-egress policy approves the periodic network access.
+#
+# Sandbox boundary
+# ----------------
+# Runs on GitHub-Actions runners, not in the claude-dev sandbox. The
+# hermetic tests use ``--digest-source env`` to keep the test surface
+# off the network.
+
+name: resolve-image-pins-ci
+
+on:
+  workflow_dispatch:
+    inputs:
+      print_only:
+        description: 'Compute drift but do not mutate files / open PR'
+        required: false
+        default: 'false'
+
+permissions:
+  # Least-privilege: read source, write to ``pull-requests`` for the
+  # auto-PR, write to ``contents`` for the auto-branch push. NO
+  # ``packages: write`` or ``id-token: write`` — this workflow neither
+  # pushes images nor signs.
+  contents: write
+  pull-requests: write
+
+jobs:
+  resolve:
+    name: idempotent image-pin resolver
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install crane (digest cross-resolver)
+        run: |
+          set -euo pipefail
+          CRANE_VERSION="0.20.2"
+          curl -fsSL "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" \
+            -o /tmp/crane.tar.gz
+          tar -C /tmp -xzf /tmp/crane.tar.gz crane
+          sudo install -m 0755 /tmp/crane /usr/local/bin/crane
+          crane version
+
+      - name: Run idempotent resolver
+        id: resolver
+        # The script exits 0 on no-op, 10 on drift-detected, 1+ on
+        # real error. We translate that into a step output so the
+        # branch + PR steps can gate.
+        run: |
+          set +e
+          if [[ "${{ github.event.inputs.print_only }}" == "true" ]]; then
+            FLAGS="--print-only"
+          else
+            FLAGS=""
+          fi
+          ./scripts/image-pin-idempotent-resolver.sh $FLAGS
+          rc=$?
+          set -e
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          case "$rc" in
+            0)
+              echo "drift=false" >> "$GITHUB_OUTPUT"
+              echo "no drift — idempotent re-run, no PR will be opened"
+              ;;
+            10)
+              echo "drift=true" >> "$GITHUB_OUTPUT"
+              echo "drift detected — proceeding to branch + PR steps"
+              ;;
+            *)
+              echo "::error::resolver exited with $rc (real error, not drift sentinel)"
+              exit "$rc"
+              ;;
+          esac
+
+      - name: Detect actual file changes
+        id: gitdiff
+        if: steps.resolver.outputs.drift == 'true'
+        run: |
+          set -euo pipefail
+          # Belt + suspenders: even with rc=10, if --print-only was
+          # set, no files actually changed. We refuse to open an empty
+          # PR.
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "no on-disk diff (print_only path); skipping PR"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git diff --stat
+          fi
+
+      - name: Open / refresh auto-PR
+        if: ${{ steps.resolver.outputs.drift == 'true' && steps.gitdiff.outputs.changed == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          BRANCH="ci/image-pin-drift-$(date -u +%Y%m%d-%H%M%S)"
+          git config user.name  "wakir-labs-ci"
+          git config user.email "ci@wakir-labs.invalid"
+          git checkout -b "$BRANCH"
+          git add -u
+          COMMIT_BODY=$(printf '%s\n' \
+            "ci(infra): image-pin drift resolved via idempotent resolver" \
+            "" \
+            "Auto-generated by .github/workflows/resolve-image-pins-ci.yml." \
+            "" \
+            "Triggered by: ${{ github.actor }}" \
+            "Run ID:       ${{ github.run_id }}" \
+            "" \
+            "Review the diff for legitimacy before merging - a digest rotation" \
+            "on a stable tag is a supply-chain event that warrants Operator-" \
+            "Hand sign-off.")
+          git commit -m "$COMMIT_BODY"
+          git push origin "$BRANCH"
+          PR_BODY=$(printf '%s\n' \
+            "Auto-generated PR from the idempotent image-pin resolver workflow." \
+            "" \
+            "The pinned digest for one or more images no longer matches the live" \
+            "registry. This is either:" \
+            "" \
+            "1. An expected event (operator just published a new wakir-provisioner" \
+            "   version and this PR captures the new digest), or" \
+            "2. An unexpected event (an upstream stable tag was re-pushed - read" \
+            "   the diff carefully before merging)." \
+            "" \
+            "Triggered by: @${{ github.actor }}" \
+            "Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}")
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "ci(infra): image-pin drift detected - review pin rotation" \
+            --body "$PR_BODY"
+
+      - name: Emit summary
+        if: always()
+        run: |
+          {
+            echo "## resolve-image-pins-ci"
+            echo ""
+            echo "- resolver exit code: \`${{ steps.resolver.outputs.rc }}\`"
+            echo "- drift detected:     \`${{ steps.resolver.outputs.drift }}\`"
+            echo "- print_only:         \`${{ github.event.inputs.print_only }}\`"
+            if [[ "${{ steps.resolver.outputs.drift }}" == "false" ]]; then
+              echo ""
+              echo "Idempotent re-run — pins already match live digests."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

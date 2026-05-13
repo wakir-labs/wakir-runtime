@@ -59,9 +59,21 @@ on:
         default: 'false'
 
 permissions:
+  # Least-privilege permission set for build + sign + push (Sprint-9
+  # Tag-5 CI-hygiene review). Each scope is required for a specific
+  # step; removing any of these will fail the run.
+  #
+  #   contents:  read   — actions/checkout pulls workflow + source.
+  #   packages:  write  — buildah push to GHCR + cosign signature
+  #                       upload to GHCR (the ``*.sig`` artefact
+  #                       lives in the same repo as the image).
+  #   id-token:  write  — Sigstore-keyless OIDC token mint, used by
+  #                       cosign sign to obtain a short-lived
+  #                       Fulcio cert without provisioning a
+  #                       private key.
   contents: read
   packages: write
-  id-token: write  # Sigstore-keyless OIDC
+  id-token: write
 
 jobs:
   build:
@@ -189,6 +201,30 @@ jobs:
           fi
           echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
           echo "Pushed: ${IMAGE}:${TAG}@${DIGEST}"
+
+      - name: Cosign login to GHCR
+        if: ${{ github.event.inputs.push == 'true' }}
+        # Sprint-9 Tag-5 fix (CI-hygiene): cosign sign writes its
+        # signature artefact (``*.sig`` blob) into GHCR via a separate
+        # registry-auth handshake than buildah's. The earlier buildah
+        # login authenticated only the buildah client; cosign carried
+        # no credentials and the sign call failed with:
+        #
+        #   UNAUTHORIZED: unauthenticated: User cannot be
+        #   authenticated with the token provided.
+        #
+        # The fix is an explicit cosign login step using the workflow's
+        # GITHUB_TOKEN, which the ``packages: write`` permission scope
+        # already authorises. See docs/ci-cosign-ghcr-auth.md for the
+        # full diagnosis + alternative approaches we considered.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "$GITHUB_TOKEN" \
+            | cosign login ghcr.io \
+                --username "${{ github.actor }}" \
+                --password-stdin
 
       - name: Sigstore-keyless sign
         if: ${{ github.event.inputs.push == 'true' }}
