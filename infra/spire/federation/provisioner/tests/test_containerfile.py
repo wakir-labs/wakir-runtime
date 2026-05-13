@@ -19,7 +19,14 @@ Coverage axes:
     consuming Quadlet's ``User=`` / ``Group=`` directives.
   * The Containerfile carries the documented OCI image labels for
     title, description, licenses, and source.
-  * The Apache-2.0 SPDX identifier is present in the file header.
+  * The BSL-1.1 SPDX identifier is present in the file header
+    (AR-Decision 2026-05-13: Apache-2.0 -> BSL 1.1 relicense,
+    consistent with the WAT-Pipeline-Server Phase-1a BSL pattern
+    per ADR-0034).
+  * The image-level OCI licence label MUST be ``BUSL-1.1``.
+  * The accompanying ``LICENSE-BSL.md`` MUST exist alongside the
+    Containerfile so license-scanners can pick up the canonical
+    header next to the source.
 
 Sandbox boundary: this test reads files on disk only — no podman /
 buildah / pip invocations, no network. The live build verification
@@ -51,6 +58,14 @@ REQUIREMENTS = (
     / "provisioner"
     / "requirements.txt"
 )
+LICENSE_BSL = (
+    REPO_ROOT
+    / "infra"
+    / "spire"
+    / "federation"
+    / "provisioner"
+    / "LICENSE-BSL.md"
+)
 
 
 PLACEHOLDER = "DIGEST_PENDING_TOMAS_REVIEW"
@@ -73,14 +88,27 @@ def test_containerfile_exists() -> None:
     )
 
 
-def test_containerfile_has_spdx_apache_2_0_header() -> None:
-    """The Containerfile MUST carry the Apache-2.0 SPDX identifier in
+def test_containerfile_has_spdx_busl_1_1_header() -> None:
+    """The Containerfile MUST carry the BUSL-1.1 SPDX identifier in
     the first two lines so license tooling can pick it up without
-    parsing the rest of the file."""
+    parsing the rest of the file.
+
+    AR-Decision 2026-05-13: the provisioner module relicensed from
+    Apache-2.0 to BSL 1.1, consistent with the WAT-Pipeline-Server
+    Phase-1a BSL pattern (ADR-0034). The canonical SPDX identifier
+    is ``BUSL-1.1`` per the SPDX licence list.
+    """
     text = _read(CONTAINERFILE)
     head = "\n".join(text.splitlines()[:3])
-    assert "SPDX-License-Identifier: Apache-2.0" in head, (
-        "Containerfile is missing the SPDX Apache-2.0 header"
+    assert "SPDX-License-Identifier: BUSL-1.1" in head, (
+        "Containerfile is missing the SPDX BUSL-1.1 header"
+    )
+    # Defensive regression guard: the previous Apache-2.0 header
+    # must NOT linger anywhere in the first three lines.
+    assert "SPDX-License-Identifier: Apache-2.0" not in head, (
+        "Containerfile still carries the stale Apache-2.0 SPDX "
+        "header on the first three lines; the AR-Decision "
+        "2026-05-13 relicense was incomplete"
     )
 
 
@@ -188,11 +216,22 @@ def test_oci_labels_carry_provenance_metadata() -> None:
         assert label in text, (
             f"Containerfile is missing required OCI label {label}"
         )
-    # License label MUST be Apache-2.0 (single source of truth for
+    # License label MUST be BUSL-1.1 (single source of truth for
     # the image-level licence; per-wheel licences live in the wheels
-    # themselves).
-    assert 'org.opencontainers.image.licenses="Apache-2.0"' in text, (
-        "Containerfile licence label MUST be Apache-2.0"
+    # themselves and are reachable via ``pip show <pkg>``).
+    # AR-Decision 2026-05-13: Apache-2.0 -> BSL 1.1 relicense.
+    assert 'org.opencontainers.image.licenses="BUSL-1.1"' in text, (
+        "Containerfile licence label MUST be BUSL-1.1 (AR-Decision "
+        "2026-05-13 relicense from Apache-2.0)"
+    )
+    # Defensive regression guard: the previous Apache-2.0 label must
+    # NOT linger.
+    assert (
+        'org.opencontainers.image.licenses="Apache-2.0"' not in text
+    ), (
+        "Containerfile still carries the stale Apache-2.0 image "
+        "licence label; the AR-Decision 2026-05-13 relicense was "
+        "incomplete"
     )
 
 
@@ -201,4 +240,66 @@ def test_requirements_file_exists() -> None:
     exist on disk."""
     assert REQUIREMENTS.exists(), (
         f"missing wakir-provisioner requirements file: {REQUIREMENTS}"
+    )
+
+
+def test_license_bsl_file_exists_alongside_containerfile() -> None:
+    """The BSL 1.1 canonical header MUST ship as a sibling file to
+    the Containerfile so license-scanners can pick it up without
+    walking up the repository tree.
+
+    AR-Decision 2026-05-13: the provisioner module carries its own
+    BSL header (independent Change Date from the ``wat/`` module's
+    BSL header).
+    """
+    assert LICENSE_BSL.exists(), (
+        f"missing canonical BSL 1.1 header alongside the "
+        f"Containerfile: {LICENSE_BSL}"
+    )
+    body = LICENSE_BSL.read_text(encoding="utf-8")
+    # The header must name the Licensor, the Licensed Work, the
+    # Additional Use Grant, the Change Date, and the Change License
+    # — the five mandatory BSL 1.1 fields per the canonical template
+    # at https://mariadb.com/bsl11/.
+    for field in (
+        "Licensor",
+        "Licensed Work",
+        "Additional Use Grant",
+        "Change Date",
+        "Change License",
+    ):
+        assert field in body, (
+            f"LICENSE-BSL.md is missing mandatory BSL 1.1 field "
+            f"{field!r}"
+        )
+    # The Change Date MUST be the documented 2030-05-13 (four years
+    # after the first BSL-licensed publication of
+    # ``wakir-provisioner:0.1.2``).
+    assert "2030-05-13" in body, (
+        "LICENSE-BSL.md is missing the documented Change Date "
+        "2030-05-13"
+    )
+    # The Change License MUST be Apache-2.0 (the BSL contract:
+    # automatic conversion to Apache-2.0 on the Change Date).
+    assert "Apache License, Version 2.0" in body, (
+        "LICENSE-BSL.md is missing the documented Change License "
+        "Apache License, Version 2.0"
+    )
+
+
+def test_containerfile_version_label_matches_bsl_relicense_tag() -> None:
+    """The image-version label MUST be ``0.1.2`` — the tag bump that
+    accompanies the AR-Decision 2026-05-13 BSL relicense.
+
+    The tag bump exists so the BSL-relicensed artefact carries a
+    distinct immutable tag from the Apache-2.0 v0.1.1 artefact;
+    consumers pulling ``0.1.1`` continue to see the Apache-2.0
+    label, consumers pulling ``0.1.2`` see the BSL-1.1 label.
+    """
+    text = _read(CONTAINERFILE)
+    assert (
+        'org.opencontainers.image.version="0.1.2"' in text
+    ), (
+        "Containerfile version label MUST be 0.1.2 (BSL-1.1 "
+        "relicense tag)"
     )

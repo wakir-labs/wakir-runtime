@@ -103,7 +103,9 @@
 # Image-Pin form (Cosign-Digest-Pin Pfad B): the provisioner runs
 # inside the dedicated ``ghcr.io/wakir-labs/wakir-provisioner`` image
 # (Sprint-9 Tag-4, see ``infra/spire/federation/provisioner/``). The
-# image v0.1.1 ships ``nats-py`` only — Reza-PR #33's
+# image v0.1.2 (BSL-1.1, AR-Decision 2026-05-13; v0.1.1 was the
+# functionally-identical Apache-2.0 predecessor) ships ``nats-py``
+# only — Reza-PR #33's
 # Wirelang-Import-Disentanglement (PEP-562 lazy ``__getattr__`` on
 # ``wirelang.federation``) shrank the previously-required wheel set
 # from four (``nats-py`` + ``cryptography`` + ``rfc8785`` +
@@ -128,16 +130,21 @@ Requires=wakir-nats.service
 [Container]
 ContainerName=wakir-nats-kv-bucket-init
 
-# Image pin: wakir-provisioner v0.1.1 ships ``nats-py`` only at unit
+# Image pin: wakir-provisioner v0.1.2 ships ``nats-py`` only at unit
 # start (post Reza-PR #33 Wirelang-Import-Disentanglement; v0.1.0
 # also carried cryptography + rfc8785 + jsonschema for the transitive
-# import chain that no longer fires). The image digest is resolved
-# Operator-Hand via the same Cross-Review Zone-C workflow as the
-# SPIRE-Server/Agent digests; the placeholder token
-# ``DIGEST_PENDING_TOMAS_REVIEW`` is intentionally NOT a real digest.
-# See ``infra/spire/federation/provisioner/`` for the Containerfile,
-# the build recipe, and the hash-pinned requirements set.
-Image=ghcr.io/wakir-labs/wakir-provisioner:0.1.1@sha256:DIGEST_PENDING_TOMAS_REVIEW
+# import chain that no longer fires). v0.1.2 is the AR-Decision
+# 2026-05-13 BSL-1.1 relicense — no functional change vs. v0.1.1;
+# image-level OCI licence label flipped from Apache-2.0 to BUSL-1.1
+# with Change Date 2030-05-13. See
+# ``infra/spire/federation/provisioner/LICENSE-BSL.md`` for the
+# canonical header. The image digest is resolved Operator-Hand via
+# the same Cross-Review Zone-C workflow as the SPIRE-Server/Agent
+# digests; the placeholder token ``DIGEST_PENDING_TOMAS_REVIEW`` is
+# intentionally NOT a real digest. See
+# ``infra/spire/federation/provisioner/`` for the Containerfile, the
+# build recipe, and the hash-pinned requirements set.
+Image=ghcr.io/wakir-labs/wakir-provisioner:0.1.2@sha256:DIGEST_PENDING_TOMAS_REVIEW
 
 # Exec invokes the provisioner against the local NATS, sourcing the
 # onboarded-orgs roster from a bind-mounted file. The ``--orgs-file``

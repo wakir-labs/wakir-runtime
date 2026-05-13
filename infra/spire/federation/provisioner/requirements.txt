@@ -1,5 +1,13 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
+#
+# This pin manifest is part of the Wakir Provisioner module.
+# Licensed under the Business Source License 1.1; see
+# ./LICENSE-BSL.md. Change Date: 2030-05-13. Change License:
+# Apache License 2.0. The transitive wheel licences declared below
+# (``nats-py`` — Apache-2.0, etc.) are unaffected by the BSL header
+# on this manifest; the wheels remain governed by their upstream
+# licences.
 #
 # Hash-pinned wheel set for the wakir-provisioner image
 # (``infra/spire/federation/provisioner/Containerfile``). Consumed by
