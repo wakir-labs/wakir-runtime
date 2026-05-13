@@ -13,9 +13,10 @@ SYNTAX invariants; this file targets the published-image surface:
   * The Quadlet pins
     ``ghcr.io/wakir-labs/wakir-provisioner:<tag>@sha256:<digest>``.
   * ``<tag>`` matches the documented Sprint-9 Tag-4 baseline
-    (``0.1.1`` — v0.1.0 carried four transitive-import-satisfying
-    wheels; v0.1.1 is the post Reza-PR #33 lean variant with
-    ``nats-py`` only).
+    (``0.1.2`` — v0.1.0 carried four transitive-import-satisfying
+    wheels; v0.1.1 was the post Reza-PR #33 lean variant with
+    ``nats-py`` only; v0.1.2 is the AR-Decision 2026-05-13 BSL-1.1
+    relicense, functionally identical to v0.1.1).
   * ``<digest>`` is EITHER the placeholder token
     ``DIGEST_PENDING_TOMAS_REVIEW`` OR a canonical 64-hex sha256
     digest.
@@ -43,7 +44,7 @@ IMAGE_PINS_MD = (
 )
 
 PLACEHOLDER = "DIGEST_PENDING_TOMAS_REVIEW"
-EXPECTED_TAG = "0.1.1"
+EXPECTED_TAG = "0.1.2"
 EXPECTED_IMAGE_PATH = "ghcr.io/wakir-labs/wakir-provisioner"
 
 _DIGEST_RE = rf"(?:{PLACEHOLDER}|[a-f0-9]{{64}})"
@@ -83,9 +84,10 @@ def test_provisioner_pin_uses_canonical_form() -> None:
 
 
 def test_provisioner_pin_tag_matches_baseline() -> None:
-    """The pinned tag is ``0.1.0`` per the Sprint-9 Tag-4 baseline.
-    Drift to a different tag must be reflected here AND in
-    IMAGE_PINS.md before it lands."""
+    """The pinned tag is ``0.1.2`` per the Sprint-9 Tag-4 BSL-relicense
+    baseline (AR-Decision 2026-05-13, Apache-2.0 -> BSL 1.1). Drift to
+    a different tag must be reflected here AND in IMAGE_PINS.md before
+    it lands."""
     text = _read(QUADLET_FILE)
     tags = {m.group("tag") for m in _PROVISIONER_PIN_RE.finditer(text)}
     assert tags == {EXPECTED_TAG}, (
@@ -134,6 +136,33 @@ def test_image_pins_md_documents_sigstore_resolver_recipe() -> None:
     # subsection and the OIDC issuer.
     assert "wakir-provisioner" in text
     assert "token.actions.githubusercontent.com" in text
+
+
+def test_image_pins_md_annotates_bsl_relicense() -> None:
+    """IMAGE_PINS.md MUST annotate the v0.1.2 inventory row with the
+    BSL-1.1 relicense context (AR-Decision 2026-05-13, consistent
+    with the WAT-Pipeline-Server Phase-1a BSL pattern per ADR-0034).
+
+    The annotation guards against silent licence drift: a future
+    contributor bumping the tag without updating the annotation
+    leaves a stale Apache-2.0 narrative next to a BSL-licensed
+    artefact.
+    """
+    text = _read(IMAGE_PINS_MD)
+    # The inventory narrative must mention BSL 1.1 in the
+    # wakir-provisioner context.
+    assert "BSL 1.1" in text or "BUSL-1.1" in text, (
+        "IMAGE_PINS.md does not mention BSL 1.1 in the "
+        "wakir-provisioner narrative"
+    )
+    # The Change Date (2030-05-13) must be documented somewhere in
+    # the file; the canonical header lives in LICENSE-BSL.md, but
+    # IMAGE_PINS.md is the inventory index and must reference the
+    # Change Date so the relicense context is discoverable.
+    assert "2030-05-13" in text, (
+        "IMAGE_PINS.md does not document the BSL-1.1 Change Date "
+        "2030-05-13"
+    )
 
 
 def test_quadlet_active_image_is_wakir_provisioner() -> None:

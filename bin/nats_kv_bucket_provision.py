@@ -1,5 +1,14 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
+#
+# This file is the sandbox-side driver baked into the
+# `ghcr.io/wakir-labs/wakir-provisioner` image and is part of the
+# Wakir Provisioner module. Licensed under the Business Source
+# License 1.1; see
+# `infra/spire/federation/provisioner/LICENSE-BSL.md`.
+# Change Date: 2030-05-13 (four years after the first BSL-licensed
+# image publication, `wakir-provisioner:0.1.2`).
+# Change License: Apache License 2.0.
 """Per-org NATS-JetStream KV bucket provisioner (Phase-2 Sprint-9 Tag-1,
 Sprint-9 Tag-2 multi-family extension).
 

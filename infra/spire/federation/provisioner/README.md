@@ -2,10 +2,19 @@
 
 **Image:** `ghcr.io/wakir-labs/wakir-provisioner`
 **Source:** [`infra/spire/federation/provisioner/Containerfile`][cf]
-**License:** Apache-2.0 (wheel licences shipped inside the image; see
-`pip show <pkg>` for per-wheel attribution)
+**License:** Business Source License 1.1 (`BUSL-1.1`); see
+[`LICENSE-BSL.md`](./LICENSE-BSL.md). Change Date: 2030-05-13.
+Change License: Apache-2.0. Per-wheel licences inside the image
+(`nats-py` — Apache-2.0; CPython stdlib — PSF-2.0; transitive
+dependencies — BSD/Apache-2.0) ship in the wheels themselves and
+are reachable via `pip show <pkg>`; the BSL header does not extend
+to those transitive wheels.
 **Sprint context:** Phase-2 Sprint-9 Tag-4 — Bug-Fix-Welle for the
 Pilot-VM bring-up regression (Mira-Bug-Bilanz 2026-05-13, Bug 6).
+**Relicense context:** AR-Decision 2026-05-13 ~14:00 CEST —
+Apache-2.0 → BSL 1.1, consistent with the WAT-Pipeline-Server
+Phase-1a BSL pattern (ADR-0034 federation-server-substrate-
+sequence).
 
 [cf]: ./Containerfile
 
@@ -16,6 +25,21 @@ bucket provisioner (`bin/nats-kv-bucket-provision`, Sprint-9 Tag-1)
 needs at runtime:
 
 - `nats-py` (NATS-JetStream client)
+
+### Version history
+
+- **v0.1.0** — initial image, four wheels (`nats-py`,
+  `cryptography`, `rfc8785`, `jsonschema`) to satisfy the
+  provisioner's transitive imports through `wirelang.identity`.
+  Apache-2.0.
+- **v0.1.1** — post Reza-PR #33 (Wirelang-Import-Disentanglement,
+  PEP-562 lazy `__getattr__` on `wirelang.federation`); wheel set
+  shrunk to `nats-py` only. Apache-2.0.
+- **v0.1.2** — BSL 1.1 relicense (AR-Decision 2026-05-13). No
+  functional change vs. v0.1.1; image-level licence label flipped
+  from `Apache-2.0` to `BUSL-1.1`, Change Date 2030-05-13,
+  Change License Apache-2.0. Consistent with the WAT-Pipeline-
+  Server Phase-1a BSL pattern (ADR-0034).
 
 ### Wheel-set shrink (v0.1.1, post Reza-PR #33)
 
@@ -102,7 +126,7 @@ sed -i "s|python:3.13-slim@sha256:DIGEST_PENDING_TOMAS_REVIEW|python:3.13-slim@$
 ```sh
 # Build (rootless podman recommended):
 podman build \
-    --tag ghcr.io/wakir-labs/wakir-provisioner:0.1.1 \
+    --tag ghcr.io/wakir-labs/wakir-provisioner:0.1.2 \
     --label "org.opencontainers.image.revision=$(git rev-parse HEAD)" \
     --label "org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     -f infra/spire/federation/provisioner/Containerfile \
@@ -116,11 +140,11 @@ podman build \
 echo "$GHCR_TOKEN" | podman login ghcr.io -u "$GHCR_USER" --password-stdin
 
 # Push:
-podman push ghcr.io/wakir-labs/wakir-provisioner:0.1.1
+podman push ghcr.io/wakir-labs/wakir-provisioner:0.1.2
 
 # Resolve the pushed digest:
 PROVISIONER_DIGEST=$(podman image inspect \
-    ghcr.io/wakir-labs/wakir-provisioner:0.1.1 \
+    ghcr.io/wakir-labs/wakir-provisioner:0.1.2 \
     --format '{{ index .RepoDigests 0 }}' | sed 's|.*@||')
 
 # Sigstore keyless sign (OIDC against the GitHub Actions identity if
@@ -133,7 +157,7 @@ cosign sign \
 ### 5. Pin the digest in the Quadlet
 
 ```sh
-sed -i "s|wakir-provisioner:0.1.1@sha256:DIGEST_PENDING_TOMAS_REVIEW|wakir-provisioner:0.1.1@${PROVISIONER_DIGEST}|" \
+sed -i "s|wakir-provisioner:0.1.2@sha256:DIGEST_PENDING_TOMAS_REVIEW|wakir-provisioner:0.1.2@${PROVISIONER_DIGEST}|" \
     quadlet/wakir-nats-kv-bucket-init.container
 
 # Re-run the hermetic pin-form test:
@@ -145,7 +169,7 @@ pytest tests/infra/test_wakir_provisioner_image_pin_form.py
 ```sh
 git add infra/spire/federation/provisioner quadlet \
     infra/spire/federation/IMAGE_PINS.md
-git commit -m "chore(provisioner): pin wakir-provisioner:0.1.1 to verified digest"
+git commit -m "chore(provisioner): pin wakir-provisioner:0.1.2 to verified digest"
 ```
 
 ## Verification (hermetic, sandbox-safe)
@@ -162,6 +186,42 @@ The sandbox-side hermetic tests cover:
 
 No sandbox process pulls, builds, or pushes the image. Live build
 + publish is Operator-Hand per `feedback_sandbox_host_trennung.md`.
+
+## License (BSL 1.1)
+
+This module — the `infra/spire/federation/provisioner/` directory
+and the published image `ghcr.io/wakir-labs/wakir-provisioner`,
+together with the sandbox-side per-org NATS-KV bucket provisioner
+driver `bin/nats_kv_bucket_provision.py` — is licensed under the
+Business Source License 1.1 with automatic four-year conversion to
+Apache 2.0. The canonical header lives in
+[`LICENSE-BSL.md`](./LICENSE-BSL.md).
+
+Summary of the licensing terms:
+
+| Use case | Allowed under BSL 1.1? |
+|---|---|
+| Self-hosting against your own organisation's SPIRE-Federation substrate | Yes |
+| Self-hosting for subsidiaries or contractors operating on your behalf | Yes |
+| Commercial multi-tenant federation-as-a-service competing with Wakir Cloud | No — separate Wakir-Cloud licence required |
+| Re-using individual wheel artefacts (`nats-py` etc.) shipped inside the image | Yes, under the wheel's own upstream licence (Apache-2.0, BSD, PSF-2.0) — the BSL header on the image does not extend to those wheels |
+| Building from source for evaluation, testing, CI, audit | Yes |
+
+**Change Date:** 2030-05-13 (four years after the first BSL-licensed
+image publication, `wakir-provisioner:0.1.2`).
+**Change License:** Apache License, Version 2.0.
+
+The conversion is a contractual commitment of the Licensor, not a
+unilateral promise: once an image release is published under the
+BSL header, that specific release automatically converts to
+Apache-2.0 on the stated Change Date.
+
+The `wat/` module of this repository carries a sibling BSL header
+with its own independent Change Date — see
+[`wat/LICENSE-BSL.md`](../../../../wat/LICENSE-BSL.md). All other
+directories of this repository follow the repository-root
+[LICENSE](../../../../LICENSE) (Apache-2.0 by default; CC BY 4.0
+for documentation where indicated).
 
 ## Drift alarm
 

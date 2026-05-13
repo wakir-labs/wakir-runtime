@@ -1,5 +1,18 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
+#
+# This Containerfile and the image it produces are part of the Wakir
+# federation-server substrate. Licensed under the Business Source
+# License 1.1; see ./LICENSE-BSL.md.
+# Change Date: 2030-05-13 (four years after the first BSL-licensed
+# image publication, ``wakir-provisioner:0.1.2``).
+# Change License: Apache License 2.0.
+#
+# Per-wheel licences shipped inside the image (``nats-py`` — Apache-2.0,
+# CPython stdlib — PSF-2.0) are unaffected by the image-level BSL
+# header; the wheels remain reachable via ``pip show <pkg>`` inside a
+# running container, and their licences govern the wheel artefacts as
+# the upstream projects ship them.
 #
 # wakir-provisioner — minimal Python image carrying the wheel set the
 # Phase-2 Sprint-9 per-org NATS-KV bucket provisioner needs at runtime.
@@ -56,12 +69,19 @@
 # Wirelang/runtime tree does not require an image rebuild; bumping
 # the ``nats-py`` pin above does.
 #
-# Apache-2.0 + image provenance
-# -----------------------------
+# BSL-1.1 + image provenance
+# --------------------------
 # ``nats-py`` ships under Apache-2.0. The image as a whole is published
-# under Apache-2.0; the per-wheel licence text ships in the wheel
-# itself and is reachable via ``pip show nats-py`` inside a running
-# container.
+# under the Business Source License 1.1 (AR-Decision 2026-05-13,
+# consistent with the WAT-Pipeline-Server Phase-1a BSL pattern per
+# ADR-0034). The per-wheel licence text ships in the wheel itself and
+# is reachable via ``pip show nats-py`` inside a running container;
+# the transitive wheel licences (Apache-2.0, BSD) are unaffected by
+# the BSL header on the image as a whole. The BSL Additional Use
+# Grant permits self-hosting for own-org operations; commercial
+# multi-tenant hosting requires a separate Wakir-Cloud licence. The
+# image automatically converts to Apache-2.0 four years after the
+# first BSL-licensed image publication (Change Date: 2030-05-13).
 #
 # Build path: ``.github/workflows/build-wakir-provisioner.yml``
 # (Operator-Hand ``workflow_dispatch`` only; pushes to
@@ -77,9 +97,9 @@ FROM docker.io/library/python:3.13-slim@sha256:DIGEST_PENDING_TOMAS_REVIEW
 # OCI metadata. The build workflow stamps build-time labels
 # (``org.opencontainers.image.revision`` etc.) at push time.
 LABEL org.opencontainers.image.title="wakir-provisioner"
-LABEL org.opencontainers.image.description="Runtime image for the Wakir per-org NATS-KV bucket provisioner (Sprint-9 Tag-4, v0.1.1 post-disentanglement: nats-py only)."
-LABEL org.opencontainers.image.version="0.1.1"
-LABEL org.opencontainers.image.licenses="Apache-2.0"
+LABEL org.opencontainers.image.description="Runtime image for the Wakir per-org NATS-KV bucket provisioner (Sprint-9 Tag-4, v0.1.2 BSL-1.1 relicense: nats-py only; AR-Decision 2026-05-13)."
+LABEL org.opencontainers.image.version="0.1.2"
+LABEL org.opencontainers.image.licenses="BUSL-1.1"
 LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"
 LABEL org.opencontainers.image.url="https://github.com/wakir-labs/wakir-runtime"
 LABEL org.opencontainers.image.documentation="https://github.com/wakir-labs/wakir-runtime/blob/main/infra/spire/federation/provisioner/README.md"

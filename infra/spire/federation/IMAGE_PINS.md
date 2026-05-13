@@ -18,7 +18,7 @@ all occurrences of the placeholder token across the listed files.
 | `ghcr.io/spiffe/spire-server` | `1.14.6` | `sha256:DIGEST_PENDING_TOMAS_REVIEW` | `compose/spire-federation.yaml` (×2), `quadlet/wakir-spire-server-federation.container` |
 | `ghcr.io/spiffe/spire-agent` | `1.14.6` | `sha256:DIGEST_PENDING_TOMAS_REVIEW` | `compose/spire-agent-federation.yaml` (×2), `quadlet/wakir-spire-agent-federation.container` |
 | `docker.io/library/python` | `3.13-slim` | `sha256:DIGEST_PENDING_TOMAS_REVIEW` | `infra/spire/federation/provisioner/Containerfile` (base layer for `wakir-provisioner`) |
-| `ghcr.io/wakir-labs/wakir-provisioner` | `0.1.1` | `sha256:DIGEST_PENDING_TOMAS_REVIEW` | `quadlet/wakir-nats-kv-bucket-init.container` |
+| `ghcr.io/wakir-labs/wakir-provisioner` | `0.1.2` | `sha256:DIGEST_PENDING_TOMAS_REVIEW` | `quadlet/wakir-nats-kv-bucket-init.container` |
 
 SPIRE-Server and SPIRE-Agent MUST stay version-parity: SPIRE upstream
 releases the server and agent as a paired binary set, and version-skew
@@ -43,9 +43,16 @@ through `wirelang.identity`. After Reza-PR #33
 `wirelang.federation`), the transitive identity-stack import chain
 no longer fires for the marker-stack-kv / sequence-number-ledger
 code paths the provisioner exercises, and the v0.1.1 image shrinks
-the wheel set to `nats-py` only. Both versions ship under Apache-2.0
-with hash-pinned build inputs
-(`infra/spire/federation/provisioner/requirements.txt`).
+the wheel set to `nats-py` only. v0.1.0 and v0.1.1 ship under
+Apache-2.0; **v0.1.2 (current inventory tag) ships under BSL 1.1**
+with a four-year Change Date (2030-05-13) and Change License
+Apache-2.0 — AR-Decision 2026-05-13, consistent with the WAT-
+Pipeline-Server Phase-1a BSL pattern (ADR-0034). Build inputs are
+hash-pinned (`infra/spire/federation/provisioner/requirements.txt`)
+across all versions; the BSL header applies to the
+`infra/spire/federation/provisioner/` module and the published
+image only, not to the transitive wheel licences (`nats-py` —
+Apache-2.0, CPython stdlib — PSF-2.0).
 
 Both layers stay digest-pinned: the base-image pin lives in the
 `provisioner/Containerfile` `FROM` line and resolves via the
@@ -224,14 +231,14 @@ Operator-Hand resolution recipe:
 cosign verify \
     --certificate-identity-regexp 'https://github\.com/wakir-labs/wakir-runtime/' \
     --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
-    ghcr.io/wakir-labs/wakir-provisioner:0.1.1
+    ghcr.io/wakir-labs/wakir-provisioner:0.1.2
 
 # Step 3: resolve the digest via crane (cross-check).
-PROVISIONER_DIGEST=$(crane digest ghcr.io/wakir-labs/wakir-provisioner:0.1.1)
+PROVISIONER_DIGEST=$(crane digest ghcr.io/wakir-labs/wakir-provisioner:0.1.2)
 echo "${PROVISIONER_DIGEST}"   # sha256:<64-hex>
 
 # Step 4: substitute the placeholder in the Quadlet.
-sed -i "s|wakir-provisioner:0.1.1@sha256:DIGEST_PENDING_TOMAS_REVIEW|wakir-provisioner:0.1.1@${PROVISIONER_DIGEST}|g" \
+sed -i "s|wakir-provisioner:0.1.2@sha256:DIGEST_PENDING_TOMAS_REVIEW|wakir-provisioner:0.1.2@${PROVISIONER_DIGEST}|g" \
     quadlet/wakir-nats-kv-bucket-init.container
 
 # Step 5: re-run the hermetic test surface.
@@ -376,5 +383,44 @@ Reza-Sprint-9-Tag-4 coordination (Wirelang-import-disentanglement):
   merged, the v0.1.1 hygiene-follow-up drops the now-unused wheels
   (`cryptography`, `rfc8785`, `jsonschema`) and lands the lean
   one-wheel image (Tomás-PR §"Sprint-9 Tag-4 hygiene").
+
+— Tomás
+
+## 7. Sprint-9 Tag-4 follow-up (Tomás) — BSL 1.1 relicense
+
+Driver: AR-Decision 2026-05-13 ~14:00 CEST, consistent with the
+WAT-Pipeline-Server Phase-1a BSL pattern (ADR-0034 federation-
+server-substrate-sequence).
+
+- Bumped the `wakir-provisioner` inventory tag from `0.1.1` to
+  `0.1.2`. No functional change vs. v0.1.1; the version bump
+  exists so the BSL-relicensed artefact carries a distinct
+  immutable tag from the Apache-2.0 v0.1.1 artefact.
+- Flipped the image-level licence label from
+  `org.opencontainers.image.licenses="Apache-2.0"` to
+  `org.opencontainers.image.licenses="BUSL-1.1"` in the
+  Containerfile.
+- Flipped the SPDX-License-Identifier in the Containerfile and in
+  the sandbox-side provisioner driver
+  (`bin/nats_kv_bucket_provision.py`) from `Apache-2.0` to
+  `BUSL-1.1`.
+- Added `infra/spire/federation/provisioner/LICENSE-BSL.md` with
+  the canonical BSL 1.1 header (Change Date 2030-05-13, Change
+  License Apache-2.0, Additional Use Grant covering self-hosting
+  for own-org operations).
+- Updated the §1 inventory-table row and the §2.5 resolver recipe
+  to reference the new tag.
+- Updated the hermetic-test surface (`test_containerfile.py`,
+  `test_wakir_provisioner_image_pin_form.py`) to enforce the new
+  BSL header and the new pinned tag.
+- The transitive wheel licences (`nats-py` — Apache-2.0; CPython
+  stdlib — PSF-2.0) are unaffected by the BSL header on the
+  Licensed Work; they remain reachable via `pip show <pkg>` inside
+  a running container.
+
+Post-merge Operator-Hand: trigger
+`.github/workflows/build-wakir-provisioner.yml` to publish the
+`wakir-provisioner:0.1.2` artefact carrying the BSL label, then
+resolve the digest into the Quadlet per §2.5.
 
 — Tomás
