@@ -211,7 +211,7 @@ with ``-runtime`` suffix from Tag-5-Tip ``d0669f9``.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Callable, Dict, Optional
 
 from .multi_org_attestation_nats_kv_backend import (
     MultiOrgAttestationCasConflict,
@@ -230,8 +230,92 @@ from .multi_org_attestation_nats_kv_backend import (
 )
 
 
+# ---------------------------------------------------------------------------
+# Sprint-9 Tag-3 Teil B — detect_replay-callsite-mirror hook
+# ---------------------------------------------------------------------------
+#
+# The replicator's primary payload is the multi-org-attestation envelope
+# (an authority-gesture, not a capability-event payload). Sprint-9 Tag-1
+# shipped the symmetric :func:`detect_replay` gate for
+# :class:`ExportedCaveatOverrideEvent` envelopes; the durable
+# :class:`NatsKvSequenceNumberLedger` (Sprint-9 Tag-2) lets a downstream
+# verifier persist per-pair last-seen sequence numbers cross-process.
+#
+# The live-tail replicator's contribution to that gate is **structural,
+# not semantic**: the replicator is the single chokepoint a hostile
+# cross-org event must traverse before reaching the target bucket.
+# If we wire a replay-detector hook *before* the apply step, every
+# replicator deployment trivially inherits the same replay-protection
+# guarantee that an in-band verifier would assert on each consumer side.
+#
+# Hook contract
+# -------------
+#
+# ``ReplayDetectorFn`` is a callable
+# ``(event) -> ReplayDetectorDecision`` invoked AFTER the filter and
+# BEFORE the apply step. If the decision is ``REPLAY``, the event is
+# dropped (no PUT/DELETE on the target) and the per-org replay-drop
+# counter advances. If the decision is ``PASS_THROUGH``, the replicator
+# routes the event normally.
+#
+# The hook is operator-supplied. The default no-op implementation
+# (:func:`_default_pass_through`) is wired when ``replay_detector_fn``
+# is unset; with the default, the replicator's behaviour is
+# byte-identical to Sprint-7 Tag-6.
+#
+# The hook signature receives the watch event (not a token-burst
+# payload) because the replicator's stream carries the attestation
+# envelope. Operators who want to wire :func:`detect_replay` for
+# CaveatOverrideExport-events on the same cross-org channel build a
+# thin shim that extracts the relevant route_id / chain_hash /
+# sequence triple from the event surface and delegates to their
+# verifier-side ledger; the replicator-side hook gives them a single
+# attachment point.
+
+
+from enum import Enum
+
+
+class ReplayDetectorDecision(str, Enum):
+    """Two-valued decision for the replay-detector hook.
+
+    - ``PASS_THROUGH``: the event is not a replay; the replicator
+      routes it normally through the conflict policy.
+    - ``REPLAY``: the event is a known replay; the replicator drops
+      it (no target-side write) and advances the per-org replay-drop
+      counter.
+
+    The hook MAY also raise an exception to halt the replicator;
+    that path surfaces via the underlying try/except in
+    :meth:`MultiOrgAttestationReplicator._consume_event` and respects
+    the operator's halt policy.
+    """
+
+    PASS_THROUGH = "pass_through"
+    REPLAY = "replay"
+
+
+ReplayDetectorFn = Callable[
+    [MultiOrgAttestationWatchEvent], ReplayDetectorDecision
+]
+
+
+def _default_pass_through(
+    event: MultiOrgAttestationWatchEvent,
+) -> ReplayDetectorDecision:
+    """Default no-op replay detector: every event passes through.
+
+    With the default, the replicator's behaviour is byte-identical
+    to Sprint-7 Tag-6 (no replay-protection layer). Operators wire
+    their own detector for the cross-org capability-event stream.
+    """
+    return ReplayDetectorDecision.PASS_THROUGH
+
+
 __all__ = [
     "MultiOrgAttestationReplicator",
+    "ReplayDetectorDecision",
+    "ReplayDetectorFn",
 ]
 
 
@@ -330,6 +414,26 @@ class MultiOrgAttestationReplicator:
         default_factory=MultiOrgAttestationReplicationMetrics
     )
     last_revision: int = 0
+
+    # Sprint-9 Tag-3 Teil B — detect_replay-callsite-mirror.
+    # Operator-supplied hook invoked AFTER the filter and BEFORE the
+    # apply step. Default: no-op pass-through (byte-identical to
+    # Sprint-7 Tag-6). See module docstring for the contract.
+    replay_detector_fn: ReplayDetectorFn = field(
+        default=_default_pass_through
+    )
+    # Per-org replay-drop counter (Sprint-9 Tag-3 Teil B). The
+    # replicator carries one bucket per peer ``org_id`` it has
+    # observed on the live tail; the ``org_id`` is sourced from the
+    # event's :attr:`MultiOrgAttestationWatchEvent.attestation.
+    # peer_trust_domain` (the peer's trust-domain id; "org-id" in the
+    # cross-org-federation taxonomy). DELETE / PURGE events whose
+    # attestation has already been removed lack a peer_trust_domain
+    # surface; for those events the counter falls back to the
+    # synthetic key ``"<unknown>"``.
+    replay_drops_per_org: Dict[str, int] = field(
+        default_factory=dict
+    )
 
     def __post_init__(self) -> None:
         if not isinstance(
@@ -441,11 +545,17 @@ class MultiOrgAttestationReplicator:
     async def _consume_event(
         self, event: MultiOrgAttestationWatchEvent
     ) -> None:
-        """Filter + route one event to the appropriate apply method.
+        """Filter + replay-detect + route one event.
 
         Updates :attr:`last_revision` for every observed event
         (filter accept and filter reject alike). The resume cursor
         is a stream-level high-water mark, NOT a target-write mark.
+
+        Sprint-9 Tag-3 Teil B: between the filter and the apply
+        step, the operator-supplied :attr:`replay_detector_fn` is
+        invoked. A ``REPLAY`` decision drops the event (no target
+        write) and advances the per-org replay-drop counter; a
+        ``PASS_THROUGH`` decision routes normally.
         """
         if event.revision > self.last_revision:
             self.last_revision = event.revision
@@ -464,12 +574,63 @@ class MultiOrgAttestationReplicator:
         ):
             self.metrics.events_skipped_by_filter += 1
             return
+
+        # Sprint-9 Tag-3 Teil B — replay-detector hook.
+        replay_decision = self.replay_detector_fn(event)
+        if not isinstance(
+            replay_decision, ReplayDetectorDecision
+        ):
+            raise TypeError(
+                "replay_detector_fn must return a "
+                "ReplayDetectorDecision, got "
+                f"{type(replay_decision).__name__}"
+            )
+        if replay_decision is ReplayDetectorDecision.REPLAY:
+            self._record_replay_drop(event)
+            return
+
         if event.op is MultiOrgAttestationWatchOp.PUT:
             await self._apply_put(event)
         else:
             # DELETE / PURGE: same target-side action (the bucket
             # state on the target reflects the source's absence).
             await self._apply_delete(event)
+
+    def _record_replay_drop(
+        self, event: MultiOrgAttestationWatchEvent
+    ) -> None:
+        """Advance the per-org replay-drop counter for ``event``.
+
+        Sourcing the ``org_id``:
+
+        - For PUT events the peer trust-domain is available on
+          :attr:`event.attestation.peer_trust_domain`.
+        - For DELETE / PURGE events the attestation surface MAY be
+          ``None`` (the source bucket no longer carries it); the
+          counter falls back to the synthetic ``"<unknown>"`` key.
+
+        The replay-drop counter is purely informational and not
+        load-bearing for replay-protection itself; the protection
+        is the missing target-side write. The counter exists so
+        operators can observe replay activity per peer.
+        """
+        org_id: Optional[str] = None
+        att = event.attestation
+        if att is not None:
+            org_id = getattr(att, "peer_trust_domain", None)
+        key = org_id if org_id else "<unknown>"
+        self.replay_drops_per_org[key] = (
+            self.replay_drops_per_org.get(key, 0) + 1
+        )
+
+    @property
+    def total_replay_drops(self) -> int:
+        """Sum of replay-drop counters across all observed peers.
+
+        Convenience accessor for operators that only care about the
+        global drop count (e.g. a Prometheus gauge).
+        """
+        return sum(self.replay_drops_per_org.values())
 
     async def run(
         self, *, bootstrap: bool = True
