@@ -89,6 +89,15 @@ Public surface:
 - :class:`wirelang.federation.unrevoke_audit_marker_cross_org_export.UnrevokeAuditMarkerCrossOrgExporter`
 - :class:`wirelang.federation.unrevoke_audit_marker_cross_org_export.ExportedUnrevokeAuditMarker`
 - :class:`wirelang.federation.unrevoke_audit_marker_cross_org_export.UnrevokeReasonClass`
+
+Sprint-8 Tag-3 adds the Multi-Marker-Policy-Composition reducer:
+
+- :func:`wirelang.federation.marker_composition.reduce_marker_stack`
+- :class:`wirelang.federation.marker_composition.MarkerStack`
+- :class:`wirelang.federation.marker_composition.CompositionVerdict`
+- event markers: ``RevokeEvent``, ``UnrevokeEvent``,
+  ``ReIssuanceEvent``, ``CaveatOverrideEvent``,
+  ``BridgeRevokedEvent``.
 """
 
 from .spiffe_cross_trust_domain_bridge import (  # noqa: F401
