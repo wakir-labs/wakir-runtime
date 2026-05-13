@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-9 Tag-5 — Wakir-SPIRE-Pilot canonical SELinux policy
+# baseline for the Fedora-CoreOS Pilot-VM. See SELINUX_RECIPE.md §4
+# for installation steps and rationale.
+#
+# This module is DEFENSE-IN-DEPTH. It does NOT grant new privileges to
+# container processes. It declares the type-transition that ensures a
+# newly created file under a podman-managed named-volume mountpoint
+# inherits ``container_file_t`` regardless of the host's default
+# file_contexts -- this guards against the H2 SELinux-AVC failure mode
+# documented in PILOT_BRING_UP_TROUBLESHOOTING.md.
+#
+# Install (Operator-Hand on the Pilot-VM):
+#   cd /opt/wakir-runtime/infra/spire/federation/selinux
+#   sudo checkmodule -M -m -o wakir-spire-pilot.mod wakir-spire-pilot.te
+#   sudo semodule_package -o wakir-spire-pilot.pp -m wakir-spire-pilot.mod
+#   sudo semodule -i wakir-spire-pilot.pp
+#
+# Verify:
+#   sudo semodule -l | grep wakir-spire-pilot
+
+module wakir-spire-pilot 1.0;
+
+require {
+    type container_file_t;
+    type container_var_lib_t;
+    type container_runtime_t;
+    class file { create };
+    class dir { create };
+}
+
+# Type-transition: a NEW file/dir created by container_runtime_t
+# (podman) under container_var_lib_t (the default type for the
+# /var/lib/containers/storage tree) inherits container_file_t. That
+# matches the default container-selinux policy on Fedora-CoreOS, but
+# declaring it explicitly here guards against host policy drift.
+type_transition container_runtime_t container_var_lib_t : file container_file_t;
+type_transition container_runtime_t container_var_lib_t : dir container_file_t;

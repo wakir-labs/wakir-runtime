@@ -136,7 +136,13 @@ HealthCmd=/opt/spire/bin/spire-agent healthcheck
 HealthInterval=10s
 HealthTimeout=5s
 HealthRetries=5
-HealthStartPeriod=30s
+# Sprint-9-Tag-5 Bug 7 (H3): SPIRE-Agent cold-start waits for the
+# server's gRPC API to become reachable AND completes the join-token
+# attestation handshake before the healthcheck binary reports ready.
+# On a cold Pilot-VM the server itself needs ~30-40s to come up;
+# 60s on the agent side gives the attestation handshake additional
+# headroom on top of that.
+HealthStartPeriod=60s
 
 [Service]
 # Restart policy: compose `restart: unless-stopped` -> on-failure.

@@ -217,4 +217,34 @@ SPIRE-Agent-healthy + Workload-API-reachable + marker-stack-bucket-
 present + bucket-init-oneshot-completed). Any other outcome warrants
 a fresh diagnose-recipe pass against the journal output.
 
+## Sprint-9-Tag-5 Bug 7 Source-Fix Status
+
+The Sprint-9-Tag-5 substance-fix (ships in PR
+`kai/sprint-9-tag-5-spire-agent-stability`) resolves H1 and H3 at the
+SOURCE template level:
+
+* **H1 fixed in source.** New single-org config variants
+  `infra/spire/federation/config/spire-server-pilot-single-org.conf`
+  and `infra/spire/agent/config/spire-agent-pilot-single-org.conf`
+  ship with NO `federates_with` block, NO `bundle_endpoint` listener,
+  `insecure_bootstrap = true`, and NO `trust_bundle_path`.
+  `wakir-pilot-bootstrap.sh` gains the `WAKIR_PILOT_MODE` env-var
+  (default `single-org`) that selects between the new single-org
+  configs and the Sprint-8 Tag-1/Tag-2 federation configs.
+
+* **H3 fixed in source.** Server + agent Quadlet templates raised
+  `HealthStartPeriod=30s` to `HealthStartPeriod=60s` (cold-start CA-
+  init + attestation-handshake headroom).
+
+* **H2 defense-in-depth.** New SELinux recipe at
+  `infra/spire/federation/selinux/SELINUX_RECIPE.md` plus canonical
+  custom-policy `wakir-spire-pilot.te` for type-transition
+  installation. Recipe is Operator-Hand-driven (no automatic
+  install — H2 is a contingency, not the primary failure mode).
+
+After Sprint-9-Tag-5 merges, the second bring-up attempt should not
+require any of the H1 / H3 Operator-Hand fixes documented above (they
+are now in the source templates). H2 (SELinux) and H4/H5 (config-path
+/ trust-domain mismatch) remain Operator-Hand-contingency paths.
+
 — Kai

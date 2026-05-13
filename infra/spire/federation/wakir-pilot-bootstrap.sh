@@ -19,6 +19,15 @@
 # Env-Vars:
 #   WAKIR_ORG_ID              default: acme
 #   WAKIR_TRUST_DOMAIN        default: wakir.test
+#   WAKIR_PILOT_MODE          default: single-org  (Sprint-9-Tag-5
+#                             Bug 7 substance-fix: choose between
+#                             ``single-org`` Phase-1b pilot config
+#                             variants and ``federation`` dual-side
+#                             Phase-2.1 variants. Single-org is the
+#                             default — Phase-1b pilot does not have
+#                             a federation peer; using the federation
+#                             configs in single-org mode crashes the
+#                             SPIRE-Server on partner-peer-DNS-miss.)
 #   WAKIR_REPO_BRANCH         default: main
 #   WAKIR_REPO_URL            default: https://github.com/wakir-labs/wakir-runtime.git
 #   WAKIR_REPO_ROOT           default: /opt/wakir-runtime
@@ -91,6 +100,34 @@ _resume_cmd() {
 : "${WAKIR_SKIP_COSIGN_VERIFY:=0}"
 : "${WAKIR_SKIP_PROMPTS:=0}"
 : "${COSIGN_VERSION:=v2.4.1}"
+
+# Sprint-9-Tag-5 Bug 7 substance-fix: single-org pilot mode toggles the
+# SPIRE-Server + SPIRE-Agent config variants the bootstrap installs.
+#
+#   single-org   -> spire-server-pilot-single-org.conf
+#                   spire-agent-pilot-single-org.conf
+#                   (no federates_with, no bundle-endpoint listener,
+#                    agent has insecure_bootstrap=true and no
+#                    trust_bundle_path; agent template's federated-
+#                    bundles read-only mount is dropped via in-place
+#                    line-deletion).
+#   federation   -> spire-server-${side}.conf
+#                   spire-agent-${side}.conf
+#                   (Sprint-8 Tag-1/Tag-2 dual-side variants; requires
+#                    BOTH wakir and partner sides to be installed on
+#                    the SAME host to avoid the partner-peer-DNS-miss
+#                    that crashes the server in Bug 7 H1).
+#
+# Phase-1b Pilot-VM bring-up defaults to ``single-org``. Phase-2.1
+# dual-side bring-up sets WAKIR_PILOT_MODE=federation.
+: "${WAKIR_PILOT_MODE:=single-org}"
+case "$WAKIR_PILOT_MODE" in
+  single-org|federation) : ;;
+  *)
+    echo "[$PROG] ERROR: WAKIR_PILOT_MODE must be 'single-org' or 'federation'; got '${WAKIR_PILOT_MODE}'" >&2
+    exit 1
+    ;;
+esac
 
 # Test-injection hooks. In production these expand to nothing; the
 # hermetic test surface in tests/infra/test_pilot_bootstrap.py can
@@ -195,6 +232,7 @@ Steps:
 Env vars (see top of script for full list):
   WAKIR_ORG_ID              (default: acme)
   WAKIR_TRUST_DOMAIN        (default: wakir.test)
+  WAKIR_PILOT_MODE          (default: single-org; alt: federation)
   WAKIR_SKIP_COSIGN_VERIFY  (default: 0; set 1 for tag-only quick-pilot)
   WAKIR_SKIP_PROMPTS        (default: 0; set 1 for headless / CI)
 EOF
@@ -230,6 +268,7 @@ cat <<EOF
 ${_BOLD}Wakir-Pilot-VM Bring-up${_RESET}
   Org-ID:        ${WAKIR_ORG_ID}
   Trust-Domain:  ${WAKIR_TRUST_DOMAIN}
+  Pilot-Mode:    ${WAKIR_PILOT_MODE}
   Repo-Branch:   ${WAKIR_REPO_BRANCH}
   Repo-Root:     ${WAKIR_REPO_ROOT}
   Resume-From:   ${RESUME_FROM}/${TOTAL_STEPS}
@@ -775,6 +814,12 @@ step_6_quadlet() {
   log_ok "volume units installed"
 
   # 6c. SPIRE-Server-Federation container (per-side substitution).
+  #
+  # Sprint-9-Tag-5 Bug 7 substance-fix: WAKIR_PILOT_MODE selects which
+  # server-config variant the bootstrap installs.
+  #   * single-org -> spire-server-pilot-single-org.conf
+  #   * federation -> spire-server-${side}.conf
+  # See top-of-file rationale block at WAKIR_PILOT_MODE definition.
   local server_tpl="${fed_src}/wakir-spire-server-federation.container"
   if [[ -f "$server_tpl" ]]; then
     _install_substituted "$server_tpl" \
@@ -785,40 +830,81 @@ step_6_quadlet() {
       || { log_err "install $server_tpl failed"; return 2; }
 
     install -d -m 755 /etc/wakir/spire-federation
-    local server_conf="${WAKIR_REPO_ROOT}/infra/spire/federation/config/spire-server-${side}.conf"
-    if [[ -f "$server_conf" ]]; then
+    local server_conf_src=""
+    case "$WAKIR_PILOT_MODE" in
+      single-org)
+        server_conf_src="${WAKIR_REPO_ROOT}/infra/spire/federation/config/spire-server-pilot-single-org.conf"
+        ;;
+      federation)
+        server_conf_src="${WAKIR_REPO_ROOT}/infra/spire/federation/config/spire-server-${side}.conf"
+        ;;
+    esac
+    # NOTE: the container's bind-mount target path stays
+    # /etc/wakir/spire-federation/spire-server-${side}.conf in BOTH
+    # modes — only the source file the bootstrap reads-from differs.
+    # That preserves the existing test_pilot_bringup_substance.py
+    # TV-BRINGUP-06 config-path invariant.
+    if [[ -f "$server_conf_src" ]]; then
       local server_conf_dst="/etc/wakir/spire-federation/spire-server-${side}.conf"
-      if ! cmp -s "$server_conf" "$server_conf_dst" 2>/dev/null; then
-        install -m 644 "$server_conf" "$server_conf_dst"
+      if ! cmp -s "$server_conf_src" "$server_conf_dst" 2>/dev/null; then
+        install -m 644 "$server_conf_src" "$server_conf_dst"
       fi
     else
-      log_warn "spire-server-${side}.conf not found in repo; skipping config install"
+      log_warn "${server_conf_src} not found in repo; skipping config install"
     fi
-    log_ok "SPIRE-server-${side} unit installed"
+    log_ok "SPIRE-server-${side} unit installed (mode=${WAKIR_PILOT_MODE})"
   else
     log_warn "spire-server-federation.container not found at ${server_tpl}"
   fi
 
   # 6d. SPIRE-Agent-Federation container (per-side substitution).
+  #
+  # Sprint-9-Tag-5 Bug 7 substance-fix: WAKIR_PILOT_MODE selects which
+  # agent-config variant the bootstrap installs. In single-org mode
+  # the agent template's federated-bundles read-only volume mount is
+  # dropped (no peer exposes a bundles volume; the line would be a
+  # dangling reference to a never-populated volume).
   local agent_tpl="${agent_src}/wakir-spire-agent-federation.container"
   if [[ -f "$agent_tpl" ]]; then
+    local agent_sed_args=(
+      -e "s|<SIDE>|${side}|g"
+      -e "s|<TRUST_DOMAIN>|${WAKIR_TRUST_DOMAIN}|g"
+      -e "s|<SERVER_DNS>|spire-server-${side}|g"
+    )
+    if [[ "$WAKIR_PILOT_MODE" == "single-org" ]]; then
+      # Drop the federated-bundles read-only mount line. The
+      # single-org agent has no peer bundles to ingest; the
+      # ``insecure_bootstrap = true`` posture obtains the trust-anchor
+      # via the server's gRPC handshake instead.
+      agent_sed_args+=(
+        -e "\|wakir-spire-server-federation-<SIDE>-bundles\.volume:/var/lib/spire/bundles:ro|d"
+      )
+    fi
     _install_substituted "$agent_tpl" \
         "${dst}/wakir-spire-agent-${side}.container" \
-        -e "s|<SIDE>|${side}|g" \
-        -e "s|<TRUST_DOMAIN>|${WAKIR_TRUST_DOMAIN}|g" \
-        -e "s|<SERVER_DNS>|spire-server-${side}|g" \
+        "${agent_sed_args[@]}" \
       || { log_err "install $agent_tpl failed"; return 2; }
 
-    local agent_conf="${WAKIR_REPO_ROOT}/infra/spire/agent/config/spire-agent-${side}.conf"
-    if [[ -f "$agent_conf" ]]; then
+    local agent_conf_src=""
+    case "$WAKIR_PILOT_MODE" in
+      single-org)
+        agent_conf_src="${WAKIR_REPO_ROOT}/infra/spire/agent/config/spire-agent-pilot-single-org.conf"
+        ;;
+      federation)
+        agent_conf_src="${WAKIR_REPO_ROOT}/infra/spire/agent/config/spire-agent-${side}.conf"
+        ;;
+    esac
+    # NOTE: container bind-mount target path stays
+    # /etc/wakir/spire-agent-${side}.conf in BOTH modes.
+    if [[ -f "$agent_conf_src" ]]; then
       local agent_conf_dst="/etc/wakir/spire-agent-${side}.conf"
-      if ! cmp -s "$agent_conf" "$agent_conf_dst" 2>/dev/null; then
-        install -m 644 "$agent_conf" "$agent_conf_dst"
+      if ! cmp -s "$agent_conf_src" "$agent_conf_dst" 2>/dev/null; then
+        install -m 644 "$agent_conf_src" "$agent_conf_dst"
       fi
     else
-      log_warn "spire-agent-${side}.conf not found in repo"
+      log_warn "${agent_conf_src} not found in repo"
     fi
-    log_ok "SPIRE-agent-${side} unit installed"
+    log_ok "SPIRE-agent-${side} unit installed (mode=${WAKIR_PILOT_MODE})"
   else
     log_warn "spire-agent-federation.container not found at ${agent_tpl}"
   fi
