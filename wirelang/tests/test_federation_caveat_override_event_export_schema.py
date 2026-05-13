@@ -34,7 +34,12 @@ from pathlib import Path
 
 import pytest
 
-import jsonschema
+# Optional jsonschema dependency: the wirelang test suite ships in
+# two CI lanes (with rfc8785 + jsonschema, and without). Module-level
+# importorskip mirrors the established pattern in
+# test_persona_v2_schema.py so the without-jsonschema lane skips
+# this module cleanly instead of erroring at collection.
+jsonschema = pytest.importorskip("jsonschema")
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_PATH = (
