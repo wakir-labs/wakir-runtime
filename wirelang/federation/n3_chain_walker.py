@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """V-908 N3 multi-FTD delegation-chain walker.
 
 This module is the Phase-1b Sprint-2 Tag-5 production-form of the

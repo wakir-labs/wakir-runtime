@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """spire-fed-metrics — Prometheus-text-format metrics surface for the
 Phase-2 Sprint-8 Tag-4 Federation-Bundle-Endpoint substrate.

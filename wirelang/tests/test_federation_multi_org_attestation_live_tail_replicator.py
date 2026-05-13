@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """Hermetic tests for the multi-org-attestation live-tail replicator.
 
 Phase-2 Sprint-7 Tag-6. Pattern-mirror on the Sprint-6 Tag-6

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """Tests for the Phase-2 Sprint-7 Tag-4 Capability-Attenuation-Chain-
 Verifier (``wirelang.federation.capability_attenuation_chain_verifier``).
 

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Hermetic acceptance tests for the Sprint-8 Tag-2 spire-agent-fed-
 attest CLI Mock (``infra/spire/agent/bin/spire_agent_fed_attest.py``).

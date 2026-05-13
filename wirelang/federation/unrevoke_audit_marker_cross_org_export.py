@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """UnrevokeAuditMarker cross-org export surface.
 
 Phase-2 Sprint-7 Tag-5 lands the cross-org export pattern for the

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """Hermetic tests for the Wirelang persistent marker-stack NATS-KV
 backend (Sprint-8 Tag-4).
 

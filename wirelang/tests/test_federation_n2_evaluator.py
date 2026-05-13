@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """Determinism tests for the V-908 N2 federation predicate evaluator.
 
 Phase-1b Sprint-2 Tag-3 (S2-2). Tests the live evaluator for

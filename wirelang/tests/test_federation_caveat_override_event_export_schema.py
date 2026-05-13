@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """Tests for the OTS-anchored caveat-override-event-export
 schema-registry entry (Phase-2 Sprint-9 Tag-2).
 

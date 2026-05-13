@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Hermetic tests for the Multi-Org-Onboarding-Recipe substrate
 (Phase-2 Sprint-9 Tag-2).

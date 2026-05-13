@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """Unit tests for the Doppel-Audit-Trail bridge writer.
 
 Covers the public API of ``wat.anchor.bridge_audit_writer``:

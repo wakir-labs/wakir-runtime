@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """V-908 Federation-Resolver pipeline (Phase-1b PS-5).
 
 This module ties the Tag-6 FTD-verifier (``ftd_verifier``) together

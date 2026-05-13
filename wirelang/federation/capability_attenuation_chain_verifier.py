@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """Capability-Attenuation-Chain-Verifier — cross-org replay defence.
 
 Phase-2 Sprint-7 Tag-4 lands the wirelang-side defence-in-depth

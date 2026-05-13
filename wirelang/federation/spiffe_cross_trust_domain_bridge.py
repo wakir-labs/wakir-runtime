@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """SPIFFE Cross-Trust-Domain Bridge — live multi-org-attestation resolver.
 
 Phase-2 Sprint-7 Tag-3 lands the **live** counterpart to the Sprint-7

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """24h, 1000+-event consistency tests for the Doppel-Audit-Trail bridge.
 
 Verifies the Migrations-Plan-Schritt-5 done-criterion (per

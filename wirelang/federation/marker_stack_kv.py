@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """Persistent marker-stack NATS-KV backend (Sprint-8 Tag-4).
 
 Sprint-8 Tag-3 (``wirelang.federation.marker_composition``) shipped

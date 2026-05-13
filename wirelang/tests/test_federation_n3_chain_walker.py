@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """Determinism tests for the V-908 N3 multi-FTD delegation-chain walker.
 
 Phase-1b Sprint-2 Tag-5 (S2-4). Tests the chain walker for the

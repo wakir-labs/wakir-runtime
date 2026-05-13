@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """Durable NATS-KV-backed ``SequenceNumberLedger`` for the
 CaveatOverrideEvent cross-org export surface (Phase-2 Sprint-9 Tag-2).
 

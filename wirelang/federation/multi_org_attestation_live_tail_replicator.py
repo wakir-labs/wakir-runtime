@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """Multi-org-attestation cross-bucket live-tail replicator.
 
 Phase-2 Sprint-7 Tag-6 lands the **live-tail replicator** as the

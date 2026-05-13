@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """NATS-JetStream-KV-backed :class:`RouteRegistry` implementation.
 
 Phase-1b Sprint-2 Tag-4 (S2-3) lands the production-target backend

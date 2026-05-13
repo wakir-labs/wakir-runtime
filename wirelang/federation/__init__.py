@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """Wakir Wirelang federation sub-package (V-908).
 
 Phase-1b Sprint-2 Tag-3 introduces the live ``peer_org`` /

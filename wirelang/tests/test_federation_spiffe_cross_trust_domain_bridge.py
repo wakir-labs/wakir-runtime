@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """Tests for the Phase-2 Sprint-7 Tag-3 SPIFFE Cross-Trust-Domain
 Bridge (``wirelang.federation.spiffe_cross_trust_domain_bridge``).
 
