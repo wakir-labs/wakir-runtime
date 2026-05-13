@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# persona-converter — Sprint-Pengine-7 Tag-2, Crate-9.
+#
+# Operator-facing CLI shim for the Sprint-Pengine-7 Tag-1
+# `persona-engine-format::map_claude_native_to_wakir_v1` mapping
+# pipeline. Provides the `wakir-persona-convert` binary with a
+# `from-claude` subcommand:
+#
+#   wakir-persona-convert from-claude
+#     --in  <path/to/claude-agent.md>
+#     --out <path/to/wakir.persona/<slug>.json>
+#     [--pin-hash-v907 <sha256:<64hex> | <64hex>>]
+#     [--quiet]
+#
+# Posture (Default-Lock conform, mirror of `persona-cli` Crate-6):
+# - Thin shim over `persona-engine-format`. No business logic in
+#   this crate: argparse + file IO + JCS canonicalisation + exit-code
+#   mapping only.
+# - Byte-deterministic output: JCS bytes via
+#   `jcs_canonicalise_wakir_persona_v1` + trailing newline.
+# - V-907 pin verification: when `--pin-hash-v907` is supplied, the
+#   converter recomputes the wakir-persona-hash and compares against
+#   the pin (`sha256:<64hex>` or bare 64-hex). A drift exits 2.
+# - Exit codes (mirror of `persona-cli` spec §7.4):
+#     0 = success
+#     1 = schema / parse error
+#     2 = V-907 hash-drift error
+#     3 = input file not found
+#    64 = argparse usage error (Unix EX_USAGE)
+#
+# Sprint-Pengine-7 Tag-2 closes OI-PEF-4 (Persona-spec-converter CLI
+# binary) from the Tag-1 open-items list.
+#
+# Aisha-HR ratification anchor: §4.3.1 `synthesis_default_exceptions`
+# (spec v1.1) is honoured transparently by the upstream
+# `persona-engine-format::synthesise_canonical_subset` — this crate
+# does not duplicate the exceptions table.
+
+[package]
+name = "persona-converter"
+version = "0.1.0"
+description = "Sprint-Pengine-7 Tag-2: operator CLI for the .claude/agents/*.md -> wakir.persona/*.json byte-deterministic conversion pipeline (V-907 pin-verified)."
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+
+# Binary crate (with a thin library surface for test-driving the
+# top-level `run` entry-point without spawning a subprocess; same
+# posture as `persona-cli` Crate-6).
+[[bin]]
+name = "wakir-persona-convert"
+path = "src/main.rs"
+
+[lib]
+name = "persona_converter"
+path = "src/lib.rs"
+
+[dependencies]
+# Upstream conversion pipeline (Tag-1 Crate-8). The CLI is a pure
+# shim over `map_claude_native_to_wakir_v1` +
+# `jcs_canonicalise_wakir_persona_v1` + `wakir_persona_hash`.
+persona-engine-format = { path = "../persona-engine-format" }
+# JSON value handling for stdout / pin-verification.
+serde_json            = { workspace = true }
+# clap 4.x derive — argparse-equivalent with subcommand support.
+# Pinned to =4.5.20 for byte-stability across CI machines (mirror of
+# persona-cli Crate-6).
+clap                  = { version = "=4.5.20", features = ["derive", "std", "help", "usage", "error-context"], default-features = false }
+
+[dev-dependencies]
+sha2                  = { workspace = true, features = ["std"] }
+hex                   = { workspace = true }
