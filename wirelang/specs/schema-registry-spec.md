@@ -9,14 +9,37 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wirelang-schema-registry
-version: 0.34.0
+version: 0.35.0
 status: draft
 date: 2026-05-13
 audience: implementers, integrators, operators
 license: CC-BY-4.0
 ---
 
-# Wirelang Schema Registry — NATS-KV Backend Specification (v0.34.0)
+# Wirelang Schema Registry — NATS-KV Backend Specification (v0.35.0)
+
+**Sprint-9 Tag-3 Operator-CLI + Live-Tail-Replicator detect_replay-
+callsite-mirror anchor (2026-05-13).** This version adds two
+substantive load-bearing additions over v0.34.0:
+(1) the **operator-facing marker-stack reducer CLI**
+`bin/wakir-marker-stack-reduce`
+(`wirelang.cli.marker_stack_reduce`) wrapping the Sprint-8 Tag-3
+in-memory reducer + Sprint-8 Tag-4 durable backend into one
+operator entrypoint with pretty-print audit-trace rendering
+(deterministic marker-symbol legend R/U/RI/CO/BR) and a stable
+JSON pipeline-mode for downstream tools; (2) the **detect_replay-
+callsite-mirror** on the Sprint-7 Tag-6
+`MultiOrgAttestationReplicator` — an additive optional
+`replay_detector_fn` hook invoked after the filter and before
+the apply step, plus a per-org `replay_drops_per_org` counter
+and a `total_replay_drops` aggregate accessor. The default
+detector is no-op pass-through; with the default the replicator's
+behaviour is byte-identical to Sprint-7 Tag-6. v0.35.0 is an
+**additive minor bump** per §3.2; no breaking changes; all
+pre-existing Replicator constructions remain valid; the Sprint-9
+Tag-1 + Tag-2 surfaces remain byte-identical. New §11 (Operator-
+CLI annex) and §5.20 (Replicator-side detect_replay-callsite-
+mirror).
 
 **Sprint-9 Tag-2 Durable Sequence-Number-Ledger + OTS-anchored
 Schema-Registry-Entry anchor (2026-05-13).** This version adds
@@ -5038,6 +5061,125 @@ the sandbox.
   same byte-equal schema file; the OTS-anchor pipeline runs
   per-org-operator with the same digest target.
 
+### 5.20 Replicator-side detect_replay-callsite-mirror (Phase-2 Sprint-9 Tag-3 Teil B)
+
+Sprint-9 Tag-3 Teil B extends the Sprint-7 Tag-6
+`MultiOrgAttestationReplicator` with an **optional replay-detector
+hook** invoked AFTER the filter and BEFORE the apply step. The
+extension is additive over Tag-6: pre-existing replicator
+constructions keep working byte-identical (default detector is
+no-op pass-through).
+
+#### 5.20.1 Hook surface
+
+The module
+`wirelang.federation.multi_org_attestation_live_tail_replicator`
+ships two new public symbols:
+
+- `ReplayDetectorDecision`: a closed enum with two values,
+  `PASS_THROUGH` and `REPLAY`.
+- `ReplayDetectorFn`: the callable type
+  `Callable[[MultiOrgAttestationWatchEvent], ReplayDetectorDecision]`.
+
+The `MultiOrgAttestationReplicator` carries two new dataclass
+fields:
+
+- `replay_detector_fn: ReplayDetectorFn` — defaults to
+  `_default_pass_through` (no-op).
+- `replay_drops_per_org: Dict[str, int]` — empty dict by default.
+
+And one read-only property:
+
+- `total_replay_drops: int` — sum across all per-org counters.
+
+#### 5.20.2 Hook contract
+
+The hook is invoked exactly once per observed event that has
+already passed the filter. Its return value determines the
+routing:
+
+- `PASS_THROUGH`: the replicator routes the event through the
+  conflict policy as in Tag-6 (no behavioural change).
+- `REPLAY`: the replicator drops the event (no target-side
+  write), advances the per-org replay-drop counter for the
+  event's peer trust-domain (or the synthetic `"<unknown>"` key
+  when the attestation surface is `None` on DELETE/PURGE), and
+  continues the watch-stream loop.
+
+A return value that is not a `ReplayDetectorDecision` raises
+`TypeError` from `_consume_event` — the loud-failure contract
+for a misconfigured detector. A hook that raises propagates the
+exception up through the consume loop and respects the operator's
+halt policy on the relevant exception class.
+
+#### 5.20.3 Composition contract
+
+The replay-detector hook composes orthogonally with the existing
+Tag-6 surfaces:
+
+- **Filter ordering.** The filter runs first; events that the
+  filter `SKIP`s never reach the detector. This keeps the
+  `events_skipped_by_filter` counter and the
+  `replay_drops_per_org` counter on **disjoint event sets**:
+  a single event can be filtered OR replay-dropped, never both.
+- **Conflict-policy independence.** The detector decision happens
+  before the conflict policy (`SOURCE_WINS` / `CAS_PIN`); a
+  dropped event never reaches `put` / `put_with_revision`, so
+  `cas_conflicts` and `monotonic_breaches` never fire for replay
+  drops.
+- **Resume-cursor independence.** `last_revision` advances on
+  every observed event regardless of detector decision (the
+  replay-drop is a target-write decision; the cursor is a
+  stream-level high-water mark).
+
+#### 5.20.4 Sourcing the per-org key
+
+The detector's drop counter buckets under the peer's trust-domain
+id. The replicator sources this from
+`event.attestation.peer_trust_domain`. For DELETE / PURGE events
+where the attestation has already been removed (`event.attestation
+is None`), the counter falls back to the synthetic key
+`"<unknown>"`. This is informational; the protection is the
+missing target write, not the counter advancement.
+
+#### 5.20.5 Adapter pattern: wiring `detect_replay`
+
+A production detector that wires the Sprint-9 Tag-1
+`detect_replay` symmetric gate over a downstream
+`SequenceNumberLedger` (Sprint-9 Tag-2 durable variant) is a thin
+adapter:
+
+```python
+def make_caveat_override_replay_detector(
+    *, extract_export_envelope, ledger
+):
+    def detector(event):
+        exported = extract_export_envelope(event)
+        if exported is None:
+            return ReplayDetectorDecision.PASS_THROUGH
+        try:
+            detect_replay(exported=exported, ledger=ledger)
+        except CaveatOverrideExportReplayError:
+            return ReplayDetectorDecision.REPLAY
+        return ReplayDetectorDecision.PASS_THROUGH
+    return detector
+```
+
+The `extract_export_envelope` shim turns the replicator's
+`MultiOrgAttestationWatchEvent` into a Tag-1
+`ExportedCaveatOverrideEvent` when the cross-org channel carries
+override-event payloads. Tag-3 Teil B does NOT ship the
+extractor (the production extractor lives downstream when the
+cross-org channel design lands the override-event payload on the
+replicator's stream); the hook itself is the attachment point.
+
+#### 5.20.6 Sandbox boundary
+
+Live NATS replication is operator-hand. All Sprint-9 Tag-3 Teil B
+detect_replay-mirror tests are hermetic and run against the
+Tag-6 `_MockKv` shape extended with the mock watcher surface.
+No live NATS connection is established from the sandbox.
+
 ## 6. Test inventory
 
 Phase-1b Sprint-3 Tag-1 ships hermetic tests at
@@ -7507,6 +7649,188 @@ v0.32.0 is purely additive over v0.31.0:
 - Bucket inventory unchanged; no new bucket configured at
   Tag-1.
 - Spec semver bump 0.31.0 → 0.32.0 reflects the additive minor
+  change (M-2 §3.2 versioning policy: minor for additive).
+
+## 11. Operator-CLI annex (Sprint-9 Tag-3 Teil A)
+
+### 11.1 Scope
+
+This annex anchors the Sprint-9 Tag-3 Teil A operator-facing
+marker-stack reducer CLI into the schema-registry spec at
+v0.35.0. The CLI wraps the Sprint-8 Tag-3 in-memory reducer
+(`wirelang.federation.marker_composition.reduce_marker_stack`)
+plus the Sprint-8 Tag-4 durable backend
+(`wirelang.federation.marker_stack_kv.NatsKvMarkerStackBackend`)
+into one operator entrypoint for live-debugging of marker-stack
+composition per capability-token-id.
+
+### 11.2 Entrypoint
+
+- Shim: `bin/wakir-marker-stack-reduce` (hyphenated; the shim sets
+  `sys.path` and delegates to the Wirelang module).
+- Module: `wirelang.cli.marker_stack_reduce`.
+
+Arguments:
+
+| Flag                  | Required | Default                          | Notes                                       |
+|-----------------------|----------|----------------------------------|---------------------------------------------|
+| `--servers`           | no       | `$WAKIR_NATS_SERVERS` or `nats://127.0.0.1:4222` | NATS server URL(s)                          |
+| `--org`               | yes      | —                                | `org_id` (per-org bucket via `bucket_name_for_org`) |
+| `--capability-token`  | yes      | —                                | capability-token-id (hash) to reduce        |
+| `--format`            | no       | `pretty`                         | one of `pretty` / `json`                    |
+
+Environment:
+
+- `WAKIR_NATS_SERVERS`: default `--servers` value.
+- `WAKIR_NATS_TOKEN`: optional connection token.
+
+Exit codes:
+
+- `0` — successful reduction; rendered output on stdout.
+- `1` — backend or reducer error; diagnostic on stderr; stdout
+  empty.
+- `3` — backend returned `None` (no events logged for this
+  token-id); diagnostic in chosen format on stdout.
+- `130` — `KeyboardInterrupt` (operator Ctrl-C).
+
+### 11.3 Marker-symbol legend
+
+Stable mapping from `AuditTraceEntry.event_kind` to a short
+operator-facing symbol. Exported as the module-level
+`MARKER_SYMBOLS` dict.
+
+| event_kind         | symbol |
+|--------------------|--------|
+| `revoke`           | `R`    |
+| `unrevoke`         | `U`    |
+| `re_issuance`      | `RI`   |
+| `caveat_override`  | `CO`   |
+| `bridge_revoked`   | `BR`   |
+
+A new event-kind added to the marker-composition module without
+a corresponding `MARKER_SYMBOLS` entry breaks
+`test_t_cli_msr_06_marker_symbol_legend_complete` — the
+loud-failure contract for the legend.
+
+### 11.4 Pretty-print format stability
+
+The pretty-print output format is **stable across v0.35.0+**.
+Operators piping the rendering into a downstream tool can rely
+on the line shape. The format is:
+
+```
+capability-token: <token-id>
+org: <org-id>
+final-verdict:
+  state:               <CompositionState>
+  effective:           <EffectiveVerdict>
+  bridge_blocked:      <true|false>
+  revocation_reason:   <reason|(none)>
+  revoked_at:          <isoformat|(none)>
+  new_token_id:        <id|(none)>
+  narrowed_caveat_set: <repr|(none)>
+audit-trace (<N> markers, chronological):
+  [001] <isoformat>  <SYM> <event_kind>           <outcome>
+  ...
+wat-anchor-chain (<N>):
+  [001] <manifest-id|(none)>
+  ...
+```
+
+Audit-trace ordering is the order the reducer emits — sorted on
+`(event_at, tie_break)` ascending. The CLI does NOT re-sort.
+
+Empty stack renders with the explicit placeholders
+`(no markers)` and `(no anchors)` so a downstream parser can
+distinguish "empty stack" from "stack of unknown size".
+
+### 11.5 JSON-mode schema stability
+
+The JSON-mode shape is **stable across v0.35.0+**, emitted with
+`sort_keys=True` and compact separators `(",", ":")`.
+
+Top-level shape:
+
+```
+{
+  "capability_token": "<token-id>",
+  "org": "<org-id>",
+  "found": true,
+  "verdict": {
+    "state": "<CompositionState-value>",
+    "effective": "<EffectiveVerdict-value>",
+    "bridge_blocked": <bool>,
+    "revocation_reason": <str|null>,
+    "revoked_at": "<isoformat>"|null,
+    "new_token_id": <str|null>,
+    "narrowed_caveat_set": [["<name>", [<args>...]], ...]|null,
+    "audit_trace": [
+      {
+        "event_at": "<isoformat>",
+        "tie_break": <int>,
+        "event_kind": "<kind>",
+        "symbol": "<R|U|RI|CO|BR>",
+        "outcome": "<outcome>",
+        "wat_anchor_manifest_id": <str|null>
+      }, ...
+    ],
+    "wat_anchor_chain": [<str|null>, ...]
+  }
+}
+```
+
+Token-not-found JSON shape:
+
+```
+{"capability_token": "<id>", "org": "<id>", "found": false}
+```
+
+### 11.6 Test injection seam
+
+`OperatorRunner` is the test injection point. Constructor:
+
+- `open_backend_async`: `async (servers, token, org_id) ->
+  NatsKvMarkerStackBackend`. The default is the live nats-py
+  wire-up; tests inject a mock backend stub that exposes only
+  the `get_marker_stack` shape the CLI consumes.
+- `stdout` / `stderr`: writable streams (default `sys.stdout` /
+  `sys.stderr`).
+
+The `main(argv, *, runner=None)` callable accepts an injected
+runner. Hermetic tests pass an in-memory `OperatorRunner`; the
+bin shim invokes `main(argv)` without `runner` so the live path
+runs.
+
+### 11.7 Sandbox boundary
+
+Live NATS connections are operator-hand. All Sprint-9 Tag-3
+Teil A CLI tests are hermetic and inject a `_BackendStub` (no
+NATS, no nats-py import, no filesystem mutation). The live
+factory uses a deferred `nats` import so the module loads under
+test without nats-py on the path.
+
+### 11.8 Compatibility statement (Sprint-9 Tag-3 → v0.35.0)
+
+v0.35.0 is purely additive over v0.34.0:
+
+- All Sprint-8 Tag-3 / Tag-4 surfaces (`reduce_marker_stack`,
+  `MarkerStack`, `CompositionVerdict`, `AuditTraceEntry`,
+  `NatsKvMarkerStackBackend`,
+  `reduce_persistent_marker_stack`) remain byte-unchanged.
+- All Sprint-9 Tag-1 / Tag-2 surfaces (`detect_replay`,
+  `ExportedCaveatOverrideEvent`, `SequenceNumberLedger`,
+  `InMemorySequenceNumberLedger`,
+  `NatsKvSequenceNumberLedger`,
+  `CaveatOverrideEventCrossOrgExporter`,
+  `wakir.federation.caveat-override-event-export/1`
+  schema-registry entry) remain byte-unchanged.
+- The Sprint-7 Tag-6 `MultiOrgAttestationReplicator`
+  default-constructor behaviour is byte-identical (default
+  `replay_detector_fn` is no-op pass-through; default
+  `replay_drops_per_org` is `{}`).
+- Bucket inventory unchanged; no new bucket configured at
+  Tag-3.
+- Spec semver bump 0.34.0 → 0.35.0 reflects the additive minor
   change (M-2 §3.2 versioning policy: minor for additive).
 
 — End of spec —

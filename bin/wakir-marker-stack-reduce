@@ -1,0 +1,23 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-9 Tag-3 Teil A — Operator-facing marker-stack reducer
+# CLI entrypoint. Thin shim over ``wirelang.cli.marker_stack_reduce``.
+#
+# The hyphen in this filename makes a direct ``import`` syntactically
+# impossible; this file does the path setup and delegates to the
+# Wirelang-side module.
+
+import sys
+from pathlib import Path
+
+_HERE = Path(__file__).resolve().parent
+_REPO_ROOT = _HERE.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from wirelang.cli.marker_stack_reduce import main  # noqa: E402
+
+if __name__ == "__main__":
+    raise SystemExit(main())

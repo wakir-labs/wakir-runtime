@@ -644,3 +644,381 @@ def test_t_moa_ltr_07_last_revision_monotonic_resume_cursor():
     _run(_replay_low())
     # Cursor stayed at 3 (never regresses on a lower-revision event).
     assert replicator.last_revision == 3
+
+
+# ---------------------------------------------------------------------------
+# T-MOA-LTR-RPL-01..06 — Sprint-9 Tag-3 Teil B detect_replay-callsite-mirror
+# ---------------------------------------------------------------------------
+
+
+def test_t_moa_ltr_rpl_01_default_pass_through_byte_identical_to_tag_6():
+    """T-MOA-LTR-RPL-01: with the default no-op replay detector,
+    the replicator's behaviour is byte-identical to Sprint-7
+    Tag-6. A simple put is applied; no replay-drop counters fire.
+    """
+    source_kv = _MockKv()
+    target_kv = _MockKv()
+    source = NatsKvMultiOrgAttestationRegistry(kv=source_kv)
+    target = NatsKvMultiOrgAttestationRegistry(kv=target_kv)
+    att = _make_att(route_id="r-1")
+
+    replicator = MultiOrgAttestationReplicator(
+        source=source, target=target
+    )
+
+    async def _drive():
+        run_task = asyncio.create_task(
+            replicator.run(bootstrap=False)
+        )
+        for _ in range(20):
+            if source_kv._watcher is not None:
+                break
+            await asyncio.sleep(0)
+        await source.put(att)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        source_kv._watcher._close()
+        await asyncio.wait_for(run_task, timeout=2.0)
+
+    _run(_drive())
+
+    assert replicator.metrics.events_applied_put == 1
+    # No replay drops with the default detector.
+    assert replicator.replay_drops_per_org == {}
+    assert replicator.total_replay_drops == 0
+
+
+def test_t_moa_ltr_rpl_02_replay_decision_drops_event_advances_counter():
+    """T-MOA-LTR-RPL-02: a replay-detector that returns REPLAY for
+    a synthetic-marked event drops the event (no target write) and
+    advances the per-org counter under the peer's trust-domain key.
+    """
+    from wirelang.federation.multi_org_attestation_live_tail_replicator import (
+        ReplayDetectorDecision,
+    )
+
+    source_kv = _MockKv()
+    target_kv = _MockKv()
+    source = NatsKvMultiOrgAttestationRegistry(kv=source_kv)
+    target = NatsKvMultiOrgAttestationRegistry(kv=target_kv)
+
+    # Mark r-replay as a "replay" via the route_id; every other
+    # event passes through. The detector inspects the event surface
+    # (route_id is the cross-org key); a production detector would
+    # extract route_id/chain_hash/sequence and delegate to a
+    # NatsKvSequenceNumberLedger.
+    def detector(event):
+        if event.route_id == "r-replay":
+            return ReplayDetectorDecision.REPLAY
+        return ReplayDetectorDecision.PASS_THROUGH
+
+    replicator = MultiOrgAttestationReplicator(
+        source=source,
+        target=target,
+        replay_detector_fn=detector,
+    )
+
+    clean = _make_att(
+        route_id="r-clean",
+        peer_trust_domain=_TD_A,
+        peer_audit_anchor_did=_DID_A,
+    )
+    replay = _make_att(
+        route_id="r-replay",
+        peer_trust_domain=_TD_A,
+        peer_audit_anchor_did=_DID_A,
+    )
+
+    async def _drive():
+        run_task = asyncio.create_task(
+            replicator.run(bootstrap=False)
+        )
+        for _ in range(20):
+            if source_kv._watcher is not None:
+                break
+            await asyncio.sleep(0)
+        await source.put(clean)
+        await asyncio.sleep(0)
+        await source.put(replay)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        source_kv._watcher._close()
+        await asyncio.wait_for(run_task, timeout=2.0)
+
+    _run(_drive())
+
+    # Clean event landed on target.
+    assert _run(target.get("r-clean")) == clean
+    # Replay event was DROPPED — no target-side write.
+    assert _run(target.get("r-replay")) is None
+    assert replicator.metrics.events_applied_put == 1
+    # Per-org counter increments under partner-a's trust domain.
+    assert replicator.replay_drops_per_org == {_TD_A: 1}
+    assert replicator.total_replay_drops == 1
+
+
+def test_t_moa_ltr_rpl_03_pass_through_non_replays_unchanged():
+    """T-MOA-LTR-RPL-03: a sequence of clean events with a
+    detector that always returns PASS_THROUGH is replicated
+    byte-identical to the default-detector path. The
+    replay-drop counter stays at zero across multiple events.
+    """
+    from wirelang.federation.multi_org_attestation_live_tail_replicator import (
+        ReplayDetectorDecision,
+    )
+
+    source_kv = _MockKv()
+    target_kv = _MockKv()
+    source = NatsKvMultiOrgAttestationRegistry(kv=source_kv)
+    target = NatsKvMultiOrgAttestationRegistry(kv=target_kv)
+
+    pass_count = {"calls": 0}
+
+    def detector(event):
+        pass_count["calls"] += 1
+        return ReplayDetectorDecision.PASS_THROUGH
+
+    replicator = MultiOrgAttestationReplicator(
+        source=source,
+        target=target,
+        replay_detector_fn=detector,
+    )
+
+    a1 = _make_att(route_id="r-1")
+    a2 = _make_att(route_id="r-2")
+    a3 = _make_att(route_id="r-3")
+
+    async def _drive():
+        run_task = asyncio.create_task(
+            replicator.run(bootstrap=False)
+        )
+        for _ in range(20):
+            if source_kv._watcher is not None:
+                break
+            await asyncio.sleep(0)
+        for att in (a1, a2, a3):
+            await source.put(att)
+            await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        source_kv._watcher._close()
+        await asyncio.wait_for(run_task, timeout=2.0)
+
+    _run(_drive())
+
+    # Three events, all applied, detector called three times.
+    assert replicator.metrics.events_applied_put == 3
+    assert pass_count["calls"] == 3
+    assert replicator.replay_drops_per_org == {}
+    assert replicator.total_replay_drops == 0
+    # All three on target.
+    for route_id, expected in zip(("r-1", "r-2", "r-3"), (a1, a2, a3)):
+        assert _run(target.get(route_id)) == expected
+
+
+def test_t_moa_ltr_rpl_04_per_org_drop_counter_buckets_by_peer():
+    """T-MOA-LTR-RPL-04: drop counts are tracked per peer-trust-
+    domain. A detector that drops events from two distinct peers
+    surfaces two separate counters; the global ``total_replay_drops``
+    is their sum.
+    """
+    from wirelang.federation.multi_org_attestation_live_tail_replicator import (
+        ReplayDetectorDecision,
+    )
+
+    source_kv = _MockKv()
+    target_kv = _MockKv()
+    source = NatsKvMultiOrgAttestationRegistry(kv=source_kv)
+    target = NatsKvMultiOrgAttestationRegistry(kv=target_kv)
+
+    def detector(event):
+        # Drop everything (synthetic — every event is "replay").
+        return ReplayDetectorDecision.REPLAY
+
+    replicator = MultiOrgAttestationReplicator(
+        source=source,
+        target=target,
+        replay_detector_fn=detector,
+    )
+
+    a_event = _make_att(
+        route_id="r-a-1",
+        peer_trust_domain=_TD_A,
+        peer_audit_anchor_did=_DID_A,
+    )
+    a_event_2 = _make_att(
+        route_id="r-a-2",
+        peer_trust_domain=_TD_A,
+        peer_audit_anchor_did=_DID_A,
+    )
+    b_event = _make_att(
+        route_id="r-b-1",
+        peer_trust_domain=_TD_B,
+        peer_audit_anchor_did=_DID_B,
+    )
+
+    async def _drive():
+        run_task = asyncio.create_task(
+            replicator.run(bootstrap=False)
+        )
+        for _ in range(20):
+            if source_kv._watcher is not None:
+                break
+            await asyncio.sleep(0)
+        for att in (a_event, a_event_2, b_event):
+            await source.put(att)
+            await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        source_kv._watcher._close()
+        await asyncio.wait_for(run_task, timeout=2.0)
+
+    _run(_drive())
+
+    # Nothing landed on target.
+    assert _run(target.get("r-a-1")) is None
+    assert _run(target.get("r-a-2")) is None
+    assert _run(target.get("r-b-1")) is None
+    assert replicator.metrics.events_applied_put == 0
+    # Two counters: partner-a observed twice, partner-b observed once.
+    assert replicator.replay_drops_per_org == {
+        _TD_A: 2,
+        _TD_B: 1,
+    }
+    assert replicator.total_replay_drops == 3
+
+
+def test_t_moa_ltr_rpl_05_detector_invoked_after_filter():
+    """T-MOA-LTR-RPL-05: the replay detector is invoked AFTER the
+    filter. A filter that rejects partner-b means the replay
+    detector never sees partner-b events; the partner-b counter
+    stays at zero even though the detector would have dropped them.
+    """
+    from wirelang.federation.multi_org_attestation_live_tail_replicator import (
+        ReplayDetectorDecision,
+    )
+
+    source_kv = _MockKv()
+    target_kv = _MockKv()
+    source = NatsKvMultiOrgAttestationRegistry(kv=source_kv)
+    target = NatsKvMultiOrgAttestationRegistry(kv=target_kv)
+
+    only_partner_a = (
+        lambda event: MultiOrgAttestationReplicationDecision.APPLY
+        if (
+            event.attestation is not None
+            and event.attestation.peer_trust_domain == _TD_A
+        )
+        else MultiOrgAttestationReplicationDecision.SKIP
+    )
+
+    detector_calls = []
+
+    def detector(event):
+        detector_calls.append(event.route_id)
+        return ReplayDetectorDecision.REPLAY
+
+    replicator = MultiOrgAttestationReplicator(
+        source=source,
+        target=target,
+        filter_fn=only_partner_a,
+        replay_detector_fn=detector,
+    )
+
+    a_event = _make_att(
+        route_id="r-a",
+        peer_trust_domain=_TD_A,
+        peer_audit_anchor_did=_DID_A,
+    )
+    b_event = _make_att(
+        route_id="r-b",
+        peer_trust_domain=_TD_B,
+        peer_audit_anchor_did=_DID_B,
+    )
+
+    async def _drive():
+        run_task = asyncio.create_task(
+            replicator.run(bootstrap=False)
+        )
+        for _ in range(20):
+            if source_kv._watcher is not None:
+                break
+            await asyncio.sleep(0)
+        await source.put(a_event)
+        await asyncio.sleep(0)
+        await source.put(b_event)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        source_kv._watcher._close()
+        await asyncio.wait_for(run_task, timeout=2.0)
+
+    _run(_drive())
+
+    # Detector saw only the partner-a event.
+    assert detector_calls == ["r-a"]
+    # Partner-b skipped by filter (not by replay).
+    assert replicator.metrics.events_skipped_by_filter == 1
+    # Partner-a dropped by replay detector.
+    assert replicator.replay_drops_per_org == {_TD_A: 1}
+    # No target writes at all.
+    assert _run(target.get("r-a")) is None
+    assert _run(target.get("r-b")) is None
+
+
+def test_t_moa_ltr_rpl_06_invalid_detector_return_raises_typeerror():
+    """T-MOA-LTR-RPL-06: a detector that returns the wrong type
+    raises ``TypeError`` from the consume path. This is the
+    loud-failure contract: a misconfigured detector must not
+    silently corrupt replay-protection guarantees.
+    """
+    source_kv = _MockKv()
+    target_kv = _MockKv()
+    source = NatsKvMultiOrgAttestationRegistry(kv=source_kv)
+    target = NatsKvMultiOrgAttestationRegistry(kv=target_kv)
+
+    def bad_detector(event):
+        return "not-a-decision"  # type: ignore[return-value]
+
+    replicator = MultiOrgAttestationReplicator(
+        source=source,
+        target=target,
+        replay_detector_fn=bad_detector,
+    )
+
+    att = _make_att(route_id="r-1")
+
+    async def _drive():
+        await source.put(att)
+        run_task = asyncio.create_task(
+            replicator.run(bootstrap=False)
+        )
+        for _ in range(20):
+            if source_kv._watcher is not None:
+                break
+            await asyncio.sleep(0)
+        await source.put(_make_att(route_id="r-2"))
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        source_kv._watcher._close()
+        try:
+            await asyncio.wait_for(run_task, timeout=2.0)
+        except TypeError:
+            return "raised"
+        return "no-raise"
+
+    # The replicator's default halt_on_envelope_error doesn't catch
+    # TypeError; we exercise the private path directly to keep the
+    # test hermetic and the assertion crisp.
+    synthetic = MultiOrgAttestationWatchEvent(
+        op=__import__(
+            "wirelang.federation.multi_org_attestation_nats_kv_backend",
+            fromlist=["MultiOrgAttestationWatchOp"],
+        ).MultiOrgAttestationWatchOp.PUT,
+        route_id="r-1",
+        attestation=att,
+        revision=1,
+    )
+
+    async def _raise():
+        await replicator._consume_event(synthetic)
+
+    with pytest.raises(TypeError, match="replay_detector_fn"):
+        _run(_raise())
