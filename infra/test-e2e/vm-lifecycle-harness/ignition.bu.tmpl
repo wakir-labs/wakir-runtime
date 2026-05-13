@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: BUSL-1.1
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Butane (formerly FCC) template for the disposable Wakir-Pilot
+# acceptance-gate VM. Rendered by vm-up.sh into Ignition JSON and
+# attached as the boot-time config-drive.
+#
+# Substitutions performed by vm-up.sh:
+#
+#   __SSH_PUBKEY__         Operator-hand-provided ssh public key
+#   __HOSTNAME__           wakir-pilot-e2e-<timestamp>
+#
+# Design notes:
+#
+#  - We intentionally do NOT bake the bootstrap into the Ignition
+#    config. The acceptance gate's whole point is to exercise the
+#    bootstrap script as the operator would, from a clean state.
+#    Ignition only provides: ssh-key, hostname, podman + git
+#    pre-staged (CoreOS already has both), and the systemd-resolved
+#    config so we get clean DNS during ghcr.io/docker.io pulls.
+#
+#  - No `wakir-*` quadlet units are seeded here. The bootstrap is
+#    responsible for installing every Quadlet unit; if Ignition seeded
+#    them we would be testing Ignition, not the bootstrap.
+#
+#  - The fcos-image is pinned by digest in vm-up.sh (see
+#    FCOS_QCOW2_SHA256), not here. The Ignition spec only needs to
+#    cover host-level identity.
+
+variant: fcos
+version: 1.5.0
+
+passwd:
+  users:
+    - name: core
+      groups:
+        - wheel
+        - sudo
+      ssh_authorized_keys:
+        - __SSH_PUBKEY__
+
+storage:
+  files:
+    - path: /etc/hostname
+      mode: 0644
+      contents:
+        inline: __HOSTNAME__
+
+    - path: /etc/sudoers.d/core-nopasswd
+      mode: 0440
+      contents:
+        inline: |
+          core ALL=(ALL) NOPASSWD: ALL
+
+    # Marker file so the acceptance gate can prove it's talking to a
+    # fresh disposable VM and not a stale snapshot.
+    - path: /etc/wakir/e2e-disposable-marker
+      mode: 0644
+      contents:
+        inline: |
+          wakir-e2e-disposable-vm
+          hostname: __HOSTNAME__
+
+systemd:
+  units:
+    # Disable zincati so the VM doesn't auto-update mid-run.
+    - name: zincati.service
+      enabled: false
+      mask: true
+
+    # Make sure podman.socket is available so the bootstrap can use
+    # podman-as-root without dnf install.
+    - name: podman.socket
+      enabled: true
