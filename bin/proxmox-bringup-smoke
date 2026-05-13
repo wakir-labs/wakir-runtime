@@ -5,6 +5,22 @@
 # Phase-2 Sprint-9 Tag-1 — Operator-Hand Self-Verify nach Proxmox-VM
 # Bring-up. Companion zu PROXMOX_BRING_UP_RECIPE.md §6.
 #
+# Sprint-9 Tag-5 race-tolerance update
+# ------------------------------------
+# Vier Race-toleranten Checks (jetstream-reachable, spire-server-healthy,
+# spire-agent-healthy, marker-stack-bucket-present) verwenden einen
+# Retry-Wrapper mit exponentiellem Backoff. Default: 5 Retries + 1
+# initial; Sleeps 0.5/1/2/4/5s; Worst-case ~12.5s pro Check.
+# Sprint-9-Tag-5-Race-Window-Hypothesen (Mira-Bug-Bilanz 2026-05-13):
+#   - JWT-Auth-Timing-Race (Hypothese 1): SPIRE-Agent-SVID-Issuance + NATS-Connect
+#   - Trust-Bundle-Rotation-Race (Hypothese 2): Server-Bundle-Lag
+#   - SPIFFE-Workload-API-Socket-Permission-Drift (Hypothese 3): SELinux/uid
+#   - NATS-KV-Bucket-Init-Race (Hypothese 4): JetStream-Stream-Registration
+# Sprint-9 Tag-5 adressiert (1), (2), (4) ueber den Retry-Wrapper plus
+# das wirelang-side `connect_retry`-Modul. (3) ist Kai-Sprint-9-Tag-5-Bug-7
+# (SPIRE-Agent-Stabilitaet) — der Retry-Wrapper toleriert (3) als generischen
+# Connect-Fail aber loest das Permission-Issue nicht.
+#
 # Was es prueft:
 #   1. quadlet-units-active           — alle vier Pilot-Units aktiv
 #                                       (wakir-nats, wakir-spire-server-
@@ -38,6 +54,18 @@
 #   WAKIR_SMOKE_PODMAN     Pfad zu einem alternativen podman-Wrapper
 #   WAKIR_SMOKE_CURL       Pfad zu einem alternativen curl-Wrapper
 #   WAKIR_SMOKE_NATS       Pfad zu einem alternativen nats-CLI-Wrapper
+#   WAKIR_SMOKE_RETRY_MAX  Max-Anzahl Retry-Versuche pro Race-toleranter Check
+#                          (Default 5; Wert 0 deaktiviert das Retry-Wrapping
+#                          und ist die Sprint-9-Tag-1-Baseline-Semantik).
+#   WAKIR_SMOKE_RETRY_BASE Backoff-Basisintervall in Sekunden (Default 0.5).
+#                          Effektive Sleeps: 0.5s, 1.0s, 2.0s, 3.0s, 5.0s
+#                          fuer die Default-Sequenz. Race-Toleranz adressiert
+#                          die Sprint-9-Tag-5-Bug-Bilanz (2/6 <-> 4/6
+#                          Smoke-Discrepancy via SVID-Cache-Race +
+#                          JetStream-Stream-Init-Race).
+#   WAKIR_SMOKE_SLEEP      Pfad zu einem alternativen sleep-Wrapper
+#                          (hermetic-tests injizieren einen No-Op-Sleep,
+#                          damit Race-Reproduktion sub-Sekunden bleibt).
 # Default ist jeweils das System-Binary.
 
 set -u
@@ -113,6 +141,14 @@ SYSTEMCTL="${WAKIR_SMOKE_SYSTEMCTL:-systemctl}"
 PODMAN="${WAKIR_SMOKE_PODMAN:-podman}"
 CURL="${WAKIR_SMOKE_CURL:-curl}"
 NATS="${WAKIR_SMOKE_NATS:-}"  # optional; via podman-run wenn leer
+SLEEP="${WAKIR_SMOKE_SLEEP:-sleep}"
+
+# Retry-Konfiguration (Sprint-9 Tag-5 race-tolerance).
+# RETRY_MAX = 0 deaktiviert das Retry-Wrapping (Baseline-Semantik fuer
+# Tag-1 hermetic tests). RETRY_MAX > 0 macht die als race-tolerant
+# markierten Checks N-mal versuchen mit exponentiellem Backoff.
+RETRY_MAX="${WAKIR_SMOKE_RETRY_MAX:-5}"
+RETRY_BASE="${WAKIR_SMOKE_RETRY_BASE:-0.5}"
 
 # ---------------------------------------------------------------------------
 # Check-Framework
@@ -121,16 +157,90 @@ NATS="${WAKIR_SMOKE_NATS:-}"  # optional; via podman-run wenn leer
 declare -a RESULTS_NAME=()
 declare -a RESULTS_STATUS=()
 declare -a RESULTS_DETAIL=()
+declare -a RESULTS_ATTEMPTS=()
 
 record() {
   RESULTS_NAME+=("$1")
   RESULTS_STATUS+=("$2")
   RESULTS_DETAIL+=("$3")
+  RESULTS_ATTEMPTS+=("${4:-1}")
   printf '[bringup-smoke] %-32s %s' "$1" "$2"
   if [[ -n "$3" ]]; then
     printf '  (%s)' "$3"
   fi
+  if [[ "${4:-1}" -gt 1 ]]; then
+    printf '  [attempts=%s]' "${4}"
+  fi
   printf '\n'
+}
+
+# ---------------------------------------------------------------------------
+# Retry-Wrapper (Sprint-9 Tag-5 race-tolerance)
+#
+# Driver fuer race-toleranten Check: probe-callable wird bis zu RETRY_MAX-mal
+# aufgerufen; bei Rueckgabe 0 (PASS) gibt der Wrapper sofort die Attempt-Zahl
+# auf stdout und exit 0. Sleep-Intervalle: RETRY_BASE * 2^(attempt-1), gekappt
+# bei 5 Sekunden, sodass der schlimmste Fall RETRY_MAX=5 + RETRY_BASE=0.5 in
+# 0.5+1.0+2.0+4.0+5.0 = 12.5s konvergiert. Hermetic-Tests injizieren
+# WAKIR_SMOKE_SLEEP=/path/to/noop-sleep, damit das Race-Reproduktions-Setup
+# instant durchlaeuft.
+#
+# Aufruf: with_retry <fn> [args...]
+#   Die <fn> MUSS rueckgabewert-protokoll-konform sein: 0 == race-cleared,
+#   nicht-0 == race-window-still-open. Die <fn> selber emittiert KEIN
+#   record-Output; der race-Treiber-Wrapper macht den finalen record-Aufruf.
+#
+# Output (auf stdout): "ATTEMPTS=<n>" gefolgt von dem letzten "DETAIL=..."
+# Zeilen-Block, sodass der Caller die finale Detail-Nachricht plus die
+# Attempt-Zahl auseinander-parsen kann.
+# ---------------------------------------------------------------------------
+
+retry_sleep() {
+  # Exponentielles Backoff mit Cap: base * 2^(attempt-1), max 5s.
+  local attempt="$1"
+  local base="$2"
+  # Use awk so we can multiply floats without bc dependency.
+  local secs
+  secs=$(awk -v b="$base" -v a="$attempt" \
+    'BEGIN { v = b * (2 ^ (a - 1)); if (v > 5) v = 5; printf "%.3f", v }')
+  "$SLEEP" "$secs" >/dev/null 2>&1 || true
+}
+
+with_retry() {
+  # Driver fuer race-toleranten Check.
+  # Argumente: <fn> [args...]
+  # Globalvariablen die <fn> setzt: RETRY_DETAIL (Detail-Nachricht).
+  # Rueckgabe: 0 wenn fn irgendwann ok geworden ist (innerhalb RETRY_MAX+1
+  # Versuchen), sonst der letzte non-zero Rueckgabewert von fn.
+  # Setzt globals: RETRY_LAST_ATTEMPTS (Anzahl Versuche), RETRY_LAST_DETAIL.
+
+  local fn="$1"; shift
+  local attempt rc=0 final_attempt=0
+  RETRY_LAST_DETAIL=""
+  RETRY_LAST_ATTEMPTS=0
+  for (( attempt=1; attempt <= RETRY_MAX + 1; attempt++ )); do
+    RETRY_DETAIL=""
+    # Capture the probe's actual exit code by running it as the
+    # immediate command (not inside an "if"-condition) — that way
+    # $? reflects the probe's return value, not the if-statement's.
+    "$fn" "$@"
+    rc=$?
+    if [[ $rc -eq 0 ]]; then
+      RETRY_LAST_ATTEMPTS=$attempt
+      RETRY_LAST_DETAIL="$RETRY_DETAIL"
+      return 0
+    fi
+    final_attempt=$attempt
+    # Sleep before the next try, but not after the final attempt.
+    if (( attempt <= RETRY_MAX )); then
+      retry_sleep "$attempt" "$RETRY_BASE"
+    fi
+  done
+  RETRY_LAST_ATTEMPTS=$final_attempt
+  # Letzter RETRY_DETAIL gewinnt; falls fn ihn auf der letzten Iteration
+  # geleert hat, faellt der record-Aufruf auf "no detail" zurueck.
+  RETRY_LAST_DETAIL="$RETRY_DETAIL"
+  return $rc
 }
 
 # ---------------------------------------------------------------------------
@@ -167,48 +277,97 @@ check_quadlet_units_active() {
 }
 
 # ---------------------------------------------------------------------------
-# Check 2: nats-jetstream-reachable
+# Check 2: nats-jetstream-reachable (race-tolerant per Sprint-9 Tag-5)
+#
+# Race-Window: NATS-Server kann TCP-akzeptierend sein bevor JetStream
+# fertig initialisiert ist; /jsz antwortet dann ohne "streams"-Feld.
+# Retry-Wrapped damit der race-window-clear-time toleriert wird.
 # ---------------------------------------------------------------------------
 
-check_nats_jetstream_reachable() {
+_probe_nats_jetstream() {
+  # Returns 0 if /jsz responds with streams field; non-zero otherwise.
+  # Sets RETRY_DETAIL to a reason-coded message.
   local body
   body=$("$CURL" -s --max-time 5 http://127.0.0.1:8222/jsz 2>/dev/null || true)
   if [[ -z "$body" ]]; then
-    record "nats-jetstream-reachable" "FAIL" "no response from /jsz"
-    return
+    RETRY_DETAIL="no response from /jsz (race: nats-server-not-listening)"
+    return 1
   fi
   if ! echo "$body" | grep -q '"streams"'; then
-    record "nats-jetstream-reachable" "FAIL" "no streams field in response"
-    return
+    RETRY_DETAIL="no streams field (race: jetstream-init-pending)"
+    return 1
   fi
-  record "nats-jetstream-reachable" "PASS" "/jsz responded with streams field"
+  RETRY_DETAIL="/jsz responded with streams field"
+  return 0
+}
+
+check_nats_jetstream_reachable() {
+  if with_retry _probe_nats_jetstream; then
+    record "nats-jetstream-reachable" "PASS" \
+      "$RETRY_LAST_DETAIL" "$RETRY_LAST_ATTEMPTS"
+  else
+    record "nats-jetstream-reachable" "FAIL" \
+      "$RETRY_LAST_DETAIL" "$RETRY_LAST_ATTEMPTS"
+  fi
 }
 
 # ---------------------------------------------------------------------------
-# Check 3: spire-server-healthy
+# Check 3: spire-server-healthy (race-tolerant per Sprint-9 Tag-5)
+#
+# Race-Window: SPIRE-Server kann waehrend Agent-Crash-Loop kurzzeitig
+# unhealthy werden bevor er sich stabilisiert. Sprint-9 Tag-5
+# Bug-Bilanz-Discrepancy 2/6 <-> 4/6 erklaert sich primaer ueber Server-
+# und Bucket-Race-Windows. Retry adressiert den Server-Window.
 # ---------------------------------------------------------------------------
 
-check_spire_server_healthy() {
+_probe_spire_server_healthy() {
   local out
   if out=$("$PODMAN" exec wakir-spire-server-federation-wakir \
         /opt/spire/bin/spire-server healthcheck 2>&1); then
-    record "spire-server-healthy" "PASS" "$(echo "$out" | head -1)"
+    RETRY_DETAIL="$(echo "$out" | head -1)"
+    return 0
+  fi
+  RETRY_DETAIL="$(echo "$out" | head -1) (race: server-restart-loop-window)"
+  return 1
+}
+
+check_spire_server_healthy() {
+  if with_retry _probe_spire_server_healthy; then
+    record "spire-server-healthy" "PASS" \
+      "$RETRY_LAST_DETAIL" "$RETRY_LAST_ATTEMPTS"
   else
-    record "spire-server-healthy" "FAIL" "$(echo "$out" | head -1)"
+    record "spire-server-healthy" "FAIL" \
+      "$RETRY_LAST_DETAIL" "$RETRY_LAST_ATTEMPTS"
   fi
 }
 
 # ---------------------------------------------------------------------------
-# Check 4: spire-agent-healthy
+# Check 4: spire-agent-healthy (race-tolerant per Sprint-9 Tag-5)
+#
+# Race-Window: Agent crash-loop kann zwischen den Versuchen stabilisieren;
+# der Retry-Wrapper toleriert das. Kai-Sprint-9-Tag-5 (Bug 7) owns die
+# primaere Agent-Stabilitaets-Resolution; das Retry-Wrapping ist additive
+# defence-in-depth.
 # ---------------------------------------------------------------------------
 
-check_spire_agent_healthy() {
+_probe_spire_agent_healthy() {
   local out
   if out=$("$PODMAN" exec wakir-spire-agent-wakir \
         /opt/spire/bin/spire-agent healthcheck 2>&1); then
-    record "spire-agent-healthy" "PASS" "$(echo "$out" | head -1)"
+    RETRY_DETAIL="$(echo "$out" | head -1)"
+    return 0
+  fi
+  RETRY_DETAIL="$(echo "$out" | head -1) (race: agent-svid-issuance-window)"
+  return 1
+}
+
+check_spire_agent_healthy() {
+  if with_retry _probe_spire_agent_healthy; then
+    record "spire-agent-healthy" "PASS" \
+      "$RETRY_LAST_DETAIL" "$RETRY_LAST_ATTEMPTS"
   else
-    record "spire-agent-healthy" "FAIL" "$(echo "$out" | head -1)"
+    record "spire-agent-healthy" "FAIL" \
+      "$RETRY_LAST_DETAIL" "$RETRY_LAST_ATTEMPTS"
   fi
 }
 
@@ -240,43 +399,64 @@ check_spire_workload_api_reachable() {
 }
 
 # ---------------------------------------------------------------------------
-# Check 6: marker-stack-bucket-present
+# Check 6: marker-stack-bucket-present (race-tolerant per Sprint-9 Tag-5)
+#
+# Race-Window: nach Bucket-Init-Oneshot ist die JetStream-Stream-Registration
+# der KV-Buckets asynchron; "nats kv ls" listet den Bucket erst nach dem
+# Stream-Registration-Callback durch ist. Bug-Bilanz-Discrepancy 2/6 <-> 4/6
+# erklaert sich primaer ueber diesen Race + Check-3 (server-restart-loop).
+# Retry-Wrapped damit der race-window-clear-time toleriert wird.
 # ---------------------------------------------------------------------------
 
-check_marker_stack_bucket_present() {
+_probe_marker_stack_bucket_via_nats_cli() {
+  # Probes via direct nats-CLI on the host. Uses globals: NATS (cmd),
+  # ORG. Sets RETRY_DETAIL.
   local bucket="wakir-marker-stack-${ORG}"
   local out
-
-  if [[ -n "$NATS" ]]; then
-    # Direct nats-CLI on the host (test-hook).
-    if out=$("$NATS" kv ls --server nats://127.0.0.1:4222 2>&1); then
-      if echo "$out" | grep -qx "$bucket"; then
-        record "marker-stack-bucket-present" "PASS" "$bucket"
-      else
-        record "marker-stack-bucket-present" "FAIL" \
-          "$bucket not in nats kv ls output"
-      fi
-      return
+  if out=$("$NATS" kv ls --server nats://127.0.0.1:4222 2>&1); then
+    if echo "$out" | grep -qx "$bucket"; then
+      RETRY_DETAIL="$bucket"
+      return 0
     fi
-    record "marker-stack-bucket-present" "FAIL" \
-      "nats-cli failure: $(echo "$out" | head -1)"
-    return
+    RETRY_DETAIL="$bucket not in nats kv ls output (race: stream-registration-pending)"
+    return 1
   fi
+  RETRY_DETAIL="nats-cli failure: $(echo "$out" | head -1)"
+  return 1
+}
 
-  # Default path: spawn a nats-box container on the orchestrator
-  # network and ask it.
+_probe_marker_stack_bucket_via_podman_nats_box() {
+  # Probes via podman-run on the orchestrator network. Sets RETRY_DETAIL.
+  local bucket="wakir-marker-stack-${ORG}"
+  local out
   if out=$("$PODMAN" run --rm --network wakir-orchestrator \
         docker.io/natsio/nats-box:latest \
         nats kv ls --server nats://wakir-nats:4222 2>&1); then
     if echo "$out" | grep -qx "$bucket"; then
-      record "marker-stack-bucket-present" "PASS" "$bucket"
-    else
-      record "marker-stack-bucket-present" "FAIL" \
-        "$bucket not in nats kv ls output"
+      RETRY_DETAIL="$bucket"
+      return 0
     fi
+    RETRY_DETAIL="$bucket not in nats kv ls output (race: stream-registration-pending)"
+    return 1
+  fi
+  RETRY_DETAIL="podman-run failure: $(echo "$out" | head -1)"
+  return 1
+}
+
+check_marker_stack_bucket_present() {
+  local probe
+  if [[ -n "$NATS" ]]; then
+    probe=_probe_marker_stack_bucket_via_nats_cli
+  else
+    probe=_probe_marker_stack_bucket_via_podman_nats_box
+  fi
+
+  if with_retry "$probe"; then
+    record "marker-stack-bucket-present" "PASS" \
+      "$RETRY_LAST_DETAIL" "$RETRY_LAST_ATTEMPTS"
   else
     record "marker-stack-bucket-present" "FAIL" \
-      "podman-run failure: $(echo "$out" | head -1)"
+      "$RETRY_LAST_DETAIL" "$RETRY_LAST_ATTEMPTS"
   fi
 }
 

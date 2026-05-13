@@ -149,6 +149,13 @@ def _run_smoke(env_overrides: dict, args: list[str]) -> subprocess.CompletedProc
     assert bash is not None, "bash not on PATH"
     env = os.environ.copy()
     env.update(env_overrides)
+    # The Sprint-9 Tag-5 retry-layer defaults to 5 retries with
+    # exponential backoff. The Tag-1 hermetic-test suite asserts
+    # single-shot semantics for compatibility with the legacy
+    # mock-scripts (a permanently-broken probe should fail FAST,
+    # not retry 5 times). Tests that exercise the retry-layer
+    # explicitly are in ``test_proxmox_bringup_smoke_retry.py``.
+    env.setdefault("WAKIR_SMOKE_RETRY_MAX", "0")
     # PATH must be present for #!/usr/bin/env bash to resolve.
     return subprocess.run(
         [bash, str(_SMOKE), *args],
