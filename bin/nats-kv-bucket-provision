@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-9 Tag-1 — Per-org NATS-JetStream KV bucket provisioner
+# CLI entrypoint. Thin shim over ``bin/nats_kv_bucket_provision.py``
+# (which is the import target for hermetic tests; the hyphen in this
+# filename makes a direct ``import`` syntactically impossible without
+# ``importlib``).
+#
+# See ``bin/nats_kv_bucket_provision.py`` module docstring for the
+# full contract.
+
+import sys
+from pathlib import Path
+
+_HERE = Path(__file__).resolve().parent
+_REPO_ROOT = _HERE.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from bin.nats_kv_bucket_provision import main  # noqa: E402
+
+if __name__ == "__main__":
+    raise SystemExit(main())
