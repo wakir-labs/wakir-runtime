@@ -64,6 +64,7 @@ from wat.anchor.external_verifier.aggregator import (
     AnchorVerification,
     PoleResult,
     QuorumPolicy,
+    summarise_discrepancies,
     verify_wat_anchor,
 )
 
@@ -72,5 +73,6 @@ __all__ = [
     "PoleResult",
     "QuorumPolicy",
     "poles",
+    "summarise_discrepancies",
     "verify_wat_anchor",
 ]

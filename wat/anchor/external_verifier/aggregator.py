@@ -198,6 +198,94 @@ def verify_wat_anchor(
 
 
 # ---------------------------------------------------------------------------
+# Discrepancy summary (Sprint-8 Tag-3 determinism-audit helper)
+# ---------------------------------------------------------------------------
+
+
+def summarise_discrepancies(
+    verification: AnchorVerification,
+) -> dict[str, Any]:
+    """Audit-grade summary of inter-pole disagreement.
+
+    The 4-pole cross-library witness contract claims that four
+    independent implementations agree on the same anchor. When they
+    do not, the auditor needs a structured report (not a free-form
+    note) that names the disagreeing poles, the dimension of
+    disagreement, and a severity classification:
+
+    * ``"none"`` — every pole that voted ``ok`` agreed on the
+      observed block hash and height; pole-level ``unavailable``
+      verdicts do not count as discrepancy (a silent pole is not a
+      disagreeing pole).
+    * ``"silent-minority"`` — one or more poles returned
+      ``unavailable`` but no two ``ok`` poles disagree on substance.
+      Quorum may still pass under 3-of-4. Audit-note severity.
+    * ``"substance"`` — two or more ``ok`` poles disagree on the
+      observed block hash at the same height, or one pole reports
+      ``failed`` while others report ``verified``. Auditor must
+      examine.
+    * ``"brand-critical"`` — two or more poles flip to ``failed``
+      while the rest of the poles still vote ``verified``. The
+      4-pole cross-library claim is materially weakened; this is
+      the marker the brand-proof contract calls out.
+
+    Returns a dict (not a dataclass — additive, no schema-break to
+    :class:`AnchorVerification`). Callers can attach this to an
+    audit-report alongside ``verification.to_dict()``.
+    """
+    pole_results = verification.pole_results
+    ok_poles = [(n, pr) for n, pr in pole_results.items() if pr.ok]
+    failed_poles = [
+        (n, pr) for n, pr in pole_results.items() if pr.verdict == "failed"
+    ]
+    unavailable_poles = [
+        (n, pr) for n, pr in pole_results.items() if pr.verdict == "unavailable"
+    ]
+
+    # Substance comparison: group ``ok`` poles by (height, observed_hash)
+    # where the witness exposes those keys. Poles that do not expose
+    # an ``observed_block_hash`` (the offline poles) are compared on
+    # ``heights`` instead.
+    hash_groups: dict[str, list[str]] = {}
+    height_groups: dict[str, list[str]] = {}
+    for name, pr in ok_poles:
+        witness = dict(pr.witness)
+        observed = witness.get("observed_block_hash")
+        if isinstance(observed, str) and observed:
+            hash_groups.setdefault(observed, []).append(name)
+        heights = witness.get("heights")
+        if isinstance(heights, list) and heights:
+            key = ",".join(str(h) for h in heights)
+            height_groups.setdefault(key, []).append(name)
+
+    hash_disagreement = len(hash_groups) > 1
+    height_disagreement = len(height_groups) > 1
+    substance_disagreement = hash_disagreement or height_disagreement
+
+    failed_count = len(failed_poles)
+    severity: str
+    if failed_count >= 2:
+        severity = "brand-critical"
+    elif failed_count >= 1 or substance_disagreement:
+        severity = "substance"
+    elif unavailable_poles:
+        severity = "silent-minority"
+    else:
+        severity = "none"
+
+    return {
+        "severity": severity,
+        "ok_poles": [n for n, _ in ok_poles],
+        "failed_poles": [n for n, _ in failed_poles],
+        "unavailable_poles": [n for n, _ in unavailable_poles],
+        "hash_groups": hash_groups,
+        "height_groups": height_groups,
+        "hash_disagreement": hash_disagreement,
+        "height_disagreement": height_disagreement,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
 
