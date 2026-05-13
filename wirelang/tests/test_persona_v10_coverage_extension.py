@@ -57,8 +57,9 @@ import copy
 import json
 from pathlib import Path
 
-import jsonschema
 import pytest
+
+jsonschema = pytest.importorskip("jsonschema")
 
 from wirelang.persona import (
     compute_persona_hash_from_canonical,

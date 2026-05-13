@@ -1,0 +1,23 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+"""Entry-point shim for spire_agent_fed_attest.py.
+
+Mirror of infra/spire/federation/bin/spire-fed-bundle convention: the
+``.py`` module is the import-target for tests; this file is the
+no-extension CLI shim that PATH consumers (and the operator-hand
+recipe in README §3b) invoke.
+"""
+
+import os
+import sys
+
+# Same directory as the module file.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+
+from spire_agent_fed_attest import main  # noqa: E402
+
+if __name__ == "__main__":
+    sys.exit(main())
