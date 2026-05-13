@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-8 Tag-1 — Quadlet sidecar volume: SPIRE-Server Unix-
+# socket directory (Admin-API gRPC) for the federation substrate. Per-
+# side isolated (no socket sharing across the federation peers — by
+# design).
+
+[Unit]
+Description=Wakir Phase-2.1 SPIRE-Server-Federation sockets volume (<SIDE>)
+
+[Volume]
+VolumeName=wakir-spire-server-federation-<SIDE>-sockets
+
+[Install]
+WantedBy=multi-user.target default.target
