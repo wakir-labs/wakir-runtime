@@ -1,0 +1,268 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wakir.dev/schemas/wakir-persona-v1.json",
+  "title": "Wakir framework-native persona-definition target format v1.0",
+  "description": "Target schema for the framework-native persona-definition format, as defined by persona-engine-format-spec.md v1.0 (Sprint-Pengine-7 Tag-1, 2026-05-13). The wakir-persona-v1 document is a single JSON object that embeds (a) the V-907 persona-v1 canonical subset verbatim — this is the SINGLE source for the V-907 hash, byte-unchanged from the Phase-1b hash function — and (b) lifecycle / state-persistence / container-bridge / migration-metadata wrapper fields that are out-of-hash by V-907 design. Strict additionalProperties=false at every level; unknown keys are a schema error.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "persona_id",
+    "canonical_subset",
+    "claude_native_source",
+    "spawn_lifecycle",
+    "state_persistence",
+    "container_bridge",
+    "migration_metadata",
+    "model_override"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "wakir-persona-v1"
+    },
+    "persona_id": {
+      "type": "string",
+      "description": "Subagent slug; MUST equal canonical_subset.name.",
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "canonical_subset": {
+      "type": "object",
+      "description": "V-907 persona-v1 canonical subset, embedded verbatim. The V-907 hash function consumes ONLY this block; the rest of the wakir-persona-v1 document is out-of-hash. Strict-validate against wirelang/schemas/persona-v1.json.",
+      "required": [
+        "name",
+        "description",
+        "tools",
+        "schema_version",
+        "identity_pinned"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "description": {
+          "type": "string"
+        },
+        "tools": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "schema_version": {
+          "type": "string",
+          "const": "persona-v1"
+        },
+        "identity_pinned": {
+          "type": "object",
+          "required": ["cross_review_zones", "authority", "hierarchy"],
+          "additionalProperties": false,
+          "properties": {
+            "cross_review_zones": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["zone", "partner", "trigger"],
+                "additionalProperties": false,
+                "properties": {
+                  "zone": { "type": "string", "minLength": 1 },
+                  "partner": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]*$"
+                  },
+                  "trigger": { "type": "string", "minLength": 1 }
+                }
+              }
+            },
+            "authority": {
+              "type": "object",
+              "required": [
+                "push_remote",
+                "budget_cap_eur_per_month",
+                "sub_delegation"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "push_remote": { "type": "boolean" },
+                "budget_cap_eur_per_month": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "sub_delegation": { "type": "boolean" }
+              }
+            },
+            "hierarchy": {
+              "type": "object",
+              "required": ["reports_to", "escalation"],
+              "additionalProperties": false,
+              "properties": {
+                "reports_to": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*$"
+                },
+                "escalation": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*$"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "claude_native_source": {
+      "type": "object",
+      "description": "Lossless echo of the axis-A front-matter mapping. Preserves all keys (recognised + unknown) for round-trip stability. Markdown body is NOT included (out-of-hash by V-907).",
+      "additionalProperties": true,
+      "required": ["name", "description"]
+    },
+    "spawn_lifecycle": {
+      "type": "object",
+      "description": "Persona-engine spawn / despawn / recovery / migrate state-machine envelope.",
+      "required": [
+        "states",
+        "valid_transitions",
+        "recovery_policy",
+        "max_concurrent_instances"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "states": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true,
+          "minItems": 1
+        },
+        "valid_transitions": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "recovery_policy": {
+          "type": "object",
+          "required": ["kind", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": ["event-replay", "snapshot-load", "fresh-spawn"]
+            },
+            "source": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "max_concurrent_instances": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "state_persistence": {
+      "type": "object",
+      "description": "NATS-KV state-persistence binding for sessions-across persona state. Pattern source: Sprint-8 Tag-4 marker-stack-kv backend.",
+      "required": [
+        "bucket_template",
+        "value_envelope_schema",
+        "history",
+        "max_value_size_bytes",
+        "storage",
+        "replicas",
+        "ttl_seconds"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "bucket_template": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value_envelope_schema": {
+          "type": "string",
+          "minLength": 1
+        },
+        "history": { "type": "integer", "minimum": 1 },
+        "max_value_size_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "storage": {
+          "type": "string",
+          "enum": ["file", "memory"]
+        },
+        "replicas": { "type": "integer", "minimum": 1 },
+        "ttl_seconds": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "container_bridge": {
+      "type": "object",
+      "description": "Zone-J persona-container-bridge spec. Sprint-Pengine-7 Tag-1 records SHAPE only; container-ops-slot-side Quadlet implementation is Sprint-Pengine-7 Tag-4 (Zone-J cross-review-gated).",
+      "required": [
+        "image_template",
+        "metadata_labels",
+        "env_injection",
+        "cross_review_zone"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "image_template": {
+          "type": "string",
+          "minLength": 1
+        },
+        "metadata_labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "env_injection": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "cross_review_zone": {
+          "type": "string",
+          "const": "J"
+        }
+      }
+    },
+    "migration_metadata": {
+      "type": "object",
+      "description": "Self-Migration-Konverter (ADR-0036) chain-walk metadata.",
+      "required": [
+        "source_axis",
+        "source_axis_version",
+        "target_axis",
+        "target_axis_version",
+        "converter_module",
+        "converter_byte_determinism",
+        "v907_hash_integration"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source_axis": { "type": "string", "minLength": 1 },
+        "source_axis_version": { "type": "string", "minLength": 1 },
+        "target_axis": { "type": "string", "minLength": 1 },
+        "target_axis_version": { "type": "string", "minLength": 1 },
+        "converter_module": { "type": "string", "minLength": 1 },
+        "converter_byte_determinism": { "type": "string", "minLength": 1 },
+        "v907_hash_integration": { "type": "string", "minLength": 1 }
+      }
+    },
+    "model_override": {
+      "description": "Claude-Code model-override echo from axis-A 'model:' field, or null when absent. The hr.md persona is the Sprint-Pengine-7 Tag-1 inventory edge case (model: sonnet without explicit tools list).",
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "minLength": 1 }
+      ]
+    }
+  }
+}

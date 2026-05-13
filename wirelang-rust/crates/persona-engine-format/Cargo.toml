@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# persona-engine-format — Sprint-Pengine-7 Tag-1, Crate-8.
+#
+# Implements the byte-deterministic mapping from `.claude/agents/<slug>.md`
+# (axis-A `persona-claude-native`) to `wakir.persona/<slug>.json`
+# (axis-C `wakir-persona-v1`), per
+# `wirelang/specs/persona-engine-format-spec.md` v1.0.
+#
+# Default-Lock posture (mirror of Crate-1..7 posture):
+# - A-1 Mock-Format-Baseline: consumes an axis-A markdown text;
+#   produces a serde_json::Value of the wakir-persona-v1 shape ready
+#   for JCS canonicalisation. YAML parsing delegates to the sister
+#   `persona-canonical-form-yaml` crate.
+# - A-2 Additiv-only: adds Crate-8 next to the existing seven crates.
+#   No file deletion. No existing API surface narrowed.
+# - A-3 Body out-of-hash: the Markdown body after the closing `---`
+#   fence is read at conversion time only to record body-length and
+#   body-sha256 are NOT collected in v1.0 (Sprint-Pengine-7 Tag-2 may
+#   extract sections; Tag-1 ignores the body entirely).
+#
+# V-907 integration:
+# - The `wakir_persona_hash` function in this crate is a thin wrapper
+#   over `persona-hash`'s `compute_persona_hash_from_canonical_jcs`
+#   applied to the embedded canonical_subset block. No new hash
+#   function is introduced. Zone-K (WAT-bridge) is therefore touched
+#   only by reservation (operator-side pin-pack registry); the WAT-frame
+#   schema is unchanged.
+
+[package]
+name = "persona-engine-format"
+version = "0.1.0"
+description = "Sprint-Pengine-7 Tag-1: byte-deterministic mapping from .claude/agents/*.md (persona-claude-native) to wakir.persona/*.json (wakir-persona-v1), per persona-engine-format-spec.md v1.0"
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+
+[lib]
+name = "persona_engine_format"
+path = "src/lib.rs"
+
+[dependencies]
+# Reuse the Sprint-3 Tag-5 YAML front-matter parser. We do NOT depend
+# on its canonical-subset extractor here, because the extractor requires
+# schema_version=persona-v1 which is *not* present in axis-A input; we
+# walk the YAML mapping manually.
+persona-canonical-form-yaml = { path = "../persona-canonical-form-yaml" }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+# JCS canonicaliser — used by jcs_canonicalise_wakir_persona_v1 in the
+# public surface so callers can obtain the byte-deterministic on-disk
+# form without re-importing the JCS crate themselves.
+serde_jcs = { workspace = true }
+# V-907 hash integration (§5 of persona-engine-format-spec). We call
+# `persona_hash::compute_persona_hash_from_canonical` directly; that
+# function performs its own JCS canonicalisation, so we do not also
+# pull in `persona-canonical-form` (its `canonical_jcs_bytes` is a
+# sibling helper, not an upstream of `compute_persona_hash_from_canonical`).
+persona-hash           = { path = "../persona-hash" }
+
+[dev-dependencies]
+# Cross-check anchors for byte-determinism.
+sha2      = { workspace = true, features = ["std"] }
+hex       = { workspace = true }

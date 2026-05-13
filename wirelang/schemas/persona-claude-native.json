@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wakir.dev/schemas/persona-claude-native.json",
+  "title": "Persona-Claude-Native front-matter schema (axis-A input)",
+  "description": "Schema for the YAML front-matter block of a .claude/agents/<slug>.md persona-definition file as authored against the Claude-Code spawner contract. Sprint-Pengine-7 Tag-1 documents the production input shape of the 13 active personae. The Markdown body is NOT covered by this schema and is treated as out-of-hash by V-907 (mirrored here as out-of-schema). Per the persona-engine-format-spec.md v1.0 §2, the front-matter is the lossless source for the wakir-persona-v1 conversion target.",
+  "type": "object",
+  "required": [
+    "name",
+    "description"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Subagent slug. Brand-Guide §9 anonymity contract: never a clear personal name.",
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "description": {
+      "type": "string",
+      "description": "Spawn-time dispatcher hint. Free-form, may be multi-paragraph.",
+      "minLength": 1
+    },
+    "tools": {
+      "description": "Claude-Code tool allow-list. Accepted as comma-separated string for ergonomics or as an explicit array of strings. Mutually-recommended-exclusive with 'model' (one or the other typically; both is permitted but discouraged).",
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      ]
+    },
+    "model": {
+      "type": "string",
+      "description": "Claude-Code model override (e.g. 'sonnet', 'opus', 'haiku'). When present without a 'tools' key, the spawner uses the default tool set for that model. The hr.md persona exemplifies this shape.",
+      "minLength": 1
+    }
+  }
+}
