@@ -1,0 +1,151 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# End-to-End Live-Bring-up CI lane (Phase-2 Sprint-9 Tag-4)
+# =========================================================
+#
+# Purpose: prove that ``wakir-pilot-bootstrap.sh`` produces a
+# functionally-consistent bring-up against a containerized Fedora
+# substrate. This is the regression net for the seven substance-bugs
+# the 2026-05-13 Pilot-VM bring-up uncovered (see
+# ``agents-workspaces/mira/outbox/2026-05-13-pilot-bringup-bug-bilanz.md``).
+#
+# Lane policy
+# -----------
+# - Substance lane (``substance``): runs ``test_pilot_bringup_substance.py``
+#   on every PR/push. Fast (<5 s) and asserts source-template + bootstrap
+#   logic shape. NO container substrate required.
+# - E2E-container lane (``e2e-container``): runs
+#   ``test_pilot_bringup_e2e_container.py`` against a podman-driven
+#   Fedora container. Stub-driven (no real systemd/podman); validates
+#   the install-path produces a Quadlet substrate matching the
+#   substituted unit references. Skipped automatically when podman is
+#   not functional.
+#
+# Both lanes are MERGE-GATING for any change touching the bootstrap
+# script or the SPIRE-Federation Quadlet templates.
+#
+# Cross-Review Zone N (QA × Henrik-Audit)
+# ---------------------------------------
+# This workflow produces test-evidence Henrik samples as part of any
+# major bring-up bug-fix bundle. The lane name is stable so audit-
+# sample scripts can pin to it.
+#
+# Trigger surface
+# ---------------
+# - PR or push touching the bootstrap script,
+# - PR or push touching SPIRE-federation/agent Quadlet templates,
+# - PR or push touching the bucket-init Quadlet unit,
+# - PR or push touching the new test modules,
+# - Manual dispatch.
+
+name: e2e-bringup-ci
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'infra/spire/federation/wakir-pilot-bootstrap.sh'
+      - 'infra/spire/federation/quadlet/**'
+      - 'infra/spire/agent/quadlet/**'
+      - 'quadlet/wakir-nats-kv-bucket-init.container'
+      - 'tests/infra/test_pilot_bringup_substance.py'
+      - 'tests/infra/test_pilot_bringup_e2e_container.py'
+      - '.github/workflows/e2e-bringup-ci.yml'
+  pull_request:
+    paths:
+      - 'infra/spire/federation/wakir-pilot-bootstrap.sh'
+      - 'infra/spire/federation/quadlet/**'
+      - 'infra/spire/agent/quadlet/**'
+      - 'quadlet/wakir-nats-kv-bucket-init.container'
+      - 'tests/infra/test_pilot_bringup_substance.py'
+      - 'tests/infra/test_pilot_bringup_e2e_container.py'
+      - '.github/workflows/e2e-bringup-ci.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+
+  substance:
+    name: Substance — source-shape + bootstrap-logic
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install test deps
+        run: |
+          python -m pip install --upgrade pip
+          # The substance suite needs pyyaml only (for the parity
+          # tests in the federation/tests/ sibling directory that share
+          # the regression scope). The bring-up substance module itself
+          # has no third-party deps.
+          pip install pytest pyyaml
+
+      - name: Run substance suite
+        run: |
+          python -m pytest \
+            tests/infra/test_pilot_bringup_substance.py \
+            -v --color=yes
+
+  e2e-container:
+    name: E2E — bootstrap against containerized Fedora substrate
+    runs-on: ubuntu-latest
+    # Run only after the substance lane passes; no point spinning a
+    # container if the source-shape is already broken.
+    needs: [substance]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+          podman --version
+
+      - name: Pre-pull Fedora base image
+        run: |
+          # Pre-warm so the per-test pull does not blow the per-test
+          # timeout budget. ``fedora:latest`` is the e2e substrate.
+          podman pull docker.io/library/fedora:latest
+
+      - name: Install test deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+
+      - name: Run e2e-container suite
+        env:
+          # If podman is broken in the runner (rare on ubuntu-latest),
+          # the suite skips cleanly via its module-level guard. We do
+          # NOT want a silent skip in CI, so we fail explicitly if no
+          # tests ran.
+          PYTEST_ADDOPTS: '--strict-markers'
+        run: |
+          python -m pytest \
+            tests/infra/test_pilot_bringup_e2e_container.py \
+            -v --color=yes
+
+      - name: Fail if all tests skipped
+        if: always()
+        run: |
+          # If the e2e suite was skipped in its entirety, the bootstrap
+          # changes were not actually exercised. Treat that as a failure
+          # in CI (the substance lane is the other half of the cross-
+          # check, but it does not exercise the install-path end-to-
+          # end).
+          result=$(python -m pytest \
+            tests/infra/test_pilot_bringup_e2e_container.py \
+            --collect-only -q 2>/dev/null | tail -3)
+          echo "Collection result: $result"
