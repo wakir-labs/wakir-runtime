@@ -29,8 +29,8 @@
 
 [package]
 name = "persona-engine-format"
-version = "0.1.0"
-description = "Sprint-Pengine-7 Tag-1: byte-deterministic mapping from .claude/agents/*.md (persona-claude-native) to wakir.persona/*.json (wakir-persona-v1), per persona-engine-format-spec.md v1.0"
+version = "0.2.0"
+description = "Sprint-Pengine-7 Tag-1: byte-deterministic mapping from .claude/agents/*.md (persona-claude-native) to wakir.persona/*.json (wakir-persona-v1), per persona-engine-format-spec.md v1.2. Tag-3 adds lifecycle_protocols pure-data surface (§3.7 of spec) — byte-stable JSON envelope unchanged."
 edition.workspace      = true
 rust-version.workspace = true
 license.workspace      = true
