@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-8 Tag-1 — Quadlet sidecar: dedicated bridge network
+# for the SPIRE-Federation-Bundle-Endpoint substrate. NOT shared with
+# the Sprint-6 wakir-orchestrator.network — the two surfaces stay
+# isolated. Both Quadlet-instances (wakir + partner) attach to this
+# network so each side can reach the other's bundle-endpoint at the
+# SPIFFE-internal DNS names ``spire-server-wakir`` / ``spire-server-
+# partner``.
+#
+# Operator install (rootful Podman):
+#   sudo install -m 644 infra/spire/federation/quadlet/wakir-federation.network \
+#       /etc/containers/systemd/wakir-federation.network
+#   sudo systemctl daemon-reload
+
+[Unit]
+Description=Wakir Phase-2.1 SPIRE-Federation bridge network
+Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/infra/spire/federation/README.md
+
+[Network]
+NetworkName=wakir-federation
+Driver=bridge
+
+[Install]
+WantedBy=multi-user.target default.target

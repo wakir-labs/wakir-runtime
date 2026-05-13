@@ -32,8 +32,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import jsonschema
 import pytest
+
+jsonschema = pytest.importorskip("jsonschema")
 
 SCHEMA_PATH = (
     Path(__file__).resolve().parent.parent / "schemas" / "persona-v2.json"
