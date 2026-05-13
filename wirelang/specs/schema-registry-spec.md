@@ -9,14 +9,33 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wirelang-schema-registry
-version: 0.33.0
+version: 0.34.0
 status: draft
 date: 2026-05-13
 audience: implementers, integrators, operators
 license: CC-BY-4.0
 ---
 
-# Wirelang Schema Registry — NATS-KV Backend Specification (v0.33.0)
+# Wirelang Schema Registry — NATS-KV Backend Specification (v0.34.0)
+
+**Sprint-9 Tag-2 Durable Sequence-Number-Ledger + OTS-anchored
+Schema-Registry-Entry anchor (2026-05-13).** This version adds
+two substantive load-bearing additions over v0.33.0:
+(1) a **durable NATS-KV-backed `SequenceNumberLedger`**
+(`wirelang.federation.sequence_number_ledger_kv`) that promotes
+the Sprint-9 Tag-1 in-memory ledger to production-grade
+multi-process / restart-safe persistence with optimistic-
+concurrency CAS-pin and per-org bucket isolation; (2) an
+**OTS-anchored schema-registry-entry** for
+`wakir.federation.caveat-override-event-export/1`
+(`wirelang/schemas/caveat-override-event-export.json`) with a
+pre-submission anchor manifest fixture and Bitcoin-anchor pipeline
+contract. v0.34.0 is an **additive minor bump** per §3.2; no
+breaking changes; the Sprint-9 Tag-1 surfaces remain byte-
+identical; the Tag-1
+:class:`~wirelang.federation.caveat_override_export.InMemorySequenceNumberLedger`
+default is unchanged. New §5.18 (durable ledger) and §5.19
+(OTS-anchored schema-registry-entry).
 
 **Sprint-9 Tag-1 CaveatOverrideEvent Cross-Org-Export-Surface
 anchor (2026-05-13).** This version adds the cross-org export
@@ -4742,6 +4761,282 @@ call paths.
 Live NATS connections are operator-hand. All Sprint-9 Tag-1
 tests are hermetic and use the in-memory ledger; no FS
 interaction; no network interaction.
+
+### 5.18 Durable Sequence-Number-Ledger Backend (Phase-2 Sprint-9 Tag-2)
+
+Sprint-9 Tag-2 ships the durable tier for the Sprint-9 Tag-1
+`SequenceNumberLedger` Protocol: a per-organisation NATS-KV
+bucket that persists the (route_id, original_caveat_chain_hash)
+-> last_seen_sequence axis across operator-process restarts and
+across multi-process exporter clusters. The Tag-1 in-memory
+`InMemorySequenceNumberLedger` default remains in place for
+hermetic tests and single-process exporters; production
+deployments install the durable tier without changing the Tag-1
+exporter surface.
+
+#### 5.18.1 Module surface
+
+`wirelang.federation.sequence_number_ledger_kv` exports:
+
+| Surface                                              | Kind        | Purpose                                                                                                          |
+|------------------------------------------------------|-------------|------------------------------------------------------------------------------------------------------------------|
+| `BUCKET_NAME_PREFIX`                                 | constant    | `"wakir-caveat-override-export-sequence-"` — bucket-per-org prefix                                               |
+| `BUCKET_CONFIG`                                      | constant    | Documented bucket configuration (history=1, ttl=0, max_value_size=4096, file storage)                            |
+| `VALUE_SCHEMA`                                       | constant    | `"wakir.federation.caveat-override-export-sequence/1"` — value-envelope schema URI                               |
+| `bucket_name_for_org` / `org_id_for_bucket_name`     | function    | Deterministic bijective bucket-name derivation                                                                   |
+| `key_for_pair` / `parse_pair_key`                    | function    | Deterministic bijective per-pair key derivation                                                                  |
+| `NatsKvSequenceNumberLedger`                         | class       | Async durable ledger bound to one `org_id`                                                                       |
+| `SyncSequenceNumberLedgerAdapter`                    | class       | Sync adapter implementing the Tag-1 `SequenceNumberLedger` Protocol                                              |
+| `SequenceNumberLedgerError`                          | error base  | Base for durable-ledger failures                                                                                 |
+| `SequenceNumberLedgerEnvelopeError`                  | error       | Malformed JSON envelope / wrong schema / foreign org-id in cell payload                                          |
+| `SequenceNumberLedgerConcurrencyConflictError`       | error       | Optimistic-concurrency CAS-pin loser — caller MUST re-read and retry                                             |
+| `SequenceNumberLedgerCrossOrgBoundaryError`          | error       | Foreign `requested_org_id` rejected without I/O                                                                  |
+
+#### 5.18.2 Bucket identity
+
+Bucket name: `wakir-caveat-override-export-sequence-{org_id}`,
+deterministically derived from a validated `org_id`. The
+permitted-character regex mirrors the Sprint-7 `peer_org`
+predicate alphabet (URI-safe ASCII subset, no slashes, no
+whitespace). Two-way round-trip: `bucket_name_for_org` and
+`org_id_for_bucket_name` are byte-equal inverses.
+
+Key schema: `sequence/<route_id>/<chain_hash>`. Both components
+are permitted-character-validated before concatenation. The
+`chain_hash` field is the BLAKE2b-256-hex digest produced by
+:func:`~wirelang.federation.caveat_override_export.derive_caveat_chain_hash`;
+the validator admits the broader URI-safe ASCII subset for
+hermetic-test convenience.
+
+#### 5.18.3 Value envelope
+
+Per-key value is a JSON object with these fields:
+
+| Field                  | Type     | Purpose                                                                                                   |
+|------------------------|----------|-----------------------------------------------------------------------------------------------------------|
+| `schema`               | string   | `"wakir.federation.caveat-override-export-sequence/1"` — envelope discriminator                           |
+| `org_id`               | string   | Producing org's id (matches the bucket; defence-in-depth cross-check at read)                             |
+| `route_id`             | string   | Export route this cell tracks                                                                             |
+| `chain_hash`           | string   | Original-caveat-chain-hash this cell tracks                                                               |
+| `last_seen_sequence`   | int      | Highest sequence_number admitted so far (positive int, monotonic across writes)                           |
+| `recorded_at`          | string   | RFC-3339 UTC timestamp of latest write (operator-side bookkeeping; not load-bearing)                      |
+
+Bytes are emitted with sorted-key + compact-separator JSON so
+they are reproducible byte-for-byte per caller (Sprint-5 Tag-2 /
+Sprint-8 Tag-4 envelope contract).
+
+#### 5.18.4 Optimistic-concurrency CAS-pin contract
+
+This module CAS-pins on the **KV revision of the existing cell**
+(not on the sequence-number axis itself):
+
+1. `record_export` reads the cell to learn `(last_seen, revision)`.
+2. The exporter computes the next sequence and constructs the
+   updated envelope.
+3. If no cell exists: `_kv_create` materialises the cell;
+   concurrent creates yield a
+   `SequenceNumberLedgerConcurrencyConflictError` for all
+   losers.
+4. If a cell exists: `_kv_update` writes with `last=revision`;
+   the underlying NATS-KV layer rejects the write if the cell
+   has been mutated since the caller read it, raising a
+   `WrongLastSequenceError`-class exception that this module
+   normalises to
+   `SequenceNumberLedgerConcurrencyConflictError`.
+5. The caller MUST re-read the live last_seen and retry; no
+   implicit retry, no silent overwrite. The audit-trail
+   invariant (monotonic per-pair last_seen) is preserved.
+
+This is the standard NATS-KV optimistic-concurrency pattern.
+Two-of-N producers attempting to advance the same pair end up
+with exactly one winner per round.
+
+#### 5.18.5 Replay-protection contract
+
+The durable ledger refuses to admit a sequence less-than-or-
+equal-to the currently recorded `last_seen_sequence` for any
+pair:
+
+- `record_export(seq <= last_seen)` raises
+  `CaveatOverrideExportReplayError` synchronously, with
+  populated `route_id`, `chain_hash`, `last_seen_sequence`,
+  `attempted_sequence` diagnostic attributes.
+- The ledger cell is left untouched on a replay; only an
+  admitted sequence advances the cell.
+- Gaps are admitted (e.g. last_seen=1, advance to seq=5):
+  monotonic-strictly-increasing is the contract, dense
+  numbering is not.
+
+This is byte-equivalent to the Tag-1
+`InMemorySequenceNumberLedger` contract. Production
+deployments install the durable tier and the exporter surface
+stays identical.
+
+#### 5.18.6 Cross-org bucket isolation
+
+Each org operates against its own `NatsKvSequenceNumberLedger`
+instance, bound to a specific `org_id` at construction time.
+Reads / writes against the wrong `org_id` (a pair belonging to
+Org-B handed to an Org-A ledger) raise
+`SequenceNumberLedgerCrossOrgBoundaryError` without I/O — the
+org-id mismatch is a hard refusal, not a silent empty cell.
+Cross-org reads MUST go through the explicit Sprint-7 cross-
+trust-domain bridge surface (`SpiffeCrossTrustDomainBridge` /
+`MultiOrgAttestationEnvelope`), which is out of scope for this
+module — the ledger sits **behind** the exporter and is consulted
+by Org-A's exporter / Org-B's verifier independently against
+their own buckets.
+
+#### 5.18.7 Sync-adapter contract
+
+`SyncSequenceNumberLedgerAdapter` implements the Tag-1
+`SequenceNumberLedger` Protocol byte-equivalently, driving the
+async durable ledger via `asyncio.run` on a new event loop.
+**Not safe to call from within an existing event loop**; callers
+running inside `asyncio` MUST use `NatsKvSequenceNumberLedger`
+directly with `await`. Provided so Tag-1 callsites can swap
+their default `InMemorySequenceNumberLedger` for the durable
+tier without changing the exporter API.
+
+#### 5.18.8 Was Sprint-9 Tag-2 §5.18 explicitly does NOT do
+
+- **No retry helper.** The durable ledger surfaces
+  `SequenceNumberLedgerConcurrencyConflictError` and stops
+  there. Retry policy is caller-responsibility; production
+  deployments compose retry-with-backoff in the exporter layer
+  on top.
+- **No bridge cross-org admission.** A verifier in Org-B that
+  consumes an export from Org-A operates against its own
+  bucket — there is no shared bucket and no bridge admission
+  here. The Sprint-7 bridge surface handles cross-trust-domain
+  semantics.
+- **No OTS-anchor of ledger cells.** The cells are operator-
+  durable state, not audit-trail leaves. Audit-trail anchoring
+  is the WAT-Layer-4 axis, out of scope for the ledger.
+- **No multi-org-attestation live-tail-replicator integration.**
+  The Sprint-7 Tag-6 replicator currently has no per-payload
+  replay-protection; a `detect_replay`-callsite-mirror in the
+  replicator is a Sprint-9 Tag-N+ candidate.
+
+#### 5.18.9 Sandbox boundary
+
+Live NATS connections are operator-hand. All Sprint-9 Tag-2
+durable-ledger tests are hermetic and run against an in-memory
+mock that mirrors the Sprint-8 Tag-4 `_MockKv` shape with an
+`update` CAS-pin extension. No live NATS connection is
+established from the sandbox.
+
+### 5.19 OTS-anchored Schema-Registry-Entry (Phase-2 Sprint-9 Tag-2)
+
+Sprint-9 Tag-2 ships the OTS-anchored schema-registry-entry for
+`wakir.federation.caveat-override-event-export/1`
+(`wirelang/schemas/caveat-override-event-export.json`). Pattern-
+mirror on the WAT-Layer-4 OTS-anchor pipeline
+(`wat.anchor.ots_anchor`): the schema file's SHA-256 digest is
+the 32-byte anchor target, the OTS receipt is persisted next to
+the digest fixture, and the verifier composes WAT's
+`verify_receipt` against the digest's bytes.
+
+#### 5.19.1 Schema-registry entry shape
+
+JSON Schema (Draft 2020-12) with `$id`
+`https://wakir.dev/wirelang/schema/caveat-override-event-export/1`.
+The schema admits the **pseudonymised** envelope only:
+
+- Required fields: `schema`, `route_id`, `sequence_number`,
+  `event_at`, `exported_at`, `override_event_id`,
+  `narrowing_class`, `reason_class`, `cross_org_witnesses`,
+  `audit_trace`.
+- Optional fields: `original_caveat_chain_hash`,
+  `narrowed_caveat_chain_hash`, `override_reason_hash`
+  (each `null`-or-`64-hex-string`).
+- **Forbidden** fields (top-level `not.anyOf.required`):
+  `override_reason`, `original_caveat_set`,
+  `narrowed_caveat_set`. The schema treats their presence as a
+  hard validation failure — wire-level defence-in-depth against
+  accidental cross-org narrative leak, complementing the
+  runtime
+  `CaveatOverrideExportRawNarrativeLeakError` gate one layer up.
+
+The full schema lives at
+`wirelang/schemas/caveat-override-event-export.json`; see
+§5.17.1 for the module-surface that produces conforming
+envelopes.
+
+#### 5.19.2 OTS-anchor pipeline contract
+
+The schema file is OTS-anchored by the following procedure:
+
+1. The operator computes `sha256(schema-file-bytes)` and
+   persists the 32-byte digest at
+   `tests/fixtures/schema-registry/caveat-override-event-export-v1/schema.sha256.bin`.
+2. The operator invokes `wat.anchor.ots_anchor.anchor_root`
+   against the digest, producing a pending OTS receipt at
+   `schema.sha256.bin.ots` (multi-calendar 2-of-N policy per
+   WAT Phase-1a-Spec §3.3).
+3. The anchor-manifest fixture
+   (`anchor-manifest.json`) carries the digest hex, the
+   schema-file size, the anchor state (`PRE_SUBMISSION` /
+   `PENDING` / `FINALISED`), and the verifier contract.
+4. After Bitcoin confirmation, the operator invokes
+   `wat.anchor.ots_anchor.upgrade_pending` to upgrade the
+   pending receipt to a full Bitcoin attestation and flips the
+   manifest's `anchor_state` to `FINALISED`.
+5. Verifiers cross-validate via
+   `wat.anchor.ots_anchor.verify_receipt(schema.sha256.bin.ots,
+   schema.sha256.bin)` and, when configured, via
+   `wat.anchor.esplora.confirm_block_at_height` on the
+   `BitcoinBlockHeaderAttestation(H)` lines.
+
+#### 5.19.3 Anchor-manifest envelope
+
+`anchor-manifest.json` carries:
+
+| Field                       | Type            | Purpose                                                                                  |
+|-----------------------------|-----------------|------------------------------------------------------------------------------------------|
+| `schema_registry_id`        | string          | `"wakir.federation.caveat-override-event-export/1"`                                      |
+| `schema_file_path`          | string          | Repo-relative path to the schema JSON file                                               |
+| `schema_file_sha256`        | string (64-hex) | Anchor target digest                                                                     |
+| `schema_file_bytes`         | int             | Byte count for stale-detection                                                           |
+| `anchor_kind`               | string          | `"wakir.schema-registry.ots-anchor/1"`                                                   |
+| `anchor_digest_algorithm`   | string          | `"sha256"`                                                                               |
+| `anchor_digest_target`      | string          | `"schema.sha256.bin"` — relative path to the 32-byte digest fixture                      |
+| `anchor_receipt_path`       | string          | `"schema.sha256.bin.ots"` — relative path to the OTS receipt (PENDING / FINALISED)       |
+| `anchor_state`              | enum            | `PRE_SUBMISSION` / `PENDING` / `FINALISED`                                               |
+| `anchor_state_rationale`    | string          | Operator-rationale for the current state                                                 |
+| `verifier_contract`         | array           | Numbered step-by-step contract for verifiers                                             |
+| `anchor_state_machine`      | array           | Documented state transitions                                                             |
+| `cross_reference`           | object          | Repo-relative paths to spec / module / tests / pattern-anchor cross-references           |
+
+#### 5.19.4 Sandbox boundary
+
+Bitcoin-anchor submission is **operator-hand**: the Sprint-9
+Tag-2 sandbox-default `anchor_state` is `PRE_SUBMISSION`. The
+schema digest is pinned (the manifest's `schema_file_sha256`
+must match `sha256(schema-file-bytes)` of the live schema; tests
+enforce this byte-for-byte) and the OTS-anchor-pipeline manifest
+is materialised. The operator-side `anchor_root` submission step
+materialises `schema.sha256.bin.ots` and flips the manifest to
+`PENDING`. No live OTS-calendar or Bitcoin call is made from
+the sandbox.
+
+#### 5.19.5 Was Sprint-9 Tag-2 §5.19 explicitly does NOT do
+
+- **No live Bitcoin-anchor submission from the sandbox.** The
+  fixture is `PRE_SUBMISSION`; operator-hand promotes.
+- **No automated stale-detection driver.** The
+  `schema_file_sha256` field is checked at test-time only
+  (T-COXSR-03). Production deployments compose a stale-detection
+  CI step that re-derives the digest on every schema change.
+- **No re-anchor of pre-existing schema-registry entries.** This
+  §5.19 is scoped to
+  `wakir.federation.caveat-override-event-export/1`; other
+  registry entries are unaffected and remain at their pre-v0.34
+  state.
+- **No multi-org-shared anchor.** Every Org that adopts the
+  schema-registry entry materialises its own anchor against the
+  same byte-equal schema file; the OTS-anchor pipeline runs
+  per-org-operator with the same digest target.
 
 ## 6. Test inventory
 

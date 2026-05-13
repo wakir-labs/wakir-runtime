@@ -1,0 +1,36 @@
+{
+  "schema_registry_id": "wakir.federation.caveat-override-event-export/1",
+  "schema_file_path": "wirelang/schemas/caveat-override-event-export.json",
+  "schema_file_sha256": "927eda594255da179f53a507389ea03e99de710671fd4111f0e5ed62cbe82edb",
+  "schema_file_bytes": 6907,
+  "anchor_kind": "wakir.schema-registry.ots-anchor/1",
+  "anchor_digest_algorithm": "sha256",
+  "anchor_digest_target": "schema.sha256.bin",
+  "anchor_submitted_at": null,
+  "anchor_receipt_path": "schema.sha256.bin.ots",
+  "anchor_state": "PRE_SUBMISSION",
+  "anchor_state_rationale": "Sprint-9 Tag-2 sandbox boundary: Bitcoin-anchor submission is operator-hand. The schema digest is pinned (schema_file_sha256 above) and the OTS-anchor-pipeline manifest is materialised; the operator-side submission step (wat.anchor.ots_anchor.anchor_root) materialises schema.sha256.bin.ots and flips anchor_state to PENDING.",
+  "verifier_contract": [
+    "1. Verifier loads wirelang/schemas/caveat-override-event-export.json.",
+    "2. Verifier computes sha256(schema-file-bytes) and compares to schema_file_sha256 (this manifest).",
+    "3. Verifier loads tests/fixtures/schema-registry/caveat-override-event-export-v1/schema.sha256.bin and compares its bytes byte-for-byte against the recomputed digest.",
+    "4. When anchor_state >= PENDING, verifier verifies schema.sha256.bin.ots attests to the contents of schema.sha256.bin (wat.anchor.ots_anchor.verify_receipt contract).",
+    "5. When anchor_state == FINALISED, verifier additionally cross-validates the BitcoinBlockHeaderAttestation(H) heights via wat.anchor.esplora.confirm_block_at_height."
+  ],
+  "anchor_state_machine": [
+    "PRE_SUBMISSION (this fixture, sandbox-default)",
+    "PENDING (operator submitted to OTS calendars; .ots receipt persisted)",
+    "FINALISED (Bitcoin block confirmation observed; receipt upgraded)"
+  ],
+  "cross_reference": {
+    "spec_section": "wirelang/specs/schema-registry-spec.md",
+    "spec_section_anchor": "§5.19",
+    "module": "wirelang/federation/caveat_override_export.py",
+    "module_annotation": "Sprint-9 Tag-1",
+    "tests": "wirelang/tests/test_federation_caveat_override_event_export_schema.py",
+    "tests_annotation": "Sprint-9 Tag-2",
+    "tag_1_outbox": "agents-workspaces/reza/outbox/2026-05-13-reza-sprint-9-tag-1-caveat-override-export.md",
+    "tag_2_pattern_anchor_marker_stack": "wirelang/federation/marker_stack_kv.py",
+    "tag_2_pattern_anchor_ots_pipeline": "wat/anchor/ots_anchor.py"
+  }
+}
