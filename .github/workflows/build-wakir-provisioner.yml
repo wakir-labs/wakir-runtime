@@ -1,0 +1,221 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Build + sign + push the wakir-provisioner image (Phase-2 Sprint-9
+# Tag-4).
+#
+# Posture
+# -------
+#   workflow_dispatch ONLY. The image push is an Operator-Hand event:
+#   an authorised maintainer clicks "Run workflow" with the version
+#   tag input, the workflow builds + signs + pushes, and the resulting
+#   digest is then resolved into the consuming Quadlet pin
+#   (quadlet/wakir-nats-kv-bucket-init.container) via the recipe in
+#   infra/spire/federation/IMAGE_PINS.md §2.5.
+#
+#   The build is NOT on push / pull_request: a malicious PR that
+#   tampered with the Containerfile or the requirements.txt would
+#   otherwise auto-publish an image with the GitHub-Actions OIDC
+#   identity, defeating the supply-chain provenance posture. The
+#   manual-only trigger keeps the human-in-the-loop boundary
+#   explicit (see Tomás Zone-C posture for GHCR-network-access).
+#
+# What the workflow does
+# ----------------------
+#   1. Checks out the repo at the requested ref.
+#   2. Resolves the python:3.13-slim base-layer digest via skopeo +
+#      crane cross-check (refuses if the two disagree).
+#   3. Materialises the pinned digest in
+#      infra/spire/federation/provisioner/Containerfile (in-runner
+#      sed, NOT committed back to the repo — that is a follow-up PR
+#      from the operator).
+#   4. Verifies that requirements.txt is fully resolved (no
+#      HASH_PENDING_TOMAS_REVIEW placeholders).
+#   5. Builds the image with buildah.
+#   6. Sigstore-keyless signs the published digest against the
+#      GitHub-Actions OIDC identity of this workflow.
+#   7. Pushes the image and signature to GHCR.
+#   8. Emits the resulting digest as a workflow output so the
+#      operator can copy it into the Quadlet pin.
+#
+# Sandbox boundary
+# ----------------
+#   This workflow runs on GitHub-Actions runners, which are
+#   host-of-record (not the claude-dev sandbox). No part of this job
+#   is reachable from the sandbox per
+#   feedback_sandbox_host_trennung.md.
+
+name: build-wakir-provisioner
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: 'Semver tag to publish (e.g. 0.1.0)'
+        required: true
+        default: '0.1.0'
+      push:
+        description: 'Push to GHCR (true) or dry-run build only (false)'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write  # Sigstore-keyless OIDC
+
+jobs:
+  build:
+    name: build wakir-provisioner image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install crane (digest cross-resolver)
+        run: |
+          set -euo pipefail
+          CRANE_VERSION="0.20.2"
+          curl -fsSL "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" \
+            -o /tmp/crane.tar.gz
+          tar -C /tmp -xzf /tmp/crane.tar.gz crane
+          sudo install -m 0755 /tmp/crane /usr/local/bin/crane
+          crane version
+
+      - name: Install skopeo + jq
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends skopeo jq
+          skopeo --version
+
+      - name: Install cosign (Sigstore-keyless)
+        uses: sigstore/cosign-installer@v3
+
+      - name: Resolve python:3.13-slim base-layer digest
+        id: base
+        run: |
+          set -euo pipefail
+          SKOPEO_DIGEST=$(skopeo inspect docker://python:3.13-slim | jq -r '.Digest')
+          CRANE_DIGEST=$(crane digest python:3.13-slim)
+          echo "skopeo: $SKOPEO_DIGEST"
+          echo "crane:  $CRANE_DIGEST"
+          if [[ "$SKOPEO_DIGEST" != "$CRANE_DIGEST" ]]; then
+            echo "::error::skopeo vs crane disagree on python:3.13-slim digest — registry inconsistency, halt"
+            exit 2
+          fi
+          if [[ -z "$SKOPEO_DIGEST" || "$SKOPEO_DIGEST" == "null" ]]; then
+            echo "::error::failed to resolve python:3.13-slim digest"
+            exit 1
+          fi
+          echo "digest=${SKOPEO_DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Materialise pinned base-layer digest in Containerfile
+        run: |
+          set -euo pipefail
+          sed -i \
+            "s|python:3.13-slim@sha256:DIGEST_PENDING_TOMAS_REVIEW|python:3.13-slim@${{ steps.base.outputs.digest }}|" \
+            infra/spire/federation/provisioner/Containerfile
+          grep -q "python:3.13-slim@${{ steps.base.outputs.digest }}" \
+            infra/spire/federation/provisioner/Containerfile \
+            || { echo "::error::Containerfile substitution did not stick"; exit 1; }
+
+      - name: Refuse build if requirements.txt is half-resolved
+        run: |
+          set -euo pipefail
+          # All-or-nothing: either every hash is the placeholder, or
+          # every hash is a real digest. The hermetic test surface
+          # asserts the same invariant on every PR.
+          REAL=$(grep -cE -- '--hash=sha256:[a-f0-9]{64}\b' infra/spire/federation/provisioner/requirements.txt || true)
+          PLACEHOLDER=$(grep -c -- '--hash=sha256:HASH_PENDING_TOMAS_REVIEW' infra/spire/federation/provisioner/requirements.txt || true)
+          echo "real hash lines:        $REAL"
+          echo "placeholder hash lines: $PLACEHOLDER"
+          if [[ "$PLACEHOLDER" -gt 0 && "$REAL" -gt 0 ]]; then
+            echo "::error::requirements.txt is half-resolved; finish Operator-Hand hash resolution before building"
+            exit 1
+          fi
+          if [[ "$PLACEHOLDER" -gt 0 && "$REAL" -eq 0 ]]; then
+            echo "::error::requirements.txt is still all-placeholder; resolve hashes Operator-Hand first (see provisioner/README.md §3)"
+            exit 1
+          fi
+
+      - name: Build image with buildah
+        id: buildah
+        run: |
+          set -euo pipefail
+          # buildah ships on ubuntu-latest by default in 2026; if a
+          # future runner image drops it, install explicitly.
+          if ! command -v buildah >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends buildah
+          fi
+          TAG="${{ github.event.inputs.version_tag }}"
+          IMAGE="ghcr.io/${{ github.repository_owner }}/wakir-provisioner"
+          REVISION="${GITHUB_SHA}"
+          CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          buildah bud \
+            --tag "${IMAGE}:${TAG}" \
+            --label "org.opencontainers.image.revision=${REVISION}" \
+            --label "org.opencontainers.image.created=${CREATED}" \
+            -f infra/spire/federation/provisioner/Containerfile \
+            infra/spire/federation/provisioner/
+          echo "image=${IMAGE}"     >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}"         >> "$GITHUB_OUTPUT"
+          echo "revision=${REVISION}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GHCR
+        if: ${{ github.event.inputs.push == 'true' }}
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | buildah login \
+                --username "${{ github.actor }}" \
+                --password-stdin ghcr.io
+
+      - name: Push to GHCR
+        id: push
+        if: ${{ github.event.inputs.push == 'true' }}
+        run: |
+          set -euo pipefail
+          IMAGE="${{ steps.buildah.outputs.image }}"
+          TAG="${{ steps.buildah.outputs.tag }}"
+          buildah push "${IMAGE}:${TAG}"
+          # Resolve the pushed digest for the sign step + the
+          # workflow output.
+          DIGEST=$(buildah images --format '{{ .Digest }}' "${IMAGE}:${TAG}" | head -n1)
+          if [[ -z "$DIGEST" ]]; then
+            echo "::error::failed to resolve pushed image digest"
+            exit 1
+          fi
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "Pushed: ${IMAGE}:${TAG}@${DIGEST}"
+
+      - name: Sigstore-keyless sign
+        if: ${{ github.event.inputs.push == 'true' }}
+        run: |
+          set -euo pipefail
+          IMAGE="${{ steps.buildah.outputs.image }}"
+          DIGEST="${{ steps.push.outputs.digest }}"
+          cosign sign --yes "${IMAGE}@${DIGEST}"
+
+      - name: Emit workflow summary
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo "## wakir-provisioner build result"
+            echo ""
+            echo "- repo revision: \`${{ steps.buildah.outputs.revision }}\`"
+            echo "- base-layer digest (python:3.13-slim): \`${{ steps.base.outputs.digest }}\`"
+            echo "- requested tag: \`${{ steps.buildah.outputs.tag }}\`"
+            if [[ "${{ github.event.inputs.push }}" == "true" ]]; then
+              echo "- pushed digest: \`${{ steps.push.outputs.digest }}\`"
+              echo ""
+              echo "Pin substitution recipe (Operator-Hand follow-up):"
+              echo ""
+              echo "    sed -i \"s|wakir-provisioner:${{ steps.buildah.outputs.tag }}@sha256:DIGEST_PENDING_TOMAS_REVIEW|wakir-provisioner:${{ steps.buildah.outputs.tag }}@${{ steps.push.outputs.digest }}|\" \\"
+              echo "        quadlet/wakir-nats-kv-bucket-init.container"
+            else
+              echo "- push: dry-run only (set inputs.push=true to publish)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

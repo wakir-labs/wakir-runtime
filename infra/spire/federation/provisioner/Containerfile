@@ -1,0 +1,114 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# wakir-provisioner — minimal Python image carrying the wheel set the
+# Phase-2 Sprint-9 per-org NATS-KV bucket provisioner needs at runtime.
+#
+# Why a dedicated image
+# ---------------------
+# The Sprint-9 Tag-1 Quadlet (``quadlet/wakir-nats-kv-bucket-init.container``)
+# was authored against ``docker.io/library/python:3.13-slim`` on the
+# assumption that the slim image ships ``nats-py`` pre-installed. It
+# does not — slim ships the CPython stdlib only. The Sprint-9 Tag-4
+# live-bring-up on the Pilot-VM crashed at unit-start with
+# ``ModuleNotFoundError: cryptography`` because the provisioner's
+# transitive imports through ``wirelang.federation.marker_stack_kv``
+# pull in ``wirelang.identity`` which requires ``cryptography``.
+#
+# Three options were on the table (Mira-Bug-Bilanz 2026-05-13, Bug 6):
+#
+#   A) bump the base image to one that ships every wheel the
+#      provisioner needs (this image);
+#   B) install wheels at unit start via ``ExecStartPre`` against a
+#      tmpfs target — depends on pip reaching PyPI from inside the
+#      hardened Quadlet (ReadOnly + DropCapability), and re-introduces
+#      a supply-chain network egress on every unit start;
+#   C) refactor the provisioner so the transitive Wirelang-imports
+#      don't trigger ``cryptography`` (Reza-side, Sprint-9 Tag-4
+#      Wirelang-import-disentanglement track).
+#
+# A and C are complementary, not exclusive. C tidies the Wirelang side
+# (no more identity-stack imports for a substrate-shaping driver); A
+# closes the wheel-availability gap that exists independent of C
+# (``nats-py`` is not on the slim base image regardless). This file is
+# the A-track substrate. The C-track surfaces on the Wirelang side in
+# Reza-Sprint-9-Tag-4.
+#
+# Image scope
+# -----------
+# The image carries exactly the runtime wheel set:
+#
+#   * ``nats-py`` — pinned to the same version the orchestrator-side
+#     ``requirements-nats.txt`` pins (Sprint-4 Tag-2 First-Time-Live-
+#     Smoke version), hash-pinned for supply-chain provenance;
+#   * ``cryptography`` — used by ``wirelang.identity.key_derivation``
+#     until the Reza-side disentanglement lands; the provisioner does
+#     not call ``cryptography`` directly, only transitively;
+#   * ``rfc8785`` — JCS canonicalisation, used by
+#     ``wirelang.federation`` envelope encoding paths;
+#   * ``jsonschema`` — Wirelang Layer-0/1/2 conformance validation,
+#     transitively imported on certain code paths.
+#
+# The image deliberately does NOT carry the wakir-runtime tree itself.
+# The runtime is bind-mounted into the container from the host at
+# ``/opt/wakir-runtime`` (see Quadlet ``Volume=`` lines). Bumping the
+# Wirelang/runtime tree does not require an image rebuild; bumping any
+# of the wheel pins above does.
+#
+# Apache-2.0 + image provenance
+# -----------------------------
+# All four wheels above ship under Apache-2.0 or BSD/MIT (rfc8785:
+# Apache-2.0; nats-py: Apache-2.0; cryptography: Apache-2.0 + BSD;
+# jsonschema: MIT). The image as a whole is published under
+# Apache-2.0; per-wheel licence texts ship in the wheels themselves
+# and are reachable via ``pip show <pkg>`` inside a running container.
+#
+# Build path: ``.github/workflows/build-wakir-provisioner.yml``
+# (Operator-Hand ``workflow_dispatch`` only; pushes to
+# ``ghcr.io/wakir-labs/wakir-provisioner:<tag>``).
+#
+# Pin path: ``infra/spire/federation/IMAGE_PINS.md`` §1 table carries
+# the ``ghcr.io/wakir-labs/wakir-provisioner`` row; the Quadlet
+# references the digest-pinned form
+# ``ghcr.io/wakir-labs/wakir-provisioner:<tag>@sha256:<digest>``.
+
+FROM docker.io/library/python:3.13-slim@sha256:DIGEST_PENDING_TOMAS_REVIEW
+
+# OCI metadata. The build workflow stamps build-time labels
+# (``org.opencontainers.image.revision`` etc.) at push time.
+LABEL org.opencontainers.image.title="wakir-provisioner"
+LABEL org.opencontainers.image.description="Runtime image for the Wakir per-org NATS-KV bucket provisioner (Sprint-9 Tag-4)."
+LABEL org.opencontainers.image.licenses="Apache-2.0"
+LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"
+LABEL org.opencontainers.image.url="https://github.com/wakir-labs/wakir-runtime"
+LABEL org.opencontainers.image.documentation="https://github.com/wakir-labs/wakir-runtime/blob/main/infra/spire/federation/provisioner/README.md"
+
+# Hash-pinned requirements file. The wheel digests are sourced from
+# the PyPI JSON API on the build host (Operator-Hand) and recorded in
+# the in-repo file ``provisioner/requirements.txt``. Hash mismatch
+# halts the build by design (``--require-hashes``).
+COPY requirements.txt /tmp/requirements.txt
+
+# Install with hash verification, no cache, no compile bytecode. The
+# build host is the only place that needs PyPI network egress; the
+# runtime image carries everything pre-installed.
+RUN pip install \
+        --no-cache-dir \
+        --no-compile \
+        --require-hashes \
+        --requirement /tmp/requirements.txt \
+    && rm -f /tmp/requirements.txt
+
+# Non-root runtime user, matching the Quadlet ``User=1000`` /
+# ``Group=1000``. We do not chown ``/opt/wakir`` because the runtime
+# bind-mount supplies its own ownership semantics at unit start.
+RUN groupadd --gid 1000 wakir \
+    && useradd --uid 1000 --gid 1000 --no-create-home --shell /usr/sbin/nologin wakir
+
+USER 1000:1000
+WORKDIR /opt/wakir-runtime
+
+# Default ENTRYPOINT is python3; the Quadlet supplies the full Exec=
+# command line, so we do not bake a specific script path here.
+ENTRYPOINT ["python3"]
+CMD ["--version"]

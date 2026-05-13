@@ -170,14 +170,16 @@ jobs:
           sudo apt-get install -y --no-install-recommends skopeo jq
           skopeo --version
 
-      - name: Extract pinned tag + digest from quadlet
+      - name: Extract pinned tag + digest from Containerfile
         id: pin
         run: |
           set -euo pipefail
+          # Sprint-9 Tag-4: the python pin moved from the Quadlet to
+          # the wakir-provisioner Containerfile's FROM line.
           PIN=$(grep -oE 'docker\.io/library/python:[^@ "]+@sha256:[^ "]+' \
-              quadlet/wakir-nats-kv-bucket-init.container | head -n1)
+              infra/spire/federation/provisioner/Containerfile | head -n1)
           if [[ -z "$PIN" ]]; then
-            echo "::error::failed to extract python image pin"
+            echo "::error::failed to extract python image pin from Containerfile"
             exit 1
           fi
           TAG=$(echo "$PIN" | sed -E 's|.*python:([^@]+)@.*|\1|')
@@ -224,3 +226,72 @@ jobs:
             exit 2
           fi
           echo "OK: pinned digest matches live registry digest (skopeo + crane)"
+
+  # ------------------------------------------------------------------
+  # Job 3: ghcr.io/wakir-labs/wakir-provisioner — GHCR + Sigstore
+  #        keyless cosign verify against the build workflow's OIDC
+  #        identity. Added in Phase-2 Sprint-9 Tag-4.
+  # ------------------------------------------------------------------
+  cosign-verify-wakir-provisioner:
+    name: cosign verify wakir-provisioner
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Install crane (digest cross-resolver)
+        run: |
+          set -euo pipefail
+          CRANE_VERSION="0.20.2"
+          curl -fsSL "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" \
+            -o /tmp/crane.tar.gz
+          tar -C /tmp -xzf /tmp/crane.tar.gz crane
+          sudo install -m 0755 /tmp/crane /usr/local/bin/crane
+          crane version
+
+      - name: Extract pinned tag + digest from quadlet
+        id: pin
+        run: |
+          set -euo pipefail
+          PIN=$(grep -oE 'ghcr\.io/wakir-labs/wakir-provisioner:[^@ "]+@sha256:[^ "]+' \
+              quadlet/wakir-nats-kv-bucket-init.container | head -n1)
+          if [[ -z "$PIN" ]]; then
+            echo "::error::failed to extract wakir-provisioner image pin from quadlet"
+            exit 1
+          fi
+          TAG=$(echo "$PIN" | sed -E 's|.*wakir-provisioner:([^@]+)@.*|\1|')
+          DIGEST=$(echo "$PIN" | sed -E 's|.*@(sha256:[a-f0-9]+).*|\1|')
+          echo "tag=${TAG}"       >> "$GITHUB_OUTPUT"
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "Pinned: ghcr.io/wakir-labs/wakir-provisioner:${TAG}@${DIGEST}"
+
+      - name: Halt if placeholder digest is still present
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.pin.outputs.digest }}" == "sha256:DIGEST_PENDING_TOMAS_REVIEW" ]]; then
+            echo "::error::wakir-provisioner pin still carries DIGEST_PENDING_TOMAS_REVIEW placeholder"
+            exit 1
+          fi
+
+      - name: Cosign-verify (Sigstore keyless OIDC)
+        run: |
+          set -euo pipefail
+          cosign verify \
+            --certificate-identity-regexp 'https://github\.com/wakir-labs/wakir-runtime/' \
+            --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+            ghcr.io/wakir-labs/wakir-provisioner:${{ steps.pin.outputs.tag }}@${{ steps.pin.outputs.digest }}
+
+      - name: Cross-check digest via crane
+        run: |
+          set -euo pipefail
+          CRANE_DIGEST=$(crane digest ghcr.io/wakir-labs/wakir-provisioner:${{ steps.pin.outputs.tag }})
+          echo "crane: $CRANE_DIGEST"
+          echo "pinned: ${{ steps.pin.outputs.digest }}"
+          if [[ "$CRANE_DIGEST" != "${{ steps.pin.outputs.digest }}" ]]; then
+            echo "::error::wakir-provisioner digest drift detected — possible republish without coordinated pin update"
+            exit 2
+          fi
+          echo "OK: pinned wakir-provisioner digest matches live registry digest"
