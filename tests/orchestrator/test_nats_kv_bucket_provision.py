@@ -8,6 +8,17 @@ stand one up here. The hermetic surface drives ``plan_and_apply``
 against an in-memory mock JetStream context that mirrors the subset
 of the ``nats.js.JetStreamContext`` API the provisioner depends on.
 
+Tag-2 multi-family registry note
+--------------------------------
+
+Sprint-9 Tag-2 promoted the driver to a multi-family registry that
+provisions every registered :class:`BucketFamily` per ``org_id``.
+The Tag-1 coverage axes below pin ``families=[marker-stack]`` on
+every call to assert the historical single-family semantics
+byte-precisely. The new Tag-2 coverage axes (T-MULTIFAM-01..NN in
+``test_nats_kv_bucket_provision_multi_family.py``) exercise the
+multi-family fan-out shape independently.
+
 Coverage axes (8 tests):
 
 1. Empty cluster + two orgs ``acme`` / ``orbit`` → both bucketise
@@ -79,6 +90,22 @@ def _load_module():
 @pytest.fixture(scope="module")
 def mod():
     return _load_module()
+
+
+@pytest.fixture
+def marker_stack_family(mod):
+    """Pin to the marker-stack family for Tag-1 single-family
+    semantics. Sprint-9 Tag-2 promoted the planner to a multi-
+    family registry; the Tag-1 axes below pre-date that and assert
+    the marker-stack family behaviour in isolation.
+    """
+    for fam in mod.BUCKET_FAMILIES:
+        if fam.family_id == "marker-stack":
+            return fam
+    raise AssertionError(
+        "marker-stack family is not registered; refusing to run Tag-1 "
+        "single-family hermetic tests against a multi-family driver"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -153,11 +180,14 @@ def event_loop():
 
 
 def test_empty_cluster_creates_per_org_buckets_with_canonical_config(
-    mod, event_loop
+    mod, event_loop, marker_stack_family
 ):
     js = _MockJetStream()
     actions = event_loop.run_until_complete(
-        mod.plan_and_apply(js, ["acme", "orbit"], dry_run=False)
+        mod.plan_and_apply(
+            js, ["acme", "orbit"],
+            dry_run=False, families=[marker_stack_family],
+        )
     )
 
     assert [a.status for a in actions] == ["created", "created"], actions
@@ -182,15 +212,23 @@ def test_empty_cluster_creates_per_org_buckets_with_canonical_config(
 # ---------------------------------------------------------------------------
 
 
-def test_idempotent_replay_marks_buckets_unchanged(mod, event_loop):
+def test_idempotent_replay_marks_buckets_unchanged(
+    mod, event_loop, marker_stack_family
+):
     js = _MockJetStream()
     event_loop.run_until_complete(
-        mod.plan_and_apply(js, ["acme", "orbit"], dry_run=False)
+        mod.plan_and_apply(
+            js, ["acme", "orbit"],
+            dry_run=False, families=[marker_stack_family],
+        )
     )
     js.create_calls.clear()
 
     actions = event_loop.run_until_complete(
-        mod.plan_and_apply(js, ["acme", "orbit"], dry_run=False)
+        mod.plan_and_apply(
+            js, ["acme", "orbit"],
+            dry_run=False, families=[marker_stack_family],
+        )
     )
     assert all(a.status == "unchanged" for a in actions), [
         (a.org_id, a.status, a.detail, a.drift) for a in actions
@@ -205,10 +243,15 @@ def test_idempotent_replay_marks_buckets_unchanged(mod, event_loop):
 # ---------------------------------------------------------------------------
 
 
-def test_dry_run_reports_would_create_and_does_not_mutate(mod, event_loop):
+def test_dry_run_reports_would_create_and_does_not_mutate(
+    mod, event_loop, marker_stack_family
+):
     js = _MockJetStream()
     actions = event_loop.run_until_complete(
-        mod.plan_and_apply(js, ["acme", "orbit"], dry_run=True)
+        mod.plan_and_apply(
+            js, ["acme", "orbit"],
+            dry_run=True, families=[marker_stack_family],
+        )
     )
 
     assert [a.status for a in actions] == ["would_create", "would_create"]
@@ -221,7 +264,9 @@ def test_dry_run_reports_would_create_and_does_not_mutate(mod, event_loop):
 # ---------------------------------------------------------------------------
 
 
-def test_drift_is_reported_with_precise_diff(mod, event_loop):
+def test_drift_is_reported_with_precise_diff(
+    mod, event_loop, marker_stack_family
+):
     js = _MockJetStream()
     cfg = mod.MARKER_STACK_BUCKET_CONFIG
     bucket = mod.bucket_name_for_org("acme")
@@ -242,7 +287,9 @@ def test_drift_is_reported_with_precise_diff(mod, event_loop):
     )
 
     actions = event_loop.run_until_complete(
-        mod.plan_and_apply(js, ["acme"], dry_run=False)
+        mod.plan_and_apply(
+            js, ["acme"], dry_run=False, families=[marker_stack_family]
+        )
     )
     assert len(actions) == 1
     action = actions[0]
@@ -259,7 +306,9 @@ def test_drift_is_reported_with_precise_diff(mod, event_loop):
 # ---------------------------------------------------------------------------
 
 
-def test_malformed_org_id_surfaces_as_error_action(mod, event_loop):
+def test_malformed_org_id_surfaces_as_error_action(
+    mod, event_loop, marker_stack_family
+):
     js = _MockJetStream()
     # "" empty, " " whitespace, "with/slash" slash, "with space" space.
     actions = event_loop.run_until_complete(
@@ -267,6 +316,7 @@ def test_malformed_org_id_surfaces_as_error_action(mod, event_loop):
             js,
             ["valid-acme", "with/slash", "with space", "valid-orbit"],
             dry_run=False,
+            families=[marker_stack_family],
         )
     )
     # Two valid orgs become "created", two malformed orgs become "error".
@@ -288,11 +338,14 @@ def test_malformed_org_id_surfaces_as_error_action(mod, event_loop):
 # ---------------------------------------------------------------------------
 
 
-def test_duplicate_org_id_input_collapses_to_single_bucket(mod, event_loop):
+def test_duplicate_org_id_input_collapses_to_single_bucket(
+    mod, event_loop, marker_stack_family
+):
     js = _MockJetStream()
     actions = event_loop.run_until_complete(
         mod.plan_and_apply(
-            js, ["acme", "acme", "orbit", "acme"], dry_run=False
+            js, ["acme", "acme", "orbit", "acme"],
+            dry_run=False, families=[marker_stack_family],
         )
     )
     # Three distinct planner decisions become two distinct actions.

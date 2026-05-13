@@ -1,14 +1,20 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Per-org NATS-JetStream KV bucket provisioner (Phase-2 Sprint-9 Tag-1).
+"""Per-org NATS-JetStream KV bucket provisioner (Phase-2 Sprint-9 Tag-1,
+Sprint-9 Tag-2 multi-family extension).
 
 Sprint-8 Tag-4 (`wirelang.federation.marker_stack_kv`) introduced
 the marker-stack-event bucket FAMILY: one bucket per organisation,
-named ``wakir-marker-stack-{org_id}``. The Sprint-2/4/5 inventory in
+named ``wakir-marker-stack-{org_id}``. Sprint-9 Tag-2 introduced a
+second per-org family (`wirelang.federation.sequence_number_ledger_kv`):
+``wakir-caveat-override-export-sequence-{org_id}``. Both families
+share the same per-org isolation contract; they differ only on
+``max_value_size`` (32 KiB for marker-stack, 4 KiB for the ledger)
+and ``description``. The Sprint-2/4/5 inventory in
 ``scripts/init-nats-buckets.py`` was hard-coded for a fixed seven-
 bucket layout where bucket names were inventory-globals. That driver
 cannot enrol per-org buckets because the org-id is supplied at runtime
-by the operator (one bucket per organisation onboarded into the
+by the operator (multiple buckets per organisation onboarded into the
 federation).
 
 This module is the per-org tier:
@@ -17,17 +23,39 @@ This module is the per-org tier:
    validates each one against
    ``wirelang.federation.marker_stack_kv._IDENT_RE`` (URI-safe ASCII
    subset, no slashes, no whitespace).
-2. For each ``org_id``, derives the canonical bucket name via
-   ``wirelang.federation.marker_stack_kv.bucket_name_for_org`` and
-   ensures the bucket exists with the documented
-   ``BUCKET_CONFIG`` (history=1, ttl=0, max_value_size=32_768,
-   storage="file", replicas=1).
+2. For each ``org_id``, derives the canonical bucket name for each
+   registered per-org family via the family's ``bucket_name_for_org``
+   and ensures every bucket exists with the documented
+   ``BUCKET_CONFIG``.
 3. Idempotency contract: re-running against a cluster that already
    has a bucket is a no-op. Drift between the live config and the
    documented ``BUCKET_CONFIG`` is REPORTED, never auto-corrected
    (mirrors the Sprint-5 Tag-2 ``init-nats-buckets`` semantics).
 4. Emits a structured JSON report on stdout and a human-readable log
    line per bucket on stderr.
+
+Bucket-family registry (Sprint-9 Tag-2)
+---------------------------------------
+
+The driver carries a small registry of per-org families it
+provisions. Each family entry sources its constants byte-precisely
+from the Wirelang-side single-source-of-truth module:
+
+- **marker-stack** (Sprint-8 Tag-4):
+  ``wirelang.federation.marker_stack_kv`` — append-only per-org
+  marker-event log; ``max_value_size=32_768``.
+- **sequence-ledger** (Sprint-9 Tag-2):
+  ``wirelang.federation.sequence_number_ledger_kv`` — durable
+  ``SequenceNumberLedger`` cell-per-pair store with CAS-pin;
+  ``max_value_size=4_096``. Imported defensively: if the Wirelang-
+  side module is absent (e.g. Reza-Tag-2 not yet merged into the
+  consuming branch), this family is skipped silently and the
+  driver continues to provision marker-stack buckets only.
+
+Adding a new per-org family is a three-line extension: import the
+canonical constants, append a :class:`BucketFamily` instance to
+:data:`BUCKET_FAMILIES`. The hermetic test surface re-asserts the
+cross-reference invariant for every registered family.
 
 Why a separate driver
 ---------------------
@@ -147,18 +175,94 @@ from typing import Any, Iterable, List, Mapping, Optional, Sequence
 
 # ---------------------------------------------------------------------------
 # Cross-reference: re-use the Wirelang-side single-source-of-truth
-# constants for the marker-stack bucket family. Importing them here
-# guarantees the driver and the consumer agree byte-precisely.
+# constants for every per-org bucket family. Importing them here
+# guarantees the driver and the consumers agree byte-precisely.
 # ---------------------------------------------------------------------------
 
-# The Sprint-8 Tag-4 module is the canonical owner of the bucket name
-# prefix, the bucket-config mapping, and the validated bucket-name
-# derivation. We import them and propagate them; we DO NOT re-encode.
+# The Sprint-8 Tag-4 module is the canonical owner of the marker-stack
+# bucket name prefix, the bucket-config mapping, and the validated
+# bucket-name derivation. We import them and propagate them; we DO NOT
+# re-encode.
 from wirelang.federation.marker_stack_kv import (  # noqa: E402
     BUCKET_CONFIG as MARKER_STACK_BUCKET_CONFIG,
     BUCKET_NAME_PREFIX as MARKER_STACK_BUCKET_NAME_PREFIX,
-    bucket_name_for_org,
+    bucket_name_for_org as _marker_stack_bucket_name_for_org,
 )
+
+# Tag-1 backwards-compatibility alias: the single-family era exposed
+# ``bucket_name_for_org`` as a module-level name. We keep that alias
+# pointing at the marker-stack family so Tag-1 hermetic tests
+# continue to pass byte-precisely.
+bucket_name_for_org = _marker_stack_bucket_name_for_org
+
+# The Sprint-9 Tag-2 module is the canonical owner of the durable
+# sequence-number-ledger bucket family. Defensive import: when the
+# consuming branch does not yet carry the Tag-2 module (e.g. the
+# Wirelang-side PR is still under review), the driver gracefully
+# degrades to the marker-stack family only.
+try:  # pragma: no cover - import-availability guarded path
+    from wirelang.federation.sequence_number_ledger_kv import (  # noqa: E402
+        BUCKET_CONFIG as SEQUENCE_LEDGER_BUCKET_CONFIG,
+        BUCKET_NAME_PREFIX as SEQUENCE_LEDGER_BUCKET_NAME_PREFIX,
+        bucket_name_for_org as _sequence_ledger_bucket_name_for_org,
+    )
+    _HAS_SEQUENCE_LEDGER_FAMILY = True
+except ImportError:  # pragma: no cover - module-absent fallback
+    SEQUENCE_LEDGER_BUCKET_CONFIG = None  # type: ignore[assignment]
+    SEQUENCE_LEDGER_BUCKET_NAME_PREFIX = None  # type: ignore[assignment]
+    _sequence_ledger_bucket_name_for_org = None  # type: ignore[assignment]
+    _HAS_SEQUENCE_LEDGER_FAMILY = False
+
+
+# ---------------------------------------------------------------------------
+# Bucket-family registry
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class BucketFamily:
+    """One per-org bucket family the driver provisions.
+
+    Each family carries a stable ``family_id`` (used in JSON
+    payloads and human logs), the canonical Wirelang-side prefix
+    + config + derivation function. Fields are sourced byte-
+    precisely from the Wirelang-side module that owns the family.
+    """
+
+    family_id: str
+    bucket_name_prefix: str
+    bucket_config: Mapping[str, Any]
+    bucket_name_for_org: Any  # Callable[[str], str]
+
+
+def _registered_families() -> List[BucketFamily]:
+    """Return the registered per-org bucket families.
+
+    Order is deterministic: marker-stack first (Sprint-8 Tag-4
+    legacy alphabetical anchor), sequence-ledger second when
+    available (Sprint-9 Tag-2 paired-update).
+    """
+    families: List[BucketFamily] = [
+        BucketFamily(
+            family_id="marker-stack",
+            bucket_name_prefix=MARKER_STACK_BUCKET_NAME_PREFIX,
+            bucket_config=MARKER_STACK_BUCKET_CONFIG,
+            bucket_name_for_org=_marker_stack_bucket_name_for_org,
+        ),
+    ]
+    if _HAS_SEQUENCE_LEDGER_FAMILY:
+        families.append(
+            BucketFamily(
+                family_id="sequence-ledger",
+                bucket_name_prefix=SEQUENCE_LEDGER_BUCKET_NAME_PREFIX,
+                bucket_config=SEQUENCE_LEDGER_BUCKET_CONFIG,
+                bucket_name_for_org=_sequence_ledger_bucket_name_for_org,
+            )
+        )
+    return families
+
+
+BUCKET_FAMILIES: List[BucketFamily] = _registered_families()
 
 
 # ---------------------------------------------------------------------------
@@ -171,7 +275,10 @@ class BucketAction:
     """One planner decision for one per-org bucket.
 
     ``status`` is one of ``"created"``, ``"unchanged"``, ``"drift"``,
-    ``"would_create"`` (dry-run), or ``"error"``.
+    ``"would_create"`` (dry-run), or ``"error"``. ``family`` is the
+    bucket-family identifier (e.g. ``"marker-stack"``,
+    ``"sequence-ledger"``); empty string on Tag-1-shape error
+    actions that fail before family resolution.
     """
 
     org_id: str
@@ -179,6 +286,7 @@ class BucketAction:
     status: str
     detail: str = ""
     drift: dict = field(default_factory=dict)
+    family: str = ""
 
 
 @dataclass
@@ -263,20 +371,30 @@ def parse_orgs_file(path: Path) -> List[str]:
 # ---------------------------------------------------------------------------
 
 
-def spec_for_org(org_id: str) -> Mapping[str, Any]:
+def spec_for_org(
+    org_id: str,
+    *,
+    family: Optional[BucketFamily] = None,
+) -> Mapping[str, Any]:
     """Translate an ``org_id`` into the kwargs expected by
     ``nats.js.JetStreamContext.create_key_value``.
 
-    The values are sourced byte-precisely from
-    :data:`wirelang.federation.marker_stack_kv.BUCKET_CONFIG`; this
-    function adds the ``bucket`` field (derived from ``org_id``) and
-    re-keys the ``ttl_seconds`` field to the nats-py ``ttl`` name.
+    The values are sourced byte-precisely from the family's
+    ``bucket_config`` (single-source-of-truth on the Wirelang
+    side); this function adds the ``bucket`` field (derived from
+    ``org_id``) and re-keys the ``ttl_seconds`` field to the
+    nats-py ``ttl`` name.
+
+    ``family`` defaults to the marker-stack family for Tag-1
+    backwards-compatibility. Pass a registered :class:`BucketFamily`
+    to request the spec for a different family.
 
     Raises :class:`ValueError` for a malformed ``org_id`` (delegates
-    to :func:`bucket_name_for_org`).
+    to the family's ``bucket_name_for_org``).
     """
-    bucket = bucket_name_for_org(org_id)
-    cfg = MARKER_STACK_BUCKET_CONFIG
+    fam = family if family is not None else BUCKET_FAMILIES[0]
+    bucket = fam.bucket_name_for_org(org_id)
+    cfg = fam.bucket_config
     return {
         "bucket": bucket,
         "description": str(cfg["description"]),
@@ -288,15 +406,23 @@ def spec_for_org(org_id: str) -> Mapping[str, Any]:
     }
 
 
-def _drift_diff(status: Mapping[str, Any]) -> dict:
+def _drift_diff(
+    status: Mapping[str, Any],
+    *,
+    family: Optional[BucketFamily] = None,
+) -> dict:
     """Return a dict of fields where ``status`` diverges from the
-    canonical Wirelang-side ``BUCKET_CONFIG``.
+    family's canonical Wirelang-side ``BUCKET_CONFIG``.
 
     Empty dict == no drift. Each entry is
     ``{field: {"want": ..., "got": ...}}``. ``description`` is not
     checked (operators sometimes annotate it).
+
+    ``family`` defaults to the marker-stack family for Tag-1
+    backwards-compatibility.
     """
-    cfg = MARKER_STACK_BUCKET_CONFIG
+    fam = family if family is not None else BUCKET_FAMILIES[0]
+    cfg = fam.bucket_config
     want = {
         "history": int(cfg["history"]),
         "ttl": int(cfg["ttl_seconds"]),
@@ -328,8 +454,10 @@ async def plan_and_apply(
     org_ids: Iterable[str],
     *,
     dry_run: bool,
+    families: Optional[Sequence[BucketFamily]] = None,
 ) -> List[BucketAction]:
-    """Idempotently ensure one bucket per ``org_id`` exists.
+    """Idempotently ensure every registered per-org bucket exists
+    for every requested ``org_id``.
 
     ``js`` is a JetStream context with the same nats-py surface
     used by ``scripts/init-nats-buckets.py``:
@@ -344,9 +472,22 @@ async def plan_and_apply(
     The planner never deletes buckets. Drift is reported, not
     corrected. The planner never silently overwrites operator state.
 
-    Returns a list of :class:`BucketAction` records in the same order
-    as the input ``org_ids``.
+    For every distinct ``org_id`` input the planner emits ONE action
+    per registered family (in registry order: marker-stack first,
+    then sequence-ledger when available). A malformed ``org_id``
+    short-circuits the family loop with a single Tag-1-shape error
+    action (matches the Tag-1 hermetic-test invariant that errored
+    orgs do not get N action records).
+
+    ``families`` defaults to :data:`BUCKET_FAMILIES`. Passing a
+    custom sequence is the test-friendly hook for asserting the
+    multi-family fan-out shape under controlled fixtures.
+
+    Returns a list of :class:`BucketAction` records in stable order:
+    org_id-major (input order, de-duplicated first-occurrence-wins),
+    family-minor (registry order).
     """
+    fams = list(families) if families is not None else list(BUCKET_FAMILIES)
     actions: List[BucketAction] = []
     seen_orgs: set[str] = set()
     for org_id in org_ids:
@@ -355,8 +496,15 @@ async def plan_and_apply(
             continue
         seen_orgs.add(org_id)
 
+        # Pre-validate the org_id once before fanning out per
+        # family: if the identifier is malformed every family
+        # rejects it identically, so we emit ONE error action
+        # (Tag-1-shape) rather than N.
         try:
-            spec_kwargs = spec_for_org(org_id)
+            # Use the marker-stack family's derivation as the
+            # canonical validator. Both registered families use
+            # the same _ORG_ID_RE permitted-character pattern.
+            _ = fams[0].bucket_name_for_org(org_id)
         except ValueError as exc:
             actions.append(
                 BucketAction(
@@ -367,40 +515,28 @@ async def plan_and_apply(
                 )
             )
             continue
-        bucket = spec_kwargs["bucket"]
 
-        try:
-            existing = await _safe_get_kv(js, bucket)
-        except Exception as exc:
-            actions.append(
-                BucketAction(
-                    org_id=org_id,
-                    bucket=bucket,
-                    status="error",
-                    detail=repr(exc),
-                )
-            )
-            continue
-
-        if existing is None:
-            if dry_run:
+        for fam in fams:
+            try:
+                spec_kwargs = spec_for_org(org_id, family=fam)
+            except ValueError as exc:
+                # Defensive — already pre-validated above. Surface
+                # any family-specific validator divergence as a
+                # family-tagged error action.
                 actions.append(
                     BucketAction(
                         org_id=org_id,
-                        bucket=bucket,
-                        status="would_create",
-                        detail=(
-                            f"history={spec_kwargs['history']} "
-                            f"ttl={spec_kwargs['ttl']}s "
-                            f"max_value={spec_kwargs['max_value_size']}B "
-                            f"storage={spec_kwargs['storage']} "
-                            f"replicas={spec_kwargs['replicas']}"
-                        ),
+                        bucket="",
+                        status="error",
+                        detail=f"invalid org_id for family {fam.family_id}: {exc}",
+                        family=fam.family_id,
                     )
                 )
                 continue
+            bucket = spec_kwargs["bucket"]
+
             try:
-                await js.create_key_value(**spec_kwargs)
+                existing = await _safe_get_kv(js, bucket)
             except Exception as exc:
                 actions.append(
                     BucketAction(
@@ -408,54 +544,92 @@ async def plan_and_apply(
                         bucket=bucket,
                         status="error",
                         detail=repr(exc),
+                        family=fam.family_id,
                     )
                 )
                 continue
-            actions.append(
-                BucketAction(
-                    org_id=org_id,
-                    bucket=bucket,
-                    status="created",
-                    detail=spec_kwargs["description"],
-                )
-            )
-            continue
 
-        # Bucket exists; check for drift.
-        try:
-            status = await _status_as_mapping(existing)
-        except Exception as exc:
-            actions.append(
-                BucketAction(
-                    org_id=org_id,
-                    bucket=bucket,
-                    status="error",
-                    detail=repr(exc),
+            if existing is None:
+                if dry_run:
+                    actions.append(
+                        BucketAction(
+                            org_id=org_id,
+                            bucket=bucket,
+                            status="would_create",
+                            detail=(
+                                f"history={spec_kwargs['history']} "
+                                f"ttl={spec_kwargs['ttl']}s "
+                                f"max_value={spec_kwargs['max_value_size']}B "
+                                f"storage={spec_kwargs['storage']} "
+                                f"replicas={spec_kwargs['replicas']}"
+                            ),
+                            family=fam.family_id,
+                        )
+                    )
+                    continue
+                try:
+                    await js.create_key_value(**spec_kwargs)
+                except Exception as exc:
+                    actions.append(
+                        BucketAction(
+                            org_id=org_id,
+                            bucket=bucket,
+                            status="error",
+                            detail=repr(exc),
+                            family=fam.family_id,
+                        )
+                    )
+                    continue
+                actions.append(
+                    BucketAction(
+                        org_id=org_id,
+                        bucket=bucket,
+                        status="created",
+                        detail=spec_kwargs["description"],
+                        family=fam.family_id,
+                    )
                 )
-            )
-            continue
-        diffs = _drift_diff(status)
-        if diffs:
-            actions.append(
-                BucketAction(
-                    org_id=org_id,
-                    bucket=bucket,
-                    status="drift",
-                    detail=(
-                        "live config diverges from Wirelang BUCKET_CONFIG"
-                    ),
-                    drift=diffs,
+                continue
+
+            # Bucket exists; check for drift.
+            try:
+                status = await _status_as_mapping(existing)
+            except Exception as exc:
+                actions.append(
+                    BucketAction(
+                        org_id=org_id,
+                        bucket=bucket,
+                        status="error",
+                        detail=repr(exc),
+                        family=fam.family_id,
+                    )
                 )
-            )
-        else:
-            actions.append(
-                BucketAction(
-                    org_id=org_id,
-                    bucket=bucket,
-                    status="unchanged",
-                    detail=spec_kwargs["description"],
+                continue
+            diffs = _drift_diff(status, family=fam)
+            if diffs:
+                actions.append(
+                    BucketAction(
+                        org_id=org_id,
+                        bucket=bucket,
+                        status="drift",
+                        detail=(
+                            f"live config diverges from "
+                            f"{fam.family_id} BUCKET_CONFIG"
+                        ),
+                        drift=diffs,
+                        family=fam.family_id,
+                    )
                 )
-            )
+            else:
+                actions.append(
+                    BucketAction(
+                        org_id=org_id,
+                        bucket=bucket,
+                        status="unchanged",
+                        detail=spec_kwargs["description"],
+                        family=fam.family_id,
+                    )
+                )
     return actions
 
 
@@ -648,10 +822,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 
 __all__ = [
+    "BUCKET_FAMILIES",
     "BucketAction",
+    "BucketFamily",
     "MARKER_STACK_BUCKET_CONFIG",
     "MARKER_STACK_BUCKET_NAME_PREFIX",
     "ProvisionReport",
+    "SEQUENCE_LEDGER_BUCKET_CONFIG",
+    "SEQUENCE_LEDGER_BUCKET_NAME_PREFIX",
+    "_HAS_SEQUENCE_LEDGER_FAMILY",
     "_collect_org_ids",
     "_drift_diff",
     "bucket_name_for_org",
