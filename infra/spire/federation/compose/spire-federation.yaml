@@ -1,0 +1,170 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-8 Tag-1 — SPIRE-Federation hermetic substrate.
+#
+# Substrate: two SPIRE-Server containers in two different hermetic
+# trust-domains (``wakir.test`` and ``partner.test``), wired so each
+# server's federation bundle-endpoint listener is reachable to the
+# other's HTTPS-SPIFFE-profile peer-fetch. The Sprint-8-Tag-1
+# acceptance is the X.509-SVID cross-trust-verify roundtrip per
+# README §3 (Operator-Hand-pendet from the sandbox).
+#
+# This compose unit is SEPARATE from compose/spire.yaml (Sprint-6-Tag-6
+# single-server ``example.test`` substrate) so the two surfaces do not
+# share state, networks, or volumes. Sprint-6 substrate keeps its
+# single-server posture for Phase-2.1-Phase-2.6 production-loop, this
+# substrate is the Phase-3a Multi-Org-Federation preparation surface.
+#
+# Bring-up (operator-hand, NOT auto from sandbox per
+# feedback_sandbox_host_trennung.md):
+#
+#   cd infra/spire/federation
+#   podman compose -f compose/spire-federation.yaml up -d
+#
+# Tear-down:
+#
+#   podman compose -f compose/spire-federation.yaml down -v
+#
+# Hermetic test acceptance (NO operator hand):
+#
+#   pytest infra/spire/federation/tests/
+#
+# Trust-Domain rationale (hermetic-only):
+#   Both ``wakir.test`` and ``partner.test`` are IANA-reserved per
+#   RFC 6761 §6.5. They are picked to stay distinguishable from the
+#   compose/spire.yaml ``example.test`` substrate AND from the
+#   Phase-3a production federation trust-domain
+#   ``<FTD-ID>.wakir.dev``. Operators who see ``wakir.test`` or
+#   ``partner.test`` in a container's ``trust_domain`` know
+#   immediately this is the Sprint-8-Tag-1 federation hermetic
+#   skeleton, not a production stand.
+#
+# Image-Tag rationale (mirror of compose/spire.yaml — same SPIRE
+# v1.14.6 baseline). Cosign-Digest-Pin form (Pfad B) with the same
+# placeholder convention; Operator-Hand substitutes the canonical
+# digest before live bring-up. Cross-Review Zone-C Tomás-track.
+
+services:
+
+  spire-server-wakir:
+    # SPIRE-Server for the ``wakir.test`` trust-domain side.
+    image: "ghcr.io/spiffe/spire-server:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW"
+    container_name: wakir-spire-server-wakir
+    command:
+      - "run"
+      - "-config"
+      - "/etc/spire/server/server.conf"
+    read_only: true
+    user: "1000:1000"
+    volumes:
+      - "../config/spire-server-wakir.conf:/etc/spire/server/server.conf:ro"
+      - "spire_server_wakir_data:/var/lib/spire/server"
+      - "spire_server_wakir_sockets:/run/spire/sockets"
+      # Bundle-export host-mount (read-write — the spire-fed-bundle
+      # CLI writes the exported JWKS into this volume so the peer side
+      # can import it via its own bundle-import host-mount). The
+      # Operator-Hand workflow uses this for the manual bootstrap
+      # roundtrip documented in README §3; the live https_spiffe
+      # federation-bundle-endpoint fetch is the steady-state path
+      # after bootstrap.
+      - "spire_server_wakir_bundles:/var/lib/spire/bundles"
+    tmpfs:
+      - "/run/spire:rw,size=16m,mode=0700"
+    ports:
+      # Bundle-endpoint listener (federation public-facing).
+      # Loopback-only so the hermetic surface stays operator-hand-
+      # gated. The peer fetch goes over the bridge network's internal
+      # DNS, not over the host's loopback.
+      - "127.0.0.1:8443:8443"
+      # SPIRE-Server gRPC API on a non-clashing host port (the partner
+      # side uses 8083; the wakir side 8082 — both loopback-only).
+      - "127.0.0.1:8082:8081"
+    networks:
+      - wakir-federation
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - "CMD"
+        - "/opt/spire/bin/spire-server"
+        - "healthcheck"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    cap_drop:
+      - ALL
+    security_opt:
+      - "no-new-privileges:true"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "256M"
+
+  spire-server-partner:
+    # SPIRE-Server for the ``partner.test`` trust-domain side.
+    image: "ghcr.io/spiffe/spire-server:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW"
+    container_name: wakir-spire-server-partner
+    command:
+      - "run"
+      - "-config"
+      - "/etc/spire/server/server.conf"
+    read_only: true
+    user: "1000:1000"
+    volumes:
+      - "../config/spire-server-partner.conf:/etc/spire/server/server.conf:ro"
+      - "spire_server_partner_data:/var/lib/spire/server"
+      - "spire_server_partner_sockets:/run/spire/sockets"
+      - "spire_server_partner_bundles:/var/lib/spire/bundles"
+    tmpfs:
+      - "/run/spire:rw,size=16m,mode=0700"
+    ports:
+      - "127.0.0.1:8444:8443"
+      - "127.0.0.1:8083:8081"
+    networks:
+      - wakir-federation
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - "CMD"
+        - "/opt/spire/bin/spire-server"
+        - "healthcheck"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    cap_drop:
+      - ALL
+    security_opt:
+      - "no-new-privileges:true"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "256M"
+
+volumes:
+  spire_server_wakir_data:
+    name: wakir-spire-server-wakir-data
+  spire_server_wakir_sockets:
+    name: wakir-spire-server-wakir-sockets
+  spire_server_wakir_bundles:
+    name: wakir-spire-server-wakir-bundles
+  spire_server_partner_data:
+    name: wakir-spire-server-partner-data
+  spire_server_partner_sockets:
+    name: wakir-spire-server-partner-sockets
+  spire_server_partner_bundles:
+    name: wakir-spire-server-partner-bundles
+
+networks:
+  # Dedicated federation bridge. NOT shared with the
+  # ``wakir-orchestrator`` network of compose/spire.yaml (Sprint-6
+  # single-server substrate) — the two surfaces stay isolated. The
+  # internal DNS names ``spire-server-wakir`` and
+  # ``spire-server-partner`` are how each side reaches the other's
+  # bundle-endpoint listener over the internal bridge.
+  wakir-federation:
+    name: wakir-federation
+    driver: bridge
