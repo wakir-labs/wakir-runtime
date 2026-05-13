@@ -63,6 +63,26 @@ PROG=$(basename "$0")
 TOTAL_STEPS=8
 RESUME_FROM=1
 
+# Resolve a stable script reference for resume hints. When the bootstrap
+# is invoked via `curl ... | sudo bash`, $0 collapses to ``bash`` and a
+# naive ${PROG} reference would print `sudo bash bash --resume-from N`
+# (Sprint-9-Tag-4 Bug 1). After step 4 the repo is on disk at
+# ${WAKIR_REPO_ROOT}; prefer the installed path. Until then we fall back
+# to a documented absolute path for a typical operator workflow.
+_resume_cmd() {
+  local step_n="$1"
+  local installed="${WAKIR_REPO_ROOT}/infra/spire/federation/wakir-pilot-bootstrap.sh"
+  if [[ -f "$installed" ]]; then
+    printf 'sudo bash %s --resume-from %s' "$installed" "$step_n"
+  elif [[ "$PROG" == "bash" ]] || [[ -z "$PROG" ]]; then
+    # Piped-from-curl case before step 4: no on-disk script yet. Tell
+    # the operator the canonical installed path explicitly.
+    printf 'sudo bash %s --resume-from %s' "$installed" "$step_n"
+  else
+    printf 'sudo bash %s --resume-from %s' "$PROG" "$step_n"
+  fi
+}
+
 : "${WAKIR_ORG_ID:=acme}"
 : "${WAKIR_TRUST_DOMAIN:=wakir.test}"
 : "${WAKIR_REPO_BRANCH:=main}"
@@ -113,13 +133,15 @@ log_note()  { printf '      note  %s\n' "$1"; }
 fail_step() {
   local step_n="$1"
   local msg="$2"
+  local resume_cmd
+  resume_cmd=$(_resume_cmd "$step_n")
   log_err "$msg"
   cat <<EOF >&2
 
 ${_RED}${_BOLD}Bring-up halted at step ${step_n}.${_RESET}
 
   Resume after fixing the issue:
-    sudo bash ${PROG} --resume-from ${step_n}
+    ${resume_cmd}
 
   Operator-hand hint: take a Proxmox snapshot of the Pilot-VM BEFORE
   this step ('qm snapshot <vmid> pre-step-${step_n}') so that a
@@ -636,6 +658,29 @@ step_6_quadlet() {
     return 2
   fi
 
+  # Helper: install $1 (source) to $2 (dest), substituting <SIDE>
+  # and other tokens in the file CONTENT. Skipped (idempotent) when
+  # dest already matches the source-after-substitution. Sprint-9-Tag-4
+  # Bug 5: bootstrap Phase 6 must be safely re-runnable after operator
+  # manual fixes -- if the rendered content matches what's already on
+  # disk, do not overwrite.
+  _install_substituted() {
+    local src="$1"
+    local target="$2"
+    shift 2
+    # Remaining args are alternating sed-expr pairs ("-e" "EXPR" ...).
+    local tmp
+    tmp=$(mktemp)
+    sed "$@" "$src" > "$tmp" || { rm -f "$tmp"; return 1; }
+    if [[ -f "$target" ]] && cmp -s "$tmp" "$target"; then
+      rm -f "$tmp"
+      return 0
+    fi
+    install -m 644 "$tmp" "$target" || { rm -f "$tmp"; return 1; }
+    rm -f "$tmp"
+    return 0
+  }
+
   # 6a. Networks
   local f
   for f in \
@@ -643,43 +688,109 @@ step_6_quadlet() {
       "${fed_src}/wakir-federation.network"
   do
     if [[ -f "$f" ]]; then
-      install -m 644 "$f" "$dst/$(basename "$f")" \
+      local target="$dst/$(basename "$f")"
+      if [[ -f "$target" ]] && cmp -s "$f" "$target"; then
+        continue
+      fi
+      install -m 644 "$f" "$target" \
         || { log_err "install $f failed"; return 2; }
     fi
   done
   log_ok "network units installed"
 
-  # 6b. Volumes (with per-side substitution where the template uses <SIDE>)
+  # 6b. Volumes (with per-side substitution).
+  #
+  # Sprint-9-Tag-4 Bug 2: source filenames in the federation/agent
+  # quadlet directories are side-agnostic (e.g.
+  # ``wakir-spire-server-federation-data.volume``), but the
+  # SPIRE-Server-Federation container references the per-side form
+  # ``wakir-spire-server-federation-<SIDE>-data.volume`` (and the
+  # agent references ``wakir-spire-server-federation-<SIDE>-bundles.
+  # volume``). The bootstrap must therefore install each federation
+  # volume file with a per-side renamed destination basename PLUS
+  # substitute ``<SIDE>`` in the file content.
+  #
+  # Naming convention (mirror of the per-side Container ContainerName
+  # / unit name convention):
+  #   server: wakir-spire-server-federation-${side}-{data,sockets,bundles}.volume
+  #   agent:  wakir-spire-agent-${side}-{data,sockets}.volume
+  # Top-level ``quadlet/*.volume`` files are side-agnostic and keep
+  # their original basename (no rename, no content sub).
   local v
-  for v in \
-      "${quadlet_src}"/*.volume \
-      "${fed_src}"/*.volume \
-      "${agent_src}"/*.volume
-  do
+  # 6b-i. Top-level (side-agnostic) volumes.
+  for v in "${quadlet_src}"/*.volume; do
     [[ -f "$v" ]] || continue
-    local base
-    base=$(basename "$v" | sed "s/<SIDE>/${side}/g")
-    sed -e "s/<SIDE>/${side}/g" "$v" > "${dst}/${base}" \
+    local target="$dst/$(basename "$v")"
+    if [[ -f "$target" ]] && cmp -s "$v" "$target"; then
+      continue
+    fi
+    install -m 644 "$v" "$target" \
       || { log_err "install $v failed"; return 2; }
-    chmod 644 "${dst}/${base}"
+  done
+
+  # 6b-ii. Federation server volumes: rename destination to embed
+  # ``-${side}-`` between ``federation`` and the kind suffix.
+  for v in "${fed_src}"/*.volume; do
+    [[ -f "$v" ]] || continue
+    local base dest_base
+    base=$(basename "$v")
+    # wakir-spire-server-federation-data.volume
+    #   -> wakir-spire-server-federation-${side}-data.volume
+    # wakir-spire-server-federation-sockets.volume
+    #   -> wakir-spire-server-federation-${side}-sockets.volume
+    # wakir-spire-server-federation-bundles.volume
+    #   -> wakir-spire-server-federation-${side}-bundles.volume
+    dest_base=$(printf '%s' "$base" \
+      | sed "s/^wakir-spire-server-federation-\(data\|sockets\|bundles\)\.volume$/wakir-spire-server-federation-${side}-\1.volume/")
+    if [[ "$dest_base" == "$base" ]] \
+       && ! [[ "$base" =~ ^wakir-spire-server-federation-(data|sockets|bundles)\.volume$ ]]; then
+      # Unexpected federation volume name -- pass through with content sub only.
+      :
+    fi
+    _install_substituted "$v" "$dst/$dest_base" \
+        -e "s/<SIDE>/${side}/g" \
+      || { log_err "install $v failed"; return 2; }
+  done
+
+  # 6b-iii. Agent volumes: rename destination to embed ``-${side}-``
+  # between ``agent`` and the kind suffix. Source files are
+  # ``wakir-spire-agent-federation-{data,sockets}.volume`` but the
+  # agent container references ``wakir-spire-agent-<SIDE>-{data,
+  # sockets}.volume`` -- so we drop the literal ``federation-``
+  # token from the destination basename and insert ``${side}-``.
+  for v in "${agent_src}"/*.volume; do
+    [[ -f "$v" ]] || continue
+    local base dest_base
+    base=$(basename "$v")
+    # wakir-spire-agent-federation-data.volume
+    #   -> wakir-spire-agent-${side}-data.volume
+    # wakir-spire-agent-federation-sockets.volume
+    #   -> wakir-spire-agent-${side}-sockets.volume
+    dest_base=$(printf '%s' "$base" \
+      | sed "s/^wakir-spire-agent-federation-\(data\|sockets\)\.volume$/wakir-spire-agent-${side}-\1.volume/")
+    _install_substituted "$v" "$dst/$dest_base" \
+        -e "s/<SIDE>/${side}/g" \
+      || { log_err "install $v failed"; return 2; }
   done
   log_ok "volume units installed"
 
-  # 6c. SPIRE-Server-Federation container (per-side substitution)
+  # 6c. SPIRE-Server-Federation container (per-side substitution).
   local server_tpl="${fed_src}/wakir-spire-server-federation.container"
   if [[ -f "$server_tpl" ]]; then
-    sed -e "s/<SIDE>/${side}/g" \
+    _install_substituted "$server_tpl" \
+        "${dst}/wakir-spire-server-federation-${side}.container" \
+        -e "s/<SIDE>/${side}/g" \
         -e "s/<HOST_BUNDLE_PORT>/8443/g" \
         -e "s/<HOST_GRPC_PORT>/8082/g" \
-        "$server_tpl" \
-        > "${dst}/wakir-spire-server-federation-${side}.container" \
       || { log_err "install $server_tpl failed"; return 2; }
-    chmod 644 "${dst}/wakir-spire-server-federation-${side}.container"
 
     install -d -m 755 /etc/wakir/spire-federation
     local server_conf="${WAKIR_REPO_ROOT}/infra/spire/federation/config/spire-server-${side}.conf"
     if [[ -f "$server_conf" ]]; then
-      install -m 644 "$server_conf" "/etc/wakir/spire-federation/spire-server-${side}.conf"
+      local server_conf_dst="/etc/wakir/spire-federation/spire-server-${side}.conf"
+      if ! cmp -s "$server_conf" "$server_conf_dst" 2>/dev/null; then
+        install -m 644 "$server_conf" "$server_conf_dst"
+      fi
     else
       log_warn "spire-server-${side}.conf not found in repo; skipping config install"
     fi
@@ -688,20 +799,22 @@ step_6_quadlet() {
     log_warn "spire-server-federation.container not found at ${server_tpl}"
   fi
 
-  # 6d. SPIRE-Agent-Federation container (per-side substitution)
+  # 6d. SPIRE-Agent-Federation container (per-side substitution).
   local agent_tpl="${agent_src}/wakir-spire-agent-federation.container"
   if [[ -f "$agent_tpl" ]]; then
-    sed -e "s|<SIDE>|${side}|g" \
+    _install_substituted "$agent_tpl" \
+        "${dst}/wakir-spire-agent-${side}.container" \
+        -e "s|<SIDE>|${side}|g" \
         -e "s|<TRUST_DOMAIN>|${WAKIR_TRUST_DOMAIN}|g" \
         -e "s|<SERVER_DNS>|spire-server-${side}|g" \
-        "$agent_tpl" \
-        > "${dst}/wakir-spire-agent-${side}.container" \
       || { log_err "install $agent_tpl failed"; return 2; }
-    chmod 644 "${dst}/wakir-spire-agent-${side}.container"
 
     local agent_conf="${WAKIR_REPO_ROOT}/infra/spire/agent/config/spire-agent-${side}.conf"
     if [[ -f "$agent_conf" ]]; then
-      install -m 644 "$agent_conf" "/etc/wakir/spire-agent-${side}.conf"
+      local agent_conf_dst="/etc/wakir/spire-agent-${side}.conf"
+      if ! cmp -s "$agent_conf" "$agent_conf_dst" 2>/dev/null; then
+        install -m 644 "$agent_conf" "$agent_conf_dst"
+      fi
     else
       log_warn "spire-agent-${side}.conf not found in repo"
     fi
@@ -710,11 +823,13 @@ step_6_quadlet() {
     log_warn "spire-agent-federation.container not found at ${agent_tpl}"
   fi
 
-  # 6e. NATS container
+  # 6e. NATS container (idempotent install).
   if [[ -f "${quadlet_src}/wakir-nats.container" ]]; then
-    install -m 644 "${quadlet_src}/wakir-nats.container" \
-      "${dst}/wakir-nats.container" \
-      || { log_err "install wakir-nats.container failed"; return 2; }
+    local nats_dst="${dst}/wakir-nats.container"
+    if ! cmp -s "${quadlet_src}/wakir-nats.container" "$nats_dst" 2>/dev/null; then
+      install -m 644 "${quadlet_src}/wakir-nats.container" "$nats_dst" \
+        || { log_err "install wakir-nats.container failed"; return 2; }
+    fi
     log_ok "NATS unit installed"
   else
     log_warn "wakir-nats.container not found"
@@ -738,8 +853,15 @@ step_6_quadlet() {
       log_ok "${unit} already active"
       continue
     fi
+    # Sprint-9-Tag-4 Bug 5: a previous bring-up may have left the
+    # unit in a restart-loop / failed state with start-rate-limiting
+    # already triggered. systemctl start on such a unit fails
+    # immediately with "Start request repeated too quickly". Clear
+    # the failed counter before retrying.
+    "$WAKIR_BOOTSTRAP_SYSTEMCTL" reset-failed "$unit" 2>/dev/null || true
     if ! "$WAKIR_BOOTSTRAP_SYSTEMCTL" start "$unit"; then
       log_err "systemctl start ${unit} failed"
+      log_note "diagnose: journalctl -u ${unit} -n 50 --no-pager"
       return 2
     fi
     log_ok "${unit} started"
