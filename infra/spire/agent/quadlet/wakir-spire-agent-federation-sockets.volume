@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-8 Tag-2 — Quadlet named-volume template for the
+# SPIRE-Agent-Federation Workload-API sockets directory. Per-side
+# instance file is installed as wakir-spire-agent-<SIDE>-sockets.volume
+# (sed-substitution from this template). Phase-2.3+ persona-container
+# Workload-API consumers mount this volume read-only.
+
+[Volume]
+VolumeName=wakir-spire-agent-<SIDE>-sockets
