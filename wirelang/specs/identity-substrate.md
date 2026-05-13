@@ -7,7 +7,16 @@ License: This document is licensed under the Creative Commons Attribution
 <https://creativecommons.org/licenses/by/4.0/>.
 -->
 
-# Wakir Identity Substrate — Specification (Phase 1a)
+---
+spec: wakir-identity-substrate
+version: 0.29.0
+status: draft
+date: 2026-05-13
+audience: implementers, integrators, operators
+license: CC-BY-4.0
+---
+
+# Wakir Identity Substrate — Specification (v0.29.0, Phase 1a)
 
 This document specifies the persona-identity primitives used by the
 Wakir runtime in Phase 1a: hierarchical key derivation across two
@@ -21,6 +30,22 @@ marker (D-2: 2-of-3 SLIP-39 cold-storage default).
 Audience: implementers and operators. The text follows the Wakir
 brand-guide §9 convention: persona role-strings, never personal names,
 in all examples.
+
+**Version-synchronisation note (Sprint-8 Tag-2, 2026-05-13).** The
+frontmatter `version: 0.29.0` is set in lockstep with
+`schema-registry-spec.md` v0.29.0 (Sprint-8 Tag-2 consolidation
+anchor); the Sprint-7 v0.22 → v0.28 deferred-changelog batch and
+the Sprint-8 Tag-2 Cross-Org-Attenuation-Chain-Verifier hardening
+surface are folded into the companion spec's change-log. This
+identity-substrate document's content remains substrate-anchored
+on Phase-1a primitives (no Sprint-7 / Sprint-8 substance landed
+inside this file); the version bump is a synchronisation marker
+for cross-spec consistency, NOT a substance bump. Future
+substrate-substance bumps (e.g. SPIFFE-ID-Binding §5 evolution,
+real-`spiffe`-PyPI adapter functional implementation in Phase-2c)
+will track this spec independently from the schema-registry spec
+once the schema-registry tracks bucket-shape changes in its own
+versioning axis.
 
 ## 1. Two-curve stack
 
@@ -412,6 +437,80 @@ surface authority follows the SPIFFE-ID structure, not a separate flag.
     schema.
   - V-907 hash-algorithm migration (sha256 → blake3 or sha3-256), with
     the SPIFFE-ID 12-hex-char slice constant unchanged.
+
+### 5.8 RealAdapter-Mirror (Phase-2c Sprint-8 Tag-1) — NATS-Live-Anbindung mit SPIRE-Fallback-Policy
+
+**Status:** Phase-2c Sprint-8 Tag-1 (RealAdapter-Mirror landed),
+Operator-Hand-SPIRE-Substrate blockiert akzeptiert per
+Sprint-7-Closeout-Stempel M-2.
+
+**Modul:** `wirelang/adapters/real_nats_adapter/` (paired mit
+`wirelang/adapters/real_spiffe_workload_api.py` Sprint-6 Tag-7
+Slot-2-Mirror).
+
+**Drei Substanz-Schichten:**
+
+- `NatsConnectionAdapter` Protocol-Surface — die wirelang-gehaltene
+  stable Surface über die ``nats-py`` ``Client``-Bibliothek.
+  Persona-Container-Code MUSS NICHT auf ``nats-py``-interne Typen
+  zugreifen.
+- `MockNatsConnectionAdapter` — deterministic in-process Mock,
+  hermetic, no network. Pattern-Mirror auf
+  :class:`MockSpiffeWorkloadApiAdapter` (Sprint-6 Tag-5).
+- `RealNatsConnectionAdapter` — Live-Adapter mit lazy-import von
+  ``nats.aio.client``, Two-Stage-Gate (Reachability-Probe +
+  ``nats-py``-Connect mit Exception-Mapping auf
+  :class:`NatsAdapterError`-Hierarchie).
+
+**SPIRE-Fallback-Policy (load-bearing):**
+
+Der Konstruktor liest ``SPIRE_AGENT_SOCKET`` aus der Umgebung
+und entscheidet pro Adapter-Instanz:
+
+- ``SPIRE_AGENT_SOCKET`` unset / ``"none"`` / leer (case-insensitive,
+  trim-whitespace):
+  `auth_mode="mock-jwt"` — Fallback auf JWT-Auth-Mock. Operator-side
+  acceptable for development. Production-NATS-Cluster wird per
+  Kai-DevOps-Track später auf SPIRE-Live umgestellt.
+- ``SPIRE_AGENT_SOCKET`` als URI (z.B.
+  ``unix:///tmp/spire-agent/public/api.sock``):
+  `auth_mode="live-spiffe"` — Live-SPIFFE-JWT-Pfad ANGEFORDERT.
+  Currently raises :class:`NatsAdapterAuthenticationError` on
+  ``connect()`` because the Workload-API-Anbindung ist
+  Operator-Hand-blockiert (Kai-DevOps-Track-Pflichtitem).
+  Bypass: setze ``SPIRE_AGENT_SOCKET=none`` für mock-jwt-Fallback.
+
+Die Fallback-Policy ist explizit-or-refused: kein implicit-default,
+kein ``dotenv``-Loading. Die Policy ist im Status-Surface
+auditierbar (``adapter.status().auth_mode``).
+
+**Live-Mode-Marker:** ``RealNatsConnectionAdapter.LIVE_MODE_MARKER
+= "sprint-8-tag-1-real-adapter-mirror"`` — pinned an die Sprint-8
+Tag-1 Substanz-Markierung. Cross-Trust-Domain-Bridge (Sprint-7
+Tag-3) MUSS dies in einer Production-Mode-Policy auditieren
+können (refuse-to-federate über Mock-Adapter under strict policy).
+
+**Sandbox-Boundary:** localhost:4222 ist Operator-Hand-Fedora-Host.
+Der Persona-Container darf NICHT annehmen, dass NATS verfügbar
+ist. Tests gegen den Real-Adapter respektieren den
+Skip-with-Marker-Pfad via :func:`is_nats_reachable` (TCP-Probe,
+500ms-Timeout, hermetic — kein NATS-Handshake, kein Auth-Traffic).
+
+**Phase-2c Open Items (für Phase-3-Wirelang-Roadmap):**
+
+- Live-SPIFFE-JWT ``user_jwt_cb`` Coupling — wenn
+  ``auth_mode="live-spiffe"``, MUSS der Konsument die SPIFFE-ID
+  aus :mod:`real_spiffe_workload_api` ableiten und als
+  ``user_jwt_cb`` an ``nats-py`` ``Client.connect`` weitergeben.
+  Dieser Adapter implementiert das Coupling NICHT direkt
+  (Operator-Hand-blockiert); er liefert nur das Surface-Pin und
+  den Error-Pfad.
+- JetStream-Surface — der Sprint-8 Tag-1 Adapter ist
+  Core-NATS-only (publish). JetStream (durable-store, kv-bucket,
+  consumer-pull) ist Phase-2c+ Folge-Item.
+- Reconnect-Policy — der Sprint-8 Tag-1 Adapter ist
+  fail-on-disconnect (no auto-reconnect). Production-Hardening
+  ist Phase-3-Item.
 
 ## 6. Open items (Phase-2+ tracking)
 
