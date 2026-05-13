@@ -78,6 +78,65 @@ pub const CLAUDE_NATIVE_RECOGNISED_KEYS: &[&str] = &["name", "description", "too
 pub const CLAUDE_NATIVE_REQUIRED_KEYS: &[&str] = &["name", "description"];
 
 // ---------------------------------------------------------------------
+// Synthesis-default exceptions (§4.3.1 of the spec, v1.1)
+// ---------------------------------------------------------------------
+//
+// Aisha-HR Counter-Vorschlag 1 (2026-05-13 bedingt-ack): the safe
+// defaults `reports_to: "mira"` / `escalation: "mira"` are inhaltlich
+// incorrect for two personae whose .claude/agents/<slug>.md body
+// explicitly carries an Aufsichtsrat-direct reporting line.
+//
+// This table is the load-bearing pre-Tag-3 (OI-PEF-1 Markdown-body-
+// parser) hard-coded override surface. Once OI-PEF-1 lands, the body
+// parser can extract the same information from the persona-files
+// themselves; until then, this table is the authoritative source.
+
+/// One row of the synthesis-default exceptions table (§4.3.1).
+#[derive(Debug, Clone, Copy)]
+pub struct SynthesisDefaultException {
+    /// Persona slug (matches the `name` field of the persona-claude-native front-matter).
+    pub persona_slug: &'static str,
+    /// Override value for `identity_pinned.hierarchy.reports_to`.
+    pub reports_to: &'static str,
+    /// Override value for `identity_pinned.hierarchy.escalation`.
+    pub escalation: &'static str,
+    /// Audit-trail rationale (anchors the override to a persona-file body section).
+    pub rationale: &'static str,
+}
+
+/// Hard-coded synthesis-default exceptions, ratified by Aisha-HR
+/// 2026-05-13 bedingt-ack on spec v1.1 §4.3.1.
+///
+/// **MUST** be consulted by `synthesise_canonical_subset` before the
+/// safe defaults of §4.3 take effect.
+pub const SYNTHESIS_DEFAULT_EXCEPTIONS: &[SynthesisDefaultException] = &[
+    SynthesisDefaultException {
+        persona_slug: "cfo",
+        reports_to: "aufsichtsrat",
+        escalation: "aufsichtsrat",
+        rationale: "cfo.md §3 Hierarchie: Top-Management gleichrangig zur CEO; AR-direkt für Strategy-ADRs und Hard-Stop.",
+    },
+    SynthesisDefaultException {
+        persona_slug: "internal-audit",
+        reports_to: "aufsichtsrat",
+        escalation: "aufsichtsrat",
+        rationale: "internal-audit.md §2: Berichtet direkt an den Aufsichtsrat. Nicht an die CEO.",
+    },
+];
+
+/// Lookup helper for the exceptions table (§4.3.1). Returns `Some(row)`
+/// when the persona slug appears in
+/// [`SYNTHESIS_DEFAULT_EXCEPTIONS`], else `None`.
+#[must_use]
+pub fn lookup_synthesis_default_exception(
+    slug: &str,
+) -> Option<&'static SynthesisDefaultException> {
+    SYNTHESIS_DEFAULT_EXCEPTIONS
+        .iter()
+        .find(|row| row.persona_slug == slug)
+}
+
+// ---------------------------------------------------------------------
 // Error surface
 // ---------------------------------------------------------------------
 
@@ -296,6 +355,13 @@ fn extract_required_string(fm: &YamlValue, key: &str) -> Result<String, PersonaE
 fn synthesise_canonical_subset(name: &str, description: &str, tools: &[String]) -> JsonValue {
     let tools_arr: Vec<JsonValue> = tools.iter().map(|t| JsonValue::String(t.clone())).collect();
 
+    // §4.3.1 (v1.1) — synthesis-default-exceptions table.
+    // Aisha-HR Counter-Vorschlag 1 (2026-05-13 bedingt-ack).
+    let (reports_to, escalation) = match lookup_synthesis_default_exception(name) {
+        Some(row) => (row.reports_to, row.escalation),
+        None => ("mira", "mira"),
+    };
+
     json!({
         "name": name,
         "description": description,
@@ -309,8 +375,8 @@ fn synthesise_canonical_subset(name: &str, description: &str, tools: &[String]) 
                 "sub_delegation": false
             },
             "hierarchy": {
-                "reports_to": "mira",
-                "escalation": "mira"
+                "reports_to": reports_to,
+                "escalation": escalation
             }
         }
     })

@@ -58,12 +58,25 @@
 #   deterministic mapping from .claude/agents/<slug>.md (axis-A
 #   persona-claude-native) to wakir.persona/<slug>.json (axis-C
 #   wakir-persona-v1). Anchor: wirelang/specs/persona-engine-format-
-#   spec.md v1.0. V-907 hash integration is delegated to persona-hash;
-#   no new hash function is introduced. Added 2026-05-13.
+#   spec.md v1.0/v1.1. V-907 hash integration is delegated to
+#   persona-hash; no new hash function is introduced. Added 2026-05-13.
+#   v1.1 (Tag-2 cut-over) adds the SYNTHESIS_DEFAULT_EXCEPTIONS table
+#   per Aisha-HR Counter-Vorschlag 1 (cfo / internal-audit
+#   reports_to/escalation -> aufsichtsrat).
+#
+# - persona-converter : Sprint-Pengine-7 Tag-2 Crate-9. Operator-facing
+#   `wakir-persona-convert from-claude` CLI binary. Thin shim over
+#   `persona-engine-format::map_claude_native_to_wakir_v1` +
+#   `jcs_canonicalise_wakir_persona_v1` + `wakir_persona_hash`.
+#   Provides `--in / --out / --pin-hash-v907 / --quiet` and the
+#   exit-code mapping 0 / 1 / 2 / 3 / 64 (success / schema-error /
+#   hash-drift / input-not-found / argparse). Closes OI-PEF-4 from
+#   the Tag-1 spec open-items. Added 2026-05-13 (Tag-2).
 #
 # Crates explicitly NOT in this workspace yet (Phase-1c follow-up boxes):
 # - (none — Crate-6 closes the Sprint-4 Open-Item §1.
-#   Crate-8 closes Sprint-Pengine-7 Tag-1.)
+#   Crate-8 closes Sprint-Pengine-7 Tag-1.
+#   Crate-9 closes Sprint-Pengine-7 Tag-2 OI-PEF-4.)
 #
 # Default-Lock posture (pengine-eng engine-side, ratified 2026-05-07 ~10:00 CEST)
 # ------------------------------------------------------------------------
@@ -88,6 +101,7 @@ members = [
     "crates/persona-cli",
     "crates/persona-validator",
     "crates/persona-engine-format",
+    "crates/persona-converter",
 ]
 
 [workspace.package]

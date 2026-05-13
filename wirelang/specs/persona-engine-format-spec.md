@@ -2,24 +2,31 @@
 
 ---
 spec: persona-engine-format
-version: 1.0.0
+version: 1.1.0
 status: draft
 date: 2026-05-13
 audience: pengine-eng, persona-authors, hr-slot, container-ops-slot
 license: CC-BY-4.0
 ---
 
-# Persona-Engine-Format Specification (v1.0)
+# Persona-Engine-Format Specification (v1.1)
 
 | Field | Value |
 |---|---|
 | Spec ID | PEF-1 |
 | Owner | pengine-eng (ADR-0043) |
-| Phase | 1b Sprint-Pengine-7 Tag-1 (2026-05-13) |
+| Phase | 1b Sprint-Pengine-7 Tag-2 (2026-05-13) |
 | Self-Migration anchor | ADR-0036 (Self-Migration-Konverter) — Sprint-Pengine-7 Tag-2 converter consumes this spec |
 | Companion specs | `persona-hash-spec.md` (V-907), `self-migration-konverter-spec.md`, `persona-schema-v10-migration-vorbereitung.md`, `schema-registry-spec.md` v0.32.0 §10 |
 | Cross-review zones | J (container-bridge spec, container-ops-slot), K (WAT-bridge / V-907 hash integration, wat-eng-slot), L (identity-substrate forward-link, identity-eng-slot), HR (governance-revision, hr-slot) |
-| Status of ratification | engine-default draft for AR Tag-1 review; HR-slot ratification follows on Sprint-Pengine-7 Tag-3 alongside the converter cut-over |
+| Status of ratification | v1.1: HR-slot bedingt-ack 2026-05-13 (Aisha-Cross-Review Counter-Vorschlag 1 eingearbeitet als `synthesis_default_exceptions` §4.3); Counter-Vorschläge 2-3 als Future-Items OI-PEF-7/8 registriert |
+
+## Revision history
+
+| Version | Date | Change |
+|---|---|---|
+| 1.0.0 | 2026-05-13 (AM) | Initial Sprint-Pengine-7 Tag-1 spec (PR #22, `86c9acc`). |
+| 1.1.0 | 2026-05-13 (PM) | Tag-2 cut-over: Aisha-HR-Counter-Vorschlag 1 eingearbeitet als `synthesis_default_exceptions` table in §4.3 (cfo + internal-audit `reports_to`/`escalation` → `aufsichtsrat`). Counter-Vorschläge 2 (per-transaction budget cap) and 3 (`identity_pinned_policy_version`) recorded as OI-PEF-7 / OI-PEF-8 (future items, not Tag-2 blockers). |
 
 ## 0. Purpose and one-paragraph summary
 
@@ -317,6 +324,51 @@ sections and populate the synthesised defaults with persona-
 specific values. Tag-1 ships only the safe-default synthesis;
 this is intentionally HR-slot-ratification-pending.
 
+### 4.3.1 `synthesis_default_exceptions` (Aisha-HR Counter-Vorschlag 1, v1.1)
+
+The Aisha-HR cross-review (2026-05-13, bedingt-ack on v1.0) identified
+two personae for which the safe-default `reports_to: "mira"` /
+`escalation: "mira"` is **inhaltlich incorrect** and must be overridden
+in synthesis (before the Tag-2 Markdown-body parser is in place). Both
+personae carry an explicit Aufsichtsrat-reporting line in their
+`.claude/agents/<slug>.md` body that the engine must honour at Tag-2
+cut-over rather than silently default away.
+
+The Tag-2 converter MUST consult this hard-coded exceptions table
+before falling back to the safe defaults of §4.3:
+
+| `persona_slug` | `reports_to` | `escalation` | Rationale |
+|---|---|---|---|
+| `cfo` | `aufsichtsrat` | `aufsichtsrat` | Top-Management gleichrangig zur CEO (`cfo.md` §3 Hierarchie): "Berichtet direkt an Aufsichtsrat für Strategy-ADRs und Hard-Stop, an CEO für operative Bündelung." Daniel Mwangi ist nicht Mira-untergeordnet sondern ein peer; AR-direkt für Strategy + Hard-Stop. |
+| `internal-audit` | `aufsichtsrat` | `aufsichtsrat` | Dotted-line zum Aufsichtsrat (`internal-audit.md` §2): "Berichtet direkt an den Aufsichtsrat (Fred). Nicht an die CEO." Henrik Voss ist independent-audit (klassisches Internal-Audit-Modell), nicht CEO-untergeordnet. |
+
+**Semantik:** Diese Tabelle ist eine Hard-Coded Override-Liste im
+Konverter (`persona_engine_format::SYNTHESIS_DEFAULT_EXCEPTIONS`). Sie
+ist explizit pre-Tag-2-Markdown-body-parse — d.h. die Override gilt
+auch wenn der Body-Parser (`OI-PEF-1`) noch nicht implementiert ist.
+Sobald `OI-PEF-1` landet, kann diese Tabelle in Datenform aus dem
+Body extrahiert werden; bis dahin ist sie die maßgebliche Quelle.
+
+**Wartung:** Wenn eine neue Persona mit Aufsichtsrat-direktem Reporting
+geschaffen wird (HR-Domäne, Aisha), MUSS die Tabelle im selben PR
+aktualisiert werden (Cross-Review-Gate HR vor Konverter-Run).
+
+### 4.3.2 Open Items (HR-Counter-Vorschläge 2-3, v1.1)
+
+Two HR-counter-proposals are recorded as future-items, NOT Tag-2
+blockers, per Aisha-bedingt-ack:
+
+- **OI-PEF-7** — `budget_cap_eur_per_month` adressiert nur eine
+  der zwei ADR-0001-Delegationsmatrix-Dimensionen (single-month
+  rolling cap; missing: per-transaction cap, ≤ 20 EUR). Two-dimensional
+  schema (`budget_cap_eur_per_month` + `budget_cap_eur_per_transaction`)
+  to be added in `wakir-persona-v1` v2 (Sprint-Pengine-7 Tag-N+).
+- **OI-PEF-8** — `identity_pinned_policy_version` field on the
+  `migration_metadata` block (§3.6) to record which default-policy
+  version was in effect at conversion time. Enables an HR-audit-sweep
+  to recognise which persona-documents were synthesised under older
+  defaults (Sprint-Pengine-7 Tag-N+).
+
 ### 4.4 Stability under re-conversion
 
 Re-converting an already-converted persona MUST be idempotent
@@ -412,7 +464,7 @@ implementation may add auxiliary probes).
 | **J** | container-ops-slot | container-bridge spec change | yes — §3.5 specifies image template, labels, env vars | yes, before Sprint-Pengine-7 Tag-4 (container backend implementation) |
 | **K** | wat-eng-slot | WAT-frame format / V-907 hash function change | **no functional change** — §5 confirms hash function unchanged, only operator-side pin-pack added | yes, confirmation that no WAT-frame change is needed |
 | **L** | identity-eng-slot | identity_doc_ref forward-link | reserved in §4.3 (synthesised default with safe fallback); §3.x carries no identity-document URI yet | not until Sprint-Pengine-7 Tag-3+; Tag-1 records the reservation |
-| **HR** | hr-slot | persona-definition governance | yes — §4.3 synthesis defaults are HR-slot-ratification-pending | yes, before Sprint-Pengine-7 Tag-2 (converter cut-over) |
+| **HR** | hr-slot | persona-definition governance | v1.0: §4.3 synthesis defaults HR-slot-ratification-pending; v1.1: bedingt-ack 2026-05-13 (Counter-Vorschlag 1 eingearbeitet als §4.3.1 `synthesis_default_exceptions`; Counter-Vorschläge 2-3 als OI-PEF-7/8 registriert) | v1.1: yes (bedingt-ack received, full ratification gated on Tag-3 body-parser landing) |
 
 ## 8. Open items (Sprint-Pengine-7 Tag-1 follow-up)
 
@@ -432,6 +484,18 @@ implementation may add auxiliary probes).
 - **OI-PEF-6** — `persona-claude-native` schema extension for
   the model-override field (currently inferred at conversion
   time; could be made an explicit schema field).
+- **OI-PEF-7** — Two-dimensional budget-cap schema
+  (`budget_cap_eur_per_month` + `budget_cap_eur_per_transaction`)
+  to reflect both ADR-0001 Delegationsmatrix dimensions. v1.1
+  records only the per-month dimension; per-transaction (≤ 20 EUR
+  for CEO-Freigrenze) is unrepresented. Aisha-HR-Counter-Vorschlag 2,
+  Sprint-Pengine-7 Tag-N+.
+- **OI-PEF-8** — `identity_pinned_policy_version` field on the
+  `migration_metadata` block (§3.6) to record which default-policy
+  version was in effect at conversion time. Enables an HR-audit-sweep
+  to recognise which persona-documents were synthesised under
+  older defaults. Aisha-HR-Counter-Vorschlag 3, Sprint-Pengine-7
+  Tag-N+.
 
 ## 9. Compatibility statement
 

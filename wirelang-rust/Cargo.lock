@@ -188,6 +188,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "persona-converter"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "hex",
+ "persona-engine-format",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "persona-engine-format"
 version = "0.1.0"
 dependencies = [
