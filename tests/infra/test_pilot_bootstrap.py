@@ -308,6 +308,156 @@ def test_idempotency_markers_present(script_source: str) -> None:
         )
 
 
+# ---------------------------------------------------------------------------
+# 11. Sprint-9-Tag-4 Bug 1: resume-hint avoids the ``bash bash`` doubling
+# when the script was piped from ``curl ... | sudo bash``.
+# ---------------------------------------------------------------------------
+
+
+def test_resume_hint_avoids_bash_doubling(script_source: str) -> None:
+    """When the script is invoked via ``curl ... | sudo bash``, ``$0``
+    collapses to ``bash`` and a naive ``sudo bash $PROG`` form would
+    print ``sudo bash bash --resume-from N``. The resume-hint helper
+    must guard against that by falling back to the canonical installed
+    path when ``$PROG == bash`` or the on-disk script exists at the
+    documented location."""
+    # The naive form must NOT appear in fail_step's resume hint.
+    assert "sudo bash ${PROG}" not in script_source, (
+        "Sprint-9-Tag-4 Bug 1: fail_step's resume hint must not "
+        "embed ${PROG} directly (collapses to 'bash' under curl|bash)"
+    )
+    # The resilient helper must be present.
+    assert "_resume_cmd" in script_source, (
+        "Sprint-9-Tag-4 Bug 1: bootstrap must define a _resume_cmd "
+        "helper that synthesises a stable resume command line"
+    )
+    # The helper must mention the installed-path fallback.
+    assert "WAKIR_REPO_ROOT" in script_source
+    assert 'PROG" == "bash"' in script_source, (
+        "Sprint-9-Tag-4 Bug 1: _resume_cmd must explicitly handle the "
+        "curl-pipe-bash case where PROG collapses to 'bash'"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 12. Sprint-9-Tag-4 Bug 2: federation volume install with per-side
+# filename substitution.
+# ---------------------------------------------------------------------------
+
+
+def test_volume_install_renames_federation_volumes_per_side(
+    script_source: str,
+) -> None:
+    """Phase 6b must install federation server volumes with destination
+    basenames that embed ``-${side}-`` between ``federation`` and the
+    kind suffix (data|sockets|bundles). The Server-Container's
+    ``Volume=wakir-spire-server-federation-<SIDE>-data.volume`` directive
+    only resolves if the per-side renamed volume file is present.
+    """
+    # The rename sed pattern must be present in the script.
+    assert (
+        "wakir-spire-server-federation-${side}-\\1.volume"
+        in script_source
+    ), (
+        "Sprint-9-Tag-4 Bug 2: bootstrap step 6b must rename federation "
+        "server volume files to embed -${side}- before installing"
+    )
+    # The agent volume rename is also required (bug 2 sibling for agent).
+    assert (
+        "wakir-spire-agent-${side}-\\1.volume" in script_source
+    ), (
+        "Sprint-9-Tag-4 Bug 2: bootstrap step 6b must rename agent "
+        "volume files to embed ${side} in the destination basename"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 13. Sprint-9-Tag-4 Bug 5: Phase 6 idempotency markers.
+# ---------------------------------------------------------------------------
+
+
+def test_phase_6_idempotent_install_helper(script_source: str) -> None:
+    """Phase 6 must compare the rendered (sed-substituted) output
+    against the on-disk target file and skip the install when the
+    contents match. This protects operator manual fixes from being
+    silently overwritten on ``--resume-from 6``.
+    """
+    assert "_install_substituted" in script_source, (
+        "Sprint-9-Tag-4 Bug 5: bootstrap must use a helper that "
+        "compares rendered content against target before overwriting"
+    )
+    assert "cmp -s" in script_source, (
+        "Sprint-9-Tag-4 Bug 5: bootstrap must use cmp -s for "
+        "byte-precise idempotency comparison"
+    )
+    assert "reset-failed" in script_source, (
+        "Sprint-9-Tag-4 Bug 5: bootstrap must reset-failed before "
+        "restart on units in a restart-loop state"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 14. Live-bring-up phase-6 dry-run simulation
+# ---------------------------------------------------------------------------
+
+
+def test_phase_6_volume_rename_sed_round_trip() -> None:
+    """End-to-end sanity check that the Phase-6 sed rename produces
+    the volume filenames the Server/Agent containers reference at
+    install time. This is a pure-Python emulation of the bash sed
+    invocations; no live podman / systemctl / file-system writes.
+    """
+    side = "wakir"
+    cases = [
+        (
+            "wakir-spire-server-federation-data.volume",
+            f"wakir-spire-server-federation-{side}-data.volume",
+        ),
+        (
+            "wakir-spire-server-federation-sockets.volume",
+            f"wakir-spire-server-federation-{side}-sockets.volume",
+        ),
+        (
+            "wakir-spire-server-federation-bundles.volume",
+            f"wakir-spire-server-federation-{side}-bundles.volume",
+        ),
+    ]
+    for src, expected in cases:
+        # Mirror of the bash sed:
+        # sed "s/^wakir-spire-server-federation-\(data\|sockets\|
+        # bundles\)\.volume$/wakir-spire-server-federation-${side}-\1.volume/"
+        out = re.sub(
+            r"^wakir-spire-server-federation-(data|sockets|bundles)\.volume$",
+            rf"wakir-spire-server-federation-{side}-\1.volume",
+            src,
+        )
+        assert out == expected, (
+            f"federation server volume rename mismatch: "
+            f"{src!r} -> {out!r} (expected {expected!r})"
+        )
+
+    agent_cases = [
+        (
+            "wakir-spire-agent-federation-data.volume",
+            f"wakir-spire-agent-{side}-data.volume",
+        ),
+        (
+            "wakir-spire-agent-federation-sockets.volume",
+            f"wakir-spire-agent-{side}-sockets.volume",
+        ),
+    ]
+    for src, expected in agent_cases:
+        out = re.sub(
+            r"^wakir-spire-agent-federation-(data|sockets)\.volume$",
+            rf"wakir-spire-agent-{side}-\1.volume",
+            src,
+        )
+        assert out == expected, (
+            f"agent volume rename mismatch: "
+            f"{src!r} -> {out!r} (expected {expected!r})"
+        )
+
+
 def test_resolver_validates_digest_format() -> None:
     """The companion resolver (``proxmox/resolve-image-pins.sh``)
     validates sha256:<64-hex> -- the bootstrap script must pass

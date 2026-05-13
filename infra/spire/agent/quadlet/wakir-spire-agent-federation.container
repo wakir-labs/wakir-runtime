@@ -23,14 +23,22 @@
 #       -e 's|<SERVER_DNS>|spire-server-wakir|g' \
 #       quadlet/wakir-spire-agent-federation.container \
 #       > /etc/containers/systemd/wakir-spire-agent-wakir.container
-#   sudo install -m 644 quadlet/wakir-spire-agent-federation-data.volume \
-#       /etc/containers/systemd/wakir-spire-agent-wakir-data.volume
-#   sudo install -m 644 quadlet/wakir-spire-agent-federation-sockets.volume \
-#       /etc/containers/systemd/wakir-spire-agent-wakir-sockets.volume
+#   sed 's|<SIDE>|wakir|g' \
+#       quadlet/wakir-spire-agent-federation-data.volume \
+#       > /etc/containers/systemd/wakir-spire-agent-wakir-data.volume
+#   sed 's|<SIDE>|wakir|g' \
+#       quadlet/wakir-spire-agent-federation-sockets.volume \
+#       > /etc/containers/systemd/wakir-spire-agent-wakir-sockets.volume
 #   sudo install -m 644 config/spire-agent-wakir.conf \
 #       /etc/wakir/spire-agent-wakir.conf
 #   sudo systemctl daemon-reload
 #   sudo systemctl start wakir-spire-agent-wakir.service
+#
+# Sprint-9-Tag-4 Bug 2/3 note: the source volume files are side-agnostic
+# (`wakir-spire-agent-federation-data.volume`); the destination basename
+# embeds the side (`wakir-spire-agent-wakir-data.volume`) to match the
+# per-side Quadlet VolumeName convention so podman-system-generator
+# resolves the Volume= references from this container file.
 #
 # Tear-down:
 #
@@ -55,9 +63,14 @@
 [Unit]
 Description=Wakir Phase-2 Sprint-8 Tag-2 SPIRE-Agent (federation, <SIDE> side)
 Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/infra/spire/agent/README.md
-After=network-online.target wakir-spire-server-<SIDE>.service
+# Sprint-9-Tag-4 Bug 4: the federation server unit is installed as
+# ``wakir-spire-server-federation-<SIDE>.service`` (see Tag-1 server
+# template + bootstrap step 6c). The agent must depend on the
+# ``-federation-`` form, not on the side-only form which corresponds
+# to the Sprint-6-Tag-9 single-trust-domain stack.
+After=network-online.target wakir-spire-server-federation-<SIDE>.service
 Wants=network-online.target
-Requires=wakir-spire-server-<SIDE>.service
+Requires=wakir-spire-server-federation-<SIDE>.service
 
 [Container]
 ContainerName=wakir-spire-agent-<SIDE>
@@ -90,7 +103,12 @@ Volume=wakir-spire-agent-<SIDE>-data.volume:/var/lib/spire/agent
 # 3) Federated-bundles ingest (read-only mount of the server-side
 #    bundles volume — the Tag-1 server-federation Quadlet creates
 #    this volume).
-Volume=wakir-spire-server-<SIDE>-bundles.volume:/var/lib/spire/bundles:ro
+#    Sprint-9-Tag-4 Bug 3: the volume sidecar installed by the
+#    bootstrap step 6b is named with the ``-federation-`` mid-token
+#    (mirror of the server-side Quadlet VolumeName), not the
+#    side-only form. The agent must reference the same Quadlet-source
+#    name so the podman-system-generator resolves the volume.
+Volume=wakir-spire-server-federation-<SIDE>-bundles.volume:/var/lib/spire/bundles:ro
 #
 # 4) Workload-API socket — agents serve the SPIFFE-Workload-API on
 #    this volume. Phase-2.3+ persona-containers mount this volume

@@ -148,9 +148,13 @@ def test_volume_directives_reference_side_placeholder(
         container_text,
     ), "Quadlet must mount per-side sockets volume at SPIFFE-canonical path"
     # Bundles volume is owned by Tag-1 server template; agent mounts
-    # read-only.
+    # read-only. Sprint-9-Tag-4 Bug 3 fix: the server-side bundles
+    # volume sidecar carries the ``-federation-`` mid-token in its
+    # VolumeName (mirror of the server template's
+    # ``wakir-spire-server-federation-<SIDE>-bundles`` form), so the
+    # agent Volume= directive must reference that exact name.
     assert re.search(
-        r"Volume=wakir-spire-server-<SIDE>-bundles\.volume:/var/lib/spire/bundles:ro",
+        r"Volume=wakir-spire-server-federation-<SIDE>-bundles\.volume:/var/lib/spire/bundles:ro",
         container_text,
     ), (
         "Quadlet must mount Tag-1-owned server-side bundles volume READ-"
@@ -174,15 +178,23 @@ def test_after_and_requires_match_side_server_unit(
 ) -> None:
     """The agent must start AFTER the same-side server unit and
     REQUIRE it (compose's depends_on: condition: service_healthy
-    equivalent — strict ordering plus restart-on-failure)."""
+    equivalent — strict ordering plus restart-on-failure).
+
+    Sprint-9-Tag-4 Bug 4 fix: the federation server is installed as
+    ``wakir-spire-server-federation-<SIDE>.service`` (mirror of the
+    Tag-1 server template's ContainerName), NOT as the side-only form
+    which corresponds to the Sprint-6-Tag-9 single-trust-domain stack.
+    The agent's After=/Requires= must reference the federation form
+    so the dependency resolves at install time.
+    """
     assert re.search(
-        r"After=.*wakir-spire-server-<SIDE>\.service",
+        r"After=.*wakir-spire-server-federation-<SIDE>\.service",
         container_text,
-    ), "After= must order agent unit after same-side server unit"
+    ), "After= must order agent unit after same-side federation server unit"
     assert re.search(
-        r"Requires=wakir-spire-server-<SIDE>\.service",
+        r"Requires=wakir-spire-server-federation-<SIDE>\.service",
         container_text,
-    ), "Requires= must depend on same-side server unit"
+    ), "Requires= must depend on same-side federation server unit"
 
 
 # ---------------------------------------------------------------------
@@ -217,11 +229,18 @@ def test_agent_template_does_not_redeclare_bundles_volume() -> None:
     """The bundles volume is owned by the Tag-1 federation server-side
     Quadlet template. The agent template must NOT redeclare it as a
     .volume sidecar — that would create a conflict at install-time."""
-    bundles_tpl = QUADLET_DIR / "wakir-spire-server-<SIDE>-bundles.volume"
-    assert not bundles_tpl.exists(), (
-        "agent Quadlet must NOT redeclare bundles volume sidecar "
-        "(Tag-1 server template owns it)"
-    )
+    # Sprint-9-Tag-4 Bug 3 fix: the federation server bundles volume
+    # template lives at ``wakir-spire-server-federation-bundles.volume``
+    # in the federation server quadlet directory (per-side filename is
+    # produced at install time by the bootstrap step 6b sub).
+    for candidate in (
+        QUADLET_DIR / "wakir-spire-server-<SIDE>-bundles.volume",
+        QUADLET_DIR / "wakir-spire-server-federation-<SIDE>-bundles.volume",
+    ):
+        assert not candidate.exists(), (
+            "agent Quadlet must NOT redeclare bundles volume sidecar "
+            "(Tag-1 server template owns it)"
+        )
     # Also assert no file named with literal 'spire-agent' and 'bundles'
     # to catch a slightly-different naming-scheme variant.
     for entry in QUADLET_DIR.iterdir():
