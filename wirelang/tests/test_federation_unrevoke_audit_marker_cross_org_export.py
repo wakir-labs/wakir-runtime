@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """Tests for the Phase-2 Sprint-7 Tag-5 UnrevokeAuditMarker
 cross-org export surface
 (``wirelang.federation.unrevoke_audit_marker_cross_org_export``).

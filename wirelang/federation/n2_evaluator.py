@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """V-908 N2 live evaluator for the ``peer_org`` and
 ``federation_route`` Datalog caveat predicates.
 

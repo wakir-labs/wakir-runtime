@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """Tests for Multi-Marker-Policy-Composition (Sprint-8 Tag-3).
 
 Covers reduction-paths for the four marker families

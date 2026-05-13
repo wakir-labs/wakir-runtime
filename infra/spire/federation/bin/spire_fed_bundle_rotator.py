@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """spire-fed-bundle-rotator — hermetic Cross-Trust-Domain Bundle Auto-
 Rotation CLI for the Phase-2 Sprint-8 Tag-3 federation substrate.

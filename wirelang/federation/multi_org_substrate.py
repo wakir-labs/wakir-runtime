@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """Multi-Org Federation Substrate (Phase-3 preparation).
 
 Phase-2 Sprint-7 Tag-1 lands the **substrate** for multi-org

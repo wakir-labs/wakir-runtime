@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """Hermetic tests for the V-908 NATS-KV-backed RouteRegistry backend.
 
 Phase-1b Sprint-2 Tag-4 (S2-3). Tests the production-target backend

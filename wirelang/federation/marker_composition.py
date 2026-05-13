@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """Multi-Marker-Policy-Composition engine (Sprint-8 Tag-3).
 
 Sprint-8 Tag-2 (``cross_org_attenuation_verifier``) introduced

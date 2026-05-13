@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """Hermetic tests for the multi-org-attestation NATS-KV backend.
 
 Phase-2 Sprint-7 Tag-2. Pattern-mirror on the Sprint-3 Tag-6

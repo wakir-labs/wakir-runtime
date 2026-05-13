@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Hermetic Containerfile invariants for the wakir-provisioner image
 (Phase-2 Sprint-9 Tag-4).

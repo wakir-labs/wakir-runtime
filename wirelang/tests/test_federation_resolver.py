@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """Hermetic tests for ``wirelang.identity.federation_resolver`` (V-908 PS-5).
 
 These tests exercise the Phase-1b federated AIP-resolve pipeline end-

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """NATS-JetStream-KV-backed Multi-Org-Attestation registry.
 
 Phase-2 Sprint-7 Tag-2 lands the durable production-target backend

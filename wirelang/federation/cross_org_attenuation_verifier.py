@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """Cross-Org Capability-Attenuation-Chain-Verifier (Sprint-8 Tag-2 hardening).
 
 This module hardens the N3 multi-FTD delegation-chain walker

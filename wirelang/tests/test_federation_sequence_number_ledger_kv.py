@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """Hermetic tests for the durable NATS-KV-backed
 ``SequenceNumberLedger`` (Phase-2 Sprint-9 Tag-2).
 

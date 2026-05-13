@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 """CaveatOverrideEvent cross-org export surface.
 
 Phase-2 Sprint-9 Tag-1 lands the cross-org export pattern for the
