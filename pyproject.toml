@@ -129,6 +129,9 @@ nats = [
 wakir-merkle = "wat.cmd.aggregator_cli:main"
 wakir-anchor = "wat.cmd.anchor_cli:main"
 wakir-verify = "wat.verify.cli:main"
+# Doppel-Audit-Trail bridge-writer CLI (Sprint-9 Tag-1, Migrations-
+# Plan-Schritt 5); see wat/anchor/bridge_audit_writer.py.
+wakir-bridge-audit-write = "wat.cmd.bridge_audit_cli:main"
 # 4-pole external-verifier CLI (Position-Paper §L4-References annex);
 # see `wat/anchor/external_verifier/README.md`.
 wat-verify = "wat.anchor.external_verifier.cli:main"
