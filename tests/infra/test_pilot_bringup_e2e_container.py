@@ -169,25 +169,56 @@ _STUB_PODMAN = textwrap.dedent(
       create) echo "stub-container-id"; exit 0 ;;
       start) exit 0 ;;
       exec)
-        # Bug-19 follow-on (Sprint-9 Tag-7): the bootstrap Phase-6 path
-        # issues ``podman exec <server> spire-server token generate
-        # -spiffeID <jt_spiffe> -ttl 3600`` and parses the output via
-        #   sed -n 's/^Token:[[:space:]]*\\(.*\\)$/\\1/p'
-        # expecting a line of the form ``Token: <hex>``. The previous
-        # default-stub ``*) exit 0`` printed nothing, so the bootstrap
-        # logged "ERROR spire-server token generate produced no parseable
-        # token" and step_6_quadlet returned 2 -- masking Phase 8 (Smoke)
-        # from ever being reached. The real Pilot-VM produces a Token:-
-        # prefixed line; the stub must do the same. Match on the
-        # token-generate sub-command tail; fall through to no-op for any
-        # other exec invocation.
-        if [[ "$*" == *"spire-server token generate"* ]]; then
-          # Deterministic 32-hex stub token; bootstrap only checks
-          # non-emptiness before substituting into the agent Quadlet.
-          echo "Token: deadbeefcafef00d0000000000000000"
-          exit 0
-        fi
-        exit 0
+        # Sprint-9 Tag-7 bundle (PR #45 Kai jq-fix superset + PR #46 Tomás
+        # exec/volume extension): the bootstrap's step 6i issues
+        #   podman exec <ctr> /opt/spire/bin/spire-server token generate ...
+        # and parses the "Token: <hex>" line. The bootstrap's step 6i
+        # agent-list probe runs
+        #   podman exec <ctr> /opt/spire/bin/spire-server agent list
+        # and grep-matches on a SPIFFE ID; we want a "not-yet-attested"
+        # response so the token-generate branch fires. Detect both
+        # patterns from the trailing args. Bundle-merge conflict-resolve
+        # (Lena, 2026-05-14): Tomás's superset (token-generate +
+        # agent-list + volume handlers) supersedes Kai's narrower
+        # token-generate-only stub; both intents satisfied.
+        shift
+        ctr="${1:-}"; shift || true
+        # The actual command starts after the container name. Walk the
+        # rest for "token generate" or "agent list".
+        cmdline="$*"
+        case "$cmdline" in
+          *"token generate"*)
+            # Emit the canonical SPIRE token-generate output shape so the
+            # bootstrap's sed-parse picks the hex up.
+            echo "Token: $(printf '%032x%032x' 0xdeadbeef 0xcafef00d)"
+            exit 0
+            ;;
+          *"agent list"*)
+            # No agents attested yet -> empty list (bootstrap's grep -q
+            # for the SPIFFE ID returns non-zero, taking the not-yet-
+            # attested branch).
+            echo "Found 0 attested agents:"
+            exit 0
+            ;;
+          *)
+            exit 0
+            ;;
+        esac
+        ;;
+      volume)
+        # podman volume create --ignore <name>; podman volume inspect.
+        sub="${2:-}"
+        case "$sub" in
+          create) exit 0 ;;
+          inspect)
+            # Emit a fake mountpoint so the bootstrap's chown step has
+            # something to chown. /tmp is writable inside the E2E
+            # container.
+            echo "/tmp"
+            exit 0
+            ;;
+          *) exit 0 ;;
+        esac
         ;;
       *) exit 0 ;;
     esac
