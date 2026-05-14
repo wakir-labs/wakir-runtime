@@ -102,6 +102,7 @@ members = [
     "crates/persona-validator",
     "crates/persona-engine-format",
     "crates/persona-converter",
+    "crates/persona-pilot-export",
 ]
 
 [workspace.package]

@@ -9,19 +9,52 @@ use persona_engine_format::{
 use std::collections::BTreeMap;
 
 const PERSONA_FIXTURES: &[(&str, &str)] = &[
-    ("mira", include_str!("../tests/fixtures/claude-agents/mira.md")),
-    ("cto", include_str!("../tests/fixtures/claude-agents/cto.md")),
+    (
+        "mira",
+        include_str!("../tests/fixtures/claude-agents/mira.md"),
+    ),
+    (
+        "cto",
+        include_str!("../tests/fixtures/claude-agents/cto.md"),
+    ),
     ("hr", include_str!("../tests/fixtures/claude-agents/hr.md")),
-    ("cfo", include_str!("../tests/fixtures/claude-agents/cfo.md")),
-    ("comms", include_str!("../tests/fixtures/claude-agents/comms.md")),
-    ("internal-audit", include_str!("../tests/fixtures/claude-agents/internal-audit.md")),
-    ("dev-engineering", include_str!("../tests/fixtures/claude-agents/dev-engineering.md")),
-    ("reza", include_str!("../tests/fixtures/claude-agents/reza.md")),
-    ("kai", include_str!("../tests/fixtures/claude-agents/kai.md")),
-    ("pengine", include_str!("../tests/fixtures/claude-agents/pengine.md")),
-    ("frontend", include_str!("../tests/fixtures/claude-agents/frontend.md")),
+    (
+        "cfo",
+        include_str!("../tests/fixtures/claude-agents/cfo.md"),
+    ),
+    (
+        "comms",
+        include_str!("../tests/fixtures/claude-agents/comms.md"),
+    ),
+    (
+        "internal-audit",
+        include_str!("../tests/fixtures/claude-agents/internal-audit.md"),
+    ),
+    (
+        "dev-engineering",
+        include_str!("../tests/fixtures/claude-agents/dev-engineering.md"),
+    ),
+    (
+        "reza",
+        include_str!("../tests/fixtures/claude-agents/reza.md"),
+    ),
+    (
+        "kai",
+        include_str!("../tests/fixtures/claude-agents/kai.md"),
+    ),
+    (
+        "pengine",
+        include_str!("../tests/fixtures/claude-agents/pengine.md"),
+    ),
+    (
+        "frontend",
+        include_str!("../tests/fixtures/claude-agents/frontend.md"),
+    ),
     ("qa", include_str!("../tests/fixtures/claude-agents/qa.md")),
-    ("sre", include_str!("../tests/fixtures/claude-agents/sre.md")),
+    (
+        "sre",
+        include_str!("../tests/fixtures/claude-agents/sre.md"),
+    ),
 ];
 
 fn main() {
