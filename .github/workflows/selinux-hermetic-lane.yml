@@ -1,0 +1,291 @@
+# SPDX-License-Identifier: BUSL-1.1
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# SELinux-Enforcing Hermetic E2E lane (Phase-2 Sprint-9 Tag-9, Bug-24)
+# ====================================================================
+#
+# Purpose: defend against the Live-Bring-up-Sandbox-Gap pattern
+# (4 consecutive bring-ups, 20+ FCOS-specific substance bugs) at
+# source-discipline time, without paying for a live Fedora-CoreOS VM
+# in CI (ADR-0060 was AR-rejected 2026-05-14 — "kein neues Geld").
+#
+# Trade-off (PR-body has the full narrative):
+#
+#   Option 1 — Container-Stub Fedora + ``setenforce 1``
+#     Rejected for the primary lane: Ubuntu-host GitHub-Actions runners
+#     do not carry a SELinux kernel, so ``setenforce 1`` inside a Fedora
+#     container is a no-op (the container would need a SELinux-aware
+#     kernel underneath). The mutation-test value we'd get is therefore
+#     synthetic, not enforcing-substantive.
+#
+#   Option 2 — Quadlet-Lint (Tomás, Bug-23 parallel)
+#     Orthogonal-complementary: covers the ``*.container`` unit layer.
+#     This lane covers the shell-script layer (``podman run -v`` /
+#     ``podman create -v`` outside Quadlets). Defense-in-depth.
+#
+#   Option 3 — Static-Mock-Test of Volume-Mount-Disziplin (CHOSEN)
+#     The bootstrap's Toolbox-Container fallback uses ``podman create
+#     -v /opt:/opt -v /etc/containers/systemd:/etc/containers/systemd``
+#     — those lines live in shell, not in a Quadlet. Tomás's
+#     ``test_quadlet_selinux_relabel.py`` (Tag-8) does NOT scan them.
+#     This lane sweeps every ``-v`` argument in production shell
+#     scripts, classifies it (named-volume vs. host-bind), enforces
+#     ``:Z`` discipline on named-volumes, and forces host-bind entries
+#     onto a typed allow-list with a documented rationale. The result
+#     is auditable by Amara's standard Zone-X mutation-test methodology
+#     (mutate, observe red, restore).
+#
+# Why a separate workflow file?
+# -----------------------------
+# The static-discipline test runs in the regular substance lane too
+# (it's a hermetic Python test). The reason this file exists is the
+# MUTATION-EQUIVALENCE-VERIFICATION lane (job ``mutation-equivalence``
+# below): on every PR that touches the static-discipline test itself,
+# the lane re-runs four canonical mutations end-to-end and asserts the
+# test goes red for each. That mechanises Amara's Zone-X handshake so
+# the Bug-24 regression-class cannot silently lose its detection power
+# in a future refactor.
+#
+# Cross-Review Zone-X (QA × Henrik-Audit)
+# ---------------------------------------
+# Lane name is stable so Amara's mutation-test methodology can pin to
+# it. Henrik samples the mutation-equivalence job artifacts for the
+# Sprint-Closeout audit.
+#
+# Sandbox boundary (ADR-0051)
+# ---------------------------
+# Source-static + hermetic mutation experiments. No podman, no live
+# substrate, no Operator-Host access. Lane runs entirely in GitHub-
+# hosted Ubuntu runners; nothing escapes the runner sandbox.
+
+name: selinux-hermetic-lane
+
+# YAML key-quoting hygiene (Mira-memory feedback_yaml_frontmatter_disziplin):
+# bare ``on:`` is YAML 1.1 reserved-word. We quote defensively so both
+# resolver-paths agree.
+"on":
+  push:
+    branches:
+      - main
+    paths:
+      - 'infra/spire/federation/wakir-pilot-bootstrap.sh'
+      - 'infra/spire/federation/quadlet/**'
+      - 'infra/spire/agent/quadlet/**'
+      - 'quadlet/**'
+      - 'tests/infra/test_bootstrap_podman_volume_selinux_discipline.py'
+      - 'tests/infra/test_quadlet_selinux_relabel.py'
+      - '.github/workflows/selinux-hermetic-lane.yml'
+  pull_request:
+    paths:
+      - 'infra/spire/federation/wakir-pilot-bootstrap.sh'
+      - 'infra/spire/federation/quadlet/**'
+      - 'infra/spire/agent/quadlet/**'
+      - 'quadlet/**'
+      - 'tests/infra/test_bootstrap_podman_volume_selinux_discipline.py'
+      - 'tests/infra/test_quadlet_selinux_relabel.py'
+      - '.github/workflows/selinux-hermetic-lane.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+
+  static-discipline:
+    name: Static-discipline — :Z sweep across bootstrap + Quadlets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install test deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+
+      - name: Run bootstrap-podman-volume :Z-discipline suite
+        run: |
+          python -m pytest \
+            tests/infra/test_bootstrap_podman_volume_selinux_discipline.py \
+            -v --color=yes
+
+      - name: Run Quadlet :Z-discipline suite (Tag-8 sibling)
+        run: |
+          # Re-run the sibling Quadlet-side test here so the SELinux-
+          # hermetic lane reports a single combined verdict. This is
+          # duplicative with the substance lane on PRs that touch
+          # Quadlets, but it makes the lane self-contained (a green
+          # SELinux-hermetic-lane verdict means BOTH the bootstrap-
+          # podman side and the Quadlet side are clean).
+          python -m pytest \
+            tests/infra/test_quadlet_selinux_relabel.py \
+            -v --color=yes
+
+  mutation-equivalence:
+    name: Mutation-equivalence — Amara Zone-X automation
+    runs-on: ubuntu-latest
+    # Mutation experiments require the static-discipline lane to be
+    # green first; otherwise a baseline-red would mask the mutation
+    # signal.
+    needs: [static-discipline]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install test deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+
+      - name: Mutation M1 — named-volume :Z removal triggers RED
+        id: m1
+        run: |
+          # Apply: inject a named-volume mount line WITHOUT :Z into the
+          # bootstrap's Toolbox-Container fallback (Step 2).
+          # Expect: test_every_named_volume_mount_has_selinux_relabel_flag
+          # FAILS with a file/line/options diagnostic.
+          # Then: restore source, expect green.
+          set -euo pipefail
+          cp infra/spire/federation/wakir-pilot-bootstrap.sh /tmp/m1-pristine.sh
+          python3 -c "
+          text = open('infra/spire/federation/wakir-pilot-bootstrap.sh').read()
+          new_text = text.replace(
+              '      -v /etc/containers/systemd:/etc/containers/systemd \\\\',
+              '      -v /etc/containers/systemd:/etc/containers/systemd \\\\\n      -v wakir-mutation-test-volume:/var/lib/test \\\\'
+          )
+          assert new_text != text, 'M1 mutation injection failed — anchor text not found'
+          open('infra/spire/federation/wakir-pilot-bootstrap.sh','w').write(new_text)
+          "
+          # Expect FAIL — bash -e off, capture exit.
+          set +e
+          python -m pytest \
+            tests/infra/test_bootstrap_podman_volume_selinux_discipline.py::test_every_named_volume_mount_has_selinux_relabel_flag \
+            -v --color=yes
+          rc=$?
+          set -e
+          # Restore.
+          cp /tmp/m1-pristine.sh infra/spire/federation/wakir-pilot-bootstrap.sh
+          rm -f /tmp/m1-pristine.sh
+          # Expect rc != 0 (red on mutation).
+          if [[ $rc -eq 0 ]]; then
+            echo "::error::M1 mutation FAILED to trigger RED — :Z-discipline test lost detection power"
+            exit 1
+          fi
+          # Re-run post-restore and expect green.
+          python -m pytest \
+            tests/infra/test_bootstrap_podman_volume_selinux_discipline.py::test_every_named_volume_mount_has_selinux_relabel_flag \
+            -v --color=yes
+          echo "M1 PASS: mutation triggers RED, restore is green"
+
+      - name: Mutation M2 — Quadlet :Z removal triggers RED
+        id: m2
+        run: |
+          # Apply: drop :Z from a named-volume Volume= line in the
+          # federation agent Quadlet.
+          # Expect: test_every_volume_line_has_selinux_relabel_flag
+          # FAILS with a file/line/options diagnostic.
+          set -euo pipefail
+          target='infra/spire/agent/quadlet/wakir-spire-agent-federation.container'
+          cp "$target" /tmp/m2-pristine.container
+          python3 -c "
+          import re, sys
+          path = '$target'
+          text = open(path).read()
+          # Find a named-volume Volume= line with :Z and drop the :Z.
+          pat = re.compile(r'^(Volume=wakir-spire-agent-<SIDE>-data\.volume:/var/lib/spire/agent):Z\$', re.MULTILINE)
+          new_text, n = pat.subn(r'\1', text)
+          assert n == 1, f'M2 mutation injection failed — n={n}'
+          open(path,'w').write(new_text)
+          "
+          set +e
+          python -m pytest \
+            tests/infra/test_quadlet_selinux_relabel.py::test_every_volume_line_has_selinux_relabel_flag \
+            -v --color=yes
+          rc=$?
+          set -e
+          cp /tmp/m2-pristine.container "$target"
+          rm -f /tmp/m2-pristine.container
+          if [[ $rc -eq 0 ]]; then
+            echo "::error::M2 mutation FAILED to trigger RED — Quadlet :Z-discipline test lost detection power"
+            exit 1
+          fi
+          python -m pytest \
+            tests/infra/test_quadlet_selinux_relabel.py::test_every_volume_line_has_selinux_relabel_flag \
+            -v --color=yes
+          echo "M2 PASS: Quadlet :Z mutation triggers RED, restore is green"
+
+      - name: Mutation M3 — host-bind allow-list drift triggers RED
+        id: m3
+        run: |
+          # Apply: rename /opt to /opt-mutated in the bootstrap WITHOUT
+          # updating ALLOWED_HOST_BIND_MOUNTS.
+          # Expect: test_every_host_bind_mount_is_on_allow_list FAILS.
+          set -euo pipefail
+          cp infra/spire/federation/wakir-pilot-bootstrap.sh /tmp/m3-pristine.sh
+          sed -i 's|-v /opt:/opt|-v /opt:/opt-mutated|' infra/spire/federation/wakir-pilot-bootstrap.sh
+          set +e
+          python -m pytest \
+            tests/infra/test_bootstrap_podman_volume_selinux_discipline.py::test_every_host_bind_mount_is_on_allow_list \
+            -v --color=yes
+          rc=$?
+          set -e
+          cp /tmp/m3-pristine.sh infra/spire/federation/wakir-pilot-bootstrap.sh
+          rm -f /tmp/m3-pristine.sh
+          if [[ $rc -eq 0 ]]; then
+            echo "::error::M3 mutation FAILED to trigger RED — host-bind allow-list lost detection power"
+            exit 1
+          fi
+          python -m pytest \
+            tests/infra/test_bootstrap_podman_volume_selinux_discipline.py::test_every_host_bind_mount_is_on_allow_list \
+            -v --color=yes
+          echo "M3 PASS: host-bind allow-list mutation triggers RED, restore is green"
+
+      - name: Mutation M4 — Quadlet inventory drift triggers RED
+        id: m4
+        run: |
+          # Apply: delete a Quadlet file the EXPECTED set still names.
+          # Expect: test_inventory_matches_expected_set FAILS.
+          set -euo pipefail
+          target='quadlet/wakir-nats.container'
+          cp "$target" /tmp/m4-pristine.container
+          rm "$target"
+          set +e
+          python -m pytest \
+            tests/infra/test_quadlet_selinux_relabel.py::test_inventory_matches_expected_set \
+            -v --color=yes
+          rc=$?
+          set -e
+          cp /tmp/m4-pristine.container "$target"
+          rm -f /tmp/m4-pristine.container
+          if [[ $rc -eq 0 ]]; then
+            echo "::error::M4 mutation FAILED to trigger RED — inventory drift detection lost"
+            exit 1
+          fi
+          python -m pytest \
+            tests/infra/test_quadlet_selinux_relabel.py::test_inventory_matches_expected_set \
+            -v --color=yes
+          echo "M4 PASS: inventory drift mutation triggers RED, restore is green"
+
+      - name: Mutation summary
+        if: always()
+        run: |
+          echo "================================================================"
+          echo "Sprint-9-Tag-9 Bug-24 Mutation-Equivalence Verification Summary"
+          echo "================================================================"
+          echo ""
+          echo "M1 (bootstrap named-volume :Z)  : ${{ steps.m1.outcome }}"
+          echo "M2 (Quadlet :Z)                 : ${{ steps.m2.outcome }}"
+          echo "M3 (host-bind allow-list drift) : ${{ steps.m3.outcome }}"
+          echo "M4 (Quadlet inventory drift)    : ${{ steps.m4.outcome }}"
+          echo ""
+          echo "Cross-reference: Amara Zone-X mutation-test methodology"
+          echo "(2026-05-14 PR-#47 review)."
+          echo "Henrik audit-sample anchor: Sprint-9-Tag-9 Bug-24."
