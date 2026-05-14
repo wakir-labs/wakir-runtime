@@ -133,11 +133,21 @@ fi
 # ----------------------------------------------------------------------
 
 # Format: <group_key>|<image_prefix>|<file1>[;<file2>...]
+#
+# Sprint-9 Tag-6: the wakir-provisioner row uses the BARE image-base
+# (no ``:<tag>`` suffix) so the resolver is tag-tolerant — the BSL-
+# Bulk-Edit-Welle (PR #37) drifted the Quadlet tag from ``:0.1.0``
+# to ``:0.1.2`` and the previous hardcoded ``:0.1.2`` prefix would
+# break the next time the tag rotates. The extractor honours the
+# bare-base form by accepting an optional ``:<tag>`` between base
+# and ``@sha256:`` (see ``extract_current_digest`` + the line-
+# level grep). The SPIRE and python rows stay tag-pinned because
+# their tag is upstream-fixed (SPIRE release line, python minor).
 PINS=(
   "spire_server|ghcr.io/spiffe/spire-server:1.14.6|infra/spire/federation/quadlet/wakir-spire-server-federation.container;quadlet/wakir-spire-server.container"
   "spire_agent|ghcr.io/spiffe/spire-agent:1.14.6|infra/spire/agent/quadlet/wakir-spire-agent-federation.container;quadlet/wakir-spire-agent.container"
   "python|docker.io/library/python:3.13-slim|infra/spire/federation/provisioner/Containerfile"
-  "wakir_provisioner|ghcr.io/wakir-labs/wakir-provisioner:0.1.2|quadlet/wakir-nats-kv-bucket-init.container"
+  "wakir_provisioner|ghcr.io/wakir-labs/wakir-provisioner|quadlet/wakir-nats-kv-bucket-init.container"
 )
 
 # ----------------------------------------------------------------------
@@ -173,11 +183,33 @@ fetch_live_digest() {
 extract_current_digest() {
   # Pulls the sha256:<hex> (or the placeholder token) currently
   # committed for <image_prefix> in <file>. Empty stdout = no match.
+  #
+  # Sprint-9 Tag-6: the image_prefix may be EITHER tag-pinned
+  # (``ghcr.io/spiffe/spire-server:1.14.6``) OR bare-base
+  # (``ghcr.io/wakir-labs/wakir-provisioner``). In the bare-base
+  # case we tolerate an arbitrary ``:<tag>`` between the prefix and
+  # the ``@sha256:`` segment so a downstream tag-rotation does not
+  # silently break drift detection. In the tag-pinned case the
+  # regex still anchors on the exact prefix because the prefix
+  # already carries the ``:<tag>``.
   local file="$1"
   local image_prefix="$2"
-  grep -oE "${image_prefix//./\\.}@(sha256:[a-f0-9]{64}|sha256:DIGEST_PENDING_TOMAS_REVIEW)" "$file" \
+  grep -oE "${image_prefix//./\\.}(:[^@[:space:]\"']+)?@(sha256:[a-f0-9]{64}|sha256:DIGEST_PENDING_TOMAS_REVIEW)" "$file" \
     | head -n1 \
-    | sed -E "s|^${image_prefix//./\\.}@||"
+    | sed -E "s|^${image_prefix//./\\.}(:[^@[:space:]\"']+)?@||"
+}
+
+extract_current_tag() {
+  # Pulls the tag currently committed between <image_prefix> and
+  # ``@sha256:`` in <file>. Empty stdout = no tag in the
+  # pin-string (the prefix already carried the tag, or the pin is
+  # bare-base). Used by the bare-base substitution path to preserve
+  # the existing tag byte-for-byte.
+  local file="$1"
+  local image_prefix="$2"
+  grep -oE "${image_prefix//./\\.}(:[^@[:space:]\"']+)?@(sha256:[a-f0-9]{64}|sha256:DIGEST_PENDING_TOMAS_REVIEW)" "$file" \
+    | head -n1 \
+    | sed -nE "s|^${image_prefix//./\\.}:([^@[:space:]\"']+)@.*$|\1|p"
 }
 
 drift_count=0
@@ -232,10 +264,19 @@ for entry in "${PINS[@]}"; do
 
     if [[ "$PRINT_ONLY" -eq 0 ]]; then
       # Substitute in-place. The pattern is anchored to
-      # ``<image_prefix>@<current>`` so we cannot accidentally
-      # rewrite an unrelated digest line.
-      from="${image_prefix}@${current}"
-      to="${image_prefix}@${live}"
+      # ``<image_prefix>[:<tag>]@<current>`` so we cannot
+      # accidentally rewrite an unrelated digest line. When the
+      # PINS entry is bare-base (Sprint-9 Tag-6, wakir-provisioner),
+      # we preserve the existing ``:<tag>`` byte-for-byte so a
+      # digest rotation never silently strips the tag.
+      existing_tag=$(extract_current_tag "$full" "$image_prefix")
+      if [[ -n "$existing_tag" ]]; then
+        from="${image_prefix}:${existing_tag}@${current}"
+        to="${image_prefix}:${existing_tag}@${live}"
+      else
+        from="${image_prefix}@${current}"
+        to="${image_prefix}@${live}"
+      fi
       sed -i "s|${from}|${to}|g" "$full"
     fi
   done

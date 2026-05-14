@@ -298,3 +298,87 @@ def test_workflow_requires_contents_write() -> None:
     # Needs contents:write to push the auto-branch + open PR.
     assert perms.get("contents") == "write"
     assert perms.get("pull-requests") == "write"
+
+
+# ----------------------------------------------------------------------
+# Sprint-9 Tag-6 — tag-tolerant wakir-provisioner row.
+# ----------------------------------------------------------------------
+
+def test_pins_inventory_wakir_provisioner_is_bare_base(repo_copy: Path) -> None:
+    """Sprint-9 Tag-6: the wakir-provisioner PINS row MUST use the
+    bare image-base (no ``:<tag>`` suffix) so the resolver tolerates
+    the tag drift the BSL-Bulk-Edit-Welle introduced (Bug 3, Live-
+    Bring-up-2-Bilanz 2026-05-14). Tag-pinned SPIRE / python rows
+    stay byte-identical."""
+    text = RESOLVER.read_text(encoding="utf-8")
+    # Bare-base wakir-provisioner row.
+    assert (
+        '"wakir_provisioner|ghcr.io/wakir-labs/wakir-provisioner|'
+        in text
+    ), (
+        "PINS inventory must carry the bare wakir-provisioner base "
+        "(no :<tag> suffix) for tag-tolerant drift detection"
+    )
+    # The legacy tag-pinned form must NOT linger.
+    assert (
+        "ghcr.io/wakir-labs/wakir-provisioner:0.1.2|" not in text
+    ), (
+        "PINS inventory still carries the legacy tag-pinned "
+        "wakir-provisioner row; Sprint-9 Tag-6 contract requires "
+        "the bare-base form"
+    )
+
+
+def test_resolver_substitutes_quadlet_with_drifted_tag(
+    repo_copy: Path,
+) -> None:
+    """The resolver MUST detect drift on the bucket-init Quadlet
+    EVEN WHEN the tag in the pin differs from any value previously
+    hard-coded in the resolver itself. We stage a Quadlet with a
+    future-tag form and confirm the resolver substitutes the digest
+    while preserving the tag byte-for-byte."""
+    quadlet = repo_copy / "quadlet" / "wakir-nats-kv-bucket-init.container"
+    quadlet.parent.mkdir(parents=True, exist_ok=True)
+    quadlet.write_text(
+        "[Container]\n"
+        "Image=ghcr.io/wakir-labs/wakir-provisioner:9.9.9-future"
+        "@sha256:DIGEST_PENDING_TOMAS_REVIEW\n"
+    )
+    proc = _run_resolver(repo_copy, FAKE_DIGESTS)
+    # Drift sentinel: placeholder replaced.
+    assert proc.returncode == 10, (
+        f"resolver did not detect drift on drifted-tag Quadlet: "
+        f"stdout={proc.stdout!r} stderr={proc.stderr!r}"
+    )
+    text = quadlet.read_text()
+    assert "DIGEST_PENDING_TOMAS_REVIEW" not in text
+    assert (
+        "ghcr.io/wakir-labs/wakir-provisioner:9.9.9-future@sha256:"
+        + "d" * 64
+    ) in text, (
+        f"resolver did not preserve the existing tag or substitute "
+        f"the digest correctly: {text!r}"
+    )
+
+
+def test_resolver_idempotent_on_drifted_tag(repo_copy: Path) -> None:
+    """Re-run on a stable drifted-tag pin MUST be a no-op (rc=0)."""
+    quadlet = repo_copy / "quadlet" / "wakir-nats-kv-bucket-init.container"
+    quadlet.parent.mkdir(parents=True, exist_ok=True)
+    quadlet.write_text(
+        "[Container]\n"
+        "Image=ghcr.io/wakir-labs/wakir-provisioner:9.9.9-future"
+        "@sha256:DIGEST_PENDING_TOMAS_REVIEW\n"
+    )
+    # First run resolves; second run must be a no-op.
+    first = _run_resolver(repo_copy, FAKE_DIGESTS)
+    assert first.returncode == 10
+    text_after_first = quadlet.read_text()
+    second = _run_resolver(repo_copy, FAKE_DIGESTS)
+    assert second.returncode == 0, (
+        f"idempotent re-run on drifted-tag pin failed: "
+        f"stdout={second.stdout!r} stderr={second.stderr!r}"
+    )
+    assert quadlet.read_text() == text_after_first, (
+        "idempotent re-run mutated the drifted-tag Quadlet"
+    )

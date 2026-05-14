@@ -287,6 +287,59 @@ def test_license_bsl_file_exists_alongside_containerfile() -> None:
     )
 
 
+def test_containerfile_has_no_active_entrypoint() -> None:
+    """Sprint-9 Tag-6 (Bug 6 from Live-Bring-up-2-Bilanz 2026-05-14):
+    the image is STRICTLY caller-driven. No baked ``ENTRYPOINT``.
+
+    The v0.1.2 image previously baked ``ENTRYPOINT ["python3"]`` plus
+    a default ``CMD ["--version"]``. The bucket-init Quadlet supplied
+    its own ``Exec=python3 /opt/wakir/bin/nats-kv-bucket-provision
+    ...`` line; the result was the entrypoint+exec concatenation
+    ``python3 python3 /opt/wakir/bin/...`` where the second
+    ``python3`` was interpreted as a script path relative to
+    ``WORKDIR=/opt/wakir-runtime``. The container crashed at unit
+    start with ``python3: can't open file
+    '/opt/wakir-runtime/python3'``.
+
+    The Tag-6 fix removes both ``ENTRYPOINT`` and ``CMD`` as defence-
+    in-depth: the image MUST not silently re-introduce the doubled-
+    interpreter bug for any future caller.
+
+    A commented-out ``# ENTRYPOINT`` is fine (it documents intent);
+    only an active directive is rejected.
+    """
+    text = _read(CONTAINERFILE)
+    for raw in text.splitlines():
+        stripped = raw.lstrip()
+        if stripped.startswith("#"):
+            continue
+        if re.match(r"^\s*ENTRYPOINT\b", raw):
+            raise AssertionError(
+                f"Containerfile carries active ENTRYPOINT directive: "
+                f"{raw!r}; Sprint-9 Tag-6 contract forbids baked "
+                f"entrypoints for the wakir-provisioner image (the "
+                f"caller supplies the interpreter)"
+            )
+
+
+def test_containerfile_has_no_active_cmd() -> None:
+    """Sprint-9 Tag-6: companion to the no-ENTRYPOINT invariant. The
+    image MUST NOT bake a default ``CMD`` either; the bucket-init
+    Quadlet is the canonical caller and is explicit about every
+    argument including the interpreter."""
+    text = _read(CONTAINERFILE)
+    for raw in text.splitlines():
+        stripped = raw.lstrip()
+        if stripped.startswith("#"):
+            continue
+        if re.match(r"^\s*CMD\b", raw):
+            raise AssertionError(
+                f"Containerfile carries active CMD directive: "
+                f"{raw!r}; Sprint-9 Tag-6 contract forbids baked "
+                f"default commands for the wakir-provisioner image"
+            )
+
+
 def test_containerfile_version_label_matches_bsl_relicense_tag() -> None:
     """The image-version label MUST be ``0.1.2`` — the tag bump that
     accompanies the AR-Decision 2026-05-13 BSL relicense.
