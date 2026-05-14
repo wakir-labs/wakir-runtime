@@ -149,7 +149,20 @@ Image=ghcr.io/wakir-labs/wakir-provisioner:0.1.2@sha256:DIGEST_PENDING_TOMAS_REV
 # Exec invokes the provisioner against the local NATS, sourcing the
 # onboarded-orgs roster from a bind-mounted file. The ``--orgs-file``
 # path resolves inside the container to the bind-mount target.
-Exec=python3 /opt/wakir/bin/nats-kv-bucket-provision \
+#
+# Sprint-9 Tag-7 substance-fix (Bug-17, Mira-Bug-Bilanz 2026-05-14):
+# the wakir-provisioner Containerfile carries ``ENTRYPOINT
+# ["python3"]``. A leading ``python3`` in this Exec= produced an
+# effective container argv of ``python3 python3 /opt/wakir/bin/...``,
+# which the inner python3 interpreted as a script path relative to
+# ``WorkingDir=/opt/wakir-runtime`` and crashed with
+# ``can't open file '/opt/wakir-runtime/python3'``. The script under
+# ``/opt/wakir/bin/nats-kv-bucket-provision`` carries its own
+# ``#!/usr/bin/env python3`` shebang and is executable, so invoking
+# it directly through the entrypoint is the correct form. This is
+# the same fix shape we applied to the SPIRE-Server / SPIRE-Agent
+# Quadlets in PR #44 (the image-entrypoint discipline).
+Exec=/opt/wakir/bin/nats-kv-bucket-provision \
   --servers nats://wakir-nats:4222 \
   --orgs-file /etc/wakir/onboarded-orgs
 
