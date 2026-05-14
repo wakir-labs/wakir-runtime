@@ -30,8 +30,12 @@
 # references. We mirror the bootstrap's substitution into a tmp
 # staging dir and run the dryrun against that.
 #
-# We exercise both ``wakir`` and ``partner`` sides — the partner-side
-# is a strict mirror of the wakir-side under the dual-trust-domain
+# We exercise three sides: ``wakir`` (the Phase-1b Pilot-VM Side),
+# ``partner`` (the same-host hermetic federation peer from Sprint-8
+# Tag-1), and ``orbit`` (the Sprint-10 Tag-1 Cross-VM Federation peer-
+# VM). The orbit-side is a strict mirror of the wakir-side under the
+# Cross-VM dual-trust-domain
+# +(partner-side stays as same-host hermetic-test fixture)
 # bring-up that lands in Phase-2.1, and any drift between the two
 # substitution paths is itself a regression.
 #
@@ -141,6 +145,11 @@ stage_for_side() {
 
 stage_wakir=$(stage_for_side "wakir" "wakir.test" "spire-server-wakir")
 stage_partner=$(stage_for_side "partner" "partner.test" "spire-server-partner")
+# Sprint-10-Tag-1 Cross-VM-Federation substance: ``orbit`` is the
+# Partner-VM-Side trust-domain. The lint exercises it as a third
+# stage variant so any Quadlet-template drift that breaks orbit-side
+# substitution is caught at PR-time, not on the live Partner-VM.
+stage_orbit=$(stage_for_side "orbit" "orbit.test" "spire-server-orbit")
 
 run_dryrun_for_side() {
   local side=$1
@@ -181,10 +190,12 @@ run_dryrun_for_side() {
 rc=0
 run_dryrun_for_side "wakir"   "$stage_wakir"   || rc=$?
 run_dryrun_for_side "partner" "$stage_partner" || rc=$?
+run_dryrun_for_side "orbit"   "$stage_orbit"   || rc=$?
 
 if [[ "$rc" -ne 0 ]]; then
   exit "$rc"
 fi
 
 echo "$PROG: all sides OK ($(ls "$stage_wakir" | wc -l) units / side)"
+echo "$PROG: sides=wakir+partner+orbit (Sprint-10 Tag-1 Cross-VM-Federation substance)"
 exit 0
