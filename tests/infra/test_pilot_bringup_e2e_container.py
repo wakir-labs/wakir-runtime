@@ -168,6 +168,27 @@ _STUB_PODMAN = textwrap.dedent(
       inspect) exit 1 ;;     # "container not present" forces create path
       create) echo "stub-container-id"; exit 0 ;;
       start) exit 0 ;;
+      exec)
+        # Bug-19 follow-on (Sprint-9 Tag-7): the bootstrap Phase-6 path
+        # issues ``podman exec <server> spire-server token generate
+        # -spiffeID <jt_spiffe> -ttl 3600`` and parses the output via
+        #   sed -n 's/^Token:[[:space:]]*\\(.*\\)$/\\1/p'
+        # expecting a line of the form ``Token: <hex>``. The previous
+        # default-stub ``*) exit 0`` printed nothing, so the bootstrap
+        # logged "ERROR spire-server token generate produced no parseable
+        # token" and step_6_quadlet returned 2 -- masking Phase 8 (Smoke)
+        # from ever being reached. The real Pilot-VM produces a Token:-
+        # prefixed line; the stub must do the same. Match on the
+        # token-generate sub-command tail; fall through to no-op for any
+        # other exec invocation.
+        if [[ "$*" == *"spire-server token generate"* ]]; then
+          # Deterministic 32-hex stub token; bootstrap only checks
+          # non-emptiness before substituting into the agent Quadlet.
+          echo "Token: deadbeefcafef00d0000000000000000"
+          exit 0
+        fi
+        exit 0
+        ;;
       *) exit 0 ;;
     esac
     """
@@ -295,6 +316,22 @@ def _run_bootstrap_in_container(
     inner_script = textwrap.dedent(
         f"""\
         set -u
+        # 0. Install jq inside the fedora:latest substrate.
+        #
+        #    Bug-19 (Sprint-9 Tag-7, Lena Bundle-Merge 2026-05-14 ~02:00 CEST):
+        #    the e2e-container lane runs the bootstrap with
+        #    ``--resume-from 4``, which skips Phase 3 (CLI-Tools-Install:
+        #    cosign + skopeo + jq + git). Phase 5 of the bootstrap parses
+        #    skopeo-inspect output via ``jq``; with jq absent the shell
+        #    emits ``jq: command not found`` and the Quadlet install path
+        #    downstream is left in an inconsistent state, so Phase 8
+        #    (Smoke) is never reached and the test asserts. The real
+        #    Fedora-CoreOS Pilot-VM has jq via Phase 3 (rpm-ostree); the
+        #    container stub must match that substrate. We install jq via
+        #    dnf -- the minimal install (no weak deps) keeps the cold-pull
+        #    budget small.
+        dnf install -y --setopt=install_weak_deps=False jq >/dev/null 2>&1 \\
+          || {{ echo "[e2e] FATAL: jq install failed"; exit 1; }}
         # 1. Make the stubs the primary tools.
         export PATH="/work/stubs:$PATH"
         # 2. Fake os-release.
