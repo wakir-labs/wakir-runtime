@@ -22,6 +22,15 @@ repository, including:
 - the one-shot pilot bring-up wrapper
   (`wakir-pilot-bootstrap.sh`).
 
+In addition, the following Federation-Substanz-adjacent operator
+tooling lives outside `infra/spire/federation/` but is governed by
+this licence file, because its sole purpose is to observe and
+verify the Federation-Server live substrate:
+
+- `bin/proxmox-bringup-smoke` — Operator-Hand Self-Verify suite for
+  the Pilot-VM bring-up. Re-licensed Apache-2.0 -> BSL 1.1 in
+  Sprint-9 Tag-6 (Pilot-VM live-bring-up #2, 2026-05-14).
+
 The Wakir Provisioner image, sitting in the
 `infra/spire/federation/provisioner/` subdirectory, has its own
 BSL header (see

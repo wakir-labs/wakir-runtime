@@ -42,7 +42,13 @@
 
 name: e2e-vm-acceptance-gate
 
-on:
+# YAML 1.1 reserved-word note (Sprint-9 Tag-6 Bug E2E fix):
+# Bare `on:` is parsed by YAML 1.1 (and the strict-mode resolver path
+# used by some GitHub Actions validators on push) as the boolean
+# `True`, not as the string key `"on"`. That collapses the trigger
+# map and surfaces as a 0-job workflow that fails instantly. Quoting
+# the key forces string interpretation and restores the trigger.
+"on":
   push:
     branches:
       - main

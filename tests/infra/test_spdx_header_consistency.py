@@ -86,6 +86,16 @@ SPIRE_AGENT_BSL_SOURCES: tuple[str, ...] = (
     "infra/spire/agent/config/spire-agent-partner.conf",
 )
 
+# Sub-Baum 4: Federation-Substanz-adjacent operator tooling.
+# The proxmox-bringup-smoke binary self-verifies the live Federation-
+# Server substrate (SPIRE-Server + SPIRE-Agent + NATS-KV marker-
+# stack-bucket). It was re-licensed Apache-2.0 -> BSL 1.1 in
+# Sprint-9 Tag-6 alongside the parser-hardening + e2e-vm-workflow
+# fixes (Pilot-VM bring-up #2, 2026-05-14).
+OPERATOR_TOOLING_BSL_SOURCES: tuple[str, ...] = (
+    "bin/proxmox-bringup-smoke",
+)
+
 # Tests that exercise BSL subjects — these must inherit the subject
 # licence per ADR-0059 §"Test-Files folgen Subjekt-Lizenz".
 BSL_TEST_SOURCES: tuple[str, ...] = (
@@ -127,11 +137,16 @@ BSL_TEST_SOURCES: tuple[str, ...] = (
     "tests/orchestrator/test_nats_kv_bucket_provision.py",
     "tests/orchestrator/test_nats_kv_bucket_provision_multi_family.py",
     "tests/orchestrator/test_proxmox_bringup_smoke.py",
+    "tests/orchestrator/test_proxmox_bringup_smoke_retry.py",
+    "tests/orchestrator/test_proxmox_bringup_smoke_parser_hardening.py",
     "tests/orchestrator/test_multi_org_onboarding_recipe.py",
     "tests/orchestrator/test_check_federation_evaluator_health.py",
     # Infra tests against pilot-bootstrap / pin form (BSL subjects)
     "tests/infra/test_pilot_bootstrap.py",
     "tests/infra/test_python_image_pin_form.py",
+    # E2E VM acceptance-gate workflow YAML (BSL subject: Federation-
+    # Server live-substrate verification surface).
+    "tests/infra/test_e2e_vm_workflow_yaml_validation.py",
     # Federation-Health-CLI
     "scripts/check-federation-evaluator-health.py",
     # Provisioner-Tests (subject = wakir-provisioner BSL)
@@ -154,7 +169,8 @@ def _read_head(path: Path, bytes_: int = 4096) -> str:
     "rel",
     WIRELANG_FED_BSL_SOURCES
     + SPIRE_FED_BSL_SOURCES
-    + SPIRE_AGENT_BSL_SOURCES,
+    + SPIRE_AGENT_BSL_SOURCES
+    + OPERATOR_TOOLING_BSL_SOURCES,
 )
 def test_substance_file_carries_busl_header(rel: str) -> None:
     """Every BSL substance file must carry ``SPDX-License-Identifier: BUSL-1.1``."""
