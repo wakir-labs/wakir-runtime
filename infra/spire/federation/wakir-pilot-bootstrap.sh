@@ -1246,9 +1246,16 @@ step_6_quadlet() {
     # TV-BRINGUP-06 config-path invariant.
     if [[ -f "$server_conf_src" ]]; then
       local server_conf_dst="/etc/wakir/spire-federation/spire-server-${side}.conf"
-      if ! cmp -s "$server_conf_src" "$server_conf_dst" 2>/dev/null; then
-        install -m 644 "$server_conf_src" "$server_conf_dst"
-      fi
+      # Sprint-10-Tag-2 Bug-28 fix: single-org server config is now
+      # ``<TRUST_DOMAIN>``-tokenised (mirror of the Quadlet-template
+      # substitution at L1269-1273). Use _install_substituted so the
+      # tokens are replaced with the side-specific values at install
+      # time. Federation variant has the trust_domain baked-in per
+      # ``spire-server-${side}.conf`` so the substitution is a no-op
+      # for that path — sed runs idempotent there.
+      _install_substituted "$server_conf_src" "$server_conf_dst" \
+          -e "s|<TRUST_DOMAIN>|${WAKIR_TRUST_DOMAIN}|g" \
+        || { log_err "install $server_conf_src failed"; return 2; }
     else
       log_warn "${server_conf_src} not found in repo; skipping config install"
     fi
@@ -1298,9 +1305,14 @@ step_6_quadlet() {
     # /etc/wakir/spire-agent-${side}.conf in BOTH modes.
     if [[ -f "$agent_conf_src" ]]; then
       local agent_conf_dst="/etc/wakir/spire-agent-${side}.conf"
-      if ! cmp -s "$agent_conf_src" "$agent_conf_dst" 2>/dev/null; then
-        install -m 644 "$agent_conf_src" "$agent_conf_dst"
-      fi
+      # Sprint-10-Tag-2 Bug-28 fix: single-org agent config is now
+      # ``<TRUST_DOMAIN>``/``<SERVER_DNS>``-tokenised. Use
+      # _install_substituted (idempotent on already-substituted
+      # federation variants).
+      _install_substituted "$agent_conf_src" "$agent_conf_dst" \
+          -e "s|<TRUST_DOMAIN>|${WAKIR_TRUST_DOMAIN}|g" \
+          -e "s|<SERVER_DNS>|spire-server-${side}|g" \
+        || { log_err "install $agent_conf_src failed"; return 2; }
     else
       log_warn "${agent_conf_src} not found in repo"
     fi
