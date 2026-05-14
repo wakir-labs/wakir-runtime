@@ -199,8 +199,11 @@ jobs:
           import re, sys
           path = '$target'
           text = open(path).read()
-          # Find a named-volume Volume= line with :Z and drop the :Z.
-          pat = re.compile(r'^(Volume=wakir-spire-agent-<SIDE>-data\.volume:/var/lib/spire/agent):Z\$', re.MULTILINE)
+          # Find a named-volume Volume= line with :Z (with or without
+          # trailing flags like ,U from Bug-26 fix) and drop the Z.
+          # Pattern: capture the src:dst prefix, then match :Z optionally
+          # followed by ',U' or other flags, replace with empty options.
+          pat = re.compile(r'^(Volume=wakir-spire-agent-<SIDE>-data\.volume:/var/lib/spire/agent):Z(,[A-Za-z]+)?\$', re.MULTILINE)
           new_text, n = pat.subn(r'\1', text)
           assert n == 1, f'M2 mutation injection failed — n={n}'
           open(path,'w').write(new_text)

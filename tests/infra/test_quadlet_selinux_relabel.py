@@ -303,3 +303,176 @@ def test_known_bug20_lines_have_relabel_flag() -> None:
         "Bug-20 known-target relabel-flag regressions:\n  "
         + "\n  ".join(missing)
     )
+
+
+# ====================================================================
+# Sprint-9-Tag-11 Bug-26 — :U-Flag-Disziplin (Volume-Chown-on-Mount)
+# ====================================================================
+#
+# AR-Live-Diagnose 2026-05-15 ~01:35 UTC auf Pilot-VM 192.168.178.116
+# via Mira-SSH (ADR-0051-Revision):
+#
+#   01:34:57  Owner=1000:1000  Mtime=01:34:57         (Bootstrap-chown OK)
+#   01:35:09  Owner=1000:1000  Mtime=01:34:57         (stat-verify happy)
+#   01:35:14  Owner=0:0        Mtime=2026-04-27 23:31 (Container-Start!
+#                                                     Podman re-init)
+#   01:35:19+ Owner=0:0        SELinux-MCS-cat ändert sich pro Restart
+#
+# Root cause: Tag-8 :Z-Flag macht SELinux-Relabel, NICHT chown auf
+# Container-User. Podman-Volume-Mount mit :Z plus --user 1000:1000 ohne
+# :U lässt Mountpoint root-owned → Container kann nicht in Volume
+# schreiben → KeyManager-Disk crash.
+#
+# Fix: zusätzlich :U-Flag — Podman chown'd Volume auf Container-User
+# bei jedem Mount. Bootstrap-chown wird damit redundant, kann bleiben
+# als defense-in-depth.
+#
+# Test-Vector index
+# -----------------
+#
+#   * TV-S9T11-26a  Every named-volume Volume= line in a Quadlet that
+#     declares ``User=1000`` carries ``:U`` in its options (in addition
+#     to ``:Z``). Bind-mounts (absolute host paths) and ``:ro,Z``
+#     volumes are exempt.
+#
+#   * TV-S9T11-26b  Per-line allow-list: the 10 specific Volume= lines
+#     that triggered Bug-26 in Live-Bring-up-7 (2026-05-14 ~19:30 CEST,
+#     ~01:35 UTC 2026-05-15) are individually verified.
+#
+# Sandbox boundary: pure source-static, no podman exec, no live-VM.
+
+
+# -- TV-S9T11-26a ------------------------------------------------------
+
+
+def _quadlet_declares_user_1000(path: Path) -> bool:
+    """Return True if the unit file declares ``User=1000`` (the SPIRE-
+    container convention)."""
+    for raw in path.read_text().splitlines():
+        if raw.strip() == "User=1000":
+            return True
+    return False
+
+
+def _is_named_volume_rw_mount(line: str) -> bool:
+    """Filter: is this Volume= line a named-volume (not bind-mount) and
+    not :ro? Only those need :U."""
+    body = line.removeprefix("Volume=").strip()
+    # Bind-mount: source starts with '/'
+    if body.startswith("/"):
+        return False
+    # Bind-mount-into-quadlet-config-dir form like '/etc/wakir/...':
+    # already covered by '/' prefix above.
+    opts = _volume_options(line)
+    if "ro" in opts:
+        return False
+    return True
+
+
+def test_every_user1000_named_volume_has_U_flag(
+    quadlet_inventory: list[Path],
+) -> None:
+    """Every rw named-volume Volume= in a User=1000 Quadlet must carry
+    ``:U`` (chown-to-container-user) — Bug-26 fix.
+
+    Mutation-coverage: removing ``,U`` from any one such line in source
+    MUST cause this assertion to fail with a diagnostic naming
+    file/line/options.
+    """
+    failures: list[str] = []
+    for unit in quadlet_inventory:
+        if not _quadlet_declares_user_1000(unit):
+            continue
+        rel = unit.relative_to(REPO_ROOT)
+        for lineno, line in _parse_volume_lines(unit):
+            if not _is_named_volume_rw_mount(line):
+                continue
+            opts = _volume_options(line)
+            if "U" not in opts:
+                failures.append(
+                    f"{rel}:{lineno} missing :U chown-to-container-user "
+                    f"flag — options={opts!r}; line={line!r}"
+                )
+    assert not failures, (
+        "Bug-26 :U-discipline violations (Sprint-9-Tag-11):\n  "
+        + "\n  ".join(failures)
+    )
+
+
+# -- TV-S9T11-26b ------------------------------------------------------
+
+
+def test_bug26_known_targets_have_U_flag() -> None:
+    """Hard-coded line-checks for the exact 10 Volume= directives that
+    triggered Bug-26 in Live-Bring-up-7 Owner-Race."""
+    targets: list[tuple[str, str]] = [
+        # Federation agent (3 rw)
+        (
+            "infra/spire/agent/quadlet/wakir-spire-agent-federation.container",
+            "wakir-spire-agent-<SIDE>-data.volume:/var/lib/spire/agent",
+        ),
+        (
+            "infra/spire/agent/quadlet/wakir-spire-agent-federation.container",
+            "wakir-spire-agent-<SIDE>-sockets.volume:/run/spire/agent-sockets",
+        ),
+        # Federation server (3 rw)
+        (
+            "infra/spire/federation/quadlet/wakir-spire-server-federation.container",
+            "wakir-spire-server-federation-<SIDE>-data.volume:/var/lib/spire/server",
+        ),
+        (
+            "infra/spire/federation/quadlet/wakir-spire-server-federation.container",
+            "wakir-spire-server-federation-<SIDE>-sockets.volume:/run/spire/sockets",
+        ),
+        (
+            "infra/spire/federation/quadlet/wakir-spire-server-federation.container",
+            "wakir-spire-server-federation-<SIDE>-bundles.volume:/var/lib/spire/bundles",
+        ),
+        # Single-org agent (3 rw)
+        (
+            "quadlet/wakir-spire-agent.container",
+            "wakir-spire-agent-data.volume:/var/lib/spire/agent",
+        ),
+        (
+            "quadlet/wakir-spire-agent.container",
+            "wakir-spire-server-sockets.volume:/run/spire/sockets",
+        ),
+        (
+            "quadlet/wakir-spire-agent.container",
+            "wakir-spire-agent-sockets.volume:/run/spire/agent-sockets",
+        ),
+        # Single-org server (2 rw)
+        (
+            "quadlet/wakir-spire-server.container",
+            "wakir-spire-server-data.volume:/var/lib/spire/server",
+        ),
+        (
+            "quadlet/wakir-spire-server.container",
+            "wakir-spire-server-sockets.volume:/run/spire/sockets",
+        ),
+    ]
+    missing: list[str] = []
+    for rel, prefix in targets:
+        path = REPO_ROOT / rel
+        text = path.read_text()
+        pattern = re.compile(
+            r"^Volume=" + re.escape(prefix) + r"(?::([^\r\n]*))?\s*$",
+            re.MULTILINE,
+        )
+        match = pattern.search(text)
+        if match is None:
+            missing.append(
+                f"{rel}: no Volume= line matching prefix {prefix!r}"
+            )
+            continue
+        opts_blob = match.group(1) or ""
+        opts = [p.strip() for p in opts_blob.split(",") if p.strip()]
+        if "U" not in opts:
+            missing.append(
+                f"{rel}: {prefix!r} present but options={opts!r} "
+                "lack :U chown-to-container-user flag"
+            )
+    assert not missing, (
+        "Bug-26 known-target :U-flag regressions:\n  "
+        + "\n  ".join(missing)
+    )

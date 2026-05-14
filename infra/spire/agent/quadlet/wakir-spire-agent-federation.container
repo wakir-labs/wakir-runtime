@@ -124,7 +124,7 @@ Volume=/etc/wakir/spire-agent-<SIDE>.conf:/etc/spire/agent/agent.conf:ro,Z
 # failed: permission denied" on /var/lib/spire/agent/.probe) during
 # Bring-up-4 on AR-Fred's pilot VM (2026-05-14). Root file of the
 # Bring-up-4-cleanup; see PR body and ADR-pending-Tag-8.
-Volume=wakir-spire-agent-<SIDE>-data.volume:/var/lib/spire/agent:Z
+Volume=wakir-spire-agent-<SIDE>-data.volume:/var/lib/spire/agent:Z,U
 #
 # 3) Federated-bundles ingest (read-only mount of the server-side
 #    bundles volume — the Tag-1 server-federation Quadlet creates
@@ -143,7 +143,7 @@ Volume=wakir-spire-server-federation-<SIDE>-bundles.volume:/var/lib/spire/bundle
 #    this volume. Phase-2.3+ persona-containers mount this volume
 #    read-only at the same path; the `spiffe.workload_api` client
 #    targets `unix:///run/spire/agent-sockets/api.sock`.
-Volume=wakir-spire-agent-<SIDE>-sockets.volume:/run/spire/agent-sockets:Z
+Volume=wakir-spire-agent-<SIDE>-sockets.volume:/run/spire/agent-sockets:Z,U
 
 # tmpfs for ephemeral SPIRE runtime paths (parity with server).
 #
