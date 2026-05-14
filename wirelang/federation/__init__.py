@@ -150,6 +150,17 @@ from .spire_fed_bundle_peer_fetcher import (  # noqa: F401
     UnpinnedTrustDomainError,
     UrlTrustDomainMismatchError,
 )
+from .spire_fed_bundle_live_https_fetcher import (  # noqa: F401
+    DEFAULT_FETCH_TIMEOUT_SECONDS,
+    LiveBundleFetchError,
+    LiveBundleHttpStatusError,
+    LiveBundleTimeoutError,
+    LiveBundleTlsError,
+    LiveHttpsSpireFedBundleFetcher,
+    MAX_BUNDLE_BYTES,
+    SPIRE_FED_BUNDLE_LIVE_HTTPS_FETCHER_SCHEMA,
+    SpireFedBundleLiveFetcherError,
+)
 
 __all__ = [
     "BRIDGE_RESOLUTION_SCHEMA",
@@ -192,4 +203,13 @@ __all__ = [
     "SpireFedBundlePeerTrustBundleFetcher",
     "UnpinnedTrustDomainError",
     "UrlTrustDomainMismatchError",
+    "DEFAULT_FETCH_TIMEOUT_SECONDS",
+    "LiveBundleFetchError",
+    "LiveBundleHttpStatusError",
+    "LiveBundleTimeoutError",
+    "LiveBundleTlsError",
+    "LiveHttpsSpireFedBundleFetcher",
+    "MAX_BUNDLE_BYTES",
+    "SPIRE_FED_BUNDLE_LIVE_HTTPS_FETCHER_SCHEMA",
+    "SpireFedBundleLiveFetcherError",
 ]

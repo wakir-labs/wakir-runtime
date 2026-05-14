@@ -9,14 +9,33 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wirelang-schema-registry
-version: 0.36.0
+version: 0.37.0
 status: draft
-date: 2026-05-14
+date: 2026-05-15
 audience: implementers, integrators, operators
 license: CC-BY-4.0
 ---
 
-# Wirelang Schema Registry — NATS-KV Backend Specification (v0.36.0)
+# Wirelang Schema Registry — NATS-KV Backend Specification (v0.37.0)
+
+**Sprint-7 Pfad-B Tag-6 Phase-2c Live-HTTPS counterpart adapter
+(2026-05-15).** This version adds one substantive load-bearing
+addition over v0.36.0: the **`LiveHttpsSpireFedBundleFetcher`
+adapter** (`wirelang.federation.spire_fed_bundle_live_https_fetcher`)
+— the Phase-2c live HTTPS counterpart to the v0.36.0 Tag-5
+hermetic `SpireFedBundlePeerTrustBundleFetcher`. The new adapter
+implements the same `PeerTrustBundleFetcher` Protocol by issuing
+an HTTPS GET against a real SPIRE-Server federation bundle
+endpoint listener, parses the response, and constructs a
+bridge-consumable :class:`FetchedTrustBundle`. Closes the Tag-5
+Open-Item on URL-shape: SPIRE-Server bundle endpoint serves at
+the listener's **root path** (`"/"`), empirically verified
+against the upstream Go implementation
+(`pkg/server/endpoints/bundle/server.go`); the new live-fetcher's
+pinned-URL convention therefore drops the `/bundle` suffix the
+hermetic adapter used. Compatibility note: the Tag-5 hermetic
+adapter remains byte-identical; both adapters now coexist as
+explicit hermetic vs. live siblings.
 
 **Sprint-7 Pfad-B Tag-5 Multi-Org-Federation Live-Component
 adapter (2026-05-14).** This version adds one substantive load-
@@ -5339,6 +5358,238 @@ v0.36.0 is purely additive over v0.35.0:
   consume the spire-fed-bundle CLI as their fetcher; the existing
   in-test `_FixedBundleFetcher` fixture remains the recommended
   pattern for hermetic unit-level bridge tests.
+
+### 5.22 Multi-Org-Federation Phase-2c Live-HTTPS counterpart adapter (Phase-2 Sprint-7 Pfad-B Tag-6)
+
+Sprint-7 Pfad-B Tag-6 lands the **Phase-2c live HTTPS counterpart**
+to the Tag-5 hermetic
+:class:`SpireFedBundlePeerTrustBundleFetcher`. The live adapter
+implements the same :class:`PeerTrustBundleFetcher` Protocol so a
+Wakir-side bridge can swap one for the other via a single
+constructor call. The hermetic-vs-live choice is an *operator
+concern*; the bridge layer is invariant.
+
+#### 5.22.1 Module + Schema-URI
+
+- Module:
+  `wirelang.federation.spire_fed_bundle_live_https_fetcher`
+- Schema-URI:
+  `wakir.federation.spire-fed-bundle-live-https-fetcher/1`
+- Primary class: :class:`LiveHttpsSpireFedBundleFetcher` (frozen
+  dataclass, implements the bridge's :class:`PeerTrustBundleFetcher`
+  Protocol).
+
+#### 5.22.2 Construction surface
+
+```
+LiveHttpsSpireFedBundleFetcher(
+    trust_domain_to_url={
+        "orbit.test": "https://wakir-orbit:8443",
+        "wakir.test": "https://wakir-pilot:8443",
+    },
+    verify_ca_bundle_path="/etc/wakir/spire-federation/ca-bundle.pem",  # XOR
+    insecure_tls=True,                                                  # XOR
+    timeout_seconds=10.0,
+    max_bundle_bytes=1<<20,
+    clock=optional_callable_returning_tz_aware_utc,
+)
+```
+
+TLS posture is **mutually exclusive**: exactly one of
+`verify_ca_bundle_path` or `insecure_tls=True` MUST be set. The
+constructor raises `ValueError` on ambiguity (both set OR neither
+set). `insecure_tls=True` is the Phase-2c pilot posture documented
+under §5.22.4. `verify_ca_bundle_path` is the production posture.
+
+`trust_domain_to_url` is the adapter's pin set. URLs MUST resolve
+to the SPIRE-Server federation bundle endpoint root path
+(no path suffix); see §5.22.5 "URL contract — root-path
+resolution".
+
+#### 5.22.3 Resolution contract (`fetch(url, trust_domain)`)
+
+1. Reject if `trust_domain` is not in the pin set
+   (`UnpinnedTrustDomainError`, re-used from Tag-5).
+2. Reject if `url` does not equal the pinned URL for the requested
+   `trust_domain` (`UrlTrustDomainMismatchError`, re-used from
+   Tag-5).
+3. Issue an HTTPS GET against the pinned URL inside
+   `asyncio.to_thread` so the bridge's asyncio event loop is not
+   blocked. TLS posture is determined by `verify_ca_bundle_path` vs
+   `insecure_tls`.
+4. Map any transport failure to a typed live-fetcher error:
+   - DNS / TCP / OSError → `LiveBundleFetchError` with the
+     underlying exception attached as `cause`.
+   - Non-2xx HTTP status → `LiveBundleHttpStatusError` carrying the
+     status code and URL.
+   - Read timeout → `LiveBundleTimeoutError` carrying the elapsed
+     timeout and URL.
+   - TLS handshake failure → `LiveBundleTlsError` carrying the
+     `ssl.SSLError` as `cause`.
+   - Empty body OR body exceeding `max_bundle_bytes` →
+     `LiveBundleFetchError`.
+5. On a 2xx response, read the body up to `max_bundle_bytes` and
+   construct a :class:`FetchedTrustBundle` with the requested
+   trust-domain, the pinned URL, the body bytes, and
+   `self._now()` as `fetched_at`.
+6. Return the bundle.
+
+The bridge catches any `SpireFedBundleLiveFetcherError` subclass
+(and any other exception) from the fetcher and re-raises as
+:class:`PeerTrustBundleFetchError` with the original as `cause` —
+the bridge's fail-closed contract is preserved.
+
+#### 5.22.4 Phase-2c TLS posture
+
+Two modes, **mutually exclusive**:
+
+1. **Production**: `verify_ca_bundle_path=<path-to-pem>` — the TLS
+   handshake succeeds only if the server certificate chains to a
+   CA in the PEM bundle. This is the boring-default for any
+   production federation. The CA-bootstrap lifecycle is Kai's
+   operator-hand artefact (Phase-2.6 trust-bundle rotation runbook).
+2. **Phase-2c pilot**: `insecure_tls=True` — TLS verification is
+   disabled entirely. This is the pilot posture for the two
+   wakir-pilot/wakir-orbit VMs while they run with self-signed
+   SPIRE-Server certs and no shared CA-bootstrap path yet. The
+   `insecure_tls=True` mode is gated by an explicit constructor
+   argument so no production caller can fall into it by accident
+   (default `False`; constructor raises on mode ambiguity).
+
+The `verify_ca_bundle_path=None AND insecure_tls=False` default
+combination is intentionally invalid; the operator MUST make the
+posture choice explicit. The Phase-2c production migration path is
+"flip `insecure_tls=True` to `verify_ca_bundle_path=<path>`" — a
+one-line constructor change. No bridge-side change required.
+
+#### 5.22.5 URL contract — root-path resolution
+
+The SPIRE-Server federation bundle endpoint serves the bundle at
+the listener's **root path** (`"/"`). The upstream Go
+implementation enforces this with an explicit
+`if req.URL.Path != "/" { http.NotFound(w, req) }` guard in
+`pkg/server/endpoints/bundle/server.go`. The canonical pinned-URL
+shape for the live fetcher is therefore
+`https://<peer-host>:8443` (no path suffix); URLs with a trailing
+slash are equivalent.
+
+This decision closes the **Tag-5 Open-Item** (see
+`2026-05-14-reza-sprint-7-pfad-b-tag-5-federation-live-component.md`
+cross-review Zone-A D-2 Kai). The Tag-5 hermetic adapter's
+pinned-URL shape included a `/bundle` suffix because the hermetic
+exporter is opaque to URL — only the trust-domain literal feeds
+the JWKS fixture. For the live fetcher the URL is **load-bearing**
+and MUST be root-path. The Tag-5 hermetic suffix convention is
+therefore a *hermetic-mode convenience* and does NOT constrain the
+live-mode pin set.
+
+Operator-side consequence: the wakir-orbit and wakir-pilot SPIRE-
+Server config blocks (`infra/spire/federation/config/spire-server-
+{orbit,wakir}.conf` §`federation { bundle_endpoint { ... } }`)
+configure the listener at `port = 8443` on the SPIRE-Server's bind
+address; the listener already serves at root path with no extra
+config. The Kai-side configs do NOT need a path-prefix rewrite.
+
+#### 5.22.6 Sandbox boundary (ADR-0051)
+
+The live module **is** the explicit boundary-crossing surface in
+the Phase-2 federation substrate. The Tag-5 hermetic module
+remains hermetic-only; *this* module is the explicit import-graph
+signal of the Sandbox-Host trennung
+(`feedback_sandbox_host_trennung.md`). Callers that opt into live
+federation MUST import this module explicitly — the import is the
+architectural marker.
+
+The module is hermetic-testable: the test suite stands up a stdlib
+`http.server.ThreadingHTTPServer` on loopback with a self-signed
+cert generated in-test via the `cryptography` X.509 surface (no
+podman, no container, no SPIRE-Server). The boundary-crossing in
+production is the operator-hand TLS-CA-bootstrap, not the test
+surface.
+
+#### 5.22.7 Cross-Module composition contract
+
+The live fetcher slots into the same Sprint-7
+Multi-Org-Federation substrate as the Tag-5 hermetic adapter,
+exposing the identical `PeerTrustBundleFetcher` contract:
+
+- Tag-1 :class:`MultiOrgRouteAttestation` envelope carries the
+  `peer_trust_bundle_url`. The bridge passes it to the live
+  fetcher.
+- Tag-2 :class:`NatsKvMultiOrgAttestationRegistry` stores the
+  attestation durably; the bridge consumes a snapshot.
+- Tag-3 :class:`SpiffeCrossTrustDomainBridge` orchestrates the
+  resolution. The live fetcher is its `trust_bundle_fetcher` slot.
+- Tag-4 :class:`CapabilityAttenuationChainVerifier` verifies the
+  capability-chain riding the bridged route.
+- Tag-5 hermetic
+  :class:`SpireFedBundlePeerTrustBundleFetcher` remains the
+  hermetic option.
+- Tag-6 (this section)
+  :class:`LiveHttpsSpireFedBundleFetcher` is the live option.
+
+#### 5.22.8 Test inventory
+
+`wirelang/tests/test_spire_fed_bundle_live_https_fetcher.py` ships
+20 hermetic tests plus 1 opt-in live-integration test (skipped
+unless `WAKIR_LIVE_PARTNER_URL` is set):
+
+- T-LIVE-HTTPS-01: happy-path against a 200 mock.
+- T-LIVE-HTTPS-02: `insecure_tls=True` Phase-2c pilot posture also
+  succeeds.
+- T-LIVE-HTTPS-03: unpinned trust-domain rejected
+  (`UnpinnedTrustDomainError`).
+- T-LIVE-HTTPS-04: URL mismatch for a pinned trust-domain rejected
+  (`UrlTrustDomainMismatchError`).
+- T-LIVE-HTTPS-05: connect refusal surfaces as
+  `LiveBundleFetchError`.
+- T-LIVE-HTTPS-06: 404 surfaces as `LiveBundleHttpStatusError`
+  (URL-shape mismatch sentinel).
+- T-LIVE-HTTPS-07: 500 surfaces as `LiveBundleHttpStatusError`.
+- T-LIVE-HTTPS-08: slow server trips
+  `LiveBundleTimeoutError`.
+- T-LIVE-HTTPS-09: TLS verification failure surfaces as
+  `LiveBundleTlsError`.
+- T-LIVE-HTTPS-10: schema-URI is the documented stable string.
+- T-LIVE-HTTPS-11: posture ambiguity (both TLS modes set) rejected
+  at construction.
+- T-LIVE-HTTPS-12: posture ambiguity (neither TLS mode set)
+  rejected at construction.
+- T-LIVE-HTTPS-13: oversized response body refused with
+  `LiveBundleFetchError`.
+- T-LIVE-HTTPS-14: empty response body refused.
+- T-LIVE-HTTPS-15: documented default constants are
+  byte-precise.
+- T-LIVE-HTTPS-16: clock returning naive datetime rejected.
+- T-LIVE-HTTPS-17: clock returning non-datetime rejected.
+- T-LIVE-HTTPS-18: two trust-domains return two distinct
+  bundles against two distinct pinned URLs.
+- T-LIVE-HTTPS-19: zero/negative `timeout_seconds` rejected.
+- T-LIVE-HTTPS-20: zero/negative `max_bundle_bytes` rejected.
+- T-LIVE-INT (opt-in): live integration test against
+  `$WAKIR_LIVE_PARTNER_URL`; happy-path only.
+
+All 20 hermetic tests green on first hermetic run. Live test
+opt-in via `WAKIR_LIVE_PARTNER_URL` env (e.g.
+`https://wakir-orbit:8443`).
+
+#### 5.22.9 Compatibility statement
+
+v0.37.0 is purely additive over v0.36.0:
+
+- No existing module surface changes.
+- Sprint-7 Tag-3 bridge is consumed via the *existing*
+  `PeerTrustBundleFetcher` Protocol — no Protocol change.
+- The Tag-5 hermetic
+  :class:`SpireFedBundlePeerTrustBundleFetcher` is byte-identical
+  to v0.36.0; both hermetic and live adapters coexist.
+- Sprint-7 Tag-1..Tag-6 module surfaces are byte-identical to
+  v0.36.0.
+- The live adapter is opt-in: callers MUST construct it
+  explicitly. The Tag-5 hermetic adapter remains the recommended
+  pattern for hermetic unit-level bridge tests; the live adapter
+  is the boundary-crossing surface for Phase-2c live federation
+  trial and beyond.
 
 ## 6. Test inventory
 
