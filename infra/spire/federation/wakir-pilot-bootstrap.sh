@@ -138,6 +138,7 @@ esac
 : "${WAKIR_BOOTSTRAP_GIT:=git}"
 : "${WAKIR_BOOTSTRAP_SMOKE:=}"   # if empty, derived from REPO_ROOT
 : "${WAKIR_BOOTSTRAP_TOOLBOX:=toolbox}"
+: "${WAKIR_BOOTSTRAP_SLEEP:=sleep}"   # Bug-25 wait-helpers; tests inject noop
 
 # ---------------------------------------------------------------------------
 # Output helpers
@@ -894,6 +895,116 @@ _pre_start_chown_sweep() {
 }
 
 # ---------------------------------------------------------------------------
+# Helper: wait for a systemd unit to actually become ``is-active`` after
+# a ``systemctl start`` returns. The start call is fire-and-forget — it
+# returns as soon as systemd has accepted the job, while the unit is
+# still ``activating``. The Quadlet-generated containers spend
+# noticeable wall-time in ``activating`` on first-boot (image-pull-from-
+# cache, container-init, server-attestation handshake, SVID-caching,
+# Workload-API socket bind). The Sprint-9 bring-up-1/2/3/4/5/6 smoke
+# runs all observed this race: the bootstrap returned success and the
+# smoke-test (attempts=6, ~30s) caught the unit still in
+# ``activating`` state.
+#
+# Bug-25 (Sprint-9 Tag-10) substance fix: after each ``systemctl
+# start`` of a long-running Quadlet container, block until ``is-active
+# --quiet`` returns 0, capped at ``WAKIR_BOOTSTRAP_WAIT_ACTIVE_TIMEOUT``
+# seconds. The 300s default covers a cold-cache image pull on a slow
+# Proxmox-VE node; bring-up-6 first-run reached ``active`` in 15-25s
+# wall-clock. ``WAKIR_BOOTSTRAP_WAIT_ACTIVE_POLL`` controls the poll
+# interval (5s default — fast enough to keep the OK line close to
+# actual ``active`` transition, slow enough not to spam systemd).
+#
+# Args:
+#   $1  unit name (e.g. ``wakir-spire-server-federation-wakir.service``)
+#
+# Returns:
+#   0  unit reached ``active`` within the timeout
+#   2  hard failure (timeout exhausted; caller MUST propagate)
+#
+# Side effects:
+#   * On timeout: dumps ``systemctl status <unit> --no-pager`` to stderr
+#     so the next operator sees the failure surface immediately.
+#   * Logs the wall-clock seconds the wait took on success (operator
+#     calibration for future timeout tuning).
+# ---------------------------------------------------------------------------
+
+_wait_for_service_active() {
+  local unit="$1"
+  local timeout="${WAKIR_BOOTSTRAP_WAIT_ACTIVE_TIMEOUT:-300}"
+  local poll="${WAKIR_BOOTSTRAP_WAIT_ACTIVE_POLL:-5}"
+  local elapsed=0
+
+  # Fast path: many idempotent re-runs hit a unit that was already
+  # active when systemctl start was invoked. Probe once before sleeping.
+  if "$WAKIR_BOOTSTRAP_SYSTEMCTL" is-active --quiet "$unit"; then
+    log_ok "${unit} is-active (already, t=0s)"
+    return 0
+  fi
+
+  while [[ $elapsed -lt $timeout ]]; do
+    "${WAKIR_BOOTSTRAP_SLEEP:-sleep}" "$poll" 2>/dev/null \
+      || sleep "$poll"
+    elapsed=$((elapsed + poll))
+    if "$WAKIR_BOOTSTRAP_SYSTEMCTL" is-active --quiet "$unit"; then
+      log_ok "${unit} is-active (after ${elapsed}s wait)"
+      return 0
+    fi
+  done
+
+  log_err "${unit} did not reach is-active within ${timeout}s (Bug-25 race window not closed)"
+  log_note "diagnose: journalctl -u ${unit} -n 100 --no-pager"
+  "$WAKIR_BOOTSTRAP_SYSTEMCTL" status "$unit" --no-pager >&2 2>/dev/null || true
+  return 2
+}
+
+# ---------------------------------------------------------------------------
+# Helper: wait for the SPIRE-Agent Workload-API socket to be bound
+# inside the agent container. ``systemd is-active`` returning ``active``
+# means the container init succeeded; it does NOT guarantee that the
+# SPIRE-Agent has finished server-attestation and bound
+# ``/run/spire/agent-sockets/api.sock``. Bring-up-3/4/5/6 Run-2 evidence:
+# units active, healthcheck still fails because the workload-API
+# socket has not been created yet.
+#
+# Bug-25 (Sprint-9 Tag-10) substance fix: after the agent unit reaches
+# ``is-active``, additionally block until ``podman exec ... test -S
+# /run/spire/agent-sockets/api.sock`` returns 0. This closes the
+# second race window inside step_6_quadlet, before bootstrap completes
+# and the smoke-test fires.
+#
+# Args:
+#   $1  agent container name (e.g. ``wakir-spire-agent-wakir``)
+#
+# Returns:
+#   0  socket exists inside the agent container
+#   2  hard failure (timeout; caller MUST propagate)
+# ---------------------------------------------------------------------------
+
+_wait_for_workload_api_socket() {
+  local container="$1"
+  local timeout="${WAKIR_BOOTSTRAP_WAIT_SOCKET_TIMEOUT:-120}"
+  local poll="${WAKIR_BOOTSTRAP_WAIT_SOCKET_POLL:-5}"
+  local socket="/run/spire/agent-sockets/api.sock"
+  local elapsed=0
+
+  while [[ $elapsed -lt $timeout ]]; do
+    if "$WAKIR_BOOTSTRAP_PODMAN" exec "$container" \
+         test -S "$socket" 2>/dev/null; then
+      log_ok "${container} workload-API socket bound (after ${elapsed}s wait)"
+      return 0
+    fi
+    "${WAKIR_BOOTSTRAP_SLEEP:-sleep}" "$poll" 2>/dev/null \
+      || sleep "$poll"
+    elapsed=$((elapsed + poll))
+  done
+
+  log_err "${container} workload-API socket ${socket} not bound within ${timeout}s (Bug-25 race window not closed)"
+  log_note "diagnose: podman exec ${container} ls -la /run/spire/agent-sockets/ ; journalctl -u wakir-spire-agent-*.service -n 100 --no-pager"
+  return 2
+}
+
+# ---------------------------------------------------------------------------
 # Step 6: Quadlet units
 # ---------------------------------------------------------------------------
 
@@ -1229,6 +1340,12 @@ step_6_quadlet() {
       return 2
     fi
     log_ok "${server_unit} started"
+    # Bug-25 (Sprint-9 Tag-10) substance fix: systemctl start returns
+    # while the unit is still ``activating``. Block until is-active
+    # before issuing the join-token generate against the server (step
+    # 6i) — otherwise ``podman exec ... spire-server token generate``
+    # races the server boot and crashes the bootstrap.
+    _wait_for_service_active "$server_unit" || return 2
   fi
 
   # 6i. Sprint-9-Tag-6 Bug 1/15 substance-fix: single-org Phase-1b
@@ -1331,6 +1448,21 @@ step_6_quadlet() {
       return 2
     fi
     log_ok "${unit} started"
+    # Bug-25 (Sprint-9 Tag-10) substance fix: wait for the unit to
+    # actually reach is-active before proceeding. systemctl start
+    # returns while the unit is still ``activating`` (Quadlet-
+    # generated container does image-pull-from-cache + container-init
+    # + attestation handshake + SVID-caching + socket-bind in the
+    # background). Bring-up-3/4/5/6 Run-1 evidence: smoke caught the
+    # unit ``activating`` because the bootstrap did not wait.
+    _wait_for_service_active "$unit" || return 2
+    # Agent has an additional race window after is-active: the
+    # Workload-API socket gets bound only after server-attestation
+    # completes. Bring-up-3/4/5/6 Run-2 evidence: units active but
+    # socket FAIL. Wait for it explicitly.
+    if [[ "$kind" == "agent" ]]; then
+      _wait_for_workload_api_socket "wakir-spire-agent-${side}" || return 2
+    fi
   done
 
   return 0

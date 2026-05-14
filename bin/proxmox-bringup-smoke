@@ -156,7 +156,16 @@ SLEEP="${WAKIR_SMOKE_SLEEP:-sleep}"
 # RETRY_MAX = 0 deaktiviert das Retry-Wrapping (Baseline-Semantik fuer
 # Tag-1 hermetic tests). RETRY_MAX > 0 macht die als race-tolerant
 # markierten Checks N-mal versuchen mit exponentiellem Backoff.
-RETRY_MAX="${WAKIR_SMOKE_RETRY_MAX:-5}"
+#
+# Sprint-9 Tag-10 Bug-25 substance-fix (defence-in-depth, Pfad B):
+# bumped from 5 to 30 to cover the first-boot wait-window without
+# relying solely on the bootstrap's _wait_for_service_active /
+# _wait_for_workload_api_socket helpers. With the 5s cap, 30 retries
+# total ~= 0.5+1+2+4+5+5+...+5 ~= 130s worst case, which is enough to
+# survive a cold-cache image-pull on the Proxmox VM even if the
+# bootstrap-side wait helpers were misconfigured. Hermetic tests
+# override via WAKIR_SMOKE_RETRY_MAX=0 to keep test wall-clock low.
+RETRY_MAX="${WAKIR_SMOKE_RETRY_MAX:-30}"
 RETRY_BASE="${WAKIR_SMOKE_RETRY_BASE:-0.5}"
 
 # ---------------------------------------------------------------------------
@@ -256,7 +265,13 @@ with_retry() {
 # Check 1: quadlet-units-active
 # ---------------------------------------------------------------------------
 
-check_quadlet_units_active() {
+# Sprint-9 Tag-10 Bug-25 substance-fix: race-tolerance via with_retry.
+# Bring-up-3/4/5/6 Run-1 evidence: ``quadlet-units-active FAIL
+# (wakir-spire-agent-wakir.service:activating)`` because the bootstrap
+# returned before the unit transitioned from ``activating`` to
+# ``active``. Source-fix lives in the bootstrap
+# (_wait_for_service_active); this retry is defence-in-depth.
+_probe_quadlet_units_active() {
   local units=(
     wakir-nats.service
     wakir-spire-server-federation-wakir.service
@@ -279,9 +294,20 @@ check_quadlet_units_active() {
     missing+=("$oneshot:failed")
   fi
   if [[ ${#missing[@]} -eq 0 ]]; then
-    record "quadlet-units-active" "PASS" "all 3 long-running + 1 oneshot units ok"
+    RETRY_DETAIL="all 3 long-running + 1 oneshot units ok"
+    return 0
+  fi
+  RETRY_DETAIL="${missing[*]} (race: service-boot-wait-window)"
+  return 1
+}
+
+check_quadlet_units_active() {
+  if with_retry _probe_quadlet_units_active; then
+    record "quadlet-units-active" "PASS" \
+      "$RETRY_LAST_DETAIL" "$RETRY_LAST_ATTEMPTS"
   else
-    record "quadlet-units-active" "FAIL" "${missing[*]}"
+    record "quadlet-units-active" "FAIL" \
+      "$RETRY_LAST_DETAIL" "$RETRY_LAST_ATTEMPTS"
   fi
 }
 
@@ -393,26 +419,37 @@ check_spire_agent_healthy() {
 # Check 5: spire-workload-api-reachable
 # ---------------------------------------------------------------------------
 
-check_spire_workload_api_reachable() {
-  # The agent-sockets named volume mounts the Workload-API socket
-  # inside the container at /run/spire/agent-sockets/api.sock. We
-  # exec into the agent container and ask the SPIRE binary to dial it.
+# Sprint-9 Tag-10 Bug-25 substance-fix: race-tolerance via with_retry.
+# Bring-up-3/4/5/6 Run-2 evidence: ``spire-workload-api-reachable FAIL
+# (api.sock connect: no such file)`` because the SPIRE-Agent had not
+# yet finished server-attestation and socket-bind by the time the
+# smoke checked. Source-fix lives in the bootstrap
+# (_wait_for_workload_api_socket); this retry is defence-in-depth.
+_probe_spire_workload_api_reachable() {
   local out
   if out=$("$PODMAN" exec wakir-spire-agent-wakir \
         /opt/spire/bin/spire-agent api fetch x509 \
           -socketPath /run/spire/agent-sockets/api.sock 2>&1); then
+    RETRY_DETAIL="fetch x509 succeeded"
+    return 0
+  fi
+  # "no identity issued" is acceptable for the bring-up smoke if
+  # no test workload entry has been registered yet (recipe §4.5).
+  if echo "$out" | grep -q "no identity issued"; then
+    RETRY_DETAIL="socket reachable; no entry registered (acceptable pre-§4.5)"
+    return 0
+  fi
+  RETRY_DETAIL="$(echo "$out" | head -1) (race: workload-api-socket-bind-window)"
+  return 1
+}
+
+check_spire_workload_api_reachable() {
+  if with_retry _probe_spire_workload_api_reachable; then
     record "spire-workload-api-reachable" "PASS" \
-      "fetch x509 succeeded"
+      "$RETRY_LAST_DETAIL" "$RETRY_LAST_ATTEMPTS"
   else
-    # "no identity issued" is acceptable for the bring-up smoke if
-    # no test workload entry has been registered yet (recipe §4.5).
-    if echo "$out" | grep -q "no identity issued"; then
-      record "spire-workload-api-reachable" "PASS" \
-        "socket reachable; no entry registered (acceptable pre-§4.5)"
-    else
-      record "spire-workload-api-reachable" "FAIL" \
-        "$(echo "$out" | head -1)"
-    fi
+    record "spire-workload-api-reachable" "FAIL" \
+      "$RETRY_LAST_DETAIL" "$RETRY_LAST_ATTEMPTS"
   fi
 }
 
