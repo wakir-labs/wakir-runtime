@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# persona-pilot-export — ADR-0058 Pilot-Persona Migration, Schritt 8.
+#
+# Operator-facing CLI for the Tomás-Persona-State-Export rehearsal:
+# produces a deterministic state-export bundle from the Claude-Code-
+# Sandbox-side persona artefacts (persona-definition + workspace
+# state + active-spawn-memory) into a Wakir-Runtime-format JSON
+# document ready to be consumed by the wakir-runtime persona-engine
+# spawn pipeline.
+#
+# Posture (mirror of persona-converter Crate-9):
+# - Thin shim over `persona-engine-format` map_claude_native_to_wakir_v1
+#   for the persona-definition slice. The workspace + active-spawn
+#   slices are read-only file-system walks plus sha256 hashing — no
+#   business logic beyond that.
+# - Byte-deterministic output: JCS-canonicalised JSON bundle.
+# - No live-VM operations: this CLI runs on the operator's Claude-Code-
+#   Sandbox side and produces a portable export-bundle. The live-spawn
+#   side (Wakir-Runtime VM) is operator-hand-only (ADR-0051 boundary).
+# - Sandbox-safe: read-only on the AI-Corp tree; write-only to the
+#   --out target path (operator-supplied).
+#
+# Exit codes (mirror of persona-converter §7.4):
+#   0  = success
+#   1  = schema / parse error (persona-definition front-matter invalid)
+#   2  = V-907 hash-drift (persona-definition recomputed hash != pin)
+#   3  = input not found (--persona-def, --workspace-dir)
+#   64 = argparse usage error
+
+[package]
+name = "persona-pilot-export"
+version = "0.1.0"
+description = "ADR-0058 Pilot-Persona Migration Schritt 8: Tomás-Persona-State-Export-CLI. Produces deterministic state-export bundle (persona-definition + workspace-state + active-spawn-memory) for wakir-runtime spawn ingestion."
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+
+[[bin]]
+name = "wakir-persona-pilot-export"
+path = "src/main.rs"
+
+[lib]
+name = "persona_pilot_export"
+path = "src/lib.rs"
+
+[dependencies]
+persona-engine-format = { path = "../persona-engine-format" }
+persona-hash          = { path = "../persona-hash" }
+# clap 4.x derive — argparse with subcommand, matching persona-converter posture.
+clap                  = { version = "=4.5.20", features = ["derive", "std", "help", "usage", "error-context"], default-features = false }
+serde                 = { workspace = true }
+serde_json            = { workspace = true }
+serde_jcs             = { workspace = true }
+sha2                  = { workspace = true, features = ["std"] }
+hex                   = { workspace = true }
+
+[dev-dependencies]
+# Temp directories for hermetic export-target tests.
+tempfile              = "=3.13.0"
