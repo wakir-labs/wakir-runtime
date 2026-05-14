@@ -1635,7 +1635,15 @@ EOF
 # ---------------------------------------------------------------------------
 
 step_8_smoke() {
-  log_step 8 "$TOTAL_STEPS" "Smoke-Test (proxmox-bringup-smoke --org ${WAKIR_ORG_ID})"
+  # Sprint-10-Tag-2 Bug-29 fix: smoke is side-aware (since PR #53), but
+  # the bootstrap forgot to pass --side and so the smoke probe always
+  # checked the ``wakir``-side units. On the orbit-side VM that yielded
+  # a deterministic FAIL because the wakir-side units do not exist
+  # there. Forward WAKIR_SIDE explicitly. side="wakir" matches the
+  # pre-PR-53 default smoke behaviour so existing single-VM (pilot)
+  # smoke continues to work unchanged.
+  local side="${WAKIR_SIDE:-wakir}"
+  log_step 8 "$TOTAL_STEPS" "Smoke-Test (proxmox-bringup-smoke --org ${WAKIR_ORG_ID} --side ${side})"
 
   local smoke="${WAKIR_BOOTSTRAP_SMOKE:-${WAKIR_REPO_ROOT}/bin/proxmox-bringup-smoke}"
   if [[ ! -x "$smoke" ]]; then
@@ -1643,7 +1651,7 @@ step_8_smoke() {
     return 2
   fi
 
-  if "$smoke" --org "$WAKIR_ORG_ID"; then
+  if "$smoke" --org "$WAKIR_ORG_ID" --side "$side"; then
     log_ok "smoke: 6/6 checks PASS"
     return 0
   fi
