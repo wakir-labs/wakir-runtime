@@ -769,6 +769,131 @@ step_5_image_pins() {
 }
 
 # ---------------------------------------------------------------------------
+# Helper: chown a Podman named-volume backing directory to uid:gid
+# 1000:1000 and verify the result via ``stat``. Idempotent and
+# defensive — safe to invoke before every ``systemctl start`` of a
+# Quadlet container that mounts the volume (Bug-22 Tag-9 substance
+# fix, see step 6g rationale block).
+#
+# Args:
+#   $1  volume name (e.g. ``wakir-spire-agent-wakir-data``)
+#   $2  invocation context tag (logged on failure, e.g.
+#       ``step-6g-initial`` or ``step-6h-pre-server-start``)
+#
+# Returns:
+#   0  ownership confirmed at ``1000:1000``
+#   2  hard failure — caller MUST propagate
+#
+# Side effects:
+#   * Surfaces chown stderr (Bug-21 invariant).
+#   * Stat-verifies post-chown owner (Bug-21 invariant).
+#   * With WAKIR_BOOTSTRAP_DEBUG=1: emits a before-and-after stat
+#     line on stderr for the next operator's diagnosis.
+# ---------------------------------------------------------------------------
+
+_chown_volume_with_verify() {
+  local v="$1"
+  local ctx="$2"
+  local vol_dir actual_owner pre_owner
+
+  vol_dir=$("$WAKIR_BOOTSTRAP_PODMAN" volume inspect "$v" \
+    --format '{{.Mountpoint}}' 2>/dev/null || echo "")
+  if [[ -z "$vol_dir" ]] || [[ ! -d "$vol_dir" ]]; then
+    log_err "podman volume inspect ${v} returned empty/missing path (ctx=${ctx})"
+    return 2
+  fi
+
+  if [[ "${WAKIR_BOOTSTRAP_DEBUG:-0}" == "1" ]]; then
+    pre_owner=$(stat -c '%u:%g' "$vol_dir" 2>/dev/null || echo "stat-err")
+    log_note "debug ${ctx}: pre-chown ${vol_dir} owner=${pre_owner}"
+  fi
+
+  if ! chown -R 1000:1000 "$vol_dir"; then
+    log_err "chown 1000:1000 ${vol_dir} failed (volume ${v}, ctx=${ctx})"
+    return 2
+  fi
+
+  # Verify ownership actually took effect on the directory itself.
+  # ``-R`` walks the tree, but the directory's own owner is the
+  # post-chown invariant the SPIRE process cares about.
+  actual_owner=$(stat -c '%u:%g' "$vol_dir")
+  if [[ "$actual_owner" != "1000:1000" ]]; then
+    log_err "chown verification failed: ${vol_dir} owner=${actual_owner} (expected 1000:1000, volume ${v}, ctx=${ctx})"
+    return 2
+  fi
+
+  if [[ "${WAKIR_BOOTSTRAP_DEBUG:-0}" == "1" ]]; then
+    log_note "debug ${ctx}: post-chown ${vol_dir} owner=${actual_owner} (ok)"
+  fi
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# Helper: defensive re-chown sweep for the volume set mounted by a
+# specific Quadlet container, invoked immediately before ``systemctl
+# start`` to close the Bug-22 race window. The volume set per
+# container is hard-coded here (mirrors the ``Volume=`` lines in the
+# corresponding Quadlet templates) so future template drift surfaces
+# as a missing pre-start chown rather than a silent regression.
+#
+# Args:
+#   $1  container kind: ``server`` | ``agent`` | ``nats``
+#   $2  side (e.g. ``wakir``); ignored for ``nats``
+#
+# Returns:
+#   0  all volumes confirmed at ``1000:1000``
+#   2  hard failure — caller MUST propagate
+# ---------------------------------------------------------------------------
+
+_pre_start_chown_sweep() {
+  local kind="$1"
+  local side="$2"
+  local ctx="pre-${kind}-start"
+  local v vols=()
+
+  case "$kind" in
+    server)
+      # Mirror of wakir-spire-server-federation.container Volume= lines.
+      vols=(
+        "wakir-spire-server-federation-${side}-data"
+        "wakir-spire-server-federation-${side}-sockets"
+        "wakir-spire-server-federation-${side}-bundles"
+      )
+      ;;
+    agent)
+      # Mirror of wakir-spire-agent-federation.container Volume= lines.
+      # Note: the agent mounts the server-side bundles volume ro,Z; we
+      # still re-chown it here defensively.
+      vols=(
+        "wakir-spire-agent-${side}-data"
+        "wakir-spire-agent-${side}-sockets"
+        "wakir-spire-server-federation-${side}-bundles"
+      )
+      ;;
+    nats)
+      # Mirror of wakir-nats.container Volume= line. NATS runs as
+      # uid:1000 too (compose parity). The bucket-init service is a
+      # one-shot client and does not mount its own volume.
+      vols=(
+        "wakir-nats-jetstream-data"
+      )
+      ;;
+    *)
+      log_err "_pre_start_chown_sweep: unknown kind ${kind}"
+      return 2
+      ;;
+  esac
+
+  for v in "${vols[@]}"; do
+    # Volume may not yet exist for NATS on a first bring-up; create
+    # idempotently. Server/agent volumes are pre-created in step 6g.
+    "$WAKIR_BOOTSTRAP_PODMAN" volume create --ignore "$v" >/dev/null 2>&1 || true
+    _chown_volume_with_verify "$v" "$ctx" || return 2
+  done
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 # Step 6: Quadlet units
 # ---------------------------------------------------------------------------
 
@@ -1024,7 +1149,7 @@ step_6_quadlet() {
   # owned by root by default; the container processes are non-root
   # per Quadlet ``User=1000`` and would otherwise fail with
   # ``permission denied`` on first write (``agent-data.json``,
-  # ``keys.json``, Workload-API socket bind). The four volumes touched:
+  # ``keys.json``, Workload-API socket bind). The five volumes touched:
   #   * wakir-spire-server-federation-${side}-data
   #   * wakir-spire-server-federation-${side}-sockets
   #   * wakir-spire-server-federation-${side}-bundles
@@ -1032,6 +1157,7 @@ step_6_quadlet() {
   #   * wakir-spire-agent-${side}-sockets
   # We let Podman create the volumes first via ``podman volume create
   # --ignore`` (idempotent) and then chown their backing mount-point.
+  #
   # Sprint-9-Tag-8 Bug-21 substance-fix: the previous block swallowed
   # chown stderr via ``2>/dev/null`` and degraded a real failure to a
   # log_warn while still emitting the global ``OK normalised`` line.
@@ -1040,7 +1166,35 @@ step_6_quadlet() {
   # silently failed and the SPIRE-Agent then crash-looped on first
   # write. Fix: surface chown stderr, hard-verify owner via stat, halt
   # the bootstrap with return-code 2 on mismatch.
-  local v vol_dir actual_owner
+  #
+  # Sprint-9-Tag-9 Bug-22 substance-fix: on Bring-up-5 (AR Fred,
+  # 2026-05-14 ~14:00 CEST) the bootstrap reported the Bug-21 OK
+  # line (``stat-verified``) yet the SPIRE-Agent immediately crash-
+  # looped with the Bug-20 ``permission denied`` symptom on
+  # ``/var/lib/spire/agent/.probe``. Post-mortem ``ls -lnd`` on the
+  # agent-data volume's ``_data`` showed owner ``0 0`` even though
+  # ``stat`` had reported ``1000:1000`` ~2 seconds earlier in step 6g.
+  # Re-running the same one-shot curl|bash without other changes
+  # produced 6/6 PASS — a non-deterministic Time-of-Check-vs-Time-of-
+  # Use race between step 6g's ``podman volume create --ignore`` +
+  # chown and step 6h/6j's ``systemctl start`` (which triggers podman-
+  # system-generator to reconcile the named volume against the
+  # ``.volume`` Quadlet unit, in some Podman builds re-initialising
+  # the volume's backing directory).
+  #
+  # The fix is defensive idempotence: the chown-and-verify pass is
+  # extracted into ``_chown_volume_with_verify`` and re-applied
+  # immediately before each ``systemctl start`` of a Quadlet container
+  # that mounts a named volume (step 6h server-start, step 6j agent-
+  # start + NATS-start). Robust against any race we have not yet
+  # named: if the owner gets reset between step 6g and the service-
+  # start, we observe it and re-chown before the container init runs.
+  # If owner is already ``1000:1000`` the helper is a fast no-op.
+  #
+  # The WAKIR_BOOTSTRAP_DEBUG=1 env-var emits before/after stat lines
+  # for each chown invocation (off by default — keeps production logs
+  # clean; flip on for the next bring-up to capture the race).
+  local v
   for v in \
       "wakir-spire-server-federation-${side}-data" \
       "wakir-spire-server-federation-${side}-sockets" \
@@ -1049,24 +1203,7 @@ step_6_quadlet() {
       "wakir-spire-agent-${side}-sockets"
   do
     "$WAKIR_BOOTSTRAP_PODMAN" volume create --ignore "$v" >/dev/null 2>&1 || true
-    vol_dir=$("$WAKIR_BOOTSTRAP_PODMAN" volume inspect "$v" \
-      --format '{{.Mountpoint}}' 2>/dev/null || echo "")
-    if [[ -z "$vol_dir" ]] || [[ ! -d "$vol_dir" ]]; then
-      log_err "podman volume inspect ${v} returned empty/missing path"
-      return 2
-    fi
-    if ! chown -R 1000:1000 "$vol_dir"; then
-      log_err "chown 1000:1000 ${vol_dir} failed (volume ${v})"
-      return 2
-    fi
-    # Verify ownership actually took effect on the directory itself.
-    # ``-R`` walks the tree, but the directory's own owner is the
-    # post-chown invariant the SPIRE process cares about.
-    actual_owner=$(stat -c '%u:%g' "$vol_dir")
-    if [[ "$actual_owner" != "1000:1000" ]]; then
-      log_err "chown verification failed: ${vol_dir} owner=${actual_owner} (expected 1000:1000, volume ${v})"
-      return 2
-    fi
+    _chown_volume_with_verify "$v" "step-6g-initial" || return 2
   done
   log_ok "named-volume permissions normalised (uid:gid 1000:1000, stat-verified)"
 
@@ -1074,10 +1211,17 @@ step_6_quadlet() {
   # for the join-token attestation handshake; starting them in
   # parallel from a single systemctl-start race-loop reliably loses
   # the first attestation attempt and forces a restart cycle.
+  #
+  # Sprint-9-Tag-9 Bug-22 substance-fix: defensive re-chown of the
+  # server's volume set IMMEDIATELY before systemctl start. Closes
+  # the TOC-vs-TOU race window between step 6g's ad-hoc chown and
+  # the podman-system-generator's volume reconciliation at service-
+  # start. See helper rationale.
   local server_unit="wakir-spire-server-federation-${side}.service"
   if "$WAKIR_BOOTSTRAP_SYSTEMCTL" is-active --quiet "$server_unit"; then
     log_ok "${server_unit} already active"
   else
+    _pre_start_chown_sweep "server" "$side" || return 2
     "$WAKIR_BOOTSTRAP_SYSTEMCTL" reset-failed "$server_unit" 2>/dev/null || true
     if ! "$WAKIR_BOOTSTRAP_SYSTEMCTL" start "$server_unit"; then
       log_err "systemctl start ${server_unit} failed"
@@ -1159,7 +1303,11 @@ step_6_quadlet() {
     fi
   fi
 
-  local unit
+  # Sprint-9-Tag-9 Bug-22 substance-fix: defensive re-chown of each
+  # container's volume set IMMEDIATELY before its systemctl start.
+  # ``server`` is handled in step 6h above; here we handle agent +
+  # NATS. The kind-to-volume mapping lives in _pre_start_chown_sweep.
+  local unit kind
   for unit in \
       "wakir-spire-agent-${side}.service" \
       "wakir-nats.service"
@@ -1167,6 +1315,14 @@ step_6_quadlet() {
     if "$WAKIR_BOOTSTRAP_SYSTEMCTL" is-active --quiet "$unit"; then
       log_ok "${unit} already active"
       continue
+    fi
+    case "$unit" in
+      "wakir-spire-agent-${side}.service") kind="agent" ;;
+      "wakir-nats.service")                kind="nats"  ;;
+      *)                                   kind=""      ;;
+    esac
+    if [[ -n "$kind" ]]; then
+      _pre_start_chown_sweep "$kind" "$side" || return 2
     fi
     "$WAKIR_BOOTSTRAP_SYSTEMCTL" reset-failed "$unit" 2>/dev/null || true
     if ! "$WAKIR_BOOTSTRAP_SYSTEMCTL" start "$unit"; then

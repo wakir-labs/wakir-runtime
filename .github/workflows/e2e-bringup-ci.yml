@@ -20,9 +20,16 @@
 #   the install-path produces a Quadlet substrate matching the
 #   substituted unit references. Skipped automatically when podman is
 #   not functional.
+# - Quadlet-lint lane (``quadlet-lint``): Sprint-9-Tag-9 Bug-23 close.
+#   Wraps ``/usr/libexec/podman/quadlet --dryrun`` against a sed-
+#   substituted snapshot of the Wakir Quadlet inventory (both wakir
+#   and partner sides). Catches the Live-Bring-up-Sandbox-Gap class
+#   of bugs (missing Volume= reference, malformed Container section,
+#   broken Image= pin) BEFORE the live Pilot-VM. Cost-free
+#   alternative to the AR-rejected ADR-0060 Live-VM-CI-Gate.
 #
-# Both lanes are MERGE-GATING for any change touching the bootstrap
-# script or the SPIRE-Federation Quadlet templates.
+# All three lanes are MERGE-GATING for any change touching the
+# bootstrap script or the SPIRE-Federation Quadlet templates.
 #
 # Cross-Review Zone N (QA × Henrik-Audit)
 # ---------------------------------------
@@ -46,20 +53,26 @@ on:
       - main
     paths:
       - 'infra/spire/federation/wakir-pilot-bootstrap.sh'
+      - 'infra/spire/federation/bin/wakir-quadlet-lint.sh'
       - 'infra/spire/federation/quadlet/**'
       - 'infra/spire/agent/quadlet/**'
-      - 'quadlet/wakir-nats-kv-bucket-init.container'
+      - 'quadlet/**'
       - 'tests/infra/test_pilot_bringup_substance.py'
       - 'tests/infra/test_pilot_bringup_e2e_container.py'
+      - 'tests/infra/test_pilot_bringup_tag9_cleanup.py'
+      - 'tests/infra/test_quadlet_lint.py'
       - '.github/workflows/e2e-bringup-ci.yml'
   pull_request:
     paths:
       - 'infra/spire/federation/wakir-pilot-bootstrap.sh'
+      - 'infra/spire/federation/bin/wakir-quadlet-lint.sh'
       - 'infra/spire/federation/quadlet/**'
       - 'infra/spire/agent/quadlet/**'
-      - 'quadlet/wakir-nats-kv-bucket-init.container'
+      - 'quadlet/**'
       - 'tests/infra/test_pilot_bringup_substance.py'
       - 'tests/infra/test_pilot_bringup_e2e_container.py'
+      - 'tests/infra/test_pilot_bringup_tag9_cleanup.py'
+      - 'tests/infra/test_quadlet_lint.py'
       - '.github/workflows/e2e-bringup-ci.yml'
   workflow_dispatch: {}
 
@@ -85,21 +98,74 @@ jobs:
           # The substance suite needs pyyaml only (for the parity
           # tests in the federation/tests/ sibling directory that share
           # the regression scope). The bring-up substance module itself
-          # has no third-party deps.
+          # has no third-party deps. The Tag-9 cleanup module is
+          # source-static + PATH-injected mocks — pytest only.
           pip install pytest pyyaml
 
       - name: Run substance suite
         run: |
           python -m pytest \
             tests/infra/test_pilot_bringup_substance.py \
+            tests/infra/test_pilot_bringup_tag6_cleanup.py \
+            tests/infra/test_pilot_bringup_tag7_cleanup.py \
+            tests/infra/test_pilot_bringup_tag8_cleanup.py \
+            tests/infra/test_pilot_bringup_tag9_cleanup.py \
+            tests/infra/test_pilot_bringup_single_org_config.py \
+            tests/infra/test_quadlet_selinux_relabel.py \
+            -v --color=yes
+
+  quadlet-lint:
+    name: Quadlet-Lint — podman quadlet --dryrun gate (Bug-23)
+    runs-on: ubuntu-latest
+    # Run inside a Fedora 40 container so we exercise podman 5.x
+    # (parity with the Pilot-VM substrate, FCOS-based) rather than
+    # Ubuntu's apt-repo podman 4.9.3 which has known --dryrun
+    # diagnostic differences. The whole job runs in the container;
+    # actions/checkout still mounts the workspace at /__w.
+    container:
+      image: registry.fedoraproject.org/fedora:40
+    # Run only after the substance lane passes; no point linting if
+    # the source-shape is broken.
+    needs: [substance]
+    steps:
+      - name: Install host tooling (git, python, podman)
+        run: |
+          dnf -y install --setopt=install_weak_deps=False \
+            git python3 python3-pip podman
+          podman --version
+          test -x /usr/libexec/podman/quadlet \
+            || { echo "ERROR: /usr/libexec/podman/quadlet missing after install" >&2; exit 1; }
+          /usr/libexec/podman/quadlet -version || true
+
+      - uses: actions/checkout@v4
+
+      - name: Install test deps
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install pytest
+
+      - name: Direct lint invocation (canonical diagnostics first)
+        run: |
+          # Run the lint script directly so the workflow log captures
+          # the canonical quadlet-generator stderr even if the
+          # pytest-driven assertions fail later. Free diagnostics
+          # for the operator.
+          bash infra/spire/federation/bin/wakir-quadlet-lint.sh
+
+      - name: Run quadlet-lint test-suite
+        if: always()
+        run: |
+          python3 -m pytest \
+            tests/infra/test_quadlet_lint.py \
             -v --color=yes
 
   e2e-container:
     name: E2E — bootstrap against containerized Fedora substrate
     runs-on: ubuntu-latest
-    # Run only after the substance lane passes; no point spinning a
-    # container if the source-shape is already broken.
-    needs: [substance]
+    # Run only after substance + quadlet-lint pass; no point spinning
+    # a Fedora container if the source-shape or Quadlet-source-graph
+    # is already broken.
+    needs: [substance, quadlet-lint]
     steps:
       - uses: actions/checkout@v4
 
