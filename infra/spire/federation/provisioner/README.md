@@ -172,6 +172,56 @@ git add infra/spire/federation/provisioner quadlet \
 git commit -m "chore(provisioner): pin wakir-provisioner:0.1.2 to verified digest"
 ```
 
+## Caller contract (no baked ENTRYPOINT, no baked CMD)
+
+**Sprint-9 Tag-6 change.** The image is strictly caller-driven: it
+ships **no** `ENTRYPOINT` and **no** `CMD`. The caller (the
+bucket-init Quadlet, or any future operator-side `podman run`
+invocation) MUST supply the full command line including the Python
+interpreter.
+
+Canonical Quadlet invocation:
+
+```ini
+Exec=python3 /opt/wakir/bin/nats-kv-bucket-provision \
+  --servers nats://wakir-nats:4222 \
+  --orgs-file /etc/wakir/onboarded-orgs
+```
+
+Canonical operator smoke (Operator-Hand, build host or live VM):
+
+```sh
+podman run --rm ghcr.io/wakir-labs/wakir-provisioner:<tag>@sha256:<digest> \
+    python3 --version
+```
+
+**Why this convention.** The v0.1.1 image baked
+`ENTRYPOINT ["python3"]` plus `CMD ["--version"]`. The bucket-init
+Quadlet supplied its own `Exec=python3 /opt/wakir/bin/...` line; the
+result was the entrypoint+exec concatenation
+`python3 python3 /opt/wakir/bin/...` where the second `python3` was
+interpreted as a script path relative to
+`WORKDIR=/opt/wakir-runtime`. The container crashed at unit start
+with `python3: can't open file '/opt/wakir-runtime/python3'`
+(Live-Bring-up-2-Bilanz 2026-05-14, Bug 6).
+
+Two fix paths were on the table — drop the entrypoint, or remove
+`python3` from the Quadlet `Exec=`. Both work, but they only work
+when chosen consistently. The Sprint-9 Tag-6 resolution applies BOTH
+as defence-in-depth:
+
+1. The Quadlet keeps `Exec=python3 /opt/wakir/bin/...` (Kai's Tag-6
+   edit; the Quadlet stays the canonical caller and is explicit
+   about which interpreter it wants).
+2. The image drops `ENTRYPOINT` and `CMD` entirely (Tomás-side; the
+   image cannot silently re-introduce the doubled-`python3` bug for
+   any future caller).
+
+A hermetic test
+(`infra/spire/federation/provisioner/tests/test_containerfile.py`)
+enforces the caller-driven convention: the Containerfile MUST NOT
+contain an active `ENTRYPOINT` or `CMD` directive.
+
 ## Verification (hermetic, sandbox-safe)
 
 The sandbox-side hermetic tests cover:

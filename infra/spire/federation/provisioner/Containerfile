@@ -129,7 +129,27 @@ RUN groupadd --gid 1000 wakir \
 USER 1000:1000
 WORKDIR /opt/wakir-runtime
 
-# Default ENTRYPOINT is python3; the Quadlet supplies the full Exec=
-# command line, so we do not bake a specific script path here.
-ENTRYPOINT ["python3"]
-CMD ["--version"]
+# No ENTRYPOINT, no CMD.
+#
+# Sprint-9 Tag-6 (Bug 6 from Live-Bring-up-2-Bilanz 2026-05-14):
+# the v0.1.2 image previously baked ``ENTRYPOINT ["python3"]`` plus
+# a default ``CMD ["--version"]``. The bucket-init Quadlet supplies
+# its own ``Exec=python3 /opt/wakir/bin/nats-kv-bucket-provision
+# ...`` line; the result is the entrypoint+exec concatenation
+# ``python3 python3 /opt/wakir/bin/...`` where the second
+# ``python3`` is interpreted as a script path relative to
+# ``WORKDIR=/opt/wakir-runtime`` and crashes the container at unit
+# start with ``python3: can't open file '/opt/wakir-runtime/python3'``.
+#
+# Fix: the Quadlet stays the canonical caller and supplies the
+# Python interpreter explicitly (Bug-8-Pfad-B per Kai's quadlet edit
+# in the matching Tag-6 PR). To keep the image robust against any
+# OTHER caller that also supplies its own interpreter, we drop the
+# ENTRYPOINT entirely and leave CMD empty: the image is strictly
+# caller-driven (defence-in-depth).
+#
+# Operator-Hand callers that want a one-shot ``python3 --version``
+# smoke can still use ``podman run --rm <image> python3 --version``;
+# they explicitly supply the interpreter. The provisioner-domain
+# convention is documented in
+# ``infra/spire/federation/provisioner/README.md``.
