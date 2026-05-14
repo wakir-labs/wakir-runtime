@@ -1032,7 +1032,15 @@ step_6_quadlet() {
   #   * wakir-spire-agent-${side}-sockets
   # We let Podman create the volumes first via ``podman volume create
   # --ignore`` (idempotent) and then chown their backing mount-point.
-  local v vol_dir
+  # Sprint-9-Tag-8 Bug-21 substance-fix: the previous block swallowed
+  # chown stderr via ``2>/dev/null`` and degraded a real failure to a
+  # log_warn while still emitting the global ``OK normalised`` line.
+  # On Bring-up-4 (AR Fred, 2026-05-14) the volumes stayed root-owned
+  # (uid:gid 0:0) even though the bootstrap reported success — chown
+  # silently failed and the SPIRE-Agent then crash-looped on first
+  # write. Fix: surface chown stderr, hard-verify owner via stat, halt
+  # the bootstrap with return-code 2 on mismatch.
+  local v vol_dir actual_owner
   for v in \
       "wakir-spire-server-federation-${side}-data" \
       "wakir-spire-server-federation-${side}-sockets" \
@@ -1043,12 +1051,24 @@ step_6_quadlet() {
     "$WAKIR_BOOTSTRAP_PODMAN" volume create --ignore "$v" >/dev/null 2>&1 || true
     vol_dir=$("$WAKIR_BOOTSTRAP_PODMAN" volume inspect "$v" \
       --format '{{.Mountpoint}}' 2>/dev/null || echo "")
-    if [[ -n "$vol_dir" ]] && [[ -d "$vol_dir" ]]; then
-      chown -R 1000:1000 "$vol_dir" 2>/dev/null \
-        || log_warn "chown 1000:1000 ${vol_dir} failed (volume ${v})"
+    if [[ -z "$vol_dir" ]] || [[ ! -d "$vol_dir" ]]; then
+      log_err "podman volume inspect ${v} returned empty/missing path"
+      return 2
+    fi
+    if ! chown -R 1000:1000 "$vol_dir"; then
+      log_err "chown 1000:1000 ${vol_dir} failed (volume ${v})"
+      return 2
+    fi
+    # Verify ownership actually took effect on the directory itself.
+    # ``-R`` walks the tree, but the directory's own owner is the
+    # post-chown invariant the SPIRE process cares about.
+    actual_owner=$(stat -c '%u:%g' "$vol_dir")
+    if [[ "$actual_owner" != "1000:1000" ]]; then
+      log_err "chown verification failed: ${vol_dir} owner=${actual_owner} (expected 1000:1000, volume ${v})"
+      return 2
     fi
   done
-  log_ok "named-volume permissions normalised (uid:gid 1000:1000)"
+  log_ok "named-volume permissions normalised (uid:gid 1000:1000, stat-verified)"
 
   # 6h. Start the server FIRST. The agent depends on a running server
   # for the join-token attestation handshake; starting them in

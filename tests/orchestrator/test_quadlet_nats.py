@@ -280,10 +280,15 @@ def test_quadlet_volume_mount_matches_compose(
     compose_doc: dict, quadlet_container: configparser.ConfigParser
 ) -> None:
     quadlet_volume_decl = quadlet_container.get("Container", "Volume")
-    # Quadlet form: ``<name>.volume:/mountpoint``
-    assert quadlet_volume_decl == "wakir-nats-jetstream-data.volume:/data/jetstream", (
+    # Quadlet form: ``<name>.volume:/mountpoint:Z``.
+    # Sprint-9-Tag-8 Bug-20: ``:Z`` SELinux-relabel flag is mandatory
+    # on FCOS-enforced hosts; compose-yaml has no equivalent because
+    # docker-compose carries volume-driver options elsewhere. Quadlet
+    # is the canonical install path on the pilot.
+    assert quadlet_volume_decl == "wakir-nats-jetstream-data.volume:/data/jetstream:Z", (
         f"Quadlet Volume= must reference wakir-nats-jetstream-data.volume "
-        f"sidecar mounted at /data/jetstream; got: {quadlet_volume_decl!r}"
+        f"sidecar mounted at /data/jetstream with the SELinux-relabel "
+        f"flag :Z; got: {quadlet_volume_decl!r}"
     )
 
     # Cross-check: compose volumes: short form must alias to the same

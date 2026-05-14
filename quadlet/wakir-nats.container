@@ -81,7 +81,14 @@ PublishPort=127.0.0.1:8222:8222
 # JetStream persistence: name-stable named volume defined in
 # wakir-nats-jetstream-data.volume sidecar. Quadlet references
 # .volume units by basename + .volume suffix.
-Volume=wakir-nats-jetstream-data.volume:/data/jetstream
+#
+# Sprint-9-Tag-8 Bug-20 substance-fix: ``:Z`` SELinux-relabel-private
+# is mandatory on FCOS-enforced hosts; without it the named volume
+# stays labeled ``root_t`` and the uid:1000 NATS process gets EACCES
+# on JetStream-store creation. Bug-20 was observed on the SPIRE-Agent
+# path (Bring-up-4 crash-loop, AR Fred 2026-05-14); the same root-
+# cause applies to every named-volume Quadlet on this host.
+Volume=wakir-nats-jetstream-data.volume:/data/jetstream:Z
 
 # User-defined bridge network for orchestrator co-location (defined in
 # wakir-orchestrator.network sidecar).

@@ -328,15 +328,21 @@ def test_quadlet_spire_server_volumes_match_compose(
         f"config bind-mount must be read-only; got: {config_mounts[0]!r}"
     )
 
-    # Named-volume: wakir-spire-server-data.volume sidecar
+    # Named-volume: wakir-spire-server-data.volume sidecar.
+    # Sprint-9-Tag-8 Bug-20: ``:Z`` SELinux-relabel flag is mandatory
+    # on FCOS-enforced hosts. compose/spire.yaml carries no equivalent
+    # because docker-compose volume options use a different (driver-
+    # level) syntax; the Quadlet side is the canonical install path on
+    # the pilot and ``:Z`` is the operator-correct mount option there.
     data_mounts = [v for v in quadlet_volumes if "wakir-spire-server-data.volume" in v]
-    assert data_mounts == ["wakir-spire-server-data.volume:/var/lib/spire/server"], (
+    assert data_mounts == ["wakir-spire-server-data.volume:/var/lib/spire/server:Z"], (
         f"server data named-volume mount drift; got: {data_mounts!r}"
     )
 
     # Named-volume: wakir-spire-server-sockets.volume sidecar
+    # (same Bug-20 ``:Z`` discipline as the data volume above).
     sock_mounts = [v for v in quadlet_volumes if "wakir-spire-server-sockets.volume" in v]
-    assert sock_mounts == ["wakir-spire-server-sockets.volume:/run/spire/sockets"], (
+    assert sock_mounts == ["wakir-spire-server-sockets.volume:/run/spire/sockets:Z"], (
         f"server sockets named-volume mount drift; got: {sock_mounts!r}"
     )
 
@@ -365,24 +371,27 @@ def test_quadlet_spire_agent_volumes_match_compose(
     assert ":/etc/spire/agent/agent.conf:" in config_mounts[0]
     assert "ro" in config_mounts[0].split(":")[-1].split(",")
 
+    # Sprint-9-Tag-8 Bug-20: ``:Z`` SELinux-relabel flag is mandatory
+    # on FCOS-enforced hosts; see the server-side test above for the
+    # full rationale.
     data_mounts = [v for v in quadlet_volumes if "wakir-spire-agent-data.volume" in v]
-    assert data_mounts == ["wakir-spire-agent-data.volume:/var/lib/spire/agent"]
+    assert data_mounts == ["wakir-spire-agent-data.volume:/var/lib/spire/agent:Z"]
 
     # Shared with server — same path inside the container so the gRPC
     # Unix-socket the server creates is reachable by the agent at the
-    # same address.
+    # same address. ``:Z`` per Bug-20.
     server_sock_mounts = [v for v in quadlet_volumes if "wakir-spire-server-sockets.volume" in v]
     assert server_sock_mounts == [
-        "wakir-spire-server-sockets.volume:/run/spire/sockets"
+        "wakir-spire-server-sockets.volume:/run/spire/sockets:Z"
     ], (
         f"agent must mount the shared server-sockets volume at the same "
         f"path as the server; got: {server_sock_mounts!r}"
     )
 
-    # Dedicated Workload-API socket-share volume.
+    # Dedicated Workload-API socket-share volume (``:Z`` per Bug-20).
     agent_sock_mounts = [v for v in quadlet_volumes if "wakir-spire-agent-sockets.volume" in v]
     assert agent_sock_mounts == [
-        "wakir-spire-agent-sockets.volume:/run/spire/agent-sockets"
+        "wakir-spire-agent-sockets.volume:/run/spire/agent-sockets:Z"
     ]
 
     # Cross-check compose-side names.

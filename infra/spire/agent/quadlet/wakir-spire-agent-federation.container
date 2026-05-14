@@ -116,7 +116,15 @@ Volume=/etc/wakir/spire-agent-<SIDE>.conf:/etc/spire/agent/agent.conf:ro,Z
 #
 # 2) SPIRE-Agent data directory (bootstrap-trust-bundle cache,
 #    federated-bundle cache, SVID cache).
-Volume=wakir-spire-agent-<SIDE>-data.volume:/var/lib/spire/agent
+# Sprint-9-Tag-8 Bug-20 substance-fix: ``:Z`` SELinux-relabel-private
+# is mandatory on FCOS-enforced hosts; without it the named volume
+# stays labeled ``root_t`` while the container runs as ``container_t``
+# and gets EACCES on first write. Bug-20 was observed as the SPIRE-
+# Agent crash-loop (restart-counter 69+, "directory validation
+# failed: permission denied" on /var/lib/spire/agent/.probe) during
+# Bring-up-4 on AR-Fred's pilot VM (2026-05-14). Root file of the
+# Bring-up-4-cleanup; see PR body and ADR-pending-Tag-8.
+Volume=wakir-spire-agent-<SIDE>-data.volume:/var/lib/spire/agent:Z
 #
 # 3) Federated-bundles ingest (read-only mount of the server-side
 #    bundles volume — the Tag-1 server-federation Quadlet creates
@@ -126,13 +134,16 @@ Volume=wakir-spire-agent-<SIDE>-data.volume:/var/lib/spire/agent
 #    (mirror of the server-side Quadlet VolumeName), not the
 #    side-only form. The agent must reference the same Quadlet-source
 #    name so the podman-system-generator resolves the volume.
-Volume=wakir-spire-server-federation-<SIDE>-bundles.volume:/var/lib/spire/bundles:ro
+#    Sprint-9-Tag-8 Bug-20: ``:ro,Z`` — Z is the SELinux-relabel
+#    flag, ro the read-only flag. Order is irrelevant to Podman but
+#    matches the bind-mount style above for readability.
+Volume=wakir-spire-server-federation-<SIDE>-bundles.volume:/var/lib/spire/bundles:ro,Z
 #
 # 4) Workload-API socket — agents serve the SPIFFE-Workload-API on
 #    this volume. Phase-2.3+ persona-containers mount this volume
 #    read-only at the same path; the `spiffe.workload_api` client
 #    targets `unix:///run/spire/agent-sockets/api.sock`.
-Volume=wakir-spire-agent-<SIDE>-sockets.volume:/run/spire/agent-sockets
+Volume=wakir-spire-agent-<SIDE>-sockets.volume:/run/spire/agent-sockets:Z
 
 # tmpfs for ephemeral SPIRE runtime paths (parity with server).
 #

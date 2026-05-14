@@ -106,9 +106,16 @@ Group=1000
 Volume=/etc/wakir/spire-federation/spire-server-<SIDE>.conf:/etc/spire/server/server.conf:ro,Z
 
 # Named volume sidecars (per-side).
-Volume=wakir-spire-server-federation-<SIDE>-data.volume:/var/lib/spire/server
-Volume=wakir-spire-server-federation-<SIDE>-sockets.volume:/run/spire/sockets
-Volume=wakir-spire-server-federation-<SIDE>-bundles.volume:/var/lib/spire/bundles
+#
+# Sprint-9-Tag-8 Bug-20 substance-fix: ``:Z`` SELinux-relabel-private
+# is mandatory on FCOS-enforced hosts; without it the named volume
+# stays labeled ``root_t`` while the container runs as ``container_t``
+# and gets EACCES on first write. Bug-20 was observed as a SPIRE-Agent
+# crash-loop on Bring-up-4 (2026-05-14, AR Fred); the server side
+# carries the same risk and is fixed prophylactically.
+Volume=wakir-spire-server-federation-<SIDE>-data.volume:/var/lib/spire/server:Z
+Volume=wakir-spire-server-federation-<SIDE>-sockets.volume:/run/spire/sockets:Z
+Volume=wakir-spire-server-federation-<SIDE>-bundles.volume:/var/lib/spire/bundles:Z
 
 # Sprint-9-Tag-6 Bug 12 substance-fix: the previous mode=0700 made
 # /run/spire root-only, which blocked the uid:1000 server process
