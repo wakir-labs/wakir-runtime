@@ -52,6 +52,19 @@
 #   - Optionale neue Flag ``--wakir-provisioner-version`` erlaubt
 #     einer spaeteren Resolver-Run eine kombinierte Tag+Digest-
 #     Rotation in einem Pass.
+#
+# Sprint-9 Tag-7 Aenderung (Bug-16 aus Live-Bring-up-3 2026-05-14):
+#   - ``resolve_group_tagged`` lief auf ``perl -ne`` / ``perl -pi -e``.
+#     Fedora-CoreOS hat KEIN Perl im Host-PATH; der Live-Bring-up
+#     crashte mit ``line 280: perl: command not found``, fiel
+#     silent durch die Substitution, und bucket-init starb am
+#     Placeholder ``DIGEST_PENDING_TOMAS_REVIEW`` mit ``invalid
+#     reference format``.
+#   - Refactor auf Bash-native (``[[ =~ ]]`` + ``${BASH_REMATCH[@]}``
+#     mit Atomic-File-Rewrite via ``mktemp`` + ``mv -f``). Bash 5.x
+#     ist FCOS-Standard; kein zusaetzliches Tool-Dependency.
+#   - Semantik bleibt identisch zu Tag-6: tag-tolerant, bare-image-
+#     tolerant, optional ``--wakir-provisioner-version`` rotation.
 
 set -euo pipefail
 
@@ -247,10 +260,22 @@ resolve_group() {
 # the same pass — this is the combined tag+digest rotation path the
 # Operator-Hand re-runs after publishing a fresh image version.
 #
-# Implementation: a Perl-style in-place edit with a regex anchored on
-# ``image_base`` + optional ``:<tag>`` (greedy up to '@'). We use
-# perl-style ``-pi`` for the regex; sed -E with backreferences would
-# work but the perl form keeps the substitution single-step.
+# Sprint-9 Tag-7 substance-fix (Bug-16, Mira-Bug-Bilanz 2026-05-14):
+# the prior implementation used ``perl -ne`` / ``perl -pi -e`` for the
+# tag-tolerant regex. Fedora-CoreOS does NOT ship Perl on the host
+# PATH; the Live-Bring-up-3 from-scratch run crashed on Step 5 with
+# ``line 280: perl: command not found`` and silently fell through to
+# the unresolved-placeholder state which crashed bucket-init at step
+# 7 with ``invalid reference format``. Refactored to Bash-native:
+# Bash 5.x is FCOS-standard, ships in the default OS PATH, and brings
+# ERE-with-captures via ``[[ =~ ]]`` + ``${BASH_REMATCH[@]}``.
+#
+# Implementation: read the file line-by-line, match against an ERE
+# anchored on ``image_base`` + optional ``:<tag>`` up to ``@``, and
+# rewrite the line via ${BASH_REMATCH[N]} substring substitution. The
+# rewritten content lands in a temp-file sibling, which we atomic-mv
+# over the original ONLY if the entire pass succeeded (no partial
+# rewrite on error).
 resolve_group_tagged() {
   local label="$1"
   local image_base="$2"   # e.g. ghcr.io/wakir-labs/wakir-provisioner (NO tag)
@@ -259,90 +284,106 @@ resolve_group_tagged() {
   shift 4
   local files=("$@")
   local file
-  # Perl regex: capture optional :<tag>; we never match across '@'.
-  # The escaped base lives in the pattern; if image_base contains
-  # regex meta-characters this would need fuller escaping, but for
-  # the ghcr.io/wakir-labs/<name> shape (dots and slashes only) the
-  # only meta-char is '.', which we escape below.
+  # Bash ERE: '.' is the only image_base meta-char we have to neutralise
+  # (the ghcr.io/wakir-labs/<name> shape contains dots and slashes only;
+  # '/' is a literal in Bash ERE so it does NOT need escaping). We do
+  # NOT escape '/' as that would emit a literal backslash in the regex
+  # and the match would fail.
   local escaped_base
-  escaped_base=$(printf '%s' "$image_base" | sed 's|\.|\\.|g; s|/|\\/|g')
-  local placeholder_token="sha256:DIGEST_PENDING_TOMAS_REVIEW"
+  escaped_base=$(printf '%s' "$image_base" | sed 's|\.|\\.|g')
+  # Bash ERE for the placeholder line:
+  #   <prefix>(<image_base>[:<tag>])@sha256:DIGEST_PENDING_TOMAS_REVIEW<suffix>
+  # Capture groups: 1=prefix, 2=base+tag-clause, 3=:<tag> or empty,
+  # 4=suffix.
+  local rx="^(.*)(${escaped_base}(:[^@[:space:]]+)?)@sha256:DIGEST_PENDING_TOMAS_REVIEW(.*)\$"
+  local file_matched
   for file in "${files[@]}"; do
     if [[ ! -f "$file" ]]; then
       echo "[$PROG] WARN: $file not present (skip)"
       continue
     fi
-    # Pre-check: does the file carry the placeholder under image_base
-    # (with any tag, or no tag)? We use perl for the lookahead so the
-    # check matches what the substitution will fire on. We export the
-    # escaped base into the env so the perl one-liner does not need
-    # to do shell-side variable splicing on its regex.
-    if ! WAKIR_RESOLVER_RX="$escaped_base" perl -ne '
-        BEGIN { $rx = $ENV{WAKIR_RESOLVER_RX} }
-        if (/$rx(?::[^@\s]+)?\@sha256:DIGEST_PENDING_TOMAS_REVIEW/) {
-          $found = 1;
-        }
-        END { exit($found ? 0 : 1) }
-    ' "$file"; then
+    # First pass: detect whether the file carries any matching line.
+    # We do not mutate yet so dry-run + skip-when-absent stay
+    # byte-identical to the prior contract.
+    file_matched=0
+    local line
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      if [[ "$line" =~ $rx ]]; then
+        file_matched=1
+        break
+      fi
+    done < "$file"
+    if [[ "$file_matched" -ne 1 ]]; then
       echo "[$PROG] note: $file has no $label placeholder; skip"
       continue
     fi
-    # Build a dry-run preview by capturing the first matched line.
-    local sample_from sample_to existing_tag replacement_tag_clause
-    sample_from=$(WAKIR_RESOLVER_RX="$escaped_base" perl -ne '
-        BEGIN { $rx = $ENV{WAKIR_RESOLVER_RX} }
-        if (/($rx(?::[^@\s]+)?\@sha256:DIGEST_PENDING_TOMAS_REVIEW)/) {
-            print $1;
-            exit;
-        }
-    ' "$file")
-    existing_tag=$(printf '%s' "$sample_from" \
-      | WAKIR_RESOLVER_RX="$escaped_base" perl -ne '
-          BEGIN { $rx = $ENV{WAKIR_RESOLVER_RX} }
-          if (/$rx:([^@\s]+)\@/) { print $1 }
-      ')
+    # Second pass: build a dry-run preview from the first matching
+    # line. We re-read the file (cheap; these are small Quadlet/conf
+    # text files) so the preview emission and the apply-pass share a
+    # single regex implementation.
+    local sample_from="" sample_to="" existing_tag="" tag_clause=""
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      if [[ "$line" =~ $rx ]]; then
+        # ${BASH_REMATCH[2]} is the full image_base[:tag] match.
+        sample_from="${BASH_REMATCH[2]}@sha256:DIGEST_PENDING_TOMAS_REVIEW"
+        # ${BASH_REMATCH[3]} is ':<tag>' or empty when bare-image.
+        existing_tag="${BASH_REMATCH[3]}"
+        break
+      fi
+    done < "$file"
     if [[ -n "$new_tag" ]]; then
-      replacement_tag_clause=":$new_tag"
+      tag_clause=":$new_tag"
     elif [[ -n "$existing_tag" ]]; then
-      replacement_tag_clause=":$existing_tag"
+      tag_clause="$existing_tag"
     else
       # Edge case: the placeholder lived on the bare-image form
       # (no tag at all). Substitute digest-only; do not invent a tag.
-      replacement_tag_clause=""
+      tag_clause=""
     fi
-    sample_to="${image_base}${replacement_tag_clause}@${digest}"
+    sample_to="${image_base}${tag_clause}@${digest}"
     echo "[$PROG] $label: $file"
     echo "  - $sample_from"
     echo "  + $sample_to"
     if [[ "$APPLY" -eq 1 ]]; then
-      if [[ -n "$new_tag" ]]; then
-        # Tag rotation: rewrite tag AND digest in one pass. Match
-        # base + optional :<tag> non-greedily up to '@', then the
-        # placeholder. Env-injected replacement to side-step shell-
-        # side quoting.
-        WAKIR_RESOLVER_RX="$escaped_base" \
-        WAKIR_RESOLVER_REPL="${image_base}:${new_tag}@${digest}" \
-        perl -pi -e '
-          BEGIN {
-            $rx   = $ENV{WAKIR_RESOLVER_RX};
-            $repl = $ENV{WAKIR_RESOLVER_REPL};
-          }
-          s/$rx(?::[^@\s]+)?\@sha256:DIGEST_PENDING_TOMAS_REVIEW/$repl/g;
-        ' "$file"
-      else
-        # Digest-only: capture the existing tag (if any) so we keep
-        # it byte-identical when substituting. The base + optional
-        # tag clause is captured in $1 and re-emitted unchanged.
-        WAKIR_RESOLVER_RX="$escaped_base" \
-        WAKIR_RESOLVER_DIGEST="$digest" \
-        perl -pi -e '
-          BEGIN {
-            $rx    = $ENV{WAKIR_RESOLVER_RX};
-            $dig   = $ENV{WAKIR_RESOLVER_DIGEST};
-          }
-          s/($rx(?::[^@\s]+)?)\@sha256:DIGEST_PENDING_TOMAS_REVIEW/$1\@$dig/g;
-        ' "$file"
+      # Third pass (apply): rewrite line-by-line into a temp sibling,
+      # atomic-mv on success. We deliberately keep the temp-file next
+      # to the target so the final mv is rename-on-same-fs (atomic).
+      local tmp
+      tmp=$(mktemp "${file}.XXXXXX") || {
+        echo "[$PROG] ERROR: mktemp next to $file failed" >&2
+        return 1
+      }
+      # Preserve original mode bits on the rewritten file.
+      local mode
+      mode=$(stat -c '%a' "$file" 2>/dev/null || echo "")
+      while IFS= read -r line || [[ -n "$line" ]]; do
+        if [[ "$line" =~ $rx ]]; then
+          local prefix="${BASH_REMATCH[1]}"
+          local this_existing_tag="${BASH_REMATCH[3]}"
+          local suffix="${BASH_REMATCH[4]}"
+          local this_tag_clause
+          if [[ -n "$new_tag" ]]; then
+            this_tag_clause=":$new_tag"
+          elif [[ -n "$this_existing_tag" ]]; then
+            this_tag_clause="$this_existing_tag"
+          else
+            this_tag_clause=""
+          fi
+          printf '%s%s%s@%s%s\n' \
+            "$prefix" "$image_base" "$this_tag_clause" \
+            "$digest" "$suffix" >> "$tmp"
+        else
+          printf '%s\n' "$line" >> "$tmp"
+        fi
+      done < "$file"
+      if [[ -n "$mode" ]]; then
+        chmod "$mode" "$tmp" 2>/dev/null || true
       fi
+      mv -f "$tmp" "$file" || {
+        echo "[$PROG] ERROR: atomic mv $tmp -> $file failed" >&2
+        rm -f "$tmp"
+        return 1
+      }
     fi
   done
 }

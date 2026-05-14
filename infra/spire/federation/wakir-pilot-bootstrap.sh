@@ -376,6 +376,63 @@ EOF
     log_ok "/etc/containers/systemd present"
   fi
 
+  # 1g. Sprint-9 Tag-7 substance-fix (Bug-16, Mira-Bug-Bilanz
+  # 2026-05-14): explicit CLI-dependency check. Live-Bring-up-3 from-
+  # scratch on Fedora-CoreOS revealed that the Step-5 image-pin
+  # resolver relied on ``perl`` which is NOT on the FCOS host PATH.
+  # The resolver silent-fell-through, the placeholder ``DIGEST_
+  # PENDING_TOMAS_REVIEW`` remained in the bucket-init Quadlet, and
+  # Step 7 crashed with ``invalid reference format``. The Tag-7
+  # resolver refactor (Bash-native) removes the perl dependency; this
+  # pre-flight check codifies the full resolver / bootstrap CLI-set
+  # so a future regression cannot silent-fall-through the same way.
+  #
+  # The list mirrors what the resolver + this bootstrap actually run.
+  # Tools that ARE legitimately missing in step-1 context but get
+  # installed later (cosign, skopeo) are intentionally NOT in this
+  # list — step 3 brings them in via the toolbox.
+  local _missing_cli=()
+  local _required_cli=(
+    "sed"        # resolver tag-tolerant fallback + step 6 inline edits
+    "grep"       # used in step 6/7 unit-state checks
+    "awk"        # legacy callers + journal parsers
+    "cmp"        # _install_substituted idempotency comparator
+    "install"    # step 6/7 unit installs
+    "mktemp"     # resolver atomic rewrite
+    "stat"       # resolver mode-preserve
+    "mv"         # resolver atomic rewrite
+    "chmod"      # env-file 0600
+    "tee"        # roster + env-file writes
+    "head"       # token-parse pipeline
+    "tr"         # token-parse pipeline
+    "find"       # quadlet directory walk in step 6
+    "jq"         # bringup-smoke + step 5 cosign/skopeo digest parse
+  )
+  local _t
+  for _t in "${_required_cli[@]}"; do
+    if ! command -v "$_t" >/dev/null 2>&1; then
+      _missing_cli+=("$_t")
+    fi
+  done
+  if [[ "${#_missing_cli[@]}" -gt 0 ]]; then
+    log_err "missing required CLI tool(s) on host PATH: ${_missing_cli[*]}"
+    log_note "install them BEFORE bring-up, e.g. on FCOS via"
+    log_note "  sudo rpm-ostree install ${_missing_cli[*]}"
+    log_note "  sudo systemctl reboot"
+    log_note "or via toolbox if rpm-ostree-immutable rootfs is undesired."
+    return 2
+  fi
+  log_ok "CLI tool inventory verified (${#_required_cli[@]} tools)"
+
+  # 1h. Bash major version >= 5 — resolver tag-tolerant codepath uses
+  # ``[[ =~ ]]`` + ``${BASH_REMATCH[@]}`` (Bash 5.x is FCOS-standard).
+  # Older Bash 3 (macOS-default) would silently miss capture groups.
+  if [[ "${BASH_VERSINFO[0]:-0}" -lt 5 ]]; then
+    log_err "Bash major version >= 5 required; got ${BASH_VERSION:-unknown}"
+    return 2
+  fi
+  log_ok "bash: ${BASH_VERSION}"
+
   return 0
 }
 
@@ -1149,13 +1206,26 @@ EOF
     log_err "bucket-init unit source not found: ${src}"
     return 2
   fi
+  # Sprint-9 Tag-7 substance-fix (Bug-18, Mira-Bug-Bilanz 2026-05-14):
+  # daemon-reload MUST fire unconditionally after the install-or-skip
+  # block, BEFORE the systemctl start. Live-Bring-up-3 observed
+  # ``Warning: The unit file ... changed on disk. Run 'systemctl
+  # daemon-reload' to reload units.`` because the reload only ran on
+  # the install branch — a re-run where dst already existed but
+  # bytewise differed (operator-hand patch landed between bring-ups)
+  # would skip the reload and systemd would keep the stale unit cache.
+  # Mirrors Phase-6's discipline (Z. 6f / 6i / 6j: daemon-reload after
+  # every Quadlet rewrite).
   if ! cmp -s "$src" "$dst" 2>/dev/null; then
     install -m 644 "$src" "$dst" \
       || { log_err "install bucket-init unit failed"; return 2; }
-    "$WAKIR_BOOTSTRAP_SYSTEMCTL" daemon-reload \
-      || { log_err "daemon-reload failed"; return 2; }
     log_ok "bucket-init unit installed (or refreshed)"
+  else
+    log_ok "bucket-init unit already up-to-date"
   fi
+  "$WAKIR_BOOTSTRAP_SYSTEMCTL" daemon-reload \
+    || { log_err "daemon-reload after bucket-init install failed"; return 2; }
+  log_ok "systemctl daemon-reload"
 
   # One-shot: start, then verify in journal.
   "$WAKIR_BOOTSTRAP_SYSTEMCTL" start wakir-nats-kv-bucket-init.service \
