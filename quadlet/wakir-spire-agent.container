@@ -96,18 +96,24 @@ Volume=/etc/wakir/spire-agent.conf:/etc/spire/agent/agent.conf:ro,Z
 # 2) SPIRE-Agent data directory (bootstrap-trust-bundle cache, SVID
 #    cache). Named volume sidecar so operator-driven recreate does not
 #    destroy the bootstrap trust-bundle.
-Volume=wakir-spire-agent-data.volume:/var/lib/spire/agent
+# Sprint-9-Tag-8 Bug-20 substance-fix: ``:Z`` SELinux-relabel-private
+# is mandatory on FCOS-enforced hosts; without it the named volume
+# stays labeled ``root_t`` while the container runs as ``container_t``
+# and gets EACCES on first write. Bug-20 was observed as a SPIRE-Agent
+# crash-loop ("directory validation failed: permission denied") on
+# Bring-up-4 (2026-05-14, AR Fred). See ADR-pending-Tag-8 PR body.
+Volume=wakir-spire-agent-data.volume:/var/lib/spire/agent:Z
 #
 # 3) Server-Admin-API channel — the SPIRE-Agent reaches the SPIRE-
 #    Server's admin socket on this shared volume. Server mounts the
 #    same volume at the same path.
-Volume=wakir-spire-server-sockets.volume:/run/spire/sockets
+Volume=wakir-spire-server-sockets.volume:/run/spire/sockets:Z
 #
 # 4) Workload-API socket — the SPIRE-Agent serves the SPIFFE-Workload-
 #    API on this volume. Phase-2.3+ persona-containers mount this
 #    volume read-only at the same path; the `spiffe.workload_api`
 #    client targets `unix:///run/spire/agent-sockets/api.sock`.
-Volume=wakir-spire-agent-sockets.volume:/run/spire/agent-sockets
+Volume=wakir-spire-agent-sockets.volume:/run/spire/agent-sockets:Z
 
 # tmpfs for ephemeral SPIRE runtime paths (parity with server). Keeps
 # the root filesystem strictly read-only.

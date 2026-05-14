@@ -114,11 +114,17 @@ Volume=/etc/wakir/spire-server.conf:/etc/spire/server/server.conf:ro,Z
 #    volume sidecar so an operator-driven recreate does not destroy
 #    the bootstrap-CA. `podman volume rm wakir-spire-server-data`
 #    deliberately drops it.
-Volume=wakir-spire-server-data.volume:/var/lib/spire/server
+# Sprint-9-Tag-8 Bug-20 substance-fix: ``:Z`` SELinux-relabel-private
+# is mandatory on FCOS-enforced hosts; without it the named volume
+# stays labeled ``root_t`` while the container runs as ``container_t``
+# and gets EACCES on first write. Bug-20 was observed as a SPIRE-Agent
+# crash-loop ("directory validation failed: permission denied") on
+# Bring-up-4 (2026-05-14, AR Fred). See ADR-pending-Tag-8 PR body.
+Volume=wakir-spire-server-data.volume:/var/lib/spire/server:Z
 #
 # 3) SPIRE-Server Unix-socket directory (for SPIRE-Agent gRPC channel).
 #    Shared with the SPIRE-Agent Quadlet unit at the same mountpoint.
-Volume=wakir-spire-server-sockets.volume:/run/spire/sockets
+Volume=wakir-spire-server-sockets.volume:/run/spire/sockets:Z
 
 # tmpfs for ephemeral SPIRE runtime paths (mirror of compose
 # `tmpfs: ["/run/spire:rw,size=16m,mode=0700"]`). Keeps the root
