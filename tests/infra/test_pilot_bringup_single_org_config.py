@@ -196,12 +196,17 @@ def test_tv_s9t5_02_server_single_org_has_no_bundle_endpoint() -> None:
 
 
 def test_tv_s9t5_03_server_single_org_trust_domain() -> None:
+    # Sprint-10-Tag-2 Bug-28 update: single-org config is now
+    # ``<TRUST_DOMAIN>``-tokenised so the bootstrap can substitute the
+    # side-specific trust-domain at install time (wakir.test, orbit.test,
+    # etc.). The literal-trust-domain invariant moves to the agent ↔
+    # server symmetry check below (both must carry the same token).
     text = SERVER_SINGLE_ORG_CONF.read_text(encoding="utf-8")
     assert re.search(
-        r'trust_domain\s*=\s*"wakir\.test"', text
+        r'trust_domain\s*=\s*"<TRUST_DOMAIN>"', text
     ), (
-        "single-org server config MUST declare trust_domain = \"wakir.test\" "
-        "to match the single-org agent config."
+        "single-org server config MUST declare trust_domain = \"<TRUST_DOMAIN>\" "
+        "(tokenised, bootstrap substitutes per WAKIR_TRUST_DOMAIN/SIDE)."
     )
 
 
