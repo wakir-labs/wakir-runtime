@@ -982,16 +982,45 @@ _wait_for_service_active() {
 # ---------------------------------------------------------------------------
 
 _wait_for_workload_api_socket() {
+  # Sprint-9-Tag-11 Bug-27 fix: SPIRE-Agent ist distroless-Container
+  # (ghcr.io/spiffe/spire-agent: nur ``spire-agent``-binary, kein ``test``/
+  # ``sh``/Coreutils). Tag-10 Tomás-Variante via ``podman exec <ctr> test
+  # -S <path>`` returnt IMMER rc=127 ("executable file 'test' not found
+  # in PATH") — Loop läuft 120s leer und meldet "not bound" obwohl Socket
+  # längst da ist (Live-Diagnose 2026-05-15 ~01:51 UTC bestätigt).
+  #
+  # Korrektur: Socket über HOST-Pfad des named-volume prüfen. Konvention:
+  #   container ``wakir-spire-agent-<SIDE>`` → vol ``wakir-spire-agent-<SIDE>-sockets``
+  #
+  # Hermetic-Bypass: ``WAKIR_BOOTSTRAP_SKIP_SOCKET_WAIT=1`` deaktiviert den
+  # Wait. Der e2e-container-Test setzt das Flag weil sein podman-Stub kein
+  # echtes Unix-Socket-File erzeugen kann (fedora-base-image hat weder
+  # python3 noch socat default-installiert). Live-VM darf das Flag NICHT
+  # setzen — der echte Bring-up MUSS auf das echte Socket warten.
   local container="$1"
+
+  if [[ "${WAKIR_BOOTSTRAP_SKIP_SOCKET_WAIT:-0}" == "1" ]]; then
+    log_ok "${container} workload-API socket wait skipped (WAKIR_BOOTSTRAP_SKIP_SOCKET_WAIT=1, hermetic-stub-mode)"
+    return 0
+  fi
+
   local timeout="${WAKIR_BOOTSTRAP_WAIT_SOCKET_TIMEOUT:-120}"
   local poll="${WAKIR_BOOTSTRAP_WAIT_SOCKET_POLL:-5}"
-  local socket="/run/spire/agent-sockets/api.sock"
   local elapsed=0
 
+  local sockets_vol="${container}-sockets"
+  local sockets_dir
+  sockets_dir=$("$WAKIR_BOOTSTRAP_PODMAN" volume inspect "$sockets_vol" \
+    --format '{{.Mountpoint}}' 2>/dev/null || echo "")
+  if [[ -z "$sockets_dir" ]] || [[ ! -d "$sockets_dir" ]]; then
+    log_err "podman volume inspect ${sockets_vol} returned empty/missing path"
+    return 2
+  fi
+  local host_socket="${sockets_dir}/api.sock"
+
   while [[ $elapsed -lt $timeout ]]; do
-    if "$WAKIR_BOOTSTRAP_PODMAN" exec "$container" \
-         test -S "$socket" 2>/dev/null; then
-      log_ok "${container} workload-API socket bound (after ${elapsed}s wait)"
+    if [[ -S "$host_socket" ]]; then
+      log_ok "${container} workload-API socket bound (after ${elapsed}s wait, host-path ${host_socket})"
       return 0
     fi
     "${WAKIR_BOOTSTRAP_SLEEP:-sleep}" "$poll" 2>/dev/null \
@@ -999,8 +1028,8 @@ _wait_for_workload_api_socket() {
     elapsed=$((elapsed + poll))
   done
 
-  log_err "${container} workload-API socket ${socket} not bound within ${timeout}s (Bug-25 race window not closed)"
-  log_note "diagnose: podman exec ${container} ls -la /run/spire/agent-sockets/ ; journalctl -u wakir-spire-agent-*.service -n 100 --no-pager"
+  log_err "${container} workload-API socket ${host_socket} not bound within ${timeout}s (Bug-25/27 race window)"
+  log_note "diagnose: ls -la ${sockets_dir}/ ; journalctl -u wakir-spire-agent-*.service -n 100 --no-pager"
   return 2
 }
 

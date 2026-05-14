@@ -438,6 +438,12 @@ def _run_bootstrap_in_container(
         "WAKIR_BOOTSTRAP_CURL": "/work/stubs/curl",
         "WAKIR_BOOTSTRAP_GIT": "/work/stubs/git",
         "WAKIR_BOOTSTRAP_SMOKE": "/work/stubs/proxmox-bringup-smoke",
+        # Bug-27 hermetic-bypass: stub-podman in fedora-base cannot
+        # create a real Unix socket file (no python3/socat by default),
+        # so the host-path-based workload-API-wait would block 120s.
+        # Live-VM bring-up MUST NOT set this — there the real agent
+        # binds api.sock in the named volume.
+        "WAKIR_BOOTSTRAP_SKIP_SOCKET_WAIT": "1",
     }
     if extra_env:
         env.update(extra_env)
