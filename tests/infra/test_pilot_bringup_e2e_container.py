@@ -355,6 +355,21 @@ def _run_bootstrap_in_container(
             > /repo/infra/spire/federation/config/spire-server-wakir.conf
         printf '# stub agent conf\\n' \\
             > /repo/infra/spire/agent/config/spire-agent-wakir.conf
+        # 8. Sprint-9 Tag-7 substance-fix (Bug-16 sibling): the
+        #    bootstrap's step 6i (join-token issue + sed-substitute)
+        #    parses ``spire-server token generate`` output via ``jq``
+        #    on real Pilot-VM. The ``fedora:latest`` E2E container
+        #    image does NOT ship jq by default, so Step 6 crashes
+        #    with ``line N: jq: command not found`` and the test
+        #    asserts a Phase-8-reached state we never get to. The
+        #    real-VM Step-1 pre-flight check now enforces this dep,
+        #    but the E2E test runs --resume-from 4 (Step 1 skipped)
+        #    so we mirror the dep inventory here. Install is silent
+        #    and idempotent; failure is non-fatal so a future image
+        #    that already carries jq still works.
+        if ! command -v jq >/dev/null 2>&1; then
+          (dnf -y install jq 2>/dev/null || microdnf -y install jq 2>/dev/null) >/dev/null || true
+        fi
         {pre_phase}
         echo '[e2e] running bootstrap --resume-from {resume_from}'
         bash /repo/{BOOTSTRAP_REL} --resume-from {resume_from}
