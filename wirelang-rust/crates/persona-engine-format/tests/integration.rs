@@ -24,6 +24,16 @@ use persona_engine_format::lifecycle_protocols::{
     ALL_RECOVERY_DRILL_ACCEPTANCE_INVARIANTS, ALL_RECOVERY_DRILL_CLASSES,
     DESPAWN_CLEAN_PHASE_ORDER, MIGRATE_VERSION_TRANSITION_SEQUENCE, RECOVERY_BUDGET_SECONDS,
 };
+use persona_engine_format::recovery_workflow::{
+    drill_class_maps_to_trigger, recovery_failure_phase, recovery_phase_cross_review_zone,
+    recovery_phase_soft_cap_seconds, recovery_phase_terminal_status, recovery_trigger_label,
+    RecoveryFailureMode, RecoveryTrigger, RecoveryWorkflowPhase, ALL_RECOVERY_FAILURE_MODES,
+    ALL_RECOVERY_TRIGGERS, RECOVERY_WORKFLOW_PHASE_ORDER,
+};
+use persona_engine_format::state_backing::{
+    InMemoryPersonaStateBacking, PersonaStateBacking, PersonaStateBackingError,
+    PersonaStateSnapshot,
+};
 use persona_engine_format::{
     jcs_canonicalise_wakir_persona_v1, map_claude_native_to_wakir_v1, wakir_persona_hash,
     WAKIR_PERSONA_SCHEMA_VERSION,
@@ -788,4 +798,391 @@ fn t_pef_life_08_migrate_version_transition_sequence_preserves_rollback_window()
         migrated_to_uninst_idx < v2_running_idx,
         "v1 despawn (migrated→uninstantiated) precedes v2 reach-running"
     );
+}
+
+// ---------------------------------------------------------------------
+// Sprint-Pengine-7 Tag-4 — Recovery Workflow + State Backing (§3.7.4/5)
+// ---------------------------------------------------------------------
+//
+// T-PEF-REC-01..10 — ten tests pinning the recovery-workflow surface
+// and the InMemory state-backing semantics against the spec text.
+// These tests do NOT touch async or I/O; they pin the pure-data and
+// in-memory trait surfaces so spec drift surfaces as a compile/test
+// failure.
+
+#[test]
+fn t_pef_rec_01_recovery_trigger_closed_enumeration() {
+    // §3.7.4.1: three trigger modes, closed enumeration, distinct labels.
+    assert_eq!(ALL_RECOVERY_TRIGGERS.len(), 3);
+    let labels: HashSet<&'static str> = ALL_RECOVERY_TRIGGERS
+        .iter()
+        .copied()
+        .map(recovery_trigger_label)
+        .collect();
+    assert_eq!(labels.len(), 3, "trigger labels are pairwise distinct");
+    assert!(labels.contains("crash_detected"));
+    assert!(labels.contains("despawn_mid_operation"));
+    assert!(labels.contains("state_corruption"));
+
+    // Closed enumeration: every trigger label maps back to exactly one trigger.
+    for t in ALL_RECOVERY_TRIGGERS {
+        let label = recovery_trigger_label(*t);
+        let reverse_match = ALL_RECOVERY_TRIGGERS
+            .iter()
+            .filter(|t2| recovery_trigger_label(**t2) == label)
+            .count();
+        assert_eq!(
+            reverse_match, 1,
+            "label {label} is a deterministic bijection"
+        );
+    }
+}
+
+#[test]
+fn t_pef_rec_02_recovery_workflow_phase_order_canonical() {
+    // §3.7.4.2: canonical R1..R4 order.
+    assert_eq!(RECOVERY_WORKFLOW_PHASE_ORDER.len(), 4);
+    assert_eq!(
+        RECOVERY_WORKFLOW_PHASE_ORDER[0],
+        RecoveryWorkflowPhase::R1Detect
+    );
+    assert_eq!(
+        RECOVERY_WORKFLOW_PHASE_ORDER[1],
+        RecoveryWorkflowPhase::R2Reload
+    );
+    assert_eq!(
+        RECOVERY_WORKFLOW_PHASE_ORDER[2],
+        RecoveryWorkflowPhase::R3ReRegister
+    );
+    assert_eq!(
+        RECOVERY_WORKFLOW_PHASE_ORDER[3],
+        RecoveryWorkflowPhase::R4Resume
+    );
+
+    // Distinctness: four pairwise-distinct phases.
+    let unique: HashSet<_> = RECOVERY_WORKFLOW_PHASE_ORDER.iter().collect();
+    assert_eq!(unique.len(), 4, "recovery phases are pairwise distinct");
+}
+
+#[test]
+fn t_pef_rec_03_recovery_phase_terminal_status_strings() {
+    // §3.7.4.2 "Terminal status" column.
+    assert_eq!(
+        recovery_phase_terminal_status(RecoveryWorkflowPhase::R1Detect),
+        "detected"
+    );
+    assert_eq!(
+        recovery_phase_terminal_status(RecoveryWorkflowPhase::R2Reload),
+        "reloaded"
+    );
+    assert_eq!(
+        recovery_phase_terminal_status(RecoveryWorkflowPhase::R3ReRegister),
+        "re_registered"
+    );
+    assert_eq!(
+        recovery_phase_terminal_status(RecoveryWorkflowPhase::R4Resume),
+        "resumed"
+    );
+
+    let statuses: HashSet<&str> = RECOVERY_WORKFLOW_PHASE_ORDER
+        .iter()
+        .copied()
+        .map(recovery_phase_terminal_status)
+        .collect();
+    assert_eq!(statuses.len(), 4, "terminal statuses pairwise distinct");
+}
+
+#[test]
+fn t_pef_rec_04_recovery_phase_cross_review_zones() {
+    // §3.7.4.2: R1 is engine-internal (None); R2/R3/R4 map to B/L/J.
+    assert_eq!(
+        recovery_phase_cross_review_zone(RecoveryWorkflowPhase::R1Detect),
+        None,
+        "R1 is engine-internal (no zone)"
+    );
+    assert_eq!(
+        recovery_phase_cross_review_zone(RecoveryWorkflowPhase::R2Reload),
+        Some("B"),
+        "R2 touches Zone-B (NATS-KV / state-backing)"
+    );
+    assert_eq!(
+        recovery_phase_cross_review_zone(RecoveryWorkflowPhase::R3ReRegister),
+        Some("L"),
+        "R3 touches Zone-L (identity-substrate)"
+    );
+    assert_eq!(
+        recovery_phase_cross_review_zone(RecoveryWorkflowPhase::R4Resume),
+        Some("J"),
+        "R4 touches Zone-J (container-bridge)"
+    );
+}
+
+#[test]
+fn t_pef_rec_05_recovery_phase_soft_caps_sum_to_budget() {
+    // §3.7.4.4: per-phase soft caps sum to the hard budget (30s).
+    let sum: u32 = RECOVERY_WORKFLOW_PHASE_ORDER
+        .iter()
+        .copied()
+        .map(recovery_phase_soft_cap_seconds)
+        .sum();
+    assert_eq!(
+        sum, RECOVERY_BUDGET_SECONDS,
+        "per-phase soft caps sum to RECOVERY_BUDGET_SECONDS hard cap"
+    );
+
+    // Per-phase values per spec table.
+    assert_eq!(
+        recovery_phase_soft_cap_seconds(RecoveryWorkflowPhase::R1Detect),
+        1
+    );
+    assert_eq!(
+        recovery_phase_soft_cap_seconds(RecoveryWorkflowPhase::R2Reload),
+        15
+    );
+    assert_eq!(
+        recovery_phase_soft_cap_seconds(RecoveryWorkflowPhase::R3ReRegister),
+        5
+    );
+    assert_eq!(
+        recovery_phase_soft_cap_seconds(RecoveryWorkflowPhase::R4Resume),
+        9
+    );
+}
+
+#[test]
+fn t_pef_rec_06_recovery_failure_modes_closed_and_phase_mapped() {
+    // §3.7.4.5: five failure modes, each pinned to exactly one phase.
+    assert_eq!(ALL_RECOVERY_FAILURE_MODES.len(), 5);
+
+    assert_eq!(
+        recovery_failure_phase(RecoveryFailureMode::TriggerAmbiguous),
+        RecoveryWorkflowPhase::R1Detect
+    );
+    assert_eq!(
+        recovery_failure_phase(RecoveryFailureMode::BackingUnreachable),
+        RecoveryWorkflowPhase::R2Reload
+    );
+    assert_eq!(
+        recovery_failure_phase(RecoveryFailureMode::SnapshotCorrupt),
+        RecoveryWorkflowPhase::R2Reload
+    );
+    assert_eq!(
+        recovery_failure_phase(RecoveryFailureMode::IdentityRebindFailed),
+        RecoveryWorkflowPhase::R3ReRegister
+    );
+    assert_eq!(
+        recovery_failure_phase(RecoveryFailureMode::ResumeTimeout),
+        RecoveryWorkflowPhase::R4Resume
+    );
+
+    // Coverage check: every phase has at least one failure mode (every
+    // recovery operation can fail).
+    let covered: HashSet<RecoveryWorkflowPhase> = ALL_RECOVERY_FAILURE_MODES
+        .iter()
+        .copied()
+        .map(recovery_failure_phase)
+        .collect();
+    assert_eq!(
+        covered.len(),
+        4,
+        "every recovery phase has at least one documented failure mode"
+    );
+}
+
+#[test]
+fn t_pef_rec_07_drill_class_to_trigger_mapping() {
+    // §3.7.4.1 + §3.7.2.1: drill classes map deterministically to triggers.
+    assert!(drill_class_maps_to_trigger(
+        RecoveryDrillClass::ContainerCrash,
+        RecoveryTrigger::CrashDetected
+    ));
+    assert!(drill_class_maps_to_trigger(
+        RecoveryDrillClass::NatsBucketLost,
+        RecoveryTrigger::StateCorruption
+    ));
+    assert!(drill_class_maps_to_trigger(
+        RecoveryDrillClass::SpireSvidExpired,
+        RecoveryTrigger::CrashDetected
+    ));
+
+    // Negative: incoherent (drill, trigger) pairs are rejected.
+    assert!(!drill_class_maps_to_trigger(
+        RecoveryDrillClass::ContainerCrash,
+        RecoveryTrigger::StateCorruption
+    ));
+    assert!(!drill_class_maps_to_trigger(
+        RecoveryDrillClass::NatsBucketLost,
+        RecoveryTrigger::DespawnMidOperation
+    ));
+    assert!(!drill_class_maps_to_trigger(
+        RecoveryDrillClass::SpireSvidExpired,
+        RecoveryTrigger::DespawnMidOperation
+    ));
+
+    // DespawnMidOperation trigger is NOT a drill class — it's an engine-
+    // observed reality only. No drill class maps to it.
+    for d in ALL_RECOVERY_DRILL_CLASSES {
+        assert!(
+            !drill_class_maps_to_trigger(*d, RecoveryTrigger::DespawnMidOperation),
+            "no drill class maps to DespawnMidOperation"
+        );
+    }
+}
+
+#[test]
+fn t_pef_rec_08_state_backing_snapshot_and_restore() {
+    // §3.7.5: InMemoryPersonaStateBacking snapshot / restore round-trip.
+    let mut backing = InMemoryPersonaStateBacking::new();
+    let snap = PersonaStateSnapshot {
+        persona_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+            .into(),
+        audit_trace_offset: 0,
+        capability_token_ids: vec!["tok-a".into(), "tok-b".into()],
+        snapshot_at_utc: "2026-05-14T16:00:00Z".into(),
+        workspace_state_hash:
+            "sha256:1111111111111111111111111111111111111111111111111111111111111111".into(),
+    };
+    let offset = backing.snapshot("tomas", &snap).expect("snapshot ok");
+    assert_eq!(offset, 0, "first snapshot has offset 0");
+    assert_eq!(backing.snapshot_count("tomas"), 1);
+
+    let restored = backing.restore_latest("tomas").expect("restore ok");
+    assert_eq!(restored.as_ref(), Some(&snap));
+
+    // Cold start for another persona returns None.
+    let cold = backing.restore_latest("henrik").expect("restore ok");
+    assert_eq!(cold, None, "no snapshot exists for unknown persona");
+
+    // Idempotence: re-snapshotting unchanged state returns existing offset.
+    let offset2 = backing.snapshot("tomas", &snap).expect("snapshot ok");
+    assert_eq!(offset2, 0, "idempotent re-snapshot returns same offset");
+    assert_eq!(backing.snapshot_count("tomas"), 1);
+}
+
+#[test]
+fn t_pef_rec_09_state_backing_atomic_swap_and_history() {
+    // §3.7.5.1: atomic_swap_pinned_offset semantics + list_snapshots ordering.
+    let mut backing = InMemoryPersonaStateBacking::new();
+    let s0 = PersonaStateSnapshot {
+        persona_hash: "sha256:aa".to_string() + &"0".repeat(62),
+        audit_trace_offset: 0,
+        capability_token_ids: vec![],
+        snapshot_at_utc: "2026-05-14T16:00:00Z".into(),
+        workspace_state_hash: "sha256:bb".to_string() + &"0".repeat(62),
+    };
+    let s1 = PersonaStateSnapshot {
+        audit_trace_offset: 1,
+        snapshot_at_utc: "2026-05-14T16:05:00Z".into(),
+        ..s0.clone()
+    };
+    let s2 = PersonaStateSnapshot {
+        audit_trace_offset: 2,
+        snapshot_at_utc: "2026-05-14T16:10:00Z".into(),
+        ..s0.clone()
+    };
+
+    let o0 = backing.snapshot("tomas", &s0).unwrap();
+    let o1 = backing.snapshot("tomas", &s1).unwrap();
+    let o2 = backing.snapshot("tomas", &s2).unwrap();
+    assert_eq!((o0, o1, o2), (0, 1, 2));
+
+    let history = backing.list_snapshots("tomas").unwrap();
+    assert_eq!(history, vec![0, 1, 2], "history is oldest-first");
+    assert_eq!(backing.pinned_offset("tomas"), Some(2));
+
+    // Successful atomic swap from current (2) back to earlier offset (1).
+    backing
+        .atomic_swap_pinned_offset("tomas", 2, 1)
+        .expect("swap ok");
+    assert_eq!(backing.pinned_offset("tomas"), Some(1));
+
+    // Mismatch: swap with wrong from_offset surfaces AtomicSwapMismatch.
+    let mismatch = backing
+        .atomic_swap_pinned_offset("tomas", 99, 0)
+        .unwrap_err();
+    match mismatch {
+        PersonaStateBackingError::AtomicSwapMismatch {
+            expected_from,
+            actual,
+        } => {
+            assert_eq!(expected_from, 99);
+            assert_eq!(actual, 1);
+        }
+        other => panic!("expected AtomicSwapMismatch, got {other:?}"),
+    }
+
+    // Target offset must exist in history; swapping to a non-existent
+    // offset surfaces SnapshotCorrupt (forensics surface).
+    let corrupt = backing
+        .atomic_swap_pinned_offset("tomas", 1, 42)
+        .unwrap_err();
+    match corrupt {
+        PersonaStateBackingError::SnapshotCorrupt { offset, .. } => {
+            assert_eq!(offset, 42);
+        }
+        other => panic!("expected SnapshotCorrupt, got {other:?}"),
+    }
+}
+
+#[test]
+fn t_pef_rec_10_recovery_workflow_invariants_pair_with_drill_acceptance() {
+    // The recovery workflow (§3.7.4) is the IMPL pendant of the drill
+    // pattern (§3.7.2). Cross-anchor invariants:
+    //
+    // - Workflow has the SAME hard budget as the drill (30s); the
+    //   workflow's per-phase soft caps must sum to that budget.
+    // - The four drill-acceptance invariants are layer-specific;
+    //   workflow phases R2/R3/R4 each touch the substrate of one or
+    //   more invariants.
+
+    // (a) Hard budget alignment (already tested in REC-05, but pin
+    // again as a cross-§ contract):
+    assert_eq!(RECOVERY_BUDGET_SECONDS, 30);
+
+    // (b) Drill acceptance invariants count matches the spec
+    // count (four invariants); already tested by Tag-3 LIFE-05 but
+    // pin again as the Tag-4 cross-§ anchor.
+    assert_eq!(ALL_RECOVERY_DRILL_ACCEPTANCE_INVARIANTS.len(), 4);
+    let inv_set: HashSet<_> = ALL_RECOVERY_DRILL_ACCEPTANCE_INVARIANTS.iter().collect();
+    assert_eq!(inv_set.len(), 4);
+
+    // (c) Substrate stratification: each drill class exercises a
+    // different substrate, and the workflow R2/R3/R4 phases touch the
+    // matching cross-review zones.
+    //
+    //   ContainerCrash    → engine-runtime    → R4 resume (Zone-J)
+    //   NatsBucketLost    → storage-substrate → R2 reload (Zone-B)
+    //   SpireSvidExpired  → identity          → R3 re-register (Zone-L)
+    assert_eq!(
+        recovery_drill_substrate_layer(RecoveryDrillClass::ContainerCrash),
+        "engine-runtime"
+    );
+    assert_eq!(
+        recovery_drill_substrate_layer(RecoveryDrillClass::NatsBucketLost),
+        "storage-substrate"
+    );
+    assert_eq!(
+        recovery_drill_substrate_layer(RecoveryDrillClass::SpireSvidExpired),
+        "identity"
+    );
+
+    // (d) Substrate-to-zone correspondence: each substrate label maps
+    // to the canonical cross-review zone its primary remediation phase
+    // touches. This is the contract that lets a drill operator know
+    // which Zone-{B,J,L} cross-review counterpart to engage.
+    let substrate_to_zone: &[(&str, &str)] = &[
+        ("engine-runtime", "J"),
+        ("storage-substrate", "B"),
+        ("identity", "L"),
+    ];
+    for (substrate, zone) in substrate_to_zone {
+        let matching_phase = RECOVERY_WORKFLOW_PHASE_ORDER
+            .iter()
+            .copied()
+            .find(|p| recovery_phase_cross_review_zone(*p) == Some(zone))
+            .expect("each canonical zone has a workflow phase");
+        // R1 has no zone (engine-internal); confirm we did not match it.
+        assert_ne!(matching_phase, RecoveryWorkflowPhase::R1Detect);
+        let _ = substrate; // documentation anchor only
+    }
 }

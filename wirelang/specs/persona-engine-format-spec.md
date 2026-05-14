@@ -9,17 +9,17 @@ audience: pengine-eng, persona-authors, hr-slot, container-ops-slot
 license: CC-BY-4.0
 ---
 
-# Persona-Engine-Format Specification (v1.2)
+# Persona-Engine-Format Specification (v1.3)
 
 | Field | Value |
 |---|---|
 | Spec ID | PEF-1 |
 | Owner | pengine-eng (ADR-0043) |
-| Phase | 1b Sprint-Pengine-7 Tag-3 (2026-05-13) |
-| Self-Migration anchor | ADR-0036 (Self-Migration-Konverter) — Sprint-Pengine-7 Tag-2 converter consumes this spec; Tag-3 adds §3.7.3 migrate-version mechanic |
+| Phase | 1b Sprint-Pengine-7 Tag-4 (2026-05-14) |
+| Self-Migration anchor | ADR-0036 (Self-Migration-Konverter) — Sprint-Pengine-7 Tag-2 converter consumes this spec; Tag-3 added §3.7.3 migrate-version mechanic; Tag-4 adds §3.7.4 recovery-workflow + §3.7.5 state-persistence-backing trait (impl-axis for the Tag-3 spec-level recovery-drill pattern). |
 | Companion specs | `persona-hash-spec.md` (V-907), `self-migration-konverter-spec.md`, `persona-schema-v10-migration-vorbereitung.md`, `schema-registry-spec.md` v0.32.0 §10, `recovery-drill-leaf-projection.md` (WAT bridge) |
 | Cross-review zones | J (container-bridge spec, container-ops-slot), K (WAT-bridge / V-907 hash integration, wat-eng-slot), L (identity-substrate forward-link, identity-eng-slot), B (NATS-KV × Wirelang, drain protocol), HR (governance-revision, hr-slot) |
-| Status of ratification | v1.2: additive-only minor bump on top of v1.1 (HR-slot bedingt-ack 2026-05-13 carries; no governance gate re-opened). §3.7 lifecycle protocols are operator-facing protocols layered over the byte-unchanged JSON envelope. Cross-Review-Zone-B/J/K/L are touched in spec-form only (no impl change, no schema change). |
+| Status of ratification | v1.3: additive-only minor bump on top of v1.2 (HR-slot bedingt-ack 2026-05-13 carries; no governance gate re-opened). §3.7.4 recovery-workflow and §3.7.5 state-persistence-backing trait are operator/runtime-facing surfaces layered over the byte-unchanged JSON envelope. Cross-Review-Zones touched in spec-form (J Quadlet restart semantics, L SPIFFE SVID refresh, B NATS-KV restore). |
 
 ## Revision history
 
@@ -28,6 +28,7 @@ license: CC-BY-4.0
 | 1.0.0 | 2026-05-13 (AM) | Initial Sprint-Pengine-7 Tag-1 spec (PR #22, `86c9acc`). |
 | 1.1.0 | 2026-05-13 (PM) | Tag-2 cut-over: Aisha-HR-Counter-Vorschlag 1 eingearbeitet als `synthesis_default_exceptions` table in §4.3 (cfo + internal-audit `reports_to`/`escalation` → `aufsichtsrat`). Counter-Vorschläge 2 (per-transaction budget cap) and 3 (`identity_pinned_policy_version`) recorded as OI-PEF-7 / OI-PEF-8 (future items, not Tag-2 blockers). |
 | 1.2.0 | 2026-05-13 (EVE) | Tag-3 spawn-lifecycle concretisation: new §3.7 lifecycle protocols layered on §3.3 state machine — §3.7.1 `despawn_clean` (four phase-sequential operations P1..P4: NATS-KV drain, capability-token revocation, final marker compose, container stop; idempotence + failure modes), §3.7.2 `recovery_drill` pattern (three failure classes: container crash, NATS bucket lost, SPIRE SVID expired; four acceptance criteria: hash pre/post, audit-trail gap = 0, capability continuity, 30s budget), §3.7.3 `migrate_version` mechanic (trigger conditions, backward-compat guarantees, hash-pin-drift detection, per-instance sequence with rollback window). Bisheriges §3.7 (JSON-Schema) → §3.8. JSON envelope (§3.3 `spawn_lifecycle`, §3.4 `state_persistence`, §3.5 `container_bridge`, §3.6 `migration_metadata`) **byte-unchanged** — Tag-3 adds spec-level operator protocols, not new JSON fields. |
+| 1.3.0 | 2026-05-14 | Tag-4 recovery-lifecycle impl-axis: new §3.7.4 `recovery_workflow` (three trigger detection modes: crash-detected, despawn-mid-operation, state-corruption; four phase-sequential operations R1..R4: detect → reload → re-register → resume; idempotence under retry; failure-mode matrix), §3.7.5 `PersonaStateBacking` trait surface (backend-agnostic state-persistence contract; NATS-KV is one binding, in-memory is the second for hermetic test; surfaces: snapshot/restore/list-snapshots/atomic-swap). JSON envelope **byte-unchanged**. Crate surface: pure-data + trait, no async, no I/O — same posture as Tag-3 `lifecycle_protocols`. |
 
 ## 0. Purpose and one-paragraph summary
 
@@ -500,6 +501,195 @@ fails, the engine can resurrect the v1 instance from the
 held-frozen state. The rollback window closes at the moment
 v2 reaches `running`; at that point the v1 instance is
 authoritatively despawned and only v2 receives live traffic.
+
+#### 3.7.4 `recovery_workflow` (Tag-4, impl-axis pendant of §3.7.2)
+
+§3.7.2 fixed *what* a drill exercises (failure classes × acceptance
+invariants). §3.7.4 fixes *how* the engine actually performs the
+`uninstantiated → recovered → running` transition (§3.3 valid
+transitions, `recovery_policy.kind = "event-replay"`). The workflow
+is operator-facing and runtime-facing — drills and real failure
+recovery share it byte-for-byte.
+
+**§3.7.4.1 Trigger detection (three modes).**
+
+Recovery is triggered by one of three engine-observable conditions:
+
+| Trigger | Detection point | Detector | Note |
+|---|---|---|---|
+| `CrashDetected` | Quadlet unit transitions to `inactive` while `Result=signal` (SIGKILL / SIGSEGV / OOM). | container-ops-slot (Kai) — Quadlet `OnFailure=wakir-persona-recover@{persona_id}.service`. | Engine-side reaction is the same regardless of which signal hit. |
+| `DespawnMidOperation` | The engine observes a `despawning` state but the operator-pin-pack's last marker-stack `CompositionVerdict` is **not** `final_compose` — i.e., despawn started but P3 never reached `composed`. | engine-side — startup-time pin-pack reconciliation. | Specifically detects a process killed between §3.7.1 P1 and P3. |
+| `StateCorruption` | On engine startup, the V-907 persona-hash of the loaded `wakir-persona-v1` document drifts from the operator-pin-pack `pin-pack-operator-v1` AND `classify_hash_pin_drift` returns `UnexpectedDriftBug` (§3.7.3.3). | engine-side — startup-time pin-pack reconciliation. | Distinct from `ExpectedMajorBumpDrift` (which triggers §3.7.3 migrate-version, not recovery). |
+
+The three trigger modes form a **closed enumeration** of recovery
+entry points. A persona that observes none of the three triggers
+on engine startup proceeds straight from `uninstantiated → spawning`
+(normal cold start, not recovery). The trigger surfaces in the
+crate as the `recovery_workflow::RecoveryTrigger` enum.
+
+**§3.7.4.2 Recovery phases (R1..R4, phase-sequential).**
+
+Recovery is executed as **four phase-sequential operations** under
+the same posture as §3.7.1 despawn-clean (each phase has a terminal
+status; idempotent on retry; cross-review-zone-bound; failure of
+any phase blocks the next):
+
+| Phase | Operation | Terminal status | Cross-review zone |
+|---|---|---|---|
+| R1 | **Detect.** Classify the trigger (`CrashDetected` / `DespawnMidOperation` / `StateCorruption`); emit a `recovery_trigger_classified` audit record into the persona's marker-stack with the trigger label and a UTC timestamp. | `detected` | none (engine-internal) |
+| R2 | **Reload.** Restore persona state from the persistence backing (§3.7.5 trait): read the latest snapshot, replay the marker-stack-kv event log from the snapshot's `audit_trace_offset` to head, rebuild the in-memory persona context (workspace handles, capability-token set, audit cursor). | `reloaded` | B (NATS-KV / state-backing) |
+| R3 | **Re-register.** Refresh the SPIFFE SVID via the identity-substrate workload-API; bind the new SVID to the persona-engine runtime; emit a `recovery_svid_refreshed` audit record. | `re_registered` | L (identity-substrate) |
+| R4 | **Resume.** Transition the persona's Quadlet container from inactive to active (Quadlet `wakir-persona-{persona_id}.service` start, or no-op if already active for `DespawnMidOperation` case); the engine state machine then transitions `uninstantiated → recovered → running` (§3.3 two-hop). The `recovered` snapshot in the marker-stack records the recovery-completion pin. | `resumed` | J (container-bridge) |
+
+The canonical order is **R1 → R2 → R3 → R4**. The crate surface
+exports `RECOVERY_WORKFLOW_PHASE_ORDER` (analogue of
+`DESPAWN_CLEAN_PHASE_ORDER`). Re-ordering would violate the audit
+invariant of §3.7.2.2 #2 (audit-trail gap = 0): a re-registered
+SVID before reload would issue capability tokens against stale
+state; resume before re-register would issue tool calls against
+an expired SVID.
+
+**§3.7.4.3 Idempotence.**
+
+Each phase MUST be idempotent on retry:
+
+- R1: re-classifying the same trigger emits one audit annotation per
+  unique `(trigger_id, attempt)` tuple; the trigger label itself is
+  deterministic from the detection point (§3.7.4.1).
+- R2: re-running snapshot-restore over an already-restored context
+  is a no-op when the marker-stack head matches the in-memory
+  `audit_cursor`; the function returns `reloaded` without re-reading
+  the backing.
+- R3: re-issuance of an SVID that is still within its TTL is a no-op
+  (the workload-API returns the cached SVID); a fresh SVID is
+  produced only when the cached one is past `valid_after + ttl/2`.
+- R4: starting a Quadlet unit that is already `active` is a `systemctl
+  start` no-op returning `resumed`.
+
+**§3.7.4.4 Recovery budget.**
+
+The end-to-end recovery (R1 → R4 inclusive) MUST complete within the
+`RECOVERY_BUDGET_SECONDS` constant defined in §3.7.2.2 (acceptance
+invariant 4: 30s). Per-phase soft caps recommended for the
+operator-side scheduler:
+
+| Phase | Soft cap (seconds) | Justification |
+|---|---|---|
+| R1 | 1 | Pure-logic classification + one audit-record append. |
+| R2 | 15 | Snapshot read + marker-stack replay; dominant cost is replay length. |
+| R3 | 5 | Workload-API round-trip + SVID validation. |
+| R4 | 9 | Quadlet unit start + readiness probe. |
+| **Total** | **30** | Matches `RECOVERY_BUDGET_SECONDS`. |
+
+A phase that exceeds its soft cap MUST NOT halt the workflow — it
+emits a `recovery_phase_slow` audit annotation and continues. Only
+the hard cap of 30s end-to-end gates the `recovered → running`
+transition. Drift past the hard cap raises a
+`RecoveryBudgetExceededError` and the workflow is FAILED per
+§3.7.2.2 invariant 4.
+
+**§3.7.4.5 Failure modes and recovery path.**
+
+| Phase | Failure mode | Engine state | Recovery path |
+|---|---|---|---|
+| R1 | Trigger classification ambiguous (e.g., simultaneous `CrashDetected` AND `StateCorruption`). | `uninstantiated` (no progression) | Halt; surface `RecoveryTriggerAmbiguousError`; operator-deliberate gate clears via an explicit `--force-trigger=<label>` operator-CLI flag (OI-PEF-10 surface). |
+| R2 | Snapshot backing unreachable (NATS-KV down). | `uninstantiated` (no progression) | Retry with exponential backoff (1s, 2s, 4s); on third failure raise `RecoveryBackingUnreachableError`. Drill `DRILL_NATS_BUCKET_LOST` (§3.7.2.1) exercises this path. |
+| R2 | Snapshot present but corrupt (JCS-canonicalisation mismatch). | `uninstantiated` (no progression) | Halt; surface `RecoverySnapshotCorruptError`; operator must restore from WAT-anchored snapshot (§5.3 `pin-pack-operator-v1`). |
+| R3 | SPIFFE workload-API returns expired SVID. | `reloaded` (held) | Retry once; on second failure raise `RecoveryIdentityRebindError`. Drill `DRILL_SPIRE_SVID_EXPIRED` exercises this path. |
+| R4 | Quadlet unit fails to start within budget. | `re_registered` (held) | Engine emits `recovery_resume_timeout` and surfaces `RecoveryResumeError`; operator-deliberate gate. |
+
+The crate surface exports a `RecoveryFailureMode` enum closed over
+these five cases.
+
+#### 3.7.5 `PersonaStateBacking` — state-persistence trait surface (Tag-4)
+
+§3.4 fixed the NATS-KV bucket-name family. §3.7.5 fixes the
+**backend-agnostic trait surface** that the recovery workflow
+(§3.7.4 R2) consumes. NATS-KV is the production binding;
+in-memory is the hermetic-test binding. Both implement the same
+trait.
+
+**§3.7.5.1 Trait shape.**
+
+```rust
+pub trait PersonaStateBacking {
+    /// Snapshot the persona's current state into the backing.
+    /// Returns the new snapshot's audit_trace_offset (monotonic
+    /// per persona_id). Idempotent: re-snapshotting an unchanged
+    /// state returns the existing snapshot's offset.
+    fn snapshot(&mut self, persona_id: &str, state: &PersonaStateSnapshot)
+        -> Result<u64, PersonaStateBackingError>;
+
+    /// Restore the latest snapshot for the persona. Returns
+    /// `None` if no snapshot exists (cold start).
+    fn restore_latest(&self, persona_id: &str)
+        -> Result<Option<PersonaStateSnapshot>, PersonaStateBackingError>;
+
+    /// List all snapshot offsets for the persona, oldest first.
+    /// Used by `DRILL_NATS_BUCKET_LOST` recovery to enumerate
+    /// candidate restore points.
+    fn list_snapshots(&self, persona_id: &str)
+        -> Result<Vec<u64>, PersonaStateBackingError>;
+
+    /// Atomically swap the persona's pinned snapshot offset.
+    /// Used by §3.7.3 migrate-version Per-instance sequence
+    /// to atomically swap v1 → v2 pin.
+    fn atomic_swap_pinned_offset(
+        &mut self,
+        persona_id: &str,
+        from_offset: u64,
+        to_offset: u64,
+    ) -> Result<(), PersonaStateBackingError>;
+}
+```
+
+**§3.7.5.2 Snapshot envelope shape.**
+
+```rust
+pub struct PersonaStateSnapshot {
+    /// V-907 persona-hash of the `canonical_subset` block at
+    /// snapshot time. Used by recovery R2 to verify pin-pack
+    /// consistency.
+    pub persona_hash: String,                    // "sha256:<64hex>"
+    /// Marker-stack offset at which this snapshot was taken;
+    /// recovery R2 replay starts from here.
+    pub audit_trace_offset: u64,
+    /// Capability-token set at snapshot time (non-revoked only).
+    pub capability_token_ids: Vec<String>,
+    /// UTC timestamp at snapshot moment (RFC 3339, UTC, second-precision).
+    pub snapshot_at_utc: String,                 // "2026-05-14T16:00:00Z"
+    /// Workspace-state hash (sha256 of canonicalised workspace files).
+    pub workspace_state_hash: String,            // "sha256:<64hex>"
+}
+```
+
+The snapshot envelope is **opaque to the trait** — it is the
+recovery workflow's responsibility to JCS-canonicalise the
+contents before hashing. The trait only stores and retrieves bytes.
+
+**§3.7.5.3 Backend bindings (this Tag-4).**
+
+- **`InMemoryPersonaStateBacking`** (this Tag-4, shipped): HashMap
+  per-`persona_id` → `Vec<(u64, PersonaStateSnapshot)>`. Used by
+  hermetic tests and the migration-pilot Tomás-export rehearsal
+  (Schiene B Schritt 8). Byte-deterministic over inputs (JCS
+  envelope), thread-unsafe by construction (single-writer assumption).
+- **`NatsKvPersonaStateBacking`** (reserved, deferred to Tag-N+):
+  NATS-JetStream-KV binding using the `wakir-persona-state-{persona_id}`
+  bucket-family. Cross-review-zone-B-paired with container-ops-slot
+  Quadlet/Compose template. OI-PEF-13 (NEW).
+
+A persona-engine runtime SHOULD use `NatsKvPersonaStateBacking` in
+production and `InMemoryPersonaStateBacking` in hermetic CI. The
+trait abstraction lets recovery-drill tests run end-to-end without
+a live NATS process.
+
+**§3.7.5.4 Cross-review.**
+
+Trait surface is engine-internal — no Zone-J/K/L touch beyond the
+NATS-KV bucket-family already reserved in §3.4. Zone-B touch
+for the eventual NATS-KV binding (Tag-N+); the trait itself is
+not a Zone-B surface.
 
 ### 3.8 JSON-Schema for output validation
 

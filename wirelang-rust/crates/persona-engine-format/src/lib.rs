@@ -816,3 +816,402 @@ pub mod lifecycle_protocols {
         ("spawning", "running"),
     ];
 }
+
+/// Recovery-workflow surfaces (§3.7.4 of the spec).
+///
+/// Sprint-Pengine-7 Tag-4 impl-axis pendant of the Tag-3 spec-level
+/// recovery-drill pattern (`lifecycle_protocols::RecoveryDrillClass`).
+///
+/// Posture mirror of `lifecycle_protocols` (Tag-3): pure-data + small
+/// validator functions, no async, no I/O, no Tokio dependency. The
+/// concrete engine runtime wiring (Quadlet `OnFailure=` hook,
+/// SPIFFE workload-API binding, marker-stack-replay) lives outside
+/// this crate; this module fixes the canonical vocabulary, phase
+/// order, idempotence contract, and failure-mode enumeration.
+pub mod recovery_workflow {
+    /// The three trigger-detection modes (§3.7.4.1). Closed enumeration —
+    /// every recovery entry-point falls into exactly one of these.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum RecoveryTrigger {
+        /// Quadlet unit transitions to `inactive` while `Result=signal`
+        /// (SIGKILL / SIGSEGV / OOM). Container-ops-side detection via
+        /// Quadlet `OnFailure=wakir-persona-recover@{persona_id}.service`.
+        CrashDetected,
+        /// `despawning` state observed but the operator-pin-pack's last
+        /// marker-stack `CompositionVerdict` is **not** `final_compose`
+        /// — i.e., despawn started but P3 never reached `composed`.
+        /// Engine-side detection on startup pin-pack reconciliation.
+        DespawnMidOperation,
+        /// V-907 persona-hash drift classified as `UnexpectedDriftBug`
+        /// (§3.7.3.3). Distinct from `ExpectedMajorBumpDrift` (which
+        /// triggers §3.7.3 migrate-version, not recovery).
+        StateCorruption,
+    }
+
+    /// Closed enumeration of all three trigger modes (§3.7.4.1).
+    pub const ALL_RECOVERY_TRIGGERS: &[RecoveryTrigger] = &[
+        RecoveryTrigger::CrashDetected,
+        RecoveryTrigger::DespawnMidOperation,
+        RecoveryTrigger::StateCorruption,
+    ];
+
+    /// Human-readable trigger label, used in audit annotations
+    /// (`recovery_trigger_classified` records) and forensics surfaces.
+    pub const fn recovery_trigger_label(trigger: RecoveryTrigger) -> &'static str {
+        match trigger {
+            RecoveryTrigger::CrashDetected => "crash_detected",
+            RecoveryTrigger::DespawnMidOperation => "despawn_mid_operation",
+            RecoveryTrigger::StateCorruption => "state_corruption",
+        }
+    }
+
+    /// The four phase-sequential operations of a recovery workflow
+    /// (§3.7.4.2). Phase order is **canonical**: re-ordering would
+    /// violate the audit-trail-gap=0 invariant (§3.7.2.2 #2) by
+    /// either issuing capability tokens against stale state (re-register
+    /// before reload) or by issuing tool calls against an expired SVID
+    /// (resume before re-register).
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum RecoveryWorkflowPhase {
+        /// R1 — Detect: classify the trigger; emit one audit record.
+        R1Detect,
+        /// R2 — Reload: restore persona state from §3.7.5 trait
+        /// backing; replay marker-stack-kv from snapshot offset to head.
+        R2Reload,
+        /// R3 — Re-register: refresh SPIFFE SVID via identity-substrate
+        /// workload-API; bind to engine runtime.
+        R3ReRegister,
+        /// R4 — Resume: Quadlet unit start; engine state machine
+        /// transitions `uninstantiated → recovered → running`.
+        R4Resume,
+    }
+
+    /// Canonical phase order (§3.7.4.2).
+    pub const RECOVERY_WORKFLOW_PHASE_ORDER: &[RecoveryWorkflowPhase] = &[
+        RecoveryWorkflowPhase::R1Detect,
+        RecoveryWorkflowPhase::R2Reload,
+        RecoveryWorkflowPhase::R3ReRegister,
+        RecoveryWorkflowPhase::R4Resume,
+    ];
+
+    /// Terminal status per phase (§3.7.4.2 "Terminal status" column).
+    pub const fn recovery_phase_terminal_status(phase: RecoveryWorkflowPhase) -> &'static str {
+        match phase {
+            RecoveryWorkflowPhase::R1Detect => "detected",
+            RecoveryWorkflowPhase::R2Reload => "reloaded",
+            RecoveryWorkflowPhase::R3ReRegister => "re_registered",
+            RecoveryWorkflowPhase::R4Resume => "resumed",
+        }
+    }
+
+    /// Cross-review zone per phase (§3.7.4.2 "Cross-review zone" column).
+    /// R1 is engine-internal (no zone).
+    pub const fn recovery_phase_cross_review_zone(
+        phase: RecoveryWorkflowPhase,
+    ) -> Option<&'static str> {
+        match phase {
+            RecoveryWorkflowPhase::R1Detect => None,
+            RecoveryWorkflowPhase::R2Reload => Some("B"),
+            RecoveryWorkflowPhase::R3ReRegister => Some("L"),
+            RecoveryWorkflowPhase::R4Resume => Some("J"),
+        }
+    }
+
+    /// Per-phase soft cap in seconds (§3.7.4.4 recovery budget).
+    /// Sum equals `RECOVERY_BUDGET_SECONDS` (30s) which is the hard cap.
+    pub const fn recovery_phase_soft_cap_seconds(phase: RecoveryWorkflowPhase) -> u32 {
+        match phase {
+            RecoveryWorkflowPhase::R1Detect => 1,
+            RecoveryWorkflowPhase::R2Reload => 15,
+            RecoveryWorkflowPhase::R3ReRegister => 5,
+            RecoveryWorkflowPhase::R4Resume => 9,
+        }
+    }
+
+    /// Closed enumeration of failure modes (§3.7.4.5). Each variant
+    /// pairs the failing phase with the failure reason.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum RecoveryFailureMode {
+        /// R1 — ambiguous trigger classification.
+        TriggerAmbiguous,
+        /// R2 — state-backing unreachable (NATS-KV down after retries).
+        BackingUnreachable,
+        /// R2 — snapshot present but corrupt (JCS-canonicalisation mismatch).
+        SnapshotCorrupt,
+        /// R3 — SPIFFE workload-API returns expired SVID.
+        IdentityRebindFailed,
+        /// R4 — Quadlet unit fails to start within budget.
+        ResumeTimeout,
+    }
+
+    /// Closed enumeration of all five failure modes (§3.7.4.5).
+    pub const ALL_RECOVERY_FAILURE_MODES: &[RecoveryFailureMode] = &[
+        RecoveryFailureMode::TriggerAmbiguous,
+        RecoveryFailureMode::BackingUnreachable,
+        RecoveryFailureMode::SnapshotCorrupt,
+        RecoveryFailureMode::IdentityRebindFailed,
+        RecoveryFailureMode::ResumeTimeout,
+    ];
+
+    /// The phase a failure mode applies to (§3.7.4.5 first column).
+    pub const fn recovery_failure_phase(
+        mode: RecoveryFailureMode,
+    ) -> super::recovery_workflow::RecoveryWorkflowPhase {
+        match mode {
+            RecoveryFailureMode::TriggerAmbiguous => RecoveryWorkflowPhase::R1Detect,
+            RecoveryFailureMode::BackingUnreachable => RecoveryWorkflowPhase::R2Reload,
+            RecoveryFailureMode::SnapshotCorrupt => RecoveryWorkflowPhase::R2Reload,
+            RecoveryFailureMode::IdentityRebindFailed => RecoveryWorkflowPhase::R3ReRegister,
+            RecoveryFailureMode::ResumeTimeout => RecoveryWorkflowPhase::R4Resume,
+        }
+    }
+
+    /// Decide whether a (trigger, drill-class) pair is **coherent**: each
+    /// drill class in §3.7.2.1 maps to exactly one canonical trigger
+    /// mode. This is a pure-logic predicate used by drill-scheduler
+    /// integration tests to verify that a drill class invokes the
+    /// expected trigger branch.
+    pub fn drill_class_maps_to_trigger(
+        drill: super::lifecycle_protocols::RecoveryDrillClass,
+        trigger: RecoveryTrigger,
+    ) -> bool {
+        use super::lifecycle_protocols::RecoveryDrillClass as D;
+        matches!(
+            (drill, trigger),
+            (D::ContainerCrash, RecoveryTrigger::CrashDetected)
+                | (D::NatsBucketLost, RecoveryTrigger::StateCorruption)
+                | (D::SpireSvidExpired, RecoveryTrigger::CrashDetected),
+        )
+        // SPIRE-SVID-EXPIRED maps to CrashDetected because the Quadlet
+        // unit OnFailure= hook fires when an SVID-related workload-API
+        // failure causes the persona container to exit non-zero. The
+        // identity-substrate fallback path (R3 retry) is then exercised.
+    }
+}
+
+/// State-persistence backing trait (§3.7.5 of the spec).
+///
+/// Backend-agnostic surface consumed by recovery workflow R2 (Reload)
+/// and migrate-version R3.7.3.4 atomic swap. NATS-KV is the production
+/// binding (Tag-N+, OI-PEF-13). In-memory is the hermetic-test binding,
+/// shipped with this Tag-4.
+///
+/// Posture: trait + plain-data envelope + in-memory implementation. No
+/// async, no I/O on the trait surface; concrete implementations may
+/// add I/O as appropriate to the backing.
+pub mod state_backing {
+    use std::collections::BTreeMap;
+
+    /// Snapshot envelope (§3.7.5.2). Opaque to the trait — the
+    /// recovery workflow is responsible for JCS-canonicalising the
+    /// contents before hashing; the trait only stores/retrieves.
+    ///
+    /// Fields are ordered to match the spec table top-to-bottom; the
+    /// `Eq` derive lets recovery R2 short-circuit when an unchanged
+    /// snapshot is offered.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct PersonaStateSnapshot {
+        /// V-907 persona-hash of the `canonical_subset` block at
+        /// snapshot time. Form: `"sha256:<64hex>"`.
+        pub persona_hash: String,
+        /// Marker-stack offset at which this snapshot was taken.
+        pub audit_trace_offset: u64,
+        /// Non-revoked capability-token IDs at snapshot time.
+        pub capability_token_ids: Vec<String>,
+        /// UTC timestamp at snapshot moment (RFC 3339, UTC, second-precision).
+        pub snapshot_at_utc: String,
+        /// Workspace-state hash (sha256 of canonicalised workspace files).
+        /// Form: `"sha256:<64hex>"`.
+        pub workspace_state_hash: String,
+    }
+
+    /// Backing error surface. Concrete bindings may wrap their own
+    /// transport/IO errors into one of these variants.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum PersonaStateBackingError {
+        /// Snapshot offset mismatch on atomic swap (concurrent writer).
+        AtomicSwapMismatch {
+            /// The offset the caller expected to be the current pinned offset.
+            expected_from: u64,
+            /// The actual current pinned offset.
+            actual: u64,
+        },
+        /// Backing unreachable (concrete-backend connectivity loss).
+        BackingUnreachable {
+            /// Concrete-backend diagnostic reason.
+            reason: String,
+        },
+        /// Snapshot present but corrupt (JCS or schema drift).
+        SnapshotCorrupt {
+            /// Which offset is corrupt.
+            offset: u64,
+            /// Diagnostic reason for forensics.
+            reason: String,
+        },
+    }
+
+    impl std::fmt::Display for PersonaStateBackingError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::AtomicSwapMismatch {
+                    expected_from,
+                    actual,
+                } => write!(
+                    f,
+                    "PersonaStateBackingError::AtomicSwapMismatch: expected from_offset={} but pinned offset is {}",
+                    expected_from, actual
+                ),
+                Self::BackingUnreachable { reason } => write!(
+                    f,
+                    "PersonaStateBackingError::BackingUnreachable: {}",
+                    reason
+                ),
+                Self::SnapshotCorrupt { offset, reason } => write!(
+                    f,
+                    "PersonaStateBackingError::SnapshotCorrupt at offset {}: {}",
+                    offset, reason
+                ),
+            }
+        }
+    }
+
+    impl std::error::Error for PersonaStateBackingError {}
+
+    /// Backend-agnostic state-persistence contract (§3.7.5.1).
+    pub trait PersonaStateBacking {
+        /// Snapshot persona state into the backing. Returns the new
+        /// snapshot's audit_trace_offset (monotonic per `persona_id`).
+        /// Idempotent: re-snapshotting an unchanged state returns the
+        /// existing offset (`PartialEq` on `PersonaStateSnapshot`).
+        fn snapshot(
+            &mut self,
+            persona_id: &str,
+            state: &PersonaStateSnapshot,
+        ) -> Result<u64, PersonaStateBackingError>;
+
+        /// Restore the latest snapshot for the persona. Returns `None`
+        /// if no snapshot exists (cold start).
+        fn restore_latest(
+            &self,
+            persona_id: &str,
+        ) -> Result<Option<PersonaStateSnapshot>, PersonaStateBackingError>;
+
+        /// List all snapshot offsets for the persona, oldest first.
+        fn list_snapshots(&self, persona_id: &str) -> Result<Vec<u64>, PersonaStateBackingError>;
+
+        /// Atomically swap the persona's pinned snapshot offset.
+        /// Returns `Err(AtomicSwapMismatch{..})` if `from_offset` is
+        /// not the current pinned offset.
+        fn atomic_swap_pinned_offset(
+            &mut self,
+            persona_id: &str,
+            from_offset: u64,
+            to_offset: u64,
+        ) -> Result<(), PersonaStateBackingError>;
+    }
+
+    /// Hermetic-test in-memory backing (§3.7.5.3). Single-writer
+    /// HashMap; no thread-safety guarantees. Used by recovery-drill
+    /// tests and the migration-pilot Tomás-export rehearsal
+    /// (Schiene B Schritt 8).
+    #[derive(Debug, Default, Clone)]
+    pub struct InMemoryPersonaStateBacking {
+        /// `persona_id` → ordered (offset, snapshot) pairs.
+        snapshots: BTreeMap<String, Vec<(u64, PersonaStateSnapshot)>>,
+        /// `persona_id` → currently pinned offset.
+        pinned_offsets: BTreeMap<String, u64>,
+    }
+
+    impl InMemoryPersonaStateBacking {
+        /// Fresh in-memory backing with no snapshots.
+        pub fn new() -> Self {
+            Self::default()
+        }
+
+        /// Number of stored snapshots for the persona (0 if absent).
+        pub fn snapshot_count(&self, persona_id: &str) -> usize {
+            self.snapshots.get(persona_id).map(|v| v.len()).unwrap_or(0)
+        }
+
+        /// Current pinned offset for the persona (if any).
+        pub fn pinned_offset(&self, persona_id: &str) -> Option<u64> {
+            self.pinned_offsets.get(persona_id).copied()
+        }
+    }
+
+    impl PersonaStateBacking for InMemoryPersonaStateBacking {
+        fn snapshot(
+            &mut self,
+            persona_id: &str,
+            state: &PersonaStateSnapshot,
+        ) -> Result<u64, PersonaStateBackingError> {
+            let history = self.snapshots.entry(persona_id.to_owned()).or_default();
+
+            // Idempotence: re-snapshotting an unchanged latest state
+            // returns the existing offset (no new entry).
+            if let Some((existing_offset, existing_state)) = history.last() {
+                if existing_state == state {
+                    return Ok(*existing_offset);
+                }
+            }
+
+            let new_offset = history
+                .last()
+                .map(|(o, _)| o.saturating_add(1))
+                .unwrap_or(0);
+
+            history.push((new_offset, state.clone()));
+            self.pinned_offsets
+                .insert(persona_id.to_owned(), new_offset);
+            Ok(new_offset)
+        }
+
+        fn restore_latest(
+            &self,
+            persona_id: &str,
+        ) -> Result<Option<PersonaStateSnapshot>, PersonaStateBackingError> {
+            Ok(self
+                .snapshots
+                .get(persona_id)
+                .and_then(|v| v.last())
+                .map(|(_, s)| s.clone()))
+        }
+
+        fn list_snapshots(&self, persona_id: &str) -> Result<Vec<u64>, PersonaStateBackingError> {
+            Ok(self
+                .snapshots
+                .get(persona_id)
+                .map(|v| v.iter().map(|(o, _)| *o).collect())
+                .unwrap_or_default())
+        }
+
+        fn atomic_swap_pinned_offset(
+            &mut self,
+            persona_id: &str,
+            from_offset: u64,
+            to_offset: u64,
+        ) -> Result<(), PersonaStateBackingError> {
+            let current = self.pinned_offsets.get(persona_id).copied().unwrap_or(0);
+            if current != from_offset {
+                return Err(PersonaStateBackingError::AtomicSwapMismatch {
+                    expected_from: from_offset,
+                    actual: current,
+                });
+            }
+            // Validate to_offset exists in the snapshot history.
+            let exists = self
+                .snapshots
+                .get(persona_id)
+                .map(|v| v.iter().any(|(o, _)| *o == to_offset))
+                .unwrap_or(false);
+            if !exists {
+                return Err(PersonaStateBackingError::SnapshotCorrupt {
+                    offset: to_offset,
+                    reason: "atomic_swap target offset not present in history".into(),
+                });
+            }
+            self.pinned_offsets.insert(persona_id.to_owned(), to_offset);
+            Ok(())
+        }
+    }
+}
