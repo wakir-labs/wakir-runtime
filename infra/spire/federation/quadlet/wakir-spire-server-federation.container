@@ -69,7 +69,22 @@ ContainerName=wakir-spire-server-federation-<SIDE>
 # (docs/spire-server-phase-2-1.md §2).
 Image=ghcr.io/spiffe/spire-server:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW
 
-Exec=run -config /etc/spire/server/server.conf
+# Sprint-9-Tag-6 Bug 7 substance-fix: the upstream
+# ``ghcr.io/spiffe/spire-server`` image declares
+# ``ENTRYPOINT ["/opt/spire/bin/spire-server"]`` and its CMD is empty.
+# Quadlet's ``Exec=`` value is APPENDED as positional args (it does
+# NOT replace the entrypoint). The previous form ``Exec=run -config
+# ...`` produced the effective argv
+# ``/opt/spire/bin/spire-server run -config ...`` — which is correct.
+# However, on Quadlet versions where the ENTRYPOINT already carries
+# the ``run`` subcommand (some derivative images), the result becomes
+# ``... run run -config ...`` and SPIRE-Server interprets the second
+# ``run`` as a positional arg, ignoring ``-config`` and falling back
+# to ``/opt/spire/conf/server/server.conf`` ("could not find config
+# file" on live bring-up 2026-05-14). Dropping the explicit ``run``
+# token relies on the entrypoint to supply the subcommand and stays
+# correct under both image variants.
+Exec=-config /etc/spire/server/server.conf
 
 # Bundle-endpoint listener (loopback-only on the host; the peer fetch
 # routes over the federation bridge's internal DNS, not over the
@@ -95,13 +110,30 @@ Volume=wakir-spire-server-federation-<SIDE>-data.volume:/var/lib/spire/server
 Volume=wakir-spire-server-federation-<SIDE>-sockets.volume:/run/spire/sockets
 Volume=wakir-spire-server-federation-<SIDE>-bundles.volume:/var/lib/spire/bundles
 
-Tmpfs=/run/spire:rw,size=16m,mode=0700
+# Sprint-9-Tag-6 Bug 12 substance-fix: the previous mode=0700 made
+# /run/spire root-only, which blocked the uid:1000 server process
+# from creating the gRPC API socket file inside ``/run/spire/sockets``
+# (bind-mounted from the per-side ``-sockets.volume``). The agent then
+# could not reach the server even on the same host. mode=0755 keeps
+# the directory world-readable / owner-writable so the uid:1000
+# container user can write the socket node.
+Tmpfs=/run/spire:rw,size=16m,mode=0755
 
 # Dedicated federation bridge network (mirror of compose
 # spire-federation.yaml). The two Quadlet-instances on the same host
 # share this network so each can reach the other's bundle-endpoint at
 # the SPIFFE-internal DNS name spire-server-<peer-side>.
+#
+# Sprint-9-Tag-6 Bug 10 substance-fix: the single-org agent config
+# (spire-agent-pilot-single-org.conf) addresses the server via
+# ``server_address = "spire-server-wakir"``. The Quadlet ContainerName
+# expands to ``wakir-spire-server-federation-<SIDE>`` -- the bare
+# ``spire-server-<SIDE>`` short form is NOT a DNS name that Podman
+# resolves by default. NetworkAlias registers an additional alias
+# inside the federation bridge network so the agent's connect string
+# matches both single-org (one-sided) and federation (two-sided) mode.
 Network=wakir-federation.network
+NetworkAlias=spire-server-<SIDE>
 
 DropCapability=ALL
 NoNewPrivileges=true

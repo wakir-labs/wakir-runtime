@@ -51,8 +51,13 @@ services:
     # SPIRE-Server for the ``wakir.test`` trust-domain side.
     image: "ghcr.io/spiffe/spire-server:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW"
     container_name: wakir-spire-server-wakir
+    # Sprint-9-Tag-6 Bug 7 substance-fix: drop the literal ``run``
+    # token from the command list. The upstream entrypoint already
+    # invokes ``spire-server``; on derivative images that bake ``run``
+    # into the entrypoint, the duplicate ``run`` token is interpreted
+    # as a positional arg and silently swallows the ``-config`` flag.
+    # The Quadlet template mirrors this form (Exec=-config ...).
     command:
-      - "run"
       - "-config"
       - "/etc/spire/server/server.conf"
     read_only: true
@@ -69,8 +74,11 @@ services:
       # federation-bundle-endpoint fetch is the steady-state path
       # after bootstrap.
       - "spire_server_wakir_bundles:/var/lib/spire/bundles"
+    # Sprint-9-Tag-6 Bug 12 substance-fix: mode=0755 (was 0700) so the
+    # uid:1000 container user can bind sockets under /run/spire. The
+    # Quadlet template mirrors this value.
     tmpfs:
-      - "/run/spire:rw,size=16m,mode=0700"
+      - "/run/spire:rw,size=16m,mode=0755"
     ports:
       # Bundle-endpoint listener (federation public-facing).
       # Loopback-only so the hermetic surface stays operator-hand-
@@ -106,8 +114,13 @@ services:
     # SPIRE-Server for the ``partner.test`` trust-domain side.
     image: "ghcr.io/spiffe/spire-server:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW"
     container_name: wakir-spire-server-partner
+    # Sprint-9-Tag-6 Bug 7 substance-fix: drop the literal ``run``
+    # token from the command list. The upstream entrypoint already
+    # invokes ``spire-server``; on derivative images that bake ``run``
+    # into the entrypoint, the duplicate ``run`` token is interpreted
+    # as a positional arg and silently swallows the ``-config`` flag.
+    # The Quadlet template mirrors this form (Exec=-config ...).
     command:
-      - "run"
       - "-config"
       - "/etc/spire/server/server.conf"
     read_only: true
@@ -117,8 +130,11 @@ services:
       - "spire_server_partner_data:/var/lib/spire/server"
       - "spire_server_partner_sockets:/run/spire/sockets"
       - "spire_server_partner_bundles:/var/lib/spire/bundles"
+    # Sprint-9-Tag-6 Bug 12 substance-fix: mode=0755 (was 0700) so the
+    # uid:1000 container user can bind sockets under /run/spire. The
+    # Quadlet template mirrors this value.
     tmpfs:
-      - "/run/spire:rw,size=16m,mode=0700"
+      - "/run/spire:rw,size=16m,mode=0755"
     ports:
       - "127.0.0.1:8444:8443"
       - "127.0.0.1:8083:8081"

@@ -82,7 +82,25 @@ ContainerName=wakir-spire-agent-<SIDE>
 Image=ghcr.io/spiffe/spire-agent:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW
 
 # Command-line arguments (mirror of compose `command:` list).
-Exec=run -config /etc/spire/agent/agent.conf
+#
+# Sprint-9-Tag-6 Bug 8 substance-fix: same root cause as Bug 7 on the
+# server side -- the upstream ``ghcr.io/spiffe/spire-agent`` image
+# declares ``ENTRYPOINT ["/opt/spire/bin/spire-agent"]`` and Quadlet's
+# ``Exec=`` value is APPENDED as positional args. The previous form
+# ``Exec=run -config ...`` is fine for the upstream image but produces
+# ``... run run -config ...`` on derivative images that already carry
+# the ``run`` subcommand in their entrypoint. Dropping the explicit
+# ``run`` token relies on the entrypoint to supply the subcommand and
+# stays correct under both image variants.
+#
+# Single-org Phase-1b note: the bootstrap injects the join-token via
+# in-place sed substitution against the literal ``-joinToken
+# WAKIR_JOIN_TOKEN_PLACEHOLDER`` segment below (Bug 1 substance-fix).
+# Federation Phase-2.1 leaves the placeholder untouched: federation
+# agents re-attest via the peer trust-bundle rather than the join-
+# token path. The Quadlet generator strips the trailing token
+# placeholder line on a federation install via sed-delete.
+Exec=-config /etc/spire/agent/agent.conf -joinToken WAKIR_JOIN_TOKEN_PLACEHOLDER
 
 # Read-only root filesystem (mirror of compose `read_only: true`).
 ReadOnly=true
@@ -117,7 +135,15 @@ Volume=wakir-spire-server-federation-<SIDE>-bundles.volume:/var/lib/spire/bundle
 Volume=wakir-spire-agent-<SIDE>-sockets.volume:/run/spire/agent-sockets
 
 # tmpfs for ephemeral SPIRE runtime paths (parity with server).
-Tmpfs=/run/spire:rw,size=16m,mode=0700
+#
+# Sprint-9-Tag-6 Bug 12 substance-fix: the previous mode=0700 made
+# /run/spire root-only, which blocked the uid:1000 agent process
+# from creating the Workload-API socket file inside
+# ``/run/spire/agent-sockets``. Persona workloads then could not
+# reach the agent even on the same host. mode=0755 keeps the
+# directory world-readable / owner-writable so the uid:1000 container
+# user can write the socket node.
+Tmpfs=/run/spire:rw,size=16m,mode=0755
 
 # Federation bridge network (external, owned by Tag-1 Quadlet).
 Network=wakir-federation.network
