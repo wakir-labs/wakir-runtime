@@ -87,19 +87,39 @@ PROG=$(basename "$0")
 
 ORG=""
 EMIT_JSON=0
+# Sprint-10-Tag-1 Cross-VM-Federation substance: side-aware smoke.
+# --side selects which Quadlet-instance the smoke checks (defaults to
+# ``wakir`` for backwards-compat with the Sprint-9 Tag-1 baseline).
+# When --side != wakir, all Quadlet unit names + container names below
+# substitute the literal ``wakir`` -> ${SIDE} so the smoke runs against
+# the orbit-side VM in identical shape.
+SIDE="wakir"
+# --peer-side selects the Cross-VM peer-side trust-domain. When set,
+# the federation-bundle-sync-reachable + federation-cross-trust-domain-
+# verify checks are activated (gated on WAKIR_FEDERATION_MODE=enabled
+# env-var per Sprint-10 Tag-1 substance brief).
+PEER_SIDE=""
 
 usage() {
   cat <<'EOF'
-Usage: proxmox-bringup-smoke --org <ORG_ID> [--json]
+Usage: proxmox-bringup-smoke --org <ORG_ID> [--side <SIDE>] [--peer-side <PEER_SIDE>] [--json]
 
 Phase-2 Sprint-9 Tag-1 Operator-Hand Self-Verify nach Proxmox-Bring-up.
+Sprint-10 Tag-1 Cross-VM-Federation substance: --side selects which
+Quadlet-instance is checked; --peer-side activates federation-cross-VM
+checks (gated on WAKIR_FEDERATION_MODE=enabled).
 
 Required:
-  --org <ORG_ID>   pilot-org id (e.g. acme) — bucket=wakir-marker-stack-<ORG>
+  --org <ORG_ID>      pilot-org id (e.g. acme) — bucket=wakir-marker-stack-<ORG>
 
 Optional:
-  --json           emit a JSON report on stdout in addition to the human log
-  -h, --help       show this help and exit
+  --side <SIDE>       which Quadlet-instance to check
+                      (default: wakir; alt: orbit, partner)
+  --peer-side <SIDE>  cross-VM peer-side trust-domain (e.g. orbit, wakir).
+                      Activates two additional federation-bundle-sync
+                      checks; requires WAKIR_FEDERATION_MODE=enabled env.
+  --json              emit a JSON report on stdout in addition to the human log
+  -h, --help          show this help and exit
 
 Exit codes:
   0  all checks PASS
@@ -112,6 +132,14 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --org)
       ORG="${2:-}"
+      shift 2
+      ;;
+    --side)
+      SIDE="${2:-}"
+      shift 2
+      ;;
+    --peer-side)
+      PEER_SIDE="${2:-}"
       shift 2
       ;;
     --json)
@@ -139,6 +167,26 @@ fi
 # Validate org_id (mirror of the Wirelang-side _IDENT_RE):
 if ! [[ "$ORG" =~ ^[A-Za-z0-9][A-Za-z0-9_.:\-]*$ ]]; then
   echo "[$PROG] ERROR: --org $ORG does not match permitted-character pattern" >&2
+  exit 1
+fi
+
+# Validate side literal — same permitted-character pattern as org_id,
+# but the side ALSO becomes part of a Quadlet unit name and a SPIFFE
+# trust-domain literal, so we are stricter: lowercase ASCII + digits
+# only, no separator characters. This matches the existing Quadlet-
+# template substitution invariants.
+if ! [[ "$SIDE" =~ ^[a-z][a-z0-9]*$ ]]; then
+  echo "[$PROG] ERROR: --side $SIDE must be lowercase ASCII + digits, starting with a letter" >&2
+  exit 1
+fi
+
+if [[ -n "$PEER_SIDE" ]] && ! [[ "$PEER_SIDE" =~ ^[a-z][a-z0-9]*$ ]]; then
+  echo "[$PROG] ERROR: --peer-side $PEER_SIDE must be lowercase ASCII + digits, starting with a letter" >&2
+  exit 1
+fi
+
+if [[ -n "$PEER_SIDE" && "$PEER_SIDE" == "$SIDE" ]]; then
+  echo "[$PROG] ERROR: --peer-side ($PEER_SIDE) must differ from --side ($SIDE)" >&2
   exit 1
 fi
 
@@ -259,8 +307,8 @@ with_retry() {
 check_quadlet_units_active() {
   local units=(
     wakir-nats.service
-    wakir-spire-server-federation-wakir.service
-    wakir-spire-agent-wakir.service
+    "wakir-spire-server-federation-${SIDE}.service"
+    "wakir-spire-agent-${SIDE}.service"
   )
   local missing=()
   local unit
@@ -331,7 +379,7 @@ check_nats_jetstream_reachable() {
 
 _probe_spire_server_healthy() {
   local out
-  if out=$("$PODMAN" exec wakir-spire-server-federation-wakir \
+  if out=$("$PODMAN" exec "wakir-spire-server-federation-${SIDE}" \
         /opt/spire/bin/spire-server healthcheck 2>&1); then
     RETRY_DETAIL="$(echo "$out" | head -1)"
     return 0
@@ -369,7 +417,7 @@ _probe_spire_agent_healthy() {
   # unable to determine health" even when the Agent is running fine.
   # Mirrors the working `check_spire_workload_api_reachable` invocation.
   local out
-  if out=$("$PODMAN" exec wakir-spire-agent-wakir \
+  if out=$("$PODMAN" exec "wakir-spire-agent-${SIDE}" \
         /opt/spire/bin/spire-agent healthcheck \
           -socketPath /run/spire/agent-sockets/api.sock 2>&1); then
     RETRY_DETAIL="$(echo "$out" | head -1)"
@@ -398,7 +446,7 @@ check_spire_workload_api_reachable() {
   # inside the container at /run/spire/agent-sockets/api.sock. We
   # exec into the agent container and ask the SPIRE binary to dial it.
   local out
-  if out=$("$PODMAN" exec wakir-spire-agent-wakir \
+  if out=$("$PODMAN" exec "wakir-spire-agent-${SIDE}" \
         /opt/spire/bin/spire-agent api fetch x509 \
           -socketPath /run/spire/agent-sockets/api.sock 2>&1); then
     record "spire-workload-api-reachable" "PASS" \
@@ -494,6 +542,142 @@ check_marker_stack_bucket_present() {
 }
 
 # ---------------------------------------------------------------------------
+# Check 7: federation-bundle-sync-reachable (Sprint-10 Tag-1, OPT-IN)
+#
+# Gated on WAKIR_FEDERATION_MODE=enabled env-var. Only runs when the
+# operator explicitly opts in to Cross-VM-Federation smoke. The check
+# HTTPS-GETs the peer-side bundle-endpoint at
+# https://spire-server-<PEER_SIDE>:8443 from inside this VM's federation
+# bridge network. The peer-side DNS resolution depends on either (a)
+# the wakir-federation Podman-bridge sharing the same network namespace
+# across VMs (rare; usually FALSE), OR (b) an /etc/hosts entry that
+# Operator-Hand-installed pointing at the peer-VM's bridge IP. The
+# check sets a short --max-time so a missing /etc/hosts entry fails
+# fast (5s) rather than hanging.
+#
+# Sandbox-Boundary: this check is OPERATOR-HAND-only — the sandbox
+# does NOT run a live VM, so the hermetic test surface mocks the curl
+# wrapper (WAKIR_SMOKE_CURL) to a fixture that returns a canned
+# JWKS-bundle response.
+# ---------------------------------------------------------------------------
+
+_probe_federation_bundle_sync_reachable() {
+  # Sprint-10-Tag-1 Zone-A item: the SPIRE-Server federation bundle-
+  # endpoint serves the bundle at the listener's ROOT path (https_spiffe
+  # profile). Reza's PR #51 adapter pins URLs with a ``/bundle`` suffix,
+  # which is a separate URL surface. This probe tries the root path
+  # first (SPIRE-server-native shape); if that fails it retries with
+  # ``/bundle`` to tolerate the adapter-suffix convention until the
+  # Zone-A item resolves.
+  local peer_host="spire-server-${PEER_SIDE}"
+  local url_root="https://${peer_host}:8443/"
+  local url_suffix="https://${peer_host}:8443/bundle"
+  local body http_code
+  # -k tolerates the SPIRE-self-issued cert (https_spiffe profile);
+  # the cert-chain validation happens at the SPIRE-fed-bundle-fetcher
+  # layer, not here. This probe asks only: "is the peer listener
+  # reachable + emitting bytes?".
+  if body=$("$CURL" -sk --max-time 5 \
+        -w '\n__HTTP_CODE__=%{http_code}\n' \
+        "$url_root" 2>/dev/null); then
+    http_code=$(echo "$body" | grep -oE '__HTTP_CODE__=[0-9]+' | tail -1 | cut -d= -f2)
+    if [[ "$http_code" == "200" ]]; then
+      RETRY_DETAIL="GET ${url_root} -> 200"
+      return 0
+    fi
+  fi
+  # Retry with the adapter-suffix shape.
+  if body=$("$CURL" -sk --max-time 5 \
+        -w '\n__HTTP_CODE__=%{http_code}\n' \
+        "$url_suffix" 2>/dev/null); then
+    http_code=$(echo "$body" | grep -oE '__HTTP_CODE__=[0-9]+' | tail -1 | cut -d= -f2)
+    if [[ "$http_code" == "200" ]]; then
+      RETRY_DETAIL="GET ${url_suffix} -> 200 (adapter-suffix path)"
+      return 0
+    fi
+  fi
+  RETRY_DETAIL="no 200 from ${peer_host}:8443 (root or /bundle); check /etc/hosts + peer-VM listener"
+  return 1
+}
+
+check_federation_bundle_sync_reachable() {
+  if [[ "${WAKIR_FEDERATION_MODE:-}" != "enabled" ]]; then
+    record "federation-bundle-sync-reachable" "SKIP" \
+      "WAKIR_FEDERATION_MODE != enabled"
+    return 0
+  fi
+  if [[ -z "$PEER_SIDE" ]]; then
+    record "federation-bundle-sync-reachable" "SKIP" \
+      "--peer-side not provided"
+    return 0
+  fi
+  if with_retry _probe_federation_bundle_sync_reachable; then
+    record "federation-bundle-sync-reachable" "PASS" \
+      "$RETRY_LAST_DETAIL" "$RETRY_LAST_ATTEMPTS"
+  else
+    record "federation-bundle-sync-reachable" "FAIL" \
+      "$RETRY_LAST_DETAIL" "$RETRY_LAST_ATTEMPTS"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Check 8: federation-cross-trust-domain-verify (Sprint-10 Tag-1, OPT-IN)
+#
+# Gated on WAKIR_FEDERATION_MODE=enabled. Asks the local SPIRE-Server
+# whether it has seen the peer trust-domain's bundle in its federation-
+# state. Uses ``spire-server bundle list`` filtered by the peer-side
+# trust-domain literal. A non-empty result confirms the bundle-sync
+# round-trip closed (peer was reached, peer's bundle was fetched, local
+# SPIRE-Server has it cached for cross-trust X.509-SVID verification).
+#
+# This is the substance acceptance for "M-3 Live-Federation-Trial-Gate"
+# from Sprint-7 closeout §7. Without this check, the smoke can pass on
+# both VMs in isolation without ever proving they have actually
+# exchanged trust-bundles.
+# ---------------------------------------------------------------------------
+
+_probe_federation_cross_trust_domain_verify() {
+  local peer_td="${PEER_SIDE}.test"
+  local out
+  if out=$("$PODMAN" exec "wakir-spire-server-federation-${SIDE}" \
+        /opt/spire/bin/spire-server bundle list \
+          -format pem 2>&1); then
+    # ``spire-server bundle list`` (without -id) lists ALL bundles
+    # including federated peer bundles. The output includes a header
+    # line "Trust Domain : <td-literal>" per bundle. Match that
+    # boundary-anchored to tolerate output-format-drift.
+    if echo "$out" | grep -qE "Trust Domain[[:space:]]*:[[:space:]]*${peer_td}([[:space:]]|$)"; then
+      RETRY_DETAIL="local SPIRE-Server has cached bundle for ${peer_td}"
+      return 0
+    fi
+    RETRY_DETAIL="${peer_td} not in spire-server bundle list (race: bundle-fetch-pending or peer-not-reached)"
+    return 1
+  fi
+  RETRY_DETAIL="spire-server bundle list failed: $(echo "$out" | head -1)"
+  return 1
+}
+
+check_federation_cross_trust_domain_verify() {
+  if [[ "${WAKIR_FEDERATION_MODE:-}" != "enabled" ]]; then
+    record "federation-cross-trust-domain-verify" "SKIP" \
+      "WAKIR_FEDERATION_MODE != enabled"
+    return 0
+  fi
+  if [[ -z "$PEER_SIDE" ]]; then
+    record "federation-cross-trust-domain-verify" "SKIP" \
+      "--peer-side not provided"
+    return 0
+  fi
+  if with_retry _probe_federation_cross_trust_domain_verify; then
+    record "federation-cross-trust-domain-verify" "PASS" \
+      "$RETRY_LAST_DETAIL" "$RETRY_LAST_ATTEMPTS"
+  else
+    record "federation-cross-trust-domain-verify" "FAIL" \
+      "$RETRY_LAST_DETAIL" "$RETRY_LAST_ATTEMPTS"
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Run the suite
 # ---------------------------------------------------------------------------
 
@@ -503,6 +687,8 @@ check_spire_server_healthy
 check_spire_agent_healthy
 check_spire_workload_api_reachable
 check_marker_stack_bucket_present
+check_federation_bundle_sync_reachable
+check_federation_cross_trust_domain_verify
 
 # ---------------------------------------------------------------------------
 # Summary + Exit
@@ -510,20 +696,27 @@ check_marker_stack_bucket_present
 
 PASS=0
 FAIL=0
+SKIP=0
 for s in "${RESULTS_STATUS[@]}"; do
   case "$s" in
     PASS) PASS=$((PASS + 1)) ;;
     FAIL) FAIL=$((FAIL + 1)) ;;
+    SKIP) SKIP=$((SKIP + 1)) ;;
   esac
 done
 TOTAL=$((PASS + FAIL))
 
-printf '[bringup-smoke] SUMMARY: %d/%d checks PASS\n' "$PASS" "$TOTAL"
+if [[ "$SKIP" -gt 0 ]]; then
+  printf '[bringup-smoke] SUMMARY: %d/%d checks PASS (%d skipped)\n' \
+    "$PASS" "$TOTAL" "$SKIP"
+else
+  printf '[bringup-smoke] SUMMARY: %d/%d checks PASS\n' "$PASS" "$TOTAL"
+fi
 
 if [[ "$EMIT_JSON" -eq 1 ]]; then
   # Compose a JSON report (no jq dependency; deterministic shape).
-  printf '{"summary":{"pass":%d,"fail":%d,"total":%d},"results":[' \
-    "$PASS" "$FAIL" "$TOTAL"
+  printf '{"summary":{"pass":%d,"fail":%d,"skip":%d,"total":%d},"results":[' \
+    "$PASS" "$FAIL" "$SKIP" "$TOTAL"
   for i in "${!RESULTS_NAME[@]}"; do
     if [[ "$i" -gt 0 ]]; then printf ','; fi
     # JSON-escape the detail string minimally (no embedded quote).

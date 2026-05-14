@@ -18,7 +18,15 @@
 #
 # Env-Vars:
 #   WAKIR_ORG_ID              default: acme
-#   WAKIR_TRUST_DOMAIN        default: wakir.test
+#   WAKIR_TRUST_DOMAIN        default: wakir.test (auto-syncs with
+#                             WAKIR_SIDE when SIDE != wakir and the
+#                             operator did not override; Sprint-10-
+#                             Tag-1 Cross-VM-Federation substance)
+#   WAKIR_SIDE                default: wakir  (alt: orbit, partner;
+#                             Sprint-10-Tag-1 substance — selects
+#                             which Quadlet-instance + config-pair
+#                             the bootstrap installs. ``orbit`` is
+#                             the Cross-VM Federation peer-VM.)
 #   WAKIR_PILOT_MODE          default: single-org  (Sprint-9-Tag-5
 #                             Bug 7 substance-fix: choose between
 #                             ``single-org`` Phase-1b pilot config
@@ -94,6 +102,39 @@ _resume_cmd() {
 
 : "${WAKIR_ORG_ID:=acme}"
 : "${WAKIR_TRUST_DOMAIN:=wakir.test}"
+
+# Sprint-10-Tag-1 Cross-VM-Federation substance: the bootstrap is
+# side-aware. ``WAKIR_SIDE`` selects which Quadlet-instance + which
+# SPIRE-Server/Agent config-pair the bootstrap installs on this VM.
+#
+#   wakir   -> spire-server-wakir.conf + spire-agent-wakir.conf
+#              (DEFAULT; the wakir-side Pilot-VM that has shipped
+#              since Sprint-9 Tag-1)
+#   orbit   -> spire-server-orbit.conf + spire-agent-orbit.conf
+#              (Sprint-10-Tag-1 Cross-VM Federation peer-VM)
+#
+# The side literal is substituted into Quadlet ContainerName,
+# NetworkAlias, volume basenames, and bind-mount paths via the
+# existing ``<SIDE>`` placeholder mechanism (step_6_quadlet §6c+§6d).
+# WAKIR_TRUST_DOMAIN auto-syncs with WAKIR_SIDE if not explicitly
+# overridden by the operator — see the post-defaults block below.
+: "${WAKIR_SIDE:=wakir}"
+case "$WAKIR_SIDE" in
+  wakir|orbit|partner) : ;;
+  *)
+    echo "[$PROG] ERROR: WAKIR_SIDE must be 'wakir', 'orbit', or 'partner'; got '${WAKIR_SIDE}'" >&2
+    exit 1
+    ;;
+esac
+
+# Auto-sync WAKIR_TRUST_DOMAIN with WAKIR_SIDE when the operator left
+# WAKIR_TRUST_DOMAIN at the wakir.test default but selected a non-wakir
+# side. If the operator explicitly set both, we trust the operator and
+# do not second-guess.
+if [[ "$WAKIR_SIDE" != "wakir" && "$WAKIR_TRUST_DOMAIN" == "wakir.test" ]]; then
+  WAKIR_TRUST_DOMAIN="${WAKIR_SIDE}.test"
+fi
+
 : "${WAKIR_REPO_BRANCH:=main}"
 : "${WAKIR_REPO_URL:=https://github.com/wakir-labs/wakir-runtime.git}"
 : "${WAKIR_REPO_ROOT:=/opt/wakir-runtime}"
@@ -231,7 +272,8 @@ Steps:
 
 Env vars (see top of script for full list):
   WAKIR_ORG_ID              (default: acme)
-  WAKIR_TRUST_DOMAIN        (default: wakir.test)
+  WAKIR_TRUST_DOMAIN        (default: wakir.test; auto-syncs with WAKIR_SIDE)
+  WAKIR_SIDE                (default: wakir; alt: orbit, partner)
   WAKIR_PILOT_MODE          (default: single-org; alt: federation)
   WAKIR_SKIP_COSIGN_VERIFY  (default: 0; set 1 for tag-only quick-pilot)
   WAKIR_SKIP_PROMPTS        (default: 0; set 1 for headless / CI)
@@ -904,7 +946,11 @@ step_6_quadlet() {
   local fed_src="${WAKIR_REPO_ROOT}/infra/spire/federation/quadlet"
   local agent_src="${WAKIR_REPO_ROOT}/infra/spire/agent/quadlet"
   local dst="/etc/containers/systemd"
-  local side="wakir"
+  # Sprint-10-Tag-1 Cross-VM-Federation substance: side is no longer
+  # hardcoded; the WAKIR_SIDE env-var (validated in the post-defaults
+  # block) drives Quadlet-naming, config-file selection, and the
+  # SERVER_DNS NetworkAlias substitution.
+  local side="${WAKIR_SIDE}"
 
   if [[ ! -d "$quadlet_src" ]]; then
     log_err "quadlet source not found: ${quadlet_src}"
