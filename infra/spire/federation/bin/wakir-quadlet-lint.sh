@@ -145,21 +145,36 @@ stage_partner=$(stage_for_side "partner" "partner.test" "spire-server-partner")
 run_dryrun_for_side() {
   local side=$1
   local stage_dir=$2
-  local log
-  log=$(mktemp -t wakir-quadlet-lint-${side}-XXXXXX.log)
-  if QUADLET_UNIT_DIRS=$stage_dir "$QUADLET_BIN" --dryrun >"$log" 2>&1; then
-    rm -f "$log"
+  local stderr_log stdout_log
+  stderr_log=$(mktemp -t wakir-quadlet-lint-${side}-stderr-XXXXXX.log)
+  stdout_log=$(mktemp -t wakir-quadlet-lint-${side}-stdout-XXXXXX.log)
+  # Capture stderr separately from stdout: quadlet-generator emits
+  # ALL its diagnostic lines (Loading source unit file ..., error
+  # diagnostics, summary "processing encountered some errors") on
+  # stderr; stdout carries the generated systemd unit text. We need
+  # to inspect stderr surgically and the exit code as the primary
+  # signal.
+  if QUADLET_UNIT_DIRS=$stage_dir "$QUADLET_BIN" --dryrun \
+       >"$stdout_log" 2>"$stderr_log"; then
+    rm -f "$stderr_log" "$stdout_log"
     echo "$PROG: side=${side} OK"
     return 0
   fi
-  echo "$PROG: ERROR: side=${side} Quadlet dryrun reported errors:" >&2
-  # Show the diagnostic lines (the generator emits one stderr line per
-  # converted unit plus a final summary; we surface anything matching
-  # known error fragments).
-  grep -E "error|Error|ERROR|invalid|Invalid|fail|Fail|requested Quadlet source" "$log" \
-    | head -30 >&2 || true
+  # Quadlet exit-nonzero. Surface only the quadlet-generator's own
+  # diagnostic lines (those are prefixed with ``quadlet-generator[``)
+  # — that filter sidesteps the noise of unrelated `restart-on-
+  # failure`-style strings that show up if we naively grep ``fail``
+  # across the entire stderr (which can leak through if a previous
+  # implementation dumped stdout into the same buffer). The summary
+  # line ``processing encountered some errors`` is the canonical
+  # final-line indicator.
+  echo "$PROG: ERROR: side=${side} Quadlet dryrun failed:" >&2
+  grep -E "^quadlet-generator\[" "$stderr_log" \
+    | grep -vE "Loading source unit file|Error occurred walking sub directories /tmp/systemd-private" \
+    | head -50 >&2 || true
   echo "$PROG: ERROR: side=${side} staging dir: $stage_dir" >&2
-  echo "$PROG: ERROR: side=${side} full log: $log" >&2
+  echo "$PROG: ERROR: side=${side} stderr log: $stderr_log" >&2
+  echo "$PROG: ERROR: side=${side} stdout log: $stdout_log" >&2
   return 2
 }
 

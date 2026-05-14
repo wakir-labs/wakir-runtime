@@ -117,46 +117,47 @@ jobs:
   quadlet-lint:
     name: Quadlet-Lint — podman quadlet --dryrun gate (Bug-23)
     runs-on: ubuntu-latest
+    # Run inside a Fedora 40 container so we exercise podman 5.x
+    # (parity with the Pilot-VM substrate, FCOS-based) rather than
+    # Ubuntu's apt-repo podman 4.9.3 which has known --dryrun
+    # diagnostic differences. The whole job runs in the container;
+    # actions/checkout still mounts the workspace at /__w.
+    container:
+      image: registry.fedoraproject.org/fedora:40
     # Run only after the substance lane passes; no point linting if
     # the source-shape is broken.
     needs: [substance]
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-
-      - name: Install podman
+      - name: Install host tooling (git, python, podman)
         run: |
-          # Ubuntu-latest ships podman in the universe repo. We need
-          # /usr/libexec/podman/quadlet specifically, which arrives
-          # with the podman package on Ubuntu 24.04+ (podman >= 4.4).
-          sudo apt-get update
-          sudo apt-get install -y podman
+          dnf -y install --setopt=install_weak_deps=False \
+            git python3 python3-pip podman
           podman --version
           test -x /usr/libexec/podman/quadlet \
             || { echo "ERROR: /usr/libexec/podman/quadlet missing after install" >&2; exit 1; }
           /usr/libexec/podman/quadlet -version || true
 
+      - uses: actions/checkout@v4
+
       - name: Install test deps
         run: |
-          python -m pip install --upgrade pip
-          pip install pytest
+          python3 -m pip install --upgrade pip
+          pip3 install pytest
+
+      - name: Direct lint invocation (canonical diagnostics first)
+        run: |
+          # Run the lint script directly so the workflow log captures
+          # the canonical quadlet-generator stderr even if the
+          # pytest-driven assertions fail later. Free diagnostics
+          # for the operator.
+          bash infra/spire/federation/bin/wakir-quadlet-lint.sh
 
       - name: Run quadlet-lint test-suite
+        if: always()
         run: |
-          python -m pytest \
+          python3 -m pytest \
             tests/infra/test_quadlet_lint.py \
             -v --color=yes
-
-      - name: Direct lint invocation (belt-and-suspenders)
-        run: |
-          # Run the lint script directly outside pytest so a CI-runner
-          # quirk with pytest's subprocess shell still surfaces a lint
-          # failure to the workflow result.
-          bash infra/spire/federation/bin/wakir-quadlet-lint.sh
 
   e2e-container:
     name: E2E — bootstrap against containerized Fedora substrate
