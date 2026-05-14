@@ -120,11 +120,11 @@ Volume=/etc/wakir/spire-server.conf:/etc/spire/server/server.conf:ro,Z
 # and gets EACCES on first write. Bug-20 was observed as a SPIRE-Agent
 # crash-loop ("directory validation failed: permission denied") on
 # Bring-up-4 (2026-05-14, AR Fred). See ADR-pending-Tag-8 PR body.
-Volume=wakir-spire-server-data.volume:/var/lib/spire/server:Z
+Volume=wakir-spire-server-data.volume:/var/lib/spire/server:Z,U
 #
 # 3) SPIRE-Server Unix-socket directory (for SPIRE-Agent gRPC channel).
 #    Shared with the SPIRE-Agent Quadlet unit at the same mountpoint.
-Volume=wakir-spire-server-sockets.volume:/run/spire/sockets:Z
+Volume=wakir-spire-server-sockets.volume:/run/spire/sockets:Z,U
 
 # tmpfs for ephemeral SPIRE runtime paths (mirror of compose
 # `tmpfs: ["/run/spire:rw,size=16m,mode=0700"]`). Keeps the root
