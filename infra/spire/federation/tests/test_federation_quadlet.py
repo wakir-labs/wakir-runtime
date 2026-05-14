@@ -115,7 +115,13 @@ def test_quadlet_hardening_posture(quadlet_text: str) -> None:
     assert "Group=1000" in quadlet_text
     assert "DropCapability=ALL" in quadlet_text
     assert "NoNewPrivileges=true" in quadlet_text
-    assert "Tmpfs=/run/spire:rw,size=16m,mode=0700" in quadlet_text
+    # Sprint-9-Tag-6 Bug 12 substance-fix: the previous mode=0700 made
+    # /run/spire root-only and blocked the uid:1000 SPIRE process from
+    # creating the gRPC API socket inside the bind-mounted -sockets
+    # volume. Live Pilot-VM bring-up 2026-05-14 observed
+    # ``permission denied`` on socket bind. mode=0755 keeps the
+    # directory owner-writable for the uid:1000 container user.
+    assert "Tmpfs=/run/spire:rw,size=16m,mode=0755" in quadlet_text
 
 
 def test_quadlet_health_probe(quadlet_text: str) -> None:

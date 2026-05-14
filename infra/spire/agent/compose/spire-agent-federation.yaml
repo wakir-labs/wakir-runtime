@@ -72,8 +72,10 @@ services:
     # ``/run/spire/agent-sockets/api.sock``.
     image: "ghcr.io/spiffe/spire-agent:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW"
     container_name: wakir-spire-agent-wakir
+    # Sprint-9-Tag-6 Bug 8 substance-fix: drop the literal ``run``
+    # token from the command list (mirror of the server-side Bug 7
+    # fix). The Quadlet template mirrors this form.
     command:
-      - "run"
       - "-config"
       - "/etc/spire/agent/agent.conf"
     # Read-only root filesystem (Sprint-6-Tag-9 hardening parity).
@@ -103,8 +105,10 @@ services:
       # ``unix:///run/spire/agent-sockets/api.sock``.
       - "spire_agent_wakir_sockets:/run/spire/agent-sockets"
     # tmpfs for ephemeral SPIRE runtime paths (Sprint-6-Tag-9 parity).
+    # Sprint-9-Tag-6 Bug 12 substance-fix: mode=0755 (was 0700) so
+    # the uid:1000 container user can bind sockets under /run/spire.
     tmpfs:
-      - "/run/spire:rw,size=16m,mode=0700"
+      - "/run/spire:rw,size=16m,mode=0755"
     networks:
       - wakir-federation
     restart: unless-stopped
@@ -136,8 +140,10 @@ services:
     # ``spire_agent_partner_sockets`` named volume.
     image: "ghcr.io/spiffe/spire-agent:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW"
     container_name: wakir-spire-agent-partner
+    # Sprint-9-Tag-6 Bug 8 substance-fix: drop the literal ``run``
+    # token from the command list (mirror of the server-side Bug 7
+    # fix). The Quadlet template mirrors this form.
     command:
-      - "run"
       - "-config"
       - "/etc/spire/agent/agent.conf"
     read_only: true
@@ -147,8 +153,10 @@ services:
       - "spire_agent_partner_data:/var/lib/spire/agent"
       - "spire_server_partner_bundles:/var/lib/spire/bundles:ro"
       - "spire_agent_partner_sockets:/run/spire/agent-sockets"
+    # Sprint-9-Tag-6 Bug 12 substance-fix: mode=0755 (was 0700) so
+    # the uid:1000 container user can bind sockets under /run/spire.
     tmpfs:
-      - "/run/spire:rw,size=16m,mode=0700"
+      - "/run/spire:rw,size=16m,mode=0755"
     networks:
       - wakir-federation
     restart: unless-stopped

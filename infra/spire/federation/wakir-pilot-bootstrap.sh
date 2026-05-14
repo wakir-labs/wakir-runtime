@@ -554,18 +554,43 @@ step_4_repo_clone() {
 # ---------------------------------------------------------------------------
 
 step_5_image_pins() {
-  log_step 5 "$TOTAL_STEPS" "Image-Pin-Resolve via cosign + skopeo (3 Images)"
+  log_step 5 "$TOTAL_STEPS" "Image-Pin-Resolve via cosign + skopeo (4 Images)"
 
-  if [[ "$WAKIR_SKIP_COSIGN_VERIFY" == "1" ]]; then
-    log_warn "WAKIR_SKIP_COSIGN_VERIFY=1; images run with tag reference only"
-    log_warn "for production-use unset the flag and re-run --resume-from 5"
-    return 0
-  fi
-
+  # Sprint-9-Tag-6 Bug 4 substance-fix: when ``WAKIR_SKIP_COSIGN_VERIFY=1``
+  # is set, the previous form returned immediately without resolving the
+  # ``wakir-provisioner`` digest. The bucket-init Quadlet then started
+  # with the literal ``DIGEST_PENDING_TOMAS_REVIEW`` placeholder in its
+  # ``Image=`` line and Podman refused the pull. The fix: in skip-cosign
+  # mode, fall through to a skopeo-only resolution path for the
+  # provisioner image (DockerHub-style digest fetch) and pass it via the
+  # ``--wakir-provisioner-digest`` flag to the resolver. The SPIRE-server,
+  # SPIRE-agent and python-base images skipped in this branch keep their
+  # tag-only references (DEV / quick-pilot posture).
   local resolver="${WAKIR_REPO_ROOT}/infra/spire/federation/proxmox/resolve-image-pins.sh"
   if [[ ! -x "$resolver" ]]; then
     log_err "resolver not found: ${resolver}"
     return 2
+  fi
+
+  if [[ "$WAKIR_SKIP_COSIGN_VERIFY" == "1" ]]; then
+    log_warn "WAKIR_SKIP_COSIGN_VERIFY=1; SPIRE + python images run with tag reference only"
+    local prov_image="ghcr.io/wakir-labs/wakir-provisioner:0.1.2"
+    log_note "skopeo-only resolve for ${prov_image} (cosign skipped)"
+    local prov_digest=""
+    prov_digest=$(skopeo inspect "docker://${prov_image}" 2>/dev/null \
+      | jq -r '.Digest // empty' || echo "")
+    if [[ -n "$prov_digest" ]]; then
+      "$resolver" \
+        --wakir-provisioner-digest "$prov_digest" \
+        --root "$WAKIR_REPO_ROOT" \
+        --apply \
+        || { log_err "resolve-image-pins.sh --apply (provisioner-only) failed"; return 2; }
+      log_ok "${prov_image} -> ${prov_digest} (skopeo-only)"
+    else
+      log_warn "skopeo inspect failed for ${prov_image}; bucket-init Quadlet keeps placeholder"
+      log_warn "for production-use unset WAKIR_SKIP_COSIGN_VERIFY and re-run --resume-from 5"
+    fi
+    return 0
   fi
 
   # Pre-check: are placeholders still present? If not, the repo state
@@ -584,11 +609,18 @@ step_5_image_pins() {
   # last; a skopeo-failure for wakir-provisioner is non-fatal and
   # falls back to the placeholder-retain path (the Quadlet will not
   # start the bucket-init service until Operator-Hand re-resolves).
+  # Sprint-9-Tag-6 Bug 4 substance-fix: bump the wakir-provisioner tag
+  # from 0.1.0 to 0.1.2 (the BSL-1.1 relicensed image; AR-Decision
+  # 2026-05-13). 0.1.0 carried four wheels (nats-py + cryptography +
+  # rfc8785 + jsonschema); 0.1.2 carries nats-py only post-Reza-PR #33
+  # Wirelang-Import-Disentanglement. The bucket-init Quadlet (Image=
+  # ghcr.io/wakir-labs/wakir-provisioner:0.1.2@sha256:DIGEST_...) is
+  # the single consumer of this digest.
   for image in \
       ghcr.io/spiffe/spire-server:1.14.6 \
       ghcr.io/spiffe/spire-agent:1.14.6 \
       docker.io/library/python:3.13-slim \
-      ghcr.io/wakir-labs/wakir-provisioner:0.1.0
+      ghcr.io/wakir-labs/wakir-provisioner:0.1.2
   do
     log_note "cosign + skopeo cross-check: ${image}"
 
@@ -664,9 +696,9 @@ step_5_image_pins() {
     --root                "$WAKIR_REPO_ROOT"
     --apply
   )
-  if [[ -n "${digests["ghcr.io/wakir-labs/wakir-provisioner:0.1.0"]:-}" ]]; then
+  if [[ -n "${digests["ghcr.io/wakir-labs/wakir-provisioner:0.1.2"]:-}" ]]; then
     resolver_args+=(
-      --wakir-provisioner-digest "${digests["ghcr.io/wakir-labs/wakir-provisioner:0.1.0"]}"
+      --wakir-provisioner-digest "${digests["ghcr.io/wakir-labs/wakir-provisioner:0.1.2"]}"
     )
   else
     log_note "skipping wakir-provisioner pin (image not yet resolvable; bucket-init service will not start until Operator-Hand re-runs the resolver)"
@@ -921,29 +953,144 @@ step_6_quadlet() {
     log_warn "wakir-nats.container not found"
   fi
 
-  # 6f. systemd daemon-reload, then start the units in dependency order.
+  # 6f. systemd daemon-reload (initial — so podman-system-generator
+  # materialises the just-installed units before we touch volumes).
   if ! "$WAKIR_BOOTSTRAP_SYSTEMCTL" daemon-reload; then
     log_err "systemctl daemon-reload failed"
     return 2
   fi
   log_ok "systemctl daemon-reload"
 
+  # 6g. Sprint-9-Tag-6 Bug 2 substance-fix: chown the named-volume
+  # backing directories to uid:gid 1000:1000 so the uid:1000 SPIRE
+  # processes can write into them. Podman creates the named volumes
+  # owned by root by default; the container processes are non-root
+  # per Quadlet ``User=1000`` and would otherwise fail with
+  # ``permission denied`` on first write (``agent-data.json``,
+  # ``keys.json``, Workload-API socket bind). The four volumes touched:
+  #   * wakir-spire-server-federation-${side}-data
+  #   * wakir-spire-server-federation-${side}-sockets
+  #   * wakir-spire-server-federation-${side}-bundles
+  #   * wakir-spire-agent-${side}-data
+  #   * wakir-spire-agent-${side}-sockets
+  # We let Podman create the volumes first via ``podman volume create
+  # --ignore`` (idempotent) and then chown their backing mount-point.
+  local v vol_dir
+  for v in \
+      "wakir-spire-server-federation-${side}-data" \
+      "wakir-spire-server-federation-${side}-sockets" \
+      "wakir-spire-server-federation-${side}-bundles" \
+      "wakir-spire-agent-${side}-data" \
+      "wakir-spire-agent-${side}-sockets"
+  do
+    "$WAKIR_BOOTSTRAP_PODMAN" volume create --ignore "$v" >/dev/null 2>&1 || true
+    vol_dir=$("$WAKIR_BOOTSTRAP_PODMAN" volume inspect "$v" \
+      --format '{{.Mountpoint}}' 2>/dev/null || echo "")
+    if [[ -n "$vol_dir" ]] && [[ -d "$vol_dir" ]]; then
+      chown -R 1000:1000 "$vol_dir" 2>/dev/null \
+        || log_warn "chown 1000:1000 ${vol_dir} failed (volume ${v})"
+    fi
+  done
+  log_ok "named-volume permissions normalised (uid:gid 1000:1000)"
+
+  # 6h. Start the server FIRST. The agent depends on a running server
+  # for the join-token attestation handshake; starting them in
+  # parallel from a single systemctl-start race-loop reliably loses
+  # the first attestation attempt and forces a restart cycle.
+  local server_unit="wakir-spire-server-federation-${side}.service"
+  if "$WAKIR_BOOTSTRAP_SYSTEMCTL" is-active --quiet "$server_unit"; then
+    log_ok "${server_unit} already active"
+  else
+    "$WAKIR_BOOTSTRAP_SYSTEMCTL" reset-failed "$server_unit" 2>/dev/null || true
+    if ! "$WAKIR_BOOTSTRAP_SYSTEMCTL" start "$server_unit"; then
+      log_err "systemctl start ${server_unit} failed"
+      log_note "diagnose: journalctl -u ${server_unit} -n 50 --no-pager"
+      return 2
+    fi
+    log_ok "${server_unit} started"
+  fi
+
+  # 6i. Sprint-9-Tag-6 Bug 1/15 substance-fix: single-org Phase-1b
+  # pilots use the join-token node-attestor. Token generation is a
+  # mandatory Operator-Hand step in the Sprint-8 manual recipe; the
+  # one-shot bootstrap automates it by issuing
+  # ``spire-server token generate`` against the just-started server,
+  # parsing the token value, and substituting it into the agent
+  # Quadlet's ``Exec=`` line (replacing the literal placeholder
+  # ``WAKIR_JOIN_TOKEN_PLACEHOLDER``). Re-run is safe: if the agent
+  # is already attested, the token-generate + sed-substitute steps
+  # are skipped.
+  if [[ "$WAKIR_PILOT_MODE" == "single-org" ]]; then
+    local agent_quadlet_dst="${dst}/wakir-spire-agent-${side}.container"
+    local agent_already_attested=0
+    if "$WAKIR_BOOTSTRAP_PODMAN" exec "wakir-spire-server-federation-${side}" \
+         /opt/spire/bin/spire-server agent list 2>/dev/null \
+         | grep -q "spiffe://${WAKIR_TRUST_DOMAIN}/${WAKIR_ORG_ID}/agent/pilot"; then
+      agent_already_attested=1
+      log_ok "agent already attested (skip join-token generate)"
+    fi
+    if [[ "$agent_already_attested" -eq 0 ]] \
+       && [[ -f "$agent_quadlet_dst" ]] \
+       && grep -q "WAKIR_JOIN_TOKEN_PLACEHOLDER" "$agent_quadlet_dst"; then
+      local jt_spiffe="spiffe://${WAKIR_TRUST_DOMAIN}/${WAKIR_ORG_ID}/agent/pilot"
+      local jt_raw="" jt_token=""
+      jt_raw=$("$WAKIR_BOOTSTRAP_PODMAN" exec \
+                 "wakir-spire-server-federation-${side}" \
+                 /opt/spire/bin/spire-server token generate \
+                 -spiffeID "$jt_spiffe" \
+                 -ttl 3600 2>/dev/null || echo "")
+      # Output form: "Token: <hex>"
+      jt_token=$(printf '%s\n' "$jt_raw" \
+                 | sed -n 's/^Token:[[:space:]]*\(.*\)$/\1/p' \
+                 | head -1 | tr -d '[:space:]')
+      if [[ -n "$jt_token" ]]; then
+        sed -i "s|WAKIR_JOIN_TOKEN_PLACEHOLDER|${jt_token}|g" \
+              "$agent_quadlet_dst" \
+          || { log_err "join-token sed-substitute on ${agent_quadlet_dst} failed"; return 2; }
+        log_ok "join-token issued for ${jt_spiffe} and injected into agent Quadlet"
+        # Daemon-reload so the regenerated Exec= line is picked up
+        # before agent start.
+        "$WAKIR_BOOTSTRAP_SYSTEMCTL" daemon-reload \
+          || { log_err "post-token daemon-reload failed"; return 2; }
+      else
+        log_err "spire-server token generate produced no parseable token"
+        log_note "diagnose: podman exec wakir-spire-server-federation-${side} /opt/spire/bin/spire-server token generate -spiffeID ${jt_spiffe} -ttl 3600"
+        return 2
+      fi
+    elif [[ "$agent_already_attested" -eq 0 ]] \
+         && [[ -f "$agent_quadlet_dst" ]]; then
+      log_ok "join-token placeholder already substituted (no-op)"
+    fi
+  fi
+
+  # 6j. Start the agent + NATS. The agent's join-token (if any) is
+  # already wired in step 6i; on federation mode the placeholder is
+  # left in the Exec= and dropped by a sed-delete handled below.
+  if [[ "$WAKIR_PILOT_MODE" == "federation" ]]; then
+    local agent_quadlet_dst="${dst}/wakir-spire-agent-${side}.container"
+    if [[ -f "$agent_quadlet_dst" ]] \
+       && grep -q "WAKIR_JOIN_TOKEN_PLACEHOLDER" "$agent_quadlet_dst"; then
+      # Federation agents re-attest via the peer trust-bundle. Strip
+      # the literal "-joinToken WAKIR_JOIN_TOKEN_PLACEHOLDER" tail
+      # from the Exec= line in place.
+      sed -i 's| -joinToken WAKIR_JOIN_TOKEN_PLACEHOLDER||g' \
+            "$agent_quadlet_dst" \
+        || { log_err "federation-mode token-placeholder sed-delete failed"; return 2; }
+      "$WAKIR_BOOTSTRAP_SYSTEMCTL" daemon-reload \
+        || { log_err "post-placeholder-strip daemon-reload failed"; return 2; }
+      log_ok "federation mode: stripped join-token placeholder from agent Quadlet"
+    fi
+  fi
+
   local unit
   for unit in \
-      "wakir-spire-server-federation-${side}.service" \
       "wakir-spire-agent-${side}.service" \
       "wakir-nats.service"
   do
-    # Idempotent start: only act if not already active.
     if "$WAKIR_BOOTSTRAP_SYSTEMCTL" is-active --quiet "$unit"; then
       log_ok "${unit} already active"
       continue
     fi
-    # Sprint-9-Tag-4 Bug 5: a previous bring-up may have left the
-    # unit in a restart-loop / failed state with start-rate-limiting
-    # already triggered. systemctl start on such a unit fails
-    # immediately with "Start request repeated too quickly". Clear
-    # the failed counter before retrying.
     "$WAKIR_BOOTSTRAP_SYSTEMCTL" reset-failed "$unit" 2>/dev/null || true
     if ! "$WAKIR_BOOTSTRAP_SYSTEMCTL" start "$unit"; then
       log_err "systemctl start ${unit} failed"

@@ -206,7 +206,16 @@ Type=oneshot
 RemainAfterExit=no
 Restart=on-failure
 RestartSec=10s
-TimeoutStartSec=120s
+# Sprint-9-Tag-6 Bug 5 substance-fix: the default systemd
+# TimeoutStartSec (2 min on most distros, 120s explicit here) is too
+# short for the first bring-up on a cold Pilot-VM. The provisioner
+# image (~131MB) has to be pulled from GHCR on first run, plus the
+# wakir-runtime + bin bind-mounts mount, plus the NATS server has to
+# answer the bucket-create RPCs. Live-bring-up 2026-05-14 observed
+# the bucket-init oneshot time out at ~118s while still pulling the
+# image layer. 300s gives the cold-start path comfortable headroom;
+# warm restarts complete in ~3-5s and are unaffected.
+TimeoutStartSec=300s
 
 [Install]
 WantedBy=multi-user.target default.target
