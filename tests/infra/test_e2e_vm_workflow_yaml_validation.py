@@ -6,17 +6,25 @@ Background
 ----------
 The Sprint-9 Tag-5 workflow ``e2e-vm-acceptance-gate.yml`` was
 introduced via PR #38 and then surfaced a 0-job-instant-failure
-pattern on every push and PR. Cause: YAML 1.1's reserved-word
-resolver treats bare ``on``, ``off``, ``yes``, ``no``, ``y``, ``n``
-(and their case variants) as booleans. A bare ``on:`` key therefore
-collapses to the boolean ``True`` instead of the string ``"on"``,
-which means the trigger map is silently dropped and the workflow
-runs with no jobs.
+pattern on every push and PR. The GitHub Actions validator annotation
+identified two distinct problems we close in this Tag-6 patch:
 
-GitHub Actions normally tolerates this via a custom parser, but
-the platform-side strict validator surfaces it as the observed
-0-job pattern. The fix is to quote the key (``"on":``) so YAML 1.1
-strict resolution produces a string.
+1. **Real bug** — ``${{ runner.temp }}`` was referenced inside the
+   ``real-vm`` job's job-level ``env:`` block (line 138). The
+   ``runner.*`` context is only valid inside steps and
+   ``defaults.run``; at job-level it raises
+   ``Unrecognized named-value: 'runner'`` and the validator drops the
+   entire workflow definition to 0 jobs. We now seed the state-dir
+   in a step via ``$RUNNER_TEMP`` (an env var that IS available at
+   step scope) and write the path to ``$GITHUB_ENV`` for downstream
+   steps to consume.
+
+2. **Hygiene defence** — the bare top-level key ``on:`` is a YAML 1.1
+   reserved-word that PyYAML's safe-mode resolver collapses to the
+   boolean ``True``. GitHub Actions itself tolerates the bare form
+   (YAML 1.2-style), but external linters and any python-yaml-based
+   pre-merge check would have flagged it. We quote the key
+   (``"on":``) so both resolver-paths agree.
 
 Coverage
 --------
@@ -29,6 +37,11 @@ Coverage
   the expected ``runs-on`` and ``needs`` topology.
 * The ``real-vm`` job is correctly gated on
   ``workflow_dispatch + run_real_vm == 'true'``.
+* The ``real-vm`` job-level ``env:`` block does NOT reference
+  ``runner.*`` — the validator-killing pattern from PR #38 is pinned
+  out.
+* The ``real-vm`` steps include a state-dir-seeding step that writes
+  ``WAKIR_E2E_STATE_DIR`` to ``$GITHUB_ENV`` via ``$RUNNER_TEMP``.
 
 Sandbox boundary: pure-Python static-analysis of a checked-in YAML
 file. No GitHub API call, no live runner.
@@ -166,6 +179,51 @@ def test_harness_logic_runs_hermetic_pytest() -> None:
         f"commands seen: {run_commands!r}"
     )
     assert "tests/infra/test_vm_e2e_acceptance_gate.py" in runner_step
+
+
+def test_real_vm_job_env_does_not_reference_runner_context() -> None:
+    """Regression-pin: job-level `env:` must not contain `${{ runner.* }}`.
+
+    The validator error from PR #38 was
+    ``Unrecognized named-value: 'runner'`` at line 138 column 28,
+    pointing to ``${{ runner.temp }}/wakir-e2e`` inside the
+    ``real-vm`` job's job-level ``env:`` block. The ``runner.*``
+    context is only available inside steps and ``defaults.run``;
+    using it at job-level collapses the entire workflow definition
+    to 0 jobs. We pin this out explicitly.
+    """
+    doc = _load()
+    real_vm_env = doc["jobs"]["real-vm"].get("env", {}) or {}
+    for key, value in real_vm_env.items():
+        text = str(value)
+        assert "runner." not in text, (
+            f"real-vm job-level env.{key} references runner.* "
+            f"({value!r}); move this into a step. The validator "
+            f"will reject the workflow with "
+            f"'Unrecognized named-value: runner' and 0 jobs will run."
+        )
+
+
+def test_real_vm_seeds_state_dir_via_runner_temp_in_a_step() -> None:
+    """`WAKIR_E2E_STATE_DIR` must be seeded from `$RUNNER_TEMP` in a step.
+
+    Replaces the broken job-level `${{ runner.temp }}` reference.
+    The step writes to `$GITHUB_ENV` so subsequent steps consume
+    the env var in the normal way.
+    """
+    doc = _load()
+    steps = doc["jobs"]["real-vm"]["steps"]
+    run_commands = [s.get("run", "") for s in steps if "run" in s]
+    seeding_steps = [
+        cmd for cmd in run_commands
+        if "RUNNER_TEMP" in cmd and "WAKIR_E2E_STATE_DIR" in cmd
+        and "GITHUB_ENV" in cmd
+    ]
+    assert seeding_steps, (
+        "real-vm must seed WAKIR_E2E_STATE_DIR from $RUNNER_TEMP in a "
+        "step (writing to $GITHUB_ENV). The job-level env: route is "
+        "validator-rejected."
+    )
 
 
 def test_workflow_does_not_set_global_jobs_permissions_to_write() -> None:

@@ -42,12 +42,13 @@
 
 name: e2e-vm-acceptance-gate
 
-# YAML 1.1 reserved-word note (Sprint-9 Tag-6 Bug E2E fix):
-# Bare `on:` is parsed by YAML 1.1 (and the strict-mode resolver path
-# used by some GitHub Actions validators on push) as the boolean
-# `True`, not as the string key `"on"`. That collapses the trigger
-# map and surfaces as a 0-job workflow that fails instantly. Quoting
-# the key forces string interpretation and restores the trigger.
+# YAML key-quoting hygiene note:
+# The bare key `on:` is a YAML 1.1 reserved-word that some safe-mode
+# YAML parsers resolve as the boolean `True` instead of the string
+# `"on"`. GitHub Actions itself parses YAML 1.2-style and tolerates
+# the bare form, but external linters (and any python-yaml-based
+# pre-merge check) flag it. We quote the key defensively so both
+# resolver-paths agree.
 "on":
   push:
     branches:
@@ -133,11 +134,25 @@ jobs:
     needs: [harness-logic]
     timeout-minutes: 45
     env:
+      # Sprint-9 Tag-6 Bug E2E fix:
+      # `runner.*` context is only available inside steps and
+      # `defaults.run`, NOT at job-level `env:`. Referencing
+      # `${{ runner.temp }}` here caused the validator to surface
+      # "Unrecognized named-value: 'runner'" and collapsed the entire
+      # workflow to 0 jobs on every push/PR. We now seed the
+      # state-dir from a step (see "Seed runner-temp state-dir"
+      # below) and other env-vars remain context-safe.
       WAKIR_E2E_VM_PROVIDER: ${{ github.event.inputs.provider }}
       WAKIR_REPO_BRANCH: ${{ github.event.inputs.branch }}
-      WAKIR_E2E_STATE_DIR: ${{ runner.temp }}/wakir-e2e
     steps:
       - uses: actions/checkout@v4
+
+      - name: Seed runner-temp state-dir
+        id: state_dir
+        run: |
+          STATE_DIR="${RUNNER_TEMP}/wakir-e2e"
+          mkdir -p "$STATE_DIR"
+          echo "WAKIR_E2E_STATE_DIR=$STATE_DIR" >> "$GITHUB_ENV"
 
       - name: Pre-flight (KVM + butane + qemu)
         run: |
