@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
+# License: Business Source License 1.1 — see wirelang/federation/LICENSE-BSL.md
+#
+# Re-licensed Apache-2.0 -> BSL 1.1 in Sprint-9 Tag-6 per ADR-0059
+# (Phase-2-Federation BSL coverage). This script is Federation-
+# Substance-adjacent: it self-verifies the live Federation-Server
+# bring-up substrate (SPIRE-Server, SPIRE-Agent, NATS-KV marker-
+# stack-bucket). Its observation surface mirrors the BSL Quadlet
+# templates and the Pilot-Bootstrap one-shot script, both of which
+# carry BSL.
 #
 # Phase-2 Sprint-9 Tag-1 — Operator-Hand Self-Verify nach Proxmox-VM
 # Bring-up. Companion zu PROXMOX_BRING_UP_RECIPE.md §6.
@@ -351,9 +360,18 @@ check_spire_server_healthy() {
 # ---------------------------------------------------------------------------
 
 _probe_spire_agent_healthy() {
+  # Sprint-9 Tag-6 Bug 14 fix:
+  # `spire-agent healthcheck` defaults to socket path
+  # `/tmp/spire-agent/public/api.sock` (SPIRE upstream default), but
+  # our Workload-API socket is bound to
+  # `/run/spire/agent-sockets/api.sock` via the agent-sockets volume.
+  # Without `-socketPath` the healthcheck returns "Agent is unhealthy:
+  # unable to determine health" even when the Agent is running fine.
+  # Mirrors the working `check_spire_workload_api_reachable` invocation.
   local out
   if out=$("$PODMAN" exec wakir-spire-agent-wakir \
-        /opt/spire/bin/spire-agent healthcheck 2>&1); then
+        /opt/spire/bin/spire-agent healthcheck \
+          -socketPath /run/spire/agent-sockets/api.sock 2>&1); then
     RETRY_DETAIL="$(echo "$out" | head -1)"
     return 0
   fi
@@ -411,10 +429,20 @@ check_spire_workload_api_reachable() {
 _probe_marker_stack_bucket_via_nats_cli() {
   # Probes via direct nats-CLI on the host. Uses globals: NATS (cmd),
   # ORG. Sets RETRY_DETAIL.
+  #
+  # Sprint-9 Tag-6 Bug 13 fix:
+  # nats-CLI 0.1.5 + nats-box-Image latest emit a box-bordered table:
+  #   ` | wakir-marker-stack-acme | description | created | ...`
+  # The previous `grep -qx "$bucket"` required an exact-line match,
+  # which the box-border-prefixed line never satisfied → FAIL trotz
+  # Bucket-Existenz. We use a regex with character-class boundaries
+  # so the bucket name only matches when it stands as its own token
+  # (preventing spurious matches against e.g.
+  # wakir-marker-stack-acme-tenant).
   local bucket="wakir-marker-stack-${ORG}"
   local out
   if out=$("$NATS" kv ls --server nats://127.0.0.1:4222 2>&1); then
-    if echo "$out" | grep -qx "$bucket"; then
+    if echo "$out" | grep -qE "(^|[^A-Za-z0-9_.:-])${bucket}([^A-Za-z0-9_.:-]|$)"; then
       RETRY_DETAIL="$bucket"
       return 0
     fi
@@ -427,12 +455,17 @@ _probe_marker_stack_bucket_via_nats_cli() {
 
 _probe_marker_stack_bucket_via_podman_nats_box() {
   # Probes via podman-run on the orchestrator network. Sets RETRY_DETAIL.
+  #
+  # Sprint-9 Tag-6 Bug 13 fix: same parser hardening as the nats-CLI
+  # variant above — nats-box latest emits a box-bordered table, so we
+  # use the same boundary-anchored regex to tolerate any leading or
+  # trailing decoration while still rejecting strict superstrings.
   local bucket="wakir-marker-stack-${ORG}"
   local out
   if out=$("$PODMAN" run --rm --network wakir-orchestrator \
         docker.io/natsio/nats-box:latest \
         nats kv ls --server nats://wakir-nats:4222 2>&1); then
-    if echo "$out" | grep -qx "$bucket"; then
+    if echo "$out" | grep -qE "(^|[^A-Za-z0-9_.:-])${bucket}([^A-Za-z0-9_.:-]|$)"; then
       RETRY_DETAIL="$bucket"
       return 0
     fi
