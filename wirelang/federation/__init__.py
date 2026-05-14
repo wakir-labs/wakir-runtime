@@ -143,6 +143,13 @@ from .unrevoke_audit_marker_cross_org_export import (  # noqa: F401
 from .multi_org_attestation_live_tail_replicator import (  # noqa: F401
     MultiOrgAttestationReplicator,
 )
+from .spire_fed_bundle_peer_fetcher import (  # noqa: F401
+    SPIRE_FED_BUNDLE_PEER_FETCHER_SCHEMA,
+    SpireFedBundlePeerFetcherError,
+    SpireFedBundlePeerTrustBundleFetcher,
+    UnpinnedTrustDomainError,
+    UrlTrustDomainMismatchError,
+)
 
 __all__ = [
     "BRIDGE_RESOLUTION_SCHEMA",
@@ -180,4 +187,9 @@ __all__ = [
     "UnrevokeReasonClass",
     "UnrevokeReasonClassifier",
     "MultiOrgAttestationReplicator",
+    "SPIRE_FED_BUNDLE_PEER_FETCHER_SCHEMA",
+    "SpireFedBundlePeerFetcherError",
+    "SpireFedBundlePeerTrustBundleFetcher",
+    "UnpinnedTrustDomainError",
+    "UrlTrustDomainMismatchError",
 ]

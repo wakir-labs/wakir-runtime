@@ -9,14 +9,42 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wirelang-schema-registry
-version: 0.35.0
+version: 0.36.0
 status: draft
-date: 2026-05-13
+date: 2026-05-14
 audience: implementers, integrators, operators
 license: CC-BY-4.0
 ---
 
-# Wirelang Schema Registry — NATS-KV Backend Specification (v0.35.0)
+# Wirelang Schema Registry — NATS-KV Backend Specification (v0.36.0)
+
+**Sprint-7 Pfad-B Tag-5 Multi-Org-Federation Live-Component
+adapter (2026-05-14).** This version adds one substantive load-
+bearing addition over v0.35.0: the
+**`SpireFedBundlePeerTrustBundleFetcher` adapter**
+(`wirelang.federation.spire_fed_bundle_peer_fetcher`) that wires
+the Sprint-7 Tag-3 :class:`SpiffeCrossTrustDomainBridge` to the
+Sprint-8 Tag-1
+`infra/spire/federation/bin/spire_fed_bundle` hermetic-mode CLI.
+The adapter implements the bridge's
+:class:`PeerTrustBundleFetcher` Protocol by exporting the hermetic-
+fixture JWKS for a pinned (trust_domain → URL) mapping, returning
+a bridge-consumable :class:`FetchedTrustBundle` value. Fail-closed
+at every step: trust-domains not in the pin set raise
+:class:`UnpinnedTrustDomainError`; bridge-supplied URLs that do
+not match the pinned URL for the requested trust-domain raise
+:class:`UrlTrustDomainMismatchError` (both subclass
+:class:`SpireFedBundlePeerFetcherError`; the bridge wraps either as
+:class:`PeerTrustBundleFetchError`). Schema-URI:
+`wakir.federation.spire-fed-bundle-peer-fetcher/1`. Sandbox-only
+per ADR-0051 — the adapter does NOT call podman, does NOT start a
+SPIRE-Server, does NOT touch the network. The Phase-2c live HTTPS
+counterpart ships as a separate module so the Sandbox-Host trennung
+(feedback_sandbox_host_trennung.md) is preserved at the import-graph
+layer. v0.36.0 is an **additive minor bump** per §3.2; no breaking
+changes; the Sprint-7 Tag-3 bridge surface remains byte-identical;
+existing single-org callers are unaffected. New §5.21 (Live-
+Component peer-trust-bundle-fetcher adapter).
 
 **Sprint-9 Tag-3 Operator-CLI + Live-Tail-Replicator detect_replay-
 callsite-mirror anchor (2026-05-13).** This version adds two
@@ -5179,6 +5207,138 @@ Live NATS replication is operator-hand. All Sprint-9 Tag-3 Teil B
 detect_replay-mirror tests are hermetic and run against the
 Tag-6 `_MockKv` shape extended with the mock watcher surface.
 No live NATS connection is established from the sandbox.
+
+### 5.21 Multi-Org-Federation Live-Component peer-trust-bundle-fetcher adapter (Phase-2 Sprint-7 Pfad-B Tag-5)
+
+Sprint-7 Pfad-B Tag-5 lands the **live-component** adapter that
+wires the Sprint-7 Tag-3
+:class:`SpiffeCrossTrustDomainBridge` to the Sprint-8 Tag-1
+`infra/spire/federation/bin/spire_fed_bundle` hermetic-mode CLI.
+The adapter is the first bridge-between-substrates artefact for
+the Multi-Org-Federation path: a single composable surface that
+lets a Wakir-side bridge resolve a peer-org's trust-bundle through
+the same CLI surface the operator uses for the manual bootstrap
+roundtrip (`compose/spire-federation.yaml` §3 README).
+
+#### 5.21.1 Module + Schema-URI
+
+- Module: `wirelang.federation.spire_fed_bundle_peer_fetcher`
+- Schema-URI: `wakir.federation.spire-fed-bundle-peer-fetcher/1`
+- Primary class:
+  :class:`SpireFedBundlePeerTrustBundleFetcher` (frozen dataclass,
+  implements the bridge's
+  :class:`PeerTrustBundleFetcher` Protocol).
+
+#### 5.21.2 Construction surface
+
+```
+SpireFedBundlePeerTrustBundleFetcher(
+    trust_domain_to_url={
+        "partner.test": "https://spire-server-partner:8443/bundle",
+        "wakir.test":   "https://spire-server-wakir:8443/bundle",
+    },
+    clock=optional_callable_returning_tz_aware_utc,
+)
+```
+
+The `trust_domain_to_url` mapping is the adapter's **pin set**.
+Trust-domains not in the mapping are rejected at fetch time
+(`UnpinnedTrustDomainError`). The URL is opaque to the export
+path — only the trust-domain literal feeds the hermetic-fixture
+JWKS exporter — but the bridge stores the URL on the
+returned :class:`FetchedTrustBundle.url` for downstream audit
+consumers.
+
+#### 5.21.3 Resolution contract (`fetch(url, trust_domain)`)
+
+1. Reject if `trust_domain` is not in the pin set
+   (`UnpinnedTrustDomainError`).
+2. Reject if `url` does not equal the pinned URL for the requested
+   `trust_domain` (`UrlTrustDomainMismatchError`).
+3. Invoke `spire_fed_bundle.export_bundle(trust_domain)` to obtain
+   the hermetic-fixture JWKS bytes. The CLI function is invoked
+   **in-process** via `importlib.util` file-path resolution; the
+   adapter does NOT spawn a subprocess.
+4. Construct a :class:`FetchedTrustBundle` carrying:
+   - `trust_domain`: the requested trust-domain literal.
+   - `url`: the bridge-supplied URL (the pinned URL was the gate).
+   - `bundle_bytes`: the exported JWKS bytes (UTF-8 encoded).
+   - `fetched_at`: the adapter's `clock()` (or `datetime.now(UTC)`).
+5. Return the bundle.
+
+All failure modes are typed; the adapter does not log on the path.
+The bridge catches `SpireFedBundlePeerFetcherError` (and any other
+exception) from the fetcher and re-raises as
+:class:`PeerTrustBundleFetchError` with the original as `cause`
+— this is the bridge's fail-closed contract.
+
+#### 5.21.4 Sandbox boundary (ADR-0051)
+
+The adapter is **hermetic-only**:
+
+- Does NOT call podman.
+- Does NOT start or talk to a SPIRE-Server.
+- Does NOT touch the network.
+
+The Phase-2c live HTTPS counterpart (forthcoming) will live in a
+**separate** module so the Sandbox-Host trennung
+(`feedback_sandbox_host_trennung.md`) is preserved at the
+import-graph layer. Callers that opt into live federation must
+explicitly import the live counterpart module, which signals the
+boundary crossing.
+
+#### 5.21.5 Cross-Module composition contract
+
+The adapter is the integration anchor for the Sprint-7
+Multi-Org-Federation substrate end-to-end:
+
+- Tag-1 :class:`MultiOrgRouteAttestation` envelope carries the
+  `peer_trust_bundle_url`. The bridge passes it to the adapter.
+- Tag-2 :class:`NatsKvMultiOrgAttestationRegistry` stores the
+  attestation durably; the bridge consumes a snapshot.
+- Tag-3 :class:`SpiffeCrossTrustDomainBridge` orchestrates the
+  resolution. The adapter is its `trust_bundle_fetcher` slot.
+- Tag-4 :class:`CapabilityAttenuationChainVerifier` verifies the
+  capability-chain riding the bridged route; the chain hash is the
+  WAT-Audit-Federation-Annex anchor (Tomás D-1 follow-up).
+- Tag-6 :class:`MultiOrgAttestationReplicator` replicates Org-A
+  writes into Org-B's bucket; the bridge resolves on the target
+  side post-replication.
+
+The Sprint-7 Pfad-B Tag-5 E2E roundtrip test
+(`wirelang/tests/test_federation_live_component_e2e.py`) exercises
+all six surfaces in one hermetic flow:
+
+- T-LIVE-E2E-01..03: adapter happy-path + pin-set rejection paths.
+- T-LIVE-E2E-04: bridge resolves through adapter (in-memory
+  registries).
+- T-LIVE-E2E-05: bridge wraps `UrlTrustDomainMismatchError` as
+  :class:`PeerTrustBundleFetchError` (fail-closed semantics).
+- T-LIVE-E2E-06: bootstrap-replicator copies Org-A attestation to
+  Org-B bucket; bridge resolves on target.
+- T-LIVE-E2E-07: live-tail replicator forwards a post-bootstrap
+  Org-A write into Org-B; bridge resolves on target.
+- T-LIVE-E2E-08: full cross-module roundtrip — bootstrap + bridge
+  + capability-attenuation-chain with cross-org hop; chain-hash
+  is byte-stable across re-verification.
+- T-LIVE-E2E-09: adapter advertises stable schema-URI.
+- T-LIVE-E2E-10: cross-trust-domain bidirectional fetch produces
+  distinct JWKS per trust-domain.
+
+10 tests, all green on first hermetic run.
+
+#### 5.21.6 Compatibility statement
+
+v0.36.0 is purely additive over v0.35.0:
+
+- No existing module surface changes.
+- Sprint-7 Tag-3 bridge is consumed via the *existing*
+  `PeerTrustBundleFetcher` Protocol — no Protocol change.
+- Sprint-7 Tag-1..Tag-6 modules are byte-identical to v0.35.0.
+- The adapter is opt-in: callers MUST construct it explicitly to
+  consume the spire-fed-bundle CLI as their fetcher; the existing
+  in-test `_FixedBundleFetcher` fixture remains the recommended
+  pattern for hermetic unit-level bridge tests.
 
 ## 6. Test inventory
 
