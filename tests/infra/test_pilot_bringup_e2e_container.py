@@ -214,32 +214,7 @@ _STUB_PODMAN = textwrap.dedent(
             # Emit a fake mountpoint so the bootstrap's chown step has
             # something to chown. /tmp is writable inside the E2E
             # container.
-            #
-            # Sprint-9-Tag-11 Bug-27 stub-extension: if the queried
-            # volume name ends in "-sockets", touch a fake unix socket
-            # at /tmp/api.sock so the bootstrap's host-path-based
-            # workload-API-wait (post Bug-27 fix) detects it as bound.
-            # Parse the volume name from argv (it's the first non-flag
-            # arg after "volume inspect").
-            shift 2  # consume "volume inspect"
-            vol_name=""
-            while [[ -n "${1:-}" ]]; do
-              case "$1" in
-                --format) shift 2 ;;
-                --*) shift ;;
-                *) vol_name="$1"; shift ;;
-              esac
-            done
             echo "/tmp"
-            if [[ "$vol_name" == *-sockets ]]; then
-              python3 -c "
-import socket, os
-p = '/tmp/api.sock'
-if not os.path.exists(p):
-    s = socket.socket(socket.AF_UNIX)
-    s.bind(p)
-" 2>/dev/null || true
-            fi
             exit 0
             ;;
           *) exit 0 ;;
@@ -463,6 +438,12 @@ def _run_bootstrap_in_container(
         "WAKIR_BOOTSTRAP_CURL": "/work/stubs/curl",
         "WAKIR_BOOTSTRAP_GIT": "/work/stubs/git",
         "WAKIR_BOOTSTRAP_SMOKE": "/work/stubs/proxmox-bringup-smoke",
+        # Bug-27 hermetic-bypass: stub-podman in fedora-base cannot
+        # create a real Unix socket file (no python3/socat by default),
+        # so the host-path-based workload-API-wait would block 120s.
+        # Live-VM bring-up MUST NOT set this — there the real agent
+        # binds api.sock in the named volume.
+        "WAKIR_BOOTSTRAP_SKIP_SOCKET_WAIT": "1",
     }
     if extra_env:
         env.update(extra_env)

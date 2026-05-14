@@ -987,13 +987,23 @@ _wait_for_workload_api_socket() {
   # ``sh``/Coreutils). Tag-10 Tomás-Variante via ``podman exec <ctr> test
   # -S <path>`` returnt IMMER rc=127 ("executable file 'test' not found
   # in PATH") — Loop läuft 120s leer und meldet "not bound" obwohl Socket
-  # längst da ist (Live-Diagnose 2026-05-15 ~01:51 UTC bestätigt: Socket
-  # api.sock existiert im Volume ab Container-Start, aber test-binary
-  # fehlt im Image).
+  # längst da ist (Live-Diagnose 2026-05-15 ~01:51 UTC bestätigt).
   #
   # Korrektur: Socket über HOST-Pfad des named-volume prüfen. Konvention:
   #   container ``wakir-spire-agent-<SIDE>`` → vol ``wakir-spire-agent-<SIDE>-sockets``
+  #
+  # Hermetic-Bypass: ``WAKIR_BOOTSTRAP_SKIP_SOCKET_WAIT=1`` deaktiviert den
+  # Wait. Der e2e-container-Test setzt das Flag weil sein podman-Stub kein
+  # echtes Unix-Socket-File erzeugen kann (fedora-base-image hat weder
+  # python3 noch socat default-installiert). Live-VM darf das Flag NICHT
+  # setzen — der echte Bring-up MUSS auf das echte Socket warten.
   local container="$1"
+
+  if [[ "${WAKIR_BOOTSTRAP_SKIP_SOCKET_WAIT:-0}" == "1" ]]; then
+    log_ok "${container} workload-API socket wait skipped (WAKIR_BOOTSTRAP_SKIP_SOCKET_WAIT=1, hermetic-stub-mode)"
+    return 0
+  fi
+
   local timeout="${WAKIR_BOOTSTRAP_WAIT_SOCKET_TIMEOUT:-120}"
   local poll="${WAKIR_BOOTSTRAP_WAIT_SOCKET_POLL:-5}"
   local elapsed=0
