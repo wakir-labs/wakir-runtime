@@ -80,7 +80,7 @@ from .v907_verify import (
 )
 
 
-ENGINE_VERSION = "0.3.0-pilot"
+ENGINE_VERSION = "0.4.0-pilot"
 ENGINE_VARIANT = "real"
 DEFAULT_PERSONA_DEF_DIR = Path("/etc/wakir/persona")
 DEFAULT_HEARTBEAT_INTERVAL_SEC = 30

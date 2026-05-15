@@ -77,11 +77,13 @@ from .state_backing import (
 ENGINE_VERSION_KEY = "state-pack/__engine_version__"
 
 # Closed set of engine semver tags this workflow knows how to
-# read/write. Sprint-Pengine-9 adds 0.3.0-pilot; the v0 envelope is
-# backward-compat for 0.2.0-pilot.
+# read/write. Sprint-Pengine-10 adds 0.4.0-pilot (NATS-subscribe-loop +
+# Phase-2-Stub LLM-Call-Shim); the v0 envelope remains backward-compat
+# for 0.2.0-pilot and 0.3.0-pilot.
 KNOWN_ENGINE_VERSIONS: Tuple[str, ...] = (
     "0.2.0-pilot",
     "0.3.0-pilot",
+    "0.4.0-pilot",
 )
 
 # Semver matcher (relaxed: ``M.m.p[-prerelease]``).
