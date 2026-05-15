@@ -48,12 +48,17 @@ LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runti
 LABEL org.opencontainers.image.url="https://github.com/wakir-labs/wakir-runtime"
 LABEL org.opencontainers.image.documentation="https://github.com/wakir-labs/wakir-runtime/blob/main/infra/persona-engine/README.md"
 
-# Sprint-Pengine-8 Bug-34 fix (Mira-Hand 2026-05-15): wirelang.persona.persona_canonical_form
-# imports rfc8785 (JCS canonical form) for V-907 pin-compute. Without this
-# wheel the engine raises ModuleNotFoundError at boot and exits before the
-# spawn-init loop. nats-py is a Sprint-Pengine-9 deferred surface (engine
-# fences to InMemoryPersonaStateBacking with a WARN annotation if absent).
-RUN pip install --no-cache-dir 'rfc8785>=0.1.4'
+# Sprint-Pengine-8 Bug-34 fix (Mira-Hand 2026-05-15): persona_canonical_form
+# imports rfc8785 + PyYAML for V-907 pin-compute. Plus wirelang
+# pyproject.toml top-level deps (shamir-mnemonic, cryptography) the engine
+# may transitively reach. Without these wheels the engine ModuleNotFoundErrors
+# at boot before the spawn-init loop. nats-py remains a Sprint-Pengine-9
+# deferred surface (engine fences to InMemoryPersonaStateBacking with WARN).
+RUN pip install --no-cache-dir \
+        'rfc8785>=0.1.4' \
+        'PyYAML>=6.0' \
+        'shamir-mnemonic>=0.3.0' \
+        'cryptography>=42'
 
 # Non-root runtime user (parity with 0.1.0-pilot + SPIRE-Agent + NATS).
 RUN groupadd --gid 1000 wakir \
