@@ -4,38 +4,42 @@
 # Licensed under the Business Source License 1.1; see ./LICENSE-BSL.md.
 # Change Date: 2030-05-15. Change License: Apache License 2.0.
 #
-# wakir-persona-engine REAL — Sprint-Pengine-9, image tag ``0.3.0-pilot``.
+# wakir-persona-engine REAL — Sprint-Pengine-10, image tag ``0.4.0-pilot``.
 #
-# Substrate scope (0.3.0-pilot)
+# Substrate scope (0.4.0-pilot)
 # -----------------------------
-# Sprint-Pengine-9 closes the four substrate-gaps left open by the
-# 0.2.0-pilot real-engine image:
+# Sprint-Pengine-10 closes the input-side gap discovered during the
+# 0.3.0-pilot Live-Engine-Swap (only heartbeat + spawn-init audit, no
+# task-input plumbing). 0.4.0-pilot wires:
 #
-#   - OI-PEFR-1: NATS-KV asyncio PersonaStateBacking (real implementation,
-#     replaces the v0.2.0-pilot fence-to-in-memory WARN-path).
-#   - OI-PEFR-2: SPIFFE Workload-API full SVID-fetch via grpcio
-#     (replaces v0.2.0-pilot socket-presence probe).
-#   - OI-PEFR-3: async engine wrapper (asyncio orchestration for the
-#     Sprint-Pengine-10 NATS-Subscribe-Pipeline).
-#   - OI-PEFR-4: scheduled R1..R4 recovery DRILLs (cron / timer thread).
-#   - OI-PEFR-5: §3.7.3 migrate-version mechanic (0.2.0-pilot state-packs
-#     readable by 0.3.0-pilot engine).
+#   - OI-PEFR-6: real NATS-subscribe-loop on
+#     ``wakir.<env>.agent.agent.task.assigned.<persona-slug>``;
+#     per-message dispatch to the LlmCallHook with bridge-audit
+#     reply emission + companion-subject output publish.
+#   - OI-PEFR-7: ``wakir-mira-dispatch`` Side-CLI that mirrors Mira's
+#     engineering Auftrag onto the Bridge-Forward-Pipe.
+#   - OI-PEFR-8: Phase-2-Stub LLM-Call-Shim ``EchoReflectionLlmHook``
+#     (deterministic echo responder; Phase-3 swap-point preserved
+#     via ``anthropic_messages_hook_phase_3_stub``).
+#   - OI-PEFR-9: ``wakir-doppelbetrieb-aggregate`` CLI for weekly
+#     4-axis Bilanz (ADR-0058 §Pilot-Phase Schritt 10).
 #
-# The image is a strict superset of 0.2.0-pilot — every code path the
-# stub + 0.2.0-pilot consumed remains reachable. Quadlet tag-rotation
-# (operator-hand) covers the 0.2.0-pilot -> 0.3.0-pilot swap.
+# Sprint-Pengine-9 closed substrate-gaps OI-PEFR-1..5; this image is a
+# strict superset of 0.3.0-pilot — every code path the stub + 0.2.0
+# + 0.3.0 consumed remains reachable. Quadlet tag-rotation (operator-
+# hand) covers the 0.3.0-pilot -> 0.4.0-pilot swap.
 #
 # Tag-rotation pattern
 # --------------------
 #
 #   1. Operator runs ``gh workflow run build-wakir-persona-engine.yml``
-#      with input ``version_tag=0.3.0-pilot`` and
+#      with input ``version_tag=0.4.0-pilot`` and
 #      ``containerfile=Containerfile.real``.
 #   2. GHCR receives the new digest under
-#      ``ghcr.io/wakir-labs/wakir-persona-engine:0.3.0-pilot``.
+#      ``ghcr.io/wakir-labs/wakir-persona-engine:0.4.0-pilot``.
 #   3. Operator opens a Quadlet-pin-rotation PR updating
 #      ``quadlet/wakir-persona-tomas.container`` Image= line tag
-#      from ``0.2.0-pilot`` to ``0.3.0-pilot``.
+#      from ``0.3.0-pilot`` to ``0.4.0-pilot``.
 #   4. ``resolve-image-pins-ci`` workflow fills the
 #      ``@sha256:DIGEST_PENDING_*`` placeholder with the live digest.
 #   5. Operator-Hand-systemctl-restart on the Pilot-VM picks up the
@@ -58,8 +62,8 @@ FROM docker.io/library/python:3.13-slim@sha256:DIGEST_PENDING_TOMAS_REVIEW
 
 # OCI metadata.
 LABEL org.opencontainers.image.title="wakir-persona-engine"
-LABEL org.opencontainers.image.description="Runtime image for the Wakir persona-engine real binary (Sprint-Pengine-9, v0.3.0-pilot; NATS-KV asyncio state-backing, gRPC SPIFFE Workload-API SVID-fetch, async engine wrapper, scheduled R1..R4 drills, §3.7.3 migrate-version)."
-LABEL org.opencontainers.image.version="0.3.0-pilot"
+LABEL org.opencontainers.image.description="Runtime image for the Wakir persona-engine real binary (Sprint-Pengine-10, v0.4.0-pilot; NATS-KV asyncio state-backing, gRPC SPIFFE Workload-API SVID-fetch, async engine wrapper with NATS-subscribe-loop, Phase-2-Stub LLM-Call-Shim, Bridge-Forward-Pipe input plumbing)."
+LABEL org.opencontainers.image.version="0.4.0-pilot"
 LABEL org.opencontainers.image.licenses="BUSL-1.1"
 LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"
 LABEL org.opencontainers.image.url="https://github.com/wakir-labs/wakir-runtime"

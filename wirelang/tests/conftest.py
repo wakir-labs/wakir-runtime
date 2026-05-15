@@ -18,10 +18,45 @@ present.
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import json
 from pathlib import Path
 
 import pytest
+
+
+# ---------------------------------------------------------------------------
+# Asyncio test support (Sprint-Pengine-10 OI-PEFR-6/7 hermetic tests).
+#
+# We do NOT depend on pytest-asyncio (Bug-34c structural-fix discipline:
+# the test surface stays pure-stdlib + pytest). Instead we register a
+# minimal collection hook that runs ``@pytest.mark.asyncio``-decorated
+# test functions through ``asyncio.run``.
+# ---------------------------------------------------------------------------
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "asyncio: run the test coroutine with asyncio.run (Sprint-Pengine-10).",
+    )
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_pyfunc_call(pyfuncitem):
+    """Drive ``@pytest.mark.asyncio`` test coroutines via asyncio.run."""
+    marker = pyfuncitem.get_closest_marker("asyncio")
+    if marker is not None and inspect.iscoroutinefunction(pyfuncitem.obj):
+        funcargs = pyfuncitem.funcargs
+        argnames = pyfuncitem._fixtureinfo.argnames
+        kwargs = {name: funcargs[name] for name in argnames}
+        asyncio.run(pyfuncitem.obj(**kwargs))
+        outcome = yield
+        # Suppress the default pyfunc call (already run above).
+        outcome.force_result(True)
+        return
+    yield
 
 WIRELANG_ROOT = Path(__file__).resolve().parent.parent
 SCHEMA_DIR = WIRELANG_ROOT / "schemas"

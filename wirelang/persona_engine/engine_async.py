@@ -55,6 +55,17 @@ from .engine import (
     EnvContract,
     resolve_env,
 )
+from .llm_call_shim import (
+    EchoReflectionLlmHook,
+    LlmCallHook,
+)
+from .nats_subscribe_loop import (
+    NatsSubscribeLoop,
+    PublishSink,
+    SubscribeLoopConfig,
+    TaskProcessingTracker,
+    build_subscribe_subject,
+)
 from .lifecycle_state_machine import (
     InvalidTransitionError,
     LifecycleStateMachine,
@@ -82,7 +93,7 @@ from .v907_verify import (
     verify_v907_pin,
 )
 
-ASYNC_ENGINE_VERSION = "0.3.0-pilot"
+ASYNC_ENGINE_VERSION = "0.4.0-pilot"
 ASYNC_ENGINE_VARIANT = "real-async"
 
 
@@ -180,6 +191,8 @@ class AsyncPersonaEngine:
         drill_interval_sec: int = 7 * 24 * 3600,  # weekly by default
         drill_runner: Optional[Callable[[], Any]] = None,
         subscribe_runner: Optional[Callable[[], Any]] = None,
+        subscribe_env: Optional[str] = None,
+        llm_hook: Optional[LlmCallHook] = None,
     ) -> None:
         self.env = env_contract
         self.log_sink = log_sink
@@ -208,6 +221,15 @@ class AsyncPersonaEngine:
         self.tasks = AsyncEngineTasks()
         self._fenced_to_in_memory = False
         self._in_memory_fallback: Optional[PersonaStateBacking] = None
+        # Sprint-Pengine-10 OI-PEFR-6 + OI-PEFR-8: subscribe-loop wiring.
+        # ``subscribe_env`` defaults to env var WAKIR_ENV (or "dev").
+        # ``llm_hook`` defaults to the Phase-2 EchoReflectionLlmHook.
+        self._subscribe_env: str = (
+            subscribe_env or os.environ.get("WAKIR_ENV", "dev")
+        )
+        self._llm_hook: LlmCallHook = llm_hook or EchoReflectionLlmHook()
+        self._attached_subscribe_loop: Optional[NatsSubscribeLoop] = None
+        self._tracker = TaskProcessingTracker()
 
     # ------------------------------------------------------------------
     # Helpers.
@@ -228,6 +250,64 @@ class AsyncPersonaEngine:
     ) -> None:
         self._svid_channel_factory = channel_factory
         self._svid_stub_factory = stub_factory
+
+    def attach_subscribe_loop(
+        self,
+        *,
+        msg_iter: Any,
+        publish_sink: Optional[PublishSink] = None,
+        env: Optional[str] = None,
+        persona_slug: Optional[str] = None,
+    ) -> NatsSubscribeLoop:
+        """Wire a hermetic-mode subscribe-loop driven by ``msg_iter``.
+
+        This is the Sprint-Pengine-10 OI-PEFR-6 surface that tests +
+        the live-NATS runner share. The engine constructs the
+        :class:`NatsSubscribeLoop` from the bridge_writer (must be
+        set; call after :meth:`spawn`) + the configured LLM hook.
+
+        Returns the constructed loop so the caller can wire the run
+        method via ``set_subscribe_runner`` if it wants to drive the
+        loop directly.
+        """
+        if self.bridge_writer is None:
+            raise RuntimeError(
+                "attach_subscribe_loop() called before spawn() — "
+                "bridge_writer is None"
+            )
+        cfg = SubscribeLoopConfig(
+            env=env or self._subscribe_env,
+            persona_slug=persona_slug or self.env.persona_id,
+            org_id=self.env.org_id,
+            bridge_writer=self.bridge_writer,
+            hook=self._llm_hook,
+            tracker=self._tracker,
+            publish_output=publish_sink is not None,
+        )
+        loop = NatsSubscribeLoop(
+            cfg,
+            publish_sink=publish_sink,
+            log_sink=self.log_sink,
+        )
+        self._attached_subscribe_loop = loop
+
+        async def _runner() -> None:
+            await loop.run_with_iterator(
+                msg_iter, stop_event=self._stop_event,
+            )
+
+        self._subscribe_runner = _runner
+        return loop
+
+    @property
+    def task_tracker(self) -> TaskProcessingTracker:
+        """Return the engine's task-processing tracker (audit-helper)."""
+        return self._tracker
+
+    @property
+    def subscribe_loop(self) -> Optional[NatsSubscribeLoop]:
+        """Return the wired subscribe-loop (if any)."""
+        return self._attached_subscribe_loop
 
     # ------------------------------------------------------------------
     # Boot.

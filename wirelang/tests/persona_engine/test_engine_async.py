@@ -348,7 +348,10 @@ def test_async_despawn_clean_completes(tmp_path):
 
 
 def test_async_engine_version_constant():
-    assert ASYNC_ENGINE_VERSION == "0.3.0-pilot"
+    # Sprint-Pengine-10 bump: 0.3.0-pilot -> 0.4.0-pilot for the NATS-
+    # subscribe-loop substrate + LLM-Call-Shim addition. The async
+    # engine remains a strict superset of 0.3.0-pilot.
+    assert ASYNC_ENGINE_VERSION == "0.4.0-pilot"
 
 
 def test_async_engine_variant_label():
@@ -362,7 +365,7 @@ def test_async_engine_log_carries_version_default(tmp_path):
     asyncio.run(engine.boot())
     records = _capture_log(sink)
     for r in records:
-        assert r["engine_version"] == "0.3.0-pilot"
+        assert r["engine_version"] == "0.4.0-pilot"
         assert r["engine_variant"] == "real-async"
 
 

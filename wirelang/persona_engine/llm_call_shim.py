@@ -1,0 +1,253 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Callandor GmbH and contributors
+"""LLM-Call-Shim — Sprint-Pengine-10 OI-PEFR-8 (Phase-2-Stub, Phase-3-Ersatz).
+
+Overview
+--------
+
+The Wakir-Runtime persona-engine receives engineering Aufträge via the
+Bridge-Forward-Pipe (Sprint-10 Tag-6, ``wirelang/specs/bridge-forward-
+pipe-v1.md``). To start the Doppelbetrieb-Vergleich-4-Wochen-Clock
+**we need outputs to compare** — but Phase-2-Pilot is intentionally
+*not* the moment when real LLM-inference goes live. Phase-3 (Anthropic
+API plug-in) carries that substrate.
+
+This module provides the **Phase-2-Stub**: a deterministic echo
+responder that emits a reply payload derived from the prompt without
+any network or LLM call. The reply is deterministic across repeats for
+the same inputs (modulo the operator-supplied ``ts_utc``) so the
+Doppelbetrieb-Score-CLI can produce stable verdicts during the pilot.
+
+The shim is also the **Phase-3 hook surface**: callers obtain an
+``LlmCallHook`` and the engine wires that single hook through the
+subscribe-loop. Phase-3 swaps the implementation (e.g.
+``AnthropicMessagesHook``) without touching the subscribe-loop or
+engine code.
+
+Determinism contract
+--------------------
+
+Given identical ``persona_id``, ``prompt_payload``, and ``ts_utc``, the
+``EchoReflectionLlmHook`` MUST return byte-identical
+``LlmCallResult.reply_text`` and ``reply_sha256``. This is the
+foundation of the Doppelbetrieb-Score-CLI byte-for-byte comparison.
+
+The reply shape is **intentionally non-conversational** for the
+Phase-2-Stub: it is an audit-tag, not a simulated assistant response.
+The point is to flow data through the subscribe -> hook -> bridge-
+audit pipeline so the substrate is exercised end-to-end before
+Phase-3.
+
+Reply text format
+-----------------
+
+::
+
+    echo-reflection v1
+    persona_id=<persona_id>
+    auftrag_id=<auftrag_id>
+    prompt_sha256=sha256:<64hex>
+    ts_utc=<rfc3339-utc>
+    prompt_byte_len=<int>
+    prompt_line_count=<int>
+    <empty line>
+    <first 256 chars of prompt_payload, newlines preserved>
+
+The 256-char prefix preserves enough of the prompt for human-readable
+audit at the Pre-Framework-sink (bridge-audit.md) while keeping the
+reply envelope size-bounded.
+
+Hermetic-test surface
+---------------------
+
+All tests in ``wirelang/tests/persona_engine/test_llm_call_shim.py``
+are pure-stdlib (no network, no LLM). The shim never imports
+``anthropic``, ``httpx``, or any other external dependency.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import time
+from dataclasses import dataclass, field
+from typing import Optional, Protocol
+
+ECHO_REFLECTION_VERSION = "v1"
+ECHO_REFLECTION_PROMPT_PREFIX_CHARS = 256
+
+
+def _utc_now_rfc3339() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def _sha256(text: str) -> str:
+    return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+# ---------------------------------------------------------------------------
+# Result envelope
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class LlmCallResult:
+    """The outcome of one LLM-call (or its Phase-2-Stub equivalent).
+
+    Fields:
+
+    - ``persona_id``: the persona that owns this call (pass-through).
+    - ``auftrag_id``: the round-trip key from the Bridge-Forward-Pipe
+      envelope (pass-through to the engineering-output envelope).
+    - ``prompt_sha256``: sha256 of the prompt UTF-8 bytes.
+    - ``reply_text``: the reply payload (UTF-8 text).
+    - ``reply_sha256``: sha256 of the reply UTF-8 bytes.
+    - ``ts_utc``: RFC3339 UTC timestamp the hook completed at.
+    - ``hook_kind``: discriminator for the hook implementation
+      (``echo-reflection`` for the Phase-2-Stub).
+    """
+
+    persona_id: str
+    auftrag_id: str
+    prompt_sha256: str
+    reply_text: str
+    reply_sha256: str
+    ts_utc: str
+    hook_kind: str
+
+
+# ---------------------------------------------------------------------------
+# Hook protocol
+# ---------------------------------------------------------------------------
+
+
+class LlmCallHook(Protocol):
+    """The single interface the engine binds against.
+
+    Phase-2 implementation: :class:`EchoReflectionLlmHook`.
+    Phase-3 implementation: e.g. ``AnthropicMessagesHook`` (out of scope
+    for Sprint-Pengine-10).
+    """
+
+    def call(
+        self,
+        *,
+        persona_id: str,
+        auftrag_id: str,
+        prompt_payload: str,
+        ts_utc: Optional[str] = None,
+    ) -> LlmCallResult:
+        ...
+
+
+# ---------------------------------------------------------------------------
+# Phase-2-Stub: EchoReflectionLlmHook
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class EchoReflectionLlmHook:
+    """Deterministic echo-reflection LLM-Stub for Phase-2-Pilot.
+
+    Does NOT call any LLM. Returns a reply derived purely from the
+    inputs (persona_id, auftrag_id, prompt_payload, ts_utc) so the
+    Doppelbetrieb-Score-CLI can compare against a Pre-Framework
+    Tomás-Spawn output with byte-stable determinism.
+
+    Parameters:
+
+    - ``prompt_prefix_chars``: how many leading chars of the prompt to
+      include in the reply. Default 256 (per
+      ``ECHO_REFLECTION_PROMPT_PREFIX_CHARS``). Set to 0 for
+      hash-only-mode (no prompt-prefix in reply).
+    """
+
+    prompt_prefix_chars: int = ECHO_REFLECTION_PROMPT_PREFIX_CHARS
+
+    HOOK_KIND: str = field(default="echo-reflection", init=False)
+
+    def call(
+        self,
+        *,
+        persona_id: str,
+        auftrag_id: str,
+        prompt_payload: str,
+        ts_utc: Optional[str] = None,
+    ) -> LlmCallResult:
+        ts = ts_utc or _utc_now_rfc3339()
+        prompt_sha = _sha256(prompt_payload)
+        prompt_bytes = prompt_payload.encode("utf-8")
+        line_count = prompt_payload.count("\n") + (
+            0 if (prompt_payload == "" or prompt_payload.endswith("\n")) else 1
+        )
+        prefix = (
+            prompt_payload[: self.prompt_prefix_chars]
+            if self.prompt_prefix_chars > 0
+            else ""
+        )
+        lines = [
+            f"echo-reflection {ECHO_REFLECTION_VERSION}",
+            f"persona_id={persona_id}",
+            f"auftrag_id={auftrag_id}",
+            f"prompt_sha256={prompt_sha}",
+            f"ts_utc={ts}",
+            f"prompt_byte_len={len(prompt_bytes)}",
+            f"prompt_line_count={line_count}",
+            "",
+            prefix,
+        ]
+        reply_text = "\n".join(lines)
+        return LlmCallResult(
+            persona_id=persona_id,
+            auftrag_id=auftrag_id,
+            prompt_sha256=prompt_sha,
+            reply_text=reply_text,
+            reply_sha256=_sha256(reply_text),
+            ts_utc=ts,
+            hook_kind=self.HOOK_KIND,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Phase-3 hook stub (NOT implemented)
+# ---------------------------------------------------------------------------
+
+
+class AnthropicMessagesHookNotImplemented(NotImplementedError):
+    """Placeholder for the Phase-3 Anthropic Messages API hook.
+
+    Sprint-Pengine-10 ships the Phase-2-Stub (EchoReflectionLlmHook).
+    The Anthropic-API plug-in lands in a dedicated Phase-3 sprint with
+    its own:
+
+    - API-key env-var contract (``ANTHROPIC_API_KEY``).
+    - Rate-limit + retry-with-backoff policy.
+    - Cost-cap guard (budget cents per spawn-session).
+    - Bridge-Audit-Writer integration that flags `hook_kind=anthropic-messages`.
+
+    Raising this error from the call-site documents the substitution
+    point without shipping un-vetted live-API code.
+    """
+
+
+def anthropic_messages_hook_phase_3_stub() -> LlmCallHook:
+    """Factory that fails fast with a documented NotImplementedError.
+
+    The Sprint-Pengine-10 substrate intentionally does NOT ship a
+    live-LLM-call. Callers that import this factory get a clear signal
+    that Phase-3 substance is the next sprint.
+    """
+    raise AnthropicMessagesHookNotImplemented(
+        "AnthropicMessagesHook is Phase-3 substance; Sprint-Pengine-10 "
+        "ships the Phase-2-Stub EchoReflectionLlmHook only."
+    )
+
+
+__all__ = [
+    "AnthropicMessagesHookNotImplemented",
+    "ECHO_REFLECTION_PROMPT_PREFIX_CHARS",
+    "ECHO_REFLECTION_VERSION",
+    "EchoReflectionLlmHook",
+    "LlmCallHook",
+    "LlmCallResult",
+    "anthropic_messages_hook_phase_3_stub",
+]

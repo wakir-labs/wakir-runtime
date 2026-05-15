@@ -1,0 +1,22 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# Sprint-Pengine-10 OI-PEFR-9 — Doppelbetrieb-Aggregate CLI entrypoint.
+# Thin shim over ``wirelang.cli.doppelbetrieb_aggregate``.
+#
+# See ``wirelang/cli/doppelbetrieb_aggregate.py`` module docstring and
+# ADR-0058 §Pilot-Phase Schritt 10 for the full contract.
+
+import sys
+from pathlib import Path
+
+_HERE = Path(__file__).resolve().parent
+_REPO_ROOT = _HERE.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from wirelang.cli.doppelbetrieb_aggregate import main  # noqa: E402
+
+if __name__ == "__main__":
+    raise SystemExit(main())
