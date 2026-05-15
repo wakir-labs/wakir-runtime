@@ -138,13 +138,23 @@ def test_quadlet_health_probe(quadlet_text: str) -> None:
 
 def test_quadlet_publishes_bundle_endpoint(quadlet_text: str) -> None:
     # The template uses placeholders; the literal container port 8443 is
-    # the invariant. Host port is substituted at install.
+    # the invariant. Host port + host bind are substituted at install.
+    # Sprint-10 Tag-3 substance: the bundle-endpoint host bind is now
+    # parametrised via <HOST_BUNDLE_BIND> so federation-mode bind on
+    # 0.0.0.0 is possible (Cross-VM access), while single-org keeps
+    # 127.0.0.1 loopback-only.
     assert re.search(
-        r"PublishPort=127\.0\.0\.1:<HOST_BUNDLE_PORT>:8443", quadlet_text
-    ), "Quadlet must publish container port 8443 (bundle-endpoint listener)"
+        r"PublishPort=<HOST_BUNDLE_BIND>:<HOST_BUNDLE_PORT>:8443",
+        quadlet_text,
+    ), "Quadlet must publish container port 8443 with parametrised host bind"
+    # The gRPC API stays LITERALLY loopback-only — this is a security
+    # invariant (the gRPC API is the privileged control plane). The
+    # bind for 8081 must remain hardcoded ``127.0.0.1``, NOT a
+    # placeholder. Drift would be a regression of the Sprint-10 Tag-3
+    # security posture.
     assert re.search(
         r"PublishPort=127\.0\.0\.1:<HOST_GRPC_PORT>:8081", quadlet_text
-    ), "Quadlet must publish container port 8081 (SPIRE-Server gRPC API)"
+    ), "Quadlet must publish container port 8081 (SPIRE-Server gRPC API) on literal loopback"
 
 
 def test_quadlet_network_attachment(quadlet_text: str) -> None:
@@ -152,9 +162,36 @@ def test_quadlet_network_attachment(quadlet_text: str) -> None:
 
 
 def test_quadlet_placeholders_preserved(quadlet_text: str) -> None:
-    """The template MUST keep the three documented placeholders so
-    the install-time sed-substitution stays explicit."""
-    for placeholder in ("<SIDE>", "<HOST_BUNDLE_PORT>", "<HOST_GRPC_PORT>"):
+    """The template MUST keep the documented placeholders so the
+    install-time sed-substitution stays explicit.
+
+    Sprint-10 Tag-3 adds ``<HOST_BUNDLE_BIND>`` to the placeholder set;
+    the bootstrap wires it from WAKIR_PILOT_MODE (single-org -> 127.0.0.1,
+    federation -> 0.0.0.0).
+    """
+    placeholders = (
+        "<SIDE>",
+        "<HOST_BUNDLE_PORT>",
+        "<HOST_GRPC_PORT>",
+        "<HOST_BUNDLE_BIND>",
+    )
+    for placeholder in placeholders:
         assert placeholder in quadlet_text, (
             f"Quadlet template must preserve placeholder {placeholder!r}"
         )
+
+
+def test_quadlet_grpc_port_bind_is_literal_loopback(quadlet_text: str) -> None:
+    """Sprint-10 Tag-3 security invariant: the gRPC API host bind MUST
+    NOT be parametrised. Only the bundle-endpoint host bind is
+    parametrised (because federation-mode requires Cross-VM access).
+    The gRPC API is the privileged control plane (token-generate,
+    agent-list, bundle-set) and MUST stay loopback-only in EVERY
+    pilot-mode."""
+    # Hardcoded 127.0.0.1 literal — no placeholder allowed for the
+    # gRPC port bind. The test asserts both presence of the literal
+    # AND absence of any ``<...>:<HOST_GRPC_PORT>`` pattern.
+    assert "127.0.0.1:<HOST_GRPC_PORT>:8081" in quadlet_text
+    assert not re.search(
+        r"<HOST_GRPC_BIND>:<HOST_GRPC_PORT>", quadlet_text
+    ), "gRPC port bind must NOT be parametrised (security invariant)"

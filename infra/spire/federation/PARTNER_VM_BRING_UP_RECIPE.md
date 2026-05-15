@@ -338,18 +338,49 @@ dann automatisch:
 - Network-Alias `spire-server-orbit` (statt `spire-server-wakir`).
 - Trust-Domain-Substitution `orbit.test` (auto-sync mit
   `WAKIR_SIDE`, siehe Bootstrap-Header).
+- **(NEU, Sprint-10 Tag-3)** Bundle-Endpoint-Host-Bind auf `0.0.0.0`
+  (statt `127.0.0.1`) wenn `WAKIR_PILOT_MODE=federation`. Das ist die
+  substantielle Voraussetzung dass der peer-VM den Bundle-Endpoint
+  ueberhaupt erreichen kann. Single-Org-Mode bleibt loopback-only.
+  gRPC-API-Port 8081 bleibt in beiden Modi loopback-only (Security-
+  Invariant — privilegierte Control-Plane).
+- **(NEU, Sprint-10 Tag-3)** `WAKIR_PEER_SIDE` + `WAKIR_PEER_HOST`
+  Env-Vars: setzen + die `/etc/hosts`-Entry fuer die Peer-VM wird
+  automatisch installiert. Ohne diese Vars: Operator-Hand-Edit von
+  `/etc/hosts` (siehe §5.2 unten).
 
 ### 5.1 Bootstrap-Skript mit WAKIR_SIDE starten
 
+**Empfohlene Variante (Sprint-10 Tag-3, Cross-VM auto-wired):**
+
 ```bash
-# In der Orbit-VM:
+# In der Orbit-VM (Beispiel: wakir-pilot ist auf 192.168.178.116):
+sudo env \
+  WAKIR_SIDE=orbit \
+  WAKIR_PILOT_MODE=federation \
+  WAKIR_PEER_SIDE=wakir \
+  WAKIR_PEER_HOST=192.168.178.116 \
+  WAKIR_ORG_ID=acme \
+  bash /opt/wakir-runtime/infra/spire/federation/wakir-pilot-bootstrap.sh
+# Erwartet: 8 Schritte gruen, Final-Smoke 6/6.
+#
+# Bonus: das Bootstrap installiert beim Schritt 6 automatisch eine
+# /etc/hosts-Entry: "192.168.178.116  spire-server-wakir".
+# Der HTTPS-Endpoint des wakir-VM wird damit cross-VM erreichbar.
+```
+
+**Klassische Variante (vor Sprint-10 Tag-3, `/etc/hosts` per Hand):**
+
+```bash
 sudo env \
   WAKIR_SIDE=orbit \
   WAKIR_PILOT_MODE=federation \
   WAKIR_ORG_ID=acme \
   bash /opt/wakir-runtime/infra/spire/federation/wakir-pilot-bootstrap.sh
-# Erwartet: 8 Schritte gruen, Final-Smoke 6/6 (Federation-Checks
-#   noch nicht aktiviert — die kommen in §7).
+
+# Dann Operator-Hand: /etc/hosts editieren, eine Zeile:
+#   192.168.178.116  spire-server-wakir
+# (Ersetze die IP durch den tatsaechlichen Peer-VM-Endpoint.)
 ```
 
 **Hinweis:** `WAKIR_PILOT_MODE=federation` ist die Wahl die den
@@ -382,8 +413,9 @@ qm snapshot 102 post-spire --description "Orbit-Side SPIRE-Stack laeuft"
 
 Falls die Wakir-Side aktuell im `single-org`-Mode laeuft (Sprint-9-
 Tag-1-Baseline), muss sie auf `federation`-Mode umgestellt werden,
-damit der `federates_with "orbit.test"`-Block aktiv ist. Auf der
-Wakir-VM:
+damit der `federates_with "orbit.test"`-Block aktiv ist UND der
+Bundle-Endpoint-Host-Bind von `127.0.0.1` auf `0.0.0.0` flippt. Auf
+der Wakir-VM:
 
 ```bash
 # Stoppen + neu konfigurieren:
@@ -394,6 +426,8 @@ sudo systemctl stop wakir-spire-server-federation-wakir.service
 sudo env \
   WAKIR_SIDE=wakir \
   WAKIR_PILOT_MODE=federation \
+  WAKIR_PEER_SIDE=orbit \
+  WAKIR_PEER_HOST=192.168.178.191 \
   WAKIR_ORG_ID=acme \
   bash /opt/wakir-runtime/infra/spire/federation/wakir-pilot-bootstrap.sh \
     --resume-from 6
@@ -401,6 +435,21 @@ sudo env \
 # Restart:
 sudo systemctl start wakir-spire-server-federation-wakir.service
 sudo systemctl start wakir-spire-agent-wakir.service
+```
+
+**Sprint-10 Tag-3 Effect-Check:** Nach dem `federation`-Mode-Switch
+MUSS der Bundle-Endpoint auf `0.0.0.0` binden, nicht mehr auf
+`127.0.0.1`. Verifikation:
+
+```bash
+sudo ss -tlnp | grep -E ':8443'
+# Erwartet: LISTEN 0.0.0.0:8443 (statt 127.0.0.1:8443)
+
+sudo cat /etc/containers/systemd/wakir-spire-server-federation-wakir.container \
+  | grep -E '^PublishPort='
+# Erwartet:
+#   PublishPort=0.0.0.0:8443:8443       <-- Bundle-Endpoint, cross-VM
+#   PublishPort=127.0.0.1:8082:8081     <-- gRPC, loopback-only (Security)
 ```
 
 **Wichtig:** Die Wakir-Side-Config `spire-server-wakir.conf` enthaelt
@@ -545,6 +594,67 @@ formal abschluss-faehig; Phase-2 ist eroffnungs-faehig.
 qm snapshot 101 post-fed-smoke-clean --description "Wakir-Side 8/8 Federation-Smoke ok"
 qm snapshot 102 post-fed-smoke-clean --description "Orbit-Side 8/8 Federation-Smoke ok"
 ```
+
+### 7.3 M-3 Live-Trial Validation (Mira-Hand-Pfad, Sprint-10 Tag-3)
+
+Diese Sektion ist die explizite Sequenz die Mira nach dem Merge des
+Sprint-10-Tag-3-PR auf den beiden Live-VMs ausfuehrt. Sandbox-Boundary:
+Kai liefert die Substanz (Code, Configs, Tests, Recipe-Update); Mira
+fuehrt den Live-Trial aus. Erfolgs-Kriterium: 8/8 PASS auf beiden
+Sides + Reza's Live-HTTPS-Adapter-Test (`test_live_int_live_partner_vm`)
+gruen gegen `WAKIR_LIVE_PARTNER_URL=https://wakir-orbit:8443`.
+
+**Bootstrap-Sequenz (beide VMs, Sprint-10 Tag-3 auto-wired):**
+
+```bash
+# Schritt 1: wakir-orbit (192.168.178.191) auf federation-mode flashen.
+ssh -i /home/fred/.ssh/wakir-pilot-vm-diagnose root@192.168.178.191
+sudo systemctl stop wakir-spire-agent-orbit.service \
+                   wakir-spire-server-federation-orbit.service
+sudo env \
+  WAKIR_SIDE=orbit \
+  WAKIR_PILOT_MODE=federation \
+  WAKIR_PEER_SIDE=wakir \
+  WAKIR_PEER_HOST=192.168.178.116 \
+  WAKIR_ORG_ID=acme \
+  bash /opt/wakir-runtime/infra/spire/federation/wakir-pilot-bootstrap.sh \
+    --resume-from 6
+sudo systemctl start wakir-spire-server-federation-orbit.service
+sudo systemctl start wakir-spire-agent-orbit.service
+
+# Schritt 2: wakir-pilot (192.168.178.116) — Option B aus Auftrag:
+#   wakir-pilot bleibt single-org als V2-Anchor. Kein Switch noetig.
+# Falls Option A (beide federation) oder Option C (beide federation
+# mit pre-snapshot-Backup) gewaehlt wird: analoger Aufruf auf
+# wakir-pilot mit WAKIR_PEER_SIDE=orbit, WAKIR_PEER_HOST=192.168.178.191.
+
+# Schritt 3: Bundle-Sync (Operator-Hand, einmalig per CLI seed):
+# Folge §6 (Federation-Bundle-Sync) zwischen den beiden VMs.
+
+# Schritt 4: Smoke-Verify auf wakir-orbit:
+ssh -i /home/fred/.ssh/wakir-pilot-vm-diagnose root@192.168.178.191
+sudo env \
+  WAKIR_FEDERATION_MODE=enabled \
+  /opt/wakir-runtime/bin/proxmox-bringup-smoke \
+    --org acme \
+    --side orbit \
+    --peer-side wakir
+# Erwartet: 8/8 checks PASS
+
+# Schritt 5: Reza's Live-Adapter-Test (von der Sandbox, oder von
+# wakir-pilot mit installiertem wirelang):
+WAKIR_LIVE_PARTNER_URL=https://wakir-orbit:8443 \
+  python -m pytest \
+    wirelang/tests/test_spire_fed_bundle_live_https_fetcher.py::test_live_int_live_partner_vm \
+    -v
+# Erwartet: PASSED
+```
+
+**Bei Fehler (Bring-up bricht):** SSH-Diagnose-Pfad ist via
+`/home/fred/.ssh/wakir-pilot-vm-diagnose` verfuegbar fuer beide VMs
+(root@192.168.178.191 = wakir-orbit, root@192.168.178.116 = wakir-pilot).
+Live-Diagnose-Logs (analog Bug-26/27/28-Pattern) sammeln, Kai fixt
+source.
 
 ## 8. Rollback-Pfad
 

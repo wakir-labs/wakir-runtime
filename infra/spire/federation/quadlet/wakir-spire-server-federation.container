@@ -15,17 +15,38 @@
 # file is byte-precise mirrored).
 #
 # This file is the GENERIC Quadlet template — placeholders ``<SIDE>``,
-# ``<HOST_BUNDLE_PORT>``, and ``<HOST_GRPC_PORT>`` MUST be substituted
-# by the operator before install. Reference values:
+# ``<HOST_BUNDLE_PORT>``, ``<HOST_GRPC_PORT>``, and ``<HOST_BUNDLE_BIND>``
+# MUST be substituted by the operator before install. Reference values:
 #
-#   wakir.test side:    SIDE=wakir,   HOST_BUNDLE_PORT=8443, HOST_GRPC_PORT=8082
-#   partner.test side:  SIDE=partner, HOST_BUNDLE_PORT=8444, HOST_GRPC_PORT=8083
+#   wakir.test side (hermetic / single-org):
+#       SIDE=wakir,   HOST_BUNDLE_PORT=8443, HOST_GRPC_PORT=8082,
+#       HOST_BUNDLE_BIND=127.0.0.1
+#   partner.test side (hermetic same-host federation):
+#       SIDE=partner, HOST_BUNDLE_PORT=8444, HOST_GRPC_PORT=8083,
+#       HOST_BUNDLE_BIND=127.0.0.1
+#   orbit.test side (Cross-VM Federation Live Trial, Sprint-10 Tag-3):
+#       SIDE=orbit,   HOST_BUNDLE_PORT=8443, HOST_GRPC_PORT=8082,
+#       HOST_BUNDLE_BIND=0.0.0.0
+#
+# ``<HOST_BUNDLE_BIND>`` rationale (Sprint-10 Tag-3, M-3 Live-Trial):
+#   The bundle-endpoint listener is the ONLY port a federation peer
+#   must reach from across a VM boundary. The gRPC API (8081) and any
+#   single-org pilot's bundle-endpoint stay loopback-only (127.0.0.1)
+#   so an unfederated pilot never exposes its bundle. Cross-VM
+#   federation REQUIRES the bundle-endpoint host-bind to be the
+#   wildcard (0.0.0.0) so a peer VM can connect over the wakir-
+#   federation-internal Proxmox-bridge (or, for the Sprint-10-Tag-3
+#   home-LAN dogfood topology, the host's LAN-facing IP).
+#   wakir-pilot-bootstrap.sh wires this automatically:
+#     * WAKIR_PILOT_MODE=single-org  -> HOST_BUNDLE_BIND=127.0.0.1
+#     * WAKIR_PILOT_MODE=federation  -> HOST_BUNDLE_BIND=0.0.0.0
 #
 # Operator install path (rootful Podman) — wakir side example:
 #
 #   sed -e 's/<SIDE>/wakir/g' \
 #       -e 's/<HOST_BUNDLE_PORT>/8443/g' \
 #       -e 's/<HOST_GRPC_PORT>/8082/g' \
+#       -e 's/<HOST_BUNDLE_BIND>/127.0.0.1/g' \
 #       infra/spire/federation/quadlet/wakir-spire-server-federation.container \
 #     | sudo tee /etc/containers/systemd/wakir-spire-server-federation-wakir.container
 #   sudo install -m 644 infra/spire/federation/config/spire-server-wakir.conf \
@@ -34,7 +55,9 @@
 #   sudo systemctl start wakir-spire-server-federation-wakir.service
 #
 # Repeat for the partner side with SIDE=partner, HOST_BUNDLE_PORT=8444,
-# HOST_GRPC_PORT=8083, and the partner config file.
+# HOST_GRPC_PORT=8083, HOST_BUNDLE_BIND=127.0.0.1, and the partner
+# config file. For the orbit side in Cross-VM federation, set
+# HOST_BUNDLE_BIND=0.0.0.0.
 #
 # Rootless Podman: copy to ~/.config/containers/systemd/ and use
 # ``systemctl --user``; adapt the bind-mount source path to the
@@ -86,14 +109,24 @@ Image=ghcr.io/spiffe/spire-server:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW
 # correct under both image variants.
 Exec=-config /etc/spire/server/server.conf
 
-# Bundle-endpoint listener (loopback-only on the host; the peer fetch
-# routes over the federation bridge's internal DNS, not over the
-# host's loopback). Operator-Hand substitutes <HOST_BUNDLE_PORT>.
-PublishPort=127.0.0.1:<HOST_BUNDLE_PORT>:8443
+# Bundle-endpoint listener — host bind controlled by <HOST_BUNDLE_BIND>
+# (Sprint-10 Tag-3, M-3 Live-Trial). For same-host hermetic test or
+# single-org pilot deployments, HOST_BUNDLE_BIND=127.0.0.1 keeps the
+# listener loopback-only. For Cross-VM federation (WAKIR_PILOT_MODE=
+# federation), HOST_BUNDLE_BIND=0.0.0.0 so a peer VM can fetch the
+# bundle over the wakir-federation-internal Proxmox-bridge or the
+# host's LAN interface. Operator-Hand substitutes <HOST_BUNDLE_BIND>
+# and <HOST_BUNDLE_PORT> at install (the wakir-pilot-bootstrap.sh
+# one-shot wires both from WAKIR_PILOT_MODE).
+PublishPort=<HOST_BUNDLE_BIND>:<HOST_BUNDLE_PORT>:8443
 
-# SPIRE-Server gRPC API (loopback-only). Operator-Hand substitutes
-# <HOST_GRPC_PORT> to avoid clashing with the compose/spire.yaml
-# 8081 mapping or the peer-side federation Quadlet's gRPC port.
+# SPIRE-Server gRPC API — ALWAYS loopback-only. The gRPC API is the
+# privileged control-plane surface (token-generate, agent-list,
+# bundle-set); exposing it cross-VM would let any reachable host
+# impersonate the operator's hand on the server. Operator-Hand
+# substitutes <HOST_GRPC_PORT> to avoid clashing with the
+# compose/spire.yaml 8081 mapping or the peer-side federation
+# Quadlet's gRPC port.
 PublishPort=127.0.0.1:<HOST_GRPC_PORT>:8081
 
 ReadOnly=true

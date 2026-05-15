@@ -35,7 +35,31 @@
 #                             default — Phase-1b pilot does not have
 #                             a federation peer; using the federation
 #                             configs in single-org mode crashes the
-#                             SPIRE-Server on partner-peer-DNS-miss.)
+#                             SPIRE-Server on partner-peer-DNS-miss.
+#                             Sprint-10-Tag-3 substance: federation
+#                             mode now wires <HOST_BUNDLE_BIND>=0.0.0.0
+#                             so the bundle-endpoint is reachable
+#                             cross-VM. Single-org keeps the bundle-
+#                             endpoint loopback-only.)
+#   WAKIR_PEER_SIDE           default: (unset) — Sprint-10-Tag-3.
+#                             Federation-mode only. Peer trust-domain
+#                             side literal (e.g. ``wakir`` on the
+#                             orbit-VM; ``orbit`` on the wakir-VM).
+#                             Mirror of --peer-side in proxmox-
+#                             bringup-smoke. When set together with
+#                             WAKIR_PEER_HOST, the bootstrap installs
+#                             an /etc/hosts entry mapping
+#                             ``spire-server-<peer_side>`` to the
+#                             peer VM's IP. Unset means Operator-Hand
+#                             /etc/hosts setup (manual).
+#   WAKIR_PEER_HOST           default: (unset) — Sprint-10-Tag-3.
+#                             Federation-mode only. Peer VM's IP for
+#                             the /etc/hosts auto-install. For the
+#                             home-LAN dogfood topology this is the
+#                             peer VM's LAN IP (e.g. ``192.168.178.116``).
+#                             For the Proxmox-internal bridge topology
+#                             this is the bridge-internal IP (e.g.
+#                             ``10.0.42.10``).
 #   WAKIR_REPO_BRANCH         default: main
 #   WAKIR_REPO_URL            default: https://github.com/wakir-labs/wakir-runtime.git
 #   WAKIR_REPO_ROOT           default: /opt/wakir-runtime
@@ -170,6 +194,43 @@ case "$WAKIR_PILOT_MODE" in
     ;;
 esac
 
+# Sprint-10 Tag-3 substance-fix (M-3 Live-Trial): peer-host wiring for
+# Cross-VM federation. When WAKIR_PILOT_MODE=federation, the bootstrap
+# can OPTIONALLY install an /etc/hosts entry that maps the peer-side
+# SPIRE-Server's DNS name (``spire-server-<peer_side>``) to the peer
+# VM's IP. This automates step §5.2 of PARTNER_VM_BRING_UP_RECIPE.md
+# (the Operator-Hand /etc/hosts edit). Both env-vars are required to
+# trigger the auto-install; if either is empty, the bootstrap logs a
+# note and leaves /etc/hosts untouched (Operator-Hand-fallback).
+#
+#   WAKIR_PEER_SIDE           e.g. ``wakir`` (peer trust-domain side
+#                             literal; mirror of --peer-side in the
+#                             proxmox-bringup-smoke script).
+#   WAKIR_PEER_HOST           e.g. ``192.168.178.116`` (the peer VM's
+#                             reachable IP — LAN-direct for the
+#                             home-LAN dogfood topology, or the
+#                             Proxmox-internal bridge IP).
+#
+# The bootstrap NEVER edits /etc/hosts in single-org mode (no peer
+# exists). In federation mode without these vars, the operator MUST
+# add the entry manually before federation-bundle-sync works.
+: "${WAKIR_PEER_SIDE:=}"
+: "${WAKIR_PEER_HOST:=}"
+if [[ -n "$WAKIR_PEER_SIDE" ]] \
+   && ! [[ "$WAKIR_PEER_SIDE" =~ ^[a-z][a-z0-9]*$ ]]; then
+  echo "[$PROG] ERROR: WAKIR_PEER_SIDE must be lowercase ASCII + digits, starting with a letter; got '${WAKIR_PEER_SIDE}'" >&2
+  exit 1
+fi
+if [[ -n "$WAKIR_PEER_HOST" ]] \
+   && ! [[ "$WAKIR_PEER_HOST" =~ ^[0-9a-zA-Z.:_\-]+$ ]]; then
+  echo "[$PROG] ERROR: WAKIR_PEER_HOST contains disallowed characters; got '${WAKIR_PEER_HOST}'" >&2
+  exit 1
+fi
+if [[ -n "$WAKIR_PEER_SIDE" && "$WAKIR_PEER_SIDE" == "$WAKIR_SIDE" ]]; then
+  echo "[$PROG] ERROR: WAKIR_PEER_SIDE ($WAKIR_PEER_SIDE) must differ from WAKIR_SIDE ($WAKIR_SIDE)" >&2
+  exit 1
+fi
+
 # Test-injection hooks. In production these expand to nothing; the
 # hermetic test surface in tests/infra/test_pilot_bootstrap.py can
 # point these at fixtures.
@@ -180,6 +241,11 @@ esac
 : "${WAKIR_BOOTSTRAP_SMOKE:=}"   # if empty, derived from REPO_ROOT
 : "${WAKIR_BOOTSTRAP_TOOLBOX:=toolbox}"
 : "${WAKIR_BOOTSTRAP_SLEEP:=sleep}"   # Bug-25 wait-helpers; tests inject noop
+
+# Sprint-10 Tag-3: hermetic-friendly path for the /etc/hosts peer-host
+# entry. Tests inject WAKIR_BOOTSTRAP_HOSTS=/path/to/fake-hosts so the
+# bootstrap appends to the fixture, not to the system file.
+: "${WAKIR_BOOTSTRAP_HOSTS:=/etc/hosts}"
 
 # ---------------------------------------------------------------------------
 # Output helpers
@@ -276,6 +342,8 @@ Env vars (see top of script for full list):
   WAKIR_TRUST_DOMAIN        (default: wakir.test; auto-syncs with WAKIR_SIDE)
   WAKIR_SIDE                (default: wakir; alt: orbit, partner)
   WAKIR_PILOT_MODE          (default: single-org; alt: federation)
+  WAKIR_PEER_SIDE           (Sprint-10-T3; federation-mode only; e.g. orbit)
+  WAKIR_PEER_HOST           (Sprint-10-T3; federation-mode only; peer VM IP)
   WAKIR_SKIP_COSIGN_VERIFY  (default: 0; set 1 for tag-only quick-pilot)
   WAKIR_SKIP_PROMPTS        (default: 0; set 1 for headless / CI)
 EOF
@@ -311,7 +379,10 @@ cat <<EOF
 ${_BOLD}Wakir-Pilot-VM Bring-up${_RESET}
   Org-ID:        ${WAKIR_ORG_ID}
   Trust-Domain:  ${WAKIR_TRUST_DOMAIN}
+  Side:          ${WAKIR_SIDE}
   Pilot-Mode:    ${WAKIR_PILOT_MODE}
+  Peer-Side:     ${WAKIR_PEER_SIDE:-(not set; Operator-Hand for /etc/hosts)}
+  Peer-Host:     ${WAKIR_PEER_HOST:-(not set; Operator-Hand for /etc/hosts)}
   Repo-Branch:   ${WAKIR_REPO_BRANCH}
   Repo-Root:     ${WAKIR_REPO_ROOT}
   Resume-From:   ${RESUME_FROM}/${TOTAL_STEPS}
@@ -1076,11 +1147,84 @@ _wait_for_workload_api_socket() {
 }
 
 # ---------------------------------------------------------------------------
+# Sprint-10 Tag-3: peer-host /etc/hosts wiring helper
+#
+# When WAKIR_PILOT_MODE=federation AND both WAKIR_PEER_SIDE +
+# WAKIR_PEER_HOST are set, append (if missing) an /etc/hosts entry
+# mapping ``spire-server-<peer_side>`` to the peer VM's IP. This is
+# the substance-fix for the M-3 Live-Trial: Reza's PR #59 Phase-2c
+# live-counterpart-adapter pins URLs at ``https://spire-server-<peer-
+# side>:8443`` — that hostname MUST resolve to the peer VM. Without
+# the /etc/hosts entry, the federation-bundle-sync-reachable smoke
+# check FAILs with DNS-NXDOMAIN and `Connection refused` cascades
+# back through the adapter test in Reza's test_live_int_live_partner_vm.
+#
+# Idempotent: a marker comment (``# wakir-bootstrap: peer-side
+# <peer_side>``) on the entry's line lets the bootstrap recognise the
+# entry across re-runs and update only if the IP changed.
+#
+# Sandbox-Boundary: the test surface (test_pilot_bootstrap_peer_host.py)
+# injects WAKIR_BOOTSTRAP_HOSTS=/tmp/.../fake-hosts so the bootstrap
+# never touches /etc/hosts during hermetic tests.
+# ---------------------------------------------------------------------------
+
+_install_peer_host_entry() {
+  if [[ "$WAKIR_PILOT_MODE" != "federation" ]]; then
+    return 0
+  fi
+  if [[ -z "$WAKIR_PEER_SIDE" || -z "$WAKIR_PEER_HOST" ]]; then
+    log_note "peer-host wiring skipped (WAKIR_PEER_SIDE or WAKIR_PEER_HOST unset)"
+    log_note "  Operator-Hand alternative: add ``${WAKIR_PEER_HOST:-<peer-ip>} spire-server-${WAKIR_PEER_SIDE:-<peer-side>}`` to ${WAKIR_BOOTSTRAP_HOSTS}"
+    return 0
+  fi
+  local peer_dns="spire-server-${WAKIR_PEER_SIDE}"
+  local marker="# wakir-bootstrap: peer-side ${WAKIR_PEER_SIDE}"
+  local entry="${WAKIR_PEER_HOST}	${peer_dns}	${marker}"
+  if [[ ! -f "$WAKIR_BOOTSTRAP_HOSTS" ]]; then
+    log_err "hosts file not found: ${WAKIR_BOOTSTRAP_HOSTS}"
+    return 2
+  fi
+  if grep -qE "[[:space:]]${peer_dns}[[:space:]]" "$WAKIR_BOOTSTRAP_HOSTS" 2>/dev/null; then
+    # Entry already exists. Re-write the line if marker present AND
+    # the IP differs (operator-hand override of peer host).
+    local existing_line
+    existing_line=$(grep -E "[[:space:]]${peer_dns}[[:space:]]" "$WAKIR_BOOTSTRAP_HOSTS" | head -1)
+    if echo "$existing_line" | grep -qF "$marker"; then
+      local existing_ip
+      existing_ip=$(echo "$existing_line" | awk '{print $1}')
+      if [[ "$existing_ip" == "$WAKIR_PEER_HOST" ]]; then
+        log_ok "peer-host /etc/hosts entry already present for ${peer_dns} -> ${WAKIR_PEER_HOST}"
+        return 0
+      fi
+      # Update the IP in place.
+      local tmp
+      tmp=$(mktemp)
+      grep -vE "[[:space:]]${peer_dns}[[:space:]]" "$WAKIR_BOOTSTRAP_HOSTS" > "$tmp" || true
+      printf '%s\n' "$entry" >> "$tmp"
+      install -m 644 "$tmp" "$WAKIR_BOOTSTRAP_HOSTS" \
+        || { log_err "peer-host /etc/hosts update failed"; rm -f "$tmp"; return 2; }
+      rm -f "$tmp"
+      log_ok "peer-host /etc/hosts entry updated: ${peer_dns} -> ${WAKIR_PEER_HOST} (was ${existing_ip})"
+      return 0
+    fi
+    log_warn "peer-host /etc/hosts entry for ${peer_dns} exists without wakir-bootstrap marker; not touching (Operator-Hand-owned)"
+    return 0
+  fi
+  printf '\n%s\n' "$entry" >> "$WAKIR_BOOTSTRAP_HOSTS" \
+    || { log_err "peer-host /etc/hosts append failed"; return 2; }
+  log_ok "peer-host /etc/hosts entry added: ${peer_dns} -> ${WAKIR_PEER_HOST}"
+}
+
+# ---------------------------------------------------------------------------
 # Step 6: Quadlet units
 # ---------------------------------------------------------------------------
 
 step_6_quadlet() {
   log_step 6 "$TOTAL_STEPS" "Quadlet-Units installieren (Networks, Volumes, SPIRE, NATS)"
+
+  # Sprint-10 Tag-3: peer-host /etc/hosts entry for Cross-VM federation.
+  # No-op in single-org mode. See _install_peer_host_entry header.
+  _install_peer_host_entry || return 2
 
   local quadlet_src="${WAKIR_REPO_ROOT}/quadlet"
   local fed_src="${WAKIR_REPO_ROOT}/infra/spire/federation/quadlet"
@@ -1220,6 +1364,18 @@ step_6_quadlet() {
   #   * single-org -> spire-server-pilot-single-org.conf
   #   * federation -> spire-server-${side}.conf
   # See top-of-file rationale block at WAKIR_PILOT_MODE definition.
+  #
+  # Sprint-10-Tag-3 substance-fix (M-3 Live-Trial): wire <HOST_BUNDLE_BIND>
+  # from WAKIR_PILOT_MODE. Single-org pilots keep the bundle-endpoint
+  # loopback-only (no peer to expose it to). Federation pilots bind the
+  # bundle-endpoint on 0.0.0.0 so a cross-VM peer can fetch the bundle
+  # over the host LAN or the Proxmox-internal bridge. The gRPC API
+  # (8081) stays loopback-only in both modes — see the Quadlet
+  # template's <HOST_BUNDLE_BIND> header for the security rationale.
+  local host_bundle_bind="127.0.0.1"
+  if [[ "$WAKIR_PILOT_MODE" == "federation" ]]; then
+    host_bundle_bind="0.0.0.0"
+  fi
   local server_tpl="${fed_src}/wakir-spire-server-federation.container"
   if [[ -f "$server_tpl" ]]; then
     _install_substituted "$server_tpl" \
@@ -1227,6 +1383,7 @@ step_6_quadlet() {
         -e "s/<SIDE>/${side}/g" \
         -e "s/<HOST_BUNDLE_PORT>/8443/g" \
         -e "s/<HOST_GRPC_PORT>/8082/g" \
+        -e "s|<HOST_BUNDLE_BIND>|${host_bundle_bind}|g" \
       || { log_err "install $server_tpl failed"; return 2; }
 
     install -d -m 755 /etc/wakir/spire-federation
@@ -1705,4 +1862,11 @@ ${_GREEN}${_BOLD}Wakir-Pilot-VM bring-up complete.${_RESET}
 EOF
 }
 
-main "$@"
+# Sprint-10 Tag-3 substance: only auto-run main when the script is
+# executed directly. Sourcing the script (e.g. from a hermetic test
+# that wants to invoke a single function like _install_peer_host_entry)
+# must NOT trigger the full bring-up flow. The ``BASH_SOURCE`` check
+# follows the standard ``main-gate`` pattern used by Bash idioms.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi
