@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-Pengine-7 Tag-5 — Named volume sidecar for the
+# Tomás-Persona pilot container workspace data (OI-PILOT-1).
+#
+# This volume carries the persona-engine spawn-session journal:
+# the task-archive log, the conversation tail (Phase-1b
+# native-format target), and any per-spawn scratch the
+# persona-engine writes during a Doppelbetrieb-shadow session.
+#
+# Install path: /etc/containers/systemd/wakir-persona-tomas-workspace.volume
+# (rootful) or ~/.config/containers/systemd/ (rootless).
+#
+# This unit is referenced by wakir-persona-tomas.container via the
+# directive ``Volume=wakir-persona-tomas-workspace.volume:/var/lib/wakir/persona/tomas:Z,U``.
+#
+# Drop-policy: the workspace volume is operator-deliberate destroy
+# only. On a clean tear-down the operator may run
+# ``podman volume rm wakir-persona-tomas-workspace`` to discard
+# the spawn-session journal; the underlying audit trail in
+# NATS-KV (wakir-persona-state-acme-tomas) and in WAT (anchored
+# via OI-PILOT-4 hourly cron) is independent of this volume.
+
+[Unit]
+Description=Wakir Tomás-Persona pilot workspace volume (Quadlet OI-PILOT-1)
+
+[Volume]
+# Default driver (local). No explicit Driver= line — Quadlet
+# accepts an empty [Volume] section as "use the default local
+# driver", parity with the SPIRE-Agent data-volume sidecar.
+
+[Install]
+WantedBy=multi-user.target default.target

@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-Pengine-7 Tag-5 — OI-PILOT-4 timer sidecar that
+# triggers ``wakir-recovery-drill-anchor.service`` every 15 minutes
+# during pilot phase.
+#
+# This is a plain systemd .timer unit (not a Quadlet generator),
+# installed alongside the .container Quadlet under
+# /etc/systemd/system/ instead of /etc/containers/systemd/. The
+# timer references the .service unit that Quadlet generates from
+# the .container companion.
+#
+# Operator install path:
+#
+#   sudo install -m 644 quadlet/wakir-recovery-drill-anchor.timer \
+#       /etc/systemd/system/wakir-recovery-drill-anchor.timer
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now wakir-recovery-drill-anchor.timer
+#
+# Cadence rationale (pilot phase, 4-week Doppelbetrieb):
+#
+#   Recovery-drill envelopes accumulate slowly during normal
+#   operation (the Tag-3 §3.7.2 drill registry is small — five
+#   drill classes — and operators schedule drills weekly per
+#   Migration-Playbook §6.4). A 15-minute anchoring cadence
+#   gives WAT-recovery a comfortable window (the WAT hourly
+#   aggregator runs at minute 0; the anchoring oneshot finishes
+#   well before that, so the next WAT-Merkle-root inclusion is
+#   the same hour). The cadence is operator-tunable via
+#   OnUnitActiveSec= below.
+
+[Unit]
+Description=Wakir recovery-drill WAT-anchor periodic timer (Sprint-Pengine-7 Tag-5 OI-PILOT-4)
+After=wakir-nats.service
+
+[Timer]
+# Fire 5 minutes after boot, then every 15 minutes thereafter.
+OnBootSec=5min
+OnUnitActiveSec=15min
+# Match the .service unit the Quadlet companion generates.
+Unit=wakir-recovery-drill-anchor.service
+# Persistent so missed ticks during downtime still fire on
+# next boot (the anchoring is idempotent so no harm in a
+# back-to-back catch-up run).
+Persistent=true
+
+[Install]
+WantedBy=timers.target
