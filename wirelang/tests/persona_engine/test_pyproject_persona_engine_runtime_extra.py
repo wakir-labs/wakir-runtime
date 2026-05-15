@@ -158,8 +158,10 @@ def test_containerfile_real_copies_pyproject_toml():
 
 def test_containerfile_real_image_tag_bumped():
     text = CONTAINERFILE_REAL_PATH.read_text(encoding="utf-8")
-    assert "0.4.0-pilot" in text, "image tag should be bumped to 0.4.0-pilot"
-    # We allow references to 0.2.0-pilot in comment context (history
-    # / tag-rotation pattern), but the image-version LABEL must be
-    # 0.4.0-pilot.
-    assert 'image.version="0.4.0-pilot"' in text
+    # Sprint-Pengine-11 bump: 0.4.0-pilot -> 0.4.1-pilot for Bug-40
+    # SVID-fetch graceful-fallback pattern.
+    assert "0.4.1-pilot" in text, "image tag should be bumped to 0.4.1-pilot"
+    # We allow references to earlier pilot tags in comment context
+    # (history / tag-rotation pattern), but the image-version LABEL
+    # must be the current 0.4.1-pilot.
+    assert 'image.version="0.4.1-pilot"' in text

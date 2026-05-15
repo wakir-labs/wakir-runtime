@@ -624,12 +624,18 @@ def test_persona_engine_v0_2_0_package_present() -> None:
         )
 
 
-def test_persona_engine_v0_2_0_version_label_in_containerfile_real() -> None:
-    """The Containerfile.real must declare image version ``0.2.0-pilot``
-    so the GHCR tag and the OCI label match (audit-invariant)."""
+def test_persona_engine_version_label_in_containerfile_real() -> None:
+    """The Containerfile.real must declare the current image version
+    so the GHCR tag and the OCI label match (audit-invariant).
+
+    Sprint-Pengine-11 bump: 0.4.0-pilot -> 0.4.1-pilot for Bug-40
+    SVID-fetch graceful-fallback pattern. The image-tag rotation
+    follows the engine-version bump byte-for-byte (Tomás Sprint-10
+    Tag-4 image-pin-idempotent-resolver invariant).
+    """
     cf = REPO_ROOT / "infra" / "persona-engine" / "Containerfile.real"
     text = cf.read_text(encoding="utf-8")
-    assert 'org.opencontainers.image.version="0.2.0-pilot"' in text
+    assert 'org.opencontainers.image.version="0.4.1-pilot"' in text
 
 
 def test_real_shim_dispatches_to_cli_main() -> None:

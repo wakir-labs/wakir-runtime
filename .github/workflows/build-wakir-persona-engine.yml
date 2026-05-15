@@ -50,11 +50,11 @@ on:
   workflow_dispatch:
     inputs:
       version_tag:
-        description: 'Semver tag to publish (e.g. 0.1.0-pilot, 0.3.0-pilot, 0.4.0-pilot)'
+        description: 'Semver tag to publish (e.g. 0.1.0-pilot, 0.3.0-pilot, 0.4.0-pilot, 0.4.1-pilot)'
         required: true
         default: '0.1.0-pilot'
       containerfile:
-        description: 'Containerfile path under infra/persona-engine/ (Containerfile=stub 0.1.0-pilot; Containerfile.real=real 0.3.0-pilot+/0.4.0-pilot+)'
+        description: 'Containerfile path under infra/persona-engine/ (Containerfile=stub 0.1.0-pilot; Containerfile.real=real 0.3.0-pilot+/0.4.0-pilot+/0.4.1-pilot+)'
         required: false
         default: 'Containerfile'
       push:
