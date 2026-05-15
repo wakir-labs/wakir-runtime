@@ -1,0 +1,140 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# This Containerfile and the image it produces are part of the Wakir
+# persona-engine runtime substrate. Licensed under the Business Source
+# License 1.1; see ./LICENSE-BSL.md.
+# Change Date: 2030-05-15 (four years after the first BSL-licensed
+# image publication, ``wakir-persona-engine:0.1.0-pilot``).
+# Change License: Apache License 2.0.
+#
+# wakir-persona-engine — runtime image for the Wakir persona-engine
+# pilot binary (Sprint-10 Tag-4, ADR-0058 Pilot-Phase Schritt 9).
+#
+# Substrate scope (0.1.0-pilot)
+# -----------------------------
+# This is the **substrate-closer** image for ADR-0058 Schritt 9. The
+# Quadlet ``quadlet/wakir-persona-tomas.container`` (Selin Sprint-
+# Pengine-7 Tag-5 OI-PILOT-1) was authored against
+# ``ghcr.io/wakir-labs/wakir-persona-engine:0.1.0-pilot`` ahead of the
+# binary itself landing; this image fills the substrate gap so the
+# Pilot-VM can launch the Tomás-Doppelbetrieb-Shadow without further
+# image-availability blockers.
+#
+# The 0.1.0-pilot binary is a deliberately minimal Python stub
+# exposing the persona-engine CLI surface declared in
+# ``wirelang/specs/persona-engine-format-spec.md`` §"CLI invocation
+# contract" (``spawn`` + ``healthcheck`` subcommands) with the
+# Env-var contract declared in §"Env var contract". The full Rust
+# implementation lands on the Sprint-Pengine-8 axis (Selin); when
+# that lands, this image's tag rotates to ``0.2.0-pilot`` (or
+# ``1.0.0``) and the same Quadlet pin-rotation workflow
+# (``resolve-image-pins-ci``) closes the swap idempotently.
+#
+# Why ship the stub
+# -----------------
+# Three options were on the table (Tomás Sprint-10 Tag-4 substrate-
+# gap-analysis 2026-05-15):
+#
+#   A) Block ADR-0058 Schritt 9 until Sprint-Pengine-8 lands the full
+#      persona-engine. Cost: Pilot-Phase opens delayed; Doppelbetrieb
+#      4-Wochen-Clock starts later than approved.
+#   B) Hand-roll a podman-run command outside the Quadlet substrate
+#      until the engine lands. Cost: bypasses the audit substrate
+#      (Quadlet healthcheck, restart policy, named-volume lifecycle);
+#      the Doppelbetrieb-Vergleich runs on a non-substrate spawn.
+#   C) Ship a substrate-stub image now that satisfies the Quadlet
+#      contract (CLI surface, healthcheck, Env-var contract,
+#      Sigstore-keyless-signed digest) and rotate to the real engine
+#      when Sprint-Pengine-8 lands. Cost: the Doppelbetrieb-Vergleich
+#      4-Wochen-Clock starts on a stub-engine that emits stub-output
+#      and does not yet drive comparable Engineering traffic.
+#
+# Mira-Hand-Decision 2026-05-15: option C, because the substrate-
+# layer (Quadlet, SPIRE-SVID, NATS-KV bucket, Doppelbetrieb-Shadow
+# bridging) is the actual ADR-0058 Schritt 9 risk-surface — those
+# moving pieces benefit from running against a real Pilot-VM with a
+# stub engine, not from waiting until the engine is real to find out
+# whether the substrate is sound. The 4-Wochen-Clock is qualified:
+# stub-period output is excluded from the 4-Achsen-Score-Bilanz; the
+# clock effectively starts when 0.2.0 lands. See ADR-0058 §"Pilot-
+# Phase Substrate-Gap-Closer".
+#
+# Image scope (v0.1.0-pilot, substrate-stub)
+# ------------------------------------------
+# The image carries exactly the runtime wheel set:
+#
+#   * (none) — the stub is pure CPython stdlib (json, os, sys,
+#     signal, time, hashlib). The Sprint-Pengine-8 successor image
+#     will pull in nats-py + cryptography for SVID-fetch + NATS-KV
+#     state-pack persistence; the stub does neither (it emits the
+#     stub-mode telemetry log line and idles on SIGTERM).
+#
+# The image deliberately does NOT carry the wakir-runtime tree
+# itself. The runtime is bind-mounted into the container from the
+# host at ``/opt/wakir-runtime`` (see Quadlet ``Volume=`` lines);
+# the persona-engine binary itself ships in the image at
+# ``/opt/wakir/bin/persona-engine``.
+#
+# BSL-1.1 + image provenance
+# --------------------------
+# The image as a whole is published under the Business Source
+# License 1.1 (parity with the wakir-provisioner image,
+# AR-Decision 2026-05-13, consistent with the WAT-Pipeline-Server
+# Phase-1a BSL pattern per ADR-0034). CPython stdlib ships under
+# PSF-2.0 and is reachable via ``python3 --version`` inside the
+# container; the BSL header on the image as a whole does not extend
+# to the stdlib. The BSL Additional Use Grant permits self-hosting
+# for own-org operations; commercial multi-tenant hosting requires a
+# separate Wakir-Cloud licence. The image automatically converts to
+# Apache-2.0 four years after the first BSL-licensed image
+# publication (Change Date: 2030-05-15).
+#
+# Build path: ``.github/workflows/build-wakir-persona-engine.yml``
+# (Operator-Hand ``workflow_dispatch`` only; pushes to
+# ``ghcr.io/wakir-labs/wakir-persona-engine:<tag>``).
+#
+# Pin path: ``scripts/image-pin-idempotent-resolver.sh`` PINS array
+# carries the ``wakir_persona_engine`` row; the Quadlet
+# ``quadlet/wakir-persona-tomas.container`` references the digest-
+# pinned form ``ghcr.io/wakir-labs/wakir-persona-engine:0.1.0-pilot
+# @sha256:<digest>``.
+
+FROM docker.io/library/python:3.13-slim@sha256:DIGEST_PENDING_TOMAS_REVIEW
+
+# OCI metadata. The build workflow stamps build-time labels
+# (``org.opencontainers.image.revision`` etc.) at push time.
+LABEL org.opencontainers.image.title="wakir-persona-engine"
+LABEL org.opencontainers.image.description="Runtime image for the Wakir persona-engine pilot binary (Sprint-10 Tag-4, v0.1.0-pilot substrate-stub closing the ADR-0058 Schritt 9 image-availability gap; full engine lands on the Sprint-Pengine-8 axis)."
+LABEL org.opencontainers.image.version="0.1.0-pilot"
+LABEL org.opencontainers.image.licenses="BUSL-1.1"
+LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"
+LABEL org.opencontainers.image.url="https://github.com/wakir-labs/wakir-runtime"
+LABEL org.opencontainers.image.documentation="https://github.com/wakir-labs/wakir-runtime/blob/main/infra/persona-engine/README.md"
+
+# Non-root runtime user, matching the Quadlet ``User=1000`` /
+# ``Group=1000``. We do not chown ``/opt/wakir-runtime`` because the
+# runtime bind-mount supplies its own ownership semantics at unit
+# start. We DO chown the ``/opt/wakir/bin`` directory so the
+# persona-engine binary is executable as uid 1000 from the
+# read-only-root filesystem of the Quadlet.
+RUN groupadd --gid 1000 wakir \
+    && useradd --uid 1000 --gid 1000 --no-create-home --shell /usr/sbin/nologin wakir \
+    && mkdir -p /opt/wakir/bin \
+    && chown -R 1000:1000 /opt/wakir
+
+# Ship the persona-engine stub binary. The script is pure CPython
+# stdlib; no pip step needed.
+COPY --chown=1000:1000 bin/persona-engine /opt/wakir/bin/persona-engine
+RUN chmod 0755 /opt/wakir/bin/persona-engine
+
+USER 1000:1000
+WORKDIR /opt/wakir-runtime
+
+# Make the entrypoint discoverable for callers that invoke the image
+# directly (debugging, smoke). The Quadlet supplies its own
+# ``Exec=spawn --persona-slug tomas --pilot-phase doppelbetrieb-shadow``
+# line; this ENTRYPOINT ensures that line resolves to the persona-
+# engine binary even when the Quadlet's command-line parsing is the
+# only contract the runtime sees.
+ENTRYPOINT ["/opt/wakir/bin/persona-engine"]

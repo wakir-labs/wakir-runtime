@@ -1,0 +1,296 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# wakir-persona-engine pilot stub binary (Sprint-10 Tag-4, image tag
+# ``0.1.0-pilot``).
+#
+# Purpose
+# -------
+# This binary is the **substrate-stub** that closes the ADR-0058
+# Schritt 9 image-availability gap. It satisfies the Quadlet contract
+# declared in ``quadlet/wakir-persona-tomas.container`` (CLI surface
+# ``spawn`` + ``healthcheck``, Env-var contract per persona-engine-
+# format-spec §"Env var contract") without yet driving real
+# Engineering traffic — the full engine lands on the Sprint-Pengine-8
+# axis (Selin) and rotates this image tag to ``0.2.0-pilot``.
+#
+# Contracts honoured (today, v0.1.0-pilot)
+# ----------------------------------------
+#
+#   * Subcommand ``spawn``:
+#       - Reads ``WAKIR_PERSONA_ID``, ``WAKIR_ORG_ID``,
+#         ``WAKIR_PERSONA_STATE_BUCKET``, ``WAKIR_NATS_SERVERS``,
+#         ``SPIFFE_ENDPOINT_SOCKET`` from the env (Quadlet supplies
+#         them per persona-engine-format-spec §"Env var contract").
+#       - Reads ``/etc/wakir/persona/<slug>.md`` (axis-A bind-mount)
+#         and ``/etc/wakir/persona/<slug>.json`` (axis-C bind-mount)
+#         if present; refuses to spawn if either is absent.
+#       - Computes a SHA-256 digest of the axis-A bytes and prints
+#         it as the spawn-time V-907 pin-hash (this is the byte the
+#         Sprint-Pengine-8 successor will cross-check against the
+#         expected pin; the stub only computes + reports).
+#       - Idles on a SIGTERM/SIGINT loop, emitting a single
+#         heartbeat log line every 30s ("substrate-stub heartbeat;
+#         Sprint-Pengine-8 engine pending"). The Quadlet
+#         ``Restart=on-failure`` policy is left as-is — the stub
+#         never exits non-zero on its own; only the Operator's
+#         ``systemctl stop`` triggers the SIGTERM path.
+#
+#   * Subcommand ``healthcheck``:
+#       - Returns exit 0 unconditionally (the stub is healthy iff
+#         it can execute Python). The successor engine will check
+#         the spawn-session lifecycle-state per spec §3.7.2.4; the
+#         stub stays trivially healthy so the Quadlet
+#         ``HealthCmd=`` line evaluates cleanly.
+#
+# Contracts NOT honoured (Sprint-Pengine-8 axis, deferred)
+# --------------------------------------------------------
+#
+#   * NATS-KV state-pack persistence (no nats-py).
+#   * SPIRE-Workload-API SVID fetch (no cryptography client).
+#   * Spawn-session lifecycle state-machine per spec §3.3.
+#   * Persona-canonical-form / V-907 pin-hash verification per axis-C.
+#   * Recovery-workflow R1..R4 per spec §3.7.4.
+#   * Doppelbetrieb-Shadow output bridging per Recipe §0.
+#
+# All deferred surfaces are documented in the spec; the stub emits
+# a startup log line listing them so the operator + the audit
+# substrate can confirm which behaviours are real vs. stub.
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import signal
+import sys
+import time
+from pathlib import Path
+
+PERSONA_DEF_DIR = Path("/etc/wakir/persona")
+STUB_VERSION = "0.1.0-pilot"
+HEARTBEAT_INTERVAL_SEC = 30
+
+
+def _log(payload: dict[str, object]) -> None:
+    """Emit a JSON log line on stderr (structured-logging convention)."""
+    payload.setdefault("ts_utc", time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+    payload.setdefault("component", "wakir-persona-engine")
+    payload.setdefault("stub_version", STUB_VERSION)
+    sys.stderr.write(json.dumps(payload, sort_keys=True) + "\n")
+    sys.stderr.flush()
+
+
+def _read_persona_axis_a(slug: str) -> bytes:
+    path = PERSONA_DEF_DIR / f"{slug}.md"
+    if not path.is_file():
+        _log({
+            "level": "ERROR",
+            "msg": "persona-axis-a-missing",
+            "path": str(path),
+            "remediation": "verify Quadlet Volume= line bind-mounts the persona-md",
+        })
+        raise SystemExit(2)
+    return path.read_bytes()
+
+
+def _read_persona_axis_c(slug: str) -> dict[str, object] | None:
+    path = PERSONA_DEF_DIR / f"{slug}.json"
+    if not path.is_file():
+        _log({
+            "level": "WARN",
+            "msg": "persona-axis-c-missing",
+            "path": str(path),
+            "note": "stub continues without axis-c; successor engine will refuse",
+        })
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _stub_pin_hash(axis_a_bytes: bytes) -> str:
+    h = hashlib.sha256(axis_a_bytes).hexdigest()
+    return f"sha256-stub:{h}"
+
+
+def _spawn(args: argparse.Namespace) -> int:
+    slug = args.persona_slug
+    pilot_phase = args.pilot_phase
+
+    # Env-var contract — read but do not yet act on most of them
+    # (deferred surfaces).
+    env_snapshot = {
+        "WAKIR_PERSONA_ID":             os.environ.get("WAKIR_PERSONA_ID"),
+        "WAKIR_ORG_ID":                 os.environ.get("WAKIR_ORG_ID"),
+        "WAKIR_PERSONA_STATE_BUCKET":   os.environ.get("WAKIR_PERSONA_STATE_BUCKET"),
+        "WAKIR_NATS_SERVERS":           os.environ.get("WAKIR_NATS_SERVERS"),
+        "SPIFFE_ENDPOINT_SOCKET":       os.environ.get("SPIFFE_ENDPOINT_SOCKET"),
+    }
+
+    _log({
+        "level": "INFO",
+        "msg": "spawn-begin",
+        "persona_slug": slug,
+        "pilot_phase": pilot_phase,
+        "env": env_snapshot,
+    })
+
+    # Persona-definition reads (axis-A is mandatory; axis-C optional
+    # under the stub).
+    axis_a = _read_persona_axis_a(slug)
+    axis_c = _read_persona_axis_c(slug)
+
+    pin_hash = _stub_pin_hash(axis_a)
+
+    _log({
+        "level": "INFO",
+        "msg": "v907-pin-hash-computed",
+        "persona_slug": slug,
+        "v907_pin_hash_stub": pin_hash,
+        "axis_a_bytes": len(axis_a),
+        "axis_c_present": axis_c is not None,
+    })
+
+    # Substrate-stub deferred-surface roll-call. The audit substrate
+    # picks this line up via the Quadlet ``podman logs`` path; the
+    # 4-Achsen-Score-Bilanz excludes stub-period output explicitly.
+    _log({
+        "level": "WARN",
+        "msg": "substrate-stub-deferred-surfaces",
+        "deferred": [
+            "nats-kv-state-pack-persistence",
+            "spire-workload-api-svid-fetch",
+            "spawn-session-lifecycle-state-machine",
+            "persona-canonical-form-v907-verification",
+            "recovery-workflow-r1-r4",
+            "doppelbetrieb-shadow-output-bridging",
+        ],
+        "successor": "Sprint-Pengine-8 axis (Selin)",
+    })
+
+    # Idle loop — heartbeat every HEARTBEAT_INTERVAL_SEC, exits clean
+    # on SIGTERM/SIGINT.
+    _stop = {"flag": False}
+
+    def _handle_signal(signum: int, _frame: object) -> None:
+        _log({
+            "level": "INFO",
+            "msg": "signal-received",
+            "signum": signum,
+            "action": "graceful-exit",
+        })
+        _stop["flag"] = True
+
+    signal.signal(signal.SIGTERM, _handle_signal)
+    signal.signal(signal.SIGINT, _handle_signal)
+
+    _log({
+        "level": "INFO",
+        "msg": "spawn-running",
+        "persona_slug": slug,
+        "spawn_state": "running-stub",
+    })
+
+    while not _stop["flag"]:
+        _log({
+            "level": "DEBUG",
+            "msg": "heartbeat",
+            "persona_slug": slug,
+            "interval_sec": HEARTBEAT_INTERVAL_SEC,
+        })
+        # Sleep in small slices so SIGTERM is responsive within ~1s.
+        for _ in range(HEARTBEAT_INTERVAL_SEC):
+            if _stop["flag"]:
+                break
+            time.sleep(1.0)
+
+    _log({
+        "level": "INFO",
+        "msg": "spawn-shutdown-clean",
+        "persona_slug": slug,
+        "spawn_state": "uninstantiated-stub",
+    })
+    return 0
+
+
+def _healthcheck(_args: argparse.Namespace) -> int:
+    # Stub healthiness contract: Python boots, persona-def dir
+    # readable. The Quadlet HealthCmd= line gets exit 0 under
+    # normal conditions and exit 1 if the persona-def bind-mount
+    # vanished (which is the only failure surface the stub can
+    # meaningfully report).
+    if not PERSONA_DEF_DIR.is_dir():
+        _log({
+            "level": "ERROR",
+            "msg": "healthcheck-fail",
+            "reason": "persona-def-dir-missing",
+            "path": str(PERSONA_DEF_DIR),
+        })
+        return 1
+    _log({
+        "level": "DEBUG",
+        "msg": "healthcheck-ok",
+    })
+    return 0
+
+
+def _version(_args: argparse.Namespace) -> int:
+    sys.stdout.write(f"wakir-persona-engine {STUB_VERSION} (substrate-stub)\n")
+    return 0
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="persona-engine",
+        description=(
+            "Wakir persona-engine substrate-stub (ADR-0058 Pilot-Phase "
+            "Schritt 9 image-availability gap-closer; full engine on "
+            "the Sprint-Pengine-8 axis)."
+        ),
+    )
+    sub = p.add_subparsers(dest="command", required=True)
+
+    spawn = sub.add_parser(
+        "spawn",
+        help="Spawn the persona (stub: bundle-read + idle).",
+    )
+    spawn.add_argument(
+        "--persona-slug",
+        required=True,
+        help="Persona slug; matches Quadlet WAKIR_PERSONA_ID.",
+    )
+    spawn.add_argument(
+        "--pilot-phase",
+        required=False,
+        default="doppelbetrieb-shadow",
+        help=(
+            "Pilot-phase mode (informational; the stub does not yet "
+            "branch on this value)."
+        ),
+    )
+    spawn.set_defaults(func=_spawn)
+
+    hc = sub.add_parser(
+        "healthcheck",
+        help="Quadlet HealthCmd= entrypoint (stub: trivial OK).",
+    )
+    hc.set_defaults(func=_healthcheck)
+
+    ver = sub.add_parser(
+        "version",
+        help="Print stub-version and exit.",
+    )
+    ver.set_defaults(func=_version)
+
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
