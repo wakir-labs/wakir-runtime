@@ -691,8 +691,8 @@ def test_async_engine_run_until_signal_includes_refetch_task(tmp_path, listening
 
 
 def test_engine_version_bumped_to_0_4_1_pilot():
-    assert ENGINE_VERSION == "0.4.1-pilot"
-    assert ASYNC_ENGINE_VERSION == "0.4.1-pilot"
+    assert ENGINE_VERSION == "0.4.2-pilot"
+    assert ASYNC_ENGINE_VERSION == "0.4.2-pilot"
 
 
 def test_sync_engine_refetch_returns_false_if_boot_never_ran(tmp_path, listening_uds):

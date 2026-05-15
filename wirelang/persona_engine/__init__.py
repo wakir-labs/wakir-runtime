@@ -62,7 +62,7 @@ provisioner BUCKET_FAMILIES probe-pattern).
 
 from __future__ import annotations
 
-__version__ = "0.4.1-pilot"
+__version__ = "0.4.2-pilot"
 
 __all__ = [
     "__version__",
