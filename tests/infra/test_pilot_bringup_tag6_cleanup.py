@@ -214,38 +214,82 @@ def test_tv_s9t6_02_bootstrap_chown_named_volumes() -> None:
 
 
 def test_tv_s9t6_04_skip_cosign_still_passes_provisioner_digest() -> None:
+    """Sprint-9-Tag-6 Bug 4 invariant + Sprint-10-Tag-7 Bug-36 extension.
+
+    Bug 4: skip-cosign branch MUST still pass the provisioner digest
+    to the resolver (Sprint-9-Tag-6 substance-fix; the bucket-init
+    Quadlet placeholder must be resolved even in skip-cosign mode).
+
+    Bug-36 (Sprint-10-Tag-7) extends the branch to ALSO pass
+    spire-server / spire-agent / python digests via skopeo-only
+    resolution. The provisioner digest remains conditional (the image
+    may not yet be published) and is appended to skip_args only when
+    skopeo-inspect succeeds for the provisioner. This test verifies
+    BOTH invariants: the branch references --wakir-provisioner-digest
+    (conditionally), AND attempts a skopeo inspect against the
+    provisioner image, AND references the canonical tag.
+    """
     text = _bootstrap_text()
-    # Isolate the step_5_image_pins function body so we don't match the
-    # pre-banner WARNING block (which carries the same env-var literal).
-    step5 = re.search(
-        r"step_5_image_pins\(\)\s*\{(.*?)\n\}\s*\n",
-        text,
-        re.DOTALL,
+    # Anchor on the step-5 function header so we never match the
+    # pre-banner WARNING block (which carries the same env-var
+    # literal).
+    step_5_start = text.find("step_5_image_pins()")
+    assert step_5_start > 0, "bootstrap.sh MUST define step_5_image_pins()"
+    # Walk forward until the next ``^step_`` header at column 0 (or
+    # end-of-step-comment marker) — this is the function body bound.
+    step_5_end_match = re.search(
+        r"^step_\w+\s*\(\)\s*\{", text[step_5_start + 30 :], re.MULTILINE
     )
-    assert step5, "bootstrap.sh MUST define step_5_image_pins()"
-    step5_body = step5.group(1)
-    # Find the WAKIR_SKIP_COSIGN_VERIFY=1 branch in step_5_image_pins.
-    m = re.search(
-        r'if\s+\[\[\s+"\$WAKIR_SKIP_COSIGN_VERIFY"\s*==\s*"1"\s*\]\];\s*then'
-        r'(.*?)\n\s*fi\s*\n',
-        step5_body,
-        re.DOTALL,
+    if step_5_end_match:
+        step_5_end = step_5_start + 30 + step_5_end_match.start()
+    else:
+        step_5_end = len(text)
+    step5_body = text[step_5_start:step_5_end]
+
+    # Find the skip-cosign if-then header (must be the step-5 one, not
+    # the pre-flight banner — we already anchored to step-5).
+    if_idx = step5_body.find(
+        'if [[ "$WAKIR_SKIP_COSIGN_VERIFY" == "1" ]]; then'
     )
-    assert m, (
+    assert if_idx > 0, (
         "bootstrap.sh step_5_image_pins MUST carry a "
         "WAKIR_SKIP_COSIGN_VERIFY=1 branch."
     )
-    branch_body = m.group(1)
-    # The branch MUST still call the resolver with the provisioner digest.
+
+    # Walk forward over the branch body, tracking if/fi nesting depth
+    # so we find the MATCHING ``fi`` (not the first inner ``fi``).
+    after = step5_body[if_idx:]
+    depth = 0
+    branch_end = None
+    for m in re.finditer(
+        r"^\s*(if\s|fi\s*$|fi\s*$)", after, re.MULTILINE
+    ):
+        token = m.group(1).strip()
+        if token.startswith("if"):
+            depth += 1
+        else:  # ``fi``
+            depth -= 1
+            if depth == 0:
+                branch_end = m.end()
+                break
+    assert branch_end is not None, (
+        "could not locate the matching fi for the skip-cosign branch"
+    )
+    branch_body = after[:branch_end]
+
+    # Sprint-9-Tag-6 Bug 4 invariant: branch MUST pass --wakir-
+    # provisioner-digest. (After Bug-36 fix it is conditional on a
+    # successful skopeo-inspect; the literal flag still appears in the
+    # skip_args conditional append.)
     assert "--wakir-provisioner-digest" in branch_body, (
         "bootstrap.sh WAKIR_SKIP_COSIGN_VERIFY=1 branch MUST pass "
         "``--wakir-provisioner-digest`` to resolve-image-pins.sh "
-        "(Bug 4 substance-fix)."
+        "(Bug 4 substance-fix; Bug-36 extension keeps this invariant)."
     )
     # And it MUST attempt a skopeo inspect against the provisioner image.
     assert re.search(r"skopeo\s+inspect", branch_body), (
         "bootstrap.sh SKIP-COSIGN branch MUST attempt a skopeo inspect "
-        "for the wakir-provisioner image to resolve its digest (Bug 4)."
+        "(Bug 4 + Bug-36)."
     )
     # And reference the wakir-provisioner image.
     assert "wakir-provisioner:0.1.2" in branch_body, (
