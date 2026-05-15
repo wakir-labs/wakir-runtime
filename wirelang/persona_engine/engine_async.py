@@ -93,8 +93,9 @@ from .v907_verify import (
     verify_v907_pin,
 )
 
-ASYNC_ENGINE_VERSION = "0.4.0-pilot"
+ASYNC_ENGINE_VERSION = "0.4.1-pilot"
 ASYNC_ENGINE_VARIANT = "real-async"
+DEFAULT_SVID_REFETCH_INTERVAL_SEC = 300  # 5 min — Sprint-Pengine-11 Bug-40
 
 
 def _utc_now_rfc3339() -> str:
@@ -161,6 +162,8 @@ class AsyncEngineTasks:
     heartbeat: Optional[asyncio.Task] = None
     drill: Optional[asyncio.Task] = None
     subscribe: Optional[asyncio.Task] = None
+    # Sprint-Pengine-11 Bug-40 — full-SVID-fetch refetch background task.
+    svid_refetch: Optional[asyncio.Task] = None
 
 
 class AsyncPersonaEngine:
@@ -193,6 +196,8 @@ class AsyncPersonaEngine:
         subscribe_runner: Optional[Callable[[], Any]] = None,
         subscribe_env: Optional[str] = None,
         llm_hook: Optional[LlmCallHook] = None,
+        # Sprint-Pengine-11 Bug-40 — background SVID-refetch loop.
+        svid_refetch_interval_sec: int = DEFAULT_SVID_REFETCH_INTERVAL_SEC,
     ) -> None:
         self.env = env_contract
         self.log_sink = log_sink
@@ -210,6 +215,11 @@ class AsyncPersonaEngine:
         self.v907_result: Optional[V907VerifyResult] = None
         self.svid_probe: Optional[SvidProbeResult] = None
         self.svid_fetch: Optional[SvidFetchResult] = None
+        # Sprint-Pengine-11 Bug-40 — graceful-fallback state (parity
+        # with the sync engine fields).
+        self.svid_full_fetch_fenced: bool = False
+        self.svid_full_fetch_fence_reason: Optional[str] = None
+        self.svid_refetch_interval_sec: int = svid_refetch_interval_sec
         # Hermetic-test factory hooks (parity with sync engine).
         self._svid_channel_factory = None
         self._svid_stub_factory = None
@@ -354,6 +364,12 @@ class AsyncPersonaEngine:
             "socket_connectable": self.svid_probe.socket_connectable,
             "expected_spiffe_id": self.svid_probe.expected_spiffe_id,
         })
+        # Sprint-Pengine-11 Bug-40 graceful-fallback hardening:
+        # any non-V907 failure during full SVID-fetch fences the
+        # engine to socket-probe-only mode and lets boot continue.
+        # The ``_svid_refetch_loop`` background task will retry
+        # every ``svid_refetch_interval_sec`` seconds and emit a
+        # ``svid-full-fetch-recovered`` INFO on success.
         if self.svid_probe.socket_connectable:
             try:
                 self.svid_fetch = await fetch_workload_svid(
@@ -375,11 +391,28 @@ class AsyncPersonaEngine:
                     "fetch_elapsed_sec": self.svid_fetch.fetch_elapsed_sec,
                     "soft_cap_exceeded": self.svid_fetch.soft_cap_exceeded,
                 })
-            except (SvidFetchError, ImportError) as exc:
+            except ImportError as exc:
+                self.svid_full_fetch_fenced = True
+                self.svid_full_fetch_fence_reason = str(exc)
                 self._log({
                     "level": "WARN",
-                    "msg": "svid-fetch-failed-or-missing",
+                    "msg": "svid-full-fetch-failed-fence-to-probe-only",
                     "reason": str(exc),
+                    "exception_type": type(exc).__name__,
+                    "fence_mode": "wheel-missing",
+                })
+            except Exception as exc:  # noqa: BLE001 - intentional broad catch
+                # SvidFetchError, AioRpcError, OSError("Broken pipe"),
+                # ConnectionError, asyncio.TimeoutError all land here.
+                # Bug-40 root cause; engine continues to FSM=running.
+                self.svid_full_fetch_fenced = True
+                self.svid_full_fetch_fence_reason = str(exc)
+                self._log({
+                    "level": "WARN",
+                    "msg": "svid-full-fetch-failed-fence-to-probe-only",
+                    "reason": str(exc),
+                    "exception_type": type(exc).__name__,
+                    "fence_mode": "fetch-failure",
                 })
 
         # Async state-backing attach.
@@ -466,6 +499,100 @@ class AsyncPersonaEngine:
     # ------------------------------------------------------------------
     # Run loop.
     # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # Sprint-Pengine-11 Bug-40 — graceful-fallback refetch.
+    # ------------------------------------------------------------------
+
+    async def attempt_svid_refetch(self) -> bool:
+        """Re-run the full SVID fetch.
+
+        Returns ``True`` if the fetch succeeded (engine un-fences if
+        it was fenced) and ``False`` otherwise. Emits one of:
+
+        - ``svid-full-fetch-recovered`` INFO — fenced engine recovered.
+        - ``svid-fetch-refreshed`` INFO — refresh on an already-healthy
+          engine (e.g. periodic re-pull near the not-after horizon).
+        - ``svid-full-fetch-retry-failed`` WARN — fetch still fails;
+          engine stays fenced.
+        """
+        if self.svid_probe is None:
+            return False
+        socket_path = resolve_socket_path(
+            {"SPIFFE_ENDPOINT_SOCKET": self.env.spiffe_endpoint_socket}
+        )
+        if not self.svid_probe.socket_connectable:
+            # Re-probe in case SPIRE-Agent came up between boot and now.
+            self.svid_probe = probe_workload_api_socket(
+                org_id=self.env.org_id,
+                persona_id=self.env.persona_id,
+                socket_path=socket_path,
+            )
+            if not self.svid_probe.socket_connectable:
+                return False
+        try:
+            new_fetch = await fetch_workload_svid(
+                org_id=self.env.org_id,
+                persona_id=self.env.persona_id,
+                socket_path=socket_path,
+                channel_factory=self._svid_channel_factory,
+                stub_factory=self._svid_stub_factory,
+            )
+        except Exception as exc:  # noqa: BLE001 - parity with boot
+            self._log({
+                "level": "WARN",
+                "msg": "svid-full-fetch-retry-failed",
+                "reason": str(exc),
+                "exception_type": type(exc).__name__,
+            })
+            self.svid_full_fetch_fence_reason = str(exc)
+            return False
+        was_fenced = self.svid_full_fetch_fenced
+        self.svid_fetch = new_fetch
+        self.svid_full_fetch_fenced = False
+        self.svid_full_fetch_fence_reason = None
+        self._log({
+            "level": "INFO",
+            "msg": "svid-full-fetch-recovered" if was_fenced else "svid-fetch-refreshed",
+            "spiffe_id": new_fetch.spiffe_id,
+            "matches_expected": new_fetch.matches_expected,
+            "fetch_elapsed_sec": new_fetch.fetch_elapsed_sec,
+        })
+        return True
+
+    async def _svid_refetch_loop(self) -> None:
+        """Background task: every ``svid_refetch_interval_sec`` retry
+        the SVID fetch if the engine is fenced. Exits cleanly on
+        stop-event or task cancellation.
+        """
+        assert self._stop_event is not None
+        try:
+            while not self._stop_event.is_set():
+                try:
+                    await asyncio.wait_for(
+                        self._stop_event.wait(),
+                        timeout=self.svid_refetch_interval_sec,
+                    )
+                    # Stop-event fired — exit loop.
+                    return
+                except asyncio.TimeoutError:
+                    pass
+                # Only retry while we are fenced. A future enhancement
+                # may also re-pull SVIDs proactively near not-after,
+                # but for Sprint-Pengine-11 the recovery path is the
+                # explicit goal.
+                if self.svid_full_fetch_fenced:
+                    try:
+                        await self.attempt_svid_refetch()
+                    except Exception as exc:  # noqa: BLE001 - logged only
+                        self._log({
+                            "level": "ERROR",
+                            "msg": "svid-refetch-loop-error",
+                            "reason": str(exc),
+                            "exception_type": type(exc).__name__,
+                        })
+        except asyncio.CancelledError:
+            return
 
     async def _heartbeat_loop(self) -> None:
         assert self._stop_event is not None
@@ -558,12 +685,17 @@ class AsyncPersonaEngine:
         self.tasks.subscribe = asyncio.create_task(
             self._subscribe_loop(), name="async-engine-subscribe",
         )
+        # Sprint-Pengine-11 Bug-40 — SVID-refetch background loop.
+        self.tasks.svid_refetch = asyncio.create_task(
+            self._svid_refetch_loop(), name="async-engine-svid-refetch",
+        )
         await self._stop_event.wait()
         # Cooperative shutdown.
         for t in (
             self.tasks.heartbeat,
             self.tasks.drill,
             self.tasks.subscribe,
+            self.tasks.svid_refetch,
         ):
             if t is not None:
                 t.cancel()
@@ -571,6 +703,7 @@ class AsyncPersonaEngine:
             self.tasks.heartbeat,
             self.tasks.drill,
             self.tasks.subscribe,
+            self.tasks.svid_refetch,
         ):
             if t is not None:
                 try:

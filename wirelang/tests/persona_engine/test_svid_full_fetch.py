@@ -424,7 +424,14 @@ def test_workload_api_client_fetch_before_connect_raises():
 
 def test_workload_api_client_fetch_timeout():
     """A stream that never yields a reply within the timeout should
-    raise asyncio.TimeoutError (wrapped by asyncio.wait_for)."""
+    raise :class:`SvidFetchError`.
+
+    Sprint-Pengine-11 Bug-40 update: the raw ``asyncio.TimeoutError``
+    is now converted to ``SvidFetchError`` inside ``fetch_x509_svid``
+    so the engine boot path catches it under the single graceful-
+    fallback exception class. The wrapped exception preserves the
+    timeout context via ``__cause__``.
+    """
 
     class _SlowStream:
         def __aiter__(self):
@@ -451,8 +458,11 @@ def test_workload_api_client_fetch_timeout():
             channel_factory=cf,
             stub_factory=sf,
         ) as client:
-            with pytest.raises(asyncio.TimeoutError):
+            with pytest.raises(SvidFetchError) as exc_info:
                 await client.fetch_x509_svid(org_id="acme", persona_id="tomas")
+            assert "timed out" in str(exc_info.value).lower()
+            # The underlying asyncio.TimeoutError is preserved as cause.
+            assert isinstance(exc_info.value.__cause__, asyncio.TimeoutError)
 
     asyncio.run(go())
 

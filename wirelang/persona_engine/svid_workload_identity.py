@@ -348,14 +348,34 @@ class WorkloadApiClient:
 
         start = time.monotonic()
         metadata = [WORKLOAD_API_SECURITY_HEADER]
-        stream = self._stub.FetchX509SVID(
-            wpb.X509SVIDRequest(),
-            metadata=metadata,
-        )
-        first_reply = await asyncio.wait_for(
-            _consume_first(stream),
-            timeout=self._fetch_timeout_sec,
-        )
+        # Sprint-Pengine-11 Bug-40 fix: the SPIRE-Agent gRPC stream
+        # can return transport-level errors that surface as
+        # :class:`grpc.aio.AioRpcError` (or generic :class:`grpc.RpcError`),
+        # neither of which is a subclass of :class:`SvidFetchError`.
+        # Without this conversion the error propagates as an arbitrary
+        # exception and crashes the engine boot path. We convert any
+        # iteration / RPC error into :class:`SvidFetchError` so the
+        # engine boot can apply the graceful-fallback pattern (fence
+        # to socket-probe-only mode; retry in background).
+        try:
+            stream = self._stub.FetchX509SVID(
+                wpb.X509SVIDRequest(),
+                metadata=metadata,
+            )
+            first_reply = await asyncio.wait_for(
+                _consume_first(stream),
+                timeout=self._fetch_timeout_sec,
+            )
+        except asyncio.TimeoutError as exc:
+            raise SvidFetchError(
+                f"FetchX509SVID timed out after {self._fetch_timeout_sec}s"
+            ) from exc
+        except SvidFetchError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - intentional broad catch
+            raise SvidFetchError(
+                f"FetchX509SVID RPC failed: {type(exc).__name__}: {exc}"
+            ) from exc
         elapsed = time.monotonic() - start
         if first_reply is None or not getattr(first_reply, "svids", None):
             raise SvidFetchError(

@@ -80,10 +80,11 @@ from .v907_verify import (
 )
 
 
-ENGINE_VERSION = "0.4.0-pilot"
+ENGINE_VERSION = "0.4.1-pilot"
 ENGINE_VARIANT = "real"
 DEFAULT_PERSONA_DEF_DIR = Path("/etc/wakir/persona")
 DEFAULT_HEARTBEAT_INTERVAL_SEC = 30
+DEFAULT_SVID_REFETCH_INTERVAL_SEC = 300  # 5 min — Sprint-Pengine-11 Bug-40
 
 
 # ---------------------------------------------------------------------------
@@ -215,6 +216,14 @@ class PersonaEngine:
         self.v907_result: Optional[V907VerifyResult] = None
         self.svid_probe: Optional[SvidProbeResult] = None
         self.svid_fetch: Optional[SvidFetchResult] = None
+        # Sprint-Pengine-11 Bug-40 — graceful-fallback state.
+        # When the full SVID-fetch fails at boot the engine fences to
+        # socket-probe-only mode (parity with the Pengine-8 NATS-py-
+        # fence-to-in-memory pattern) and records the fence reason so
+        # a future refetch can flip the flag back via the recovery
+        # log "svid-full-fetch-recovered".
+        self.svid_full_fetch_fenced: bool = False
+        self.svid_full_fetch_fence_reason: Optional[str] = None
         # OI-PEFR-2 injection hooks for hermetic tests.
         self._svid_channel_factory = None
         self._svid_stub_factory = None
@@ -362,6 +371,19 @@ class PersonaEngine:
         # the boot-gate probe confirmed the socket is connectable.
         # Failures are logged WARN and the engine continues; the
         # probe alone is sufficient for the boot-go-no-go decision.
+        #
+        # Sprint-Pengine-11 Bug-40 graceful-fallback hardening:
+        # the SPIRE-Agent can return any of grpc.aio.AioRpcError,
+        # grpc.RpcError, asyncio.TimeoutError, or — under certain
+        # SPIRE-1.14 selector-mismatch conditions — a generic
+        # OSError("Broken pipe"). None of these inherit from
+        # SvidFetchError (the svid_workload_identity.py converter
+        # closes that gap, but we keep the broad catch here as
+        # defence-in-depth). Any non-V907 boot-fetch error fences
+        # the engine to socket-probe-only mode; boot continues and
+        # the engine transitions to FSM=running. A later refetch
+        # (driven by AsyncPersonaEngine._svid_refetch_loop) can
+        # recover and emit "svid-full-fetch-recovered" INFO.
         if self.svid_probe.socket_connectable:
             try:
                 self.svid_fetch = self._run_svid_fetch(socket_path)
@@ -377,20 +399,92 @@ class PersonaEngine:
                     "fetch_elapsed_sec": self.svid_fetch.fetch_elapsed_sec,
                     "soft_cap_exceeded": self.svid_fetch.soft_cap_exceeded,
                 })
-            except SvidFetchError as exc:
-                self._log({
-                    "level": "WARN",
-                    "msg": "svid-fetch-failed",
-                    "reason": str(exc),
-                })
+            except (PersonaHashDriftError, PersonaHashComputeError):
+                # V-907 errors are NEVER swallowed — they are the
+                # boot-go-no-go gate and must propagate.
+                raise
             except ImportError as exc:
                 # grpcio/cryptography wheel missing — engine fences
                 # to socket-probe-only mode.
+                self.svid_full_fetch_fenced = True
+                self.svid_full_fetch_fence_reason = str(exc)
                 self._log({
                     "level": "WARN",
-                    "msg": "svid-fetch-fence-to-probe-only",
+                    "msg": "svid-full-fetch-failed-fence-to-probe-only",
                     "reason": str(exc),
+                    "exception_type": type(exc).__name__,
+                    "fence_mode": "wheel-missing",
                 })
+            except Exception as exc:  # noqa: BLE001 - intentional broad catch
+                # Any other failure (SvidFetchError, AioRpcError,
+                # OSError broken-pipe, ConnectionError, ...) fences
+                # the engine to socket-probe-only mode without
+                # crashing boot. Bug-40 root cause.
+                self.svid_full_fetch_fenced = True
+                self.svid_full_fetch_fence_reason = str(exc)
+                self._log({
+                    "level": "WARN",
+                    "msg": "svid-full-fetch-failed-fence-to-probe-only",
+                    "reason": str(exc),
+                    "exception_type": type(exc).__name__,
+                    "fence_mode": "fetch-failure",
+                })
+
+    def attempt_svid_refetch(self) -> bool:
+        """Re-run the full SVID fetch on a fenced engine.
+
+        Returns ``True`` if the fetch succeeded and the engine
+        un-fenced (emits ``svid-full-fetch-recovered`` INFO).
+        Returns ``False`` if the fetch still fails (emits a WARN
+        with the new failure reason; the engine stays fenced).
+
+        This is the sync-engine retry hook for Sprint-Pengine-11
+        Bug-40. The AsyncPersonaEngine drives this in a background
+        task; the sync engine relies on the operator (or a future
+        signal-driven refetch trigger) to invoke it.
+        """
+        if self.svid_probe is None:
+            # boot() never ran; nothing to retry.
+            return False
+        if not self.svid_probe.socket_connectable:
+            # Re-probe the socket first — the SPIRE-Agent might
+            # have come up between boot and refetch.
+            socket_path = resolve_socket_path(
+                {"SPIFFE_ENDPOINT_SOCKET": self.env.spiffe_endpoint_socket}
+            )
+            self.svid_probe = probe_workload_api_socket(
+                org_id=self.env.org_id,
+                persona_id=self.env.persona_id,
+                socket_path=socket_path,
+            )
+            if not self.svid_probe.socket_connectable:
+                return False
+        socket_path = resolve_socket_path(
+            {"SPIFFE_ENDPOINT_SOCKET": self.env.spiffe_endpoint_socket}
+        )
+        try:
+            new_fetch = self._run_svid_fetch(socket_path)
+        except Exception as exc:  # noqa: BLE001 - parity with boot
+            self._log({
+                "level": "WARN",
+                "msg": "svid-full-fetch-retry-failed",
+                "reason": str(exc),
+                "exception_type": type(exc).__name__,
+            })
+            self.svid_full_fetch_fence_reason = str(exc)
+            return False
+        self.svid_fetch = new_fetch
+        was_fenced = self.svid_full_fetch_fenced
+        self.svid_full_fetch_fenced = False
+        self.svid_full_fetch_fence_reason = None
+        self._log({
+            "level": "INFO" if was_fenced else "INFO",
+            "msg": "svid-full-fetch-recovered" if was_fenced else "svid-fetch-refreshed",
+            "spiffe_id": new_fetch.spiffe_id,
+            "matches_expected": new_fetch.matches_expected,
+            "fetch_elapsed_sec": new_fetch.fetch_elapsed_sec,
+        })
+        return True
 
     def spawn(self) -> None:
         """Run the spawning -> running transition pair.
