@@ -732,11 +732,32 @@ step_5_image_pins() {
   # ``wakir-provisioner`` digest. The bucket-init Quadlet then started
   # with the literal ``DIGEST_PENDING_TOMAS_REVIEW`` placeholder in its
   # ``Image=`` line and Podman refused the pull. The fix: in skip-cosign
-  # mode, fall through to a skopeo-only resolution path for the
-  # provisioner image (DockerHub-style digest fetch) and pass it via the
-  # ``--wakir-provisioner-digest`` flag to the resolver. The SPIRE-server,
-  # SPIRE-agent and python-base images skipped in this branch keep their
-  # tag-only references (DEV / quick-pilot posture).
+  # mode, fall through to a skopeo-only resolution path.
+  #
+  # Sprint-10 Tag-7 Bug-36 substance-fix (Live-VM-Acceptance 2026-05-15
+  # ~20:10 CEST): the prior skip-cosign branch resolved ONLY the
+  # wakir-provisioner image and left ``DIGEST_PENDING_TOMAS_REVIEW`` in
+  # spire-server-federation, spire-agent-federation, and the python-base
+  # Containerfile pin. The four SPIRE/python Quadlets / Containerfiles
+  # DO carry an ``@sha256:DIGEST_PENDING_TOMAS_REVIEW`` placeholder
+  # despite the prior code comment claiming they ran "tag reference
+  # only" (Bug-36 root-cause: the comment was wrong; the placeholders
+  # were always there, the resolver was simply never asked to fill
+  # them in the skip-cosign branch). The federation-mode Live-VM run
+  # crashed at SPIRE-server start with ``parsing reference ...
+  # invalid reference format``.
+  #
+  # Fix: in skip-cosign mode, run skopeo-only resolution for ALL four
+  # images and call the resolver with the full digest argv (no
+  # --provisioner-only). Skopeo is consistent across all four images
+  # (DockerHub + ghcr.io both expose ``Digest`` in the inspect output)
+  # and the resolver path is byte-identical to the cosign+skopeo
+  # cross-check branch below.
+  #
+  # The ``--provisioner-only`` resolver flag stays in the resolver for
+  # ad-hoc Operator-Hand re-runs that only need to rotate the
+  # provisioner pin (e.g. after an image republish without a SPIRE
+  # version bump).
   local resolver="${WAKIR_REPO_ROOT}/infra/spire/federation/proxmox/resolve-image-pins.sh"
   if [[ ! -x "$resolver" ]]; then
     log_err "resolver not found: ${resolver}"
@@ -744,30 +765,53 @@ step_5_image_pins() {
   fi
 
   if [[ "$WAKIR_SKIP_COSIGN_VERIFY" == "1" ]]; then
-    log_warn "WAKIR_SKIP_COSIGN_VERIFY=1; SPIRE + python images run with tag reference only"
-    local prov_image="ghcr.io/wakir-labs/wakir-provisioner:0.1.2"
-    log_note "skopeo-only resolve for ${prov_image} (cosign skipped)"
-    local prov_digest=""
-    prov_digest=$(skopeo inspect "docker://${prov_image}" 2>/dev/null \
-      | jq -r '.Digest // empty' || echo "")
-    if [[ -n "$prov_digest" ]]; then
-      # Sprint-10 Tag-5 Bug-33 substance-fix: use --provisioner-only
-      # so the resolver does NOT demand --spire-server-digest /
-      # --spire-agent-digest / --python-digest (which we deliberately
-      # do not have in skip-cosign-verify mode). Mira's M-3 Live-Trial
-      # (2026-05-15 15:00 CEST) verified the prior call shape aborted
-      # with ``ERROR: --spire-server-digest is required`` at step 5.
-      "$resolver" \
-        --provisioner-only \
-        --wakir-provisioner-digest "$prov_digest" \
-        --root "$WAKIR_REPO_ROOT" \
-        --apply \
-        || { log_err "resolve-image-pins.sh --apply (provisioner-only) failed"; return 2; }
-      log_ok "${prov_image} -> ${prov_digest} (skopeo-only)"
-    else
-      log_warn "skopeo inspect failed for ${prov_image}; bucket-init Quadlet keeps placeholder"
-      log_warn "for production-use unset WAKIR_SKIP_COSIGN_VERIFY and re-run --resume-from 5"
+    log_warn "WAKIR_SKIP_COSIGN_VERIFY=1; skopeo-only resolve for all 4 images (no Sigstore signature verification)"
+    local image
+    local -A skip_digests=()
+    local skopeo_image
+    # Sprint-10 Tag-7 Bug-36: resolve all four pins via skopeo. The
+    # ordering mirrors the cosign+skopeo branch below so log-output
+    # is consistent between modes.
+    for image in \
+        ghcr.io/spiffe/spire-server:1.14.6 \
+        ghcr.io/spiffe/spire-agent:1.14.6 \
+        docker.io/library/python:3.13-slim \
+        ghcr.io/wakir-labs/wakir-provisioner:0.1.2
+    do
+      log_note "skopeo-only resolve: ${image}"
+      local d=""
+      d=$(skopeo inspect "docker://${image}" 2>/dev/null \
+        | jq -r '.Digest // empty' || echo "")
+      if [[ -z "$d" ]]; then
+        if [[ "$image" == ghcr.io/wakir-labs/wakir-provisioner:* ]]; then
+          # Provisioner remains optional on first bring-up (Sprint-9 Tag-4
+          # baseline) — the image may not yet be published. Log + continue.
+          log_note "wakir-provisioner skopeo inspect failed (image may not be published yet); skipping its pin substitution"
+          continue
+        fi
+        log_err "skopeo inspect failed for ${image} in skip-cosign-mode"
+        return 2
+      fi
+      skip_digests["$image"]="$d"
+      log_ok "${image} -> ${d}"
+    done
+
+    local skip_args=(
+      --spire-server-digest "${skip_digests["ghcr.io/spiffe/spire-server:1.14.6"]}"
+      --spire-agent-digest  "${skip_digests["ghcr.io/spiffe/spire-agent:1.14.6"]}"
+      --python-digest       "${skip_digests["docker.io/library/python:3.13-slim"]}"
+      --root                "$WAKIR_REPO_ROOT"
+      --apply
+    )
+    if [[ -n "${skip_digests["ghcr.io/wakir-labs/wakir-provisioner:0.1.2"]:-}" ]]; then
+      skip_args+=(
+        --wakir-provisioner-digest "${skip_digests["ghcr.io/wakir-labs/wakir-provisioner:0.1.2"]}"
+      )
     fi
+
+    "$resolver" "${skip_args[@]}" \
+      || { log_err "resolve-image-pins.sh --apply (skopeo-only) failed"; return 2; }
+    log_ok "image-pin resolve applied (skopeo-only, skip-cosign-verify)"
     return 0
   fi
 
@@ -1609,67 +1653,100 @@ step_6_quadlet() {
   # ``WAKIR_JOIN_TOKEN_PLACEHOLDER``). Re-run is safe: if the agent
   # is already attested, the token-generate + sed-substitute steps
   # are skipped.
-  if [[ "$WAKIR_PILOT_MODE" == "single-org" ]]; then
-    local agent_quadlet_dst="${dst}/wakir-spire-agent-${side}.container"
-    local agent_already_attested=0
-    if "$WAKIR_BOOTSTRAP_PODMAN" exec "wakir-spire-server-federation-${side}" \
-         /opt/spire/bin/spire-server agent list 2>/dev/null \
-         | grep -q "spiffe://${WAKIR_TRUST_DOMAIN}/${WAKIR_ORG_ID}/agent/pilot"; then
-      agent_already_attested=1
-      log_ok "agent already attested (skip join-token generate)"
+  #
+  # Sprint-10 Tag-7 Bug-37 substance-fix (Live-VM-Acceptance
+  # 2026-05-15 ~20:10-20:15 CEST Mira-Hand-Diagnose): the prior code
+  # only ran the token-generate path for ``WAKIR_PILOT_MODE ==
+  # single-org`` and replaced it with a placeholder-strip in
+  # federation-mode (step 6j sed-delete). That created a CONFIG
+  # COHERENCY DRIFT — the agent-config (spire-agent-<side>.conf)
+  # still declared ``NodeAttestor "join_token"`` as the plugin while
+  # the ExecStart line was stripped of the corresponding
+  # ``-joinToken <token>`` arg. The agent crashed in an infinite
+  # ``InvalidArgument: join token was not provided`` retry-loop and
+  # never bound the workload-API socket.
+  #
+  # Root-cause fix: in federation-mode, generate + inject the token
+  # using the same code-path as single-org. Each SPIRE-server attests
+  # its OWN agent via join-token; cross-trust-domain federation is
+  # the cross-bundle-exchange that runs OVER the bundle-endpoint
+  # listener (port 8443) and the ``federates_with`` block, NOT over
+  # NodeAttestation. The join-token NodeAttestor is the correct
+  # primitive for federation-mode agent enrollment, identical to
+  # single-org agent enrollment. The only federation-mode-specific
+  # difference is the cross-bundle exchange between SPIRE-servers,
+  # which is wired in spire-server-<side>.conf §federates_with and
+  # is already covered by Sprint-10 Tag-5 Bug-30..32 substance-fixes.
+  #
+  # Disagree-note: Mira's Bug-37 brief recommended Option A
+  # (x509pop) — "clean federation-attestation-pattern". Kai-Hand-
+  # disagree-note: x509pop is overkill for the wakir-orbit-VM-pair
+  # federation pilot because (a) each SPIRE-server attests its OWN
+  # agent, NOT the peer agent, so x509pop's cross-trust-domain cert
+  # exchange is unused; (b) x509pop adds an Operator-Hand cert+key
+  # provisioning step ahead of step-6 which expands the bring-up
+  # surface; (c) join-token is the existing-pattern + minimal
+  # delta. Reza-Cross-Review Zone-B is mandatory pre-merge — if
+  # Reza recommends x509pop on identity-substrate grounds, this fix
+  # is one diff-block away from a clean rebase to that pattern.
+  local agent_quadlet_dst="${dst}/wakir-spire-agent-${side}.container"
+  local agent_already_attested=0
+  if "$WAKIR_BOOTSTRAP_PODMAN" exec "wakir-spire-server-federation-${side}" \
+       /opt/spire/bin/spire-server agent list 2>/dev/null \
+       | grep -q "spiffe://${WAKIR_TRUST_DOMAIN}/${WAKIR_ORG_ID}/agent/pilot"; then
+    agent_already_attested=1
+    log_ok "agent already attested (skip join-token generate)"
+  fi
+  if [[ "$agent_already_attested" -eq 0 ]] \
+     && [[ -f "$agent_quadlet_dst" ]] \
+     && grep -q "WAKIR_JOIN_TOKEN_PLACEHOLDER" "$agent_quadlet_dst"; then
+    local jt_spiffe="spiffe://${WAKIR_TRUST_DOMAIN}/${WAKIR_ORG_ID}/agent/pilot"
+    local jt_raw="" jt_token=""
+    jt_raw=$("$WAKIR_BOOTSTRAP_PODMAN" exec \
+               "wakir-spire-server-federation-${side}" \
+               /opt/spire/bin/spire-server token generate \
+               -spiffeID "$jt_spiffe" \
+               -ttl 3600 2>/dev/null || echo "")
+    # Output form: "Token: <hex>"
+    jt_token=$(printf '%s\n' "$jt_raw" \
+               | sed -n 's/^Token:[[:space:]]*\(.*\)$/\1/p' \
+               | head -1 | tr -d '[:space:]')
+    if [[ -n "$jt_token" ]]; then
+      sed -i "s|WAKIR_JOIN_TOKEN_PLACEHOLDER|${jt_token}|g" \
+            "$agent_quadlet_dst" \
+        || { log_err "join-token sed-substitute on ${agent_quadlet_dst} failed"; return 2; }
+      log_ok "join-token issued for ${jt_spiffe} and injected into agent Quadlet (mode=${WAKIR_PILOT_MODE})"
+      # Daemon-reload so the regenerated Exec= line is picked up
+      # before agent start.
+      "$WAKIR_BOOTSTRAP_SYSTEMCTL" daemon-reload \
+        || { log_err "post-token daemon-reload failed"; return 2; }
+    else
+      log_err "spire-server token generate produced no parseable token"
+      log_note "diagnose: podman exec wakir-spire-server-federation-${side} /opt/spire/bin/spire-server token generate -spiffeID ${jt_spiffe} -ttl 3600"
+      return 2
     fi
-    if [[ "$agent_already_attested" -eq 0 ]] \
-       && [[ -f "$agent_quadlet_dst" ]] \
-       && grep -q "WAKIR_JOIN_TOKEN_PLACEHOLDER" "$agent_quadlet_dst"; then
-      local jt_spiffe="spiffe://${WAKIR_TRUST_DOMAIN}/${WAKIR_ORG_ID}/agent/pilot"
-      local jt_raw="" jt_token=""
-      jt_raw=$("$WAKIR_BOOTSTRAP_PODMAN" exec \
-                 "wakir-spire-server-federation-${side}" \
-                 /opt/spire/bin/spire-server token generate \
-                 -spiffeID "$jt_spiffe" \
-                 -ttl 3600 2>/dev/null || echo "")
-      # Output form: "Token: <hex>"
-      jt_token=$(printf '%s\n' "$jt_raw" \
-                 | sed -n 's/^Token:[[:space:]]*\(.*\)$/\1/p' \
-                 | head -1 | tr -d '[:space:]')
-      if [[ -n "$jt_token" ]]; then
-        sed -i "s|WAKIR_JOIN_TOKEN_PLACEHOLDER|${jt_token}|g" \
-              "$agent_quadlet_dst" \
-          || { log_err "join-token sed-substitute on ${agent_quadlet_dst} failed"; return 2; }
-        log_ok "join-token issued for ${jt_spiffe} and injected into agent Quadlet"
-        # Daemon-reload so the regenerated Exec= line is picked up
-        # before agent start.
-        "$WAKIR_BOOTSTRAP_SYSTEMCTL" daemon-reload \
-          || { log_err "post-token daemon-reload failed"; return 2; }
-      else
-        log_err "spire-server token generate produced no parseable token"
-        log_note "diagnose: podman exec wakir-spire-server-federation-${side} /opt/spire/bin/spire-server token generate -spiffeID ${jt_spiffe} -ttl 3600"
-        return 2
-      fi
-    elif [[ "$agent_already_attested" -eq 0 ]] \
-         && [[ -f "$agent_quadlet_dst" ]]; then
-      log_ok "join-token placeholder already substituted (no-op)"
-    fi
+  elif [[ "$agent_already_attested" -eq 0 ]] \
+       && [[ -f "$agent_quadlet_dst" ]]; then
+    log_ok "join-token placeholder already substituted (no-op)"
   fi
 
-  # 6j. Start the agent + NATS. The agent's join-token (if any) is
-  # already wired in step 6i; on federation mode the placeholder is
-  # left in the Exec= and dropped by a sed-delete handled below.
-  if [[ "$WAKIR_PILOT_MODE" == "federation" ]]; then
-    local agent_quadlet_dst="${dst}/wakir-spire-agent-${side}.container"
-    if [[ -f "$agent_quadlet_dst" ]] \
-       && grep -q "WAKIR_JOIN_TOKEN_PLACEHOLDER" "$agent_quadlet_dst"; then
-      # Federation agents re-attest via the peer trust-bundle. Strip
-      # the literal "-joinToken WAKIR_JOIN_TOKEN_PLACEHOLDER" tail
-      # from the Exec= line in place.
-      sed -i 's| -joinToken WAKIR_JOIN_TOKEN_PLACEHOLDER||g' \
-            "$agent_quadlet_dst" \
-        || { log_err "federation-mode token-placeholder sed-delete failed"; return 2; }
-      "$WAKIR_BOOTSTRAP_SYSTEMCTL" daemon-reload \
-        || { log_err "post-placeholder-strip daemon-reload failed"; return 2; }
-      log_ok "federation mode: stripped join-token placeholder from agent Quadlet"
-    fi
-  fi
+  # 6j. Start the agent + NATS.
+  #
+  # Sprint-10 Tag-7 Bug-37 substance-fix: federation-mode previously
+  # stripped the join-token placeholder here (sed-delete on the
+  # ExecStart line). That code-path created the Bug-37 config-
+  # coherency drift. With step-6i now running for BOTH modes, the
+  # agent Quadlet has a real injected token by the time we reach
+  # step-6j; no mode-specific strip remains. If step-6i failed to
+  # inject (e.g. token-generate produced no parseable output) the
+  # bootstrap aborted there with rc=2; reaching this point implies
+  # the placeholder is substituted.
+  #
+  # Config-coherency assertion: the agent-config file (mounted at
+  # /etc/wakir/spire-agent-<side>.conf) declares NodeAttestor
+  # ``join_token``; the ExecStart line carries the matching
+  # ``-joinToken <hex>`` arg. Both modes now share the same
+  # coherent config shape.
 
   # Sprint-9-Tag-9 Bug-22 substance-fix: defensive re-chown of each
   # container's volume set IMMEDIATELY before its systemctl start.
