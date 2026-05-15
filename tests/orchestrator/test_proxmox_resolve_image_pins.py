@@ -429,3 +429,129 @@ def test_resolver_does_not_rewrite_already_resolved_digest(
         f"ghcr.io/wakir-labs/wakir-provisioner:0.1.2@{SHA256_D}"
         in quadlet
     )
+
+
+# ----------------------------------------------------------------------
+# Sprint-10 Tag-5 Bug-33 substance-fix: --provisioner-only mode.
+#
+# Skip-cosign-verify mode in wakir-pilot-bootstrap.sh step 5 must be
+# able to call the resolver with ONLY --wakir-provisioner-digest +
+# --provisioner-only (no spire-server / spire-agent / python digests).
+# The prior bootstrap-call shape aborted at validate_digest with
+# ``ERROR: --spire-server-digest is required``; M-3 Live-Trial
+# (2026-05-15 15:00 CEST) confirmed the failure.
+# ----------------------------------------------------------------------
+
+
+def test_resolver_help_documents_provisioner_only_flag() -> None:
+    rc = subprocess.run(
+        ["bash", str(RESOLVER), "--help"],
+        check=False, capture_output=True, text=True,
+    )
+    assert rc.returncode == 0
+    assert "--provisioner-only" in rc.stdout, (
+        "resolver --help must document the Sprint-10 Tag-5 Bug-33 "
+        "--provisioner-only flag"
+    )
+
+
+def test_provisioner_only_requires_wakir_provisioner_digest(
+    tmp_path: Path,
+) -> None:
+    """--provisioner-only WITHOUT --wakir-provisioner-digest MUST
+    abort with exit 1 + a clear error message."""
+    root = tmp_path / "root"
+    _build_skeleton(
+        root,
+        "Image=ghcr.io/wakir-labs/wakir-provisioner:0.1.2"
+        "@sha256:DIGEST_PENDING_TOMAS_REVIEW",
+    )
+    cmd = [
+        "bash", str(RESOLVER),
+        "--provisioner-only",
+        "--root", str(root),
+        "--apply",
+    ]
+    proc = subprocess.run(
+        cmd, check=False, capture_output=True, text=True
+    )
+    assert proc.returncode != 0
+    assert "wakir-provisioner-digest" in proc.stderr
+
+
+def test_provisioner_only_substitutes_provisioner_pin_only(
+    tmp_path: Path,
+) -> None:
+    """--provisioner-only with --wakir-provisioner-digest substitutes
+    the bucket-init Quadlet placeholder and leaves the SPIRE+python
+    placeholders untouched (skip-cosign-verify mode keeps them at
+    tag-only references; the substitution is hard no-op for them)."""
+    root = tmp_path / "root"
+    _build_skeleton(
+        root,
+        "Image=ghcr.io/wakir-labs/wakir-provisioner:0.1.2"
+        "@sha256:DIGEST_PENDING_TOMAS_REVIEW",
+    )
+    cmd = [
+        "bash", str(RESOLVER),
+        "--provisioner-only",
+        "--wakir-provisioner-digest", SHA256_D,
+        "--root", str(root),
+        "--apply",
+    ]
+    proc = subprocess.run(
+        cmd, check=False, capture_output=True, text=True
+    )
+    assert proc.returncode == 0, (
+        f"resolver --provisioner-only failed: stdout={proc.stdout!r} "
+        f"stderr={proc.stderr!r}"
+    )
+    # Bucket-init Quadlet got the real digest.
+    bucket_init = (
+        root / "quadlet" / "wakir-nats-kv-bucket-init.container"
+    ).read_text()
+    assert (
+        f"ghcr.io/wakir-labs/wakir-provisioner:0.1.2@{SHA256_D}"
+        in bucket_init
+    )
+    assert "DIGEST_PENDING_TOMAS_REVIEW" not in bucket_init
+    # SPIRE-Server / Agent / Containerfile placeholders are UNTOUCHED.
+    server_quadlet = (
+        root / "quadlet" / "wakir-spire-server.container"
+    ).read_text()
+    assert "DIGEST_PENDING_TOMAS_REVIEW" in server_quadlet
+    agent_quadlet = (
+        root / "quadlet" / "wakir-spire-agent.container"
+    ).read_text()
+    assert "DIGEST_PENDING_TOMAS_REVIEW" in agent_quadlet
+    python_containerfile = (
+        root / "infra/spire/federation/provisioner/Containerfile"
+    ).read_text()
+    assert "DIGEST_PENDING_TOMAS_REVIEW" in python_containerfile
+
+
+def test_provisioner_only_dry_run_does_not_mutate(tmp_path: Path) -> None:
+    """--provisioner-only without --apply is a dry-run."""
+    root = tmp_path / "root"
+    image_line = (
+        "Image=ghcr.io/wakir-labs/wakir-provisioner:0.1.2"
+        "@sha256:DIGEST_PENDING_TOMAS_REVIEW"
+    )
+    _build_skeleton(root, image_line)
+    before = (
+        root / "quadlet" / "wakir-nats-kv-bucket-init.container"
+    ).read_text()
+    cmd = [
+        "bash", str(RESOLVER),
+        "--provisioner-only",
+        "--wakir-provisioner-digest", SHA256_D,
+        "--root", str(root),
+    ]
+    proc = subprocess.run(
+        cmd, check=False, capture_output=True, text=True
+    )
+    assert proc.returncode == 0, proc.stderr
+    after = (
+        root / "quadlet" / "wakir-nats-kv-bucket-init.container"
+    ).read_text()
+    assert before == after, "dry-run mutated file"

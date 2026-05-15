@@ -241,8 +241,17 @@ def test_orbit_configs_are_structural_mirror_of_wakir_configs():
         assert re.search(r'bind_port\s*=\s*"8081"', body), (
             f"spire-server-{name}.conf must bind gRPC on port 8081"
         )
-        assert re.search(r'profile\s*=\s*"https_spiffe"', body), (
-            f"spire-server-{name}.conf must use https_spiffe profile"
+        # Sprint-10 Tag-5 Bug-30/31 substance-fix: the prior assert
+        # checked ``profile = "https_spiffe"`` as a flat-attribute.
+        # That syntax is INVALID HCL for SPIRE 1.14.6 inside
+        # bundle_endpoint (parser emits ``malformed configuration``).
+        # The profile MUST be declared via named-block syntax on the
+        # federates_with side; verify that shape instead.
+        assert re.search(
+            r'bundle_endpoint_profile\s+"https_spiffe"\s*\{', body
+        ), (
+            f"spire-server-{name}.conf must use bundle_endpoint_profile "
+            f'"https_spiffe" {{ }} named-block syntax (Bug-30 fix)'
         )
         assert re.search(r'ca_key_type\s*=\s*"ec-p256"', body), (
             f"spire-server-{name}.conf must use ec-p256 CA key type"

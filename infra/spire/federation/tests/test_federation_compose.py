@@ -212,10 +212,21 @@ def test_wakir_config_federation_block() -> None:
     assert re.search(
         r"federation\s*\{[^}]*bundle_endpoint\s*\{", text, re.DOTALL
     ), "spire-server-wakir.conf must declare a federation { bundle_endpoint { } } block"
-    # https_spiffe profile for the hermetic bootstrap
-    assert 'profile = "https_spiffe"' in text, (
-        "spire-server-wakir.conf must use https_spiffe profile for the hermetic "
-        "bootstrap"
+    # Sprint-10 Tag-5 Bug-30/31 substance-fix: ``profile = "https_spiffe"``
+    # as a flat-attribute inside bundle_endpoint is INVALID HCL for
+    # SPIRE 1.14.6 (parser emits ``malformed configuration``). The
+    # https_spiffe profile is declared via the named-block syntax on
+    # the federates_with side (``bundle_endpoint_profile "https_spiffe"
+    # { ... }``), NOT as a flat-attribute inside bundle_endpoint.
+    # The hermetic-mode default for the bundle_endpoint listener IS
+    # https_spiffe (per SPIRE docs); we omit the explicit attribute to
+    # keep the config minimal and trust the documented default.
+    # Verify the named-block syntax instead:
+    assert re.search(
+        r'bundle_endpoint_profile\s+"https_spiffe"\s*\{', text
+    ), (
+        "spire-server-wakir.conf must use bundle_endpoint_profile "
+        "named-block syntax (Bug-30 fix)"
     )
     # Bundle-endpoint port 8443
     assert re.search(r'port\s*=\s*8443', text), (
@@ -228,7 +239,11 @@ def test_partner_config_federation_block() -> None:
     assert re.search(
         r"federation\s*\{[^}]*bundle_endpoint\s*\{", text, re.DOTALL
     ), "spire-server-partner.conf must declare a federation { bundle_endpoint { } } block"
-    assert 'profile = "https_spiffe"' in text
+    # Sprint-10 Tag-5 Bug-30/31: see test_wakir_config_federation_block
+    # for the rationale; named-block syntax instead of flat-attribute.
+    assert re.search(
+        r'bundle_endpoint_profile\s+"https_spiffe"\s*\{', text
+    )
     assert re.search(r'port\s*=\s*8443', text)
 
 
