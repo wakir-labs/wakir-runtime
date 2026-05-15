@@ -751,7 +751,14 @@ step_5_image_pins() {
     prov_digest=$(skopeo inspect "docker://${prov_image}" 2>/dev/null \
       | jq -r '.Digest // empty' || echo "")
     if [[ -n "$prov_digest" ]]; then
+      # Sprint-10 Tag-5 Bug-33 substance-fix: use --provisioner-only
+      # so the resolver does NOT demand --spire-server-digest /
+      # --spire-agent-digest / --python-digest (which we deliberately
+      # do not have in skip-cosign-verify mode). Mira's M-3 Live-Trial
+      # (2026-05-15 15:00 CEST) verified the prior call shape aborted
+      # with ``ERROR: --spire-server-digest is required`` at step 5.
       "$resolver" \
+        --provisioner-only \
         --wakir-provisioner-digest "$prov_digest" \
         --root "$WAKIR_REPO_ROOT" \
         --apply \

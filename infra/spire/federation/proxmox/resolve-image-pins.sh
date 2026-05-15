@@ -65,6 +65,25 @@
 #     ist FCOS-Standard; kein zusaetzliches Tool-Dependency.
 #   - Semantik bleibt identisch zu Tag-6: tag-tolerant, bare-image-
 #     tolerant, optional ``--wakir-provisioner-version`` rotation.
+#
+# Sprint-10 Tag-5 Aenderung (Bug-33 aus M-3 Federation-Live-Trial
+# 2026-05-15 15:00 CEST):
+#   - Neuer Flag ``--provisioner-only``. In skip-cosign-verify-Mode
+#     ruft ``wakir-pilot-bootstrap.sh`` Step 5 den Resolver mit NUR
+#     ``--wakir-provisioner-digest`` auf, weil SPIRE+python im
+#     skip-cosign-Pfad tag-only laufen (keine @sha256-Substitution
+#     in den entsprechenden Quadlet-/Containerfiles). Der Resolver
+#     brach mit ``--spire-server-digest is required`` ab, weil
+#     validate_digest die drei Haupt-Pins als Pflicht behandelt.
+#   - Option-B-Loesung: ``--provisioner-only`` ueberspringt die
+#     Validate-Pflicht und die resolve_group-Calls fuer SPIRE+python.
+#     Nur die wakir-provisioner-Substitution laeuft. Mira's M-3-
+#     Live-Trial verifiziert, dass die SPIRE+python-Containerfiles
+#     in skip-cosign-Mode KEINEN @sha256-Placeholder mehr tragen
+#     (sie laufen mit Tag-Referenzen), also entfaellt die
+#     Substitution dort hard. Aequivalent zu Option-C
+#     (FORCE_*_DIGEST env-vars), aber ohne die zusaetzliche
+#     env-var-Surface.
 
 set -euo pipefail
 
@@ -75,6 +94,7 @@ SPIRE_AGENT_DIGEST=""
 PYTHON_DIGEST=""
 WAKIR_PROVISIONER_DIGEST=""
 WAKIR_PROVISIONER_VERSION=""
+PROVISIONER_ONLY=0
 ROOT="/opt/wakir-runtime"
 APPLY=0
 
@@ -89,6 +109,15 @@ Usage: resolve-image-pins.sh
        [--root /opt/wakir-runtime]
        [--apply]
 
+       OR (Sprint-10 Tag-5 Bug-33 substance-fix path):
+
+       resolve-image-pins.sh
+       --provisioner-only
+       --wakir-provisioner-digest sha256:<hex>
+       [--wakir-provisioner-version <tag>]
+       [--root /opt/wakir-runtime]
+       [--apply]
+
 Substitutes DIGEST_PENDING_TOMAS_REVIEW placeholders in Quadlet
 .container files and in the wakir-provisioner Containerfile FROM
 line under <root>.
@@ -97,11 +126,11 @@ Without --apply this is a dry-run (no file mutation).
 
 Each digest argument is validated as sha256:<64-hex>.
 
---wakir-provisioner-digest is OPTIONAL (Sprint-9 Tag-4 baseline:
-the operator may not have published the image yet on first bring-
-up). Without it, the provisioner Quadlet substitution is skipped
-with a WARN-note; Operator-Hand can re-run the resolver with the
-flag once the image is published.
+--wakir-provisioner-digest is OPTIONAL in the full path (Sprint-9
+Tag-4 baseline: the operator may not have published the image yet
+on first bring-up). Without it, the provisioner Quadlet
+substitution is skipped with a WARN-note; Operator-Hand can
+re-run the resolver with the flag once the image is published.
 
 --wakir-provisioner-version is OPTIONAL (Sprint-9 Tag-6 addition).
 The wakir-provisioner substitution is tag-tolerant: the resolver
@@ -110,6 +139,14 @@ DIGEST_PENDING_TOMAS_REVIEW`` and substitutes the real digest
 WITHOUT rewriting the tag. Supplying ``--wakir-provisioner-version
 <new-tag>`` also rotates the tag in a single pass (useful for the
 combined image-rebuild + digest-pin path).
+
+--provisioner-only (Sprint-10 Tag-5 Bug-33): runs ONLY the
+wakir-provisioner substitution and skips validate_digest for
+--spire-server-digest, --spire-agent-digest, --python-digest. This
+is the skip-cosign-verify-mode path: SPIRE+python Quadlets/Containerfiles
+run with tag-only references (no @sha256: placeholder), so their
+substitution is hard no-op. --wakir-provisioner-digest becomes
+REQUIRED in this mode (the only substitution that actually runs).
 EOF
 }
 
@@ -134,6 +171,10 @@ while [[ $# -gt 0 ]]; do
     --wakir-provisioner-version)
       WAKIR_PROVISIONER_VERSION="${2:-}"
       shift 2
+      ;;
+    --provisioner-only)
+      PROVISIONER_ONLY=1
+      shift
       ;;
     --root)
       ROOT="${2:-}"
@@ -168,14 +209,26 @@ validate_digest() {
   fi
 }
 
-validate_digest "--spire-server-digest" "$SPIRE_SERVER_DIGEST"
-validate_digest "--spire-agent-digest"  "$SPIRE_AGENT_DIGEST"
-validate_digest "--python-digest"       "$PYTHON_DIGEST"
-
-# wakir-provisioner is optional in Sprint-9 Tag-4; validate only if
-# supplied.
-if [[ -n "$WAKIR_PROVISIONER_DIGEST" ]]; then
+# Sprint-10 Tag-5 Bug-33 substance-fix: provisioner-only-Mode skips
+# the validate-pflicht for the three non-provisioner digests. In this
+# mode, --wakir-provisioner-digest becomes REQUIRED (it is the only
+# substitution that runs).
+if [[ "$PROVISIONER_ONLY" -eq 1 ]]; then
+  if [[ -z "$WAKIR_PROVISIONER_DIGEST" ]]; then
+    echo "[$PROG] ERROR: --provisioner-only requires --wakir-provisioner-digest" >&2
+    exit 1
+  fi
   validate_digest "--wakir-provisioner-digest" "$WAKIR_PROVISIONER_DIGEST"
+else
+  validate_digest "--spire-server-digest" "$SPIRE_SERVER_DIGEST"
+  validate_digest "--spire-agent-digest"  "$SPIRE_AGENT_DIGEST"
+  validate_digest "--python-digest"       "$PYTHON_DIGEST"
+
+  # wakir-provisioner is optional in Sprint-9 Tag-4; validate only if
+  # supplied.
+  if [[ -n "$WAKIR_PROVISIONER_DIGEST" ]]; then
+    validate_digest "--wakir-provisioner-digest" "$WAKIR_PROVISIONER_DIGEST"
+  fi
 fi
 
 # Sprint-9 Tag-6: validate optional --wakir-provisioner-version when
@@ -388,23 +441,34 @@ resolve_group_tagged() {
   done
 }
 
-resolve_group \
-  "spire-server" \
-  "ghcr.io/spiffe/spire-server:1.14.6" \
-  "$SPIRE_SERVER_DIGEST" \
-  "${SERVER_FILES[@]}"
+# Sprint-10 Tag-5 Bug-33 substance-fix: in --provisioner-only mode,
+# skip the three non-provisioner resolve_group calls entirely. The
+# skip-cosign-verify-mode keeps the SPIRE+python Quadlet/Containerfiles
+# at tag-only references (no @sha256: placeholder); attempting a
+# substitution here would have been a hard no-op anyway, but the
+# validate-pflicht for the empty digest-vars would have already
+# aborted the script before reaching this point. Mira's M-3 Live-
+# Trial (2026-05-15 15:00 CEST) confirms the skip-cosign path keeps
+# bucket-init as the only digest-pinned target.
+if [[ "$PROVISIONER_ONLY" -eq 0 ]]; then
+  resolve_group \
+    "spire-server" \
+    "ghcr.io/spiffe/spire-server:1.14.6" \
+    "$SPIRE_SERVER_DIGEST" \
+    "${SERVER_FILES[@]}"
 
-resolve_group \
-  "spire-agent" \
-  "ghcr.io/spiffe/spire-agent:1.14.6" \
-  "$SPIRE_AGENT_DIGEST" \
-  "${AGENT_FILES[@]}"
+  resolve_group \
+    "spire-agent" \
+    "ghcr.io/spiffe/spire-agent:1.14.6" \
+    "$SPIRE_AGENT_DIGEST" \
+    "${AGENT_FILES[@]}"
 
-resolve_group \
-  "python" \
-  "docker.io/library/python:3.13-slim" \
-  "$PYTHON_DIGEST" \
-  "${PYTHON_FILES[@]}"
+  resolve_group \
+    "python" \
+    "docker.io/library/python:3.13-slim" \
+    "$PYTHON_DIGEST" \
+    "${PYTHON_FILES[@]}"
+fi
 
 if [[ -n "$WAKIR_PROVISIONER_DIGEST" ]]; then
   # Sprint-9 Tag-6: tag-tolerant resolver. The Quadlet currently
