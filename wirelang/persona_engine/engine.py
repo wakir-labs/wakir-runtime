@@ -64,7 +64,11 @@ from .state_backing import (
     PersonaStateBackingError,
 )
 from .svid_workload_identity import (
+    SvidFetchError,
+    SvidFetchResult,
     SvidProbeResult,
+    WorkloadApiClient,
+    fetch_workload_svid,
     probe_workload_api_socket,
     resolve_socket_path,
 )
@@ -76,7 +80,7 @@ from .v907_verify import (
 )
 
 
-ENGINE_VERSION = "0.2.0-pilot"
+ENGINE_VERSION = "0.3.0-pilot"
 ENGINE_VARIANT = "real"
 DEFAULT_PERSONA_DEF_DIR = Path("/etc/wakir/persona")
 DEFAULT_HEARTBEAT_INTERVAL_SEC = 30
@@ -210,6 +214,10 @@ class PersonaEngine:
         self.bridge_writer = bridge_writer  # set during spawn (needs v907_pin)
         self.v907_result: Optional[V907VerifyResult] = None
         self.svid_probe: Optional[SvidProbeResult] = None
+        self.svid_fetch: Optional[SvidFetchResult] = None
+        # OI-PEFR-2 injection hooks for hermetic tests.
+        self._svid_channel_factory = None
+        self._svid_stub_factory = None
         self._stop_requested = False
 
     # ------------------------------------------------------------------
@@ -224,6 +232,40 @@ class PersonaEngine:
         self.log_sink.write(json.dumps(payload, sort_keys=True) + "\n")
         self.log_sink.flush()
 
+    def set_svid_factories(
+        self,
+        channel_factory: Optional[object] = None,
+        stub_factory: Optional[object] = None,
+    ) -> None:
+        """Inject SVID-fetch channel + stub factories (hermetic tests).
+
+        Used by ``test_svid_workload_identity.py`` to drive the
+        FetchX509SVID call with a fake stream that yields a forged
+        X509SVIDResponse byte frame, without binding to grpcio.
+        """
+        self._svid_channel_factory = channel_factory
+        self._svid_stub_factory = stub_factory
+
+    def _run_svid_fetch(self, socket_path: str) -> SvidFetchResult:
+        """Drive :func:`fetch_workload_svid` on a private event loop.
+
+        We do not assume an asyncio loop is already running — the
+        sync engine is the only caller. The async-engine wrapper
+        (OI-PEFR-3) uses :func:`fetch_workload_svid` directly with
+        the orchestrator's existing loop.
+        """
+        import asyncio as _aio
+
+        return _aio.run(
+            fetch_workload_svid(
+                org_id=self.env.org_id,
+                persona_id=self.env.persona_id,
+                socket_path=socket_path,
+                channel_factory=self._svid_channel_factory,
+                stub_factory=self._svid_stub_factory,
+            )
+        )
+
     def _select_state_backing(self) -> PersonaStateBacking:
         if not self.env.nats_servers:
             self._log({
@@ -233,7 +275,7 @@ class PersonaEngine:
             })
             return InMemoryPersonaStateBacking()
         try:
-            return NatsKvPersonaStateBacking(
+            backing = NatsKvPersonaStateBacking(
                 nats_servers=self.env.nats_servers,
                 org_id=self.env.org_id,
             )
@@ -244,6 +286,17 @@ class PersonaEngine:
                 "reason": str(exc),
             })
             return InMemoryPersonaStateBacking()
+        # Sprint-Pengine-9 OI-PEFR-1: NATS-KV asyncio-backed state-backing
+        # is now real. Log the upgrade so Doppelbetrieb-Vergleichs-
+        # operators can see the v0.2.0-pilot WARN-fence is closed.
+        self._log({
+            "level": "INFO",
+            "msg": "state-backing-natskv-active",
+            "nats_servers": self.env.nats_servers,
+            "org_id": self.env.org_id,
+            "persona_state_bucket": self.env.persona_state_bucket,
+        })
+        return backing
 
     # ------------------------------------------------------------------
     # Spawn flow.
@@ -288,13 +341,15 @@ class PersonaEngine:
             })
             raise
 
-        # SVID workload-API probe.
+        # SVID workload-API probe (boot-gate; Sprint-Pengine-9 keeps
+        # this as the fast pre-fetch gate).
+        socket_path = resolve_socket_path(
+            {"SPIFFE_ENDPOINT_SOCKET": self.env.spiffe_endpoint_socket}
+        )
         self.svid_probe = probe_workload_api_socket(
             org_id=self.env.org_id,
             persona_id=self.env.persona_id,
-            socket_path=resolve_socket_path(
-                {"SPIFFE_ENDPOINT_SOCKET": self.env.spiffe_endpoint_socket}
-            ),
+            socket_path=socket_path,
         )
         self._log({
             "level": "INFO" if self.svid_probe.socket_connectable else "WARN",
@@ -303,6 +358,39 @@ class PersonaEngine:
             "socket_connectable": self.svid_probe.socket_connectable,
             "expected_spiffe_id": self.svid_probe.expected_spiffe_id,
         })
+        # Sprint-Pengine-9 OI-PEFR-2: full SVID-fetch over gRPC once
+        # the boot-gate probe confirmed the socket is connectable.
+        # Failures are logged WARN and the engine continues; the
+        # probe alone is sufficient for the boot-go-no-go decision.
+        if self.svid_probe.socket_connectable:
+            try:
+                self.svid_fetch = self._run_svid_fetch(socket_path)
+                self._log({
+                    "level": "INFO" if self.svid_fetch.matches_expected else "WARN",
+                    "msg": "svid-fetch-completed",
+                    "spiffe_id": self.svid_fetch.spiffe_id,
+                    "san_uris": list(self.svid_fetch.san_uris),
+                    "not_after_utc": self.svid_fetch.not_after_utc,
+                    "bind_state_sha256": self.svid_fetch.bind_state_sha256,
+                    "trust_domain": self.svid_fetch.trust_domain,
+                    "matches_expected": self.svid_fetch.matches_expected,
+                    "fetch_elapsed_sec": self.svid_fetch.fetch_elapsed_sec,
+                    "soft_cap_exceeded": self.svid_fetch.soft_cap_exceeded,
+                })
+            except SvidFetchError as exc:
+                self._log({
+                    "level": "WARN",
+                    "msg": "svid-fetch-failed",
+                    "reason": str(exc),
+                })
+            except ImportError as exc:
+                # grpcio/cryptography wheel missing — engine fences
+                # to socket-probe-only mode.
+                self._log({
+                    "level": "WARN",
+                    "msg": "svid-fetch-fence-to-probe-only",
+                    "reason": str(exc),
+                })
 
     def spawn(self) -> None:
         """Run the spawning -> running transition pair.
