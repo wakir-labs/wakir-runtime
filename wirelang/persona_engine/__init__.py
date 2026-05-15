@@ -62,12 +62,15 @@ provisioner BUCKET_FAMILIES probe-pattern).
 
 from __future__ import annotations
 
-__version__ = "0.2.0-pilot"
+__version__ = "0.3.0-pilot"
 
 __all__ = [
     "__version__",
     "PersonaEngine",
+    "AsyncPersonaEngine",
     "LifecycleStateMachine",
+    "DrillScheduler",
+    "MigrateVersionWorkflow",
     "run_spawn",
     "run_healthcheck",
     "run_version",
@@ -79,10 +82,22 @@ def __getattr__(name: str):  # PEP-562 lazy attribute access
         from .engine import PersonaEngine
 
         return PersonaEngine
+    if name == "AsyncPersonaEngine":
+        from .engine_async import AsyncPersonaEngine
+
+        return AsyncPersonaEngine
     if name == "LifecycleStateMachine":
         from .lifecycle_state_machine import LifecycleStateMachine
 
         return LifecycleStateMachine
+    if name == "DrillScheduler":
+        from .drill_scheduler import DrillScheduler
+
+        return DrillScheduler
+    if name == "MigrateVersionWorkflow":
+        from .migrate_version import MigrateVersionWorkflow
+
+        return MigrateVersionWorkflow
     if name == "run_spawn":
         from .cli import run_spawn
 

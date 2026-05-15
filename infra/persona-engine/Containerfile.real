@@ -4,74 +4,97 @@
 # Licensed under the Business Source License 1.1; see ./LICENSE-BSL.md.
 # Change Date: 2030-05-15. Change License: Apache License 2.0.
 #
-# wakir-persona-engine REAL — Sprint-Pengine-8, image tag ``0.2.0-pilot``.
+# wakir-persona-engine REAL — Sprint-Pengine-9, image tag ``0.3.0-pilot``.
 #
-# Substrate scope (0.2.0-pilot)
+# Substrate scope (0.3.0-pilot)
 # -----------------------------
-# Real-implementation image. Drops in for the substrate-stub
-# ``0.1.0-pilot`` image via Quadlet tag-pin rotation (the
-# resolve-image-pins-ci substitution path closes the swap idempotently).
+# Sprint-Pengine-9 closes the four substrate-gaps left open by the
+# 0.2.0-pilot real-engine image:
 #
-# Tag-rotation pattern (Selin Sprint-Pengine-8 axis):
+#   - OI-PEFR-1: NATS-KV asyncio PersonaStateBacking (real implementation,
+#     replaces the v0.2.0-pilot fence-to-in-memory WARN-path).
+#   - OI-PEFR-2: SPIFFE Workload-API full SVID-fetch via grpcio
+#     (replaces v0.2.0-pilot socket-presence probe).
+#   - OI-PEFR-3: async engine wrapper (asyncio orchestration for the
+#     Sprint-Pengine-10 NATS-Subscribe-Pipeline).
+#   - OI-PEFR-4: scheduled R1..R4 recovery DRILLs (cron / timer thread).
+#   - OI-PEFR-5: §3.7.3 migrate-version mechanic (0.2.0-pilot state-packs
+#     readable by 0.3.0-pilot engine).
+#
+# The image is a strict superset of 0.2.0-pilot — every code path the
+# stub + 0.2.0-pilot consumed remains reachable. Quadlet tag-rotation
+# (operator-hand) covers the 0.2.0-pilot -> 0.3.0-pilot swap.
+#
+# Tag-rotation pattern
+# --------------------
 #
 #   1. Operator runs ``gh workflow run build-wakir-persona-engine.yml``
-#      with input ``version_tag=0.2.0-pilot`` and Containerfile path
-#      pointing at this file (Containerfile.real).
+#      with input ``version_tag=0.3.0-pilot`` and
+#      ``containerfile=Containerfile.real``.
 #   2. GHCR receives the new digest under
-#      ``ghcr.io/wakir-labs/wakir-persona-engine:0.2.0-pilot``.
+#      ``ghcr.io/wakir-labs/wakir-persona-engine:0.3.0-pilot``.
 #   3. Operator opens a Quadlet-pin-rotation PR updating
 #      ``quadlet/wakir-persona-tomas.container`` Image= line tag
-#      from ``0.1.0-pilot`` to ``0.2.0-pilot``.
+#      from ``0.2.0-pilot`` to ``0.3.0-pilot``.
 #   4. ``resolve-image-pins-ci`` workflow fills the
 #      ``@sha256:DIGEST_PENDING_*`` placeholder with the live digest.
 #   5. Operator-Hand-systemctl-restart on the Pilot-VM picks up the
 #      new image. Engine-swap complete.
 #
-# Why a separate Containerfile
-# ----------------------------
-# Containerfile (the original, Sprint-10 Tag-4) ships the stub binary
-# only. Containerfile.real ships the wakir-runtime tree slice that
-# carries ``wirelang.persona_engine`` plus the thin shim entry-point
-# ``persona-engine-real``. The two Containerfiles share the python:3.13-
-# slim base; only the COPY tree differs. Split-by-file (rather than
-# build-arg switching) keeps the supply-chain provenance clear: each
-# tag corresponds to exactly one Containerfile.
+# Wheel substrate (Bug-34c structural fix, Sprint-Pengine-9)
+# ----------------------------------------------------------
+# Prior 0.2.0-pilot installed wheels via a flat ``RUN pip install
+# 'rfc8785>=0.1.4' 'PyYAML>=6.0' 'shamir-mnemonic>=0.3.0' 'cryptography>=42'``
+# layer (Mira-Hand PRs #66 + #68 to chase ModuleNotFoundError-at-boot).
+# That layer drifts every time a new transitive dep lands; the
+# structural fix is the ``[project.optional-dependencies]
+# persona-engine-runtime`` extra in pyproject.toml. This Containerfile
+# COPYs the repo tree and runs ``pip install '/opt/wakir-runtime/.
+# [persona-engine-runtime]'`` once. Adding a new runtime dep (e.g. a
+# future opentelemetry-sdk pin from Noa) becomes a pyproject.toml
+# edit, not a Containerfile RUN-layer rewrite.
 
 FROM docker.io/library/python:3.13-slim@sha256:DIGEST_PENDING_TOMAS_REVIEW
 
 # OCI metadata.
 LABEL org.opencontainers.image.title="wakir-persona-engine"
-LABEL org.opencontainers.image.description="Runtime image for the Wakir persona-engine real binary (Sprint-Pengine-8, v0.2.0-pilot; full lifecycle FSM, V-907 pin verify, SPIFFE workload-API probe, bridge-audit double-sink, R1..R4 recovery, P1..P4 despawn-clean)."
-LABEL org.opencontainers.image.version="0.2.0-pilot"
+LABEL org.opencontainers.image.description="Runtime image for the Wakir persona-engine real binary (Sprint-Pengine-9, v0.3.0-pilot; NATS-KV asyncio state-backing, gRPC SPIFFE Workload-API SVID-fetch, async engine wrapper, scheduled R1..R4 drills, §3.7.3 migrate-version)."
+LABEL org.opencontainers.image.version="0.3.0-pilot"
 LABEL org.opencontainers.image.licenses="BUSL-1.1"
 LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"
 LABEL org.opencontainers.image.url="https://github.com/wakir-labs/wakir-runtime"
 LABEL org.opencontainers.image.documentation="https://github.com/wakir-labs/wakir-runtime/blob/main/infra/persona-engine/README.md"
 
-# Sprint-Pengine-8 Bug-34 fix (Mira-Hand 2026-05-15): persona_canonical_form
-# imports rfc8785 + PyYAML for V-907 pin-compute. Plus wirelang
-# pyproject.toml top-level deps (shamir-mnemonic, cryptography) the engine
-# may transitively reach. Without these wheels the engine ModuleNotFoundErrors
-# at boot before the spawn-init loop. nats-py remains a Sprint-Pengine-9
-# deferred surface (engine fences to InMemoryPersonaStateBacking with WARN).
-RUN pip install --no-cache-dir \
-        'rfc8785>=0.1.4' \
-        'PyYAML>=6.0' \
-        'shamir-mnemonic>=0.3.0' \
-        'cryptography>=42'
-
-# Non-root runtime user (parity with 0.1.0-pilot + SPIRE-Agent + NATS).
+# Non-root runtime user (parity with 0.2.0-pilot + SPIRE-Agent + NATS).
 RUN groupadd --gid 1000 wakir \
     && useradd --uid 1000 --gid 1000 --no-create-home --shell /usr/sbin/nologin wakir \
-    && mkdir -p /opt/wakir/bin \
-    && chown -R 1000:1000 /opt/wakir
+    && mkdir -p /opt/wakir/bin /opt/wakir-runtime \
+    && chown -R 1000:1000 /opt/wakir /opt/wakir-runtime
+
+# Copy the wakir-runtime tree into the image so the persona-engine
+# extra can resolve the wirelang package + setuptools-package-data
+# fixtures. The COPY order is deliberate: pyproject.toml + the setup
+# closure first (this caches the wheel-install layer when only
+# wirelang source changes), then the source tree.
+COPY --chown=1000:1000 pyproject.toml /opt/wakir-runtime/pyproject.toml
+COPY --chown=1000:1000 README.md      /opt/wakir-runtime/README.md
+COPY --chown=1000:1000 LICENSE        /opt/wakir-runtime/LICENSE
+COPY --chown=1000:1000 NOTICE         /opt/wakir-runtime/NOTICE
+COPY --chown=1000:1000 wirelang/      /opt/wakir-runtime/wirelang/
+COPY --chown=1000:1000 wat/           /opt/wakir-runtime/wat/
+
+# Sprint-Pengine-9 Bug-34c structural fix: install the wakir-runtime
+# package + the persona-engine-runtime extra in one invocation.
+# ``--no-cache-dir`` keeps the image slim; ``--no-deps`` would skip
+# transitive wheels (we keep the default; the extra is closed).
+RUN pip install --no-cache-dir '/opt/wakir-runtime/.[persona-engine-runtime]'
 
 # Ship the real-engine entrypoint shim and symlink it to
 # ``persona-engine`` so the Quadlet Exec= line is byte-stable across
 # the stub-to-real swap.
-COPY --chown=1000:1000 bin/persona-engine-real /opt/wakir/bin/persona-engine-real
+COPY --chown=1000:1000 infra/persona-engine/bin/persona-engine-real /opt/wakir/bin/persona-engine-real
 RUN chmod 0755 /opt/wakir/bin/persona-engine-real \
-    && ln -s /opt/wakir/bin/persona-engine-real /opt/wakir/bin/persona-engine
+    && ln -sf /opt/wakir/bin/persona-engine-real /opt/wakir/bin/persona-engine
 
 USER 1000:1000
 WORKDIR /opt/wakir-runtime

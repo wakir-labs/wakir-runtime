@@ -124,6 +124,69 @@ test = [
 nats = [
     "nats-py==2.14.0",
 ]
+# Sprint-Pengine-9 Bug-34c (structural fix) — the persona-engine
+# container runtime needs the union of wirelang top-level deps PLUS
+# the async clients for NATS-KV state-backing (OI-PEFR-1) and the
+# SPIFFE Workload-API gRPC client (OI-PEFR-2). Containerfile.real
+# installs this extra in one ``pip install '/opt/wakir-runtime/.
+# [persona-engine-runtime]'`` invocation instead of a flat
+# ``rfc8785 PyYAML shamir-mnemonic cryptography`` RUN-layer that
+# drifts every time a new transitive dep lands.
+#
+# Why a separate extra (vs. ``nats`` reuse)
+# ----------------------------------------
+# The ``nats`` extra was scoped to scripts + the live-NATS-test-mode
+# driver and pins ``nats-py==2.14.0`` byte-precise; the persona-engine
+# can tolerate a lower bound (``>=2.6``) but inherits the 2.14.0 pin
+# in production via ``requirements-nats.txt`` propagation. We name a
+# new extra so the persona-engine surface and the NATS-cluster-bringup
+# surface evolve independently (parity with the ADR-0007 verifier-
+# surface zero-PyPI promise: a future split-package refactor can
+# carve persona-engine into its own wheel without disturbing the
+# Wirelang/WAT/NATS-script extras).
+#
+# Wheels referenced
+# -----------------
+# - rfc8785           — JCS canonicalisation for V-907 pin-compute
+#                       (already a top-level dep; included here to
+#                       give the extra a self-contained closure on a
+#                       slim base image that does not install the
+#                       package wheel itself).
+# - PyYAML            — axis-A YAML frontmatter parsing for
+#                       persona_canonical_form (V-907 transitive).
+# - shamir-mnemonic   — Two-Curve identity recovery (top-level dep;
+#                       transitive reach from persona-engine code
+#                       paths that touch the identity substrate).
+# - cryptography      — Ed25519 + secp256k1 primitives, BIP-32 +
+#                       SLIP-0010 derivation (top-level dep).
+# - nats-py           — OI-PEFR-1 NatsKvPersonaStateBacking-async;
+#                       hard-pinned to 2.14.0 by requirements-nats.txt
+#                       cross-validation. The bound is ``>=2.6`` in
+#                       the extra (lowest version with asyncio JS-KV
+#                       support); production substitutes via
+#                       ``pip install -c requirements-nats.txt``.
+# - grpcio            — OI-PEFR-2 SPIFFE Workload-API gRPC client.
+#                       Bound is ``>=1.62`` (asyncio interceptor
+#                       posture stable since 1.60; 1.62 carries the
+#                       UDS-over-grpc fix that we tested against).
+# - protobuf          — grpcio transitive; named explicitly so the
+#                       ``protobuf==5.x`` posture is visible in
+#                       the manifest (grpcio 1.62 ships with
+#                       protobuf-runtime>=4.25,<6).
+#
+# PyPI URLs (all URL-200-stamped 2026-05-15):
+#   - https://pypi.org/project/nats-py/
+#   - https://pypi.org/project/grpcio/
+#   - https://pypi.org/project/protobuf/
+persona-engine-runtime = [
+    "rfc8785>=0.1.4",
+    "PyYAML>=6.0",
+    "shamir-mnemonic>=0.3.0",
+    "cryptography>=42",
+    "nats-py>=2.6",
+    "grpcio>=1.62",
+    "protobuf>=4.25,<6",
+]
 
 [project.scripts]
 wakir-merkle = "wat.cmd.aggregator_cli:main"

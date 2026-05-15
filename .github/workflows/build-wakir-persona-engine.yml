@@ -172,12 +172,26 @@ jobs:
           IMAGE="ghcr.io/${{ github.repository_owner }}/wakir-persona-engine"
           REVISION="${GITHUB_SHA}"
           CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          # Build context selection (Sprint-Pengine-9 Bug-34c structural
+          # fix): Containerfile.real now COPYs ``pyproject.toml``,
+          # ``wirelang/``, ``wat/`` and the persona-engine entrypoint
+          # binary; it therefore needs the repo root as build context.
+          # Containerfile (the stub) keeps the historical
+          # ``infra/persona-engine/`` context (it only COPYs the stub
+          # binary). Selecting context by Containerfile name keeps the
+          # supply-chain provenance posture clear: each Containerfile
+          # corresponds to exactly one build-context shape.
+          if [[ "${CONTAINERFILE_NAME}" == "Containerfile.real" ]]; then
+            BUILD_CONTEXT="."
+          else
+            BUILD_CONTEXT="infra/persona-engine/"
+          fi
           buildah bud \
             --tag "${IMAGE}:${TAG}" \
             --label "org.opencontainers.image.revision=${REVISION}" \
             --label "org.opencontainers.image.created=${CREATED}" \
             -f "infra/persona-engine/${CONTAINERFILE_NAME}" \
-            infra/persona-engine/
+            "${BUILD_CONTEXT}"
           echo "image=${IMAGE}"     >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}"         >> "$GITHUB_OUTPUT"
           echo "revision=${REVISION}" >> "$GITHUB_OUTPUT"
