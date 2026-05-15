@@ -87,8 +87,9 @@ The bucket carries three kinds of keys, distinguished by prefix:
   1-indexed and zero-padded to 12 digits so KV list-key
   iteration returns events in append order without a sort step.
 - ``recovery-audit/<drill_run_id>`` — one envelope per executed
-  recovery-drill (Tag-3 §3.7.2.2 drill registry: SVID-expired,
-  oom-kill, panic, ots-stale, wat-anchor-stale). The
+  recovery-drill (Tag-3 §3.7.2.1 drill registry, closed three-
+  class set: ``DRILL_CONTAINER_CRASH``, ``DRILL_NATS_BUCKET_LOST``,
+  ``DRILL_SPIRE_SVID_EXPIRED``). The
   ``recovery_drill_outcome`` envelope is the OI-PILOT-4 cron
   source: a periodic Quadlet timer (Selin OI-PILOT-4 +
   Reza-Cross-Pair OI-PEF-11) reads these keys from NATS-KV and

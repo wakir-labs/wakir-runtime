@@ -163,29 +163,49 @@ def test_persona_state_family_is_registered_when_module_present(mod):
 def test_persona_state_family_re_exports_canonical_constants(mod):
     if not mod._HAS_PERSONA_STATE_FAMILY:
         pytest.skip(
-            "wirelang.persona.persona_state_kv not present on this tip"
+            "wirelang.persona.persona_state_kv* not present on this tip"
         )
-    from wirelang.persona.persona_state_kv import (
-        BUCKET_CONFIG,
-        BUCKET_NAME_PREFIX,
-        bucket_name_for_org,
-    )
+    # Post-Sprint-Pengine-7-Tag-5 B-5 disentanglement: the provisioner
+    # driver imports the constants-only shim
+    # ``wirelang.persona.persona_state_kv_constants`` FIRST and
+    # falls back to the full ``wirelang.persona.persona_state_kv``
+    # only when the shim is absent. The identity-comparison axis
+    # therefore checks the shim names on the happy path, with a
+    # full-module fallback when the shim is intentionally absent on
+    # a non-bundle deployment. Byte-equality between shim and full
+    # module is enforced by
+    # ``wirelang/tests/test_persona_state_kv_constants_parity.py``.
+    try:
+        from wirelang.persona.persona_state_kv_constants import (
+            BUCKET_CONFIG as _SHIM_BUCKET_CONFIG,
+            BUCKET_NAME_PREFIX as _SHIM_BUCKET_NAME_PREFIX,
+            bucket_name_for_org as _shim_bucket_name_for_org,
+        )
+        canonical_config = _SHIM_BUCKET_CONFIG
+        canonical_prefix = _SHIM_BUCKET_NAME_PREFIX
+        canonical_fn = _shim_bucket_name_for_org
+    except ImportError:
+        from wirelang.persona.persona_state_kv import (
+            BUCKET_CONFIG as canonical_config,
+            BUCKET_NAME_PREFIX as canonical_prefix,
+            bucket_name_for_org as canonical_fn,
+        )
 
-    assert mod.PERSONA_STATE_BUCKET_CONFIG is BUCKET_CONFIG
-    assert mod.PERSONA_STATE_BUCKET_NAME_PREFIX is BUCKET_NAME_PREFIX
+    assert mod.PERSONA_STATE_BUCKET_CONFIG is canonical_config
+    assert mod.PERSONA_STATE_BUCKET_NAME_PREFIX is canonical_prefix
 
     ps_fam = next(
         f for f in mod.BUCKET_FAMILIES if f.family_id == "persona-state"
     )
-    assert ps_fam.bucket_config is BUCKET_CONFIG
-    assert ps_fam.bucket_name_for_org is bucket_name_for_org
+    assert ps_fam.bucket_config is canonical_config
+    assert ps_fam.bucket_name_for_org is canonical_fn
     # spec_for_org for a combined token carries the Selin-side
     # BUCKET_CONFIG byte-precisely.
     spec = mod.spec_for_org("acme-tomas", family=ps_fam)
     assert spec["bucket"] == "wakir-persona-state-acme-tomas"
-    assert spec["history"] == int(BUCKET_CONFIG["history"])
-    assert spec["max_value_size"] == int(BUCKET_CONFIG["max_value_size"])
-    assert spec["description"] == str(BUCKET_CONFIG["description"])
+    assert spec["history"] == int(canonical_config["history"])
+    assert spec["max_value_size"] == int(canonical_config["max_value_size"])
+    assert spec["description"] == str(canonical_config["description"])
 
 
 # ---------------------------------------------------------------------------

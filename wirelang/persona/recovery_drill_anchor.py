@@ -5,11 +5,17 @@
 
 Sprint-Pengine-7 Tag-4 §3.7.4 introduced the impl-axis
 recovery-workflow that emits one ``recovery_drill_outcome``
-envelope per executed drill (DRILL_SVID_EXPIRED, DRILL_OOM_KILL,
-DRILL_PANIC, DRILL_OTS_STALE, DRILL_WAT_ANCHOR_STALE). The
-envelope is persisted to the persona-state NATS-KV bucket under
-the ``recovery-audit/<drill_run_id>`` key prefix (OI-PILOT-2
-schema, ``wirelang.persona.persona_state_kv``).
+envelope per executed drill. The drill registry is the closed
+three-class set per ``wirelang/specs/persona-engine-format-spec.md``
+v1.3 §3.7.2.1 — ``DRILL_CONTAINER_CRASH`` (engine-runtime layer),
+``DRILL_NATS_BUCKET_LOST`` (storage-substrate layer),
+``DRILL_SPIRE_SVID_EXPIRED`` (identity layer). The envelope is
+persisted to the persona-state NATS-KV bucket under the
+``recovery-audit/<drill_run_id>`` key prefix (OI-PILOT-2 schema,
+``wirelang.persona.persona_state_kv``). Future drill-class
+extensions require a paired persona-engine-format-spec minor bump
+plus a paired ``recovery-drill-outcome/v2`` schema-registry entry
+(no silent enum extension; Reza-Cross-Review Zone-L L-2 boundary).
 
 OI-PILOT-4 is the periodic WAT-anchoring side of that envelope
 flow. A Quadlet timer fires this driver every ~15 minutes during
@@ -78,7 +84,9 @@ The driver expects each envelope to carry at least:
 
 - ``schema`` == ``"wakir.persona.recovery-drill-outcome/1"``
 - ``drill_run_id`` (string)
-- ``drill_class`` (one of the five Tag-3 §3.7.2.2 enum values)
+- ``drill_class`` (one of the three Tag-3 §3.7.2.1 enum values:
+  ``DRILL_CONTAINER_CRASH``, ``DRILL_NATS_BUCKET_LOST``,
+  ``DRILL_SPIRE_SVID_EXPIRED``)
 - ``persona_id`` (string, matches the bucket's persona-suffix)
 - ``org_id`` (string)
 - ``outcome`` (one of ``"pass"``, ``"fail"``, ``"hard-cap-exceeded"``)

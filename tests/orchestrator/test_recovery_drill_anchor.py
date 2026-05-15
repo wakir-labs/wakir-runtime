@@ -101,11 +101,11 @@ def _make_wat_write(ok: bool = True, error: str = "", spool: str = "/var/lib/wak
 def _make_envelope(
     *,
     schema=None,
-    drill_run_id="svid-expired-2026-05-15T04-12-00Z",
+    drill_run_id="spire-svid-expired-2026-05-15T04-12-00Z",
     persona_id="tomas",
     org_id="acme",
     outcome="pass",
-    drill_class="DRILL_SVID_EXPIRED",
+    drill_class="DRILL_SPIRE_SVID_EXPIRED",
     emitted_at="2026-05-15T04:12:00Z",
     wat_anchored_at=None,
 ):
@@ -364,3 +364,72 @@ def test_anchor_report_to_json_carries_summary_block(mod, event_loop):
     assert decoded["summary"]["anchored"] == 1
     assert decoded["summary"]["total"] == 1
     assert len(decoded["actions"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# T-ANCHOR-14 — drill_class spec parity (Reza Cross-Review Zone-L L-2)
+#
+# The persona-engine-format-spec §3.7.2.1 declares a CLOSED three-class
+# drill registry: DRILL_CONTAINER_CRASH (engine-runtime layer),
+# DRILL_NATS_BUCKET_LOST (storage-substrate layer),
+# DRILL_SPIRE_SVID_EXPIRED (identity layer). The OI-PEF-11 schema-
+# registry entry pins the same enum at the wire boundary. Any
+# silent-extension drift (e.g. a five-class superset like the
+# pre-fix Tag-5 docstring) MUST be caught here so a schema-vs-impl
+# mismatch surfaces at the persona-engine unit-test layer rather
+# than at live-anchor schema-validation time.
+# ---------------------------------------------------------------------------
+
+
+def test_default_envelope_drill_class_matches_spec_three_class_set(mod):
+    """T-ANCHOR-14: the default test fixture's ``drill_class`` MUST be
+    one of the three persona-engine-format-spec §3.7.2.1 enum values.
+
+    This guards the Reza Cross-Review Zone-L L-2 contract: the OI-PEF-11
+    schema (closed enum) rejects any other value at the wire boundary,
+    so silent docstring/impl drift MUST be caught at the persona-
+    engine unit-test layer.
+    """
+    spec_enum = {
+        "DRILL_CONTAINER_CRASH",
+        "DRILL_NATS_BUCKET_LOST",
+        "DRILL_SPIRE_SVID_EXPIRED",
+    }
+    env = _make_envelope()
+    assert env["drill_class"] in spec_enum, (
+        f"default fixture drill_class={env['drill_class']!r} drifts "
+        f"from persona-engine-format-spec §3.7.2.1 closed enum "
+        f"{sorted(spec_enum)!r}"
+    )
+
+
+def test_anchor_one_envelope_accepts_each_spec_drill_class(mod, event_loop):
+    """T-ANCHOR-14b: anchor_one_envelope MUST anchor each of the three
+    spec-declared drill_class values when the rest of the envelope is
+    well-formed.
+    """
+    for drill_class in (
+        "DRILL_CONTAINER_CRASH",
+        "DRILL_NATS_BUCKET_LOST",
+        "DRILL_SPIRE_SVID_EXPIRED",
+    ):
+        kv = _MockKv()
+        env = _make_envelope(drill_class=drill_class)
+        action = event_loop.run_until_complete(
+            mod.anchor_one_envelope(
+                kv=kv,
+                key=f"recovery-audit/{drill_class.lower()}-run-1",
+                envelope=env,
+                wat_write_fn=_make_wat_write(),
+                now_rfc3339="2026-05-15T12:00:00Z",
+            )
+        )
+        assert action.status == "anchored", (
+            f"drill_class={drill_class!r} unexpectedly status="
+            f"{action.status!r} detail={action.detail!r}"
+        )
+        # Anchor-back must preserve the drill_class verbatim.
+        assert len(kv.put_calls) == 1
+        _, value = kv.put_calls[0]
+        written = json.loads(value.decode("utf-8"))
+        assert written["drill_class"] == drill_class
