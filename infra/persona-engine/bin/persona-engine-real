@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# wakir-persona-engine real binary (Sprint-Pengine-8, image tag
+# ``0.2.0-pilot``).
+#
+# Posture
+# -------
+# This is the **real-implementation** binary that swaps in for the
+# Sprint-10 Tag-4 ``persona-engine`` substrate-stub at image tag
+# ``0.2.0-pilot``. The CLI surface is identical (``spawn`` /
+# ``healthcheck`` / ``version``) so the Quadlet ``Exec=`` line is
+# byte-stable across the swap.
+#
+# Implementation lives in ``wirelang.persona_engine`` (a python
+# package bind-mounted into the container at ``/opt/wakir-runtime``).
+# This thin shim is the entry point: it adds the bind-mounted source
+# tree to ``sys.path`` if needed and dispatches to
+# ``wirelang.persona_engine.cli:main``.
+#
+# Why a thin shim
+# ---------------
+# The implementation must be importable as a Python package so the
+# hermetic test suite can drive it without a container. The shim is
+# the only piece that lives under ``infra/persona-engine/bin``; the
+# rest is normal wirelang code under ``wirelang/persona_engine/``.
+#
+# Image-tag rotation
+# ------------------
+# At tag ``0.1.0-pilot`` the ENTRYPOINT points at ``persona-engine``
+# (the stub). At tag ``0.2.0-pilot`` the ENTRYPOINT points at
+# ``persona-engine-real`` (this shim). The Containerfile carries
+# a build-arg ``ENGINE_VARIANT`` that selects which symlink lives at
+# ``/opt/wakir/bin/persona-engine``; the Quadlet Exec= line is
+# unchanged across the rotation.
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+# The persona-engine container bind-mounts the wakir-runtime tree at
+# ``/opt/wakir-runtime``. If we are invoked outside the container
+# (hermetic test, sandbox debug) the package is already on the path
+# via the workspace install.
+_RUNTIME_BIND_MOUNT = Path("/opt/wakir-runtime")
+if _RUNTIME_BIND_MOUNT.is_dir() and str(_RUNTIME_BIND_MOUNT) not in sys.path:
+    sys.path.insert(0, str(_RUNTIME_BIND_MOUNT))
+
+
+def _main() -> int:
+    try:
+        from wirelang.persona_engine.cli import main as cli_main
+    except ImportError as exc:
+        sys.stderr.write(
+            f"wakir-persona-engine: cannot import wirelang.persona_engine: {exc}\n"
+            f"sys.path={sys.path}\n"
+        )
+        return 70  # EX_SOFTWARE
+    return cli_main(sys.argv[1:])
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())

@@ -50,9 +50,13 @@ on:
   workflow_dispatch:
     inputs:
       version_tag:
-        description: 'Semver tag to publish (e.g. 0.1.0-pilot)'
+        description: 'Semver tag to publish (e.g. 0.1.0-pilot, 0.2.0-pilot)'
         required: true
         default: '0.1.0-pilot'
+      containerfile:
+        description: 'Containerfile path under infra/persona-engine/ (Containerfile=stub 0.1.0-pilot; Containerfile.real=real 0.2.0-pilot)'
+        required: false
+        default: 'Containerfile'
       push:
         description: 'Push to GHCR (true) or dry-run build only (false)'
         required: false
@@ -125,21 +129,33 @@ jobs:
       - name: Materialise pinned base-layer digest in Containerfile
         run: |
           set -euo pipefail
+          CONTAINERFILE_NAME="${{ github.event.inputs.containerfile }}"
+          CONTAINERFILE_PATH="infra/persona-engine/${CONTAINERFILE_NAME}"
+          if [[ ! -f "${CONTAINERFILE_PATH}" ]]; then
+            echo "::error::Containerfile not found: ${CONTAINERFILE_PATH}"
+            exit 1
+          fi
           sed -i \
             "s|python:3.13-slim@sha256:DIGEST_PENDING_TOMAS_REVIEW|python:3.13-slim@${{ steps.base.outputs.digest }}|" \
-            infra/persona-engine/Containerfile
+            "${CONTAINERFILE_PATH}"
           grep -q "python:3.13-slim@${{ steps.base.outputs.digest }}" \
-            infra/persona-engine/Containerfile \
+            "${CONTAINERFILE_PATH}" \
             || { echo "::error::Containerfile substitution did not stick"; exit 1; }
 
-      - name: Verify persona-engine stub is present + executable
+      - name: Verify persona-engine entrypoint binary is present + executable
         run: |
           set -euo pipefail
+          # Stub binary present unconditionally (used at 0.1.0-pilot).
           test -f infra/persona-engine/bin/persona-engine
           test -x infra/persona-engine/bin/persona-engine
-          # Syntax-check the stub before baking it into the image
-          # (catches a stdlib-only break before the buildah step).
           python3 -m py_compile infra/persona-engine/bin/persona-engine
+          # Real-engine entrypoint shim present when building the real
+          # Containerfile (used at 0.2.0-pilot+).
+          if [[ "${{ github.event.inputs.containerfile }}" == "Containerfile.real" ]]; then
+            test -f infra/persona-engine/bin/persona-engine-real
+            test -x infra/persona-engine/bin/persona-engine-real
+            python3 -m py_compile infra/persona-engine/bin/persona-engine-real
+          fi
 
       - name: Build image with buildah
         id: buildah
@@ -152,6 +168,7 @@ jobs:
             sudo apt-get install -y --no-install-recommends buildah
           fi
           TAG="${{ github.event.inputs.version_tag }}"
+          CONTAINERFILE_NAME="${{ github.event.inputs.containerfile }}"
           IMAGE="ghcr.io/${{ github.repository_owner }}/wakir-persona-engine"
           REVISION="${GITHUB_SHA}"
           CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -159,7 +176,7 @@ jobs:
             --tag "${IMAGE}:${TAG}" \
             --label "org.opencontainers.image.revision=${REVISION}" \
             --label "org.opencontainers.image.created=${CREATED}" \
-            -f infra/persona-engine/Containerfile \
+            -f "infra/persona-engine/${CONTAINERFILE_NAME}" \
             infra/persona-engine/
           echo "image=${IMAGE}"     >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}"         >> "$GITHUB_OUTPUT"
