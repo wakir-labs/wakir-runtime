@@ -24,8 +24,8 @@
 #
 # The Phase-2 SPIRE-Federation templates contain ``<SIDE>``,
 # ``<TRUST_DOMAIN>``, ``<SERVER_DNS>``, ``<HOST_BUNDLE_PORT>``,
-# ``<HOST_GRPC_PORT>`` placeholders that the bootstrap script
-# substitutes at install time. The Quadlet generator does not know
+# ``<HOST_GRPC_PORT>``, and (Sprint-10 Tag-3) ``<HOST_BUNDLE_BIND>``
+# placeholders that the bootstrap script substitutes at install time. The Quadlet generator does not know
 # about these placeholders and reports them as missing-volume
 # references. We mirror the bootstrap's substitution into a tmp
 # staging dir and run the dryrun against that.
@@ -110,9 +110,17 @@ stage_for_side() {
   done
 
   if [[ -f "$FED_QUADLET/wakir-spire-server-federation.container" ]]; then
+    # Sprint-10 Tag-3 substance: <HOST_BUNDLE_BIND> substitution.
+    # The lint runs against the WORST-CASE federation deployment shape
+    # (0.0.0.0 bundle-endpoint), since that is the bind that has to
+    # pass podman-quadlet's syntactic + network validation. The
+    # single-org 127.0.0.1 variant is a strict subset of the 0.0.0.0
+    # variant's bind-shape, so passing the federation lint implies
+    # passing the single-org lint.
     sed -e "s/<SIDE>/${side}/g" \
         -e "s/<HOST_BUNDLE_PORT>/8443/g" \
         -e "s/<HOST_GRPC_PORT>/8082/g" \
+        -e "s|<HOST_BUNDLE_BIND>|0.0.0.0|g" \
         "$FED_QUADLET/wakir-spire-server-federation.container" \
       > "$out/wakir-spire-server-federation-${side}.container"
   fi

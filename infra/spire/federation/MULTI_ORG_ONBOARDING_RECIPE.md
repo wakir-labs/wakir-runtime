@@ -170,9 +170,14 @@ Auf der VM, im Bundle-Verzeichnis (`/opt/wakir-runtime/`):
 
 ```bash
 # Substituiere den partner-side aus dem Quadlet-Template.
+# Sprint-10 Tag-3 adds <HOST_BUNDLE_BIND>: 127.0.0.1 für die same-host
+# Two-VM Topology (peer fetch geht über die Host-Loopback-Bridge).
+# Für die Cross-VM Topology (Sprint-10 Tag-3+) wird HOST_BUNDLE_BIND
+# stattdessen 0.0.0.0 — siehe PARTNER_VM_BRING_UP_RECIPE.md §5.
 sudo sed -e 's/<SIDE>/partner/g' \
     -e 's/<HOST_BUNDLE_PORT>/8444/g' \
     -e 's/<HOST_GRPC_PORT>/8083/g' \
+    -e 's|<HOST_BUNDLE_BIND>|127.0.0.1|g' \
     /opt/wakir-runtime/infra/spire/federation/quadlet/wakir-spire-server-federation.container \
     | sudo tee /etc/containers/systemd/wakir-spire-server-federation-partner.container
 

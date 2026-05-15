@@ -33,7 +33,7 @@ substrate is the live impl those Protocols target in Phase-2c+.
 | `bin/spire-fed-metrics` | Federation Prometheus-text-format metrics surface (Tag-4). |
 | `bin/spire_fed_metrics.py` | Metrics-server module (import target for tests). |
 | `IMAGE_PINS.md` | Cosign-Digest-Pin resolution index (Tag-4). |
-| `quadlet/wakir-spire-server-federation.container` | Quadlet template (placeholders for `<SIDE>`, `<HOST_BUNDLE_PORT>`, `<HOST_GRPC_PORT>`). |
+| `quadlet/wakir-spire-server-federation.container` | Quadlet template (placeholders for `<SIDE>`, `<HOST_BUNDLE_PORT>`, `<HOST_GRPC_PORT>`, `<HOST_BUNDLE_BIND>` — last one parametrises bundle-endpoint host bind per Sprint-10 Tag-3 for Cross-VM federation). |
 | `quadlet/wakir-federation.network` | Quadlet bridge-network sidecar. |
 | `quadlet/wakir-spire-server-federation-{data,sockets,bundles}.volume` | Quadlet named-volume sidecars (per-side via placeholder). |
 | `tests/test_federation_compose.py` | Hermetic compose-shape + config-shape invariants. |
@@ -49,7 +49,7 @@ substrate is the live impl those Protocols target in Phase-2c+.
 Two SPIRE-Server containers on a dedicated `wakir-federation` bridge
 network (isolated from the Sprint-6 `wakir-orchestrator` network). Each
 server's bundle-endpoint listener binds container port `8443`. Host
-loopback port-publish:
+port-publish (hermetic same-host topology):
 
 | Side | Bundle-endpoint (host) | gRPC API (host) | Container |
 |---|---|---|---|
@@ -60,6 +60,15 @@ The two containers reach each other over the bridge network's internal
 DNS (`spire-server-wakir`, `spire-server-partner`), NOT over the host's
 loopback. Host port-publish is loopback-only and exists for operator
 introspection during bring-up.
+
+**Sprint-10 Tag-3 Cross-VM federation extension:** for a Pilot-VM
+running in `WAKIR_PILOT_MODE=federation` (Cross-VM M-3 Live-Trial),
+the Quadlet bundle-endpoint publishes on `0.0.0.0:8443` instead of
+`127.0.0.1:8443` so a peer VM can fetch the bundle. The gRPC API
+(`127.0.0.1:8082`) stays loopback-only in BOTH modes — security
+invariant. See `PARTNER_VM_BRING_UP_RECIPE.md` §5 for the exact
+bootstrap-env-var sequence (`WAKIR_PILOT_MODE=federation`,
+`WAKIR_PEER_SIDE`, `WAKIR_PEER_HOST`).
 
 ## 2. Bring-up (Operator-Hand, NOT auto from sandbox)
 

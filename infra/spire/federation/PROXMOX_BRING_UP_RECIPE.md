@@ -310,9 +310,13 @@ ls /etc/containers/systemd/
 
 ```bash
 # Per-Side-Substitution: wakir.test bekommt host-port 8443 + 8082.
+# Sprint-10 Tag-3: <HOST_BUNDLE_BIND> = 127.0.0.1 (single-org Phase-
+# 1b pilot, loopback-only). Federation-Mode (Cross-VM Trial) siehe
+# PARTNER_VM_BRING_UP_RECIPE.md §5 (HOST_BUNDLE_BIND=0.0.0.0 dort).
 sed -e 's/<SIDE>/wakir/g' \
     -e 's/<HOST_BUNDLE_PORT>/8443/g' \
     -e 's/<HOST_GRPC_PORT>/8082/g' \
+    -e 's|<HOST_BUNDLE_BIND>|127.0.0.1|g' \
     /opt/wakir-runtime/infra/spire/federation/quadlet/wakir-spire-server-federation.container \
   | sudo tee /etc/containers/systemd/wakir-spire-server-federation-wakir.container >/dev/null
 
