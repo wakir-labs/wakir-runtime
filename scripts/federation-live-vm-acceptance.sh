@@ -3,6 +3,8 @@
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
 # Phase-2 Sprint-10 Tag-6 — Federation Live-VM Acceptance Lane.
+# Sprint-10 Tag-8 Bug-38 substance-fix applied (service-naming +
+# smoke-fed-gate activation).
 #
 # **Why this script exists.**
 #
@@ -129,14 +131,39 @@ log "Phase 1: bootstrap-re-run PASS"
 
 log "Phase 2: verifying SPIRE-Server federation-mode active"
 
-# (a) Quadlet unit is loaded + active.
-if ! systemctl is-active --quiet wakir-spire-server.service; then
-  systemctl status wakir-spire-server.service >&2 || true
-  fail "wakir-spire-server.service is not active" 3
-fi
-log "  - wakir-spire-server.service: active"
+# Sprint-10 Tag-8 Bug-38 substance-fix: in federation-mode the Quadlet
+# unit names are side-suffixed (one SPIRE-Server-federation per side).
+# The Tag-6 acceptance script hard-coded the single-org base names
+# ``wakir-spire-server.service`` / ``wakir-spire-agent.service``, which
+# do not exist in federation-mode. The smoke CLI already uses the
+# side-suffixed shape (bin/proxmox-bringup-smoke L325/326), so this
+# script aligns with that convention:
+#
+#   server: wakir-spire-server-federation-${WAKIR_SIDE}.service
+#   agent:  wakir-spire-agent-${WAKIR_SIDE}.service
+#
+# WAKIR_SIDE defaults to "orbit" at the top of this file; the operator
+# overrides via env-var for the wakir-side run.
 
-# (b) Bundle-endpoint listener bound on 0.0.0.0:8443 (federation-mode
+server_unit="wakir-spire-server-federation-${WAKIR_SIDE}.service"
+agent_unit="wakir-spire-agent-${WAKIR_SIDE}.service"
+
+# (a) Quadlet server-unit is loaded + active.
+if ! systemctl is-active --quiet "$server_unit"; then
+  systemctl status "$server_unit" >&2 || true
+  fail "$server_unit is not active" 3
+fi
+log "  - ${server_unit}: active"
+
+# (b) Quadlet agent-unit is loaded + active (Bug-37 substance acceptance:
+#     the agent must not restart-loop on join-token misconfiguration).
+if ! systemctl is-active --quiet "$agent_unit"; then
+  systemctl status "$agent_unit" >&2 || true
+  fail "$agent_unit is not active" 3
+fi
+log "  - ${agent_unit}: active"
+
+# (c) Bundle-endpoint listener bound on 0.0.0.0:8443 (federation-mode
 #     requires cross-VM reachability, not loopback).
 if ! ss -tnlp 2>/dev/null | grep -q ':8443'; then
   ss -tnlp >&2 || true
@@ -144,17 +171,17 @@ if ! ss -tnlp 2>/dev/null | grep -q ':8443'; then
 fi
 log "  - bundle-endpoint listener: bound on :8443"
 
-# (c) SPIRE-Server log shows no `malformed configuration` error
+# (d) SPIRE-Server log shows no `malformed configuration` error
 #     (Bug-30/31/32 surfaced as that exact error string in Tag-5 M-3
 #     Live-Trial).
-if journalctl -u wakir-spire-server.service --since '5 minutes ago' 2>/dev/null \
+if journalctl -u "$server_unit" --since '5 minutes ago' 2>/dev/null \
    | grep -qi 'malformed configuration'; then
-  journalctl -u wakir-spire-server.service --since '5 minutes ago' | tail -30 >&2
+  journalctl -u "$server_unit" --since '5 minutes ago' | tail -30 >&2
   fail "SPIRE-Server log contains 'malformed configuration' — Bug-30/31/32 regression" 3
 fi
 log "  - SPIRE-Server log: no 'malformed configuration' (Bug-30..32 clean)"
 
-# (d) federates_with peer reachable on TCP 8443 (the cross-VM
+# (e) federates_with peer reachable on TCP 8443 (the cross-VM
 #     reachability part — does NOT validate the SPIFFE handshake, just
 #     that the peer is up. Full bundle-fetch handshake is verified by
 #     the smoke-test below).
@@ -166,12 +193,25 @@ fi
 
 # --- Phase 3: smoke-test ---------------------------------------------------
 
-log "Phase 3: running proxmox-bringup-smoke (federation-mode)"
+# Sprint-10 Tag-8 Bug-38 substance-fix: activate the federation-bundle-
+# sync + cross-trust-domain-verify checks. The smoke CLI gates them on
+# WAKIR_FEDERATION_MODE=enabled AND --peer-side. The Tag-6 acceptance
+# script set neither, so the two Sprint-10 Tag-1 substance checks
+# always SKIPped — which defeated the whole point of running the smoke
+# inside a federation-mode acceptance lane. Pass both explicitly:
+#
+#   - WAKIR_FEDERATION_MODE=enabled  (env, gate for the two checks)
+#   - --peer-side ${WAKIR_PEER_SIDE} (CLI, peer-side trust-domain)
+
+log "Phase 3: running proxmox-bringup-smoke (federation-mode, peer-side=${WAKIR_PEER_SIDE})"
 smoke_log="$(mktemp -t fed-live-vm-smoke.XXXXXX.log)"
 set +e
-sudo -u wakir "${WAKIR_REPO_ROOT}/bin/proxmox-bringup-smoke" \
-  --org acme \
-  --side "$WAKIR_SIDE" \
+sudo -u wakir \
+  WAKIR_FEDERATION_MODE=enabled \
+  "${WAKIR_REPO_ROOT}/bin/proxmox-bringup-smoke" \
+    --org acme \
+    --side "$WAKIR_SIDE" \
+    --peer-side "$WAKIR_PEER_SIDE" \
   >"$smoke_log" 2>&1
 rc=$?
 set -e
@@ -195,6 +235,9 @@ log "Bug-30 (named-block-syntax) regression-tested: clean"
 log "Bug-31 (profile-flat-attribute) regression-tested: clean"
 log "Bug-32 (federates_with-placement) regression-tested: clean"
 log "Bug-33 (bootstrap-skip-cosign-resolver) regression-tested: clean"
+log "Bug-36 (resolver-skip-cosign-mode-lücke) regression-tested: clean"
+log "Bug-37 (agent-join-token config-coherency) regression-tested: clean (agent unit active)"
+log "Bug-38 (acceptance-script service-naming + smoke-fed-gate) regression-tested: clean"
 log ""
 log "Logs:"
 log "  bootstrap: $bootstrap_log"

@@ -1884,7 +1884,22 @@ step_8_smoke() {
   # pre-PR-53 default smoke behaviour so existing single-VM (pilot)
   # smoke continues to work unchanged.
   local side="${WAKIR_SIDE:-wakir}"
-  log_step 8 "$TOTAL_STEPS" "Smoke-Test (proxmox-bringup-smoke --org ${WAKIR_ORG_ID} --side ${side})"
+  # Sprint-10-Tag-8 Bug-38 fix: in federation-mode the smoke CLI's two
+  # Sprint-10-Tag-1 substance checks (federation-bundle-sync-reachable +
+  # federation-cross-trust-domain-verify) are gated on
+  # WAKIR_FEDERATION_MODE=enabled AND --peer-side. The bootstrap KNOWS
+  # both pieces here (mode=federation + WAKIR_PEER_SIDE), so wire them
+  # through automatically. In single-org-mode the smoke runs unchanged
+  # (no peer-side, no env-var, both gates stay SKIP).
+  local smoke_args=(--org "$WAKIR_ORG_ID" --side "$side")
+  local smoke_env=()
+  if [[ "$WAKIR_PILOT_MODE" == "federation" && -n "${WAKIR_PEER_SIDE:-}" ]]; then
+    smoke_args+=(--peer-side "$WAKIR_PEER_SIDE")
+    smoke_env+=(WAKIR_FEDERATION_MODE=enabled)
+    log_step 8 "$TOTAL_STEPS" "Smoke-Test (proxmox-bringup-smoke --org ${WAKIR_ORG_ID} --side ${side} --peer-side ${WAKIR_PEER_SIDE}; WAKIR_FEDERATION_MODE=enabled)"
+  else
+    log_step 8 "$TOTAL_STEPS" "Smoke-Test (proxmox-bringup-smoke --org ${WAKIR_ORG_ID} --side ${side})"
+  fi
 
   local smoke="${WAKIR_BOOTSTRAP_SMOKE:-${WAKIR_REPO_ROOT}/bin/proxmox-bringup-smoke}"
   if [[ ! -x "$smoke" ]]; then
@@ -1892,8 +1907,8 @@ step_8_smoke() {
     return 2
   fi
 
-  if "$smoke" --org "$WAKIR_ORG_ID" --side "$side"; then
-    log_ok "smoke: 6/6 checks PASS"
+  if env "${smoke_env[@]}" "$smoke" "${smoke_args[@]}"; then
+    log_ok "smoke: all checks PASS"
     return 0
   fi
   log_err "smoke: at least one check FAIL"
