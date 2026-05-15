@@ -181,8 +181,24 @@ def test_bucket_provisioner_module_imports_crypto_free() -> None:
     )
     assert rc == 0, f"child exited {rc}: stderr={err}"
     assert "crypto_loaded False" in out, out
-    # Both families (marker-stack + sequence-ledger) must be present.
-    assert "bucket_families 2" in out, out
+    # The bucket-provisioner driver carries a registered-families list
+    # whose minimum populated set (under the wakir-provisioner image
+    # wheel set: nats-py only) is the marker-stack + sequence-ledger
+    # families. The Sprint-Pengine-7 Tag-5 OI-PILOT-2 persona-state
+    # family is appended IFF its constants-only-import variant
+    # (``wirelang.persona.persona_state_kv_constants``) is resolvable
+    # WITHOUT pulling rfc8785 / cryptography. The full
+    # ``wirelang.persona.persona_state_kv`` module triggers
+    # ``wirelang.persona.__init__`` → ``persona_hash`` → ``rfc8785`` and
+    # therefore defensively short-circuits to family-count 2 on the
+    # wakir-provisioner image (the persona-state-pair flag silently no-
+    # ops). The follow-up Zone-B disentanglement (Reza-Dev-Engineering-2,
+    # Sprint-Pengine-7 Tag-5 cross-pair) lands a constants-only module
+    # and re-asserts ``bucket_families 3`` from that PR onwards.
+    assert "bucket_families " in out, out
+    family_count = int(out.split("bucket_families ")[1].split()[0])
+    assert family_count >= 2, f"bucket_families unexpectedly low: {family_count}; out={out!r}"
+    assert family_count <= 3, f"bucket_families unexpectedly high: {family_count}; out={out!r}"
     assert "prefix wakir-marker-stack-" in out, out
 
 

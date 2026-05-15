@@ -65,7 +65,10 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# Canonical set of Quadlet units in this repo as of Sprint-9-Tag-8.
+# Canonical set of Quadlet units in this repo as of Sprint-9-Tag-8,
+# extended for Sprint-Pengine-7 Tag-5 OI-PILOT-1 + OI-PILOT-4 to add
+# the Tomás-Persona pilot container and the recovery-drill WAT-anchor
+# oneshot.
 # The discovery glob below is the source of truth; this list is the
 # expected-set against which discovery is sanity-checked so a future
 # refactor that moves files breaks loudly rather than silently.
@@ -74,6 +77,8 @@ EXPECTED_QUADLET_FILES = {
     "quadlet/wakir-spire-agent.container",
     "quadlet/wakir-nats.container",
     "quadlet/wakir-nats-kv-bucket-init.container",
+    "quadlet/wakir-persona-tomas.container",
+    "quadlet/wakir-recovery-drill-anchor.container",
     "infra/spire/federation/quadlet/wakir-spire-server-federation.container",
     "infra/spire/agent/quadlet/wakir-spire-agent-federation.container",
 }

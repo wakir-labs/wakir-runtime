@@ -1,0 +1,209 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-Pengine-7 Tag-5 — OI-PILOT-1 Quadlet unit for the
+# Tomás-Persona pilot container (ADR-0058 Pilot-Persona-Migrations-
+# Plan, Schritt 9 — wakir-runtime-Persona-Spawn).
+#
+# Tomás is the first persona to migrate to the wakir-runtime
+# substrate per ADR-0058 (approved 2026-05-13). The pilot phase runs
+# this container in DOUBLE-SHADOW mode alongside the Pre-Framework
+# Tomás-spawn: Pre-Framework drives production engineering traffic,
+# this Quadlet drives a shadow spawn that participates in the
+# Migration-Playbook §5 comparison-test-set. Cutover happens after
+# 6 weeks of Doppelbetrieb if the four-axis acceptance criteria
+# stabilise (ADR-0058 §"Phase 4 Cutover-Entscheidung").
+#
+# Pre-conditions on the Pilot-VM:
+#
+#   - wakir-nats.service             (Phase-1b substrate)
+#   - wakir-spire-server.service     (Phase-2.1)
+#   - wakir-spire-agent.service      (Phase-2.2; provides Workload-API
+#                                    socket at
+#                                    /run/spire/agent-sockets/api.sock)
+#   - wakir-nats-kv-bucket-init.service  (Phase-2 Sprint-9 Tag-1 +
+#                                    Sprint-Pengine-7 Tag-5 OI-PILOT-2:
+#                                    must have provisioned the
+#                                    persona-state bucket
+#                                    wakir-persona-state-acme-tomas
+#                                    via --persona-state-pair acme-tomas)
+#
+# Operator install path (rootful Podman):
+#
+#   sudo install -m 644 quadlet/wakir-persona-tomas.container \
+#       /etc/containers/systemd/wakir-persona-tomas.container
+#   # The persona-state bucket pair is operator-managed; the
+#   # bucket-init service expects /etc/wakir/persona-state-pairs
+#   # to carry one combined token per line:
+#   sudo install -d -m 755 /etc/wakir
+#   printf 'acme-tomas\n' | sudo tee /etc/wakir/persona-state-pairs
+#   #
+#   sudo systemctl daemon-reload
+#   sudo systemctl start wakir-persona-tomas.service
+#
+# Verification (hermetic-by-default — no live-smoke from sandbox;
+# live verification is operator-hand per ADR-0051 Mira-Sandbox-vs-
+# Host-Operations-Trennung):
+#
+#   systemctl status wakir-persona-tomas.service
+#   podman healthcheck run wakir-persona-tomas
+#   podman logs --tail 20 wakir-persona-tomas
+#
+# Tear-down:
+#
+#   sudo systemctl stop wakir-persona-tomas.service
+#   # Persona-state bucket persists on the cluster (audit-trail
+#   # invariant). To purge the spawn-session state-pack:
+#   nats kv del wakir-persona-state-acme-tomas state-pack/current
+#
+# Image-Pin form (Cosign-Digest-Pin Pfad B): placeholder token
+# ``DIGEST_PENDING_KAI_CROSS_REVIEW`` is resolved by Operator-Hand
+# before live bring-up. The persona-engine container image is built
+# from the wakir-runtime persona-engine source tree (Selin Sprint-
+# Pengine-7 Tag-1-4 substrate) and is digest-pinned via the same
+# Cross-Review Zone-C workflow as the SPIRE-Server / SPIRE-Agent
+# digests. The image is sourced from the
+# ``ghcr.io/wakir-labs/wakir-persona-engine`` repository; the tag
+# ``0.1.0-pilot`` is the first Tomás-pilot release.
+
+[Unit]
+Description=Wakir Sprint-Pengine-7 Tag-5 Tomás-Persona pilot container (Quadlet OI-PILOT-1)
+Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/docs/migration-pilot-validation-phase-setup.md
+After=network-online.target wakir-nats.service wakir-spire-agent.service wakir-nats-kv-bucket-init.service
+Wants=network-online.target
+Requires=wakir-nats.service wakir-spire-agent.service
+
+[Container]
+# Container identity. The container name carries the persona-id
+# suffix so multi-persona deployments on the same host do not
+# collide on the Podman container-name-space.
+ContainerName=wakir-persona-tomas
+
+# Image pin: placeholder for Cross-Review Zone-J digest resolution
+# (Kai-side container-bridge ownership). The tag-form below is the
+# canonical Sprint-Pengine-7 Tag-5 pilot release; the @sha256
+# digest is resolved Operator-Hand before live bring-up.
+Image=ghcr.io/wakir-labs/wakir-persona-engine:0.1.0-pilot@sha256:DIGEST_PENDING_KAI_CROSS_REVIEW
+
+# Command-line arguments — invokes the persona-engine entrypoint
+# with the Tomás persona slug and the pilot-phase mode (which
+# anchors the Doppelbetrieb-shadow semantics). Both arguments are
+# documented in the persona-engine CLI manpage (Selin Sprint-
+# Pengine-7 Tag-1 `wirelang/specs/persona-engine-format-spec.md`
+# §"CLI invocation contract").
+Exec=spawn --persona-slug tomas --pilot-phase doppelbetrieb-shadow
+
+# Read-only root filesystem. The persona-engine writes only to
+# the bind-mounted state-pack path and to the tmpfs scratch area.
+ReadOnly=true
+
+# Run as non-root uid:gid (parity with SPIRE-Agent + NATS).
+User=1000
+Group=1000
+
+# Bind-mounts and named volumes.
+#
+# 1) Persona definition (read-only). The .claude/agents/tomas.md
+#    source is the persona-definition single source of truth
+#    (Aisha-HR-Governance-Owner-Domain). The persona-engine reads
+#    this file at spawn-time and computes the V-907 pin-hash
+#    against it. The file is bind-mounted into the container at
+#    a stable path.
+Volume=/opt/wakir-runtime/.claude/agents/tomas.md:/etc/wakir/persona/tomas.md:ro,Z
+#
+# 2) Wakir persona-JSON (read-only). The .claude/agents/tomas.md
+#    is the axis-A source; the persona-engine Tag-1 converter
+#    (Selin Sprint-Pengine-7 Tag-1 Crate-8 ``persona-engine-format``)
+#    emits the axis-C wakir.persona/<slug>.json canonical form. This
+#    is the form the persona-engine consumes inside the container
+#    for the spawn-time configuration (capability-token-id,
+#    audit-policy, state-persistence-config).
+Volume=/opt/wakir-runtime/wakir-persona/tomas.json:/etc/wakir/persona/tomas.json:ro,Z
+#
+# 3) SPIRE-Workload-API socket. The persona-engine consumes the
+#    Tomás SVID via the SPIFFE Workload API; the SPIRE-Agent
+#    sidecar serves the socket on the dedicated agent-sockets
+#    volume at /run/spire/agent-sockets/api.sock.
+Volume=wakir-spire-agent-sockets.volume:/run/spire/agent-sockets:ro,Z,U
+#
+# 4) Persona workspace data (writable). The persona-engine keeps
+#    the spawn-session conversation tail + the task-archive
+#    journal here. Named volume sidecar so an operator-driven
+#    re-create does not destroy the audit-trail substrate.
+#
+# Sprint-9-Tag-8 Bug-20 substance-fix: :Z SELinux-relabel-private
+# is mandatory on FCOS-enforced hosts; :U remaps named-volume
+# ownership to the container's uid:1000 (same fix shape as the
+# SPIRE-Agent + NATS named volumes). Both flags are required.
+Volume=wakir-persona-tomas-workspace.volume:/var/lib/wakir/persona/tomas:Z,U
+
+# tmpfs for ephemeral persona-engine runtime scratch (V-907 hash
+# recomputation, conversion-byproducts). Keeps the root filesystem
+# strictly read-only.
+Tmpfs=/run/wakir:rw,size=16m,mode=0700
+Tmpfs=/tmp:rw,size=16m,mode=0700
+
+# User-defined bridge network shared with the NATS substrate, the
+# SPIRE-Agent sidecar, and the bucket-init oneshot. The persona-
+# engine reaches NATS at ``nats://wakir-nats:4222`` via container
+# DNS.
+Network=wakir-orchestrator.network
+
+# Container-init hardening (parity with sibling Quadlets).
+DropCapability=ALL
+NoNewPrivileges=true
+
+# Resource envelope. The persona-engine is CPU-light at idle (it
+# spends most of its time waiting on Wirelang inbox messages) but
+# can spike during conversion + canonical-form recomputation. The
+# envelope below mirrors the SPIRE-Agent sidecar at 0.5 CPU /
+# 256MB; OI-PILOT-1 Tomás-Pilot scope is single-persona, single-
+# concurrent-spawn-session.
+PodmanArgs=--cpus=0.5 --memory=256m
+
+# Environment: persona-engine consumes the canonical SPIFFE-
+# Workload-API socket address + the NATS server URL via env vars
+# documented in the persona-engine entrypoint contract
+# (wirelang/specs/persona-engine-format-spec.md §"Env var contract").
+Environment=SPIFFE_ENDPOINT_SOCKET=unix:///run/spire/agent-sockets/api.sock
+Environment=WAKIR_NATS_SERVERS=nats://wakir-nats:4222
+# Persona-state bucket name; mirrors ADR-0058 §"Persona-Engine-
+# Format-Specs" ``state_persistence_config.nats_kv_bucket``. The
+# bucket is OI-PILOT-2-provisioned by ``wakir-nats-kv-bucket-init.
+# service`` ahead of this service starting.
+Environment=WAKIR_PERSONA_STATE_BUCKET=wakir-persona-state-acme-tomas
+# Persona-id + org-id duo for the spawn-time identity rebind step
+# (Tag-4 §3.7.4.2 R3); the persona-engine refreshes the SVID via
+# the workload-API and checks the resolved SPIFFE-ID against this
+# expected identity at spawn-time.
+Environment=WAKIR_PERSONA_ID=tomas
+Environment=WAKIR_ORG_ID=acme
+
+# Optional Infisical-injected env (e.g. NATS-token on Phase-1b
+# token-auth clusters). Empty file on Phase-2 SPIFFE-JWT-auth.
+EnvironmentFile=/etc/wakir/persona-tomas.env
+
+# Health probe — the persona-engine ships a ``healthcheck``
+# subcommand that returns exit 0 when the spawn-session is in the
+# ``running`` lifecycle state (Tag-3 §3.7.2.4 spawn-state-machine).
+HealthCmd=/opt/wakir/bin/persona-engine healthcheck
+HealthInterval=15s
+HealthTimeout=5s
+HealthRetries=5
+HealthStartPeriod=45s
+
+[Service]
+# Restart policy: parity with sibling Quadlets.
+# Sprint-Pengine-7 Tag-4 §3.7.4.2 R4 (resume operation) maps the
+# Quadlet ``OnFailure=`` hook to the recovery-workflow trigger.
+# The ``Restart=on-failure`` policy ensures systemd re-spawns the
+# container after a recovery-drill phase R4 completes successfully;
+# a hard-cap-exceeded drill (``RecoveryBudgetExceededError``,
+# Tag-4 §3.7.4.5) leaves the unit in a failed state for the
+# operator to inspect.
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=120s
+
+[Install]
+WantedBy=multi-user.target default.target

@@ -1,0 +1,136 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-2 Sprint-Pengine-7 Tag-5 — OI-PILOT-4 + Cross-Pair Reza
+# OI-PEF-11 — One-shot Quadlet unit that anchors unanchored
+# recovery_drill_outcome envelopes from the persona-state
+# NATS-KV bucket to the WAT spool.
+#
+# Triggered periodically by ``wakir-recovery-drill-anchor.timer``
+# (default: every 15 minutes during pilot phase). Idempotent on
+# already-anchored envelopes (re-run is a no-op skip).
+#
+# Pre-conditions on the Pilot-VM:
+#
+#   - wakir-nats.service             (Phase-1b substrate)
+#   - wakir-nats-kv-bucket-init.service  (provisions the
+#                                    persona-state bucket via
+#                                    --persona-state-pair)
+#   - WAT-spool target directory     (operator-managed, default
+#                                    /var/lib/wakir/spool)
+#   - Pre-Framework activity-log.md  (operator-managed, default
+#                                    /var/home/fred/AI-Corp/activity-log.md)
+#
+# Operator install path (rootful Podman):
+#
+#   sudo install -m 644 quadlet/wakir-recovery-drill-anchor.container \
+#       /etc/containers/systemd/wakir-recovery-drill-anchor.container
+#   sudo install -m 644 quadlet/wakir-recovery-drill-anchor.timer \
+#       /etc/systemd/system/wakir-recovery-drill-anchor.timer
+#   #
+#   # Bucket-name + paths env file:
+#   cat <<'ENV' | sudo tee /etc/wakir/recovery-drill-anchor.env
+#   WAKIR_PERSONA_STATE_BUCKET=wakir-persona-state-acme-tomas
+#   WAKIR_WAT_SPOOL_ROOT=/var/lib/wakir/spool
+#   WAKIR_ACTIVITY_LOG_PATH=/var/home/fred/AI-Corp/activity-log.md
+#   ENV
+#   sudo chmod 644 /etc/wakir/recovery-drill-anchor.env
+#   #
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now wakir-recovery-drill-anchor.timer
+#
+# Verification (hermetic-by-default; live verification operator-
+# hand per ADR-0051):
+#
+#   systemctl status wakir-recovery-drill-anchor.timer
+#   systemctl list-timers wakir-recovery-drill-anchor.timer
+#   journalctl -u wakir-recovery-drill-anchor.service --since '15 min ago'
+#
+# Tear-down:
+#
+#   sudo systemctl stop wakir-recovery-drill-anchor.timer
+#   sudo systemctl disable wakir-recovery-drill-anchor.timer
+#
+# Image-Pin form (Cosign-Digest-Pin Pfad B): the anchor driver
+# runs inside the dedicated ``ghcr.io/wakir-labs/wakir-provisioner``
+# image (Sprint-9 Tag-4 BSL-1.1, re-used because it carries the
+# same Python wheel set the anchor driver needs: nats-py +
+# cryptography for the WAT bridge-audit-writer). The placeholder
+# token ``DIGEST_PENDING_REZA_CROSS_REVIEW`` is the OI-PEF-11
+# Cross-Pair anchor: Reza is the WAT-anchoring owner and reviews
+# the digest pin before live bring-up.
+
+[Unit]
+Description=Wakir Sprint-Pengine-7 Tag-5 recovery-drill WAT-anchor oneshot (Quadlet OI-PILOT-4)
+Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/wirelang/persona/recovery_drill_anchor.py
+After=network-online.target wakir-nats.service
+Wants=network-online.target
+Requires=wakir-nats.service
+
+[Container]
+ContainerName=wakir-recovery-drill-anchor
+
+# Image pin: re-use the wakir-provisioner image (Sprint-9 Tag-4)
+# because it ships the wheel set the driver needs (nats-py +
+# cryptography for the WAT bridge-audit-writer's hash chain).
+# The placeholder token is resolved Operator-Hand under
+# Cross-Review Zone-L with Reza (OI-PEF-11 WAT-anchoring owner).
+Image=ghcr.io/wakir-labs/wakir-provisioner:0.1.2@sha256:DIGEST_PENDING_REZA_CROSS_REVIEW
+
+# Exec invokes the anchor driver against the operator-supplied
+# bucket + spool + activity-log paths sourced from the env file.
+Exec=/opt/wakir/bin/wakir-recovery-drill-anchor \
+  --bucket ${WAKIR_PERSONA_STATE_BUCKET} \
+  --servers nats://wakir-nats:4222 \
+  --spool-root ${WAKIR_WAT_SPOOL_ROOT} \
+  --activity-log ${WAKIR_ACTIVITY_LOG_PATH}
+
+# Bind-mount the repo + bin (read-only). Same posture as the
+# bucket-init oneshot.
+Volume=/opt/wakir-runtime:/opt/wakir-runtime:ro,Z
+Volume=/opt/wakir-runtime/bin:/opt/wakir/bin:ro,Z
+
+# Bind-mount the WAT spool + activity-log (writable). The driver
+# is the only writer for the spool sub-directories it touches;
+# concurrent writers are operator-discipline-managed.
+Volume=/var/lib/wakir/spool:/var/lib/wakir/spool:Z
+Volume=/var/home/fred/AI-Corp/activity-log.md:/var/home/fred/AI-Corp/activity-log.md:Z
+
+# Working directory: the repo root, so the driver can resolve
+# the ``wat.anchor.bridge_audit_writer`` import.
+WorkingDir=/opt/wakir-runtime
+
+# Environment: bucket + paths from the operator-managed env file.
+EnvironmentFile=/etc/wakir/recovery-drill-anchor.env
+Environment=PYTHONPATH=/opt/wakir-runtime
+Environment=PYTHONDONTWRITEBYTECODE=1
+
+# Shared bridge network with wakir-nats.
+Network=wakir-orchestrator.network
+
+# Container-init hardening (parity with sibling Quadlet units).
+ReadOnly=true
+DropCapability=ALL
+NoNewPrivileges=true
+User=1000
+Group=1000
+
+# tmpfs for asyncio runtime scratch.
+Tmpfs=/tmp:rw,size=16m,mode=0700
+
+# Resource envelope.
+PodmanArgs=--cpus=0.5 --memory=256m
+
+[Service]
+# One-shot: the timer triggers a fresh run each tick. No
+# restart-on-success.
+Type=oneshot
+RemainAfterExit=no
+Restart=on-failure
+RestartSec=30s
+TimeoutStartSec=300s
+
+[Install]
+# The container itself is NOT enabled directly; the .timer
+# sidecar activates it on a schedule.
+WantedBy=multi-user.target default.target

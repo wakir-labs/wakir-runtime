@@ -273,6 +273,33 @@ except ImportError:  # pragma: no cover - fall back to full module
         _sequence_ledger_bucket_name_for_org = None  # type: ignore[assignment]
         _HAS_SEQUENCE_LEDGER_FAMILY = False
 
+# The Sprint-Pengine-7 Tag-5 module is the canonical owner of the
+# persona-state bucket family (OI-PILOT-2, Selin-owned domain).
+# Same constants-only-import posture as the federation families:
+# the bucket-config + the name derivation come from a single source
+# of truth on the Persona-Engine side. Defensive try-chain in case
+# the Selin-side module is absent on a non-bundle deployment.
+try:  # pragma: no cover - constants-only probe
+    from wirelang.persona.persona_state_kv_constants import (  # noqa: E402
+        BUCKET_CONFIG as PERSONA_STATE_BUCKET_CONFIG,
+        BUCKET_NAME_PREFIX as PERSONA_STATE_BUCKET_NAME_PREFIX,
+        bucket_name_for_org as _persona_state_bucket_name_for_org,
+    )
+    _HAS_PERSONA_STATE_FAMILY = True
+except ImportError:  # pragma: no cover - fall back to full module
+    try:
+        from wirelang.persona.persona_state_kv import (  # noqa: E402
+            BUCKET_CONFIG as PERSONA_STATE_BUCKET_CONFIG,
+            BUCKET_NAME_PREFIX as PERSONA_STATE_BUCKET_NAME_PREFIX,
+            bucket_name_for_org as _persona_state_bucket_name_for_org,
+        )
+        _HAS_PERSONA_STATE_FAMILY = True
+    except ImportError:
+        PERSONA_STATE_BUCKET_CONFIG = None  # type: ignore[assignment]
+        PERSONA_STATE_BUCKET_NAME_PREFIX = None  # type: ignore[assignment]
+        _persona_state_bucket_name_for_org = None  # type: ignore[assignment]
+        _HAS_PERSONA_STATE_FAMILY = False
+
 
 # ---------------------------------------------------------------------------
 # Bucket-family registry
@@ -300,7 +327,12 @@ def _registered_families() -> List[BucketFamily]:
 
     Order is deterministic: marker-stack first (Sprint-8 Tag-4
     legacy alphabetical anchor), sequence-ledger second when
-    available (Sprint-9 Tag-2 paired-update).
+    available (Sprint-9 Tag-2 paired-update), persona-state third
+    when available (Sprint-Pengine-7 Tag-5 OI-PILOT-2 paired-
+    update). The persona-state family treats its driver-side
+    identifier as the combined ``"<org_id>-<persona_id>"`` token;
+    callers feed one such token per persona-per-org pair into the
+    ``--org``-flag iteration shape.
     """
     families: List[BucketFamily] = [
         BucketFamily(
@@ -317,6 +349,15 @@ def _registered_families() -> List[BucketFamily]:
                 bucket_name_prefix=SEQUENCE_LEDGER_BUCKET_NAME_PREFIX,
                 bucket_config=SEQUENCE_LEDGER_BUCKET_CONFIG,
                 bucket_name_for_org=_sequence_ledger_bucket_name_for_org,
+            )
+        )
+    if _HAS_PERSONA_STATE_FAMILY:
+        families.append(
+            BucketFamily(
+                family_id="persona-state",
+                bucket_name_prefix=PERSONA_STATE_BUCKET_NAME_PREFIX,
+                bucket_config=PERSONA_STATE_BUCKET_CONFIG,
+                bucket_name_for_org=_persona_state_bucket_name_for_org,
             )
         )
     return families
@@ -515,6 +556,7 @@ async def plan_and_apply(
     *,
     dry_run: bool,
     families: Optional[Sequence[BucketFamily]] = None,
+    persona_state_pairs: Optional[Iterable[str]] = None,
 ) -> List[BucketAction]:
     """Idempotently ensure every registered per-org bucket exists
     for every requested ``org_id``.
@@ -543,11 +585,31 @@ async def plan_and_apply(
     custom sequence is the test-friendly hook for asserting the
     multi-family fan-out shape under controlled fixtures.
 
+    ``persona_state_pairs`` (Sprint-Pengine-7 Tag-5 OI-PILOT-2):
+    an additional iterable of combined ``"<org_id>-<persona_id>"``
+    tokens that the persona-state family iterates over. The
+    persona-state family treats each token as a single identifier
+    fed to its own ``bucket_name_for_org`` shim (which validates
+    the presence of the ``-`` separator). Tokens from this
+    iterable produce actions under the ``persona-state`` family
+    ONLY — they do NOT participate in the marker-stack /
+    sequence-ledger fan-out. Order: ``persona_state_pairs`` actions
+    follow the ``org_ids`` actions in the returned list, so the
+    stable-order invariant is preserved.
+
     Returns a list of :class:`BucketAction` records in stable order:
     org_id-major (input order, de-duplicated first-occurrence-wins),
-    family-minor (registry order).
+    family-minor (registry order); persona-state-pair actions
+    appended after the org-iteration completes, in input order.
     """
     fams = list(families) if families is not None else list(BUCKET_FAMILIES)
+    # Split families into "per-org" and "per-persona-state-pair"
+    # buckets. The persona-state family is identified by its
+    # family_id; everything else is per-org. This split lets the
+    # caller feed two disjoint identifier-streams without mixing
+    # them at the call-site.
+    org_fams = [f for f in fams if f.family_id != "persona-state"]
+    persona_state_fams = [f for f in fams if f.family_id == "persona-state"]
     actions: List[BucketAction] = []
     seen_orgs: set[str] = set()
     for org_id in org_ids:
@@ -560,11 +622,16 @@ async def plan_and_apply(
         # family: if the identifier is malformed every family
         # rejects it identically, so we emit ONE error action
         # (Tag-1-shape) rather than N.
+        if not org_fams:
+            # Degenerate case: caller filtered everything out via
+            # the ``families=`` argument and only persona-state
+            # remained. Skip the org-iteration entirely.
+            break
         try:
-            # Use the marker-stack family's derivation as the
-            # canonical validator. Both registered families use
+            # Use the first per-org family's derivation as the
+            # canonical validator. Every per-org family uses
             # the same _ORG_ID_RE permitted-character pattern.
-            _ = fams[0].bucket_name_for_org(org_id)
+            _ = org_fams[0].bucket_name_for_org(org_id)
         except ValueError as exc:
             actions.append(
                 BucketAction(
@@ -576,7 +643,7 @@ async def plan_and_apply(
             )
             continue
 
-        for fam in fams:
+        for fam in org_fams:
             try:
                 spec_kwargs = spec_for_org(org_id, family=fam)
             except ValueError as exc:
@@ -690,6 +757,127 @@ async def plan_and_apply(
                         family=fam.family_id,
                     )
                 )
+
+    # Persona-state-pair iteration (Sprint-Pengine-7 Tag-5
+    # OI-PILOT-2). Disjoint from the org-iteration above; each
+    # pair token produces one action under the persona-state
+    # family. Same status-classification + idempotency contract
+    # as the per-org families.
+    if persona_state_pairs is not None and persona_state_fams:
+        seen_pairs: set[str] = set()
+        for pair_token in persona_state_pairs:
+            if pair_token in seen_pairs:
+                continue
+            seen_pairs.add(pair_token)
+            fam = persona_state_fams[0]
+            try:
+                spec_kwargs = spec_for_org(pair_token, family=fam)
+            except ValueError as exc:
+                actions.append(
+                    BucketAction(
+                        org_id=pair_token,
+                        bucket="",
+                        status="error",
+                        detail=(
+                            f"invalid persona_state_pair token: {exc}"
+                        ),
+                        family=fam.family_id,
+                    )
+                )
+                continue
+            bucket = spec_kwargs["bucket"]
+            try:
+                existing = await _safe_get_kv(js, bucket)
+            except Exception as exc:
+                actions.append(
+                    BucketAction(
+                        org_id=pair_token,
+                        bucket=bucket,
+                        status="error",
+                        detail=repr(exc),
+                        family=fam.family_id,
+                    )
+                )
+                continue
+            if existing is None:
+                if dry_run:
+                    actions.append(
+                        BucketAction(
+                            org_id=pair_token,
+                            bucket=bucket,
+                            status="would_create",
+                            detail=(
+                                f"history={spec_kwargs['history']} "
+                                f"ttl={spec_kwargs['ttl']}s "
+                                f"max_value={spec_kwargs['max_value_size']}B "
+                                f"storage={spec_kwargs['storage']} "
+                                f"replicas={spec_kwargs['replicas']}"
+                            ),
+                            family=fam.family_id,
+                        )
+                    )
+                    continue
+                try:
+                    await js.create_key_value(**spec_kwargs)
+                except Exception as exc:
+                    actions.append(
+                        BucketAction(
+                            org_id=pair_token,
+                            bucket=bucket,
+                            status="error",
+                            detail=repr(exc),
+                            family=fam.family_id,
+                        )
+                    )
+                    continue
+                actions.append(
+                    BucketAction(
+                        org_id=pair_token,
+                        bucket=bucket,
+                        status="created",
+                        detail=spec_kwargs["description"],
+                        family=fam.family_id,
+                    )
+                )
+                continue
+            try:
+                status = await _status_as_mapping(existing)
+            except Exception as exc:
+                actions.append(
+                    BucketAction(
+                        org_id=pair_token,
+                        bucket=bucket,
+                        status="error",
+                        detail=repr(exc),
+                        family=fam.family_id,
+                    )
+                )
+                continue
+            diffs = _drift_diff(status, family=fam)
+            if diffs:
+                actions.append(
+                    BucketAction(
+                        org_id=pair_token,
+                        bucket=bucket,
+                        status="drift",
+                        detail=(
+                            f"live config diverges from "
+                            f"{fam.family_id} BUCKET_CONFIG"
+                        ),
+                        drift=diffs,
+                        family=fam.family_id,
+                    )
+                )
+            else:
+                actions.append(
+                    BucketAction(
+                        org_id=pair_token,
+                        bucket=bucket,
+                        status="unchanged",
+                        detail=spec_kwargs["description"],
+                        family=fam.family_id,
+                    )
+                )
     return actions
 
 
@@ -729,6 +917,7 @@ async def _connect_and_run(
     *,
     dry_run: bool,
     token: Optional[str],
+    persona_state_pairs: Optional[Sequence[str]] = None,
 ) -> ProvisionReport:
     """Real connection path used by ``main()``; not exercised in tests.
 
@@ -740,7 +929,12 @@ async def _connect_and_run(
     nc = await nats.connect(servers, token=token)
     try:
         js = nc.jetstream()
-        actions = await plan_and_apply(js, org_ids, dry_run=dry_run)
+        actions = await plan_and_apply(
+            js,
+            org_ids,
+            dry_run=dry_run,
+            persona_state_pairs=persona_state_pairs,
+        )
     finally:
         await nc.drain()
     return ProvisionReport(servers=servers, dry_run=dry_run, actions=actions)
@@ -783,6 +977,27 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--persona-state-pair",
+        action="append",
+        default=None,
+        dest="persona_state_pairs",
+        help=(
+            "combined <org_id>-<persona_id> token for the persona-"
+            "state bucket family (repeatable); Sprint-Pengine-7 "
+            "Tag-5 OI-PILOT-2"
+        ),
+    )
+    p.add_argument(
+        "--persona-state-pairs-file",
+        type=Path,
+        default=None,
+        help=(
+            "path to a newline-delimited file of "
+            "<org_id>-<persona_id> tokens; blank/# lines ignored; "
+            "combined with --persona-state-pair flags"
+        ),
+    )
+    p.add_argument(
         "--dry-run",
         action="store_true",
         help="print the plan but do not create any bucket",
@@ -793,6 +1008,8 @@ def _build_parser() -> argparse.ArgumentParser:
 def _collect_org_ids(
     flag_orgs: Optional[Sequence[str]],
     orgs_file: Optional[Path],
+    *,
+    allow_empty: bool = False,
 ) -> List[str]:
     """Merge CLI ``--org`` flags with a roster file.
 
@@ -800,7 +1017,10 @@ def _collect_org_ids(
     (in argv order). Duplicates are de-duplicated, first-occurrence
     wins.
 
-    Raises :class:`ValueError` if no orgs are provided at all.
+    Raises :class:`ValueError` if no orgs are provided at all and
+    ``allow_empty`` is False (the Sprint-Pengine-7 Tag-5 path
+    permits an empty per-org input as long as
+    ``persona_state_pairs`` carries at least one token).
     """
     out: List[str] = []
     seen: set[str] = set()
@@ -816,10 +1036,41 @@ def _collect_org_ids(
                 continue
             seen.add(org_id)
             out.append(org_id)
-    if not out:
+    if not out and not allow_empty:
         raise ValueError(
             "no org_ids supplied; provide --org or --orgs-file"
         )
+    return out
+
+
+def _collect_persona_state_pairs(
+    flag_pairs: Optional[Sequence[str]],
+    pairs_file: Optional[Path],
+) -> List[str]:
+    """Merge ``--persona-state-pair`` flags with a roster file.
+
+    Order: file entries first (in file order), then flag entries
+    (in argv order). Duplicates are de-duplicated, first-occurrence
+    wins. Returns an empty list if no sources are provided.
+
+    Each token is the combined ``"<org_id>-<persona_id>"`` token
+    consumed by :func:`plan_and_apply`'s ``persona_state_pairs=``
+    parameter.
+    """
+    out: List[str] = []
+    seen: set[str] = set()
+    if pairs_file is not None:
+        for pair in parse_orgs_file(pairs_file):
+            if pair in seen:
+                continue
+            seen.add(pair)
+            out.append(pair)
+    if flag_pairs:
+        for pair in flag_pairs:
+            if pair in seen:
+                continue
+            seen.add(pair)
+            out.append(pair)
     return out
 
 
@@ -835,7 +1086,21 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
     try:
-        org_ids = _collect_org_ids(args.orgs, args.orgs_file)
+        persona_state_pairs = _collect_persona_state_pairs(
+            args.persona_state_pairs, args.persona_state_pairs_file
+        )
+    except (ValueError, FileNotFoundError) as exc:
+        print(
+            f"[nats-kv-bucket-provision] ERROR: {exc}",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        org_ids = _collect_org_ids(
+            args.orgs,
+            args.orgs_file,
+            allow_empty=bool(persona_state_pairs),
+        )
     except (ValueError, FileNotFoundError) as exc:
         print(
             f"[nats-kv-bucket-provision] ERROR: {exc}",
@@ -848,7 +1113,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     try:
         report = asyncio.run(
             _connect_and_run(
-                args.servers, org_ids, dry_run=args.dry_run, token=token
+                args.servers,
+                org_ids,
+                dry_run=args.dry_run,
+                token=token,
+                persona_state_pairs=persona_state_pairs,
             )
         )
     except ImportError as exc:
@@ -887,11 +1156,15 @@ __all__ = [
     "BucketFamily",
     "MARKER_STACK_BUCKET_CONFIG",
     "MARKER_STACK_BUCKET_NAME_PREFIX",
+    "PERSONA_STATE_BUCKET_CONFIG",
+    "PERSONA_STATE_BUCKET_NAME_PREFIX",
     "ProvisionReport",
     "SEQUENCE_LEDGER_BUCKET_CONFIG",
     "SEQUENCE_LEDGER_BUCKET_NAME_PREFIX",
+    "_HAS_PERSONA_STATE_FAMILY",
     "_HAS_SEQUENCE_LEDGER_FAMILY",
     "_collect_org_ids",
+    "_collect_persona_state_pairs",
     "_drift_diff",
     "bucket_name_for_org",
     "main",
