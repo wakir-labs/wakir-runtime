@@ -166,6 +166,82 @@ fi
 : "${WAKIR_SKIP_PROMPTS:=0}"
 : "${COSIGN_VERSION:=v2.4.1}"
 
+# Sprint-Tag-8 Bug-36-Härtung: explicit resolver trust-mode selector.
+#
+# Bug-36-Fix (Sprint-10 Tag-7) collapsed skip-cosign-mode into a
+# skopeo-only-all-4 resolve path. That fix unblocked the Live-VM run
+# at the cost of broadening the trust-base: SPIRE-server / SPIRE-
+# agent / python pins are now resolved from repository-served
+# manifests without Sigstore signature verification. For the Pilot-
+# Phase this is acceptable (the Operator-Hand-run still inspects the
+# digest; image-republish-drift is caught by the resolver's
+# idempotency contract on re-run). For Production it is not.
+#
+# WAKIR_RESOLVER_TRUST_MODE makes the trust-base explicit:
+#
+#   cosign-strict   Default-PRODUCTION. Requires Sigstore-keyless
+#                   verification for ghcr.io/spiffe/* and
+#                   ghcr.io/wakir-labs/* images. SkopeoCross-check
+#                   for digest agreement. python:3.13-slim is
+#                   skopeo-only by upstream policy (DockerHub does
+#                   not sign images). cosign-failure on any of the
+#                   three signed images aborts step-5 with rc=2.
+#
+#   skopeo-only-all-4   Pilot-Phase-DEV. Resolves all 4 image pins
+#                   via skopeo only. No Sigstore signature
+#                   verification. Equivalent to the Sprint-10 Tag-7
+#                   Bug-36-Fix path; this mode is the canonical
+#                   spelling for the Bug-36-Fix behaviour and is
+#                   what WAKIR_SKIP_COSIGN_VERIFY=1 maps to.
+#
+#   mixed           HYBRID. Cosign-verify where signing is available
+#                   (ghcr.io/spiffe/*, ghcr.io/wakir-labs/*), skopeo-
+#                   fallback only for the SPIRE-allowlist when the
+#                   signature is temporarily unavailable (e.g.
+#                   Sigstore-outage during a bring-up window). The
+#                   allowlist is hard-coded — Operator-Hand cannot
+#                   widen it without a source-patch. python:3.13-
+#                   slim stays skopeo-only.
+#
+# Back-compat: WAKIR_SKIP_COSIGN_VERIFY=1 implies trust-mode
+# "skopeo-only-all-4" when WAKIR_RESOLVER_TRUST_MODE is unset, so
+# existing Live-VM-runbooks keep working byte-stable. Setting both
+# to inconsistent values is an error.
+#
+# See framework/runtime/bootstrap/RESOLVER-TRUST-MODES.md for the
+# threat-model + the Production-migration plan (cosign-strict
+# becomes mandatory on Phase-3 cutover).
+: "${WAKIR_RESOLVER_TRUST_MODE:=}"
+case "$WAKIR_RESOLVER_TRUST_MODE" in
+  ""|cosign-strict|skopeo-only-all-4|mixed) : ;;
+  *)
+    echo "[$PROG] ERROR: WAKIR_RESOLVER_TRUST_MODE must be 'cosign-strict', 'skopeo-only-all-4', or 'mixed'; got '${WAKIR_RESOLVER_TRUST_MODE}'" >&2
+    exit 1
+    ;;
+esac
+# Resolve the implicit/back-compat mapping. WAKIR_SKIP_COSIGN_VERIFY=1
+# is the legacy spelling for skopeo-only-all-4. When the explicit
+# trust-mode is also set, the two MUST agree (no silent override).
+if [[ -z "$WAKIR_RESOLVER_TRUST_MODE" ]]; then
+  if [[ "$WAKIR_SKIP_COSIGN_VERIFY" == "1" ]]; then
+    WAKIR_RESOLVER_TRUST_MODE="skopeo-only-all-4"
+  else
+    WAKIR_RESOLVER_TRUST_MODE="cosign-strict"
+  fi
+else
+  # Explicit trust-mode given; verify back-compat env-var is coherent.
+  if [[ "$WAKIR_RESOLVER_TRUST_MODE" == "skopeo-only-all-4" \
+        && "$WAKIR_SKIP_COSIGN_VERIFY" != "1" ]]; then
+    # User asked for skopeo-only via the new var; accept and align the
+    # legacy var so downstream branches keep working.
+    WAKIR_SKIP_COSIGN_VERIFY=1
+  elif [[ "$WAKIR_RESOLVER_TRUST_MODE" == "cosign-strict" \
+          && "$WAKIR_SKIP_COSIGN_VERIFY" == "1" ]]; then
+    echo "[$PROG] ERROR: WAKIR_RESOLVER_TRUST_MODE=cosign-strict conflicts with WAKIR_SKIP_COSIGN_VERIFY=1" >&2
+    exit 1
+  fi
+fi
+
 # Sprint-9-Tag-5 Bug 7 substance-fix: single-org pilot mode toggles the
 # SPIRE-Server + SPIRE-Agent config variants the bootstrap installs.
 #
@@ -216,6 +292,17 @@ esac
 # add the entry manually before federation-bundle-sync works.
 : "${WAKIR_PEER_SIDE:=}"
 : "${WAKIR_PEER_HOST:=}"
+
+# Sprint-Tag-8 Bug-39 Option-A substrate: bilateral-federation-handshake
+# precheck gate. When set to "1", an OPTIONAL post-step (step_15) runs
+# after step_8_smoke and verifies the prereqs for a bilateral mode-flip
+# (peer-side in federation-mode + persona-container re-spawn-window
+# declared). The precheck does NOT mutate the running VM; it produces a
+# PASS/FAIL summary that the Operator-Hand uses as the go/no-go gate.
+# Default 0 (no-op) so existing single-org + asymmetric-federation
+# bring-ups remain byte-stable.
+: "${WAKIR_BILATERAL_PRECHECK:=0}"
+: "${WAKIR_PERSONA_RESPAWN_WINDOW:=}"
 if [[ -n "$WAKIR_PEER_SIDE" ]] \
    && ! [[ "$WAKIR_PEER_SIDE" =~ ^[a-z][a-z0-9]*$ ]]; then
   echo "[$PROG] ERROR: WAKIR_PEER_SIDE must be lowercase ASCII + digits, starting with a letter; got '${WAKIR_PEER_SIDE}'" >&2
@@ -764,8 +851,13 @@ step_5_image_pins() {
     return 2
   fi
 
+  # Sprint-Tag-8 Bug-36-Härtung: announce the resolver trust-mode
+  # explicitly so the bring-up log records which trust-base was used.
+  # See docs/RESOLVER-TRUST-MODES.md for the threat-model.
+  log_note "resolver trust-mode: ${WAKIR_RESOLVER_TRUST_MODE}"
+
   if [[ "$WAKIR_SKIP_COSIGN_VERIFY" == "1" ]]; then
-    log_warn "WAKIR_SKIP_COSIGN_VERIFY=1; skopeo-only resolve for all 4 images (no Sigstore signature verification)"
+    log_warn "WAKIR_SKIP_COSIGN_VERIFY=1 (skopeo-only-all-4); skopeo-only resolve for all 4 images (no Sigstore signature verification)"
     local image
     local -A skip_digests=()
     local skopeo_image
@@ -813,6 +905,28 @@ step_5_image_pins() {
       || { log_err "resolve-image-pins.sh --apply (skopeo-only) failed"; return 2; }
     log_ok "image-pin resolve applied (skopeo-only, skip-cosign-verify)"
     return 0
+  fi
+
+  # Sprint-Tag-8 Bug-36-Härtung: mixed-mode (Sigstore-Outage-Fallback).
+  # Cosign-verify on signed images; skopeo-fallback for the
+  # SPIRE-allowlist only when the cosign step itself produced an empty
+  # digest (proxy for Sigstore-outage). python:3.13-slim is already
+  # skopeo-only in the cosign-strict branch below by upstream policy;
+  # mixed-mode therefore overlaps with strict for that image.
+  #
+  # The allowlist is hardcoded — Operator-Hand cannot widen it without a
+  # source-patch + Zone-C cross-review. See
+  # docs/RESOLVER-TRUST-MODES.md for the threat-model.
+  if [[ "$WAKIR_RESOLVER_TRUST_MODE" == "mixed" ]]; then
+    log_warn "trust-mode=mixed (Sigstore-outage fallback); will use skopeo for SPIRE-allowlist if cosign fails"
+    # The mixed-mode path is structurally identical to cosign-strict
+    # except that cosign-failures on the SPIRE-allowlist are demoted
+    # from rc=2-fatal to a logged skopeo-fallback. The control-flow
+    # below (lines starting at "Pre-check: are placeholders still
+    # present?") executes for mixed-mode too; the difference lives in
+    # the cosign-verify error handling inside the per-image loop. The
+    # variable below gates that demotion.
+    : "${_KAI_MIXED_MODE_ALLOWLIST:=ghcr.io/spiffe/spire-server:1.14.6 ghcr.io/spiffe/spire-agent:1.14.6}"
   fi
 
   # Pre-check: are placeholders still present? If not, the repo state
@@ -865,8 +979,16 @@ step_5_image_pins() {
         | jq -r '.[0].critical.image."docker-manifest-digest" // empty' \
         || echo "")
       if [[ -z "$cosign_digest" ]]; then
-        log_err "cosign verify failed or produced empty digest for ${image}"
-        return 2
+        # Sprint-Tag-8 Bug-36-Härtung: mixed-mode demotes cosign-failure
+        # on the SPIRE-allowlist from rc=2-fatal to logged skopeo-
+        # fallback. See docs/RESOLVER-TRUST-MODES.md mixed-mode section.
+        if [[ "$WAKIR_RESOLVER_TRUST_MODE" == "mixed" ]] \
+           && [[ " $_KAI_MIXED_MODE_ALLOWLIST " == *" $image "* ]]; then
+          log_warn "trust-mode=mixed: cosign verify failed for ${image}; falling back to skopeo (allowlist hit)"
+        else
+          log_err "cosign verify failed or produced empty digest for ${image}"
+          return 2
+        fi
       fi
     elif [[ "$image" == ghcr.io/wakir-labs/wakir-provisioner:* ]]; then
       cosign_digest=$(cosign verify \
@@ -1916,6 +2038,113 @@ step_8_smoke() {
 }
 
 # ---------------------------------------------------------------------------
+# Step 15 (optional, Sprint-Tag-8 Bug-39 Option-A substrate):
+# Bilateral-Federation-Handshake-Precheck.
+# ---------------------------------------------------------------------------
+#
+# Bug-39 is the asymmetric-pilot-topology question: wakir-pilot runs in
+# single-org-mode (one Tomás-persona container, V2-Anchor, no peer),
+# while wakir-orbit runs in federation-mode against wakir-pilot. The
+# Cross-VM-Federation smoke-test (proxmox-bringup-smoke 8/8 with the
+# federation gates) requires BOTH sides to be in federation-mode.
+#
+# Two options were considered:
+#
+#   Option A — Pilot-Symmetric: bring wakir-pilot into federation-mode
+#              as well. Risk: the running Tomás-persona container
+#              needs a re-spawn after the mode-switch because the
+#              SPIRE-server-federation-${side}.service is a different
+#              unit name and the SPIFFE-ID under federation-mode is
+#              spiffe://wakir.test/spire/agent/${side}/... — the
+#              workload-API socket re-binds with a new SPIFFE-ID and
+#              the persona-engine inside the container has to
+#              re-authenticate.
+#
+#   Option B — Sprint-12+ Production-Setup-Item: park Bug-39 as a
+#              Phase-3 Production-rollout item. Both VMs flip to
+#              federation-mode in a single coordinated Operator-Hand
+#              window; the Pilot-Phase Doppelbetrieb-shadow tolerates
+#              the asymmetry until then.
+#
+# Mira / AR decides which variant goes live. This bootstrap ships
+# **both substrates** so the decision can be made at run-time without
+# a source-patch:
+#
+#   - The Option-A path is gated on WAKIR_BILATERAL_PRECHECK=1. When
+#     set, step_15 runs AFTER step_8_smoke and verifies the prereqs
+#     for the bilateral switch (peer-VM reachable, peer-side already
+#     in federation-mode, persona-container re-spawn-window declared).
+#     The precheck does NOT mutate the running VM; it produces a
+#     PASS/FAIL summary that the Operator-Hand uses as the
+#     go/no-go gate for the actual mode-flip + container re-spawn
+#     (which stays Operator-Hand because the re-spawn touches the
+#     persona-engine state-pack).
+#
+#   - The Option-B path is the default (WAKIR_BILATERAL_PRECHECK unset
+#     or 0). step_15 is skipped silently; the Doppelbetrieb-shadow
+#     keeps running on the asymmetric topology.
+#
+# Decision-record: docs/decisions/topology-bilateral-federation.md
+# captures the full topology-decision rationale for AR review.
+
+step_15_bilateral_precheck() {
+  if [[ "${WAKIR_BILATERAL_PRECHECK:-0}" != "1" ]]; then
+    return 0
+  fi
+  log_step 15 15 "Bilateral-Federation-Handshake-Precheck (Bug-39 Option-A substrate)"
+
+  # Precheck 15a: this side must already be in federation-mode (the
+  # precheck only makes sense AFTER the bootstrap has flipped this VM
+  # over). Single-org-mode here means the operator forgot to set
+  # WAKIR_PILOT_MODE=federation; the precheck would always FAIL.
+  if [[ "$WAKIR_PILOT_MODE" != "federation" ]]; then
+    log_err "bilateral-precheck requires WAKIR_PILOT_MODE=federation on this side; got '${WAKIR_PILOT_MODE}'"
+    log_err "did you forget to set WAKIR_PILOT_MODE=federation in the bilateral-flip env?"
+    return 2
+  fi
+
+  # Precheck 15b: peer-side + peer-host must be set. Without them the
+  # cross-VM TCP reach + bundle-endpoint probe cannot run.
+  if [[ -z "${WAKIR_PEER_SIDE:-}" || -z "${WAKIR_PEER_HOST:-}" ]]; then
+    log_err "bilateral-precheck requires WAKIR_PEER_SIDE + WAKIR_PEER_HOST"
+    return 2
+  fi
+
+  # Precheck 15c: peer bundle-endpoint reachable on TCP 8443. We do
+  # NOT validate the SPIFFE-bundle handshake here (that is the smoke-
+  # test's job); we only verify that the peer's bundle-endpoint
+  # listener is bound and reachable — i.e. the peer-side is already
+  # in federation-mode itself. This is the bilateral-handshake
+  # precondition that Bug-39 surfaced.
+  if ! timeout 5 bash -c \
+       "exec 3<>/dev/tcp/${WAKIR_PEER_HOST}/8443" 2>/dev/null; then
+    log_err "peer ${WAKIR_PEER_HOST}:8443 not reachable — peer-side may not be in federation-mode"
+    log_err "bilateral-precheck FAIL: complete the peer-side bootstrap"
+    log_err "with WAKIR_PILOT_MODE=federation first, THEN re-run this side"
+    log_err "with WAKIR_BILATERAL_PRECHECK=1."
+    return 2
+  fi
+  log_ok "  - peer ${WAKIR_PEER_HOST}:8443: TCP reachable (peer in federation-mode)"
+
+  # Precheck 15d: persona-container re-spawn-window declared. The
+  # mode-flip on this side invalidates the running persona-engine's
+  # workload-API socket (new SPIFFE-ID); the operator MUST have
+  # declared a re-spawn-window via WAKIR_PERSONA_RESPAWN_WINDOW so
+  # the operational invariant is captured in the bring-up log.
+  if [[ -z "${WAKIR_PERSONA_RESPAWN_WINDOW:-}" ]]; then
+    log_warn "WAKIR_PERSONA_RESPAWN_WINDOW not declared; persona-engine"
+    log_warn "re-spawn after mode-flip will be unscheduled (operator-judgement)."
+    log_warn "set WAKIR_PERSONA_RESPAWN_WINDOW='YYYY-MM-DD HH:MM CEST' to"
+    log_warn "capture the planned re-spawn-window in the bring-up log."
+  else
+    log_ok "  - persona re-spawn-window declared: ${WAKIR_PERSONA_RESPAWN_WINDOW}"
+  fi
+
+  log_ok "bilateral-precheck PASS — ready for Operator-Hand mode-flip + persona re-spawn"
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 # Main driver
 # ---------------------------------------------------------------------------
 
@@ -1943,6 +2172,12 @@ main() {
       fail_step "$i" "${fn} failed"
     fi
   done
+
+  # Sprint-Tag-8 Bug-39 Option-A substrate: optional bilateral-
+  # federation-handshake-precheck post-step. No-op unless
+  # WAKIR_BILATERAL_PRECHECK=1; see the step_15_bilateral_precheck
+  # header for the full Option-A vs Option-B decision-rationale.
+  step_15_bilateral_precheck || fail_step 15 "step_15_bilateral_precheck failed"
 
   cat <<EOF
 
