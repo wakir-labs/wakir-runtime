@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wakir.dev/wirelang/schema/recovery-drill-outcome/1",
+  "title": "Persona-Engine Recovery-Drill Outcome Envelope (Wakir Persona 1)",
+  "description": "JSON Schema for the persona-engine recovery_drill_outcome envelope (Sprint-Pengine-7 Tag-4 §3.7.4 recovery-workflow, Tag-5 OI-PILOT-4 cron consumer). Each envelope records the outcome of ONE executed recovery drill (per §3.7.2.1 drill registry). The envelope is persisted append-only to the per-persona NATS-KV bucket family `wakir-persona-state-<org_id>-<persona_id>` under the `recovery-audit/<drill_run_id>` key prefix (OI-PILOT-2 schema). The Sprint-Pengine-7 Tag-5 OI-PILOT-4 cron (`wirelang.persona.recovery_drill_anchor`) anchors unanchored envelopes hourly into the WAT spool; idempotency is via the optional `wat_anchored_at` field — once populated, the envelope is treated as already anchored. Schema-registry id: 'wakir.persona.recovery-drill-outcome/1'. Anchor-pipeline: OTS-anchor target deferred to a follow-on paired-update (Phase-2 Sprint-Pengine-7 Tag-N+) mirroring §5.19 (caveat-override-event-export) pattern. SPDX-License-Identifier: Apache-2.0",
+  "type": "object",
+  "required": [
+    "schema",
+    "drill_run_id",
+    "drill_class",
+    "persona_id",
+    "org_id",
+    "outcome",
+    "emitted_at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "wakir.persona.recovery-drill-outcome/1",
+      "description": "Schema discriminator. Pinned to v1; any future bump emits a new $id and a new envelope shape, never a silent overlay."
+    },
+    "drill_run_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:\\-]*$",
+      "minLength": 1,
+      "description": "Operator-assigned identifier for a single drill execution. Convention: `<drill-class-suffix>-<RFC3339-utc-with-dashes>` (e.g. `svid-expired-2026-05-15T04-12-00Z`). Permitted-character regex mirrors `wirelang.persona.persona_state_kv._IDENT_RE` so the same identifier is reusable as the NATS-KV key suffix without re-encoding."
+    },
+    "drill_class": {
+      "type": "string",
+      "enum": [
+        "DRILL_CONTAINER_CRASH",
+        "DRILL_NATS_BUCKET_LOST",
+        "DRILL_SPIRE_SVID_EXPIRED"
+      ],
+      "description": "Closed enumeration of drill classes per persona-engine-format-spec.md §3.7.2.1. The three classes form a stratified test: CONTAINER_CRASH exercises the engine-runtime layer, NATS_BUCKET_LOST exercises the storage-substrate layer, SPIRE_SVID_EXPIRED exercises the identity layer. Future drill-classes require a paired persona-engine-format-spec minor bump AND a paired recovery-drill-outcome/v2 schema bump (no silent enum extension)."
+    },
+    "persona_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "minLength": 1,
+      "description": "Subagent slug; MUST equal the persona's canonical_subset.name field per wakir-persona-v1.json. The persona-id is bound to the bucket suffix in the NATS-KV bucket name (`wakir-persona-state-<org_id>-<persona_id>`); a verifier MUST reject any envelope whose persona_id does not match the bucket's persona suffix (cross-trust-domain isolation, persona_state_kv.py §'Cross-trust-domain isolation')."
+    },
+    "org_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:\\-]*$",
+      "minLength": 1,
+      "description": "Organisation identifier. URI-safe ASCII subset (mirrors Sprint-7 peer_org predicate alphabet and `wirelang.federation.marker_stack_kv._IDENT_RE`). MUST match the bucket's org prefix; cross-org reads are refused at the consumer layer."
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "fail",
+        "hard-cap-exceeded"
+      ],
+      "description": "Drill outcome per §3.7.2.2 acceptance criteria. `pass` iff all four invariants (persona-hash pre/post identical, audit-trail gap = 0, capability-token continuity, container-state convergence within 30s budget) held. `fail` if any invariant drifted. `hard-cap-exceeded` is a specialisation of `fail` for the §3.7.4.4 recovery-budget hard-cap case (R1..R4 total > 30s) — recorded separately so the operator-side dashboard can distinguish budget-failures from substrate-failures."
+    },
+    "emitted_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC-3339 UTC timestamp of the drill outcome emit. Wall-clock time at the moment the persona-engine wrote the envelope to NATS-KV; NOT the time the WAT-anchor cron pulled it (that goes into `wat_anchored_at`)."
+    },
+    "wat_anchored_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC-3339 UTC timestamp of the WAT-anchor write. Populated by the Sprint-Pengine-7 Tag-5 OI-PILOT-4 cron (`wirelang.persona.recovery_drill_anchor.anchor_one_envelope`) after a successful `wat.anchor.bridge_audit_writer.write_bridge_audit` call. Absence (or empty-after-strip) means the envelope is unanchored; a populated value triggers the idempotent-skip path on the next cron tick. The field is OPTIONAL at write-time by the persona-engine — the persona-engine writes the envelope first without this field; the WAT-anchor cron is the ONLY writer that populates it."
+    },
+    "wat_spool_path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Absolute filesystem path to the WAT-spool entry that received this envelope's bridge-audit record. Populated by the OI-PILOT-4 cron alongside `wat_anchored_at` when the bridge-audit-writer surfaces a spool path. Operator-debug only; verifiers MUST NOT rely on the path being byte-stable across operator-machines (the path is operator-supplied via `--spool-root`)."
+    },
+    "wat_leaf_event_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$",
+      "description": "Hex (16-byte) event-id of the WAT-leaf the bridge-audit-writer minted for this envelope. The bridge-audit-writer's current API does NOT surface this on the result object (per recovery_drill_anchor.py line 350); the field is RESERVED for a future paired-update where the writer's API exposes the leaf-id. Implementations that have access to the leaf-id MAY populate this; verifiers MUST NOT rely on it being present."
+    }
+  }
+}
