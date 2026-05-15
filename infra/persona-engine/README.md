@@ -74,6 +74,73 @@ rotates (`0.2.0-pilot` or `1.0.0`) and
 `scripts/image-pin-idempotent-resolver.sh` flips the digest pin on
 the Quadlet via the standard `resolve-image-pins-ci` workflow.
 
+## Sprint-Pengine-8 real-engine image (`0.2.0-pilot`)
+
+Sprint-Pengine-8 (Selin) lands the **real** engine implementation
+alongside the stub. The real engine is sourced from
+`wirelang/persona_engine/` (a normal Python package under the
+wakir-runtime tree) and entered via the thin shim
+`infra/persona-engine/bin/persona-engine-real`. It implements all
+six deferred surfaces:
+
+1. NATS-KV state-pack persistence (`state_backing.py` —
+   `InMemoryPersonaStateBacking` shipped; `NatsKvPersonaStateBacking`
+   reserved for Sprint-Pengine-9 asyncio-binding).
+2. SPIRE Workload-API probe (`svid_workload_identity.py` — socket-
+   presence + SPIFFE-ID-template surface; full grpc SVID fetch
+   reserved for Sprint-Pengine-9).
+3. Lifecycle state-machine (`lifecycle_state_machine.py` — six states,
+   nine transitions, full audit-replay surface).
+4. V-907 pin-verify (`v907_verify.py` — delegates to the existing
+   `wirelang.persona.persona_hash.compute_persona_hash_from_canonical`
+   primitive, no new hash function introduced).
+5. Recovery workflow R1..R4 (`recovery_workflow.py` — full
+   phase-sequential implementation with 30s end-to-end budget and
+   closed failure-mode enum).
+6. Doppelbetrieb-shadow output bridging (`bridge_audit_writer.py` —
+   double-sink JCS-canonical envelope to Pre-Framework Markdown +
+   Wakir-Runtime structured log).
+
+### Build path (real engine)
+
+```
+gh workflow run build-wakir-persona-engine.yml \
+  -f version_tag=0.2.0-pilot \
+  -f containerfile=Containerfile.real \
+  -f push=true
+```
+
+The build workflow now exposes a `containerfile` input that selects
+between `Containerfile` (stub, default; `0.1.0-pilot`) and
+`Containerfile.real` (real engine; `0.2.0-pilot`).
+
+### Image-swap rotation (operator runbook)
+
+1. Build `0.2.0-pilot` real-engine image via the workflow above.
+2. Open a Quadlet pin-rotation PR updating
+   `quadlet/wakir-persona-tomas.container` Image= line tag from
+   `0.1.0-pilot` to `0.2.0-pilot`.
+3. Let `resolve-image-pins-ci` fill the `@sha256:DIGEST_PENDING_*`
+   placeholder with the live digest.
+4. Operator-Hand on the Pilot-VM:
+   `sudo systemctl restart wakir-persona-tomas.service`.
+5. Verify with `podman logs --tail 50 wakir-persona-tomas` — the
+   real engine emits `engineering_output` events instead of the
+   stub's `substrate-stub-deferred-surfaces` roll-call.
+
+The CLI surface is byte-stable across the rotation: the Quadlet
+`Exec=spawn --persona-slug tomas --pilot-phase doppelbetrieb-shadow`
+line works against both images. Only the **semantics** change (stub
+heartbeat -> real spawn+output+recovery cycle).
+
+### Doppelbetrieb-Vergleichs-Clock anchor
+
+The 4-Achsen-Score-Bilanz clock starts effectively when the real
+engine emits its first `engineering_output` event (per the BridgeAuditWriter
+JCS envelope). Stub-period output is filtered out by `output_kind`
+discrimination (the stub emits no `engineering_output` events at all;
+the real engine emits one per spawn-session step).
+
 ## Build path
 
 `Operator-Hand` only, via `workflow_dispatch`:

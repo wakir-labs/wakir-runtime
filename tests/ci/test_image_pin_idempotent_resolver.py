@@ -556,3 +556,89 @@ def test_build_workflow_least_privilege_permissions() -> None:
     assert perms.get("contents") == "read"
     assert perms.get("packages") == "write"
     assert perms.get("id-token") == "write"
+
+
+# ---------------------------------------------------------------------------
+# Sprint-Pengine-8 — Real-engine binary + Containerfile.real coverage.
+# ---------------------------------------------------------------------------
+
+
+def test_persona_engine_real_containerfile_present() -> None:
+    """Sprint-Pengine-8 ships the real-engine Containerfile alongside
+    the stub. Image-tag rotation 0.1.0-pilot -> 0.2.0-pilot picks the
+    ``-f infra/persona-engine/Containerfile.real`` build path."""
+    cf = REPO_ROOT / "infra" / "persona-engine" / "Containerfile.real"
+    assert cf.is_file(), (
+        f"missing persona-engine real Containerfile: {cf}; "
+        f"Sprint-Pengine-8 image swap path is incomplete"
+    )
+
+
+def test_persona_engine_real_shim_present_and_executable() -> None:
+    """The thin entry-point shim for the real engine binary MUST exist
+    and be executable; otherwise the Containerfile.real build fails
+    at COPY time."""
+    shim = (
+        REPO_ROOT / "infra" / "persona-engine" / "bin" / "persona-engine-real"
+    )
+    assert shim.is_file(), f"missing real-engine shim: {shim}"
+    st = shim.stat()
+    assert st.st_mode & stat.S_IXUSR, "real-engine shim must be executable"
+
+
+def test_build_workflow_supports_containerfile_input() -> None:
+    """The build workflow exposes a ``containerfile`` input so the
+    operator can switch between Containerfile (stub) and
+    Containerfile.real (real engine) at workflow-dispatch time."""
+    wf = REPO_ROOT / ".github" / "workflows" / "build-wakir-persona-engine.yml"
+    text = wf.read_text(encoding="utf-8")
+    assert "containerfile:" in text, (
+        "build workflow must expose a 'containerfile' input"
+    )
+    # The path is dynamic — Containerfile.real is mentioned.
+    assert "Containerfile.real" in text, (
+        "build workflow must reference Containerfile.real in its "
+        "documentation/dispatch surface so operators see the option"
+    )
+
+
+def test_persona_engine_v0_2_0_package_present() -> None:
+    """The wirelang.persona_engine package (real implementation
+    sourced into the 0.2.0-pilot image) must be present on disk."""
+    pkg = REPO_ROOT / "wirelang" / "persona_engine"
+    assert pkg.is_dir(), f"missing persona-engine package dir: {pkg}"
+    for required in (
+        "__init__.py",
+        "lifecycle_state_machine.py",
+        "state_backing.py",
+        "v907_verify.py",
+        "svid_workload_identity.py",
+        "bridge_audit_writer.py",
+        "recovery_workflow.py",
+        "despawn_clean.py",
+        "engine.py",
+        "cli.py",
+    ):
+        assert (pkg / required).is_file(), (
+            f"missing persona-engine module: {pkg / required}"
+        )
+
+
+def test_persona_engine_v0_2_0_version_label_in_containerfile_real() -> None:
+    """The Containerfile.real must declare image version ``0.2.0-pilot``
+    so the GHCR tag and the OCI label match (audit-invariant)."""
+    cf = REPO_ROOT / "infra" / "persona-engine" / "Containerfile.real"
+    text = cf.read_text(encoding="utf-8")
+    assert 'org.opencontainers.image.version="0.2.0-pilot"' in text
+
+
+def test_real_shim_dispatches_to_cli_main() -> None:
+    """The real-engine shim is a thin dispatcher to
+    ``wirelang.persona_engine.cli.main``. The shim file is small (<= 60
+    lines of code, excluding the BSL header)."""
+    shim = (
+        REPO_ROOT / "infra" / "persona-engine" / "bin" / "persona-engine-real"
+    )
+    text = shim.read_text(encoding="utf-8")
+    assert "wirelang.persona_engine.cli" in text
+    assert "main as cli_main" in text or "from wirelang.persona_engine.cli import main" in text
