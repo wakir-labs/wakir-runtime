@@ -1,0 +1,251 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Build + sign + push the wakir-persona-engine image (Phase-2
+# Sprint-10 Tag-4).
+#
+# Posture
+# -------
+#   workflow_dispatch ONLY. The image push is an Operator-Hand event:
+#   an authorised maintainer clicks "Run workflow" with the version
+#   tag input, the workflow builds + signs + pushes, and the
+#   resulting digest is then resolved into the consuming Quadlet pin
+#   (``quadlet/wakir-persona-tomas.container``) via
+#   ``scripts/image-pin-idempotent-resolver.sh``.
+#
+#   The build is NOT on push / pull_request: a malicious PR that
+#   tampered with the Containerfile or the persona-engine stub
+#   binary would otherwise auto-publish an image with the
+#   GitHub-Actions OIDC identity, defeating the supply-chain
+#   provenance posture. The manual-only trigger keeps the
+#   human-in-the-loop boundary explicit (parity with
+#   ``build-wakir-provisioner.yml``; see Tomás Zone-C posture for
+#   GHCR-network-access).
+#
+# What the workflow does
+# ----------------------
+#   1. Checks out the repo at the requested ref.
+#   2. Resolves the python:3.13-slim base-layer digest via skopeo +
+#      crane cross-check (refuses if the two disagree).
+#   3. Materialises the pinned digest in
+#      ``infra/persona-engine/Containerfile`` (in-runner sed, NOT
+#      committed back to the repo — that is a follow-up PR from
+#      the operator).
+#   4. Builds the image with buildah.
+#   5. Sigstore-keyless signs the published digest against the
+#      GitHub-Actions OIDC identity of this workflow.
+#   6. Pushes the image and signature to GHCR.
+#   7. Emits the resulting digest as a workflow output so the
+#      operator can copy it into the Quadlet pin.
+#
+# Sandbox boundary
+# ----------------
+#   This workflow runs on GitHub-Actions runners, which are
+#   host-of-record (not the claude-dev sandbox). No part of this
+#   job is reachable from the sandbox per
+#   feedback_sandbox_host_trennung.md.
+
+name: build-wakir-persona-engine
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: 'Semver tag to publish (e.g. 0.1.0-pilot)'
+        required: true
+        default: '0.1.0-pilot'
+      push:
+        description: 'Push to GHCR (true) or dry-run build only (false)'
+        required: false
+        default: 'false'
+
+permissions:
+  # Least-privilege permission set for build + sign + push (parity
+  # with build-wakir-provisioner.yml). Each scope is required for a
+  # specific step; removing any of these will fail the run.
+  #
+  #   contents:  read   — actions/checkout pulls workflow + source.
+  #   packages:  write  — buildah push to GHCR + cosign signature
+  #                       upload to GHCR (the ``*.sig`` artefact
+  #                       lives in the same repo as the image).
+  #   id-token:  write  — Sigstore-keyless OIDC token mint, used by
+  #                       cosign sign to obtain a short-lived
+  #                       Fulcio cert without provisioning a
+  #                       private key.
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  build:
+    name: build wakir-persona-engine image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install crane (digest cross-resolver)
+        run: |
+          set -euo pipefail
+          CRANE_VERSION="0.20.2"
+          curl -fsSL "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" \
+            -o /tmp/crane.tar.gz
+          tar -C /tmp -xzf /tmp/crane.tar.gz crane
+          sudo install -m 0755 /tmp/crane /usr/local/bin/crane
+          crane version
+
+      - name: Install skopeo + jq
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends skopeo jq
+          skopeo --version
+
+      - name: Install cosign (Sigstore-keyless)
+        uses: sigstore/cosign-installer@v3
+
+      - name: Resolve python:3.13-slim base-layer digest
+        id: base
+        run: |
+          set -euo pipefail
+          SKOPEO_DIGEST=$(skopeo inspect docker://python:3.13-slim | jq -r '.Digest')
+          CRANE_DIGEST=$(crane digest python:3.13-slim)
+          echo "skopeo: $SKOPEO_DIGEST"
+          echo "crane:  $CRANE_DIGEST"
+          if [[ "$SKOPEO_DIGEST" != "$CRANE_DIGEST" ]]; then
+            echo "::error::skopeo vs crane disagree on python:3.13-slim digest — registry inconsistency, halt"
+            exit 2
+          fi
+          if [[ -z "$SKOPEO_DIGEST" || "$SKOPEO_DIGEST" == "null" ]]; then
+            echo "::error::failed to resolve python:3.13-slim digest"
+            exit 1
+          fi
+          echo "digest=${SKOPEO_DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Materialise pinned base-layer digest in Containerfile
+        run: |
+          set -euo pipefail
+          sed -i \
+            "s|python:3.13-slim@sha256:DIGEST_PENDING_TOMAS_REVIEW|python:3.13-slim@${{ steps.base.outputs.digest }}|" \
+            infra/persona-engine/Containerfile
+          grep -q "python:3.13-slim@${{ steps.base.outputs.digest }}" \
+            infra/persona-engine/Containerfile \
+            || { echo "::error::Containerfile substitution did not stick"; exit 1; }
+
+      - name: Verify persona-engine stub is present + executable
+        run: |
+          set -euo pipefail
+          test -f infra/persona-engine/bin/persona-engine
+          test -x infra/persona-engine/bin/persona-engine
+          # Syntax-check the stub before baking it into the image
+          # (catches a stdlib-only break before the buildah step).
+          python3 -m py_compile infra/persona-engine/bin/persona-engine
+
+      - name: Build image with buildah
+        id: buildah
+        run: |
+          set -euo pipefail
+          # buildah ships on ubuntu-latest by default in 2026; if a
+          # future runner image drops it, install explicitly.
+          if ! command -v buildah >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends buildah
+          fi
+          TAG="${{ github.event.inputs.version_tag }}"
+          IMAGE="ghcr.io/${{ github.repository_owner }}/wakir-persona-engine"
+          REVISION="${GITHUB_SHA}"
+          CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          buildah bud \
+            --tag "${IMAGE}:${TAG}" \
+            --label "org.opencontainers.image.revision=${REVISION}" \
+            --label "org.opencontainers.image.created=${CREATED}" \
+            -f infra/persona-engine/Containerfile \
+            infra/persona-engine/
+          echo "image=${IMAGE}"     >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}"         >> "$GITHUB_OUTPUT"
+          echo "revision=${REVISION}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GHCR
+        if: ${{ github.event.inputs.push == 'true' }}
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | buildah login \
+                --username "${{ github.actor }}" \
+                --password-stdin ghcr.io
+
+      - name: Push to GHCR
+        id: push
+        if: ${{ github.event.inputs.push == 'true' }}
+        run: |
+          set -euo pipefail
+          IMAGE="${{ steps.buildah.outputs.image }}"
+          TAG="${{ steps.buildah.outputs.tag }}"
+          buildah push "${IMAGE}:${TAG}"
+          # Resolve the pushed digest for the sign step + the
+          # workflow output.
+          DIGEST=$(buildah images --format '{{ .Digest }}' "${IMAGE}:${TAG}" | head -n1)
+          if [[ -z "$DIGEST" ]]; then
+            echo "::error::failed to resolve pushed image digest"
+            exit 1
+          fi
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "Pushed: ${IMAGE}:${TAG}@${DIGEST}"
+
+      - name: Cosign login to GHCR
+        if: ${{ github.event.inputs.push == 'true' }}
+        # Sprint-9 Tag-5 pattern (CI-hygiene): cosign sign writes its
+        # signature artefact (``*.sig`` blob) into GHCR via a separate
+        # registry-auth handshake than buildah's. The earlier buildah
+        # login authenticated only the buildah client; cosign carried
+        # no credentials and the sign call failed with:
+        #
+        #   UNAUTHORIZED: unauthenticated: User cannot be
+        #   authenticated with the token provided.
+        #
+        # The fix is an explicit cosign login step using the workflow's
+        # GITHUB_TOKEN, which the ``packages: write`` permission scope
+        # already authorises. See docs/ci-cosign-ghcr-auth.md for the
+        # full diagnosis + alternative approaches we considered.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "$GITHUB_TOKEN" \
+            | cosign login ghcr.io \
+                --username "${{ github.actor }}" \
+                --password-stdin
+
+      - name: Sigstore-keyless sign
+        if: ${{ github.event.inputs.push == 'true' }}
+        run: |
+          set -euo pipefail
+          IMAGE="${{ steps.buildah.outputs.image }}"
+          DIGEST="${{ steps.push.outputs.digest }}"
+          cosign sign --yes "${IMAGE}@${DIGEST}"
+
+      - name: Emit workflow summary
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo "## wakir-persona-engine build result"
+            echo ""
+            echo "- repo revision: \`${{ steps.buildah.outputs.revision }}\`"
+            echo "- base-layer digest (python:3.13-slim): \`${{ steps.base.outputs.digest }}\`"
+            echo "- requested tag: \`${{ steps.buildah.outputs.tag }}\`"
+            if [[ "${{ github.event.inputs.push }}" == "true" ]]; then
+              echo "- pushed digest: \`${{ steps.push.outputs.digest }}\`"
+              echo ""
+              echo "Pin substitution recipe (run resolve-image-pins-ci or local resolver):"
+              echo ""
+              echo "    scripts/image-pin-idempotent-resolver.sh --digest-source crane"
+              echo ""
+              echo "or, byte-precise sed equivalent:"
+              echo ""
+              echo "    sed -i \"s|wakir-persona-engine:${{ steps.buildah.outputs.tag }}@sha256:DIGEST_PENDING_KAI_CROSS_REVIEW|wakir-persona-engine:${{ steps.buildah.outputs.tag }}@${{ steps.push.outputs.digest }}|\" \\"
+              echo "        quadlet/wakir-persona-tomas.container"
+            else
+              echo "- push: dry-run only (set inputs.push=true to publish)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

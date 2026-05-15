@@ -36,13 +36,22 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 RESOLVER = REPO_ROOT / "scripts" / "image-pin-idempotent-resolver.sh"
 
 
-# A static, syntactically valid sha256 for the four pin groups. Picked
+# A static, syntactically valid sha256 for the five pin groups. Picked
 # to be deterministic and obviously fake.
+#
+# Sprint-10 Tag-4: ``FORCE_WAKIR_PERSONA_ENGINE_DIGEST`` added for the
+# new ``wakir_persona_engine`` PINS row that closes the ADR-0058
+# Schritt 9 image-availability gap (Quadlet
+# ``quadlet/wakir-persona-tomas.container`` line 86). The
+# ``infra/persona-engine/Containerfile`` was also added to the
+# ``python`` row (shares the python:3.13-slim base with the
+# provisioner Containerfile).
 FAKE_DIGESTS = {
-    "FORCE_SPIRE_SERVER_DIGEST":      "sha256:" + "a" * 64,
-    "FORCE_SPIRE_AGENT_DIGEST":       "sha256:" + "b" * 64,
-    "FORCE_PYTHON_DIGEST":            "sha256:" + "c" * 64,
-    "FORCE_WAKIR_PROVISIONER_DIGEST": "sha256:" + "d" * 64,
+    "FORCE_SPIRE_SERVER_DIGEST":         "sha256:" + "a" * 64,
+    "FORCE_SPIRE_AGENT_DIGEST":          "sha256:" + "b" * 64,
+    "FORCE_PYTHON_DIGEST":               "sha256:" + "c" * 64,
+    "FORCE_WAKIR_PROVISIONER_DIGEST":    "sha256:" + "d" * 64,
+    "FORCE_WAKIR_PERSONA_ENGINE_DIGEST": "sha256:" + "e" * 64,
 }
 
 PIN_TARGETS = [
@@ -51,7 +60,9 @@ PIN_TARGETS = [
     "infra/spire/agent/quadlet/wakir-spire-agent-federation.container",
     "quadlet/wakir-spire-agent.container",
     "infra/spire/federation/provisioner/Containerfile",
+    "infra/persona-engine/Containerfile",
     "quadlet/wakir-nats-kv-bucket-init.container",
+    "quadlet/wakir-persona-tomas.container",
 ]
 
 
@@ -382,3 +393,166 @@ def test_resolver_idempotent_on_drifted_tag(repo_copy: Path) -> None:
     assert quadlet.read_text() == text_after_first, (
         "idempotent re-run mutated the drifted-tag Quadlet"
     )
+
+
+# ----------------------------------------------------------------------
+# Sprint-10 Tag-4 — wakir-persona-engine PINS row + generalised
+# ``DIGEST_PENDING_<ANNOTATION>`` placeholder regex.
+# ----------------------------------------------------------------------
+
+def test_pins_inventory_carries_wakir_persona_engine_row() -> None:
+    """The PINS array MUST carry a bare-base ``wakir_persona_engine``
+    row so the ADR-0058 Schritt 9 image-availability gap-closer can
+    be resolved by the same idempotent workflow as the SPIRE +
+    provisioner digests."""
+    text = RESOLVER.read_text(encoding="utf-8")
+    assert (
+        '"wakir_persona_engine|ghcr.io/wakir-labs/wakir-persona-engine|'
+        in text
+    ), (
+        "PINS inventory must carry the bare wakir-persona-engine row "
+        "(no :<tag> suffix) so the resolver tolerates the "
+        "0.1.0-pilot -> 0.2.0-pilot rotation when the Sprint-Pengine-8 "
+        "axis lands the full engine"
+    )
+    # The row must point at the Tomás-pilot Quadlet (the consumer).
+    assert "quadlet/wakir-persona-tomas.container" in text
+
+
+def test_pins_inventory_python_row_covers_both_containerfiles() -> None:
+    """The python:3.13-slim base is shared between the federation-
+    provisioner Containerfile and the persona-engine Containerfile;
+    the PINS python row MUST resolve both in lockstep so a base-layer
+    rotation never leaves them out of sync."""
+    text = RESOLVER.read_text(encoding="utf-8")
+    assert (
+        "infra/spire/federation/provisioner/Containerfile;"
+        "infra/persona-engine/Containerfile" in text
+    ), (
+        "PINS python row must carry both Containerfiles "
+        "(provisioner + persona-engine) joined by ';'"
+    )
+
+
+def test_resolver_substitutes_kai_cross_review_placeholder(
+    repo_copy: Path,
+) -> None:
+    """The generalised placeholder regex MUST recognise
+    ``sha256:DIGEST_PENDING_KAI_CROSS_REVIEW`` as a placeholder, not
+    only the historical ``_TOMAS_REVIEW`` form. We stage a pin with
+    the Kai-cross-review annotation and confirm the resolver
+    substitutes it byte-precisely."""
+    quadlet = repo_copy / "quadlet" / "wakir-persona-tomas.container"
+    quadlet.parent.mkdir(parents=True, exist_ok=True)
+    quadlet.write_text(
+        "[Container]\n"
+        "Image=ghcr.io/wakir-labs/wakir-persona-engine:0.1.0-pilot"
+        "@sha256:DIGEST_PENDING_KAI_CROSS_REVIEW\n"
+    )
+    proc = _run_resolver(repo_copy, FAKE_DIGESTS)
+    assert proc.returncode == 10, (
+        f"resolver did not detect drift on Kai-cross-review "
+        f"placeholder: stdout={proc.stdout!r} stderr={proc.stderr!r}"
+    )
+    text = quadlet.read_text()
+    assert "DIGEST_PENDING_KAI_CROSS_REVIEW" not in text
+    assert (
+        "ghcr.io/wakir-labs/wakir-persona-engine:0.1.0-pilot@sha256:"
+        + "e" * 64
+    ) in text, (
+        f"resolver did not preserve the existing tag or substitute "
+        f"the digest correctly: {text!r}"
+    )
+
+
+def test_resolver_substitutes_arbitrary_placeholder_annotation(
+    repo_copy: Path,
+) -> None:
+    """The Sprint-10 Tag-4 generalised regex must accept ANY
+    uppercase ``DIGEST_PENDING_<ANNOTATION>`` token — not only the
+    two annotations the repo currently uses. We stage a synthetic
+    annotation (``_REZA_ZONE_B_REVIEW``) to confirm the regex is
+    truly generic and does not silently match-only-known-suffixes."""
+    quadlet = repo_copy / "quadlet" / "wakir-persona-tomas.container"
+    quadlet.parent.mkdir(parents=True, exist_ok=True)
+    quadlet.write_text(
+        "[Container]\n"
+        "Image=ghcr.io/wakir-labs/wakir-persona-engine:0.1.0-pilot"
+        "@sha256:DIGEST_PENDING_REZA_ZONE_B_REVIEW\n"
+    )
+    proc = _run_resolver(repo_copy, FAKE_DIGESTS)
+    assert proc.returncode == 10, (
+        f"resolver did not detect drift on synthetic placeholder "
+        f"annotation: stdout={proc.stdout!r} stderr={proc.stderr!r}"
+    )
+    text = quadlet.read_text()
+    assert "DIGEST_PENDING_REZA_ZONE_B_REVIEW" not in text
+    assert "sha256:" + "e" * 64 in text
+
+
+def test_resolver_idempotent_on_persona_engine_pin(
+    repo_copy: Path,
+) -> None:
+    """Re-run on a stable persona-engine pin MUST be a no-op (rc=0)
+    — same idempotency contract as the provisioner row."""
+    first = _run_resolver(repo_copy, FAKE_DIGESTS)
+    assert first.returncode == 10
+    state_after_first = _snapshot(repo_copy)
+    second = _run_resolver(repo_copy, FAKE_DIGESTS)
+    assert second.returncode == 0
+    state_after_second = _snapshot(repo_copy)
+    assert state_after_first == state_after_second, (
+        "idempotent re-run mutated files; persona-engine row "
+        "violates the Sprint-9 Tag-5 idempotency contract"
+    )
+
+
+def test_persona_engine_containerfile_present() -> None:
+    """The Containerfile that the python PINS row points at MUST
+    exist on disk — otherwise the resolver silently skips it and the
+    image-availability gap stays open."""
+    cf = REPO_ROOT / "infra" / "persona-engine" / "Containerfile"
+    assert cf.is_file(), (
+        f"missing persona-engine Containerfile: {cf}; the python "
+        f"PINS row references it but the file is absent"
+    )
+
+
+def test_persona_engine_stub_present_and_executable() -> None:
+    """The substrate-stub binary the Containerfile COPYs into the
+    image MUST exist + be executable; otherwise the image build
+    fails at COPY time."""
+    stub = REPO_ROOT / "infra" / "persona-engine" / "bin" / "persona-engine"
+    assert stub.is_file(), f"missing stub: {stub}"
+    st = stub.stat()
+    assert st.st_mode & stat.S_IXUSR, "stub must be executable"
+
+
+def test_build_workflow_present() -> None:
+    """The ``workflow_dispatch``-only build workflow that publishes
+    the wakir-persona-engine image MUST be present so the
+    Operator-Hand path declared in the README is wired end-to-end."""
+    wf = REPO_ROOT / ".github" / "workflows" / "build-wakir-persona-engine.yml"
+    assert wf.is_file()
+    text = wf.read_text(encoding="utf-8")
+    # Manual-only trigger (parity with build-wakir-provisioner.yml).
+    assert "workflow_dispatch:" in text
+    assert "push:" not in text.split("on:")[1].split("jobs:")[0], (
+        "build workflow must not auto-trigger on push events"
+    )
+    # Builds the persona-engine Containerfile, not provisioner.
+    assert "infra/persona-engine/Containerfile" in text
+    # Sigstore-keyless sign step present.
+    assert "cosign sign" in text
+
+
+def test_build_workflow_least_privilege_permissions() -> None:
+    """Least-privilege scopes — parity with the provisioner build
+    workflow. Removing any of these breaks a specific step."""
+    import yaml
+    wf = REPO_ROOT / ".github" / "workflows" / "build-wakir-persona-engine.yml"
+    d = yaml.safe_load(wf.read_text(encoding="utf-8"))
+    perms = d.get("permissions", {})
+    assert perms.get("contents") == "read"
+    assert perms.get("packages") == "write"
+    assert perms.get("id-token") == "write"

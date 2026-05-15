@@ -143,11 +143,27 @@ fi
 # and ``@sha256:`` (see ``extract_current_digest`` + the line-
 # level grep). The SPIRE and python rows stay tag-pinned because
 # their tag is upstream-fixed (SPIRE release line, python minor).
+#
+# Sprint-10 Tag-4: the wakir-persona-engine row uses the bare base
+# too — the Pilot-Phase Schritt 9 image-availability gap-closer
+# ships ``0.1.0-pilot`` and rotates to ``0.2.0-pilot`` / ``1.0.0``
+# when Sprint-Pengine-8 lands the full engine; the bare-base form
+# keeps the resolver tag-tolerant across that rotation. The
+# Quadlet ``quadlet/wakir-persona-tomas.container`` line 86 carries
+# the consuming pin. The persona-engine pin's placeholder token is
+# ``DIGEST_PENDING_KAI_CROSS_REVIEW`` (Cross-Pair Zone-J ownership);
+# the resolver recognises any uppercase ``DIGEST_PENDING_*`` token
+# as a placeholder — see ``extract_current_digest`` regex.
+#
+# The python row carries TWO files now — the federation-provisioner
+# Containerfile AND the persona-engine Containerfile share the same
+# python:3.13-slim base-layer pin and resolve in lockstep.
 PINS=(
   "spire_server|ghcr.io/spiffe/spire-server:1.14.6|infra/spire/federation/quadlet/wakir-spire-server-federation.container;quadlet/wakir-spire-server.container"
   "spire_agent|ghcr.io/spiffe/spire-agent:1.14.6|infra/spire/agent/quadlet/wakir-spire-agent-federation.container;quadlet/wakir-spire-agent.container"
-  "python|docker.io/library/python:3.13-slim|infra/spire/federation/provisioner/Containerfile"
+  "python|docker.io/library/python:3.13-slim|infra/spire/federation/provisioner/Containerfile;infra/persona-engine/Containerfile"
   "wakir_provisioner|ghcr.io/wakir-labs/wakir-provisioner|quadlet/wakir-nats-kv-bucket-init.container"
+  "wakir_persona_engine|ghcr.io/wakir-labs/wakir-persona-engine|quadlet/wakir-persona-tomas.container"
 )
 
 # ----------------------------------------------------------------------
@@ -180,6 +196,38 @@ fetch_live_digest() {
 # Pin extraction + comparison.
 # ----------------------------------------------------------------------
 
+# ----------------------------------------------------------------------
+# Placeholder-token regex — Sprint-10 Tag-4 generalisation.
+# ----------------------------------------------------------------------
+#
+# Until Sprint-10 Tag-4 the resolver recognised exactly one
+# placeholder token: ``sha256:DIGEST_PENDING_TOMAS_REVIEW``. The
+# Quadlet ``quadlet/wakir-persona-tomas.container`` line 86 (Selin
+# Sprint-Pengine-7 Tag-5 OI-PILOT-1) introduced a SECOND placeholder
+# spelling: ``sha256:DIGEST_PENDING_KAI_CROSS_REVIEW`` — same token-
+# family, different cross-pair ownership annotation.
+#
+# Rather than enumerate every owner-suffix in the resolver, we
+# generalise: any uppercase ``DIGEST_PENDING_<ANNOTATION>`` token is
+# treated as a placeholder. The ``<ANNOTATION>`` segment is free-form
+# uppercase + digits + underscore so cross-pair ownership can be
+# encoded in the diff history without resolver-side changes.
+#
+# Concretely the regex segment that matches the digest portion of a
+# pin is:
+#
+#     sha256:(?: [a-f0-9]{64} | DIGEST_PENDING_[A-Z][A-Z0-9_]* )
+#
+# (POSIX-extended in shell: ``(sha256:[a-f0-9]{64}|sha256:DIGEST_PENDING_[A-Z][A-Z0-9_]*)``)
+#
+# The substitution path uses the matched digest as the literal
+# ``current`` byte-string, so the resolver replaces whatever
+# placeholder annotation was actually in the file with the live
+# digest byte-precisely.
+
+# Single regex constant — both extractors below consume it.
+PLACEHOLDER_OR_DIGEST_REGEX='(sha256:[a-f0-9]{64}|sha256:DIGEST_PENDING_[A-Z][A-Z0-9_]*)'
+
 extract_current_digest() {
   # Pulls the sha256:<hex> (or the placeholder token) currently
   # committed for <image_prefix> in <file>. Empty stdout = no match.
@@ -192,9 +240,14 @@ extract_current_digest() {
   # silently break drift detection. In the tag-pinned case the
   # regex still anchors on the exact prefix because the prefix
   # already carries the ``:<tag>``.
+  #
+  # Sprint-10 Tag-4: the placeholder portion of the regex now
+  # accepts any uppercase ``DIGEST_PENDING_<ANNOTATION>`` token, not
+  # only the historical ``_TOMAS_REVIEW`` suffix. See
+  # ``PLACEHOLDER_OR_DIGEST_REGEX`` above for the contract.
   local file="$1"
   local image_prefix="$2"
-  grep -oE "${image_prefix//./\\.}(:[^@[:space:]\"']+)?@(sha256:[a-f0-9]{64}|sha256:DIGEST_PENDING_TOMAS_REVIEW)" "$file" \
+  grep -oE "${image_prefix//./\\.}(:[^@[:space:]\"']+)?@${PLACEHOLDER_OR_DIGEST_REGEX}" "$file" \
     | head -n1 \
     | sed -E "s|^${image_prefix//./\\.}(:[^@[:space:]\"']+)?@||"
 }
@@ -207,7 +260,7 @@ extract_current_tag() {
   # the existing tag byte-for-byte.
   local file="$1"
   local image_prefix="$2"
-  grep -oE "${image_prefix//./\\.}(:[^@[:space:]\"']+)?@(sha256:[a-f0-9]{64}|sha256:DIGEST_PENDING_TOMAS_REVIEW)" "$file" \
+  grep -oE "${image_prefix//./\\.}(:[^@[:space:]\"']+)?@${PLACEHOLDER_OR_DIGEST_REGEX}" "$file" \
     | head -n1 \
     | sed -nE "s|^${image_prefix//./\\.}:([^@[:space:]\"']+)@.*$|\1|p"
 }
