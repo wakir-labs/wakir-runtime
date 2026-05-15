@@ -234,15 +234,23 @@ def test_missing_quadlet_binary_exits_3(tmp_path: Path) -> None:
 
 
 def test_inventory_count_stable() -> None:
-    """The clean-run reports 18 units / side. Drift-guard: if the
+    """The clean-run reports 21 units / side. Drift-guard: if the
     Quadlet inventory grows or shrinks, this test surfaces the change
     so the next operator updates the expected count consciously rather
-    than absorbing the drift."""
+    than absorbing the drift.
+
+    Sprint-Pengine-7 Tag-5 OI-PILOT-1 + OI-PILOT-4: 18 → 21 (three new
+    Quadlet artefacts on the wakir-side — wakir-persona-tomas.container,
+    wakir-persona-tomas-workspace.volume, and
+    wakir-recovery-drill-anchor.container). The .timer sidecar is a
+    plain systemd .timer (installed under /etc/systemd/system/) and is
+    not part of the Quadlet-generator inventory the lint walks.
+    """
     proc = _run_lint(REPO_ROOT)
     assert proc.returncode == 0, proc.stderr
-    # The final OK line is e.g. ``all sides OK (18 units / side)``.
-    assert "(18 units / side)" in proc.stdout, (
-        f"inventory drift: expected 18 units / side in OK line, "
+    # The final OK line is e.g. ``all sides OK (21 units / side)``.
+    assert "(21 units / side)" in proc.stdout, (
+        f"inventory drift: expected 21 units / side in OK line, "
         f"got stdout={proc.stdout!r}"
     )
 
