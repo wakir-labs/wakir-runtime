@@ -62,8 +62,8 @@ FROM docker.io/library/python:3.13-slim@sha256:DIGEST_PENDING_TOMAS_REVIEW
 
 # OCI metadata.
 LABEL org.opencontainers.image.title="wakir-persona-engine"
-LABEL org.opencontainers.image.description="Runtime image for the Wakir persona-engine real binary (Sprint-Pengine-11, v0.4.1-pilot; NATS-KV asyncio state-backing, gRPC SPIFFE Workload-API SVID-fetch with graceful-fallback to socket-probe-only on Bug-40 wire-error, async engine wrapper with NATS-subscribe-loop + SVID-refetch background-task, Phase-2-Stub LLM-Call-Shim, Bridge-Forward-Pipe input plumbing)."
-LABEL org.opencontainers.image.version="0.4.1-pilot"
+LABEL org.opencontainers.image.description="Runtime image for the Wakir persona-engine real binary (Sprint-Pengine-12, v0.4.2-pilot; CLI-async-wrap with auto subscribe-loop activation on WAKIR_SUBSCRIBE_ENV, NATS-KV asyncio state-backing, gRPC SPIFFE Workload-API SVID-fetch with graceful-fallback to socket-probe-only on Bug-40 wire-error, async engine wrapper with NATS-subscribe-loop + SVID-refetch background-task, Phase-2-Stub LLM-Call-Shim, Bridge-Forward-Pipe input plumbing)."
+LABEL org.opencontainers.image.version="0.4.2-pilot"
 LABEL org.opencontainers.image.licenses="BUSL-1.1"
 LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"
 LABEL org.opencontainers.image.url="https://github.com/wakir-labs/wakir-runtime"

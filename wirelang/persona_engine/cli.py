@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""CLI entry points for ``persona-engine`` (v0.2.0-pilot).
+"""CLI entry points for ``persona-engine`` (v0.4.2-pilot).
 
 Matches the CLI surface of the Sprint-10 Tag-4 stub binary
 (``spawn`` / ``healthcheck`` / ``version``) so the Quadlet contract
@@ -11,8 +11,20 @@ The real ``spawn`` differs from the stub in semantics:
 
 - Stub: reads axis-A, computes ``sha256-stub:`` pin, idles on
   SIGTERM with 30s heartbeats.
-- Real: full boot+spawn+run+despawn cycle, emits
-  ``engineering_output`` events into the bridge-audit double-sink.
+- Sync-real (default): full boot+spawn+run+despawn cycle, emits
+  ``engineering_output`` events into the bridge-audit double-sink;
+  no NATS-subscribe-loop activated.
+- Async-real (Sprint-Pengine-12 Bug-41 — when ``WAKIR_SUBSCRIBE_ENV``
+  is set): boots :class:`AsyncPersonaEngine`, attaches the
+  :class:`NatsSubscribeLoop` to the canonical
+  ``wakir.<env>.agent.agent.task.assigned.<persona-slug>`` subject,
+  and runs until SIGTERM/SIGINT. This is the path the
+  ``wakir-persona-tomas`` container needs to actually consume
+  Mira-side bridge-forward auftraege.
+
+The async path is opt-in via env var so the hermetic
+``--one-shot`` mode and existing single-process containers continue
+to work without an asyncio.run() shell.
 
 Both honour the same env-var contract (spec §"Env var contract").
 """
@@ -20,6 +32,8 @@ Both honour the same env-var contract (spec §"Env var contract").
 from __future__ import annotations
 
 import argparse
+import asyncio
+import os
 import sys
 from pathlib import Path
 from typing import Optional, Sequence
@@ -49,12 +63,49 @@ EXIT_USAGE_ERROR = 64
 
 
 # ---------------------------------------------------------------------------
+# Env-var name that toggles the async subscribe-loop path
+# (Sprint-Pengine-12 Bug-41). Value must be a Bridge-Forward-Pipe env
+# tag (``dev`` / ``staging`` / ``prod``); empty / unset = sync path.
+# ---------------------------------------------------------------------------
+
+SUBSCRIBE_ENV_VAR = "WAKIR_SUBSCRIBE_ENV"
+
+#: Env var name used to pick the live NATS URL when the async path
+#: builds its publish/subscribe binding. Defaults to ``WAKIR_NATS_SERVERS``
+#: (the same var the state-backing already consumes) so the Quadlet
+#: container only needs one NATS-URL knob.
+NATS_URL_ENV_VAR = "WAKIR_NATS_SERVERS"
+
+#: Optional token env-var (parity with ``wirelang.cli.mira_dispatch``).
+NATS_TOKEN_ENV_VAR = "WAKIR_NATS_TOKEN"
+
+
+# ---------------------------------------------------------------------------
 # Sub-commands.
 # ---------------------------------------------------------------------------
 
 
-def run_spawn(args: argparse.Namespace) -> int:
-    """``spawn`` subcommand entry."""
+def _resolve_async_subscribe_env(env: Optional[dict] = None) -> Optional[str]:
+    """Return the configured subscribe-env tag, or ``None`` if disabled.
+
+    The async path activates iff the env var :data:`SUBSCRIBE_ENV_VAR`
+    is set to a non-empty string. The value is validated against the
+    Bridge-Forward-Pipe grammar (``dev`` / ``staging`` / ``prod``) by
+    the subscribe-loop itself; this resolver only performs the
+    presence check so unset / empty stays cleanly on the sync path.
+    """
+    src = env if env is not None else os.environ
+    raw = src.get(SUBSCRIBE_ENV_VAR, "")
+    if not raw:
+        return None
+    return raw
+
+
+def _run_spawn_sync(args: argparse.Namespace) -> int:
+    """Sync-engine spawn path (backward-compat, no subscribe-loop).
+
+    Behaviour identical to the v0.4.1-pilot ``run_spawn`` body.
+    """
     try:
         env = resolve_env(persona_id=args.persona_slug)
     except EnvContractError as exc:
@@ -100,6 +151,204 @@ def run_spawn(args: argparse.Namespace) -> int:
     return EXIT_SUCCESS
 
 
+async def _run_spawn_async(
+    args: argparse.Namespace,
+    subscribe_env: str,
+) -> int:
+    """Async-engine spawn path (Sprint-Pengine-12 Bug-41).
+
+    Activated when :data:`SUBSCRIBE_ENV_VAR` is set. Wires:
+
+      1. :class:`AsyncPersonaEngine` (boot + spawn).
+      2. :class:`NatsSubscribeLoop` bound to the canonical
+         ``wakir.<env>.agent.agent.task.assigned.<persona-slug>`` subject
+         via :meth:`AsyncPersonaEngine.attach_subscribe_loop`. The runner
+         lazy-imports ``nats-py`` and connects to
+         ``WAKIR_NATS_SERVERS`` (with optional ``WAKIR_NATS_TOKEN``).
+      3. SIGTERM / SIGINT graceful shutdown via
+         :meth:`AsyncPersonaEngine.run_until_signal`.
+
+    Returns standard CLI exit code (EXIT_SUCCESS on graceful shutdown,
+    EXIT_ENV_MISCONFIG on env contract failures, EXIT_INPUT_NOT_FOUND
+    on missing axis-A, EXIT_V907_HASH_DRIFT on pin drift,
+    EXIT_SCHEMA_ERROR on lifecycle FSM violations or NATS wheel
+    missing).
+    """
+    # Lazy-import the async engine + subscribe-loop pieces inside the
+    # async path so the sync path keeps its zero-async import surface
+    # (parity with the PEP-562 lazy-attr pattern in __init__.py).
+    from .engine_async import AsyncPersonaEngine
+    from .nats_subscribe_loop import (
+        NatsSubscribeLoop,
+        SubscribeLoopConfig,
+        build_subscribe_subject,
+    )
+
+    try:
+        env = resolve_env(persona_id=args.persona_slug)
+    except EnvContractError as exc:
+        sys.stderr.write(f"env-misconfig: {exc}\n")
+        return EXIT_ENV_MISCONFIG
+    if not env.axis_a_path.is_file():
+        sys.stderr.write(
+            f"axis-A path not found: {env.axis_a_path}\n"
+            f"remediation: verify Quadlet Volume= line bind-mounts "
+            f"the persona-md\n"
+        )
+        return EXIT_INPUT_NOT_FOUND
+
+    nats_url = os.environ.get(NATS_URL_ENV_VAR, "").strip()
+    if not nats_url and not args.one_shot:
+        # Live mode (no --one-shot) requires the NATS URL to bind the
+        # subscribe-loop. One-shot skips the run-loop entirely (boot +
+        # spawn + despawn-clean) so the missing URL is tolerated as a
+        # hermetic-test escape hatch.
+        sys.stderr.write(
+            f"env-misconfig: {SUBSCRIBE_ENV_VAR} is set but "
+            f"{NATS_URL_ENV_VAR} is empty — cannot bind subscribe-loop "
+            f"to NATS\n"
+        )
+        return EXIT_ENV_MISCONFIG
+    nats_token = os.environ.get(NATS_TOKEN_ENV_VAR) or None
+
+    # Bind log_sink to the *current* sys.stderr (not the import-time
+    # default in AsyncPersonaEngine.__init__) so hermetic tests using
+    # capsys / capfd see the engine logs. In production this resolves
+    # to the same stderr the CLI inherited from the Quadlet exec.
+    engine = AsyncPersonaEngine(
+        env_contract=env,
+        subscribe_env=subscribe_env,
+        log_sink=sys.stderr,
+    )
+    try:
+        await engine.boot()
+    except PersonaHashDriftError as exc:
+        sys.stderr.write(f"v907-pin-drift: {exc}\n")
+        return EXIT_V907_HASH_DRIFT
+    except PersonaHashComputeError as exc:
+        sys.stderr.write(f"v907-compute-failed: {exc}\n")
+        return EXIT_SCHEMA_ERROR
+    try:
+        await engine.spawn()
+    except InvalidTransitionError as exc:
+        sys.stderr.write(f"lifecycle-fsm-error: {exc}\n")
+        return EXIT_SCHEMA_ERROR
+
+    # Wire the subscribe-loop. We don't use ``attach_subscribe_loop()``
+    # directly (it's the hermetic-test surface that consumes an
+    # externally-supplied msg_iter). Instead we construct a
+    # :class:`NatsSubscribeLoop` and set the engine's ``subscribe_runner``
+    # to the live ``run_live`` coroutine. The engine.run_until_signal
+    # awaits the runner via its ``_subscribe_loop`` task wrapper.
+    if engine.bridge_writer is None:  # defensive
+        sys.stderr.write("internal-error: bridge_writer is None after spawn\n")
+        return EXIT_SCHEMA_ERROR
+    subscribe_cfg = SubscribeLoopConfig(
+        env=subscribe_env,
+        persona_slug=env.persona_id,
+        org_id=env.org_id,
+        bridge_writer=engine.bridge_writer,
+        hook=engine._llm_hook,
+        tracker=engine.task_tracker,
+        publish_output=True,
+    )
+    subscribe_subject = build_subscribe_subject(
+        subscribe_env, env.persona_id,
+    )
+    sub_loop = NatsSubscribeLoop(
+        subscribe_cfg,
+        log_sink=engine.log_sink,
+    )
+    # Expose it on the engine so introspection (and the
+    # ``subscribe_loop`` property used by the hermetic tests) works.
+    engine._attached_subscribe_loop = sub_loop
+
+    # Inline runner: lazy-import nats-py + delegate to run_live.
+    async def _live_runner() -> None:
+        try:
+            import nats  # type: ignore
+        except ImportError as exc:  # pragma: no cover - wheel missing
+            engine._log({
+                "level": "ERROR",
+                "msg": "subscribe-loop-nats-py-missing",
+                "reason": str(exc),
+            })
+            return
+        try:
+            nc = await nats.connect(nats_url, token=nats_token)
+        except Exception as exc:  # pragma: no cover - network
+            engine._log({
+                "level": "ERROR",
+                "msg": "subscribe-loop-nats-connect-failed",
+                "reason": repr(exc),
+                "nats_url": nats_url,
+            })
+            return
+        sub_loop.publish_sink = nc
+        try:
+            sub = await nc.subscribe(subscribe_subject)
+            engine._log({
+                "level": "INFO",
+                "msg": "subscribe-loop-started",
+                "subject": subscribe_subject,
+                "subscribe_env": subscribe_env,
+                "persona_slug": env.persona_id,
+                "nats_url": nats_url,
+            })
+            await sub_loop.run_with_iterator(
+                sub.messages, stop_event=engine._stop_event,
+            )
+        finally:
+            try:
+                await nc.drain()
+            except Exception:  # pragma: no cover - best-effort
+                pass
+
+    engine._subscribe_runner = _live_runner
+
+    engine._log({
+        "level": "INFO",
+        "msg": "cli-async-dispatch",
+        "subscribe_env": subscribe_env,
+        "persona_slug": env.persona_id,
+        "subscribe_subject": subscribe_subject,
+        "nats_url": nats_url,
+        "one_shot": bool(args.one_shot),
+    })
+
+    if args.one_shot:
+        # Hermetic-test escape hatch: spawn + immediate despawn.
+        try:
+            await engine.despawn_clean_run()
+        except Exception as exc:  # noqa: BLE001
+            sys.stderr.write(f"despawn-clean-failed: {exc}\n")
+            return EXIT_SCHEMA_ERROR
+        return EXIT_SUCCESS
+
+    await engine.run_until_signal()
+    try:
+        await engine.despawn_clean_run()
+    except Exception as exc:  # noqa: BLE001
+        sys.stderr.write(f"despawn-clean-failed: {exc}\n")
+        return EXIT_SCHEMA_ERROR
+    return EXIT_SUCCESS
+
+
+def run_spawn(args: argparse.Namespace) -> int:
+    """``spawn`` subcommand entry.
+
+    Dispatches to the sync-engine path (backward-compat) or the
+    async-engine + subscribe-loop path (Sprint-Pengine-12 Bug-41)
+    based on the :data:`SUBSCRIBE_ENV_VAR` env var. The dispatch
+    decision is logged to stderr so live-smoke operators can verify
+    which path the container actually took.
+    """
+    subscribe_env = _resolve_async_subscribe_env()
+    if subscribe_env is None:
+        return _run_spawn_sync(args)
+    return asyncio.run(_run_spawn_async(args, subscribe_env))
+
+
 def run_healthcheck(_args: argparse.Namespace) -> int:
     """``healthcheck`` subcommand entry."""
     # The healthcheck must be cheap (Quadlet runs it every 15s). We
@@ -132,9 +381,11 @@ def build_parser() -> argparse.ArgumentParser:
         prog="persona-engine",
         description=(
             f"wakir-persona-engine v{ENGINE_VERSION} (real implementation; "
-            f"Sprint-Pengine-8). Drives the full spawn-session lifecycle "
+            f"Sprint-Pengine-12). Drives the full spawn-session lifecycle "
             f"with engineering-output emission, bridge-audit double-sink, "
-            f"V-907 pin verify, and SPIFFE workload-API probe."
+            f"V-907 pin verify, SPIFFE workload-API probe, and (when "
+            f"WAKIR_SUBSCRIBE_ENV is set) auto-activated NATS-subscribe "
+            f"loop for Bridge-Forward-Pipe auftrag intake."
         ),
     )
     sub = p.add_subparsers(dest="command", required=True)
