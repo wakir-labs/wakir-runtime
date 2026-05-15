@@ -38,6 +38,18 @@
 #   sudo install -d -m 755 /etc/wakir
 #   printf 'acme-tomas\n' | sudo tee /etc/wakir/persona-state-pairs
 #   #
+#   # Persona-files: staged at /etc/wakir/persona/<slug>.{md,json}
+#   # (Sprint-10 Tag-6 Bug-35 substance-fix). The Quadlet bind-mounts
+#   # source from /etc/wakir/persona/ on the host, NOT from the
+#   # wakir-runtime repo tree (the .claude/agents/<slug>.md and
+#   # wakir-persona/<slug>.json files live in the AI-Corp main repo,
+#   # which is NOT present on the Pilot-VM). The operator stages the
+#   # two files by hand (or via the bucket-init oneshot in a follow-up
+#   # PR):
+#   sudo install -d -m 755 /etc/wakir/persona
+#   sudo install -m 644 /path/to/tomas.md   /etc/wakir/persona/tomas.md
+#   sudo install -m 644 /path/to/tomas.json /etc/wakir/persona/tomas.json
+#   #
 #   sudo systemctl daemon-reload
 #   sudo systemctl start wakir-persona-tomas.service
 #
@@ -103,22 +115,40 @@ Group=1000
 
 # Bind-mounts and named volumes.
 #
-# 1) Persona definition (read-only). The .claude/agents/tomas.md
-#    source is the persona-definition single source of truth
-#    (Aisha-HR-Governance-Owner-Domain). The persona-engine reads
-#    this file at spawn-time and computes the V-907 pin-hash
-#    against it. The file is bind-mounted into the container at
-#    a stable path.
-Volume=/opt/wakir-runtime/.claude/agents/tomas.md:/etc/wakir/persona/tomas.md:ro,Z
+# Sprint-10 Tag-6 Bug-35 substance-fix: the persona-files (axis-A
+# Markdown + axis-C JSON) live in the AI-Corp main repo, which is
+# NOT present on the Pilot-VM. The Quadlet bind-mount sources were
+# pointed at ``/opt/wakir-runtime/.claude/agents/<slug>.md`` and
+# ``/opt/wakir-runtime/wakir-persona/<slug>.json`` — both paths do
+# NOT exist in the wakir-runtime repo-topology and the M-3 Live-Trial
+# (2026-05-15 Schritt 9) required an Operator-Hand workaround
+# (``TOMAS_SPAWN_RECIPE.md`` §9a stages the files at
+# ``/etc/wakir/persona/<slug>.{md,json}``).
 #
-# 2) Wakir persona-JSON (read-only). The .claude/agents/tomas.md
-#    is the axis-A source; the persona-engine Tag-1 converter
-#    (Selin Sprint-Pengine-7 Tag-1 Crate-8 ``persona-engine-format``)
-#    emits the axis-C wakir.persona/<slug>.json canonical form. This
-#    is the form the persona-engine consumes inside the container
-#    for the spawn-time configuration (capability-token-id,
-#    audit-policy, state-persistence-config).
-Volume=/opt/wakir-runtime/wakir-persona/tomas.json:/etc/wakir/persona/tomas.json:ro,Z
+# The fix decouples the Quadlet from the repo-topology: source
+# paths are now the Operator-staged ``/etc/wakir/persona/`` paths.
+# Identical to the in-container destination paths, so the Quadlet
+# bind-mount is a 1:1 mirror — operator-side staging happens
+# OUTSIDE the Quadlet contract.
+#
+# 1) Persona definition (read-only, axis-A Markdown). The
+#    ``.claude/agents/<slug>.md`` source is the persona-definition
+#    single source of truth (Aisha-HR-Governance-Owner-Domain). The
+#    operator stages a copy at ``/etc/wakir/persona/<slug>.md`` on
+#    the Pilot-VM (see "Operator install path" above). The persona-
+#    engine reads this file at spawn-time and computes the V-907
+#    pin-hash against it.
+Volume=/etc/wakir/persona/tomas.md:/etc/wakir/persona/tomas.md:ro,Z
+#
+# 2) Wakir persona-JSON (read-only, axis-C canonical form). The
+#    persona-engine Tag-1 converter (Selin Sprint-Pengine-7 Tag-1
+#    Crate-8 ``persona-engine-format``) emits the axis-C
+#    ``wakir.persona/<slug>.json`` canonical form. The operator
+#    stages a copy at ``/etc/wakir/persona/<slug>.json`` on the
+#    Pilot-VM. This is the form the persona-engine consumes inside
+#    the container for the spawn-time configuration (capability-
+#    token-id, audit-policy, state-persistence-config).
+Volume=/etc/wakir/persona/tomas.json:/etc/wakir/persona/tomas.json:ro,Z
 #
 # 3) SPIRE-Workload-API socket. The persona-engine consumes the
 #    Tomás SVID via the SPIFFE Workload API; the SPIRE-Agent

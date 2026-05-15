@@ -115,16 +115,33 @@ Pilot-VM nutzt `persona_id=dev-engineering` als Container-Name-Suffix
 + NATS-KV-Bucket-Suffix; das ist konsistent mit der ADR-0058-§Pilot-
 Phase-Tomás-Bezeichnung.
 
-## 3. Schritt 9a — Bundle-Transfer + NATS-KV-Bucket-Init (Pilot-VM)
+## 3. Schritt 9a — Bundle-Transfer + Persona-Files-Staging + NATS-KV-Bucket-Init (Pilot-VM)
 
 ```bash
 # (a) Bundle auf die Pilot-VM kopieren (von der Operator-Sandbox aus):
 scp /tmp/wakir-pilot-exports/tomas.pilot-export.json \
     operator@<pilot-vm-ip>:/var/lib/wakir/pilot-imports/
 
-# (b) Bucket-Create auf der Pilot-VM (vorläufig, bis Kai's
-#     bucket-init-Unit für die persona-state-Family in main ist):
+# (b) Persona-Files-Staging (Sprint-10 Tag-6 Bug-35 substance-fix).
+#     Die Quadlet-Unit `wakir-persona-tomas.container` bind-mountet
+#     /etc/wakir/persona/<slug>.{md,json} read-only ins Container.
+#     Die Quelle-Files leben im AI-Corp-Hauptrepo (.claude/agents/
+#     bzw. wakir-persona/), nicht im wakir-runtime-Repo — wir
+#     stagen sie per scp auf die Pilot-VM und installieren sie
+#     in /etc/wakir/persona/:
+scp /var/home/fred/AI-Corp/.claude/agents/dev-engineering.md \
+    operator@<pilot-vm-ip>:/tmp/tomas.md
+scp /var/home/fred/AI-Corp/wakir-persona/dev-engineering.json \
+    operator@<pilot-vm-ip>:/tmp/tomas.json
+
 ssh operator@<pilot-vm-ip>
+sudo install -d -m 755 /etc/wakir/persona
+sudo install -m 644 /tmp/tomas.md   /etc/wakir/persona/tomas.md
+sudo install -m 644 /tmp/tomas.json /etc/wakir/persona/tomas.json
+rm /tmp/tomas.md /tmp/tomas.json  # cleanup
+
+# (c) Bucket-Create auf der Pilot-VM (vorläufig, bis Kai's
+#     bucket-init-Unit für die persona-state-Family in main ist):
 sudo -u wakir nats kv add wakir-persona-state-dev-engineering \
   --history=10 --max-value-size=65536 --storage=file --replicas=1
 ```
@@ -132,6 +149,9 @@ sudo -u wakir nats kv add wakir-persona-state-dev-engineering \
 **Verifikation:**
 
 ```bash
+ls -la /etc/wakir/persona/tomas.md /etc/wakir/persona/tomas.json
+# Erwartet: beide Files vorhanden, lesbar, mode 644
+
 sudo -u wakir nats kv ls | grep wakir-persona-state-dev-engineering
 # Erwartet: wakir-persona-state-dev-engineering (eine Zeile)
 ```

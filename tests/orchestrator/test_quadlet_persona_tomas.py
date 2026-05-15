@@ -238,6 +238,48 @@ def test_persona_definition_bind_mounts_are_readonly():
 
 
 # ---------------------------------------------------------------------
+# T-QUADLET-PERSONA-06b — Sprint-10 Tag-6 Bug-35: persona-files source
+# paths MUST be decoupled from the wakir-runtime repo-topology. The
+# Pilot-VM does NOT carry the AI-Corp main repo, where the axis-A
+# Markdown + axis-C JSON sources live. The operator stages the files
+# at /etc/wakir/persona/<slug>.{md,json} (see TOMAS_SPAWN_RECIPE.md
+# §9a, Bug-35 substance-fix). The Quadlet MUST source from that
+# operator-staged path, NOT from /opt/wakir-runtime/.
+# ---------------------------------------------------------------------
+
+
+def test_persona_definition_source_paths_decoupled_from_repo_topology():
+    """Bug-35 fix: persona-files MUST source from /etc/wakir/persona/.
+
+    Regression-guard against the prior /opt/wakir-runtime/.claude/agents/
+    + /opt/wakir-runtime/wakir-persona/ paths which do NOT exist on the
+    Pilot-VM (the AI-Corp main repo is not present there).
+    """
+    volumes = _section_lines(QUADLET_CONTAINER, "Container", "Volume")
+    persona_file_mounts = [
+        v for v in volumes
+        if "/etc/wakir/persona/tomas.md" in v
+        or "/etc/wakir/persona/tomas.json" in v
+    ]
+    assert len(persona_file_mounts) == 2, volumes
+    for mount in persona_file_mounts:
+        # Volume= format is <source>:<dest>:<flags>. Source MUST start
+        # with /etc/wakir/persona/ (operator-staged), NOT with
+        # /opt/wakir-runtime/ (repo-topology-bound, does NOT exist on
+        # Pilot-VM).
+        source = mount.split(":")[0]
+        assert source.startswith("/etc/wakir/persona/"), (
+            f"Bug-35: persona-file source MUST be /etc/wakir/persona/* "
+            f"(operator-staged, decoupled from repo-topology). Got: {source!r}"
+        )
+        assert "/opt/wakir-runtime/" not in source, (
+            f"Bug-35 regression: /opt/wakir-runtime/ source path is "
+            f"forbidden — the AI-Corp main repo is NOT present on the "
+            f"Pilot-VM. Got: {source!r}"
+        )
+
+
+# ---------------------------------------------------------------------
 # T-QUADLET-PERSONA-07 — restart policy (Tag-4 §3.7.4.2 R4)
 # ---------------------------------------------------------------------
 
