@@ -48,9 +48,9 @@ Body.
 
 
 def test_engine_version_is_pilot_real():
-    assert ENGINE_VERSION == "0.2.0-pilot"
+    assert ENGINE_VERSION == "0.3.0-pilot"
     assert ENGINE_VARIANT == "real"
-    assert __version__ == "0.2.0-pilot"
+    assert __version__ == "0.3.0-pilot"
 
 
 # -------------------- env resolution --------------------
@@ -163,7 +163,7 @@ def test_cli_version_returns_real_version(capsys):
     rc = run_version(args)
     out = capsys.readouterr().out
     assert rc == EXIT_SUCCESS
-    assert "0.2.0-pilot" in out
+    assert "0.3.0-pilot" in out
     assert "real" in out
 
 
@@ -245,4 +245,4 @@ def test_entrypoint_shim_runs_via_subprocess(tmp_path):
         timeout=10,
     )
     assert proc.returncode == 0
-    assert "0.2.0-pilot" in proc.stdout
+    assert "0.3.0-pilot" in proc.stdout

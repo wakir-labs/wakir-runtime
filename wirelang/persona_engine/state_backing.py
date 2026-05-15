@@ -430,7 +430,17 @@ class NatsKvPersonaStateBackingAsync(PersonaStateBackingAsync):
             self._kv_cache.clear()
 
     def _bucket_name(self, persona_id: str) -> str:
-        from wirelang.persona.persona_state_kv_constants import (
+        # The constants-only shim
+        # ``wirelang.persona.persona_state_kv_constants`` does not
+        # expose ``bucket_name_for_pair`` by design (see its
+        # module docstring: callers requiring the strict pair-
+        # shape "MUST use ``bucket_name_for_pair`` directly (and
+        # accept the crypto-bearing transitive import)"). The
+        # async backing always runs in the persona-engine runtime
+        # context where the full ``persona_state_kv`` module is
+        # already imported via the NATS-KV substrate, so the
+        # transitive crypto dependency is already paid for.
+        from wirelang.persona.persona_state_kv import (
             bucket_name_for_pair,
         )
 
@@ -668,7 +678,12 @@ class NatsKvPersonaStateBacking(PersonaStateBacking):
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._loop_thread: Optional[threading.Thread] = None
         self._connected: bool = False
-        self._connect_lock = threading.Lock()
+        # RLock (re-entrant) because ``_ensure_connected`` calls
+        # ``_submit`` -> ``_ensure_loop`` while still holding the
+        # lock; a plain ``threading.Lock`` would self-deadlock on
+        # first ``snapshot()`` call. See test_state_backing_async
+        # ``test_sync_facade_delegates_to_async_backing``.
+        self._connect_lock = threading.RLock()
 
     # ------------------------------------------------------------------
     # Loop management.

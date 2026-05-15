@@ -25,19 +25,36 @@ def test_quadlet_file_exists():
     assert QUADLET_PATH.exists()
 
 
+def _non_comment_lines(text: str) -> list[str]:
+    """Return Quadlet lines excluding ``#``-comment lines.
+
+    The Quadlet header documents prior bug-history (Bug-Quadlet-
+    Drift) and intentionally mentions the deprecated
+    ``/opt/wakir-runtime/...`` paths in comment prose so an
+    operator reading the file understands the staging contract.
+    The substantive-substrate tests must scope their negative
+    assertions to non-comment lines so the documentation does
+    not produce false positives.
+    """
+    return [
+        ln for ln in text.splitlines()
+        if not ln.lstrip().startswith("#")
+    ]
+
+
 def test_quadlet_does_not_bind_opt_wakir_runtime_claude_agents():
     """Bug-Quadlet-Drift: the prior bind-mount referenced
     ``/opt/wakir-runtime/.claude/agents/tomas.md`` which does not
     exist in the wakir-runtime checkout. The fix decouples the
     Quadlet from the repo topology by staging at ``/etc/wakir/
     persona/``."""
-    text = _quadlet_text()
-    assert "/opt/wakir-runtime/.claude/agents/tomas.md" not in text
+    substantive = "\n".join(_non_comment_lines(_quadlet_text()))
+    assert "/opt/wakir-runtime/.claude/agents/tomas.md" not in substantive
 
 
 def test_quadlet_does_not_bind_opt_wakir_runtime_wakir_persona():
-    text = _quadlet_text()
-    assert "/opt/wakir-runtime/wakir-persona/tomas.json" not in text
+    substantive = "\n".join(_non_comment_lines(_quadlet_text()))
+    assert "/opt/wakir-runtime/wakir-persona/tomas.json" not in substantive
 
 
 def test_quadlet_binds_etc_wakir_persona_md():
@@ -52,13 +69,16 @@ def test_quadlet_binds_etc_wakir_persona_json():
 
 def test_quadlet_preserves_z_selinux_label():
     text = _quadlet_text()
-    # The :Z private-relabel flag is mandatory for the persona
-    # definition bind-mounts on FCOS-enforced hosts.
+    # The Z private-relabel flag is mandatory for the persona
+    # definition bind-mounts on FCOS-enforced hosts. Quadlet
+    # bind-mount option syntax uses comma-separated options after
+    # the second colon (e.g. ``:ro,Z``), so accept either ``:Z``
+    # or ``,Z`` as proof the flag is present.
     md_line = [
         ln for ln in text.splitlines()
         if "/etc/wakir/persona/tomas.md" in ln and "Volume=" in ln
     ]
-    assert any(":Z" in ln for ln in md_line)
+    assert any((":Z" in ln) or (",Z" in ln) for ln in md_line)
 
 
 def test_quadlet_preserves_spire_socket_bind():

@@ -211,7 +211,13 @@ def test_run_one_drill_failure_resets_on_next_success():
 
     fail_first = {"flag": True}
 
-    class _OnceFailRecovery(RecoveryWorkflow):
+    class _OnceFailRecovery(_StubRecoveryWorkflow):
+        # Inherits the hermetic stub-success path for the second
+        # invocation so the test does not require a real
+        # workload-API socket (no SPIRE in hermetic env). First
+        # invocation injects a RecoveryError to drive the
+        # consecutive-failures counter; second invocation returns
+        # the stub-success RecoveryResult.
         def run(self, **kwargs):
             if fail_first["flag"]:
                 fail_first["flag"] = False
