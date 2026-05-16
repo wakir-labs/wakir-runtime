@@ -6,13 +6,15 @@
 # License posture
 # ---------------
 #
-# Most modules under this project ship under Apache-2.0. The WAT
-# (Wakir Audit Trail) operations module under `wat/` ships under
-# Business Source License 1.1 with an automatic four-year conversion
-# to Apache-2.0; see `wat/LICENSE-BSL.md` for the per-module text and
-# the top-level `LICENSE` for Apache-2.0. Each source file carries its
-# own SPDX identifier; the project-level identifier above is the
-# union expression.
+# This project is mixed-license. Apache-2.0 is the default for
+# foundation code and verifier tooling; selected operational sub-trees
+# ship under Business Source License 1.1 (BUSL-1.1) with a four-year
+# auto-convert to Apache-2.0 per `LICENSE-BSL.md` at each BSL sub-tree
+# root. CC-BY-4.0 covers documentation where marked. The authoritative
+# path-to-license map lives in `LICENSING.md` at the repo root. Each
+# source file carries its own SPDX identifier; the project-level
+# identifier on the [project] table below is the union expression for
+# distribution metadata (PEP-639).
 #
 # Build backend
 # -------------
@@ -33,7 +35,20 @@ version = "0.0.1.dev0"
 description = "Wakir Labs reference runtime: Wirelang, WAT, and capability tokens."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "Apache-2.0 AND BUSL-1.1" }
+license = "Apache-2.0 AND BUSL-1.1"
+license-files = [
+    "LICENSE",
+    "NOTICE",
+    "LICENSES/Apache-2.0.txt",
+    "LICENSES/BUSL-1.1.txt",
+    "LICENSES/CC-BY-4.0.txt",
+    "wat/LICENSE-BSL.md",
+    "wirelang/federation/LICENSE-BSL.md",
+    "wirelang/persona_engine/LICENSE-BSL.md",
+    "infra/spire/federation/LICENSE-BSL.md",
+    "infra/spire/agent/LICENSE-BSL.md",
+    "infra/persona-engine/LICENSE-BSL.md",
+]
 authors = [
     { name = "Callandor GmbH and contributors" },
 ]
@@ -69,6 +84,24 @@ dependencies = [
     # (BIP-32 secp256k1 + SLIP-0010 Ed25519 derivation).
     # License: Apache-2.0 + BSD.
     "cryptography>=42",
+    # YAML front-matter parsing for axis-A persona-canonical-form
+    # (V-907 pin-compute path). Imported eagerly by
+    # `wirelang/persona/persona_canonical_form.py`, which the
+    # `persona-engine` v907_verify code path imports lazily through
+    # `wirelang.persona.persona_canonical_form`. Promoting PyYAML
+    # from the `persona-engine-runtime` extra to a top-level
+    # dependency closes the ADR-0061 §"Schritt 10" build-drift
+    # symptom (52 wirelang test-suite failures with
+    # `PersonaHashComputeError: persona_canonical_form missing`,
+    # whose underlying cause is `ModuleNotFoundError: No module
+    # named 'yaml'` raised from the eager `import yaml` line in
+    # `persona_canonical_form.py`). The error message in
+    # `v907_verify.py` swallows the original `ImportError` and
+    # presents it as a packaging-missing-module symptom; the real
+    # root cause is the missing transitive dep at the project root.
+    # PyPI: https://pypi.org/project/PyYAML/  (URL-200-stamped 2026-05-16)
+    # Maintainer: Ingy döt Net + Kirill Simonov. License: MIT.
+    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]

@@ -347,17 +347,17 @@ docs/       — Markdown documentation     (CC BY 4.0)
 
 ## License
 
-Most modules are licensed under Apache License 2.0 (see [LICENSE](LICENSE)).
+This repository is mixed-license. Apache-2.0 is the default for
+foundation code and verifier tooling. Selected operational modules
+are licensed under BUSL-1.1 and convert to Apache-2.0 on their
+stated Change Date. Documentation is CC-BY-4.0 where marked. See
+[LICENSING.md](./LICENSING.md) for the authoritative map.
 
-A small number of operations modules are released under the Business
-Source License 1.1 with an automatic four-year conversion to Apache 2.0.
-Each such module carries its own license header. The first such module
-is the WAT pipeline; see [`wat/LICENSE-BSL.md`](wat/LICENSE-BSL.md) for
-the per-module license text. Further BSL modules are introduced phase
-by phase as documented in our public release notes.
-
-See [NOTICE](NOTICE) for the attribution required by Apache 2.0 and
-for context on how this code is produced under human governance.
+See [NOTICE](NOTICE) for the attribution required by Apache 2.0,
+[GOVERNANCE.md](./GOVERNANCE.md) for the human-governance posture,
+[BRAND.md](./BRAND.md) for trademark and brand-asset posture, and
+[ATTRIBUTION.md](./ATTRIBUTION.md) for sponsorship, work-product,
+and third-party attribution context.
 
 ## Brand
 
