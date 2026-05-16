@@ -1,0 +1,250 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase-2-Doppelbetrieb Validation Gate (Sprint-Phase-2-Validation-Workflow-MINI)
+# ------------------------------------------------------------------------------
+#
+# Verpflichtender CI-Status-Check, der die hermetische Phase-2-Acceptance-
+# Gate-Suite (`tests/infra/test_phase_2_acceptance_gates.py`, PR #109)
+# als Repo-Invariante zementiert. Jede `pull_request` gegen `main` und
+# jeder `push` auf `main`, der die fünf Doppelbetrieb-Acceptance-Gates
+# tangiert, muss diesen Gate grün durchlaufen.
+#
+# Anchors
+# -------
+# - ADR-0058 §"Phase 2 — Doppelbetrieb (Wochen 1-4)" — Vier-Wochen-Plan
+#   mit 4-Achsen-Score und Henrik-Audit-Sample-Pflicht.
+# - `docs/quality-gates/phase-2-doppelbetrieb.md` (Amara, PR #80) — die
+#   fünf Acceptance-Gates, die QA vor Phase-3-Promotion erzwingt.
+# - PR #109 (Tomás) — die hermetische Test-Suite (eine Funktion pro
+#   Gate, plus Aggregator), die hier als CI-Treiber dient.
+#
+# Gate-Inhalt (sechs Stages, fail-fast pro Gate-Test)
+# ---------------------------------------------------
+#
+#   1. Gate-2-1 Bridge-Forward-Symmetry — fan-out-Symmetrie und Drop-
+#      Rate-Bound (≤ 0.1%) über deterministischer Mock-Trace.
+#
+#   2. Gate-2-2 Konsistenz-Score-Threshold — Doppelbetrieb-Konsistenz-
+#      Score via `bridge_audit_diff_engine` (Selin, PR #106) als
+#      hermetischer Proxy für den 6h-Rollup, den Henrik live samplet.
+#
+#   3. Gate-2-3 V-907-Hash-Stabilitäts-Marker — Null
+#      `PersonaHashDriftError`-Events, `axis-a-pin` = Build-Time-Pin.
+#
+#   4. Gate-2-4 Recovery-R1..R4-Mock-Drill — hermetisches Äquivalent
+#      zur Live-Stress-Test-Matrix (Despawn+Recovery, Capability-Token-
+#      Rotation, KV-Persistenz-VM-Reboot, WAT-OTS-Anchor-Cycle-Failover).
+#
+#   5. Gate-2-5 Subscribe-Loop-Lag-Mock — Output-Reply-Timeliness
+#      p99 ≤ 45s über Mock-Histogramm.
+#
+#   6. Aggregator — alle fünf Gates back-to-back plus die Cross-Gate-
+#      Non-Interference-Invariante (Gate-2-2-Drift darf nicht in
+#      Gate-2-3-V-907-Pin-Drift propagieren; Gate-2-5-Lag-Excursion
+#      darf nicht Gate-2-1-Symmetrie flippen).
+#
+# Jede Stage ruft genau die eine zugehörige Test-Funktion auf
+# (`pytest -k`), so dass im PR-Check-Run-Tab die fünf Gates plus
+# Aggregator einzeln als grün/rot sichtbar werden. Das matched die
+# Quality-Gate-Doku-Topologie und macht Drift-Lokalisierung in der
+# Doppelbetrieb-Welle erheblich schneller als ein einziger Pytest-Run.
+#
+# Sandbox boundary
+# ----------------
+# Alle Stages sind hermetic: In-Memory-Mocks, kein podman, kein NATS,
+# keine Live-VM. Der Live-VM-Acceptance-Gate (siehe
+# `e2e-vm-acceptance-gate.yml`) bleibt Operator-Hand-Lane —
+# Trennung gemäß `feedback_sandbox_host_trennung.md`.
+#
+# Required-Status-Check
+# ---------------------
+# Sobald dieser Workflow auf `main` einmal grün läuft, soll Mira
+# (Operator-Hand, GitHub-Repo-Settings) ihn unter
+# `Settings → Branches → main → Branch Protection Rules →
+#  Require status checks to pass before merging` aktivieren — analog
+# `license-gate` und `hash-derivate-gate`. Die exakten Check-Display-
+# Names sind die `name:`-Felder der sechs Jobs unten (siehe
+# `feedback_branch_protection_check_names.md` — der Required-Check
+# verlangt den Job-Display-Namen, nicht den Workflow-Namen).
+#
+# Pattern-Parity
+# --------------
+# Trigger-Form, Python-Setup, Dependency-Pin und Stage-Layout matchen
+# bewusst `license-gate.yml` und `hash-derivate-gate.yml`. Wer ein
+# Gate hier liest, kennt die anderen beiden auch.
+
+name: phase-2-validation-gate
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "wirelang/**"
+      - "tests/infra/test_phase_2_acceptance_gates.py"
+      - "docs/quality-gates/**"
+      - ".github/workflows/phase-2-validation-gate.yml"
+  pull_request:
+    paths:
+      - "wirelang/**"
+      - "tests/infra/test_phase_2_acceptance_gates.py"
+      - "docs/quality-gates/**"
+      - ".github/workflows/phase-2-validation-gate.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  gate-2-1-bridge-forward-symmetry:
+    name: Gate-2-1 Bridge-Forward-Symmetry
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install gate dependencies
+        # Stdlib + pytest is sufficient; the test-module is hermetic
+        # and pulls its diff-engine from the in-tree wirelang package.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . "pytest>=8.0"
+      - name: Run Gate-2-1
+        run: |
+          python -m pytest tests/infra/test_phase_2_acceptance_gates.py \
+            -k "test_gate_2_1_bridge_forward_symmetry" \
+            -v --tb=short
+
+  gate-2-2-konsistenz-score-threshold:
+    name: Gate-2-2 Konsistenz-Score Threshold
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install gate dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . "pytest>=8.0"
+      - name: Run Gate-2-2
+        run: |
+          python -m pytest tests/infra/test_phase_2_acceptance_gates.py \
+            -k "test_gate_2_2_konsistenz_score_threshold" \
+            -v --tb=short
+
+  gate-2-3-v907-hash-stability-marker:
+    name: Gate-2-3 V907-Hash-Stability-Marker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install gate dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . "pytest>=8.0"
+      - name: Run Gate-2-3
+        run: |
+          python -m pytest tests/infra/test_phase_2_acceptance_gates.py \
+            -k "test_gate_2_3_v907_hash_stability_marker" \
+            -v --tb=short
+
+  gate-2-4-recovery-r1-r4-mock-drill:
+    name: Gate-2-4 Recovery-R1..R4-Mock-Drill
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install gate dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . "pytest>=8.0"
+      - name: Run Gate-2-4
+        run: |
+          python -m pytest tests/infra/test_phase_2_acceptance_gates.py \
+            -k "test_gate_2_4_recovery_r1_r4_mock_drill" \
+            -v --tb=short
+
+  gate-2-5-subscribe-loop-lag-mock:
+    name: Gate-2-5 Subscribe-Loop-Lag-Mock
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install gate dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . "pytest>=8.0"
+      - name: Run Gate-2-5
+        run: |
+          python -m pytest tests/infra/test_phase_2_acceptance_gates.py \
+            -k "test_gate_2_5_subscribe_loop_lag_mock" \
+            -v --tb=short
+
+  phase-2-aggregator:
+    name: Phase-2 Aggregator (All Gates + Cross-Gate Non-Interference)
+    runs-on: ubuntu-latest
+    # Aggregator depends on all five single-gate jobs so the green-light
+    # signal at the bottom of the PR-Check-Run-Tab only fires once each
+    # individual Gate plus the cross-gate-non-interference invariant
+    # have passed. If any single-gate job is RED, the aggregator skips.
+    needs:
+      - gate-2-1-bridge-forward-symmetry
+      - gate-2-2-konsistenz-score-threshold
+      - gate-2-3-v907-hash-stability-marker
+      - gate-2-4-recovery-r1-r4-mock-drill
+      - gate-2-5-subscribe-loop-lag-mock
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install gate dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . "pytest>=8.0"
+      - name: Run Phase-2 Aggregator
+        # Drives the cross-gate aggregator that walks all five gates
+        # back-to-back AND asserts the non-interference invariants
+        # (Gate-2-2 drift must not propagate to Gate-2-3 pin set;
+        # Gate-2-5 lag excursion must not flip Gate-2-1 symmetry).
+        run: |
+          python -m pytest tests/infra/test_phase_2_acceptance_gates.py \
+            -k "test_gate_aggregator_phase_2_acceptance_all_green" \
+            -v --tb=short
+      - name: Phase-2 Validation Gate — Summary
+        if: always()
+        run: |
+          {
+            echo "# Phase-2 Validation Gate — Summary"
+            echo ""
+            echo "| Gate | Status |"
+            echo "|---|---|"
+            echo "| Gate-2-1 Bridge-Forward-Symmetry            | ${{ needs.gate-2-1-bridge-forward-symmetry.result }} |"
+            echo "| Gate-2-2 Konsistenz-Score Threshold         | ${{ needs.gate-2-2-konsistenz-score-threshold.result }} |"
+            echo "| Gate-2-3 V907-Hash-Stability-Marker         | ${{ needs.gate-2-3-v907-hash-stability-marker.result }} |"
+            echo "| Gate-2-4 Recovery-R1..R4-Mock-Drill         | ${{ needs.gate-2-4-recovery-r1-r4-mock-drill.result }} |"
+            echo "| Gate-2-5 Subscribe-Loop-Lag-Mock            | ${{ needs.gate-2-5-subscribe-loop-lag-mock.result }} |"
+            echo "| Aggregator (Cross-Gate Non-Interference)    | ${{ job.status }} |"
+            echo ""
+            echo "Anchors: ADR-0058, docs/quality-gates/phase-2-doppelbetrieb.md, PR #109."
+          } >> "$GITHUB_STEP_SUMMARY"
