@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# persona-engine-bridge-diff — deterministic-diff oracle for the
+# Phase-3a Doppelbetrieb-Shadow bridge (Rust pendant).
+#
+# Rust port of wirelang/persona_engine/bridge_audit_diff_engine.py
+# (PR #106, Sprint-Pengine-15-Mini). The Python implementation stays
+# in the tree unchanged; this crate ships in parallel so the cutover
+# acceptance gate can compare Python-engine output against Rust-
+# engine output for the same logical input.
+#
+# Determinism contract
+# --------------------
+#
+# - JCS-canonicalisation: RFC 8785 via `serde_jcs` (workspace pin
+#   `=0.2.0`), the same canonicaliser persona-hash uses for V-907.
+# - Digest: SHA-256 via `sha2` 0.10.x.
+# - Output: `"sha256:<64-lower-hex>"` (matches the Python
+#   `jcs_hash` helper byte-for-byte).
+# - JSON-Pointer paths: RFC 6901 (leading slash, `~` -> `~0`, `/` -> `~1`).
+#
+# Cross-language anchors (frozen 2026-05-16, see tests/bridge_diff_smoke_test.rs):
+#
+# - Empty envelope `{}`:
+#     sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a
+# - CloudEvent envelope (F2 fixture, 306 JCS bytes):
+#     sha256:8c8acdc31862de3c051a054d8f3688096ff05636ea3d8af1f33e98a1b592e608
+#
+# Both pins captured from the Python `jcs_hash` helper on 2026-05-16
+# and re-asserted byte-for-byte in this crate's test suite.
+#
+# ADR anchors
+# -----------
+#
+# - ADR-0063 §Folgeartefakte Phase-3a Item 4 (initial Rust scaffold).
+# - PR #106 (Python bridge_audit_diff_engine.py) — reference implementation.
+# - PR #120 (serde_jcs workspace pin) — canonicaliser dependency.
+
+[package]
+name = "persona-engine-bridge-diff"
+version = "0.1.0"
+description = "Phase-3a Doppelbetrieb-Bridge deterministic-diff oracle (Rust pendant of bridge_audit_diff_engine.py)"
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+
+[lib]
+name = "persona_engine_bridge_diff"
+path = "src/lib.rs"
+
+[dependencies]
+sha2       = { workspace = true, features = ["std"] }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+serde_jcs  = { workspace = true }
+hex        = { workspace = true }
+
+[dev-dependencies]
+# (none beyond the workspace deps; tests use serde_json::json! macro.)
