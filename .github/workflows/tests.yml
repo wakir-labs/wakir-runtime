@@ -60,15 +60,19 @@ on:
       - main
     paths:
       - 'wirelang/**'
+      - 'tests/**'
       - 'pyproject.toml'
       - '.github/workflows/tests.yml'
       - '.github/workflows/sandbox-ci.yml'
+      - '.github/workflows/hash-derivate-gate.yml'
   pull_request:
     paths:
       - 'wirelang/**'
+      - 'tests/**'
       - 'pyproject.toml'
       - '.github/workflows/tests.yml'
       - '.github/workflows/sandbox-ci.yml'
+      - '.github/workflows/hash-derivate-gate.yml'
   workflow_dispatch: {}
 
 permissions:
