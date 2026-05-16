@@ -126,6 +126,15 @@ class LlmCallHook(Protocol):
     Phase-2 implementation: :class:`EchoReflectionLlmHook`.
     Phase-3 implementation: e.g. ``AnthropicMessagesHook`` (out of scope
     for Sprint-Pengine-10).
+
+    Sprint-Pengine-14 extension (ADR-0064 Phase-2a): hooks expose a
+    :meth:`supports_caching` capability probe so the engine knows
+    whether to attach the Anthropic-Messages-API ``cache_control``
+    prefix-breakpoint to the request payload. Provider-lock-in
+    boundary per ADR-0064 §"Provider-Lock-In": OpenAI / other-provider
+    hooks return ``False`` because their cache models are not
+    compatible with the B.2 breakpoint shape; this is a *capability*
+    contract, not a routing contract.
     """
 
     def call(
@@ -136,6 +145,14 @@ class LlmCallHook(Protocol):
         prompt_payload: str,
         ts_utc: Optional[str] = None,
     ) -> LlmCallResult:
+        ...
+
+    def supports_caching(self) -> bool:
+        """Capability probe — ``True`` iff the hook accepts the
+        Anthropic-Messages-API ``cache_control`` prefix-breakpoint
+        shape. Stub hooks and non-Anthropic provider hooks return
+        ``False``.
+        """
         ...
 
 
@@ -205,6 +222,15 @@ class EchoReflectionLlmHook:
             ts_utc=ts,
             hook_kind=self.HOOK_KIND,
         )
+
+    def supports_caching(self) -> bool:
+        """Phase-2-Stub never sends prefix-breakpoint cache_control.
+
+        The echo-reflection responder does not call an LLM; it has no
+        prefix to cache. Returning ``False`` keeps the engine code-path
+        identical between stub and live-LLM modes.
+        """
+        return False
 
 
 # ---------------------------------------------------------------------------
