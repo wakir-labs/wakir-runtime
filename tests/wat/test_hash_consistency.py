@@ -102,24 +102,30 @@ def test_vector_pack_count() -> None:
 
 
 def test_vectors_carry_underscore_metadata_keys() -> None:
-    """Tag-7 sync 1: enforce ``_spdx`` / ``_copyright`` convention.
+    """Sprint-Hygiene-Tag-2: enforce ``x-spdx-*`` top-level convention.
 
-    The fixture format reserves leading-underscore keys at the JSON-
-    object top level for non-schema metadata (SPDX header, copyright,
-    notes). This convention keeps the ``input`` / ``expected_*`` blocks
-    schema-clean while still letting machine consumers strip metadata
-    by a single-character prefix check.
+    The fixture format reserves ``x-spdx-license-identifier`` and
+    ``x-spdx-file-copyright-text`` keys at the JSON-object top level for
+    SPDX metadata. The ``x-`` prefix mirrors the OpenAPI/Swagger
+    extension convention and is ignored by JSON-Schema validators while
+    being machine-readable for license scanners (ADR-0061 §Folgeartefakte,
+    external-audit recommendation #6). The previous ``_spdx`` /
+    ``_copyright`` convention was abandoned because SPDX scanners did not
+    recognise embedded SPDX expressions inside arbitrary string values.
 
-    The check here is structural: every vector MUST carry ``_spdx``
-    and ``_copyright``. ``_notes`` is encouraged but not required.
+    The check here is structural: every vector MUST carry
+    ``x-spdx-license-identifier`` and ``x-spdx-file-copyright-text``.
+    ``_notes`` (descriptive prose) is encouraged but not required.
     """
     for name, vector in VECTORS:
-        assert "_spdx" in vector, (
-            f"{name}: missing '_spdx' metadata key (Tag-7 sync convention)"
+        assert "x-spdx-license-identifier" in vector, (
+            f"{name}: missing 'x-spdx-license-identifier' metadata key "
+            f"(Sprint-Hygiene-Tag-2 SPDX-migration convention)"
         )
-        assert "_copyright" in vector, (
-            f"{name}: missing '_copyright' metadata key"
+        assert "x-spdx-file-copyright-text" in vector, (
+            f"{name}: missing 'x-spdx-file-copyright-text' metadata key"
         )
-        assert vector["_spdx"].startswith("SPDX-License-Identifier:"), (
-            f"{name}: '_spdx' value must start with 'SPDX-License-Identifier:'"
+        assert vector["x-spdx-license-identifier"] in {"Apache-2.0", "BUSL-1.1"}, (
+            f"{name}: 'x-spdx-license-identifier' value "
+            f"{vector['x-spdx-license-identifier']!r} not in allowed set"
         )

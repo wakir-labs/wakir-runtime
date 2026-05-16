@@ -1,8 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://wakir.dev/wirelang/schema/datalog-caveat/0.2.1",
+  "x-spdx-license-identifier": "Apache-2.0",
+  "x-spdx-file-copyright-text": "2026 Callandor GmbH and contributors",
   "title": "Wakir Datalog Caveat (Phase 1b Wirelang vocabulary v0.2.1)",
-  "description": "JSON Schema for the array of Datalog caveat statements that can appear inside a Layer-3 capability token's authority_block.caveats and append_blocks[*].caveats. The schema encodes the Wakir Phase-1b vocabulary: 20 Phase-1a (v0.1) predicates, 2 Phase-1b federation predicates (peer_org, federation_route) ratified in datalog-caveat-vocabulary-phase-2.md §3.2 / §5, plus the v0.2.1 Class-P promotion of `caveat_hash(self_hash)` ratified by ADR-0052 (decision 2026-05-12). Predicate-argument-type checking beyond the surface syntax is performed at Biscuit-Datalog evaluation time, not by this schema. Class R (reserved) and the residual Class P predicate `persona_pin` are deliberately NOT admitted by this schema; producers that emit them fail at validation time. SPDX-License-Identifier: Apache-2.0",
+  "description": "JSON Schema for the array of Datalog caveat statements that can appear inside a Layer-3 capability token's authority_block.caveats and append_blocks[*].caveats. The schema encodes the Wakir Phase-1b vocabulary: 20 Phase-1a (v0.1) predicates, 2 Phase-1b federation predicates (peer_org, federation_route) ratified in datalog-caveat-vocabulary-phase-2.md §3.2 / §5, plus the v0.2.1 Class-P promotion of `caveat_hash(self_hash)` ratified by ADR-0052 (decision 2026-05-12). Predicate-argument-type checking beyond the surface syntax is performed at Biscuit-Datalog evaluation time, not by this schema. Class R (reserved) and the residual Class P predicate `persona_pin` are deliberately NOT admitted by this schema; producers that emit them fail at validation time.",
   "type": "array",
   "minItems": 0,
   "items": {

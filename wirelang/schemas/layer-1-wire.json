@@ -1,8 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://wakir.dev/wirelang/schema/layer-1-wire/0.1.0",
+  "x-spdx-license-identifier": "Apache-2.0",
+  "x-spdx-file-copyright-text": "2026 Callandor GmbH and contributors",
   "title": "Wirelang Layer 1 — Wire Format (CloudEvents 1.0 + Wakir Extensions)",
-  "description": "Schema for Wakir Wirelang frames. A Wakir frame is a CloudEvents 1.0 envelope with eight Wakir-reserved extension attributes. SPDX-License-Identifier: Apache-2.0",
+  "description": "Schema for Wakir Wirelang frames. A Wakir frame is a CloudEvents 1.0 envelope with eight Wakir-reserved extension attributes.",
   "type": "object",
   "required": [
     "specversion",

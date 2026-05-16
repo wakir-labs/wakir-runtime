@@ -1,6 +1,6 @@
 {
-  "_spdx": "SPDX-License-Identifier: Apache-2.0",
-  "_copyright": "Copyright (c) 2026 Callandor GmbH and contributors",
+  "x-spdx-license-identifier": "Apache-2.0",
+  "x-spdx-file-copyright-text": "2026 Callandor GmbH and contributors",
   "_notes": "Vector 1: empty payload. data={} produces JCS({}) = '{}', SHA-256 of which is the documented payload_hash. Capability token present (single caprefs entry). Tests the absent-or-empty-data clause of the leaf-projection spec.",
   "input": {
     "event_id": "01HK4P8X3W2N5Q9V0R6T7S8YZ1",

@@ -1,5 +1,7 @@
 {
-  "_comment": "V-907 cross-language ground-truth vector for the V9 persona fixture. Captured 2026-05-07T11:59:42Z (UTC) by Python wirelang.persona, rfc8785 0.1.x, hashlib stdlib. Re-pin requires re-running the extraction script and updating wirelang/persona/_internal/pin_pack_constants.py::PERSONA_HASH_PIN_V9 plus this file in lockstep. SPDX-License-Identifier: Apache-2.0",
+  "x-spdx-license-identifier": "Apache-2.0",
+  "x-spdx-file-copyright-text": "2026 Callandor GmbH and contributors",
+  "_comment": "V-907 cross-language ground-truth vector for the V9 persona fixture. Captured 2026-05-07T11:59:42Z (UTC) by Python wirelang.persona, rfc8785 0.1.x, hashlib stdlib. Re-pin requires re-running the extraction script and updating wirelang/persona/_internal/pin_pack_constants.py::PERSONA_HASH_PIN_V9 plus this file in lockstep.",
   "source_fixture": "wirelang/tests/fixtures/persona_definitions/v9-persona-framework-native.md",
   "captured_utc": "2026-05-07T11:59:42Z",
   "captured_by": "pengine-eng",
