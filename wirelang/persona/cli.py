@@ -32,6 +32,45 @@ but with the pin routed to stdout instead of stderr so
 (canonical-subset extract + JCS-hash); failure semantics identical
 (exit 1 on parse / extractor failure, exit 3 on missing file).
 
+Sprint-Wirelang-Persona-Inspect-CLI-MINI (Amara PR #116 §5 +
+ADR-0058) added the ``inspect-heartbeat`` subcommand: read-only
+introspection of the *running* persona-engine heartbeat substrate.
+Distinct from ``inspect`` / ``pin`` / ``validate`` (which all
+operate on a persona-definition *file* — the static specification)
+because ``inspect-heartbeat`` reads the *runtime* heartbeat state
+of one or more persona-engine instances. The runtime state lives
+in a directory of per-persona heartbeat JSON files (default
+``/var/run/wakir-persona``, overridable via
+``$WAKIR_PERSONA_HEARTBEAT_DIR`` or ``--heartbeat-dir`` for CI /
+test harnesses); each file has filename ``<persona_slug>.heartbeat.json``
+and is written by the engine at every heartbeat tick.
+
+Heartbeat-report schema (``persona-heartbeat-v1``):
+
+- ``persona_slug``: the persona-slug (e.g. ``"pengine"``)
+- ``fsm_state``: one of the engine FSM states (``"spawning"``,
+  ``"running"``, ``"draining"``, ``"recovering"``, ``"stopped"``,
+  ``"unknown"``)
+- ``last_heartbeat_at``: ISO-8601 UTC timestamp string, or
+  ``null`` if the engine has not emitted a heartbeat yet
+- ``v907_pin_current``: the V-907 persona-hash the engine
+  currently reports running (``"sha256:<64hex>"`` or ``null``)
+- ``v907_pin_expected``: the V-907 persona-hash the engine
+  expects to be running per its deploy-time pin
+  (``"sha256:<64hex>"`` or ``null``)
+- ``v907_drift_detected``: ``true`` if
+  ``v907_pin_current != v907_pin_expected`` (and both non-null);
+  ``false`` otherwise. Motivated by ADR-0058 §156 (V-907-Hash-
+  Drift Risk).
+- ``subscribe_loop_active``: ``true`` if the NATS subscribe-loop
+  task is alive at the heartbeat tick, ``false`` otherwise
+- ``uptime_seconds``: integer seconds since the engine's spawn
+  event, or ``null`` if unknown
+
+The CLI is **read-only**: it never writes a heartbeat file. The
+write-side lives in ``wirelang/persona_engine/engine.py``
+(out-of-scope for this MINI sprint).
+
 Synopsis
 ========
 
@@ -52,6 +91,13 @@ Synopsis
 
     wakir-persona pin <persona-file>
                       [--quiet]
+
+    wakir-persona inspect-heartbeat
+                          [--heartbeat]
+                          [--json | --summary]
+                          [--persona <slug>]
+                          [--heartbeat-dir <path>]
+                          [--quiet]
 
 The ``--target`` choice list is sourced from
 :data:`wirelang.persona.PERSONA_SCHEMA_VERSION_LIST`. Phase-1b
@@ -87,16 +133,23 @@ Per spec §7.4:
 - ``0``: ``migrate`` success (and pin-match if ``--expect-hash`` was
   supplied); ``validate`` success (``is_valid=True``); ``inspect``
   success (canonical subset + persona-hash emitted); ``pin`` success
-  (persona-hash emitted on stdout).
+  (persona-hash emitted on stdout); ``inspect-heartbeat`` success
+  (one or more heartbeat reports emitted, no drift OR drift surfaced
+  in the structured report without changing exit code — the report
+  is the verdict, not the exit code).
 - ``1``: ``migrate`` :class:`PersonaMigrationError`; ``validate``
   ``is_valid=False`` (one or more structured errors emitted);
   ``inspect`` / ``pin`` parse / canonical-subset-extraction failure
-  (the persona-definition is unreadable as a canonical subset).
+  (the persona-definition is unreadable as a canonical subset);
+  ``inspect-heartbeat`` parse failure on a heartbeat-state JSON
+  file (the file exists but is malformed).
 - ``2``: ``migrate`` :class:`PersonaMigrationDeterminismError`
   (``--expect-hash`` mismatch). Not used by ``validate`` /
-  ``inspect`` / ``pin``.
+  ``inspect`` / ``pin`` / ``inspect-heartbeat``.
 - ``3``: :class:`FileNotFoundError` on the ``<persona-file>``
-  argument (all four subcommands).
+  argument (all migration / inspect / pin / validate subcommands)
+  OR ``--heartbeat-dir`` not found OR (with ``--persona``) the
+  per-slug heartbeat-state file does not exist.
 - ``64``: argparse usage error (mirrors Unix ``EX_USAGE``). Emitted
   by argparse itself on a parse failure.
 """
@@ -105,6 +158,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Sequence
@@ -157,6 +211,68 @@ EXIT_PIN_FAILED = EXIT_MIGRATION_ERROR
 #: under ``wirelang-rust/crates/persona-cli/tests/fixtures/v*-inspected.
 #: expected.json`` pin the v1 shape.
 PERSONA_INSPECT_REPORT_SCHEMA_VERSION = "persona-inspect-v1"
+
+#: ``report_schema_version`` value on the ``inspect-heartbeat``
+#: stdout report. Bumped lock-step with breaking shape changes.
+PERSONA_HEARTBEAT_REPORT_SCHEMA_VERSION = "persona-heartbeat-v1"
+
+#: Default heartbeat-state directory. The engine writes one JSON
+#: file per persona-slug at every heartbeat tick. Overridable via
+#: ``$WAKIR_PERSONA_HEARTBEAT_DIR`` (env) or ``--heartbeat-dir``
+#: (CLI flag, wins over env). Path lives under ``/var/run`` per
+#: filesystem-hierarchy-standard convention for runtime state of
+#: a system daemon.
+DEFAULT_HEARTBEAT_DIR = Path("/var/run/wakir-persona")
+
+#: Environment variable that overrides :data:`DEFAULT_HEARTBEAT_DIR`.
+#: Set by the engine systemd unit + by CI test harnesses. Lower
+#: precedence than the ``--heartbeat-dir`` CLI flag.
+HEARTBEAT_DIR_ENV_VAR = "WAKIR_PERSONA_HEARTBEAT_DIR"
+
+#: Filename suffix for per-persona heartbeat-state files. The
+#: filename stem is the persona-slug (e.g. ``pengine.heartbeat.json``
+#: for the pengine persona). Anchored as a constant so the engine
+#: write-side (out-of-scope for this MINI sprint) and the CLI
+#: read-side cannot drift independently.
+HEARTBEAT_FILENAME_SUFFIX = ".heartbeat.json"
+
+#: Canonical FSM-state set the engine may report on the
+#: ``fsm_state`` heartbeat-field. Mirrored in
+#: :mod:`wirelang.persona_engine.engine` (informally — there is no
+#: formal Rust-enum yet, the Phase-1c re-write will introduce one).
+#: ``"unknown"`` is the default when the heartbeat-state file is
+#: present but the engine has not advanced past spawn-init.
+PERSONA_FSM_STATES = (
+    "spawning",
+    "running",
+    "draining",
+    "recovering",
+    "stopped",
+    "unknown",
+)
+
+#: Required keys on a per-persona heartbeat-state JSON file. The
+#: read-side rejects a file that is missing any of these keys with
+#: exit-code 1 (``EXIT_HEARTBEAT_PARSE_FAILED``) so we never emit a
+#: half-populated report.
+HEARTBEAT_REQUIRED_KEYS = frozenset(
+    {
+        "persona_slug",
+        "fsm_state",
+        "last_heartbeat_at",
+        "v907_pin_current",
+        "v907_pin_expected",
+        "subscribe_loop_active",
+        "uptime_seconds",
+    }
+)
+
+#: Exit code for the ``inspect-heartbeat`` parse-failure path
+#: (a heartbeat-state JSON file is present but unreadable or
+#: missing required keys). Same value as
+#: :data:`EXIT_MIGRATION_ERROR` so one shell ``$?`` check branches
+#: uniformly across all parse-failure modes in the CLI surface.
+EXIT_HEARTBEAT_PARSE_FAILED = EXIT_MIGRATION_ERROR
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -302,6 +418,95 @@ def build_parser() -> argparse.ArgumentParser:
         help="Filesystem path to a UTF-8 markdown persona-definition.",
     )
     pin.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress the human-readable progress line on stderr.",
+    )
+
+    inspect_heartbeat = subparsers.add_parser(
+        "inspect-heartbeat",
+        help=(
+            "Inspect the runtime heartbeat state of one or more "
+            "persona-engine instances (read-only)."
+        ),
+        description=(
+            "Read the per-persona heartbeat-state JSON files from "
+            "the heartbeat directory (default "
+            "/var/run/wakir-persona, overridable via "
+            "$WAKIR_PERSONA_HEARTBEAT_DIR or --heartbeat-dir) and "
+            "emit a PersonaHeartbeatReport on stdout. Default mode "
+            "emits JSON; --summary emits a tabular human-readable "
+            "summary. Default scope is ALL persona-engine instances "
+            "in the heartbeat directory; --persona <slug> narrows "
+            "to a single slug. Distinct from `inspect` / `pin` / "
+            "`validate` (file-based on persona-definition specs) "
+            "because this subcommand reads RUNTIME state, not the "
+            "static specification. Anchored by Amara PR #116 §5 + "
+            "ADR-0058 V-907-Hash-Drift Risk §156."
+        ),
+    )
+    inspect_heartbeat.add_argument(
+        "--heartbeat",
+        action="store_true",
+        default=True,
+        help=(
+            "Heartbeat-inspection mode (default, and currently the "
+            "only supported mode). Anchored as an explicit flag so "
+            "future modes (e.g. --recovery-history) can layer on "
+            "without breaking the default-mode operator muscle "
+            "memory."
+        ),
+    )
+    output_group = inspect_heartbeat.add_mutually_exclusive_group()
+    output_group.add_argument(
+        "--json",
+        dest="output_format",
+        action="store_const",
+        const="json",
+        help=(
+            "Emit the heartbeat report as JSON on stdout (default). "
+            "Sorted keys, two-space indent, trailing newline; same "
+            "byte-stable serialisation posture as inspect / validate."
+        ),
+    )
+    output_group.add_argument(
+        "--summary",
+        dest="output_format",
+        action="store_const",
+        const="summary",
+        help=(
+            "Emit the heartbeat report as a one-line-per-persona "
+            "tabular summary on stdout. Designed for interactive "
+            "operator use (`watch wakir-persona inspect-heartbeat "
+            "--summary`); not byte-stable across releases."
+        ),
+    )
+    inspect_heartbeat.set_defaults(output_format="json")
+    inspect_heartbeat.add_argument(
+        "--persona",
+        default=None,
+        metavar="<slug>",
+        help=(
+            "Narrow the inspection scope to a single persona-slug. "
+            "Default is ALL persona-engine instances in the "
+            "heartbeat directory. The slug is matched against "
+            "filename stems (e.g. --persona pengine reads "
+            "pengine.heartbeat.json)."
+        ),
+    )
+    inspect_heartbeat.add_argument(
+        "--heartbeat-dir",
+        default=None,
+        type=Path,
+        metavar="<path>",
+        help=(
+            "Path to the heartbeat-state directory. Wins over "
+            f"${HEARTBEAT_DIR_ENV_VAR} (env) which wins over the "
+            "default (/var/run/wakir-persona). Primary use is "
+            "CI / test harnesses that point the CLI at a tmpdir."
+        ),
+    )
+    inspect_heartbeat.add_argument(
         "--quiet",
         action="store_true",
         help="Suppress the human-readable progress line on stderr.",
@@ -632,6 +837,260 @@ def _run_pin(args: argparse.Namespace) -> int:
     return 0
 
 
+def _resolve_heartbeat_dir(cli_override: Path | None) -> Path:
+    """Resolve the heartbeat-directory per precedence rules.
+
+    Precedence (highest to lowest):
+
+    1. ``--heartbeat-dir <path>`` CLI flag.
+    2. ``$WAKIR_PERSONA_HEARTBEAT_DIR`` environment variable.
+    3. :data:`DEFAULT_HEARTBEAT_DIR` (``/var/run/wakir-persona``).
+
+    Returns a :class:`Path` without doing any existence check —
+    callers handle ``EXIT_INPUT_NOT_FOUND`` mapping themselves.
+    """
+    if cli_override is not None:
+        return cli_override
+    env_value = os.environ.get(HEARTBEAT_DIR_ENV_VAR)
+    if env_value:
+        return Path(env_value)
+    return DEFAULT_HEARTBEAT_DIR
+
+
+def _read_heartbeat_file(path: Path) -> dict:
+    """Read and structurally validate a single heartbeat-state file.
+
+    Raises :class:`ValueError` on (a) JSON parse failure, (b) the
+    top-level value not being an object, or (c) any required key
+    from :data:`HEARTBEAT_REQUIRED_KEYS` missing. The caller maps
+    :class:`ValueError` to exit-code
+    :data:`EXIT_HEARTBEAT_PARSE_FAILED`.
+
+    Returns the parsed dict augmented with the V-907 drift verdict:
+    ``v907_drift_detected = (current is not None and expected is
+    not None and current != expected)``. The drift verdict is
+    derived by the read-side rather than written by the engine so
+    a single source of truth lives in the CLI (the engine writes
+    the two pins; the CLI computes the comparison). Motivated by
+    ADR-0058 §156.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise ValueError(f"heartbeat-file vanished mid-run: {exc}") from exc
+
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"malformed JSON in {path}: {exc}") from exc
+
+    if not isinstance(payload, dict):
+        raise ValueError(
+            f"heartbeat-file {path} top-level is not an object: "
+            f"got {type(payload).__name__}"
+        )
+
+    missing = HEARTBEAT_REQUIRED_KEYS - set(payload.keys())
+    if missing:
+        # Sort for deterministic error message — important for
+        # test pinning and operator-readable diagnostics.
+        raise ValueError(
+            f"heartbeat-file {path} missing required keys: "
+            f"{sorted(missing)}"
+        )
+
+    # Defensive: an FSM-state outside the canonical set is not an
+    # error (the engine may add states ahead of the CLI knowing
+    # about them) but we still anchor the canonical set as a
+    # constant for governance / dashboards. Drift verdict below.
+    current = payload.get("v907_pin_current")
+    expected = payload.get("v907_pin_expected")
+    drift = (
+        current is not None
+        and expected is not None
+        and current != expected
+    )
+    # Build a new dict in canonical key order rather than mutating
+    # in place — keeps the JSON-serialisation byte-stable across
+    # heartbeat-file write-side variation.
+    return {
+        "persona_slug": payload["persona_slug"],
+        "fsm_state": payload["fsm_state"],
+        "last_heartbeat_at": payload["last_heartbeat_at"],
+        "v907_pin_current": current,
+        "v907_pin_expected": expected,
+        "v907_drift_detected": drift,
+        "subscribe_loop_active": payload["subscribe_loop_active"],
+        "uptime_seconds": payload["uptime_seconds"],
+    }
+
+
+def _enumerate_heartbeat_files(
+    heartbeat_dir: Path, persona_slug: str | None
+) -> list[Path]:
+    """Enumerate heartbeat-state files in ``heartbeat_dir``.
+
+    If ``persona_slug`` is given, return ``[<dir>/<slug>.heartbeat.
+    json]`` (single-entry list, existence check by the caller).
+    Otherwise return *all* ``*.heartbeat.json`` files in the
+    directory, sorted by filename for byte-stable output ordering.
+    """
+    if persona_slug is not None:
+        return [heartbeat_dir / f"{persona_slug}{HEARTBEAT_FILENAME_SUFFIX}"]
+    return sorted(heartbeat_dir.glob(f"*{HEARTBEAT_FILENAME_SUFFIX}"))
+
+
+def _build_heartbeat_report(reports: list[dict]) -> dict:
+    """Assemble the ``persona-heartbeat-v1`` report envelope.
+
+    Wraps the per-persona reports in a top-level envelope so the
+    JSON shape is forward-compatible with envelope-level metadata
+    (e.g. report-generated-at timestamp) we may add in a future
+    schema-version. Keys:
+
+    - ``personas``: list of per-persona report dicts, ordered by
+      ``persona_slug`` for byte-stable cross-invocation parity.
+    - ``report_schema_version``: ``"persona-heartbeat-v1"``.
+    """
+    return {
+        "personas": sorted(reports, key=lambda r: r["persona_slug"]),
+        "report_schema_version": PERSONA_HEARTBEAT_REPORT_SCHEMA_VERSION,
+    }
+
+
+def _serialise_heartbeat_report(report_dict: dict) -> str:
+    """Serialise the heartbeat-report dict for stdout.
+
+    Sorted keys + two-space indent + trailing newline. Identical
+    posture to :func:`_serialise_inspect_report` so the same
+    Rust ↔ Python byte-stability harness applies to the heartbeat
+    report once the Phase-1c Rust mirror is built.
+    """
+    return json.dumps(report_dict, indent=2, sort_keys=True) + "\n"
+
+
+def _format_heartbeat_summary(reports: list[dict]) -> str:
+    """Render a human-readable tabular summary of the heartbeat reports.
+
+    One line per persona-slug. Column-aligned. NOT byte-stable
+    across releases (column widths may shift); operators use this
+    for `watch`-style interactive monitoring, not for CI / parsers.
+
+    Empty-list input renders a one-line ``<no personas>`` marker
+    so the operator sees a clear "directory is empty" verdict
+    instead of an empty stdout.
+    """
+    if not reports:
+        return "<no personas>\n"
+
+    header = (
+        "PERSONA               FSM_STATE     "
+        "LAST_HEARTBEAT_AT             "
+        "V907_DRIFT  SUB_LOOP  UPTIME_S\n"
+    )
+    lines = [header]
+    for r in sorted(reports, key=lambda r: r["persona_slug"]):
+        slug = str(r["persona_slug"])[:20].ljust(20)
+        fsm = str(r["fsm_state"])[:12].ljust(12)
+        lhb_raw = r["last_heartbeat_at"]
+        lhb = (str(lhb_raw) if lhb_raw is not None else "<never>")[:28].ljust(28)
+        drift = "yes" if r["v907_drift_detected"] else "no"
+        drift_col = drift.ljust(10)
+        sub = "yes" if r["subscribe_loop_active"] else "no"
+        sub_col = sub.ljust(8)
+        uptime_raw = r["uptime_seconds"]
+        uptime = str(uptime_raw) if uptime_raw is not None else "<unknown>"
+        lines.append(
+            f"{slug}  {fsm}  {lhb}  {drift_col}  {sub_col}  {uptime}\n"
+        )
+    return "".join(lines)
+
+
+def _run_inspect_heartbeat(args: argparse.Namespace) -> int:
+    """Execute the ``inspect-heartbeat`` subcommand. Return a Unix exit code.
+
+    Read-only inspection of the runtime heartbeat substrate.
+    Failure modes:
+
+    - heartbeat-dir not found -> :data:`EXIT_INPUT_NOT_FOUND` (3)
+    - ``--persona <slug>`` requested but the per-slug file does
+      not exist -> :data:`EXIT_INPUT_NOT_FOUND` (3)
+    - a heartbeat-state JSON file is malformed or missing required
+      keys -> :data:`EXIT_HEARTBEAT_PARSE_FAILED` (1)
+
+    The structured report itself is the verdict for drift detection;
+    the exit code does NOT branch on ``v907_drift_detected`` (motivated
+    by ADR-0058: drift is a known runtime condition that should be
+    surfaced for downstream tooling to decide on, not a hard CLI
+    failure).
+    """
+    heartbeat_dir = _resolve_heartbeat_dir(args.heartbeat_dir)
+
+    if not heartbeat_dir.exists():
+        print(
+            f"wakir-persona: heartbeat-dir not found: {heartbeat_dir}",
+            file=sys.stderr,
+        )
+        return EXIT_INPUT_NOT_FOUND
+
+    files = _enumerate_heartbeat_files(heartbeat_dir, args.persona)
+
+    # `--persona <slug>` requested but the per-slug file is missing.
+    # Anchored as a distinct error path from "directory empty"
+    # because the operator's mental model is different: asking for
+    # a specific persona that does not exist is a usage error
+    # (typo? not-yet-spawned?), whereas the all-personas scope
+    # legitimately returns an empty list on a freshly-booted
+    # substrate.
+    if args.persona is not None and not files[0].exists():
+        print(
+            f"wakir-persona: heartbeat-file not found for persona "
+            f"{args.persona!r}: {files[0]}",
+            file=sys.stderr,
+        )
+        return EXIT_INPUT_NOT_FOUND
+
+    reports: list[dict] = []
+    for path in files:
+        if not path.exists():
+            # Glob-result-mid-run race: skip silently. The next tick
+            # of `watch inspect-heartbeat` will re-enumerate.
+            continue
+        try:
+            reports.append(_read_heartbeat_file(path))
+        except ValueError as exc:
+            print(
+                f"wakir-persona: inspect-heartbeat parse failed: {exc}",
+                file=sys.stderr,
+            )
+            return EXIT_HEARTBEAT_PARSE_FAILED
+
+    if args.output_format == "summary":
+        sys.stdout.write(_format_heartbeat_summary(reports))
+    else:
+        report = _build_heartbeat_report(reports)
+        sys.stdout.write(_serialise_heartbeat_report(report))
+
+    if not args.quiet:
+        # Verdict-aware progress line: count + drift summary so an
+        # interactive operator gets the answer without parsing JSON.
+        drift_count = sum(1 for r in reports if r["v907_drift_detected"])
+        scope = (
+            f"persona={args.persona!r}"
+            if args.persona is not None
+            else f"all personas (n={len(reports)})"
+        )
+        verdict = (
+            f"{drift_count} drift" if drift_count else "no drift"
+        )
+        print(
+            f"wakir-persona: inspect-heartbeat {scope} -> {verdict}",
+            file=sys.stderr,
+        )
+
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """CLI entry point. Returns a Unix exit code.
 
@@ -649,6 +1108,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_inspect(args)
     if args.command == "pin":
         return _run_pin(args)
+    if args.command == "inspect-heartbeat":
+        return _run_inspect_heartbeat(args)
 
     # argparse with required=True on the subparser dest already
     # rejects unknown commands with exit code 2 from argparse's
