@@ -45,10 +45,16 @@ The module lives under [`wat/`](wat/) and is laid out as:
 - `wat/verify/` — server-side verification helpers
 - `wat/cmd/` — console-script entry points
 
-A separate, Apache-2.0-licensed offline verifier ships under the
-top-level `wakir_verify` package as a Phase 1a deliverable; that
-verifier is the public brand-proof tool and runs without any
-WAT-side state.
+A separate, Apache-2.0-licensed offline verifier ships in its own
+public repository: [`wakir-labs/wakir-verify`](https://github.com/wakir-labs/wakir-verify).
+That verifier is the public brand-proof tool and runs without any
+WAT-side state. It was split out of this repository as ADR-0062
+Cut-1; the substance-classification rationale lives in
+[`docs/decisions/cut1-verifier-substance-classification.md`](docs/decisions/cut1-verifier-substance-classification.md).
+The in-tree `wakir-verify` console script under
+[`wat/verify/cli.py`](wat/verify/cli.py) is the BUSL-1.1 operator-
+facing convenience verifier and stays here as hosted-service
+substrate.
 
 ## Setup
 
