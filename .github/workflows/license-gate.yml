@@ -89,6 +89,8 @@ on:
       - ".github/workflows/tests.yml"
       - ".github/workflows/sandbox-ci.yml"
       - ".github/workflows/hash-derivate-gate.yml"
+      - ".github/workflows/cross-repo-drift-audit.yml"
+      - ".cross-repo-drift-allowlist.yaml"
       - "tests/infra/test_spdx_header_consistency.py"
       - "tests/infra/test_license_hygiene_consistency.py"
   pull_request:
@@ -106,6 +108,8 @@ on:
       - ".github/workflows/tests.yml"
       - ".github/workflows/sandbox-ci.yml"
       - ".github/workflows/hash-derivate-gate.yml"
+      - ".github/workflows/cross-repo-drift-audit.yml"
+      - ".cross-repo-drift-allowlist.yaml"
       - "tests/infra/test_spdx_header_consistency.py"
       - "tests/infra/test_license_hygiene_consistency.py"
   workflow_dispatch: {}

@@ -65,6 +65,8 @@ on:
       - '.github/workflows/tests.yml'
       - '.github/workflows/sandbox-ci.yml'
       - '.github/workflows/hash-derivate-gate.yml'
+      - '.github/workflows/cross-repo-drift-audit.yml'
+      - '.cross-repo-drift-allowlist.yaml'
   pull_request:
     paths:
       - 'wirelang/**'
@@ -73,6 +75,8 @@ on:
       - '.github/workflows/tests.yml'
       - '.github/workflows/sandbox-ci.yml'
       - '.github/workflows/hash-derivate-gate.yml'
+      - '.github/workflows/cross-repo-drift-audit.yml'
+      - '.cross-repo-drift-allowlist.yaml'
   workflow_dispatch: {}
 
 permissions:
