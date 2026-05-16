@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Entry-point wrapper for spire_fed_bundle (Phase-2 Sprint-8 Tag-1).
+
+This file is part of a BUSL-1.1-licensed subtree (see
+infra/spire/federation/LICENSE-BSL.md). It re-imports the
+``spire_fed_bundle`` module (BUSL-1.1) and is itself licensed under
+BUSL-1.1 for consistency with the imported implementation (ADR-0061,
+Schritt 7 Option A).
 
 This wrapper lets operators invoke the CLI as ``./bin/spire-fed-bundle``
 without a Python module-load incantation. It re-imports the

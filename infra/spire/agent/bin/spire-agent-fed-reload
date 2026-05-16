@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Shim: invoke spire_agent_fed_reload.main() with sys.argv[1:]."""
+"""Shim: invoke spire_agent_fed_reload.main() with sys.argv[1:].
+
+This file is part of a BUSL-1.1-licensed subtree (see
+infra/spire/agent/LICENSE-BSL.md). It re-imports
+``spire_agent_fed_reload`` (BUSL-1.1) and is itself licensed under
+BUSL-1.1 for consistency with the imported implementation (ADR-0061,
+Schritt 7 Option A).
+"""
 from __future__ import annotations
 
 import sys

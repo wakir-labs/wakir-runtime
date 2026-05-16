@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
+#
+# This file is part of a BUSL-1.1-licensed subtree (see wat/LICENSE-BSL.md).
+# It re-imports ``wirelang.persona.recovery_drill_anchor`` (BUSL-1.1) and
+# is itself licensed under BUSL-1.1 for consistency with the imported
+# implementation (ADR-0061, Schritt 7 Option A).
 #
 # Sprint-Pengine-7 Tag-5 OI-PILOT-4 — Periodic WAT-anchoring driver
 # for recovery_drill_outcome envelopes. Thin shim over
