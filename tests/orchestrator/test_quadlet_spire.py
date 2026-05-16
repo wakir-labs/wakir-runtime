@@ -334,15 +334,28 @@ def test_quadlet_spire_server_volumes_match_compose(
     # because docker-compose volume options use a different (driver-
     # level) syntax; the Quadlet side is the canonical install path on
     # the pilot and ``:Z`` is the operator-correct mount option there.
+    #
+    # Sprint-9-Tag-11 Bug-26 follow-up (Live-Diagnose 2026-05-15 ~01:35
+    # UTC, Pilot-VM 192.168.178.116, ADR-0051-Revision): ``:Z`` alone
+    # leaves the volume root-owned because podman's :Z-relabel resets
+    # the mountpoint owner; the SPIRE-Server container running as
+    # uid 1000 then fails to write into /var/lib/spire/server. The
+    # corrective ``:U`` chown-to-container-user flag (PR #55) was added
+    # alongside ``:Z`` on all rw named-volume mounts that ship with a
+    # ``User=`` directive. The sister-test suite
+    # ``tests/infra/test_quadlet_selinux_relabel.py`` enforces ``:U`` on
+    # the same target lines; this assertion mirrors that contract so
+    # both test surfaces stay consistent (Stability-Sprint-Tag-1).
     data_mounts = [v for v in quadlet_volumes if "wakir-spire-server-data.volume" in v]
-    assert data_mounts == ["wakir-spire-server-data.volume:/var/lib/spire/server:Z"], (
+    assert data_mounts == ["wakir-spire-server-data.volume:/var/lib/spire/server:Z,U"], (
         f"server data named-volume mount drift; got: {data_mounts!r}"
     )
 
     # Named-volume: wakir-spire-server-sockets.volume sidecar
-    # (same Bug-20 ``:Z`` discipline as the data volume above).
+    # (same Bug-20 ``:Z`` + Bug-26 ``:U`` discipline as the data
+    # volume above; see comment above for the Live-Diagnose rationale).
     sock_mounts = [v for v in quadlet_volumes if "wakir-spire-server-sockets.volume" in v]
-    assert sock_mounts == ["wakir-spire-server-sockets.volume:/run/spire/sockets:Z"], (
+    assert sock_mounts == ["wakir-spire-server-sockets.volume:/run/spire/sockets:Z,U"], (
         f"server sockets named-volume mount drift; got: {sock_mounts!r}"
     )
 
@@ -373,25 +386,33 @@ def test_quadlet_spire_agent_volumes_match_compose(
 
     # Sprint-9-Tag-8 Bug-20: ``:Z`` SELinux-relabel flag is mandatory
     # on FCOS-enforced hosts; see the server-side test above for the
-    # full rationale.
+    # full rationale. Sprint-9-Tag-11 Bug-26 follow-up (PR #55) adds
+    # the ``:U`` chown-to-container-user flag on all rw named-volume
+    # mounts so the SPIRE-Agent (running as uid 1000) can write into
+    # the volume after podman's :Z-relabel resets the mountpoint owner
+    # — see the server-side data_mounts assertion above for the full
+    # Live-Diagnose evidence (2026-05-15 ~01:35 UTC, Pilot-VM, ADR-0051-
+    # Revision). Sister-test enforcement in
+    # ``tests/infra/test_quadlet_selinux_relabel.py``.
     data_mounts = [v for v in quadlet_volumes if "wakir-spire-agent-data.volume" in v]
-    assert data_mounts == ["wakir-spire-agent-data.volume:/var/lib/spire/agent:Z"]
+    assert data_mounts == ["wakir-spire-agent-data.volume:/var/lib/spire/agent:Z,U"]
 
     # Shared with server — same path inside the container so the gRPC
     # Unix-socket the server creates is reachable by the agent at the
-    # same address. ``:Z`` per Bug-20.
+    # same address. ``:Z`` per Bug-20, ``:U`` per Bug-26.
     server_sock_mounts = [v for v in quadlet_volumes if "wakir-spire-server-sockets.volume" in v]
     assert server_sock_mounts == [
-        "wakir-spire-server-sockets.volume:/run/spire/sockets:Z"
+        "wakir-spire-server-sockets.volume:/run/spire/sockets:Z,U"
     ], (
         f"agent must mount the shared server-sockets volume at the same "
         f"path as the server; got: {server_sock_mounts!r}"
     )
 
-    # Dedicated Workload-API socket-share volume (``:Z`` per Bug-20).
+    # Dedicated Workload-API socket-share volume (``:Z`` per Bug-20,
+    # ``:U`` per Bug-26).
     agent_sock_mounts = [v for v in quadlet_volumes if "wakir-spire-agent-sockets.volume" in v]
     assert agent_sock_mounts == [
-        "wakir-spire-agent-sockets.volume:/run/spire/agent-sockets:Z"
+        "wakir-spire-agent-sockets.volume:/run/spire/agent-sockets:Z,U"
     ]
 
     # Cross-check compose-side names.
