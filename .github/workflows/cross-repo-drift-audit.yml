@@ -1,0 +1,355 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Cross-repo drift audit — wakir-runtime <-> wakir-protocol
+# ---------------------------------------------------------
+#
+# Purpose
+# =======
+#
+# After ADR-0062 Cut-2, the Wirelang Layer-0/1/2 schemas, the
+# AIP-document schema/wrapper, the Capability-Token schema, the
+# canonical caveat-set, and core Identity-Substrate primitives are
+# the *contract surface* that lives in `wakir-labs/wakir-protocol`
+# (Apache-2.0 + CC-BY) and is mirrored into this `wakir-runtime`
+# repo (BUSL-dominant) as the BUSL-side reference implementation
+# loads them.
+#
+# A silent byte-level drift on either side is a cross-repo bug
+# class:
+#
+#   * If the runtime forks a schema locally and never lifts the
+#     change to the protocol repo, the published "standard" no
+#     longer matches what the reference implementation enforces.
+#   * If the protocol repo evolves and the runtime is not re-
+#     synced, adopter implementations validating against the
+#     published protocol will start to disagree-without-cause
+#     with the reference runtime.
+#
+# Both classes are silent — they pass every local unit test in
+# isolation — and both classes are exactly what auditors (and
+# investor due-diligence) will flag first. This workflow is the
+# tripwire.
+#
+# Substance — what we audit
+# =========================
+#
+# A curated set of *known-mirror* files. The list is deliberately
+# small (top 5-10) and dominated by Wirelang Layer-0/1/2 schemas
+# and the AIP/Capability/Identity-Substrate substance per the
+# Cut-2 ADR-0062 wording:
+#
+#   > Substanz: Wirelang-Spec Layer 0-2, AIP-Wrapper, Identity-
+#   > Substrate-Spec, Capability-Token-Wrapper.
+#
+# Each row defines a (runtime-path, protocol-path) pair. Most
+# rows are 1:1 but the *folder rename* `wirelang/identity/` (on
+# runtime) <-> `wakir_protocol/identity_substrate/` (on protocol)
+# is encoded explicitly: a single-folder rename does not count
+# as drift.
+#
+# Tolerated-drift allowlist
+# =========================
+#
+# Some drift is structurally tolerated — e.g. an SPDX header
+# differing between Apache-2.0 (protocol) and BUSL-1.1 (runtime),
+# or a deliberate version-bump-in-flight before the mirror sync
+# is complete. The `.cross-repo-drift-allowlist.yaml` file at
+# repo root carries these waivers; per ADR-0062 Cut-2 follow-up
+# the initial file is **empty** by design — we observe the
+# baseline drift first, document it, and then admit waivers in
+# a follow-up PR.
+#
+# Audit-vs-enforce
+# ================
+#
+# This is the *introduction* cut of the workflow. It runs in
+# **audit-only** mode: drift is reported as a CI job-summary
+# block and as workflow annotations, but the job exits 0. The
+# follow-up "hermetic tests" welle (PR #94-Flag #2 hand-off)
+# will flip `CROSS_REPO_DRIFT_ENFORCE=true` once the allowlist
+# is seeded and the baseline drift inventory is reviewed by
+# Reza+Tomás Cross-Review-Zone-3 (OTS-Schema-Anker compatibility).
+# Until then, audit-mode delivers the *signal* without blocking
+# Cut-2/Cut-3 follow-on PRs on day-one baseline drift.
+#
+# Tests
+# =====
+#
+# Hermetic Python tests for the drift-audit logic itself follow
+# in a separate sprint welle. This PR is workflow-only on
+# purpose (small surface, easy to revert, easy to review).
+
+name: cross-repo-drift-audit
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'wirelang/**'
+      - 'pyproject.toml'
+      - '.cross-repo-drift-allowlist.yaml'
+      - '.github/workflows/cross-repo-drift-audit.yml'
+  pull_request:
+    paths:
+      - 'wirelang/**'
+      - 'pyproject.toml'
+      - '.cross-repo-drift-allowlist.yaml'
+      - '.github/workflows/cross-repo-drift-audit.yml'
+  workflow_dispatch:
+    inputs:
+      enforce:
+        description: 'If "true", fail the job on un-allowlisted drift (default: audit-only).'
+        required: false
+        default: 'false'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  drift-audit:
+    name: cross-repo drift (wakir-runtime ↔ wakir-protocol)
+    runs-on: ubuntu-latest
+
+    env:
+      # Audit-only mode for the introduction cut. The follow-up
+      # hermetic-tests welle flips this to 'true' once the
+      # baseline allowlist is populated. workflow_dispatch can
+      # override per-run via inputs.enforce.
+      CROSS_REPO_DRIFT_ENFORCE: ${{ github.event.inputs.enforce || 'false' }}
+      PROTOCOL_REF: main
+      PROTOCOL_CLONE_DIR: /tmp/wakir-protocol
+
+    steps:
+      - name: Checkout wakir-runtime
+        uses: actions/checkout@v4
+
+      - name: Clone wakir-protocol (public, read-only, depth=1)
+        run: |
+          # Public repo, no auth needed. We pin to a ref via the
+          # PROTOCOL_REF env so a future sprint can promote a
+          # specific protocol tag as the audit baseline.
+          git clone --depth=1 \
+            --branch "${PROTOCOL_REF}" \
+            https://github.com/wakir-labs/wakir-protocol.git \
+            "${PROTOCOL_CLONE_DIR}"
+
+      - name: Record protocol head commit (for audit traceability)
+        id: protocol_head
+        run: |
+          cd "${PROTOCOL_CLONE_DIR}"
+          head_sha="$(git rev-parse HEAD)"
+          head_short="$(git rev-parse --short HEAD)"
+          echo "head_sha=${head_sha}"   >> "$GITHUB_OUTPUT"
+          echo "head_short=${head_short}" >> "$GITHUB_OUTPUT"
+          echo "wakir-protocol audit baseline: ${head_short} (${head_sha})"
+
+      - name: Compute mirror-pair SHA-256 drift report
+        id: drift
+        shell: bash
+        run: |
+          set -u
+          # ---------------------------------------------------------
+          # Mirror-pair table — (runtime-path, protocol-path).
+          # Keep the table small (top 5-10 substantive files). The
+          # selection follows ADR-0062 Cut-2 substance (Wirelang
+          # Layer-0/1/2 + AIP + Capability + Identity-Substrate).
+          # Folder rename `wirelang/identity/` <->
+          # `wakir_protocol/identity_substrate/` is encoded by
+          # path on each side; the audit treats matching content
+          # under renamed folders as non-drift.
+          # ---------------------------------------------------------
+          pairs=(
+            "wirelang/schemas/layer-0-transport.json|wakir_protocol/schemas/layer-0-transport.json"
+            "wirelang/schemas/layer-1-wire.json|wakir_protocol/schemas/layer-1-wire.json"
+            "wirelang/schemas/layer-2-semantic.json|wakir_protocol/schemas/layer-2-semantic.json"
+            "wirelang/schemas/layer-3-capability-token.json|wakir_protocol/schemas/layer-3-capability-token.json"
+            "wirelang/schemas/aip-document.json|wakir_protocol/schemas/aip-document.json"
+            "wirelang/schemas/datalog-caveat.json|wakir_protocol/schemas/datalog-caveat.json"
+            "wirelang/schemas/federation-trust-document.json|wakir_protocol/schemas/federation-trust-document.json"
+            "wirelang/canonical/caveat_set.py|wakir_protocol/canonical/caveat_set.py"
+            "wirelang/identity/aip_document.py|wakir_protocol/identity_substrate/aip_document.py"
+            "wirelang/identity/dns_anchor.py|wakir_protocol/identity_substrate/dns_anchor.py"
+          )
+
+          # ---------------------------------------------------------
+          # Allowlist loader — `.cross-repo-drift-allowlist.yaml`.
+          # Format (initial file is empty; this loader is a no-op
+          # on empty / missing file):
+          #
+          #   allow:
+          #     - runtime: wirelang/schemas/foo.json
+          #       protocol: wakir_protocol/schemas/foo.json
+          #       reason: <free text — SPDX-header-only, version-bump-in-flight, ...>
+          #
+          # We use python (always available on ubuntu-latest) so
+          # we do not pull in a yq runtime for the introduction
+          # cut. Loader is intentionally permissive: a missing
+          # file means "no waivers".
+          # ---------------------------------------------------------
+          allowlist_file=".cross-repo-drift-allowlist.yaml"
+          allowlist_pairs=""
+          if [ -f "${allowlist_file}" ]; then
+            allowlist_pairs="$(python3 - <<'PY'
+          import sys
+          try:
+              import yaml  # PyYAML ships with ubuntu-latest runners
+          except ImportError:
+              print("", end="")
+              sys.exit(0)
+          try:
+              with open(".cross-repo-drift-allowlist.yaml", "r", encoding="utf-8") as fh:
+                  data = yaml.safe_load(fh) or {}
+          except Exception:
+              # Malformed allowlist is a soft-fail in audit-mode;
+              # the workflow surfaces it as an annotation but does
+              # not crash the job.
+              print("__MALFORMED__", end="")
+              sys.exit(0)
+          entries = (data or {}).get("allow") or []
+          for e in entries:
+              r = (e or {}).get("runtime", "")
+              p = (e or {}).get("protocol", "")
+              if r and p:
+                  print(f"{r}|{p}")
+          PY
+          )"
+          fi
+
+          if [ "${allowlist_pairs}" = "__MALFORMED__" ]; then
+            echo "::warning file=${allowlist_file}::allowlist is malformed YAML — treating as empty for this run"
+            allowlist_pairs=""
+          fi
+
+          is_allowlisted() {
+            local needle="$1"
+            local line
+            # shellcheck disable=SC2086
+            while IFS= read -r line; do
+              [ -z "${line}" ] && continue
+              if [ "${line}" = "${needle}" ]; then
+                return 0
+              fi
+            done <<< "${allowlist_pairs}"
+            return 1
+          }
+
+          # ---------------------------------------------------------
+          # Comparison loop.
+          # ---------------------------------------------------------
+          drift_count=0
+          allowed_drift_count=0
+          missing_count=0
+          ok_count=0
+
+          {
+            echo "# Cross-repo drift audit"
+            echo
+            echo "**Audit baseline (wakir-protocol):** \`${{ steps.protocol_head.outputs.head_short }}\` (\`${{ steps.protocol_head.outputs.head_sha }}\`)"
+            echo
+            echo "**Enforce mode:** \`${CROSS_REPO_DRIFT_ENFORCE}\`"
+            echo
+            echo "| Status | Runtime path | Protocol path | runtime SHA-256 | protocol SHA-256 |"
+            echo "|---|---|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          for pair in "${pairs[@]}"; do
+            runtime_path="${pair%%|*}"
+            protocol_path="${pair##*|}"
+            runtime_abs="${GITHUB_WORKSPACE}/${runtime_path}"
+            protocol_abs="${PROTOCOL_CLONE_DIR}/${protocol_path}"
+
+            runtime_sha=""
+            protocol_sha=""
+            status="ok"
+
+            if [ ! -f "${runtime_abs}" ]; then
+              status="missing-runtime"
+              missing_count=$((missing_count + 1))
+              echo "::warning file=${runtime_path}::cross-repo audit: file missing on runtime side"
+            else
+              runtime_sha="$(sha256sum "${runtime_abs}" | awk '{print $1}')"
+            fi
+
+            if [ ! -f "${protocol_abs}" ]; then
+              # Don't double-status if runtime is also missing; the
+              # symmetric "both sides missing" is still meaningful.
+              if [ "${status}" = "ok" ]; then
+                status="missing-protocol"
+              else
+                status="missing-both"
+              fi
+              missing_count=$((missing_count + 1))
+              echo "::warning file=${runtime_path}::cross-repo audit: counterpart missing in wakir-protocol at ${protocol_path}"
+            else
+              protocol_sha="$(sha256sum "${protocol_abs}" | awk '{print $1}')"
+            fi
+
+            if [ "${status}" = "ok" ]; then
+              if [ "${runtime_sha}" = "${protocol_sha}" ]; then
+                ok_count=$((ok_count + 1))
+                status="ok"
+              else
+                if is_allowlisted "${pair}"; then
+                  allowed_drift_count=$((allowed_drift_count + 1))
+                  status="drift-allowed"
+                else
+                  drift_count=$((drift_count + 1))
+                  status="DRIFT"
+                  echo "::error file=${runtime_path}::cross-repo drift: ${runtime_path} (${runtime_sha:0:12}…) <> ${protocol_path} (${protocol_sha:0:12}…)"
+                fi
+              fi
+            fi
+
+            # Markdown row.
+            r_disp="${runtime_sha:0:12}"
+            p_disp="${protocol_sha:0:12}"
+            [ -z "${r_disp}" ] && r_disp="—"
+            [ -z "${p_disp}" ] && p_disp="—"
+            echo "| ${status} | \`${runtime_path}\` | \`${protocol_path}\` | \`${r_disp}\` | \`${p_disp}\` |" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+          {
+            echo
+            echo "**Tally**"
+            echo
+            echo "- ok: ${ok_count}"
+            echo "- drift (un-allowlisted): ${drift_count}"
+            echo "- drift (allowlisted): ${allowed_drift_count}"
+            echo "- missing on either side: ${missing_count}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Expose tally to downstream step.
+          echo "ok_count=${ok_count}"                 >> "$GITHUB_OUTPUT"
+          echo "drift_count=${drift_count}"           >> "$GITHUB_OUTPUT"
+          echo "allowed_drift_count=${allowed_drift_count}" >> "$GITHUB_OUTPUT"
+          echo "missing_count=${missing_count}"       >> "$GITHUB_OUTPUT"
+
+      - name: Audit verdict
+        shell: bash
+        run: |
+          set -u
+          drift="${{ steps.drift.outputs.drift_count }}"
+          allowed="${{ steps.drift.outputs.allowed_drift_count }}"
+          missing="${{ steps.drift.outputs.missing_count }}"
+          ok="${{ steps.drift.outputs.ok_count }}"
+
+          echo "cross-repo-drift-audit: ok=${ok} drift=${drift} allowed=${allowed} missing=${missing}"
+          echo "cross-repo-drift-audit: enforce=${CROSS_REPO_DRIFT_ENFORCE}"
+
+          if [ "${CROSS_REPO_DRIFT_ENFORCE}" = "true" ]; then
+            if [ "${drift}" -gt 0 ] || [ "${missing}" -gt 0 ]; then
+              echo "::error::cross-repo drift audit failed in enforce-mode: drift=${drift}, missing=${missing}"
+              exit 1
+            fi
+            echo "cross-repo drift audit passed in enforce-mode."
+          else
+            # Audit-only — never red on drift, only on infra failure
+            # (which would have failed earlier in the clone/sha step).
+            if [ "${drift}" -gt 0 ] || [ "${missing}" -gt 0 ]; then
+              echo "::warning::cross-repo drift audit observed drift=${drift}, missing=${missing}; running in audit-only mode (not enforcing)."
+            else
+              echo "cross-repo drift audit clean."
+            fi
+          fi
