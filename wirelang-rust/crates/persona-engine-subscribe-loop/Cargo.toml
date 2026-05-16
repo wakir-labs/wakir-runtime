@@ -1,0 +1,112 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wakir-Runtime / wirelang Rust workspace — persona-engine-subscribe-loop crate.
+#
+# Purpose
+# -------
+# First substantive Rust implementation of a persona-engine module:
+# the NATS Subscribe-Loop module. Schema-parity with the Python
+# reference implementation `wirelang/persona_engine/nats_subscribe_loop.py`
+# (Selin Bug-42-Fix PR #79, Sprint-Pengine-13).
+#
+# This crate is the **initial Rust scaffold** of the subscribe-loop. It
+# defines the type-level contract (`SubscribeLoopConfig`,
+# `SubscribeLoopState`, `SubscribeMessage`, `MessageHandler`) and a
+# `run_subscribe_loop` driver that operates against an in-process
+# message channel. Live `async-nats` wire-binding stays Python-side
+# during Phase-3a; this crate is the deterministic substrate the
+# Phase-3a 3-way bridge will compare against.
+#
+# Schema parity (Selin Bug-42-Fix PR #79 + Sprint-Pengine-13)
+# ----------------------------------------------------------
+# The Rust types mirror the Python dataclasses byte-for-byte at the
+# JSON level:
+#
+#   Python `SubscribeLoopConfig` fields (re-shaped here for the Rust
+#   substrate scope):
+#     - subject_pattern   : the canonical agent.task.assigned subject
+#                           ("wakir.{env}.agent.agent.task.assigned.{slug}")
+#     - nats_url          : NATS connection URL (production binding;
+#                           not exercised in smoke-tests).
+#     - durable_name      : JetStream pull-consumer durable name. None
+#                           for core-NATS callback/iterator modes.
+#     - max_inflight      : Phase-3a substrate; reserved for the
+#                           JetStream pull-consumer batch size.
+#
+#   Python `TaskProcessingTracker` plus subscribe-lag observability
+#   collapsed into a single `SubscribeLoopState`:
+#     - current_lag_seconds : last-measured envelope-to-dispatch lag.
+#     - messages_processed  : monotonic count of fully-handled msgs.
+#     - last_message_at     : RFC-3339 timestamp of the last delivery.
+#
+# ADR anchors
+# -----------
+# - ADR-0063 §Folgeartefakte Phase-3a Item 4 — initial Rust scaffold
+#   of a real persona-engine module (Selin Sprint-Pengine-15-Folge
+#   and Reza Sprint-Pengine-7 crate-stack feed into Phase-3a).
+# - Selin PR #79 (Sprint-Pengine-13 Bug-42 fix) — schema authority
+#   for the Python reference implementation.
+# - Selin PR #113 (3-way-triangle) — Doppelbetrieb-Vergleich
+#   substrate; this crate is the third leg.
+# - Selin PR #118 (rust-adapter-hook skeleton) — the adapter that
+#   will eventually wire this loop into the Python engine.
+# - Reza PR #120 (Phase-3a crate-smoke) — dependency-island
+#   precedent for direct version pins.
+#
+# Versioning rationale (verified HTTP-200 against crates.io API on
+# 2026-05-16 23:02 CEST)
+# -----------------------------------------------------------------
+# - async-nats =0.48.0 : production-tested NATS client for Rust.
+#   The compile-surface is pulled in so the Phase-3a wire-binding
+#   step (Phase-3a Item-5+, follow-up) can extend this crate without
+#   re-deciding the client. Smoke-tests do NOT touch async-nats —
+#   they use an in-memory channel via the `MessageHandler` trait.
+# - tokio =1.52.3      : async runtime. `rt-multi-thread` + `macros`
+#   + `sync` features cover the `#[tokio::test]` substrate and the
+#   `tokio::sync::mpsc` in-memory channel used by smoke-tests.
+# - serde_json =1.0.140 : matches workspace pin. JSON envelope
+#   parse/build mirrors the Python `json.dumps(sort_keys=True,
+#   separators=(",", ":"), ensure_ascii=False)` shape via
+#   serde_json's deterministic output (note: serde_json preserves
+#   insertion order; we never canonicalise here, schema-parity tests
+#   compare the parsed value).
+# - chrono =0.4.44     : RFC-3339 second-precision timestamp formatting
+#   and parse for the `last_message_at` and `current_lag_seconds`
+#   fields. Mirrors the Python `time.strftime("%Y-%m-%dT%H:%M:%SZ")`
+#   shape with `chrono::SecondsFormat::Secs`.
+#
+# Hard-Constraints (per Sprint-Auftrag)
+# -------------------------------------
+# - No touches to `wakir-runtime/wirelang/persona_engine/subscribe_loop.py`
+#   (Python engine unchanged; Doppelbetrieb-Konsistenz preserved).
+# - No LICENSING / NOTICE / .github/workflows touches.
+# - `cargo test` must run green.
+
+[package]
+name = "persona-engine-subscribe-loop"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "Apache-2.0"
+repository = "https://github.com/wakir-labs/wakir-runtime"
+authors = ["Reza Tehrani <reza@wakir.local>"]
+description = "Initial Rust scaffold of the persona-engine NATS Subscribe-Loop (Phase-3a Item 4, schema-parity with Selin PR #79)."
+publish = false
+
+[lib]
+name = "persona_engine_subscribe_loop"
+path = "src/lib.rs"
+
+[dependencies]
+# Phase-3a production NATS client surface (smoke-tests do not exercise it).
+async-nats = "=0.48.0"
+
+# Async runtime for the subscribe-loop driver and the in-memory channel
+# used by smoke-tests.
+tokio = { version = "=1.52.3", features = ["rt-multi-thread", "macros", "sync", "time"] }
+
+# JSON envelope parse/build (parity with Python `json.dumps`).
+serde_json = "=1.0.140"
+
+# RFC-3339 second-precision timestamp formatting.
+chrono = { version = "=0.4.44", default-features = false, features = ["clock", "std"] }
