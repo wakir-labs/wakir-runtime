@@ -37,13 +37,30 @@ import hashlib
 from pathlib import Path
 from typing import Any, Final
 
-import rfc8785
-
 from wirelang.persona.persona_canonical_form import (
+    PersonaCanonicalFormDependencyMissingError,
     PersonaFrontmatterMalformedError,
     PersonaFrontmatterMissingError,
     read_canonical_subset,
 )
+
+
+# Optional-dependency resolver indirection — see the equivalent block in
+# ``wirelang/persona/persona_canonical_form.py`` for the design
+# rationale. Sprint-Stability Tag-2 (2026-05-16) moved this from an
+# eager ``import rfc8785`` to a try/except resolver so the module can
+# load on a minimal-deps host (shadow-lane CI, embedded test
+# substrates) without exploding. The function that actually needs JCS
+# canonicalisation raises
+# :class:`PersonaCanonicalFormDependencyMissingError` with a clear
+# install hint when the wheel is absent.
+try:  # pragma: no cover - production path always has rfc8785
+    import rfc8785 as _rfc8785_lib
+
+    _HAS_RFC8785 = True
+except ImportError:  # pragma: no cover - shadow-lane fallback path
+    _rfc8785_lib = None  # type: ignore[assignment]
+    _HAS_RFC8785 = False
 
 
 PERSONA_HASH_PREFIX: Final[str] = "sha256:"
@@ -114,10 +131,15 @@ def compute_persona_hash_from_canonical(
         ``"sha256:<64-char-hex>"``.
 
     Raises:
+        PersonaCanonicalFormDependencyMissingError: if ``rfc8785`` is
+            not installed in this environment. Install via
+            ``pip install 'wakir-runtime[persona]'``.
         PersonaHashMismatchError: when ``expected_jcs_sha256`` is set
             and disagrees with the computed value.
     """
-    jcs_bytes = rfc8785.dumps(canonical_subset)
+    if not _HAS_RFC8785:
+        raise PersonaCanonicalFormDependencyMissingError("rfc8785")
+    jcs_bytes = _rfc8785_lib.dumps(canonical_subset)
     hex_tail = _sha256_hex(jcs_bytes)
     full = PERSONA_HASH_PREFIX + hex_tail
 

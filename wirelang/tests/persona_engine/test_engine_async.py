@@ -33,6 +33,9 @@ from wirelang.persona_engine.state_backing import (
     PersonaStateBackingAsync,
     PersonaStateSnapshot,
 )
+from wirelang.tests.persona_engine._v907_compute_skip import (
+    requires_v907_compute_deps,
+)
 
 
 PERSONA_DEF_TEMPLATE = """---
@@ -122,6 +125,7 @@ class _MemoryAsyncBacking(PersonaStateBackingAsync):
 # -------------------- boot path --------------------
 
 
+@requires_v907_compute_deps
 def test_async_boot_with_empty_nats_fences_to_in_memory(tmp_path):
     sink = io.StringIO()
     env = _make_env(tmp_path, nats_servers="")
@@ -134,6 +138,7 @@ def test_async_boot_with_empty_nats_fences_to_in_memory(tmp_path):
     assert engine._fenced_to_in_memory is True
 
 
+@requires_v907_compute_deps
 def test_async_boot_uses_injected_async_backing(tmp_path):
     sink = io.StringIO()
     env = _make_env(tmp_path, nats_servers="nats://stub:4222")
@@ -149,6 +154,7 @@ def test_async_boot_uses_injected_async_backing(tmp_path):
     assert engine._fenced_to_in_memory is False
 
 
+@requires_v907_compute_deps
 def test_async_boot_v907_verified_log(tmp_path):
     sink = io.StringIO()
     env = _make_env(tmp_path)
@@ -160,6 +166,7 @@ def test_async_boot_v907_verified_log(tmp_path):
     assert "v907-pin-verified" in msgs
 
 
+@requires_v907_compute_deps
 def test_async_boot_svid_probe_logged(tmp_path):
     sink = io.StringIO()
     env = _make_env(tmp_path)
@@ -175,6 +182,7 @@ def test_async_boot_svid_probe_logged(tmp_path):
 # -------------------- spawn path --------------------
 
 
+@requires_v907_compute_deps
 def test_async_spawn_runs_fsm_transitions(tmp_path):
     sink = io.StringIO()
     env = _make_env(tmp_path)
@@ -187,6 +195,7 @@ def test_async_spawn_runs_fsm_transitions(tmp_path):
     assert engine.fsm.state == "running"
 
 
+@requires_v907_compute_deps
 def test_async_spawn_emits_first_audit_event(tmp_path):
     sink = io.StringIO()
     env = _make_env(tmp_path)
@@ -214,6 +223,7 @@ def test_async_spawn_without_boot_raises(tmp_path):
 # -------------------- run loop --------------------
 
 
+@requires_v907_compute_deps
 def test_async_run_loop_request_stop_terminates(tmp_path):
     sink = io.StringIO()
     env = _make_env(tmp_path)
@@ -236,6 +246,7 @@ def test_async_run_loop_request_stop_terminates(tmp_path):
     asyncio.run(go())
 
 
+@requires_v907_compute_deps
 def test_async_run_loop_heartbeat_emits_audit(tmp_path):
     sink = io.StringIO()
     env = _make_env(tmp_path)
@@ -261,6 +272,7 @@ def test_async_run_loop_heartbeat_emits_audit(tmp_path):
     # no exception bubbled through.
 
 
+@requires_v907_compute_deps
 def test_async_run_loop_drill_runner_callback_invoked(tmp_path):
     sink = io.StringIO()
     env = _make_env(tmp_path)
@@ -291,6 +303,7 @@ def test_async_run_loop_drill_runner_callback_invoked(tmp_path):
     assert len(calls) >= 1
 
 
+@requires_v907_compute_deps
 def test_async_run_loop_subscribe_runner_invoked_once(tmp_path):
     sink = io.StringIO()
     env = _make_env(tmp_path)
@@ -325,6 +338,7 @@ def test_async_run_loop_subscribe_runner_invoked_once(tmp_path):
 # -------------------- despawn-clean --------------------
 
 
+@requires_v907_compute_deps
 def test_async_despawn_clean_completes(tmp_path):
     sink = io.StringIO()
     env = _make_env(tmp_path)
@@ -358,6 +372,7 @@ def test_async_engine_variant_label():
     assert ASYNC_ENGINE_VARIANT == "real-async"
 
 
+@requires_v907_compute_deps
 def test_async_engine_log_carries_version_default(tmp_path):
     sink = io.StringIO()
     env = _make_env(tmp_path)

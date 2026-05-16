@@ -51,8 +51,60 @@ from __future__ import annotations
 
 from typing import Any, Final
 
-import rfc8785
-import yaml
+
+# ---------------------------------------------------------------------------
+# Optional-dependency resolver indirection (Sprint-Stability Tag-2, 2026-05-16)
+#
+# Before Sprint-Stability Tag-2 this module eagerly imported ``yaml`` and
+# ``rfc8785`` at module load. That meant any consumer who ``from
+# wirelang.persona.persona_canonical_form import ...`` paid the cost of
+# both wheels up-front, even if the consumer only needed the
+# :class:`PersonaFrontmatterMissingError` sentinel type or the
+# :data:`CANONICAL_TOP_LEVEL_KEYS` constant.
+#
+# The shadow-lane CI (`sandbox-suite-shadow` in
+# ``.github/workflows/tests.yml``) installs only the minimal dep set
+# ``pytest + pytest-subtests + cryptography + shamir-mnemonic`` — no
+# ``yaml`` and no ``rfc8785``. The eager-import shape therefore exploded
+# 55 ``persona_engine/test_*`` tests with a ``ModuleNotFoundError`` that
+# the ``v907_verify`` caller swallowed and re-raised as a misleading
+# ``PersonaHashComputeError("persona_canonical_form missing")``.
+#
+# The fix is to defer ``yaml`` / ``rfc8785`` to a try/except resolver at
+# module top and surface a clear actionable error from the functions
+# that actually need them (``parse_frontmatter`` for YAML,
+# ``canonical_jcs_bytes`` for JCS). Consumers that only touch the
+# constants or the error-class sentinels can import this module on a
+# minimal-deps host without exploding.
+#
+# This is the same pattern already established for crypto deps:
+# - ``wirelang.identity.aip_signing``       (rfc8785 fallback)
+# - ``wirelang.schemas.entry_signing``      (rfc8785 fallback)
+# - ``wirelang.identity.did_document_signing`` (rfc8785 fallback)
+#
+# The difference here: there is no pure-Python YAML fallback — PyYAML
+# is the only widely-shipped YAML parser. So the contract is "module
+# loadable without yaml; YAML parsing fails with a clear error". An
+# adopter who wants the V-907 compute path installs the ``[persona]``
+# extra, which pulls both wheels.
+# ---------------------------------------------------------------------------
+
+
+try:  # pragma: no cover - production path always has rfc8785
+    import rfc8785 as _rfc8785_lib
+
+    _HAS_RFC8785 = True
+except ImportError:  # pragma: no cover - shadow-lane fallback path
+    _rfc8785_lib = None  # type: ignore[assignment]
+    _HAS_RFC8785 = False
+
+try:  # pragma: no cover - production path always has PyYAML
+    import yaml as _yaml_lib
+
+    _HAS_YAML = True
+except ImportError:  # pragma: no cover - shadow-lane fallback path
+    _yaml_lib = None  # type: ignore[assignment]
+    _HAS_YAML = False
 
 
 SUPPORTED_SCHEMA_VERSION: Final[str] = "persona-v1"
@@ -103,6 +155,47 @@ class PersonaFrontmatterMalformedError(ValueError):
     """Raised when the YAML front-matter is not a mapping."""
 
 
+class PersonaCanonicalFormDependencyMissingError(ImportError):
+    """Raised when an optional dependency required for V-907 compute is
+    missing from the environment.
+
+    The V-907 pin-compute path needs two PyPI wheels that are not in
+    the ``wakir-runtime`` minimal core set:
+
+    - ``PyYAML``  for axis-A front-matter parsing.
+    - ``rfc8785`` for JCS (RFC 8785) canonicalisation of the
+      canonical-subset dict before SHA-256.
+
+    Adopters who only consume the constants exposed by this module
+    (``CANONICAL_TOP_LEVEL_KEYS``, the error-class sentinels, …) can
+    import the module on a minimal-deps host without explosion. The
+    moment a function that actually needs the missing wheel is called
+    (``parse_frontmatter`` for YAML, :func:`canonical_jcs_bytes` for
+    JCS), this exception surfaces with a clear actionable message
+    instead of a misleading ``persona_canonical_form missing`` re-
+    raise from the engine-side caller.
+
+    Recovery: install the persona-compute extra::
+
+        pip install 'wakir-runtime[persona]'
+
+    which pulls both wheels (see ``pyproject.toml`` ``[persona]``).
+    """
+
+    def __init__(self, missing_module: str) -> None:
+        self.missing_module = missing_module
+        super().__init__(
+            f"V-907 persona-compute requires the {missing_module!r} "
+            f"package, which is not installed in this environment. "
+            f"Install via `pip install 'wakir-runtime[persona]'` to "
+            f"pull both 'PyYAML' (axis-A front-matter parsing) and "
+            f"'rfc8785' (JCS canonicalisation for SHA-256). The "
+            f"persona-canonical-form module itself loads fine on a "
+            f"minimal-deps host; this exception only fires from the "
+            f"functions that actually need the missing wheel."
+        )
+
+
 def split_frontmatter(text: str) -> tuple[str, str]:
     """Split a persona markdown file into ``(frontmatter_yaml, body)``.
 
@@ -148,10 +241,15 @@ def parse_frontmatter(frontmatter_yaml: str) -> dict[str, Any]:
     """Parse the YAML front-matter into a Python dict.
 
     Raises:
+        PersonaCanonicalFormDependencyMissingError: if ``PyYAML`` is
+            not installed in this environment. Install via
+            ``pip install 'wakir-runtime[persona]'``.
         PersonaFrontmatterMalformedError: if the YAML is not a mapping
             (e.g. a scalar, list, or empty document).
     """
-    parsed = yaml.safe_load(frontmatter_yaml)
+    if not _HAS_YAML:
+        raise PersonaCanonicalFormDependencyMissingError("yaml")
+    parsed = _yaml_lib.safe_load(frontmatter_yaml)
     if parsed is None:
         raise PersonaFrontmatterMalformedError(
             "persona-definition front-matter is empty"
@@ -273,7 +371,12 @@ def canonical_jcs_bytes(canonical_subset: dict[str, Any]) -> bytes:
         The JCS-canonical UTF-8 byte string (RFC 8785).
 
     Raises:
+        PersonaCanonicalFormDependencyMissingError: if ``rfc8785`` is
+            not installed in this environment. Install via
+            ``pip install 'wakir-runtime[persona]'``.
         TypeError, ValueError: surfaced from ``rfc8785.dumps`` for
             non-serialisable inputs (NaN, non-string keys, custom types).
     """
-    return rfc8785.dumps(canonical_subset)
+    if not _HAS_RFC8785:
+        raise PersonaCanonicalFormDependencyMissingError("rfc8785")
+    return _rfc8785_lib.dumps(canonical_subset)

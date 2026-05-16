@@ -71,6 +71,9 @@ from wirelang.persona_engine.svid_workload_identity import (
     SvidFetchError,
     WorkloadApiClient,
 )
+from wirelang.tests.persona_engine._v907_compute_skip import (
+    requires_v907_compute_deps,
+)
 
 
 PERSONA_DEF_TEMPLATE = """---
@@ -249,6 +252,7 @@ def test_workload_api_client_preserves_svid_fetch_error_unchanged():
 # ---------------------------------------------------------------------------
 
 
+@requires_v907_compute_deps
 def test_sync_engine_boot_fences_on_aio_rpc_error_like_exception(tmp_path, listening_uds):
     """Synthesised AioRpcError-like exception (matching the wakir-
     pilot Bug-40 traceback) must NOT crash boot. Engine fences."""
@@ -291,6 +295,7 @@ def test_sync_engine_boot_fences_on_aio_rpc_error_like_exception(tmp_path, liste
     assert "_FakeAioRpcError" in fence[0]["reason"]
 
 
+@requires_v907_compute_deps
 def test_sync_engine_spawn_succeeds_after_fence(tmp_path, listening_uds):
     """The engine must still be able to transition uninstantiated ->
     spawning -> running after the fence (boot completes normally)."""
@@ -318,6 +323,7 @@ def test_sync_engine_spawn_succeeds_after_fence(tmp_path, listening_uds):
     )
 
 
+@requires_v907_compute_deps
 def test_sync_engine_v907_drift_still_propagates(tmp_path, listening_uds):
     """Bug-40 hardening MUST NOT swallow V-907 drift — that is the
     boot-go-no-go gate and must crash boot loudly."""
@@ -384,6 +390,7 @@ def _make_x509_svid_response(spiffe_id: str) -> X509SVIDResponse:
     )
 
 
+@requires_v907_compute_deps
 def test_sync_engine_attempt_svid_refetch_recovers(tmp_path, listening_uds):
     """After a fenced boot, attempt_svid_refetch with a healthy stub
     must un-fence the engine and emit svid-full-fetch-recovered."""
@@ -437,6 +444,7 @@ def test_sync_engine_attempt_svid_refetch_recovers(tmp_path, listening_uds):
     assert rec[0]["level"] == "INFO"
 
 
+@requires_v907_compute_deps
 def test_sync_engine_attempt_svid_refetch_still_failing(tmp_path, listening_uds):
     """If the retry also fails, attempt_svid_refetch returns False
     and the engine stays fenced; a WARN ``svid-full-fetch-retry-failed``
@@ -474,6 +482,7 @@ def test_sync_engine_attempt_svid_refetch_still_failing(tmp_path, listening_uds)
 # ---------------------------------------------------------------------------
 
 
+@requires_v907_compute_deps
 def test_async_engine_boot_fences_on_fetch_failure(tmp_path, listening_uds):
     sock_path = listening_uds
     sink = io.StringIO()
@@ -497,6 +506,7 @@ def test_async_engine_boot_fences_on_fetch_failure(tmp_path, listening_uds):
     assert fence[0]["fence_mode"] == "fetch-failure"
 
 
+@requires_v907_compute_deps
 def test_async_engine_attempt_svid_refetch_recovers(tmp_path, listening_uds):
     sock_path = listening_uds
     sink = io.StringIO()
@@ -545,6 +555,7 @@ def test_async_engine_attempt_svid_refetch_recovers(tmp_path, listening_uds):
     assert len(rec) == 1
 
 
+@requires_v907_compute_deps
 def test_async_engine_refetch_loop_runs_and_exits_on_stop(tmp_path, listening_uds):
     """The _svid_refetch_loop background task must start when the
     engine fences and exit cleanly on stop-event."""
@@ -587,6 +598,7 @@ def test_async_engine_refetch_loop_runs_and_exits_on_stop(tmp_path, listening_ud
     assert len(retry_records) >= 1
 
 
+@requires_v907_compute_deps
 def test_async_engine_refetch_loop_recovers_mid_run(tmp_path, listening_uds):
     """Refetch loop must un-fence the engine when the underlying
     stub starts succeeding mid-run."""
@@ -649,6 +661,7 @@ def test_async_engine_refetch_loop_recovers_mid_run(tmp_path, listening_uds):
     assert len(rec) == 1
 
 
+@requires_v907_compute_deps
 def test_async_engine_run_until_signal_includes_refetch_task(tmp_path, listening_uds):
     """run_until_signal must spawn the svid_refetch task as the 4th
     background task. We exercise via request_stop()."""

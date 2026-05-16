@@ -14,6 +14,9 @@ from wirelang.persona_engine.v907_verify import (
     compute_v907_pin,
     verify_v907_pin,
 )
+from wirelang.tests.persona_engine._v907_compute_skip import (
+    requires_v907_compute_deps,
+)
 
 
 SAMPLE_AXIS_A = """---
@@ -29,18 +32,21 @@ Body content here — out of hash.
 """
 
 
+@requires_v907_compute_deps
 def test_compute_v907_pin_returns_sha256_prefix():
     pin = compute_v907_pin(SAMPLE_AXIS_A.encode("utf-8"))
     assert pin.startswith("sha256:")
     assert len(pin) == len("sha256:") + 64
 
 
+@requires_v907_compute_deps
 def test_compute_v907_pin_byte_deterministic():
     p1 = compute_v907_pin(SAMPLE_AXIS_A.encode("utf-8"))
     p2 = compute_v907_pin(SAMPLE_AXIS_A.encode("utf-8"))
     assert p1 == p2
 
 
+@requires_v907_compute_deps
 def test_compute_v907_pin_body_does_not_affect_hash():
     """Per spec §5 the markdown body is out-of-hash."""
     alt = SAMPLE_AXIS_A.replace(
@@ -51,6 +57,7 @@ def test_compute_v907_pin_body_does_not_affect_hash():
     assert p1 == p2
 
 
+@requires_v907_compute_deps
 def test_compute_v907_pin_frontmatter_changes_affect_hash():
     alt = SAMPLE_AXIS_A.replace(
         "domain: dev-engineering", "domain: hr"
@@ -60,6 +67,7 @@ def test_compute_v907_pin_frontmatter_changes_affect_hash():
     assert p1 != p2
 
 
+@requires_v907_compute_deps
 def test_compute_v907_pin_distinct_from_stub_format():
     """Real pin must be byte-distinct from the stub-mode 'sha256-stub:'
     prefix. The stub hashes raw bytes; real hashes JCS canonical subset."""
@@ -78,6 +86,7 @@ def test_compute_v907_pin_no_frontmatter_raises():
         compute_v907_pin(b"no front matter at all just markdown body")
 
 
+@requires_v907_compute_deps
 def test_verify_v907_pin_no_expected_returns_unmatched_none(tmp_path):
     p = tmp_path / "tomas.md"
     p.write_text(SAMPLE_AXIS_A, encoding="utf-8")
@@ -88,6 +97,7 @@ def test_verify_v907_pin_no_expected_returns_unmatched_none(tmp_path):
     assert result.pin.startswith("sha256:")
 
 
+@requires_v907_compute_deps
 def test_verify_v907_pin_match(tmp_path):
     p = tmp_path / "tomas.md"
     p.write_text(SAMPLE_AXIS_A, encoding="utf-8")
@@ -96,6 +106,7 @@ def test_verify_v907_pin_match(tmp_path):
     assert result.matched is True
 
 
+@requires_v907_compute_deps
 def test_verify_v907_pin_drift_raises(tmp_path):
     p = tmp_path / "tomas.md"
     p.write_text(SAMPLE_AXIS_A, encoding="utf-8")
@@ -106,6 +117,7 @@ def test_verify_v907_pin_drift_raises(tmp_path):
     assert exc.value.persona_id == "tomas"
 
 
+@requires_v907_compute_deps
 def test_verify_v907_pin_empty_expected_treated_as_none(tmp_path):
     p = tmp_path / "tomas.md"
     p.write_text(SAMPLE_AXIS_A, encoding="utf-8")

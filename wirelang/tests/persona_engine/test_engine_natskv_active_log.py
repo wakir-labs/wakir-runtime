@@ -35,6 +35,9 @@ from wirelang.persona_engine.state_backing import (
     NatsKvPersonaStateBacking,
     NatsKvPersonaStateBackingAsync,
 )
+from wirelang.tests.persona_engine._v907_compute_skip import (
+    requires_v907_compute_deps,
+)
 
 
 PERSONA_DEF_TEMPLATE = """---
@@ -78,6 +81,7 @@ def test_engine_version_constant_bumped_to_0_4_1_pilot():
     assert ENGINE_VERSION == "0.5.0-pilot"
 
 
+@requires_v907_compute_deps
 def test_engine_emits_state_backing_natskv_active_with_injected_async_backing(tmp_path):
     """With WAKIR_NATS_SERVERS=non-empty and a pre-connected async
     backing injected, the engine select-state-backing path emits
@@ -160,6 +164,7 @@ def test_engine_emits_state_backing_natskv_active_with_injected_async_backing(tm
     sync_facade.close()
 
 
+@requires_v907_compute_deps
 def test_engine_emits_fence_warn_when_nats_servers_empty(tmp_path):
     sink = io.StringIO()
     env = _make_env(tmp_path, nats_servers="")
@@ -272,6 +277,7 @@ def test_engine_svid_fetch_factories_default_none(tmp_path):
     assert engine.svid_fetch is None
 
 
+@requires_v907_compute_deps
 def test_engine_boot_with_no_socket_skips_svid_fetch(tmp_path):
     """When the SVID probe shows socket_connectable=False, the engine
     must NOT attempt an SVID fetch (which would just error)."""

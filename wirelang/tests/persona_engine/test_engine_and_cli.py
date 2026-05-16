@@ -29,6 +29,9 @@ from wirelang.persona_engine.engine import (
     PersonaEngine,
     resolve_env,
 )
+from wirelang.tests.persona_engine._v907_compute_skip import (
+    requires_v907_compute_deps,
+)
 
 
 SAMPLE_AXIS_A = """---
@@ -115,6 +118,7 @@ def _engine_with_axis_a(tmp_path: Path) -> PersonaEngine:
     return PersonaEngine(env_contract=contract, log_sink=io.StringIO())
 
 
+@requires_v907_compute_deps
 def test_engine_boot_succeeds_with_valid_axis_a(tmp_path):
     engine = _engine_with_axis_a(tmp_path)
     engine.boot()
@@ -124,6 +128,7 @@ def test_engine_boot_succeeds_with_valid_axis_a(tmp_path):
     assert engine.svid_probe is not None  # probed (socket absent in sandbox)
 
 
+@requires_v907_compute_deps
 def test_engine_spawn_emits_first_engineering_output(tmp_path):
     engine = _engine_with_axis_a(tmp_path)
     engine.boot()
@@ -135,6 +140,7 @@ def test_engine_spawn_emits_first_engineering_output(tmp_path):
     assert "engineering-output-emission-first" in log
 
 
+@requires_v907_compute_deps
 def test_engine_despawn_clean_returns_uninstantiated(tmp_path):
     engine = _engine_with_axis_a(tmp_path)
     engine.boot()
@@ -203,6 +209,7 @@ def test_cli_spawn_missing_env_returns_env_misconfig(monkeypatch):
     assert rc == EXIT_ENV_MISCONFIG
 
 
+@requires_v907_compute_deps
 def test_cli_spawn_one_shot_runs_full_cycle(tmp_path, monkeypatch):
     axis_a = tmp_path / "tomas.md"
     axis_a.write_text(SAMPLE_AXIS_A, encoding="utf-8")
