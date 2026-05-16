@@ -5,28 +5,25 @@ This license text is final for this release.
 **Licensor:** Callandor GmbH (Falkenstr. 31, 81541 München, Germany;
 Amtsgericht München HRB 270414), operating Wakir Labs.
 
-**Licensed Work:** Wakir Wirelang Federation module — the contents of
-the `wirelang/federation/` directory of this repository plus the
-following sibling files that are part of the Federation-Server
-runtime surface:
-
-- `wirelang/identity/federation_resolver.py` (V-908 SPIFFE-ID
-  cross-trust-domain resolver),
-- `wirelang/cli/marker_stack_reduce.py` (operator marker-stack
-  reduction CLI),
-- `wirelang/adapters/real_nats_adapter/adapter.py` (live NATS
-  JetStream adapter used by the Federation runtime).
-
-The Licensed Work covers multi-org attestation substrate, the
-SPIFFE cross-trust-domain bridge, marker-stack composition and
-KV-backed reducers, route registries, sequence-number ledgers,
-caveat-override export plumbing, the N2 Datalog evaluator, the N3
-chain walker, and the capability-attenuation chain verifiers.
+**Licensed Work:** Wakir Persona-Engine module — the contents of the
+`wirelang/persona_engine/` directory of this repository, including
+the engine runtime (`engine.py`, `engine_async.py`), the lifecycle
+state machine (`lifecycle_state_machine.py`), the bridge audit
+writer (`bridge_audit_writer.py`), the despawn-clean workflow
+(`despawn_clean.py`), the drill scheduler (`drill_scheduler.py`),
+the LLM call shim (`llm_call_shim.py`), the migration runner
+(`migrate_version.py`), the NATS subscribe loop
+(`nats_subscribe_loop.py`), the observability surface
+(`observability.py`), the recovery workflow (`recovery_workflow.py`),
+the state-backing layer (`state_backing.py`), the SVID workload
+identity client (`svid_workload_identity.py`), the V-907 verifier
+(`v907_verify.py`), the workload-API protobuf shim
+(`_workload_api_pb2_minimal.py`), and the persona CLI (`cli.py`).
 
 **Additional Use Grant:** Production use of the Licensed Work is
 permitted for self-hosting against an operator's own organisational
-SPIRE-Federation substrate, *unless* the production use is a
-commercial multi-tenant federation-as-a-service offering
+persona-engine substrate, *unless* the production use is a
+commercial multi-tenant persona-engine-as-a-service offering
 substantially competing with the hosted offering operated by Wakir
 Labs. Internal use by a single organisation (including its
 subsidiaries and contractors operating on its behalf) is permitted
@@ -51,10 +48,10 @@ at <https://mariadb.com/bsl11/>.
 
 The four-year automatic conversion to Apache 2.0 is a hard,
 contractual commitment of the Licensor — not a unilateral promise.
-Once a `wirelang/federation/` release is published under this BSL
-header, that specific release converts to Apache 2.0 on the Change
-Date stated in the release artefact, without further action by the
-Licensor.
+Once a `wirelang/persona_engine/` release is published under this
+BSL header, that specific release converts to Apache 2.0 on the
+Change Date stated in the release artefact, without further action
+by the Licensor.
 
 ## Sibling BSL modules
 
@@ -62,8 +59,8 @@ The repository carries sibling BSL 1.1 headers on:
 
 - `wat/` — the Wakir Audit Trail module
   (see [`wat/LICENSE-BSL.md`](../../wat/LICENSE-BSL.md));
-- `wirelang/persona_engine/` — the Wakir Persona-Engine module
-  (see [`wirelang/persona_engine/LICENSE-BSL.md`](../persona_engine/LICENSE-BSL.md));
+- `wirelang/federation/` — the Wakir Wirelang Federation module
+  (see [`wirelang/federation/LICENSE-BSL.md`](../federation/LICENSE-BSL.md));
 - `infra/spire/federation/` — the SPIRE Federation server-side
   runtime
   (see [`infra/spire/federation/LICENSE-BSL.md`](../../infra/spire/federation/LICENSE-BSL.md));
@@ -77,27 +74,26 @@ The repository carries sibling BSL 1.1 headers on:
   (see [`infra/persona-engine/LICENSE-BSL.md`](../../infra/persona-engine/LICENSE-BSL.md)).
 
 Each BSL unit has its own Change Date because they were first
-BSL-published on different dates. The `wirelang/federation/` unit
-shares its Change Date with the other Phase-2-Federation-BSL units
-activated under ADR-0059 on 2026-05-13.
+BSL-published on different dates. The `wirelang/persona_engine/`
+unit shares its Change Date with the other Phase-2-Federation-BSL
+units activated under ADR-0059 on 2026-05-13.
 
 ## Foundation-Layer scope
 
 The Foundation-Layer of `wirelang/` (identity bearer, datalog
-evaluator core, capability primitives outside the federation tree)
-remains Apache-2.0. Only the modules listed under "Licensed Work"
-above carry the BSL header. The Brand-Proof verifier
-(`wat/anchor/external_verifier/`) remains Apache-2.0 as a
-brand-proof-redistributable surface (ADR-0023b).
+evaluator core, capability primitives outside the persona-engine
+and federation subtrees) remains Apache-2.0. Only the modules
+listed under "Licensed Work" above carry the BSL header. The
+Brand-Proof verifier (`wat/anchor/external_verifier/`) remains
+Apache-2.0 as a brand-proof-redistributable surface (ADR-0023b).
 
 ## Repository licensing layout
 
 The repository root [LICENSE](../../LICENSE) lists the Apache-2.0
 default for all directories not explicitly carrying an own header.
-BSL-1.1 currently covers `wat/` (excluding the Apache-2.0
-Brand-Proof verifier surface), `wirelang/federation/` (this unit),
-`wirelang/persona_engine/`, `infra/spire/federation/`,
-`infra/spire/federation/provisioner/`, `infra/spire/agent/`, and
-`infra/persona-engine/`. CC BY 4.0 covers documentation where
-indicated. See the repository [README](../../README.md) for the
-consolidated licensing overview.
+BSL-1.1 currently covers `wat/`, `wirelang/federation/`,
+`wirelang/persona_engine/` (this unit),
+`infra/spire/federation/provisioner/`, `infra/spire/federation/`,
+`infra/spire/agent/`, and `infra/persona-engine/`. CC BY 4.0 covers
+documentation where indicated. See the repository
+[README](../../README.md) for the consolidated licensing overview.

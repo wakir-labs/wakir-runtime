@@ -1,3 +1,5 @@
+This license text is final for this release.
+
 # Business Source License 1.1
 
 **Licensor:** Callandor GmbH (Falkenstr. 31, 81541 München, Germany;
@@ -27,10 +29,8 @@ BSL-licensed image publication, `wakir-persona-engine:0.1.0-pilot`).
 
 ## Notice
 
-This is a draft license header following the BSL 1.1 template
-published at <https://mariadb.com/bsl11/>. The exact wording of the
-Additional Use Grant and the Licensor field is subject to legal
-review before any public hosted-service offering is launched.
+This license header follows the BSL 1.1 template published at
+<https://mariadb.com/bsl11/>.
 
 For terms of the BSL 1.1 itself (rights granted, restrictions,
 non-compete clause, conversion mechanism), see the canonical text
@@ -57,3 +57,37 @@ in addition to the stdlib; per-wheel licence text will ship in the
 wheels themselves and be reachable via `pip show <pkg>` inside a
 running container. The BSL header on the image as a whole does not
 extend to those transitive wheels.
+
+## Sibling BSL modules
+
+The repository carries sibling BSL 1.1 headers on:
+
+- `wat/` — the Wakir Audit Trail module
+  (see [`wat/LICENSE-BSL.md`](../../wat/LICENSE-BSL.md));
+- `wirelang/federation/` — the Wakir Wirelang Federation module
+  (see [`wirelang/federation/LICENSE-BSL.md`](../../wirelang/federation/LICENSE-BSL.md));
+- `wirelang/persona_engine/` — the Wakir Persona-Engine module
+  (see [`wirelang/persona_engine/LICENSE-BSL.md`](../../wirelang/persona_engine/LICENSE-BSL.md));
+- `infra/spire/federation/` — the SPIRE Federation server-side
+  runtime
+  (see [`infra/spire/federation/LICENSE-BSL.md`](../spire/federation/LICENSE-BSL.md));
+- `infra/spire/federation/provisioner/` — the Wakir Provisioner
+  image
+  (see [`infra/spire/federation/provisioner/LICENSE-BSL.md`](../spire/federation/provisioner/LICENSE-BSL.md));
+- `infra/spire/agent/` — the SPIRE federated agent runtime
+  (see [`infra/spire/agent/LICENSE-BSL.md`](../spire/agent/LICENSE-BSL.md)).
+
+Each BSL unit has its own Change Date because they were first
+BSL-published on different dates.
+
+## Repository licensing layout
+
+The repository root [LICENSE](../../LICENSE) lists the Apache-2.0
+default for all directories not explicitly carrying an own header.
+BSL-1.1 currently covers `wat/` (excluding the Apache-2.0
+Brand-Proof verifier surface), `wirelang/federation/`,
+`wirelang/persona_engine/`, `infra/spire/federation/`,
+`infra/spire/federation/provisioner/`, `infra/spire/agent/`, and
+`infra/persona-engine/` (this unit). CC BY 4.0 covers documentation
+where indicated. See the repository [README](../../README.md) for
+the consolidated licensing overview.
