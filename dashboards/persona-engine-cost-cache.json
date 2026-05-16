@@ -1,0 +1,362 @@
+{
+  "__comment": "Grafana dashboard JSON for the wakir-runtime Phase-2b cost + cache telemetry empirie (Sprint-SRE Phase-2b, Noa Bergstroem / SRE). Targets the Prometheus-textfile-collector gauges emitted by scripts/per-model-cost-aggregator.py and scripts/cache-hit-rate-aggregator.py. Schema version targets Grafana 10.x (dashboard schemaVersion >= 38). Dashboard is deliberately operational, not Vanity: every panel maps to one ADR-0064 Phase-2b decision input (Top-Cost-Personas, Top-Cost-Models, Cache-Hit-Rate-Heatmap, Cost-Trend-7d).",
+  "title": "Wakir Persona-Engine - Cost + Cache Empirie (Phase-2b)",
+  "uid": "wakir-persona-engine-cost-cache",
+  "tags": ["wakir", "persona-engine", "sre", "phase-2b-empirie", "adr-0064"],
+  "schemaVersion": 38,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "refresh": "5m",
+  "templating": {
+    "list": [
+      {
+        "name": "model",
+        "label": "Model",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prom"},
+        "query": "label_values(wakir_model_cost_usd_total, model)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true
+      },
+      {
+        "name": "persona_id",
+        "label": "Persona",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prom"},
+        "query": "label_values(wakir_cache_telemetry_event_count_total, persona_id)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 100,
+      "type": "row",
+      "title": "Panel-Group 1: Cost-per-Model (ADR-0064 Phase-2b empirie input)",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+      "collapsed": false
+    },
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Total cost per model (7d)",
+      "description": "Cumulative USD per Anthropic model id over the dashboard time-range. The Phase-2b decision input: which model carries the highest absolute cost weight.",
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 1},
+      "targets": [
+        {
+          "expr": "sum by (model) (wakir_model_cost_usd_total{model=~\"$model\"})",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "orange", "value": 10},
+              {"color": "red", "value": 50}
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "orientation": "horizontal",
+        "textMode": "value_and_name",
+        "colorMode": "value"
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Cost-USD rate per model (per hour)",
+      "description": "Per-hour rate of wakir_model_cost_usd_total broken out by model. The slope identifies which model is currently the dominant cost driver. Stacking is off to expose per-model rates independently.",
+      "gridPos": {"h": 8, "w": 16, "x": 8, "y": 1},
+      "targets": [
+        {
+          "expr": "rate(wakir_model_cost_usd_total{model=~\"$model\"}[1h]) * 3600",
+          "legendFormat": "{{model}} / {{invoker}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "stacking": {"mode": "none"}
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Invocations per model + invoker (7d)",
+      "description": "How often each model is touched per invoker class. Cross-reference with the cost panel to spot models that are cheap-per-call but high-volume (Haiku-on-Mira-Hourly) versus expensive-per-call but low-volume (Opus-on-Persona-Engine).",
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 7},
+      "targets": [
+        {
+          "expr": "wakir_model_invocation_count_total{model=~\"$model\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {"Time": true, "__name__": true, "instance": true, "job": true},
+            "indexByName": {"model": 0, "invoker": 1, "Value": 2},
+            "renameByName": {"Value": "invocations"}
+          }
+        }
+      ]
+    },
+    {
+      "id": 200,
+      "type": "row",
+      "title": "Panel-Group 2: Cache-Hit-Rate Heatmap (ADR-0064 Phase-2b empirie input)",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 13},
+      "collapsed": false
+    },
+    {
+      "id": 4,
+      "type": "heatmap",
+      "title": "Cache-hit-rate per (persona, model) window-average",
+      "description": "Window-average cache_read / (input + cache_read + cache_creation) ratio per (persona_id, model). High hit-rate (green) means the prefix is stable and the breakpoint placement is on-target. Low hit-rate (red) means either short inter-call cadence (TTL-expiry) or a frequently-changing prefix (V-907-Pin churn).",
+      "gridPos": {"h": 10, "w": 12, "x": 0, "y": 14},
+      "targets": [
+        {
+          "expr": "wakir_cache_hit_rate_window_average{persona_id=~\"$persona_id\", model=~\"$model\"}",
+          "legendFormat": "{{persona_id}} / {{model}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        }
+      },
+      "options": {
+        "calculate": false,
+        "color": {"scheme": "RdYlGn", "mode": "scheme", "steps": 32}
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Cache read vs cache creation input tokens",
+      "description": "Side-by-side trend of cache_read (savings) versus cache_creation (cost). Read > Creation indicates net-positive cache (savings outpace overhead). Read < Creation indicates the breakpoint is mis-tuned for the surface.",
+      "gridPos": {"h": 10, "w": 12, "x": 12, "y": 14},
+      "targets": [
+        {
+          "expr": "sum by (model) (rate(wakir_cache_read_input_tokens_total{persona_id=~\"$persona_id\", model=~\"$model\"}[15m]))",
+          "legendFormat": "cache_read {{model}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (model) (rate(wakir_cache_creation_input_tokens_total{persona_id=~\"$persona_id\", model=~\"$model\"}[15m]))",
+          "legendFormat": "cache_creation {{model}}",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Most recent hit-rate per (persona, model)",
+      "description": "Most recent point-sample of wakir_cache_hit_rate_input_only. Surface for the operator to see whether a single recent event lowered the average versus a sustained trend.",
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 24},
+      "targets": [
+        {
+          "expr": "wakir_cache_hit_rate_input_only{persona_id=~\"$persona_id\", model=~\"$model\"}",
+          "legendFormat": "{{persona_id}} / {{model}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "orange", "value": 0.3},
+              {"color": "green", "value": 0.6}
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "orientation": "horizontal",
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "id": 300,
+      "type": "row",
+      "title": "Panel-Group 3: Top-Cost-Personas (ADR-0064 Phase-2b Item 3 input)",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 30},
+      "collapsed": false
+    },
+    {
+      "id": 7,
+      "type": "barchart",
+      "title": "Cache cost weight per persona (proxy by cache_creation tokens)",
+      "description": "Cache-creation tokens are a proxy for cost-driving prefix size + churn per persona. Identifies Top-Cost-Personas for Phase-2b A.3 Heuristic-Routing candidates. Cross-reference with hit-rate heatmap: high-creation + low-hit-rate = primary mis-tuning candidate.",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 31},
+      "targets": [
+        {
+          "expr": "sum by (persona_id) (wakir_cache_creation_input_tokens_total{persona_id=~\"$persona_id\", model=~\"$model\"})",
+          "legendFormat": "{{persona_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "showValue": "always",
+        "xTickLabelRotation": 0
+      }
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Per-persona cost-+-cache snapshot",
+      "description": "Joint table of cache_read, cache_creation, event_count, last_hit_rate per (persona, model) tuple. The single operator surface for the Phase-2b ADR-0064 Item 3 Auswertung after the 2-week observation window.",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 31},
+      "targets": [
+        {
+          "expr": "wakir_cache_read_input_tokens_total{persona_id=~\"$persona_id\", model=~\"$model\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        },
+        {
+          "expr": "wakir_cache_creation_input_tokens_total{persona_id=~\"$persona_id\", model=~\"$model\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "B"
+        },
+        {
+          "expr": "wakir_cache_hit_rate_input_only{persona_id=~\"$persona_id\", model=~\"$model\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "C"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {"byField": "persona_id", "mode": "outer"}
+        }
+      ]
+    },
+    {
+      "id": 400,
+      "type": "row",
+      "title": "Panel-Group 4: Cost-Trend 7d (ADR-0064 phase decision anchor)",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 39},
+      "collapsed": false
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Cumulative cost USD per model (7d trend)",
+      "description": "The cumulative USD-cost trend per model over the configured window. Phase-2b decision input: is the cost-per-model trend accelerating (slope rising), stable (constant slope), or decelerating (slope falling)? An accelerating Opus-trend without a matching task-volume rise is the explicit A.3 Heuristic-Routing trigger.",
+      "gridPos": {"h": 10, "w": 16, "x": 0, "y": 40},
+      "targets": [
+        {
+          "expr": "sum by (model) (wakir_model_cost_usd_total{model=~\"$model\"})",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineWidth": 2,
+            "stacking": {"mode": "normal"}
+          }
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Telemetry freshness",
+      "description": "Seconds since last aggregator run. SLO: < 600s (10-minute timer cadence + 5-minute slack). > 1200s indicates the aggregator timer is stalled.",
+      "gridPos": {"h": 10, "w": 8, "x": 16, "y": 40},
+      "targets": [
+        {
+          "expr": "time() - wakir_per_model_aggregator_last_run_unixtime",
+          "legendFormat": "per-model-cost",
+          "refId": "A"
+        },
+        {
+          "expr": "time() - wakir_cache_aggregator_last_run_unixtime",
+          "legendFormat": "cache-hit-rate",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "orange", "value": 600},
+              {"color": "red", "value": 1200}
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "orientation": "horizontal",
+        "textMode": "value_and_name",
+        "colorMode": "value"
+      }
+    }
+  ]
+}
