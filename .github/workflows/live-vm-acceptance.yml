@@ -1,0 +1,427 @@
+# SPDX-License-Identifier: BUSL-1.1
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Live-VM Acceptance — Operator-Hand-getriggerter CI-Lane.
+# ========================================================
+#
+# Sprint-Live-VM-Acceptance-Workflow-MINI (2026-05-16). Closing
+# triangle:
+#
+#   * PR #76  — `scripts/ci-live-vm-acceptance-wrapper.sh` (Kai)
+#   * PR #108 — `tests/live_vm/test_phase_2_doppelbetrieb_live.py`
+#               skeleton + `tests/live_vm/conftest.py` double-gate
+#               (Amara)
+#   * PR #116 — `docs/test-plans/phase-2-live-vm-acceptance.md`
+#               operator companion + §4 pre-existing-failure-pattern
+#               catalogue (Amara)
+#
+# This workflow is the **CI invocation surface** behind those three.
+# It is `workflow_dispatch` only — there is NO automatic
+# PR-trigger and NO push-trigger. Reaching a live `192.168.178.*`
+# VM from a CI runner is an Operator-Hand decision per
+# `feedback_sandbox_host_trennung.md` (Mira-Memory). A push must
+# never silently fan out to a real VM.
+#
+# Why this workflow exists separately
+# -----------------------------------
+#
+# The companion workflow `e2e-vm-acceptance-gate.yml` covers a
+# **disposable** Fedora-CoreOS QEMU VM that the harness spins up
+# itself (Sprint-9 Tag-5). This new workflow covers the
+# **persistent** Pilot-VM (wakir-pilot / wakir-orbit) that already
+# carries production-shaped state and is reached by SSH over the
+# LAN. Different lanes, different invariants, different gates —
+# kept in separate workflow-files so the GH-Actions UI matrix
+# reads cleanly and `paths`-filter accidents in one cannot
+# silently re-trigger the other.
+#
+# Sandbox boundary
+# ----------------
+#
+# The hermetic claude-dev Sandbox cannot reach 192.168.178.*. Every
+# step here is **defence-in-depth-skipped** when invoked from a
+# Sandbox-equivalent runner (no SSH key material → SSH precheck
+# fails fast → wrapper exits 1 → workflow fails with a clean
+# "no-target-credentials" verdict). The on-runner credentials live
+# in the `WAKIR_VM_SSH_KEY` repository-secret; the operator
+# decides per dispatch whether to actually invoke this lane.
+#
+# Inputs
+# ------
+#
+#   * `target_vm`    — wakir-pilot | wakir-orbit | both. The lane
+#                      drives the wrapper-script once per selected
+#                      target. `both` runs the two in series (the
+#                      Bridge-Forward fan-out vectors TV-LVD-08..10
+#                      assume the bilateral topology is up; running
+#                      both sides back-to-back proves the bilateral
+#                      symmetric path).
+#   * `test_filter`  — optional `pytest -k` pattern. Default empty
+#                      (run every collected `@pytest.mark.live_vm`
+#                      test). Useful for narrowing to a single TV-LVD
+#                      vector during regression triage.
+#   * `peer_host`    — defaults to `192.168.178.116`. The dogfood-LAN
+#                      topology per Sprint-10 Tag-6 §1.2 of the test-
+#                      plan (PR #116). Override if the operator is
+#                      running against a Phase-3 production host.
+#   * `skip_cosign_verify` — pass-through to the on-VM bootstrap.
+#                      Default `1` (parity with the on-VM acceptance
+#                      script).
+#
+# Cross-Review-Anker
+# ------------------
+#
+# * ADR-0058 (Pilot-Persona-Migrations-Plan) — §"Phase 4
+#   Cutover-Entscheidung" Doppelbetrieb-Score gate. This lane
+#   produces TV-LVD-evidence for that gate.
+# * Zone-N (QA × Henrik-Audit) — the Wrapper-Run summary-JSON and
+#   the pytest JUnit-XML uploaded as artefact are the evidence-
+#   source for Phase-2 Audit-Sample §4-A / §4-B (PR #116 §3).
+# * Zone-M (CLI substance-bestätigung Tomás/Selin/Reza) — until
+#   §5 of the test-plan is signed off, several TV-LVD vectors stay
+#   `xfail-on-CLI-mismatch`; this lane surfaces those as
+#   structured pytest output rather than silent skips.
+#
+# Pre-existing-failure-pattern catalogue
+# --------------------------------------
+#
+# Per `docs/test-plans/phase-2-live-vm-acceptance.md` §4, the
+# following six failure-patterns are **substrate-pre-existing**,
+# not Phase-2 regressions. An operator triaging a failed run
+# should distinguish these from real regressions BEFORE filing a
+# Phase-2-Acceptance-Gate failure:
+#
+#   * §4.1 Cosign + GHCR auth (cosign keyless sign-push → 401)
+#   * §4.2 skopeo image-pin resolution drift
+#   * §4.3 Bug-30/31/32 SPIRE-malformed-configuration regression
+#   * §4.4 Peer-VM unreachable (192.168.178.<peer>:8443)
+#   * §4.5 Bug-35-class podman-run-vs-Quadlet drift
+#   * §4.6 Sandbox-host-collision (defence-in-depth, should never
+#          fire)
+#
+# These patterns are encoded as a known-skip-list comment near the
+# pytest invocation below so that an operator inspecting the
+# workflow source sees the same catalogue the test-plan documents.
+# When PR #108's SSH-runner-fixture lands (currently a refusal-stub
+# per test-plan §6 "Out of scope"), the workflow will start
+# producing real pytest verdicts; until then the lane is expected
+# to either no-op (every TV-LVD skipped) or hit the refusal-stub
+# at fixture-time. Either outcome is the lane working as
+# documented.
+#
+# -- Kai
+
+name: live-vm-acceptance
+
+# YAML key-quoting hygiene: the bare `on:` resolves as boolean True
+# under YAML 1.1 safe-mode parsers; quote defensively so external
+# linters and GitHub-Actions agree.
+"on":
+  workflow_dispatch:
+    inputs:
+      target_vm:
+        description: 'Target VM: wakir-pilot | wakir-orbit | both'
+        required: true
+        type: choice
+        options:
+          - wakir-pilot
+          - wakir-orbit
+          - both
+        default: 'wakir-pilot'
+      test_filter:
+        description: 'Optional pytest -k filter (empty = run all TV-LVD vectors)'
+        required: false
+        type: string
+        default: ''
+      peer_host:
+        description: 'Peer-VM host (WAKIR_PEER_HOST); default = dogfood-LAN topology'
+        required: false
+        type: string
+        default: '192.168.178.116'
+      skip_cosign_verify:
+        description: 'Pass-through WAKIR_SKIP_COSIGN_VERIFY (1 = skip, parity with on-VM script)'
+        required: false
+        type: string
+        default: '1'
+
+permissions:
+  contents: read
+
+# Concurrency: one Live-VM run at a time per target. Two parallel
+# runs against the same VM would race the federation-config reset
+# (phase-3 of the wrapper-script) and yield non-deterministic
+# verdicts. We serialise on the target_vm input.
+concurrency:
+  group: live-vm-acceptance-${{ github.event.inputs.target_vm }}
+  cancel-in-progress: false
+
+jobs:
+
+  live-vm-acceptance:
+    name: Live-VM acceptance (${{ github.event.inputs.target_vm }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # The double-gate per `tests/live_vm/conftest.py`: this env-var
+      # plus the `--run-live-vm` pytest CLI flag must BOTH be set.
+      # The pytest invocation below passes the flag; we set the env-
+      # var here at the job level so every step that shells into
+      # pytest carries it.
+      WAKIR_LIVE_VM_ACCEPTANCE: '1'
+      # Pass-throughs for the on-VM acceptance lane.
+      WAKIR_PEER_HOST: ${{ github.event.inputs.peer_host }}
+      WAKIR_SKIP_COSIGN_VERIFY: ${{ github.event.inputs.skip_cosign_verify }}
+      # Test-filter pattern (empty string = no filter).
+      LIVE_VM_TEST_FILTER: ${{ github.event.inputs.test_filter }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install pytest + extras
+        run: |
+          python -m pip install --upgrade pip
+          # Minimal install set: pytest core + JUnit-XML reporter
+          # (built into pytest, no extra package needed). Extras
+          # for the suite itself land when the real SSH-runner
+          # fixture is implemented (test-plan §6 "Out of scope" /
+          # PR #108 follow-up sprint). Keep the install set narrow
+          # so a future SSH-driver dependency-bloat is a clear PR-
+          # diff signal.
+          pip install pytest
+
+      - name: SSH-key setup from WAKIR_VM_SSH_KEY secret
+        id: ssh_setup
+        env:
+          WAKIR_VM_SSH_KEY: ${{ secrets.WAKIR_VM_SSH_KEY }}
+        run: |
+          if [[ -z "${WAKIR_VM_SSH_KEY:-}" ]]; then
+            echo "::error::WAKIR_VM_SSH_KEY secret is not configured on this repository."
+            echo "::error::Configure the secret with a private key authorised on the target VM(s)"
+            echo "::error::before invoking this workflow. See docs/test-plans/phase-2-live-vm-acceptance.md §1.1."
+            exit 1
+          fi
+          # Land the key in a runner-temp location with strict
+          # mode-bits. The wrapper-script's tool-precheck verifies
+          # the key is readable (mode-bits + file-existence) before
+          # using it; we set 0600 explicitly so ssh does not refuse.
+          KEY_PATH="${RUNNER_TEMP}/wakir-vm-ssh-key"
+          umask 077
+          printf '%s\n' "${WAKIR_VM_SSH_KEY}" > "${KEY_PATH}"
+          chmod 0600 "${KEY_PATH}"
+          # Sanity: the secret should be a PEM-shaped private key.
+          # We do NOT log the key contents; only the header line is
+          # echoed so a malformed secret surfaces as a clean error
+          # rather than a downstream ssh stack-trace.
+          if ! head -n1 "${KEY_PATH}" | grep -Eq -- '-----BEGIN .* PRIVATE KEY-----'; then
+            echo "::error::WAKIR_VM_SSH_KEY does not look like a PEM-formatted private key."
+            exit 1
+          fi
+          echo "ssh_key_path=${KEY_PATH}" >> "$GITHUB_OUTPUT"
+          echo "SSH key landed at ${KEY_PATH} (0600)"
+
+      - name: Resolve target list
+        id: targets
+        run: |
+          # The choice-input only accepts the three documented
+          # values; we still defence-in-depth-validate before
+          # iterating so a hand-edited workflow run surfaces a
+          # clean error.
+          case "${{ github.event.inputs.target_vm }}" in
+            wakir-pilot)             echo 'targets=["wakir-pilot"]'             >> "$GITHUB_OUTPUT" ;;
+            wakir-orbit)             echo 'targets=["wakir-orbit"]'             >> "$GITHUB_OUTPUT" ;;
+            both)                    echo 'targets=["wakir-pilot","wakir-orbit"]' >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "::error::Unexpected target_vm value: ${{ github.event.inputs.target_vm }}"
+              exit 1
+              ;;
+          esac
+
+      - name: Install wrapper-script prerequisites
+        run: |
+          # The wrapper does a tool-precheck for `ssh`, `scp`, `jq`.
+          # ubuntu-latest carries ssh + scp by default; jq is
+          # available but we install explicitly so the wrapper's
+          # precheck never has to fall back.
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends jq openssh-client
+
+      # ---------------------------------------------------------------
+      # Phase A — Wrapper-driven on-VM acceptance (per selected target).
+      #
+      # `scripts/ci-live-vm-acceptance-wrapper.sh` (Kai PR #76) is
+      # the SSH-driven entry point. It SSHs into the target, resets
+      # /opt/wakir-runtime from source, drops the installed
+      # /etc/spire-* + Quadlet copies, and invokes
+      # `scripts/federation-live-vm-acceptance.sh` on-VM. Output is
+      # a structured summary-JSON we upload as artefact.
+      #
+      # We run the wrapper once per selected target. For
+      # `target_vm=both`, this gives two summary-JSON artefacts
+      # (one per side) so the operator can confirm the bilateral
+      # topology is symmetrically green.
+      # ---------------------------------------------------------------
+
+      - name: Run wrapper against wakir-pilot
+        if: contains(fromJSON(steps.targets.outputs.targets), 'wakir-pilot')
+        id: wrapper_pilot
+        continue-on-error: true
+        env:
+          SSH_KEY_PATH: ${{ steps.ssh_setup.outputs.ssh_key_path }}
+        run: |
+          mkdir -p artefacts
+          bash scripts/ci-live-vm-acceptance-wrapper.sh \
+            --target          wakir-pilot \
+            --ssh-user        wakir-acceptance \
+            --ssh-key         "${SSH_KEY_PATH}" \
+            --side            wakir \
+            --peer-side       orbit \
+            --peer-host       "${WAKIR_PEER_HOST}" \
+            --federation-mode auto \
+            --skip-cosign-verify "${WAKIR_SKIP_COSIGN_VERIFY}" \
+            --summary-json    artefacts/wrapper-summary-wakir-pilot.json
+
+      - name: Run wrapper against wakir-orbit
+        if: contains(fromJSON(steps.targets.outputs.targets), 'wakir-orbit')
+        id: wrapper_orbit
+        continue-on-error: true
+        env:
+          SSH_KEY_PATH: ${{ steps.ssh_setup.outputs.ssh_key_path }}
+        run: |
+          mkdir -p artefacts
+          bash scripts/ci-live-vm-acceptance-wrapper.sh \
+            --target          wakir-orbit \
+            --ssh-user        wakir-acceptance \
+            --ssh-key         "${SSH_KEY_PATH}" \
+            --side            orbit \
+            --peer-side       wakir \
+            --peer-host       "${WAKIR_PEER_HOST}" \
+            --federation-mode auto \
+            --skip-cosign-verify "${WAKIR_SKIP_COSIGN_VERIFY}" \
+            --summary-json    artefacts/wrapper-summary-wakir-orbit.json
+
+      # ---------------------------------------------------------------
+      # Phase B — TV-LVD pytest invocation.
+      #
+      # PR #108 ships `tests/live_vm/test_phase_2_doppelbetrieb_live.py`
+      # with `@pytest.mark.live_vm` on every test, and
+      # `tests/live_vm/conftest.py` enforces the double-gate
+      # (--run-live-vm CLI flag + WAKIR_LIVE_VM_ACCEPTANCE=1 env-var).
+      # Both gates are set here so the suite actually collects.
+      #
+      # Known-skip-list (matching test-plan §4 catalogue):
+      #
+      #   §4.1 cosign-ghcr-auth        → substrate fixture-fail
+      #   §4.2 skopeo-image-pin-drift  → TV-LVD-03 substrate-fail
+      #   §4.3 bug-30/31/32-spire      → entire suite collection-skip
+      #   §4.4 peer-unreachable        → TV-LVD-08..10 collection-skip
+      #   §4.5 bug-35-podman-quadlet   → TV-LVD-03 substrate-fail
+      #   §4.6 sandbox-host-collision  → ssh_runner refusal-stub fires
+      #
+      # Each is a substrate-pre-existing failure mode, NOT a Phase-2
+      # regression. The operator triaging a failed run consults
+      # `docs/test-plans/phase-2-live-vm-acceptance.md` §4 to
+      # distinguish. We do NOT auto-skip these in the workflow — we
+      # let pytest emit the verdict so the JUnit-XML carries the
+      # signal Henrik's Phase-2 Audit-Sample §4-A/§4-B expects.
+      #
+      # Note on current ssh_runner status: PR #108's `ssh_runner`
+      # fixture is a refusal-stub per test-plan §6 "Out of scope".
+      # Until the real SSH-backed runner lands in a follow-up
+      # sprint, the TV-LVD suite either collection-skips (default,
+      # if a gate flips) or hits the refusal-stub at fixture-time.
+      # Either outcome is the lane working as documented; the
+      # `continue-on-error: true` on this step prevents the
+      # not-yet-implemented runner from masquerading as a Phase-2
+      # regression.
+      # ---------------------------------------------------------------
+
+      - name: Run TV-LVD pytest suite
+        id: pytest_live_vm
+        continue-on-error: true
+        run: |
+          mkdir -p artefacts
+          PYTEST_ARGS=(
+            tests/live_vm/
+            --run-live-vm
+            -v
+            --color=yes
+            --junit-xml=artefacts/live-vm-junit.xml
+          )
+          if [[ -n "${LIVE_VM_TEST_FILTER:-}" ]]; then
+            PYTEST_ARGS+=( -k "${LIVE_VM_TEST_FILTER}" )
+          fi
+          echo "pytest invocation: ${PYTEST_ARGS[*]}"
+          python -m pytest "${PYTEST_ARGS[@]}"
+
+      # ---------------------------------------------------------------
+      # Phase C — Evidence upload + verdict.
+      # ---------------------------------------------------------------
+
+      - name: Upload artefacts (wrapper-summary + JUnit-XML)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-vm-acceptance-run-${{ github.run_id }}
+          path: artefacts/
+          retention-days: 90
+
+      - name: Final lane verdict
+        run: |
+          # The lane PASSES iff:
+          #   * Every wrapper invocation that ran returned 0 (acceptance
+          #     PASS on every selected target), AND
+          #   * The pytest TV-LVD suite returned 0 (either real PASS
+          #     once the SSH-runner-fixture lands, or all-skipped
+          #     during the current refusal-stub phase).
+          #
+          # Wrapper exit codes (Kai PR #76):
+          #   0 = acceptance PASS
+          #   1 = pre-check fail (SSH / repo-pull) — substrate
+          #   2 = acceptance FAIL — substance regression
+          #   3 = wrapper-internal error (bad argv, missing tool)
+          #
+          # Pytest exit codes:
+          #   0 = all tests pass (or all skipped)
+          #   1 = one or more failures
+          #   5 = no tests collected (degenerate; lane is broken)
+          #
+          # We propagate the worst observed outcome.
+          fail=0
+          if [[ "${{ steps.wrapper_pilot.outcome }}" == "failure" ]]; then
+            echo "WRAPPER-PILOT: FAIL (rc unknown; see step log + summary-JSON)"
+            fail=1
+          elif [[ "${{ steps.wrapper_pilot.outcome }}" == "success" ]]; then
+            echo "WRAPPER-PILOT: PASS"
+          else
+            echo "WRAPPER-PILOT: skipped (target not selected)"
+          fi
+          if [[ "${{ steps.wrapper_orbit.outcome }}" == "failure" ]]; then
+            echo "WRAPPER-ORBIT: FAIL (rc unknown; see step log + summary-JSON)"
+            fail=1
+          elif [[ "${{ steps.wrapper_orbit.outcome }}" == "success" ]]; then
+            echo "WRAPPER-ORBIT: PASS"
+          else
+            echo "WRAPPER-ORBIT: skipped (target not selected)"
+          fi
+          if [[ "${{ steps.pytest_live_vm.outcome }}" == "failure" ]]; then
+            echo "PYTEST-TV-LVD: FAIL"
+            fail=1
+          else
+            echo "PYTEST-TV-LVD: PASS (or all-skipped under refusal-stub)"
+          fi
+          if [[ "$fail" -eq 1 ]]; then
+            echo ""
+            echo "=== Triage hint ==="
+            echo "Consult docs/test-plans/phase-2-live-vm-acceptance.md §4"
+            echo "before filing a Phase-2 Acceptance-Gate regression."
+            echo "Six substrate-pre-existing failure patterns are documented"
+            echo "and may explain this lane's verdict without indicating a"
+            echo "real Phase-2 regression."
+            echo "==================="
+            exit 1
+          fi
+          echo "LIVE-VM-ACCEPTANCE: PASS"
