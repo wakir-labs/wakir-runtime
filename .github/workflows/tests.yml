@@ -67,6 +67,9 @@ on:
       - '.github/workflows/hash-derivate-gate.yml'
       - '.github/workflows/cross-repo-drift-audit.yml'
       - '.cross-repo-drift-allowlist.yaml'
+      - '.github/workflows/phase-2-validation-gate.yml'
+      - 'dashboards/**'
+      - 'docs/**'
   pull_request:
     paths:
       - 'wirelang/**'
@@ -77,6 +80,9 @@ on:
       - '.github/workflows/hash-derivate-gate.yml'
       - '.github/workflows/cross-repo-drift-audit.yml'
       - '.cross-repo-drift-allowlist.yaml'
+      - '.github/workflows/phase-2-validation-gate.yml'
+      - 'dashboards/**'
+      - 'docs/**'
   workflow_dispatch: {}
 
 permissions:
