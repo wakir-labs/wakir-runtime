@@ -62,11 +62,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, TextIO
+from typing import Callable, Mapping, Optional, TextIO
 
 
 # ---------------------------------------------------------------------------
@@ -160,6 +161,9 @@ class BridgeAuditWriter:
         *,
         preframework_sink_path: Optional[Path] = None,
         wakir_runtime_sink: TextIO = sys.stderr,
+        bridge_mode: Optional[str] = None,
+        env: Optional[Mapping[str, str]] = None,
+        rust_engine_adapter: Optional[Callable[..., None]] = None,
     ) -> None:
         self.org_id = org_id
         self.persona_id = persona_id
@@ -174,6 +178,19 @@ class BridgeAuditWriter:
             )
         self.preframework_sink_path = preframework_sink_path
         self.wakir_runtime_sink = wakir_runtime_sink
+        # Bridge-mode resolution: explicit constructor pin overrides
+        # env; env defaults to os.environ. Imported lazily to avoid a
+        # circular import with bridge_audit_triangle.
+        if bridge_mode is not None:
+            self.bridge_mode = bridge_mode
+        else:
+            from .bridge_audit_triangle import resolve_bridge_mode
+
+            self.bridge_mode = resolve_bridge_mode(env)
+        # Rust-engine adapter is invoked in 3-way mode only. The
+        # adapter signature mirrors the EngineeringOutputEvent emit
+        # contract — a no-op default keeps 2-way callers unaffected.
+        self.rust_engine_adapter = rust_engine_adapter
         self._step_counter = 0
 
     def emit(
@@ -208,7 +225,49 @@ class BridgeAuditWriter:
         self._step_counter += 1
         self._write_preframework_sink(evt)
         self._write_wakir_runtime_sink(evt)
+        self._invoke_rust_engine_adapter_if_3way(evt, payload)
         return evt
+
+    # ------------------------------------------------------------------
+    # 3-way Rust-engine-stub invocation
+    # ------------------------------------------------------------------
+
+    def _invoke_rust_engine_adapter_if_3way(
+        self, evt: EngineeringOutputEvent, payload: bytes
+    ) -> None:
+        """Invoke the Rust-engine adapter when bridge-mode is 3way.
+
+        In 2-way mode this is a no-op. In 3-way mode the adapter is
+        invoked with the just-emitted :class:`EngineeringOutputEvent`
+        plus the original payload bytes so the Rust engine can produce
+        its own envelope for the cross-check triangle.
+
+        The adapter is a fire-and-forget hook from the writer's
+        perspective: the actual triangle cross-check is run separately
+        by callers that want to gate emissions on consistency. The
+        writer itself does not block on the adapter's output — the
+        bridge-audit-writer's job is to land the two Python sinks
+        deterministically, not to orchestrate Phase-3a cross-checking.
+
+        Exceptions from the adapter are swallowed (same operator-
+        substrate-only failure mode as the Pre-Framework sink) so a
+        broken Rust-engine adapter never breaks the engineering-output
+        path. The adapter contract documents that for hard-gate use
+        callers should use :func:`bridge_audit_triangle.cross_check_triangle`
+        directly instead of relying on this hook.
+        """
+        from .bridge_audit_triangle import BridgeMode
+
+        if self.bridge_mode != BridgeMode.THREE_WAY:
+            return
+        if self.rust_engine_adapter is None:
+            return
+        try:
+            self.rust_engine_adapter(evt, payload)
+        except Exception:
+            # Operator-substrate-only failure; the two Python sinks
+            # already landed and the triangle is run separately.
+            pass
 
     # ------------------------------------------------------------------
 
