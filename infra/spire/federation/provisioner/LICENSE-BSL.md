@@ -1,3 +1,5 @@
+This license text is final for this release.
+
 # Business Source License 1.1
 
 **Licensor:** Callandor GmbH (Falkenstr. 31, 81541 München, Germany;
@@ -31,10 +33,8 @@ BSL-licensed image publication, `wakir-provisioner:0.1.2`).
 
 ## Notice
 
-This is a draft license header following the BSL 1.1 template
-published at <https://mariadb.com/bsl11/>. The exact wording of the
-Additional Use Grant and the Licensor field is subject to legal
-review before any public hosted-service offering is launched.
+This license header follows the BSL 1.1 template published at
+<https://mariadb.com/bsl11/>.
 
 For terms of the BSL 1.1 itself (rights granted, restrictions,
 non-compete clause, conversion mechanism), see the canonical text
