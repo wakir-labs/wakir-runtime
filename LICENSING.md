@@ -10,8 +10,9 @@ This repository is mixed-license.
 | Path | License |
 |---|---|
 | `wirelang/` except listed BSL modules | Apache-2.0 |
-| `wat/` except `wat/anchor/external_verifier/` | BUSL-1.1, Change License Apache-2.0 |
-| `wat/anchor/external_verifier/` | Apache-2.0 |
+| `wat/` except listed Apache-2.0 carve-outs | BUSL-1.1, Change License Apache-2.0 |
+| `wat/anchor/external_verifier/` | Apache-2.0 (brand-proof verifier, consolidated to `wakir-labs/wakir-verify` per ADR-0062 Cut-1) |
+| `wat/merkle/` Read-Half (`__init__.py`, `aggregator.py`) | Apache-2.0 (re-classified per ADR-0062 Cut-1, brand-proof Merkle inclusion check) |
 | `wirelang/federation/` | BUSL-1.1 |
 | `wirelang/persona_engine/` | BUSL-1.1 |
 | `infra/spire/federation/` | BUSL-1.1 |
