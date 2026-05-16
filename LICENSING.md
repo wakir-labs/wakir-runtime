@@ -5,14 +5,32 @@ Copyright (c) 2026 Callandor GmbH and contributors
 
 # Licensing
 
-This repository is mixed-license.
+This repository is **mixed-license, BUSL-dominant**. It is the
+source-available enterprise substrate of the four-repo Wakir Labs
+topology. Two Apache-2.0 sibling repos hold the brand-proof
+verifier and the protocol-/spec-layer respectively:
+
+- **`wakir-labs/wakir-verify`** — Apache-2.0 (brand-proof Verifier
+  CLI: WAT-Manifest, Merkle-Inclusion, OTS-Anchor). Stand-alone
+  consumable. Consolidated per ADR-0062 Cut-1.
+- **`wakir-labs/wakir-protocol`** — Apache-2.0 (Code) + CC-BY-4.0
+  (Specs, file-level): Wirelang-Spec Layer 0-2, JSON-Schemas,
+  Capability-Token-Wrapper, Identity-Substrate. Consolidated per
+  ADR-0062 Cut-2.
+
+The Apache foundation snippets that remain inside this repo are
+preserved for source-pin reasons (BUSL-Subtree-internal use of
+canonical algorithms); they are **mirrored, not authoritative** —
+the authoritative copies are in the sibling repos above.
+
+## Path-to-License Map
 
 | Path | License |
 |---|---|
-| `wirelang/` except listed BSL modules | Apache-2.0 |
+| `wirelang/` except listed BSL modules | Apache-2.0 (mirrored from `wakir-labs/wakir-protocol`) |
 | `wat/` except listed Apache-2.0 carve-outs | BUSL-1.1, Change License Apache-2.0 |
-| `wat/anchor/external_verifier/` | Apache-2.0 (brand-proof verifier, consolidated to `wakir-labs/wakir-verify` per ADR-0062 Cut-1) |
-| `wat/merkle/` Read-Half (`__init__.py`, `aggregator.py`) | Apache-2.0 (re-classified per ADR-0062 Cut-1, brand-proof Merkle inclusion check) |
+| `wat/anchor/external_verifier/` | Apache-2.0 (mirrored from `wakir-labs/wakir-verify` per ADR-0062 Cut-1) |
+| `wat/merkle/` Read-Half (`__init__.py`, `aggregator.py`) | Apache-2.0 (mirrored from `wakir-labs/wakir-verify` per ADR-0062 Cut-1) |
 | `wirelang/federation/` | BUSL-1.1 |
 | `wirelang/persona_engine/` | BUSL-1.1 |
 | `infra/spire/federation/` | BUSL-1.1 |
@@ -21,6 +39,22 @@ This repository is mixed-license.
 | `docs/` specs/runbooks where marked | CC-BY-4.0 |
 | `tooling/` | Apache-2.0 unless otherwise marked |
 | `tests/` | follows subject under test |
+
+## Adopter Guidance (post-Cut-1/Cut-2)
+
+If you are an adopter of the Wakir methodology and want to integrate
+*only* the open surfaces:
+
+- Need a verifier? Use `pip install wakir-verify` (Apache-2.0,
+  stand-alone, no Wakir-runtime dependency).
+- Need the protocol/spec layer? Use `pip install wakir-protocol`
+  (Apache-2.0 + CC-BY-4.0 specs).
+- Need the BUSL-1.1 substrate (Federation, Persona-Engine, WAT-
+  Pipeline-Server)? Then you are within the scope of this repo and
+  the BUSL-1.1 terms apply (Change Date 2030-05-07 / 2030-05-13 per
+  module). Internal use by a single organisation is permitted under
+  the Additional Use Grant; commercial multi-tenant hosting requires
+  a separate Wakir-Cloud licence.
 
 The authoritative per-module license text lives in the `LICENSE-BSL.md`
 file at the root of each BUSL-1.1 sub-tree. The `LICENSES/` directory
