@@ -104,6 +104,7 @@ members = [
     "crates/persona-converter",
     "crates/persona-pilot-export",
     "crates/persona-engine-smoke",
+    "crates/persona-engine-bridge-diff",
 ]
 
 [workspace.package]
