@@ -86,6 +86,9 @@ on:
       - "bin/**"
       - "infra/spire/**/bin/**"
       - ".github/workflows/license-gate.yml"
+      - ".github/workflows/tests.yml"
+      - ".github/workflows/sandbox-ci.yml"
+      - ".github/workflows/hash-derivate-gate.yml"
       - "tests/infra/test_spdx_header_consistency.py"
       - "tests/infra/test_license_hygiene_consistency.py"
   pull_request:
@@ -100,6 +103,9 @@ on:
       - "bin/**"
       - "infra/spire/**/bin/**"
       - ".github/workflows/license-gate.yml"
+      - ".github/workflows/tests.yml"
+      - ".github/workflows/sandbox-ci.yml"
+      - ".github/workflows/hash-derivate-gate.yml"
       - "tests/infra/test_spdx_header_consistency.py"
       - "tests/infra/test_license_hygiene_consistency.py"
   workflow_dispatch: {}
