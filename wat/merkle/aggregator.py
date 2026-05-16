@@ -1,8 +1,18 @@
-# SPDX-License-Identifier: BUSL-1.1
+# SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 #
-# Part of the Wakir Audit Trail (WAT) module. Licensed under
-# Business Source License 1.1; see ../LICENSE-BSL.md.
+# Re-classified BUSL-1.1 -> Apache-2.0 per ADR-0062 Cut-1
+# substance-classification (see
+# `docs/decisions/cut1-verifier-substance-classification.md`,
+# Merkle-Read-Half row). The aggregator's read-half (inclusion-proof
+# rebuild from manifest leaf order, root-recomputation via Bitcoin-
+# pattern duplicate-and-pair) is offline-verifiable trust-anchor
+# substrate. The write-half (live hourly Wirelang-frame aggregation
+# against the hosted manifest store) remains an operational concern
+# but the algorithm itself is offline-reproducible, so the file is
+# Apache-2.0 as a whole. The canonical Apache-2.0 source snapshot
+# is upstream in `wakir-labs/wakir-verify` under
+# `wakir_verify/merkle_proof.py`.
 
 """Hourly Merkle aggregator for WAT.
 

@@ -574,10 +574,13 @@ def verify_event(
 def build_parser() -> argparse.ArgumentParser:
     """Return the configured argument parser."""
     parser = argparse.ArgumentParser(
-        prog="wakir-verify",
+        prog="wakir-wat-verify",
         description=(
             "Verify a WAT event end-to-end: leaf hash, inclusion "
-            "proof, OTS receipt, Bitcoin attestation."
+            "proof, OTS receipt, Bitcoin attestation. Server-side "
+            "convenience verifier (BUSL-1.1); the offline Apache-2.0 "
+            "brand-proof verifier ships separately as `wakir-verify` "
+            "from the wakir-labs/wakir-verify repository."
         ),
     )
     parser.add_argument(

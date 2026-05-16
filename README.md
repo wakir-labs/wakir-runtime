@@ -51,10 +51,24 @@ That verifier is the public brand-proof tool and runs without any
 WAT-side state. It was split out of this repository as ADR-0062
 Cut-1; the substance-classification rationale lives in
 [`docs/decisions/cut1-verifier-substance-classification.md`](docs/decisions/cut1-verifier-substance-classification.md).
-The in-tree `wakir-verify` console script under
+The in-tree console script `wakir-wat-verify` under
 [`wat/verify/cli.py`](wat/verify/cli.py) is the BUSL-1.1 operator-
 facing convenience verifier and stays here as hosted-service
-substrate.
+substrate; it was renamed from `wakir-verify` to avoid a console-
+script-name collision with the standalone Apache-2.0 package
+(ADR-0062 Cut-1 follow-up, 2026-05-16).
+
+To install the offline brand-proof verifier alongside this runtime
+without manually depending on the upstream package, use the
+`[verify]` extra:
+
+```sh
+pip install 'wakir-runtime[verify]'
+```
+
+That pulls in `wakir-verify>=0.1.0` from PyPI and exposes the
+standalone `wakir-verify` console script in the same environment
+as `wakir-wat-verify`.
 
 ## Setup
 
@@ -69,15 +83,16 @@ source .venv/bin/activate
 
 wakir-merkle --help
 wakir-anchor --help
-wakir-verify --help
+wakir-wat-verify --help
 ```
 
-`wakir-verify` rebuilds the inclusion proof for an event from the
-hour manifest, recomputes the leaf hash from the four B1-consensus
-fields (`event_id`, `time`, `payload_hash`, `capability_token_hash`),
-checks the proof against the stored Merkle root, and runs `ots verify`
-on the per-hour receipt. Exit codes are `0` (verified), `1` (failed),
-`3` (pending Bitcoin confirmation).
+`wakir-wat-verify` rebuilds the inclusion proof for an event from
+the hour manifest, recomputes the leaf hash from the four
+B1-consensus fields (`event_id`, `time`, `payload_hash`,
+`capability_token_hash`), checks the proof against the stored
+Merkle root, and runs `ots verify` on the per-hour receipt. Exit
+codes are `0` (verified), `1` (failed), `3` (pending Bitcoin
+confirmation).
 
 ## End-to-end flow
 
@@ -93,7 +108,7 @@ EOF
 
 # 2. Build the hour manifest. Output is JSON in the format documented
 #    in docs/wat-manifest-spec.md; the same file is later read by
-#    wakir-verify.
+#    wakir-wat-verify.
 mkdir -p /tmp/wat-archive/2026-05-06T17
 wakir-merkle build \
     --hour 2026-05-06T17 \
@@ -109,7 +124,7 @@ wakir-anchor stamp "$ROOT_HEX" --out /tmp/wat-archive/2026-05-06T17 --min-calend
 # 4. Verify a single event end-to-end. Exit 0 means the event is in
 #    the manifest, the inclusion proof rebuilds to the manifest root,
 #    and the OTS receipt has been finalised on Bitcoin.
-wakir-verify evt-0001 --archive-dir /tmp/wat-archive
+wakir-wat-verify evt-0001 --archive-dir /tmp/wat-archive
 ```
 
 Empty hours short-circuit cleanly: `wakir-merkle build` emits a
@@ -222,8 +237,8 @@ the suite in a tight loop.
 `scripts/wat-smoke-test.sh` is the auditor / pipeline-friendly
 single-command driver: it spools 8 synthetic events, walks
 `build -> stamp -> verify-pending`, and exits with the same code
-shape as `wakir-verify` (`0` finalised, `1` failed, `3` pending,
-`4` chain-mismatch).
+shape as `wakir-wat-verify` (`0` finalised, `1` failed, `3`
+pending, `4` chain-mismatch).
 
 ```sh
 bash scripts/wat-smoke-test.sh           # full run, 5-min sleep
