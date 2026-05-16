@@ -1,6 +1,6 @@
 {
-  "_spdx": "SPDX-License-Identifier: Apache-2.0",
-  "_copyright": "Copyright (c) 2026 Callandor GmbH and contributors",
+  "x-spdx-license-identifier": "Apache-2.0",
+  "x-spdx-file-copyright-text": "2026 Callandor GmbH and contributors",
   "_notes": "Vector 4: multi-byte UTF-8 in the payload. The payload was 'Über die Brücke gehen — Πέρασμα — 橋を渡る' inside a comment field. Tests that JCS round-trips non-ASCII characters byte-stably and that downstream JSON encoders do not silently re-escape (e.g. ASCII-only mode would mutate the digest).",
   "input": {
     "event_id": "01HK4P8X3W2N5Q9V0R6T7S8YZ4",

@@ -1,8 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://wakir.dev/wirelang/schema/recovery-drill-outcome/1",
+  "x-spdx-license-identifier": "Apache-2.0",
+  "x-spdx-file-copyright-text": "2026 Callandor GmbH and contributors",
   "title": "Persona-Engine Recovery-Drill Outcome Envelope (Wakir Persona 1)",
-  "description": "JSON Schema for the persona-engine recovery_drill_outcome envelope (Sprint-Pengine-7 Tag-4 §3.7.4 recovery-workflow, Tag-5 OI-PILOT-4 cron consumer). Each envelope records the outcome of ONE executed recovery drill (per §3.7.2.1 drill registry). The envelope is persisted append-only to the per-persona NATS-KV bucket family `wakir-persona-state-<org_id>-<persona_id>` under the `recovery-audit/<drill_run_id>` key prefix (OI-PILOT-2 schema). The Sprint-Pengine-7 Tag-5 OI-PILOT-4 cron (`wirelang.persona.recovery_drill_anchor`) anchors unanchored envelopes hourly into the WAT spool; idempotency is via the optional `wat_anchored_at` field — once populated, the envelope is treated as already anchored. Schema-registry id: 'wakir.persona.recovery-drill-outcome/1'. Anchor-pipeline: OTS-anchor target deferred to a follow-on paired-update (Phase-2 Sprint-Pengine-7 Tag-N+) mirroring §5.19 (caveat-override-event-export) pattern. SPDX-License-Identifier: Apache-2.0",
+  "description": "JSON Schema for the persona-engine recovery_drill_outcome envelope (Sprint-Pengine-7 Tag-4 §3.7.4 recovery-workflow, Tag-5 OI-PILOT-4 cron consumer). Each envelope records the outcome of ONE executed recovery drill (per §3.7.2.1 drill registry). The envelope is persisted append-only to the per-persona NATS-KV bucket family `wakir-persona-state-<org_id>-<persona_id>` under the `recovery-audit/<drill_run_id>` key prefix (OI-PILOT-2 schema). The Sprint-Pengine-7 Tag-5 OI-PILOT-4 cron (`wirelang.persona.recovery_drill_anchor`) anchors unanchored envelopes hourly into the WAT spool; idempotency is via the optional `wat_anchored_at` field — once populated, the envelope is treated as already anchored. Schema-registry id: 'wakir.persona.recovery-drill-outcome/1'. Anchor-pipeline: OTS-anchor target deferred to a follow-on paired-update (Phase-2 Sprint-Pengine-7 Tag-N+) mirroring §5.19 (caveat-override-event-export) pattern.",
   "type": "object",
   "required": [
     "schema",

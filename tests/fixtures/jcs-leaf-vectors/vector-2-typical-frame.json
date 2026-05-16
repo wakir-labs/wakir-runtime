@@ -1,6 +1,6 @@
 {
-  "_spdx": "SPDX-License-Identifier: Apache-2.0",
-  "_copyright": "Copyright (c) 2026 Callandor GmbH and contributors",
+  "x-spdx-license-identifier": "Apache-2.0",
+  "x-spdx-file-copyright-text": "2026 Callandor GmbH and contributors",
   "_notes": "Vector 2: typical capability-bound frame with a small structured payload. Tests the common case: single capability token, well-formed RFC-3339 time, alphanumeric event_id.",
   "input": {
     "event_id": "01HK4P8X3W2N5Q9V0R6T7S8YZ2",

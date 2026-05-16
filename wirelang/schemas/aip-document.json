@@ -1,8 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://wakir.dev/wirelang/schema/aip-document/0.1.0",
+  "x-spdx-license-identifier": "Apache-2.0",
+  "x-spdx-file-copyright-text": "2026 Callandor GmbH and contributors",
   "title": "AIP Document (draft-prakash-aip-00 conformance + Wakir extensions)",
-  "description": "JSON Schema for an Agent Identity Protocol document. Conforms to the structure described in draft-prakash-aip-00 section 2.3 (required: aip, id, public_keys, name, delegation, protocols, document_signature, expires; identifiers per section 2.2). Adds Wakir-scoped optional extensions (verification_methods, service_endpoints, biscuit_root_pubkey) that do not break a strict AIP parser when stripped. SPDX-License-Identifier: Apache-2.0",
+  "description": "JSON Schema for an Agent Identity Protocol document. Conforms to the structure described in draft-prakash-aip-00 section 2.3 (required: aip, id, public_keys, name, delegation, protocols, document_signature, expires; identifiers per section 2.2). Adds Wakir-scoped optional extensions (verification_methods, service_endpoints, biscuit_root_pubkey) that do not break a strict AIP parser when stripped.",
   "type": "object",
   "required": [
     "aip",

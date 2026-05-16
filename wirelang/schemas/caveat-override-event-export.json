@@ -1,8 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://wakir.dev/wirelang/schema/caveat-override-event-export/1",
+  "x-spdx-license-identifier": "Apache-2.0",
+  "x-spdx-file-copyright-text": "2026 Callandor GmbH and contributors",
   "title": "Caveat Override Event Cross-Org Export Envelope (Wakir Federation 1)",
-  "description": "JSON Schema for the cross-org export envelope of an ExportedCaveatOverrideEvent (Phase-2 Sprint-9 Tag-1, surface at wirelang.federation.caveat_override_export.ExportedCaveatOverrideEvent). The schema admits the pseudonymised envelope only: raw free-form fields (override_reason, original_caveat_set, narrowed_caveat_set) are forbidden at the wire level (defence-in-depth against accidental cross-org narrative leak). Schema-registry id: 'wakir.federation.caveat-override-event-export/1'. OTS-anchored under wirelang/specs/schema-registry-spec.md §5.19 (Phase-2 Sprint-9 Tag-2 v0.34.0). SPDX-License-Identifier: Apache-2.0",
+  "description": "JSON Schema for the cross-org export envelope of an ExportedCaveatOverrideEvent (Phase-2 Sprint-9 Tag-1, surface at wirelang.federation.caveat_override_export.ExportedCaveatOverrideEvent). The schema admits the pseudonymised envelope only: raw free-form fields (override_reason, original_caveat_set, narrowed_caveat_set) are forbidden at the wire level (defence-in-depth against accidental cross-org narrative leak). Schema-registry id: 'wakir.federation.caveat-override-event-export/1'. OTS-anchored under wirelang/specs/schema-registry-spec.md §5.19 (Phase-2 Sprint-9 Tag-2 v0.34.0).",
   "type": "object",
   "required": [
     "schema",

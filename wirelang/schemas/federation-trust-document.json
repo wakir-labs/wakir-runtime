@@ -1,8 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://wakir.dev/wirelang/schema/federation-trust-document/0.1.0",
+  "x-spdx-license-identifier": "Apache-2.0",
+  "x-spdx-file-copyright-text": "2026 Callandor GmbH and contributors",
   "title": "Federation Trust Document (Wakir V-908 0.1.0)",
-  "description": "JSON Schema for a Wakir Federation Trust Document (FTD). Defines the bilateral trust artefact a verifier consults to accept AIP documents issued by a peer organisation. Schema follows V-908 spec section 2.1; signature procedure follows section 2.2 (deep-copy minus document_signature, JCS-canonicalise, SHA-256, Ed25519). SPDX-License-Identifier: Apache-2.0",
+  "description": "JSON Schema for a Wakir Federation Trust Document (FTD). Defines the bilateral trust artefact a verifier consults to accept AIP documents issued by a peer organisation. Schema follows V-908 spec section 2.1; signature procedure follows section 2.2 (deep-copy minus document_signature, JCS-canonicalise, SHA-256, Ed25519).",
   "type": "object",
   "required": [
     "wakir_ftd",

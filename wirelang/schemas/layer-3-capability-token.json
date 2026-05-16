@@ -1,8 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://wakir.dev/wirelang/schema/layer-3-capability-token/0.1.0",
+  "x-spdx-license-identifier": "Apache-2.0",
+  "x-spdx-file-copyright-text": "2026 Callandor GmbH and contributors",
   "title": "Wirelang Layer 3 — Capability Token (Biscuit v3 Wrapper)",
-  "description": "JSON envelope around a Biscuit v3 token (eclipse-biscuit/biscuit SPECIFICATIONS.md, sections 'Format', 'Blocks', 'Signature (one block)', 'Signature (appending)', 'Signature (sealing)', 'Ed25519'). The on-the-wire token is the Biscuit binary; this schema describes the JSON-side projection that travels inside Wirelang Layer-1 frames or that is stored in registries. Authority block carries Wakir-specific intent fields (issuer, audience_pattern, caveats, validity window, nonce). Append blocks attenuate. Optional proof_block seals the token. SPDX-License-Identifier: Apache-2.0",
+  "description": "JSON envelope around a Biscuit v3 token (eclipse-biscuit/biscuit SPECIFICATIONS.md, sections 'Format', 'Blocks', 'Signature (one block)', 'Signature (appending)', 'Signature (sealing)', 'Ed25519'). The on-the-wire token is the Biscuit binary; this schema describes the JSON-side projection that travels inside Wirelang Layer-1 frames or that is stored in registries. Authority block carries Wakir-specific intent fields (issuer, audience_pattern, caveats, validity window, nonce). Append blocks attenuate. Optional proof_block seals the token.",
   "type": "object",
   "required": ["version", "authority_block", "append_blocks"],
   "additionalProperties": false,

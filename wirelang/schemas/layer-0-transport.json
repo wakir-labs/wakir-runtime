@@ -1,8 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://wakir.dev/wirelang/schema/layer-0-transport/0.1.0",
+  "x-spdx-license-identifier": "Apache-2.0",
+  "x-spdx-file-copyright-text": "2026 Callandor GmbH and contributors",
   "title": "Wirelang Layer 0 — Transport (NATS + JetStream)",
-  "description": "Schema for Wirelang Layer 0 transport-binding metadata. Validates NATS subject patterns and JetStream stream/consumer configuration shapes used by Wakir agents. SPDX-License-Identifier: Apache-2.0",
+  "description": "Schema for Wirelang Layer 0 transport-binding metadata. Validates NATS subject patterns and JetStream stream/consumer configuration shapes used by Wakir agents.",
   "type": "object",
   "required": ["binding", "subject", "delivery"],
   "additionalProperties": false,

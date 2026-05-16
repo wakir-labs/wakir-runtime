@@ -1,8 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://wakir.dev/wirelang/schema/layer-2-semantic/0.1.0",
+  "x-spdx-license-identifier": "Apache-2.0",
+  "x-spdx-file-copyright-text": "2026 Callandor GmbH and contributors",
   "title": "Wirelang Layer 2 — Semantic Frame (Domain vs. Meta Events)",
-  "description": "Schema for the Wirelang Layer-2 semantic frame envelope. Distinguishes domain events (wakir.<domain>.*) from meta events (wakir.meta.*) by namespace and pins schema-registry, vocabulary, and validity-window metadata. SPDX-License-Identifier: Apache-2.0",
+  "description": "Schema for the Wirelang Layer-2 semantic frame envelope. Distinguishes domain events (wakir.<domain>.*) from meta events (wakir.meta.*) by namespace and pins schema-registry, vocabulary, and validity-window metadata.",
   "type": "object",
   "required": ["frame_class", "schema_id", "schema_version", "validafter"],
   "additionalProperties": false,
