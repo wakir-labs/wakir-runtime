@@ -70,6 +70,31 @@ That pulls in `wakir-verify>=0.1.0` from PyPI and exposes the
 standalone `wakir-verify` console script in the same environment
 as `wakir-wat-verify`.
 
+### Protocol-layer split (ADR-0062 Cut-2)
+
+The Apache-2.0 protocol layer — Wirelang specs, JSON-Schemas, AIP/
+DID identity-substrate, Biscuit capability-token wrapper — ships
+in a separate public repository:
+[`wakir-labs/wakir-protocol`](https://github.com/wakir-labs/wakir-protocol).
+
+The substance-classification rationale is documented in
+[`docs/decisions/cut2-protocol-substance-classification.md`](docs/decisions/cut2-protocol-substance-classification.md).
+The in-tree `wirelang/` package keeps the BUSL-1.1 runtime-internal
+modules (`federation/`, `persona_engine/`,
+`identity/federation_resolver.py`, `persona/persona_state_kv*.py`,
+`cli/marker_stack_*.py`) plus the original Apache-2.0 sources during
+the transitional period; the cross-repo import-adaption sprint
+(`wirelang.* → wakir_protocol.*`) is the next Cut-2 follow-up.
+
+To opt-in to the protocol-layer dependency, install the
+`[protocol]` extra:
+
+```sh
+pip install 'wakir-runtime[protocol]'
+```
+
+That pulls in `wakir-protocol>=0.1.0` from PyPI.
+
 ## Setup
 
 The setup script provisions a project-local venv at `.venv`, installs
