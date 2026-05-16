@@ -158,10 +158,10 @@ def test_containerfile_real_copies_pyproject_toml():
 
 def test_containerfile_real_image_tag_bumped():
     text = CONTAINERFILE_REAL_PATH.read_text(encoding="utf-8")
-    # Sprint-Pengine-12 bump: 0.4.1-pilot -> 0.4.2-pilot for Bug-41
-    # CLI-Async-Wrap (auto subscribe-loop activation).
-    assert "0.4.2-pilot" in text, "image tag should be bumped to 0.4.2-pilot"
+    # Sprint-Pengine-13 bump: 0.4.2-pilot -> 0.5.0-pilot for Bug-42
+    # subscribe-mode-selector + iterator-fix.
+    assert "0.5.0-pilot" in text, "image tag should be bumped to 0.5.0-pilot"
     # We allow references to earlier pilot tags in comment context
     # (history / tag-rotation pattern), but the image-version LABEL
-    # must be the current 0.4.2-pilot.
-    assert 'image.version="0.4.2-pilot"' in text
+    # must be the current 0.5.0-pilot.
+    assert 'image.version="0.5.0-pilot"' in text

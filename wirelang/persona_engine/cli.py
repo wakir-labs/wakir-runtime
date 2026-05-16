@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""CLI entry points for ``persona-engine`` (v0.4.2-pilot).
+"""CLI entry points for ``persona-engine`` (v0.5.0-pilot).
 
 Matches the CLI surface of the Sprint-10 Tag-4 stub binary
 (``spawn`` / ``healthcheck`` / ``version``) so the Quadlet contract
@@ -179,9 +179,14 @@ async def _run_spawn_async(
     # (parity with the PEP-562 lazy-attr pattern in __init__.py).
     from .engine_async import AsyncPersonaEngine
     from .nats_subscribe_loop import (
+        DEFAULT_SUBSCRIBE_MODE,
         NatsSubscribeLoop,
+        SUBSCRIBE_MODE_CORE_CALLBACK,
+        SUBSCRIBE_MODE_CORE_ITERATOR,
+        SUBSCRIBE_MODE_JETSTREAM_PULL,
         SubscribeLoopConfig,
         build_subscribe_subject,
+        resolve_subscribe_mode,
     )
 
     try:
@@ -263,7 +268,23 @@ async def _run_spawn_async(
     # ``subscribe_loop`` property used by the hermetic tests) works.
     engine._attached_subscribe_loop = sub_loop
 
-    # Inline runner: lazy-import nats-py + delegate to run_live.
+    # Sprint-Pengine-13 Bug-42 — resolve the subscribe wire-mode.
+    # Default ``core-callback`` avoids the iterator-cancellation
+    # surface that produced Bug-42 (silent message-drop when
+    # ``asyncio.wait_for(__anext__(), 0.5)`` timed out and cancelled
+    # the inner nats-py ``get_task``).
+    try:
+        subscribe_mode = resolve_subscribe_mode()
+    except ValueError as exc:
+        sys.stderr.write(f"env-misconfig: {exc}\n")
+        return EXIT_ENV_MISCONFIG
+
+    # Inline runner: lazy-import nats-py + dispatch to the selected
+    # subscribe-mode path on the sub_loop. We do NOT call
+    # ``sub_loop.run_live(...)`` directly here because the engine
+    # owns the connection lifecycle (drain on stop) AND the
+    # publish_sink wiring before the loop starts — sub_loop.run_live
+    # owns its own connection.
     async def _live_runner() -> None:
         try:
             import nats  # type: ignore
@@ -285,19 +306,67 @@ async def _run_spawn_async(
             })
             return
         sub_loop.publish_sink = nc
+        engine._log({
+            "level": "INFO",
+            "msg": "subscribe-loop-started",
+            "subject": subscribe_subject,
+            "subscribe_env": subscribe_env,
+            "persona_slug": env.persona_id,
+            "nats_url": nats_url,
+            "subscribe_mode": subscribe_mode,
+        })
         try:
-            sub = await nc.subscribe(subscribe_subject)
-            engine._log({
-                "level": "INFO",
-                "msg": "subscribe-loop-started",
-                "subject": subscribe_subject,
-                "subscribe_env": subscribe_env,
-                "persona_slug": env.persona_id,
-                "nats_url": nats_url,
-            })
-            await sub_loop.run_with_iterator(
-                sub.messages, stop_event=engine._stop_event,
-            )
+            if subscribe_mode == SUBSCRIBE_MODE_CORE_CALLBACK:
+                async def _msg_handler(msg) -> None:  # type: ignore
+                    await sub_loop._handle_message(msg)
+                sub = await nc.subscribe(
+                    subscribe_subject, cb=_msg_handler,
+                )
+                # Block on the engine stop-event; messages are
+                # delivered to the callback in the background.
+                await engine._stop_event.wait()
+                try:
+                    await sub.unsubscribe()
+                except Exception:  # pragma: no cover - best-effort
+                    pass
+            elif subscribe_mode == SUBSCRIBE_MODE_CORE_ITERATOR:
+                sub = await nc.subscribe(subscribe_subject)
+                await sub_loop.run_with_iterator(
+                    sub.messages, stop_event=engine._stop_event,
+                )
+            elif subscribe_mode == SUBSCRIBE_MODE_JETSTREAM_PULL:
+                js = nc.jetstream()
+                durable_name = (
+                    f"wakir-persona-{env.persona_id}-{subscribe_env}"
+                )
+                psub = await js.pull_subscribe(
+                    subscribe_subject, durable=durable_name,
+                )
+                engine._log({
+                    "level": "INFO",
+                    "msg": "subscribe-loop-jetstream-pull-bound",
+                    "durable": durable_name,
+                })
+                while not engine._stop_event.is_set():
+                    try:
+                        msgs = await psub.fetch(batch=4, timeout=1.0)
+                    except asyncio.TimeoutError:
+                        continue
+                    except Exception as exc:  # pragma: no cover
+                        engine._log({
+                            "level": "ERROR",
+                            "msg": "jetstream-fetch-failed",
+                            "reason": repr(exc),
+                        })
+                        continue
+                    for msg in msgs:
+                        await sub_loop._handle_message(msg)
+            else:  # defensive — resolve_subscribe_mode already validated
+                engine._log({
+                    "level": "ERROR",
+                    "msg": "subscribe-mode-unknown",
+                    "subscribe_mode": subscribe_mode,
+                })
         finally:
             try:
                 await nc.drain()
@@ -313,6 +382,7 @@ async def _run_spawn_async(
         "persona_slug": env.persona_id,
         "subscribe_subject": subscribe_subject,
         "nats_url": nats_url,
+        "subscribe_mode": subscribe_mode,
         "one_shot": bool(args.one_shot),
     })
 

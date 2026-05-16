@@ -4,6 +4,32 @@
 # Licensed under the Business Source License 1.1; see ./LICENSE-BSL.md.
 # Change Date: 2030-05-15. Change License: Apache License 2.0.
 #
+# wakir-persona-engine REAL — Sprint-Pengine-13, image tag ``0.5.0-pilot``.
+#
+# Bug-42 fix (Sprint-Pengine-13)
+# ------------------------------
+# 0.4.2-pilot (Sprint-Pengine-12) wired the CLI-async-dispatch path but
+# the live-pilot engine still did not receive published Auftrags-
+# messages on the canonical subject. Root cause: the
+# ``NatsSubscribeLoop.run_with_iterator`` polled
+# ``msg_iter.__anext__()`` via ``asyncio.wait_for(..., timeout=0.5)``;
+# every 500ms timeout cancelled the inner nats-py ``get_task`` mid-
+# flight, silently dropping any message that had just landed in the
+# pending-queue. 0.5.0-pilot fixes this by:
+#
+#   1. Replacing the wait_for-poll with an ``asyncio.wait`` race
+#      between a persistent next-msg-task and the stop-event.
+#   2. Adding a ``subscribe-mode-selector`` env-var
+#      (``WAKIR_NATS_SUBSCRIBE_MODE``) with three modes:
+#        * ``core-callback`` (default) — nats-py callback subscribe;
+#          avoids the iterator-cancellation surface entirely.
+#        * ``core-iterator`` — backward-compat path; safe with the fix.
+#        * ``jetstream-pull`` — Phase-2 durable-consumer substrate
+#          (opt-in; replay-capable, ack-required).
+#
+# The CLI-async-dispatch log now emits ``subscribe_mode`` so the
+# live-smoke operator can verify which path the container took.
+
 # wakir-persona-engine REAL — Sprint-Pengine-10, image tag ``0.4.0-pilot``.
 #
 # Substrate scope (0.4.0-pilot)
@@ -62,8 +88,8 @@ FROM docker.io/library/python:3.13-slim@sha256:DIGEST_PENDING_TOMAS_REVIEW
 
 # OCI metadata.
 LABEL org.opencontainers.image.title="wakir-persona-engine"
-LABEL org.opencontainers.image.description="Runtime image for the Wakir persona-engine real binary (Sprint-Pengine-12, v0.4.2-pilot; CLI-async-wrap with auto subscribe-loop activation on WAKIR_SUBSCRIBE_ENV, NATS-KV asyncio state-backing, gRPC SPIFFE Workload-API SVID-fetch with graceful-fallback to socket-probe-only on Bug-40 wire-error, async engine wrapper with NATS-subscribe-loop + SVID-refetch background-task, Phase-2-Stub LLM-Call-Shim, Bridge-Forward-Pipe input plumbing)."
-LABEL org.opencontainers.image.version="0.4.2-pilot"
+LABEL org.opencontainers.image.description="Runtime image for the Wakir persona-engine real binary (Sprint-Pengine-13, v0.5.0-pilot; Bug-42 fix — subscribe-mode-selector with core-callback default, core-iterator backward-compat fix, jetstream-pull Phase-2 substrate; previous Sprint-Pengine-12 CLI-async-wrap with auto subscribe-loop activation on WAKIR_SUBSCRIBE_ENV, NATS-KV asyncio state-backing, gRPC SPIFFE Workload-API SVID-fetch with graceful-fallback to socket-probe-only on Bug-40 wire-error, async engine wrapper with NATS-subscribe-loop + SVID-refetch background-task, Phase-2-Stub LLM-Call-Shim, Bridge-Forward-Pipe input plumbing)."
+LABEL org.opencontainers.image.version="0.5.0-pilot"
 LABEL org.opencontainers.image.licenses="BUSL-1.1"
 LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"
 LABEL org.opencontainers.image.url="https://github.com/wakir-labs/wakir-runtime"

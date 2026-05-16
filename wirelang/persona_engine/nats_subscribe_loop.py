@@ -58,6 +58,43 @@ NATS-msg stream. Production code wires ``msg_iterator`` to a real
 an in-memory ``asyncio.Queue``-backed iterator. No ``nats-py`` import
 at module-import time (the connection-side import is lazy at
 ``run_live()`` time).
+
+Bug-42 fix (Sprint-Pengine-13)
+------------------------------
+
+The pre-Sprint-13 implementation of :meth:`run_with_iterator` polled
+``msg_iter.__anext__()`` via ``asyncio.wait_for(..., timeout=0.5)`` so
+that ``stop_event`` could be honoured without blocking indefinitely on
+``__anext__``. **This pattern silently drops NATS messages**: when
+``wait_for`` times out, it cancels the ``__anext__`` coroutine
+mid-flight. In ``nats-py`` the iterator's ``__anext__`` body creates a
+nested ``get_task = create_task(queue.get())`` and races it against an
+``_unsubscribed_future`` via ``asyncio.wait``. The outer ``wait_for``
+cancel does **not** cleanly cancel the inner ``get_task`` — that
+inner task may have already pulled a message off
+``_pending_queue`` (calling ``task_done()`` on the queue) right
+before the cancellation propagates. The message is then bound to a
+cancelled future and never delivered to the consumer.
+
+The Sprint-Pengine-13 fix replaces the ``wait_for``-poll loop with an
+``asyncio.wait(FIRST_COMPLETED)`` race between a persistent
+``next_msg_task = create_task(__anext__())`` and the ``stop_event``
+wait. The next-msg task is kept alive across stop-event checks — when
+the stop-event fires we cancel it once, cleanly, and break out. No
+message can be lost mid-flight because we never cancel ``__anext__``
+just to re-poll for the stop-event.
+
+A second mode — :meth:`run_live_callback_mode` — uses NATS-py's
+callback subscribe pattern (``nc.subscribe(subject, cb=handler)``)
+which avoids the iterator-cancellation surface entirely. This is the
+default for the production CLI path.
+
+A third mode — :meth:`run_live_jetstream_pull_mode` — is the opt-in
+Phase-2 migration substrate: if the operator sets
+``WAKIR_NATS_SUBSCRIBE_MODE=jetstream-pull`` the engine binds a
+JetStream pull-consumer (durable, replay-capable) instead of a
+core-NATS subscription. This is documented but exercised by hermetic
+tests via the in-memory adapter; live binding is Phase-2 SSH-smoke.
 """
 
 from __future__ import annotations
@@ -101,6 +138,57 @@ OUTBOUND_OUTPUT_SCHEMA = "wakir.agent.task-output/1"
 
 #: Persona-slug regex (matches the bridge-forward spec §3.2 grammar).
 PERSONA_SLUG_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
+
+# ---------------------------------------------------------------------------
+# Subscribe-mode constants (Sprint-Pengine-13 Bug-42 substrate)
+# ---------------------------------------------------------------------------
+
+#: Core-NATS subscribe with callback delivery. Production default.
+#: Avoids the iterator-cancellation surface that produced Bug-42.
+SUBSCRIBE_MODE_CORE_CALLBACK = "core-callback"
+
+#: Core-NATS subscribe with iterator (``sub.messages``) delivery.
+#: Backward-compat path; safe again after the Sprint-Pengine-13
+#: :meth:`NatsSubscribeLoop.run_with_iterator` fix.
+SUBSCRIBE_MODE_CORE_ITERATOR = "core-iterator"
+
+#: JetStream pull-consumer subscribe (durable, replay-capable).
+#: Phase-2 substrate — opt-in via ``WAKIR_NATS_SUBSCRIBE_MODE`` env var.
+SUBSCRIBE_MODE_JETSTREAM_PULL = "jetstream-pull"
+
+#: Default mode picked when no env-var override is set.
+DEFAULT_SUBSCRIBE_MODE = SUBSCRIBE_MODE_CORE_CALLBACK
+
+#: All valid mode strings (used by the CLI/env-var resolver).
+VALID_SUBSCRIBE_MODES = (
+    SUBSCRIBE_MODE_CORE_CALLBACK,
+    SUBSCRIBE_MODE_CORE_ITERATOR,
+    SUBSCRIBE_MODE_JETSTREAM_PULL,
+)
+
+#: Env-var name that overrides the default subscribe mode.
+SUBSCRIBE_MODE_ENV_VAR = "WAKIR_NATS_SUBSCRIBE_MODE"
+
+
+def resolve_subscribe_mode(env: Optional[Dict[str, str]] = None) -> str:
+    """Return the configured subscribe-mode (env-var or default).
+
+    Raises ``ValueError`` if the env-var is set to an unknown mode.
+    Returns :data:`DEFAULT_SUBSCRIBE_MODE` if unset / empty.
+    """
+    src = env if env is not None else None
+    if src is None:
+        import os as _os
+        src = _os.environ
+    raw = src.get(SUBSCRIBE_MODE_ENV_VAR, "")
+    if not raw:
+        return DEFAULT_SUBSCRIBE_MODE
+    if raw not in VALID_SUBSCRIBE_MODES:
+        raise ValueError(
+            f"{SUBSCRIBE_MODE_ENV_VAR}={raw!r} is not one of "
+            f"{VALID_SUBSCRIBE_MODES}"
+        )
+    return raw
 
 
 def _utc_now_rfc3339() -> str:
@@ -594,23 +682,77 @@ class NatsSubscribeLoop:
         - It is exhausted (``StopAsyncIteration``).
         - ``stop_event`` is set (the engine signals shutdown).
         - The owning task is cancelled.
+
+        **Bug-42 fix (Sprint-Pengine-13).** This method previously
+        polled ``msg_iter.__anext__()`` with
+        ``asyncio.wait_for(..., timeout=0.5)`` to honour the
+        stop_event. That pattern silently dropped messages because
+        ``wait_for`` cancels the underlying ``__anext__`` coroutine
+        on every timeout, and in ``nats-py`` the iterator's
+        ``__anext__`` may have already dequeued a message from its
+        internal pending-queue right before the cancellation
+        propagates.
+
+        The fixed implementation keeps a single long-lived
+        ``next_msg_task`` and races it against the stop_event via
+        :func:`asyncio.wait` (``FIRST_COMPLETED``). When the
+        stop-event fires we cancel ``next_msg_task`` once cleanly
+        and exit. No message can be lost mid-flight because we
+        never cancel ``__anext__`` just to re-poll for the
+        stop-event.
         """
         self._stop_event = stop_event or asyncio.Event()
+        next_msg_task: Optional[asyncio.Task] = None
+        stop_wait_task: Optional[asyncio.Task] = None
         try:
             while not self._stop_event.is_set():
-                # Pull next msg with a small wait so we honour
-                # stop_event without blocking indefinitely.
-                try:
-                    msg = await asyncio.wait_for(
-                        msg_iter.__anext__(), timeout=0.5,
+                if next_msg_task is None:
+                    next_msg_task = asyncio.ensure_future(
+                        msg_iter.__anext__()
                     )
-                except asyncio.TimeoutError:
+                if stop_wait_task is None or stop_wait_task.done():
+                    stop_wait_task = asyncio.ensure_future(
+                        self._stop_event.wait()
+                    )
+                done, _pending = await asyncio.wait(
+                    {next_msg_task, stop_wait_task},
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                if next_msg_task in done:
+                    try:
+                        msg = next_msg_task.result()
+                    except StopAsyncIteration:
+                        next_msg_task = None
+                        return
+                    next_msg_task = None
+                    await self._handle_message(msg)
                     continue
-                except StopAsyncIteration:
-                    return
-                await self._handle_message(msg)
+                # stop_event fired before any message arrived.
+                # Cancel the outstanding next_msg_task once,
+                # cleanly. Any message that was already pulled
+                # from the pending-queue but not yet returned
+                # is preserved by nats-py's internal task layer
+                # because we only cancel the outer __anext__ once
+                # (not on every iteration).
+                if next_msg_task is not None and not next_msg_task.done():
+                    next_msg_task.cancel()
+                    try:
+                        await next_msg_task
+                    except (asyncio.CancelledError, StopAsyncIteration):
+                        pass
+                    except Exception:
+                        # Iterator-side error during shutdown is logged
+                        # but does not propagate (we are shutting down).
+                        pass
+                    next_msg_task = None
+                return
         except asyncio.CancelledError:
             return
+        finally:
+            if next_msg_task is not None and not next_msg_task.done():
+                next_msg_task.cancel()
+            if stop_wait_task is not None and not stop_wait_task.done():
+                stop_wait_task.cancel()
 
     async def run_live(
         self,
@@ -618,32 +760,230 @@ class NatsSubscribeLoop:
         nats_url: str,
         token: Optional[str] = None,
         stop_event: Optional[asyncio.Event] = None,
+        subscribe_mode: Optional[str] = None,
     ) -> None:  # pragma: no cover - live binding exercised by SSH-smoke
         """Production entry: lazy-import nats-py, connect, subscribe, run.
 
         Hermetic tests should use :meth:`run_with_iterator` with an
-        in-memory fake instead.
+        in-memory fake or :meth:`run_callback_mode_with_subscriber`
+        with a fake subscriber instead.
+
+        ``subscribe_mode`` selects the wire-mode (Bug-42 substrate):
+
+        - ``None`` / ``"core-callback"`` (default): core-NATS
+          subscribe with **callback** delivery. The callback is the
+          most robust path against the iterator-cancellation surface
+          that produced Bug-42.
+        - ``"core-iterator"``: core-NATS subscribe with the
+          iterator-style ``sub.messages`` API. Kept for backward-
+          compat + Bug-42 hermetic-test reproduction. Now safe with
+          the Sprint-Pengine-13 :meth:`run_with_iterator` fix.
+        - ``"jetstream-pull"``: JetStream pull-consumer (durable,
+          replay-capable). Phase-2 migration substrate.
+        """
+        mode = subscribe_mode or DEFAULT_SUBSCRIBE_MODE
+        if mode == SUBSCRIBE_MODE_CORE_CALLBACK:
+            return await self._run_live_core_callback(
+                nats_url=nats_url, token=token, stop_event=stop_event,
+            )
+        if mode == SUBSCRIBE_MODE_CORE_ITERATOR:
+            return await self._run_live_core_iterator(
+                nats_url=nats_url, token=token, stop_event=stop_event,
+            )
+        if mode == SUBSCRIBE_MODE_JETSTREAM_PULL:
+            return await self._run_live_jetstream_pull(
+                nats_url=nats_url, token=token, stop_event=stop_event,
+            )
+        raise ValueError(
+            f"unknown subscribe_mode: {mode!r}. "
+            f"Valid: {VALID_SUBSCRIBE_MODES}"
+        )
+
+    async def _run_live_core_callback(
+        self,
+        *,
+        nats_url: str,
+        token: Optional[str],
+        stop_event: Optional[asyncio.Event],
+    ) -> None:  # pragma: no cover - live binding
+        """Bug-42 production fix path — callback subscribe.
+
+        ``nc.subscribe(subject, cb=handler)`` registers a coroutine
+        that NATS-py invokes per message. No iterator polling, no
+        ``wait_for`` cancellation surface. We block on the
+        stop_event for graceful shutdown.
+        """
+        import nats  # type: ignore
+
+        nc = await nats.connect(nats_url, token=token)
+        self._stop_event = stop_event or asyncio.Event()
+        try:
+            self.publish_sink = nc
+            subject = build_subscribe_subject(
+                self.config.env, self.config.persona_slug,
+            )
+            self._log({
+                "level": "INFO",
+                "msg": "subscribe-mode-selected",
+                "mode": SUBSCRIBE_MODE_CORE_CALLBACK,
+                "subject": subject,
+                "nats_url": nats_url,
+            })
+
+            async def _msg_handler(msg: Any) -> None:
+                await self._handle_message(msg)
+
+            sub = await nc.subscribe(subject, cb=_msg_handler)
+            self._log({
+                "level": "INFO",
+                "msg": "subscribe-bound",
+                "subject": subject,
+                "nats_url": nats_url,
+                "mode": SUBSCRIBE_MODE_CORE_CALLBACK,
+            })
+            await self._stop_event.wait()
+            try:
+                await sub.unsubscribe()
+            except Exception:
+                pass
+        finally:
+            try:
+                await nc.drain()
+            except Exception:
+                pass
+
+    async def _run_live_core_iterator(
+        self,
+        *,
+        nats_url: str,
+        token: Optional[str],
+        stop_event: Optional[asyncio.Event],
+    ) -> None:  # pragma: no cover - live binding
+        """Backward-compat path — core-NATS iterator subscribe.
+
+        With the Sprint-Pengine-13 :meth:`run_with_iterator` fix the
+        iterator path is safe again. Retained as an alternative for
+        operators who explicitly opt-in to ``core-iterator`` mode.
         """
         import nats  # type: ignore
 
         nc = await nats.connect(nats_url, token=token)
         try:
-            self.publish_sink = nc  # nats.Client has async publish.
+            self.publish_sink = nc
             subject = build_subscribe_subject(
                 self.config.env, self.config.persona_slug,
             )
+            self._log({
+                "level": "INFO",
+                "msg": "subscribe-mode-selected",
+                "mode": SUBSCRIBE_MODE_CORE_ITERATOR,
+                "subject": subject,
+                "nats_url": nats_url,
+            })
             sub = await nc.subscribe(subject)
             self._log({
                 "level": "INFO",
                 "msg": "subscribe-bound",
                 "subject": subject,
                 "nats_url": nats_url,
+                "mode": SUBSCRIBE_MODE_CORE_ITERATOR,
             })
             await self.run_with_iterator(
                 sub.messages, stop_event=stop_event,
             )
         finally:
             await nc.drain()
+
+    async def _run_live_jetstream_pull(
+        self,
+        *,
+        nats_url: str,
+        token: Optional[str],
+        stop_event: Optional[asyncio.Event],
+    ) -> None:  # pragma: no cover - Phase-2 binding
+        """Phase-2 substrate — JetStream pull-consumer subscribe.
+
+        Binds a durable JetStream pull-consumer on the same canonical
+        subject. Acks are explicit (the spec §4.2 core-NATS
+        no-ack semantics relax under JetStream — pull-consumers
+        require ack-or-nak for redelivery semantics). The persona-id
+        is used as the durable name so a pod restart resumes from
+        the last unacked sequence (no Bridge-Forward replay needed).
+        """
+        import nats  # type: ignore
+
+        nc = await nats.connect(nats_url, token=token)
+        self._stop_event = stop_event or asyncio.Event()
+        try:
+            self.publish_sink = nc
+            subject = build_subscribe_subject(
+                self.config.env, self.config.persona_slug,
+            )
+            js = nc.jetstream()
+            durable_name = (
+                f"wakir-persona-{self.config.persona_slug}-{self.config.env}"
+            )
+            self._log({
+                "level": "INFO",
+                "msg": "subscribe-mode-selected",
+                "mode": SUBSCRIBE_MODE_JETSTREAM_PULL,
+                "subject": subject,
+                "nats_url": nats_url,
+                "durable": durable_name,
+            })
+            psub = await js.pull_subscribe(subject, durable=durable_name)
+            self._log({
+                "level": "INFO",
+                "msg": "subscribe-bound",
+                "subject": subject,
+                "nats_url": nats_url,
+                "mode": SUBSCRIBE_MODE_JETSTREAM_PULL,
+                "durable": durable_name,
+            })
+            while not self._stop_event.is_set():
+                try:
+                    msgs = await psub.fetch(batch=4, timeout=1.0)
+                except asyncio.TimeoutError:
+                    continue
+                except Exception as exc:
+                    self._log({
+                        "level": "ERROR",
+                        "msg": "jetstream-fetch-failed",
+                        "reason": repr(exc),
+                    })
+                    continue
+                for msg in msgs:
+                    await self._handle_message(msg)
+        finally:
+            try:
+                await nc.drain()
+            except Exception:
+                pass
+
+    async def run_callback_mode_with_subscriber(
+        self,
+        subscriber: "CallbackSubscriber",
+        *,
+        stop_event: Optional[asyncio.Event] = None,
+    ) -> None:
+        """Hermetic-test surface for the callback-mode path.
+
+        Tests construct a :class:`CallbackSubscriber` fake, push
+        messages via :meth:`CallbackSubscriber.deliver`, and assert
+        the resulting bridge-writer + publish-sink state. This
+        exercises the same code path as
+        :meth:`_run_live_core_callback` without nats-py.
+        """
+        self._stop_event = stop_event or asyncio.Event()
+
+        async def _msg_handler(msg: InboundMessage) -> None:
+            await self._handle_message(msg)
+
+        subscriber.bind(_msg_handler)
+        try:
+            await self._stop_event.wait()
+        finally:
+            subscriber.unbind()
 
 
 # ---------------------------------------------------------------------------
@@ -664,8 +1004,51 @@ async def iter_from_queue(
         yield item
 
 
+# ---------------------------------------------------------------------------
+# Hermetic-test surface for callback-mode subscribe (Bug-42 fix)
+# ---------------------------------------------------------------------------
+
+
+class CallbackSubscriber:
+    """In-memory fake for the callback-mode subscribe path.
+
+    Tests construct a :class:`CallbackSubscriber`, pass it to
+    :meth:`NatsSubscribeLoop.run_callback_mode_with_subscriber`,
+    and then push messages via :meth:`deliver` to drive the loop.
+    """
+
+    def __init__(self) -> None:
+        self._handler: Optional[Callable[[InboundMessage], Awaitable[None]]] = None
+        self.delivered_count: int = 0
+
+    def bind(
+        self,
+        handler: Callable[[InboundMessage], Awaitable[None]],
+    ) -> None:
+        self._handler = handler
+
+    def unbind(self) -> None:
+        self._handler = None
+
+    async def deliver(self, msg: InboundMessage) -> None:
+        """Push one message to the bound handler.
+
+        If no handler is bound, raises ``RuntimeError`` — tests
+        that exercise pre-bind delivery should construct the
+        subscriber but assert via ``delivered_count``.
+        """
+        if self._handler is None:
+            raise RuntimeError(
+                "CallbackSubscriber.deliver() called before bind()"
+            )
+        await self._handler(msg)
+        self.delivered_count += 1
+
+
 __all__ = [
     "ACCEPTED_INBOUND_SCHEMA",
+    "CallbackSubscriber",
+    "DEFAULT_SUBSCRIBE_MODE",
     "InboundEnvelopeError",
     "InboundMessage",
     "NatsSubscribeLoop",
@@ -673,12 +1056,18 @@ __all__ = [
     "ParsedAuftrag",
     "PUBLISH_OUTPUT_SUBJECT_TEMPLATE",
     "PublishSink",
+    "SUBSCRIBE_MODE_CORE_CALLBACK",
+    "SUBSCRIBE_MODE_CORE_ITERATOR",
+    "SUBSCRIBE_MODE_JETSTREAM_PULL",
+    "SUBSCRIBE_MODE_ENV_VAR",
     "SUBSCRIBE_SUBJECT_TEMPLATE",
     "SubscribeLoopConfig",
     "TaskProcessingTracker",
+    "VALID_SUBSCRIBE_MODES",
     "build_output_envelope",
     "build_output_subject",
     "build_subscribe_subject",
     "iter_from_queue",
     "parse_inbound_envelope",
+    "resolve_subscribe_mode",
 ]
