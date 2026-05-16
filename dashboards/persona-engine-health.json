@@ -1,0 +1,344 @@
+{
+  "__comment": "Grafana dashboard JSON for the wakir-persona-engine real-implementation (Sprint-SRE Tag-15, Noa Bergstroem / SRE). Targets the OTLP/Prometheus metrics emitted by wirelang/persona_engine/observability.py. Schema version targets Grafana 10.x (dashboard schemaVersion >= 38) which is the long-term-stable line as of 2026-05. Dashboard is deliberately operational, not Vanity: every panel maps to one SLI/SLO defined in docs/observability/sli-slo-phase-1b.md.",
+  "title": "Wakir Persona-Engine — Health",
+  "uid": "wakir-persona-engine-health",
+  "tags": ["wakir", "persona-engine", "sre", "phase-1b-pilot"],
+  "schemaVersion": 38,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "persona_id",
+        "label": "Persona",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prom"},
+        "query": "label_values(persona_engine_spawn_latency_seconds_count, persona_id)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true
+      },
+      {
+        "name": "org_id",
+        "label": "Org",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prom"},
+        "query": "label_values(persona_engine_spawn_latency_seconds_count, org_id)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Spawn latency p95 (60s SLO)",
+      "description": "SLI: 95th percentile of persona_engine.spawn.latency_seconds over the last 15 minutes. SLO: p95 < 60s (Phase-1b Pilot). Burn rate alerts on 2h window > target.",
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(persona_engine_spawn_latency_seconds_bucket{persona_id=~\"$persona_id\", org_id=~\"$org_id\"}[15m])))",
+          "legendFormat": "p95",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "orange", "value": 45},
+              {"color": "red", "value": 60}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Subscribe lag p99 (2s SLO)",
+      "description": "SLI: 99th percentile of persona_engine.subscribe.lag_seconds over the last 15 minutes. SLO: p99 < 2s (Phase-1b Pilot). p99 staying above target for 30 minutes triggers a page.",
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(persona_engine_subscribe_lag_seconds_bucket{persona_id=~\"$persona_id\", org_id=~\"$org_id\"}[15m])))",
+          "legendFormat": "p99",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "orange", "value": 1.5},
+              {"color": "red", "value": 2}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "V-907 verify p95 (500ms SLO)",
+      "description": "SLI: 95th percentile of persona_engine.v907.verify_duration_seconds. SLO: p95 < 500ms. A drift here indicates persona_canonical_form import overhead or axis-A bind-mount slowness.",
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(persona_engine_v907_verify_duration_seconds_bucket{persona_id=~\"$persona_id\", org_id=~\"$org_id\"}[15m])))",
+          "legendFormat": "p95",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "orange", "value": 0.35},
+              {"color": "red", "value": 0.5}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "SVID fence rate (alert >1/h)",
+      "description": "Counter rate of persona_engine.svid.fetch_failures_total over 1h. SLO: <1 per hour per persona. Sustained rate above target indicates a SPIRE-Agent issue; pages on > 5/h sustained for 10 minutes.",
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+      "targets": [
+        {
+          "expr": "sum by (persona_id) (rate(persona_engine_svid_fetch_failures_total{persona_id=~\"$persona_id\", org_id=~\"$org_id\"}[1h]) * 3600)",
+          "legendFormat": "{{persona_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "/h",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "orange", "value": 1},
+              {"color": "red", "value": 5}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Spawn latency over time (p50 / p95 / p99)",
+      "description": "Spawn-latency distribution. The p95 line is the SLI tracked by panel 1; p50 + p99 give the distribution shape so Operators can tell tail-drift from base-rate-drift.",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(persona_engine_spawn_latency_seconds_bucket{persona_id=~\"$persona_id\", org_id=~\"$org_id\"}[5m])))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(persona_engine_spawn_latency_seconds_bucket{persona_id=~\"$persona_id\", org_id=~\"$org_id\"}[5m])))",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(persona_engine_spawn_latency_seconds_bucket{persona_id=~\"$persona_id\", org_id=~\"$org_id\"}[5m])))",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "FSM transitions by edge",
+      "description": "Rate of lifecycle FSM transitions per edge (from_state -> to_state). A spike on the `recovered -> running` edge indicates a recovery event; `spawning -> uninstantiated` indicates a boot abort.",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+      "targets": [
+        {
+          "expr": "sum by (from_state, to_state) (rate(persona_engine_fsm_transitions_total{persona_id=~\"$persona_id\", org_id=~\"$org_id\", accepted=\"true\"}[5m]))",
+          "legendFormat": "{{from_state}} -> {{to_state}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Subscribe lag distribution",
+      "description": "p50 / p95 / p99 of subscribe lag. The SLI p99 line is the same metric panel 2 surfaces; this panel shows the temporal trend.",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(persona_engine_subscribe_lag_seconds_bucket{persona_id=~\"$persona_id\", org_id=~\"$org_id\"}[5m])))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(persona_engine_subscribe_lag_seconds_bucket{persona_id=~\"$persona_id\", org_id=~\"$org_id\"}[5m])))",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(persona_engine_subscribe_lag_seconds_bucket{persona_id=~\"$persona_id\", org_id=~\"$org_id\"}[5m])))",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Recovery R-phase trigger rate",
+      "description": "Rate of recovery_workflow R-phase outcomes (R1 Detect, R2 Reload, R3 Re-register, R4 Resume). Healthy baseline is < 1/h sustained — a sustained spike indicates the engine is crashing more than it should.",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+      "targets": [
+        {
+          "expr": "sum by (trigger, outcome) (rate(persona_engine_recovery_trigger_total{persona_id=~\"$persona_id\", org_id=~\"$org_id\"}[5m]))",
+          "legendFormat": "{{trigger}}/{{outcome}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Mira-Hourly watchdog",
+      "description": "Mira-Hourly stack health from scripts/mira-hourly-watchdog.py. 0 = healthy, 1 = consecutive aborts above threshold OR last tick stale.",
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 22},
+      "targets": [
+        {
+          "expr": "mira_hourly_watchdog_unhealthy",
+          "legendFormat": "unhealthy",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 1}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Mira-Hourly last tick age",
+      "description": "Seconds since the most recent mira-hourly telemetry record landed. Healthy < 4800s (80 minutes).",
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 22},
+      "targets": [
+        {
+          "expr": "mira_hourly_last_tick_age_seconds",
+          "legendFormat": "age",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "orange", "value": 3600},
+              {"color": "red", "value": 4800}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Mira-Hourly consecutive aborts",
+      "description": "Consecutive abort-shaped telemetry records (quota cap signature). Threshold for unhealthy = 2.",
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 22},
+      "targets": [
+        {
+          "expr": "mira_hourly_consecutive_abort_count",
+          "legendFormat": "aborts",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "orange", "value": 1},
+              {"color": "red", "value": 2}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "V-907 verify p95 (alt zoom)",
+      "description": "Duplicate panel for at-a-glance view alongside the Mira-Hourly cluster. Same metric as panel 3.",
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 22},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(persona_engine_v907_verify_duration_seconds_bucket{persona_id=~\"$persona_id\", org_id=~\"$org_id\"}[15m])))",
+          "legendFormat": "p95",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      }
+    }
+  ]
+}

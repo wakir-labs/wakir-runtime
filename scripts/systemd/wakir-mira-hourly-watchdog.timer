@@ -1,0 +1,15 @@
+[Unit]
+Description=Wakir Labs Mira-Hourly Watchdog timer (Sprint-SRE Tag-15)
+
+[Timer]
+# Run 5 minutes after every hour so the watchdog sees the previous
+# Hourly-tick's telemetry record (the main run typically completes
+# within 2-6 minutes). OnCalendar=*:05 fires at HH:05 every hour.
+# Persistent=true so a missed watchdog run after host reboot is
+# caught up on the next scheduling slot.
+OnCalendar=*:05
+Persistent=true
+Unit=wakir-mira-hourly-watchdog.service
+
+[Install]
+WantedBy=timers.target
