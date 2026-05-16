@@ -1,0 +1,170 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Hash-Derivate-Drift Gate (Sprint-Stability Tag-3, 2026-05-16)
+# -------------------------------------------------------------
+#
+# Verpflichtender CI-Status-Check, der die Hash-Derivate unter
+# `tests/fixtures/schema-registry/` gegen die Live-Schema-Bytes
+# verifiziert. Anlass: Reza-PR #98 (Schema-Fixture-Drift-Fix nach
+# JSON-Schema-SPDX-Migration aus PR #92). Der Drift entstand, weil
+# eine Schema-Datei-Modifikation die hash-derivativen
+# Fixture-Artefakte (`anchor-manifest.json schema_file_sha256`,
+# `schema.sha256.bin`) nicht co-derived hat. Dieses Pattern wird
+# sich bei jeder Schema-Modifikation wiederholen, solange kein
+# CI-Gate Drift-Detection erzwingt.
+#
+# Gate-Inhalt (zwei Stufen, fail-fast):
+#
+#   1. Hash-Konsistenz-Test (`tests/infra/test_hash_derivate_consistency.py`)
+#      laufen lassen. Der Test enumeriert alle Anchor-Manifests
+#      unter `tests/fixtures/schema-registry/*/anchor-manifest.json`
+#      und prueft pro Fixture:
+#        - `schema_file_sha256` gegen Live-Recompute der
+#          referenzierten `schema_file_path`-Datei,
+#        - `schema_file_bytes` gegen Live-Recompute (Byte-Groesse),
+#        - co-located `schema.sha256.bin` raw-32-byte-Digest gegen
+#          Live-Recompute.
+#      Hermetic, kein Live-Network.
+#
+#   2. Live-Recompute-Diagnose als CI-Summary. Der Workflow-Step
+#      laeuft einen Loop ueber alle Fixtures und gibt eine
+#      Hashes-Tabelle aus (declared | live-recompute | match).
+#      Bei Drift schlaegt Stage 1 bereits fehl; Stage 2 dient als
+#      menschen-lesbare Diagnose im PR-Check-Run-Tab.
+#
+# Required-Status-Check
+# ---------------------
+# Sobald dieser Workflow auf `main` einmal gruen laeuft, soll Mira
+# (Operator-Hand, GitHub-Repo-Settings) ihn unter
+# `Settings -> Branches -> main -> Branch Protection Rules ->
+#  Require status checks to pass before merging` aktivieren (analog
+# license-gate). Bis dahin laeuft der Gate beratend (advisory).
+#
+# Trigger-Pfade halten den Workflow leichtgewichtig: nur PRs/pushes,
+# die Schemas, Fixtures, oder den Gate selbst beruehren, loesen ihn
+# aus.
+
+name: hash-derivate-gate
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "wirelang/schemas/**"
+      - "tests/fixtures/schema-registry/**"
+      - "tests/infra/test_hash_derivate_consistency.py"
+      - ".github/workflows/hash-derivate-gate.yml"
+  pull_request:
+    paths:
+      - "wirelang/schemas/**"
+      - "tests/fixtures/schema-registry/**"
+      - "tests/infra/test_hash_derivate_consistency.py"
+      - ".github/workflows/hash-derivate-gate.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  hash-derivate-gate:
+    name: Hash-Derivate-Drift Gate (Sprint-Stability Tag-3)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        # 3.13 mirrors the production-lane in `tests.yml` and the
+        # license-gate.yml.
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install gate dependencies
+        # Only pytest is required; hashlib is stdlib, no network.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "pytest>=8.0"
+
+      - name: Stage 1 — Hash-Derivate-Konsistenz (hermetic)
+        # Drives the hermetic test that enumerates every fixture
+        # under tests/fixtures/schema-registry/*/anchor-manifest.json
+        # and verifies declared schema_file_sha256 / schema_file_bytes
+        # against a live recompute of the referenced schema-file, plus
+        # the co-located schema.sha256.bin raw-32-byte digest.
+        run: |
+          python -m pytest tests/infra/test_hash_derivate_consistency.py -v --tb=short
+
+      - name: Stage 2 — Hashes-Tabelle (CI-Summary diagnostic)
+        # Human-readable diagnostic that prints declared-vs-live for
+        # every fixture into the CI summary tab. Stage 1 already fails
+        # on drift; this step never fails on its own, only renders the
+        # snapshot for review. If Stage 1 passed, every row reads MATCH.
+        if: always()
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          REPO_ROOT = Path(".").resolve()
+          FIXTURES_DIR = REPO_ROOT / "tests" / "fixtures" / "schema-registry"
+
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          lines: list[str] = []
+          lines.append("# Hash-Derivate Snapshot")
+          lines.append("")
+          lines.append("| Fixture | Field | Declared | Live | Match |")
+          lines.append("|---|---|---|---|---|")
+
+          if not FIXTURES_DIR.exists():
+              lines.append("| _no fixtures dir_ | — | — | — | — |")
+          else:
+              for fixture_dir in sorted(FIXTURES_DIR.iterdir()):
+                  if not fixture_dir.is_dir():
+                      continue
+                  manifest_path = fixture_dir / "anchor-manifest.json"
+                  if not manifest_path.exists():
+                      continue
+                  manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                  schema_rel = manifest.get("schema_file_path")
+                  declared_sha = manifest.get("schema_file_sha256", "")
+                  declared_bytes = manifest.get("schema_file_bytes", -1)
+                  schema_path = REPO_ROOT / schema_rel if schema_rel else None
+                  if schema_path is None or not schema_path.exists():
+                      lines.append(
+                          f"| {fixture_dir.name} | schema_file_sha256 | "
+                          f"`{declared_sha[:16]}…` | _missing_ | NO |"
+                      )
+                      continue
+                  raw = schema_path.read_bytes()
+                  live_sha = hashlib.sha256(raw).hexdigest()
+                  live_bytes = len(raw)
+                  match_sha = "YES" if live_sha == declared_sha else "NO"
+                  match_bytes = "YES" if live_bytes == declared_bytes else "NO"
+                  lines.append(
+                      f"| {fixture_dir.name} | schema_file_sha256 | "
+                      f"`{declared_sha[:16]}…` | `{live_sha[:16]}…` | {match_sha} |"
+                  )
+                  lines.append(
+                      f"| {fixture_dir.name} | schema_file_bytes | "
+                      f"{declared_bytes} | {live_bytes} | {match_bytes} |"
+                  )
+                  bin_path = fixture_dir / "schema.sha256.bin"
+                  if bin_path.exists():
+                      declared_bin = bin_path.read_bytes().hex()
+                      match_bin = "YES" if declared_bin == live_sha else "NO"
+                      lines.append(
+                          f"| {fixture_dir.name} | schema.sha256.bin | "
+                          f"`{declared_bin[:16]}…` | `{live_sha[:16]}…` | {match_bin} |"
+                      )
+
+          text = "\n".join(lines) + "\n"
+          print(text)
+          if summary_path:
+              with open(summary_path, "a", encoding="utf-8") as fh:
+                  fh.write(text)
+          PY
