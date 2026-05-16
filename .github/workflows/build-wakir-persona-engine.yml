@@ -50,11 +50,11 @@ on:
   workflow_dispatch:
     inputs:
       version_tag:
-        description: 'Semver tag to publish (e.g. 0.1.0-pilot, 0.3.0-pilot, 0.4.0-pilot, 0.4.1-pilot)'
+        description: 'Semver tag to publish (e.g. 0.1.0-pilot, 0.3.0-pilot, 0.4.0-pilot, 0.4.1-pilot, 0.4.2-pilot, 0.5.0-pilot)'
         required: true
         default: '0.1.0-pilot'
       containerfile:
-        description: 'Containerfile path under infra/persona-engine/ (Containerfile=stub 0.1.0-pilot; Containerfile.real=real 0.3.0-pilot+/0.4.0-pilot+/0.4.1-pilot+)'
+        description: 'Containerfile path under infra/persona-engine/ (Containerfile=stub 0.1.0-pilot; Containerfile.real=real 0.3.0-pilot+/0.4.x-pilot+/0.5.x-pilot+)'
         required: false
         default: 'Containerfile'
       push:
@@ -87,6 +87,28 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate version_tag input
+        # Sprint-Pengine-13 substrate-fence — refuse free-form
+        # version_tag values that do not match the known
+        # ``MAJOR.MINOR.PATCH-pilot`` shape. This prevents an
+        # accidental tag like ``v0.5.0`` or ``0.5`` from landing in
+        # GHCR (registry tags are write-once; cleanup is operator-
+        # hand). The regex enforces:
+        #   - exactly three numeric segments
+        #   - mandatory ``-pilot`` suffix during Pilot-Phase
+        #   - no leading ``v``, no extra dots
+        # Phase-2 cutover will relax the suffix to ``-prod``; the
+        # check is centralised here so the change is one regex
+        # update.
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.inputs.version_tag }}"
+          if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+-pilot$ ]]; then
+            echo "::error::version_tag=${TAG} does not match expected pattern ^[0-9]+\.[0-9]+\.[0-9]+-pilot$ (e.g. 0.5.0-pilot)"
+            exit 64
+          fi
+          echo "version_tag accepted: ${TAG}"
 
       - name: Install crane (digest cross-resolver)
         run: |
