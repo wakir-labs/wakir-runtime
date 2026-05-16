@@ -70,6 +70,7 @@ on:
       - '.github/workflows/phase-2-validation-gate.yml'
       - 'dashboards/**'
       - 'docs/**'
+      - 'wirelang-rust/**'
   pull_request:
     paths:
       - 'wirelang/**'
@@ -83,6 +84,7 @@ on:
       - '.github/workflows/phase-2-validation-gate.yml'
       - 'dashboards/**'
       - 'docs/**'
+      - 'wirelang-rust/**'
   workflow_dispatch: {}
 
 permissions:
