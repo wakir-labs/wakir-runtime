@@ -63,6 +63,7 @@ at module-import time (the connection-side import is lazy at
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import json
 import re
@@ -83,6 +84,7 @@ from typing import (
 
 from .bridge_audit_writer import BridgeAuditWriter
 from .llm_call_shim import LlmCallHook, LlmCallResult
+from .observability import PersonaEngineObservability
 
 
 SUBSCRIBE_SUBJECT_TEMPLATE = (
@@ -109,6 +111,50 @@ def _utc_now_rfc3339() -> str:
 
 def _sha256(data: bytes) -> str:
     return "sha256:" + hashlib.sha256(data).hexdigest()
+
+
+def _compute_subscribe_lag_seconds(ts_utc_str: str) -> Optional[float]:
+    """Compute now-UTC minus envelope-ts_utc, in seconds.
+
+    Accepts the RFC-3339 second-precision shape the engine emits
+    (``YYYY-MM-DDTHH:MM:SSZ``). Returns ``None`` if the string fails
+    to parse — the lag metric is best-effort; a malformed timestamp
+    is logged through the audit substrate, not counted as zero-lag.
+    """
+    try:
+        # Tolerate the trailing 'Z' with calendar.timegm-style parse.
+        if ts_utc_str.endswith("Z"):
+            t_struct = time.strptime(ts_utc_str, "%Y-%m-%dT%H:%M:%SZ")
+        else:
+            # Fall back to ISO-8601 fractional / offset form.
+            t_struct = time.strptime(
+                ts_utc_str.split("+")[0].split(".")[0],
+                "%Y-%m-%dT%H:%M:%S",
+            )
+        import calendar
+        envelope_epoch = calendar.timegm(t_struct)
+        now_epoch = int(time.time())
+        return float(now_epoch - envelope_epoch)
+    except (ValueError, TypeError):
+        return None
+
+
+class _NullSpanCtx:
+    """No-op span-context handle, used when no observability facade is wired."""
+
+    def set_attribute(self, key: str, value: object) -> None:
+        return None
+
+
+@contextlib.contextmanager
+def _null_span_cm():
+    """Sync context manager that yields a :class:`_NullSpanCtx`.
+
+    Used in :meth:`NatsSubscribeLoop._handle_message` when
+    ``config.observability`` is ``None`` so the with-statement runs
+    unchanged regardless of whether OTel is wired.
+    """
+    yield _NullSpanCtx()
 
 
 # ---------------------------------------------------------------------------
@@ -367,6 +413,14 @@ class SubscribeLoopConfig:
     hook: LlmCallHook
     tracker: TaskProcessingTracker = field(default_factory=TaskProcessingTracker)
     publish_output: bool = True
+    #: Sprint-SRE Tag-15 — optional observability facade. When set, the
+    #: loop records ``persona_engine.subscribe.lag_seconds`` histograms
+    #: per inbound message (lag = now-utc minus ts_utc from the
+    #: envelope, in seconds) and wraps each handle_message call in a
+    #: ``persona_engine.subscribe.handle_message`` span. Default is
+    #: ``None`` so existing call sites (and hermetic tests that pass
+    #: their own loops in) keep their byte-stable behaviour.
+    observability: Optional[PersonaEngineObservability] = None
 
 
 class NatsSubscribeLoop:
@@ -420,6 +474,19 @@ class NatsSubscribeLoop:
     # ------------------------------------------------------------------
 
     async def _handle_message(self, msg: InboundMessage) -> None:
+        if self.config.observability is not None:
+            span_cm = self.config.observability.span(
+                "persona_engine.subscribe.handle_message",
+                attributes={"subject": getattr(msg, "subject", "")},
+            )
+        else:
+            span_cm = _null_span_cm()
+        with span_cm as span_ctx:
+            await self._handle_message_inner(msg, span_ctx)
+
+    async def _handle_message_inner(
+        self, msg: InboundMessage, span_ctx: Any
+    ) -> None:
         try:
             parsed = parse_inbound_envelope(msg.data)
         except InboundEnvelopeError as exc:
@@ -457,6 +524,19 @@ class NatsSubscribeLoop:
             })
             await self._best_effort_ack(msg)
             return
+
+        # Subscribe-lag metric: difference between the envelope's
+        # ts_utc and the loop's dispatch time. Capture in seconds.
+        if self.config.observability is not None:
+            lag_seconds = _compute_subscribe_lag_seconds(parsed.ts_utc)
+            if lag_seconds is not None:
+                self.config.observability.record_subscribe_lag(
+                    lag_seconds=lag_seconds,
+                    subject=getattr(msg, "subject", ""),
+                )
+            if hasattr(span_ctx, "set_attribute"):
+                span_ctx.set_attribute("auftrag_id", parsed.auftrag_id)
+                span_ctx.set_attribute("persona_id", parsed.persona_id)
 
         self.config.tracker.begin(parsed.auftrag_id)
         self.config.bridge_writer.emit(

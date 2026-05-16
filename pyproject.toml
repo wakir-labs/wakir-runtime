@@ -187,6 +187,66 @@ persona-engine-runtime = [
     "grpcio>=1.62",
     "protobuf>=4.25,<6",
 ]
+# Sprint-SRE Tag-15 (Noa Bergstroem) — OpenTelemetry instrumentation
+# wheels. Optional extra so the slim ``wakir-persona-engine`` image
+# does NOT take a forced dep on the OTel SDK; deployments that wire
+# a real OTLP collector install this extra explicitly via
+# ``pip install '/opt/wakir-runtime/.[persona-engine-observability]'``
+# (parity with the ``persona-engine-runtime`` install path).
+#
+# Why a separate extra vs. ``persona-engine-runtime`` reuse
+# ---------------------------------------------------------
+# Two distinct deployment profiles share the wakir-persona-engine
+# image:
+#
+# 1. **Sandbox / hermetic-test profile.** Runs in CI containers with
+#    no OTel collector reachable. Adding mandatory ``opentelemetry-*``
+#    wheels would re-open the wheel-drift class of bugs that
+#    Sprint-Pengine-9 Bug-34 closed (the slim image installs only the
+#    wheels it actually exercises). The ``observability.py`` module
+#    probes for the OTel API at runtime and degrades to structured-
+#    JSON log lines if the wheels are absent — so hermetic tests do
+#    not need this extra.
+#
+# 2. **Pilot / production profile.** Runs against an OTel collector
+#    (``http://otel-collector:4317`` or equivalent). This extra is
+#    installed in the production Containerfile only; the engine then
+#    binds real MeterProvider / TracerProvider against the collector.
+#
+# Per-wheel rationale
+# -------------------
+# - opentelemetry-api      — abstract MeterProvider / TracerProvider
+#                            interfaces; needed even for the no-op
+#                            provider path (engine probes
+#                            ``opentelemetry.metrics`` / ``trace`` at
+#                            import time).
+# - opentelemetry-sdk      — concrete MeterProvider + TracerProvider
+#                            + PeriodicExportingMetricReader +
+#                            BatchSpanProcessor; consumed only when
+#                            the OTLP exporter is wired.
+# - opentelemetry-exporter-otlp-proto-grpc
+#                          — OTLPMetricExporter + OTLPSpanExporter
+#                            (gRPC variant; the persona-engine NATS
+#                            substrate already binds gRPC for SVID-
+#                            fetch, so no new transport profile).
+#
+# PyPI URLs (all URL-200-stamped 2026-05-16):
+#   - https://pypi.org/project/opentelemetry-api/
+#   - https://pypi.org/project/opentelemetry-sdk/
+#   - https://pypi.org/project/opentelemetry-exporter-otlp-proto-grpc/
+#
+# Version posture
+# ---------------
+# Lower bounds only (``>=1.27``) — the OTel SDK has been ABI-stable
+# since 1.20 (2024-09); the lower bound matches the version Noa
+# verified the engine API surface against during Sprint-SRE Tag-15
+# (URL-200-stamped 2026-05-16). Production deployments substitute a
+# byte-precise constraints file analogous to ``requirements-nats.txt``.
+persona-engine-observability = [
+    "opentelemetry-api>=1.27",
+    "opentelemetry-sdk>=1.27",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.27",
+]
 
 [project.scripts]
 wakir-merkle = "wat.cmd.aggregator_cli:main"

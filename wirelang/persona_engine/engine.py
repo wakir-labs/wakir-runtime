@@ -57,6 +57,7 @@ from .lifecycle_state_machine import (
     LifecycleStateMachine,
     InvalidTransitionError,
 )
+from .observability import PersonaEngineObservability
 from .state_backing import (
     InMemoryPersonaStateBacking,
     NatsKvPersonaStateBacking,
@@ -196,11 +197,20 @@ class PersonaEngine:
         bridge_writer: Optional[BridgeAuditWriter] = None,
         log_sink: TextIO = sys.stderr,
         heartbeat_interval_sec: int = DEFAULT_HEARTBEAT_INTERVAL_SEC,
+        observability: Optional[PersonaEngineObservability] = None,
     ) -> None:
         self.env = env_contract
         self.log_sink = log_sink
         self.heartbeat_interval_sec = heartbeat_interval_sec
         self.session_id = str(uuid.uuid4())
+        # Observability facade. Sprint-SRE Tag-15 instrumentation seam;
+        # if no facade is injected, construct a structured-log-only
+        # default that reuses the engine's existing log_sink (so the
+        # audit substrate already in use stays populated).
+        if observability is None:
+            self.observability = PersonaEngineObservability(log_sink=log_sink)
+        else:
+            self.observability = observability
         self.fsm = LifecycleStateMachine(
             persona_id=env_contract.persona_id,
             org_id=env_contract.org_id,
@@ -228,6 +238,19 @@ class PersonaEngine:
         self._svid_channel_factory = None
         self._svid_stub_factory = None
         self._stop_requested = False
+        # Sprint-SRE Tag-15 — spawn-latency timer. Started at boot() entry,
+        # stopped at the first engineering-output emit inside spawn().
+        # Stays None until boot() runs so observability records a clean
+        # "no spawn-latency" signal if boot fails before the timer starts.
+        self._spawn_latency_start_monotonic: Optional[float] = None
+        # Bind observability with persona/org/session metadata. The
+        # SPIFFE-ID is filled in during boot() once the SVID-probe runs.
+        self.observability.bind_workload_identity(
+            spiffe_id=None,
+            persona_id=env_contract.persona_id,
+            org_id=env_contract.org_id,
+            session_id=self.session_id,
+        )
 
     # ------------------------------------------------------------------
     # Helpers.
@@ -313,6 +336,7 @@ class PersonaEngine:
 
     def boot(self) -> None:
         """Pre-spawn verification (V-907 pin + SVID probe)."""
+        self._spawn_latency_start_monotonic = time.monotonic()
         self._log({
             "level": "INFO",
             "msg": "boot-begin",
@@ -320,13 +344,41 @@ class PersonaEngine:
             "org_id": self.env.org_id,
             "session_id": self.session_id,
         })
-        # V-907 pin verify.
+        # Open the persona_engine.boot span — exits on the first error
+        # or when boot() returns.
+        boot_span_cm = self.observability.span(
+            "persona_engine.boot",
+            attributes={
+                "persona_id": self.env.persona_id,
+                "org_id": self.env.org_id,
+                "session_id": self.session_id,
+            },
+        )
+        boot_span_cm.__enter__()
+        boot_span_exit_ok = False
+        try:
+            self._boot_internal()
+            boot_span_exit_ok = True
+        finally:
+            # Pass exception context through if boot_internal raised.
+            if boot_span_exit_ok:
+                boot_span_cm.__exit__(None, None, None)
+            else:
+                exc_type, exc_val, exc_tb = sys.exc_info()
+                boot_span_cm.__exit__(exc_type, exc_val, exc_tb)
+
+    def _boot_internal(self) -> None:
+        """Internal boot sequence — wrapped by :meth:`boot` for spans."""
+        # V-907 pin verify with timing.
+        v907_start = time.monotonic()
+        v907_outcome = "compute_error"
         try:
             self.v907_result = verify_v907_pin(
                 persona_id=self.env.persona_id,
                 axis_a_path=self.env.axis_a_path,
                 expected_pin=self.env.v907_expected_pin,
             )
+            v907_outcome = "ok"
             self._log({
                 "level": "INFO",
                 "msg": "v907-pin-verified",
@@ -334,6 +386,11 @@ class PersonaEngine:
                 "v907_pin_mode": self.v907_result.mode,
                 "matched": self.v907_result.matched,
             })
+            self.observability.record_v907_verify_duration(
+                duration_seconds=time.monotonic() - v907_start,
+                mode=self.v907_result.mode,
+                matched=self.v907_result.matched,
+            )
         except PersonaHashDriftError as exc:
             self._log({
                 "level": "ERROR",
@@ -341,6 +398,10 @@ class PersonaEngine:
                 "expected": exc.expected,
                 "computed": exc.computed,
             })
+            self.observability.record_v907_verify_duration(
+                duration_seconds=time.monotonic() - v907_start,
+                mode="drift",
+            )
             raise
         except PersonaHashComputeError as exc:
             self._log({
@@ -348,6 +409,10 @@ class PersonaEngine:
                 "msg": "v907-pin-compute-failed",
                 "detail": str(exc),
             })
+            self.observability.record_v907_verify_duration(
+                duration_seconds=time.monotonic() - v907_start,
+                mode="compute_error",
+            )
             raise
 
         # SVID workload-API probe (boot-gate; Sprint-Pengine-9 keeps
@@ -399,6 +464,14 @@ class PersonaEngine:
                     "fetch_elapsed_sec": self.svid_fetch.fetch_elapsed_sec,
                     "soft_cap_exceeded": self.svid_fetch.soft_cap_exceeded,
                 })
+                # Bind the real SPIFFE-ID as the observability
+                # correlation-key once the fetch succeeded.
+                self.observability.bind_workload_identity(
+                    spiffe_id=self.svid_fetch.spiffe_id,
+                    persona_id=self.env.persona_id,
+                    org_id=self.env.org_id,
+                    session_id=self.session_id,
+                )
             except (PersonaHashDriftError, PersonaHashComputeError):
                 # V-907 errors are NEVER swallowed — they are the
                 # boot-go-no-go gate and must propagate.
@@ -415,6 +488,9 @@ class PersonaEngine:
                     "exception_type": type(exc).__name__,
                     "fence_mode": "wheel-missing",
                 })
+                self.observability.record_svid_fetch_failure(
+                    fence_mode="wheel-missing",
+                )
             except Exception as exc:  # noqa: BLE001 - intentional broad catch
                 # Any other failure (SvidFetchError, AioRpcError,
                 # OSError broken-pipe, ConnectionError, ...) fences
@@ -429,6 +505,9 @@ class PersonaEngine:
                     "exception_type": type(exc).__name__,
                     "fence_mode": "fetch-failure",
                 })
+                self.observability.record_svid_fetch_failure(
+                    fence_mode="fetch-failure",
+                )
 
     def attempt_svid_refetch(self) -> bool:
         """Re-run the full SVID fetch on a fenced engine.
@@ -495,46 +574,73 @@ class PersonaEngine:
         """
         if self.v907_result is None:
             raise RuntimeError("spawn() called before boot()")
-        # FSM: uninstantiated -> spawning -> running.
-        self.fsm.transition_to("spawning")
-        self._log({
-            "level": "INFO",
-            "msg": "fsm-transition",
-            "from": "uninstantiated",
-            "to": "spawning",
-        })
-        # Wire BridgeAuditWriter.
-        if self.bridge_writer is None:
-            self.bridge_writer = BridgeAuditWriter(
-                org_id=self.env.org_id,
-                persona_id=self.env.persona_id,
-                session_id=self.session_id,
-                engine_version=ENGINE_VERSION,
-                v907_pin=self.v907_result.pin,
-                wakir_runtime_sink=self.log_sink,
+        with self.observability.span(
+            "persona_engine.spawn",
+            attributes={
+                "persona_id": self.env.persona_id,
+                "org_id": self.env.org_id,
+                "session_id": self.session_id,
+            },
+        ):
+            # FSM: uninstantiated -> spawning -> running.
+            self.fsm.transition_to("spawning")
+            self._log({
+                "level": "INFO",
+                "msg": "fsm-transition",
+                "from": "uninstantiated",
+                "to": "spawning",
+            })
+            self.observability.record_fsm_transition(
+                from_state="uninstantiated",
+                to_state="spawning",
+                accepted=True,
             )
-        # Emit the first engineering-output event — the audit signal
-        # that the Doppelbetrieb-Vergleichs-Clock can start counting.
-        first_event = self.bridge_writer.emit(
-            output_kind="audit_annotation",
-            payload=(
-                f"persona-engine-boot persona_id={self.env.persona_id} "
-                f"org_id={self.env.org_id} variant={ENGINE_VARIANT}"
-            ).encode("utf-8"),
-        )
-        self._log({
-            "level": "INFO",
-            "msg": "engineering-output-emission-first",
-            "event_payload_sha256": first_event.output_payload_sha256,
-            "step_index": first_event.step_index,
-        })
-        self.fsm.transition_to("running")
-        self._log({
-            "level": "INFO",
-            "msg": "fsm-transition",
-            "from": "spawning",
-            "to": "running",
-        })
+            # Wire BridgeAuditWriter.
+            if self.bridge_writer is None:
+                self.bridge_writer = BridgeAuditWriter(
+                    org_id=self.env.org_id,
+                    persona_id=self.env.persona_id,
+                    session_id=self.session_id,
+                    engine_version=ENGINE_VERSION,
+                    v907_pin=self.v907_result.pin,
+                    wakir_runtime_sink=self.log_sink,
+                )
+            # Emit the first engineering-output event — the audit signal
+            # that the Doppelbetrieb-Vergleichs-Clock can start counting.
+            first_event = self.bridge_writer.emit(
+                output_kind="audit_annotation",
+                payload=(
+                    f"persona-engine-boot persona_id={self.env.persona_id} "
+                    f"org_id={self.env.org_id} variant={ENGINE_VARIANT}"
+                ).encode("utf-8"),
+            )
+            self._log({
+                "level": "INFO",
+                "msg": "engineering-output-emission-first",
+                "event_payload_sha256": first_event.output_payload_sha256,
+                "step_index": first_event.step_index,
+            })
+            self.fsm.transition_to("running")
+            self._log({
+                "level": "INFO",
+                "msg": "fsm-transition",
+                "from": "spawning",
+                "to": "running",
+            })
+            self.observability.record_fsm_transition(
+                from_state="spawning",
+                to_state="running",
+                accepted=True,
+            )
+            # Spawn-latency clock stops here: from boot() entry to the
+            # first engineering-output event — the audit signal the
+            # Doppelbetrieb-Vergleichs-Clock cares about.
+            if self._spawn_latency_start_monotonic is not None:
+                self.observability.record_spawn_latency(
+                    duration_seconds=time.monotonic()
+                    - self._spawn_latency_start_monotonic,
+                    outcome="success",
+                )
 
     def run_until_signal(self) -> None:
         """Block on SIGTERM/SIGINT; emit periodic heartbeat events.

@@ -1,0 +1,26 @@
+[Unit]
+Description=Wakir Labs Mira-Hourly Watchdog (Sprint-SRE Tag-15, Noa Bergstroem)
+Documentation=file:///opt/wakir-runtime/scripts/mira-hourly-watchdog.py
+# Run after the main mira-hourly run has had time to land its
+# telemetry record. The watchdog is read-only against the telemetry
+# JSONL and idempotent on re-runs.
+After=network-online.target
+
+[Service]
+Type=oneshot
+# The watchdog is stdlib-only — no virtual env, no extra wheels.
+ExecStart=/usr/bin/python3 /opt/wakir-runtime/scripts/mira-hourly-watchdog.py \
+    --telemetry-path /var/home/fred/AI-Corp/infra/mira-hourly-telemetry.jsonl \
+    --textfile-output /var/lib/node_exporter/textfile_collector/mira_hourly_watchdog.prom \
+    --state-file /var/home/fred/AI-Corp/logs/mira-hourly-watchdog-state.json \
+    --ntfy
+Nice=10
+# The watchdog must not be allowed to fork or escalate. It only needs
+# read access to the telemetry file, write access to the textfile
+# collector directory + state file, and execute-rights on
+# notify-push.sh.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=read-only
+ProtectSystem=strict
+ReadWritePaths=/var/lib/node_exporter/textfile_collector /var/home/fred/AI-Corp/logs
