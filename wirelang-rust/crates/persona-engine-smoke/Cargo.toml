@@ -1,0 +1,92 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wakir-Runtime / wirelang Rust workspace — persona-engine-smoke crate.
+#
+# Purpose
+# -------
+# Hello-World smoke-tests for the ten Crate-Wahl-Decisions from
+# `docs/decisions/rust-rewrite-crate-wahlen.md` (Reza-Tehrani, 2026-05-16).
+# This crate is the substantive pre-confirmation that the chosen crates
+# actually compile and round-trip on the target toolchain before
+# Phase-3a-Trigger (~KW 27, ~2026-06-26).
+#
+# ADR anchors
+# -----------
+# - ADR-0063 §Folgeartefakte Item 1 — Reza-Crate-Wahl-Klärung-Folge.
+# - docs/decisions/rust-rewrite-crate-wahlen.md — Decision-Doc with
+#   per-axis HTTP-200 stamps and version-pins.
+#
+# Versioning rationale (verified against Decision-Doc 2026-05-16)
+# ---------------------------------------------------------------
+# Direct version-pins, NOT inherited from `workspace.dependencies`,
+# because the smoke crate validates a NEWER major (sha2 0.11) and
+# additional crates not yet present in the workspace-level pin set.
+# The existing workspace pins (sha2 =0.10.8, serde_jcs =0.2.0) remain
+# untouched for the production persona-* crates; this smoke crate runs
+# on its own dependency island.
+#
+# - vsss-rs       =5.4.0   : Shamir-Secret-Sharing (Decision §Wahlachse 1)
+# - serde_jcs     =0.2.0   : RFC 8785 JCS (Decision §Wahlachse 2)
+# - k256          =0.13.4  : secp256k1 ECDSA (Decision §Wahlachse 3 Stack 1)
+# - bip32         =0.5.3   : BIP32 derivation (Decision §Wahlachse 3 Stack 1)
+# - ed25519-dalek =2.2.0   : Ed25519 sig/verify (Decision §Wahlachse 3 Stack 1)
+# - sha2          =0.11.0  : SHA-256 (Decision §Wahlachse 3 Stack 2)
+# - rustls        =0.23.40 : TLS stack (Decision §Wahlachse 3 Stack 3, smoke-only construct)
+# - aws-lc-rs     =1.17.0  : CryptoProvider for rustls (Decision §Wahlachse 3 Stack 3)
+# - chacha20poly1305 =0.10.1 : AEAD default (Decision §Wahlachse 3 Stack 4)
+# - aes-gcm       =0.10.3  : AEAD FIPS-Pfad (Decision §Wahlachse 3 Stack 4)
+#
+# Hard-Constraints (per Sprint-Auftrag)
+# -------------------------------------
+# - No touches to `wakir-runtime/wirelang/` (Python engine unchanged).
+# - No LICENSING / NOTICE / .github/workflows touches.
+# - cargo test must run green.
+
+[package]
+name = "persona-engine-smoke"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "Apache-2.0"
+repository = "https://github.com/wakir-labs/wakir-runtime"
+authors = ["Reza Tehrani <reza@wakir.local>"]
+description = "Hello-World smoke-tests for the ten Phase-3a crate choices (ADR-0063 §Folgeartefakte Item 1)."
+publish = false
+
+[lib]
+name = "persona_engine_smoke"
+path = "src/lib.rs"
+
+[dependencies]
+# Wahlachse 1 — Shamir-Secret-Sharing
+vsss-rs = { version = "=5.4.0", default-features = false, features = ["std"] }
+
+# Wahlachse 2 — JSON-Canonicalization
+serde_jcs = "=0.2.0"
+serde_json = "=1.0.140"
+
+# Wahlachse 3 Stack 1 — Identity-Substrate
+k256 = { version = "=0.13.4", features = ["ecdsa"] }
+bip32 = { version = "=0.5.3", default-features = false, features = ["alloc", "secp256k1"] }
+ed25519-dalek = { version = "=2.2.0", features = ["rand_core"] }
+
+# Wahlachse 3 Stack 2 — Cross-Engine-Determinism
+sha2 = "=0.11.0"
+
+# Wahlachse 3 Stack 3 — TLS / SVID (constructive smoke, no live socket)
+# rustls's `aws_lc_rs` feature pulls in aws-lc-rs as the CryptoProvider
+# and exposes the `rustls::crypto::aws_lc_rs` module — no separate
+# direct dependency on aws-lc-rs is needed for the smoke construct.
+rustls = { version = "=0.23.40", default-features = false, features = ["std", "aws_lc_rs", "tls12"] }
+aws-lc-rs = { version = "=1.17.0", default-features = false, features = ["aws-lc-sys"] }
+
+# Wahlachse 3 Stack 4 — AEAD
+chacha20poly1305 = { version = "=0.10.1", features = ["std"] }
+aes-gcm = { version = "=0.10.3", features = ["std"] }
+
+# RNG (RustCrypto-aligned, drives all keygen/AEAD nonces in smoke-tests)
+rand = "=0.8.5"
+rand_core = "=0.6.4"
+
+# Hex display (mirrors hex::encode posture from sister crates)
+hex = "=0.4.3"
