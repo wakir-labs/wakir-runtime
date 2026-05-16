@@ -72,6 +72,12 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional, Protocol
 
+from .heuristic_router import (
+    HeuristicRoutingShim,
+    RoutingEvent,
+    read_routing_mode,
+)
+
 ECHO_REFLECTION_VERSION = "v1"
 ECHO_REFLECTION_PROMPT_PREFIX_CHARS = 256
 
@@ -268,6 +274,97 @@ def anthropic_messages_hook_phase_3_stub() -> LlmCallHook:
     )
 
 
+# ---------------------------------------------------------------------------
+# Heuristic-Routing wrapper (ADR-0064 Phase-2b, optional pre-hook)
+# ---------------------------------------------------------------------------
+
+
+def call_with_routing_event(
+    hook: LlmCallHook,
+    *,
+    persona_id: str,
+    auftrag_id: str,
+    prompt_payload: str,
+    persona_def: Optional[dict] = None,
+    static_choice: Optional[str] = None,
+    routing_shim: Optional[HeuristicRoutingShim] = None,
+    ts_utc: Optional[str] = None,
+) -> tuple[LlmCallResult, Optional[RoutingEvent]]:
+    """Invoke ``hook.call`` with an optional Phase-2b routing-event log.
+
+    This wrapper is the **ADR-0064 §A.3 Phase-2b integration point**:
+    callers (engine code-paths) may use it to record a routing-event
+    before delegating to the underlying LLM-hook. Default behaviour
+    is non-invasive — if ``routing_shim`` is ``None``, the wrapper
+    degenerates to a plain ``hook.call`` and returns
+    ``(result, None)``.
+
+    When ``routing_shim`` is provided, the wrapper builds a
+    :class:`RoutingEvent` (via :meth:`HeuristicRoutingShim.record`)
+    *before* calling ``hook.call``. The routing-event is **observation
+    only** in Phase-2b — the effective model used by the hook is
+    decided by the hook itself, not by the routing-event. This
+    preserves ADR-0064 §"Risiken und Annahmen" mitigation: Heuristic-
+    Drift-Risiko stays bounded because the heuristic does not yet
+    drive live model-swap.
+
+    ENV-default contract: see
+    :data:`heuristic_router.WAKIR_ROUTING_MODE_ENV`. The wrapper
+    itself does not branch on the env-var — it simply records the
+    mode-tagged event when a shim is wired. Engine integration code
+    decides whether to attach the shim based on the env-var so the
+    static-mode code-path stays byte-identical to pre-Phase-2b.
+    """
+    result = hook.call(
+        persona_id=persona_id,
+        auftrag_id=auftrag_id,
+        prompt_payload=prompt_payload,
+        ts_utc=ts_utc,
+    )
+    if routing_shim is None:
+        return result, None
+    event = routing_shim.record(
+        persona_id=persona_id,
+        auftrag_id=auftrag_id,
+        task_payload={"prompt_payload": prompt_payload},
+        persona_def=persona_def,
+        ts_utc=ts_utc or result.ts_utc,
+    )
+    return result, event
+
+
+def maybe_attach_routing_shim(
+    *,
+    static_choice: Optional[str] = None,
+    sink: Optional[object] = None,
+    env: Optional[dict] = None,
+) -> Optional[HeuristicRoutingShim]:
+    """Factory: return a :class:`HeuristicRoutingShim` iff routing-mode
+    is opt-in-enabled via :data:`heuristic_router.WAKIR_ROUTING_MODE_ENV`.
+
+    Engine wiring code-pattern:
+
+    ::
+
+        shim = maybe_attach_routing_shim(
+            static_choice=persona_def.get("llm_tier"),
+            sink=my_routing_sink,
+        )
+        result, event = call_with_routing_event(
+            hook, ..., routing_shim=shim,
+        )
+
+    Default-aus: when the env-var is unset (or ``static``), this
+    factory returns ``None`` and the call-site sees no routing-event.
+    Production behaviour is identical to pre-Phase-2b. Engineering
+    teams opt in by setting ``WAKIR_ROUTING_MODE=heuristic`` in the
+    Quadlet env-file or the systemd unit, never in code.
+    """
+    if read_routing_mode(env) != "heuristic":
+        return None
+    return HeuristicRoutingShim(static_choice=static_choice, sink=sink, env=env)
+
+
 __all__ = [
     "AnthropicMessagesHookNotImplemented",
     "ECHO_REFLECTION_PROMPT_PREFIX_CHARS",
@@ -276,4 +373,6 @@ __all__ = [
     "LlmCallHook",
     "LlmCallResult",
     "anthropic_messages_hook_phase_3_stub",
+    "call_with_routing_event",
+    "maybe_attach_routing_shim",
 ]
