@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Entry-point shim for spire_agent_fed_attest.py.
+
+This file is part of a BUSL-1.1-licensed subtree (see
+infra/spire/agent/LICENSE-BSL.md). It re-imports
+``spire_agent_fed_attest`` (BUSL-1.1) and is itself licensed under
+BUSL-1.1 for consistency with the imported implementation (ADR-0061,
+Schritt 7 Option A).
 
 Mirror of infra/spire/federation/bin/spire-fed-bundle convention: the
 ``.py`` module is the import-target for tests; this file is the

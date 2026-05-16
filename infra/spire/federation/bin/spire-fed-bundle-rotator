@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Shim: invoke spire_fed_bundle_rotator.main() with sys.argv[1:].
+
+This file is part of a BUSL-1.1-licensed subtree (see
+infra/spire/federation/LICENSE-BSL.md). It re-imports
+``spire_fed_bundle_rotator`` (BUSL-1.1) and is itself licensed under
+BUSL-1.1 for consistency with the imported implementation (ADR-0061,
+Schritt 7 Option A).
 
 Kept as a thin shim so the module is import-safe for tests and the
 CLI entrypoint is a single line of glue.

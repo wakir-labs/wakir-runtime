@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
+#
+# This file is part of a BUSL-1.1-licensed subtree (see wat/LICENSE-BSL.md).
+# It re-imports ``wirelang.cli.marker_stack_reduce`` (BUSL-1.1) and is itself
+# licensed under BUSL-1.1 for consistency with the imported implementation
+# (ADR-0061, Schritt 7 Option A).
 #
 # Phase-2 Sprint-9 Tag-3 Teil A — Operator-facing marker-stack reducer
 # CLI entrypoint. Thin shim over ``wirelang.cli.marker_stack_reduce``.
