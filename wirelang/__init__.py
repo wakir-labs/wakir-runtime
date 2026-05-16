@@ -7,4 +7,26 @@ installed wheel. The package itself ships no top-level public API at
 this stage; consumers should import from explicit sub-packages, e.g.::
 
     from wirelang.identity import generate_persona_did_document
+
+Protocol-layer consolidation note (ADR-0062 Cut-2, 2026-05-16)
+--------------------------------------------------------------
+The Apache-2.0 substance under this package (``canonical/``,
+``identity/`` minus ``federation_resolver.py``, ``schemas/``,
+``builder/``, ``persona/`` minus ``persona_state_kv*``/
+``recovery_drill_anchor``, ``nats/``, ``cli/`` minus
+``marker_stack_*``, ``adapters/`` stub-tier, ``examples/``) has been
+consolidated into the standalone Apache-2.0 + CC-BY-4.0 package
+``wakir-protocol`` at https://github.com/wakir-labs/wakir-protocol.
+
+In-tree imports under ``wirelang.*`` remain valid during the
+transitional period. The BUSL-1.1 substance (``federation/``,
+``persona_engine/``, the listed BUSL file-islands above) is
+runtime-internal and stays in this repository permanently.
+
+External adopters who want only the protocol layer should depend on
+``wakir-protocol`` directly (``pip install 'wakir-runtime[protocol]'``
+or ``pip install wakir-protocol``) and import from
+``wakir_protocol.*`` instead of ``wirelang.*``. See
+``docs/decisions/cut2-protocol-substance-classification.md`` for
+the full path-to-target classification table.
 """

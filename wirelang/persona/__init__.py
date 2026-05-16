@@ -6,6 +6,23 @@ persona-definition document into the WAT audit-pin pillar set
 (third pillar alongside the AIP-document hash and the
 capability-token hash).
 
+Protocol-layer consolidation (ADR-0062 Cut-2, 2026-05-16)
+---------------------------------------------------------
+The Apache-2.0 surface of this package
+(``persona_canonical_form``, ``persona_hash``, ``persona_migration``,
+``persona_validator``, ``cli``, ``_internal/*``) is also published as
+``wakir_protocol.persona`` under the standalone
+``wakir-labs/wakir-protocol`` repository.
+
+The BUSL-1.1 substrate (``persona_state_kv``,
+``persona_state_kv_constants``, ``recovery_drill_anchor``) is
+runtime-internal and stays in this repository; it is NOT mirrored
+to ``wakir-protocol``.
+
+External adopters who want only the persona-hash / migration /
+validator primitives should depend on ``wakir-protocol`` and import
+from ``wakir_protocol.persona`` directly.
+
 Public API
 ----------
 

@@ -274,3 +274,112 @@ manueller Refactor pro Schema-File beim Kopier-Schritt.
 - Mira-Hand: PyPI-Package-Publish (initial `wakir-protocol@0.1.0`).
 
 — Tomás
+
+---
+
+## Anhang A — Cut-2-Folge-Sprint-Befund (Reza-Hand, 2026-05-16)
+
+**Trigger:** Cross-Repo-Import-Adaption-Sprint pro ADR-0062
+§Cut-2-Folge-Items.
+
+### A.1 Audit-Ergebnis Cross-Repo-Imports
+
+Sichtung des wakir-runtime-Trees nach Python-Imports aus dem
+konsolidierten Apache-Substrat (`wirelang.*`, `capability_token.*`,
+`identity_substrate.*`) ergibt:
+
+- **240+ `from wirelang.* import …`-Stellen** über 121 distinct
+  Files, davon:
+  - 119 Files innerhalb des `wirelang/`-Sub-Trees selbst (gemischter
+    Apache + BUSL Subtree, Klassifikations-Tabellen A-L oben).
+  - 2 Files unter `tests/infra/` (`test_doppelbetrieb_bridge_smoke.py`,
+    `test_pilot_phase_e2e_smoke.py`), beide SPDX-`BUSL-1.1` und mit
+    starkem BSL-Subtree-Bezug (Imports aus
+    `wirelang.persona_engine.*`, das BUSL-1.1 ist und in
+    wakir-runtime bleibt).
+- **0 `from capability_token.* import …`-Stellen** —
+  Capability-Token-Substrat existiert nur als
+  `wakir_protocol.identity_substrate` / `wakir_protocol.canonical`
+  Namespace, nicht als Top-Level-Package in wakir-runtime.
+- **0 `from identity_substrate.* import …`-Stellen** — analog.
+- **0 Apache-Top-Level-Python-Files mit `wirelang.*`-Imports**
+  (`tooling/` ist JS-only, `scripts/` ist standalone-Python ohne
+  wirelang-Abhängigkeit).
+
+**Konsequenz für die Adapter-Welle:** Da keine Apache-Top-Level-
+Python-Files `wirelang.*` importieren, gibt es keine substantielle
+Import-Umstellung auf `wakir_protocol.*`. Die im Folge-Sprint-
+Auftrag vorgesehene zweistufige Behandlung (BUSL-Subtree behält
+`wirelang.*` mit Kommentar; Apache-Top-Level stellt um) reduziert
+sich auf die erste Stufe.
+
+### A.2 Behandlung des BUSL-Subtree-Anteils
+
+Konsolidations-Hinweise wurden zu den 9 Apache-Hub-`__init__.py`-
+Files unter `wirelang/` hinzugefügt (statt 240 Inline-Kommentaren
+auf jeder Import-Stelle):
+
+| Hub-File | Wakir-protocol-Ziel |
+|---|---|
+| `wirelang/__init__.py` | (Package-marker mit Top-Level-Hinweis) |
+| `wirelang/canonical/__init__.py` | `wakir_protocol.canonical` |
+| `wirelang/identity/__init__.py` | `wakir_protocol.identity_substrate` (minus `federation_resolver`) |
+| `wirelang/persona/__init__.py` | `wakir_protocol.persona` (minus `persona_state_kv*`, `recovery_drill_anchor`) |
+| `wirelang/schemas/__init__.py` | `wakir_protocol.schemas` |
+| `wirelang/cli/__init__.py` | `wakir_protocol.cli` (minus `marker_stack_*`) |
+| `wirelang/adapters/__init__.py` | `wakir_protocol.adapters` (Stub-Tier) |
+| `wirelang/builder/__init__.py` | `wakir_protocol.wirelang` |
+| `wirelang/nats/__init__.py` | `wakir_protocol.wirelang` |
+
+Jeder Kommentar nennt explizit:
+- Den ADR-Anker (ADR-0062 Cut-2, 2026-05-16).
+- Den `wakir_protocol`-Ziel-Namespace.
+- Die BUSL-Inseln, die NICHT in `wakir-protocol` mirroren.
+- Die Empfehlung an externe Adopter: `wakir-protocol` direkt
+  installieren statt aus wakir-runtime importieren.
+
+### A.3 Klassifikations-Validation (SPDX-Header-Konsistenz-Audit)
+
+Vollständiger SPDX-Header-Audit aller 215 Python-Files unter
+`wirelang/` gegen die Klassifikations-Tabellen A-L:
+
+- 132 Apache-2.0 + 83 BUSL-1.1 (100% Coverage, keine Files ohne
+  SPDX-Header).
+- **Kein einziger Widerspruch** zwischen tatsächlichem SPDX-Header
+  und Klassifikations-Doc-Soll-SPDX.
+- Insbesondere `wirelang/adapters/real_nats_adapter/` ist korrekt
+  mixed: `__init__.py` Apache-2.0 (Stub-Tier-Re-Exports),
+  `adapter.py`/`connect_retry.py` BUSL-1.1 (Live-Tier). Das
+  entspricht Tabelle H ("mixed | Apache-2.0 (Stub-Anteil)") exakt.
+- BUSL-Test-Files in `wirelang/tests/`
+  (`test_federation_*.py`, `test_multi_org_substrate.py`,
+  `test_spire_fed_bundle_live_https_fetcher.py`,
+  `test_persona_state_kv_constants_parity.py`,
+  `test_nats_connect_race_resilience.py`,
+  `persona_engine/`) sind konsistent BUSL-1.1 und testen
+  BUSL-Internal-Code.
+
+**Befund:** Keine widersprüchliche SPDX/Klassifikations-Kombination
+gefunden. Keine Mira-Hand-Folge-Patches benötigt.
+
+### A.4 README-Status
+
+`README.md §"Protocol-layer split (ADR-0062 Cut-2)"` wurde im
+Source-PR #93 bereits gepflegt und nennt:
+- den `wakir-protocol`-Repo,
+- den Klassifikations-Doc-Link,
+- das `[protocol]`-Extra (`pip install 'wakir-runtime[protocol]'`).
+
+Da die Adapter-Welle keine substanzielle Import-Umstellung an
+Top-Level-Code bewirkt hat, ist kein README-Folge-Eingriff in
+diesem PR nötig. Reza notiert das ausdrücklich, damit Mira den
+Status sieht.
+
+### A.5 Tests post-Adaption
+
+Smoke-Test lokal mit `pytest tests/wirelang/` und
+`pytest wirelang/tests/` weiter grün — der Doc-String-Kommentar in
+den 9 Hub-`__init__.py`-Files ändert keine Import-Mechanik. Volle
+Test-Suite ist im PR-Body protokolliert.
+
+— Reza
