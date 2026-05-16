@@ -1,6 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
 """Wirelang identity-substrate module.
 
+Protocol-layer consolidation (ADR-0062 Cut-2, 2026-05-16)
+---------------------------------------------------------
+The Apache-2.0 surface of this package (all submodules EXCEPT
+``federation_resolver``) is also published as
+``wakir_protocol.identity_substrate`` under the standalone
+``wakir-labs/wakir-protocol`` repository. The in-tree copy under
+``wirelang.identity`` is the runtime-internal mirror.
+
+``federation_resolver`` is BUSL-1.1 runtime-internal substrate and
+stays in this repository; it is NOT mirrored to ``wakir-protocol``.
+
+External adopters who want only the identity-substrate primitives
+should depend on ``wakir-protocol`` and import from
+``wakir_protocol.identity_substrate`` directly.
+
 Implements the Wakir two-curve-stack key derivation, persona DID-document
 generation and AIP-document generation in conformance with the Phase-1a
 consensus marker (Cross-Review Zone 1).

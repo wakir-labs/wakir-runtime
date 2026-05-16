@@ -6,6 +6,17 @@ build/parse/validate utility for the Wakir NATS subject convention
 defined in ``specs/nats-subject-mapping-v1.md``.
 
 The package is import-light and depends on the standard library only.
+
+Protocol-layer consolidation (ADR-0062 Cut-2, 2026-05-16)
+---------------------------------------------------------
+This Apache-2.0 package is also published as part of
+``wakir_protocol.wirelang`` (frame-builder + NATS-subject-mapping
+consolidated under a single namespace) in the standalone
+``wakir-labs/wakir-protocol`` repository. The upstream consolidates
+this module with ``wirelang.builder`` so that ``wakir_protocol``
+adopters import as::
+
+    from wakir_protocol.wirelang import nats_subject_mapping
 """
 
 from __future__ import annotations

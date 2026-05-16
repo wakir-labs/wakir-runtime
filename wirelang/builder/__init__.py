@@ -15,6 +15,17 @@ Public surface:
   test scenarios.
 
 The package is import-light: it depends on the standard library only.
+
+Protocol-layer consolidation (ADR-0062 Cut-2, 2026-05-16)
+---------------------------------------------------------
+This Apache-2.0 package is also published as
+``wakir_protocol.wirelang`` (frame-builder + NATS-subject-mapping
+consolidated under a single namespace) in the standalone
+``wakir-labs/wakir-protocol`` repository. External adopters should
+depend on ``wakir-protocol`` and import from
+``wakir_protocol.wirelang`` directly:
+
+    from wakir_protocol.wirelang import frame_builder
 """
 
 from __future__ import annotations
