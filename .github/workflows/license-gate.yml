@@ -1,0 +1,278 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# License-Hygiene Gate (ADR-0061 Schritt 8)
+# -----------------------------------------
+#
+# Verpflichtender CI-Status-Check, der die externe Audit-Empfehlung
+# vom 2026-05-16 als Repo-Invariante zementiert. Jede `pull_request`
+# gegen `main` und jeder `push` auf `main` muss diesen Gate grün
+# durchlaufen, sonst ist die License-Lage gegenüber der ADR-0061-
+# Sollstellung wieder gedriftet.
+#
+# Gate-Inhalt (fünf Stufen, alle "fail-fast"):
+#
+#   1. `reuse lint` (REUSE-3.0 Compliance) — prüft, dass jede
+#      Substance-Datei einen SPDX-License-Identifier-Header trägt
+#      und dass jede in irgendeinem Header genannte Lizenz auch
+#      als Volltext im `LICENSES/`-Verzeichnis liegt. Dieser Gate
+#      bleibt RED, bis Reza das `LICENSES/`-Verzeichnis mit den
+#      drei Volltexten (Apache-2.0, BUSL-1.1, CC-BY-4.0) gemerged
+#      hat. Das ist beabsichtigt — der Gate fungiert als Merge-
+#      Koordinations-Anker für die Welle.
+#
+#   2. SPDX-Header-Konsistenz — der bereits bestehende
+#      `tests/infra/test_spdx_header_consistency.py` (ADR-0059)
+#      bleibt unverändert und läuft hier mit. Dieser Check ist die
+#      etablierte BSL-Subtree-Header-Garantie.
+#
+#   3. License-Hygiene-Konsistenz — der neue hauseigene
+#      `tests/infra/test_license_hygiene_consistency.py` (siehe
+#      diesen PR) prüft die ADR-0061-Hygiene-Invarianten:
+#        - `LICENSING.md` existiert, listet alle erwarteten Pfade.
+#        - `LICENSES/` enthält die drei Volltexte (Existenz +
+#          Mindest-Substanz-Marker, keine Volltexte-Verifikation,
+#          das ist REUSE-Aufgabe).
+#        - Jeder BSL-Subtree trägt `LICENSE-BSL.md` ohne Entwurfs-
+#          Sprache ("draft", "subject to legal review").
+#        - `pyproject.toml` `license-files` deckt alle sechs
+#          LICENSE-BSL-Pfade ab.
+#        - WAT-Change-Date konkret = `2030-05-07`.
+#        - `NOTICE` bleibt schlank (≤ 4 Zeilen Kerntext).
+#        - `README.md` enthält LICENSING.md-Verweis + Mix-License-
+#          Hinweis.
+#
+#   4. Draft-Wording-Scan — eigener `grep`-basierter Schnellcheck,
+#      der über alle `**/LICENSE-BSL.md`-Dateien läuft und harte
+#      0-Vorkommen für `draft`, `subject to legal review`,
+#      `pending legal review` einfordert. Dieser läuft *zusätzlich*
+#      zum Python-Test in (3), weil er auf der Bash-Ebene auch
+#      neue, noch nicht im Test-Vector-Set erfasste LICENSE-BSL-
+#      Pfade fängt.
+#
+#   5. Apache-Shim-um-BUSL-Inkonsistenz-Scan — eigener Python-
+#      Check, der das Muster aus dem externen Audit-Befund #7
+#      generisch detektiert: jede Datei in `bin/` (und in den
+#      `infra/spire/**/bin/`-Pfaden), die einen `Apache-2.0`-SPDX-
+#      Header trägt und gleichzeitig den underscored-Namens-
+#      Geschwister-Import (`-` → `_`, `.py`-Suffix) macht, dessen
+#      Geschwister `BUSL-1.1` trägt, ist ein License-Mismatch und
+#      bricht den Gate. Reza fixt das in ihrer Welle-PR; dieser
+#      Gate macht die Mismatch-Liste sichtbar.
+#
+# Required-Status-Check
+# ---------------------
+# Sobald dieser Workflow auf `main` einmal grün läuft, soll Mira
+# (Operator-Hand, GitHub-Repo-Settings) ihn unter
+# `Settings → Branches → main → Branch Protection Rules →
+#  Require status checks to pass before merging` aktivieren. Damit
+# wird die License-Lage gegen Drift im Mainline-PR-Workflow
+# zementiert. Bis dahin läuft der Gate beratend (advisory) und
+# meldet Fehler im PR-Check-Run-Tab.
+
+name: license-gate
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "**/*.py"
+      - "**/*.toml"
+      - "**/LICENSE*"
+      - "**/NOTICE"
+      - "LICENSING.md"
+      - "LICENSES/**"
+      - "README.md"
+      - "bin/**"
+      - "infra/spire/**/bin/**"
+      - ".github/workflows/license-gate.yml"
+      - "tests/infra/test_spdx_header_consistency.py"
+      - "tests/infra/test_license_hygiene_consistency.py"
+  pull_request:
+    paths:
+      - "**/*.py"
+      - "**/*.toml"
+      - "**/LICENSE*"
+      - "**/NOTICE"
+      - "LICENSING.md"
+      - "LICENSES/**"
+      - "README.md"
+      - "bin/**"
+      - "infra/spire/**/bin/**"
+      - ".github/workflows/license-gate.yml"
+      - "tests/infra/test_spdx_header_consistency.py"
+      - "tests/infra/test_license_hygiene_consistency.py"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  license-gate:
+    name: License-Hygiene Gate (ADR-0061)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        # 3.13 mirrors the production-lane in `tests.yml` (and the
+        # `python_requires_python = ">=3.11"` floor of `pyproject.toml`,
+        # ceiling 3.13).
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install gate dependencies
+        # `reuse>=3.0` is the upstream REUSE compliance linter
+        # (https://reuse.software/). pytest is needed to drive the
+        # two hermetic test modules. No live network beyond the
+        # PyPI install.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            "reuse>=3.0" \
+            "pytest>=8.0" \
+            "PyYAML>=6.0"
+
+      - name: Stage 1 — REUSE lint
+        # `reuse lint` enforces:
+        #   - every file has SPDX-License-Identifier and
+        #     SPDX-FileCopyrightText (or is in `.reuse/dep5` / a
+        #     similar declaration scheme),
+        #   - every license mentioned in any header has a matching
+        #     full-text file under `LICENSES/`.
+        # While the Welle is in flight (Reza has not yet shipped
+        # `LICENSES/Apache-2.0.txt`, `BUSL-1.1.txt`, `CC-BY-4.0.txt`),
+        # this step is allowed to be RED. The other stages still run
+        # so the PR-Run shows a complete diagnostic.
+        id: reuse-lint
+        continue-on-error: true
+        run: |
+          reuse lint
+
+      - name: Stage 2 — SPDX header consistency (existing ADR-0059)
+        # Existing Phase-2-Federation SPDX-coverage test. This is the
+        # legacy invariant; we rerun it under the new gate so the gate
+        # is the single canonical entry-point for license CI.
+        run: |
+          python -m pytest tests/infra/test_spdx_header_consistency.py -v --tb=short
+
+      - name: Stage 3 — License-Hygiene consistency (new ADR-0061)
+        # New hermetic test covering all ADR-0061 hygiene invariants.
+        # See `tests/infra/test_license_hygiene_consistency.py` for
+        # the test-vector matrix.
+        run: |
+          python -m pytest tests/infra/test_license_hygiene_consistency.py -v --tb=short
+
+      - name: Stage 4 — Draft-wording scan
+        # Bash-level safety net for new LICENSE-BSL.md files that the
+        # Python test may not yet enumerate. Looks for the canonical
+        # entwurfs-tokens in every LICENSE-BSL.md across the tree.
+        # Excludes the LICENSES/ full-text directory (where the
+        # BUSL-1.1 spec preamble itself uses the word "draft" once
+        # for the official "DO NOT REMOVE THIS DRAFT" boilerplate in
+        # the model text — that is upstream BUSL-1.1 wording, not our
+        # entwurfs-wording).
+        run: |
+          set -o pipefail
+          violations=$(
+            find . -type f -name "LICENSE-BSL.md" \
+              -not -path "./LICENSES/*" \
+              -not -path "./.git/*" \
+              -print0 \
+            | xargs -0 grep -EiHn 'draft|subject to legal review|pending legal review' \
+            || true
+          )
+          if [ -n "$violations" ]; then
+            echo "license-gate: draft-wording violations:" >&2
+            echo "$violations" >&2
+            exit 1
+          fi
+          echo "license-gate: no draft-wording in any LICENSE-BSL.md"
+
+      - name: Stage 5 — Apache-Shim-um-BUSL scan
+        # Detect the externer-Audit-Befund-#7 pattern generically:
+        # any `bin/`-shim that carries an Apache-2.0 SPDX header and
+        # whose underscored-name sibling (`-` → `_`, `.py` suffix) in
+        # the same directory carries a BUSL-1.1 header is a license-
+        # mismatch. The shim is functionally a thin wrapper around the
+        # BUSL-licensed implementation and must inherit the subject
+        # license (ADR-0061 Schritt 7).
+        run: |
+          python - <<'PY'
+          import sys
+          from pathlib import Path
+
+          REPO_ROOT = Path(".").resolve()
+          SEARCH_DIRS = ["bin", "infra/spire/agent/bin", "infra/spire/federation/bin"]
+
+          def head_bytes(path: Path, n: int = 4096) -> str:
+              with path.open("rb") as fh:
+                  return fh.read(n).decode("utf-8", errors="replace")
+
+          violations: list[str] = []
+
+          for d in SEARCH_DIRS:
+              base = REPO_ROOT / d
+              if not base.exists():
+                  continue
+              for shim in sorted(base.iterdir()):
+                  if not shim.is_file():
+                      continue
+                  if shim.name == "__init__.py":
+                      continue
+                  if shim.suffix in (".py", ".sh"):
+                      # We only inspect bareword shims here; the
+                      # underscored sibling is the .py implementation
+                      # we *want* to keep as BUSL.
+                      continue
+                  head = head_bytes(shim)
+                  if "SPDX-License-Identifier: Apache-2.0" not in head:
+                      continue
+                  underscored = shim.name.replace("-", "_") + ".py"
+                  sibling = shim.parent / underscored
+                  if not sibling.exists():
+                      continue
+                  sib_head = head_bytes(sibling)
+                  if "SPDX-License-Identifier: BUSL-1.1" in sib_head:
+                      violations.append(
+                          f"  {shim.relative_to(REPO_ROOT)} (Apache-2.0) imports "
+                          f"{sibling.relative_to(REPO_ROOT)} (BUSL-1.1)"
+                      )
+
+          if violations:
+              print("license-gate: Apache-Shim-um-BUSL violations:", file=sys.stderr)
+              for v in violations:
+                  print(v, file=sys.stderr)
+              print(
+                  "\nResolution: re-license the bareword shim to BUSL-1.1 "
+                  "(ADR-0061 Schritt 7).",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+          print("license-gate: no Apache-Shim-um-BUSL violations")
+          PY
+
+      - name: Stage 1 result enforcement (post-Welle)
+        # Once Reza's `LICENSES/`-PR has merged, the REUSE lint stage
+        # in Stage 1 must turn green. This gate-step enforces that
+        # invariant: if `LICENSES/Apache-2.0.txt`, `BUSL-1.1.txt`, and
+        # `CC-BY-4.0.txt` all exist, Stage 1 *must* have succeeded.
+        # While the Welle is in flight the three files are absent and
+        # this step is a no-op.
+        run: |
+          if [ -f LICENSES/Apache-2.0.txt ] && \
+             [ -f LICENSES/BUSL-1.1.txt ] && \
+             [ -f LICENSES/CC-BY-4.0.txt ]; then
+            if [ "${{ steps.reuse-lint.outcome }}" != "success" ]; then
+              echo "license-gate: LICENSES/ is complete but reuse lint failed." >&2
+              echo "license-gate: post-Welle, reuse lint MUST be green." >&2
+              exit 1
+            fi
+            echo "license-gate: LICENSES/ complete and reuse lint green"
+          else
+            echo "license-gate: Welle in flight — LICENSES/ not yet complete."
+            echo "license-gate: reuse lint may be RED until Reza-PR merges."
+          fi
