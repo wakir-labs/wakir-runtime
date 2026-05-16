@@ -1,0 +1,158 @@
+version = 1
+SPDX-PackageName = "wakir-runtime"
+SPDX-PackageSupplier = "Callandor GmbH <ops@wakirlabs.com>"
+SPDX-PackageDownloadLocation = "https://github.com/wakir-labs/wakir-runtime"
+
+# REUSE-Annotations consolidating ADR-0034 + ADR-0059 license-tree
+# for files that do not carry their own SPDX header.
+#
+# Precedence: REUSE 3.x default is "aggregate" — annotations stack
+# from broad to specific. We use "closest" for BSL subtrees to
+# guarantee the BSL claim overrides any inherited Apache-default.
+
+# ============================================================
+# BSL-1.1 Subtrees (ADR-0034 §3.6 + ADR-0059)
+# These MUST win over any Apache-2.0 default.
+# ============================================================
+
+[[annotations]]
+path = "wat/**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
+SPDX-License-Identifier = "BUSL-1.1"
+
+[[annotations]]
+path = "wirelang/federation/**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
+SPDX-License-Identifier = "BUSL-1.1"
+
+[[annotations]]
+path = "wirelang/persona_engine/**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
+SPDX-License-Identifier = "BUSL-1.1"
+
+[[annotations]]
+path = "infra/spire/federation/**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
+SPDX-License-Identifier = "BUSL-1.1"
+
+[[annotations]]
+path = "infra/spire/agent/**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
+SPDX-License-Identifier = "BUSL-1.1"
+
+[[annotations]]
+path = "infra/persona-engine/**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
+SPDX-License-Identifier = "BUSL-1.1"
+
+# Apache-2.0 carve-out within wat/ (external_verifier — Brand-Beweis-Werkzeug)
+[[annotations]]
+path = "wat/anchor/external_verifier/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
+SPDX-License-Identifier = "Apache-2.0"
+
+# ============================================================
+# Documentation files (CC-BY-4.0 where marked; default CC-BY-4.0
+# for docs/, GOVERNANCE/BRAND/ATTRIBUTION)
+# ============================================================
+
+[[annotations]]
+path = ["GOVERNANCE.md", "BRAND.md", "ATTRIBUTION.md", "LICENSING.md"]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
+SPDX-License-Identifier = "CC-BY-4.0"
+
+# ============================================================
+# SPDX-pattern false-positives (REUSE-lint heuristic mismatch)
+# Files declare their own SPDX header but contain SPDX-like
+# string literals in their content (JSON descriptions, test
+# assertions, shell payloads).
+# ============================================================
+
+[[annotations]]
+path = "wirelang/schemas/**.json"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = "tests/fixtures/jcs-leaf-vectors/**.json"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = "wirelang-rust/crates/persona-hash/tests/fixtures/**.json"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = "scripts/wat-block-heights-collect.sh"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = "tests/infra/test_spdx_header_consistency.py"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
+SPDX-License-Identifier = "BUSL-1.1"
+
+[[annotations]]
+path = "tests/infra/test_vm_e2e_acceptance_gate.py"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = "tests/wat/test_hash_consistency.py"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
+SPDX-License-Identifier = "Apache-2.0"
+
+# ============================================================
+# Configuration & metadata files without their own SPDX header
+# (these are infrastructure files; default to Apache-2.0)
+# ============================================================
+
+[[annotations]]
+path = [
+  ".gitignore",
+  ".gitattributes",
+  ".github/**",
+  "*.txt",
+  "*.toml",
+  "requirements*.txt",
+  "Makefile",
+  "MANIFEST.in",
+  "*.cfg",
+  "*.ini",
+  "config/**",
+  "compose/**",
+  "quadlet/**",
+  "meta/timestamps/**",
+  "dashboards/**.json",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
+SPDX-License-Identifier = "Apache-2.0"
+
+# ============================================================
+# Generic catch-all: Apache-2.0 default for unmatched files.
+# (BSL subtrees above with `precedence = "closest"` override
+# this catch-all for files inside their paths.)
+# ============================================================
+
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
+SPDX-License-Identifier = "Apache-2.0"

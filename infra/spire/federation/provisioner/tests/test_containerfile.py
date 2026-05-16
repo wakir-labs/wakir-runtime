@@ -100,12 +100,15 @@ def test_containerfile_has_spdx_busl_1_1_header() -> None:
     """
     text = _read(CONTAINERFILE)
     head = "\n".join(text.splitlines()[:3])
-    assert "SPDX-License-Identifier: BUSL-1.1" in head, (
+    # Note: SPDX-tag-prefix split across concat to avoid REUSE-lint
+    # false-positive that parses the literal as a real SPDX header.
+    _SPDX = "SPDX-License" + "-Identifier"
+    assert f"{_SPDX}: BUSL-1.1" in head, (
         "Containerfile is missing the SPDX BUSL-1.1 header"
     )
     # Defensive regression guard: the previous Apache-2.0 header
     # must NOT linger anywhere in the first three lines.
-    assert "SPDX-License-Identifier: Apache-2.0" not in head, (
+    assert f"{_SPDX}: Apache-2.0" not in head, (
         "Containerfile still carries the stale Apache-2.0 SPDX "
         "header on the first three lines; the AR-Decision "
         "2026-05-13 relicense was incomplete"
