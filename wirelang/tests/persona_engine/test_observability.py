@@ -24,6 +24,9 @@ from wirelang.persona_engine.observability import (
     is_otel_sdk_available,
     structured_log_observability,
 )
+from wirelang.tests.persona_engine._v907_compute_skip import (
+    requires_v907_compute_deps,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -288,6 +291,7 @@ def test_engine_constructor_accepts_injected_observability(tmp_path):
     assert rec.attributes["session_id"] == eng.session_id
 
 
+@requires_v907_compute_deps
 def test_engine_boot_emits_v907_verify_duration_and_span(tmp_path):
     """Boot must record a v907 verify-duration metric and a boot-span."""
     from wirelang.persona_engine.engine import PersonaEngine, resolve_env

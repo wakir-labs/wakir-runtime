@@ -84,27 +84,59 @@ dependencies = [
     # (BIP-32 secp256k1 + SLIP-0010 Ed25519 derivation).
     # License: Apache-2.0 + BSD.
     "cryptography>=42",
-    # YAML front-matter parsing for axis-A persona-canonical-form
-    # (V-907 pin-compute path). Imported eagerly by
-    # `wirelang/persona/persona_canonical_form.py`, which the
-    # `persona-engine` v907_verify code path imports lazily through
-    # `wirelang.persona.persona_canonical_form`. Promoting PyYAML
-    # from the `persona-engine-runtime` extra to a top-level
-    # dependency closes the ADR-0061 §"Schritt 10" build-drift
-    # symptom (52 wirelang test-suite failures with
-    # `PersonaHashComputeError: persona_canonical_form missing`,
-    # whose underlying cause is `ModuleNotFoundError: No module
-    # named 'yaml'` raised from the eager `import yaml` line in
-    # `persona_canonical_form.py`). The error message in
-    # `v907_verify.py` swallows the original `ImportError` and
-    # presents it as a packaging-missing-module symptom; the real
-    # root cause is the missing transitive dep at the project root.
-    # PyPI: https://pypi.org/project/PyYAML/  (URL-200-stamped 2026-05-16)
-    # Maintainer: Ingy döt Net + Kirill Simonov. License: MIT.
-    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
+# V-907 persona-compute path dependencies (Sprint-Stability Tag-2,
+# 2026-05-16).
+#
+# The persona-canonical-form and persona-hash modules can be IMPORTED
+# without these wheels — the module-top resolver pattern (try/except
+# ImportError, mirroring `wirelang.identity.aip_signing`,
+# `wirelang.schemas.entry_signing`, and `wirelang.identity.did_document_
+# signing`) lets a minimal-deps host load the module without
+# explosion. The functions that actually need YAML parsing
+# (`parse_frontmatter`) or JCS canonicalisation (`canonical_jcs_bytes`,
+# `compute_persona_hash_from_canonical`) raise
+# `PersonaCanonicalFormDependencyMissingError` with a clear install
+# hint pointing to this extra.
+#
+# Why this is an extra (not a top-level dep)
+# ------------------------------------------
+# PR #85 (Tag-1 hot-fix) promoted PyYAML to a top-level dep to close
+# the production-lane build-drift symptom ("persona_canonical_form
+# missing" — see ADR-0061 §Schritt 10). The fix was tactically
+# correct but architecturally papered over the eager-import shape in
+# `persona_canonical_form.py`. Sprint-Stability Tag-2 (Tomás-Hand,
+# 2026-05-16) inverts that: the eager imports are now optional
+# resolvers, and the wheels move BACK to an extra. The net effect:
+#
+# - Production lane (`pip install 'wakir-runtime[persona]'`) → works
+#   exactly as PR #85 intended.
+# - Shadow lane (`pip install pytest cryptography shamir-mnemonic`) →
+#   module loads cleanly, V-907 compute raises actionable error.
+# - Lightweight embedders (test substrates, sandbox containers that
+#   never compute V-907 pins) → can import `wirelang.persona.*`
+#   constants without dragging in PyYAML + rfc8785.
+#
+# Wheels in this extra
+# --------------------
+# - PyYAML  — axis-A YAML front-matter parsing.
+#             PyPI: https://pypi.org/project/PyYAML/  (URL-200-stamped 2026-05-16)
+#             Maintainer: Ingy döt Net + Kirill Simonov. License: MIT.
+# - rfc8785 — JCS (RFC 8785) canonicalisation for SHA-256.
+#             Already a top-level dep; included here for the
+#             self-contained-closure property (an adopter can pin
+#             `pip install 'wakir-runtime[persona]'` on a slim
+#             distribution without the project wheel and get a
+#             working V-907 compute path).
+#             PyPI: https://pypi.org/project/rfc8785/  (URL-200-stamped 2026-05-06)
+#             Maintainer: Trail of Bits. License: Apache-2.0.
+persona = [
+    "PyYAML>=6.0",
+    "rfc8785>=0.1.4",
+]
+
 # Cross-repo bridge to the Apache-2.0 brand-proof verifier.
 #
 # After ADR-0062 Cut-1 the offline verifier substance (4-pole

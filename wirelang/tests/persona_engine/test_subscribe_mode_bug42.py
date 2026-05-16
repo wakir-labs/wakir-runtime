@@ -69,6 +69,9 @@ from wirelang.persona_engine.nats_subscribe_loop import (
     build_subscribe_subject,
     resolve_subscribe_mode,
 )
+from wirelang.tests.persona_engine._v907_compute_skip import (
+    requires_v907_compute_deps,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -636,6 +639,7 @@ def test_cli_imports_subscribe_mode_resolver():
     assert cli_mod is not None
 
 
+@requires_v907_compute_deps
 def test_cli_async_dispatch_log_includes_subscribe_mode(monkeypatch, tmp_path):
     """The CLI async-dispatch path emits ``subscribe_mode`` in its
     cli-async-dispatch log entry. This is the live-smoke audit anchor
@@ -708,6 +712,7 @@ def test_cli_async_dispatch_log_includes_subscribe_mode(monkeypatch, tmp_path):
     assert rc == 0  # one-shot graceful
 
 
+@requires_v907_compute_deps
 def test_cli_rejects_invalid_subscribe_mode(monkeypatch, tmp_path):
     """An invalid WAKIR_NATS_SUBSCRIBE_MODE value returns ENV_MISCONFIG."""
     import argparse

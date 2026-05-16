@@ -40,6 +40,9 @@ from wirelang.persona_engine.nats_subscribe_loop import (
     NatsSubscribeLoop,
     iter_from_queue,
 )
+from wirelang.tests.persona_engine._v907_compute_skip import (
+    requires_v907_compute_deps,
+)
 
 
 PERSONA_DEF_TEMPLATE = """---
@@ -172,6 +175,7 @@ def test_attach_subscribe_loop_before_spawn_raises(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+@requires_v907_compute_deps
 async def test_attach_subscribe_loop_after_spawn_succeeds(tmp_path: Path):
     env = _make_env(tmp_path)
     sink = io.StringIO()
@@ -186,6 +190,7 @@ async def test_attach_subscribe_loop_after_spawn_succeeds(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+@requires_v907_compute_deps
 async def test_subscribe_loop_processes_via_engine_runner(tmp_path: Path):
     env = _make_env(tmp_path)
     sink = io.StringIO()
@@ -213,6 +218,7 @@ async def test_subscribe_loop_processes_via_engine_runner(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+@requires_v907_compute_deps
 async def test_subscribe_loop_uses_engine_env_persona(tmp_path: Path):
     env = _make_env(tmp_path)
     sink = io.StringIO()
@@ -230,6 +236,7 @@ async def test_subscribe_loop_uses_engine_env_persona(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+@requires_v907_compute_deps
 async def test_subscribe_loop_env_override(tmp_path: Path):
     env = _make_env(tmp_path)
     sink = io.StringIO()
@@ -247,6 +254,7 @@ async def test_subscribe_loop_env_override(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+@requires_v907_compute_deps
 async def test_subscribe_loop_publish_only_when_sink_provided(tmp_path: Path):
     env = _make_env(tmp_path)
     sink = io.StringIO()
@@ -278,6 +286,7 @@ async def test_engine_subscribe_loop_property_none_before_attach(tmp_path: Path)
 
 
 @pytest.mark.asyncio
+@requires_v907_compute_deps
 async def test_engine_subscribe_loop_property_set_after_attach(tmp_path: Path):
     env = _make_env(tmp_path)
     sink = io.StringIO()
@@ -291,6 +300,7 @@ async def test_engine_subscribe_loop_property_set_after_attach(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+@requires_v907_compute_deps
 async def test_engine_spawn_emits_async_variant(tmp_path: Path):
     env = _make_env(tmp_path)
     sink = io.StringIO()

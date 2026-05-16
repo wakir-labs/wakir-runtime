@@ -52,6 +52,9 @@ from wirelang.persona_engine.cli import (
     build_parser,
     run_spawn,
 )
+from wirelang.tests.persona_engine._v907_compute_skip import (
+    requires_v907_compute_deps,
+)
 
 
 SAMPLE_AXIS_A = """---
@@ -100,6 +103,7 @@ def test_resolve_async_subscribe_env_dev_returns_dev():
 # ===========================================================================
 
 
+@requires_v907_compute_deps
 def test_run_spawn_falls_back_to_sync_when_subscribe_env_unset(
     tmp_path, monkeypatch,
 ):
@@ -122,6 +126,7 @@ def test_run_spawn_falls_back_to_sync_when_subscribe_env_unset(
 # ===========================================================================
 
 
+@requires_v907_compute_deps
 def test_run_spawn_dispatches_to_async_when_subscribe_env_set(
     tmp_path, monkeypatch, capsys,
 ):
@@ -204,6 +209,7 @@ def test_run_spawn_async_missing_axis_a_returns_input_not_found(
 
 
 @pytest.mark.asyncio
+@requires_v907_compute_deps
 async def test_run_spawn_async_wires_subscribe_loop_with_canonical_subject(
     tmp_path, monkeypatch, capsys,
 ):
@@ -242,6 +248,7 @@ async def test_run_spawn_async_wires_subscribe_loop_with_canonical_subject(
 
 
 @pytest.mark.asyncio
+@requires_v907_compute_deps
 async def test_run_spawn_async_run_until_signal_terminates_on_stop(
     tmp_path, monkeypatch,
 ):
@@ -330,6 +337,7 @@ async def test_run_spawn_async_run_until_signal_terminates_on_stop(
 
 
 @pytest.mark.asyncio
+@requires_v907_compute_deps
 async def test_run_spawn_async_subscribe_loop_config_matches_env(
     tmp_path, monkeypatch, capsys,
 ):

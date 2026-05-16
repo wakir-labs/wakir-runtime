@@ -103,14 +103,26 @@ def compute_v907_pin(axis_a_bytes: bytes) -> str:
     """
     try:
         from wirelang.persona.persona_canonical_form import (
+            PersonaCanonicalFormDependencyMissingError,
             parse_frontmatter,
             split_frontmatter,
         )
     except ImportError as exc:  # pragma: no cover — defensive
+        # Sprint-Stability Tag-2 (2026-05-16): surface the actual
+        # missing module name in the error message instead of the
+        # pre-Tag-2 misleading "persona_canonical_form missing" text.
+        # The module loads fine on minimal-deps hosts after the
+        # Tag-2 lazy-resolver refactor; this branch fires only if the
+        # wakir-runtime distribution itself is broken (no
+        # ``wirelang.persona`` package on sys.path), not for missing
+        # transitive deps like PyYAML/rfc8785.
+        missing = getattr(exc, "name", None) or "wirelang.persona.persona_canonical_form"
         raise PersonaHashComputeError(
-            "wirelang.persona.persona_canonical_form missing; "
-            "this engine image is mis-built (rebuild from the "
-            "wakir-runtime tree)."
+            f"V-907 pin-compute setup failed: cannot import "
+            f"wirelang.persona.persona_canonical_form (underlying "
+            f"ModuleNotFoundError: name={missing!r}). The "
+            f"wakir-runtime distribution is mis-built or sys.path "
+            f"is missing the wirelang tree."
         ) from exc
 
     text = axis_a_bytes.decode("utf-8")
@@ -123,6 +135,20 @@ def compute_v907_pin(axis_a_bytes: bytes) -> str:
 
     try:
         mapping = parse_frontmatter(fm)
+    except PersonaCanonicalFormDependencyMissingError as exc:
+        # Sprint-Stability Tag-2 (2026-05-16): bubble up the clear
+        # "PyYAML missing" message instead of folding it into the
+        # generic "YAML parse failed" wrapper. The dependency-missing
+        # case is a packaging/install issue, not a malformed-input
+        # issue; conflating them was the root cause of the shadow-
+        # lane 55-failure burst (Tomás-Stability Tag-2 outbox).
+        raise PersonaHashComputeError(
+            f"V-907 pin-compute requires the {exc.missing_module!r} "
+            f"package, which is not installed in this environment. "
+            f"Install via `pip install 'wakir-runtime[persona]'` to "
+            f"pull both 'PyYAML' (axis-A front-matter parsing) and "
+            f"'rfc8785' (JCS canonicalisation for SHA-256)."
+        ) from exc
     except Exception as exc:  # noqa: BLE001
         raise PersonaHashComputeError(
             f"axis-A front-matter YAML parse failed: {exc}"
@@ -156,12 +182,34 @@ def compute_v907_pin(axis_a_bytes: bytes) -> str:
             compute_persona_hash_from_canonical,
         )
     except ImportError as exc:
+        # Same posture as the canonical-form import above
+        # (Sprint-Stability Tag-2): surface the real missing module
+        # name instead of a generic "mis-built" message. This branch
+        # only fires for a broken wakir-runtime distribution, not for
+        # missing transitive deps (those raise
+        # PersonaCanonicalFormDependencyMissingError from inside
+        # compute_persona_hash_from_canonical).
+        missing = getattr(exc, "name", None) or "wirelang.persona.persona_hash"
         raise PersonaHashComputeError(
-            "wirelang.persona.persona_hash missing; this engine "
-            "image is mis-built."
+            f"V-907 pin-compute setup failed: cannot import "
+            f"wirelang.persona.persona_hash (underlying "
+            f"ModuleNotFoundError: name={missing!r}). The "
+            f"wakir-runtime distribution is mis-built or sys.path "
+            f"is missing the wirelang tree."
         ) from exc
 
-    return compute_persona_hash_from_canonical(canonical_subset)
+    try:
+        return compute_persona_hash_from_canonical(canonical_subset)
+    except PersonaCanonicalFormDependencyMissingError as exc:
+        # rfc8785 missing — same install-hint surface as the YAML
+        # missing branch above.
+        raise PersonaHashComputeError(
+            f"V-907 pin-compute requires the {exc.missing_module!r} "
+            f"package, which is not installed in this environment. "
+            f"Install via `pip install 'wakir-runtime[persona]'` to "
+            f"pull both 'PyYAML' (axis-A front-matter parsing) and "
+            f"'rfc8785' (JCS canonicalisation for SHA-256)."
+        ) from exc
 
 
 def verify_v907_pin(
