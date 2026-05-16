@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# persona-engine-v907-verify — V-907 engine-side pin-compute + verify
+# (Rust pendant of `wirelang.persona_engine.v907_verify`).
+#
+# Layer position (engine-side, ONE level above persona-canonical-form-yaml
+# and persona-hash). Where `persona-canonical-form-yaml` is the strict
+# nine-vector canonical-subset extractor (V-907 pin pack ground truth,
+# tied to `wirelang/tests/fixtures/persona_definitions/v{N}-*.md`), this
+# crate mirrors the *engine-side* V-907 verify shape used at spawn time
+# (`/etc/wakir/persona/<slug>.md`):
+#
+#   - schema_version (default `persona-v1` if absent — engine-side
+#     `.claude/agents/*.md` files do not always carry the key).
+#   - identity_pinned (if present, opaque — NOT narrowed to the
+#     canonical-form-yaml three-sub-key shape; engine-side mock format
+#     uses freer keys like `email` per Python sample fixture).
+#   - capabilities (if present).
+#   - domain (if present).
+#   - reports_to (if present).
+#
+# This is intentionally a DIFFERENT canonical subset shape from
+# `persona-canonical-form-yaml::extract_canonical_subset` (which insists
+# on `name + description + tools + schema_version + identity_pinned{
+# cross_review_zones, authority, hierarchy}`). The two layers serve two
+# different V-907 surfaces:
+#
+#   - Canonical-form-yaml (Crate-3): nine-vector pin pack, hard-frozen
+#     `PERSONA_HASH_PIN_V1..V9` test oracle, strict shape, hash-pinned.
+#   - Engine-v907-verify (THIS crate): spawn-time engine-side verify of
+#     axis-A markdown bytes, lenient shape, operator-supplied expected
+#     pin compared via `verify_v907_pin`.
+#
+# Mirrors Python `wirelang/persona_engine/v907_verify.py` byte-for-byte
+# for the engine-side `compute_v907_pin` path. Cross-language anchor
+# pins captured 2026-05-16 via local Python run; see `tests/`.
+#
+# ADR anchors
+# -----------
+#
+# - ADR-0063 §Folgeartefakte Phase-3a — Rust-Crate-Bundle Item 3.
+# - Sprint-Pengine-7 Tag-1 Crate-8 (persona-engine-format) — same axis-A
+#   surface; this crate is the verify side of the same axis.
+# - PR #120 (crate-smoke-test foundation) + PR #132 (subscribe-loop)
+#   establish the engine-side Rust pendant pattern.
+
+[package]
+name = "persona-engine-v907-verify"
+version = "0.1.0"
+description = "V-907 engine-side pin-compute + verify (Rust pendant of wirelang.persona_engine.v907_verify)"
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+
+[lib]
+name = "persona_engine_v907_verify"
+path = "src/lib.rs"
+
+[dependencies]
+sha2       = { workspace = true, features = ["std"] }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+serde_jcs  = { workspace = true }
+serde_yaml = { workspace = true }
+hex        = { workspace = true }
+
+[dev-dependencies]
+# Tests use only the std + workspace deps; no new dev dependency.
