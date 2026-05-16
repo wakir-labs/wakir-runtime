@@ -126,6 +126,22 @@ dependencies = [
 verify = [
     "wakir-verify>=0.1.0",
 ]
+# Cross-repo bridge to the Apache-2.0 + CC-BY-4.0 protocol layer.
+#
+# After ADR-0062 Cut-2 the Wirelang specs, JSON-Schemas, AIP/DID
+# identity-substrate, and Biscuit capability-token wrapper were
+# consolidated into `wakir-labs/wakir-protocol` as a standalone
+# Apache-2.0 PyPI package. The runtime keeps the in-tree
+# `wirelang/` package (Apache-2.0 plus BUSL-1.1 runtime-internal
+# modules) during the transitional period; the import-adaption
+# sprint (`wirelang.* -> wakir_protocol.*`) is the next Cut-2
+# follow-up. See `docs/decisions/cut2-protocol-substance-classification.md`.
+#
+# PyPI: https://pypi.org/project/wakir-protocol/  (URL-200-stamp
+#       pending initial 0.1.0 publish; see Cut-2 Tag-1 outbox PyPI gate).
+protocol = [
+    "wakir-protocol>=0.1.0",
+]
 test = [
     "pytest>=8.0",
     # JSON Schema validation for Wirelang Layer 0/1/2 conformance tests.
