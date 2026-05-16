@@ -1,0 +1,83 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wakir-Runtime / wirelang Rust workspace — persona-engine-recovery crate.
+#
+# Purpose
+# -------
+# Initial Rust scaffold of the persona-engine R1..R4 Recovery-Workflow.
+# Schema-parity with the Python reference implementation
+# `wirelang/persona_engine/recovery_workflow.py` (Selin Sprint-Pengine-8
+# PR #65, anchored in persona-engine-format-spec §3.7.4).
+#
+# This crate is the deterministic substrate for the Phase-3a
+# 3-way-triangle (Doppelbetrieb) comparison. Live container-supervisor
+# binding (systemd / Quadlet) stays Python-side during Phase-3a; this
+# crate uses an injected callable for R4-resume so hermetic tests can
+# stub it. R2 (state-backing reload) and R3 (SVID workload-API probe)
+# use the same callable-injection posture.
+#
+# Schema parity (PR #65 — recovery_workflow.py)
+# ---------------------------------------------
+#   Python `RecoveryTrigger`       <-> Rust `RecoveryTrigger`
+#   Python `RecoveryFailureMode`   <-> Rust `RecoveryFailureMode`
+#   Python `PhaseResult`           <-> Rust `PhaseResult`
+#   Python `RecoveryResult`        <-> Rust `RecoveryOutcome`
+#   Python `RECOVERY_BUDGET_SECONDS = 30`        <-> Rust const
+#   Python `PHASE_SOFT_CAPS_SEC`                 <-> Rust const
+#   Python `RECOVERY_WORKFLOW_PHASE_ORDER`       <-> Rust const
+#
+# Naming note (Sprint-Auftrag vs. PR-65)
+# --------------------------------------
+# The Sprint-Auftrag mentions `R1Refetch / R2Resubscribe / R3Restart /
+# R4Escalate` as Rust enum variants. The Python foundation (PR #65,
+# spec §3.7.4.2) is `R1 Detect / R2 Reload / R3 Re-register / R4 Resume`.
+# Hard-constraint "Schema-Parität zu Python recovery_workflow.py" wins
+# — we mirror the Python canonical phase labels exactly. The
+# Sprint-Auftrag action-hooks (SVID-Refetch, NATS-Resubscribe,
+# FSM-Restart, Operator-Escalation) map onto the four phases as
+# advisory action-hooks via the `RecoveryHooks` injection point.
+#
+# ADR anchors
+# -----------
+# - ADR-0063 §Folgeartefakte Phase-3a Item 4.
+# - Selin PR #65  (Sprint-Pengine-8) — Python schema authority.
+# - Selin PR #113 (3-way-triangle) — Doppelbetrieb substrate.
+# - Selin PR #131 (bridge-diff-engine-rust) — sibling crate.
+# - Reza  PR #132 (subscribe-loop-rust) — sibling crate.
+# - persona-engine-format-spec §3.7.4 — R1..R4 phase contract.
+#
+# Versioning rationale (verified 2026-05-16 23:38 CEST, matching the
+# Reza-PR-132 precedent):
+# - tokio =1.52.3      : async runtime; `rt-multi-thread` + `macros` +
+#   `sync` + `time` features cover `#[tokio::test]` and the soft-cap /
+#   hard-cap timeout paths.
+# - chrono =0.4.44     : RFC-3339 second-precision timestamps.
+# - serde_json =1.0.140 : JSON audit-record construction (cross-lang
+#   parity pin; matches workspace pin).
+#
+# Hard-Constraints (per Sprint-Auftrag)
+# -------------------------------------
+# - No touches to `wirelang/persona_engine/recovery_workflow.py`.
+# - No LICENSING / NOTICE / .github/workflows touches.
+# - `cargo test -p persona-engine-recovery` must run green.
+# - Single-PR-Bundle against `wakir-runtime/main`.
+
+[package]
+name = "persona-engine-recovery"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "Apache-2.0"
+repository = "https://github.com/wakir-labs/wakir-runtime"
+authors = ["Selin Celik <selin@wakir.local>"]
+description = "Initial Rust scaffold of the persona-engine R1..R4 Recovery-Workflow (Phase-3a Item 4, schema-parity with Selin PR #65)."
+publish = false
+
+[lib]
+name = "persona_engine_recovery"
+path = "src/lib.rs"
+
+[dependencies]
+tokio = { version = "=1.52.3", features = ["rt-multi-thread", "macros", "sync", "time"] }
+chrono = { version = "=0.4.44", default-features = false, features = ["clock", "std"] }
+serde_json = "=1.0.140"

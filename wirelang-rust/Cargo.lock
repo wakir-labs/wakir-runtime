@@ -1376,6 +1376,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "persona-engine-recovery"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "persona-engine-smoke"
 version = "0.1.0"
 dependencies = [
