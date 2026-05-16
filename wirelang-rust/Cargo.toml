@@ -103,6 +103,7 @@ members = [
     "crates/persona-engine-format",
     "crates/persona-converter",
     "crates/persona-pilot-export",
+    "crates/persona-engine-smoke",
 ]
 
 [workspace.package]
