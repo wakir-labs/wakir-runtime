@@ -105,6 +105,7 @@ members = [
     "crates/persona-pilot-export",
     "crates/persona-engine-smoke",
     "crates/persona-engine-bridge-diff",
+    "crates/persona-engine-subscribe-loop",
 ]
 
 [workspace.package]
