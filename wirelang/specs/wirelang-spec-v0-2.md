@@ -9,11 +9,11 @@ License: This document is licensed under the Creative Commons Attribution
 
 ---
 spec: wirelang
-version: 0.2.0
+version: 0.2.1
 status: draft
-supersedes: 0.1.0
+supersedes: 0.2.0
 replaced-by: null
-date: 2026-05-06
+date: 2026-05-16
 audience: implementers, integrators
 license: CC-BY-4.0
 ---
@@ -22,6 +22,17 @@ license: CC-BY-4.0
 
 This document is the consolidated specification of the Wirelang
 inter-agent messaging stack as it stands at the close of Phase-1a.
+
+> **v0.2.1 (2026-05-16):** Additive minor bump. Adds §13
+> "Layer-0 Subscribe-Mode contract" — publisher-subscriber mode
+> compatibility, cross-mode adapter requirements, failure-mode
+> inventory. Triggered by Sprint-Pengine-13 Bug-42 (subscribe-loop
+> received no messages because dispatcher published via core NATS
+> while a JetStream-durable-pull-consumer was expected). Existing
+> §3 Layer-0 text unchanged; §13 is a normative refinement that
+> binds publisher and subscriber to declare and agree on the
+> NATS surface they use. No frame-format or token-format change.
+
 It supersedes the per-layer drafts shipped during Phase-1a daily
 build (Tag-1 through Tag-9) and references — but does not duplicate —
 the JSON-Schema documents and supporting specifications that ship in
@@ -428,5 +439,193 @@ for Zone 2). Implementation lives in `wirelang/identity/` and
 `wirelang/schemas/`. Test coverage at v0.2 publication: 274/274
 public + 4 gated tests, with 172 of those covering Wirelang
 sub-modules.
+
+## 13. Layer-0 Subscribe-Mode contract (v0.2.1)
+
+§3 narrowed the transport substrate to "NATS + JetStream" without
+distinguishing the **publisher's** and the **subscriber's** NATS
+surface. NATS exposes two operationally distinct surfaces against
+the same wire protocol:
+
+- **Core NATS pub-sub** — fire-and-forget; no server-side message
+  persistence; subscribe-loops receive only messages delivered while
+  the subscription is *currently bound*.
+- **JetStream** — server-side persistence stream + consumer; pull-
+  or push-consumer-bound; subscribe-loops receive messages from the
+  stream replay independent of bind time, conditional on consumer
+  filter-subject and durable-name semantics.
+
+A publisher that publishes via the core surface (e.g. `nc.publish`)
+emits a message that lands **only** in core subscribers' inboxes and
+in any JetStream consumer whose filter-subject covers the published
+subject **and** whose stream is currently capturing that subject.
+A subscriber that binds via `nc.subscribe` receives core publishes
+*and* JetStream-stream replays that the server happens to fan out
+to the core-subscriber leg; it does **not** receive JetStream
+messages that the consumer is meant to pull-acknowledge.
+
+This asymmetry is the root cause of the Sprint-Pengine-13 Bug-42
+class: the Bridge-Forward-Pipe dispatcher published with
+`nc.publish` (core) while a downstream subscriber bound via a
+JetStream-durable-pull-consumer expecting persistence semantics
+received no messages — not because the wire was broken, but because
+the two surfaces are operationally non-symmetric.
+
+### 13.1 Mode declaration
+
+A producer endpoint MUST declare its publish surface as one of:
+
+- `core` — core NATS pub-sub (`nc.publish(subject, payload)`),
+- `jetstream` — JetStream stream-publish (`js.publish(subject,
+  payload)` against a stream whose `subjects` filter includes the
+  published subject).
+
+A subscriber endpoint MUST declare its subscribe surface as one of:
+
+- `core` — core NATS pub-sub subscribe (`nc.subscribe(subject)`),
+- `jetstream-push` — JetStream push-consumer subscribe,
+- `jetstream-pull` — JetStream pull-consumer subscribe.
+
+The declaration is **operational metadata**, not on-the-wire
+metadata; it lives in the producer's CLI/runbook documentation and
+in the subscriber's runtime config. It is normative because
+violation is silently dropping messages, which is a fail-open
+failure mode.
+
+### 13.2 Compatibility matrix
+
+The producer/subscriber pairs in the matrix below describe
+whether a single Wirelang frame published by the producer is
+delivered to a subscriber that binds with that surface, **without**
+an explicit cross-mode adapter.
+
+| Producer \ Subscriber | `core` | `jetstream-push` | `jetstream-pull` |
+|---|---|---|---|
+| `core`                | YES    | NO (no stream capture) | NO (no stream capture) |
+| `jetstream`           | YES (fan-out)¹ | YES | YES |
+
+¹ The fan-out behaviour is JetStream-server-side: a stream that
+captures a subject also delivers core-subscribers when its
+`retention` policy doesn't pre-empt fan-out. This is a NATS-server
+configuration concern and not part of this spec; producers and
+subscribers MUST NOT rely on the fan-out leg for correctness.
+
+**Normative consequence:** any pipe whose producer is `core` and
+whose subscriber is `jetstream-push` or `jetstream-pull` is a
+**broken pipe at the Layer-0 substrate**, even though the wire
+format is well-formed. Producers and subscribers MUST agree, before
+the pipe is brought up, on a surface combination that is `YES` in
+the matrix above; or, where the pipe traverses operationally
+distinct components (e.g. an operator-CLI producer + a long-running
+persona-engine subscriber), the pipe MUST go through a cross-mode
+adapter (§13.4).
+
+### 13.3 Failure-mode inventory
+
+The following silent-fail modes are documented for verifier and
+operator awareness:
+
+| Failure mode | Symptom | Diagnosis pattern |
+|---|---|---|
+| F-1 core-pub → JS-pull-sub | Subscriber never receives messages | Producer log shows `publish` success; subscriber log shows `pending=0`. Diagnosis: subject not captured by JetStream stream. |
+| F-2 core-pub → JS-push-sub | Subscriber never receives messages | Same as F-1. JS push-consumer is bound to a stream that doesn't capture the subject. |
+| F-3 JS-pub → core-sub (no fan-out) | Subscriber receives nothing despite stream growth | Subscriber log shows binding successful; producer + server confirm stream-publish success. Diagnosis: JetStream server config has `retention=limits` + pre-emptive fan-out blocked. |
+| F-4 JS-pub → JS-sub on wrong stream | Subscriber on stream A receives nothing | Producer publishes against subject covered by stream B (no overlap with A). Diagnosis: stream-subject-filter mismatch. |
+| F-5 JS-pull-sub no ack | Messages keep redelivering | Pull-consumer fetches but doesn't call `msg.ack()`. Diagnosis: subscribe-loop missing ack path. |
+| F-6 mode flip post-bring-up | Pipe was working, then stopped | Producer or subscriber side flipped surface (e.g. operator restarted a JS-pub CLI as a core-pub CLI). Diagnosis: compare current binding to documented declaration. |
+
+A subscribe-loop SHOULD log its surface declaration (`core` /
+`jetstream-push` / `jetstream-pull`), the resolved subject, and
+the bind-success/failure on startup; this turns F-1 through F-4
+from silent into observable.
+
+### 13.4 Cross-mode adapter requirement
+
+Where a Wirelang pipe traverses operationally distinct producer
+and subscriber surfaces (and the matrix above says `NO`), a
+cross-mode adapter MUST be inserted. Allowed adapter shapes:
+
+- **Adapter A — Stream-mirror.** A side-process subscribes via core
+  on the producer's subject and republishes via JetStream into a
+  capturing stream. The subscriber then binds against that stream.
+  Use when the producer is operationally fixed (e.g. a third-party
+  CLI) and the subscriber wants JetStream persistence semantics.
+- **Adapter B — Producer-rewrite.** The producer is migrated from
+  `nc.publish` to `js.publish` against the target stream. Use when
+  the producer is in-house and the rewrite is cheap.
+- **Adapter C — Subscribe-side fallback.** The subscriber binds
+  via both core (`nc.subscribe`) and JetStream-pull on the same
+  subject, deduplicating by `id`. Use when the substrate is in
+  transition and a single subscriber must absorb both surfaces.
+  Required dedup: by CloudEvents `id` (§4 wire format).
+
+Adapter A is the default for the Sprint-Pengine-13 Bug-42 class
+(Bridge-Forward-Pipe with core-publisher CLI + JetStream-pull-
+subscribe-loop on persona-engine). Adapter B is the strategic
+target for Phase-2c-Closeout (eliminates the adapter entirely).
+Adapter C is a transition mechanism and SHOULD NOT remain in
+production beyond a Phase-boundary.
+
+### 13.5 Bridge-Forward-Pipe v1 binding
+
+The Bridge-Forward-Pipe (`specs/bridge-forward-pipe-v1.md`)
+publishes via core NATS (`nc.publish`) per §4.2 of that spec
+("fire-and-forget at the operator level: publish-and-return. No
+subscribe-side ack required."). Consequence under this §13:
+
+- Subscribers that match `wakir.<env>.agent.agent.task.assigned.
+  <persona-slug>` MUST bind via `core` to remain spec-compatible
+  with Bridge-Forward-Pipe v1 producers.
+- A subscribe-loop that binds via JetStream-pull on the same
+  subject is **not** Bridge-Forward-Pipe-v1-compatible and
+  requires Adapter A (stream-mirror) or Adapter B
+  (producer-rewrite of `wakir-bridge-forward` to `js.publish`).
+
+The `wirelang/persona_engine/nats_subscribe_loop.py` implementation
+binds via `core` per the comment in `nats_subscribe_loop.py` §"Ack
+semantics" ("Core NATS does not require ack — the subscribe-loop
+emits an audit-ack [...] but does not call msg.ack()") and is
+therefore Bridge-Forward-Pipe-v1-compatible **provided** that the
+operator deploys the subscribe-loop against a NATS surface where
+the producer also publishes via core. Operator runbooks MUST not
+ship a JetStream-pull-consumer config against this subscribe-loop
+without also inserting Adapter A.
+
+### 13.6 Bring-up acceptance gate
+
+Before a new Wirelang pipe is declared "live", the operator MUST
+confirm the surface compatibility in §13.2 by:
+
+1. Capturing the producer's publish-surface declaration (CLI flag,
+   runbook entry, or commit-pinned config).
+2. Capturing the subscriber's subscribe-surface declaration (config
+   file, env-var, or commit-pinned config).
+3. Running one round-trip dry-run (Mira-Hand or CI live-VM smoke)
+   with a sentinel payload and verifying subscriber receipt.
+
+This gate is the Layer-0-substrate-version of the live-bring-up
+sandbox-gap policy: hermetic-Sandbox-Tests can pass with a
+core/core pair and break in production with a core/jetstream-pull
+mismatch, because the bind-surface is operational metadata that
+hermetic tests don't exercise unless explicitly varied.
+
+### 13.7 Forward-compatibility statement
+
+§13 is normative for v0.2.1 and forward. v0.2.0 producers and
+subscribers MUST be re-audited at v0.2.1-upgrade time:
+
+- A v0.2.0 producer that publishes via core remains valid under
+  v0.2.1 as a `core`-surface producer; no wire change.
+- A v0.2.0 subscriber that binds via core remains valid under
+  v0.2.1 as a `core`-surface subscriber; no wire change.
+- A pipe that worked under v0.2.0 by accident (e.g. because the
+  producer happened to be on JetStream and the subscriber on
+  core, and the server's fan-out leg was permissive) is **not**
+  guaranteed under v0.2.1; operators MUST switch to an explicit
+  Adapter A/B/C configuration.
+
+§13 is **not** a frame-format change. The on-the-wire envelope
+(§4) is unchanged. The change is operational metadata + diagnostic
+discipline.
 
 — *role: wirelang-spec-owner*
