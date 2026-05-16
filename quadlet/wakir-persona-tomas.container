@@ -5,6 +5,65 @@
 # Tomás-Persona pilot container (ADR-0058 Pilot-Persona-Migrations-
 # Plan, Schritt 9 — wakir-runtime-Persona-Spawn).
 #
+# ============================================================
+# OPERATOR-HAND PRE-STEP CONTRACT (read before installing)
+# ============================================================
+#
+# Operator-Hand pre-step (mandatory; Operator-Hand-staged per
+# ADR-0051 Mira-Sandbox-vs-Host-Operations-Trennung + ADR-0058
+# §"Pilot-Phase-Sequenz" Schritt 9):
+#
+#   1. Stage the two persona-definition files at
+#      ``/etc/wakir/persona/tomas.{md,json}`` on the Pilot-VM
+#      BEFORE ``systemctl start wakir-persona-tomas.service``.
+#      The Quadlet bind-mount expects both files to exist at
+#      spawn-time; the persona-engine refuses to start if either
+#      file is missing (V-907 pin-hash recomputation requires
+#      both axis-A Markdown and axis-C JSON).
+#
+#   2. On first spawn the operator seeds the persona-state
+#      bucket ``wakir-persona-state-acme-tomas`` via the
+#      ``wakir-nats-kv-bucket-init.service`` oneshot (Phase-2
+#      Sprint-9 Tag-1 + Sprint-Pengine-7 Tag-5 OI-PILOT-2).
+#      Subsequent restarts auto-recover from the NATS-KV state-
+#      backing — only the first spawn is Operator-Hand.
+#
+#   3. The image-digest token ``DIGEST_PENDING_KAI_CROSS_REVIEW``
+#      below is resolved Operator-Hand via the resolve-image-
+#      pins-ci workflow (Cross-Review Zone-J, Kai-side container-
+#      bridge ownership) before live bring-up. See
+#      ``infra/spire/federation/PROXMOX_BRING_UP_RECIPE.md``.
+#
+# The pre-step is Operator-Hand because the wakir-runtime sandbox
+# cannot touch the host podman socket (ADR-0051), so the live
+# substrate-bring-up steps are intentionally out-of-band.
+#
+# Historical context — Bug-Quadlet-Drift (Sprint-Pengine-9):
+# Prior Quadlet revisions bind-mounted from
+# ``/opt/wakir-runtime/.claude/agents/tomas.md`` and
+# ``/opt/wakir-runtime/wakir-persona/tomas.json``. Both source
+# paths do NOT exist in the wakir-runtime checkout (the
+# ``.claude/agents/`` + ``wakir-persona/`` trees live in the
+# AI-Corp main repo, which is not deployed on the Pilot-VM).
+# The Sprint-10 Tag-6 Bug-35 substance-fix decoupled the Quadlet
+# from the repo topology by staging the files at
+# ``/etc/wakir/persona/`` instead. The negative bind-mount
+# assertions live in
+# ``wirelang/tests/persona_engine/test_quadlet_persona_tomas_paths.py``.
+#
+# Naming-Anchor (Sprint-Pengine-9 naming-drift follow-up):
+# The container-name + state-bucket-name + persona-id env-vars
+# all follow the ADR-0019 persona-slug naming convention
+# (lowercase, hyphen-separated, max 24 chars; one canonical slug
+# per persona-definition). The naming-drift follow-up is tracked
+# in the dev-engineering Cross-Review Zone-J consensus log; any
+# Quadlet-name / bucket-name / persona-id divergence MUST be
+# caught at PR-time by
+# ``wirelang/tests/persona_engine/test_quadlet_persona_tomas_paths.py``
+# (this test-file is authoritative for the Quadlet/persona-id
+# coupling on the dev-engineering side).
+# ============================================================
+#
 # Tomás is the first persona to migrate to the wakir-runtime
 # substrate per ADR-0058 (approved 2026-05-13). The pilot phase runs
 # this container in DOUBLE-SHADOW mode alongside the Pre-Framework
