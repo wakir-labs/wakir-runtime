@@ -378,6 +378,11 @@ wat-verify = "wat.anchor.external_verifier.cli:main"
 # Persona self-migration converter CLI (ADR-0036, V-907 third pillar);
 # see wirelang/specs/self-migration-konverter-spec.md §7.
 wakir-persona = "wirelang.persona.cli:main"
+# Top-level Wakir Audit Trail dispatcher. Currently exposes the
+# `anchor-receipt` sub-command (PR #116 §5, Phase-2 Observability
+# operator helper); future sub-commands such as `inject-synthetic-leaf`
+# attach to the same `wat ...` surface.
+wat = "wat.cli:main"
 
 [project.urls]
 Homepage = "https://wakir.dev"
