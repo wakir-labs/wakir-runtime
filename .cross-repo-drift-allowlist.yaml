@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Cross-repo drift allowlist
+# ==========================
+#
+# Consumed by `.github/workflows/cross-repo-drift-audit.yml`.
+#
+# Purpose
+# -------
+# Some byte-level drift between `wakir-runtime` (BUSL-dominant)
+# and `wakir-protocol` (Apache-2.0 + CC-BY) is structurally
+# expected — for example, SPDX headers differ between the two
+# license tracks, and a deliberate mirror-bump may be temporarily
+# in flight. Such drift is acceptable as long as it is *named*,
+# *justified*, and *bounded* by a follow-up sync action.
+#
+# Format
+# ------
+# allow:
+#   - runtime:  <repo-relative path on wakir-runtime side>
+#     protocol: <repo-relative path on wakir-protocol side>
+#     reason:   <free-text — short justification>
+#     follow_up: <optional — ADR ref / sprint ref / "permanent">
+#
+# A pair is allowlisted iff *both* `runtime` and `protocol` match
+# exactly. Re-naming a file on one side without updating this
+# allowlist is therefore a hard signal — by design.
+#
+# Initial state
+# -------------
+# Per ADR-0062 Cut-2 follow-up, the initial allowlist is **empty**.
+# Baseline drift inventory will be observed in audit-only mode,
+# reviewed by Reza + Tomás (Cross-Review-Zone-3, OTS-Schema-Anker
+# compatibility), and then admitted into this file by a follow-up
+# PR before `CROSS_REPO_DRIFT_ENFORCE` is flipped to `true` in
+# the workflow.
+#
+# Example (do NOT uncomment without an ADR/sprint reference):
+#
+# allow:
+#   - runtime:  wirelang/schemas/example.json
+#     protocol: wakir_protocol/schemas/example.json
+#     reason:   SPDX-header-only delta (BUSL-1.1 vs Apache-2.0)
+#     follow_up: permanent
+#
+allow: []
