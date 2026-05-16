@@ -114,6 +114,35 @@ DEFAULT_STATE_FILE = (
 )
 DEFAULT_NOTIFY_PUSH_SCRIPT = "/var/home/fred/AI-Corp/scripts/notify-push.sh"
 
+#: Default location of the persona-engine structured-JSON log
+#: substrate the cost + cache aggregators consume. Mirrors the
+#: aggregators' own defaults; kept here so the watchdog can gate
+#: invocation on log presence without re-importing the aggregator
+#: modules.
+DEFAULT_PERSONA_ENGINE_LOG_PATH = (
+    "/var/home/fred/AI-Corp/logs/persona-engine.jsonl"
+)
+
+#: Filenames (relative to the scripts/ dir hosting this watchdog)
+#: of the Phase-2a Folgeartefakt aggregators chained after the
+#: health-check cycle. Resolved at runtime via __file__.parent so
+#: the chain works under any deployment substrate. Order is
+#: cost-first (cheaper to compute) then cache-hit-rate.
+HOURLY_AGGREGATOR_SCRIPTS: Tuple[str, ...] = (
+    "per-model-cost-aggregator.py",
+    "cache-hit-rate-aggregator.py",
+)
+
+#: ENV var that gates the post-health-check aggregator chain.
+#:
+#: ``WAKIR_HOURLY_AGGREGATORS_ENABLED=1`` (default when unset and
+#: the persona-engine log directory holds at least one log file)
+#: invokes the aggregators after the health-check cycle.
+#: ``WAKIR_HOURLY_AGGREGATORS_ENABLED=0`` suppresses the chain
+#: even if logs are present (operator opt-out, e.g. during a
+#: pricing-table rewrite or a Phase-3-cutover).
+HOURLY_AGGREGATORS_ENABLED_ENV = "WAKIR_HOURLY_AGGREGATORS_ENABLED"
+
 #: Max age in seconds for the last telemetry record before the
 #: watchdog declares the tick "missed". 80 minutes = hourly cadence
 #: + 15-min slowest-observed-run slack + 5-min off-grid watchdog
@@ -361,6 +390,146 @@ def maybe_fire_ntfy(
 
 
 # ---------------------------------------------------------------------------
+# Aggregator-chain hook (Phase-2a Folgeartefakt Item 2 integration)
+# ---------------------------------------------------------------------------
+
+
+def _hourly_aggregators_enabled(
+    *,
+    env: Dict[str, str],
+    persona_engine_log_path: Path,
+) -> Tuple[bool, str]:
+    """Decide whether to invoke the aggregator chain.
+
+    Returns ``(enabled, reason)``. The reason string is recorded in
+    the watchdog stderr stream so an operator can audit the gate
+    decision without re-running the watchdog.
+
+    Decision matrix:
+
+      * ``WAKIR_HOURLY_AGGREGATORS_ENABLED=0`` -> ``(False, "env-disabled")``
+      * ``WAKIR_HOURLY_AGGREGATORS_ENABLED=1`` -> ``(True, "env-enabled-explicit")``
+        (forces the chain even if the log substrate is empty -- useful
+        for hermetic CI smoke runs)
+      * env unset + log path missing or empty -> ``(False, "log-substrate-empty")``
+        (graceful fallback: nothing to aggregate -> nothing to do)
+      * env unset + log path non-empty -> ``(True, "env-default-enabled")``
+    """
+    raw = env.get(HOURLY_AGGREGATORS_ENABLED_ENV)
+    if raw is not None:
+        normalized = raw.strip()
+        if normalized in {"0", "false", "no", "off"}:
+            return (False, "env-disabled")
+        if normalized in {"1", "true", "yes", "on"}:
+            return (True, "env-enabled-explicit")
+        # Unknown value -> default-on per principle of least
+        # surprise (operator typed something, we honour intent).
+        return (True, f"env-unknown-value-default-on:{normalized!r}")
+    if not persona_engine_log_path.is_file():
+        return (False, "log-substrate-empty")
+    try:
+        size = persona_engine_log_path.stat().st_size
+    except OSError:
+        return (False, "log-substrate-empty")
+    if size <= 0:
+        return (False, "log-substrate-empty")
+    return (True, "env-default-enabled")
+
+
+def _invoke_aggregator(
+    script_path: Path,
+    *,
+    timeout_seconds: int = 60,
+    extra_env: Optional[Dict[str, str]] = None,
+) -> Tuple[bool, str]:
+    """Invoke a single aggregator script as a subprocess.
+
+    Returns ``(ok, reason)`` where ``ok`` is True iff the script
+    exists, is executable as a Python interpreter target, and
+    returned exit code 0. The reason string carries either the
+    exit code or the OS-level error so the operator can drill in
+    without re-running.
+    """
+    if not script_path.is_file():
+        return (False, f"aggregator-missing:{script_path.name}")
+    cmd = [sys.executable, str(script_path)]
+    env = dict(os.environ)
+    if extra_env:
+        env.update(extra_env)
+    try:
+        result = subprocess.run(
+            cmd,
+            check=False,
+            timeout=timeout_seconds,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return (False, f"aggregator-error:{script_path.name}:{exc}")
+    if result.returncode != 0:
+        return (
+            False,
+            (
+                f"aggregator-nonzero:{script_path.name}:rc={result.returncode}"
+            ),
+        )
+    return (True, f"aggregator-ok:{script_path.name}")
+
+
+def run_hourly_aggregator_chain(
+    *,
+    scripts_dir: Path,
+    persona_engine_log_path: Path = Path(DEFAULT_PERSONA_ENGINE_LOG_PATH),
+    env: Optional[Dict[str, str]] = None,
+    aggregator_filenames: Tuple[str, ...] = HOURLY_AGGREGATOR_SCRIPTS,
+    timeout_seconds: int = 60,
+) -> Dict[str, Any]:
+    """Run the configured aggregator chain after the health-check cycle.
+
+    This is a pure-orchestration helper -- it does not raise on a
+    single aggregator failure, because the Hourly-tick watchdog's
+    primary mission (health-check + textfile output + ntfy edge)
+    must complete even if a Folgeartefakt aggregator is broken or
+    its log substrate has rotated mid-run.
+
+    Returns a structured-dict report shape suitable for direct JSON
+    serialization into the operator-facing stderr trail::
+
+      {
+        "enabled": bool,
+        "enable_reason": str,
+        "results": [
+          {"script": str, "ok": bool, "reason": str},
+          ...
+        ],
+      }
+    """
+    effective_env = env if env is not None else dict(os.environ)
+    enabled, enable_reason = _hourly_aggregators_enabled(
+        env=effective_env,
+        persona_engine_log_path=persona_engine_log_path,
+    )
+    report: Dict[str, Any] = {
+        "enabled": enabled,
+        "enable_reason": enable_reason,
+        "results": [],
+    }
+    if not enabled:
+        return report
+    for filename in aggregator_filenames:
+        script_path = scripts_dir / filename
+        ok, reason = _invoke_aggregator(
+            script_path,
+            timeout_seconds=timeout_seconds,
+        )
+        report["results"].append(
+            {"script": filename, "ok": ok, "reason": reason}
+        )
+    return report
+
+
+# ---------------------------------------------------------------------------
 # Main entrypoint
 # ---------------------------------------------------------------------------
 
@@ -457,6 +626,37 @@ def build_argparser() -> argparse.ArgumentParser:
             "the textfile output or update the state file."
         ),
     )
+    p.add_argument(
+        "--skip-aggregators",
+        action="store_true",
+        help=(
+            "Suppress the post-health-check aggregator chain "
+            "(per-model-cost + cache-hit-rate). Equivalent to "
+            "setting WAKIR_HOURLY_AGGREGATORS_ENABLED=0 but scoped "
+            "to a single invocation. Used by hermetic CI smoke runs "
+            "that only want the watchdog signal."
+        ),
+    )
+    p.add_argument(
+        "--persona-engine-log-path",
+        type=Path,
+        default=Path(DEFAULT_PERSONA_ENGINE_LOG_PATH),
+        help=(
+            "Path to the persona-engine structured-JSON log substrate. "
+            "Used only to gate the aggregator chain on log presence. "
+            f"Default: {DEFAULT_PERSONA_ENGINE_LOG_PATH}"
+        ),
+    )
+    p.add_argument(
+        "--scripts-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Override directory hosting the aggregator scripts. "
+            "Defaults to the directory containing this watchdog "
+            "script (resolved via __file__)."
+        ),
+    )
     return p
 
 
@@ -536,6 +736,30 @@ def main(argv: Optional[List[str]] = None) -> int:
                 "%Y-%m-%dT%H:%M:%SZ", time.gmtime(now)
             ),
         },
+    )
+    # ---- Phase-2a Folgeartefakt aggregator chain --------------------
+    # Optional: invoke per-model-cost-aggregator.py + cache-hit-rate-
+    # aggregator.py after the watchdog cycle. Gated on env var and
+    # log-substrate presence. Failures here are non-fatal -- the
+    # watchdog's primary mission already completed above.
+    if args.skip_aggregators:
+        sys.stderr.write(
+            "mira-hourly-watchdog: aggregator-chain skipped via --skip-aggregators\n"
+        )
+        return 0
+    scripts_dir = (
+        args.scripts_dir
+        if args.scripts_dir is not None
+        else Path(__file__).resolve().parent
+    )
+    chain_report = run_hourly_aggregator_chain(
+        scripts_dir=scripts_dir,
+        persona_engine_log_path=args.persona_engine_log_path,
+    )
+    sys.stderr.write(
+        "mira-hourly-watchdog: aggregator-chain "
+        + json.dumps(chain_report, sort_keys=True)
+        + "\n"
     )
     return 0
 
