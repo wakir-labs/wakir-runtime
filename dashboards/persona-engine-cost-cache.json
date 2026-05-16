@@ -1,0 +1,554 @@
+{
+  "__comment": "Grafana dashboard JSON for the wakir-persona-engine Phase-2b Cost + Cache visualisation (Sprint Grafana-Dashboard-MINI, Noa Bergstroem / SRE). Consumes Prometheus gauges produced by scripts/per-model-cost-aggregator.py (PR #110) and scripts/cache-hit-rate-aggregator.py (PR #112). Schema version targets Grafana 10.x (schemaVersion >= 38). Dashboard is operational, not Vanity: every panel answers an operator question and is reachable from an alert-rule expression. ADR-0064 Phase-2a Folgeartefakt 2.",
+  "title": "Wakir Persona-Engine — Cost & Cache",
+  "uid": "wakir-persona-engine-cost-cache",
+  "tags": ["wakir", "persona-engine", "sre", "cost", "cache", "phase-2b"],
+  "schemaVersion": 38,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "templating": {
+    "list": [
+      {
+        "name": "model",
+        "label": "Model",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prom"},
+        "query": "label_values(persona_engine_cost_usd, model)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true
+      },
+      {
+        "name": "persona",
+        "label": "Persona",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prom"},
+        "query": "label_values(persona_engine_cache_hit_rate, persona)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 100,
+      "type": "row",
+      "title": "Cost per Model",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Total Cost (USD, current window)",
+      "description": "Sum of persona_engine_cost_usd across all selected models. Shows the cumulative USD spend the aggregator has seen since log-tail start. Drops on aggregator-restart are expected (log-tail re-reads from scratch).",
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 1},
+      "targets": [
+        {
+          "expr": "sum(persona_engine_cost_usd{model=~\"$model\"})",
+          "legendFormat": "total",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "orange", "value": 50},
+              {"color": "red", "value": 200}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Cost — claude-opus-4-7",
+      "description": "Accumulated USD on the claude-opus-4-7 model. Opus is the most expensive tier; sustained high values indicate Opus-overuse by personas that could run on Sonnet or Haiku.",
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 1},
+      "targets": [
+        {
+          "expr": "sum(persona_engine_cost_usd{model=~\"claude-opus.*\", model=~\"$model\"})",
+          "legendFormat": "opus",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "orange", "value": 30},
+              {"color": "red", "value": 100}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Cost — claude-sonnet-*",
+      "description": "Accumulated USD on Sonnet-class models. Sonnet is the mid tier; the most common workhorse for routine spawns.",
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 1},
+      "targets": [
+        {
+          "expr": "sum(persona_engine_cost_usd{model=~\"claude-sonnet.*\", model=~\"$model\"})",
+          "legendFormat": "sonnet",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "orange", "value": 20},
+              {"color": "red", "value": 80}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Cost — claude-haiku-*",
+      "description": "Accumulated USD on Haiku-class models. Haiku is the cheapest tier; useful for routine tool-call orchestration. High values here are healthy if accompanied by low Opus/Sonnet values.",
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 1},
+      "targets": [
+        {
+          "expr": "sum(persona_engine_cost_usd{model=~\"claude-haiku.*\", model=~\"$model\"})",
+          "legendFormat": "haiku",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "orange", "value": 10},
+              {"color": "red", "value": 50}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Cost-per-Model over time",
+      "description": "USD accumulation per model bucket over the dashboard window. Slope = burn-rate. Use this to attribute sudden cost spikes to a specific model.",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 7},
+      "targets": [
+        {
+          "expr": "sum by (model) (persona_engine_cost_usd{model=~\"$model\"})",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": ["lastNotNull", "max"]
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Per-Model burn-rate (USD/hour)",
+      "description": "rate() of persona_engine_cost_usd over a 1h window, expressed in USD/h. This is the metric that should trigger budget-burn-rate alerts. Healthy baseline depends on workload; sustained > 2 USD/h on Opus is investigation-worthy.",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 7},
+      "targets": [
+        {
+          "expr": "sum by (model) (rate(persona_engine_cost_usd{model=~\"$model\"}[1h]) * 3600)",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": ["lastNotNull", "mean", "max"]
+        }
+      }
+    },
+    {
+      "id": 200,
+      "type": "row",
+      "title": "Cache Hit-Rate (per Persona × Model)",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 15},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 7,
+      "type": "gauge",
+      "title": "Cache hit-rate (selection mean)",
+      "description": "Mean token-weighted cache-hit rate across the selected persona×model set. Healthy target for Phase-2b: >= 0.40 (40% of input tokens served from prompt cache). Below 0.20 suggests the cache_control breakpoints are not landing in stable system-prompt prefixes.",
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 16},
+      "targets": [
+        {
+          "expr": "avg(persona_engine_cache_hit_rate{persona=~\"$persona\", model=~\"$model\"})",
+          "legendFormat": "mean",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "orange", "value": 0.2},
+              {"color": "green", "value": 0.4}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "bargauge",
+      "title": "Cache hit-rate per Persona",
+      "description": "Token-weighted cache-hit rate aggregated by persona (collapsing model dimension via weighted avg). Personas with persistent low hit-rate are candidates for prompt-stabilisation work.",
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 16},
+      "targets": [
+        {
+          "expr": "sum by (persona) (persona_engine_cache_read_tokens_total{persona=~\"$persona\", model=~\"$model\"}) / clamp_min(sum by (persona) (persona_engine_cache_total_input_tokens{persona=~\"$persona\", model=~\"$model\"}), 1)",
+          "legendFormat": "{{persona}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "orange", "value": 0.2},
+              {"color": "green", "value": 0.4}
+            ]
+          }
+        }
+      },
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal"
+      }
+    },
+    {
+      "id": 9,
+      "type": "bargauge",
+      "title": "Cache hit-rate per Model",
+      "description": "Token-weighted cache-hit rate aggregated by model. Distinct from per-persona view; surfaces if a particular model class (e.g. opus vs haiku) systematically benefits more or less from caching.",
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 16},
+      "targets": [
+        {
+          "expr": "sum by (model) (persona_engine_cache_read_tokens_total{persona=~\"$persona\", model=~\"$model\"}) / clamp_min(sum by (model) (persona_engine_cache_total_input_tokens{persona=~\"$persona\", model=~\"$model\"}), 1)",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "orange", "value": 0.2},
+              {"color": "green", "value": 0.4}
+            ]
+          }
+        }
+      },
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal"
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Cache hit-rate over time (per persona×model)",
+      "description": "Time-series view of persona_engine_cache_hit_rate. Step changes after a release correlate with prompt-stability regressions; a sustained drop after a deploy is the canonical signal to roll back the prompt change.",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 23},
+      "targets": [
+        {
+          "expr": "persona_engine_cache_hit_rate{persona=~\"$persona\", model=~\"$model\"}",
+          "legendFormat": "{{persona}} / {{model}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": ["lastNotNull", "mean", "min"]
+        }
+      }
+    },
+    {
+      "id": 300,
+      "type": "row",
+      "title": "Top-Cost Personas",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 31},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 11,
+      "type": "table",
+      "title": "Top-10 Personas by accumulated cost (cache aggregator view)",
+      "description": "Personas ranked by accumulated USD spent on uncached input + cache-creation. Derived from cache-aggregator (persona-labelled). Cost-aggregator alone has no persona dimension, so this table is the canonical per-persona cost view. Use to identify candidates for prompt-cache tuning or model-tier downgrade.",
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 32},
+      "targets": [
+        {
+          "expr": "topk(10, sum by (persona) (persona_engine_cache_creation_cost_usd{persona=~\"$persona\", model=~\"$model\"}) + sum by (persona) (persona_engine_cache_read_savings_usd{persona=~\"$persona\", model=~\"$model\"} * 0))",
+          "legendFormat": "{{persona}}",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "topk(10, sum by (persona) (persona_engine_cache_read_savings_usd{persona=~\"$persona\", model=~\"$model\"}))",
+          "legendFormat": "{{persona}}",
+          "refId": "B",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "topk(10, sum by (persona) (persona_engine_cache_bilance_usd{persona=~\"$persona\", model=~\"$model\"}))",
+          "legendFormat": "{{persona}}",
+          "refId": "C",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "bargauge",
+      "title": "Top-10 Personas by record-count (call volume)",
+      "description": "Per-persona aggregated record-count (number of structured-JSON log entries). Surfaces call-volume hot-spots; complements the cost ranking because a high-record-count persona with low cost is well-cached, while high-record + high-cost is a Sonnet/Haiku-migration candidate.",
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 32},
+      "targets": [
+        {
+          "expr": "topk(10, sum by (persona) (persona_engine_cache_record_count_total{persona=~\"$persona\", model=~\"$model\"}))",
+          "legendFormat": "{{persona}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal"
+      }
+    },
+    {
+      "id": 400,
+      "type": "row",
+      "title": "Cost-Trend 7d with Cache-Savings Overlay",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 41},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Cost-Trend 7d (total USD vs cache savings)",
+      "description": "Dual-line view: (a) total USD spend across all selected models, (b) total USD saved by cache-read serving vs the full input-rate (sum of persona_engine_cache_read_savings_usd). The gap between the lines is real-money-not-spent; a shrinking gap after a release is a prompt-stability regression.",
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 42},
+      "targets": [
+        {
+          "expr": "sum(persona_engine_cost_usd{model=~\"$model\"})",
+          "legendFormat": "Spend (USD)",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(persona_engine_cache_read_savings_usd{persona=~\"$persona\", model=~\"$model\"})",
+          "legendFormat": "Cache savings (USD, would-have-been-spent)",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(persona_engine_cache_bilance_usd{persona=~\"$persona\", model=~\"$model\"})",
+          "legendFormat": "Cache bilance (savings - creation cost)",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4,
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": ["lastNotNull", "max", "delta"]
+        }
+      }
+    },
+    {
+      "id": 14,
+      "type": "stat",
+      "title": "Cache bilance (selection, net USD)",
+      "description": "Net cache bilance across selection: cache_read_savings_usd - cache_creation_cost_usd. Positive = caching pays off in current workload. Negative for a sustained window = prompt-cache breakpoints are mis-placed and the cache-creation tax exceeds the read savings.",
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 51},
+      "targets": [
+        {
+          "expr": "sum(persona_engine_cache_bilance_usd{persona=~\"$persona\", model=~\"$model\"})",
+          "legendFormat": "bilance",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "orange", "value": 0},
+              {"color": "green", "value": 1}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 15,
+      "type": "stat",
+      "title": "Cache savings (selection, USD)",
+      "description": "Gross USD savings from cache-read path vs paying the full input rate, across selection.",
+      "gridPos": {"h": 5, "w": 8, "x": 8, "y": 51},
+      "targets": [
+        {
+          "expr": "sum(persona_engine_cache_read_savings_usd{persona=~\"$persona\", model=~\"$model\"})",
+          "legendFormat": "savings",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "green", "value": 0.01}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 16,
+      "type": "stat",
+      "title": "Cache creation cost (selection, USD)",
+      "description": "USD spent writing tokens into the prompt cache across selection. This is the cache-tax; only worth paying if the read-savings panel exceeds it (panel 14 positive).",
+      "gridPos": {"h": 5, "w": 8, "x": 16, "y": 51},
+      "targets": [
+        {
+          "expr": "sum(persona_engine_cache_creation_cost_usd{persona=~\"$persona\", model=~\"$model\"})",
+          "legendFormat": "creation cost",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "orange", "value": 5},
+              {"color": "red", "value": 25}
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
