@@ -7,7 +7,7 @@
 # Generates a small synthetic event spool, walks the production
 # pipeline (build -> stamp -> verify-pending), optionally waits for
 # the upgrade-to-Bitcoin window, and exits with the same code shape
-# as ``wakir-verify``:
+# as ``wakir-wat-verify``:
 #
 #   0  finalised on Bitcoin (verified end to end)
 #   1  failed (proof or receipt mismatch, missing manifest, ...)

@@ -105,6 +105,27 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Cross-repo bridge to the Apache-2.0 brand-proof verifier.
+#
+# After ADR-0062 Cut-1 the offline verifier substance (4-pole
+# external-verifier + Merkle-Read-Half + manifest reader) was
+# consolidated into `wakir-labs/wakir-verify` as a standalone
+# Apache-2.0 PyPI package. The runtime no longer ships the offline-
+# verifier code itself; downstream consumers that want the public
+# brand-proof tool install it explicitly via:
+#
+#     pip install 'wakir-runtime[verify]'
+#
+# The in-tree BUSL-1.1 server-side convenience verifier
+# (`wat/verify/cli.py`, console-script `wakir-wat-verify`) stays as
+# hosted-service substrate and is a strictly distinct surface — see
+# `docs/decisions/cut1-verifier-substance-classification.md`.
+#
+# PyPI: https://pypi.org/project/wakir-verify/  (URL-200-stamp pending
+#       initial 0.1.0 publish; see Tomás Cut-1 Tag-1 outbox PyPI gate).
+verify = [
+    "wakir-verify>=0.1.0",
+]
 test = [
     "pytest>=8.0",
     # JSON Schema validation for Wirelang Layer 0/1/2 conformance tests.
@@ -284,7 +305,22 @@ persona-engine-observability = [
 [project.scripts]
 wakir-merkle = "wat.cmd.aggregator_cli:main"
 wakir-anchor = "wat.cmd.anchor_cli:main"
-wakir-verify = "wat.verify.cli:main"
+# Server-side WAT-pipeline convenience verifier (BUSL-1.1). Operator-
+# facing tool that runs against the local manifest store and chains
+# OTS-receipt verification end-to-end. Originally exposed as
+# `wakir-verify` console script; renamed to `wakir-wat-verify` in
+# ADR-0062 Cut-1 follow-up (Reza-Hand 2026-05-16) so the name does
+# not collide with the Apache-2.0 offline brand-proof verifier that
+# now ships as a standalone PyPI package `wakir-verify`. The two
+# verifiers serve disjoint contracts:
+#   - `wakir-verify`     (Apache-2.0, wakir-labs/wakir-verify) —
+#       offline, third-party, no Wakir-runtime state required.
+#   - `wakir-wat-verify` (BUSL-1.1, this script) — operator-facing,
+#       requires access to the per-hour manifest archive directory.
+# See `docs/decisions/cut1-verifier-substance-classification.md`
+# for the substance-classification rationale and the disjoint-
+# contract argument.
+wakir-wat-verify = "wat.verify.cli:main"
 # Doppel-Audit-Trail bridge-writer CLI (Sprint-9 Tag-1, Migrations-
 # Plan-Schritt 5); see wat/anchor/bridge_audit_writer.py.
 wakir-bridge-audit-write = "wat.cmd.bridge_audit_cli:main"
