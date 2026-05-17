@@ -114,6 +114,20 @@
 #   flag the spots where a future `wirelang/federation/federation_frame.py`
 #   must byte-match. Added 2026-05-17.
 #
+# - persona-engine-v907-recompute-bench : Sprint-V907-Recompute-Bench-MINI
+#   (Phase-3a Modul 14). Performance-benchmark crate for the V-907
+#   engine-side persona-hash recompute path. Sits ABOVE
+#   `persona-engine-v907-verify` (Crate-13) as a pure measurement layer;
+#   does NOT introduce a second hash implementation. Provides:
+#   `BenchRunner::run_recompute_batch(personas, iterations) -> BenchReport`
+#   with min/max/p50/p95/p99 latency in microseconds and a
+#   deterministic allocation-count estimator (`22 allocs/call` upper
+#   bound). Carries `criterion 0.5.1` as a per-crate dev-dep only (not
+#   workspace-level) for `benches/v907_recompute.rs`. JSON-output
+#   schema `"v907-recompute-bench-v1"` is the cross-lang compare
+#   contract for the planned Python pendant (Phase-3a Modul 15).
+#   Added 2026-05-17.
+#
 # Default-Lock posture (pengine-eng engine-side, ratified 2026-05-07 ~10:00 CEST)
 # ------------------------------------------------------------------------
 #
@@ -152,6 +166,7 @@ members = [
     "crates/persona-engine-nats-subjects",
     "crates/persona-engine-bridge-audit-replay",
     "crates/persona-engine-federation-frame-parser",
+    "crates/persona-engine-v907-recompute-bench",
 ]
 
 [workspace.package]
