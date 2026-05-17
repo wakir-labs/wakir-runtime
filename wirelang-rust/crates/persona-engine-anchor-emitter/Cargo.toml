@@ -1,0 +1,128 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wakir-Runtime / wirelang Rust workspace — persona-engine-anchor-emitter crate.
+#
+# Purpose
+# -------
+# Rust pendant of the WAT anchor-envelope emitter — the
+# pre-OTS-spool stage that takes an in-engine event (event_id +
+# UTC timestamp + persona_id + payload) and produces the
+# JCS-canonical envelope bytes plus the SHA-256 payload hash
+# that downstream WAT spool / Merkle / OTS pipelines key on.
+#
+# Schema-parity authority is the Python helper pair in
+# `wirelang/persona/recovery_drill_anchor.py` (Selin / Reza
+# Sprint-Pengine-7 Tag-5 OI-PILOT-4 + OI-PEF-11):
+#
+#   - `envelope_jcs_bytes(envelope) -> bytes`
+#     Returns the RFC 8785 JCS-canonical bytes for an envelope
+#     (uses `rfc8785` when available; falls back to
+#     `json.dumps(sort_keys=True, separators=(',',':'),
+#     ensure_ascii=False)` otherwise).
+#   - `envelope_payload_hash(envelope) -> str`
+#     Returns `hashlib.sha256(envelope_jcs_bytes(envelope)).hexdigest()`.
+#
+# Both helpers are also the canonical-payload-hash boundary that
+# `wat/anchor/bridge_audit_writer.py` consumes when spooling an
+# anchored event to the WAT spool root. This crate exposes a Rust
+# pendant of that boundary so the Phase-3a 3-way-triangle
+# (Doppelbetrieb) can diff Python-side and Rust-side anchor
+# envelopes byte-for-byte before either reaches the OTS calendar.
+#
+# Schema parity table (Python <-> Rust)
+# -------------------------------------
+#   Python `envelope_jcs_bytes`             <-> Rust `serialize_anchor`
+#                                               (`fn (env) -> Vec<u8>`)
+#   Python `envelope_payload_hash`          <-> Rust `hash_anchor`
+#                                               (`fn (env) -> String`,
+#                                                returns `"sha256:<hex>"`)
+#   Python envelope `dict`                  <-> Rust `AnchorEnvelope`
+#                                               struct (event_id +
+#                                                timestamp_utc +
+#                                                persona_id +
+#                                                payload_jcs_bytes)
+#   Python helper signature `(envelope) -> str / bytes`
+#                                           <-> Rust `build_anchor_envelope`
+#                                               (`fn (input) ->
+#                                                AnchorEnvelope`)
+#
+# Hash-prefix contract
+# --------------------
+# `hash_anchor` returns the string `"sha256:<lower-case-64-hex>"`. The
+# Python `envelope_payload_hash` returns the bare hex; the
+# WAT-spool boundary that consumes that hex (the
+# `payload_hash=` kwarg of `write_bridge_audit`) accepts both the
+# bare-hex and the `sha256:`-prefixed forms via the WAT-spool
+# normaliser. The Rust pendant uses the prefixed form by default
+# because the Sprint-Auftrag explicitly specifies it
+# (`"sha256:<hex>"`); the cross-lang smoke test pins both: the
+# prefixed Rust output AND the bare-hex Python form, so any drift
+# on either side is caught.
+#
+# Wire-string discipline
+# ----------------------
+# JCS canonicalisation guarantees deterministic byte output for a
+# given semantic value. We therefore pin the *bytes* — not the
+# string representation — for the cross-lang test vectors. The
+# Rust `serialize_anchor` output for a fixture envelope is
+# pinned, and a sibling test asserts that the byte vector is also
+# the SHA-256 input that `hash_anchor` computes over (no
+# duplicated canonicalisation).
+#
+# ADR anchors
+# -----------
+# - ADR-0063 §Folgeartefakte Phase-3a Item 7 (this crate).
+# - Selin / Reza Sprint-Pengine-7 Tag-5 OI-PILOT-4 + OI-PEF-11 —
+#   recovery_drill_anchor.py is the helper-pair authority.
+# - Selin PR #131 (bridge-diff-rust) — cross-lang-hash-pin
+#   precedent (the FSM PR #137 and bridge-diff PR #131 patterns
+#   both pin the SHA-256 hex tail across Rust + Python).
+# - Reza PR #137 (persona-engine-fsm) — most recent sibling crate;
+#   workspace-pin pattern adopted here.
+# - WAT module `wat/anchor/__init__.py` — downstream consumer of
+#   the canonical payload bytes (OTS-Merkle-root substrate).
+#
+# Versioning rationale (verified HTTP-200 against crates.io API on
+# 2026-05-17 02:18 CEST):
+# - serde      =1.0.219 : derive macros for AnchorEnvelope round-trip.
+# - serde_json =1.0.140 : envelope tree construction (preserve_order
+#                         feature for JCS-friendly Map ordering).
+# - serde_jcs  =0.2.0   : RFC 8785 JCS canonicaliser; matches the
+#                         workspace pin and the Phase-1c
+#                         persona-canonical-form crate that the
+#                         Python `rfc8785` helper round-trips against.
+# - sha2       =0.10.8  : SHA-256 implementation; matches the
+#                         workspace pin and the Python
+#                         `hashlib.sha256` stdlib semantics.
+# - hex        =0.4.3   : lower-case hex emission to match Python
+#                         `hashlib.sha256().hexdigest()` shape.
+#
+# Hard-Constraints (per Sprint-Auftrag)
+# -------------------------------------
+# - No touches to `wat/anchor/` (Python tree stays unchanged).
+# - No LICENSING / NOTICE / .github/workflows touches.
+# - `cargo test -p persona-engine-anchor-emitter` must run green.
+# - Single-PR-Bundle against `wakir-runtime/main`.
+# - >=8 smoke tests + cross-lang hash pins.
+
+[package]
+name = "persona-engine-anchor-emitter"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "Apache-2.0"
+repository = "https://github.com/wakir-labs/wakir-runtime"
+authors = ["Reza Tehrani <reza@wakir.local>"]
+description = "Rust pendant of the WAT anchor-envelope emitter (JCS-canonical bytes + SHA-256 payload hash; parity with envelope_jcs_bytes/envelope_payload_hash in wirelang/persona/recovery_drill_anchor.py)."
+publish = false
+
+[lib]
+name = "persona_engine_anchor_emitter"
+path = "src/lib.rs"
+
+[dependencies]
+serde      = { workspace = true }
+serde_json = { workspace = true }
+serde_jcs  = { workspace = true }
+sha2       = { workspace = true }
+hex        = { workspace = true }
