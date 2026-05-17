@@ -1,13 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Phase-2 Acceptance Gate — Doppelbetrieb-Score-Aggregator (Tag-22 Mini-Welle)
+# Phase-2 Acceptance Gate — Doppelbetrieb-Score-Aggregator
+#   (Tag-22 Mini-Welle, extended Tag-29 / ADR-0066 KW-26-Mitigation)
 # --------------------------------------------------------------------------
 #
 # Daily scheduled gate that drives the doppelbetrieb-score-aggregator
-# (PR #160) end-to-end and surfaces the eight-axis rollup as a CI
-# artifact + GITHUB_STEP_SUMMARY table. Operations-readiness signal
-# for Phase-2 Doppelbetrieb — Henrik samples weekly, the gate keeps
-# the rollup tight between samples.
+# (PR #160, extended at Tag-29 to schema /2 with three Cross-Modul-
+# Stress-Test axes per ADR-0066) end-to-end and surfaces the 11-axis
+# rollup as a CI artifact + GITHUB_STEP_SUMMARY table. Operations-
+# readiness signal for Phase-2 Doppelbetrieb + pre-cutover Cross-
+# Modul drift detection for the KW-26 (Welle-4+5) and KW-27 (Welle-
+# 6+7) Doppel-Wellen — Henrik samples weekly, the gate keeps the
+# rollup tight between samples.
 #
 # Distinction from `phase-2-validation-gate.yml`
 # ----------------------------------------------
@@ -18,12 +22,12 @@
 # check on branch-protection.
 #
 # This workflow is the *operations* gate: it runs the aggregator
-# against the eight-axis rollup (five Phase-2 gates + three
-# Phase-3a-Foundation axes), threshold-checks the total score, and
-# emits the canonical JSON envelope as a build artifact. It is NOT
-# wired as a required status check (per Mira/Operator-Hand boundary —
-# branch-protection settings stay outside this PR; see
-# `feedback_branch_protection_check_names.md`).
+# against the 11-axis rollup (five Phase-2 gates + three Phase-3a-
+# Foundation axes + three Tag-29 Cross-Modul-Stress-Test axes),
+# threshold-checks the total score, and emits the canonical JSON
+# envelope as a build artifact. It is NOT wired as a required status
+# check (per Mira/Operator-Hand boundary — branch-protection settings
+# stay outside this PR; see `feedback_branch_protection_check_names.md`).
 #
 # Trigger surface
 # ---------------
@@ -41,25 +45,38 @@
 #   already covered by `phase-2-validation-gate.yml`; running this
 #   workflow on every PR would duplicate work and slow the PR-Tab.
 #
-# Threshold floor (--threshold 6)
-# -------------------------------
+# Threshold floor (--threshold 9, extended Tag-29)
+# ------------------------------------------------
 #
-# The aggregator's default threshold is `sum(weights) == 8` —
-# strictest possible. The CI gate sets `--threshold 6` to match the
-# Tag-22 ops-readiness contract: "at least six of eight axes green;
-# below that is a hard fail." Two non-fatal axis-misses give Henrik
-# room to land an axis-fix without a red main-branch, while three
-# misses surface as a hard regression. The threshold lives in the
-# workflow (not the aggregator default) so individual operator-runs
-# can keep the strict 8/8 default; only the *daily ops gate* relaxes
-# to 6/8.
+# The aggregator's default threshold (Tag-29) is `sum(weights) == 11`
+# — strictest possible. The CI gate sets `--threshold 9` to match
+# the post-Tag-29 ops-readiness contract: "at least nine of eleven
+# axes green; below that is a hard fail." Two non-fatal axis-misses
+# give Henrik room to land an axis-fix without a red main-branch,
+# while three misses surface as a hard regression. The threshold
+# lives in the workflow (not the aggregator default) so individual
+# operator-runs can keep the strict 11/11 default; only the *daily
+# ops gate* relaxes to 9/11.
+#
+# Cross-Modul-Stress mode (workflow_dispatch input)
+# -------------------------------------------------
+#
+# ADR-0066 §"Cross-Modul-Drift-Detection für Doppel-Wellen" — the
+# operator can dispatch this workflow with `mode=cross-modul-stress`
+# ahead of a parallel-welle cutover Mittwoch (KW 24 / KW 26 / KW 27)
+# to evaluate only the three Cross-Modul axes as a pre-cutover smoke
+# gate. The non-Cross-Modul axes are flagged ``axis-missing`` in the
+# rollup; threshold defaults to 3 in that mode (one per axis).
 #
 # Anchors
 # -------
 # * ADR-0058 §"Phase 2 — Doppelbetrieb (Wochen 1-4)"
+# * ADR-0066 §"Cross-Modul-Drift-Detection für Doppel-Wellen"
 # * PR #160 (Tomás, Tag-15) — score-aggregator substrate
+# * PR #178 (Tomás, Tag-22) — this workflow's substrate
+# * Tag-29 extension — three Cross-Modul-Stress-Test axes
 # * `scripts/doppelbetrieb-score-aggregator.py`
-# * `docs/operations/phase-2-acceptance-gate.md` (this PR)
+# * `docs/operations/phase-2-acceptance-gate.md`
 #
 # Sandbox boundary
 # ----------------
@@ -76,9 +93,13 @@ on:
   workflow_dispatch:
     inputs:
       threshold:
-        description: "Pass threshold (default 6; strict run uses 8)"
+        description: "Pass threshold (default 9; strict run uses 11)"
         required: false
-        default: "6"
+        default: "9"
+      mode:
+        description: "Aggregator mode: full | cross-modul-stress | cross-lang-only"
+        required: false
+        default: "full"
   push:
     branches:
       - main
@@ -88,6 +109,10 @@ on:
       - "tests/infra/test_phase_2_acceptance_gates.py"
       - "tests/integration/test_bridge_audit_roundtrip_e2e.py"
       - "tests/federation/fixtures/federation_frame_cross_lang_pins.json"
+      - "tests/fixtures/state-backing-cross-lang/fixtures.json"
+      - "tests/fixtures/lifecycle-state-machine-cross-lang/fixtures.json"
+      - "tests/fixtures/subscribe-loop-cross-lang/fixtures.json"
+      - "tests/fixtures/recovery-workflow-cross-lang/fixtures.json"
       - "wat/anchor/latency_emitter.py"
       - ".github/workflows/phase-2-acceptance-gate.yml"
 
@@ -119,26 +144,38 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e . "pytest>=8.0"
 
-      - name: Resolve threshold input
-        id: threshold
-        # workflow_dispatch may pass a custom threshold; schedule and
-        # push use the daily-ops default of 6/8. The aggregator's own
-        # default (8/8) is reserved for ad-hoc operator runs outside
-        # CI.
+      - name: Resolve mode + threshold inputs
+        id: resolve
+        # workflow_dispatch may pass a custom mode + threshold;
+        # schedule and push use the daily-ops defaults (mode=full,
+        # threshold=9/11). The aggregator's own default (11/11) is
+        # reserved for ad-hoc operator runs outside CI.
         #
-        # `github.event.inputs.threshold` is the portable form — it
-        # expands to "" for schedule/push, to the dispatched value
-        # only on workflow_dispatch.
+        # When mode=cross-modul-stress the per-axis weight sum is 3,
+        # so we floor the threshold at 3 in that branch — the
+        # operator can override by passing a dispatch input.
+        #
+        # `github.event.inputs.*` is the portable form — it expands
+        # to "" for schedule/push, to the dispatched value only on
+        # workflow_dispatch.
         env:
           THRESHOLD_INPUT: ${{ github.event.inputs.threshold }}
+          MODE_INPUT: ${{ github.event.inputs.mode }}
         run: |
+          MODE="${MODE_INPUT:-full}"
           if [ -n "${THRESHOLD_INPUT}" ]; then
-            echo "value=${THRESHOLD_INPUT}" >> "$GITHUB_OUTPUT"
+            THRESHOLD="${THRESHOLD_INPUT}"
+          elif [ "${MODE}" = "cross-modul-stress" ]; then
+            THRESHOLD=3
+          elif [ "${MODE}" = "cross-lang-only" ]; then
+            THRESHOLD=1
           else
-            echo "value=6" >> "$GITHUB_OUTPUT"
+            THRESHOLD=9
           fi
+          echo "mode=${MODE}" >> "$GITHUB_OUTPUT"
+          echo "threshold=${THRESHOLD}" >> "$GITHUB_OUTPUT"
 
-      - name: Run doppelbetrieb-score-aggregator (mode=full)
+      - name: Run doppelbetrieb-score-aggregator
         id: aggregator
         # `continue-on-error: true` so the threshold check still emits
         # the JSON artifact + the step-summary table even when the
@@ -149,8 +186,8 @@ jobs:
         run: |
           mkdir -p out
           python scripts/doppelbetrieb-score-aggregator.py \
-            --mode=full \
-            --threshold "${{ steps.threshold.outputs.value }}" \
+            --mode="${{ steps.resolve.outputs.mode }}" \
+            --threshold "${{ steps.resolve.outputs.threshold }}" \
             --out out/phase-2-acceptance-rollup.json
           echo "rc=$?" >> "$GITHUB_OUTPUT"
 
@@ -191,7 +228,7 @@ jobs:
               threshold = d.get("threshold", "?")
               verdict = "PASS" if d.get("threshold_pass") else "FAIL"
               lines += [
-                  f"**Total score:** {total}/8  -  "
+                  f"**Total score:** {total}/11  -  "
                   f"**Threshold:** {threshold}  -  "
                   f"**Verdict:** {verdict}",
                   "",
