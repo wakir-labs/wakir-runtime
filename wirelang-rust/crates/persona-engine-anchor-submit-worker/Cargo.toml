@@ -1,0 +1,131 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wakir-Runtime / wirelang Rust workspace —
+# persona-engine-anchor-submit-worker crate.
+#
+# Purpose
+# -------
+# Production-loop substrate that consumes `AnchorEnvelope` records
+# produced by `persona-engine-anchor-emitter` (PR #141, merged) and
+# submits them to an OpenTimestamps calendar endpoint with:
+#
+#   - per-endpoint rate-limiting (token-bucket, default 1 req / 30 s),
+#   - exponential retry-backoff with full jitter (default 5 attempts),
+#   - dead-letter queue capture after the retry budget is exhausted,
+#   - WAT-record-writeback hook (`WriteBackSink` trait) once submission
+#     succeeds.
+#
+# This crate is the *deterministic substrate* for the production loop;
+# it does not open a socket to an OTS calendar. Live binding is the
+# Phase-3c follow-up (mirrors the `async-nats` posture of the
+# `persona-engine-subscribe-loop` crate). Smoke-tests drive the worker
+# via an injected `SubmitTransport` trait so the FSM is exercised end-
+# to-end with deterministic clock + RNG.
+#
+# Public surface
+# --------------
+#   - `SubmitWorker::new(config) -> Self`
+#   - `SubmitWorker::tick().await -> SubmitResult`
+#     Pull one ready `AnchorEnvelope` from the in-memory queue, attempt
+#     submission, advance the retry-FSM by one step, return the
+#     `SubmitResult` of *this* tick. Pure step-function (single-step
+#     determinism for tests).
+#   - `SubmitResult` enum: `Success` / `Throttled` / `Retrying` /
+#     `Dead` / `Idle`.
+#     `Idle` is added on top of the four Sprint-Auftrag variants
+#     because `tick()` must have *some* return value when the queue is
+#     empty (and tests need to assert that no side-effects fire in
+#     that case).
+#   - `SubmitTransport` trait — caller-supplied OTS-submit fake/live.
+#   - `DeadLetterStore` trait + `InMemoryDeadLetterStore` impl.
+#   - `WriteBackSink` trait + `NoopWriteBackSink` (default).
+#   - `Clock` + `Rng` traits — deterministic-clock / deterministic-RNG
+#     substrate for the smoke-test surface.
+#
+# Hard-Constraints (per Tag-13 Mini-Welle Sprint-Auftrag)
+# -------------------------------------------------------
+#   - No touches to `wat/anchor/` (Python tree stays unchanged).
+#   - No touches to LICENSING / NOTICE / .github/workflows.
+#   - Dep on `persona-engine-anchor-emitter` for the `AnchorEnvelope`
+#     type (no re-definition).
+#   - `cargo test -p persona-engine-anchor-submit-worker` must run
+#     green.
+#   - 14+ smoke tests covering rate-limit-honored, retry-monotonic-
+#     backoff, dead-letter-after-max, success-fast-path, throttle-no-
+#     side-effects (and additional FSM corner cases).
+#   - Single-PR-Bundle against `wakir-runtime/main`.
+#   - No `shamir` / `rfc8785-rs` / `ring` deps.
+#
+# Environment knobs
+# -----------------
+#   - `WAKIR_ANCHOR_SUBMIT_RATE` — token-bucket refill rate as
+#     "requests per N seconds", parsed via
+#     `SubmitWorkerConfig::from_env`. Default: `1 / 30s`.
+#   - `WAKIR_ANCHOR_MAX_RETRY` — non-negative `u32`, max retry
+#     attempts (capped at 5 by default).
+#
+# Schema parity authority
+# -----------------------
+# No direct Python sibling exists yet (2026-05-17). The production-
+# loop semantics are pinned by this crate; a future
+# `wirelang/persona/anchor_submit_worker.py` (if added) must
+# byte-match the FSM-transition table embedded in the smoke-test
+# fixtures.
+#
+# ADR anchors
+# -----------
+# - ADR-0063 §Folgeartefakte Phase-3a Modul 12 (this crate).
+# - Reza PR #141 (persona-engine-anchor-emitter, merged) — the
+#   `AnchorEnvelope` type producer this crate consumes.
+# - Reza PR #137 (persona-engine-fsm) — FSM-step-function precedent
+#   adopted here.
+# - Reza PR #120 (persona-engine-subscribe-loop) — async-trait +
+#   injected-transport precedent.
+# - Tomás `wat/anchor/` substrate — downstream WAT spool that
+#   consumes the writeback record once OTS-submit succeeds.
+#
+# Versioning rationale (HTTP-200-verified against crates.io on
+# 2026-05-17 03:08 CEST):
+# - tokio       =1.52.3  : matches workspace-wide pin used by
+#                          subscribe-loop / recovery / state-backing.
+# - async-trait =0.1.89  : trait-object compatibility for
+#                          `SubmitTransport` / `DeadLetterStore` /
+#                          `WriteBackSink` / `Clock`.
+# - serde       =1.0.219 : workspace pin (used for `SubmitWorkerConfig`
+#                          + `DeadLetterRecord` derive only).
+# - serde_json  =1.0.140 : workspace pin (DeadLetterRecord round-trip
+#                          smoke test).
+# - persona-engine-anchor-emitter (path dep) : `AnchorEnvelope` type
+#                          producer (PR #141, merged).
+
+[package]
+name = "persona-engine-anchor-submit-worker"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "Apache-2.0"
+repository = "https://github.com/wakir-labs/wakir-runtime"
+authors = ["Reza Tehrani <reza@wakir.local>"]
+description = "Production-loop substrate for WAT anchor submission: rate-limit + retry-backoff + dead-letter-queue + writeback hook on top of persona-engine-anchor-emitter envelopes."
+publish = false
+
+[lib]
+name = "persona_engine_anchor_submit_worker"
+path = "src/lib.rs"
+
+[dependencies]
+# AnchorEnvelope producer (path dep within the workspace).
+persona-engine-anchor-emitter = { path = "../persona-engine-anchor-emitter" }
+
+# Async runtime.
+tokio = { version = "=1.52.3", features = ["rt-multi-thread", "macros", "sync", "time"] }
+
+# Trait-object async-fn substrate.
+async-trait = "=0.1.89"
+
+# Workspace serde for DeadLetterRecord + SubmitWorkerConfig derive.
+serde      = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tokio = { version = "=1.52.3", features = ["rt-multi-thread", "macros", "sync", "time", "test-util"] }

@@ -1,0 +1,111 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# persona-engine-v907-recompute-bench — performance benchmark crate for
+# V-907 engine-side persona-hash recomputation (Phase-3a Modul 14).
+#
+# Layer position
+# --------------
+# This crate is the *measurement* layer above `persona-engine-v907-verify`
+# (Crate-13). It does not introduce any new hash logic; every pin is
+# computed by `persona_engine_v907_verify::compute_v907_pin`, which is
+# the byte-for-byte Python pendant. The bench crate's job is to:
+#
+#   1. Load a corpus of persona-definition fixtures (synthetic + real).
+#   2. Time the recompute path over N iterations, on a corpus of K
+#      personas.
+#   3. Emit a `BenchReport` with min/max/p50/p95/p99 latency in
+#      microseconds, plus a derived allocation-count estimate.
+#   4. Optionally serialise the report as JSON for cross-language
+#      comparison against the future Python pendant (Phase-3a Modul 15
+#      follow-on, planned but not in scope for this crate).
+#
+# Why a dedicated bench crate (and not just `benches/` inside Crate-13)?
+# ---------------------------------------------------------------------
+# - The bench logic itself needs unit tests (percentile correctness,
+#   batch-size scaling, fixture-loading determinism). Putting those in
+#   the v907-verify crate would conflate "verify" with "measurement".
+# - The cross-lang JSON output format is a stable contract that the
+#   Python pendant will mirror; it deserves its own crate boundary so
+#   the JSON schema is not buried inside benches/ where it would be
+#   harder to discover.
+# - Criterion as a dev-dep is bench-only and would otherwise leak into
+#   v907-verify's dev-tree without need.
+#
+# Determinism + reproducibility
+# -----------------------------
+# - Synthetic fixtures are deterministic (seeded constructor; same inputs
+#   produce the same persona text byte-for-byte across runs).
+# - Real fixtures live under
+#   `tests/fixtures/v907_pin_pack/<slug>.md` and are committed into the
+#   repo. The bench crate copies them in via `include_str!` so the
+#   binary is fully self-contained and no path-dependent IO is needed at
+#   benchmark time.
+# - Percentile arithmetic uses integer nanoseconds internally to avoid
+#   floating-point drift between machines; the public API surfaces
+#   microsecond u64 fields.
+#
+# Default-Lock posture (Sprint-V907-Recompute-Bench-MINI, Phase-3a
+# Modul 14)
+# -----------------------------------------------------------------
+# - A-1 Measurement-only baseline: this crate does NOT introduce a
+#   second hash implementation. Every pin is computed by
+#   `persona_engine_v907_verify::compute_v907_pin`. A drift between
+#   Python and Rust is detected by the existing Crate-13 cross-lang
+#   anchor pins, not by this crate.
+# - A-2 Additiv-only: added next to existing roster; Python is
+#   UNCHANGED. The Python-pendant `python_bench.py` is a Phase-3a
+#   follow-on (Modul 15) and lives outside this PR.
+# - A-3 Body out-of-hash: synthetic fixtures honour the body-out-of-hash
+#   invariant by varying body bytes between rounds when requested.
+#
+# ADR anchors
+# -----------
+# - ADR-0063 §Folgeartefakte Phase-3a — Rust-Crate-Bundle Item 14
+#   (recompute benchmark + JSON output for cross-lang compare).
+# - PR #136 (persona-engine-v907-verify merged) — direct dependency.
+# - Sprint-Pengine-7 Tag-1 Crate-8 (persona-engine-format) — same
+#   axis-A surface.
+#
+# Criterion as dev-dep
+# --------------------
+# `criterion 0.5` is the de-facto Rust micro-benchmark harness. It is
+# carried as a per-crate dev-dep (NOT workspace-level) because no other
+# crate in the workspace currently runs benchmarks; pulling it into
+# `[workspace.dependencies]` would broaden the dev-tree of unrelated
+# crates with no benefit. The `harness = false` setting on
+# `benches/v907_recompute.rs` disables the default libtest harness so
+# Criterion can install its own.
+
+[package]
+name = "persona-engine-v907-recompute-bench"
+version = "0.1.0"
+description = "V-907 engine-side persona-hash recompute benchmark crate (Phase-3a Modul 14)"
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+
+[lib]
+name = "persona_engine_v907_recompute_bench"
+path = "src/lib.rs"
+
+[dependencies]
+persona-engine-v907-verify = { path = "../persona-engine-v907-verify" }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+# Criterion drives `benches/v907_recompute.rs`. The benchmark binary is
+# explicitly NOT exercised by `cargo test` in CI; CI runs only
+# `cargo build --workspace` + `cargo test --workspace` which compiles
+# but does not execute criterion. To run benches locally:
+#
+#   CARGO_TARGET_DIR=/var/home/fred/AI-Corp/.cargo-target-runtime-tomas-tag13 \
+#     cargo bench -p persona-engine-v907-recompute-bench
+#
+criterion = { version = "=0.5.1", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "v907_recompute"
+harness = false
