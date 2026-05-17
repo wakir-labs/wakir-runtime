@@ -383,6 +383,13 @@ wakir-persona = "wirelang.persona.cli:main"
 # operator helper); future sub-commands such as `inject-synthetic-leaf`
 # attach to the same `wat ...` surface.
 wat = "wat.cli:main"
+# Routing A/B-test diff-CLI (Sprint-AB-Routing-Diff-CLI-MINI, ADR-0064
+# §4). Diffs two structured-JSON routing-event logs (RoutingEvent from
+# heuristic_router + LlmClassifierEvent from llm_classifier) and emits
+# decision-distribution, cost-delta, confidence-histogram + a
+# consistency-PASS/FAIL verdict. See
+# wirelang/persona_engine/routing_diff.py module docstring.
+wakir-routing-diff = "wirelang.persona_engine.routing_diff:main"
 
 [project.urls]
 Homepage = "https://wakir.dev"
