@@ -7,10 +7,14 @@ Copyright (c) 2026 Callandor GmbH and contributors
 
 **Status:** Living operations document.
 **Scope:** All three public repos under `wakir-labs/` org.
-**Last audit:** 2026-05-17 (Kai, Sprint-Branch-Protection-cross-repo-drift-
-Required-MINI; promotes the §4.2 `cross-repo drift` recommendation from
-"future-Mira-Hand follow-up" to **ready-to-apply, Mira-Hand-pending**
-post stable-period of PR #105/#111/#117).
+**Last audit:** 2026-05-17 (Kai, Tag-16 Pfad A path-filter precision-add;
+widened the `cross-repo-drift-audit.yml` path-filter from the original
+4-entry narrow set to an 8-entry set, closing the forever-PENDING
+reach-asymmetry that hit PRs #153, #158, #160, #161 — each one had
+needed an ad-hoc no-op `wirelang/__init__.py` touch as workaround).
+Prior audit: 2026-05-17 (Kai, Sprint-Branch-Protection-cross-repo-
+drift-Required-MINI; promoted §4.2 `cross-repo drift` from "recommendation"
+to "ready-to-apply, Mira-Hand-pending", subsequently applied 04:35 CEST).
 **Source of truth:** `gh api repos/wakir-labs/<repo>/branches/main/protection`.
 
 ---
@@ -170,25 +174,44 @@ The gate enforces that any classification-drift of a wirelang substance
 on `wakir-runtime` is mirrored on `wakir-protocol` or explicitly
 allowlisted in `.cross-repo-drift-allowlist.yaml`.
 
-Its path-filter (after PR #107 expansion):
+Its path-filter (after Tag-16 Pfad A precision-add, 2026-05-17):
 
 ```
 wirelang/**
+wirelang-rust/**
 pyproject.toml
+tests/**
+scripts/**
+dashboards/**
 .cross-repo-drift-allowlist.yaml
 .github/workflows/cross-repo-drift-audit.yml
 ```
 
-Reach analysis (§4.5): the filter covers `wirelang/**` and
-`pyproject.toml`, which together intersect every code-substance PR in
-the repo. Test-only PRs (`tests/**`) do **not** trigger; workflow-only
-PRs (other than this workflow itself) do not trigger; doc-only and
-dashboard-only PRs do not trigger. The reach-asymmetry is acceptable
-because the gate is by intent a substance-level gate (not a test/doc/
-workflow gate). A PR that only touches `tests/**` is by construction
-not a substance-classification PR and does not need the
-cross-repo-drift check. The other Required gates (`wirelang suite`,
-`License-Hygiene Gate`) cover those slices already (§4.5 mapping).
+Reach analysis (§4.5, post-Tag-16): the filter covers `wirelang/**`,
+`wirelang-rust/**`, `pyproject.toml`, `tests/**`, `scripts/**`, and
+`dashboards/**`, which together intersect every code-, test-, and
+dashboard-substance PR in the repo. Doc-only PRs (`docs/**`) and
+foreign-workflow-only PRs (other than this workflow itself) do **not**
+trigger by design: a doc-only PR is not a substance-classification PR
+and a PR that only edits, say, `release.yml` is by construction out-
+of-scope of the cross-repo-drift substance audit. The non-reach is
+acceptable because (a) the gate is by intent a substance-level gate,
+and (b) the other Required gates (`wirelang suite`,
+`License-Hygiene Gate`) cover doc-only PR-class semantics for any
+license/legal-hygiene drift that could ride in via documentation
+edits.
+
+**Tag-16 Pfad A rationale.** The original 4-entry path-filter (only
+`wirelang/**` + `pyproject.toml` + allowlist + own YAML) left every
+PR that did not touch those paths in forever-PENDING — the Required
+context never reported because the workflow never ran. This shape hit
+four PRs in one operator-stretch (#153, #158, #160, #161) and was
+worked around each time by a no-op `wirelang/__init__.py` touch. The
+expansion to the 8-entry filter above is the permanent fix: the
+substance-classification audit itself stays narrow (the job still
+audits only the curated mirror-pair table; the filter only governs
+WHEN the job runs, not WHAT it audits). TV-BPC-13 + TV-BPC-14 pin
+the new shape against accidental re-narrowing.
 
 **Score impact.** Adds a fourth axis to the Sollstellung
 (cross-repo-classification-symmetry) and moves the `wakir-runtime`
@@ -403,7 +426,7 @@ Reach-matrix (✓ = workflow triggers on this PR-class, ✗ = does not):
 | `tests.yml` (wirelang suite) | ✓ | ✓ | ~ (only listed workflows) | ✓ | ✓ |
 | `license-gate.yml` (License-Hygiene) | ✓ | ✓ | ~ (only listed workflows) | ✓ | ✓ |
 | `hash-derivate-gate.yml` | ~ (only schemas+fixtures) | ~ (only its test) | ~ (only itself) | ✗ | ✗ |
-| `cross-repo-drift-audit.yml` | ✓ (via `wirelang/**`) | ✗ | ~ (only itself) | ✗ | ✗ |
+| `cross-repo-drift-audit.yml` (post Tag-16 Pfad A) | ✓ (via `wirelang/**` + `wirelang-rust/**`) | ✓ (via `tests/**`) | ~ (only itself) | ✗ (by design) | ✓ (via `dashboards/**`) |
 | `phase-2-validation-gate.yml` | ~ (only `wirelang/**`) | ~ (only its test) | ~ (only itself) | ~ (only `docs/quality-gates/**`) | ✗ |
 
 Legend: ✓ = full class triggers; ~ = partial trigger; ✗ = no trigger.
@@ -417,16 +440,59 @@ in its own filter). They are appropriate as Required.
 `hash-derivate-gate.yml` has ✗ on the dashboard-only and doc-only
 classes and partial on the rest — **not Required-fit** per §4.4.
 
-`cross-repo-drift-audit.yml` has ✗ on three classes — but its
-purpose is by intent narrow (substance-classification only), and
-the other Required gates already gate the missing classes. It is
-Required-fit **conditionally** (§4.2): operator must confirm via
-one green PR run.
+`cross-repo-drift-audit.yml` (post Tag-16 Pfad A path-filter
+precision-add, 2026-05-17): now ✓ on code-only, test-only, dashboard-
+only; ✗ on doc-only (intentional — see Path-Filter-Reach-Mapping
+below) and on foreign-workflow-only (intentional — by construction
+out-of-scope of the substance audit). Required-fit unconditionally
+under §4.5 reach analysis. Pre-Tag-16 it was ✓ only on code-only and
+classified as conditionally-fit (§4.2-pending); the path-filter
+expansion closed the reach-asymmetry that caused forever-PENDING
+blocks on PRs #153, #158, #160, #161.
 
 `phase-2-validation-gate.yml` is currently not a Required candidate
 and per the reach-matrix it should not become one without a path-filter
 widen (or a deliberate decision that Phase-2 validation only matters
 on `wirelang/**` PRs — defensible but should be explicit).
+
+#### Path-Filter-Reach-Mapping (Tag-16 update, 2026-05-17)
+
+The `cross-repo-drift-audit.yml` workflow path-filter is the
+operational lesson of Tag-16. The original 4-entry narrow filter
+worked-by-design for substance-classification PRs but failed-by-
+design for every other PR-class once the workflow's display-name was
+promoted to a Required-status-check on `wakir-runtime/main` (§4.2,
+2026-05-17 04:35 CEST applied). Every PR that did not touch
+`wirelang/**` or `pyproject.toml` stalled at forever-PENDING and was
+unblocked by an ad-hoc no-op `wirelang/__init__.py` touch (PRs #153,
+#158, #160, #161 — four occurrences in one operator-stretch).
+
+The Tag-16 Pfad A precision-add widens the filter to also cover
+`wirelang-rust/**` (Rust crate sibling of the Python `wirelang/`
+package), `tests/**` (so test-only PRs no longer need the workaround
+touch), `scripts/**` (so scripts-only PRs likewise), and
+`dashboards/**` (so dashboard-only PRs likewise). `doc-only` PRs
+remain non-reach by design: a doc-only PR is not a substance-
+classification PR and the cross-repo-drift gate has no business
+gating it. Foreign-workflow-only PRs (e.g. an edit to `release.yml`)
+also remain non-reach by design.
+
+**Reach-closure regression-anchors.** TV-BPC-09 +
+TV-BPC-11 + TV-BPC-13 + TV-BPC-14 in
+`tests/infra/test_branch_protection_consistency_audit.py` pin the
+post-Tag-16 reach shape. Any future YAML-edit that drops a Pfad-A
+entry surfaces under a single-entry-failure message ("entry X is
+missing") in TV-BPC-13. Any future re-addition of the workflow to
+the narrow-by-design cohort surfaces in TV-BPC-14. Any new
+non-reach drift on the in-scope classes (code-only, test-only,
+dashboard-only) surfaces in TV-BPC-09 / TV-BPC-11.
+
+**Why the gate's job stays narrow.** The path-filter only governs
+WHEN the workflow runs, not WHAT it audits. The substance audit
+itself (the curated mirror-pair table in the workflow job) is
+unchanged; widening the filter does not widen the audit surface,
+it only lets the audit gate run on more PR-classes so that the
+Required-status-marker can report instead of stalling.
 
 **Universal-trigger rule.** Going forward: a workflow is Required-fit
 only if it triggers on every PR-class that is in-scope of its purpose.
