@@ -85,6 +85,7 @@ _RUNTIME_PROTECTION: dict[str, Any] = {
         "contexts": [
             "License-Hygiene Gate (ADR-0061)",
             "wirelang suite with rfc8785 + jsonschema",
+            "cross-repo drift (wakir-runtime ↔ wakir-protocol)",
         ],
     },
     "allow_force_pushes": {"enabled": False},
@@ -92,6 +93,12 @@ _RUNTIME_PROTECTION: dict[str, Any] = {
     "enforce_admins": {"enabled": False},
     "required_signatures": {"enabled": False},
 }
+# Post-§4.2-promotion 2026-05-17 04:35 CEST: Mira-Hand-Operator applied
+# the 3-context required-set via the operations doc §4.2 command-block.
+# Fixture above mirrors the live state; the historical 2-context state
+# is preserved in the git history (PR #144 introduced the third context
+# as `_RUNTIME_PROTECTION_POST_PROMOTION`; this PR flips _RUNTIME_PROTECTION
+# itself once the live state caught up).
 
 
 # NOTE — Post-promotion target state for the Mira-Hand-Operator §4.2
@@ -177,6 +184,7 @@ _EXPECTED_CONTEXTS: dict[str, frozenset[str]] = {
         {
             "License-Hygiene Gate (ADR-0061)",
             "wirelang suite with rfc8785 + jsonschema",
+            "cross-repo drift (wakir-runtime ↔ wakir-protocol)",
         }
     ),
     "wakir-verify": frozenset(
