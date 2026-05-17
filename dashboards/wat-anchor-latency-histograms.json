@@ -1,0 +1,307 @@
+{
+  "__comment": "Grafana dashboard JSON for the WAT-anchor pipeline per-anchor latency histograms (Sprint Tag-12 mini-welle Per-Anchor-Latency-Histograms, Noa Bergstroem / SRE). Consumes Prometheus histogram + pre-computed percentile gauges produced by scripts/wat-anchor-pipeline-observability.py --format prom (Tag-12 extension of PR #134). Schema version targets Grafana 10.x (schemaVersion >= 38). One panel per pipeline stage (enqueue_to_pre_ots, ots_call, post_ots_commit, wat_write); each panel plots p50/p95/p99 lines side-by-side. Operational, not Vanity: every panel answers SLO-2 (anchor-latency-p99) for its stage. ADR-0064 Phase-2-operations-reife Folgeartefakt.",
+  "title": "Wakir WAT-Anchor — Per-Anchor Latency Histograms",
+  "uid": "wakir-wat-anchor-latency-histograms",
+  "tags": ["wakir", "wat-anchor", "sre", "latency", "phase-2", "slo-2"],
+  "schemaVersion": 38,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": [
+      {
+        "name": "Stage SLO-2 burn (p99 > 1s)",
+        "datasource": {"type": "prometheus", "uid": "prom"},
+        "enable": true,
+        "iconColor": "red",
+        "expr": "wat_anchor_stage_latency_p99_seconds > 1.0"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 100,
+      "type": "row",
+      "title": "Stage: enqueue_to_pre_ots",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "enqueue_to_pre_ots — p50 / p95 / p99 over time",
+      "description": "Latency from anchor-enqueue to the pre-OTS-call setup. Healthy baseline: p99 < 50ms; sustained > 100ms indicates contention on the enqueue path (NATS-KV writes, lock acquisition, or pre-OTS receipt allocation). SLO-2 reference: this stage should never dominate the end-to-end anchor latency.",
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 1},
+      "targets": [
+        {
+          "expr": "wat_anchor_stage_latency_p50_seconds{stage=\"enqueue_to_pre_ots\"}",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "wat_anchor_stage_latency_p95_seconds{stage=\"enqueue_to_pre_ots\"}",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "wat_anchor_stage_latency_p99_seconds{stage=\"enqueue_to_pre_ots\"}",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 4,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "orange", "value": 0.05},
+              {"color": "red", "value": 0.1}
+            ]
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": ["lastNotNull", "mean", "max"]
+        }
+      }
+    },
+    {
+      "id": 200,
+      "type": "row",
+      "title": "Stage: ots_call",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 10},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "ots_call — p50 / p95 / p99 over time",
+      "description": "Latency of the OpenTimestamps calendar HTTP call. This is the dominant stage by design — OTS calendars are external services with network-attached latency. Healthy baseline: p50 < 500ms, p95 < 2s, p99 < 5s. Sustained p99 > 10s should fire SLO-2-burn alerts; calendar HTTP timeouts manifest here first.",
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 11},
+      "targets": [
+        {
+          "expr": "wat_anchor_stage_latency_p50_seconds{stage=\"ots_call\"}",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "wat_anchor_stage_latency_p95_seconds{stage=\"ots_call\"}",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "wat_anchor_stage_latency_p99_seconds{stage=\"ots_call\"}",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 4,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "orange", "value": 2.0},
+              {"color": "red", "value": 5.0}
+            ]
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": ["lastNotNull", "mean", "max"]
+        }
+      }
+    },
+    {
+      "id": 300,
+      "type": "row",
+      "title": "Stage: post_ots_commit",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 20},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "post_ots_commit — p50 / p95 / p99 over time",
+      "description": "Latency from OTS-call return to the commit of the receipt to local storage. This is filesystem-bound work (write .ots file, update receipt-DB index). Healthy baseline: p99 < 100ms. Sustained > 250ms indicates disk I/O pressure or a receipt-DB lock-contention regression.",
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 21},
+      "targets": [
+        {
+          "expr": "wat_anchor_stage_latency_p50_seconds{stage=\"post_ots_commit\"}",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "wat_anchor_stage_latency_p95_seconds{stage=\"post_ots_commit\"}",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "wat_anchor_stage_latency_p99_seconds{stage=\"post_ots_commit\"}",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 4,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "orange", "value": 0.1},
+              {"color": "red", "value": 0.25}
+            ]
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": ["lastNotNull", "mean", "max"]
+        }
+      }
+    },
+    {
+      "id": 400,
+      "type": "row",
+      "title": "Stage: wat_write",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 30},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "wat_write — p50 / p95 / p99 over time",
+      "description": "Latency to append the verified anchor to the WAT Merkle log. Local filesystem + Merkle-recomputation work. Healthy baseline: p99 < 50ms. Sustained > 100ms indicates the WAT log is growing past a regime where the Merkle-build cost is amortized cheaply; consider a rotation cycle.",
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 31},
+      "targets": [
+        {
+          "expr": "wat_anchor_stage_latency_p50_seconds{stage=\"wat_write\"}",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "wat_anchor_stage_latency_p95_seconds{stage=\"wat_write\"}",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "wat_anchor_stage_latency_p99_seconds{stage=\"wat_write\"}",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 4,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "orange", "value": 0.05},
+              {"color": "red", "value": 0.1}
+            ]
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": ["lastNotNull", "mean", "max"]
+        }
+      }
+    },
+    {
+      "id": 500,
+      "type": "row",
+      "title": "Observability context",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 40},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Window size (anchors)",
+      "description": "Number of parseable latency observations the most recent script run aggregated. If this stays at zero the latency-JSONL producer (WAT-core) is not emitting; check the producer side before reading the percentile panels.",
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 41},
+      "targets": [
+        {
+          "expr": "wat_anchor_latency_window_size",
+          "legendFormat": "window",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "orange", "value": 1},
+              {"color": "green", "value": 10}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Last scrape (age)",
+      "description": "Seconds since the latency-histogram script last wrote the textfile. If this grows past the systemd-timer cadence the script is failing; check journalctl --user.",
+      "gridPos": {"h": 5, "w": 8, "x": 8, "y": 41},
+      "targets": [
+        {
+          "expr": "time() - wat_anchor_latency_scrape_timestamp_seconds",
+          "legendFormat": "age",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "orange", "value": 900},
+              {"color": "red", "value": 1800}
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
