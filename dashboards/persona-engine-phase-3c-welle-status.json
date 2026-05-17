@@ -1,10 +1,10 @@
 {
-  "__comment": "Grafana dashboard JSON for the wakir-persona-engine Phase-3c welle-status surface (Noa Bergstroem / SRE, Tag-30 Mini-Welle). Consumes Prometheus gauges produced by scripts/phase-3c-welle-status-emitter.py. The dashboard is the operator's per-welle live view across the seven ADR-0065 / ADR-0066 cutover welles: pre_cutover, in_cutover, post_cutover, rollback_active, welle_complete. Schema version targets Grafana 10.x (schemaVersion >= 38). Welle-1+2 KW 24, Welle-3 KW 25 solo, Welle-4+5 KW 26, Welle-6+7 KW 27. The doppel_welle_cap row turns red when welle_aktiv_count > 2 (ADR-0066 parallelitaet-cap). The cross_modul_drift panel turns red on a Phase-2-Acceptance-Gate cross_modul_pin_status=fail.",
+  "__comment": "Grafana dashboard JSON for the wakir-persona-engine Phase-3c welle-status surface (Noa Bergstroem / SRE, Tag-30 Mini-Welle, extended Tag-31 Mini-Welle for Welle-3 high-frequency telemetry). Consumes Prometheus gauges produced by scripts/phase-3c-welle-status-emitter.py (general welle status) and scripts/welle-3-telemetry-emitter.py (Welle-3 solo cutover high-frequency telemetry, ADR-0066 Mitigation-2). The dashboard is the operator's per-welle live view across the seven ADR-0065 / ADR-0066 cutover welles: pre_cutover, in_cutover, post_cutover, rollback_active, welle_complete. Schema version targets Grafana 10.x (schemaVersion >= 38). Welle-1+2 KW 24, Welle-3 KW 25 solo, Welle-4+5 KW 26, Welle-6+7 KW 27. The doppel_welle_cap row turns red when welle_aktiv_count > 2 (ADR-0066 parallelitaet-cap). The cross_modul_drift panel turns red on a Phase-2-Acceptance-Gate cross_modul_pin_status=fail. The Welle-3 row (panels 41-46) shows the bridge_audit_writer self-consistency score on 10s tick alongside the independent Phase-2 cross-modul stress-test oracle; divergence > 0.5pp raises a red-flag tile (ADR-0066 Welle-3 immediate-rollback trigger per Henrik / Internal Audit caution).",
   "title": "Wakir Persona-Engine - Phase-3c Welle Status",
   "uid": "wakir-persona-engine-phase-3c-welle-status",
-  "tags": ["wakir", "persona-engine", "sre", "phase-3c", "welle-status", "adr-0065", "adr-0066", "tag-30"],
+  "tags": ["wakir", "persona-engine", "sre", "phase-3c", "welle-status", "adr-0065", "adr-0066", "tag-30", "tag-31", "welle-3-telemetry"],
   "schemaVersion": 38,
-  "version": 1,
+  "version": 2,
   "editable": true,
   "graphTooltip": 1,
   "time": {
@@ -488,6 +488,221 @@
       "fieldConfig": {
         "defaults": {
           "unit": "us",
+          "color": {"mode": "palette-classic"}
+        }
+      }
+    },
+    {
+      "id": 400,
+      "type": "row",
+      "title": "Welle-3 High-Frequency Telemetry (ADR-0066 Mitigation-2)",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 57},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 41,
+      "type": "timeseries",
+      "title": "Welle-3 Bridge-Audit-Writer Consistency Score (10s tick)",
+      "description": "Welle-3 (bridge_audit_writer) self-consistency score = rust_count / total * 100, sampled at the configured high-frequency tick interval (default 10s). KW-25 solo cutover; the self-score is the rust-rate of bridge_audit_writer reading its own BackendDecisions. Compare against the independent Phase-2 cross-modul stress-test oracle in the panel to the right. Source: scripts/welle-3-telemetry-emitter.py.",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 58},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_welle_3_consistency_score",
+          "refId": "A",
+          "legendFormat": "welle-3 self-score"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 90},
+              {"color": "green", "value": 99}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 42,
+      "type": "timeseries",
+      "title": "Phase-2 Cross-Modul Stress-Test Oracle (Trendline)",
+      "description": "Independent oracle: Phase-2 cross-modul stress-test result, sampled outside the bridge_audit_writer code path. Henrik (Internal Audit) flagged the Welle-3 self-cutover-oracle risk in the ADR-0066 review; the stress test is the independent measurement that breaks the circular oracle. Trendline shows the stress-test cross-modul-rust-rate; status label switches GREEN/RED/YELLOW.",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 58},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_welle_3_stress_oracle_score",
+          "refId": "A",
+          "legendFormat": "stress oracle ({{status}})"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 90},
+              {"color": "green", "value": 99}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 43,
+      "type": "stat",
+      "title": "Welle-3 Self-vs-Oracle Divergence (percentage points)",
+      "description": "Absolute delta between Welle-3 self-score and Phase-2 stress oracle score. ADR-0066 Mitigation-2 rollback trigger: divergence > 0.5pp (default threshold). Red threshold is intentionally tight so an operator who misses the alert text sees a red tile.",
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 66},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_welle_3_divergence_pct",
+          "refId": "A",
+          "legendFormat": "divergence pp"
+        }
+      ],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 5,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 0.3},
+              {"color": "red", "value": 0.5}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 44,
+      "type": "stat",
+      "title": "Welle-3 Red-Flag (>0.5% divergence -> rollback)",
+      "description": "Binary red-flag tile. 1 = ADR-0066 Mitigation-2 rollback trigger fired (divergence > threshold OR stress oracle reports fail). 0 = green. The reason label carries the diagnostic for the on-call operator (e.g. 'divergence-3.0000pct-exceeds-threshold-0.5000pct' or 'stress-oracle-status-fail').",
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 66},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_welle_3_divergence_red_flag",
+          "refId": "A",
+          "legendFormat": "red-flag ({{reason}})"
+        }
+      ],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 1}
+            ]
+          },
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "green"}, "1": {"text": "RED-FLAG"}}}
+          ]
+        }
+      }
+    },
+    {
+      "id": 45,
+      "type": "stat",
+      "title": "Welle-3 Aktiv (1 = in_cutover or rollback_active)",
+      "description": "1 iff Welle-3 lifecycle state is in_cutover or rollback_active. KW 25 is bridge_audit_writer solo; an unexpected second aktiv welle violates the ADR-0066 solo schedule. State label carries the precise lifecycle stage.",
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 66},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_welle_3_aktiv",
+          "refId": "A",
+          "legendFormat": "aktiv ({{state}})"
+        }
+      ],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "blue", "value": null},
+              {"color": "yellow", "value": 1}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 46,
+      "type": "timeseries",
+      "title": "Welle-3 Window Backend Split (python | rust | fallback)",
+      "description": "Welle-3 BackendDecision counts inside the configured sliding window (default 5 minutes). Three series: python, rust, fallback. Sustained python skew or fallback growth on a welle in in_cutover is the operator's per-tick red flag — independent of the divergence math.",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 74},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_welle_3_window_python_count",
+          "refId": "A",
+          "legendFormat": "python"
+        },
+        {
+          "expr": "persona_engine_welle_3_window_rust_count",
+          "refId": "B",
+          "legendFormat": "rust"
+        },
+        {
+          "expr": "persona_engine_welle_3_window_fallback_count",
+          "refId": "C",
+          "legendFormat": "fallback"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
           "color": {"mode": "palette-classic"}
         }
       }

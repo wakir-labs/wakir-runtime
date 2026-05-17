@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tests for scripts/phase-3c-cutover-dry-run.py — Tag-24 Mini-Welle.
+"""Tests for scripts/phase-3c-cutover-dry-run.py — Tag-24 baseline
+plus Tag-29 + Tag-31 Welle-2 svid_workload_identity wire-in tests.
 
 Hermetic, stdlib-only: the dry-run module is loaded via importlib
 from its hyphenated path under ``scripts/``. The resolver dependency
@@ -8,7 +9,7 @@ is exercised through a stub module so the tests do not have to
 import the real wirelang package, and the binary-probe seam is
 explicitly stubbed in every test so no filesystem access happens.
 
-Scope (16 tests)
+Scope (22 tests)
 ----------------
 
 1.  test_module_loads_and_exports_public_surface
@@ -16,7 +17,7 @@ Scope (16 tests)
 3.  test_validate_component_accepts_adr_0065_aliases
 4.  test_validate_component_rejects_empty_and_none
 5.  test_validate_component_rejects_unknown
-6.  test_validate_component_rejects_svid_with_explicit_hint
+6.  test_validate_component_accepts_svid_workload_identity
 7.  test_build_cutover_env_targets_only_requested_component
 8.  test_build_cutover_env_state_backing_variant
 9.  test_run_boot_sequence_emits_one_decision_per_boot
@@ -27,6 +28,12 @@ Scope (16 tests)
 14. test_run_dry_run_blocked_when_probe_real_finds_binary_missing
 15. test_main_cli_writes_json_envelope_to_stdout
 16. test_main_cli_rejects_unknown_component_with_exit_2
+17. test_phase_3c_components_length_is_eight
+18. test_svid_workload_identity_pinned_at_welle_2_position
+19. test_svid_workload_identity_has_no_alias_entry
+20. test_build_cutover_env_svid_workload_identity
+21. test_main_cli_accepts_svid_workload_identity_with_stub_probe
+22. test_validate_component_rejects_unknown_includes_svid_in_help
 """
 
 from __future__ import annotations
@@ -161,6 +168,9 @@ def _make_stub_resolver_module(
                 "bridge_diff": "WAKIR_BRIDGE_DIFF_BACKEND",
                 "subscribe_loop": "WAKIR_SUBSCRIBE_LOOP_BACKEND",
                 "anchor_emitter": "WAKIR_ANCHOR_EMITTER_BACKEND",
+                "svid_workload_identity": (
+                    "WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND"
+                ),
             }[domain_value]
             requested = (env or {}).get(env_var_name, "python")
             latency = _next_latency()
@@ -221,6 +231,7 @@ def _make_stub_resolver_module(
         ("bridge_diff", "rust"),
         ("subscribe_loop", "rust"),
         ("anchor_emitter", "rust"),
+        ("svid_workload_identity", "rust"),
     ):
         setattr(mod, f"resolve_{dom}_backend", _make_resolver(dom, rust_val))
         # Bin-resolver seam (used by --probe-real branch).
@@ -610,3 +621,141 @@ def test_main_cli_rejects_unknown_component_with_exit_2(monkeypatch):
     assert rc == 2
     assert "no_such_component" in err_buf.getvalue()
     assert out_buf.getvalue() == ""
+
+
+# ---------------------------------------------------------------------------
+# 17-22. Tag-31 Mini-Welle — Phase-3c Welle-2 wire-in regression tests.
+#
+# These tests pin invariants that closed PR #202 (Selin SVID-Resolver-
+# Retry, duplicate of PR #191) revealed as missing: the cutover order
+# position of ``svid_workload_identity`` must be Welle-2 (index 1),
+# PHASE_3C_COMPONENTS length must be exactly 8 after the wire-in, and
+# the CLI must accept the component end-to-end with the stub probe.
+# ---------------------------------------------------------------------------
+
+
+def test_phase_3c_components_length_is_eight():
+    """ADR-0066 Welle-2 wire-in: ``svid_workload_identity`` is the
+    eighth Phase-3c component. The dry-run length must stay pinned at
+    8 so the runbook component table cross-check below does not drift.
+
+    A future ninth component requires both the resolver to land in
+    rust_backend_switch.py and this test to be updated alongside the
+    runbook table — the test failure is the gate."""
+    assert len(dry_run_mod.PHASE_3C_COMPONENTS) == 8
+    # No duplicates.
+    assert len(set(dry_run_mod.PHASE_3C_COMPONENTS)) == 8
+    # All entries are short-form (no spaces, no ADR-0065 long-form
+    # leakage into the canonical tuple).
+    for name in dry_run_mod.PHASE_3C_COMPONENTS:
+        assert " " not in name
+        assert name == name.strip().lower()
+
+
+def test_svid_workload_identity_pinned_at_welle_2_position():
+    """ADR-0066 §Welle-2 pins ``svid_workload_identity`` as the
+    second cutover slot (after Welle-1 ``v907_verify``). The dry-run
+    must reflect that order so operators can iterate over
+    ``PHASE_3C_COMPONENTS`` in cutover sequence without remapping."""
+    assert dry_run_mod.PHASE_3C_COMPONENTS[0] == "v907_verify"
+    assert dry_run_mod.PHASE_3C_COMPONENTS[1] == "svid_workload_identity"
+    # The remaining Welle-3..7 entries match ADR-0065 §Option-B order
+    # using in-repo short-form names.
+    assert dry_run_mod.PHASE_3C_COMPONENTS[2:] == (
+        "bridge_diff",
+        "anchor_emitter",
+        "state_backing",
+        "fsm",
+        "subscribe_loop",
+        "recovery",
+    )
+
+
+def test_svid_workload_identity_has_no_alias_entry():
+    """``svid_workload_identity`` is the in-repo short form *and* the
+    ADR-0066 long form (the names coincide). There must be no alias
+    entry, otherwise ``validate_component`` would double-resolve and
+    the runbook's "operators may use either spelling" claim becomes
+    a non-truth for this component."""
+    assert (
+        "svid_workload_identity"
+        not in dry_run_mod.PHASE_3C_COMPONENT_ALIASES
+    )
+    # Sanity: the four resolver maps all carry the entry directly.
+    assert (
+        dry_run_mod.COMPONENT_TO_DOMAIN["svid_workload_identity"]
+        == "svid_workload_identity"
+    )
+    assert (
+        dry_run_mod.COMPONENT_TO_ENV["svid_workload_identity"]
+        == "WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND"
+    )
+    assert (
+        dry_run_mod.COMPONENT_TO_RUST_VALUE["svid_workload_identity"]
+        == "rust"
+    )
+
+
+def test_build_cutover_env_svid_workload_identity():
+    """When ``svid_workload_identity`` is the requested component, the
+    env-map must flip only ``WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND`` to
+    ``rust`` and pin all other Phase-3c env-vars to ``python`` so the
+    hermetic boot path is deterministic."""
+    env = dry_run_mod.build_cutover_env("svid_workload_identity")
+    assert env["WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND"] == "rust"
+    for env_var in dry_run_mod.COMPONENT_TO_ENV.values():
+        if env_var == "WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND":
+            continue
+        assert env[env_var] == "python", (
+            f"unexpected non-python value for {env_var}: {env[env_var]!r}"
+        )
+    # Hermeticity — no inherited host env.
+    assert "PATH" not in env
+    assert "HOME" not in env
+
+
+def test_main_cli_accepts_svid_workload_identity_with_stub_probe(monkeypatch):
+    """End-to-end CLI run with ``--component svid_workload_identity``:
+    stub resolver, three boots, GREEN-band envelope. This is the test
+    the Welle-2 Validation Workflow (PR #196) relies on to gate the
+    Mo-cutover-PR sequence — without it the dry-run CLI is the only
+    layer that could silently regress."""
+    stub_mod = _make_stub_resolver_module(latency_seq=[120])
+    monkeypatch.setattr(dry_run_mod, "_import_resolver", lambda: stub_mod)
+    out_buf = io.StringIO()
+    err_buf = io.StringIO()
+    rc = dry_run_mod.main(
+        argv=[
+            "--component",
+            "svid_workload_identity",
+            "--boots",
+            "3",
+            "--now",
+            "1700000000",
+        ],
+        stdout=out_buf,
+        stderr=err_buf,
+    )
+    assert rc == 0, f"stderr={err_buf.getvalue()!r}"
+    parsed = json.loads(out_buf.getvalue())
+    assert parsed["component"] == "svid_workload_identity"
+    assert parsed["env_var"] == "WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND"
+    assert parsed["requested_backend"] == "rust"
+    assert parsed["boots"] == 3
+    assert parsed["dry_run"] == "completed"
+    assert parsed["feasibility"]["band"] == "GREEN"
+    assert len(parsed["decisions"]) == 3
+    # All three boots resolved to rust (no fallback) in the stub.
+    assert parsed["chosen_backend_counts"] == {"rust": 3}
+
+
+def test_validate_component_rejects_unknown_includes_svid_in_help():
+    """When an unknown component is supplied the error message lists
+    the valid set. ``svid_workload_identity`` must appear there — the
+    closed PR #202 incident was triggered by an operator searching
+    for the component name in the error text and finding only the
+    pre-Tag-29 placeholder."""
+    with pytest.raises(dry_run_mod.UnknownComponentError) as exc:
+        dry_run_mod.validate_component("svid_resolver")  # plausible typo
+    msg = str(exc.value)
+    assert "svid_workload_identity" in msg
