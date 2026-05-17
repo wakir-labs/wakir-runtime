@@ -1,0 +1,418 @@
+{
+  "__comment": "Grafana dashboard JSON for the wakir-persona-engine Tag-22 BackendDecision observability surface (Noa Bergstroem / SRE). Consumes Prometheus gauges produced by scripts/backend-decision-observability.py. Schema version targets Grafana 10.x (schemaVersion >= 38). Each of the five Phase-3b components (recovery, state_backing, fsm, v907_verify, bridge_diff) gets a dedicated python-vs-rust counter panel. An aggregated fallback-rate panel and a per-component latency-comparison histogram round out the picture. ADR-0061 et seq Phase-3b production-default switches (Tag-17..Tag-21).",
+  "title": "Wakir Persona-Engine - Backend Decisions",
+  "uid": "wakir-persona-engine-backend-decisions",
+  "tags": ["wakir", "persona-engine", "sre", "backend-decisions", "adr-0061", "phase-3b", "tag-22"],
+  "schemaVersion": 38,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "templating": {
+    "list": [
+      {
+        "name": "component",
+        "label": "Component",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prom"},
+        "query": "label_values(persona_engine_backend_decisions_per_component, component)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true
+      },
+      {
+        "name": "backend",
+        "label": "Backend",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prom"},
+        "query": "label_values(persona_engine_backend_decisions_per_component_backend, backend)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 100,
+      "type": "row",
+      "title": "Per-Component Python-vs-Rust Counters",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 1,
+      "type": "barchart",
+      "title": "recovery — python vs rust (current window)",
+      "description": "Per-boot count of the 'recovery' component decisions, split python vs rust. Tag-17 (PR #168) wired the recovery switch as the first Phase-3b production-default. A sustained python skew here in a Rust-default deployment means the binary is missing or non-executable on the host — check the fallback_reason panel below.",
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 1},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_backend_decisions_per_component_backend{component=\"recovery\",backend=~\"$backend\"}",
+          "legendFormat": "{{backend}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "values": ["value"]},
+        "tooltip": {"mode": "multi"},
+        "orientation": "vertical",
+        "stacking": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "palette-classic"},
+          "decimals": 0
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "barchart",
+      "title": "state_backing — python vs rust (current window)",
+      "description": "Per-boot count of the 'state_backing' component decisions, split python vs rust (rust splits further into rust_inmemory / rust_natskv depending on the requested storage adapter). Tag-17 (PR #168) wired this twin emit-point alongside recovery. The dual rust-flavour split is intentional — rust_natskv implies a NATS-KV-backed run while rust_inmemory implies a smoke-test or ephemeral session.",
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 1},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_backend_decisions_per_component_backend{component=\"state_backing\",backend=~\"$backend\"}",
+          "legendFormat": "{{backend}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "values": ["value"]},
+        "tooltip": {"mode": "multi"},
+        "orientation": "vertical",
+        "stacking": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "palette-classic"},
+          "decimals": 0
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "barchart",
+      "title": "fsm — python vs rust (current window)",
+      "description": "Per-boot count of the 'fsm' component decisions, split python vs rust. Tag-18 (PR #169) wired the fsm switch as the third Phase-3b production-default. The Rust pendant is the persona-engine-fsm crate (PR #137, schema-byte-parity).",
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 1},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_backend_decisions_per_component_backend{component=\"fsm\",backend=~\"$backend\"}",
+          "legendFormat": "{{backend}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "values": ["value"]},
+        "tooltip": {"mode": "multi"},
+        "orientation": "vertical",
+        "stacking": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "palette-classic"},
+          "decimals": 0
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "barchart",
+      "title": "v907_verify — python vs rust (current window)",
+      "description": "Per-boot count of the 'v907_verify' component decisions, split python vs rust. Tag-19 (PR #171) wired the v907_verify switch. V-907 is the MOST CRITICAL of the Phase-3b switches: it is the spec §5 hash-determinism anchor — every wire-frame depends on the verifier returning a byte-identical pin across both backends. A sustained python skew is acceptable (parity-safe fallback); a sustained MIXED skew within the same deployment indicates a partial Rust rollout that needs auditing.",
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 9},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_backend_decisions_per_component_backend{component=\"v907_verify\",backend=~\"$backend\"}",
+          "legendFormat": "{{backend}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "values": ["value"]},
+        "tooltip": {"mode": "multi"},
+        "orientation": "vertical",
+        "stacking": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "palette-classic"},
+          "decimals": 0
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "barchart",
+      "title": "bridge_diff — python vs rust (current window)",
+      "description": "Per-boot count of the 'bridge_diff' component decisions, split python vs rust. Tag-20 (PR #175) wired the bridge_diff switch as the fifth and most recent Phase-3b production-default. The bridge-diff component computes the cross-language diff between Python and Rust persona-engine outputs — it is itself part of the doppelbetrieb-comparison substrate and must boot stably.",
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 9},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_backend_decisions_per_component_backend{component=\"bridge_diff\",backend=~\"$backend\"}",
+          "legendFormat": "{{backend}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "values": ["value"]},
+        "tooltip": {"mode": "multi"},
+        "orientation": "vertical",
+        "stacking": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "palette-classic"},
+          "decimals": 0
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Sample Size (current window)",
+      "description": "Number of backend-decision records aggregated in the current sliding window. A reading < window_size means the JSONL has not yet saturated; readings AT window_size mean the gauge is steady-state.",
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 9},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_backend_decisions_sample_size",
+          "legendFormat": "sample size",
+          "refId": "A"
+        },
+        {
+          "expr": "persona_engine_backend_decisions_window_size",
+          "legendFormat": "window",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "orange", "value": null},
+              {"color": "green", "value": 50}
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "orientation": "auto",
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "id": 200,
+      "type": "row",
+      "title": "Aggregated Fallback-Rate",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 17},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 7,
+      "type": "gauge",
+      "title": "Aggregated Fallback Rate (cross-component, current window)",
+      "description": "Total fallbacks divided by total decisions across all five Phase-3b components in the current sliding window. A fallback happens when the operator requested a Rust backend but the switch had to coerce down to Python (binary_missing, binary_not_executable). Target is 0.0 in a healthy Rust-default deployment; sustained >0.05 across any 30-minute window is an Error-Budget-burn signal worth paging on.",
+      "gridPos": {"h": 10, "w": 12, "x": 0, "y": 18},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_backend_decision_fallback_rate_aggregated",
+          "legendFormat": "aggregated fallback rate",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "orange", "value": 0.05},
+              {"color": "red", "value": 0.2}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Per-Component Fallback Rate Over Time",
+      "description": "Per-component fallback-rate trend across the dashboard time range. The aggregated gauge tells you 'something is fallback-ing'; this panel tells you WHICH component. A single component spiking while the others stay green usually means a missed binary install or a path-pinning regression on the latest Rust release.",
+      "gridPos": {"h": 10, "w": 12, "x": 12, "y": 18},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_backend_decision_fallback_rate{component=~\"$component\"}",
+          "legendFormat": "{{component}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "decimals": 3,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "auto"
+          },
+          "color": {"mode": "palette-classic"}
+        }
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "values": ["last", "max"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      }
+    },
+    {
+      "id": 300,
+      "type": "row",
+      "title": "Per-Component Latency Comparison",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 28},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Decision-Resolution Latency p50/p95/p99 per Component",
+      "description": "Nearest-rank percentile of the BackendDecision resolution-latency (microseconds) per Phase-3b component in the current sliding window. The decision step is the substrate hot-path on the engine-boot critical path: a healthy switch resolves in <50us p99 (env-var read + file-stat). Sustained p99 outside the 100us envelope on any single component is an Error-Budget-burn signal worth investigating (often: a flaky NFS-mounted bin_path or a stat-cache invalidation storm).",
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 29},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_backend_decision_latency_us{component=~\"$component\",quantile=\"0.5\"}",
+          "legendFormat": "p50 {{component}}",
+          "refId": "A"
+        },
+        {
+          "expr": "persona_engine_backend_decision_latency_us{component=~\"$component\",quantile=\"0.95\"}",
+          "legendFormat": "p95 {{component}}",
+          "refId": "B"
+        },
+        {
+          "expr": "persona_engine_backend_decision_latency_us{component=~\"$component\",quantile=\"0.99\"}",
+          "legendFormat": "p99 {{component}}",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "µs",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "auto"
+          },
+          "color": {"mode": "palette-classic"}
+        }
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "values": ["last", "max"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      }
+    },
+    {
+      "id": 400,
+      "type": "row",
+      "title": "Supplementary Operational Stats",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 41},
+      "collapsed": true,
+      "panels": []
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Last Aggregator Scrape (unix seconds)",
+      "description": "POSIX-epoch timestamp at which the backend-decision aggregator last wrote the textfile. A value that stops advancing means the systemd-timer wrapper has stalled and the dashboard is showing stale data.",
+      "gridPos": {"h": 6, "w": 12, "x": 0, "y": 42},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_backend_decisions_scrape_timestamp_seconds",
+          "legendFormat": "last scrape",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dateTimeAsLocal",
+          "decimals": 0
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Per-Component Avg Decision Latency (us, current window)",
+      "description": "Arithmetic mean decision-resolution latency per component. Useful as a single-glance per-component overview; the percentile panel above is the actionable diagnosis surface.",
+      "gridPos": {"h": 6, "w": 12, "x": 12, "y": 42},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_backend_decision_latency_us_avg{component=~\"$component\"}",
+          "legendFormat": "{{component}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "µs",
+          "decimals": 1
+        }
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "orientation": "auto",
+        "textMode": "value_and_name"
+      }
+    }
+  ]
+}
