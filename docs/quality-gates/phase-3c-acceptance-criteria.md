@@ -6,7 +6,7 @@
 | Status | Draft skeleton — pending Phase-3c-Welle-Start trigger (ADR-0065 §Decision-Trigger) |
 | Phase | 3c — Per-Welle Cutover from Python-Default to Rust-Default for 7 Engine-Komponenten |
 | Source | ADR-0065 §Verifikations-Plan, ADR-0066 §Beschluss (Doppel-Welle-Beschleunigung), ADR-0063 §Phase-3c-Final-Cutover, ADR-0058 §Phase-3 |
-| Date | 2026-05-17 (skeleton creation); 2026-05-17 Doppel-Welle-Extension (Tag-30 Mini-Welle, ADR-0066 §Folge-Item) |
+| Date | 2026-05-17 (skeleton creation); 2026-05-17 Doppel-Welle-Extension (Tag-30 Mini-Welle, ADR-0066 §Folge-Item); 2026-05-17 Doppel-Welle-4+5 Cross-Modul-Drift-Extension (Tag-32 Mini-Welle, ADR-0066 §Beschluss Doppel-Welle-4+5 Cross-Modul-Drift-Focus + Priya CTO-Coordination-Plan v2) |
 
 ## 0. Phase contract
 
@@ -250,3 +250,159 @@ asymmetric-rollback audit-trail when DW-AC-3 fires in the field.
   fixed (10min ENV-Flag-Switch); the Welle-4-specific 2h Schema-
   Migrations-Rollback drill is covered by a `@pytest.mark.skip`
   placeholder in `test_doppel_welle_4_5_e2e.py`.
+
+## 11. Doppel-Welle-4+5 Cross-Modul-Drift-Extension (ADR-0066 §Beschluss Cross-Modul-Drift-Focus)
+
+ADR-0066 §Beschluss labels Doppel-Welle-4+5 (KW 26, `state_backing` ×
+`lifecycle_state_machine`) as **Cross-Modul-Drift-Focus** — the
+highest cross-modul-drift-risk Doppel-Welle slot. Priya
+CTO-Coordination-Plan v2 (Tag-32 Mini-Welle) identified this slot as
+requiring four additional acceptance criteria layered atop the
+DW-AC-1...DW-AC-5 baseline, drilling deeper into the Rust-Rust
+producer/consumer contract.
+
+These criteria are **Doppel-Welle-4+5-specific** — DW-1+2 (read-only-
+paar) and DW-6+7 (stateful-loop-paar) do not carry the CMD-AC layer.
+ADR-0066 §Beschluss is explicit: only the `state_backing` ×
+`lifecycle_state_machine` pair has a producer/consumer JCS-schema-
+contract risky enough to warrant the layer.
+
+The DW-AC layer already covers single-touchpoint byte-parity (DW-AC-2)
+and aggregate stress-test zero-failure (DW-AC-4). The CMD-AC layer
+extends this with deserialization round-trip parity, cross-lang wire-
+form parity vs. Python baselines, per-Komponente consistency-rate
+floor, and an atomic-flip rollback discipline.
+
+### 11.1 CMD-AC-1 ... CMD-AC-4 Acceptance-Kriterien
+
+| ID | Gate | Test-Helper | Constant |
+|---|---|---|---|
+| **CMD-AC-1** | `state_backing-rust` schreibt → `lifecycle_state_machine-rust` liest mit byte-identischer Schema-Deserialization (deserialize → re-serialize round-trip parity, schema-version-survival). | `assert_cross_modul_drift_ac_1_deserialization_round_trip` | — |
+| **CMD-AC-2** | `lifecycle_state_machine-rust` State-Transition triggert `state_backing-rust` Persist mit gleicher Wire-Form wie Python-Pendant (Rust-Rust vs. `python-python-baseline` + `python-rust-welle-4-only` oracles). | `assert_cross_modul_drift_ac_2_write_back_wire_form_parity` | `CROSS_MODUL_DRIFT_WIRE_FORM_ORACLES` |
+| **CMD-AC-3** | Cross-Modul-Stress-Test (PR #197) zeigt Welle-4+5 Konsistenz beider Komponenten ≥99.5%; joint-rate = `min(rate_a, rate_b)`. | `assert_cross_modul_drift_ac_3_per_komponente_consistency` | `CROSS_MODUL_DRIFT_CONSISTENCY_PCT_FLOOR = 0.995` |
+| **CMD-AC-4** | Drift > 0.5pp → atomic single-Komponente rollback (high-drift modul auf `python`, partner bleibt `rust`-Default), ≤10min SLA, single restart-cycle. | `assert_cross_modul_drift_ac_4_atomic_flip_rollback` | `CROSS_MODUL_DRIFT_ROLLBACK_PCT_THRESHOLD = 0.5` |
+
+### 11.2 Gate-Schwerpunkt — Cross-Modul-Drift-Focus Justification
+
+Each CMD-AC drills deeper than a related DW-AC or AC criterion:
+
+* **CMD-AC-1 vs DW-AC-2**: DW-AC-2 checks byte-parity on a single
+  cross-modul touchpoint (producer side). CMD-AC-1 closes the round-
+  trip loophole: the bytes may write correctly but mutate on
+  deserialize→re-serialize, especially under Rust-side serde
+  field-ordering drift or schema-version stripping. CMD-AC-1 catches
+  the consumer-side mutation that DW-AC-2 does not see.
+* **CMD-AC-2 vs DW-AC-2**: DW-AC-2 compares producer-bytes against
+  consumer-bytes within the same cutover (Rust-Rust). CMD-AC-2
+  compares the Rust-Rust wire-form against historical baselines
+  (python-python pre-Welle-4 production state + synthetic python-
+  rust-welle-4-only). A Rust-Rust regression vs. the long-standing
+  Python production state breaks Welle-7 recovery_workflow even when
+  Rust-Rust internal parity holds.
+* **CMD-AC-3 vs DW-AC-4**: DW-AC-4 sets zero-failure on aggregate
+  stress (binary count-floor). CMD-AC-3 sets a quantitative per-
+  Komponente consistency-rate floor (≥99.5%) on the same stress-
+  window. Captures non-throw-class drift (e.g. transient latency-
+  tail without an exception) that DW-AC-4 misses but that operationally
+  signals a Cross-Modul-Drift-Focus regression.
+* **CMD-AC-4 vs DW-AC-3**: DW-AC-3 covers manual Operator-Hand
+  asymmetric rollback discipline. CMD-AC-4 adds the *trigger-
+  precondition* (drift > 0.5pp) + the *atomicity property* (single
+  restart-cycle, no partial state). A flip on sub-threshold drift is
+  rejected as spurious; a multi-restart-cycle flip is rejected as
+  non-atomic. Tightens the runbook discipline beyond DW-AC-3's
+  post-fact backend-state-check.
+
+### 11.3 Cross-Modul-Stress-Test substrate (PR #197) wire-up
+
+CMD-AC-3 references PR #197 Cross-Modul-Stress-Test substrate output
+broken out per Komponente. PR #197 emits aggregate failure-count for
+DW-AC-4; the Doppel-Welle-4+5 trigger-sprint extends the substrate's
+output schema with two per-Komponente consistency-rate fields:
+
+* `state_backing_consistency_rate` — Rust-side write-path consistency
+  observed during the joint-load stress-window.
+* `lifecycle_state_machine_consistency_rate` — Rust-side read+
+  transition-path consistency observed in the same window.
+
+The Phase-3c-trigger-sprint wires `mocked_cross_modul_drift_per_
+komponente_consistency` against this extended substrate output. Pre-
+sprint, the fixture is parity-by-construction (both rates 0.999).
+
+### 11.4 Atomic-flip-pattern runbook substrate
+
+CMD-AC-4 enforces an atomic-flip-pattern: when measured cross-modul-
+drift exceeds 0.5pp, exactly one ENV-flag rewrite + ``systemctl
+restart`` cycle flips the high-drift modul back to python-Default;
+the partner stays untouched on rust-Default. The runbook substrate:
+
+1. **Drift-observability:** Noa-Prometheus-Gauges emit per-Komponente
+   drift-pct in real time (post-trigger-sprint wire-up; pre-sprint
+   the CMD-AC-3 stress-test record carries the same numbers offline).
+2. **Operator-Hand-trigger:** at the 0.5pp threshold, the runbook
+   fires the atomic-flip on the high-drift modul only.
+3. **Post-flip verification:** ENV-flag rewrite verified, restart-
+   cycle completed inside 10min SLA, partner-modul backend confirmed
+   rust.
+4. **Audit-trail:** Backend-Decision-Audit emits a single rollback-
+   record (not a cutover-record); Henrik's Zone-N-Audit-Sample
+   distinguishes rollback-record from cutover-record at audit-time.
+
+The runbook substrate is Operator-Hand territory; the CMD-AC-4 test
+shape is the QA-side oracle the live drill compares against.
+
+### 11.5 Zone-N coordination — Cross-Modul-Drift-Focus delta
+
+Henrik (Internal Audit) Zone-N-Quarterly-Review (Aisha-moderiert)
+gets a Doppel-Welle-4+5-specific evidence-bundle at the Doppel-Welle-
+4+5 Cutover-Mittwoch:
+
+* CMD-AC-1 deserialization round-trip log + schema-version-survival
+  attestation (Operator-Hand-runbook).
+* CMD-AC-2 wire-form-parity matrix (Rust-Rust × all reference oracles)
+  with per-transition row-by-row diff.
+* CMD-AC-3 per-Komponente consistency-rate matrix over the stress-
+  window with joint-rate computation.
+* CMD-AC-4 atomic-flip decision-records (if any drift > 0.5pp was
+  observed) with trigger-precondition evidence + atomicity-property
+  evidence (single restart-cycle log).
+
+Per Zone-N-Boundary-Discipline (ADR-0044 §Zone-N): QA-evidence from
+the CMD-AC layer is *complementary* to Henrik's audit-sample, **not
+substitutive**. Henrik retains independent sampling rights on the
+Backend-Decision-Audit-Trail under the Doppel-Welle-4+5 cutover and
+on the atomic-flip rollback-records.
+
+### 11.6 Doppel-Welle-4+5-Opt-In-Gate
+
+CMD-AC tests carry the `phase_3c_doppel_welle_acceptance` marker —
+they are Doppel-Welle-specific gates, opt-in via
+`WAKIR_PHASE_3C_DOPPEL_E2E=1` env-var or `pytest --phase-3c-doppel-
+welle-acceptance` CLI flag. The KW 26 Doppel-Welle-4+5 trigger-sprint
+runs the Doppel-Welle lane; the per-welle lane (`WAKIR_PHASE_3C_E2E=1`)
+covers Welle-4 + Welle-5 solo files independently.
+
+### 11.7 Vermutungs-Kennzeichnung (P2) — Cross-Modul-Drift delta
+
+* The CMD-AC-1 record-ids and CMD-AC-2 transition-ids in the fixture
+  defaults (`rec-initial-state`, `transition-spawn-to-ready`, etc.)
+  are placeholder shape-anchors pending Phase-3c-trigger-sprint wire-
+  up against real `state_backing` + `lifecycle_state_machine` Rust-
+  crate output.
+* The CMD-AC-2 oracle-set (`python-python-baseline`,
+  `python-rust-welle-4-only`) is ADR-0066-fixed; adding a Rust-Rust
+  self-referential oracle is explicitly forbidden (sanity-test
+  `test_doppel_welle_4_5_cmd_ac_2_oracles_anchor_to_adr_0066`).
+* The CMD-AC-3 consistency-floor (`0.995`, 99.5%) is ADR-0066-fixed;
+  loosening requires an ADR-Folge-Item, not a conftest-edit (sanity-
+  test `test_doppel_welle_4_5_cmd_ac_3_consistency_floor_anchored_
+  to_adr_0066`).
+* The CMD-AC-4 drift-threshold (`0.5`, 0.5pp) is ADR-0066-fixed;
+  mirrors the Welle-3 Henrik-Caution divergence threshold numerically
+  but applies *per-modul*, not whole-bridge-audit-writer (sanity-
+  test `test_doppel_welle_4_5_cmd_ac_4_threshold_anchored_to_adr_
+  0066`).
+* The CMD-AC layer is Doppel-Welle-4+5-exclusive; under no circumstance
+  applies to DW-1+2 (read-only-paar, no schema-touchpoint) or DW-6+7
+  (stateful-loop-paar, different drift-surface addressed by DW-6+7
+  schwerpunkte).
