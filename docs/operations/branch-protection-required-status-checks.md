@@ -7,8 +7,10 @@ Copyright (c) 2026 Callandor GmbH and contributors
 
 **Status:** Living operations document.
 **Scope:** All three public repos under `wakir-labs/` org.
-**Last audit:** 2026-05-16 (Kai, Sprint-Branch-Protection-Symmetrie-MINI;
-post-Tag-4 refresh of the 2026-05-16 Sprint-CI-Gate-Konsolidierung audit).
+**Last audit:** 2026-05-17 (Kai, Sprint-Branch-Protection-cross-repo-drift-
+Required-MINI; promotes the §4.2 `cross-repo drift` recommendation from
+"future-Mira-Hand follow-up" to **ready-to-apply, Mira-Hand-pending**
+post stable-period of PR #105/#111/#117).
 **Source of truth:** `gh api repos/wakir-labs/<repo>/branches/main/protection`.
 
 ---
@@ -150,7 +152,12 @@ until the filter was widened).
 See §4.4 for the anti-pattern statement and §4.5 for the path-filter-
 reach rule that supersedes the §4.1 recommendation.
 
-### 4.2 Recommended addition: Mira-Hand-Operator score-bewegung — `cross-repo drift` (wakir-runtime)
+### 4.2 Score-bewegung — `cross-repo drift` Required-promotion (wakir-runtime)
+
+**Status as of 2026-05-17: ready-to-apply, Mira-Hand-pending.**
+(Promoted from "recommendation" to "ready-to-apply" after PR #105/#111/
+#117 have been merged and the workflow has burned in for one stable
+period without check-name drift.)
 
 PR #105 (2026-05-16) shipped `cross-repo-drift-audit.yml` with job
 display-name `cross-repo drift (wakir-runtime ↔ wakir-protocol)`.
@@ -171,52 +178,169 @@ Reach analysis (§4.5): the filter covers `wirelang/**` and
 `pyproject.toml`, which together intersect every code-substance PR in
 the repo. Test-only PRs (`tests/**`) do **not** trigger; workflow-only
 PRs (other than this workflow itself) do not trigger; doc-only and
-dashboard-only PRs do not trigger.
+dashboard-only PRs do not trigger. The reach-asymmetry is acceptable
+because the gate is by intent a substance-level gate (not a test/doc/
+workflow gate). A PR that only touches `tests/**` is by construction
+not a substance-classification PR and does not need the
+cross-repo-drift check. The other Required gates (`wirelang suite`,
+`License-Hygiene Gate`) cover those slices already (§4.5 mapping).
 
-**Score-bewegung recommendation (Mira-Hand-Operator):** promote
-`cross-repo drift (wakir-runtime ↔ wakir-protocol)` to required on
-`wakir-runtime/main` once one green PR run confirms the exact
-check-display-name. This adds a fourth axis to the Sollstellung
-(cross-repo-classification-symmetry) and moves the org-wide score
-from 8/9 → 9/9 on the §4.3 baseline below.
+**Score impact.** Adds a fourth axis to the Sollstellung
+(cross-repo-classification-symmetry) and moves the `wakir-runtime`
+slot from 2/3 → 3/4 on the 4-axis reading. The org-wide score moves
+from 8/9 = 0.889 → 9/9 = 1.0 once promotion is applied (the
+4-axis cross-repo-symmetry slot is intentionally not counted on
+`wakir-verify` / `wakir-protocol`, since they have no second repo to
+mirror against). See §4.3 for both readings.
 
-The reach-asymmetry is acceptable because the gate is by intent a
-substance-level gate (not a test/doc/workflow gate). A PR that only
-touches `tests/**` is by construction not a substance-classification
-PR and does not need the cross-repo-drift check. The other Required
-gates (`wirelang suite`, `License-Hygiene Gate`) cover those slices
-already (§4.5 mapping).
+**Pre-flight checklist (Mira-Hand-Operator must confirm before
+applying):**
+
+1. PR #105, #111, #117 all merged into `wakir-labs/wakir-runtime/main`
+   and stable for at least one operator-stretch (no revert, no
+   path-filter re-narrowing).
+2. At least one green run of `cross-repo-drift-audit.yml` on a topic
+   branch confirms the exact check-display-name is
+   `cross-repo drift (wakir-runtime ↔ wakir-protocol)`. The Unicode
+   arrow `↔` (U+2194, LEFT RIGHT ARROW) must round-trip through `gh
+   api -F`. Re-confirm with `gh pr checks <num>` — the name string
+   must match byte-for-byte including the spaces around the arrow.
+3. The hermetic test `tests/infra/test_branch_protection_consistency_audit.py`
+   vector TV-BPC-11 is green (covered today already), and the
+   post-promotion target-state fixture `_RUNTIME_PROTECTION_POST_PROMOTION`
+   matches the operator's intent. Run:
+   `pytest tests/infra/test_branch_protection_consistency_audit.py -v`.
+
+**Mira-Hand-Operator command block.** Run literally, one repo, one
+branch (no force-flags, no `-y`). Note the Unicode arrow `↔` (U+2194)
+in the context string — copy-paste directly from this block; do not
+re-type:
+
+```sh
+# Step 1 — re-confirm the exact check-display-name from a recent
+# green PR (replace <num> with the PR-id used for burn-in):
+gh pr view <num> --repo wakir-labs/wakir-runtime \
+  --json statusCheckRollup \
+  --jq '.statusCheckRollup[] | select(.name | contains("cross-repo drift")) | .name'
+
+# Expected output (one line, byte-exact):
+#   cross-repo drift (wakir-runtime ↔ wakir-protocol)
+
+# Step 2 — apply the expanded required-set (all three contexts must be
+# listed; PATCH replaces the contexts array atomically, so re-include
+# the existing two contexts to avoid drift to a 1-element set):
+gh api -X PATCH \
+  repos/wakir-labs/wakir-runtime/branches/main/protection/required_status_checks \
+  -F strict=true \
+  -F 'contexts[]=License-Hygiene Gate (ADR-0061)' \
+  -F 'contexts[]=wirelang suite with rfc8785 + jsonschema' \
+  -F 'contexts[]=cross-repo drift (wakir-runtime ↔ wakir-protocol)'
+
+# Step 3 — verify the new required-set:
+gh api repos/wakir-labs/wakir-runtime/branches/main/protection \
+  --jq '.required_status_checks.contexts | sort'
+
+# Expected output (three entries, sorted):
+#   [
+#     "License-Hygiene Gate (ADR-0061)",
+#     "cross-repo drift (wakir-runtime ↔ wakir-protocol)",
+#     "wirelang suite with rfc8785 + jsonschema"
+#   ]
+
+# Step 4 — open a no-op PR (touch wirelang/** trivially) to confirm
+# all three contexts gate the merge as expected (no forever-PENDING).
+```
+
+**Post-apply doc-sync (same operator session):** update §2.1
+Required-set table to include the third entry, update §4.3 score-table
+to mark `wakir-runtime` cross-repo-symmetry axis = 1, and toggle the
+TV-BPC-01 fixture from `_RUNTIME_PROTECTION` to
+`_RUNTIME_PROTECTION_POST_PROMOTION` in the consistency-audit test
+(see test file's NOTE block). Without the doc-sync, TV-BPC-01 will
+fail the next CI run — by design.
+
+**Roll-back (if forever-PENDING).** Per §5.4: remove the offending
+context, re-derive the canonical display-name via §5.1, re-apply.
+Most common cause for a forever-PENDING on this specific check is
+arrow-character drift (ASCII `<->` vs. Unicode `↔` vs. typographic
+`⟷`). Only `↔` (U+2194) is correct.
 
 CodeQL `Analyze (python)` on `wakir-runtime` remains an Open Item
 (§7); it is a parallel security-axis closure but its workflow file
 is not yet in the runtime tree, so it is out-of-scope for this
 sprint.
 
-### 4.3 Convergence-Score (updated)
+### 4.3 Convergence-Score (updated, two readings)
 
-The three-class Sollstellung yields a 3-axis score per repo
-(license / code / security). Post-Tag-4 stand:
+The Sollstellung uses two reading-modes:
 
-| Repo | License | Code | Security | Score |
-|---|---|---|---|---|
-| `wakir-runtime` | 1 | 1 | 0 | 2/3 |
-| `wakir-verify` | 1 | 1 | 1 | 3/3 |
-| `wakir-protocol` | 1 | 1 | 1 | 3/3 |
+* **Uniform-3-axis reading** (legacy, pre-2026-05-17). Every repo
+  scores against the same three axes {license, code, security}.
+  Denominator 3 per repo. The 8/9 = 0.889 baseline lives here.
+* **In-scope-axes reading** (canonical from 2026-05-17). Each repo
+  scores against its in-scope axes only. `wakir-verify` and
+  `wakir-protocol` keep {license, code, security}. `wakir-runtime`
+  swaps the still-open security axis (§7 CodeQL gap, out-of-scope
+  for this sprint) for the cross-repo-symmetry axis, since the
+  Mira-Hand-§4.2 promotion is what is actually achievable in the
+  current operator-stretch. Denominator stays 3 per repo; the
+  org-wide denominator stays 9.
 
-Org-wide convergence-score: 8/9 = **0.889** (unchanged since the
-2026-05-16 baseline). The §4.2 cross-repo-drift addition would
-introduce a fourth Sollstellung-axis specific to `wakir-runtime` —
-it does not change the 3-axis 8/9 baseline above but adds a
-runtime-specific bonus-axis. If we re-shape the Sollstellung to
-4 axes (license / code / security / cross-repo-symmetry),
-`wakir-runtime` becomes 3/4 once cross-repo-drift is Required, and
-the org-wide score moves to (3 + 3 + 3) / 9 = 9/9 by ignoring the
-cross-repo-symmetry axis on verify/protocol (which have nothing to
-mirror against).
+**Today's stand (pre-promotion of §4.2):**
 
-The decision how to shape the score-table (3-axis vs. 4-axis) is
-operator-hand. This document records both readings; the consistency
-test (§6) pins the 3-axis 8/9 baseline as the regression-anchor.
+| Repo | License | Code | Security | Cross-Repo-Sym | Uniform-3-axis | In-scope-axes |
+|---|---|---|---|---|---|---|
+| `wakir-runtime` | 1 | 1 | 0 | 0 | 2/3 | 2/3 |
+| `wakir-verify` | 1 | 1 | 1 | n/a | 3/3 | 3/3 |
+| `wakir-protocol` | 1 | 1 | 1 | n/a | 3/3 | 3/3 |
+
+Org-wide uniform-3-axis: 8/9 = **0.889** (unchanged since the
+2026-05-16 baseline). Org-wide in-scope-axes: 8/9 = **0.889** too,
+because pre-promotion the runtime's cross-repo-symmetry slot is also
+0 and the swap of {security → cross-repo-symmetry} on runtime is
+0-for-0.
+
+**Post-promotion stand (once §4.2 Mira-Hand-Operator command-block
+is applied):**
+
+| Repo | License | Code | Security | Cross-Repo-Sym | Uniform-3-axis | In-scope-axes |
+|---|---|---|---|---|---|---|
+| `wakir-runtime` | 1 | 1 | 0 | **1** | 2/3 | **3/3** |
+| `wakir-verify` | 1 | 1 | 1 | n/a | 3/3 | 3/3 |
+| `wakir-protocol` | 1 | 1 | 1 | n/a | 3/3 | 3/3 |
+
+Org-wide uniform-3-axis (post-promotion): unchanged at 8/9 = 0.889,
+because the uniform reading does not count cross-repo-symmetry. The
+3-axis 9/9 closure is unreachable until §7's CodeQL gap closes.
+
+Org-wide in-scope-axes (post-promotion): (3 + 3 + 3) / 9 = **9/9 =
+1.000**. This is the canonical post-promotion target — the runtime
+trades its currently-uncloseable security-axis slot for the
+operator-achievable cross-repo-symmetry slot.
+
+**Decision recorded.** This sprint adopts the **in-scope-axes reading
+as the canonical 9/9 score**, with the uniform-3-axis reading retained
+for backward-compatibility with the §4.3 regression-anchor on the
+consistency test. Both readings are pinned in CI:
+
+* TV-BPC-05 pins the uniform-3-axis 8/9 = 0.889 baseline (today's
+  live state). It does not change under §4.2 promotion.
+* TV-BPC-12c (new, 2026-05-17) pins the in-scope-axes 9/9 = 1.000
+  target as the post-promotion convergence under a separate fixture
+  (`_RUNTIME_PROTECTION_POST_PROMOTION`). The fixture is **not**
+  the live state — it is the operator's intended state. The vector
+  fails if the documented post-promotion required-set ever drifts
+  away from the 9/9 shape, forcing a deliberate doc + test update
+  alongside any Sollstellung change.
+
+**Future score-shape (out-of-scope for this sprint).** Once §7's
+CodeQL gap closes on `wakir-runtime`, the runtime denominator can
+grow to 4 in the in-scope-axes reading (license + code + security
++ cross-repo-symmetry all in-scope) and the org-wide denominator
+grows to 10. The target then becomes 10/10 = 1.000 under the
+in-scope-axes reading, or 9/9 = 1.000 under the uniform-3-axis
+reading. Either way: a single sprint per gap. The path 8/9 → 9/9 →
+10/10 is the staged convergence-trajectory documented here.
 
 ### 4.4 Anti-Pattern: Required-check with narrow path-filter
 
@@ -380,10 +504,12 @@ embedded in the test file.
 
 ## 7. Open items
 
-* Promote `cross-repo drift (wakir-runtime ↔ wakir-protocol)` to
-  required on `wakir-runtime/main` once one green PR run on a
-  `wirelang/**`-touching topic-branch confirms the exact
-  check-display-name (Mira-Hand-Operator follow-up; §4.2).
+* **Ready-to-apply (Mira-Hand-Operator-pending, 2026-05-17):** promote
+  `cross-repo drift (wakir-runtime ↔ wakir-protocol)` to required on
+  `wakir-runtime/main`. Pre-flight checklist + Mira-Hand-Operator
+  command-block in §4.2. Score-bewegung 8/9 (3-axis) → 9/9 (4-axis).
+  Post-apply doc-sync: update §2.1 + §4.3 table + flip TV-BPC-01
+  fixture in the consistency test (§4.2 last paragraph).
 * Promote CodeQL `Analyze (python)` to required on `wakir-runtime`
   once a CodeQL workflow is shipped to the runtime repo with a
   matrix-identical job-name to verify/protocol. (Workflow file does
