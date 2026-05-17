@@ -126,6 +126,7 @@ members = [
     "crates/persona-engine-v907-verify",
     "crates/persona-engine-fsm",
     "crates/persona-engine-anchor-emitter",
+    "crates/persona-engine-nats-subjects",
 ]
 
 [workspace.package]
