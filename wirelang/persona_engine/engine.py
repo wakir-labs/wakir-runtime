@@ -384,6 +384,7 @@ class PersonaEngine:
         from .rust_backend_switch import (
             resolve_anchor_emitter_backend,
             resolve_bridge_diff_backend,
+            resolve_federation_resolver_backend,
             resolve_fsm_backend,
             resolve_recovery_backend,
             resolve_subscribe_loop_backend,
@@ -570,6 +571,44 @@ class PersonaEngine:
                 "level": "ERROR",
                 "msg": "backend-switch-validation-failed",
                 "domain": "svid_workload_identity",
+                "error": str(exc),
+            })
+            raise
+        # Tag-30: resolve federation-resolver-backend choice up-front,
+        # parallel to recovery + state_backing + fsm + v907_verify +
+        # bridge_diff + subscribe_loop + anchor_emitter +
+        # svid_workload_identity. Default is python (current behaviour,
+        # opt-in switch). Federation-resolver is the Zone-L org-key
+        # audit substrate (resolver-snapshot JCS-canonical bytes; the
+        # operator-org Ed25519 public-key entries for inbound federation
+        # frame verification) — the per-decision audit-record is
+        # critical for the Phase-3b Doppelbetrieb comparison set because
+        # any silent drift between Python and Rust resolver-snapshot
+        # bytes would corrupt the entire org-key truth claim before the
+        # WAT-audit substrate ever hashes it. The engine keeps
+        # :mod:`wirelang.identity.federation_resolver_canonical`
+        # Python-backed during Phase-3b; Phase-3c cutover (out of scope
+        # here) swaps in the Rust subprocess-bridge against the
+        # ``persona-engine-federation-resolver`` crate (PR #188). This
+        # is the **9th** BackendDecision record emitted per boot
+        # (Tag-17 recovery + state_backing + Tag-18 fsm + Tag-19
+        # v907_verify + Tag-20 bridge_diff + Tag-22 subscribe_loop +
+        # Tag-23 anchor_emitter + Tag-25 svid_workload_identity +
+        # Tag-30 federation_resolver) — the Phase-3b production-default-
+        # switch contract surface is closed at nine components with
+        # this wire-in.
+        try:
+            (
+                self._federation_resolver_backend,
+                self._federation_resolver_backend_decision,
+            ) = resolve_federation_resolver_backend(
+                env=None, log_sink=self.log_sink
+            )
+        except Exception as exc:  # noqa: BLE001 — strict env-validation
+            self._log({
+                "level": "ERROR",
+                "msg": "backend-switch-validation-failed",
+                "domain": "federation_resolver",
                 "error": str(exc),
             })
             raise

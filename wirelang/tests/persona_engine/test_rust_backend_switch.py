@@ -52,8 +52,15 @@ Coverage map (15 hermetic vectors, ≥12 required):
     (Welle-2 signal) / rust+non-executable / unknown-validation /
     empty-string / default-bin / bin-override / per-decision-logging
     / auftrag-alias / enum-consistency.
+22. Tag-30 Federation-Resolver — 12 new vectors FR01..FR12 covering
+    env-unset default / explicit python / rust+available / rust+missing
+    / rust+non-executable / unknown-validation / empty-string /
+    default-bin / bin-override / per-decision-logging / auftrag-alias /
+    enum-consistency. Includes byte-parity verification against the
+    five cross-lang fixtures from PR #188
+    (``tests/fixtures/federation-resolver-cross-lang/fixtures.json``).
 
-Total: 32 hermetic vectors (>=10 required for Tag-25 alone).
+Total: 44 hermetic vectors (>=10 required for Tag-30 alone).
 """
 
 from __future__ import annotations
@@ -86,7 +93,9 @@ from wirelang.persona_engine.rust_backend_switch import (
     DEFAULT_RUST_STATE_BACKING_BIN,
     DEFAULT_RUST_SUBSCRIBE_LOOP_BIN,
     DEFAULT_RUST_SVID_WORKLOAD_IDENTITY_BIN,
+    DEFAULT_RUST_FEDERATION_RESOLVER_BIN,
     DEFAULT_RUST_V907_VERIFY_BIN,
+    FEDERATION_RESOLVER_BACKEND_ENV,
     FSM_BACKEND_ENV,
     RECOVERY_BACKEND_ENV,
     RUST_ANCHOR_EMITTER_BIN_ENV,
@@ -97,6 +106,7 @@ from wirelang.persona_engine.rust_backend_switch import (
     RUST_STATE_BACKING_BIN_ENV,
     RUST_SUBSCRIBE_LOOP_BIN_ENV,
     RUST_SVID_WORKLOAD_IDENTITY_BIN_ENV,
+    RUST_FEDERATION_RESOLVER_BIN_ENV,
     RUST_V907_VERIFY_BIN_ENV,
     STATE_BACKING_BACKEND_ENV,
     SUBSCRIBE_LOOP_BACKEND_ENV,
@@ -109,6 +119,7 @@ from wirelang.persona_engine.rust_backend_switch import (
     VALID_STATE_BACKING_BACKEND_VALUES,
     VALID_SUBSCRIBE_LOOP_BACKEND_VALUES,
     VALID_SVID_WORKLOAD_IDENTITY_BACKEND_VALUES,
+    VALID_FEDERATION_RESOLVER_BACKEND_VALUES,
     VALID_V907_VERIFY_BACKEND_VALUES,
     AnchorEmitterBackend,
     AnchorEmitterSubprocessResult,
@@ -131,12 +142,14 @@ from wirelang.persona_engine.rust_backend_switch import (
     SubscribeLoopBackend,
     SubscribeLoopSubprocessAckResult,
     SvidWorkloadIdentityBackend,
+    FederationResolverBackend,
     V907SubprocessResult,
     V907VerifyBackend,
     _resolve_timeout_s,
     _select_anchor_emitter_backend,
     _select_subscribe_loop_backend,
     _select_svid_workload_identity_backend,
+    _select_federation_resolver_backend,
     build_anchor_emitter,
     build_bridge_diff,
     build_fsm,
@@ -151,6 +164,7 @@ from wirelang.persona_engine.rust_backend_switch import (
     resolve_state_backing_backend,
     resolve_subscribe_loop_backend,
     resolve_svid_workload_identity_backend,
+    resolve_federation_resolver_backend,
     resolve_v907_verify_backend,
 )
 from wirelang.persona_engine.state_backing import (
@@ -3622,3 +3636,289 @@ def test_svid_workload_identity_enum_and_valid_values_consistency():
     assert "VALID_SVID_WORKLOAD_IDENTITY_BACKEND_VALUES" in rbs.__all__
     assert "resolve_svid_workload_identity_backend" in rbs.__all__
     assert "_select_svid_workload_identity_backend" not in rbs.__all__
+
+
+# ---------------------------------------------------------------------------
+# Tag-30 Mini-Welle — Federation-Resolver backend resolver
+# (9. BackendDecision per boot; byte-cross-lang parity against
+# PR #188 fixtures).
+#
+# Coverage map (12 hermetic vectors, >=10 required by auftrag):
+#
+#   FR01 unset env -> python default, no fallback_reason, no bin_path.
+#   FR02 explicit "python" -> python + fallback_reason="explicit_python".
+#   FR03 "rust" + available binary -> rust chosen, bin_path resolved.
+#   FR04 "rust" + missing binary -> graceful python fallback,
+#        fallback_reason="binary_missing".
+#   FR05 "rust" + non-executable file -> python fallback,
+#        fallback_reason="binary_not_executable".
+#   FR06 unknown env value -> BackendSwitchValidationError.
+#   FR07 empty-string env -> python default (no error).
+#   FR08 default bin path resolves to the canonical
+#        /opt/wakir/bin/wakir-persona-engine-federation-resolver.
+#   FR09 RUST_FEDERATION_RESOLVER_BIN_ENV override is respected.
+#   FR10 per-decision logging emits exactly one structured JSON line
+#        to log_sink, with domain="federation_resolver".
+#   FR11 _select_federation_resolver_backend auftrag-alias dispatches
+#        identically to resolve_federation_resolver_backend.
+#   FR12 enum + valid-value tuple consistency
+#        (closed-set: ("python", "rust")) AND byte-parity verification
+#        against the five PR #188 cross-lang resolver-snapshot fixtures.
+# ---------------------------------------------------------------------------
+
+
+def test_federation_resolver_unset_defaults_to_python():
+    """FR01 — env-unset path: python default, no fallback_reason."""
+    env: dict = {}
+    chosen, decision = resolve_federation_resolver_backend(env=env)
+    assert chosen is FederationResolverBackend.PYTHON
+    assert decision.domain == "federation_resolver"
+    assert decision.requested_backend == "python"
+    assert decision.chosen_backend == "python"
+    assert decision.fallback_reason is None
+    assert decision.bin_path is None
+    assert decision.resolution_latency_us >= 0
+
+
+def test_federation_resolver_explicit_python():
+    """FR02 — explicit ``python`` carries ``explicit_python`` token."""
+    env = {FEDERATION_RESOLVER_BACKEND_ENV: "python"}
+    chosen, decision = resolve_federation_resolver_backend(env=env)
+    assert chosen is FederationResolverBackend.PYTHON
+    assert decision.fallback_reason == "explicit_python"
+    assert decision.bin_path is None
+
+
+def test_federation_resolver_rust_with_available_binary(tmp_path: Path):
+    """FR03 — ``rust`` + executable binary => rust chosen."""
+    bin_path = _make_executable(
+        tmp_path / "wakir-persona-engine-federation-resolver"
+    )
+    env = {
+        FEDERATION_RESOLVER_BACKEND_ENV: "rust",
+        RUST_FEDERATION_RESOLVER_BIN_ENV: str(bin_path),
+    }
+    chosen, decision = resolve_federation_resolver_backend(env=env)
+    assert chosen is FederationResolverBackend.RUST
+    assert decision.domain == "federation_resolver"
+    assert decision.requested_backend == "rust"
+    assert decision.chosen_backend == "rust"
+    assert decision.fallback_reason is None
+    assert decision.bin_path == str(bin_path)
+
+
+def test_federation_resolver_rust_with_missing_binary_graceful_fallback(
+    tmp_path: Path,
+):
+    """FR04 — ``rust`` + missing binary => python fallback."""
+    missing = tmp_path / "does-not-exist"
+    env = {
+        FEDERATION_RESOLVER_BACKEND_ENV: "rust",
+        RUST_FEDERATION_RESOLVER_BIN_ENV: str(missing),
+    }
+    chosen, decision = resolve_federation_resolver_backend(env=env)
+    assert chosen is FederationResolverBackend.PYTHON
+    assert decision.requested_backend == "rust"
+    assert decision.chosen_backend == "python"
+    assert decision.fallback_reason == "binary_missing"
+    assert decision.bin_path == str(missing)
+
+
+def test_federation_resolver_rust_with_not_executable_binary_graceful_fallback(
+    tmp_path: Path,
+):
+    """FR05 — ``rust`` + non-executable file => python fallback."""
+    non_exec = _make_non_executable_file(
+        tmp_path / "federation-resolver-not-exec"
+    )
+    env = {
+        FEDERATION_RESOLVER_BACKEND_ENV: "rust",
+        RUST_FEDERATION_RESOLVER_BIN_ENV: str(non_exec),
+    }
+    chosen, decision = resolve_federation_resolver_backend(env=env)
+    assert chosen is FederationResolverBackend.PYTHON
+    assert decision.fallback_reason == "binary_not_executable"
+    assert decision.bin_path == str(non_exec)
+
+
+def test_federation_resolver_validation_rejects_unknown():
+    """FR06 — unknown env-var value raises BackendSwitchValidationError."""
+    env = {FEDERATION_RESOLVER_BACKEND_ENV: "go"}
+    with pytest.raises(BackendSwitchValidationError) as excinfo:
+        resolve_federation_resolver_backend(env=env)
+    err = excinfo.value
+    assert err.env_var == FEDERATION_RESOLVER_BACKEND_ENV
+    assert err.value == "go"
+    assert err.valid_values == VALID_FEDERATION_RESOLVER_BACKEND_VALUES
+
+
+def test_federation_resolver_empty_string_env_defaults_to_python():
+    """FR07 — empty-string env value defaults to python (no error)."""
+    env = {FEDERATION_RESOLVER_BACKEND_ENV: ""}
+    chosen, decision = resolve_federation_resolver_backend(env=env)
+    assert chosen is FederationResolverBackend.PYTHON
+    assert decision.fallback_reason is None
+    assert decision.bin_path is None
+
+
+def test_federation_resolver_default_binary_path_when_env_unset():
+    """FR08 — default bin path resolves to the canonical Tag-30 path."""
+    from wirelang.persona_engine.rust_backend_switch import (
+        _resolve_federation_resolver_bin,
+    )
+
+    assert (
+        _resolve_federation_resolver_bin(env={})
+        == DEFAULT_RUST_FEDERATION_RESOLVER_BIN
+    )
+    assert (
+        DEFAULT_RUST_FEDERATION_RESOLVER_BIN
+        == "/opt/wakir/bin/wakir-persona-engine-federation-resolver"
+    )
+
+
+def test_federation_resolver_explicit_bin_env_override(tmp_path: Path):
+    """FR09 — RUST_FEDERATION_RESOLVER_BIN_ENV override is respected."""
+    from wirelang.persona_engine.rust_backend_switch import (
+        _resolve_federation_resolver_bin,
+    )
+
+    override = tmp_path / "custom-federation-resolver-binary"
+    env = {RUST_FEDERATION_RESOLVER_BIN_ENV: str(override)}
+    assert _resolve_federation_resolver_bin(env=env) == str(override)
+
+
+def test_federation_resolver_per_decision_logging_writes_sink():
+    """FR10 — per-decision logging emits one structured JSON line."""
+    sink = io.StringIO()
+    chosen, _ = resolve_federation_resolver_backend(env={}, log_sink=sink)
+    line = sink.getvalue().strip()
+    assert line, "expected one structured-log line emitted"
+    parsed = json.loads(line)
+    assert parsed["msg"] == "backend-decision"
+    assert parsed["domain"] == "federation_resolver"
+    assert parsed["requested_backend"] == "python"
+    assert parsed["chosen_backend"] == "python"
+    assert parsed["resolution_latency_us"] >= 0
+    assert chosen is FederationResolverBackend.PYTHON
+
+
+def test_federation_resolver_auftrag_alias_dispatches_identically(
+    tmp_path: Path,
+):
+    """FR11 — auftrag-alias dispatches identically to canonical resolver.
+
+    Covers two surfaces:
+      (a) env-unset python path.
+      (b) ``rust`` + missing-binary graceful-fallback path.
+    """
+    # (a) Unset env path.
+    chosen_a, decision_a = _select_federation_resolver_backend(env={})
+    chosen_b, decision_b = resolve_federation_resolver_backend(env={})
+    assert chosen_a is chosen_b
+    assert decision_a.domain == decision_b.domain
+    assert decision_a.requested_backend == decision_b.requested_backend
+    assert decision_a.chosen_backend == decision_b.chosen_backend
+    assert decision_a.fallback_reason == decision_b.fallback_reason
+
+    # (b) Rust + missing-binary path.
+    missing = tmp_path / "does-not-exist"
+    env = {
+        FEDERATION_RESOLVER_BACKEND_ENV: "rust",
+        RUST_FEDERATION_RESOLVER_BIN_ENV: str(missing),
+    }
+    chosen_c, decision_c = _select_federation_resolver_backend(env=env)
+    chosen_d, decision_d = resolve_federation_resolver_backend(env=env)
+    assert chosen_c is chosen_d is FederationResolverBackend.PYTHON
+    assert (
+        decision_c.fallback_reason
+        == decision_d.fallback_reason
+        == "binary_missing"
+    )
+    assert decision_c.bin_path == decision_d.bin_path == str(missing)
+
+
+def test_federation_resolver_enum_and_byte_parity_against_pr188_fixtures():
+    """FR12 — enum + valid-value tuple closed-set, AND byte-parity check
+    against the five PR #188 cross-lang resolver-snapshot fixtures.
+
+    The byte-parity check ties the backend-switch resolver wire-in to
+    the **actual** Python-authority output: any drift between the
+    Python ``federation_resolver_canonical`` module and the fixture
+    file would invalidate the Doppelbetrieb-Vergleich assumption that
+    the 9th BackendDecision underpins.
+    """
+    # Enum closed-set.
+    member_values = tuple(b.value for b in FederationResolverBackend)
+    assert member_values == ("python", "rust")
+    assert VALID_FEDERATION_RESOLVER_BACKEND_VALUES == ("python", "rust")
+    assert FederationResolverBackend.PYTHON.value == "python"
+    assert FederationResolverBackend.RUST.value == "rust"
+
+    # __all__ surface check.
+    from wirelang.persona_engine import rust_backend_switch as rbs
+
+    assert "FederationResolverBackend" in rbs.__all__
+    assert "VALID_FEDERATION_RESOLVER_BACKEND_VALUES" in rbs.__all__
+    assert "resolve_federation_resolver_backend" in rbs.__all__
+    assert "_select_federation_resolver_backend" not in rbs.__all__
+
+    # Byte-parity against the five PR #188 cross-lang fixtures.
+    import base64
+
+    from wirelang.identity.federation_resolver_canonical import (
+        build_entry,
+        build_snapshot_from_entries,
+        resolver_snapshot_hash_prefixed,
+        resolver_snapshot_sha256_hex,
+        serialize_resolver_snapshot,
+    )
+
+    # Locate the fixture file relative to the repo root. The test is
+    # hermetic — it consumes only the on-disk fixture, no network.
+    fixture_path = (
+        Path(__file__).resolve().parents[3]
+        / "tests"
+        / "fixtures"
+        / "federation-resolver-cross-lang"
+        / "fixtures.json"
+    )
+    assert fixture_path.exists(), (
+        f"PR #188 cross-lang fixture file missing at {fixture_path}"
+    )
+    doc = json.loads(fixture_path.read_text(encoding="utf-8"))
+    fixtures = doc["fixtures"]
+    assert len(fixtures) == 5, (
+        f"expected 5 PR #188 cross-lang fixtures, got {len(fixtures)}"
+    )
+
+    for fx in fixtures:
+        entries = []
+        for raw in fx["input_entries"]:
+            entries.append(
+                build_entry(
+                    org_id=raw["org_id"],
+                    cluster_id=raw["cluster_id"],
+                    public_key_hex=raw["public_key_hex"],
+                    valid_from=raw["valid_from"],
+                    valid_until=raw["valid_until"],
+                    alg=raw.get("alg", "ed25519"),
+                )
+            )
+        snap = build_snapshot_from_entries(entries)
+        py_bytes = serialize_resolver_snapshot(snap)
+        py_sha256 = resolver_snapshot_sha256_hex(snap)
+        py_prefixed = resolver_snapshot_hash_prefixed(snap)
+
+        expected = fx["expected"]
+        expected_bytes = base64.b64decode(expected["snapshot_jcs_bytes_b64"])
+        assert py_bytes == expected_bytes, (
+            f"fixture {fx['name']!r} JCS-byte drift "
+            f"(py len={len(py_bytes)} vs fixture len={len(expected_bytes)})"
+        )
+        assert len(py_bytes) == expected["snapshot_jcs_bytes_len"]
+        assert py_sha256 == expected["snapshot_sha256_hex"], (
+            f"fixture {fx['name']!r} SHA-256 drift "
+            f"(py={py_sha256} fixture={expected['snapshot_sha256_hex']})"
+        )
+        assert py_prefixed == expected["snapshot_hash_prefixed"]
