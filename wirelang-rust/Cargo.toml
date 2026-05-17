@@ -225,6 +225,7 @@ members = [
     "crates/persona-engine-recovery-replay",
     "crates/persona-engine-loop-latency-bench",
     "crates/persona-engine-integration-tests",
+    "crates/persona-engine-bridge-forward",
 ]
 
 [workspace.package]

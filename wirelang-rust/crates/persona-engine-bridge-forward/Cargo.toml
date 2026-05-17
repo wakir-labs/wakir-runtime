@@ -1,0 +1,93 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wakir-Runtime / wirelang Rust workspace — persona-engine-bridge-forward
+# crate (Tag-25 Mini-Welle Phase-3a-Python-Sync, 10. Modul).
+#
+# Purpose
+# -------
+# Rust pendant of the Mira-side Bridge-Forward-Pipe canonical-frame
+# surface. The pre-existing Python authority is
+# `wirelang/cli/bridge_forward.py` (Sprint-10 Tag-6); the Tag-25
+# sibling `wirelang/cli/bridge_forward_canonical.py` exposes the
+# higher-layer `ForwardFrame` wire-shape that this crate mirrors
+# byte-for-byte.
+#
+# Schema-parity table (Rust <-> Python)
+# -------------------------------------
+#   Python `AuftragEnvelope` (dataclass)            <-> Rust `AuftragEnvelope` (struct)
+#   Python `ForwardFrameInput` (dataclass)          <-> Rust `ForwardFrameInput` (struct)
+#   Python `ForwardFrame` (dataclass)               <-> Rust `ForwardFrame` (struct)
+#   Python `build_forward_frame(input)`             <-> Rust `build_forward_frame`
+#   Python `build_subject(env, persona_slug)`       <-> Rust `build_subject`
+#   Python `serialize_forward_frame(frame)`         <-> Rust `serialize_forward_frame`
+#   Python `forward_frame_sha256_hex(frame)`        <-> Rust `forward_frame_sha256_hex`
+#   Python `forward_frame_hash_prefixed(frame)`     <-> Rust `forward_frame_hash_prefixed`
+#   Python `serialize_and_hash(frame)`              <-> Rust `serialize_and_hash`
+#   Python `BRIDGE_FORWARD_FRAME_SCHEMA`            <-> Rust `BRIDGE_FORWARD_FRAME_SCHEMA`
+#   Python `AGENT_TASK_ASSIGNED_SCHEMA`             <-> Rust `AGENT_TASK_ASSIGNED_SCHEMA`
+#   Python `HASH_PREFIX` / `SHA256_HEX_LEN`         <-> same constants
+#
+# Wire-shape contract
+# -------------------
+# Forward-frame: three alphabetical top-level keys
+#   - `envelope` : the Sprint-10 Tag-6 nine-key envelope dict
+#                  (alphabetically sorted: auftrag_id, event_kind,
+#                  metadata, org_id, persona_id, prompt_payload,
+#                  prompt_sha256, schema, source, ts_utc).
+#   - `schema`   : constant `wakir.bridge.forward-frame/1`.
+#   - `subject`  : canonical NATS subject string
+#                  `wakir.<env>.agent.agent.task.assigned.<persona_slug>`.
+#
+# Forward-frame outer hash: `sha256:<lower-case-64-hex>` over the
+# canonical JCS-bytes of the three-field outer dict.
+#
+# Cross-lang anchor
+# -----------------
+# `tests/fixtures/bridge-forward-cross-lang/fixtures.json` is the
+# authoritative byte-level cross-lang pin. Five vectors (empty-payload,
+# single-record, multi-record-batch, error-frame, large-payload) are
+# consumed by both this crate's smoke test and the Python sibling test
+# `tests/cli/test_bridge_forward_cross_lang_parity.py`.
+#
+# Hard-Constraints (per Sprint-Auftrag)
+# -------------------------------------
+# - No touches to `wirelang/cli/bridge_forward.py` (Python tree
+#   stays unchanged); the Tag-25 sibling is the new Apache-2.0
+#   module `wirelang/cli/bridge_forward_canonical.py`.
+# - No LICENSING / NOTICE / .github/workflows touches.
+# - `cargo test -p persona-engine-bridge-forward` runs green.
+# - Single-PR-Bundle against `wakir-runtime/main`.
+# - 5 cross-lang fixtures, 10+ Python tests, sibling Rust smoke test.
+# - No live-NATS in tests (the canonical-frame surface is pure-function;
+#   no nats-py / async-nats dependency).
+#
+# ADR anchors
+# -----------
+# - ADR-0063 §Folgeartefakte Phase-3a Item 10 (this crate).
+# - Reza PR #170 (Tag-18) -- anchor-emitter Python sibling pattern.
+# - Reza PR #177 (Tag-21) -- lifecycle-FSM canonical-trace pattern.
+# - Reza PR #183 (Tag-23) -- state-backing cross-lang parity pattern.
+# - Reza PR #188 (Tag-24) -- federation-resolver cross-lang parity pattern.
+# - Sprint-10 Tag-6 -- pre-existing Bridge-Forward-Pipe CLI authority.
+
+[package]
+name = "persona-engine-bridge-forward"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "Apache-2.0"
+repository = "https://github.com/wakir-labs/wakir-runtime"
+authors = ["Reza Tehrani <reza@wakir.local>"]
+description = "Rust pendant of the Mira-side Bridge-Forward-Pipe canonical-frame surface (parity with wirelang/cli/bridge_forward_canonical.py)."
+publish = false
+
+[lib]
+name = "persona_engine_bridge_forward"
+path = "src/lib.rs"
+
+[dependencies]
+serde      = { workspace = true }
+serde_json = { workspace = true }
+serde_jcs  = { workspace = true }
+sha2       = { workspace = true }
+hex        = { workspace = true }
