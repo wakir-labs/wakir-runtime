@@ -9,13 +9,23 @@ Sibling tests:
     wakir-provisioner image pin (Quadlet).
   * ``infra/spire/federation/tests/test_image_pin_digest_form.py`` —
     SPIRE-Server + SPIRE-Agent pins (compose + quadlet).
+  * ``tests/infra/test_quadlets_phase_3b.py`` — Tag-22 Quadlet
+    installer; inventories the same five binaries.
 
-This test surface validates the Tag-20 Mini-Welle cosign-policy
-substrate (`policies/cosign-policy-phase-3b.yaml`) for the four
-Phase-3b Rust-CLI binaries that
+This test surface validates the cosign-policy substrate
+(`policies/cosign-policy-phase-3b.yaml`) for the five Phase-3b
+Rust-CLI binaries that
 ``wirelang.persona_engine.rust_backend_switch`` subprocess-bridges to
-(recovery, state-backing, fsm, v907-verify; landed in PRs #167, #169,
-#171 across Tag-17/18/19 Mini-Welles).
+(recovery, state-backing, fsm, v907-verify, bridge-diff; landed in
+PRs #167, #169, #171, #175 across Tag-17 through Tag-20 Mini-Welles).
+
+Tag-23 Mini-Welle update
+------------------------
+Inventory extended from 4 to 5 binaries; ``bridge-diff`` (Tag-20
+Mini-Welle PR #175) is now a first-class policy entry. The
+``EXPECTED_BINARIES`` tuple grew accordingly and the dropped-binary
+fixture in ``test_mismatch_fixture_rejects`` now drops a different
+binary (still recovers the same SHAPE-rejection invariant).
 
 Sandbox boundary
 ----------------
@@ -61,18 +71,21 @@ EXPECTED_BINARIES = (
     "state-backing",
     "fsm",
     "v907-verify",
+    "bridge-diff",
 )
 EXPECTED_IN_IMAGE_PATHS = {
     "recovery": "/opt/wakir/bin/wakir-persona-engine-recovery",
     "state-backing": "/opt/wakir/bin/wakir-persona-engine-state-backing",
     "fsm": "/opt/wakir/bin/wakir-persona-engine-fsm",
     "v907-verify": "/opt/wakir/bin/wakir-persona-engine-v907-verify",
+    "bridge-diff": "/opt/wakir/bin/wakir-persona-engine-bridge-diff",
 }
 EXPECTED_ENV_SWITCHES = {
     "recovery": "WAKIR_RECOVERY_BACKEND",
     "state-backing": "WAKIR_STATE_BACKING_BACKEND",
     "fsm": "WAKIR_FSM_BACKEND",
     "v907-verify": "WAKIR_V907_VERIFY_BACKEND",
+    "bridge-diff": "WAKIR_BRIDGE_DIFF_BACKEND",
 }
 PLACEHOLDER_DIGEST = "sha256:DIGEST_PENDING_KAI_CROSS_REVIEW"
 CANONICAL_DIGEST_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
@@ -173,11 +186,12 @@ def test_policy_format_validate(policy: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 2 — all-4-binaries-listed
+# Test 2 — all-5-binaries-listed
 # ---------------------------------------------------------------------------
-def test_all_4_phase_3b_binaries_listed(policy: dict) -> None:
-    """The binaries: inventory MUST list EXACTLY the four Phase-3b
-    Rust-CLI components: recovery, state-backing, fsm, v907-verify.
+def test_all_5_phase_3b_binaries_listed(policy: dict) -> None:
+    """The binaries: inventory MUST list EXACTLY the five Phase-3b
+    Rust-CLI components: recovery, state-backing, fsm, v907-verify,
+    bridge-diff.
 
     A drift either way (missing entry OR extra entry) is a substrate
     breach:
@@ -190,6 +204,11 @@ def test_all_4_phase_3b_binaries_listed(policy: dict) -> None:
         actually subprocess-bridge to is being advertised as
         verified by this policy; that grows the trust surface
         without a real consumer.
+
+    Tag-23 update: inventory grew from 4 to 5 (added ``bridge-diff``;
+    Tag-20 Mini-Welle PR #175). The Tag-22 Quadlet installer
+    (``quadlet/wakir-rust-cli.container``) already iterated all five
+    binaries; this test now enforces the cross-substrate parity.
     """
     binaries = policy["binaries"]
     assert isinstance(binaries, list)
@@ -291,7 +310,7 @@ def test_mismatch_fixture_rejects(policy: dict) -> None:
     Operator-Hand per
     ``docs/operations/cosign-policy-phase-3b.md`` §4.
 
-    Drift fixture A: dropped binary entry (only 3 of 4 components).
+    Drift fixture A: dropped binary entry (only 4 of 5 components).
     Drift fixture B: malformed digest (sha256-prefixed but only 8 hex).
     Drift fixture C: identity-regex pointing at a non-wakir-runtime
                      repository (rogue signer).
@@ -319,10 +338,12 @@ def test_mismatch_fixture_rejects(policy: dict) -> None:
             return f"rogue-identity-regex: {ident!r}"
         return None
 
-    # Fixture A — drop the ``v907-verify`` entry.
+    # Fixture A — drop the ``bridge-diff`` entry (the Tag-23 addition;
+    # exercises the rejection logic specifically against the newest
+    # inventory member).
     fix_a = copy.deepcopy(policy)
     fix_a["binaries"] = [
-        b for b in fix_a["binaries"] if b.get("name") != "v907-verify"
+        b for b in fix_a["binaries"] if b.get("name") != "bridge-diff"
     ]
     rejection = _shape_reject_dropped_binary(fix_a)
     assert rejection is not None and "binary-inventory-drift" in rejection, (
@@ -425,6 +446,11 @@ def test_operations_doc_anchors_policy_file() -> None:
     declarative substrate is the worst-of-both-worlds: humans follow
     the prose, the policy YAML is the source-of-truth, and the two
     silently disagree.
+
+    Tag-23 update: anchors now cover all FIVE canonical in-image
+    paths and all FIVE ENV-switches (the loop over
+    ``EXPECTED_IN_IMAGE_PATHS`` / ``EXPECTED_ENV_SWITCHES`` picks the
+    bridge-diff entries up automatically).
     """
     assert OPERATIONS_DOC.exists(), (
         f"operations doc missing at {OPERATIONS_DOC}"
@@ -504,4 +530,64 @@ def test_sandbox_boundary_stamp_present(policy: dict) -> None:
     assert "run_in_sandbox" not in policy, (
         "policy must not carry a run_in_sandbox flag — live cosign "
         "is Operator-Hand only"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 8 — cross-substrate-parity-with-quadlet-installer
+# ---------------------------------------------------------------------------
+QUADLET_INSTALLER = (
+    REPO_ROOT / "quadlet" / "wakir-rust-cli.container"
+)
+
+
+def test_cross_substrate_parity_with_quadlet_installer(policy: dict) -> None:
+    """The Tag-22 Quadlet installer (``quadlet/wakir-rust-cli.container``,
+    PR #180) and this Cosign-Policy MUST inventory the SAME five
+    binary names. A drift between the two substrates is the worst
+    failure mode in the Tag-22-vs-Tag-20 inventory-gap class — one
+    substrate copies a binary onto the host without a matching
+    verification gate, or vice versa.
+
+    Tag-23 Mini-Welle landed this parity-test alongside the
+    bridge-diff inventory extension. Future inventory grows
+    (e.g. subscribe-loop, PR #181 Tag-22 follow-up) MUST land in
+    BOTH substrates in the same Mini-Welle — this test enforces
+    that gate at policy-author time.
+    """
+    assert QUADLET_INSTALLER.exists(), (
+        f"Quadlet installer missing at {QUADLET_INSTALLER}"
+    )
+    quadlet_text = QUADLET_INSTALLER.read_text(encoding="utf-8")
+
+    # The Quadlet installer iterates the binaries as a shell ``for``
+    # loop inside the Exec= line. Each iteration token is the
+    # ``wakir-persona-engine-<component>`` binary basename. String-
+    # grep them out and derive the component names by stripping the
+    # canonical prefix.
+    quadlet_basenames = set(
+        re.findall(r"wakir-persona-engine-([a-z0-9-]+)", quadlet_text)
+    )
+    # The Quadlet text also references the binaries in the leading
+    # comment block — that is fine, ``set()`` deduplicates.
+
+    policy_basenames = {b["name"] for b in policy["binaries"]}
+
+    # Both substrates must agree on the SET of components.
+    assert quadlet_basenames == policy_basenames, (
+        "cross-substrate inventory drift between Cosign-Policy "
+        f"({sorted(policy_basenames)}) and Quadlet installer "
+        f"({sorted(quadlet_basenames)}). Both files must list the "
+        "same set of Phase-3b Rust-CLI binaries; a drift means one "
+        "substrate copies a binary onto the host without a matching "
+        "verification gate, or advertises verification for a binary "
+        "that the installer does not actually deploy."
+    )
+
+    # And: the agreed-on set must be exactly the five we expect.
+    assert policy_basenames == set(EXPECTED_BINARIES), (
+        f"Cosign-Policy + Quadlet agree on {sorted(policy_basenames)}, "
+        f"but the canonical Tag-23 inventory is "
+        f"{sorted(EXPECTED_BINARIES)} — both substrates have drifted "
+        "from the EXPECTED_BINARIES contract in the same direction."
     )

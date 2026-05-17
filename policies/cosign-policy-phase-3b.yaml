@@ -15,16 +15,25 @@
 #     verify recipe — humans read this YAML, run cosign, compare
 #     digest to ``expected_image_digest`` slot).
 #
+# Tag-23 Mini-Welle update
+# ------------------------
+# Inventory extended from 4 to 5 binaries: ``bridge-diff`` (Tag-20
+# Mini-Welle PR #175) is now a first-class policy entry. The Tag-22
+# Quadlet installer (``quadlet/wakir-rust-cli.container``, PR #180)
+# already inventoried all five binaries; this update closes the
+# cross-substrate inventory gap so both files list the same five
+# binaries byte-for-byte. No image-build path change.
+#
 # Posture
 # -------
-# The 4 binaries are NOT free-standing artefacts — they ship inside
+# The 5 binaries are NOT free-standing artefacts — they ship inside
 # the published ``ghcr.io/wakir-labs/wakir-persona-engine`` image
 # (Containerfile.real, Sprint-Pengine-13+, BSL-1.1) at the canonical
 # ``/opt/wakir/bin/wakir-persona-engine-<component>`` paths declared
 # by ``wirelang/persona_engine/rust_backend_switch.py`` defaults.
 # The image is keyless-signed via Sigstore against the GitHub-Actions
 # OIDC identity of ``.github/workflows/build-wakir-persona-engine.yml``;
-# verifying the image therefore transitively verifies the 4 binaries.
+# verifying the image therefore transitively verifies the 5 binaries.
 #
 # Why keyless and not a pinned ``cosign.pub``: the WAT-Pipeline-Server
 # substrate-pattern from ADR-0034 uses Sigstore-keyless throughout
@@ -48,9 +57,10 @@ schema_version: wakir.cosign-policy.phase-3b/1
 policy:
   name: phase-3b-rust-cli-binaries
   description: >
-    Cosign-keyless verification policy for the four Phase-3b Rust-CLI
+    Cosign-keyless verification policy for the five Phase-3b Rust-CLI
     binaries that the persona-engine production-default switch
-    subprocess-bridges to (recovery, state-backing, fsm, v907-verify).
+    subprocess-bridges to (recovery, state-backing, fsm, v907-verify,
+    bridge-diff).
 
   # Sigstore-keyless OIDC identity of the GitHub-Actions runner that
   # builds and signs the carrier image. Same shape as the Sprint-9
@@ -58,7 +68,7 @@ policy:
   certificate_identity_regexp: 'https://github\.com/wakir-labs/wakir-runtime/'
   certificate_oidc_issuer: 'https://token.actions.githubusercontent.com'
 
-  # Carrier image — keyless-signed; the 4 binaries below ship inside
+  # Carrier image — keyless-signed; the 5 binaries below ship inside
   # this image at the declared in-image paths. The digest slot uses
   # the same DIGEST_PENDING_KAI_CROSS_REVIEW placeholder convention
   # the Quadlet (wakir-persona-tomas.container) uses for the Tag-20
@@ -73,12 +83,17 @@ policy:
     build_workflow: .github/workflows/build-wakir-persona-engine.yml
     containerfile: infra/persona-engine/Containerfile.real
 
-# Inventory of the four Phase-3b Rust-CLI binaries. Each entry is the
+# Inventory of the five Phase-3b Rust-CLI binaries. Each entry is the
 # subprocess-target of one ``WAKIR_*_BACKEND=rust`` ENV-switch wired
 # in ``wirelang/persona_engine/rust_backend_switch.py``. The
 # ``crate_path`` points at the crate that produces the binary; the
 # ``in_image_path`` is the canonical install location inside the
-# carrier image (matches the rust_backend_switch.py defaults).
+# carrier image (matches the rust_backend_switch.py defaults). The
+# inventory order matches the chronological landing order across
+# Tag-17 through Tag-20 (recovery + state-backing PR #167, fsm
+# PR #169, v907-verify PR #171, bridge-diff PR #175); the Tag-22
+# Quadlet installer (``quadlet/wakir-rust-cli.container``) iterates
+# the same five entries in alphabetical-by-component order.
 binaries:
 
   - name: recovery
@@ -135,6 +150,24 @@ binaries:
       Schema-parity with wirelang/persona_engine/v907_verify.py;
       hash-byte-identical against all V-907 pin-pack vectors.
 
+  - name: bridge-diff
+    component: persona-engine-bridge-diff
+    crate_path: wirelang-rust/crates/persona-engine-bridge-diff
+    in_image_path: /opt/wakir/bin/wakir-persona-engine-bridge-diff
+    env_switch: WAKIR_BRIDGE_DIFF_BACKEND
+    env_switch_value: rust
+    env_binary_override: WAKIR_RUST_BRIDGE_DIFF_BIN
+    landed_pr: '#175'
+    landed_tag: Tag-20 Mini-Welle
+    purpose: >
+      Phase-3a/3b Doppelbetrieb diff-oracle subprocess-bridge.
+      Schema-parity with
+      wirelang/persona_engine/bridge_audit_diff_engine.py;
+      byte-identical JCS + SHA-256 hash output AND byte-identical
+      RFC-6901 field-path entries verified against all six
+      cross-lang field-pin vectors per
+      tests/fixtures/cross_lang_field_diff_fixtures.json (PR #166).
+
 # Operator-Hand verification recipe (human-readable canonical
 # anchor; the prose recipe lives in
 # docs/operations/cosign-policy-phase-3b.md §3).
@@ -154,7 +187,8 @@ verification:
     -c 'for b in /opt/wakir/bin/wakir-persona-engine-recovery
                 /opt/wakir/bin/wakir-persona-engine-state-backing
                 /opt/wakir/bin/wakir-persona-engine-fsm
-                /opt/wakir/bin/wakir-persona-engine-v907-verify; do
+                /opt/wakir/bin/wakir-persona-engine-v907-verify
+                /opt/wakir/bin/wakir-persona-engine-bridge-diff; do
           test -x "$b" || { echo "missing or non-exec: $b"; exit 2; };
         done; echo OK'
 
@@ -169,7 +203,7 @@ verification:
 # ----------------
 # The hermetic test surface
 # (tests/infra/test_cosign_policy_phase_3b.py) validates the SHAPE
-# of this YAML — schema_version, all 4 binaries listed, sha256 slot
+# of this YAML — schema_version, all 5 binaries listed, sha256 slot
 # in canonical-form, mismatch fixture rejected. NO sandbox process
 # calls cosign, crane, or skopeo against ghcr.io per
 # feedback_sandbox_host_trennung.md. Live verification is
