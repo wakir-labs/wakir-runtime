@@ -20,10 +20,15 @@
 //
 // Cross-Lang-Pin-Posture:
 //
-//   8 Pin-Fixtures (siehe `pins`-Modul) sind Rust-canonical. Wenn
-//   `wirelang/persona_engine/nats_subjects.py` später emergiert,
-//   MUSS dieser Python-Side byte-identisch zu den Rust-Pins liefern.
-//   Bis dahin: Rust ist die einzige Quelle der Wahrheit.
+//   8 Pin-Fixtures (siehe `pins`-Modul) sind cross-language
+//   parity-verified seit Tag-14 (2026-05-17): das Python-Pendant
+//   `wirelang/persona_engine/nats_subjects.py` reproduziert dieselben
+//   8 Fixtures byte-identisch, und beide Seiten pinnen denselben
+//   SHA-256-Digest (`PIN_PACK_CROSS_LANG_SHA256_HEX`) über die
+//   `\n`-joined Liste. Der Test `test_pin_pack_cross_lang_sha256`
+//   (Rust) und `test_pin_pack_cross_lang_sha256_matches_pinned_digest`
+//   (Python) sind die Vertrags-Wächter — Drift auf einer Seite bricht
+//   die andere.
 
 #![deny(missing_docs)]
 #![deny(unsafe_code)]
@@ -360,15 +365,16 @@ pub fn persona_root_wildcard() -> Result<String, SubjectError> {
 /// Cross-Lang-Hash-Pin-Fixtures.
 ///
 /// 8 fixed Subjects (eine pro Subject-Klasse × Variation), gepinnt
-/// als Rust-canonical Strings. Python-Pendant
-/// `wirelang/persona_engine/nats_subjects.py` ist eine Sync-Folge-
-/// Aufgabe (Tag-N+1) — bis dahin gilt Rust als Single-Source-of-
-/// Truth.
+/// als Rust + Python parity-verified Strings (Tag-14, 2026-05-17).
+/// Das Python-Pendant lebt unter
+/// `wirelang/persona_engine/nats_subjects.py`; dieselben Konstanten
+/// stehen dort als `FIXTURE_*` und werden vom Test
+/// `test_pin_pack_cross_lang_sha256_matches_pinned_digest`
+/// gegen denselben SHA-256-Pin verifiziert.
 ///
 /// Hash-Verfahren des Pins: SHA-256 über die UTF-8-Bytes der
-/// concat-Liste mit `\n`-Separator. Wenn Python diese Liste
-/// byte-identisch erzeugt und denselben SHA-256 berechnet, ist die
-/// Cross-Lang-Parität bewiesen.
+/// concat-Liste mit `\n`-Separator. Beide Seiten erzeugen denselben
+/// Hash → Cross-Lang-Parität gehärtet.
 pub mod pins {
     /// Lifecycle-Pin: spawn-event einer Test-Persona.
     pub const FIXTURE_LIFECYCLE_SPAWNED: &str =
@@ -610,6 +616,41 @@ mod tests {
             sorted.len(),
             pins::ALL_FIXTURES.len(),
             "Pin-Pack enthält Duplikate"
+        );
+    }
+
+    /// Cross-Lang SHA-256-Pin (Rust + Python parity contract).
+    ///
+    /// Dieselbe Hex-Konstante steht im Python-Test
+    /// `tests/persona_engine/test_nats_subjects.py` als
+    /// `PIN_PACK_SHA256_HEX`. Beide Seiten hashen die `\n`-joined
+    /// Pin-Liste in der `pins::ALL_FIXTURES`-Reihenfolge; Drift auf
+    /// einer Seite bricht die andere.
+    ///
+    /// Ableitung (für Reproduzierbarkeit):
+    /// ```text
+    /// sha256("\n".join(ALL_FIXTURES).encode("utf-8"))
+    ///   = 57a28150010f8a42f46b83a8c83d9939cfe27f3ae9133716a86b8d0886994976
+    /// ```
+    const PIN_PACK_CROSS_LANG_SHA256_HEX: &str =
+        "57a28150010f8a42f46b83a8c83d9939cfe27f3ae9133716a86b8d0886994976";
+
+    #[test]
+    fn test_pin_pack_cross_lang_sha256() {
+        use sha2::{Digest, Sha256};
+
+        let joined = pins::ALL_FIXTURES.join("\n");
+        let mut hasher = Sha256::new();
+        hasher.update(joined.as_bytes());
+        let digest = hasher.finalize();
+        let hex: String = digest.iter().map(|b| format!("{:02x}", b)).collect();
+
+        assert_eq!(
+            hex, PIN_PACK_CROSS_LANG_SHA256_HEX,
+            "Cross-Lang-Pin-Pack-Digest gedriftet: Rust hat {} berechnet, \
+             Python-Side pinnt {}. Wenn die Fixtures absichtlich geändert \
+             wurden, beide Seiten synchron updaten.",
+            hex, PIN_PACK_CROSS_LANG_SHA256_HEX
         );
     }
 
