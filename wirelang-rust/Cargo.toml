@@ -227,6 +227,7 @@ members = [
     "crates/persona-engine-integration-tests",
     "crates/persona-engine-bridge-forward",
     "crates/persona-engine-svid-workload-identity",
+    "crates/persona-engine-bridge-audit-writer",
 ]
 
 [workspace.package]
