@@ -73,6 +73,20 @@
 #   hash-drift / input-not-found / argparse). Closes OI-PEF-4 from
 #   the Tag-1 spec open-items. Added 2026-05-13 (Tag-2).
 #
+# - persona-engine-frontmatter-parser : Sprint-Rust-Frontmatter-Parser-MINI
+#   (Phase-3a Item 8). Typed YAML front-matter parser that sits ABOVE
+#   `persona-canonical-form-yaml`: exposes a `PersonaDef` Rust struct
+#   with all front-matter fields (canonical-subset keys + extension
+#   keys like `persona_slug` / `capabilities` / `befugnis_rahmen` /
+#   `llm` / `domain` / `reports_to`), preserves unknown keys in
+#   `extra` (forward-compat), and provides
+#   `PersonaDef::to_canonical_subset()` to project back onto the
+#   V-907 canonical-subset `serde_json::Value` for hashing. Cross-
+#   checked byte-identical against the V9 ground-truth pin
+#   `PERSONA_HASH_PIN_V9` (binds this crate into the V-907 pin pack
+#   alongside `persona-canonical-form-yaml`). Python
+#   `persona_canonical_form.py` is UNCHANGED. Added 2026-05-17.
+#
 # Crates explicitly NOT in this workspace yet (Phase-1c follow-up boxes):
 # - (none — Crate-6 closes the Sprint-4 Open-Item §1.
 #   Crate-8 closes Sprint-Pengine-7 Tag-1.
@@ -96,6 +110,7 @@ members = [
     "crates/persona-hash",
     "crates/persona-canonical-form",
     "crates/persona-canonical-form-yaml",
+    "crates/persona-engine-frontmatter-parser",
     "crates/persona-migration",
     "crates/persona-migration-resolver",
     "crates/persona-cli",
