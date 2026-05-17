@@ -887,3 +887,258 @@ def mocked_single_komponente_rollback() -> Callable[
         )
 
     return _build
+
+
+# ---------------------------------------------------------------------------
+# Welle-3 Henrik-Caution Acceptance-Kriterien — HC-AC-1 ... HC-AC-3
+#
+# Anchor: ADR-0066 §Beschluss + §Mitigations — Welle-3 ("bridge_audit_
+# writer") is the only Solo-Welle in the Phase-3c-Cadence, explicitly
+# carved out under Henrik-Caution. The bridge-audit-writer *is* the
+# consistency-oracle substrate for the other six wellen; flipping its
+# own write-path to Rust-default while it remains the audit-trail-
+# producer requires an extra layer of acceptance criteria beyond
+# AC-1...AC-5.
+#
+# Three HC-AC criteria specialise the welle-3 solo-cutover:
+#
+# * HC-AC-1: Bridge-Audit-Writer-Output independently validated by a
+#   Phase-2-Cross-Modul-Stress-Test sample. The stress-test does NOT
+#   use the bridge-audit-writer as its consistency-oracle (that would
+#   be self-referential); instead it uses the hold-out Python-pinned
+#   writer instance from the Welle-3 Cutover-Mittwoch substrate
+#   (ADR-0065 §Empfehlung Footnote).
+# * HC-AC-2: Welle-3-Rollback triggered automatically when observed
+#   divergence between the new Rust-writer and the hold-out Python-
+#   writer exceeds 0.5% of the request-window. Atomic ENV-Flag-switch
+#   ≤ROLLBACK_SLA_SECONDS (600s).
+# * HC-AC-3: Pre-Cutover-Konsistenz-Baseline established from a
+#   7-Tage-Observability-Window before the Cutover-Mittwoch. All seven
+#   days must pass the consistency-floor (≥99.5% green-rate) to enable
+#   the cutover-trigger.
+# ---------------------------------------------------------------------------
+
+# HC-AC-2 divergence-rollback threshold: any observed Bridge-Audit-
+# Writer divergence ≥0.5% over the per-day request-window forces an
+# atomic rollback. Tighter than AC-1's 5/5-days-green gate because
+# the bridge_audit_writer is the *meta*-modul (it produces the
+# consistency-reports for the other six wellen — a single drift here
+# poisons downstream audit-trails).
+HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD = 0.5
+
+# HC-AC-3 pre-cutover-baseline window: seven consecutive days of
+# bridge_audit_writer observability with ≥99.5% per-day consistency-
+# rate before the Cutover-Mittwoch can fire. Mirrors the
+# CONSISTENCY_REPORT_WINDOW_DAYS=5 post-cutover discipline but extends
+# the pre-cutover side to the Henrik-Caution-requested 7-day floor.
+HENRIK_CAUTION_PRE_CUTOVER_BASELINE_DAYS = 7
+HENRIK_CAUTION_PRE_CUTOVER_BASELINE_GREEN_RATE = 0.995
+
+
+@dataclass(frozen=True)
+class HenrikCautionStressSampleRecord:
+    """HC-AC-1 oracle — Phase-2-Cross-Modul-Stress-Test sample of the
+    Bridge-Audit-Writer output, validated by the hold-out Python-pinned
+    writer-instance (NOT by the writer-under-cutover itself; that would
+    be self-referential).
+
+    Captures:
+    * ``stress_window_request_count`` — total writes observed.
+    * ``holdout_validated_count`` — writes the hold-out Python-writer
+      confirmed byte-paritär against the new Rust-writer output.
+    * ``stress_test_source`` — provenance tag identifying the Phase-2
+      stress-test substrate (Tomás Tag-29 reference).
+    * ``oracle_independence_confirmed`` — boolean flag attesting that
+      the stress-test consistency-oracle is the hold-out Python-writer
+      (not the new Rust-writer-under-cutover).
+
+    HC-AC-1 gates require: holdout_validated_count ==
+    stress_window_request_count AND oracle_independence_confirmed.
+    """
+
+    welle: str
+    stress_window_request_count: int
+    holdout_validated_count: int
+    stress_test_source: str
+    oracle_independence_confirmed: bool
+
+
+@dataclass(frozen=True)
+class HenrikCautionDivergenceRollbackRecord:
+    """HC-AC-2 oracle — Welle-3-Rollback record for a divergence-
+    triggered atomic ENV-Flag-switch.
+
+    Captures:
+    * ``observed_divergence_pct`` — measured divergence between the
+      new Rust-writer and the hold-out Python-writer (% of requests
+      with non-matching anchor-hash over the per-day window).
+    * ``threshold_pct`` — HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD copy
+      stamped in for audit-trail clarity.
+    * ``rollback_triggered`` — boolean flag indicating whether the
+      rollback fired (must be True when divergence ≥ threshold; must
+      be False when divergence < threshold).
+    * ``rollback_elapsed_seconds`` — ENV-Flag-switch elapsed-time;
+      ≤ROLLBACK_SLA_SECONDS gate when rollback_triggered=True.
+    * ``post_rollback_backend`` — bridge_audit_writer post-state
+      (must be ``python`` when rollback_triggered=True).
+    * ``env_flag_switch_atomic`` — boolean attesting the ENV-Flag-
+      switch was atomic (single Quadlet-rewrite, single systemctl-
+      restart, no partial-state-window).
+
+    HC-AC-2 gates:
+    * If observed_divergence_pct ≥ threshold_pct →
+      rollback_triggered must be True, env_flag_switch_atomic must be
+      True, rollback_elapsed_seconds ≤ ROLLBACK_SLA_SECONDS,
+      post_rollback_backend == "python".
+    * If observed_divergence_pct < threshold_pct → rollback_triggered
+      must be False (no spurious rollback).
+    """
+
+    welle: str
+    observed_divergence_pct: float
+    threshold_pct: float
+    rollback_triggered: bool
+    rollback_elapsed_seconds: float
+    post_rollback_backend: str
+    env_flag_switch_atomic: bool
+
+
+@dataclass(frozen=True)
+class HenrikCautionPreCutoverBaselineRecord:
+    """HC-AC-3 oracle — Pre-Cutover 7-Tage-Observability-Window record.
+
+    Captures, day-by-day for HENRIK_CAUTION_PRE_CUTOVER_BASELINE_DAYS
+    consecutive days, the per-day consistency-rate of the bridge_audit_
+    writer (already-deployed Python-only baseline, no Rust-writer yet).
+
+    Each day's consistency-rate is the fraction of requests with no
+    intra-Python-writer drift (e.g. concurrent-write races, anchor-
+    submission-failures retry-redundancy).
+
+    HC-AC-3 gates:
+    * Exactly HENRIK_CAUTION_PRE_CUTOVER_BASELINE_DAYS days observed.
+    * Every day's consistency_rate ≥
+      HENRIK_CAUTION_PRE_CUTOVER_BASELINE_GREEN_RATE.
+    * Window contiguous (no gaps in day_index).
+    """
+
+    welle: str
+    per_day_consistency_rate: dict[int, float] = field(default_factory=dict)
+
+
+@pytest.fixture
+def mocked_henrik_caution_stress_sample() -> Callable[
+    ..., HenrikCautionStressSampleRecord
+]:
+    """Fixture returning a HenrikCautionStressSampleRecord builder.
+
+    Default builder produces a happy-path record (full hold-out
+    validation, oracle-independence confirmed). The welle-test
+    injects:
+
+    * ``holdout_validated_count < stress_window_request_count`` —
+      partial hold-out validation; HC-AC-1 must surface this gap.
+    * ``oracle_independence_confirmed=False`` — the stress-test
+      accidentally used the Rust-writer as its own consistency-oracle
+      (self-referential validation); HC-AC-1 must reject this shape.
+    """
+
+    def _build(
+        welle: str,
+        stress_window_request_count: int = 5000,
+        holdout_validated_count: int | None = None,
+        stress_test_source: str = "phase-2-cross-modul-stress-test:tomas-tag-29",
+        oracle_independence_confirmed: bool = True,
+    ) -> HenrikCautionStressSampleRecord:
+        if holdout_validated_count is None:
+            holdout_validated_count = stress_window_request_count
+        return HenrikCautionStressSampleRecord(
+            welle=welle,
+            stress_window_request_count=stress_window_request_count,
+            holdout_validated_count=holdout_validated_count,
+            stress_test_source=stress_test_source,
+            oracle_independence_confirmed=oracle_independence_confirmed,
+        )
+
+    return _build
+
+
+@pytest.fixture
+def mocked_henrik_caution_divergence_rollback() -> Callable[
+    ..., HenrikCautionDivergenceRollbackRecord
+]:
+    """Fixture returning a HenrikCautionDivergenceRollbackRecord
+    builder.
+
+    Default builder produces a no-rollback record (divergence below
+    threshold, no rollback fired). The welle-test injects:
+
+    * ``observed_divergence_pct`` above threshold + matching
+      ``rollback_triggered=True`` → HC-AC-2 happy-path for the
+      divergence-rollback direction.
+    * ``observed_divergence_pct`` above threshold +
+      ``rollback_triggered=False`` → missed-rollback failure-mode.
+    * ``rollback_elapsed_seconds`` > ROLLBACK_SLA_SECONDS →
+      SLA-violation failure-mode.
+    * ``env_flag_switch_atomic=False`` → non-atomic-rollback
+      failure-mode (partial-state-window).
+    """
+
+    def _build(
+        welle: str,
+        observed_divergence_pct: float = 0.1,
+        rollback_triggered: bool | None = None,
+        rollback_elapsed_seconds: float = 180.0,
+        post_rollback_backend: str | None = None,
+        env_flag_switch_atomic: bool = True,
+    ) -> HenrikCautionDivergenceRollbackRecord:
+        if rollback_triggered is None:
+            rollback_triggered = (
+                observed_divergence_pct
+                >= HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD
+            )
+        if post_rollback_backend is None:
+            post_rollback_backend = "python" if rollback_triggered else "rust"
+        return HenrikCautionDivergenceRollbackRecord(
+            welle=welle,
+            observed_divergence_pct=observed_divergence_pct,
+            threshold_pct=HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD,
+            rollback_triggered=rollback_triggered,
+            rollback_elapsed_seconds=rollback_elapsed_seconds,
+            post_rollback_backend=post_rollback_backend,
+            env_flag_switch_atomic=env_flag_switch_atomic,
+        )
+
+    return _build
+
+
+@pytest.fixture
+def mocked_henrik_caution_pre_cutover_baseline() -> Callable[
+    ..., HenrikCautionPreCutoverBaselineRecord
+]:
+    """Fixture returning a HenrikCautionPreCutoverBaselineRecord builder.
+
+    Default builder produces a full-7-day window with all days at
+    99.8% consistency (above the 99.5% floor). The welle-test injects:
+
+    * ``per_day_overrides`` — selectively lower specific days below
+      threshold to verify the gate fires.
+    * ``observed_days`` shorter than 7 → window-incomplete failure-mode.
+    """
+
+    def _build(
+        welle: str,
+        observed_days: int = HENRIK_CAUTION_PRE_CUTOVER_BASELINE_DAYS,
+        default_rate: float = 0.998,
+        per_day_overrides: dict[int, float] | None = None,
+    ) -> HenrikCautionPreCutoverBaselineRecord:
+        per_day = {day: default_rate for day in range(observed_days)}
+        if per_day_overrides:
+            for day, rate in per_day_overrides.items():
+                per_day[day] = rate
+        return HenrikCautionPreCutoverBaselineRecord(
+            welle=welle,
+            per_day_consistency_rate=per_day,
+        )
+
+    return _build

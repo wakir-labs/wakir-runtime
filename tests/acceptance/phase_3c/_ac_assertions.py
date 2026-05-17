@@ -23,6 +23,9 @@ from .conftest import (
     CONSISTENCY_REPORT_REQUIRED_GREEN_DAYS,
     CONSISTENCY_REPORT_WINDOW_DAYS,
     CROSS_REVIEW_REQUIRED_PERSONAS,
+    HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD,
+    HENRIK_CAUTION_PRE_CUTOVER_BASELINE_DAYS,
+    HENRIK_CAUTION_PRE_CUTOVER_BASELINE_GREEN_RATE,
     PERFORMANCE_HEADROOM_FACTOR,
     V907_PIN_VALIDATION_REQUIRED_RATE,
     BackendDecisionRecord,
@@ -31,6 +34,9 @@ from .conftest import (
     CrossModulStressTestRecord,
     CrossReviewRecord,
     EngineBootRecord,
+    HenrikCautionDivergenceRollbackRecord,
+    HenrikCautionPreCutoverBaselineRecord,
+    HenrikCautionStressSampleRecord,
     SingleKomponenteRollbackRecord,
 )
 
@@ -352,4 +358,203 @@ def assert_dw_ac_5_backend_decision_audit_two_records_consistent(
     assert not wrong_target, (
         f"DW-AC-5[{welle_pair_label}]: cutover-target_backend must be "
         f"'rust' for all records; deviating moduln: {wrong_target}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Welle-3 Henrik-Caution Acceptance-Kriterien — HC-AC-1 ... HC-AC-3
+#
+# Anchor: ADR-0066 §Beschluss + §Mitigations. Welle-3 (``bridge_audit_
+# writer``) is the only Solo-Welle in the Phase-3c-Cadence under
+# Henrik-Caution carve-out. Because the bridge-audit-writer *is* the
+# consistency-oracle substrate for the other six wellen, flipping its
+# own write-path to Rust-default while it remains the audit-trail-
+# producer requires three additional acceptance criteria layered on
+# top of the per-welle AC-1...AC-5.
+#
+# The HC-AC criteria are *solo-welle-specific* — Doppel-Wellen do not
+# carry them (the bridge-audit-writer is never half of a Doppel-Welle
+# pair per ADR-0066 §Beschluss; it gets KW 25 to itself precisely so
+# the cross-modul-paritäts-question doesn't compound the Henrik-
+# Caution-question).
+# ---------------------------------------------------------------------------
+
+
+def assert_henrik_caution_ac_1_independent_stress_validation(
+    record: HenrikCautionStressSampleRecord,
+    welle: str,
+) -> None:
+    """HC-AC-1 — Bridge-Audit-Writer output independently validated by a
+    Phase-2-Cross-Modul-Stress-Test sample, using the hold-out Python-
+    pinned writer-instance as the consistency-oracle (NOT the Rust-
+    writer-under-cutover; self-referential validation would invalidate
+    the gate).
+
+    Three sub-gates:
+
+    * ``stress_window_request_count > 0`` — non-empty sample.
+    * ``holdout_validated_count == stress_window_request_count`` —
+      every write in the sample window was confirmed byte-paritär
+      by the hold-out Python-writer.
+    * ``oracle_independence_confirmed == True`` — the stress-test
+      operator-runbook attests the oracle was the hold-out writer.
+
+    The Phase-3c-trigger-sprint wires this against the real Phase-2-
+    Cross-Modul-Stress-Test substrate (Tomás Tag-29 ref).
+    """
+    assert record.stress_window_request_count > 0, (
+        f"HC-AC-1[{welle}]: Phase-2-stress-sample must observe ≥1 "
+        f"bridge_audit_writer request; got "
+        f"stress_window_request_count={record.stress_window_request_count}"
+    )
+    assert record.oracle_independence_confirmed, (
+        f"HC-AC-1[{welle}]: stress-test consistency-oracle must be the "
+        f"hold-out Python-pinned writer (not the Rust-writer-under-"
+        f"cutover); oracle_independence_confirmed=False indicates self-"
+        f"referential validation, which invalidates the Henrik-Caution "
+        f"gate. stress_test_source={record.stress_test_source!r}"
+    )
+    assert (
+        record.holdout_validated_count == record.stress_window_request_count
+    ), (
+        f"HC-AC-1[{welle}]: hold-out validation gap — "
+        f"holdout_validated_count={record.holdout_validated_count} != "
+        f"stress_window_request_count={record.stress_window_request_count}. "
+        f"Every write in the Phase-2-stress-sample must be confirmed "
+        f"byte-paritär by the hold-out Python-writer. "
+        f"stress_test_source={record.stress_test_source!r}"
+    )
+
+
+def assert_henrik_caution_ac_2_divergence_rollback(
+    record: HenrikCautionDivergenceRollbackRecord,
+    welle: str,
+) -> None:
+    """HC-AC-2 — Welle-3-Rollback bei >0.5% Divergenz (atomic ENV-Flag-
+    switch).
+
+    The Bridge-Audit-Writer is the meta-modul for all other wellen; a
+    single drift here poisons downstream audit-trails. The Henrik-
+    Caution threshold is tighter than AC-1's 5/5-days-green gate:
+    any per-day-window divergence ≥0.5% must trigger an atomic ENV-
+    Flag-switch rollback within the ROLLBACK_SLA_SECONDS (600s)
+    budget.
+
+    Five sub-gates (split by divergence-direction):
+
+    Above-threshold path (divergence ≥ 0.5%):
+      * ``rollback_triggered == True``
+      * ``env_flag_switch_atomic == True``
+      * ``rollback_elapsed_seconds ≤ ROLLBACK_SLA_SECONDS``
+      * ``post_rollback_backend == "python"``
+
+    Below-threshold path (divergence < 0.5%):
+      * ``rollback_triggered == False``  (no spurious rollback)
+
+    A mismatch between observed_divergence_pct and rollback_triggered
+    is the central HC-AC-2 failure-mode (missed rollback OR spurious
+    rollback).
+    """
+    above_threshold = (
+        record.observed_divergence_pct
+        >= HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD
+    )
+    # Threshold stamp must match the constant (audit-trail clarity).
+    assert (
+        record.threshold_pct == HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD
+    ), (
+        f"HC-AC-2[{welle}]: threshold_pct stamp "
+        f"{record.threshold_pct} drifted from "
+        f"HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD="
+        f"{HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD}; constant drift "
+        f"would invalidate audit-trail integrity"
+    )
+    if above_threshold:
+        assert record.rollback_triggered, (
+            f"HC-AC-2[{welle}]: missed rollback — divergence "
+            f"{record.observed_divergence_pct}% ≥ threshold "
+            f"{HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD}% but "
+            f"rollback_triggered=False. The Welle-3 atomic ENV-Flag-"
+            f"switch must fire automatically on divergence-threshold-"
+            f"breach."
+        )
+        assert record.env_flag_switch_atomic, (
+            f"HC-AC-2[{welle}]: ENV-Flag-switch must be atomic (single "
+            f"Quadlet-rewrite, single systemctl-restart, no partial-"
+            f"state-window); env_flag_switch_atomic=False indicates a "
+            f"split-state rollback which violates the Welle-3 Henrik-"
+            f"Caution rollback-discipline."
+        )
+        assert (
+            record.rollback_elapsed_seconds <= ROLLBACK_SLA_SECONDS
+        ), (
+            f"HC-AC-2[{welle}]: rollback elapsed "
+            f"{record.rollback_elapsed_seconds:.1f}s exceeds "
+            f"{ROLLBACK_SLA_SECONDS:.0f}s ENV-Flag-switch SLA"
+        )
+        assert record.post_rollback_backend == "python", (
+            f"HC-AC-2[{welle}]: post-rollback backend must be 'python' "
+            f"after divergence-rollback fires; got "
+            f"{record.post_rollback_backend!r}"
+        )
+    else:
+        assert not record.rollback_triggered, (
+            f"HC-AC-2[{welle}]: spurious rollback — divergence "
+            f"{record.observed_divergence_pct}% < threshold "
+            f"{HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD}% but "
+            f"rollback_triggered=True. Sub-threshold divergence must "
+            f"not trigger an automatic rollback (cost-of-false-positive "
+            f"is the Welle-3 Cutover-Mittwoch having to re-run)."
+        )
+
+
+def assert_henrik_caution_ac_3_pre_cutover_baseline(
+    record: HenrikCautionPreCutoverBaselineRecord,
+    welle: str,
+) -> None:
+    """HC-AC-3 — Pre-Cutover-Konsistenz-Baseline aus 7-Tage-
+    Observability-Window.
+
+    Before the Welle-3 Cutover-Mittwoch can fire, a baseline
+    observability window of HENRIK_CAUTION_PRE_CUTOVER_BASELINE_DAYS
+    consecutive days must establish that the existing Python-only
+    bridge_audit_writer meets the
+    HENRIK_CAUTION_PRE_CUTOVER_BASELINE_GREEN_RATE per-day
+    consistency floor.
+
+    Three sub-gates:
+
+    * Window completeness — exactly 7 days observed (contiguous,
+      no gaps).
+    * Per-day-floor — every day's consistency_rate ≥ 99.5%.
+    * Drift-floor identification — failing days are enumerated in
+      the AssertionError message for Operator-Hand follow-up.
+
+    Rationale (Henrik-Caution): if the *existing* Python-writer can't
+    sustain 99.5% consistency over the seven days before cutover, the
+    cutover-to-Rust hypothesis is invalid — there's an upstream
+    substrate issue masquerading as a write-path issue.
+    """
+    expected_days = list(range(HENRIK_CAUTION_PRE_CUTOVER_BASELINE_DAYS))
+    observed_days = sorted(record.per_day_consistency_rate.keys())
+    assert observed_days == expected_days, (
+        f"HC-AC-3[{welle}]: Pre-Cutover-Baseline must observe exactly "
+        f"{HENRIK_CAUTION_PRE_CUTOVER_BASELINE_DAYS} contiguous days "
+        f"(0..{HENRIK_CAUTION_PRE_CUTOVER_BASELINE_DAYS - 1}); got "
+        f"observed_days={observed_days}"
+    )
+    failing_days: list[str] = []
+    for day in observed_days:
+        rate = record.per_day_consistency_rate[day]
+        if rate < HENRIK_CAUTION_PRE_CUTOVER_BASELINE_GREEN_RATE:
+            failing_days.append(f"d{day}={rate:.4f}")
+    assert not failing_days, (
+        f"HC-AC-3[{welle}]: Pre-Cutover-Baseline per-day-consistency "
+        f"floor breached. Required ≥"
+        f"{HENRIK_CAUTION_PRE_CUTOVER_BASELINE_GREEN_RATE:.4f} per day "
+        f"over {HENRIK_CAUTION_PRE_CUTOVER_BASELINE_DAYS} days. "
+        f"Failing days: {failing_days}. Welle-3 Cutover-Mittwoch "
+        f"cannot fire until the baseline window is green; upstream "
+        f"substrate issue likely masquerading as write-path issue "
+        f"(Henrik-Caution principle)."
     )

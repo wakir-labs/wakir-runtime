@@ -39,8 +39,15 @@ from ._ac_assertions import (
     assert_ac_3_bug_rate,
     assert_ac_4_cross_review_consensus,
     assert_ac_5_v907_pin_validation,
+    assert_henrik_caution_ac_1_independent_stress_validation,
+    assert_henrik_caution_ac_2_divergence_rollback,
+    assert_henrik_caution_ac_3_pre_cutover_baseline,
 )
-from .conftest import WELLE_BY_NAME
+from .conftest import (
+    HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD,
+    HENRIK_CAUTION_PRE_CUTOVER_BASELINE_DAYS,
+    WELLE_BY_NAME,
+)
 
 WELLE_NAME = "bridge_audit_writer"
 WELLE_INDEX = WELLE_BY_NAME[WELLE_NAME]
@@ -187,3 +194,290 @@ def test_welle_3_holdout_python_writer_during_cutover() -> None:
     AC-1 5/5 days green.
     """
     raise NotImplementedError("pending welle-cutover")
+
+
+# ---------------------------------------------------------------------------
+# HC-AC-1 — Bridge-Audit-Writer-Output independently validated by
+# Phase-2-Cross-Modul-Stress-Test (hold-out Python-writer as oracle).
+#
+# Anchor: ADR-0066 §Beschluss + §Mitigations — Welle-3 Henrik-Caution
+# carve-out. Welle-3 is the only Solo-Welle in Phase-3c-Cadence; the
+# bridge_audit_writer is the meta-modul that produces consistency-
+# reports for the other six wellen. The HC-AC layer is solo-welle-
+# specific and never applies under Doppel-Welle conditions (per
+# ADR-0066, bridge_audit_writer never pairs with another modul).
+# ---------------------------------------------------------------------------
+
+
+def test_welle_3_hc_ac_1_independent_stress_validation_happy_path(
+    mocked_henrik_caution_stress_sample,
+) -> None:
+    """HC-AC-1: full Phase-2-Cross-Modul-Stress-Test sample independently
+    validated by the hold-out Python-pinned writer-instance.
+
+    The stress-sample size (5000 requests) is a placeholder pending the
+    Phase-3c-trigger-sprint wire-up against Tomás Tag-29 substrate.
+    """
+    record = mocked_henrik_caution_stress_sample(WELLE_NAME)
+    assert_henrik_caution_ac_1_independent_stress_validation(
+        record, WELLE_NAME
+    )
+
+
+def test_welle_3_hc_ac_1_partial_holdout_validation_blocks(
+    mocked_henrik_caution_stress_sample,
+) -> None:
+    """HC-AC-1 failure-mode: hold-out validation gap (some writes in the
+    stress-sample were *not* confirmed by the hold-out Python-writer).
+
+    Operational rationale: the hold-out writer may have dropped writes
+    due to its own resource-constraints; that gap is not acceptable
+    under Henrik-Caution — every sampled write must be byte-paritär-
+    confirmed.
+    """
+    record = mocked_henrik_caution_stress_sample(
+        WELLE_NAME,
+        stress_window_request_count=5000,
+        holdout_validated_count=4990,  # 10 writes unconfirmed
+    )
+    with pytest.raises(AssertionError, match="HC-AC-1"):
+        assert_henrik_caution_ac_1_independent_stress_validation(
+            record, WELLE_NAME
+        )
+
+
+def test_welle_3_hc_ac_1_self_referential_oracle_blocks(
+    mocked_henrik_caution_stress_sample,
+) -> None:
+    """HC-AC-1 failure-mode: oracle_independence_confirmed=False.
+
+    The stress-test accidentally used the Rust-writer-under-cutover as
+    its own consistency-oracle (self-referential validation). This is
+    the central Henrik-Caution rejection mode — Welle-3 cannot use the
+    artefact-under-cutover as the oracle that certifies it.
+    """
+    record = mocked_henrik_caution_stress_sample(
+        WELLE_NAME, oracle_independence_confirmed=False
+    )
+    with pytest.raises(AssertionError, match="HC-AC-1"):
+        assert_henrik_caution_ac_1_independent_stress_validation(
+            record, WELLE_NAME
+        )
+
+
+def test_welle_3_hc_ac_1_empty_stress_window_blocks(
+    mocked_henrik_caution_stress_sample,
+) -> None:
+    """HC-AC-1 failure-mode: empty stress-window."""
+    record = mocked_henrik_caution_stress_sample(
+        WELLE_NAME, stress_window_request_count=0, holdout_validated_count=0
+    )
+    with pytest.raises(AssertionError, match="HC-AC-1"):
+        assert_henrik_caution_ac_1_independent_stress_validation(
+            record, WELLE_NAME
+        )
+
+
+# ---------------------------------------------------------------------------
+# HC-AC-2 — Welle-3-Rollback bei >0.5% Divergenz (atomic ENV-Flag-switch).
+# ---------------------------------------------------------------------------
+
+
+def test_welle_3_hc_ac_2_below_threshold_no_rollback(
+    mocked_henrik_caution_divergence_rollback,
+) -> None:
+    """HC-AC-2: divergence 0.1% (below 0.5% threshold) → no rollback fires.
+
+    Sub-threshold divergence stays in observation; the cost-of-false-
+    positive of an unwarranted rollback (re-run of Cutover-Mittwoch)
+    is non-trivial.
+    """
+    record = mocked_henrik_caution_divergence_rollback(
+        WELLE_NAME, observed_divergence_pct=0.1
+    )
+    assert_henrik_caution_ac_2_divergence_rollback(record, WELLE_NAME)
+
+
+def test_welle_3_hc_ac_2_above_threshold_rollback_fires(
+    mocked_henrik_caution_divergence_rollback,
+) -> None:
+    """HC-AC-2: divergence 0.8% (above 0.5% threshold) → automatic
+    atomic ENV-Flag-switch rollback fires within SLA.
+    """
+    record = mocked_henrik_caution_divergence_rollback(
+        WELLE_NAME, observed_divergence_pct=0.8
+    )
+    assert_henrik_caution_ac_2_divergence_rollback(record, WELLE_NAME)
+
+
+def test_welle_3_hc_ac_2_at_threshold_rollback_fires(
+    mocked_henrik_caution_divergence_rollback,
+) -> None:
+    """HC-AC-2: divergence exactly at 0.5% threshold → rollback fires
+    (inclusive boundary).
+    """
+    record = mocked_henrik_caution_divergence_rollback(
+        WELLE_NAME,
+        observed_divergence_pct=HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD,
+    )
+    assert_henrik_caution_ac_2_divergence_rollback(record, WELLE_NAME)
+
+
+def test_welle_3_hc_ac_2_missed_rollback_blocks(
+    mocked_henrik_caution_divergence_rollback,
+) -> None:
+    """HC-AC-2 failure-mode: divergence above threshold but rollback
+    did not fire. Central Henrik-Caution failure-mode.
+    """
+    record = mocked_henrik_caution_divergence_rollback(
+        WELLE_NAME,
+        observed_divergence_pct=0.8,
+        rollback_triggered=False,
+    )
+    with pytest.raises(AssertionError, match="HC-AC-2"):
+        assert_henrik_caution_ac_2_divergence_rollback(record, WELLE_NAME)
+
+
+def test_welle_3_hc_ac_2_spurious_rollback_blocks(
+    mocked_henrik_caution_divergence_rollback,
+) -> None:
+    """HC-AC-2 failure-mode: divergence below threshold but rollback
+    fired anyway (false-positive rollback).
+    """
+    record = mocked_henrik_caution_divergence_rollback(
+        WELLE_NAME,
+        observed_divergence_pct=0.1,
+        rollback_triggered=True,
+    )
+    with pytest.raises(AssertionError, match="HC-AC-2"):
+        assert_henrik_caution_ac_2_divergence_rollback(record, WELLE_NAME)
+
+
+def test_welle_3_hc_ac_2_non_atomic_rollback_blocks(
+    mocked_henrik_caution_divergence_rollback,
+) -> None:
+    """HC-AC-2 failure-mode: rollback fired but split-state window
+    observed (env_flag_switch_atomic=False).
+    """
+    record = mocked_henrik_caution_divergence_rollback(
+        WELLE_NAME,
+        observed_divergence_pct=0.8,
+        env_flag_switch_atomic=False,
+    )
+    with pytest.raises(AssertionError, match="HC-AC-2"):
+        assert_henrik_caution_ac_2_divergence_rollback(record, WELLE_NAME)
+
+
+def test_welle_3_hc_ac_2_rollback_sla_violation_blocks(
+    mocked_henrik_caution_divergence_rollback,
+) -> None:
+    """HC-AC-2 failure-mode: rollback elapsed > 600s SLA."""
+    record = mocked_henrik_caution_divergence_rollback(
+        WELLE_NAME,
+        observed_divergence_pct=0.8,
+        rollback_elapsed_seconds=720.0,  # > 600s SLA
+    )
+    with pytest.raises(AssertionError, match="HC-AC-2"):
+        assert_henrik_caution_ac_2_divergence_rollback(record, WELLE_NAME)
+
+
+# ---------------------------------------------------------------------------
+# HC-AC-3 — Pre-Cutover-Konsistenz-Baseline aus 7-Tage-Observability-
+# Window.
+# ---------------------------------------------------------------------------
+
+
+def test_welle_3_hc_ac_3_full_seven_day_baseline_green(
+    mocked_henrik_caution_pre_cutover_baseline,
+) -> None:
+    """HC-AC-3: seven contiguous days, all at 99.8% consistency-rate
+    (above the 99.5% floor). Welle-3 Cutover-Mittwoch may fire.
+    """
+    record = mocked_henrik_caution_pre_cutover_baseline(WELLE_NAME)
+    assert_henrik_caution_ac_3_pre_cutover_baseline(record, WELLE_NAME)
+
+
+def test_welle_3_hc_ac_3_short_baseline_window_blocks(
+    mocked_henrik_caution_pre_cutover_baseline,
+) -> None:
+    """HC-AC-3 failure-mode: only 5 days observed (window incomplete).
+
+    The Welle-3 Cutover-Mittwoch cannot fire on a short baseline; the
+    7-day floor is Henrik-Caution-non-negotiable.
+    """
+    record = mocked_henrik_caution_pre_cutover_baseline(
+        WELLE_NAME, observed_days=5
+    )
+    with pytest.raises(AssertionError, match="HC-AC-3"):
+        assert_henrik_caution_ac_3_pre_cutover_baseline(record, WELLE_NAME)
+
+
+def test_welle_3_hc_ac_3_one_day_below_floor_blocks(
+    mocked_henrik_caution_pre_cutover_baseline,
+) -> None:
+    """HC-AC-3 failure-mode: day-3 consistency-rate 99.2% (below 99.5%
+    floor). Single-day breach blocks the gate.
+    """
+    record = mocked_henrik_caution_pre_cutover_baseline(
+        WELLE_NAME, per_day_overrides={3: 0.992}
+    )
+    with pytest.raises(AssertionError, match="HC-AC-3"):
+        assert_henrik_caution_ac_3_pre_cutover_baseline(record, WELLE_NAME)
+
+
+def test_welle_3_hc_ac_3_floor_boundary_at_995_passes(
+    mocked_henrik_caution_pre_cutover_baseline,
+) -> None:
+    """HC-AC-3: exactly-at-floor 99.5% passes (inclusive boundary)."""
+    record = mocked_henrik_caution_pre_cutover_baseline(
+        WELLE_NAME,
+        default_rate=0.995,
+    )
+    assert_henrik_caution_ac_3_pre_cutover_baseline(record, WELLE_NAME)
+
+
+def test_welle_3_hc_ac_3_multiple_days_failing_blocks(
+    mocked_henrik_caution_pre_cutover_baseline,
+) -> None:
+    """HC-AC-3 failure-mode: three days below floor; error-message must
+    enumerate all failing days for Operator-Hand follow-up.
+    """
+    record = mocked_henrik_caution_pre_cutover_baseline(
+        WELLE_NAME,
+        per_day_overrides={1: 0.991, 4: 0.989, 6: 0.993},
+    )
+    with pytest.raises(AssertionError) as exc_info:
+        assert_henrik_caution_ac_3_pre_cutover_baseline(record, WELLE_NAME)
+    error_msg = str(exc_info.value)
+    assert "HC-AC-3" in error_msg
+    for day in (1, 4, 6):
+        assert f"d{day}=" in error_msg, (
+            f"HC-AC-3 error-message must enumerate failing day d{day} "
+            f"for Operator-Hand follow-up; got {error_msg!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Welle-3 Henrik-Caution substrate sanity — solo-cadence assertion.
+# ---------------------------------------------------------------------------
+
+
+def test_welle_3_henrik_caution_baseline_window_is_seven_days() -> None:
+    """Sanity: HC-AC-3 baseline-window must be 7 days per ADR-0066.
+
+    Guards against silent constant-drift in the conftest. The 7-day
+    floor is the Henrik-Caution carve-out and changing it requires an
+    ADR-Folge-Item, not a conftest-edit.
+    """
+    assert HENRIK_CAUTION_PRE_CUTOVER_BASELINE_DAYS == 7, (
+        f"HC-AC-3 baseline-window must be 7 days (ADR-0066 Henrik-"
+        f"Caution); got {HENRIK_CAUTION_PRE_CUTOVER_BASELINE_DAYS}"
+    )
+
+
+def test_welle_3_henrik_caution_divergence_threshold_is_zero_point_five() -> None:
+    """Sanity: HC-AC-2 divergence-threshold must be 0.5% per ADR-0066."""
+    assert HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD == 0.5, (
+        f"HC-AC-2 divergence-threshold must be 0.5% (ADR-0066 Henrik-"
+        f"Caution); got {HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD}"
+    )

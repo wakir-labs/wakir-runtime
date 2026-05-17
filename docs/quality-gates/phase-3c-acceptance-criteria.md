@@ -6,7 +6,7 @@
 | Status | Draft skeleton — pending Phase-3c-Welle-Start trigger (ADR-0065 §Decision-Trigger) |
 | Phase | 3c — Per-Welle Cutover from Python-Default to Rust-Default for 7 Engine-Komponenten |
 | Source | ADR-0065 §Verifikations-Plan, ADR-0066 §Beschluss (Doppel-Welle-Beschleunigung), ADR-0063 §Phase-3c-Final-Cutover, ADR-0058 §Phase-3 |
-| Date | 2026-05-17 (skeleton creation); 2026-05-17 Doppel-Welle-Extension (Tag-30 Mini-Welle, ADR-0066 §Folge-Item) |
+| Date | 2026-05-17 (skeleton creation); 2026-05-17 Doppel-Welle-Extension (Tag-30 Mini-Welle, ADR-0066 §Folge-Item); 2026-05-17 Welle-3 Henrik-Caution-Extension (Tag-31 Mini-Welle, ADR-0066 §Beschluss Welle-3 carve-out) |
 
 ## 0. Phase contract
 
@@ -250,3 +250,97 @@ asymmetric-rollback audit-trail when DW-AC-3 fires in the field.
   fixed (10min ENV-Flag-Switch); the Welle-4-specific 2h Schema-
   Migrations-Rollback drill is covered by a `@pytest.mark.skip`
   placeholder in `test_doppel_welle_4_5_e2e.py`.
+
+## 10. Welle-3 Henrik-Caution-Extension (ADR-0066 §Beschluss Solo-Welle)
+
+ADR-0066 §Beschluss carves Welle-3 (`bridge_audit_writer`) out of the
+Doppel-Welle-Cadence as the only Solo-Welle (KW 25). The carve-out is
+explicit Henrik-Caution: the bridge-audit-writer **is** the
+consistency-oracle substrate for the other six wellen, so flipping its
+own write-path to Rust-default while it remains the audit-trail-
+producer requires three additional acceptance criteria layered on top
+of the per-welle AC-1...AC-5.
+
+These criteria are **solo-welle-specific** — Doppel-Wellen do not
+carry them. Per ADR-0066 §Beschluss, the bridge-audit-writer never
+pairs with another modul precisely so the cross-modul-paritäts-
+question does not compound the Henrik-Caution-question.
+
+### 10.1 HC-AC-1 ... HC-AC-3 Acceptance-Kriterien
+
+| ID | Gate | Test-Helper | Constant |
+|---|---|---|---|
+| **HC-AC-1** | Bridge-Audit-Writer-Output independently validated by a Phase-2-Cross-Modul-Stress-Test sample, using the hold-out Python-pinned writer-instance as the consistency-oracle. Self-referential validation (Rust-writer-under-cutover as its own oracle) is rejected. | `assert_henrik_caution_ac_1_independent_stress_validation` | — |
+| **HC-AC-2** | Welle-3-Rollback bei >0.5% Divergenz: atomic ENV-Flag-switch ≤10min SLA, post-rollback-backend `python`. Sub-threshold divergence must not trigger spurious rollback. | `assert_henrik_caution_ac_2_divergence_rollback` | `HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD = 0.5` |
+| **HC-AC-3** | Pre-Cutover-Konsistenz-Baseline aus 7-Tage-Observability-Window: alle 7 Tage ≥99.5% per-day-consistency-rate. Erst dann darf Welle-3 Cutover-Mittwoch feuern. | `assert_henrik_caution_ac_3_pre_cutover_baseline` | `HENRIK_CAUTION_PRE_CUTOVER_BASELINE_DAYS = 7`, `HENRIK_CAUTION_PRE_CUTOVER_BASELINE_GREEN_RATE = 0.995` |
+
+### 10.2 Gate-Schwerpunkt — Henrik-Caution Justification
+
+The three HC-AC are layered atop AC-1...AC-5 because the bridge-audit-
+writer is structurally distinct from the other six wellen:
+
+* **HC-AC-1 vs AC-1**: AC-1 (5/5 days green) measures the Rust-writer
+  output against the hold-out Python-writer. HC-AC-1 closes a
+  *meta*-loophole: AC-1 by itself cannot detect when the hold-out
+  validation-oracle is accidentally configured to read the same
+  Rust-writer-output it is meant to verify (self-referential
+  validation). HC-AC-1 forces operator-runbook attestation of oracle-
+  independence and a Phase-2-Cross-Modul-Stress-Test sample on top.
+* **HC-AC-2 vs AC-3**: AC-3 (0 S0/S1 issues) is a binary count-floor.
+  HC-AC-2 introduces a *quantitative* divergence-percent gate (0.5%
+  per-day) with an automated atomic-rollback hook. The bridge-audit-
+  writer is the meta-modul; a single drift here poisons downstream
+  audit-trails for all other six wellen, so a tighter and automated
+  rollback discipline is non-negotiable.
+* **HC-AC-3 vs AC-1 window**: AC-1 covers the *post-cutover* 5-day
+  window. HC-AC-3 covers the *pre-cutover* 7-day window. The asymmetry
+  is intentional — Henrik-Caution requires that the existing Python-
+  only baseline be demonstrably stable before introducing a Rust-
+  writer at all. A failing pre-cutover-baseline almost certainly
+  indicates an upstream substrate issue masquerading as a write-path
+  issue; cutting over to Rust on top of that masking would compound
+  the diagnosis-problem.
+
+### 10.3 Zone-N coordination — Henrik-Caution delta
+
+Henrik's Zone-N-Quarterly-Review (Aisha-moderiert) gets a Welle-3-
+specific evidence-bundle at the Welle-3 Cutover-Mittwoch:
+
+* HC-AC-1 stress-sample provenance + oracle-independence attestation
+  (Operator-Hand-runbook).
+* HC-AC-2 divergence-rollback decision record (if rollback fired) or
+  divergence-observation log (if rollback did not fire).
+* HC-AC-3 7-day pre-cutover-baseline per-day-consistency-rate matrix.
+
+Per Zone-N-Boundary-Discipline (ADR-0044 §Zone-N): QA-evidence from
+the HC-AC layer is *complementary* to Henrik's audit-sample, **not
+substitutive**. Henrik retains independent sampling rights on the
+Welle-3 Backend-Decision-Audit-Trail and the post-cutover anchor-
+trail integrity.
+
+### 10.4 Welle-3-Opt-In-Gate
+
+Welle-3 HC-AC tests carry the `phase_3c_acceptance` marker (NOT
+`phase_3c_doppel_welle_acceptance`) — they are per-welle solo-cadence
+gates, opt-in via `WAKIR_PHASE_3C_E2E=1` env-var or
+`pytest --phase-3c-acceptance` CLI flag. The KW 25 Solo-Welle-3
+trigger-sprint runs the per-welle lane only; the Doppel-Welle lane
+is irrelevant for Welle-3.
+
+### 10.5 Vermutungs-Kennzeichnung (P2) — Welle-3 delta
+
+* The HC-AC-1 stress-sample size (`stress_window_request_count=5000`
+  in the fixture default) is a placeholder shape-anchor pending the
+  Phase-3c-trigger-sprint wire-up against Tomás Tag-29 Cross-Modul-
+  Stress-Test substrate's real load-target.
+* The HC-AC-2 divergence-threshold (`0.5%`) is ADR-0066 Henrik-
+  Caution-fixed; tightening or loosening it requires an ADR-Folge-
+  Item, not a conftest-edit (enforced by sanity-test
+  `test_welle_3_henrik_caution_divergence_threshold_is_zero_point_five`).
+* The HC-AC-3 pre-cutover-baseline window (`7` days, `≥99.5%` per-day
+  floor) is ADR-0066 Henrik-Caution-fixed; same ADR-Folge-Item
+  discipline (sanity-test
+  `test_welle_3_henrik_caution_baseline_window_is_seven_days`).
+* The HC-AC layer is solo-welle-only; under no circumstance applies
+  to Doppel-Welle 1+2, 4+5, or 6+7. ADR-0066 §Beschluss is explicit:
+  bridge_audit_writer never pairs.
