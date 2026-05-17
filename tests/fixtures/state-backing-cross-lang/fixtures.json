@@ -1,0 +1,94 @@
+{
+  "_comment": "Cross-lang fixture vectors for the persona-engine state-backing PersonaStateSnapshot JCS canonicalisation (Tag-23 Mini-Welle Phase-3a Python-sync, 8. Modul). The expected block pins canonical-snapshot-JCS-bytes / canonical-SHA-256 tuples; drift on either Rust crate persona-engine-state-backing or Python wirelang.persona_engine.state_backing breaks both test suites. Fixtures pinned 2026-05-17. Five sub-cases mapping the state-backing trait shape: empty-state (cold snapshot, no tokens), single-key (one capability token), multi-key (three capability tokens), overwrite-existing (different state for the same persona at a later offset), delete-then-get (zero-token snapshot after logical deletion).",
+  "schema_version": "wakir.persona-engine.persona-state-snapshot/1",
+  "fixtures": [
+    {
+      "name": "f01-empty-state",
+      "input": {
+        "persona_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "audit_trace_offset": 0,
+        "capability_token_ids": [],
+        "snapshot_at_utc": "2026-05-17T00:00:00Z",
+        "workspace_state_hash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      },
+      "expected": {
+        "snapshot_jcs_bytes_b64": "eyJhdWRpdF90cmFjZV9vZmZzZXQiOjAsImNhcGFiaWxpdHlfdG9rZW5faWRzIjpbXSwicGVyc29uYV9oYXNoIjoic2hhMjU2OjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAiLCJzbmFwc2hvdF9hdF91dGMiOiIyMDI2LTA1LTE3VDAwOjAwOjAwWiIsIndvcmtzcGFjZV9zdGF0ZV9oYXNoIjoic2hhMjU2OmVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWUifQ==",
+        "snapshot_jcs_bytes_len": 277,
+        "snapshot_sha256_hex": "4b98e2088cb331f8238bf35d4126bea92a0b77ae78460e7b2fe20afeb4327c46",
+        "snapshot_hash_prefixed": "sha256:4b98e2088cb331f8238bf35d4126bea92a0b77ae78460e7b2fe20afeb4327c46"
+      }
+    },
+    {
+      "name": "f02-single-key",
+      "input": {
+        "persona_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "audit_trace_offset": 1,
+        "capability_token_ids": [
+          "tok-alpha"
+        ],
+        "snapshot_at_utc": "2026-05-17T01:00:00Z",
+        "workspace_state_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "expected": {
+        "snapshot_jcs_bytes_b64": "eyJhdWRpdF90cmFjZV9vZmZzZXQiOjEsImNhcGFiaWxpdHlfdG9rZW5faWRzIjpbInRvay1hbHBoYSJdLCJwZXJzb25hX2hhc2giOiJzaGEyNTY6MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMSIsInNuYXBzaG90X2F0X3V0YyI6IjIwMjYtMDUtMTdUMDE6MDA6MDBaIiwid29ya3NwYWNlX3N0YXRlX2hhc2giOiJzaGEyNTY6MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMSJ9",
+        "snapshot_jcs_bytes_len": 288,
+        "snapshot_sha256_hex": "ddce2a876f33559faaf9d7cd048e1156d9b08e22c8e8a02e1c21d6717dc5d0fc",
+        "snapshot_hash_prefixed": "sha256:ddce2a876f33559faaf9d7cd048e1156d9b08e22c8e8a02e1c21d6717dc5d0fc"
+      }
+    },
+    {
+      "name": "f03-multi-key",
+      "input": {
+        "persona_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "audit_trace_offset": 7,
+        "capability_token_ids": [
+          "tok-alpha",
+          "tok-beta",
+          "tok-gamma"
+        ],
+        "snapshot_at_utc": "2026-05-17T02:00:00Z",
+        "workspace_state_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "expected": {
+        "snapshot_jcs_bytes_b64": "eyJhdWRpdF90cmFjZV9vZmZzZXQiOjcsImNhcGFiaWxpdHlfdG9rZW5faWRzIjpbInRvay1hbHBoYSIsInRvay1iZXRhIiwidG9rLWdhbW1hIl0sInBlcnNvbmFfaGFzaCI6InNoYTI1NjoyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyIiwic25hcHNob3RfYXRfdXRjIjoiMjAyNi0wNS0xN1QwMjowMDowMFoiLCJ3b3Jrc3BhY2Vfc3RhdGVfaGFzaCI6InNoYTI1NjoyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyIn0=",
+        "snapshot_jcs_bytes_len": 311,
+        "snapshot_sha256_hex": "87593a5ea750a93843c2afdea44194e035dec4089d0bf5229b5e526474c8337f",
+        "snapshot_hash_prefixed": "sha256:87593a5ea750a93843c2afdea44194e035dec4089d0bf5229b5e526474c8337f"
+      }
+    },
+    {
+      "name": "f04-overwrite-existing",
+      "input": {
+        "persona_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "audit_trace_offset": 42,
+        "capability_token_ids": [
+          "tok-alpha-v2"
+        ],
+        "snapshot_at_utc": "2026-05-17T03:00:00Z",
+        "workspace_state_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "expected": {
+        "snapshot_jcs_bytes_b64": "eyJhdWRpdF90cmFjZV9vZmZzZXQiOjQyLCJjYXBhYmlsaXR5X3Rva2VuX2lkcyI6WyJ0b2stYWxwaGEtdjIiXSwicGVyc29uYV9oYXNoIjoic2hhMjU2OjExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTEiLCJzbmFwc2hvdF9hdF91dGMiOiIyMDI2LTA1LTE3VDAzOjAwOjAwWiIsIndvcmtzcGFjZV9zdGF0ZV9oYXNoIjoic2hhMjU2OmFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEifQ==",
+        "snapshot_jcs_bytes_len": 292,
+        "snapshot_sha256_hex": "ee9beeecd1d969057d36f76a1a6f01b9148407f063a51b59b524b1f672ec3013",
+        "snapshot_hash_prefixed": "sha256:ee9beeecd1d969057d36f76a1a6f01b9148407f063a51b59b524b1f672ec3013"
+      }
+    },
+    {
+      "name": "f05-delete-then-get",
+      "input": {
+        "persona_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+        "audit_trace_offset": 99,
+        "capability_token_ids": [],
+        "snapshot_at_utc": "2026-05-17T04:00:00Z",
+        "workspace_state_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "expected": {
+        "snapshot_jcs_bytes_b64": "eyJhdWRpdF90cmFjZV9vZmZzZXQiOjk5LCJjYXBhYmlsaXR5X3Rva2VuX2lkcyI6W10sInBlcnNvbmFfaGFzaCI6InNoYTI1NjozMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzIiwic25hcHNob3RfYXRfdXRjIjoiMjAyNi0wNS0xN1QwNDowMDowMFoiLCJ3b3Jrc3BhY2Vfc3RhdGVfaGFzaCI6InNoYTI1NjowMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIn0=",
+        "snapshot_jcs_bytes_len": 278,
+        "snapshot_sha256_hex": "60c3fd2096c6b0f0a1c2ee30cbb5f0b32790a5c0e89e2cdb2d444a81e0ec70c3",
+        "snapshot_hash_prefixed": "sha256:60c3fd2096c6b0f0a1c2ee30cbb5f0b32790a5c0e89e2cdb2d444a81e0ec70c3"
+      }
+    }
+  ]
+}
