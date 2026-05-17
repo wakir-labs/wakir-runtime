@@ -31,6 +31,18 @@
 //! See the crate-level Cargo.toml comment for schema-parity table and
 //! ADR anchors. Public surface: [`FsmState`], [`FsmTransition`],
 //! [`TransitionRecord`], [`PersonaFsm`], [`FsmError`].
+//!
+//! Tag-21 Mini-Welle adds the canonical-trace cross-lang surface in
+//! the [`canonical`] module: [`canonical::LifecycleTrace`],
+//! [`canonical::serialize_trace`], [`canonical::trace_sha256_hex`],
+//! [`canonical::trace_hash_prefixed`]. Byte-for-byte parity with
+//! the Python sibling
+//! `wirelang.persona_engine.lifecycle_state_machine_canonical` is
+//! pinned by the cross-lang fixture vectors under
+//! `tests/fixtures/lifecycle-state-machine-cross-lang/fixtures.json`.
+
+/// Tag-21 canonical-trace cross-lang surface (see module docs).
+pub mod canonical;
 
 use serde::{Deserialize, Serialize};
 use std::fmt;

@@ -1,0 +1,122 @@
+{
+  "_comment": "Cross-lang fixture vectors for the persona-engine lifecycle-state-machine canonical-trace (Tag-21 Mini-Welle Phase-3a Python-sync, 7th module). The 'expected' block is the authoritative cross-lang pin: any drift on either side (Rust crate persona-engine-fsm canonical-trace surface or Python wirelang.persona_engine.lifecycle_state_machine_canonical) must change every other side too. Derivation procedure documented in wirelang/tests/persona_engine/test_lifecycle_state_machine_cross_lang_parity.py (Python sibling test) and wirelang-rust/crates/persona-engine-fsm/tests/lifecycle_state_machine_cross_lang_fixture_test.rs (Rust sibling test). Five outcomes covered: clean-lifecycle (uninstantiated->spawning->running->despawning->uninstantiated), recovery-path (uninstantiated->recovered->running), migration-path (running->migrated->uninstantiated), spawn-cancel (uninstantiated->spawning->uninstantiated, no run), rejected-attempt-then-clean (rejected uninstantiated->running then real spawn-run). Pinned 2026-05-17.",
+  "schema_version": "wakir.persona-engine.lifecycle-trace/1",
+  "fixed_ts_utc": "2026-05-17T00:00:00Z",
+  "fixtures": [
+    {
+      "name": "f01-clean-lifecycle",
+      "input": {
+        "persona_id": "reza",
+        "org_id": "wakir-labs",
+        "initial_state": "uninstantiated",
+        "transitions": [
+          { "from_state": "uninstantiated", "to_state": "spawning",        "accepted": true,  "reason": null,                              "ts_utc": "2026-05-17T00:00:00Z" },
+          { "from_state": "spawning",       "to_state": "running",         "accepted": true,  "reason": null,                              "ts_utc": "2026-05-17T00:00:00Z" },
+          { "from_state": "running",        "to_state": "despawning",      "accepted": true,  "reason": null,                              "ts_utc": "2026-05-17T00:00:00Z" },
+          { "from_state": "despawning",     "to_state": "uninstantiated",  "accepted": true,  "reason": null,                              "ts_utc": "2026-05-17T00:00:00Z" }
+        ]
+      },
+      "expected": {
+        "final_state": "uninstantiated",
+        "record_count": 4,
+        "accepted_count": 4,
+        "rejected_count": 0,
+        "trace_jcs_bytes_b64": "eyJmaW5hbF9zdGF0ZSI6InVuaW5zdGFudGlhdGVkIiwiaW5pdGlhbF9zdGF0ZSI6InVuaW5zdGFudGlhdGVkIiwib3JnX2lkIjoid2FraXItbGFicyIsInBlcnNvbmFfaWQiOiJyZXphIiwicmVjb3JkcyI6W3siYWNjZXB0ZWQiOnRydWUsImZyb21fc3RhdGUiOiJ1bmluc3RhbnRpYXRlZCIsInRvX3N0YXRlIjoic3Bhd25pbmciLCJ0c191dGMiOiIyMDI2LTA1LTE3VDAwOjAwOjAwWiJ9LHsiYWNjZXB0ZWQiOnRydWUsImZyb21fc3RhdGUiOiJzcGF3bmluZyIsInRvX3N0YXRlIjoicnVubmluZyIsInRzX3V0YyI6IjIwMjYtMDUtMTdUMDA6MDA6MDBaIn0seyJhY2NlcHRlZCI6dHJ1ZSwiZnJvbV9zdGF0ZSI6InJ1bm5pbmciLCJ0b19zdGF0ZSI6ImRlc3Bhd25pbmciLCJ0c191dGMiOiIyMDI2LTA1LTE3VDAwOjAwOjAwWiJ9LHsiYWNjZXB0ZWQiOnRydWUsImZyb21fc3RhdGUiOiJkZXNwYXduaW5nIiwidG9fc3RhdGUiOiJ1bmluc3RhbnRpYXRlZCIsInRzX3V0YyI6IjIwMjYtMDUtMTdUMDA6MDA6MDBaIn1dLCJzY2hlbWEiOiJ3YWtpci5wZXJzb25hLWVuZ2luZS5saWZlY3ljbGUtdHJhY2UvMSJ9",
+        "trace_jcs_bytes_len": 567,
+        "trace_sha256_hex": "a91c9bbcbba33e1cf6d71d3edab874dd2ba3fc81fc9c9283ad2bf15f88f7b56c",
+        "trace_hash_prefixed": "sha256:a91c9bbcbba33e1cf6d71d3edab874dd2ba3fc81fc9c9283ad2bf15f88f7b56c"
+      }
+    },
+    {
+      "name": "f02-recovery-path",
+      "input": {
+        "persona_id": "priya",
+        "org_id": "wakir-labs",
+        "initial_state": "uninstantiated",
+        "transitions": [
+          { "from_state": "uninstantiated", "to_state": "recovered", "accepted": true, "reason": null, "ts_utc": "2026-05-17T00:00:00Z" },
+          { "from_state": "recovered",      "to_state": "running",   "accepted": true, "reason": null, "ts_utc": "2026-05-17T00:00:00Z" }
+        ]
+      },
+      "expected": {
+        "final_state": "running",
+        "record_count": 2,
+        "accepted_count": 2,
+        "rejected_count": 0,
+        "trace_jcs_bytes_b64": "eyJmaW5hbF9zdGF0ZSI6InJ1bm5pbmciLCJpbml0aWFsX3N0YXRlIjoidW5pbnN0YW50aWF0ZWQiLCJvcmdfaWQiOiJ3YWtpci1sYWJzIiwicGVyc29uYV9pZCI6InByaXlhIiwicmVjb3JkcyI6W3siYWNjZXB0ZWQiOnRydWUsImZyb21fc3RhdGUiOiJ1bmluc3RhbnRpYXRlZCIsInRvX3N0YXRlIjoicmVjb3ZlcmVkIiwidHNfdXRjIjoiMjAyNi0wNS0xN1QwMDowMDowMFoifSx7ImFjY2VwdGVkIjp0cnVlLCJmcm9tX3N0YXRlIjoicmVjb3ZlcmVkIiwidG9fc3RhdGUiOiJydW5uaW5nIiwidHNfdXRjIjoiMjAyNi0wNS0xN1QwMDowMDowMFoifV0sInNjaGVtYSI6Indha2lyLnBlcnNvbmEtZW5naW5lLmxpZmVjeWNsZS10cmFjZS8xIn0=",
+        "trace_jcs_bytes_len": 362,
+        "trace_sha256_hex": "2c930a782567504d0658e3e50ecf689af867d29ba76e842e38156aaccb7ac5d6",
+        "trace_hash_prefixed": "sha256:2c930a782567504d0658e3e50ecf689af867d29ba76e842e38156aaccb7ac5d6"
+      }
+    },
+    {
+      "name": "f03-migration-path",
+      "input": {
+        "persona_id": "aisha",
+        "org_id": "wakir-labs",
+        "initial_state": "uninstantiated",
+        "transitions": [
+          { "from_state": "uninstantiated", "to_state": "spawning",       "accepted": true, "reason": null, "ts_utc": "2026-05-17T00:00:00Z" },
+          { "from_state": "spawning",       "to_state": "running",        "accepted": true, "reason": null, "ts_utc": "2026-05-17T00:00:00Z" },
+          { "from_state": "running",        "to_state": "migrated",       "accepted": true, "reason": null, "ts_utc": "2026-05-17T00:00:00Z" },
+          { "from_state": "migrated",       "to_state": "uninstantiated", "accepted": true, "reason": null, "ts_utc": "2026-05-17T00:00:00Z" }
+        ]
+      },
+      "expected": {
+        "final_state": "uninstantiated",
+        "record_count": 4,
+        "accepted_count": 4,
+        "rejected_count": 0,
+        "trace_jcs_bytes_b64": "eyJmaW5hbF9zdGF0ZSI6InVuaW5zdGFudGlhdGVkIiwiaW5pdGlhbF9zdGF0ZSI6InVuaW5zdGFudGlhdGVkIiwib3JnX2lkIjoid2FraXItbGFicyIsInBlcnNvbmFfaWQiOiJhaXNoYSIsInJlY29yZHMiOlt7ImFjY2VwdGVkIjp0cnVlLCJmcm9tX3N0YXRlIjoidW5pbnN0YW50aWF0ZWQiLCJ0b19zdGF0ZSI6InNwYXduaW5nIiwidHNfdXRjIjoiMjAyNi0wNS0xN1QwMDowMDowMFoifSx7ImFjY2VwdGVkIjp0cnVlLCJmcm9tX3N0YXRlIjoic3Bhd25pbmciLCJ0b19zdGF0ZSI6InJ1bm5pbmciLCJ0c191dGMiOiIyMDI2LTA1LTE3VDAwOjAwOjAwWiJ9LHsiYWNjZXB0ZWQiOnRydWUsImZyb21fc3RhdGUiOiJydW5uaW5nIiwidG9fc3RhdGUiOiJtaWdyYXRlZCIsInRzX3V0YyI6IjIwMjYtMDUtMTdUMDA6MDA6MDBaIn0seyJhY2NlcHRlZCI6dHJ1ZSwiZnJvbV9zdGF0ZSI6Im1pZ3JhdGVkIiwidG9fc3RhdGUiOiJ1bmluc3RhbnRpYXRlZCIsInRzX3V0YyI6IjIwMjYtMDUtMTdUMDA6MDA6MDBaIn1dLCJzY2hlbWEiOiJ3YWtpci5wZXJzb25hLWVuZ2luZS5saWZlY3ljbGUtdHJhY2UvMSJ9",
+        "trace_jcs_bytes_len": 564,
+        "trace_sha256_hex": "9677f63b87bb3e8b0d6846fc9f8deec67c4d3bd0d3d722c4bf977fee734cc89c",
+        "trace_hash_prefixed": "sha256:9677f63b87bb3e8b0d6846fc9f8deec67c4d3bd0d3d722c4bf977fee734cc89c"
+      }
+    },
+    {
+      "name": "f04-spawn-cancel",
+      "input": {
+        "persona_id": "noa",
+        "org_id": "wakir-labs",
+        "initial_state": "uninstantiated",
+        "transitions": [
+          { "from_state": "uninstantiated", "to_state": "spawning",       "accepted": true, "reason": null, "ts_utc": "2026-05-17T00:00:00Z" },
+          { "from_state": "spawning",       "to_state": "uninstantiated", "accepted": true, "reason": null, "ts_utc": "2026-05-17T00:00:00Z" }
+        ]
+      },
+      "expected": {
+        "final_state": "uninstantiated",
+        "record_count": 2,
+        "accepted_count": 2,
+        "rejected_count": 0,
+        "trace_jcs_bytes_b64": "eyJmaW5hbF9zdGF0ZSI6InVuaW5zdGFudGlhdGVkIiwiaW5pdGlhbF9zdGF0ZSI6InVuaW5zdGFudGlhdGVkIiwib3JnX2lkIjoid2FraXItbGFicyIsInBlcnNvbmFfaWQiOiJub2EiLCJyZWNvcmRzIjpbeyJhY2NlcHRlZCI6dHJ1ZSwiZnJvbV9zdGF0ZSI6InVuaW5zdGFudGlhdGVkIiwidG9fc3RhdGUiOiJzcGF3bmluZyIsInRzX3V0YyI6IjIwMjYtMDUtMTdUMDA6MDA6MDBaIn0seyJhY2NlcHRlZCI6dHJ1ZSwiZnJvbV9zdGF0ZSI6InNwYXduaW5nIiwidG9fc3RhdGUiOiJ1bmluc3RhbnRpYXRlZCIsInRzX3V0YyI6IjIwMjYtMDUtMTdUMDA6MDA6MDBaIn1dLCJzY2hlbWEiOiJ3YWtpci5wZXJzb25hLWVuZ2luZS5saWZlY3ljbGUtdHJhY2UvMSJ9",
+        "trace_jcs_bytes_len": 372,
+        "trace_sha256_hex": "17ac0453e51e9d917de911f1c5fb059ed99d970aa87dc2bbc997ffca5c3da65b",
+        "trace_hash_prefixed": "sha256:17ac0453e51e9d917de911f1c5fb059ed99d970aa87dc2bbc997ffca5c3da65b"
+      }
+    },
+    {
+      "name": "f05-rejected-attempt-then-clean",
+      "input": {
+        "persona_id": "tomas",
+        "org_id": "wakir-labs",
+        "initial_state": "uninstantiated",
+        "transitions": [
+          { "from_state": "uninstantiated", "to_state": "running",  "accepted": false, "reason": "not_in_valid_transitions", "ts_utc": "2026-05-17T00:00:00Z" },
+          { "from_state": "uninstantiated", "to_state": "spawning", "accepted": true,  "reason": null,                       "ts_utc": "2026-05-17T00:00:00Z" },
+          { "from_state": "spawning",       "to_state": "running",  "accepted": true,  "reason": null,                       "ts_utc": "2026-05-17T00:00:00Z" }
+        ]
+      },
+      "expected": {
+        "final_state": "running",
+        "record_count": 3,
+        "accepted_count": 2,
+        "rejected_count": 1,
+        "trace_jcs_bytes_b64": "eyJmaW5hbF9zdGF0ZSI6InJ1bm5pbmciLCJpbml0aWFsX3N0YXRlIjoidW5pbnN0YW50aWF0ZWQiLCJvcmdfaWQiOiJ3YWtpci1sYWJzIiwicGVyc29uYV9pZCI6InRvbWFzIiwicmVjb3JkcyI6W3siYWNjZXB0ZWQiOmZhbHNlLCJmcm9tX3N0YXRlIjoidW5pbnN0YW50aWF0ZWQiLCJyZWFzb24iOiJub3RfaW5fdmFsaWRfdHJhbnNpdGlvbnMiLCJ0b19zdGF0ZSI6InJ1bm5pbmciLCJ0c191dGMiOiIyMDI2LTA1LTE3VDAwOjAwOjAwWiJ9LHsiYWNjZXB0ZWQiOnRydWUsImZyb21fc3RhdGUiOiJ1bmluc3RhbnRpYXRlZCIsInRvX3N0YXRlIjoic3Bhd25pbmciLCJ0c191dGMiOiIyMDI2LTA1LTE3VDAwOjAwOjAwWiJ9LHsiYWNjZXB0ZWQiOnRydWUsImZyb21fc3RhdGUiOiJzcGF3bmluZyIsInRvX3N0YXRlIjoicnVubmluZyIsInRzX3V0YyI6IjIwMjYtMDUtMTdUMDA6MDA6MDBaIn1dLCJzY2hlbWEiOiJ3YWtpci5wZXJzb25hLWVuZ2luZS5saWZlY3ljbGUtdHJhY2UvMSJ9",
+        "trace_jcs_bytes_len": 498,
+        "trace_sha256_hex": "6926713f216326132cb1a9ce635bde651326226f3c95b9723fa669a50af9fd29",
+        "trace_hash_prefixed": "sha256:6926713f216326132cb1a9ce635bde651326226f3c95b9723fa669a50af9fd29"
+      }
+    }
+  ]
+}
