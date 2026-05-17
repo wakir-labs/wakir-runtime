@@ -39,6 +39,18 @@ precedence = "closest"
 SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
 SPDX-License-Identifier = "BUSL-1.1"
 
+# `infra/spire/federation/provisioner/` ships its own LICENSE-BSL.md
+# (ADR-0058) with a distinct Change-Date 2030-05-13. The license
+# identifier is identical to the parent federation sub-tree, so the
+# closest-precedence annotation above already covers it. We keep this
+# block as an explicit pointer for adopters reading REUSE.toml in
+# isolation; the path overlap is intentional and REUSE-3.0 compliant.
+[[annotations]]
+path = "infra/spire/federation/provisioner/**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
+SPDX-License-Identifier = "BUSL-1.1"
+
 [[annotations]]
 path = "infra/spire/agent/**"
 precedence = "closest"
@@ -55,6 +67,20 @@ SPDX-License-Identifier = "BUSL-1.1"
 [[annotations]]
 path = "wat/anchor/external_verifier/**"
 precedence = "override"
+SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
+SPDX-License-Identifier = "Apache-2.0"
+
+# ============================================================
+# Rust workspace (Apache-2.0 via `[workspace.package] license`).
+# The workspace and all crates beneath `wirelang-rust/crates/*` are
+# Apache-2.0. We annotate the sub-tree explicitly so REUSE scanners
+# do not have to parse Cargo.toml to discover the license posture
+# (ADR-0034 §3.7 + ADR-0035 Sprache-pro-Komponente).
+# ============================================================
+
+[[annotations]]
+path = "wirelang-rust/**"
+precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
 SPDX-License-Identifier = "Apache-2.0"
 

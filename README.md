@@ -423,25 +423,55 @@ nested payloads. Each vector ships with a pre-computed
 
 ## Repository layout
 
+The Wakir Runtime is a **mixed-license, BUSL-dominant** monorepo. The
+table below names every top-level sub-tree with its authoritative
+license; the per-file SPDX headers and `REUSE.toml` annotations are
+the machine-readable source of truth, and `LICENSING.md` is the human-
+readable consolidation. The hermetic suite
+`tests/infra/test_licensing_md_state.py` enforces that the three stay
+in lock-step.
+
 ```
-wat/            — Wakir Audit Trail module (BUSL-1.1)
-wirelang/       — runtime-internal modules (BUSL-1.1) plus
-                  transitional Apache-2.0 sources mirrored from
-                  wakir-protocol
-tooling/        — CI/CD helpers              (Apache-2.0)
-scripts/        — setup and maintenance      (Apache-2.0)
-tests/          — test suite                 (Apache-2.0)
-docs/           — Markdown documentation     (CC-BY-4.0)
+wat/             — Wakir Audit Trail module       (BUSL-1.1, see wat/LICENSE-BSL.md)
+                   ├── wat/anchor/external_verifier/  Apache-2.0 carve-out (ADR-0062 Cut-1 mirror)
+                   └── wat/merkle/ Read-Half         Apache-2.0 carve-out (__init__.py, aggregator.py)
+wirelang/        — Wirelang Python package        (Apache-2.0 default, mirrored from wakir-protocol)
+                   ├── wirelang/federation/          BUSL-1.1
+                   └── wirelang/persona_engine/      BUSL-1.1
+infra/           — Infrastructure substrate       (mixed)
+                   ├── infra/spire/federation/       BUSL-1.1
+                   ├── infra/spire/federation/provisioner/  BUSL-1.1 (ADR-0058, own LICENSE-BSL.md)
+                   ├── infra/spire/agent/            BUSL-1.1
+                   └── infra/persona-engine/         BUSL-1.1
+wirelang-rust/   — Rust workspace                 (Apache-2.0, workspace default)
+                   └── wirelang-rust/crates/*/       Apache-2.0 (per-crate license.workspace = true)
+tooling/         — CI/CD helpers                  (Apache-2.0)
+scripts/         — setup and maintenance          (Apache-2.0)
+tests/           — test suite                     (follows subject under test)
+docs/            — Markdown documentation         (CC-BY-4.0 where marked)
 ```
 
 ## License
 
-This repository is mixed-license. Apache-2.0 is the default for
-foundation code and verifier tooling. Selected operational
-modules are licensed under BUSL-1.1 and convert to Apache-2.0 on
-their stated Change Date. Documentation is CC-BY-4.0 where
-marked. See [LICENSING.md](./LICENSING.md) for the authoritative
-map.
+This repository is **mixed-license, BUSL-dominant**. Apache-2.0 is the
+default for foundation code, the Wirelang protocol-layer mirror, and
+the Rust workspace. The following operational sub-trees ship under
+**Business Source License 1.1 (BUSL-1.1)** with a four-year auto-
+convert to Apache-2.0 per their Change-Date:
+
+- `wat/` (WAT Pipeline-Server; Change-Date 2030-05-07)
+- `wirelang/federation/` (Federation runtime modules)
+- `wirelang/persona_engine/` (V-907 Persona-Engine)
+- `infra/spire/federation/` (SPIRE Federation substrate)
+- `infra/spire/federation/provisioner/` (Provisioner image; Change-Date 2030-05-13, own LICENSE-BSL.md per ADR-0058)
+- `infra/spire/agent/` (SPIRE Agent runtime config)
+- `infra/persona-engine/` (Persona-Engine container substrate)
+
+Documentation files in `docs/` are CC-BY-4.0 where marked. Apache-2.0
+carve-outs within the BUSL-1.1 `wat/` sub-tree (the offline brand-proof
+verifier mirror and the Merkle-read-half) are listed explicitly in
+[LICENSING.md](./LICENSING.md), which is the **authoritative
+path-to-license map**.
 
 See [NOTICE](NOTICE) for the attribution required by Apache-2.0,
 [GOVERNANCE.md](./GOVERNANCE.md) for the human-governance
