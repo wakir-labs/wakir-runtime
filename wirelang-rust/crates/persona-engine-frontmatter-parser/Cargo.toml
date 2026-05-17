@@ -1,0 +1,91 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# persona-engine-frontmatter-parser — typed YAML front-matter parser for
+# persona-definition markdown files (Rust pendant of the typed parser
+# surface needed by Phase-3a tooling above persona-canonical-form-yaml).
+#
+# Layer position
+# --------------
+# Sits ABOVE `persona-canonical-form-yaml` (Crate-3) and BESIDE
+# `persona-engine-v907-verify` (Crate-13). Where Crate-3 produces the
+# strict 5-key canonical subset as `serde_json::Value` (for V-907 hash
+# pin pack), this crate produces a strongly-typed `PersonaDef` struct
+# that exposes ALL front-matter fields (including out-of-canonical-subset
+# keys like `persona_slug`, `capabilities`, `befugnis_rahmen`, `llm`,
+# `domain`, `reports_to`) via a typed Rust API for consumers that need
+# the full definition (CLI tools, migration code, engine-side validators).
+#
+# Schema-parity contract (vs. Python persona_canonical_form.py)
+# -------------------------------------------------------------
+# - `split_frontmatter(text)` -> `(frontmatter_yaml, body)` mirrors the
+#   Python equivalent byte-for-byte, including `\r\n` / `\n` / `\r` line
+#   terminator handling and the standalone `---` closing-fence rule.
+# - `parse_persona_markdown(md)` -> `(PersonaDef, body)` is the typed
+#   parsing entry-point. It composes `split_frontmatter` +
+#   `serde_yaml::from_str::<PersonaDef>` and then surfaces a strongly-
+#   typed struct with all canonical fields populated and unknown fields
+#   preserved in the `extra` map (forward-compat).
+# - For the V-907 canonical subset extraction the recommended path is
+#   still `persona-canonical-form-yaml::read_canonical_subset` (untyped,
+#   produces the exact `serde_json::Value` the JCS canonicaliser
+#   expects). This crate is intentionally a typed-API LAYER, not a
+#   replacement for the canonical-form extractor.
+#
+# Cross-language round-trip
+# -------------------------
+# `tests/frontmatter_parser_smoke_test.rs` includes a cross-language
+# round-trip test against the Python `persona_canonical_form` module:
+# the typed `PersonaDef::to_canonical_subset()` projection must produce
+# the same JSON structure that Python's `extract_canonical_subset`
+# emits for the V9 ground-truth fixture (and the SHA-256 of the JCS
+# bytes must equal `PERSONA_HASH_PIN_V9`, byte-anchoring this crate
+# into the V-907 pin pack alongside Crate-3).
+#
+# Default-Lock posture (Sprint-Rust-Frontmatter-Parser-MINI, Phase-3a Item 8)
+# --------------------------------------------------------------------------
+# - A-1 Mock-Format-Baseline: parse YAML front-matter from a markdown
+#   text into a typed `PersonaDef` struct; preserve unknown keys in
+#   `extra` for forward-compat. This crate does not hash, does not JCS-
+#   canonicalise, does not validate beyond shape.
+# - A-2 Additiv-only: new crate added next to existing roster; Python
+#   `persona_canonical_form.py` UNCHANGED.
+# - A-3 Body out-of-hash: the markdown body after the closing `---`
+#   fence is returned as the second tuple element of
+#   `parse_persona_markdown`; it is NOT part of any V-907 hash input.
+#
+# ADR anchors
+# -----------
+# - ADR-0063 §Folgeartefakte Phase-3a — Rust-Crate-Bundle.
+# - ADR-0035 (Errata 1) — Rust as Phase-1c language for persona-engine.
+# - ADR-0036 — Self-Migration-Konverter (this crate's typed surface
+#   feeds the future migration step machinery).
+#
+# Mira-Decision YAML-Parser (Sprint-3-Closeout-Stempel, ratified
+# 2026-05-07 ~18:15 CEST): `serde_yaml = 0.9.34` is the default. Same
+# rationale as Crate-3.
+
+[package]
+name = "persona-engine-frontmatter-parser"
+version = "0.1.0"
+description = "Typed YAML front-matter parser for persona-definition markdown files (Rust pendant of full PersonaDef surface above persona-canonical-form-yaml)"
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+
+[lib]
+name = "persona_engine_frontmatter_parser"
+path = "src/lib.rs"
+
+[dependencies]
+serde      = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+
+[dev-dependencies]
+# Cross-language round-trip: SHA-256 of the JCS bytes of the V9 canonical
+# subset must equal PERSONA_HASH_PIN_V9. Same dev-dep posture as
+# persona-canonical-form-yaml.
+serde_jcs = { workspace = true }
+sha2      = { workspace = true, features = ["std"] }
