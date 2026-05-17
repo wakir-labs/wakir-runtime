@@ -1,0 +1,246 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase-3c Observability Baseline — Daily Snapshot (Tag-25 Mini-Welle)
+# --------------------------------------------------------------------
+#
+# Purpose
+# -------
+#
+# ADR-0065 Phase-3c Gate-4 requires >= 7 distinct days of Backend-
+# Decision-Observability evidence before the Python -> Rust default-
+# backend cutover. The Tag-24 trigger-gate aggregator turns that into
+# a binary go/no-go; the Tag-25 baseline-tracker (this workflow's
+# driver) is the BURN-UP dashboard that runs once per day, emits a
+# JSON artifact, and surfaces a step-summary so the cutover-decision
+# meeting can look at a trend instead of a single point.
+#
+# Posture
+# -------
+#
+# Sandbox-hermetic: stdlib-only Python invocation, no podman / cosign
+# / live-VM, no network. The workflow runs in two modes:
+#
+#   * **schedule** — daily at 03:00 UTC. No JSONL path is configured
+#     in the workflow's runner environment, so the tracker emits its
+#     ``red / reason=no-path-configured`` posture and uploads the
+#     empty-state JSON. This is the *no-data baseline* artifact: it
+#     proves the workflow itself stays green, the tracker stays
+#     importable, and the daily-snapshot habit is in place. An
+#     operator who later stages a baseline file via scp/rsync onto a
+#     self-hosted runner and re-runs the workflow with
+#     ``workflow_dispatch`` will get a real burn-up report from the
+#     same code path. The job NEVER fails CI on the
+#     ``no-path-configured`` red — that is the expected hosted-runner
+#     state.
+#
+#   * **workflow_dispatch** — manual operator run, optionally with a
+#     custom JSONL path (``inputs.jsonl_path``). This is the path the
+#     cutover-prep operator uses the day before the cutover-review
+#     to capture a fresh burn-up snapshot. The job is allowed to
+#     "fail" with the tri-state exit code: red (2) blocks the
+#     cutover; yellow (1) is a warning surfaced via the
+#     step-summary; green (0) is the all-clear. The aggregator's
+#     own ``phase-3c-acceptance-gate`` is the authoritative cutover
+#     gate; this workflow's red is purely informational.
+#
+# Anchors
+# -------
+#
+# * ADR-0065 — Phase-3c cutover sequence.
+# * `scripts/phase-3c-observability-baseline-tracker.py` — driver.
+# * `scripts/phase-3c-trigger-gate-aggregator.py` — Gate-4 consumer.
+# * `scripts/backend-decision-observability.py` — emit aggregator.
+
+name: phase-3c-observability-daily-snapshot
+
+on:
+  schedule:
+    # Daily at 03:00 UTC (~05:00 CEST in May, ~04:00 CET in winter).
+    # One hour offset from `phase-2-acceptance-gate` (02:00 UTC) so
+    # the two daily ops jobs do not contend for the same runner pool.
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      jsonl_path:
+        description: "Optional JSONL path on the runner (operator-hand)."
+        required: false
+        default: ""
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/phase-3c-observability-baseline-tracker.py"
+      - "scripts/phase-3c-trigger-gate-aggregator.py"
+      - "tests/scripts/test_phase_3c_observability_baseline_tracker.py"
+      - ".github/workflows/phase-3c-observability-daily-snapshot.yml"
+  pull_request:
+    paths:
+      - "scripts/phase-3c-observability-baseline-tracker.py"
+      - "scripts/phase-3c-trigger-gate-aggregator.py"
+      - "tests/scripts/test_phase_3c_observability_baseline_tracker.py"
+      - ".github/workflows/phase-3c-observability-daily-snapshot.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  daily-snapshot:
+    name: Phase-3c Observability Baseline — Daily Snapshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Resolve JSONL-path input
+        id: jsonl
+        # `github.event.inputs.jsonl_path` expands to "" for schedule
+        # / push / PR runs. Empty string -> we omit the `--jsonl-path`
+        # flag so the tracker falls back to its ENV-resolution path
+        # (which is also unset on hosted runners, giving the expected
+        # ``no-path-configured`` red).
+        env:
+          INPUT_PATH: ${{ github.event.inputs.jsonl_path }}
+        run: |
+          if [ -n "${INPUT_PATH}" ]; then
+            echo "flag=--jsonl-path=${INPUT_PATH}" >> "$GITHUB_OUTPUT"
+          else
+            echo "flag=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run baseline-tracker
+        id: tracker
+        # `continue-on-error: true` so the step-summary + artifact
+        # upload still happen even when the tracker exits with the
+        # expected red on schedule runs. The final step re-asserts
+        # the policy: red is informational on schedule / push, but
+        # workflow_dispatch with an explicit JSONL path treats the
+        # red as a real failure.
+        continue-on-error: true
+        run: |
+          mkdir -p out
+          set +e
+          python scripts/phase-3c-observability-baseline-tracker.py \
+            ${{ steps.jsonl.outputs.flag }} \
+            --out out/phase-3c-observability-baseline.json
+          RC=$?
+          set -e
+          echo "rc=${RC}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload baseline-snapshot artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-3c-observability-baseline-snapshot
+          path: out/phase-3c-observability-baseline.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Render step-summary
+        if: always()
+        # Single python -c invocation to avoid bash-heredoc-inside-
+        # group quoting hazards. Reads the JSON artifact and writes a
+        # markdown table to $GITHUB_STEP_SUMMARY. Tolerant to missing
+        # artifact (the tracker has its own ``no-path-configured``
+        # red-state that always writes a valid JSON).
+        run: |
+          python - <<'PY'
+          import json, os, pathlib
+
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          out = pathlib.Path("out/phase-3c-observability-baseline.json")
+          lines = ["# Phase-3c Observability Baseline — Daily Snapshot", ""]
+
+          if not out.exists() or out.stat().st_size == 0:
+              lines += [
+                  "Tracker produced no artifact.",
+                  "",
+                  "Anchors: ADR-0065, scripts/phase-3c-observability-baseline-tracker.py.",
+              ]
+          else:
+              d = json.loads(out.read_text(encoding="utf-8"))
+              status = d.get("status", "?")
+              reason = d.get("reason", "")
+              distinct = d.get("distinct_days", "?")
+              span = d.get("days_of_data", "?")
+              floor = d.get("min_days_required", "?")
+              comfort = d.get("comfort_days_required", "?")
+              sample = d.get("sample_count", "?")
+              path = d.get("jsonl_path") or "(unset)"
+
+              lines += [
+                  f"**Status:** {status}  -  **Reason:** `{reason}`",
+                  "",
+                  f"- JSONL path: `{path}`",
+                  f"- Sample count: {sample}",
+                  f"- Distinct days: {distinct}",
+                  f"- Days-of-data span: {span}",
+                  f"- Min-days required (yellow floor): {floor}",
+                  f"- Comfort-days required (green floor): {comfort}",
+                  "",
+                  "## Per-component split",
+                  "",
+                  "| Component | Total | Python | Rust | Other | Fallback | "
+                  "Python rate | Rust rate | Fallback rate |",
+                  "|---|---|---|---|---|---|---|---|---|",
+              ]
+              for c in d.get("components", []):
+                  lines.append(
+                      f"| {c['component']} | {c['total_decisions']} | "
+                      f"{c['python_count']} | {c['rust_count']} | "
+                      f"{c['other_count']} | {c['fallback_count']} | "
+                      f"{c['python_rate']:.4f} | "
+                      f"{c['rust_rate']:.4f} | "
+                      f"{c['fallback_rate']:.4f} |"
+                  )
+              lines += [
+                  "",
+                  "Anchors: ADR-0065 Phase-3c cutover; "
+                  "scripts/phase-3c-trigger-gate-aggregator.py Gate-4.",
+              ]
+
+          if summary_path:
+              with open(summary_path, "a", encoding="utf-8") as fh:
+                  fh.write("\n".join(lines) + "\n")
+          else:
+              # Local debug path (no GitHub-Actions runner env).
+              print("\n".join(lines))
+          PY
+
+      - name: Enforce dispatch-mode policy
+        # On `workflow_dispatch` with an explicit JSONL path, the
+        # tri-state exit code is treated as authoritative: red (2)
+        # fails the job. On schedule / push / PR runs the
+        # ``no-path-configured`` red is the expected hosted-runner
+        # state — we surface it via the step-summary above but do
+        # NOT fail the job. This split-policy matches the workflow's
+        # purpose: schedule runs prove the daily-snapshot habit is
+        # in place; dispatch runs are the operator-prep cutover
+        # check.
+        env:
+          TRACKER_RC: ${{ steps.tracker.outputs.rc }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_PATH: ${{ github.event.inputs.jsonl_path }}
+        run: |
+          python - <<'PY'
+          import os, sys
+          rc = int(os.environ.get("TRACKER_RC", "0"))
+          event = os.environ.get("EVENT_NAME", "")
+          jsonl = os.environ.get("INPUT_PATH", "")
+
+          if event == "workflow_dispatch" and jsonl:
+              # Operator-explicit run — honour the tri-state exit code.
+              print(f"workflow_dispatch + explicit JSONL: rc={rc}")
+              sys.exit(rc if rc > 1 else 0)
+
+          # Schedule / push / PR / dispatch-without-path:
+          # tracker red is informational, never fails the job.
+          print(f"informational run (event={event}): tracker rc={rc} (not enforced)")
+          sys.exit(0)
+          PY
