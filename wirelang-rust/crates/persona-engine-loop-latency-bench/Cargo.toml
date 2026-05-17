@@ -1,0 +1,150 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wakir-Runtime / wirelang Rust workspace — persona-engine-loop-latency-bench crate.
+#
+# Purpose
+# -------
+# End-to-end latency benchmark for the NATS Subscribe-Loop crate
+# (`persona-engine-subscribe-loop`, Phase-3a Item 4, PR #132). Measures
+# the wire-receive -> handler-dispatch latency at several feed rates
+# (10 Hz / 100 Hz / 1000 Hz) and produces a JSON `LatencyReport`
+# (p50 / p95 / p99 / max in microseconds, actual throughput in Hz,
+# dropped-frames count).
+#
+# Phase-3a positioning — closes Foundation 15/15
+# ----------------------------------------------
+# This crate is **Phase-3a Item 15 (LAST)** of the persona-engine
+# Rust-Re-Write roadmap (ADR-0063 §Folgeartefakte). The first fourteen
+# Phase-3a items built the typed substrate (canonical-form, hash,
+# migration, format, smoke, bridge-diff, anchor-emitter, state-backing,
+# fsm, nats-subjects, subscribe-loop, bridge-audit-replay,
+# federation-frame-parser, frontmatter-parser). This crate adds the
+# performance-observability layer that proves the substrate is
+# operationally usable at production-relevant rates. With this PR,
+# the Phase-3a Foundation block is complete (15/15).
+#
+# Why this benchmark exists
+# -------------------------
+# The subscribe-loop driver `run_subscribe_loop` (Reza PR #132) takes
+# an in-memory `tokio::sync::mpsc::Receiver<SubscribeMessage>` and a
+# `MessageHandler`. It is the deterministic substrate the 3-way bridge
+# (Selin PR #113) compares against. Once the live `async-nats` binding
+# extends this driver (Phase-3a follow-up Item-5+), the question
+# operationally is: *what is the lower-bound end-to-end latency the
+# substrate adds on top of the wire?* This bench answers that question
+# under controlled synthetic load. It also gives a Rust ground-truth
+# number that the Python sibling (Selin Sprint-Pengine-13) can be
+# diffed against in a future cross-lang performance-parity audit.
+#
+# Scope discipline (in-process only)
+# ----------------------------------
+# This bench uses the SAME `tokio::sync::mpsc` channel substrate the
+# subscribe-loop's smoke-test surface uses. It does NOT open a live
+# NATS socket; `async-nats` is not exercised. That means the numbers
+# this bench produces are a **lower bound** on production latency —
+# they capture the loop's own overhead (envelope parse + handler
+# dispatch + state-update) but not the wire-side. This is intentional:
+# we want to be able to detect substrate-side regressions in isolation
+# before a future live-NATS bench introduces network variance.
+#
+# Determinism
+# -----------
+# The synthetic frame generator (`SyntheticFrameGen`) is fully
+# deterministic from a 64-bit seed: the same `(seed, frame_count)`
+# always produces the same envelope bytes (down to the `auftrag_id`
+# and `prompt_payload`). This makes the bench reproducible across
+# machines and CI runs.
+#
+# Output JSON for cross-lang comparison
+# -------------------------------------
+# `LatencyReport::to_json_pretty()` emits a stable JSON shape that
+# a future Python pendant can byte-match at the field level. The
+# field set is:
+#
+#   {
+#     "rate_hz_target":   <f64>,
+#     "duration_sec":     <u64>,
+#     "frames_planned":   <u64>,
+#     "frames_received":  <u64>,
+#     "frames_processed": <u64>,
+#     "frames_dropped":   <u64>,
+#     "throughput_actual_hz": <f64>,
+#     "latency_micros": {
+#       "p50": <u64>, "p95": <u64>, "p99": <u64>, "max": <u64>
+#     }
+#   }
+#
+# Hard-Constraints (per Sprint-Auftrag)
+# -------------------------------------
+# - No touches to `wirelang/persona_engine/` Python source.
+# - No LICENSING / NOTICE / .github/workflows touches.
+# - `cargo test -p persona-engine-loop-latency-bench` must run green.
+# - `cargo bench` is NOT exercised in CI — `criterion` benches must
+#   only compile (`cargo build --benches`). Bench-execution stays
+#   operator-hand.
+# - Single-PR-Bundle against `wakir-runtime/main`.
+# - >=8 unit-tests: rate-honored, percentile-correctness,
+#   dropped-frame-counter, deterministic-seed (each as one or more
+#   explicit cases).
+# - Depends on `persona-engine-subscribe-loop` (PR #132) for the
+#   Frame-Type (`SubscribeMessage`) and the loop-trait
+#   (`MessageHandler`).
+#
+# Versioning rationale (verified against workspace pins +
+# crates.io HTTP-200 on 2026-05-17 03:09 CEST)
+# ------------------------------------------------------
+# - serde      = workspace pin (=1.0.219) : LatencyReport Serialize.
+# - serde_json = workspace pin (=1.0.140) : Stable JSON-emission for
+#                                           the cross-lang report.
+# - chrono     = =0.4.44 (matches subscribe-loop pin) : RFC-3339
+#                                                       ts_utc emit in the
+#                                                       synthetic generator.
+# - tokio      = =1.52.3 (matches subscribe-loop pin) : test runtime +
+#                                                       mpsc channel +
+#                                                       `time::Instant`.
+# - persona-engine-subscribe-loop = path-dep : Frame-Type (`SubscribeMessage`)
+#                                              + loop-trait (`MessageHandler`)
+#                                              + `run_subscribe_loop_with_timeout`
+#                                              driver.
+# Dev-only:
+# - criterion  = =0.8.2 (verified HTTP-200 against
+#                crates.io API on 2026-05-17 03:09 CEST) : benches/
+#                harness. NOT pulled into the lib build; dev-dep only.
+#
+# ADR anchors
+# -----------
+# - ADR-0063 §Folgeartefakte Phase-3a Item 15 (LAST — this crate).
+# - ADR-0035 Errata 1 — Rust as Phase-1c language for persona-engine.
+# - Reza PR #132 — subscribe-loop scaffold (Phase-3a Item 4) — schema
+#   authority for SubscribeMessage and run_subscribe_loop_with_timeout.
+# - Selin PR #79  — Python schema-parity reference (informs the
+#   envelope-shape the synthetic generator emits).
+
+[package]
+name = "persona-engine-loop-latency-bench"
+version = "0.1.0"
+description = "End-to-end latency benchmark for the persona-engine NATS Subscribe-Loop (Phase-3a Item 15 — closes Foundation 15/15; measures wire-receive -> handler-dispatch latency at 10/100/1000 Hz, emits cross-lang-comparable JSON LatencyReport with p50/p95/p99/max micros + actual throughput + dropped-frame counter)."
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+publish                = false
+
+[lib]
+name = "persona_engine_loop_latency_bench"
+path = "src/lib.rs"
+
+[dependencies]
+serde      = { workspace = true }
+serde_json = { workspace = true }
+chrono     = { version = "=0.4.44", default-features = false, features = ["clock", "std"] }
+tokio      = { version = "=1.52.3", features = ["rt-multi-thread", "macros", "sync", "time"] }
+persona-engine-subscribe-loop = { path = "../persona-engine-subscribe-loop" }
+
+[dev-dependencies]
+criterion = "=0.8.2"
+
+[[bench]]
+name = "loop_latency"
+harness = false

@@ -114,6 +114,20 @@
 #   flag the spots where a future `wirelang/federation/federation_frame.py`
 #   must byte-match. Added 2026-05-17.
 #
+# - persona-engine-loop-latency-bench : Tag-13 Mini-Welle (Phase-3a
+#   Item 15 — closes Foundation 15/15). End-to-end latency benchmark
+#   for the NATS Subscribe-Loop crate (`persona-engine-subscribe-loop`,
+#   PR #132). Drives `run_subscribe_loop_with_timeout` with synthetic
+#   envelopes at a target rate (10 / 100 / 1000 Hz) over a 1-sec
+#   window and produces a JSON `LatencyReport` (p50 / p95 / p99 / max
+#   in microseconds, throughput-actual-Hz, dropped-frames count). The
+#   bench is in-process only (no live NATS socket); produces lower-
+#   bound numbers on substrate-side overhead. Synthetic-frame generator
+#   is deterministic from a 64-bit seed. `criterion` benches under
+#   `benches/loop_latency.rs` for the three documented rates; CI
+#   verifies compile only (operator-hand runs the bench). Added
+#   2026-05-17.
+#
 # Default-Lock posture (pengine-eng engine-side, ratified 2026-05-07 ~10:00 CEST)
 # ------------------------------------------------------------------------
 #
@@ -151,6 +165,7 @@ members = [
     "crates/persona-engine-nats-subjects",
     "crates/persona-engine-bridge-audit-replay",
     "crates/persona-engine-federation-frame-parser",
+    "crates/persona-engine-loop-latency-bench",
 ]
 
 [workspace.package]
