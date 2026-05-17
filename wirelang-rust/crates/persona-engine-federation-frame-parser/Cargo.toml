@@ -1,0 +1,141 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wakir-Runtime / wirelang Rust workspace — persona-engine-federation-frame-parser crate.
+#
+# Purpose
+# -------
+# Typed Rust parser + serialiser for **federation frames** — the
+# inter-runtime envelope shape that wraps a payload (bridge-forward
+# Auftrag, persona task output, multi-org attestation pointer, SPIFFE
+# trust-bundle sync notice) for transport between Wakir-Runtime
+# instances belonging to different operator-orgs (or, in single-org
+# pilot mode, between Mira-Sandbox and the Pilot-VM).
+#
+# Phase-3a positioning
+# --------------------
+# Phase-3a Item 9 of the persona-engine Rust-Re-Write roadmap
+# (ADR-0063 §Folgeartefakte). The subscribe-loop crate (Phase-3a
+# Item 4, `persona-engine-subscribe-loop`) already consumes inbound
+# envelopes on the `wakir.<env>.agent.agent.task.assigned.<slug>`
+# subject; this crate adds the **typed parser** that maps the JCS-
+# canonical wire bytes onto a strongly-typed `FederationFrame`
+# Rust struct (and back).
+#
+# Cross-language posture (no Python counterpart yet)
+# --------------------------------------------------
+# There is **no `wirelang/federation/federation_frame.py`** in the
+# Python tree as of 2026-05-17. The closest Python kin are:
+#
+# - `wirelang/persona_engine/nats_subscribe_loop.py` — defines
+#   `ACCEPTED_INBOUND_SCHEMA = "wakir.agent.task-assigned/1"` and
+#   `OUTBOUND_OUTPUT_SCHEMA  = "wakir.agent.task-output/1"`. This
+#   crate's `FrameSchema` enum lifts those constants into typed Rust
+#   variants.
+# - `wirelang/federation/multi_org_substrate.py` — defines
+#   `ATTESTATION_VALUE_SCHEMA = "wakir.federation.multi-org-attestation/1"`.
+#   This crate exposes that schema as a third `FrameSchema` variant
+#   so federation-side attestation pointers can ride the same frame
+#   envelope.
+# - `wirelang/specs/bridge-forward-pipe-v1.md` §3 — defines the
+#   `wakir.agent.task-assigned/1` envelope shape that this crate's
+#   `FederationPayload::TaskAssigned` variant carries verbatim.
+#
+# Because no Python `federation_frame.py` exists, this crate ships
+# in **"reine Rust-Seite + Pin-Placeholder"** mode per the Sprint-
+# Auftrag explicit fallback: the cross-lang `FRAME_FIXTURE_*`
+# constants in the test surface are pinned against the Rust JCS
+# output, and a TODO marker (`TODO_PYTHON_FRAME_PARITY_PIN`) flags
+# the spots where a future Python `federation_frame.py` must
+# byte-match. Selin will own the Python sibling in the Sprint-
+# Federation-Frame-Python-Sync follow-up (not in this PR).
+#
+# Schema-parity table (Rust <-> Python, prospective)
+# --------------------------------------------------
+#   Rust `FederationFrame::header.schema`     <-> Python (future)
+#                                                 `FederationFrame.header["schema"]`
+#   Rust `FederationFrame::header.frame_id`   <-> Python (future)
+#                                                 `FederationFrame.header["frame_id"]`
+#   Rust `parse_frame(bytes) -> Result`       <-> Python (future)
+#                                                 `parse_frame(bytes) -> dict`
+#   Rust `serialize_frame(frame) -> Vec<u8>`  <-> Python (future)
+#                                                 `serialize_frame(frame) -> bytes`
+#
+# Wire-string discipline
+# ----------------------
+# All frames are JCS-canonical JSON per RFC 8785. Field order in the
+# Rust `WireFrame` struct intentionally matches the lexical order JCS
+# emits (alphabetical by key), so a `serde_json::to_writer` followed
+# by JCS canonicalisation is idempotent at the byte level. The frame
+# fixture vectors in the test surface pin the exact byte output.
+#
+# Frame anatomy (high-level)
+# --------------------------
+# {
+#   "anchor_ref": "wat:<sha256-hex>"     (optional; WAT-anchor pointer)
+#   "header": {
+#     "frame_id":         "<ulid-or-uuid>",
+#     "schema":           "wakir.federation.frame/1",
+#     "source_runtime":   "mira-sandbox" | "wakir-runtime" | "<orgid>/<runtime>",
+#     "target_runtime":   "wakir-runtime" | "<orgid>/<runtime>",
+#     "ts_utc":           "YYYY-MM-DDTHH:MM:SSZ",
+#     "version":          1
+#   },
+#   "payload": {
+#     "kind":             "task-assigned" | "task-output"
+#                       | "multi-org-attestation" | "spiffe-bundle-sync",
+#     "data":             { ... payload-kind-specific JSON ... }
+#   },
+#   "signature": "<ed25519-hex-sig>"     (optional; signature is over
+#                                         the JCS bytes of {header, payload})
+# }
+#
+# Hard-Constraints (per Sprint-Auftrag)
+# -------------------------------------
+# - No touches to `wirelang/persona_engine/` or `wirelang/federation/`
+#   Python source.
+# - No LICENSING / NOTICE / .github/workflows touches.
+# - No `shamir`, no `rfc8785-rs`, no `ring` (ADR-0063 Erratum).
+# - `cargo test -p persona-engine-federation-frame-parser` must run green.
+# - Single-PR-Bundle against `wakir-runtime/main`.
+# - >=12 tests + cross-lang pin placeholders.
+#
+# Versioning rationale (verified against workspace pins on
+# 2026-05-17 02:35 CEST):
+# - serde      = workspace pin (=1.0.219) : derive for FederationFrame round-trip.
+# - serde_json = workspace pin (=1.0.140) : payload-kind-data JSON tree
+#                                           (preserve_order for JCS-friendly Map).
+# - serde_jcs  = workspace pin (=0.2.0)   : RFC 8785 JCS canonicaliser.
+# - sha2       = workspace pin (=0.10.8)  : frame_id hash derivation +
+#                                           anchor-ref hex tail.
+# - hex        = workspace pin (=0.4.3)   : lower-case hex emission.
+#
+# ADR anchors
+# -----------
+# - ADR-0063 §Folgeartefakte Phase-3a Item 9 (this crate).
+# - ADR-0035 Errata 1 — Rust as Phase-1c language for persona-engine.
+# - Tomás Sprint-10 Tag-6 PR #69 — `bridge-forward-pipe-v1.md` is the
+#   payload-kind-`task-assigned` schema authority.
+# - Reza Sprint-7 Tag-1 — `multi_org_substrate.py` is the payload-kind-
+#   `multi-org-attestation` schema authority.
+
+[package]
+name = "persona-engine-federation-frame-parser"
+version = "0.1.0"
+description = "Typed Rust parser + serialiser for inter-runtime federation frames (JCS-canonical envelope wrapping task-assigned / task-output / multi-org-attestation / spiffe-bundle-sync payloads; cross-lang pin placeholders for the future Python sibling)."
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+publish                = false
+
+[lib]
+name = "persona_engine_federation_frame_parser"
+path = "src/lib.rs"
+
+[dependencies]
+serde      = { workspace = true }
+serde_json = { workspace = true }
+serde_jcs  = { workspace = true }
+sha2       = { workspace = true }
+hex        = { workspace = true }
