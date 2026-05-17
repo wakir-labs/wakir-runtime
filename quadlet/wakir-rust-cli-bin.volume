@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Tag-22 Mini-Welle — Named-volume sidecar for the Phase-3b Rust-CLI
+# binaries that the persona-engine production-default switch
+# (``wirelang.persona_engine.rust_backend_switch``) subprocess-bridges
+# to at the canonical ``/opt/wakir/bin/`` paths. Retry after Tag-21
+# quota-hit; identical bytes-shape as the Tag-21 draft.
+#
+# This volume backs the host-side install location of five Rust-CLI
+# binaries extracted from the published ``wakir-persona-engine``
+# carrier image (Tag-17/18/19/20 Mini-Welle PRs #167, #169, #171,
+# #175):
+#
+#   * /opt/wakir/bin/wakir-persona-engine-recovery        (PR #167)
+#   * /opt/wakir/bin/wakir-persona-engine-state-backing   (PR #167)
+#   * /opt/wakir/bin/wakir-persona-engine-fsm             (PR #169)
+#   * /opt/wakir/bin/wakir-persona-engine-v907-verify     (PR #171)
+#   * /opt/wakir/bin/wakir-persona-engine-bridge-diff     (PR #175)
+#
+# Why a host-side volume vs in-image-only consumption
+# ----------------------------------------------------
+# The carrier image already ships the binaries at the canonical
+# in-image paths; persona-engine-internal callers consume them
+# directly. The Tag-21 host-side install path serves the OUT-OF-
+# CONTAINER consumers — Operator-Hand recovery-drill scripts,
+# systemd oneshot jobs, and CI/operator-toolchain probes that run
+# on the Pilot-VM host without entering the persona-engine
+# container namespace. The default ``DEFAULT_RUST_*_BIN`` constants
+# in ``wirelang/persona_engine/rust_backend_switch.py`` point at
+# ``/opt/wakir/bin/`` precisely so the in-image and host-side
+# install paths converge — a host-side `:Z,U` named-volume mount
+# inside the persona-container would shadow the in-image binaries
+# with the same bytes (digest-pinned via the Cosign-Policy carrier
+# image), preserving byte-parity.
+#
+# Install path: /etc/containers/systemd/wakir-rust-cli-bin.volume
+# (rootful) or ~/.config/containers/systemd/ (rootless).
+#
+# Drop-policy: the volume is rebuilt on every ``wakir-rust-cli.
+# service`` oneshot run (idempotent overwrite of the five binary
+# files). On a clean tear-down the operator may run
+# ``podman volume rm wakir-rust-cli-bin`` to discard the host-
+# side copy; the in-image originals stay digest-pinned in the
+# carrier image.
+
+[Unit]
+Description=Wakir Tag-22 Phase-3b Rust-CLI host-side binary volume
+
+[Volume]
+# Default driver (local). No explicit Driver= line — Quadlet
+# accepts an empty [Volume] section as "use the default local
+# driver", parity with the SPIRE-Agent + persona-tomas-workspace
+# data-volume sidecars.
+
+[Install]
+WantedBy=multi-user.target default.target
