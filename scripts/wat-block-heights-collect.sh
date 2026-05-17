@@ -146,8 +146,10 @@ done
     # flag parsing — rows like ``--> `` and the table separator ``|---``
     # otherwise look like printf options.
     awk 'BEGIN { print "<!--" }'
+    # REUSE-IgnoreStart
     awk 'BEGIN { print "SPDX-License-Identifier: CC-BY-4.0" }'
     awk 'BEGIN { print "SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors" }'
+    # REUSE-IgnoreEnd
     awk 'BEGIN { print "-->" ; print "" }'
     awk 'BEGIN { print "# WAT block-heights report" ; print "" }'
     awk -v t="${TS_UTC}" 'BEGIN { printf "Generated: %s\n", t }'
