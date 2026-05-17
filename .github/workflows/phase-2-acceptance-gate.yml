@@ -1,0 +1,230 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase-2 Acceptance Gate — Doppelbetrieb-Score-Aggregator (Tag-22 Mini-Welle)
+# --------------------------------------------------------------------------
+#
+# Daily scheduled gate that drives the doppelbetrieb-score-aggregator
+# (PR #160) end-to-end and surfaces the eight-axis rollup as a CI
+# artifact + GITHUB_STEP_SUMMARY table. Operations-readiness signal
+# for Phase-2 Doppelbetrieb — Henrik samples weekly, the gate keeps
+# the rollup tight between samples.
+#
+# Distinction from `phase-2-validation-gate.yml`
+# ----------------------------------------------
+# `phase-2-validation-gate.yml` (PR #110) is the per-PR hermetic
+# gate-suite driver: one job per Phase-2 gate, fail-fast, lives on
+# every pull-request touching `wirelang/**` or `tests/infra/test_
+# phase_2_acceptance_gates.py`. It is wired as a required status
+# check on branch-protection.
+#
+# This workflow is the *operations* gate: it runs the aggregator
+# against the eight-axis rollup (five Phase-2 gates + three
+# Phase-3a-Foundation axes), threshold-checks the total score, and
+# emits the canonical JSON envelope as a build artifact. It is NOT
+# wired as a required status check (per Mira/Operator-Hand boundary —
+# branch-protection settings stay outside this PR; see
+# `feedback_branch_protection_check_names.md`).
+#
+# Trigger surface
+# ---------------
+#
+# * `schedule: cron "0 2 * * *"` — daily at 02:00 UTC. Gives Henrik a
+#   fresh rollup at the start of each ops day. Cron uses UTC; Wien =
+#   UTC+2 in May, so the run lands at ~04:00 CEST — before the
+#   morning ops triage.
+# * `workflow_dispatch: {}` — manual run from the GitHub UI; the
+#   operator may bump `--threshold` via the dispatch input if a
+#   focused investigation needs a tighter floor.
+# * `push: branches: [main]` — re-runs on every merge to `main`, so a
+#   regression in any of the eight axes is caught at merge-time. We
+#   intentionally do NOT trigger on pull_request: the per-PR gate is
+#   already covered by `phase-2-validation-gate.yml`; running this
+#   workflow on every PR would duplicate work and slow the PR-Tab.
+#
+# Threshold floor (--threshold 6)
+# -------------------------------
+#
+# The aggregator's default threshold is `sum(weights) == 8` —
+# strictest possible. The CI gate sets `--threshold 6` to match the
+# Tag-22 ops-readiness contract: "at least six of eight axes green;
+# below that is a hard fail." Two non-fatal axis-misses give Henrik
+# room to land an axis-fix without a red main-branch, while three
+# misses surface as a hard regression. The threshold lives in the
+# workflow (not the aggregator default) so individual operator-runs
+# can keep the strict 8/8 default; only the *daily ops gate* relaxes
+# to 6/8.
+#
+# Anchors
+# -------
+# * ADR-0058 §"Phase 2 — Doppelbetrieb (Wochen 1-4)"
+# * PR #160 (Tomás, Tag-15) — score-aggregator substrate
+# * `scripts/doppelbetrieb-score-aggregator.py`
+# * `docs/operations/phase-2-acceptance-gate.md` (this PR)
+#
+# Sandbox boundary
+# ----------------
+# All steps are hermetic: stdlib + pytest in-tree, no podman, no
+# NATS, no live-VM. The aggregator's `--mode=full` path runs the
+# five Phase-2 gate tests in-subprocess on the GitHub-hosted runner.
+
+name: phase-2-acceptance-gate
+
+on:
+  schedule:
+    # Daily at 02:00 UTC (~04:00 CEST in May, ~03:00 CET in winter).
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      threshold:
+        description: "Pass threshold (default 6; strict run uses 8)"
+        required: false
+        default: "6"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/doppelbetrieb-score-aggregator.py"
+      - "wirelang/**"
+      - "tests/infra/test_phase_2_acceptance_gates.py"
+      - "tests/integration/test_bridge_audit_roundtrip_e2e.py"
+      - "tests/federation/fixtures/federation_frame_cross_lang_pins.json"
+      - "wat/anchor/latency_emitter.py"
+      - ".github/workflows/phase-2-acceptance-gate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  phase-2-acceptance-gate:
+    name: Phase-2 Acceptance Gate (Doppelbetrieb-Score)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install gate dependencies
+        # Aggregator is stdlib-only; pytest + the in-tree wakir-runtime
+        # package are needed because the five Phase-2 gate axes are
+        # driven via `python -m pytest tests/infra/test_phase_2_
+        # acceptance_gates.py -k ...`, and the bridge-audit-e2e axis
+        # via `python -m pytest tests/integration/test_bridge_audit_
+        # roundtrip_e2e.py`.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . "pytest>=8.0"
+
+      - name: Resolve threshold input
+        id: threshold
+        # workflow_dispatch may pass a custom threshold; schedule and
+        # push use the daily-ops default of 6/8. The aggregator's own
+        # default (8/8) is reserved for ad-hoc operator runs outside
+        # CI.
+        #
+        # `github.event.inputs.threshold` is the portable form — it
+        # expands to "" for schedule/push, to the dispatched value
+        # only on workflow_dispatch.
+        env:
+          THRESHOLD_INPUT: ${{ github.event.inputs.threshold }}
+        run: |
+          if [ -n "${THRESHOLD_INPUT}" ]; then
+            echo "value=${THRESHOLD_INPUT}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=6" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run doppelbetrieb-score-aggregator (mode=full)
+        id: aggregator
+        # `continue-on-error: true` so the threshold check still emits
+        # the JSON artifact + the step-summary table even when the
+        # aggregator returns exit-code 1 (threshold-fail). The final
+        # step below re-asserts the exit-code so the job still goes
+        # red on threshold-miss.
+        continue-on-error: true
+        run: |
+          mkdir -p out
+          python scripts/doppelbetrieb-score-aggregator.py \
+            --mode=full \
+            --threshold "${{ steps.threshold.outputs.value }}" \
+            --out out/phase-2-acceptance-rollup.json
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Upload rollup artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-2-acceptance-rollup
+          path: out/phase-2-acceptance-rollup.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Phase-2 Acceptance Gate — Summary
+        if: always()
+        # The rollup JSON is the canonical artifact; the step-summary
+        # table is a human-friendly view. We render the eight axes
+        # plus the threshold verdict so the PR/run-tab is enough to
+        # triage without downloading the artifact.
+        #
+        # Implementation: a single python -c invocation builds the
+        # markdown and appends it to $GITHUB_STEP_SUMMARY. Avoids the
+        # bash-heredoc-inside-group quoting hazard that bit us once.
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, sys
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          rollup = pathlib.Path("out/phase-2-acceptance-rollup.json")
+          lines = ["# Phase-2 Acceptance Gate — Summary", ""]
+          if not rollup.exists() or rollup.stat().st_size == 0:
+              lines += [
+                  "Aggregator did not produce a rollup.",
+                  "",
+                  "Anchors: ADR-0058, docs/operations/phase-2-acceptance-gate.md.",
+              ]
+          else:
+              d = json.loads(rollup.read_text(encoding="utf-8"))
+              total = d.get("total_score", "?")
+              threshold = d.get("threshold", "?")
+              verdict = "PASS" if d.get("threshold_pass") else "FAIL"
+              lines += [
+                  f"**Total score:** {total}/8  -  "
+                  f"**Threshold:** {threshold}  -  "
+                  f"**Verdict:** {verdict}",
+                  "",
+                  "| Axis | Pass | Weight |",
+                  "|---|---|---|",
+              ]
+              for label, axis in d.get("axes", {}).items():
+                  passed = "OK" if axis.get("pass") else "FAIL"
+                  weight = axis.get("weight", 1)
+                  lines.append(f"| {label} | {passed} | {weight} |")
+              lines += [
+                  "",
+                  "Artifact: `phase-2-acceptance-rollup` (this run).",
+                  "",
+                  "Anchors: ADR-0058, docs/operations/phase-2-acceptance-gate.md.",
+              ]
+          out = "\n".join(lines) + "\n"
+          if summary_path:
+              with open(summary_path, "a", encoding="utf-8") as f:
+                  f.write(out)
+          else:
+              sys.stdout.write(out)
+          PY
+
+      - name: Re-assert aggregator exit code
+        # Restores the threshold-pass/fail signal that was suppressed
+        # by `continue-on-error` above. The job goes red iff the
+        # aggregator returned non-zero (exit 1 = threshold-fail,
+        # exit 2 = I/O or usage error).
+        run: |
+          RC="${{ steps.aggregator.outputs.rc }}"
+          if [ "$RC" != "0" ]; then
+            echo "Aggregator returned non-zero exit code: $RC"
+            exit "$RC"
+          fi
+          echo "Aggregator threshold-pass: OK."
