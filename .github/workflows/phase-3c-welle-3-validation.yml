@@ -1,0 +1,563 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase-3c Welle-3 Validation Workflow — ADR-0065 + ADR-0066
+# ----------------------------------------------------------
+#
+# Wired-substrate validation for the Phase-3c Welle-3 cutover
+# (`bridge_audit_writer`, KW 25 solo per ADR-0066 §Welle-Sequenz).
+# Runs the five Mira-Hand-defined acceptance steps for the Welle-3
+# Cutover-Acceptance-Decision and emits a
+# `cutover-acceptance-decision-welle-3.json` artifact.
+#
+# Henrik-Caution (ADR-0066 §"Bridge-Audit-Welle bleibt strikt solo")
+# ------------------------------------------------------------------
+#
+# Welle-3 IS the bridge-audit cutover. The component being flipped
+# (`bridge_audit_writer`, in-repo alias `anchor_emitter`) is itself
+# the substrate behind the canonical cross-lang consistency oracle
+# `tests/integration/test_bridge_audit_roundtrip_e2e.py`. Using that
+# oracle to validate its own cutover would mean asking the subject
+# under test to certify itself — Henrik (Internal Audit) flagged this
+# in the ADR-0066 verification plan and demanded an *independent*
+# consistency source for Step 4.
+#
+# Welle-3 Step 4 therefore replaces the bridge-audit-roundtrip-e2e
+# call (used by Welle-1 PR #190 and Welle-2 PR #196) with the
+# Phase-2-Acceptance-Gate cross-modul-stress aggregator
+# (`scripts/doppelbetrieb-score-aggregator.py --mode=cross-modul-
+# stress`, PR #197). That aggregator's three Cross-Modul axes are:
+#
+#   * cross-lang-pin-coverage (federation_frame, state_backing,
+#     lifecycle_state_machine, subscribe_loop, recovery_workflow)
+#   * cross-modul-fixture-stability
+#   * cross-modul-rollup-integrity
+#
+# None of these axes use the bridge_audit_writer / anchor_emitter
+# substrate as the source-of-truth oracle, so the signal is
+# structurally independent from the subject under cutover. This
+# satisfies the Henrik-Caution requirement.
+#
+# Component aliasing note
+# -----------------------
+#
+# ADR-0065 §Welle-Sequenz lists `bridge_audit_writer` as the Welle-3
+# component name; the in-repo dry-run + resolver substrate normalises
+# this to the short form `anchor_emitter` via
+# `scripts/phase-3c-cutover-dry-run.py:PHASE_3C_COMPONENT_ALIASES`.
+# The two names refer to the same code-path:
+#
+#   ADR-0065 long-form: bridge_audit_writer
+#   in-repo short-form: anchor_emitter
+#   env-var (long):     WAKIR_BRIDGE_AUDIT_WRITER_BACKEND  (alias)
+#   env-var (resolver): WAKIR_ANCHOR_EMITTER_BACKEND       (actual)
+#
+# The dry-run script accepts either component spelling at the CLI;
+# we pass the ADR-0065 long-form so the workflow is self-documenting
+# against the ADR vocabulary. Step 3 sets BOTH env-var spellings on
+# the persona-boot step so:
+#
+#   * the ADR-0065-named env-var carries the Welle-3 vocabulary the
+#     operator reads in the run-tab,
+#   * the resolver's actual env-var
+#     (`WAKIR_ANCHOR_EMITTER_BACKEND`) is what
+#     `resolve_anchor_emitter_backend` reads at boot time.
+#
+# Distinction from sibling workflows
+# ----------------------------------
+#
+# * `phase-3c-welle-1-validation.yml` (PR #190) — Welle-1 readiness
+#   for `v907_verify`. Same 5-step pattern, different component, uses
+#   bridge_audit_roundtrip_e2e as Step 4 (no Henrik-Caution conflict).
+# * `phase-3c-welle-2-validation.yml` (PR #196) — Welle-2 readiness
+#   for `svid_workload_identity`. Same 5-step pattern, parallel to
+#   Welle-1 per ADR-0066 §Option-A+.
+# * `phase-3c-welle-3-validation.yml` (THIS workflow) — Welle-3
+#   readiness for `bridge_audit_writer`. Solo per ADR-0066.
+#   Step 4 swapped to an independent oracle per Henrik-Caution.
+# * `phase-2-acceptance-gate.yml` (PR #178, +PR #197 cross-modul-
+#   stress mode) — daily ops rollup; this workflow reuses it as the
+#   Step-4 independent oracle.
+#
+# NOT a required status check (per `feedback_branch_protection_check_
+# names.md`): branch-protection enforcement is operator-hand-territory
+# and lives outside this PR.
+#
+# Trigger surface
+# ---------------
+#
+# * `schedule: cron "0 6 * * 3"` — every Wednesday at 06:00 UTC.
+#   Same cadence as Welle-1 and Welle-2; the wednesday-cron slot is
+#   the canonical readiness window three days before the Monday
+#   Pilot-VM Live-Smoke. Welle-3 is solo in KW 25, so this workflow
+#   runs alone on the Welle-3 wednesday.
+#
+# * `workflow_dispatch: {}` — manual run from the GitHub UI. The
+#   dispatch inputs let the operator override the gate-aggregator
+#   binary-count target, the dry-run boots count, and the cutover
+#   feasibility-score band so a tighter or looser readiness floor
+#   can be tested ad-hoc without editing the workflow.
+#
+# Gate-4 yellow tolerance
+# -----------------------
+#
+# Identical posture to Welle-1/2: Gate-4 (backend-decision
+# observability baseline) yields `yellow` when the
+# `WAKIR_PHASE_3C_OBS_BASELINE_PATH` env-var is unset — that is the
+# operator-hand-staged baseline-file substrate, which the
+# GitHub-hosted runner does not have access to. The workflow
+# therefore treats Gate-4-yellow as a warning (decision continues),
+# but Gate-4-red (aggregator script missing) is a hard fail.
+#
+# Sandbox boundary
+# ----------------
+#
+# All steps are hermetic: stdlib + pytest in-tree, no podman, no
+# NATS, no live-VM, no Anthropic API, no SPIRE-Workload-API egress.
+# The dry-run script uses its default stub binary-probe. The
+# resolver gracefully falls back to Python when the (not-yet-shipped)
+# Rust binary is missing; the dry-run uses the stub-probe-available
+# path so the readiness signal reflects the resolver's decision-path
+# rather than the binary's availability. The independent oracle in
+# Step 4 (doppelbetrieb-score-aggregator --mode=cross-modul-stress)
+# is also hermetic (stdlib + pytest in-tree).
+
+name: phase-3c-welle-3-validation
+
+on:
+  schedule:
+    # Wednesday 06:00 UTC = ~08:00 CEST in May.
+    - cron: "0 6 * * 3"
+  workflow_dispatch:
+    inputs:
+      target-binary-count:
+        description: "Gate-2/3 expected binary-inventory count (default 7)"
+        required: false
+        default: "7"
+      boots:
+        description: "Dry-run mocked-boot count (default 12)"
+        required: false
+        default: "12"
+      score-band-floor:
+        description: "Minimum cutover-feasibility band (GREEN/AMBER, default GREEN)"
+        required: false
+        default: "GREEN"
+
+permissions:
+  contents: read
+
+jobs:
+  phase-3c-welle-3-validation:
+    name: Phase-3c Welle-3 Validation (bridge_audit_writer)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # ADR-0065 long-form component name (operator-facing vocabulary
+      # consistent with the ADR's Welle-Sequenz table). The dry-run
+      # script normalises this to the in-repo short form
+      # `anchor_emitter` via PHASE_3C_COMPONENT_ALIASES.
+      WELLE_COMPONENT: bridge_audit_writer
+      WELLE_ENV_VAR: WAKIR_BRIDGE_AUDIT_WRITER_BACKEND
+      # The resolver's actual env-var (the dry-run sets this
+      # internally; we mirror it here so the run-tab self-documents
+      # both spellings).
+      WELLE_RESOLVER_ENV_VAR: WAKIR_ANCHOR_EMITTER_BACKEND
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install validation dependencies
+        # Aggregator + dry-run are stdlib + PyYAML; pytest + the in-tree
+        # wakir-runtime package are needed for the test-persona-boot
+        # step and the doppelbetrieb-score-aggregator step.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . "pytest>=8.0"
+
+      - name: Resolve dispatch inputs
+        id: inputs
+        env:
+          INPUT_BINARY_COUNT: ${{ github.event.inputs.target-binary-count }}
+          INPUT_BOOTS: ${{ github.event.inputs.boots }}
+          INPUT_BAND: ${{ github.event.inputs.score-band-floor }}
+        run: |
+          BIN_COUNT="${INPUT_BINARY_COUNT:-7}"
+          BOOTS="${INPUT_BOOTS:-12}"
+          BAND="${INPUT_BAND:-GREEN}"
+          echo "binary_count=${BIN_COUNT}" >> "$GITHUB_OUTPUT"
+          echo "boots=${BOOTS}" >> "$GITHUB_OUTPUT"
+          echo "band=${BAND}" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare output directory
+        run: mkdir -p out
+
+      # Step 1: aggregate the five Phase-3c trigger-gates.
+      #
+      # Aggregator exit codes (see scripts/phase-3c-trigger-gate-
+      # aggregator.py docstring):
+      #   0 = all five gates green
+      #   1 = at least one yellow, none red
+      #   2 = at least one red
+      #
+      # We accept exit 0 and exit 1 (Gate-4 yellow tolerance, see
+      # workflow header). Exit 2 fails the job at the
+      # acceptance-decision-render step.
+      - name: Step 1 — Phase-3c trigger-gate aggregator
+        id: gate-aggregator
+        continue-on-error: true
+        run: |
+          python scripts/phase-3c-trigger-gate-aggregator.py \
+            --target-binary-count "${{ steps.inputs.outputs.binary_count }}" \
+            --json \
+            > out/trigger-gate-report.json
+          RC=$?
+          echo "rc=${RC}" >> "$GITHUB_OUTPUT"
+          if [ "$RC" = "0" ]; then
+            echo "gate_status=green" >> "$GITHUB_OUTPUT"
+          elif [ "$RC" = "1" ]; then
+            echo "gate_status=yellow" >> "$GITHUB_OUTPUT"
+          else
+            echo "gate_status=red" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Step 2: cutover-dry-run for bridge_audit_writer.
+      #
+      # `--component bridge_audit_writer` uses the ADR-0065 long-form
+      # name; the dry-run script normalises this internally to the
+      # in-repo short form `anchor_emitter` via the
+      # PHASE_3C_COMPONENT_ALIASES map. The dry-run uses its default
+      # stub binary-probe (the Rust crate is not yet on the runner).
+      # The resolver decides "rust" on the stubbed-available path,
+      # yielding the same GREEN band the Welle-1/2 dry-runs produce —
+      # that is the substance signal the Step-5 decision logic
+      # measures.
+      - name: Step 2 — cutover-dry-run (bridge_audit_writer)
+        id: dry-run
+        continue-on-error: true
+        run: |
+          python scripts/phase-3c-cutover-dry-run.py \
+            --component "${WELLE_COMPONENT}" \
+            --boots "${{ steps.inputs.outputs.boots }}" \
+            --output out/dry-run-envelope.json
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+
+      # Step 3: test-persona-boot with WAKIR_BRIDGE_AUDIT_WRITER_
+      # BACKEND=rust (ADR-0065 long-form) AND WAKIR_ANCHOR_EMITTER_
+      # BACKEND=rust (resolver-actual).
+      #
+      # We exercise the resolver in-process by running the existing
+      # rust_backend_switch test suite filtered to the anchor_emitter
+      # test vectors (AE1..AE12+, see tests/persona_engine/
+      # test_rust_backend_switch.py L2849+). Both env-vars are set
+      # explicitly so the test captures the production-flip scenario
+      # under both ADR-0065 vocabularies; the resolver still uses its
+      # in-test binary-probe stubs, so no real Rust binary is invoked.
+      #
+      # The pytest filter uses `anchor_emitter` (the in-repo short
+      # form) because the test function names follow the short-form
+      # convention (test_anchor_emitter_*). The ADR-0065 long-form
+      # `bridge_audit_writer` is captured in the env-var name + the
+      # workflow's WELLE_COMPONENT pin.
+      - name: Step 3 — test-persona-boot (rust backend opt-in)
+        id: persona-boot
+        continue-on-error: true
+        env:
+          WAKIR_BRIDGE_AUDIT_WRITER_BACKEND: rust
+          WAKIR_ANCHOR_EMITTER_BACKEND: rust
+        run: |
+          python -m pytest \
+            wirelang/tests/persona_engine/test_rust_backend_switch.py \
+            -k "anchor_emitter" \
+            --tb=short \
+            -q \
+            --junit-xml=out/persona-boot-junit.xml \
+            | tee out/persona-boot.log
+          # PIPESTATUS[0] is pytest's exit code (0 = pass, 5 = no
+          # tests collected, anything else = failure).
+          RC="${PIPESTATUS[0]}"
+          echo "rc=${RC}" >> "$GITHUB_OUTPUT"
+
+      # Step 4 (Henrik-Caution) — independent cross-lang consistency
+      # oracle via doppelbetrieb-score-aggregator --mode=cross-modul-
+      # stress.
+      #
+      # Rationale: Welle-3 is the bridge_audit_writer cutover, which
+      # IS the substrate behind the canonical bridge-audit-roundtrip
+      # oracle Welle-1/2 use at Step 4. Asking the subject under test
+      # to certify itself would defeat the purpose of the readiness
+      # check; Henrik (Internal Audit) flagged this in the ADR-0066
+      # verification plan and demanded an independent consistency
+      # source for Welle-3.
+      #
+      # The cross-modul-stress mode of the Phase-2-Acceptance-Gate
+      # aggregator runs three Cross-Modul axes:
+      #
+      #   * cross-lang-pin-coverage
+      #   * cross-modul-fixture-stability
+      #   * cross-modul-rollup-integrity
+      #
+      # None use bridge_audit_writer / anchor_emitter substrate as the
+      # source-of-truth oracle. The aggregator exit code reflects the
+      # threshold-pass verdict (default 3-of-3 in cross-modul-stress
+      # mode). Exit 0 = independent oracle green; exit non-zero =
+      # independent oracle red.
+      #
+      # Threshold: we use the aggregator's default cross-modul-stress
+      # threshold (3); the workflow-level WELLE_BAND_FLOOR controls
+      # the dry-run band-floor, not the independent-oracle threshold.
+      - name: Step 4 — independent cross-lang consistency (Henrik-Caution)
+        id: cross-modul-stress
+        continue-on-error: true
+        run: |
+          python scripts/doppelbetrieb-score-aggregator.py \
+            --mode=cross-modul-stress \
+            --threshold 3 \
+            --out out/cross-modul-stress-rollup.json \
+            | tee out/cross-modul-stress.log
+          RC="${PIPESTATUS[0]}"
+          echo "rc=${RC}" >> "$GITHUB_OUTPUT"
+
+      # Step 5: cutover-acceptance-decision JSON envelope.
+      #
+      # Collapses the four upstream-step outcomes plus the gate-
+      # aggregator report, the dry-run envelope, and the
+      # independent-oracle rollup into a single JSON artifact that the
+      # operator (Reza, Tomás, Henrik) reads to decide go/no-go for
+      # the Welle-3 Mo Live-Smoke.
+      #
+      # Decision policy:
+      #   * READY      — all four steps green; gate-status in
+      #                  {green, yellow-with-only-gate-4-yellow}.
+      #   * NOT-READY  — any step failed OR gate-status red OR
+      #                  dry-run band below score-band-floor.
+      #
+      # Step 4 (Henrik-Caution): the independent oracle exit code
+      # must be 0 (threshold-pass) for `ready_for_live_smoke == true`.
+      # The aggregator's own threshold logic decides what "green"
+      # means (3-of-3 Cross-Modul axes pass).
+      #
+      # The decision is a SOFT signal — Mira/Operator-Hand-Final.
+      # The workflow exit-code reflects the decision so the GH UI
+      # surfaces a clear pass/fail badge.
+      - name: Step 5 — render cutover-acceptance-decision
+        id: decision
+        # Always run, even if upstream steps red (we want the
+        # decision artifact to capture the failure state).
+        if: always()
+        env:
+          GATE_RC: ${{ steps.gate-aggregator.outputs.rc }}
+          DRY_RUN_RC: ${{ steps.dry-run.outputs.rc }}
+          BOOT_RC: ${{ steps.persona-boot.outputs.rc }}
+          STRESS_RC: ${{ steps.cross-modul-stress.outputs.rc }}
+          SCORE_BAND_FLOOR: ${{ steps.inputs.outputs.band }}
+          BOOTS_INPUT: ${{ steps.inputs.outputs.boots }}
+          BIN_COUNT_INPUT: ${{ steps.inputs.outputs.binary_count }}
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, sys
+
+          out_dir = pathlib.Path("out")
+          decision_path = out_dir / "cutover-acceptance-decision.json"
+
+          def _read_json(name):
+              p = out_dir / name
+              if not p.exists() or p.stat().st_size == 0:
+                  return None
+              try:
+                  return json.loads(p.read_text(encoding="utf-8"))
+              except json.JSONDecodeError:
+                  return None
+
+          def _rc(env_name):
+              v = os.environ.get(env_name) or "-1"
+              try:
+                  return int(v)
+              except ValueError:
+                  return -1
+
+          gate_rc = _rc("GATE_RC")
+          dry_rc = _rc("DRY_RUN_RC")
+          boot_rc = _rc("BOOT_RC")
+          stress_rc = _rc("STRESS_RC")
+          floor = (os.environ.get("SCORE_BAND_FLOOR") or "GREEN").upper()
+
+          trigger_report = _read_json("trigger-gate-report.json") or {}
+          dry_run_envelope = _read_json("dry-run-envelope.json") or {}
+          stress_rollup = _read_json("cross-modul-stress-rollup.json") or {}
+
+          # Gate-status: 0=green, 1=yellow (tolerable for Gate-4),
+          # 2=red (hard fail).
+          gate_ok = gate_rc == 0
+          gate_tolerable = False
+          if gate_rc == 1:
+              # Yellow tolerated only when Gate-4 (observability
+              # baseline) is the sole yellow.
+              gates = trigger_report.get("gates", [])
+              non_green = [
+                  g for g in gates
+                  if g.get("status") != "green"
+              ]
+              gate_tolerable = (
+                  len(non_green) == 1
+                  and non_green[0].get("id") == "gate-4"
+              )
+          dry_ok = dry_rc == 0
+          boot_ok = boot_rc == 0
+          # Step 4 (Henrik-Caution): exit 0 = threshold-pass on the
+          # independent oracle. No "all-skip" path — the aggregator
+          # is deterministic and always produces a verdict.
+          stress_ok = stress_rc == 0
+
+          band = (
+              dry_run_envelope.get("feasibility", {}).get("band", "UNKNOWN")
+          )
+          band_order = {"GREEN": 3, "AMBER": 2, "RED": 1, "BLOCKED": 0}
+          band_score = band_order.get(band, 0)
+          floor_score = band_order.get(floor, 3)
+          band_ok = band_score >= floor_score
+
+          gate_signal = "green" if gate_ok else (
+              "yellow_tolerated" if gate_tolerable else "red"
+          )
+
+          ready = bool(
+              (gate_ok or gate_tolerable)
+              and dry_ok and boot_ok and stress_ok and band_ok
+          )
+
+          decision = {
+              "schema": "wakir.phase-3c.welle-3-validation/1",
+              "welle": 3,
+              "component": "bridge_audit_writer",
+              "component_resolver_alias": "anchor_emitter",
+              "env_var": "WAKIR_BRIDGE_AUDIT_WRITER_BACKEND",
+              "env_var_resolver_alias": "WAKIR_ANCHOR_EMITTER_BACKEND",
+              "henrik_caution_applied": True,
+              "step_4_oracle": "doppelbetrieb-score-aggregator --mode=cross-modul-stress",
+              "ready_for_live_smoke": ready,
+              "score_band_floor": floor,
+              "observed_band": band,
+              "steps": {
+                  "step_1_trigger_gates": {
+                      "exit_code": gate_rc,
+                      "status": gate_signal,
+                  },
+                  "step_2_cutover_dry_run": {
+                      "exit_code": dry_rc,
+                      "ok": dry_ok,
+                  },
+                  "step_3_persona_boot_rust": {
+                      "exit_code": boot_rc,
+                      "ok": boot_ok,
+                  },
+                  "step_4_cross_modul_stress": {
+                      "exit_code": stress_rc,
+                      "ok": stress_ok,
+                      "henrik_caution": "independent_oracle",
+                  },
+              },
+              "inputs": {
+                  "target_binary_count": int(
+                      os.environ.get("BIN_COUNT_INPUT") or "7"
+                  ),
+                  "boots": int(os.environ.get("BOOTS_INPUT") or "12"),
+              },
+              "trigger_report_summary": {
+                  "all_green": trigger_report.get("all_green"),
+                  "ready_for_phase_3c": trigger_report.get(
+                      "ready_for_phase_3c"
+                  ),
+                  "gate_count": len(trigger_report.get("gates", [])),
+              },
+              "dry_run_summary": {
+                  "feasibility_score": dry_run_envelope.get(
+                      "feasibility", {}
+                  ).get("cutover_feasibility_score"),
+                  "band": band,
+                  "boots": dry_run_envelope.get("boots"),
+              },
+              "cross_modul_stress_summary": {
+                  "total_score": stress_rollup.get("total_score"),
+                  "threshold": stress_rollup.get("threshold"),
+                  "threshold_pass": stress_rollup.get("threshold_pass"),
+                  "mode": stress_rollup.get("mode"),
+              },
+              "anchors": {
+                  "adr_cutover": "decisions/0065-phase-3c-cutover-python-default-zu-rust-default.md",
+                  "adr_acceleration": "decisions/0066-phase-3c-beschleunigung-option-a-plus.md",
+                  "runbook": "docs/operations/phase-3c-welle-3-runbook.md",
+                  "welle_1_sibling": ".github/workflows/phase-3c-welle-1-validation.yml",
+                  "welle_2_sibling": ".github/workflows/phase-3c-welle-2-validation.yml",
+                  "independent_oracle": ".github/workflows/phase-2-acceptance-gate.yml",
+              },
+          }
+
+          decision_path.write_text(
+              json.dumps(decision, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(decision, indent=2, sort_keys=True))
+
+          # Append a step-summary table for the run-tab.
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary_path:
+              with open(summary_path, "a", encoding="utf-8") as f:
+                  f.write("# Phase-3c Welle-3 Validation — bridge_audit_writer\n\n")
+                  f.write(
+                      f"**Ready for Live-Smoke:** "
+                      f"{'YES' if ready else 'NO'}  -  "
+                      f"**Band:** {band}  -  "
+                      f"**Floor:** {floor}\n\n"
+                  )
+                  f.write(
+                      "**Henrik-Caution:** Step 4 oracle is "
+                      "`doppelbetrieb-score-aggregator --mode="
+                      "cross-modul-stress` (independent of "
+                      "bridge_audit_writer substrate).\n\n"
+                  )
+                  f.write("| Step | Exit | Status |\n|---|---|---|\n")
+                  f.write(
+                      f"| 1. Trigger-Gates | {gate_rc} | "
+                      f"{gate_signal} |\n"
+                  )
+                  f.write(
+                      f"| 2. Dry-Run | {dry_rc} | "
+                      f"{'OK' if dry_ok else 'FAIL'} |\n"
+                  )
+                  f.write(
+                      f"| 3. Persona-Boot (rust) | {boot_rc} | "
+                      f"{'OK' if boot_ok else 'FAIL'} |\n"
+                  )
+                  f.write(
+                      f"| 4. Cross-Modul-Stress (Henrik) | "
+                      f"{stress_rc} | "
+                      f"{'OK' if stress_ok else 'FAIL'} |\n"
+                  )
+                  f.write(
+                      "\nArtifact: `cutover-acceptance-decision-welle-3` (this run).\n"
+                      "\nAnchors: ADR-0065, ADR-0066, "
+                      "docs/operations/phase-3c-welle-3-runbook.md.\n"
+                  )
+
+          sys.exit(0 if ready else 1)
+          PY
+
+      - name: Upload validation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cutover-acceptance-decision-welle-3
+          path: |
+            out/cutover-acceptance-decision.json
+            out/trigger-gate-report.json
+            out/dry-run-envelope.json
+            out/persona-boot.log
+            out/persona-boot-junit.xml
+            out/cross-modul-stress.log
+            out/cross-modul-stress-rollup.json
+          if-no-files-found: warn
+          retention-days: 30
