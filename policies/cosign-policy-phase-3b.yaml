@@ -45,16 +45,42 @@
 # parity test (test_cross_substrate_parity_with_quadlet_installer)
 # enforces lock-step agreement with the Quadlet installer.
 #
+# Tag-29 Mini-Welle update (ADR-0066 Welle-2 image-build)
+# -------------------------------------------------------
+# Inventory extended from 7 to 8 binaries in lock-step with the
+# Tag-29 Quadlet installer update. One addition:
+#
+#   * ``svid-workload-identity`` (Tag-25 Mini-Welle PR #191 wired
+#     the Python production-default switch — Selin's resolver
+#     recording ``binary_missing`` as Welle-2 precondition signal;
+#     the binary now ships at
+#     ``/opt/wakir/bin/wakir-persona-engine-svid-workload-identity``
+#     per ``DEFAULT_RUST_SVID_WORKLOAD_IDENTITY_BIN``). The Rust
+#     pendant skeleton (probe + info subcommands) lands in this
+#     same Tag-29 Mini-Welle as the crate
+#     ``persona-engine-svid-workload-identity`` (lib + bin); the
+#     full Workload-API gRPC ``FetchX509SVID`` RPC is deferred to a
+#     future Zone-L-reviewed crate revision (Tonic substrate larger
+#     than the probe surface). The probe is sufficient to flip the
+#     Welle-2 backend-decision from ``binary_missing`` to
+#     ``binary_present``.
+#
+# Same Sigstore-keyless-OIDC verification pattern as the prior seven
+# — same carrier image, same build workflow, same digest-resolver
+# propagation. The cross-substrate parity test
+# (test_cross_substrate_parity_with_quadlet_installer) enforces
+# lock-step agreement with the Quadlet installer.
+#
 # Posture
 # -------
-# The 7 binaries are NOT free-standing artefacts — they ship inside
+# The 8 binaries are NOT free-standing artefacts — they ship inside
 # the published ``ghcr.io/wakir-labs/wakir-persona-engine`` image
 # (Containerfile.real, Sprint-Pengine-13+, BSL-1.1) at the canonical
 # ``/opt/wakir/bin/wakir-persona-engine-<component>`` paths declared
 # by ``wirelang/persona_engine/rust_backend_switch.py`` defaults.
 # The image is keyless-signed via Sigstore against the GitHub-Actions
 # OIDC identity of ``.github/workflows/build-wakir-persona-engine.yml``;
-# verifying the image therefore transitively verifies the 7 binaries.
+# verifying the image therefore transitively verifies the 8 binaries.
 #
 # Why keyless and not a pinned ``cosign.pub``: the WAT-Pipeline-Server
 # substrate-pattern from ADR-0034 uses Sigstore-keyless throughout
@@ -78,10 +104,10 @@ schema_version: wakir.cosign-policy.phase-3b/1
 policy:
   name: phase-3b-rust-cli-binaries
   description: >
-    Cosign-keyless verification policy for the seven Phase-3b Rust-CLI
+    Cosign-keyless verification policy for the eight Phase-3b Rust-CLI
     binaries that the persona-engine production-default switch
     subprocess-bridges to (recovery, state-backing, fsm, v907-verify,
-    bridge-diff, subscribe-loop, anchor-emitter).
+    bridge-diff, subscribe-loop, anchor-emitter, svid-workload-identity).
 
   # Sigstore-keyless OIDC identity of the GitHub-Actions runner that
   # builds and signs the carrier image. Same shape as the Sprint-9
@@ -220,6 +246,24 @@ binaries:
       (PR #170 Python sibling); byte-identical envelope output per
       tests/fixtures/anchor-emitter-cross-lang/fixtures.json.
 
+  - name: svid-workload-identity
+    component: persona-engine-svid-workload-identity
+    crate_path: wirelang-rust/crates/persona-engine-svid-workload-identity
+    in_image_path: /opt/wakir/bin/wakir-persona-engine-svid-workload-identity
+    env_switch: WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND
+    env_switch_value: rust
+    env_binary_override: WAKIR_RUST_SVID_WORKLOAD_IDENTITY_BIN
+    landed_pr: '#191'
+    landed_tag: Tag-25 Mini-Welle (resolver), Tag-29 Mini-Welle (crate)
+    purpose: >
+      SPIFFE Workload-API socket-presence probe subprocess-bridge.
+      Skeleton scope: probe + info subcommands (mirror of Python
+      probe_workload_api_socket semantics in
+      wirelang/persona_engine/svid_workload_identity.py). The full
+      Workload-API gRPC FetchX509SVID RPC is deferred to a future
+      Zone-L-reviewed crate revision (Tonic substrate larger than the
+      probe surface).
+
 # Operator-Hand verification recipe (human-readable canonical
 # anchor; the prose recipe lives in
 # docs/operations/cosign-policy-phase-3b.md §3).
@@ -242,7 +286,8 @@ verification:
                 /opt/wakir/bin/wakir-persona-engine-v907-verify
                 /opt/wakir/bin/wakir-persona-engine-bridge-diff
                 /opt/wakir/bin/wakir-persona-engine-subscribe-loop
-                /opt/wakir/bin/wakir-persona-engine-anchor-emitter; do
+                /opt/wakir/bin/wakir-persona-engine-anchor-emitter
+                /opt/wakir/bin/wakir-persona-engine-svid-workload-identity; do
           test -x "$b" || { echo "missing or non-exec: $b"; exit 2; };
         done; echo OK'
 
@@ -257,7 +302,7 @@ verification:
 # ----------------
 # The hermetic test surface
 # (tests/infra/test_cosign_policy_phase_3b.py) validates the SHAPE
-# of this YAML — schema_version, all 7 binaries listed, sha256 slot
+# of this YAML — schema_version, all 8 binaries listed, sha256 slot
 # in canonical-form, mismatch fixture rejected. NO sandbox process
 # calls cosign, crane, or skopeo against ghcr.io per
 # feedback_sandbox_host_trennung.md. Live verification is

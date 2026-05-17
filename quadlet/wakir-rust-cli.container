@@ -15,21 +15,33 @@
 # (test_cross_substrate_parity_with_quadlet_installer) enforces
 # lock-step agreement with the Cosign-Policy YAML.
 #
+# Tag-29 Mini-Welle update (ADR-0066 Welle-2 image-build)
+# -------------------------------------------------------
+# Inventory extended from 7 to 8 binaries in lock-step with the
+# Cosign-Policy Tag-29 update. One addition:
+# ``svid-workload-identity`` (Tag-25 Mini-Welle PR #191 wired the
+# resolver — Selin's resolver recording ``binary_missing`` as the
+# Welle-2 precondition signal; Tag-29 ships the crate substrate
+# closing that precondition). The cross-substrate parity test
+# (test_cross_substrate_parity_with_quadlet_installer) enforces
+# lock-step agreement with the Cosign-Policy YAML.
+#
 # Purpose
 # -------
-# Installs the seven Phase-3b Rust-CLI binaries from the published
+# Installs the eight Phase-3b Rust-CLI binaries from the published
 # ``ghcr.io/wakir-labs/wakir-persona-engine`` carrier image (Tag-17
-# through Tag-23 Mini-Welle PRs #167, #169, #171, #175, #181, #184)
-# into the Pilot-VM host filesystem at the canonical
-# ``/opt/wakir/bin/`` paths. The default ``DEFAULT_RUST_*_BIN``
-# constants in ``wirelang/persona_engine/rust_backend_switch.py``
-# resolve to these exact paths, so any host-side consumer
-# (Operator-Hand recovery-drill scripts, future systemd oneshots
-# that pre-resolve state-backing fences, host-shell probes) finds
-# the same byte-identical binaries that the in-container
-# persona-engine bridges to.
+# through Tag-23 + Tag-29 Mini-Welle PRs #167, #169, #171, #175,
+# #181, #184 + the Tag-29 SVID-image-build PR) into the Pilot-VM
+# host filesystem at the canonical ``/opt/wakir/bin/`` paths. The
+# default ``DEFAULT_RUST_*_BIN`` constants in
+# ``wirelang/persona_engine/rust_backend_switch.py`` resolve to
+# these exact paths, so any host-side consumer (Operator-Hand
+# recovery-drill scripts, future systemd oneshots that pre-resolve
+# state-backing fences, host-shell probes) finds the same byte-
+# identical binaries that the in-container persona-engine bridges
+# to.
 #
-# Seven binaries installed (alphabetical by component)
+# Eight binaries installed (alphabetical by component)
 # ----------------------------------------------------
 #   1. /opt/wakir/bin/wakir-persona-engine-anchor-emitter
 #      (Tag-23 Mini-Welle PR #184 — WAT-anchor-envelope emitter bridge;
@@ -46,7 +58,12 @@
 #   6. /opt/wakir/bin/wakir-persona-engine-subscribe-loop
 #      (Tag-22 Mini-Welle PR #181 — NATS-JetStream ack-record bridge;
 #      Cosign-Policy 7-binary inventory landed lock-step in Tag-24.)
-#   7. /opt/wakir/bin/wakir-persona-engine-v907-verify
+#   7. /opt/wakir/bin/wakir-persona-engine-svid-workload-identity
+#      (Tag-25 Mini-Welle PR #191 wired the Python resolver,
+#      Tag-29 Mini-Welle ships the Rust crate skeleton + image-build;
+#      SPIFFE Workload-API socket-presence probe bridge; Cosign-Policy
+#      8-binary inventory landed lock-step in Tag-29.)
+#   8. /opt/wakir/bin/wakir-persona-engine-v907-verify
 #      (Tag-19 Mini-Welle PR #171 — V-907 pin-hash bridge)
 #
 # Cross-Review-Anchor: Zone-C (Container-Image-Pipeline x Tomás-OTS)
@@ -100,7 +117,7 @@
 # so the carrier-image digest stays single-sourced.
 
 [Unit]
-Description=Wakir Tag-22/24 Phase-3b Rust-CLI host-side binary installer (oneshot, 7 binaries)
+Description=Wakir Tag-22/24/29 Phase-3b Rust-CLI host-side binary installer (oneshot, 8 binaries)
 Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/docs/operations/quadlets-phase-3b-rust-cli.md
 After=network-online.target
 Wants=network-online.target
@@ -123,7 +140,7 @@ Image=ghcr.io/wakir-labs/wakir-persona-engine:0.5.0-pilot@sha256:DIGEST_PENDING_
 # docs/operations/cosign-policy-phase-3b.md §3 step 3, hardened by
 # ``set -e``).
 Entrypoint=/bin/sh
-Exec=-c "set -e; for b in wakir-persona-engine-recovery wakir-persona-engine-state-backing wakir-persona-engine-fsm wakir-persona-engine-v907-verify wakir-persona-engine-bridge-diff wakir-persona-engine-subscribe-loop wakir-persona-engine-anchor-emitter; do test -x \"/opt/wakir/bin/$b\" || { echo \"missing or non-exec in carrier image: $b\" >&2; exit 2; }; install -m 0755 \"/opt/wakir/bin/$b\" \"/host-bin/$b\"; done; echo OK"
+Exec=-c "set -e; for b in wakir-persona-engine-recovery wakir-persona-engine-state-backing wakir-persona-engine-fsm wakir-persona-engine-v907-verify wakir-persona-engine-bridge-diff wakir-persona-engine-subscribe-loop wakir-persona-engine-anchor-emitter wakir-persona-engine-svid-workload-identity; do test -x \"/opt/wakir/bin/$b\" || { echo \"missing or non-exec in carrier image: $b\" >&2; exit 2; }; install -m 0755 \"/opt/wakir/bin/$b\" \"/host-bin/$b\"; done; echo OK"
 
 # Read-only root filesystem. The installer writes only to the
 # bind-mounted host-bin path.

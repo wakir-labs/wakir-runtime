@@ -1,0 +1,181 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# This Containerfile and the image it produces are part of the Wakir
+# persona-engine runtime substrate. Licensed under the Business
+# Source License 1.1; see ../persona-engine/LICENSE-BSL.md (shared
+# substrate licence file for all persona-engine container images).
+# Change Date: 2030-05-15 (parity with the persona-engine image).
+# Change License: Apache License 2.0.
+#
+# wakir-persona-engine-svid-workload-identity — Rust-CLI runtime
+# image for the SPIFFE Workload-API socket-presence probe path
+# (Tag-29 Mini-Welle, ADR-0066 Welle-2 `svid_workload_identity`
+# pre-cutover image, parallel to Welle-1 V907-verify image).
+#
+# Substrate scope
+# ---------------
+#
+# ADR-0066 (approved 2026-05-17) accelerates Phase-3c to 4 weeks
+# (Option A+). **Welle-2 is `svid_workload_identity`**: the SPIFFE
+# Workload-API socket-presence probe path, the second-lowest-blast-
+# radius read-only surface scheduled to flip from Python-backend
+# default to Rust-backend default after Welle-1 V907-verify. This
+# image is the substrate the cutover step will pin against in the
+# Quadlet unit and in the `persona-engine` image's
+# `WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND=rust` operator-flag pathway.
+#
+# The binary itself (`wakir-persona-engine-svid-workload-identity`)
+# is the Rust pendant of `wirelang.persona_engine.svid_workload_identity`
+# — see `wirelang-rust/crates/persona-engine-svid-workload-identity/
+# src/main.rs` for the subcommand surface (`probe | info |
+# --version | --help`). It ships the v0.2.0-pilot socket-presence
+# probe semantics (`connect()`-on-UDS, no protocol exchange); the
+# full Workload-API gRPC `FetchX509SVID` RPC is deferred to a
+# future Zone-L-reviewed crate revision (Tonic substrate larger
+# than the probe surface). The probe is sufficient to flip the
+# Welle-2 backend-decision from `binary_missing` to `binary_present`.
+#
+# Multi-stage build
+# -----------------
+#
+# Stage 1 (builder, `rust:1.85-slim-bookworm`) compiles the
+# `wakir-persona-engine-svid-workload-identity` binary in `--release`
+# mode. We pin the base image to the workspace's
+# `rust-version = "1.85"` (see `wirelang-rust/Cargo.toml`). The
+# release profile is workspace-configured for `lto = "thin"`,
+# `codegen-units = 1`, `strip = "symbols"`.
+#
+# Stage 2 (runtime, `gcr.io/distroless/cc-debian12:nonroot`)
+# carries only the binary plus a CA bundle (inherited from
+# distroless-cc). No shell, no package manager, no Python — the
+# attack surface is the Rust binary plus distroless glibc only.
+#
+# Why distroless-cc and not scratch
+# ---------------------------------
+#
+# Parity with the V907-verify image (PR #194). The release binary
+# links dynamically against glibc (the rust-slim builder uses GNU
+# libc, not musl). A pure `scratch` runtime would require either a
+# musl-toolchain rebuild (additional supply-chain substrate) or
+# static glibc linking (licensing complications under LGPL §4(d)).
+# distroless-cc-debian12 carries glibc + libgcc + libssl under their
+# respective upstream licences and gives us a `nonroot:nonroot`
+# uid 65532 entrypoint that satisfies the Quadlet `User=` contract
+# without a `useradd` step.
+#
+# OCI provenance + Cosign signing
+# -------------------------------
+#
+# Build path: ``.github/workflows/build-rust-cli-svid-workload-identity.yml``
+# (Operator-Hand ``workflow_dispatch`` only; the
+# ``inputs.push='true'`` opt-in pushes to
+# ``ghcr.io/wakir-labs/wakir-persona-engine-svid-workload-identity:<tag>``
+# and Sigstore-keyless-signs the resulting digest against the
+# GitHub-Actions OIDC identity. Parity with
+# ``build-rust-cli-v907-verify.yml`` from Tag-26 PR #194).
+#
+# Pin path: the digest emitted by the workflow is resolved into the
+# Quadlet unit at cutover time (Welle-2 step on the ADR-0066
+# Wochen-Plan). The resolver pattern is the same
+# `scripts/image-pin-idempotent-resolver.sh` PINS-array row that the
+# persona-engine and V907-verify images use.
+#
+# Probe-target socket bind-mount
+# ------------------------------
+#
+# This image is a CLI; it does NOT itself bind the SPIRE-Agent UDS.
+# The Operator invokes the probe via the Quadlet installer copying
+# the binary onto the host at
+# `/opt/wakir/bin/wakir-persona-engine-svid-workload-identity`, then
+# the persona-engine subprocess-bridges via
+# `WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND=rust` with the SPIRE-Agent
+# socket bind-mounted at `/run/spire/agent-sockets/api.sock` per the
+# `wakir-spire-agent-sockets.volume` Quadlet contract. The Rust
+# binary uses the **default** socket path declared in
+# `persona_engine_svid_workload_identity::DEFAULT_WORKLOAD_API_SOCKET_PATH`,
+# byte-identical to the Python `DEFAULT_WORKLOAD_API_SOCKET_PATH`.
+#
+# Cross-references
+# ----------------
+#
+# - ADR-0066 §Phase-3c Welle-2 `svid_workload_identity` (approved
+#   2026-05-17).
+# - ADR-0065 §Welle-2 listing (precondition closure via PR #191
+#   Selin's resolver — this PR ships the binary the resolver was
+#   recording `binary_missing` against).
+# - ADR-0060 — Cosign-Policy on Pilot-Container-Images (the policy
+#   this image must satisfy at cutover time).
+# - ADR-0035 §C-Drift-Closure — the ADR this cutover closes for the
+#   svid_workload_identity module.
+
+# ----------------------------------------------------------------------
+# Stage 1 — Rust release builder
+# ----------------------------------------------------------------------
+#
+# The exact `@sha256:` digest of the rust:1.85-slim-bookworm base
+# layer is materialised by the build workflow's `Resolve rust base-
+# layer digest` step (skopeo + crane cross-check, mirror of the
+# `build-rust-cli-v907-verify.yml` pattern). The placeholder below
+# is replaced in-runner; refusing to build without the substitution
+# prevents accidental floating-tag drift.
+
+FROM docker.io/library/rust:1.85-slim-bookworm@sha256:DIGEST_PENDING_KAI_REVIEW AS builder
+
+WORKDIR /build
+
+# Copy the entire wirelang-rust workspace (multi-crate cargo
+# workspace; the svid-workload-identity binary depends on no path-
+# out-of-workspace crates, so the workspace root is sufficient
+# context).
+COPY wirelang-rust /build/wirelang-rust
+
+WORKDIR /build/wirelang-rust
+
+# Build only the svid-workload-identity binary in release mode. The
+# workspace profile sets lto+strip; the resulting artefact ends up
+# at `target/release/wakir-persona-engine-svid-workload-identity`.
+RUN cargo build --release \
+        -p persona-engine-svid-workload-identity \
+        --bin wakir-persona-engine-svid-workload-identity
+
+# Belt-and-suspenders strip (the workspace profile already strips,
+# but a second pass shaves a few KiB of debug-info residue that
+# `strip = "symbols"` does not touch).
+RUN apt-get update -qq \
+    && apt-get install -y --no-install-recommends binutils \
+    && strip --strip-unneeded \
+        /build/wirelang-rust/target/release/wakir-persona-engine-svid-workload-identity \
+    && apt-get purge -y binutils \
+    && rm -rf /var/lib/apt/lists/*
+
+# ----------------------------------------------------------------------
+# Stage 2 — distroless runtime
+# ----------------------------------------------------------------------
+#
+# The runtime layer carries only the svid-workload-identity binary
+# plus the distroless-cc glibc+ca-bundle inheritance. No shell, no
+# apt, no Python. The `nonroot` tag locks the default uid to 65532.
+
+FROM gcr.io/distroless/cc-debian12:nonroot@sha256:DIGEST_PENDING_KAI_REVIEW
+
+LABEL org.opencontainers.image.title="wakir-persona-engine-svid-workload-identity"
+LABEL org.opencontainers.image.description="Rust-CLI for the SPIFFE Workload-API socket-presence probe. ADR-0066 Welle-2 pre-cutover image (Tag-29 Mini-Welle, 2026-05-17)."
+LABEL org.opencontainers.image.version="0.1.0-pilot"
+LABEL org.opencontainers.image.licenses="BUSL-1.1"
+LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"
+LABEL org.opencontainers.image.url="https://github.com/wakir-labs/wakir-runtime"
+LABEL org.opencontainers.image.documentation="https://github.com/wakir-labs/wakir-runtime/blob/main/docs/operations/svid-workload-identity-image-build.md"
+
+COPY --from=builder \
+    /build/wirelang-rust/target/release/wakir-persona-engine-svid-workload-identity \
+    /usr/local/bin/wakir-persona-engine-svid-workload-identity
+
+USER nonroot:nonroot
+
+# The CLI exits with documented codes (0=reachable / info / help /
+# version, 1=internal error, 2=socket-missing, 3=connect-failed,
+# 64=usage-error). The Quadlet healthcheck and the cutover-step
+# resolver consume the exit code, not stdout formatting — see
+# docs/operations/svid-workload-identity-image-build.md.
+ENTRYPOINT ["/usr/local/bin/wakir-persona-engine-svid-workload-identity"]

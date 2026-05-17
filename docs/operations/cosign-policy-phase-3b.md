@@ -133,7 +133,7 @@ fi
 
 ### 3.3 Step 3 — in-image binary-presence probe
 
-The seven binaries MUST be present at the canonical in-image paths
+The eight binaries MUST be present at the canonical in-image paths
 declared by `wirelang/persona_engine/rust_backend_switch.py`
 (`DEFAULT_RUST_*_BIN` constants):
 
@@ -147,7 +147,8 @@ podman run --rm --entrypoint /bin/sh \
                  /opt/wakir/bin/wakir-persona-engine-v907-verify \
                  /opt/wakir/bin/wakir-persona-engine-bridge-diff \
                  /opt/wakir/bin/wakir-persona-engine-subscribe-loop \
-                 /opt/wakir/bin/wakir-persona-engine-anchor-emitter; do
+                 /opt/wakir/bin/wakir-persona-engine-anchor-emitter \
+                 /opt/wakir/bin/wakir-persona-engine-svid-workload-identity; do
             test -x "$b" || { echo "missing or non-exec: $b" >&2; exit 2; }
         done
         echo OK'
@@ -196,7 +197,7 @@ returns a value that differs from the pinned digest:
 
 ## 5. Phase-3b ENV-switch wiring
 
-The seven bridges live in `wirelang/persona_engine/rust_backend_switch.py`.
+The eight bridges live in `wirelang/persona_engine/rust_backend_switch.py`.
 Each ENV-switch is closed-enum (rejects unknown values via
 `BackendSwitchValidationError`):
 
@@ -209,8 +210,9 @@ Each ENV-switch is closed-enum (rejects unknown values via
 | bridge-diff | `WAKIR_BRIDGE_DIFF_BACKEND` | `python` (default), `rust` | `WAKIR_RUST_BRIDGE_DIFF_BIN` |
 | subscribe-loop | `WAKIR_SUBSCRIBE_LOOP_BACKEND` | `python` (default), `rust` | `WAKIR_RUST_SUBSCRIBE_LOOP_BIN` |
 | anchor-emitter | `WAKIR_ANCHOR_EMITTER_BACKEND` | `python` (default), `rust` | `WAKIR_RUST_ANCHOR_EMITTER_BIN` |
+| svid-workload-identity | `WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND` | `python` (default), `rust` | `WAKIR_RUST_SVID_WORKLOAD_IDENTITY_BIN` |
 
-Production-default stays Python on all seven axes; opt-in via
+Production-default stays Python on all eight axes; opt-in via
 Quadlet `Environment=` drop-in or `systemd-creds`. The
 `fallback_reason` per-decision audit-record (structured JSON line,
 default sink `/var/log/wakir/backend-decisions.jsonl`) is the

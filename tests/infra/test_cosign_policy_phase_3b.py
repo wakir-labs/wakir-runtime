@@ -13,12 +13,13 @@ Sibling tests:
     installer; inventories the same five binaries.
 
 This test surface validates the cosign-policy substrate
-(`policies/cosign-policy-phase-3b.yaml`) for the seven Phase-3b
+(`policies/cosign-policy-phase-3b.yaml`) for the eight Phase-3b
 Rust-CLI binaries that
 ``wirelang.persona_engine.rust_backend_switch`` subprocess-bridges to
 (recovery, state-backing, fsm, v907-verify, bridge-diff,
-subscribe-loop, anchor-emitter; landed in PRs #167, #169, #171,
-#175, #181, #184 across Tag-17 through Tag-23 Mini-Welles).
+subscribe-loop, anchor-emitter, svid-workload-identity; landed in
+PRs #167, #169, #171, #175, #181, #184, #191 across Tag-17 through
+Tag-29 Mini-Welles).
 
 Tag-23 Mini-Welle update
 ------------------------
@@ -35,9 +36,17 @@ Quadlet installer Tag-24 update (Trigger-Gate 3). Added
 ``subscribe-loop`` (Tag-22 Mini-Welle PR #181) and ``anchor-emitter``
 (Tag-23 Mini-Welle PR #184). ``EXPECTED_BINARIES``,
 ``EXPECTED_IN_IMAGE_PATHS``, and ``EXPECTED_ENV_SWITCHES`` grew
-together; the dropped-binary fixture now drops ``anchor-emitter``
-(the newest member) and exercises the rejection logic against the
-latest inventory addition. The cross-substrate parity test
+together.
+
+Tag-29 Mini-Welle update (ADR-0066 Welle-2 image-build)
+-------------------------------------------------------
+Inventory extended from 7 to 8 binaries in lock-step with the
+Quadlet installer Tag-29 update. Added ``svid-workload-identity``
+(Tag-25 Mini-Welle PR #191 wired the Python resolver; Tag-29
+Mini-Welle ships the Rust crate skeleton + image-build pipeline).
+The dropped-binary fixture now drops ``svid-workload-identity``
+(the newest member) and exercises the rejection logic against
+the latest inventory addition. The cross-substrate parity test
 (``test_cross_substrate_parity_with_quadlet_installer``) enforces
 the lock-step agreement with the Quadlet installer.
 
@@ -88,6 +97,7 @@ EXPECTED_BINARIES = (
     "bridge-diff",
     "subscribe-loop",
     "anchor-emitter",
+    "svid-workload-identity",
 )
 EXPECTED_IN_IMAGE_PATHS = {
     "recovery": "/opt/wakir/bin/wakir-persona-engine-recovery",
@@ -97,6 +107,9 @@ EXPECTED_IN_IMAGE_PATHS = {
     "bridge-diff": "/opt/wakir/bin/wakir-persona-engine-bridge-diff",
     "subscribe-loop": "/opt/wakir/bin/wakir-persona-engine-subscribe-loop",
     "anchor-emitter": "/opt/wakir/bin/wakir-persona-engine-anchor-emitter",
+    "svid-workload-identity": (
+        "/opt/wakir/bin/wakir-persona-engine-svid-workload-identity"
+    ),
 }
 EXPECTED_ENV_SWITCHES = {
     "recovery": "WAKIR_RECOVERY_BACKEND",
@@ -106,6 +119,7 @@ EXPECTED_ENV_SWITCHES = {
     "bridge-diff": "WAKIR_BRIDGE_DIFF_BACKEND",
     "subscribe-loop": "WAKIR_SUBSCRIBE_LOOP_BACKEND",
     "anchor-emitter": "WAKIR_ANCHOR_EMITTER_BACKEND",
+    "svid-workload-identity": "WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND",
 }
 PLACEHOLDER_DIGEST = "sha256:DIGEST_PENDING_KAI_CROSS_REVIEW"
 CANONICAL_DIGEST_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
@@ -206,12 +220,12 @@ def test_policy_format_validate(policy: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 2 — all-7-binaries-listed
+# Test 2 — all-8-binaries-listed
 # ---------------------------------------------------------------------------
-def test_all_7_phase_3b_binaries_listed(policy: dict) -> None:
-    """The binaries: inventory MUST list EXACTLY the seven Phase-3b
+def test_all_8_phase_3b_binaries_listed(policy: dict) -> None:
+    """The binaries: inventory MUST list EXACTLY the eight Phase-3b
     Rust-CLI components: recovery, state-backing, fsm, v907-verify,
-    bridge-diff, subscribe-loop, anchor-emitter.
+    bridge-diff, subscribe-loop, anchor-emitter, svid-workload-identity.
 
     A drift either way (missing entry OR extra entry) is a substrate
     breach:
@@ -231,8 +245,13 @@ def test_all_7_phase_3b_binaries_listed(policy: dict) -> None:
     from 5 to 7 (added ``subscribe-loop`` Tag-22 Mini-Welle PR #181
     and ``anchor-emitter`` Tag-23 Mini-Welle PR #184). The Tag-24
     Quadlet installer update (Trigger-Gate 3) iterates the same
-    seven binaries; this test enforces the cross-substrate parity
-    via Test 8 below.
+    seven binaries.
+    Tag-29 update (ADR-0066 Welle-2 image-build): inventory grew from
+    7 to 8 (added ``svid-workload-identity`` — Tag-25 Mini-Welle PR
+    #191 wired the Python resolver, Tag-29 Mini-Welle ships the
+    crate substrate + image-build pipeline). The Tag-29 Quadlet
+    installer update iterates the same eight binaries; this test
+    enforces the cross-substrate parity via Test 8 below.
     """
     binaries = policy["binaries"]
     assert isinstance(binaries, list)
@@ -362,12 +381,14 @@ def test_mismatch_fixture_rejects(policy: dict) -> None:
             return f"rogue-identity-regex: {ident!r}"
         return None
 
-    # Fixture A — drop the ``anchor-emitter`` entry (the Tag-24
-    # addition; exercises the rejection logic specifically against
-    # the newest inventory member).
+    # Fixture A — drop the ``svid-workload-identity`` entry (the
+    # Tag-29 addition; exercises the rejection logic specifically
+    # against the newest inventory member).
     fix_a = copy.deepcopy(policy)
     fix_a["binaries"] = [
-        b for b in fix_a["binaries"] if b.get("name") != "anchor-emitter"
+        b
+        for b in fix_a["binaries"]
+        if b.get("name") != "svid-workload-identity"
     ]
     rejection = _shape_reject_dropped_binary(fix_a)
     assert rejection is not None and "binary-inventory-drift" in rejection, (
