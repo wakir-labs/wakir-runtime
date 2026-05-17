@@ -13,13 +13,14 @@ Sibling tests:
     installer; inventories the same five binaries.
 
 This test surface validates the cosign-policy substrate
-(`policies/cosign-policy-phase-3b.yaml`) for the eight Phase-3b
+(`policies/cosign-policy-phase-3b.yaml`) for the nine Phase-3b
 Rust-CLI binaries that
 ``wirelang.persona_engine.rust_backend_switch`` subprocess-bridges to
 (recovery, state-backing, fsm, v907-verify, bridge-diff,
-subscribe-loop, anchor-emitter, svid-workload-identity; landed in
-PRs #167, #169, #171, #175, #181, #184, #191 across Tag-17 through
-Tag-29 Mini-Welles).
+subscribe-loop, anchor-emitter, svid-workload-identity,
+bridge-audit-writer; landed in PRs #167, #169, #171, #175, #181,
+#184, #191 + Tag-29 SVID image-build + Tag-31 bridge-audit-writer
+image-build across Tag-17 through Tag-31 Mini-Welles).
 
 Tag-23 Mini-Welle update
 ------------------------
@@ -44,9 +45,18 @@ Inventory extended from 7 to 8 binaries in lock-step with the
 Quadlet installer Tag-29 update. Added ``svid-workload-identity``
 (Tag-25 Mini-Welle PR #191 wired the Python resolver; Tag-29
 Mini-Welle ships the Rust crate skeleton + image-build pipeline).
-The dropped-binary fixture now drops ``svid-workload-identity``
-(the newest member) and exercises the rejection logic against
-the latest inventory addition. The cross-substrate parity test
+
+Tag-31 Mini-Welle update (ADR-0066 Welle-3 image-build)
+-------------------------------------------------------
+Inventory extended from 8 to 9 binaries in lock-step with the
+Quadlet installer Tag-31 update. Added ``bridge-audit-writer``
+(Tag-31 Mini-Welle ships the writer-half of the Doppelbetrieb-
+Shadow EngineeringOutputEvent envelope substrate alongside the
+existing replay-half from PR #131 bridge-diff + PR #147
+bridge-audit-replay). The dropped-binary fixture now drops
+``bridge-audit-writer`` (the newest member) and exercises the
+rejection logic against the latest inventory addition. The
+cross-substrate parity test
 (``test_cross_substrate_parity_with_quadlet_installer``) enforces
 the lock-step agreement with the Quadlet installer.
 
@@ -98,6 +108,7 @@ EXPECTED_BINARIES = (
     "subscribe-loop",
     "anchor-emitter",
     "svid-workload-identity",
+    "bridge-audit-writer",
 )
 EXPECTED_IN_IMAGE_PATHS = {
     "recovery": "/opt/wakir/bin/wakir-persona-engine-recovery",
@@ -110,6 +121,9 @@ EXPECTED_IN_IMAGE_PATHS = {
     "svid-workload-identity": (
         "/opt/wakir/bin/wakir-persona-engine-svid-workload-identity"
     ),
+    "bridge-audit-writer": (
+        "/opt/wakir/bin/wakir-persona-engine-bridge-audit-writer"
+    ),
 }
 EXPECTED_ENV_SWITCHES = {
     "recovery": "WAKIR_RECOVERY_BACKEND",
@@ -120,6 +134,7 @@ EXPECTED_ENV_SWITCHES = {
     "subscribe-loop": "WAKIR_SUBSCRIBE_LOOP_BACKEND",
     "anchor-emitter": "WAKIR_ANCHOR_EMITTER_BACKEND",
     "svid-workload-identity": "WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND",
+    "bridge-audit-writer": "WAKIR_BRIDGE_AUDIT_WRITER_BACKEND",
 }
 PLACEHOLDER_DIGEST = "sha256:DIGEST_PENDING_KAI_CROSS_REVIEW"
 CANONICAL_DIGEST_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
@@ -222,10 +237,11 @@ def test_policy_format_validate(policy: dict) -> None:
 # ---------------------------------------------------------------------------
 # Test 2 — all-8-binaries-listed
 # ---------------------------------------------------------------------------
-def test_all_8_phase_3b_binaries_listed(policy: dict) -> None:
-    """The binaries: inventory MUST list EXACTLY the eight Phase-3b
+def test_all_9_phase_3b_binaries_listed(policy: dict) -> None:
+    """The binaries: inventory MUST list EXACTLY the nine Phase-3b
     Rust-CLI components: recovery, state-backing, fsm, v907-verify,
-    bridge-diff, subscribe-loop, anchor-emitter, svid-workload-identity.
+    bridge-diff, subscribe-loop, anchor-emitter, svid-workload-identity,
+    bridge-audit-writer.
 
     A drift either way (missing entry OR extra entry) is a substrate
     breach:
@@ -252,6 +268,13 @@ def test_all_8_phase_3b_binaries_listed(policy: dict) -> None:
     crate substrate + image-build pipeline). The Tag-29 Quadlet
     installer update iterates the same eight binaries; this test
     enforces the cross-substrate parity via Test 8 below.
+    Tag-31 update (ADR-0066 Welle-3 image-build): inventory grew from
+    8 to 9 (added ``bridge-audit-writer`` — Tag-31 Mini-Welle ships
+    the writer-half of the Doppelbetrieb-Shadow EngineeringOutputEvent
+    envelope substrate; PR #131 bridge-diff + PR #147
+    bridge-audit-replay landed the replay-half earlier). The Tag-31
+    Quadlet installer update iterates the same nine binaries; the
+    cross-substrate parity test below enforces the lock-step.
     """
     binaries = policy["binaries"]
     assert isinstance(binaries, list)
@@ -381,14 +404,14 @@ def test_mismatch_fixture_rejects(policy: dict) -> None:
             return f"rogue-identity-regex: {ident!r}"
         return None
 
-    # Fixture A — drop the ``svid-workload-identity`` entry (the
-    # Tag-29 addition; exercises the rejection logic specifically
+    # Fixture A — drop the ``bridge-audit-writer`` entry (the
+    # Tag-31 addition; exercises the rejection logic specifically
     # against the newest inventory member).
     fix_a = copy.deepcopy(policy)
     fix_a["binaries"] = [
         b
         for b in fix_a["binaries"]
-        if b.get("name") != "svid-workload-identity"
+        if b.get("name") != "bridge-audit-writer"
     ]
     rejection = _shape_reject_dropped_binary(fix_a)
     assert rejection is not None and "binary-inventory-drift" in rejection, (
@@ -590,7 +613,7 @@ QUADLET_INSTALLER = (
 
 def test_cross_substrate_parity_with_quadlet_installer(policy: dict) -> None:
     """The Tag-22 Quadlet installer (``quadlet/wakir-rust-cli.container``,
-    PR #180) and this Cosign-Policy MUST inventory the SAME five
+    PR #180) and this Cosign-Policy MUST inventory the SAME nine
     binary names. A drift between the two substrates is the worst
     failure mode in the Tag-22-vs-Tag-20 inventory-gap class — one
     substrate copies a binary onto the host without a matching

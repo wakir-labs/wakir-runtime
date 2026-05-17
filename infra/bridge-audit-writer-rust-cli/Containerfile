@@ -1,0 +1,188 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# This Containerfile and the image it produces are part of the Wakir
+# persona-engine runtime substrate. Licensed under the Business
+# Source License 1.1; see ../persona-engine/LICENSE-BSL.md (shared
+# substrate licence file for all persona-engine container images).
+# Change Date: 2030-05-15 (parity with the persona-engine image).
+# Change License: Apache License 2.0.
+#
+# wakir-persona-engine-bridge-audit-writer — Rust-CLI runtime image
+# for the Doppelbetrieb-Shadow EngineeringOutputEvent envelope writer
+# (Tag-31 Mini-Welle, ADR-0066 Welle-3 `bridge_audit_writer`
+# pre-cutover image, parallel to Welle-1 V907-verify image and
+# Welle-2 SVID-workload-identity image).
+#
+# Substrate scope
+# ---------------
+#
+# ADR-0066 (approved 2026-05-17) accelerates Phase-3c to 4 weeks
+# (Option A+). **Welle-3 is `bridge_audit_writer`**: the second-lowest-
+# blast-radius write-side surface scheduled to flip from Python-backend
+# default to Rust-backend default after Welle-1 V907-verify and
+# Welle-2 SVID-workload-identity. This image is the substrate the
+# cutover step will pin against in the Quadlet unit and in the
+# `persona-engine` image's `WAKIR_BRIDGE_AUDIT_WRITER_BACKEND=rust`
+# operator-flag pathway.
+#
+# The binary itself (`wakir-persona-engine-bridge-audit-writer`)
+# emits a single Bridge-Audit `EngineeringOutputEvent` envelope as a
+# JCS-canonical UTF-8 JSON line on stdout. Byte-identical against the
+# Python pendant `wirelang.persona_engine.bridge_audit_writer.
+# EngineeringOutputEvent.to_jcs_bytes()` — see
+# `wirelang-rust/crates/persona-engine-bridge-audit-replay/src/bin/
+# wakir_persona_engine_bridge_audit_writer.rs` for the subcommand
+# surface (`emit | info | --version | --help`).
+#
+# Read-side of the same Doppelbetrieb-Shadow audit substrate is the
+# `wakir-persona-engine-bridge-diff` binary (PR #175, Welle landed
+# earlier). The replay engine in the same library crate
+# (`persona-engine-bridge-audit-replay::ReplayEngine`) consumes audit-
+# record streams produced by THIS writer; the cross-language pin
+# fixtures in `tests/fixtures/bridge-audit-roundtrip-e2e/` validate
+# byte-identical round-trip Python↔Rust.
+#
+# Multi-stage build
+# -----------------
+#
+# Stage 1 (builder, `rust:1.85-slim-bookworm`) compiles the
+# `wakir-persona-engine-bridge-audit-writer` binary in `--release`
+# mode. We pin the base image to the workspace's
+# `rust-version = "1.85"` (see `wirelang-rust/Cargo.toml`). The
+# release profile is workspace-configured for `lto = "thin"`,
+# `codegen-units = 1`, `strip = "symbols"`.
+#
+# Stage 2 (runtime, `gcr.io/distroless/cc-debian12:nonroot`)
+# carries only the binary plus a CA bundle (inherited from
+# distroless-cc). No shell, no package manager, no Python — the
+# attack surface is the Rust binary plus distroless glibc only.
+#
+# Why distroless-cc and not scratch
+# ---------------------------------
+#
+# Parity with the V907-verify image (PR #194) and the SVID-workload-
+# identity image (PR #201). The release binary links dynamically
+# against glibc (the rust-slim builder uses GNU libc, not musl). A
+# pure `scratch` runtime would require either a musl-toolchain rebuild
+# (additional supply-chain substrate) or static glibc linking
+# (licensing complications under LGPL §4(d)). distroless-cc-debian12
+# carries glibc + libgcc + libssl under their respective upstream
+# licences and gives us a `nonroot:nonroot` uid 65532 entrypoint that
+# satisfies the Quadlet `User=` contract without a `useradd` step.
+#
+# OCI provenance + Cosign signing
+# -------------------------------
+#
+# Build path: ``.github/workflows/build-rust-cli-bridge-audit-writer.yml``
+# (Operator-Hand ``workflow_dispatch`` only; the
+# ``inputs.push='true'`` opt-in pushes to
+# ``ghcr.io/wakir-labs/wakir-persona-engine-bridge-audit-writer:<tag>``
+# and Sigstore-keyless-signs the resulting digest against the
+# GitHub-Actions OIDC identity. Parity with
+# ``build-rust-cli-v907-verify.yml`` from Tag-26 PR #194 and
+# ``build-rust-cli-svid-workload-identity.yml`` from Tag-29 PR #201).
+#
+# Pin path: the digest emitted by the workflow is resolved into the
+# Quadlet unit at cutover time (Welle-3 step on the ADR-0066
+# Wochen-Plan). The resolver pattern is the same
+# `scripts/image-pin-idempotent-resolver.sh` PINS-array row that the
+# persona-engine, V907-verify and SVID-workload-identity images use.
+#
+# Subcommand-surface contract
+# ---------------------------
+#
+# This image is a CLI; it does NOT itself bind any socket, NATS
+# subject or filesystem path beyond `--payload-file PATH` (optional)
+# / `--payload-stdin` (default). The Operator invokes the writer via
+# the Quadlet installer copying the binary onto the host at
+# `/opt/wakir/bin/wakir-persona-engine-bridge-audit-writer`, then the
+# persona-engine subprocess-bridges via
+# `WAKIR_BRIDGE_AUDIT_WRITER_BACKEND=rust` from
+# `wirelang.persona_engine.rust_backend_switch.resolve_bridge_audit_writer_bin`.
+# Payload bytes are passed via stdin or a hermetic-test temp file;
+# the envelope is written to stdout.
+#
+# Cross-references
+# ----------------
+#
+# - ADR-0066 §Phase-3c Welle-3 `bridge_audit_writer` (approved
+#   2026-05-17).
+# - ADR-0065 §Welle-3 listing (precondition closure via PR #131
+#   bridge-diff Rust crate + PR #147 bridge-audit-replay Rust crate
+#   + this Tag-31 binary that ships the writer-half of the round-trip).
+# - ADR-0060 — Cosign-Policy on Pilot-Container-Images (the policy
+#   this image must satisfy at cutover time).
+# - ADR-0035 §C-Drift-Closure — the ADR this cutover closes for the
+#   bridge_audit_writer module.
+
+# ----------------------------------------------------------------------
+# Stage 1 — Rust release builder
+# ----------------------------------------------------------------------
+#
+# The exact `@sha256:` digest of the rust:1.85-slim-bookworm base
+# layer is materialised by the build workflow's `Resolve rust base-
+# layer digest` step (skopeo + crane cross-check, mirror of the
+# `build-rust-cli-svid-workload-identity.yml` pattern). The placeholder
+# below is replaced in-runner; refusing to build without the
+# substitution prevents accidental floating-tag drift.
+
+FROM docker.io/library/rust:1.85-slim-bookworm@sha256:DIGEST_PENDING_KAI_REVIEW AS builder
+
+WORKDIR /build
+
+# Copy the entire wirelang-rust workspace (multi-crate cargo
+# workspace; the bridge-audit-writer binary depends on the sibling
+# `persona-engine-bridge-diff` crate via a workspace path-dependency,
+# so the workspace root is required as build context).
+COPY wirelang-rust /build/wirelang-rust
+
+WORKDIR /build/wirelang-rust
+
+# Build only the bridge-audit-writer binary in release mode. The
+# workspace profile sets lto+strip; the resulting artefact ends up at
+# `target/release/wakir-persona-engine-bridge-audit-writer`.
+RUN cargo build --release \
+        -p persona-engine-bridge-audit-replay \
+        --bin wakir-persona-engine-bridge-audit-writer
+
+# Belt-and-suspenders strip (the workspace profile already strips,
+# but a second pass shaves a few KiB of debug-info residue that
+# `strip = "symbols"` does not touch).
+RUN apt-get update -qq \
+    && apt-get install -y --no-install-recommends binutils \
+    && strip --strip-unneeded \
+        /build/wirelang-rust/target/release/wakir-persona-engine-bridge-audit-writer \
+    && apt-get purge -y binutils \
+    && rm -rf /var/lib/apt/lists/*
+
+# ----------------------------------------------------------------------
+# Stage 2 — distroless runtime
+# ----------------------------------------------------------------------
+#
+# The runtime layer carries only the bridge-audit-writer binary plus
+# the distroless-cc glibc+ca-bundle inheritance. No shell, no apt, no
+# Python. The `nonroot` tag locks the default uid to 65532.
+
+FROM gcr.io/distroless/cc-debian12:nonroot@sha256:DIGEST_PENDING_KAI_REVIEW
+
+LABEL org.opencontainers.image.title="wakir-persona-engine-bridge-audit-writer"
+LABEL org.opencontainers.image.description="Rust-CLI for the Doppelbetrieb-Shadow EngineeringOutputEvent envelope writer. ADR-0066 Welle-3 pre-cutover image (Tag-31 Mini-Welle, 2026-05-17)."
+LABEL org.opencontainers.image.version="0.1.0-pilot"
+LABEL org.opencontainers.image.licenses="BUSL-1.1"
+LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"
+LABEL org.opencontainers.image.url="https://github.com/wakir-labs/wakir-runtime"
+LABEL org.opencontainers.image.documentation="https://github.com/wakir-labs/wakir-runtime/blob/main/docs/operations/bridge-audit-writer-image-build.md"
+
+COPY --from=builder \
+    /build/wirelang-rust/target/release/wakir-persona-engine-bridge-audit-writer \
+    /usr/local/bin/wakir-persona-engine-bridge-audit-writer
+
+USER nonroot:nonroot
+
+# The CLI exits with documented codes (0=emit / info / help /
+# version, 1=internal error, 2=payload-file missing, 64=usage-error).
+# The Quadlet healthcheck and the cutover-step resolver consume the
+# exit code, not stdout formatting — see
+# docs/operations/bridge-audit-writer-image-build.md.
+ENTRYPOINT ["/usr/local/bin/wakir-persona-engine-bridge-audit-writer"]
