@@ -1,0 +1,180 @@
+{
+  "captured_at": "2026-05-17",
+  "format_version": 1,
+  "pins": [
+    {
+      "byte_identical": true,
+      "envelope_a": {
+        "a": {
+          "b": {
+            "c": 1,
+            "d": 2
+          }
+        },
+        "e": "x"
+      },
+      "envelope_b": {
+        "a": {
+          "b": {
+            "c": 1,
+            "d": 2
+          }
+        },
+        "e": "x"
+      },
+      "expected_diff_entries": [],
+      "expected_hash_a": "sha256:82689386a4f13231f2f031fafcbf5bfa42cdbdff6ff9b700a56ea52a8057db01",
+      "expected_hash_b": "sha256:82689386a4f13231f2f031fafcbf5bfa42cdbdff6ff9b700a56ea52a8057db01",
+      "pin_id": "pin-0-identical"
+    },
+    {
+      "byte_identical": false,
+      "envelope_a": {
+        "a": {
+          "b": {
+            "c": 1,
+            "d": 2
+          }
+        },
+        "e": "x"
+      },
+      "envelope_b": {
+        "a": {
+          "b": {
+            "c": 99,
+            "d": 2
+          }
+        },
+        "e": "x"
+      },
+      "expected_diff_entries": [
+        {
+          "kind": "value-mismatch",
+          "path": "/a/b/c",
+          "value_a": 1,
+          "value_b": 99
+        }
+      ],
+      "expected_hash_a": "sha256:82689386a4f13231f2f031fafcbf5bfa42cdbdff6ff9b700a56ea52a8057db01",
+      "expected_hash_b": "sha256:f3d41b955294120c2b7f6d6bc93d3442efe9c41332afae4e6c3a4b5048142c7c",
+      "pin_id": "pin-1-nested-value-drift"
+    },
+    {
+      "byte_identical": false,
+      "envelope_a": {
+        "items": [
+          {
+            "id": 1
+          },
+          {
+            "id": 2
+          },
+          {
+            "id": 3
+          }
+        ]
+      },
+      "envelope_b": {
+        "items": [
+          {
+            "id": 1
+          },
+          {
+            "id": 99
+          },
+          {
+            "id": 3
+          }
+        ]
+      },
+      "expected_diff_entries": [
+        {
+          "kind": "value-mismatch",
+          "path": "/items/1/id",
+          "value_a": 2,
+          "value_b": 99
+        }
+      ],
+      "expected_hash_a": "sha256:919ec1502d47d6943f93977b07e2b4f2d5817dd1d75ea6ab0d013d6fd167d224",
+      "expected_hash_b": "sha256:a3b80a3febac1e944972fc2964fcf101fe6423c2515fb2dbac1bb1595e761107",
+      "pin_id": "pin-2-array-index-middle-drift"
+    },
+    {
+      "byte_identical": false,
+      "envelope_a": {
+        "k": null,
+        "other": 1
+      },
+      "envelope_b": {
+        "other": 1
+      },
+      "expected_diff_entries": [
+        {
+          "kind": "only-in-a",
+          "path": "/k",
+          "value_a": null,
+          "value_b": null
+        }
+      ],
+      "expected_hash_a": "sha256:68b7c9c473e716774e62ba53fb84a0c7c68d0bf83bd31762ee160c8d7791ec8a",
+      "expected_hash_b": "sha256:8b0bb7512fb6d1595c87b3604b48935021ab88233ea853246f5c244600a40929",
+      "pin_id": "pin-3-null-vs-missing"
+    },
+    {
+      "byte_identical": false,
+      "envelope_a": {
+        "tags": []
+      },
+      "envelope_b": {},
+      "expected_diff_entries": [
+        {
+          "kind": "only-in-a",
+          "path": "/tags",
+          "value_a": [],
+          "value_b": null
+        }
+      ],
+      "expected_hash_a": "sha256:b35b1ec1c0c72c4bbd16bd9d6c2cbcac8224272cd7e6ecf504a78f2c7e989b2a",
+      "expected_hash_b": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "pin_id": "pin-4-empty-vs-absent"
+    },
+    {
+      "byte_identical": false,
+      "envelope_a": {
+        "normal": "x",
+        "p~q": {
+          "a/b": [
+            10,
+            20
+          ]
+        }
+      },
+      "envelope_b": {
+        "normal": "y",
+        "p~q": {
+          "a/b": [
+            10,
+            99
+          ]
+        }
+      },
+      "expected_diff_entries": [
+        {
+          "kind": "value-mismatch",
+          "path": "/normal",
+          "value_a": "x",
+          "value_b": "y"
+        },
+        {
+          "kind": "value-mismatch",
+          "path": "/p~0q/a~1b/1",
+          "value_a": 20,
+          "value_b": 99
+        }
+      ],
+      "expected_hash_a": "sha256:6250f5058101ebedad2e9d80ca193e81cacbbc9e9a5d9fee5c12cbebd09d0386",
+      "expected_hash_b": "sha256:a502af86d2fe682743f16344d8d5951afd71e8da0c65ae4aea70b209f3f95556",
+      "pin_id": "pin-5-rfc6901-escapes-plus-multi-field"
+    }
+  ]
+}
