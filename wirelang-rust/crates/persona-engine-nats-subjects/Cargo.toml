@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# persona-engine-nats-subjects — Typed Subject-Hierarchy für die
+# Persona-Engine NATS-Topology (Phase-3a Modul 10).
+#
+# Scope (Phase-3a Modul 10, Tag-12 Mini-Welle):
+# - Zentrale `persona.*` Subject-Familie (intra-persona-engine,
+#   parallel zur bestehenden `wakir.{env}.*` Layer-0-Konvention aus
+#   `wirelang/schemas/layer-0-transport.json`).
+# - Typed Builders für 5 Subject-Klassen:
+#     * persona.lifecycle.{id}.{event}
+#     * persona.federation.{cluster}.{id}.frame
+#     * persona.audit.{kind}.{id}
+#     * persona.anchor.{batch}.submitted
+#     * persona.recovery.{step}.{id}
+# - Wildcard-Subscribe-Pattern-Builders mit `>`/`*` Token-Validation.
+# - `SubjectError` enum (closed set): InvalidChar, TokenTooLong,
+#   ReservedWord, EmptyToken, LeadingDigit.
+# - 8 Cross-Lang-Hash-Pin-Fixtures als Rust-canonical-Strings.
+#   Python-Pendant `wirelang/persona_engine/nats_subjects.py` ist
+#   Sync-Folge-Item (Hard-Constraint: "wenn Python-Side fehlt, dann
+#   Pin als Rust-canonical, Python-Sync-Folge markieren").
+#
+# Posture:
+# - Pure validation + string composition. Kein I/O, keine NATS-
+#   Client-Dependency. Diese Crate ist eine reine String-Algebra.
+# - Workspace-deps minimal: nur `serde` (für `SubjectError`-Derive)
+#   und Std-Lib. Kein Async, keine Tokio, keine externen Regex-
+#   Crates (Token-Validation läuft via manueller char-Iteration —
+#   identisch zur `is_valid_slug`-Konvention in
+#   `persona-engine-subscribe-loop`).
+#
+# Default-Lock posture:
+# - A-1: Pure data-layer crate. Keine Persona-Definition-Inhalte
+#   berührt (Aisha-Domäne unverändert).
+# - A-2: Additiv. Neue Crate-19 neben den bestehenden 18 Workspace-
+#   Membern. Keine Datei in den existierenden Crates editiert.
+# - A-3: Keine Body-Bytes berührt. Keine Cargo-deps-Änderungen in
+#   Workspace-Toml außer dem neuen Member-Eintrag.
+
+[package]
+name = "persona-engine-nats-subjects"
+version = "0.1.0"
+description = "Typed NATS subject builders for the Persona-Engine topology (lifecycle, federation, audit, anchor, recovery)"
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+
+[lib]
+name = "persona_engine_nats_subjects"
+path = "src/lib.rs"
+
+[dependencies]
+serde = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
