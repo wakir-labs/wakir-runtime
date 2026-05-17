@@ -97,6 +97,15 @@ publish = false
 name = "persona_engine_subscribe_loop"
 path = "src/lib.rs"
 
+# Tag-32 Mini-Welle: Operator-CLI binary for the NATS-JetStream
+# subscribe-loop read-only utility surface. Thin wrapper around the
+# library; consumed by the container-image-build-pipeline
+# (.github/workflows/build-rust-cli-subscribe-loop.yml). See
+# src/main.rs for the subcommand surface.
+[[bin]]
+name = "wakir-persona-engine-subscribe-loop"
+path = "src/main.rs"
+
 [dependencies]
 # Phase-3a production NATS client surface (smoke-tests do not exercise it).
 async-nats = "=0.48.0"

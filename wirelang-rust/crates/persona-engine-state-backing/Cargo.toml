@@ -102,6 +102,14 @@ publish = false
 name = "persona_engine_state_backing"
 path = "src/lib.rs"
 
+# Tag-32 Mini-Welle: Operator-CLI binary for the NATS-KV state-backing
+# read-only utility surface. Thin wrapper around the library; consumed
+# by the container-image-build-pipeline (.github/workflows/build-rust-
+# cli-state-backing.yml). See src/main.rs for the subcommand surface.
+[[bin]]
+name = "wakir-persona-engine-state-backing"
+path = "src/main.rs"
+
 [dependencies]
 # Phase-3a production NATS client surface (smoke-tests do not exercise it).
 async-nats = "=0.48.0"

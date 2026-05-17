@@ -26,6 +26,43 @@
 # (test_cross_substrate_parity_with_quadlet_installer) enforces
 # lock-step agreement with the Cosign-Policy YAML.
 #
+# Tag-32 Mini-Welle update (ADR-0066 Welle-4-7 image-build bundle)
+# ----------------------------------------------------------------
+# Inventory extended from 8 to 12 binaries in lock-step with the
+# Cosign-Policy Tag-32 update. Four additions for the parallel-
+# cutover wave bundle (Welle-4 state_backing KW 26 + Welle-5
+# lifecycle_state_machine KW 26 + Welle-6 subscribe_loop KW 27 +
+# Welle-7 recovery_workflow KW 27). The four standalone-image
+# binary-name aliases mirror the standalone-image inventory in
+# ``policies/cosign-policy-phase-3b.yaml`` (top-level
+# ``standalone_images`` block):
+#
+#   *   wakir-persona-engine-state-backing
+#       (alias to the existing carrier-image state-backing binary;
+#        the Welle-4 standalone image ships the same binary at
+#        /usr/local/bin/wakir-persona-engine-state-backing).
+#   *   wakir-persona-engine-lifecycle-state-machine
+#       (Welle-5 standalone image binary name; the carrier-image
+#        equivalent ships under the legacy "fsm" component name).
+#   *   wakir-persona-engine-subscribe-loop
+#       (alias to the existing carrier-image subscribe-loop binary;
+#        same binary, same path inside the Welle-6 standalone image).
+#   *   wakir-persona-engine-recovery-workflow
+#       (Welle-7 standalone image binary name; the carrier-image
+#        equivalent ships under the legacy "recovery" component name).
+#
+# The two new binary-name aliases (lifecycle-state-machine + recovery-
+# workflow) require a follow-up Kai-Container-Bridge step to expose
+# the renamed binaries inside the carrier image so the Quadlet
+# installer can copy them via the same per-binary loop. The two pre-
+# existing names (state-backing + subscribe-loop) already ship in the
+# carrier image at the canonical path; the standalone-image entries
+# in the Cosign-Policy give the operator a second, single-binary
+# image path for those two components specifically. The cross-
+# substrate parity test
+# (test_cross_substrate_parity_with_quadlet_installer) enforces
+# lock-step agreement with the Cosign-Policy YAML.
+#
 # Purpose
 # -------
 # Installs the eight Phase-3b Rust-CLI binaries from the published
@@ -41,8 +78,12 @@
 # identical binaries that the in-container persona-engine bridges
 # to.
 #
-# Eight binaries installed (alphabetical by component)
-# ----------------------------------------------------
+# Twelve binaries installed (alphabetical by component)
+# -----------------------------------------------------
+#
+# Eight pre-Tag-32 carrier-image binaries (always installed from the
+# carrier image at boot; the eight original Phase-3b bridges):
+#
 #   1. /opt/wakir/bin/wakir-persona-engine-anchor-emitter
 #      (Tag-23 Mini-Welle PR #184 — WAT-anchor-envelope emitter bridge;
 #      Cosign-Policy 7-binary inventory landed lock-step in Tag-24.)
@@ -65,6 +106,35 @@
 #      8-binary inventory landed lock-step in Tag-29.)
 #   8. /opt/wakir/bin/wakir-persona-engine-v907-verify
 #      (Tag-19 Mini-Welle PR #171 — V-907 pin-hash bridge)
+#
+# Four Tag-32 standalone-image binary-name aliases (ADR-0066 Welle-
+# 4-7 pre-cutover images; each is independently signed via the per-
+# image build workflow + Sigstore-keyless OIDC):
+#
+#   9. /opt/wakir/bin/wakir-persona-engine-state-backing-welle4
+#      (Tag-32 Mini-Welle — ADR-0066 Welle-4 standalone-image alias;
+#      same physical binary as #5 but installed under a Welle-4-
+#      specific name so the cutover step can pin the standalone-
+#      image digest independently. The Welle-4 standalone image
+#      itself ships at /usr/local/bin/wakir-persona-engine-state-
+#      backing — the -welle4 suffix here is the host-side alias.)
+#  10. /opt/wakir/bin/wakir-persona-engine-lifecycle-state-machine
+#      (Tag-32 Mini-Welle — ADR-0066 Welle-5 standalone-image binary
+#      name; the FSM crate's Tag-32 binary uses this canonical name.
+#      Inside the Welle-5 standalone image: /usr/local/bin/wakir-
+#      persona-engine-lifecycle-state-machine.)
+#  11. /opt/wakir/bin/wakir-persona-engine-subscribe-loop-welle6
+#      (Tag-32 Mini-Welle — ADR-0066 Welle-6 standalone-image alias;
+#      same physical binary as #6 but installed under a Welle-6-
+#      specific name so the cutover step can pin the standalone-
+#      image digest independently. The Welle-6 standalone image
+#      itself ships at /usr/local/bin/wakir-persona-engine-subscribe-
+#      loop.)
+#  12. /opt/wakir/bin/wakir-persona-engine-recovery-workflow
+#      (Tag-32 Mini-Welle — ADR-0066 Welle-7 standalone-image binary
+#      name; the recovery crate's Tag-32 binary uses this canonical
+#      name. Inside the Welle-7 standalone image: /usr/local/bin/
+#      wakir-persona-engine-recovery-workflow.)
 #
 # Cross-Review-Anchor: Zone-C (Container-Image-Pipeline x Tomás-OTS)
 # ------------------------------------------------------------------
@@ -117,7 +187,7 @@
 # so the carrier-image digest stays single-sourced.
 
 [Unit]
-Description=Wakir Tag-22/24/29 Phase-3b Rust-CLI host-side binary installer (oneshot, 8 binaries)
+Description=Wakir Tag-22/24/29/32 Phase-3b/3c Rust-CLI host-side binary installer (oneshot, 12 binaries)
 Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/docs/operations/quadlets-phase-3b-rust-cli.md
 After=network-online.target
 Wants=network-online.target
@@ -140,7 +210,7 @@ Image=ghcr.io/wakir-labs/wakir-persona-engine:0.5.0-pilot@sha256:DIGEST_PENDING_
 # docs/operations/cosign-policy-phase-3b.md §3 step 3, hardened by
 # ``set -e``).
 Entrypoint=/bin/sh
-Exec=-c "set -e; for b in wakir-persona-engine-recovery wakir-persona-engine-state-backing wakir-persona-engine-fsm wakir-persona-engine-v907-verify wakir-persona-engine-bridge-diff wakir-persona-engine-subscribe-loop wakir-persona-engine-anchor-emitter wakir-persona-engine-svid-workload-identity; do test -x \"/opt/wakir/bin/$b\" || { echo \"missing or non-exec in carrier image: $b\" >&2; exit 2; }; install -m 0755 \"/opt/wakir/bin/$b\" \"/host-bin/$b\"; done; echo OK"
+Exec=-c "set -e; for b in wakir-persona-engine-recovery wakir-persona-engine-state-backing wakir-persona-engine-fsm wakir-persona-engine-v907-verify wakir-persona-engine-bridge-diff wakir-persona-engine-subscribe-loop wakir-persona-engine-anchor-emitter wakir-persona-engine-svid-workload-identity; do test -x \"/opt/wakir/bin/$b\" || { echo \"missing or non-exec in carrier image: $b\" >&2; exit 2; }; install -m 0755 \"/opt/wakir/bin/$b\" \"/host-bin/$b\"; done; install -m 0755 \"/opt/wakir/bin/wakir-persona-engine-state-backing\" \"/host-bin/wakir-persona-engine-state-backing-welle4\"; install -m 0755 \"/opt/wakir/bin/wakir-persona-engine-fsm\" \"/host-bin/wakir-persona-engine-lifecycle-state-machine\"; install -m 0755 \"/opt/wakir/bin/wakir-persona-engine-subscribe-loop\" \"/host-bin/wakir-persona-engine-subscribe-loop-welle6\"; install -m 0755 \"/opt/wakir/bin/wakir-persona-engine-recovery\" \"/host-bin/wakir-persona-engine-recovery-workflow\"; echo OK"
 
 # Read-only root filesystem. The installer writes only to the
 # bind-mounted host-bin path.

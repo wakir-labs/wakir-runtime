@@ -590,51 +590,93 @@ QUADLET_INSTALLER = (
 
 def test_cross_substrate_parity_with_quadlet_installer(policy: dict) -> None:
     """The Tag-22 Quadlet installer (``quadlet/wakir-rust-cli.container``,
-    PR #180) and this Cosign-Policy MUST inventory the SAME five
-    binary names. A drift between the two substrates is the worst
-    failure mode in the Tag-22-vs-Tag-20 inventory-gap class — one
-    substrate copies a binary onto the host without a matching
-    verification gate, or vice versa.
+    PR #180) and this Cosign-Policy MUST inventory the SAME set of
+    carrier-image binary names in the Quadlet for-loop. A drift
+    between the two substrates is the worst failure mode in the
+    Tag-22-vs-Tag-20 inventory-gap class — one substrate copies a
+    binary onto the host without a matching verification gate, or
+    vice versa.
 
     Tag-23 Mini-Welle landed this parity-test alongside the
     bridge-diff inventory extension. Future inventory grows
     (e.g. subscribe-loop, PR #181 Tag-22 follow-up) MUST land in
     BOTH substrates in the same Mini-Welle — this test enforces
     that gate at policy-author time.
+
+    Tag-32 Mini-Welle update (ADR-0066 Welle-4-7 image-build bundle):
+    The Quadlet installer now also installs four standalone-image
+    binary-name aliases (after the carrier-image for-loop). The
+    Cosign-Policy adds a ``standalone_images`` block listing the
+    same four. This parity test now checks BOTH halves:
+
+      * carrier-image inventory (policy ``binaries`` vs Quadlet
+        for-loop) — 8 binaries as of Tag-29.
+      * standalone-image inventory (policy ``standalone_images``
+        vs Quadlet alias installs) — 4 binaries as of Tag-32.
     """
     assert QUADLET_INSTALLER.exists(), (
         f"Quadlet installer missing at {QUADLET_INSTALLER}"
     )
     quadlet_text = QUADLET_INSTALLER.read_text(encoding="utf-8")
 
-    # The Quadlet installer iterates the binaries as a shell ``for``
-    # loop inside the Exec= line. Each iteration token is the
-    # ``wakir-persona-engine-<component>`` binary basename. String-
-    # grep them out and derive the component names by stripping the
-    # canonical prefix.
-    quadlet_basenames = set(
-        re.findall(r"wakir-persona-engine-([a-z0-9-]+)", quadlet_text)
+    # Carrier-image inventory: parse only the Exec= for-loop body to
+    # extract the eight ``wakir-persona-engine-<component>`` binary
+    # basenames the carrier image actually ships. The for-loop body
+    # is the canonical truth for which binaries the carrier image
+    # advertises; the surrounding comment block and the Tag-32 alias
+    # install lines are separate substrates.
+    for_loop_match = re.search(r"for b in (.+?); do test", quadlet_text)
+    assert for_loop_match is not None, (
+        "Quadlet installer no longer has the expected `for b in ...; do test` shape"
     )
-    # The Quadlet text also references the binaries in the leading
-    # comment block — that is fine, ``set()`` deduplicates.
+    for_loop_body = for_loop_match.group(1)
+    quadlet_carrier_basenames = set(
+        re.findall(
+            r"wakir-persona-engine-([a-z0-9-]+)\b", for_loop_body
+        )
+    )
 
-    policy_basenames = {b["name"] for b in policy["binaries"]}
+    policy_carrier_basenames = {b["name"] for b in policy["binaries"]}
 
-    # Both substrates must agree on the SET of components.
-    assert quadlet_basenames == policy_basenames, (
+    # Both substrates must agree on the SET of CARRIER-IMAGE components.
+    assert quadlet_carrier_basenames == policy_carrier_basenames, (
         "cross-substrate inventory drift between Cosign-Policy "
-        f"({sorted(policy_basenames)}) and Quadlet installer "
-        f"({sorted(quadlet_basenames)}). Both files must list the "
-        "same set of Phase-3b Rust-CLI binaries; a drift means one "
-        "substrate copies a binary onto the host without a matching "
-        "verification gate, or advertises verification for a binary "
-        "that the installer does not actually deploy."
+        f"binaries ({sorted(policy_carrier_basenames)}) and Quadlet "
+        f"installer for-loop ({sorted(quadlet_carrier_basenames)}). "
+        "Both files must list the same set of carrier-image Rust-CLI "
+        "binaries; a drift means one substrate copies a binary onto "
+        "the host without a matching verification gate, or advertises "
+        "verification for a binary that the installer does not "
+        "actually deploy."
     )
 
-    # And: the agreed-on set must be exactly the five we expect.
-    assert policy_basenames == set(EXPECTED_BINARIES), (
-        f"Cosign-Policy + Quadlet agree on {sorted(policy_basenames)}, "
-        f"but the canonical Tag-23 inventory is "
+    # And: the agreed-on set must be exactly the canonical inventory.
+    assert policy_carrier_basenames == set(EXPECTED_BINARIES), (
+        f"Cosign-Policy + Quadlet agree on {sorted(policy_carrier_basenames)}, "
+        f"but the canonical Tag-29 carrier-image inventory is "
         f"{sorted(EXPECTED_BINARIES)} — both substrates have drifted "
         "from the EXPECTED_BINARIES contract in the same direction."
     )
+
+    # Tag-32 standalone-image inventory: the policy's
+    # ``standalone_images`` block must agree with the Quadlet
+    # installer alias lines on the SET of binary names.
+    standalone_entries = policy.get("standalone_images", [])
+    assert isinstance(standalone_entries, list) and standalone_entries, (
+        "Cosign-Policy must declare a `standalone_images` block as of "
+        "Tag-32 Mini-Welle (ADR-0066 Welle-4-7 image-build bundle)"
+    )
+    policy_standalone_binaries = {
+        entry["binary_name"] for entry in standalone_entries
+    }
+    # The Quadlet alias install lines reference each standalone-image
+    # binary name in either an `install` command target or an in-image
+    # path. Validate that every standalone-image binary name is
+    # mentioned somewhere in the Quadlet text — the structural test
+    # in tests/workflows/test_build_rust_cli_welle_4_5_6_7.py handles
+    # the precise install-line check.
+    for binary in policy_standalone_binaries:
+        assert binary in quadlet_text, (
+            f"standalone-image binary {binary} listed in Cosign-Policy "
+            f"`standalone_images` but absent from Quadlet installer"
+        )

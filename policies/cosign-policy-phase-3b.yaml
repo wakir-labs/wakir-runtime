@@ -45,6 +45,32 @@
 # parity test (test_cross_substrate_parity_with_quadlet_installer)
 # enforces lock-step agreement with the Quadlet installer.
 #
+# Tag-32 Mini-Welle update (ADR-0066 Welle-4-7 image-build bundle)
+# ----------------------------------------------------------------
+# Inventory extended from 8 to 12 binaries in lock-step with the
+# Tag-32 Quadlet installer update. Four additions for the ADR-0066
+# Welle-4 (state_backing, KW 26), Welle-5 (lifecycle_state_machine,
+# KW 26), Welle-6 (subscribe_loop, KW 27), Welle-7 (recovery_workflow,
+# KW 27) parallel-cutover pre-cutover image substrate. Unlike the
+# prior eight binaries (which ship inside the wakir-persona-engine
+# carrier image), the four new entries are **standalone images**
+# parallel to the Tag-26 V907-verify (PR #194) + Tag-29 SVID-
+# workload-identity (PR #201) precedent. The carrier-image inventory
+# still lists the same eight original binaries; the four standalone-
+# image entries are registered under a separate top-level
+# ``standalone_images`` block so the Operator-Hand verify recipe can
+# enumerate both surfaces.
+#
+# Same Sigstore-keyless-OIDC verification pattern as the prior
+# standalone images (V907-verify + SVID-workload-identity) — each
+# image is independently signed against the GitHub-Actions OIDC
+# identity of the build workflow it was produced by. The cross-
+# substrate parity test
+# (test_cross_substrate_parity_with_quadlet_installer) enforces lock-
+# step agreement: the Quadlet installer's 12-binary list mirrors the
+# 8 carrier-image entries plus the 4 standalone-image entries
+# byte-for-byte.
+#
 # Tag-29 Mini-Welle update (ADR-0066 Welle-2 image-build)
 # -------------------------------------------------------
 # Inventory extended from 7 to 8 binaries in lock-step with the
@@ -104,10 +130,15 @@ schema_version: wakir.cosign-policy.phase-3b/1
 policy:
   name: phase-3b-rust-cli-binaries
   description: >
-    Cosign-keyless verification policy for the eight Phase-3b Rust-CLI
-    binaries that the persona-engine production-default switch
-    subprocess-bridges to (recovery, state-backing, fsm, v907-verify,
-    bridge-diff, subscribe-loop, anchor-emitter, svid-workload-identity).
+    Cosign-keyless verification policy for the twelve Phase-3b/3c
+    Rust-CLI binaries: eight ship inside the wakir-persona-engine
+    carrier image (recovery, state-backing, fsm, v907-verify, bridge-
+    diff, subscribe-loop, anchor-emitter, svid-workload-identity);
+    four additional standalone images (state-backing, lifecycle-state-
+    machine, subscribe-loop, recovery-workflow — ADR-0066 Welle-4-7)
+    ship as independent distroless-cc images with their own Cosign-
+    keyless signature against the GitHub-Actions OIDC identity of
+    the per-image build workflow.
 
   # Sigstore-keyless OIDC identity of the GitHub-Actions runner that
   # builds and signs the carrier image. Same shape as the Sprint-9
@@ -263,6 +294,91 @@ binaries:
       Workload-API gRPC FetchX509SVID RPC is deferred to a future
       Zone-L-reviewed crate revision (Tonic substrate larger than the
       probe surface).
+
+# Tag-32 Mini-Welle: standalone images parallel to the carrier
+# inventory. Each entry is the substrate of one ADR-0066 Welle-4-7
+# pre-cutover image (state-backing, lifecycle-state-machine,
+# subscribe-loop, recovery-workflow). Same Sigstore-keyless-OIDC
+# verification pattern as the carrier image, but each image is
+# independently signed against the GitHub-Actions OIDC identity of
+# the per-image build workflow.
+standalone_images:
+
+  - name: state-backing
+    component: persona-engine-state-backing
+    crate_path: wirelang-rust/crates/persona-engine-state-backing
+    binary_name: wakir-persona-engine-state-backing
+    in_image_path: /usr/local/bin/wakir-persona-engine-state-backing
+    registry: ghcr.io
+    repository: wakir-labs/wakir-persona-engine-state-backing
+    expected_tag: 0.1.0-pilot
+    expected_image_digest: sha256:DIGEST_PENDING_KAI_CROSS_REVIEW
+    build_workflow: .github/workflows/build-rust-cli-state-backing.yml
+    containerfile: infra/state-backing-rust-cli/Containerfile
+    welle_id: welle-4
+    landed_pr: Tag-32 Mini-Welle (image-build bundle)
+    purpose: >
+      NATS-KV Persona-State-Backing utility-CLI standalone image
+      (ADR-0066 Welle-4 pre-cutover). Read-only surface (info,
+      snapshot-hash, offset-key). Does NOT open a live NATS-KV
+      socket; live binding stays Python-side during Phase-3a.
+
+  - name: lifecycle-state-machine
+    component: persona-engine-fsm
+    crate_path: wirelang-rust/crates/persona-engine-fsm
+    binary_name: wakir-persona-engine-lifecycle-state-machine
+    in_image_path: /usr/local/bin/wakir-persona-engine-lifecycle-state-machine
+    registry: ghcr.io
+    repository: wakir-labs/wakir-persona-engine-lifecycle-state-machine
+    expected_tag: 0.1.0-pilot
+    expected_image_digest: sha256:DIGEST_PENDING_KAI_CROSS_REVIEW
+    build_workflow: .github/workflows/build-rust-cli-lifecycle-state-machine.yml
+    containerfile: infra/lifecycle-state-machine-rust-cli/Containerfile
+    welle_id: welle-5
+    landed_pr: Tag-32 Mini-Welle (image-build bundle)
+    purpose: >
+      Persona-engine lifecycle FSM utility-CLI standalone image
+      (ADR-0066 Welle-5 pre-cutover). Read-only surface (info,
+      states, transitions, can, trace-hash). Wire-strings byte-
+      identical to the Python lifecycle_state_machine STATES tuple.
+
+  - name: subscribe-loop
+    component: persona-engine-subscribe-loop
+    crate_path: wirelang-rust/crates/persona-engine-subscribe-loop
+    binary_name: wakir-persona-engine-subscribe-loop
+    in_image_path: /usr/local/bin/wakir-persona-engine-subscribe-loop
+    registry: ghcr.io
+    repository: wakir-labs/wakir-persona-engine-subscribe-loop
+    expected_tag: 0.1.0-pilot
+    expected_image_digest: sha256:DIGEST_PENDING_KAI_CROSS_REVIEW
+    build_workflow: .github/workflows/build-rust-cli-subscribe-loop.yml
+    containerfile: infra/subscribe-loop-rust-cli/Containerfile
+    welle_id: welle-6
+    landed_pr: Tag-32 Mini-Welle (image-build bundle)
+    purpose: >
+      NATS-JetStream subscribe-loop utility-CLI standalone image
+      (ADR-0066 Welle-6 pre-cutover). Read-only surface (info,
+      subject canonicalisation, ack-hash). Does NOT open a live
+      NATS connection.
+
+  - name: recovery-workflow
+    component: persona-engine-recovery
+    crate_path: wirelang-rust/crates/persona-engine-recovery
+    binary_name: wakir-persona-engine-recovery-workflow
+    in_image_path: /usr/local/bin/wakir-persona-engine-recovery-workflow
+    registry: ghcr.io
+    repository: wakir-labs/wakir-persona-engine-recovery-workflow
+    expected_tag: 0.1.0-pilot
+    expected_image_digest: sha256:DIGEST_PENDING_KAI_CROSS_REVIEW
+    build_workflow: .github/workflows/build-rust-cli-recovery-workflow.yml
+    containerfile: infra/recovery-workflow-rust-cli/Containerfile
+    welle_id: welle-7
+    landed_pr: Tag-32 Mini-Welle (image-build bundle)
+    purpose: >
+      R1..R4 Recovery-Workflow utility-CLI standalone image
+      (ADR-0066 Welle-7 pre-cutover). Read-only surface (info,
+      phases, soft-cap, outcome-hash). Does NOT orchestrate any
+      live recovery; orchestration stays Python-side.
 
 # Operator-Hand verification recipe (human-readable canonical
 # anchor; the prose recipe lives in

@@ -1,0 +1,136 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# This Containerfile and the image it produces are part of the Wakir
+# persona-engine runtime substrate. Licensed under the Business
+# Source License 1.1; see ../persona-engine/LICENSE-BSL.md (shared
+# substrate licence file for all persona-engine container images).
+# Change Date: 2030-05-15 (parity with the persona-engine image).
+# Change License: Apache License 2.0.
+#
+# wakir-persona-engine-subscribe-loop — Rust-CLI runtime image for
+# the NATS-JetStream subscribe-loop read-only utility path (Tag-32
+# Mini-Welle, ADR-0066 Welle-6 `subscribe_loop` pre-cutover image,
+# parallel to Welle-7 recovery_workflow in KW 27).
+#
+# Substrate scope
+# ---------------
+#
+# ADR-0066 (approved 2026-05-17) accelerates Phase-3c to 4 weeks
+# (Option A+). **Welle-6 is `subscribe_loop`** (KW 27, parallel with
+# Welle-7 recovery_workflow): the NATS-JetStream subscribe-loop that
+# the persona-engine task-dispatch path bridges to. This image is
+# the substrate the cutover step will pin against in the Quadlet
+# unit and in the persona-engine image's
+# `WAKIR_SUBSCRIBE_LOOP_BACKEND=rust` operator-flag pathway.
+#
+# The binary itself (`wakir-persona-engine-subscribe-loop`) is the
+# Rust operator-CLI pendant of
+# `wirelang.persona_engine.nats_subscribe_loop` — see
+# `wirelang-rust/crates/persona-engine-subscribe-loop/src/main.rs`
+# for the subcommand surface (`info | subject <env> <persona-slug> |
+# ack-hash <jcs-file> | --version | --help`). Read-only: the binary
+# does NOT open a live NATS connection. The `subject` subcommand
+# emits the canonical `agent.task.assigned` subject byte-identical
+# to the Python `build_subscribe_subject`; the `ack-hash` subcommand
+# emits the SHA-256 of a JCS-canonical ack-record blob.
+#
+# Multi-stage build
+# -----------------
+#
+# Stage 1 (builder, `rust:1.85-slim-bookworm`) compiles the
+# `wakir-persona-engine-subscribe-loop` binary in `--release` mode.
+# We pin the base image to the workspace's `rust-version = "1.85"`
+# (see `wirelang-rust/Cargo.toml`). The release profile is workspace-
+# configured for `lto = "thin"`, `codegen-units = 1`, `strip =
+# "symbols"`.
+#
+# Stage 2 (runtime, `gcr.io/distroless/cc-debian12:nonroot`) carries
+# only the binary plus a CA bundle (inherited from distroless-cc).
+# No shell, no package manager, no Python — the attack surface is
+# the Rust binary plus distroless glibc only.
+#
+# Why distroless-cc and not scratch
+# ---------------------------------
+#
+# Parity with the V907-verify (PR #194) + SVID-workload-identity
+# (PR #201) + state-backing + lifecycle-state-machine (Tag-32
+# siblings) images.
+#
+# OCI provenance + Cosign signing
+# -------------------------------
+#
+# Build path: ``.github/workflows/build-rust-cli-subscribe-loop.yml``
+# (Operator-Hand ``workflow_dispatch`` only; the
+# ``inputs.push='true'`` opt-in pushes to
+# ``ghcr.io/wakir-labs/wakir-persona-engine-subscribe-loop:<tag>``
+# and Sigstore-keyless-signs the resulting digest. Parity with
+# ``build-rust-cli-v907-verify.yml`` from Tag-26 PR #194).
+#
+# Pin path: the digest emitted by the workflow is resolved into the
+# Quadlet unit at cutover time (Welle-6 step on the ADR-0066 Wochen-
+# Plan, KW 27). The resolver pattern is the same
+# `scripts/image-pin-idempotent-resolver.sh` PINS-array row that the
+# persona-engine + V907-verify + SVID-workload-identity images use.
+#
+# Cross-references
+# ----------------
+#
+# - ADR-0066 §Phase-3c Welle-6 `subscribe_loop` (approved 2026-05-17).
+# - Selin PR #79 (Sprint-Pengine-13 Bug-42 fix) — Python schema
+#   authority.
+# - ADR-0060 — Cosign-Policy on Pilot-Container-Images.
+# - ADR-0035 §C-Drift-Closure — the ADR this cutover closes for the
+#   subscribe_loop module.
+
+# ----------------------------------------------------------------------
+# Stage 1 — Rust release builder
+# ----------------------------------------------------------------------
+
+FROM docker.io/library/rust:1.85-slim-bookworm@sha256:DIGEST_PENDING_KAI_REVIEW AS builder
+
+WORKDIR /build
+
+COPY wirelang-rust /build/wirelang-rust
+
+WORKDIR /build/wirelang-rust
+
+# Build only the subscribe-loop binary in release mode. The workspace
+# profile sets lto+strip; the resulting artefact ends up at
+# `target/release/wakir-persona-engine-subscribe-loop`.
+RUN cargo build --release \
+        -p persona-engine-subscribe-loop \
+        --bin wakir-persona-engine-subscribe-loop
+
+# Belt-and-suspenders strip.
+RUN apt-get update -qq \
+    && apt-get install -y --no-install-recommends binutils \
+    && strip --strip-unneeded \
+        /build/wirelang-rust/target/release/wakir-persona-engine-subscribe-loop \
+    && apt-get purge -y binutils \
+    && rm -rf /var/lib/apt/lists/*
+
+# ----------------------------------------------------------------------
+# Stage 2 — distroless runtime
+# ----------------------------------------------------------------------
+
+FROM gcr.io/distroless/cc-debian12:nonroot@sha256:DIGEST_PENDING_KAI_REVIEW
+
+LABEL org.opencontainers.image.title="wakir-persona-engine-subscribe-loop"
+LABEL org.opencontainers.image.description="Rust-CLI for the persona-engine NATS-JetStream subscribe-loop utility surface (subject canonicalisation, ack-hash). ADR-0066 Welle-6 pre-cutover image (Tag-32 Mini-Welle, 2026-05-17)."
+LABEL org.opencontainers.image.version="0.1.0-pilot"
+LABEL org.opencontainers.image.licenses="BUSL-1.1"
+LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"
+LABEL org.opencontainers.image.url="https://github.com/wakir-labs/wakir-runtime"
+LABEL org.opencontainers.image.documentation="https://github.com/wakir-labs/wakir-runtime/blob/main/docs/operations/subscribe-loop-image-build.md"
+
+COPY --from=builder \
+    /build/wirelang-rust/target/release/wakir-persona-engine-subscribe-loop \
+    /usr/local/bin/wakir-persona-engine-subscribe-loop
+
+USER nonroot:nonroot
+
+# The CLI exits with documented codes (0=success, 1=runtime error,
+# 3=input file not found, 64=usage error / validation failure). See
+# docs/operations/subscribe-loop-image-build.md.
+ENTRYPOINT ["/usr/local/bin/wakir-persona-engine-subscribe-loop"]

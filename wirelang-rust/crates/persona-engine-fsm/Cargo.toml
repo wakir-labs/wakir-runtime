@@ -104,6 +104,15 @@ publish = false
 name = "persona_engine_fsm"
 path = "src/lib.rs"
 
+# Tag-32 Mini-Welle: Operator-CLI binary for the lifecycle-state-machine
+# read-only utility surface. Thin wrapper around the library; consumed
+# by the container-image-build-pipeline (.github/workflows/build-rust-
+# cli-lifecycle-state-machine.yml). See src/main.rs for the subcommand
+# surface.
+[[bin]]
+name = "wakir-persona-engine-lifecycle-state-machine"
+path = "src/main.rs"
+
 [dependencies]
 serde      = { workspace = true }
 serde_json = { workspace = true }
