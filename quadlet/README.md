@@ -45,6 +45,11 @@ content alignment to the existing compose state.
 | `wakir-spire-agent.container` | Quadlet container unit | Phase-2.2 SPIRE-Agent, mirror of `compose/spire.yaml` services.spire-agent |
 | `wakir-spire-agent-data.volume` | Quadlet volume unit | SPIRE-Agent SVID cache + bootstrap-bundle, mirror of `compose/spire.yaml` volumes.spire_agent_data |
 | `wakir-spire-agent-sockets.volume` | Quadlet volume unit | SPIFFE-Workload-API socket-share (Agent <-> persona-container), mirror of `compose/spire.yaml` volumes.spire_agent_sockets |
+| `wakir-rust-cli.container` | Quadlet container unit | Tag-22 Phase-3b Rust-CLI host-side binary installer oneshot (five binaries from carrier image `wakir-persona-engine` -> `/opt/wakir/bin/`) |
+| `wakir-rust-cli-bin.volume` | Quadlet volume unit | Tag-22 Phase-3b Rust-CLI host-side binary volume mounted by `wakir-rust-cli.container` |
+
+For the Tag-22 Phase-3b Rust-CLI installer Operator recipe see
+[`docs/operations/quadlets-phase-3b-rust-cli.md`](../docs/operations/quadlets-phase-3b-rust-cli.md).
 
 ---
 
