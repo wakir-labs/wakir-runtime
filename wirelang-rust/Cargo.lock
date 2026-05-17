@@ -1405,6 +1405,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "persona-engine-state-backing"
+version = "0.1.0"
+dependencies = [
+ "async-nats",
+ "hex",
+ "serde",
+ "serde_json",
+ "sha2 0.10.8",
+ "tokio",
+]
+
+[[package]]
 name = "persona-engine-subscribe-loop"
 version = "0.1.0"
 dependencies = [
