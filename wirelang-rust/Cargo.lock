@@ -1352,6 +1352,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "persona-engine-anchor-emitter"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "serde",
+ "serde_jcs",
+ "serde_json",
+ "sha2 0.10.8",
+]
+
+[[package]]
 name = "persona-engine-bridge-diff"
 version = "0.1.0"
 dependencies = [
@@ -1369,6 +1380,17 @@ dependencies = [
  "hex",
  "persona-canonical-form-yaml",
  "persona-hash",
+ "serde_jcs",
+ "serde_json",
+ "serde_yaml",
+ "sha2 0.10.8",
+]
+
+[[package]]
+name = "persona-engine-frontmatter-parser"
+version = "0.1.0"
+dependencies = [
+ "serde",
  "serde_jcs",
  "serde_json",
  "serde_yaml",
