@@ -1614,6 +1614,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "persona-engine-bridge-audit-writer"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "serde",
+ "serde_jcs",
+ "serde_json",
+ "sha2 0.10.8",
+]
+
+[[package]]
 name = "persona-engine-bridge-diff"
 version = "0.1.0"
 dependencies = [
