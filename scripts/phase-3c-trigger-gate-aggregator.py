@@ -126,6 +126,13 @@ PATH_QUADLET_INSTALLER = Path("quadlet/wakir-rust-cli.container")
 PATH_OBS_AGGREGATOR = Path("scripts/backend-decision-observability.py")
 PATH_LIVE_VM_DRIVER = Path("scripts/ci-live-vm-phase-3b-driver.sh")
 
+#: Tag-25 baseline-tracker. When present, Gate-4 enriches its
+#: ``evidence`` block with the tracker's per-component split + burn-up
+#: data under ``evidence["tracker_report"]``. The base Gate-4
+#: tri-state status is preserved (the tracker is additive, not
+#: authoritative); the tracker's own thresholds are independent.
+PATH_OBS_BASELINE_TRACKER = Path("scripts/phase-3c-observability-baseline-tracker.py")
+
 
 #: The seven Phase-3b backend resolvers. The Gate-1 evaluator searches
 #: for each name as a function definition in
@@ -493,6 +500,74 @@ def _count_distinct_jsonl_days(jsonl_path: Path) -> int:
     return len(distinct)
 
 
+def _try_load_baseline_tracker(repo_root: Path):
+    """Best-effort import of the Tag-25 baseline-tracker module.
+
+    Returns the imported module, or ``None`` when the script is
+    absent / fails to load. We deliberately swallow load-errors: the
+    tracker is an *additive* enrichment for Gate-4; the aggregator's
+    own tri-state logic must continue to work when the tracker is
+    missing or broken.
+    """
+
+    tracker_path = repo_root / PATH_OBS_BASELINE_TRACKER
+    if not tracker_path.is_file():
+        return None
+    try:
+        import importlib.util
+        import sys as _sys
+
+        mod_name = "phase_3c_observability_baseline_tracker"
+        cached = _sys.modules.get(mod_name)
+        if cached is not None:
+            return cached
+        spec = importlib.util.spec_from_file_location(mod_name, tracker_path)
+        if spec is None or spec.loader is None:
+            return None
+        mod = importlib.util.module_from_spec(spec)
+        # Register BEFORE exec_module: Python 3.12+ dataclasses look up
+        # the defining module via ``sys.modules[__module__]`` during
+        # class construction, so a module that defines dataclasses
+        # must be present in ``sys.modules`` at exec time.
+        _sys.modules[mod_name] = mod
+        try:
+            spec.loader.exec_module(mod)
+        except Exception:
+            # Roll back partial registration on failure so a subsequent
+            # retry sees a clean slate.
+            _sys.modules.pop(mod_name, None)
+            raise
+        return mod
+    except Exception:
+        return None
+
+
+def _enrich_gate_4_with_tracker(
+    evidence: Dict[str, Any],
+    *,
+    repo_root: Path,
+    baseline_path_str: Optional[str],
+    min_days: int,
+) -> None:
+    """Augment Gate-4 evidence with the tracker's per-component report.
+
+    Mutates ``evidence`` in place. Silent on tracker absence/failure
+    — the base Gate-4 tri-state status is the authoritative signal,
+    the tracker is purely an operator-side richer view.
+    """
+
+    tracker = _try_load_baseline_tracker(repo_root)
+    if tracker is None:
+        return
+    try:
+        jsonl_path = Path(baseline_path_str) if baseline_path_str else None
+        report = tracker.build_report(jsonl_path, min_days=min_days)
+        evidence["tracker_report"] = report.to_dict()
+    except Exception:
+        # Tracker invocation must never crash the aggregator.
+        return
+
+
 def evaluate_gate_4_observability_baseline(
     repo_root: Path,
     *,
@@ -522,48 +597,69 @@ def evaluate_gate_4_observability_baseline(
     }
 
     if not aggregator_present:
+        evidence: Dict[str, Any] = {
+            "aggregator_path": str(PATH_OBS_AGGREGATOR),
+            "aggregator_present": False,
+            "baseline": baseline_evidence,
+            "min_days_required": min_days,
+        }
+        _enrich_gate_4_with_tracker(
+            evidence,
+            repo_root=repo_root,
+            baseline_path_str=baseline_path_str,
+            min_days=min_days,
+        )
         return GateResult(
             id="gate-4",
             name="backend-decision-observability-baseline",
             status=GateStatus.RED,
-            evidence={
-                "aggregator_path": str(PATH_OBS_AGGREGATOR),
-                "aggregator_present": False,
-                "baseline": baseline_evidence,
-                "min_days_required": min_days,
-            },
+            evidence=evidence,
         )
 
     if not baseline_path_str:
         # ENV unset — skip-with-warning per the operator-hand workflow.
         baseline_evidence["reason"] = "env-not-set"
+        evidence = {
+            "aggregator_path": str(PATH_OBS_AGGREGATOR),
+            "aggregator_present": True,
+            "baseline": baseline_evidence,
+            "min_days_required": min_days,
+            "baseline_days_found": 0,
+        }
+        _enrich_gate_4_with_tracker(
+            evidence,
+            repo_root=repo_root,
+            baseline_path_str=baseline_path_str,
+            min_days=min_days,
+        )
         return GateResult(
             id="gate-4",
             name="backend-decision-observability-baseline",
             status=GateStatus.YELLOW,
-            evidence={
-                "aggregator_path": str(PATH_OBS_AGGREGATOR),
-                "aggregator_present": True,
-                "baseline": baseline_evidence,
-                "min_days_required": min_days,
-                "baseline_days_found": 0,
-            },
+            evidence=evidence,
         )
 
     baseline_path = Path(baseline_path_str)
     if not baseline_path.is_file():
         baseline_evidence["reason"] = "file-not-found"
+        evidence = {
+            "aggregator_path": str(PATH_OBS_AGGREGATOR),
+            "aggregator_present": True,
+            "baseline": baseline_evidence,
+            "min_days_required": min_days,
+            "baseline_days_found": 0,
+        }
+        _enrich_gate_4_with_tracker(
+            evidence,
+            repo_root=repo_root,
+            baseline_path_str=baseline_path_str,
+            min_days=min_days,
+        )
         return GateResult(
             id="gate-4",
             name="backend-decision-observability-baseline",
             status=GateStatus.YELLOW,
-            evidence={
-                "aggregator_path": str(PATH_OBS_AGGREGATOR),
-                "aggregator_present": True,
-                "baseline": baseline_evidence,
-                "min_days_required": min_days,
-                "baseline_days_found": 0,
-            },
+            evidence=evidence,
         )
 
     days_found = _count_distinct_jsonl_days(baseline_path)
@@ -573,17 +669,24 @@ def evaluate_gate_4_observability_baseline(
 
     status = GateStatus.GREEN if days_found >= min_days else GateStatus.YELLOW
 
+    evidence = {
+        "aggregator_path": str(PATH_OBS_AGGREGATOR),
+        "aggregator_present": True,
+        "baseline": baseline_evidence,
+        "min_days_required": min_days,
+        "baseline_days_found": days_found,
+    }
+    _enrich_gate_4_with_tracker(
+        evidence,
+        repo_root=repo_root,
+        baseline_path_str=baseline_path_str,
+        min_days=min_days,
+    )
     return GateResult(
         id="gate-4",
         name="backend-decision-observability-baseline",
         status=status,
-        evidence={
-            "aggregator_path": str(PATH_OBS_AGGREGATOR),
-            "aggregator_present": True,
-            "baseline": baseline_evidence,
-            "min_days_required": min_days,
-            "baseline_days_found": days_found,
-        },
+        evidence=evidence,
     )
 
 
