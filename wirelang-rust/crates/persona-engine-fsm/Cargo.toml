@@ -64,6 +64,14 @@
 #                        round-trip JSON parity tests.
 # - serde_json 1.0.140 : audit-record construction cross-lang parity
 #                        pin (matches workspace pin).
+# - serde_jcs 0.2.0    : RFC 8785 JCS canonicaliser for the Tag-21
+#                        canonical-trace cross-lang byte-parity
+#                        surface (added 2026-05-17 in the FSM-parity
+#                        mini-welle).
+# - sha2 0.10.x        : SHA-256 digest for trace_sha256_hex /
+#                        trace_hash_prefixed (Tag-21).
+# - hex 0.4.x          : lower-case hex tail emission for the
+#                        bare-hex form (Tag-21).
 #
 # Hard-Constraints (per Sprint-Auftrag)
 # -------------------------------------
@@ -71,6 +79,15 @@
 # - No LICENSING / NOTICE / .github/workflows touches.
 # - `cargo test -p persona-engine-fsm` must run green.
 # - Single-PR-Bundle against `wakir-runtime/main`.
+#
+# Tag-21 Mini-Welle (Phase-3a Python-sync, 7th module)
+# ----------------------------------------------------
+# Adds a `canonical` module exposing `LifecycleTrace`,
+# `serialize_trace`, `trace_sha256_hex`, `trace_hash_prefixed`,
+# `LIFECYCLE_TRACE_SCHEMA`. Byte-for-byte parity with the Python
+# sibling `wirelang.persona_engine.lifecycle_state_machine_canonical`
+# is enforced by the cross-lang fixture vectors in
+# `tests/fixtures/lifecycle-state-machine-cross-lang/fixtures.json`.
 
 [package]
 name = "persona-engine-fsm"
@@ -80,7 +97,7 @@ rust-version = "1.85"
 license = "Apache-2.0"
 repository = "https://github.com/wakir-labs/wakir-runtime"
 authors = ["Reza Tehrani <reza@wakir.local>"]
-description = "Rust pendant of the persona-engine lifecycle state-machine (spec §3.3, schema-parity with Selin PR #65)."
+description = "Rust pendant of the persona-engine lifecycle state-machine (spec §3.3, schema-parity with Selin PR #65; Tag-21 canonical-trace cross-lang surface)."
 publish = false
 
 [lib]
@@ -90,3 +107,6 @@ path = "src/lib.rs"
 [dependencies]
 serde      = { workspace = true }
 serde_json = { workspace = true }
+serde_jcs  = { workspace = true }
+sha2       = { workspace = true }
+hex        = { workspace = true }
