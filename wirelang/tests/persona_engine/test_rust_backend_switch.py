@@ -74,16 +74,20 @@ from wirelang.persona_engine.rust_backend_switch import (
     DEFAULT_RUST_FSM_BIN,
     DEFAULT_RUST_RECOVERY_BIN,
     DEFAULT_RUST_STATE_BACKING_BIN,
+    DEFAULT_RUST_V907_VERIFY_BIN,
     FSM_BACKEND_ENV,
     RECOVERY_BACKEND_ENV,
     RUST_BACKEND_TIMEOUT_ENV,
     RUST_FSM_BIN_ENV,
     RUST_RECOVERY_BIN_ENV,
     RUST_STATE_BACKING_BIN_ENV,
+    RUST_V907_VERIFY_BIN_ENV,
     STATE_BACKING_BACKEND_ENV,
+    V907_VERIFY_BACKEND_ENV,
     VALID_FSM_BACKEND_VALUES,
     VALID_RECOVERY_BACKEND_VALUES,
     VALID_STATE_BACKING_BACKEND_VALUES,
+    VALID_V907_VERIFY_BACKEND_VALUES,
     BackendDecision,
     BackendSwitchValidationError,
     FsmBackend,
@@ -92,14 +96,19 @@ from wirelang.persona_engine.rust_backend_switch import (
     RustSubprocessFsm,
     RustSubprocessRecoveryRunner,
     RustSubprocessStateBacking,
+    RustSubprocessV907Verify,
     StateBackingBackend,
+    V907SubprocessResult,
+    V907VerifyBackend,
     _resolve_timeout_s,
     build_fsm,
     build_state_backing,
+    build_v907_verify,
     log_backend_decision,
     resolve_fsm_backend,
     resolve_recovery_backend,
     resolve_state_backing_backend,
+    resolve_v907_verify_backend,
 )
 from wirelang.persona_engine.state_backing import (
     PersonaStateSnapshot,
@@ -1079,3 +1088,611 @@ def test_fsm_empty_string_env_defaults_to_python():
     chosen, decision = resolve_fsm_backend(env={FSM_BACKEND_ENV: ""})
     assert chosen is FsmBackend.PYTHON
     assert decision.fallback_reason is None
+
+
+# ===========================================================================
+# Tag-19 — V-907 Verify Production-Default Switch (4th component).
+# ===========================================================================
+#
+# Coverage map (17 hermetic vectors, ≥10 required):
+#
+#   V1.  WAKIR_V907_VERIFY_BACKEND unset → python default passthrough.
+#   V2.  Explicit python → fallback_reason=explicit_python.
+#   V3.  rust requested + binary available → rust chosen.
+#   V4.  rust requested + binary missing → graceful fallback python,
+#        fallback_reason="binary_missing".
+#   V5.  rust requested + binary not executable → graceful fallback,
+#        fallback_reason="binary_not_executable".
+#   V6.  Unknown env value raises BackendSwitchValidationError.
+#   V7.  Empty-string env defaults to python.
+#   V8.  RustSubprocessV907Verify.compute_pin returns byte-identical
+#        pin for the trivial persona-v1 vector (via stub-invoker).
+#   V9.  RustSubprocessV907Verify across nine pin-pack vectors:
+#        every vector produces a byte-identical "sha256:<64hex>" pin
+#        (stub-invoker echoes the Python authority's output, so any
+#        wire-format drift fails the parity gate in CI).
+#   V10. RustSubprocessV907Verify.verify_pin with matching expected_pin
+#        returns matched=True; with mismatched expected_pin raises
+#        PersonaHashDriftError.
+#   V11. RustSubprocessV907Verify.compute_pin surfaces compute_error
+#        as PersonaHashComputeError (invalid persona — no front-matter).
+#   V12. RustSubprocessV907Verify exit_nonzero (no drift envelope)
+#        raises RustBackendError(reason="exit_nonzero").
+#   V13. RustSubprocessV907Verify bad_json raises
+#        RustBackendError(reason="bad_json").
+#   V14. build_v907_verify(PYTHON) returns adapter exposing
+#        compute_pin + verify_pin matching the Rust bridge shape.
+#   V15. build_v907_verify(RUST) returns RustSubprocessV907Verify
+#        with the right bin path.
+#   V16. Default binary path when env-var unset.
+#   V17. Per-decision logging emits structured JSON line to log_sink
+#        for the v907_verify domain.
+#
+# All vectors are 100% hermetic: subprocess invocations target a
+# stub-invoker injection seam. No real Rust binary, no NATS, no
+# network. The "byte-identical" parity gate is achieved by having
+# the stub echo the Python authority's compute_v907_pin output — so
+# any deviation in the JSON wire-format or pin formatting fails the
+# test before a real Rust binary ever ships (Phase-3c-cutover
+# pre-condition).
+# ---------------------------------------------------------------------------
+
+
+# Trivial pin-pack vector that does NOT require PyYAML / rfc8785 (it
+# parses through the same path but the shadow-lane skips compute-
+# bearing vectors; the non-compute-bearing tests below run everywhere).
+_TRIVIAL_AXIS_A = (
+    b"---\n"
+    b"name: tomas\n"
+    b"description: V-907 trivial vector\n"
+    b"schema_version: persona-v1\n"
+    b"identity_pinned:\n"
+    b"  email: tomas@example.com\n"
+    b"domain: dev-engineering\n"
+    b"---\n"
+    b"\n"
+    b"body\n"
+)
+
+
+# The 9 V-907 pin-pack vectors used for the byte-parity gate.
+# Five mirror the curated real-persona fixtures shipped with the
+# Rust ``persona-engine-v907-recompute-bench`` crate
+# (``tests/fixtures/v907_pin_pack/{mira,tomas,priya,kai,aisha}.md``)
+# and four are deterministic synthetic vectors covering edge shapes
+# (no identity_pinned, empty capabilities, multi-domain reports_to,
+# minimal persona-v1).
+_PIN_PACK_VECTORS_9: tuple[tuple[str, bytes], ...] = (
+    (
+        "mira",
+        b"---\nname: mira\ndescription: CEO\nschema_version: persona-v1\n"
+        b"domain: leadership\ncapabilities:\n  - decide\n  - delegate\n"
+        b"reports_to: aufsichtsrat\n---\n\nbody\n",
+    ),
+    (
+        "tomas",
+        b"---\nname: tomas\ndescription: Matrix Lead\n"
+        b"schema_version: persona-v1\ndomain: dev-engineering\n"
+        b"capabilities:\n  - rust\n  - wat\nreports_to: ceo\n---\n\nbody\n",
+    ),
+    (
+        "priya",
+        b"---\nname: priya\ndescription: CTO\n"
+        b"schema_version: persona-v1\ndomain: engineering\n"
+        b"capabilities:\n  - approve\nreports_to: ceo\n---\n\nbody\n",
+    ),
+    (
+        "kai",
+        b"---\nname: kai\ndescription: Infrastructure\n"
+        b"schema_version: persona-v1\ndomain: infra\n"
+        b"capabilities:\n  - deploy\n  - rollback\nreports_to: cto\n"
+        b"---\n\nbody\n",
+    ),
+    (
+        "aisha",
+        b"---\nname: aisha\ndescription: HR\n"
+        b"schema_version: persona-v1\ndomain: hr\n"
+        b"capabilities:\n  - moderate\nreports_to: ceo\n---\n\nbody\n",
+    ),
+    # 4 synthetic vectors covering edge shapes.
+    (
+        "syn-minimal",
+        b"---\nschema_version: persona-v1\n---\n\nbody\n",
+    ),
+    (
+        "syn-no-identity",
+        b"---\nname: x\nschema_version: persona-v1\n"
+        b"domain: alpha\n---\n\nbody\n",
+    ),
+    (
+        "syn-multi-caps",
+        b"---\nname: y\nschema_version: persona-v1\n"
+        b"capabilities:\n  - a\n  - b\n  - c\n  - d\nreports_to: ceo\n"
+        b"---\n\nbody\n",
+    ),
+    (
+        "syn-domain-only",
+        b"---\nname: z\nschema_version: persona-v1\n"
+        b"domain: omega\n---\n\nbody\n",
+    ),
+)
+
+
+def _make_v907_invoker_via_python_authority():
+    """Build a stub subprocess-invoker that echoes the Python authority.
+
+    Decodes the JSON-stdin, dispatches the op, calls into the actual
+    Python :mod:`wirelang.persona_engine.v907_verify` to produce the
+    pin, and encodes the response with the same wire-shape that the
+    Rust CLI would emit. This is the byte-parity gate: any deviation
+    between the bridge's expectations and the v907-verify module's
+    output fails here in CI.
+    """
+    import base64
+
+    def invoker(bin_path, argv, *, stdin_payload, timeout_s):
+        from wirelang.persona_engine.v907_verify import compute_v907_pin
+
+        doc = json.loads(stdin_payload.decode("utf-8"))
+        op = doc["op"]
+        payload = doc["payload"]
+        axis_a_bytes = base64.b64decode(payload["axis_a_bytes_b64"])
+        if op == "compute_pin":
+            try:
+                pin = compute_v907_pin(axis_a_bytes)
+            except Exception as exc:  # noqa: BLE001 — mirror Rust
+                resp = {"compute_error": True, "detail": str(exc)}
+                return 0, json.dumps(resp), ""
+            return 0, json.dumps({"pin": pin}), ""
+        if op == "verify_pin":
+            persona_id = payload["persona_id"]
+            expected = payload["expected_pin"]
+            try:
+                pin = compute_v907_pin(axis_a_bytes)
+            except Exception as exc:  # noqa: BLE001
+                resp = {"compute_error": True, "detail": str(exc)}
+                return 0, json.dumps(resp), ""
+            matched = None
+            if expected is not None and expected.strip():
+                if expected == pin:
+                    matched = True
+                else:
+                    # Rust binary exits non-zero on drift AND emits a
+                    # JSON envelope with drift=True for the bridge to
+                    # surface as PersonaHashDriftError.
+                    drift_resp = {
+                        "drift": True,
+                        "persona_id": persona_id,
+                        "expected": expected,
+                        "computed": pin,
+                    }
+                    return 1, json.dumps(drift_resp), ""
+            return (
+                0,
+                json.dumps({"pin": pin, "mode": "real", "matched": matched}),
+                "",
+            )
+        raise AssertionError(f"unexpected op {op!r}")
+
+    return invoker
+
+
+def _make_v907_static_invoker(*, pin: str, mode: str = "real"):
+    """Stub-invoker that returns a fixed pin without delegating to
+    the Python authority. Used for tests that don't exercise the
+    PyYAML / rfc8785 compute path (shadow-lane friendly)."""
+    import base64
+
+    def invoker(bin_path, argv, *, stdin_payload, timeout_s):
+        doc = json.loads(stdin_payload.decode("utf-8"))
+        op = doc["op"]
+        if op == "compute_pin":
+            return 0, json.dumps({"pin": pin}), ""
+        if op == "verify_pin":
+            payload = doc["payload"]
+            expected = payload.get("expected_pin")
+            matched = None
+            if expected is not None and expected.strip():
+                if expected == pin:
+                    matched = True
+                else:
+                    drift_resp = {
+                        "drift": True,
+                        "persona_id": payload["persona_id"],
+                        "expected": expected,
+                        "computed": pin,
+                    }
+                    return 1, json.dumps(drift_resp), ""
+            return (
+                0,
+                json.dumps({"pin": pin, "mode": mode, "matched": matched}),
+                "",
+            )
+        raise AssertionError(f"unexpected op {op!r}")
+
+    return invoker
+
+
+# ---------------------------------------------------------------------------
+# Vector V1 — WAKIR_V907_VERIFY_BACKEND unset → python default passthrough.
+# ---------------------------------------------------------------------------
+
+
+def test_v907_verify_unset_defaults_to_python():
+    env: dict = {}
+    chosen, decision = resolve_v907_verify_backend(env=env)
+    assert chosen is V907VerifyBackend.PYTHON
+    assert decision.domain == "v907_verify"
+    assert decision.requested_backend == "python"
+    assert decision.chosen_backend == "python"
+    assert decision.fallback_reason is None
+    assert decision.bin_path is None
+    assert decision.resolution_latency_us >= 0
+
+
+# ---------------------------------------------------------------------------
+# Vector V2 — explicit python carries explicit_python fallback_reason.
+# ---------------------------------------------------------------------------
+
+
+def test_v907_verify_explicit_python():
+    env = {V907_VERIFY_BACKEND_ENV: "python"}
+    chosen, decision = resolve_v907_verify_backend(env=env)
+    assert chosen is V907VerifyBackend.PYTHON
+    assert decision.fallback_reason == "explicit_python"
+
+
+# ---------------------------------------------------------------------------
+# Vector V3 — rust requested + binary available → rust chosen.
+# ---------------------------------------------------------------------------
+
+
+def test_v907_verify_rust_with_available_binary(tmp_path: Path):
+    bin_path = _make_executable(tmp_path / "wakir-v907-verify")
+    env = {
+        V907_VERIFY_BACKEND_ENV: "rust",
+        RUST_V907_VERIFY_BIN_ENV: str(bin_path),
+    }
+    chosen, decision = resolve_v907_verify_backend(env=env)
+    assert chosen is V907VerifyBackend.RUST
+    assert decision.domain == "v907_verify"
+    assert decision.chosen_backend == "rust"
+    assert decision.requested_backend == "rust"
+    assert decision.fallback_reason is None
+    assert decision.bin_path == str(bin_path)
+
+
+# ---------------------------------------------------------------------------
+# Vector V4 — rust requested + binary missing → graceful fallback python.
+# ---------------------------------------------------------------------------
+
+
+def test_v907_verify_rust_with_missing_binary_graceful_fallback(
+    tmp_path: Path,
+):
+    missing = tmp_path / "does-not-exist"
+    env = {
+        V907_VERIFY_BACKEND_ENV: "rust",
+        RUST_V907_VERIFY_BIN_ENV: str(missing),
+    }
+    chosen, decision = resolve_v907_verify_backend(env=env)
+    assert chosen is V907VerifyBackend.PYTHON
+    assert decision.requested_backend == "rust"
+    assert decision.chosen_backend == "python"
+    assert decision.fallback_reason == "binary_missing"
+    assert decision.bin_path == str(missing)
+
+
+# ---------------------------------------------------------------------------
+# Vector V5 — rust requested + binary not executable → graceful fallback.
+# ---------------------------------------------------------------------------
+
+
+def test_v907_verify_rust_with_not_executable_binary_graceful_fallback(
+    tmp_path: Path,
+):
+    bin_path = _make_non_executable_file(tmp_path / "wakir-v907-verify")
+    env = {
+        V907_VERIFY_BACKEND_ENV: "rust",
+        RUST_V907_VERIFY_BIN_ENV: str(bin_path),
+    }
+    chosen, decision = resolve_v907_verify_backend(env=env)
+    assert chosen is V907VerifyBackend.PYTHON
+    assert decision.fallback_reason == "binary_not_executable"
+
+
+# ---------------------------------------------------------------------------
+# Vector V6 — unknown env value raises BackendSwitchValidationError.
+# ---------------------------------------------------------------------------
+
+
+def test_v907_verify_validation_rejects_unknown():
+    env = {V907_VERIFY_BACKEND_ENV: "wat-hash"}
+    with pytest.raises(BackendSwitchValidationError) as ei:
+        resolve_v907_verify_backend(env=env)
+    assert ei.value.env_var == V907_VERIFY_BACKEND_ENV
+    assert ei.value.value == "wat-hash"
+    assert ei.value.valid_values == VALID_V907_VERIFY_BACKEND_VALUES
+
+
+# ---------------------------------------------------------------------------
+# Vector V7 — empty-string env defaults to python.
+# ---------------------------------------------------------------------------
+
+
+def test_v907_verify_empty_string_env_defaults_to_python():
+    chosen, decision = resolve_v907_verify_backend(
+        env={V907_VERIFY_BACKEND_ENV: ""}
+    )
+    assert chosen is V907VerifyBackend.PYTHON
+    assert decision.fallback_reason is None
+
+
+# ---------------------------------------------------------------------------
+# Vector V8 — RustSubprocessV907Verify.compute_pin trivial roundtrip.
+# ---------------------------------------------------------------------------
+
+
+def test_rust_v907_verify_compute_pin_static_roundtrip():
+    """Static-invoker test (no PyYAML/rfc8785 required): exercise the
+    wire-format and the bridge envelope without going through the
+    real compute path. The pin string is opaque to the bridge — it
+    only requires the ``"sha256:"`` prefix + 64 hex chars."""
+    fake_pin = "sha256:" + "a" * 64
+    invoker = _make_v907_static_invoker(pin=fake_pin)
+    bridge = RustSubprocessV907Verify(
+        bin_path="/fake/bin",
+        timeout_s=1.0,
+        subprocess_invoker=invoker,
+    )
+    pin = bridge.compute_pin(b"opaque-axis-a-bytes")
+    assert pin == fake_pin
+
+
+# ---------------------------------------------------------------------------
+# Vector V9 — all nine pin-pack vectors byte-identical to Python authority.
+# ---------------------------------------------------------------------------
+
+
+from wirelang.tests.persona_engine._v907_compute_skip import (  # noqa: E402
+    requires_v907_compute_deps,
+)
+
+
+@requires_v907_compute_deps
+def test_rust_v907_verify_all_nine_pin_pack_vectors_byte_identical():
+    """Byte-parity gate across nine pin-pack vectors.
+
+    For each vector the test:
+
+    1. Computes the pin via the Python authority
+       (:func:`wirelang.persona_engine.v907_verify.compute_v907_pin`).
+    2. Computes the pin via the subprocess-bridge using a stub-invoker
+       that delegates to the same Python authority (so the wire-format
+       and bridge envelope are the only variables under test).
+    3. Asserts byte-identity.
+
+    Any deviation in the JSON wire-shape, the base64 encoding, or
+    the pin-string formatting fails this gate in CI before a real
+    Rust binary ever ships (Phase-3c-cutover pre-condition).
+    """
+    from wirelang.persona_engine.v907_verify import compute_v907_pin
+
+    invoker = _make_v907_invoker_via_python_authority()
+    bridge = RustSubprocessV907Verify(
+        bin_path="/fake/bin",
+        timeout_s=1.0,
+        subprocess_invoker=invoker,
+    )
+    seen_pins: set[str] = set()
+    for slug, axis_a_bytes in _PIN_PACK_VECTORS_9:
+        py_pin = compute_v907_pin(axis_a_bytes)
+        rust_pin = bridge.compute_pin(axis_a_bytes)
+        assert rust_pin == py_pin, (
+            f"vector {slug}: bridge pin {rust_pin!r} != "
+            f"python pin {py_pin!r}"
+        )
+        assert rust_pin.startswith("sha256:")
+        assert len(rust_pin) == len("sha256:") + 64
+        seen_pins.add(rust_pin)
+    # Different inputs produce different pins (canonical-subset is
+    # actually exercised; not a constant-folded path).
+    assert len(seen_pins) >= 7, (
+        f"expected ≥7 distinct pins across 9 vectors, got "
+        f"{len(seen_pins)}: {seen_pins}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Vector V10 — verify_pin matched + drift behaviour.
+# ---------------------------------------------------------------------------
+
+
+@requires_v907_compute_deps
+def test_rust_v907_verify_verify_pin_matched_and_drift():
+    """Verify-pin with matching expected → matched=True; mismatch →
+    PersonaHashDriftError (byte-identical to Python authority)."""
+    from wirelang.persona_engine.v907_verify import (
+        PersonaHashDriftError,
+        compute_v907_pin,
+    )
+
+    axis_a = _PIN_PACK_VECTORS_9[1][1]  # tomas
+    expected = compute_v907_pin(axis_a)
+
+    invoker = _make_v907_invoker_via_python_authority()
+    bridge = RustSubprocessV907Verify(
+        bin_path="/fake/bin",
+        subprocess_invoker=invoker,
+    )
+    # Match path.
+    result = bridge.verify_pin(
+        persona_id="tomas",
+        axis_a_bytes=axis_a,
+        expected_pin=expected,
+    )
+    assert isinstance(result, V907SubprocessResult)
+    assert result.pin == expected
+    assert result.mode == "real"
+    assert result.matched is True
+    # Drift path.
+    bogus = "sha256:" + "0" * 64
+    with pytest.raises(PersonaHashDriftError) as ei:
+        bridge.verify_pin(
+            persona_id="tomas",
+            axis_a_bytes=axis_a,
+            expected_pin=bogus,
+        )
+    assert ei.value.expected == bogus
+    assert ei.value.computed == expected
+    assert ei.value.persona_id == "tomas"
+    # No expected → matched is None (compute-only).
+    result_no_exp = bridge.verify_pin(
+        persona_id="tomas",
+        axis_a_bytes=axis_a,
+        expected_pin=None,
+    )
+    assert result_no_exp.matched is None
+    assert result_no_exp.pin == expected
+
+
+# ---------------------------------------------------------------------------
+# Vector V11 — invalid persona (no front-matter) → PersonaHashComputeError.
+# ---------------------------------------------------------------------------
+
+
+def test_rust_v907_verify_invalid_persona_rejected():
+    """The bridge surfaces compute_error envelopes as the Python-side
+    :class:`PersonaHashComputeError`. This guarantees the engine-boot
+    flow treats compute failures identically across backends."""
+    from wirelang.persona_engine.v907_verify import PersonaHashComputeError
+
+    def invoker(bin_path, argv, *, stdin_payload, timeout_s):
+        # Simulate Rust binary emitting compute_error envelope on
+        # malformed input.
+        resp = {
+            "compute_error": True,
+            "detail": "axis-A front-matter missing",
+        }
+        return 0, json.dumps(resp), ""
+
+    bridge = RustSubprocessV907Verify(
+        bin_path="/fake/bin",
+        subprocess_invoker=invoker,
+    )
+    with pytest.raises(PersonaHashComputeError) as ei:
+        bridge.compute_pin(b"no front matter here")
+    assert "axis-A front-matter missing" in str(ei.value)
+
+
+# ---------------------------------------------------------------------------
+# Vector V12 — subprocess exit_nonzero (no drift) → RustBackendError.
+# ---------------------------------------------------------------------------
+
+
+def test_rust_v907_verify_exit_nonzero_raises():
+    def fail_invoker(bin_path, argv, *, stdin_payload, timeout_s):
+        return 2, "", "boom"
+
+    bridge = RustSubprocessV907Verify(
+        bin_path="/fake/bin",
+        subprocess_invoker=fail_invoker,
+    )
+    with pytest.raises(RustBackendError) as ei:
+        bridge.compute_pin(b"any-bytes")
+    assert ei.value.reason == "exit_nonzero"
+    assert ei.value.returncode == 2
+
+
+# ---------------------------------------------------------------------------
+# Vector V13 — subprocess bad JSON → RustBackendError(bad_json).
+# ---------------------------------------------------------------------------
+
+
+def test_rust_v907_verify_bad_json_raises():
+    def bad_json_invoker(bin_path, argv, *, stdin_payload, timeout_s):
+        return 0, "not-valid-json", ""
+
+    bridge = RustSubprocessV907Verify(
+        bin_path="/fake/bin",
+        subprocess_invoker=bad_json_invoker,
+    )
+    with pytest.raises(RustBackendError) as ei:
+        bridge.compute_pin(b"any-bytes")
+    assert ei.value.reason == "bad_json"
+
+
+# ---------------------------------------------------------------------------
+# Vector V14 — build_v907_verify(PYTHON) returns Python adapter.
+# ---------------------------------------------------------------------------
+
+
+@requires_v907_compute_deps
+def test_build_v907_verify_python_returns_adapter():
+    """Python path: build_v907_verify returns an adapter exposing the
+    same compute_pin + verify_pin surface as the Rust bridge so
+    callers cannot tell the backends apart."""
+    adapter = build_v907_verify(V907VerifyBackend.PYTHON)
+    # The adapter implements the same method-set as the Rust bridge.
+    assert hasattr(adapter, "compute_pin")
+    assert hasattr(adapter, "verify_pin")
+    # Roundtrip against an actual pin-pack vector.
+    axis_a = _PIN_PACK_VECTORS_9[0][1]  # mira
+    pin = adapter.compute_pin(axis_a)
+    assert pin.startswith("sha256:")
+    assert len(pin) == len("sha256:") + 64
+    result = adapter.verify_pin(
+        persona_id="mira", axis_a_bytes=axis_a, expected_pin=pin,
+    )
+    assert isinstance(result, V907SubprocessResult)
+    assert result.matched is True
+    assert result.pin == pin
+
+
+# ---------------------------------------------------------------------------
+# Vector V15 — build_v907_verify(RUST) returns subprocess bridge.
+# ---------------------------------------------------------------------------
+
+
+def test_build_v907_verify_rust_returns_subprocess_bridge():
+    bridge = build_v907_verify(
+        V907VerifyBackend.RUST,
+        env={RUST_V907_VERIFY_BIN_ENV: "/custom/wakir-v907-verify"},
+    )
+    assert isinstance(bridge, RustSubprocessV907Verify)
+    assert bridge.bin_path == "/custom/wakir-v907-verify"
+
+
+# ---------------------------------------------------------------------------
+# Vector V16 — default binary path when env-var unset.
+# ---------------------------------------------------------------------------
+
+
+def test_v907_verify_default_binary_path_when_env_unset():
+    from wirelang.persona_engine.rust_backend_switch import (
+        _resolve_v907_verify_bin,
+    )
+
+    assert _resolve_v907_verify_bin(env={}) == DEFAULT_RUST_V907_VERIFY_BIN
+    assert (
+        DEFAULT_RUST_V907_VERIFY_BIN
+        == "/opt/wakir/bin/wakir-persona-engine-v907-verify"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Vector V17 — per-decision logging emits structured JSON line.
+# ---------------------------------------------------------------------------
+
+
+def test_v907_verify_per_decision_logging_writes_sink():
+    sink = io.StringIO()
+    chosen, _ = resolve_v907_verify_backend(env={}, log_sink=sink)
+    line = sink.getvalue().strip()
+    assert line, "expected one structured-log line emitted"
+    parsed = json.loads(line)
+    assert parsed["msg"] == "backend-decision"
+    assert parsed["domain"] == "v907_verify"
+    assert parsed["requested_backend"] == "python"
+    assert parsed["chosen_backend"] == "python"
+    assert parsed["resolution_latency_us"] >= 0
