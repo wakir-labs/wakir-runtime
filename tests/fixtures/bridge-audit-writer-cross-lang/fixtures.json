@@ -1,0 +1,307 @@
+{
+  "_comment": "Cross-lang fixture vectors for the persona-engine bridge-audit-writer (Tag-30 Mini-Welle / Phase-3a Item 12 / ADR-0066 Welle-3 byte-parity oracle). Authoritative wire-pin: any drift on either side (Rust crate persona-engine-bridge-audit-writer or Python wirelang.persona_engine.bridge_audit_writer) must update this file in the same PR. Derivation procedure: scripts/derive-bridge-audit-writer-fixtures.py. Fixtures pinned 2026-05-17.",
+  "schema_version": "wakir.persona.engineering-output/1",
+  "fixtures": [
+    {
+      "name": "f01-empty-audit-stream",
+      "doc": "A freshly-constructed writer with no emit() calls. Pins the empty-stream invariant: zero records, step_counter == 0.",
+      "input": {
+        "org_id": "acme",
+        "persona_id": "tomas",
+        "session_id": "sess-f01",
+        "engine_version": "0.2.0-pilot",
+        "v907_pin": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "emissions": []
+      },
+      "expected": {
+        "records": [],
+        "step_counter_final": 0
+      }
+    },
+    {
+      "name": "f02-single-record-write",
+      "doc": "One emit() call -- the minimal non-empty trajectory. Pins step_index == 0 / payload-hash / JCS-byte invariants.",
+      "input": {
+        "org_id": "acme",
+        "persona_id": "tomas",
+        "session_id": "sess-f02",
+        "engine_version": "0.2.0-pilot",
+        "v907_pin": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "emissions": [
+          {
+            "output_kind": "tool_call",
+            "payload_b64": "cGF5bG9hZC1ieXRlcw==",
+            "ts_utc": "2026-05-17T12:00:00Z"
+          }
+        ]
+      },
+      "expected": {
+        "records": [
+          {
+            "envelope": {
+              "engine_version": "0.2.0-pilot",
+              "event_kind": "engineering_output",
+              "org_id": "acme",
+              "output_kind": "tool_call",
+              "output_payload_sha256": "sha256:808b59664b6adb9274e3bbd0766e7aec9659786c22fdb825c49ca7fda1c6236e",
+              "persona_id": "tomas",
+              "schema": "wakir.persona.engineering-output/1",
+              "session_id": "sess-f02",
+              "step_index": 0,
+              "ts_utc": "2026-05-17T12:00:00Z",
+              "v907_pin": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "jcs_b64": "eyJlbmdpbmVfdmVyc2lvbiI6IjAuMi4wLXBpbG90IiwiZXZlbnRfa2luZCI6ImVuZ2luZWVyaW5nX291dHB1dCIsIm9yZ19pZCI6ImFjbWUiLCJvdXRwdXRfa2luZCI6InRvb2xfY2FsbCIsIm91dHB1dF9wYXlsb2FkX3NoYTI1NiI6InNoYTI1Njo4MDhiNTk2NjRiNmFkYjkyNzRlM2JiZDA3NjZlN2FlYzk2NTk3ODZjMjJmZGI4MjVjNDljYTdmZGExYzYyMzZlIiwicGVyc29uYV9pZCI6InRvbWFzIiwic2NoZW1hIjoid2FraXIucGVyc29uYS5lbmdpbmVlcmluZy1vdXRwdXQvMSIsInNlc3Npb25faWQiOiJzZXNzLWYwMiIsInN0ZXBfaW5kZXgiOjAsInRzX3V0YyI6IjIwMjYtMDUtMTdUMTI6MDA6MDBaIiwidjkwN19waW4iOiJzaGEyNTY6YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSJ9",
+            "jcs_len": 429,
+            "hash_prefixed": "sha256:8a3499ec8d4d0bf43f6963490e53d5d91b7413c24e2915a6dff24b81fe7dfe35"
+          }
+        ],
+        "step_counter_final": 1
+      }
+    },
+    {
+      "name": "f03-batch-write",
+      "doc": "Three sequential emit() calls with distinct output_kind values (tool_call -> reply -> audit_annotation). Pins step_counter monotonicity (0,1,2) and per-record JCS independence.",
+      "input": {
+        "org_id": "acme",
+        "persona_id": "tomas",
+        "session_id": "sess-f03",
+        "engine_version": "0.2.0-pilot",
+        "v907_pin": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "emissions": [
+          {
+            "output_kind": "tool_call",
+            "payload_b64": "Y2FsbC1wYXlsb2Fk",
+            "ts_utc": "2026-05-17T12:00:00Z"
+          },
+          {
+            "output_kind": "reply",
+            "payload_b64": "cmVwbHktcGF5bG9hZA==",
+            "ts_utc": "2026-05-17T12:00:01Z"
+          },
+          {
+            "output_kind": "audit_annotation",
+            "payload_b64": "YW5ub3RhdGlvbi1wYXlsb2Fk",
+            "ts_utc": "2026-05-17T12:00:02Z"
+          }
+        ]
+      },
+      "expected": {
+        "records": [
+          {
+            "envelope": {
+              "engine_version": "0.2.0-pilot",
+              "event_kind": "engineering_output",
+              "org_id": "acme",
+              "output_kind": "tool_call",
+              "output_payload_sha256": "sha256:f78cfe714dbf8e2638bf613702efbfb4dbca69092291230d48018c051af08730",
+              "persona_id": "tomas",
+              "schema": "wakir.persona.engineering-output/1",
+              "session_id": "sess-f03",
+              "step_index": 0,
+              "ts_utc": "2026-05-17T12:00:00Z",
+              "v907_pin": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "jcs_b64": "eyJlbmdpbmVfdmVyc2lvbiI6IjAuMi4wLXBpbG90IiwiZXZlbnRfa2luZCI6ImVuZ2luZWVyaW5nX291dHB1dCIsIm9yZ19pZCI6ImFjbWUiLCJvdXRwdXRfa2luZCI6InRvb2xfY2FsbCIsIm91dHB1dF9wYXlsb2FkX3NoYTI1NiI6InNoYTI1NjpmNzhjZmU3MTRkYmY4ZTI2MzhiZjYxMzcwMmVmYmZiNGRiY2E2OTA5MjI5MTIzMGQ0ODAxOGMwNTFhZjA4NzMwIiwicGVyc29uYV9pZCI6InRvbWFzIiwic2NoZW1hIjoid2FraXIucGVyc29uYS5lbmdpbmVlcmluZy1vdXRwdXQvMSIsInNlc3Npb25faWQiOiJzZXNzLWYwMyIsInN0ZXBfaW5kZXgiOjAsInRzX3V0YyI6IjIwMjYtMDUtMTdUMTI6MDA6MDBaIiwidjkwN19waW4iOiJzaGEyNTY6YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSJ9",
+            "jcs_len": 429,
+            "hash_prefixed": "sha256:9cfdd4152ea9168a4647c95c9b218112e2a276447c99b987499a6d9899c74213"
+          },
+          {
+            "envelope": {
+              "engine_version": "0.2.0-pilot",
+              "event_kind": "engineering_output",
+              "org_id": "acme",
+              "output_kind": "reply",
+              "output_payload_sha256": "sha256:d770fdc0228f4a93b81306dbcda58a2e06737b3c1d2f259d8d1b70a9b4ddc709",
+              "persona_id": "tomas",
+              "schema": "wakir.persona.engineering-output/1",
+              "session_id": "sess-f03",
+              "step_index": 1,
+              "ts_utc": "2026-05-17T12:00:01Z",
+              "v907_pin": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "jcs_b64": "eyJlbmdpbmVfdmVyc2lvbiI6IjAuMi4wLXBpbG90IiwiZXZlbnRfa2luZCI6ImVuZ2luZWVyaW5nX291dHB1dCIsIm9yZ19pZCI6ImFjbWUiLCJvdXRwdXRfa2luZCI6InJlcGx5Iiwib3V0cHV0X3BheWxvYWRfc2hhMjU2Ijoic2hhMjU2OmQ3NzBmZGMwMjI4ZjRhOTNiODEzMDZkYmNkYTU4YTJlMDY3MzdiM2MxZDJmMjU5ZDhkMWI3MGE5YjRkZGM3MDkiLCJwZXJzb25hX2lkIjoidG9tYXMiLCJzY2hlbWEiOiJ3YWtpci5wZXJzb25hLmVuZ2luZWVyaW5nLW91dHB1dC8xIiwic2Vzc2lvbl9pZCI6InNlc3MtZjAzIiwic3RlcF9pbmRleCI6MSwidHNfdXRjIjoiMjAyNi0wNS0xN1QxMjowMDowMVoiLCJ2OTA3X3BpbiI6InNoYTI1NjphYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIn0=",
+            "jcs_len": 425,
+            "hash_prefixed": "sha256:c05b1d69c0eab8b41422fb135794b359623650aa1a4d4484552638d370c438d2"
+          },
+          {
+            "envelope": {
+              "engine_version": "0.2.0-pilot",
+              "event_kind": "engineering_output",
+              "org_id": "acme",
+              "output_kind": "audit_annotation",
+              "output_payload_sha256": "sha256:f8c13c8b8a391f7eac26d32a47ac9c5233c8f9b54d1a32dfecc71ff979ac4e0e",
+              "persona_id": "tomas",
+              "schema": "wakir.persona.engineering-output/1",
+              "session_id": "sess-f03",
+              "step_index": 2,
+              "ts_utc": "2026-05-17T12:00:02Z",
+              "v907_pin": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "jcs_b64": "eyJlbmdpbmVfdmVyc2lvbiI6IjAuMi4wLXBpbG90IiwiZXZlbnRfa2luZCI6ImVuZ2luZWVyaW5nX291dHB1dCIsIm9yZ19pZCI6ImFjbWUiLCJvdXRwdXRfa2luZCI6ImF1ZGl0X2Fubm90YXRpb24iLCJvdXRwdXRfcGF5bG9hZF9zaGEyNTYiOiJzaGEyNTY6ZjhjMTNjOGI4YTM5MWY3ZWFjMjZkMzJhNDdhYzljNTIzM2M4ZjliNTRkMWEzMmRmZWNjNzFmZjk3OWFjNGUwZSIsInBlcnNvbmFfaWQiOiJ0b21hcyIsInNjaGVtYSI6Indha2lyLnBlcnNvbmEuZW5naW5lZXJpbmctb3V0cHV0LzEiLCJzZXNzaW9uX2lkIjoic2Vzcy1mMDMiLCJzdGVwX2luZGV4IjoyLCJ0c191dGMiOiIyMDI2LTA1LTE3VDEyOjAwOjAyWiIsInY5MDdfcGluIjoic2hhMjU2OmFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEifQ==",
+            "jcs_len": 436,
+            "hash_prefixed": "sha256:00aa84dcc5459db2b4eb9bdad2de9bb64b03bf9df8fbf540f138e8f2bb9f55db"
+          }
+        ],
+        "step_counter_final": 3
+      }
+    },
+    {
+      "name": "f04-error-write-rollback",
+      "doc": "Two successful emit()s sandwich one ValueError-raising emit() (output_kind=\"garbage_kind\"). The step_counter must NOT advance on the failed call; post-rollback emit() carries step_index == 2, not 3.",
+      "input": {
+        "org_id": "acme",
+        "persona_id": "tomas",
+        "session_id": "sess-f04",
+        "engine_version": "0.2.0-pilot",
+        "v907_pin": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "emissions": [
+          {
+            "output_kind": "tool_call",
+            "payload_b64": "Zmlyc3Q=",
+            "ts_utc": "2026-05-17T12:00:00Z"
+          },
+          {
+            "output_kind": "reply",
+            "payload_b64": "c2Vjb25k",
+            "ts_utc": "2026-05-17T12:00:01Z"
+          },
+          {
+            "output_kind": "garbage_kind",
+            "payload_b64": "dGhpcmQ=",
+            "ts_utc": "2026-05-17T12:00:02Z",
+            "expect_error": true
+          },
+          {
+            "output_kind": "audit_annotation",
+            "payload_b64": "cG9zdC1yb2xsYmFjaw==",
+            "ts_utc": "2026-05-17T12:00:03Z"
+          }
+        ]
+      },
+      "expected": {
+        "records": [
+          {
+            "envelope": {
+              "engine_version": "0.2.0-pilot",
+              "event_kind": "engineering_output",
+              "org_id": "acme",
+              "output_kind": "tool_call",
+              "output_payload_sha256": "sha256:a7937b64b8caa58f03721bb6bacf5c78cb235febe0e70b1b84cd99541461a08e",
+              "persona_id": "tomas",
+              "schema": "wakir.persona.engineering-output/1",
+              "session_id": "sess-f04",
+              "step_index": 0,
+              "ts_utc": "2026-05-17T12:00:00Z",
+              "v907_pin": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "jcs_b64": "eyJlbmdpbmVfdmVyc2lvbiI6IjAuMi4wLXBpbG90IiwiZXZlbnRfa2luZCI6ImVuZ2luZWVyaW5nX291dHB1dCIsIm9yZ19pZCI6ImFjbWUiLCJvdXRwdXRfa2luZCI6InRvb2xfY2FsbCIsIm91dHB1dF9wYXlsb2FkX3NoYTI1NiI6InNoYTI1NjphNzkzN2I2NGI4Y2FhNThmMDM3MjFiYjZiYWNmNWM3OGNiMjM1ZmViZTBlNzBiMWI4NGNkOTk1NDE0NjFhMDhlIiwicGVyc29uYV9pZCI6InRvbWFzIiwic2NoZW1hIjoid2FraXIucGVyc29uYS5lbmdpbmVlcmluZy1vdXRwdXQvMSIsInNlc3Npb25faWQiOiJzZXNzLWYwNCIsInN0ZXBfaW5kZXgiOjAsInRzX3V0YyI6IjIwMjYtMDUtMTdUMTI6MDA6MDBaIiwidjkwN19waW4iOiJzaGEyNTY6YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSJ9",
+            "jcs_len": 429,
+            "hash_prefixed": "sha256:facda839b5742c23a8be8c604d6a140e8bd508908233fd635653682e9d000174"
+          },
+          {
+            "envelope": {
+              "engine_version": "0.2.0-pilot",
+              "event_kind": "engineering_output",
+              "org_id": "acme",
+              "output_kind": "reply",
+              "output_payload_sha256": "sha256:16367aacb67a4a017c8da8ab95682ccb390863780f7114dda0a0e0c55644c7c4",
+              "persona_id": "tomas",
+              "schema": "wakir.persona.engineering-output/1",
+              "session_id": "sess-f04",
+              "step_index": 1,
+              "ts_utc": "2026-05-17T12:00:01Z",
+              "v907_pin": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "jcs_b64": "eyJlbmdpbmVfdmVyc2lvbiI6IjAuMi4wLXBpbG90IiwiZXZlbnRfa2luZCI6ImVuZ2luZWVyaW5nX291dHB1dCIsIm9yZ19pZCI6ImFjbWUiLCJvdXRwdXRfa2luZCI6InJlcGx5Iiwib3V0cHV0X3BheWxvYWRfc2hhMjU2Ijoic2hhMjU2OjE2MzY3YWFjYjY3YTRhMDE3YzhkYThhYjk1NjgyY2NiMzkwODYzNzgwZjcxMTRkZGEwYTBlMGM1NTY0NGM3YzQiLCJwZXJzb25hX2lkIjoidG9tYXMiLCJzY2hlbWEiOiJ3YWtpci5wZXJzb25hLmVuZ2luZWVyaW5nLW91dHB1dC8xIiwic2Vzc2lvbl9pZCI6InNlc3MtZjA0Iiwic3RlcF9pbmRleCI6MSwidHNfdXRjIjoiMjAyNi0wNS0xN1QxMjowMDowMVoiLCJ2OTA3X3BpbiI6InNoYTI1NjphYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIn0=",
+            "jcs_len": 425,
+            "hash_prefixed": "sha256:a362cdaa580c09687d04f37e99f1b72350b11c3465c1fa38161beff542dfa255"
+          },
+          {
+            "envelope": {
+              "engine_version": "0.2.0-pilot",
+              "event_kind": "engineering_output",
+              "org_id": "acme",
+              "output_kind": "audit_annotation",
+              "output_payload_sha256": "sha256:0e4004fdf09a112d94b4d13272087afc86115c3b6f9dc03197a0b72dfeb5c4d0",
+              "persona_id": "tomas",
+              "schema": "wakir.persona.engineering-output/1",
+              "session_id": "sess-f04",
+              "step_index": 2,
+              "ts_utc": "2026-05-17T12:00:03Z",
+              "v907_pin": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "jcs_b64": "eyJlbmdpbmVfdmVyc2lvbiI6IjAuMi4wLXBpbG90IiwiZXZlbnRfa2luZCI6ImVuZ2luZWVyaW5nX291dHB1dCIsIm9yZ19pZCI6ImFjbWUiLCJvdXRwdXRfa2luZCI6ImF1ZGl0X2Fubm90YXRpb24iLCJvdXRwdXRfcGF5bG9hZF9zaGEyNTYiOiJzaGEyNTY6MGU0MDA0ZmRmMDlhMTEyZDk0YjRkMTMyNzIwODdhZmM4NjExNWMzYjZmOWRjMDMxOTdhMGI3MmRmZWI1YzRkMCIsInBlcnNvbmFfaWQiOiJ0b21hcyIsInNjaGVtYSI6Indha2lyLnBlcnNvbmEuZW5naW5lZXJpbmctb3V0cHV0LzEiLCJzZXNzaW9uX2lkIjoic2Vzcy1mMDQiLCJzdGVwX2luZGV4IjoyLCJ0c191dGMiOiIyMDI2LTA1LTE3VDEyOjAwOjAzWiIsInY5MDdfcGluIjoic2hhMjU2OmFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEifQ==",
+            "jcs_len": 436,
+            "hash_prefixed": "sha256:706d604a79628d3706f53e7bd04335b221b08c5b25e6d62476163a4d53ff3610"
+          }
+        ],
+        "step_counter_final": 3
+      }
+    },
+    {
+      "name": "f05-append-only-discipline",
+      "doc": "Two writers emit the same logical sequence with identical constructor + emit args; the resulting envelopes are byte-identical record-by-record. Pins the deterministic-and-append-only contract.",
+      "input": {
+        "org_id": "acme",
+        "persona_id": "tomas",
+        "session_id": "sess-f05",
+        "engine_version": "0.2.0-pilot",
+        "v907_pin": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "emissions": [
+          {
+            "output_kind": "tool_call",
+            "payload_b64": "YWxwaGE=",
+            "ts_utc": "2026-05-17T13:00:00Z"
+          },
+          {
+            "output_kind": "reply",
+            "payload_b64": "YmV0YQ==",
+            "ts_utc": "2026-05-17T13:00:01Z"
+          }
+        ]
+      },
+      "expected": {
+        "records": [
+          {
+            "envelope": {
+              "engine_version": "0.2.0-pilot",
+              "event_kind": "engineering_output",
+              "org_id": "acme",
+              "output_kind": "tool_call",
+              "output_payload_sha256": "sha256:8ed3f6ad685b959ead7022518e1af76cd816f8e8ec7ccdda1ed4018e8f2223f8",
+              "persona_id": "tomas",
+              "schema": "wakir.persona.engineering-output/1",
+              "session_id": "sess-f05",
+              "step_index": 0,
+              "ts_utc": "2026-05-17T13:00:00Z",
+              "v907_pin": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "jcs_b64": "eyJlbmdpbmVfdmVyc2lvbiI6IjAuMi4wLXBpbG90IiwiZXZlbnRfa2luZCI6ImVuZ2luZWVyaW5nX291dHB1dCIsIm9yZ19pZCI6ImFjbWUiLCJvdXRwdXRfa2luZCI6InRvb2xfY2FsbCIsIm91dHB1dF9wYXlsb2FkX3NoYTI1NiI6InNoYTI1Njo4ZWQzZjZhZDY4NWI5NTllYWQ3MDIyNTE4ZTFhZjc2Y2Q4MTZmOGU4ZWM3Y2NkZGExZWQ0MDE4ZThmMjIyM2Y4IiwicGVyc29uYV9pZCI6InRvbWFzIiwic2NoZW1hIjoid2FraXIucGVyc29uYS5lbmdpbmVlcmluZy1vdXRwdXQvMSIsInNlc3Npb25faWQiOiJzZXNzLWYwNSIsInN0ZXBfaW5kZXgiOjAsInRzX3V0YyI6IjIwMjYtMDUtMTdUMTM6MDA6MDBaIiwidjkwN19waW4iOiJzaGEyNTY6YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSJ9",
+            "jcs_len": 429,
+            "hash_prefixed": "sha256:d20d68b1e879125f6b75a91fc0619dc3db46307c420df715ec600b2bea7c348e"
+          },
+          {
+            "envelope": {
+              "engine_version": "0.2.0-pilot",
+              "event_kind": "engineering_output",
+              "org_id": "acme",
+              "output_kind": "reply",
+              "output_payload_sha256": "sha256:f44e64e75f3948e9f73f8dfa94721c4ce8cbb4f265c4790c702b2d41cfbf2753",
+              "persona_id": "tomas",
+              "schema": "wakir.persona.engineering-output/1",
+              "session_id": "sess-f05",
+              "step_index": 1,
+              "ts_utc": "2026-05-17T13:00:01Z",
+              "v907_pin": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "jcs_b64": "eyJlbmdpbmVfdmVyc2lvbiI6IjAuMi4wLXBpbG90IiwiZXZlbnRfa2luZCI6ImVuZ2luZWVyaW5nX291dHB1dCIsIm9yZ19pZCI6ImFjbWUiLCJvdXRwdXRfa2luZCI6InJlcGx5Iiwib3V0cHV0X3BheWxvYWRfc2hhMjU2Ijoic2hhMjU2OmY0NGU2NGU3NWYzOTQ4ZTlmNzNmOGRmYTk0NzIxYzRjZThjYmI0ZjI2NWM0NzkwYzcwMmIyZDQxY2ZiZjI3NTMiLCJwZXJzb25hX2lkIjoidG9tYXMiLCJzY2hlbWEiOiJ3YWtpci5wZXJzb25hLmVuZ2luZWVyaW5nLW91dHB1dC8xIiwic2Vzc2lvbl9pZCI6InNlc3MtZjA1Iiwic3RlcF9pbmRleCI6MSwidHNfdXRjIjoiMjAyNi0wNS0xN1QxMzowMDowMVoiLCJ2OTA3X3BpbiI6InNoYTI1NjphYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIn0=",
+            "jcs_len": 425,
+            "hash_prefixed": "sha256:69543b1c8127e91a6ddc9737f6e71bbed1d18efe0e17bbadbb0aa189608243f3"
+          }
+        ],
+        "step_counter_final": 2
+      }
+    }
+  ]
+}

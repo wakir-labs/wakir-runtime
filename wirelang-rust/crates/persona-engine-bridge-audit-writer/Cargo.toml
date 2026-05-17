@@ -1,0 +1,78 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# persona-engine-bridge-audit-writer -- Tag-30 Mini-Welle Phase-3a-Python-Sync
+# (12. Modul, Welle-3-Komponente per ADR-0066).
+#
+# Purpose
+# -------
+# Rust authority for the engineering-output envelope produced by the
+# Python `wirelang.persona_engine.bridge_audit_writer.BridgeAuditWriter`
+# (PR #106 / Sprint-1 Tag-4). The Python writer is the canonical caller
+# (it owns the I/O sinks and the bridge-mode-triangle integration); this
+# crate owns the byte-deterministic envelope construction surface so the
+# Welle-3 Konsistenz-Oracle self-cutover has a Rust-side authority to
+# byte-pin against.
+#
+# Scope split
+# -----------
+# This crate is the WRITER-SIDE pendant -- envelope construction and
+# JCS canonical bytes. The READER-SIDE pendant
+# (`persona-engine-bridge-audit-replay`, PR #166 / Tag-22 lineage) replays
+# recorded streams and validates trajectories; it consumes the same
+# wire-shape this crate emits but does not own the construction step.
+# The two crates intentionally share field schema and JCS pin so a
+# round-trip emit -> replay is byte-identical end-to-end.
+#
+# Schema-parity table (Rust <-> Python)
+# -------------------------------------
+#   Python `EngineeringOutputEvent` (dataclass)     <-> Rust `EngineeringOutputEvent` (struct)
+#   Python `EngineeringOutputEvent.to_jcs_bytes()`  <-> Rust `EngineeringOutputEvent::to_jcs_bytes`
+#   Python `EngineeringOutputEvent.payload_sha256()`<-> Rust `EngineeringOutputEvent::payload_sha256`
+#   Python `sha256_hex(payload)`                    <-> Rust `sha256_hex`
+#   Python `ENGINEERING_OUTPUT_SCHEMA`              <-> Rust `ENGINEERING_OUTPUT_SCHEMA`
+#   Python `BridgeAuditWriter.emit(kind, payload)`  <-> Rust `BridgeAuditWriter::emit`
+#
+# Audit-record-hash byte-identity
+# -------------------------------
+# The audit-record hash emitted by `EngineeringOutputEvent::payload_sha256`
+# is `"sha256:" + sha256_hex(jcs_bytes(envelope))`. The envelope JCS bytes
+# match the Python pendant byte-for-byte for the five Tag-30 cross-lang
+# fixtures (see tests/fixtures/bridge-audit-writer-cross-lang/fixtures.json).
+#
+# Welle-3-Oracle posture (Henrik-Audit-Caution mitigation)
+# --------------------------------------------------------
+# Per ADR-0066 Welle-3 Konsistenz-Oracle-Selbst-Cutover, byte-paritaere
+# Cross-Lang-Coverage MUST be complete BEFORE Welle-3 binding. This crate
+# closes the writer-side leg of that coverage requirement (the diff/replay
+# legs are closed by PR #131 / PR #166 from earlier Tag waves).
+#
+# ADR anchors
+# -----------
+# - ADR-0066 Welle-3 (KW 25) -- bridge_audit_writer the 12. Modul.
+# - PR #106 (bridge_audit_writer.py, Sprint-1 Tag-4) -- Python authority.
+# - PR #131 (persona-engine-bridge-diff) -- single-envelope oracle.
+# - PR #166 (persona-engine-bridge-audit-replay) -- stream replay oracle.
+
+[package]
+name = "persona-engine-bridge-audit-writer"
+version = "0.1.0"
+description = "Tag-30 writer-side Rust authority for Bridge-Audit engineering-output envelope (Welle-3 byte-parity)"
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+
+[lib]
+name = "persona_engine_bridge_audit_writer"
+path = "src/lib.rs"
+
+[dependencies]
+sha2       = { workspace = true, features = ["std"] }
+serde      = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_jcs  = { workspace = true }
+hex        = { workspace = true }
+
+[dev-dependencies]
+# Tests use serde_json::json! macro for fixture parsing; no extra deps.
