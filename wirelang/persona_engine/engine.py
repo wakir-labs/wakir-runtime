@@ -382,6 +382,7 @@ class PersonaEngine:
         # the engine just records the decision so the Doppelbetrieb-
         # comparison set has a deterministic per-boot anchor.
         from .rust_backend_switch import (
+            resolve_fsm_backend,
             resolve_recovery_backend,
         )
 
@@ -394,6 +395,27 @@ class PersonaEngine:
                 "level": "ERROR",
                 "msg": "backend-switch-validation-failed",
                 "domain": "recovery",
+                "error": str(exc),
+            })
+            raise
+        # Tag-18: resolve FSM-backend choice up-front, parallel to
+        # recovery + state_backing. Default is python (current
+        # behaviour, opt-in switch). The engine keeps the Python
+        # `LifecycleStateMachine` instance alive in ``self.fsm`` during
+        # Phase-3b Doppelbetrieb — the per-boot decision audit-record
+        # is what the cross-lang comparison harness consumes.
+        # Phase-3c cutover (out of scope for Tag-18) will swap the
+        # `self.fsm` instance behind the same public surface via
+        # :func:`build_fsm`.
+        try:
+            self._fsm_backend, self._fsm_backend_decision = (
+                resolve_fsm_backend(env=None, log_sink=self.log_sink)
+            )
+        except Exception as exc:  # noqa: BLE001 — strict env-validation
+            self._log({
+                "level": "ERROR",
+                "msg": "backend-switch-validation-failed",
+                "domain": "fsm",
                 "error": str(exc),
             })
             raise

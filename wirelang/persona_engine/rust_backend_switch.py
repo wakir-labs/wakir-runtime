@@ -1,15 +1,17 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""ENV-gated production-default switch for Rust recovery + state-backing.
+"""ENV-gated production-default switch for Rust recovery + state-backing + FSM.
 
-Tag-17 Mini-Welle — Phase-3b-Substanz. The Rust crates
-``persona-engine-recovery`` (PR #135) and
-``persona-engine-state-backing`` (PR #140) are production-ready as
+Tag-17 / Tag-18 Mini-Welle — Phase-3b-Substanz. The Rust crates
+``persona-engine-recovery`` (PR #135),
+``persona-engine-state-backing`` (PR #140), and
+``persona-engine-fsm`` (PR #137) are production-ready as
 schema-byte-parity substrates of their Python pendants
-(:mod:`wirelang.persona_engine.recovery_workflow` and
-:mod:`wirelang.persona_engine.state_backing`). This module exposes
-the **production-default switch** — operators flip an env-var to
-opt into the Rust subprocess-bridge without disrupting the Python
+(:mod:`wirelang.persona_engine.recovery_workflow`,
+:mod:`wirelang.persona_engine.state_backing`, and
+:mod:`wirelang.persona_engine.lifecycle_state_machine`). This module
+exposes the **production-default switch** — operators flip an env-var
+to opt into the Rust subprocess-bridge without disrupting the Python
 hot-path.
 
 Posture
@@ -51,6 +53,15 @@ Env-var contract
 Both rust-bound values fall back to ``"python"`` with a structured-
 log warning when the binary is not callable.
 
+``WAKIR_FSM_BACKEND``:
+
+* ``"python"`` (default) — Python :class:`LifecycleStateMachine`
+  (six states, nine transitions per spec §3.3).
+* ``"rust"`` — Rust-CLI subprocess-bridge against the
+  ``persona-engine-fsm`` crate (PR #137, schema-byte-parity with
+  the Python authority). Falls back to ``"python"`` with a
+  structured-log warning when the binary is not callable.
+
 ``WAKIR_RUST_RECOVERY_BIN``:
 
 * Absolute path to the Rust recovery binary. Default
@@ -60,6 +71,11 @@ log warning when the binary is not callable.
 
 * Absolute path to the Rust state-backing binary. Default
   ``/opt/wakir/bin/wakir-persona-engine-state-backing``.
+
+``WAKIR_RUST_FSM_BIN``:
+
+* Absolute path to the Rust FSM binary. Default
+  ``/opt/wakir/bin/wakir-persona-engine-fsm``.
 
 ``WAKIR_RUST_BACKEND_TIMEOUT_S``:
 
@@ -100,6 +116,12 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable, List, Mapping, Optional, TextIO
 
+from .lifecycle_state_machine import (
+    STATES as FSM_PY_STATES,
+    VALID_TRANSITIONS as FSM_PY_VALID_TRANSITIONS,
+    LifecycleStateMachine,
+    TransitionRecord,
+)
 from .recovery_workflow import (
     RecoveryResult,
     RecoveryTrigger,
@@ -123,14 +145,17 @@ log = logging.getLogger(__name__)
 
 RECOVERY_BACKEND_ENV = "WAKIR_RECOVERY_BACKEND"
 STATE_BACKING_BACKEND_ENV = "WAKIR_STATE_BACKING_BACKEND"
+FSM_BACKEND_ENV = "WAKIR_FSM_BACKEND"
 RUST_RECOVERY_BIN_ENV = "WAKIR_RUST_RECOVERY_BIN"
 RUST_STATE_BACKING_BIN_ENV = "WAKIR_RUST_STATE_BACKING_BIN"
+RUST_FSM_BIN_ENV = "WAKIR_RUST_FSM_BIN"
 RUST_BACKEND_TIMEOUT_ENV = "WAKIR_RUST_BACKEND_TIMEOUT_S"
 
 DEFAULT_RUST_RECOVERY_BIN = "/opt/wakir/bin/wakir-persona-engine-recovery"
 DEFAULT_RUST_STATE_BACKING_BIN = (
     "/opt/wakir/bin/wakir-persona-engine-state-backing"
 )
+DEFAULT_RUST_FSM_BIN = "/opt/wakir/bin/wakir-persona-engine-fsm"
 DEFAULT_RUST_BACKEND_TIMEOUT_S = 5.0
 
 
@@ -149,10 +174,24 @@ class StateBackingBackend(str, Enum):
     RUST_NATSKV = "rust_natskv"
 
 
+class FsmBackend(str, Enum):
+    """Closed enum of valid ``WAKIR_FSM_BACKEND`` values.
+
+    Schema-byte-parity anchor: the Python authority is
+    :mod:`wirelang.persona_engine.lifecycle_state_machine`
+    (six states, nine transitions per spec §3.3). The Rust pendant
+    is the ``persona-engine-fsm`` crate (PR #137, wire-string parity).
+    """
+
+    PYTHON = "python"
+    RUST = "rust"
+
+
 VALID_RECOVERY_BACKEND_VALUES = tuple(b.value for b in RecoveryBackend)
 VALID_STATE_BACKING_BACKEND_VALUES = tuple(
     b.value for b in StateBackingBackend
 )
+VALID_FSM_BACKEND_VALUES = tuple(b.value for b in FsmBackend)
 
 
 # ---------------------------------------------------------------------------
@@ -341,6 +380,13 @@ def _resolve_state_backing_bin(
     return explicit if explicit else DEFAULT_RUST_STATE_BACKING_BIN
 
 
+def _resolve_fsm_bin(
+    env: Optional[Mapping[str, str]] = None,
+) -> str:
+    explicit = _env_get(RUST_FSM_BIN_ENV, env)
+    return explicit if explicit else DEFAULT_RUST_FSM_BIN
+
+
 def _binary_available(bin_path: str) -> tuple[bool, Optional[str]]:
     """Return ``(available, fallback_reason)``.
 
@@ -401,6 +447,21 @@ def _validate_state_backing_backend(
             VALID_STATE_BACKING_BACKEND_VALUES,
         )
     return StateBackingBackend(value)
+
+
+def _validate_fsm_backend(value: Optional[str]) -> FsmBackend:
+    """Validate a ``WAKIR_FSM_BACKEND`` value (or ``None``).
+
+    Empty / missing values default to ``FsmBackend.PYTHON``.
+    Non-empty unknown values raise :class:`BackendSwitchValidationError`.
+    """
+    if value is None or value == "":
+        return FsmBackend.PYTHON
+    if value not in VALID_FSM_BACKEND_VALUES:
+        raise BackendSwitchValidationError(
+            FSM_BACKEND_ENV, value, VALID_FSM_BACKEND_VALUES
+        )
+    return FsmBackend(value)
 
 
 # ---------------------------------------------------------------------------
@@ -563,6 +624,99 @@ def resolve_state_backing_backend(
         bin_path,
     )
     return StateBackingBackend.PYTHON, decision
+
+
+def resolve_fsm_backend(
+    env: Optional[Mapping[str, str]] = None,
+    *,
+    log_sink: Optional[TextIO] = None,
+    binary_probe: Optional[Callable[[str], tuple[bool, Optional[str]]]] = None,
+) -> tuple[FsmBackend, BackendDecision]:
+    """Resolve the FSM backend per env-var + binary availability.
+
+    Tag-18 Mini-Welle — 3rd production-default switch component
+    (parallel to :func:`resolve_recovery_backend` and
+    :func:`resolve_state_backing_backend`). The Python authority is
+    :mod:`wirelang.persona_engine.lifecycle_state_machine` (six states,
+    nine transitions per spec §3.3). The Rust pendant is the
+    ``persona-engine-fsm`` crate (PR #137, schema-byte-parity).
+
+    Returns a ``(chosen_backend, decision)`` tuple. The decision
+    object is also logged via :func:`log_backend_decision`.
+
+    Same posture as :func:`resolve_recovery_backend`: default is
+    Python, ``rust`` requested + binary missing falls back to Python
+    with a structured-log warning.
+
+    Parameters
+    ----------
+    env
+        Env-var mapping; defaults to :data:`os.environ`.
+    log_sink
+        Optional structured-log sink. If provided, the decision is
+        also written as a single JSON line.
+    binary_probe
+        Test-injection seam. Defaults to :func:`_binary_available`.
+
+    Raises
+    ------
+    BackendSwitchValidationError
+        On unknown env-var values.
+    """
+    start = time.perf_counter()
+    raw_value = _env_get(FSM_BACKEND_ENV, env)
+    requested = _validate_fsm_backend(raw_value)
+
+    if requested is FsmBackend.PYTHON:
+        latency_us = int((time.perf_counter() - start) * 1_000_000)
+        decision = BackendDecision(
+            domain="fsm",
+            requested_backend=requested.value,
+            chosen_backend=FsmBackend.PYTHON.value,
+            resolution_latency_us=latency_us,
+            fallback_reason=(
+                "explicit_python" if raw_value == "python" else None
+            ),
+            bin_path=None,
+        )
+        log_backend_decision(decision, log_sink=log_sink)
+        return FsmBackend.PYTHON, decision
+
+    # Requested == RUST.
+    bin_path = _resolve_fsm_bin(env)
+    probe = binary_probe or _binary_available
+    available, fallback_reason = probe(bin_path)
+    if available:
+        latency_us = int((time.perf_counter() - start) * 1_000_000)
+        decision = BackendDecision(
+            domain="fsm",
+            requested_backend=requested.value,
+            chosen_backend=FsmBackend.RUST.value,
+            resolution_latency_us=latency_us,
+            fallback_reason=None,
+            bin_path=bin_path,
+        )
+        log_backend_decision(decision, log_sink=log_sink)
+        return FsmBackend.RUST, decision
+
+    # Graceful fallback to Python.
+    latency_us = int((time.perf_counter() - start) * 1_000_000)
+    decision = BackendDecision(
+        domain="fsm",
+        requested_backend=requested.value,
+        chosen_backend=FsmBackend.PYTHON.value,
+        resolution_latency_us=latency_us,
+        fallback_reason=fallback_reason,
+        bin_path=bin_path,
+    )
+    log_backend_decision(decision, log_sink=log_sink)
+    log.warning(
+        "rust_backend_switch fsm requested=rust but binary "
+        "unavailable (%s @ %s); falling back to python",
+        fallback_reason,
+        bin_path,
+    )
+    return FsmBackend.PYTHON, decision
 
 
 # ---------------------------------------------------------------------------
@@ -896,6 +1050,203 @@ class RustSubprocessRecoveryRunner:
 
 
 # ---------------------------------------------------------------------------
+# Subprocess-bridge: lifecycle FSM.
+# ---------------------------------------------------------------------------
+
+
+class RustSubprocessFsm:
+    """Subprocess-bridge persona-engine FSM.
+
+    Delegates ``transition_to`` / ``can_transition_to`` / ``state`` /
+    ``history`` to a Rust-CLI subprocess against the
+    ``persona-engine-fsm`` crate (PR #137). JSON-stdin carries the
+    operation kind + arguments; JSON-stdout carries the response.
+
+    Schema-parity contract (spec §3.3, mirror of
+    :class:`wirelang.persona_engine.lifecycle_state_machine.
+    LifecycleStateMachine`):
+
+    - Six states: ``uninstantiated`` | ``spawning`` | ``running`` |
+      ``despawning`` | ``recovered`` | ``migrated``.
+    - Nine transitions per :data:`FSM_PY_VALID_TRANSITIONS`.
+    - Every transition attempt (accepted or rejected) is recorded.
+    - Invalid transitions raise :class:`InvalidTransitionError`
+      (mirror of Python's lifecycle_state_machine error).
+
+    Wire-format (state-backing-pendant style):
+
+    Stdin JSON:
+        ``{"schema": "wakir.persona-engine.fsm/1", "op": "<op>",
+        "payload": {...}}``
+
+    The Rust binary is responsible for the actual state-machine
+    evaluation. The Python side keeps a local mirror of state +
+    history so callers (engine, despawn_clean) see the same API
+    surface as the Python ``LifecycleStateMachine`` without an extra
+    subprocess call per accessor.
+
+    Construction is cheap; per-transition overhead is one subprocess
+    spawn. The local-mirror posture keeps ``state`` / ``history`` /
+    ``can_transition_to`` access subprocess-free.
+
+    Tag-18 posture
+    --------------
+    This binding is the *opt-in* path: ``WAKIR_FSM_BACKEND=rust`` +
+    available binary. Default and missing-binary fallback stay on
+    the Python authority. The engine wire-in (Tag-18) records the
+    backend decision but keeps ``self.fsm`` Python-backed during
+    Phase-3b Doppelbetrieb — the bridge is exercised by the tests
+    and the future Phase-3c cutover.
+    """
+
+    def __init__(
+        self,
+        persona_id: str,
+        org_id: str,
+        *,
+        bin_path: Optional[str] = None,
+        timeout_s: Optional[float] = None,
+        initial_state: str = "uninstantiated",
+        env: Optional[Mapping[str, str]] = None,
+        subprocess_invoker: Optional[Callable] = None,
+    ) -> None:
+        if initial_state not in FSM_PY_STATES:
+            raise ValueError(
+                f"unknown initial state {initial_state!r}; "
+                f"valid: {FSM_PY_STATES}"
+            )
+        self.persona_id: str = persona_id
+        self.org_id: str = org_id
+        self.bin_path: str = (
+            bin_path if bin_path is not None else _resolve_fsm_bin(env)
+        )
+        self.timeout_s: float = (
+            timeout_s if timeout_s is not None else _resolve_timeout_s(env)
+        )
+        self._state: str = initial_state
+        self._history: List[TransitionRecord] = []
+        self._invoker: Callable = (
+            subprocess_invoker or _invoke_rust_subprocess
+        )
+
+    # ------------------------------------------------------------------
+    # Accessors (no subprocess hop — local mirror).
+    # ------------------------------------------------------------------
+
+    @property
+    def state(self) -> str:
+        return self._state
+
+    @property
+    def history(self) -> List[TransitionRecord]:
+        return list(self._history)
+
+    def can_transition_to(self, to_state: str) -> bool:
+        if to_state not in FSM_PY_STATES:
+            return False
+        return (self._state, to_state) in FSM_PY_VALID_TRANSITIONS
+
+    # ------------------------------------------------------------------
+    # Transition surface (subprocess hop).
+    # ------------------------------------------------------------------
+
+    def _call(self, op: str, payload: dict) -> dict:
+        stdin_doc = {
+            "schema": "wakir.persona-engine.fsm/1",
+            "op": op,
+            "payload": payload,
+        }
+        stdin_bytes = json.dumps(
+            stdin_doc, sort_keys=True, ensure_ascii=False
+        ).encode("utf-8")
+        rc, stdout, stderr = self._invoker(
+            self.bin_path,
+            ["fsm", "--json"],
+            stdin_payload=stdin_bytes,
+            timeout_s=self.timeout_s,
+        )
+        if rc != 0:
+            raise RustBackendError(
+                reason="exit_nonzero",
+                bin_path=self.bin_path,
+                returncode=rc,
+                stdout=stdout,
+                stderr=stderr,
+            )
+        try:
+            parsed = json.loads(stdout)
+        except json.JSONDecodeError as exc:
+            raise RustBackendError(
+                reason="bad_json",
+                bin_path=self.bin_path,
+                returncode=rc,
+                stdout=stdout,
+                stderr=stderr,
+            ) from exc
+        if not isinstance(parsed, dict):
+            raise RustBackendError(
+                reason="bad_shape",
+                bin_path=self.bin_path,
+                returncode=rc,
+                stdout=stdout,
+                stderr=stderr,
+            )
+        return parsed
+
+    def transition_to(self, to_state: str) -> TransitionRecord:
+        """Attempt a transition via the Rust subprocess.
+
+        Mirrors :meth:`LifecycleStateMachine.transition_to` semantics
+        byte-for-byte: appends a TransitionRecord on every attempt,
+        raises :class:`InvalidTransitionError` on a rejected edge,
+        and updates the local-mirror state on success.
+
+        The Rust binary returns an envelope ``{"accepted": bool,
+        "reason": Optional[str], "from_state": str, "to_state": str,
+        "ts_utc": str}``. On ``accepted=false`` with reason
+        ``not_in_valid_transitions`` or ``unknown_target_state`` the
+        bridge translates the response into the matching Python
+        exception so callers cannot tell the backends apart.
+        """
+        # Import lazily — keeps the module import-light for callers
+        # that never trigger an FSM transition (e.g. the schema-test
+        # surface).
+        from .lifecycle_state_machine import (
+            InvalidTransitionError,
+            UnknownStateError,
+        )
+
+        payload = {
+            "persona_id": self.persona_id,
+            "org_id": self.org_id,
+            "from_state": self._state,
+            "to_state": to_state,
+        }
+        resp = self._call("transition_to", payload)
+        accepted = bool(resp.get("accepted", False))
+        reason = resp.get("reason")
+        from_state = str(resp.get("from_state", self._state))
+        ts_utc = str(resp.get("ts_utc", ""))
+        rec = TransitionRecord(
+            from_state=from_state,
+            to_state=to_state,
+            ts_utc=ts_utc,
+            accepted=accepted,
+            reason=reason if reason else None,
+        )
+        self._history.append(rec)
+        if not accepted:
+            if reason == "unknown_target_state":
+                raise UnknownStateError(
+                    f"unknown target state {to_state!r}; "
+                    f"valid: {FSM_PY_STATES}"
+                )
+            raise InvalidTransitionError(self._state, to_state)
+        self._state = to_state
+        return rec
+
+
+# ---------------------------------------------------------------------------
 # High-level factory: build a state-backing per resolved backend.
 # ---------------------------------------------------------------------------
 
@@ -937,22 +1288,71 @@ def build_state_backing(
     )
 
 
+def build_fsm(
+    backend: FsmBackend,
+    persona_id: str,
+    org_id: str,
+    *,
+    initial_state: str = "uninstantiated",
+    env: Optional[Mapping[str, str]] = None,
+    subprocess_invoker: Optional[Callable] = None,
+):
+    """Build an FSM matching ``backend``.
+
+    For ``FsmBackend.PYTHON`` we return a fresh
+    :class:`LifecycleStateMachine` (the Python authority).
+    For ``FsmBackend.RUST`` we return a :class:`RustSubprocessFsm`
+    subprocess-bridge instance.
+
+    This factory does NOT re-probe binary availability — the caller
+    is expected to have already run :func:`resolve_fsm_backend` and
+    obtained an :class:`FsmBackend` value that reflects the actual
+    chosen backend (Python on fallback). The factory therefore
+    treats Rust-bound input as a hard contract: the caller MUST have
+    verified availability.
+
+    Both surfaces share the public method set
+    (``state``, ``history``, ``can_transition_to``, ``transition_to``)
+    so engine / despawn_clean callers cannot tell the backends
+    apart at the API boundary.
+    """
+    if backend is FsmBackend.PYTHON:
+        return LifecycleStateMachine(
+            persona_id=persona_id,
+            org_id=org_id,
+            initial_state=initial_state,
+        )
+    # Rust-bound.
+    return RustSubprocessFsm(
+        persona_id=persona_id,
+        org_id=org_id,
+        initial_state=initial_state,
+        env=env,
+        subprocess_invoker=subprocess_invoker,
+    )
+
+
 __all__ = [
     # Env-var keys.
     "RECOVERY_BACKEND_ENV",
     "STATE_BACKING_BACKEND_ENV",
+    "FSM_BACKEND_ENV",
     "RUST_RECOVERY_BIN_ENV",
     "RUST_STATE_BACKING_BIN_ENV",
+    "RUST_FSM_BIN_ENV",
     "RUST_BACKEND_TIMEOUT_ENV",
     # Defaults.
     "DEFAULT_RUST_RECOVERY_BIN",
     "DEFAULT_RUST_STATE_BACKING_BIN",
+    "DEFAULT_RUST_FSM_BIN",
     "DEFAULT_RUST_BACKEND_TIMEOUT_S",
     # Enums + valid-value tuples.
     "RecoveryBackend",
     "StateBackingBackend",
+    "FsmBackend",
     "VALID_RECOVERY_BACKEND_VALUES",
     "VALID_STATE_BACKING_BACKEND_VALUES",
+    "VALID_FSM_BACKEND_VALUES",
     # Errors.
     "BackendSwitchValidationError",
     "RustBackendError",
@@ -962,9 +1362,12 @@ __all__ = [
     # Resolution entry points.
     "resolve_recovery_backend",
     "resolve_state_backing_backend",
+    "resolve_fsm_backend",
     # Subprocess bridges.
     "RustSubprocessStateBacking",
     "RustSubprocessRecoveryRunner",
-    # Factory.
+    "RustSubprocessFsm",
+    # Factories.
     "build_state_backing",
+    "build_fsm",
 ]
