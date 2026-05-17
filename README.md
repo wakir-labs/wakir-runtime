@@ -156,6 +156,49 @@ Empty hours short-circuit cleanly: `wakir-merkle build` emits a
 manifest with `merkle_root: null` and the hourly driver
 (`scripts/wat-hourly.sh`) skips the anchor step.
 
+## One-command proof demo (`make demo-proof`)
+
+The repository ships a single-command cross-repo evidence chain
+driver intended for external-audit walk-throughs and Aufsichtsrat
+demos. It runs five steps end-to-end and emits one JSON report:
+
+1. **protocol event** — materialise a B1-canonical Wirelang frame
+   (deterministic `event_id`, `time`, `payload_hash`,
+   `capability_token_hash`).
+2. **runtime bridge** — push the event through
+   `wat.anchor.bridge_audit_writer.write_bridge_audit`, exercising
+   both the WAT spool and the Pre-Framework activity-log sinks.
+3. **WAT manifest** — drive `wakir-merkle build` against the spool
+   and emit the hourly manifest with the Merkle root.
+4. **inclusion proof** — rebuild the per-event inclusion proof from
+   the manifest's recorded leaf order and verify it against the
+   stored root using the in-tree merkle implementation.
+5. **wakir-verify cross-check** — shell out to the sibling
+   `wakir-verify` console script (Apache-2.0); falls back to a
+   fixture-based root re-derivation when the binary is not installed.
+
+```sh
+make demo-proof
+```
+
+By default the script runs in a per-PID tmpdir and pins the hour
+slot to a deterministic value for reproducibility. Override via
+environment for operator-driven full runs:
+
+```sh
+DEMO_PROOF_WORKDIR=/var/tmp/wakir-demo-proof \
+DEMO_PROOF_HOUR=2026-05-17T12 \
+DEMO_PROOF_VERIFY_ONLINE=1 \
+DEMO_PROOF_OTS_PROOF=/path/to/root.bin.ots \
+make demo-proof
+```
+
+The JSON report has shape `{schema, hour, workdir, commits, steps[]}`
+with one step record per leg (`name`, `status`, `exit_code`,
+`details`). Exit code 0 = clean pass; non-zero = at least one step
+failed or was skipped. See `docs/operations/demo-proof-runbook.md`
+for the operator walkthrough.
+
 ## WAT hourly operations
 
 Two systemd timer templates land under `scripts/systemd/`. The
