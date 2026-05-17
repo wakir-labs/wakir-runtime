@@ -85,15 +85,35 @@ on:
   push:
     branches:
       - main
+    # Path-filter precision-add (Tag-16 Pfad A, 2026-05-17). Prior
+    # filter (`wirelang/**` + `pyproject.toml` + allowlist + own YAML)
+    # was too narrow: any PR that did not touch those four paths left
+    # the Required-status forever-PENDING. Workaround was a no-op
+    # `wirelang/__init__.py` touch on PRs #153, #158, #160, #161
+    # (four times in one operator-stretch). The expanded set below
+    # covers every PR-path-class that the trust-perimeter cares about
+    # without violating the gate's narrow-by-design intent (the gate
+    # still only audits the curated mirror-pair table in the job; the
+    # filter only governs WHEN the job runs, not WHAT it audits). See
+    # operations doc §4.5 Path-Filter-Reach-Mapping for the rationale
+    # and the test-vector pinning (TV-BPC-09 + TV-BPC-11 + TV-BPC-12).
     paths:
       - 'wirelang/**'
+      - 'wirelang-rust/**'
       - 'pyproject.toml'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'dashboards/**'
       - '.cross-repo-drift-allowlist.yaml'
       - '.github/workflows/cross-repo-drift-audit.yml'
   pull_request:
     paths:
       - 'wirelang/**'
+      - 'wirelang-rust/**'
       - 'pyproject.toml'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'dashboards/**'
       - '.cross-repo-drift-allowlist.yaml'
       - '.github/workflows/cross-repo-drift-audit.yml'
   workflow_dispatch:
