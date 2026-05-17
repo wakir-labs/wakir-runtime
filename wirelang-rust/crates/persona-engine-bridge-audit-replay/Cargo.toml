@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# persona-engine-bridge-audit-replay — deterministic stream-replay engine
+# for the Phase-3a Doppelbetrieb-Bridge consistency drill.
+#
+# Replays a recorded Bridge-Audit stream (a sequence of AuditRecord-shaped
+# CloudEvent envelopes emitted by `wirelang.persona_engine.bridge_audit_writer.
+# BridgeAuditWriter`) deterministically and validates it against an expected
+# trajectory. Produces a `ReplayReport` pinpointing the first divergence,
+# its step index and time-to-divergence.
+#
+# Layering vs. persona-engine-bridge-diff
+# ---------------------------------------
+#
+# - `persona-engine-bridge-diff` (PR #131): single-envelope oracle (A vs. B,
+#   one envelope per side).
+# - `persona-engine-bridge-audit-replay` (this crate): stream-level oracle
+#   (ordered sequences of envelopes; first-divergence semantics, time-to-
+#   divergence telemetry).
+#
+# This crate depends on `persona-engine-bridge-diff` for the field-level
+# `diff_envelopes` + `jcs_hash` primitives so the stream-level oracle reuses
+# the same canonicalisation contract.
+#
+# Cross-language pin
+# ------------------
+#
+# Stream-fixture JCS hashes are pinned byte-for-byte against the Python
+# `wirelang.persona_engine.bridge_audit_writer.EngineeringOutputEvent`
+# envelope output, captured 2026-05-17 from the same source tree:
+#
+# - F1 (empty stream): sha256:64d11dbb5fe0c2c5e807d22438aedf3912852d81717e532f5c9d2750afa15469
+# - F2 (single record): sha256:5d259cab58d5d75772f230ac86d18b6a61fd228829cea7aa1887e98cea3cc770
+# - F3 (3-record session): sha256:fca1381878f461ea00520d9ee87d3e8c5b536e028e368c002f8de56d8b643bd4
+#
+# ADR anchors
+# -----------
+#
+# - ADR-0063 §Folgeartefakte Phase-3a Item 11 (this crate).
+# - PR #106 (bridge_audit_diff_engine.py) — reference diff primitive.
+# - PR #131 (persona-engine-bridge-diff) — Rust diff primitive reused.
+
+[package]
+name = "persona-engine-bridge-audit-replay"
+version = "0.1.0"
+description = "Phase-3a Doppelbetrieb-Bridge deterministic stream-replay engine (Rust)"
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+
+[lib]
+name = "persona_engine_bridge_audit_replay"
+path = "src/lib.rs"
+
+[dependencies]
+sha2       = { workspace = true, features = ["std"] }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+serde_jcs  = { workspace = true }
+hex        = { workspace = true }
+persona-engine-bridge-diff = { path = "../persona-engine-bridge-diff" }
+
+[dev-dependencies]
+# Tests use serde_json::json! macro and the in-tree diff crate; no extra deps.

@@ -87,6 +87,17 @@
 #   alongside `persona-canonical-form-yaml`). Python
 #   `persona_canonical_form.py` is UNCHANGED. Added 2026-05-17.
 #
+# - persona-engine-bridge-audit-replay : Sprint-Bridge-Audit-Replay-
+#   Engine-Rust-MINI (Phase-3a Item 11). Stream-level oracle that
+#   deterministically replays a recorded Bridge-Audit `EngineeringOutputEvent`
+#   stream and validates it against an expected trajectory. Distinguishes
+#   `value-mismatch` / `missing-in-actual` / `extra-in-actual` divergence
+#   kinds, surfaces first-step time-to-divergence, depends on
+#   `persona-engine-bridge-diff` for the JCS / hash / field-diff
+#   primitives. Cross-checked byte-identical against Python pins for
+#   F1 (empty stream), F2 (single record) and F3 (3-record session)
+#   fixtures. Added 2026-05-17.
+#
 # Crates explicitly NOT in this workspace yet (Phase-1c follow-up boxes):
 # - (none — Crate-6 closes the Sprint-4 Open-Item §1.
 #   Crate-8 closes Sprint-Pengine-7 Tag-1.
@@ -126,6 +137,7 @@ members = [
     "crates/persona-engine-v907-verify",
     "crates/persona-engine-fsm",
     "crates/persona-engine-anchor-emitter",
+    "crates/persona-engine-bridge-audit-replay",
 ]
 
 [workspace.package]
