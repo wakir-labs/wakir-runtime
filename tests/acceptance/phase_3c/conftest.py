@@ -8,10 +8,16 @@ Anchors
 - ADR-0065 §Verifikations-Plan — the welle-for-welle acceptance
   criteria (AC-1 ... AC-5) that this suite enforces, one test-file
   per welle (welle-1 ... welle-7).
+- ADR-0066 §Beschluss — Phase-3c-Beschleunigung Option-A+. Three
+  Doppel-Wellen (KW 24, 26, 27) collapse seven solo-wochen into
+  four. Doppel-Welle-test-files (``test_doppel_welle_<i>_<j>_e2e.py``)
+  extend the per-welle skeleton with cross-modul-parallel-cutover
+  acceptance under the five DW-AC-1 ... DW-AC-5 criteria.
 - ADR-0063 §Phase-3c-Final-Cutover — the wider 7-welle cutover plan
   these E2E tests gate.
 - ``docs/quality-gates/phase-3c-acceptance-criteria.md`` (Amara,
-  this PR) — the welle-for-welle acceptance-criteria matrix.
+  this PR) — the welle-for-welle acceptance-criteria matrix, with
+  the Doppel-Welle-Tabelle extension (§9 of that doc).
 - ``tests/infra/test_phase_3_acceptance_gates.py`` (Amara, PR #80) —
   the Phase-3-Validation acceptance-gate skeleton this suite extends
   to the per-welle Phase-3c-Cutover level.
@@ -48,6 +54,13 @@ The opt-in pattern mirrors ``tests/infra/test_phase_3_acceptance_gates
 flips the gate, plus the ``phase_3c_acceptance`` pytest-marker for
 selector targeting.
 
+The Doppel-Welle skeleton adds a *second* opt-in lane:
+``WAKIR_PHASE_3C_DOPPEL_E2E=1`` env-var with the
+``phase_3c_doppel_welle_acceptance`` pytest-marker. The two lanes are
+independent: a Phase-3c-trigger sprint may want to run per-welle
+oracles without the parallel-cutover Doppel-Welle extras, or vice-
+versa (e.g. during Welle-3 solo-week per ADR-0066 §Beschluss).
+
 Sandbox boundary
 ----------------
 
@@ -83,6 +96,16 @@ import pytest
 PHASE_3C_OPT_IN_ENV = "WAKIR_PHASE_3C_E2E"
 PHASE_3C_OPT_IN = os.environ.get(PHASE_3C_OPT_IN_ENV) == "1"
 
+# Doppel-Welle opt-in (ADR-0066 §Beschluss). Independent of the per-
+# welle opt-in above — a Phase-3c-trigger sprint can flip either or
+# both. Default-skip rationale identical (assertions are placeholder-
+# shaped, parity-by-construction; running green-by-construction in
+# CI would waste signal and risk false-positive Phase-3c-readiness).
+PHASE_3C_DOPPEL_OPT_IN_ENV = "WAKIR_PHASE_3C_DOPPEL_E2E"
+PHASE_3C_DOPPEL_OPT_IN = (
+    os.environ.get(PHASE_3C_DOPPEL_OPT_IN_ENV) == "1"
+)
+
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     """Register the ``--phase-3c-acceptance`` opt-in flag.
@@ -106,31 +129,69 @@ def pytest_addoption(parser: pytest.Parser) -> None:
             "(skip-by-default; opt-in for Phase-3c-trigger sprint)."
         ),
     )
+    group.addoption(
+        "--phase-3c-doppel-welle-acceptance",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable Phase-3c Doppel-Welle E2E acceptance skeleton "
+            "(ADR-0066 §Beschluss; skip-by-default; opt-in for "
+            "Doppel-Welle KW 24/26/27 cutover-trigger sprint)."
+        ),
+    )
 
 
 def pytest_collection_modifyitems(
     config: pytest.Config, items: list[pytest.Item]
 ) -> None:
-    """Skip phase_3c_acceptance-marked tests unless opt-in is present.
+    """Skip phase_3c_acceptance + phase_3c_doppel_welle_acceptance
+    tests unless the matching opt-in is present.
 
-    Either the CLI flag or the env-var enables the skeleton. The
-    skip-marker is added at collection-time so default CI runs see a
-    clean fast-skip without import-evaluation surprises.
+    Either the CLI flag or the env-var enables the matching skeleton.
+    The two opt-in lanes are independent: per-welle and Doppel-Welle
+    can each be enabled in isolation (or both, e.g. Doppel-Welle-trigger
+    sprint runs both per-welle + Doppel-Welle oracles to verify the
+    cross-modul-parallel-cutover doesn't regress the solo-welle
+    guarantees).
     """
-    if config.getoption("--phase-3c-acceptance") or PHASE_3C_OPT_IN:
-        return
+    per_welle_enabled = (
+        config.getoption("--phase-3c-acceptance") or PHASE_3C_OPT_IN
+    )
+    doppel_enabled = (
+        config.getoption("--phase-3c-doppel-welle-acceptance")
+        or PHASE_3C_DOPPEL_OPT_IN
+    )
 
-    skip_marker = pytest.mark.skip(
+    per_welle_skip = pytest.mark.skip(
         reason=(
             "Phase-3c-Acceptance skeleton skip-by-default — opt in with "
             "WAKIR_PHASE_3C_E2E=1 env-var or --phase-3c-acceptance CLI "
-            "flag (Phase-3c-trigger sprint ~KW 27+ flips this gate per "
-            "ADR-0065)."
+            "flag (Phase-3c-trigger sprint ~KW 24+ flips this gate per "
+            "ADR-0065 / ADR-0066)."
         )
     )
+    doppel_skip = pytest.mark.skip(
+        reason=(
+            "Phase-3c Doppel-Welle skeleton skip-by-default — opt in "
+            "with WAKIR_PHASE_3C_DOPPEL_E2E=1 env-var or "
+            "--phase-3c-doppel-welle-acceptance CLI flag (Doppel-Welle "
+            "KW 24/26/27 trigger-sprint flips this gate per ADR-0066 "
+            "§Beschluss)."
+        )
+    )
+
     for item in items:
-        if "phase_3c_acceptance" in item.keywords:
-            item.add_marker(skip_marker)
+        keywords = item.keywords
+        if "phase_3c_doppel_welle_acceptance" in keywords:
+            # Doppel-Welle marker dominates: if a test carries both
+            # markers, the Doppel-Welle opt-in alone is sufficient
+            # (per-welle assertions on top of Doppel-Welle context are
+            # part of the Doppel-Welle skeleton's value-add).
+            if not doppel_enabled:
+                item.add_marker(doppel_skip)
+        elif "phase_3c_acceptance" in keywords:
+            if not per_welle_enabled:
+                item.add_marker(per_welle_skip)
 
 
 # ---------------------------------------------------------------------------
@@ -465,6 +526,364 @@ def mocked_cross_review() -> Callable[..., CrossReviewRecord]:
             session_date="2026-05-17",
             moderator="aisha",
             consenting_personas=consenting,
+        )
+
+    return _build
+
+
+# ---------------------------------------------------------------------------
+# Doppel-Welle inventory — anchors the three Doppel-Welle-Kombinationen
+# from ADR-0066 §Beschluss (KW 24, 26, 27). KW 25 = Welle-3 solo, not
+# a Doppel-Welle (Henrik-Caution carve-out).
+# ---------------------------------------------------------------------------
+
+DOPPEL_WELLE_ORDER: tuple[tuple[str, str, str, str], ...] = (
+    # (calendar-week, modul-a, modul-b, characterisation)
+    ("KW24", "v907_verify", "svid_workload_identity", "read-only-paar"),
+    (
+        "KW26",
+        "state_backing",
+        "lifecycle_state_machine",
+        "cross-modul-state-paar",
+    ),
+    ("KW27", "subscribe_loop", "recovery_workflow", "stateful-loop-paar"),
+)
+
+DOPPEL_WELLE_BY_PAIR: dict[tuple[str, str], str] = {
+    (a, b): kw for kw, a, b, _ in DOPPEL_WELLE_ORDER
+}
+
+
+# ---------------------------------------------------------------------------
+# Backend-Decision-Audit record — DW-AC-5 oracle.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class BackendDecisionRecord:
+    """One backend-decision-audit record emitted per cutover-flip.
+
+    Each per-welle cutover emits exactly one ``BackendDecisionRecord``:
+    the engine logs which modul flipped to which backend at which
+    boot-time. Under Doppel-Welle conditions, *two* records must be
+    emitted in a single cutover event and they must be timestamp-
+    consistent (same Cutover-Mittwoch, same engine-boot-cycle).
+
+    DW-AC-5 enforces: two records present, both modul-names match the
+    Doppel-Welle pair, both target ``rust``, both share the same
+    cutover-cycle-id.
+    """
+
+    cutover_cycle_id: str
+    modul: str
+    target_backend: str  # "rust" expected on cutover-flip
+    cutover_ts_utc: str
+    operator_actor: str  # placeholder; real path = Operator-Hand-runbook
+
+
+@pytest.fixture
+def mocked_backend_decision_audit() -> Callable[
+    ..., list[BackendDecisionRecord]
+]:
+    """Fixture returning a Backend-Decision-Audit-record builder.
+
+    Default builder emits two consistent records for a Doppel-Welle
+    pair (DW-AC-5 happy-path). Doppel-Welle-tests inject:
+
+    * ``drift_cycle_id``: one record's cutover-cycle-id differs, i.e.
+      the two flips happened in different boot-cycles → consistency
+      violation.
+    * ``missing_modul``: one of the two moduln has no record at all
+      → DW-AC-5 emits-2-records gate fails.
+    * ``wrong_target_backend``: one record's target_backend is not
+      ``rust`` → cutover-direction drift.
+    """
+
+    def _build(
+        modul_a: str,
+        modul_b: str,
+        cutover_cycle_id: str = "cycle-doppel-2026-05-17T20:00:00Z",
+        drift_cycle_id: bool = False,
+        missing_modul: str | None = None,
+        wrong_target_backend: str | None = None,
+    ) -> list[BackendDecisionRecord]:
+        out: list[BackendDecisionRecord] = []
+        for idx, modul in enumerate((modul_a, modul_b)):
+            if missing_modul == modul:
+                continue
+            cycle_id = (
+                f"{cutover_cycle_id}-drift-{modul}"
+                if drift_cycle_id and idx == 1
+                else cutover_cycle_id
+            )
+            target = (
+                wrong_target_backend
+                if wrong_target_backend is not None and idx == 1
+                else "rust"
+            )
+            out.append(
+                BackendDecisionRecord(
+                    cutover_cycle_id=cycle_id,
+                    modul=modul,
+                    target_backend=target,
+                    cutover_ts_utc="2026-05-17T20:00:00Z",
+                    operator_actor="operator-hand-runbook",
+                )
+            )
+        return out
+
+    return _build
+
+
+# ---------------------------------------------------------------------------
+# Cross-Modul-Stress-Test record — DW-AC-4 oracle.
+#
+# References Tomás Tag-29 Cross-Modul-Stress-Test substrate (Phase-2-
+# Acceptance-Gate-Erweiterung per ADR-0066 §Mitigation 1). The fixture
+# here is the QA-side oracle that Tomás's substrate output is wired
+# against; pre-trigger-sprint this is a placeholder green-by-construction
+# record.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CrossModulStressTestRecord:
+    """One Cross-Modul-Stress-Test run record (Doppel-Welle-specific).
+
+    Captures: which Doppel-Welle pair the run targeted, total request
+    count over the stress-window, failure-count, p99-latency-budget
+    excursion-count, cross-modul-schema-drift-count.
+
+    DW-AC-4 gate: failure_count == 0 AND
+    cross_modul_schema_drift_count == 0 AND
+    p99_latency_excursion_count == 0.
+    """
+
+    welle_pair: tuple[str, str]
+    total_request_count: int
+    failure_count: int
+    p99_latency_excursion_count: int
+    cross_modul_schema_drift_count: int
+
+
+@pytest.fixture
+def mocked_cross_modul_stress_test() -> Callable[
+    ..., CrossModulStressTestRecord
+]:
+    """Fixture returning a Cross-Modul-Stress-Test record builder.
+
+    Default builder produces a green record (zero failures, zero
+    latency-excursions, zero schema-drift). Doppel-Welle-tests inject
+    failure-modes to verify the DW-AC-4 assertion-shape.
+    """
+
+    def _build(
+        modul_a: str,
+        modul_b: str,
+        total: int = 1000,
+        failures: int = 0,
+        p99_excursions: int = 0,
+        schema_drifts: int = 0,
+    ) -> CrossModulStressTestRecord:
+        return CrossModulStressTestRecord(
+            welle_pair=(modul_a, modul_b),
+            total_request_count=total,
+            failure_count=failures,
+            p99_latency_excursion_count=p99_excursions,
+            cross_modul_schema_drift_count=schema_drifts,
+        )
+
+    return _build
+
+
+# ---------------------------------------------------------------------------
+# Cross-Modul-Schema-Konsistenz record — DW-AC-2 oracle.
+#
+# Byte-paritäre Schema-Verifikation zwischen den beiden Doppel-Welle-
+# Moduln auf gemeinsamer Cross-Modul-Schnittstelle (z.B. state_backing
+# schreibt JCS-record, lifecycle_state_machine liest ihn). DW-AC-2
+# erzwingt byte-exakte Konsistenz across the pair.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CrossModulSchemaRecord:
+    """One Cross-Modul-Schema-Konsistenz-Record.
+
+    For each cross-modul-touchpoint (typically a record produced by
+    modul_a and consumed by modul_b), the record carries both byte-
+    representations and a SHA-256 hash of each.
+
+    DW-AC-2: ``producer_bytes_sha256 == consumer_bytes_sha256`` for
+    every touchpoint in the pair.
+    """
+
+    welle_pair: tuple[str, str]
+    touchpoint_id: str
+    producer_modul: str
+    consumer_modul: str
+    producer_bytes_sha256: str
+    consumer_bytes_sha256: str
+
+    @property
+    def is_byte_parity(self) -> bool:
+        return self.producer_bytes_sha256 == self.consumer_bytes_sha256
+
+
+@pytest.fixture
+def mocked_cross_modul_schema() -> Callable[
+    ..., list[CrossModulSchemaRecord]
+]:
+    """Fixture returning a Cross-Modul-Schema-Record builder.
+
+    Default builder emits a list of touchpoint-records with byte-parity-
+    by-construction. Doppel-Welle-tests inject drift via the
+    ``drift_touchpoint_ids`` knob.
+    """
+
+    def _build(
+        modul_a: str,
+        modul_b: str,
+        touchpoint_ids: tuple[str, ...] = (
+            "tp-init",
+            "tp-update",
+            "tp-finalize",
+        ),
+        drift_touchpoint_ids: tuple[str, ...] = (),
+    ) -> list[CrossModulSchemaRecord]:
+        out: list[CrossModulSchemaRecord] = []
+        for tp_id in touchpoint_ids:
+            producer_hash = _envelope_hash(
+                f"{modul_a}->{modul_b}", 0, tp_id, salt="producer"
+            )
+            if tp_id in drift_touchpoint_ids:
+                consumer_hash = _envelope_hash(
+                    f"{modul_a}->{modul_b}",
+                    0,
+                    tp_id,
+                    salt="consumer-drift",
+                )
+            else:
+                consumer_hash = producer_hash
+            out.append(
+                CrossModulSchemaRecord(
+                    welle_pair=(modul_a, modul_b),
+                    touchpoint_id=tp_id,
+                    producer_modul=modul_a,
+                    consumer_modul=modul_b,
+                    producer_bytes_sha256=producer_hash,
+                    consumer_bytes_sha256=consumer_hash,
+                )
+            )
+        return out
+
+    return _build
+
+
+# ---------------------------------------------------------------------------
+# Doppel-Welle Engine-Boot mock — DW-AC-1 oracle.
+#
+# Extends ``mocked_engine_boot`` to flip *two* moduln to rust in a single
+# boot, modelling the Cutover-Mittwoch-Doppel-Cutover (ADR-0066
+# §Mitigation 3).
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def mocked_engine_boot_doppel() -> Callable[..., EngineBootRecord]:
+    """Fixture returning a Doppel-Welle persona-engine boot-builder.
+
+    Default builder produces a successful boot with both Doppel-Welle
+    moduln flipped to ``rust`` and the remaining five moduln on
+    ``python``. Tests inject:
+
+    * ``boot_succeeded=False`` — Rollback-trigger assertion-shape
+      (both moduln rolled back when boot fails under Doppel-Welle
+      conditions per ADR-0066 §Rollback-Strategie).
+    * ``flipped_modul_a`` / ``flipped_modul_b`` — override pair shape.
+    """
+
+    def _build(
+        modul_a: str,
+        modul_b: str,
+        boot_succeeded: bool = True,
+    ) -> EngineBootRecord:
+        backend_per_modul = {modul: "python" for _, modul in WELLE_ORDER}
+        for m in (modul_a, modul_b):
+            if m in backend_per_modul:
+                backend_per_modul[m] = "rust"
+        # The welle-tag uses the modul_a-name (alphabetical-stable
+        # for the Doppel-Welle pair identity in the test-output).
+        return EngineBootRecord(
+            welle=f"doppel:{modul_a}+{modul_b}",
+            boot_ts_utc="2026-05-17T20:00:00Z",
+            backend_per_modul=backend_per_modul,
+            boot_succeeded=boot_succeeded,
+        )
+
+    return _build
+
+
+# ---------------------------------------------------------------------------
+# Single-Komponente-Rollback record — DW-AC-3 oracle.
+#
+# When a bug emerges in one of two Doppel-Welle-Komponenten, rollback
+# *only* the affected one — the other stays on rust. This is the asym-
+# metric rollback discipline (ADR-0066 §Rollback-Strategie nuance).
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class SingleKomponenteRollbackRecord:
+    """One single-Komponente-Rollback record for the asymmetric path.
+
+    Captures the Doppel-Welle pair, which modul rolled back, the rollback-
+    elapsed-seconds (≤10min SLA per ADR-0065/-0066), and the post-
+    rollback backend-state for *both* moduln.
+
+    DW-AC-3 assertion-shape: rolled_back_modul is flipped back to
+    ``python``, partner_modul stays on ``rust``, elapsed_seconds ≤
+    600 (10min SLA).
+    """
+
+    welle_pair: tuple[str, str]
+    rolled_back_modul: str
+    rollback_elapsed_seconds: float
+    post_rollback_backend_per_modul: dict[str, str]
+
+
+@pytest.fixture
+def mocked_single_komponente_rollback() -> Callable[
+    ..., SingleKomponenteRollbackRecord
+]:
+    """Fixture returning a single-Komponente-Rollback-record builder.
+
+    Default builder produces a successful asymmetric rollback (rolled
+    back modul back to python, partner stays rust, elapsed = 240s).
+    Doppel-Welle-tests inject:
+
+    * ``elapsed_seconds=700`` — SLA-violation failure-mode.
+    * ``partner_also_rolled_back=True`` — wrong-shape failure-mode
+      (Doppel-Welle rollback should be asymmetric by default per
+      ADR-0066 §Rollback-Strategie unless cross-modul-bug emerges).
+    """
+
+    def _build(
+        modul_a: str,
+        modul_b: str,
+        rolled_back_modul: str,
+        elapsed_seconds: float = 240.0,
+        partner_also_rolled_back: bool = False,
+    ) -> SingleKomponenteRollbackRecord:
+        partner = modul_b if rolled_back_modul == modul_a else modul_a
+        post_state = {modul: "python" for _, modul in WELLE_ORDER}
+        if not partner_also_rolled_back:
+            post_state[partner] = "rust"
+        return SingleKomponenteRollbackRecord(
+            welle_pair=(modul_a, modul_b),
+            rolled_back_modul=rolled_back_modul,
+            rollback_elapsed_seconds=elapsed_seconds,
+            post_rollback_backend_per_modul=post_state,
         )
 
     return _build

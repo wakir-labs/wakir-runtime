@@ -79,18 +79,28 @@ def test_module_loads_and_exports_public_surface():
         "EXPECTED_PIN_COUNTS",
         "EXPECTED_PIN_TOTAL",
         "ENV_ANCHOR_LATENCY_JSONL",
+        "CROSS_MODUL_SPEC",
+        "CROSS_MODUL_V907_SVID_ENV_KEYS",
+        "RUST_BACKEND_VALUE",
+        "SVID_E2E_TEST",
+        "V907_PIN_PACK_DIR",
         "AxisResult",
         "build_envelope",
         "evaluate_bridge_audit_e2e",
         "evaluate_cross_lang_pin_coverage",
+        "evaluate_cross_modul_fixture_pair",
+        "evaluate_cross_modul_v907_svid",
         "evaluate_phase_2_gate",
         "evaluate_wat_anchor_latency_producer",
         "main",
         "run_cross_lang_only",
+        "run_cross_modul_stress",
         "run_full",
     }
     assert set(aggregator.__all__) == expected
-    assert aggregator.SCHEMA == "wakir.doppelbetrieb.aggregator/1"
+    # Schema bumped to /2 in Tag-29 (ADR-0066 KW-26-Mitigation) to
+    # reflect the three new Cross-Modul-Stress-Test axes.
+    assert aggregator.SCHEMA == "wakir.doppelbetrieb.aggregator/2"
     assert aggregator.EXPECTED_PIN_TOTAL == 16
     assert aggregator.EXPECTED_PIN_COUNTS == {
         "federation_frame": 5,
@@ -105,9 +115,10 @@ def test_module_loads_and_exports_public_surface():
 
 
 def test_axis_order_is_stable():
-    """AXIS_ORDER MUST list all 8 axes in the QA-doc topology order
-    (Phase-2 Gate-2-1..2-5 first, then Phase-3a Foundation axes). The
-    Henrik weekly-rollup template depends on this ordering.
+    """AXIS_ORDER MUST list all 11 axes in the QA-doc topology order
+    (Phase-2 Gate-2-1..2-5 first, then Phase-3a Foundation axes, then
+    the three Tag-29 Cross-Modul-Stress-Test axes). The Henrik
+    weekly-rollup template depends on this ordering.
     """
     assert aggregator.AXIS_ORDER == (
         "gate-2-1-bridge-forward-symmetry",
@@ -118,6 +129,9 @@ def test_axis_order_is_stable():
         "bridge-audit-e2e-roundtrip-pass",
         "cross-lang-pin-coverage",
         "wat-anchor-latency-producer-emitting",
+        "cross-modul-state-backing-lifecycle-state-machine",
+        "cross-modul-subscribe-loop-recovery-workflow",
+        "cross-modul-v907-verify-svid-workload-identity",
     )
     # Mapping from each Phase-2-gate label MUST resolve to one
     # pytest -k expression that exists in the gate test file. We
@@ -377,6 +391,8 @@ def test_build_envelope_rolls_axes_and_threshold_correctly():
       - sum pass-weights into ``total_score``,
       - default threshold to sum of all weights,
       - set ``threshold_pass`` iff ``total_score >= threshold``.
+
+    Tag-29 (ADR-0066): 11 axes total (8 Tag-15 + 3 Cross-Modul).
     """
     AR = aggregator.AxisResult
     axes = [
@@ -402,37 +418,64 @@ def test_build_envelope_rolls_axes_and_threshold_correctly():
             True,
             details={"env_set": True, "emitted": None},
         ),
+        AR(
+            "cross-modul-state-backing-lifecycle-state-machine",
+            True,
+            details={
+                "both_envs_rust": True,
+                "state_backing_fixtures": 5,
+                "lifecycle_state_machine_fixtures": 5,
+            },
+        ),
+        AR(
+            "cross-modul-subscribe-loop-recovery-workflow",
+            True,
+            details={
+                "both_envs_rust": True,
+                "subscribe_loop_fixtures": 5,
+                "recovery_workflow_fixtures": 5,
+            },
+        ),
+        AR(
+            "cross-modul-v907-verify-svid-workload-identity",
+            True,
+            details={
+                "both_envs_rust": True,
+                "v907_pin_pack_personas": 5,
+                "svid_e2e_substrate_present": True,
+            },
+        ),
     ]
     envelope = aggregator.build_envelope(
         axes, ts_utc="2026-05-17T09:50:00Z"
     )
-    assert envelope["schema"] == "wakir.doppelbetrieb.aggregator/1"
+    assert envelope["schema"] == "wakir.doppelbetrieb.aggregator/2"
     assert envelope["ts_utc"] == "2026-05-17T09:50:00Z"
-    assert envelope["total_score"] == 8
-    assert envelope["threshold"] == 8
+    assert envelope["total_score"] == 11
+    assert envelope["threshold"] == 11
     assert envelope["threshold_pass"] is True
     # Axes must be present in AXIS_ORDER sequence.
     assert list(envelope["axes"].keys()) == list(aggregator.AXIS_ORDER)
     # Cross-lang-pin-coverage carries its details dict.
     assert envelope["axes"]["cross-lang-pin-coverage"]["details"]["total"] == 16
 
-    # Operator-relaxed threshold: 6 ⇒ threshold_pass still true.
+    # Operator-relaxed threshold: 8 ⇒ threshold_pass still true.
     relaxed = aggregator.build_envelope(
-        axes, threshold=6, ts_utc="2026-05-17T09:50:00Z"
+        axes, threshold=8, ts_utc="2026-05-17T09:50:00Z"
     )
-    assert relaxed["threshold"] == 6
+    assert relaxed["threshold"] == 8
     assert relaxed["threshold_pass"] is True
 
-    # Failure mode: two axes fail ⇒ total_score=6 ⇒ default threshold=8
-    # ⇒ threshold_pass=False.
+    # Failure mode: two axes fail ⇒ total_score=9 ⇒ default
+    # threshold=11 ⇒ threshold_pass=False.
     axes_with_failures = list(axes)
     axes_with_failures[5] = AR("bridge-audit-e2e-roundtrip-pass", False)
     axes_with_failures[6] = AR("cross-lang-pin-coverage", False, details={})
     envelope_fail = aggregator.build_envelope(
         axes_with_failures, ts_utc="2026-05-17T09:50:00Z"
     )
-    assert envelope_fail["total_score"] == 6
-    assert envelope_fail["threshold"] == 8
+    assert envelope_fail["total_score"] == 9
+    assert envelope_fail["threshold"] == 11
     assert envelope_fail["threshold_pass"] is False
 
 
@@ -449,16 +492,16 @@ def test_build_envelope_marks_missing_axes_as_failed():
     envelope = aggregator.build_envelope(
         only_two, ts_utc="2026-05-17T09:50:00Z"
     )
-    # All 8 axes still present.
+    # All 11 axes still present (Tag-29 extension).
     assert list(envelope["axes"].keys()) == list(aggregator.AXIS_ORDER)
-    # The two supplied axes pass; the other six are flagged missing.
+    # The two supplied axes pass; the other nine are flagged missing.
     missing_axes = [
         label
         for label, env in envelope["axes"].items()
         if isinstance(env.get("details"), dict)
         and env["details"].get("reason") == "axis-missing"
     ]
-    assert len(missing_axes) == 6
+    assert len(missing_axes) == 9
     assert "gate-2-1-bridge-forward-symmetry" not in missing_axes
     assert "bridge-audit-e2e-roundtrip-pass" not in missing_axes
     assert envelope["total_score"] == 2
@@ -489,7 +532,7 @@ def test_cli_main_writes_to_out_path_and_returns_passcode(
     ])
     assert rc == 0, "cross-lang pin coverage MUST pass against the in-tree substrate"
     payload = json.loads(out.read_text(encoding="utf-8"))
-    assert payload["schema"] == "wakir.doppelbetrieb.aggregator/1"
+    assert payload["schema"] == "wakir.doppelbetrieb.aggregator/2"
     assert payload["ts_utc"] == "2026-05-17T10:00:00Z"
     # In cross-lang-only mode, the seven non-cross-lang axes are
     # rendered as "axis-missing" and the single cross-lang axis

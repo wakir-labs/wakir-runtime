@@ -304,6 +304,7 @@ def test_module_loads_and_exports_public_surface():
 def test_validate_component_accepts_in_repo_short_forms():
     for name in (
         "v907_verify",
+        "svid_workload_identity",
         "bridge_diff",
         "anchor_emitter",
         "state_backing",
@@ -340,12 +341,21 @@ def test_validate_component_rejects_unknown():
     assert "definitely_not_a_component" in str(exc.value)
 
 
-def test_validate_component_rejects_svid_with_explicit_hint():
-    """ADR-0065 lists svid_workload_identity but the resolver is not yet
-    in the seven-switch substrate; the dry-run must fail-closed."""
-    with pytest.raises(dry_run_mod.UnknownComponentError) as exc:
+def test_validate_component_accepts_svid_workload_identity():
+    """Tag-29 Welle-2 wire-in: ``svid_workload_identity`` is now a
+    first-class Phase-3c component after the PR #191 resolver landed.
+    The Welle-2 Validation Workflow depends on the dry-run accepting
+    the component name."""
+    assert (
         dry_run_mod.validate_component("svid_workload_identity")
-    assert "not yet implemented" in str(exc.value) or "not in" in str(exc.value).lower() or "no in-repo" in str(exc.value)
+        == "svid_workload_identity"
+    )
+    assert "svid_workload_identity" in dry_run_mod.PHASE_3C_COMPONENTS
+    assert (
+        dry_run_mod.COMPONENT_TO_ENV["svid_workload_identity"]
+        == "WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND"
+    )
+    assert dry_run_mod.COMPONENT_TO_RUST_VALUE["svid_workload_identity"] == "rust"
 
 
 # ---------------------------------------------------------------------------

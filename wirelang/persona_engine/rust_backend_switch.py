@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""ENV-gated production-default switch for Rust recovery + state-backing + FSM + V907-verify + bridge-diff + subscribe-loop + anchor-emitter + svid-workload-identity.
+"""ENV-gated production-default switch for Rust recovery + state-backing + FSM + V907-verify + bridge-diff + subscribe-loop + anchor-emitter + svid-workload-identity + federation-resolver.
 
-Tag-17 / Tag-18 / Tag-19 / Tag-20 / Tag-22 / Tag-23 / Tag-25 Mini-Welle —
+Tag-17 / Tag-18 / Tag-19 / Tag-20 / Tag-22 / Tag-23 / Tag-25 / Tag-30 Mini-Welle —
 Phase-3b-Substanz. The Rust crates
 ``persona-engine-recovery`` (PR #135),
 ``persona-engine-state-backing`` (PR #140),
@@ -10,12 +10,17 @@ Phase-3b-Substanz. The Rust crates
 ``persona-engine-v907-verify`` (PR #136),
 ``persona-engine-bridge-diff`` (PR #131),
 ``persona-engine-subscribe-loop`` (PR #132, ack-record sibling PR #172),
-``persona-engine-anchor-emitter`` (PR #141, Python sibling PR #170), and
+``persona-engine-anchor-emitter`` (PR #141, Python sibling PR #170),
 the ADR-0065 Welle-2 candidate ``persona-engine-svid-workload-identity``
 (Tag-25 wire-in; binary is **opt-in only**, the resolver gracefully
 falls back to the Python SPIFFE Workload-API client when the binary is
 missing — see :mod:`wirelang.persona_engine.svid_workload_identity` for
-the Python authority)
+the Python authority), and
+``persona-engine-federation-resolver`` (PR #188, Python sibling at
+:mod:`wirelang.identity.federation_resolver_canonical`; Tag-30 wire-in
+adds the resolver scaffold as the **9th** backend-decision record per
+boot — the Rust crate ships byte-cross-lang-parity against the five
+``tests/fixtures/federation-resolver-cross-lang/fixtures.json`` vectors)
 are production-ready as schema-byte-parity substrates of their Python
 pendants (:mod:`wirelang.persona_engine.recovery_workflow`,
 :mod:`wirelang.persona_engine.state_backing`,
@@ -23,8 +28,9 @@ pendants (:mod:`wirelang.persona_engine.recovery_workflow`,
 :mod:`wirelang.persona_engine.v907_verify`,
 :mod:`wirelang.persona_engine.bridge_audit_diff_engine`,
 :mod:`wirelang.persona_engine.subscribe_ack`,
-:mod:`wirelang.persona_engine.anchor_emitter`, and
-:mod:`wirelang.persona_engine.svid_workload_identity`). This module exposes
+:mod:`wirelang.persona_engine.anchor_emitter`,
+:mod:`wirelang.persona_engine.svid_workload_identity`, and
+:mod:`wirelang.identity.federation_resolver_canonical`). This module exposes
 the **production-default switch** — operators flip an env-var to opt
 into the Rust subprocess-bridge without disrupting the Python
 hot-path.
@@ -128,6 +134,36 @@ eight with this wire-in; the Phase-3b surface remains the seven
 shipped-substrate components and Tag-25 extends the production-
 default-switch *contract* surface to cover the ADR-0065 Welle-2
 candidate.
+
+Tag-30 anchor — Federation-Resolver is the Zone-L org-key audit substrate
+-------------------------------------------------------------------------
+
+The federation-resolver maps a ``(org_id, cluster_id)`` tuple to the
+operator-org's Ed25519 public-key entry used to verify federation
+frames inbound from that org/cluster pair, accounting for key-rotation
+history (overlapping ``valid_from`` / ``valid_until`` windows) and
+emitting a canonical resolver-snapshot the WAT-audit substrate can
+hash for the Phase-3a/3b 3-way-triangle (Doppelbetrieb) comparison.
+Schema is ``wakir.federation.resolver-snapshot/1``; the hash prefix is
+``sha256:`` and the bare hex tail is 64 lowercase characters. The
+Python authority is
+:mod:`wirelang.identity.federation_resolver_canonical` (PR #188,
+sibling-module pattern: ``federation_resolver_canonical.py`` is the
+Tag-24 byte-parity sibling, while the legacy
+:mod:`wirelang.identity.federation_resolver` V-908 AIP-doc resolver
+stays untouched per the PR #188 hard-constraint). The Rust pendant is
+the ``persona-engine-federation-resolver`` crate (PR #188, snapshot
+substrate in ``src/lib.rs``). The Tag-30 wire-up adds a hard
+byte-identity gate across **all five cross-lang resolver-snapshot
+fixtures** (see ``tests/fixtures/federation-resolver-cross-lang/
+fixtures.json``) on top of the same production-default-switch posture
+as Tag-17/Tag-18/Tag-19/Tag-20/Tag-22/Tag-23/Tag-25. The per-boot
+:class:`BackendDecision` record count rises from eight (Tag-25) to
+**nine** with this wire-in — the Phase-3b production-default-switch
+contract surface now covers the full ADR-0063 §Folgeartefakte
+Phase-3a Modul 9 inventory, and the Phase-3c cutover script's
+backend-decision parse can rely on a deterministic ninth record per
+boot.
 
 Posture
 -------
@@ -238,6 +274,20 @@ log warning when the binary is not callable.
   to ``"python"`` with a structured-log warning when the binary
   is not callable — by design, since Welle-2 has not shipped yet.
 
+``WAKIR_FEDERATION_RESOLVER_BACKEND``:
+
+* ``"python"`` (default) — Python
+  :mod:`wirelang.identity.federation_resolver_canonical` (PR #188,
+  resolver-snapshot sibling of the Rust crate).
+* ``"rust"`` — Rust-CLI subprocess-bridge against the
+  ``persona-engine-federation-resolver`` crate (PR #188,
+  byte-identical JCS-canonical resolver-snapshot bytes AND
+  byte-identical SHA-256 hex output verified against all five
+  cross-lang resolver-snapshot fixtures per
+  ``tests/fixtures/federation-resolver-cross-lang/fixtures.json``).
+  Falls back to ``"python"`` with a structured-log warning when the
+  binary is not callable.
+
 ``WAKIR_RUST_RECOVERY_BIN``:
 
 * Absolute path to the Rust recovery binary. Default
@@ -280,6 +330,11 @@ log warning when the binary is not callable.
   The default path is reserved for the ADR-0065 Welle-2 crate
   ship — Tag-25 wires the resolver but does not require the
   binary to exist.
+
+``WAKIR_RUST_FEDERATION_RESOLVER_BIN``:
+
+* Absolute path to the Rust federation-resolver binary. Default
+  ``/opt/wakir/bin/wakir-persona-engine-federation-resolver``.
 
 ``WAKIR_RUST_BACKEND_TIMEOUT_S``:
 
@@ -376,6 +431,7 @@ BRIDGE_DIFF_BACKEND_ENV = "WAKIR_BRIDGE_DIFF_BACKEND"
 SUBSCRIBE_LOOP_BACKEND_ENV = "WAKIR_SUBSCRIBE_LOOP_BACKEND"
 ANCHOR_EMITTER_BACKEND_ENV = "WAKIR_ANCHOR_EMITTER_BACKEND"
 SVID_WORKLOAD_IDENTITY_BACKEND_ENV = "WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND"
+FEDERATION_RESOLVER_BACKEND_ENV = "WAKIR_FEDERATION_RESOLVER_BACKEND"
 RUST_RECOVERY_BIN_ENV = "WAKIR_RUST_RECOVERY_BIN"
 RUST_STATE_BACKING_BIN_ENV = "WAKIR_RUST_STATE_BACKING_BIN"
 RUST_FSM_BIN_ENV = "WAKIR_RUST_FSM_BIN"
@@ -384,6 +440,7 @@ RUST_BRIDGE_DIFF_BIN_ENV = "WAKIR_RUST_BRIDGE_DIFF_BIN"
 RUST_SUBSCRIBE_LOOP_BIN_ENV = "WAKIR_RUST_SUBSCRIBE_LOOP_BIN"
 RUST_ANCHOR_EMITTER_BIN_ENV = "WAKIR_RUST_ANCHOR_EMITTER_BIN"
 RUST_SVID_WORKLOAD_IDENTITY_BIN_ENV = "WAKIR_RUST_SVID_WORKLOAD_IDENTITY_BIN"
+RUST_FEDERATION_RESOLVER_BIN_ENV = "WAKIR_RUST_FEDERATION_RESOLVER_BIN"
 RUST_BACKEND_TIMEOUT_ENV = "WAKIR_RUST_BACKEND_TIMEOUT_S"
 
 DEFAULT_RUST_RECOVERY_BIN = "/opt/wakir/bin/wakir-persona-engine-recovery"
@@ -401,6 +458,9 @@ DEFAULT_RUST_ANCHOR_EMITTER_BIN = (
 )
 DEFAULT_RUST_SVID_WORKLOAD_IDENTITY_BIN = (
     "/opt/wakir/bin/wakir-persona-engine-svid-workload-identity"
+)
+DEFAULT_RUST_FEDERATION_RESOLVER_BIN = (
+    "/opt/wakir/bin/wakir-persona-engine-federation-resolver"
 )
 DEFAULT_RUST_BACKEND_TIMEOUT_S = 5.0
 
@@ -517,6 +577,25 @@ class SvidWorkloadIdentityBackend(str, Enum):
     RUST = "rust"
 
 
+class FederationResolverBackend(str, Enum):
+    """Closed enum of valid ``WAKIR_FEDERATION_RESOLVER_BACKEND`` values.
+
+    Zone-L org-key audit-substrate anchor: the Python authority is
+    :mod:`wirelang.identity.federation_resolver_canonical` (PR #188,
+    JCS-canonical resolver-snapshot sibling-module). The Rust pendant
+    is the ``persona-engine-federation-resolver`` crate (PR #188,
+    byte-identical JCS-canonical snapshot bytes AND byte-identical
+    SHA-256 hex output verified against all five cross-lang
+    resolver-snapshot fixtures per
+    ``tests/fixtures/federation-resolver-cross-lang/fixtures.json``).
+    Tag-30 wire-in extends the Phase-3b production-default-switch
+    contract surface to the **9th** backend-decision per boot.
+    """
+
+    PYTHON = "python"
+    RUST = "rust"
+
+
 VALID_RECOVERY_BACKEND_VALUES = tuple(b.value for b in RecoveryBackend)
 VALID_STATE_BACKING_BACKEND_VALUES = tuple(
     b.value for b in StateBackingBackend
@@ -532,6 +611,9 @@ VALID_ANCHOR_EMITTER_BACKEND_VALUES = tuple(
 )
 VALID_SVID_WORKLOAD_IDENTITY_BACKEND_VALUES = tuple(
     b.value for b in SvidWorkloadIdentityBackend
+)
+VALID_FEDERATION_RESOLVER_BACKEND_VALUES = tuple(
+    b.value for b in FederationResolverBackend
 )
 
 
@@ -770,6 +852,20 @@ def _resolve_svid_workload_identity_bin(
     return explicit if explicit else DEFAULT_RUST_SVID_WORKLOAD_IDENTITY_BIN
 
 
+def _resolve_federation_resolver_bin(
+    env: Optional[Mapping[str, str]] = None,
+) -> str:
+    """Resolve the Rust federation-resolver binary path.
+
+    Tag-30 wire-in. The default path is reserved for the
+    ``persona-engine-federation-resolver`` crate (PR #188); operators
+    point ``WAKIR_RUST_FEDERATION_RESOLVER_BIN`` at a custom path for
+    integration tests / hermetic CI runs.
+    """
+    explicit = _env_get(RUST_FEDERATION_RESOLVER_BIN_ENV, env)
+    return explicit if explicit else DEFAULT_RUST_FEDERATION_RESOLVER_BIN
+
+
 def _binary_available(bin_path: str) -> tuple[bool, Optional[str]]:
     """Return ``(available, fallback_reason)``.
 
@@ -941,6 +1037,26 @@ def _validate_svid_workload_identity_backend(
             VALID_SVID_WORKLOAD_IDENTITY_BACKEND_VALUES,
         )
     return SvidWorkloadIdentityBackend(value)
+
+
+def _validate_federation_resolver_backend(
+    value: Optional[str],
+) -> FederationResolverBackend:
+    """Validate a ``WAKIR_FEDERATION_RESOLVER_BACKEND`` value (or ``None``).
+
+    Empty / missing values default to
+    ``FederationResolverBackend.PYTHON``. Non-empty unknown values
+    raise :class:`BackendSwitchValidationError`.
+    """
+    if value is None or value == "":
+        return FederationResolverBackend.PYTHON
+    if value not in VALID_FEDERATION_RESOLVER_BACKEND_VALUES:
+        raise BackendSwitchValidationError(
+            FEDERATION_RESOLVER_BACKEND_ENV,
+            value,
+            VALID_FEDERATION_RESOLVER_BACKEND_VALUES,
+        )
+    return FederationResolverBackend(value)
 
 
 # ---------------------------------------------------------------------------
@@ -1764,6 +1880,127 @@ def resolve_svid_workload_identity_backend(
 # re-exported through ``__all__`` (it is a private auftrag-pin, not a
 # stable surface).
 _select_svid_workload_identity_backend = resolve_svid_workload_identity_backend
+
+
+def resolve_federation_resolver_backend(
+    env: Optional[Mapping[str, str]] = None,
+    *,
+    log_sink: Optional[TextIO] = None,
+    binary_probe: Optional[Callable[[str], tuple[bool, Optional[str]]]] = None,
+) -> tuple[FederationResolverBackend, BackendDecision]:
+    """Resolve the federation-resolver backend per env-var + binary availability.
+
+    Tag-30 Mini-Welle — **ninth** production-default switch component
+    (parallel to :func:`resolve_recovery_backend`,
+    :func:`resolve_state_backing_backend`,
+    :func:`resolve_fsm_backend`, :func:`resolve_v907_verify_backend`,
+    :func:`resolve_bridge_diff_backend`,
+    :func:`resolve_subscribe_loop_backend`,
+    :func:`resolve_anchor_emitter_backend`, and
+    :func:`resolve_svid_workload_identity_backend`). The Python
+    authority is
+    :mod:`wirelang.identity.federation_resolver_canonical` (PR #188,
+    JCS-canonical resolver-snapshot sibling-module). The Rust pendant
+    is the ``persona-engine-federation-resolver`` crate (PR #188,
+    byte-identical JCS-canonical snapshot bytes AND byte-identical
+    SHA-256 hex output verified against all five cross-lang
+    resolver-snapshot fixtures per
+    ``tests/fixtures/federation-resolver-cross-lang/fixtures.json``).
+
+    Returns a ``(chosen_backend, decision)`` tuple. The decision
+    object is also logged via :func:`log_backend_decision`.
+
+    Same posture as :func:`resolve_recovery_backend`: default is
+    Python, ``rust`` requested + binary missing falls back to Python
+    with a structured-log warning.
+
+    This is the **9th** BackendDecision record emitted per boot
+    (Tag-17 recovery + state_backing + Tag-18 fsm + Tag-19 v907_verify
+    + Tag-20 bridge_diff + Tag-22 subscribe_loop + Tag-23
+    anchor_emitter + Tag-25 svid_workload_identity + Tag-30
+    federation_resolver). The Phase-3b production-default-switch
+    contract surface is closed at nine components with this wire-in.
+
+    Parameters
+    ----------
+    env
+        Env-var mapping; defaults to :data:`os.environ`.
+    log_sink
+        Optional structured-log sink. If provided, the decision is
+        also written as a single JSON line.
+    binary_probe
+        Test-injection seam. Defaults to :func:`_binary_available`.
+
+    Raises
+    ------
+    BackendSwitchValidationError
+        On unknown env-var values.
+    """
+    start = time.perf_counter()
+    raw_value = _env_get(FEDERATION_RESOLVER_BACKEND_ENV, env)
+    requested = _validate_federation_resolver_backend(raw_value)
+
+    if requested is FederationResolverBackend.PYTHON:
+        latency_us = int((time.perf_counter() - start) * 1_000_000)
+        decision = BackendDecision(
+            domain="federation_resolver",
+            requested_backend=requested.value,
+            chosen_backend=FederationResolverBackend.PYTHON.value,
+            resolution_latency_us=latency_us,
+            fallback_reason=(
+                "explicit_python" if raw_value == "python" else None
+            ),
+            bin_path=None,
+        )
+        log_backend_decision(decision, log_sink=log_sink)
+        return FederationResolverBackend.PYTHON, decision
+
+    # Requested == RUST.
+    bin_path = _resolve_federation_resolver_bin(env)
+    probe = binary_probe or _binary_available
+    available, fallback_reason = probe(bin_path)
+    if available:
+        latency_us = int((time.perf_counter() - start) * 1_000_000)
+        decision = BackendDecision(
+            domain="federation_resolver",
+            requested_backend=requested.value,
+            chosen_backend=FederationResolverBackend.RUST.value,
+            resolution_latency_us=latency_us,
+            fallback_reason=None,
+            bin_path=bin_path,
+        )
+        log_backend_decision(decision, log_sink=log_sink)
+        return FederationResolverBackend.RUST, decision
+
+    # Graceful fallback to Python.
+    latency_us = int((time.perf_counter() - start) * 1_000_000)
+    decision = BackendDecision(
+        domain="federation_resolver",
+        requested_backend=requested.value,
+        chosen_backend=FederationResolverBackend.PYTHON.value,
+        resolution_latency_us=latency_us,
+        fallback_reason=fallback_reason,
+        bin_path=bin_path,
+    )
+    log_backend_decision(decision, log_sink=log_sink)
+    log.warning(
+        "rust_backend_switch federation_resolver requested=rust but "
+        "binary unavailable (%s @ %s); falling back to python",
+        fallback_reason,
+        bin_path,
+    )
+    return FederationResolverBackend.PYTHON, decision
+
+
+# Auftrag-named alias for :func:`resolve_federation_resolver_backend`.
+# The Tag-30 Mini-Welle auftrag spec uses
+# ``_select_federation_resolver_backend`` as the contract identifier;
+# this alias preserves that name while the public surface stays
+# consistent with the ``resolve_<domain>_backend`` family. Both names
+# dispatch to the same call; the underscore-prefixed alias is *not*
+# re-exported through ``__all__`` (it is a private auftrag-pin, not a
+# stable surface).
+_select_federation_resolver_backend = resolve_federation_resolver_backend
 
 
 # ---------------------------------------------------------------------------
@@ -3904,6 +4141,7 @@ __all__ = [
     "SUBSCRIBE_LOOP_BACKEND_ENV",
     "ANCHOR_EMITTER_BACKEND_ENV",
     "SVID_WORKLOAD_IDENTITY_BACKEND_ENV",
+    "FEDERATION_RESOLVER_BACKEND_ENV",
     "RUST_RECOVERY_BIN_ENV",
     "RUST_STATE_BACKING_BIN_ENV",
     "RUST_FSM_BIN_ENV",
@@ -3912,6 +4150,7 @@ __all__ = [
     "RUST_SUBSCRIBE_LOOP_BIN_ENV",
     "RUST_ANCHOR_EMITTER_BIN_ENV",
     "RUST_SVID_WORKLOAD_IDENTITY_BIN_ENV",
+    "RUST_FEDERATION_RESOLVER_BIN_ENV",
     "RUST_BACKEND_TIMEOUT_ENV",
     # Defaults.
     "DEFAULT_RUST_RECOVERY_BIN",
@@ -3922,6 +4161,7 @@ __all__ = [
     "DEFAULT_RUST_SUBSCRIBE_LOOP_BIN",
     "DEFAULT_RUST_ANCHOR_EMITTER_BIN",
     "DEFAULT_RUST_SVID_WORKLOAD_IDENTITY_BIN",
+    "DEFAULT_RUST_FEDERATION_RESOLVER_BIN",
     "DEFAULT_RUST_BACKEND_TIMEOUT_S",
     # Enums + valid-value tuples.
     "RecoveryBackend",
@@ -3932,6 +4172,7 @@ __all__ = [
     "SubscribeLoopBackend",
     "AnchorEmitterBackend",
     "SvidWorkloadIdentityBackend",
+    "FederationResolverBackend",
     "VALID_RECOVERY_BACKEND_VALUES",
     "VALID_STATE_BACKING_BACKEND_VALUES",
     "VALID_FSM_BACKEND_VALUES",
@@ -3940,6 +4181,7 @@ __all__ = [
     "VALID_SUBSCRIBE_LOOP_BACKEND_VALUES",
     "VALID_ANCHOR_EMITTER_BACKEND_VALUES",
     "VALID_SVID_WORKLOAD_IDENTITY_BACKEND_VALUES",
+    "VALID_FEDERATION_RESOLVER_BACKEND_VALUES",
     # Errors.
     "BackendSwitchValidationError",
     "RustBackendError",
@@ -3955,6 +4197,7 @@ __all__ = [
     "resolve_subscribe_loop_backend",
     "resolve_anchor_emitter_backend",
     "resolve_svid_workload_identity_backend",
+    "resolve_federation_resolver_backend",
     # Subprocess bridges.
     "RustSubprocessStateBacking",
     "RustSubprocessRecoveryRunner",
