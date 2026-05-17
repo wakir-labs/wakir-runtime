@@ -1,0 +1,496 @@
+{
+  "__comment": "Grafana dashboard JSON for the wakir-persona-engine Phase-3c welle-status surface (Noa Bergstroem / SRE, Tag-30 Mini-Welle). Consumes Prometheus gauges produced by scripts/phase-3c-welle-status-emitter.py. The dashboard is the operator's per-welle live view across the seven ADR-0065 / ADR-0066 cutover welles: pre_cutover, in_cutover, post_cutover, rollback_active, welle_complete. Schema version targets Grafana 10.x (schemaVersion >= 38). Welle-1+2 KW 24, Welle-3 KW 25 solo, Welle-4+5 KW 26, Welle-6+7 KW 27. The doppel_welle_cap row turns red when welle_aktiv_count > 2 (ADR-0066 parallelitaet-cap). The cross_modul_drift panel turns red on a Phase-2-Acceptance-Gate cross_modul_pin_status=fail.",
+  "title": "Wakir Persona-Engine - Phase-3c Welle Status",
+  "uid": "wakir-persona-engine-phase-3c-welle-status",
+  "tags": ["wakir", "persona-engine", "sre", "phase-3c", "welle-status", "adr-0065", "adr-0066", "tag-30"],
+  "schemaVersion": 38,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-12h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "templating": {
+    "list": [
+      {
+        "name": "welle",
+        "label": "Welle",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prom"},
+        "query": "label_values(persona_engine_phase_3c_welle_state, welle)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 100,
+      "type": "row",
+      "title": "Marathon Progress + Welle-Aktiv Cap",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 1,
+      "type": "gauge",
+      "title": "Marathon Progress (welles complete / 7)",
+      "description": "Percent of welles in welle_complete state across the seven ADR-0065 cutover steps. Hits 100% only after Welle-7 (recovery_workflow) soak passes. Updated by scripts/phase-3c-welle-status-emitter.py on the deployment's textfile-collector interval.",
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 1},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_marathon_progress_pct",
+          "refId": "A",
+          "legendFormat": "marathon progress"
+        }
+      ],
+      "options": {
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "reduceOptions": {"calcs": ["lastNotNull"]}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 14.3},
+              {"color": "green", "value": 71.5}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Welle-Aktiv Count vs. Doppel-Welle Cap",
+      "description": "Welles currently in_cutover OR rollback_active. ADR-0066 caps this at 2 for doppel-welle weeks (KW 24, 26, 27). KW 25 is bridge_audit_writer solo. Red threshold = 3 (cap exceeded).",
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 1},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_welle_aktiv_count",
+          "refId": "A",
+          "legendFormat": "welle aktiv"
+        },
+        {
+          "expr": "persona_engine_phase_3c_doppel_welle_cap",
+          "refId": "B",
+          "legendFormat": "doppel-welle cap"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {"calcs": ["lastNotNull"]}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 2},
+              {"color": "red", "value": 3}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Cross-Modul-Drift (Phase-2-Acceptance-Gate)",
+      "description": "Cross-modul-pin-status from the Phase-2-Acceptance-Gate output. Green = cross_modul_pin_status=pass; Yellow = skipped or output missing; Red = cross_modul_pin_status=fail. Red here is an automatic doppel-welle rollback trigger per ADR-0066 Mitigation-1.",
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 1},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_cross_modul_drift{status=\"red\"}",
+          "refId": "A",
+          "legendFormat": "drift=red"
+        },
+        {
+          "expr": "persona_engine_phase_3c_cross_modul_drift{status=\"yellow\"}",
+          "refId": "B",
+          "legendFormat": "drift=yellow"
+        },
+        {
+          "expr": "persona_engine_phase_3c_cross_modul_drift{status=\"green\"}",
+          "refId": "C",
+          "legendFormat": "drift=green"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {"calcs": ["lastNotNull"]}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 0.5},
+              {"color": "red", "value": 1}
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byFrameRefID", "options": "A"},
+            "properties": [
+              {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}
+            ]
+          },
+          {
+            "matcher": {"id": "byFrameRefID", "options": "B"},
+            "properties": [
+              {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1}]}}
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 110,
+      "type": "row",
+      "title": "Per-Welle Status (1..7)",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 9},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Welle-1 - v907_verify (KW 24)",
+      "description": "Welle-1 lifecycle state (pre/in/post/rollback/complete). Operator-hand-advanced via the lifecycle JSON. Doppel mit Welle-2.",
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 10},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_welle_state{welle=\"1\"} == 1",
+          "refId": "A",
+          "legendFormat": "{{state}}"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "name",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "/^state$/"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [
+            {"type": "value", "options": {"pre_cutover": {"color": "blue", "index": 0}, "in_cutover": {"color": "yellow", "index": 1}, "post_cutover": {"color": "purple", "index": 2}, "rollback_active": {"color": "red", "index": 3}, "welle_complete": {"color": "green", "index": 4}}}
+          ]
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Welle-2 - svid_workload_identity (KW 24)",
+      "description": "Welle-2 lifecycle. Doppel mit Welle-1.",
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 10},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_welle_state{welle=\"2\"} == 1",
+          "refId": "A",
+          "legendFormat": "{{state}}"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "name",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "/^state$/"}
+      },
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "Welle-3 - bridge_audit_writer (KW 25 solo)",
+      "description": "Welle-3 lifecycle. Solo-Woche (Henrik-Caution).",
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 10},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_welle_state{welle=\"3\"} == 1",
+          "refId": "A",
+          "legendFormat": "{{state}}"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "name",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "/^state$/"}
+      },
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "id": 14,
+      "type": "stat",
+      "title": "Welle-4 - state_backing (KW 26)",
+      "description": "Welle-4 lifecycle. Doppel mit Welle-5; Cross-Modul-Pin-Coverage Pflicht.",
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_welle_state{welle=\"4\"} == 1",
+          "refId": "A",
+          "legendFormat": "{{state}}"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "name",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "/^state$/"}
+      },
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "id": 15,
+      "type": "stat",
+      "title": "Welle-5 - lifecycle_state_machine (KW 26)",
+      "description": "Welle-5 lifecycle. Doppel mit Welle-4.",
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_welle_state{welle=\"5\"} == 1",
+          "refId": "A",
+          "legendFormat": "{{state}}"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "name",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "/^state$/"}
+      },
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "id": 16,
+      "type": "stat",
+      "title": "Welle-6 - subscribe_loop (KW 27)",
+      "description": "Welle-6 lifecycle. Doppel mit Welle-7; Low-Coupling.",
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_welle_state{welle=\"6\"} == 1",
+          "refId": "A",
+          "legendFormat": "{{state}}"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "name",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "/^state$/"}
+      },
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "id": 17,
+      "type": "stat",
+      "title": "Welle-7 - recovery_workflow (KW 27)",
+      "description": "Welle-7 lifecycle. Doppel mit Welle-6; abschliessende Welle vor Marathon-Done.",
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 22},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_welle_state{welle=\"7\"} == 1",
+          "refId": "A",
+          "legendFormat": "{{state}}"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "name",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "/^state$/"}
+      },
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "id": 200,
+      "type": "row",
+      "title": "Per-Welle BackendDecision Split (python vs rust)",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 28},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 20,
+      "type": "barchart",
+      "title": "BackendDecision counts per welle (python | rust | other)",
+      "description": "Per-welle counter view of how many BackendDecisions landed on python vs. rust vs. other. A sustained python skew on a welle in in_cutover OR post_cutover state means the Rust binary is missing or non-executable on the host - check the fallback_total panel.",
+      "gridPos": {"h": 10, "w": 16, "x": 0, "y": 29},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_welle_decisions_total{welle=~\"$welle\"}",
+          "refId": "A",
+          "legendFormat": "welle {{welle}} {{domain}} {{backend}}"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "values": ["value"]},
+        "tooltip": {"mode": "multi"},
+        "orientation": "vertical",
+        "stacking": "normal"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "palette-classic"},
+          "decimals": 0
+        }
+      }
+    },
+    {
+      "id": 21,
+      "type": "barchart",
+      "title": "Fallback-records per welle",
+      "description": "Count of BackendDecisions where fallback_reason was non-empty. A non-zero bar on a welle in in_cutover or post_cutover is the operator's immediate red flag.",
+      "gridPos": {"h": 10, "w": 8, "x": 16, "y": 29},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_welle_fallback_total{welle=~\"$welle\"}",
+          "refId": "A",
+          "legendFormat": "welle {{welle}} {{domain}}"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "values": ["value"]},
+        "tooltip": {"mode": "multi"},
+        "orientation": "vertical",
+        "stacking": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "palette-classic"},
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 1},
+              {"color": "red", "value": 10}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 300,
+      "type": "row",
+      "title": "Per-Welle Latency Comparison (python p50/p95/p99 vs rust)",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 39},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 30,
+      "type": "timeseries",
+      "title": "Latency p50 us per welle (python vs rust)",
+      "description": "Median resolution-latency from the BackendDecision JSONL. The cutover-acceptance criterion is that the rust median is at-most 1.5x the python median (per ADR-0065 v907_verify acceptance band). Values above that line warrant a rollback discussion.",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 40},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_welle_latency_us{welle=~\"$welle\",quantile=\"0.5\"}",
+          "refId": "A",
+          "legendFormat": "welle {{welle}} {{domain}} {{backend}}"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "us",
+          "color": {"mode": "palette-classic"}
+        }
+      }
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "Latency p95 us per welle (python vs rust)",
+      "description": "p95 resolution-latency per welle. p95 catches sporadic outliers the median hides.",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 40},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_welle_latency_us{welle=~\"$welle\",quantile=\"0.95\"}",
+          "refId": "A",
+          "legendFormat": "welle {{welle}} {{domain}} {{backend}}"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "us",
+          "color": {"mode": "palette-classic"}
+        }
+      }
+    },
+    {
+      "id": 32,
+      "type": "timeseries",
+      "title": "Latency p99 us per welle (python vs rust)",
+      "description": "p99 resolution-latency per welle. p99 is the tail-risk signal; ADR-0065 Welle-Acceptance permits p99 <= 3x python baseline.",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 48},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_welle_latency_us{welle=~\"$welle\",quantile=\"0.99\"}",
+          "refId": "A",
+          "legendFormat": "welle {{welle}} {{domain}} {{backend}}"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "us",
+          "color": {"mode": "palette-classic"}
+        }
+      }
+    }
+  ]
+}

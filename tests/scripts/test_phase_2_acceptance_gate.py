@@ -73,7 +73,9 @@ aggregator = _load_aggregator()
 
 
 def _all_pass_axes():
-    """Eight synthetic AxisResults — one per AXIS_ORDER entry, all pass."""
+    """Synthetic AxisResults — one per AXIS_ORDER entry, all pass.
+    Tag-29 (ADR-0066): 11 axes total (8 Tag-15 + 3 Cross-Modul).
+    """
     return [
         aggregator.AxisResult(label=label, pass_=True, weight=1)
         for label in aggregator.AXIS_ORDER
@@ -86,29 +88,30 @@ def _all_pass_axes():
 
 
 def test_threshold_pass_at_or_above_floor():
-    """The CI gate uses ``--threshold 6``. With seven axes passing
-    (one short of the 8/8 strict default), the rollup MUST report
-    ``threshold_pass=True`` and ``total_score=7``. Anything else
-    breaks the 6/8 ops contract documented in
+    """The CI gate uses ``--threshold 9`` (Tag-29). With ten axes
+    passing (one short of the 11/11 strict default), the rollup MUST
+    report ``threshold_pass=True`` and ``total_score=10``. Anything
+    else breaks the 9/11 ops contract documented in
     ``docs/operations/phase-2-acceptance-gate.md``.
     """
     axes = _all_pass_axes()
-    # Flip one axis to fail to simulate the typical "axis-8 env-not-
-    # set on CI" scenario (the daily gate accepts that miss).
+    assert len(axes) == 11, "Tag-29 axis-count drift"
+    # Flip one axis to fail to simulate the typical "anchor-emitter
+    # env-not-set on CI" scenario (the daily gate accepts that miss).
     axes[-1] = aggregator.AxisResult(
         label=axes[-1].label,
         pass_=False,
         weight=1,
-        details={"env_set": False, "emitted": None},
+        details={"both_envs_rust": False},
     )
-    envelope = aggregator.build_envelope(axes, threshold=6, ts_utc="2026-05-17T02:00:00Z")
-    assert envelope["total_score"] == 7
-    assert envelope["threshold"] == 6
+    envelope = aggregator.build_envelope(axes, threshold=9, ts_utc="2026-05-17T02:00:00Z")
+    assert envelope["total_score"] == 10
+    assert envelope["threshold"] == 9
     assert envelope["threshold_pass"] is True
-    # The strict 8/8 floor MUST fail this same envelope.
-    strict = aggregator.build_envelope(axes, threshold=8, ts_utc="2026-05-17T02:00:00Z")
-    assert strict["total_score"] == 7
-    assert strict["threshold"] == 8
+    # The strict 11/11 floor MUST fail this same envelope.
+    strict = aggregator.build_envelope(axes, threshold=11, ts_utc="2026-05-17T02:00:00Z")
+    assert strict["total_score"] == 10
+    assert strict["threshold"] == 11
     assert strict["threshold_pass"] is False
 
 
@@ -118,23 +121,24 @@ def test_threshold_pass_at_or_above_floor():
 
 
 def test_threshold_fail_below_floor():
-    """With only five axes passing (three concurrent regressions —
-    the Tag-22 escalation contract), the 6/8 CI gate MUST fail. The
-    aggregator's CLI exit code MUST be 1 (threshold-fail), not 0.
+    """With only eight axes passing (three concurrent regressions —
+    the post-Tag-29 escalation contract), the 9/11 CI gate MUST
+    fail. The aggregator's CLI exit code MUST be 1 (threshold-fail),
+    not 0.
     """
     axes = _all_pass_axes()
-    # Fail axes 5, 6, 7 (last three) — drops total_score to 5.
+    # Fail axes 8, 9, 10 (last three) — drops total_score to 8.
     for i in (-1, -2, -3):
         old = axes[i]
         axes[i] = aggregator.AxisResult(
             label=old.label, pass_=False, weight=old.weight
         )
-    envelope = aggregator.build_envelope(axes, threshold=6)
-    assert envelope["total_score"] == 5
-    assert envelope["threshold"] == 6
+    envelope = aggregator.build_envelope(axes, threshold=9)
+    assert envelope["total_score"] == 8
+    assert envelope["threshold"] == 9
     assert envelope["threshold_pass"] is False
-    # Sanity-check: relaxing to threshold=5 flips it green again.
-    relaxed = aggregator.build_envelope(axes, threshold=5)
+    # Sanity-check: relaxing to threshold=8 flips it green again.
+    relaxed = aggregator.build_envelope(axes, threshold=8)
     assert relaxed["threshold_pass"] is True
 
 
@@ -151,13 +155,13 @@ def test_missing_axis_marked_failed_in_envelope():
     ``details.reason=='axis-missing'``. Silent-drop would let a
     regression hide behind a partial rollup.
     """
-    # Provide only the first five axes; omit the last three.
+    # Provide only the first five axes; omit the last six (post-Tag-29).
     partial = [
         aggregator.AxisResult(label=label, pass_=True, weight=1)
         for label in aggregator.AXIS_ORDER[:5]
     ]
-    envelope = aggregator.build_envelope(partial, threshold=8)
-    # All eight axes present.
+    envelope = aggregator.build_envelope(partial, threshold=11)
+    # All eleven axes present.
     assert set(envelope["axes"].keys()) == set(aggregator.AXIS_ORDER)
     # Each missing axis flagged correctly.
     for label in aggregator.AXIS_ORDER[5:]:
@@ -216,9 +220,17 @@ def test_workflow_yaml_references_aggregator_cli_surface():
     """
     assert WORKFLOW_PATH.exists(), f"workflow missing at {WORKFLOW_PATH}"
     body = WORKFLOW_PATH.read_text(encoding="utf-8")
-    # CLI invocation pins.
+    # CLI invocation pins. Tag-29 makes the mode dispatch-input-driven
+    # (default ``full``, alternatives ``cross-modul-stress`` and
+    # ``cross-lang-only``), so we only require that the ``--mode=``
+    # flag is wired to the resolved mode-output, plus the default is
+    # mentioned in the dispatch-input definition.
     assert "scripts/doppelbetrieb-score-aggregator.py" in body
-    assert "--mode=full" in body
+    assert "--mode=" in body, "aggregator invocation must pass --mode="
+    assert (
+        'default: "full"' in body
+        or "default: full" in body
+    ), "workflow_dispatch mode input must default to 'full'"
     assert "--threshold" in body
     assert "--out " in body or "--out=" in body or "--out\n" in body
     # The aggregator entry-point file exists.
@@ -325,6 +337,6 @@ def test_cli_smoke_with_explicit_threshold(tmp_path, monkeypatch):
     assert payload["ts_utc"] == "2026-05-17T02:00:00Z"
     assert payload["threshold"] == 1
     # Cross-lang-only mode emits one axis; the envelope still lists
-    # all eight AXIS_ORDER entries (the other seven default to
+    # all eleven AXIS_ORDER entries (the other ten default to
     # axis-missing).
     assert set(payload["axes"].keys()) == set(aggregator.AXIS_ORDER)
