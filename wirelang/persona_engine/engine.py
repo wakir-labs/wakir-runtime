@@ -384,6 +384,7 @@ class PersonaEngine:
         from .rust_backend_switch import (
             resolve_fsm_backend,
             resolve_recovery_backend,
+            resolve_v907_verify_backend,
         )
 
         try:
@@ -416,6 +417,30 @@ class PersonaEngine:
                 "level": "ERROR",
                 "msg": "backend-switch-validation-failed",
                 "domain": "fsm",
+                "error": str(exc),
+            })
+            raise
+        # Tag-19: resolve V-907-verify-backend choice up-front, parallel
+        # to recovery + state_backing + fsm. Default is python (current
+        # behaviour, opt-in switch). V-907 is the hash-determinism
+        # anchor (spec §5) — the per-decision audit-record is critical
+        # for the Phase-3b Doppelbetrieb comparison set. The engine
+        # keeps :func:`verify_v907_pin` Python-backed during Phase-3b;
+        # Phase-3c cutover (out of scope here) swaps in the Rust
+        # subprocess-bridge via :func:`build_v907_verify` once Tomás
+        # (Zone-K) has co-signed the binary-hash-pinning step.
+        try:
+            (
+                self._v907_verify_backend,
+                self._v907_verify_backend_decision,
+            ) = resolve_v907_verify_backend(
+                env=None, log_sink=self.log_sink
+            )
+        except Exception as exc:  # noqa: BLE001 — strict env-validation
+            self._log({
+                "level": "ERROR",
+                "msg": "backend-switch-validation-failed",
+                "domain": "v907_verify",
                 "error": str(exc),
             })
             raise

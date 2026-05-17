@@ -1778,6 +1778,7 @@ dependencies = [
  "async-nats",
  "chrono",
  "serde_json",
+ "sha2 0.10.8",
  "tokio",
 ]
 

@@ -110,3 +110,9 @@ serde_json = "=1.0.140"
 
 # RFC-3339 second-precision timestamp formatting.
 chrono = { version = "=0.4.44", default-features = false, features = ["clock", "std"] }
+
+# SHA-256 for the Tag-19 subscribe-ack-record cross-lang substrate
+# (`ack_record` module). Workspace pin =0.10.8 (default-features=false)
+# matches the `persona-engine-anchor-emitter` dependency posture so the
+# two crates do not pull in different `sha2` versions.
+sha2 = { workspace = true }
