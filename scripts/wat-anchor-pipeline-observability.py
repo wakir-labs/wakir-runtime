@@ -91,6 +91,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -98,7 +99,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +109,66 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple
 DEFAULT_TEXTFILE_OUTPUT = (
     "/var/lib/node_exporter/textfile_collector/wat_anchor_pipeline.prom"
 )
+
+#: Default sliding-window size for per-anchor latency histograms.
+#: ENV ``WAKIR_OBS_WINDOW_SIZE`` overrides; CLI ``--window`` overrides ENV.
+#: 100 anchors gives meaningful p95/p99 quantiles (5 / 1 samples at the
+#: tail) without unbounded memory growth in the JSONL tail-reader.
+DEFAULT_WINDOW_SIZE = 100
+
+#: ENV variable that overrides ``DEFAULT_WINDOW_SIZE``. CLI ``--window``
+#: still wins over the ENV.
+ENV_WINDOW_SIZE = "WAKIR_OBS_WINDOW_SIZE"
+
+#: Default path of the per-anchor latency-observations JSONL emitted by
+#: the WAT pipeline (Tomas owns the producer; Noa consumes). One JSON
+#: object per line; the script tails the last ``--window`` lines.
+DEFAULT_LATENCY_SOURCE = "/var/lib/wakir/wat-anchor-latencies.jsonl"
+
+#: Ordered list of pipeline-stage names. The order is contractual:
+#: dashboards, alert-rules, and the JSON / Prometheus output all key
+#: off this sequence. Adding a stage is a schema-version bump; renaming
+#: one is a breaking change.
+PIPELINE_STAGES: Tuple[str, ...] = (
+    "enqueue_to_pre_ots",
+    "ots_call",
+    "post_ots_commit",
+    "wat_write",
+)
+
+#: JSONL field name carrying the per-stage timing dict. One observation
+#: line is expected per anchored receipt.
+LATENCY_STAGES_FIELD = "stages"
+
+#: JSONL stage-field-name suffix for milliseconds. The producer emits
+#: ``<stage>_ms``; the script converts to seconds for the Prometheus
+#: exposition format (Prometheus convention is seconds, not ms).
+LATENCY_STAGE_MS_SUFFIX = "_ms"
+
+#: Prometheus histogram bucket boundaries (seconds). Chosen to span the
+#: observed-and-plausible range for the OTS-anchor pipeline: sub-10ms
+#: local writes, 100ms-1s typical OTS calls, multi-second tail on slow
+#: calendars. The +Inf bucket is appended automatically by
+#: ``render_prom_histogram``.
+DEFAULT_HISTOGRAM_BUCKETS_SECONDS: Tuple[float, ...] = (
+    0.005,
+    0.01,
+    0.025,
+    0.05,
+    0.1,
+    0.25,
+    0.5,
+    1.0,
+    2.5,
+    5.0,
+    10.0,
+)
+
+#: Output formats supported by ``--format``. ``prom`` emits Prometheus
+#: histogram exposition format (``# TYPE histogram``) for scrape by the
+#: existing prometheus textfile-collector; ``json`` emits a compact
+#: summary for ad-hoc operator inspection and CI assertions.
+SUPPORTED_OUTPUT_FORMATS: Tuple[str, ...] = ("json", "prom")
 
 #: Default subprocess command. Tomas' PR #124 ships the
 #: ``wakir-anchor anchor-receipt --latest --json`` subcommand. Overridable
@@ -550,6 +611,436 @@ def atomic_write(target: Path, payload: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Per-anchor latency histograms (Tag-12 mini-welle, Phase-2-operations-reife)
+# ---------------------------------------------------------------------------
+#
+# The receipt-emitter path above (build_snapshot -> render_textfile) covers
+# *spool-wide* gauges: how many anchors are finalized, what is the age of
+# the latest one, what is the current Bitcoin block height. That surface
+# answers SLO-1 (finalization-rate) and SLO-3 (Bitcoin-block-height-drift)
+# but it does *not* answer SLO-2 (anchor-latency-p99): for that we need
+# per-anchor stage-level timings.
+#
+# Producer contract (Tomas, WAT-core)
+# -----------------------------------
+#
+# The WAT-core writes one JSON object per finalized anchor to a JSONL
+# observation file (default: ``/var/lib/wakir/wat-anchor-latencies.jsonl``).
+# One line per anchor; append-only; rotation handled externally. Shape:
+#
+#     {
+#       "anchor_root_hex": "<64-hex>",
+#       "timestamp": "<ISO-8601>",
+#       "stages": {
+#         "enqueue_to_pre_ots_ms": <float | int>,
+#         "ots_call_ms": <float | int>,
+#         "post_ots_commit_ms": <float | int>,
+#         "wat_write_ms": <float | int>
+#       }
+#     }
+#
+# Missing or malformed lines are silently skipped (defensive: the producer
+# may be racing rotation, or the consumer may sample mid-write); the line
+# is not counted toward the window.
+#
+# Consumer (Noa, SRE) — this script
+# ----------------------------------
+#
+# Tail the last ``--window`` (default 100, ENV ``WAKIR_OBS_WINDOW_SIZE``)
+# parseable lines, compute per-stage p50/p95/p99 quantiles plus a bucketed
+# histogram, render as either JSON (operator inspection / CI assertions)
+# or Prometheus ``# TYPE histogram`` exposition (node-exporter scrape).
+#
+# The histogram path is *additive* to the receipt-emitter path. ``--format``
+# selects which output shape the script produces; default is the
+# receipt-emitter textfile (unchanged behavior, for backward compat with
+# the Tag-9 systemd timer).
+
+
+def resolve_window_size(
+    cli_value: Optional[int],
+    *,
+    env: Optional[Mapping[str, str]] = None,
+) -> int:
+    """Resolve the window size: CLI > ENV > default.
+
+    ``cli_value`` of ``None`` means "not supplied". Non-positive values
+    (zero, negative) are coerced to the default; this is a defensive
+    choice — a window of zero would silently emit an empty histogram
+    and we would rather fall back to the documented default than
+    surface garbage.
+    """
+    if cli_value is not None and cli_value > 0:
+        return cli_value
+    env_map = env if env is not None else os.environ
+    raw = env_map.get(ENV_WINDOW_SIZE)
+    if raw is not None:
+        try:
+            parsed = int(raw)
+        except ValueError:
+            parsed = 0
+        if parsed > 0:
+            return parsed
+    return DEFAULT_WINDOW_SIZE
+
+
+def read_latency_samples(
+    source: Path,
+    *,
+    window: int,
+) -> List[Dict[str, float]]:
+    """Read the last ``window`` parseable latency-observation lines.
+
+    Returns a list of stage-name -> seconds dicts, oldest first. Lines
+    that cannot be parsed as JSON, that are not objects, that miss the
+    ``stages`` key, or whose ``stages`` block is not a dict, are skipped
+    silently. Lines whose stage values are not numeric are also skipped
+    (we do not surface a NaN into the histogram).
+
+    The function reads the whole file (stdlib, no streaming-tail
+    dependency); for the expected file size (one JSON line per anchor,
+    anchors happen on the order of hourly cadence) this is fine. If the
+    producer cadence ever grows to thousands per second a streaming
+    tail-from-end implementation would be the natural follow-up.
+    """
+    if window <= 0:
+        return []
+    if not source.is_file():
+        return []
+    samples: List[Dict[str, float]] = []
+    try:
+        with source.open("r", encoding="utf-8") as fh:
+            for raw_line in fh:
+                line = raw_line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(obj, dict):
+                    continue
+                stages = obj.get(LATENCY_STAGES_FIELD)
+                if not isinstance(stages, Mapping):
+                    continue
+                parsed = _parse_stage_block(stages)
+                if parsed is None:
+                    continue
+                samples.append(parsed)
+    except OSError:
+        return []
+    if len(samples) > window:
+        samples = samples[-window:]
+    return samples
+
+
+def _parse_stage_block(stages: Mapping[str, Any]) -> Optional[Dict[str, float]]:
+    """Convert one ``stages`` block into a ``{stage_name: seconds}`` dict.
+
+    Returns ``None`` if any contractual stage is missing or non-numeric.
+    Partial samples are not useful for per-stage percentiles — we either
+    have the whole anchor or we drop the whole observation.
+    """
+    out: Dict[str, float] = {}
+    for stage in PIPELINE_STAGES:
+        key = stage + LATENCY_STAGE_MS_SUFFIX
+        v = stages.get(key)
+        if isinstance(v, bool):
+            return None
+        if not isinstance(v, (int, float)):
+            return None
+        if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+            return None
+        if v < 0:
+            return None
+        out[stage] = float(v) / 1000.0  # ms -> seconds
+    return out
+
+
+def compute_percentile(values: Sequence[float], percentile: float) -> float:
+    """Compute a nearest-rank percentile from a sorted-on-demand sequence.
+
+    Nearest-rank (ceil) is chosen over linear interpolation: it returns
+    an actual observed value, which is what an operator wants when
+    reading an alert ("the p99 was 1.2 s — yes, there really was an
+    anchor that took 1.2 s"). For ``percentile=0`` returns the minimum,
+    for ``percentile=100`` returns the maximum.
+
+    Empty sequences return 0.0 (the histogram is empty; downstream
+    callers should consult ``count`` before reading the percentiles).
+    """
+    if not values:
+        return 0.0
+    if percentile < 0:
+        percentile = 0.0
+    if percentile > 100:
+        percentile = 100.0
+    ordered = sorted(values)
+    n = len(ordered)
+    if percentile == 0:
+        return ordered[0]
+    # Nearest-rank: ceil(p/100 * n), 1-indexed -> 0-indexed.
+    rank = math.ceil(percentile / 100.0 * n)
+    idx = max(0, min(n - 1, rank - 1))
+    return ordered[idx]
+
+
+def bucketize(
+    values: Sequence[float],
+    buckets: Sequence[float] = DEFAULT_HISTOGRAM_BUCKETS_SECONDS,
+) -> List[Tuple[float, int]]:
+    """Bin ``values`` into cumulative (Prometheus-style) histogram buckets.
+
+    Returns a list of ``(le, cumulative_count)`` tuples in the order of
+    ``buckets`` with a trailing ``(+Inf, total)`` entry appended.
+    Prometheus histogram semantics: each bucket counts samples with
+    value <= le, so counts are monotonically non-decreasing across the
+    returned list.
+    """
+    sorted_buckets = sorted(set(buckets))
+    out: List[Tuple[float, int]] = []
+    for le in sorted_buckets:
+        count = sum(1 for v in values if v <= le)
+        out.append((le, count))
+    out.append((float("inf"), len(values)))
+    return out
+
+
+def summarize_stage(values: Sequence[float]) -> Dict[str, Any]:
+    """Per-stage summary: count, sum, p50, p95, p99, bucket counts."""
+    n = len(values)
+    total = float(sum(values)) if values else 0.0
+    return {
+        "count": n,
+        "sum_seconds": total,
+        "p50_seconds": compute_percentile(values, 50.0),
+        "p95_seconds": compute_percentile(values, 95.0),
+        "p99_seconds": compute_percentile(values, 99.0),
+        "buckets": [
+            {"le": le, "count": c}
+            for (le, c) in bucketize(values)
+        ],
+    }
+
+
+def summarize_window(
+    samples: Sequence[Mapping[str, float]],
+) -> Dict[str, Any]:
+    """Aggregate per-stage summaries across the sample window.
+
+    ``samples`` is a list of ``{stage_name: seconds}`` dicts. Returns a
+    dict with one entry per contractual ``PIPELINE_STAGES`` name plus a
+    ``window_size`` sidecar for downstream renderers.
+    """
+    per_stage: Dict[str, Any] = {}
+    for stage in PIPELINE_STAGES:
+        vals: List[float] = []
+        for sample in samples:
+            v = sample.get(stage)
+            if isinstance(v, (int, float)):
+                vals.append(float(v))
+        per_stage[stage] = summarize_stage(vals)
+    return {
+        "window_size": len(samples),
+        "stages": per_stage,
+    }
+
+
+def render_json_summary(
+    summary: Mapping[str, Any],
+    *,
+    scrape_ts_utc: Optional[int] = None,
+) -> str:
+    """Render the window summary as a single-object JSON document.
+
+    Shape:
+
+        {
+          "schema_version": 1,
+          "scrape_timestamp_seconds": <int>,
+          "window_size": <int>,
+          "stages": {
+            "<stage_name>": {
+              "count": <int>, "sum_seconds": <float>,
+              "p50_seconds": <float>, "p95_seconds": <float>,
+              "p99_seconds": <float>,
+              "buckets": [{"le": <float>, "count": <int>}, ...]
+            }
+          }
+        }
+
+    Floats render with full precision; the consumer (operator CLI or
+    CI assertion) is expected to round for display.
+    """
+    if scrape_ts_utc is None:
+        scrape_ts_utc = int(time.time())
+    doc = {
+        "schema_version": 1,
+        "scrape_timestamp_seconds": scrape_ts_utc,
+        "window_size": int(summary.get("window_size", 0)),
+        "stages": _json_safe_stages(summary.get("stages", {})),
+    }
+    return json.dumps(doc, indent=2, sort_keys=False) + "\n"
+
+
+def _json_safe_stages(stages: Mapping[str, Any]) -> Dict[str, Any]:
+    """Convert per-stage summaries into JSON-safe scalars (handles +Inf bucket)."""
+    out: Dict[str, Any] = {}
+    for stage_name in PIPELINE_STAGES:
+        stage = stages.get(stage_name, {})
+        if not isinstance(stage, Mapping):
+            stage = {}
+        out[stage_name] = {
+            "count": int(stage.get("count", 0)),
+            "sum_seconds": float(stage.get("sum_seconds", 0.0)),
+            "p50_seconds": float(stage.get("p50_seconds", 0.0)),
+            "p95_seconds": float(stage.get("p95_seconds", 0.0)),
+            "p99_seconds": float(stage.get("p99_seconds", 0.0)),
+            "buckets": [
+                {
+                    "le": ("+Inf" if math.isinf(b["le"]) else float(b["le"])),
+                    "count": int(b["count"]),
+                }
+                for b in stage.get("buckets", [])
+            ],
+        }
+    return out
+
+
+def render_prom_histogram(
+    summary: Mapping[str, Any],
+    *,
+    scrape_ts_utc: Optional[int] = None,
+) -> str:
+    """Render the window summary as Prometheus ``# TYPE histogram`` exposition.
+
+    Emits one histogram per pipeline stage:
+
+        wat_anchor_stage_latency_seconds{stage="<name>",le="0.005"} <count>
+        ...
+        wat_anchor_stage_latency_seconds{stage="<name>",le="+Inf"} <count>
+        wat_anchor_stage_latency_seconds_sum{stage="<name>"} <seconds>
+        wat_anchor_stage_latency_seconds_count{stage="<name>"} <count>
+
+    Plus quantile summaries for dashboard reuse (Prometheus rewrites the
+    quantiles via histogram_quantile() at query time; we expose the
+    pre-computed values here for cheaper dashboards and for the JSON
+    consumer parity):
+
+        wat_anchor_stage_latency_p50_seconds{stage="<name>"} <seconds>
+        wat_anchor_stage_latency_p95_seconds{stage="<name>"} <seconds>
+        wat_anchor_stage_latency_p99_seconds{stage="<name>"} <seconds>
+
+    Plus a window-size gauge for operator context:
+
+        wat_anchor_latency_window_size <int>
+        wat_anchor_latency_scrape_timestamp_seconds <int>
+    """
+    if scrape_ts_utc is None:
+        scrape_ts_utc = int(time.time())
+    stages = summary.get("stages", {})
+    if not isinstance(stages, Mapping):
+        stages = {}
+    lines: List[str] = []
+
+    histogram_name = "wat_anchor_stage_latency_seconds"
+    lines.append(
+        f"# HELP {histogram_name} "
+        "Per-anchor pipeline-stage latency in seconds, "
+        "bucketed for SLO-2 (anchor-latency-p99).\n"
+    )
+    lines.append(f"# TYPE {histogram_name} histogram\n")
+    for stage_name in PIPELINE_STAGES:
+        stage = stages.get(stage_name, {})
+        if not isinstance(stage, Mapping):
+            stage = {}
+        buckets = stage.get("buckets") or []
+        for b in buckets:
+            le = b.get("le")
+            count = int(b.get("count", 0))
+            le_text = "+Inf" if (isinstance(le, float) and math.isinf(le)) else _format_le(le)
+            lines.append(
+                f'{histogram_name}_bucket{{stage="{stage_name}",le="{le_text}"}} {count}\n'
+            )
+        sum_seconds = float(stage.get("sum_seconds", 0.0))
+        count = int(stage.get("count", 0))
+        lines.append(
+            f'{histogram_name}_sum{{stage="{stage_name}"}} {_format_float(sum_seconds)}\n'
+        )
+        lines.append(
+            f'{histogram_name}_count{{stage="{stage_name}"}} {count}\n'
+        )
+
+    # Pre-computed percentile gauges — emitted alongside the histogram so
+    # dashboard panels can reference them without histogram_quantile()
+    # rewrites on every refresh. Quantile-on-the-server is the cheaper
+    # path for the four-panel dashboard this PR ships; the bucket series
+    # remain available for histogram_quantile-based custom queries.
+    for percentile_label, percentile_key in (
+        ("p50", "p50_seconds"),
+        ("p95", "p95_seconds"),
+        ("p99", "p99_seconds"),
+    ):
+        metric_name = f"wat_anchor_stage_latency_{percentile_label}_seconds"
+        lines.append(
+            f"# HELP {metric_name} Pre-computed {percentile_label} of the "
+            f"per-stage latency over the current observation window.\n"
+        )
+        lines.append(f"# TYPE {metric_name} gauge\n")
+        for stage_name in PIPELINE_STAGES:
+            stage = stages.get(stage_name, {})
+            if not isinstance(stage, Mapping):
+                stage = {}
+            v = float(stage.get(percentile_key, 0.0))
+            lines.append(
+                f'{metric_name}{{stage="{stage_name}"}} {_format_float(v)}\n'
+            )
+
+    # Window-size sidecar (operator context: dashboards should display
+    # this so a sparse window is visible at a glance).
+    lines.append(
+        "# HELP wat_anchor_latency_window_size "
+        "Number of parseable latency observations the script aggregated this run.\n"
+    )
+    lines.append("# TYPE wat_anchor_latency_window_size gauge\n")
+    lines.append(
+        f"wat_anchor_latency_window_size {int(summary.get('window_size', 0))}\n"
+    )
+
+    lines.append(
+        "# HELP wat_anchor_latency_scrape_timestamp_seconds "
+        "POSIX-epoch timestamp at which the latency-histogram script last wrote the textfile.\n"
+    )
+    lines.append("# TYPE wat_anchor_latency_scrape_timestamp_seconds gauge\n")
+    lines.append(
+        f"wat_anchor_latency_scrape_timestamp_seconds {scrape_ts_utc}\n"
+    )
+
+    return "".join(lines)
+
+
+def _format_le(le: Any) -> str:
+    """Format a bucket boundary value for Prometheus exposition."""
+    if isinstance(le, (int, float)):
+        if float(le).is_integer():
+            return str(int(le))
+        return f"{le:g}"
+    return str(le)
+
+
+def _format_float(v: float) -> str:
+    """Format a float for Prometheus exposition (integer-valued -> int)."""
+    if not isinstance(v, (int, float)):
+        return "0"
+    if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+        return "0"
+    if float(v).is_integer():
+        return str(int(v))
+    # Trim trailing zeros so 0.005 renders as 0.005, not 0.00500000.
+    return f"{v:.10f}".rstrip("0").rstrip(".")
+
+
+# ---------------------------------------------------------------------------
 # Main entrypoint
 # ---------------------------------------------------------------------------
 
@@ -609,6 +1100,42 @@ def build_argparser() -> argparse.ArgumentParser:
             "stdout, but do not touch the textfile output path."
         ),
     )
+    # ------------------------------------------------------------------
+    # Per-anchor latency-histogram path (Tag-12 mini-welle).
+    # ------------------------------------------------------------------
+    p.add_argument(
+        "--window",
+        type=int,
+        default=None,
+        help=(
+            "Sliding-window size (number of most-recent anchors) for the "
+            "per-stage latency histogram. CLI > ENV WAKIR_OBS_WINDOW_SIZE "
+            f"> default ({DEFAULT_WINDOW_SIZE})."
+        ),
+    )
+    p.add_argument(
+        "--format",
+        choices=list(SUPPORTED_OUTPUT_FORMATS),
+        default=None,
+        help=(
+            "Output format for the per-anchor latency-histogram path. "
+            "'json' emits a structured summary for operator inspection / "
+            "CI assertions; 'prom' emits Prometheus '# TYPE histogram' "
+            "exposition. Omitting --format keeps the legacy receipt-emitter "
+            "behavior (writes the gauge textfile from --textfile-output)."
+        ),
+    )
+    p.add_argument(
+        "--latency-source",
+        type=Path,
+        default=Path(DEFAULT_LATENCY_SOURCE),
+        help=(
+            "Path of the per-anchor latency-observations JSONL emitted by "
+            "the WAT pipeline. One JSON object per line; missing or "
+            "malformed lines are skipped. Default: "
+            f"{DEFAULT_LATENCY_SOURCE}"
+        ),
+    )
     return p
 
 
@@ -625,13 +1152,50 @@ def main(
 ) -> int:
     args = build_argparser().parse_args(argv)
     env_map: Optional[Mapping[str, str]] = env if env is not None else None
+    now = args.now if args.now is not None else int(time.time())
+
+    # New path: per-anchor latency histograms. Selected by --format.
+    if args.format is not None:
+        window = resolve_window_size(args.window, env=env_map)
+        samples = read_latency_samples(args.latency_source, window=window)
+        summary = summarize_window(samples)
+        if args.format == "json":
+            payload = render_json_summary(summary, scrape_ts_utc=now)
+        else:  # "prom"
+            payload = render_prom_histogram(summary, scrape_ts_utc=now)
+        if args.dry_run:
+            sys.stdout.write(payload)
+            return 0
+        # JSON+stdout is the operator-inspection default when --format is
+        # used without --textfile-output explicitly overridden away from
+        # the legacy receipt-emitter default. The receipt-emitter path
+        # always writes the textfile; the histogram path emits to stdout
+        # unless --textfile-output is explicitly different from the
+        # default. We choose stdout-for-json to keep the operator CLI
+        # ergonomics clean and avoid clobbering the receipt-emitter
+        # textfile from a script invocation that asked for JSON.
+        if args.format == "json" and args.textfile_output == Path(
+            DEFAULT_TEXTFILE_OUTPUT
+        ):
+            sys.stdout.write(payload)
+            return 0
+        try:
+            atomic_write(args.textfile_output, payload)
+        except OSError as exc:
+            sys.stderr.write(
+                "wat-anchor-pipeline-observability: cannot write "
+                f"latency-histogram output: {exc}\n"
+            )
+            return 2
+        return 0
+
+    # Legacy path: receipt-emitter (gauge textfile).
     command = resolve_cli_command(args.cli_command)
     receipt, flags = build_snapshot(
         command,
         timeout_seconds=args.cli_timeout_seconds,
         env=env_map,
     )
-    now = args.now if args.now is not None else int(time.time())
     payload = render_textfile(receipt, flags, scrape_ts_utc=now)
     if args.dry_run:
         sys.stdout.write(payload)

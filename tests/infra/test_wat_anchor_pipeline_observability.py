@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -589,3 +590,506 @@ def test_format_value_renders_ints_and_floats() -> None:
     assert obs._format_value(None) == "0"
     # NaN does not render NaN — it renders 0.
     assert obs._format_value(float("nan")) == "0"
+
+
+# ---------------------------------------------------------------------------
+# Per-anchor latency-histogram path (Tag-12 mini-welle).
+# Exercises: window-size resolution, JSONL parsing, percentile correctness,
+# histogram bucketization, JSON+Prom rendering, main() dispatch.
+# ---------------------------------------------------------------------------
+
+
+def _make_latency_line(
+    *,
+    enqueue_ms: float = 5.0,
+    ots_ms: float = 250.0,
+    post_commit_ms: float = 8.0,
+    wat_write_ms: float = 12.0,
+    anchor_root_hex: str = "00" * 32,
+    timestamp: str = "2026-05-17T00:00:00+00:00",
+) -> str:
+    """Build one JSONL line in the contractual producer shape."""
+    return (
+        json.dumps(
+            {
+                "anchor_root_hex": anchor_root_hex,
+                "timestamp": timestamp,
+                "stages": {
+                    "enqueue_to_pre_ots_ms": enqueue_ms,
+                    "ots_call_ms": ots_ms,
+                    "post_ots_commit_ms": post_commit_ms,
+                    "wat_write_ms": wat_write_ms,
+                },
+            }
+        )
+        + "\n"
+    )
+
+
+# ---- resolve_window_size: CLI > ENV > default --------------------------
+
+
+def test_resolve_window_size_cli_wins_over_env_and_default() -> None:
+    assert obs.resolve_window_size(42, env={"WAKIR_OBS_WINDOW_SIZE": "7"}) == 42
+
+
+def test_resolve_window_size_env_wins_when_cli_unset() -> None:
+    assert obs.resolve_window_size(None, env={"WAKIR_OBS_WINDOW_SIZE": "250"}) == 250
+
+
+def test_resolve_window_size_falls_back_to_default_for_garbage_env() -> None:
+    assert obs.resolve_window_size(None, env={"WAKIR_OBS_WINDOW_SIZE": "abc"}) == obs.DEFAULT_WINDOW_SIZE
+    assert obs.resolve_window_size(None, env={"WAKIR_OBS_WINDOW_SIZE": "0"}) == obs.DEFAULT_WINDOW_SIZE
+    assert obs.resolve_window_size(None, env={"WAKIR_OBS_WINDOW_SIZE": "-5"}) == obs.DEFAULT_WINDOW_SIZE
+
+
+def test_resolve_window_size_defaults_to_100() -> None:
+    assert obs.resolve_window_size(None, env={}) == 100
+    assert obs.DEFAULT_WINDOW_SIZE == 100
+
+
+def test_resolve_window_size_zero_cli_falls_back_to_default() -> None:
+    assert obs.resolve_window_size(0, env={}) == obs.DEFAULT_WINDOW_SIZE
+
+
+# ---- read_latency_samples: file-tail with parse-defense ---------------
+
+
+def test_read_latency_samples_missing_file_returns_empty(tmp_path: Path) -> None:
+    assert obs.read_latency_samples(tmp_path / "does-not-exist.jsonl", window=10) == []
+
+
+def test_read_latency_samples_empty_file_returns_empty(tmp_path: Path) -> None:
+    src = tmp_path / "lat.jsonl"
+    src.write_text("")
+    assert obs.read_latency_samples(src, window=10) == []
+
+
+def test_read_latency_samples_zero_window_returns_empty(tmp_path: Path) -> None:
+    src = tmp_path / "lat.jsonl"
+    src.write_text(_make_latency_line())
+    assert obs.read_latency_samples(src, window=0) == []
+
+
+def test_read_latency_samples_returns_stage_seconds_dicts(tmp_path: Path) -> None:
+    src = tmp_path / "lat.jsonl"
+    src.write_text(_make_latency_line(enqueue_ms=10, ots_ms=500, post_commit_ms=4, wat_write_ms=2))
+    samples = obs.read_latency_samples(src, window=10)
+    assert len(samples) == 1
+    # ms -> seconds conversion.
+    assert samples[0]["enqueue_to_pre_ots"] == pytest.approx(0.010)
+    assert samples[0]["ots_call"] == pytest.approx(0.500)
+    assert samples[0]["post_ots_commit"] == pytest.approx(0.004)
+    assert samples[0]["wat_write"] == pytest.approx(0.002)
+
+
+def test_read_latency_samples_skips_malformed_lines(tmp_path: Path) -> None:
+    src = tmp_path / "lat.jsonl"
+    src.write_text(
+        "not json\n"
+        + _make_latency_line(ots_ms=100)
+        + "[1, 2, 3]\n"  # JSON but not a dict
+        + _make_latency_line(ots_ms=200)
+        + '{"stages": "not a dict"}\n'  # dict but stages isn't
+        + '{"stages": {"ots_call_ms": "garbage"}}\n'  # missing other stages
+        + _make_latency_line(ots_ms=300)
+    )
+    samples = obs.read_latency_samples(src, window=10)
+    # Three well-formed lines, others skipped.
+    assert len(samples) == 3
+    ots_values = [s["ots_call"] for s in samples]
+    assert ots_values == [pytest.approx(0.1), pytest.approx(0.2), pytest.approx(0.3)]
+
+
+def test_read_latency_samples_rejects_negative_and_nan(tmp_path: Path) -> None:
+    src = tmp_path / "lat.jsonl"
+    src.write_text(
+        _make_latency_line(ots_ms=-50)  # negative -> rejected
+        + json.dumps(
+            {
+                "anchor_root_hex": "00" * 32,
+                "stages": {
+                    "enqueue_to_pre_ots_ms": 1,
+                    "ots_call_ms": float("nan"),
+                    "post_ots_commit_ms": 1,
+                    "wat_write_ms": 1,
+                },
+            }
+        )
+        + "\n"
+        + _make_latency_line(ots_ms=100)  # this one is fine
+    )
+    samples = obs.read_latency_samples(src, window=10)
+    assert len(samples) == 1
+    assert samples[0]["ots_call"] == pytest.approx(0.1)
+
+
+def test_read_latency_samples_returns_last_window_only(tmp_path: Path) -> None:
+    """When the file has more lines than the window, we keep the most recent."""
+    src = tmp_path / "lat.jsonl"
+    src.write_text("".join(_make_latency_line(ots_ms=i) for i in range(1, 21)))
+    samples = obs.read_latency_samples(src, window=5)
+    assert len(samples) == 5
+    # The window is the *last* five lines: ots_ms 16..20.
+    ots_values = [s["ots_call"] * 1000.0 for s in samples]
+    assert ots_values == pytest.approx([16, 17, 18, 19, 20])
+
+
+def test_read_latency_samples_full_window_exact(tmp_path: Path) -> None:
+    src = tmp_path / "lat.jsonl"
+    src.write_text("".join(_make_latency_line(ots_ms=i) for i in range(1, 101)))
+    samples = obs.read_latency_samples(src, window=100)
+    assert len(samples) == 100
+
+
+# ---- compute_percentile: nearest-rank correctness ---------------------
+
+
+def test_compute_percentile_empty_returns_zero() -> None:
+    assert obs.compute_percentile([], 50) == 0.0
+    assert obs.compute_percentile([], 99) == 0.0
+
+
+def test_compute_percentile_single_value_all_quantiles_same() -> None:
+    assert obs.compute_percentile([0.42], 50) == 0.42
+    assert obs.compute_percentile([0.42], 95) == 0.42
+    assert obs.compute_percentile([0.42], 99) == 0.42
+
+
+def test_compute_percentile_known_values_nearest_rank() -> None:
+    # 10 values: 1..10. p50 nearest-rank = ceil(0.5*10)=5 -> idx 4 -> value 5.
+    values = list(range(1, 11))
+    assert obs.compute_percentile(values, 50) == 5
+    # p95 = ceil(0.95*10)=10 -> idx 9 -> value 10.
+    assert obs.compute_percentile(values, 95) == 10
+    # p99 = ceil(0.99*10)=10 -> idx 9 -> value 10.
+    assert obs.compute_percentile(values, 99) == 10
+    # p10 = ceil(0.10*10)=1 -> idx 0 -> value 1.
+    assert obs.compute_percentile(values, 10) == 1
+    # p0 -> min.
+    assert obs.compute_percentile(values, 0) == 1
+    # p100 -> max.
+    assert obs.compute_percentile(values, 100) == 10
+
+
+def test_compute_percentile_handles_unsorted_input() -> None:
+    values = [9, 1, 7, 3, 5, 2, 8, 4, 6, 10]
+    assert obs.compute_percentile(values, 50) == 5
+    assert obs.compute_percentile(values, 95) == 10
+
+
+def test_compute_percentile_clamps_out_of_range() -> None:
+    values = [1.0, 2.0, 3.0]
+    assert obs.compute_percentile(values, -10) == 1.0  # clamped to 0
+    assert obs.compute_percentile(values, 200) == 3.0  # clamped to 100
+
+
+# ---- bucketize: Prometheus-style cumulative buckets -------------------
+
+
+def test_bucketize_empty_emits_zero_counts_with_inf_terminator() -> None:
+    buckets = obs.bucketize([])
+    # Every bucket count is zero; final entry is +Inf with count 0.
+    assert all(c == 0 for (_le, c) in buckets)
+    assert math.isinf(buckets[-1][0])
+    assert buckets[-1][1] == 0
+
+
+def test_bucketize_monotonic_cumulative() -> None:
+    values = [0.001, 0.05, 0.3, 1.5, 4.0]
+    buckets = obs.bucketize(values)
+    counts = [c for (_le, c) in buckets]
+    # Cumulative -> monotonic non-decreasing.
+    assert all(counts[i] <= counts[i + 1] for i in range(len(counts) - 1))
+    # Final +Inf count equals total.
+    assert counts[-1] == len(values)
+
+
+def test_bucketize_known_distribution() -> None:
+    # All five values fit inside le=5.0. The le=0.005 bucket catches the
+    # 0.001 sample only.
+    values = [0.001, 0.05, 0.3, 1.5, 4.0]
+    buckets = dict(obs.bucketize(values))
+    assert buckets[0.005] == 1
+    assert buckets[0.05] == 2
+    assert buckets[0.5] == 3
+    assert buckets[5.0] == 5
+    assert buckets[float("inf")] == 5
+
+
+# ---- summarize_window + summarize_stage ------------------------------
+
+
+def test_summarize_window_empty_returns_zero_shape() -> None:
+    summary = obs.summarize_window([])
+    assert summary["window_size"] == 0
+    for stage in obs.PIPELINE_STAGES:
+        s = summary["stages"][stage]
+        assert s["count"] == 0
+        assert s["sum_seconds"] == 0.0
+        assert s["p50_seconds"] == 0.0
+        assert s["p95_seconds"] == 0.0
+        assert s["p99_seconds"] == 0.0
+
+
+def test_summarize_window_single_sample_percentiles_equal_value() -> None:
+    samples = [{"enqueue_to_pre_ots": 0.005, "ots_call": 0.5, "post_ots_commit": 0.008, "wat_write": 0.012}]
+    summary = obs.summarize_window(samples)
+    assert summary["window_size"] == 1
+    assert summary["stages"]["ots_call"]["count"] == 1
+    assert summary["stages"]["ots_call"]["p50_seconds"] == 0.5
+    assert summary["stages"]["ots_call"]["p95_seconds"] == 0.5
+    assert summary["stages"]["ots_call"]["p99_seconds"] == 0.5
+
+
+def test_summarize_window_full_window_p50_p95_p99_correct() -> None:
+    # 100 samples in the ots_call stage: linearly spaced 1ms..100ms.
+    samples = [
+        {
+            "enqueue_to_pre_ots": 0.001,
+            "ots_call": i / 1000.0,
+            "post_ots_commit": 0.001,
+            "wat_write": 0.001,
+        }
+        for i in range(1, 101)
+    ]
+    summary = obs.summarize_window(samples)
+    s = summary["stages"]["ots_call"]
+    assert s["count"] == 100
+    # Nearest-rank: p50 -> idx 49 (value 50 ms), p95 -> idx 94 (95 ms),
+    # p99 -> idx 98 (99 ms).
+    assert s["p50_seconds"] == pytest.approx(0.050)
+    assert s["p95_seconds"] == pytest.approx(0.095)
+    assert s["p99_seconds"] == pytest.approx(0.099)
+
+
+def test_summarize_window_partial_sample_skipped_per_stage() -> None:
+    """A sample missing a stage value contributes nothing to that stage."""
+    samples = [
+        {"enqueue_to_pre_ots": 0.01, "ots_call": 0.1, "post_ots_commit": 0.02, "wat_write": 0.03},
+        # second sample missing ots_call -> ots_call window stays at 1.
+        {"enqueue_to_pre_ots": 0.02, "post_ots_commit": 0.04, "wat_write": 0.05},
+    ]
+    summary = obs.summarize_window(samples)
+    assert summary["stages"]["ots_call"]["count"] == 1
+    assert summary["stages"]["enqueue_to_pre_ots"]["count"] == 2
+
+
+# ---- render_json_summary: shape + JSON-safety -------------------------
+
+
+def test_render_json_summary_emits_valid_json_with_all_stages() -> None:
+    samples = [
+        {"enqueue_to_pre_ots": 0.005, "ots_call": 0.25, "post_ots_commit": 0.008, "wat_write": 0.012}
+    ] * 10
+    summary = obs.summarize_window(samples)
+    payload = obs.render_json_summary(summary, scrape_ts_utc=1_747_500_000)
+    doc = json.loads(payload)
+    assert doc["schema_version"] == 1
+    assert doc["scrape_timestamp_seconds"] == 1_747_500_000
+    assert doc["window_size"] == 10
+    for stage in obs.PIPELINE_STAGES:
+        assert stage in doc["stages"]
+        s = doc["stages"][stage]
+        assert s["count"] == 10
+        assert "p50_seconds" in s
+        assert "p95_seconds" in s
+        assert "p99_seconds" in s
+        assert "buckets" in s
+        # +Inf bucket is rendered as the string "+Inf" (JSON-safe).
+        assert s["buckets"][-1]["le"] == "+Inf"
+
+
+def test_render_json_summary_empty_window_renders_zero_shape() -> None:
+    summary = obs.summarize_window([])
+    payload = obs.render_json_summary(summary, scrape_ts_utc=1_747_500_000)
+    doc = json.loads(payload)
+    assert doc["window_size"] == 0
+    for stage in obs.PIPELINE_STAGES:
+        assert doc["stages"][stage]["count"] == 0
+
+
+# ---- render_prom_histogram: format shape -----------------------------
+
+
+def test_render_prom_histogram_emits_required_lines() -> None:
+    samples = [
+        {"enqueue_to_pre_ots": 0.005, "ots_call": 0.25, "post_ots_commit": 0.008, "wat_write": 0.012}
+    ] * 10
+    summary = obs.summarize_window(samples)
+    out = obs.render_prom_histogram(summary, scrape_ts_utc=1_747_500_000)
+    # Histogram type header present.
+    assert "# TYPE wat_anchor_stage_latency_seconds histogram\n" in out
+    # One bucket series per stage.
+    for stage in obs.PIPELINE_STAGES:
+        assert f'wat_anchor_stage_latency_seconds_bucket{{stage="{stage}",le="+Inf"}} 10\n' in out
+        assert f'wat_anchor_stage_latency_seconds_count{{stage="{stage}"}} 10\n' in out
+        # _sum series exists.
+        assert f'wat_anchor_stage_latency_seconds_sum{{stage="{stage}"}}' in out
+    # Pre-computed percentile gauges present per stage.
+    for stage in obs.PIPELINE_STAGES:
+        assert f'wat_anchor_stage_latency_p50_seconds{{stage="{stage}"}}' in out
+        assert f'wat_anchor_stage_latency_p95_seconds{{stage="{stage}"}}' in out
+        assert f'wat_anchor_stage_latency_p99_seconds{{stage="{stage}"}}' in out
+    # Window-size + scrape-timestamp sidecars.
+    assert "wat_anchor_latency_window_size 10\n" in out
+    assert "wat_anchor_latency_scrape_timestamp_seconds 1747500000\n" in out
+
+
+def test_render_prom_histogram_empty_window_still_emits_required_headers() -> None:
+    summary = obs.summarize_window([])
+    out = obs.render_prom_histogram(summary, scrape_ts_utc=1_747_500_000)
+    assert "# TYPE wat_anchor_stage_latency_seconds histogram\n" in out
+    for stage in obs.PIPELINE_STAGES:
+        # All bucket counts are zero when the window is empty.
+        assert f'wat_anchor_stage_latency_seconds_bucket{{stage="{stage}",le="+Inf"}} 0\n' in out
+        assert f'wat_anchor_stage_latency_seconds_count{{stage="{stage}"}} 0\n' in out
+    assert "wat_anchor_latency_window_size 0\n" in out
+
+
+def test_render_prom_histogram_buckets_are_cumulative_per_stage() -> None:
+    # Construct ots_call values that exercise the bucket boundaries.
+    ots_values = [0.001, 0.003, 0.05, 0.4, 7.0]  # buckets: 0.005,0.005,0.05,0.5,10
+    samples = [
+        {"enqueue_to_pre_ots": 0.001, "ots_call": v, "post_ots_commit": 0.001, "wat_write": 0.001}
+        for v in ots_values
+    ]
+    summary = obs.summarize_window(samples)
+    out = obs.render_prom_histogram(summary, scrape_ts_utc=1_747_500_000)
+    # le=0.005 -> 2 samples (0.001, 0.003)
+    assert 'wat_anchor_stage_latency_seconds_bucket{stage="ots_call",le="0.005"} 2\n' in out
+    # le=0.05 -> 3 samples
+    assert 'wat_anchor_stage_latency_seconds_bucket{stage="ots_call",le="0.05"} 3\n' in out
+    # le=0.5 -> 4 samples
+    assert 'wat_anchor_stage_latency_seconds_bucket{stage="ots_call",le="0.5"} 4\n' in out
+    # le=+Inf -> 5 samples
+    assert 'wat_anchor_stage_latency_seconds_bucket{stage="ots_call",le="+Inf"} 5\n' in out
+
+
+# ---- main() dispatch on --format -------------------------------------
+
+
+def test_main_format_json_dry_run_emits_valid_json(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    src = tmp_path / "lat.jsonl"
+    src.write_text(_make_latency_line(ots_ms=250) * 3)
+    rc = obs.main(
+        [
+            "--format",
+            "json",
+            "--latency-source",
+            str(src),
+            "--window",
+            "10",
+            "--now",
+            "1747500000",
+            "--dry-run",
+        ]
+    )
+    assert rc == 0
+    captured = capsys.readouterr().out
+    doc = json.loads(captured)
+    assert doc["schema_version"] == 1
+    assert doc["window_size"] == 3
+    assert doc["stages"]["ots_call"]["count"] == 3
+    assert doc["stages"]["ots_call"]["p99_seconds"] == pytest.approx(0.25)
+
+
+def test_main_format_prom_writes_textfile(
+    tmp_path: Path,
+) -> None:
+    src = tmp_path / "lat.jsonl"
+    src.write_text(_make_latency_line(ots_ms=100) * 4)
+    target = tmp_path / "out" / "wat-lat.prom"
+    rc = obs.main(
+        [
+            "--format",
+            "prom",
+            "--latency-source",
+            str(src),
+            "--window",
+            "10",
+            "--textfile-output",
+            str(target),
+            "--now",
+            "1747500000",
+        ]
+    )
+    assert rc == 0
+    content = target.read_text()
+    assert "# TYPE wat_anchor_stage_latency_seconds histogram\n" in content
+    assert 'wat_anchor_stage_latency_seconds_count{stage="ots_call"} 4\n' in content
+    assert "wat_anchor_latency_window_size 4\n" in content
+    assert "wat_anchor_latency_scrape_timestamp_seconds 1747500000\n" in content
+
+
+def test_main_format_json_to_stdout_when_textfile_default(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """JSON + default textfile-output -> stdout (no clobber of receipt-emitter file)."""
+    src = tmp_path / "lat.jsonl"
+    src.write_text(_make_latency_line(ots_ms=50) * 2)
+    rc = obs.main(
+        [
+            "--format",
+            "json",
+            "--latency-source",
+            str(src),
+            "--window",
+            "10",
+            "--now",
+            "1747500000",
+        ]
+    )
+    assert rc == 0
+    out = capsys.readouterr().out
+    doc = json.loads(out)
+    assert doc["window_size"] == 2
+
+
+def test_main_legacy_path_unchanged_without_format(
+    tmp_path: Path,
+) -> None:
+    """Omitting --format keeps the legacy receipt-emitter behavior (Tag-9 contract)."""
+    target = tmp_path / "out" / "wat.prom"
+    rc = obs.main(
+        [
+            "--textfile-output",
+            str(target),
+            "--cli-command",
+            str(tmp_path / "missing-cli"),
+            "--now",
+            "1747500000",
+        ]
+    )
+    assert rc == 0
+    content = target.read_text()
+    # Legacy gauge surface still present.
+    assert "wat_anchor_cli_unavailable 1\n" in content
+    assert "wat_anchor_pipeline_scrape_timestamp_seconds 1747500000\n" in content
+    # New histogram series is *not* in the legacy path.
+    assert "wat_anchor_stage_latency_seconds" not in content
+
+
+def test_main_window_env_picked_up(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """WAKIR_OBS_WINDOW_SIZE is honored when --window is unset."""
+    src = tmp_path / "lat.jsonl"
+    src.write_text("".join(_make_latency_line(ots_ms=i) for i in range(1, 21)))
+    monkeypatch.setenv("WAKIR_OBS_WINDOW_SIZE", "5")
+    rc = obs.main(
+        [
+            "--format",
+            "json",
+            "--latency-source",
+            str(src),
+            "--now",
+            "1747500000",
+            "--dry-run",
+        ]
+    )
+    assert rc == 0
+    doc = json.loads(capsys.readouterr().out)
+    assert doc["window_size"] == 5
