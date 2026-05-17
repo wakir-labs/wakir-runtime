@@ -92,6 +92,17 @@
 #   Crate-8 closes Sprint-Pengine-7 Tag-1.
 #   Crate-9 closes Sprint-Pengine-7 Tag-2 OI-PEF-4.)
 #
+# - persona-engine-federation-frame-parser : Sprint-Rust-Federation-Frame-
+#   Parser-MINI (Phase-3a Item 9). Typed Rust parser + serialiser for
+#   inter-runtime federation frames — the JCS-canonical envelope shape
+#   that wraps task-assigned / task-output / multi-org-attestation /
+#   spiffe-bundle-sync payloads for transport between Wakir-Runtime
+#   instances belonging to different operator-orgs (or, in single-org
+#   pilot mode, between Mira-Sandbox and the Pilot-VM). No Python
+#   sibling exists yet (2026-05-17); the cross-lang pin placeholders
+#   flag the spots where a future `wirelang/federation/federation_frame.py`
+#   must byte-match. Added 2026-05-17.
+#
 # Default-Lock posture (pengine-eng engine-side, ratified 2026-05-07 ~10:00 CEST)
 # ------------------------------------------------------------------------
 #
@@ -127,6 +138,7 @@ members = [
     "crates/persona-engine-fsm",
     "crates/persona-engine-anchor-emitter",
     "crates/persona-engine-nats-subjects",
+    "crates/persona-engine-federation-frame-parser",
 ]
 
 [workspace.package]
