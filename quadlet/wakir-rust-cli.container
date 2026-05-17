@@ -1,0 +1,155 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Tag-22 Mini-Welle — Operations-Reife — Phase-3b Rust-CLI binary
+# installer oneshot Quadlet unit (retry after Tag-21 quota-hit; no
+# substance change, identical bytes-shape as the Tag-21 draft).
+#
+# Purpose
+# -------
+# Installs the five Phase-3b Rust-CLI binaries from the published
+# ``ghcr.io/wakir-labs/wakir-persona-engine`` carrier image (Tag-17
+# through Tag-20 Mini-Welle PRs #167, #169, #171, #175) into the
+# Pilot-VM host filesystem at the canonical ``/opt/wakir/bin/``
+# paths. The default ``DEFAULT_RUST_*_BIN`` constants in
+# ``wirelang/persona_engine/rust_backend_switch.py`` resolve to
+# these exact paths, so any host-side consumer (Operator-Hand
+# recovery-drill scripts, future systemd oneshots that pre-resolve
+# state-backing fences, host-shell probes) finds the same byte-
+# identical binaries that the in-container persona-engine bridges
+# to.
+#
+# Five binaries installed (alphabetical by component)
+# ----------------------------------------------------
+#   1. /opt/wakir/bin/wakir-persona-engine-bridge-diff
+#      (Tag-20 Mini-Welle PR #175 — Doppelbetrieb diff oracle;
+#      NOTE not yet covered by policies/cosign-policy-phase-3b.yaml
+#      — follow-up to extend the policy to a 5-binary inventory is
+#      tracked in the Tag-22 lieferbericht as a Tag-23+ follow-up.)
+#   2. /opt/wakir/bin/wakir-persona-engine-fsm
+#      (Tag-18 Mini-Welle PR #169 — lifecycle FSM bridge)
+#   3. /opt/wakir/bin/wakir-persona-engine-recovery
+#      (Tag-17 Mini-Welle PR #167 — R1..R4 recovery-workflow bridge)
+#   4. /opt/wakir/bin/wakir-persona-engine-state-backing
+#      (Tag-17 Mini-Welle PR #167 — NATS-KV state-backing bridge)
+#   5. /opt/wakir/bin/wakir-persona-engine-v907-verify
+#      (Tag-19 Mini-Welle PR #171 — V-907 pin-hash bridge)
+#
+# Cross-Review-Anchor: Zone-C (Container-Image-Pipeline x Tomás-OTS)
+# ------------------------------------------------------------------
+# The carrier image is the same wakir-persona-engine image that the
+# Tag-15-Konsens-Bundle persona-tomas-Quadlet pins; no image-build-
+# path change introduced here. The image digest placeholder is
+# resolved Operator-Hand via the ``resolve-image-pins-ci.yml``
+# workflow once Operator-Hand confirms the upstream Sigstore-keyless
+# signature (per docs/operations/cosign-policy-phase-3b.md §3). The
+# Quadlet stays byte-parity-aligned with the carrier-image digest
+# the Cosign-Policy declares.
+#
+# Why oneshot, not long-running
+# -----------------------------
+# The carrier image is a Rust toolchain + the persona-engine Python
+# host. Holding it permanently resident solely to expose ``/opt/
+# wakir/bin/`` is wasteful — instead this unit runs once at boot
+# (via ``Restart=no`` + ``Type=oneshot``), copies the five binaries
+# from the carrier image to the host-side ``wakir-rust-cli-bin``
+# named-volume mounted at ``/opt/wakir/bin/``, then exits. Repeated
+# starts re-install (idempotent overwrite).
+#
+# Operator install path (rootful Podman)
+# --------------------------------------
+#   sudo install -m 644 quadlet/wakir-rust-cli.container \
+#       /etc/containers/systemd/wakir-rust-cli.container
+#   sudo install -m 644 quadlet/wakir-rust-cli-bin.volume \
+#       /etc/containers/systemd/wakir-rust-cli-bin.volume
+#   sudo install -d -m 755 /opt/wakir/bin
+#   sudo systemctl daemon-reload
+#   sudo systemctl start wakir-rust-cli.service
+#
+# Verification (Operator-Hand per ADR-0051)
+# -----------------------------------------
+#   systemctl status wakir-rust-cli.service
+#   journalctl -u wakir-rust-cli.service --since '5 min ago'
+#   ls -l /opt/wakir/bin/wakir-persona-engine-*
+#   /opt/wakir/bin/wakir-persona-engine-recovery --version
+#
+# Tear-down
+# ---------
+#   sudo systemctl stop wakir-rust-cli.service
+#   podman volume rm wakir-rust-cli-bin   # optional, full purge
+#
+# Image-Pin form (Cosign-Digest-Pin Pfad B): placeholder token
+# ``DIGEST_PENDING_KAI_CROSS_REVIEW`` — same convention as the
+# Cosign-Policy (policies/cosign-policy-phase-3b.yaml) and the
+# persona-tomas Quadlet. The ``resolve-image-pins-ci.yml`` workflow
+# propagates the resolved digest into all three files in lock-step
+# so the carrier-image digest stays single-sourced.
+
+[Unit]
+Description=Wakir Tag-22 Phase-3b Rust-CLI host-side binary installer (oneshot)
+Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/docs/operations/quadlets-phase-3b-rust-cli.md
+After=network-online.target
+Wants=network-online.target
+Requires=wakir-rust-cli-bin-volume.service
+
+[Container]
+ContainerName=wakir-rust-cli-installer
+
+# Image pin: carrier image digest-pinned via Cosign-Policy Zone-C.
+# Placeholder token resolved Operator-Hand via resolve-image-pins-ci.
+# Matches policies/cosign-policy-phase-3b.yaml carrier_image entry
+# byte-for-byte (registry + repository + tag + digest slot).
+Image=ghcr.io/wakir-labs/wakir-persona-engine:0.5.0-pilot@sha256:DIGEST_PENDING_KAI_CROSS_REVIEW
+
+# Entry override: launch a shell that copies the five canonical
+# binaries from the in-image install path into the bind-mounted
+# host-side volume. ``install -m 0755`` preserves the executable
+# bit on the host copy. The shell exits 0 on success, non-zero on
+# any missing binary (the in-image-binary-probe step from
+# docs/operations/cosign-policy-phase-3b.md §3 step 3, hardened by
+# ``set -e``).
+Entrypoint=/bin/sh
+Exec=-c "set -e; for b in wakir-persona-engine-recovery wakir-persona-engine-state-backing wakir-persona-engine-fsm wakir-persona-engine-v907-verify wakir-persona-engine-bridge-diff; do test -x \"/opt/wakir/bin/$b\" || { echo \"missing or non-exec in carrier image: $b\" >&2; exit 2; }; install -m 0755 \"/opt/wakir/bin/$b\" \"/host-bin/$b\"; done; echo OK"
+
+# Read-only root filesystem. The installer writes only to the
+# bind-mounted host-bin path.
+ReadOnly=true
+
+# Run as non-root uid:gid (parity with persona-tomas + SPIRE-Agent).
+# The /host-bin volume carries :U to remap ownership at mount-time.
+User=1000
+Group=1000
+
+# Host-side binary install location, mounted as a Quadlet named-
+# volume sidecar. ``:Z`` is the SELinux relabel-private flag
+# (FCOS enforcing-mode hosts; ADR-0009 Sprint-9-Tag-8 Bug-20
+# substance-fix). ``:U`` remaps named-volume ownership to the
+# container's uid:1000 (same fix shape as the SPIRE-Agent + NATS
+# named volumes). Both flags are mandatory per the
+# test_quadlet_selinux_relabel.py discipline-test.
+Volume=wakir-rust-cli-bin.volume:/host-bin:Z,U
+
+# Container-init hardening (parity with sibling Quadlets).
+DropCapability=ALL
+NoNewPrivileges=true
+
+# Resource envelope. The installer is I/O-bound; a 0.2 CPU /
+# 128MB envelope is generous for five ``install`` invocations.
+PodmanArgs=--cpus=0.2 --memory=128m
+
+[Service]
+# One-shot install — the unit exits 0 after the five binaries
+# are in place. ``RemainAfterExit=yes`` lets dependent units
+# (future host-side recovery-drill scripts) Require= this unit
+# without re-launching the container.
+Type=oneshot
+RemainAfterExit=yes
+
+# Restart policy: oneshot install path; ``Restart=no`` so a
+# failure is operator-visible rather than auto-masked. Sibling
+# wakir-nats-kv-bucket-init.service uses the same policy.
+Restart=no
+TimeoutStartSec=120s
+
+[Install]
+WantedBy=multi-user.target default.target

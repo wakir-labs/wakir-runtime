@@ -79,6 +79,7 @@ EXPECTED_QUADLET_FILES = {
     "quadlet/wakir-nats-kv-bucket-init.container",
     "quadlet/wakir-persona-tomas.container",
     "quadlet/wakir-recovery-drill-anchor.container",
+    "quadlet/wakir-rust-cli.container",
     "infra/spire/federation/quadlet/wakir-spire-server-federation.container",
     "infra/spire/agent/quadlet/wakir-spire-agent-federation.container",
 }
