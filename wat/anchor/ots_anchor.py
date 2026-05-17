@@ -52,6 +52,8 @@ import subprocess
 from pathlib import Path
 from typing import List, Optional, Sequence
 
+from wat.anchor.latency_emitter import LatencyEmitter
+
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -299,46 +301,63 @@ def anchor_root(
     if target_dir is None:
         target_dir = Path("meta/timestamps/wat/_pending")
 
-    root_path = _write_root_file(merkle_root, target_dir)
-    args: List[str] = ["stamp", "-m", str(min_calendars)]
-    for url in cal_list:
-        args.extend(["--calendar", url])
-    args.append(str(root_path))
+    # Per-anchor pipeline-stage latency emission (SLO-2 producer).
+    # Disabled-by-default; activates when WAKIR_ANCHOR_LATENCY_JSONL is
+    # set. Wrapping the whole pipeline body in ``emitter.observe`` keeps
+    # the failure semantics intact — an ``AnchorError`` raised inside
+    # the with-block skips the emit (SLO-2 is conditional-on-success).
+    emitter = LatencyEmitter.from_env()
+    with emitter.observe(merkle_root.hex()) as latency:
+        with latency.stage("enqueue_to_pre_ots"):
+            root_path = _write_root_file(merkle_root, target_dir)
+            args: List[str] = ["stamp", "-m", str(min_calendars)]
+            for url in cal_list:
+                args.extend(["--calendar", url])
+            args.append(str(root_path))
 
-    try:
-        result = _run_ots(args)
-    except subprocess.TimeoutExpired as exc:  # 90s ceiling.
-        raise AnchorError(
-            f"ots stamp timed out after {SUBPROCESS_TIMEOUT_S}s"
-        ) from exc
+        with latency.stage("ots_call"):
+            try:
+                result = _run_ots(args)
+            except subprocess.TimeoutExpired as exc:  # 90s ceiling.
+                raise AnchorError(
+                    f"ots stamp timed out after {SUBPROCESS_TIMEOUT_S}s"
+                ) from exc
 
-    responses = _parse_calendar_responses(result.stdout, result.stderr, cal_list)
-    ok_count = sum(1 for v in responses.values() if v == "ok")
-    if ok_count < min_calendars:
-        raise AnchorError(
-            f"only {ok_count}/{len(cal_list)} calendars succeeded; "
-            f"need {min_calendars}. Detail: {responses!r}"
-        )
+        with latency.stage("post_ots_commit"):
+            responses = _parse_calendar_responses(
+                result.stdout, result.stderr, cal_list
+            )
+            ok_count = sum(1 for v in responses.values() if v == "ok")
+            if ok_count < min_calendars:
+                raise AnchorError(
+                    f"only {ok_count}/{len(cal_list)} calendars succeeded; "
+                    f"need {min_calendars}. Detail: {responses!r}"
+                )
 
-    receipt_path = root_path.with_suffix(root_path.suffix + ".ots")
-    if not receipt_path.exists() and result.returncode == 0:
-        # OTS sometimes emits the receipt with a slightly different name
-        # depending on version; do a defensive scan of the directory.
-        candidates = sorted(target_dir.glob("root.bin*.ots"))
-        if candidates:
-            receipt_path = candidates[0]
-    if not receipt_path.exists():
-        raise AnchorError(
-            f"ots stamp completed but no receipt file at {receipt_path}; "
-            f"stdout={result.stdout!r} stderr={result.stderr!r}"
-        )
+            receipt_path = root_path.with_suffix(root_path.suffix + ".ots")
+            if not receipt_path.exists() and result.returncode == 0:
+                # OTS sometimes emits the receipt with a slightly different
+                # name depending on version; do a defensive scan of the
+                # directory.
+                candidates = sorted(target_dir.glob("root.bin*.ots"))
+                if candidates:
+                    receipt_path = candidates[0]
+            if not receipt_path.exists():
+                raise AnchorError(
+                    f"ots stamp completed but no receipt file at "
+                    f"{receipt_path}; stdout={result.stdout!r} "
+                    f"stderr={result.stderr!r}"
+                )
 
-    return AnchorReceipt(
-        merkle_root=merkle_root,
-        submission_time=_utc_now_rfc3339(),
-        calendar_responses=responses,
-        receipt_path=receipt_path,
-    )
+        with latency.stage("wat_write"):
+            receipt = AnchorReceipt(
+                merkle_root=merkle_root,
+                submission_time=_utc_now_rfc3339(),
+                calendar_responses=responses,
+                receipt_path=receipt_path,
+            )
+
+    return receipt
 
 
 def upgrade_pending(receipt_path: str | Path) -> UpgradedReceipt:
