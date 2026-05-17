@@ -148,6 +148,7 @@ members = [
     "crates/persona-engine-v907-verify",
     "crates/persona-engine-fsm",
     "crates/persona-engine-anchor-emitter",
+    "crates/persona-engine-anchor-submit-worker",
     "crates/persona-engine-nats-subjects",
     "crates/persona-engine-bridge-audit-replay",
     "crates/persona-engine-federation-frame-parser",
