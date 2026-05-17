@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# persona-engine-recovery-replay — deterministic R1..R4 Recovery-Workflow
+# replay engine for the Phase-3a Doppelbetrieb-Konsistenz drill.
+#
+# Replays a recorded Recovery-Workflow `PhaseResult` sequence
+# deterministically against an expected trajectory and produces a
+# `RecoveryReplayReport` pinpointing the first divergence, its step
+# label (R1/R2/R3/R4 or non-canonical label) and its time-to-divergence
+# (0-based step index).
+#
+# Layering vs. siblings
+# ---------------------
+#
+# - `persona-engine-recovery`              (PR #135): produces
+#   `PhaseResult` sequences end-to-end (R1..R4 driver).
+# - `persona-engine-bridge-audit-replay`   (PR #147): stream-level
+#   oracle for Bridge-Audit `EngineeringOutputEvent` envelopes
+#   (engineering output, NOT recovery phase results).
+# - `persona-engine-recovery-replay`       (this crate): stream-level
+#   oracle for recovery-workflow `PhaseResult` sequences. Validates
+#   that a recorded Recovery-Workflow drill replays byte-identically
+#   against an expected trajectory. Phase-3-Validation-Substrate for
+#   the recovery-determinism gate.
+#
+# Determinism contract
+# --------------------
+#
+# - JCS-canonicalisation: RFC 8785 via `serde_jcs` (workspace pin
+#   `=0.2.0`).
+# - Digest: SHA-256 via `sha2` 0.10.x.
+# - Output hash form: `"sha256:<64-lower-hex>"` — same shape as the
+#   bridge-audit-replay `stream_hash`.
+#
+# Cross-language pins (3 Recovery-Fixtures, captured 2026-05-17 against
+# the Python `recovery_workflow.audit_record_json` shape — keys sorted,
+# canonical JCS bytes hashed):
+#
+# - F1 (clean R1->R4):       sha256:<pinned in tests>
+# - F2 (R2-fail-retry):      sha256:<pinned in tests>
+# - F3 (R3-skip):            sha256:<pinned in tests>
+#
+# All three pins are derived **deterministically** from the
+# `PhaseResult` field shape; the pin values themselves are computed
+# inside the test-suite from the canonicalisation pipeline so the
+# crate is self-consistent. The Python audit-record schema parity
+# (PR #65 `recovery_workflow.audit_record_json`) is asserted via the
+# field-name set rather than a raw cross-language byte pin (the
+# Python pipeline uses `json.dumps(asdict(...), sort_keys=True)`
+# rather than JCS, so the byte-level pin is recovered by re-canonicalising
+# the Python output through `serde_jcs`).
+#
+# ADR anchors
+# -----------
+#
+# - ADR-0063 §Folgeartefakte Phase-3a Item 13 (this crate).
+# - PR #65  (Python recovery_workflow.py) — schema authority.
+# - PR #135 (persona-engine-recovery) — Rust PhaseResult source crate.
+# - PR #147 (persona-engine-bridge-audit-replay) — sister replay-engine
+#   precedent for the stream-level oracle shape.
+
+[package]
+name = "persona-engine-recovery-replay"
+version = "0.1.0"
+description = "Phase-3a Recovery-Workflow R1..R4 deterministic replay engine (Rust)"
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+publish                = false
+
+[lib]
+name = "persona_engine_recovery_replay"
+path = "src/lib.rs"
+
+[dependencies]
+sha2       = { workspace = true, features = ["std"] }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+serde_jcs  = { workspace = true }
+hex        = { workspace = true }
+persona-engine-recovery = { path = "../persona-engine-recovery" }
+
+[dev-dependencies]
+# Tests use serde_json::json! macro and the in-tree recovery crate.
