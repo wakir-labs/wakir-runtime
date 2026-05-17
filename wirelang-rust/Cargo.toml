@@ -114,6 +114,18 @@
 #   flag the spots where a future `wirelang/federation/federation_frame.py`
 #   must byte-match. Added 2026-05-17.
 #
+# - persona-engine-recovery-replay : Sprint-Recovery-Replay-Engine-Rust-MINI
+#   (Phase-3a Item 13). Stream-level deterministic oracle for
+#   recovery-workflow R1..R4 `PhaseResult` sequences (the sister of
+#   `persona-engine-bridge-audit-replay` for the recovery-workflow
+#   side). Depends on `persona-engine-recovery` for the `PhaseResult`
+#   type (re-exported as `RecoveryStep` for Sprint-Auftrag-signature-
+#   parity). Three Recovery-Fixtures cover clean R1->R4, R2-fail-retry
+#   and R3-skip trajectories; the workflow-hash envelope wraps the
+#   phase sequence in `{"phases": [...], "phases_len": <n>, "schema":
+#   "wakir.persona.recovery-workflow/1"}` for length-resistant
+#   discrimination. Added 2026-05-17.
+#
 # - persona-engine-v907-recompute-bench : Sprint-V907-Recompute-Bench-MINI
 #   (Phase-3a Modul 14). Performance-benchmark crate for the V-907
 #   engine-side persona-hash recompute path. Sits ABOVE
@@ -167,6 +179,7 @@ members = [
     "crates/persona-engine-bridge-audit-replay",
     "crates/persona-engine-federation-frame-parser",
     "crates/persona-engine-v907-recompute-bench",
+    "crates/persona-engine-recovery-replay",
 ]
 
 [workspace.package]
