@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""doppelbetrieb-score-aggregator — Sprint-Tag-15 Mini-Welle.
+"""doppelbetrieb-score-aggregator — Sprint-Tag-15 + Tag-29 Mini-Welle.
 
 Background
 ----------
@@ -11,10 +11,26 @@ in ``tests/infra/test_phase_2_acceptance_gates.py`` (PR #109) and a
 matching CI workflow (``.github/workflows/phase-2-validation-gate.yml``,
 PR #110) that drives one job per gate plus an aggregator.
 
-Tag-15 closes the Doppelbetrieb-readiness loop by surfacing **three
+Tag-15 closed the Doppelbetrieb-readiness loop by surfacing **three
 new Phase-3a-Foundation acceptance-axes** alongside the five Phase-2
 gate verdicts in a single JSON rollup that Henrik can sample weekly
-and Amara can spot-check between sprints:
+and Amara can spot-check between sprints.
+
+Tag-29 (ADR-0066 KW-26-Mitigation) extends the rollup with **three
+Cross-Modul-Stress-Test axes** that catch cross-module drift BEFORE
+the KW-26 Doppel-Welle cutover (Welle-4 ``state_backing`` + Welle-5
+``lifecycle_state_machine`` in parallel). The mitigation rationale:
+ADR-0066 schedules Welle-4+5 in parallel and Welle-6+7 in parallel —
+an integration-bug that only emerges when two Rust modules are both
+``rust-default`` at the same time would be invisible to per-module
+acceptance gates. The three new axes pin each parallel-welle pairing
+to the schema-byte-identity of the underlying cross-lang fixture
+files (PR #190 et al), so any pre-cutover drift surfaces in the
+rollup before the operator flips the cutover ENV-flags. Schema
+bumped to ``wakir.doppelbetrieb.aggregator/2``; the eight Tag-15
+axes carry forward unchanged.
+
+Tag-15 axes (Phase-3a-Foundation, original eight):
 
 * **bridge-audit-e2e-roundtrip-pass** — 1 iff
   ``tests/integration/test_bridge_audit_roundtrip_e2e.py`` is green
@@ -34,6 +50,34 @@ and Amara can spot-check between sprints:
 Plus the five existing Phase-2-Gate verdicts (Gate-2-1 through
 Gate-2-5; see ``docs/quality-gates/phase-2-doppelbetrieb.md``).
 
+Tag-29 Cross-Modul-Stress-Test axes (ADR-0066, three new):
+
+* **cross-modul-state-backing-lifecycle-state-machine** — pass iff
+  ``WAKIR_STATE_BACKING_BACKEND=rust`` AND ``WAKIR_FSM_BACKEND=rust``
+  are both set in the inspected env-map AND both fixture files
+  (``tests/fixtures/state-backing-cross-lang/fixtures.json`` and
+  ``tests/fixtures/lifecycle-state-machine-cross-lang/fixtures.json``)
+  carry their pinned ``schema_version`` plus a non-empty ``fixtures``
+  list. Catches Welle-4+5 parallel-cutover drift in KW 26.
+
+* **cross-modul-subscribe-loop-recovery-workflow** — pass iff
+  ``WAKIR_SUBSCRIBE_LOOP_BACKEND=rust`` AND
+  ``WAKIR_RECOVERY_BACKEND=rust`` are both set AND the ack-record
+  fixture file (``tests/fixtures/subscribe-loop-cross-lang/fixtures.json``)
+  plus the recovery-workflow fixture file
+  (``tests/fixtures/recovery-workflow-cross-lang/fixtures.json``)
+  both carry their pinned schema_version and non-empty fixtures
+  list. Catches Welle-6+7 parallel-cutover drift in KW 27.
+
+* **cross-modul-v907-verify-svid-workload-identity** — pass iff
+  ``WAKIR_V907_VERIFY_BACKEND=rust`` AND
+  ``WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND=rust`` are both set AND
+  the V907 pin-pack directory (six persona files under
+  ``wirelang-rust/crates/persona-engine-v907-recompute-bench/tests/fixtures/v907_pin_pack/``)
+  is present (anchor for hash-byte-identity) AND the SVID e2e
+  acceptance test file exists in-tree (Welle-2 substrate marker).
+  Catches Welle-1+2 parallel-cutover drift in KW 24.
+
 Output shape
 ------------
 
@@ -41,7 +85,7 @@ A canonical JSON envelope with ``schema``, ``ts_utc``, ``axes``,
 ``total_score``, ``threshold_pass``, ``threshold``::
 
     {
-      "schema": "wakir.doppelbetrieb.aggregator/1",
+      "schema": "wakir.doppelbetrieb.aggregator/2",
       "ts_utc": "2026-05-17T09:50:00Z",
       "axes": {
         "gate-2-1-bridge-forward-symmetry":     {"pass": true,  "weight": 1},
@@ -59,32 +103,58 @@ A canonical JSON envelope with ``schema``, ``ts_utc``, ``axes``,
         "wat-anchor-latency-producer-emitting": {
           "pass": true, "weight": 1,
           "details": {"env_set": true, "emitted": true}
+        },
+        "cross-modul-state-backing-lifecycle-state-machine": {
+          "pass": true, "weight": 1,
+          "details": {"both_envs_rust": true,
+                       "state_backing_fixtures": 5,
+                       "lifecycle_state_machine_fixtures": 5}
+        },
+        "cross-modul-subscribe-loop-recovery-workflow": {
+          "pass": true, "weight": 1,
+          "details": {"both_envs_rust": true,
+                       "subscribe_loop_fixtures": 5,
+                       "recovery_workflow_fixtures": 5}
+        },
+        "cross-modul-v907-verify-svid-workload-identity": {
+          "pass": true, "weight": 1,
+          "details": {"both_envs_rust": true,
+                       "v907_pin_pack_personas": 5,
+                       "svid_e2e_substrate_present": true}
         }
       },
-      "total_score": 8,
-      "threshold": 8,
+      "total_score": 11,
+      "threshold": 11,
       "threshold_pass": true
     }
 
 ``total_score`` is the sum of per-axis ``pass=True`` weights. Default
-threshold is the sum of all axis weights (``8``); the operator can
-relax it via ``--threshold``.
+threshold is the sum of all axis weights (``11`` since Tag-29); the
+operator can relax it via ``--threshold``.
 
 Run mode
 --------
 
-* ``--mode=full`` (default): runs all eight axes. Drives the Phase-2
+* ``--mode=full`` (default): runs all 11 axes. Drives the Phase-2
   gates via ``pytest -k ...`` against the existing
   ``tests/infra/test_phase_2_acceptance_gates.py``; drives the
   Bridge-Audit-E2E via ``pytest tests/integration/test_bridge_audit_
   roundtrip_e2e.py``; reads cross-lang pins from in-tree modules; for
   the anchor producer, defaults to *no probe* (pass=true iff env-var
   was set at invocation, per the producer contract) and only writes
-  if ``--probe-anchor-producer`` is given.
+  if ``--probe-anchor-producer`` is given. The three Tag-29 Cross-
+  Modul axes inspect the process env-map and the in-tree fixture
+  files (no subprocess).
 
 * ``--mode=cross-lang-only``: only the cross-lang-pin-coverage axis.
   Useful for the cheap "is the cross-language byte-pin still tight?"
   cron Henrik schedules between full runs.
+
+* ``--mode=cross-modul-stress``: only the three Tag-29 Cross-Modul
+  axes. Useful as a pre-cutover smoke gate that the operator can
+  invoke from the workflow_dispatch input ahead of a parallel-welle
+  cutover Mittwoch (ADR-0066 §"Cross-Modul-Drift-Detection für
+  Doppel-Wellen").
 
 The script is **stdlib-only** except for ``pytest`` (already in the
 test-dev surface). Output goes to stdout by default; ``--out PATH``
@@ -99,6 +169,7 @@ Anchors
 -------
 
 * ADR-0058 §"Phase 2 — Doppelbetrieb (Wochen 1-4)"
+* ADR-0066 §"Cross-Modul-Drift-Detection für Doppel-Wellen"
 * ``docs/quality-gates/phase-2-doppelbetrieb.md`` (Amara, PR #80)
 * ``tests/infra/test_phase_2_acceptance_gates.py`` (Tomás, PR #109)
 * ``tests/integration/test_bridge_audit_roundtrip_e2e.py`` (PR #156)
@@ -106,6 +177,11 @@ Anchors
 * ``wirelang/persona_engine/nats_subjects.py`` (PR #155)
 * ``wirelang/persona_engine/bridge_audit_stream_hash.py`` (PR #156)
 * ``wat/anchor/latency_emitter.py`` (PR #154)
+* ``tests/fixtures/state-backing-cross-lang/fixtures.json`` (PR #140)
+* ``tests/fixtures/lifecycle-state-machine-cross-lang/fixtures.json``
+* ``tests/fixtures/subscribe-loop-cross-lang/fixtures.json`` (PR #132/#172)
+* ``tests/fixtures/recovery-workflow-cross-lang/fixtures.json`` (PR #135)
+* ``wirelang/persona_engine/rust_backend_switch.py`` (PR #135 et al)
 """
 
 from __future__ import annotations
@@ -127,7 +203,7 @@ from typing import Iterable, Mapping, Optional
 # ---------------------------------------------------------------------------
 
 
-SCHEMA = "wakir.doppelbetrieb.aggregator/1"
+SCHEMA = "wakir.doppelbetrieb.aggregator/2"
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -136,7 +212,8 @@ BRIDGE_AUDIT_E2E_TEST = REPO_ROOT / "tests" / "integration" / "test_bridge_audit
 
 #: Stable per-axis ordering. Matches the QA Quality-Gate doc topology
 #: (five Phase-2 gates first, then the three Phase-3a-Foundation
-#: axes). Tests pin against this list.
+#: axes, then the three Tag-29 Cross-Modul-Stress-Test axes). Tests
+#: pin against this list.
 AXIS_ORDER: tuple[str, ...] = (
     "gate-2-1-bridge-forward-symmetry",
     "gate-2-2-konsistenz-score-threshold",
@@ -146,6 +223,9 @@ AXIS_ORDER: tuple[str, ...] = (
     "bridge-audit-e2e-roundtrip-pass",
     "cross-lang-pin-coverage",
     "wat-anchor-latency-producer-emitting",
+    "cross-modul-state-backing-lifecycle-state-machine",
+    "cross-modul-subscribe-loop-recovery-workflow",
+    "cross-modul-v907-verify-svid-workload-identity",
 )
 
 #: Map from per-axis label to pytest ``-k`` selector inside
@@ -176,6 +256,106 @@ EXPECTED_PIN_TOTAL = sum(EXPECTED_PIN_COUNTS.values())  # 16
 #: Environment variable Noa's anchor-latency producer keys off.
 #: Mirrored from ``wat/anchor/latency_emitter.py::ENV_LATENCY_JSONL_PATH``.
 ENV_ANCHOR_LATENCY_JSONL = "WAKIR_ANCHOR_LATENCY_JSONL"
+
+
+#: Cross-Modul-Stress-Test specification (Tag-29, ADR-0066).
+#:
+#: Each entry pins one parallel-welle pairing to its two ENV-flags plus
+#: the in-tree substrate marker that proves the cross-lang fixture
+#: pair is wired. Drift on either ENV-flag (operator forgot to flip
+#: one of the two) OR drift on either fixture file (schema-version or
+#: empty list) breaks the axis.
+#:
+#: For state_backing × lifecycle_state_machine and subscribe_loop ×
+#: recovery_workflow the substrate-marker is the cross-lang fixture
+#: file pair (5 fixtures each).
+#:
+#: For v907_verify × svid_workload_identity, the V907 substrate-marker
+#: is the pin-pack directory (six persona ``.md`` files, one per
+#: persona) and the SVID substrate-marker is the Welle-2 e2e test
+#: file (``tests/acceptance/phase_3c/test_welle_2_svid_workload_
+#: identity_e2e.py``). SVID is the ADR-0065 Welle-2 candidate and the
+#: cross-lang fixture file is shipped opt-in (the binary is opt-in,
+#: see ``rust_backend_switch.py`` Tag-25 docstring) — using the e2e
+#: test as the substrate-marker keeps this axis green under the
+#: opt-in-binary contract.
+
+CROSS_MODUL_SPEC: Mapping[str, dict] = {
+    "cross-modul-state-backing-lifecycle-state-machine": {
+        "env_keys": (
+            "WAKIR_STATE_BACKING_BACKEND",
+            "WAKIR_FSM_BACKEND",
+        ),
+        "fixture_pair": (
+            (
+                "state_backing_fixtures",
+                Path("tests")
+                / "fixtures"
+                / "state-backing-cross-lang"
+                / "fixtures.json",
+                "wakir.persona-engine.persona-state-snapshot/1",
+            ),
+            (
+                "lifecycle_state_machine_fixtures",
+                Path("tests")
+                / "fixtures"
+                / "lifecycle-state-machine-cross-lang"
+                / "fixtures.json",
+                None,  # schema_version-pin not enforced (different shape)
+            ),
+        ),
+    },
+    "cross-modul-subscribe-loop-recovery-workflow": {
+        "env_keys": (
+            "WAKIR_SUBSCRIBE_LOOP_BACKEND",
+            "WAKIR_RECOVERY_BACKEND",
+        ),
+        "fixture_pair": (
+            (
+                "subscribe_loop_fixtures",
+                Path("tests")
+                / "fixtures"
+                / "subscribe-loop-cross-lang"
+                / "fixtures.json",
+                None,
+            ),
+            (
+                "recovery_workflow_fixtures",
+                Path("tests")
+                / "fixtures"
+                / "recovery-workflow-cross-lang"
+                / "fixtures.json",
+                None,
+            ),
+        ),
+    },
+}
+
+#: Value that signals "Rust subprocess-bridge is the production
+#: default" for the rust_backend_switch.py ENV-flags.
+RUST_BACKEND_VALUE = "rust"
+
+#: V907 + SVID substrate markers for the third Cross-Modul-Stress
+#: axis (handled out-of-band because the substrate-shape is not a
+#: simple fixture-pair).
+V907_PIN_PACK_DIR = (
+    Path("wirelang-rust")
+    / "crates"
+    / "persona-engine-v907-recompute-bench"
+    / "tests"
+    / "fixtures"
+    / "v907_pin_pack"
+)
+SVID_E2E_TEST = (
+    Path("tests")
+    / "acceptance"
+    / "phase_3c"
+    / "test_welle_2_svid_workload_identity_e2e.py"
+)
+CROSS_MODUL_V907_SVID_ENV_KEYS: tuple[str, ...] = (
+    "WAKIR_V907_VERIFY_BACKEND",
+    "WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -455,6 +635,176 @@ def _probe_anchor_producer(env_map: Mapping[str, str]) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Cross-Modul-Stress-Test evaluators (Tag-29, ADR-0066)
+# ---------------------------------------------------------------------------
+
+
+def _count_fixtures_in_file(fixture_path: Path) -> int:
+    """Return the length of the top-level ``fixtures`` list in
+    ``fixture_path``. Raises :class:`ValueError` if the file is
+    missing, unparseable, or lacks the ``fixtures`` key.
+
+    Centralised so all three Cross-Modul axes use the same canonical
+    fixture-shape contract — drift on any one of the four cross-lang
+    fixture files surfaces uniformly.
+    """
+    if not fixture_path.exists():
+        raise ValueError(f"fixture file not found: {fixture_path}")
+    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(
+            f"fixture file {fixture_path} top-level is not a JSON object"
+        )
+    fixtures = payload.get("fixtures")
+    if not isinstance(fixtures, list):
+        raise ValueError(
+            f"fixture file {fixture_path} missing 'fixtures' list"
+        )
+    return len(fixtures)
+
+
+def _read_schema_version(fixture_path: Path) -> Optional[str]:
+    """Return ``schema_version`` from ``fixture_path`` if present, else
+    ``None``. Returns ``None`` (not raising) on missing file so the
+    caller can decide whether absence is fatal.
+    """
+    if not fixture_path.exists():
+        return None
+    try:
+        payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if isinstance(payload, dict):
+        v = payload.get("schema_version")
+        if isinstance(v, str):
+            return v
+    return None
+
+
+def evaluate_cross_modul_fixture_pair(
+    label: str,
+    *,
+    env: Optional[Mapping[str, str]] = None,
+    repo_root: Optional[Path] = None,
+    counts_override: Optional[Mapping[str, int]] = None,
+) -> AxisResult:
+    """Evaluate one fixture-pair Cross-Modul-Stress-Test axis.
+
+    Pass iff BOTH ENV-flags resolve to :data:`RUST_BACKEND_VALUE`
+    AND each fixture file in the pair has a non-empty ``fixtures``
+    list (any schema_version pin declared in :data:`CROSS_MODUL_SPEC`
+    must also match exactly).
+
+    ``counts_override`` lets unit tests inject the per-key fixture
+    counts directly (keys must match the spec-entry's
+    ``fixture_pair`` count-keys); ``env`` defaults to
+    :data:`os.environ` and ``repo_root`` to :data:`REPO_ROOT`.
+    """
+    if label not in CROSS_MODUL_SPEC:
+        raise KeyError(
+            f"unknown cross-modul axis label: {label!r}; "
+            f"expected one of {list(CROSS_MODUL_SPEC)}"
+        )
+    spec = CROSS_MODUL_SPEC[label]
+    env_map = env if env is not None else os.environ
+    root = repo_root if repo_root is not None else REPO_ROOT
+
+    env_keys = spec["env_keys"]
+    both_envs_rust = all(
+        env_map.get(k, "").strip() == RUST_BACKEND_VALUE for k in env_keys
+    )
+
+    details: dict = {"both_envs_rust": both_envs_rust}
+
+    schema_drift = False
+    fixtures_ok = True
+    for count_key, rel_path, expected_schema in spec["fixture_pair"]:
+        if counts_override is not None and count_key in counts_override:
+            count = counts_override[count_key]
+            details[count_key] = count
+            if count <= 0:
+                fixtures_ok = False
+            continue
+        full_path = root / rel_path
+        try:
+            count = _count_fixtures_in_file(full_path)
+        except ValueError:
+            count = 0
+            fixtures_ok = False
+        details[count_key] = count
+        if count <= 0:
+            fixtures_ok = False
+        if expected_schema is not None:
+            schema_version = _read_schema_version(full_path)
+            if schema_version != expected_schema:
+                schema_drift = True
+                details[f"{count_key}_schema_drift"] = {
+                    "expected": expected_schema,
+                    "actual": schema_version,
+                }
+
+    passed = both_envs_rust and fixtures_ok and not schema_drift
+    return AxisResult(label=label, pass_=passed, details=details)
+
+
+def evaluate_cross_modul_v907_svid(
+    *,
+    env: Optional[Mapping[str, str]] = None,
+    repo_root: Optional[Path] = None,
+    v907_pin_pack_override: Optional[int] = None,
+    svid_substrate_override: Optional[bool] = None,
+) -> AxisResult:
+    """Evaluate the V907 × SVID-Workload-Identity Cross-Modul axis.
+
+    Pass iff BOTH ENV-flags
+    (``WAKIR_V907_VERIFY_BACKEND``,
+    ``WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND``) resolve to
+    :data:`RUST_BACKEND_VALUE` AND the V907 pin-pack directory holds
+    at least one persona file (hash-byte-identity anchor) AND the
+    SVID Welle-2 e2e test file exists in-tree (substrate marker for
+    the Welle-2 candidate).
+
+    Overrides let unit tests inject the substrate-marker outcomes
+    without touching the filesystem.
+    """
+    env_map = env if env is not None else os.environ
+    root = repo_root if repo_root is not None else REPO_ROOT
+
+    both_envs_rust = all(
+        env_map.get(k, "").strip() == RUST_BACKEND_VALUE
+        for k in CROSS_MODUL_V907_SVID_ENV_KEYS
+    )
+
+    if v907_pin_pack_override is not None:
+        pin_pack_count = v907_pin_pack_override
+    else:
+        pin_pack_dir = root / V907_PIN_PACK_DIR
+        if pin_pack_dir.is_dir():
+            pin_pack_count = sum(
+                1 for p in pin_pack_dir.iterdir() if p.suffix == ".md"
+            )
+        else:
+            pin_pack_count = 0
+
+    if svid_substrate_override is not None:
+        svid_present = svid_substrate_override
+    else:
+        svid_present = (root / SVID_E2E_TEST).is_file()
+
+    details = {
+        "both_envs_rust": both_envs_rust,
+        "v907_pin_pack_personas": pin_pack_count,
+        "svid_e2e_substrate_present": svid_present,
+    }
+    passed = both_envs_rust and pin_pack_count > 0 and svid_present
+    return AxisResult(
+        label="cross-modul-v907-verify-svid-workload-identity",
+        pass_=passed,
+        details=details,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Aggregator envelope
 # ---------------------------------------------------------------------------
 
@@ -512,8 +862,8 @@ def build_envelope(
 
 
 def run_full(*, probe_anchor: bool = False) -> list[AxisResult]:
-    """Run all eight axes and return their results in :data:`AXIS_ORDER`
-    sequence."""
+    """Run all 11 axes and return their results in :data:`AXIS_ORDER`
+    sequence (eight Tag-15 axes + three Tag-29 Cross-Modul axes)."""
     axes: list[AxisResult] = []
     for label in (
         "gate-2-1-bridge-forward-symmetry",
@@ -526,12 +876,27 @@ def run_full(*, probe_anchor: bool = False) -> list[AxisResult]:
     axes.append(evaluate_bridge_audit_e2e())
     axes.append(evaluate_cross_lang_pin_coverage())
     axes.append(evaluate_wat_anchor_latency_producer(probe=probe_anchor))
+    axes.extend(run_cross_modul_stress())
     return axes
 
 
 def run_cross_lang_only() -> list[AxisResult]:
     """Run only the cross-lang-pin-coverage axis (cheap cron mode)."""
     return [evaluate_cross_lang_pin_coverage()]
+
+
+def run_cross_modul_stress() -> list[AxisResult]:
+    """Run only the three Tag-29 Cross-Modul-Stress-Test axes
+    (pre-cutover smoke for KW-26 + KW-27 Doppel-Wellen)."""
+    return [
+        evaluate_cross_modul_fixture_pair(
+            "cross-modul-state-backing-lifecycle-state-machine"
+        ),
+        evaluate_cross_modul_fixture_pair(
+            "cross-modul-subscribe-loop-recovery-workflow"
+        ),
+        evaluate_cross_modul_v907_svid(),
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -550,10 +915,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--mode",
-        choices=("full", "cross-lang-only"),
+        choices=("full", "cross-lang-only", "cross-modul-stress"),
         default="full",
-        help="full = all 8 axes (default); cross-lang-only = just the "
-        "cross-lang-pin-coverage axis (cheap cron mode).",
+        help="full = all 11 axes (default); cross-lang-only = just "
+        "the cross-lang-pin-coverage axis (cheap cron mode); "
+        "cross-modul-stress = just the three Tag-29 Cross-Modul axes "
+        "(pre-cutover smoke for KW-26/KW-27 Doppel-Wellen).",
     )
     p.add_argument(
         "--out",
@@ -587,6 +954,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     try:
         if args.mode == "full":
             axes = run_full(probe_anchor=args.probe_anchor_producer)
+        elif args.mode == "cross-modul-stress":
+            axes = run_cross_modul_stress()
         else:
             axes = run_cross_lang_only()
     except Exception as exc:  # pragma: no cover (CLI-only)
@@ -626,14 +995,22 @@ __all__ = [
     "EXPECTED_PIN_COUNTS",
     "EXPECTED_PIN_TOTAL",
     "ENV_ANCHOR_LATENCY_JSONL",
+    "CROSS_MODUL_SPEC",
+    "CROSS_MODUL_V907_SVID_ENV_KEYS",
+    "RUST_BACKEND_VALUE",
+    "SVID_E2E_TEST",
+    "V907_PIN_PACK_DIR",
     "AxisResult",
     "build_envelope",
     "evaluate_bridge_audit_e2e",
     "evaluate_cross_lang_pin_coverage",
+    "evaluate_cross_modul_fixture_pair",
+    "evaluate_cross_modul_v907_svid",
     "evaluate_phase_2_gate",
     "evaluate_wat_anchor_latency_producer",
     "main",
     "run_cross_lang_only",
+    "run_cross_modul_stress",
     "run_full",
 ]
 
