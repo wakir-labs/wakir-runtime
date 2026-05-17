@@ -22,11 +22,18 @@ from .conftest import (
     BUG_RATE_S0_S1_THRESHOLD,
     CONSISTENCY_REPORT_REQUIRED_GREEN_DAYS,
     CONSISTENCY_REPORT_WINDOW_DAYS,
+    CROSS_MODUL_DRIFT_CONSISTENCY_PCT_FLOOR,
+    CROSS_MODUL_DRIFT_ROLLBACK_PCT_THRESHOLD,
+    CROSS_MODUL_DRIFT_WIRE_FORM_ORACLES,
     CROSS_REVIEW_REQUIRED_PERSONAS,
     PERFORMANCE_HEADROOM_FACTOR,
     V907_PIN_VALIDATION_REQUIRED_RATE,
     BackendDecisionRecord,
     BridgeAuditRoundtripRecord,
+    CrossModulDriftAtomicFlipRecord,
+    CrossModulDriftDeserializationRecord,
+    CrossModulDriftPerKomponenteConsistencyRecord,
+    CrossModulDriftWriteBackRecord,
     CrossModulSchemaRecord,
     CrossModulStressTestRecord,
     CrossReviewRecord,
@@ -352,4 +359,232 @@ def assert_dw_ac_5_backend_decision_audit_two_records_consistent(
     assert not wrong_target, (
         f"DW-AC-5[{welle_pair_label}]: cutover-target_backend must be "
         f"'rust' for all records; deviating moduln: {wrong_target}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Doppel-Welle-4+5 Cross-Modul-Drift Acceptance-Kriterien — CMD-AC-1 ...
+# CMD-AC-4
+#
+# Anchor: ADR-0066 §Beschluss §"Doppel-Welle-4+5 Cross-Modul-Drift-
+# Focus" + Priya CTO-Coordination-Plan v2 (Tag-32 Mini-Welle). These
+# four criteria are layered atop DW-AC-1...DW-AC-5 specifically for
+# the KW 26 Doppel-Welle-4+5 cutover (state_backing × lifecycle_state_
+# machine) — the highest cross-modul-drift-risk Doppel-Welle slot.
+#
+# DW-AC-2 covers single-touchpoint byte-parity on the producer side;
+# DW-AC-4 covers aggregate stress-test zero-failure. CMD-AC drills
+# deeper into the Rust-Rust producer/consumer contract:
+#
+# * CMD-AC-1 — Producer→Consumer deserialization round-trip parity.
+# * CMD-AC-2 — Consumer-triggered Producer write-back wire-form
+#   parity vs. Python-baseline oracles.
+# * CMD-AC-3 — Per-Komponente joint-consistency ≥99.5% (tighter
+#   than DW-AC-4's zero-failure-floor).
+# * CMD-AC-4 — Drift-triggered atomic single-Komponente rollback
+#   when drift > 0.5pp; partner stays rust-Default.
+# ---------------------------------------------------------------------------
+
+
+def assert_cross_modul_drift_ac_1_deserialization_round_trip(
+    records: Iterable[CrossModulDriftDeserializationRecord],
+    welle_pair_label: str,
+) -> None:
+    """CMD-AC-1 — Producer→Consumer deserialization round-trip parity.
+
+    ``state_backing-rust`` writes; ``lifecycle_state_machine-rust``
+    reads + deserialises + re-serialises. Byte-identical round-trip
+    plus schema-version field survival is the gate.
+
+    Failure modes captured:
+
+    * ``producer_serialized_sha256 !=
+      consumer_deserialized_reserialized_sha256`` — deserialization
+      mutates state (Unicode-normalisation drift, float-formatting
+      drift, field-ordering drift).
+    * ``schema_version_round_trip_ok == False`` — schema-version
+      field dropped or rewritten on round-trip (a Welle-5-into-Welle-7-
+      recovery-workflow-blocker since recovery reads terminal records
+      to compute restart-points).
+    """
+    records_list = list(records)
+    assert records_list, (
+        f"CMD-AC-1[{welle_pair_label}]: must observe at least one "
+        f"Producer→Consumer deserialization record; got empty set"
+    )
+    drift: list[str] = []
+    schema_breakage: list[str] = []
+    for rec in records_list:
+        if (
+            rec.producer_serialized_sha256
+            != rec.consumer_deserialized_reserialized_sha256
+        ):
+            drift.append(
+                f"{rec.record_id} "
+                f"prod={rec.producer_serialized_sha256[:16]} "
+                f"cons={rec.consumer_deserialized_reserialized_sha256[:16]}"
+            )
+        if not rec.schema_version_round_trip_ok:
+            schema_breakage.append(rec.record_id)
+    assert not drift, (
+        f"CMD-AC-1[{welle_pair_label}]: Producer→Consumer "
+        f"deserialization byte-drift at records: {drift}"
+    )
+    assert not schema_breakage, (
+        f"CMD-AC-1[{welle_pair_label}]: schema-version round-trip "
+        f"failure at records: {schema_breakage}"
+    )
+
+
+def assert_cross_modul_drift_ac_2_write_back_wire_form_parity(
+    records: Iterable[CrossModulDriftWriteBackRecord],
+    welle_pair_label: str,
+) -> None:
+    """CMD-AC-2 — Consumer-triggered Producer write-back wire-form parity.
+
+    ``lifecycle_state_machine-rust`` triggers a state-transition; the
+    resulting persist-write into ``state_backing-rust`` must produce
+    a wire-form byte-identical to *every* reference oracle in
+    ``CROSS_MODUL_DRIFT_WIRE_FORM_ORACLES``:
+
+    * ``python-python-baseline`` — pre-Welle-4 cutover wire-form
+      (the long-standing production state).
+    * ``python-rust-welle-4-only`` — mid-Doppel-Welle hypothetical
+      (state_backing rust, lifecycle still python). Never observed
+      in production under the Doppel-Welle cutover-plan but a
+      synthetic reference that catches Rust-side state_backing
+      regressions independently of Rust-side lifecycle regressions.
+
+    Asymmetric oracle drift (e.g. matches python-python but diverges
+    from python-rust-welle-4-only) localises the bug to the Rust-
+    side lifecycle modul. CMD-AC-2 fails on *any* oracle divergence.
+    """
+    records_list = list(records)
+    assert records_list, (
+        f"CMD-AC-2[{welle_pair_label}]: must observe at least one "
+        f"Consumer→Producer write-back record; got empty set"
+    )
+    divergence: list[str] = []
+    for rec in records_list:
+        for oracle in CROSS_MODUL_DRIFT_WIRE_FORM_ORACLES:
+            if not rec.matches_oracle(oracle):
+                rust_rust = rec.rust_rust_wire_sha256[:16]
+                oracle_hash = rec.oracle_wire_sha256_by_oracle.get(
+                    oracle, "<missing>"
+                )[:16]
+                divergence.append(
+                    f"{rec.transition_id}@{oracle} "
+                    f"rust-rust={rust_rust} oracle={oracle_hash}"
+                )
+    assert not divergence, (
+        f"CMD-AC-2[{welle_pair_label}]: write-back wire-form "
+        f"divergence vs. reference oracles: {divergence}"
+    )
+
+
+def assert_cross_modul_drift_ac_3_per_komponente_consistency(
+    record: CrossModulDriftPerKomponenteConsistencyRecord,
+    welle_pair_label: str,
+) -> None:
+    """CMD-AC-3 — Cross-Modul-Stress-Test per-Komponente consistency
+    ≥99.5%.
+
+    DW-AC-4 sets zero-failure on aggregate; CMD-AC-3 sets a per-
+    Komponente consistency-rate floor on the joint state_backing ⇆
+    lifecycle_state_machine contract. Both per-Komponente rates must
+    clear the 0.995 floor.
+
+    The joint-consistency-rate (computed as ``min(rate_a, rate_b)``)
+    is the gate-evaluation surface; a failure here means at least
+    one of the two Doppel-Welle moduln has below-floor consistency
+    even when the other is green.
+    """
+    modul_a, modul_b = record.welle_pair
+    assert record.total_request_count > 0, (
+        f"CMD-AC-3[{welle_pair_label}]: stress-test must observe ≥1 "
+        f"request; got total={record.total_request_count}"
+    )
+    floor = CROSS_MODUL_DRIFT_CONSISTENCY_PCT_FLOOR
+    failing: list[str] = []
+    if record.modul_a_consistency_rate < floor:
+        failing.append(
+            f"{modul_a}={record.modul_a_consistency_rate:.4f}"
+        )
+    if record.modul_b_consistency_rate < floor:
+        failing.append(
+            f"{modul_b}={record.modul_b_consistency_rate:.4f}"
+        )
+    assert not failing, (
+        f"CMD-AC-3[{welle_pair_label}]: per-Komponente consistency-"
+        f"rate below {floor:.4f} floor: {failing}; "
+        f"joint-rate={record.joint_consistency_rate:.4f}"
+    )
+
+
+def assert_cross_modul_drift_ac_4_atomic_flip_rollback(
+    record: CrossModulDriftAtomicFlipRecord,
+    welle_pair_label: str,
+) -> None:
+    """CMD-AC-4 — Drift-triggered atomic single-Komponente rollback.
+
+    When measured cross-modul-drift exceeds 0.5pp, the affected modul
+    flips back to python-Default while the partner stays on rust-
+    Default (atomic-flip-pattern). The flip is single-shot, the
+    elapsed time must clear the 10min ENV-Flag-Switch SLA, and the
+    partner modul must not be touched.
+
+    Gates:
+
+    * The trigger-precondition must hold: ``measured_drift_pct >
+      threshold_drift_pct`` (no spurious sub-threshold flips).
+    * ``flip_was_atomic`` — single restart-cycle, no partial state.
+    * Post-flip backend-per-modul: high-drift on python, partner
+      on rust.
+    * ``flip_elapsed_seconds`` ≤ ``ROLLBACK_SLA_SECONDS`` (600s).
+    """
+    modul_a, modul_b = record.welle_pair
+    high_drift = record.high_drift_modul
+    assert high_drift in (modul_a, modul_b), (
+        f"CMD-AC-4[{welle_pair_label}]: high_drift_modul {high_drift!r} "
+        f"must be a member of the welle-pair ({modul_a!r}, {modul_b!r})"
+    )
+    partner = modul_b if high_drift == modul_a else modul_a
+
+    # Trigger-precondition: drift > threshold (0.5pp). Sub-threshold
+    # flips are rejected as spurious.
+    assert (
+        record.measured_drift_pct > record.threshold_drift_pct
+    ), (
+        f"CMD-AC-4[{welle_pair_label}]: atomic-flip fired without a "
+        f"trigger-precondition: measured drift "
+        f"{record.measured_drift_pct:.4f}pp ≤ threshold "
+        f"{record.threshold_drift_pct:.4f}pp (sub-threshold flips "
+        f"are rejected as spurious)"
+    )
+    assert (
+        record.threshold_drift_pct == CROSS_MODUL_DRIFT_ROLLBACK_PCT_THRESHOLD
+    ), (
+        f"CMD-AC-4[{welle_pair_label}]: threshold_drift_pct must equal "
+        f"the ADR-0066-fixed {CROSS_MODUL_DRIFT_ROLLBACK_PCT_THRESHOLD}"
+        f"pp; got {record.threshold_drift_pct}"
+    )
+    assert record.flip_was_atomic, (
+        f"CMD-AC-4[{welle_pair_label}]: atomic-flip must be a single "
+        f"restart-cycle; got non-atomic flip-record"
+    )
+    high_drift_state = record.post_flip_backend_per_modul.get(high_drift)
+    assert high_drift_state == "python", (
+        f"CMD-AC-4[{welle_pair_label}]: high-drift modul {high_drift!r} "
+        f"must end on python-backend; got {high_drift_state!r}"
+    )
+    partner_state = record.post_flip_backend_per_modul.get(partner)
+    assert partner_state == "rust", (
+        f"CMD-AC-4[{welle_pair_label}]: partner modul {partner!r} must "
+        f"stay on rust-Default (atomic-flip discipline); got "
+        f"{partner_state!r}"
+    )
+    assert record.flip_elapsed_seconds <= ROLLBACK_SLA_SECONDS, (
+        f"CMD-AC-4[{welle_pair_label}]: flip elapsed "
+        f"{record.flip_elapsed_seconds:.1f}s exceeds "
+        f"{ROLLBACK_SLA_SECONDS:.0f}s SLA"
     )
