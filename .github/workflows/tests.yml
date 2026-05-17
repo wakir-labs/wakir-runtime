@@ -221,6 +221,32 @@ jobs:
           python -m pytest tests/integration/test_bridge_audit_roundtrip_e2e.py \
             -v --tb=short
 
+      # ------------------------------------------------------------------
+      # Tag-16 Mini-Welle: build the submit_worker binary so the
+      # tests/wat/test_anchor_backend.py real-binary smoke test
+      # (test_real_binary_smoke_ots_cli_path_aborts_without_ots) runs
+      # instead of skipping. Same restricted-build pattern as
+      # replay_cli above. The smoke test verifies that the binary
+      # surfaces a clean exit-3 internal-config error when ots is
+      # absent from PATH — proving the bridge wires up on the
+      # negative path without requiring the opentimestamps-client
+      # to actually be installed in CI.
+      # ------------------------------------------------------------------
+      - name: Build submit_worker (Rust, Tag-16 anchor-backend bridge)
+        run: |
+          cargo build \
+            --manifest-path wirelang-rust/Cargo.toml \
+            -p persona-engine-anchor-submit-worker \
+            --bin submit_worker
+          ls -l wirelang-rust/target/debug/submit_worker
+
+      - name: Run WAT anchor-backend real-binary smoke
+        env:
+          WAKIR_SUBMIT_WORKER_BIN: ${{ github.workspace }}/wirelang-rust/target/debug/submit_worker
+        run: |
+          python -m pytest tests/wat/test_anchor_backend.py \
+            -v --tb=short
+
   sandbox-suite-shadow:
     # Shadow-run of the sandbox lane inside this workflow so the
     # drift-detection job can compare collected-counts in a single

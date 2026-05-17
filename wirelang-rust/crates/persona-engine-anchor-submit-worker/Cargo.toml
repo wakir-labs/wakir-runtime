@@ -113,6 +113,15 @@ publish = false
 name = "persona_engine_anchor_submit_worker"
 path = "src/lib.rs"
 
+# Operator CLI binary — Tag-16 Mini-Welle Phase-3b production-wiring.
+# Reads a single AnchorEnvelope as JSON on stdin, runs one `tick()`
+# against the configured transport (`ots_cli` by default, plus three
+# `mock_*` transports for hermetic tests), writes a BridgeOutput JSON
+# line on stdout. See `src/bin/submit_worker.rs` for the wire format.
+[[bin]]
+name = "submit_worker"
+path = "src/bin/submit_worker.rs"
+
 [dependencies]
 # AnchorEnvelope producer (path dep within the workspace).
 persona-engine-anchor-emitter = { path = "../persona-engine-anchor-emitter" }
@@ -126,6 +135,12 @@ async-trait = "=0.1.89"
 # Workspace serde for DeadLetterRecord + SubmitWorkerConfig derive.
 serde      = { workspace = true }
 serde_json = { workspace = true }
+
+# Tag-16 binary deps. `hex` is already a workspace dep (verified
+# 2026-05-17 against `wirelang-rust/Cargo.toml`); we re-pull it here
+# because the CLI binary decodes the 32-byte Merkle root from its
+# hex-on-the-wire representation supplied by the Python bridge.
+hex = { workspace = true }
 
 [dev-dependencies]
 tokio = { version = "=1.52.3", features = ["rt-multi-thread", "macros", "sync", "time", "test-util"] }

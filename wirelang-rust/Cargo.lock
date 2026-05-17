@@ -1594,6 +1594,7 @@ name = "persona-engine-anchor-submit-worker"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "hex",
  "persona-engine-anchor-emitter",
  "serde",
  "serde_json",
