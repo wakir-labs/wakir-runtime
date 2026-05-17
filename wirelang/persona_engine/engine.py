@@ -382,6 +382,7 @@ class PersonaEngine:
         # the engine just records the decision so the Doppelbetrieb-
         # comparison set has a deterministic per-boot anchor.
         from .rust_backend_switch import (
+            resolve_anchor_emitter_backend,
             resolve_bridge_diff_backend,
             resolve_fsm_backend,
             resolve_recovery_backend,
@@ -489,8 +490,9 @@ class PersonaEngine:
         # This is the **6th** BackendDecision record emitted per boot
         # (Tag-17 recovery + state_backing + Tag-18 fsm + Tag-19
         # v907_verify + Tag-20 bridge_diff + Tag-22 subscribe_loop).
-        # When the anchor-emitter switch (Tag-21 deferred) lands the
-        # per-boot count rises to 7.
+        # The Tag-23 anchor-emitter wire-in below brings the per-boot
+        # count to 7 (closing the Phase-3b production-default-switch
+        # surface).
         try:
             (
                 self._subscribe_loop_backend,
@@ -503,6 +505,39 @@ class PersonaEngine:
                 "level": "ERROR",
                 "msg": "backend-switch-validation-failed",
                 "domain": "subscribe_loop",
+                "error": str(exc),
+            })
+            raise
+        # Tag-23: resolve anchor-emitter-backend choice up-front, parallel
+        # to recovery + state_backing + fsm + v907_verify + bridge_diff +
+        # subscribe_loop. Default is python (current behaviour, opt-in
+        # switch). Anchor-emitter is the WAT-spool envelope substrate
+        # (per-event envelope JCS bytes + envelope-hash + payload-hash)
+        # — the per-decision audit-record is critical for the Phase-3b
+        # Doppelbetrieb comparison set because any silent drift between
+        # Python and Rust envelope bytes would corrupt the entire
+        # WAT-spool truth claim before the OTS calendar ever sees it.
+        # The engine keeps :mod:`wirelang.persona_engine.anchor_emitter`
+        # Python-backed during Phase-3b; Phase-3c cutover (out of scope
+        # here) swaps in the Rust subprocess-bridge via
+        # :func:`build_anchor_emitter`. This is the **7th and final**
+        # BackendDecision record emitted per boot (Tag-17 recovery +
+        # state_backing + Tag-18 fsm + Tag-19 v907_verify + Tag-20
+        # bridge_diff + Tag-22 subscribe_loop + Tag-23 anchor_emitter)
+        # — the Phase-3b production-default-switch surface is closed
+        # with this wire-in.
+        try:
+            (
+                self._anchor_emitter_backend,
+                self._anchor_emitter_backend_decision,
+            ) = resolve_anchor_emitter_backend(
+                env=None, log_sink=self.log_sink
+            )
+        except Exception as exc:  # noqa: BLE001 — strict env-validation
+            self._log({
+                "level": "ERROR",
+                "msg": "backend-switch-validation-failed",
+                "domain": "anchor_emitter",
                 "error": str(exc),
             })
             raise

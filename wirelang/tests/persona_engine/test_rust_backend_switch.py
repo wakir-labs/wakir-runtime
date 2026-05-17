@@ -70,7 +70,9 @@ from wirelang.persona_engine.lifecycle_state_machine import (
     UnknownStateError,
 )
 from wirelang.persona_engine.rust_backend_switch import (
+    ANCHOR_EMITTER_BACKEND_ENV,
     BRIDGE_DIFF_BACKEND_ENV,
+    DEFAULT_RUST_ANCHOR_EMITTER_BIN,
     DEFAULT_RUST_BACKEND_TIMEOUT_S,
     DEFAULT_RUST_BRIDGE_DIFF_BIN,
     DEFAULT_RUST_FSM_BIN,
@@ -80,6 +82,7 @@ from wirelang.persona_engine.rust_backend_switch import (
     DEFAULT_RUST_V907_VERIFY_BIN,
     FSM_BACKEND_ENV,
     RECOVERY_BACKEND_ENV,
+    RUST_ANCHOR_EMITTER_BIN_ENV,
     RUST_BACKEND_TIMEOUT_ENV,
     RUST_BRIDGE_DIFF_BIN_ENV,
     RUST_FSM_BIN_ENV,
@@ -90,12 +93,15 @@ from wirelang.persona_engine.rust_backend_switch import (
     STATE_BACKING_BACKEND_ENV,
     SUBSCRIBE_LOOP_BACKEND_ENV,
     V907_VERIFY_BACKEND_ENV,
+    VALID_ANCHOR_EMITTER_BACKEND_VALUES,
     VALID_BRIDGE_DIFF_BACKEND_VALUES,
     VALID_FSM_BACKEND_VALUES,
     VALID_RECOVERY_BACKEND_VALUES,
     VALID_STATE_BACKING_BACKEND_VALUES,
     VALID_SUBSCRIBE_LOOP_BACKEND_VALUES,
     VALID_V907_VERIFY_BACKEND_VALUES,
+    AnchorEmitterBackend,
+    AnchorEmitterSubprocessResult,
     BackendDecision,
     BackendSwitchValidationError,
     BridgeDiffBackend,
@@ -104,6 +110,7 @@ from wirelang.persona_engine.rust_backend_switch import (
     FsmBackend,
     RecoveryBackend,
     RustBackendError,
+    RustSubprocessAnchorEmitter,
     RustSubprocessBridgeDiff,
     RustSubprocessFsm,
     RustSubprocessRecoveryRunner,
@@ -116,13 +123,16 @@ from wirelang.persona_engine.rust_backend_switch import (
     V907SubprocessResult,
     V907VerifyBackend,
     _resolve_timeout_s,
+    _select_anchor_emitter_backend,
     _select_subscribe_loop_backend,
+    build_anchor_emitter,
     build_bridge_diff,
     build_fsm,
     build_state_backing,
     build_subscribe_loop,
     build_v907_verify,
     log_backend_decision,
+    resolve_anchor_emitter_backend,
     resolve_bridge_diff_backend,
     resolve_fsm_backend,
     resolve_recovery_backend,
@@ -2799,4 +2809,580 @@ def test_rust_subscribe_loop_client_side_validation_rejects_bad_inputs():
             persona_id="p",
             prompt_sha256="sha256:" + "0" * 64,
             subject="wakir.dev.agent.agent.task.assigned.p",
+        )
+
+
+# ===========================================================================
+# Tag-23 Mini-Welle vectors — anchor-emitter production-default switch
+# (7th and final Phase-3b BackendDecision component).
+#
+# Coverage map for the anchor-emitter switch (AE1..AE13, 13 vectors,
+# ≥10 required):
+#
+#   AE1  WAKIR_ANCHOR_EMITTER_BACKEND unset → python default + decision.
+#   AE2  WAKIR_ANCHOR_EMITTER_BACKEND=python (explicit) → python +
+#        fallback_reason="explicit_python".
+#   AE3  WAKIR_ANCHOR_EMITTER_BACKEND=rust + binary available → rust
+#        chosen.
+#   AE4  WAKIR_ANCHOR_EMITTER_BACKEND=rust + binary missing →
+#        graceful fallback to python, fallback_reason="binary_missing".
+#   AE5  WAKIR_ANCHOR_EMITTER_BACKEND=rust + binary not-executable →
+#        graceful fallback to python,
+#        fallback_reason="binary_not_executable".
+#   AE6  unknown env-var value raises BackendSwitchValidationError.
+#   AE7  empty-string env value defaults to python.
+#   AE8  all five cross-lang anchor-envelope fixtures rust-verified
+#        (byte-identical JCS bytes + envelope-hash + payload-hash
+#        against the Python authority via the stub-invoker delegation).
+#   AE9  hash_anchor() roundtrip on a pre-built envelope matches
+#        serialize_anchor() output byte-for-byte.
+#   AE10 subprocess exit_nonzero → RustBackendError(exit_nonzero).
+#   AE11 subprocess bad JSON → RustBackendError(bad_json).
+#   AE12 build_anchor_emitter(PYTHON / RUST) returns matching surface
+#        plus fixture-pinned Python-path roundtrip.
+#   AE13 default binary path resolves to
+#        /opt/wakir/bin/wakir-persona-engine-anchor-emitter +
+#        per-decision logging emits one structured JSON line +
+#        _select_anchor_emitter_backend auftrag-alias dispatches
+#        identically to resolve_anchor_emitter_backend +
+#        client-side validation (empty event_id / bad timestamp)
+#        rejects without spawning a subprocess.
+#
+# Total: 13 hermetic vectors (≥10 required).
+# ===========================================================================
+
+
+def _load_anchor_emitter_fixtures() -> dict:
+    """Load the cross-lang anchor-envelope fixtures file once per test."""
+    fixture_path = (
+        Path(__file__).resolve().parent.parent.parent.parent
+        / "tests"
+        / "fixtures"
+        / "anchor-emitter-cross-lang"
+        / "fixtures.json"
+    )
+    with fixture_path.open("r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def _make_anchor_emitter_invoker_via_python_authority():
+    """Build a stub-invoker that delegates to the Python anchor_emitter
+    authority.
+
+    The Rust binary contract is:
+
+    stdin JSON:
+        ``{"schema": "wakir.persona-engine.anchor-emitter/1",
+        "op": "<serialize_anchor | hash_anchor>",
+        "payload": {event_id, timestamp_utc, persona_id,
+        payload_jcs_bytes_b64}}``
+
+    response JSON:
+        ``{"envelope_jcs_bytes_b64": str,
+        "envelope_jcs_bytes_len": int,
+        "envelope_sha256_hex": str,
+        "envelope_hash_prefixed": str,
+        "payload_sha256_hex": str}``
+
+    The stub-invoker reproduces this by delegating to
+    :mod:`wirelang.persona_engine.anchor_emitter` so the wire-format
+    and the bridge envelope are the only variables under test.
+    """
+    import base64 as _base64
+
+    from wirelang.persona_engine.anchor_emitter import (
+        AnchorEmitterInput as _AEI,
+        build_anchor_envelope as _build,
+        hash_anchor as _hash_anchor,
+        serialize_anchor as _serialize_anchor,
+        sha256_hex as _sha256_hex,
+    )
+
+    def invoker(bin_path, argv, *, stdin_payload, timeout_s):
+        doc = json.loads(stdin_payload.decode("utf-8"))
+        assert doc["schema"] == "wakir.persona-engine.anchor-emitter/1"
+        op = doc["op"]
+        payload = doc["payload"]
+        assert op in ("serialize_anchor", "hash_anchor")
+        payload_bytes = _base64.b64decode(
+            payload["payload_jcs_bytes_b64"].encode("ascii")
+        )
+        envelope = _build(
+            _AEI(
+                event_id=payload["event_id"],
+                timestamp_utc=payload["timestamp_utc"],
+                persona_id=payload["persona_id"],
+                payload_jcs_bytes=payload_bytes,
+            )
+        )
+        jcs_bytes = _serialize_anchor(envelope)
+        env_hex = _sha256_hex(jcs_bytes)
+        env_prefixed = _hash_anchor(envelope)
+        payload_hex = _sha256_hex(envelope.payload_jcs_bytes)
+        resp = {
+            "envelope_jcs_bytes_b64": _base64.b64encode(jcs_bytes).decode(
+                "ascii"
+            ),
+            "envelope_jcs_bytes_len": len(jcs_bytes),
+            "envelope_sha256_hex": env_hex,
+            "envelope_hash_prefixed": env_prefixed,
+            "payload_sha256_hex": payload_hex,
+        }
+        return 0, json.dumps(resp), ""
+
+    return invoker
+
+
+# ---------------------------------------------------------------------------
+# Vector AE1 — WAKIR_ANCHOR_EMITTER_BACKEND unset → python default.
+# ---------------------------------------------------------------------------
+
+
+def test_anchor_emitter_unset_defaults_to_python():
+    env: dict[str, str] = {}
+    chosen, decision = resolve_anchor_emitter_backend(env=env)
+    assert chosen is AnchorEmitterBackend.PYTHON
+    assert decision.domain == "anchor_emitter"
+    assert decision.requested_backend == "python"
+    assert decision.chosen_backend == "python"
+    assert decision.fallback_reason is None
+    assert decision.bin_path is None
+    assert decision.resolution_latency_us >= 0
+
+
+# ---------------------------------------------------------------------------
+# Vector AE2 — explicit "python" value with fallback_reason flag.
+# ---------------------------------------------------------------------------
+
+
+def test_anchor_emitter_explicit_python():
+    env = {ANCHOR_EMITTER_BACKEND_ENV: "python"}
+    chosen, decision = resolve_anchor_emitter_backend(env=env)
+    assert chosen is AnchorEmitterBackend.PYTHON
+    assert decision.fallback_reason == "explicit_python"
+
+
+# ---------------------------------------------------------------------------
+# Vector AE3 — rust + binary available → rust chosen.
+# ---------------------------------------------------------------------------
+
+
+def test_anchor_emitter_rust_with_available_binary(tmp_path: Path):
+    bin_path = _make_executable(tmp_path / "wakir-anchor-emitter")
+    env = {
+        ANCHOR_EMITTER_BACKEND_ENV: "rust",
+        RUST_ANCHOR_EMITTER_BIN_ENV: str(bin_path),
+    }
+    chosen, decision = resolve_anchor_emitter_backend(env=env)
+    assert chosen is AnchorEmitterBackend.RUST
+    assert decision.domain == "anchor_emitter"
+    assert decision.requested_backend == "rust"
+    assert decision.chosen_backend == "rust"
+    assert decision.fallback_reason is None
+    assert decision.bin_path == str(bin_path)
+
+
+# ---------------------------------------------------------------------------
+# Vector AE4 — rust + binary missing → graceful fallback to python.
+# ---------------------------------------------------------------------------
+
+
+def test_anchor_emitter_rust_with_missing_binary_graceful_fallback(
+    tmp_path: Path,
+):
+    missing = tmp_path / "does-not-exist"
+    env = {
+        ANCHOR_EMITTER_BACKEND_ENV: "rust",
+        RUST_ANCHOR_EMITTER_BIN_ENV: str(missing),
+    }
+    chosen, decision = resolve_anchor_emitter_backend(env=env)
+    assert chosen is AnchorEmitterBackend.PYTHON
+    assert decision.requested_backend == "rust"
+    assert decision.chosen_backend == "python"
+    assert decision.fallback_reason == "binary_missing"
+    assert decision.bin_path == str(missing)
+
+
+# ---------------------------------------------------------------------------
+# Vector AE5 — rust + binary not-executable → graceful fallback.
+# ---------------------------------------------------------------------------
+
+
+def test_anchor_emitter_rust_with_not_executable_binary_graceful_fallback(
+    tmp_path: Path,
+):
+    not_exec = _make_non_executable_file(tmp_path / "wakir-anchor-emitter")
+    env = {
+        ANCHOR_EMITTER_BACKEND_ENV: "rust",
+        RUST_ANCHOR_EMITTER_BIN_ENV: str(not_exec),
+    }
+    chosen, decision = resolve_anchor_emitter_backend(env=env)
+    assert chosen is AnchorEmitterBackend.PYTHON
+    assert decision.fallback_reason == "binary_not_executable"
+    assert decision.bin_path == str(not_exec)
+
+
+# ---------------------------------------------------------------------------
+# Vector AE6 — unknown env-var value raises BackendSwitchValidationError.
+# ---------------------------------------------------------------------------
+
+
+def test_anchor_emitter_validation_rejects_unknown():
+    env = {ANCHOR_EMITTER_BACKEND_ENV: "rust-flavor-x"}
+    with pytest.raises(BackendSwitchValidationError) as ei:
+        resolve_anchor_emitter_backend(env=env)
+    assert ei.value.env_var == ANCHOR_EMITTER_BACKEND_ENV
+    assert ei.value.value == "rust-flavor-x"
+    assert "python" in list(ei.value.valid_values)
+    assert "rust" in list(ei.value.valid_values)
+    # The enum has exactly two valid values.
+    assert set(VALID_ANCHOR_EMITTER_BACKEND_VALUES) == {"python", "rust"}
+
+
+# ---------------------------------------------------------------------------
+# Vector AE7 — empty-string env value defaults to python (no validation).
+# ---------------------------------------------------------------------------
+
+
+def test_anchor_emitter_empty_string_env_defaults_to_python():
+    env = {ANCHOR_EMITTER_BACKEND_ENV: ""}
+    chosen, decision = resolve_anchor_emitter_backend(env=env)
+    assert chosen is AnchorEmitterBackend.PYTHON
+    assert decision.fallback_reason is None
+
+
+# ---------------------------------------------------------------------------
+# Vector AE8 — all five cross-lang anchor-envelope fixtures rust-verified.
+# ---------------------------------------------------------------------------
+
+
+def test_rust_anchor_emitter_all_five_cross_lang_fixtures_byte_identical():
+    """Byte-parity gate across the five cross-lang anchor-envelope
+    fixtures.
+
+    For each fixture in ``tests/fixtures/anchor-emitter-cross-lang/
+    fixtures.json`` (PR #170 Python-sync, PR #141 Rust crate) the
+    bridge must produce:
+
+    1. byte-identical ``envelope_jcs_bytes`` (matching the pinned
+       base64-encoded canonical form),
+    2. byte-identical ``envelope_jcs_bytes_len``,
+    3. byte-identical ``envelope_sha256_hex`` (lowercase 64 hex),
+    4. byte-identical ``envelope_hash_prefixed``
+       (``"sha256:" + hex``),
+    5. byte-identical ``payload_sha256_hex`` (lowercase 64 hex).
+
+    Any deviation in the JSON wire-shape, the JCS canonicaliser, the
+    SHA-256 hash, or the prefix-form fails this gate in CI before a
+    real Rust binary ever ships (Phase-3c-cutover pre-condition for
+    the WAT-spool envelope substrate).
+    """
+    import base64
+
+    fx = _load_anchor_emitter_fixtures()
+    fixtures = fx["fixtures"]
+    assert len(fixtures) == 5, (
+        f"expected exactly 5 cross-lang anchor-envelope fixtures, got "
+        f"{len(fixtures)}; fixture file drifted from PR #170/#141 scope"
+    )
+    assert fx["schema_version"] == "wakir.wat.anchor-envelope/1"
+
+    invoker = _make_anchor_emitter_invoker_via_python_authority()
+    bridge = RustSubprocessAnchorEmitter(
+        bin_path="/fake/bin",
+        timeout_s=1.0,
+        subprocess_invoker=invoker,
+    )
+
+    for fixture in fixtures:
+        name = fixture["name"]
+        inp = fixture["input"]
+        expected = fixture["expected"]
+        payload_bytes = base64.b64decode(
+            inp["payload_jcs_bytes_b64"].encode("ascii")
+        )
+        result = bridge.serialize_anchor(
+            event_id=inp["event_id"],
+            timestamp_utc=inp["timestamp_utc"],
+            persona_id=inp["persona_id"],
+            payload_jcs_bytes=payload_bytes,
+        )
+        # (1) JCS bytes byte-parity (base64-encoded comparison).
+        expected_b64 = expected["envelope_jcs_bytes_b64"]
+        expected_jcs_bytes = base64.b64decode(expected_b64.encode("ascii"))
+        assert result.envelope_jcs_bytes == expected_jcs_bytes, (
+            f"fixture {name}: envelope JCS bytes drift "
+            f"{result.envelope_jcs_bytes!r} != {expected_jcs_bytes!r}"
+        )
+        # (2) JCS bytes length.
+        assert len(result.envelope_jcs_bytes) == expected[
+            "envelope_jcs_bytes_len"
+        ], f"fixture {name}: envelope JCS bytes length drift"
+        # (3) Envelope SHA-256 hex byte-parity.
+        assert (
+            result.envelope_sha256_hex == expected["envelope_sha256_hex"]
+        ), (
+            f"fixture {name}: envelope SHA-256 hex drift "
+            f"{result.envelope_sha256_hex!r} != "
+            f"{expected['envelope_sha256_hex']!r}"
+        )
+        # (4) Prefixed envelope hash byte-parity.
+        assert (
+            result.envelope_hash_prefixed
+            == expected["envelope_hash_prefixed"]
+        ), (
+            f"fixture {name}: envelope prefixed hash drift "
+            f"{result.envelope_hash_prefixed!r} != "
+            f"{expected['envelope_hash_prefixed']!r}"
+        )
+        # (5) Payload SHA-256 hex byte-parity.
+        assert (
+            result.payload_sha256_hex == expected["payload_sha256_hex"]
+        ), (
+            f"fixture {name}: payload SHA-256 hex drift "
+            f"{result.payload_sha256_hex!r} != "
+            f"{expected['payload_sha256_hex']!r}"
+        )
+        # Sanity: reconstructed envelope carries the canonical fields.
+        assert result.envelope.event_id == inp["event_id"]
+        assert result.envelope.timestamp_utc == inp["timestamp_utc"]
+        assert result.envelope.persona_id == inp["persona_id"]
+        assert result.envelope.payload_jcs_bytes == payload_bytes
+
+
+# ---------------------------------------------------------------------------
+# Vector AE9 — hash_anchor() roundtrip matches serialize_anchor() bytes.
+# ---------------------------------------------------------------------------
+
+
+def test_rust_anchor_emitter_hash_anchor_matches_serialize_anchor():
+    """A pre-built AnchorEnvelope passed to ``hash_anchor`` must produce
+    the same quadruple (JCS bytes / env hex / prefixed / payload hex) as
+    the equivalent ``serialize_anchor`` call. Guards against accidental
+    divergence between the two surface methods."""
+    from wirelang.persona_engine.anchor_emitter import (
+        AnchorEmitterInput,
+        build_anchor_envelope,
+    )
+
+    invoker = _make_anchor_emitter_invoker_via_python_authority()
+    bridge = RustSubprocessAnchorEmitter(
+        bin_path="/fake/bin",
+        timeout_s=1.0,
+        subprocess_invoker=invoker,
+    )
+    args = {
+        "event_id": "evt-tag23-roundtrip-01",
+        "timestamp_utc": "2026-05-17T17:44:28Z",
+        "persona_id": "selin",
+        "payload_jcs_bytes": b'{"k":"v"}',
+    }
+    via_serialize = bridge.serialize_anchor(**args)
+    envelope = build_anchor_envelope(AnchorEmitterInput(**args))
+    via_hash = bridge.hash_anchor(envelope)
+    assert via_serialize.envelope_jcs_bytes == via_hash.envelope_jcs_bytes
+    assert via_serialize.envelope_sha256_hex == via_hash.envelope_sha256_hex
+    assert (
+        via_serialize.envelope_hash_prefixed
+        == via_hash.envelope_hash_prefixed
+    )
+    assert via_serialize.payload_sha256_hex == via_hash.payload_sha256_hex
+    assert via_serialize.envelope == via_hash.envelope
+
+
+# ---------------------------------------------------------------------------
+# Vector AE10 — subprocess exit_nonzero → RustBackendError(exit_nonzero).
+# ---------------------------------------------------------------------------
+
+
+def test_rust_anchor_emitter_exit_nonzero_raises():
+    def fail_invoker(bin_path, argv, *, stdin_payload, timeout_s):
+        return 2, "", "boom"
+
+    bridge = RustSubprocessAnchorEmitter(
+        bin_path="/fake/bin",
+        subprocess_invoker=fail_invoker,
+    )
+    with pytest.raises(RustBackendError) as ei:
+        bridge.serialize_anchor(
+            event_id="evt-1",
+            timestamp_utc="2026-05-17T00:00:00Z",
+            persona_id="p",
+            payload_jcs_bytes=b"{}",
+        )
+    assert ei.value.reason == "exit_nonzero"
+    assert ei.value.returncode == 2
+
+
+# ---------------------------------------------------------------------------
+# Vector AE11 — subprocess bad JSON → RustBackendError(bad_json).
+# ---------------------------------------------------------------------------
+
+
+def test_rust_anchor_emitter_bad_json_raises():
+    def bad_json_invoker(bin_path, argv, *, stdin_payload, timeout_s):
+        return 0, "not-valid-json", ""
+
+    bridge = RustSubprocessAnchorEmitter(
+        bin_path="/fake/bin",
+        subprocess_invoker=bad_json_invoker,
+    )
+    with pytest.raises(RustBackendError) as ei:
+        bridge.serialize_anchor(
+            event_id="evt-1",
+            timestamp_utc="2026-05-17T00:00:00Z",
+            persona_id="p",
+            payload_jcs_bytes=b"{}",
+        )
+    assert ei.value.reason == "bad_json"
+
+
+# ---------------------------------------------------------------------------
+# Vector AE12 — build_anchor_emitter(PYTHON / RUST) surfaces match.
+# ---------------------------------------------------------------------------
+
+
+def test_build_anchor_emitter_python_and_rust_surfaces_match_api():
+    """Both factories expose the same method-set so callers cannot tell
+    the backends apart at the API boundary. The Python adapter also
+    produces a fixture-pinned result so the surface is exercised
+    end-to-end without a subprocess."""
+    py_adapter = build_anchor_emitter(AnchorEmitterBackend.PYTHON)
+    assert hasattr(py_adapter, "serialize_anchor")
+    assert hasattr(py_adapter, "hash_anchor")
+
+    # Fixture f01 (empty-object payload) Python-path roundtrip.
+    result = py_adapter.serialize_anchor(
+        event_id="evt-2026-05-17-anchor-fixture-01",
+        timestamp_utc="2026-05-17T00:00:00Z",
+        persona_id="reza",
+        payload_jcs_bytes=b"{}",
+    )
+    assert isinstance(result, AnchorEmitterSubprocessResult)
+    # Fixture-pinned envelope hash (from
+    # tests/fixtures/anchor-emitter-cross-lang/fixtures.json f01).
+    assert result.envelope_hash_prefixed == (
+        "sha256:020ab30477e0167274741b59868279c1b16800c234b6453f956329ccc416ccc2"
+    )
+    assert result.payload_sha256_hex == (
+        "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+    )
+    assert len(result.envelope_jcs_bytes) == 229
+
+    # Rust-bound factory returns the subprocess-bridge.
+    rust_bridge = build_anchor_emitter(
+        AnchorEmitterBackend.RUST,
+        env={RUST_ANCHOR_EMITTER_BIN_ENV: "/custom/wakir-anchor-emitter"},
+    )
+    assert isinstance(rust_bridge, RustSubprocessAnchorEmitter)
+    assert rust_bridge.bin_path == "/custom/wakir-anchor-emitter"
+    assert hasattr(rust_bridge, "serialize_anchor")
+    assert hasattr(rust_bridge, "hash_anchor")
+
+
+# ---------------------------------------------------------------------------
+# Vector AE13 — default-bin path + logging + auftrag-alias +
+# client-side validation (combined to keep the test count compact).
+# ---------------------------------------------------------------------------
+
+
+def test_anchor_emitter_default_bin_and_logging_and_alias_and_validation(
+    tmp_path: Path,
+):
+    """Covers four related invariants in one hermetic test:
+
+    1. The default Rust-binary path resolves to the canonical
+       ``/opt/wakir/bin/wakir-persona-engine-anchor-emitter`` when
+       the env-var is unset.
+    2. Per-decision logging emits exactly one structured JSON line.
+    3. The ``_select_anchor_emitter_backend`` auftrag-alias dispatches
+       identically to :func:`resolve_anchor_emitter_backend`.
+    4. Client-side validation short-circuits on bad input
+       (empty event_id, malformed timestamp_utc) without spawning a
+       subprocess.
+    """
+    from wirelang.persona_engine.anchor_emitter import (
+        BadTimestampShapeError,
+        EmptyFieldError,
+    )
+    from wirelang.persona_engine.rust_backend_switch import (
+        _resolve_anchor_emitter_bin,
+    )
+
+    # (1) Default-bin path resolution.
+    assert (
+        _resolve_anchor_emitter_bin(env={}) == DEFAULT_RUST_ANCHOR_EMITTER_BIN
+    )
+    assert (
+        DEFAULT_RUST_ANCHOR_EMITTER_BIN
+        == "/opt/wakir/bin/wakir-persona-engine-anchor-emitter"
+    )
+
+    # (2) Per-decision logging emits one structured JSON line.
+    sink = io.StringIO()
+    chosen, _ = resolve_anchor_emitter_backend(env={}, log_sink=sink)
+    line = sink.getvalue().strip()
+    assert line, "expected one structured-log line emitted"
+    parsed = json.loads(line)
+    assert parsed["msg"] == "backend-decision"
+    assert parsed["domain"] == "anchor_emitter"
+    assert parsed["requested_backend"] == "python"
+    assert parsed["chosen_backend"] == "python"
+    assert parsed["resolution_latency_us"] >= 0
+    assert chosen is AnchorEmitterBackend.PYTHON
+
+    # (3) Auftrag-alias dispatches identically — unset env path.
+    chosen_a, decision_a = _select_anchor_emitter_backend(env={})
+    chosen_b, decision_b = resolve_anchor_emitter_backend(env={})
+    assert chosen_a is chosen_b
+    assert decision_a.domain == decision_b.domain
+    assert decision_a.requested_backend == decision_b.requested_backend
+    assert decision_a.chosen_backend == decision_b.chosen_backend
+    assert decision_a.fallback_reason == decision_b.fallback_reason
+    # Auftrag-alias dispatches identically — rust + missing-binary path.
+    missing = tmp_path / "does-not-exist"
+    env = {
+        ANCHOR_EMITTER_BACKEND_ENV: "rust",
+        RUST_ANCHOR_EMITTER_BIN_ENV: str(missing),
+    }
+    chosen_c, decision_c = _select_anchor_emitter_backend(env=env)
+    chosen_d, decision_d = resolve_anchor_emitter_backend(env=env)
+    assert chosen_c is chosen_d is AnchorEmitterBackend.PYTHON
+    assert (
+        decision_c.fallback_reason
+        == decision_d.fallback_reason
+        == "binary_missing"
+    )
+
+    # (4) Client-side validation rejects bad inputs without spawning.
+    def never_called_invoker(bin_path, argv, *, stdin_payload, timeout_s):
+        raise AssertionError("invoker should not be called on bad input")
+
+    bridge = RustSubprocessAnchorEmitter(
+        bin_path="/fake/bin",
+        subprocess_invoker=never_called_invoker,
+    )
+    # Empty event_id.
+    with pytest.raises(EmptyFieldError):
+        bridge.serialize_anchor(
+            event_id="   ",
+            timestamp_utc="2026-05-17T00:00:00Z",
+            persona_id="p",
+            payload_jcs_bytes=b"{}",
+        )
+    # Bad timestamp shape (missing trailing Z).
+    with pytest.raises(BadTimestampShapeError):
+        bridge.serialize_anchor(
+            event_id="evt-1",
+            timestamp_utc="2026-05-17T00:00:00",
+            persona_id="p",
+            payload_jcs_bytes=b"{}",
+        )
+    # Non-bytes payload — TypeError before subprocess.
+    with pytest.raises(TypeError):
+        bridge.serialize_anchor(
+            event_id="evt-1",
+            timestamp_utc="2026-05-17T00:00:00Z",
+            persona_id="p",
+            payload_jcs_bytes="not-bytes",  # type: ignore[arg-type]
         )
