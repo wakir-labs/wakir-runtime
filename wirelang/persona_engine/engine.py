@@ -299,6 +299,37 @@ class PersonaEngine:
         )
 
     def _select_state_backing(self) -> PersonaStateBacking:
+        # Tag-17: ENV-gated Rust-backend switch
+        # (WAKIR_STATE_BACKING_BACKEND). Default is python (current
+        # behaviour, opt-in switch). Rust-bound values fall back
+        # gracefully to python when the binary is unavailable; the
+        # per-decision audit-log surfaces both the request and the
+        # actually-chosen backend. Tag-17 substance: production-
+        # default switch, no disruptive migration.
+        from .rust_backend_switch import (
+            StateBackingBackend,
+            build_state_backing,
+            resolve_state_backing_backend,
+        )
+
+        chosen_backend, _decision = resolve_state_backing_backend(
+            env=None, log_sink=self.log_sink
+        )
+        if chosen_backend is not StateBackingBackend.PYTHON:
+            # Operator explicitly opted into Rust; build the
+            # subprocess-bridge.
+            self._log({
+                "level": "INFO",
+                "msg": "state-backing-rust-subprocess-active",
+                "backend": chosen_backend.value,
+            })
+            return build_state_backing(
+                chosen_backend,
+                nats_servers=self.env.nats_servers,
+                org_id=self.env.org_id,
+                persona_state_bucket=self.env.persona_state_bucket,
+            )
+        # Python path — original Pengine-9 logic, unchanged.
         if not self.env.nats_servers:
             self._log({
                 "level": "WARN",
@@ -344,6 +375,28 @@ class PersonaEngine:
             "org_id": self.env.org_id,
             "session_id": self.session_id,
         })
+        # Tag-17: resolve recovery-backend choice up-front. Default is
+        # python (current behaviour, opt-in switch). Per-decision log
+        # surfaces the choice + latency. Recovery construction itself
+        # stays lazy (drill-scheduler / despawn_clean own that surface);
+        # the engine just records the decision so the Doppelbetrieb-
+        # comparison set has a deterministic per-boot anchor.
+        from .rust_backend_switch import (
+            resolve_recovery_backend,
+        )
+
+        try:
+            self._recovery_backend, self._recovery_backend_decision = (
+                resolve_recovery_backend(env=None, log_sink=self.log_sink)
+            )
+        except Exception as exc:  # noqa: BLE001 — strict env-validation
+            self._log({
+                "level": "ERROR",
+                "msg": "backend-switch-validation-failed",
+                "domain": "recovery",
+                "error": str(exc),
+            })
+            raise
         # Open the persona_engine.boot span — exits on the first error
         # or when boot() returns.
         boot_span_cm = self.observability.span(
