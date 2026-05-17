@@ -1,0 +1,91 @@
+{
+  "_comment": "Cross-lang fixture vectors for the persona-engine subscribe-loop ack-records (Tag-19 Mini-Welle Python-sync). The 'expected' block is the authoritative cross-lang pin: any drift on either side (Rust crate persona-engine-subscribe-loop or Python wirelang.persona_engine.nats_subscribe_loop) must change every other side too. Derivation procedure documented in wirelang/tests/persona_engine/test_subscribe_loop_cross_lang_parity.py (Python sibling test) and wirelang-rust/crates/persona-engine-subscribe-loop/tests/subscribe_loop_cross_lang_fixture_test.rs (Rust sibling test). Five outcomes covered: empty-frame (malformed), single-payload (processed), multi-record-batch (processed at frame_index=2), error-frame (rejected by handler), large-payload (4 KiB prompt). Pinned 2026-05-17.",
+  "schema_version": "wakir.persona-engine.subscribe-ack/1",
+  "fixtures": [
+    {
+      "name": "f01-empty-frame",
+      "input": {
+        "auftrag_id": "",
+        "frame_index": 0,
+        "outcome": "malformed",
+        "persona_id": "",
+        "prompt_sha256": "",
+        "subject": "wakir.dev.agent.agent.task.assigned.reza"
+      },
+      "expected": {
+        "ack_record_jcs_bytes_b64": "eyJhdWZ0cmFnX2lkIjoiIiwiZnJhbWVfaW5kZXgiOjAsIm91dGNvbWUiOiJtYWxmb3JtZWQiLCJwZXJzb25hX2lkIjoiIiwicHJvbXB0X3NoYTI1NiI6IiIsInNjaGVtYSI6Indha2lyLnBlcnNvbmEtZW5naW5lLnN1YnNjcmliZS1hY2svMSIsInN1YmplY3QiOiJ3YWtpci5kZXYuYWdlbnQuYWdlbnQudGFzay5hc3NpZ25lZC5yZXphIn0=",
+        "ack_record_jcs_bytes_len": 191,
+        "ack_record_sha256_hex": "bc0f3d2b653ced21d12ea5a706554a66b9acbbe429e9b55be757f659cb203e3a",
+        "ack_record_hash_prefixed": "sha256:bc0f3d2b653ced21d12ea5a706554a66b9acbbe429e9b55be757f659cb203e3a"
+      }
+    },
+    {
+      "name": "f02-single-payload",
+      "input": {
+        "auftrag_id": "auftrag-pengine-1",
+        "frame_index": 0,
+        "outcome": "processed",
+        "persona_id": "reza",
+        "prompt_sha256": "sha256:531fed186ec25156a1aa5178f57506f9260487601eb6a285ed86fc691ffa891f",
+        "subject": "wakir.dev.agent.agent.task.assigned.reza"
+      },
+      "expected": {
+        "ack_record_jcs_bytes_b64": "eyJhdWZ0cmFnX2lkIjoiYXVmdHJhZy1wZW5naW5lLTEiLCJmcmFtZV9pbmRleCI6MCwib3V0Y29tZSI6InByb2Nlc3NlZCIsInBlcnNvbmFfaWQiOiJyZXphIiwicHJvbXB0X3NoYTI1NiI6InNoYTI1Njo1MzFmZWQxODZlYzI1MTU2YTFhYTUxNzhmNTc1MDZmOTI2MDQ4NzYwMWViNmEyODVlZDg2ZmM2OTFmZmE4OTFmIiwic2NoZW1hIjoid2FraXIucGVyc29uYS1lbmdpbmUuc3Vic2NyaWJlLWFjay8xIiwic3ViamVjdCI6Indha2lyLmRldi5hZ2VudC5hZ2VudC50YXNrLmFzc2lnbmVkLnJlemEifQ==",
+        "ack_record_jcs_bytes_len": 283,
+        "ack_record_sha256_hex": "91dab62ee23a3026c09a133909bae5a91c01fcbda9dcad71966db697032b9f0b",
+        "ack_record_hash_prefixed": "sha256:91dab62ee23a3026c09a133909bae5a91c01fcbda9dcad71966db697032b9f0b"
+      }
+    },
+    {
+      "name": "f03-multi-record-batch",
+      "input": {
+        "auftrag_id": "auftrag-pengine-batch-3",
+        "frame_index": 2,
+        "outcome": "processed",
+        "persona_id": "reza",
+        "prompt_sha256": "sha256:936885d9ae186b59e4835722bb54897edfe580c18c57e8c124168e12fa93e324",
+        "subject": "wakir.dev.agent.agent.task.assigned.reza"
+      },
+      "expected": {
+        "ack_record_jcs_bytes_b64": "eyJhdWZ0cmFnX2lkIjoiYXVmdHJhZy1wZW5naW5lLWJhdGNoLTMiLCJmcmFtZV9pbmRleCI6Miwib3V0Y29tZSI6InByb2Nlc3NlZCIsInBlcnNvbmFfaWQiOiJyZXphIiwicHJvbXB0X3NoYTI1NiI6InNoYTI1Njo5MzY4ODVkOWFlMTg2YjU5ZTQ4MzU3MjJiYjU0ODk3ZWRmZTU4MGMxOGM1N2U4YzEyNDE2OGUxMmZhOTNlMzI0Iiwic2NoZW1hIjoid2FraXIucGVyc29uYS1lbmdpbmUuc3Vic2NyaWJlLWFjay8xIiwic3ViamVjdCI6Indha2lyLmRldi5hZ2VudC5hZ2VudC50YXNrLmFzc2lnbmVkLnJlemEifQ==",
+        "ack_record_jcs_bytes_len": 289,
+        "ack_record_sha256_hex": "0114db18f77a20d8e6e210b46b86c34c6243c5786ff0405335e7b9842539dd3c",
+        "ack_record_hash_prefixed": "sha256:0114db18f77a20d8e6e210b46b86c34c6243c5786ff0405335e7b9842539dd3c"
+      }
+    },
+    {
+      "name": "f04-error-frame",
+      "input": {
+        "auftrag_id": "auftrag-pengine-reject-1",
+        "frame_index": 0,
+        "outcome": "rejected",
+        "persona_id": "reza",
+        "prompt_sha256": "sha256:f855fefea2f7fc7cc104e295567df9686165e1d3fa4abc154d2e084e08aa6eba",
+        "subject": "wakir.dev.agent.agent.task.assigned.reza"
+      },
+      "expected": {
+        "ack_record_jcs_bytes_b64": "eyJhdWZ0cmFnX2lkIjoiYXVmdHJhZy1wZW5naW5lLXJlamVjdC0xIiwiZnJhbWVfaW5kZXgiOjAsIm91dGNvbWUiOiJyZWplY3RlZCIsInBlcnNvbmFfaWQiOiJyZXphIiwicHJvbXB0X3NoYTI1NiI6InNoYTI1NjpmODU1ZmVmZWEyZjdmYzdjYzEwNGUyOTU1NjdkZjk2ODYxNjVlMWQzZmE0YWJjMTU0ZDJlMDg0ZTA4YWE2ZWJhIiwic2NoZW1hIjoid2FraXIucGVyc29uYS1lbmdpbmUuc3Vic2NyaWJlLWFjay8xIiwic3ViamVjdCI6Indha2lyLmRldi5hZ2VudC5hZ2VudC50YXNrLmFzc2lnbmVkLnJlemEifQ==",
+        "ack_record_jcs_bytes_len": 289,
+        "ack_record_sha256_hex": "9f6b04ead8f19729bd3ca7b2fe2618725702be48839ab8f7a6e6d75fceacd2c1",
+        "ack_record_hash_prefixed": "sha256:9f6b04ead8f19729bd3ca7b2fe2618725702be48839ab8f7a6e6d75fceacd2c1"
+      }
+    },
+    {
+      "name": "f05-large-payload",
+      "input": {
+        "auftrag_id": "auftrag-pengine-large-1",
+        "frame_index": 0,
+        "outcome": "processed",
+        "persona_id": "tomas",
+        "prompt_sha256": "sha256:d349a508c76fad12956a99adc3346b607f2309a4e6f546872d04345ba781088c",
+        "subject": "wakir.staging.agent.agent.task.assigned.tomas"
+      },
+      "expected": {
+        "ack_record_jcs_bytes_b64": "eyJhdWZ0cmFnX2lkIjoiYXVmdHJhZy1wZW5naW5lLWxhcmdlLTEiLCJmcmFtZV9pbmRleCI6MCwib3V0Y29tZSI6InByb2Nlc3NlZCIsInBlcnNvbmFfaWQiOiJ0b21hcyIsInByb21wdF9zaGEyNTYiOiJzaGEyNTY6ZDM0OWE1MDhjNzZmYWQxMjk1NmE5OWFkYzMzNDZiNjA3ZjIzMDlhNGU2ZjU0Njg3MmQwNDM0NWJhNzgxMDg4YyIsInNjaGVtYSI6Indha2lyLnBlcnNvbmEtZW5naW5lLnN1YnNjcmliZS1hY2svMSIsInN1YmplY3QiOiJ3YWtpci5zdGFnaW5nLmFnZW50LmFnZW50LnRhc2suYXNzaWduZWQudG9tYXMifQ==",
+        "ack_record_jcs_bytes_len": 295,
+        "ack_record_sha256_hex": "0f82de35f5f75bb9d0d759e216da17d906c17c612aacb6d9c4368db7e94e1357",
+        "ack_record_hash_prefixed": "sha256:0f82de35f5f75bb9d0d759e216da17d906c17c612aacb6d9c4368db7e94e1357"
+      }
+    }
+  ]
+}

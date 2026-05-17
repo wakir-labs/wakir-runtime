@@ -50,6 +50,21 @@ use serde_json::Value;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::Mutex;
 
+// Tag-19 Mini-Welle: subscribe-ack-record cross-lang substrate.
+// Lives in its own module so the existing `run_subscribe_loop`
+// state-contract stays unchanged; the ack-record substrate is
+// orthogonal and re-exported at crate root for ergonomic import.
+pub mod ack_record;
+
+pub use ack_record::{
+    ack_record_from_parsed, ack_record_hash_prefixed, ack_record_sha256_hex,
+    build_ack_burst, build_ack_record, serialize_ack, serialize_ack_burst,
+    serialize_and_hash, sha256_hex, AckRecordError, BurstError,
+    SubscribeAckRecord, ACK_RECORD_SCHEMA, HASH_PREFIX, OUTCOME_EMPTY_PAYLOAD,
+    OUTCOME_MALFORMED, OUTCOME_PERSONA_MISMATCH, OUTCOME_PROCESSED,
+    OUTCOME_REJECTED, SHA256_HEX_LEN, VALID_OUTCOMES,
+};
+
 /// Schema identifier accepted on inbound envelopes
 /// (parity with Python `ACCEPTED_INBOUND_SCHEMA`).
 pub const ACCEPTED_INBOUND_SCHEMA: &str = "wakir.agent.task-assigned/1";
