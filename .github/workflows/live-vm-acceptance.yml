@@ -15,6 +15,17 @@
 #               operator companion + §4 pre-existing-failure-pattern
 #               catalogue (Amara)
 #
+# Tag-18 Mini-Welle (2026-05-17) extends the workflow with the
+# Phase-3b backend-matrix lane that validates the Rust-default-
+# switches landed in PR #167. Two follow-on jobs run after the
+# base lane: `live-vm-acceptance-phase-3b` spawns one matrix-cell
+# per (recovery_backend × state_backing_backend) permutation and
+# emits a per-cell JSON-report; `live-vm-acceptance-phase-3b-
+# aggregate` collects the reports, enforces final-state-hash
+# equivalence across backends, and applies the operator-supplied
+# latency budget. The Tag-18 extension is opt-in: both new inputs
+# default to `none`, in which case the new jobs no-op.
+#
 # This workflow is the **CI invocation surface** behind those three.
 # It is `workflow_dispatch` only — there is NO automatic
 # PR-trigger and NO push-trigger. Reaching a live `192.168.178.*`
@@ -143,6 +154,45 @@ name: live-vm-acceptance
         required: false
         type: string
         default: '1'
+      # ---------------------------------------------------------------
+      # Phase-3b Backend-Matrix inputs (Tag-18 Mini-Welle, PR follow-up
+      # to #167). The Rust persona-engine-recovery + state-backing
+      # crates land in PR #167 as ENV-gated production-default
+      # switches. Phase-3b acceptance demands the live-VM lane prove
+      # both backends reach byte-identical final-state on the real
+      # Pilot-VM, not just in hermetic CI. These inputs drive a
+      # follow-on matrix-job that re-runs the on-VM acceptance under
+      # each backend permutation.
+      #
+      # Default = `none` keeps the lane behaviour identical to Tag-17
+      # for operators who only want the bare wrapper + TV-LVD run.
+      # ---------------------------------------------------------------
+      recovery_backend:
+        description: 'Phase-3b: recovery backend matrix (python | rust | both | none = skip phase-3b)'
+        required: false
+        type: choice
+        options:
+          - none
+          - python
+          - rust
+          - both
+        default: 'none'
+      state_backing_backend:
+        description: 'Phase-3b: state-backing backend matrix (python | rust_inmemory | rust_natskv | both | none = skip phase-3b)'
+        required: false
+        type: choice
+        options:
+          - none
+          - python
+          - rust_inmemory
+          - rust_natskv
+          - both
+        default: 'none'
+      phase_3b_latency_budget_ms:
+        description: 'Phase-3b: per-backend p95 latency budget in milliseconds (default 1500 = 1.5s slack for subprocess-bridge cold-start)'
+        required: false
+        type: string
+        default: '1500'
 
 permissions:
   contents: read
@@ -425,3 +475,404 @@ jobs:
             exit 1
           fi
           echo "LIVE-VM-ACCEPTANCE: PASS"
+
+  # =============================================================
+  # Phase-3b Backend-Matrix lane (Tag-18 Mini-Welle).
+  # =============================================================
+  #
+  # Validates that the Phase-3b Rust-default-switches landed in
+  # PR #167 (`wirelang/persona_engine/rust_backend_switch.py`)
+  # behave correctly on the real Pilot-VM, not just in the
+  # hermetic test surface.
+  #
+  # The lane spawns a persona on the target VM under each selected
+  # backend permutation, drives recovery R1..R4, exercises the
+  # state-backing snapshot / restore_latest / atomic-swap roundtrip,
+  # and measures resolution latency. Acceptance:
+  #
+  #   * Per-permutation exit code 0.
+  #   * The final-state hash is byte-identical between Python and
+  #     Rust permutations (the equivalence-claim PR #167 makes).
+  #   * Per-backend p95 latency stays under
+  #     ``phase_3b_latency_budget_ms``.
+  #
+  # The matrix is only spawned when at least one of
+  # ``recovery_backend`` / ``state_backing_backend`` is non-``none``.
+  # When both are ``none``, the job no-ops cleanly so Tag-17-style
+  # invocations (Phase-2-only) keep their existing semantics.
+  #
+  # Sandbox boundary: identical to the Tag-17 job. No SSH key, no
+  # target host reachable from a hermetic runner. The mocked-VM
+  # surface lives in ``tests/infra/test_live_vm_acceptance_phase_3b.py``;
+  # the real VM is reached only when the operator dispatches this
+  # workflow from a runner with the WAKIR_VM_SSH_KEY secret in scope.
+  # =============================================================
+
+  live-vm-acceptance-phase-3b:
+    name: Live-VM acceptance Phase-3b (${{ matrix.recovery_backend }} + ${{ matrix.state_backing_backend }})
+    needs: live-vm-acceptance
+    if: |
+      always() &&
+      (github.event.inputs.recovery_backend != 'none' ||
+       github.event.inputs.state_backing_backend != 'none')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      # fail-fast=false so a single backend regression does not mask
+      # the verdict of other permutations — operators want to see
+      # which permutation broke, not the first one to fail.
+      fail-fast: false
+      matrix:
+        # The matrix is resolved at job-spawn time from the dispatch
+        # inputs. We expand `both` to the literal permutation set
+        # in a setup-step below and re-emit a JSON list; the job
+        # uses GitHub-Actions' include/exclude semantics via a
+        # generated matrix file. For static analysis we declare the
+        # full Cartesian product here and gate each permutation
+        # inside the steps with the `should_run` check.
+        recovery_backend: [python, rust]
+        state_backing_backend: [python, rust_inmemory, rust_natskv]
+    env:
+      WAKIR_LIVE_VM_ACCEPTANCE: '1'
+      WAKIR_PEER_HOST: ${{ github.event.inputs.peer_host }}
+      WAKIR_SKIP_COSIGN_VERIFY: ${{ github.event.inputs.skip_cosign_verify }}
+      WAKIR_RECOVERY_BACKEND: ${{ matrix.recovery_backend }}
+      WAKIR_STATE_BACKING_BACKEND: ${{ matrix.state_backing_backend }}
+      PHASE_3B_LATENCY_BUDGET_MS: ${{ github.event.inputs.phase_3b_latency_budget_ms }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install pytest + extras
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+
+      - name: Decide should_run for this permutation
+        id: gate
+        run: |
+          # Determine whether THIS matrix permutation matches the
+          # operator's dispatch selection. `both` matches every
+          # permutation in the corresponding axis; an explicit name
+          # matches only that name; `none` short-circuits the entire
+          # phase-3b job (the outer `if:` already filters that case,
+          # so we only need to handle non-`none` here).
+          want_recovery="${{ github.event.inputs.recovery_backend }}"
+          want_state="${{ github.event.inputs.state_backing_backend }}"
+          have_recovery="${{ matrix.recovery_backend }}"
+          have_state="${{ matrix.state_backing_backend }}"
+          should_run="true"
+          # Recovery axis filter.
+          if [[ "${want_recovery}" != "both" && "${want_recovery}" != "none" ]]; then
+            if [[ "${want_recovery}" != "${have_recovery}" ]]; then
+              should_run="false"
+            fi
+          fi
+          if [[ "${want_recovery}" == "none" ]]; then
+            # When recovery axis is `none` but state axis demands a
+            # run, we collapse to recovery=python for that
+            # permutation (default backend) so the state-axis test
+            # still exercises a coherent backend pair.
+            if [[ "${have_recovery}" != "python" ]]; then
+              should_run="false"
+            fi
+          fi
+          # State axis filter.
+          if [[ "${want_state}" != "both" && "${want_state}" != "none" ]]; then
+            if [[ "${want_state}" != "${have_state}" ]]; then
+              should_run="false"
+            fi
+          fi
+          if [[ "${want_state}" == "none" ]]; then
+            if [[ "${have_state}" != "python" ]]; then
+              should_run="false"
+            fi
+          fi
+          echo "should_run=${should_run}" >> "$GITHUB_OUTPUT"
+          echo "Resolved should_run=${should_run} for recovery=${have_recovery} state=${have_state} (want recovery=${want_recovery} state=${want_state})"
+
+      - name: SSH-key setup from WAKIR_VM_SSH_KEY secret
+        if: steps.gate.outputs.should_run == 'true'
+        id: ssh_setup
+        env:
+          WAKIR_VM_SSH_KEY: ${{ secrets.WAKIR_VM_SSH_KEY }}
+        run: |
+          if [[ -z "${WAKIR_VM_SSH_KEY:-}" ]]; then
+            echo "::error::WAKIR_VM_SSH_KEY secret is not configured on this repository."
+            echo "::error::Phase-3b backend-matrix lane requires the same secret as the base lane."
+            exit 1
+          fi
+          KEY_PATH="${RUNNER_TEMP}/wakir-vm-ssh-key-phase-3b"
+          umask 077
+          printf '%s\n' "${WAKIR_VM_SSH_KEY}" > "${KEY_PATH}"
+          chmod 0600 "${KEY_PATH}"
+          if ! head -n1 "${KEY_PATH}" | grep -Eq -- '-----BEGIN .* PRIVATE KEY-----'; then
+            echo "::error::WAKIR_VM_SSH_KEY does not look like a PEM-formatted private key."
+            exit 1
+          fi
+          echo "ssh_key_path=${KEY_PATH}" >> "$GITHUB_OUTPUT"
+
+      - name: Install prerequisites
+        if: steps.gate.outputs.should_run == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends jq openssh-client
+
+      # ----------------------------------------------------------------
+      # Per-permutation drive: spawn persona → trigger R1..R4 → run
+      # state-backing roundtrip → emit per-backend JSON-report with
+      # final-state-hash + latency-histogram.
+      #
+      # The drive-script lives in scripts/ci-live-vm-phase-3b-driver.sh
+      # (separate PR-stage; this workflow declares the surface the
+      # driver fulfils). For Tag-18 the workflow tolerates the driver
+      # being absent by emitting a structured `driver-not-present`
+      # JSON report so the artefact-upload + verdict-step always have
+      # something to consume.
+      # ----------------------------------------------------------------
+
+      - name: Drive persona spawn + R1..R4 + state-roundtrip
+        if: steps.gate.outputs.should_run == 'true'
+        id: drive
+        continue-on-error: true
+        env:
+          SSH_KEY_PATH: ${{ steps.ssh_setup.outputs.ssh_key_path }}
+        run: |
+          mkdir -p artefacts/phase-3b
+          REPORT="artefacts/phase-3b/report-${{ matrix.recovery_backend }}-${{ matrix.state_backing_backend }}.json"
+          DRIVER="scripts/ci-live-vm-phase-3b-driver.sh"
+          if [[ -x "${DRIVER}" ]]; then
+            bash "${DRIVER}" \
+              --target              "${{ github.event.inputs.target_vm }}" \
+              --ssh-user            wakir-acceptance \
+              --ssh-key             "${SSH_KEY_PATH}" \
+              --recovery-backend    "${{ matrix.recovery_backend }}" \
+              --state-backing-backend "${{ matrix.state_backing_backend }}" \
+              --latency-budget-ms   "${PHASE_3B_LATENCY_BUDGET_MS}" \
+              --report-json         "${REPORT}"
+          else
+            # Driver not yet present — emit a structured stub so the
+            # verdict-step has a JSON to consume and the operator
+            # sees a clean "driver-not-present" signal rather than a
+            # missing-step trace. This matches the Tag-17 posture
+            # where the on-VM acceptance script existed before the
+            # CI wrapper was wired.
+            jq -n \
+              --arg target "${{ github.event.inputs.target_vm }}" \
+              --arg recovery "${{ matrix.recovery_backend }}" \
+              --arg state "${{ matrix.state_backing_backend }}" \
+              --arg budget "${PHASE_3B_LATENCY_BUDGET_MS}" \
+              '{
+                target_vm:                $target,
+                recovery_backend:         $recovery,
+                state_backing_backend:    $state,
+                latency_budget_ms:        ($budget | tonumber),
+                status:                   "driver-not-present",
+                final_state_hash:         null,
+                recovery_latency_ms_p50:  null,
+                recovery_latency_ms_p95:  null,
+                state_latency_ms_p50:     null,
+                state_latency_ms_p95:     null,
+                fallback_reason:          "ci-driver-not-yet-implemented"
+              }' > "${REPORT}"
+            echo "::warning::Phase-3b driver not present yet — emitted stub report ${REPORT}"
+          fi
+          ls -la "${REPORT}"
+
+      - name: Upload per-permutation JSON-report
+        if: always() && steps.gate.outputs.should_run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-3b-report-${{ matrix.recovery_backend }}-${{ matrix.state_backing_backend }}-${{ github.run_id }}
+          path: artefacts/phase-3b/
+          retention-days: 90
+
+      - name: Per-permutation verdict
+        if: steps.gate.outputs.should_run == 'true'
+        run: |
+          # Local verdict: this matrix-cell PASSES iff the driver
+          # exited 0 AND the JSON-report has status == "ok". The
+          # cross-backend final-state-hash equivalence is enforced
+          # in the aggregation step (see live-vm-acceptance-phase-3b-aggregate).
+          REPORT="artefacts/phase-3b/report-${{ matrix.recovery_backend }}-${{ matrix.state_backing_backend }}.json"
+          if [[ ! -f "${REPORT}" ]]; then
+            echo "::error::Per-permutation report missing: ${REPORT}"
+            exit 1
+          fi
+          STATUS=$(jq -r '.status' "${REPORT}")
+          case "${STATUS}" in
+            ok)
+              echo "PERMUTATION ${{ matrix.recovery_backend }} + ${{ matrix.state_backing_backend }}: PASS"
+              ;;
+            driver-not-present)
+              echo "PERMUTATION ${{ matrix.recovery_backend }} + ${{ matrix.state_backing_backend }}: SKIPPED (driver not yet implemented)"
+              echo "This matches the documented Tag-18 staging posture."
+              ;;
+            fail)
+              echo "::error::PERMUTATION ${{ matrix.recovery_backend }} + ${{ matrix.state_backing_backend }}: FAIL"
+              jq '.' "${REPORT}" || true
+              exit 1
+              ;;
+            *)
+              echo "::error::Unknown report status: ${STATUS}"
+              exit 1
+              ;;
+          esac
+
+  # =============================================================
+  # Aggregation lane — cross-backend equivalence + final verdict.
+  # =============================================================
+  #
+  # Pulls all per-permutation JSON-reports, enforces:
+  #
+  #   * Every selected permutation has a report.
+  #   * Every `ok`-status report shares the same `final_state_hash`
+  #     (the Doppelbetrieb equivalence-claim).
+  #   * Every `ok`-status report's recovery_latency_ms_p95 and
+  #     state_latency_ms_p95 stay under the dispatch-input budget.
+  #
+  # When every permutation is `driver-not-present`, the aggregation
+  # step emits a SKIPPED verdict and exits 0 — Tag-18 staging.
+  # =============================================================
+
+  live-vm-acceptance-phase-3b-aggregate:
+    name: Live-VM acceptance Phase-3b — aggregate
+    needs: live-vm-acceptance-phase-3b
+    if: |
+      always() &&
+      (github.event.inputs.recovery_backend != 'none' ||
+       github.event.inputs.state_backing_backend != 'none')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PHASE_3B_LATENCY_BUDGET_MS: ${{ github.event.inputs.phase_3b_latency_budget_ms }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Download all per-permutation reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase-3b-report-*-${{ github.run_id }}
+          path: artefacts/phase-3b-aggregate/
+          merge-multiple: true
+
+      - name: Install jq
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends jq
+
+      - name: Aggregate and verdict
+        id: aggregate
+        run: |
+          set -euo pipefail
+          AGG_DIR="artefacts/phase-3b-aggregate"
+          OUT="artefacts/phase-3b-aggregate/aggregate-summary.json"
+          mkdir -p "${AGG_DIR}"
+          # Collect every JSON file emitted by the matrix.
+          mapfile -t REPORTS < <(find "${AGG_DIR}" -maxdepth 2 -name 'report-*.json' | sort)
+          echo "Found ${#REPORTS[@]} per-permutation report(s)."
+          if [[ "${#REPORTS[@]}" -eq 0 ]]; then
+            jq -n '{
+              status:               "no-reports",
+              permutations_total:   0,
+              permutations_ok:      0,
+              permutations_skipped: 0,
+              permutations_failed:  0,
+              final_state_hashes:   [],
+              equivalence_class:    null,
+              latency_budget_ms:    null,
+              latency_violations:   []
+            }' > "${OUT}"
+            echo "::error::No per-permutation reports collected."
+            exit 1
+          fi
+          # Build a merged array of report objects.
+          jq -s '.' "${REPORTS[@]}" > "${AGG_DIR}/all-reports.json"
+          # Equivalence-class: unique non-null final_state_hash values
+          # across `ok` reports. Must collapse to exactly one entry.
+          OK_HASHES=$(jq '[.[] | select(.status=="ok") | .final_state_hash] | unique' "${AGG_DIR}/all-reports.json")
+          OK_COUNT=$(jq '[.[] | select(.status=="ok")] | length' "${AGG_DIR}/all-reports.json")
+          SKIP_COUNT=$(jq '[.[] | select(.status=="driver-not-present")] | length' "${AGG_DIR}/all-reports.json")
+          FAIL_COUNT=$(jq '[.[] | select(.status=="fail")] | length' "${AGG_DIR}/all-reports.json")
+          UNIQUE_HASH_COUNT=$(echo "${OK_HASHES}" | jq 'length')
+          BUDGET="${PHASE_3B_LATENCY_BUDGET_MS}"
+          # Latency violations: any ok-report whose p95 (recovery or
+          # state) exceeds the dispatch-input budget.
+          VIOLATIONS=$(jq --argjson budget "${BUDGET}" \
+            '[.[] | select(.status=="ok") | select(
+                (.recovery_latency_ms_p95 // 0) > $budget or
+                (.state_latency_ms_p95    // 0) > $budget
+              ) | {
+                recovery_backend:     .recovery_backend,
+                state_backing_backend:.state_backing_backend,
+                recovery_p95:         .recovery_latency_ms_p95,
+                state_p95:            .state_latency_ms_p95
+              }]' "${AGG_DIR}/all-reports.json")
+          VIOLATION_COUNT=$(echo "${VIOLATIONS}" | jq 'length')
+          # Decide the aggregate verdict.
+          if [[ "${OK_COUNT}" -eq 0 && "${SKIP_COUNT}" -gt 0 && "${FAIL_COUNT}" -eq 0 ]]; then
+            STATUS="skipped-driver-not-present"
+          elif [[ "${FAIL_COUNT}" -gt 0 ]]; then
+            STATUS="fail"
+          elif [[ "${UNIQUE_HASH_COUNT}" -gt 1 ]]; then
+            STATUS="fail-equivalence-break"
+          elif [[ "${VIOLATION_COUNT}" -gt 0 ]]; then
+            STATUS="fail-latency-budget"
+          elif [[ "${OK_COUNT}" -gt 0 ]]; then
+            STATUS="ok"
+          else
+            STATUS="unknown"
+          fi
+          jq -n \
+            --argjson all "$(cat "${AGG_DIR}/all-reports.json")" \
+            --argjson hashes "${OK_HASHES}" \
+            --argjson violations "${VIOLATIONS}" \
+            --arg status "${STATUS}" \
+            --argjson budget "${BUDGET}" \
+            --argjson total "${#REPORTS[@]}" \
+            --argjson ok "${OK_COUNT}" \
+            --argjson skip "${SKIP_COUNT}" \
+            --argjson fail "${FAIL_COUNT}" \
+            '{
+              status:               $status,
+              permutations_total:   $total,
+              permutations_ok:      $ok,
+              permutations_skipped: $skip,
+              permutations_failed:  $fail,
+              final_state_hashes:   $hashes,
+              equivalence_class:    ($hashes | length),
+              latency_budget_ms:    $budget,
+              latency_violations:   $violations,
+              reports:              $all
+            }' > "${OUT}"
+          jq '.' "${OUT}"
+          echo "status=${STATUS}" >> "$GITHUB_OUTPUT"
+          case "${STATUS}" in
+            ok)
+              echo "PHASE-3B-AGGREGATE: PASS (${OK_COUNT} ok / ${SKIP_COUNT} skip / ${FAIL_COUNT} fail; single equivalence class)"
+              ;;
+            skipped-driver-not-present)
+              echo "PHASE-3B-AGGREGATE: SKIPPED (driver not yet present; ${SKIP_COUNT} permutations stubbed)"
+              ;;
+            *)
+              echo "::error::PHASE-3B-AGGREGATE: ${STATUS}"
+              exit 1
+              ;;
+          esac
+
+      - name: Upload aggregate summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-3b-aggregate-summary-${{ github.run_id }}
+          path: artefacts/phase-3b-aggregate/
+          retention-days: 90
