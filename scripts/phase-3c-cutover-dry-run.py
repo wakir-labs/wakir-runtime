@@ -117,30 +117,41 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
 # ---------------------------------------------------------------------------
 # Component catalogue — mirrors ADR-0065 §Option-B-Reihenfolge and the
-# seven production-default switches in
-# wirelang/persona_engine/rust_backend_switch.py.
+# eight production-default switches in
+# wirelang/persona_engine/rust_backend_switch.py (the eight Welle
+# components from ADR-0065 §Option-B; ADR-0066 §Option-A+ keeps the
+# same ordering but compresses timing — see Tag-25/Tag-29/Tag-31
+# wire-in notes below).
 # ---------------------------------------------------------------------------
 
-#: The seven Phase-3c components in cutover order. ADR-0065 §Option-B
-#: enumerates the seven candidates with operator-facing long-form
-#: names; the in-repo rust_backend_switch resolvers use the short
-#: ``domain`` strings (``recovery``, ``fsm``, ``anchor_emitter``,
-#: ``bridge_diff``). The dry-run script accepts both spellings via
-#: :func:`validate_component` so that the Welle-1..7 cutover-PRs can
-#: invoke it with ADR-0065 vocabulary, while the resolver bridge maps
-#: to the short ``domain`` form internally.
+#: The eight Phase-3c components in cutover order per ADR-0065
+#: §Option-B (Welle-1 ``v907_verify``, Welle-2 ``svid_workload_identity``,
+#: Welle-3..7 the remaining six). The operator-facing long-form names
+#: from the ADRs do not always match the in-repo rust_backend_switch
+#: resolvers' short ``domain`` strings (``recovery``, ``fsm``,
+#: ``anchor_emitter``, ``bridge_diff``); the dry-run script accepts
+#: both spellings via :func:`validate_component` so that the Welle-1..7
+#: cutover-PRs can invoke it with ADR-0065 vocabulary, while the
+#: resolver bridge maps to the short ``domain`` form internally.
 #:
-#: Naming-drift note (Tag-25 wire-in, 2026-05-17):
+#: Naming-drift note (Tag-25/Tag-29/Tag-31 wire-in):
 #: ADR-0065 §Option-B mentions ``svid_workload_identity`` and
 #: ``bridge_audit_writer`` as components #2 and #3 of the cutover
 #: order. ``svid_workload_identity`` landed as the **eighth**
 #: production-default switch resolver in PR #191 (Tag-25 Mini-Welle,
-#: ADR-0065 Welle-2 precondition); the dry-run gained it as a
-#: first-class component in Tag-29 (Welle-2 Validation, this PR) via
-#: the same pattern as the seven shipped switches. The closest
-#: in-repo analogue for ``bridge_audit_writer`` remains ``anchor_emitter``
-#: (Tag-23 PR #170/#175, which writes the WAT-anchor envelope and is
-#: the "writer" half of the bridge-audit substrate).
+#: ADR-0065 §Option-B Welle-2 precondition); the dry-run gained it as a
+#: first-class component in Tag-29 PR #196 (Welle-2 Validation
+#: Workflow) via the same pattern as the seven shipped switches and
+#: the Rust-CLI container-image-build-pipeline landed in PR #201
+#: (Tag-29 Mini-Welle). Tag-31 PR (this revision) reconciles the
+#: dry-run-script header, runbook component table, and FAQ with the
+#: now-shipped Welle-2 substrate (PR #191 resolver + PR #201 image),
+#: replacing the prior ``(not yet implemented)`` placeholders. The
+#: closest in-repo analogue for ``bridge_audit_writer`` remains
+#: ``anchor_emitter`` (Tag-23 PR #170/#175, which writes the
+#: WAT-anchor envelope and is the "writer" half of the bridge-audit
+#: substrate). Welle-2 position of ``svid_workload_identity`` is
+#: pinned at PHASE_3C_COMPONENTS[1] — covered by a regression test.
 PHASE_3C_COMPONENTS: Tuple[str, ...] = (
     "v907_verify",
     "svid_workload_identity",
