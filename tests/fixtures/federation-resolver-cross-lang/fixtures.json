@@ -1,0 +1,197 @@
+{
+  "_comment": "Cross-lang fixture vectors for the persona-engine federation-resolver FederationResolverSnapshot JCS canonicalisation (Tag-24 Mini-Welle Phase-3a Python-sync, 9. Modul). The expected block pins canonical-snapshot-JCS-bytes / canonical-SHA-256 tuples; drift on either Python wirelang.identity.federation_resolver_canonical or Rust crate persona-engine-federation-resolver breaks both test suites. Fixtures pinned 2026-05-17. Five sub-cases mapping the FederationResolver Protocol shape: empty-resolver (no entries), single-org-multi-cluster (one operator-org x three clusters, each one current key), multi-org-disjoint (three operator-orgs x one cluster each, disjoint), key-rotation-history (one org x one cluster x three historical keys covering a rotation timeline), expired-mapping (single expired entry whose valid_until is in the past; resolve at now>2025 returns None). All public_key_hex values are 64-char lower-case hex placeholders (test-only; not real Ed25519 public keys). The resolver-selection rule when multiple entries overlap in-window is: prefer the entry with the lexicographically-latest valid_from; this biases toward freshly-rotated keys during the overlap window.",
+  "schema_version": "wakir.federation.resolver-snapshot/1",
+  "fixed_now_utc": "2026-05-17T00:00:00Z",
+  "fixtures": [
+    {
+      "name": "f01-empty-resolver",
+      "comment": "No entries; snapshot is the empty-entries form.",
+      "input_entries": [],
+      "expected": {
+        "snapshot_jcs_bytes_b64": "eyJlbnRyaWVzIjpbXSwic2NoZW1hIjoid2FraXIuZmVkZXJhdGlvbi5yZXNvbHZlci1zbmFwc2hvdC8xIn0=",
+        "snapshot_jcs_bytes_len": 62,
+        "snapshot_sha256_hex": "a4084532ba8e9be5d1e2e029f5f5f9b2baf7469f8fed788bb9b6cfb7d3651f25",
+        "snapshot_hash_prefixed": "sha256:a4084532ba8e9be5d1e2e029f5f5f9b2baf7469f8fed788bb9b6cfb7d3651f25"
+      },
+      "resolve_probe": {
+        "org_id": "wakir-labs",
+        "cluster_id": "primary",
+        "now_utc": "2026-05-17T00:00:00Z",
+        "expected_match": null
+      }
+    },
+    {
+      "name": "f02-single-org-multi-cluster",
+      "comment": "One operator-org spanning three clusters; each one current key.",
+      "input_entries": [
+        {
+          "alg": "Ed25519",
+          "org_id": "wakir-labs",
+          "cluster_id": "primary",
+          "public_key_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "valid_from": "2026-01-01T00:00:00Z",
+          "valid_until": "2027-01-01T00:00:00Z"
+        },
+        {
+          "alg": "Ed25519",
+          "org_id": "wakir-labs",
+          "cluster_id": "backup-eu",
+          "public_key_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "valid_from": "2026-01-01T00:00:00Z",
+          "valid_until": "2027-01-01T00:00:00Z"
+        },
+        {
+          "alg": "Ed25519",
+          "org_id": "wakir-labs",
+          "cluster_id": "dr-us",
+          "public_key_hex": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "valid_from": "2026-01-01T00:00:00Z",
+          "valid_until": "2027-01-01T00:00:00Z"
+        }
+      ],
+      "expected": {
+        "snapshot_jcs_bytes_b64": "eyJlbnRyaWVzIjpbeyJhbGciOiJFZDI1NTE5IiwiY2x1c3Rlcl9pZCI6ImJhY2t1cC1ldSIsIm9yZ19pZCI6Indha2lyLWxhYnMiLCJwdWJsaWNfa2V5X2hleCI6ImJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmIiLCJ2YWxpZF9mcm9tIjoiMjAyNi0wMS0wMVQwMDowMDowMFoiLCJ2YWxpZF91bnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0seyJhbGciOiJFZDI1NTE5IiwiY2x1c3Rlcl9pZCI6ImRyLXVzIiwib3JnX2lkIjoid2FraXItbGFicyIsInB1YmxpY19rZXlfaGV4IjoiY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjYyIsInZhbGlkX2Zyb20iOiIyMDI2LTAxLTAxVDAwOjAwOjAwWiIsInZhbGlkX3VudGlsIjoiMjAyNy0wMS0wMVQwMDowMDowMFoifSx7ImFsZyI6IkVkMjU1MTkiLCJjbHVzdGVyX2lkIjoicHJpbWFyeSIsIm9yZ19pZCI6Indha2lyLWxhYnMiLCJwdWJsaWNfa2V5X2hleCI6ImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJ2YWxpZF9mcm9tIjoiMjAyNi0wMS0wMVQwMDowMDowMFoiLCJ2YWxpZF91bnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn1dLCJzY2hlbWEiOiJ3YWtpci5mZWRlcmF0aW9uLnJlc29sdmVyLXNuYXBzaG90LzEifQ==",
+        "snapshot_jcs_bytes_len": 721,
+        "snapshot_sha256_hex": "e63451c9e036f6d43b36f5615cc1c20c14371b6aa19874ce8c319803e184d0cb",
+        "snapshot_hash_prefixed": "sha256:e63451c9e036f6d43b36f5615cc1c20c14371b6aa19874ce8c319803e184d0cb"
+      },
+      "resolve_probe": {
+        "org_id": "wakir-labs",
+        "cluster_id": "backup-eu",
+        "now_utc": "2026-06-15T00:00:00Z",
+        "expected_match": {
+          "alg": "Ed25519",
+          "org_id": "wakir-labs",
+          "cluster_id": "backup-eu",
+          "public_key_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "valid_from": "2026-01-01T00:00:00Z",
+          "valid_until": "2027-01-01T00:00:00Z"
+        }
+      }
+    },
+    {
+      "name": "f03-multi-org-disjoint",
+      "comment": "Three operator-orgs, one cluster each, disjoint.",
+      "input_entries": [
+        {
+          "alg": "Ed25519",
+          "org_id": "peer-org-alpha",
+          "cluster_id": "primary",
+          "public_key_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "valid_from": "2026-01-01T00:00:00Z",
+          "valid_until": "2027-01-01T00:00:00Z"
+        },
+        {
+          "alg": "Ed25519",
+          "org_id": "callandor",
+          "cluster_id": "primary",
+          "public_key_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "valid_from": "2026-01-01T00:00:00Z",
+          "valid_until": "2027-01-01T00:00:00Z"
+        },
+        {
+          "alg": "Ed25519",
+          "org_id": "peer-org-beta",
+          "cluster_id": "primary",
+          "public_key_hex": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "valid_from": "2026-01-01T00:00:00Z",
+          "valid_until": "2027-01-01T00:00:00Z"
+        }
+      ],
+      "expected": {
+        "snapshot_jcs_bytes_b64": "eyJlbnRyaWVzIjpbeyJhbGciOiJFZDI1NTE5IiwiY2x1c3Rlcl9pZCI6InByaW1hcnkiLCJvcmdfaWQiOiJjYWxsYW5kb3IiLCJwdWJsaWNfa2V5X2hleCI6ImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEiLCJ2YWxpZF9mcm9tIjoiMjAyNi0wMS0wMVQwMDowMDowMFoiLCJ2YWxpZF91bnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn0seyJhbGciOiJFZDI1NTE5IiwiY2x1c3Rlcl9pZCI6InByaW1hcnkiLCJvcmdfaWQiOiJwZWVyLW9yZy1hbHBoYSIsInB1YmxpY19rZXlfaGV4IjoiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYiIsInZhbGlkX2Zyb20iOiIyMDI2LTAxLTAxVDAwOjAwOjAwWiIsInZhbGlkX3VudGlsIjoiMjAyNy0wMS0wMVQwMDowMDowMFoifSx7ImFsZyI6IkVkMjU1MTkiLCJjbHVzdGVyX2lkIjoicHJpbWFyeSIsIm9yZ19pZCI6InBlZXItb3JnLWJldGEiLCJwdWJsaWNfa2V5X2hleCI6ImNjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2MiLCJ2YWxpZF9mcm9tIjoiMjAyNi0wMS0wMVQwMDowMDowMFoiLCJ2YWxpZF91bnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn1dLCJzY2hlbWEiOiJ3YWtpci5mZWRlcmF0aW9uLnJlc29sdmVyLXNuYXBzaG90LzEifQ==",
+        "snapshot_jcs_bytes_len": 727,
+        "snapshot_sha256_hex": "b7d423da8646002889c3da6033a1d85cf84fa67349a4968a9300e965fe90284c",
+        "snapshot_hash_prefixed": "sha256:b7d423da8646002889c3da6033a1d85cf84fa67349a4968a9300e965fe90284c"
+      },
+      "resolve_probe": {
+        "org_id": "peer-org-beta",
+        "cluster_id": "primary",
+        "now_utc": "2026-06-15T00:00:00Z",
+        "expected_match": {
+          "alg": "Ed25519",
+          "org_id": "peer-org-beta",
+          "cluster_id": "primary",
+          "public_key_hex": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "valid_from": "2026-01-01T00:00:00Z",
+          "valid_until": "2027-01-01T00:00:00Z"
+        }
+      }
+    },
+    {
+      "name": "f04-key-rotation-history",
+      "comment": "One org x one cluster x three historical keys (key-rotation timeline). resolve at 2026-06-15 returns the 2026-01..2027-01 entry (latest in-window); resolve at 2025-04 returns the 2025-01..2025-07 entry; resolve at 2025-08 returns the 2025-07..2026-01 entry.",
+      "input_entries": [
+        {
+          "alg": "Ed25519",
+          "org_id": "wakir-labs",
+          "cluster_id": "primary",
+          "public_key_hex": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "valid_from": "2026-01-01T00:00:00Z",
+          "valid_until": "2027-01-01T00:00:00Z"
+        },
+        {
+          "alg": "Ed25519",
+          "org_id": "wakir-labs",
+          "cluster_id": "primary",
+          "public_key_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "valid_from": "2025-01-01T00:00:00Z",
+          "valid_until": "2025-07-01T00:00:00Z"
+        },
+        {
+          "alg": "Ed25519",
+          "org_id": "wakir-labs",
+          "cluster_id": "primary",
+          "public_key_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "valid_from": "2025-07-01T00:00:00Z",
+          "valid_until": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "expected": {
+        "snapshot_jcs_bytes_b64": "eyJlbnRyaWVzIjpbeyJhbGciOiJFZDI1NTE5IiwiY2x1c3Rlcl9pZCI6InByaW1hcnkiLCJvcmdfaWQiOiJ3YWtpci1sYWJzIiwicHVibGljX2tleV9oZXgiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwidmFsaWRfZnJvbSI6IjIwMjUtMDEtMDFUMDA6MDA6MDBaIiwidmFsaWRfdW50aWwiOiIyMDI1LTA3LTAxVDAwOjAwOjAwWiJ9LHsiYWxnIjoiRWQyNTUxOSIsImNsdXN0ZXJfaWQiOiJwcmltYXJ5Iiwib3JnX2lkIjoid2FraXItbGFicyIsInB1YmxpY19rZXlfaGV4IjoiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYiIsInZhbGlkX2Zyb20iOiIyMDI1LTA3LTAxVDAwOjAwOjAwWiIsInZhbGlkX3VudGlsIjoiMjAyNi0wMS0wMVQwMDowMDowMFoifSx7ImFsZyI6IkVkMjU1MTkiLCJjbHVzdGVyX2lkIjoicHJpbWFyeSIsIm9yZ19pZCI6Indha2lyLWxhYnMiLCJwdWJsaWNfa2V5X2hleCI6ImNjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2MiLCJ2YWxpZF9mcm9tIjoiMjAyNi0wMS0wMVQwMDowMDowMFoiLCJ2YWxpZF91bnRpbCI6IjIwMjctMDEtMDFUMDA6MDA6MDBaIn1dLCJzY2hlbWEiOiJ3YWtpci5mZWRlcmF0aW9uLnJlc29sdmVyLXNuYXBzaG90LzEifQ==",
+        "snapshot_jcs_bytes_len": 721,
+        "snapshot_sha256_hex": "7a600400e4224551294a9d152e667613cd60cbe4a289eb24d35d6c19b1abab0a",
+        "snapshot_hash_prefixed": "sha256:7a600400e4224551294a9d152e667613cd60cbe4a289eb24d35d6c19b1abab0a"
+      },
+      "resolve_probe": {
+        "org_id": "wakir-labs",
+        "cluster_id": "primary",
+        "now_utc": "2026-06-15T00:00:00Z",
+        "expected_match": {
+          "alg": "Ed25519",
+          "org_id": "wakir-labs",
+          "cluster_id": "primary",
+          "public_key_hex": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "valid_from": "2026-01-01T00:00:00Z",
+          "valid_until": "2027-01-01T00:00:00Z"
+        }
+      }
+    },
+    {
+      "name": "f05-expired-mapping",
+      "comment": "Single expired mapping (valid_until in the past); resolve(now>2025) returns None.",
+      "input_entries": [
+        {
+          "alg": "Ed25519",
+          "org_id": "legacy-peer",
+          "cluster_id": "primary",
+          "public_key_hex": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "valid_from": "2024-01-01T00:00:00Z",
+          "valid_until": "2025-01-01T00:00:00Z"
+        }
+      ],
+      "expected": {
+        "snapshot_jcs_bytes_b64": "eyJlbnRyaWVzIjpbeyJhbGciOiJFZDI1NTE5IiwiY2x1c3Rlcl9pZCI6InByaW1hcnkiLCJvcmdfaWQiOiJsZWdhY3ktcGVlciIsInB1YmxpY19rZXlfaGV4IjoiZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZGRkZCIsInZhbGlkX2Zyb20iOiIyMDI0LTAxLTAxVDAwOjAwOjAwWiIsInZhbGlkX3VudGlsIjoiMjAyNS0wMS0wMVQwMDowMDowMFoifV0sInNjaGVtYSI6Indha2lyLmZlZGVyYXRpb24ucmVzb2x2ZXItc25hcHNob3QvMSJ9",
+        "snapshot_jcs_bytes_len": 282,
+        "snapshot_sha256_hex": "cf84341115c90b411271e3dd946fa2a6b954e28f1c0a679d5bb49e116a51d512",
+        "snapshot_hash_prefixed": "sha256:cf84341115c90b411271e3dd946fa2a6b954e28f1c0a679d5bb49e116a51d512"
+      },
+      "resolve_probe": {
+        "org_id": "legacy-peer",
+        "cluster_id": "primary",
+        "now_utc": "2026-05-17T00:00:00Z",
+        "expected_match": null
+      }
+    }
+  ]
+}

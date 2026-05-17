@@ -1,0 +1,107 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wakir-Runtime / wirelang Rust workspace — persona-engine-federation-resolver crate.
+#
+# Purpose
+# -------
+# Typed Rust implementation of the **FederationResolver** Protocol +
+# **InMemoryFederationResolver** reference. The resolver maps a tuple
+# `(org_id, cluster_id)` to the operator-org's Ed25519 public key that
+# signs federation frames coming from that org/cluster pair, accounting
+# for key-rotation history and overlapping validity windows.
+#
+# Phase-3a positioning (Tag-24 Mini-Welle, 9. Modul)
+# --------------------------------------------------
+# Tag-24 (Phase-3a-Python-Sync). The federation-frame-parser (Tag-14 PR
+# #148 Rust, PR #157 Python) ships a typed frame parser without an
+# associated higher-layer resolver. This crate supplies that resolver
+# as a byte-cross-lang-parity sibling of the Python module
+# `wirelang/identity/federation_resolver_canonical.py` (PR
+# parameter — same Tag-24 bundle as this crate).
+#
+# Cross-language posture (byte-identical Python sibling)
+# ------------------------------------------------------
+# The Python sibling at
+# `wirelang/identity/federation_resolver_canonical.py` is the
+# authoritative Apache-2.0 reference; both modules emit the same
+# JCS-canonical bytes for the cross-lang fixture file
+# `tests/fixtures/federation-resolver-cross-lang/fixtures.json`.
+#
+# Schema-parity table (Rust <-> Python)
+# -------------------------------------
+#   Rust `FederationResolver` (trait)              <-> Python `FederationResolver` (Protocol)
+#   Rust `InMemoryFederationResolver`              <-> Python `InMemoryFederationResolver`
+#   Rust `OperatorOrgKeyEntry` (struct)            <-> Python `OperatorOrgKeyEntry` (dataclass)
+#   Rust `FederationResolverSnapshot` (struct)     <-> Python `FederationResolverSnapshot` (dataclass)
+#   Rust `serialize_resolver_snapshot`             <-> Python `serialize_resolver_snapshot`
+#   Rust `resolver_snapshot_sha256_hex`            <-> Python `resolver_snapshot_sha256_hex`
+#   Rust `resolver_snapshot_hash_prefixed`         <-> Python `resolver_snapshot_hash_prefixed`
+#   Rust consts `FEDERATION_RESOLVER_SCHEMA` /
+#               `HASH_PREFIX` /
+#               `SHA256_HEX_LEN` /
+#               `PUBLIC_KEY_HEX_LEN` /
+#               `DEFAULT_ALG`                      <-> same Python constants
+#
+# Wire-string discipline
+# ----------------------
+# Snapshot bytes are JCS-canonical JSON per RFC 8785. Field order in
+# the Rust `WireEntry` struct matches the lexical order JCS emits
+# (alphabetical), and the snapshot itself sorts entries
+# lexicographically by `(org_id, cluster_id, valid_from)` before
+# emission. The fixture vectors pin the exact byte output.
+#
+# Hard-Constraints (per Sprint-Auftrag)
+# -------------------------------------
+# - No touches to `wirelang/persona_engine/`,
+#   `wirelang/federation/`, or `wirelang/identity/federation_resolver.py`
+#   (the V-908 AIP-doc resolver is left untouched; the Tag-24 Python
+#   sibling lives at `wirelang/identity/federation_resolver_canonical.py`).
+# - No LICENSING / NOTICE / .github/workflows touches.
+# - `cargo test -p persona-engine-federation-resolver` must run green.
+# - Single-PR-Bundle against `wakir-runtime/main`.
+# - Cross-lang fixture file at
+#   `tests/fixtures/federation-resolver-cross-lang/fixtures.json` (5 vectors).
+# - Rust-side cross-lang test consumes the same fixture file.
+#
+# Versioning rationale (workspace pins; verified 2026-05-17):
+# - serde      = workspace pin (=1.0.219) : derive for WireEntry / WireSnapshot.
+# - serde_json = workspace pin (=1.0.140) : fixture-file consumption in tests.
+# - serde_jcs  = workspace pin (=0.2.0)   : RFC 8785 JCS canonicaliser.
+# - sha2       = workspace pin (=0.10.8)  : SHA-256 over snapshot bytes.
+# - hex        = workspace pin (=0.4.3)   : lower-case hex tail.
+#
+# ADR anchors
+# -----------
+# - ADR-0063 §Folgeartefakte Phase-3a Item 9 (federation-frame-parser;
+#   downstream consumer of this resolver).
+# - Reza PR #148 (Sprint-Federation-Frame-Parser-Rust) -- frame parser.
+# - Reza PR #157 (Sprint-Federation-Frame-Python-Sync) -- Python frame
+#   parser sibling.
+# - Reza PR #176 (Tag-20) -- recovery-workflow canonical-projection
+#   reference (multi-record snapshot shape).
+# - Reza PR #177 (Tag-21) -- lifecycle-FSM canonical-trace reference
+#   (sibling-module + cross-lang fixture pattern).
+# - Reza PR #183 (Tag-23) -- state-backing cross-lang parity reference
+#   (InMemory* + 5-fixture file pattern).
+
+[package]
+name = "persona-engine-federation-resolver"
+version = "0.1.0"
+description = "Typed Rust FederationResolver trait + InMemoryFederationResolver reference (org_id, cluster_id -> operator-org Ed25519 public key; cross-lang byte-parity with the Python wirelang.identity.federation_resolver_canonical sibling)."
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+publish                = false
+
+[lib]
+name = "persona_engine_federation_resolver"
+path = "src/lib.rs"
+
+[dependencies]
+serde      = { workspace = true }
+serde_json = { workspace = true }
+serde_jcs  = { workspace = true }
+sha2       = { workspace = true }
+hex        = { workspace = true }
