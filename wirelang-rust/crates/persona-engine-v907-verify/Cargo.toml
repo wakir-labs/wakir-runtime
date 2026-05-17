@@ -58,6 +58,15 @@ authors.workspace      = true
 name = "persona_engine_v907_verify"
 path = "src/lib.rs"
 
+# Tag-26 Mini-Welle: Operator-CLI binary for the V-907 engine-side
+# verify path. Thin wrapper around the library; consumed by the
+# container-image-build-pipeline (.github/workflows/build-rust-cli-
+# v907-verify.yml). See src/main.rs for the subcommand surface
+# (`wakir-v907-verify compute|verify`).
+[[bin]]
+name = "wakir-v907-verify"
+path = "src/main.rs"
+
 [dependencies]
 sha2       = { workspace = true, features = ["std"] }
 serde      = { workspace = true }
