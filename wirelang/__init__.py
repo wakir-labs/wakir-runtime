@@ -46,6 +46,13 @@ match the workflow path-filter. Pfad A (workflow path-filter add for
 this specific test file) is planned as a Tag-16 follow-up — for now,
 no-op wirelang/__init__.py touch unblocks PR #158.
 
+Tag-15 doppelbetrieb-score-aggregator trigger note (2026-05-17 06:00 CEST)
+--------------------------------------------------------------------------
+PR #160 (Tomás Doppelbetrieb-Score-Aggregator) is scripts/+tests/-only
+and would not match the cross-repo-drift path-filter. No-op wirelang/
+touch unblocks PR #160 per the PR #153/#158 pattern. Pfad A
+(workflow path-filter precision-add) remains a Tag-16 follow-up.
+
 Tag-15 cross-crate-integration trigger note (2026-05-17 06:15 CEST)
 -------------------------------------------------------------------
 PR #161 (Reza Cross-Crate Integration-Test-Suite) is wirelang-rust/**
