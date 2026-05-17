@@ -1,19 +1,22 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic format invariants for the Tag-22 Phase-3b Rust-CLI
+"""Hermetic format invariants for the Tag-22/24 Phase-3b Rust-CLI
 installer Quadlet bundle (retry after Tag-21 quota-hit; identical
-bytes-shape as the aborted Tag-21 draft).
+bytes-shape as the aborted Tag-21 draft; Tag-24 Mini-Welle extends
+the inventory from 5 to 7 binaries per ADR-0065 Phase-3c
+Trigger-Gate 3, in lock-step with the Cosign-Policy update
+Trigger-Gate 2).
 
 Sibling tests
 -------------
   * ``tests/infra/test_cosign_policy_phase_3b.py`` — Cosign-Policy
-    (carrier image + 4-binary inventory).
+    (carrier image + 7-binary inventory).
   * ``tests/infra/test_persona_tomas_quadlet_validate.py`` — production
     Quadlet for the Tomás-Persona pilot (carrier image consumer).
   * ``tests/infra/test_quadlet_selinux_relabel.py`` — global
     SELinux-relabel discipline (every ``Volume=`` carries ``:Z``/``:z``).
 
-This test surface validates the SHAPE of the Tag-22 deliverables:
+This test surface validates the SHAPE of the Tag-22/24 deliverables:
 
   - ``quadlet/wakir-rust-cli.container``
   - ``quadlet/wakir-rust-cli-bin.volume``
@@ -35,9 +38,9 @@ Test-Vector index
   * ``TV-T22-Q-01`` Quadlet files present at the expected repo paths.
   * ``TV-T22-Q-02`` Container Quadlet declares the canonical sections
     (``[Unit]``, ``[Container]``, ``[Service]``, ``[Install]``).
-  * ``TV-T22-Q-03`` All five Phase-3b binaries listed in the
+  * ``TV-T22-Q-03`` All seven Phase-3b binaries listed in the
     installer Exec= shell loop (recovery, state-backing, fsm,
-    v907-verify, bridge-diff).
+    v907-verify, bridge-diff, subscribe-loop, anchor-emitter).
   * ``TV-T22-Q-04`` Image= line matches the Cosign-Policy
     carrier_image entry byte-for-byte (registry + repository +
     tag + placeholder digest slot).
@@ -73,12 +76,14 @@ RUST_SWITCH_MODULE = (
     REPO_ROOT / "wirelang" / "persona_engine" / "rust_backend_switch.py"
 )
 
-EXPECTED_BINARIES_FIVE = (
+EXPECTED_BINARIES_SEVEN = (
     "wakir-persona-engine-recovery",
     "wakir-persona-engine-state-backing",
     "wakir-persona-engine-fsm",
     "wakir-persona-engine-v907-verify",
     "wakir-persona-engine-bridge-diff",
+    "wakir-persona-engine-subscribe-loop",
+    "wakir-persona-engine-anchor-emitter",
 )
 
 # Canonical placeholder + canonical resolved-digest form (mirrors the
@@ -170,18 +175,23 @@ def test_container_section_invariants(container_text: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# TV-T22-Q-03 — All five Phase-3b binaries listed in Exec= loop.
+# TV-T22-Q-03 — All seven Phase-3b binaries listed in Exec= loop.
 # ---------------------------------------------------------------------------
-def test_all_five_binaries_listed(container_text: str) -> None:
-    """The installer Exec= shell loop MUST iterate over all five
+def test_all_seven_binaries_listed(container_text: str) -> None:
+    """The installer Exec= shell loop MUST iterate over all seven
     Phase-3b Rust-CLI binary names (recovery, state-backing, fsm,
-    v907-verify, bridge-diff).
+    v907-verify, bridge-diff, subscribe-loop, anchor-emitter).
 
     Drift-guard: dropping a binary from the loop would silently
     leave the corresponding ``WAKIR_*_BACKEND=rust`` switch
     falling back to Python on Pilot-VM hosts that consume the
     installer (the host-side ``/opt/wakir/bin/<missing>`` would
     not be populated). This test red is a hard-stop.
+
+    Tag-24 update (ADR-0065 Phase-3c Trigger-Gate 3): inventory
+    extended from 5 to 7 (added ``subscribe-loop`` Tag-22 PR #181
+    and ``anchor-emitter`` Tag-23 PR #184). Cosign-Policy parity
+    Trigger-Gate 2 landed in lock-step in the same Mini-Welle.
     """
     # Find the Exec= line (single-line in our Quadlet form).
     exec_lines = [
@@ -194,17 +204,23 @@ def test_all_five_binaries_listed(container_text: str) -> None:
     )
     exec_line = exec_lines[0]
 
-    for binary in EXPECTED_BINARIES_FIVE:
+    for binary in EXPECTED_BINARIES_SEVEN:
         assert binary in exec_line, (
             f"Phase-3b binary {binary!r} missing from Exec= shell loop"
         )
 
-    # And the bridge-diff binary specifically — Tag-20 PR #175 wired
-    # the switch; the Tag-22 Quadlet MUST install the binary even
-    # though the Cosign-Policy inventory has not yet been extended
-    # (tracked as a Tag-23+ follow-up).
-    assert "wakir-persona-engine-bridge-diff" in exec_line, (
-        "Tag-20 bridge-diff binary missing from Tag-22 installer "
+    # And the two Tag-24 additions specifically — both bridges had
+    # their Python production-default switches landed in prior
+    # Mini-Welles (subscribe-loop Tag-22 PR #181, anchor-emitter
+    # Tag-23 PR #184); the Tag-24 Quadlet update is the Operations-
+    # Reife close-out that lets the Pilot-VM host actually consume
+    # them.
+    assert "wakir-persona-engine-subscribe-loop" in exec_line, (
+        "Tag-22 subscribe-loop binary missing from Tag-24 installer "
+        "Exec= loop — see docs/operations/quadlets-phase-3b-rust-cli.md §2"
+    )
+    assert "wakir-persona-engine-anchor-emitter" in exec_line, (
+        "Tag-23 anchor-emitter binary missing from Tag-24 installer "
         "Exec= loop — see docs/operations/quadlets-phase-3b-rust-cli.md §2"
     )
 
@@ -413,7 +429,7 @@ def test_operations_doc_present_and_references_quadlets() -> None:
     )
     # All five binaries enumerated by name in the doc (operator-
     # reading-substrate, not just the Exec= loop).
-    for binary in EXPECTED_BINARIES_FIVE:
+    for binary in EXPECTED_BINARIES_SEVEN:
         assert binary in doc_text, (
             f"operations doc does not enumerate binary {binary!r}"
         )
@@ -458,7 +474,7 @@ def test_in_image_paths_match_switch_defaults(container_text: str) -> None:
     )
     switch_text = RUST_SWITCH_MODULE.read_text(encoding="utf-8")
 
-    for binary in EXPECTED_BINARIES_FIVE:
+    for binary in EXPECTED_BINARIES_SEVEN:
         canonical_path = f"/opt/wakir/bin/{binary}"
         assert canonical_path in switch_text, (
             f"rust_backend_switch.py default does NOT declare "

@@ -13,11 +13,12 @@ Sibling tests:
     installer; inventories the same five binaries.
 
 This test surface validates the cosign-policy substrate
-(`policies/cosign-policy-phase-3b.yaml`) for the five Phase-3b
+(`policies/cosign-policy-phase-3b.yaml`) for the seven Phase-3b
 Rust-CLI binaries that
 ``wirelang.persona_engine.rust_backend_switch`` subprocess-bridges to
-(recovery, state-backing, fsm, v907-verify, bridge-diff; landed in
-PRs #167, #169, #171, #175 across Tag-17 through Tag-20 Mini-Welles).
+(recovery, state-backing, fsm, v907-verify, bridge-diff,
+subscribe-loop, anchor-emitter; landed in PRs #167, #169, #171,
+#175, #181, #184 across Tag-17 through Tag-23 Mini-Welles).
 
 Tag-23 Mini-Welle update
 ------------------------
@@ -26,6 +27,19 @@ Mini-Welle PR #175) is now a first-class policy entry. The
 ``EXPECTED_BINARIES`` tuple grew accordingly and the dropped-binary
 fixture in ``test_mismatch_fixture_rejects`` now drops a different
 binary (still recovers the same SHAPE-rejection invariant).
+
+Tag-24 Mini-Welle update (ADR-0065 Phase-3c Trigger-Gate 2)
+-----------------------------------------------------------
+Inventory extended from 5 to 7 binaries in lock-step with the
+Quadlet installer Tag-24 update (Trigger-Gate 3). Added
+``subscribe-loop`` (Tag-22 Mini-Welle PR #181) and ``anchor-emitter``
+(Tag-23 Mini-Welle PR #184). ``EXPECTED_BINARIES``,
+``EXPECTED_IN_IMAGE_PATHS``, and ``EXPECTED_ENV_SWITCHES`` grew
+together; the dropped-binary fixture now drops ``anchor-emitter``
+(the newest member) and exercises the rejection logic against the
+latest inventory addition. The cross-substrate parity test
+(``test_cross_substrate_parity_with_quadlet_installer``) enforces
+the lock-step agreement with the Quadlet installer.
 
 Sandbox boundary
 ----------------
@@ -39,7 +53,7 @@ What is NOT covered here
   * The YAML's schema does NOT have a formal JSON-Schema substrate
     (deliberate — the file is small enough that a Python-side shape
     test is the higher-signal substrate). If the YAML grows past
-    ~5 binaries, promote to a `cue` or `JSON-Schema` validator.
+    ~10 binaries, promote to a `cue` or `JSON-Schema` validator.
   * The ``mismatch-rejects`` fixture tests the SHAPE-level rejection
     logic (placeholder vs canonical digest, missing binary entry)
     only — it does NOT exercise live Sigstore-Rekor mismatch flows;
@@ -72,6 +86,8 @@ EXPECTED_BINARIES = (
     "fsm",
     "v907-verify",
     "bridge-diff",
+    "subscribe-loop",
+    "anchor-emitter",
 )
 EXPECTED_IN_IMAGE_PATHS = {
     "recovery": "/opt/wakir/bin/wakir-persona-engine-recovery",
@@ -79,6 +95,8 @@ EXPECTED_IN_IMAGE_PATHS = {
     "fsm": "/opt/wakir/bin/wakir-persona-engine-fsm",
     "v907-verify": "/opt/wakir/bin/wakir-persona-engine-v907-verify",
     "bridge-diff": "/opt/wakir/bin/wakir-persona-engine-bridge-diff",
+    "subscribe-loop": "/opt/wakir/bin/wakir-persona-engine-subscribe-loop",
+    "anchor-emitter": "/opt/wakir/bin/wakir-persona-engine-anchor-emitter",
 }
 EXPECTED_ENV_SWITCHES = {
     "recovery": "WAKIR_RECOVERY_BACKEND",
@@ -86,6 +104,8 @@ EXPECTED_ENV_SWITCHES = {
     "fsm": "WAKIR_FSM_BACKEND",
     "v907-verify": "WAKIR_V907_VERIFY_BACKEND",
     "bridge-diff": "WAKIR_BRIDGE_DIFF_BACKEND",
+    "subscribe-loop": "WAKIR_SUBSCRIBE_LOOP_BACKEND",
+    "anchor-emitter": "WAKIR_ANCHOR_EMITTER_BACKEND",
 }
 PLACEHOLDER_DIGEST = "sha256:DIGEST_PENDING_KAI_CROSS_REVIEW"
 CANONICAL_DIGEST_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
@@ -186,12 +206,12 @@ def test_policy_format_validate(policy: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 2 — all-5-binaries-listed
+# Test 2 — all-7-binaries-listed
 # ---------------------------------------------------------------------------
-def test_all_5_phase_3b_binaries_listed(policy: dict) -> None:
-    """The binaries: inventory MUST list EXACTLY the five Phase-3b
+def test_all_7_phase_3b_binaries_listed(policy: dict) -> None:
+    """The binaries: inventory MUST list EXACTLY the seven Phase-3b
     Rust-CLI components: recovery, state-backing, fsm, v907-verify,
-    bridge-diff.
+    bridge-diff, subscribe-loop, anchor-emitter.
 
     A drift either way (missing entry OR extra entry) is a substrate
     breach:
@@ -206,9 +226,13 @@ def test_all_5_phase_3b_binaries_listed(policy: dict) -> None:
         without a real consumer.
 
     Tag-23 update: inventory grew from 4 to 5 (added ``bridge-diff``;
-    Tag-20 Mini-Welle PR #175). The Tag-22 Quadlet installer
-    (``quadlet/wakir-rust-cli.container``) already iterated all five
-    binaries; this test now enforces the cross-substrate parity.
+    Tag-20 Mini-Welle PR #175).
+    Tag-24 update (ADR-0065 Phase-3c Trigger-Gate 2): inventory grew
+    from 5 to 7 (added ``subscribe-loop`` Tag-22 Mini-Welle PR #181
+    and ``anchor-emitter`` Tag-23 Mini-Welle PR #184). The Tag-24
+    Quadlet installer update (Trigger-Gate 3) iterates the same
+    seven binaries; this test enforces the cross-substrate parity
+    via Test 8 below.
     """
     binaries = policy["binaries"]
     assert isinstance(binaries, list)
@@ -338,12 +362,12 @@ def test_mismatch_fixture_rejects(policy: dict) -> None:
             return f"rogue-identity-regex: {ident!r}"
         return None
 
-    # Fixture A — drop the ``bridge-diff`` entry (the Tag-23 addition;
-    # exercises the rejection logic specifically against the newest
-    # inventory member).
+    # Fixture A — drop the ``anchor-emitter`` entry (the Tag-24
+    # addition; exercises the rejection logic specifically against
+    # the newest inventory member).
     fix_a = copy.deepcopy(policy)
     fix_a["binaries"] = [
-        b for b in fix_a["binaries"] if b.get("name") != "bridge-diff"
+        b for b in fix_a["binaries"] if b.get("name") != "anchor-emitter"
     ]
     rejection = _shape_reject_dropped_binary(fix_a)
     assert rejection is not None and "binary-inventory-drift" in rejection, (
@@ -447,10 +471,12 @@ def test_operations_doc_anchors_policy_file() -> None:
     the prose, the policy YAML is the source-of-truth, and the two
     silently disagree.
 
-    Tag-23 update: anchors now cover all FIVE canonical in-image
-    paths and all FIVE ENV-switches (the loop over
+    Tag-24 update: anchors now cover all SEVEN canonical in-image
+    paths and all SEVEN ENV-switches (the loop over
     ``EXPECTED_IN_IMAGE_PATHS`` / ``EXPECTED_ENV_SWITCHES`` picks the
-    bridge-diff entries up automatically).
+    subscribe-loop + anchor-emitter entries up automatically; the
+    pre-Tag-24 helper text said ``FIVE`` and ``bridge-diff`` after
+    the Tag-23 extension).
     """
     assert OPERATIONS_DOC.exists(), (
         f"operations doc missing at {OPERATIONS_DOC}"
@@ -473,15 +499,15 @@ def test_operations_doc_anchors_policy_file() -> None:
         "issuer"
     )
 
-    # Anchor: all four canonical in-image paths are documented in the
-    # operator recipe (the binary-presence probe in §3.3).
+    # Anchor: all seven canonical in-image paths are documented in
+    # the operator recipe (the binary-presence probe in §3.3).
     for path in EXPECTED_IN_IMAGE_PATHS.values():
         assert path in text, (
             f"operations doc does not document the canonical in-image "
             f"path {path}"
         )
 
-    # Anchor: the four ENV-switches are listed in the §5 wiring table.
+    # Anchor: the seven ENV-switches are listed in the §5 wiring table.
     for env in EXPECTED_ENV_SWITCHES.values():
         assert env in text, (
             f"operations doc does not document the ENV-switch {env}"

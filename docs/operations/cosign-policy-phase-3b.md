@@ -6,26 +6,27 @@ Copyright (c) 2026 Callandor GmbH and contributors
 # Cosign-Policy — Phase-3b Rust-CLI Binaries
 
 **Status:** Living operations document.
-**Scope:** The five Phase-3b Rust-CLI binaries that the
+**Scope:** The seven Phase-3b Rust-CLI binaries that the
 persona-engine production-default switch subprocess-bridges to
-(`recovery`, `state-backing`, `fsm`, `v907-verify`, `bridge-diff`).
+(`recovery`, `state-backing`, `fsm`, `v907-verify`, `bridge-diff`,
+`subscribe-loop`, `anchor-emitter`).
 **Source of truth:** `policies/cosign-policy-phase-3b.yaml`.
 **Sibling docs:** `infra/spire/federation/IMAGE_PINS.md` (SPIRE +
 provisioner image pins), `docs/operations/branch-protection-required-status-checks.md`,
-`docs/operations/quadlets-phase-3b-rust-cli.md` (Tag-22 Quadlet
-installer; same 5-binary inventory).
+`docs/operations/quadlets-phase-3b-rust-cli.md` (Tag-22/24 Quadlet
+installer; same 7-binary inventory).
 
 ---
 
 ## 1. Why this document exists
 
-Phase-3b lands five ENV-gated subprocess-bridges from the
+Phase-3b lands seven ENV-gated subprocess-bridges from the
 persona-engine Python orchestrator to compiled Rust-CLI binaries
-(PRs #167, #169, #171, #175). The bridges live in
+(PRs #167, #169, #171, #175, #181, #184). The bridges live in
 `wirelang/persona_engine/rust_backend_switch.py` and resolve to
 the canonical paths
-`/opt/wakir/bin/wakir-persona-engine-{recovery,state-backing,fsm,v907-verify,bridge-diff}`.
-These five binaries are the **production-mode hot-path** when
+`/opt/wakir/bin/wakir-persona-engine-{recovery,state-backing,fsm,v907-verify,bridge-diff,subscribe-loop,anchor-emitter}`.
+These seven binaries are the **production-mode hot-path** when
 operators flip `WAKIR_*_BACKEND=rust` in the Quadlet drop-in;
 unverified binaries on that hot-path are a supply-chain breach.
 
@@ -36,6 +37,16 @@ unverified binaries on that hot-path are a supply-chain breach.
 > all five binaries; this update closes the cross-substrate
 > inventory gap — both files now list the same five binaries
 > byte-for-byte.
+
+> **Tag-24 Mini-Welle update (ADR-0065 Phase-3c Trigger-Gate 2+3).**
+> Inventory extended from 5 to 7 binaries in lock-step with the
+> Quadlet installer. Added `subscribe-loop` (Tag-22 PR #181 wired
+> the Python production-default switch) and `anchor-emitter`
+> (Tag-23 PR #184 wired the switch). Both bridges follow the same
+> Sigstore-keyless-OIDC pattern as the prior five and ship inside
+> the same carrier image. The cross-substrate parity test
+> (`test_cross_substrate_parity_with_quadlet_installer`) enforces
+> the agreement at policy-author time.
 
 Cosign-policy answers two operator questions, both of which the
 existing `IMAGE_PINS.md` substrate does NOT cover for the
@@ -59,7 +70,7 @@ Three top-level sections:
 
   * **`policy:`** — names the Sigstore-keyless OIDC identity and the
     carrier image (tag + digest slot + build workflow + Containerfile).
-  * **`binaries:`** — inventory of the five Rust-CLI binaries with
+  * **`binaries:`** — inventory of the seven Rust-CLI binaries with
     crate path, in-image path, ENV-switch wiring, and the PR that
     landed each bridge.
   * **`verification:`** — three-step Operator-Hand recipe (cosign
@@ -67,7 +78,7 @@ Three top-level sections:
     binary-presence probe). Plus the `on_digest_mismatch:` posture.
 
 The hermetic test surface (`tests/infra/test_cosign_policy_phase_3b.py`)
-enforces the file SHAPE invariants — schema_version, all five
+enforces the file SHAPE invariants — schema_version, all seven
 binaries present, sha256-slot canonical form, mismatch fixture
 rejected.
 
@@ -122,7 +133,7 @@ fi
 
 ### 3.3 Step 3 — in-image binary-presence probe
 
-The five binaries MUST be present at the canonical in-image paths
+The seven binaries MUST be present at the canonical in-image paths
 declared by `wirelang/persona_engine/rust_backend_switch.py`
 (`DEFAULT_RUST_*_BIN` constants):
 
@@ -134,14 +145,16 @@ podman run --rm --entrypoint /bin/sh \
                  /opt/wakir/bin/wakir-persona-engine-state-backing \
                  /opt/wakir/bin/wakir-persona-engine-fsm \
                  /opt/wakir/bin/wakir-persona-engine-v907-verify \
-                 /opt/wakir/bin/wakir-persona-engine-bridge-diff; do
+                 /opt/wakir/bin/wakir-persona-engine-bridge-diff \
+                 /opt/wakir/bin/wakir-persona-engine-subscribe-loop \
+                 /opt/wakir/bin/wakir-persona-engine-anchor-emitter; do
             test -x "$b" || { echo "missing or non-exec: $b" >&2; exit 2; }
         done
         echo OK'
 ```
 
 If the carrier image is the Sprint-Pengine-13 `0.5.0-pilot` tag
-(current inventory baseline), several of the five binaries will be
+(current inventory baseline), several of the seven binaries will be
 **present but not yet wired into a `[[bin]]`-target Cargo.toml
 section** — the crates ship `[lib]` only as of Tag-19. The probe
 above therefore expects the `[[bin]]`-promotion follow-up to land
@@ -149,12 +162,12 @@ before the policy moves out of the placeholder-digest state. The
 test surface marks this expectation explicitly with a SKIP for the
 live-probe path and a hard assertion on the policy-shape path.
 
-The Tag-22 Quadlet installer (`quadlet/wakir-rust-cli.container`)
-iterates the same five binaries in alphabetical-by-component order
-(`bridge-diff`, `fsm`, `recovery`, `state-backing`, `v907-verify`);
-the probe above iterates in landing-order. Both orderings are
-acceptable — the contract is the *set* of five binaries, not the
-iteration sequence.
+The Tag-22/24 Quadlet installer (`quadlet/wakir-rust-cli.container`)
+iterates the same seven binaries in alphabetical-by-component order
+(`anchor-emitter`, `bridge-diff`, `fsm`, `recovery`, `state-backing`,
+`subscribe-loop`, `v907-verify`); the probe above iterates in
+landing-order. Both orderings are acceptable — the contract is the
+*set* of seven binaries, not the iteration sequence.
 
 ---
 
@@ -183,7 +196,7 @@ returns a value that differs from the pinned digest:
 
 ## 5. Phase-3b ENV-switch wiring
 
-The five bridges live in `wirelang/persona_engine/rust_backend_switch.py`.
+The seven bridges live in `wirelang/persona_engine/rust_backend_switch.py`.
 Each ENV-switch is closed-enum (rejects unknown values via
 `BackendSwitchValidationError`):
 
@@ -194,8 +207,10 @@ Each ENV-switch is closed-enum (rejects unknown values via
 | fsm | `WAKIR_FSM_BACKEND` | `python` (default), `rust` | `WAKIR_RUST_FSM_BIN` |
 | v907-verify | `WAKIR_V907_VERIFY_BACKEND` | `python` (default), `rust` | `WAKIR_RUST_V907_VERIFY_BIN` |
 | bridge-diff | `WAKIR_BRIDGE_DIFF_BACKEND` | `python` (default), `rust` | `WAKIR_RUST_BRIDGE_DIFF_BIN` |
+| subscribe-loop | `WAKIR_SUBSCRIBE_LOOP_BACKEND` | `python` (default), `rust` | `WAKIR_RUST_SUBSCRIBE_LOOP_BIN` |
+| anchor-emitter | `WAKIR_ANCHOR_EMITTER_BACKEND` | `python` (default), `rust` | `WAKIR_RUST_ANCHOR_EMITTER_BIN` |
 
-Production-default stays Python on all five axes; opt-in via
+Production-default stays Python on all seven axes; opt-in via
 Quadlet `Environment=` drop-in or `systemd-creds`. The
 `fallback_reason` per-decision audit-record (structured JSON line,
 default sink `/var/log/wakir/backend-decisions.jsonl`) is the
@@ -265,35 +280,37 @@ Per `agents/kai.md` §"Vier Cross-Review-Zonen A-D":
 
 ---
 
-## 8. Cross-substrate parity — the 5-binary contract
+## 8. Cross-substrate parity — the 7-binary contract
 
-Three substrate files now list the same five Phase-3b Rust-CLI
+Three substrate files now list the same seven Phase-3b Rust-CLI
 binaries; a drift between any two of them is a substrate breach
 caught by the hermetic test surface:
 
 | Substrate | File | Iteration order |
 |---|---|---|
-| Switch defaults | `wirelang/persona_engine/rust_backend_switch.py` | declaration-order (recovery, state-backing, fsm, v907-verify, bridge-diff, subscribe-loop) |
-| Cosign-policy | `policies/cosign-policy-phase-3b.yaml` | landing-order (recovery, state-backing, fsm, v907-verify, bridge-diff) |
-| Quadlet installer | `quadlet/wakir-rust-cli.container` | alphabetical-by-component (bridge-diff, fsm, recovery, state-backing, v907-verify) |
+| Switch defaults | `wirelang/persona_engine/rust_backend_switch.py` | declaration-order (recovery, state-backing, fsm, v907-verify, bridge-diff, subscribe-loop, anchor-emitter) |
+| Cosign-policy | `policies/cosign-policy-phase-3b.yaml` | landing-order (recovery, state-backing, fsm, v907-verify, bridge-diff, subscribe-loop, anchor-emitter) |
+| Quadlet installer | `quadlet/wakir-rust-cli.container` | alphabetical-by-component (anchor-emitter, bridge-diff, fsm, recovery, state-backing, subscribe-loop, v907-verify) |
 
-The contract is the **set** of five binaries, not the iteration
+The contract is the **set** of seven binaries, not the iteration
 sequence. The hermetic tests
 (`tests/infra/test_cosign_policy_phase_3b.py` for cosign-policy,
 `tests/infra/test_quadlets_phase_3b.py` for the Quadlet) enforce
 the set invariant on each side; a binary added to one substrate
 without the other is rejected.
 
-> **Note on `subscribe-loop`.** The Tag-22 Mini-Welle landed the
-> `subscribe-loop` Rust bridge (PR #181, Tag-22 ENV-switch
-> production-default flip; module-level constant
-> `DEFAULT_RUST_SUBSCRIBE_LOOP_BIN`). The subscribe-loop binary
-> is NOT yet in this Cosign-Policy because the Quadlet installer
-> (PR #180) inventoried only the Tag-17-through-Tag-20 binaries.
-> A subsequent Mini-Welle will extend BOTH substrates in lock-step
-> to a 6-binary inventory — Cosign-Policy follows Quadlet here,
-> so an out-of-sequence policy bump is rejected by the
-> cross-substrate parity test in
-> `tests/infra/test_quadlets_phase_3b.py`.
+> **Note on Tag-24 lock-step landing (ADR-0065 Phase-3c).** The
+> Tag-22 Mini-Welle landed the `subscribe-loop` Rust bridge
+> (PR #181, ENV-switch production-default flip; module-level
+> constant `DEFAULT_RUST_SUBSCRIBE_LOOP_BIN`); the Tag-23
+> Mini-Welle landed the `anchor-emitter` Rust bridge (PR #184,
+> `DEFAULT_RUST_ANCHOR_EMITTER_BIN`). The Tag-24 Mini-Welle
+> extends BOTH substrates (this Cosign-Policy AND the Quadlet
+> installer) in lock-step to a 7-binary inventory — ADR-0065
+> Phase-3c Trigger-Gate 2 (Cosign-Policy) and Trigger-Gate 3
+> (Quadlet) are satisfied in one PR so the cross-substrate
+> parity test (`test_cross_substrate_parity_with_quadlet_installer`)
+> stays green. An out-of-sequence policy bump that leaves the
+> Quadlet behind (or vice versa) is rejected by the parity test.
 
 — Kai

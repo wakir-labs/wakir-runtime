@@ -24,16 +24,37 @@
 # cross-substrate inventory gap so both files list the same five
 # binaries byte-for-byte. No image-build path change.
 #
+# Tag-24 Mini-Welle update (ADR-0065 Phase-3c Trigger-Gate 2)
+# -----------------------------------------------------------
+# Inventory extended from 5 to 7 binaries in lock-step with the
+# Tag-24 Quadlet installer update (Trigger-Gate 3). Two additions:
+#
+#   * ``subscribe-loop`` (Tag-22 Mini-Welle PR #181 wired the Python
+#     production-default switch; the binary ships in the carrier
+#     image at the canonical ``/opt/wakir/bin/wakir-persona-engine-
+#     subscribe-loop`` path declared by ``DEFAULT_RUST_SUBSCRIBE_
+#     LOOP_BIN`` in rust_backend_switch.py).
+#   * ``anchor-emitter`` (Tag-23 Mini-Welle PR #184 wired the Python
+#     production-default switch; the binary ships at
+#     ``/opt/wakir/bin/wakir-persona-engine-anchor-emitter`` per
+#     ``DEFAULT_RUST_ANCHOR_EMITTER_BIN``).
+#
+# Both bridges follow the same Sigstore-keyless-OIDC verification
+# pattern as the prior five — same carrier image, same build
+# workflow, same digest-resolver propagation. The cross-substrate
+# parity test (test_cross_substrate_parity_with_quadlet_installer)
+# enforces lock-step agreement with the Quadlet installer.
+#
 # Posture
 # -------
-# The 5 binaries are NOT free-standing artefacts — they ship inside
+# The 7 binaries are NOT free-standing artefacts — they ship inside
 # the published ``ghcr.io/wakir-labs/wakir-persona-engine`` image
 # (Containerfile.real, Sprint-Pengine-13+, BSL-1.1) at the canonical
 # ``/opt/wakir/bin/wakir-persona-engine-<component>`` paths declared
 # by ``wirelang/persona_engine/rust_backend_switch.py`` defaults.
 # The image is keyless-signed via Sigstore against the GitHub-Actions
 # OIDC identity of ``.github/workflows/build-wakir-persona-engine.yml``;
-# verifying the image therefore transitively verifies the 5 binaries.
+# verifying the image therefore transitively verifies the 7 binaries.
 #
 # Why keyless and not a pinned ``cosign.pub``: the WAT-Pipeline-Server
 # substrate-pattern from ADR-0034 uses Sigstore-keyless throughout
@@ -57,10 +78,10 @@ schema_version: wakir.cosign-policy.phase-3b/1
 policy:
   name: phase-3b-rust-cli-binaries
   description: >
-    Cosign-keyless verification policy for the five Phase-3b Rust-CLI
+    Cosign-keyless verification policy for the seven Phase-3b Rust-CLI
     binaries that the persona-engine production-default switch
     subprocess-bridges to (recovery, state-backing, fsm, v907-verify,
-    bridge-diff).
+    bridge-diff, subscribe-loop, anchor-emitter).
 
   # Sigstore-keyless OIDC identity of the GitHub-Actions runner that
   # builds and signs the carrier image. Same shape as the Sprint-9
@@ -83,17 +104,18 @@ policy:
     build_workflow: .github/workflows/build-wakir-persona-engine.yml
     containerfile: infra/persona-engine/Containerfile.real
 
-# Inventory of the five Phase-3b Rust-CLI binaries. Each entry is the
+# Inventory of the seven Phase-3b Rust-CLI binaries. Each entry is the
 # subprocess-target of one ``WAKIR_*_BACKEND=rust`` ENV-switch wired
 # in ``wirelang/persona_engine/rust_backend_switch.py``. The
 # ``crate_path`` points at the crate that produces the binary; the
 # ``in_image_path`` is the canonical install location inside the
 # carrier image (matches the rust_backend_switch.py defaults). The
 # inventory order matches the chronological landing order across
-# Tag-17 through Tag-20 (recovery + state-backing PR #167, fsm
-# PR #169, v907-verify PR #171, bridge-diff PR #175); the Tag-22
-# Quadlet installer (``quadlet/wakir-rust-cli.container``) iterates
-# the same five entries in alphabetical-by-component order.
+# Tag-17 through Tag-23 (recovery + state-backing PR #167, fsm
+# PR #169, v907-verify PR #171, bridge-diff PR #175, subscribe-loop
+# PR #181, anchor-emitter PR #184); the Tag-24 Quadlet installer
+# (``quadlet/wakir-rust-cli.container``) iterates the same seven
+# entries in alphabetical-by-component order.
 binaries:
 
   - name: recovery
@@ -168,6 +190,36 @@ binaries:
       cross-lang field-pin vectors per
       tests/fixtures/cross_lang_field_diff_fixtures.json (PR #166).
 
+  - name: subscribe-loop
+    component: persona-engine-subscribe-loop
+    crate_path: wirelang-rust/crates/persona-engine-subscribe-loop
+    in_image_path: /opt/wakir/bin/wakir-persona-engine-subscribe-loop
+    env_switch: WAKIR_SUBSCRIBE_LOOP_BACKEND
+    env_switch_value: rust
+    env_binary_override: WAKIR_RUST_SUBSCRIBE_LOOP_BIN
+    landed_pr: '#181'
+    landed_tag: Tag-22 Mini-Welle
+    purpose: >
+      NATS-JetStream subscribe-loop ack-record subprocess-bridge.
+      Schema-parity with wirelang/persona_engine/subscribe_ack.py
+      (PR #172 ack-record Python sibling); byte-identical ack-record
+      shape per tests/fixtures/subscribe-loop-cross-lang/fixtures.json.
+
+  - name: anchor-emitter
+    component: persona-engine-anchor-emitter
+    crate_path: wirelang-rust/crates/persona-engine-anchor-emitter
+    in_image_path: /opt/wakir/bin/wakir-persona-engine-anchor-emitter
+    env_switch: WAKIR_ANCHOR_EMITTER_BACKEND
+    env_switch_value: rust
+    env_binary_override: WAKIR_RUST_ANCHOR_EMITTER_BIN
+    landed_pr: '#184'
+    landed_tag: Tag-23 Mini-Welle
+    purpose: >
+      WAT-anchor-envelope wire-shape emitter subprocess-bridge.
+      Schema-parity with wirelang/persona_engine/anchor_emitter.py
+      (PR #170 Python sibling); byte-identical envelope output per
+      tests/fixtures/anchor-emitter-cross-lang/fixtures.json.
+
 # Operator-Hand verification recipe (human-readable canonical
 # anchor; the prose recipe lives in
 # docs/operations/cosign-policy-phase-3b.md §3).
@@ -188,7 +240,9 @@ verification:
                 /opt/wakir/bin/wakir-persona-engine-state-backing
                 /opt/wakir/bin/wakir-persona-engine-fsm
                 /opt/wakir/bin/wakir-persona-engine-v907-verify
-                /opt/wakir/bin/wakir-persona-engine-bridge-diff; do
+                /opt/wakir/bin/wakir-persona-engine-bridge-diff
+                /opt/wakir/bin/wakir-persona-engine-subscribe-loop
+                /opt/wakir/bin/wakir-persona-engine-anchor-emitter; do
           test -x "$b" || { echo "missing or non-exec: $b"; exit 2; };
         done; echo OK'
 
@@ -203,7 +257,7 @@ verification:
 # ----------------
 # The hermetic test surface
 # (tests/infra/test_cosign_policy_phase_3b.py) validates the SHAPE
-# of this YAML — schema_version, all 5 binaries listed, sha256 slot
+# of this YAML — schema_version, all 7 binaries listed, sha256 slot
 # in canonical-form, mismatch fixture rejected. NO sandbox process
 # calls cosign, crane, or skopeo against ghcr.io per
 # feedback_sandbox_host_trennung.md. Live verification is
