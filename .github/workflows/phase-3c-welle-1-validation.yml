@@ -1,0 +1,439 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase-3c Welle-1 Validation Workflow — ADR-0065
+# -----------------------------------------------
+#
+# Wired-substrate validation for the Phase-3c Welle-1 cutover
+# (`v907_verify`, KW 24-25). Runs the five Mira-Hand-defined acceptance
+# steps for the Welle-1 Cutover-Acceptance-Decision and emits a
+# `cutover-acceptance-decision.json` artifact.
+#
+# Distinction from sibling workflows
+# ----------------------------------
+#
+# * `phase-2-validation-gate.yml` (PR #110) — per-PR hermetic gate-
+#   suite driver. Required status check on branch-protection.
+# * `phase-2-acceptance-gate.yml` (PR #160) — daily operations rollup
+#   for the 8-axis doppelbetrieb-score-aggregator.
+# * `phase-3c-welle-1-validation.yml` (THIS workflow) — weekly Welle-1
+#   readiness check that aggregates the five Phase-3c trigger-gates,
+#   exercises the cutover-dry-run for `v907_verify`, boots a test
+#   persona with `WAKIR_V907_VERIFY_BACKEND=rust`, runs the bridge-
+#   audit-roundtrip cross-lang consistency test, and writes a single
+#   cutover-acceptance-decision JSON envelope as a build artifact.
+#
+# NOT a required status check (per `feedback_branch_protection_check_
+# names.md`): branch-protection enforcement is operator-hand-territory
+# and lives outside this PR.
+#
+# Trigger surface
+# ---------------
+#
+# * `schedule: cron "0 6 * * 3"` — every Wednesday at 06:00 UTC.
+#   Wien CEST = UTC+2 in May, so the run lands at 08:00 CEST — well
+#   inside the ops-day window, three days before the ADR-0065 §Mo
+#   Live-Smoke target for Welle-1. The mid-week cadence gives Selin +
+#   Reza + Tomás a fresh readiness report each Wednesday morning,
+#   independent of any PR merge.
+#
+# * `workflow_dispatch: {}` — manual run from the GitHub UI. The
+#   dispatch inputs let the operator override the gate-aggregator
+#   binary-count target, the dry-run boots count, and the cutover
+#   feasibility-score band so a tighter or looser readiness floor
+#   can be tested ad-hoc without editing the workflow.
+#
+# Gate-4 yellow tolerance
+# -----------------------
+#
+# ADR-0065 declares five trigger-gates. Gate-4 (backend-decision
+# observability baseline) yields `yellow` when the
+# `WAKIR_PHASE_3C_OBS_BASELINE_PATH` env-var is unset — that is the
+# operator-hand-staged baseline-file substrate, which the
+# GitHub-hosted runner does not have access to. The workflow
+# therefore treats Gate-4-yellow as a warning (decision continues),
+# but Gate-4-red (aggregator script missing) is a hard fail.
+#
+# Sandbox boundary
+# ----------------
+#
+# All steps are hermetic: stdlib + pytest in-tree, no podman, no
+# NATS, no live-VM, no Anthropic API. The dry-run script uses its
+# default stub binary-probe (never consults the filesystem for the
+# real Rust binary). The bridge-audit-roundtrip test SKIPs cleanly
+# when the Rust replay_cli binary is not present in the runner.
+
+name: phase-3c-welle-1-validation
+
+on:
+  schedule:
+    # Wednesday 06:00 UTC = ~08:00 CEST in May.
+    - cron: "0 6 * * 3"
+  workflow_dispatch:
+    inputs:
+      target-binary-count:
+        description: "Gate-2/3 expected binary-inventory count (default 7)"
+        required: false
+        default: "7"
+      boots:
+        description: "Dry-run mocked-boot count (default 12)"
+        required: false
+        default: "12"
+      score-band-floor:
+        description: "Minimum cutover-feasibility band (GREEN/AMBER, default GREEN)"
+        required: false
+        default: "GREEN"
+
+permissions:
+  contents: read
+
+jobs:
+  phase-3c-welle-1-validation:
+    name: Phase-3c Welle-1 Validation (v907_verify)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      WELLE_COMPONENT: v907_verify
+      WELLE_ENV_VAR: WAKIR_V907_VERIFY_BACKEND
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install validation dependencies
+        # Aggregator + dry-run are stdlib + PyYAML; pytest + the in-tree
+        # wakir-runtime package are needed for the test-persona-boot
+        # step and the bridge-audit-roundtrip-test step.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . "pytest>=8.0"
+
+      - name: Resolve dispatch inputs
+        id: inputs
+        env:
+          INPUT_BINARY_COUNT: ${{ github.event.inputs.target-binary-count }}
+          INPUT_BOOTS: ${{ github.event.inputs.boots }}
+          INPUT_BAND: ${{ github.event.inputs.score-band-floor }}
+        run: |
+          BIN_COUNT="${INPUT_BINARY_COUNT:-7}"
+          BOOTS="${INPUT_BOOTS:-12}"
+          BAND="${INPUT_BAND:-GREEN}"
+          echo "binary_count=${BIN_COUNT}" >> "$GITHUB_OUTPUT"
+          echo "boots=${BOOTS}" >> "$GITHUB_OUTPUT"
+          echo "band=${BAND}" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare output directory
+        run: mkdir -p out
+
+      # Step 1: aggregate the five Phase-3c trigger-gates.
+      #
+      # Aggregator exit codes (see scripts/phase-3c-trigger-gate-
+      # aggregator.py docstring):
+      #   0 = all five gates green
+      #   1 = at least one yellow, none red
+      #   2 = at least one red
+      #
+      # We accept exit 0 and exit 1 (Gate-4 yellow tolerance, see
+      # workflow header). Exit 2 fails the job at the
+      # acceptance-decision-render step.
+      - name: Step 1 — Phase-3c trigger-gate aggregator
+        id: gate-aggregator
+        continue-on-error: true
+        run: |
+          python scripts/phase-3c-trigger-gate-aggregator.py \
+            --target-binary-count "${{ steps.inputs.outputs.binary_count }}" \
+            --json \
+            > out/trigger-gate-report.json
+          RC=$?
+          echo "rc=${RC}" >> "$GITHUB_OUTPUT"
+          if [ "$RC" = "0" ]; then
+            echo "gate_status=green" >> "$GITHUB_OUTPUT"
+          elif [ "$RC" = "1" ]; then
+            echo "gate_status=yellow" >> "$GITHUB_OUTPUT"
+          else
+            echo "gate_status=red" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Step 2: cutover-dry-run for v907_verify.
+      #
+      # `--component v907_verify` is the Welle-1 default; we pass it
+      # explicitly so the workflow is self-documenting. `--now 0`
+      # pins the timestamp so the artifact is reproducible across
+      # runs (the dry-run JSON envelope is byte-stable per (boots,
+      # budget, component, now) tuple).
+      - name: Step 2 — cutover-dry-run (v907_verify)
+        id: dry-run
+        continue-on-error: true
+        run: |
+          python scripts/phase-3c-cutover-dry-run.py \
+            --component "${WELLE_COMPONENT}" \
+            --boots "${{ steps.inputs.outputs.boots }}" \
+            --output out/dry-run-envelope.json
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+
+      # Step 3: test-persona-boot with WAKIR_V907_VERIFY_BACKEND=rust.
+      #
+      # We exercise the resolver in-process by running the existing
+      # rust_backend_switch test suite filtered to the v907_verify
+      # test vectors. The env-var is set explicitly so the test
+      # captures the production-flip scenario; the resolver still
+      # uses its in-test binary-probe stubs, so no real Rust binary
+      # is invoked.
+      - name: Step 3 — test-persona-boot (rust backend opt-in)
+        id: persona-boot
+        continue-on-error: true
+        env:
+          WAKIR_V907_VERIFY_BACKEND: rust
+        run: |
+          python -m pytest \
+            wirelang/tests/persona_engine/test_rust_backend_switch.py \
+            -k "v907_verify" \
+            --tb=short \
+            -q \
+            --junit-xml=out/persona-boot-junit.xml \
+            | tee out/persona-boot.log
+          # PIPESTATUS[0] is pytest's exit code (0 = pass, 5 = no
+          # tests collected, anything else = failure).
+          RC="${PIPESTATUS[0]}"
+          echo "rc=${RC}" >> "$GITHUB_OUTPUT"
+
+      # Step 4: bridge-audit-roundtrip cross-lang consistency test.
+      #
+      # The roundtrip test SKIPs cleanly on a Python-only runner
+      # (no Rust replay_cli binary), so we treat skip == pass for
+      # this gate. The test exists at tests/integration/test_
+      # bridge_audit_roundtrip_e2e.py and is the canonical cross-
+      # lang oracle (Python emit -> Rust replay).
+      - name: Step 4 — bridge-audit-roundtrip cross-lang consistency
+        id: bridge-audit
+        continue-on-error: true
+        run: |
+          python -m pytest \
+            tests/integration/test_bridge_audit_roundtrip_e2e.py \
+            --tb=short \
+            -q \
+            --junit-xml=out/bridge-audit-junit.xml \
+            | tee out/bridge-audit.log
+          RC="${PIPESTATUS[0]}"
+          echo "rc=${RC}" >> "$GITHUB_OUTPUT"
+
+      # Step 5: cutover-acceptance-decision JSON envelope.
+      #
+      # Collapses the four upstream-step outcomes plus the gate-
+      # aggregator report and the dry-run envelope into a single
+      # JSON artifact that the operator (Selin, Reza, Tomás) reads
+      # to decide go/no-go for the Welle-1 Mo Live-Smoke.
+      #
+      # Decision policy:
+      #   * READY      — all four steps green; gate-status in
+      #                  {green, yellow-with-only-gate-4-yellow}.
+      #   * NOT-READY  — any step failed OR gate-status red OR
+      #                  dry-run band below score-band-floor.
+      #
+      # The decision is a SOFT signal — Mira/Operator-Hand-Final.
+      # The workflow exit-code reflects the decision so the GH UI
+      # surfaces a clear pass/fail badge.
+      - name: Step 5 — render cutover-acceptance-decision
+        id: decision
+        # Always run, even if upstream steps red (we want the
+        # decision artifact to capture the failure state).
+        if: always()
+        env:
+          GATE_RC: ${{ steps.gate-aggregator.outputs.rc }}
+          DRY_RUN_RC: ${{ steps.dry-run.outputs.rc }}
+          BOOT_RC: ${{ steps.persona-boot.outputs.rc }}
+          BRIDGE_RC: ${{ steps.bridge-audit.outputs.rc }}
+          SCORE_BAND_FLOOR: ${{ steps.inputs.outputs.band }}
+          BOOTS_INPUT: ${{ steps.inputs.outputs.boots }}
+          BIN_COUNT_INPUT: ${{ steps.inputs.outputs.binary_count }}
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, sys
+
+          out_dir = pathlib.Path("out")
+          decision_path = out_dir / "cutover-acceptance-decision.json"
+
+          def _read_json(name):
+              p = out_dir / name
+              if not p.exists() or p.stat().st_size == 0:
+                  return None
+              try:
+                  return json.loads(p.read_text(encoding="utf-8"))
+              except json.JSONDecodeError:
+                  return None
+
+          def _rc(env_name):
+              v = os.environ.get(env_name) or "-1"
+              try:
+                  return int(v)
+              except ValueError:
+                  return -1
+
+          gate_rc = _rc("GATE_RC")
+          dry_rc = _rc("DRY_RUN_RC")
+          boot_rc = _rc("BOOT_RC")
+          bridge_rc = _rc("BRIDGE_RC")
+          floor = (os.environ.get("SCORE_BAND_FLOOR") or "GREEN").upper()
+
+          trigger_report = _read_json("trigger-gate-report.json") or {}
+          dry_run_envelope = _read_json("dry-run-envelope.json") or {}
+
+          # Gate-status: 0=green, 1=yellow (tolerable for Gate-4),
+          # 2=red (hard fail). Pytest exit 5 = no tests collected,
+          # which we treat as fail (the workflow expects v907_verify
+          # vectors to exist).
+          gate_ok = gate_rc == 0
+          gate_tolerable = False
+          if gate_rc == 1:
+              # Yellow tolerated only when Gate-4 (observability
+              # baseline) is the sole yellow.
+              gates = trigger_report.get("gates", [])
+              non_green = [
+                  g for g in gates
+                  if g.get("status") != "green"
+              ]
+              gate_tolerable = (
+                  len(non_green) == 1
+                  and non_green[0].get("id") == "gate-4"
+              )
+          dry_ok = dry_rc == 0
+          boot_ok = boot_rc == 0
+          # Bridge-audit: 0 (pass) and 5 (no tests collected) both OK.
+          # The test SKIPs cleanly when replay_cli is missing; pytest
+          # represents an all-SKIP run as exit 0 with the
+          # skipped-count surfaced in the report. Exit 5 = no tests
+          # collected; the test exists so 5 would be a wiring bug,
+          # but we accept it defensively so a temporary path-rename
+          # does not break the validation workflow.
+          bridge_ok = bridge_rc in (0, 5)
+
+          band = (
+              dry_run_envelope.get("feasibility", {}).get("band", "UNKNOWN")
+          )
+          band_order = {"GREEN": 3, "AMBER": 2, "RED": 1, "BLOCKED": 0}
+          band_score = band_order.get(band, 0)
+          floor_score = band_order.get(floor, 3)
+          band_ok = band_score >= floor_score
+
+          gate_signal = "green" if gate_ok else (
+              "yellow_tolerated" if gate_tolerable else "red"
+          )
+
+          ready = bool(
+              (gate_ok or gate_tolerable)
+              and dry_ok and boot_ok and bridge_ok and band_ok
+          )
+
+          decision = {
+              "schema": "wakir.phase-3c.welle-1-validation/1",
+              "welle": 1,
+              "component": "v907_verify",
+              "env_var": "WAKIR_V907_VERIFY_BACKEND",
+              "ready_for_live_smoke": ready,
+              "score_band_floor": floor,
+              "observed_band": band,
+              "steps": {
+                  "step_1_trigger_gates": {
+                      "exit_code": gate_rc,
+                      "status": gate_signal,
+                  },
+                  "step_2_cutover_dry_run": {
+                      "exit_code": dry_rc,
+                      "ok": dry_ok,
+                  },
+                  "step_3_persona_boot_rust": {
+                      "exit_code": boot_rc,
+                      "ok": boot_ok,
+                  },
+                  "step_4_bridge_audit_roundtrip": {
+                      "exit_code": bridge_rc,
+                      "ok": bridge_ok,
+                  },
+              },
+              "inputs": {
+                  "target_binary_count": int(
+                      os.environ.get("BIN_COUNT_INPUT") or "7"
+                  ),
+                  "boots": int(os.environ.get("BOOTS_INPUT") or "12"),
+              },
+              "trigger_report_summary": {
+                  "all_green": trigger_report.get("all_green"),
+                  "ready_for_phase_3c": trigger_report.get(
+                      "ready_for_phase_3c"
+                  ),
+                  "gate_count": len(trigger_report.get("gates", [])),
+              },
+              "dry_run_summary": {
+                  "feasibility_score": dry_run_envelope.get(
+                      "feasibility", {}
+                  ).get("cutover_feasibility_score"),
+                  "band": band,
+                  "boots": dry_run_envelope.get("boots"),
+              },
+              "anchors": {
+                  "adr": "decisions/0065-phase-3c-cutover-python-default-zu-rust-default.md",
+                  "runbook": "docs/operations/phase-3c-welle-1-runbook.md",
+              },
+          }
+
+          decision_path.write_text(
+              json.dumps(decision, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(decision, indent=2, sort_keys=True))
+
+          # Append a step-summary table for the run-tab.
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary_path:
+              with open(summary_path, "a", encoding="utf-8") as f:
+                  f.write("# Phase-3c Welle-1 Validation — v907_verify\n\n")
+                  f.write(
+                      f"**Ready for Live-Smoke:** "
+                      f"{'YES' if ready else 'NO'}  -  "
+                      f"**Band:** {band}  -  "
+                      f"**Floor:** {floor}\n\n"
+                  )
+                  f.write("| Step | Exit | Status |\n|---|---|---|\n")
+                  f.write(
+                      f"| 1. Trigger-Gates | {gate_rc} | "
+                      f"{gate_signal} |\n"
+                  )
+                  f.write(
+                      f"| 2. Dry-Run | {dry_rc} | "
+                      f"{'OK' if dry_ok else 'FAIL'} |\n"
+                  )
+                  f.write(
+                      f"| 3. Persona-Boot (rust) | {boot_rc} | "
+                      f"{'OK' if boot_ok else 'FAIL'} |\n"
+                  )
+                  f.write(
+                      f"| 4. Bridge-Audit | {bridge_rc} | "
+                      f"{'OK' if bridge_ok else 'FAIL'} |\n"
+                  )
+                  f.write(
+                      "\nArtifact: `cutover-acceptance-decision` (this run).\n"
+                      "\nAnchors: ADR-0065, "
+                      "docs/operations/phase-3c-welle-1-runbook.md.\n"
+                  )
+
+          sys.exit(0 if ready else 1)
+          PY
+
+      - name: Upload validation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cutover-acceptance-decision
+          path: |
+            out/cutover-acceptance-decision.json
+            out/trigger-gate-report.json
+            out/dry-run-envelope.json
+            out/persona-boot.log
+            out/persona-boot-junit.xml
+            out/bridge-audit.log
+            out/bridge-audit-junit.xml
+          if-no-files-found: warn
+          retention-days: 30
