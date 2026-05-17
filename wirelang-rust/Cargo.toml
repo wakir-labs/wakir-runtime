@@ -108,6 +108,7 @@ members = [
     "crates/persona-engine-subscribe-loop",
     "crates/persona-engine-recovery",
     "crates/persona-engine-v907-verify",
+    "crates/persona-engine-fsm",
 ]
 
 [workspace.package]
