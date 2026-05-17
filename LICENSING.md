@@ -25,6 +25,15 @@ the authoritative copies are in the sibling repos above.
 
 ## Path-to-License Map
 
+The authoritative path-to-license map. Each row is enforced by the
+`tests/infra/test_licensing_md_state.py` hermetic test suite (every
+BSL sub-tree listed below must carry a `LICENSE-BSL.md` file at the
+named path; every Apache-2.0 carve-out within a BSL sub-tree must
+exist on disk; every Rust workspace crate must default to the
+workspace `license = "Apache-2.0"` field).
+
+### Python / runtime tree
+
 | Path | License |
 |---|---|
 | `wirelang/` except listed BSL modules | Apache-2.0 (mirrored from `wakir-labs/wakir-protocol`) |
@@ -33,9 +42,27 @@ the authoritative copies are in the sibling repos above.
 | `wat/merkle/` Read-Half (`__init__.py`, `aggregator.py`) | Apache-2.0 (mirrored from `wakir-labs/wakir-verify` per ADR-0062 Cut-1) |
 | `wirelang/federation/` | BUSL-1.1 |
 | `wirelang/persona_engine/` | BUSL-1.1 |
+
+### Infrastructure sub-trees
+
+| Path | License |
+|---|---|
 | `infra/spire/federation/` | BUSL-1.1 |
+| `infra/spire/federation/provisioner/` | BUSL-1.1 (own sub-tree per ADR-0058; carries its own `LICENSE-BSL.md` with Change-Date 2030-05-13) |
 | `infra/spire/agent/` | BUSL-1.1 |
 | `infra/persona-engine/` | BUSL-1.1 |
+
+### Rust workspace
+
+| Path | License |
+|---|---|
+| `wirelang-rust/` workspace default | Apache-2.0 (`[workspace.package] license = "Apache-2.0"`) |
+| `wirelang-rust/crates/*/` (all crates) | Apache-2.0 (per-crate `license.workspace = true` or explicit `license = "Apache-2.0"`) |
+
+### Documentation, tooling, tests
+
+| Path | License |
+|---|---|
 | `docs/` specs/runbooks where marked | CC-BY-4.0 |
 | `tooling/` | Apache-2.0 unless otherwise marked |
 | `tests/` | follows subject under test |

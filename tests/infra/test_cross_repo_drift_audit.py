@@ -222,8 +222,10 @@ def test_tv_crd_03_byte_drift_is_allowed_when_pair_on_allowlist(synthetic_pair):
     """TV-CRD-03: same drift, but the (runtime, protocol) pair is on
     the allowlist -> ``drift-allowed`` (SPDX-header-track use case)."""
     runtime, protocol = synthetic_pair
+    # REUSE-IgnoreStart
     (runtime / "spdx.txt").write_text("SPDX-License-Identifier: BUSL-1.1\n", encoding="utf-8")
     (protocol / "spdx.txt").write_text("SPDX-License-Identifier: Apache-2.0\n", encoding="utf-8")
+    # REUSE-IgnoreEnd
 
     status = _compare_pair(
         runtime, protocol, "spdx.txt", "spdx.txt",

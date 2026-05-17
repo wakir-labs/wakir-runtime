@@ -179,6 +179,49 @@ Empty hours short-circuit cleanly: `wakir-merkle build` emits a
 manifest with `merkle_root: null` and the hourly driver
 (`scripts/wat-hourly.sh`) skips the anchor step.
 
+## One-command proof demo (`make demo-proof`)
+
+The repository ships a single-command cross-repo evidence chain
+driver intended for external-audit walk-throughs and Aufsichtsrat
+demos. It runs five steps end-to-end and emits one JSON report:
+
+1. **protocol event** — materialise a B1-canonical Wirelang frame
+   (deterministic `event_id`, `time`, `payload_hash`,
+   `capability_token_hash`).
+2. **runtime bridge** — push the event through
+   `wat.anchor.bridge_audit_writer.write_bridge_audit`, exercising
+   both the WAT spool and the Pre-Framework activity-log sinks.
+3. **WAT manifest** — drive `wakir-merkle build` against the spool
+   and emit the hourly manifest with the Merkle root.
+4. **inclusion proof** — rebuild the per-event inclusion proof from
+   the manifest's recorded leaf order and verify it against the
+   stored root using the in-tree merkle implementation.
+5. **wakir-verify cross-check** — shell out to the sibling
+   `wakir-verify` console script (Apache-2.0); falls back to a
+   fixture-based root re-derivation when the binary is not installed.
+
+```sh
+make demo-proof
+```
+
+By default the script runs in a per-PID tmpdir and pins the hour
+slot to a deterministic value for reproducibility. Override via
+environment for operator-driven full runs:
+
+```sh
+DEMO_PROOF_WORKDIR=/var/tmp/wakir-demo-proof \
+DEMO_PROOF_HOUR=2026-05-17T12 \
+DEMO_PROOF_VERIFY_ONLINE=1 \
+DEMO_PROOF_OTS_PROOF=/path/to/root.bin.ots \
+make demo-proof
+```
+
+The JSON report has shape `{schema, hour, workdir, commits, steps[]}`
+with one step record per leg (`name`, `status`, `exit_code`,
+`details`). Exit code 0 = clean pass; non-zero = at least one step
+failed or was skipped. See `docs/operations/demo-proof-runbook.md`
+for the operator walkthrough.
+
 ## WAT hourly operations
 
 Two systemd timer templates land under `scripts/systemd/`. The
@@ -380,25 +423,55 @@ nested payloads. Each vector ships with a pre-computed
 
 ## Repository layout
 
+The Wakir Runtime is a **mixed-license, BUSL-dominant** monorepo. The
+table below names every top-level sub-tree with its authoritative
+license; the per-file SPDX headers and `REUSE.toml` annotations are
+the machine-readable source of truth, and `LICENSING.md` is the human-
+readable consolidation. The hermetic suite
+`tests/infra/test_licensing_md_state.py` enforces that the three stay
+in lock-step.
+
 ```
-wat/            — Wakir Audit Trail module (BUSL-1.1)
-wirelang/       — runtime-internal modules (BUSL-1.1) plus
-                  transitional Apache-2.0 sources mirrored from
-                  wakir-protocol
-tooling/        — CI/CD helpers              (Apache-2.0)
-scripts/        — setup and maintenance      (Apache-2.0)
-tests/          — test suite                 (Apache-2.0)
-docs/           — Markdown documentation     (CC-BY-4.0)
+wat/             — Wakir Audit Trail module       (BUSL-1.1, see wat/LICENSE-BSL.md)
+                   ├── wat/anchor/external_verifier/  Apache-2.0 carve-out (ADR-0062 Cut-1 mirror)
+                   └── wat/merkle/ Read-Half         Apache-2.0 carve-out (__init__.py, aggregator.py)
+wirelang/        — Wirelang Python package        (Apache-2.0 default, mirrored from wakir-protocol)
+                   ├── wirelang/federation/          BUSL-1.1
+                   └── wirelang/persona_engine/      BUSL-1.1
+infra/           — Infrastructure substrate       (mixed)
+                   ├── infra/spire/federation/       BUSL-1.1
+                   ├── infra/spire/federation/provisioner/  BUSL-1.1 (ADR-0058, own LICENSE-BSL.md)
+                   ├── infra/spire/agent/            BUSL-1.1
+                   └── infra/persona-engine/         BUSL-1.1
+wirelang-rust/   — Rust workspace                 (Apache-2.0, workspace default)
+                   └── wirelang-rust/crates/*/       Apache-2.0 (per-crate license.workspace = true)
+tooling/         — CI/CD helpers                  (Apache-2.0)
+scripts/         — setup and maintenance          (Apache-2.0)
+tests/           — test suite                     (follows subject under test)
+docs/            — Markdown documentation         (CC-BY-4.0 where marked)
 ```
 
 ## License
 
-This repository is mixed-license. Apache-2.0 is the default for
-foundation code and verifier tooling. Selected operational
-modules are licensed under BUSL-1.1 and convert to Apache-2.0 on
-their stated Change Date. Documentation is CC-BY-4.0 where
-marked. See [LICENSING.md](./LICENSING.md) for the authoritative
-map.
+This repository is **mixed-license, BUSL-dominant**. Apache-2.0 is the
+default for foundation code, the Wirelang protocol-layer mirror, and
+the Rust workspace. The following operational sub-trees ship under
+**Business Source License 1.1 (BUSL-1.1)** with a four-year auto-
+convert to Apache-2.0 per their Change-Date:
+
+- `wat/` (WAT Pipeline-Server; Change-Date 2030-05-07)
+- `wirelang/federation/` (Federation runtime modules)
+- `wirelang/persona_engine/` (V-907 Persona-Engine)
+- `infra/spire/federation/` (SPIRE Federation substrate)
+- `infra/spire/federation/provisioner/` (Provisioner image; Change-Date 2030-05-13, own LICENSE-BSL.md per ADR-0058)
+- `infra/spire/agent/` (SPIRE Agent runtime config)
+- `infra/persona-engine/` (Persona-Engine container substrate)
+
+Documentation files in `docs/` are CC-BY-4.0 where marked. Apache-2.0
+carve-outs within the BUSL-1.1 `wat/` sub-tree (the offline brand-proof
+verifier mirror and the Merkle-read-half) are listed explicitly in
+[LICENSING.md](./LICENSING.md), which is the **authoritative
+path-to-license map**.
 
 See [NOTICE](NOTICE) for the attribution required by Apache-2.0,
 [GOVERNANCE.md](./GOVERNANCE.md) for the human-governance

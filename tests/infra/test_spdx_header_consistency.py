@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
+# REUSE-IgnoreStart
 """SPDX header consistency for Phase-2-Federation BSL sub-trees.
 
 Asserts that every substance file in the four BSL sub-trees activated
@@ -21,6 +22,7 @@ Tests (the "Test-Files folgen Subjekt-Lizenz" rule of ADR-0059)
 are also required to carry ``BUSL-1.1`` when they exercise a BSL
 subject.
 """
+# REUSE-IgnoreEnd
 from __future__ import annotations
 
 from pathlib import Path
@@ -173,10 +175,11 @@ def _read_head(path: Path, bytes_: int = 4096) -> str:
     + OPERATOR_TOOLING_BSL_SOURCES,
 )
 def test_substance_file_carries_busl_header(rel: str) -> None:
-    """Every BSL substance file must carry ``SPDX-License-Identifier: BUSL-1.1``."""
+    """Assert every BSL substance file carries the canonical BSL marker."""
     path = REPO_ROOT / rel
     assert path.exists(), f"{rel} not found at repo root {REPO_ROOT}"
     head = _read_head(path)
+    # REUSE-IgnoreStart
     assert "SPDX-License-Identifier: BUSL-1.1" in head, (
         f"{rel} is missing the BUSL-1.1 SPDX marker. "
         f"ADR-0059 requires every Federation-Server substance file to be BSL."
@@ -185,6 +188,7 @@ def test_substance_file_carries_busl_header(rel: str) -> None:
         f"{rel} still carries an Apache-2.0 SPDX marker alongside BUSL-1.1. "
         f"Remove the Apache marker — the file is BSL, not dual-licensed."
     )
+    # REUSE-IgnoreEnd
 
 
 @pytest.mark.parametrize("rel", BSL_TEST_SOURCES)
@@ -196,10 +200,12 @@ def test_bsl_subject_test_carries_busl_header(rel: str) -> None:
     path = REPO_ROOT / rel
     assert path.exists(), f"{rel} not found at repo root {REPO_ROOT}"
     head = _read_head(path)
+    # REUSE-IgnoreStart
     assert "SPDX-License-Identifier: BUSL-1.1" in head, (
         f"{rel} exercises a BSL subject and must carry BUSL-1.1 itself. "
         f"See ADR-0059 §Test-Files folgen Subjekt-Lizenz."
     )
+    # REUSE-IgnoreEnd
 
 
 def test_brand_proof_verifier_remains_apache() -> None:
@@ -214,6 +220,7 @@ def test_brand_proof_verifier_remains_apache() -> None:
     )
     for path in py_files:
         head = _read_head(path)
+        # REUSE-IgnoreStart
         assert "SPDX-License-Identifier: Apache-2.0" in head, (
             f"{path.relative_to(REPO_ROOT)} should be Apache-2.0 per ADR-0023b "
             f"(Brand-Proof-redistributable carve-out), but its SPDX header is "
@@ -223,6 +230,7 @@ def test_brand_proof_verifier_remains_apache() -> None:
             f"{path.relative_to(REPO_ROOT)} carries a BUSL-1.1 marker — the "
             f"Brand-Proof verifier must stay Apache-2.0 (ADR-0023b)."
         )
+        # REUSE-IgnoreEnd
 
 
 def test_bsl_unit_license_files_exist() -> None:

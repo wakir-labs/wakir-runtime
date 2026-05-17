@@ -442,15 +442,17 @@ def test_containerfile_entrypoint_targets_writer_binary() -> None:
 
 def test_containerfile_busl_licence_header() -> None:
     # Cross-substrate licence-discipline parity with the V907-verify
-    # and SVID-workload-identity Containerfiles. The BUSL-1.1 shared
+    # and SVID-workload-identity Containerfiles. The shared BUSL
     # licence file lives under ../persona-engine/LICENSE-BSL.md; the
     # Containerfile must reference it so an operator chasing the
     # licence chain finds the canonical anchor.
     txt = CONTAINERFILE.read_text(encoding="utf-8")
+    # REUSE-IgnoreStart
     assert "SPDX-License-Identifier: BUSL-1.1" in txt, (
         "Containerfile must declare SPDX-License-Identifier: BUSL-1.1 "
         "(parity with the persona-engine image-build licence-discipline)"
     )
+    # REUSE-IgnoreEnd
     assert "LICENSE-BSL.md" in txt, (
         "Containerfile must reference the shared LICENSE-BSL.md anchor"
     )

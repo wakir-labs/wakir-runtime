@@ -74,11 +74,13 @@ def _seed_switch_module(repo: Path, resolvers: List[str]) -> None:
 
     dst = repo / agg.PATH_RUST_BACKEND_SWITCH
     dst.parent.mkdir(parents=True, exist_ok=True)
+    # REUSE-IgnoreStart
     body_lines = [
         "# SPDX-License-Identifier: BUSL-1.1",
         '"""Fake module — test fixture."""',
         "",
     ]
+    # REUSE-IgnoreEnd
     for name in resolvers:
         body_lines.append(f"def {name}(*args, **kwargs):")
         body_lines.append("    return None")

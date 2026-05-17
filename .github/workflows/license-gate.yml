@@ -92,6 +92,8 @@ on:
       - "wirelang-rust/**"
       - "tests/infra/test_spdx_header_consistency.py"
       - "tests/infra/test_license_hygiene_consistency.py"
+      - "tests/infra/test_licensing_md_state.py"
+      - "REUSE.toml"
   pull_request:
     paths:
       - "**/*.py"
@@ -110,6 +112,8 @@ on:
       - "wirelang-rust/**"
       - "tests/infra/test_spdx_header_consistency.py"
       - "tests/infra/test_license_hygiene_consistency.py"
+      - "tests/infra/test_licensing_md_state.py"
+      - "REUSE.toml"
   workflow_dispatch: {}
 
 permissions:
@@ -173,6 +177,16 @@ jobs:
         # the test-vector matrix.
         run: |
           python -m pytest tests/infra/test_license_hygiene_consistency.py -v --tb=short
+
+      - name: Stage 3b — LICENSING.md state audit (Tag-31 EXT-AUDIT-FOLGE)
+        # State-audit cross-referencing LICENSING.md ↔ on-disk BSL
+        # sub-trees ↔ REUSE.toml ↔ pyproject.toml license-files. Adds
+        # `wirelang-rust/` workspace coverage and README repository-
+        # layout enforcement on top of the existing hygiene-consistency
+        # check. See `tests/infra/test_licensing_md_state.py` for the
+        # test-vector matrix.
+        run: |
+          python -m pytest tests/infra/test_licensing_md_state.py -v --tb=short
 
       - name: Stage 4 — Draft-wording scan
         # Bash-level safety net for new LICENSE-BSL.md files that the

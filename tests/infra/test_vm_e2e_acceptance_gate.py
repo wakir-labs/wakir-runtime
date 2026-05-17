@@ -555,9 +555,11 @@ def test_harness_scripts_carry_busl_header(rel: str) -> None:
     assert path.exists(), f"missing harness file: {rel}"
     head = path.read_text(encoding="utf-8", errors="replace").splitlines()[:15]
     head_text = "\n".join(head)
+    # REUSE-IgnoreStart
     assert "SPDX-License-Identifier: BUSL-1.1" in head_text, (
         f"{rel} must carry BUSL-1.1 per ADR-0059 + sprint-9-tag-5 brief"
     )
+    # REUSE-IgnoreEnd
 
 
 # ---------------------------------------------------------------------------
