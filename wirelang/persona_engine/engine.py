@@ -382,6 +382,7 @@ class PersonaEngine:
         # the engine just records the decision so the Doppelbetrieb-
         # comparison set has a deterministic per-boot anchor.
         from .rust_backend_switch import (
+            resolve_bridge_diff_backend,
             resolve_fsm_backend,
             resolve_recovery_backend,
             resolve_v907_verify_backend,
@@ -441,6 +442,34 @@ class PersonaEngine:
                 "level": "ERROR",
                 "msg": "backend-switch-validation-failed",
                 "domain": "v907_verify",
+                "error": str(exc),
+            })
+            raise
+        # Tag-20: resolve bridge-diff-backend choice up-front, parallel
+        # to recovery + state_backing + fsm + v907_verify. Default is
+        # python (current behaviour, opt-in switch). Bridge-diff is the
+        # Doppelbetrieb-comparison oracle (Phase-3a/3b cross-lang parity
+        # gate) — the per-decision audit-record is critical for the
+        # Phase-3b comparison set because any silent drift between
+        # Python and Rust diff outputs would corrupt the entire
+        # Doppelbetrieb truth claim. The engine keeps the Python
+        # authority active during Phase-3b; Phase-3c cutover (out of
+        # scope here) swaps in the Rust subprocess-bridge via
+        # :func:`build_bridge_diff`. This is the **5th** BackendDecision
+        # record emitted per boot (Tag-17 recovery + state_backing +
+        # Tag-18 fsm + Tag-19 v907_verify + Tag-20 bridge_diff).
+        try:
+            (
+                self._bridge_diff_backend,
+                self._bridge_diff_backend_decision,
+            ) = resolve_bridge_diff_backend(
+                env=None, log_sink=self.log_sink
+            )
+        except Exception as exc:  # noqa: BLE001 — strict env-validation
+            self._log({
+                "level": "ERROR",
+                "msg": "backend-switch-validation-failed",
+                "domain": "bridge_diff",
                 "error": str(exc),
             })
             raise

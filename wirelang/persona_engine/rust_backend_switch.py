@@ -1,19 +1,23 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""ENV-gated production-default switch for Rust recovery + state-backing + FSM + V907-verify.
+"""ENV-gated production-default switch for Rust recovery + state-backing + FSM + V907-verify + bridge-diff.
 
-Tag-17 / Tag-18 / Tag-19 Mini-Welle — Phase-3b-Substanz. The Rust crates
+Tag-17 / Tag-18 / Tag-19 / Tag-20 Mini-Welle — Phase-3b-Substanz. The
+Rust crates
 ``persona-engine-recovery`` (PR #135),
 ``persona-engine-state-backing`` (PR #140),
-``persona-engine-fsm`` (PR #137), and
-``persona-engine-v907-verify`` (PR #136) are production-ready as
+``persona-engine-fsm`` (PR #137),
+``persona-engine-v907-verify`` (PR #136), and
+``persona-engine-bridge-diff`` (PR #131) are production-ready as
 schema-byte-parity substrates of their Python pendants
 (:mod:`wirelang.persona_engine.recovery_workflow`,
 :mod:`wirelang.persona_engine.state_backing`,
-:mod:`wirelang.persona_engine.lifecycle_state_machine`, and
-:mod:`wirelang.persona_engine.v907_verify`). This module exposes the
-**production-default switch** — operators flip an env-var to opt into
-the Rust subprocess-bridge without disrupting the Python hot-path.
+:mod:`wirelang.persona_engine.lifecycle_state_machine`,
+:mod:`wirelang.persona_engine.v907_verify`, and
+:mod:`wirelang.persona_engine.bridge_audit_diff_engine`). This module
+exposes the **production-default switch** — operators flip an env-var
+to opt into the Rust subprocess-bridge without disrupting the Python
+hot-path.
 
 Tag-19 anchor — V-907 is the hash-determinism anchor
 -----------------------------------------------------
@@ -25,6 +29,21 @@ authority and the Rust subprocess-bridge would silently corrupt the
 audit-trail. The Tag-19 wire-up therefore adds a hard byte-identity
 gate (all-pin-pack-vectors-rust-verified) on top of the same
 production-default-switch posture as Tag-17/Tag-18.
+
+Tag-20 anchor — Bridge-Diff is the Doppelbetrieb oracle
+--------------------------------------------------------
+
+The bridge-diff engine is the Phase-3a/3b Doppelbetrieb comparison
+oracle: it canonicalises (RFC 8785 JCS), hashes (SHA-256), and field-
+level diffs (RFC 6901) CloudEvent envelopes emitted by two
+implementations of the same emission. Any drift in the canonicaliser,
+the hash, the field-walker, or the sort order surfaces in the audit-
+trail — making this the **integrity oracle** for the entire Phase-3a
+cross-language parity story. The Tag-20 wire-up therefore adds a hard
+byte-identity gate across **all six cross-lang field-pin vectors**
+(see ``cross_lang_field_diff_fixtures.json`` and PR #166's emitter
+test) on top of the same production-default-switch posture as
+Tag-17/Tag-18/Tag-19.
 
 Posture
 -------
@@ -84,6 +103,19 @@ log warning when the binary is not callable.
   to ``"python"`` with a structured-log warning when the binary
   is not callable.
 
+``WAKIR_BRIDGE_DIFF_BACKEND``:
+
+* ``"python"`` (default) — Python
+  :mod:`wirelang.persona_engine.bridge_audit_diff_engine`
+  (PR #106, Doppelbetrieb comparison oracle: JCS + SHA-256 +
+  RFC-6901 field-paths).
+* ``"rust"`` — Rust-CLI subprocess-bridge against the
+  ``persona-engine-bridge-diff`` crate (PR #131, byte-identical
+  hash output AND byte-identical RFC-6901 field-path entries
+  verified against all six cross-lang field-pin vectors, see PR
+  #166). Falls back to ``"python"`` with a structured-log
+  warning when the binary is not callable.
+
 ``WAKIR_RUST_RECOVERY_BIN``:
 
 * Absolute path to the Rust recovery binary. Default
@@ -103,6 +135,11 @@ log warning when the binary is not callable.
 
 * Absolute path to the Rust V907-verify binary. Default
   ``/opt/wakir/bin/wakir-persona-engine-v907-verify``.
+
+``WAKIR_RUST_BRIDGE_DIFF_BIN``:
+
+* Absolute path to the Rust bridge-diff binary. Default
+  ``/opt/wakir/bin/wakir-persona-engine-bridge-diff``.
 
 ``WAKIR_RUST_BACKEND_TIMEOUT_S``:
 
@@ -174,10 +211,12 @@ RECOVERY_BACKEND_ENV = "WAKIR_RECOVERY_BACKEND"
 STATE_BACKING_BACKEND_ENV = "WAKIR_STATE_BACKING_BACKEND"
 FSM_BACKEND_ENV = "WAKIR_FSM_BACKEND"
 V907_VERIFY_BACKEND_ENV = "WAKIR_V907_VERIFY_BACKEND"
+BRIDGE_DIFF_BACKEND_ENV = "WAKIR_BRIDGE_DIFF_BACKEND"
 RUST_RECOVERY_BIN_ENV = "WAKIR_RUST_RECOVERY_BIN"
 RUST_STATE_BACKING_BIN_ENV = "WAKIR_RUST_STATE_BACKING_BIN"
 RUST_FSM_BIN_ENV = "WAKIR_RUST_FSM_BIN"
 RUST_V907_VERIFY_BIN_ENV = "WAKIR_RUST_V907_VERIFY_BIN"
+RUST_BRIDGE_DIFF_BIN_ENV = "WAKIR_RUST_BRIDGE_DIFF_BIN"
 RUST_BACKEND_TIMEOUT_ENV = "WAKIR_RUST_BACKEND_TIMEOUT_S"
 
 DEFAULT_RUST_RECOVERY_BIN = "/opt/wakir/bin/wakir-persona-engine-recovery"
@@ -186,6 +225,7 @@ DEFAULT_RUST_STATE_BACKING_BIN = (
 )
 DEFAULT_RUST_FSM_BIN = "/opt/wakir/bin/wakir-persona-engine-fsm"
 DEFAULT_RUST_V907_VERIFY_BIN = "/opt/wakir/bin/wakir-persona-engine-v907-verify"
+DEFAULT_RUST_BRIDGE_DIFF_BIN = "/opt/wakir/bin/wakir-persona-engine-bridge-diff"
 DEFAULT_RUST_BACKEND_TIMEOUT_S = 5.0
 
 
@@ -230,12 +270,29 @@ class V907VerifyBackend(str, Enum):
     RUST = "rust"
 
 
+class BridgeDiffBackend(str, Enum):
+    """Closed enum of valid ``WAKIR_BRIDGE_DIFF_BACKEND`` values.
+
+    Doppelbetrieb-oracle anchor: the Python authority is
+    :mod:`wirelang.persona_engine.bridge_audit_diff_engine` (PR #106,
+    JCS + SHA-256 + RFC-6901 field-paths). The Rust pendant is the
+    ``persona-engine-bridge-diff`` crate (PR #131, byte-identical
+    hash output AND byte-identical RFC-6901 field-path entries
+    verified against all six cross-lang field-pin vectors per
+    ``cross_lang_field_diff_fixtures.json`` / PR #166).
+    """
+
+    PYTHON = "python"
+    RUST = "rust"
+
+
 VALID_RECOVERY_BACKEND_VALUES = tuple(b.value for b in RecoveryBackend)
 VALID_STATE_BACKING_BACKEND_VALUES = tuple(
     b.value for b in StateBackingBackend
 )
 VALID_FSM_BACKEND_VALUES = tuple(b.value for b in FsmBackend)
 VALID_V907_VERIFY_BACKEND_VALUES = tuple(b.value for b in V907VerifyBackend)
+VALID_BRIDGE_DIFF_BACKEND_VALUES = tuple(b.value for b in BridgeDiffBackend)
 
 
 # ---------------------------------------------------------------------------
@@ -438,6 +495,13 @@ def _resolve_v907_verify_bin(
     return explicit if explicit else DEFAULT_RUST_V907_VERIFY_BIN
 
 
+def _resolve_bridge_diff_bin(
+    env: Optional[Mapping[str, str]] = None,
+) -> str:
+    explicit = _env_get(RUST_BRIDGE_DIFF_BIN_ENV, env)
+    return explicit if explicit else DEFAULT_RUST_BRIDGE_DIFF_BIN
+
+
 def _binary_available(bin_path: str) -> tuple[bool, Optional[str]]:
     """Return ``(available, fallback_reason)``.
 
@@ -532,6 +596,25 @@ def _validate_v907_verify_backend(
             VALID_V907_VERIFY_BACKEND_VALUES,
         )
     return V907VerifyBackend(value)
+
+
+def _validate_bridge_diff_backend(
+    value: Optional[str],
+) -> BridgeDiffBackend:
+    """Validate a ``WAKIR_BRIDGE_DIFF_BACKEND`` value (or ``None``).
+
+    Empty / missing values default to ``BridgeDiffBackend.PYTHON``.
+    Non-empty unknown values raise :class:`BackendSwitchValidationError`.
+    """
+    if value is None or value == "":
+        return BridgeDiffBackend.PYTHON
+    if value not in VALID_BRIDGE_DIFF_BACKEND_VALUES:
+        raise BackendSwitchValidationError(
+            BRIDGE_DIFF_BACKEND_ENV,
+            value,
+            VALID_BRIDGE_DIFF_BACKEND_VALUES,
+        )
+    return BridgeDiffBackend(value)
 
 
 # ---------------------------------------------------------------------------
@@ -884,6 +967,108 @@ def resolve_v907_verify_backend(
         bin_path,
     )
     return V907VerifyBackend.PYTHON, decision
+
+
+def resolve_bridge_diff_backend(
+    env: Optional[Mapping[str, str]] = None,
+    *,
+    log_sink: Optional[TextIO] = None,
+    binary_probe: Optional[Callable[[str], tuple[bool, Optional[str]]]] = None,
+) -> tuple[BridgeDiffBackend, BackendDecision]:
+    """Resolve the bridge-diff backend per env-var + binary availability.
+
+    Tag-20 Mini-Welle — 5th production-default switch component
+    (parallel to :func:`resolve_recovery_backend`,
+    :func:`resolve_state_backing_backend`,
+    :func:`resolve_fsm_backend`, and
+    :func:`resolve_v907_verify_backend`). The Python authority is
+    :mod:`wirelang.persona_engine.bridge_audit_diff_engine` (PR #106,
+    Doppelbetrieb comparison oracle: JCS + SHA-256 + RFC-6901 field-
+    paths). The Rust pendant is the ``persona-engine-bridge-diff``
+    crate (PR #131, byte-identical hash output AND byte-identical
+    RFC-6901 field-path entries verified against all six cross-lang
+    field-pin vectors).
+
+    Returns a ``(chosen_backend, decision)`` tuple. The decision
+    object is also logged via :func:`log_backend_decision`.
+
+    Same posture as :func:`resolve_recovery_backend`: default is
+    Python, ``rust`` requested + binary missing falls back to Python
+    with a structured-log warning. Critical anchor: bridge-diff is
+    the Doppelbetrieb oracle (Phase-3a/3b cross-lang parity gate) —
+    the per-decision audit-record is essential for the Phase-3b
+    comparison set, because any silent drift between Python and Rust
+    diff outputs would corrupt the entire Doppelbetrieb truth claim.
+
+    Parameters
+    ----------
+    env
+        Env-var mapping; defaults to :data:`os.environ`.
+    log_sink
+        Optional structured-log sink. If provided, the decision is
+        also written as a single JSON line.
+    binary_probe
+        Test-injection seam. Defaults to :func:`_binary_available`.
+
+    Raises
+    ------
+    BackendSwitchValidationError
+        On unknown env-var values.
+    """
+    start = time.perf_counter()
+    raw_value = _env_get(BRIDGE_DIFF_BACKEND_ENV, env)
+    requested = _validate_bridge_diff_backend(raw_value)
+
+    if requested is BridgeDiffBackend.PYTHON:
+        latency_us = int((time.perf_counter() - start) * 1_000_000)
+        decision = BackendDecision(
+            domain="bridge_diff",
+            requested_backend=requested.value,
+            chosen_backend=BridgeDiffBackend.PYTHON.value,
+            resolution_latency_us=latency_us,
+            fallback_reason=(
+                "explicit_python" if raw_value == "python" else None
+            ),
+            bin_path=None,
+        )
+        log_backend_decision(decision, log_sink=log_sink)
+        return BridgeDiffBackend.PYTHON, decision
+
+    # Requested == RUST.
+    bin_path = _resolve_bridge_diff_bin(env)
+    probe = binary_probe or _binary_available
+    available, fallback_reason = probe(bin_path)
+    if available:
+        latency_us = int((time.perf_counter() - start) * 1_000_000)
+        decision = BackendDecision(
+            domain="bridge_diff",
+            requested_backend=requested.value,
+            chosen_backend=BridgeDiffBackend.RUST.value,
+            resolution_latency_us=latency_us,
+            fallback_reason=None,
+            bin_path=bin_path,
+        )
+        log_backend_decision(decision, log_sink=log_sink)
+        return BridgeDiffBackend.RUST, decision
+
+    # Graceful fallback to Python.
+    latency_us = int((time.perf_counter() - start) * 1_000_000)
+    decision = BackendDecision(
+        domain="bridge_diff",
+        requested_backend=requested.value,
+        chosen_backend=BridgeDiffBackend.PYTHON.value,
+        resolution_latency_us=latency_us,
+        fallback_reason=fallback_reason,
+        bin_path=bin_path,
+    )
+    log_backend_decision(decision, log_sink=log_sink)
+    log.warning(
+        "rust_backend_switch bridge_diff requested=rust but binary "
+        "unavailable (%s @ %s); falling back to python",
+        fallback_reason,
+        bin_path,
+    )
+    return BridgeDiffBackend.PYTHON, decision
 
 
 # ---------------------------------------------------------------------------
@@ -1839,32 +2024,429 @@ class _PythonV907VerifyAdapter:
         return V907SubprocessResult(pin=pin, mode="real", matched=matched)
 
 
+# ---------------------------------------------------------------------------
+# Subprocess-bridge: bridge-diff (JCS + SHA-256 + RFC-6901 field-paths).
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class BridgeDiffSubprocessFieldDiff:
+    """One RFC-6901 field-path diff entry returned by the bridge.
+
+    Mirrors
+    :class:`wirelang.persona_engine.bridge_audit_diff_engine.FieldDiff`
+    byte-for-byte so callers can treat the two backends interchangeably.
+    The ``kind`` field carries the wire-string (``"value-mismatch"``,
+    ``"only-in-a"``, ``"only-in-b"``, ``"type-mismatch"``) rather than
+    an enum so the bridge surface is JSON-serialisable without
+    additional translation.
+    """
+
+    path: str
+    kind: str
+    value_a: Any = None
+    value_b: Any = None
+
+
+@dataclass(frozen=True)
+class BridgeDiffSubprocessReport:
+    """Result envelope for the bridge-diff subprocess-bridge.
+
+    Mirrors
+    :class:`wirelang.persona_engine.bridge_audit_diff_engine.DiffReport`
+    byte-for-byte (minus the ``envelope_a`` / ``envelope_b`` echo,
+    which the caller already holds). Fast-path: when ``byte_identical``
+    is True, ``field_diffs`` is empty and ``consistency_score`` is 1.0.
+    """
+
+    byte_identical: bool
+    jcs_hash_a: str
+    jcs_hash_b: str
+    field_diffs: tuple
+    consistency_score: float
+
+
+class RustSubprocessBridgeDiff:
+    """Subprocess-bridge persona-engine bridge-diff.
+
+    Delegates ``jcs_hash`` / ``diff_envelopes`` / ``compare`` to a
+    Rust-CLI subprocess against the ``persona-engine-bridge-diff``
+    crate (PR #131). JSON-stdin carries the operation kind + arguments;
+    JSON-stdout carries the response.
+
+    Schema-byte-parity contract (mirror of
+    :mod:`wirelang.persona_engine.bridge_audit_diff_engine`):
+
+    - JCS canonicalisation: RFC 8785 via ``serde_jcs`` (Rust) /
+      :mod:`wirelang.identity._jcs_pure` (Python) — byte-identical.
+    - Hash: SHA-256 over JCS bytes; prefix ``"sha256:"`` + 64 hex.
+    - Field-paths: RFC-6901 (leading slash, ``~`` -> ``~0``,
+      ``/`` -> ``~1``); root envelope is ``""``.
+    - Diff-kind alphabet: ``"value-mismatch"`` | ``"only-in-a"`` |
+      ``"only-in-b"`` | ``"type-mismatch"``.
+    - Sort order: field diffs sorted ascending by RFC-6901 path.
+
+    Wire-format:
+
+    Stdin JSON:
+        ``{"schema": "wakir.persona-engine.bridge-diff/1",
+        "op": "<op>", "payload": {...}}``
+
+    Operations:
+
+    - ``jcs_hash`` — input ``{envelope: <json>}``;
+      response ``{hash: "sha256:..."}``.
+    - ``diff_envelopes`` — input ``{envelope_a: <json>,
+      envelope_b: <json>}``;
+      response ``{field_diffs: [{path, kind, value_a, value_b}, ...]}``.
+    - ``compare`` — input ``{envelope_a: <json>, envelope_b: <json>}``;
+      response ``{byte_identical: bool, jcs_hash_a: str, jcs_hash_b: str,
+      field_diffs: [...], consistency_score: float}``.
+
+    Construction is cheap; per-call overhead is one subprocess spawn.
+
+    Tag-20 posture
+    --------------
+    This binding is the *opt-in* path: ``WAKIR_BRIDGE_DIFF_BACKEND=rust``
+    + available binary. Default and missing-binary fallback stay on
+    the Python authority. The engine wire-in (Tag-20) records the
+    backend decision but keeps the Python authority active during
+    Phase-3b Doppelbetrieb — the bridge is exercised by the tests
+    and the future Phase-3c cutover. Cross-lang field-pin parity is
+    gated by the six fixture-pinned vectors per
+    ``cross_lang_field_diff_fixtures.json`` (PR #166).
+    """
+
+    def __init__(
+        self,
+        *,
+        bin_path: Optional[str] = None,
+        timeout_s: Optional[float] = None,
+        env: Optional[Mapping[str, str]] = None,
+        subprocess_invoker: Optional[Callable] = None,
+    ) -> None:
+        self.bin_path: str = (
+            bin_path if bin_path is not None
+            else _resolve_bridge_diff_bin(env)
+        )
+        self.timeout_s: float = (
+            timeout_s if timeout_s is not None else _resolve_timeout_s(env)
+        )
+        self._invoker: Callable = (
+            subprocess_invoker or _invoke_rust_subprocess
+        )
+
+    def _call(self, op: str, payload: dict) -> dict:
+        stdin_doc = {
+            "schema": "wakir.persona-engine.bridge-diff/1",
+            "op": op,
+            "payload": payload,
+        }
+        stdin_bytes = json.dumps(
+            stdin_doc, sort_keys=True, ensure_ascii=False
+        ).encode("utf-8")
+        rc, stdout, stderr = self._invoker(
+            self.bin_path,
+            ["bridge-diff", "--json"],
+            stdin_payload=stdin_bytes,
+            timeout_s=self.timeout_s,
+        )
+        if rc != 0:
+            raise RustBackendError(
+                reason="exit_nonzero",
+                bin_path=self.bin_path,
+                returncode=rc,
+                stdout=stdout,
+                stderr=stderr,
+            )
+        try:
+            parsed = json.loads(stdout)
+        except json.JSONDecodeError as exc:
+            raise RustBackendError(
+                reason="bad_json",
+                bin_path=self.bin_path,
+                returncode=rc,
+                stdout=stdout,
+                stderr=stderr,
+            ) from exc
+        if not isinstance(parsed, dict):
+            raise RustBackendError(
+                reason="bad_shape",
+                bin_path=self.bin_path,
+                returncode=rc,
+                stdout=stdout,
+                stderr=stderr,
+            )
+        return parsed
+
+    def jcs_hash(self, envelope: Mapping[str, Any]) -> str:
+        """Compute the JCS-SHA-256 hash via the Rust subprocess.
+
+        Returns the byte-identical hash string (``"sha256:<64hex>"``)
+        that the Python authority would produce for the same envelope.
+
+        Raises
+        ------
+        RustBackendError
+            On subprocess / shape failure.
+        """
+        resp = self._call("jcs_hash", {"envelope": dict(envelope)})
+        hash_str = resp.get("hash")
+        if (
+            not isinstance(hash_str, str)
+            or not hash_str.startswith("sha256:")
+            or len(hash_str) != len("sha256:") + 64
+        ):
+            raise RustBackendError(
+                reason="bad_shape",
+                bin_path=self.bin_path,
+                stdout=json.dumps(resp),
+            )
+        return hash_str
+
+    def diff_envelopes(
+        self,
+        envelope_a: Mapping[str, Any],
+        envelope_b: Mapping[str, Any],
+    ) -> tuple:
+        """Compute the RFC-6901 field-path diff entries via subprocess.
+
+        Returns a tuple of :class:`BridgeDiffSubprocessFieldDiff`
+        entries, sorted by ``path`` (byte-identical order with the
+        Python authority).
+
+        Raises
+        ------
+        RustBackendError
+            On subprocess / shape failure.
+        """
+        resp = self._call(
+            "diff_envelopes",
+            {
+                "envelope_a": dict(envelope_a),
+                "envelope_b": dict(envelope_b),
+            },
+        )
+        entries = resp.get("field_diffs")
+        if not isinstance(entries, list):
+            raise RustBackendError(
+                reason="bad_shape",
+                bin_path=self.bin_path,
+                stdout=json.dumps(resp),
+            )
+        return tuple(
+            BridgeDiffSubprocessFieldDiff(
+                path=str(e["path"]),
+                kind=str(e["kind"]),
+                value_a=e.get("value_a"),
+                value_b=e.get("value_b"),
+            )
+            for e in entries
+        )
+
+    def compare(
+        self,
+        envelope_a: Mapping[str, Any],
+        envelope_b: Mapping[str, Any],
+    ) -> BridgeDiffSubprocessReport:
+        """Run the full compare (hash + diff + score) via subprocess.
+
+        Returns a :class:`BridgeDiffSubprocessReport`. Fast-path:
+        ``byte_identical == True`` ⇒ empty ``field_diffs`` and
+        ``consistency_score == 1.0`` (matches the Python authority).
+
+        Raises
+        ------
+        RustBackendError
+            On subprocess / shape failure.
+        """
+        resp = self._call(
+            "compare",
+            {
+                "envelope_a": dict(envelope_a),
+                "envelope_b": dict(envelope_b),
+            },
+        )
+        hash_a = resp.get("jcs_hash_a")
+        hash_b = resp.get("jcs_hash_b")
+        entries = resp.get("field_diffs")
+        score = resp.get("consistency_score")
+        byte_identical = resp.get("byte_identical")
+        if (
+            not isinstance(hash_a, str)
+            or not isinstance(hash_b, str)
+            or not isinstance(entries, list)
+            or not isinstance(score, (int, float))
+            or not isinstance(byte_identical, bool)
+        ):
+            raise RustBackendError(
+                reason="bad_shape",
+                bin_path=self.bin_path,
+                stdout=json.dumps(resp),
+            )
+        return BridgeDiffSubprocessReport(
+            byte_identical=byte_identical,
+            jcs_hash_a=hash_a,
+            jcs_hash_b=hash_b,
+            field_diffs=tuple(
+                BridgeDiffSubprocessFieldDiff(
+                    path=str(e["path"]),
+                    kind=str(e["kind"]),
+                    value_a=e.get("value_a"),
+                    value_b=e.get("value_b"),
+                )
+                for e in entries
+            ),
+            consistency_score=float(score),
+        )
+
+
+class _PythonBridgeDiffAdapter:
+    """Python-side adapter mirroring the :class:`RustSubprocessBridgeDiff`
+    method-set.
+
+    Delegates to :mod:`wirelang.persona_engine.bridge_audit_diff_engine`
+    for the actual canonicalise / hash / diff work. Constructed by
+    :func:`build_bridge_diff` on the Python path so callers see a
+    uniform method surface across both backends during Phase-3b
+    Doppelbetrieb.
+
+    The adapter does NOT cache the result; each call recomputes via
+    the Python authority. This matches the Rust subprocess-bridge
+    posture (each call is a fresh subprocess spawn) so latency
+    measurements are comparable across backends.
+    """
+
+    def jcs_hash(self, envelope: Mapping[str, Any]) -> str:
+        from .bridge_audit_diff_engine import jcs_hash
+
+        return jcs_hash(envelope)
+
+    def diff_envelopes(
+        self,
+        envelope_a: Mapping[str, Any],
+        envelope_b: Mapping[str, Any],
+    ) -> tuple:
+        from .bridge_audit_diff_engine import diff_envelopes
+
+        diffs = diff_envelopes(envelope_a, envelope_b)
+        return tuple(
+            BridgeDiffSubprocessFieldDiff(
+                path=fd.path,
+                kind=fd.kind.value,
+                value_a=fd.value_a,
+                value_b=fd.value_b,
+            )
+            for fd in diffs
+        )
+
+    def compare(
+        self,
+        envelope_a: Mapping[str, Any],
+        envelope_b: Mapping[str, Any],
+    ) -> BridgeDiffSubprocessReport:
+        from .bridge_audit_diff_engine import (
+            consistency_score,
+            diff_envelopes,
+            jcs_hash,
+        )
+
+        hash_a = jcs_hash(envelope_a)
+        hash_b = jcs_hash(envelope_b)
+        if hash_a == hash_b:
+            return BridgeDiffSubprocessReport(
+                byte_identical=True,
+                jcs_hash_a=hash_a,
+                jcs_hash_b=hash_b,
+                field_diffs=(),
+                consistency_score=1.0,
+            )
+        diffs = diff_envelopes(envelope_a, envelope_b)
+        score = consistency_score(envelope_a, envelope_b, diffs)
+        return BridgeDiffSubprocessReport(
+            byte_identical=False,
+            jcs_hash_a=hash_a,
+            jcs_hash_b=hash_b,
+            field_diffs=tuple(
+                BridgeDiffSubprocessFieldDiff(
+                    path=fd.path,
+                    kind=fd.kind.value,
+                    value_a=fd.value_a,
+                    value_b=fd.value_b,
+                )
+                for fd in diffs
+            ),
+            consistency_score=float(score),
+        )
+
+
+def build_bridge_diff(
+    backend: BridgeDiffBackend,
+    *,
+    env: Optional[Mapping[str, str]] = None,
+    subprocess_invoker: Optional[Callable] = None,
+):
+    """Build a bridge-diff surface matching ``backend``.
+
+    For ``BridgeDiffBackend.PYTHON`` we return a small Python-side
+    adapter exposing the same :meth:`jcs_hash` / :meth:`diff_envelopes`
+    / :meth:`compare` methods as :class:`RustSubprocessBridgeDiff` so
+    callers cannot tell the backends apart at the API boundary.
+    For ``BridgeDiffBackend.RUST`` we return a
+    :class:`RustSubprocessBridgeDiff` subprocess-bridge instance.
+
+    This factory does NOT re-probe binary availability — the caller
+    is expected to have already run :func:`resolve_bridge_diff_backend`
+    and obtained a :class:`BridgeDiffBackend` value that reflects the
+    actual chosen backend (Python on fallback). The factory therefore
+    treats Rust-bound input as a hard contract: the caller MUST have
+    verified availability.
+
+    Both surfaces share the public method set
+    (``jcs_hash``, ``diff_envelopes``, ``compare``) so engine /
+    bridge-audit-writer callers cannot tell the backends apart at the
+    API boundary. Tag-20 keeps the Python authority active during
+    Phase-3b Doppelbetrieb; this factory is the Phase-3c-cutover hook.
+    """
+    if backend is BridgeDiffBackend.PYTHON:
+        return _PythonBridgeDiffAdapter()
+    # Rust-bound.
+    return RustSubprocessBridgeDiff(
+        env=env, subprocess_invoker=subprocess_invoker
+    )
+
+
 __all__ = [
     # Env-var keys.
     "RECOVERY_BACKEND_ENV",
     "STATE_BACKING_BACKEND_ENV",
     "FSM_BACKEND_ENV",
     "V907_VERIFY_BACKEND_ENV",
+    "BRIDGE_DIFF_BACKEND_ENV",
     "RUST_RECOVERY_BIN_ENV",
     "RUST_STATE_BACKING_BIN_ENV",
     "RUST_FSM_BIN_ENV",
     "RUST_V907_VERIFY_BIN_ENV",
+    "RUST_BRIDGE_DIFF_BIN_ENV",
     "RUST_BACKEND_TIMEOUT_ENV",
     # Defaults.
     "DEFAULT_RUST_RECOVERY_BIN",
     "DEFAULT_RUST_STATE_BACKING_BIN",
     "DEFAULT_RUST_FSM_BIN",
     "DEFAULT_RUST_V907_VERIFY_BIN",
+    "DEFAULT_RUST_BRIDGE_DIFF_BIN",
     "DEFAULT_RUST_BACKEND_TIMEOUT_S",
     # Enums + valid-value tuples.
     "RecoveryBackend",
     "StateBackingBackend",
     "FsmBackend",
     "V907VerifyBackend",
+    "BridgeDiffBackend",
     "VALID_RECOVERY_BACKEND_VALUES",
     "VALID_STATE_BACKING_BACKEND_VALUES",
     "VALID_FSM_BACKEND_VALUES",
     "VALID_V907_VERIFY_BACKEND_VALUES",
+    "VALID_BRIDGE_DIFF_BACKEND_VALUES",
     # Errors.
     "BackendSwitchValidationError",
     "RustBackendError",
@@ -1876,14 +2458,19 @@ __all__ = [
     "resolve_state_backing_backend",
     "resolve_fsm_backend",
     "resolve_v907_verify_backend",
+    "resolve_bridge_diff_backend",
     # Subprocess bridges.
     "RustSubprocessStateBacking",
     "RustSubprocessRecoveryRunner",
     "RustSubprocessFsm",
     "RustSubprocessV907Verify",
+    "RustSubprocessBridgeDiff",
     "V907SubprocessResult",
+    "BridgeDiffSubprocessFieldDiff",
+    "BridgeDiffSubprocessReport",
     # Factories.
     "build_state_backing",
     "build_fsm",
     "build_v907_verify",
+    "build_bridge_diff",
 ]
