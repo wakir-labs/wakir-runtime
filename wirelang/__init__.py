@@ -29,4 +29,12 @@ or ``pip install wakir-protocol``) and import from
 ``wakir_protocol.*`` instead of ``wirelang.*``. See
 ``docs/decisions/cut2-protocol-substance-classification.md`` for
 the full path-to-target classification table.
+
+Branch-Protection §4.2 promotion note (2026-05-17)
+--------------------------------------------------
+The ``cross-repo drift (wakir-runtime ↔ wakir-protocol)`` Required-
+Status-Check was promoted into the wakir-runtime/main protection set
+on 2026-05-17 04:35 CEST (Mira-Hand-Operator §4.2 command-block).
+This touch ensures the post-apply doc-sync PR triggers the new gate
+through the ``wirelang/**`` path-filter so the live state catches up.
 """
