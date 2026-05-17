@@ -41,13 +41,18 @@ inventory below into CI so drift fails fast.
 
 ### 2.1 `wakir-labs/wakir-runtime`
 
-Post-Tag-4 stand (re-verified 2026-05-16 ~19:36 CEST via
+Post-§4.2-promotion stand (re-verified 2026-05-17 04:35 CEST via
 `gh api repos/wakir-labs/wakir-runtime/branches/main/protection`):
 
 | Check display-name | Defined in | Job-`name` field |
 |---|---|---|
 | `License-Hygiene Gate (ADR-0061)` | `.github/workflows/license-gate.yml` | `License-Hygiene Gate (ADR-0061)` |
 | `wirelang suite with rfc8785 + jsonschema` | `.github/workflows/tests.yml` | `wirelang suite with rfc8785 + jsonschema` |
+| `cross-repo drift (wakir-runtime ↔ wakir-protocol)` | `.github/workflows/cross-repo-drift-audit.yml` | `cross-repo drift (wakir-runtime ↔ wakir-protocol)` |
+
+§4.2 promotion applied 2026-05-17 04:35 CEST (Mira-Hand-Operator, AR-
+authorised via "Ja, aktiviere Branch-Protection wakir-runtime/main"
+2026-05-16 17:08 CEST + §4.2 Mira-Hand-pending in PR #144 doc).
 
 The Tag-3 candidate `Hash-Derivate-Drift Gate (Sprint-Stability Tag-3)`
 was **not** promoted to required in the Tag-4 timeframe (intentional
