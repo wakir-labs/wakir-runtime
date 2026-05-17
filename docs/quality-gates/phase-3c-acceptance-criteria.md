@@ -5,8 +5,8 @@
 | Owner | Amara Osei (QA), with Zone-N cross-check by Henrik (Internal Audit) |
 | Status | Draft skeleton — pending Phase-3c-Welle-Start trigger (ADR-0065 §Decision-Trigger) |
 | Phase | 3c — Per-Welle Cutover from Python-Default to Rust-Default for 7 Engine-Komponenten |
-| Source | ADR-0065 §Verifikations-Plan, ADR-0063 §Phase-3c-Final-Cutover, ADR-0058 §Phase-3 |
-| Date | 2026-05-17 (skeleton creation) |
+| Source | ADR-0065 §Verifikations-Plan, ADR-0066 §Beschluss (Doppel-Welle-Beschleunigung), ADR-0063 §Phase-3c-Final-Cutover, ADR-0058 §Phase-3 |
+| Date | 2026-05-17 (skeleton creation); 2026-05-17 Doppel-Welle-Extension (Tag-30 Mini-Welle, ADR-0066 §Folge-Item) |
 
 ## 0. Phase contract
 
@@ -16,11 +16,18 @@ Fenster, Live-VM-Acceptance-Lane green, Cosign-Policy verified,
 Quadlet-Installer Rollback-tested, CFO-Cost-Telemetrie-Baseline,
 ADR-0065 AR-approved).
 
-Once Phase-3c starts, the 7 wellen run one-per-week per the
-ADR-0065 §Empfehlung Option-B-Reihenfolge (risk-ascending). Each
-welle's E2E acceptance-suite (this document) gates the welle's
-Go/No-Go-Decision (Freitag, ADR-0065 §Verifikations-Plan
-Wochen-Plan).
+Once Phase-3c starts, the 7 wellen run per the ADR-0066 §Beschluss
+Doppel-Welle-Cadence (4 Wochen statt 7):
+
+* **KW 24** Doppel-Welle-1+2 (`v907_verify` + `svid_workload_identity`)
+* **KW 25** Solo-Welle-3 (`bridge_audit_writer`, Henrik-Caution)
+* **KW 26** Doppel-Welle-4+5 (`state_backing` + `lifecycle_state_machine`)
+* **KW 27** Doppel-Welle-6+7 (`subscribe_loop` + `recovery_workflow`)
+
+Each welle's E2E acceptance-suite (this document) gates the welle's
+Go/No-Go-Decision (Freitag, ADR-0065 §Verifikations-Plan Wochen-Plan,
+retained under ADR-0066 §Mitigation 3). Doppel-Wellen carry an
+additional five DW-AC-1...DW-AC-5 acceptance criteria (§9 below).
 
 ## 1. Welle-für-Welle Acceptance-Kriterien (AC-1 ... AC-5)
 
@@ -155,9 +162,91 @@ welle-test files are *shape anchors*, not Aufsichtsrat-binding values.
 
 * `decisions/0065-phase-3c-cutover-python-default-zu-rust-default.md`
   (proposed, this PR-suite implements §Verifikations-Plan).
+* `decisions/0066-phase-3c-beschleunigung-option-a-plus.md` (Doppel-
+  Welle-Beschleunigung KW 24/26/27, this PR-suite implements
+  §Beschluss for the Doppel-Welle-Extension §9 below).
 * `decisions/0063-persona-engine-sprach-revision-rust-rewrite.md`
   (approved 2026-05-16, §Phase-3c-Verweis).
 * `docs/quality-gates/phase-3-production.md` (Amara, PR #80) — the
   parent Phase-3 acceptance-gate document this welle-suite extends.
 * `tests/infra/test_phase_3_acceptance_gates.py` (Amara, PR #80) —
   the skip-by-default skeleton pattern this suite inherits.
+
+## 9. Doppel-Welle-Extension (ADR-0066 §Beschluss)
+
+ADR-0066 (approved 2026-05-17) collapses the seven-Wochen-Cadence
+from ADR-0065 into a four-Wochen-Doppel-Welle-Cadence: three Doppel-
+Wellen + one Solo-Welle (Welle-3, Henrik-Caution carve-out).
+
+### 9.1 Doppel-Welle-Tabelle
+
+| Doppel-Welle | KW | Modul-A | Modul-B | Charakter | Cross-Modul-Drift-Focus | Test-File |
+|---|---|---|---|---|---|---|
+| DW-1+2 | KW 24 | `v907_verify` | `svid_workload_identity` | Read-only-paar | Niedrig (kein gemeinsamer Schema-Touchpoint) | `test_doppel_welle_1_2_e2e.py` |
+| DW-4+5 | KW 26 | `state_backing` | `lifecycle_state_machine` | Cross-modul-state-paar | **Hoch** (Producer/Consumer JCS-Schema-Contract, beidseitig Rust) | `test_doppel_welle_4_5_e2e.py` |
+| DW-6+7 | KW 27 | `subscribe_loop` | `recovery_workflow` | Stateful-loop-paar | Mittel (Subscription-Cursor + Recovery-Readback) | `test_doppel_welle_6_7_e2e.py` |
+
+### 9.2 DW-AC-1 ... DW-AC-5 Acceptance-Kriterien
+
+Each Doppel-Welle test-file enforces five Doppel-Welle-specific
+criteria *in addition to* the per-welle AC-1...AC-5 in the sister
+per-welle test-files. The five DW-AC criteria are encoded in
+`tests/acceptance/phase_3c/_ac_assertions.py`.
+
+| ID | Gate | Test-Helper |
+|---|---|---|
+| **DW-AC-1** | Beide Komponenten boot mit rust-Backend im selben engine-boot-cycle; exakt das Pair-Tupel ist rust-flipped (keine Extras). | `assert_dw_ac_1_both_moduln_boot_rust` |
+| **DW-AC-2** | Cross-Modul-Schema-Konsistenz byte-paritär über alle Producer→Consumer-Touchpoints des Pairs. | `assert_dw_ac_2_cross_modul_schema_byte_parity` |
+| **DW-AC-3** | Asymmetric single-Komponente-Rollback: bei Bug in einer Komponente rollt nur diese auf python zurück, die andere bleibt rust. Elapsed ≤10min ENV-Flag-Switch-SLA. | `assert_dw_ac_3_asymmetric_rollback` |
+| **DW-AC-4** | Cross-Modul-Stress-Test grün: zero failures, zero p99-latency-excursions, zero cross-modul-schema-drifts über die Stress-Window. Referenziert Phase-2-Acceptance-Gate-Erweiterung (Tomás Tag-29, ADR-0066 §Mitigation 1). | `assert_dw_ac_4_cross_modul_stress_test_green` |
+| **DW-AC-5** | Backend-Decision-Audit emittiert exakt 2 Records gleichzeitig im selben cutover-cycle, beide target_backend = rust, beide Pair-Moduln genannt. | `assert_dw_ac_5_backend_decision_audit_two_records_consistent` |
+
+### 9.3 Per-Doppel-Welle Gate-Schwerpunkt-Tabelle
+
+Welle-Charakter steuert die DW-AC-Gewichtung. Alle fünf DW-AC sind
+hart-gates; die Schwerpunkte zeigen, welche DW-AC bei welcher
+Doppel-Welle den dominanten Drift-Detektions-Wert liefern:
+
+| Doppel-Welle | Dominante DW-AC | Sekundäre DW-AC | Begründung |
+|---|---|---|---|
+| DW-1+2 (KW 24) | DW-AC-1, DW-AC-5 | DW-AC-2, DW-AC-3, DW-AC-4 | Read-only → Boot-Konsistenz + Audit-Trail-Vollständigkeit primär; Cross-Modul-Schema marginal |
+| DW-4+5 (KW 26) | **DW-AC-2, DW-AC-4** | DW-AC-1, DW-AC-3, DW-AC-5 | Cross-Modul-Drift-Focus → Schema-Byte-Parity + Cross-Modul-Stress dominant |
+| DW-6+7 (KW 27) | DW-AC-1, DW-AC-3, DW-AC-5 | DW-AC-2, DW-AC-4 | Phase-3c-Closing-Cutover → Boot-Success + Asymmetric-Rollback-Capability + Audit-Vollständigkeit für WE-1...WE-4-Handoff |
+
+### 9.4 Doppel-Welle-Opt-In-Gate
+
+The Doppel-Welle skeleton is **independently** skip-by-default from
+the per-welle skeleton:
+
+* **Per-welle opt-in:** `WAKIR_PHASE_3C_E2E=1` env-var or
+  `pytest --phase-3c-acceptance` CLI flag.
+* **Doppel-Welle opt-in:** `WAKIR_PHASE_3C_DOPPEL_E2E=1` env-var or
+  `pytest --phase-3c-doppel-welle-acceptance` CLI flag.
+
+The two lanes are independent so that the KW 25 Solo-Welle-3
+trigger-sprint can run per-welle without invoking Doppel-Welle
+oracles (which would not apply during a solo cutover).
+
+### 9.5 Zone-N coordination — Doppel-Welle delta
+
+Henrik (Internal Audit) Zone-N-Quarterly-Review (Aisha-moderiert)
+covers the Doppel-Welle DW-AC-5 audit-record-pair specifically:
+QA-evidence (DW-AC-5 happy-path + failure-modes) is *complementary*
+to Henrik's audit-sample of the Backend-Decision-Audit-Trail under
+parallel cutover. Henrik's audit-sample at the Doppel-Welle-trigger-
+sprint focuses on (a) cutover-cycle-id integrity and (b) the
+asymmetric-rollback audit-trail when DW-AC-3 fires in the field.
+
+### 9.6 Vermutungs-Kennzeichnung (P2) — Doppel-Welle delta
+
+* The Cross-Modul-Stress-Test stress-loads in the test-fixtures
+  (`total=1000` for DW-1+2, `total=5000` for DW-4+5, `total=2000`
+  for DW-6+7) are placeholder shape-anchors; the Doppel-Welle-
+  trigger-sprint wires Tomás Tag-29 substrate's real load-targets.
+* The Cross-Modul-Schema touchpoint-IDs are placeholders pending
+  real producer/consumer wiring of state_backing↔lifecycle_state_
+  machine, subscribe_loop↔recovery_workflow, etc.
+* The Rollback-SLA (`ROLLBACK_SLA_SECONDS = 600`) is ADR-0065/-0066-
+  fixed (10min ENV-Flag-Switch); the Welle-4-specific 2h Schema-
+  Migrations-Rollback drill is covered by a `@pytest.mark.skip`
+  placeholder in `test_doppel_welle_4_5_e2e.py`.
