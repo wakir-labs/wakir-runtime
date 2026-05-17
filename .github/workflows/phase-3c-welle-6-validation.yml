@@ -1,0 +1,370 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase-3c Welle-6 Validation Workflow - ADR-0065 + ADR-0066
+# ----------------------------------------------------------
+#
+# Wired-substrate validation for the Phase-3c Welle-6 cutover
+# (`subscribe_loop`, KW 27 parallel-execution per ADR-0066
+# Option-A+). Runs the five Mira-Hand-defined acceptance steps for
+# the Welle-6 Cutover-Acceptance-Decision and emits a
+# `cutover-acceptance-decision-welle-6.json` artifact.
+#
+# Distinction from sibling workflows
+# ----------------------------------
+#
+# * `phase-3c-welle-1-validation.yml` (PR #190) - Welle-1 readiness
+#   check for `v907_verify`.
+# * `phase-3c-welle-2-validation.yml` (PR #196) - Welle-2 readiness
+#   check for `svid_workload_identity`.
+# * `phase-3c-welle-3-validation.yml` (Tag-31 Tomás-Spawn) - Welle-3
+#   readiness check for `bridge_audit_writer` (solo).
+# * `phase-3c-welle-4-validation.yml` (THIS PR sibling) - Welle-4
+#   readiness check for `state_backing`.
+# * `phase-3c-welle-5-validation.yml` (THIS PR sibling) - Welle-5
+#   readiness check for `lifecycle_state_machine`.
+# * `phase-3c-welle-6-validation.yml` (THIS workflow) - Welle-6
+#   readiness check for `subscribe_loop` (KW-27 Doppel-Welle partner
+#   of Welle-7 `recovery_workflow`).
+# * `phase-3c-welle-7-validation.yml` (THIS PR sibling) - Welle-7
+#   readiness check for `recovery_workflow`.
+#
+# NOT a required status check (per `feedback_branch_protection_check_
+# names.md`).
+#
+# ADR-0066 KW-27 Doppel-Welle posture
+# -----------------------------------
+#
+# Welle-6 ships in parallel with Welle-7 (recovery_workflow) in
+# KW 27. Per ADR-0066 §Mitigations the KW-27 Doppel-Welle drift-
+# detection axis exists in the `doppelbetrieb-score-aggregator
+# --mode cross-modul-stress` envelope as
+# `cross-modul-subscribe-loop-recovery-workflow`. The Bundle-Auftrag
+# (Tag-32 Welle-4-7-Bundle) limits the Cross-Modul-Stress-Test step
+# to Welle-4+5 - the KW-27 readiness reports rely on the regular
+# Phase-2-Acceptance-Gate daily rollup (PR #160) to surface any
+# subscribe_loop x recovery_workflow drift before the KW-27 Mo
+# Live-Smoke. The Welle-6/7 workflows are therefore the standard
+# 5-step pattern (no Step 5 cross-modul).
+#
+# Trigger surface
+# ---------------
+#
+# * `schedule: cron "0 6 * * 3"` - Wednesday 06:00 UTC, same slot
+#   as Welle-4/5 so all four parallel readiness reports triage
+#   together.
+# * `workflow_dispatch: {}` - standard three dispatch inputs.
+#
+# Sandbox boundary
+# ----------------
+#
+# Hermetic: stdlib + pytest + in-tree wakir-runtime package. The
+# subscribe_loop resolver uses the in-test binary-probe stubs; no
+# real NATS consumer is invoked.
+
+name: phase-3c-welle-6-validation
+
+on:
+  schedule:
+    - cron: "0 6 * * 3"
+  workflow_dispatch:
+    inputs:
+      target-binary-count:
+        description: "Gate-2/3 expected binary-inventory count (default 7)"
+        required: false
+        default: "7"
+      boots:
+        description: "Dry-run mocked-boot count (default 12)"
+        required: false
+        default: "12"
+      score-band-floor:
+        description: "Minimum cutover-feasibility band (GREEN/AMBER, default GREEN)"
+        required: false
+        default: "GREEN"
+
+permissions:
+  contents: read
+
+jobs:
+  phase-3c-welle-6-validation:
+    name: Phase-3c Welle-6 Validation (subscribe_loop)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      WELLE_COMPONENT: subscribe_loop
+      WELLE_ENV_VAR: WAKIR_SUBSCRIBE_LOOP_BACKEND
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install validation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . "pytest>=8.0"
+
+      - name: Resolve dispatch inputs
+        id: inputs
+        env:
+          INPUT_BINARY_COUNT: ${{ github.event.inputs.target-binary-count }}
+          INPUT_BOOTS: ${{ github.event.inputs.boots }}
+          INPUT_BAND: ${{ github.event.inputs.score-band-floor }}
+        run: |
+          BIN_COUNT="${INPUT_BINARY_COUNT:-7}"
+          BOOTS="${INPUT_BOOTS:-12}"
+          BAND="${INPUT_BAND:-GREEN}"
+          echo "binary_count=${BIN_COUNT}" >> "$GITHUB_OUTPUT"
+          echo "boots=${BOOTS}" >> "$GITHUB_OUTPUT"
+          echo "band=${BAND}" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare output directory
+        run: mkdir -p out
+
+      - name: Step 1 - Phase-3c trigger-gate aggregator
+        id: gate-aggregator
+        continue-on-error: true
+        run: |
+          python scripts/phase-3c-trigger-gate-aggregator.py \
+            --target-binary-count "${{ steps.inputs.outputs.binary_count }}" \
+            --json \
+            > out/trigger-gate-report.json
+          RC=$?
+          echo "rc=${RC}" >> "$GITHUB_OUTPUT"
+          if [ "$RC" = "0" ]; then
+            echo "gate_status=green" >> "$GITHUB_OUTPUT"
+          elif [ "$RC" = "1" ]; then
+            echo "gate_status=yellow" >> "$GITHUB_OUTPUT"
+          else
+            echo "gate_status=red" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Step 2 - cutover-dry-run (subscribe_loop)
+        id: dry-run
+        continue-on-error: true
+        run: |
+          python scripts/phase-3c-cutover-dry-run.py \
+            --component "${WELLE_COMPONENT}" \
+            --boots "${{ steps.inputs.outputs.boots }}" \
+            --output out/dry-run-envelope.json
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Step 3 - test-persona-boot (rust backend opt-in)
+        id: persona-boot
+        continue-on-error: true
+        env:
+          WAKIR_SUBSCRIBE_LOOP_BACKEND: rust
+        run: |
+          python -m pytest \
+            wirelang/tests/persona_engine/test_rust_backend_switch.py \
+            -k "subscribe_loop" \
+            --tb=short \
+            -q \
+            --junit-xml=out/persona-boot-junit.xml \
+            | tee out/persona-boot.log
+          RC="${PIPESTATUS[0]}"
+          echo "rc=${RC}" >> "$GITHUB_OUTPUT"
+
+      - name: Step 4 - bridge-audit-roundtrip cross-lang consistency
+        id: bridge-audit
+        continue-on-error: true
+        run: |
+          python -m pytest \
+            tests/integration/test_bridge_audit_roundtrip_e2e.py \
+            --tb=short \
+            -q \
+            --junit-xml=out/bridge-audit-junit.xml \
+            | tee out/bridge-audit.log
+          RC="${PIPESTATUS[0]}"
+          echo "rc=${RC}" >> "$GITHUB_OUTPUT"
+
+      - name: Step 5 - render cutover-acceptance-decision
+        id: decision
+        if: always()
+        env:
+          GATE_RC: ${{ steps.gate-aggregator.outputs.rc }}
+          DRY_RUN_RC: ${{ steps.dry-run.outputs.rc }}
+          BOOT_RC: ${{ steps.persona-boot.outputs.rc }}
+          BRIDGE_RC: ${{ steps.bridge-audit.outputs.rc }}
+          SCORE_BAND_FLOOR: ${{ steps.inputs.outputs.band }}
+          BOOTS_INPUT: ${{ steps.inputs.outputs.boots }}
+          BIN_COUNT_INPUT: ${{ steps.inputs.outputs.binary_count }}
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, sys
+
+          out_dir = pathlib.Path("out")
+          decision_path = out_dir / "cutover-acceptance-decision.json"
+
+          def _read_json(name):
+              p = out_dir / name
+              if not p.exists() or p.stat().st_size == 0:
+                  return None
+              try:
+                  return json.loads(p.read_text(encoding="utf-8"))
+              except json.JSONDecodeError:
+                  return None
+
+          def _rc(env_name):
+              v = os.environ.get(env_name) or "-1"
+              try:
+                  return int(v)
+              except ValueError:
+                  return -1
+
+          gate_rc = _rc("GATE_RC")
+          dry_rc = _rc("DRY_RUN_RC")
+          boot_rc = _rc("BOOT_RC")
+          bridge_rc = _rc("BRIDGE_RC")
+          floor = (os.environ.get("SCORE_BAND_FLOOR") or "GREEN").upper()
+
+          trigger_report = _read_json("trigger-gate-report.json") or {}
+          dry_run_envelope = _read_json("dry-run-envelope.json") or {}
+
+          gate_ok = gate_rc == 0
+          gate_tolerable = False
+          if gate_rc == 1:
+              gates = trigger_report.get("gates", [])
+              non_green = [
+                  g for g in gates
+                  if g.get("status") != "green"
+              ]
+              gate_tolerable = (
+                  len(non_green) == 1
+                  and non_green[0].get("id") == "gate-4"
+              )
+          dry_ok = dry_rc == 0
+          boot_ok = boot_rc == 0
+          bridge_ok = bridge_rc in (0, 5)
+
+          band = (
+              dry_run_envelope.get("feasibility", {}).get("band", "UNKNOWN")
+          )
+          band_order = {"GREEN": 3, "AMBER": 2, "RED": 1, "BLOCKED": 0}
+          band_score = band_order.get(band, 0)
+          floor_score = band_order.get(floor, 3)
+          band_ok = band_score >= floor_score
+
+          gate_signal = "green" if gate_ok else (
+              "yellow_tolerated" if gate_tolerable else "red"
+          )
+
+          ready = bool(
+              (gate_ok or gate_tolerable)
+              and dry_ok and boot_ok and bridge_ok and band_ok
+          )
+
+          decision = {
+              "schema": "wakir.phase-3c.welle-6-validation/1",
+              "welle": 6,
+              "component": "subscribe_loop",
+              "env_var": "WAKIR_SUBSCRIBE_LOOP_BACKEND",
+              "ready_for_live_smoke": ready,
+              "score_band_floor": floor,
+              "observed_band": band,
+              "doppel_welle_partner": "recovery_workflow",
+              "steps": {
+                  "step_1_trigger_gates": {
+                      "exit_code": gate_rc,
+                      "status": gate_signal,
+                  },
+                  "step_2_cutover_dry_run": {
+                      "exit_code": dry_rc,
+                      "ok": dry_ok,
+                  },
+                  "step_3_persona_boot_rust": {
+                      "exit_code": boot_rc,
+                      "ok": boot_ok,
+                  },
+                  "step_4_bridge_audit_roundtrip": {
+                      "exit_code": bridge_rc,
+                      "ok": bridge_ok,
+                  },
+              },
+              "inputs": {
+                  "target_binary_count": int(
+                      os.environ.get("BIN_COUNT_INPUT") or "7"
+                  ),
+                  "boots": int(os.environ.get("BOOTS_INPUT") or "12"),
+              },
+              "trigger_report_summary": {
+                  "all_green": trigger_report.get("all_green"),
+                  "ready_for_phase_3c": trigger_report.get(
+                      "ready_for_phase_3c"
+                  ),
+                  "gate_count": len(trigger_report.get("gates", [])),
+              },
+              "dry_run_summary": {
+                  "feasibility_score": dry_run_envelope.get(
+                      "feasibility", {}
+                  ).get("cutover_feasibility_score"),
+                  "band": band,
+                  "boots": dry_run_envelope.get("boots"),
+              },
+              "anchors": {
+                  "adr_cutover": "decisions/0065-phase-3c-cutover-python-default-zu-rust-default.md",
+                  "adr_acceleration": "decisions/0066-phase-3c-beschleunigung-option-a-plus.md",
+                  "runbook": "docs/operations/phase-3c-welle-6-runbook.md",
+                  "welle_7_doppel_partner": ".github/workflows/phase-3c-welle-7-validation.yml",
+              },
+          }
+
+          decision_path.write_text(
+              json.dumps(decision, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(decision, indent=2, sort_keys=True))
+
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary_path:
+              with open(summary_path, "a", encoding="utf-8") as f:
+                  f.write("# Phase-3c Welle-6 Validation - subscribe_loop\n\n")
+                  f.write(
+                      f"**Ready for Live-Smoke:** "
+                      f"{'YES' if ready else 'NO'}  -  "
+                      f"**Band:** {band}  -  "
+                      f"**Floor:** {floor}\n\n"
+                  )
+                  f.write("| Step | Exit | Status |\n|---|---|---|\n")
+                  f.write(
+                      f"| 1. Trigger-Gates | {gate_rc} | "
+                      f"{gate_signal} |\n"
+                  )
+                  f.write(
+                      f"| 2. Dry-Run | {dry_rc} | "
+                      f"{'OK' if dry_ok else 'FAIL'} |\n"
+                  )
+                  f.write(
+                      f"| 3. Persona-Boot (rust) | {boot_rc} | "
+                      f"{'OK' if boot_ok else 'FAIL'} |\n"
+                  )
+                  f.write(
+                      f"| 4. Bridge-Audit | {bridge_rc} | "
+                      f"{'OK' if bridge_ok else 'FAIL'} |\n"
+                  )
+                  f.write(
+                      "\nArtifact: `cutover-acceptance-decision-welle-6` (this run).\n"
+                      "\nAnchors: ADR-0065, ADR-0066, "
+                      "docs/operations/phase-3c-welle-6-runbook.md.\n"
+                  )
+
+          sys.exit(0 if ready else 1)
+          PY
+
+      - name: Upload validation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cutover-acceptance-decision-welle-6
+          path: |
+            out/cutover-acceptance-decision.json
+            out/trigger-gate-report.json
+            out/dry-run-envelope.json
+            out/persona-boot.log
+            out/persona-boot-junit.xml
+            out/bridge-audit.log
+            out/bridge-audit-junit.xml
+          if-no-files-found: warn
+          retention-days: 30
