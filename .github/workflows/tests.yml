@@ -186,6 +186,41 @@ jobs:
           path: junit.xml
           retention-days: 14
 
+      # ------------------------------------------------------------------
+      # Cross-language Bridge-Audit-Roundtrip-E2E (Tag-14 Mini-Welle).
+      # ------------------------------------------------------------------
+      #
+      # The integration test in `tests/integration/test_bridge_audit_
+      # roundtrip_e2e.py` exercises the Python emit / Rust replay
+      # roundtrip. The Python half lands in the wirelang suite above;
+      # the Rust half needs `cargo build` of the `replay_cli` binary
+      # before the E2E branch of the test can run. Without the binary
+      # the test skips its E2E lane cleanly (7 Python-only tests still
+      # pass), so this step is the gate that turns those 7 skips into
+      # 14 passes.
+      #
+      # ubuntu-latest ships rustup + a stable toolchain by default;
+      # no explicit setup-action is required.
+      - name: Build replay_cli (Rust)
+        # Restrict the build to the one binary the integration test
+        # needs; pulling the whole workspace would 5x the build time
+        # without benefit.
+        run: |
+          cargo build \
+            --manifest-path wirelang-rust/Cargo.toml \
+            -p persona-engine-bridge-audit-replay \
+            --bin replay_cli
+          ls -l wirelang-rust/target/debug/replay_cli
+
+      - name: Run Bridge-Audit-Roundtrip-E2E integration tests
+        env:
+          # Pin the binary path so the test's discovery helper resolves
+          # deterministically (CI runner layouts vary).
+          WAKIR_REPLAY_CLI_BIN: ${{ github.workspace }}/wirelang-rust/target/debug/replay_cli
+        run: |
+          python -m pytest tests/integration/test_bridge_audit_roundtrip_e2e.py \
+            -v --tb=short
+
   sandbox-suite-shadow:
     # Shadow-run of the sandbox lane inside this workflow so the
     # drift-detection job can compare collected-counts in a single

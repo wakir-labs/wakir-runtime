@@ -57,3 +57,9 @@ serde = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
+# Cross-Lang SHA-256-Parity-Pin: der Test
+# `test_pin_pack_cross_lang_sha256` berechnet den Digest über den
+# `\n`-joined Pin-Pack und vergleicht ihn mit dem Python-Pin in
+# `wirelang/persona_engine/nats_subjects.py`. Dev-only — die Crate
+# selbst tut kein Hashing.
+sha2       = { workspace = true }
