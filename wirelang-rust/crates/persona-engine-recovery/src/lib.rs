@@ -280,8 +280,7 @@ pub struct RecoveryContext {
 }
 
 /// Future returned by the four hook callables.
-pub type HookFuture<'a> =
-    Pin<Box<dyn Future<Output = Result<(), RecoveryError>> + Send + 'a>>;
+pub type HookFuture<'a> = Pin<Box<dyn Future<Output = Result<(), RecoveryError>> + Send + 'a>>;
 
 /// Callable injection points for the four recovery actions.
 ///
@@ -303,31 +302,24 @@ pub type HookFuture<'a> =
 /// inside the Quadlet so the host-side supervisor is the supervisor
 /// of record; the in-engine R4 is a logical no-op).
 pub struct RecoveryHooks {
-    pub svid_refetch:
-        Arc<dyn for<'a> Fn(&'a RecoveryContext) -> HookFuture<'a> + Send + Sync>,
-    pub nats_resubscribe:
-        Arc<dyn for<'a> Fn(&'a RecoveryContext) -> HookFuture<'a> + Send + Sync>,
-    pub fsm_restart:
-        Arc<dyn for<'a> Fn(&'a RecoveryContext) -> HookFuture<'a> + Send + Sync>,
+    pub svid_refetch: Arc<dyn for<'a> Fn(&'a RecoveryContext) -> HookFuture<'a> + Send + Sync>,
+    pub nats_resubscribe: Arc<dyn for<'a> Fn(&'a RecoveryContext) -> HookFuture<'a> + Send + Sync>,
+    pub fsm_restart: Arc<dyn for<'a> Fn(&'a RecoveryContext) -> HookFuture<'a> + Send + Sync>,
     pub operator_escalation:
-        Arc<dyn for<'a> Fn(&'a RecoveryContext, &'a RecoveryError) -> HookFuture<'a>
-            + Send
-            + Sync>,
+        Arc<dyn for<'a> Fn(&'a RecoveryContext, &'a RecoveryError) -> HookFuture<'a> + Send + Sync>,
 }
 
 fn ok_hook() -> Arc<dyn for<'a> Fn(&'a RecoveryContext) -> HookFuture<'a> + Send + Sync> {
-    Arc::new(|_ctx: &RecoveryContext| -> HookFuture<'_> {
-        Box::pin(async move { Ok(()) })
-    })
+    Arc::new(|_ctx: &RecoveryContext| -> HookFuture<'_> { Box::pin(async move { Ok(()) }) })
 }
 
-fn ok_escalation()
-    -> Arc<dyn for<'a> Fn(&'a RecoveryContext, &'a RecoveryError) -> HookFuture<'a>
-            + Send
-            + Sync> {
-    Arc::new(|_ctx: &RecoveryContext, _err: &RecoveryError| -> HookFuture<'_> {
-        Box::pin(async move { Ok(()) })
-    })
+fn ok_escalation(
+) -> Arc<dyn for<'a> Fn(&'a RecoveryContext, &'a RecoveryError) -> HookFuture<'a> + Send + Sync> {
+    Arc::new(
+        |_ctx: &RecoveryContext, _err: &RecoveryError| -> HookFuture<'_> {
+            Box::pin(async move { Ok(()) })
+        },
+    )
 }
 
 impl Default for RecoveryHooks {
@@ -374,8 +366,11 @@ pub fn classify_trigger(ctx: &RecoveryContext) -> Result<RecoveryTrigger, Recove
         (RecoveryTrigger::CrashDetected, ctx.fence_active),
         (RecoveryTrigger::DespawnMidOperation, ctx.subscribe_failure),
     ];
-    let active: Vec<RecoveryTrigger> =
-        flags.iter().filter(|(_, on)| *on).map(|(t, _)| *t).collect();
+    let active: Vec<RecoveryTrigger> = flags
+        .iter()
+        .filter(|(_, on)| *on)
+        .map(|(t, _)| *t)
+        .collect();
     match active.len() {
         0 => Err(RecoveryError::new(
             RecoveryFailureMode::TriggerAmbiguous,
@@ -410,10 +405,7 @@ fn elapsed_sec(start: std::time::Instant) -> f64 {
 // Phase implementations — internal driver helpers.
 // ---------------------------------------------------------------------------
 
-async fn run_phase_r1(
-    trigger: RecoveryTrigger,
-    start: std::time::Instant,
-) -> PhaseResult {
+async fn run_phase_r1(trigger: RecoveryTrigger, start: std::time::Instant) -> PhaseResult {
     let elapsed = elapsed_sec(start);
     let cap = phase_soft_cap_sec("R1").unwrap();
     PhaseResult {
@@ -458,13 +450,22 @@ async fn run_phase_r3(
     (hooks.svid_refetch)(ctx).await?;
     let elapsed = elapsed_sec(start);
     let cap = phase_soft_cap_sec("R3").unwrap();
-    // Parity audit annotation: SPIFFE ID format. The scaffold uses a
-    // template; the Phase-3a live-binding step substitutes the real
-    // workload-API response.
+    // Parity audit annotation: SPIFFE ID format byte-identical with the
+    // Python sibling `wirelang/persona_engine/svid_workload_identity.py`
+    // `SPIFFE_ID_TEMPLATE = "spiffe://wakir.{org_id}/persona/{persona_id}"`
+    // (Tag-20 Python-sync cross-lang parity sweep).
     let svid_id = format!(
-        "spiffe://wakir.local/{}/persona/{}",
-        if ctx.org_id.is_empty() { "wakir-labs" } else { &ctx.org_id },
-        if ctx.persona_id.is_empty() { "unknown" } else { &ctx.persona_id },
+        "spiffe://wakir.{}/persona/{}",
+        if ctx.org_id.is_empty() {
+            "wakir-labs"
+        } else {
+            &ctx.org_id
+        },
+        if ctx.persona_id.is_empty() {
+            "unknown"
+        } else {
+            &ctx.persona_id
+        },
     );
     Ok(PhaseResult {
         phase: "R3".to_owned(),
@@ -512,10 +513,7 @@ async fn run_phase_r4(
 /// `phases` vector truncated at the failing phase. The operator-
 /// escalation hook is invoked exactly once on terminal failure so
 /// audit trails capture the escalation timestamp.
-pub async fn run_recovery_drill(
-    context: RecoveryContext,
-    budget_seconds: u64,
-) -> RecoveryOutcome {
+pub async fn run_recovery_drill(context: RecoveryContext, budget_seconds: u64) -> RecoveryOutcome {
     let hooks = RecoveryHooks::default();
     run_recovery_drill_with_hooks(context, budget_seconds, hooks).await
 }
@@ -590,7 +588,9 @@ pub async fn run_recovery_drill_with_hooks(
             // Best-effort escalation; ignore escalation errors so the
             // operator can still inspect the partial outcome.
             let _ = (hooks_arc.operator_escalation)(context_arc.as_ref(), &err).await;
-            let trig = context_arc.force_trigger.unwrap_or(RecoveryTrigger::CrashDetected);
+            let trig = context_arc
+                .force_trigger
+                .unwrap_or(RecoveryTrigger::CrashDetected);
             RecoveryOutcome {
                 trigger: trig,
                 phases: phases_snapshot,
@@ -609,7 +609,9 @@ pub async fn run_recovery_drill_with_hooks(
                 ),
             );
             let _ = (hooks_arc.operator_escalation)(context_arc.as_ref(), &err).await;
-            let trig = context_arc.force_trigger.unwrap_or(RecoveryTrigger::CrashDetected);
+            let trig = context_arc
+                .force_trigger
+                .unwrap_or(RecoveryTrigger::CrashDetected);
             RecoveryOutcome {
                 trigger: trig,
                 phases: phases_snapshot,
@@ -639,6 +641,108 @@ pub async fn escalate_to_operator(
 
 // ---------------------------------------------------------------------------
 // JSON audit-record builder — cross-lang parity helper.
+// ---------------------------------------------------------------------------
+
+/// Schema identifier for the canonical-projection wire-form used by
+/// the cross-lang fixture vectors (Tag-20 Python-sync). Byte-identical
+/// with the Python sibling constant `RECOVERY_OUTCOME_SCHEMA`.
+pub const RECOVERY_OUTCOME_SCHEMA: &str = "wakir.persona-engine.recovery-outcome/1";
+
+/// Hash prefix tag used by the canonical-projection helpers
+/// (parity with `persona-engine-subscribe-loop::HASH_PREFIX`).
+pub const HASH_PREFIX: &str = "sha256:";
+
+/// Length of a lowercase hex-encoded SHA-256 digest (parity with
+/// `persona-engine-subscribe-loop::SHA256_HEX_LEN`).
+pub const SHA256_HEX_LEN: usize = 64;
+
+// ---------------------------------------------------------------------------
+// Canonical-projection helper — cross-lang fixture pin (Tag-20).
+// ---------------------------------------------------------------------------
+
+/// Build the canonical-projection `serde_json::Value` from a
+/// [`RecoveryOutcome`]. Timing fields are zeroed so the projection is
+/// deterministic across runs (the cross-lang fixture comparator pins
+/// the timing-free wire-form). `soft_cap_exceeded` is recomputed from
+/// the zero-elapsed projection — i.e. always `false`, because every
+/// soft cap is strictly positive.
+///
+/// Wire-shape (alphabetical keys via the downstream JCS pass):
+///
+/// ```json
+/// {
+///   "final_state": "...",
+///   "phases": [
+///     {
+///       "audit_annotation": "...",
+///       "elapsed_sec": 0.0,
+///       "phase": "R1",
+///       "soft_cap_exceeded": false,
+///       "terminal_status": "..."
+///     }, ...
+///   ],
+///   "schema": "wakir.persona-engine.recovery-outcome/1",
+///   "success": true,
+///   "total_elapsed_sec": 0.0,
+///   "trigger": "..."
+/// }
+/// ```
+///
+/// Cross-lang parity: Python `recovery_outcome_canonical_dict()` in
+/// `wirelang.persona_engine.recovery_workflow_canonical` produces the
+/// same shape.
+pub fn recovery_outcome_canonical_value(outcome: &RecoveryOutcome) -> serde_json::Value {
+    let phases_json: Vec<serde_json::Value> = outcome
+        .phases
+        .iter()
+        .map(|p| {
+            serde_json::json!({
+                "audit_annotation": p.audit_annotation,
+                "elapsed_sec": 0.0_f64,
+                "phase": p.phase,
+                "soft_cap_exceeded": false,
+                "terminal_status": p.terminal_status,
+            })
+        })
+        .collect();
+    serde_json::json!({
+        "final_state": outcome.final_state,
+        "phases": phases_json,
+        "schema": RECOVERY_OUTCOME_SCHEMA,
+        "success": outcome.success,
+        "total_elapsed_sec": 0.0_f64,
+        "trigger": outcome.trigger.as_str(),
+    })
+}
+
+/// Serialise a [`RecoveryOutcome`] to the JCS-canonical bytes.
+///
+/// Uses `serde_jcs` (RFC 8785) for byte-identical parity with the
+/// Python sibling `rfc8785.dumps(recovery_outcome_canonical_dict(...))`.
+/// This is the authoritative cross-lang fixture-comparison surface.
+pub fn recovery_outcome_jcs_bytes(outcome: &RecoveryOutcome) -> Vec<u8> {
+    let value = recovery_outcome_canonical_value(outcome);
+    serde_jcs::to_vec(&value).expect("recovery outcome must JCS-serialise")
+}
+
+/// Return the lowercase-hex SHA-256 of the JCS-canonical bytes
+/// (parity with Python `hashlib.sha256(bytes).hexdigest()`).
+pub fn recovery_outcome_sha256_hex(outcome: &RecoveryOutcome) -> String {
+    use sha2::Digest;
+    let bytes = recovery_outcome_jcs_bytes(outcome);
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(&bytes);
+    let digest = hasher.finalize();
+    hex::encode(digest)
+}
+
+/// Return `"sha256:" + <lowercase-hex>` (parity with Python helper).
+pub fn recovery_outcome_hash_prefixed(outcome: &RecoveryOutcome) -> String {
+    format!("{}{}", HASH_PREFIX, recovery_outcome_sha256_hex(outcome))
+}
+
+// ---------------------------------------------------------------------------
+// Legacy audit-record JSON helper (kept for in-engine consumers).
 // ---------------------------------------------------------------------------
 
 /// Serialise a [`RecoveryOutcome`] into the canonical audit-record
