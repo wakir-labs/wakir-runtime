@@ -387,6 +387,7 @@ class PersonaEngine:
             resolve_fsm_backend,
             resolve_recovery_backend,
             resolve_subscribe_loop_backend,
+            resolve_svid_workload_identity_backend,
             resolve_v907_verify_backend,
         )
 
@@ -520,12 +521,13 @@ class PersonaEngine:
         # The engine keeps :mod:`wirelang.persona_engine.anchor_emitter`
         # Python-backed during Phase-3b; Phase-3c cutover (out of scope
         # here) swaps in the Rust subprocess-bridge via
-        # :func:`build_anchor_emitter`. This is the **7th and final**
-        # BackendDecision record emitted per boot (Tag-17 recovery +
-        # state_backing + Tag-18 fsm + Tag-19 v907_verify + Tag-20
-        # bridge_diff + Tag-22 subscribe_loop + Tag-23 anchor_emitter)
-        # — the Phase-3b production-default-switch surface is closed
-        # with this wire-in.
+        # :func:`build_anchor_emitter`. This is the **7th** BackendDecision
+        # record emitted per boot (Tag-17 recovery + state_backing +
+        # Tag-18 fsm + Tag-19 v907_verify + Tag-20 bridge_diff + Tag-22
+        # subscribe_loop + Tag-23 anchor_emitter); the **8th** record
+        # (svid_workload_identity, Tag-25, ADR-0065 Welle-2 pre-condition)
+        # is wired in just below — Phase-3b/3c production-default-switch
+        # surface now spans eight per-boot resolver decisions.
         try:
             (
                 self._anchor_emitter_backend,
@@ -538,6 +540,41 @@ class PersonaEngine:
                 "level": "ERROR",
                 "msg": "backend-switch-validation-failed",
                 "domain": "anchor_emitter",
+                "error": str(exc),
+            })
+            raise
+        # Tag-25: resolve SVID-workload-identity-backend choice up-front,
+        # parallel to recovery + state_backing + fsm + v907_verify +
+        # bridge_diff + subscribe_loop + anchor_emitter. Default is python
+        # (current behaviour, opt-in switch). SVID-workload-identity is
+        # the Zone-L identity-substrate caller (SPIFFE Workload-API
+        # gRPC fetch via :class:`WorkloadApiClient`) — the per-decision
+        # audit-record surfaces the Python-vs-Rust selection for the
+        # Phase-3b Doppelbetrieb comparison set. The engine keeps
+        # :mod:`wirelang.persona_engine.svid_workload_identity`
+        # Python-backed during Phase-3b; Phase-3c Welle-2 (ADR-0065)
+        # is the cutover trigger for this domain, gated on the Rust
+        # ``persona-engine-svid-workload-identity`` crate landing. This
+        # is the **eighth** BackendDecision record emitted per boot
+        # (Tag-17 recovery + state_backing + Tag-18 fsm + Tag-19
+        # v907_verify + Tag-20 bridge_diff + Tag-22 subscribe_loop +
+        # Tag-23 anchor_emitter + Tag-25 svid_workload_identity).
+        # Shipping the resolver before the binary stub is intentional
+        # — ADR-0065 Welle-2 trigger-gate (PR #186 dry-run aggregator)
+        # flips ``svid_workload_identity`` from ``no-resolver`` to
+        # ``ready-pending-binary`` with this wire-in.
+        try:
+            (
+                self._svid_workload_identity_backend,
+                self._svid_workload_identity_backend_decision,
+            ) = resolve_svid_workload_identity_backend(
+                env=None, log_sink=self.log_sink
+            )
+        except Exception as exc:  # noqa: BLE001 — strict env-validation
+            self._log({
+                "level": "ERROR",
+                "msg": "backend-switch-validation-failed",
+                "domain": "svid_workload_identity",
                 "error": str(exc),
             })
             raise

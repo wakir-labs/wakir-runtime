@@ -35,12 +35,15 @@ Its purpose is to:
 
 ## ADR-0065 vs. in-repo substrate — naming drift
 
-ADR-0065 §Option-B lists seven components in cutover order:
+ADR-0065 §Option-B lists seven components in cutover order; the
+Tag-25 Mini-Welle (ADR-0065 Welle-2 pre-condition) added the
+``svid_workload_identity`` resolver, bringing the substrate to
+eight switches:
 
 | Week | ADR-0065 long-form | In-repo short form | Resolver |
 |------|--------------------|--------------------|----------|
 | 1 | `v907_verify` | `v907_verify` | `resolve_v907_verify_backend` |
-| 2 | `svid_workload_identity` | *(not yet implemented)* | — |
+| 2 | `svid_workload_identity` | `svid_workload_identity` | `resolve_svid_workload_identity_backend` |
 | 3 | `bridge_audit_writer` | `anchor_emitter` | `resolve_anchor_emitter_backend` |
 | 4 | `state_backing` | `state_backing` | `resolve_state_backing_backend` |
 | 5 | `lifecycle_state_machine` | `fsm` | `resolve_fsm_backend` |
@@ -52,12 +55,13 @@ Three observations:
 - The dry-run script accepts **both** spellings. Operators may pass
   `--component lifecycle_state_machine` or `--component fsm`; the
   alias is resolved in `validate_component()`.
-- `svid_workload_identity` is **not** yet wired into the
-  rust_backend_switch substrate (no resolver function as of Tag-23).
-  The dry-run refuses this component with an explicit error rather
-  than silently mapping it to another resolver. The substrate
-  precondition for Week-2 of the cutover is therefore the SVID
-  resolver landing.
+- `svid_workload_identity` is now wired into the rust_backend_switch
+  substrate as of Tag-25 (resolver shipping ahead of the Rust crate
+  binary stub; ADR-0065 Welle-2 production-default flip remains
+  gated on the binary landing). In `--probe-real` mode the dry-run
+  reports the binary as missing today and the aggregator status
+  reads `ready-pending-binary` rather than `no-resolver` — the
+  Welle-2 substrate gate is now closed.
 - `bridge_audit_writer` is the ADR-0065 operator-facing name; in
   the substrate the resolver is `resolve_anchor_emitter_backend`
   because that crate writes the outer WAT-anchor envelope (PR #170,
@@ -253,18 +257,23 @@ that documents the operator's intent (`requested_backend ==
 The real NATS-bound boot happens during the Mo-Abend Pilot-VM
 Live-Smoke.
 
-**Q: What if `--component svid_workload_identity` is rejected
-but ADR-0065 says it's Welle-2?**
+**Q: Does `--component svid_workload_identity` work now (Tag-25)?**
 
-A: Correct — the dry-run cannot rehearse Welle-2 yet because the
-SVID resolver is not in the seven-switch substrate as of
-Sprint-Tag-23. Substrate precondition before Welle-2: a
-`resolve_svid_workload_identity_backend` function must land in
-`wirelang/persona_engine/rust_backend_switch.py` (paired with
-`WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND` env-var, `_resolve_svid_*_bin`
-helper, and binary-probe seam). Once that lands, this script
-gains the eighth resolver via the same pattern and the runbook's
-component table will be updated.
+A: Yes. The Tag-25 Mini-Welle landed
+`resolve_svid_workload_identity_backend` in
+`wirelang/persona_engine/rust_backend_switch.py` (paired with the
+`WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND` env-var, the
+`_resolve_svid_workload_identity_bin` helper, and the standard
+binary-probe seam). The resolver ships ahead of the Rust crate
+binary stub — ADR-0065 Welle-2 production-default flip remains
+gated on the binary landing. In the default `--stub`-probe mode
+the dry-run reports `dry_run="completed"` with `band="GREEN"`
+because the stub probe reports the binary as available; in
+`--probe-real` mode against a sandbox without the binary, the
+dry-run reports `dry_run="blocked"` with
+`error="rust binary unavailable ... binary_missing"`. The
+aggregator status flipped from `no-resolver` to
+`ready-pending-binary` with this wire-in.
 
 **Q: Why is the default `--boots` value 12?**
 

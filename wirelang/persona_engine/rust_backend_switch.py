@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""ENV-gated production-default switch for Rust recovery + state-backing + FSM + V907-verify + bridge-diff + subscribe-loop + anchor-emitter.
+"""ENV-gated production-default switch for Rust recovery + state-backing + FSM + V907-verify + bridge-diff + subscribe-loop + anchor-emitter + svid-workload-identity.
 
-Tag-17 / Tag-18 / Tag-19 / Tag-20 / Tag-22 / Tag-23 Mini-Welle —
+Tag-17 / Tag-18 / Tag-19 / Tag-20 / Tag-22 / Tag-23 / Tag-25 Mini-Welle —
 Phase-3b-Substanz. The Rust crates
 ``persona-engine-recovery`` (PR #135),
 ``persona-engine-state-backing`` (PR #140),
@@ -66,6 +66,30 @@ gate across **all five cross-lang ack-record fixtures** (see
 ``tests/fixtures/subscribe-loop-cross-lang/fixtures.json``) on top of
 the same production-default-switch posture as
 Tag-17/Tag-18/Tag-19/Tag-20.
+
+Tag-25 anchor — SVID-Workload-Identity is the Zone-L identity substrate
+-----------------------------------------------------------------------
+
+The SVID-Workload-Identity surface (see
+:mod:`wirelang.persona_engine.svid_workload_identity`, PR pengine-9
+OI-PEFR-2) is the engine-side SPIFFE Workload-API caller. The Python
+authority opens an async gRPC unix-socket channel to the SPIRE-Agent,
+parses the leaf X.509 certificate, and emits a structured audit
+annotation ``(spiffe_id, san_uris, not_after_utc, bind_state_sha256,
+trust_domain, matches_expected, fetched_at_utc, fetch_elapsed_sec,
+soft_cap_exceeded)``. The Rust pendant is the
+``persona-engine-svid-workload-identity`` CLI binary (Phase-3c Welle-2
+scope; the resolver is opt-in and the binary stub is **not** a
+build-prerequisite — when missing, the resolver gracefully falls
+back to the Python authority via the standard ``binary_missing``
+fallback_reason). This is the **eighth** Phase-3b production-default-
+switch component; the per-boot :class:`BackendDecision` record count
+rises from seven (Tag-23) to eight with the SVID-workload-identity
+wire-in. ADR-0065 Welle-2 (svid_workload_identity, Phase-3c per-
+component cutover sequence) blocks on this resolver — without the
+ENV-gated switch surface, the cutover-dry-run aggregator (PR #186)
+flags ``svid_workload_identity`` as ``no-resolver`` and Welle-2
+remains gated.
 
 Tag-23 anchor — Anchor-Emitter is the WAT-spool envelope substrate
 -------------------------------------------------------------------
@@ -186,6 +210,23 @@ log warning when the binary is not callable.
   back to ``"python"`` with a structured-log warning when the
   binary is not callable.
 
+``WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND``:
+
+* ``"python"`` (default) — Python
+  :mod:`wirelang.persona_engine.svid_workload_identity`
+  (Sprint-Pengine-9 OI-PEFR-2: SPIFFE Workload-API gRPC fetch +
+  socket-presence probe; engine-side SPIFFE-ID + leaf-cert
+  audit annotation pipeline).
+* ``"rust"`` — Rust-CLI subprocess-bridge against the
+  forthcoming ``persona-engine-svid-workload-identity`` crate
+  (ADR-0065 Welle-2 scope; binary stub not yet shipped). Falls
+  back to ``"python"`` with a structured-log warning when the
+  binary is not callable — the standard ``binary_missing`` /
+  ``binary_not_executable`` fallback_reason tokens apply. The
+  resolver is opt-in and ships ahead of the Rust binary so
+  Phase-3c Welle-2 trigger-gate (PR #186 dry-run aggregator)
+  flips from ``no-resolver`` to ``ready-pending-binary``.
+
 ``WAKIR_RUST_RECOVERY_BIN``:
 
 * Absolute path to the Rust recovery binary. Default
@@ -220,6 +261,14 @@ log warning when the binary is not callable.
 
 * Absolute path to the Rust anchor-emitter binary. Default
   ``/opt/wakir/bin/wakir-persona-engine-anchor-emitter``.
+
+``WAKIR_RUST_SVID_WORKLOAD_IDENTITY_BIN``:
+
+* Absolute path to the Rust SVID-workload-identity binary. Default
+  ``/opt/wakir/bin/wakir-persona-engine-svid-workload-identity``.
+  The binary stub is not yet shipped (Phase-3c Welle-2 scope);
+  the env-var is reserved so operators can pre-stage the
+  override path in Quadlet unit files ahead of the crate build.
 
 ``WAKIR_RUST_BACKEND_TIMEOUT_S``:
 
@@ -315,6 +364,9 @@ V907_VERIFY_BACKEND_ENV = "WAKIR_V907_VERIFY_BACKEND"
 BRIDGE_DIFF_BACKEND_ENV = "WAKIR_BRIDGE_DIFF_BACKEND"
 SUBSCRIBE_LOOP_BACKEND_ENV = "WAKIR_SUBSCRIBE_LOOP_BACKEND"
 ANCHOR_EMITTER_BACKEND_ENV = "WAKIR_ANCHOR_EMITTER_BACKEND"
+SVID_WORKLOAD_IDENTITY_BACKEND_ENV = (
+    "WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND"
+)
 RUST_RECOVERY_BIN_ENV = "WAKIR_RUST_RECOVERY_BIN"
 RUST_STATE_BACKING_BIN_ENV = "WAKIR_RUST_STATE_BACKING_BIN"
 RUST_FSM_BIN_ENV = "WAKIR_RUST_FSM_BIN"
@@ -322,6 +374,9 @@ RUST_V907_VERIFY_BIN_ENV = "WAKIR_RUST_V907_VERIFY_BIN"
 RUST_BRIDGE_DIFF_BIN_ENV = "WAKIR_RUST_BRIDGE_DIFF_BIN"
 RUST_SUBSCRIBE_LOOP_BIN_ENV = "WAKIR_RUST_SUBSCRIBE_LOOP_BIN"
 RUST_ANCHOR_EMITTER_BIN_ENV = "WAKIR_RUST_ANCHOR_EMITTER_BIN"
+RUST_SVID_WORKLOAD_IDENTITY_BIN_ENV = (
+    "WAKIR_RUST_SVID_WORKLOAD_IDENTITY_BIN"
+)
 RUST_BACKEND_TIMEOUT_ENV = "WAKIR_RUST_BACKEND_TIMEOUT_S"
 
 DEFAULT_RUST_RECOVERY_BIN = "/opt/wakir/bin/wakir-persona-engine-recovery"
@@ -336,6 +391,9 @@ DEFAULT_RUST_SUBSCRIBE_LOOP_BIN = (
 )
 DEFAULT_RUST_ANCHOR_EMITTER_BIN = (
     "/opt/wakir/bin/wakir-persona-engine-anchor-emitter"
+)
+DEFAULT_RUST_SVID_WORKLOAD_IDENTITY_BIN = (
+    "/opt/wakir/bin/wakir-persona-engine-svid-workload-identity"
 )
 DEFAULT_RUST_BACKEND_TIMEOUT_S = 5.0
 
@@ -430,6 +488,27 @@ class AnchorEmitterBackend(str, Enum):
     RUST = "rust"
 
 
+class SvidWorkloadIdentityBackend(str, Enum):
+    """Closed enum of valid ``WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND``
+    values.
+
+    Zone-L identity-substrate anchor: the Python authority is
+    :mod:`wirelang.persona_engine.svid_workload_identity`
+    (Sprint-Pengine-9 OI-PEFR-2, SPIFFE Workload-API gRPC fetch
+    via :class:`WorkloadApiClient`). The Rust pendant is the
+    forthcoming ``persona-engine-svid-workload-identity`` crate
+    (ADR-0065 Welle-2 scope; binary stub not yet shipped). The
+    resolver is opt-in and falls back gracefully to Python when
+    the binary is missing or non-executable — Phase-3c Welle-2
+    trigger-gate (PR #186 dry-run aggregator) flips from
+    ``no-resolver`` to ``ready-pending-binary`` when this enum +
+    resolver land.
+    """
+
+    PYTHON = "python"
+    RUST = "rust"
+
+
 VALID_RECOVERY_BACKEND_VALUES = tuple(b.value for b in RecoveryBackend)
 VALID_STATE_BACKING_BACKEND_VALUES = tuple(
     b.value for b in StateBackingBackend
@@ -442,6 +521,9 @@ VALID_SUBSCRIBE_LOOP_BACKEND_VALUES = tuple(
 )
 VALID_ANCHOR_EMITTER_BACKEND_VALUES = tuple(
     b.value for b in AnchorEmitterBackend
+)
+VALID_SVID_WORKLOAD_IDENTITY_BACKEND_VALUES = tuple(
+    b.value for b in SvidWorkloadIdentityBackend
 )
 
 
@@ -666,6 +748,15 @@ def _resolve_anchor_emitter_bin(
     return explicit if explicit else DEFAULT_RUST_ANCHOR_EMITTER_BIN
 
 
+def _resolve_svid_workload_identity_bin(
+    env: Optional[Mapping[str, str]] = None,
+) -> str:
+    explicit = _env_get(RUST_SVID_WORKLOAD_IDENTITY_BIN_ENV, env)
+    return (
+        explicit if explicit else DEFAULT_RUST_SVID_WORKLOAD_IDENTITY_BIN
+    )
+
+
 def _binary_available(bin_path: str) -> tuple[bool, Optional[str]]:
     """Return ``(available, fallback_reason)``.
 
@@ -817,6 +908,27 @@ def _validate_anchor_emitter_backend(
             VALID_ANCHOR_EMITTER_BACKEND_VALUES,
         )
     return AnchorEmitterBackend(value)
+
+
+def _validate_svid_workload_identity_backend(
+    value: Optional[str],
+) -> SvidWorkloadIdentityBackend:
+    """Validate a ``WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND`` value (or
+    ``None``).
+
+    Empty / missing values default to
+    ``SvidWorkloadIdentityBackend.PYTHON``. Non-empty unknown values
+    raise :class:`BackendSwitchValidationError`.
+    """
+    if value is None or value == "":
+        return SvidWorkloadIdentityBackend.PYTHON
+    if value not in VALID_SVID_WORKLOAD_IDENTITY_BACKEND_VALUES:
+        raise BackendSwitchValidationError(
+            SVID_WORKLOAD_IDENTITY_BACKEND_ENV,
+            value,
+            VALID_SVID_WORKLOAD_IDENTITY_BACKEND_VALUES,
+        )
+    return SvidWorkloadIdentityBackend(value)
 
 
 # ---------------------------------------------------------------------------
@@ -1514,6 +1626,125 @@ def resolve_anchor_emitter_backend(
 # alias is *not* re-exported through ``__all__`` (it is a private
 # auftrag-pin, not a stable surface).
 _select_anchor_emitter_backend = resolve_anchor_emitter_backend
+
+
+def resolve_svid_workload_identity_backend(
+    env: Optional[Mapping[str, str]] = None,
+    *,
+    log_sink: Optional[TextIO] = None,
+    binary_probe: Optional[Callable[[str], tuple[bool, Optional[str]]]] = None,
+) -> tuple[SvidWorkloadIdentityBackend, BackendDecision]:
+    """Resolve the SVID-workload-identity backend per env-var + binary
+    availability.
+
+    Tag-25 Mini-Welle — **eighth** Phase-3b production-default switch
+    component (parallel to :func:`resolve_recovery_backend`,
+    :func:`resolve_state_backing_backend`,
+    :func:`resolve_fsm_backend`,
+    :func:`resolve_v907_verify_backend`,
+    :func:`resolve_bridge_diff_backend`,
+    :func:`resolve_subscribe_loop_backend`, and
+    :func:`resolve_anchor_emitter_backend`). The Python authority is
+    :mod:`wirelang.persona_engine.svid_workload_identity`
+    (Sprint-Pengine-9 OI-PEFR-2: SPIFFE Workload-API gRPC fetch +
+    socket-presence probe). The Rust pendant is the forthcoming
+    ``persona-engine-svid-workload-identity`` crate (ADR-0065 Welle-2
+    scope; binary stub not yet shipped).
+
+    Returns a ``(chosen_backend, decision)`` tuple. The decision
+    object is also logged via :func:`log_backend_decision`.
+
+    Same posture as :func:`resolve_recovery_backend`: default is
+    Python, ``rust`` requested + binary missing falls back to Python
+    with a structured-log warning. ADR-0065 Welle-2 (Phase-3c per-
+    component cutover sequence) gates on this resolver: the
+    cutover-dry-run aggregator (PR #186) flags
+    ``svid_workload_identity`` as ``no-resolver`` without this entry
+    point. Shipping the resolver ahead of the Rust binary flips the
+    aggregator status to ``ready-pending-binary`` without unblocking
+    the production-default flip — the standard ``binary_missing``
+    fallback_reason keeps the live persona-engine on the Python
+    authority until the crate lands.
+
+    Parameters
+    ----------
+    env
+        Env-var mapping; defaults to :data:`os.environ`.
+    log_sink
+        Optional structured-log sink. If provided, the decision is
+        also written as a single JSON line.
+    binary_probe
+        Test-injection seam. Defaults to :func:`_binary_available`.
+
+    Raises
+    ------
+    BackendSwitchValidationError
+        On unknown env-var values.
+    """
+    start = time.perf_counter()
+    raw_value = _env_get(SVID_WORKLOAD_IDENTITY_BACKEND_ENV, env)
+    requested = _validate_svid_workload_identity_backend(raw_value)
+
+    if requested is SvidWorkloadIdentityBackend.PYTHON:
+        latency_us = int((time.perf_counter() - start) * 1_000_000)
+        decision = BackendDecision(
+            domain="svid_workload_identity",
+            requested_backend=requested.value,
+            chosen_backend=SvidWorkloadIdentityBackend.PYTHON.value,
+            resolution_latency_us=latency_us,
+            fallback_reason=(
+                "explicit_python" if raw_value == "python" else None
+            ),
+            bin_path=None,
+        )
+        log_backend_decision(decision, log_sink=log_sink)
+        return SvidWorkloadIdentityBackend.PYTHON, decision
+
+    # Requested == RUST.
+    bin_path = _resolve_svid_workload_identity_bin(env)
+    probe = binary_probe or _binary_available
+    available, fallback_reason = probe(bin_path)
+    if available:
+        latency_us = int((time.perf_counter() - start) * 1_000_000)
+        decision = BackendDecision(
+            domain="svid_workload_identity",
+            requested_backend=requested.value,
+            chosen_backend=SvidWorkloadIdentityBackend.RUST.value,
+            resolution_latency_us=latency_us,
+            fallback_reason=None,
+            bin_path=bin_path,
+        )
+        log_backend_decision(decision, log_sink=log_sink)
+        return SvidWorkloadIdentityBackend.RUST, decision
+
+    # Graceful fallback to Python.
+    latency_us = int((time.perf_counter() - start) * 1_000_000)
+    decision = BackendDecision(
+        domain="svid_workload_identity",
+        requested_backend=requested.value,
+        chosen_backend=SvidWorkloadIdentityBackend.PYTHON.value,
+        resolution_latency_us=latency_us,
+        fallback_reason=fallback_reason,
+        bin_path=bin_path,
+    )
+    log_backend_decision(decision, log_sink=log_sink)
+    log.warning(
+        "rust_backend_switch svid_workload_identity requested=rust but "
+        "binary unavailable (%s @ %s); falling back to python",
+        fallback_reason,
+        bin_path,
+    )
+    return SvidWorkloadIdentityBackend.PYTHON, decision
+
+
+# Auftrag-named alias for :func:`resolve_svid_workload_identity_backend`.
+# The Tag-25 Mini-Welle auftrag spec uses
+# ``_select_svid_workload_identity_backend`` as the contract identifier;
+# this alias preserves that name while the public surface stays
+# consistent with the ``resolve_<domain>_backend`` family.
+_select_svid_workload_identity_backend = (
+    resolve_svid_workload_identity_backend
+)
 
 
 # ---------------------------------------------------------------------------
@@ -3653,6 +3884,7 @@ __all__ = [
     "BRIDGE_DIFF_BACKEND_ENV",
     "SUBSCRIBE_LOOP_BACKEND_ENV",
     "ANCHOR_EMITTER_BACKEND_ENV",
+    "SVID_WORKLOAD_IDENTITY_BACKEND_ENV",
     "RUST_RECOVERY_BIN_ENV",
     "RUST_STATE_BACKING_BIN_ENV",
     "RUST_FSM_BIN_ENV",
@@ -3660,6 +3892,7 @@ __all__ = [
     "RUST_BRIDGE_DIFF_BIN_ENV",
     "RUST_SUBSCRIBE_LOOP_BIN_ENV",
     "RUST_ANCHOR_EMITTER_BIN_ENV",
+    "RUST_SVID_WORKLOAD_IDENTITY_BIN_ENV",
     "RUST_BACKEND_TIMEOUT_ENV",
     # Defaults.
     "DEFAULT_RUST_RECOVERY_BIN",
@@ -3669,6 +3902,7 @@ __all__ = [
     "DEFAULT_RUST_BRIDGE_DIFF_BIN",
     "DEFAULT_RUST_SUBSCRIBE_LOOP_BIN",
     "DEFAULT_RUST_ANCHOR_EMITTER_BIN",
+    "DEFAULT_RUST_SVID_WORKLOAD_IDENTITY_BIN",
     "DEFAULT_RUST_BACKEND_TIMEOUT_S",
     # Enums + valid-value tuples.
     "RecoveryBackend",
@@ -3678,6 +3912,7 @@ __all__ = [
     "BridgeDiffBackend",
     "SubscribeLoopBackend",
     "AnchorEmitterBackend",
+    "SvidWorkloadIdentityBackend",
     "VALID_RECOVERY_BACKEND_VALUES",
     "VALID_STATE_BACKING_BACKEND_VALUES",
     "VALID_FSM_BACKEND_VALUES",
@@ -3685,6 +3920,7 @@ __all__ = [
     "VALID_BRIDGE_DIFF_BACKEND_VALUES",
     "VALID_SUBSCRIBE_LOOP_BACKEND_VALUES",
     "VALID_ANCHOR_EMITTER_BACKEND_VALUES",
+    "VALID_SVID_WORKLOAD_IDENTITY_BACKEND_VALUES",
     # Errors.
     "BackendSwitchValidationError",
     "RustBackendError",
@@ -3699,6 +3935,7 @@ __all__ = [
     "resolve_bridge_diff_backend",
     "resolve_subscribe_loop_backend",
     "resolve_anchor_emitter_backend",
+    "resolve_svid_workload_identity_backend",
     # Subprocess bridges.
     "RustSubprocessStateBacking",
     "RustSubprocessRecoveryRunner",

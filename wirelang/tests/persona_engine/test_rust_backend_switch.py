@@ -58,7 +58,7 @@ import os
 import stat
 import subprocess
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import pytest
 
@@ -79,6 +79,7 @@ from wirelang.persona_engine.rust_backend_switch import (
     DEFAULT_RUST_RECOVERY_BIN,
     DEFAULT_RUST_STATE_BACKING_BIN,
     DEFAULT_RUST_SUBSCRIBE_LOOP_BIN,
+    DEFAULT_RUST_SVID_WORKLOAD_IDENTITY_BIN,
     DEFAULT_RUST_V907_VERIFY_BIN,
     FSM_BACKEND_ENV,
     RECOVERY_BACKEND_ENV,
@@ -89,9 +90,11 @@ from wirelang.persona_engine.rust_backend_switch import (
     RUST_RECOVERY_BIN_ENV,
     RUST_STATE_BACKING_BIN_ENV,
     RUST_SUBSCRIBE_LOOP_BIN_ENV,
+    RUST_SVID_WORKLOAD_IDENTITY_BIN_ENV,
     RUST_V907_VERIFY_BIN_ENV,
     STATE_BACKING_BACKEND_ENV,
     SUBSCRIBE_LOOP_BACKEND_ENV,
+    SVID_WORKLOAD_IDENTITY_BACKEND_ENV,
     V907_VERIFY_BACKEND_ENV,
     VALID_ANCHOR_EMITTER_BACKEND_VALUES,
     VALID_BRIDGE_DIFF_BACKEND_VALUES,
@@ -99,6 +102,7 @@ from wirelang.persona_engine.rust_backend_switch import (
     VALID_RECOVERY_BACKEND_VALUES,
     VALID_STATE_BACKING_BACKEND_VALUES,
     VALID_SUBSCRIBE_LOOP_BACKEND_VALUES,
+    VALID_SVID_WORKLOAD_IDENTITY_BACKEND_VALUES,
     VALID_V907_VERIFY_BACKEND_VALUES,
     AnchorEmitterBackend,
     AnchorEmitterSubprocessResult,
@@ -120,11 +124,13 @@ from wirelang.persona_engine.rust_backend_switch import (
     StateBackingBackend,
     SubscribeLoopBackend,
     SubscribeLoopSubprocessAckResult,
+    SvidWorkloadIdentityBackend,
     V907SubprocessResult,
     V907VerifyBackend,
     _resolve_timeout_s,
     _select_anchor_emitter_backend,
     _select_subscribe_loop_backend,
+    _select_svid_workload_identity_backend,
     build_anchor_emitter,
     build_bridge_diff,
     build_fsm,
@@ -138,6 +144,7 @@ from wirelang.persona_engine.rust_backend_switch import (
     resolve_recovery_backend,
     resolve_state_backing_backend,
     resolve_subscribe_loop_backend,
+    resolve_svid_workload_identity_backend,
     resolve_v907_verify_backend,
 )
 from wirelang.persona_engine.state_backing import (
@@ -3386,3 +3393,297 @@ def test_anchor_emitter_default_bin_and_logging_and_alias_and_validation(
             persona_id="p",
             payload_jcs_bytes="not-bytes",  # type: ignore[arg-type]
         )
+
+
+# ---------------------------------------------------------------------------
+# Coverage map for the SVID-workload-identity switch (SWI1..SWI10, 10
+# hermetic vectors, ADR-0065 Welle-2 pre-condition):
+#
+#   SWI1  WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND unset → python default +
+#         decision recorded.
+#   SWI2  WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND=python (explicit) →
+#         python + fallback_reason="explicit_python".
+#   SWI3  WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND=rust + binary available
+#         → rust chosen.
+#   SWI4  WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND=rust + binary missing →
+#         graceful fallback to python, fallback_reason="binary_missing".
+#   SWI5  WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND=rust + binary not-
+#         executable → graceful fallback,
+#         fallback_reason="binary_not_executable".
+#   SWI6  unknown env-var value raises BackendSwitchValidationError.
+#   SWI7  empty-string env value defaults to python (no validation).
+#   SWI8  default binary path resolves to
+#         /opt/wakir/bin/wakir-persona-engine-svid-workload-identity.
+#   SWI9  per-decision logging emits one structured JSON line +
+#         _select_svid_workload_identity_backend auftrag-alias dispatches
+#         identically to resolve_svid_workload_identity_backend.
+#   SWI10 binary_probe injection seam works (no real filesystem
+#         interaction) + resolution_latency_us is recorded.
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Vector SWI1 — WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND unset → python default.
+# ---------------------------------------------------------------------------
+
+
+def test_svid_workload_identity_unset_defaults_to_python():
+    env: dict[str, str] = {}
+    chosen, decision = resolve_svid_workload_identity_backend(env=env)
+    assert chosen is SvidWorkloadIdentityBackend.PYTHON
+    assert decision.domain == "svid_workload_identity"
+    assert decision.requested_backend == "python"
+    assert decision.chosen_backend == "python"
+    assert decision.fallback_reason is None
+    assert decision.bin_path is None
+    assert decision.resolution_latency_us >= 0
+
+
+# ---------------------------------------------------------------------------
+# Vector SWI2 — explicit "python" value with fallback_reason flag.
+# ---------------------------------------------------------------------------
+
+
+def test_svid_workload_identity_explicit_python():
+    env = {SVID_WORKLOAD_IDENTITY_BACKEND_ENV: "python"}
+    chosen, decision = resolve_svid_workload_identity_backend(env=env)
+    assert chosen is SvidWorkloadIdentityBackend.PYTHON
+    assert decision.fallback_reason == "explicit_python"
+    assert decision.bin_path is None
+
+
+# ---------------------------------------------------------------------------
+# Vector SWI3 — rust + binary available → rust chosen.
+# ---------------------------------------------------------------------------
+
+
+def test_svid_workload_identity_rust_with_available_binary(tmp_path: Path):
+    bin_path = _make_executable(
+        tmp_path / "wakir-persona-engine-svid-workload-identity"
+    )
+    env = {
+        SVID_WORKLOAD_IDENTITY_BACKEND_ENV: "rust",
+        RUST_SVID_WORKLOAD_IDENTITY_BIN_ENV: str(bin_path),
+    }
+    chosen, decision = resolve_svid_workload_identity_backend(env=env)
+    assert chosen is SvidWorkloadIdentityBackend.RUST
+    assert decision.domain == "svid_workload_identity"
+    assert decision.requested_backend == "rust"
+    assert decision.chosen_backend == "rust"
+    assert decision.fallback_reason is None
+    assert decision.bin_path == str(bin_path)
+
+
+# ---------------------------------------------------------------------------
+# Vector SWI4 — rust + binary missing → graceful fallback to python.
+# ---------------------------------------------------------------------------
+
+
+def test_svid_workload_identity_rust_with_missing_binary_graceful_fallback(
+    tmp_path: Path,
+):
+    missing = tmp_path / "does-not-exist"
+    env = {
+        SVID_WORKLOAD_IDENTITY_BACKEND_ENV: "rust",
+        RUST_SVID_WORKLOAD_IDENTITY_BIN_ENV: str(missing),
+    }
+    chosen, decision = resolve_svid_workload_identity_backend(env=env)
+    assert chosen is SvidWorkloadIdentityBackend.PYTHON
+    assert decision.requested_backend == "rust"
+    assert decision.chosen_backend == "python"
+    assert decision.fallback_reason == "binary_missing"
+    assert decision.bin_path == str(missing)
+
+
+# ---------------------------------------------------------------------------
+# Vector SWI5 — rust + binary not-executable → graceful fallback.
+# ---------------------------------------------------------------------------
+
+
+def test_svid_workload_identity_rust_with_not_executable_binary_graceful_fallback(
+    tmp_path: Path,
+):
+    not_exec = _make_non_executable_file(
+        tmp_path / "wakir-persona-engine-svid-workload-identity"
+    )
+    env = {
+        SVID_WORKLOAD_IDENTITY_BACKEND_ENV: "rust",
+        RUST_SVID_WORKLOAD_IDENTITY_BIN_ENV: str(not_exec),
+    }
+    chosen, decision = resolve_svid_workload_identity_backend(env=env)
+    assert chosen is SvidWorkloadIdentityBackend.PYTHON
+    assert decision.fallback_reason == "binary_not_executable"
+    assert decision.bin_path == str(not_exec)
+
+
+# ---------------------------------------------------------------------------
+# Vector SWI6 — unknown env-var value raises BackendSwitchValidationError.
+# ---------------------------------------------------------------------------
+
+
+def test_svid_workload_identity_validation_rejects_unknown():
+    env = {SVID_WORKLOAD_IDENTITY_BACKEND_ENV: "rust-flavor-x"}
+    with pytest.raises(BackendSwitchValidationError) as ei:
+        resolve_svid_workload_identity_backend(env=env)
+    assert ei.value.env_var == SVID_WORKLOAD_IDENTITY_BACKEND_ENV
+    assert ei.value.value == "rust-flavor-x"
+    assert "python" in list(ei.value.valid_values)
+    assert "rust" in list(ei.value.valid_values)
+    # The enum has exactly two valid values (mirrors Tag-23
+    # AnchorEmitterBackend / Tag-22 SubscribeLoopBackend shape).
+    assert set(VALID_SVID_WORKLOAD_IDENTITY_BACKEND_VALUES) == {
+        "python",
+        "rust",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Vector SWI7 — empty-string env value defaults to python (no validation).
+# ---------------------------------------------------------------------------
+
+
+def test_svid_workload_identity_empty_string_env_defaults_to_python():
+    env = {SVID_WORKLOAD_IDENTITY_BACKEND_ENV: ""}
+    chosen, decision = resolve_svid_workload_identity_backend(env=env)
+    assert chosen is SvidWorkloadIdentityBackend.PYTHON
+    assert decision.fallback_reason is None
+    assert decision.bin_path is None
+
+
+# ---------------------------------------------------------------------------
+# Vector SWI8 — default binary path resolves to canonical
+# /opt/wakir/bin/wakir-persona-engine-svid-workload-identity.
+# ---------------------------------------------------------------------------
+
+
+def test_svid_workload_identity_default_bin_path_is_canonical():
+    """The default Rust-binary path is fixed even though the binary is
+    not yet shipped (Phase-3c Welle-2 scope). Operators can pre-stage
+    the override path in Quadlet unit files; the resolver gracefully
+    falls back to Python until the crate lands. This vector pins the
+    default string so a typo in the constant value would surface in
+    CI before reaching a Quadlet unit-file mismatch.
+    """
+    from wirelang.persona_engine.rust_backend_switch import (
+        _resolve_svid_workload_identity_bin,
+    )
+
+    assert (
+        _resolve_svid_workload_identity_bin(env={})
+        == DEFAULT_RUST_SVID_WORKLOAD_IDENTITY_BIN
+    )
+    assert (
+        DEFAULT_RUST_SVID_WORKLOAD_IDENTITY_BIN
+        == "/opt/wakir/bin/wakir-persona-engine-svid-workload-identity"
+    )
+    # Operator override path applies when explicit.
+    env = {RUST_SVID_WORKLOAD_IDENTITY_BIN_ENV: "/custom/path/svid-bin"}
+    assert (
+        _resolve_svid_workload_identity_bin(env=env)
+        == "/custom/path/svid-bin"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Vector SWI9 — per-decision logging + auftrag-alias parity.
+# ---------------------------------------------------------------------------
+
+
+def test_svid_workload_identity_logging_and_auftrag_alias_dispatch(
+    tmp_path: Path,
+):
+    """Two related invariants in one hermetic test:
+
+    1. Per-decision logging emits exactly one structured JSON line via
+       :func:`log_backend_decision` (consumed by the bridge-audit
+       writer for the Phase-3b/3c Doppelbetrieb comparison set).
+    2. The ``_select_svid_workload_identity_backend`` auftrag-alias
+       dispatches identically to
+       :func:`resolve_svid_workload_identity_backend` on both the
+       unset-env path and the rust + missing-binary path.
+    """
+    # (1) Per-decision logging emits one structured JSON line.
+    sink = io.StringIO()
+    chosen, _ = resolve_svid_workload_identity_backend(
+        env={}, log_sink=sink
+    )
+    line = sink.getvalue().strip()
+    assert line, "expected one structured-log line emitted"
+    parsed = json.loads(line)
+    assert parsed["msg"] == "backend-decision"
+    assert parsed["domain"] == "svid_workload_identity"
+    assert parsed["requested_backend"] == "python"
+    assert parsed["chosen_backend"] == "python"
+    assert parsed["resolution_latency_us"] >= 0
+    assert chosen is SvidWorkloadIdentityBackend.PYTHON
+
+    # (2a) Auftrag-alias dispatches identically — unset env path.
+    chosen_a, decision_a = _select_svid_workload_identity_backend(env={})
+    chosen_b, decision_b = resolve_svid_workload_identity_backend(env={})
+    assert chosen_a is chosen_b
+    assert decision_a.domain == decision_b.domain
+    assert decision_a.requested_backend == decision_b.requested_backend
+    assert decision_a.chosen_backend == decision_b.chosen_backend
+    assert decision_a.fallback_reason == decision_b.fallback_reason
+
+    # (2b) Auftrag-alias dispatches identically — rust + missing-binary path.
+    missing = tmp_path / "does-not-exist"
+    env = {
+        SVID_WORKLOAD_IDENTITY_BACKEND_ENV: "rust",
+        RUST_SVID_WORKLOAD_IDENTITY_BIN_ENV: str(missing),
+    }
+    chosen_c, decision_c = _select_svid_workload_identity_backend(env=env)
+    chosen_d, decision_d = resolve_svid_workload_identity_backend(env=env)
+    assert chosen_c is chosen_d is SvidWorkloadIdentityBackend.PYTHON
+    assert (
+        decision_c.fallback_reason
+        == decision_d.fallback_reason
+        == "binary_missing"
+    )
+    assert decision_c.bin_path == decision_d.bin_path == str(missing)
+
+
+# ---------------------------------------------------------------------------
+# Vector SWI10 — binary_probe injection seam + resolution_latency_us record.
+# ---------------------------------------------------------------------------
+
+
+def test_svid_workload_identity_binary_probe_injection_seam():
+    """The ``binary_probe`` parameter is the hermetic-test seam that
+    lets the suite drive the resolver without filesystem-side effects.
+    This vector exercises both branches (probe-ok → rust chosen and
+    probe-fail → graceful fallback) AND verifies the
+    resolution_latency_us is recorded as a non-negative integer.
+    """
+    # Probe-ok branch — resolver picks rust without touching the FS.
+    def probe_ok(bin_path: str) -> tuple[bool, Optional[str]]:
+        return True, None
+
+    # Probe-fail branch — resolver gracefully falls back to python.
+    def probe_fail(bin_path: str) -> tuple[bool, Optional[str]]:
+        return False, "binary_missing"
+
+    env = {SVID_WORKLOAD_IDENTITY_BACKEND_ENV: "rust"}
+
+    chosen_ok, decision_ok = resolve_svid_workload_identity_backend(
+        env=env, binary_probe=probe_ok
+    )
+    assert chosen_ok is SvidWorkloadIdentityBackend.RUST
+    assert decision_ok.chosen_backend == "rust"
+    assert decision_ok.fallback_reason is None
+    # Bin-path is the *resolved default* even when the env-var is unset
+    # (operator pre-stage path discipline).
+    assert (
+        decision_ok.bin_path == DEFAULT_RUST_SVID_WORKLOAD_IDENTITY_BIN
+    )
+    assert isinstance(decision_ok.resolution_latency_us, int)
+    assert decision_ok.resolution_latency_us >= 0
+
+    chosen_fail, decision_fail = resolve_svid_workload_identity_backend(
+        env=env, binary_probe=probe_fail
+    )
+    assert chosen_fail is SvidWorkloadIdentityBackend.PYTHON
+    assert decision_fail.chosen_backend == "python"
+    assert decision_fail.fallback_reason == "binary_missing"
+    assert isinstance(decision_fail.resolution_latency_us, int)
+    assert decision_fail.resolution_latency_us >= 0
