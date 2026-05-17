@@ -6,27 +6,29 @@ Copyright (c) 2026 Callandor GmbH and contributors
 # Cosign-Policy — Phase-3b Rust-CLI Binaries
 
 **Status:** Living operations document.
-**Scope:** The seven Phase-3b Rust-CLI binaries that the
+**Scope:** The nine Phase-3b Rust-CLI binaries that the
 persona-engine production-default switch subprocess-bridges to
 (`recovery`, `state-backing`, `fsm`, `v907-verify`, `bridge-diff`,
-`subscribe-loop`, `anchor-emitter`).
+`subscribe-loop`, `anchor-emitter`, `svid-workload-identity`,
+`bridge-audit-writer`).
 **Source of truth:** `policies/cosign-policy-phase-3b.yaml`.
 **Sibling docs:** `infra/spire/federation/IMAGE_PINS.md` (SPIRE +
 provisioner image pins), `docs/operations/branch-protection-required-status-checks.md`,
-`docs/operations/quadlets-phase-3b-rust-cli.md` (Tag-22/24 Quadlet
-installer; same 7-binary inventory).
+`docs/operations/quadlets-phase-3b-rust-cli.md` (Tag-22/24/29/31
+Quadlet installer; same 9-binary inventory).
 
 ---
 
 ## 1. Why this document exists
 
-Phase-3b lands seven ENV-gated subprocess-bridges from the
+Phase-3b lands nine ENV-gated subprocess-bridges from the
 persona-engine Python orchestrator to compiled Rust-CLI binaries
-(PRs #167, #169, #171, #175, #181, #184). The bridges live in
-`wirelang/persona_engine/rust_backend_switch.py` and resolve to
-the canonical paths
-`/opt/wakir/bin/wakir-persona-engine-{recovery,state-backing,fsm,v907-verify,bridge-diff,subscribe-loop,anchor-emitter}`.
-These seven binaries are the **production-mode hot-path** when
+(PRs #167, #169, #171, #175, #181, #184, #191 + Tag-29 SVID
+image-build + Tag-31 bridge-audit-writer image-build). The bridges
+live in `wirelang/persona_engine/rust_backend_switch.py` and resolve
+to the canonical paths
+`/opt/wakir/bin/wakir-persona-engine-{recovery,state-backing,fsm,v907-verify,bridge-diff,subscribe-loop,anchor-emitter,svid-workload-identity,bridge-audit-writer}`.
+These nine binaries are the **production-mode hot-path** when
 operators flip `WAKIR_*_BACKEND=rust` in the Quadlet drop-in;
 unverified binaries on that hot-path are a supply-chain breach.
 
@@ -47,6 +49,21 @@ unverified binaries on that hot-path are a supply-chain breach.
 > the same carrier image. The cross-substrate parity test
 > (`test_cross_substrate_parity_with_quadlet_installer`) enforces
 > the agreement at policy-author time.
+
+> **Tag-29 Mini-Welle update (ADR-0066 Welle-2 image-build).**
+> Inventory extended from 7 to 8 binaries: `svid-workload-identity`
+> (Tag-25 PR #191 wired the Python resolver; Tag-29 ships the Rust
+> crate skeleton + image-build pipeline). SPIFFE Workload-API
+> socket-presence probe bridge.
+
+> **Tag-31 Mini-Welle update (ADR-0066 Welle-3 image-build).**
+> Inventory extended from 8 to 9 binaries: `bridge-audit-writer`
+> (Tag-31 Mini-Welle ships the writer-half of the Doppelbetrieb-
+> Shadow EngineeringOutputEvent envelope substrate; PR #131
+> bridge-diff + PR #147 bridge-audit-replay landed the replay-half
+> earlier). Binary lives in the existing
+> `persona-engine-bridge-audit-replay` crate alongside the
+> sibling `replay_cli`.
 
 Cosign-policy answers two operator questions, both of which the
 existing `IMAGE_PINS.md` substrate does NOT cover for the
@@ -133,7 +150,7 @@ fi
 
 ### 3.3 Step 3 — in-image binary-presence probe
 
-The eight binaries MUST be present at the canonical in-image paths
+The nine binaries MUST be present at the canonical in-image paths
 declared by `wirelang/persona_engine/rust_backend_switch.py`
 (`DEFAULT_RUST_*_BIN` constants):
 
@@ -148,7 +165,8 @@ podman run --rm --entrypoint /bin/sh \
                  /opt/wakir/bin/wakir-persona-engine-bridge-diff \
                  /opt/wakir/bin/wakir-persona-engine-subscribe-loop \
                  /opt/wakir/bin/wakir-persona-engine-anchor-emitter \
-                 /opt/wakir/bin/wakir-persona-engine-svid-workload-identity; do
+                 /opt/wakir/bin/wakir-persona-engine-svid-workload-identity \
+                 /opt/wakir/bin/wakir-persona-engine-bridge-audit-writer; do
             test -x "$b" || { echo "missing or non-exec: $b" >&2; exit 2; }
         done
         echo OK'
@@ -197,7 +215,7 @@ returns a value that differs from the pinned digest:
 
 ## 5. Phase-3b ENV-switch wiring
 
-The eight bridges live in `wirelang/persona_engine/rust_backend_switch.py`.
+The nine bridges live in `wirelang/persona_engine/rust_backend_switch.py`.
 Each ENV-switch is closed-enum (rejects unknown values via
 `BackendSwitchValidationError`):
 
@@ -211,8 +229,9 @@ Each ENV-switch is closed-enum (rejects unknown values via
 | subscribe-loop | `WAKIR_SUBSCRIBE_LOOP_BACKEND` | `python` (default), `rust` | `WAKIR_RUST_SUBSCRIBE_LOOP_BIN` |
 | anchor-emitter | `WAKIR_ANCHOR_EMITTER_BACKEND` | `python` (default), `rust` | `WAKIR_RUST_ANCHOR_EMITTER_BIN` |
 | svid-workload-identity | `WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND` | `python` (default), `rust` | `WAKIR_RUST_SVID_WORKLOAD_IDENTITY_BIN` |
+| bridge-audit-writer | `WAKIR_BRIDGE_AUDIT_WRITER_BACKEND` | `python` (default), `rust` | `WAKIR_RUST_BRIDGE_AUDIT_WRITER_BIN` |
 
-Production-default stays Python on all eight axes; opt-in via
+Production-default stays Python on all nine axes; opt-in via
 Quadlet `Environment=` drop-in or `systemd-creds`. The
 `fallback_reason` per-decision audit-record (structured JSON line,
 default sink `/var/log/wakir/backend-decisions.jsonl`) is the
