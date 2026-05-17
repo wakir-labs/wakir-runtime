@@ -114,6 +114,22 @@
 #   flag the spots where a future `wirelang/federation/federation_frame.py`
 #   must byte-match. Added 2026-05-17.
 #
+# - persona-engine-federation-resolver : Tag-24 Mini-Welle (Phase-3a
+#   Python-Sync 9. Modul). Typed Rust `FederationResolver` trait +
+#   `InMemoryFederationResolver` reference implementation. Maps
+#   `(org_id, cluster_id) -> operator-org Ed25519 public key`, accounting
+#   for key-rotation history and overlapping validity windows. Sits
+#   ABOVE `persona-engine-federation-frame-parser` (Item 9 above) as the
+#   higher-layer resolver downstream consumers (frame-signature verifier,
+#   WAT-anchor pipeline, Phase-2 `peer_org` predicate evaluator) use to
+#   look up signing keys for inter-runtime federation frames. Byte-
+#   identical Python sibling at
+#   `wirelang/identity/federation_resolver_canonical.py`; cross-lang
+#   fixture file `tests/fixtures/federation-resolver-cross-lang/
+#   fixtures.json` (5 vectors: empty / single-org-multi-cluster /
+#   multi-org-disjoint / key-rotation-history / expired-mapping).
+#   Added 2026-05-17.
+#
 # - persona-engine-loop-latency-bench : Tag-13 Mini-Welle (Phase-3a
 #   Item 15 — closes Foundation 15/15). End-to-end latency benchmark
 #   for the NATS Subscribe-Loop crate (`persona-engine-subscribe-loop`,
@@ -204,6 +220,7 @@ members = [
     "crates/persona-engine-nats-subjects",
     "crates/persona-engine-bridge-audit-replay",
     "crates/persona-engine-federation-frame-parser",
+    "crates/persona-engine-federation-resolver",
     "crates/persona-engine-v907-recompute-bench",
     "crates/persona-engine-recovery-replay",
     "crates/persona-engine-loop-latency-bench",
