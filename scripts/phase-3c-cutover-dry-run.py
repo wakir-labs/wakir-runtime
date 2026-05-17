@@ -130,22 +130,20 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 #: invoke it with ADR-0065 vocabulary, while the resolver bridge maps
 #: to the short ``domain`` form internally.
 #:
-#: Naming-drift note (2026-05-17, Selin):
+#: Naming-drift note (Tag-25 wire-in, 2026-05-17):
 #: ADR-0065 §Option-B mentions ``svid_workload_identity`` and
 #: ``bridge_audit_writer`` as components #2 and #3 of the cutover
-#: order. The in-repo backend-switch substrate (PRs #131..#172) does
-#: not yet expose dedicated resolver functions under those names —
-#: the closest in-repo analogues are ``bridge_diff`` (Tag-20 PR #175)
-#: and ``anchor_emitter`` (Tag-23 PR #170/#175, which writes the
-#: WAT-anchor envelope and is the "writer" half of the bridge-audit
-#: substrate). ``svid_workload_identity`` is not yet in the seven-
-#: switch substrate. The dry-run script therefore restricts itself
-#: to the seven actually-implemented switches and surfaces the
-#: ADR-0065-vs-substrate drift as a documented bridge (the operator
-#: runbook flags it explicitly). Once the SVID resolver lands, the
-#: dry-run will gain it via the same pattern.
+#: order. ``svid_workload_identity`` landed as the **eighth**
+#: production-default switch resolver in PR #191 (Tag-25 Mini-Welle,
+#: ADR-0065 Welle-2 precondition); the dry-run gained it as a
+#: first-class component in Tag-29 (Welle-2 Validation, this PR) via
+#: the same pattern as the seven shipped switches. The closest
+#: in-repo analogue for ``bridge_audit_writer`` remains ``anchor_emitter``
+#: (Tag-23 PR #170/#175, which writes the WAT-anchor envelope and is
+#: the "writer" half of the bridge-audit substrate).
 PHASE_3C_COMPONENTS: Tuple[str, ...] = (
     "v907_verify",
+    "svid_workload_identity",
     "bridge_diff",
     "anchor_emitter",
     "state_backing",
@@ -160,9 +158,8 @@ PHASE_3C_COMPONENT_ALIASES: Dict[str, str] = {
     "lifecycle_state_machine": "fsm",
     "recovery_workflow": "recovery",
     "bridge_audit_writer": "anchor_emitter",
-    # ADR-0065 §Option-B also mentions svid_workload_identity but no
-    # in-repo resolver exists for it yet — fail closed with an explicit
-    # error rather than silently mapping it.
+    # ``svid_workload_identity`` is the in-repo short form (see
+    # PR #191); no alias needed.
 }
 
 #: Map each Phase-3c component name to the in-repo ``BackendDecision.domain``
@@ -171,6 +168,7 @@ PHASE_3C_COMPONENT_ALIASES: Dict[str, str] = {
 #: in :func:`validate_component` before this map is consulted.
 COMPONENT_TO_DOMAIN: Dict[str, str] = {
     "v907_verify": "v907_verify",
+    "svid_workload_identity": "svid_workload_identity",
     "bridge_diff": "bridge_diff",
     "anchor_emitter": "anchor_emitter",
     "state_backing": "state_backing",
@@ -186,6 +184,7 @@ COMPONENT_TO_DOMAIN: Dict[str, str] = {
 #: never talk to NATS.
 COMPONENT_TO_RUST_VALUE: Dict[str, str] = {
     "v907_verify": "rust",
+    "svid_workload_identity": "rust",
     "bridge_diff": "rust",
     "anchor_emitter": "rust",
     "state_backing": "rust_inmemory",
@@ -200,6 +199,7 @@ COMPONENT_TO_RUST_VALUE: Dict[str, str] = {
 #: lazily when actually running a dry-run).
 COMPONENT_TO_ENV: Dict[str, str] = {
     "v907_verify": "WAKIR_V907_VERIFY_BACKEND",
+    "svid_workload_identity": "WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND",
     "bridge_diff": "WAKIR_BRIDGE_DIFF_BACKEND",
     "anchor_emitter": "WAKIR_ANCHOR_EMITTER_BACKEND",
     "state_backing": "WAKIR_STATE_BACKING_BACKEND",
@@ -304,8 +304,6 @@ def validate_component(name: str) -> str:
         ``recovery_workflow``, ``bridge_audit_writer``) get mapped
         to their short forms via :data:`PHASE_3C_COMPONENT_ALIASES`.
       * Empty / whitespace / ``None`` raise with the full enumeration.
-      * ``svid_workload_identity`` (ADR-0065 §Option-B but no in-repo
-        resolver) raises with an explicit "not yet implemented" hint.
     """
     if name is None:
         raise UnknownComponentError(
@@ -319,14 +317,6 @@ def validate_component(name: str) -> str:
             "component name is empty; expected one of "
             f"{sorted(PHASE_3C_COMPONENTS)} (or aliases "
             f"{sorted(PHASE_3C_COMPONENT_ALIASES)})"
-        )
-    if normalised == "svid_workload_identity":
-        raise UnknownComponentError(
-            "component 'svid_workload_identity' is listed in ADR-0065 "
-            "§Option-B but no in-repo backend-switch resolver exists "
-            "for it yet (substrate not in seven-switch set as of "
-            "Tag-23). Dry-run cannot rehearse this cutover until the "
-            "resolver lands."
         )
     if normalised in PHASE_3C_COMPONENT_ALIASES:
         normalised = PHASE_3C_COMPONENT_ALIASES[normalised]
