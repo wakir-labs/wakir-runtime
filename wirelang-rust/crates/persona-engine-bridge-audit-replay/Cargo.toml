@@ -54,9 +54,17 @@ authors.workspace      = true
 name = "persona_engine_bridge_audit_replay"
 path = "src/lib.rs"
 
+# CLI binary: read JSONL audit-records from stdin / file, replay
+# against an expected trajectory, emit a JSON report. Consumed by the
+# Python-emit / Rust-replay roundtrip-E2E integration test
+# (tests/integration/test_bridge_audit_roundtrip_e2e.py).
+[[bin]]
+name = "replay_cli"
+path = "src/bin/replay_cli.rs"
+
 [dependencies]
 sha2       = { workspace = true, features = ["std"] }
-serde      = { workspace = true }
+serde      = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_jcs  = { workspace = true }
 hex        = { workspace = true }
