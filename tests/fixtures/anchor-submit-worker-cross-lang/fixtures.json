@@ -1,0 +1,459 @@
+{
+  "_comment": "Cross-lang fixture vectors for the persona-engine anchor-submit-worker (Phase-3a Item 12 / Tag-26 Python-sync). Authoritative wire-pin: any drift on either side (Rust crate persona-engine-anchor-submit-worker or Python wirelang.persona_engine.anchor_submit_worker) must update this file in the same PR. Derivation procedure: scripts/derive-anchor-submit-worker-fixtures.py. Fixtures pinned 2026-05-17.",
+  "schema_version": "wakir.wat.anchor-submit-decision/1",
+  "fixtures": [
+    {
+      "name": "f01-success-fast-path",
+      "doc": "Single envelope, default config, transport accepts on the first try. Expected ledger: [Success(e1)].",
+      "input": {
+        "config": {
+          "max_retry": 5,
+          "rate_requests": 1,
+          "rate_window_secs": 30,
+          "retry_base_delay_secs": 1,
+          "retry_max_delay_secs": 300
+        },
+        "rng_sequence": [
+          0
+        ],
+        "clock_start_secs": 0,
+        "enqueues": [
+          {
+            "event_id": "evt-tag26-f01-success",
+            "persona_id": "reza"
+          }
+        ],
+        "transport_script": [
+          {
+            "kind": "accepted",
+            "error": ""
+          }
+        ],
+        "tick_program": [
+          {
+            "op": "tick"
+          }
+        ]
+      },
+      "expected": {
+        "ledger": [
+          {
+            "decision_record": {
+              "attempt": 0,
+              "event_id": "evt-tag26-f01-success",
+              "kind": "success",
+              "next_delay_secs": 0,
+              "terminal_error": ""
+            },
+            "decision_jcs_b64": "eyJhdHRlbXB0IjowLCJldmVudF9pZCI6ImV2dC10YWcyNi1mMDEtc3VjY2VzcyIsImtpbmQiOiJzdWNjZXNzIiwibmV4dF9kZWxheV9zZWNzIjowLCJ0ZXJtaW5hbF9lcnJvciI6IiJ9",
+            "decision_jcs_len": 105,
+            "decision_hash_prefixed": "sha256:412d6458679b47c6af70f07ca0bcccc6cf132c2b78360f71a0358319e3fb1769"
+          }
+        ],
+        "transport_calls": 1,
+        "transport_seen": [
+          "evt-tag26-f01-success"
+        ],
+        "writeback_calls": [
+          "evt-tag26-f01-success"
+        ],
+        "dead_letter_snapshot": [],
+        "queue_len_final": 0
+      }
+    },
+    {
+      "name": "f02-throttled-rate-limit",
+      "doc": "Two envelopes share a 1-token-per-60s bucket. tick #1 = Success; tick #2 = Throttled (transport NOT called).",
+      "input": {
+        "config": {
+          "max_retry": 5,
+          "rate_requests": 1,
+          "rate_window_secs": 60,
+          "retry_base_delay_secs": 1,
+          "retry_max_delay_secs": 300
+        },
+        "rng_sequence": [
+          0
+        ],
+        "clock_start_secs": 0,
+        "enqueues": [
+          {
+            "event_id": "evt-tag26-f02-a",
+            "persona_id": "reza"
+          },
+          {
+            "event_id": "evt-tag26-f02-b",
+            "persona_id": "tomas"
+          }
+        ],
+        "transport_script": [
+          {
+            "kind": "accepted",
+            "error": ""
+          }
+        ],
+        "tick_program": [
+          {
+            "op": "tick"
+          },
+          {
+            "op": "tick"
+          }
+        ]
+      },
+      "expected": {
+        "ledger": [
+          {
+            "decision_record": {
+              "attempt": 0,
+              "event_id": "evt-tag26-f02-a",
+              "kind": "success",
+              "next_delay_secs": 0,
+              "terminal_error": ""
+            },
+            "decision_jcs_b64": "eyJhdHRlbXB0IjowLCJldmVudF9pZCI6ImV2dC10YWcyNi1mMDItYSIsImtpbmQiOiJzdWNjZXNzIiwibmV4dF9kZWxheV9zZWNzIjowLCJ0ZXJtaW5hbF9lcnJvciI6IiJ9",
+            "decision_jcs_len": 99,
+            "decision_hash_prefixed": "sha256:97e582dc16bcdd5f1209b425afaa6e8a77fac2310bcce0b1e7ba8e76ff4226f3"
+          },
+          {
+            "decision_record": {
+              "attempt": 0,
+              "event_id": "evt-tag26-f02-b",
+              "kind": "throttled",
+              "next_delay_secs": 0,
+              "terminal_error": ""
+            },
+            "decision_jcs_b64": "eyJhdHRlbXB0IjowLCJldmVudF9pZCI6ImV2dC10YWcyNi1mMDItYiIsImtpbmQiOiJ0aHJvdHRsZWQiLCJuZXh0X2RlbGF5X3NlY3MiOjAsInRlcm1pbmFsX2Vycm9yIjoiIn0=",
+            "decision_jcs_len": 101,
+            "decision_hash_prefixed": "sha256:9892f35072188d6c7fde0a4e67138c7eaa4c51dd172571fc1262ec41b3b470f4"
+          }
+        ],
+        "transport_calls": 1,
+        "transport_seen": [
+          "evt-tag26-f02-a"
+        ],
+        "writeback_calls": [
+          "evt-tag26-f02-a"
+        ],
+        "dead_letter_snapshot": [],
+        "queue_len_final": 1
+      }
+    },
+    {
+      "name": "f03-retry-backoff-success",
+      "doc": "Retriable error three times, fourth attempt succeeds. RNG pinned to upper bound so the full-jitter backoff schedule is the deterministic 1s, 2s, 4s sequence.",
+      "input": {
+        "config": {
+          "max_retry": 5,
+          "rate_requests": 100,
+          "rate_window_secs": 1,
+          "retry_base_delay_secs": 1,
+          "retry_max_delay_secs": 300
+        },
+        "rng_sequence": [
+          999999
+        ],
+        "clock_start_secs": 1700000000,
+        "enqueues": [
+          {
+            "event_id": "evt-tag26-f03-retry",
+            "persona_id": "selin"
+          }
+        ],
+        "transport_script": [
+          {
+            "kind": "retriable",
+            "error": "calendar-5xx-1"
+          },
+          {
+            "kind": "retriable",
+            "error": "calendar-5xx-2"
+          },
+          {
+            "kind": "retriable",
+            "error": "calendar-5xx-3"
+          },
+          {
+            "kind": "accepted",
+            "error": ""
+          }
+        ],
+        "tick_program": [
+          {
+            "op": "tick"
+          },
+          {
+            "op": "advance_clock",
+            "by_secs": 2
+          },
+          {
+            "op": "tick"
+          },
+          {
+            "op": "advance_clock",
+            "by_secs": 3
+          },
+          {
+            "op": "tick"
+          },
+          {
+            "op": "advance_clock",
+            "by_secs": 5
+          },
+          {
+            "op": "tick"
+          }
+        ]
+      },
+      "expected": {
+        "ledger": [
+          {
+            "decision_record": {
+              "attempt": 1,
+              "event_id": "evt-tag26-f03-retry",
+              "kind": "retrying",
+              "next_delay_secs": 1,
+              "terminal_error": ""
+            },
+            "decision_jcs_b64": "eyJhdHRlbXB0IjoxLCJldmVudF9pZCI6ImV2dC10YWcyNi1mMDMtcmV0cnkiLCJraW5kIjoicmV0cnlpbmciLCJuZXh0X2RlbGF5X3NlY3MiOjEsInRlcm1pbmFsX2Vycm9yIjoiIn0=",
+            "decision_jcs_len": 104,
+            "decision_hash_prefixed": "sha256:b8ae071df75041420add25a7000f10be4ccc4de0a13879d7fb57f0b69604c81f"
+          },
+          {
+            "decision_record": {
+              "attempt": 2,
+              "event_id": "evt-tag26-f03-retry",
+              "kind": "retrying",
+              "next_delay_secs": 2,
+              "terminal_error": ""
+            },
+            "decision_jcs_b64": "eyJhdHRlbXB0IjoyLCJldmVudF9pZCI6ImV2dC10YWcyNi1mMDMtcmV0cnkiLCJraW5kIjoicmV0cnlpbmciLCJuZXh0X2RlbGF5X3NlY3MiOjIsInRlcm1pbmFsX2Vycm9yIjoiIn0=",
+            "decision_jcs_len": 104,
+            "decision_hash_prefixed": "sha256:3de8f175cdb8996f652fc9b13079faba6d19a78bddddb74d7c864fe8c827711c"
+          },
+          {
+            "decision_record": {
+              "attempt": 3,
+              "event_id": "evt-tag26-f03-retry",
+              "kind": "retrying",
+              "next_delay_secs": 4,
+              "terminal_error": ""
+            },
+            "decision_jcs_b64": "eyJhdHRlbXB0IjozLCJldmVudF9pZCI6ImV2dC10YWcyNi1mMDMtcmV0cnkiLCJraW5kIjoicmV0cnlpbmciLCJuZXh0X2RlbGF5X3NlY3MiOjQsInRlcm1pbmFsX2Vycm9yIjoiIn0=",
+            "decision_jcs_len": 104,
+            "decision_hash_prefixed": "sha256:549334e63d3ab51f8595a200ed42818bfc41d015a9095ad13d131a8cfecd62a3"
+          },
+          {
+            "decision_record": {
+              "attempt": 0,
+              "event_id": "evt-tag26-f03-retry",
+              "kind": "success",
+              "next_delay_secs": 0,
+              "terminal_error": ""
+            },
+            "decision_jcs_b64": "eyJhdHRlbXB0IjowLCJldmVudF9pZCI6ImV2dC10YWcyNi1mMDMtcmV0cnkiLCJraW5kIjoic3VjY2VzcyIsIm5leHRfZGVsYXlfc2VjcyI6MCwidGVybWluYWxfZXJyb3IiOiIifQ==",
+            "decision_jcs_len": 103,
+            "decision_hash_prefixed": "sha256:ed01245477feef5af71f2d95955f5b6c841103b4e1c007113b73a2ea4064d5fd"
+          }
+        ],
+        "transport_calls": 4,
+        "transport_seen": [
+          "evt-tag26-f03-retry",
+          "evt-tag26-f03-retry",
+          "evt-tag26-f03-retry",
+          "evt-tag26-f03-retry"
+        ],
+        "writeback_calls": [
+          "evt-tag26-f03-retry"
+        ],
+        "dead_letter_snapshot": [],
+        "queue_len_final": 0
+      }
+    },
+    {
+      "name": "f04-retry-exhausted-dead-letter",
+      "doc": "Four retriable failures with max_retry=3. The fourth attempt pushes retry_count above max_retry and dead-letters. RNG pinned to 0 so backoff is 0 and the tick program doesn't need clock advances.",
+      "input": {
+        "config": {
+          "max_retry": 3,
+          "rate_requests": 100,
+          "rate_window_secs": 1,
+          "retry_base_delay_secs": 1,
+          "retry_max_delay_secs": 300
+        },
+        "rng_sequence": [
+          0
+        ],
+        "clock_start_secs": 1700000500,
+        "enqueues": [
+          {
+            "event_id": "evt-tag26-f04-dead",
+            "persona_id": "kai"
+          }
+        ],
+        "transport_script": [
+          {
+            "kind": "retriable",
+            "error": "err-1"
+          },
+          {
+            "kind": "retriable",
+            "error": "err-2"
+          },
+          {
+            "kind": "retriable",
+            "error": "err-3"
+          },
+          {
+            "kind": "retriable",
+            "error": "TERMINAL-PIN"
+          }
+        ],
+        "tick_program": [
+          {
+            "op": "tick"
+          },
+          {
+            "op": "tick"
+          },
+          {
+            "op": "tick"
+          },
+          {
+            "op": "tick"
+          }
+        ]
+      },
+      "expected": {
+        "ledger": [
+          {
+            "decision_record": {
+              "attempt": 1,
+              "event_id": "evt-tag26-f04-dead",
+              "kind": "retrying",
+              "next_delay_secs": 0,
+              "terminal_error": ""
+            },
+            "decision_jcs_b64": "eyJhdHRlbXB0IjoxLCJldmVudF9pZCI6ImV2dC10YWcyNi1mMDQtZGVhZCIsImtpbmQiOiJyZXRyeWluZyIsIm5leHRfZGVsYXlfc2VjcyI6MCwidGVybWluYWxfZXJyb3IiOiIifQ==",
+            "decision_jcs_len": 103,
+            "decision_hash_prefixed": "sha256:57e4239a963d08164d45bc1837bb0defe922433351dee17d44ef68b2a95ada3f"
+          },
+          {
+            "decision_record": {
+              "attempt": 2,
+              "event_id": "evt-tag26-f04-dead",
+              "kind": "retrying",
+              "next_delay_secs": 0,
+              "terminal_error": ""
+            },
+            "decision_jcs_b64": "eyJhdHRlbXB0IjoyLCJldmVudF9pZCI6ImV2dC10YWcyNi1mMDQtZGVhZCIsImtpbmQiOiJyZXRyeWluZyIsIm5leHRfZGVsYXlfc2VjcyI6MCwidGVybWluYWxfZXJyb3IiOiIifQ==",
+            "decision_jcs_len": 103,
+            "decision_hash_prefixed": "sha256:54ebef97f1854a1ef31bf26fd2b8147c2eb1dc782d9295f6596ca0bf6becbc7f"
+          },
+          {
+            "decision_record": {
+              "attempt": 3,
+              "event_id": "evt-tag26-f04-dead",
+              "kind": "retrying",
+              "next_delay_secs": 0,
+              "terminal_error": ""
+            },
+            "decision_jcs_b64": "eyJhdHRlbXB0IjozLCJldmVudF9pZCI6ImV2dC10YWcyNi1mMDQtZGVhZCIsImtpbmQiOiJyZXRyeWluZyIsIm5leHRfZGVsYXlfc2VjcyI6MCwidGVybWluYWxfZXJyb3IiOiIifQ==",
+            "decision_jcs_len": 103,
+            "decision_hash_prefixed": "sha256:829119c0844603e1c21ca1c40d4ad3fdc204bf93ba8998769a0201249f0d85e2"
+          },
+          {
+            "decision_record": {
+              "attempt": 4,
+              "event_id": "evt-tag26-f04-dead",
+              "kind": "dead",
+              "next_delay_secs": 0,
+              "terminal_error": "TERMINAL-PIN"
+            },
+            "decision_jcs_b64": "eyJhdHRlbXB0Ijo0LCJldmVudF9pZCI6ImV2dC10YWcyNi1mMDQtZGVhZCIsImtpbmQiOiJkZWFkIiwibmV4dF9kZWxheV9zZWNzIjowLCJ0ZXJtaW5hbF9lcnJvciI6IlRFUk1JTkFMLVBJTiJ9",
+            "decision_jcs_len": 111,
+            "decision_hash_prefixed": "sha256:01ca677e7c32eb33300943b28ee71e56827e28ee1f6e0185dd23f92e150134a0"
+          }
+        ],
+        "transport_calls": 4,
+        "transport_seen": [
+          "evt-tag26-f04-dead",
+          "evt-tag26-f04-dead",
+          "evt-tag26-f04-dead",
+          "evt-tag26-f04-dead"
+        ],
+        "writeback_calls": [],
+        "dead_letter_snapshot": [
+          {
+            "dead_letter_at": "2023-11-14T22:21:40Z",
+            "event_id": "evt-tag26-f04-dead",
+            "persona_id": "kai",
+            "retry_count": 4,
+            "terminal_error": "TERMINAL-PIN"
+          }
+        ],
+        "queue_len_final": 0
+      }
+    },
+    {
+      "name": "f05-idle-empty-queue",
+      "doc": "Empty queue, two ticks both return Idle. No transport call, no dead-letter, no writeback. Idle decision record has empty event_id and zero attempt/next_delay/terminal_error.",
+      "input": {
+        "config": {
+          "max_retry": 5,
+          "rate_requests": 1,
+          "rate_window_secs": 30,
+          "retry_base_delay_secs": 1,
+          "retry_max_delay_secs": 300
+        },
+        "rng_sequence": [
+          0
+        ],
+        "clock_start_secs": 1700001234,
+        "enqueues": [],
+        "transport_script": [],
+        "tick_program": [
+          {
+            "op": "tick"
+          },
+          {
+            "op": "tick"
+          }
+        ]
+      },
+      "expected": {
+        "ledger": [
+          {
+            "decision_record": {
+              "attempt": 0,
+              "event_id": "",
+              "kind": "idle",
+              "next_delay_secs": 0,
+              "terminal_error": ""
+            },
+            "decision_jcs_b64": "eyJhdHRlbXB0IjowLCJldmVudF9pZCI6IiIsImtpbmQiOiJpZGxlIiwibmV4dF9kZWxheV9zZWNzIjowLCJ0ZXJtaW5hbF9lcnJvciI6IiJ9",
+            "decision_jcs_len": 81,
+            "decision_hash_prefixed": "sha256:119dd92134fc1418a75d6c7da43eaa3d3b4f0c7e60c66c16a876a05ef8d0fdaa"
+          },
+          {
+            "decision_record": {
+              "attempt": 0,
+              "event_id": "",
+              "kind": "idle",
+              "next_delay_secs": 0,
+              "terminal_error": ""
+            },
+            "decision_jcs_b64": "eyJhdHRlbXB0IjowLCJldmVudF9pZCI6IiIsImtpbmQiOiJpZGxlIiwibmV4dF9kZWxheV9zZWNzIjowLCJ0ZXJtaW5hbF9lcnJvciI6IiJ9",
+            "decision_jcs_len": 81,
+            "decision_hash_prefixed": "sha256:119dd92134fc1418a75d6c7da43eaa3d3b4f0c7e60c66c16a876a05ef8d0fdaa"
+          }
+        ],
+        "transport_calls": 0,
+        "transport_seen": [],
+        "writeback_calls": [],
+        "dead_letter_snapshot": [],
+        "queue_len_final": 0
+      }
+    }
+  ]
+}
