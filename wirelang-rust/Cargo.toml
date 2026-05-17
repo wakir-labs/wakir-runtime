@@ -165,6 +165,18 @@
 #   does not delete or move any Python file.
 # - A-3 Body out-of-hash: same posture as Python — only the canonical
 #   subset goes into JCS; Markdown body bytes never reach this crate.
+#
+# - persona-engine-integration-tests : Tag-15 Mini-Welle (Phase-3a
+#   Item 16). Test-only crate that wires the FULL persona-engine-*
+#   stack together for cross-crate scenarios: subscribe-loop ->
+#   frontmatter-parser -> fsm -> bridge-diff -> anchor-emitter ->
+#   submit-worker -> recovery -> recovery-replay -> v907-verify. Five
+#   scenario files under `tests/` cover full-lifecycle, cross-lang
+#   roundtrip, NATS subject routing, multi-crate hash stability and
+#   recovery-workflow replay. Depends on all 17 persona-engine-* path
+#   deps via the workspace; no production binary; no new external
+#   dependencies (only re-uses workspace pins + the async-trait pin
+#   already locked by the submit-worker crate). Added 2026-05-17.
 
 [workspace]
 resolver = "2"
@@ -195,6 +207,7 @@ members = [
     "crates/persona-engine-v907-recompute-bench",
     "crates/persona-engine-recovery-replay",
     "crates/persona-engine-loop-latency-bench",
+    "crates/persona-engine-integration-tests",
 ]
 
 [workspace.package]

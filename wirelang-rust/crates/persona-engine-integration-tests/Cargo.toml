@@ -1,0 +1,150 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wakir-Runtime / wirelang Rust workspace —
+# persona-engine-integration-tests crate.
+#
+# Purpose
+# -------
+# Test-only crate that exercises the FULL persona-engine-* Rust crate
+# stack as a single coherent substrate. Each of the 15+ persona-engine
+# crates already carries its own per-crate smoke suite; what was
+# missing until now is a place where they are wired together to
+# demonstrate that the lifecycle
+#
+#     subscribe-loop -> frontmatter-parser -> fsm -> bridge-diff
+#       -> anchor-emitter -> submit-worker -> recovery
+#       -> recovery-replay -> v907-verify
+#
+# composes byte-deterministically across crate boundaries. The five
+# scenarios documented under `tests/` are:
+#
+#   1. Full-Lifecycle           — subscribe envelope -> parse -> FSM
+#                                 transition -> bridge diff -> anchor
+#                                 build -> submit-worker retry path
+#                                 -> recovery on permanent failure.
+#   2. Cross-Lang-Roundtrip     — fixture stream emitted via Rust
+#                                 PhaseResult, replayed via
+#                                 recovery-replay, workflow-hash byte-
+#                                 identical between actual and expected.
+#                                 Stand-in for the Python emit / Rust
+#                                 replay roundtrip until a full Python
+#                                 sibling lands; the JCS hashes are the
+#                                 cross-lang anchor.
+#   3. NATS-Subject-Routing     — nats-subjects builder produces a
+#                                 subject and the subscribe-loop subject
+#                                 template is consistent with the same
+#                                 substitution slots; wildcard producers
+#                                 cover their respective concrete
+#                                 subjects (prefix-and-token check).
+#   4. Multi-Crate-Hash-Stability — five personas walked through the
+#                                 frontmatter-parser -> v907-verify ->
+#                                 v907-recompute-bench loop, identical
+#                                 pins per round (deterministic).
+#   5. Recovery-Workflow-Replay — three-phase R1..R3 emit via the
+#                                 recovery crate, replayed via
+#                                 recovery-replay, divergence-list
+#                                 empty + workflow-hash equal.
+#
+# All scenarios are hermetic: no live NATS socket, no live OTS calendar,
+# no filesystem mutations outside the per-crate `tests/fixtures/` dir
+# (this crate's own fixtures live under `tests/fixtures/`). The deps
+# below mirror this posture: every persona-engine-* crate is pulled in
+# as a path dep, but no production binary lives here (this crate is
+# `dev-deps only` in the sense that it produces no consumer-facing
+# artefact — `[lib]` is a minimal helper shim).
+#
+# Hard-Constraints (per Tag-15 Mini-Welle Sprint-Auftrag)
+# -------------------------------------------------------
+# - No production binary; no `[[bin]]` section.
+# - Dep on all 15+ `persona-engine-*` crates (the full Phase-3a roster).
+# - `cargo test -p persona-engine-integration-tests` must run green.
+# - 15+ tests across five test files (one per scenario), all hermetic.
+# - No LICENSING / NOTICE / branch-protection / .github/workflows
+#   touches.
+# - Single-PR-Bundle against `wakir-runtime/main`.
+# - No new external dependencies — every needed crate is already in
+#   the workspace lock-set (path deps + workspace deps for the JSON /
+#   hash / async primitives this crate's helpers re-use).
+#
+# Versioning rationale (HTTP-200-verified against crates.io 2026-05-17)
+# ---------------------------------------------------------------------
+# - tokio       =1.52.3  : matches workspace-wide pin used by
+#                          subscribe-loop / submit-worker / recovery
+#                          (`#[tokio::test]` substrate + in-memory
+#                          mpsc channels for Scenario-1).
+# - async-trait =0.1.89  : matches submit-worker pin (used to wire
+#                          fake transports/clocks/RNG into the
+#                          Scenario-1 submit-worker fake-transport
+#                          path).
+# - serde / serde_json / serde_jcs / sha2 / hex : workspace pins,
+#                          re-used by Scenario-2/4 hash assertions.
+#
+# ADR anchors
+# -----------
+# - ADR-0063 §Folgeartefakte Phase-3a Item 16 (this crate).
+# - Reza PR #120 (subscribe-loop) — Scenario-1 substrate.
+# - Reza PR #141 (anchor-emitter) — Scenario-1 substrate.
+# - Reza PR #150 (anchor-submit-worker) — Scenario-1 substrate.
+# - Reza PR #137 (fsm) — Scenario-1 substrate.
+# - Selin PR #131 (bridge-diff) — Scenario-1 substrate.
+# - Reza PR #155 (recovery-replay) — Scenario-2 + Scenario-5 substrate.
+# - Reza PR #156 (federation-frame-parser) — Scenario-1 (envelope shape
+#   parity check).
+
+[package]
+name = "persona-engine-integration-tests"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "Apache-2.0"
+repository = "https://github.com/wakir-labs/wakir-runtime"
+authors = ["Reza Tehrani <reza@wakir.local>"]
+description = "Cross-crate integration-test suite for the persona-engine-* Rust crate stack (test-only; no production binary)."
+publish = false
+
+[lib]
+name = "persona_engine_integration_tests"
+path = "src/lib.rs"
+
+[dependencies]
+# All 15+ persona-engine-* crates exposed to the integration tests.
+# Path deps keep the test workspace self-contained and let `cargo
+# test -p persona-engine-integration-tests` build the full set in
+# one invocation without `--workspace`.
+persona-engine-anchor-emitter        = { path = "../persona-engine-anchor-emitter" }
+persona-engine-anchor-submit-worker  = { path = "../persona-engine-anchor-submit-worker" }
+persona-engine-bridge-audit-replay   = { path = "../persona-engine-bridge-audit-replay" }
+persona-engine-bridge-diff           = { path = "../persona-engine-bridge-diff" }
+persona-engine-federation-frame-parser = { path = "../persona-engine-federation-frame-parser" }
+persona-engine-format                = { path = "../persona-engine-format" }
+persona-engine-frontmatter-parser    = { path = "../persona-engine-frontmatter-parser" }
+persona-engine-fsm                   = { path = "../persona-engine-fsm" }
+persona-engine-loop-latency-bench    = { path = "../persona-engine-loop-latency-bench" }
+persona-engine-nats-subjects         = { path = "../persona-engine-nats-subjects" }
+persona-engine-recovery              = { path = "../persona-engine-recovery" }
+persona-engine-recovery-replay       = { path = "../persona-engine-recovery-replay" }
+persona-engine-smoke                 = { path = "../persona-engine-smoke" }
+persona-engine-state-backing         = { path = "../persona-engine-state-backing" }
+persona-engine-subscribe-loop        = { path = "../persona-engine-subscribe-loop" }
+persona-engine-v907-recompute-bench  = { path = "../persona-engine-v907-recompute-bench" }
+persona-engine-v907-verify           = { path = "../persona-engine-v907-verify" }
+
+# Async runtime for Scenario-1 (`#[tokio::test]` + `tokio::sync::mpsc`).
+# Pin matches subscribe-loop / submit-worker.
+tokio = { version = "=1.52.3", features = ["rt-multi-thread", "macros", "sync", "time"] }
+
+# Trait-object async-fn substrate for Scenario-1 FakeTransport.
+async-trait = "=0.1.89"
+
+# Workspace-pinned JSON/hash primitives used by helpers + hash
+# assertions in Scenario-2 / Scenario-4.
+serde      = { workspace = true }
+serde_json = { workspace = true }
+serde_jcs  = { workspace = true }
+sha2       = { workspace = true, features = ["std"] }
+hex        = { workspace = true }
+
+[dev-dependencies]
+# `tokio::time::pause` / `advance` for deterministic Scenario-1 retry-
+# backoff timing assertions; tokio `test-util` feature.
+tokio = { version = "=1.52.3", features = ["rt-multi-thread", "macros", "sync", "time", "test-util"] }

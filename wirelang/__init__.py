@@ -52,4 +52,12 @@ PR #160 (Tomás Doppelbetrieb-Score-Aggregator) is scripts/+tests/-only
 and would not match the cross-repo-drift path-filter. No-op wirelang/
 touch unblocks PR #160 per the PR #153/#158 pattern. Pfad A
 (workflow path-filter precision-add) remains a Tag-16 follow-up.
+
+Tag-15 cross-crate-integration trigger note (2026-05-17 06:15 CEST)
+-------------------------------------------------------------------
+PR #161 (Reza Cross-Crate Integration-Test-Suite) is wirelang-rust/**
+only and would not match the cross-repo-drift path-filter. No-op
+wirelang/ touch unblocks PR #161. Tag-16 Pfad A should add
+``wirelang-rust/**`` to the cross-repo-drift workflow path-filter to
+eliminate this class of Rust-only-PR-blockers permanently.
 """
