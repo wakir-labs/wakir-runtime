@@ -1376,6 +1376,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "persona-engine-fsm"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "persona-engine-recovery"
 version = "0.1.0"
 dependencies = [

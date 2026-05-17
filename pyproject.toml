@@ -410,3 +410,6 @@ addopts = "-q"
 filterwarnings = [
     "error::DeprecationWarning:wat.*",
 ]
+markers = [
+    "phase_3_skeleton: Phase-3 acceptance-gate skeleton (skip-by-default; opt-in via WAKIR_PHASE_3_SKELETON=1)",
+]

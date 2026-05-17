@@ -77,6 +77,12 @@ from .heuristic_router import (
     RoutingEvent,
     read_routing_mode,
 )
+from .llm_classifier import (
+    LlmClassifierEvent,
+    LlmClassifierRouter,
+    is_llm_classifier_mode,
+    maybe_attach_classifier_router,
+)
 
 ECHO_REFLECTION_VERSION = "v1"
 ECHO_REFLECTION_PROMPT_PREFIX_CHARS = 256
@@ -365,6 +371,64 @@ def maybe_attach_routing_shim(
     return HeuristicRoutingShim(static_choice=static_choice, sink=sink, env=env)
 
 
+# ---------------------------------------------------------------------------
+# LLM-Classifier-Routing wrapper (ADR-0064 Phase-2c, optional pre-hook)
+# ---------------------------------------------------------------------------
+
+
+def call_with_classifier_event(
+    hook: LlmCallHook,
+    *,
+    persona_id: str,
+    auftrag_id: str,
+    prompt_payload: str,
+    persona_def: Optional[dict] = None,
+    static_choice: Optional[str] = None,
+    classifier_router: Optional[LlmClassifierRouter] = None,
+    ts_utc: Optional[str] = None,
+) -> tuple[LlmCallResult, Optional[LlmClassifierEvent]]:
+    """Invoke ``hook.call`` with an optional Phase-2c classifier-event log.
+
+    This wrapper is the **ADR-0064 §A.4 Phase-2c integration point** —
+    sister-function to :func:`call_with_routing_event` (Phase-2b). If
+    ``classifier_router`` is ``None`` the wrapper degenerates to a
+    plain ``hook.call`` and returns ``(result, None)`` so the static-
+    mode code-path stays byte-identical to pre-Phase-2c.
+
+    When ``classifier_router`` is provided, the wrapper invokes
+    :meth:`LlmClassifierRouter.decide` *before* calling ``hook.call``
+    and dispatches the resulting :class:`LlmClassifierEvent` to the
+    router's sink. The event is **observation only** in Phase-2c —
+    the live model used by ``hook`` is still decided by the hook
+    itself; the substrate here ships the classifier-decision
+    telemetry + the fallback contract, not the live model-swap.
+    This preserves ADR-0064 §"Risiken und Annahmen": Classifier-
+    Cost-Drift-Risiko stays bounded because the classifier verdict
+    does not yet drive live traffic.
+
+    Engine integration code decides whether to attach the router
+    based on ``WAKIR_ROUTING_MODE`` (see
+    :func:`llm_classifier.maybe_attach_classifier_router`).
+    """
+    result = hook.call(
+        persona_id=persona_id,
+        auftrag_id=auftrag_id,
+        prompt_payload=prompt_payload,
+        ts_utc=ts_utc,
+    )
+    if classifier_router is None:
+        return result, None
+    event = classifier_router.decide(
+        persona_id=persona_id,
+        auftrag_id=auftrag_id,
+        task_payload={"prompt_payload": prompt_payload},
+        persona_def=persona_def,
+        static_choice=static_choice,
+        ts_utc=ts_utc or result.ts_utc,
+    )
+    return result, event
+
+
 __all__ = [
     "AnthropicMessagesHookNotImplemented",
     "ECHO_REFLECTION_PROMPT_PREFIX_CHARS",
@@ -372,7 +436,12 @@ __all__ = [
     "EchoReflectionLlmHook",
     "LlmCallHook",
     "LlmCallResult",
+    "LlmClassifierEvent",
+    "LlmClassifierRouter",
     "anthropic_messages_hook_phase_3_stub",
+    "call_with_classifier_event",
     "call_with_routing_event",
+    "is_llm_classifier_mode",
+    "maybe_attach_classifier_router",
     "maybe_attach_routing_shim",
 ]

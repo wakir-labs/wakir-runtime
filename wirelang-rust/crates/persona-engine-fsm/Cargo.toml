@@ -1,0 +1,92 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wakir-Runtime / wirelang Rust workspace — persona-engine-fsm crate.
+#
+# Purpose
+# -------
+# Rust pendant of the persona-engine lifecycle state-machine.
+# Schema-parity with the Python reference implementation
+# `wirelang/persona_engine/lifecycle_state_machine.py` (Selin
+# Sprint-Pengine-8 PR #65), anchored in persona-engine-format-spec §3.3
+# "Lifecycle states and transitions".
+#
+# Spec §3.3 substrate
+# -------------------
+# - Six states: uninstantiated | spawning | running | despawning |
+#   recovered | migrated.
+# - Nine valid transitions (closed enumeration; any other edge is an
+#   invalid-transition error).
+# - Every transition attempt (accepted or rejected) is appended to an
+#   audit history so the recovery-workflow (§3.7.4 R2 "Reload") can
+#   replay the lifecycle byte-for-byte.
+#
+# Schema parity table (Python <-> Rust)
+# -------------------------------------
+#   Python `STATES` tuple                  <-> Rust `STATES` const slice
+#   Python `VALID_TRANSITIONS` tuple       <-> Rust `VALID_TRANSITIONS` const slice
+#   Python `InvalidTransitionError`        <-> Rust `FsmError::InvalidTransition`
+#   Python `UnknownStateError`             <-> Rust `FsmError::UnknownState`
+#   Python `TransitionRecord` dataclass    <-> Rust `TransitionRecord` struct
+#   Python `LifecycleStateMachine`         <-> Rust `PersonaFsm`
+#   Python `transition_to`                 <-> Rust `transition`
+#   Python `can_transition_to`             <-> Rust `can_transition_to`
+#   Python `replay`                        <-> Rust `PersonaFsm::replay`
+#
+# Naming note (Sprint-Auftrag vs. spec/PR-65)
+# -------------------------------------------
+# The Sprint-Auftrag mentions states `Idle | Spawning | Running |
+# Recovering | Despawning | Completed` and "9 Übergänge per Spec §3.3".
+# The Python authority (PR #65, spec §3.3) names the six states
+# `uninstantiated | spawning | running | despawning | recovered |
+# migrated` with the nine transitions enumerated in
+# `VALID_TRANSITIONS`. Hard-constraint "Schema-Parität zu Python
+# lifecycle_state_machine.py" wins — we mirror the Python canonical
+# state and transition labels exactly. The Sprint-Auftrag enum variant
+# names are advisory; the wire-string pins are the spec strings.
+#
+# Wire-string discipline
+# ---------------------
+# `FsmState::as_wire_str` returns the lowercase spec string used by
+# Python `STATES`. The cross-lang smoke test pins all six strings so
+# any rename on either side breaks both languages at the same instant.
+#
+# ADR anchors
+# -----------
+# - ADR-0063 §Folgeartefakte — Rust migration of persona-engine
+#   substrate.
+# - Selin PR #65 (Sprint-Pengine-8) — Python schema authority.
+# - persona-engine-format-spec §3.3 — six-state, nine-transition
+#   envelope.
+#
+# Versioning rationale (matches workspace pin posture verified
+# 2026-05-17 02:01 CEST against sibling persona-engine-recovery crate):
+# - serde 1.0.x        : derive macros for TransitionRecord
+#                        round-trip JSON parity tests.
+# - serde_json 1.0.140 : audit-record construction cross-lang parity
+#                        pin (matches workspace pin).
+#
+# Hard-Constraints (per Sprint-Auftrag)
+# -------------------------------------
+# - No touches to `wirelang/persona_engine/lifecycle_state_machine.py`.
+# - No LICENSING / NOTICE / .github/workflows touches.
+# - `cargo test -p persona-engine-fsm` must run green.
+# - Single-PR-Bundle against `wakir-runtime/main`.
+
+[package]
+name = "persona-engine-fsm"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "Apache-2.0"
+repository = "https://github.com/wakir-labs/wakir-runtime"
+authors = ["Reza Tehrani <reza@wakir.local>"]
+description = "Rust pendant of the persona-engine lifecycle state-machine (spec §3.3, schema-parity with Selin PR #65)."
+publish = false
+
+[lib]
+name = "persona_engine_fsm"
+path = "src/lib.rs"
+
+[dependencies]
+serde      = { workspace = true }
+serde_json = { workspace = true }
