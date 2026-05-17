@@ -329,16 +329,51 @@ jq '.status, .equivalence_class, .latency_violations' aggregate-summary.json
 
 ## 9. Out of scope (Tag-18)
 
-* `scripts/ci-live-vm-phase-3b-driver.sh` — follow-up sprint
-  deliverable. Until it lands, every matrix-cell emits a
-  `driver-not-present` stub; the aggregate verdict is
-  `skipped-driver-not-present`.
+* ~~`scripts/ci-live-vm-phase-3b-driver.sh`~~ — landed Tag-19 (this
+  follow-up). The driver is the matrix-cell hand-off implementation
+  that fulfils the §4 contract. The workflow keeps its inline
+  `driver-not-present` stub-emit as a defence-in-depth safety net
+  for branches that predate Tag-19 (see
+  `live-vm-acceptance.yml:648` `if [[ -x "${DRIVER}" ]]; then`).
 * Real-VM bring-up in CI. The hermetic Sandbox cannot reach the
   Pilot-VM. The Phase-3b lane is Operator-Hand-dispatch only,
-  identical to the base lane.
+  identical to the base lane. The driver itself supports an
+  `--mode=self-test` surface so its CLI + verdict-emit can be
+  exercised hermetically via `WAKIR_PHASE_3B_MOCK_*` ENV-vars
+  (see `tests/scripts/test_ci_live_vm_phase_3b_driver.py`).
 * Automatic cross-language equivalence assertion in the Tag-15/16
   hermetic test surface. The hermetic surface already pins
   `final_state_hash` via PR #135 / #140 cross-language fixtures;
   Phase-3b validates the same claim on a real VM.
+
+---
+
+## 10. Tag-19 driver follow-up — verdict-status codomain narrowing
+
+The Tag-18 workflow YAML §4 originally hinted at a richer
+verdict-status codomain
+(`{ok, fail, fail-latency-budget, fail-driver-error,
+driver-not-present}`). The Tag-19 driver implementation discovered
+that the per-permutation verdict-step
+(`live-vm-acceptance.yml:707-724`) only accepts three tokens
+(`{ok, fail, driver-not-present}`) before tripping its
+`Unknown report status` hard-error branch.
+
+The driver therefore narrows the emitted verdict-status to that
+three-token codomain and surfaces the richer failure-mode
+discriminator via `backend_decision_record.fail_subkind`:
+
+| status               | fail_subkind     | exit-code | meaning                                            |
+| -------------------- | ---------------- | --------- | -------------------------------------------------- |
+| `ok`                 | `null`           | 0         | clean pass                                         |
+| `fail`               | `latency-budget` | 2         | p95 exceeded `--latency-budget-ms`                 |
+| `fail`               | `driver-error`   | 3         | SSH/remote-driver exec failure                     |
+| `fail`               | `on-vm`          | 4         | remote acceptance script returned status==fail     |
+| `driver-not-present` | `null`           | 0         | remote driver binary not yet deployed              |
+
+The aggregate-job consumes `status` only; the exit code is the
+operator-side richer signal. Auditors (Henrik's sample-audit lane,
+Zone N) can read `backend_decision_record.fail_subkind` to
+distinguish the failure-modes without re-running the lane.
 
 — Kai
