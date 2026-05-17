@@ -15,7 +15,7 @@ CI. If an operator drifts the required-set away from the audited
 Sollstellung (additions, removals, or check-name typos), this test
 fails and forces the doc + test to be updated in the same PR.
 
-Test-Vector matrix (13 vectors today, all hermetic, no live network):
+Test-Vector matrix (15 vectors today, all hermetic, no live network):
 
 * TV-BPC-01: wakir-runtime required-set matches audit (License-Hygiene
   Gate + wirelang suite).
@@ -37,20 +37,33 @@ Test-Vector matrix (13 vectors today, all hermetic, no live network):
   ``code-only``/``test-only``/``doc-only``/``dashboard-only``).
   As of Sprint-Branch-Protection-cross-repo-drift-Required-MINI
   (2026-05-17) the vector also pins the in-scope reach of
-  ``cross-repo-drift-audit.yml`` on the ``code-only`` class — that
-  workflow is the Mira-Hand-pending §4.2 promotion candidate, and
-  its in-scope reach must stay intact pre-flip.
+  ``cross-repo-drift-audit.yml``. After the Tag-16 Pfad A path-
+  filter precision-add (2026-05-17), the in-scope reach for
+  cross-repo-drift expanded from ``code-only``-only to
+  ``code-only`` + ``test-only`` + ``dashboard-only`` (closing the
+  reach-asymmetry that caused forever-PENDING blocks on PRs #153,
+  #158, #160, #161). ``doc-only`` + ``workflow-only`` remain non-
+  reach by design (see TV-BPC-11).
 * TV-BPC-10: anti-pattern detection — ``hash-derivate-gate.yml`` is
   flagged as Required-unfit because its path-filter fails the
   universal-trigger rule (operations doc §4.4 / §4.5).
-* TV-BPC-11: cross-repo-drift reach — the proposed Required addition
+* TV-BPC-11: cross-repo-drift reach — the Required addition
   ``cross-repo drift (wakir-runtime ↔ wakir-protocol)`` triggers on
-  ``code-only`` PRs (the in-scope class for substance-classification
-  symmetry) per operations doc §4.2.
+  ``code-only`` + ``test-only`` + ``dashboard-only`` PRs (the three
+  in-scope classes for substance-classification symmetry after
+  Tag-16 Pfad A path-filter precision-add, 2026-05-17). The
+  non-reach properties on ``doc-only`` + ``workflow-only`` (foreign-
+  workflow) remain pinned as regression-anchors per operations doc
+  §4.2 + §4.5 (Tag-16 update).
 * TV-BPC-12: universal-trigger consistency — every name currently in
-  the Required-set on ``wakir-runtime`` triggers on the three minimum
-  required PR-path-classes (``code-only``, ``test-only``,
-  ``workflow-only``); detection of regressions on this rule fires.
+  the Required-set on ``wakir-runtime`` triggers on the universal-
+  cohort minimum required PR-path-classes (``code-only``,
+  ``test-only``); detection of regressions on this rule fires. After
+  Tag-16 Pfad A path-filter precision-add (2026-05-17), the
+  narrow-by-design cohort (`_NARROW_COHORT_WORKFLOWS`) is empty —
+  `cross-repo-drift-audit.yml` no longer needs a narrow-cohort
+  exception because its expanded path-filter now satisfies the
+  universal-cohort `code-only AND test-only` minimum.
 * TV-BPC-12b: self-listing path-filter discipline — every currently
   Required workflow on ``wakir-runtime`` lists its own YAML in its
   path-filter (Henne-Ei-Praevention; PRs #102/#107/#117 lesson).
@@ -59,6 +72,19 @@ Test-Vector matrix (13 vectors today, all hermetic, no live network):
   ``_RUNTIME_PROTECTION_POST_PROMOTION`` matches the expected
   three-context Required-set, and the 4-axis convergence-score
   computed from the target state hits 9/9 = 1.000.
+* TV-BPC-13 (new 2026-05-17, Tag-16 Pfad A): path-filter precision-
+  add reach-closure — the cross-repo-drift workflow's expanded
+  path-filter explicitly lists the four Pfad-A precision-add
+  entries (``wirelang-rust/**`` + ``tests/**`` + ``scripts/**`` +
+  ``dashboards/**``) on top of the original four entries. Pins
+  the YAML-side filter against accidental narrowing.
+* TV-BPC-14 (new 2026-05-17, Tag-16 Pfad A): narrow-cohort
+  emptiness — ``_NARROW_COHORT_WORKFLOWS`` is now an empty
+  frozenset after the path-filter precision-add. Any re-addition
+  of a workflow to this cohort must be matched by either (a) the
+  workflow genuinely being narrow-by-design with another Required
+  gate covering the missing slices, or (b) updating this vector
+  in the same PR.
 
 The fixtures below mirror the exact JSON shape that
 ``gh api repos/<org>/<repo>/branches/main/protection`` returns.
@@ -423,9 +449,25 @@ _PATH_FILTERS: dict[str, tuple[str, ...]] = {
         "tests/infra/test_hash_derivate_consistency.py",
         ".github/workflows/hash-derivate-gate.yml",
     ),
+    # Pfad A Path-Filter Precision-Add (Tag-16, 2026-05-17). Prior
+    # filter was the 4-entry narrow set (wirelang/** + pyproject.toml
+    # + allowlist + own YAML) which left forever-PENDING blocks on
+    # PRs #153, #158, #160, #161 (every PR not touching wirelang/** or
+    # pyproject.toml stalled, fixed each time by a no-op
+    # `wirelang/__init__.py` touch). The expanded set below mirrors
+    # the live workflow YAML on `main` post-Tag-16 and closes the
+    # reach-asymmetry on code-only/test-only/dashboard-only PRs. The
+    # workflow remains narrow-by-design on doc-only and workflow-only
+    # PRs (doc-only PRs are not substance-classification PRs; foreign-
+    # workflow-only PRs are by construction out-of-scope of the
+    # cross-repo-drift gate's substance audit).
     "cross-repo-drift-audit.yml": (
         "wirelang/**",
+        "wirelang-rust/**",
         "pyproject.toml",
+        "tests/**",
+        "scripts/**",
+        "dashboards/**",
         ".cross-repo-drift-allowlist.yaml",
         ".github/workflows/cross-repo-drift-audit.yml",
     ),
@@ -470,12 +512,24 @@ _RUNTIME_CHECKNAME_TO_WORKFLOW: dict[str, str] = {
 # narrow-cohort allowance, TV-BPC-12 would contradict TV-BPC-09's
 # explicit `_NARROW_REACH_CLASSES_CROSS_REPO_DRIFT` cohort and
 # TV-BPC-11's non-reach assertions.
+#
+# Tag-16 Pfad A Path-Filter Precision-Add (2026-05-17): the cohort
+# is now EMPTY. `cross-repo-drift-audit.yml`'s path-filter was
+# expanded to reach code-only + test-only + dashboard-only PR-path-
+# classes (the previously-narrow 4-entry filter was the root-cause
+# of forever-PENDING blocks on PRs #153, #158, #160, #161 — each
+# fixed by an ad-hoc no-op `wirelang/__init__.py` touch). doc-only
+# and foreign-workflow-only remain non-reach by design: a doc-only
+# PR is not a substance-classification PR; a foreign-workflow-only
+# PR is by construction out-of-scope of the substance audit.
+# TV-BPC-12's universal-cohort minimum-reach rule (`code-only` AND
+# `test-only`) now applies to cross-repo-drift unchanged — which is
+# exactly the reach-closure that Pfad A targets and that
+# TV-BPC-09's expanded `_NARROW_REACH_CLASSES_CROSS_REPO_DRIFT`
+# parametrisation pins explicitly. See operations doc §4.2 +
+# §4.5 (Tag-16 update) for the doc-side anchor.
 
-_NARROW_COHORT_WORKFLOWS: frozenset[str] = frozenset(
-    {
-        "cross-repo-drift-audit.yml",
-    }
-)
+_NARROW_COHORT_WORKFLOWS: frozenset[str] = frozenset()
 
 
 # Five "typical PR-path-classes" (operations doc §4.5).  Each class is
@@ -588,8 +642,20 @@ _UNIVERSAL_REACH_CLASSES: tuple[str, ...] = (
     "dashboard-only",
 )
 
+# Tag-16 Pfad A Path-Filter Precision-Add (2026-05-17): the in-scope
+# reach for `cross-repo-drift-audit.yml` now spans three PR-path-
+# classes, not one. The expanded filter adds `tests/**`, `scripts/**`,
+# `dashboards/**`, `wirelang-rust/**` on top of the original four
+# entries. The cohort's `doc-only` and `workflow-only` non-reach
+# remains intentional (doc-only PRs are not substance-classification
+# PRs; foreign-workflow-only PRs are by construction out-of-scope of
+# the substance audit). TV-BPC-11 pins the doc-only non-reach as a
+# regression-anchor for the "still narrow-by-design on doc/workflow"
+# axis.
 _NARROW_REACH_CLASSES_CROSS_REPO_DRIFT: tuple[str, ...] = (
     "code-only",
+    "test-only",
+    "dashboard-only",
 )
 
 _TV_BPC_09_PARAMS: list[tuple[str, str]] = [
@@ -695,37 +761,74 @@ def test_bpc_hash_derivate_gate_is_required_unfit() -> None:
 
 
 def test_bpc_cross_repo_drift_reaches_code_only_class() -> None:
-    """``cross-repo-drift-audit.yml`` reaches ``code-only`` PRs.
+    """``cross-repo-drift-audit.yml`` reaches code-only / test-only /
+    dashboard-only PRs (post Tag-16 Pfad A path-filter precision-add).
 
-    Operations doc §4.2 recommends promoting this workflow to Required
-    on the strength that it covers the in-scope PR-class
-    (substance-classification PRs touching ``wirelang/**``). This test
-    pins that property: if a future path-filter narrowing breaks it,
-    the §4.2 recommendation is no longer valid and the operator must
-    re-evaluate before applying.
+    Operations doc §4.2 promoted this workflow to Required
+    (2026-05-17 04:35 CEST). After Tag-16 Pfad A (2026-05-17), the
+    workflow's path-filter was widened from the original 4-entry
+    narrow set (`wirelang/**` + `pyproject.toml` + allowlist + own
+    YAML) to additionally cover `tests/**`, `scripts/**`,
+    `dashboards/**`, `wirelang-rust/**`. This closes the forever-
+    PENDING reach-asymmetry that hit PRs #153, #158, #160, #161
+    (each one needed an ad-hoc no-op `wirelang/__init__.py` touch
+    to satisfy the old filter).
+
+    Three positive-reach pins and two non-reach pins:
+
+    * ``code-only`` reach (substance-classification PRs) — pinned.
+    * ``test-only`` reach (test-only PRs that no longer need the
+      no-op-touch workaround) — pinned new in Tag-16 Pfad A.
+    * ``dashboard-only`` reach (dashboard PRs that altered cost/
+      cache metrics no longer need a workaround touch) — pinned
+      new in Tag-16 Pfad A.
+    * ``doc-only`` non-reach (a doc-only PR is by construction not
+      a substance-classification PR; the substance audit does not
+      need to gate it). Pinned as regression-anchor.
+    * ``workflow-only`` (foreign workflows, e.g. ``release.yml``)
+      non-reach — out-of-scope of the substance audit by
+      construction. Pinned as regression-anchor.
+
+    If a future path-filter narrowing breaks any positive-reach pin,
+    the §4.2 promotion-validity regresses and the operator must
+    re-evaluate before re-applying. If a future widening breaks the
+    non-reach pins (e.g. someone adds `docs/**` to the filter), the
+    operations doc §4.2 reach-paragraph and §4.5 row must be
+    updated in lock-step.
     """
-    assert _workflow_triggers_on_class(
-        "cross-repo-drift-audit.yml", "code-only"
-    ), (
-        "cross-repo-drift-audit.yml no longer reaches code-only PRs. "
-        "Operations doc §4.2 Required-promotion recommendation is "
-        "INVALID until path-filter is restored. Do NOT mark this check "
-        "Required on wakir-runtime/main."
-    )
+    # Positive reach (post-Pfad A).
+    for cls in ("code-only", "test-only", "dashboard-only"):
+        assert _workflow_triggers_on_class(
+            "cross-repo-drift-audit.yml", cls
+        ), (
+            f"cross-repo-drift-audit.yml no longer reaches {cls!r} "
+            "PRs. Operations doc §4.2 Required-promotion validity "
+            "regressed after Tag-16 Pfad A path-filter precision-add. "
+            "Either restore the path-filter (preferred) or de-Required "
+            "the check (operations doc §4.4)."
+        )
 
     # And confirm the documented non-reach properties hold (so the
-    # operator's reach-analysis in §4.2 stays accurate).
-    assert _workflow_triggers_on_class(
-        "cross-repo-drift-audit.yml", "test-only"
-    ) is False, (
-        "cross-repo-drift-audit.yml now reaches test-only PRs. Update "
-        "operations doc §4.2 reach-paragraph and §4.5 row."
-    )
+    # operator's reach-analysis in §4.2 + §4.5 stays accurate).
     assert _workflow_triggers_on_class(
         "cross-repo-drift-audit.yml", "doc-only"
     ) is False, (
         "cross-repo-drift-audit.yml now reaches doc-only PRs. Update "
-        "operations doc §4.2 reach-paragraph and §4.5 row."
+        "operations doc §4.2 reach-paragraph and §4.5 row. A doc-only "
+        "PR is by construction not a substance-classification PR; "
+        "either the path-filter was widened intentionally (doc-side "
+        "update needed) or accidentally (revert and add a hermetic "
+        "test for the doc-only non-reach axis)."
+    )
+    assert _workflow_triggers_on_class(
+        "cross-repo-drift-audit.yml", "workflow-only"
+    ) is False, (
+        "cross-repo-drift-audit.yml now reaches foreign-workflow-only "
+        "PRs (e.g. release.yml). This is out-of-scope of the substance "
+        "audit by construction — a PR that only edits a foreign "
+        "workflow YAML does not need re-running the cross-repo-drift "
+        "gate. Update operations doc §4.5 row and TV-BPC-09 if the "
+        "widening is intentional."
     )
 
 
@@ -748,12 +851,15 @@ def test_bpc_required_set_has_universal_minimum_reach() -> None:
     * **Narrow-by-design cohort** (``_NARROW_COHORT_WORKFLOWS``):
       minimum reach = ``code-only`` only. These gates intentionally
       do NOT reach ``test-only`` — the other Required gates cover the
-      missing slices (§4.5 mapping). Currently this cohort contains
-      ``cross-repo-drift-audit.yml``; TV-BPC-09 pins its in-scope
-      reach via ``_NARROW_REACH_CLASSES_CROSS_REPO_DRIFT`` and
-      TV-BPC-11 pins its non-reach on ``test-only``/``doc-only``.
-      Forcing ``test-only`` reach here would directly contradict
-      those two vectors.
+      missing slices (§4.5 mapping). After Tag-16 Pfad A path-filter
+      precision-add (2026-05-17), this cohort is **empty**:
+      ``cross-repo-drift-audit.yml`` was the only member, and its
+      path-filter expansion (`tests/**` + `scripts/**` +
+      `dashboards/**` + `wirelang-rust/**`) now satisfies the
+      universal-cohort `code-only AND test-only` minimum. The cohort
+      is kept as an extension-point: any future Required-candidate
+      that is genuinely narrow-by-design can be re-added here without
+      churning the test-shape.
 
     ``workflow-only`` is not a minimum-reach requirement because
     foreign-workflow-only PRs are by construction out of scope of the
@@ -965,3 +1071,151 @@ def test_bpc_post_promotion_target_state_yields_nine_of_nine() -> None:
         "the test was not updated. Sync §4.3 + this vector in lock-step."
     )
     assert total_num / total_den == 1.0
+
+
+# --- TV-BPC-13 — Tag-16 Pfad A path-filter precision-add reach-closure
+
+
+# Pfad A precision-add entries (Tag-16, 2026-05-17). The four new
+# path-filter entries that closed the forever-PENDING reach-asymmetry
+# on PRs #153, #158, #160, #161. Pinned as a tuple so that an
+# accidental drop of any one entry surfaces as a single test failure
+# with a specific entry-name in the assert message.
+
+_PFAD_A_PRECISION_ADD_ENTRIES: tuple[str, ...] = (
+    "wirelang-rust/**",
+    "tests/**",
+    "scripts/**",
+    "dashboards/**",
+)
+
+
+# Original-narrow path-filter entries (pre-Tag-16, 2026-05-17). These
+# four entries plus the four Pfad A entries above form the post-Pfad-A
+# 8-entry filter. Pinned here so that an accidental drop of an
+# original entry is also a single-entry-failure surface.
+
+_PRE_PFAD_A_ORIGINAL_ENTRIES: tuple[str, ...] = (
+    "wirelang/**",
+    "pyproject.toml",
+    ".cross-repo-drift-allowlist.yaml",
+    ".github/workflows/cross-repo-drift-audit.yml",
+)
+
+
+def test_bpc_pfad_a_precision_add_entries_listed() -> None:
+    """All four Pfad-A precision-add path-filter entries are present.
+
+    Tag-16 Pfad A (2026-05-17) widened the
+    ``cross-repo-drift-audit.yml`` path-filter from a 4-entry narrow
+    set to an 8-entry set by adding ``wirelang-rust/**``,
+    ``tests/**``, ``scripts/**``, ``dashboards/**``. The original
+    4-entry narrow set was the root-cause of forever-PENDING blocks
+    on PRs #153, #158, #160, #161 (each one needed an ad-hoc no-op
+    ``wirelang/__init__.py`` touch to satisfy the old filter).
+
+    This vector pins each Pfad-A entry by name so that an accidental
+    drop in a future YAML edit surfaces under a single-entry-failure
+    message ("entry X is missing"), not a hard-to-read diff. The
+    companion fixture ``_PFAD_A_PRECISION_ADD_ENTRIES`` is the
+    regression-anchor; mutate it (in lock-step with the YAML) only
+    via a deliberate sprint that reverses the Pfad-A widening, in
+    which case the operations doc §4.5 reach-map must be updated
+    too.
+    """
+    filter_entries = frozenset(_PATH_FILTERS["cross-repo-drift-audit.yml"])
+
+    # Pfad-A precision-add entries pinned individually.
+    for entry in _PFAD_A_PRECISION_ADD_ENTRIES:
+        assert entry in filter_entries, (
+            f"Pfad-A precision-add entry {entry!r} is missing from "
+            f"the cross-repo-drift-audit.yml path-filter fixture. "
+            f"Either the YAML was narrowed back (revert) or the "
+            f"fixture is stale (re-sync from the YAML). Tag-16 Pfad A "
+            "(2026-05-17) added this entry to close the forever-"
+            "PENDING reach-asymmetry on PRs #153, #158, #160, #161 — "
+            "do NOT drop without an explicit Tag-N sprint."
+        )
+
+    # Original-narrow entries also pinned (so a Pfad-A widening PR
+    # cannot accidentally drop an original entry).
+    for entry in _PRE_PFAD_A_ORIGINAL_ENTRIES:
+        assert entry in filter_entries, (
+            f"Original-narrow path-filter entry {entry!r} (pre-Tag-16) "
+            f"is missing from cross-repo-drift-audit.yml fixture. The "
+            f"Pfad-A widening must STRICTLY ADD entries on top of the "
+            f"original four; dropping any original entry regresses the "
+            f"substance-classification reach. Re-add or revert."
+        )
+
+    # Total entry count pinned at 8 (4 original + 4 Pfad-A). A future
+    # widening or narrowing must be accompanied by an update of this
+    # vector AND the operations doc §4.5 reach-map AND the
+    # `_PFAD_A_PRECISION_ADD_ENTRIES` / `_PRE_PFAD_A_ORIGINAL_ENTRIES`
+    # tuples above.
+    assert len(filter_entries) == 8, (
+        f"cross-repo-drift-audit.yml path-filter has {len(filter_entries)} "
+        "entries, expected 8 (4 original + 4 Pfad-A precision-add). "
+        f"Filter: {sorted(filter_entries)!r}. Update this vector and "
+        "the operations doc §4.5 reach-map in the same PR."
+    )
+
+
+# --- TV-BPC-14 — narrow-cohort emptiness post Pfad A -----------------
+
+
+def test_bpc_narrow_cohort_is_empty_post_pfad_a() -> None:
+    """``_NARROW_COHORT_WORKFLOWS`` is empty after Tag-16 Pfad A.
+
+    Pre-Tag-16, the cohort contained ``cross-repo-drift-audit.yml``
+    as a narrow-by-design exception to TV-BPC-12's universal-cohort
+    `code-only AND test-only` minimum-reach rule. After Tag-16 Pfad A
+    (2026-05-17) widened the path-filter, the workflow now satisfies
+    the universal-cohort minimum natively and the cohort exception
+    is no longer needed.
+
+    Keeping the empty cohort as an extension-point: any future
+    Required-candidate that is genuinely narrow-by-design (e.g. a
+    schemas-only gate that pairs with another full-reach gate) can
+    be re-added without churning TV-BPC-12's shape. But every
+    re-addition must be matched by a documented other-gate-covers-
+    the-missing-slices rationale in operations doc §4.4 + §4.5.
+
+    Acceptance shape:
+
+    1. The cohort is a frozenset (type pinned for clarity).
+    2. The cohort is empty (no narrow-by-design exceptions today).
+    3. ``cross-repo-drift-audit.yml`` is specifically NOT in the
+       cohort (most likely regression target — re-adding it would
+       silently re-narrow TV-BPC-12's minimum-reach rule).
+    """
+    assert isinstance(_NARROW_COHORT_WORKFLOWS, frozenset), (
+        f"_NARROW_COHORT_WORKFLOWS is not a frozenset: "
+        f"{type(_NARROW_COHORT_WORKFLOWS).__name__}. Type discipline "
+        "matters because TV-BPC-12 does `in`-membership checks; a "
+        "list or set would still work but a frozenset is the chosen "
+        "immutable shape (operations doc §4.5 fixture-discipline)."
+    )
+
+    assert _NARROW_COHORT_WORKFLOWS == frozenset(), (
+        f"_NARROW_COHORT_WORKFLOWS is non-empty: "
+        f"{sorted(_NARROW_COHORT_WORKFLOWS)!r}. Tag-16 Pfad A "
+        "(2026-05-17) emptied this cohort because the cross-repo-"
+        "drift path-filter now satisfies the universal-cohort "
+        "minimum-reach rule natively. Any re-addition must be "
+        "accompanied by an operations doc §4.4 / §4.5 update with "
+        "a documented other-gate-covers-the-missing-slices rationale."
+    )
+
+    # Specific regression-target: cross-repo-drift must NOT be back in.
+    assert (
+        "cross-repo-drift-audit.yml" not in _NARROW_COHORT_WORKFLOWS
+    ), (
+        "cross-repo-drift-audit.yml is back in _NARROW_COHORT_WORKFLOWS. "
+        "Re-narrowing the cohort would silently relax TV-BPC-12's "
+        "minimum-reach rule for this workflow back to `code-only` "
+        "only — which contradicts the Tag-16 Pfad A path-filter "
+        "precision-add and TV-BPC-09's expanded "
+        "`_NARROW_REACH_CLASSES_CROSS_REPO_DRIFT` parametrisation. "
+        "Revert."
+    )
