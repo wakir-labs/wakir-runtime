@@ -135,7 +135,13 @@ from .heuristic_router import (
     read_routing_mode as _read_basic_routing_mode,
     route_task,
 )
+from .classifier_cache import (
+    ClassifierDecisionCache,
+    WAKIR_CLASSIFIER_CACHE_TTL_DEFAULT_SECONDS,
+    WAKIR_CLASSIFIER_CACHE_TTL_ENV,
+)
 from .llm_classifier import (
+    LlmClassifierEvent,
     LlmClassifierRouter,
     MockHaikuClassifierBackend,
     WAKIR_ROUTING_MODE_LLM_CLASSIFIER,
@@ -311,6 +317,10 @@ class RoutingDecision:
       the substrate fell back to the heuristic-router decision.
     - ``fallback_reason``: short string describing why fallback fired
       (e.g. ``"classifier-exception"``), ``None`` when no fallback.
+    - ``cache_event``: when a :class:`ClassifierDecisionCache` was
+      consulted, the outcome (``"hit"`` / ``"miss"`` / ``"expired"``
+      / ``"disabled"``). ``None`` when the cache layer was bypassed
+      (non-classifier mode or no cache passed in).
     """
 
     mode: str
@@ -319,6 +329,7 @@ class RoutingDecision:
     decision_latency_us: int
     used_fallback: bool = False
     fallback_reason: Optional[str] = None
+    cache_event: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -405,6 +416,7 @@ def decide_routing(
     persona_def: Optional[dict] = None,
     static_choice: Optional[str] = None,
     classifier_router: Optional[LlmClassifierRouter] = None,
+    classifier_cache: Optional[ClassifierDecisionCache] = None,
     ts_utc: Optional[str] = None,
     env: Optional[dict] = None,
 ) -> RoutingDecision:
@@ -427,6 +439,14 @@ def decide_routing(
       deterministic :class:`MockHaikuClassifierBackend` (Phase-2b
       sandbox-safe default). Phase-3 wires an Anthropic-Haiku-backed
       router via this parameter.
+    - ``classifier_cache``: optional pre-built
+      :class:`ClassifierDecisionCache`. When provided and the mode
+      is a classifier-mode, the substrate consults the cache first;
+      on a hit the cached event's ``effective_choice`` is reused and
+      the underlying classifier is **not** invoked (cost-saver). On a
+      miss / expiry the classifier runs and the verdict is stored.
+      When ``None`` (or in non-classifier modes) the cache layer is
+      bypassed entirely.
     - ``ts_utc``: operator-supplied timestamp for deterministic
       tests; ``None`` uses :func:`time.gmtime`.
     - ``env``: optional environment-dict for hermetic tests.
@@ -449,6 +469,7 @@ def decide_routing(
     used_fallback = False
     fallback_reason: Optional[str] = None
     tier: Optional[str] = None
+    cache_event_name: Optional[str] = None
 
     if mode == WAKIR_ROUTING_MODE_STATIC:
         if static_choice and RouterDecision.from_str(static_choice) is not None:
@@ -466,28 +487,30 @@ def decide_routing(
             {"prompt_payload": prompt_payload}, persona_def
         ).value
     elif mode == WAKIR_ROUTING_MODE_LLM_CLASSIFIER:
-        router = classifier_router or LlmClassifierRouter(env=env)
-        event = router.decide(
+        tier, cache_event_name = _classifier_decision_with_cache(
             persona_id=persona_id,
             auftrag_id=auftrag_id,
-            task_payload={"prompt_payload": prompt_payload},
+            prompt_payload=prompt_payload,
             persona_def=persona_def,
             static_choice=static_choice,
+            classifier_router=classifier_router,
+            classifier_cache=classifier_cache,
             ts_utc=ts_utc,
+            env=env,
         )
-        tier = event.effective_choice
     elif mode == WAKIR_ROUTING_MODE_LLM_CLASSIFIER_FALLBACK_HEURISTIC:
-        router = classifier_router or LlmClassifierRouter(env=env)
         try:
-            event = router.decide(
+            tier, cache_event_name = _classifier_decision_with_cache(
                 persona_id=persona_id,
                 auftrag_id=auftrag_id,
-                task_payload={"prompt_payload": prompt_payload},
+                prompt_payload=prompt_payload,
                 persona_def=persona_def,
                 static_choice=static_choice,
+                classifier_router=classifier_router,
+                classifier_cache=classifier_cache,
                 ts_utc=ts_utc,
+                env=env,
             )
-            tier = event.effective_choice
         except Exception as exc:  # noqa: BLE001 — substrate safety-net
             tier = route_task(
                 {"prompt_payload": prompt_payload}, persona_def
@@ -523,6 +546,7 @@ def decide_routing(
         decision_latency_us=int(decision_latency_us),
         used_fallback=used_fallback,
         fallback_reason=fallback_reason,
+        cache_event=cache_event_name,
     )
 
     jsonl_path = _resolve_jsonl_path(env)
@@ -538,9 +562,102 @@ def decide_routing(
         if used_fallback:
             record["used_fallback"] = True
             record["fallback_reason"] = fallback_reason
+        if cache_event_name is not None:
+            record["cache_event"] = cache_event_name
         _emit_decision_jsonl(jsonl_path, record)
 
     return decision
+
+
+def _classifier_decision_with_cache(
+    *,
+    persona_id: str,
+    auftrag_id: str,
+    prompt_payload: str,
+    persona_def: Optional[dict],
+    static_choice: Optional[str],
+    classifier_router: Optional[LlmClassifierRouter],
+    classifier_cache: Optional[ClassifierDecisionCache],
+    ts_utc: Optional[str],
+    env: Optional[dict],
+) -> tuple[str, Optional[str]]:
+    """Run the classifier path with an optional decision-cache layer.
+
+    Behaviour:
+
+    - If ``classifier_cache`` is ``None`` the cache is bypassed and
+      the classifier runs unconditionally; the returned cache-event
+      name is ``None``.
+    - If the cache is present and enabled the substrate first
+      attempts a :meth:`ClassifierDecisionCache.lookup`. On a hit the
+      cached event's ``effective_choice`` is returned and the
+      classifier is **not** invoked (cost-saver). On a miss / expiry
+      / disabled-state the classifier runs and the verdict is stored
+      back into the cache.
+    - Cache-hit returns ``(tier, "hit")``; miss / expired returns
+      ``(tier, "<miss|expired|disabled>")``. The cache-event-name is
+      surfaced to the caller so it can be included in the
+      RoutingDecision + JSONL envelope.
+
+    Raises any exception the classifier raises (the caller's
+    fallback-heuristic branch wraps this in a try / except).
+    """
+    if classifier_cache is None:
+        router = classifier_router or LlmClassifierRouter(env=env)
+        event = router.decide(
+            persona_id=persona_id,
+            auftrag_id=auftrag_id,
+            task_payload={"prompt_payload": prompt_payload},
+            persona_def=persona_def,
+            static_choice=static_choice,
+            ts_utc=ts_utc,
+        )
+        return event.effective_choice, None
+
+    # Capture the cache's emitted event-name via a one-shot sink wrapper.
+    captured: dict[str, Optional[str]] = {"name": None}
+    original_sink = classifier_cache.sink
+
+    def _capture(ev: "CacheLookupEvent") -> None:  # noqa: F821
+        captured["name"] = ev.cache_event
+        if original_sink is not None:
+            try:
+                original_sink(ev)
+            except Exception:
+                pass
+
+    classifier_cache.sink = _capture
+    try:
+        cached = classifier_cache.lookup(
+            persona_id=persona_id,
+            persona_def=persona_def,
+            prompt_payload=prompt_payload,
+            ts_utc=ts_utc,
+        )
+    finally:
+        classifier_cache.sink = original_sink
+
+    if cached is not None:
+        return cached.effective_choice, captured["name"] or "hit"
+
+    # Miss / expired / disabled → run the classifier.
+    router = classifier_router or LlmClassifierRouter(env=env)
+    event = router.decide(
+        persona_id=persona_id,
+        auftrag_id=auftrag_id,
+        task_payload={"prompt_payload": prompt_payload},
+        persona_def=persona_def,
+        static_choice=static_choice,
+        ts_utc=ts_utc,
+    )
+    if classifier_cache.enabled:
+        classifier_cache.store(
+            persona_id=persona_id,
+            persona_def=persona_def,
+            prompt_payload=prompt_payload,
+            event=event,
+        )
+    return event.effective_choice, captured["name"]
 
 
 # ---------------------------------------------------------------------------
@@ -557,6 +674,7 @@ def anthropic_call(
     persona_def: Optional[dict] = None,
     static_choice: Optional[str] = None,
     classifier_router: Optional[LlmClassifierRouter] = None,
+    classifier_cache: Optional[ClassifierDecisionCache] = None,
     ts_utc: Optional[str] = None,
     env: Optional[dict] = None,
 ) -> tuple[AnthropicCallResponse, RoutingDecision]:
@@ -582,6 +700,7 @@ def anthropic_call(
         persona_def=persona_def,
         static_choice=static_choice,
         classifier_router=classifier_router,
+        classifier_cache=classifier_cache,
         ts_utc=ts_utc,
         env=env,
     )
@@ -608,9 +727,12 @@ __all__ = [
     "AnthropicBackend",
     "AnthropicCallRequest",
     "AnthropicCallResponse",
+    "ClassifierDecisionCache",
     "DEFAULT_TIER_MODEL_MAPPING",
     "MockAnthropicBackend",
     "RoutingDecision",
+    "WAKIR_CLASSIFIER_CACHE_TTL_DEFAULT_SECONDS",
+    "WAKIR_CLASSIFIER_CACHE_TTL_ENV",
     "WAKIR_ROUTING_DECISION_JSONL_ENV",
     "WAKIR_ROUTING_MODE_ENV",
     "WAKIR_ROUTING_MODE_HEURISTIC",
