@@ -1,0 +1,126 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wakir-Runtime / wirelang Rust workspace — persona-engine-state-backing crate.
+#
+# Purpose
+# -------
+# Initial Rust scaffold of the persona-engine NATS-KV Persona-State
+# backing module. Schema-parity with the Python reference
+# implementation `wirelang/persona_engine/state_backing.py` (Selin PR #65,
+# Sprint-Pengine-8/-9, anchored in persona-engine-format-spec §3.7.5).
+#
+# This crate is the deterministic substrate for the Phase-3a 3-way-
+# triangle (Doppelbetrieb) comparison. Live NATS-KV socket binding stays
+# Python-side during Phase-3a; this crate exposes:
+#
+#   - `StateBacking` async trait (4 ops + watch-revisions stream).
+#   - `InMemoryStateBacking` for hermetic tests + pre-NATS-init engine
+#     boot (mirrors the Python `InMemoryPersonaStateBacking` HashMap shape).
+#   - `NatsKvStateBacking` production binding *stub* — type-level surface
+#     declared, with `async-nats` compile-dep pulled in. The wire-level
+#     `connect()` / KV read/write methods stay TODO-shaped behind a
+#     `#[doc(hidden)]` module so the Phase-3a-step "live-binding" follow-up
+#     can extend without re-deciding the client. Smoke-tests do NOT touch
+#     async-nats — they exclusively use `InMemoryStateBacking`.
+#
+# Schema parity (PR #65 — state_backing.py + spec §3.7.5)
+# -------------------------------------------------------
+#   Python `PersonaStateSnapshot`          <-> Rust `PersonaStateSnapshot`
+#   Python `PersonaStateBackingError`      <-> Rust `StateBackingError`
+#   Python `PersonaStateBackingAsync`      <-> Rust `StateBacking` (async)
+#   Python `InMemoryPersonaStateBacking`   <-> Rust `InMemoryStateBacking`
+#   Python `NatsKvPersonaStateBackingAsync`<-> Rust `NatsKvStateBacking`
+#   Python `snapshot_to_jcs_bytes`         <-> Rust `snapshot_to_jcs_bytes`
+#   Python `STATE_PACK_KEY_PREFIX`         <-> Rust const STATE_PACK_KEY_PREFIX
+#   Python `OFFSET_KEY_WIDTH = 20`         <-> Rust const OFFSET_KEY_WIDTH
+#   Python `PINNED_KEY` / `NEXT_OFFSET_KEY` / `LATEST_KEY`
+#                                          <-> Rust consts (matching strings)
+#   Python `offset_key(off)` / `offset_from_key(k)`
+#                                          <-> Rust fns (matching format)
+#
+# Watch-Revisions extension (Sprint-Auftrag-Surface)
+# --------------------------------------------------
+# The Python trait surface declares 4 ops (snapshot, restore_latest,
+# list_snapshots, atomic_swap_pinned_offset). The Sprint-Auftrag adds a
+# fifth op `watch_revisions` — NATS-KV-native revision-stream that emits
+# `RevisionEvent` items as new snapshots land. Python pendant is the
+# `nats-py KeyValue.watch()` async iterator (used today only by the
+# v0.2.0-pilot WAT-anchor-pipeline observer). The Rust trait declares
+# the surface; the in-memory binding implements it via
+# `tokio::sync::mpsc::Receiver`. NATS-KV-live binding implementation
+# follows in the Phase-3a live-binding step.
+#
+# ADR anchors
+# -----------
+# - ADR-0063 §Folgeartefakte Phase-3a Item 6 (this crate).
+# - Selin PR #65   (Sprint-Pengine-8) — Python schema authority.
+# - Selin PR #113  (3-way-triangle)   — Doppelbetrieb substrate.
+# - Selin PR #131  (bridge-diff-rust) — sibling crate.
+# - Reza  PR #132  (subscribe-loop-rust) — sibling crate, async-nats
+#                                          version precedent.
+# - Selin PR #135  (recovery-rust)    — sibling crate, Tokio version
+#                                          precedent.
+# - Selin PR #136  (v907-verify-rust) — sibling crate.
+# - persona-engine-format-spec §3.7.5  — state-backing trait contract.
+#
+# Versioning rationale (verified HTTP-200 against crates.io API on
+# 2026-05-17 00:10 CEST):
+# - async-nats =0.48.0  : Production NATS client; matches Reza PR #132 pin.
+#   Compile-surface pulled in so Phase-3a live-binding step can extend
+#   without re-deciding the client. Smoke-tests do NOT touch async-nats.
+# - tokio      =1.52.3  : async runtime; `rt-multi-thread` + `macros` +
+#                         `sync` + `time` features cover `#[tokio::test]`
+#                         and the watch-channel substrate.
+# - serde      =1.0.219 : derive-macro for `PersonaStateSnapshot`.
+# - serde_json =1.0.140 : JCS-canonical envelope build/parse (matches
+#                         workspace pin).
+# - sha2       =0.10.8  : SHA-256 of JCS bytes for snapshot_payload_sha256
+#                         (matches workspace pin).
+# - hex        =0.4.3   : lower-case hex tail (matches Python
+#                         `hashlib.sha256().hexdigest()` shape).
+#
+# Hard-Constraints (per Sprint-Auftrag)
+# -------------------------------------
+# - No touches to `wirelang/persona_engine/state_backing.py`.
+# - No LICENSING / NOTICE / .github/workflows touches.
+# - `cargo test -p persona-engine-state-backing` must run green.
+# - Single-PR-Bundle against `wakir-runtime/main`.
+# - ≥10 smoke tests via In-Memory-Backing-Mocks.
+
+[package]
+name = "persona-engine-state-backing"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "Apache-2.0"
+repository = "https://github.com/wakir-labs/wakir-runtime"
+authors = ["Selin Celik <selin@wakir.local>"]
+description = "Initial Rust scaffold of the persona-engine NATS-KV Persona-State-Backing (Phase-3a Item 6, schema-parity with Selin PR #65)."
+publish = false
+
+[lib]
+name = "persona_engine_state_backing"
+path = "src/lib.rs"
+
+[dependencies]
+# Phase-3a production NATS client surface (smoke-tests do not exercise it).
+async-nats = "=0.48.0"
+
+# Async runtime for the trait + in-memory backing watch-channel.
+tokio = { version = "=1.52.3", features = ["rt-multi-thread", "macros", "sync", "time"] }
+
+# Schema-level derive for PersonaStateSnapshot.
+serde = { version = "=1.0.219", features = ["derive"] }
+
+# JCS-canonical envelope build/parse (matches workspace pin).
+serde_json = { version = "=1.0.140", features = ["preserve_order"] }
+
+# SHA-256 of JCS bytes for snapshot_payload_sha256.
+sha2 = { version = "=0.10.8", default-features = false }
+
+# Lower-case hex tail to match Python `hashlib.sha256().hexdigest()`.
+hex = "=0.4.3"
+
+[dev-dependencies]
+tokio = { version = "=1.52.3", features = ["rt-multi-thread", "macros", "sync", "time", "test-util"] }
+serde_json = { version = "=1.0.140", features = ["preserve_order"] }
