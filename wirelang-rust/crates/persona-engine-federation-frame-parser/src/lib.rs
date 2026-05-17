@@ -55,11 +55,16 @@
 //! - Reza Sprint-7 Tag-1 — `multi_org_substrate.py`
 //!   (multi-org-attestation payload schema authority).
 //!
-//! # Cross-language sync TODO
+//! # Cross-language sync
 //!
-//! The constant [`TODO_PYTHON_FRAME_PARITY_PIN`] is the marker the
-//! future Python `federation_frame.py` PR must satisfy. The Sprint-
-//! Federation-Frame-Python-Sync follow-up owns the Python side.
+//! Tag-14 Mini-Welle landed the Python sibling
+//! `wirelang/federation/federation_frame.py`. The constant
+//! [`CROSS_LANG_PYTHON_FRAME_PARITY_PIN`] points at the fixture file
+//! at `tests/federation/fixtures/federation_frame_cross_lang_pins.json`
+//! which both the Python suite and the Rust cross-lang test
+//! (`tests/cross_lang_python_sync_test.rs`) read for byte-pin
+//! verification. The legacy name `TODO_PYTHON_FRAME_PARITY_PIN` is
+//! retained as a deprecated alias for one release cycle.
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -120,17 +125,44 @@ pub const MAX_FRAME_JCS_BYTES: usize = 320 * 1024;
 /// Hex-string length of a SHA-256 digest (lower-case, no prefix).
 pub const SHA256_HEX_LEN: usize = 64;
 
-/// Cross-language sync TODO marker. The future Python
-/// `wirelang/federation/federation_frame.py` MUST byte-match the
-/// fixtures in `tests/federation_frame_parser_smoke_test.rs`
-/// (`FRAME_FIXTURE_*` constants). Until that PR lands the
-/// cross-lang pin is a placeholder.
+/// Cross-language sync pin — pointer to the fixture file that pins
+/// the Python <-> Rust byte-parity contract.
+///
+/// The fixture file at
+/// `tests/federation/fixtures/federation_frame_cross_lang_pins.json`
+/// is the single source of truth for the byte-level contract between
+/// the Python module `wirelang/federation/federation_frame.py` and
+/// this Rust crate. Five reference (input, expected-canonical-bytes)
+/// pairs live there; both the Python test suite at
+/// `wirelang/tests/test_federation_frame_parser.py` and the Rust
+/// cross-lang test at
+/// `tests/cross_lang_python_sync_test.rs` read the same JSON file
+/// and verify their respective `serialize_frame` produces byte-
+/// identical output for each fixture input.
+///
+/// This constant was previously called `TODO_PYTHON_FRAME_PARITY_PIN`
+/// (Phase-3a Item 9 ship-day placeholder); Tag-14 Mini-Welle landed
+/// the Python sibling and elevated the placeholder to a real pin
+/// reference. The old name is retained as a deprecated alias below
+/// for one release cycle so any downstream consumer that read the
+/// constant compiles without churn.
+pub const CROSS_LANG_PYTHON_FRAME_PARITY_PIN: &str =
+    "tests/federation/fixtures/federation_frame_cross_lang_pins.json";
+
+/// Deprecated alias for [`CROSS_LANG_PYTHON_FRAME_PARITY_PIN`]; retained
+/// for one release cycle so consumers that imported the original
+/// placeholder name keep compiling. New code MUST use the new
+/// constant. The presence-check tests on the crate retain a check
+/// against this name so a future drop is loud-by-design.
+#[deprecated(
+    since = "0.1.1",
+    note = "Use CROSS_LANG_PYTHON_FRAME_PARITY_PIN. \
+            The TODO_* name was the Phase-3a Item 9 placeholder; \
+            Tag-14 Mini-Welle landed the Python sibling and the \
+            pin is no longer a TODO."
+)]
 pub const TODO_PYTHON_FRAME_PARITY_PIN: &str =
-    "TODO(reza): Sprint-Federation-Frame-Python-Sync follow-up — \
-     wirelang/federation/federation_frame.py must byte-match \
-     FRAME_FIXTURE_TASK_ASSIGNED / FRAME_FIXTURE_TASK_OUTPUT / \
-     FRAME_FIXTURE_MULTI_ORG_ATTESTATION / \
-     FRAME_FIXTURE_SPIFFE_BUNDLE_SYNC.";
+    CROSS_LANG_PYTHON_FRAME_PARITY_PIN;
 
 // ---------------------------------------------------------------------
 // Errors.

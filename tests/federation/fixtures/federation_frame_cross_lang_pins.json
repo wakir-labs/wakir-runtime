@@ -1,0 +1,138 @@
+{
+  "x-spdx-license-identifier": "BUSL-1.1",
+  "x-spdx-file-copyright-text": "2026 Callandor GmbH and contributors",
+  "fixture_set_version": 1,
+  "generated_by": "wirelang.federation.federation_frame.serialize_frame (Python)",
+  "generated_on": "2026-05-17",
+  "cross_lang_contract": "Rust crate persona-engine-federation-frame-parser MUST emit byte-identical output for the same input. See wirelang/tests/test_federation_frame_parser.py and wirelang-rust/crates/persona-engine-federation-frame-parser/tests/cross_lang_python_sync_test.rs for the asserting suites.",
+  "fixtures": [
+    {
+      "label": "fixture-1-task-assigned-minimal",
+      "input": {
+        "header": {
+          "frame_id": "frame-sha256:031190bffe5eb3e33cb019acb4f12443b8713fd47582cb8cfa43d88e91cbcb4e",
+          "schema": "wakir.federation.frame/1",
+          "source_runtime": "mira-sandbox",
+          "target_runtime": "wakir-runtime",
+          "ts_utc": "2026-05-17T08:00:00Z",
+          "version": 1
+        },
+        "payload_kind": "task-assigned",
+        "payload_data": {
+          "auftrag_id": "tag-14-mini-1",
+          "persona_id": "reza"
+        },
+        "anchor_ref": null,
+        "signature": null
+      },
+      "expected_canonical_utf8": "{\"header\":{\"frame_id\":\"frame-sha256:031190bffe5eb3e33cb019acb4f12443b8713fd47582cb8cfa43d88e91cbcb4e\",\"schema\":\"wakir.federation.frame/1\",\"source_runtime\":\"mira-sandbox\",\"target_runtime\":\"wakir-runtime\",\"ts_utc\":\"2026-05-17T08:00:00Z\",\"version\":1},\"payload\":{\"data\":{\"auftrag_id\":\"tag-14-mini-1\",\"persona_id\":\"reza\"},\"kind\":\"task-assigned\",\"schema\":\"wakir.agent.task-assigned/1\"}}",
+      "expected_canonical_sha256": "15c8f4b9f95438b344274304be59c3ab6abdaf9c3e6d82f809236c8d2072fed3",
+      "expected_canonical_byte_length": 380
+    },
+    {
+      "label": "fixture-2-task-output-basic",
+      "input": {
+        "header": {
+          "frame_id": "frame-sha256:c34820a758e9b3e3c4695d9b069c42eea5f9c93bb27eebb6f29ce12b2a35ddbf",
+          "schema": "wakir.federation.frame/1",
+          "source_runtime": "wakir-runtime",
+          "target_runtime": "mira-sandbox",
+          "ts_utc": "2026-05-17T09:00:00Z",
+          "version": 1
+        },
+        "payload_kind": "task-output",
+        "payload_data": {
+          "auftrag_id": "tag-14-mini-1",
+          "reply_text": "PR opened",
+          "ts_utc": "2026-05-17T09:00:00Z"
+        },
+        "anchor_ref": null,
+        "signature": null
+      },
+      "expected_canonical_utf8": "{\"header\":{\"frame_id\":\"frame-sha256:c34820a758e9b3e3c4695d9b069c42eea5f9c93bb27eebb6f29ce12b2a35ddbf\",\"schema\":\"wakir.federation.frame/1\",\"source_runtime\":\"wakir-runtime\",\"target_runtime\":\"mira-sandbox\",\"ts_utc\":\"2026-05-17T09:00:00Z\",\"version\":1},\"payload\":{\"data\":{\"auftrag_id\":\"tag-14-mini-1\",\"reply_text\":\"PR opened\",\"ts_utc\":\"2026-05-17T09:00:00Z\"},\"kind\":\"task-output\",\"schema\":\"wakir.agent.task-output/1\"}}",
+      "expected_canonical_sha256": "a88a9509baea2ceb4dfeb589b28cffed4fda8135c9ce4430eac957d4e1b4287f",
+      "expected_canonical_byte_length": 413
+    },
+    {
+      "label": "fixture-3-multi-org-attestation-with-anchor",
+      "input": {
+        "header": {
+          "frame_id": "frame-sha256:317e0d23a451319051f15bc5e4e17936b6b5a8f367b9eaf5669451f87fa19d54",
+          "schema": "wakir.federation.frame/1",
+          "source_runtime": "acme/wakir-runtime",
+          "target_runtime": "globex/wakir-runtime",
+          "ts_utc": "2026-05-17T08:00:00Z",
+          "version": 1
+        },
+        "payload_kind": "multi-org-attestation",
+        "payload_data": {
+          "route_id": "did:web:acme.example.org#federation-route-1",
+          "peer_trust_domain": "globex.example.org",
+          "is_mock": false
+        },
+        "anchor_ref": "wat:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "signature": null
+      },
+      "expected_canonical_utf8": "{\"anchor_ref\":\"wat:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"header\":{\"frame_id\":\"frame-sha256:317e0d23a451319051f15bc5e4e17936b6b5a8f367b9eaf5669451f87fa19d54\",\"schema\":\"wakir.federation.frame/1\",\"source_runtime\":\"acme/wakir-runtime\",\"target_runtime\":\"globex/wakir-runtime\",\"ts_utc\":\"2026-05-17T08:00:00Z\",\"version\":1},\"payload\":{\"data\":{\"is_mock\":false,\"peer_trust_domain\":\"globex.example.org\",\"route_id\":\"did:web:acme.example.org#federation-route-1\"},\"kind\":\"multi-org-attestation\",\"schema\":\"wakir.federation.multi-org-attestation/1\"}}",
+      "expected_canonical_sha256": "9bde70d3e668a4d81327c9502ca9d4601d66cc63b896d582982ff0f278964736",
+      "expected_canonical_byte_length": 563
+    },
+    {
+      "label": "fixture-4-spiffe-bundle-sync-with-signature",
+      "input": {
+        "header": {
+          "frame_id": "frame-sha256:91f92ac348936a02ddcd4c4c182a822c5f2fca401bd4b76287786ba57d24b1d8",
+          "schema": "wakir.federation.frame/1",
+          "source_runtime": "acme/wakir-runtime",
+          "target_runtime": "globex/wakir-runtime",
+          "ts_utc": "2026-05-17T08:00:00Z",
+          "version": 1
+        },
+        "payload_kind": "spiffe-bundle-sync",
+        "payload_data": {
+          "peer_trust_domain": "globex.example.org",
+          "peer_trust_bundle_url": "https://globex.example.org/.well-known/spire-bundle",
+          "freshness_ts_utc": "2026-05-17T07:00:00Z"
+        },
+        "anchor_ref": null,
+        "signature": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "expected_canonical_utf8": "{\"header\":{\"frame_id\":\"frame-sha256:91f92ac348936a02ddcd4c4c182a822c5f2fca401bd4b76287786ba57d24b1d8\",\"schema\":\"wakir.federation.frame/1\",\"source_runtime\":\"acme/wakir-runtime\",\"target_runtime\":\"globex/wakir-runtime\",\"ts_utc\":\"2026-05-17T08:00:00Z\",\"version\":1},\"payload\":{\"data\":{\"freshness_ts_utc\":\"2026-05-17T07:00:00Z\",\"peer_trust_bundle_url\":\"https://globex.example.org/.well-known/spire-bundle\",\"peer_trust_domain\":\"globex.example.org\"},\"kind\":\"spiffe-bundle-sync\",\"schema\":\"wakir.federation.spiffe-bundle-sync/1\"},\"signature\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}",
+      "expected_canonical_sha256": "323aa1c594b82b568d71900937f09d48db38d1cb695fbf624da8bb37e5b8b5fa",
+      "expected_canonical_byte_length": 663
+    },
+    {
+      "label": "fixture-5-task-assigned-full-optional-fields",
+      "input": {
+        "header": {
+          "frame_id": "frame-sha256:031190bffe5eb3e33cb019acb4f12443b8713fd47582cb8cfa43d88e91cbcb4e",
+          "schema": "wakir.federation.frame/1",
+          "source_runtime": "mira-sandbox",
+          "target_runtime": "wakir-runtime",
+          "ts_utc": "2026-05-17T08:00:00Z",
+          "version": 1
+        },
+        "payload_kind": "task-assigned",
+        "payload_data": {
+          "auftrag_id": "tag-14-mini-1",
+          "meta": {
+            "nested_key": "nested_value",
+            "depth": 1
+          },
+          "list_field": [
+            "a",
+            "b",
+            "c"
+          ],
+          "numeric": 42,
+          "flag": true
+        },
+        "anchor_ref": "wat:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "signature": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "expected_canonical_utf8": "{\"anchor_ref\":\"wat:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"header\":{\"frame_id\":\"frame-sha256:031190bffe5eb3e33cb019acb4f12443b8713fd47582cb8cfa43d88e91cbcb4e\",\"schema\":\"wakir.federation.frame/1\",\"source_runtime\":\"mira-sandbox\",\"target_runtime\":\"wakir-runtime\",\"ts_utc\":\"2026-05-17T08:00:00Z\",\"version\":1},\"payload\":{\"data\":{\"auftrag_id\":\"tag-14-mini-1\",\"flag\":true,\"list_field\":[\"a\",\"b\",\"c\"],\"meta\":{\"depth\":1,\"nested_key\":\"nested_value\"},\"numeric\":42},\"kind\":\"task-assigned\",\"schema\":\"wakir.agent.task-assigned/1\"},\"signature\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"}",
+      "expected_canonical_sha256": "a27386f3a24eaf06cc68937c0d4f18600265708b1bfc6612f969af56f4cd51fc",
+      "expected_canonical_byte_length": 686
+    }
+  ]
+}
