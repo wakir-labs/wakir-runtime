@@ -45,6 +45,28 @@
 # parity test (test_cross_substrate_parity_with_quadlet_installer)
 # enforces lock-step agreement with the Quadlet installer.
 #
+# Tag-31 Mini-Welle update (ADR-0066 Welle-3 image-build)
+# -------------------------------------------------------
+# Inventory extended from 8 to 9 binaries in lock-step with the
+# Tag-31 Quadlet installer update. One addition:
+#
+#   * ``bridge-audit-writer`` (Tag-31 Mini-Welle, ADR-0066 Welle-3
+#     pre-cutover image — ships the writer-half of the Doppelbetrieb-
+#     Shadow EngineeringOutputEvent envelope substrate. PR #131
+#     bridge-diff and PR #147 bridge-audit-replay landed the replay-
+#     half earlier; Tag-31 closes the cross-language Python↔Rust
+#     round-trip. Binary lives in the existing
+#     ``persona-engine-bridge-audit-replay`` crate alongside the
+#     replay_cli; ships at
+#     ``/opt/wakir/bin/wakir-persona-engine-bridge-audit-writer``
+#     per ``DEFAULT_RUST_BRIDGE_AUDIT_WRITER_BIN``).
+#
+# Same Sigstore-keyless-OIDC verification pattern as the prior eight
+# — same carrier image, same build workflow, same digest-resolver
+# propagation. The cross-substrate parity test
+# (test_cross_substrate_parity_with_quadlet_installer) enforces
+# lock-step agreement with the Quadlet installer.
+#
 # Tag-29 Mini-Welle update (ADR-0066 Welle-2 image-build)
 # -------------------------------------------------------
 # Inventory extended from 7 to 8 binaries in lock-step with the
@@ -73,14 +95,14 @@
 #
 # Posture
 # -------
-# The 8 binaries are NOT free-standing artefacts — they ship inside
+# The 9 binaries are NOT free-standing artefacts — they ship inside
 # the published ``ghcr.io/wakir-labs/wakir-persona-engine`` image
 # (Containerfile.real, Sprint-Pengine-13+, BSL-1.1) at the canonical
 # ``/opt/wakir/bin/wakir-persona-engine-<component>`` paths declared
 # by ``wirelang/persona_engine/rust_backend_switch.py`` defaults.
 # The image is keyless-signed via Sigstore against the GitHub-Actions
 # OIDC identity of ``.github/workflows/build-wakir-persona-engine.yml``;
-# verifying the image therefore transitively verifies the 8 binaries.
+# verifying the image therefore transitively verifies the 9 binaries.
 #
 # Why keyless and not a pinned ``cosign.pub``: the WAT-Pipeline-Server
 # substrate-pattern from ADR-0034 uses Sigstore-keyless throughout
@@ -104,10 +126,11 @@ schema_version: wakir.cosign-policy.phase-3b/1
 policy:
   name: phase-3b-rust-cli-binaries
   description: >
-    Cosign-keyless verification policy for the eight Phase-3b Rust-CLI
+    Cosign-keyless verification policy for the nine Phase-3b Rust-CLI
     binaries that the persona-engine production-default switch
     subprocess-bridges to (recovery, state-backing, fsm, v907-verify,
-    bridge-diff, subscribe-loop, anchor-emitter, svid-workload-identity).
+    bridge-diff, subscribe-loop, anchor-emitter, svid-workload-identity,
+    bridge-audit-writer).
 
   # Sigstore-keyless OIDC identity of the GitHub-Actions runner that
   # builds and signs the carrier image. Same shape as the Sprint-9
@@ -264,6 +287,26 @@ binaries:
       Zone-L-reviewed crate revision (Tonic substrate larger than the
       probe surface).
 
+  - name: bridge-audit-writer
+    component: persona-engine-bridge-audit-writer
+    crate_path: wirelang-rust/crates/persona-engine-bridge-audit-replay
+    in_image_path: /opt/wakir/bin/wakir-persona-engine-bridge-audit-writer
+    env_switch: WAKIR_BRIDGE_AUDIT_WRITER_BACKEND
+    env_switch_value: rust
+    env_binary_override: WAKIR_RUST_BRIDGE_AUDIT_WRITER_BIN
+    landed_pr: 'Tag-31 Mini-Welle'
+    landed_tag: Tag-31 Mini-Welle
+    purpose: >
+      Doppelbetrieb-Shadow EngineeringOutputEvent envelope writer
+      subprocess-bridge. Schema-parity with
+      wirelang/persona_engine/bridge_audit_writer.py
+      (EngineeringOutputEvent.to_jcs_bytes); byte-identical JCS-canonical
+      envelope output per the F1/F2/F3 stream-fixture pins captured in
+      the persona-engine-bridge-audit-replay crate (PR #147). Binary
+      ships in the same crate as the replay_cli — emit-side (this
+      binary) and replay-side (replay_cli) share the AuditRecord
+      envelope source-of-truth.
+
 # Operator-Hand verification recipe (human-readable canonical
 # anchor; the prose recipe lives in
 # docs/operations/cosign-policy-phase-3b.md §3).
@@ -287,7 +330,8 @@ verification:
                 /opt/wakir/bin/wakir-persona-engine-bridge-diff
                 /opt/wakir/bin/wakir-persona-engine-subscribe-loop
                 /opt/wakir/bin/wakir-persona-engine-anchor-emitter
-                /opt/wakir/bin/wakir-persona-engine-svid-workload-identity; do
+                /opt/wakir/bin/wakir-persona-engine-svid-workload-identity
+                /opt/wakir/bin/wakir-persona-engine-bridge-audit-writer; do
           test -x "$b" || { echo "missing or non-exec: $b"; exit 2; };
         done; echo OK'
 
@@ -302,7 +346,7 @@ verification:
 # ----------------
 # The hermetic test surface
 # (tests/infra/test_cosign_policy_phase_3b.py) validates the SHAPE
-# of this YAML — schema_version, all 8 binaries listed, sha256 slot
+# of this YAML — schema_version, all 9 binaries listed, sha256 slot
 # in canonical-form, mismatch fixture rejected. NO sandbox process
 # calls cosign, crane, or skopeo against ghcr.io per
 # feedback_sandbox_host_trennung.md. Live verification is

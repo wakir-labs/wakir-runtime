@@ -35,6 +35,21 @@
 # PR before `CROSS_REPO_DRIFT_ENFORCE` is flipped to `true` in
 # the workflow.
 #
+# Allowlist audit log
+# -------------------
+# 2026-05-17 (Reza, EXT-AUDIT-FOLGE Tag-31): allowlist is empty.
+#   No tech-debt rows to flush. The empty-list posture is the
+#   intentional Cut-2 starting state; the next refresh window
+#   opens only when Step-2 of `docs/operations/cross-repo-drift-
+#   enforce-flip-readiness.md` admits the first SPDX-header-only
+#   waivers. Day-31 drift-map (ok=4, DRIFT=6 in Zone-A; ok=32,
+#   DRIFT=3 in Zone-B) recorded in
+#   `docs/operations/cross-repo-drift-runbook.md` §3.
+#
+# 2026-05-16 (Tomás, PR #126): file shipped empty alongside the
+#   Enforce-Flip readiness contract. Initial drift baseline
+#   ok=4 / drift=6 captured in the readiness doc §2.
+#
 # Example (do NOT uncomment without an ADR/sprint reference):
 #
 # allow:

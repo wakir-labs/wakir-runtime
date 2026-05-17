@@ -432,6 +432,7 @@ SUBSCRIBE_LOOP_BACKEND_ENV = "WAKIR_SUBSCRIBE_LOOP_BACKEND"
 ANCHOR_EMITTER_BACKEND_ENV = "WAKIR_ANCHOR_EMITTER_BACKEND"
 SVID_WORKLOAD_IDENTITY_BACKEND_ENV = "WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND"
 FEDERATION_RESOLVER_BACKEND_ENV = "WAKIR_FEDERATION_RESOLVER_BACKEND"
+BRIDGE_AUDIT_WRITER_BACKEND_ENV = "WAKIR_BRIDGE_AUDIT_WRITER_BACKEND"
 RUST_RECOVERY_BIN_ENV = "WAKIR_RUST_RECOVERY_BIN"
 RUST_STATE_BACKING_BIN_ENV = "WAKIR_RUST_STATE_BACKING_BIN"
 RUST_FSM_BIN_ENV = "WAKIR_RUST_FSM_BIN"
@@ -441,6 +442,7 @@ RUST_SUBSCRIBE_LOOP_BIN_ENV = "WAKIR_RUST_SUBSCRIBE_LOOP_BIN"
 RUST_ANCHOR_EMITTER_BIN_ENV = "WAKIR_RUST_ANCHOR_EMITTER_BIN"
 RUST_SVID_WORKLOAD_IDENTITY_BIN_ENV = "WAKIR_RUST_SVID_WORKLOAD_IDENTITY_BIN"
 RUST_FEDERATION_RESOLVER_BIN_ENV = "WAKIR_RUST_FEDERATION_RESOLVER_BIN"
+RUST_BRIDGE_AUDIT_WRITER_BIN_ENV = "WAKIR_RUST_BRIDGE_AUDIT_WRITER_BIN"
 RUST_BACKEND_TIMEOUT_ENV = "WAKIR_RUST_BACKEND_TIMEOUT_S"
 
 DEFAULT_RUST_RECOVERY_BIN = "/opt/wakir/bin/wakir-persona-engine-recovery"
@@ -461,6 +463,9 @@ DEFAULT_RUST_SVID_WORKLOAD_IDENTITY_BIN = (
 )
 DEFAULT_RUST_FEDERATION_RESOLVER_BIN = (
     "/opt/wakir/bin/wakir-persona-engine-federation-resolver"
+)
+DEFAULT_RUST_BRIDGE_AUDIT_WRITER_BIN = (
+    "/opt/wakir/bin/wakir-persona-engine-bridge-audit-writer"
 )
 DEFAULT_RUST_BACKEND_TIMEOUT_S = 5.0
 
@@ -596,6 +601,31 @@ class FederationResolverBackend(str, Enum):
     RUST = "rust"
 
 
+class BridgeAuditWriterBackend(str, Enum):
+    """Closed enum of valid ``WAKIR_BRIDGE_AUDIT_WRITER_BACKEND`` values.
+
+    Zone-C Doppelbetrieb-Shadow-substrate anchor (ADR-0066 Welle-3
+    precondition): the Python authority is
+    :mod:`wirelang.persona_engine.bridge_audit_writer`
+    (Sprint-1 Tag-4 PR #19 EngineeringOutputEvent envelope writer).
+    The Rust pendant is the
+    ``wakir-persona-engine-bridge-audit-writer`` binary that ships
+    from the ``persona-engine-bridge-audit-replay`` crate (Tag-31
+    Mini-Welle, the writer-half of the round-trip whose replay-half
+    landed in PR #131 bridge-diff + PR #147 bridge-audit-replay).
+    The cross-language byte-parity contract is captured by the
+    F1/F2/F3 stream-fixture pins in the bridge-audit-replay crate;
+    the Rust writer's JCS-canonical envelope is byte-identical to
+    the Python pendant's `EngineeringOutputEvent.to_jcs_bytes()`
+    output for the same input. Tag-31 wire-in extends the Phase-3b
+    production-default-switch contract surface to the **9th**
+    Cosign-Policy-gated backend on the production hot-path.
+    """
+
+    PYTHON = "python"
+    RUST = "rust"
+
+
 VALID_RECOVERY_BACKEND_VALUES = tuple(b.value for b in RecoveryBackend)
 VALID_STATE_BACKING_BACKEND_VALUES = tuple(
     b.value for b in StateBackingBackend
@@ -614,6 +644,9 @@ VALID_SVID_WORKLOAD_IDENTITY_BACKEND_VALUES = tuple(
 )
 VALID_FEDERATION_RESOLVER_BACKEND_VALUES = tuple(
     b.value for b in FederationResolverBackend
+)
+VALID_BRIDGE_AUDIT_WRITER_BACKEND_VALUES = tuple(
+    b.value for b in BridgeAuditWriterBackend
 )
 
 
@@ -864,6 +897,22 @@ def _resolve_federation_resolver_bin(
     """
     explicit = _env_get(RUST_FEDERATION_RESOLVER_BIN_ENV, env)
     return explicit if explicit else DEFAULT_RUST_FEDERATION_RESOLVER_BIN
+
+
+def _resolve_bridge_audit_writer_bin(
+    env: Optional[Mapping[str, str]] = None,
+) -> str:
+    """Resolve the Rust bridge-audit-writer binary path.
+
+    Tag-31 ADR-0066 Welle-3 wire-in. The default path is reserved for
+    the ``persona-engine-bridge-audit-writer`` binary that ships from
+    the ``persona-engine-bridge-audit-replay`` crate alongside the
+    sibling ``replay_cli``. Operators point
+    ``WAKIR_RUST_BRIDGE_AUDIT_WRITER_BIN`` at a custom path for
+    integration tests / hermetic CI runs.
+    """
+    explicit = _env_get(RUST_BRIDGE_AUDIT_WRITER_BIN_ENV, env)
+    return explicit if explicit else DEFAULT_RUST_BRIDGE_AUDIT_WRITER_BIN
 
 
 def _binary_available(bin_path: str) -> tuple[bool, Optional[str]]:
@@ -4142,6 +4191,7 @@ __all__ = [
     "ANCHOR_EMITTER_BACKEND_ENV",
     "SVID_WORKLOAD_IDENTITY_BACKEND_ENV",
     "FEDERATION_RESOLVER_BACKEND_ENV",
+    "BRIDGE_AUDIT_WRITER_BACKEND_ENV",
     "RUST_RECOVERY_BIN_ENV",
     "RUST_STATE_BACKING_BIN_ENV",
     "RUST_FSM_BIN_ENV",
@@ -4151,6 +4201,7 @@ __all__ = [
     "RUST_ANCHOR_EMITTER_BIN_ENV",
     "RUST_SVID_WORKLOAD_IDENTITY_BIN_ENV",
     "RUST_FEDERATION_RESOLVER_BIN_ENV",
+    "RUST_BRIDGE_AUDIT_WRITER_BIN_ENV",
     "RUST_BACKEND_TIMEOUT_ENV",
     # Defaults.
     "DEFAULT_RUST_RECOVERY_BIN",
@@ -4162,6 +4213,7 @@ __all__ = [
     "DEFAULT_RUST_ANCHOR_EMITTER_BIN",
     "DEFAULT_RUST_SVID_WORKLOAD_IDENTITY_BIN",
     "DEFAULT_RUST_FEDERATION_RESOLVER_BIN",
+    "DEFAULT_RUST_BRIDGE_AUDIT_WRITER_BIN",
     "DEFAULT_RUST_BACKEND_TIMEOUT_S",
     # Enums + valid-value tuples.
     "RecoveryBackend",
@@ -4173,6 +4225,7 @@ __all__ = [
     "AnchorEmitterBackend",
     "SvidWorkloadIdentityBackend",
     "FederationResolverBackend",
+    "BridgeAuditWriterBackend",
     "VALID_RECOVERY_BACKEND_VALUES",
     "VALID_STATE_BACKING_BACKEND_VALUES",
     "VALID_FSM_BACKEND_VALUES",
@@ -4182,6 +4235,7 @@ __all__ = [
     "VALID_ANCHOR_EMITTER_BACKEND_VALUES",
     "VALID_SVID_WORKLOAD_IDENTITY_BACKEND_VALUES",
     "VALID_FEDERATION_RESOLVER_BACKEND_VALUES",
+    "VALID_BRIDGE_AUDIT_WRITER_BACKEND_VALUES",
     # Errors.
     "BackendSwitchValidationError",
     "RustBackendError",
