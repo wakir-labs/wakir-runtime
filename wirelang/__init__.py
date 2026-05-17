@@ -37,4 +37,11 @@ Status-Check was promoted into the wakir-runtime/main protection set
 on 2026-05-17 04:35 CEST (Mira-Hand-Operator §4.2 command-block).
 This touch ensures the post-apply doc-sync PR triggers the new gate
 through the ``wirelang/**`` path-filter so the live state catches up.
+
+Tag-15 doppelbetrieb-score-aggregator trigger note (2026-05-17 06:00 CEST)
+--------------------------------------------------------------------------
+PR #160 (Tomás Doppelbetrieb-Score-Aggregator) is scripts/+tests/-only
+and would not match the cross-repo-drift path-filter. No-op wirelang/
+touch unblocks PR #160 per the PR #153/#158 pattern. Pfad A
+(workflow path-filter precision-add) remains a Tag-16 follow-up.
 """
