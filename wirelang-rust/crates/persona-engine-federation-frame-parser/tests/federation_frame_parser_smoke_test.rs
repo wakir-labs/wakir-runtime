@@ -25,11 +25,12 @@
 // rename or drop it without breaking the Rust test suite first).
 
 use persona_engine_federation_frame_parser::{
-    compute_frame_id, parse_frame, serialize_frame, signing_payload_bytes, FederationFrame,
-    FederationPayload, FrameHeader, ParseError, ANCHOR_REF_PREFIX, FRAME_ENVELOPE_SCHEMA,
-    FRAME_ENVELOPE_VERSION, FRAME_ID_PREFIX, PAYLOAD_SCHEMA_MULTI_ORG_ATTESTATION,
+    compute_frame_id, parse_frame, serialize_frame, signing_payload_bytes,
+    CROSS_LANG_PYTHON_FRAME_PARITY_PIN, FederationFrame, FederationPayload, FrameHeader,
+    ParseError, ANCHOR_REF_PREFIX, FRAME_ENVELOPE_SCHEMA, FRAME_ENVELOPE_VERSION,
+    FRAME_ID_PREFIX, PAYLOAD_SCHEMA_MULTI_ORG_ATTESTATION,
     PAYLOAD_SCHEMA_SPIFFE_BUNDLE_SYNC, PAYLOAD_SCHEMA_TASK_ASSIGNED,
-    PAYLOAD_SCHEMA_TASK_OUTPUT, TODO_PYTHON_FRAME_PARITY_PIN,
+    PAYLOAD_SCHEMA_TASK_OUTPUT,
 };
 use std::collections::BTreeMap;
 
@@ -458,15 +459,17 @@ fn schema_validation_bad_timestamp_shape_rejected() {
 }
 
 // ---------------------------------------------------------------------
-// Tests 13..14 — Cross-lang fixture byte pins (placeholders for the
-// future Python sibling).
+// Tests 13..14 — Cross-lang fixture byte pins.
 //
-// These tests pin the EXACT JCS bytes of two reference frames. When
-// the Python `wirelang/federation/federation_frame.py` lands, its
-// `serialize_frame` must produce byte-identical output for the same
-// inputs. Until then, the constants below are the Rust-side anchor
-// and the TODO marker (`TODO_PYTHON_FRAME_PARITY_PIN`) flags the
-// follow-up.
+// These tests pin the EXACT JCS bytes of two reference frames. The
+// Python sibling `wirelang/federation/federation_frame.py` (landed
+// Tag-14 Mini-Welle) ships byte-identical output for the same inputs;
+// the authoritative cross-lang contract anchor is the fixture file at
+// `tests/federation/fixtures/federation_frame_cross_lang_pins.json`
+// (referenced by [`CROSS_LANG_PYTHON_FRAME_PARITY_PIN`]). The two
+// pinned-prefix assertions below stay as a Rust-only structural
+// invariant; the cross-lang byte-pin test lives in
+// `tests/cross_lang_python_sync_test.rs`.
 // ---------------------------------------------------------------------
 
 /// Pinned JCS-canonical bytes of the task-assigned reference frame.
@@ -482,10 +485,11 @@ const FRAME_FIXTURE_MULTI_ORG_ATTESTATION_EXPECTED_HEADER_SUBSTR: &str =
 
 #[test]
 fn cross_lang_fixture_byte_pin_task_assigned() {
-    // The TODO marker MUST be present and non-empty so a future
-    // refactor cannot silently drop the cross-lang sync handle.
-    assert!(!TODO_PYTHON_FRAME_PARITY_PIN.is_empty());
-    assert!(TODO_PYTHON_FRAME_PARITY_PIN.contains("federation_frame.py"));
+    // The pin pointer MUST be present, non-empty, and point at the
+    // fixture-file path. A future refactor that drops the cross-lang
+    // sync handle should fail this assertion loud-by-design.
+    assert!(!CROSS_LANG_PYTHON_FRAME_PARITY_PIN.is_empty());
+    assert!(CROSS_LANG_PYTHON_FRAME_PARITY_PIN.contains("federation_frame_cross_lang_pins.json"));
 
     let frame = FederationFrame {
         anchor_ref: None,
@@ -525,7 +529,7 @@ fn cross_lang_fixture_byte_pin_task_assigned() {
 
 #[test]
 fn cross_lang_fixture_byte_pin_multi_org_attestation() {
-    assert!(!TODO_PYTHON_FRAME_PARITY_PIN.is_empty());
+    assert!(!CROSS_LANG_PYTHON_FRAME_PARITY_PIN.is_empty());
 
     let mut header = header_task_assigned();
     header.frame_id = frame_id_seed_c();
