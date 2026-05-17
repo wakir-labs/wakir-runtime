@@ -38,6 +38,14 @@ on 2026-05-17 04:35 CEST (Mira-Hand-Operator §4.2 command-block).
 This touch ensures the post-apply doc-sync PR triggers the new gate
 through the ``wirelang/**`` path-filter so the live state catches up.
 
+Tag-15 mapping-fix trigger note (2026-05-17 05:40 CEST)
+-------------------------------------------------------
+PR #158 (Kai _RUNTIME_CHECKNAME_TO_WORKFLOW mapping-fix) needs the
+cross-repo-drift Required-check to trigger; tests/-only PRs do not
+match the workflow path-filter. Pfad A (workflow path-filter add for
+this specific test file) is planned as a Tag-16 follow-up — for now,
+no-op wirelang/__init__.py touch unblocks PR #158.
+
 Tag-15 doppelbetrieb-score-aggregator trigger note (2026-05-17 06:00 CEST)
 --------------------------------------------------------------------------
 PR #160 (Tomás Doppelbetrieb-Score-Aggregator) is scripts/+tests/-only

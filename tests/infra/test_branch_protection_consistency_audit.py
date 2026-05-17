@@ -441,11 +441,41 @@ _PATH_FILTERS: dict[str, tuple[str, ...]] = {
 # Mapping of Required-status-check display-name to the workflow file
 # that defines it. Required for the universal-trigger consistency
 # check (TV-BPC-12).
+#
+# Post-§4.2-promotion 2026-05-17: the third Required context
+# `cross-repo drift (wakir-runtime ↔ wakir-protocol)` is mapped to
+# `cross-repo-drift-audit.yml`. See operations doc §4.2 step 1
+# (display-name pin) and §4.5 mapping (narrow-by-design path-filter:
+# the workflow intentionally does NOT reach `test-only`/`doc-only`/
+# `dashboard-only` PR-classes — TV-BPC-09's narrow cohort and
+# TV-BPC-11's non-reach assertions pin this on purpose). Therefore
+# `cross-repo-drift-audit.yml` is also listed in
+# `_NARROW_COHORT_WORKFLOWS` below so TV-BPC-12's
+# `code-only AND test-only` minimum-reach rule reads as
+# `code-only`-only for this single Required check.
 
 _RUNTIME_CHECKNAME_TO_WORKFLOW: dict[str, str] = {
     "License-Hygiene Gate (ADR-0061)": "license-gate.yml",
     "wirelang suite with rfc8785 + jsonschema": "tests.yml",
+    "cross-repo drift (wakir-runtime ↔ wakir-protocol)": (
+        "cross-repo-drift-audit.yml"
+    ),
 }
+
+
+# Narrow-by-design Required-workflow cohort (operations doc §4.2 +
+# §4.5). For these workflows, the minimum-reach rule in TV-BPC-12
+# reduces to `code-only` only — the other Required gates cover the
+# missing substance-reach classes (§4.5 mapping). Without this
+# narrow-cohort allowance, TV-BPC-12 would contradict TV-BPC-09's
+# explicit `_NARROW_REACH_CLASSES_CROSS_REPO_DRIFT` cohort and
+# TV-BPC-11's non-reach assertions.
+
+_NARROW_COHORT_WORKFLOWS: frozenset[str] = frozenset(
+    {
+        "cross-repo-drift-audit.yml",
+    }
+)
 
 
 # Five "typical PR-path-classes" (operations doc §4.5).  Each class is
@@ -703,23 +733,38 @@ def test_bpc_cross_repo_drift_reaches_code_only_class() -> None:
 
 
 def test_bpc_required_set_has_universal_minimum_reach() -> None:
-    """Every Required check on wakir-runtime triggers on the minimum
-    PR-path-class set.
+    """Every Required check on wakir-runtime triggers on its in-scope
+    minimum PR-path-class set.
 
-    Minimum reach = ``code-only`` AND ``test-only``. (``doc-only`` and
-    ``dashboard-only`` are also documented as reach targets in §4.5
-    and TV-BPC-09 pins them for the currently Required pair.
+    Two cohorts (operations doc §4.2 + §4.5):
+
+    * **Universal cohort** (default): minimum reach = ``code-only`` AND
+      ``test-only``. These are the gates that must run on every
+      substance-class PR (license-gate, wirelang suite). ``doc-only``
+      and ``dashboard-only`` are also documented reach targets in
+      TV-BPC-09 / operations doc §4.5, but the regression-anchor here
+      is the tighter ``code-only``/``test-only`` pair (the §4.4
+      anti-pattern lives in failure-to-reach those two).
+    * **Narrow-by-design cohort** (``_NARROW_COHORT_WORKFLOWS``):
+      minimum reach = ``code-only`` only. These gates intentionally
+      do NOT reach ``test-only`` — the other Required gates cover the
+      missing slices (§4.5 mapping). Currently this cohort contains
+      ``cross-repo-drift-audit.yml``; TV-BPC-09 pins its in-scope
+      reach via ``_NARROW_REACH_CLASSES_CROSS_REPO_DRIFT`` and
+      TV-BPC-11 pins its non-reach on ``test-only``/``doc-only``.
+      Forcing ``test-only`` reach here would directly contradict
+      those two vectors.
+
     ``workflow-only`` is not a minimum-reach requirement because
     foreign-workflow-only PRs are by construction out of scope of the
     quality-gate (a PR that only edits, say, ``release.yml`` does not
     need re-running the license-gate or wirelang suite). The
     self-listing variant — "the workflow file of the Required check
-    itself is modified" — is enforced by TV-BPC-12b below.)
+    itself is modified" — is enforced by TV-BPC-12b below.
 
     TV-BPC-12 is the tighter regression-anchor: any *new* Required-check
-    that fails to reach ``code-only`` or ``test-only`` is flagged here.
+    that fails to reach its cohort's minimum classes is flagged here.
     """
-    minimum_classes = ("code-only", "test-only")
     for check_name in _EXPECTED_CONTEXTS["wakir-runtime"]:
         workflow = _RUNTIME_CHECKNAME_TO_WORKFLOW.get(check_name)
         assert workflow is not None, (
@@ -728,6 +773,10 @@ def test_bpc_required_set_has_universal_minimum_reach() -> None:
             "_RUNTIME_CHECKNAME_TO_WORKFLOW. Update the mapping when "
             "operations doc §2.1 changes."
         )
+        if workflow in _NARROW_COHORT_WORKFLOWS:
+            minimum_classes: tuple[str, ...] = ("code-only",)
+        else:
+            minimum_classes = ("code-only", "test-only")
         for cls in minimum_classes:
             assert _workflow_triggers_on_class(workflow, cls), (
                 f"Required check {check_name!r} (workflow {workflow}) "
