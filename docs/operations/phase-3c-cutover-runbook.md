@@ -1,12 +1,13 @@
-# Phase-3c Cutover Runbook — Welle-1 v907_verify
+# Phase-3c Cutover Runbook — Welle-1 v907_verify, Welle-2 svid_workload_identity
 
 | Field | Value |
 |---|---|
 | Owner | Selin Çelik (Persona-Engine), Tomás Reinhart (Matrix-Lead) |
-| ADR | [0065](../../../decisions/0065-phase-3c-cutover-python-default-zu-rust-default.md) |
+| ADRs | [0065](../../../decisions/0065-phase-3c-cutover-python-default-zu-rust-default.md) (§Option-B per-Welle plan, lists `svid_workload_identity` as Welle-2), [0066](../../../decisions/0066-phase-3c-beschleunigung-option-a-plus.md) (Option-A+ Verkürzte-Sequenz, 4-Wochen-Marathon) |
 | Substrate | [scripts/phase-3c-cutover-dry-run.py](../../scripts/phase-3c-cutover-dry-run.py) |
 | Tests | [tests/scripts/test_phase_3c_cutover_dry_run.py](../../tests/scripts/test_phase_3c_cutover_dry_run.py) |
-| Welle-1 component | `v907_verify` (KW 24-25) |
+| Welle-1 component | `v907_verify` (KW 24-25 per ADR-0065 §Option-B) |
+| Welle-2 component | `svid_workload_identity` (KW 25-26 per ADR-0065 §Option-B; ADR-0066 §Option-A+ may compress timing) |
 
 ## Purpose
 
@@ -33,35 +34,46 @@ Its purpose is to:
    dry-run renders `dry_run="blocked"` with an explicit error
    message rather than producing a misleading GREEN score.
 
-## ADR-0065 vs. in-repo substrate — naming drift
+## ADR-0065 §Option-B vs. in-repo substrate — naming drift
 
-ADR-0065 §Option-B lists seven components in cutover order:
+ADR-0065 §Option-B enumerates the eight cutover components
+(Welle-1..7 plus `svid_workload_identity` at Welle-2; the §Option-B
+table in ADR-0065 lists svid as the second row). ADR-0066 §Option-A+
+keeps the same ordering but compresses the timeline. The eight
+components in cutover order:
 
-| Week | ADR-0065 long-form | In-repo short form | Resolver |
-|------|--------------------|--------------------|----------|
-| 1 | `v907_verify` | `v907_verify` | `resolve_v907_verify_backend` |
-| 2 | `svid_workload_identity` | *(not yet implemented)* | — |
-| 3 | `bridge_audit_writer` | `anchor_emitter` | `resolve_anchor_emitter_backend` |
-| 4 | `state_backing` | `state_backing` | `resolve_state_backing_backend` |
-| 5 | `lifecycle_state_machine` | `fsm` | `resolve_fsm_backend` |
-| 6 | `subscribe_loop` | `subscribe_loop` | `resolve_subscribe_loop_backend` |
-| 7 | `recovery_workflow` | `recovery` | `resolve_recovery_backend` |
+| Week | ADR long-form | In-repo short form | Resolver | Welle-Status |
+|------|---------------|--------------------|----------|--------------|
+| 1 | `v907_verify` | `v907_verify` | `resolve_v907_verify_backend` | shipped (PR #194 image, Welle-1 active) |
+| 2 | `svid_workload_identity` | `svid_workload_identity` | `resolve_svid_workload_identity_backend` | shipped (PR #191 resolver, PR #201 image — `ready-pending-binary` until image-tag lands on Pilot-VM) |
+| 3 | `bridge_audit_writer` | `anchor_emitter` | `resolve_anchor_emitter_backend` | shipped (PR #170/#175) |
+| 4 | `state_backing` | `state_backing` | `resolve_state_backing_backend` | shipped |
+| 5 | `lifecycle_state_machine` | `fsm` | `resolve_fsm_backend` | shipped |
+| 6 | `subscribe_loop` | `subscribe_loop` | `resolve_subscribe_loop_backend` | shipped |
+| 7 | `recovery_workflow` | `recovery` | `resolve_recovery_backend` | shipped |
 
-Three observations:
+Four observations:
 
-- The dry-run script accepts **both** spellings. Operators may pass
-  `--component lifecycle_state_machine` or `--component fsm`; the
-  alias is resolved in `validate_component()`.
-- `svid_workload_identity` is **not** yet wired into the
-  rust_backend_switch substrate (no resolver function as of Tag-23).
-  The dry-run refuses this component with an explicit error rather
-  than silently mapping it to another resolver. The substrate
-  precondition for Week-2 of the cutover is therefore the SVID
-  resolver landing.
-- `bridge_audit_writer` is the ADR-0065 operator-facing name; in
-  the substrate the resolver is `resolve_anchor_emitter_backend`
-  because that crate writes the outer WAT-anchor envelope (PR #170,
-  Tag-23). The dry-run accepts the alias.
+- The dry-run script accepts **both** spellings for all aliased
+  components. Operators may pass `--component lifecycle_state_machine`
+  or `--component fsm`; the alias is resolved in `validate_component()`.
+- `svid_workload_identity` uses the **same name** in the ADR long-form
+  and the in-repo short form, so no alias entry is registered for it.
+  Operators pass the name unchanged in both contexts. A regression
+  test (`test_svid_workload_identity_has_no_alias_entry`) pins this.
+- `svid_workload_identity` is `ready-pending-binary`: the Python-side
+  resolver landed in PR #191 (Tag-25 Mini-Welle) and the Rust-CLI
+  container-image-build-pipeline landed in PR #201 (Tag-29 Mini-Welle).
+  Operationally this means the dry-run runs GREEN under the stub
+  probe, but the live cutover-Mo `--probe-real` invocation will block
+  with `dry_run="blocked"` until the operator has pulled the
+  `wakir-persona-engine-svid-workload-identity:<tag>` image onto the
+  Pilot-VM and the `WAKIR_RUST_SVID_WORKLOAD_IDENTITY_BIN` env-var
+  points at the installed binary. See the FAQ for the recovery flow.
+- `bridge_audit_writer` is the ADR-0065 operator-facing name; in the
+  substrate the resolver is `resolve_anchor_emitter_backend` because
+  that crate writes the outer WAT-anchor envelope (PR #170, Tag-23).
+  The dry-run accepts the alias.
 
 ## Acceptance criteria (per ADR-0065 §Verifikations-Plan)
 
@@ -253,18 +265,70 @@ that documents the operator's intent (`requested_backend ==
 The real NATS-bound boot happens during the Mo-Abend Pilot-VM
 Live-Smoke.
 
-**Q: What if `--component svid_workload_identity` is rejected
-but ADR-0065 says it's Welle-2?**
+**Q: How do I dry-run the Welle-2 component `svid_workload_identity`?**
 
-A: Correct — the dry-run cannot rehearse Welle-2 yet because the
-SVID resolver is not in the seven-switch substrate as of
-Sprint-Tag-23. Substrate precondition before Welle-2: a
-`resolve_svid_workload_identity_backend` function must land in
-`wirelang/persona_engine/rust_backend_switch.py` (paired with
-`WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND` env-var, `_resolve_svid_*_bin`
-helper, and binary-probe seam). Once that lands, this script
-gains the eighth resolver via the same pattern and the runbook's
-component table will be updated.
+A: Same as Welle-1, just with the explicit `--component` flag. The
+resolver landed in PR #191 (Tag-25 Mini-Welle) and the dry-run-side
+wire-in landed in PR #196 (Tag-29 Welle-2 Validation Workflow):
+
+```bash
+python scripts/phase-3c-cutover-dry-run.py \
+  --component svid_workload_identity
+```
+
+Under the default stub binary-probe the envelope returns
+`dry_run="completed"` with a GREEN-band feasibility score, mirroring
+the Welle-1 v907_verify behaviour. The `env_var` field carries
+`WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND` and the `requested_backend`
+field carries `rust`.
+
+**Q: What is `ready-pending-binary` for `svid_workload_identity`?**
+
+A: `ready-pending-binary` is the operational status the runbook
+uses when the Python-side resolver and Rust-CLI container-image are
+both built (PR #191 + PR #201) but the image has not yet been
+pulled onto the Pilot-VM. In this state:
+
+- The hermetic dry-run (stub probe, no `--probe-real`) renders
+  `dry_run="completed"` and a GREEN feasibility score, because
+  the script does not touch the filesystem.
+- The `--probe-real` dry-run renders `dry_run="blocked"`,
+  `band="BLOCKED"`, and `error` set to
+  `"rust binary unavailable at '/opt/wakir/bin/wakir-persona-engine-svid-workload-identity': binary_missing"`
+  until the operator deploys the
+  `wakir-persona-engine-svid-workload-identity:<tag>` image and the
+  `WAKIR_RUST_SVID_WORKLOAD_IDENTITY_BIN` env-var points at the
+  installed binary.
+
+Recovery flow for `ready-pending-binary` → `ready`:
+
+1. Operator pulls the image-tag on the Pilot-VM (Kai-Container-Bridge
+   substrate, see `docs/operations/container-image-deployment.md`).
+2. Operator sets `WAKIR_RUST_SVID_WORKLOAD_IDENTITY_BIN` to the
+   absolute path of the installed binary.
+3. Operator re-runs the dry-run with `--probe-real`; the envelope
+   must now return `dry_run="completed"` with a GREEN feasibility
+   score before the Welle-2 cutover-PR is opened.
+
+The dry-run script does not perform step 1 or 2 — both are
+Operator-Hand territory per the Sandbox/Host-Operations Trennung
+(no podman-socket access from claude-dev). The script's role is
+to render the `ready-pending-binary` vs. `ready` distinction
+visibly in its JSON envelope so the Mo-pre-check produces an
+unambiguous gate signal.
+
+**Q: Where is the Welle-2 substrate documented in detail?**
+
+A: PR #191 (svid_workload_identity Python-side resolver), PR #196
+(dry-run wire-in + Welle-2 Validation Workflow), PR #201 (Rust-CLI
+container-image-build-pipeline), and ADR-0065 §Option-B (which
+pins `svid_workload_identity` as the second cutover Welle).
+ADR-0066 §Option-A+ governs the timeline compression but not the
+component ordering. The duplicate PR #202 was closed in favour of
+#191 and is not part of the substrate; the Tag-31 reconciliation
+PR (this revision) was opened to bring the dry-run script header,
+the runbook component table, and this FAQ in sync with the
+already-shipped substrate.
 
 **Q: Why is the default `--boots` value 12?**
 

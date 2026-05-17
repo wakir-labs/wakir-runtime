@@ -1,38 +1,69 @@
 # Wakir Runtime
 
-The reference implementation of the Wakir Labs framework for accountable
-multi-agent systems: typed inter-agent messaging, capability tokens,
-identity substrate, and audit trails anchored to Bitcoin.
+The operational runtime for accountable multi-agent systems. Pairs
+typed inter-agent messaging with capability tokens, an identity
+substrate, and Bitcoin-anchored audit trails so that what your
+agents did, and what they were allowed to do, remains verifiable to
+a third party years later.
 
-This repository is in early development. Architecture decisions and
-implementation notes will land here as the framework comes together.
+## How the three repositories fit together
 
-## Status
+The Wakir stack ships as three coordinated repositories:
 
-Pre-launch. The first build phase begins in calendar week 21 of 2026.
-Foundation work has been pulled forward by one week and is in flight.
+- **[`wakir-protocol`](https://github.com/wakir-labs/wakir-protocol)**
+  — the language: Wirelang specs, JSON schemas, capability-token
+  envelope, identity substrate. Apache-2.0 for code, CC-BY-4.0 for
+  the spec prose.
+- **`wakir-runtime`** (this repository) — the operator: the
+  reference implementation that turns the protocol into a running
+  organization. Mixed-license, BUSL-1.1-dominant for operational
+  modules, Apache-2.0 for the foundation. Converts to Apache-2.0
+  on stated Change Dates.
+- **[`wakir-verify`](https://github.com/wakir-labs/wakir-verify)**
+  — the third-party check: a single-binary verifier that
+  reconstructs an inclusion proof from a public WAT archive and
+  validates the Bitcoin attestation. Apache-2.0, zero PyPI surface
+  on the hot path.
 
-## What lives here
+The one-line gloss:
 
-- **Wirelang** — typed inter-agent message schema (transport, wire format,
-  semantic, audit layers)
-- **WAT (Wakir Audit Trail)** — Bitcoin-anchored audit trail layer with
-  per-hour Merkle aggregation and verification CLI; lives in [`wat/`](wat/).
-  See [WAT module](#wat-module) below.
-- **Capability tokens** — adoption of AIP and Biscuit, with a Wakir
-  vocabulary and Datalog caveat set
-- **Container orchestrator** — agent-per-container deployment substrate
-  (later phase)
-- **Federation** — adoption of A2A and ERC-8004 standards plus a
-  cross-organisation audit federation annex (later phase)
+> `wakir-protocol` defines the language, `wakir-runtime` operates
+> the organization, `wakir-verify` checks the proof.
+
+If you only need to validate an audit trail someone else published,
+you want `wakir-verify`. If you want to read or implement the
+on-the-wire formats, you want `wakir-protocol`. If you want to run
+an accountable multi-agent organization end-to-end, you are in the
+right place.
+
+## What lives in this repository
+
+- **WAT (Wakir Audit Trail)** — Bitcoin-anchored audit trail with
+  per-hour Merkle aggregation and a verification CLI; the module
+  lives under [`wat/`](wat/) and is the subject of the rest of this
+  README.
+- **Container orchestrator** — the agent-per-container deployment
+  substrate that runs each persona in its own boundary.
+- **Federation substrate** — A2A and ERC-8004 adoption plus a
+  cross-organization audit federation annex.
+- **Persona engine** — the runtime layer that resolves agent
+  identities, capability tokens, and routing decisions against the
+  protocol-layer schemas.
+
+The protocol-layer artefacts that these components consume —
+Wirelang specs, JSON schemas, the capability-token envelope, the
+identity substrate — live in `wakir-protocol` and are pulled in
+either as a PyPI dependency or as a sibling clone during
+development. See [Protocol-layer dependency](#protocol-layer-dependency)
+below.
 
 ## WAT module
 
-The Wakir Audit Trail aggregates inter-agent messages into a per-hour
-Merkle tree, anchors each hourly root to Bitcoin via OpenTimestamps,
-and stores enough manifest metadata next to each receipt so that any
-third party can reconstruct an inclusion proof for a specific event
-without access to a Wakir-side database.
+The Wakir Audit Trail aggregates inter-agent messages into a
+per-hour Merkle tree, anchors each hourly root to Bitcoin via
+OpenTimestamps, and stores enough manifest metadata next to each
+receipt so that any third party can reconstruct an inclusion proof
+for a specific event without access to a Wakir-side database.
 
 The audit horizon WAT is designed for is three years of online
 verifiability per anchored hour, with public Bitcoin attestation
@@ -45,18 +76,15 @@ The module lives under [`wat/`](wat/) and is laid out as:
 - `wat/verify/` — server-side verification helpers
 - `wat/cmd/` — console-script entry points
 
-A separate, Apache-2.0-licensed offline verifier ships in its own
+A separate, Apache-2.0-licensed offline verifier ships as its own
 public repository: [`wakir-labs/wakir-verify`](https://github.com/wakir-labs/wakir-verify).
 That verifier is the public brand-proof tool and runs without any
-WAT-side state. It was split out of this repository as ADR-0062
-Cut-1; the substance-classification rationale lives in
-[`docs/decisions/cut1-verifier-substance-classification.md`](docs/decisions/cut1-verifier-substance-classification.md).
-The in-tree console script `wakir-wat-verify` under
-[`wat/verify/cli.py`](wat/verify/cli.py) is the BUSL-1.1 operator-
-facing convenience verifier and stays here as hosted-service
-substrate; it was renamed from `wakir-verify` to avoid a console-
-script-name collision with the standalone Apache-2.0 package
-(ADR-0062 Cut-1 follow-up, 2026-05-16).
+WAT-side state. The in-tree console script `wakir-wat-verify`
+under [`wat/verify/cli.py`](wat/verify/cli.py) is the BUSL-1.1
+operator-facing convenience verifier and stays here as
+hosted-service substrate; it was renamed from `wakir-verify` to
+avoid a console-script-name collision with the standalone
+Apache-2.0 package.
 
 To install the offline brand-proof verifier alongside this runtime
 without manually depending on the upstream package, use the
@@ -70,37 +98,32 @@ That pulls in `wakir-verify>=0.1.0` from PyPI and exposes the
 standalone `wakir-verify` console script in the same environment
 as `wakir-wat-verify`.
 
-### Protocol-layer split (ADR-0062 Cut-2)
+## Protocol-layer dependency
 
-The Apache-2.0 protocol layer — Wirelang specs, JSON-Schemas, AIP/
-DID identity-substrate, Biscuit capability-token wrapper — ships
-in a separate public repository:
-[`wakir-labs/wakir-protocol`](https://github.com/wakir-labs/wakir-protocol).
-
-The substance-classification rationale is documented in
-[`docs/decisions/cut2-protocol-substance-classification.md`](docs/decisions/cut2-protocol-substance-classification.md).
-The in-tree `wirelang/` package keeps the BUSL-1.1 runtime-internal
-modules (`federation/`, `persona_engine/`,
-`identity/federation_resolver.py`, `persona/persona_state_kv*.py`,
-`cli/marker_stack_*.py`) plus the original Apache-2.0 sources during
-the transitional period; the cross-repo import-adaption sprint
-(`wirelang.* → wakir_protocol.*`) is the next Cut-2 follow-up.
-
-To opt-in to the protocol-layer dependency, install the
+The Apache-2.0 protocol layer — Wirelang specs, JSON schemas,
+AIP/DID identity substrate, Biscuit capability-token wrapper —
+ships in [`wakir-labs/wakir-protocol`](https://github.com/wakir-labs/wakir-protocol).
+To opt in to the protocol-layer dependency, install the
 `[protocol]` extra:
 
 ```sh
 pip install 'wakir-runtime[protocol]'
 ```
 
-That pulls in `wakir-protocol>=0.1.0` from PyPI.
+That pulls in `wakir-protocol>=0.1.0` from PyPI. The in-tree
+`wirelang/` package retains the BUSL-1.1 runtime-internal modules
+(`federation/`, `persona_engine/`,
+`identity/federation_resolver.py`, `persona/persona_state_kv*.py`,
+`cli/marker_stack_*.py`) as part of the operational substrate
+during the transitional period; the import migration from
+`wirelang.*` to `wakir_protocol.*` is in progress.
 
 ## Setup
 
-The setup script provisions a project-local venv at `.venv`, installs
-the package in editable mode with the `[test]` extras, and verifies
-that the `ots` CLI from `opentimestamps-client` is on `PATH`. After
-that the three console scripts are available:
+The setup script provisions a project-local venv at `.venv`,
+installs the package in editable mode with the `[test]` extras,
+and verifies that the `ots` CLI from `opentimestamps-client` is
+on `PATH`. After that the three console scripts are available:
 
 ```sh
 bash scripts/setup.sh
@@ -159,8 +182,8 @@ manifest with `merkle_root: null` and the hourly driver
 ## WAT hourly operations
 
 Two systemd timer templates land under `scripts/systemd/`. The
-hourly anchor timer drives `scripts/wat-hourly.sh` five minutes past
-each UTC hour boundary; the backfill timer drives
+hourly anchor timer drives `scripts/wat-hourly.sh` five minutes
+past each UTC hour boundary; the backfill timer drives
 `scripts/wat-backfill.sh` four times a day.
 
 ```sh
@@ -172,8 +195,8 @@ systemctl --user enable --now wakir-wat-hourly.timer wakir-wat-backfill.timer
 ```
 
 Both services need `WAKIR_EVENT_SPOOL` (input) and
-`WAKIR_RECEIPT_ARCHIVE` (output) defined in your user environment, e.g.
-in `~/.config/environment.d/wakir.conf`.
+`WAKIR_RECEIPT_ARCHIVE` (output) defined in your user environment,
+e.g. in `~/.config/environment.d/wakir.conf`.
 
 The drivers log to systemd-journald with the `[wat-hourly]` and
 `[wat-backfill]` prefixes:
@@ -184,19 +207,19 @@ journalctl --user -u wakir-wat-backfill.service --since '1 day ago'
 ```
 
 A backfill exit code of `1` means at least one pending receipt has
-aged past the seven-day soft window; the audit-alarm channel surfaces
-those for human review (WAT-Phase-1a-Spec §3.4).
+aged past the seven-day soft window; the audit-alarm channel
+surfaces those for human review.
 
-### Backfill operations setup
+### Backfill operations
 
 The backfill driver is the failsafe for the hourly anchor: when
 the public OpenTimestamps calendars are unreachable for several
 consecutive hours, pending receipts accumulate in the archive and
-need to be upgraded once the calendars come back. The 4×/day
-cadence (00:30, 06:30, 12:30, 18:30 UTC) is documented in
-`scripts/systemd/wakir-wat-backfill.timer` and is the expected
-operational frequency: a single Bitcoin-confirmation delay never
-holds a pending receipt for more than ~6 hours.
+need to be upgraded once the calendars come back. The four-runs-
+per-day cadence (00:30, 06:30, 12:30, 18:30 UTC) is documented in
+`scripts/systemd/wakir-wat-backfill.timer`: a single
+Bitcoin-confirmation delay never holds a pending receipt for more
+than about six hours.
 
 Soft-window behaviour:
 
@@ -205,38 +228,13 @@ Soft-window behaviour:
   code 1, ERROR-level log line `backfill: receipt … pending for
   N days (soft window 7)` in the journal),
 - finalised receipts are reported once with their Bitcoin block
-  height and then ignored on subsequent passes (the upgrade is
-  a no-op).
+  height and then ignored on subsequent passes.
 
 To override the default soft window for a specific deployment,
 set `WAKIR_BACKFILL_MAX_AGE` (in days) in the service environment.
 This should be a deliberate, documented choice — the seven-day
 default is a soft commitment to anyone reading
 `docs/wat-tv3-test-plan.md` §3.
-
-#### SRE persona handoff (post-ADR-0042)
-
-Backfill alarm channel design — journal-grep cadence, ntfy topic,
-escalation policy, dashboard rendering — is operational concern,
-not implementation concern. Once the SRE persona is activated in
-KW 22-23 of 2026 (per ADR-0042), the following items move to the
-SRE inbox:
-
-- decide on a journal-grep tool and cadence for surfacing
-  `[wat-backfill]` ERROR lines,
-- pick an ntfy.sh topic and message template for breached
-  receipts,
-- define escalation steps (auto-page vs. dashboard accumulation),
-- own the runbook for the case where an aged receipt cannot be
-  upgraded (calendar permanently lost a record, manifest needs
-  re-anchoring).
-
-Until the SRE persona is active, the operator runs
-`journalctl --user -u wakir-wat-backfill.service --since '1 day
-ago' | grep ERROR` once a day as the manual stand-in. The
-implementation contract — exit code 1 on breach, `ERROR` log line
-on each breached receipt — is fixed by `tests/wat/test_tv3_
-backfill_leg.py` and will not shift under SRE.
 
 ## Smoke test
 
@@ -254,23 +252,23 @@ OTS_INTEGRATION_TEST=1 pytest tests/wat/test_ots_integration.py
 ```
 
 Without the env variable set the four cases skip cleanly. Calendar
-operators run the public infrastructure for free; please do not run
-the suite in a tight loop.
+operators run the public infrastructure for free; please do not
+run the suite in a tight loop.
 
 ### One-command smoke driver
 
 `scripts/wat-smoke-test.sh` is the auditor / pipeline-friendly
-single-command driver: it spools 8 synthetic events, walks
+single-command driver: it spools synthetic events, walks
 `build -> stamp -> verify-pending`, and exits with the same code
 shape as `wakir-wat-verify` (`0` finalised, `1` failed, `3`
 pending, `4` chain-mismatch).
 
 ```sh
-bash scripts/wat-smoke-test.sh           # full run, 5-min sleep
+bash scripts/wat-smoke-test.sh           # full run, with sleep
 bash scripts/wat-smoke-test.sh --quick   # skip the upgrade wait
 ```
 
-The full Tag-22 smoke plan, including 100-event vectors and
+The full smoke-test plan, including 100-event vectors and
 calendar-failover drills, is documented in
 [`docs/wat-smoke-test-plan.md`](docs/wat-smoke-test-plan.md).
 
@@ -278,135 +276,138 @@ calendar-failover drills, is documented in
 
 Three GitHub Actions workflows guard this repository:
 
-- **`tests.yml` — wirelang production lane.** Full install set
+- **`tests.yml` — production lane.** Full install set
   (`rfc8785` + `jsonschema` + everything in `dependencies`). Pairs
   with the sandbox lane below for the two-sided drift envelope.
-- **`sandbox-ci.yml` — wirelang sandbox lane.** Minimal install set
-  (no `rfc8785`, no `jsonschema`). Proves the pure-Python fallback
-  path stays green. Drift between sandbox and production lane
+- **`sandbox-ci.yml` — sandbox lane.** Minimal install set (no
+  `rfc8785`, no `jsonschema`). Proves the pure-Python fallback
+  path stays green. Drift between sandbox and production-lane
   collected-counts is itself a CI signal.
-- **`external-verifier-drift.yml` — python-bitcoinlib drift matrix.**
-  Phase-2 Sprint-8 Tag-4 Teil B. Runs the external-verifier test
-  surface against three pinned `python-bitcoinlib` versions
-  (`0.11.2`, `0.12.1`, `0.12.2` as of 2026-05-13) on Python 3.12. The
-  matrix probes three invariants any auditor-injected
+- **`external-verifier-drift.yml` — python-bitcoinlib drift
+  matrix.** Runs the external-verifier test surface against three
+  pinned `python-bitcoinlib` versions on Python 3.12. The matrix
+  probes three invariants any auditor-injected
   `python-bitcoinlib`-backed `proof_reader` depends on:
   block-hash byte-order canonicalisation (`b2lx` vs `b2x`),
   OP_RETURN script serialisation round-trip, and
-  `bitcoin.__version__` packaging sanity. The verifier sub-package
-  itself does NOT import `python-bitcoinlib` (zero-PyPI-surface
-  brand-proof posture); the matrix instead pins the contract the
-  moment an auditor or operator chooses to layer it in via the
-  documented `proof_reader` injection seam. Matrix jobs that fail
-  to install a pinned version emit a `skip-with-marker` warning
-  rather than failing the workflow — a single version dropping out
-  of Python-interpreter support must not block the rest of the
-  matrix. New `python-bitcoinlib` releases land in the matrix by
-  explicit pin in a follow-up sprint, never as a floating `latest`
-  tag (a floating tag would make a future fail ambiguous between
-  verifier regression and upstream release).
+  `bitcoin.__version__` packaging sanity. The verifier
+  sub-package itself does NOT import `python-bitcoinlib` (zero-
+  PyPI-surface brand-proof posture); the matrix instead pins the
+  contract the moment an auditor or operator chooses to layer it
+  in via the documented `proof_reader` injection seam. Matrix
+  jobs that fail to install a pinned version emit a
+  `skip-with-marker` warning rather than failing the workflow —
+  a single version dropping out of Python-interpreter support
+  must not block the rest of the matrix.
 
 ## WAT bridge — Wirelang frame ingestion
 
-The bridge that sits between the Wirelang Layer-1 frame stream and
-the hourly aggregator lives under [`wat/ingestion/`](wat/ingestion/)
-(BSL 1.1). It exposes two pieces:
+The bridge that sits between the Wirelang Layer-1 frame stream
+and the hourly aggregator lives under
+[`wat/ingestion/`](wat/ingestion/). It exposes two pieces:
 
-- `project_l1_frame_to_leaf(frame)` — projects a CloudEvents-1.0 +
-  Wakir-extension frame onto the 9-field `LeafRecord` (4 B1 hash-input
-  fields + 5 audit-metadata fields per
-  [`docs/wat-spool-spec.md`](docs/wat-spool-spec.md) §2). The four
-  hash-input fields are the `compute_leaf_hash` input from the cross-
-  review-zone-2 consensus marker.
+- `project_l1_frame_to_leaf(frame)` — projects a CloudEvents-1.0
+  + Wakir-extension frame onto the 9-field `LeafRecord` (4 B1
+  hash-input fields + 5 audit-metadata fields per
+  [`docs/wat-spool-spec.md`](docs/wat-spool-spec.md) §2). The
+  four hash-input fields are the `compute_leaf_hash` input.
 - `append_leaf_to_spool(leaf, spool_dir)` and
-  `seal_hour(spool_dir, hour_slot)` — JSONL append plus the atomic
-  rename that flips an open `<hour>.jsonl` to `<hour>.jsonl.sealed`
-  once the H_end + 5min late-frame window has elapsed.
+  `seal_hour(spool_dir, hour_slot)` — JSONL append plus the
+  atomic rename that flips an open `<hour>.jsonl` to
+  `<hour>.jsonl.sealed` once the H_end + 5min late-frame window
+  has elapsed.
 
-The hourly cron driver (`scripts/wat-hourly.sh`) seals the hour file
-before invoking `wakir-merkle build`, which now reads the `.sealed`
-artefact rather than the open spool file.
+The hourly cron driver (`scripts/wat-hourly.sh`) seals the hour
+file before invoking `wakir-merkle build`, which reads the
+`.sealed` artefact rather than the open spool file.
 
-### Cross-review-zone-2 — three sync clarifications
+### Bridge behaviour
 
-Three points flagged in the Tag-6 spec hand-off resolve as follows:
+Three points worth knowing when integrating against the bridge:
 
-1. **Test-vector metadata convention.** Test-vector JSON files under
-   `tests/fixtures/jcs-leaf-vectors/` reserve leading-underscore keys
-   (`_spdx`, `_copyright`, `_notes`) at the top level for non-schema
-   metadata. The `input` and `expected_leaf_hash` blocks are schema-
-   bearing; the underscore-prefixed keys are stripped by machine
-   consumers via a single-character prefix check. The convention is
-   asserted in `tests/wat/test_hash_consistency.py` so a vector that
-   omits the metadata fails CI.
+1. **Test-vector metadata convention.** Test-vector JSON files
+   under `tests/fixtures/jcs-leaf-vectors/` reserve leading-
+   underscore keys (`_spdx`, `_copyright`, `_notes`) at the top
+   level for non-schema metadata. The `input` and
+   `expected_leaf_hash` blocks are schema-bearing; the
+   underscore-prefixed keys are stripped by machine consumers
+   via a single-character prefix check. The convention is
+   asserted in `tests/wat/test_hash_consistency.py` so a vector
+   that omits the metadata fails CI.
 2. **Multi-capability ordering.** The leaf projection commits to
    `caprefs[0]` per
    [`wirelang/specs/wat-leaf-projection.md`](wirelang/specs/wat-leaf-projection.md)
    §3.4.1. Producers control ordering; the first entry is the
-   capability primarily invoked. A future v2 may introduce a multi-
-   cap representation, additively. Producers that need to bind
-   multiple capabilities into the audit trail today should emit one
-   frame per capability.
-3. **`recovery-drill-` prefix namespace.** The Phase-1b recovery-
-   drill projection
+   capability primarily invoked. A future v2 may introduce a
+   multi-cap representation, additively. Producers that need to
+   bind multiple capabilities into the audit trail today should
+   emit one frame per capability.
+3. **`recovery-drill-` prefix namespace.** The recovery-drill
+   projection
    ([`wirelang/specs/recovery-drill-leaf-projection.md`](wirelang/specs/recovery-drill-leaf-projection.md)
-   §2.1) prefixes drill `event_id`s with `recovery-drill-`. The bridge
-   treats `event_id` byte-faithfully and does not bless or reject the
-   prefix; namespace disjointness with regular UUIDv7 IDs is the
-   producer's responsibility. Unit-tested in
+   §2.1) prefixes drill `event_id`s with `recovery-drill-`. The
+   bridge treats `event_id` byte-faithfully and does not bless
+   or reject the prefix; namespace disjointness with regular
+   UUIDv7 IDs is the producer's responsibility. Unit-tested in
    `tests/wat/test_bridge.py::test_event_id_namespace_disjoint`.
 
 ## Specifications
 
-The cross-module contracts between Wirelang and WAT are documented in
-plain Markdown under `docs/` and `wirelang/specs/`:
+The cross-module contracts between Wirelang and WAT are
+documented in plain Markdown under `docs/` and `wirelang/specs/`:
 
 - [`wirelang/specs/wat-leaf-projection.md`](wirelang/specs/wat-leaf-projection.md)
-  — how a Layer-1 frame projects onto the four-field WAT leaf tuple.
-- [`docs/wat-spool-spec.md`](docs/wat-spool-spec.md) — the JSONL hour-
-  spool format the bridge writes and the aggregator reads.
-- [`docs/wat-hash-spec.md`](docs/wat-hash-spec.md) — the cross-domain
-  JCS+SHA-256+hex-lower hash contract shared by all WAT-anchored data.
+  — how a Layer-1 frame projects onto the four-field WAT leaf
+  tuple.
+- [`docs/wat-spool-spec.md`](docs/wat-spool-spec.md) — the JSONL
+  hour-spool format the bridge writes and the aggregator reads.
+- [`docs/wat-hash-spec.md`](docs/wat-hash-spec.md) — the
+  cross-domain JCS+SHA-256+hex-lower hash contract shared by all
+  WAT-anchored data.
 - [`docs/wat-manifest-spec.md`](docs/wat-manifest-spec.md) — the
   hourly manifest format that the verify CLI consumes.
 - [`wirelang/specs/recovery-drill-leaf-projection.md`](wirelang/specs/recovery-drill-leaf-projection.md)
-  — Phase-1b sketch: how quarterly cold-storage recovery drills
-  project onto WAT leaves for three-year audit beyond the operator's
-  own logs.
+  — how quarterly cold-storage recovery drills project onto WAT
+  leaves for three-year audit beyond the operator's own logs.
 
 Test vectors for the JCS+SHA-256 leaf hash live under
 [`tests/fixtures/jcs-leaf-vectors/`](tests/fixtures/jcs-leaf-vectors/).
-Five vectors cover empty payloads, typical capability-bound frames,
-the no-capability-token path, multi-byte UTF-8, and large nested
-payloads. Each vector ships with a pre-computed `expected_leaf_hash`
-that matches `wat.merkle.aggregator.compute_leaf_hash`.
+Five vectors cover empty payloads, typical capability-bound
+frames, the no-capability-token path, multi-byte UTF-8, and large
+nested payloads. Each vector ships with a pre-computed
+`expected_leaf_hash` that matches
+`wat.merkle.aggregator.compute_leaf_hash`.
 
 ## Repository layout
 
 ```
-wat/        — Wakir Audit Trail module (BSL 1.1, see wat/LICENSE-BSL.md)
-tooling/    — CI/CD helpers              (Apache 2.0)
-scripts/    — setup and maintenance      (Apache 2.0)
-tests/      — test suite                 (Apache 2.0)
-docs/       — Markdown documentation     (CC BY 4.0)
+wat/            — Wakir Audit Trail module (BUSL-1.1)
+wirelang/       — runtime-internal modules (BUSL-1.1) plus
+                  transitional Apache-2.0 sources mirrored from
+                  wakir-protocol
+tooling/        — CI/CD helpers              (Apache-2.0)
+scripts/        — setup and maintenance      (Apache-2.0)
+tests/          — test suite                 (Apache-2.0)
+docs/           — Markdown documentation     (CC-BY-4.0)
 ```
 
 ## License
 
 This repository is mixed-license. Apache-2.0 is the default for
-foundation code and verifier tooling. Selected operational modules
-are licensed under BUSL-1.1 and convert to Apache-2.0 on their
-stated Change Date. Documentation is CC-BY-4.0 where marked. See
-[LICENSING.md](./LICENSING.md) for the authoritative map.
+foundation code and verifier tooling. Selected operational
+modules are licensed under BUSL-1.1 and convert to Apache-2.0 on
+their stated Change Date. Documentation is CC-BY-4.0 where
+marked. See [LICENSING.md](./LICENSING.md) for the authoritative
+map.
 
-See [NOTICE](NOTICE) for the attribution required by Apache 2.0,
-[GOVERNANCE.md](./GOVERNANCE.md) for the human-governance posture,
-[BRAND.md](./BRAND.md) for trademark and brand-asset posture, and
-[ATTRIBUTION.md](./ATTRIBUTION.md) for sponsorship, work-product,
-and third-party attribution context.
+See [NOTICE](NOTICE) for the attribution required by Apache-2.0,
+[GOVERNANCE.md](./GOVERNANCE.md) for the human-governance
+posture, [BRAND.md](./BRAND.md) for trademark and brand-asset
+posture, and [ATTRIBUTION.md](./ATTRIBUTION.md) for sponsorship,
+work-product, and third-party attribution context.
 
 ## Brand
 
-Wakir Labs is a project of Callandor GmbH. Documentation files in
-this repository are released under Creative Commons Attribution 4.0
-International (CC BY 4.0) where indicated.
+Wakir Labs is a project of Callandor GmbH. Documentation files
+in this repository are released under Creative Commons
+Attribution 4.0 International (CC-BY-4.0) where indicated.
