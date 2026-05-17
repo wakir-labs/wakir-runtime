@@ -1,0 +1,199 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Cross-Substrate Parity Gate (Tag-32 Mini-Welle, ADR-0066 Welle-3 Mitigation)
+# ---------------------------------------------------------------------------
+#
+# Verpflichtender CI-Status-Check, der die 3-Way-Inventory-Parity
+# zwischen den drei Substraten des Phase-3b Rust-CLI 9-Binary-
+# Inventories enforcet:
+#
+#   1. Cosign-Policy ............ policies/cosign-policy-phase-3b.yaml
+#   2. Quadlet-Installer ........ quadlet/wakir-rust-cli.container
+#   3. Backend-Switch Resolver .. wirelang/persona_engine/rust_backend_switch.py
+#
+# Anlass: ADR-0066 Welle-3 Mitigation. Eine 2-Way-Parity-Test
+# (Cosign ↔ Quadlet) existiert bereits in
+# `tests/infra/test_cosign_policy_phase_3b.py:test_cross_substrate_parity_with_quadlet_installer`,
+# aber: (a) sie ist nicht als CI-Required-Status gesetzt, (b) sie
+# deckt den dritten Substrate-Träger (rust_backend_switch.py) nicht
+# ab. Beide Lücken sind die Worst-Case-Failure-Mode-Quelle für
+# Phase-3c Cutover, weil sie eine partielle Migration als
+# erfolgreiche disguised (Resolver-Eintrag ohne Image → silent
+# Python-Fallback bei Boot-Zeit, keine Cosign-Signature-Validation).
+#
+# Gate-Substrat: `tests/infra/test_cross_substrate_parity_3way.py`
+# (6 Tests, hermetic, kein Live-Network). Operator-Recipe:
+# `docs/operations/cross-substrate-parity-runbook.md`.
+#
+# Trigger-Pfade
+# -------------
+# Der Workflow läuft auf jeder Änderung an einem der drei Substrate
+# ODER an den Test-/Runbook-/Workflow-Dateien selbst. Andere
+# PRs/Pushes triggern ihn nicht — der Gate bleibt leichtgewichtig.
+#
+# Required-Status-Check (Mira-Hand-Folge)
+# ---------------------------------------
+# Erste Phase: **advisory**. Sobald dieser Workflow einmal auf
+# `main` grün läuft, soll Mira (Operator-Hand) ihn unter
+# Settings → Branches → main → Required status checks aktivieren.
+# Der Job-Display-Name `cross-substrate parity (cosign ↔ quadlet ↔
+# backend-switch)` ist der exakte zu aktivierende String per
+# `feedback_branch_protection_check_names.md`.
+#
+# Sandbox-Boundary
+# ----------------
+# Hermetic. Keine `cosign verify` / `crane` / `skopeo`-Aufrufe.
+# Live-Verifikation ist Operator-Hand per
+# `docs/operations/cosign-policy-phase-3b.md`.
+
+name: cross-substrate-parity-gate
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "policies/cosign-policy-phase-3b.yaml"
+      - "quadlet/wakir-rust-cli.container"
+      - "wirelang/persona_engine/rust_backend_switch.py"
+      - "tests/infra/test_cross_substrate_parity_3way.py"
+      - "tests/infra/test_cosign_policy_phase_3b.py"
+      - "docs/operations/cross-substrate-parity-runbook.md"
+      - ".github/workflows/cross-substrate-parity-gate.yml"
+  pull_request:
+    paths:
+      - "policies/cosign-policy-phase-3b.yaml"
+      - "quadlet/wakir-rust-cli.container"
+      - "wirelang/persona_engine/rust_backend_switch.py"
+      - "tests/infra/test_cross_substrate_parity_3way.py"
+      - "tests/infra/test_cosign_policy_phase_3b.py"
+      - "docs/operations/cross-substrate-parity-runbook.md"
+      - ".github/workflows/cross-substrate-parity-gate.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  cross-substrate-parity-gate:
+    # Job-Display-Name MUSS exakt dieser String sein — er ist der
+    # Required-Status-Check-Name, den Mira-Hand in Branch-Protection
+    # aktiviert (per feedback_branch_protection_check_names.md).
+    name: "cross-substrate parity (cosign ↔ quadlet ↔ backend-switch)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        # 3.13 mirrors the production-lane in tests.yml,
+        # hash-derivate-gate.yml und license-gate.yml.
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install gate dependencies
+        # Nur pytest + PyYAML; re/hashlib/pathlib sind stdlib.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "pytest>=8.0" "PyYAML>=6.0"
+
+      - name: Stage 1 — 3-Way Cross-Substrate Parity (hermetic)
+        # Treibt die 6 hermetic Tests, die den 3-Way-Inventory-
+        # Parity-Vertrag enforcen:
+        #   * Test 1: 3-Way-Agreement (Cosign == Quadlet == Resolver-9)
+        #   * Test 2: Resolver-Known-Extras sind dokumentiert
+        #   * Test 3: Resolver-Inventory-Size == 9 + len(extras)
+        #   * Test 4: EXPECTED_BINARIES-Tupel-Parity mit
+        #            test_cosign_policy_phase_3b.py
+        #   * Test 5: Runbook dokumentiert die 3-Way-Pflicht +
+        #            kanonisches 9-Binary-Inventory
+        #   * Test 6: Negative-Case: Synthetic-Extra-Detection.
+        run: |
+          python -m pytest tests/infra/test_cross_substrate_parity_3way.py -v --tb=short
+
+      - name: Stage 2 — Inventory-Snapshot (CI-Summary diagnostic)
+        # Human-readable Diagnose pro CI-Run im PR-Summary-Tab.
+        # Stage 1 failed bereits bei einer Drift; Stage 2 dient als
+        # Operator-readable Snapshot. Bei einem Failure in Stage 1
+        # bleibt Stage 2 trotzdem hilfreich, deshalb if: always().
+        if: always()
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          import yaml
+
+          REPO_ROOT = Path(".").resolve()
+          POLICY = REPO_ROOT / "policies" / "cosign-policy-phase-3b.yaml"
+          QUADLET = REPO_ROOT / "quadlet" / "wakir-rust-cli.container"
+          RESOLVER = REPO_ROOT / "wirelang" / "persona_engine" / "rust_backend_switch.py"
+
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          lines: list[str] = []
+          lines.append("# Cross-Substrate 3-Way Inventory Snapshot")
+          lines.append("")
+          lines.append("Substrates inspected:")
+          lines.append("")
+          lines.append("1. Cosign-Policy   `policies/cosign-policy-phase-3b.yaml`")
+          lines.append("2. Quadlet-Install `quadlet/wakir-rust-cli.container`")
+          lines.append("3. Resolver        `wirelang/persona_engine/rust_backend_switch.py`")
+          lines.append("")
+
+          # Cosign-Policy
+          cosign_names: set[str] = set()
+          if POLICY.exists():
+              try:
+                  policy = yaml.safe_load(POLICY.read_text(encoding="utf-8"))
+                  cosign_names = {b["name"] for b in policy.get("binaries", [])}
+              except Exception as exc:  # pragma: no cover
+                  lines.append(f"_Cosign parse error: {exc}_")
+          # Quadlet
+          quadlet_names: set[str] = set()
+          if QUADLET.exists():
+              text = QUADLET.read_text(encoding="utf-8")
+              quadlet_names = set(re.findall(r"wakir-persona-engine-([a-z0-9-]+)", text))
+          # Resolver
+          resolver_names: set[str] = set()
+          if RESOLVER.exists():
+              text = RESOLVER.read_text(encoding="utf-8")
+              pattern = re.compile(
+                  r'DEFAULT_RUST_[A-Z0-9_]+_BIN\s*=\s*\(?\s*"'
+                  r'/opt/wakir/bin/wakir-persona-engine-([a-z0-9-]+)"',
+                  re.MULTILINE,
+              )
+              resolver_names = {m.group(1) for m in pattern.finditer(text)}
+
+          all_names = sorted(cosign_names | quadlet_names | resolver_names)
+
+          lines.append("| Binary | Cosign | Quadlet | Resolver |")
+          lines.append("|---|---|---|---|")
+          for n in all_names:
+              c = "yes" if n in cosign_names else "no"
+              q = "yes" if n in quadlet_names else "no"
+              r = "yes" if n in resolver_names else "no"
+              lines.append(f"| `{n}` | {c} | {q} | {r} |")
+
+          lines.append("")
+          lines.append(f"**Counts:** Cosign={len(cosign_names)}  Quadlet={len(quadlet_names)}  Resolver={len(resolver_names)}")
+          lines.append("")
+          lines.append("Expected: Cosign == Quadlet == 9; Resolver == 9 + known-extras "
+                       "(`federation-resolver`).")
+          lines.append("")
+          lines.append("Drift-Diagnose:")
+          extras = resolver_names - cosign_names
+          missing = cosign_names - resolver_names
+          lines.append(f"- Resolver-extras (vs Cosign): {sorted(extras) or 'none'}")
+          lines.append(f"- Resolver-missing (vs Cosign): {sorted(missing) or 'none'}")
+          lines.append(f"- Cosign vs Quadlet symmetric-diff: "
+                       f"{sorted(cosign_names ^ quadlet_names) or 'none'}")
+
+          rendered = "\n".join(lines) + "\n"
+          if summary_path:
+              with open(summary_path, "a", encoding="utf-8") as fh:
+                  fh.write(rendered)
+          print(rendered)
+          PY
