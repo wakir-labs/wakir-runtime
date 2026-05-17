@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 import subprocess
 import sys
@@ -147,6 +148,67 @@ def test_engine_despawn_clean_returns_uninstantiated(tmp_path):
     engine.spawn()
     engine.despawn_clean_run()
     assert engine.fsm.state == "uninstantiated"
+
+
+@requires_v907_compute_deps
+def test_engine_boot_records_six_backend_decisions(tmp_path):
+    """Tag-22 wire-in: boot() resolves SIX BackendDecisions in order
+    (recovery + state_backing + fsm + v907_verify + bridge_diff +
+    subscribe_loop). Verifies the per-boot Doppelbetrieb-anchor count
+    grew from 5 (Tag-20) to 6 (Tag-22). When the anchor-emitter switch
+    (Tag-21 deferred) lands the count rises to 7.
+
+    Each decision is the python-default with no fallback (env-clean
+    test environment), and all carry resolution_latency_us >= 0.
+    """
+    engine = _engine_with_axis_a(tmp_path)
+    engine.boot()
+    # Six BackendDecision attributes populated.
+    assert engine._recovery_backend_decision.domain == "recovery"
+    assert engine._recovery_backend_decision.chosen_backend == "python"
+    assert engine._recovery_backend_decision.resolution_latency_us >= 0
+
+    # state_backing is resolved lazily inside _select_state_backing
+    # rather than recorded as an attribute, but a backend-decision
+    # log-record IS emitted on the log_sink. Confirm via the structured
+    # log search rather than an attribute lookup.
+
+    assert engine._fsm_backend_decision.domain == "fsm"
+    assert engine._fsm_backend_decision.chosen_backend == "python"
+
+    assert engine._v907_verify_backend_decision.domain == "v907_verify"
+    assert engine._v907_verify_backend_decision.chosen_backend == "python"
+
+    assert engine._bridge_diff_backend_decision.domain == "bridge_diff"
+    assert engine._bridge_diff_backend_decision.chosen_backend == "python"
+
+    assert engine._subscribe_loop_backend_decision.domain == "subscribe_loop"
+    assert engine._subscribe_loop_backend_decision.chosen_backend == "python"
+    assert (
+        engine._subscribe_loop_backend_decision.resolution_latency_us >= 0
+    )
+    assert engine._subscribe_loop_backend_decision.bin_path is None
+
+    # The log_sink carries one backend-decision line per domain. Count
+    # those to verify six were emitted (recovery + state_backing + fsm
+    # + v907_verify + bridge_diff + subscribe_loop).
+    log = engine.log_sink.getvalue()
+    domains = set()
+    for line in log.splitlines():
+        try:
+            doc = json.loads(line)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if doc.get("msg") == "backend-decision":
+            domains.add(doc.get("domain"))
+    assert domains == {
+        "recovery",
+        "state_backing",
+        "fsm",
+        "v907_verify",
+        "bridge_diff",
+        "subscribe_loop",
+    }, f"expected six BackendDecision records, got {sorted(domains)}"
 
 
 # -------------------- CLI parser --------------------

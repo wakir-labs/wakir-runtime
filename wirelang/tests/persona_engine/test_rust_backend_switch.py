@@ -76,6 +76,7 @@ from wirelang.persona_engine.rust_backend_switch import (
     DEFAULT_RUST_FSM_BIN,
     DEFAULT_RUST_RECOVERY_BIN,
     DEFAULT_RUST_STATE_BACKING_BIN,
+    DEFAULT_RUST_SUBSCRIBE_LOOP_BIN,
     DEFAULT_RUST_V907_VERIFY_BIN,
     FSM_BACKEND_ENV,
     RECOVERY_BACKEND_ENV,
@@ -84,13 +85,16 @@ from wirelang.persona_engine.rust_backend_switch import (
     RUST_FSM_BIN_ENV,
     RUST_RECOVERY_BIN_ENV,
     RUST_STATE_BACKING_BIN_ENV,
+    RUST_SUBSCRIBE_LOOP_BIN_ENV,
     RUST_V907_VERIFY_BIN_ENV,
     STATE_BACKING_BACKEND_ENV,
+    SUBSCRIBE_LOOP_BACKEND_ENV,
     V907_VERIFY_BACKEND_ENV,
     VALID_BRIDGE_DIFF_BACKEND_VALUES,
     VALID_FSM_BACKEND_VALUES,
     VALID_RECOVERY_BACKEND_VALUES,
     VALID_STATE_BACKING_BACKEND_VALUES,
+    VALID_SUBSCRIBE_LOOP_BACKEND_VALUES,
     VALID_V907_VERIFY_BACKEND_VALUES,
     BackendDecision,
     BackendSwitchValidationError,
@@ -104,20 +108,26 @@ from wirelang.persona_engine.rust_backend_switch import (
     RustSubprocessFsm,
     RustSubprocessRecoveryRunner,
     RustSubprocessStateBacking,
+    RustSubprocessSubscribeLoop,
     RustSubprocessV907Verify,
     StateBackingBackend,
+    SubscribeLoopBackend,
+    SubscribeLoopSubprocessAckResult,
     V907SubprocessResult,
     V907VerifyBackend,
     _resolve_timeout_s,
+    _select_subscribe_loop_backend,
     build_bridge_diff,
     build_fsm,
     build_state_backing,
+    build_subscribe_loop,
     build_v907_verify,
     log_backend_decision,
     resolve_bridge_diff_backend,
     resolve_fsm_backend,
     resolve_recovery_backend,
     resolve_state_backing_backend,
+    resolve_subscribe_loop_backend,
     resolve_v907_verify_backend,
 )
 from wirelang.persona_engine.state_backing import (
@@ -2200,3 +2210,593 @@ def test_bridge_diff_per_decision_logging_writes_sink_and_default_bin_path():
     assert parsed["chosen_backend"] == "python"
     assert parsed["resolution_latency_us"] >= 0
     assert chosen is BridgeDiffBackend.PYTHON
+
+
+# ===========================================================================
+# Tag-22 Mini-Welle — Subscribe-Loop production-default switch tests
+# ---------------------------------------------------------------------------
+# Coverage map (15 hermetic vectors for the subscribe-loop component):
+#
+#   SL1  WAKIR_SUBSCRIBE_LOOP_BACKEND unset → python default passthrough.
+#   SL2  explicit "python" value passthrough + fallback_reason flag.
+#   SL3  rust + binary available → rust chosen.
+#   SL4  rust + binary missing → graceful fallback to python.
+#   SL5  rust + binary not-executable → graceful fallback to python.
+#   SL6  unknown env-var value raises BackendSwitchValidationError.
+#   SL7  empty-string env value defaults to python.
+#   SL8  all five cross-lang ack-record fixtures rust-verified
+#        (byte-identical JCS bytes + SHA-256 hex against the Python
+#        authority via the stub-invoker delegation).
+#   SL9  hash_record() roundtrip on a pre-built record matches
+#        serialize_ack() output byte-for-byte.
+#   SL10 subprocess exit_nonzero → RustBackendError(exit_nonzero).
+#   SL11 subprocess bad JSON → RustBackendError(bad_json).
+#   SL12 build_subscribe_loop(PYTHON / RUST) returns matching surface.
+#   SL13 default binary path resolves to
+#        /opt/wakir/bin/wakir-persona-engine-subscribe-loop.
+#   SL14 per-decision logging emits one structured JSON line.
+#   SL15 _select_subscribe_loop_backend auftrag-alias dispatches
+#        identically to resolve_subscribe_loop_backend.
+#
+# Plus: SL16 client-side validation (invalid outcome / frame_index)
+# rejects without spawning a subprocess.
+#
+# Total: 16 hermetic vectors (≥10 required).
+# ===========================================================================
+
+
+def _load_subscribe_loop_fixtures() -> dict:
+    """Load the cross-lang fixtures file once per test that needs them."""
+    fixture_path = (
+        Path(__file__).resolve().parent.parent.parent.parent
+        / "tests"
+        / "fixtures"
+        / "subscribe-loop-cross-lang"
+        / "fixtures.json"
+    )
+    with fixture_path.open("r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def _make_subscribe_loop_invoker_via_python_authority():
+    """Build a stub-invoker that delegates to the Python subscribe_ack
+    authority.
+
+    The Rust binary contract is:
+
+    stdin JSON:
+        ``{"schema": "wakir.persona-engine.subscribe-loop/1",
+        "op": "<serialize_ack | hash_record>",
+        "payload": {auftrag_id, frame_index, outcome, persona_id,
+        prompt_sha256, subject}}``
+
+    response JSON:
+        ``{"ack_record_jcs_bytes_b64": str,
+        "ack_record_jcs_bytes_len": int,
+        "ack_record_sha256_hex": str,
+        "ack_record_hash_prefixed": str}``
+
+    The stub-invoker reproduces this by delegating to
+    :mod:`wirelang.persona_engine.subscribe_ack` so the wire-format
+    and the bridge envelope are the only variables under test.
+    """
+    import base64 as _base64
+
+    from wirelang.persona_engine.subscribe_ack import (
+        ack_record_hash_prefixed,
+        ack_record_sha256_hex,
+        build_subscribe_ack_record,
+        serialize_subscribe_ack,
+    )
+
+    def invoker(bin_path, argv, *, stdin_payload, timeout_s):
+        doc = json.loads(stdin_payload.decode("utf-8"))
+        assert doc["schema"] == "wakir.persona-engine.subscribe-loop/1"
+        op = doc["op"]
+        payload = doc["payload"]
+        assert op in ("serialize_ack", "hash_record")
+        record = build_subscribe_ack_record(
+            auftrag_id=payload["auftrag_id"],
+            frame_index=payload["frame_index"],
+            outcome=payload["outcome"],
+            persona_id=payload["persona_id"],
+            prompt_sha256=payload["prompt_sha256"],
+            subject=payload["subject"],
+        )
+        jcs_bytes = serialize_subscribe_ack(record)
+        hex_ = ack_record_sha256_hex(record)
+        prefixed = ack_record_hash_prefixed(record)
+        resp = {
+            "ack_record_jcs_bytes_b64": _base64.b64encode(jcs_bytes).decode(
+                "ascii"
+            ),
+            "ack_record_jcs_bytes_len": len(jcs_bytes),
+            "ack_record_sha256_hex": hex_,
+            "ack_record_hash_prefixed": prefixed,
+        }
+        return 0, json.dumps(resp), ""
+
+    return invoker
+
+
+# ---------------------------------------------------------------------------
+# Vector SL1 — WAKIR_SUBSCRIBE_LOOP_BACKEND unset → python default.
+# ---------------------------------------------------------------------------
+
+
+def test_subscribe_loop_unset_defaults_to_python():
+    env: dict[str, str] = {}
+    chosen, decision = resolve_subscribe_loop_backend(env=env)
+    assert chosen is SubscribeLoopBackend.PYTHON
+    assert decision.domain == "subscribe_loop"
+    assert decision.requested_backend == "python"
+    assert decision.chosen_backend == "python"
+    assert decision.fallback_reason is None
+    assert decision.bin_path is None
+    assert decision.resolution_latency_us >= 0
+
+
+# ---------------------------------------------------------------------------
+# Vector SL2 — explicit "python" value with fallback_reason flag.
+# ---------------------------------------------------------------------------
+
+
+def test_subscribe_loop_explicit_python():
+    env = {SUBSCRIBE_LOOP_BACKEND_ENV: "python"}
+    chosen, decision = resolve_subscribe_loop_backend(env=env)
+    assert chosen is SubscribeLoopBackend.PYTHON
+    assert decision.fallback_reason == "explicit_python"
+
+
+# ---------------------------------------------------------------------------
+# Vector SL3 — rust + binary available → rust chosen.
+# ---------------------------------------------------------------------------
+
+
+def test_subscribe_loop_rust_with_available_binary(tmp_path: Path):
+    bin_path = _make_executable(tmp_path / "wakir-subscribe-loop")
+    env = {
+        SUBSCRIBE_LOOP_BACKEND_ENV: "rust",
+        RUST_SUBSCRIBE_LOOP_BIN_ENV: str(bin_path),
+    }
+    chosen, decision = resolve_subscribe_loop_backend(env=env)
+    assert chosen is SubscribeLoopBackend.RUST
+    assert decision.domain == "subscribe_loop"
+    assert decision.requested_backend == "rust"
+    assert decision.chosen_backend == "rust"
+    assert decision.fallback_reason is None
+    assert decision.bin_path == str(bin_path)
+
+
+# ---------------------------------------------------------------------------
+# Vector SL4 — rust + binary missing → graceful fallback to python.
+# ---------------------------------------------------------------------------
+
+
+def test_subscribe_loop_rust_with_missing_binary_graceful_fallback(
+    tmp_path: Path,
+):
+    missing = tmp_path / "does-not-exist"
+    env = {
+        SUBSCRIBE_LOOP_BACKEND_ENV: "rust",
+        RUST_SUBSCRIBE_LOOP_BIN_ENV: str(missing),
+    }
+    chosen, decision = resolve_subscribe_loop_backend(env=env)
+    assert chosen is SubscribeLoopBackend.PYTHON
+    assert decision.requested_backend == "rust"
+    assert decision.chosen_backend == "python"
+    assert decision.fallback_reason == "binary_missing"
+    assert decision.bin_path == str(missing)
+
+
+# ---------------------------------------------------------------------------
+# Vector SL5 — rust + binary not-executable → graceful fallback.
+# ---------------------------------------------------------------------------
+
+
+def test_subscribe_loop_rust_with_not_executable_binary_graceful_fallback(
+    tmp_path: Path,
+):
+    not_exec = _make_non_executable_file(tmp_path / "wakir-subscribe-loop")
+    env = {
+        SUBSCRIBE_LOOP_BACKEND_ENV: "rust",
+        RUST_SUBSCRIBE_LOOP_BIN_ENV: str(not_exec),
+    }
+    chosen, decision = resolve_subscribe_loop_backend(env=env)
+    assert chosen is SubscribeLoopBackend.PYTHON
+    assert decision.fallback_reason == "binary_not_executable"
+    assert decision.bin_path == str(not_exec)
+
+
+# ---------------------------------------------------------------------------
+# Vector SL6 — unknown env-var value raises BackendSwitchValidationError.
+# ---------------------------------------------------------------------------
+
+
+def test_subscribe_loop_validation_rejects_unknown():
+    env = {SUBSCRIBE_LOOP_BACKEND_ENV: "rust-flavor-x"}
+    with pytest.raises(BackendSwitchValidationError) as ei:
+        resolve_subscribe_loop_backend(env=env)
+    assert ei.value.env_var == SUBSCRIBE_LOOP_BACKEND_ENV
+    assert ei.value.value == "rust-flavor-x"
+    assert "python" in list(ei.value.valid_values)
+    assert "rust" in list(ei.value.valid_values)
+    # The enum has exactly two valid values.
+    assert set(VALID_SUBSCRIBE_LOOP_BACKEND_VALUES) == {"python", "rust"}
+
+
+# ---------------------------------------------------------------------------
+# Vector SL7 — empty-string env value defaults to python (no validation error).
+# ---------------------------------------------------------------------------
+
+
+def test_subscribe_loop_empty_string_env_defaults_to_python():
+    env = {SUBSCRIBE_LOOP_BACKEND_ENV: ""}
+    chosen, decision = resolve_subscribe_loop_backend(env=env)
+    assert chosen is SubscribeLoopBackend.PYTHON
+    assert decision.fallback_reason is None
+
+
+# ---------------------------------------------------------------------------
+# Vector SL8 — all five cross-lang ack-record fixtures rust-verified.
+# ---------------------------------------------------------------------------
+
+
+def test_rust_subscribe_loop_all_five_cross_lang_ack_fixtures_byte_identical():
+    """Byte-parity gate across the five cross-lang ack-record fixtures.
+
+    For each fixture in ``tests/fixtures/subscribe-loop-cross-lang/
+    fixtures.json`` (PR #172 Python-sync test target) the bridge must
+    produce:
+
+    1. byte-identical ``ack_record_jcs_bytes`` (matching the pinned
+       base64-encoded canonical form),
+    2. byte-identical ``ack_record_jcs_bytes_len``,
+    3. byte-identical ``ack_record_sha256_hex`` (lowercase 64 hex),
+    4. byte-identical ``ack_record_hash_prefixed``
+       (``"sha256:" + hex``).
+
+    Any deviation in the JSON wire-shape, the JCS canonicaliser, the
+    SHA-256 hash, or the prefix-form fails this gate in CI before a
+    real Rust binary ever ships (Phase-3c-cutover pre-condition for
+    the subscribe-loop NATS-ingress audit substrate).
+    """
+    import base64
+
+    fx = _load_subscribe_loop_fixtures()
+    fixtures = fx["fixtures"]
+    assert len(fixtures) == 5, (
+        f"expected exactly 5 cross-lang ack-record fixtures, got "
+        f"{len(fixtures)}; fixture file drifted from PR #172 scope"
+    )
+    assert fx["schema_version"] == "wakir.persona-engine.subscribe-ack/1"
+
+    invoker = _make_subscribe_loop_invoker_via_python_authority()
+    bridge = RustSubprocessSubscribeLoop(
+        bin_path="/fake/bin",
+        timeout_s=1.0,
+        subprocess_invoker=invoker,
+    )
+
+    for fixture in fixtures:
+        name = fixture["name"]
+        inp = fixture["input"]
+        expected = fixture["expected"]
+        result = bridge.serialize_ack(
+            auftrag_id=inp["auftrag_id"],
+            frame_index=inp["frame_index"],
+            outcome=inp["outcome"],
+            persona_id=inp["persona_id"],
+            prompt_sha256=inp["prompt_sha256"],
+            subject=inp["subject"],
+        )
+        # (1) JCS bytes byte-parity (base64-encoded comparison).
+        expected_b64 = expected["ack_record_jcs_bytes_b64"]
+        expected_jcs_bytes = base64.b64decode(expected_b64.encode("ascii"))
+        assert result.ack_record_jcs_bytes == expected_jcs_bytes, (
+            f"fixture {name}: JCS bytes drift "
+            f"{result.ack_record_jcs_bytes!r} != {expected_jcs_bytes!r}"
+        )
+        # (2) JCS bytes length.
+        assert len(result.ack_record_jcs_bytes) == expected[
+            "ack_record_jcs_bytes_len"
+        ], f"fixture {name}: JCS bytes length drift"
+        # (3) SHA-256 hex byte-parity.
+        assert (
+            result.ack_record_sha256_hex == expected["ack_record_sha256_hex"]
+        ), (
+            f"fixture {name}: SHA-256 hex drift "
+            f"{result.ack_record_sha256_hex!r} != "
+            f"{expected['ack_record_sha256_hex']!r}"
+        )
+        # (4) Prefixed hash byte-parity.
+        assert (
+            result.ack_record_hash_prefixed
+            == expected["ack_record_hash_prefixed"]
+        ), (
+            f"fixture {name}: prefixed hash drift "
+            f"{result.ack_record_hash_prefixed!r} != "
+            f"{expected['ack_record_hash_prefixed']!r}"
+        )
+        # Sanity: reconstructed record carries the canonical schema.
+        assert (
+            result.record.schema == "wakir.persona-engine.subscribe-ack/1"
+        )
+        assert result.record.auftrag_id == inp["auftrag_id"]
+        assert result.record.frame_index == inp["frame_index"]
+        assert result.record.outcome == inp["outcome"]
+        assert result.record.persona_id == inp["persona_id"]
+        assert result.record.prompt_sha256 == inp["prompt_sha256"]
+        assert result.record.subject == inp["subject"]
+
+
+# ---------------------------------------------------------------------------
+# Vector SL9 — hash_record() roundtrip matches serialize_ack() byte-for-byte.
+# ---------------------------------------------------------------------------
+
+
+def test_rust_subscribe_loop_hash_record_matches_serialize_ack():
+    """A pre-built SubscribeAckRecord passed to ``hash_record`` must
+    produce the same triple (JCS bytes / hex / prefixed) as the equivalent
+    ``serialize_ack`` call. Guards against accidental divergence between
+    the two surface methods."""
+    from wirelang.persona_engine.subscribe_ack import (
+        build_subscribe_ack_record,
+    )
+
+    invoker = _make_subscribe_loop_invoker_via_python_authority()
+    bridge = RustSubprocessSubscribeLoop(
+        bin_path="/fake/bin",
+        timeout_s=1.0,
+        subprocess_invoker=invoker,
+    )
+    args = {
+        "auftrag_id": "auftrag-pengine-1",
+        "frame_index": 0,
+        "outcome": "processed",
+        "persona_id": "reza",
+        "prompt_sha256": (
+            "sha256:531fed186ec25156a1aa5178f57506f9260487601eb6a"
+            "285ed86fc691ffa891f"
+        ),
+        "subject": "wakir.dev.agent.agent.task.assigned.reza",
+    }
+    via_serialize = bridge.serialize_ack(**args)
+    record = build_subscribe_ack_record(**args)
+    via_hash = bridge.hash_record(record)
+    assert (
+        via_serialize.ack_record_jcs_bytes == via_hash.ack_record_jcs_bytes
+    )
+    assert (
+        via_serialize.ack_record_sha256_hex == via_hash.ack_record_sha256_hex
+    )
+    assert (
+        via_serialize.ack_record_hash_prefixed
+        == via_hash.ack_record_hash_prefixed
+    )
+    assert via_serialize.record == via_hash.record
+
+
+# ---------------------------------------------------------------------------
+# Vector SL10 — subprocess exit_nonzero → RustBackendError(exit_nonzero).
+# ---------------------------------------------------------------------------
+
+
+def test_rust_subscribe_loop_exit_nonzero_raises():
+    def fail_invoker(bin_path, argv, *, stdin_payload, timeout_s):
+        return 2, "", "boom"
+
+    bridge = RustSubprocessSubscribeLoop(
+        bin_path="/fake/bin",
+        subprocess_invoker=fail_invoker,
+    )
+    with pytest.raises(RustBackendError) as ei:
+        bridge.serialize_ack(
+            auftrag_id="a",
+            frame_index=0,
+            outcome="processed",
+            persona_id="p",
+            prompt_sha256="sha256:" + "0" * 64,
+            subject="wakir.dev.agent.agent.task.assigned.p",
+        )
+    assert ei.value.reason == "exit_nonzero"
+    assert ei.value.returncode == 2
+
+
+# ---------------------------------------------------------------------------
+# Vector SL11 — subprocess bad JSON → RustBackendError(bad_json).
+# ---------------------------------------------------------------------------
+
+
+def test_rust_subscribe_loop_bad_json_raises():
+    def bad_json_invoker(bin_path, argv, *, stdin_payload, timeout_s):
+        return 0, "not-valid-json", ""
+
+    bridge = RustSubprocessSubscribeLoop(
+        bin_path="/fake/bin",
+        subprocess_invoker=bad_json_invoker,
+    )
+    with pytest.raises(RustBackendError) as ei:
+        bridge.serialize_ack(
+            auftrag_id="a",
+            frame_index=0,
+            outcome="processed",
+            persona_id="p",
+            prompt_sha256="sha256:" + "0" * 64,
+            subject="wakir.dev.agent.agent.task.assigned.p",
+        )
+    assert ei.value.reason == "bad_json"
+
+
+# ---------------------------------------------------------------------------
+# Vector SL12 — build_subscribe_loop(PYTHON / RUST) surfaces match.
+# ---------------------------------------------------------------------------
+
+
+def test_build_subscribe_loop_python_and_rust_surfaces_match_api():
+    """Both factories expose the same method-set so callers cannot
+    tell the backends apart at the API boundary. The Python adapter
+    also produces a fixture-pinned result so the surface is exercised
+    end-to-end without a subprocess."""
+    py_adapter = build_subscribe_loop(SubscribeLoopBackend.PYTHON)
+    assert hasattr(py_adapter, "serialize_ack")
+    assert hasattr(py_adapter, "hash_record")
+
+    # Fixture-1 (empty malformed frame) Python-path roundtrip.
+    result = py_adapter.serialize_ack(
+        auftrag_id="",
+        frame_index=0,
+        outcome="malformed",
+        persona_id="",
+        prompt_sha256="",
+        subject="wakir.dev.agent.agent.task.assigned.reza",
+    )
+    assert isinstance(result, SubscribeLoopSubprocessAckResult)
+    assert result.ack_record_hash_prefixed == (
+        "sha256:bc0f3d2b653ced21d12ea5a706554a66b9acbbe429e9b55be757f659cb203e3a"
+    )
+    assert len(result.ack_record_jcs_bytes) == 191
+
+    # Rust-bound factory returns the subprocess-bridge.
+    rust_bridge = build_subscribe_loop(
+        SubscribeLoopBackend.RUST,
+        env={RUST_SUBSCRIBE_LOOP_BIN_ENV: "/custom/wakir-subscribe-loop"},
+    )
+    assert isinstance(rust_bridge, RustSubprocessSubscribeLoop)
+    assert rust_bridge.bin_path == "/custom/wakir-subscribe-loop"
+    assert hasattr(rust_bridge, "serialize_ack")
+    assert hasattr(rust_bridge, "hash_record")
+
+
+# ---------------------------------------------------------------------------
+# Vector SL13 — default binary path resolves to expected /opt/wakir path.
+# ---------------------------------------------------------------------------
+
+
+def test_subscribe_loop_default_binary_path_when_env_unset():
+    from wirelang.persona_engine.rust_backend_switch import (
+        _resolve_subscribe_loop_bin,
+    )
+
+    assert (
+        _resolve_subscribe_loop_bin(env={}) == DEFAULT_RUST_SUBSCRIBE_LOOP_BIN
+    )
+    assert (
+        DEFAULT_RUST_SUBSCRIBE_LOOP_BIN
+        == "/opt/wakir/bin/wakir-persona-engine-subscribe-loop"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Vector SL14 — per-decision logging emits structured JSON line.
+# ---------------------------------------------------------------------------
+
+
+def test_subscribe_loop_per_decision_logging_writes_sink():
+    sink = io.StringIO()
+    chosen, _ = resolve_subscribe_loop_backend(env={}, log_sink=sink)
+    line = sink.getvalue().strip()
+    assert line, "expected one structured-log line emitted"
+    parsed = json.loads(line)
+    assert parsed["msg"] == "backend-decision"
+    assert parsed["domain"] == "subscribe_loop"
+    assert parsed["requested_backend"] == "python"
+    assert parsed["chosen_backend"] == "python"
+    assert parsed["resolution_latency_us"] >= 0
+    assert chosen is SubscribeLoopBackend.PYTHON
+
+
+# ---------------------------------------------------------------------------
+# Vector SL15 — _select_subscribe_loop_backend auftrag-alias dispatches
+# identically to resolve_subscribe_loop_backend.
+# ---------------------------------------------------------------------------
+
+
+def test_select_subscribe_loop_backend_alias_dispatches_identically(
+    tmp_path: Path,
+):
+    """The Tag-22 auftrag spec names the resolver
+    ``_select_subscribe_loop_backend``; the module exposes that name as
+    an alias of :func:`resolve_subscribe_loop_backend`. Both must return
+    the same value-pair for the same input env."""
+    # Unset env path.
+    chosen_a, decision_a = _select_subscribe_loop_backend(env={})
+    chosen_b, decision_b = resolve_subscribe_loop_backend(env={})
+    assert chosen_a is chosen_b
+    assert decision_a.domain == decision_b.domain
+    assert decision_a.requested_backend == decision_b.requested_backend
+    assert decision_a.chosen_backend == decision_b.chosen_backend
+    assert decision_a.fallback_reason == decision_b.fallback_reason
+    # Rust + missing-binary path.
+    missing = tmp_path / "does-not-exist"
+    env = {
+        SUBSCRIBE_LOOP_BACKEND_ENV: "rust",
+        RUST_SUBSCRIBE_LOOP_BIN_ENV: str(missing),
+    }
+    chosen_c, decision_c = _select_subscribe_loop_backend(env=env)
+    chosen_d, decision_d = resolve_subscribe_loop_backend(env=env)
+    assert chosen_c is chosen_d is SubscribeLoopBackend.PYTHON
+    assert (
+        decision_c.fallback_reason
+        == decision_d.fallback_reason
+        == "binary_missing"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Vector SL16 — client-side validation rejects bad outcome / frame_index
+# without spawning a subprocess.
+# ---------------------------------------------------------------------------
+
+
+def test_rust_subscribe_loop_client_side_validation_rejects_bad_inputs():
+    """The subprocess-bridge validates ``outcome`` and ``frame_index``
+    client-side so an obviously-malformed call never spawns a
+    subprocess. Mirrors the Python authority's posture in
+    :func:`build_subscribe_ack_record`."""
+    from wirelang.persona_engine.subscribe_ack import (
+        InvalidFrameIndexError,
+        InvalidOutcomeError,
+    )
+
+    # Use an invoker that asserts it is never called — proves the
+    # bridge short-circuited client-side before paying the subprocess
+    # cost.
+    def never_called_invoker(bin_path, argv, *, stdin_payload, timeout_s):
+        raise AssertionError("invoker should not be called on bad input")
+
+    bridge = RustSubprocessSubscribeLoop(
+        bin_path="/fake/bin",
+        subprocess_invoker=never_called_invoker,
+    )
+    # Bad outcome.
+    with pytest.raises(InvalidOutcomeError):
+        bridge.serialize_ack(
+            auftrag_id="a",
+            frame_index=0,
+            outcome="not-a-real-outcome",
+            persona_id="p",
+            prompt_sha256="sha256:" + "0" * 64,
+            subject="wakir.dev.agent.agent.task.assigned.p",
+        )
+    # Negative frame_index.
+    with pytest.raises(InvalidFrameIndexError):
+        bridge.serialize_ack(
+            auftrag_id="a",
+            frame_index=-1,
+            outcome="processed",
+            persona_id="p",
+            prompt_sha256="sha256:" + "0" * 64,
+            subject="wakir.dev.agent.agent.task.assigned.p",
+        )
+    # Non-int frame_index (bool is technically a subclass of int but
+    # rejected explicitly to keep JCS bytes deterministic).
+    with pytest.raises(InvalidFrameIndexError):
+        bridge.serialize_ack(
+            auftrag_id="a",
+            frame_index=True,  # type: ignore[arg-type]
+            outcome="processed",
+            persona_id="p",
+            prompt_sha256="sha256:" + "0" * 64,
+            subject="wakir.dev.agent.agent.task.assigned.p",
+        )
