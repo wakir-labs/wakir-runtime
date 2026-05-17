@@ -419,4 +419,5 @@ filterwarnings = [
 ]
 markers = [
     "phase_3_skeleton: Phase-3 acceptance-gate skeleton (skip-by-default; opt-in via WAKIR_PHASE_3_SKELETON=1)",
+    "phase_3c_acceptance: Phase-3c Cutover-Welle E2E acceptance skeleton (skip-by-default; opt-in via WAKIR_PHASE_3C_E2E=1 or --phase-3c-acceptance)",
 ]

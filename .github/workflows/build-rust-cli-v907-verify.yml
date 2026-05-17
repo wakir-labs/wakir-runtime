@@ -1,0 +1,348 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Build + sign + push the wakir-v907-verify image (Tag-26 Mini-Welle,
+# ADR-0065 Welle-1 `v907_verify` pre-cutover image).
+#
+# Posture
+# -------
+#
+# Hybrid trigger:
+#
+#   1. ``push`` to ``main`` when paths under
+#      ``wirelang-rust/crates/persona-engine-v907-verify/**`` change
+#      — runs ``cargo build --release`` + buildah build in *dry-run*
+#      mode (no GHCR push, no Cosign sign). This is the
+#      cargo-/Containerfile-substrate-CI lane: it catches build
+#      regressions early without publishing an image. Mirrors the
+#      Sandbox-Trennung from feedback_sandbox_host_trennung.md (the
+#      GitHub-Actions runner is the only environment that can touch
+#      a real registry; the dry-run path stays inside the runner).
+#
+#   2. ``workflow_dispatch`` with ``inputs.push='true'`` — the
+#      authorised-maintainer flow that actually publishes the image
+#      to GHCR and Cosign-signs the resulting digest. Mirrors the
+#      ``build-wakir-persona-engine.yml`` Operator-Hand posture: a
+#      malicious PR that tampered with the Containerfile or the
+#      Rust crate would otherwise auto-publish an image with the
+#      GitHub-Actions OIDC identity, defeating the supply-chain
+#      provenance posture.
+#
+# What the workflow does
+# ----------------------
+#
+#   1. Checks out the repo at the requested ref.
+#   2. Resolves the ``rust:1.85-slim-bookworm`` and
+#      ``gcr.io/distroless/cc-debian12:nonroot`` base-layer digests
+#      via skopeo + crane cross-check (refuses if the two disagree).
+#   3. Materialises the pinned digests in
+#      ``infra/v907-verify-rust-cli/Containerfile`` (in-runner sed,
+#      NOT committed back to the repo).
+#   4. Runs ``cargo build --release -p persona-engine-v907-verify
+#      --bin wakir-v907-verify`` as a substrate-CI smoke (the
+#      Containerfile re-runs cargo build inside the buildah stage,
+#      but the substrate-CI run gives a faster feedback signal if
+#      something is wrong with the workspace itself).
+#   5. Builds the image with buildah.
+#   6. (workflow_dispatch + push=true only) Pushes the image to
+#      GHCR and Sigstore-keyless-signs the published digest against
+#      the GitHub-Actions OIDC identity.
+#   7. Emits the resulting digest as a workflow output so the
+#      Welle-1 cutover step can copy it into the Quadlet pin.
+#
+# Sandbox boundary
+# ----------------
+#
+# This workflow runs on GitHub-Actions runners, which are host-of-
+# record (not the claude-dev sandbox). The dry-run path is reachable
+# from the substrate-CI lane (push-to-main builds); the push path
+# is workflow_dispatch only per the Operator-Hand boundary.
+
+name: build-rust-cli-v907-verify
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'wirelang-rust/crates/persona-engine-v907-verify/**'
+      - 'infra/v907-verify-rust-cli/Containerfile'
+      - '.github/workflows/build-rust-cli-v907-verify.yml'
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: 'Semver tag to publish (e.g. 0.1.0-pilot)'
+        required: true
+        default: '0.1.0-pilot'
+      push:
+        description: 'Push to GHCR (true) or dry-run build only (false)'
+        required: false
+        default: 'false'
+
+permissions:
+  # Least-privilege permission set for build + sign + push (parity
+  # with build-wakir-persona-engine.yml). Each scope is required for
+  # a specific step; removing any of these will fail the run.
+  #
+  #   contents:  read   — actions/checkout pulls workflow + source.
+  #   packages:  write  — buildah push to GHCR + cosign signature
+  #                       upload to GHCR.
+  #   id-token:  write  — Sigstore-keyless OIDC token mint.
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  build:
+    name: build wakir-v907-verify image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve effective version_tag + push-flag
+        id: inputs
+        # On push-to-main: tag is "main-${SHORTSHA}", push=false.
+        # On workflow_dispatch: tag + push come from inputs.
+        # Substrate-fence: refuse free-form values that do not match
+        # the known ``MAJOR.MINOR.PATCH-pilot`` shape on
+        # workflow_dispatch (Sprint-Pengine-13 pattern). Push-to-main
+        # tags are not subject to the suffix check because they are
+        # never published.
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${{ github.event.inputs.version_tag }}"
+            PUSH="${{ github.event.inputs.push }}"
+            if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+-pilot$ ]]; then
+              echo "::error::version_tag=${TAG} does not match expected pattern ^[0-9]+\.[0-9]+\.[0-9]+-pilot$ (e.g. 0.1.0-pilot)"
+              exit 64
+            fi
+          else
+            TAG="main-${GITHUB_SHA::7}"
+            PUSH="false"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "push=${PUSH}" >> "$GITHUB_OUTPUT"
+          echo "version_tag accepted: ${TAG} (push=${PUSH})"
+
+      - name: Install Rust toolchain (substrate-CI smoke)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.85'
+
+      - name: Cargo build (substrate-CI smoke, --release)
+        run: |
+          set -euo pipefail
+          cd wirelang-rust
+          cargo build --release -p persona-engine-v907-verify --bin wakir-v907-verify
+          # Smoke: --help + --version must succeed (catches main.rs
+          # regressions before the buildah stage).
+          ./target/release/wakir-v907-verify --help
+          ./target/release/wakir-v907-verify --version
+
+      - name: Install crane (digest cross-resolver)
+        run: |
+          set -euo pipefail
+          CRANE_VERSION="0.20.2"
+          curl -fsSL "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" \
+            -o /tmp/crane.tar.gz
+          tar -C /tmp -xzf /tmp/crane.tar.gz crane
+          sudo install -m 0755 /tmp/crane /usr/local/bin/crane
+          crane version
+
+      - name: Install skopeo + jq
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends skopeo jq
+          skopeo --version
+
+      - name: Install cosign (Sigstore-keyless)
+        uses: sigstore/cosign-installer@v3
+
+      - name: Resolve rust:1.85-slim-bookworm base-layer digest
+        id: rust_base
+        run: |
+          set -euo pipefail
+          SKOPEO_DIGEST=$(skopeo inspect docker://rust:1.85-slim-bookworm | jq -r '.Digest')
+          CRANE_DIGEST=$(crane digest rust:1.85-slim-bookworm)
+          echo "skopeo: $SKOPEO_DIGEST"
+          echo "crane:  $CRANE_DIGEST"
+          if [[ "$SKOPEO_DIGEST" != "$CRANE_DIGEST" ]]; then
+            echo "::error::skopeo vs crane disagree on rust:1.85-slim-bookworm digest"
+            exit 2
+          fi
+          if [[ -z "$SKOPEO_DIGEST" || "$SKOPEO_DIGEST" == "null" ]]; then
+            echo "::error::failed to resolve rust:1.85-slim-bookworm digest"
+            exit 1
+          fi
+          echo "digest=${SKOPEO_DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve distroless/cc-debian12:nonroot base-layer digest
+        id: distroless_base
+        run: |
+          set -euo pipefail
+          SKOPEO_DIGEST=$(skopeo inspect docker://gcr.io/distroless/cc-debian12:nonroot | jq -r '.Digest')
+          CRANE_DIGEST=$(crane digest gcr.io/distroless/cc-debian12:nonroot)
+          echo "skopeo: $SKOPEO_DIGEST"
+          echo "crane:  $CRANE_DIGEST"
+          if [[ "$SKOPEO_DIGEST" != "$CRANE_DIGEST" ]]; then
+            echo "::error::skopeo vs crane disagree on distroless/cc-debian12:nonroot digest"
+            exit 2
+          fi
+          echo "digest=${SKOPEO_DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Materialise pinned base-layer digests in Containerfile
+        run: |
+          set -euo pipefail
+          CONTAINERFILE_PATH="infra/v907-verify-rust-cli/Containerfile"
+          if [[ ! -f "${CONTAINERFILE_PATH}" ]]; then
+            echo "::error::Containerfile not found: ${CONTAINERFILE_PATH}"
+            exit 1
+          fi
+          # Two distinct base-image FROM lines carry the same
+          # ``DIGEST_PENDING_KAI_REVIEW`` placeholder. Substitute
+          # each by matching the image prefix uniquely; the regex
+          # anchors on the registry repository name, so the two
+          # sed calls cannot collide.
+          sed -i \
+            "s|rust:1.85-slim-bookworm@sha256:DIGEST_PENDING_KAI_REVIEW|rust:1.85-slim-bookworm@${{ steps.rust_base.outputs.digest }}|" \
+            "${CONTAINERFILE_PATH}"
+          sed -i \
+            "s|cc-debian12:nonroot@sha256:DIGEST_PENDING_KAI_REVIEW|cc-debian12:nonroot@${{ steps.distroless_base.outputs.digest }}|" \
+            "${CONTAINERFILE_PATH}"
+          grep -q "rust:1.85-slim-bookworm@${{ steps.rust_base.outputs.digest }}" \
+            "${CONTAINERFILE_PATH}" \
+            || { echo "::error::rust base-layer substitution did not stick"; exit 1; }
+          grep -q "cc-debian12:nonroot@${{ steps.distroless_base.outputs.digest }}" \
+            "${CONTAINERFILE_PATH}" \
+            || { echo "::error::distroless base-layer substitution did not stick"; exit 1; }
+          # Refuse to proceed if any DIGEST_PENDING_KAI_REVIEW
+          # placeholder is left over.
+          if grep -q "DIGEST_PENDING_KAI_REVIEW" "${CONTAINERFILE_PATH}"; then
+            echo "::error::placeholder DIGEST_PENDING_KAI_REVIEW left in Containerfile after substitution"
+            exit 1
+          fi
+
+      - name: Build image with buildah
+        id: buildah
+        run: |
+          set -euo pipefail
+          if ! command -v buildah >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends buildah
+          fi
+          TAG="${{ steps.inputs.outputs.tag }}"
+          IMAGE="ghcr.io/${{ github.repository_owner }}/wakir-v907-verify"
+          REVISION="${GITHUB_SHA}"
+          CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          # Build context = repo root: the Containerfile copies the
+          # whole `wirelang-rust/` workspace so cargo can resolve
+          # path-dependencies (workspace members reference siblings
+          # via `path =` in Cargo.toml).
+          buildah bud \
+            --tag "${IMAGE}:${TAG}" \
+            --label "org.opencontainers.image.revision=${REVISION}" \
+            --label "org.opencontainers.image.created=${CREATED}" \
+            -f "infra/v907-verify-rust-cli/Containerfile" \
+            "."
+          echo "image=${IMAGE}"       >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}"           >> "$GITHUB_OUTPUT"
+          echo "revision=${REVISION}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GHCR
+        if: ${{ steps.inputs.outputs.push == 'true' }}
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | buildah login \
+                --username "${{ github.actor }}" \
+                --password-stdin ghcr.io
+
+      - name: Push to GHCR
+        id: push
+        if: ${{ steps.inputs.outputs.push == 'true' }}
+        run: |
+          set -euo pipefail
+          IMAGE="${{ steps.buildah.outputs.image }}"
+          TAG="${{ steps.buildah.outputs.tag }}"
+          buildah push "${IMAGE}:${TAG}"
+          DIGEST=$(buildah images --format '{{ .Digest }}' "${IMAGE}:${TAG}" | head -n1)
+          if [[ -z "$DIGEST" ]]; then
+            echo "::error::failed to resolve pushed image digest"
+            exit 1
+          fi
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "Pushed: ${IMAGE}:${TAG}@${DIGEST}"
+
+      - name: Cosign login to GHCR
+        if: ${{ steps.inputs.outputs.push == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "$GITHUB_TOKEN" \
+            | cosign login ghcr.io \
+                --username "${{ github.actor }}" \
+                --password-stdin
+
+      - name: Sigstore-keyless sign
+        if: ${{ steps.inputs.outputs.push == 'true' }}
+        run: |
+          set -euo pipefail
+          IMAGE="${{ steps.buildah.outputs.image }}"
+          DIGEST="${{ steps.push.outputs.digest }}"
+          cosign sign --yes "${IMAGE}@${DIGEST}"
+
+      - name: Emit sha256-digest as artifact
+        if: ${{ steps.inputs.outputs.push == 'true' }}
+        run: |
+          set -euo pipefail
+          DIGEST="${{ steps.push.outputs.digest }}"
+          mkdir -p ./build-output
+          # Two-line digest artefact: line 1 = full
+          # ``sha256:<64hex>`` form, line 2 = bare 64-hex (consumer
+          # convenience). Mirrors the
+          # ``image-pin-idempotent-resolver.sh`` PINS-array
+          # consumption pattern.
+          {
+            echo "${DIGEST}"
+            echo "${DIGEST#sha256:}"
+          } > ./build-output/wakir-v907-verify.digest
+          cat ./build-output/wakir-v907-verify.digest
+
+      - name: Upload digest artifact
+        if: ${{ steps.inputs.outputs.push == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: wakir-v907-verify-digest
+          path: ./build-output/wakir-v907-verify.digest
+          retention-days: 90
+
+      - name: Emit workflow summary
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo "## wakir-v907-verify build result"
+            echo ""
+            echo "- repo revision: \`${{ steps.buildah.outputs.revision }}\`"
+            echo "- rust base-layer digest: \`${{ steps.rust_base.outputs.digest }}\`"
+            echo "- distroless base-layer digest: \`${{ steps.distroless_base.outputs.digest }}\`"
+            echo "- requested tag: \`${{ steps.buildah.outputs.tag }}\`"
+            if [[ "${{ steps.inputs.outputs.push }}" == "true" ]]; then
+              echo "- pushed digest: \`${{ steps.push.outputs.digest }}\`"
+              echo ""
+              echo "Welle-1 cutover pin substitution recipe:"
+              echo ""
+              echo "    scripts/image-pin-idempotent-resolver.sh --digest-source crane"
+              echo ""
+              echo "or, byte-precise sed equivalent:"
+              echo ""
+              echo "    sed -i \"s|wakir-v907-verify:${{ steps.buildah.outputs.tag }}@sha256:DIGEST_PENDING_KAI_CROSS_REVIEW|wakir-v907-verify:${{ steps.buildah.outputs.tag }}@${{ steps.push.outputs.digest }}|\" \\"
+              echo "        quadlet/wakir-v907-verify.container"
+            else
+              echo "- push: dry-run only (set inputs.push=true to publish)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
