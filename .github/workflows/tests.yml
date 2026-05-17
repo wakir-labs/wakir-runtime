@@ -352,6 +352,18 @@ jobs:
         #   crash that was hidden behind the collect-output parse
         #   bug; future drift over this baseline still warns at the
         #   same ±5 tolerance.
+        # - Tag-20 Mini-Welle (Reza, 2026-05-17): the new
+        #   `test_recovery_workflow_cross_lang_parity.py` module
+        #   gates on `rfc8785` via module-level
+        #   `pytest.importorskip("rfc8785")` so the sandbox lane
+        #   skips it cleanly. The module adds 16 tests (T01..T12
+        #   + 4 parametrised T11 vector pins; T11 is one parametrised
+        #   id over 5 fixture names, so the production count picks
+        #   up 11 + 5 = 16 tests). Persona-side delta: production
+        #   1274 collected, sandbox 949 collected → delta 325.
+        #   Re-baselined 309 → 325 in the same PR that adds the
+        #   gated module — exactly the deliberate-review path the
+        #   workflow comment above flags.
         # Tolerance ±5 absorbs routine churn going forward.
         # If the observed delta drifts outside the envelope, fail
         # loud — either a test was silently re-classified across the
@@ -360,7 +372,7 @@ jobs:
         env:
           PRODUCTION_COUNT: ${{ needs.production-suite.outputs.collected }}
           SANDBOX_COUNT: ${{ needs.sandbox-suite-shadow.outputs.collected }}
-          EXPECTED_DELTA: '309'
+          EXPECTED_DELTA: '325'
           DELTA_TOLERANCE: '5'
         run: |
           python - <<'PY'

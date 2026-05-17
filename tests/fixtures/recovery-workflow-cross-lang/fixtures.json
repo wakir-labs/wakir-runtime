@@ -1,0 +1,135 @@
+{
+  "_comment": "Cross-lang fixture vectors for the persona-engine R1..R4 recovery-workflow canonical projection (Tag-20 Mini-Welle Phase-3a Python-sync, Item 6). The 'expected' block is the authoritative cross-lang pin: any drift on either side (Rust crate persona-engine-recovery or Python wirelang.persona_engine.recovery_workflow_canonical) must change every other side too. Derivation procedure documented in the Python helper module docstring (recovery_workflow_canonical.py) and the per-side test modules. Fixtures pinned 2026-05-17. Five sub-cases: clean R1->R4 success path, R2 backing-unreachable failure (after R1), R3 identity-rebind failure (after R1+R2), R1 trigger-ambiguous immediate failure (no phases), R4 budget-exceeded failure (after R1+R2+R3).",
+  "schema_version": "wakir.persona-engine.recovery-outcome/1",
+  "fixtures": [
+    {
+      "name": "f01-clean-r1-r4",
+      "input": {
+        "trigger": "CrashDetected",
+        "final_state": "running",
+        "success": true,
+        "phases": [
+          {
+            "phase": "R1",
+            "terminal_status": "detected",
+            "audit_annotation": "recovery_trigger_classified=CrashDetected"
+          },
+          {
+            "phase": "R2",
+            "terminal_status": "reloaded",
+            "audit_annotation": "snapshot-restored"
+          },
+          {
+            "phase": "R3",
+            "terminal_status": "re_registered",
+            "audit_annotation": "recovery_svid_refreshed=spiffe://wakir.wakir-labs/persona/reza"
+          },
+          {
+            "phase": "R4",
+            "terminal_status": "resumed",
+            "audit_annotation": "container-active"
+          }
+        ]
+      },
+      "expected": {
+        "outcome_jcs_bytes_b64": "eyJmaW5hbF9zdGF0ZSI6InJ1bm5pbmciLCJwaGFzZXMiOlt7ImF1ZGl0X2Fubm90YXRpb24iOiJyZWNvdmVyeV90cmlnZ2VyX2NsYXNzaWZpZWQ9Q3Jhc2hEZXRlY3RlZCIsImVsYXBzZWRfc2VjIjowLCJwaGFzZSI6IlIxIiwic29mdF9jYXBfZXhjZWVkZWQiOmZhbHNlLCJ0ZXJtaW5hbF9zdGF0dXMiOiJkZXRlY3RlZCJ9LHsiYXVkaXRfYW5ub3RhdGlvbiI6InNuYXBzaG90LXJlc3RvcmVkIiwiZWxhcHNlZF9zZWMiOjAsInBoYXNlIjoiUjIiLCJzb2Z0X2NhcF9leGNlZWRlZCI6ZmFsc2UsInRlcm1pbmFsX3N0YXR1cyI6InJlbG9hZGVkIn0seyJhdWRpdF9hbm5vdGF0aW9uIjoicmVjb3Zlcnlfc3ZpZF9yZWZyZXNoZWQ9c3BpZmZlOi8vd2FraXIud2FraXItbGFicy9wZXJzb25hL3JlemEiLCJlbGFwc2VkX3NlYyI6MCwicGhhc2UiOiJSMyIsInNvZnRfY2FwX2V4Y2VlZGVkIjpmYWxzZSwidGVybWluYWxfc3RhdHVzIjoicmVfcmVnaXN0ZXJlZCJ9LHsiYXVkaXRfYW5ub3RhdGlvbiI6ImNvbnRhaW5lci1hY3RpdmUiLCJlbGFwc2VkX3NlYyI6MCwicGhhc2UiOiJSNCIsInNvZnRfY2FwX2V4Y2VlZGVkIjpmYWxzZSwidGVybWluYWxfc3RhdHVzIjoicmVzdW1lZCJ9XSwic2NoZW1hIjoid2FraXIucGVyc29uYS1lbmdpbmUucmVjb3Zlcnktb3V0Y29tZS8xIiwic3VjY2VzcyI6dHJ1ZSwidG90YWxfZWxhcHNlZF9zZWMiOjAsInRyaWdnZXIiOiJDcmFzaERldGVjdGVkIn0=",
+        "outcome_jcs_bytes_len": 722,
+        "outcome_sha256_hex": "43fd9d431b7ca025bf68f8d03ce2af9c784c873e35c5a4e8904357eca90242fa",
+        "outcome_hash_prefixed": "sha256:43fd9d431b7ca025bf68f8d03ce2af9c784c873e35c5a4e8904357eca90242fa"
+      }
+    },
+    {
+      "name": "f02-r2-fail-retry",
+      "input": {
+        "trigger": "DespawnMidOperation",
+        "final_state": "failed:RecoveryBackingUnreachableError",
+        "success": false,
+        "phases": [
+          {
+            "phase": "R1",
+            "terminal_status": "detected",
+            "audit_annotation": "recovery_trigger_classified=DespawnMidOperation"
+          }
+        ]
+      },
+      "expected": {
+        "outcome_jcs_bytes_b64": "eyJmaW5hbF9zdGF0ZSI6ImZhaWxlZDpSZWNvdmVyeUJhY2tpbmdVbnJlYWNoYWJsZUVycm9yIiwicGhhc2VzIjpbeyJhdWRpdF9hbm5vdGF0aW9uIjoicmVjb3ZlcnlfdHJpZ2dlcl9jbGFzc2lmaWVkPURlc3Bhd25NaWRPcGVyYXRpb24iLCJlbGFwc2VkX3NlYyI6MCwicGhhc2UiOiJSMSIsInNvZnRfY2FwX2V4Y2VlZGVkIjpmYWxzZSwidGVybWluYWxfc3RhdHVzIjoiZGV0ZWN0ZWQifV0sInNjaGVtYSI6Indha2lyLnBlcnNvbmEtZW5naW5lLnJlY292ZXJ5LW91dGNvbWUvMSIsInN1Y2Nlc3MiOmZhbHNlLCJ0b3RhbF9lbGFwc2VkX3NlYyI6MCwidHJpZ2dlciI6IkRlc3Bhd25NaWRPcGVyYXRpb24ifQ==",
+        "outcome_jcs_bytes_len": 343,
+        "outcome_sha256_hex": "e7d4fc315da6b59c7be22175730e03fcda6f8311df74938bdeb3bf278cc84c33",
+        "outcome_hash_prefixed": "sha256:e7d4fc315da6b59c7be22175730e03fcda6f8311df74938bdeb3bf278cc84c33"
+      }
+    },
+    {
+      "name": "f03-r3-skip",
+      "input": {
+        "trigger": "StateCorruption",
+        "final_state": "failed:RecoveryIdentityRebindError",
+        "success": false,
+        "phases": [
+          {
+            "phase": "R1",
+            "terminal_status": "detected",
+            "audit_annotation": "recovery_trigger_classified=StateCorruption"
+          },
+          {
+            "phase": "R2",
+            "terminal_status": "reloaded",
+            "audit_annotation": "snapshot-restored"
+          }
+        ]
+      },
+      "expected": {
+        "outcome_jcs_bytes_b64": "eyJmaW5hbF9zdGF0ZSI6ImZhaWxlZDpSZWNvdmVyeUlkZW50aXR5UmViaW5kRXJyb3IiLCJwaGFzZXMiOlt7ImF1ZGl0X2Fubm90YXRpb24iOiJyZWNvdmVyeV90cmlnZ2VyX2NsYXNzaWZpZWQ9U3RhdGVDb3JydXB0aW9uIiwiZWxhcHNlZF9zZWMiOjAsInBoYXNlIjoiUjEiLCJzb2Z0X2NhcF9leGNlZWRlZCI6ZmFsc2UsInRlcm1pbmFsX3N0YXR1cyI6ImRldGVjdGVkIn0seyJhdWRpdF9hbm5vdGF0aW9uIjoic25hcHNob3QtcmVzdG9yZWQiLCJlbGFwc2VkX3NlYyI6MCwicGhhc2UiOiJSMiIsInNvZnRfY2FwX2V4Y2VlZGVkIjpmYWxzZSwidGVybWluYWxfc3RhdHVzIjoicmVsb2FkZWQifV0sInNjaGVtYSI6Indha2lyLnBlcnNvbmEtZW5naW5lLnJlY292ZXJ5LW91dGNvbWUvMSIsInN1Y2Nlc3MiOmZhbHNlLCJ0b3RhbF9lbGFwc2VkX3NlYyI6MCwidHJpZ2dlciI6IlN0YXRlQ29ycnVwdGlvbiJ9",
+        "outcome_jcs_bytes_len": 456,
+        "outcome_sha256_hex": "3bb0135730cafae73d8ec6bf17452c7b686526aa2b5401d6b93f5a865c7a883b",
+        "outcome_hash_prefixed": "sha256:3bb0135730cafae73d8ec6bf17452c7b686526aa2b5401d6b93f5a865c7a883b"
+      }
+    },
+    {
+      "name": "f04-r1-error-immediate",
+      "input": {
+        "trigger": "CrashDetected",
+        "final_state": "failed:RecoveryTriggerAmbiguousError",
+        "success": false,
+        "phases": []
+      },
+      "expected": {
+        "outcome_jcs_bytes_b64": "eyJmaW5hbF9zdGF0ZSI6ImZhaWxlZDpSZWNvdmVyeVRyaWdnZXJBbWJpZ3VvdXNFcnJvciIsInBoYXNlcyI6W10sInNjaGVtYSI6Indha2lyLnBlcnNvbmEtZW5naW5lLnJlY292ZXJ5LW91dGNvbWUvMSIsInN1Y2Nlc3MiOmZhbHNlLCJ0b3RhbF9lbGFwc2VkX3NlYyI6MCwidHJpZ2dlciI6IkNyYXNoRGV0ZWN0ZWQifQ==",
+        "outcome_jcs_bytes_len": 181,
+        "outcome_sha256_hex": "4f68f5c8c4e6a3303b199328976ca1fa723a9cd6eaa9b646b5ab40f58e4ff700",
+        "outcome_hash_prefixed": "sha256:4f68f5c8c4e6a3303b199328976ca1fa723a9cd6eaa9b646b5ab40f58e4ff700"
+      }
+    },
+    {
+      "name": "f05-r4-timeout",
+      "input": {
+        "trigger": "CrashDetected",
+        "final_state": "failed:RecoveryBudgetExceededError",
+        "success": false,
+        "phases": [
+          {
+            "phase": "R1",
+            "terminal_status": "detected",
+            "audit_annotation": "recovery_trigger_classified=CrashDetected"
+          },
+          {
+            "phase": "R2",
+            "terminal_status": "reloaded",
+            "audit_annotation": "snapshot-restored"
+          },
+          {
+            "phase": "R3",
+            "terminal_status": "re_registered",
+            "audit_annotation": "recovery_svid_refreshed=spiffe://wakir.wakir-labs/persona/kai"
+          }
+        ]
+      },
+      "expected": {
+        "outcome_jcs_bytes_b64": "eyJmaW5hbF9zdGF0ZSI6ImZhaWxlZDpSZWNvdmVyeUJ1ZGdldEV4Y2VlZGVkRXJyb3IiLCJwaGFzZXMiOlt7ImF1ZGl0X2Fubm90YXRpb24iOiJyZWNvdmVyeV90cmlnZ2VyX2NsYXNzaWZpZWQ9Q3Jhc2hEZXRlY3RlZCIsImVsYXBzZWRfc2VjIjowLCJwaGFzZSI6IlIxIiwic29mdF9jYXBfZXhjZWVkZWQiOmZhbHNlLCJ0ZXJtaW5hbF9zdGF0dXMiOiJkZXRlY3RlZCJ9LHsiYXVkaXRfYW5ub3RhdGlvbiI6InNuYXBzaG90LXJlc3RvcmVkIiwiZWxhcHNlZF9zZWMiOjAsInBoYXNlIjoiUjIiLCJzb2Z0X2NhcF9leGNlZWRlZCI6ZmFsc2UsInRlcm1pbmFsX3N0YXR1cyI6InJlbG9hZGVkIn0seyJhdWRpdF9hbm5vdGF0aW9uIjoicmVjb3Zlcnlfc3ZpZF9yZWZyZXNoZWQ9c3BpZmZlOi8vd2FraXIud2FraXItbGFicy9wZXJzb25hL2thaSIsImVsYXBzZWRfc2VjIjowLCJwaGFzZSI6IlIzIiwic29mdF9jYXBfZXhjZWVkZWQiOmZhbHNlLCJ0ZXJtaW5hbF9zdGF0dXMiOiJyZV9yZWdpc3RlcmVkIn1dLCJzY2hlbWEiOiJ3YWtpci5wZXJzb25hLWVuZ2luZS5yZWNvdmVyeS1vdXRjb21lLzEiLCJzdWNjZXNzIjpmYWxzZSwidG90YWxfZWxhcHNlZF9zZWMiOjAsInRyaWdnZXIiOiJDcmFzaERldGVjdGVkIn0=",
+        "outcome_jcs_bytes_len": 626,
+        "outcome_sha256_hex": "ce05fa9b73931e39bebdf84dbe99dbf85300e40bbe63439bc940dfea96b563b4",
+        "outcome_hash_prefixed": "sha256:ce05fa9b73931e39bebdf84dbe99dbf85300e40bbe63439bc940dfea96b563b4"
+      }
+    }
+  ]
+}

@@ -1723,7 +1723,10 @@ name = "persona-engine-recovery"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "hex",
+ "serde_jcs",
  "serde_json",
+ "sha2 0.10.8",
  "tokio",
 ]
 
