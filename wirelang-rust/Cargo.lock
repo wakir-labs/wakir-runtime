@@ -1811,6 +1811,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "persona-engine-svid-workload-identity"
+version = "0.1.0"
+
+[[package]]
 name = "persona-engine-v907-recompute-bench"
 version = "0.1.0"
 dependencies = [

@@ -226,6 +226,7 @@ members = [
     "crates/persona-engine-loop-latency-bench",
     "crates/persona-engine-integration-tests",
     "crates/persona-engine-bridge-forward",
+    "crates/persona-engine-svid-workload-identity",
 ]
 
 [workspace.package]

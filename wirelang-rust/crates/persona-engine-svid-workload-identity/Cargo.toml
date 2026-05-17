@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# persona-engine-svid-workload-identity — SPIFFE Workload-API probe +
+# fetch CLI (Rust pendant of `wirelang.persona_engine.svid_workload_identity`).
+#
+# Layer position
+# --------------
+#
+# Engine-side, Zone-L surface (SPIRE-Agent UDS bind-mounted into the
+# persona-container at `/run/spire/agent-sockets/api.sock`). The
+# Python authority lives at
+# `wirelang/persona_engine/svid_workload_identity.py`; this crate is
+# the Rust pendant slot that ADR-0065 Welle-2 cuts over to once the
+# binary ships. Until then, the resolver in
+# `wirelang/persona_engine/rust_backend_switch.py`
+# (Tag-25 PR #191, `_resolve_svid_workload_identity_bin`) records the
+# Welle-2 precondition `binary_missing` per boot — this crate
+# delivers the binary.
+#
+# Scope of this PR (Tag-29 Mini-Welle, ADR-0066 Welle-2 image-build)
+# ------------------------------------------------------------------
+#
+# Skeleton substrate ONLY — the socket-presence probe (preserved
+# v0.2.0-pilot semantics) + CLI surface. The full Workload-API
+# gRPC `FetchX509SVID` RPC is OUT OF SCOPE for the image-build
+# pipeline pre-shipping; the Rust-grpcio / Tonic substrate is
+# substantially larger than the probe surface and warrants its own
+# Zone-L cross-review pass. The CLI surfaces:
+#
+#   - `wakir-persona-engine-svid-workload-identity probe [--socket PATH]`
+#       Socket-presence probe — `connect()`-on-UDS, no protocol
+#       exchange. Mirror of Python
+#       `probe_workload_api_socket`. Exit 0 = socket reachable,
+#       exit 2 = socket missing, exit 3 = socket present but
+#       `connect()` failed (peer not listening / permission denied).
+#   - `wakir-persona-engine-svid-workload-identity info`
+#       Print the default socket path + Quadlet bind-mount
+#       contract for operator discovery. Exit 0 always.
+#   - `wakir-persona-engine-svid-workload-identity --version`
+#       Cargo-injected version string.
+#   - `wakir-persona-engine-svid-workload-identity --help`
+#       Usage banner.
+#
+# The library exposes `probe_workload_api_socket(path)` so future
+# crates (and a future `fetch` subcommand once Zone-L approves the
+# Tonic substrate) can reuse the probe primitive.
+#
+# Cross-references
+# ----------------
+#
+# - ADR-0066 §Phase-3c Welle-2 `svid_workload_identity` —
+#   Welle-2 pre-cutover image-build (Tag-29 Mini-Welle).
+# - PR #191 (Selin) — Python-side resolver + `binary_missing`
+#   precondition record (the gap this crate closes).
+# - Zone-L (SPIFFE Workload-API) — Reza owns the SPIFFE-ID
+#   template + certificate-not-after semantics. The probe surface
+#   is shape-neutral wrt the SPIFFE-ID; Zone-L cross-review is
+#   required before the future `fetch` subcommand lands.
+
+[package]
+name = "persona-engine-svid-workload-identity"
+version = "0.1.0"
+description = "SPIFFE Workload-API probe CLI (Rust pendant of wirelang.persona_engine.svid_workload_identity skeleton)"
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+
+[lib]
+name = "persona_engine_svid_workload_identity"
+path = "src/lib.rs"
+
+# Tag-29 Mini-Welle: Operator-CLI binary for the SPIFFE Workload-API
+# probe path. Thin wrapper around the library; consumed by the
+# container-image-build-pipeline (.github/workflows/build-rust-cli-
+# svid-workload-identity.yml). See src/main.rs for the subcommand
+# surface.
+[[bin]]
+name = "wakir-persona-engine-svid-workload-identity"
+path = "src/main.rs"
+
+[dependencies]
+# Zero new workspace dependencies — std::os::unix::net is all the
+# probe needs. The library is intentionally minimal so the binary
+# stays distroless-cc-debian12-compatible (no openssl, no protoc).
