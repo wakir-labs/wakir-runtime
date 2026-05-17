@@ -387,6 +387,7 @@ class PersonaEngine:
             resolve_fsm_backend,
             resolve_recovery_backend,
             resolve_subscribe_loop_backend,
+            resolve_svid_workload_identity_backend,
             resolve_v907_verify_backend,
         )
 
@@ -538,6 +539,37 @@ class PersonaEngine:
                 "level": "ERROR",
                 "msg": "backend-switch-validation-failed",
                 "domain": "anchor_emitter",
+                "error": str(exc),
+            })
+            raise
+        # Tag-25 (ADR-0065 Welle-2 precondition): resolve
+        # svid-workload-identity-backend choice up-front, parallel to
+        # recovery + state_backing + fsm + v907_verify + bridge_diff +
+        # subscribe_loop + anchor_emitter. Default is python (current
+        # behaviour, opt-in switch). SVID-Workload-Identity is the
+        # Zone-L SPIFFE bind-substrate (per-spawn FetchX509SVID over the
+        # Workload-API Unix socket) — the per-decision audit-record is
+        # the **ADR-0065 Welle-2 precondition signal**: operators who
+        # flip ``WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND=rust`` before the
+        # Welle-2 crate ships will observe the graceful ``binary_missing``
+        # fallback record. The engine keeps
+        # :mod:`wirelang.persona_engine.svid_workload_identity` Python-
+        # backed during Phase-3b; the cutover script's Welle-2 stanza
+        # consumes this decision record to compute the Welle-2 trigger
+        # gate. This is the **8th** BackendDecision record emitted per
+        # boot.
+        try:
+            (
+                self._svid_workload_identity_backend,
+                self._svid_workload_identity_backend_decision,
+            ) = resolve_svid_workload_identity_backend(
+                env=None, log_sink=self.log_sink
+            )
+        except Exception as exc:  # noqa: BLE001 — strict env-validation
+            self._log({
+                "level": "ERROR",
+                "msg": "backend-switch-validation-failed",
+                "domain": "svid_workload_identity",
                 "error": str(exc),
             })
             raise

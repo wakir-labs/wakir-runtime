@@ -151,21 +151,24 @@ def test_engine_despawn_clean_returns_uninstantiated(tmp_path):
 
 
 @requires_v907_compute_deps
-def test_engine_boot_records_seven_backend_decisions(tmp_path):
-    """Tag-23 wire-in: boot() resolves SEVEN BackendDecisions in order
-    (recovery + state_backing + fsm + v907_verify + bridge_diff +
-    subscribe_loop + anchor_emitter). Verifies the per-boot
-    Doppelbetrieb-anchor count grew from 6 (Tag-22) to 7 (Tag-23) with
-    the anchor-emitter wire-in — the **seventh and final** Phase-3b
-    production-default-switch component. The Phase-3b surface is closed
-    with this wire-in; subsequent work targets Phase-3c cutover.
+def test_engine_boot_records_eight_backend_decisions(tmp_path):
+    """Tag-25 wire-in (ADR-0065 Welle-2 precondition): boot() resolves
+    EIGHT BackendDecisions in order (recovery + state_backing + fsm +
+    v907_verify + bridge_diff + subscribe_loop + anchor_emitter +
+    svid_workload_identity). Verifies the per-boot Doppelbetrieb-anchor
+    count grew from 7 (Tag-23) to 8 (Tag-25) with the svid-workload-
+    identity wire-in — the **8th** production-default-switch component
+    and the ADR-0065 Welle-2 precondition the Phase-3c cutover script
+    requires. The Phase-3b shipped-substrate surface remains the seven
+    Tag-17..Tag-23 components; Tag-25 extends the contract surface to
+    cover the ADR-0065 Welle-2 candidate.
 
     Each decision is the python-default with no fallback (env-clean
     test environment), and all carry resolution_latency_us >= 0.
     """
     engine = _engine_with_axis_a(tmp_path)
     engine.boot()
-    # Seven BackendDecision attributes populated.
+    # Eight BackendDecision attributes populated.
     assert engine._recovery_backend_decision.domain == "recovery"
     assert engine._recovery_backend_decision.chosen_backend == "python"
     assert engine._recovery_backend_decision.resolution_latency_us >= 0
@@ -200,9 +203,26 @@ def test_engine_boot_records_seven_backend_decisions(tmp_path):
     )
     assert engine._anchor_emitter_backend_decision.bin_path is None
 
+    assert (
+        engine._svid_workload_identity_backend_decision.domain
+        == "svid_workload_identity"
+    )
+    assert (
+        engine._svid_workload_identity_backend_decision.chosen_backend
+        == "python"
+    )
+    assert (
+        engine._svid_workload_identity_backend_decision.resolution_latency_us
+        >= 0
+    )
+    assert (
+        engine._svid_workload_identity_backend_decision.bin_path is None
+    )
+
     # The log_sink carries one backend-decision line per domain. Count
-    # those to verify seven were emitted (recovery + state_backing + fsm
-    # + v907_verify + bridge_diff + subscribe_loop + anchor_emitter).
+    # those to verify eight were emitted (recovery + state_backing + fsm
+    # + v907_verify + bridge_diff + subscribe_loop + anchor_emitter +
+    # svid_workload_identity).
     log = engine.log_sink.getvalue()
     domains = set()
     for line in log.splitlines():
@@ -220,7 +240,8 @@ def test_engine_boot_records_seven_backend_decisions(tmp_path):
         "bridge_diff",
         "subscribe_loop",
         "anchor_emitter",
-    }, f"expected seven BackendDecision records, got {sorted(domains)}"
+        "svid_workload_identity",
+    }, f"expected eight BackendDecision records, got {sorted(domains)}"
 
 
 # -------------------- CLI parser --------------------
