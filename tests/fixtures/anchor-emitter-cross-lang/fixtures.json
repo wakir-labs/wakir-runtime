@@ -1,0 +1,86 @@
+{
+  "_comment": "Cross-lang fixture vectors for the persona-engine anchor-emitter (Phase-3a Item 7 / Tag-18 Python-sync). The 'expected' block is the authoritative cross-lang pin: any drift on either side (Rust crate persona-engine-anchor-emitter or Python wirelang.persona_engine.anchor_emitter) must change every other side too. Derivation procedure documented in tests/wat/test_anchor_emitter_cross_lang_parity.py (Python sibling test) and tests/anchor_emitter_cross_lang_fixture_test.rs (Rust sibling test). Fixtures pinned 2026-05-17.",
+  "schema_version": "wakir.wat.anchor-envelope/1",
+  "fixtures": [
+    {
+      "name": "f01-empty-object",
+      "input": {
+        "event_id": "evt-2026-05-17-anchor-fixture-01",
+        "timestamp_utc": "2026-05-17T00:00:00Z",
+        "persona_id": "reza",
+        "payload_jcs_bytes_b64": "e30="
+      },
+      "expected": {
+        "payload_sha256_hex": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "envelope_jcs_bytes_b64": "eyJldmVudF9pZCI6ImV2dC0yMDI2LTA1LTE3LWFuY2hvci1maXh0dXJlLTAxIiwicGF5bG9hZF9zaGEyNTYiOiI0NDEzNmZhMzU1YjM2NzhhMTE0NmFkMTZmN2U4NjQ5ZTk0ZmI0ZmMyMWZlNzdlODMxMGMwNjBmNjFjYWFmZjhhIiwicGVyc29uYV9pZCI6InJlemEiLCJzY2hlbWEiOiJ3YWtpci53YXQuYW5jaG9yLWVudmVsb3BlLzEiLCJ0aW1lc3RhbXBfdXRjIjoiMjAyNi0wNS0xN1QwMDowMDowMFoifQ==",
+        "envelope_jcs_bytes_len": 229,
+        "envelope_sha256_hex": "020ab30477e0167274741b59868279c1b16800c234b6453f956329ccc416ccc2",
+        "envelope_hash_prefixed": "sha256:020ab30477e0167274741b59868279c1b16800c234b6453f956329ccc416ccc2"
+      }
+    },
+    {
+      "name": "f02-small-flat-object",
+      "input": {
+        "event_id": "evt-2026-05-17-anchor-fixture-02",
+        "timestamp_utc": "2026-05-17T01:23:45Z",
+        "persona_id": "tomas",
+        "payload_jcs_bytes_b64": "eyJhY3Rpb24iOiJXQVQtYW5jaG9yIiwib2siOnRydWV9"
+      },
+      "expected": {
+        "payload_sha256_hex": "41edd684dca7562d59d653433e918f0e4f4d2e26b8744dd95a2387efd09306c4",
+        "envelope_jcs_bytes_b64": "eyJldmVudF9pZCI6ImV2dC0yMDI2LTA1LTE3LWFuY2hvci1maXh0dXJlLTAyIiwicGF5bG9hZF9zaGEyNTYiOiI0MWVkZDY4NGRjYTc1NjJkNTlkNjUzNDMzZTkxOGYwZTRmNGQyZTI2Yjg3NDRkZDk1YTIzODdlZmQwOTMwNmM0IiwicGVyc29uYV9pZCI6InRvbWFzIiwic2NoZW1hIjoid2FraXIud2F0LmFuY2hvci1lbnZlbG9wZS8xIiwidGltZXN0YW1wX3V0YyI6IjIwMjYtMDUtMTdUMDE6MjM6NDVaIn0=",
+        "envelope_jcs_bytes_len": 230,
+        "envelope_sha256_hex": "d395d5df702242810712b6f665bd9fe15d269d1a18b4a31c9270f9fd7099e1b4",
+        "envelope_hash_prefixed": "sha256:d395d5df702242810712b6f665bd9fe15d269d1a18b4a31c9270f9fd7099e1b4"
+      }
+    },
+    {
+      "name": "f03-array-payload",
+      "input": {
+        "event_id": "evt-2026-05-17-anchor-fixture-03",
+        "timestamp_utc": "2026-05-17T12:00:00Z",
+        "persona_id": "mira",
+        "payload_jcs_bytes_b64": "eyJpdGVtcyI6WzEsMiwzXSwidGFnIjoic3ByaW50In0="
+      },
+      "expected": {
+        "payload_sha256_hex": "f6385cd8f580dd83d3f8b7ba414412f6940451a24f7e4535205ebc6572b6f8b4",
+        "envelope_jcs_bytes_b64": "eyJldmVudF9pZCI6ImV2dC0yMDI2LTA1LTE3LWFuY2hvci1maXh0dXJlLTAzIiwicGF5bG9hZF9zaGEyNTYiOiJmNjM4NWNkOGY1ODBkZDgzZDNmOGI3YmE0MTQ0MTJmNjk0MDQ1MWEyNGY3ZTQ1MzUyMDVlYmM2NTcyYjZmOGI0IiwicGVyc29uYV9pZCI6Im1pcmEiLCJzY2hlbWEiOiJ3YWtpci53YXQuYW5jaG9yLWVudmVsb3BlLzEiLCJ0aW1lc3RhbXBfdXRjIjoiMjAyNi0wNS0xN1QxMjowMDowMFoifQ==",
+        "envelope_jcs_bytes_len": 229,
+        "envelope_sha256_hex": "7663f77b9ef4fcce661819c67564d6df4bb2b85e35d6cbaf1a300771b3db6090",
+        "envelope_hash_prefixed": "sha256:7663f77b9ef4fcce661819c67564d6df4bb2b85e35d6cbaf1a300771b3db6090"
+      }
+    },
+    {
+      "name": "f04-unicode-payload",
+      "input": {
+        "event_id": "evt-2026-05-17-anchor-fixture-04",
+        "timestamp_utc": "2026-05-17T23:59:59Z",
+        "persona_id": "selin",
+        "payload_jcs_bytes_b64": "eyJub3RlIjoiV2FrxKtsLUxhYnMifQ=="
+      },
+      "expected": {
+        "payload_sha256_hex": "a7e78abb6db09db0b50285fc2a7ca414b1771b675a5cb506d45afd02ed556e85",
+        "envelope_jcs_bytes_b64": "eyJldmVudF9pZCI6ImV2dC0yMDI2LTA1LTE3LWFuY2hvci1maXh0dXJlLTA0IiwicGF5bG9hZF9zaGEyNTYiOiJhN2U3OGFiYjZkYjA5ZGIwYjUwMjg1ZmMyYTdjYTQxNGIxNzcxYjY3NWE1Y2I1MDZkNDVhZmQwMmVkNTU2ZTg1IiwicGVyc29uYV9pZCI6InNlbGluIiwic2NoZW1hIjoid2FraXIud2F0LmFuY2hvci1lbnZlbG9wZS8xIiwidGltZXN0YW1wX3V0YyI6IjIwMjYtMDUtMTdUMjM6NTk6NTlaIn0=",
+        "envelope_jcs_bytes_len": 230,
+        "envelope_sha256_hex": "a1a024cde47972cf93560898a2a5d6e32fcfea55a6e722f3a077e0d60b9b9187",
+        "envelope_hash_prefixed": "sha256:a1a024cde47972cf93560898a2a5d6e32fcfea55a6e722f3a077e0d60b9b9187"
+      }
+    },
+    {
+      "name": "f05-empty-array",
+      "input": {
+        "event_id": "evt-1970-01-01-anchor-fixture-05",
+        "timestamp_utc": "1970-01-01T00:00:00Z",
+        "persona_id": "kai",
+        "payload_jcs_bytes_b64": "W10="
+      },
+      "expected": {
+        "payload_sha256_hex": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "envelope_jcs_bytes_b64": "eyJldmVudF9pZCI6ImV2dC0xOTcwLTAxLTAxLWFuY2hvci1maXh0dXJlLTA1IiwicGF5bG9hZF9zaGEyNTYiOiI0ZjUzY2RhMThjMmJhYTBjMDM1NGJiNWY5YTNlY2JlNWVkMTJhYjRkOGUxMWJhODczYzJmMTExNjEyMDJiOTQ1IiwicGVyc29uYV9pZCI6ImthaSIsInNjaGVtYSI6Indha2lyLndhdC5hbmNob3ItZW52ZWxvcGUvMSIsInRpbWVzdGFtcF91dGMiOiIxOTcwLTAxLTAxVDAwOjAwOjAwWiJ9",
+        "envelope_jcs_bytes_len": 228,
+        "envelope_sha256_hex": "457002fbc8c1a23448fe6ca1aebaf819fcd586cd45b436a3eb58dd464ed80973",
+        "envelope_hash_prefixed": "sha256:457002fbc8c1a23448fe6ca1aebaf819fcd586cd45b436a3eb58dd464ed80973"
+      }
+    }
+  ]
+}
