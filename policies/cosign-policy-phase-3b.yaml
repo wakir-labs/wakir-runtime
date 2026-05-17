@@ -1,0 +1,177 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Cosign-Policy for the Phase-3b Rust-CLI binaries that
+# ``wirelang.persona_engine.rust_backend_switch`` subprocess-bridges
+# to in production-mode. Declarative substrate, consumed by:
+#
+#   * ``tests/infra/test_cosign_policy_phase_3b.py`` (hermetic format
+#     invariants).
+#   * ``.github/workflows/cosign-verify-images.yml`` (Operator-Hand
+#     ``workflow_dispatch`` job — Tag-20 follow-up will add a
+#     ``cosign-verify-phase-3b-binaries`` job that consumes this
+#     YAML).
+#   * ``docs/operations/cosign-policy-phase-3b.md`` (Operator-Hand
+#     verify recipe — humans read this YAML, run cosign, compare
+#     digest to ``expected_image_digest`` slot).
+#
+# Posture
+# -------
+# The 4 binaries are NOT free-standing artefacts — they ship inside
+# the published ``ghcr.io/wakir-labs/wakir-persona-engine`` image
+# (Containerfile.real, Sprint-Pengine-13+, BSL-1.1) at the canonical
+# ``/opt/wakir/bin/wakir-persona-engine-<component>`` paths declared
+# by ``wirelang/persona_engine/rust_backend_switch.py`` defaults.
+# The image is keyless-signed via Sigstore against the GitHub-Actions
+# OIDC identity of ``.github/workflows/build-wakir-persona-engine.yml``;
+# verifying the image therefore transitively verifies the 4 binaries.
+#
+# Why keyless and not a pinned ``cosign.pub``: the WAT-Pipeline-Server
+# substrate-pattern from ADR-0034 uses Sigstore-keyless throughout
+# (no rotating private keys to operate); a static ``cosign.pub`` would
+# only buy us added complexity. A static-key alternative recipe is
+# documented in ``docs/operations/cosign-policy-phase-3b.md`` §6 for
+# the air-gapped case where Sigstore-Rekor reachability is not
+# guaranteed.
+#
+# Cross-review note
+# -----------------
+# Zone C (Container-Image-Pipeline x Tomás-OTS-Anchoring): the image
+# this policy verifies is the same wakir-persona-engine image that
+# Tomás's Quadlet ``quadlet/wakir-persona-tomas.container`` already
+# pins; this policy adds the Rust-CLI binary surface as a first-class
+# inventory item but does not change the image-build path or the
+# digest-resolver workflow (``resolve-image-pins-ci.yml``).
+
+schema_version: wakir.cosign-policy.phase-3b/1
+
+policy:
+  name: phase-3b-rust-cli-binaries
+  description: >
+    Cosign-keyless verification policy for the four Phase-3b Rust-CLI
+    binaries that the persona-engine production-default switch
+    subprocess-bridges to (recovery, state-backing, fsm, v907-verify).
+
+  # Sigstore-keyless OIDC identity of the GitHub-Actions runner that
+  # builds and signs the carrier image. Same shape as the Sprint-9
+  # Tag-4 wakir-provisioner policy (see IMAGE_PINS.md §2.5).
+  certificate_identity_regexp: 'https://github\.com/wakir-labs/wakir-runtime/'
+  certificate_oidc_issuer: 'https://token.actions.githubusercontent.com'
+
+  # Carrier image — keyless-signed; the 4 binaries below ship inside
+  # this image at the declared in-image paths. The digest slot uses
+  # the same DIGEST_PENDING_KAI_CROSS_REVIEW placeholder convention
+  # the Quadlet (wakir-persona-tomas.container) uses for the Tag-20
+  # pre-resolution state; once Operator-Hand resolves it, the digest
+  # propagates here AND into the Quadlet via the
+  # resolve-image-pins-ci.yml workflow.
+  carrier_image:
+    registry: ghcr.io
+    repository: wakir-labs/wakir-persona-engine
+    expected_tag: 0.5.0-pilot
+    expected_image_digest: sha256:DIGEST_PENDING_KAI_CROSS_REVIEW
+    build_workflow: .github/workflows/build-wakir-persona-engine.yml
+    containerfile: infra/persona-engine/Containerfile.real
+
+# Inventory of the four Phase-3b Rust-CLI binaries. Each entry is the
+# subprocess-target of one ``WAKIR_*_BACKEND=rust`` ENV-switch wired
+# in ``wirelang/persona_engine/rust_backend_switch.py``. The
+# ``crate_path`` points at the crate that produces the binary; the
+# ``in_image_path`` is the canonical install location inside the
+# carrier image (matches the rust_backend_switch.py defaults).
+binaries:
+
+  - name: recovery
+    component: persona-engine-recovery
+    crate_path: wirelang-rust/crates/persona-engine-recovery
+    in_image_path: /opt/wakir/bin/wakir-persona-engine-recovery
+    env_switch: WAKIR_RECOVERY_BACKEND
+    env_switch_value: rust
+    env_binary_override: WAKIR_RUST_RECOVERY_BIN
+    landed_pr: '#167'
+    landed_tag: Tag-17 Mini-Welle
+    purpose: >
+      Persona-engine R1..R4 Recovery-Workflow subprocess-bridge.
+      Schema-parity with wirelang/persona_engine/recovery_workflow.py.
+
+  - name: state-backing
+    component: persona-engine-state-backing
+    crate_path: wirelang-rust/crates/persona-engine-state-backing
+    in_image_path: /opt/wakir/bin/wakir-persona-engine-state-backing
+    env_switch: WAKIR_STATE_BACKING_BACKEND
+    env_switch_value: rust_inmemory|rust_natskv
+    env_binary_override: WAKIR_RUST_STATE_BACKING_BIN
+    landed_pr: '#167'
+    landed_tag: Tag-17 Mini-Welle
+    purpose: >
+      NATS-KV Persona-State backing subprocess-bridge.
+      Schema-parity with wirelang/persona_engine/state_backing.py.
+
+  - name: fsm
+    component: persona-engine-fsm
+    crate_path: wirelang-rust/crates/persona-engine-fsm
+    in_image_path: /opt/wakir/bin/wakir-persona-engine-fsm
+    env_switch: WAKIR_FSM_BACKEND
+    env_switch_value: rust
+    env_binary_override: WAKIR_RUST_FSM_BIN
+    landed_pr: '#169'
+    landed_tag: Tag-18 Mini-Welle
+    purpose: >
+      Persona-engine lifecycle FSM (spec §3.3, six states, nine
+      transitions) subprocess-bridge. Schema-parity with
+      wirelang/persona_engine/lifecycle_state_machine.py.
+
+  - name: v907-verify
+    component: persona-engine-v907-verify
+    crate_path: wirelang-rust/crates/persona-engine-v907-verify
+    in_image_path: /opt/wakir/bin/wakir-persona-engine-v907-verify
+    env_switch: WAKIR_V907_VERIFY_BACKEND
+    env_switch_value: rust
+    env_binary_override: WAKIR_RUST_V907_VERIFY_BIN
+    landed_pr: '#171'
+    landed_tag: Tag-19 Mini-Welle
+    purpose: >
+      V-907 persona-hash pin-compute + verify subprocess-bridge.
+      Schema-parity with wirelang/persona_engine/v907_verify.py;
+      hash-byte-identical against all V-907 pin-pack vectors.
+
+# Operator-Hand verification recipe (human-readable canonical
+# anchor; the prose recipe lives in
+# docs/operations/cosign-policy-phase-3b.md §3).
+verification:
+  step_1_carrier_image: >
+    cosign verify
+    --certificate-identity-regexp 'https://github\.com/wakir-labs/wakir-runtime/'
+    --certificate-oidc-issuer 'https://token.actions.githubusercontent.com'
+    ghcr.io/wakir-labs/wakir-persona-engine:0.5.0-pilot@<resolved-digest>
+
+  step_2_digest_cross_check: >
+    crane digest ghcr.io/wakir-labs/wakir-persona-engine:0.5.0-pilot
+
+  step_3_in_image_binary_probe: >
+    podman run --rm --entrypoint /bin/sh
+    ghcr.io/wakir-labs/wakir-persona-engine:0.5.0-pilot@<resolved-digest>
+    -c 'for b in /opt/wakir/bin/wakir-persona-engine-recovery
+                /opt/wakir/bin/wakir-persona-engine-state-backing
+                /opt/wakir/bin/wakir-persona-engine-fsm
+                /opt/wakir/bin/wakir-persona-engine-v907-verify; do
+          test -x "$b" || { echo "missing or non-exec: $b"; exit 2; };
+        done; echo OK'
+
+  on_digest_mismatch: >
+    Refuse rollout. The carrier image was either rebuilt without a
+    coordinated pin update, or an unsigned/maliciously-signed image
+    was pushed to the same tag. Halt. Zone-C cross-review the
+    upstream signing event (Sigstore Rekor transparency log entry
+    against the GitHub-Actions OIDC identity of the build workflow).
+
+# Sandbox boundary
+# ----------------
+# The hermetic test surface
+# (tests/infra/test_cosign_policy_phase_3b.py) validates the SHAPE
+# of this YAML — schema_version, all 4 binaries listed, sha256 slot
+# in canonical-form, mismatch fixture rejected. NO sandbox process
+# calls cosign, crane, or skopeo against ghcr.io per
+# feedback_sandbox_host_trennung.md. Live verification is
+# Operator-Hand on a host with registry network egress and the
+# cosign / crane CLIs installed.
