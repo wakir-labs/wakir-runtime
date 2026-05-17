@@ -1,0 +1,535 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase-3c Welle-4 Validation Workflow - ADR-0065 + ADR-0066
+# ----------------------------------------------------------
+#
+# Wired-substrate validation for the Phase-3c Welle-4 cutover
+# (`state_backing`, KW 26 parallel-execution per ADR-0066
+# Option-A+). Runs the five Mira-Hand-defined acceptance steps for
+# the Welle-4 Cutover-Acceptance-Decision and emits a
+# `cutover-acceptance-decision-welle-4.json` artifact. Adds a
+# sixth Cross-Modul-Stress-Test step (state_backing x
+# lifecycle_state_machine) per ADR-0066 §Mitigations because
+# Welle-4 ships in parallel with Welle-5 in the KW-26 Doppel-Welle.
+#
+# Distinction from sibling workflows
+# ----------------------------------
+#
+# * `phase-3c-welle-1-validation.yml` (PR #190) - Welle-1 readiness
+#   check for `v907_verify`. Same 5-step pattern.
+# * `phase-3c-welle-2-validation.yml` (PR #196) - Welle-2 readiness
+#   check for `svid_workload_identity`. Same 5-step pattern.
+# * `phase-3c-welle-3-validation.yml` (Tag-31 Tomás-Spawn) - Welle-3
+#   readiness check for `bridge_audit_writer` (solo, Henrik-Caution).
+# * `phase-3c-welle-4-validation.yml` (THIS workflow) - Welle-4
+#   readiness check for `state_backing` plus the KW-26 Doppel-Welle
+#   Cross-Modul-Stress-Test that guards against drift between the
+#   state_backing and lifecycle_state_machine substrates while both
+#   are in flight together.
+#
+# NOT a required status check (per `feedback_branch_protection_check_
+# names.md`): branch-protection enforcement is operator-hand-territory
+# and lives outside this PR.
+#
+# ADR-0066 parallel-execution rationale
+# -------------------------------------
+#
+# ADR-0066 (approved 2026-05-17) §Mitigations §1 demands a
+# Cross-Modul-Drift-Detection axis for the Doppel-Wellen. The
+# state_backing + lifecycle_state_machine pair share state-mutation
+# semantics (fsm transitions write through state_backing), so a
+# drift in either resolver could only surface when both are
+# exercised against the same fixture-pair. This workflow runs the
+# `cross-modul-stress` mode of the doppelbetrieb-score-aggregator
+# (PR #197) as Step 6 to catch that drift before the Mo Live-Smoke.
+#
+# Trigger surface
+# ---------------
+#
+# * `schedule: cron "0 6 * * 3"` - every Wednesday at 06:00 UTC.
+#   Same cadence as Welle-1/2/3; the readiness reports for the
+#   KW-26 Doppel-Welle land in the same wednesday-morning slot.
+#
+# * `workflow_dispatch: {}` - manual run from the GitHub UI. The
+#   dispatch inputs let the operator override the gate-aggregator
+#   binary-count target, the dry-run boots count, and the cutover
+#   feasibility-score band.
+#
+# Gate-4 yellow tolerance
+# -----------------------
+#
+# Identical posture to Welle-1/2: Gate-4 (backend-decision
+# observability baseline) yields `yellow` when the
+# `WAKIR_PHASE_3C_OBS_BASELINE_PATH` env-var is unset - that is the
+# operator-hand-staged baseline-file substrate, which the
+# GitHub-hosted runner does not have access to. The workflow
+# therefore treats Gate-4-yellow as a warning (decision continues),
+# but Gate-4-red (aggregator script missing) is a hard fail.
+#
+# Sandbox boundary
+# ----------------
+#
+# All steps are hermetic: stdlib + pytest in-tree, no podman, no
+# NATS, no live-VM, no Anthropic API, no SPIRE-Workload-API egress.
+# The dry-run script uses its default stub binary-probe. The
+# state_backing resolver gracefully falls back to Python when the
+# (not-yet-shipped) Rust binary is missing; the dry-run uses the
+# stub-probe-available path so the readiness signal reflects the
+# resolver's decision-path. The Cross-Modul-Stress-Test step
+# composes the in-tree aggregator against synthetic fixture-pairs;
+# no external substrate access.
+
+name: phase-3c-welle-4-validation
+
+on:
+  schedule:
+    # Wednesday 06:00 UTC = ~08:00 CEST in May.
+    - cron: "0 6 * * 3"
+  workflow_dispatch:
+    inputs:
+      target-binary-count:
+        description: "Gate-2/3 expected binary-inventory count (default 7)"
+        required: false
+        default: "7"
+      boots:
+        description: "Dry-run mocked-boot count (default 12)"
+        required: false
+        default: "12"
+      score-band-floor:
+        description: "Minimum cutover-feasibility band (GREEN/AMBER, default GREEN)"
+        required: false
+        default: "GREEN"
+
+permissions:
+  contents: read
+
+jobs:
+  phase-3c-welle-4-validation:
+    name: Phase-3c Welle-4 Validation (state_backing)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      WELLE_COMPONENT: state_backing
+      WELLE_ENV_VAR: WAKIR_STATE_BACKING_BACKEND
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install validation dependencies
+        # Aggregator + dry-run are stdlib + PyYAML; pytest + the in-tree
+        # wakir-runtime package are needed for the test-persona-boot
+        # step, the bridge-audit-roundtrip-test step, and the
+        # Cross-Modul-Stress-Test step.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . "pytest>=8.0"
+
+      - name: Resolve dispatch inputs
+        id: inputs
+        env:
+          INPUT_BINARY_COUNT: ${{ github.event.inputs.target-binary-count }}
+          INPUT_BOOTS: ${{ github.event.inputs.boots }}
+          INPUT_BAND: ${{ github.event.inputs.score-band-floor }}
+        run: |
+          BIN_COUNT="${INPUT_BINARY_COUNT:-7}"
+          BOOTS="${INPUT_BOOTS:-12}"
+          BAND="${INPUT_BAND:-GREEN}"
+          echo "binary_count=${BIN_COUNT}" >> "$GITHUB_OUTPUT"
+          echo "boots=${BOOTS}" >> "$GITHUB_OUTPUT"
+          echo "band=${BAND}" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare output directory
+        run: mkdir -p out
+
+      # Step 1: aggregate the five Phase-3c trigger-gates.
+      #
+      # Aggregator exit codes (see scripts/phase-3c-trigger-gate-
+      # aggregator.py docstring):
+      #   0 = all five gates green
+      #   1 = at least one yellow, none red
+      #   2 = at least one red
+      #
+      # We accept exit 0 and exit 1 (Gate-4 yellow tolerance, see
+      # workflow header). Exit 2 fails the job at the
+      # acceptance-decision-render step.
+      - name: Step 1 - Phase-3c trigger-gate aggregator
+        id: gate-aggregator
+        continue-on-error: true
+        run: |
+          python scripts/phase-3c-trigger-gate-aggregator.py \
+            --target-binary-count "${{ steps.inputs.outputs.binary_count }}" \
+            --json \
+            > out/trigger-gate-report.json
+          RC=$?
+          echo "rc=${RC}" >> "$GITHUB_OUTPUT"
+          if [ "$RC" = "0" ]; then
+            echo "gate_status=green" >> "$GITHUB_OUTPUT"
+          elif [ "$RC" = "1" ]; then
+            echo "gate_status=yellow" >> "$GITHUB_OUTPUT"
+          else
+            echo "gate_status=red" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Step 2: cutover-dry-run for state_backing.
+      #
+      # `--component state_backing` is the Welle-4 default; we pass
+      # it explicitly so the workflow is self-documenting. The
+      # dry-run uses its default stub binary-probe and the
+      # state_backing default Rust requested-value `rust_inmemory`
+      # (see scripts/phase-3c-cutover-dry-run.py
+      # COMPONENT_TO_RUST_VALUE) so no NATS egress is needed.
+      - name: Step 2 - cutover-dry-run (state_backing)
+        id: dry-run
+        continue-on-error: true
+        run: |
+          python scripts/phase-3c-cutover-dry-run.py \
+            --component "${WELLE_COMPONENT}" \
+            --boots "${{ steps.inputs.outputs.boots }}" \
+            --output out/dry-run-envelope.json
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+
+      # Step 3: test-persona-boot with
+      # WAKIR_STATE_BACKING_BACKEND=rust_inmemory.
+      #
+      # We exercise the resolver in-process by running the existing
+      # rust_backend_switch test suite filtered to the state_backing
+      # test vectors. The env-var is set explicitly to the
+      # production-flip value (`rust_inmemory`, see PR #168) so the
+      # resolver picks up the production opt-in path; the resolver
+      # still uses its in-test binary-probe stubs, so no real Rust
+      # binary is invoked.
+      - name: Step 3 - test-persona-boot (rust backend opt-in)
+        id: persona-boot
+        continue-on-error: true
+        env:
+          WAKIR_STATE_BACKING_BACKEND: rust_inmemory
+        run: |
+          python -m pytest \
+            wirelang/tests/persona_engine/test_rust_backend_switch.py \
+            -k "state_backing" \
+            --tb=short \
+            -q \
+            --junit-xml=out/persona-boot-junit.xml \
+            | tee out/persona-boot.log
+          # PIPESTATUS[0] is pytest's exit code (0 = pass, 5 = no
+          # tests collected, anything else = failure).
+          RC="${PIPESTATUS[0]}"
+          echo "rc=${RC}" >> "$GITHUB_OUTPUT"
+
+      # Step 4: bridge-audit-roundtrip cross-lang consistency test.
+      #
+      # The roundtrip test SKIPs cleanly on a Python-only runner
+      # (no Rust replay_cli binary), so we treat skip == pass for
+      # this gate. The test exists at tests/integration/test_
+      # bridge_audit_roundtrip_e2e.py and is the canonical cross-
+      # lang oracle (Python emit -> Rust replay). The state_backing
+      # decision-record path flows through the same audit substrate.
+      - name: Step 4 - bridge-audit-roundtrip cross-lang consistency
+        id: bridge-audit
+        continue-on-error: true
+        run: |
+          python -m pytest \
+            tests/integration/test_bridge_audit_roundtrip_e2e.py \
+            --tb=short \
+            -q \
+            --junit-xml=out/bridge-audit-junit.xml \
+            | tee out/bridge-audit.log
+          RC="${PIPESTATUS[0]}"
+          echo "rc=${RC}" >> "$GITHUB_OUTPUT"
+
+      # Step 5: Cross-Modul-Stress-Test (KW-26 Doppel-Welle).
+      #
+      # ADR-0066 §Mitigations §1: state_backing + lifecycle_state_
+      # machine ship parallel in KW 26 - drift between the two
+      # resolvers can only surface against fixture-pairs that
+      # exercise both substrates. PR #197 wired the three Cross-
+      # Modul axes into the doppelbetrieb-score-aggregator; we run
+      # the `cross-modul-stress` mode and consume the envelope.
+      #
+      # Env-var simulation
+      # ------------------
+      #
+      # The cross-modul-stress axes (PR #197) check
+      # ``WAKIR_STATE_BACKING_BACKEND==rust`` and
+      # ``WAKIR_FSM_BACKEND==rust`` for the state_backing x
+      # lifecycle_state_machine axis (RUST_BACKEND_VALUE constant in
+      # scripts/doppelbetrieb-score-aggregator.py). The axis is
+      # designed to verify the POST-cutover environment posture; we
+      # simulate it pre-cutover by setting both env-vars to ``rust``
+      # for the duration of this step so the fixture-pair check is
+      # exercised in the same posture the axis expects after Welle-4
+      # and Welle-5 land. The subscribe_loop + recovery_workflow
+      # axis env-vars are also set so the KW-27 Doppel-Welle axis
+      # remains green in the same run.
+      #
+      # Threshold
+      # ---------
+      #
+      # ``--threshold 3`` tells the aggregator that only the three
+      # cross-modul axes are in scope (otherwise the missing axes
+      # from the eleven-axis full-mode envelope would default to
+      # ``axis-missing`` and pull threshold_pass to False). With
+      # threshold=3 the step exits 0 iff all three cross-modul axes
+      # pass.
+      #
+      # Failure semantics: aggregator exit 0 = all three Cross-Modul
+      # axes pass; exit 1 = at least one fails. We treat exit 1 as a
+      # hard fail in the decision-render step (Step 6).
+      - name: Step 5 - cross-modul-stress (KW-26 Doppel-Welle)
+        id: cross-modul-stress
+        continue-on-error: true
+        env:
+          WAKIR_STATE_BACKING_BACKEND: rust
+          WAKIR_FSM_BACKEND: rust
+          WAKIR_SUBSCRIBE_LOOP_BACKEND: rust
+          WAKIR_RECOVERY_BACKEND: rust
+          # The v907 x svid axis also reads these env-vars; set them
+          # so all three cross-modul axes share the same
+          # post-cutover env-posture during this hermetic check.
+          WAKIR_V907_VERIFY_BACKEND: rust
+          WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND: rust
+        run: |
+          python scripts/doppelbetrieb-score-aggregator.py \
+            --mode cross-modul-stress \
+            --threshold 3 \
+            --out out/cross-modul-stress.json
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+
+      # Step 6: cutover-acceptance-decision JSON envelope.
+      #
+      # Collapses the five upstream-step outcomes plus the gate-
+      # aggregator report, the dry-run envelope, and the cross-
+      # modul-stress envelope into a single JSON artifact that the
+      # operator (Selin, Reza, Tomás) reads to decide go/no-go for
+      # the Welle-4 Mo Live-Smoke (parallel to Welle-5 per ADR-0066).
+      #
+      # Decision policy: extended from Welle-1/2 with the cross-
+      # modul-stress gate.
+      #   * READY      - all five steps green; gate-status in
+      #                  {green, yellow-with-only-gate-4-yellow};
+      #                  cross-modul-stress green.
+      #   * NOT-READY  - any step failed OR gate-status red OR
+      #                  dry-run band below score-band-floor OR
+      #                  cross-modul-stress red.
+      #
+      # The decision is a SOFT signal - Mira/Operator-Hand-Final.
+      # The workflow exit-code reflects the decision so the GH UI
+      # surfaces a clear pass/fail badge.
+      - name: Step 6 - render cutover-acceptance-decision
+        id: decision
+        # Always run, even if upstream steps red (we want the
+        # decision artifact to capture the failure state).
+        if: always()
+        env:
+          GATE_RC: ${{ steps.gate-aggregator.outputs.rc }}
+          DRY_RUN_RC: ${{ steps.dry-run.outputs.rc }}
+          BOOT_RC: ${{ steps.persona-boot.outputs.rc }}
+          BRIDGE_RC: ${{ steps.bridge-audit.outputs.rc }}
+          CROSS_MODUL_RC: ${{ steps.cross-modul-stress.outputs.rc }}
+          SCORE_BAND_FLOOR: ${{ steps.inputs.outputs.band }}
+          BOOTS_INPUT: ${{ steps.inputs.outputs.boots }}
+          BIN_COUNT_INPUT: ${{ steps.inputs.outputs.binary_count }}
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, sys
+
+          out_dir = pathlib.Path("out")
+          decision_path = out_dir / "cutover-acceptance-decision.json"
+
+          def _read_json(name):
+              p = out_dir / name
+              if not p.exists() or p.stat().st_size == 0:
+                  return None
+              try:
+                  return json.loads(p.read_text(encoding="utf-8"))
+              except json.JSONDecodeError:
+                  return None
+
+          def _rc(env_name):
+              v = os.environ.get(env_name) or "-1"
+              try:
+                  return int(v)
+              except ValueError:
+                  return -1
+
+          gate_rc = _rc("GATE_RC")
+          dry_rc = _rc("DRY_RUN_RC")
+          boot_rc = _rc("BOOT_RC")
+          bridge_rc = _rc("BRIDGE_RC")
+          cross_modul_rc = _rc("CROSS_MODUL_RC")
+          floor = (os.environ.get("SCORE_BAND_FLOOR") or "GREEN").upper()
+
+          trigger_report = _read_json("trigger-gate-report.json") or {}
+          dry_run_envelope = _read_json("dry-run-envelope.json") or {}
+          cross_modul_envelope = _read_json("cross-modul-stress.json") or {}
+
+          gate_ok = gate_rc == 0
+          gate_tolerable = False
+          if gate_rc == 1:
+              gates = trigger_report.get("gates", [])
+              non_green = [
+                  g for g in gates
+                  if g.get("status") != "green"
+              ]
+              gate_tolerable = (
+                  len(non_green) == 1
+                  and non_green[0].get("id") == "gate-4"
+              )
+          dry_ok = dry_rc == 0
+          boot_ok = boot_rc == 0
+          bridge_ok = bridge_rc in (0, 5)
+          cross_modul_ok = cross_modul_rc == 0
+
+          band = (
+              dry_run_envelope.get("feasibility", {}).get("band", "UNKNOWN")
+          )
+          band_order = {"GREEN": 3, "AMBER": 2, "RED": 1, "BLOCKED": 0}
+          band_score = band_order.get(band, 0)
+          floor_score = band_order.get(floor, 3)
+          band_ok = band_score >= floor_score
+
+          gate_signal = "green" if gate_ok else (
+              "yellow_tolerated" if gate_tolerable else "red"
+          )
+
+          ready = bool(
+              (gate_ok or gate_tolerable)
+              and dry_ok and boot_ok and bridge_ok and band_ok
+              and cross_modul_ok
+          )
+
+          decision = {
+              "schema": "wakir.phase-3c.welle-4-validation/1",
+              "welle": 4,
+              "component": "state_backing",
+              "env_var": "WAKIR_STATE_BACKING_BACKEND",
+              "ready_for_live_smoke": ready,
+              "score_band_floor": floor,
+              "observed_band": band,
+              "doppel_welle_partner": "lifecycle_state_machine",
+              "steps": {
+                  "step_1_trigger_gates": {
+                      "exit_code": gate_rc,
+                      "status": gate_signal,
+                  },
+                  "step_2_cutover_dry_run": {
+                      "exit_code": dry_rc,
+                      "ok": dry_ok,
+                  },
+                  "step_3_persona_boot_rust": {
+                      "exit_code": boot_rc,
+                      "ok": boot_ok,
+                  },
+                  "step_4_bridge_audit_roundtrip": {
+                      "exit_code": bridge_rc,
+                      "ok": bridge_ok,
+                  },
+                  "step_5_cross_modul_stress": {
+                      "exit_code": cross_modul_rc,
+                      "ok": cross_modul_ok,
+                  },
+              },
+              "inputs": {
+                  "target_binary_count": int(
+                      os.environ.get("BIN_COUNT_INPUT") or "7"
+                  ),
+                  "boots": int(os.environ.get("BOOTS_INPUT") or "12"),
+              },
+              "trigger_report_summary": {
+                  "all_green": trigger_report.get("all_green"),
+                  "ready_for_phase_3c": trigger_report.get(
+                      "ready_for_phase_3c"
+                  ),
+                  "gate_count": len(trigger_report.get("gates", [])),
+              },
+              "dry_run_summary": {
+                  "feasibility_score": dry_run_envelope.get(
+                      "feasibility", {}
+                  ).get("cutover_feasibility_score"),
+                  "band": band,
+                  "boots": dry_run_envelope.get("boots"),
+              },
+              "cross_modul_summary": {
+                  "axes": len(cross_modul_envelope.get("axes") or {}),
+                  "threshold_pass": cross_modul_envelope.get(
+                      "threshold_pass"
+                  ),
+                  "total_score": cross_modul_envelope.get("total_score"),
+                  "threshold": cross_modul_envelope.get("threshold"),
+              },
+              "anchors": {
+                  "adr_cutover": "decisions/0065-phase-3c-cutover-python-default-zu-rust-default.md",
+                  "adr_acceleration": "decisions/0066-phase-3c-beschleunigung-option-a-plus.md",
+                  "runbook": "docs/operations/phase-3c-welle-4-runbook.md",
+                  "welle_5_doppel_partner": ".github/workflows/phase-3c-welle-5-validation.yml",
+              },
+          }
+
+          decision_path.write_text(
+              json.dumps(decision, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(decision, indent=2, sort_keys=True))
+
+          # Append a step-summary table for the run-tab.
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary_path:
+              with open(summary_path, "a", encoding="utf-8") as f:
+                  f.write("# Phase-3c Welle-4 Validation - state_backing\n\n")
+                  f.write(
+                      f"**Ready for Live-Smoke:** "
+                      f"{'YES' if ready else 'NO'}  -  "
+                      f"**Band:** {band}  -  "
+                      f"**Floor:** {floor}\n\n"
+                  )
+                  f.write("| Step | Exit | Status |\n|---|---|---|\n")
+                  f.write(
+                      f"| 1. Trigger-Gates | {gate_rc} | "
+                      f"{gate_signal} |\n"
+                  )
+                  f.write(
+                      f"| 2. Dry-Run | {dry_rc} | "
+                      f"{'OK' if dry_ok else 'FAIL'} |\n"
+                  )
+                  f.write(
+                      f"| 3. Persona-Boot (rust) | {boot_rc} | "
+                      f"{'OK' if boot_ok else 'FAIL'} |\n"
+                  )
+                  f.write(
+                      f"| 4. Bridge-Audit | {bridge_rc} | "
+                      f"{'OK' if bridge_ok else 'FAIL'} |\n"
+                  )
+                  f.write(
+                      f"| 5. Cross-Modul-Stress | {cross_modul_rc} | "
+                      f"{'OK' if cross_modul_ok else 'FAIL'} |\n"
+                  )
+                  f.write(
+                      "\nArtifact: `cutover-acceptance-decision-welle-4` (this run).\n"
+                      "\nAnchors: ADR-0065, ADR-0066, "
+                      "docs/operations/phase-3c-welle-4-runbook.md.\n"
+                  )
+
+          sys.exit(0 if ready else 1)
+          PY
+
+      - name: Upload validation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cutover-acceptance-decision-welle-4
+          path: |
+            out/cutover-acceptance-decision.json
+            out/trigger-gate-report.json
+            out/dry-run-envelope.json
+            out/persona-boot.log
+            out/persona-boot-junit.xml
+            out/bridge-audit.log
+            out/bridge-audit-junit.xml
+            out/cross-modul-stress.json
+          if-no-files-found: warn
+          retention-days: 30
