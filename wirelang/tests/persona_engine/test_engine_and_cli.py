@@ -151,19 +151,21 @@ def test_engine_despawn_clean_returns_uninstantiated(tmp_path):
 
 
 @requires_v907_compute_deps
-def test_engine_boot_records_six_backend_decisions(tmp_path):
-    """Tag-22 wire-in: boot() resolves SIX BackendDecisions in order
+def test_engine_boot_records_seven_backend_decisions(tmp_path):
+    """Tag-23 wire-in: boot() resolves SEVEN BackendDecisions in order
     (recovery + state_backing + fsm + v907_verify + bridge_diff +
-    subscribe_loop). Verifies the per-boot Doppelbetrieb-anchor count
-    grew from 5 (Tag-20) to 6 (Tag-22). When the anchor-emitter switch
-    (Tag-21 deferred) lands the count rises to 7.
+    subscribe_loop + anchor_emitter). Verifies the per-boot
+    Doppelbetrieb-anchor count grew from 6 (Tag-22) to 7 (Tag-23) with
+    the anchor-emitter wire-in — the **seventh and final** Phase-3b
+    production-default-switch component. The Phase-3b surface is closed
+    with this wire-in; subsequent work targets Phase-3c cutover.
 
     Each decision is the python-default with no fallback (env-clean
     test environment), and all carry resolution_latency_us >= 0.
     """
     engine = _engine_with_axis_a(tmp_path)
     engine.boot()
-    # Six BackendDecision attributes populated.
+    # Seven BackendDecision attributes populated.
     assert engine._recovery_backend_decision.domain == "recovery"
     assert engine._recovery_backend_decision.chosen_backend == "python"
     assert engine._recovery_backend_decision.resolution_latency_us >= 0
@@ -189,9 +191,18 @@ def test_engine_boot_records_six_backend_decisions(tmp_path):
     )
     assert engine._subscribe_loop_backend_decision.bin_path is None
 
+    assert engine._anchor_emitter_backend_decision.domain == "anchor_emitter"
+    assert (
+        engine._anchor_emitter_backend_decision.chosen_backend == "python"
+    )
+    assert (
+        engine._anchor_emitter_backend_decision.resolution_latency_us >= 0
+    )
+    assert engine._anchor_emitter_backend_decision.bin_path is None
+
     # The log_sink carries one backend-decision line per domain. Count
-    # those to verify six were emitted (recovery + state_backing + fsm
-    # + v907_verify + bridge_diff + subscribe_loop).
+    # those to verify seven were emitted (recovery + state_backing + fsm
+    # + v907_verify + bridge_diff + subscribe_loop + anchor_emitter).
     log = engine.log_sink.getvalue()
     domains = set()
     for line in log.splitlines():
@@ -208,7 +219,8 @@ def test_engine_boot_records_six_backend_decisions(tmp_path):
         "v907_verify",
         "bridge_diff",
         "subscribe_loop",
-    }, f"expected six BackendDecision records, got {sorted(domains)}"
+        "anchor_emitter",
+    }, f"expected seven BackendDecision records, got {sorted(domains)}"
 
 
 # -------------------- CLI parser --------------------

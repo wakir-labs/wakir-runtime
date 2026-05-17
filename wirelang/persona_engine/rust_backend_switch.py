@@ -1,24 +1,27 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""ENV-gated production-default switch for Rust recovery + state-backing + FSM + V907-verify + bridge-diff + subscribe-loop.
+"""ENV-gated production-default switch for Rust recovery + state-backing + FSM + V907-verify + bridge-diff + subscribe-loop + anchor-emitter.
 
-Tag-17 / Tag-18 / Tag-19 / Tag-20 / Tag-22 Mini-Welle — Phase-3b-Substanz. The
-Rust crates
+Tag-17 / Tag-18 / Tag-19 / Tag-20 / Tag-22 / Tag-23 Mini-Welle —
+Phase-3b-Substanz. The Rust crates
 ``persona-engine-recovery`` (PR #135),
 ``persona-engine-state-backing`` (PR #140),
 ``persona-engine-fsm`` (PR #137),
 ``persona-engine-v907-verify`` (PR #136),
-``persona-engine-bridge-diff`` (PR #131), and
-``persona-engine-subscribe-loop`` (PR #132, ack-record sibling PR #172)
+``persona-engine-bridge-diff`` (PR #131),
+``persona-engine-subscribe-loop`` (PR #132, ack-record sibling PR #172), and
+``persona-engine-anchor-emitter`` (PR #141, Python sibling PR #170)
 are production-ready as schema-byte-parity substrates of their Python
 pendants (:mod:`wirelang.persona_engine.recovery_workflow`,
 :mod:`wirelang.persona_engine.state_backing`,
 :mod:`wirelang.persona_engine.lifecycle_state_machine`,
 :mod:`wirelang.persona_engine.v907_verify`,
-:mod:`wirelang.persona_engine.bridge_audit_diff_engine`, and
-:mod:`wirelang.persona_engine.subscribe_ack`). This module exposes the
-**production-default switch** — operators flip an env-var to opt into
-the Rust subprocess-bridge without disrupting the Python hot-path.
+:mod:`wirelang.persona_engine.bridge_audit_diff_engine`,
+:mod:`wirelang.persona_engine.subscribe_ack`, and
+:mod:`wirelang.persona_engine.anchor_emitter`). This module exposes
+the **production-default switch** — operators flip an env-var to opt
+into the Rust subprocess-bridge without disrupting the Python
+hot-path.
 
 Tag-19 anchor — V-907 is the hash-determinism anchor
 -----------------------------------------------------
@@ -63,6 +66,29 @@ gate across **all five cross-lang ack-record fixtures** (see
 ``tests/fixtures/subscribe-loop-cross-lang/fixtures.json``) on top of
 the same production-default-switch posture as
 Tag-17/Tag-18/Tag-19/Tag-20.
+
+Tag-23 anchor — Anchor-Emitter is the WAT-spool envelope substrate
+-------------------------------------------------------------------
+
+The anchor-emitter builds the outer WAT-anchor-envelope wire-shape
+that goes onto the WAT spool and gets OTS-anchored downstream. Every
+emitted envelope carries five JCS-canonical fields (``event_id``,
+``payload_sha256``, ``persona_id``, ``schema``, ``timestamp_utc``)
+that the Phase-3a 3-way-triangle (Doppelbetrieb) diffs byte-for-byte
+before either implementation reaches the OTS calendar. Schema is
+``wakir.wat.anchor-envelope/1``; the hash prefix is ``sha256:`` and
+the bare hex tail is 64 lowercase characters. The Python authority is
+:mod:`wirelang.persona_engine.anchor_emitter` (PR #170, sibling-module
+pattern). The Rust pendant is the ``persona-engine-anchor-emitter``
+crate (PR #141, envelope substrate in ``anchor_envelope.rs``). The
+Tag-23 wire-up adds a hard byte-identity gate across **all five
+cross-lang anchor-envelope fixtures** (see
+``tests/fixtures/anchor-emitter-cross-lang/fixtures.json``) on top of
+the same production-default-switch posture as
+Tag-17/Tag-18/Tag-19/Tag-20/Tag-22. This is the **seventh and final**
+Phase-3b production-default-switch component; the per-boot
+:class:`BackendDecision` record count rises from six (Tag-22) to
+seven with the anchor-emitter wire-in.
 
 Posture
 -------
@@ -147,6 +173,19 @@ log warning when the binary is not callable.
   Falls back to ``"python"`` with a structured-log warning when
   the binary is not callable.
 
+``WAKIR_ANCHOR_EMITTER_BACKEND``:
+
+* ``"python"`` (default) — Python
+  :mod:`wirelang.persona_engine.anchor_emitter` (PR #170,
+  WAT-anchor-envelope sibling of the Rust crate).
+* ``"rust"`` — Rust-CLI subprocess-bridge against the
+  ``persona-engine-anchor-emitter`` crate (PR #141,
+  byte-identical envelope JCS bytes AND byte-identical SHA-256
+  hex output (both envelope-hash and payload-hash) verified
+  against all five cross-lang anchor-envelope fixtures). Falls
+  back to ``"python"`` with a structured-log warning when the
+  binary is not callable.
+
 ``WAKIR_RUST_RECOVERY_BIN``:
 
 * Absolute path to the Rust recovery binary. Default
@@ -176,6 +215,11 @@ log warning when the binary is not callable.
 
 * Absolute path to the Rust subscribe-loop binary. Default
   ``/opt/wakir/bin/wakir-persona-engine-subscribe-loop``.
+
+``WAKIR_RUST_ANCHOR_EMITTER_BIN``:
+
+* Absolute path to the Rust anchor-emitter binary. Default
+  ``/opt/wakir/bin/wakir-persona-engine-anchor-emitter``.
 
 ``WAKIR_RUST_BACKEND_TIMEOUT_S``:
 
@@ -243,6 +287,17 @@ from .subscribe_ack import (
     build_subscribe_ack_record,
     serialize_subscribe_ack,
 )
+from .anchor_emitter import (
+    ENVELOPE_SCHEMA as ANCHOR_ENVELOPE_SCHEMA,
+    HASH_PREFIX as ANCHOR_HASH_PREFIX,
+    SHA256_HEX_LEN as ANCHOR_SHA256_HEX_LEN,
+    AnchorEmitterInput,
+    AnchorEnvelope,
+    build_anchor_envelope,
+    hash_anchor,
+    serialize_anchor,
+    sha256_hex as anchor_sha256_hex,
+)
 
 
 log = logging.getLogger(__name__)
@@ -259,12 +314,14 @@ FSM_BACKEND_ENV = "WAKIR_FSM_BACKEND"
 V907_VERIFY_BACKEND_ENV = "WAKIR_V907_VERIFY_BACKEND"
 BRIDGE_DIFF_BACKEND_ENV = "WAKIR_BRIDGE_DIFF_BACKEND"
 SUBSCRIBE_LOOP_BACKEND_ENV = "WAKIR_SUBSCRIBE_LOOP_BACKEND"
+ANCHOR_EMITTER_BACKEND_ENV = "WAKIR_ANCHOR_EMITTER_BACKEND"
 RUST_RECOVERY_BIN_ENV = "WAKIR_RUST_RECOVERY_BIN"
 RUST_STATE_BACKING_BIN_ENV = "WAKIR_RUST_STATE_BACKING_BIN"
 RUST_FSM_BIN_ENV = "WAKIR_RUST_FSM_BIN"
 RUST_V907_VERIFY_BIN_ENV = "WAKIR_RUST_V907_VERIFY_BIN"
 RUST_BRIDGE_DIFF_BIN_ENV = "WAKIR_RUST_BRIDGE_DIFF_BIN"
 RUST_SUBSCRIBE_LOOP_BIN_ENV = "WAKIR_RUST_SUBSCRIBE_LOOP_BIN"
+RUST_ANCHOR_EMITTER_BIN_ENV = "WAKIR_RUST_ANCHOR_EMITTER_BIN"
 RUST_BACKEND_TIMEOUT_ENV = "WAKIR_RUST_BACKEND_TIMEOUT_S"
 
 DEFAULT_RUST_RECOVERY_BIN = "/opt/wakir/bin/wakir-persona-engine-recovery"
@@ -276,6 +333,9 @@ DEFAULT_RUST_V907_VERIFY_BIN = "/opt/wakir/bin/wakir-persona-engine-v907-verify"
 DEFAULT_RUST_BRIDGE_DIFF_BIN = "/opt/wakir/bin/wakir-persona-engine-bridge-diff"
 DEFAULT_RUST_SUBSCRIBE_LOOP_BIN = (
     "/opt/wakir/bin/wakir-persona-engine-subscribe-loop"
+)
+DEFAULT_RUST_ANCHOR_EMITTER_BIN = (
+    "/opt/wakir/bin/wakir-persona-engine-anchor-emitter"
 )
 DEFAULT_RUST_BACKEND_TIMEOUT_S = 5.0
 
@@ -353,6 +413,23 @@ class SubscribeLoopBackend(str, Enum):
     RUST = "rust"
 
 
+class AnchorEmitterBackend(str, Enum):
+    """Closed enum of valid ``WAKIR_ANCHOR_EMITTER_BACKEND`` values.
+
+    WAT-spool envelope-substrate anchor: the Python authority is
+    :mod:`wirelang.persona_engine.anchor_emitter` (PR #170,
+    WAT-anchor-envelope sibling-module). The Rust pendant is the
+    ``persona-engine-anchor-emitter`` crate (PR #141, byte-identical
+    JCS-canonical envelope bytes AND byte-identical SHA-256 hex
+    output (both envelope-hash and payload-hash) verified against
+    all five cross-lang anchor-envelope fixtures per
+    ``tests/fixtures/anchor-emitter-cross-lang/fixtures.json``).
+    """
+
+    PYTHON = "python"
+    RUST = "rust"
+
+
 VALID_RECOVERY_BACKEND_VALUES = tuple(b.value for b in RecoveryBackend)
 VALID_STATE_BACKING_BACKEND_VALUES = tuple(
     b.value for b in StateBackingBackend
@@ -362,6 +439,9 @@ VALID_V907_VERIFY_BACKEND_VALUES = tuple(b.value for b in V907VerifyBackend)
 VALID_BRIDGE_DIFF_BACKEND_VALUES = tuple(b.value for b in BridgeDiffBackend)
 VALID_SUBSCRIBE_LOOP_BACKEND_VALUES = tuple(
     b.value for b in SubscribeLoopBackend
+)
+VALID_ANCHOR_EMITTER_BACKEND_VALUES = tuple(
+    b.value for b in AnchorEmitterBackend
 )
 
 
@@ -579,6 +659,13 @@ def _resolve_subscribe_loop_bin(
     return explicit if explicit else DEFAULT_RUST_SUBSCRIBE_LOOP_BIN
 
 
+def _resolve_anchor_emitter_bin(
+    env: Optional[Mapping[str, str]] = None,
+) -> str:
+    explicit = _env_get(RUST_ANCHOR_EMITTER_BIN_ENV, env)
+    return explicit if explicit else DEFAULT_RUST_ANCHOR_EMITTER_BIN
+
+
 def _binary_available(bin_path: str) -> tuple[bool, Optional[str]]:
     """Return ``(available, fallback_reason)``.
 
@@ -711,6 +798,25 @@ def _validate_subscribe_loop_backend(
             VALID_SUBSCRIBE_LOOP_BACKEND_VALUES,
         )
     return SubscribeLoopBackend(value)
+
+
+def _validate_anchor_emitter_backend(
+    value: Optional[str],
+) -> AnchorEmitterBackend:
+    """Validate a ``WAKIR_ANCHOR_EMITTER_BACKEND`` value (or ``None``).
+
+    Empty / missing values default to ``AnchorEmitterBackend.PYTHON``.
+    Non-empty unknown values raise :class:`BackendSwitchValidationError`.
+    """
+    if value is None or value == "":
+        return AnchorEmitterBackend.PYTHON
+    if value not in VALID_ANCHOR_EMITTER_BACKEND_VALUES:
+        raise BackendSwitchValidationError(
+            ANCHOR_EMITTER_BACKEND_ENV,
+            value,
+            VALID_ANCHOR_EMITTER_BACKEND_VALUES,
+        )
+    return AnchorEmitterBackend(value)
 
 
 # ---------------------------------------------------------------------------
@@ -1285,6 +1391,129 @@ def resolve_subscribe_loop_backend(
 # the underscore-prefixed alias is *not* re-exported through ``__all__``
 # (it is a private auftrag-pin, not a stable surface).
 _select_subscribe_loop_backend = resolve_subscribe_loop_backend
+
+
+def resolve_anchor_emitter_backend(
+    env: Optional[Mapping[str, str]] = None,
+    *,
+    log_sink: Optional[TextIO] = None,
+    binary_probe: Optional[Callable[[str], tuple[bool, Optional[str]]]] = None,
+) -> tuple[AnchorEmitterBackend, BackendDecision]:
+    """Resolve the anchor-emitter backend per env-var + binary availability.
+
+    Tag-23 Mini-Welle — **seventh and final** Phase-3b production-default
+    switch component (parallel to :func:`resolve_recovery_backend`,
+    :func:`resolve_state_backing_backend`,
+    :func:`resolve_fsm_backend`,
+    :func:`resolve_v907_verify_backend`,
+    :func:`resolve_bridge_diff_backend`, and
+    :func:`resolve_subscribe_loop_backend`). The Python authority is
+    :mod:`wirelang.persona_engine.anchor_emitter` (PR #170,
+    WAT-anchor-envelope sibling-module). The Rust pendant is the
+    ``persona-engine-anchor-emitter`` crate (PR #141, byte-identical
+    JCS-canonical envelope bytes AND byte-identical SHA-256 hex
+    output verified against all five cross-lang anchor-envelope
+    fixtures).
+
+    Returns a ``(chosen_backend, decision)`` tuple. The decision
+    object is also logged via :func:`log_backend_decision`.
+
+    Same posture as :func:`resolve_recovery_backend`: default is
+    Python, ``rust`` requested + binary missing falls back to Python
+    with a structured-log warning. Critical anchor: anchor-emitter is
+    the WAT-spool envelope substrate (per-event envelope-hash +
+    payload-hash) — the per-decision audit-record is essential for
+    the Phase-3b Doppelbetrieb comparison set because any silent
+    drift between Python and Rust envelope bytes would corrupt the
+    entire WAT-spool truth claim before the OTS calendar ever sees
+    it.
+
+    This is the **7th and final** BackendDecision record emitted per
+    boot (Tag-17 recovery + state_backing + Tag-18 fsm + Tag-19
+    v907_verify + Tag-20 bridge_diff + Tag-22 subscribe_loop + Tag-23
+    anchor_emitter). The Phase-3b production-default-switch surface
+    is closed with this wire-in; subsequent work targets Phase-3c
+    cutover (flipping defaults to ``rust`` per-domain).
+
+    Parameters
+    ----------
+    env
+        Env-var mapping; defaults to :data:`os.environ`.
+    log_sink
+        Optional structured-log sink. If provided, the decision is
+        also written as a single JSON line.
+    binary_probe
+        Test-injection seam. Defaults to :func:`_binary_available`.
+
+    Raises
+    ------
+    BackendSwitchValidationError
+        On unknown env-var values.
+    """
+    start = time.perf_counter()
+    raw_value = _env_get(ANCHOR_EMITTER_BACKEND_ENV, env)
+    requested = _validate_anchor_emitter_backend(raw_value)
+
+    if requested is AnchorEmitterBackend.PYTHON:
+        latency_us = int((time.perf_counter() - start) * 1_000_000)
+        decision = BackendDecision(
+            domain="anchor_emitter",
+            requested_backend=requested.value,
+            chosen_backend=AnchorEmitterBackend.PYTHON.value,
+            resolution_latency_us=latency_us,
+            fallback_reason=(
+                "explicit_python" if raw_value == "python" else None
+            ),
+            bin_path=None,
+        )
+        log_backend_decision(decision, log_sink=log_sink)
+        return AnchorEmitterBackend.PYTHON, decision
+
+    # Requested == RUST.
+    bin_path = _resolve_anchor_emitter_bin(env)
+    probe = binary_probe or _binary_available
+    available, fallback_reason = probe(bin_path)
+    if available:
+        latency_us = int((time.perf_counter() - start) * 1_000_000)
+        decision = BackendDecision(
+            domain="anchor_emitter",
+            requested_backend=requested.value,
+            chosen_backend=AnchorEmitterBackend.RUST.value,
+            resolution_latency_us=latency_us,
+            fallback_reason=None,
+            bin_path=bin_path,
+        )
+        log_backend_decision(decision, log_sink=log_sink)
+        return AnchorEmitterBackend.RUST, decision
+
+    # Graceful fallback to Python.
+    latency_us = int((time.perf_counter() - start) * 1_000_000)
+    decision = BackendDecision(
+        domain="anchor_emitter",
+        requested_backend=requested.value,
+        chosen_backend=AnchorEmitterBackend.PYTHON.value,
+        resolution_latency_us=latency_us,
+        fallback_reason=fallback_reason,
+        bin_path=bin_path,
+    )
+    log_backend_decision(decision, log_sink=log_sink)
+    log.warning(
+        "rust_backend_switch anchor_emitter requested=rust but binary "
+        "unavailable (%s @ %s); falling back to python",
+        fallback_reason,
+        bin_path,
+    )
+    return AnchorEmitterBackend.PYTHON, decision
+
+
+# Auftrag-named alias for :func:`resolve_anchor_emitter_backend`. The
+# Tag-23 Mini-Welle auftrag spec uses ``_select_anchor_emitter_backend``
+# as the contract identifier; this alias preserves that name while the
+# public surface stays consistent with the ``resolve_<domain>_backend``
+# family. Both names dispatch to the same call; the underscore-prefixed
+# alias is *not* re-exported through ``__all__`` (it is a private
+# auftrag-pin, not a stable surface).
+_select_anchor_emitter_backend = resolve_anchor_emitter_backend
 
 
 # ---------------------------------------------------------------------------
@@ -3019,6 +3248,402 @@ def build_subscribe_loop(
     )
 
 
+# ---------------------------------------------------------------------------
+# Subprocess-bridge: anchor-emitter envelope-build + hash.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class AnchorEmitterSubprocessResult:
+    """Result envelope for the anchor-emitter subprocess-bridge.
+
+    Carries the canonical envelope JCS bytes, the bare-hex SHA-256
+    of the envelope, the prefixed-form envelope hash, and the
+    bare-hex SHA-256 of the caller-supplied payload bytes. Mirrors
+    the trio of helpers exposed by the Python authority
+    (:func:`wirelang.persona_engine.anchor_emitter.serialize_anchor`,
+    :func:`hash_anchor`, :func:`sha256_hex`) so the bridge consumer
+    obtains the full quadruple in a single subprocess hop.
+
+    The ``envelope`` field is the reconstructed Python dataclass;
+    it is populated from the input arguments so callers can consume
+    the same :class:`AnchorEnvelope` shape on either backend.
+    """
+
+    envelope: AnchorEnvelope
+    envelope_jcs_bytes: bytes
+    envelope_sha256_hex: str
+    envelope_hash_prefixed: str
+    payload_sha256_hex: str
+
+
+class RustSubprocessAnchorEmitter:
+    """Subprocess-bridge persona-engine anchor-emitter envelope substrate.
+
+    Delegates ``serialize_anchor`` / ``hash_anchor`` to a Rust-CLI
+    subprocess against the ``persona-engine-anchor-emitter`` crate
+    (PR #141). JSON-stdin carries the operation kind + arguments;
+    JSON-stdout carries the response.
+
+    Schema-byte-parity contract (mirror of
+    :mod:`wirelang.persona_engine.anchor_emitter`):
+
+    - Five fields, alphabetically sorted in the JCS-canonical form:
+      ``event_id``, ``payload_sha256``, ``persona_id``, ``schema``,
+      ``timestamp_utc``.
+    - Schema constant: ``"wakir.wat.anchor-envelope/1"``.
+    - Timestamp shape: RFC-3339 second-precision UTC
+      (``YYYY-MM-DDTHH:MM:SSZ``).
+    - JCS-canonical bytes: ``json.dumps(sort_keys=True,
+      separators=(",", ":"), ensure_ascii=False)`` UTF-8-encoded.
+    - SHA-256 hex: lowercase, bare 64-hex; prefixed form adds
+      ``"sha256:"``.
+
+    Wire-format:
+
+    Stdin JSON:
+        ``{"schema": "wakir.persona-engine.anchor-emitter/1",
+        "op": "<op>", "payload": {...}}``
+
+    Operations:
+
+    - ``serialize_anchor`` — input ``{event_id, timestamp_utc,
+      persona_id, payload_jcs_bytes_b64}``; response
+      ``{envelope_jcs_bytes_b64: str, envelope_jcs_bytes_len: int,
+      envelope_sha256_hex: str, envelope_hash_prefixed: str,
+      payload_sha256_hex: str}``.
+    - ``hash_anchor`` — same input shape; response is the same
+      envelope (the bridge always returns the full quadruple in a
+      single hop to avoid double subprocess spawns for the common
+      "serialize-and-hash" pattern).
+
+    Construction is cheap; per-call overhead is one subprocess spawn.
+
+    Tag-23 posture
+    --------------
+    This binding is the *opt-in* path:
+    ``WAKIR_ANCHOR_EMITTER_BACKEND=rust`` + available binary. Default
+    and missing-binary fallback stay on the Python authority. The
+    engine wire-in (Tag-23) records the backend decision but keeps
+    the Python authority active during Phase-3b Doppelbetrieb — the
+    bridge is exercised by the tests and the future Phase-3c cutover.
+    Cross-lang parity is gated by the five fixture-pinned vectors per
+    ``tests/fixtures/anchor-emitter-cross-lang/fixtures.json``.
+    """
+
+    def __init__(
+        self,
+        *,
+        bin_path: Optional[str] = None,
+        timeout_s: Optional[float] = None,
+        env: Optional[Mapping[str, str]] = None,
+        subprocess_invoker: Optional[Callable] = None,
+    ) -> None:
+        self.bin_path: str = (
+            bin_path if bin_path is not None
+            else _resolve_anchor_emitter_bin(env)
+        )
+        self.timeout_s: float = (
+            timeout_s if timeout_s is not None else _resolve_timeout_s(env)
+        )
+        self._invoker: Callable = (
+            subprocess_invoker or _invoke_rust_subprocess
+        )
+
+    def _call(self, op: str, payload: dict) -> dict:
+        stdin_doc = {
+            "schema": "wakir.persona-engine.anchor-emitter/1",
+            "op": op,
+            "payload": payload,
+        }
+        stdin_bytes = json.dumps(
+            stdin_doc, sort_keys=True, ensure_ascii=False
+        ).encode("utf-8")
+        rc, stdout, stderr = self._invoker(
+            self.bin_path,
+            ["anchor-emitter", "--json"],
+            stdin_payload=stdin_bytes,
+            timeout_s=self.timeout_s,
+        )
+        if rc != 0:
+            raise RustBackendError(
+                reason="exit_nonzero",
+                bin_path=self.bin_path,
+                returncode=rc,
+                stdout=stdout,
+                stderr=stderr,
+            )
+        try:
+            parsed = json.loads(stdout)
+        except json.JSONDecodeError as exc:
+            raise RustBackendError(
+                reason="bad_json",
+                bin_path=self.bin_path,
+                returncode=rc,
+                stdout=stdout,
+                stderr=stderr,
+            ) from exc
+        if not isinstance(parsed, dict):
+            raise RustBackendError(
+                reason="bad_shape",
+                bin_path=self.bin_path,
+                returncode=rc,
+                stdout=stdout,
+                stderr=stderr,
+            )
+        return parsed
+
+    def serialize_anchor(
+        self,
+        *,
+        event_id: str,
+        timestamp_utc: str,
+        persona_id: str,
+        payload_jcs_bytes: bytes,
+    ) -> AnchorEmitterSubprocessResult:
+        """Build + serialize + hash the anchor envelope via the Rust
+        subprocess.
+
+        Returns the byte-identical result quadruple (envelope JCS
+        bytes, bare-hex envelope SHA-256, prefixed-form envelope
+        hash, bare-hex payload SHA-256) that the Python authority
+        would produce for the same input. The reconstructed
+        :class:`AnchorEnvelope` is included for callers that need
+        the dataclass shape.
+
+        Raises
+        ------
+        EmptyFieldError
+            If any of ``event_id`` / ``persona_id`` / ``timestamp_utc``
+            is empty after whitespace trim. Validated client-side so
+            the bridge never spawns a subprocess for an
+            obviously-malformed call.
+        BadTimestampShapeError
+            If ``timestamp_utc`` does not match the RFC-3339
+            second-precision UTC shape.
+        RustBackendError
+            On subprocess / shape failure.
+        """
+        # Client-side validation via the Python authority's
+        # ``build_anchor_envelope`` so an obviously-malformed call
+        # never spawns a subprocess. Mirrors the posture of the
+        # subscribe-loop bridge.
+        if not isinstance(payload_jcs_bytes, (bytes, bytearray)):
+            raise TypeError(
+                f"payload_jcs_bytes must be bytes; "
+                f"got {type(payload_jcs_bytes).__name__}"
+            )
+        # build_anchor_envelope raises EmptyFieldError /
+        # BadTimestampShapeError on bad input.
+        envelope = build_anchor_envelope(
+            AnchorEmitterInput(
+                event_id=event_id,
+                timestamp_utc=timestamp_utc,
+                persona_id=persona_id,
+                payload_jcs_bytes=bytes(payload_jcs_bytes),
+            )
+        )
+        import base64
+
+        payload_b64 = base64.b64encode(envelope.payload_jcs_bytes).decode(
+            "ascii"
+        )
+        payload = {
+            "event_id": envelope.event_id,
+            "timestamp_utc": envelope.timestamp_utc,
+            "persona_id": envelope.persona_id,
+            "payload_jcs_bytes_b64": payload_b64,
+        }
+        resp = self._call("serialize_anchor", payload)
+        return self._parse_anchor_envelope(resp, envelope)
+
+    def hash_anchor(
+        self,
+        envelope: AnchorEnvelope,
+    ) -> AnchorEmitterSubprocessResult:
+        """Compute the JCS bytes + SHA-256 of a pre-built envelope.
+
+        Convenience for callers that already hold an
+        :class:`AnchorEnvelope` (e.g. constructed via
+        :func:`wirelang.persona_engine.anchor_emitter.build_anchor_envelope`)
+        and want the byte-identical Rust-side hash without
+        re-validating the four fields.
+        """
+        if not isinstance(envelope, AnchorEnvelope):
+            raise TypeError(
+                f"hash_anchor requires AnchorEnvelope; "
+                f"got {type(envelope).__name__}"
+            )
+        import base64
+
+        payload_b64 = base64.b64encode(envelope.payload_jcs_bytes).decode(
+            "ascii"
+        )
+        payload = {
+            "event_id": envelope.event_id,
+            "timestamp_utc": envelope.timestamp_utc,
+            "persona_id": envelope.persona_id,
+            "payload_jcs_bytes_b64": payload_b64,
+        }
+        resp = self._call("hash_anchor", payload)
+        return self._parse_anchor_envelope(resp, envelope)
+
+    def _parse_anchor_envelope(
+        self,
+        resp: dict,
+        envelope: AnchorEnvelope,
+    ) -> AnchorEmitterSubprocessResult:
+        """Validate and parse the Rust response envelope."""
+        import base64
+
+        b64 = resp.get("envelope_jcs_bytes_b64")
+        n_len = resp.get("envelope_jcs_bytes_len")
+        env_hex = resp.get("envelope_sha256_hex")
+        env_prefixed = resp.get("envelope_hash_prefixed")
+        payload_hex = resp.get("payload_sha256_hex")
+        if (
+            not isinstance(b64, str)
+            or not isinstance(n_len, int)
+            or not isinstance(env_hex, str)
+            or not isinstance(env_prefixed, str)
+            or not isinstance(payload_hex, str)
+        ):
+            raise RustBackendError(
+                reason="bad_shape",
+                bin_path=self.bin_path,
+                stdout=json.dumps(resp),
+            )
+        try:
+            jcs_bytes = base64.b64decode(b64.encode("ascii"), validate=True)
+        except (ValueError, Exception) as exc:  # noqa: BLE001
+            raise RustBackendError(
+                reason="bad_shape",
+                bin_path=self.bin_path,
+                stdout=json.dumps(resp),
+            ) from exc
+        if len(jcs_bytes) != n_len:
+            raise RustBackendError(
+                reason="bad_shape",
+                bin_path=self.bin_path,
+                stdout=json.dumps(resp),
+            )
+        if (
+            len(env_hex) != ANCHOR_SHA256_HEX_LEN
+            or len(payload_hex) != ANCHOR_SHA256_HEX_LEN
+            or not env_prefixed.startswith(ANCHOR_HASH_PREFIX)
+            or env_prefixed[len(ANCHOR_HASH_PREFIX):] != env_hex
+        ):
+            raise RustBackendError(
+                reason="bad_shape",
+                bin_path=self.bin_path,
+                stdout=json.dumps(resp),
+            )
+        return AnchorEmitterSubprocessResult(
+            envelope=envelope,
+            envelope_jcs_bytes=jcs_bytes,
+            envelope_sha256_hex=env_hex,
+            envelope_hash_prefixed=env_prefixed,
+            payload_sha256_hex=payload_hex,
+        )
+
+
+class _PythonAnchorEmitterAdapter:
+    """Python-side adapter mirroring :class:`RustSubprocessAnchorEmitter`.
+
+    Delegates to :mod:`wirelang.persona_engine.anchor_emitter` for the
+    actual build / serialize / hash work. Constructed by
+    :func:`build_anchor_emitter` on the Python path so callers see a
+    uniform method surface across both backends during Phase-3b
+    Doppelbetrieb.
+    """
+
+    def serialize_anchor(
+        self,
+        *,
+        event_id: str,
+        timestamp_utc: str,
+        persona_id: str,
+        payload_jcs_bytes: bytes,
+    ) -> AnchorEmitterSubprocessResult:
+        envelope = build_anchor_envelope(
+            AnchorEmitterInput(
+                event_id=event_id,
+                timestamp_utc=timestamp_utc,
+                persona_id=persona_id,
+                payload_jcs_bytes=(
+                    bytes(payload_jcs_bytes)
+                    if isinstance(payload_jcs_bytes, (bytes, bytearray))
+                    else payload_jcs_bytes
+                ),
+            )
+        )
+        jcs_bytes = serialize_anchor(envelope)
+        env_hex = anchor_sha256_hex(jcs_bytes)
+        env_prefixed = hash_anchor(envelope)
+        payload_hex = anchor_sha256_hex(envelope.payload_jcs_bytes)
+        return AnchorEmitterSubprocessResult(
+            envelope=envelope,
+            envelope_jcs_bytes=jcs_bytes,
+            envelope_sha256_hex=env_hex,
+            envelope_hash_prefixed=env_prefixed,
+            payload_sha256_hex=payload_hex,
+        )
+
+    def hash_anchor(
+        self,
+        envelope: AnchorEnvelope,
+    ) -> AnchorEmitterSubprocessResult:
+        jcs_bytes = serialize_anchor(envelope)
+        env_hex = anchor_sha256_hex(jcs_bytes)
+        env_prefixed = hash_anchor(envelope)
+        payload_hex = anchor_sha256_hex(envelope.payload_jcs_bytes)
+        return AnchorEmitterSubprocessResult(
+            envelope=envelope,
+            envelope_jcs_bytes=jcs_bytes,
+            envelope_sha256_hex=env_hex,
+            envelope_hash_prefixed=env_prefixed,
+            payload_sha256_hex=payload_hex,
+        )
+
+
+def build_anchor_emitter(
+    backend: AnchorEmitterBackend,
+    *,
+    env: Optional[Mapping[str, str]] = None,
+    subprocess_invoker: Optional[Callable] = None,
+):
+    """Build an anchor-emitter envelope surface matching ``backend``.
+
+    For ``AnchorEmitterBackend.PYTHON`` we return a small Python-side
+    adapter exposing the same :meth:`serialize_anchor` /
+    :meth:`hash_anchor` methods as :class:`RustSubprocessAnchorEmitter`
+    so callers cannot tell the backends apart at the API boundary.
+    For ``AnchorEmitterBackend.RUST`` we return a
+    :class:`RustSubprocessAnchorEmitter` subprocess-bridge instance.
+
+    This factory does NOT re-probe binary availability — the caller
+    is expected to have already run
+    :func:`resolve_anchor_emitter_backend` and obtained an
+    :class:`AnchorEmitterBackend` value that reflects the actual
+    chosen backend (Python on fallback). The factory therefore
+    treats Rust-bound input as a hard contract: the caller MUST
+    have verified availability.
+
+    Both surfaces share the public method set
+    (``serialize_anchor``, ``hash_anchor``) so engine /
+    anchor-emitter callers cannot tell the backends apart at the
+    API boundary. Tag-23 keeps the Python authority active during
+    Phase-3b Doppelbetrieb; this factory is the Phase-3c-cutover
+    hook.
+    """
+    if backend is AnchorEmitterBackend.PYTHON:
+        return _PythonAnchorEmitterAdapter()
+    # Rust-bound.
+    return RustSubprocessAnchorEmitter(
+        env=env, subprocess_invoker=subprocess_invoker
+    )
+
+
 __all__ = [
     # Env-var keys.
     "RECOVERY_BACKEND_ENV",
@@ -3027,12 +3652,14 @@ __all__ = [
     "V907_VERIFY_BACKEND_ENV",
     "BRIDGE_DIFF_BACKEND_ENV",
     "SUBSCRIBE_LOOP_BACKEND_ENV",
+    "ANCHOR_EMITTER_BACKEND_ENV",
     "RUST_RECOVERY_BIN_ENV",
     "RUST_STATE_BACKING_BIN_ENV",
     "RUST_FSM_BIN_ENV",
     "RUST_V907_VERIFY_BIN_ENV",
     "RUST_BRIDGE_DIFF_BIN_ENV",
     "RUST_SUBSCRIBE_LOOP_BIN_ENV",
+    "RUST_ANCHOR_EMITTER_BIN_ENV",
     "RUST_BACKEND_TIMEOUT_ENV",
     # Defaults.
     "DEFAULT_RUST_RECOVERY_BIN",
@@ -3041,6 +3668,7 @@ __all__ = [
     "DEFAULT_RUST_V907_VERIFY_BIN",
     "DEFAULT_RUST_BRIDGE_DIFF_BIN",
     "DEFAULT_RUST_SUBSCRIBE_LOOP_BIN",
+    "DEFAULT_RUST_ANCHOR_EMITTER_BIN",
     "DEFAULT_RUST_BACKEND_TIMEOUT_S",
     # Enums + valid-value tuples.
     "RecoveryBackend",
@@ -3049,12 +3677,14 @@ __all__ = [
     "V907VerifyBackend",
     "BridgeDiffBackend",
     "SubscribeLoopBackend",
+    "AnchorEmitterBackend",
     "VALID_RECOVERY_BACKEND_VALUES",
     "VALID_STATE_BACKING_BACKEND_VALUES",
     "VALID_FSM_BACKEND_VALUES",
     "VALID_V907_VERIFY_BACKEND_VALUES",
     "VALID_BRIDGE_DIFF_BACKEND_VALUES",
     "VALID_SUBSCRIBE_LOOP_BACKEND_VALUES",
+    "VALID_ANCHOR_EMITTER_BACKEND_VALUES",
     # Errors.
     "BackendSwitchValidationError",
     "RustBackendError",
@@ -3068,6 +3698,7 @@ __all__ = [
     "resolve_v907_verify_backend",
     "resolve_bridge_diff_backend",
     "resolve_subscribe_loop_backend",
+    "resolve_anchor_emitter_backend",
     # Subprocess bridges.
     "RustSubprocessStateBacking",
     "RustSubprocessRecoveryRunner",
@@ -3075,14 +3706,17 @@ __all__ = [
     "RustSubprocessV907Verify",
     "RustSubprocessBridgeDiff",
     "RustSubprocessSubscribeLoop",
+    "RustSubprocessAnchorEmitter",
     "V907SubprocessResult",
     "BridgeDiffSubprocessFieldDiff",
     "BridgeDiffSubprocessReport",
     "SubscribeLoopSubprocessAckResult",
+    "AnchorEmitterSubprocessResult",
     # Factories.
     "build_state_backing",
     "build_fsm",
     "build_v907_verify",
     "build_bridge_diff",
     "build_subscribe_loop",
+    "build_anchor_emitter",
 ]
