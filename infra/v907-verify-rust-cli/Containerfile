@@ -1,0 +1,154 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# This Containerfile and the image it produces are part of the Wakir
+# persona-engine runtime substrate. Licensed under the Business
+# Source License 1.1; see ../persona-engine/LICENSE-BSL.md (shared
+# substrate licence file for all persona-engine container images).
+# Change Date: 2030-05-15 (parity with the persona-engine image).
+# Change License: Apache License 2.0.
+#
+# wakir-v907-verify — Rust-CLI runtime image for the V-907 engine-
+# side pin-compute + verify path (Tag-26 Mini-Welle, ADR-0065 Welle-1
+# `v907_verify` pre-cutover image).
+#
+# Substrate scope
+# ---------------
+#
+# ADR-0065 (approved 2026-05-17) splits the Python-default → Rust-
+# default cutover into seven weekly waves. **Welle-1 is `v907_verify`**:
+# the lowest-blast-radius read-only verify path, scheduled to flip
+# from Python-backend default to Rust-backend default at the start
+# of the Phase-3c marathon. This image is the substrate the cutover
+# step will pin against in the Quadlet unit and in the
+# `persona-engine` image's `WAKIR_ENGINE_V907_VERIFY_BACKEND=rust`
+# operator-flag pathway.
+#
+# The binary itself (`wakir-v907-verify`) is the Rust pendant of
+# `wirelang.persona_engine.v907_verify` — see
+# `wirelang-rust/crates/persona-engine-v907-verify/src/main.rs` for
+# the subcommand surface. It is a thin CLI shim over the library
+# crate's `compute_v907_pin` / `verify_v907_pin` API and ships with
+# byte-for-byte cross-language pin parity against the Python
+# reference (anchor pin captured 2026-05-16, smoke-tested locally
+# Tag-26).
+#
+# Multi-stage build
+# -----------------
+#
+# Stage 1 (builder, `rust:1.85-slim-bookworm`) compiles the
+# `wakir-v907-verify` binary in `--release` mode. We pin the base
+# image to the workspace's `rust-version = "1.85"` (see
+# `wirelang-rust/Cargo.toml`). The release profile is workspace-
+# configured for `lto = "thin"`, `codegen-units = 1`, `strip =
+# "symbols"` — the resulting binary is small enough to fit on a
+# minimal scratch-derivative runtime layer.
+#
+# Stage 2 (runtime, `gcr.io/distroless/cc-debian12:nonroot`)
+# carries only the binary plus a CA bundle (inherited from
+# distroless-cc). No shell, no package manager, no Python — the
+# attack surface is the Rust binary plus distroless glibc only.
+#
+# Why distroless-cc and not scratch
+# ---------------------------------
+#
+# The release binary links dynamically against glibc (the rust-slim
+# builder uses GNU libc, not musl). A pure `scratch` runtime would
+# require either a musl-toolchain rebuild (additional supply-chain
+# substrate) or static glibc linking (licensing complications under
+# LGPL §4(d)). distroless-cc-debian12 carries glibc + libgcc + libssl
+# under their respective upstream licences and gives us a
+# `nonroot:nonroot` uid 65532 entrypoint that satisfies the
+# Quadlet `User=` contract without a `useradd` step.
+#
+# OCI provenance + Cosign signing
+# -------------------------------
+#
+# Build path: ``.github/workflows/build-rust-cli-v907-verify.yml``
+# (Operator-Hand ``workflow_dispatch`` only; the
+# ``inputs.push='true'`` opt-in pushes to
+# ``ghcr.io/wakir-labs/wakir-v907-verify:<tag>`` and Sigstore-
+# keyless-signs the resulting digest against the GitHub-Actions OIDC
+# identity. Parity with ``build-wakir-persona-engine.yml``).
+#
+# Pin path: the digest emitted by the workflow is resolved into the
+# Quadlet unit at cutover time (Welle-1 step on the ADR-0065
+# Wochen-Plan, Mo Vormittag). The resolver pattern is the same
+# `scripts/image-pin-idempotent-resolver.sh` PINS-array row that the
+# persona-engine image uses.
+#
+# Cross-references
+# ----------------
+#
+# - ADR-0065 §Phase-3c Welle-1 `v907_verify` (approved 2026-05-17).
+# - ADR-0063 §Folgeartefakte Phase-3a Rust-Crate-Bundle Item 3
+#   (the library crate this binary wraps).
+# - ADR-0060 — Cosign-Policy on Pilot-Container-Images (the policy
+#   this image must satisfy at cutover time).
+# - ADR-0035 §C-Drift-Closure — the ADR this cutover closes; this
+#   image is the substrate that makes the closure operational for
+#   the v907_verify module.
+
+# ----------------------------------------------------------------------
+# Stage 1 — Rust release builder
+# ----------------------------------------------------------------------
+#
+# The exact `@sha256:` digest of the rust:1.85-slim-bookworm base
+# layer is materialised by the build workflow's `Resolve rust base-
+# layer digest` step (skopeo + crane cross-check, mirror of the
+# `build-wakir-persona-engine.yml` pattern for `python:3.13-slim`).
+# The placeholder below is replaced in-runner; refusing to build
+# without the substitution prevents accidental floating-tag drift.
+
+FROM docker.io/library/rust:1.85-slim-bookworm@sha256:DIGEST_PENDING_KAI_REVIEW AS builder
+
+WORKDIR /build
+
+# Copy the entire wirelang-rust workspace (multi-crate cargo
+# workspace; the v907-verify binary depends on no path-out-of-
+# workspace crates, so the workspace root is sufficient context).
+COPY wirelang-rust /build/wirelang-rust
+
+WORKDIR /build/wirelang-rust
+
+# Build only the v907-verify binary in release mode. The workspace
+# profile sets lto+strip; the resulting artefact ends up at
+# `target/release/wakir-v907-verify`.
+RUN cargo build --release -p persona-engine-v907-verify --bin wakir-v907-verify
+
+# Belt-and-suspenders strip (the workspace profile already strips,
+# but a second pass shaves a few KiB of debug-info residue that
+# `strip = "symbols"` does not touch).
+RUN apt-get update -qq \
+    && apt-get install -y --no-install-recommends binutils \
+    && strip --strip-unneeded /build/wirelang-rust/target/release/wakir-v907-verify \
+    && apt-get purge -y binutils \
+    && rm -rf /var/lib/apt/lists/*
+
+# ----------------------------------------------------------------------
+# Stage 2 — distroless runtime
+# ----------------------------------------------------------------------
+#
+# The runtime layer carries only the v907-verify binary plus the
+# distroless-cc glibc+ca-bundle inheritance. No shell, no apt, no
+# Python. The `nonroot` tag locks the default uid to 65532.
+
+FROM gcr.io/distroless/cc-debian12:nonroot@sha256:DIGEST_PENDING_KAI_REVIEW
+
+LABEL org.opencontainers.image.title="wakir-v907-verify"
+LABEL org.opencontainers.image.description="Rust-CLI for V-907 engine-side pin-compute + verify. ADR-0065 Welle-1 pre-cutover image (Tag-26 Mini-Welle, 2026-05-17)."
+LABEL org.opencontainers.image.version="0.1.0-pilot"
+LABEL org.opencontainers.image.licenses="BUSL-1.1"
+LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"
+LABEL org.opencontainers.image.url="https://github.com/wakir-labs/wakir-runtime"
+LABEL org.opencontainers.image.documentation="https://github.com/wakir-labs/wakir-runtime/blob/main/docs/operations/v907-verify-image-build.md"
+
+COPY --from=builder /build/wirelang-rust/target/release/wakir-v907-verify /usr/local/bin/wakir-v907-verify
+
+USER nonroot:nonroot
+
+# The CLI exits with documented codes (0=ok, 1=drift/parse-fail,
+# 3=file-not-found, 64=usage-error). The Quadlet healthcheck and
+# the cutover-step resolver consume the exit code, not stdout
+# formatting — see docs/operations/v907-verify-image-build.md.
+ENTRYPOINT ["/usr/local/bin/wakir-v907-verify"]
