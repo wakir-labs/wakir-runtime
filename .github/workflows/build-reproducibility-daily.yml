@@ -1,0 +1,187 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# 15-Binary Build-Reproducibility Audit Daily Workflow (Tag-51, Kai)
+# ------------------------------------------------------------------
+#
+# Purpose
+# -------
+#
+# Tag-45..50 covered the inventory-shape, coverage-matrix,
+# OIDC-drift, SBOM-generation, SBOM-baseline-verification, and
+# SBOM-baseline-refresh axes of the 15-binary substrate. None of
+# them captures *build-fingerprint determinism* -- the property
+# that two independent invocations of the build-graph derivation
+# produce byte-equal output. An accidental dict-ordering bug, a
+# timestamp leak into a hash, or an environment-variable leak
+# into the fingerprint would silently break supply-chain
+# provenance.
+#
+# This workflow runs the Tag-51 build-reproducibility verifier
+# daily at 07:45 UTC (offset by 45min after the Tag-48 SBOM
+# generator at 07:00 UTC, so an operator looking at both at the
+# same time sees distinct, non-overlapping Job-Summary blocks).
+#
+# The verifier derives a deterministic SHA-256 build-fingerprint
+# per binary in two independent passes over Cargo.lock and
+# asserts byte-equality between passes. If any binary differs,
+# the workflow surfaces a Mira-Notify-shaped artefact and the
+# Job-Summary turns RED.
+#
+# Audit-Trail anchor
+# ------------------
+#
+# ADR-0066 §AR-Hand-Gate provenance bundle now includes:
+#
+#   * The Tag-47 Cosign-Keyless-OIDC-Drift-Probe verdict.
+#   * The Tag-48 15-binary SBOM bundle.
+#   * The Tag-49 SBOM-vs-baseline verifier verdict.
+#   * **The Tag-51 build-reproducibility verdict (this gauge).**
+#
+# Sandbox posture
+# ---------------
+#
+# Strict hermetic: stdlib + tomllib only. No podman / cargo / cosign
+# / network egress. The verifier reads ``wirelang-rust/Cargo.lock``
+# deterministically and runs the two passes in-process.
+#
+# Trigger surface
+# ---------------
+#
+#   * ``schedule: cron "45 7 * * *"`` -- daily at 07:45 UTC.
+#   * ``workflow_dispatch`` -- operator-hand manual invocation.
+#   * ``push:`` (path-filtered) -- any change to the verifier
+#     script, test file, or Cargo.lock re-runs the verifier so
+#     substrate-side breakage surfaces on the PR base before
+#     merge.
+#   * ``pull_request:`` (path-filtered) -- same path-filter so PRs
+#     touching these files run the verifier in dry-run before
+#     merge.
+#
+# Not a required status check
+# ---------------------------
+#
+# Per ``feedback_branch_protection_check_names.md`` this workflow
+# tracks a daily provenance signal, not individual PR acceptance.
+# It is NOT listed as a required status check on PRs; it surfaces
+# signal only via Job-Summary + artefact + Mira-Notify event.
+
+name: build-reproducibility-daily
+
+on:
+  schedule:
+    - cron: "45 7 * * *"
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/observability/verify-15-binary-build-reproducibility.py"
+      - "tests/observability/test_verify_15_binary_build_reproducibility.py"
+      - "wirelang-rust/Cargo.lock"
+      - ".github/workflows/build-reproducibility-daily.yml"
+  pull_request:
+    paths:
+      - "scripts/observability/verify-15-binary-build-reproducibility.py"
+      - "tests/observability/test_verify_15_binary_build_reproducibility.py"
+      - "wirelang-rust/Cargo.lock"
+      - ".github/workflows/build-reproducibility-daily.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-reproducibility-daily
+  cancel-in-progress: false
+
+jobs:
+  audit-reproducibility:
+    name: 15-Binary Build-Reproducibility (daily)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Run hermetic verifier tests
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check \
+              'pytest==9.0.3'
+          python3 -m pytest -v \
+              tests/observability/test_verify_15_binary_build_reproducibility.py
+
+      - name: Run build-reproducibility audit
+        id: audit
+        run: |
+          set -euo pipefail
+          mkdir -p out/build-reproducibility
+          set +e
+          python3 \
+              scripts/observability/verify-15-binary-build-reproducibility.py \
+                  --cargo-lock wirelang-rust/Cargo.lock \
+                  --out-json out/build-reproducibility/verdict.json \
+                  --out-textfile out/build-reproducibility/metrics.prom \
+                  --out-markdown out/build-reproducibility/summary.md \
+                  --out-mira-notify out/build-reproducibility/mira-notify.json
+          rc=$?
+          set -e
+          echo "audit_rc=${rc}" >> "${GITHUB_OUTPUT}"
+          # Exit codes:
+          #   0 -- GREEN, all deterministic.
+          #   1 -- input / argument error (treat as workflow failure).
+          #   2 -- RED, one or more binaries non-deterministic.
+          # We propagate rc=1 as a hard failure; rc=2 we let the
+          # next step surface via Job-Summary + Mira-Notify
+          # artefact and then fail the job at the end.
+          if [ "${rc}" -eq 1 ]; then
+            echo "Verifier reported input/argument error." >&2
+            exit 1
+          fi
+
+      - name: Render Job-Summary
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -f out/build-reproducibility/summary.md ]; then
+            cat out/build-reproducibility/summary.md \
+                >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "## 15-Binary Build-Reproducibility -- audit failed before summary." \
+                >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Surface Mira-Notify drift event
+        if: always()
+        run: |
+          set -euo pipefail
+          notify_path="out/build-reproducibility/mira-notify.json"
+          if [ -s "${notify_path}" ]; then
+            echo "## Mira-Notify Drift Event Emitted" \
+                >> "${GITHUB_STEP_SUMMARY}"
+            echo '```json' >> "${GITHUB_STEP_SUMMARY}"
+            cat "${notify_path}" >> "${GITHUB_STEP_SUMMARY}"
+            echo '```' >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Upload build-reproducibility bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-reproducibility-${{ github.run_id }}
+          path: out/build-reproducibility/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Fail job on drift verdict
+        if: steps.audit.outputs.audit_rc == '2'
+        run: |
+          echo "Build-reproducibility audit returned RED (drift detected)." >&2
+          exit 1
