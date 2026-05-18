@@ -23,6 +23,17 @@ hermetic Tag-48 integrity tests (see
 and the cross-substrate parity gate
 (`.github/workflows/cross-substrate-parity-gate.yml`).
 
+> **Spec cross-reference (Tag-50, v0.4.2).** This manifest's §2
+> ENV-flag schema is the authoritative companion to
+> `wirelang/specs/wirelang-spec-v0-4-2.md` §4.1. The two surfaces
+> are kept consistent by the hermetic test suite
+> `tests/specs/test_wirelang_spec_v0_4_2_drift_s4_reconciliation.py`
+> (Tag-50). The `WAKIR_*_BACKEND` selector-ENV naming (no `_PE_`
+> infix) and the ten-record boot fan-out ordering are normative
+> here; v0.4.2 §4.1 documents the same reality and treats this
+> manifest plus the Pin-Pack-0.5.1 YAML as the single source of
+> truth.
+
 > **Scope discipline (ADR-0036 / ADR-0043 / ADR-0065 / ADR-0066)** —
 > this file documents the engine wiring. It does **not** modify
 > persona definitions (Aisha-Domäne), WAT-core logic (Tomás-Domäne),
