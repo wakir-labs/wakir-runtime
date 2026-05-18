@@ -221,12 +221,36 @@ _TAG39_DW67 = _load_companion_test_module(
     "phase_3c_tag39_dw67_for_tag45_pre_mortem_coverage",
 )
 
+# Tag-46 substrate-layer companion (Kai) — A6 closeout. Loaded via
+# the same _load_companion_test_module path but from tests/infra/
+# rather than tests/phase_3c/.
+def _load_infra_test_module(file_name: str, module_alias: str):
+    """Companion-loader helper for tests/infra/ siblings."""
+    import importlib.util
+
+    test_path = _repo_root() / "tests" / "infra" / file_name
+    if not test_path.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location(module_alias, test_path)
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    return module
+
+
+_INFRA_A6 = _load_infra_test_module(
+    "test_cosign_drift_coverage_a6.py",
+    "infra_a6_for_tag45_pre_mortem_coverage",
+)
+
 
 TAG40_NAMES = _module_test_names(_TAG40)
 TAG41_NAMES = _module_test_names(_TAG41)
 TAG43_NAMES = _module_test_names(_TAG43)
 TAG44_NAMES = _module_test_names(_TAG44)
 TAG39_DW67_NAMES = _module_test_names(_TAG39_DW67)
+INFRA_A6_NAMES = _module_test_names(_INFRA_A6) if _INFRA_A6 is not None else frozenset()
 
 
 # ---------------------------------------------------------------------------
@@ -353,8 +377,20 @@ COVERAGE_MATRIX: Tuple[CoverageClassification, ...] = (
     CoverageClassification(
         failure_mode_id="A6",
         klasse="A",
-        coverage_state="PARTIAL",
-        pinning_tests=(),  # CI-layer-only; see §4 follow-up.
+        # Tag-46 substrate-layer closeout (Kai) flipped PARTIAL ->
+        # COVERED via tests/infra/test_cosign_drift_coverage_a6.py
+        # (17 hermetic invariants, see docs/quality-gates/
+        # failure-mode-a6-coverage.md). The Tag-46+ Layer-5 marathon-
+        # level test (Amara) remains a defence-in-depth follow-up.
+        coverage_state="COVERED",
+        pinning_tests=(
+            ("infra", "test_a6_per_binary_cosign_drift_invariant"),
+            ("infra", "test_a6_image_digest_mismatch_recovery_posture"),
+            ("infra", "test_a6_cosign_installer_semver_pin"),
+            ("infra", "test_a6_keyless_oidc_identity_drift_detection"),
+            ("infra", "test_a6_sigstore_trust_root_posture"),
+            ("infra", "test_a6_coverage_classification_covered"),
+        ),
         rationale_keyword="cosign-verification-drift",
     ),
     CoverageClassification(
@@ -532,9 +568,12 @@ def _suite_contains(suite_tag: str, name: str) -> bool:
     """Return True iff the named test exists in the named companion suite.
 
     ``suite_tag`` is one of "tag40", "tag41", "tag43", "tag44",
-    "tag39_dw67", or "smoke". For "smoke", the ``name`` is a filename
-    (e.g. ``test_welle_4_cutover_smoke.py``) and the check is file-
-    presence in ``tests/phase_3c/``.
+    "tag39_dw67", "smoke", or "infra". For "smoke", the ``name`` is a
+    filename (e.g. ``test_welle_4_cutover_smoke.py``) and the check is
+    file-presence in ``tests/phase_3c/``. For "infra" (Tag-46+
+    substrate-layer closers, e.g. A6), the ``name`` is a test-function
+    name and the check is presence in the loaded
+    ``tests/infra/test_cosign_drift_coverage_a6.py`` module.
     """
     if suite_tag == "tag40":
         return name in TAG40_NAMES
@@ -552,6 +591,8 @@ def _suite_contains(suite_tag: str, name: str) -> bool:
     if suite_tag == "smoke":
         path = _repo_root() / "tests" / "phase_3c" / name
         return path.is_file()
+    if suite_tag == "infra":
+        return name in INFRA_A6_NAMES
     return False
 
 
@@ -677,10 +718,19 @@ def test_pm_a5_self_reference_trap_welle_3() -> None:
 
 
 def test_pm_a6_cosign_verification_drift() -> None:
-    """A6 — Cosign-Verification-Drift. PARTIAL (CI-shape only)."""
+    """A6 — Cosign-Verification-Drift. COVERED post-Tag-46 (Kai
+    substrate-layer closeout in tests/infra/test_cosign_drift_
+    coverage_a6.py)."""
     _per_failure_mode_test("A6")
     cls = COVERAGE_BY_ID["A6"]
-    assert cls.coverage_state == "PARTIAL"
+    assert cls.coverage_state == "COVERED"
+    # Tag-46 substrate-closeout: at least the six named substrate-layer
+    # invariants must be present in the infra-side companion suite.
+    assert len(cls.pinning_tests) >= 6, (
+        "A6 post-Tag-46 closeout must name >=6 substrate-layer pinning "
+        "tests (the Kai Tag-46 closeout shipped 17 invariants, anchored "
+        "via 6 named test-functions)."
+    )
 
 
 def test_pm_a7_persona_engine_sprach_drift() -> None:
@@ -854,18 +904,18 @@ def test_pm_d5_ots_calendar_outage_external() -> None:
 def test_pm_summary_totals_match_per_class_classifications() -> None:
     """§3 coverage-summary table totals must match §2 classifications.
 
-    The §3 table claims:
-        Class A: 8 total | 5 COVERED | 3 PARTIAL | 0 GAP-ACCEPTED | 0 GAP-OPEN
+    The §3 table claims (post-Tag-46 substrate-layer A6 closeout):
+        Class A: 8 total | 6 COVERED | 2 PARTIAL | 0 GAP-ACCEPTED | 0 GAP-OPEN
         Class B: 6 total | 2 COVERED | 2 PARTIAL | 2 GAP-ACCEPTED | 0 GAP-OPEN
         Class C: 5 total | 2 COVERED | 0 PARTIAL | 3 GAP-ACCEPTED | 0 GAP-OPEN
         Class D: 5 total | 0 COVERED | 0 PARTIAL | 5 GAP-ACCEPTED | 0 GAP-OPEN
-        Total:  24       | 9         | 5         | 10              | 0
+        Total:  24       | 10        | 4         | 10              | 0
 
     This test recomputes the table from the COVERAGE_MATRIX and asserts
     consistency.
     """
     expected_per_class = {
-        "A": {"total": 8, "COVERED": 5, "PARTIAL": 3, "GAP-ACCEPTED": 0, "GAP-OPEN": 0},
+        "A": {"total": 8, "COVERED": 6, "PARTIAL": 2, "GAP-ACCEPTED": 0, "GAP-OPEN": 0},
         "B": {"total": 6, "COVERED": 2, "PARTIAL": 2, "GAP-ACCEPTED": 2, "GAP-OPEN": 0},
         "C": {"total": 5, "COVERED": 2, "PARTIAL": 0, "GAP-ACCEPTED": 3, "GAP-OPEN": 0},
         "D": {"total": 5, "COVERED": 0, "PARTIAL": 0, "GAP-ACCEPTED": 5, "GAP-OPEN": 0},
@@ -894,8 +944,8 @@ def test_pm_summary_totals_match_per_class_classifications() -> None:
     grand_gap_open = sum(actual_per_class[k]["GAP-OPEN"] for k in actual_per_class)
 
     assert grand_total == 24, f"expected 24 total failure-modes, got {grand_total}"
-    assert grand_covered == 9
-    assert grand_partial == 5
+    assert grand_covered == 10
+    assert grand_partial == 4
     assert grand_gap_accepted == 10
     assert grand_gap_open == 0
 
