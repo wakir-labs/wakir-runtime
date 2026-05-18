@@ -1,0 +1,206 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-3 Marathon Backend-Alerting-Rules (Tag-40 Noa-SRE)
+# --------------------------------------------------------
+#
+# Prometheus AlertManager-compatible alert rules for critical
+# Phase-3 Marathon events during KW-24..27. Companion to
+# dashboards/phase-3c-cross-welle-coordination.json (Tag-40
+# Marathon-Live-Extension).
+#
+# Three critical event families covered:
+#
+#   1. Welle-Rollback  -- any welle transitions to state
+#      rollback_active (state=3) for >= 60s. Page severity.
+#   2. Phase-3-COMPLETE-Marker-False-Positive -- the
+#      five-condition conjunction (panel 156) flips to 1 while
+#      any individual condition (panels 151-155) is still 0.
+#      Indicates conjunction-logic drift in
+#      wakir_phase_3_marathon_health_score recording rules or
+#      stale welle-state samples. Page severity.
+#   3. Cross-Modul-Drift > 0  -- any non-zero drift count
+#      observed for >= 5m during marathon. ADR-0066 Mitigation-1
+#      breach signal for the KW-26 Doppel-Welle. Page severity.
+#
+# Additional ticket-severity alerts surface aggregate health
+# (Health-Score < 75 sustained) and the Welle-3 SOLO violation
+# (parallel detected during KW-25).
+#
+# Anchors:
+#   - ADR-0066 (Phase-3c Beschleunigung).
+#   - Tag-40 auftrag (Noa-SRE, Marathon Live-Coordination).
+#   - dashboards/phase-3c-cross-welle-coordination.json (Tag-40).
+#   - Henrik-Spec Phase-3-Schluss-Akzeptanz 5-Konjunktion.
+#
+# Alert routing follows the Wakir SRE-standard: severity=page
+# alerts target the 24/7 on-call rotation via AlertManager
+# pagerduty receiver; severity=ticket alerts open a JIRA-style
+# operations ticket via webhook. The for-windows are sized to
+# tolerate one Prometheus scrape gap (15s default) without
+# false-positives.
+
+groups:
+  - name: phase-3-marathon-welle-rollback
+    interval: 30s
+    rules:
+      - alert: WakirPhase3MarathonWelleRollback
+        expr: persona_engine_phase_3c_welle_state == 3
+        for: 60s
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+        annotations:
+          summary: "Welle {{ $labels.welle }} entered rollback_active state"
+          description: >-
+            Welle {{ $labels.welle }} has been in rollback_active
+            (state=3) for >= 60s. Per ADR-0066 §Welle-Sequencing
+            this blocks the next Welle from starting and triggers
+            immediate Henrik post-mortem. Investigate the welle's
+            phase_3c-welle-N-validation workflow + last
+            BackendDecision-stream sample.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-rollback"
+          dashboard_url: "https://wakir-labs.example/d/wakir-phase-3c-cross-welle-coordination"
+
+      - alert: WakirPhase3MarathonWelle3SoloViolation
+        expr: wakir_marathon_coordination_marker{topology="welle-3-solo"} == 3
+        for: 60s
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+        annotations:
+          summary: "Welle-3 SOLO topology violated: parallel welle detected during KW-25"
+          description: >-
+            ADR-0066 §Welle-3 requires KW-25 SOLO execution to
+            preserve Henrik full-audit-bandwidth. A parallel welle
+            was detected (marker=3 violated-parallel-detected).
+            Pause the conflicting welle immediately and confirm
+            scheduler-state.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-3-solo-violation"
+
+  - name: phase-3-marathon-complete-marker-integrity
+    interval: 30s
+    rules:
+      - alert: WakirPhase3CompleteMarkerFalsePositive
+        # Composite marker (panel 156) is 1, but at least one of
+        # the five conditions (panels 151-155) is still 0.
+        # Indicates conjunction-evaluation drift; the marker MUST
+        # be a strict AND of all five.
+        expr: |
+          (
+            (
+              (count(persona_engine_phase_3c_welle_state == 4) == 7)
+              and (count(wakir_henrik_audit_signoff == 1) == 21)
+              and (count(persona_engine_phase_3c_welle_state == 3) == 0)
+              and (max_over_time(wakir_cross_modul_drift_count[28d]) == 0)
+              and (wakir_ar_hand_final_signoff_phase_3 == 1)
+            ) == 1
+          )
+          unless
+          (
+            (count(persona_engine_phase_3c_welle_state == 4) == 7)
+            and (count(wakir_henrik_audit_signoff == 1) == 21)
+            and (count(persona_engine_phase_3c_welle_state == 3) == 0)
+            and (max_over_time(wakir_cross_modul_drift_count[28d]) == 0)
+            and (wakir_ar_hand_final_signoff_phase_3 == 1)
+          )
+        for: 1m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+        annotations:
+          summary: "Phase-3-COMPLETE marker reads true but a condition is still 0"
+          description: >-
+            The Phase-3-COMPLETE composite marker (dashboard panel
+            156) reports 1, but at least one of the five
+            Henrik-Spec conjunction conditions (panels 151-155) is
+            still 0. This is a conjunction-logic-drift signal --
+            either a recording rule is stale or a sample is
+            missing. Phase-3-COMPLETE MUST be a strict AND of all
+            five conditions. Hold AR-Hand-Final-Sign-Off until
+            resolved.
+          runbook_url: "https://wakir-labs.example/runbooks/phase-3-complete-marker-drift"
+
+  - name: phase-3-marathon-cross-modul-drift
+    interval: 30s
+    rules:
+      - alert: WakirPhase3CrossModulDriftDetected
+        expr: wakir_cross_modul_drift_count > 0
+        for: 5m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          mitigation: mitigation-1
+        annotations:
+          summary: "Cross-Modul-Drift detected during Phase-3 Marathon"
+          description: >-
+            wakir_cross_modul_drift_count = {{ $value }} for >= 5m.
+            ADR-0066 Mitigation-1 (cross-modul-stress-test gate for
+            KW-26 Doppel-Welle) is breached. Phase-3-COMPLETE Cond-4
+            (drift=0 for marathon duration) is invalidated. Engage
+            Welle-4/Welle-5 owners and Henrik for cross-modul
+            post-mortem.
+          runbook_url: "https://wakir-labs.example/runbooks/cross-modul-drift"
+          dashboard_url: "https://wakir-labs.example/d/wakir-phase-3c-cross-welle-coordination"
+
+      - alert: WakirPhase3CrossModulStressScoreHigh
+        expr: phase_2_acceptance_gate_cross_modul_stress_score > 0.005
+        for: 5m
+        labels:
+          severity: ticket
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+        annotations:
+          summary: "Cross-modul stress-score above 0.5% threshold"
+          description: >-
+            Component {{ $labels.component }} stress-score
+            {{ $value }} above ADR-0066 acceptance threshold for
+            >= 5m. Investigate before next welle cutover.
+
+  - name: phase-3-marathon-aggregate-health
+    interval: 1m
+    rules:
+      - alert: WakirPhase3MarathonHealthScoreLow
+        expr: wakir_phase_3_marathon_health_score < 75
+        for: 15m
+        labels:
+          severity: ticket
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+        annotations:
+          summary: "Phase-3 Marathon Aggregat-Health-Score below 75%"
+          description: >-
+            Marathon health-score = {{ $value }}% sustained < 75
+            for 15m. Inspect the contributing factors (welle_complete,
+            henrik_signoff, rollback, drift, ar_hand) on the
+            Tag-40 dashboard.
+
+      - alert: WakirPhase3MarathonHealthScoreCritical
+        expr: wakir_phase_3_marathon_health_score < 50
+        for: 5m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+        annotations:
+          summary: "Phase-3 Marathon Health-Score CRITICAL below 50%"
+          description: >-
+            Marathon health-score = {{ $value }}% for >= 5m.
+            Likely combination of rollback_active + missing
+            sign-offs. AR-Hand notification required.
