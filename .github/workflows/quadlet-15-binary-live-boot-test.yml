@@ -1,0 +1,217 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tag-52 Quadlet-15-Binary Live-Boot-Test Daily Workflow (Kai)
+# ------------------------------------------------------------
+#
+# Purpose
+# -------
+#
+# Tag-45..Tag-51 covered the STATIC + PROVENANCE axes of the
+# 15-binary substrate (inventory shape, coverage matrix, OIDC drift,
+# SBOM generation/baseline/reproducibility). The RUNTIME-BOOT axis
+# -- the property that each declared binary can actually be loaded
+# as a Quadlet unit, cosign-verified, started, health-checked, and
+# exits cleanly -- was never exercised end-to-end. Tag-52 closes
+# that gap.
+#
+# This workflow runs the Tag-52 sandbox-stub simulator daily at
+# 08:30 UTC (offset by 45min after the Tag-51 build-reproducibility
+# audit at 07:45 UTC, so an operator looking at both at the same
+# time sees distinct, non-overlapping Job-Summary blocks). The
+# simulator exercises 5 phases per binary in-process, deterministic-
+# ally, without touching ``podman`` / ``cosign`` / ``crane`` /
+# ``systemctl``. Live verification is Operator-Hand only per
+# ``feedback_sandbox_host_trennung.md`` + ADR-0051.
+#
+# Audit-Trail anchor
+# ------------------
+#
+# Phase-3 cutover provenance bundle now includes:
+#
+#   * The Tag-47 Cosign-Keyless-OIDC-Drift-Probe verdict.
+#   * The Tag-48 15-binary SBOM bundle.
+#   * The Tag-49 SBOM-vs-baseline verifier verdict.
+#   * The Tag-51 build-reproducibility verdict.
+#   * **The Tag-52 quadlet-live-boot verdict (this gauge).**
+#
+# Sandbox posture
+# ---------------
+#
+# Strict hermetic: stdlib + pyyaml only. No podman / cosign / crane /
+# systemctl / network egress. The script reads files on disk only.
+# The live-mode hook (``--mode=live``) raises NotImplementedError --
+# Operator-Hand follow-up wires it against a Pilot-VM per
+# ``feedback_sandbox_host_trennung.md``.
+#
+# Trigger surface
+# ---------------
+#
+#   * ``schedule: cron "30 8 * * *"`` -- daily at 08:30 UTC.
+#   * ``workflow_dispatch`` -- operator-hand manual invocation.
+#   * ``push:`` (path-filtered) -- any change to the script, test
+#     file, policy YAML, or shared Quadlet installer re-runs the
+#     simulator so substrate-side breakage surfaces on PR base
+#     before merge.
+#   * ``pull_request:`` (path-filtered) -- same path-filter so PRs
+#     touching these files run the simulator in dry-run before
+#     merge.
+#
+# Not a required status check
+# ---------------------------
+#
+# Per ``feedback_branch_protection_check_names.md`` this workflow
+# tracks a daily runtime-boot signal, not individual PR acceptance.
+# It is NOT listed as a required status check on PRs; it surfaces
+# signal only via Job-Summary + artefact + Mira-Notify event.
+
+name: quadlet-15-binary-live-boot-test
+
+on:
+  schedule:
+    - cron: "30 8 * * *"
+  workflow_dispatch:
+    inputs:
+      exit_non_zero_on_drift:
+        description: "Exit non-zero on aggregate non-GREEN (true|false)."
+        required: false
+        default: "true"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/observability/quadlet-15-binary-live-boot-test.py"
+      - "tests/observability/test_quadlet_15_binary_live_boot_test.py"
+      - "policies/cosign-policy-phase-3b.yaml"
+      - "quadlet/wakir-rust-cli.container"
+      - ".github/workflows/quadlet-15-binary-live-boot-test.yml"
+  pull_request:
+    paths:
+      - "scripts/observability/quadlet-15-binary-live-boot-test.py"
+      - "tests/observability/test_quadlet_15_binary_live_boot_test.py"
+      - "policies/cosign-policy-phase-3b.yaml"
+      - "quadlet/wakir-rust-cli.container"
+      - ".github/workflows/quadlet-15-binary-live-boot-test.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quadlet-15-binary-live-boot-test
+  cancel-in-progress: false
+
+jobs:
+  quadlet-live-boot:
+    name: Quadlet-15-Binary Live-Boot-Test (sandbox-stub)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install pyyaml + pytest
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check \
+              'pyyaml==6.0.2' 'pytest==9.0.3'
+          python3 -c 'import yaml; print("pyyaml", yaml.__version__)'
+
+      - name: Run hermetic simulator tests
+        run: |
+          set -euo pipefail
+          python3 -m pytest -v \
+              tests/observability/test_quadlet_15_binary_live_boot_test.py
+
+      - name: Resolve dispatch inputs
+        id: inputs
+        env:
+          INPUT_EXIT_NONZERO: ${{ github.event.inputs.exit_non_zero_on_drift }}
+        run: |
+          set -euo pipefail
+          exit_flag=""
+          if [ "${INPUT_EXIT_NONZERO:-true}" = "true" ]; then
+            exit_flag="--exit-non-zero-on-drift"
+          fi
+          echo "exit_flag=${exit_flag}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run quadlet-live-boot simulator (sandbox-stub)
+        id: simulator
+        env:
+          EXIT_FLAG: ${{ steps.inputs.outputs.exit_flag }}
+        run: |
+          set -euo pipefail
+          mkdir -p out/quadlet-live-boot
+          set +e
+          # shellcheck disable=SC2086
+          python3 \
+              scripts/observability/quadlet-15-binary-live-boot-test.py \
+                  --policy policies/cosign-policy-phase-3b.yaml \
+                  --repo-root . \
+                  --mode sandbox-stub \
+                  --out-json out/quadlet-live-boot/envelope.json \
+                  --out-textfile out/quadlet-live-boot/metrics.prom \
+                  --out-markdown out/quadlet-live-boot/summary.md \
+                  --out-mira-notify out/quadlet-live-boot/mira-notify.json \
+                  ${EXIT_FLAG}
+          rc=$?
+          set -e
+          echo "simulator_rc=${rc}" >> "${GITHUB_OUTPUT}"
+          # Exit codes:
+          #   0 -- GREEN, all 15 binaries pass all 5 phases.
+          #   1 -- input / argument error (hard failure).
+          #   2 -- RED, one or more binaries non-GREEN.
+          if [ "${rc}" -eq 1 ]; then
+            echo "Simulator reported input/argument error." >&2
+            exit 1
+          fi
+          # Extract aggregate verdict for downstream steps.
+          verdict=$(python3 -c \
+              'import json; print(json.load(open("out/quadlet-live-boot/envelope.json"))["aggregate_verdict"])')
+          echo "aggregate_verdict=${verdict}" >> "${GITHUB_OUTPUT}"
+
+      - name: Render Job-Summary
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -f out/quadlet-live-boot/summary.md ]; then
+            cat out/quadlet-live-boot/summary.md \
+                >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "## Quadlet-15-Binary Live-Boot-Test -- simulator failed before summary." \
+                >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Surface Mira-Notify drift event
+        if: always()
+        run: |
+          set -euo pipefail
+          notify_path="out/quadlet-live-boot/mira-notify.json"
+          if [ -s "${notify_path}" ]; then
+            echo "## Mira-Notify Drift Event Emitted" \
+                >> "${GITHUB_STEP_SUMMARY}"
+            echo '```json' >> "${GITHUB_STEP_SUMMARY}"
+            cat "${notify_path}" >> "${GITHUB_STEP_SUMMARY}"
+            echo '```' >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Upload quadlet-live-boot bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quadlet-live-boot-${{ github.run_id }}
+          path: out/quadlet-live-boot/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Fail job on drift verdict
+        if: steps.simulator.outputs.simulator_rc == '2'
+        run: |
+          echo "Quadlet-Live-Boot simulator returned RED (drift detected)." >&2
+          exit 1
