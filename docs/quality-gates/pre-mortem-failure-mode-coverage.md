@@ -206,16 +206,51 @@ classified into one of four coverage-states:
 
 #### B1 — AR-Hand-Stop-Marker-Missing-Trigger
 
-- **Coverage state.** PARTIAL.
+- **Coverage state.** COVERED (closed Tag-46 by Tomás, PR follow-up
+  to Amara Tag-45 PARTIAL classification).
 - **Pinning tests.**
   - `test_cutover_cheat_sheet_structure.py` — §I AR-Hand-Stop-Marker
     section structure pinned (>=5 triggers).
-- **Follow-up (Tag-46+).** No Marathon-level test asserts the
-  trigger-firing invariant ("given a drift event >= threshold, an
-  `activity-log.md` entry MUST be appended within T minutes"). Add
-  `test_ar_hand_stop_marker_trigger_invariant.py`. Note: the
-  substantive marker-emission is operator-hand (Mira-Hand or AR-
-  Hand), not automation; the QA test pins the structural invariant.
+  - `tests/ci/test_ar_hand_stop_marker_trigger_b1.py` (Tag-46) —
+    31 hermetic tests across five test-classes:
+    - `TestStopMarkerFileDetection` (8 tests) — filename regex
+      `^ar-hand-stop-welle-([1-7])-(\d{8})\.json$`, payload schema
+      `{welle, trigger, ts, operator}`, sign-off filename regex,
+      cheat-sheet §I 10-trigger-token consistency.
+    - `TestTriggerCascadeOnRunningCutoverWorkflows` (5 tests) —
+      stop-marker halts the active welle; blocks downstream welle
+      starts via `_OrchestratorViolation`; cascade-from-earliest;
+      forward-only (later-welle stop does not invalidate earlier
+      sign-offs).
+    - `TestStopMarkerMidCutoverRaceCondition` (4 tests) — mid-
+      cutover marker halts before sign-off lands; halt-event
+      appended to audit-trail; marker-wins-over-simultaneous-
+      sign-off; post-hoc marker does not retroactively corrupt
+      historical sign-offs.
+    - `TestRollbackSequenceAfterARStop` (5 tests) — four-tuple
+      verdict vocabulary `{green, green-with-yellow-notes,
+      rollback, ar-hand-stop}` pinned; marker -> `ar-hand-stop`
+      verdict; lift-of-stop sign-off file restores routine
+      vocabulary; unknown verdict rejected.
+    - `TestMarkerPersistenceAndAuditTrail` (6 tests) — append-only
+      contract; overwrite rejected; canonical `state/` landing
+      path; chronologically-ordered audit-trail; notify-catalog
+      `wakir_ar_hand_stop_marker_total` metric-name contract;
+      coverage-matrix B1 row presence.
+    - `TestCrossClassConsistency` (3 tests) — every cheat-sheet
+      §I trigger token round-trips through `_build_marker`;
+      welle-3 runbook §6/§8 exit-3 wording pinned; canonical-JSON
+      serialisation round-trip.
+- **Notes.** The substantive marker-emission is still operator-hand
+  (Mira-Hand or AR-Hand), not automation; the Tag-46 test surface
+  pins the structural invariants the cutover-orchestrator MUST
+  honour when a marker is detected: filename shape, payload schema,
+  cascade semantics, mid-cutover race ordering, audit-trail
+  append-only contract, and the metric-name contract for the
+  Prometheus B1 alert. The substantive notify-side B1 alert
+  (`WakirPhase3FailureModeB1ARHandStopMissing`) is pinned in
+  `tests/ci/test_phase_3_marathon_failure_mode_alerts.py` (Tag-45,
+  Noa).
 
 #### B2 — Sign-Off-Sequenz-Bruch (Welle-N+1 startet vor Welle-N-Sign-Off)
 
@@ -393,10 +428,25 @@ Tag-45 contract scope (§0).
 | Class | Total | COVERED | PARTIAL | GAP-ACCEPTED | GAP-OPEN |
 |---|---|---|---|---|---|
 | A (Technisch) | 8 | 7 (A1, A3, A4, A5, A6, A7, A8) | 1 (A2) | 0 | 0 |
-| B (Operativ) | 6 | 2 (B2, B4) | 2 (B1, B3) | 2 (B5, B6) | 0 |
+| B (Operativ) | 6 | 3 (B1, B2, B4) | 1 (B3) | 2 (B5, B6) | 0 |
 | C (Prozedural) | 5 | 2 (C1, C2) | 0 | 3 (C3, C4, C5) | 0 |
 | D (Externe) | 5 | 0 | 0 | 5 (D1-D5) | 0 |
-| **Total** | **24*** | **11** | **3** | **10** | **0** |
+| **Total** | **24*** | **12** | **2** | **10** | **0** |
+
+**Tag-46 cumulative update.** Three PARTIAL -> COVERED transitions
+landed Tag-46 in parallel:
+- **A6 Cosign-Verification-Drift** (substrate-layer, Kai PR #298):
+  `tests/infra/test_cosign_drift_coverage_a6.py` (17 hermetic
+  invariants — per-binary drift-anchor slots + recovery posture +
+  installer / OIDC / trust-root discipline).
+- **A8 NATS-JetStream-Persistence-Loss** (persona-engine-layer,
+  Selin PR #300): `tests/pengine/test_a8_nats_jetstream_loss_
+  recovery.py` recovery-posture invariants.
+- **B1 AR-Hand-Stop-Marker-Trigger** (marathon-layer, Tomás
+  PR #299): `tests/ci/test_ar_hand_stop_marker_trigger_b1.py`
+  (31 hermetic tests across five test-classes).
+
+Summary totals (post-cumulative): COVERED 9 -> 12, PARTIAL 5 -> 2.
 
 \* Henrik's Pre-Mortem-Skizze §6 names "23 hypothetische Failure-
 Modes" but the table-row count is A8 + B6 + C5 + D5 = 24. The
@@ -406,11 +456,12 @@ table-row count (24) as the canonical denominator.
 
 **Coverage interpretation.**
 
-- **11 of 24 failure-modes (45.8%) are directly COVERED** by at
-  least one test in Layer-1..4 of the Phase-3-Acceptance pyramid
-  (Tag-46 closeouts: A6 substrate-layer PARTIAL -> COVERED + A8
-  NATS-JetStream-Loss-Recovery PARTIAL -> COVERED).
-- **3 of 24 failure-modes (12.5%) are PARTIAL** with an explicit
+- **12 of 24 failure-modes (50.0%) are directly COVERED** by at
+  least one test in Layer-1..5 of the Phase-3-Acceptance pyramid
+  (Tag-46 cumulative: A6 substrate-layer closeout, A8 NATS-
+  JetStream-Loss-Recovery, and B1 AR-Hand-Stop-Marker-Trigger
+  all flipped PARTIAL -> COVERED).
+- **2 of 24 failure-modes (8.3%) are PARTIAL** with an explicit
   Tag-46+ follow-up item named for each.
 - **10 of 24 failure-modes (41.7%) are GAP-ACCEPTED** as structurally
   out-of-scope for the QA test surface (5 external D-class, 4
@@ -452,10 +503,10 @@ JetStream-loss test file in the persona-engine package tree.
 | # | Failure-Mode | Follow-up test | Layer | Owner | Status |
 |---|---|---|---|---|---|
 | 1 | A2 FSM-Phantom-Transitions | `test_fsm_transition_legality_marathon.py` | 5 (Marathon) | Amara | pending |
-| 2a | A6 Cosign-Verification-Drift (substrate) | `tests/infra/test_cosign_drift_coverage_a6.py` | 3 (substrate) | Kai (Zone-C cross-review) | **DONE (Tag-46; flipped A6 -> COVERED)** |
+| 2a | A6 Cosign-Verification-Drift (substrate) | `tests/infra/test_cosign_drift_coverage_a6.py` | 3 (substrate) | Kai (Zone-C cross-review) | **DONE (Tag-46, PR #298; flipped A6 -> COVERED)** |
 | 2b | A6 Cosign-Verification-Drift (marathon defence-in-depth) | `test_cosign_chain_marathon_image_hash_stability.py` | 5 (Marathon) | Amara, with Kai cross-review | pending (additional defence) |
-| 3 | A8 NATS-JetStream-Loss-Recovery | `wirelang/persona_engine/tests/test_nats_jetstream_loss_recovery_a8.py` | 5 (Marathon) | Selin (Tag-46), with Reza-substrate cross-review on KV-failover stub | **DONE (Tag-46, 2026-05-18; flipped A8 -> COVERED)** |
-| 4 | B1 AR-Hand-Stop-Marker-Trigger | `test_ar_hand_stop_marker_trigger_invariant.py` | 5 (Marathon) | Amara | pending |
+| 3 | A8 NATS-JetStream-Loss-Recovery | `wirelang/persona_engine/tests/test_nats_jetstream_loss_recovery_a8.py` | 5 (Marathon) | Selin (Tag-46), with Reza-substrate cross-review on KV-failover stub | **DONE (Tag-46, PR #300; flipped A8 -> COVERED)** |
+| 4 | B1 AR-Hand-Stop-Marker-Trigger | `tests/ci/test_ar_hand_stop_marker_trigger_b1.py` | 5 (Marathon) | Tomás | **DONE (Tag-46, PR #299; flipped B1 -> COVERED)** |
 | 5 | B3 Welle-3-IIA-1130-Pre-Auditor-Designation | `test_welle_3_pre_auditor_designation_precondition.py` | 5 (Marathon) | Amara, with Henrik cross-review (Zone N) | pending |
 
 **Sequencing observation (Vermutungs-Kennzeichnung P2).** Item 3
@@ -565,6 +616,18 @@ explicit and detect regressive removal of the anchors.
   coverage-doc update.
 
 
+**Tag-46 delivery (Tomás).** Item 4 (B1 AR-Hand-Stop-Marker-Trigger)
+delivered Tag-46 in parallel with Marathon-Start preparation. Test
+file landed at `tests/ci/test_ar_hand_stop_marker_trigger_b1.py`
+(not the originally-named `tests/phase_3c/test_ar_hand_stop_marker_
+trigger_invariant.py`); the `tests/ci/` location aligns with the
+sibling Tag-45 alert-test file
+`tests/ci/test_phase_3_marathon_failure_mode_alerts.py` which pins
+the wired Prometheus alert. The two files together (Tag-45 alert-
+shape + Tag-46 marker-shape/cascade/race/audit-trail) form the
+defence-in-depth pair for failure-mode B1.
+
+## 5. Zone-N alignment (Henrik / Internal Audit)
 
 The Tag-45 coverage-audit document is the **test-side companion** to
 Henrik's Tag-44 Pre-Mortem-Skizze. Zone-N boundary observations:

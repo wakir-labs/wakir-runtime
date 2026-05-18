@@ -147,11 +147,17 @@ def _repo_root() -> Path:
     return here.parent.parent.parent
 
 
-def _load_companion_test_module(filename: str, module_name: str) -> Any:
-    """Load a sibling phase_3c test module so we can reuse its constants
-    and introspect its test-function / test-class names.
+def _load_companion_test_module(
+    filename: str,
+    module_name: str,
+    subdir: str = "phase_3c",
+) -> Any:
+    """Load a sibling test module (default ``tests/phase_3c/``, override
+    via ``subdir`` for e.g. ``tests/ci/`` Tag-46 follow-up modules) so
+    we can reuse its constants and introspect its test-function /
+    test-class names.
     """
-    test_path = _repo_root() / "tests" / "phase_3c" / filename
+    test_path = _repo_root() / "tests" / subdir / filename
     if not test_path.is_file():
         pytest.fail(f"companion test module not found at {test_path}")
     spec = importlib.util.spec_from_file_location(module_name, str(test_path))
@@ -258,6 +264,14 @@ _INFRA_A6 = _load_infra_test_module(
     "infra_a6_for_tag45_pre_mortem_coverage",
 )
 
+# Tag-46 Tomás follow-up to Tag-45 PARTIAL B1: lives in tests/ci/
+# (alongside the Tag-45 Noa alert-shape test) not tests/phase_3c/.
+_TAG46_B1 = _load_companion_test_module(
+    "test_ar_hand_stop_marker_trigger_b1.py",
+    "ci_tag46_b1_for_tag45_pre_mortem_coverage",
+    subdir="ci",
+)
+
 
 def _load_pengine_companion_module(
     relative_path: str, module_name: str,
@@ -293,6 +307,7 @@ TAG44_NAMES = _module_test_names(_TAG44)
 TAG39_DW67_NAMES = _module_test_names(_TAG39_DW67)
 INFRA_A6_NAMES = _module_test_names(_INFRA_A6) if _INFRA_A6 is not None else frozenset()
 TAG46_PENGINE_A8_NAMES = _module_test_names(_TAG46_PENGINE_A8)
+TAG46_B1_NAMES = _module_test_names(_TAG46_B1)
 
 
 # ---------------------------------------------------------------------------
@@ -472,8 +487,19 @@ COVERAGE_MATRIX: Tuple[CoverageClassification, ...] = (
     CoverageClassification(
         failure_mode_id="B1",
         klasse="B",
-        coverage_state="PARTIAL",
-        pinning_tests=(),  # cheat-sheet-structure only; substantive trigger test pending.
+        # Tag-46 update (Tomás): PARTIAL -> COVERED via
+        # tests/ci/test_ar_hand_stop_marker_trigger_b1.py (31 tests
+        # across five test-classes: file-detection, trigger-cascade,
+        # mid-cutover race, rollback-sequence, marker-persistence).
+        coverage_state="COVERED",
+        pinning_tests=(
+            ("tag46_b1", "TestStopMarkerFileDetection"),
+            ("tag46_b1", "TestTriggerCascadeOnRunningCutoverWorkflows"),
+            ("tag46_b1", "TestStopMarkerMidCutoverRaceCondition"),
+            ("tag46_b1", "TestRollbackSequenceAfterARStop"),
+            ("tag46_b1", "TestMarkerPersistenceAndAuditTrail"),
+            ("tag46_b1", "TestCrossClassConsistency"),
+        ),
         rationale_keyword="ar-hand-stop-marker-trigger",
     ),
     CoverageClassification(
@@ -646,6 +672,9 @@ def _suite_contains(suite_tag: str, name: str) -> bool:
         return name in TAG39_DW67_NAMES
     if suite_tag == "tag46_pengine_a8":
         return name in TAG46_PENGINE_A8_NAMES
+    if suite_tag == "tag46_b1":
+        # Tag-46 Tomás follow-up: lives in tests/ci/, class-based.
+        return name in TAG46_B1_NAMES
     if suite_tag == "smoke":
         path = _repo_root() / "tests" / "phase_3c" / name
         return path.is_file()
@@ -842,14 +871,31 @@ def test_pm_a8_nats_jetstream_persistence_loss_welle_4() -> None:
 
 
 def test_pm_b1_ar_hand_stop_marker_missing_trigger() -> None:
-    """B1 — AR-Hand-Stop-Marker-Missing-Trigger. PARTIAL (structure only)."""
+    """B1 — AR-Hand-Stop-Marker-Missing-Trigger. COVERED (Tag-46
+    Tomás follow-up to Tag-45 PARTIAL classification)."""
     _per_failure_mode_test("B1")
     cls = COVERAGE_BY_ID["B1"]
-    assert cls.coverage_state == "PARTIAL"
-    # Cheat-sheet-structure test exists (substantive trigger pending).
+    assert cls.coverage_state == "COVERED"
+    # Cheat-sheet-structure test still exists as the legacy anchor.
     structure_test_file = _repo_root() / "tests" / "phase_3c" / "test_cutover_cheat_sheet_structure.py"
     assert structure_test_file.is_file(), (
-        "cutover-cheat-sheet-structure test missing; B1 partial-anchor lost"
+        "cutover-cheat-sheet-structure test missing; B1 legacy-anchor lost"
+    )
+    # Tag-46 substantive test file present.
+    tag46_test_file = (
+        _repo_root() / "tests" / "ci" / "test_ar_hand_stop_marker_trigger_b1.py"
+    )
+    assert tag46_test_file.is_file(), (
+        "Tag-46 substantive trigger test missing; B1 COVERED-anchor lost"
+    )
+    # Tag-46 test-class count >= 5 (file-detection, cascade, race,
+    # rollback, persistence; plus a cross-class consistency bag).
+    classes_in_tag46 = {
+        n for n in TAG46_B1_NAMES if n.startswith("Test") and "::" not in n
+    }
+    assert len(classes_in_tag46) >= 5, (
+        f"Tag-46 B1 test-class count regression: expected >=5, "
+        f"found {sorted(classes_in_tag46)}"
     )
 
 
@@ -995,20 +1041,23 @@ def test_pm_d5_ots_calendar_outage_external() -> None:
 def test_pm_summary_totals_match_per_class_classifications() -> None:
     """§3 coverage-summary table totals must match §2 classifications.
 
-    The §3 table claims (post-Tag-46 closeouts — A6 substrate-layer +
-    A8 NATS-JetStream-Loss-Recovery):
+    The §3 table (Tag-46 cumulative closeouts):
+      - A6 Cosign-Drift PARTIAL -> COVERED (Kai substrate, PR #298)
+      - A8 NATS-JetStream-Loss-Recovery PARTIAL -> COVERED (Selin, PR #300)
+      - B1 AR-Hand-Stop-Marker-Trigger PARTIAL -> COVERED (Tomas, PR #299)
+
         Class A: 8 total | 7 COVERED | 1 PARTIAL | 0 GAP-ACCEPTED | 0 GAP-OPEN
-        Class B: 6 total | 2 COVERED | 2 PARTIAL | 2 GAP-ACCEPTED | 0 GAP-OPEN
+        Class B: 6 total | 3 COVERED | 1 PARTIAL | 2 GAP-ACCEPTED | 0 GAP-OPEN
         Class C: 5 total | 2 COVERED | 0 PARTIAL | 3 GAP-ACCEPTED | 0 GAP-OPEN
         Class D: 5 total | 0 COVERED | 0 PARTIAL | 5 GAP-ACCEPTED | 0 GAP-OPEN
-        Total:  24       | 11        | 3         | 10              | 0
+        Total:  24       | 12        | 2         | 10              | 0
 
     This test recomputes the table from the COVERAGE_MATRIX and asserts
     consistency.
     """
     expected_per_class = {
         "A": {"total": 8, "COVERED": 7, "PARTIAL": 1, "GAP-ACCEPTED": 0, "GAP-OPEN": 0},
-        "B": {"total": 6, "COVERED": 2, "PARTIAL": 2, "GAP-ACCEPTED": 2, "GAP-OPEN": 0},
+        "B": {"total": 6, "COVERED": 3, "PARTIAL": 1, "GAP-ACCEPTED": 2, "GAP-OPEN": 0},
         "C": {"total": 5, "COVERED": 2, "PARTIAL": 0, "GAP-ACCEPTED": 3, "GAP-OPEN": 0},
         "D": {"total": 5, "COVERED": 0, "PARTIAL": 0, "GAP-ACCEPTED": 5, "GAP-OPEN": 0},
     }
@@ -1036,9 +1085,10 @@ def test_pm_summary_totals_match_per_class_classifications() -> None:
     grand_gap_open = sum(actual_per_class[k]["GAP-OPEN"] for k in actual_per_class)
 
     assert grand_total == 24, f"expected 24 total failure-modes, got {grand_total}"
-    # Post-Tag-46 closeouts (A6 + A8 PARTIAL -> COVERED): 11 COVERED + 3 PARTIAL.
-    assert grand_covered == 11
-    assert grand_partial == 3
+    # Post-Tag-46 closeouts (A6 Kai + A8 Selin + B1 Tomás all flipped
+    # PARTIAL -> COVERED): 12 COVERED + 2 PARTIAL.
+    assert grand_covered == 12
+    assert grand_partial == 2
     assert grand_gap_accepted == 10
     assert grand_gap_open == 0
 
