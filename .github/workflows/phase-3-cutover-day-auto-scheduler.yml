@@ -1,0 +1,330 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase-3 Cutover-Day Auto-Scheduler (Tomas Tag-44, ADR-0066)
+# -----------------------------------------------------------
+#
+# Auto-orchestration of the four Cutover-Day Mondays in KW-24..27.
+# Wakes up every Monday at 07:00 UTC, reads the ISO calendar week,
+# evaluates three pre-trigger gates, and either dispatches the
+# Welle-N validation workflows for the matching cutover-day or emits
+# a dry-run plan envelope. For non-cutover Mondays the scheduler
+# triggers Reza's pre-cutover-sanity probe (daily-driver re-probe).
+#
+# Decision-tree
+# -------------
+#
+#   ISO calendar week  -> action
+#     KW-24 Mo         -> Welle-1 + Welle-2 (doppel)
+#     KW-25 Mo         -> Welle-3 solo (Henrik caution-path)
+#     KW-26 Mo         -> Welle-4 + Welle-5 (doppel)
+#     KW-27 Mo         -> Welle-6 + Welle-7 (doppel) +
+#                         Phase-3-COMPLETE-marker trigger
+#     any other week   -> pre-cutover-sanity probe-only
+#
+# Pre-trigger gates (composed in tooling/ci/decide_cutover_day_dispatch.py)
+# ------------------------------------------------------------------------
+#
+#   1. Reza Tag-44 daily-driver trend file:
+#      ``state/reza-tag-44-trend.json`` -> {"trend": "green|yellow|red"}.
+#      Yellow degrades to DRY_RUN_ONLY; red blocks.
+#
+#   2. Tomas Tag-41 pre-cutover-sanity last-run verdict artifact:
+#      ``artifacts/pre-cutover-sanity-verdict.json``
+#      -> {"verdict": "READY|CAUTION|BLOCK"}. CAUTION degrades to
+#      DRY_RUN_ONLY; BLOCK blocks.
+#
+#   3. AR-Hand ratification flag:
+#      ``state/ar-hand-cutover-day-flag.json``
+#      -> {"ar_hand_ratified": true, ...}. Missing or false degrades
+#      to DRY_RUN_ONLY (the workflow renders the plan but does NOT
+#      issue gh workflow run).
+#
+# Safety semantics
+# ----------------
+#
+#   * TRIGGER: gh workflow run dispatched for each Welle-N validation
+#     workflow + marathon-tracker state-update to ``cutover-running``.
+#   * DRY_RUN: plan envelope rendered + notify-cascade emitted; no gh
+#     workflow run; tracker not touched.
+#   * BLOCK: plan envelope rendered + notify-cascade emitted; no gh
+#     workflow run; tracker not touched; job exits 1 so the workflow
+#     fails loud.
+#   * PROBE: pre-cutover-sanity workflow triggered for daily-driver
+#     re-probe (non-cutover Mondays).
+#
+# Per ``feedback_continuous_mode_keine_push_frage.md`` the AR-Hand
+# flag is sufficient ratification; no per-trigger approval prompt.
+# Per ``feedback_sandbox_host_trennung.md`` the workflow itself runs
+# only inside the GitHub Actions sandbox - it does not touch the
+# operator-hand live-VM substrate; the validation workflows it
+# dispatches are the ones that exercise the cutover-acceptance gates.
+#
+# Trigger surface
+# ---------------
+#
+#   * ``schedule: cron "0 7 * * 1"`` - Monday 07:00 UTC. One hour
+#     after the Tomas Tag-41 pre-cutover-sanity 06:00 UTC scheduled
+#     run, so its verdict artifact is fresh when we read it.
+#   * ``workflow_dispatch`` - manual run with optional override
+#     ``force_iso_week`` (for dress-rehearsal / replay).
+#   * ``push`` (path-filtered) on changes to the scheduler workflow
+#     itself or its decision-tree module, so unit tests run on PRs.
+#
+# Sandbox boundary
+# ----------------
+#
+# Hermetic in unit-test mode (stdlib + pyyaml). The actual trigger
+# step uses ``gh workflow run`` against the same repository - that
+# crosses into GitHub-API territory but is the documented mechanism
+# for fan-out scheduling. The dry-run mode keeps all decision logic
+# hermetic.
+#
+# Not a required status check
+# ---------------------------
+#
+# Per ``feedback_branch_protection_check_names.md`` this workflow is
+# NOT listed as a required status check on PRs - it gates a
+# calendar-week (KW-24..27 cutover-marathon), not individual PRs.
+# The structural-shape tests in ``tests/ci/test_phase_3_cutover_day_
+# auto_scheduler.py`` are the gating unit on PRs that touch the
+# scheduler.
+
+name: phase-3-cutover-day-auto-scheduler
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_iso_week:
+        description: "Override ISO week (1..53) for dress-rehearsal/replay"
+        required: false
+        default: ""
+      dry_run_override:
+        description: "Force dry-run regardless of gates (true|false)"
+        required: false
+        default: "false"
+  schedule:
+    # Monday 07:00 UTC - 09:00 CEST in June. The Tomas Tag-41
+    # pre-cutover-sanity workflow runs at 06:00 UTC; this scheduler
+    # reads its verdict artifact one hour later.
+    - cron: "0 7 * * 1"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/phase-3-cutover-day-auto-scheduler.yml"
+      - "tooling/ci/decide_cutover_day_dispatch.py"
+      - "tests/ci/test_phase_3_cutover_day_auto_scheduler.py"
+      - "docs/ci/phase-3-cutover-day-auto-scheduler-runbook.md"
+
+permissions:
+  contents: read
+  actions: write   # needed by gh workflow run for the fan-out
+
+concurrency:
+  group: phase-3-cutover-day-auto-scheduler
+  cancel-in-progress: false
+
+jobs:
+  decide-and-dispatch:
+    name: Decide cutover-day action + dispatch (or dry-run)
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.decide.outputs.mode }}
+      iso_week: ${{ steps.decide.outputs.iso_week }}
+      headline: ${{ steps.decide.outputs.headline }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Resolve ISO calendar week (UTC)
+        id: week
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${FORCE_WEEK:-}" ]]; then
+            echo "iso_week=${FORCE_WEEK}" >> "$GITHUB_OUTPUT"
+            echo "Forced ISO week: ${FORCE_WEEK}"
+          else
+            wk=$(python3 -c "import datetime,sys; sys.stdout.write(str(datetime.datetime.utcnow().isocalendar()[1]))")
+            echo "iso_week=${wk}" >> "$GITHUB_OUTPUT"
+            echo "Resolved ISO week (UTC): ${wk}"
+          fi
+        env:
+          FORCE_WEEK: ${{ inputs.force_iso_week }}
+
+      - name: Fetch latest pre-cutover-sanity verdict artifact
+        id: fetch-sanity
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts
+          # Best-effort fetch: the API call may return no rows if the
+          # sanity workflow has never run on this repo, in which case
+          # the decision-tree treats the verdict as "missing" -> BLOCK.
+          if ! command -v gh >/dev/null 2>&1; then
+            echo "gh CLI not present - skipping artifact fetch"
+            exit 0
+          fi
+          # Get the most recent successful run id for the sanity workflow.
+          run_id=$(gh run list \
+            --workflow=phase-3c-pre-cutover-sanity.yml \
+            --status=success \
+            --limit=1 \
+            --json databaseId \
+            --jq '.[0].databaseId' 2>/dev/null || true)
+          if [[ -z "$run_id" || "$run_id" == "null" ]]; then
+            echo "no successful sanity-workflow run found; verdict will be 'missing'"
+            exit 0
+          fi
+          gh run download "$run_id" \
+            -n pre-cutover-sanity-verdict \
+            -D artifacts/ 2>/dev/null || true
+          if [[ -f artifacts/pre-cutover-sanity-verdict.json ]]; then
+            echo "fetched sanity verdict from run $run_id"
+          else
+            echo "artifact download returned no verdict file"
+          fi
+
+      - name: Render dispatch-plan envelope (decision-tree)
+        id: decide
+        shell: bash
+        env:
+          DRY_RUN_OVERRIDE: ${{ inputs.dry_run_override }}
+        run: |
+          set -uo pipefail
+          mkdir -p out
+          now_iso=$(python3 -c "import datetime; print(datetime.datetime.utcnow().replace(microsecond=0).isoformat()+'Z')")
+          python3 tooling/ci/decide_cutover_day_dispatch.py \
+            --iso-week "${{ steps.week.outputs.iso_week }}" \
+            --reza-trend-path state/reza-tag-44-trend.json \
+            --sanity-verdict-path artifacts/pre-cutover-sanity-verdict.json \
+            --ar-hand-flag-path state/ar-hand-cutover-day-flag.json \
+            --now-iso "$now_iso" \
+            --output out/cutover-day-dispatch-plan.json
+          rc=$?
+          mode=$(python3 -c "import json; print(json.load(open('out/cutover-day-dispatch-plan.json'))['dispatch']['mode'])")
+          headline=$(python3 -c "import json; print(json.load(open('out/cutover-day-dispatch-plan.json'))['notify']['headline'])")
+          iso_week=$(python3 -c "import json; print(json.load(open('out/cutover-day-dispatch-plan.json'))['iso_week'])")
+          # dry_run_override forces mode=DRY_RUN if the plan was TRIGGER.
+          if [[ "${DRY_RUN_OVERRIDE,,}" == "true" && "$mode" == "TRIGGER" ]]; then
+            mode="DRY_RUN"
+            echo "::warning::dry_run_override=true; forced TRIGGER -> DRY_RUN"
+          fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "iso_week=$iso_week" >> "$GITHUB_OUTPUT"
+          echo "headline=$headline" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Phase-3 Cutover-Day Auto-Scheduler"
+            echo ""
+            echo "**Mode:** \`$mode\`"
+            echo ""
+            echo "**Headline:** $headline"
+            echo ""
+            echo "<details><summary>Dispatch plan JSON</summary>"
+            echo ""
+            echo "\`\`\`json"
+            cat out/cutover-day-dispatch-plan.json
+            echo "\`\`\`"
+            echo ""
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+          # exit-code passthrough for visibility but do not fail the
+          # step here; subsequent gating step decides terminal status.
+          exit 0
+
+      - name: Upload dispatch-plan envelope artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cutover-day-dispatch-plan
+          path: out/cutover-day-dispatch-plan.json
+          if-no-files-found: warn
+
+      - name: Notify-cascade (Slack-mock / notify-stream append)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python3 -c "import json,os,sys; p=json.load(open('out/cutover-day-dispatch-plan.json')); n=p['notify']; lines=[n['headline'],*n['lines']]; sys.stdout.write('\\n'.join(lines)+'\\n')" \
+            | tee -a out/notify-stream.log
+          # Slack-mock: just append to the notify-stream artifact;
+          # real Slack post is operator-hand territory.
+
+      - name: Upload notify-stream artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cutover-day-notify-stream
+          path: out/notify-stream.log
+          if-no-files-found: warn
+
+      - name: Fan-out dispatch (TRIGGER mode only)
+        if: steps.decide.outputs.mode == 'TRIGGER'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          plan=out/cutover-day-dispatch-plan.json
+          # Iterate workflows list and gh workflow run each. The
+          # workflow-list is authored by the decision-tree module, so
+          # we trust it but still loop defensively (no inline eval).
+          mapfile -t wfs < <(python3 -c "import json,sys; p=json.load(open('$plan')); [print(w) for w in p['dispatch']['workflows']]")
+          for wf in "${wfs[@]}"; do
+            echo "Dispatching: $wf"
+            gh workflow run "$wf" --ref main || {
+              echo "::warning::gh workflow run $wf failed; continuing"
+            }
+          done
+          # Marathon-tracker state-updates: emit a sentinel commit-
+          # less log line per Welle. The tracker is committed to the
+          # repo via operator-hand; here we only log the intended
+          # transitions to the step-summary and notify-stream.
+          mapfile -t updates < <(python3 -c "import json,sys; p=json.load(open('$plan')); [print(u['welle'], u['state'], u['note']) for u in p['dispatch']['tracker_updates']]")
+          for u in "${updates[@]}"; do
+            echo "tracker-update: $u"
+          done
+
+      - name: Probe-only fan-out (PROBE mode)
+        if: steps.decide.outputs.mode == 'PROBE'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          plan=out/cutover-day-dispatch-plan.json
+          mapfile -t wfs < <(python3 -c "import json,sys; p=json.load(open('$plan')); [print(w) for w in p['dispatch']['workflows']]")
+          for wf in "${wfs[@]}"; do
+            echo "Dispatching (probe): $wf"
+            gh workflow run "$wf" --ref main || {
+              echo "::warning::gh workflow run $wf failed; continuing"
+            }
+          done
+
+      - name: Terminal-status gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mode="${{ steps.decide.outputs.mode }}"
+          case "$mode" in
+            TRIGGER|PROBE)
+              echo "auto-scheduler completed: $mode"
+              ;;
+            DRY_RUN)
+              echo "::warning::auto-scheduler completed in DRY_RUN mode (gates degraded)"
+              ;;
+            BLOCK)
+              echo "::error::auto-scheduler BLOCKED (gates failed); see notify-stream"
+              exit 1
+              ;;
+            *)
+              echo "::error::unknown mode: $mode"
+              exit 1
+              ;;
+          esac
