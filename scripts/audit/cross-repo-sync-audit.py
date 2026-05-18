@@ -576,14 +576,18 @@ def render_markdown_report(
 
     out: list[str] = []
     out.append("<!--")
+    # REUSE-IgnoreStart
     out.append("SPDX-License-Identifier: CC-BY-4.0")
     out.append("Copyright (c) 2026 Callandor GmbH and contributors")
+    # REUSE-IgnoreEnd
     out.append("-->")
     out.append("")
     out.append(f"# Cross-repo sync audit — {report_date}")
     out.append("")
     out.append("Tag-42 Reza Cross-Repo-Sync-Audit between `wakir-runtime`")
+    # REUSE-IgnoreStart
     out.append("(BUSL-dominant) and `wakir-protocol` (Apache-2.0 + CC-BY-4.0).")
+    # REUSE-IgnoreEnd
     out.append("")
     out.append("## Audit baselines")
     out.append("")
