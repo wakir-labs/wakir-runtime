@@ -392,7 +392,17 @@ jobs:
         #   module (Phase-3a Item 13 / Modul 13) gates on `rfc8785`
         #   and adds 15 tests (T01..T05 + T07..T10 = 9, plus T06
         #   parametrised over 6 vectors = 6, total 9 + 6 = 15).
-        #   Re-baselined 361 → 376 in this PR.
+        #   Re-baselined 361 → 376 in PR #241.
+        # - Tag-37 Mini-Welle (Reza, 2026-05-18): the new
+        #   `test_bridge_audit_replay_cross_lang_parity.py` module
+        #   (Phase-3a Item 11 / Modul 14, closes the bridge-audit
+        #   trilogy: writer/diff-engine/replay) gates on `rfc8785`
+        #   and adds 23 tests (constants pin x6 + determinism +
+        #   wire-shape + hash-shape + fixture-structure x3 +
+        #   parametrised per-vector x6 + success-path-invariants +
+        #   build_trace_from_report + live-engine-cross-check +
+        #   kind-coverage x2 = 23 total). Re-baselined 376 → 399
+        #   in this PR.
         # Tolerance ±5 absorbs routine churn going forward.
         # If the observed delta drifts outside the envelope, fail
         # loud — either a test was silently re-classified across the
@@ -401,7 +411,7 @@ jobs:
         env:
           PRODUCTION_COUNT: ${{ needs.production-suite.outputs.collected }}
           SANDBOX_COUNT: ${{ needs.sandbox-suite-shadow.outputs.collected }}
-          EXPECTED_DELTA: '376'
+          EXPECTED_DELTA: '399'
           DELTA_TOLERANCE: '5'
         run: |
           python - <<'PY'
