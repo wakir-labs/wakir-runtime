@@ -606,3 +606,286 @@ where
         envelope_b,
     })
 }
+
+// ---------------------------------------------------------------------------
+// Canonical-trace sub-module (Tag-36 Phase-3a-Python-Sync, 13. Modul)
+// ---------------------------------------------------------------------------
+
+/// Canonical-trace projection of a bridge-audit-diff compare outcome.
+///
+/// Cross-language sibling of
+/// `wirelang.persona_engine.bridge_audit_diff_engine_canonical`. Both
+/// sides emit a JCS-canonical [`BridgeDiffTrace`] per compare outcome
+/// so the Phase-3a 3-way-triangle (Doppelbetrieb-Vergleich) can diff
+/// Python-side and Rust-side bridge-audit-diff-engine traces byte-for-
+/// byte without round-tripping through any other substrate.
+///
+/// Wire-shape pin: 8 top-level fields in alphabetical order:
+/// `byte_identical`, `drift_count`, `field_diffs_summary`,
+/// `jcs_hash_a`, `jcs_hash_b`, `leaves_total`, `schema`, `score_milli`.
+///
+/// See module-level docs for the rationale on `score_milli` (integer
+/// projection) vs. the float `consistency_score`.
+pub mod canonical {
+    use super::{
+        consistency_score, diff_envelopes, jcs_hash, BridgeDiffError, DiffKind, DiffReport,
+        FieldDiff,
+    };
+    use serde_json::{json, Value};
+    use sha2::{Digest, Sha256};
+
+    /// JCS-canonical schema id for the bridge-audit-diff trace wire form.
+    /// Cross-lang anchor — must match the Python constant of the same name.
+    pub const BRIDGE_DIFF_TRACE_SCHEMA: &str =
+        "wakir.persona-engine.bridge-audit-diff-canonical/1";
+
+    /// Outer-hash prefix. Cross-lang anchor.
+    pub const HASH_PREFIX: &str = "sha256:";
+
+    /// Length of a SHA-256 hex digest (32 bytes = 64 hex chars).
+    pub const SHA256_HEX_LEN: usize = 64;
+
+    /// Field-diff summary entry separator. Frozen across Rust/Python.
+    pub const SUMMARY_ENTRY_SEP: char = ';';
+
+    /// Field-diff summary path-kind separator. Frozen across Rust/Python.
+    pub const SUMMARY_PATH_KIND_SEP: char = '|';
+
+    /// DiffKind wire-string alphabet — frozen mirrors of the Python
+    /// `DiffKind` enum's `.value`.
+    pub const KIND_VALUE_MISMATCH: &str = "value-mismatch";
+    /// See [`KIND_VALUE_MISMATCH`].
+    pub const KIND_ONLY_IN_A: &str = "only-in-a";
+    /// See [`KIND_VALUE_MISMATCH`].
+    pub const KIND_ONLY_IN_B: &str = "only-in-b";
+    /// See [`KIND_VALUE_MISMATCH`].
+    pub const KIND_TYPE_MISMATCH: &str = "type-mismatch";
+
+    /// Canonical-trace projection of a [`DiffReport`].
+    ///
+    /// Fields are listed in the alphabetical order the wire form uses;
+    /// the struct itself is otherwise an opaque record.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct BridgeDiffTrace {
+        /// `true` iff both implementations produced byte-identical JCS
+        /// canonical bytes for the same input. Fast-path indicator.
+        pub byte_identical: bool,
+        /// Number of [`FieldDiff`] entries in the live `DiffReport`.
+        /// `0` iff `byte_identical`.
+        pub drift_count: u32,
+        /// Compact deterministic projection of the field-level drift
+        /// entries. Format: `"<path>|<kind>"` per entry, joined
+        /// alphabetically with `;`. Empty iff `byte_identical`.
+        pub field_diffs_summary: String,
+        /// `"sha256:<64hex>"` of implementation-A canonical bytes.
+        pub jcs_hash_a: String,
+        /// `"sha256:<64hex>"` of implementation-B canonical bytes.
+        pub jcs_hash_b: String,
+        /// Total leaf count over `max(count_leaves_a, count_leaves_b)`.
+        pub leaves_total: u32,
+        /// Integer projection of `consistency_score` in `[0, 1000]`.
+        /// `1000` iff `byte_identical`; `0` iff every leaf drifted.
+        pub score_milli: u32,
+    }
+
+    impl BridgeDiffTrace {
+        /// Project this trace onto a JSON-compatible value, ready for JCS.
+        ///
+        /// Keys are inserted in alphabetical order to document the
+        /// wire contract; JCS will re-sort them lexicographically
+        /// anyway, so the insertion order has no effect on the
+        /// resulting bytes.
+        #[must_use]
+        pub fn to_canonical_value(&self) -> Value {
+            json!({
+                "byte_identical": self.byte_identical,
+                "drift_count": self.drift_count,
+                "field_diffs_summary": self.field_diffs_summary,
+                "jcs_hash_a": self.jcs_hash_a,
+                "jcs_hash_b": self.jcs_hash_b,
+                "leaves_total": self.leaves_total,
+                "schema": BRIDGE_DIFF_TRACE_SCHEMA,
+                "score_milli": self.score_milli,
+            })
+        }
+    }
+
+    fn kind_value(kind: DiffKind) -> &'static str {
+        match kind {
+            DiffKind::ValueMismatch => KIND_VALUE_MISMATCH,
+            DiffKind::OnlyInA => KIND_ONLY_IN_A,
+            DiffKind::OnlyInB => KIND_ONLY_IN_B,
+            DiffKind::TypeMismatch => KIND_TYPE_MISMATCH,
+        }
+    }
+
+    fn field_diffs_summary(diffs: &[FieldDiff]) -> String {
+        let mut parts: Vec<String> = diffs
+            .iter()
+            .map(|d| format!("{}{}{}", d.path, SUMMARY_PATH_KIND_SEP, kind_value(d.kind)))
+            .collect();
+        parts.sort();
+        parts.join(&SUMMARY_ENTRY_SEP.to_string())
+    }
+
+    /// Count leaf positions (non-container values) in a JSON tree.
+    ///
+    /// Byte-identical algorithm to the Python sibling's `_count_leaves`
+    /// helper. Empty Object / empty Array counts as a single leaf.
+    fn count_leaves(value: &Value) -> u32 {
+        match value {
+            Value::Object(m) => {
+                if m.is_empty() {
+                    1
+                } else {
+                    m.values().map(count_leaves).sum()
+                }
+            }
+            Value::Array(a) => {
+                if a.is_empty() {
+                    1
+                } else {
+                    a.iter().map(count_leaves).sum()
+                }
+            }
+            _ => 1,
+        }
+    }
+
+    /// Project a float `consistency_score` into the integer `[0, 1000]`.
+    ///
+    /// Uses truncation toward zero to match the Python sibling's
+    /// `int(score * 1000.0)`. On non-finite or out-of-range inputs the
+    /// result saturates to `0` (NaN, negative) or `1000` (>= 1.0,
+    /// positive infinity).
+    fn score_milli(score: f64) -> u32 {
+        if !score.is_finite() {
+            if score > 0.0 {
+                return 1000;
+            }
+            return 0;
+        }
+        if score >= 1.0 {
+            return 1000;
+        }
+        if score <= 0.0 {
+            return 0;
+        }
+        // Truncation toward zero on a non-negative float matches
+        // Python `int(score * 1000.0)`.
+        (score * 1000.0) as u32
+    }
+
+    /// Build a canonical bridge-audit-diff compare-outcome trace.
+    ///
+    /// Takes the same two envelopes the live
+    /// [`crate::compare_implementations`] would feed to the diff-engine
+    /// and emits the canonical-trace projection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BridgeDiffError::CanonicaliseError`] if either envelope
+    /// fails JCS canonicalisation (unreachable in practice with well-
+    /// formed `serde_json::Value` input).
+    pub fn build_bridge_diff_trace(
+        envelope_a: &Value,
+        envelope_b: &Value,
+    ) -> Result<BridgeDiffTrace, BridgeDiffError> {
+        let hash_a = jcs_hash(envelope_a)?;
+        let hash_b = jcs_hash(envelope_b)?;
+        let leaves = count_leaves(envelope_a).max(count_leaves(envelope_b));
+
+        if hash_a == hash_b {
+            return Ok(BridgeDiffTrace {
+                byte_identical: true,
+                drift_count: 0,
+                field_diffs_summary: String::new(),
+                jcs_hash_a: hash_a,
+                jcs_hash_b: hash_b,
+                leaves_total: leaves,
+                score_milli: 1000,
+            });
+        }
+
+        let diffs = diff_envelopes(envelope_a, envelope_b);
+        let score = consistency_score(envelope_a, envelope_b, &diffs);
+        let summary = field_diffs_summary(&diffs);
+
+        Ok(BridgeDiffTrace {
+            byte_identical: false,
+            drift_count: u32::try_from(diffs.len()).unwrap_or(u32::MAX),
+            field_diffs_summary: summary,
+            jcs_hash_a: hash_a,
+            jcs_hash_b: hash_b,
+            leaves_total: leaves,
+            score_milli: score_milli(score),
+        })
+    }
+
+    /// Project an existing live [`DiffReport`] into a canonical-trace.
+    ///
+    /// Convenience helper for callers that already have a live report
+    /// and want the canonical projection without re-running the
+    /// canonicaliser. Byte-identical to [`build_bridge_diff_trace`] on
+    /// the same envelopes.
+    #[must_use]
+    pub fn build_trace_from_report(report: &DiffReport) -> BridgeDiffTrace {
+        let leaves = count_leaves(&report.envelope_a).max(count_leaves(&report.envelope_b));
+        if report.byte_identical {
+            return BridgeDiffTrace {
+                byte_identical: true,
+                drift_count: 0,
+                field_diffs_summary: String::new(),
+                jcs_hash_a: report.jcs_hash_a.clone(),
+                jcs_hash_b: report.jcs_hash_b.clone(),
+                leaves_total: leaves,
+                score_milli: 1000,
+            };
+        }
+        BridgeDiffTrace {
+            byte_identical: false,
+            drift_count: u32::try_from(report.field_diffs.len()).unwrap_or(u32::MAX),
+            field_diffs_summary: field_diffs_summary(&report.field_diffs),
+            jcs_hash_a: report.jcs_hash_a.clone(),
+            jcs_hash_b: report.jcs_hash_b.clone(),
+            leaves_total: leaves,
+            score_milli: score_milli(report.consistency_score),
+        }
+    }
+
+    /// Serialise a trace to its JCS-canonical UTF-8 bytes.
+    ///
+    /// Byte-identical to the Python sibling's
+    /// `serialize_bridge_diff_trace`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BridgeDiffError::CanonicaliseError`] if `serde_jcs`
+    /// rejects the trace value (unreachable in practice — the trace
+    /// shape is finite and well-typed).
+    pub fn serialize_trace(trace: &BridgeDiffTrace) -> Result<Vec<u8>, BridgeDiffError> {
+        serde_jcs::to_vec(&trace.to_canonical_value())
+            .map_err(|e| BridgeDiffError::CanonicaliseError(e.to_string()))
+    }
+
+    /// SHA-256 hex (64 lowercase hex chars) of the JCS bytes of `trace`.
+    ///
+    /// # Errors
+    ///
+    /// See [`serialize_trace`].
+    pub fn trace_sha256_hex(trace: &BridgeDiffTrace) -> Result<String, BridgeDiffError> {
+        let bytes = serialize_trace(trace)?;
+        let mut hasher = Sha256::new();
+        hasher.update(&bytes);
+        Ok(hex::encode(hasher.finalize()))
+    }
+
+    /// Prefixed outer hash: `"sha256:" + trace_sha256_hex`.
+    ///
+    /// # Errors
+    ///
+    /// See [`serialize_trace`].
+    pub fn trace_hash_prefixed(trace: &BridgeDiffTrace) -> Result<String, BridgeDiffError> {
+        Ok(format!("{HASH_PREFIX}{}", trace_sha256_hex(trace)?))
+    }
+}
