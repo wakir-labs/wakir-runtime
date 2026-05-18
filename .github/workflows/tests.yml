@@ -389,7 +389,7 @@ jobs:
         env:
           PRODUCTION_COUNT: ${{ needs.production-suite.outputs.collected }}
           SANDBOX_COUNT: ${{ needs.sandbox-suite-shadow.outputs.collected }}
-          EXPECTED_DELTA: '346'
+          EXPECTED_DELTA: '361'
           DELTA_TOLERANCE: '5'
         run: |
           python - <<'PY'
