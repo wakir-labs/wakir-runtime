@@ -158,14 +158,16 @@ def test_containerfile_real_copies_pyproject_toml():
 
 def test_containerfile_real_image_tag_bumped():
     text = CONTAINERFILE_REAL_PATH.read_text(encoding="utf-8")
-    # Sprint-Pengine-14 / Tag-48 bump: 0.5.0-pre-cutover -> 0.5.1-pre-cutover
-    # for the bridge-audit-writer wire-in (10th BackendDecision). The
-    # previous 0.5.0-pre-cutover tag remains referenced in the header
-    # comment as history (Tag-45 anchor).
-    assert "0.5.1-pre-cutover" in text, (
-        "image tag should be bumped to 0.5.1-pre-cutover"
+    # Sprint-Pengine-14 / Tag-52 Pre-KW-24-Final consolidation:
+    # 0.5.1-pre-cutover -> 0.5.2-final-pre-cutover (manifest-and-
+    # metadata-only marker; strict superset of 0.5.1-pre-cutover).
+    # The Tag-48 0.5.1-pre-cutover tag remains referenced in the
+    # header comment as the absorbed-source anchor; the live
+    # image.version LABEL is the latest pre-cutover marker.
+    assert "0.5.2-final-pre-cutover" in text, (
+        "image tag should be bumped to 0.5.2-final-pre-cutover"
     )
     # We allow references to earlier pilot/pre-cutover tags in comment
     # context (history / tag-rotation pattern), but the image-version
-    # LABEL must be the current 0.5.1-pre-cutover.
-    assert 'image.version="0.5.1-pre-cutover"' in text
+    # LABEL must be the current 0.5.2-final-pre-cutover.
+    assert 'image.version="0.5.2-final-pre-cutover"' in text
