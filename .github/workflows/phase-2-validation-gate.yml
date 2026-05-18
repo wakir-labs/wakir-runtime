@@ -81,17 +81,15 @@ on:
       - main
     paths:
       - "wirelang/**"
-      - "tests/infra/test_phase_2_acceptance_gates.py"
-      - "docs/quality-gates/**"
-      - "docs/phase-3c/**"
-      - ".github/workflows/phase-2-validation-gate.yml"
+      - "tests/**"
+      - "docs/**"
+      - ".github/workflows/**"
   pull_request:
     paths:
       - "wirelang/**"
-      - "tests/infra/test_phase_2_acceptance_gates.py"
-      - "docs/quality-gates/**"
-      - "docs/phase-3c/**"
-      - ".github/workflows/phase-2-validation-gate.yml"
+      - "tests/**"
+      - "docs/**"
+      - ".github/workflows/**"
   workflow_dispatch: {}
 
 permissions:
