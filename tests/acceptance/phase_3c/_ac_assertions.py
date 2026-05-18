@@ -24,8 +24,14 @@ from .conftest import (
     CONSISTENCY_REPORT_WINDOW_DAYS,
     CROSS_MODUL_DRIFT_CONSISTENCY_PCT_FLOOR,
     CROSS_MODUL_DRIFT_ROLLBACK_PCT_THRESHOLD,
+    CROSS_MODUL_DRIFT_WELLE_6_7_WIRE_FORM_ORACLES,
     CROSS_MODUL_DRIFT_WIRE_FORM_ORACLES,
     CROSS_REVIEW_REQUIRED_PERSONAS,
+    HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD,
+    HENRIK_CAUTION_INDEPENDENT_ORACLE_SOURCES,
+    HENRIK_CAUTION_PRE_CUTOVER_CONSISTENCY_PCT_FLOOR,
+    HENRIK_CAUTION_PRE_CUTOVER_WINDOW_DAYS,
+    HENRIK_CAUTION_ROLLBACK_SLA_SECONDS,
     PERFORMANCE_HEADROOM_FACTOR,
     V907_PIN_VALIDATION_REQUIRED_RATE,
     BackendDecisionRecord,
@@ -33,11 +39,18 @@ from .conftest import (
     CrossModulDriftAtomicFlipRecord,
     CrossModulDriftDeserializationRecord,
     CrossModulDriftPerKomponenteConsistencyRecord,
+    CrossModulDriftWelle6_7AckRoundTripRecord,
+    CrossModulDriftWelle6_7AtomicFlipRecord,
+    CrossModulDriftWelle6_7PerKomponenteConsistencyRecord,
+    CrossModulDriftWelle6_7ResubscribeRecord,
     CrossModulDriftWriteBackRecord,
     CrossModulSchemaRecord,
     CrossModulStressTestRecord,
     CrossReviewRecord,
     EngineBootRecord,
+    HenrikCautionAtomicRollbackRecord,
+    HenrikCautionIndependentOracleRecord,
+    HenrikCautionPreCutoverWindowRecord,
     SingleKomponenteRollbackRecord,
 )
 
@@ -587,4 +600,409 @@ def assert_cross_modul_drift_ac_4_atomic_flip_rollback(
         f"CMD-AC-4[{welle_pair_label}]: flip elapsed "
         f"{record.flip_elapsed_seconds:.1f}s exceeds "
         f"{ROLLBACK_SLA_SECONDS:.0f}s SLA"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Welle-3 Henrik-Caution Acceptance-Kriterien — HC-AC-1 ... HC-AC-3
+#
+# Anchor: ADR-0066 §Beschluss — Welle-3 (bridge_audit_writer) is the
+# only Solo-Welle in the Doppel-Welle-Cadence because the writer *is*
+# the consistency-oracle substrate. Three Henrik-Caution-Acceptance
+# criteria layer on top of the per-welle AC-1...AC-5 baseline for KW
+# 25 Solo-Welle-3 (Tag-31 Mini-Welle, ADR-0066-Folge):
+#
+# * HC-AC-1 — Independent-Oracle-Validation via PR #197 Cross-Modul-
+#   Stress-Test substrate (or Operator-Hand-deployed hold-out Python-
+#   writer-instance); bridge_audit_writer self-output rejected.
+# * HC-AC-2 — Atomic ENV-Flag-Switch rollback ≤600s SLA, symmetric
+#   gates for missed-rollback and spurious-rollback.
+# * HC-AC-3 — Pre-Cutover-Observability-Window 7-day per-day
+#   consistency ≥99.5%.
+# ---------------------------------------------------------------------------
+
+
+def assert_henrik_caution_ac_1_independent_oracle_validation(
+    records: Iterable[HenrikCautionIndependentOracleRecord],
+    welle: str,
+) -> None:
+    """HC-AC-1 — Independent-Oracle cross-validates Rust-writer output.
+
+    The bridge_audit_writer is the consistency-oracle for *other*
+    Wellen, so it cannot self-validate during its own Solo-cutover.
+    HC-AC-1 enforces that:
+
+    * The ``oracle_source`` field references an entry in
+      ``HENRIK_CAUTION_INDEPENDENT_ORACLE_SOURCES`` (PR #197 stress-
+      test substrate or hold-out Python-writer).
+    * The ``self_referential_flag`` is False on every record (the
+      validator is explicitly NOT bridge_audit_writer itself).
+    * Every Rust-writer envelope-hash matches the independent oracle.
+
+    Failure modes captured:
+
+    * ``oracle_source == "bridge_audit_writer_self"`` — self-
+      validation attempted.
+    * ``self_referential_flag == True`` — operator-side guard tripped
+      saying this is a self-validation record.
+    * Hash divergence between Rust-writer and the independent oracle.
+    """
+    records_list = list(records)
+    assert records_list, (
+        f"HC-AC-1[{welle}]: must observe at least one independent-"
+        f"oracle validation record; got empty set"
+    )
+
+    self_referential: list[str] = []
+    invalid_oracle_sources: list[str] = []
+    drift: list[str] = []
+    for rec in records_list:
+        if rec.self_referential_flag:
+            self_referential.append(rec.request_id)
+        if rec.oracle_source not in HENRIK_CAUTION_INDEPENDENT_ORACLE_SOURCES:
+            invalid_oracle_sources.append(
+                f"{rec.request_id}@{rec.oracle_source}"
+            )
+        if not rec.is_consistent:
+            drift.append(
+                f"{rec.request_id} "
+                f"rust={rec.rust_writer_envelope_sha256[:16]} "
+                f"oracle={rec.independent_oracle_envelope_sha256[:16]}"
+            )
+
+    assert not self_referential, (
+        f"HC-AC-1[{welle}]: bridge_audit_writer self-validation "
+        f"rejected — oracle must be independent; self-referential "
+        f"records: {self_referential}"
+    )
+    assert not invalid_oracle_sources, (
+        f"HC-AC-1[{welle}]: oracle-source must be one of "
+        f"{list(HENRIK_CAUTION_INDEPENDENT_ORACLE_SOURCES)}; got "
+        f"invalid sources: {invalid_oracle_sources}"
+    )
+    assert not drift, (
+        f"HC-AC-1[{welle}]: Rust-writer/independent-oracle drift "
+        f"at requests: {drift}"
+    )
+
+
+def assert_henrik_caution_ac_2_atomic_rollback(
+    record: HenrikCautionAtomicRollbackRecord,
+    welle: str,
+) -> None:
+    """HC-AC-2 — Atomic ENV-Flag-Switch rollback with symmetric gates.
+
+    Gates:
+
+    * Trigger-symmetry: ``rollback_fired`` must align with whether
+      ``measured_divergence_pct`` crossed
+      ``threshold_divergence_pct``. A fired-without-trigger is a
+      spurious-rollback (false-positive); a not-fired-when-trigger-
+      crossed is a missed-rollback (false-negative).
+    * ``threshold_divergence_pct`` equals the ADR-0066-fixed 0.5pp.
+    * If rollback fired: ``flip_was_atomic`` True, ``flip_elapsed_
+      seconds`` ≤ 600s, post-flip backend = python.
+    * If rollback did NOT fire (sub-threshold-no-trigger path):
+      post-flip backend = rust (no-op steady-state).
+    """
+    above_threshold = (
+        record.measured_divergence_pct > record.threshold_divergence_pct
+    )
+
+    # Symmetric gate-evaluation: rollback_fired must match
+    # above_threshold.
+    if above_threshold and not record.rollback_fired:
+        raise AssertionError(
+            f"HC-AC-2[{welle}]: missed-rollback (false-negative) — "
+            f"measured divergence "
+            f"{record.measured_divergence_pct:.4f}pp > threshold "
+            f"{record.threshold_divergence_pct:.4f}pp but rollback "
+            f"did not fire"
+        )
+    if not above_threshold and record.rollback_fired:
+        raise AssertionError(
+            f"HC-AC-2[{welle}]: spurious-rollback (false-positive) — "
+            f"measured divergence "
+            f"{record.measured_divergence_pct:.4f}pp ≤ threshold "
+            f"{record.threshold_divergence_pct:.4f}pp but rollback "
+            f"fired anyway"
+        )
+
+    assert (
+        record.threshold_divergence_pct
+        == HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD
+    ), (
+        f"HC-AC-2[{welle}]: threshold_divergence_pct must equal the "
+        f"ADR-0066-fixed {HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD}pp; "
+        f"got {record.threshold_divergence_pct}"
+    )
+
+    if record.rollback_fired:
+        assert record.flip_was_atomic, (
+            f"HC-AC-2[{welle}]: rollback fired but flip was non-atomic "
+            f"(multi-restart-cycle); atomic-flip discipline broken"
+        )
+        assert (
+            record.flip_elapsed_seconds <= HENRIK_CAUTION_ROLLBACK_SLA_SECONDS
+        ), (
+            f"HC-AC-2[{welle}]: rollback elapsed "
+            f"{record.flip_elapsed_seconds:.1f}s exceeds "
+            f"{HENRIK_CAUTION_ROLLBACK_SLA_SECONDS:.0f}s SLA"
+        )
+        assert record.post_flip_backend == "python", (
+            f"HC-AC-2[{welle}]: post-rollback backend must be python; "
+            f"got {record.post_flip_backend!r}"
+        )
+    else:
+        # No-trigger steady-state: backend stays rust.
+        assert record.post_flip_backend == "rust", (
+            f"HC-AC-2[{welle}]: no-trigger steady-state must keep "
+            f"backend=rust; got {record.post_flip_backend!r}"
+        )
+
+
+def assert_henrik_caution_ac_3_pre_cutover_window(
+    records: Iterable[HenrikCautionPreCutoverWindowRecord],
+    welle: str,
+) -> None:
+    """HC-AC-3 — Pre-Cutover-Observability-Window 7-day consistency.
+
+    Gates:
+
+    * The window covers exactly
+      ``HENRIK_CAUTION_PRE_CUTOVER_WINDOW_DAYS`` (7) days with
+      day_index 0..6, no missing/extra days.
+    * Every day's ``per_day_consistency_rate`` clears the 0.995 floor.
+    * Every day's ``per_day_total_request_count`` > 0 (no empty-day
+      observations).
+    """
+    records_list = list(records)
+    assert records_list, (
+        f"HC-AC-3[{welle}]: must observe at least one pre-cutover "
+        f"window day; got empty set"
+    )
+
+    observed_days = sorted({rec.day_index for rec in records_list})
+    expected_days = list(range(HENRIK_CAUTION_PRE_CUTOVER_WINDOW_DAYS))
+    assert observed_days == expected_days, (
+        f"HC-AC-3[{welle}]: pre-cutover-window must observe all "
+        f"{HENRIK_CAUTION_PRE_CUTOVER_WINDOW_DAYS} days (0..{HENRIK_CAUTION_PRE_CUTOVER_WINDOW_DAYS - 1}); "
+        f"got {observed_days}"
+    )
+
+    empty_days: list[int] = []
+    below_floor: list[str] = []
+    floor = HENRIK_CAUTION_PRE_CUTOVER_CONSISTENCY_PCT_FLOOR
+    for rec in records_list:
+        if rec.per_day_total_request_count <= 0:
+            empty_days.append(rec.day_index)
+        if rec.per_day_consistency_rate < floor:
+            below_floor.append(
+                f"day={rec.day_index} rate={rec.per_day_consistency_rate:.4f}"
+            )
+
+    assert not empty_days, (
+        f"HC-AC-3[{welle}]: pre-cutover-window observed empty days "
+        f"(total_request_count=0): {empty_days}"
+    )
+    assert not below_floor, (
+        f"HC-AC-3[{welle}]: pre-cutover per-day consistency-rate "
+        f"below {floor:.4f} floor: {below_floor}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Welle-6+7 Cross-Modul-Drift Acceptance-Kriterien — CMD-AC-6-7-1 ...
+# CMD-AC-6-7-4
+#
+# Anchor: ADR-0066 §Beschluss + Priya CTO-Coordination-Plan v3 (Tag-32
+# Mini-Welle Welle-6+7-Extension). Mirrors the Welle-4+5 CMD-AC layer
+# shape but specialised for the stateful-loop-paar bidirectional
+# contract (subscribe_loop ack-records → recovery_workflow consume;
+# recovery_workflow R1..R4 → subscribe_loop Re-subscribe).
+# ---------------------------------------------------------------------------
+
+
+def assert_cross_modul_drift_welle_6_7_ac_1_ack_consume_round_trip(
+    records: Iterable[CrossModulDriftWelle6_7AckRoundTripRecord],
+    welle_pair_label: str,
+) -> None:
+    """CMD-AC-6-7-1 — subscribe_loop ack-record → recovery_workflow
+    consume round-trip parity + cursor-delta-survival.
+
+    Failure modes captured:
+
+    * ``producer_ack_sha256 != consumer_consumed_reserialized_sha256``
+      — ack-bytes mutate on consumer-side consume + re-serialize.
+    * ``cursor_delta_round_trip_ok == False`` — cursor-delta field
+      dropped or rewritten (Bug-42-adjacent surface).
+    """
+    records_list = list(records)
+    assert records_list, (
+        f"CMD-AC-6-7-1[{welle_pair_label}]: must observe at least one "
+        f"ack-record round-trip; got empty set"
+    )
+    drift: list[str] = []
+    cursor_breakage: list[str] = []
+    for rec in records_list:
+        if (
+            rec.producer_ack_sha256
+            != rec.consumer_consumed_reserialized_sha256
+        ):
+            drift.append(
+                f"{rec.ack_record_id} "
+                f"prod={rec.producer_ack_sha256[:16]} "
+                f"cons={rec.consumer_consumed_reserialized_sha256[:16]}"
+            )
+        if not rec.cursor_delta_round_trip_ok:
+            cursor_breakage.append(rec.ack_record_id)
+    assert not drift, (
+        f"CMD-AC-6-7-1[{welle_pair_label}]: ack-record round-trip "
+        f"byte-drift at records: {drift}"
+    )
+    assert not cursor_breakage, (
+        f"CMD-AC-6-7-1[{welle_pair_label}]: cursor-delta round-trip "
+        f"failure at records: {cursor_breakage}"
+    )
+
+
+def assert_cross_modul_drift_welle_6_7_ac_2_resubscribe_trigger_wire_form(
+    records: Iterable[CrossModulDriftWelle6_7ResubscribeRecord],
+    welle_pair_label: str,
+) -> None:
+    """CMD-AC-6-7-2 — R1..R4 Re-subscribe-trigger wire-form parity vs
+    python-python-baseline oracle.
+
+    Singleton oracle-set (``python-python-baseline`` only). The
+    mid-Doppel-Welle ``python-rust-welle-6-only`` hypothetical
+    state is operationally unreachable because the subscribe/
+    recovery contract crosses no bisectable schema touchpoint.
+
+    Failure mode: any R1..R4 trigger's Rust-Rust wire-form diverges
+    from the python-python-baseline.
+    """
+    records_list = list(records)
+    assert records_list, (
+        f"CMD-AC-6-7-2[{welle_pair_label}]: must observe at least one "
+        f"R1..R4 Re-subscribe-trigger record; got empty set"
+    )
+    divergence: list[str] = []
+    for rec in records_list:
+        for oracle in CROSS_MODUL_DRIFT_WELLE_6_7_WIRE_FORM_ORACLES:
+            if not rec.matches_oracle(oracle):
+                rust_rust = rec.rust_rust_wire_sha256[:16]
+                oracle_hash = rec.oracle_wire_sha256_by_oracle.get(
+                    oracle, "<missing>"
+                )[:16]
+                divergence.append(
+                    f"{rec.trigger_id}@{oracle} "
+                    f"rust-rust={rust_rust} oracle={oracle_hash}"
+                )
+    assert not divergence, (
+        f"CMD-AC-6-7-2[{welle_pair_label}]: R1..R4 Re-subscribe-"
+        f"trigger wire-form divergence vs reference oracles: "
+        f"{divergence}"
+    )
+
+
+def assert_cross_modul_drift_welle_6_7_ac_3_per_komponente_consistency(
+    record: CrossModulDriftWelle6_7PerKomponenteConsistencyRecord,
+    welle_pair_label: str,
+) -> None:
+    """CMD-AC-6-7-3 — per-Komponente consistency ≥99.5% on Welle-6+7
+    joint stress-load (subscribe-event-flood + simultaneous recovery-
+    restart-points profile).
+    """
+    modul_a, modul_b = record.welle_pair
+    assert record.total_request_count > 0, (
+        f"CMD-AC-6-7-3[{welle_pair_label}]: stress-test must observe "
+        f"≥1 request; got total={record.total_request_count}"
+    )
+    floor = CROSS_MODUL_DRIFT_CONSISTENCY_PCT_FLOOR
+    failing: list[str] = []
+    if record.modul_a_consistency_rate < floor:
+        failing.append(
+            f"{modul_a}={record.modul_a_consistency_rate:.4f}"
+        )
+    if record.modul_b_consistency_rate < floor:
+        failing.append(
+            f"{modul_b}={record.modul_b_consistency_rate:.4f}"
+        )
+    assert not failing, (
+        f"CMD-AC-6-7-3[{welle_pair_label}]: per-Komponente "
+        f"consistency-rate below {floor:.4f} floor: {failing}; "
+        f"joint-rate={record.joint_consistency_rate:.4f}"
+    )
+
+
+def assert_cross_modul_drift_welle_6_7_ac_4_atomic_flip_rollback(
+    record: CrossModulDriftWelle6_7AtomicFlipRecord,
+    welle_pair_label: str,
+) -> None:
+    """CMD-AC-6-7-4 — Drift-triggered atomic-flip rollback with
+    Phase-3c-Ende-delay impact-classification.
+
+    Same gate-shape as CMD-AC-4 plus the Welle-6+7-specific risk
+    surface: a ``recovery_workflow`` rollback delays Phase-3c-Ende
+    by +1 week (Welle-7 is the closing welle). The delay-classification
+    is surfaced in the error message but does not block the gate (a
+    correctly-fired recovery_workflow atomic-flip is still a valid
+    cutover-recovery, just with operational delay).
+    """
+    modul_a, modul_b = record.welle_pair
+    high_drift = record.high_drift_modul
+    assert high_drift in (modul_a, modul_b), (
+        f"CMD-AC-6-7-4[{welle_pair_label}]: high_drift_modul "
+        f"{high_drift!r} must be a member of the welle-pair "
+        f"({modul_a!r}, {modul_b!r})"
+    )
+    partner = modul_b if high_drift == modul_a else modul_a
+
+    assert (
+        record.measured_drift_pct > record.threshold_drift_pct
+    ), (
+        f"CMD-AC-6-7-4[{welle_pair_label}]: atomic-flip fired "
+        f"without a trigger-precondition: measured drift "
+        f"{record.measured_drift_pct:.4f}pp ≤ threshold "
+        f"{record.threshold_drift_pct:.4f}pp (sub-threshold flips "
+        f"rejected as spurious)"
+    )
+    assert (
+        record.threshold_drift_pct == CROSS_MODUL_DRIFT_ROLLBACK_PCT_THRESHOLD
+    ), (
+        f"CMD-AC-6-7-4[{welle_pair_label}]: threshold_drift_pct must "
+        f"equal the ADR-0066-fixed "
+        f"{CROSS_MODUL_DRIFT_ROLLBACK_PCT_THRESHOLD}pp; got "
+        f"{record.threshold_drift_pct}"
+    )
+    assert record.flip_was_atomic, (
+        f"CMD-AC-6-7-4[{welle_pair_label}]: atomic-flip must be a "
+        f"single restart-cycle; got non-atomic flip-record"
+    )
+    high_drift_state = record.post_flip_backend_per_modul.get(high_drift)
+    assert high_drift_state == "python", (
+        f"CMD-AC-6-7-4[{welle_pair_label}]: high-drift modul "
+        f"{high_drift!r} must end on python-backend; got "
+        f"{high_drift_state!r}"
+    )
+    partner_state = record.post_flip_backend_per_modul.get(partner)
+    assert partner_state == "rust", (
+        f"CMD-AC-6-7-4[{welle_pair_label}]: partner modul {partner!r} "
+        f"must stay on rust-Default (atomic-flip discipline); got "
+        f"{partner_state!r}"
+    )
+    assert record.flip_elapsed_seconds <= ROLLBACK_SLA_SECONDS, (
+        f"CMD-AC-6-7-4[{welle_pair_label}]: flip elapsed "
+        f"{record.flip_elapsed_seconds:.1f}s exceeds "
+        f"{ROLLBACK_SLA_SECONDS:.0f}s SLA"
+    )
+    # Operational-impact classification — surfaces non-blocking
+    # delay-weeks in the record for downstream operator-hand triage.
+    # recovery_workflow flip → +1 week Phase-3c-Ende delay.
+    expected_delay = 1 if high_drift == "recovery_workflow" else 0
+    assert record.phase_3c_ende_delay_weeks == expected_delay, (
+        f"CMD-AC-6-7-4[{welle_pair_label}]: phase_3c_ende_delay_weeks "
+        f"misclassified — high-drift on {high_drift!r} should "
+        f"surface delay={expected_delay}; got "
+        f"{record.phase_3c_ende_delay_weeks}"
     )

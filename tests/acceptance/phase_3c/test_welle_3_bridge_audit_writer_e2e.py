@@ -39,8 +39,18 @@ from ._ac_assertions import (
     assert_ac_3_bug_rate,
     assert_ac_4_cross_review_consensus,
     assert_ac_5_v907_pin_validation,
+    assert_henrik_caution_ac_1_independent_oracle_validation,
+    assert_henrik_caution_ac_2_atomic_rollback,
+    assert_henrik_caution_ac_3_pre_cutover_window,
 )
-from .conftest import WELLE_BY_NAME
+from .conftest import (
+    HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD,
+    HENRIK_CAUTION_INDEPENDENT_ORACLE_SOURCES,
+    HENRIK_CAUTION_PRE_CUTOVER_CONSISTENCY_PCT_FLOOR,
+    HENRIK_CAUTION_PRE_CUTOVER_WINDOW_DAYS,
+    HENRIK_CAUTION_ROLLBACK_SLA_SECONDS,
+    WELLE_BY_NAME,
+)
 
 WELLE_NAME = "bridge_audit_writer"
 WELLE_INDEX = WELLE_BY_NAME[WELLE_NAME]
@@ -187,3 +197,370 @@ def test_welle_3_holdout_python_writer_during_cutover() -> None:
     AC-1 5/5 days green.
     """
     raise NotImplementedError("pending welle-cutover")
+
+
+# ---------------------------------------------------------------------------
+# HC-AC-1 — Independent-Oracle Validation (Henrik-Caution-Extension).
+#
+# Welle-3 Solo-Welle-carve-out (ADR-0066 §Beschluss). bridge_audit_
+# writer is the consistency-oracle substrate for other Wellen, so it
+# cannot self-validate during its own cutover. HC-AC-1 enforces that
+# the cross-validation pulls from an independent substrate (PR #197
+# Cross-Modul-Stress-Test or Operator-Hand-deployed hold-out Python-
+# writer-instance).
+# ---------------------------------------------------------------------------
+
+
+def test_welle_3_hc_ac_1_independent_oracle_validation_cross_modul_stress_test(
+    mocked_henrik_caution_independent_oracle,
+) -> None:
+    """HC-AC-1: PR #197 Cross-Modul-Stress-Test substrate validates
+    Welle-3 Rust-writer envelope-hashes byte-paritär.
+
+    The Phase-3c-trigger sprint wires this against the real PR #197
+    stress-test output: each Welle-3 cutover-day's Rust-writer
+    envelope-hash for the day's request-set is cross-validated against
+    the independent stress-test substrate's hash for the same request.
+    """
+    records = mocked_henrik_caution_independent_oracle(
+        oracle_source="cross-modul-stress-test-pr-197",
+    )
+    assert_henrik_caution_ac_1_independent_oracle_validation(
+        records, WELLE_NAME
+    )
+
+
+def test_welle_3_hc_ac_1_independent_oracle_validation_holdout_writer(
+    mocked_henrik_caution_independent_oracle,
+) -> None:
+    """HC-AC-1 direction-check: hold-out Python-writer-instance also
+    valid as independent-oracle substrate.
+
+    Per ADR-0065 §Empfehlung Footnote, an Operator-Hand-deployed
+    Python-pinned writer-instance running parallel to the Rust-default
+    writer on cutover-Tag serves as the consistency-oracle. The hold-
+    out instance is decommissioned after AC-1 5/5 days green.
+    """
+    records = mocked_henrik_caution_independent_oracle(
+        oracle_source="holdout-python-writer-instance",
+    )
+    assert_henrik_caution_ac_1_independent_oracle_validation(
+        records, WELLE_NAME
+    )
+
+
+def test_welle_3_hc_ac_1_self_validation_rejected(
+    mocked_henrik_caution_independent_oracle,
+) -> None:
+    """HC-AC-1 failure-mode: bridge_audit_writer self-validation
+    rejected.
+
+    This is the dominant Henrik-Caution failure-class: the operator-
+    side runbook accidentally compares the Welle-3 Rust-writer's
+    output against the same Welle-3 Rust-writer's output (self-
+    referential validation). HC-AC-1 surfaces this as an explicit
+    self-validation rejection via the ``self_referential_flag`` guard.
+    """
+    records = mocked_henrik_caution_independent_oracle(
+        oracle_source="bridge_audit_writer_self",
+        self_referential=True,
+    )
+    with pytest.raises(AssertionError, match="HC-AC-1"):
+        assert_henrik_caution_ac_1_independent_oracle_validation(
+            records, WELLE_NAME
+        )
+
+
+def test_welle_3_hc_ac_1_invalid_oracle_source_rejected(
+    mocked_henrik_caution_independent_oracle,
+) -> None:
+    """HC-AC-1 failure-mode: oracle-source outside the allowed set.
+
+    A typo or drift in the operator-runbook (e.g. switching to a
+    third-party oracle that hasn't been ADR-blessed) blocks the gate.
+    """
+    records = mocked_henrik_caution_independent_oracle(
+        oracle_source="ad-hoc-prometheus-counter",
+    )
+    with pytest.raises(AssertionError, match="HC-AC-1"):
+        assert_henrik_caution_ac_1_independent_oracle_validation(
+            records, WELLE_NAME
+        )
+
+
+def test_welle_3_hc_ac_1_oracle_drift_blocks(
+    mocked_henrik_caution_independent_oracle,
+) -> None:
+    """HC-AC-1 failure-mode: Rust-writer/independent-oracle hash drift.
+
+    The Rust-writer emits an envelope-hash that the independent
+    substrate disagrees with — the substantive Welle-3 cutover-
+    blocker. The independent-oracle substrate is the dominant signal
+    here precisely because it is not the bridge_audit_writer itself.
+    """
+    records = mocked_henrik_caution_independent_oracle(
+        drift_request_ids=("req-hc1-b",),
+    )
+    with pytest.raises(AssertionError, match="HC-AC-1"):
+        assert_henrik_caution_ac_1_independent_oracle_validation(
+            records, WELLE_NAME
+        )
+
+
+def test_welle_3_hc_ac_1_oracle_source_set_anchored_to_adr_0066() -> None:
+    """HC-AC-1 sanity: independent-oracle-source enumeration is ADR-
+    0066-fixed.
+
+    Adding a new oracle-source requires an ADR-Folge-Item, not a
+    conftest-edit. The current set is exactly
+    (cross-modul-stress-test-pr-197, holdout-python-writer-instance);
+    bridge_audit_writer self is explicitly excluded by absence.
+    """
+    assert HENRIK_CAUTION_INDEPENDENT_ORACLE_SOURCES == (
+        "cross-modul-stress-test-pr-197",
+        "holdout-python-writer-instance",
+    ), (
+        f"HC-AC-1 oracle-source set anchored to ADR-0066 — must be "
+        f"(cross-modul-stress-test-pr-197, holdout-python-writer-"
+        f"instance); got {HENRIK_CAUTION_INDEPENDENT_ORACLE_SOURCES!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# HC-AC-2 — Atomic ENV-Flag-Switch Rollback ≤600s SLA.
+#
+# Symmetric gates for missed-rollback (false-negative) and spurious-
+# rollback (false-positive). The 0.5pp divergence threshold mirrors
+# the CMD-AC-4 atomic-flip-pattern numerically but applies whole-
+# bridge-audit-writer rather than per-modul.
+# ---------------------------------------------------------------------------
+
+
+def test_welle_3_hc_ac_2_atomic_rollback_happy_path(
+    mocked_henrik_caution_atomic_rollback,
+) -> None:
+    """HC-AC-2: divergence > 0.5pp → atomic rollback fires, ≤600s.
+
+    The Phase-3c-trigger sprint wires this against the real Operator-
+    Hand-runbook: ENV-Flag rewrite + ``systemctl restart wakir-
+    persona-engine``, single restart-cycle, post-flip backend = python.
+    """
+    record = mocked_henrik_caution_atomic_rollback(
+        measured_divergence_pct=0.8,
+        rollback_fired=True,
+    )
+    assert_henrik_caution_ac_2_atomic_rollback(record, WELLE_NAME)
+
+
+def test_welle_3_hc_ac_2_no_trigger_steady_state(
+    mocked_henrik_caution_atomic_rollback,
+) -> None:
+    """HC-AC-2: divergence ≤ 0.5pp → no rollback, steady-state rust.
+
+    Sub-threshold drift does not warrant an automated atomic-rollback;
+    Welle-3 stays on rust-default. The gate-shape verifies the no-op
+    path is gated symmetrically to the rollback-fired path.
+    """
+    record = mocked_henrik_caution_atomic_rollback(
+        measured_divergence_pct=0.35,
+        rollback_fired=False,
+    )
+    assert_henrik_caution_ac_2_atomic_rollback(record, WELLE_NAME)
+
+
+def test_welle_3_hc_ac_2_missed_rollback_blocks(
+    mocked_henrik_caution_atomic_rollback,
+) -> None:
+    """HC-AC-2 failure-mode: missed-rollback (false-negative).
+
+    Divergence crosses the 0.5pp threshold but the operator-hand-
+    runbook fails to fire the atomic rollback. The most operationally
+    dangerous failure-class: the Welle-3 Rust-writer keeps writing
+    drifted envelopes, contaminating the consistency-oracle substrate
+    for the other Wellen.
+    """
+    record = mocked_henrik_caution_atomic_rollback(
+        measured_divergence_pct=0.85,
+        rollback_fired=False,
+    )
+    with pytest.raises(
+        AssertionError, match="HC-AC-2.*missed-rollback"
+    ):
+        assert_henrik_caution_ac_2_atomic_rollback(record, WELLE_NAME)
+
+
+def test_welle_3_hc_ac_2_spurious_rollback_blocks(
+    mocked_henrik_caution_atomic_rollback,
+) -> None:
+    """HC-AC-2 failure-mode: spurious-rollback (false-positive).
+
+    Sub-threshold drift triggers an atomic rollback anyway —
+    operationally indistinguishable from a flapping rollback-loop in
+    the worst case. Symmetric-gate ensures the runbook does not over-
+    fire when drift is benign.
+    """
+    record = mocked_henrik_caution_atomic_rollback(
+        measured_divergence_pct=0.35,
+        rollback_fired=True,
+    )
+    with pytest.raises(
+        AssertionError, match="HC-AC-2.*spurious-rollback"
+    ):
+        assert_henrik_caution_ac_2_atomic_rollback(record, WELLE_NAME)
+
+
+def test_welle_3_hc_ac_2_sla_violation_blocks(
+    mocked_henrik_caution_atomic_rollback,
+) -> None:
+    """HC-AC-2 failure-mode: rollback fires but exceeds 600s SLA.
+
+    A slow atomic-rollback extends the divergence-window and lets
+    contaminated envelopes accumulate. Same SLA as CMD-AC-4 (600s
+    ENV-Flag-Switch).
+    """
+    record = mocked_henrik_caution_atomic_rollback(
+        measured_divergence_pct=0.8,
+        rollback_fired=True,
+        flip_elapsed_seconds=720.0,
+    )
+    with pytest.raises(AssertionError, match="HC-AC-2"):
+        assert_henrik_caution_ac_2_atomic_rollback(record, WELLE_NAME)
+
+
+def test_welle_3_hc_ac_2_non_atomic_flip_blocks(
+    mocked_henrik_caution_atomic_rollback,
+) -> None:
+    """HC-AC-2 failure-mode: rollback fires but is non-atomic (multi-
+    restart-cycle).
+
+    The Operator-Hand-runbook is single-shot. A multi-cycle flip
+    indicates the runbook drifted from the atomic-flip-pattern.
+    """
+    record = mocked_henrik_caution_atomic_rollback(
+        measured_divergence_pct=0.8,
+        rollback_fired=True,
+        flip_was_atomic=False,
+    )
+    with pytest.raises(AssertionError, match="HC-AC-2"):
+        assert_henrik_caution_ac_2_atomic_rollback(record, WELLE_NAME)
+
+
+def test_welle_3_hc_ac_2_threshold_anchored_to_adr_0066() -> None:
+    """HC-AC-2 sanity: the 0.5pp divergence threshold is ADR-0066-fixed.
+
+    Tightening or loosening the threshold requires an ADR-Folge-Item,
+    not a conftest-edit. Numerically equal to the CMD-AC-4 per-modul
+    threshold but applied whole-bridge-audit-writer rather than per-
+    modul.
+    """
+    assert HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD == 0.5, (
+        f"HC-AC-2 divergence-threshold anchored to ADR-0066 — must be "
+        f"0.5pp; got {HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD}"
+    )
+
+
+def test_welle_3_hc_ac_2_sla_anchored_to_adr_0066() -> None:
+    """HC-AC-2 sanity: the 600s rollback-SLA is ADR-0066-fixed.
+
+    Mirrors ROLLBACK_SLA_SECONDS in ``_ac_assertions.py`` (600s
+    ENV-Flag-Switch SLA). Loosening this SLA requires an ADR-Folge-
+    Item.
+    """
+    assert HENRIK_CAUTION_ROLLBACK_SLA_SECONDS == 600.0, (
+        f"HC-AC-2 rollback-SLA anchored to ADR-0066 — must be 600s; "
+        f"got {HENRIK_CAUTION_ROLLBACK_SLA_SECONDS}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# HC-AC-3 — Pre-Cutover-Observability-Window 7-day ≥99.5%.
+#
+# Longer-baseline than the AC-1 5-day Konsistenz-Report window because
+# Welle-3 is the writer itself. The 7-day window absorbs a full
+# operational week of write-pattern variation before the cutover-Tag.
+# ---------------------------------------------------------------------------
+
+
+def test_welle_3_hc_ac_3_pre_cutover_window_7_days_above_floor(
+    mocked_henrik_caution_pre_cutover_window,
+) -> None:
+    """HC-AC-3: 7-day pre-cutover-window per-day consistency ≥99.5%.
+
+    The Phase-3c-trigger sprint wires this against the real Welle-3
+    cutover-week observability data: Prometheus-Gauge `wakir_engine_
+    bridge_audit_writer_consistency_rate` aggregated per-day across
+    the 7-day pre-cutover window.
+    """
+    records = mocked_henrik_caution_pre_cutover_window()
+    assert_henrik_caution_ac_3_pre_cutover_window(records, WELLE_NAME)
+
+
+def test_welle_3_hc_ac_3_single_day_below_floor_blocks(
+    mocked_henrik_caution_pre_cutover_window,
+) -> None:
+    """HC-AC-3 failure-mode: a single day below the 99.5% floor blocks.
+
+    Even one day below the floor inside the 7-day window blocks the
+    cutover — the pre-cutover baseline must be uniformly green. A
+    single below-floor day signals either a regression in the Python-
+    writer (compromising the pre-cutover baseline) or a measurement-
+    pipeline drift that must be debugged before cutover.
+    """
+    records = mocked_henrik_caution_pre_cutover_window(
+        low_rate_day_index=3,
+        low_rate_value=0.989,
+    )
+    with pytest.raises(AssertionError, match="HC-AC-3"):
+        assert_henrik_caution_ac_3_pre_cutover_window(
+            records, WELLE_NAME
+        )
+
+
+def test_welle_3_hc_ac_3_missing_day_blocks(
+    mocked_henrik_caution_pre_cutover_window,
+) -> None:
+    """HC-AC-3 failure-mode: observability-pipeline drops a window day.
+
+    A gap in the 7-day window (e.g. Prometheus-scrape outage) means
+    the baseline is incomplete — the cutover-decision cannot be made
+    on a 6-of-7-day baseline.
+    """
+    records = mocked_henrik_caution_pre_cutover_window(
+        missing_day_index=5,
+    )
+    with pytest.raises(AssertionError, match="HC-AC-3"):
+        assert_henrik_caution_ac_3_pre_cutover_window(
+            records, WELLE_NAME
+        )
+
+
+def test_welle_3_hc_ac_3_window_length_anchored_to_adr_0066() -> None:
+    """HC-AC-3 sanity: the 7-day window length is ADR-0066-fixed.
+
+    Shortening the window (e.g. back to the AC-1 5-day Konsistenz-
+    Report length) requires an ADR-Folge-Item. The 7-day length
+    deliberately absorbs a full operational week of write-pattern
+    variation (weekly Quadlet-restart-pattern + weekend write-pattern-
+    differential).
+    """
+    assert HENRIK_CAUTION_PRE_CUTOVER_WINDOW_DAYS == 7, (
+        f"HC-AC-3 pre-cutover-window length anchored to ADR-0066 — "
+        f"must be 7 days; got {HENRIK_CAUTION_PRE_CUTOVER_WINDOW_DAYS}"
+    )
+
+
+def test_welle_3_hc_ac_3_consistency_floor_anchored_to_adr_0066() -> None:
+    """HC-AC-3 sanity: the 99.5% per-day consistency-floor is ADR-
+    0066-fixed.
+
+    Mirrors the CMD-AC-3 per-Komponente consistency-floor numerically
+    but applied per-day for the Welle-3 Pre-Cutover-Baseline rather
+    than per-Komponente for the Welle-4+5 Stress-Window.
+    """
+    assert (
+        HENRIK_CAUTION_PRE_CUTOVER_CONSISTENCY_PCT_FLOOR == 0.995
+    ), (
+        f"HC-AC-3 per-day consistency-floor anchored to ADR-0066 — "
+        f"must be 0.995 (99.5%); got "
+        f"{HENRIK_CAUTION_PRE_CUTOVER_CONSISTENCY_PCT_FLOOR}"
+    )
