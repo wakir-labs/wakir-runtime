@@ -69,6 +69,21 @@ Anchors
 
 Author: Noa Bergstroem (SRE)
 Tag: 38 (KW-22)
+
+Tag-42 patch (2026-05-18)
+-------------------------
+
+``fetch_aggregator_runs_via_gh_cli`` had a 404-bug on Reza's Tag-41
+probe-run. Query parameters (``per_page``, ``page``) were passed via
+``gh api -f key=value``, which adds the field to the request body and
+forces ``gh`` to use POST semantics. The GitHub-Actions ``runs``
+endpoint only accepts GET; the result was HTTP 404 from the API and
+``subprocess.CalledProcessError`` for the operator. The fix
+(`_build_gh_cli_get_cmd`) embeds query params in the URL path and
+sets ``-X GET`` explicitly, matching the documented gh-cli pattern
+for paginated GET endpoints. Hermetic test
+``test_build_gh_cli_get_cmd_embeds_query_in_path`` enforces the
+invariant so a regression cannot land silently.
 """
 
 from __future__ import annotations
@@ -728,6 +743,39 @@ def fetch_aggregator_runs(
     return out
 
 
+def _build_gh_cli_get_cmd(path: str, query: Optional[dict] = None) -> List[str]:
+    """Build a ``gh api`` command-line for a GET with query params.
+
+    Tag-42 fix for the Reza-probe-run 404. The previous implementation
+    used ``-f key=value`` for ``per_page`` and ``page``. With ``gh api``,
+    ``-f`` adds the field to the request *body* (and forces the method
+    to POST), which for a GET endpoint either yields HTTP 404 (path
+    + method mismatch) or silently drops the param. The two correct
+    options are:
+
+      1. Embed the query in the path: ``gh api '/repos/.../runs?per_page=100&page=1'``
+      2. Use ``-X GET`` together with ``-F`` (raw, typed).
+
+    We pick option 1: it is the form documented in the ``gh-cli``
+    manual for paginated GET endpoints, it is robust against future
+    ``gh`` versions changing ``-f`` semantics, and it keeps the URL
+    identical between the urllib (``_gh_api_get``) and gh-cli paths so
+    the two modes are byte-equivalent for the same input.
+
+    Pure-function helper. Hermetic test
+    ``test_build_gh_cli_get_cmd_embeds_query_in_path`` enforces the
+    invariant.
+    """
+    if query:
+        # Sort for deterministic test assertions; GitHub does not care
+        # about query-param order.
+        encoded = urllib.parse.urlencode(sorted(query.items()))
+        full_path = f"{path}?{encoded}"
+    else:
+        full_path = path
+    return ["gh", "api", "-X", "GET", full_path]
+
+
 def fetch_aggregator_runs_via_gh_cli(
     *,
     owner: str,
@@ -740,20 +788,22 @@ def fetch_aggregator_runs_via_gh_cli(
     Useful when the operator is on a workstation with ``gh auth login``
     already configured but no ``GITHUB_TOKEN`` env var set. Delegates
     to ``gh api`` with the same paths.
+
+    Tag-42 fix: query parameters (``per_page``, ``page``) are now embedded
+    in the URL path rather than passed as ``-f key=value`` form fields.
+    The latter caused ``gh`` to POST the body and the API to return 404
+    on Reza's Tag-41 probe-run. See ``_build_gh_cli_get_cmd``.
     """
     out: List[AggregatorRun] = []
     pages_needed = (max_runs + 99) // 100
     for page in range(1, pages_needed + 1):
-        cmd = [
-            "gh",
-            "api",
+        runs_path = (
             f"/repos/{owner}/{repo}/actions/workflows/"
-            f"{urllib.parse.quote(workflow_file)}/runs",
-            "-f",
-            f"per_page=100",
-            "-f",
-            f"page={page}",
-        ]
+            f"{urllib.parse.quote(workflow_file)}/runs"
+        )
+        cmd = _build_gh_cli_get_cmd(
+            runs_path, query={"per_page": 100, "page": page}
+        )
         proc = subprocess.run(cmd, check=True, capture_output=True, text=True)
         runs_payload = json.loads(proc.stdout)
         runs = runs_payload.get("workflow_runs") or []
@@ -762,13 +812,10 @@ def fetch_aggregator_runs_via_gh_cli(
         for r in runs:
             if len(out) >= max_runs:
                 return out
-            jobs_cmd = [
-                "gh",
-                "api",
-                f"/repos/{owner}/{repo}/actions/runs/{r['id']}/jobs",
-                "-f",
-                "per_page=100",
-            ]
+            jobs_path = f"/repos/{owner}/{repo}/actions/runs/{r['id']}/jobs"
+            jobs_cmd = _build_gh_cli_get_cmd(
+                jobs_path, query={"per_page": 100}
+            )
             jobs_proc = subprocess.run(
                 jobs_cmd, check=True, capture_output=True, text=True
             )
