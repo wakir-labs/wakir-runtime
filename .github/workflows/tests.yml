@@ -381,6 +381,18 @@ jobs:
         #   949 collected → delta 346. Re-baselined 325 → 346 in
         #   the same PR — gated-module-only addition, deliberate
         #   review path per the workflow comment above.
+        # - Tag-35 Mini-Welle (Reza, 2026-05-18): the new
+        #   `test_v907_verify_cross_lang_parity.py` module (Phase-3a
+        #   Item 12 / Modul 12) gates on `yaml` + `rfc8785` and adds
+        #   15 tests (T01..T05 + T08..T10 = 9, plus T06..T07
+        #   parametrised over 6 vectors = 6, total 9 + 6 = 15).
+        #   Re-baselined 346 → 361 in PR #235.
+        # - Tag-36 Mini-Welle (Reza, 2026-05-18): the new
+        #   `test_bridge_audit_diff_engine_cross_lang_parity.py`
+        #   module (Phase-3a Item 13 / Modul 13) gates on `rfc8785`
+        #   and adds 15 tests (T01..T05 + T07..T10 = 9, plus T06
+        #   parametrised over 6 vectors = 6, total 9 + 6 = 15).
+        #   Re-baselined 361 → 376 in this PR.
         # Tolerance ±5 absorbs routine churn going forward.
         # If the observed delta drifts outside the envelope, fail
         # loud — either a test was silently re-classified across the
@@ -389,7 +401,7 @@ jobs:
         env:
           PRODUCTION_COUNT: ${{ needs.production-suite.outputs.collected }}
           SANDBOX_COUNT: ${{ needs.sandbox-suite-shadow.outputs.collected }}
-          EXPECTED_DELTA: '361'
+          EXPECTED_DELTA: '376'
           DELTA_TOLERANCE: '5'
         run: |
           python - <<'PY'
