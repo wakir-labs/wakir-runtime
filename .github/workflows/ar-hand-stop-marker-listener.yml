@@ -1,0 +1,238 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# AR-Hand-Stop-Marker Listener Workflow — Tag-47 Tomás
+# ----------------------------------------------------
+#
+# Substanz-Counterpart zum Tag-46 PR #299 B1-Coverage-Test
+# (`tests/ci/test_ar_hand_stop_marker_trigger_b1.py`). Tag-46
+# pinte das Marker-File-Schema und das State-Machine-Verhalten als
+# Property-Tests gegen synthetische State-Snapshots — die echte
+# CI-Reaktion auf einen frisch gepushten Marker fehlte aber.
+# Dieser Workflow schliesst die Luecke.
+#
+# Auftrag (Tomás Tag-47, Continuous-Mode, 2026-05-18)
+# ---------------------------------------------------
+#
+# Wenn ein AR-Hand-Stop-Marker-File im `state/`-Pfad in `main`
+# landet, MUESSEN alle laufenden Cutover-Workflows fuer die
+# adressierte Welle UND die downstream-cascade gekoppelten Wellen
+# (B2-Coupling) abgebrochen werden. Cutover-Sequenz haltet bis ein
+# Sign-Off-File (`state/ar-hand-stop-sign-off-welle-N.json`)
+# nachgereicht wird; Sign-Off ist *nicht* Teil dieses Workflows
+# (separate Mira-Hand-Sequenz, Cheat-Sheet §I).
+#
+# Reaktionssemantik
+# -----------------
+#
+#   1. Push auf `main`, Marker-File matched
+#      `state/ar-hand-stop-welle-<N>-<YYYYMMDD>.json`.
+#   2. Workflow extrahiert (welle, trigger, ts, operator) aus dem
+#      neuen Marker.
+#   3. Workflow cancellt alle in-flight `phase-3c-welle-N-*` UND
+#      `phase-3-cutover-*` UND `phase-3c-pre-cutover-*` runs deren
+#      gleiche Welle adressiert ist (Cascade-Coupling: Welle-N+1
+#      blockiert wenn Marker fuer Welle-N gesetzt, weil Welle-N
+#      offen).
+#   4. Workflow appendiert einen Audit-Trail-Eintrag an
+#      `activity-log.md` (operator-hand-staged, kein Live-Push aus
+#      Workflow — Sandbox-Boundary).
+#   5. Workflow emittiert das Listener-Verdict-Artifact
+#      `ar-hand-stop-listener-verdict-welle-N.json` mit
+#      `{ welle, trigger, marker_ts, listener_run_ts,
+#         cancelled_workflows, cascade_blocked_welle }`.
+#
+# Cascade-Coupling
+# ----------------
+#
+# Cheat-Sheet §I trigger 1..10 sind welle-spezifisch (Welle-3:
+# OTS-Anchor-Bruch; Welle-4: POST!=PRE-Hash; etc.). Welle-N+1 darf
+# nicht starten solange Welle-N offen ist (ADR-0066 §Welle-
+# Sequenz). Listener cancelt also (a) alle Welle-N runs UND (b)
+# alle Welle-M runs mit M > N solange Welle-N kein Sign-Off hat.
+# Sign-Off-Check liest `state/ar-hand-stop-sign-off-welle-N.json`
+# vor jedem Cancel-Schritt.
+#
+# Trigger-Surface
+# ---------------
+#
+#   * `push` auf `main`, paths-Filter
+#     `state/ar-hand-stop-welle-*-*.json`. Marker-Push triggert.
+#   * `workflow_dispatch:` fuer Operator-Hand-Replay (z.B. nach
+#     listener-internen Fehlern, Re-Cancel-Cascade noetig). Inputs:
+#       - `welle` (string, 1..7)
+#       - `marker_filename` (string, exakter Filename, optional)
+#       - `dry_run` (boolean, default false; dry-run laeuft alle
+#         Schritte aber cancellt keine echten Runs).
+#
+# Cancel-Target-Liste (komplett)
+# ------------------------------
+#
+# Welle-spezifisch (cancel WENN welle == N):
+#   - phase-3c-welle-N-validation.yml
+#   - phase-3c-welle-3-hot-spot-probe.yml (nur N=3)
+#
+# Cascade (cancel WENN welle > N AND welle-N hat keinen Sign-Off):
+#   - phase-3c-welle-{N+1..7}-validation.yml
+#
+# Pre-Cutover/Marathon (cancel WENN Marker fuer irgendeine Welle,
+# weil Marathon-Phase voraussetzt: keine offenen Stops):
+#   - phase-3c-pre-cutover-daily-probe.yml
+#   - phase-3c-pre-cutover-marathon-dashboard.yml
+#   - phase-3c-pre-cutover-sanity.yml
+#   - phase-3-cutover-day-auto-scheduler.yml
+#   - phase-3c-welle-status-dashboard.yml (Tag-30 Live-Dashboard)
+#
+# Sandbox-Boundary
+# ----------------
+#
+# Alle Schritte hermetic-laufbar: stdlib + pyyaml + `gh` CLI (im
+# ubuntu-latest runner default). Kein NATS, kein podman, kein
+# Anthropic-API. Der Marker-Inhalt wird gegen das Cheat-Sheet-§I-
+# Trigger-Vokabular (`scripts/ci/ar-hand-stop-marker-set.py` —
+# `_TRIGGER_TOKENS`) validiert, nicht gegen externe Quellen.
+#
+# Branch-Protection
+# -----------------
+#
+# Dieser Workflow ist KEIN Required-Status-Check
+# (Reaktions-Workflow, nicht Gate-Workflow). Branch-Protection-
+# Enforcement bleibt Operator-Hand (feedback_branch_protection_
+# check_names.md).
+#
+# Anchors
+# -------
+#
+#   * Cheat-Sheet §I (Trigger 1..10, Marker-Pattern, Sign-Off-
+#     Pattern, `docs/phase-3c/cutover-operator-cheat-sheet.md`).
+#   * Tag-46 B1 Coverage-Test (PR #299,
+#     `tests/ci/test_ar_hand_stop_marker_trigger_b1.py`).
+#   * Tag-47 Hermetic-Tests (>=12,
+#     `tests/ci/test_ar_hand_stop_marker_workflow.py`).
+#   * ADR-0066 §Welle-Sequenz (Cascade-Coupling B2).
+#   * Operator-CLI (Marker-Setzen, `scripts/ci/ar-hand-stop-
+#     marker-set.py`).
+
+name: AR-Hand-Stop-Marker Listener
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'state/ar-hand-stop-welle-*-*.json'
+  workflow_dispatch:
+    inputs:
+      welle:
+        description: 'Welle number (1..7) for which a stop marker landed'
+        required: true
+        type: string
+      marker_filename:
+        description: 'Exact marker filename (state/ar-hand-stop-welle-N-YYYYMMDD.json); optional'
+        required: false
+        type: string
+        default: ''
+      dry_run:
+        description: 'Dry-run: run all steps but do not cancel any workflow run'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  actions: write     # required to cancel in-flight workflow runs
+  contents: read
+
+concurrency:
+  group: ar-hand-stop-marker-listener-${{ github.ref }}
+  cancel-in-progress: false  # this workflow itself must NEVER be cancelled mid-run
+
+jobs:
+  detect-and-cascade-cancel:
+    name: detect-marker-and-cascade-cancel
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Identify marker file
+        id: marker
+        env:
+          DISPATCH_WELLE: ${{ github.event.inputs.welle }}
+          DISPATCH_FILENAME: ${{ github.event.inputs.marker_filename }}
+        run: |
+          set -euo pipefail
+          python scripts/ci/ar-hand-stop-marker-listener-detect.py \
+            --event "$GITHUB_EVENT_NAME" \
+            --event-payload "$GITHUB_EVENT_PATH" \
+            --dispatch-welle "$DISPATCH_WELLE" \
+            --dispatch-filename "$DISPATCH_FILENAME" \
+            --out "$GITHUB_OUTPUT"
+
+      - name: Compute cascade cancel-targets
+        id: cascade
+        env:
+          MARKER_WELLE: ${{ steps.marker.outputs.welle }}
+        run: |
+          set -euo pipefail
+          python scripts/ci/ar-hand-stop-marker-listener-cascade.py \
+            --welle "$MARKER_WELLE" \
+            --state-dir state \
+            --out "$GITHUB_OUTPUT"
+
+      - name: Cancel in-flight workflow runs
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WELLE_TARGETS: ${{ steps.cascade.outputs.welle_targets }}
+          CASCADE_TARGETS: ${{ steps.cascade.outputs.cascade_targets }}
+          MARATHON_TARGETS: ${{ steps.cascade.outputs.marathon_targets }}
+        run: |
+          set -euo pipefail
+          python scripts/ci/ar-hand-stop-marker-listener-cancel.py \
+            --welle-targets "$WELLE_TARGETS" \
+            --cascade-targets "$CASCADE_TARGETS" \
+            --marathon-targets "$MARATHON_TARGETS" \
+            --gh-repo "$GITHUB_REPOSITORY"
+
+      - name: Emit listener verdict artifact
+        env:
+          MARKER_WELLE: ${{ steps.marker.outputs.welle }}
+          MARKER_TRIGGER: ${{ steps.marker.outputs.trigger }}
+          MARKER_TS: ${{ steps.marker.outputs.ts }}
+          MARKER_OPERATOR: ${{ steps.marker.outputs.operator }}
+          MARKER_FILENAME: ${{ steps.marker.outputs.filename }}
+          WELLE_TARGETS: ${{ steps.cascade.outputs.welle_targets }}
+          CASCADE_TARGETS: ${{ steps.cascade.outputs.cascade_targets }}
+          MARATHON_TARGETS: ${{ steps.cascade.outputs.marathon_targets }}
+          CASCADE_BLOCKED_WELLE: ${{ steps.cascade.outputs.cascade_blocked_welle }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          python scripts/ci/ar-hand-stop-marker-listener-verdict.py \
+            --welle "$MARKER_WELLE" \
+            --trigger "$MARKER_TRIGGER" \
+            --marker-ts "$MARKER_TS" \
+            --operator "$MARKER_OPERATOR" \
+            --marker-filename "$MARKER_FILENAME" \
+            --welle-targets "$WELLE_TARGETS" \
+            --cascade-targets "$CASCADE_TARGETS" \
+            --marathon-targets "$MARATHON_TARGETS" \
+            --cascade-blocked-welle "$CASCADE_BLOCKED_WELLE" \
+            --dry-run "${DRY_RUN:-false}" \
+            --out ar-hand-stop-listener-verdict.json
+
+      - name: Upload listener verdict artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ar-hand-stop-listener-verdict
+          path: ar-hand-stop-listener-verdict.json
+          retention-days: 90
+          if-no-files-found: error
