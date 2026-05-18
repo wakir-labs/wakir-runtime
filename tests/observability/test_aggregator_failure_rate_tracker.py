@@ -605,3 +605,48 @@ def test_escape_label_escapes_quote_and_backslash():
     """Embedded ``"`` and ``\\`` must be backslash-escaped."""
     out = tracker._escape_label('weird"name\\here')
     assert out == 'weird\\"name\\\\here'
+
+
+# ---------------------------------------------------------------------------
+# Test 17 (Tag-42 regression): gh-cli command builder embeds query in path
+# rather than as -f form fields. The original implementation passed
+# ``-f per_page=100 -f page=N`` which forced ``gh`` into POST semantics
+# and yielded HTTP 404 on Reza's Tag-41 probe-run. The fix embeds the
+# query parameters in the URL path and sets ``-X GET`` explicitly.
+# ---------------------------------------------------------------------------
+
+
+def test_build_gh_cli_get_cmd_embeds_query_in_path():
+    """Query params must be in the path, not as ``-f`` form fields.
+
+    Regression test for the Tag-41 404 bug. Asserts:
+      1. The command does NOT contain ``-f`` flags.
+      2. The command DOES contain ``-X GET``.
+      3. Query params are URL-encoded in the path argument.
+      4. Sort-order of params is deterministic (alphabetical).
+    """
+    cmd = tracker._build_gh_cli_get_cmd(
+        "/repos/wakir-labs/wakir-runtime/actions/workflows/ci-aggregator.yml/runs",
+        query={"per_page": 100, "page": 3},
+    )
+    # No -f flags (the bug).
+    assert "-f" not in cmd, f"Found regressed -f flag in: {cmd}"
+    # -X GET present (the fix).
+    assert "-X" in cmd and "GET" in cmd
+    # Path argument contains the embedded query.
+    path_arg = cmd[-1]
+    assert "?" in path_arg
+    assert "per_page=100" in path_arg
+    assert "page=3" in path_arg
+    # Deterministic sort order: page before per_page alphabetically.
+    assert path_arg.index("page=3") < path_arg.index("per_page=100")
+
+
+def test_build_gh_cli_get_cmd_no_query_yields_clean_path():
+    """When no query is supplied, the path stays unmodified."""
+    cmd = tracker._build_gh_cli_get_cmd(
+        "/repos/wakir-labs/wakir-runtime/actions/runs/12345/jobs"
+    )
+    assert cmd[-1] == "/repos/wakir-labs/wakir-runtime/actions/runs/12345/jobs"
+    assert "?" not in cmd[-1]
+    assert "-X" in cmd and "GET" in cmd
