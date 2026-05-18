@@ -439,7 +439,15 @@ jobs:
           # lifts by exactly 45 (48 minus 3 superseded tests on
           # `test_manifest_0_5_0_pre_cutover.py` that no longer
           # parametrise the 10th record as "scaffolded-only").
-          EXPECTED_DELTA: '493'
+          # Tag-52 (2026-05-19, Selin): re-baselined 493 -> 529 because
+          # the Tag-52 0.5.2-final-pre-cutover Pre-KW-24-Final
+          # consolidation marker adds one new PyYAML-gated test module:
+          #   - test_manifest_0_5_2_final_pre_cutover.py: 36 tests
+          # The module uses pytest.importorskip("yaml") for the
+          # 0.5.2-final-pre-cutover pin-pack/manifest loader, so all
+          # 36 collect in production but skip in sandbox -- the delta
+          # lifts by exactly 36.
+          EXPECTED_DELTA: '529'
           DELTA_TOLERANCE: '5'
         run: |
           python - <<'PY'
