@@ -26,6 +26,15 @@ on:
     branches: [main]
     paths:
       - "state/phase-3-complete-marker.json"
+      - "scripts/observability/phase-3-final-bilanz-generator.py"
+      - "tests/observability/test_phase_3_final_bilanz_generator.py"
+      - "tests/fixtures/phase-3-marathon-bilanz/**"
+  pull_request:
+    paths:
+      - "scripts/observability/phase-3-final-bilanz-generator.py"
+      - "tests/observability/test_phase_3_final_bilanz_generator.py"
+      - "tests/fixtures/phase-3-marathon-bilanz/**"
+      - ".github/workflows/phase-3-final-bilanz-generator.yml"
 
 permissions:
   contents: read
@@ -47,6 +56,10 @@ jobs:
       - name: Run tests
         run: |
           python3 -m pytest tests/observability/test_phase_3_final_bilanz_generator.py -v
+
+      - name: Run fixture validation tests (Selin Tag-44)
+        run: |
+          python3 -m pytest tests/fixtures/phase-3-marathon-bilanz/test_bilanz_generator_with_fixtures.py -v
 
       - name: Generate bilanz (auto-trigger mode)
         run: |

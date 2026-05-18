@@ -1,0 +1,90 @@
+{
+  "schema_version": "1.0.0",
+  "updated_at": "2026-06-29T11:00:00Z",
+  "wellen": {
+    "welle-1-v907-verify": {
+      "cutover_runs_python_fallback": 10,
+      "cutover_runs_rust": 990,
+      "cutover_runs_total": 1000,
+      "decision_latency_ms_samples": [
+        187.5,
+        375.0,
+        562.5,
+        750.0
+      ],
+      "last_sample_at": "2026-06-21T12:00:00Z"
+    },
+    "welle-2-svid-workload-identity": {
+      "cutover_runs_python_fallback": 20,
+      "cutover_runs_rust": 1980,
+      "cutover_runs_total": 2000,
+      "decision_latency_ms_samples": [
+        250.0,
+        500.0,
+        750.0,
+        1000.0
+      ],
+      "last_sample_at": "2026-06-22T12:00:00Z"
+    },
+    "welle-3-bridge-audit-writer": {
+      "cutover_runs_python_fallback": 30,
+      "cutover_runs_rust": 2970,
+      "cutover_runs_total": 3000,
+      "decision_latency_ms_samples": [
+        750.0,
+        1500.0,
+        2250.0,
+        3000.0
+      ],
+      "last_sample_at": "2026-06-23T12:00:00Z"
+    },
+    "welle-4-state-backing": {
+      "cutover_runs_python_fallback": 40,
+      "cutover_runs_rust": 3960,
+      "cutover_runs_total": 4000,
+      "decision_latency_ms_samples": [
+        375.0,
+        750.0,
+        1125.0,
+        1500.0
+      ],
+      "last_sample_at": "2026-06-24T12:00:00Z"
+    },
+    "welle-5-lifecycle-state-machine": {
+      "cutover_runs_python_fallback": 50,
+      "cutover_runs_rust": 4950,
+      "cutover_runs_total": 5000,
+      "decision_latency_ms_samples": [
+        1137.5,
+        2275.0,
+        3412.5,
+        4550.0
+      ],
+      "last_sample_at": "2026-06-25T12:00:00Z"
+    },
+    "welle-6-subscribe-loop": {
+      "cutover_runs_python_fallback": 60,
+      "cutover_runs_rust": 5940,
+      "cutover_runs_total": 6000,
+      "decision_latency_ms_samples": [
+        312.5,
+        625.0,
+        937.5,
+        1250.0
+      ],
+      "last_sample_at": "2026-06-26T12:00:00Z"
+    },
+    "welle-7-recovery-workflow": {
+      "cutover_runs_python_fallback": 70,
+      "cutover_runs_rust": 6930,
+      "cutover_runs_total": 7000,
+      "decision_latency_ms_samples": [
+        375.0,
+        750.0,
+        1125.0,
+        1500.0
+      ],
+      "last_sample_at": "2026-06-27T12:00:00Z"
+    }
+  }
+}
