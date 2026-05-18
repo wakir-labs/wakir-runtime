@@ -1,0 +1,282 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# 15-Binary SBOM Baseline Refresh Workflow (Tag-50, Kai)
+# ------------------------------------------------------
+#
+# Purpose
+# -------
+#
+# Tag-49 PR #318 introduced the daily SBOM-vs-baseline verifier
+# (.github/workflows/sbom-verification-daily.yml) which compares
+# today's generated SBOMs to state/sbom-baseline/<binary>.json
+# and emits a Mira-Notify event on drift.
+#
+# Tag-49 documented the *refresh* procedure as an Operator-Hand
+# runbook (docs/operations/15-binary-sbom-baseline-refresh.md).
+# Tag-50 introduces the end-to-end CLI
+# (scripts/observability/refresh-15-binary-sbom-baseline.py) and
+# this workflow that exposes it via workflow_dispatch ONLY.
+#
+# Manual workflow_dispatch ONLY
+# -----------------------------
+#
+# This workflow has NO schedule trigger and NO push/pull_request
+# trigger. It runs only when an operator manually clicks "Run
+# workflow" in the Actions tab and supplies the required AR-Hand-
+# Gate approval-token input. Rationale:
+#
+#   * Mutating state/sbom-baseline/ is a privileged operation
+#     gated by ADR-0066 § AR-Hand-Gate.
+#   * Automatic scheduling would mask supply-chain drift behind
+#     a "self-healing" refresh -- the exact failure-mode we are
+#     defending against.
+#   * The verifier already runs daily on a schedule; if the
+#     verifier reports drift, the operator triages it before
+#     manually invoking this refresh workflow.
+#
+# Inputs
+# ------
+#
+#   * approval_token   -- REQUIRED. AR-HAND-GATE-YYYY-MM-DD-<initials>.
+#   * allow_checksum_changed -- Default false. Set true ONLY if
+#                          AR has signed off on a checksum-changed
+#                          drift event (yanked-then-republished
+#                          crate with confirmed provenance).
+#   * dry_run          -- Default true. Set false to actually
+#                          mutate state/sbom-baseline/. The
+#                          conservative default is dry-run so
+#                          accidental clicks do not mutate state.
+#
+# Sandbox posture
+# ---------------
+#
+# Strict hermetic: the refresh script uses stdlib + tomllib only.
+# No cargo / cosign / podman / network egress. The workflow runs
+# the hermetic test suite first so substrate-side regressions
+# fail before any state mutation.
+#
+# State-mutation surface
+# ----------------------
+#
+# When dry_run=false, the workflow:
+#
+#   1. Runs the refresh CLI against state/sbom-baseline/.
+#   2. Stages the changes via `git add state/sbom-baseline/
+#      state/sbom-baseline-refresh-receipts/`.
+#   3. Uploads the receipt JSON as a workflow artefact (audit-
+#      trail anchor for the operation).
+#   4. Does NOT push to main. The operator opens a PR with the
+#      staged changes via the Actions-UI-provided diff output
+#      OR runs the script locally and commits via normal PR.
+#
+# The workflow intentionally does not auto-push: the staged
+# changes are part of an AR-Hand-Gate audit trail and must
+# flow through normal PR review.
+#
+# Audit-Trail anchor
+# ------------------
+#
+# Every successful refresh emits a receipt JSON to
+# state/sbom-baseline-refresh-receipts/<refresh_ts>-receipt.json
+# capturing the AR approval-token, the cargo-lock-sha256
+# before/after, and the drift summary. The receipt is the
+# single source of truth for "which AR sign-off blessed this
+# baseline mutation".
+#
+# Anchors
+# -------
+#
+#   * Tag-50 PR -- this workflow + refresh CLI.
+#   * Tag-49 PR #318 -- daily verifier + workflow.
+#   * Tag-48 PR #310 -- 15-binary SBOM generator.
+#   * ADR-0066 § AR-Hand-Gate.
+#   * feedback_sandbox_host_trennung.md.
+
+name: sbom-baseline-refresh
+
+on:
+  workflow_dispatch:
+    inputs:
+      approval_token:
+        description: "AR-Hand-Gate token (AR-HAND-GATE-YYYY-MM-DD-<initials>)."
+        required: true
+      allow_checksum_changed:
+        description: "Permit refresh through checksum-changed drift (RED)."
+        required: false
+        default: "false"
+      dry_run:
+        description: "Dry-run only -- compute plan, do not mutate baseline."
+        required: false
+        default: "true"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sbom-baseline-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: 15-Binary SBOM Baseline Refresh (operator-hand)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Run hermetic refresh-CLI tests
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check \
+              'pytest==9.0.3'
+          python3 -m pytest -v \
+              tests/observability/test_refresh_15_binary_sbom_baseline.py
+
+      - name: Resolve dispatch inputs
+        id: inputs
+        env:
+          APPROVAL_TOKEN: ${{ github.event.inputs.approval_token }}
+          ALLOW_CKSUM: ${{ github.event.inputs.allow_checksum_changed }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if [ -z "${APPROVAL_TOKEN}" ]; then
+            echo "ERROR: approval_token input is required." >&2
+            exit 1
+          fi
+          allow_flag=""
+          if [ "${ALLOW_CKSUM:-false}" = "true" ]; then
+            allow_flag="--allow-checksum-changed"
+          fi
+          dry_flag=""
+          if [ "${DRY_RUN:-true}" = "true" ]; then
+            dry_flag="--dry-run"
+          fi
+          echo "allow_flag=${allow_flag}" >> "${GITHUB_OUTPUT}"
+          echo "dry_flag=${dry_flag}" >> "${GITHUB_OUTPUT}"
+
+      - name: Compute refresh-timestamp slug
+        id: ts
+        run: |
+          set -euo pipefail
+          slug="$(date -u +%Y%m%dT%H%M%SZ)"
+          echo "slug=${slug}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run refresh CLI
+        id: run
+        env:
+          APPROVAL_TOKEN: ${{ github.event.inputs.approval_token }}
+          ALLOW_FLAG: ${{ steps.inputs.outputs.allow_flag }}
+          DRY_FLAG: ${{ steps.inputs.outputs.dry_flag }}
+          TS_SLUG: ${{ steps.ts.outputs.slug }}
+        run: |
+          set -euo pipefail
+          mkdir -p out/refresh
+          mkdir -p state/sbom-baseline-refresh-receipts
+          receipt_path="state/sbom-baseline-refresh-receipts/${TS_SLUG}-receipt.json"
+          # shellcheck disable=SC2086
+          python3 scripts/observability/refresh-15-binary-sbom-baseline.py \
+              --cargo-lock wirelang-rust/Cargo.lock \
+              --baseline-dir state/sbom-baseline \
+              --approval-token "${APPROVAL_TOKEN}" \
+              --receipt-out "${receipt_path}" \
+              --work-dir out/refresh \
+              --generator-ts 0.0 \
+              ${ALLOW_FLAG} \
+              ${DRY_FLAG} \
+            | tee out/refresh/stdout.txt
+          echo "receipt_path=${receipt_path}" >> "${GITHUB_OUTPUT}"
+
+      - name: Render Job-Summary
+        if: always()
+        env:
+          DRY_FLAG: ${{ steps.inputs.outputs.dry_flag }}
+          RECEIPT_PATH: ${{ steps.run.outputs.receipt_path }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## 15-Binary SBOM Baseline Refresh"
+            echo ""
+            if [ -n "${DRY_FLAG}" ]; then
+              echo "**Mode:** dry-run (state/sbom-baseline NOT mutated)"
+            else
+              echo "**Mode:** live refresh"
+            fi
+            echo ""
+            if [ -f "${RECEIPT_PATH}" ]; then
+              echo "**Receipt:** \`${RECEIPT_PATH}\`"
+              echo ""
+              echo '```json'
+              cat "${RECEIPT_PATH}"
+              echo '```'
+            else
+              echo "No receipt produced (run failed before receipt write)."
+            fi
+            echo ""
+            if [ -f out/refresh/pre-refresh-verify.md ]; then
+              echo "### Pre-refresh verifier output"
+              echo ""
+              cat out/refresh/pre-refresh-verify.md
+            fi
+            if [ -f out/refresh/post-refresh-verify.md ]; then
+              echo "### Post-refresh verifier output"
+              echo ""
+              cat out/refresh/post-refresh-verify.md
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Surface baseline diff (live mode only)
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### git status (after refresh)"
+            echo ""
+            echo '```'
+            git status --short state/sbom-baseline state/sbom-baseline-refresh-receipts || true
+            echo '```'
+            echo ""
+            echo "### git diff --stat (after refresh)"
+            echo ""
+            echo '```'
+            git diff --stat state/sbom-baseline state/sbom-baseline-refresh-receipts || true
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload refresh artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-baseline-refresh-${{ github.run_id }}
+          path: |
+            out/refresh/
+            state/sbom-baseline-refresh-receipts/
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Note operator next-steps
+        if: ${{ always() && github.event.inputs.dry_run != 'true' }}
+        run: |
+          {
+            echo ""
+            echo "### Operator-Hand next steps"
+            echo ""
+            echo "This workflow does **not** auto-push changes."
+            echo ""
+            echo "1. Download the \`sbom-baseline-refresh-${{ github.run_id }}\` artefact."
+            echo "2. Inspect the receipt + diff locally."
+            echo "3. Open a PR with the baseline-mutation + receipt"
+            echo "   so the AR-Hand-Gate sign-off has a normal PR-review trail."
+            echo ""
+            echo "See \`docs/operations/15-binary-sbom-baseline-refresh.md\`"
+            echo "for the full operator runbook."
+          } >> "${GITHUB_STEP_SUMMARY}"
