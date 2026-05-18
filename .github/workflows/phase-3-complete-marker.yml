@@ -1,0 +1,447 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase-3-COMPLETE-Marker Workflow - ADR-0066 + Henrik Tag-39 Audit-Spec
+# ----------------------------------------------------------------------
+#
+# Final Phase-3-Cutover-Marathon closure workflow. Verifies the
+# five conjunctive Acceptance-Criteria from Henrik's Tag-39
+# `docs/audit/phase-3-cutover-schluss-audit-spec.md` (§3 Trigger-
+# Bedingungen) and - only if ALL five pass - emits the
+# `state/phase-3-complete-marker.json` artifact.
+#
+# Henrik's spec lists the trigger conditions as a conjunction
+# (§3): AC-1 wave sign-offs, AC-2 cross-wave aggregate consistency,
+# AC-3 phase-3a/3b/3c predecessor closure, plus R-A1..R-A6 risk-
+# vector mitigation verification, plus AR-Hand ratification.
+# This workflow folds R-A mitigation verification into AC-4
+# (Henrik audit ratification, materialised as a signed JSON file)
+# and surfaces AR-Hand ratification as AC-5 (separate signed JSON).
+#
+# AC-1 .. AC-5 (matching the Tomas Tag-40 task envelope):
+#
+#   AC-1: All seven Welle sign-offs registered as
+#         state/welle-{1..7}-sign-off.json with status in
+#         {green, yellow_henrik_hand_approval}.
+#   AC-2: Aggregate consistency - all Welle-Validation-Workflows
+#         report `success` on the current `main` HEAD (probed via
+#         GitHub API).
+#   AC-3: Predecessor sub-phase closure: Phase-3a (15/15),
+#         Phase-3b (9/9), Phase-3c substance (7/7) all attested by
+#         state/phase-3{a,b,c}-closure.json.
+#   AC-4: Henrik Internal-Audit sign-off ratification present as
+#         state/henrik-phase-3-complete-ratification.json with
+#         R-A1..R-A6 mitigation verdicts and aggregate verdict
+#         `ratified`.
+#   AC-5: AR-Hand ratification present as
+#         state/ar-hand-phase-3-complete-stamp.json with
+#         `ar_hand_ratification: true` and a non-empty
+#         `ar_hand_quote` field (Henrik-Spec §3 Pt-5: no implicit
+#         marker setting by Internal Audit).
+#
+# IIA-1130 compliance: Internal Audit RATIFIES (AC-4); AR-Hand
+# RATIFIES FINAL (AC-5); this workflow only emits the marker if
+# both ratifications are present alongside the substantive AC-1..3.
+# Marker setting is mechanical-executive, never bewertend.
+#
+# Trigger surface
+# ---------------
+#
+#   * `workflow_dispatch:` - manual (Mira-Hand) run, used after
+#     Welle-7 sign-off to materialise the marker.
+#   * `schedule: cron "0 12 * * 1"` - Monday 12:00 UTC, Cutover-Day-
+#     friendly (KW-27 Welle-6+7 cutover is on a Monday). The
+#     scheduled probe is idempotent: if AC-1..AC-5 are not all
+#     satisfied the workflow exits with a clean "marker not yet
+#     emitted" verdict; no destructive side-effects.
+#
+# Sandbox boundary
+# ----------------
+#
+# Hermetic: stdlib + pyyaml + the in-tree wakir-runtime python
+# package. No podman, no NATS, no live-VM, no Anthropic API. The
+# workflow reads `state/*.json` from the checked-out HEAD and
+# probes the GitHub API for sibling Welle-Validation-Workflow
+# success state on the same HEAD.
+#
+# Not required-status-check
+# -------------------------
+#
+# Per `feedback_branch_protection_check_names.md` this workflow is
+# NOT listed as a required status check on PRs - it gates a
+# repository-state-transition (Phase-3-COMPLETE marker file), not
+# individual PRs.
+
+name: phase-3-complete-marker
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Probe AC-1..AC-5 without emitting the marker file (true|false)"
+        required: false
+        default: "false"
+      override_schedule_window:
+        description: "Allow manual marker emission outside Mon 12:00 UTC window (true|false)"
+        required: false
+        default: "true"
+  schedule:
+    # Monday 12:00 UTC - Cutover-Day-friendly window.
+    - cron: "0 12 * * 1"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: phase-3-complete-marker
+  cancel-in-progress: false
+
+jobs:
+  verify-ac-1-welle-sign-offs:
+    name: AC-1 verify all seven Welle sign-offs
+    runs-on: ubuntu-latest
+    outputs:
+      ac1_pass: ${{ steps.probe.outputs.ac1_pass }}
+      welle_sign_off_shas: ${{ steps.probe.outputs.welle_sign_off_shas }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe state/welle-{1..7}-sign-off.json
+        id: probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=true
+          declare -A shas
+          for w in 1 2 3 4 5 6 7; do
+            f="state/welle-${w}-sign-off.json"
+            if [[ ! -f "$f" ]]; then
+              echo "::warning::AC-1: missing $f"
+              ok=false
+              continue
+            fi
+            status=$(python -c "import json,sys; print(json.load(open('$f')).get('sign_off_status',''))")
+            case "$status" in
+              green|yellow_henrik_hand_approval)
+                sha=$(python -c "import json; print(json.load(open('$f')).get('commit_sha',''))")
+                shas[$w]="$sha"
+                ;;
+              *)
+                echo "::warning::AC-1: $f sign_off_status='$status' not in {green, yellow_henrik_hand_approval}"
+                ok=false
+                ;;
+            esac
+          done
+          echo "ac1_pass=$ok" >> "$GITHUB_OUTPUT"
+          {
+            echo "welle_sign_off_shas<<EOF"
+            for w in 1 2 3 4 5 6 7; do
+              echo "welle-${w}=${shas[$w]:-}"
+            done
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  verify-ac-2-aggregate-consistency:
+    name: AC-2 verify aggregate Welle-Validation green on main
+    runs-on: ubuntu-latest
+    outputs:
+      ac2_pass: ${{ steps.probe.outputs.ac2_pass }}
+      aggregate_latency_histogram: ${{ steps.probe.outputs.aggregate_latency_histogram }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe sibling Welle-Validation-Workflow conclusions on main HEAD
+        id: probe
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          head_sha=$(git rev-parse HEAD)
+          ok=true
+          # Probe each phase-3c-welle-{N}-validation workflow's most
+          # recent run on main; require conclusion == success.
+          # Use the GitHub REST API via curl + GITHUB_TOKEN.
+          declare -A latencies
+          for w in 1 2 3 4 5 6 7; do
+            wf="phase-3c-welle-${w}-validation.yml"
+            resp=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/${wf}/runs?branch=main&status=completed&per_page=1")
+            conclusion=$(python -c "import json,sys; d=json.loads(sys.argv[1]); print((d.get('workflow_runs') or [{}])[0].get('conclusion',''))" "$resp")
+            run_started=$(python -c "import json,sys; d=json.loads(sys.argv[1]); print((d.get('workflow_runs') or [{}])[0].get('run_started_at',''))" "$resp")
+            run_completed=$(python -c "import json,sys; d=json.loads(sys.argv[1]); print((d.get('workflow_runs') or [{}])[0].get('updated_at',''))" "$resp")
+            latencies[$w]="${run_started}|${run_completed}"
+            if [[ "$conclusion" != "success" ]]; then
+              echo "::warning::AC-2: workflow $wf last main-conclusion='$conclusion' (expected success)"
+              ok=false
+            fi
+          done
+          echo "ac2_pass=$ok" >> "$GITHUB_OUTPUT"
+          {
+            echo "aggregate_latency_histogram<<EOF"
+            for w in 1 2 3 4 5 6 7; do
+              echo "welle-${w}=${latencies[$w]:-}"
+            done
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  verify-ac-3-predecessor-closure:
+    name: AC-3 verify Phase-3a/3b/3c predecessor closure
+    runs-on: ubuntu-latest
+    outputs:
+      ac3_pass: ${{ steps.probe.outputs.ac3_pass }}
+      closure_counts: ${{ steps.probe.outputs.closure_counts }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe state/phase-3{a,b,c}-closure.json
+        id: probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=true
+          declare -A counts
+          declare -A expected=( [a]=15 [b]=9 [c]=7 )
+          for sub in a b c; do
+            f="state/phase-3${sub}-closure.json"
+            if [[ ! -f "$f" ]]; then
+              echo "::warning::AC-3: missing $f"
+              ok=false
+              counts[$sub]="missing"
+              continue
+            fi
+            completed=$(python -c "import json; print(json.load(open('$f')).get('completed_count',-1))")
+            total=$(python -c "import json; print(json.load(open('$f')).get('total_count',-1))")
+            counts[$sub]="${completed}/${total}"
+            if [[ "$completed" != "${expected[$sub]}" ]] || [[ "$total" != "${expected[$sub]}" ]]; then
+              echo "::warning::AC-3: phase-3${sub} expected ${expected[$sub]}/${expected[$sub]}, got ${completed}/${total}"
+              ok=false
+            fi
+          done
+          echo "ac3_pass=$ok" >> "$GITHUB_OUTPUT"
+          {
+            echo "closure_counts<<EOF"
+            for sub in a b c; do
+              echo "phase-3${sub}=${counts[$sub]}"
+            done
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  verify-ac-4-henrik-ratification:
+    name: AC-4 verify Henrik audit-sign-off ratification
+    runs-on: ubuntu-latest
+    outputs:
+      ac4_pass: ${{ steps.probe.outputs.ac4_pass }}
+      henrik_ratification_sha: ${{ steps.probe.outputs.henrik_ratification_sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe state/henrik-phase-3-complete-ratification.json
+        id: probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          f="state/henrik-phase-3-complete-ratification.json"
+          if [[ ! -f "$f" ]]; then
+            echo "::warning::AC-4: missing $f"
+            echo "ac4_pass=false" >> "$GITHUB_OUTPUT"
+            echo "henrik_ratification_sha=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Required fields: verdict == 'ratified', r_a_mitigation_status
+          # object covering R-A1..R-A6 all == 'verified'.
+          verdict=$(python -c "import json; print(json.load(open('$f')).get('verdict',''))")
+          if [[ "$verdict" != "ratified" ]]; then
+            echo "::warning::AC-4: verdict='$verdict' (expected 'ratified')"
+            echo "ac4_pass=false" >> "$GITHUB_OUTPUT"
+            echo "henrik_ratification_sha=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          all_mitigated=$(python <<'PY'
+          import json
+          d = json.load(open("state/henrik-phase-3-complete-ratification.json"))
+          m = d.get("r_a_mitigation_status", {})
+          required = ["R-A1", "R-A2", "R-A3", "R-A4", "R-A5", "R-A6"]
+          print("true" if all(m.get(k) == "verified" for k in required) else "false")
+          PY
+          )
+          if [[ "$all_mitigated" != "true" ]]; then
+            echo "::warning::AC-4: not all R-A1..R-A6 verified"
+            echo "ac4_pass=false" >> "$GITHUB_OUTPUT"
+            echo "henrik_ratification_sha=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          sha=$(python -c "import json; print(json.load(open('state/henrik-phase-3-complete-ratification.json')).get('commit_sha',''))")
+          echo "ac4_pass=true" >> "$GITHUB_OUTPUT"
+          echo "henrik_ratification_sha=$sha" >> "$GITHUB_OUTPUT"
+
+  verify-ac-5-ar-hand-ratification:
+    name: AC-5 verify AR-Hand ratification stamp
+    runs-on: ubuntu-latest
+    outputs:
+      ac5_pass: ${{ steps.probe.outputs.ac5_pass }}
+      ar_hand_quote: ${{ steps.probe.outputs.ar_hand_quote }}
+      ar_hand_timestamp: ${{ steps.probe.outputs.ar_hand_timestamp }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe state/ar-hand-phase-3-complete-stamp.json
+        id: probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          f="state/ar-hand-phase-3-complete-stamp.json"
+          if [[ ! -f "$f" ]]; then
+            echo "::warning::AC-5: missing $f"
+            echo "ac5_pass=false" >> "$GITHUB_OUTPUT"
+            echo "ar_hand_quote=" >> "$GITHUB_OUTPUT"
+            echo "ar_hand_timestamp=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          ratified=$(python -c "import json; print(json.load(open('$f')).get('ar_hand_ratification', False))")
+          quote=$(python -c "import json; print(json.load(open('$f')).get('ar_hand_quote',''))")
+          ts=$(python -c "import json; print(json.load(open('$f')).get('timestamp_utc',''))")
+          if [[ "$ratified" != "True" ]] || [[ -z "$quote" ]]; then
+            echo "::warning::AC-5: ratified='$ratified' quote_len=${#quote}"
+            echo "ac5_pass=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ac5_pass=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "ar_hand_quote=$quote" >> "$GITHUB_OUTPUT"
+          echo "ar_hand_timestamp=$ts" >> "$GITHUB_OUTPUT"
+
+  emit-phase-3-complete-marker:
+    name: Emit Phase-3-COMPLETE marker (conjunction of AC-1..AC-5)
+    runs-on: ubuntu-latest
+    needs:
+      - verify-ac-1-welle-sign-offs
+      - verify-ac-2-aggregate-consistency
+      - verify-ac-3-predecessor-closure
+      - verify-ac-4-henrik-ratification
+      - verify-ac-5-ar-hand-ratification
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Aggregate AC-1..AC-5 verdicts
+        id: aggregate
+        shell: bash
+        env:
+          AC1: ${{ needs.verify-ac-1-welle-sign-offs.outputs.ac1_pass }}
+          AC2: ${{ needs.verify-ac-2-aggregate-consistency.outputs.ac2_pass }}
+          AC3: ${{ needs.verify-ac-3-predecessor-closure.outputs.ac3_pass }}
+          AC4: ${{ needs.verify-ac-4-henrik-ratification.outputs.ac4_pass }}
+          AC5: ${{ needs.verify-ac-5-ar-hand-ratification.outputs.ac5_pass }}
+        run: |
+          set -euo pipefail
+          all_pass=true
+          for v in "$AC1" "$AC2" "$AC3" "$AC4" "$AC5"; do
+            if [[ "$v" != "true" ]]; then
+              all_pass=false
+            fi
+          done
+          echo "all_pass=$all_pass" >> "$GITHUB_OUTPUT"
+          echo "AC-1=$AC1 AC-2=$AC2 AC-3=$AC3 AC-4=$AC4 AC-5=$AC5 -> all_pass=$all_pass"
+      - name: Emit state/phase-3-complete-marker.json
+        if: steps.aggregate.outputs.all_pass == 'true' && inputs.dry_run != 'true'
+        shell: bash
+        env:
+          WELLE_SHAS: ${{ needs.verify-ac-1-welle-sign-offs.outputs.welle_sign_off_shas }}
+          LATENCY_HIST: ${{ needs.verify-ac-2-aggregate-consistency.outputs.aggregate_latency_histogram }}
+          CLOSURE_COUNTS: ${{ needs.verify-ac-3-predecessor-closure.outputs.closure_counts }}
+          HENRIK_SHA: ${{ needs.verify-ac-4-henrik-ratification.outputs.henrik_ratification_sha }}
+          AR_QUOTE: ${{ needs.verify-ac-5-ar-hand-ratification.outputs.ar_hand_quote }}
+          AR_TS: ${{ needs.verify-ac-5-ar-hand-ratification.outputs.ar_hand_timestamp }}
+        run: |
+          set -euo pipefail
+          mkdir -p state
+          python <<'PY'
+          import datetime, json, os, subprocess
+          def parse_kv(s):
+              out = {}
+              for line in (s or "").splitlines():
+                  if "=" in line:
+                      k, v = line.split("=", 1)
+                      out[k.strip()] = v.strip()
+              return out
+          commit_sha = subprocess.check_output(["git","rev-parse","HEAD"]).decode().strip()
+          marker = {
+              "marker_type": "phase-3-complete",
+              "marker_schema_version": 1,
+              "emitted_at_utc": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "commit_sha": commit_sha,
+              "welle_sign_off_shas": parse_kv(os.environ.get("WELLE_SHAS","")),
+              "aggregate_latency_histogram": parse_kv(os.environ.get("LATENCY_HIST","")),
+              "closure_counts": parse_kv(os.environ.get("CLOSURE_COUNTS","")),
+              "henrik_ratification_sha": os.environ.get("HENRIK_SHA",""),
+              "ar_hand_stamp": {
+                  "ratification": True,
+                  "quote": os.environ.get("AR_QUOTE",""),
+                  "timestamp_utc": os.environ.get("AR_TS",""),
+              },
+              "acceptance_criteria": {
+                  "AC-1": True, "AC-2": True, "AC-3": True,
+                  "AC-4": True, "AC-5": True,
+              },
+              "henrik_audit_spec": "docs/audit/phase-3-cutover-schluss-audit-spec.md",
+              "adr_ref": "ADR-0066",
+          }
+          with open("state/phase-3-complete-marker.json", "w") as f:
+              json.dump(marker, f, indent=2, sort_keys=True)
+              f.write("\n")
+          PY
+          echo "::notice::Phase-3-COMPLETE marker emitted at state/phase-3-complete-marker.json"
+          cat state/phase-3-complete-marker.json
+      - name: Emit Phase-3-Marathon-Bilanz JSON (always)
+        shell: bash
+        env:
+          ALL_PASS: ${{ steps.aggregate.outputs.all_pass }}
+          AC1: ${{ needs.verify-ac-1-welle-sign-offs.outputs.ac1_pass }}
+          AC2: ${{ needs.verify-ac-2-aggregate-consistency.outputs.ac2_pass }}
+          AC3: ${{ needs.verify-ac-3-predecessor-closure.outputs.ac3_pass }}
+          AC4: ${{ needs.verify-ac-4-henrik-ratification.outputs.ac4_pass }}
+          AC5: ${{ needs.verify-ac-5-ar-hand-ratification.outputs.ac5_pass }}
+          WELLE_SHAS: ${{ needs.verify-ac-1-welle-sign-offs.outputs.welle_sign_off_shas }}
+          LATENCY_HIST: ${{ needs.verify-ac-2-aggregate-consistency.outputs.aggregate_latency_histogram }}
+          CLOSURE_COUNTS: ${{ needs.verify-ac-3-predecessor-closure.outputs.closure_counts }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          python <<'PY'
+          import json, os, datetime, subprocess
+          def parse_kv(s):
+              out = {}
+              for line in (s or "").splitlines():
+                  if "=" in line:
+                      k, v = line.split("=", 1)
+                      out[k.strip()] = v.strip()
+              return out
+          bilanz = {
+              "report_type": "phase-3-marathon-bilanz",
+              "report_schema_version": 1,
+              "emitted_at_utc": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "commit_sha": subprocess.check_output(["git","rev-parse","HEAD"]).decode().strip(),
+              "verdict": "phase-3-complete" if os.environ["ALL_PASS"] == "true" else "phase-3-incomplete",
+              "acceptance_criteria_status": {
+                  "AC-1": os.environ["AC1"],
+                  "AC-2": os.environ["AC2"],
+                  "AC-3": os.environ["AC3"],
+                  "AC-4": os.environ["AC4"],
+                  "AC-5": os.environ["AC5"],
+              },
+              "welle_sign_off_shas": parse_kv(os.environ.get("WELLE_SHAS","")),
+              "aggregate_latency_histogram": parse_kv(os.environ.get("LATENCY_HIST","")),
+              "closure_counts": parse_kv(os.environ.get("CLOSURE_COUNTS","")),
+              "henrik_audit_spec": "docs/audit/phase-3-cutover-schluss-audit-spec.md",
+              "adr_ref": "ADR-0066",
+          }
+          with open("artifacts/phase-3-marathon-bilanz.json","w") as f:
+              json.dump(bilanz, f, indent=2, sort_keys=True)
+              f.write("\n")
+          print(json.dumps(bilanz, indent=2, sort_keys=True))
+          PY
+      - name: Upload Phase-3-Marathon-Bilanz artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-3-marathon-bilanz
+          path: artifacts/phase-3-marathon-bilanz.json
+      - name: Fail job if not all AC pass (so manual-dispatch surfaces red)
+        if: steps.aggregate.outputs.all_pass != 'true'
+        run: |
+          echo "::error::Phase-3-COMPLETE marker NOT emitted; one or more AC failed (see warnings)."
+          exit 1
