@@ -811,6 +811,19 @@ def _rel(path: str, repo_root: str) -> str:
         return path
 
 
+# Pipe-escape constant — used in Markdown-table cells. Pulled out of
+# f-strings so the module stays compatible with Python 3.11 (which
+# disallows backslashes inside f-string expression parts; the
+# constraint was relaxed in 3.12 but the CI runner pins 3.11).
+_ESCAPED_PIPE = "\\|"
+
+
+def _esc_pipe(s: str) -> str:
+    """Escape Markdown-table pipe characters."""
+
+    return s.replace("|", _ESCAPED_PIPE)
+
+
 def render_report(result: AuditResult, *, generated_at: str) -> str:
     """Render the audit report as Markdown."""
 
@@ -841,7 +854,7 @@ def render_report(result: AuditResult, *, generated_at: str) -> str:
         for r in result.inventory:
             lines.append(
                 f"| `{_rel(r.file, rr)}` | {r.line} | `{r.kind}` | "
-                f"`{r.snippet.replace('|', '\\|')}` |"
+                f"`{_esc_pipe(r.snippet)}` |"
             )
     lines.append("")
 
@@ -870,7 +883,7 @@ def render_report(result: AuditResult, *, generated_at: str) -> str:
             lines.append(
                 f"| `{_rel(s.file, rr)}` | {s.line} | "
                 f"`{s.literal}` | `{s.verdict}` | "
-                f"{s.detail.replace('|', '\\|')} |"
+                f"{_esc_pipe(s.detail)} |"
             )
     else:
         lines.append(
@@ -893,7 +906,7 @@ def render_report(result: AuditResult, *, generated_at: str) -> str:
             lines.append(
                 f"| `{_rel(s.file, rr)}` | {s.line} | "
                 f"`{s.literal}` | "
-                f"{s.detail.replace('|', '\\|')} |"
+                f"{_esc_pipe(s.detail)} |"
             )
         lines.append("")
         lines.append("</details>")
@@ -914,7 +927,7 @@ def render_report(result: AuditResult, *, generated_at: str) -> str:
         for m in result.mode_checks:
             lines.append(
                 f"| `{_rel(m.file, rr)}` | `{m.verdict}` | "
-                f"{m.detail.replace('|', '\\|')} |"
+                f"{_esc_pipe(m.detail)} |"
             )
     else:
         lines.append("_No modules in scope._")
@@ -936,7 +949,7 @@ def render_report(result: AuditResult, *, generated_at: str) -> str:
         for a in result.adapter_checks:
             lines.append(
                 f"| `{_rel(a.file, rr)}` | `{a.verdict}` | "
-                f"{a.detail.replace('|', '\\|')} |"
+                f"{_esc_pipe(a.detail)} |"
             )
     else:
         lines.append("_No modules in scope._")
