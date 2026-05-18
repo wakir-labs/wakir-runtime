@@ -1,0 +1,279 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase-3c Alert-Rule -> Mira-Notify Bridge — Live-Test (Tag-47)
+# ---------------------------------------------------------------
+#
+# Purpose
+# -------
+#
+# Tag-45 PR #292 added the Pre-Mortem-Failure-Mode Prometheus alert
+# rules (`dashboards/phase-3-marathon-alerts.yaml`).  Tag-46 PR #296
+# added the Mira-Notify emitter+receiver substrate that materialises a
+# Mira-Hand inbox entry per notify-event.  Tag-47 wires the two via
+# `scripts/observability/alert-rule-to-mira-notify-bridge.py`.
+#
+# This workflow exercises the bridge end-to-end with a synthetic
+# AlertManager v4 webhook envelope:
+#
+#   1. The bridge `validate-catalog` subcommand cross-checks the
+#      Tag-45 rules YAML against the bridge catalog.  If any alert
+#      in the YAML is missing from the catalog, the workflow fails.
+#      This is the *catalog-staleness* gate.
+#
+#   2. The bridge `route --input` subcommand ingests a synthetic
+#      envelope (two firing alerts + one resolved alert) and writes
+#      a JSONL append-log.  The job asserts the routing counters
+#      (`routed=2 skipped_resolved=1 errors=0`) via grep.
+#
+#   3. The Tag-46 receiver consumes the JSONL log and materialises
+#      Mira-Hand inbox markdown files into a temporary inbox
+#      directory.  The job asserts >= 1 `notify-page-*.md` file.
+#
+#   4. The hermetic test-suite
+#      `tests/observability/test_alert_rule_to_mira_notify_bridge.py`
+#      runs to catch any regression in the bridge itself.
+#
+# Posture
+# -------
+#
+# Hermetic — stdlib-only Python, no podman / cosign / live-VM, no
+# external secrets.  The synthetic envelope is generated inline; it
+# does NOT require a real AlertManager binding.  This is the
+# *substance-test* gate; the real-world wiring to a live AlertManager
+# webhook receiver is Kai's Zone-H deployment-substrate concern (out
+# of scope for this hermetic CI surface, ADR-0042 boundary).
+#
+# Modes
+# -----
+#
+# * **push to main / PR** — runs on every change touching the bridge,
+#   rules YAML, emitter, receiver, or this workflow.
+# * **workflow_dispatch** — manual invocation, useful for ad-hoc
+#   re-runs after operator-hand catalog edits.
+# * **schedule** — daily at 04:00 UTC (one hour after the
+#   observability-baseline snapshot) as a drift-detector: if the
+#   rules YAML or the bridge catalog drift, the daily run flags it
+#   before the next Pre-Mortem-event would fire.
+#
+# Exit codes
+# ----------
+#
+# * 0 — bridge catalog covers all rules, routing counters match,
+#   receiver materialised inbox files, hermetic suite green.
+# * non-0 — any step failed; the step-summary identifies which.
+#
+# Anchors
+# -------
+#
+# * Tag-45 — `dashboards/phase-3-marathon-alerts.yaml` (alert rules).
+# * Tag-45 — `docs/observability/pre-mortem-failure-mode-notify-catalog.md`.
+# * Tag-46 — `scripts/observability/mira-notify-emitter.py`.
+# * Tag-46 — `scripts/observability/mira-notify-receiver.py`.
+# * Tag-47 — `scripts/observability/alert-rule-to-mira-notify-bridge.py`.
+# * Tag-47 — `tests/observability/test_alert_rule_to_mira_notify_bridge.py`.
+
+name: phase-3c-alert-rule-bridge-live-test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/observability/alert-rule-to-mira-notify-bridge.py"
+      - "scripts/observability/mira-notify-emitter.py"
+      - "scripts/observability/mira-notify-receiver.py"
+      - "dashboards/phase-3-marathon-alerts.yaml"
+      - "tests/observability/test_alert_rule_to_mira_notify_bridge.py"
+      - ".github/workflows/phase-3c-alert-rule-bridge-live-test.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/observability/alert-rule-to-mira-notify-bridge.py"
+      - "scripts/observability/mira-notify-emitter.py"
+      - "scripts/observability/mira-notify-receiver.py"
+      - "dashboards/phase-3-marathon-alerts.yaml"
+      - "tests/observability/test_alert_rule_to_mira_notify_bridge.py"
+      - ".github/workflows/phase-3c-alert-rule-bridge-live-test.yml"
+  workflow_dispatch:
+  schedule:
+    # Daily at 04:00 UTC — one hour after the observability daily
+    # snapshot (03:00 UTC) so the two ops jobs don't contend.
+    - cron: "0 4 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  bridge-live-test:
+    name: alert-rule-bridge-live-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pytest (hermetic stdlib + pytest only)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+
+      - name: Step 1 — Catalog-staleness gate (validate-catalog)
+        id: validate-catalog
+        run: |
+          set -euo pipefail
+          python scripts/observability/alert-rule-to-mira-notify-bridge.py \
+            validate-catalog \
+            --rules dashboards/phase-3-marathon-alerts.yaml \
+            | tee /tmp/catalog-audit.json
+          MISSING=$(python -c "import json; print(len(json.load(open('/tmp/catalog-audit.json'))['missing']))")
+          STALE=$(python -c "import json; print(len(json.load(open('/tmp/catalog-audit.json'))['stale']))")
+          {
+            echo "## Catalog audit"
+            echo ""
+            echo "* missing-from-catalog: ${MISSING}"
+            echo "* stale-in-catalog: ${STALE}"
+            echo ""
+            echo '```json'
+            cat /tmp/catalog-audit.json
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+          if [ "${MISSING}" -ne 0 ]; then
+            echo "ERROR: ${MISSING} alert(s) in YAML have no bridge catalog entry" >&2
+            exit 1
+          fi
+
+      - name: Step 2 — Generate synthetic AlertManager v4 envelope
+        run: |
+          mkdir -p /tmp/bridge-live
+          cat > /tmp/bridge-live/envelope.json <<'EOF'
+          {
+            "version": "4",
+            "groupKey": "phase-3-marathon-bridge-live-test",
+            "status": "firing",
+            "alerts": [
+              {
+                "status": "firing",
+                "labels": {
+                  "alertname": "WakirPhase3FailureModeA1CrossModulDriftPerWelle",
+                  "severity": "page",
+                  "source_welle": "welle-3",
+                  "target_welle": "welle-4",
+                  "phase": "phase-3-marathon",
+                  "owner": "noa-sre"
+                },
+                "annotations": {
+                  "summary": "Bridge live-test synthetic: A1 drift welle-3 -> welle-4",
+                  "description": "synthetic firing for Tag-47 live-test workflow",
+                  "runbook_url": "https://wakir-labs.example/runbooks/failure-mode-a1-cross-modul-drift"
+                },
+                "startsAt": "2026-05-18T04:00:00Z"
+              },
+              {
+                "status": "firing",
+                "labels": {
+                  "alertname": "WakirPhase3FailureModeA5SelfReferenceTrapWelle3Critical",
+                  "severity": "page",
+                  "welle": "welle-3"
+                },
+                "annotations": {
+                  "summary": "Bridge live-test synthetic: A5 self-reference-trap welle-3",
+                  "runbook_url": "https://wakir-labs.example/runbooks/failure-mode-a5-self-reference-trap"
+                },
+                "startsAt": "2026-05-18T04:00:00Z"
+              },
+              {
+                "status": "resolved",
+                "labels": {
+                  "alertname": "WakirPhase3MarathonWelleRollback",
+                  "severity": "page",
+                  "welle": "welle-2"
+                },
+                "annotations": {
+                  "summary": "Bridge live-test synthetic: welle-2 rollback resolved"
+                },
+                "startsAt": "2026-05-18T03:00:00Z"
+              }
+            ]
+          }
+          EOF
+
+      - name: Step 3 — Bridge route synthetic envelope
+        id: bridge-route
+        run: |
+          set -euo pipefail
+          python scripts/observability/alert-rule-to-mira-notify-bridge.py \
+            route \
+            --input /tmp/bridge-live/envelope.json \
+            --log-path /tmp/bridge-live/notify-log.jsonl \
+            2> /tmp/bridge-live/bridge.stderr
+          cat /tmp/bridge-live/bridge.stderr
+          grep -q "routed=2" /tmp/bridge-live/bridge.stderr
+          grep -q "skipped_resolved=1" /tmp/bridge-live/bridge.stderr
+          grep -q "errors=0" /tmp/bridge-live/bridge.stderr
+          {
+            echo "## Bridge route output"
+            echo ""
+            echo '```'
+            cat /tmp/bridge-live/bridge.stderr
+            echo '```'
+            echo ""
+            echo "### Notify-log JSONL"
+            echo ""
+            echo '```jsonl'
+            cat /tmp/bridge-live/notify-log.jsonl
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Step 4 — Receiver materialises Mira-Hand inbox
+        id: receiver
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/bridge-live/inbox
+          python scripts/observability/mira-notify-receiver.py \
+            --mode file \
+            --input /tmp/bridge-live/notify-log.jsonl \
+            --inbox /tmp/bridge-live/inbox \
+            2> /tmp/bridge-live/receiver.stderr
+          cat /tmp/bridge-live/receiver.stderr
+          PAGE_COUNT=$(find /tmp/bridge-live/inbox -maxdepth 1 -type f -name 'notify-page-*.md' | wc -l)
+          {
+            echo "## Receiver materialisation"
+            echo ""
+            echo "* notify-page-*.md files: ${PAGE_COUNT}"
+            echo ""
+            echo "### Inbox contents"
+            echo ""
+            echo '```'
+            ls -la /tmp/bridge-live/inbox
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+          if [ "${PAGE_COUNT}" -lt 2 ]; then
+            echo "ERROR: expected >= 2 notify-page-*.md files, got ${PAGE_COUNT}" >&2
+            exit 1
+          fi
+
+      - name: Step 5 — Hermetic test-suite (regression guard)
+        run: |
+          set -euo pipefail
+          python -m pytest \
+            tests/observability/test_alert_rule_to_mira_notify_bridge.py \
+            -v --tb=short 2>&1 | tee /tmp/bridge-live/pytest.log
+          {
+            echo "## Hermetic pytest"
+            echo ""
+            echo '```'
+            tail -20 /tmp/bridge-live/pytest.log
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload bridge live-test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bridge-live-test-${{ github.run_id }}
+          path: /tmp/bridge-live/
+          retention-days: 7
