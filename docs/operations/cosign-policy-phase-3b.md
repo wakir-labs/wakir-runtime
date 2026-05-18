@@ -65,6 +65,23 @@ unverified binaries on that hot-path are a supply-chain breach.
 > `persona-engine-bridge-audit-replay` crate alongside the
 > sibling `replay_cli`.
 
+> **Tag-45 Mini-Welle update (Phase-3a-Foundation 14 + 15 closeout).**
+> Carrier-image inventory extended from 9 to 11 binaries
+> (Cosign-Policy 13 -> 15 with the Welle-4..7 dedicated images
+> unchanged). Two additions in a single Mini-Welle bundle:
+> `bridge-audit-replay` (Tag-37 PR #246, Phase-3a-Foundation 14.
+> Modul — deterministic-replay-oracle canonical-trace bridge) and
+> `migrate-version` (Tag-38 PR #250, Phase-3a-Foundation 15. Modul —
+> engine-version migration pre-flight decision canonical-trace,
+> closes the Phase-3a-Foundation sweep at 15/15). Both are
+> CANONICAL-only bridges (no live state-backing I/O on the Rust
+> side; the Python sibling holds the live workflow and the Rust
+> binary returns the canonical-trace projection for byte-paritätische
+> comparison). The Tag-45 Operator-Hand recipe lives in
+> `docs/phase-3c/quadlet-cosign-15-binary-installer.md` (Installer-
+> Sequence + Cosign-Verification + Rollback-Pfad pro Binary +
+> Cross-Welle-Coordination).
+
 Cosign-policy answers two operator questions, both of which the
 existing `IMAGE_PINS.md` substrate does NOT cover for the
 Rust-CLI surface:
@@ -166,7 +183,9 @@ podman run --rm --entrypoint /bin/sh \
                  /opt/wakir/bin/wakir-persona-engine-subscribe-loop \
                  /opt/wakir/bin/wakir-persona-engine-anchor-emitter \
                  /opt/wakir/bin/wakir-persona-engine-svid-workload-identity \
-                 /opt/wakir/bin/wakir-persona-engine-bridge-audit-writer; do
+                 /opt/wakir/bin/wakir-persona-engine-bridge-audit-writer \
+                 /opt/wakir/bin/wakir-persona-engine-bridge-audit-replay \
+                 /opt/wakir/bin/wakir-persona-engine-migrate-version; do
             test -x "$b" || { echo "missing or non-exec: $b" >&2; exit 2; }
         done
         echo OK'
@@ -230,6 +249,8 @@ Each ENV-switch is closed-enum (rejects unknown values via
 | anchor-emitter | `WAKIR_ANCHOR_EMITTER_BACKEND` | `python` (default), `rust` | `WAKIR_RUST_ANCHOR_EMITTER_BIN` |
 | svid-workload-identity | `WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND` | `python` (default), `rust` | `WAKIR_RUST_SVID_WORKLOAD_IDENTITY_BIN` |
 | bridge-audit-writer | `WAKIR_BRIDGE_AUDIT_WRITER_BACKEND` | `python` (default), `rust` | `WAKIR_RUST_BRIDGE_AUDIT_WRITER_BIN` |
+| bridge-audit-replay | `WAKIR_BRIDGE_AUDIT_REPLAY_BACKEND` | `python` (default), `rust` | `WAKIR_RUST_BRIDGE_AUDIT_REPLAY_BIN` |
+| migrate-version | `WAKIR_MIGRATE_VERSION_BACKEND` | `python` (default), `rust` | `WAKIR_RUST_MIGRATE_VERSION_BIN` |
 
 Production-default stays Python on all nine axes; opt-in via
 Quadlet `Environment=` drop-in or `systemd-creds`. The

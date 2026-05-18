@@ -1,11 +1,10 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic format invariants for the Tag-22/24 Phase-3b Rust-CLI
-installer Quadlet bundle (retry after Tag-21 quota-hit; identical
-bytes-shape as the aborted Tag-21 draft; Tag-24 Mini-Welle extends
-the inventory from 5 to 7 binaries per ADR-0065 Phase-3c
-Trigger-Gate 3, in lock-step with the Cosign-Policy update
-Trigger-Gate 2).
+"""Hermetic format invariants for the Tag-22/24/29/31/45 Phase-3b
+Rust-CLI installer Quadlet bundle (retry after Tag-21 quota-hit;
+identical bytes-shape as the aborted Tag-21 draft; Tag-24 Mini-Welle
+extends the inventory 5->7, Tag-29 7->8, Tag-31 8->9, Tag-45 9->11
+in lock-step with the Cosign-Policy update at each step).
 
 Sibling tests
 -------------
@@ -84,6 +83,21 @@ EXPECTED_BINARIES_SEVEN = (
     "wakir-persona-engine-bridge-diff",
     "wakir-persona-engine-subscribe-loop",
     "wakir-persona-engine-anchor-emitter",
+)
+
+# Tag-29 + Tag-31 + Tag-45 Mini-Welle additions — the carrier-image
+# binary set has grown 7 -> 8 -> 9 -> 11 since the original constant
+# was named EXPECTED_BINARIES_SEVEN. The constant name is kept for
+# backwards-compat reference (downstream tests in this file still
+# iterate it for the original seven), but the canonical set the
+# installer Exec= loop iterates is now eleven binaries — declared
+# separately here so the seven->eleven evolution stays self-documented.
+EXPECTED_BINARIES_ELEVEN = EXPECTED_BINARIES_SEVEN + (
+    "wakir-persona-engine-svid-workload-identity",
+    "wakir-persona-engine-bridge-audit-writer",
+    # Tag-45 Mini-Welle (Phase-3a-Foundation 14 + 15 closeout).
+    "wakir-persona-engine-bridge-audit-replay",
+    "wakir-persona-engine-migrate-version",
 )
 
 # Canonical placeholder + canonical resolved-digest form (mirrors the

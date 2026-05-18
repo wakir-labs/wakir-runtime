@@ -80,6 +80,41 @@
 # (test_cross_substrate_parity_with_quadlet_installer) enforces
 # lock-step agreement with the Quadlet installer.
 #
+# Tag-45 Mini-Welle update (Phase-3a Modul 14 + 15 closeout)
+# ----------------------------------------------------------
+# Inventory extended from 13 to 15 binaries in lock-step with the
+# Tag-45 Quadlet installer update. Two additions — both shipped via
+# Reza's Phase-3a-Foundation 15-module sweep (PR #246 and PR #250):
+#
+#   * ``bridge-audit-replay`` (Tag-37 Mini-Welle PR #246 — 14. Phase-3a
+#     Modul; deterministic-replay-oracle from ADR-0063 §Folgeartefakte
+#     Item 11. Binary lives in the same
+#     ``persona-engine-bridge-audit-replay`` crate as the existing
+#     ``bridge-audit-writer`` binary; both are first-class entries
+#     because they expose different operator-CLI surfaces — writer
+#     emits a single AuditRecord envelope, replay consumes a JSONL
+#     stream and produces a divergence report. The replay-side has
+#     been in the carrier image as ``replay_cli`` since PR #205; the
+#     Tag-45 Mini-Welle promotes it to the canonical install path
+#     ``/opt/wakir/bin/wakir-persona-engine-bridge-audit-replay``
+#     so the persona-engine subprocess-bridge resolves it via
+#     ``DEFAULT_RUST_BRIDGE_AUDIT_REPLAY_BIN``).
+#   * ``migrate-version`` (Tag-38 Mini-Welle PR #250 — 15. Phase-3a
+#     Modul; closes the Phase-3a-Foundation sweep at 15/15. Engine-
+#     version migration pre-flight decision canonical-trace. New crate
+#     ``persona-engine-migrate-version`` (Apache-2.0) — the binary
+#     ships at ``/opt/wakir/bin/wakir-persona-engine-migrate-version``
+#     per ``DEFAULT_RUST_MIGRATE_VERSION_BIN``).
+#
+# Same Sigstore-keyless-OIDC verification pattern as the prior thirteen.
+# Both new bridges are CANONICAL-only (no live state-backing I/O — the
+# Python sibling holds the live workflow; the Rust subprocess-bridge
+# returns the canonical-trace projection that the Python caller
+# compares byte-for-byte against its own canonical projection). The
+# cross-substrate parity test
+# (test_cross_substrate_parity_with_quadlet_installer) enforces
+# lock-step agreement with the Quadlet installer.
+#
 # Tag-31 Mini-Welle update (ADR-0066 Welle-3 image-build)
 # -------------------------------------------------------
 # Inventory extended from 8 to 9 binaries in lock-step with the
@@ -161,7 +196,7 @@ schema_version: wakir.cosign-policy.phase-3b/1
 policy:
   name: phase-3b-rust-cli-binaries
   description: >
-    Cosign-keyless verification policy for the thirteen Phase-3b
+    Cosign-keyless verification policy for the fifteen Phase-3b
     Rust-CLI binaries that the persona-engine production-default
     switch subprocess-bridges to. The first nine (recovery, state-
     backing, fsm, v907-verify, bridge-diff, subscribe-loop,
@@ -169,8 +204,11 @@ policy:
     landed Tag-17 through Tag-31; the Tag-33 Mini-Welle adds the
     dedicated single-binary images for the Welle-4..7 cutover steps
     (state-backing, lifecycle-state-machine, subscribe-loop and
-    recovery-workflow). Inventory order in `binaries:` below follows
-    chronological landing order across Tag-17..Tag-33.
+    recovery-workflow); the Tag-45 Mini-Welle closes the
+    Phase-3a-Foundation sweep with the canonical-trace bridges
+    bridge-audit-replay (PR #246, 14. Modul) and migrate-version
+    (PR #250, 15. Modul). Inventory order in `binaries:` below
+    follows chronological landing order across Tag-17..Tag-45.
 
   # Sigstore-keyless OIDC identity of the GitHub-Actions runner that
   # builds and signs the carrier image. Same shape as the Sprint-9
@@ -441,6 +479,62 @@ binaries:
       wirelang/persona_engine/recovery_workflow.py. Subcommand
       surface: info | soft-cap PHASE | --version | --help.
 
+  # ------------------------------------------------------------------
+  # Tag-45 Mini-Welle additions (Phase-3a-Foundation 14 + 15 closeout)
+  # ------------------------------------------------------------------
+  # The two entries below close the Phase-3a-Foundation 15-module sweep
+  # — both are CANONICAL-only bridges (no live state-backing I/O on the
+  # Rust side; the Python sibling holds the live workflow and the Rust
+  # binary returns the canonical-trace projection for byte-paritätische
+  # comparison). Both ship inside the same carrier image as the prior
+  # thirteen entries (no separate single-binary images — the
+  # Welle-4..7 dedicated-image convention applies only to the cutover
+  # steps that need them).
+  - name: bridge-audit-replay
+    component: persona-engine-bridge-audit-replay
+    crate_path: wirelang-rust/crates/persona-engine-bridge-audit-replay
+    in_image_path: /opt/wakir/bin/wakir-persona-engine-bridge-audit-replay
+    env_switch: WAKIR_BRIDGE_AUDIT_REPLAY_BACKEND
+    env_switch_value: rust
+    env_binary_override: WAKIR_RUST_BRIDGE_AUDIT_REPLAY_BIN
+    landed_pr: '#246'
+    landed_tag: Tag-37 Mini-Welle (14. Phase-3a Modul)
+    purpose: >
+      Phase-3a-Foundation 14. Modul — deterministic-replay-oracle
+      subprocess-bridge (ADR-0063 §Folgeartefakte Item 11). Closes
+      the Welle-3 bridge-audit trilogy (writer Tag-31 PR #203 /
+      diff-engine Tag-36 PR #241 / replay Tag-37 PR #246) by adding
+      a byte-paritätische canonical-trace projection on both sides.
+      Schema-parity with
+      wirelang/persona_engine/bridge_audit_replay_canonical.py;
+      9 alphabetically-sorted JCS keys per the
+      wakir.persona-engine.bridge-audit-replay-canonical/1 schema.
+      Binary lives in the same crate as the existing
+      bridge-audit-writer + replay_cli; the Tag-45 Mini-Welle
+      promotes the canonical-trace surface to the
+      /opt/wakir/bin/wakir-persona-engine-bridge-audit-replay path.
+
+  - name: migrate-version
+    component: persona-engine-migrate-version
+    crate_path: wirelang-rust/crates/persona-engine-migrate-version
+    in_image_path: /opt/wakir/bin/wakir-persona-engine-migrate-version
+    env_switch: WAKIR_MIGRATE_VERSION_BACKEND
+    env_switch_value: rust
+    env_binary_override: WAKIR_RUST_MIGRATE_VERSION_BIN
+    landed_pr: '#250'
+    landed_tag: Tag-38 Mini-Welle (15. Phase-3a Modul — closes Phase-3a-Foundation)
+    purpose: >
+      Phase-3a-Foundation 15. Modul — engine-version migration
+      pre-flight decision canonical-trace subprocess-bridge. Closes
+      the 15-module Phase-3a-Foundation sweep at 15/15. Schema-parity
+      with wirelang/persona_engine/migrate_version_canonical.py; 11
+      alphabetically-sorted JCS keys per the
+      wakir.persona-engine.migrate-version-canonical/1 schema. New
+      stand-alone canonical-only crate (no live workflow; semver
+      parse + known-version check + major-bump policy evaluation
+      only). Unblocks Welle-7 final cutover engine-version migration
+      step.
+
 # Operator-Hand verification recipe (human-readable canonical
 # anchor; the prose recipe lives in
 # docs/operations/cosign-policy-phase-3b.md §3).
@@ -465,7 +559,9 @@ verification:
                 /opt/wakir/bin/wakir-persona-engine-subscribe-loop
                 /opt/wakir/bin/wakir-persona-engine-anchor-emitter
                 /opt/wakir/bin/wakir-persona-engine-svid-workload-identity
-                /opt/wakir/bin/wakir-persona-engine-bridge-audit-writer; do
+                /opt/wakir/bin/wakir-persona-engine-bridge-audit-writer
+                /opt/wakir/bin/wakir-persona-engine-bridge-audit-replay
+                /opt/wakir/bin/wakir-persona-engine-migrate-version; do
           test -x "$b" || { echo "missing or non-exec: $b"; exit 2; };
         done; echo OK'
 

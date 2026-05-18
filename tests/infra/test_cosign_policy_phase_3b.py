@@ -60,6 +60,29 @@ cross-substrate parity test
 (``test_cross_substrate_parity_with_quadlet_installer``) enforces
 the lock-step agreement with the Quadlet installer.
 
+Tag-45 Mini-Welle update (Phase-3a-Foundation 14 + 15 closeout)
+---------------------------------------------------------------
+Inventory extended from 13 to 15 binaries in lock-step with the
+Quadlet installer Tag-45 update. Two additions in a single
+Mini-Welle bundle — both closing Reza's 15-module Phase-3a-Foundation
+sweep:
+
+  * ``bridge-audit-replay`` (Tag-37 Mini-Welle PR #246 — 14. Phase-3a
+    Modul; deterministic-replay-oracle canonical-trace bridge).
+  * ``migrate-version`` (Tag-38 Mini-Welle PR #250 — 15. Phase-3a
+    Modul; engine-version migration pre-flight decision canonical-
+    trace; closes Phase-3a-Foundation sweep at 15/15).
+
+Both are CANONICAL-only bridges in the carrier image (not dedicated
+single-binary images — the Welle-4..7 convention applies only to
+the cutover steps that need it). ``EXPECTED_BINARIES``,
+``EXPECTED_IN_IMAGE_PATHS``, ``EXPECTED_ENV_SWITCHES`` and
+``CARRIER_IMAGE_BINARIES`` all grew by two in lock-step. The
+dropped-binary fixture now drops ``migrate-version`` (the newest
+member) and exercises the rejection logic against the latest
+inventory addition. The cross-substrate parity test enforces the
+13->15 sync with the Quadlet installer.
+
 Sandbox boundary
 ----------------
 The hermetic tests read files on disk only — no network, no cosign /
@@ -120,6 +143,12 @@ EXPECTED_BINARIES = (
     "fsm-welle5",
     "subscribe-loop-welle6",
     "recovery-welle7",
+    # Tag-45 Mini-Welle — Phase-3a-Foundation 14. + 15. Modul closeout.
+    # Both are CANONICAL-only bridges shipped in the carrier image
+    # — NOT dedicated single-binary images. Phase-3a-Foundation sweep
+    # closure at 15/15.
+    "bridge-audit-replay",
+    "migrate-version",
 )
 EXPECTED_IN_IMAGE_PATHS = {
     "recovery": "/opt/wakir/bin/wakir-persona-engine-recovery",
@@ -148,6 +177,13 @@ EXPECTED_IN_IMAGE_PATHS = {
     "recovery-welle7": (
         "/opt/wakir/bin/wakir-persona-engine-recovery-welle7"
     ),
+    # Tag-45 Mini-Welle — Phase-3a-Foundation 14 + 15 closeout.
+    "bridge-audit-replay": (
+        "/opt/wakir/bin/wakir-persona-engine-bridge-audit-replay"
+    ),
+    "migrate-version": (
+        "/opt/wakir/bin/wakir-persona-engine-migrate-version"
+    ),
 }
 EXPECTED_ENV_SWITCHES = {
     "recovery": "WAKIR_RECOVERY_BACKEND",
@@ -167,6 +203,9 @@ EXPECTED_ENV_SWITCHES = {
     "fsm-welle5": "WAKIR_FSM_BACKEND",
     "subscribe-loop-welle6": "WAKIR_SUBSCRIBE_LOOP_BACKEND",
     "recovery-welle7": "WAKIR_RECOVERY_BACKEND",
+    # Tag-45 Mini-Welle — Phase-3a-Foundation 14 + 15 closeout.
+    "bridge-audit-replay": "WAKIR_BRIDGE_AUDIT_REPLAY_BACKEND",
+    "migrate-version": "WAKIR_MIGRATE_VERSION_BACKEND",
 }
 # Subset of EXPECTED_BINARIES that are Carrier-Image deployments (the
 # nine binaries the persona-engine image installs at the canonical
@@ -189,6 +228,14 @@ CARRIER_IMAGE_BINARIES = frozenset(
         "anchor-emitter",
         "svid-workload-identity",
         "bridge-audit-writer",
+        # Tag-45 Mini-Welle — Phase-3a-Foundation 14 + 15 closeout.
+        # Both ship inside the carrier image (no dedicated single-binary
+        # images). The DEFAULT_RUST_BRIDGE_AUDIT_REPLAY_BIN and
+        # DEFAULT_RUST_MIGRATE_VERSION_BIN constants in
+        # rust_backend_switch.py resolve to the canonical
+        # /opt/wakir/bin/ paths declared by the policy.
+        "bridge-audit-replay",
+        "migrate-version",
     }
 )
 # Subset of EXPECTED_BINARIES that are Tag-33 dedicated single-binary
@@ -475,14 +522,14 @@ def test_mismatch_fixture_rejects(policy: dict) -> None:
             return f"rogue-identity-regex: {ident!r}"
         return None
 
-    # Fixture A — drop the ``bridge-audit-writer`` entry (the
-    # Tag-31 addition; exercises the rejection logic specifically
-    # against the newest inventory member).
+    # Fixture A — drop the ``migrate-version`` entry (the Tag-45
+    # addition; exercises the rejection logic specifically against
+    # the newest inventory member).
     fix_a = copy.deepcopy(policy)
     fix_a["binaries"] = [
         b
         for b in fix_a["binaries"]
-        if b.get("name") != "bridge-audit-writer"
+        if b.get("name") != "migrate-version"
     ]
     rejection = _shape_reject_dropped_binary(fix_a)
     assert rejection is not None and "binary-inventory-drift" in rejection, (
