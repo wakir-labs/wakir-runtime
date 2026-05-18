@@ -370,6 +370,17 @@ jobs:
         #   Re-baselined 309 → 325 in the same PR that adds the
         #   gated module — exactly the deliberate-review path the
         #   workflow comment above flags.
+        # - Tag-34 Mini-Welle (Reza, 2026-05-18): the new
+        #   `test_frontmatter_parser_cross_lang_parity.py` module
+        #   (Phase-3a Item 11 / Modul 11) gates on `yaml` + `rfc8785`
+        #   via module-level `pytest.importorskip(...)` so the sandbox
+        #   lane skips it cleanly. The module adds 16 tests (T01..T10
+        #   + T07 parametrised over 7 fixture vectors → 6 + 7 = 13,
+        #   plus T01..T06 + T08..T10 = 9, total 9 + 7 = 16). Observed
+        #   delta on first push: production 1290 collected, sandbox
+        #   949 collected → delta 346. Re-baselined 325 → 346 in
+        #   the same PR — gated-module-only addition, deliberate
+        #   review path per the workflow comment above.
         # Tolerance ±5 absorbs routine churn going forward.
         # If the observed delta drifts outside the envelope, fail
         # loud — either a test was silently re-classified across the
@@ -378,7 +389,7 @@ jobs:
         env:
           PRODUCTION_COUNT: ${{ needs.production-suite.outputs.collected }}
           SANDBOX_COUNT: ${{ needs.sandbox-suite-shadow.outputs.collected }}
-          EXPECTED_DELTA: '325'
+          EXPECTED_DELTA: '346'
           DELTA_TOLERANCE: '5'
         run: |
           python - <<'PY'
