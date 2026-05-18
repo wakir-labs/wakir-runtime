@@ -3,11 +3,12 @@
 | Field | Value |
 |---|---|
 | Owner | Amara Osei (QA), with Zone-N cross-check by Henrik (Internal Audit) |
-| Status | Draft — pending Phase-3c-Welle-Marathon execution (ADR-0066 four-Wochen-Cadence KW-24 -> KW-27) |
-| Phase | 3 (closing): Pre-Mortem failure-mode test-coverage audit |
-| Source | Tag-45 Amara Auftrag (Continuous-Mode, 2026-05-18); Henrik Tag-44 Pre-Mortem-Skizze (`reports/audit/phase-3-marathon-pre-mortem-2026-05-18.md`); ADR-0066 §Beschluss + §Wochen-Plan; ADR-0065 §Verifikations-Plan |
-| Date | 2026-05-18 (creation, Tag-45 coverage-audit spawn) |
-| Test-File | `tests/phase_3c/test_pre_mortem_failure_mode_coverage_audit.py` |
+| Status | Tag-46 sweep — pending Phase-3c-Welle-Marathon execution (ADR-0066 four-Wochen-Cadence KW-24 -> KW-27) |
+| Phase | 3 (closing): Pre-Mortem failure-mode test-coverage audit + Tag-46 sweep |
+| Source | Tag-45 Amara Auftrag (Continuous-Mode, 2026-05-18); Tag-46 Amara Coverage-Sweep (Continuous-Mode, 2026-05-18); Henrik Tag-44 Pre-Mortem-Skizze (`reports/audit/phase-3-marathon-pre-mortem-2026-05-18.md`); ADR-0066 §Beschluss + §Wochen-Plan; ADR-0065 §Verifikations-Plan |
+| Date | 2026-05-18 (creation Tag-45; sweep update Tag-46) |
+| Test-File (Tag-45 baseline) | `tests/phase_3c/test_pre_mortem_failure_mode_coverage_audit.py` |
+| Test-File (Tag-46 sweep) | `tests/phase_3c/test_pre_mortem_coverage_sweep_tag_46.py` |
 | Companion (positive marathon-sequence) | `tests/phase_3c/test_marathon_schluss_acceptance_drill.py` (Tag-43) |
 | Companion (anti-pattern control surface) | `tests/phase_3c/test_marathon_anti_patterns.py` (Tag-44) |
 | Companion (per-day walkthrough) | `tests/phase_3c/test_cutover_day_e2e_drill.py` (Tag-41) |
@@ -445,7 +446,92 @@ with Marathon-Start. Item 5 (Welle-3-Pre-Auditor designation) MUST
 be spawned before KW-25 (2026-06-16) since it is a Welle-3 cutover
 pre-condition.
 
-## 5. Zone-N alignment (Henrik / Internal Audit)
+## 4a. Tag-46 sweep — promotion-detection state
+
+The Tag-46 Coverage-Sweep
+(`tests/phase_3c/test_pre_mortem_coverage_sweep_tag_46.py`) is the
+follow-on to the Tag-45 baseline. It detects whether the four
+spawn-streams targeting the PARTIAL-classified items (A2 / A6 /
+A8 / B1) have landed their named follow-up test files, and
+re-classifies COVERED-iff-present-else-PARTIAL. The fifth PARTIAL
+item (B3 Welle-3-Pre-Auditor-Designation) is the **hard-deferred
+KW-25 blocker** and is excluded from the Tag-46 promotion-set.
+
+### Tag-46 spawn-stream map
+
+| # | PARTIAL-Item        | Tag-46 Spawn-Owner | Cross-Review | Follow-up artefact                                              | Status (2026-05-18 Tag-46 spawn-time) |
+|---|---------------------|--------------------|--------------|-----------------------------------------------------------------|---------------------------------------|
+| 1 | A2 FSM-Phantom      | Reza               | Amara        | `test_fsm_transition_legality_marathon.py`                      | detection-mode (file-presence probe)  |
+| 2 | A6 Cosign-Drift     | Kai                | Amara        | `test_cosign_chain_marathon_image_hash_stability.py`            | detection-mode (file-presence probe)  |
+| 3 | A8 NATS-JetStream   | Selin              | Reza         | `test_welle_4_state_backing_persistence_loss.py`                | detection-mode (file-presence probe)  |
+| 4 | B1 AR-Hand-Stop     | Tomás              | Amara        | `test_ar_hand_stop_marker_trigger_invariant.py`                 | detection-mode (file-presence probe)  |
+| 5 | B3 Welle-3 Pre-Aud  | (Tag-47+ deferred) | Henrik       | `test_welle_3_pre_auditor_designation_precondition.py`          | **DEFERRED — KW-25 hard blocker**     |
+
+### Projected post-Tag-46 §3 summary (sweep recomputation)
+
+If all four Tag-46 items land, the §3 summary shifts to:
+
+| Class | Total | COVERED | PARTIAL | GAP-ACCEPTED | GAP-OPEN |
+|---|---|---|---|---|---|
+| A (Technisch) | 8 | 8 (A1-A8) | 0 | 0 | 0 |
+| B (Operativ) | 6 | 3 (B1, B2, B4) | 1 (B3) | 2 (B5, B6) | 0 |
+| C (Prozedural) | 5 | 2 (C1, C2) | 0 | 3 (C3, C4, C5) | 0 |
+| D (Externe) | 5 | 0 | 0 | 5 (D1-D5) | 0 |
+| **Total (post-Tag-46 if all four land)** | **24** | **13** | **1 (B3)** | **10** | **0** |
+
+If zero Tag-46 items land, the summary stays at the Tag-45 baseline
+(9 / 5 / 10 / 0). Partial-land states are linearly interpolated.
+
+### Tag-46 A6 + B1 cross-validation (Amara self-authored)
+
+For A6 and B1 — the two items where Amara is the cross-review
+partner — the Tag-46 sweep additionally self-authors **structural
+cross-validation tests** that pin the QA-perspective anchors
+already-existing in the repo. These do not replace the spawn-
+owner's follow-up file; they make the cross-review substrate
+explicit and detect regressive removal of the anchors.
+
+**A6 anchors (`test_t46_a6xv_*` family, 4 tests):**
+
+1. `build-wakir-provisioner.yml` cosign signing-chain present.
+2. `test_build_wakir_provisioner_workflow.py` cosign-step tests
+   (named `test_cosign_login_step_present`, `test_cosign_login_
+   runs_before_sign`) still pin the workflow shape.
+3. Cutover-Operator-Cheat-Sheet §I trigger-9 names Quadlet-
+   Restart-Failure + Container-Identity-Drift (image-identity-
+   drift operator surface).
+4. Tag-45 Kai PR #294 substrate doc (`quadlet-cosign-15-binary-
+   installer.md`) present.
+
+**B1 anchors (`test_t46_b1xv_*` family, 4 tests):**
+
+1. Tag-45 Noa alert rule `WakirPhase3FailureModeB1ArHandStop
+   MissingTrigger` present in `dashboards/phase-3-marathon-
+   alerts.yaml`.
+2. Tag-45 alert-shape test `test_b1_ar_hand_stop_missing_is_
+   conjunction` present in `tests/ci/test_phase_3_marathon_
+   failure_mode_alerts.py`.
+3. Cutover-Operator-Cheat-Sheet §I lists >= 10 numbered operator-
+   trigger conditions.
+4. `test_cutover_cheat_sheet_structure.py` pins the §I shape
+   (Tag-43 baseline anchor).
+
+### Tag-47+ open items (Vermutungs-Kennzeichnung P2)
+
+- **B3 Welle-3-Pre-Auditor-Designation is the hard-deferred
+  blocker** for KW-25 cutover (2026-06-15). The AR-Hand
+  designation of an external Pre-Auditor MUST be in place BEFORE
+  Welle-3 cutover-day. The follow-up filename is named
+  (`test_welle_3_pre_auditor_designation_precondition.py`) but
+  not spawned in Tag-46 — Henrik's
+  `reports/audit/welle-3-iia-1130-pre-decision-spec-2026-05-18.md`
+  is the AR-Hand decision-frame, and the test file is the QA-side
+  precondition-pin once the AR-Hand stamp file is defined.
+- New failure-modes discovered during pre-cutover-probes (KW-22
+  onwards) are surfaced as candidate GAP-OPEN entries on the next
+  coverage-doc update.
+
+
 
 The Tag-45 coverage-audit document is the **test-side companion** to
 Henrik's Tag-44 Pre-Mortem-Skizze. Zone-N boundary observations:
@@ -485,3 +571,4 @@ the named pinning-tests exist. It does NOT re-execute the
 companion tests.
 
 — Amara Osei (QA), Tag-45 Pre-Mortem Coverage-Audit, 2026-05-18
+— Amara Osei (QA), Tag-46 Coverage-Sweep + A6/B1 Cross-Validation, 2026-05-18
