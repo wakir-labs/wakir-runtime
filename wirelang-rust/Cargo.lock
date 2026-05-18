@@ -1746,6 +1746,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "persona-engine-migrate-version"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "serde",
+ "serde_jcs",
+ "serde_json",
+ "sha2 0.10.8",
+]
+
+[[package]]
 name = "persona-engine-nats-subjects"
 version = "0.1.0"
 dependencies = [

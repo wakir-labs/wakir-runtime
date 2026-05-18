@@ -228,6 +228,7 @@ members = [
     "crates/persona-engine-bridge-forward",
     "crates/persona-engine-svid-workload-identity",
     "crates/persona-engine-bridge-audit-writer",
+    "crates/persona-engine-migrate-version",
 ]
 
 [workspace.package]

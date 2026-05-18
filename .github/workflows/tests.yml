@@ -402,6 +402,17 @@ jobs:
         #   parametrised per-vector x6 + success-path-invariants +
         #   build_trace_from_report + live-engine-cross-check +
         #   kind-coverage x2 = 23 total). Re-baselined 376 → 399
+        #   in PR #246.
+        # - Tag-38 Mini-Welle (Reza, 2026-05-18): the new
+        #   `test_migrate_version_cross_lang_parity.py` module
+        #   (Phase-3a Item 15 / Modul 15 — closes the
+        #   Phase-3a-Foundation sweep at 15/15) gates on `rfc8785`
+        #   via module-level `pytest.importorskip("rfc8785")`. The
+        #   module adds 26 tests (T01..T08 = 8 non-parametrised,
+        #   plus T09 parametrised over 6 fixtures = 6, plus T10,
+        #   plus T11 split into two named tests = 2, plus T12
+        #   parametrised over 8 inputs = 8, plus T13 = 1; total
+        #   8 + 6 + 1 + 2 + 8 + 1 = 26). Re-baselined 399 → 425
         #   in this PR.
         # Tolerance ±5 absorbs routine churn going forward.
         # If the observed delta drifts outside the envelope, fail
@@ -411,7 +422,7 @@ jobs:
         env:
           PRODUCTION_COUNT: ${{ needs.production-suite.outputs.collected }}
           SANDBOX_COUNT: ${{ needs.sandbox-suite-shadow.outputs.collected }}
-          EXPECTED_DELTA: '399'
+          EXPECTED_DELTA: '425'
           DELTA_TOLERANCE: '5'
         run: |
           python - <<'PY'
