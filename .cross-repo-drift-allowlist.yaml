@@ -3,6 +3,9 @@
 # Cross-repo drift allowlist
 # ==========================
 #
+# Tag-35 note (2026-05-18): path-filter touch for forever-pending unblock.
+# Pattern matches Tomás-Audit Side-Finding (PR #231).
+#
 # Consumed by `.github/workflows/cross-repo-drift-audit.yml`.
 #
 # Purpose
