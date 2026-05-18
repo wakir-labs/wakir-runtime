@@ -39,7 +39,10 @@ Die drei Substrate:
    - 9 `DEFAULT_RUST_<NAME>_BIN`-Konstanten für die kanonischen 9
      Binaries.
 
-**Kanonische 9-Binary-Inventory** (alphabetisch):
+**Kanonische 11-Binary-Inventory** (Phase-3b carrier-image set;
+ursprünglich 9 bei Tag-31, auf 11 erweitert bei Tag-45 mit den
+Phase-3a-Foundation 14 + 15 Closeout-Modulen `bridge-audit-replay`
+und `migrate-version`):
 
 | # | Component | Binary-Basename |
 |---|-----------|-----------------|
@@ -52,6 +55,8 @@ Die drei Substrate:
 | 7 | anchor-emitter | `wakir-persona-engine-anchor-emitter` |
 | 8 | svid-workload-identity | `wakir-persona-engine-svid-workload-identity` |
 | 9 | bridge-audit-writer | `wakir-persona-engine-bridge-audit-writer` |
+| 10 | bridge-audit-replay | `wakir-persona-engine-bridge-audit-replay` (Tag-45) |
+| 11 | migrate-version | `wakir-persona-engine-migrate-version` (Tag-45) |
 
 ---
 

@@ -73,11 +73,18 @@ RUNBOOK_DOC = (
     REPO_ROOT / "docs" / "operations" / "cross-substrate-parity-runbook.md"
 )
 
-# Canonical 9-binary inventory, identical to
-# ``test_cosign_policy_phase_3b.EXPECTED_BINARIES``. Re-declared here
-# (not imported) so a future split between the two test surfaces is
-# loud — a drift here vs the sibling tuple is itself caught by
-# ``test_inventory_constant_matches_cosign_policy_tuple`` below.
+# Canonical 9-binary inventory (Phase-3b carrier-image set, Tag-17..
+# Tag-31). Re-declared here (not imported) so a future split between
+# the two test surfaces is loud — a drift here vs the sibling tuple
+# is itself caught by ``test_inventory_constant_matches_cosign_policy_tuple``
+# below.
+#
+# Tag-45 Mini-Welle: the carrier-image set extended from 9 to 11 with
+# the Phase-3a-Foundation 14 + 15 additions (bridge-audit-replay,
+# migrate-version). The canonical 9-set is kept stable for backwards
+# compat; the Tag-45 additions live in COSIGN_QUADLET_TAG45_ADDITIONS
+# below and are accounted for in the inventory-agreement test via the
+# combined EXPECTED_CARRIER_BINARIES tuple.
 EXPECTED_BINARIES_9 = (
     "recovery",
     "state-backing",
@@ -88,6 +95,27 @@ EXPECTED_BINARIES_9 = (
     "anchor-emitter",
     "svid-workload-identity",
     "bridge-audit-writer",
+)
+
+# Tag-45 Mini-Welle additions to both the Cosign-Policy AND the
+# Quadlet-Installer (Phase-3a-Foundation 14 + 15 closeout). Unlike
+# COSIGN_QUADLET_KNOWN_EXTRAS below (which are Cosign+Quadlet-only
+# Welle-4..7 dedicated single-binary images), these two ARE first-
+# class carrier-image binaries with matching DEFAULT_RUST_*_BIN
+# constants in rust_backend_switch.py — so they appear in all three
+# substrates and contribute to the canonical-set inventory.
+COSIGN_QUADLET_TAG45_ADDITIONS = (
+    "bridge-audit-replay",
+    "migrate-version",
+)
+
+# Combined canonical carrier-image set after Tag-45 (11 binaries =
+# 9 + Tag-45 additions). The 3-way parity tests assert that all three
+# substrates inventory this combined set; the COSIGN_QUADLET_KNOWN_EXTRAS
+# (Welle-4..7 dedicated images) appear ONLY in Cosign + Quadlet, not
+# in the resolver.
+EXPECTED_CARRIER_BINARIES = (
+    EXPECTED_BINARIES_9 + COSIGN_QUADLET_TAG45_ADDITIONS
 )
 
 # Resolver-known-extra: ``federation-resolver`` is the Welle-2
@@ -189,14 +217,22 @@ def test_three_way_inventory_agreement(
     quadlet_basenames_set: set[str],
     resolver_basenames: set[str],
 ) -> None:
-    """All three substrates MUST inventory the canonical 9 binaries.
+    """All three substrates MUST inventory the canonical carrier-image
+    binaries (11 at Tag-45 = canonical 9 + Tag-45 additions).
 
-    Cosign-Policy and Quadlet-Installer carry exactly 9; the resolver
-    carries 9 PLUS the known-extra ``federation-resolver``. The
-    contract: ``EXPECTED_BINARIES_9 ⊆ each_substrate`` AND
-    ``cosign == quadlet == (resolver - known-extras)``.
+    Cosign-Policy and Quadlet-Installer carry the canonical 11 plus
+    the Welle-4..7 dedicated single-binary extras (Cosign+Quadlet:
+    11 + 4 = 15 for Cosign-Policy, 11 for Quadlet-Installer because
+    the Welle-4..7 extras appear only in the Quadlet comment header,
+    not the Exec= loop — both regex-matches by this test). The
+    resolver carries 11 PLUS the known-extra ``federation-resolver``.
+
+    Tag-45 contract:
+      ``EXPECTED_CARRIER_BINARIES ⊆ each_substrate`` AND
+      ``cosign - welle-4..7 == quadlet - welle-4..7 == (resolver -
+      federation-resolver)``.
     """
-    canon = set(EXPECTED_BINARIES_9)
+    canon = set(EXPECTED_CARRIER_BINARIES)
     known_extras = set(RESOLVER_KNOWN_EXTRAS)
     cosign_quadlet_extras = set(COSIGN_QUADLET_KNOWN_EXTRAS)
     resolver_phase_3b = resolver_basenames - known_extras
@@ -260,7 +296,8 @@ def test_resolver_known_extras_are_documented(
     resolver_basenames: set[str],
 ) -> None:
     """Any binary basename in the resolver that is not in the canonical
-    9 MUST be a documented ``RESOLVER_KNOWN_EXTRAS`` entry.
+    carrier-image set MUST be a documented ``RESOLVER_KNOWN_EXTRAS``
+    entry.
 
     Rationale: a silent new backend in the resolver (no Cosign /
     Quadlet entry) means a binary path that the resolver tries to
@@ -269,8 +306,13 @@ def test_resolver_known_extras_are_documented(
     that also extends Cosign + Quadlet OR explicitly registers the
     new component as a known-extra here (with an ADR-anchor in the
     file docstring).
+
+    Tag-45: the canonical set extended from 9 to 11 with the
+    Phase-3a-Foundation 14 + 15 additions (bridge-audit-replay,
+    migrate-version). EXPECTED_CARRIER_BINARIES is the post-Tag-45
+    canonical reference.
     """
-    canon = set(EXPECTED_BINARIES_9)
+    canon = set(EXPECTED_CARRIER_BINARIES)
     known_extras = set(RESOLVER_KNOWN_EXTRAS)
     resolver_extras = resolver_basenames - canon
 
@@ -299,20 +341,27 @@ def test_resolver_known_extras_are_documented(
 # Test 3 — Resolver basename count is exactly 9 + len(known-extras).
 # ---------------------------------------------------------------------------
 def test_resolver_inventory_size(resolver_basenames: set[str]) -> None:
-    """The resolver MUST declare exactly 9 + ``len(RESOLVER_KNOWN_EXTRAS)``
+    """The resolver MUST declare exactly
+    ``len(EXPECTED_CARRIER_BINARIES) + len(RESOLVER_KNOWN_EXTRAS)``
     binary constants. A surprise count is a hard fail.
 
     The pair (count, known-extras) is the primary tripwire when a
     Welle-N flip introduces a new backend in the resolver without
     landing the matching Cosign / Quadlet inventory in the same
     Mini-Welle.
+
+    Tag-45: the carrier-image canonical set extended from 9 to 11
+    with the Phase-3a-Foundation 14 + 15 additions; the expected
+    resolver count is therefore 11 + len(RESOLVER_KNOWN_EXTRAS).
     """
-    expected_count = len(EXPECTED_BINARIES_9) + len(RESOLVER_KNOWN_EXTRAS)
+    expected_count = (
+        len(EXPECTED_CARRIER_BINARIES) + len(RESOLVER_KNOWN_EXTRAS)
+    )
     actual_count = len(resolver_basenames)
     assert actual_count == expected_count, (
         f"Resolver binary-constant count drift: expected "
-        f"{expected_count} (9 canonical + "
-        f"{len(RESOLVER_KNOWN_EXTRAS)} known-extras), got "
+        f"{expected_count} ({len(EXPECTED_CARRIER_BINARIES)} canonical "
+        f"+ {len(RESOLVER_KNOWN_EXTRAS)} known-extras), got "
         f"{actual_count}. Resolver-declared: "
         f"{sorted(resolver_basenames)}."
     )
@@ -362,11 +411,22 @@ def test_inventory_constant_matches_cosign_policy_tuple() -> None:
     # Tag-33 Mini-Welle: the sibling EXPECTED_BINARIES tuple grew
     # from 9 to 13 with the Welle-4..7 dedicated single-binary
     # additions (`state-backing-welle4`, `fsm-welle5`,
-    # `subscribe-loop-welle6`, `recovery-welle7`). The first 9 entries
-    # must still equal the canonical 9-set, and the remaining entries
-    # must equal the COSIGN_QUADLET_KNOWN_EXTRAS tuple in this file.
-    sibling_canonical_9 = sibling_names[: len(EXPECTED_BINARIES_9)]
-    sibling_extras = sibling_names[len(EXPECTED_BINARIES_9) :]
+    # `subscribe-loop-welle6`, `recovery-welle7`).
+    #
+    # Tag-45 Mini-Welle: the sibling tuple grew from 13 to 15 with the
+    # Phase-3a-Foundation 14 + 15 closeout additions (bridge-audit-
+    # replay, migrate-version). Inventory order in the sibling is:
+    #   sibling[0..9]   = canonical 9 (EXPECTED_BINARIES_9)
+    #   sibling[9..13]  = Welle-4..7 extras (COSIGN_QUADLET_KNOWN_EXTRAS)
+    #   sibling[13..15] = Tag-45 additions (COSIGN_QUADLET_TAG45_ADDITIONS)
+    # The first 9 entries must still equal the canonical 9-set; the
+    # next 4 entries must equal the Welle-4..7 extras; the final 2
+    # entries must equal the Tag-45 additions tuple in this file.
+    n9 = len(EXPECTED_BINARIES_9)
+    n_extras = len(COSIGN_QUADLET_KNOWN_EXTRAS)
+    sibling_canonical_9 = sibling_names[:n9]
+    sibling_extras = sibling_names[n9 : n9 + n_extras]
+    sibling_tag45 = sibling_names[n9 + n_extras :]
     assert sibling_canonical_9 == EXPECTED_BINARIES_9, (
         "Inventory-constant drift between this test file and the "
         f"sibling cosign-policy test (canonical 9). "
@@ -377,9 +437,17 @@ def test_inventory_constant_matches_cosign_policy_tuple() -> None:
     assert sibling_extras == COSIGN_QUADLET_KNOWN_EXTRAS, (
         "Tag-33 Welle-4..7 extras drift between this test file's "
         "COSIGN_QUADLET_KNOWN_EXTRAS and the sibling cosign-policy "
-        f"test's EXPECTED_BINARIES tail. "
+        f"test's EXPECTED_BINARIES tail (positions 9..13). "
         f"local={COSIGN_QUADLET_KNOWN_EXTRAS}, "
-        f"sibling[9:]={sibling_extras}."
+        f"sibling[9:13]={sibling_extras}."
+    )
+    assert sibling_tag45 == COSIGN_QUADLET_TAG45_ADDITIONS, (
+        "Tag-45 Phase-3a-Foundation 14 + 15 additions drift between "
+        "this test file's COSIGN_QUADLET_TAG45_ADDITIONS and the "
+        "sibling cosign-policy test's EXPECTED_BINARIES tail "
+        f"(positions 13..15). "
+        f"local={COSIGN_QUADLET_TAG45_ADDITIONS}, "
+        f"sibling[13:]={sibling_tag45}."
     )
 
 
