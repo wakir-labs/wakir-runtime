@@ -104,6 +104,7 @@ on:
       - 'tests/**'
       - 'scripts/**'
       - 'dashboards/**'
+      - 'docs/**'
       - '.cross-repo-drift-allowlist.yaml'
       - '.github/workflows/cross-repo-drift-audit.yml'
   pull_request:
@@ -114,6 +115,7 @@ on:
       - 'tests/**'
       - 'scripts/**'
       - 'dashboards/**'
+      - 'docs/**'
       - '.cross-repo-drift-allowlist.yaml'
       - '.github/workflows/cross-repo-drift-audit.yml'
   workflow_dispatch:
