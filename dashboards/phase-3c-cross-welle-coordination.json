@@ -1,0 +1,707 @@
+{
+  "__comment": "Grafana dashboard JSON for the Phase-3c Cross-Welle-Coordination surface (Noa Bergstroem / SRE, Tag-38). Five-panel operator-view that unifies ADR-0066 Welle-1..7 status (Welle-1 v907_verify KW-24, Welle-2 svid_workload_identity KW-24, Welle-3 bridge_audit_writer KW-25 solo, Welle-4 state_backing KW-26, Welle-5 lifecycle_state_machine KW-26, Welle-6 subscribe_loop KW-27, Welle-7 recovery_workflow KW-27), cross-modul drift indicator for Doppel-Welle KW-26 (state_backing + lifecycle_state_machine, ADR-0066 Mitigation-1), per-welle BackendDecision-Aggregator snapshot (basis PR #179 backend-decision-observability.py emit-points), the aggregator-verdict-stream as self-evidence of ci-aggregator (ADR-0068 + Tag-38 aggregator-failure-rate-tracker.py wakir_aggregator_* gauges), and a Henrik-audit-sign-off PRE/TEL/POST-three-phase status indicator per Welle (per ADR-0066 §Henrik-Audit-Bandwidth-Bei-Doppel-Wellen). Schema version Grafana 10.x (schemaVersion 38). Sole datasource UID 'prom' (Prometheus). The two existing dashboards persona-engine-phase-3c-welle-status.json and persona-engine-backend-decisions.json remain the source-of-truth per-engine views; this dashboard is the *cross-welle*-roll-up that operators land on when triaging Phase-3c-marathon state.",
+  "title": "Wakir - Phase-3c Cross-Welle Coordination",
+  "uid": "wakir-phase-3c-cross-welle-coordination",
+  "tags": [
+    "wakir",
+    "sre",
+    "phase-3c",
+    "cross-welle",
+    "coordination",
+    "adr-0066",
+    "adr-0068",
+    "tag-38",
+    "aggregator",
+    "henrik-audit"
+  ],
+  "schemaVersion": 38,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "templating": {
+    "list": [
+      {
+        "name": "welle",
+        "label": "Welle",
+        "type": "custom",
+        "query": "welle-1,welle-2,welle-3,welle-4,welle-5,welle-6,welle-7",
+        "current": {"text": "All", "value": "$__all"},
+        "options": [
+          {"text": "All", "value": "$__all", "selected": true},
+          {"text": "welle-1 (v907_verify KW-24)", "value": "welle-1"},
+          {"text": "welle-2 (svid_workload_identity KW-24)", "value": "welle-2"},
+          {"text": "welle-3 (bridge_audit_writer KW-25)", "value": "welle-3"},
+          {"text": "welle-4 (state_backing KW-26)", "value": "welle-4"},
+          {"text": "welle-5 (lifecycle_state_machine KW-26)", "value": "welle-5"},
+          {"text": "welle-6 (subscribe_loop KW-27)", "value": "welle-6"},
+          {"text": "welle-7 (recovery_workflow KW-27)", "value": "welle-7"}
+        ],
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Per-Welle Status (Welle-1..7, ADR-0066 Cutover-Plan)",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+      "collapsed": false,
+      "__comment": "Row groups the seven per-welle state tiles. The persona_engine_phase_3c_welle_state gauge is produced by scripts/phase-3c-welle-status-emitter.py and carries one of the five state values: pre_cutover, in_cutover, post_cutover, rollback_active, welle_complete."
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Welle-1 v907_verify (KW-24)",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 1},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_welle_state{welle=\"welle-1\"}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"options": {"0": {"text": "pre_cutover", "color": "blue"}}, "type": "value"},
+            {"options": {"1": {"text": "in_cutover", "color": "yellow"}}, "type": "value"},
+            {"options": {"2": {"text": "post_cutover", "color": "green"}}, "type": "value"},
+            {"options": {"3": {"text": "rollback_active", "color": "red"}}, "type": "value"},
+            {"options": {"4": {"text": "welle_complete", "color": "green"}}, "type": "value"}
+          ]
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Welle-2 svid_workload_identity (KW-24)",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 1},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_welle_state{welle=\"welle-2\"}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"options": {"0": {"text": "pre_cutover", "color": "blue"}}, "type": "value"},
+            {"options": {"1": {"text": "in_cutover", "color": "yellow"}}, "type": "value"},
+            {"options": {"2": {"text": "post_cutover", "color": "green"}}, "type": "value"},
+            {"options": {"3": {"text": "rollback_active", "color": "red"}}, "type": "value"},
+            {"options": {"4": {"text": "welle_complete", "color": "green"}}, "type": "value"}
+          ]
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Welle-3 bridge_audit_writer (KW-25, solo)",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 1},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "__comment": "Welle-3 is the Henrik-caution-solo welle (ADR-0066 §Welle-3). A red state here blocks Welle-4+5 from starting per ADR-0066 §Welle-3-immediate-rollback-trigger.",
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_welle_state{welle=\"welle-3\"}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"options": {"0": {"text": "pre_cutover", "color": "blue"}}, "type": "value"},
+            {"options": {"1": {"text": "in_cutover", "color": "yellow"}}, "type": "value"},
+            {"options": {"2": {"text": "post_cutover", "color": "green"}}, "type": "value"},
+            {"options": {"3": {"text": "rollback_active", "color": "red"}}, "type": "value"},
+            {"options": {"4": {"text": "welle_complete", "color": "green"}}, "type": "value"}
+          ]
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Welle-4 state_backing (KW-26 doppel)",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 1},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_welle_state{welle=\"welle-4\"}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"options": {"0": {"text": "pre_cutover", "color": "blue"}}, "type": "value"},
+            {"options": {"1": {"text": "in_cutover", "color": "yellow"}}, "type": "value"},
+            {"options": {"2": {"text": "post_cutover", "color": "green"}}, "type": "value"},
+            {"options": {"3": {"text": "rollback_active", "color": "red"}}, "type": "value"},
+            {"options": {"4": {"text": "welle_complete", "color": "green"}}, "type": "value"}
+          ]
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Welle-5 lifecycle_state_machine (KW-26 doppel)",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 5},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_welle_state{welle=\"welle-5\"}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {"colorMode": "background", "graphMode": "none", "textMode": "value_and_name"},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"options": {"0": {"text": "pre_cutover", "color": "blue"}}, "type": "value"},
+            {"options": {"1": {"text": "in_cutover", "color": "yellow"}}, "type": "value"},
+            {"options": {"2": {"text": "post_cutover", "color": "green"}}, "type": "value"},
+            {"options": {"3": {"text": "rollback_active", "color": "red"}}, "type": "value"},
+            {"options": {"4": {"text": "welle_complete", "color": "green"}}, "type": "value"}
+          ]
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Welle-6 subscribe_loop (KW-27)",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 5},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_welle_state{welle=\"welle-6\"}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {"colorMode": "background", "graphMode": "none", "textMode": "value_and_name"},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"options": {"0": {"text": "pre_cutover", "color": "blue"}}, "type": "value"},
+            {"options": {"1": {"text": "in_cutover", "color": "yellow"}}, "type": "value"},
+            {"options": {"2": {"text": "post_cutover", "color": "green"}}, "type": "value"},
+            {"options": {"3": {"text": "rollback_active", "color": "red"}}, "type": "value"},
+            {"options": {"4": {"text": "welle_complete", "color": "green"}}, "type": "value"}
+          ]
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Welle-7 recovery_workflow (KW-27)",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 5},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_welle_state{welle=\"welle-7\"}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {"colorMode": "background", "graphMode": "none", "textMode": "value_and_name"},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"options": {"0": {"text": "pre_cutover", "color": "blue"}}, "type": "value"},
+            {"options": {"1": {"text": "in_cutover", "color": "yellow"}}, "type": "value"},
+            {"options": {"2": {"text": "post_cutover", "color": "green"}}, "type": "value"},
+            {"options": {"3": {"text": "rollback_active", "color": "red"}}, "type": "value"},
+            {"options": {"4": {"text": "welle_complete", "color": "green"}}, "type": "value"}
+          ]
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Cross-Modul-Drift-Indicator (Doppel-Welle KW-26: Welle-4 + Welle-5)",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 9},
+      "collapsed": false,
+      "__comment": "ADR-0066 Mitigation-1: Cross-Modul-Stress-Test in Phase-2-Acceptance-Gate. PR #178 extension. Red when cross_modul_pin_status=fail."
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Welle-4+5 Cross-Modul-Pin Status",
+      "gridPos": {"h": 5, "w": 12, "x": 0, "y": 10},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "phase_2_acceptance_gate_cross_modul_pin_status",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {"colorMode": "background", "graphMode": "none", "textMode": "value_and_name"},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"options": {"0": {"text": "fail", "color": "red"}}, "type": "value"},
+            {"options": {"1": {"text": "pass", "color": "green"}}, "type": "value"}
+          ]
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Cross-Modul-Stress-Test Score (Welle-4 vs Welle-5 drift, 10s tick)",
+      "gridPos": {"h": 5, "w": 12, "x": 12, "y": 10},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "phase_2_acceptance_gate_cross_modul_stress_score{component=\"state_backing\"}",
+          "refId": "A",
+          "legendFormat": "state_backing (Welle-4)"
+        },
+        {
+          "expr": "phase_2_acceptance_gate_cross_modul_stress_score{component=\"lifecycle_state_machine\"}",
+          "refId": "B",
+          "legendFormat": "lifecycle_state_machine (Welle-5)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 0.005},
+              {"color": "red", "value": 0.005}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 20,
+      "type": "row",
+      "title": "BackendDecision-Aggregator Snapshot pro Welle (PR #179)",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 15},
+      "collapsed": false,
+      "__comment": "Per-component backend-decision counters from scripts/backend-decision-observability.py emit-points. The five domains (recovery, state_backing, fsm, v907_verify, bridge_diff) map to Welle-7, Welle-4, Welle-5 (lifecycle == fsm), Welle-1, Welle-3 respectively. Welle-2 (svid_workload_identity) and Welle-6 (subscribe_loop) do not have BackendDecision emit-points in PR #179 — those tiles show 'n/a'."
+    },
+    {
+      "id": 21,
+      "type": "stat",
+      "title": "Welle-1 v907_verify Rust-share",
+      "gridPos": {"h": 4, "w": 8, "x": 0, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "sum(persona_engine_backend_decision_total{domain=\"v907_verify\",chosen_backend=~\"rust.*\"}) / clamp_min(sum(persona_engine_backend_decision_total{domain=\"v907_verify\"}), 1)",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 0.5},
+              {"color": "green", "value": 0.95}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 22,
+      "type": "stat",
+      "title": "Welle-3 bridge_diff Rust-share",
+      "gridPos": {"h": 4, "w": 8, "x": 8, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "sum(persona_engine_backend_decision_total{domain=\"bridge_diff\",chosen_backend=~\"rust.*\"}) / clamp_min(sum(persona_engine_backend_decision_total{domain=\"bridge_diff\"}), 1)",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 0.5},
+              {"color": "green", "value": 0.95}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 23,
+      "type": "stat",
+      "title": "Welle-4 state_backing Rust-share",
+      "gridPos": {"h": 4, "w": 8, "x": 16, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "sum(persona_engine_backend_decision_total{domain=\"state_backing\",chosen_backend=~\"rust.*\"}) / clamp_min(sum(persona_engine_backend_decision_total{domain=\"state_backing\"}), 1)",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 0.5},
+              {"color": "green", "value": 0.95}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 24,
+      "type": "stat",
+      "title": "Welle-5 fsm/lifecycle Rust-share",
+      "gridPos": {"h": 4, "w": 8, "x": 0, "y": 20},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "__comment": "domain=fsm maps to lifecycle_state_machine (Welle-5). PR #169 wired the emit-point.",
+      "targets": [
+        {
+          "expr": "sum(persona_engine_backend_decision_total{domain=\"fsm\",chosen_backend=~\"rust.*\"}) / clamp_min(sum(persona_engine_backend_decision_total{domain=\"fsm\"}), 1)",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 0.5},
+              {"color": "green", "value": 0.95}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 25,
+      "type": "stat",
+      "title": "Welle-7 recovery Rust-share",
+      "gridPos": {"h": 4, "w": 8, "x": 8, "y": 20},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "sum(persona_engine_backend_decision_total{domain=\"recovery\",chosen_backend=~\"rust.*\"}) / clamp_min(sum(persona_engine_backend_decision_total{domain=\"recovery\"}), 1)",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 0.5},
+              {"color": "green", "value": 0.95}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 26,
+      "type": "text",
+      "title": "Welle-2 + Welle-6 (no BackendDecision emit-point)",
+      "gridPos": {"h": 4, "w": 8, "x": 16, "y": 20},
+      "options": {
+        "mode": "markdown",
+        "content": "**Welle-2 svid_workload_identity (KW-24)** and **Welle-6 subscribe_loop (KW-27)** do not have a BackendDecision emit-point as of PR #179. SVID workload identity selects backend via SPIFFE-X.509-SVID lookup (no Rust/Python toggle); subscribe_loop is a NATS-side concern. Refer to the per-welle state tile (top row) for cutover status.\n\n*Anchor*: `scripts/backend-decision-observability.py` PR #179, ADR-0066 §Wellen-Sequenz."
+      }
+    },
+    {
+      "id": 30,
+      "type": "row",
+      "title": "Aggregator-Verdict-Stream (Self-Evidence ci-aggregator, ADR-0068)",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 24},
+      "collapsed": false,
+      "__comment": "Self-evidence of the ci-aggregator workflow per ADR-0068 §Migration-Step-2. Source: scripts/observability/aggregator-failure-rate-tracker.py wakir_aggregator_* gauges. A non-zero wakir_aggregator_drift_events value blocks the Mira-Hand cutover (Migration-Step-3)."
+    },
+    {
+      "id": 31,
+      "type": "stat",
+      "title": "Aggregator-Drift-Events (cutover blocker if >0)",
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 25},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {"expr": "wakir_aggregator_drift_events", "refId": "A", "instant": true}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 1}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 32,
+      "type": "timeseries",
+      "title": "Per-Check Failure-Rate (50/100/500 sliding-window)",
+      "gridPos": {"h": 5, "w": 16, "x": 8, "y": 25},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_aggregator_failure_rate{window=\"50\"}",
+          "refId": "A",
+          "legendFormat": "{{check}} (win=50)"
+        },
+        {
+          "expr": "wakir_aggregator_failure_rate{window=\"100\"}",
+          "refId": "B",
+          "legendFormat": "{{check}} (win=100)"
+        },
+        {
+          "expr": "wakir_aggregator_failure_rate{window=\"500\"}",
+          "refId": "C",
+          "legendFormat": "{{check}} (win=500)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 0.05},
+              {"color": "red", "value": 0.1}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 33,
+      "type": "timeseries",
+      "title": "Per-Check Latency p95 (wait-loop seconds)",
+      "gridPos": {"h": 5, "w": 24, "x": 0, "y": 30},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_aggregator_latency_seconds{pct=\"p95\",window=\"100\"}",
+          "refId": "A",
+          "legendFormat": "{{check}} p95 (win=100)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 600},
+              {"color": "red", "value": 1800}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 40,
+      "type": "row",
+      "title": "Henrik-Audit-Sign-Off Status (PRE/TEL/POST 3-Phase, ADR-0066 §Henrik-Bandwidth)",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 35},
+      "collapsed": false,
+      "__comment": "Per-welle three-phase audit-sign-off indicator. Source: wakir_henrik_audit_signoff{welle=...,phase=PRE|TEL|POST} gauge (0=pending, 1=signed, -1=blocked). Henrik's audit-trail-template (ADR-0066 Mitigation-2) emits this gauge from scripts/audit/henrik-signoff-emitter.py once that script lands. Until then, the tiles read 'pending' uniformly — an operator can override by writing the gauge value via the persona-engine Prometheus pushgateway."
+    },
+    {
+      "id": 41,
+      "type": "stat",
+      "title": "Welle-1 Henrik PRE/TEL/POST",
+      "gridPos": {"h": 5, "w": 6, "x": 0, "y": 36},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_henrik_audit_signoff{welle=\"welle-1\"}",
+          "refId": "A",
+          "instant": true,
+          "legendFormat": "{{phase}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"options": {"-1": {"text": "blocked", "color": "red"}}, "type": "value"},
+            {"options": {"0": {"text": "pending", "color": "yellow"}}, "type": "value"},
+            {"options": {"1": {"text": "signed", "color": "green"}}, "type": "value"}
+          ]
+        }
+      }
+    },
+    {
+      "id": 42,
+      "type": "stat",
+      "title": "Welle-2 Henrik PRE/TEL/POST",
+      "gridPos": {"h": 5, "w": 6, "x": 6, "y": 36},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_henrik_audit_signoff{welle=\"welle-2\"}",
+          "refId": "A",
+          "instant": true,
+          "legendFormat": "{{phase}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"options": {"-1": {"text": "blocked", "color": "red"}}, "type": "value"},
+            {"options": {"0": {"text": "pending", "color": "yellow"}}, "type": "value"},
+            {"options": {"1": {"text": "signed", "color": "green"}}, "type": "value"}
+          ]
+        }
+      }
+    },
+    {
+      "id": 43,
+      "type": "stat",
+      "title": "Welle-3 Henrik PRE/TEL/POST (solo, full audit)",
+      "gridPos": {"h": 5, "w": 6, "x": 12, "y": 36},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_henrik_audit_signoff{welle=\"welle-3\"}",
+          "refId": "A",
+          "instant": true,
+          "legendFormat": "{{phase}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"options": {"-1": {"text": "blocked", "color": "red"}}, "type": "value"},
+            {"options": {"0": {"text": "pending", "color": "yellow"}}, "type": "value"},
+            {"options": {"1": {"text": "signed", "color": "green"}}, "type": "value"}
+          ]
+        }
+      }
+    },
+    {
+      "id": 44,
+      "type": "stat",
+      "title": "Welle-4+5 Henrik PRE/TEL/POST (doppel)",
+      "gridPos": {"h": 5, "w": 6, "x": 18, "y": 36},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_henrik_audit_signoff{welle=~\"welle-[45]\"}",
+          "refId": "A",
+          "instant": true,
+          "legendFormat": "{{welle}}/{{phase}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"options": {"-1": {"text": "blocked", "color": "red"}}, "type": "value"},
+            {"options": {"0": {"text": "pending", "color": "yellow"}}, "type": "value"},
+            {"options": {"1": {"text": "signed", "color": "green"}}, "type": "value"}
+          ]
+        }
+      }
+    },
+    {
+      "id": 45,
+      "type": "stat",
+      "title": "Welle-6+7 Henrik PRE/TEL/POST",
+      "gridPos": {"h": 5, "w": 12, "x": 0, "y": 41},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_henrik_audit_signoff{welle=~\"welle-[67]\"}",
+          "refId": "A",
+          "instant": true,
+          "legendFormat": "{{welle}}/{{phase}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"options": {"-1": {"text": "blocked", "color": "red"}}, "type": "value"},
+            {"options": {"0": {"text": "pending", "color": "yellow"}}, "type": "value"},
+            {"options": {"1": {"text": "signed", "color": "green"}}, "type": "value"}
+          ]
+        }
+      }
+    },
+    {
+      "id": 46,
+      "type": "text",
+      "title": "Operator Footer / Anchor",
+      "gridPos": {"h": 5, "w": 12, "x": 12, "y": 41},
+      "options": {
+        "mode": "markdown",
+        "content": "**Phase-3c Cross-Welle Coordination Dashboard** (Tag-38 Noa-SRE)\n\nFive operator-views unified:\n\n1. **Per-Welle Status** (top row): seven tiles, one per Welle, with the five-state mapping (pre/in/post_cutover, rollback_active, welle_complete) from `persona_engine_phase_3c_welle_state`.\n2. **Cross-Modul-Drift-Indicator**: ADR-0066 Mitigation-1 for the KW-26 Doppel-Welle (Welle-4 state_backing + Welle-5 lifecycle_state_machine). Red when `phase_2_acceptance_gate_cross_modul_pin_status=fail`.\n3. **BackendDecision Snapshot per Welle**: per-component Rust-share from PR #179 emit-points. Welle-2 + Welle-6 have no emit-point (architectural — see panel 26).\n4. **Aggregator-Verdict-Stream**: ci-aggregator self-evidence (ADR-0068 §Migration-Step-2). Red drift-tile blocks Mira-Hand-cutover.\n5. **Henrik-Audit-Sign-Off**: PRE/TEL/POST three-phase per-welle indicator (ADR-0066 §Henrik-Bandwidth).\n\n*Anchors*: ADR-0066 (Phase-3c Beschleunigung), ADR-0068 (ci-aggregator), PR #179 (BackendDecision-Aggregator), `scripts/observability/aggregator-failure-rate-tracker.py` (Tag-38).\n\nRelated dashboards: `persona-engine-phase-3c-welle-status.json` (per-welle high-frequency view), `persona-engine-backend-decisions.json` (per-engine BackendDecision drill-down)."
+      }
+    }
+  ]
+}
