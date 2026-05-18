@@ -1,0 +1,191 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase-3 Marathon-Aggregat-Tracker Gate (Tag-40, ADR-0066)
+# ---------------------------------------------------------
+#
+# Verpflichtender CI-Status-Check fuer den Tag-40 Phase-3 Marathon-
+# Aggregat-Tracker:
+#
+#   - scripts/phase-3c/marathon-aggregat-tracker.py
+#     (state-machine + persistent-state + CLI + COMPLETE-trigger)
+#   - tests/scripts/test_marathon_aggregat_tracker.py
+#     (16 hermetic Tests; stdlib + pytest)
+#   - docs/phase-3c/marathon-aggregat-tracker.md
+#     (lifecycle-state-machine + CLI-docs + posture)
+#
+# Anlass: ADR-0066 KW-24..27 Cutover-Marathon. Der Tracker ist das
+# operator-hand-driven single-source-of-truth fuer den Marathon-
+# Status (per-Welle 9-state lifecycle + cross-Welle aggregat-view
+# + phase_3_complete event-emission). Eine Drift zwischen Script-
+# Quelle, Test-Suite und State-Machine-Doku wuerde die Mira-Hand-
+# Kontrolle der KW-24..27 Cutover-Welle unzuverlaessig machen.
+#
+# Required-Status-Check (Mira-Hand-Folge)
+# ---------------------------------------
+# Erste Phase: **advisory**. Sobald dieser Workflow einmal auf
+# `main` gruen laeuft, soll Mira (Operator-Hand) ihn unter
+# Settings -> Branches -> main -> Required status checks aktivieren.
+# Der Job-Display-Name "phase-3 marathon-tracker (lifecycle +
+# aggregat + complete-trigger)" ist der exakte zu aktivierende
+# String per feedback_branch_protection_check_names.md.
+#
+# Sandbox-Boundary
+# ----------------
+# Hermetic. Stdlib + pytest. Keine GitHub-API / podman / live-VM.
+
+name: phase-3c-marathon-tracker-gate
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/phase-3c/marathon-aggregat-tracker.py"
+      - "tests/scripts/test_marathon_aggregat_tracker.py"
+      - "docs/phase-3c/marathon-aggregat-tracker.md"
+      - ".github/workflows/phase-3c-marathon-tracker-gate.yml"
+  pull_request:
+    paths:
+      - "scripts/phase-3c/marathon-aggregat-tracker.py"
+      - "tests/scripts/test_marathon_aggregat_tracker.py"
+      - "docs/phase-3c/marathon-aggregat-tracker.md"
+      - ".github/workflows/phase-3c-marathon-tracker-gate.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  marathon-tracker-gate:
+    # Job-Display-Name MUSS exakt dieser String sein - er ist der
+    # Required-Status-Check-Name, den Mira-Hand in Branch-Protection
+    # aktiviert (per feedback_branch_protection_check_names.md).
+    name: "phase-3 marathon-tracker (lifecycle + aggregat + complete-trigger)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        # 3.13 mirrors the production-lane in tests.yml,
+        # hash-derivate-gate.yml und license-gate.yml.
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install gate dependencies
+        # Stdlib only. Nur pytest fuer den Test-Runner.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "pytest>=8.0"
+
+      - name: Stage 1 - Hermetic test-suite (16 tests)
+        # 16 hermetic Tests, kein Network, kein Subprozess. Covers:
+        #   * module-load + public-surface
+        #   * initial-state construction (7 welles in pending)
+        #   * forward-path walk through all 9 lifecycle states
+        #   * skip-state-rejection (invariant I2)
+        #   * rollback-only-from-cutover (invariant I3)
+        #   * terminal-states-have-no-outbound (invariant I4)
+        #   * history-append with note + timestamp
+        #   * save/load roundtrip determinism
+        #   * schema-version-mismatch rejection
+        #   * unknown-state-name rejection
+        #   * aggregate counters (pending/in-flight/signed-off/rolled-back)
+        #   * phase_3_complete trigger fires exactly once
+        #   * event-file emission is idempotent
+        #   * ASCII marathon-table renders all 7 welles
+        #   * coupling-indicator (solo / sync / near / DRIFT)
+        #   * CLI roundtrip (--show-marathon, --update-welle,
+        #     --show-aggregat, --show-welle, rc=1 illegal transition,
+        #     rc=3 unknown welle).
+        run: |
+          python -m pytest tests/scripts/test_marathon_aggregat_tracker.py -v --tb=short
+
+      - name: Stage 2 - CLI smoke (operator-hand contract)
+        # Exercises the documented CLI surface end-to-end against a
+        # tmp state-file. If the documented CLI invocation breaks,
+        # the Mira-Hand operator-hand workflow breaks - fail loud here.
+        env:
+          MARATHON_STATE_PATH: ${{ runner.temp }}/marathon-smoke-state.json
+          MARATHON_EVENT_DIR: ${{ runner.temp }}/marathon-smoke-events
+        run: |
+          set -euo pipefail
+
+          echo "::group::--show-marathon on fresh state"
+          python scripts/phase-3c/marathon-aggregat-tracker.py \
+            --state-path "$MARATHON_STATE_PATH" \
+            --event-dir "$MARATHON_EVENT_DIR" \
+            --show-marathon
+          echo "::endgroup::"
+
+          echo "::group::--update-welle 1 --state pre-flight-running"
+          python scripts/phase-3c/marathon-aggregat-tracker.py \
+            --state-path "$MARATHON_STATE_PATH" \
+            --event-dir "$MARATHON_EVENT_DIR" \
+            --update-welle 1 --state pre-flight-running \
+            --note "tag-40-ci-smoke"
+          echo "::endgroup::"
+
+          echo "::group::--show-aggregat (JSON)"
+          python scripts/phase-3c/marathon-aggregat-tracker.py \
+            --state-path "$MARATHON_STATE_PATH" \
+            --show-aggregat
+          echo "::endgroup::"
+
+          echo "::group::--show-welle 1 (detail)"
+          python scripts/phase-3c/marathon-aggregat-tracker.py \
+            --state-path "$MARATHON_STATE_PATH" \
+            --show-welle 1
+          echo "::endgroup::"
+
+          echo "::group::Verify state-file canonical JSON"
+          python - <<'PY'
+          import json, os
+          path = os.environ["MARATHON_STATE_PATH"]
+          with open(path, encoding="utf-8") as f:
+              raw = f.read()
+          doc = json.loads(raw)
+          assert doc["schema_version"] == 1, doc["schema_version"]
+          assert doc["welles"]["1"]["state"] == "pre-flight-running"
+          assert set(doc["welles"].keys()) == {"1","2","3","4","5","6","7"}
+          canon = json.dumps(doc, indent=2, sort_keys=True) + "\n"
+          assert canon == raw, "state file is not in canonical form"
+          print("state-file canonical-JSON contract OK")
+          PY
+          echo "::endgroup::"
+
+      - name: Stage 3 - Doku-Parity snapshot (CI-summary diagnostic)
+        # Sanity: every WelleLifecycleState enum value must appear in
+        # the markdown doc; otherwise the operator-hand state-machine
+        # reference is drifting from the code. Soft fail (warning) -
+        # the test-suite already enforces the code-side; this stage
+        # only catches doc-drift early.
+        if: always()
+        run: |
+          python - <<'PY'
+          import importlib.util, pathlib, sys
+          spec = importlib.util.spec_from_file_location(
+              "marathon_aggregat_tracker",
+              "scripts/phase-3c/marathon-aggregat-tracker.py",
+          )
+          mod = importlib.util.module_from_spec(spec)
+          # Register in sys.modules before exec so dataclasses can
+          # introspect cls.__module__ during decorator application
+          # (required on Python 3.14+; harmless on 3.13).
+          sys.modules[spec.name] = mod
+          spec.loader.exec_module(mod)
+          doc_text = pathlib.Path(
+              "docs/phase-3c/marathon-aggregat-tracker.md"
+          ).read_text(encoding="utf-8")
+          missing = []
+          for s in mod.WelleLifecycleState:
+              if s.value not in doc_text:
+                  missing.append(s.value)
+          if missing:
+              print(f"WARNING: doc-drift - missing states in markdown: {missing}")
+          else:
+              print("doc-parity OK: all 11 lifecycle states present in markdown")
+          PY
