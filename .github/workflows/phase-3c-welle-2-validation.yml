@@ -454,6 +454,16 @@ jobs:
           sys.exit(0 if ready else 1)
           PY
 
+      # Step 6 — Emit Welle-2 sign-off envelope (Tag-51, Tomas).
+      - name: Step 6 — Emit Welle-2 sign-off envelope (Tag-51)
+        if: always()
+        run: |
+          mkdir -p state
+          python scripts/ci/emit-welle-sign-off.py \
+            --welle 2 \
+            --decision-envelope out/cutover-acceptance-decision.json \
+            --output state/welle-2-sign-off.json
+
       - name: Upload validation artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -467,5 +477,6 @@ jobs:
             out/persona-boot-junit.xml
             out/bridge-audit.log
             out/bridge-audit-junit.xml
+            state/welle-2-sign-off.json
           if-no-files-found: warn
           retention-days: 30

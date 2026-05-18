@@ -422,6 +422,22 @@ jobs:
           sys.exit(0 if ready else 1)
           PY
 
+      # Step 6 — Emit Welle-1 sign-off envelope (Tag-51, Tomas).
+      #
+      # Converts the rendered cutover-acceptance-decision.json into a
+      # canonical state/welle-1-sign-off.json that the Tag-50 Marathon-
+      # Final-Bilanz aggregator consumes from the Henrik slot. Runs on
+      # every outcome (READY/BLOCK) -- a BLOCK sign-off is still a
+      # Henrik signal worth recording for the audit-bundle.
+      - name: Step 6 — Emit Welle-1 sign-off envelope (Tag-51)
+        if: always()
+        run: |
+          mkdir -p state
+          python scripts/ci/emit-welle-sign-off.py \
+            --welle 1 \
+            --decision-envelope out/cutover-acceptance-decision.json \
+            --output state/welle-1-sign-off.json
+
       - name: Upload validation artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -435,5 +451,6 @@ jobs:
             out/persona-boot-junit.xml
             out/bridge-audit.log
             out/bridge-audit-junit.xml
+            state/welle-1-sign-off.json
           if-no-files-found: warn
           retention-days: 30

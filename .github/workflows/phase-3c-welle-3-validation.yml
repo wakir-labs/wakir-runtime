@@ -958,6 +958,20 @@ jobs:
           sys.exit(0 if verdict in ("READY", "CAUTION") else 1)
           PY
 
+      # Step 6 — Emit Welle-3 sign-off envelope (Tag-51, Tomas).
+      #
+      # CAUTION-verdict workflows still produce a sign-off envelope
+      # (audit_ok=false) so Mira-Hand surfacing is recorded for the
+      # Tag-50 Marathon-Final-Bilanz aggregator.
+      - name: Step 6 — Emit Welle-3 sign-off envelope (Tag-51)
+        if: always()
+        run: |
+          mkdir -p state
+          python scripts/ci/emit-welle-sign-off.py \
+            --welle 3 \
+            --decision-envelope out/cutover-acceptance-decision.json \
+            --output state/welle-3-sign-off.json
+
       - name: Upload validation artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -975,5 +989,6 @@ jobs:
             out/pre-flight.log
             out/self-reference-trap.json
             out/cross-modul-drift.json
+            state/welle-3-sign-off.json
           if-no-files-found: warn
           retention-days: 30
