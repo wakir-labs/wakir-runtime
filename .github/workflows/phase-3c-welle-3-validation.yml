@@ -121,6 +121,52 @@
 # Step 4 (doppelbetrieb-score-aggregator --mode=cross-modul-stress)
 # is also hermetic (stdlib + pytest in-tree).
 
+# =============================================================================
+# OPERATOR-PLAYBOOK (Tag-36 KW-25 Welle-3 Solo Cutover, ADR-0066)
+# =============================================================================
+#
+# This workflow renders a `cutover-acceptance-decision-welle-3.json`
+# envelope every Wednesday 06:00 UTC AND on every push-to-main that
+# touches a Welle-3-relevant path. The envelope is the canonical
+# go/no-go signal for the Monday Pilot-VM Live-Smoke of the
+# `bridge_audit_writer` cutover.
+#
+# Operator decision rules (Mira-Hand final):
+#
+#   READY    -> Pre-flight smoke green, all five steps green, drift == 0,
+#               self-reference-trap NOT detected. Cleared for Mo Live-Smoke.
+#   CAUTION  -> Gate-4 yellow (observability baseline) is the only
+#               yellow signal. Mira-Hand may proceed with operator
+#               sign-off; the envelope records `henrik_caution_applied`.
+#   BLOCK    -> Any of:
+#                 * Pre-flight smoke fails (Selin's telemetry-emitter
+#                   refuses to produce a snapshot).
+#                 * Self-Reference-Trap detected (Step 2 health-check).
+#                 * Cross-Modul-Drift > 0 (Step 4 health-check; strict
+#                   threshold per Henrik-Caution Item 6, stricter than
+#                   Welle-1/2's drift > 1 = CAUTION).
+#                 * Henrik-Caution independent oracle red.
+#                 * Decision feasibility-band below score-band-floor.
+#               BLOCK signals must be reported to Mira before any
+#               operator-hand-flip on Mo.
+#
+# Runbook anchors (Kai's Tag-32 + Tag-36 substrate):
+#
+#   * docs/operations/phase-3c-welle-3-runbook.md
+#       — Full operator-cutover runbook (Mo/Mi/Do phases, rollback).
+#   * docs/operations/welle-3-day-0-pipeline-runbook.md
+#       — Day-0 orchestrator script wiring (Selin/Kai/Tomás contract).
+#   * docs/operations/welle-3-telemetry-runbook.md
+#       — Live telemetry interpretation (divergence-red-flag panel).
+#
+# Sister workflows: phase-3c-welle-1-validation.yml (PR #190),
+# phase-3c-welle-2-validation.yml (PR #196). The bridge_audit_writer
+# component IS the substrate behind those workflows' bridge-audit-
+# roundtrip oracle, so Welle-3 deliberately swaps Step 4 to the
+# independent cross-modul-stress aggregator (Henrik-Caution).
+#
+# =============================================================================
+
 name: phase-3c-welle-3-validation
 
 on:
@@ -141,6 +187,26 @@ on:
         description: "Minimum cutover-feasibility band (GREEN/AMBER, default GREEN)"
         required: false
         default: "GREEN"
+  # Push-to-main with Welle-3-relevant path-filter — Tag-36 addition.
+  # Catches regressions in the substrate before the wednesday-cron
+  # window so a broken Welle-3 readiness signal surfaces on PR-merge,
+  # not three days into the cutover week.
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/phase-3c-welle-3-validation.yml"
+      - "scripts/phase-3c-trigger-gate-aggregator.py"
+      - "scripts/phase-3c-cutover-dry-run.py"
+      - "scripts/doppelbetrieb-score-aggregator.py"
+      - "scripts/welle-3-telemetry-emitter.py"
+      - "scripts/welle-3-day-0-pipeline.sh"
+      - "wirelang/tests/persona_engine/test_rust_backend_switch.py"
+      - "tests/acceptance/phase_3c/test_welle_3_bridge_audit_writer_e2e.py"
+      - "tests/ci/test_phase_3c_welle_3_validation.py"
+      - "tests/workflows/test_phase_3c_welle_3_validation.py"
+      - "docs/operations/phase-3c-welle-3-runbook.md"
+      - "docs/operations/welle-3-day-0-pipeline-runbook.md"
+      - "docs/operations/welle-3-telemetry-runbook.md"
 
 permissions:
   contents: read
@@ -195,6 +261,40 @@ jobs:
       - name: Prepare output directory
         run: mkdir -p out
 
+      # Pre-flight: Welle-3 telemetry smoke (Selin's emitter, Tag-31).
+      #
+      # Runs `scripts/welle-3-telemetry-emitter.py` in one-shot mode
+      # against an empty decisions-JSONL substrate to verify the
+      # telemetry-emitter binary loads, parses, and produces a
+      # snapshot JSON without crashing. This is the Day-0-pipeline
+      # contract's smoke-pre-flight (Kai's `welle-3-day-0-pipeline.sh`
+      # Phase Mo, lifted into CI so a broken emitter surfaces on
+      # PR-merge instead of three days into the cutover week).
+      #
+      # The smoke uses synthetic empty inputs (created on-the-fly).
+      # If the emitter fails to start or returns a non-zero exit code,
+      # the workflow records `pre_flight_smoke_ok=false` and Step 5
+      # treats this as a hard BLOCK signal.
+      - name: Pre-flight Welle-3 telemetry smoke (Selin's emitter)
+        id: pre-flight-smoke
+        continue-on-error: true
+        run: |
+          # Synthetic empty inputs — the emitter accepts an empty
+          # decisions-JSONL and emits a zero-decision snapshot. We
+          # only care that the binary runs end-to-end.
+          : > out/pre-flight-decisions.jsonl
+          python scripts/welle-3-telemetry-emitter.py \
+            --decisions-jsonl out/pre-flight-decisions.jsonl \
+            --out out/pre-flight-snapshot.json \
+            > out/pre-flight.log 2>&1
+          RC="$?"
+          echo "rc=${RC}" >> "$GITHUB_OUTPUT"
+          if [ "$RC" = "0" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # Step 1: aggregate the five Phase-3c trigger-gates.
       #
       # Aggregator exit codes (see scripts/phase-3c-trigger-gate-
@@ -243,6 +343,105 @@ jobs:
             --component "${WELLE_COMPONENT}" \
             --boots "${{ steps.inputs.outputs.boots }}" \
             --output out/dry-run-envelope.json
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+
+      # Health-Check: Self-Reference-Trap detector (Henrik-Caution).
+      #
+      # The Welle-3 cutover flips the `bridge_audit_writer` substrate.
+      # That substrate is itself the BackendDecision-audit emitter
+      # behind the canonical cross-lang consistency oracle
+      # `tests/integration/test_bridge_audit_roundtrip_e2e.py`. If
+      # any Step-4-oracle-reference in this workflow OR the
+      # dry-run-envelope-recorded consistency-signal-source points
+      # back at `bridge_audit_writer` / `anchor_emitter` /
+      # `bridge_audit_roundtrip_e2e`, that is the
+      # "subject-under-test certifies itself" self-reference trap
+      # Henrik flagged in the ADR-0066 verification plan.
+      #
+      # This detector inspects the dry-run envelope (Step 2 output)
+      # and the workflow-self-source for any of the trap strings; if
+      # detected, the workflow records `self_reference_trap=true` and
+      # Step 5 treats this as a hard BLOCK signal — even if every
+      # other step is green. The detector encodes the Henrik-Caution
+      # invariant as a runtime guard, so a future workflow edit that
+      # accidentally re-introduces the bridge-audit-roundtrip oracle
+      # cannot ship past CI.
+      - name: Step 2.5 — Self-Reference-Trap detector (Henrik-Caution)
+        id: self-reference-trap
+        continue-on-error: true
+        env:
+          WORKFLOW_PATH: .github/workflows/phase-3c-welle-3-validation.yml
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, sys
+
+          out_dir = pathlib.Path("out")
+          trap_path = out_dir / "self-reference-trap.json"
+
+          # Trap-strings: any reference that would make the subject
+          # under cutover certify its own switch.
+          TRAP_STRINGS = (
+              "test_bridge_audit_roundtrip_e2e",
+              "bridge_audit_roundtrip_e2e",
+          )
+
+          findings = []
+
+          # Check 1: dry-run envelope must not name the trap oracle
+          # as its consistency-signal-source.
+          dry_path = out_dir / "dry-run-envelope.json"
+          if dry_path.exists() and dry_path.stat().st_size > 0:
+              try:
+                  envelope = json.loads(dry_path.read_text("utf-8"))
+              except json.JSONDecodeError:
+                  envelope = {}
+              src = json.dumps(envelope, sort_keys=True)
+              for trap in TRAP_STRINGS:
+                  if trap in src:
+                      findings.append({
+                          "where": "dry-run-envelope",
+                          "trap": trap,
+                      })
+
+          # Check 2: the workflow-self must not (re-)introduce the
+          # trap oracle in any step's `run:` body.
+          wf_path = pathlib.Path(os.environ["WORKFLOW_PATH"])
+          if wf_path.exists():
+              wf_src = wf_path.read_text("utf-8")
+              for trap in TRAP_STRINGS:
+                  # Only flag in `run:`-context, not comments. We
+                  # detect by checking the trap appears outside a
+                  # leading `#` line.
+                  for ln in wf_src.splitlines():
+                      stripped = ln.lstrip()
+                      if stripped.startswith("#"):
+                          continue
+                      if trap in ln:
+                          findings.append({
+                              "where": "workflow-self",
+                              "trap": trap,
+                              "line": ln.strip()[:120],
+                          })
+
+          trap_detected = bool(findings)
+          report = {
+              "schema": "wakir.phase-3c.welle-3.self-reference-trap/1",
+              "trap_detected": trap_detected,
+              "findings": findings,
+              "henrik_caution": (
+                  "Welle-3 subject (bridge_audit_writer) cannot use "
+                  "bridge_audit_roundtrip oracle as consistency source."
+              ),
+          }
+          trap_path.write_text(
+              json.dumps(report, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(report, indent=2, sort_keys=True))
+          # Exit 0 if no trap; exit 1 if trap detected. continue-on-
+          # error lets Step 5 still render the decision envelope.
+          sys.exit(1 if trap_detected else 0)
+          PY
           echo "rc=$?" >> "$GITHUB_OUTPUT"
 
       # Step 3: test-persona-boot with WAKIR_BRIDGE_AUDIT_WRITER_
@@ -321,6 +520,108 @@ jobs:
           RC="${PIPESTATUS[0]}"
           echo "rc=${RC}" >> "$GITHUB_OUTPUT"
 
+      # Step 4.5 — Cross-Modul-Drift check (drift > 0 = BLOCK).
+      #
+      # Henrik-Caution Item 6 (ADR-0066 verification plan, KW 25
+      # solo posture) demands a stricter cross-modul-drift threshold
+      # for Welle-3 than for Welle-1/2: ANY non-zero drift between the
+      # five-modul Phase-3a substrate pin-set and the cutover-candidate
+      # substrate is a BLOCK (Welle-1/2 used drift > 1 = CAUTION).
+      #
+      # The "drift" here is the absence of axis-pass on any of the
+      # three Cross-Modul axes of the doppelbetrieb-score-aggregator
+      # output (Step 4 rollup):
+      #   * cross-lang-pin-coverage
+      #   * cross-modul-fixture-stability
+      #   * cross-modul-rollup-integrity
+      #
+      # drift := count(axes where axis_pass=false) on the
+      # `cross-modul-stress-rollup.json`. drift==0 means all three
+      # axes are green; drift>=1 means BLOCK.
+      #
+      # This is structurally stricter than the Step-4 threshold-pass
+      # check: Step 4 may be threshold-pass=true even with one axis
+      # failing (if the threshold is configured loose), but Welle-3
+      # treats any axis-fail as a BLOCK.
+      - name: Step 4.5 — Cross-Modul-Drift check (drift > 0 = BLOCK)
+        id: drift-check
+        if: always()
+        continue-on-error: true
+        run: |
+          python - <<'PY'
+          import json, pathlib, sys
+
+          out_dir = pathlib.Path("out")
+          drift_path = out_dir / "cross-modul-drift.json"
+          rollup_path = out_dir / "cross-modul-stress-rollup.json"
+
+          rollup = {}
+          if rollup_path.exists() and rollup_path.stat().st_size > 0:
+              try:
+                  rollup = json.loads(rollup_path.read_text("utf-8"))
+              except json.JSONDecodeError:
+                  rollup = {}
+
+          # Aggregator schema: rollup may carry either a top-level
+          # `axes` list or `result.axes`. Defensive parse: collect
+          # any dict-shaped axis-entries with an `axis_pass` field.
+          def _collect_axes(obj):
+              found = []
+              if isinstance(obj, dict):
+                  if "axis_pass" in obj and (
+                      "name" in obj or "axis" in obj
+                  ):
+                      found.append(obj)
+                  for v in obj.values():
+                      found.extend(_collect_axes(v))
+              elif isinstance(obj, list):
+                  for item in obj:
+                      found.extend(_collect_axes(item))
+              return found
+
+          axes = _collect_axes(rollup)
+
+          # If the aggregator did not emit per-axis records, fall
+          # back to the threshold-pass flag: threshold_pass=false
+          # is treated as drift>0 (any axis-fail).
+          if not axes:
+              tp = rollup.get("threshold_pass")
+              drift = 0 if tp is True else (1 if tp is False else 0)
+              axes_summary = []
+          else:
+              drift = sum(1 for a in axes if not a.get("axis_pass"))
+              axes_summary = [
+                  {
+                      "axis": a.get("name") or a.get("axis"),
+                      "axis_pass": bool(a.get("axis_pass")),
+                  }
+                  for a in axes
+              ]
+
+          # Welle-3-specific strict threshold: drift > 0 = BLOCK.
+          # (Welle-1/2 used drift > 1 = CAUTION; Welle-3 is stricter
+          # per Henrik-Caution Item 6.)
+          block = drift > 0
+
+          report = {
+              "schema": "wakir.phase-3c.welle-3.cross-modul-drift/1",
+              "drift": drift,
+              "axes": axes_summary,
+              "threshold_policy": "drift_gt_0_equals_block",
+              "welle_1_2_policy": "drift_gt_1_equals_caution",
+              "welle_3_strict": True,
+              "block": block,
+              "henrik_caution_item": 6,
+          }
+          drift_path.write_text(
+              json.dumps(report, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(report, indent=2, sort_keys=True))
+          sys.exit(1 if block else 0)
+          PY
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+
       # Step 5: cutover-acceptance-decision JSON envelope.
       #
       # Collapses the four upstream-step outcomes plus the gate-
@@ -356,6 +657,10 @@ jobs:
           SCORE_BAND_FLOOR: ${{ steps.inputs.outputs.band }}
           BOOTS_INPUT: ${{ steps.inputs.outputs.boots }}
           BIN_COUNT_INPUT: ${{ steps.inputs.outputs.binary_count }}
+          PREFLIGHT_RC: ${{ steps.pre-flight-smoke.outputs.rc }}
+          PREFLIGHT_OK: ${{ steps.pre-flight-smoke.outputs.ok }}
+          SELF_REF_TRAP_RC: ${{ steps.self-reference-trap.outputs.rc }}
+          DRIFT_CHECK_RC: ${{ steps.drift-check.outputs.rc }}
         run: |
           python - <<'PY'
           import json, os, pathlib, sys
@@ -383,11 +688,16 @@ jobs:
           dry_rc = _rc("DRY_RUN_RC")
           boot_rc = _rc("BOOT_RC")
           stress_rc = _rc("STRESS_RC")
+          preflight_rc = _rc("PREFLIGHT_RC")
+          self_ref_rc = _rc("SELF_REF_TRAP_RC")
+          drift_rc = _rc("DRIFT_CHECK_RC")
           floor = (os.environ.get("SCORE_BAND_FLOOR") or "GREEN").upper()
 
           trigger_report = _read_json("trigger-gate-report.json") or {}
           dry_run_envelope = _read_json("dry-run-envelope.json") or {}
           stress_rollup = _read_json("cross-modul-stress-rollup.json") or {}
+          self_ref_report = _read_json("self-reference-trap.json") or {}
+          drift_report = _read_json("cross-modul-drift.json") or {}
 
           # Gate-status: 0=green, 1=yellow (tolerable for Gate-4),
           # 2=red (hard fail).
@@ -424,10 +734,55 @@ jobs:
               "yellow_tolerated" if gate_tolerable else "red"
           )
 
-          ready = bool(
-              (gate_ok or gate_tolerable)
-              and dry_ok and boot_ok and stress_ok and band_ok
+          # Tag-36 additions (Welle-3 strict posture):
+          # Pre-flight smoke must pass. Self-Reference-Trap must NOT
+          # be detected. Cross-Modul-Drift must be 0.
+          preflight_ok = preflight_rc == 0
+          # self_ref_rc: 0 = no trap detected; 1 = trap detected.
+          self_ref_clean = self_ref_rc == 0
+          self_ref_trap_detected = bool(
+              self_ref_report.get("trap_detected")
           )
+          # drift_rc: 0 = drift==0; 1 = drift>0 (BLOCK).
+          drift_clean = drift_rc == 0
+          drift_value = drift_report.get("drift")
+
+          # READY/CAUTION/BLOCK verdict policy:
+          #   BLOCK   -> any hard signal flips: pre-flight smoke fails,
+          #              self-reference-trap detected, drift > 0,
+          #              gate-aggregator red, dry-run/boot/stress red,
+          #              feasibility band below floor.
+          #   CAUTION -> READY-eligible but gate-status is
+          #              yellow-tolerated (Gate-4 observability
+          #              baseline only).
+          #   READY   -> everything green.
+          hard_block_reasons = []
+          if not preflight_ok:
+              hard_block_reasons.append("pre_flight_smoke_failed")
+          if self_ref_trap_detected or not self_ref_clean:
+              hard_block_reasons.append("self_reference_trap_detected")
+          if not drift_clean:
+              hard_block_reasons.append("cross_modul_drift_nonzero")
+          if not (gate_ok or gate_tolerable):
+              hard_block_reasons.append("trigger_gate_aggregator_red")
+          if not dry_ok:
+              hard_block_reasons.append("dry_run_failed")
+          if not boot_ok:
+              hard_block_reasons.append("persona_boot_failed")
+          if not stress_ok:
+              hard_block_reasons.append("independent_oracle_red")
+          if not band_ok:
+              hard_block_reasons.append("feasibility_band_below_floor")
+
+          if hard_block_reasons:
+              verdict = "BLOCK"
+          elif gate_tolerable:
+              verdict = "CAUTION"
+          else:
+              verdict = "READY"
+
+          ready = verdict == "READY"
+          go_no_go = "GO" if verdict in ("READY", "CAUTION") else "NO-GO"
 
           decision = {
               "schema": "wakir.phase-3c.welle-3-validation/1",
@@ -439,8 +794,35 @@ jobs:
               "henrik_caution_applied": True,
               "step_4_oracle": "doppelbetrieb-score-aggregator --mode=cross-modul-stress",
               "ready_for_live_smoke": ready,
+              "verdict": verdict,
+              "go_no_go": go_no_go,
+              "hard_block_reasons": hard_block_reasons,
               "score_band_floor": floor,
               "observed_band": band,
+              "pre_flight_smoke": {
+                  "exit_code": preflight_rc,
+                  "ok": preflight_ok,
+                  "source_script": "scripts/welle-3-telemetry-emitter.py",
+              },
+              "self_reference_trap": {
+                  "exit_code": self_ref_rc,
+                  "clean": self_ref_clean,
+                  "trap_detected": self_ref_trap_detected,
+                  "findings_count": len(
+                      self_ref_report.get("findings") or []
+                  ),
+                  "henrik_caution": (
+                      "subject_under_cutover_cannot_certify_self"
+                  ),
+              },
+              "cross_modul_drift_check": {
+                  "exit_code": drift_rc,
+                  "clean": drift_clean,
+                  "drift": drift_value,
+                  "threshold_policy": "drift_gt_0_equals_block",
+                  "welle_3_strict": True,
+                  "henrik_caution_item": 6,
+              },
               "steps": {
                   "step_1_trigger_gates": {
                       "exit_code": gate_rc,
@@ -490,9 +872,13 @@ jobs:
                   "adr_cutover": "decisions/0065-phase-3c-cutover-python-default-zu-rust-default.md",
                   "adr_acceleration": "decisions/0066-phase-3c-beschleunigung-option-a-plus.md",
                   "runbook": "docs/operations/phase-3c-welle-3-runbook.md",
+                  "runbook_day_0": "docs/operations/welle-3-day-0-pipeline-runbook.md",
+                  "runbook_telemetry": "docs/operations/welle-3-telemetry-runbook.md",
                   "welle_1_sibling": ".github/workflows/phase-3c-welle-1-validation.yml",
                   "welle_2_sibling": ".github/workflows/phase-3c-welle-2-validation.yml",
                   "independent_oracle": ".github/workflows/phase-2-acceptance-gate.yml",
+                  "selin_smoke_emitter": "scripts/welle-3-telemetry-emitter.py",
+                  "kai_day_0_pipeline": "scripts/welle-3-day-0-pipeline.sh",
               },
           }
 
@@ -508,18 +894,29 @@ jobs:
               with open(summary_path, "a", encoding="utf-8") as f:
                   f.write("# Phase-3c Welle-3 Validation — bridge_audit_writer\n\n")
                   f.write(
-                      f"**Ready for Live-Smoke:** "
-                      f"{'YES' if ready else 'NO'}  -  "
+                      f"**Verdict:** {verdict}  -  "
+                      f"**Go/No-Go:** {go_no_go}  -  "
                       f"**Band:** {band}  -  "
                       f"**Floor:** {floor}\n\n"
                   )
+                  if hard_block_reasons:
+                      f.write(
+                          "**Hard-Block reasons:** "
+                          + ", ".join(hard_block_reasons)
+                          + "\n\n"
+                      )
                   f.write(
                       "**Henrik-Caution:** Step 4 oracle is "
                       "`doppelbetrieb-score-aggregator --mode="
                       "cross-modul-stress` (independent of "
-                      "bridge_audit_writer substrate).\n\n"
+                      "bridge_audit_writer substrate). Drift > 0 = "
+                      "BLOCK (stricter than Welle-1/2).\n\n"
                   )
                   f.write("| Step | Exit | Status |\n|---|---|---|\n")
+                  f.write(
+                      f"| Pre-flight Selin-Smoke | {preflight_rc} | "
+                      f"{'OK' if preflight_ok else 'FAIL'} |\n"
+                  )
                   f.write(
                       f"| 1. Trigger-Gates | {gate_rc} | "
                       f"{gate_signal} |\n"
@@ -527,6 +924,10 @@ jobs:
                   f.write(
                       f"| 2. Dry-Run | {dry_rc} | "
                       f"{'OK' if dry_ok else 'FAIL'} |\n"
+                  )
+                  f.write(
+                      f"| 2.5 Self-Reference-Trap | {self_ref_rc} | "
+                      f"{'CLEAN' if self_ref_clean else 'TRAP'} |\n"
                   )
                   f.write(
                       f"| 3. Persona-Boot (rust) | {boot_rc} | "
@@ -538,12 +939,23 @@ jobs:
                       f"{'OK' if stress_ok else 'FAIL'} |\n"
                   )
                   f.write(
+                      f"| 4.5 Cross-Modul-Drift | {drift_rc} | "
+                      f"{'OK (drift=0)' if drift_clean else 'BLOCK (drift>0)'} |\n"
+                  )
+                  f.write(
                       "\nArtifact: `cutover-acceptance-decision-welle-3` (this run).\n"
                       "\nAnchors: ADR-0065, ADR-0066, "
-                      "docs/operations/phase-3c-welle-3-runbook.md.\n"
+                      "docs/operations/phase-3c-welle-3-runbook.md, "
+                      "docs/operations/welle-3-day-0-pipeline-runbook.md, "
+                      "docs/operations/welle-3-telemetry-runbook.md.\n"
                   )
 
-          sys.exit(0 if ready else 1)
+          # Exit-code semantics:
+          #   0 = READY or CAUTION (operator may proceed; CAUTION
+          #       requires Mira-Hand sign-off but does not fail CI).
+          #   1 = BLOCK (hard-block reason present, operator must
+          #       resolve before Mo Live-Smoke).
+          sys.exit(0 if verdict in ("READY", "CAUTION") else 1)
           PY
 
       - name: Upload validation artifacts
@@ -559,5 +971,9 @@ jobs:
             out/persona-boot-junit.xml
             out/cross-modul-stress.log
             out/cross-modul-stress-rollup.json
+            out/pre-flight-snapshot.json
+            out/pre-flight.log
+            out/self-reference-trap.json
+            out/cross-modul-drift.json
           if-no-files-found: warn
           retention-days: 30
