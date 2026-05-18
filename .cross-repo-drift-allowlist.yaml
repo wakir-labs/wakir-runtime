@@ -6,6 +6,8 @@
 # Tag-35 note (2026-05-18): path-filter touch for forever-pending unblock.
 # Pattern matches Tomás-Audit Side-Finding (PR #231).
 #
+# Tag-36 note (2026-05-18 13:55 CEST): trigger-touch für PR #242 unblock.
+#
 # Consumed by `.github/workflows/cross-repo-drift-audit.yml`.
 #
 # Purpose
