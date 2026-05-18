@@ -1,0 +1,235 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Mira-Notify DLQ Inspect + Replay (Daily) Workflow (Tag-51, Noa SRE)
+# -------------------------------------------------------------------
+#
+# Purpose
+# -------
+#
+# Tag-46 PR #296 (Mira-Notify Emitter + Receiver) shipped a dead-letter
+# file (`.notify-dead-letter.jsonl`) for events that fail intake at the
+# receiver: invalid JSON, missing event_id, validation errors.  Without
+# a routine inspector, that file is a write-only graveyard.  Mira-Hand
+# never sees what was dropped, and the operator only notices an
+# anomaly when an expected page does not arrive.
+#
+# This workflow runs the Tag-51 `mira-notify-dlq.py` daily at
+# 07:30 UTC (offset by 30min after the 15-binary-SBOM job at 07:00
+# UTC, so an operator looking at both at the same time sees distinct,
+# non-overlapping job-summary blocks).  It:
+#
+#   1. Inspects `.notify-dead-letter.jsonl` (read-only) and writes
+#      both a JSON summary and a Markdown report to the Job-Summary.
+#   2. (Dispatch-only) runs `replay --apply` with operator-selected
+#      patch flags.  This is gated behind ``workflow_dispatch`` so the
+#      scheduled run remains read-only — a daily cron that auto-
+#      replays would mask the producer-side bug that motivated the
+#      dead-letter in the first place.
+#
+# Sandbox posture
+# ---------------
+#
+# Strict hermetic: stdlib + pytest only.  No podman / cosign / network
+# egress.  The DLQ tool reads + writes only the dead-letter file and
+# the Mira-Hand inbox dir.  In CI we read from an empty in-checkout
+# inbox (the production dead-letter file lives outside the repo); the
+# scheduled run is therefore primarily a *self-test* of the tool +
+# substrate: any regression in mira-notify-dlq.py surfaces here within
+# 24h instead of only at the next operator-hand invocation.
+#
+# Not a required status check
+# ---------------------------
+#
+# Per `feedback_branch_protection_check_names.md` this workflow tracks
+# a daily reliability signal, not individual PR acceptance.  It is NOT
+# listed as a required status check on PRs; it surfaces signal via
+# Job-Summary + artefact.
+
+name: mira-notify-dlq-daily
+
+on:
+  schedule:
+    - cron: "30 7 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "inspect (read-only) | replay (--apply, mutates inbox + DLQ) | prune (--apply, drops resolved)"
+        required: false
+        default: "inspect"
+      set_schema_version:
+        description: "Replay/Prune: patch schema_version on dead-letter payloads."
+        required: false
+        default: "false"
+      fill_missing_fired_at_utc:
+        description: "Replay/Prune: patch missing fired_at_utc with the current UTC time."
+        required: false
+        default: "false"
+      normalise_severity:
+        description: "Replay/Prune: lowercase + strip severity."
+        required: false
+        default: "false"
+      default_severity:
+        description: "Replay/Prune: fallback severity (page | warning | info) when severity is missing."
+        required: false
+        default: ""
+      dlq_file:
+        description: "Override dead-letter file path (default <inbox>/.notify-dead-letter.jsonl)."
+        required: false
+        default: ""
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/observability/mira-notify-dlq.py"
+      - "scripts/observability/mira-notify-emitter.py"
+      - "scripts/observability/mira-notify-receiver.py"
+      - "tests/observability/test_mira_notify_dlq.py"
+      - ".github/workflows/mira-notify-dlq-daily.yml"
+  pull_request:
+    paths:
+      - "scripts/observability/mira-notify-dlq.py"
+      - "scripts/observability/mira-notify-emitter.py"
+      - "scripts/observability/mira-notify-receiver.py"
+      - "tests/observability/test_mira_notify_dlq.py"
+      - ".github/workflows/mira-notify-dlq-daily.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mira-notify-dlq-daily
+  cancel-in-progress: false
+
+jobs:
+  mira-notify-dlq:
+    name: Mira-Notify DLQ inspect + replay
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Run hermetic DLQ tests
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check \
+              'pytest==9.0.3'
+          python3 -m pytest -v \
+              tests/observability/test_mira_notify_dlq.py
+
+      - name: Resolve dispatch inputs
+        id: inputs
+        env:
+          INPUT_MODE: ${{ github.event.inputs.mode }}
+          INPUT_SET_SCHEMA: ${{ github.event.inputs.set_schema_version }}
+          INPUT_FILL_TS: ${{ github.event.inputs.fill_missing_fired_at_utc }}
+          INPUT_NORM_SEV: ${{ github.event.inputs.normalise_severity }}
+          INPUT_DEFAULT_SEV: ${{ github.event.inputs.default_severity }}
+          INPUT_DLQ_FILE: ${{ github.event.inputs.dlq_file }}
+        run: |
+          set -euo pipefail
+          mode="${INPUT_MODE:-inspect}"
+          case "${mode}" in
+            inspect|replay|prune) ;;
+            *) echo "Unsupported mode: ${mode}"; exit 2 ;;
+          esac
+          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
+          echo "set_schema=${INPUT_SET_SCHEMA:-false}" >> "${GITHUB_OUTPUT}"
+          echo "fill_ts=${INPUT_FILL_TS:-false}" >> "${GITHUB_OUTPUT}"
+          echo "norm_sev=${INPUT_NORM_SEV:-false}" >> "${GITHUB_OUTPUT}"
+          echo "default_sev=${INPUT_DEFAULT_SEV:-}" >> "${GITHUB_OUTPUT}"
+          echo "dlq_file=${INPUT_DLQ_FILE:-}" >> "${GITHUB_OUTPUT}"
+
+      - name: Prepare inbox + DLQ paths
+        id: paths
+        env:
+          DLQ_FILE_OVERRIDE: ${{ steps.inputs.outputs.dlq_file }}
+        run: |
+          set -euo pipefail
+          inbox="agents-workspaces/mira/inbox"
+          mkdir -p "${inbox}"
+          if [ -n "${DLQ_FILE_OVERRIDE}" ]; then
+            dlq_file="${DLQ_FILE_OVERRIDE}"
+          else
+            dlq_file="${inbox}/.notify-dead-letter.jsonl"
+          fi
+          echo "inbox=${inbox}" >> "${GITHUB_OUTPUT}"
+          echo "dlq_file=${dlq_file}" >> "${GITHUB_OUTPUT}"
+          # Ensure the file exists so inspect does not error.
+          if [ ! -f "${dlq_file}" ]; then
+            touch "${dlq_file}"
+          fi
+
+      - name: Run mira-notify-dlq inspect (JSON)
+        id: inspect_json
+        env:
+          INBOX: ${{ steps.paths.outputs.inbox }}
+          DLQ_FILE: ${{ steps.paths.outputs.dlq_file }}
+        run: |
+          set -euo pipefail
+          mkdir -p out/dlq
+          python3 scripts/observability/mira-notify-dlq.py \
+              --inbox "${INBOX}" \
+              --dlq-file "${DLQ_FILE}" \
+              inspect --format json \
+              > out/dlq/inspect.json
+
+      - name: Run mira-notify-dlq inspect (Markdown to Job-Summary)
+        env:
+          INBOX: ${{ steps.paths.outputs.inbox }}
+          DLQ_FILE: ${{ steps.paths.outputs.dlq_file }}
+        run: |
+          set -euo pipefail
+          python3 scripts/observability/mira-notify-dlq.py \
+              --inbox "${INBOX}" \
+              --dlq-file "${DLQ_FILE}" \
+              inspect --format markdown \
+              > out/dlq/inspect.md
+          cat out/dlq/inspect.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Run mira-notify-dlq replay or prune (dispatch-only)
+        if: github.event_name == 'workflow_dispatch' && steps.inputs.outputs.mode != 'inspect'
+        env:
+          INBOX: ${{ steps.paths.outputs.inbox }}
+          DLQ_FILE: ${{ steps.paths.outputs.dlq_file }}
+          MODE: ${{ steps.inputs.outputs.mode }}
+          SET_SCHEMA: ${{ steps.inputs.outputs.set_schema }}
+          FILL_TS: ${{ steps.inputs.outputs.fill_ts }}
+          NORM_SEV: ${{ steps.inputs.outputs.norm_sev }}
+          DEFAULT_SEV: ${{ steps.inputs.outputs.default_sev }}
+        run: |
+          set -euo pipefail
+          args=("--inbox" "${INBOX}" "--dlq-file" "${DLQ_FILE}" "${MODE}" "--apply" "--format" "markdown")
+          if [ "${SET_SCHEMA}" = "true" ]; then
+            args+=("--set-schema-version")
+          fi
+          if [ "${FILL_TS}" = "true" ]; then
+            args+=("--fill-missing-fired-at-utc")
+          fi
+          if [ "${NORM_SEV}" = "true" ]; then
+            args+=("--normalise-severity")
+          fi
+          if [ -n "${DEFAULT_SEV}" ]; then
+            args+=("--default-severity" "${DEFAULT_SEV}")
+          fi
+          echo "Running: mira-notify-dlq.py ${args[*]}"
+          python3 scripts/observability/mira-notify-dlq.py "${args[@]}" \
+              | tee out/dlq/${MODE}.md
+          cat out/dlq/${MODE}.md >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload DLQ bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mira-notify-dlq-${{ github.run_id }}
+          path: out/dlq/
+          retention-days: 30
+          if-no-files-found: warn
