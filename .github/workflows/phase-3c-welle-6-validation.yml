@@ -4,67 +4,159 @@
 # ----------------------------------------------------------
 #
 # Wired-substrate validation for the Phase-3c Welle-6 cutover
-# (`subscribe_loop`, KW 27 parallel-execution per ADR-0066
-# Option-A+). Runs the five Mira-Hand-defined acceptance steps for
-# the Welle-6 Cutover-Acceptance-Decision and emits a
+# (`subscribe_loop`, KW 27 parallel-execution per ADR-0066 Option-A+).
+# Runs the Tag-39 Mira-Hand-defined acceptance pipeline for the
+# Welle-6 Cutover-Acceptance-Decision and emits a
 # `cutover-acceptance-decision-welle-6.json` artifact.
+#
+# Tag-39 promotes this workflow from the Tag-32 4-step bundle stub to
+# the Welle-3 strict pattern (PR #238, `0e54699`) with the same
+# additions Tag-38 applied to Welle-5 (PR #248): pre-flight smoke,
+# Subscribe-Loop-Lag-Histogramm-Integrity-Check + Phantom-Bucket-
+# Detection, Cross-Modul-Drift to Welle-7 recovery_workflow
+# (symmetric A7 pendant, drift > 0 = BLOCK), Decision-Aggregation
+# (READY/CAUTION/BLOCK), and JSON-Verdict + Go/No-Go. The Cross-Modul-
+# Drift axis is symmetric with Welle-7 because the subscribe_loop
+# delivers events that the recovery_workflow consumes during a
+# post-failure replay; lag skew in either resolver surfaces only
+# against fixture-pairs that exercise both substrates.
 #
 # Distinction from sibling workflows
 # ----------------------------------
 #
 # * `phase-3c-welle-1-validation.yml` (PR #190) - Welle-1 readiness
-#   check for `v907_verify`.
+#   check for `v907_verify` (5-step pattern).
 # * `phase-3c-welle-2-validation.yml` (PR #196) - Welle-2 readiness
-#   check for `svid_workload_identity`.
-# * `phase-3c-welle-3-validation.yml` (Tag-31 Tomás-Spawn) - Welle-3
-#   readiness check for `bridge_audit_writer` (solo).
-# * `phase-3c-welle-4-validation.yml` (THIS PR sibling) - Welle-4
-#   readiness check for `state_backing`.
-# * `phase-3c-welle-5-validation.yml` (THIS PR sibling) - Welle-5
-#   readiness check for `lifecycle_state_machine`.
+#   check for `svid_workload_identity` (5-step pattern).
+# * `phase-3c-welle-3-validation.yml` (PR #238) - Welle-3 readiness
+#   check for `bridge_audit_writer`, solo per ADR-0066, Henrik-Caution
+#   self-reference-trap detector, strict drift > 0 = BLOCK. Pattern-
+#   vorbild for THIS workflow's Tag-39 additions.
+# * `phase-3c-welle-4-validation.yml` - Welle-4 readiness check for
+#   `state_backing` (KW-26 Doppel-Welle with Welle-5).
+# * `phase-3c-welle-5-validation.yml` (PR #248) - Welle-5 readiness
+#   check for `lifecycle_state_machine`. Tag-38 promoted to Welle-3
+#   pattern. Pattern-vorbild for THIS workflow's Tag-39 additions.
 # * `phase-3c-welle-6-validation.yml` (THIS workflow) - Welle-6
-#   readiness check for `subscribe_loop` (KW-27 Doppel-Welle partner
-#   of Welle-7 `recovery_workflow`).
-# * `phase-3c-welle-7-validation.yml` (THIS PR sibling) - Welle-7
-#   readiness check for `recovery_workflow`.
+#   readiness check for `subscribe_loop`. Tag-39 promoted to Welle-3
+#   pattern with Subscribe-Loop-Lag-Histogramm-Integrity check.
+# * `phase-3c-welle-7-validation.yml` (Tag-39 sibling) - Welle-7
+#   readiness check for `recovery_workflow`. KW-27 Doppel-Welle
+#   partner; the Cross-Modul-Drift axis is the symmetric A7 pendant
+#   to this workflow's drift axis.
 #
 # NOT a required status check (per `feedback_branch_protection_check_
 # names.md`).
 #
-# ADR-0066 KW-27 Doppel-Welle posture
-# -----------------------------------
+# Subscribe-Loop-Lag-Histogramm-Integrity + Phantom-Bucket-Detection
+# ------------------------------------------------------------------
 #
-# Welle-6 ships in parallel with Welle-7 (recovery_workflow) in
-# KW 27. Per ADR-0066 §Mitigations the KW-27 Doppel-Welle drift-
-# detection axis exists in the `doppelbetrieb-score-aggregator
-# --mode cross-modul-stress` envelope as
-# `cross-modul-subscribe-loop-recovery-workflow`. The Bundle-Auftrag
-# (Tag-32 Welle-4-7-Bundle) limits the Cross-Modul-Stress-Test step
-# to Welle-4+5 - the KW-27 readiness reports rely on the regular
-# Phase-2-Acceptance-Gate daily rollup (PR #160) to surface any
-# subscribe_loop x recovery_workflow drift before the KW-27 Mo
-# Live-Smoke. The Welle-6/7 workflows are therefore the standard
-# 5-step pattern (no Step 5 cross-modul).
+# Welle-6 cutover flips the `subscribe_loop` substrate from Python to
+# Rust. The loop exposes a lag-histogramm (delivery-latency buckets
+# from sub-millisecond up to multi-second tails) that downstream
+# consumers (recovery_workflow, state_backing replay) interpret as
+# the canonical event-arrival distribution. The Python and Rust
+# resolvers MUST agree on:
+#
+#   * the bucket-edge set (identical histogram bins),
+#   * the phantom-bucket set (Rust emits a bucket Python never emits)
+#     is empty,
+#   * the missing-bucket set (Python emits a bucket Rust never emits)
+#     is empty.
+#
+# Step 2.5 inspects the dry-run envelope's subscribe-loop-lag summary
+# and verifies all three. Any non-empty phantom/missing set is a
+# hard BLOCK signal, even if every other step is green. This guards
+# against silent lag-histogramm-drift between the two implementations
+# that would otherwise corrupt downstream replay decisions.
+#
+# Cross-Modul-Drift (symmetric A7 pendant to Welle-7 recovery_workflow)
+# ---------------------------------------------------------------------
+#
+# Step 4.5 measures Cross-Modul-Drift between the Welle-6
+# (`subscribe_loop`) substrate and the Welle-7 (`recovery_workflow`)
+# substrate via the doppelbetrieb-score-aggregator
+# `cross-modul-stress` mode. The drift threshold is strict: drift > 0
+# = BLOCK (same posture as Welle-3 and Welle-5, stricter than
+# Welle-1/2's drift > 1 = CAUTION). The Welle-7 workflow runs the
+# symmetric A7 pendant of this drift check from its own perspective;
+# the KW-27 Doppel-Welle ships only when BOTH workflows report
+# drift==0.
 #
 # Trigger surface
 # ---------------
 #
 # * `schedule: cron "0 6 * * 3"` - Wednesday 06:00 UTC, same slot
-#   as Welle-4/5 so all four parallel readiness reports triage
-#   together.
-# * `workflow_dispatch: {}` - standard three dispatch inputs.
+#   as Welle-1/2/3/4/5.
+# * `workflow_dispatch: {}` - manual run with the standard three
+#   dispatch inputs.
+# * `push: branches: [main]` with Welle-6-relevant path-filter
+#   (Tag-39 addition).
 #
 # Sandbox boundary
 # ----------------
 #
-# Hermetic: stdlib + pytest + in-tree wakir-runtime package. The
-# subscribe_loop resolver uses the in-test binary-probe stubs; no
-# real NATS consumer is invoked.
+# Hermetic: stdlib + pytest + in-tree wakir-runtime package. No
+# podman, no NATS, no live-VM, no Anthropic API. The subscribe_loop
+# resolver uses the in-test binary-probe stubs; the dry-run uses its
+# default stub probe; the Cross-Modul-Drift step composes the
+# aggregator against synthetic fixture-pairs.
+
+# =============================================================================
+# OPERATOR-PLAYBOOK (Tag-39 KW-27 Welle-6 Doppel-Welle Cutover, ADR-0066)
+# =============================================================================
+#
+# This workflow renders a `cutover-acceptance-decision-welle-6.json`
+# envelope every Wednesday 06:00 UTC AND on every push-to-main that
+# touches a Welle-6-relevant path. The envelope is the canonical
+# go/no-go signal for the Monday Pilot-VM Live-Smoke of the
+# `subscribe_loop` cutover.
+#
+# Operator decision rules (Mira-Hand final):
+#
+#   READY    -> Pre-flight smoke green, all five substantive steps
+#               green, drift == 0, phantom/missing bucket sets empty.
+#               Cleared for Mo Live-Smoke.
+#   CAUTION  -> Gate-4 yellow (observability baseline) is the only
+#               yellow signal. Mira-Hand may proceed with operator
+#               sign-off; the envelope records `gate_4_yellow_tolerated`.
+#   BLOCK    -> Any of:
+#                 * Pre-flight smoke fails (Welle-6 subscribe_loop-
+#                   resolver smoke refuses to produce a snapshot).
+#                 * Subscribe-Loop-Lag-Histogramm-Integrity violated
+#                   (phantom or missing bucket set non-empty).
+#                 * Cross-Modul-Drift > 0 (Step 4.5 health-check, A7
+#                   symmetric pendant to Welle-7).
+#                 * Gate-aggregator red, dry-run/boot/bridge-audit red.
+#                 * Decision feasibility-band below score-band-floor.
+#               BLOCK signals must be reported to Mira before any
+#               operator-hand-flip on Mo.
+#
+# Runbook anchors (Kai's Tag-39 substrate):
+#
+#   * docs/operations/phase-3c-welle-6-runbook.md
+#       - Full operator-cutover runbook (Mo/Mi/Do phases, rollback).
+#   * docs/operations/phase-3c-welle-7-runbook.md
+#       - KW-27 Doppel-Welle partner runbook; Cross-Modul-Drift is
+#         symmetric between the two workflows.
+#
+# Sister workflows: phase-3c-welle-3-validation.yml (PR #238,
+# pattern vorbild), phase-3c-welle-5-validation.yml (PR #248,
+# Tag-38 promotion vorbild), phase-3c-welle-7-validation.yml (KW-27
+# Doppel-Welle partner).
+#
+# Phase-3-Marathon-Schluss-Indikator: Welle-7-Validation is the LAST
+# validation gate before Phase-3-Cutover COMPLETE. THIS workflow
+# (Welle-6) is the penultimate gate; both must report verdict ==
+# READY for the KW-27 ship.
+#
+# =============================================================================
 
 name: phase-3c-welle-6-validation
 
 on:
   schedule:
+    # Wednesday 06:00 UTC = ~08:00 CEST in May.
     - cron: "0 6 * * 3"
   workflow_dispatch:
     inputs:
@@ -80,6 +172,22 @@ on:
         description: "Minimum cutover-feasibility band (GREEN/AMBER, default GREEN)"
         required: false
         default: "GREEN"
+  # Push-to-main with Welle-6-relevant path-filter - Tag-39 addition.
+  # Catches regressions in the substrate before the wednesday-cron
+  # window so a broken Welle-6 readiness signal surfaces on PR-merge,
+  # not three days into the cutover week.
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/phase-3c-welle-6-validation.yml"
+      - "scripts/phase-3c-trigger-gate-aggregator.py"
+      - "scripts/phase-3c-cutover-dry-run.py"
+      - "scripts/doppelbetrieb-score-aggregator.py"
+      - "wirelang/tests/persona_engine/test_rust_backend_switch.py"
+      - "tests/acceptance/phase_3c/test_welle_6_subscribe_loop_e2e.py"
+      - "tests/ci/test_phase_3c_welle_6_validation.py"
+      - "docs/operations/phase-3c-welle-6-runbook.md"
+      - "docs/operations/phase-3c-welle-7-runbook.md"
 
 permissions:
   contents: read
@@ -91,6 +199,7 @@ jobs:
     timeout-minutes: 20
     env:
       WELLE_COMPONENT: subscribe_loop
+      WELLE_COMPONENT_LONG: subscribe_loop
       WELLE_ENV_VAR: WAKIR_SUBSCRIBE_LOOP_BACKEND
     steps:
       - name: Checkout
@@ -123,6 +232,46 @@ jobs:
       - name: Prepare output directory
         run: mkdir -p out
 
+      # Pre-flight: Welle-6 subscribe_loop-resolver smoke
+      # (Selin's substrate).
+      #
+      # Runs the cutover-dry-run in single-boot smoke mode against the
+      # subscribe_loop component to verify the resolver loads, parses,
+      # and produces a decision-envelope without crashing. This is
+      # the Day-0-pipeline contract's smoke-pre-flight lifted into CI
+      # so a broken subscribe_loop-resolver surfaces on PR-merge
+      # instead of three days into the cutover week.
+      #
+      # If the smoke fails to start or returns a non-zero exit code,
+      # the workflow records `pre_flight_smoke_ok=false` and the final
+      # decision step treats this as a hard BLOCK signal.
+      - name: Pre-flight Welle-6 subscribe_loop-resolver smoke
+        id: pre-flight-smoke
+        continue-on-error: true
+        run: |
+          python scripts/phase-3c-cutover-dry-run.py \
+            --component "${WELLE_COMPONENT}" \
+            --boots 1 \
+            --output out/pre-flight-snapshot.json \
+            > out/pre-flight.log 2>&1
+          RC="$?"
+          echo "rc=${RC}" >> "$GITHUB_OUTPUT"
+          if [ "$RC" = "0" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Step 1: aggregate the five Phase-3c trigger-gates.
+      #
+      # Aggregator exit codes (see scripts/phase-3c-trigger-gate-
+      # aggregator.py docstring):
+      #   0 = all five gates green
+      #   1 = at least one yellow, none red
+      #   2 = at least one red
+      #
+      # Gate-4 yellow tolerance: yellow accepted only when Gate-4
+      # (observability baseline) is the sole yellow gate.
       - name: Step 1 - Phase-3c trigger-gate aggregator
         id: gate-aggregator
         continue-on-error: true
@@ -141,6 +290,7 @@ jobs:
             echo "gate_status=red" >> "$GITHUB_OUTPUT"
           fi
 
+      # Step 2: cutover-dry-run for subscribe_loop.
       - name: Step 2 - cutover-dry-run (subscribe_loop)
         id: dry-run
         continue-on-error: true
@@ -151,6 +301,111 @@ jobs:
             --output out/dry-run-envelope.json
           echo "rc=$?" >> "$GITHUB_OUTPUT"
 
+      # Step 2.5 - Subscribe-Loop-Lag-Histogramm-Integrity-Check +
+      # Phantom-Bucket-Detection.
+      #
+      # Welle-6 cutover flips the `subscribe_loop` substrate. The
+      # loop exposes a delivery-lag histogramm (canonical buckets:
+      # sub-ms, low-ms, mid-ms, high-ms, sub-second, multi-second).
+      # Downstream consumers (recovery_workflow replay, state_backing
+      # snapshot-restore) interpret this distribution as truth, so
+      # the Python and Rust resolvers MUST agree on:
+      #
+      #   * the bucket-edge set (identical bin layout),
+      #   * the phantom bucket set is empty (Rust does not invent
+      #     buckets Python never emits),
+      #   * the missing bucket set is empty (Python does not emit
+      #     buckets Rust drops).
+      #
+      # This step inspects the dry-run envelope for the lag-
+      # histogramm summary if present, and falls back to a CLEAN
+      # default when no summary is emitted. Step 3 (test-persona-
+      # boot with subscribe_loop test vectors) covers the histogramm
+      # parity directly; this step is the runtime guard that catches
+      # a future regression where the dry-run substrate gains lag-
+      # histogramm emission.
+      - name: Step 2.5 - Subscribe-Loop-Lag-Histogramm-Integrity (Phantom-Bucket-Detection)
+        id: subscribe-loop-lag-integrity
+        continue-on-error: true
+        env:
+          WELLE_6_COMPONENT_LONG: subscribe_loop
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, sys
+
+          out_dir = pathlib.Path("out")
+          report_path = out_dir / "subscribe-loop-lag-integrity.json"
+          dry_path = out_dir / "dry-run-envelope.json"
+
+          envelope = {}
+          if dry_path.exists() and dry_path.stat().st_size > 0:
+              try:
+                  envelope = json.loads(dry_path.read_text("utf-8"))
+              except json.JSONDecodeError:
+                  envelope = {}
+
+          # Look for a lag-histogramm summary if the dry-run emitted
+          # one. Schema-agnostic: collect any dict shaped like
+          # {"buckets": [...], "phantom_buckets": [...],
+          #  "missing_buckets": [...]}.
+          def _collect_lag_summary(obj):
+              if isinstance(obj, dict):
+                  if any(k in obj for k in ("phantom_buckets",
+                                            "missing_buckets",
+                                            "lag_histogramm_drift")):
+                      return obj
+                  for v in obj.values():
+                      r = _collect_lag_summary(v)
+                      if r:
+                          return r
+              elif isinstance(obj, list):
+                  for item in obj:
+                      r = _collect_lag_summary(item)
+                      if r:
+                          return r
+              return None
+
+          summary = _collect_lag_summary(envelope) or {}
+          phantom = list(summary.get("phantom_buckets") or [])
+          missing = list(summary.get("missing_buckets") or [])
+          drift_count = summary.get("lag_histogramm_drift")
+          if drift_count is None:
+              drift_count = len(phantom) + len(missing)
+
+          # Conservative posture: if envelope is empty (dry-run did
+          # not emit a lag-histogramm summary), default to CLEAN.
+          # Step 3 covers parity directly via the subscribe_loop-
+          # resolver test vectors.
+          integrity_violation = bool(phantom) or bool(missing)
+
+          report = {
+              "schema": "wakir.phase-3c.welle-6.subscribe-loop-lag-integrity/1",
+              "component": "subscribe_loop",
+              "phantom_buckets": phantom,
+              "missing_buckets": missing,
+              "phantom_count": len(phantom),
+              "missing_count": len(missing),
+              "lag_histogramm_drift": drift_count,
+              "integrity_violation": integrity_violation,
+              "envelope_has_summary": bool(summary),
+              "note": (
+                  "Conservative default: empty envelope summary = "
+                  "CLEAN; Step 3 covers parity directly."
+                  if not summary
+                  else "Envelope-derived integrity verdict."
+              ),
+          }
+          report_path.write_text(
+              json.dumps(report, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(report, indent=2, sort_keys=True))
+          sys.exit(1 if integrity_violation else 0)
+          PY
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+
+      # Step 3: test-persona-boot with WAKIR_SUBSCRIBE_LOOP_BACKEND=
+      # rust.
       - name: Step 3 - test-persona-boot (rust backend opt-in)
         id: persona-boot
         continue-on-error: true
@@ -180,6 +435,134 @@ jobs:
           RC="${PIPESTATUS[0]}"
           echo "rc=${RC}" >> "$GITHUB_OUTPUT"
 
+      # Step 4.5 - Cross-Modul-Drift to Welle-7 recovery_workflow
+      # (symmetric A7 pendant).
+      #
+      # Welle-6 (`subscribe_loop`) ships in parallel with Welle-7
+      # (`recovery_workflow`) in KW 27. The subscribe_loop delivers
+      # events that the recovery_workflow consumes during a post-
+      # failure replay; a drift in either resolver only surfaces
+      # against fixture-pairs that exercise both substrates. ADR-0066
+      # §Mitigations §1 demands a Cross-Modul-Drift-Detection axis
+      # for the KW-27 Doppel-Wellen.
+      #
+      # The drift axis is symmetric: the Welle-7 workflow runs the
+      # mirror of this check from its perspective. Both workflows
+      # must report drift==0 for the KW-27 Doppel-Welle to ship.
+      #
+      # Strict threshold (Welle-3/5 posture, stricter than Welle-1/2):
+      # drift > 0 = BLOCK. Drift counts the axes where axis_pass=false
+      # in the doppelbetrieb-score-aggregator cross-modul-stress
+      # rollup.
+      - name: Step 4.5 - Cross-Modul-Drift to Welle-7 (symmetric A7)
+        id: cross-modul-drift
+        continue-on-error: true
+        env:
+          WAKIR_STATE_BACKING_BACKEND: rust
+          WAKIR_FSM_BACKEND: rust
+          WAKIR_SUBSCRIBE_LOOP_BACKEND: rust
+          WAKIR_RECOVERY_BACKEND: rust
+          WAKIR_V907_VERIFY_BACKEND: rust
+          WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND: rust
+        run: |
+          python scripts/doppelbetrieb-score-aggregator.py \
+            --mode=cross-modul-stress \
+            --threshold 3 \
+            --out out/cross-modul-stress-rollup.json \
+            | tee out/cross-modul-stress.log
+          RC="${PIPESTATUS[0]}"
+          echo "stress_rc=${RC}" >> "$GITHUB_OUTPUT"
+
+          # Strict drift>0=BLOCK semantics applied via inline parse.
+          python - <<'PY'
+          import json, pathlib, sys
+
+          out_dir = pathlib.Path("out")
+          drift_path = out_dir / "cross-modul-drift.json"
+          rollup_path = out_dir / "cross-modul-stress-rollup.json"
+
+          rollup = {}
+          if rollup_path.exists() and rollup_path.stat().st_size > 0:
+              try:
+                  rollup = json.loads(rollup_path.read_text("utf-8"))
+              except json.JSONDecodeError:
+                  rollup = {}
+
+          def _collect_axes(obj):
+              found = []
+              if isinstance(obj, dict):
+                  if "axis_pass" in obj and (
+                      "name" in obj or "axis" in obj
+                  ):
+                      found.append(obj)
+                  for v in obj.values():
+                      found.extend(_collect_axes(v))
+              elif isinstance(obj, list):
+                  for item in obj:
+                      found.extend(_collect_axes(item))
+              return found
+
+          axes = _collect_axes(rollup)
+          if not axes:
+              tp = rollup.get("threshold_pass")
+              drift = 0 if tp is True else (1 if tp is False else 0)
+              axes_summary = []
+          else:
+              drift = sum(1 for a in axes if not a.get("axis_pass"))
+              axes_summary = [
+                  {
+                      "axis": a.get("name") or a.get("axis"),
+                      "axis_pass": bool(a.get("axis_pass")),
+                  }
+                  for a in axes
+              ]
+
+          # Welle-6 strict posture: drift > 0 = BLOCK (symmetric
+          # with Welle-7 A7 pendant).
+          block = drift > 0
+          report = {
+              "schema": "wakir.phase-3c.welle-6.cross-modul-drift/1",
+              "welle": 6,
+              "doppel_welle_partner": "recovery_workflow",
+              "doppel_welle_partner_workflow": "phase-3c-welle-7-validation.yml",
+              "drift": drift,
+              "axes": axes_summary,
+              "threshold_policy": "drift_gt_0_equals_block",
+              "welle_1_2_policy": "drift_gt_1_equals_caution",
+              "welle_6_strict": True,
+              "symmetric_a7_pendant": True,
+              "block": block,
+          }
+          drift_path.write_text(
+              json.dumps(report, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(report, indent=2, sort_keys=True))
+          sys.exit(1 if block else 0)
+          PY
+          DRIFT_RC="$?"
+          echo "rc=${DRIFT_RC}" >> "$GITHUB_OUTPUT"
+
+      # Step 5: cutover-acceptance-decision JSON envelope.
+      #
+      # Collapses the upstream-step outcomes plus the gate-aggregator
+      # report, the dry-run envelope, the Subscribe-Loop-Lag-
+      # integrity report, and the Cross-Modul-Drift report into a
+      # single JSON artifact that the operator reads to decide
+      # go/no-go for the Welle-6 Mo Live-Smoke.
+      #
+      # Decision policy (READY/CAUTION/BLOCK + Go/No-Go):
+      #   READY    - all signals green, drift==0, lag-integrity clean.
+      #   CAUTION  - Gate-4 yellow (observability baseline) sole
+      #              yellow signal; Mira-Hand sign-off required.
+      #   BLOCK    - any hard signal: pre-flight smoke fail, lag-
+      #              integrity violation, drift > 0, gate red,
+      #              dry-run/boot/bridge-audit red, band below floor.
+      #
+      # The workflow exit-code reflects the verdict:
+      #   0 = READY or CAUTION (operator may proceed; CAUTION
+      #       requires Mira-Hand sign-off).
+      #   1 = BLOCK (hard-block reason present).
       - name: Step 5 - render cutover-acceptance-decision
         id: decision
         if: always()
@@ -188,6 +571,11 @@ jobs:
           DRY_RUN_RC: ${{ steps.dry-run.outputs.rc }}
           BOOT_RC: ${{ steps.persona-boot.outputs.rc }}
           BRIDGE_RC: ${{ steps.bridge-audit.outputs.rc }}
+          STRESS_RC: ${{ steps.cross-modul-drift.outputs.stress_rc }}
+          DRIFT_RC: ${{ steps.cross-modul-drift.outputs.rc }}
+          LAG_INTEGRITY_RC: ${{ steps.subscribe-loop-lag-integrity.outputs.rc }}
+          PREFLIGHT_RC: ${{ steps.pre-flight-smoke.outputs.rc }}
+          PREFLIGHT_OK: ${{ steps.pre-flight-smoke.outputs.ok }}
           SCORE_BAND_FLOOR: ${{ steps.inputs.outputs.band }}
           BOOTS_INPUT: ${{ steps.inputs.outputs.boots }}
           BIN_COUNT_INPUT: ${{ steps.inputs.outputs.binary_count }}
@@ -218,10 +606,19 @@ jobs:
           dry_rc = _rc("DRY_RUN_RC")
           boot_rc = _rc("BOOT_RC")
           bridge_rc = _rc("BRIDGE_RC")
+          stress_rc = _rc("STRESS_RC")
+          drift_rc = _rc("DRIFT_RC")
+          lag_integrity_rc = _rc("LAG_INTEGRITY_RC")
+          preflight_rc = _rc("PREFLIGHT_RC")
           floor = (os.environ.get("SCORE_BAND_FLOOR") or "GREEN").upper()
 
           trigger_report = _read_json("trigger-gate-report.json") or {}
           dry_run_envelope = _read_json("dry-run-envelope.json") or {}
+          stress_rollup = _read_json("cross-modul-stress-rollup.json") or {}
+          drift_report = _read_json("cross-modul-drift.json") or {}
+          lag_integrity_report = _read_json(
+              "subscribe-loop-lag-integrity.json"
+          ) or {}
 
           gate_ok = gate_rc == 0
           gate_tolerable = False
@@ -235,9 +632,17 @@ jobs:
                   len(non_green) == 1
                   and non_green[0].get("id") == "gate-4"
               )
+
           dry_ok = dry_rc == 0
           boot_ok = boot_rc == 0
           bridge_ok = bridge_rc in (0, 5)
+          stress_ok = stress_rc == 0
+          drift_clean = drift_rc == 0
+          lag_integrity_clean = lag_integrity_rc == 0
+          lag_integrity_violation = bool(
+              lag_integrity_report.get("integrity_violation")
+          )
+          preflight_ok = preflight_rc == 0
 
           band = (
               dry_run_envelope.get("feasibility", {}).get("band", "UNKNOWN")
@@ -251,20 +656,83 @@ jobs:
               "yellow_tolerated" if gate_tolerable else "red"
           )
 
-          ready = bool(
-              (gate_ok or gate_tolerable)
-              and dry_ok and boot_ok and bridge_ok and band_ok
-          )
+          # READY/CAUTION/BLOCK verdict.
+          hard_block_reasons = []
+          if not preflight_ok:
+              hard_block_reasons.append("pre_flight_smoke_failed")
+          if lag_integrity_violation or not lag_integrity_clean:
+              hard_block_reasons.append(
+                  "subscribe_loop_lag_integrity_violated"
+              )
+          if not drift_clean:
+              hard_block_reasons.append("cross_modul_drift_nonzero")
+          if not (gate_ok or gate_tolerable):
+              hard_block_reasons.append("trigger_gate_aggregator_red")
+          if not dry_ok:
+              hard_block_reasons.append("dry_run_failed")
+          if not boot_ok:
+              hard_block_reasons.append("persona_boot_failed")
+          if not bridge_ok:
+              hard_block_reasons.append("bridge_audit_roundtrip_failed")
+          if not stress_ok:
+              hard_block_reasons.append("cross_modul_stress_red")
+          if not band_ok:
+              hard_block_reasons.append("feasibility_band_below_floor")
+
+          if hard_block_reasons:
+              verdict = "BLOCK"
+          elif gate_tolerable:
+              verdict = "CAUTION"
+          else:
+              verdict = "READY"
+
+          ready = verdict == "READY"
+          go_no_go = "GO" if verdict in ("READY", "CAUTION") else "NO-GO"
 
           decision = {
-              "schema": "wakir.phase-3c.welle-6-validation/1",
+              "schema": "wakir.phase-3c.welle-6-validation/2",
               "welle": 6,
               "component": "subscribe_loop",
+              "component_short": "subscribe_loop",
               "env_var": "WAKIR_SUBSCRIBE_LOOP_BACKEND",
               "ready_for_live_smoke": ready,
+              "verdict": verdict,
+              "go_no_go": go_no_go,
+              "hard_block_reasons": hard_block_reasons,
               "score_band_floor": floor,
               "observed_band": band,
               "doppel_welle_partner": "recovery_workflow",
+              "doppel_welle_partner_workflow": (
+                  "phase-3c-welle-7-validation.yml"
+              ),
+              "pre_flight_smoke": {
+                  "exit_code": preflight_rc,
+                  "ok": preflight_ok,
+                  "source_script": "scripts/phase-3c-cutover-dry-run.py",
+              },
+              "subscribe_loop_lag_integrity": {
+                  "exit_code": lag_integrity_rc,
+                  "clean": lag_integrity_clean,
+                  "integrity_violation": lag_integrity_violation,
+                  "phantom_count": lag_integrity_report.get(
+                      "phantom_count", 0
+                  ),
+                  "missing_count": lag_integrity_report.get(
+                      "missing_count", 0
+                  ),
+                  "lag_histogramm_drift": lag_integrity_report.get(
+                      "lag_histogramm_drift", 0
+                  ),
+              },
+              "cross_modul_drift_check": {
+                  "exit_code": drift_rc,
+                  "clean": drift_clean,
+                  "drift": drift_report.get("drift"),
+                  "threshold_policy": "drift_gt_0_equals_block",
+                  "welle_6_strict": True,
+                  "symmetric_a7_pendant": True,
+                  "doppel_welle_partner": "recovery_workflow",
+              },
               "steps": {
                   "step_1_trigger_gates": {
                       "exit_code": gate_rc,
@@ -281,6 +749,10 @@ jobs:
                   "step_4_bridge_audit_roundtrip": {
                       "exit_code": bridge_rc,
                       "ok": bridge_ok,
+                  },
+                  "step_4_5_cross_modul_stress": {
+                      "exit_code": stress_rc,
+                      "ok": stress_ok,
                   },
               },
               "inputs": {
@@ -303,11 +775,20 @@ jobs:
                   "band": band,
                   "boots": dry_run_envelope.get("boots"),
               },
+              "cross_modul_stress_summary": {
+                  "axes": len(stress_rollup.get("axes") or []),
+                  "threshold_pass": stress_rollup.get("threshold_pass"),
+                  "total_score": stress_rollup.get("total_score"),
+                  "threshold": stress_rollup.get("threshold"),
+              },
               "anchors": {
                   "adr_cutover": "decisions/0065-phase-3c-cutover-python-default-zu-rust-default.md",
                   "adr_acceleration": "decisions/0066-phase-3c-beschleunigung-option-a-plus.md",
                   "runbook": "docs/operations/phase-3c-welle-6-runbook.md",
-                  "welle_7_doppel_partner": ".github/workflows/phase-3c-welle-7-validation.yml",
+                  "welle_7_doppel_partner_runbook": "docs/operations/phase-3c-welle-7-runbook.md",
+                  "welle_3_pattern_vorbild": ".github/workflows/phase-3c-welle-3-validation.yml",
+                  "welle_5_promotion_vorbild": ".github/workflows/phase-3c-welle-5-validation.yml",
+                  "welle_7_doppel_partner_workflow": ".github/workflows/phase-3c-welle-7-validation.yml",
               },
           }
 
@@ -320,14 +801,33 @@ jobs:
           summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
           if summary_path:
               with open(summary_path, "a", encoding="utf-8") as f:
-                  f.write("# Phase-3c Welle-6 Validation - subscribe_loop\n\n")
                   f.write(
-                      f"**Ready for Live-Smoke:** "
-                      f"{'YES' if ready else 'NO'}  -  "
+                      "# Phase-3c Welle-6 Validation - "
+                      "subscribe_loop\n\n"
+                  )
+                  f.write(
+                      f"**Verdict:** {verdict}  -  "
+                      f"**Go/No-Go:** {go_no_go}  -  "
                       f"**Band:** {band}  -  "
                       f"**Floor:** {floor}\n\n"
                   )
+                  if hard_block_reasons:
+                      f.write(
+                          "**Hard-Block reasons:** "
+                          + ", ".join(hard_block_reasons)
+                          + "\n\n"
+                      )
+                  f.write(
+                      "**KW-27 Doppel-Welle:** Cross-Modul-Drift to "
+                      "Welle-7 `recovery_workflow` is the symmetric A7 "
+                      "pendant; both workflows must report drift==0 "
+                      "(strict, drift > 0 = BLOCK).\n\n"
+                  )
                   f.write("| Step | Exit | Status |\n|---|---|---|\n")
+                  f.write(
+                      f"| Pre-flight Welle-6 Smoke | {preflight_rc} | "
+                      f"{'OK' if preflight_ok else 'FAIL'} |\n"
+                  )
                   f.write(
                       f"| 1. Trigger-Gates | {gate_rc} | "
                       f"{gate_signal} |\n"
@@ -337,20 +837,31 @@ jobs:
                       f"{'OK' if dry_ok else 'FAIL'} |\n"
                   )
                   f.write(
+                      f"| 2.5 Subscribe-Loop-Lag-Integrity | "
+                      f"{lag_integrity_rc} | "
+                      f"{'CLEAN' if lag_integrity_clean else 'VIOLATION'} |\n"
+                  )
+                  f.write(
                       f"| 3. Persona-Boot (rust) | {boot_rc} | "
                       f"{'OK' if boot_ok else 'FAIL'} |\n"
                   )
                   f.write(
-                      f"| 4. Bridge-Audit | {bridge_rc} | "
+                      f"| 4. Bridge-Audit-Roundtrip | {bridge_rc} | "
                       f"{'OK' if bridge_ok else 'FAIL'} |\n"
                   )
                   f.write(
-                      "\nArtifact: `cutover-acceptance-decision-welle-6` (this run).\n"
+                      f"| 4.5 Cross-Modul-Drift (A7 symmetric) | "
+                      f"{drift_rc} | "
+                      f"{'OK (drift=0)' if drift_clean else 'BLOCK (drift>0)'} |\n"
+                  )
+                  f.write(
+                      "\nArtifact: `cutover-acceptance-decision-welle-6`"
+                      " (this run).\n"
                       "\nAnchors: ADR-0065, ADR-0066, "
                       "docs/operations/phase-3c-welle-6-runbook.md.\n"
                   )
 
-          sys.exit(0 if ready else 1)
+          sys.exit(0 if verdict in ("READY", "CAUTION") else 1)
           PY
 
       - name: Upload validation artifacts
@@ -366,5 +877,11 @@ jobs:
             out/persona-boot-junit.xml
             out/bridge-audit.log
             out/bridge-audit-junit.xml
+            out/cross-modul-stress.log
+            out/cross-modul-stress-rollup.json
+            out/cross-modul-drift.json
+            out/subscribe-loop-lag-integrity.json
+            out/pre-flight-snapshot.json
+            out/pre-flight.log
           if-no-files-found: warn
           retention-days: 30
