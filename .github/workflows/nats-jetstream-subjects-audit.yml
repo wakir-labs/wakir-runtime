@@ -1,0 +1,112 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# NATS-JetStream Subjects + Publish-Mode Audit (Tag-43, Selin)
+# ------------------------------------------------------------
+#
+# Static audit of every publish/subscribe call site, every
+# wakir.* subject literal, and every publish_mode_contract
+# import in the working tree. Run on every push/PR that touches
+# substrate that could introduce a Bug-42-class regression.
+#
+# Audit-only at introduction: drift is reported as a job-summary
+# block; the job exits 0. The complementary `--enforce` mode is
+# exercised by the hermetic test suite and can be enabled here
+# via the workflow_dispatch input once the baseline report has
+# been clean for two consecutive merge-trains.
+#
+# See `docs/audit/nats-jetstream-subjects-audit.md` for the
+# audit charter and remediation guidance.
+
+name: nats-jetstream-subjects-audit
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'wirelang/**'
+      - 'wirelang-rust/**'
+      - 'scripts/**'
+      - 'bin/**'
+      - 'pyproject.toml'
+      - 'docs/audit/nats-jetstream-subjects-audit.md'
+      - 'scripts/audit/nats-jetstream-subjects-audit.py'
+      - 'tests/audit/test_nats_jetstream_subjects_audit.py'
+      - '.github/workflows/nats-jetstream-subjects-audit.yml'
+  pull_request:
+    paths:
+      - 'wirelang/**'
+      - 'wirelang-rust/**'
+      - 'scripts/**'
+      - 'bin/**'
+      - 'pyproject.toml'
+      - 'docs/audit/nats-jetstream-subjects-audit.md'
+      - 'scripts/audit/nats-jetstream-subjects-audit.py'
+      - 'tests/audit/test_nats_jetstream_subjects_audit.py'
+      - '.github/workflows/nats-jetstream-subjects-audit.yml'
+  workflow_dispatch:
+    inputs:
+      enforce:
+        description: 'If "true", fail the job on any drift row (default: audit-only).'
+        required: false
+        default: 'false'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  nats-subjects-audit:
+    name: nats-jetstream subjects + publish-mode audit (static)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    env:
+      ENFORCE: ${{ github.event.inputs.enforce || 'false' }}
+
+    steps:
+      - name: Checkout wakir-runtime
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run static audit
+        id: audit
+        shell: bash
+        run: |
+          set -u
+          repo_root="${{ github.workspace }}"
+          report_file="${repo_root}/reports/audit/$(date -u +%F)-nats-jetstream-subjects-audit-ci.md"
+          mkdir -p "$(dirname "${report_file}")"
+          if [ "${ENFORCE}" = "true" ]; then
+            python3 scripts/audit/nats-jetstream-subjects-audit.py \
+              --repo-root "${repo_root}" \
+              --report "${report_file}" \
+              --enforce
+          else
+            python3 scripts/audit/nats-jetstream-subjects-audit.py \
+              --repo-root "${repo_root}" \
+              --report "${report_file}"
+          fi
+          echo "report_file=${report_file}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish report to job summary
+        shell: bash
+        run: |
+          set -u
+          report_file="${{ steps.audit.outputs.report_file }}"
+          if [ -f "${report_file}" ]; then
+            cat "${report_file}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::audit report not found at ${report_file}"
+          fi
+
+      - name: Hermetic tests
+        shell: bash
+        run: |
+          set -u
+          python3 -m pip install --quiet pytest
+          python3 -m pytest tests/audit/test_nats_jetstream_subjects_audit.py -v
