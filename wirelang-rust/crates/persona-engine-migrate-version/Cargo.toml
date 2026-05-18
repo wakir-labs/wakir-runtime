@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# persona-engine-migrate-version — engine-version migration pre-flight
+# decision canonical-trace (Rust pendant of
+# `wirelang.persona_engine.migrate_version_canonical`).
+#
+# Tag-38 Phase-3a-Foundation 15. Modul (closes the Phase-3a-Foundation
+# sweep). Provides a pure-function canonical-trace projection of the
+# pre-flight migration decision (semver parse + known-version check +
+# major-bump policy evaluation) that runs before any
+# state-backing I/O happens.
+#
+# Layer position
+# --------------
+#
+# Sits ABOVE the persona-engine state-backing layer; consumes only
+# the `(from_version, to_version, allow_major_bump)` tuple and emits
+# a `MigrateVersionDecisionTrace` projection.  The live workflow
+# stays Python-side for Phase-3a (state-backing I/O is not
+# byte-paritätisch across the two engines without a network of
+# mocked backings).
+#
+# This is intentionally a "canonical-only" crate — no live workflow,
+# no state-backing trait, no I/O.  The same posture as the canonical
+# sub-modules in `persona-engine-v907-verify` and
+# `persona-engine-bridge-audit-replay`, but lifted to its own crate
+# because there is no existing Rust pendant of `migrate_version` to
+# attach a `canonical` sub-module to.
+#
+# ADR anchors
+# -----------
+#
+# - ADR-0063 §Folgeartefakte Phase-3a — closes the 15-module
+#   Phase-3a-Foundation sweep (state-pack-envelope cross-engine
+#   determinism anchor per roadmap §1.3).
+# - ADR-0065 — Phase-3c cutover Python-default zu Rust-default.
+# - ADR-0066 — Phase-3c-Beschleunigung Option A+.
+
+[package]
+name = "persona-engine-migrate-version"
+version = "0.1.0"
+description = "Engine-version migration pre-flight decision canonical-trace (Rust pendant of wirelang.persona_engine.migrate_version_canonical)"
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+authors.workspace      = true
+
+[lib]
+name = "persona_engine_migrate_version"
+path = "src/lib.rs"
+
+[dependencies]
+sha2       = { workspace = true, features = ["std"] }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+serde_jcs  = { workspace = true }
+hex        = { workspace = true }
+
+[dev-dependencies]
+# Tests read the cross-lang fixture via serde_json + std + base64;
+# no new dev dependency beyond the workspace set.

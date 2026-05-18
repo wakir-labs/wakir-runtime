@@ -1,0 +1,166 @@
+{
+  "schema_version": "wakir.persona-engine.migrate-version-canonical/1",
+  "known_engine_versions": [
+    "0.2.0-pilot",
+    "0.3.0-pilot",
+    "0.4.0-pilot"
+  ],
+  "fixtures": [
+    {
+      "name": "f01-known-pair-no-bump",
+      "comment": "Current production pair, same major, no bump. Phase-3a Tag-38 V-907-style anchor.",
+      "input": {
+        "from_version": "0.3.0-pilot",
+        "to_version": "0.4.0-pilot",
+        "allow_major_bump": false
+      },
+      "trace": {
+        "accepted_status": "ok",
+        "allow_major_bump": false,
+        "failure_mode": "",
+        "from_major": 0,
+        "from_minor": 3,
+        "from_version": "0.3.0-pilot",
+        "major_bump_required": false,
+        "schema": "wakir.persona-engine.migrate-version-canonical/1",
+        "to_major": 0,
+        "to_minor": 4,
+        "to_version": "0.4.0-pilot"
+      },
+      "trace_jcs_bytes_b64": "eyJhY2NlcHRlZF9zdGF0dXMiOiJvayIsImFsbG93X21ham9yX2J1bXAiOmZhbHNlLCJmYWlsdXJlX21vZGUiOiIiLCJmcm9tX21ham9yIjowLCJmcm9tX21pbm9yIjozLCJmcm9tX3ZlcnNpb24iOiIwLjMuMC1waWxvdCIsIm1ham9yX2J1bXBfcmVxdWlyZWQiOmZhbHNlLCJzY2hlbWEiOiJ3YWtpci5wZXJzb25hLWVuZ2luZS5taWdyYXRlLXZlcnNpb24tY2Fub25pY2FsLzEiLCJ0b19tYWpvciI6MCwidG9fbWlub3IiOjQsInRvX3ZlcnNpb24iOiIwLjQuMC1waWxvdCJ9",
+      "trace_jcs_bytes_len": 267,
+      "trace_sha256_hex": "b96fcceff7ebef7e115fe02843396e382b4f988f612b6e0114e79eccb02bc60a",
+      "trace_hash_prefixed": "sha256:b96fcceff7ebef7e115fe02843396e382b4f988f612b6e0114e79eccb02bc60a"
+    },
+    {
+      "name": "f02-known-pair-allow-bump-flag-on",
+      "comment": "Same input as f01 but with allow_major_bump=True. Exercises the flag-echo wire field.",
+      "input": {
+        "from_version": "0.3.0-pilot",
+        "to_version": "0.4.0-pilot",
+        "allow_major_bump": true
+      },
+      "trace": {
+        "accepted_status": "ok",
+        "allow_major_bump": true,
+        "failure_mode": "",
+        "from_major": 0,
+        "from_minor": 3,
+        "from_version": "0.3.0-pilot",
+        "major_bump_required": false,
+        "schema": "wakir.persona-engine.migrate-version-canonical/1",
+        "to_major": 0,
+        "to_minor": 4,
+        "to_version": "0.4.0-pilot"
+      },
+      "trace_jcs_bytes_b64": "eyJhY2NlcHRlZF9zdGF0dXMiOiJvayIsImFsbG93X21ham9yX2J1bXAiOnRydWUsImZhaWx1cmVfbW9kZSI6IiIsImZyb21fbWFqb3IiOjAsImZyb21fbWlub3IiOjMsImZyb21fdmVyc2lvbiI6IjAuMy4wLXBpbG90IiwibWFqb3JfYnVtcF9yZXF1aXJlZCI6ZmFsc2UsInNjaGVtYSI6Indha2lyLnBlcnNvbmEtZW5naW5lLm1pZ3JhdGUtdmVyc2lvbi1jYW5vbmljYWwvMSIsInRvX21ham9yIjowLCJ0b19taW5vciI6NCwidG9fdmVyc2lvbiI6IjAuNC4wLXBpbG90In0=",
+      "trace_jcs_bytes_len": 266,
+      "trace_sha256_hex": "b9da6930c19fe28bb7681edc7e1efa22414f2c98acd6c259b5c3978b6dd64f99",
+      "trace_hash_prefixed": "sha256:b9da6930c19fe28bb7681edc7e1efa22414f2c98acd6c259b5c3978b6dd64f99"
+    },
+    {
+      "name": "f03-known-pair-earliest-to-latest",
+      "comment": "Cross-version OK path: oldest known engine -> newest known engine. Same major, no bump.",
+      "input": {
+        "from_version": "0.2.0-pilot",
+        "to_version": "0.4.0-pilot",
+        "allow_major_bump": false
+      },
+      "trace": {
+        "accepted_status": "ok",
+        "allow_major_bump": false,
+        "failure_mode": "",
+        "from_major": 0,
+        "from_minor": 2,
+        "from_version": "0.2.0-pilot",
+        "major_bump_required": false,
+        "schema": "wakir.persona-engine.migrate-version-canonical/1",
+        "to_major": 0,
+        "to_minor": 4,
+        "to_version": "0.4.0-pilot"
+      },
+      "trace_jcs_bytes_b64": "eyJhY2NlcHRlZF9zdGF0dXMiOiJvayIsImFsbG93X21ham9yX2J1bXAiOmZhbHNlLCJmYWlsdXJlX21vZGUiOiIiLCJmcm9tX21ham9yIjowLCJmcm9tX21pbm9yIjoyLCJmcm9tX3ZlcnNpb24iOiIwLjIuMC1waWxvdCIsIm1ham9yX2J1bXBfcmVxdWlyZWQiOmZhbHNlLCJzY2hlbWEiOiJ3YWtpci5wZXJzb25hLWVuZ2luZS5taWdyYXRlLXZlcnNpb24tY2Fub25pY2FsLzEiLCJ0b19tYWpvciI6MCwidG9fbWlub3IiOjQsInRvX3ZlcnNpb24iOiIwLjQuMC1waWxvdCJ9",
+      "trace_jcs_bytes_len": 267,
+      "trace_sha256_hex": "f895ea9c8460b637f9fb37f6df8c9411539705e05333854202797f18757159ec",
+      "trace_hash_prefixed": "sha256:f895ea9c8460b637f9fb37f6df8c9411539705e05333854202797f18757159ec"
+    },
+    {
+      "name": "f04-unknown-from-version",
+      "comment": "from_version parseable but not in KNOWN_ENGINE_VERSIONS. failure_mode = UnknownFromVersion.",
+      "input": {
+        "from_version": "0.1.0-pilot",
+        "to_version": "0.4.0-pilot",
+        "allow_major_bump": false
+      },
+      "trace": {
+        "accepted_status": "rejected",
+        "allow_major_bump": false,
+        "failure_mode": "UnknownFromVersion",
+        "from_major": 0,
+        "from_minor": 1,
+        "from_version": "0.1.0-pilot",
+        "major_bump_required": false,
+        "schema": "wakir.persona-engine.migrate-version-canonical/1",
+        "to_major": 0,
+        "to_minor": 4,
+        "to_version": "0.4.0-pilot"
+      },
+      "trace_jcs_bytes_b64": "eyJhY2NlcHRlZF9zdGF0dXMiOiJyZWplY3RlZCIsImFsbG93X21ham9yX2J1bXAiOmZhbHNlLCJmYWlsdXJlX21vZGUiOiJVbmtub3duRnJvbVZlcnNpb24iLCJmcm9tX21ham9yIjowLCJmcm9tX21pbm9yIjoxLCJmcm9tX3ZlcnNpb24iOiIwLjEuMC1waWxvdCIsIm1ham9yX2J1bXBfcmVxdWlyZWQiOmZhbHNlLCJzY2hlbWEiOiJ3YWtpci5wZXJzb25hLWVuZ2luZS5taWdyYXRlLXZlcnNpb24tY2Fub25pY2FsLzEiLCJ0b19tYWpvciI6MCwidG9fbWlub3IiOjQsInRvX3ZlcnNpb24iOiIwLjQuMC1waWxvdCJ9",
+      "trace_jcs_bytes_len": 291,
+      "trace_sha256_hex": "3b7db4133d5a79ad3b14ae2129c071e565e140e70e2274a1d1ef6f0eba6a4bc1",
+      "trace_hash_prefixed": "sha256:3b7db4133d5a79ad3b14ae2129c071e565e140e70e2274a1d1ef6f0eba6a4bc1"
+    },
+    {
+      "name": "f05-unknown-to-version",
+      "comment": "to_version parseable but not in KNOWN_ENGINE_VERSIONS. failure_mode = UnknownToVersion.",
+      "input": {
+        "from_version": "0.3.0-pilot",
+        "to_version": "0.5.0-pilot",
+        "allow_major_bump": false
+      },
+      "trace": {
+        "accepted_status": "rejected",
+        "allow_major_bump": false,
+        "failure_mode": "UnknownToVersion",
+        "from_major": 0,
+        "from_minor": 3,
+        "from_version": "0.3.0-pilot",
+        "major_bump_required": false,
+        "schema": "wakir.persona-engine.migrate-version-canonical/1",
+        "to_major": 0,
+        "to_minor": 5,
+        "to_version": "0.5.0-pilot"
+      },
+      "trace_jcs_bytes_b64": "eyJhY2NlcHRlZF9zdGF0dXMiOiJyZWplY3RlZCIsImFsbG93X21ham9yX2J1bXAiOmZhbHNlLCJmYWlsdXJlX21vZGUiOiJVbmtub3duVG9WZXJzaW9uIiwiZnJvbV9tYWpvciI6MCwiZnJvbV9taW5vciI6MywiZnJvbV92ZXJzaW9uIjoiMC4zLjAtcGlsb3QiLCJtYWpvcl9idW1wX3JlcXVpcmVkIjpmYWxzZSwic2NoZW1hIjoid2FraXIucGVyc29uYS1lbmdpbmUubWlncmF0ZS12ZXJzaW9uLWNhbm9uaWNhbC8xIiwidG9fbWFqb3IiOjAsInRvX21pbm9yIjo1LCJ0b192ZXJzaW9uIjoiMC41LjAtcGlsb3QifQ==",
+      "trace_jcs_bytes_len": 289,
+      "trace_sha256_hex": "07db83c34fc23af9b4370409a2e043aba15082852cbc40cfd85c723c8a08d915",
+      "trace_hash_prefixed": "sha256:07db83c34fc23af9b4370409a2e043aba15082852cbc40cfd85c723c8a08d915"
+    },
+    {
+      "name": "f06-unparseable-from-version",
+      "comment": "from_version completely unparseable. Semver-parts default to (0, 0). failure_mode = UnknownFromVersion (the closed-set check fires before semver parsing matters; an unparseable tag is by definition not in the set).",
+      "input": {
+        "from_version": "not-a-version",
+        "to_version": "0.4.0-pilot",
+        "allow_major_bump": false
+      },
+      "trace": {
+        "accepted_status": "rejected",
+        "allow_major_bump": false,
+        "failure_mode": "UnknownFromVersion",
+        "from_major": 0,
+        "from_minor": 0,
+        "from_version": "not-a-version",
+        "major_bump_required": false,
+        "schema": "wakir.persona-engine.migrate-version-canonical/1",
+        "to_major": 0,
+        "to_minor": 4,
+        "to_version": "0.4.0-pilot"
+      },
+      "trace_jcs_bytes_b64": "eyJhY2NlcHRlZF9zdGF0dXMiOiJyZWplY3RlZCIsImFsbG93X21ham9yX2J1bXAiOmZhbHNlLCJmYWlsdXJlX21vZGUiOiJVbmtub3duRnJvbVZlcnNpb24iLCJmcm9tX21ham9yIjowLCJmcm9tX21pbm9yIjowLCJmcm9tX3ZlcnNpb24iOiJub3QtYS12ZXJzaW9uIiwibWFqb3JfYnVtcF9yZXF1aXJlZCI6ZmFsc2UsInNjaGVtYSI6Indha2lyLnBlcnNvbmEtZW5naW5lLm1pZ3JhdGUtdmVyc2lvbi1jYW5vbmljYWwvMSIsInRvX21ham9yIjowLCJ0b19taW5vciI6NCwidG9fdmVyc2lvbiI6IjAuNC4wLXBpbG90In0=",
+      "trace_jcs_bytes_len": 293,
+      "trace_sha256_hex": "a6faa71ff4590dfa5b0a7cbdf0111e9a03eaaae697283c5975475c3ac6281750",
+      "trace_hash_prefixed": "sha256:a6faa71ff4590dfa5b0a7cbdf0111e9a03eaaae697283c5975475c3ac6281750"
+    }
+  ]
+}
