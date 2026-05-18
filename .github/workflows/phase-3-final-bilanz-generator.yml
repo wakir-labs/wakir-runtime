@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# Phase-3 Final Bilanz Generator workflow hook (Noa Tag-43).
+#
+# Two triggers:
+#   1. workflow_dispatch  -- manual operator invocation.
+#   2. push on main when state/phase-3-complete-marker.json changes --
+#      auto-trigger after Tomas writes the COMPLETE marker.
+#
+# The generator uses --auto-after-complete-marker so it is idempotent
+# (no-op if the marker is missing or not yet COMPLETE). The bilanz
+# artefact is uploaded so the operator can inspect without checking
+# out the repo.
+
+name: phase-3-final-bilanz-generator
+
+on:
+  workflow_dispatch:
+    inputs:
+      strict:
+        description: "Pass --strict (exit 1 on breach)"
+        required: false
+        default: "false"
+  push:
+    branches: [main]
+    paths:
+      - "state/phase-3-complete-marker.json"
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    name: generate-phase-3-bilanz
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run tests
+        run: |
+          python3 -m pytest tests/observability/test_phase_3_final_bilanz_generator.py -v
+
+      - name: Generate bilanz (auto-trigger mode)
+        run: |
+          python3 scripts/observability/phase-3-final-bilanz-generator.py \
+              --auto-after-complete-marker \
+              ${{ inputs.strict == 'true' && '--strict' || '' }}
+
+      - name: Upload bilanz artefacts
+        if: hashFiles('reports/phase-3-marathon-bilanz.md') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-3-marathon-bilanz
+          path: |
+            reports/phase-3-marathon-bilanz.md
+            reports/phase-3-marathon-bilanz.json
+          retention-days: 90
