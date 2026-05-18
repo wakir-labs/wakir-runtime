@@ -1,0 +1,286 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Persona-Engine Legacy ENV-Flag Migration Detector — Daily Workflow
+# (Tag-51).
+#
+# Purpose
+# -------
+#
+# Wirelang Spec v0.4.2 §6 (Tag-50 PR #320) deprecates the nine
+# v0.4.0 / v0.4.1 ``WAKIR_PE_*_BACKEND`` ENV-flag family in favour
+# of the canonical ``WAKIR_*_BACKEND`` names. This workflow runs
+# the migration-detector daily so any operator-side drop-in, runbook,
+# or new commit that re-introduces a legacy name is surfaced within
+# 24 hours.
+#
+# Posture
+# -------
+#
+# Sandbox-hermetic: stdlib-only Python, no podman, no live-VM, no
+# network. The detector's default-excludes list keeps the spec text
+# and spec-drift test suites out of the report; those locations
+# legitimately reference legacy names per Spec v0.4.2 §8 invariants.
+#
+# Modes
+# -----
+#
+#   * **schedule** — daily at 04:00 UTC (one hour after Phase-3c
+#     observability snapshot at 03:00 UTC to spread runner load).
+#     The detector's tri-state exit code is treated as
+#     informational: even a finding (exit 1) keeps the job green so
+#     the workflow itself remains a baseline-health signal. Findings
+#     are surfaced via the step-summary and the artifact upload.
+#
+#   * **workflow_dispatch** — manual operator run, with optional
+#     ``inputs.fail_on_find`` to escalate findings to a job-failure
+#     (exit 2). Used as a pre-cutover gate once the migration is
+#     expected complete.
+#
+#   * **push / pull_request** — runs hermetic tests for the
+#     detector module and a clean-tree assertion against main: the
+#     default-excludes scan of ``HEAD`` MUST yield zero findings.
+#     This prevents accidental re-introduction of legacy names
+#     in new operator-side files.
+#
+# Anchors
+# -------
+#
+#   * Wirelang Spec v0.4.2 §6 (Tag-50 PR #320, ``ee6c9ca``) —
+#     deprecation table.
+#   * ADR-0065 — Phase-3c cutover sequence (canonical backends).
+#   * scripts/persona-engine/legacy-env-flag-migration-detector.py
+#     — driver.
+#   * tests/scripts/test_legacy_env_flag_migration_detector.py
+#     — hermetic test suite (14 tests).
+
+name: persona-engine-legacy-env-flag-migration-daily
+
+on:
+  schedule:
+    # 04:00 UTC daily (~06:00 CEST). Offset from
+    # phase-3c-observability-daily-snapshot (03:00 UTC) and
+    # 15-binary-sbom-daily (typically 02:00 UTC) to avoid
+    # runner-pool contention.
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+    inputs:
+      fail_on_find:
+        description: >-
+          Escalate any finding to a job-failure (exit 2). Default
+          informational. Set to "true" for a pre-cutover gate run.
+        required: false
+        default: "false"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/persona-engine/legacy-env-flag-migration-detector.py"
+      - "tests/scripts/test_legacy_env_flag_migration_detector.py"
+      - ".github/workflows/persona-engine-legacy-env-flag-migration-daily.yml"
+  pull_request:
+    paths:
+      - "scripts/persona-engine/legacy-env-flag-migration-detector.py"
+      - "tests/scripts/test_legacy_env_flag_migration_detector.py"
+      - ".github/workflows/persona-engine-legacy-env-flag-migration-daily.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  hermetic-tests:
+    # Always-on hermetic test of the detector module. Runs on every
+    # trigger so spec-drift in the mapping table is caught at PR-time
+    # rather than in the next 04:00 UTC schedule.
+    name: hermetic-tests (14 tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Run detector self-test
+        run: |
+          python3 scripts/persona-engine/legacy-env-flag-migration-detector.py \
+            --self-test
+
+      - name: Run hermetic test suite
+        run: |
+          pytest -v tests/scripts/test_legacy_env_flag_migration_detector.py
+
+  daily-scan:
+    name: daily-scan (legacy WAKIR_PE_*_BACKEND detector)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Resolve fail-on-find flag
+        id: failflag
+        env:
+          INPUT: ${{ github.event.inputs.fail_on_find }}
+        run: |
+          if [ "${INPUT}" = "true" ]; then
+            echo "flag=--fail-on-find" >> "$GITHUB_OUTPUT"
+          else
+            echo "flag=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run migration-detector (default-exclude posture)
+        id: detector
+        continue-on-error: true
+        run: |
+          mkdir -p out
+          set +e
+          python3 scripts/persona-engine/legacy-env-flag-migration-detector.py \
+            --root . \
+            --out out/legacy-env-flag-migration-report.json \
+            ${{ steps.failflag.outputs.flag }}
+          RC=$?
+          set -e
+          echo "rc=${RC}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload migration-report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: legacy-env-flag-migration-report
+          path: out/legacy-env-flag-migration-report.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Render step-summary
+        if: always()
+        env:
+          DETECTOR_RC: ${{ steps.detector.outputs.rc }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib
+
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          rc = os.environ.get("DETECTOR_RC", "?")
+          out = pathlib.Path("out/legacy-env-flag-migration-report.json")
+          lines = [
+              "# Legacy ENV-Flag Migration Detector — Daily Snapshot",
+              "",
+              f"**Detector exit code:** `{rc}` "
+              "(0=clean, 1=findings informational, 2=findings + "
+              "fail-on-find, 3=self-test fail, 4=internal error)",
+              "",
+          ]
+          if not out.exists() or out.stat().st_size == 0:
+              lines += [
+                  "Detector produced no artifact.",
+                  "",
+                  "Anchors: Spec v0.4.2 §6, "
+                  "scripts/persona-engine/"
+                  "legacy-env-flag-migration-detector.py.",
+              ]
+          else:
+              d = json.loads(out.read_text(encoding="utf-8"))
+              total = d.get("total_findings", "?")
+              lines += [
+                  f"**Total findings:** {total}",
+                  f"**Spec anchor:** {d.get('spec_anchor', '?')}",
+                  f"**Tool version:** {d.get('tool_version', '?')}",
+                  "",
+              ]
+              per_flag = d.get("per_flag", {})
+              if per_flag:
+                  lines += [
+                      "## Per-flag findings",
+                      "",
+                      "| Legacy flag | Count | Canonical (v0.4.2) |",
+                      "|---|---|---|",
+                  ]
+                  mapping = d.get("mapping", {})
+                  for flag, count in per_flag.items():
+                      mp = mapping.get(flag, {})
+                      canonical = mp.get("canonical")
+                      if canonical is None:
+                          c_disp = "_(removed; see §4.1 FN-1)_"
+                      elif isinstance(canonical, list):
+                          c_disp = ", ".join(f"`{c}`" for c in canonical)
+                      else:
+                          c_disp = f"`{canonical}`"
+                      lines.append(f"| `{flag}` | {count} | {c_disp} |")
+                  lines.append("")
+              per_path = d.get("per_path", {})
+              if per_path:
+                  lines += [
+                      "## Per-path findings (top 20)",
+                      "",
+                      "| Path | Count |",
+                      "|---|---|",
+                  ]
+                  for path, count in list(per_path.items())[:20]:
+                      lines.append(f"| `{path}` | {count} |")
+                  lines.append("")
+              lines += [
+                  "Anchors: Spec v0.4.2 §6 (Tag-50 PR #320); "
+                  "scripts/persona-engine/"
+                  "legacy-env-flag-migration-detector.py.",
+              ]
+
+          if summary_path:
+              with open(summary_path, "a", encoding="utf-8") as fh:
+                  fh.write("\n".join(lines) + "\n")
+          else:
+              print("\n".join(lines))
+          PY
+
+      - name: Enforce dispatch-mode policy
+        # Mirrors the phase-3c-observability-daily-snapshot pattern:
+        # workflow_dispatch + fail_on_find=true honours the tri-state
+        # exit code (rc=2 fails the job). All other triggers treat
+        # findings as informational.
+        env:
+          DETECTOR_RC: ${{ steps.detector.outputs.rc }}
+          EVENT_NAME: ${{ github.event_name }}
+          FAIL_ON_FIND: ${{ github.event.inputs.fail_on_find }}
+        run: |
+          python3 - <<'PY'
+          import os, sys
+          rc = int(os.environ.get("DETECTOR_RC", "0"))
+          event = os.environ.get("EVENT_NAME", "")
+          fail = os.environ.get("FAIL_ON_FIND", "false")
+
+          # Internal-error / self-test failure exits always fail.
+          if rc in (3, 4):
+              print(f"detector internal failure: rc={rc}")
+              sys.exit(rc)
+
+          if event == "workflow_dispatch" and fail == "true":
+              print(f"workflow_dispatch + fail_on_find: rc={rc}")
+              sys.exit(rc if rc > 1 else 0)
+
+          # Push to main + PR runs: re-introduction of legacy names
+          # is a CI failure (the main-tree clean-tree invariant).
+          if event in ("push", "pull_request") and rc >= 1:
+              print(
+                  f"{event} run: legacy WAKIR_PE_*_BACKEND found in tree "
+                  f"(rc={rc}); failing CI to protect the clean-tree "
+                  f"invariant"
+              )
+              sys.exit(1)
+
+          # Schedule + dispatch-without-fail: informational only.
+          print(
+              f"informational run (event={event}): detector rc={rc} "
+              f"(not enforced)"
+          )
+          sys.exit(0)
+          PY
