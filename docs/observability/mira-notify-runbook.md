@@ -218,7 +218,59 @@ python3 -m pytest tests/observability/test_mira_notify_emitter.py \
                    tests/observability/test_mira_notify_receiver.py -v
 ```
 
-## 9. Out-of-scope (Tag-47+)
+## 9. Dead-letter queue (Tag-51 substance)
+
+The receiver writes one record per failed intake to
+`<inbox>/.notify-dead-letter.jsonl` with envelope
+`{"_error": "...", "_raw": "..."}`.  Until Tag-51 this file was
+write-only; an event that failed validation simply vanished from
+Mira-Hand's perspective.
+
+`scripts/observability/mira-notify-dlq.py` (Tag-51) closes the loop:
+
+* **`inspect`** (read-only): summarise total / by-category / by-alert-name
+  / earliest+latest fired_at_utc.  Output JSON or Markdown.
+* **`replay`** (default dry-run; `--apply` to mutate): re-process each
+  record after optional patches (`--set-schema-version`,
+  `--fill-missing-fired-at-utc`, `--normalise-severity`,
+  `--default-severity`).  On success the record is written to the
+  inbox + dedupe-set and **removed** from the dead-letter file; on
+  failure the record stays in place.
+* **`prune`** (default dry-run; `--apply` to mutate): drop records
+  whose `event_id` is already in the inbox dedupe-set (i.e. the
+  producer re-emitted the corrected event in a later run).
+
+The companion workflow `mira-notify-dlq-daily.yml` runs `inspect` on
+a daily schedule at 07:30 UTC and exposes the markdown report as the
+Job-Summary; `replay`/`prune` are dispatch-only so the scheduled run
+remains read-only.
+
+### Recipe — recover a dead-lettered alarm batch
+
+1. `python3 scripts/observability/mira-notify-dlq.py inspect --format markdown`
+2. Identify the dominant category in the histogram (e.g.
+   `schema_version_mismatch` after a producer rolling-upgrade).
+3. Run the matching patch in dry-run:
+   `python3 scripts/observability/mira-notify-dlq.py replay --set-schema-version --format markdown`
+4. When the dry-run shows `replayed: N`, `still_failed: 0`, apply:
+   `python3 scripts/observability/mira-notify-dlq.py replay --apply --set-schema-version --format markdown`
+5. Confirm the dead-letter file is empty:
+   `python3 scripts/observability/mira-notify-dlq.py inspect --format json | jq '.total'`
+
+### Operational guardrails
+
+* Replay-`--apply` runs MUST be outside the receiver's `--mode=tail`
+  window; the dead-letter file is whole-file rewritten and the
+  receiver's offset-file is not coupled to this rewrite.  A
+  receiver running in `--mode=file`/`stdin` is safe.
+* Patches are deliberately restricted to low-risk repairs.  Anything
+  more invasive (synthesising a missing `alert_name`, for instance)
+  is not in scope; fix the producer instead.
+* Exit-code 1 from `replay --apply` means at least one record could
+  not be recovered with the supplied patches.  The workflow surfaces
+  this as a red Job-Summary.
+
+## 10. Out-of-scope (Tag-52+)
 
 * PagerDuty webhook fan-out (catalogued severity=page also needs
   PagerDuty; today only the Mira-Hand inbox side is implemented).
@@ -227,7 +279,7 @@ python3 -m pytest tests/observability/test_mira_notify_emitter.py \
 * Receiver-side Activity-Log append (currently Mira-Hand reads
   inbox markdown and appends as part of normal triage).
 
-## 10. Cross-Review-Zones
+## 11. Cross-Review-Zones
 
 * **Zone H (SRE x Kai):** Container substrate for a long-running
   receiver is Kai's territory; the Tag-46 substance is invocation-
