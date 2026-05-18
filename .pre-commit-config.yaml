@@ -1,0 +1,105 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# Pre-Commit-Hook Configuration — License-Gate-Drift-Prevention
+# =============================================================
+#
+# Tag-32 EXT-AUDIT-FOLGE-Item: Kai-PR #211 (LICENSING-Audit) fixed 11
+# Invalid-SPDX-Headers in tests, but took three rebase-iterations
+# because parallel PRs kept introducing fresh drift while #211 was in
+# flight. The pre-commit hook configuration below mirrors the
+# server-side `license-gate.yml` invariants on the developer's
+# machine, so SPDX-drift is caught at `git commit` time, before the
+# server-side gate ever has to fail a PR.
+#
+# Three layers of defense:
+#
+#   1. `reuse` lint (upstream `fsfe/reuse-tool`) — full REUSE-3.0
+#      compliance check on every commit, scoped to the files in the
+#      commit (`pass_filenames: true`, default behaviour for the
+#      upstream hook). Catches missing SPDX-License-Identifier
+#      headers and missing copyright lines on any newly-staged file.
+#
+#   2. Repository-local `spdx-header-check` — a fast, dependency-
+#      free Python helper that verifies any newly-added substance
+#      file (`.py`, `.rs`, `.sh`, `.toml`, `.yml`, `.yaml`, `.md`)
+#      carries an SPDX-License-Identifier in its first 4 KiB. The
+#      check intentionally only inspects ADDED files (not modified),
+#      so legacy churn does not block commits unnecessarily — the
+#      server-side license-gate enforces the full-tree invariant.
+#
+#   3. Repository-local `reuse-toml-annotation-drift` — verifies
+#      that the `REUSE.toml` file itself parses as valid TOML and
+#      that every `[[annotations]]` entry has at least one matching
+#      file on disk (catches stale annotations after a rename or
+#      deletion).
+#
+# Installation (one-time, per clone):
+#
+#     pip install pre-commit
+#     pre-commit install
+#
+# After installation, every `git commit` triggers the hooks. To run
+# the hooks ad-hoc on the whole tree:
+#
+#     pre-commit run --all-files
+#
+# Bypass (NOT RECOMMENDED — see runbook):
+#
+#     git commit --no-verify
+#
+# See `docs/operations/pre-commit-reuse-lint-runbook.md` for the
+# full operator runbook.
+
+minimum_pre_commit_version: "3.5.0"
+
+repos:
+  # ----------------------------------------------------------------
+  # Layer 1 — Upstream REUSE lint
+  # ----------------------------------------------------------------
+  - repo: https://github.com/fsfe/reuse-tool
+    rev: v3.0.2
+    hooks:
+      - id: reuse
+        name: "reuse lint (REUSE-3.0 compliance)"
+        # `reuse lint` is whole-tree by design; running it with
+        # `pass_filenames: false` matches the server-side CI gate.
+        pass_filenames: false
+        stages: [pre-commit]
+
+  # ----------------------------------------------------------------
+  # Layer 2 + 3 — Repository-local hooks
+  # ----------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: spdx-header-check
+        name: "SPDX-Header-Check on newly-added substance files"
+        entry: python scripts/pre-commit-spdx-header-check.py
+        language: python
+        # Only inspect added files of these types. The list mirrors
+        # the substance file-types in the server-side license-gate
+        # path-filter. Markdown is included because LICENSE-BSL.md
+        # files MUST carry an SPDX header per ADR-0061 Schritt 7.
+        types_or:
+          - python
+          - rust
+          - shell
+          - toml
+          - yaml
+          - markdown
+        # `pre-commit` invokes the hook with the list of files
+        # currently in the commit. The helper script filters out
+        # modified files itself (only added files are blocking).
+        pass_filenames: true
+        stages: [pre-commit]
+
+      - id: reuse-toml-annotation-drift
+        name: "REUSE.toml annotation-drift check"
+        entry: python scripts/pre-commit-reuse-toml-drift-check.py
+        language: python
+        # Trigger only when REUSE.toml itself is staged. The check
+        # is fast (single-file TOML parse + glob expansion) but
+        # there is no value running it on every commit.
+        files: ^REUSE\.toml$
+        pass_filenames: false
+        stages: [pre-commit]
