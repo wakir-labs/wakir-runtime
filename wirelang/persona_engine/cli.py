@@ -279,6 +279,52 @@ async def _run_spawn_async(
         sys.stderr.write(f"env-misconfig: {exc}\n")
         return EXIT_ENV_MISCONFIG
 
+    # Tag-41 Bug-42 — pre-flight surface-compatibility check.
+    # If the operator has declared the producer's publish-mode via
+    # WAKIR_NATS_PUBLISH_MODE we verify it against the resolved
+    # subscribe-surface (spec wirelang-spec-v0-2 §13.2). A broken
+    # pair (e.g. core publisher + jetstream-pull subscriber) is
+    # refused at bring-up rather than silently dropping messages.
+    from .publish_mode_contract import (
+        SurfaceMismatchError,
+        resolve_publish_mode,
+        resolve_subscribe_surface_from_subscribe_mode,
+        require_compatible,
+    )
+    try:
+        declared_publish_mode = resolve_publish_mode()
+    except ValueError as exc:
+        sys.stderr.write(f"env-misconfig: {exc}\n")
+        return EXIT_ENV_MISCONFIG
+    try:
+        subscribe_surface = resolve_subscribe_surface_from_subscribe_mode(
+            subscribe_mode,
+        )
+    except ValueError as exc:
+        sys.stderr.write(f"env-misconfig: {exc}\n")
+        return EXIT_ENV_MISCONFIG
+    try:
+        compat_verdict = require_compatible(
+            declared_publish_mode,
+            subscribe_surface,
+        )
+    except SurfaceMismatchError as exc:
+        sys.stderr.write(
+            "surface-mismatch: "
+            f"{exc.verdict.diagnosis}\n"
+            f"  failure_mode_id: {exc.verdict.failure_mode_id}\n"
+            f"  recommended_adapter: {exc.verdict.recommended_adapter}\n"
+        )
+        return EXIT_ENV_MISCONFIG
+    engine._log({
+        "level": "INFO",
+        "msg": "subscribe-surface-compatibility-verified",
+        "publish_mode": declared_publish_mode,
+        "subscribe_surface": subscribe_surface,
+        "subscribe_mode": subscribe_mode,
+        "verdict": compat_verdict.verdict,
+    })
+
     # Inline runner: lazy-import nats-py + dispatch to the selected
     # subscribe-mode path on the sub_loop. We do NOT call
     # ``sub_loop.run_live(...)`` directly here because the engine
