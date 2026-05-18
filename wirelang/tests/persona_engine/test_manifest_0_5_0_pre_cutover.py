@@ -32,13 +32,13 @@ from pathlib import Path
 
 import pytest
 
-try:  # pragma: no cover — defensive import; yaml is in the runtime extra
-    import yaml
-except ImportError as exc:  # pragma: no cover
-    raise RuntimeError(
-        "PyYAML must be installed in the test environment; "
-        "the 0.5.0-pre-cutover pin pack is a YAML file.",
-    ) from exc
+# PyYAML is part of the runtime extra; the "without rfc8785 /
+# jsonschema" CI lane installs the minimal substrate without the
+# extra, so we skip pin-pack-loading tests gracefully there.
+yaml = pytest.importorskip(
+    "yaml",
+    reason="PyYAML not available in this lane; pin-pack tests skipped.",
+)
 
 # ---------------------------------------------------------------------------
 # Paths anchored from the repo root (this file lives at
