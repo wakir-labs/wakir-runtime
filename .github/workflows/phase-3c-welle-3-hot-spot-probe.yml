@@ -1,0 +1,246 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase-3c Welle-3 Hot-Spot Probe (Tag-45 / Henrik-Pre-Mortem follow-up)
+# ----------------------------------------------------------------------
+#
+# Purpose
+# -------
+#
+# Henrik Tag-44 Pre-Mortem
+# (``reports/audit/phase-3-marathon-pre-mortem-2026-05-18.md``)
+# identifies Welle-3 (bridge-audit-writer) as the #1 cross-Welle
+# hot-spot. Welle-3 ships solo in KW-25 (Mon 2026-06-15 08:00 CEST)
+# but becomes the Audit-Oracle for Welle-4 / Welle-5 / Welle-7 sign-
+# offs. The Pre-Mortem worst-case scenario couples A5 (Self-
+# Reference-Trap) + B3 (IIA-1130 conflict) + A1 (cross-Welle drift).
+#
+# This workflow runs every morning at 06:00 UTC through the Welle-3
+# cutover window and emits a Welle-3 hot-spot envelope independent
+# of the Marathon-Dashboard. The four indicators tracked:
+#
+#   1.  Self-Reference-Trap pre-detection (event-rate vs. baseline).
+#   2.  Cross-Welle-Propagation-Risk (Welle-3 vs. Welle-4/5/7).
+#   3.  Independent-Oracle-Probe doppelbetrieb score.
+#   4.  IIA-1130 Pre-Auditor-Decision tracking.
+#
+# Companion workflows
+# -------------------
+#
+#   * ``phase-3c-pre-cutover-marathon-dashboard.yml`` (Tag-42)
+#     -- weekly Monday probe-matrix, runs the canonical seven-Welle
+#     aggregator. Tag-45 hot-spot probe is *Welle-3-specific* and
+#     daily, not replacing the Monday Marathon-Dashboard.
+#   * ``phase-3c-pre-cutover-daily-probe.yml`` (Tag-44)
+#     -- daily Pre-Cutover-Probe trend-tracker for all seven Welles.
+#     Tag-45 hot-spot probe adds the Welle-3-specific indicators
+#     the daily-probe does not compute.
+#
+# Sandbox posture
+# ---------------
+#
+# Strict hermetic: stdlib-only python invocation. No podman, no
+# cosign, no live-VM, no network. The aggregator consumes a JSON
+# input file produced by an operator-hand probe or by stub inputs
+# under ``tooling/ci/fixtures/welle-3-hot-spot/`` when no live input
+# is available.
+#
+# Trigger surface
+# ---------------
+#
+#   * ``schedule: cron "30 6 * * *"`` -- daily at 06:30 UTC, offset
+#     30 minutes from the Marathon-Dashboard's Monday cron and the
+#     Pre-Cutover-Daily-Probe's 06:00 cron, so the three artifacts
+#     land in sequence.
+#   * ``workflow_dispatch`` -- operator-hand manual invocation with
+#     optional ``today`` override and ``input_json`` override.
+#   * ``push:`` (path-filtered) -- changes to the aggregator,
+#     workflow YAML, fixtures, or test files re-run the hot-spot
+#     probe.
+#   * ``pull_request:`` (path-filtered) -- same path-filter for PRs.
+#
+# Persistence
+# -----------
+#
+# The workflow uploads ``hot-spot-envelope.json`` + summary as a
+# 30-day-retention artifact. It does NOT push to the repo from
+# scheduled CI (per ADR-0058 + AR-Direktive Tag-44, only operator-
+# hand pushes from scheduled CI).
+#
+# Not a required status check
+# ---------------------------
+#
+# Per ``feedback_branch_protection_check_names.md``, this workflow
+# tracks a calendar-window indicator (3-week pre-cutover), not
+# individual PR-acceptance. It is NOT listed as a required status
+# check on PRs; it surfaces signal only via Job-Summary + artifact.
+
+name: phase-3c-welle-3-hot-spot-probe
+
+on:
+  schedule:
+    # Daily at 06:30 UTC. Sequences after the Marathon-Dashboard
+    # (Monday 06:00 UTC) and Pre-Cutover-Daily-Probe (daily 06:00
+    # UTC) so an operator looking at all three at the same time
+    # sees consistent timestamps with the Welle-3-specific envelope
+    # arriving last.
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+    inputs:
+      today:
+        description: "Override snapshot date (yyyy-mm-dd; default UTC today)."
+        required: false
+        default: ""
+      input_json:
+        description: "Path to hot-spot input JSON inside the repo."
+        required: false
+        default: "tooling/ci/fixtures/welle-3-hot-spot/sandbox-stub-input.json"
+      exit_on_block:
+        description: "If 'true', non-zero exit on BLOCK verdict (gate mode)."
+        required: false
+        default: "false"
+  push:
+    branches:
+      - main
+    paths:
+      - "tooling/ci/welle_3_hot_spot_aggregator.py"
+      - "tooling/ci/fixtures/welle-3-hot-spot/**"
+      - ".github/workflows/phase-3c-welle-3-hot-spot-probe.yml"
+      - "tests/ci/test_welle_3_hot_spot_aggregator.py"
+  pull_request:
+    paths:
+      - "tooling/ci/welle_3_hot_spot_aggregator.py"
+      - "tooling/ci/fixtures/welle-3-hot-spot/**"
+      - ".github/workflows/phase-3c-welle-3-hot-spot-probe.yml"
+      - "tests/ci/test_welle_3_hot_spot_aggregator.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase-3c-welle-3-hot-spot-probe
+  cancel-in-progress: false
+
+jobs:
+  hot-spot-probe:
+    name: Phase-3c Welle-3 Hot-Spot Probe + Indicators
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Resolve dispatch inputs
+        id: inputs
+        env:
+          INPUT_TODAY: ${{ github.event.inputs.today }}
+          INPUT_JSON: ${{ github.event.inputs.input_json }}
+          INPUT_EXIT_ON_BLOCK: ${{ github.event.inputs.exit_on_block }}
+        run: |
+          set -euo pipefail
+          today="${INPUT_TODAY}"
+          if [ -z "${today}" ]; then
+            today="$(date -u +%Y-%m-%d)"
+          fi
+          input_json="${INPUT_JSON:-tooling/ci/fixtures/welle-3-hot-spot/sandbox-stub-input.json}"
+          exit_on_block="${INPUT_EXIT_ON_BLOCK:-false}"
+          echo "today=${today}" >> "$GITHUB_OUTPUT"
+          echo "input_json=${input_json}" >> "$GITHUB_OUTPUT"
+          echo "exit_on_block=${exit_on_block}" >> "$GITHUB_OUTPUT"
+          echo "today=${today} input_json=${input_json} exit_on_block=${exit_on_block}"
+
+      - name: Verify aggregator + fixture present
+        run: |
+          set -euo pipefail
+          test -f tooling/ci/welle_3_hot_spot_aggregator.py
+          if [ ! -f "${{ steps.inputs.outputs.input_json }}" ]; then
+            echo "::warning::input JSON missing -- will run with NOT-EXEC defaults."
+          fi
+
+      - name: Run Welle-3 hot-spot aggregator
+        id: aggregate
+        env:
+          TODAY: ${{ steps.inputs.outputs.today }}
+          INPUT_JSON: ${{ steps.inputs.outputs.input_json }}
+          EXIT_ON_BLOCK: ${{ steps.inputs.outputs.exit_on_block }}
+        run: |
+          set -euo pipefail
+          mkdir -p out state
+          args=(
+            --output-json out/hot-spot-envelope.json
+            --output-md out/hot-spot-summary.md
+            --notify-path state/welle-3-hot-spot-notify.jsonl
+            --today "${TODAY}"
+          )
+          if [ -f "${INPUT_JSON}" ]; then
+            args+=( --input-json "${INPUT_JSON}" )
+          fi
+          if [ "${EXIT_ON_BLOCK,,}" = "true" ]; then
+            args+=( --exit-on-block )
+          fi
+          set +e
+          python3 tooling/ci/welle_3_hot_spot_aggregator.py "${args[@]}"
+          rc=$?
+          set -e
+          echo "aggregator_rc=${rc}" >> "$GITHUB_OUTPUT"
+          echo "aggregator exit-code: ${rc}"
+          ls -la out/
+          if [ -f out/hot-spot-envelope.json ]; then
+            verdict="$(python3 -c 'import json,sys; print(json.load(open("out/hot-spot-envelope.json"))["hot_spot_verdict"])')"
+            echo "hot_spot_verdict=${verdict}" >> "$GITHUB_OUTPUT"
+            echo "hot_spot_verdict=${verdict}"
+          fi
+          # Non-zero only if exit_on_block requested AND verdict BLOCK.
+          if [ "${EXIT_ON_BLOCK,,}" = "true" ] && [ "${rc}" -ne 0 ]; then
+            exit ${rc}
+          fi
+
+      - name: Append Job-Summary
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -f out/hot-spot-summary.md ]; then
+            cat out/hot-spot-summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "# Phase-3c Welle-3 Hot-Spot Probe -- unknown" \
+              >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "_Aggregator did not produce a summary._" \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Append notify-events summary
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -f state/welle-3-hot-spot-notify.jsonl ]; then
+            count=$(wc -l < state/welle-3-hot-spot-notify.jsonl | tr -d ' ')
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Notify-events appended this run" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Total notify-events in feed: **${count}**" \
+              >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "_No notify-events.jsonl produced (GREEN verdict)._" \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload hot-spot artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-3c-welle-3-hot-spot-${{ steps.inputs.outputs.today }}
+          path: |
+            out/hot-spot-envelope.json
+            out/hot-spot-summary.md
+            state/welle-3-hot-spot-notify.jsonl
+          if-no-files-found: warn
+          retention-days: 30

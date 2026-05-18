@@ -1,0 +1,29 @@
+{
+  "_comment": "Sandbox-stub input for the Welle-3 hot-spot aggregator. Default state is NOT-EXEC for all four indicators -- this mirrors the Tag-45 dispatch reality where the marathon hasn't started yet and live observation streams are not wired. Operator-Hand can drop a real input JSON into this fixture path on Cutover-Day-Morning; until then the workflow emits a NOT-EXEC envelope.",
+  "welle_3_probe": {
+    "verdict": "NOT-EXEC",
+    "component": "bridge_audit_writer",
+    "source": "sandbox-stub"
+  },
+  "downstream_probes": {
+    "4": {"verdict": "NOT-EXEC", "component": "state_backing"},
+    "5": {"verdict": "NOT-EXEC", "component": "lifecycle_state_machine"},
+    "7": {"verdict": "NOT-EXEC", "component": "recovery_workflow"}
+  },
+  "self_reference_trap": {
+    "event_rate_per_min": null,
+    "baseline_event_rate_per_min": null,
+    "observation_window_minutes": null,
+    "probe_present": false
+  },
+  "independent_oracle": {
+    "verdict": "NOT-EXEC",
+    "source": "external-oracle-stream-not-yet-wired"
+  },
+  "iia_1130": {
+    "ar_decision": "absent",
+    "decision_age_days": null,
+    "decision_target_kw": 25,
+    "_note": "Tag-44 Pre-Mortem B3: AR-designated external pre-auditor for Welle-3 is a marathon pre-condition. Sandbox-stub leaves ar_decision='absent' (NOT-EXEC); operator-hand replaces with 'pending' / 'external_pre_auditor_designated' / 'henrik_default_path' / 'decision_blocked' as the AR-session progresses."
+  }
+}
