@@ -1,0 +1,627 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# AR-Hand-Stop-Marker Cascade — Live-Test (Tag-52 Tomás)
+# -------------------------------------------------------
+#
+# Purpose
+# -------
+#
+# Tag-46 PR #299 pinned the marker schema and the B2-cascade-coupling
+# state-machine as hermetic property-tests against synthetic snapshots.
+# Tag-47 PR #304 delivered the operative reaction surface: the
+# listener workflow (``.github/workflows/ar-hand-stop-marker-
+# listener.yml``), the operator-CLI (``scripts/ci/ar-hand-stop-
+# marker-set.py``), and the four helper scripts
+# (detect / cascade / cancel / verdict).
+#
+# What was still missing: an end-to-end gate that exercises the
+# WHOLE cascade in a real GitHub-Actions runner — marker-set CLI
+# emits a marker, a synthesised push-event payload reaches the
+# detect-step, the cascade-step computes the target-list, the
+# cancel-step talks to a STUB gh-binary, the verdict-step emits
+# the artifact, and the artifact's content is asserted in-place.
+#
+# This workflow is that gate. It runs three scenarios back-to-back:
+#
+#   * **Scenario A — Welle-3 marker, no sign-off.**
+#     Expects: welle_targets includes welle-3 validation + welle-3
+#     hot-spot probe; cascade_targets includes welle-4..7; marathon
+#     targets full list. Cancel-step records gh-stub invocations
+#     for all in-flight runs (the stub fakes one in-flight run per
+#     workflow filename). Verdict artifact validates against schema-1.
+#
+#   * **Scenario B — Welle-3 marker WITH sign-off file present.**
+#     Expects: welle_targets unchanged; cascade_targets EMPTY;
+#     cascade_blocked_welle EMPTY (sign-off short-circuit honoured).
+#     Marathon-targets still cancelled (any open stop pauses
+#     marathon — sign-off only lifts the cascade-coupling, not the
+#     marathon pause).
+#
+#   * **Scenario C — Welle-7 marker, no downstream.**
+#     Expects: cascade_targets EMPTY (no welle-8). Marathon list
+#     still cancelled.
+#
+# After the three live scenarios, the hermetic test-suites
+# (Tag-46 B1 + Tag-47 listener + Tag-52 cascade-live-test) run
+# as a regression guard.
+#
+# Posture
+# -------
+#
+# Hermetic. The gh CLI is replaced by a Python stub that fakes a
+# minimal /actions/workflows/<file>/runs response and absorbs the
+# /actions/runs/<id>/cancel POST. No live GitHub runs are
+# cancelled by this workflow. The substance is the END-TO-END wire
+# protocol between the four helper scripts plus the
+# workflow_dispatch input contract.
+#
+# Modes
+# -----
+#
+#   * **push to main / PR** — runs on every change touching the
+#     listener workflow, helper scripts, marker-set CLI, this
+#     workflow, or any related test file.
+#   * **workflow_dispatch** — manual invocation. Inputs:
+#       - ``scenario`` (string, default ``all``): one of ``all``,
+#         ``a``, ``b``, ``c`` — pick a single scenario for debug.
+#   * **schedule** — daily at 05:30 UTC. Drift-detector: if the
+#     marker schema, listener wiring, or cascade table drift
+#     against the helper scripts, the daily run flags it before
+#     the next operator-hand stop would fire.
+#
+# Exit codes
+# ----------
+#
+#   * 0 — every scenario green, verdict artifacts schema-valid,
+#         hermetic suite passes.
+#   * non-0 — any step failed; step-summary identifies which.
+#
+# Anchors
+# -------
+#
+#   * Tag-46 PR #299 — ``tests/ci/test_ar_hand_stop_marker_trigger_b1.py``
+#     (schema + state-machine).
+#   * Tag-47 PR #304 — ``.github/workflows/ar-hand-stop-marker-listener.yml``
+#     + ``scripts/ci/ar-hand-stop-marker-listener-*.py`` +
+#     ``scripts/ci/ar-hand-stop-marker-set.py``.
+#   * Tag-52 — this workflow + ``tests/ci/test_ar_hand_stop_cascade_live_test.py``.
+#   * Cheat-Sheet §I — ``docs/phase-3c/cutover-operator-cheat-sheet.md``.
+#   * ADR-0066 §Welle-Sequenz (B2-cascade-coupling).
+
+name: ar-hand-stop-cascade-live-test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ar-hand-stop-cascade-live-test.yml"
+      - ".github/workflows/ar-hand-stop-marker-listener.yml"
+      - "scripts/ci/ar-hand-stop-marker-set.py"
+      - "scripts/ci/ar-hand-stop-marker-listener-detect.py"
+      - "scripts/ci/ar-hand-stop-marker-listener-cascade.py"
+      - "scripts/ci/ar-hand-stop-marker-listener-cancel.py"
+      - "scripts/ci/ar-hand-stop-marker-listener-verdict.py"
+      - "tests/ci/test_ar_hand_stop_marker_trigger_b1.py"
+      - "tests/ci/test_ar_hand_stop_marker_workflow.py"
+      - "tests/ci/test_ar_hand_stop_cascade_live_test.py"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/ar-hand-stop-cascade-live-test.yml"
+      - ".github/workflows/ar-hand-stop-marker-listener.yml"
+      - "scripts/ci/ar-hand-stop-marker-set.py"
+      - "scripts/ci/ar-hand-stop-marker-listener-detect.py"
+      - "scripts/ci/ar-hand-stop-marker-listener-cascade.py"
+      - "scripts/ci/ar-hand-stop-marker-listener-cancel.py"
+      - "scripts/ci/ar-hand-stop-marker-listener-verdict.py"
+      - "tests/ci/test_ar_hand_stop_marker_trigger_b1.py"
+      - "tests/ci/test_ar_hand_stop_marker_workflow.py"
+      - "tests/ci/test_ar_hand_stop_cascade_live_test.py"
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: "Which scenario to run (all | a | b | c)"
+        required: false
+        type: string
+        default: "all"
+  schedule:
+    # Daily at 05:30 UTC — drift-detector slot, well after the
+    # observability daily snapshot (03:00) and the alert-rule bridge
+    # live-test (04:00).
+    - cron: "30 5 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  # Distinct group per ref so PRs don't queue behind main and vice
+  # versa. The live-test does not mutate state, so concurrent runs
+  # across refs are safe.
+  group: ar-hand-stop-cascade-live-test-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  cascade-live-test:
+    name: cascade-live-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      LIVE_DIR: /tmp/ar-hand-stop-cascade-live
+      SCENARIO: ${{ github.event.inputs.scenario || 'all' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pytest (hermetic stdlib + pytest + pyyaml)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest pyyaml
+
+      - name: Prepare live-test scratch dir + gh stub
+        id: prep
+        run: |
+          set -euo pipefail
+          rm -rf "${LIVE_DIR}"
+          mkdir -p "${LIVE_DIR}/state-a" "${LIVE_DIR}/state-b" "${LIVE_DIR}/state-c"
+          mkdir -p "${LIVE_DIR}/stub-bin" "${LIVE_DIR}/stub-log"
+          # Write the gh-stub. It accepts:
+          #   gh api /repos/.../workflows/<file>/runs?status=...
+          #     -> JSON with one fake in-flight run per workflow
+          #   gh api -X POST /repos/.../actions/runs/<id>/cancel
+          #     -> empty body, exit-0
+          # Every invocation appends a line to STUB_LOG.
+          cat > "${LIVE_DIR}/stub-bin/gh" <<'STUB_EOF'
+          #!/usr/bin/env python3
+          import json
+          import os
+          import re
+          import sys
+
+          log_path = os.environ.get(
+              "GH_STUB_LOG", "/tmp/ar-hand-stop-cascade-live/stub-log/gh.jsonl"
+          )
+          os.makedirs(os.path.dirname(log_path), exist_ok=True)
+          argv = sys.argv[1:]
+          with open(log_path, "a", encoding="utf-8") as fh:
+              fh.write(json.dumps({"argv": argv}) + "\n")
+
+          # argv[0] must be 'api' (the only gh-subcommand used by
+          # the cancel-step).
+          if not argv or argv[0] != "api":
+              print(f"gh stub: unsupported subcommand: {argv!r}", file=sys.stderr)
+              sys.exit(2)
+
+          rest = argv[1:]
+          # Detect cancel POST: ['-X', 'POST', '/repos/.../actions/runs/<id>/cancel']
+          if len(rest) >= 3 and rest[0] == "-X" and rest[1] == "POST":
+              endpoint = rest[2]
+              m = re.match(
+                  r"^/repos/[^/]+/[^/]+/actions/runs/(\d+)/cancel$", endpoint
+              )
+              if not m:
+                  print(
+                      f"gh stub: unexpected POST endpoint: {endpoint}",
+                      file=sys.stderr,
+                  )
+                  sys.exit(2)
+              # Cancel succeeds silently.
+              sys.exit(0)
+
+          # Otherwise: list-runs GET. Endpoint shape:
+          # /repos/<owner>/<repo>/actions/workflows/<file>/runs?status=<s>&per_page=100
+          if len(rest) < 1:
+              print("gh stub: missing endpoint", file=sys.stderr)
+              sys.exit(2)
+          endpoint = rest[0]
+          m = re.match(
+              r"^/repos/[^/]+/[^/]+/actions/workflows/"
+              r"([^/?]+)/runs\?status=([^&]+)(?:&.*)?$",
+              endpoint,
+          )
+          if not m:
+              print(
+                  f"gh stub: unexpected list endpoint: {endpoint}",
+                  file=sys.stderr,
+              )
+              sys.exit(2)
+          workflow_filename = m.group(1)
+          status = m.group(2)
+          # Return a single fake in-flight run only for the in_progress
+          # status (one fake per workflow file). queued/waiting return
+          # empty so the seen-count is predictable.
+          if status == "in_progress":
+              # Fabricate a deterministic id from the filename hash.
+              fake_id = abs(hash(workflow_filename)) % 1_000_000_000
+              payload = {
+                  "total_count": 1,
+                  "workflow_runs": [
+                      {
+                          "id": fake_id,
+                          "status": "in_progress",
+                          "name": workflow_filename,
+                      }
+                  ],
+              }
+          else:
+              payload = {"total_count": 0, "workflow_runs": []}
+          print(json.dumps(payload))
+          sys.exit(0)
+          STUB_EOF
+          chmod +x "${LIVE_DIR}/stub-bin/gh"
+          echo "stub_path=${LIVE_DIR}/stub-bin/gh" >> "${GITHUB_OUTPUT}"
+          echo "Live-Dir prepared at ${LIVE_DIR}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Scenario A — Welle-3 marker, no sign-off (full cascade)
+        if: ${{ env.SCENARIO == 'all' || env.SCENARIO == 'a' }}
+        id: scenario-a
+        env:
+          GH_STUB_LOG: ${{ env.LIVE_DIR }}/stub-log/gh-a.jsonl
+        run: |
+          set -euo pipefail
+          STATE_DIR="${LIVE_DIR}/state-a"
+          # 1. Marker setzen via CLI
+          python scripts/ci/ar-hand-stop-marker-set.py \
+            --welle 3 \
+            --trigger "Cross-Modul-Drift" \
+            --operator mira \
+            --ts "2026-05-19T12:00:00Z" \
+            --repo "${LIVE_DIR}" \
+            --state-dir state-a \
+            > "${LIVE_DIR}/scenario-a-cli.log"
+          test -f "${STATE_DIR}/ar-hand-stop-welle-3-20260519.json"
+          # 2. Synthesise push-event payload
+          cat > "${LIVE_DIR}/event-a.json" <<EOF
+          {
+            "ref": "refs/heads/main",
+            "commits": [
+              {
+                "id": "deadbeefcafefeed",
+                "added": ["state-a/ar-hand-stop-welle-3-20260519.json"],
+                "modified": []
+              }
+            ]
+          }
+          EOF
+          # 3. Detect step
+          DETECT_OUT="${LIVE_DIR}/detect-a.out"
+          : > "${DETECT_OUT}"
+          python scripts/ci/ar-hand-stop-marker-listener-detect.py \
+            --event push \
+            --event-payload "${LIVE_DIR}/event-a.json" \
+            --out "${DETECT_OUT}" \
+            --repo-root "${LIVE_DIR}"
+          grep -q "^welle=3$" "${DETECT_OUT}"
+          grep -q "^trigger=Cross-Modul-Drift$" "${DETECT_OUT}"
+          grep -q "^operator=mira$" "${DETECT_OUT}"
+          grep -q "^filename=state-a/ar-hand-stop-welle-3-20260519.json$" "${DETECT_OUT}"
+          # 4. Cascade compute
+          CASCADE_OUT="${LIVE_DIR}/cascade-a.out"
+          : > "${CASCADE_OUT}"
+          python scripts/ci/ar-hand-stop-marker-listener-cascade.py \
+            --welle 3 \
+            --state-dir state-a \
+            --out "${CASCADE_OUT}" \
+            --repo-root "${LIVE_DIR}"
+          WELLE_TARGETS=$(grep "^welle_targets=" "${CASCADE_OUT}" | cut -d= -f2-)
+          CASCADE_TARGETS=$(grep "^cascade_targets=" "${CASCADE_OUT}" | cut -d= -f2-)
+          MARATHON_TARGETS=$(grep "^marathon_targets=" "${CASCADE_OUT}" | cut -d= -f2-)
+          BLOCKED_WELLE=$(grep "^cascade_blocked_welle=" "${CASCADE_OUT}" | cut -d= -f2-)
+          python -c "import json,sys; t=json.loads(sys.argv[1]); assert 'phase-3c-welle-3-validation.yml' in t and 'phase-3c-welle-3-hot-spot-probe.yml' in t, t" "${WELLE_TARGETS}"
+          python -c "import json,sys; t=json.loads(sys.argv[1]); assert len(t) == 4 and 'phase-3c-welle-4-validation.yml' in t and 'phase-3c-welle-7-validation.yml' in t, t" "${CASCADE_TARGETS}"
+          python -c "import json,sys; t=json.loads(sys.argv[1]); assert t == [4,5,6,7], t" "${BLOCKED_WELLE}"
+          # 5. Cancel step (stub gh)
+          python scripts/ci/ar-hand-stop-marker-listener-cancel.py \
+            --welle-targets "${WELLE_TARGETS}" \
+            --cascade-targets "${CASCADE_TARGETS}" \
+            --marathon-targets "${MARATHON_TARGETS}" \
+            --gh-repo "wakir-labs/wakir-runtime" \
+            --gh-binary "${{ steps.prep.outputs.stub_path }}" \
+            2>&1 | tee "${LIVE_DIR}/cancel-a.log"
+          # Expect: 12 workflow targets total (2 welle + 4 cascade + 6 marathon)
+          # Each fake produces 1 in-flight run -> 12 cancelled.
+          grep -q "TOTAL runs-seen=12 cancelled=12" "${LIVE_DIR}/cancel-a.log"
+          # 6. Verdict emit
+          python scripts/ci/ar-hand-stop-marker-listener-verdict.py \
+            --welle 3 \
+            --trigger "Cross-Modul-Drift" \
+            --marker-ts "2026-05-19T12:00:00Z" \
+            --operator mira \
+            --marker-filename "state-a/ar-hand-stop-welle-3-20260519.json" \
+            --welle-targets "${WELLE_TARGETS}" \
+            --cascade-targets "${CASCADE_TARGETS}" \
+            --marathon-targets "${MARATHON_TARGETS}" \
+            --cascade-blocked-welle "${BLOCKED_WELLE}" \
+            --dry-run "false" \
+            --out "${LIVE_DIR}/verdict-a.json"
+          python -c "
+          import json, sys
+          v = json.load(open(sys.argv[1]))
+          assert v['schema_version'] == '1', v
+          assert v['marker']['welle'] == 3
+          assert v['marker']['trigger'] == 'Cross-Modul-Drift'
+          assert v['marker']['operator'] == 'mira'
+          assert v['cancel_plan']['cascade_blocked_welle'] == [4,5,6,7]
+          assert len(v['cancel_plan']['marathon_targets']) == 6
+          assert v['dry_run'] is False
+          " "${LIVE_DIR}/verdict-a.json"
+          {
+            echo "## Scenario A — Welle-3 marker, no sign-off"
+            echo ""
+            echo "* welle_targets: $(echo ${WELLE_TARGETS} | python -c 'import json,sys; print(len(json.loads(sys.stdin.read())))') file(s)"
+            echo "* cascade_targets: $(echo ${CASCADE_TARGETS} | python -c 'import json,sys; print(len(json.loads(sys.stdin.read())))') file(s)"
+            echo "* cascade_blocked_welle: ${BLOCKED_WELLE}"
+            echo "* marathon_targets: $(echo ${MARATHON_TARGETS} | python -c 'import json,sys; print(len(json.loads(sys.stdin.read())))') file(s)"
+            echo ""
+            echo '```json'
+            cat "${LIVE_DIR}/verdict-a.json"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Scenario B — Welle-3 marker WITH sign-off (cascade short-circuit)
+        if: ${{ env.SCENARIO == 'all' || env.SCENARIO == 'b' }}
+        id: scenario-b
+        env:
+          GH_STUB_LOG: ${{ env.LIVE_DIR }}/stub-log/gh-b.jsonl
+        run: |
+          set -euo pipefail
+          STATE_DIR="${LIVE_DIR}/state-b"
+          # Pre-place sign-off file (Mira-Hand has lifted the stop).
+          cat > "${STATE_DIR}/ar-hand-stop-sign-off-welle-3.json" <<'EOF'
+          {
+            "welle": 3,
+            "sign_off_ts": "2026-05-19T14:00:00Z",
+            "operator": "mira",
+            "lifted_trigger": "Cross-Modul-Drift"
+          }
+          EOF
+          # Re-emit the marker via CLI (overwrite-safe with --force not needed; new state-dir).
+          python scripts/ci/ar-hand-stop-marker-set.py \
+            --welle 3 \
+            --trigger "Self-Reference-Trap-Fire" \
+            --operator mira \
+            --ts "2026-05-19T13:00:00Z" \
+            --repo "${LIVE_DIR}" \
+            --state-dir state-b \
+            > "${LIVE_DIR}/scenario-b-cli.log"
+          # Synthesise push event
+          cat > "${LIVE_DIR}/event-b.json" <<EOF
+          {
+            "commits": [
+              {
+                "added": ["state-b/ar-hand-stop-welle-3-20260519.json"],
+                "modified": []
+              }
+            ]
+          }
+          EOF
+          DETECT_OUT="${LIVE_DIR}/detect-b.out"
+          : > "${DETECT_OUT}"
+          python scripts/ci/ar-hand-stop-marker-listener-detect.py \
+            --event push \
+            --event-payload "${LIVE_DIR}/event-b.json" \
+            --out "${DETECT_OUT}" \
+            --repo-root "${LIVE_DIR}"
+          # Cascade with sign-off present
+          CASCADE_OUT="${LIVE_DIR}/cascade-b.out"
+          : > "${CASCADE_OUT}"
+          python scripts/ci/ar-hand-stop-marker-listener-cascade.py \
+            --welle 3 \
+            --state-dir state-b \
+            --out "${CASCADE_OUT}" \
+            --repo-root "${LIVE_DIR}"
+          WELLE_TARGETS=$(grep "^welle_targets=" "${CASCADE_OUT}" | cut -d= -f2-)
+          CASCADE_TARGETS=$(grep "^cascade_targets=" "${CASCADE_OUT}" | cut -d= -f2-)
+          MARATHON_TARGETS=$(grep "^marathon_targets=" "${CASCADE_OUT}" | cut -d= -f2-)
+          BLOCKED_WELLE=$(grep "^cascade_blocked_welle=" "${CASCADE_OUT}" | cut -d= -f2-)
+          python -c "import json,sys; assert json.loads(sys.argv[1]) == [], json.loads(sys.argv[1])" "${CASCADE_TARGETS}"
+          python -c "import json,sys; assert json.loads(sys.argv[1]) == [], json.loads(sys.argv[1])" "${BLOCKED_WELLE}"
+          # Cancel step still runs (marathon still cancelled, welle still cancelled).
+          python scripts/ci/ar-hand-stop-marker-listener-cancel.py \
+            --welle-targets "${WELLE_TARGETS}" \
+            --cascade-targets "${CASCADE_TARGETS}" \
+            --marathon-targets "${MARATHON_TARGETS}" \
+            --gh-repo "wakir-labs/wakir-runtime" \
+            --gh-binary "${{ steps.prep.outputs.stub_path }}" \
+            2>&1 | tee "${LIVE_DIR}/cancel-b.log"
+          # 2 welle + 0 cascade + 6 marathon = 8
+          grep -q "TOTAL runs-seen=8 cancelled=8" "${LIVE_DIR}/cancel-b.log"
+          # Verdict
+          python scripts/ci/ar-hand-stop-marker-listener-verdict.py \
+            --welle 3 \
+            --trigger "Self-Reference-Trap-Fire" \
+            --marker-ts "2026-05-19T13:00:00Z" \
+            --operator mira \
+            --marker-filename "state-b/ar-hand-stop-welle-3-20260519.json" \
+            --welle-targets "${WELLE_TARGETS}" \
+            --cascade-targets "${CASCADE_TARGETS}" \
+            --marathon-targets "${MARATHON_TARGETS}" \
+            --cascade-blocked-welle "${BLOCKED_WELLE}" \
+            --dry-run "false" \
+            --out "${LIVE_DIR}/verdict-b.json"
+          python -c "
+          import json, sys
+          v = json.load(open(sys.argv[1]))
+          assert v['cancel_plan']['cascade_targets'] == [], v
+          assert v['cancel_plan']['cascade_blocked_welle'] == [], v
+          assert len(v['cancel_plan']['welle_targets']) == 2
+          assert len(v['cancel_plan']['marathon_targets']) == 6
+          " "${LIVE_DIR}/verdict-b.json"
+          {
+            echo "## Scenario B — Welle-3 marker WITH sign-off (cascade short-circuit)"
+            echo ""
+            echo "* cascade_targets: 0 (sign-off lifts coupling)"
+            echo "* welle_targets + marathon_targets still cancelled"
+            echo ""
+            echo '```json'
+            cat "${LIVE_DIR}/verdict-b.json"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Scenario C — Welle-7 marker, no downstream
+        if: ${{ env.SCENARIO == 'all' || env.SCENARIO == 'c' }}
+        id: scenario-c
+        env:
+          GH_STUB_LOG: ${{ env.LIVE_DIR }}/stub-log/gh-c.jsonl
+        run: |
+          set -euo pipefail
+          STATE_DIR="${LIVE_DIR}/state-c"
+          python scripts/ci/ar-hand-stop-marker-set.py \
+            --welle 7 \
+            --trigger "POST_HASH != PRE_HASH" \
+            --operator mira \
+            --ts "2026-05-19T15:00:00Z" \
+            --repo "${LIVE_DIR}" \
+            --state-dir state-c \
+            > "${LIVE_DIR}/scenario-c-cli.log"
+          cat > "${LIVE_DIR}/event-c.json" <<EOF
+          {
+            "commits": [
+              {
+                "added": ["state-c/ar-hand-stop-welle-7-20260519.json"],
+                "modified": []
+              }
+            ]
+          }
+          EOF
+          DETECT_OUT="${LIVE_DIR}/detect-c.out"
+          : > "${DETECT_OUT}"
+          python scripts/ci/ar-hand-stop-marker-listener-detect.py \
+            --event push \
+            --event-payload "${LIVE_DIR}/event-c.json" \
+            --out "${DETECT_OUT}" \
+            --repo-root "${LIVE_DIR}"
+          grep -q "^welle=7$" "${DETECT_OUT}"
+          CASCADE_OUT="${LIVE_DIR}/cascade-c.out"
+          : > "${CASCADE_OUT}"
+          python scripts/ci/ar-hand-stop-marker-listener-cascade.py \
+            --welle 7 \
+            --state-dir state-c \
+            --out "${CASCADE_OUT}" \
+            --repo-root "${LIVE_DIR}"
+          CASCADE_TARGETS=$(grep "^cascade_targets=" "${CASCADE_OUT}" | cut -d= -f2-)
+          BLOCKED_WELLE=$(grep "^cascade_blocked_welle=" "${CASCADE_OUT}" | cut -d= -f2-)
+          python -c "import json,sys; assert json.loads(sys.argv[1]) == [], json.loads(sys.argv[1])" "${CASCADE_TARGETS}"
+          python -c "import json,sys; assert json.loads(sys.argv[1]) == [], json.loads(sys.argv[1])" "${BLOCKED_WELLE}"
+          WELLE_TARGETS=$(grep "^welle_targets=" "${CASCADE_OUT}" | cut -d= -f2-)
+          MARATHON_TARGETS=$(grep "^marathon_targets=" "${CASCADE_OUT}" | cut -d= -f2-)
+          python scripts/ci/ar-hand-stop-marker-listener-cancel.py \
+            --welle-targets "${WELLE_TARGETS}" \
+            --cascade-targets "${CASCADE_TARGETS}" \
+            --marathon-targets "${MARATHON_TARGETS}" \
+            --gh-repo "wakir-labs/wakir-runtime" \
+            --gh-binary "${{ steps.prep.outputs.stub_path }}" \
+            2>&1 | tee "${LIVE_DIR}/cancel-c.log"
+          # 1 welle + 0 cascade + 6 marathon = 7
+          grep -q "TOTAL runs-seen=7 cancelled=7" "${LIVE_DIR}/cancel-c.log"
+          python scripts/ci/ar-hand-stop-marker-listener-verdict.py \
+            --welle 7 \
+            --trigger "POST_HASH != PRE_HASH" \
+            --marker-ts "2026-05-19T15:00:00Z" \
+            --operator mira \
+            --marker-filename "state-c/ar-hand-stop-welle-7-20260519.json" \
+            --welle-targets "${WELLE_TARGETS}" \
+            --cascade-targets "${CASCADE_TARGETS}" \
+            --marathon-targets "${MARATHON_TARGETS}" \
+            --cascade-blocked-welle "${BLOCKED_WELLE}" \
+            --dry-run "false" \
+            --out "${LIVE_DIR}/verdict-c.json"
+          python -c "
+          import json, sys
+          v = json.load(open(sys.argv[1]))
+          assert v['marker']['welle'] == 7
+          assert v['cancel_plan']['cascade_targets'] == []
+          assert v['cancel_plan']['cascade_blocked_welle'] == []
+          " "${LIVE_DIR}/verdict-c.json"
+          {
+            echo "## Scenario C — Welle-7 marker, no downstream"
+            echo ""
+            echo "* welle_targets: 1 file"
+            echo "* cascade_targets: 0 (no downstream beyond welle-7)"
+            echo "* marathon_targets: 6 files"
+            echo ""
+            echo '```json'
+            cat "${LIVE_DIR}/verdict-c.json"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Rejection probes — unknown trigger + oob welle
+        if: ${{ env.SCENARIO == 'all' }}
+        run: |
+          set -euo pipefail
+          # Unknown trigger: marker-set must reject with rc=2.
+          set +e
+          python scripts/ci/ar-hand-stop-marker-set.py \
+            --welle 3 \
+            --trigger "this-is-not-a-real-trigger" \
+            --operator mira \
+            --ts "2026-05-19T16:00:00Z" \
+            --repo "${LIVE_DIR}" \
+            --state-dir state-reject \
+            --dry-run \
+            > "${LIVE_DIR}/reject-trigger.log" 2>&1
+          RC=$?
+          set -e
+          test "${RC}" -eq 2 || { echo "expected rc=2 for unknown trigger, got ${RC}"; cat "${LIVE_DIR}/reject-trigger.log"; exit 1; }
+          # OOB welle: marker-set must reject with rc=2.
+          set +e
+          python scripts/ci/ar-hand-stop-marker-set.py \
+            --welle 8 \
+            --trigger "Cross-Modul-Drift" \
+            --operator mira \
+            --ts "2026-05-19T16:00:00Z" \
+            --repo "${LIVE_DIR}" \
+            --state-dir state-reject \
+            --dry-run \
+            > "${LIVE_DIR}/reject-oob.log" 2>&1
+          RC=$?
+          set -e
+          test "${RC}" -eq 2 || { echo "expected rc=2 for oob welle, got ${RC}"; cat "${LIVE_DIR}/reject-oob.log"; exit 1; }
+          # Cascade with oob welle: must reject with rc=2.
+          set +e
+          : > "${LIVE_DIR}/cascade-reject.out"
+          python scripts/ci/ar-hand-stop-marker-listener-cascade.py \
+            --welle 0 \
+            --state-dir state-c \
+            --out "${LIVE_DIR}/cascade-reject.out" \
+            --repo-root "${LIVE_DIR}" \
+            > "${LIVE_DIR}/cascade-reject.log" 2>&1
+          RC=$?
+          set -e
+          test "${RC}" -eq 2 || { echo "expected rc=2 for oob welle in cascade, got ${RC}"; cat "${LIVE_DIR}/cascade-reject.log"; exit 1; }
+          echo "## Rejection probes" >> "${GITHUB_STEP_SUMMARY}"
+          echo "" >> "${GITHUB_STEP_SUMMARY}"
+          echo "* unknown trigger -> rc=2 (PASS)" >> "${GITHUB_STEP_SUMMARY}"
+          echo "* oob welle in marker-set -> rc=2 (PASS)" >> "${GITHUB_STEP_SUMMARY}"
+          echo "* oob welle in cascade -> rc=2 (PASS)" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Hermetic regression-suite (Tag-46 + Tag-47 + Tag-52)
+        run: |
+          set -euo pipefail
+          python -m pytest \
+            tests/ci/test_ar_hand_stop_marker_trigger_b1.py \
+            tests/ci/test_ar_hand_stop_marker_workflow.py \
+            tests/ci/test_ar_hand_stop_cascade_live_test.py \
+            -v --tb=short 2>&1 | tee "${LIVE_DIR}/pytest.log"
+          {
+            echo "## Hermetic pytest (Tag-46 + Tag-47 + Tag-52)"
+            echo ""
+            echo '```'
+            tail -25 "${LIVE_DIR}/pytest.log"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload cascade live-test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ar-hand-stop-cascade-live-test-${{ github.run_id }}
+          path: /tmp/ar-hand-stop-cascade-live/
+          retention-days: 14
+          if-no-files-found: warn
