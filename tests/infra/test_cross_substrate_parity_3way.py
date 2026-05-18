@@ -96,6 +96,23 @@ EXPECTED_BINARIES_9 = (
 # ADR-0066 §Welle-Sequenz.
 RESOLVER_KNOWN_EXTRAS = ("federation-resolver",)
 
+# Tag-33 Mini-Welle additions to the Cosign-Policy + Quadlet-Installer
+# (ADR-0066 Welle-4..7 dedicated single-binary images). These four
+# names appear in the Cosign-Policy `binaries:` list and as regex-
+# matched strings in the Quadlet-Installer comment header (they do
+# NOT appear in the Quadlet `Exec=` install-loop — the Welle-4..7
+# cutover steps deploy them via per-Welle dedicated Quadlets in
+# subsequent Mini-Wellen). They do NOT appear in
+# rust_backend_switch.py (no dedicated DEFAULT_RUST_*_WELLEN_BIN
+# constants — the cutover step re-uses the existing
+# DEFAULT_RUST_*_BIN constants of the Carrier-Image siblings).
+COSIGN_QUADLET_KNOWN_EXTRAS = (
+    "state-backing-welle4",
+    "fsm-welle5",
+    "subscribe-loop-welle6",
+    "recovery-welle7",
+)
+
 
 def _resolver_default_bin_basenames() -> set[str]:
     """Extract the binary basenames from the
@@ -181,21 +198,28 @@ def test_three_way_inventory_agreement(
     """
     canon = set(EXPECTED_BINARIES_9)
     known_extras = set(RESOLVER_KNOWN_EXTRAS)
+    cosign_quadlet_extras = set(COSIGN_QUADLET_KNOWN_EXTRAS)
     resolver_phase_3b = resolver_basenames - known_extras
 
     # Each substrate is exactly the canonical 9 (after extras are
-    # removed from the resolver).
-    assert cosign_basenames == canon, (
+    # removed from the resolver, and after the Tag-33 Welle-4..7
+    # dedicated single-binary additions are removed from Cosign +
+    # Quadlet). The Cosign + Quadlet known-extras live in BOTH
+    # files (one substrate per file); the resolver known-extras live
+    # only in rust_backend_switch.py.
+    cosign_phase_3b = cosign_basenames - cosign_quadlet_extras
+    quadlet_phase_3b = quadlet_basenames_set - cosign_quadlet_extras
+    assert cosign_phase_3b == canon, (
         f"Cosign-Policy inventory drift: expected {sorted(canon)}, "
-        f"got {sorted(cosign_basenames)}. Missing="
-        f"{sorted(canon - cosign_basenames)}, extra="
-        f"{sorted(cosign_basenames - canon)}."
+        f"got {sorted(cosign_phase_3b)}. Missing="
+        f"{sorted(canon - cosign_phase_3b)}, extra="
+        f"{sorted(cosign_phase_3b - canon)}."
     )
-    assert quadlet_basenames_set == canon, (
+    assert quadlet_phase_3b == canon, (
         f"Quadlet-Installer inventory drift: expected {sorted(canon)}, "
-        f"got {sorted(quadlet_basenames_set)}. Missing="
-        f"{sorted(canon - quadlet_basenames_set)}, extra="
-        f"{sorted(quadlet_basenames_set - canon)}."
+        f"got {sorted(quadlet_phase_3b)}. Missing="
+        f"{sorted(canon - quadlet_phase_3b)}, extra="
+        f"{sorted(quadlet_phase_3b - canon)}."
     )
     assert resolver_phase_3b == canon, (
         "Backend-Switch resolver inventory drift (Phase-3b-scoped, "
@@ -208,20 +232,23 @@ def test_three_way_inventory_agreement(
     # And: the three substrates agree pairwise. Redundant given the
     # three asserts above, but the redundancy is intentional — a
     # future refactor that loosens one of the above assertions MUST
-    # still preserve cross-substrate pairwise agreement.
+    # still preserve cross-substrate pairwise agreement. Tag-33
+    # Mini-Welle: Cosign ↔ Quadlet must agree on the FULL set
+    # (canonical 9 + Welle-4..7 extras = 13 items); Cosign and
+    # Quadlet ↔ Resolver agree on the Phase-3b-scoped canonical 9.
     assert cosign_basenames == quadlet_basenames_set, (
         "Cosign ↔ Quadlet pairwise drift: "
         f"cosign={sorted(cosign_basenames)}, "
         f"quadlet={sorted(quadlet_basenames_set)}"
     )
-    assert cosign_basenames == resolver_phase_3b, (
+    assert cosign_phase_3b == resolver_phase_3b, (
         "Cosign ↔ Resolver (Phase-3b-scoped) pairwise drift: "
-        f"cosign={sorted(cosign_basenames)}, "
+        f"cosign={sorted(cosign_phase_3b)}, "
         f"resolver={sorted(resolver_phase_3b)}"
     )
-    assert quadlet_basenames_set == resolver_phase_3b, (
+    assert quadlet_phase_3b == resolver_phase_3b, (
         "Quadlet ↔ Resolver (Phase-3b-scoped) pairwise drift: "
-        f"quadlet={sorted(quadlet_basenames_set)}, "
+        f"quadlet={sorted(quadlet_phase_3b)}, "
         f"resolver={sorted(resolver_phase_3b)}"
     )
 
@@ -332,11 +359,27 @@ def test_inventory_constant_matches_cosign_policy_tuple() -> None:
         re.findall(r'"([a-z0-9-]+)"', m.group(1))
     )
 
-    assert sibling_names == EXPECTED_BINARIES_9, (
+    # Tag-33 Mini-Welle: the sibling EXPECTED_BINARIES tuple grew
+    # from 9 to 13 with the Welle-4..7 dedicated single-binary
+    # additions (`state-backing-welle4`, `fsm-welle5`,
+    # `subscribe-loop-welle6`, `recovery-welle7`). The first 9 entries
+    # must still equal the canonical 9-set, and the remaining entries
+    # must equal the COSIGN_QUADLET_KNOWN_EXTRAS tuple in this file.
+    sibling_canonical_9 = sibling_names[: len(EXPECTED_BINARIES_9)]
+    sibling_extras = sibling_names[len(EXPECTED_BINARIES_9) :]
+    assert sibling_canonical_9 == EXPECTED_BINARIES_9, (
         "Inventory-constant drift between this test file and the "
-        f"sibling cosign-policy test. local={EXPECTED_BINARIES_9}, "
-        f"sibling={sibling_names}. A Mini-Welle MUST update both "
-        "tuples in lock-step."
+        f"sibling cosign-policy test (canonical 9). "
+        f"local={EXPECTED_BINARIES_9}, "
+        f"sibling[:9]={sibling_canonical_9}. A Mini-Welle MUST "
+        "update both tuples in lock-step."
+    )
+    assert sibling_extras == COSIGN_QUADLET_KNOWN_EXTRAS, (
+        "Tag-33 Welle-4..7 extras drift between this test file's "
+        "COSIGN_QUADLET_KNOWN_EXTRAS and the sibling cosign-policy "
+        f"test's EXPECTED_BINARIES tail. "
+        f"local={COSIGN_QUADLET_KNOWN_EXTRAS}, "
+        f"sibling[9:]={sibling_extras}."
     )
 
 

@@ -102,6 +102,16 @@ publish = false
 name = "persona_engine_state_backing"
 path = "src/lib.rs"
 
+# Operator-CLI binary: surface the state-backing schema/key constants
+# to operator scripts. Subcommands: `info` (constants + key formats),
+# `--version`, `--help`. Tag-33 Mini-Welle, ADR-0066 Welle-4
+# `state_backing` pre-cutover image. Parity with the
+# `wakir-persona-engine-svid-workload-identity` and
+# `wakir-persona-engine-bridge-audit-writer` operator-CLI surface.
+[[bin]]
+name = "wakir-persona-engine-state-backing"
+path = "src/main.rs"
+
 [dependencies]
 # Phase-3a production NATS client surface (smoke-tests do not exercise it).
 async-nats = "=0.48.0"

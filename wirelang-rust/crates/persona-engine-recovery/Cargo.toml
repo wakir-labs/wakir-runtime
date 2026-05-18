@@ -77,6 +77,16 @@ publish = false
 name = "persona_engine_recovery"
 path = "src/lib.rs"
 
+# Operator-CLI binary: surface the R1..R4 recovery-workflow spec
+# (phase-order + budget + soft-caps + canonical schema) to operator
+# scripts. Subcommands: `info`, `--version`, `--help`. Tag-33
+# Mini-Welle, ADR-0066 Welle-7 `recovery_workflow` pre-cutover
+# image. Parity with the `wakir-persona-engine-state-backing` and
+# `wakir-persona-engine-fsm` operator-CLI surface.
+[[bin]]
+name = "wakir-persona-engine-recovery"
+path = "src/main.rs"
+
 [dependencies]
 tokio = { version = "=1.52.3", features = ["rt-multi-thread", "macros", "sync", "time"] }
 chrono = { version = "=0.4.44", default-features = false, features = ["clock", "std"] }

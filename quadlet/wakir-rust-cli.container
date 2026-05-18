@@ -26,6 +26,32 @@
 # (test_cross_substrate_parity_with_quadlet_installer) enforces
 # lock-step agreement with the Cosign-Policy YAML.
 #
+# Tag-33 Mini-Welle update (ADR-0066 Welle-4-7 image-build bundle)
+# ----------------------------------------------------------------
+# Inventory extended from 9 to 13 binaries in lock-step with the
+# Cosign-Policy Tag-33 update. Four additions in a single Mini-Welle
+# bundle — dedicated single-binary images for the Welle-4..7
+# cutover steps (the carrier image at the bottom of this Quadlet
+# unit continues to ship the same nine binaries; the four Tag-33
+# additions are pinned by the Welle-4..7 cutover steps INDEPENDENTLY
+# of this Quadlet via dedicated per-Welle Quadlets that the cutover
+# Mini-Wellen will land):
+#
+#   * ``wakir-persona-engine-state-backing-welle4`` (Tag-33 Welle-4)
+#   * ``wakir-persona-engine-fsm-welle5`` (Tag-33 Welle-5, the
+#     `lifecycle-state-machine` substrate)
+#   * ``wakir-persona-engine-subscribe-loop-welle6`` (Tag-33 Welle-6)
+#   * ``wakir-persona-engine-recovery-welle7`` (Tag-33 Welle-7, the
+#     `recovery-workflow` substrate)
+#
+# Same Sigstore-keyless-OIDC verification pattern as the prior nine
+# binaries; the cross-substrate parity test
+# (test_cross_substrate_parity_with_quadlet_installer) enforces
+# lock-step agreement with the Cosign-Policy YAML. The Exec= line
+# below does NOT install the four Tag-33 single-binary additions —
+# those are deployed via per-Welle dedicated Quadlets in the
+# Welle-4..7 cutover Mini-Wellen.
+#
 # Tag-31 Mini-Welle update (ADR-0066 Welle-3 image-build)
 # -------------------------------------------------------
 # Inventory extended from 8 to 9 binaries in lock-step with the

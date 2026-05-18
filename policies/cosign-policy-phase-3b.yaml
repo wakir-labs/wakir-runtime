@@ -45,6 +45,41 @@
 # parity test (test_cross_substrate_parity_with_quadlet_installer)
 # enforces lock-step agreement with the Quadlet installer.
 #
+# Tag-33 Mini-Welle update (ADR-0066 Welle-4-7 image-build bundle)
+# ----------------------------------------------------------------
+# Inventory extended from 9 to 13 binaries in lock-step with the
+# Tag-33 Quadlet installer update. Four additions in a single
+# Mini-Welle bundle:
+#
+#   * ``state-backing-welle4`` (Tag-33 Mini-Welle, ADR-0066 Welle-4
+#     pre-cutover image — NATS-KV Persona-State-Backing operator-CLI.
+#     Crate `persona-engine-state-backing` adds an `[[bin]]` target
+#     producing `wakir-persona-engine-state-backing`. Ships at
+#     ``/opt/wakir/bin/wakir-persona-engine-state-backing-welle4``).
+#   * ``fsm-welle5`` (Tag-33 Mini-Welle, ADR-0066 Welle-5 pre-cutover
+#     image — lifecycle FSM operator-CLI. Crate `persona-engine-fsm`
+#     adds an `[[bin]]` target producing `wakir-persona-engine-fsm`.
+#     Ships at ``/opt/wakir/bin/wakir-persona-engine-fsm-welle5``).
+#   * ``subscribe-loop-welle6`` (Tag-33 Mini-Welle, ADR-0066 Welle-6
+#     pre-cutover image — NATS-JetStream subscribe-loop operator-CLI.
+#     Crate `persona-engine-subscribe-loop` adds an `[[bin]]` target
+#     producing `wakir-persona-engine-subscribe-loop`. The Tag-22
+#     subscribe-loop binary already shipped in the carrier image; the
+#     Tag-33 entry adds the dedicated single-binary image for the
+#     Welle-6 cutover step. Ships at
+#     ``/opt/wakir/bin/wakir-persona-engine-subscribe-loop-welle6``).
+#   * ``recovery-welle7`` (Tag-33 Mini-Welle, ADR-0066 Welle-7
+#     pre-cutover image — R1..R4 recovery-workflow operator-CLI.
+#     Crate `persona-engine-recovery` adds an `[[bin]]` target
+#     producing `wakir-persona-engine-recovery`. Ships at
+#     ``/opt/wakir/bin/wakir-persona-engine-recovery-welle7``).
+#
+# Same Sigstore-keyless-OIDC verification pattern as the prior nine
+# — same carrier image, same build workflow, same digest-resolver
+# propagation. The cross-substrate parity test
+# (test_cross_substrate_parity_with_quadlet_installer) enforces
+# lock-step agreement with the Quadlet installer.
+#
 # Tag-31 Mini-Welle update (ADR-0066 Welle-3 image-build)
 # -------------------------------------------------------
 # Inventory extended from 8 to 9 binaries in lock-step with the
@@ -95,14 +130,14 @@
 #
 # Posture
 # -------
-# The 9 binaries are NOT free-standing artefacts — they ship inside
+# The 13 binaries are NOT free-standing artefacts — they ship inside
 # the published ``ghcr.io/wakir-labs/wakir-persona-engine`` image
 # (Containerfile.real, Sprint-Pengine-13+, BSL-1.1) at the canonical
 # ``/opt/wakir/bin/wakir-persona-engine-<component>`` paths declared
 # by ``wirelang/persona_engine/rust_backend_switch.py`` defaults.
 # The image is keyless-signed via Sigstore against the GitHub-Actions
 # OIDC identity of ``.github/workflows/build-wakir-persona-engine.yml``;
-# verifying the image therefore transitively verifies the 9 binaries.
+# verifying the image therefore transitively verifies the 13 binaries.
 #
 # Why keyless and not a pinned ``cosign.pub``: the WAT-Pipeline-Server
 # substrate-pattern from ADR-0034 uses Sigstore-keyless throughout
@@ -126,11 +161,16 @@ schema_version: wakir.cosign-policy.phase-3b/1
 policy:
   name: phase-3b-rust-cli-binaries
   description: >
-    Cosign-keyless verification policy for the nine Phase-3b Rust-CLI
-    binaries that the persona-engine production-default switch
-    subprocess-bridges to (recovery, state-backing, fsm, v907-verify,
-    bridge-diff, subscribe-loop, anchor-emitter, svid-workload-identity,
-    bridge-audit-writer).
+    Cosign-keyless verification policy for the thirteen Phase-3b
+    Rust-CLI binaries that the persona-engine production-default
+    switch subprocess-bridges to. The first nine (recovery, state-
+    backing, fsm, v907-verify, bridge-diff, subscribe-loop,
+    anchor-emitter, svid-workload-identity, bridge-audit-writer)
+    landed Tag-17 through Tag-31; the Tag-33 Mini-Welle adds the
+    dedicated single-binary images for the Welle-4..7 cutover steps
+    (state-backing, lifecycle-state-machine, subscribe-loop and
+    recovery-workflow). Inventory order in `binaries:` below follows
+    chronological landing order across Tag-17..Tag-33.
 
   # Sigstore-keyless OIDC identity of the GitHub-Actions runner that
   # builds and signs the carrier image. Same shape as the Sprint-9
@@ -306,6 +346,100 @@ binaries:
       ships in the same crate as the replay_cli — emit-side (this
       binary) and replay-side (replay_cli) share the AuditRecord
       envelope source-of-truth.
+
+  # ------------------------------------------------------------------
+  # Tag-33 Mini-Welle additions (ADR-0066 Welle-4..7 image-build bundle)
+  # ------------------------------------------------------------------
+  # The four entries below add the Welle-4..7 pre-cutover single-binary
+  # images. The carrier image (wakir-persona-engine) ships the same nine
+  # binaries from the prior waves at the same in_image_path locations;
+  # the Tag-33 additions are dedicated single-binary images that the
+  # Welle-4..7 cutover steps pin against in the Quadlet unit and via
+  # the persona-engine production-default switch. The crate_path for
+  # state-backing, fsm, subscribe-loop and recovery already existed
+  # (Sprint-Pengine-8 + sibling waves landed the library scaffolds);
+  # the Tag-33 Mini-Welle adds the `[[bin]]` target + the dedicated
+  # build workflow + the Containerfile.
+
+  - name: state-backing-welle4
+    component: persona-engine-state-backing-welle4
+    crate_path: wirelang-rust/crates/persona-engine-state-backing
+    in_image_path: /opt/wakir/bin/wakir-persona-engine-state-backing-welle4
+    env_switch: WAKIR_STATE_BACKING_BACKEND
+    env_switch_value: rust_inmemory|rust_natskv
+    env_binary_override: WAKIR_RUST_STATE_BACKING_BIN
+    landed_pr: 'Tag-33 Mini-Welle'
+    landed_tag: Tag-33 Mini-Welle
+    purpose: >
+      ADR-0066 Welle-4 pre-cutover single-binary image
+      (wakir-persona-engine-state-backing-welle4). Surfaces the
+      canonical NATS-KV key-prefix constants (STATE_PACK_KEY_PREFIX,
+      OFFSET_KEY_WIDTH, PINNED_KEY, NEXT_OFFSET_KEY, LATEST_KEY) and
+      the offset_key(off) zero-padded formatter. Schema-parity with
+      wirelang/persona_engine/state_backing.py. Subcommand surface:
+      info | offset-key OFFSET | --version | --help. The "-welle4"
+      suffix distinguishes the dedicated single-binary image from
+      the Tag-17 Carrier-Image variant of the same binary (both
+      ship the same Rust crate; the Tag-33 single-binary image is
+      pinned by the Welle-4 cutover step independently of the
+      Carrier-Image digest).
+
+  - name: fsm-welle5
+    component: persona-engine-fsm-welle5
+    crate_path: wirelang-rust/crates/persona-engine-fsm
+    in_image_path: /opt/wakir/bin/wakir-persona-engine-fsm-welle5
+    env_switch: WAKIR_FSM_BACKEND
+    env_switch_value: rust
+    env_binary_override: WAKIR_RUST_FSM_BIN
+    landed_pr: 'Tag-33 Mini-Welle'
+    landed_tag: Tag-33 Mini-Welle
+    purpose: >
+      ADR-0066 Welle-5 pre-cutover single-binary image
+      (wakir-persona-engine-fsm-welle5). Surfaces the canonical
+      six-state, nine-transition lifecycle envelope from
+      persona-engine-format-spec §3.3 plus a validate FROM TO
+      subcommand that returns exit-code 0 / 3 / 64 for accepted /
+      rejected / malformed transitions. Schema-parity with
+      wirelang/persona_engine/lifecycle_state_machine.py. Subcommand
+      surface: info | validate FROM TO | --version | --help.
+
+  - name: subscribe-loop-welle6
+    component: persona-engine-subscribe-loop-welle6
+    crate_path: wirelang-rust/crates/persona-engine-subscribe-loop
+    in_image_path: /opt/wakir/bin/wakir-persona-engine-subscribe-loop-welle6
+    env_switch: WAKIR_SUBSCRIBE_LOOP_BACKEND
+    env_switch_value: rust
+    env_binary_override: WAKIR_RUST_SUBSCRIBE_LOOP_BIN
+    landed_pr: 'Tag-33 Mini-Welle'
+    landed_tag: Tag-33 Mini-Welle
+    purpose: >
+      ADR-0066 Welle-6 pre-cutover single-binary image
+      (wakir-persona-engine-subscribe-loop-welle6). Surfaces the
+      canonical NATS-JetStream subscribe-loop schema constants (inbound
+      wakir.agent.task-assigned/1, outbound wakir.agent.task-output/1,
+      ack-record wakir.persona-engine.subscribe-ack/1), the NATS-subject
+      template (wakir.{env}.agent.agent.task.assigned.{persona_slug})
+      and the five valid outcome strings. Schema-parity with
+      wirelang/persona_engine/subscribe_loop.py. Subcommand surface:
+      info | build-subject ENV PERSONA_SLUG | --version | --help.
+
+  - name: recovery-welle7
+    component: persona-engine-recovery-welle7
+    crate_path: wirelang-rust/crates/persona-engine-recovery
+    in_image_path: /opt/wakir/bin/wakir-persona-engine-recovery-welle7
+    env_switch: WAKIR_RECOVERY_BACKEND
+    env_switch_value: rust
+    env_binary_override: WAKIR_RUST_RECOVERY_BIN
+    landed_pr: 'Tag-33 Mini-Welle'
+    landed_tag: Tag-33 Mini-Welle
+    purpose: >
+      ADR-0066 Welle-7 pre-cutover single-binary image
+      (wakir-persona-engine-recovery-welle7). Surfaces the canonical
+      R1..R4 recovery-workflow phase-order, the 30-second total
+      recovery budget, the per-phase soft-cap seconds and the
+      canonical recovery-outcome schema string. Schema-parity with
+      wirelang/persona_engine/recovery_workflow.py. Subcommand
+      surface: info | soft-cap PHASE | --version | --help.
 
 # Operator-Hand verification recipe (human-readable canonical
 # anchor; the prose recipe lives in

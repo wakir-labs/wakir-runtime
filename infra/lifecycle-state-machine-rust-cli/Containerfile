@@ -1,0 +1,124 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# This Containerfile and the image it produces are part of the Wakir
+# persona-engine runtime substrate. Licensed under the Business
+# Source License 1.1; see ../persona-engine/LICENSE-BSL.md (shared
+# substrate licence file for all persona-engine container images).
+# Change Date: 2030-05-15 (parity with the persona-engine image).
+# Change License: Apache License 2.0.
+#
+# wakir-persona-engine-fsm — Rust-CLI runtime image for the
+# lifecycle state-machine operator-CLI (Tag-33 Mini-Welle, ADR-0066
+# Welle-5 `lifecycle_state_machine` pre-cutover image, parallel to
+# Welle-1 V907-verify, Welle-2 SVID-workload-identity, Welle-3
+# bridge-audit-writer and Welle-4 state-backing image-builds).
+#
+# Substrate scope
+# ---------------
+#
+# ADR-0066 (approved 2026-05-17) accelerates Phase-3c to 4 weeks
+# (Option A+). **Welle-5 is `lifecycle_state_machine`**: the fourth-
+# lowest-blast-radius write-side surface scheduled to flip from
+# Python-backend default to Rust-backend default. This image is the
+# substrate the cutover step will pin against in the Quadlet unit and
+# in the `persona-engine` image's `WAKIR_FSM_BACKEND=rust` operator-
+# flag pathway.
+#
+# The binary itself (`wakir-persona-engine-fsm`) surfaces the
+# canonical six-state, nine-transition lifecycle envelope from
+# persona-engine-format-spec §3.3 plus a `validate FROM TO`
+# subcommand that returns exit-code 0 / 3 / 64 for accepted /
+# rejected / malformed transitions. Byte-identical against the
+# Python pendant `wirelang.persona_engine.lifecycle_state_machine` —
+# see `wirelang-rust/crates/persona-engine-fsm/src/main.rs` for the
+# subcommand surface (`info | validate FROM TO | --version | --help`).
+#
+# Multi-stage build
+# -----------------
+#
+# Stage 1 (builder, `rust:1.85-slim-bookworm`) compiles the
+# `wakir-persona-engine-fsm` binary in `--release` mode. We pin the
+# base image to the workspace's `rust-version = "1.85"` (see
+# `wirelang-rust/Cargo.toml`). The release profile is workspace-
+# configured for `lto = "thin"`, `codegen-units = 1`, `strip =
+# "symbols"`.
+#
+# Stage 2 (runtime, `gcr.io/distroless/cc-debian12:nonroot`) carries
+# only the binary plus a CA bundle (inherited from distroless-cc).
+# No shell, no package manager, no Python — the attack surface is
+# the Rust binary plus distroless glibc only.
+#
+# Why distroless-cc and not scratch
+# ---------------------------------
+#
+# Parity with the V907-verify, SVID-workload-identity,
+# bridge-audit-writer and state-backing image-builds.
+#
+# OCI provenance + Cosign signing
+# -------------------------------
+#
+# Build path: ``.github/workflows/build-rust-cli-lifecycle-state-machine.yml``
+# (Operator-Hand ``workflow_dispatch`` only; the
+# ``inputs.push='true'`` opt-in pushes to
+# ``ghcr.io/wakir-labs/wakir-persona-engine-fsm:<tag>`` and
+# Sigstore-keyless-signs the resulting digest against the
+# GitHub-Actions OIDC identity).
+#
+# Cross-references
+# ----------------
+#
+# - ADR-0066 §Phase-3c Welle-5 `lifecycle_state_machine` (approved
+#   2026-05-17).
+# - ADR-0065 §Welle-5 listing.
+# - ADR-0060 — Cosign-Policy on Pilot-Container-Images.
+# - persona-engine-format-spec §3.3 — six-state, nine-transition
+#   envelope.
+
+# ----------------------------------------------------------------------
+# Stage 1 — Rust release builder
+# ----------------------------------------------------------------------
+
+FROM docker.io/library/rust:1.85-slim-bookworm@sha256:DIGEST_PENDING_KAI_REVIEW AS builder
+
+WORKDIR /build
+
+COPY wirelang-rust /build/wirelang-rust
+
+WORKDIR /build/wirelang-rust
+
+RUN cargo build --release \
+        -p persona-engine-fsm \
+        --bin wakir-persona-engine-fsm
+
+RUN apt-get update -qq \
+    && apt-get install -y --no-install-recommends binutils \
+    && strip --strip-unneeded \
+        /build/wirelang-rust/target/release/wakir-persona-engine-fsm \
+    && apt-get purge -y binutils \
+    && rm -rf /var/lib/apt/lists/*
+
+# ----------------------------------------------------------------------
+# Stage 2 — distroless runtime
+# ----------------------------------------------------------------------
+
+FROM gcr.io/distroless/cc-debian12:nonroot@sha256:DIGEST_PENDING_KAI_REVIEW
+
+LABEL org.opencontainers.image.title="wakir-persona-engine-fsm"
+LABEL org.opencontainers.image.description="Rust-CLI for the persona-engine lifecycle state-machine operator surface (six states, nine transitions, spec §3.3). ADR-0066 Welle-5 pre-cutover image (Tag-33 Mini-Welle, 2026-05-18)."
+LABEL org.opencontainers.image.version="0.1.0-pilot"
+LABEL org.opencontainers.image.licenses="BUSL-1.1"
+LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"
+LABEL org.opencontainers.image.url="https://github.com/wakir-labs/wakir-runtime"
+LABEL org.opencontainers.image.documentation="https://github.com/wakir-labs/wakir-runtime/blob/main/docs/operations/lifecycle-state-machine-image-build.md"
+
+COPY --from=builder \
+    /build/wirelang-rust/target/release/wakir-persona-engine-fsm \
+    /usr/local/bin/wakir-persona-engine-fsm
+
+USER nonroot:nonroot
+
+# The CLI exits with documented codes (0=info / validate accepted /
+# help / version, 1=internal error, 3=validate rejected, 64=usage-
+# error).
+ENTRYPOINT ["/usr/local/bin/wakir-persona-engine-fsm"]
