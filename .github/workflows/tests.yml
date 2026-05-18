@@ -67,6 +67,9 @@ on:
       - 'dashboards/**'
       - 'docs/**'
       - 'wirelang-rust/**'
+      # Tag-32 EXT-AUDIT-FOLGE — pre-commit-hook artefacts.
+      - '.pre-commit-config.yaml'
+      - 'scripts/pre-commit-*.py'
   pull_request:
     paths:
       - 'wirelang/**'
@@ -77,6 +80,9 @@ on:
       - 'dashboards/**'
       - 'docs/**'
       - 'wirelang-rust/**'
+      # Tag-32 EXT-AUDIT-FOLGE — pre-commit-hook artefacts.
+      - '.pre-commit-config.yaml'
+      - 'scripts/pre-commit-*.py'
   workflow_dispatch: {}
 
 permissions:
