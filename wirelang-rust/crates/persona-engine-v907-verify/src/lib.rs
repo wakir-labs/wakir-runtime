@@ -582,3 +582,291 @@ mod unit_tests {
         assert!(matches!(err, PersonaHashError::Compute(_)));
     }
 }
+
+// =====================================================================
+// Canonical-trace cross-lang surface (Tag-35 Phase-3a 12. Modul)
+// =====================================================================
+
+/// Cross-lang canonical-trace surface for the V-907 engine-side verify.
+///
+/// This module pairs **byte-paritätisch** with the Python sibling
+/// [`wirelang.persona_engine.v907_verify_canonical`]. Both sides emit
+/// a JCS-canonical [`V907VerifyTrace`] per compute outcome so the
+/// Phase-3a 3-way-triangle (Doppelbetrieb-Vergleich) can diff
+/// Python-side and Rust-side engine-V-907-verify traces byte-for-byte
+/// without round-tripping through any other substrate.
+///
+/// # Schema
+///
+/// The canonical-trace carries exactly eight top-level fields
+/// (alphabetically sorted in the canonical form):
+///
+/// 1. `accepted_status` — `"ok"` / `"compute_error"`
+/// 2. `canonical_subset_jcs_sha256_hex` — SHA-256 hex of the JCS bytes
+///    of the engine-side canonical subset that was hashed for the pin.
+///    Empty string when `accepted_status != "ok"`.
+/// 3. `default_schema_version_used` — `true` iff the engine had to
+///    inject the `persona-v1` default because the front-matter omitted
+///    the `schema_version` key.
+/// 4. `error_class` — Error class name when non-`ok`.  Currently
+///    `"PersonaHashComputeError"` for any compute-side failure.
+/// 5. `optional_keys_present` — Comma-joined alphabetically-sorted list
+///    of recognised optional V-907 keys (`identity_pinned`,
+///    `capabilities`, `domain`, `reports_to`) that were lifted into
+///    the canonical subset.
+/// 6. `pin` — The freshly-computed pin (`"sha256:<64hex>"`) on `ok`.
+///    Empty string on `compute_error`.
+/// 7. `schema` — Constant schema id
+///    `"wakir.persona-engine.v907-verify-canonical/1"`.
+/// 8. `schema_version` — The effective `schema_version` after any
+///    defaulting.  Empty string on `compute_error`.
+///
+/// # Cross-lang anchor
+///
+/// The fixture file
+/// `tests/fixtures/v907-verify-cross-lang/fixtures.json` (repo root)
+/// is the byte-level cross-lang pin: both
+/// `wirelang/tests/persona_engine/test_v907_verify_cross_lang_parity.py`
+/// (Python) and
+/// `wirelang-rust/crates/persona-engine-v907-verify/tests/cross_lang_fixture_test.rs`
+/// (Rust) consume the same vectors.  Any drift on either side fails
+/// both suites.
+pub mod canonical {
+    use super::{compute_v907_pin_from_def, parse_persona_def, PersonaHashError};
+    use crate::DEFAULT_SCHEMA_VERSION;
+    use serde::{Deserialize, Serialize};
+    use serde_json::{Map, Value as JsonValue};
+    use sha2::{Digest, Sha256};
+
+    /// JCS-canonical schema id.  Cross-lang anchor — must match the
+    /// Python constant of the same name.
+    pub const V907_VERIFY_TRACE_SCHEMA: &str = "wakir.persona-engine.v907-verify-canonical/1";
+
+    /// Outer-hash prefix.  Cross-lang anchor.
+    pub const HASH_PREFIX: &str = "sha256:";
+
+    /// Length of a SHA-256 hex digest (32 bytes = 64 hex chars).
+    pub const SHA256_HEX_LEN: usize = 64;
+
+    /// Accepted-status: successful compute.  Wire-string `"ok"`.
+    pub const STATUS_OK: &str = "ok";
+    /// Accepted-status: any compute-side failure.  Wire-string
+    /// `"compute_error"`.
+    pub const STATUS_COMPUTE_ERROR: &str = "compute_error";
+
+    /// Error-class wire-string for compute-side failures.  Empty
+    /// string is reserved for the success path.
+    pub const ERROR_CLASS_COMPUTE: &str = "PersonaHashComputeError";
+
+    /// Recognised optional V-907 keys.  Declaration order matches
+    /// Python `ENGINE_OPTIONAL_KEYS` and Rust crate-root
+    /// [`crate::ENGINE_OPTIONAL_KEYS`].
+    pub const OPTIONAL_KEYS: &[&str] = crate::ENGINE_OPTIONAL_KEYS;
+
+    /// Structured canonical-trace projection of a V-907 engine-side
+    /// compute outcome.
+    ///
+    /// Fields are NOT in alphabetical order at the struct level (the
+    /// JCS canonicalisation re-sorts them lexicographically anyway).
+    /// The seven fields plus the constant `schema` field appear on
+    /// the wire in alphabetical order:
+    ///
+    /// 1. `accepted_status`
+    /// 2. `canonical_subset_jcs_sha256_hex`
+    /// 3. `default_schema_version_used`
+    /// 4. `error_class`
+    /// 5. `optional_keys_present`
+    /// 6. `pin`
+    /// 7. `schema`              (constant: [`V907_VERIFY_TRACE_SCHEMA`])
+    /// 8. `schema_version`
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct V907VerifyTrace {
+        /// Status discriminant.  One of [`STATUS_OK`],
+        /// [`STATUS_COMPUTE_ERROR`].
+        pub accepted_status: String,
+        /// SHA-256 hex of the JCS bytes of the engine-side canonical
+        /// subset that was hashed for the pin.  Empty string when
+        /// `accepted_status != "ok"`.
+        pub canonical_subset_jcs_sha256_hex: String,
+        /// `true` iff the engine defaulted `schema_version` to
+        /// [`crate::DEFAULT_SCHEMA_VERSION`].
+        pub default_schema_version_used: bool,
+        /// Error class name when non-`ok`.  Empty string on `ok`.
+        pub error_class: String,
+        /// Comma-joined alphabetically-sorted list of recognised
+        /// optional V-907 keys present.  Empty string on
+        /// `compute_error`.
+        pub optional_keys_present: String,
+        /// The freshly-computed pin (`"sha256:<64hex>"`).  Empty string
+        /// on `compute_error`.
+        pub pin: String,
+        /// The effective `schema_version` after any defaulting.  Empty
+        /// string on `compute_error`.
+        pub schema_version: String,
+    }
+
+    /// Build a canonical V-907-verify compute-outcome trace.
+    ///
+    /// Infallible at the trace-build layer: every compute outcome
+    /// (success or any compute-side failure) is captured as a
+    /// structured trace with the appropriate `accepted_status` and
+    /// `error_class` populated.  This is the cross-lang contract —
+    /// both Rust and Python must always return a trace, never raise,
+    /// so the fixture vectors can pin error paths just as easily as
+    /// success paths.
+    pub fn build_v907_verify_trace(md_text: &str) -> V907VerifyTrace {
+        // Step 1 — parse front-matter.
+        let def = match parse_persona_def(md_text) {
+            Ok(d) => d,
+            Err(_) => return error_trace(),
+        };
+
+        // Step 2 — determine effective schema_version and which
+        // optional keys are present.  Mirrors the canonical-subset
+        // construction block in `build_canonical_subset` (lib.rs)
+        // exactly; we re-compute here so we can capture the side
+        // info (default-used / optional-keys-present) for the trace.
+        let fm_obj = match def.frontmatter.as_object() {
+            Some(o) => o,
+            None => return error_trace(),
+        };
+
+        let (effective_schema, default_used) = match fm_obj.get("schema_version") {
+            Some(JsonValue::String(s)) if !s.is_empty() => (s.clone(), false),
+            _ => (DEFAULT_SCHEMA_VERSION.to_string(), true),
+        };
+
+        let mut present_keys: Vec<&str> = Vec::new();
+        for key in OPTIONAL_KEYS {
+            if fm_obj.contains_key(*key) {
+                present_keys.push(*key);
+            }
+        }
+        present_keys.sort();
+        let optional_keys_present = present_keys.join(",");
+
+        // Step 3 — re-build the canonical subset (matches lib.rs
+        // `build_canonical_subset`) so we can hash it independently
+        // for the `canonical_subset_jcs_sha256_hex` field.
+        let mut canonical_subset = Map::new();
+        canonical_subset.insert(
+            "schema_version".to_string(),
+            JsonValue::String(effective_schema.clone()),
+        );
+        for key in OPTIONAL_KEYS {
+            if let Some(v) = fm_obj.get(*key) {
+                canonical_subset.insert((*key).to_string(), v.clone());
+            }
+        }
+        let canonical_val = JsonValue::Object(canonical_subset);
+        let canonical_jcs = match serde_jcs::to_vec(&canonical_val) {
+            Ok(b) => b,
+            Err(_) => return error_trace(),
+        };
+        let canonical_sha = sha256_hex(&canonical_jcs);
+
+        // Step 4 — the pin via the existing crate-root path.
+        let pin = match compute_v907_pin_from_def(&def) {
+            Ok(p) => p,
+            Err(_) => return error_trace(),
+        };
+
+        V907VerifyTrace {
+            accepted_status: STATUS_OK.to_string(),
+            canonical_subset_jcs_sha256_hex: canonical_sha,
+            default_schema_version_used: default_used,
+            error_class: String::new(),
+            optional_keys_present,
+            pin,
+            schema_version: effective_schema,
+        }
+    }
+
+    /// Construct the canonical compute-error trace.  All compute-side
+    /// failures collapse onto this trace.
+    fn error_trace() -> V907VerifyTrace {
+        V907VerifyTrace {
+            accepted_status: STATUS_COMPUTE_ERROR.to_string(),
+            canonical_subset_jcs_sha256_hex: String::new(),
+            default_schema_version_used: false,
+            error_class: ERROR_CLASS_COMPUTE.to_string(),
+            optional_keys_present: String::new(),
+            pin: String::new(),
+            schema_version: String::new(),
+        }
+    }
+
+    /// Project a trace into its alphabetical wire-dict.  Keys appear in
+    /// alphabetical order at the wire level after JCS canonicalisation.
+    pub fn trace_to_wire_dict(trace: &V907VerifyTrace) -> JsonValue {
+        let mut m = Map::with_capacity(8);
+        m.insert(
+            "accepted_status".to_string(),
+            JsonValue::String(trace.accepted_status.clone()),
+        );
+        m.insert(
+            "canonical_subset_jcs_sha256_hex".to_string(),
+            JsonValue::String(trace.canonical_subset_jcs_sha256_hex.clone()),
+        );
+        m.insert(
+            "default_schema_version_used".to_string(),
+            JsonValue::Bool(trace.default_schema_version_used),
+        );
+        m.insert(
+            "error_class".to_string(),
+            JsonValue::String(trace.error_class.clone()),
+        );
+        m.insert(
+            "optional_keys_present".to_string(),
+            JsonValue::String(trace.optional_keys_present.clone()),
+        );
+        m.insert("pin".to_string(), JsonValue::String(trace.pin.clone()));
+        m.insert(
+            "schema".to_string(),
+            JsonValue::String(V907_VERIFY_TRACE_SCHEMA.to_string()),
+        );
+        m.insert(
+            "schema_version".to_string(),
+            JsonValue::String(trace.schema_version.clone()),
+        );
+        JsonValue::Object(m)
+    }
+
+    /// Serialise a trace to its JCS-canonical UTF-8 bytes.
+    pub fn serialize_trace(trace: &V907VerifyTrace) -> Vec<u8> {
+        // `unwrap` is justified: the wire-dict is a pure
+        // `Map<String, JsonValue>` of strings + a single bool — JCS
+        // canonicalisation is total over this domain.
+        serde_jcs::to_vec(&trace_to_wire_dict(trace))
+            .expect("trace wire-dict is always JCS-canonicalisable")
+    }
+
+    /// SHA-256 hex of the JCS bytes of `trace`.
+    pub fn trace_sha256_hex(trace: &V907VerifyTrace) -> String {
+        sha256_hex(&serialize_trace(trace))
+    }
+
+    /// Prefixed outer hash: `"sha256:" + trace_sha256_hex`.
+    pub fn trace_hash_prefixed(trace: &V907VerifyTrace) -> String {
+        let mut out = String::with_capacity(HASH_PREFIX.len() + SHA256_HEX_LEN);
+        out.push_str(HASH_PREFIX);
+        out.push_str(&trace_sha256_hex(trace));
+        out
+    }
+
+    fn sha256_hex(bytes: &[u8]) -> String {
+        let digest = Sha256::digest(bytes);
+        let mut s = String::with_capacity(SHA256_HEX_LEN);
+        for b in digest.iter() {
+            use std::fmt::Write as _;
+            let _ = write!(&mut s, "{:02x}", b);
+        }
+        s
+    }
+
+    // Suppress unused-import lint when `PersonaHashError` isn't needed
+    // outside the parse branches (it is brought in for completeness
+    // and to keep the surface symmetric with the lib.rs imports).
+    #[allow(dead_code)]
+    fn _silence_unused_import(_: PersonaHashError) {}
+}

@@ -1,0 +1,109 @@
+{
+  "_comment": "Cross-lang fixture vectors for the persona-engine V-907-verify canonical-trace (Tag-35 Mini-Welle Phase-3a Python-sync 12. Modul). The 'expected' block is the authoritative cross-lang pin: any drift on either side (Rust crate persona-engine-v907-verify canonical-trace surface or Python wirelang.persona_engine.v907_verify_canonical) must change every other side too. Six outcomes covered: SAMPLE_AXIS_A_MIN (V-907 pin pack anchor cf66fbc5...), SAMPLE_AXIS_A_NO_SCHEMA (schema default injection), SAMPLE_AXIS_A_CAPS (all four optional keys), SAMPLE_AXIS_A_DOMAIN_HR (mutation-drift anchor), missing-fence (compute_error error path), yaml-parse-error (compute_error error path). Pinned 2026-05-18.",
+  "schema_version": "wakir.persona-engine.v907-verify-canonical/1",
+  "fixed_ts_utc": "2026-05-18T00:00:00Z",
+  "fixtures": [
+    {
+      "name": "f01-sample-axis-a-min",
+      "input_md_b64": "LS0tCm5hbWU6IHRvbWFzCmRlc2NyaXB0aW9uOiBTYW1wbGUgdGVzdCBwZXJzb25hIGZvciBWLTkwNyBoYXNoaW5nCnNjaGVtYV92ZXJzaW9uOiBwZXJzb25hLXYxCmlkZW50aXR5X3Bpbm5lZDoKICBlbWFpbDogdG9tYXNAZXhhbXBsZS5jb20KZG9tYWluOiBkZXYtZW5naW5lZXJpbmcKLS0tCgpCb2R5IGNvbnRlbnQgaGVyZS4K",
+      "expected": {
+        "accepted_status": "ok",
+        "canonical_subset_jcs_sha256_hex": "cf66fbc5e02ebee97726d5903460e1c3b2b20d1e10db6db1083bceb62ede6e39",
+        "default_schema_version_used": false,
+        "error_class": "",
+        "optional_keys_present": "domain,identity_pinned",
+        "pin": "sha256:cf66fbc5e02ebee97726d5903460e1c3b2b20d1e10db6db1083bceb62ede6e39",
+        "schema_version": "persona-v1",
+        "trace_jcs_bytes_b64": "eyJhY2NlcHRlZF9zdGF0dXMiOiJvayIsImNhbm9uaWNhbF9zdWJzZXRfamNzX3NoYTI1Nl9oZXgiOiJjZjY2ZmJjNWUwMmViZWU5NzcyNmQ1OTAzNDYwZTFjM2IyYjIwZDFlMTBkYjZkYjEwODNiY2ViNjJlZGU2ZTM5IiwiZGVmYXVsdF9zY2hlbWFfdmVyc2lvbl91c2VkIjpmYWxzZSwiZXJyb3JfY2xhc3MiOiIiLCJvcHRpb25hbF9rZXlzX3ByZXNlbnQiOiJkb21haW4saWRlbnRpdHlfcGlubmVkIiwicGluIjoic2hhMjU2OmNmNjZmYmM1ZTAyZWJlZTk3NzI2ZDU5MDM0NjBlMWMzYjJiMjBkMWUxMGRiNmRiMTA4M2JjZWI2MmVkZTZlMzkiLCJzY2hlbWEiOiJ3YWtpci5wZXJzb25hLWVuZ2luZS52OTA3LXZlcmlmeS1jYW5vbmljYWwvMSIsInNjaGVtYV92ZXJzaW9uIjoicGVyc29uYS12MSJ9",
+        "trace_jcs_bytes_len": 393,
+        "trace_sha256_hex": "3601106bb08ba10c5816f9c9153b2155ad9ba3947f616ad89db4d6e0f71cdba8",
+        "trace_hash_prefixed": "sha256:3601106bb08ba10c5816f9c9153b2155ad9ba3947f616ad89db4d6e0f71cdba8"
+      }
+    },
+    {
+      "name": "f02-sample-axis-a-no-schema",
+      "input_md_b64": "LS0tCm5hbWU6IG1pbmltYWwKZGVzY3JpcHRpb246IG1pbmltYWwgd2l0aG91dCBzY2hlbWFfdmVyc2lvbiAtIHNob3VsZCBkZWZhdWx0IHRvIHBlcnNvbmEtdjEKaWRlbnRpdHlfcGlubmVkOgogIGVtYWlsOiBub3NjaGVtYUBleGFtcGxlLmNvbQotLS0KCmJvZHkK",
+      "expected": {
+        "accepted_status": "ok",
+        "canonical_subset_jcs_sha256_hex": "7d010ae80cb5265274633b5ee0f97ff7e91e939d7811af3f491acc34e2e5dc72",
+        "default_schema_version_used": true,
+        "error_class": "",
+        "optional_keys_present": "identity_pinned",
+        "pin": "sha256:7d010ae80cb5265274633b5ee0f97ff7e91e939d7811af3f491acc34e2e5dc72",
+        "schema_version": "persona-v1",
+        "trace_jcs_bytes_b64": "eyJhY2NlcHRlZF9zdGF0dXMiOiJvayIsImNhbm9uaWNhbF9zdWJzZXRfamNzX3NoYTI1Nl9oZXgiOiI3ZDAxMGFlODBjYjUyNjUyNzQ2MzNiNWVlMGY5N2ZmN2U5MWU5MzlkNzgxMWFmM2Y0OTFhY2MzNGUyZTVkYzcyIiwiZGVmYXVsdF9zY2hlbWFfdmVyc2lvbl91c2VkIjp0cnVlLCJlcnJvcl9jbGFzcyI6IiIsIm9wdGlvbmFsX2tleXNfcHJlc2VudCI6ImlkZW50aXR5X3Bpbm5lZCIsInBpbiI6InNoYTI1Njo3ZDAxMGFlODBjYjUyNjUyNzQ2MzNiNWVlMGY5N2ZmN2U5MWU5MzlkNzgxMWFmM2Y0OTFhY2MzNGUyZTVkYzcyIiwic2NoZW1hIjoid2FraXIucGVyc29uYS1lbmdpbmUudjkwNy12ZXJpZnktY2Fub25pY2FsLzEiLCJzY2hlbWFfdmVyc2lvbiI6InBlcnNvbmEtdjEifQ==",
+        "trace_jcs_bytes_len": 385,
+        "trace_sha256_hex": "20ac10a21be9e4842a6c58feaec8775e7e6f94035f643ba5f1bfe01232573762",
+        "trace_hash_prefixed": "sha256:20ac10a21be9e4842a6c58feaec8775e7e6f94035f643ba5f1bfe01232573762"
+      }
+    },
+    {
+      "name": "f03-sample-axis-a-caps",
+      "input_md_b64": "LS0tCm5hbWU6IGZ1bGwKZGVzY3JpcHRpb246IHBlcnNvbmEgd2l0aCBjYXBhYmlsaXRpZXMgKyByZXBvcnRzX3RvCnNjaGVtYV92ZXJzaW9uOiBwZXJzb25hLXYxCmlkZW50aXR5X3Bpbm5lZDoKICBlbWFpbDogZnVsbEBleGFtcGxlLmNvbQpjYXBhYmlsaXRpZXM6CiAgLSByZWFkCiAgLSB3cml0ZQpkb21haW46IGRldi1lbmdpbmVlcmluZwpyZXBvcnRzX3RvOiBjdG8KLS0tCgpib2R5Cg==",
+      "expected": {
+        "accepted_status": "ok",
+        "canonical_subset_jcs_sha256_hex": "a54726d2d39c438b4052e709fcf683caba7b1c34d01b2d59c7a0f9f876e07b8f",
+        "default_schema_version_used": false,
+        "error_class": "",
+        "optional_keys_present": "capabilities,domain,identity_pinned,reports_to",
+        "pin": "sha256:a54726d2d39c438b4052e709fcf683caba7b1c34d01b2d59c7a0f9f876e07b8f",
+        "schema_version": "persona-v1",
+        "trace_jcs_bytes_b64": "eyJhY2NlcHRlZF9zdGF0dXMiOiJvayIsImNhbm9uaWNhbF9zdWJzZXRfamNzX3NoYTI1Nl9oZXgiOiJhNTQ3MjZkMmQzOWM0MzhiNDA1MmU3MDlmY2Y2ODNjYWJhN2IxYzM0ZDAxYjJkNTljN2EwZjlmODc2ZTA3YjhmIiwiZGVmYXVsdF9zY2hlbWFfdmVyc2lvbl91c2VkIjpmYWxzZSwiZXJyb3JfY2xhc3MiOiIiLCJvcHRpb25hbF9rZXlzX3ByZXNlbnQiOiJjYXBhYmlsaXRpZXMsZG9tYWluLGlkZW50aXR5X3Bpbm5lZCxyZXBvcnRzX3RvIiwicGluIjoic2hhMjU2OmE1NDcyNmQyZDM5YzQzOGI0MDUyZTcwOWZjZjY4M2NhYmE3YjFjMzRkMDFiMmQ1OWM3YTBmOWY4NzZlMDdiOGYiLCJzY2hlbWEiOiJ3YWtpci5wZXJzb25hLWVuZ2luZS52OTA3LXZlcmlmeS1jYW5vbmljYWwvMSIsInNjaGVtYV92ZXJzaW9uIjoicGVyc29uYS12MSJ9",
+        "trace_jcs_bytes_len": 417,
+        "trace_sha256_hex": "6fb42e35fa8f5b0b6b6d38165d4e28e2ebe29da93ffddf0fadaf7c291b2e5f6a",
+        "trace_hash_prefixed": "sha256:6fb42e35fa8f5b0b6b6d38165d4e28e2ebe29da93ffddf0fadaf7c291b2e5f6a"
+      }
+    },
+    {
+      "name": "f04-sample-axis-a-domain-hr",
+      "input_md_b64": "LS0tCm5hbWU6IHRvbWFzCmRlc2NyaXB0aW9uOiBTYW1wbGUgdGVzdCBwZXJzb25hIGZvciBWLTkwNyBoYXNoaW5nCnNjaGVtYV92ZXJzaW9uOiBwZXJzb25hLXYxCmlkZW50aXR5X3Bpbm5lZDoKICBlbWFpbDogdG9tYXNAZXhhbXBsZS5jb20KZG9tYWluOiBocgotLS0KCkJvZHkgY29udGVudCBoZXJlLgo=",
+      "expected": {
+        "accepted_status": "ok",
+        "canonical_subset_jcs_sha256_hex": "72f51e64a410b6368230a200a09f0f3679e858bda59cbb7bb6c02b8d821fc0cb",
+        "default_schema_version_used": false,
+        "error_class": "",
+        "optional_keys_present": "domain,identity_pinned",
+        "pin": "sha256:72f51e64a410b6368230a200a09f0f3679e858bda59cbb7bb6c02b8d821fc0cb",
+        "schema_version": "persona-v1",
+        "trace_jcs_bytes_b64": "eyJhY2NlcHRlZF9zdGF0dXMiOiJvayIsImNhbm9uaWNhbF9zdWJzZXRfamNzX3NoYTI1Nl9oZXgiOiI3MmY1MWU2NGE0MTBiNjM2ODIzMGEyMDBhMDlmMGYzNjc5ZTg1OGJkYTU5Y2JiN2JiNmMwMmI4ZDgyMWZjMGNiIiwiZGVmYXVsdF9zY2hlbWFfdmVyc2lvbl91c2VkIjpmYWxzZSwiZXJyb3JfY2xhc3MiOiIiLCJvcHRpb25hbF9rZXlzX3ByZXNlbnQiOiJkb21haW4saWRlbnRpdHlfcGlubmVkIiwicGluIjoic2hhMjU2OjcyZjUxZTY0YTQxMGI2MzY4MjMwYTIwMGEwOWYwZjM2NzllODU4YmRhNTljYmI3YmI2YzAyYjhkODIxZmMwY2IiLCJzY2hlbWEiOiJ3YWtpci5wZXJzb25hLWVuZ2luZS52OTA3LXZlcmlmeS1jYW5vbmljYWwvMSIsInNjaGVtYV92ZXJzaW9uIjoicGVyc29uYS12MSJ9",
+        "trace_jcs_bytes_len": 393,
+        "trace_sha256_hex": "33cd9d930b81fbe86affce14f93cfda6b6da3600237eb86ea5fd2e359b8f6144",
+        "trace_hash_prefixed": "sha256:33cd9d930b81fbe86affce14f93cfda6b6da3600237eb86ea5fd2e359b8f6144"
+      }
+    },
+    {
+      "name": "f05-missing-fence-compute-error",
+      "input_md_b64": "LS0tCm5hbWU6IGJyb2tlbgpkZXNjcmlwdGlvbjogTm8gY2xvc2luZyBmZW5jZSBoZXJlLgpzY2hlbWFfdmVyc2lvbjogcGVyc29uYS12MQppZGVudGl0eV9waW5uZWQ6CiAgZW1haWw6IGJyb2tlbkBleGFtcGxlLmNvbQoKYm9keSB3aXRob3V0IGZlbmNlCg==",
+      "expected": {
+        "accepted_status": "compute_error",
+        "canonical_subset_jcs_sha256_hex": "",
+        "default_schema_version_used": false,
+        "error_class": "PersonaHashComputeError",
+        "optional_keys_present": "",
+        "pin": "",
+        "schema_version": "",
+        "trace_jcs_bytes_b64": "eyJhY2NlcHRlZF9zdGF0dXMiOiJjb21wdXRlX2Vycm9yIiwiY2Fub25pY2FsX3N1YnNldF9qY3Nfc2hhMjU2X2hleCI6IiIsImRlZmF1bHRfc2NoZW1hX3ZlcnNpb25fdXNlZCI6ZmFsc2UsImVycm9yX2NsYXNzIjoiUGVyc29uYUhhc2hDb21wdXRlRXJyb3IiLCJvcHRpb25hbF9rZXlzX3ByZXNlbnQiOiIiLCJwaW4iOiIiLCJzY2hlbWEiOiJ3YWtpci5wZXJzb25hLWVuZ2luZS52OTA3LXZlcmlmeS1jYW5vbmljYWwvMSIsInNjaGVtYV92ZXJzaW9uIjoiIn0=",
+        "trace_jcs_bytes_len": 260,
+        "trace_sha256_hex": "1acc9287209c93870be7e3f4a06c36bb44f04b2ba1e5b2f36f754888f75fe356",
+        "trace_hash_prefixed": "sha256:1acc9287209c93870be7e3f4a06c36bb44f04b2ba1e5b2f36f754888f75fe356"
+      }
+    },
+    {
+      "name": "f06-yaml-parse-error",
+      "input_md_b64": "LS0tCm5hbWU6IHlhbWwtYnJva2VuCmRlc2NyaXB0aW9uOiAidW50ZXJtaW5hdGVkIHN0cmluZwp0b29sczogW1JlYWRdCnNjaGVtYV92ZXJzaW9uOiBwZXJzb25hLXYxCi0tLQoKYm9keQo=",
+      "expected": {
+        "accepted_status": "compute_error",
+        "canonical_subset_jcs_sha256_hex": "",
+        "default_schema_version_used": false,
+        "error_class": "PersonaHashComputeError",
+        "optional_keys_present": "",
+        "pin": "",
+        "schema_version": "",
+        "trace_jcs_bytes_b64": "eyJhY2NlcHRlZF9zdGF0dXMiOiJjb21wdXRlX2Vycm9yIiwiY2Fub25pY2FsX3N1YnNldF9qY3Nfc2hhMjU2X2hleCI6IiIsImRlZmF1bHRfc2NoZW1hX3ZlcnNpb25fdXNlZCI6ZmFsc2UsImVycm9yX2NsYXNzIjoiUGVyc29uYUhhc2hDb21wdXRlRXJyb3IiLCJvcHRpb25hbF9rZXlzX3ByZXNlbnQiOiIiLCJwaW4iOiIiLCJzY2hlbWEiOiJ3YWtpci5wZXJzb25hLWVuZ2luZS52OTA3LXZlcmlmeS1jYW5vbmljYWwvMSIsInNjaGVtYV92ZXJzaW9uIjoiIn0=",
+        "trace_jcs_bytes_len": 260,
+        "trace_sha256_hex": "1acc9287209c93870be7e3f4a06c36bb44f04b2ba1e5b2f36f754888f75fe356",
+        "trace_hash_prefixed": "sha256:1acc9287209c93870be7e3f4a06c36bb44f04b2ba1e5b2f36f754888f75fe356"
+      }
+    }
+  ]
+}
