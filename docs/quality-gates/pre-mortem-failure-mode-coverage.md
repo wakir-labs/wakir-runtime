@@ -462,18 +462,19 @@ KW-25 blocker** and is excluded from the Tag-46 promotion-set.
 | # | PARTIAL-Item        | Tag-46 Spawn-Owner | Cross-Review | Canonical Follow-up artefact (or accepted alias)                | Status (2026-05-18 Tag-46 sweep-time)         |
 |---|---------------------|--------------------|--------------|-----------------------------------------------------------------|-----------------------------------------------|
 | 1 | A2 FSM-Phantom      | Reza               | Amara        | `test_fsm_transition_legality_marathon.py` (alias accepted: `test_fsm_phantom_transition_coverage_a2.py` at `wirelang/tests/persona_engine/`) | **COVERED via PR #295 (commit `dd691c7`)**     |
-| 2 | A6 Cosign-Drift     | Kai                | Amara        | `test_cosign_chain_marathon_image_hash_stability.py` (alias accepted: `test_cosign_chain_image_hash_stability_a6.py`) | PARTIAL — Tag-46 Kai spawn in flight          |
+| 2 | A6 Cosign-Drift     | Kai                | Amara        | `test_cosign_chain_marathon_image_hash_stability.py` (alias accepted: `test_cosign_chain_image_hash_stability_a6.py`, `test_cosign_drift_coverage_a6.py` at `tests/infra/`) | **COVERED via PR #298 (commit `22ff712`)**     |
 | 3 | A8 NATS-JetStream   | Selin              | Reza         | `test_welle_4_state_backing_persistence_loss.py` (alias accepted: `test_welle_4_jetstream_persistence_loss_a8.py`) | PARTIAL — Tag-46 Selin spawn in flight        |
 | 4 | B1 AR-Hand-Stop     | Tomás              | Amara        | `test_ar_hand_stop_marker_trigger_invariant.py` (alias accepted: `test_ar_hand_stop_marker_trigger_b1.py`) | PARTIAL — Tag-46 Tomás spawn in flight        |
 | 5 | B3 Welle-3 Pre-Aud  | (Tag-47+ deferred) | Henrik       | `test_welle_3_pre_auditor_designation_precondition.py` (alias accepted: `test_welle_3_pre_auditor_designation_b3.py`)         | **DEFERRED — KW-25 hard blocker (2026-06-15)**|
 
 **Layout-tolerance.** The sweep accepts follow-up files at any of:
 `tests/phase_3c/`, `wirelang/tests/persona_engine/`,
-`tests/persona_engine/`, or `tests/ci/`. The canonical Tag-45 §4
-placement is `tests/phase_3c/`; the persona-engine + CI placements
-are accepted aliases when the failure-mode-substance is more
-naturally pinned at the persona-engine module-level or the CI
-workflow-shape level.
+`tests/persona_engine/`, `tests/ci/`, or `tests/infra/`. The
+canonical Tag-45 §4 placement is `tests/phase_3c/`; the persona-
+engine + CI + infra placements are accepted aliases when the
+failure-mode-substance is more naturally pinned at the persona-
+engine module-level, CI workflow-shape level, or substrate-
+configuration level.
 
 ### Projected post-Tag-46 §3 summary (sweep recomputation)
 

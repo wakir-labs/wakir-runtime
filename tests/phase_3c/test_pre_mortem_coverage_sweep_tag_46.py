@@ -168,7 +168,8 @@ def _follow_up_test_present_anywhere(filename: str) -> bool:
       - ``tests/phase_3c/<filename>`` (Tag-45 §4 canonical)
       - ``wirelang/tests/persona_engine/<filename>`` (e.g. Reza A2 PR #295)
       - ``tests/persona_engine/<filename>`` (alternate persona-engine layout)
-      - ``tests/ci/<filename>`` (CI-shape layer, e.g. Kai A6 cosign-workflow tests)
+      - ``tests/ci/<filename>`` (CI-shape layer)
+      - ``tests/infra/<filename>`` (substrate-layer, e.g. Kai A6 PR #298 cosign)
 
     The sweep is layout-tolerant: any of these locations promotes the
     follow-up to COVERED. The canonical Tag-45 §4 location remains the
@@ -180,6 +181,7 @@ def _follow_up_test_present_anywhere(filename: str) -> bool:
         _repo_root() / "wirelang" / "tests" / "persona_engine",
         _repo_root() / "tests" / "persona_engine",
         _repo_root() / "tests" / "ci",
+        _repo_root() / "tests" / "infra",
     )
     for d in candidate_dirs:
         if (d / filename).is_file():
@@ -277,6 +279,8 @@ TAG46_FOLLOWUPS: Tuple[Tag46FollowUpItem, ...] = (
         follow_up_filenames=(
             "test_cosign_chain_marathon_image_hash_stability.py",
             "test_cosign_chain_image_hash_stability_a6.py",
+            # Kai Tag-46 PR #298 landed under this name at tests/infra/.
+            "test_cosign_drift_coverage_a6.py",
         ),
         cross_review_partner="Amara",
         rationale_keyword="cosign-marathon-image-hash-stability",
@@ -342,6 +346,7 @@ def _resolve_follow_up_path(filename: str) -> Optional[Path]:
         _repo_root() / "wirelang" / "tests" / "persona_engine",
         _repo_root() / "tests" / "persona_engine",
         _repo_root() / "tests" / "ci",
+        _repo_root() / "tests" / "infra",
     )
     for d in candidate_dirs:
         candidate = d / filename
