@@ -1,0 +1,186 @@
+{
+  "__comment": "Grafana dashboard for the Phase-3c Per-Welle Trend-Heatmap (Noa Bergstroem / SRE, Tag-48 Mini-Welle, 2026-05-19). Consumes the structured JSON heatmap envelope written by scripts/observability/per-welle-trend-heatmap.py into state/per-welle-heatmap/yyyy-mm-dd.json. The dashboard's primary panel is a JSON-driven heatmap-stat-table whose cell color reflects the per-Welle verdict glyph ('G' green, 'C' yellow, 'N' grey, 'B' red) and the aggregate verdict glyph ('R' green, 'X' red). The dashboard is the at-a-glance posture surface during the daily cutover-readiness huddle (2026-05-19 through 2026-06-07 cutover-window). Schema version targets Grafana 10.x (schemaVersion >= 38). Anchors: ADR-0065 Phase-3c cutover-plan; ADR-0066 Doppel-Welle ordering; Reza Tag-44 PR #285 Daily-Trend-Analyzer; Noa Tag-46 PR #296 Mira-Notify chain; Noa Tag-47 PR #302 Alert-Bridge.",
+  "title": "Wakir Persona-Engine - Per-Welle Trend Heatmap",
+  "uid": "wakir-per-welle-trend-heatmap",
+  "tags": ["wakir", "persona-engine", "sre", "phase-3c", "pre-cutover", "heatmap", "adr-0065", "adr-0066", "tag-48", "noa-sre"],
+  "schemaVersion": 38,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "refresh": "5m",
+  "templating": {
+    "list": [
+      {
+        "name": "row",
+        "label": "Row (Welle)",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prom"},
+        "query": "label_values(persona_engine_per_welle_heatmap_verdict, row_key)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true
+      },
+      {
+        "name": "window_days",
+        "label": "Window (days)",
+        "type": "custom",
+        "query": "7,14,21",
+        "current": {"text": "7", "value": "7"},
+        "includeAll": false,
+        "multi": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 100,
+      "type": "row",
+      "title": "Per-Welle Verdict Heatmap (Tag-48 Visualisation Layer)",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 1,
+      "type": "state-timeline",
+      "title": "Per-Welle Verdict Heatmap (last $window_days days)",
+      "description": "State-timeline panel where each row is a Welle (1..7) or the aggregate, and each tick is one daily-probe snapshot. Cell color reflects the verdict bucket: GREEN/READY=green, CAUTION=yellow, NOT-EXEC=grey, BLOCK/NOT-READY=red, MISSING=transparent. Source: state/per-welle-heatmap/yyyy-mm-dd.json (re-rendered each morning at 06:05 UTC by scripts/observability/per-welle-trend-heatmap.py). Time-range follows the dashboard time-picker.",
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 1},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_per_welle_heatmap_verdict{row_key=~\"$row\"}",
+          "refId": "A",
+          "legendFormat": "{{row_key}}"
+        }
+      ],
+      "options": {
+        "showValue": "always",
+        "alignValue": "center",
+        "mergeValues": false,
+        "rowHeight": 0.95,
+        "tooltip": {"mode": "multi"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 0,
+            "fillOpacity": 80
+          },
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "GREEN",     "color": "green"}}},
+            {"type": "value", "options": {"1": {"text": "CAUTION",   "color": "yellow"}}},
+            {"type": "value", "options": {"2": {"text": "NOT-EXEC",  "color": "grey"}}},
+            {"type": "value", "options": {"3": {"text": "BLOCK",     "color": "red"}}},
+            {"type": "value", "options": {"4": {"text": "READY",     "color": "green"}}},
+            {"type": "value", "options": {"5": {"text": "NOT-READY", "color": "red"}}},
+            {"type": "value", "options": {"-1": {"text": "MISSING",  "color": "transparent"}}}
+          ]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Days BLOCK in window (aggregate)",
+      "description": "Number of days in the window where the aggregate verdict was BLOCK. Sandbox-stub baseline is BLOCK on every day (Welle-7 IIA-1130 gate fires by design). A drop below baseline means probes are diverging from the expected sandbox-stub shape and needs Mira-Hand-Sichtung.",
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 13},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_per_welle_heatmap_summary_count{row_key=\"aggregate\",verdict=\"BLOCK\"}",
+          "refId": "A",
+          "legendFormat": "BLOCK days"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "yellow", "value": null},
+              {"color": "green", "value": 1}
+            ]
+          },
+          "min": 0
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Missing-day count in window",
+      "description": "Days in the window without a daily-probe snapshot. >0 means the daily-probe workflow (phase-3c-pre-cutover-daily-probe.yml) failed or didn't run that day. Red threshold at 2 to surface multi-day gaps.",
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 13},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_per_welle_heatmap_summary_count{row_key=\"aggregate\",verdict=\"MISSING\"}",
+          "refId": "A",
+          "legendFormat": "missing days"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 1},
+              {"color": "red", "value": 2}
+            ]
+          },
+          "min": 0
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Per-Welle stability (latest verdict count vs window)",
+      "description": "Per-Welle count of days in window matching the most-recent verdict. Mirrors the analyzer's stability_pct() metric in count-form for at-a-glance comparison. Healthy posture = all rows equal to window_days (i.e. no flips). Drops indicate verdict drift.",
+      "gridPos": {"h": 12, "w": 12, "x": 12, "y": 13},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_per_welle_heatmap_stability_match_count{row_key=~\"$row\"}",
+          "refId": "A",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{row_key}}"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {"Time": true, "__name__": true, "job": true, "instance": true},
+            "renameByName": {
+              "row_key": "Row",
+              "Value": "Match-count"
+            }
+          }
+        },
+        {"id": "sortBy", "options": {"fields": {}, "sort": [{"field": "Row", "desc": false}]}}
+      ]
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "name": "Tag-48 Heatmap Refresh",
+        "datasource": {"type": "prometheus", "uid": "prom"},
+        "enable": true,
+        "iconColor": "rgba(255, 96, 96, 1)",
+        "expr": "changes(persona_engine_per_welle_heatmap_render_timestamp_seconds[1d]) > 0",
+        "titleFormat": "Heatmap re-rendered",
+        "tagKeys": "row_key"
+      }
+    ]
+  }
+}
