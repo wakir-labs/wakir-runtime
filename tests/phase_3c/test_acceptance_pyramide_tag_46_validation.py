@@ -491,12 +491,20 @@ def test_pyramide_doc_section_0_table_names_all_five_file_paths() -> None:
 
 
 def test_pyramide_doc_section_0_owner_amara_all_five_layers() -> None:
-    """§0 table rows MUST attribute Amara as Owner on all five layers.
+    """§0 table rows MUST attribute Amara as Owner on every layer.
 
-    Pyramide ownership is a structural invariant: all five layers are
-    QA-domain artefacts (Layer-1..4 system-behaviour invariants +
-    Layer-5 coverage-meta-audit). Other personae cross-review but do
-    not own a layer.
+    Pyramide ownership is a structural invariant: all Pyramide-layers
+    are QA-domain artefacts (Layer-1..4 system-behaviour invariants,
+    Layer-5 coverage-meta-audit, Layer-6 defence-in-depth Run-Suite
+    when present per Tag-52). Other personae cross-review but do not
+    own a layer.
+
+    Tag-52 widens the assertion to ``>= 5`` because Layer-6 was added
+    additively; the canonical PYRAMIDE constant in this file still
+    defines five layers (1..5) and Layer-6 is tracked by the Tag-52
+    test-file `test_defence_in_depth_layer_6.py` itself. A separate
+    Tag-N follow-up will lift PYRAMIDE to six layers and tighten this
+    bound back to equality.
     """
     content = _coverage_doc_text()
     m = re.search(
@@ -507,13 +515,15 @@ def test_pyramide_doc_section_0_owner_amara_all_five_layers() -> None:
     assert m is not None
     section_0 = m.group(1)
     # Count "| Amara |" occurrences inside the pyramid-table.
-    # Five layers, one "Amara" per row -> exactly five "| Amara |" tokens.
+    # At minimum five Amara-owned rows (Tag-45 baseline); Tag-52
+    # additive Layer-6 row is permitted.
     amara_count = section_0.count("| Amara |")
-    assert amara_count == 5, (
-        f"§0 pyramid-table expected 5 'Amara' Owner-entries (one per layer); "
-        f"found {amara_count}. Doc-side ownership-anchor inconsistent — "
-        f"either a layer-row was removed/renamed or a non-Amara Owner was "
-        f"inserted."
+    assert amara_count >= 5, (
+        f"§0 pyramid-table expected >=5 'Amara' Owner-entries (one per "
+        f"baseline Pyramide-layer 1..5, plus optional Layer-6); found "
+        f"{amara_count}. Doc-side ownership-anchor inconsistent — "
+        f"either a layer-row was removed/renamed or a non-Amara Owner "
+        f"was inserted."
     )
 
 
