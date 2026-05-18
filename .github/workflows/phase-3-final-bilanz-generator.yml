@@ -53,6 +53,11 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install pytest
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest
+
       - name: Run tests
         run: |
           python3 -m pytest tests/observability/test_phase_3_final_bilanz_generator.py -v
