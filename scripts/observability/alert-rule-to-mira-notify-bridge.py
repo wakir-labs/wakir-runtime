@@ -229,6 +229,141 @@ ALERT_CATALOG: dict[str, dict[str, str]] = {
             "hot-spot-welle4-welle5-welle7-coupling"
         ),
     },
+    # Tag-50 Welle-N-Specific Alert-Rules (Section 5 of catalog).
+    # failure_mode_id encodes "Welle-N" for the welle-scoped alarms;
+    # this keeps the bridge audit-trail consistent with the per-welle
+    # group naming convention.
+    "WakirWelle1V907VerifyRustRateCollapse": {
+        "failure_mode_id": "Welle-1",
+        "severity": "page",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/welle-1-rust-rate-collapse"
+        ),
+    },
+    "WakirWelle1Welle2DoppelDivergence": {
+        "failure_mode_id": "Welle-1",
+        "severity": "warning",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/welle-1-2-doppel-divergence"
+        ),
+    },
+    "WakirWelle2SvidRotationFailure": {
+        "failure_mode_id": "Welle-2",
+        "severity": "page",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/welle-2-svid-rotation-failure"
+        ),
+    },
+    "WakirWelle2SelfScoreCollapse": {
+        "failure_mode_id": "Welle-2",
+        "severity": "page",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/welle-2-self-score-collapse"
+        ),
+    },
+    "WakirWelle3SelfReferenceTrapFire": {
+        "failure_mode_id": "Welle-3",
+        "severity": "page",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/"
+            "welle-3-self-reference-trap-fire"
+        ),
+    },
+    "WakirWelle3SoloTopologyViolation": {
+        "failure_mode_id": "Welle-3",
+        "severity": "page",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/"
+            "welle-3-solo-topology-violation"
+        ),
+    },
+    "WakirWelle3StressOracleDivergence": {
+        "failure_mode_id": "Welle-3",
+        "severity": "page",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/"
+            "welle-3-stress-oracle-divergence"
+        ),
+    },
+    "WakirWelle4StateReadFail": {
+        "failure_mode_id": "Welle-4",
+        "severity": "page",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/welle-4-state-read-fail"
+        ),
+    },
+    "WakirWelle4StateBackingMigrationRollback": {
+        "failure_mode_id": "Welle-4",
+        "severity": "page",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/welle-4-migration-rollback"
+        ),
+    },
+    "WakirWelle4WriteLatencyP99Excess": {
+        "failure_mode_id": "Welle-4",
+        "severity": "warning",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/welle-4-write-latency"
+        ),
+    },
+    "WakirWelle5FsmPhantomTransition": {
+        "failure_mode_id": "Welle-5",
+        "severity": "page",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/welle-5-fsm-phantom"
+        ),
+    },
+    "WakirWelle5LifecycleOrphanState": {
+        "failure_mode_id": "Welle-5",
+        "severity": "page",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/welle-5-orphan-state"
+        ),
+    },
+    "WakirWelle5SignedOffBeforeWelle4Stable": {
+        "failure_mode_id": "Welle-5",
+        "severity": "page",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/welle-5-signoff-ordering"
+        ),
+    },
+    "WakirWelle6SubscribeLoopStall": {
+        "failure_mode_id": "Welle-6",
+        "severity": "page",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/"
+            "welle-6-subscribe-loop-stall"
+        ),
+    },
+    "WakirWelle6SubscribeLoopReplayStorm": {
+        "failure_mode_id": "Welle-6",
+        "severity": "page",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/welle-6-replay-storm"
+        ),
+    },
+    "WakirWelle7RecoveryRehearsalFail": {
+        "failure_mode_id": "Welle-7",
+        "severity": "page",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/"
+            "welle-7-recovery-rehearsal-fail"
+        ),
+    },
+    "WakirWelle7RecoveryWithoutPreAuditWarning": {
+        "failure_mode_id": "Welle-7",
+        "severity": "warning",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/welle-7-iia-1130-default"
+        ),
+    },
+    "WakirWelle7RecoveryReplayDivergence": {
+        "failure_mode_id": "Welle-7",
+        "severity": "page",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/welle-7-replay-divergence"
+        ),
+    },
 }
 
 # Tag-40 baseline alerts that pre-date the Pre-Mortem-extension.

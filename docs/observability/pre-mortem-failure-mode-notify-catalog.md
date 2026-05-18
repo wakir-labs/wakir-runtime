@@ -176,6 +176,7 @@ changes are slower-moving than event-stream rates.
 | `ntfy:ar-hand-critical` | ntfy.sh topic (encrypted) | AR-Hand critical attention, immediate |
 | `ntfy:ar-hand` | ntfy.sh topic (encrypted) | AR-Hand attention, non-immediate |
 | `ntfy:ar-hand-info` | ntfy.sh topic (encrypted) | AR-Hand information surface, governance |
+| `ticket:sre-ops` | JIRA-style ops ticket queue | Non-paging operational follow-up (Tag-50 ticket-severity Welle alarms) |
 | `activity-log:append` | Local file `activity-log.md` append-only | Audit trail for Henrik |
 | `henrik-iia-1130-trigger` | Internal-audit-workflow (webhook to Henrik inbox) | IIA-1130 policy enforcement marker |
 | `henrik-audit-trail` | Internal-audit-workflow | Standard audit-trail item |
@@ -219,7 +220,133 @@ add the corresponding rule.
 
 ---
 
-## 5. Cross-Review Status
+## 5. Tag-50 Welle-N-Specific Alert-Rules
+
+Tag-50 extends this catalogue with seven **per-welle alert groups**
+(`welle-1-alerts` .. `welle-7-alerts`) in
+`dashboards/phase-3-marathon-alerts.yaml`. Where Sections 2.x map
+failure-mode classes (A1..C1) to alarms, Section 5 maps welle-N
+to its dedicated welle-scoped alarms. The two views are
+complementary: an aggregate A2 (`WakirPhase3FailureModeA2FsmPhantomTransition`)
+fires on any welle's illegal FSM transition; the Tag-50 alarm
+`WakirWelle5FsmPhantomTransition` fires exclusively on Welle-5
+with a `welle="welle-5"` label, so the operator sees the welle-
+scoped page without disambiguating from the aggregate's label.
+
+### 5.1 Welle inventory + KW-topology
+
+| Welle | Component | KW-week | Topology | Group |
+|---|---|---|---|---|
+| `welle-1` | `v907_verify` | `kw-24` | doppel partner Welle-2 | `welle-1-alerts` |
+| `welle-2` | `svid_workload_identity` | `kw-24` | doppel partner Welle-1 | `welle-2-alerts` |
+| `welle-3` | `bridge_audit_writer` | `kw-25` | **solo** (critical) | `welle-3-alerts` |
+| `welle-4` | `state_backing` | `kw-26` | doppel partner Welle-5 | `welle-4-alerts` |
+| `welle-5` | `lifecycle_state_machine` (FSM) | `kw-26` | doppel partner Welle-4 | `welle-5-alerts` |
+| `welle-6` | `subscribe_loop` | `kw-27` | doppel partner Welle-7 | `welle-6-alerts` |
+| `welle-7` | `recovery_workflow` | `kw-27` | doppel partner Welle-6 | `welle-7-alerts` |
+
+### 5.2 Welle-1 (v907_verify)
+
+| Alert | Threshold | For | Severity | Notify |
+|---|---|---|---|---|
+| `WakirWelle1V907VerifyRustRateCollapse` | self-score < 95 | 2m | page | PagerDuty + ntfy ar-hand + activity-log |
+| `WakirWelle1Welle2DoppelDivergence` | \|welle-1 - welle-2 self-score\| > 5pp | 3m | ticket | ticket sre-ops + activity-log |
+
+Rationale: the KW-24 doppel-cutover rust-rate gate is 95% per
+ADR-0066. The two doppel-partners should track within 5pp; larger
+divergence is a structural signal.
+
+### 5.3 Welle-2 (svid_workload_identity)
+
+| Alert | Threshold | For | Severity | Notify |
+|---|---|---|---|---|
+| `WakirWelle2SvidRotationFailure` | rotation-failure counter increase > 0 | 60s | page | PagerDuty + ntfy ar-hand + activity-log |
+| `WakirWelle2SelfScoreCollapse` | self-score < 95 | 2m | page | PagerDuty + ntfy ar-hand + activity-log |
+
+Rationale: SVID-rotation failure breaks workload-identity
+assertions on Welle-2 cutover; the SPIFFE pipeline must be live.
+
+### 5.4 Welle-3 (bridge_audit_writer, KW-25 SOLO critical)
+
+| Alert | Threshold | For | Severity | Notify |
+|---|---|---|---|---|
+| `WakirWelle3SelfReferenceTrapFire` | audit-bridge rate >= 2x 24h-offset baseline | 90s | page | PagerDuty + ntfy ar-hand-critical + activity-log + Henrik IIA-1130-trigger |
+| `WakirWelle3SoloTopologyViolation` | Welle-3 in pre/in cutover AND >1 welle in pre/in cutover | 60s | page | PagerDuty + ntfy ar-hand-critical + activity-log |
+| `WakirWelle3StressOracleDivergence` | \|self-score - phase-2-stress-oracle\| > 0.5pp | 60s | page | PagerDuty + ntfy ar-hand-critical + activity-log |
+
+Group scrape interval: **15s** (vs. 30s elsewhere). The Tag-45 A5
+failure-mode-class alert uses a 3x threshold over 2m for the
+class-level page; the Welle-3-scoped `SelfReferenceTrapFire` uses
+2x over 90s for an earlier welle-scoped page. Both stay live;
+the welle-scoped one is the front-line page on KW-25 SOLO.
+
+The 0.5pp stress-oracle divergence threshold reflects the
+ADR-0066 Welle-3 immediate-rollback trigger (Henrik / Internal
+Audit caution, welle-status dashboard panel 43).
+
+### 5.5 Welle-4 (state_backing)
+
+| Alert | Threshold | For | Severity | Notify |
+|---|---|---|---|---|
+| `WakirWelle4StateReadFail` | state-backing-read-fail counter increase > 0 | 60s | page | PagerDuty + ntfy ar-hand-critical + activity-log |
+| `WakirWelle4StateBackingMigrationRollback` | migration-rollback counter increase > 0 | 60s | page | PagerDuty + ntfy ar-hand + activity-log |
+| `WakirWelle4WriteLatencyP99Excess` | write-latency P99 > 250ms | 5m | ticket | ticket sre-ops + activity-log |
+
+State-read-fail is the coupling source for the Tag-45 Hot-Spot
+#2 (Welle-4 -> Welle-5/7); this welle-scoped alarm fires first.
+Migration-rollback is distinct from the global welle-rollback
+baseline alert: it scopes to the migration-script-level rollback
+counter.
+
+### 5.6 Welle-5 (lifecycle_state_machine / FSM)
+
+| Alert | Threshold | For | Severity | Notify |
+|---|---|---|---|---|
+| `WakirWelle5FsmPhantomTransition` | illegal-transition counter (welle=welle-5) > 0 | 60s | page | PagerDuty + ntfy ar-hand + activity-log |
+| `WakirWelle5LifecycleOrphanState` | orphan-state counter > 0 | 90s | page | PagerDuty + activity-log |
+| `WakirWelle5SignedOffBeforeWelle4Stable` | welle-5 signoff AND welle-4 hash changed in 10m | 60s | page | PagerDuty + ntfy ar-hand + activity-log + Henrik audit-trail |
+
+Welle-5 KW-26 doppel-ordering rule: Welle-4 state-backing must
+stabilize BEFORE Welle-5 audit-verifier signs off. The third
+alarm catches the ordering violation directly; it is the welle-
+scoped page that surfaces a moving-target attestation.
+
+### 5.7 Welle-6 (subscribe_loop)
+
+| Alert | Threshold | For | Severity | Notify |
+|---|---|---|---|---|
+| `WakirWelle6SubscribeLoopStall` | rate(delivered) == 0 over 2m | 2m | page | PagerDuty + ntfy ar-hand + activity-log |
+| `WakirWelle6SubscribeLoopReplayStorm` | rate(redelivery) > 10 msg/s | 2m | page | PagerDuty + ntfy ar-hand + activity-log |
+
+Stall and replay-storm are complementary failure-modes on the
+same JetStream consumer surface: stall = zero traffic, replay-
+storm = excessive retry traffic. Both indicate broken consumer-
+ack flow but the response differs (broker-side vs. consumer-side
+investigation).
+
+### 5.8 Welle-7 (recovery_workflow)
+
+| Alert | Threshold | For | Severity | Notify |
+|---|---|---|---|---|
+| `WakirWelle7RecoveryRehearsalFail` | rehearsal-failure counter increase > 0 | 60s | page | PagerDuty + ntfy ar-hand-critical + activity-log |
+| `WakirWelle7RecoveryWithoutPreAuditWarning` | henrik signoff AND no external-pre-auditor signoff | 1m | warning | ntfy ar-hand-info + activity-log |
+| `WakirWelle7RecoveryReplayDivergence` | replay-divergence counter increase > 0 | 60s | page | PagerDuty + ntfy ar-hand + activity-log |
+
+The `WithoutPreAuditWarning` parallels Tag-45 B3 (Welle-3 IIA-1130
+default-path) and covers Henrik Pre-Mortem B4 (Welle-7 IIA-1130-
+Konflikt). Warning severity per low-probability / high-impact
+classification.
+
+### 5.9 Welle-N alert-name convention
+
+All Tag-50 alert names follow `WakirWelle<N><Description>`. This
+prefix is disjoint from Tag-40 / Tag-45 names (which start with
+`WakirPhase3`). The disjointness is enforced by
+`tests/ci/test_welle_n_specific_alerts.py`.
+
+---
+
+## 6. Cross-Review Status
 
 | Reviewer | Domain | Status |
 |---|---|---|
@@ -229,16 +356,17 @@ add the corresponding rule.
 | Priya (CTO) | hierarchical approval per ADR-0045 | requested |
 
 The cross-review checklist is enforced via the PR review process
-and not blocked at this Tag-45 commit boundary, per Continuous-Mode
-default (AR-direktive).
+and not blocked at this Tag-45 / Tag-50 commit boundary, per
+Continuous-Mode default (AR-direktive).
 
 ---
 
-## 6. Disclaimer
+## 7. Disclaimer
 
-This catalogue is **proposed** and reflects Tag-45 substance. It
-follows the §10 GOVERNANCE.md boundary: Internal Audit (Henrik)
-classifies and audits; SRE (Noa) measures and surfaces. The
-catalogue does not classify findings or produce verdicts.
+This catalogue is **proposed** and reflects Tag-45 + Tag-50
+substance. It follows the §10 GOVERNANCE.md boundary: Internal
+Audit (Henrik) classifies and audits; SRE (Noa) measures and
+surfaces. The catalogue does not classify findings or produce
+verdicts.
 
 -- Noa
