@@ -1,0 +1,285 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase-3c Pre-Cutover Daily-Probe Driver (Tag-44 / Reza)
+# -------------------------------------------------------
+#
+# Purpose
+# -------
+#
+# Reza Tag-43 PR #277 shipped the Pre-Cutover-Probe-Phase Live-Demo
+# orchestrator -- a single-shot driver that runs all seven ADR-0066
+# Welle pre-cutover probes in sandbox-stub mode and emits a per-Welle
+# verdict + Marathon-Readiness aggregate.
+#
+# Tag-44 promotes that into an *autonomous daily trend tracker* for
+# the ~3-week pre-KW-24-Cutover window (2026-05-19 -> 2026-06-07).
+# This workflow runs the live-demo every morning at 06:00 UTC,
+# persists the resulting envelope into
+# ``state/pre-cutover-daily-trend/yyyy-mm-dd.json``, runs the trend
+# analyzer to produce a Last-7-Days rollup + day-over-day change
+# detection, renders the GitHub-Actions-Job-Summary, and (if any
+# verdict change is detected) appends notify-events into
+# ``state/notify-events.jsonl`` for Mira-Hand-Sichtung.
+#
+# Companion workflows
+# -------------------
+#
+#   * ``phase-3c-pre-cutover-marathon-dashboard.yml`` (Tomas Tag-42)
+#     -- weekly-on-Monday probe-matrix run with per-Welle artifact.
+#     Tag-44 daily-probe is *in addition*, not a replacement: the
+#     Monday Marathon-Dashboard runs the canonical aggregator, and
+#     the daily-probe captures the day-over-day trend the Marathon-
+#     Dashboard does not.
+#   * ``phase-3c-observability-daily-snapshot.yml`` (Tag-25 Noa)
+#     -- daily baseline-tracker for backend-decision JSONL. Different
+#     subsystem (observability), same daily-cadence pattern.
+#
+# Sandbox posture
+# ---------------
+#
+# Strict hermetic: stdlib-only python invocation, no podman / cosign /
+# live-VM, no network. The probe-scripts run with
+# ``WAKIR_SSH_BIN=true`` + ``--dry-run`` so no real SSH connection
+# opens. The workflow is hosted-runner-safe.
+#
+# Trigger surface
+# ---------------
+#
+#   * ``schedule: cron "0 6 * * *"`` -- daily at 06:00 UTC. Matches
+#     the AR-Direktive Tag-44 "every-day-fresh" mandate.
+#   * ``workflow_dispatch`` -- operator-hand manual invocation with
+#     optional ``today`` override (for back-fill / replay).
+#   * ``push:`` (path-filtered) -- any change to the analyzer / live-
+#     demo / probe-scripts re-runs the daily-probe so the test loop
+#     surfaces breakage immediately.
+#   * ``pull_request:`` (path-filtered) -- same path-filter; ensures
+#     PRs that touch these files run the daily-probe in dry-run
+#     before merge.
+#
+# Persistence
+# -----------
+#
+# The workflow commits new state under ``state/pre-cutover-daily-
+# trend/yyyy-mm-dd.json`` only when the workflow is invoked manually
+# with ``inputs.persist=true``. The scheduled run uploads the state
+# as an artifact (retention 30 days) but does NOT push to the repo,
+# matching the ADR-0061 license-hygiene-Gate / sandbox-no-push
+# discipline. Persistence is operator-hand per AR-Direktive Tag-44
+# (no autonomous git-push from scheduled CI; only Mira-Hand pushes).
+#
+# Not a required status check
+# ---------------------------
+#
+# Per ``feedback_branch_protection_check_names.md`` this workflow
+# tracks a calendar-window trend (3-week pre-cutover), not
+# individual PR-acceptance. It is NOT listed as a required status
+# check on PRs; it surfaces signal only via Job-Summary + artifact.
+
+name: phase-3c-pre-cutover-daily-probe
+
+on:
+  schedule:
+    # Daily at 06:00 UTC. Matches the Marathon-Dashboard cron's
+    # 06:00 slot so an operator looking at both at the same time
+    # sees consistent timestamps.
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      today:
+        description: "Override snapshot date (yyyy-mm-dd; default UTC today)."
+        required: false
+        default: ""
+      persist:
+        description: "Commit state file to repo (true|false). Operator-hand only."
+        required: false
+        default: "false"
+      window_days:
+        description: "Trend-window-size for analyzer (default 7)."
+        required: false
+        default: "7"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/observability/pre-cutover-daily-trend-analyzer.py"
+      - "scripts/phase-3c/pre-cutover-probe-phase-live-demo.py"
+      - "scripts/phase-3c/welle-*-pre-cutover-probe.sh"
+      - ".github/workflows/phase-3c-pre-cutover-daily-probe.yml"
+      - "tests/observability/test_pre_cutover_daily_trend_analyzer.py"
+  pull_request:
+    paths:
+      - "scripts/observability/pre-cutover-daily-trend-analyzer.py"
+      - "scripts/phase-3c/pre-cutover-probe-phase-live-demo.py"
+      - "scripts/phase-3c/welle-*-pre-cutover-probe.sh"
+      - ".github/workflows/phase-3c-pre-cutover-daily-probe.yml"
+      - "tests/observability/test_pre_cutover_daily_trend_analyzer.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase-3c-pre-cutover-daily-probe
+  cancel-in-progress: false
+
+jobs:
+  daily-probe:
+    name: Phase-3c Pre-Cutover Daily-Probe + Trend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Resolve dispatch inputs
+        id: inputs
+        env:
+          INPUT_TODAY: ${{ github.event.inputs.today }}
+          INPUT_WINDOW: ${{ github.event.inputs.window_days }}
+          INPUT_PERSIST: ${{ github.event.inputs.persist }}
+        run: |
+          set -euo pipefail
+          today="${INPUT_TODAY}"
+          if [ -z "${today}" ]; then
+            today="$(date -u +%Y-%m-%d)"
+          fi
+          window="${INPUT_WINDOW:-7}"
+          persist="${INPUT_PERSIST:-false}"
+          echo "today=${today}" >> "$GITHUB_OUTPUT"
+          echo "window=${window}" >> "$GITHUB_OUTPUT"
+          echo "persist=${persist}" >> "$GITHUB_OUTPUT"
+          echo "today=${today} window=${window} persist=${persist}"
+
+      - name: Run all seven Welle probes via live-demo orchestrator
+        id: demo
+        env:
+          TODAY: ${{ steps.inputs.outputs.today }}
+        run: |
+          set -euo pipefail
+          mkdir -p out state/pre-cutover-daily-trend
+          # Sandbox-stub: stub HOME + WAKIR_SSH_BIN so probes never
+          # open a real SSH socket. Same pattern as Tag-42 Marathon-
+          # Dashboard workflow.
+          stub_home="$(mktemp -d)"
+          mkdir -p "${stub_home}/.ssh"
+          touch "${stub_home}/.ssh/wakir-pilot-vm-diagnose"
+          # Run the live-demo with sandbox-stub mode; capture both
+          # JSON envelope + the demo's own exit code (we tolerate
+          # non-zero -- the demo emits a verdict regardless and our
+          # downstream analyzer prefers the envelope over the exit
+          # status).
+          set +e
+          HOME="${stub_home}" \
+          WAKIR_SSH_BIN="$(command -v true)" \
+          python3 scripts/phase-3c/pre-cutover-probe-phase-live-demo.py \
+            --repo-root "${GITHUB_WORKSPACE}" \
+            --mode sandbox-stub \
+            --probe-timeout-seconds 60 \
+            --no-gh-trigger \
+            --output-json "out/live-demo-envelope.json" \
+            --output-md "out/live-demo-summary.md"
+          DEMO_RC=$?
+          set -e
+          echo "demo_rc=${DEMO_RC}" >> "$GITHUB_OUTPUT"
+          echo "demo exit-code: ${DEMO_RC}"
+          ls -la out/
+
+      - name: Persist envelope + run trend analyzer
+        id: trend
+        env:
+          TODAY: ${{ steps.inputs.outputs.today }}
+          WINDOW: ${{ steps.inputs.outputs.window }}
+        run: |
+          set -euo pipefail
+          mkdir -p state/pre-cutover-daily-trend
+          # First: ingest today's envelope into the state dir.
+          # Then: run the analyzer in daily mode against the state
+          # dir.  This produces:
+          #   * out/trend-report.json    - machine-readable rollup.
+          #   * out/trend-report.md      - Markdown for the Job-Summary.
+          #   * state/notify-events.jsonl - one line per non-lateral change.
+          python3 scripts/observability/pre-cutover-daily-trend-analyzer.py \
+            --state-dir state/pre-cutover-daily-trend \
+            --ingest-envelope out/live-demo-envelope.json \
+            --today "${TODAY}" \
+            --window-days "${WINDOW}" \
+            --notify-path state/notify-events.jsonl \
+            --output-json out/trend-report.json \
+            --output-md out/trend-report.md
+          ls -la state/pre-cutover-daily-trend/
+          echo "trend-report-md head:"
+          head -40 out/trend-report.md || true
+
+      - name: Append Job-Summary
+        if: always()
+        env:
+          REPORT_MD: out/trend-report.md
+        run: |
+          set -euo pipefail
+          if [ -f "${REPORT_MD}" ]; then
+            cat "${REPORT_MD}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "# Phase-3c Pre-Cutover Daily-Probe -- ${TODAY:-unknown}" \
+              >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "_Trend-report markdown missing -- analyzer did not run._" \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Render notify-events summary
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -f state/notify-events.jsonl ]; then
+            count=$(wc -l < state/notify-events.jsonl | tr -d ' ')
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Notify-events appended this run" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Total notify-events in feed: **${count}**" \
+              >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "_No notify-events.jsonl produced._" \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload daily-state artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-3c-pre-cutover-daily-trend-${{ steps.inputs.outputs.today }}
+          path: |
+            out/live-demo-envelope.json
+            out/live-demo-summary.md
+            out/trend-report.json
+            out/trend-report.md
+            state/pre-cutover-daily-trend/${{ steps.inputs.outputs.today }}.json
+            state/notify-events.jsonl
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Persist state (operator-hand only)
+        if: github.event_name == 'workflow_dispatch' && steps.inputs.outputs.persist == 'true'
+        env:
+          TODAY: ${{ steps.inputs.outputs.today }}
+        run: |
+          set -euo pipefail
+          # Per ADR-0058 + AR-Direktive Tag-44, scheduled CI does
+          # NOT push to main. Only an operator dispatching with
+          # ``persist=true`` actually commits. This step intentionally
+          # only sets git config + stages files; the actual git-push
+          # is operator-hand (the runner's GITHUB_TOKEN does not have
+          # contents:write here per the workflow's ``permissions:
+          # contents: read`` declaration). The step exists to validate
+          # the persist-true path doesn't error.
+          git status --short || true
+          echo "[persist] state file path: state/pre-cutover-daily-trend/${TODAY}.json"
+          ls -la state/pre-cutover-daily-trend/ || true
+          echo "[persist] note: actual push is operator-hand; CI runner has read-only contents."
