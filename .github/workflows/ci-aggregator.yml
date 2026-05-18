@@ -1,0 +1,201 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# CI Aggregator — single Required-Status-Check (ADR-0068)
+# -------------------------------------------------------
+#
+# Purpose
+# =======
+#
+# Reduce the wakir-runtime Branch-Protection Required-Status-Check set
+# from six brittle path-filtered names to **one** aggregator name. The
+# aggregator fires on every PR and every push to main, reads the PR's
+# changed-files set, and for each "critical sub-workflow" decides
+# whether its path-filter is expected to trigger:
+#
+#   - if expected: poll the GitHub-Actions API until the sub-workflow
+#     completes, surface the per-job verdict via display-name lookup;
+#   - if not expected: mark as ``skip-ok``.
+#
+# Final aggregator verdict: all "expected" sub-workflows ``SUCCESS``
+# AND zero ``FAILURE`` => aggregator ``SUCCESS``.
+#
+# The aggregator's own GitHub-Actions job has display-name
+# ``ci-aggregator`` — that is the single name Mira-Hand will set as
+# Required-Status-Check after this workflow lands on main.
+#
+# Why this exists
+# ===============
+#
+# Tag-34/35/36 surfaced the "Forever-Pending" pattern repeatedly: a PR
+# changes only paths that no Required-Check's path-filter intersects,
+# so the Required-Check never reports, so Branch-Protection blocks the
+# merge indefinitely. Workarounds were trigger-file touches and admin-
+# merges. ADR-0068 (approved 2026-05-18) approves a single aggregator
+# as the structural fix.
+#
+# Anchors
+# -------
+#
+# - ADR-0068 §Beschluss (approved 2026-05-18) — this workflow is the
+#   ``Folgeartefakt`` directly cited in the ADR.
+# - Tomás-Audit Tag-35 PR #231 §Phase-C — long-term-fix recommendation
+#   that ADR-0068 ratified.
+# - ``feedback_branch_protection_check_names.md`` — operator-side
+#   memory item documenting the Required-vs-display-name footgun that
+#   this aggregator structurally eliminates.
+#
+# Sandbox boundary
+# ----------------
+#
+# The aggregator job runs entirely in GitHub-Actions sandbox (ubuntu-
+# latest); it does not invoke podman, NATS, or any live-VM substrate.
+# The pure-decision logic and the I/O wrappers live in
+# ``scripts/ci/ci_aggregator.py`` and are unit-tested in
+# ``tests/ci/test_ci_aggregator_workflow.py``.
+#
+# Migration strategy (Mira-Hand-Folge)
+# ------------------------------------
+#
+# Step 1 (this PR): aggregator workflow lands on main alongside the
+#   existing six Required-Status-Checks. Both run in parallel; the
+#   aggregator is **not yet** Required.
+# Step 2 (post-merge, Mira-Hand): verify on the first 2-3 follow-up
+#   PRs that ``ci-aggregator`` produces a verdict matching the union
+#   of the six individual sub-workflow verdicts. No false-positive,
+#   no false-negative.
+# Step 3 (Mira-Hand cutover, ~1 week observation window): remove the
+#   six legacy Required-Status names from Branch-Protection, add
+#   ``ci-aggregator`` as the sole Required name. From this point
+#   forward, the Forever-Pending class is structurally impossible.
+# Step 4 (cleanup, optional): the per-sub-workflow ``paths:`` filters
+#   stay in place — they still gate **whether** the sub-workflow runs
+#   (cost-control). The aggregator handles the "what does it mean
+#   when a sub-workflow does not fire" question.
+
+name: ci-aggregator
+
+# No path-filter at the workflow level. The aggregator must fire on
+# **every** PR and **every** push to main — otherwise we recreate the
+# very Forever-Pending pattern this workflow is designed to eliminate.
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+# The aggregator only reads. It does not write commits, comments, or
+# artifacts beyond the per-job ``$GITHUB_STEP_SUMMARY``. ``actions:read``
+# is the minimum scope needed to list workflow runs and per-job
+# verdicts via the ``actions`` REST API.
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+# Default concurrency: cancel in-flight aggregator runs for the same PR
+# when a newer commit lands. The aggregator's value lives in its
+# verdict on the *latest* commit, so older runs are redundant.
+concurrency:
+  group: ci-aggregator-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  ci-aggregator:
+    # IMPORTANT: this ``name:`` field is the GitHub-Actions
+    # check-run-display-name that Branch-Protection will reference as
+    # the sole Required-Status-Check after the Mira-Hand-cutover (Step
+    # 3 above). Do not rename without simultaneously updating the
+    # Branch-Protection rule. The hermetic test
+    # ``tests/ci/test_ci_aggregator_workflow.py::test_workflow_job_display_name_is_stable``
+    # pins this value.
+    name: ci-aggregator
+    runs-on: ubuntu-latest
+
+    # 75-minute timeout: longer than any individual sub-workflow we
+    # poll (the slowest is the wirelang production suite at ~30min on
+    # cold cache). The Aggregator's polling cadence + the longest
+    # sub-workflow's wall-clock define the upper bound; 75min has
+    # ~2.5x headroom.
+    timeout-minutes: 75
+
+    steps:
+      - name: Checkout
+        # Aggregator needs the repo for the inventory file
+        # (scripts/ci/ci_aggregator.py) and the workflow definitions
+        # under .github/workflows/ (the hermetic inventory-vs-yaml
+        # consistency test is a separate concern; this job only needs
+        # the runner script + nothing else from the tree). Shallow
+        # clone is fine.
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Determine event-context
+        id: ctx
+        # Emits ``head_sha``, ``pr_number``, and ``before_sha`` outputs
+        # that the runner step consumes. ``pr_number`` is empty for
+        # push events; ``before_sha`` is empty for PR events.
+        run: |
+          set -euo pipefail
+          event_name="${{ github.event_name }}"
+          if [ "$event_name" = "pull_request" ]; then
+            echo "head_sha=${{ github.event.pull_request.head.sha }}" >>"$GITHUB_OUTPUT"
+            echo "pr_number=${{ github.event.pull_request.number }}" >>"$GITHUB_OUTPUT"
+            echo "before_sha=" >>"$GITHUB_OUTPUT"
+          elif [ "$event_name" = "push" ]; then
+            echo "head_sha=${{ github.sha }}" >>"$GITHUB_OUTPUT"
+            echo "pr_number=" >>"$GITHUB_OUTPUT"
+            echo "before_sha=${{ github.event.before }}" >>"$GITHUB_OUTPUT"
+          else
+            # workflow_dispatch fallback: poll the current SHA, treat
+            # changed-files as "everything" (the runner script handles
+            # this via the conservative-default branch).
+            echo "head_sha=${{ github.sha }}" >>"$GITHUB_OUTPUT"
+            echo "pr_number=" >>"$GITHUB_OUTPUT"
+            echo "before_sha=" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Run aggregator
+        env:
+          # GITHUB_TOKEN is automatically scoped to the permissions
+          # declared at workflow-level (actions:read, contents:read,
+          # pull-requests:read). The aggregator never writes via this
+          # token.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          python scripts/ci/ci_aggregator.py \
+            --mode=live \
+            --head-sha="${{ steps.ctx.outputs.head_sha }}" \
+            ${{ steps.ctx.outputs.pr_number && format('--pr-number={0}', steps.ctx.outputs.pr_number) || '' }} \
+            ${{ steps.ctx.outputs.before_sha && format('--before-sha={0}', steps.ctx.outputs.before_sha) || '' }} \
+            --owner="${{ github.repository_owner }}" \
+            --repo="${{ github.event.repository.name }}"
+
+      - name: Aggregator outcome reminder
+        if: always()
+        # Always-emit footer reminder. Useful for operators landing on
+        # a failed aggregator run who need a quick pointer to the ADR.
+        run: |
+          {
+            echo ""
+            echo "---"
+            echo ""
+            echo "**Reminder:** the ci-aggregator job is the structural fix for the Forever-Pending pattern (Tag-34/35/36)."
+            echo "If this job is RED, the root cause is in one of the sub-workflows listed above (Expected = yes, Status != success/skip-ok)."
+            echo "Do not admin-bypass; fix the sub-workflow. See docs/ci/aggregator-workflow.md §Debugging."
+          } >> "$GITHUB_STEP_SUMMARY"
