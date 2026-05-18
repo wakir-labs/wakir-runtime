@@ -1,0 +1,254 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase-3 Marathon-Final-Bilanz Workflow (Tag-50 / Tomas)
+# -------------------------------------------------------
+#
+# Purpose
+# -------
+#
+# Phase-3 ran a seven-Welle cutover marathon (KW-21..KW-27). Five
+# engineering personas left observable footprints. Tag-43 Noa's
+# ``phase-3-final-bilanz-generator.yml`` produces the *full* end-of-
+# Marathon-Bilanz once Tomas writes the COMPLETE-marker. This
+# workflow is the *daily companion*: it runs during the marathon
+# window AND post-Welle-7-Sign-Off, and renders a one-page cross-
+# persona snapshot as a GitHub-Actions Job-Summary.
+#
+# Inputs the aggregator reads (paths under ``state/`` and ``out/``):
+#
+#   * Tomas:  ``state/phase-3-complete-marker.json``,
+#             ``out/cross-welle-hot-spot-verdict.json``
+#   * Noa:    ``state/aggregator-failure-rate-history.json``,
+#             ``state/cross-welle-drift-histograms.json``
+#   * Amara:  ``state/phase-3-marathon-state.json`` (coverage signal)
+#   * Selin:  ``state/phase-3-marathon-state.json`` (Rust-share signal)
+#   * Henrik: ``state/welle-{1..7}-sign-off.json``
+#
+# Outputs:
+#
+#   * ``reports/marathon-final-bilanz.md``  -- written + Job-Summary
+#   * ``reports/marathon-final-bilanz.json`` -- machine-readable
+#
+# Sandbox posture
+# ---------------
+#
+# Strict hermetic. Stdlib-only Python aggregator. No subprocess, no
+# network, no host filesystem writes outside the workspace. Hosted-
+# runner-safe.
+#
+# Trigger surface
+# ---------------
+#
+#   * ``schedule: cron "0 8 * * *"`` -- daily at 08:00 UTC, 1h after
+#     the Tag-49 cross-welle hot-spot aggregator (07:00 UTC) so the
+#     cross-welle envelope is fresh when this rollup reads it.
+#   * ``workflow_run`` on ``phase-3c-welle-7-validation`` completion
+#     -- auto-trigger post-Welle-7-sign-off so the post-cutover
+#     bilanz is rendered without operator-hand. Falls back to manual
+#     dispatch if the upstream workflow rename ever drifts.
+#   * ``workflow_dispatch`` -- operator-hand manual invocation with
+#     optional ``mode`` override (``daily`` | ``post-welle-7``) and
+#     ``strict`` flag.
+#   * ``push`` (path-filtered) -- any change to the aggregator,
+#     workflow, runbook, or tests re-runs the rollup.
+#   * ``pull_request`` (path-filtered) -- same filter so PRs touching
+#     the substrate run in dry-run before merge.
+#
+# Not a required status check
+# ---------------------------
+#
+# Per ``feedback_branch_protection_check_names.md`` this workflow
+# tracks a calendar-window cross-persona snapshot, not individual PR
+# acceptance. It is NOT listed as a required status check on PRs.
+#
+# Persistence
+# -----------
+#
+# Per ADR-0058 + AR-Direktive Tag-44, scheduled CI does NOT push to
+# main. Daily bilanz artefacts are uploaded as artifacts
+# (retention 30 days). The post-Welle-7 hand-off bilanz is
+# additionally surfaced via the Job-Summary so the AR/Mira can read
+# it without downloading artifacts.
+
+name: phase-3-marathon-final-bilanz
+
+on:
+  schedule:
+    # Daily at 08:00 UTC -- 1h after cross-welle hot-spot aggregator.
+    - cron: "0 8 * * *"
+  workflow_run:
+    # Auto-trigger after Welle-7 validation completes (success or
+    # failure -- in either case the bilanz reflects current state).
+    workflows: ["phase-3c-welle-7-validation"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Aggregation mode (daily | post-welle-7)."
+        required: false
+        default: "daily"
+      strict:
+        description: "Exit 1 on MARATHON_BROKEN (true|false)."
+        required: false
+        default: "false"
+  push:
+    branches:
+      - main
+    paths:
+      - "tooling/ci/marathon_final_bilanz_aggregator.py"
+      - ".github/workflows/phase-3-marathon-final-bilanz.yml"
+      - "tests/ci/test_marathon_final_bilanz_aggregator.py"
+      - "docs/ci/marathon-final-bilanz-runbook.md"
+  pull_request:
+    paths:
+      - "tooling/ci/marathon_final_bilanz_aggregator.py"
+      - ".github/workflows/phase-3-marathon-final-bilanz.yml"
+      - "tests/ci/test_marathon_final_bilanz_aggregator.py"
+      - "docs/ci/marathon-final-bilanz-runbook.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase-3-marathon-final-bilanz
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test marathon-final-bilanz aggregator
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install pytest
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest
+
+      - name: Run hermetic aggregator tests
+        run: |
+          python3 -m pytest tests/ci/test_marathon_final_bilanz_aggregator.py -v
+
+  bilanz:
+    name: Render marathon-final-bilanz snapshot
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Resolve mode
+        id: mode
+        env:
+          INPUT_MODE: ${{ github.event.inputs.mode }}
+          TRIGGER: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          mode="${INPUT_MODE:-}"
+          if [ -z "${mode}" ]; then
+            if [ "${TRIGGER}" = "workflow_run" ]; then
+              # Welle-7 validation finished -- treat as post-welle-7.
+              mode="post-welle-7"
+            else
+              mode="daily"
+            fi
+          fi
+          echo "mode=${mode}" >> "$GITHUB_OUTPUT"
+          echo "[mode] resolved: ${mode}"
+
+      - name: Resolve snapshot timestamp
+        id: snapshot
+        run: |
+          set -euo pipefail
+          snapshot_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "snapshot_at=${snapshot_at}" >> "$GITHUB_OUTPUT"
+          echo "[snapshot] ${snapshot_at}"
+
+      - name: Run marathon-final-bilanz aggregator
+        id: agg
+        env:
+          MODE: ${{ steps.mode.outputs.mode }}
+          SNAPSHOT_AT: ${{ steps.snapshot.outputs.snapshot_at }}
+          STRICT: ${{ github.event.inputs.strict }}
+        run: |
+          set -euo pipefail
+          mkdir -p reports out
+          extra=""
+          if [ "${STRICT:-false}" = "true" ]; then
+            extra="--strict"
+          fi
+          python3 tooling/ci/marathon_final_bilanz_aggregator.py \
+            --state-dir state \
+            --cross-welle-envelope out/cross-welle-hot-spot-verdict.json \
+            --output-dir reports \
+            --snapshot-at "${SNAPSHOT_AT}" \
+            --mode "${MODE}" \
+            ${extra}
+          verdict=$(python3 -c '
+          import json, pathlib
+          p = pathlib.Path("reports/marathon-final-bilanz.json")
+          print(json.loads(p.read_text())["aggregate"]["verdict"])
+          ')
+          echo "verdict=${verdict}" >> "$GITHUB_OUTPUT"
+          echo "[bilanz] verdict=${verdict}"
+
+      - name: Render Job-Summary
+        if: always()
+        env:
+          MODE: ${{ steps.mode.outputs.mode }}
+          SNAPSHOT_AT: ${{ steps.snapshot.outputs.snapshot_at }}
+          VERDICT: ${{ steps.agg.outputs.verdict }}
+        run: |
+          set -euo pipefail
+          {
+            echo "# Phase-3 Marathon-Final-Bilanz"
+            echo ""
+            echo "- **Snapshot:** ${SNAPSHOT_AT}"
+            echo "- **Mode:** ${MODE}"
+            echo "- **Verdict:** \`${VERDICT:-UNKNOWN}\`"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -f reports/marathon-final-bilanz.md ]; then
+            # Inline the bilanz Markdown directly into the summary.
+            # The aggregator writes self-contained Markdown that is
+            # safe to paste (no trailing whitespace, no code-fences
+            # that would break the surrounding summary).
+            cat reports/marathon-final-bilanz.md >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Envelope (JSON)" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat reports/marathon-final-bilanz.json >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "_no bilanz artefact produced_" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload bilanz artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marathon-final-bilanz-${{ steps.snapshot.outputs.snapshot_at }}
+          path: |
+            reports/marathon-final-bilanz.md
+            reports/marathon-final-bilanz.json
+          if-no-files-found: warn
+          retention-days: 30
