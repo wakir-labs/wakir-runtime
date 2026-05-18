@@ -178,8 +178,11 @@ jobs:
         run: |
           set -euo pipefail
           snapshot_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          # Artifact-name-safe variant (colons disallowed by upload-artifact).
+          snapshot_slug="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
           echo "snapshot_at=${snapshot_at}" >> "$GITHUB_OUTPUT"
-          echo "[snapshot] ${snapshot_at}"
+          echo "snapshot_slug=${snapshot_slug}" >> "$GITHUB_OUTPUT"
+          echo "[snapshot] ${snapshot_at} (slug=${snapshot_slug})"
 
       - name: Run marathon-final-bilanz aggregator
         id: agg
@@ -246,7 +249,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: marathon-final-bilanz-${{ steps.snapshot.outputs.snapshot_at }}
+          name: marathon-final-bilanz-${{ steps.snapshot.outputs.snapshot_slug }}
           path: |
             reports/marathon-final-bilanz.md
             reports/marathon-final-bilanz.json
