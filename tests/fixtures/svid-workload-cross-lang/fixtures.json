@@ -1,0 +1,181 @@
+{
+  "_comment": "Cross-lang fixture vectors for the persona-engine SVID-Workload-Identity SvidWorkloadIdentitySnapshot JCS canonicalisation (Tag-33 Mini-Welle, Henrik F-6). The expected block pins canonical-snapshot-JCS-bytes / canonical-SHA-256 tuples; drift on either Python wirelang.identity.svid_workload_identity_canonical or the future Rust pendant in wirelang-rust/crates/persona-engine-svid-workload-identity (currently a probe skeleton) breaks both test suites once the Rust side ships a snapshot encoder. Fixtures pinned 2026-05-18. Five sub-cases mapping the SvidWorkloadRegistry Protocol shape: empty-identity-set (no bindings), single-org-single-spiffe (one wakir-labs persona, one fresh SVID), multi-org-cross-mapping (three orgs x one persona each, mixed bind_state_sha256 fingerprints), key-rotation-svid-replay (one (org,persona) carrying three successive not_after_utc bindings -- legitimate SPIRE rotation timeline; resolve@now picks the freshest), expired-svid-rejection (single binding whose not_after_utc is before fixed_now_utc; resolve returns None, snapshot pins expired=true). All bind_state_sha256 values are 'sha256:' + 64-char lower-case hex placeholders (test-only; not real leaf-cert DER hashes). The resolve rule when multiple bindings overlap for the same (org_id, persona_id): prefer the lexicographically-latest not_after_utc (= freshest SVID), strictly-greater-than now_utc.",
+  "schema_version": "wakir.identity.svid-workload-cross-lang/1",
+  "fixed_now_utc": "2026-05-18T00:00:00Z",
+  "fixtures": [
+    {
+      "name": "f01-empty-identity-set",
+      "comment": "No bindings; snapshot is the empty-bindings form.",
+      "input_bindings": [],
+      "expected": {
+        "snapshot_jcs_bytes_b64": "eyJiaW5kaW5ncyI6W10sInNjaGVtYSI6Indha2lyLmlkZW50aXR5LnN2aWQtd29ya2xvYWQtY3Jvc3MtbGFuZy8xIn0=",
+        "snapshot_jcs_bytes_len": 68,
+        "snapshot_sha256_hex": "44229ea7aea836b4b9b324b6cfd52f80dc1fca7f5007be236feb168dde44a7bd",
+        "snapshot_hash_prefixed": "sha256:44229ea7aea836b4b9b324b6cfd52f80dc1fca7f5007be236feb168dde44a7bd"
+      },
+      "resolve_probe": {
+        "org_id": "wakir-labs",
+        "persona_id": "mira",
+        "now_utc": "2026-05-18T00:00:00Z",
+        "expected_match": null
+      }
+    },
+    {
+      "name": "f02-single-org-single-spiffe",
+      "comment": "One operator-org x one persona; one fresh SVID well in-window.",
+      "input_bindings": [
+        {
+          "org_id": "wakir-labs",
+          "persona_id": "mira",
+          "spiffe_id": "spiffe://wakir.wakir-labs/persona/mira",
+          "not_after_utc": "2026-06-18T00:00:00Z",
+          "bind_state_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "expired": false
+        }
+      ],
+      "expected": {
+        "snapshot_jcs_bytes_b64": "eyJiaW5kaW5ncyI6W3siYmluZF9zdGF0ZV9zaGEyNTYiOiJzaGEyNTY6YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSIsImV4cGlyZWQiOmZhbHNlLCJub3RfYWZ0ZXJfdXRjIjoiMjAyNi0wNi0xOFQwMDowMDowMFoiLCJvcmdfaWQiOiJ3YWtpci1sYWJzIiwicGVyc29uYV9pZCI6Im1pcmEiLCJzcGlmZmVfaWQiOiJzcGlmZmU6Ly93YWtpci53YWtpci1sYWJzL3BlcnNvbmEvbWlyYSJ9XSwic2NoZW1hIjoid2FraXIuaWRlbnRpdHkuc3ZpZC13b3JrbG9hZC1jcm9zcy1sYW5nLzEifQ==",
+        "snapshot_jcs_bytes_len": 313,
+        "snapshot_sha256_hex": "75734083bbb993e528c48f799dc9550c1b2f8d86f1142c563852993ecb6ee5a3",
+        "snapshot_hash_prefixed": "sha256:75734083bbb993e528c48f799dc9550c1b2f8d86f1142c563852993ecb6ee5a3"
+      },
+      "resolve_probe": {
+        "org_id": "wakir-labs",
+        "persona_id": "mira",
+        "now_utc": "2026-05-18T00:00:00Z",
+        "expected_match": {
+          "bind_state_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "expired": false,
+          "not_after_utc": "2026-06-18T00:00:00Z",
+          "org_id": "wakir-labs",
+          "persona_id": "mira",
+          "spiffe_id": "spiffe://wakir.wakir-labs/persona/mira"
+        }
+      }
+    },
+    {
+      "name": "f03-multi-org-cross-mapping",
+      "comment": "Three operator-orgs (wakir-labs/mira, callandor/priya, peer-org-alpha/reza), one persona each, all fresh in-window; tests sort-order (callandor < peer-org-alpha < wakir-labs).",
+      "input_bindings": [
+        {
+          "org_id": "wakir-labs",
+          "persona_id": "mira",
+          "spiffe_id": "spiffe://wakir.wakir-labs/persona/mira",
+          "not_after_utc": "2026-06-18T00:00:00Z",
+          "bind_state_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "expired": false
+        },
+        {
+          "org_id": "callandor",
+          "persona_id": "priya",
+          "spiffe_id": "spiffe://wakir.callandor/persona/priya",
+          "not_after_utc": "2026-06-18T00:00:00Z",
+          "bind_state_sha256": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "expired": false
+        },
+        {
+          "org_id": "peer-org-alpha",
+          "persona_id": "reza",
+          "spiffe_id": "spiffe://wakir.peer-org-alpha/persona/reza",
+          "not_after_utc": "2026-06-18T00:00:00Z",
+          "bind_state_sha256": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "expired": false
+        }
+      ],
+      "expected": {
+        "snapshot_jcs_bytes_b64": "eyJiaW5kaW5ncyI6W3siYmluZF9zdGF0ZV9zaGEyNTYiOiJzaGEyNTY6YmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYiIsImV4cGlyZWQiOmZhbHNlLCJub3RfYWZ0ZXJfdXRjIjoiMjAyNi0wNi0xOFQwMDowMDowMFoiLCJvcmdfaWQiOiJjYWxsYW5kb3IiLCJwZXJzb25hX2lkIjoicHJpeWEiLCJzcGlmZmVfaWQiOiJzcGlmZmU6Ly93YWtpci5jYWxsYW5kb3IvcGVyc29uYS9wcml5YSJ9LHsiYmluZF9zdGF0ZV9zaGEyNTYiOiJzaGEyNTY6Y2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjYyIsImV4cGlyZWQiOmZhbHNlLCJub3RfYWZ0ZXJfdXRjIjoiMjAyNi0wNi0xOFQwMDowMDowMFoiLCJvcmdfaWQiOiJwZWVyLW9yZy1hbHBoYSIsInBlcnNvbmFfaWQiOiJyZXphIiwic3BpZmZlX2lkIjoic3BpZmZlOi8vd2FraXIucGVlci1vcmctYWxwaGEvcGVyc29uYS9yZXphIn0seyJiaW5kX3N0YXRlX3NoYTI1NiI6InNoYTI1NjphYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwiZXhwaXJlZCI6ZmFsc2UsIm5vdF9hZnRlcl91dGMiOiIyMDI2LTA2LTE4VDAwOjAwOjAwWiIsIm9yZ19pZCI6Indha2lyLWxhYnMiLCJwZXJzb25hX2lkIjoibWlyYSIsInNwaWZmZV9pZCI6InNwaWZmZTovL3dha2lyLndha2lyLWxhYnMvcGVyc29uYS9taXJhIn1dLCJzY2hlbWEiOiJ3YWtpci5pZGVudGl0eS5zdmlkLXdvcmtsb2FkLWNyb3NzLWxhbmcvMSJ9",
+        "snapshot_jcs_bytes_len": 813,
+        "snapshot_sha256_hex": "67891af47725eeabe0b7d548a4fda396f671f63d3ac50f69650063a755f68518",
+        "snapshot_hash_prefixed": "sha256:67891af47725eeabe0b7d548a4fda396f671f63d3ac50f69650063a755f68518"
+      },
+      "resolve_probe": {
+        "org_id": "callandor",
+        "persona_id": "priya",
+        "now_utc": "2026-05-18T00:00:00Z",
+        "expected_match": {
+          "bind_state_sha256": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "expired": false,
+          "not_after_utc": "2026-06-18T00:00:00Z",
+          "org_id": "callandor",
+          "persona_id": "priya",
+          "spiffe_id": "spiffe://wakir.callandor/persona/priya"
+        }
+      }
+    },
+    {
+      "name": "f04-key-rotation-svid-replay",
+      "comment": "One (org,persona)=(wakir-labs,tomas) with three successive not_after_utc bindings -- legitimate SPIRE rotation timeline. Snapshot pins all three; resolve@now picks the freshest (2026-07-25). Distinct bind_state_sha256 per rotation enforces the replay-detection contract (each new SVID has a new leaf cert).",
+      "input_bindings": [
+        {
+          "org_id": "wakir-labs",
+          "persona_id": "tomas",
+          "spiffe_id": "spiffe://wakir.wakir-labs/persona/tomas",
+          "not_after_utc": "2026-05-25T00:00:00Z",
+          "bind_state_sha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "expired": false
+        },
+        {
+          "org_id": "wakir-labs",
+          "persona_id": "tomas",
+          "spiffe_id": "spiffe://wakir.wakir-labs/persona/tomas",
+          "not_after_utc": "2026-06-25T00:00:00Z",
+          "bind_state_sha256": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+          "expired": false
+        },
+        {
+          "org_id": "wakir-labs",
+          "persona_id": "tomas",
+          "spiffe_id": "spiffe://wakir.wakir-labs/persona/tomas",
+          "not_after_utc": "2026-07-25T00:00:00Z",
+          "bind_state_sha256": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+          "expired": false
+        }
+      ],
+      "expected": {
+        "snapshot_jcs_bytes_b64": "eyJiaW5kaW5ncyI6W3siYmluZF9zdGF0ZV9zaGEyNTYiOiJzaGEyNTY6MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMSIsImV4cGlyZWQiOmZhbHNlLCJub3RfYWZ0ZXJfdXRjIjoiMjAyNi0wNS0yNVQwMDowMDowMFoiLCJvcmdfaWQiOiJ3YWtpci1sYWJzIiwicGVyc29uYV9pZCI6InRvbWFzIiwic3BpZmZlX2lkIjoic3BpZmZlOi8vd2FraXIud2FraXItbGFicy9wZXJzb25hL3RvbWFzIn0seyJiaW5kX3N0YXRlX3NoYTI1NiI6InNoYTI1NjoyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyIiwiZXhwaXJlZCI6ZmFsc2UsIm5vdF9hZnRlcl91dGMiOiIyMDI2LTA2LTI1VDAwOjAwOjAwWiIsIm9yZ19pZCI6Indha2lyLWxhYnMiLCJwZXJzb25hX2lkIjoidG9tYXMiLCJzcGlmZmVfaWQiOiJzcGlmZmU6Ly93YWtpci53YWtpci1sYWJzL3BlcnNvbmEvdG9tYXMifSx7ImJpbmRfc3RhdGVfc2hhMjU2Ijoic2hhMjU2OjMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMiLCJleHBpcmVkIjpmYWxzZSwibm90X2FmdGVyX3V0YyI6IjIwMjYtMDctMjVUMDA6MDA6MDBaIiwib3JnX2lkIjoid2FraXItbGFicyIsInBlcnNvbmFfaWQiOiJ0b21hcyIsInNwaWZmZV9pZCI6InNwaWZmZTovL3dha2lyLndha2lyLWxhYnMvcGVyc29uYS90b21hcyJ9XSwic2NoZW1hIjoid2FraXIuaWRlbnRpdHkuc3ZpZC13b3JrbG9hZC1jcm9zcy1sYW5nLzEifQ==",
+        "snapshot_jcs_bytes_len": 811,
+        "snapshot_sha256_hex": "ef75d1ebcb00f52b5c2df9beb7486cb65560cedc56d0da1954de69a7dfd66a05",
+        "snapshot_hash_prefixed": "sha256:ef75d1ebcb00f52b5c2df9beb7486cb65560cedc56d0da1954de69a7dfd66a05"
+      },
+      "resolve_probe": {
+        "org_id": "wakir-labs",
+        "persona_id": "tomas",
+        "now_utc": "2026-05-18T00:00:00Z",
+        "expected_match": {
+          "bind_state_sha256": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+          "expired": false,
+          "not_after_utc": "2026-07-25T00:00:00Z",
+          "org_id": "wakir-labs",
+          "persona_id": "tomas",
+          "spiffe_id": "spiffe://wakir.wakir-labs/persona/tomas"
+        }
+      }
+    },
+    {
+      "name": "f05-expired-svid-rejection",
+      "comment": "Single binding whose not_after_utc=2026-01-01 is before fixed_now_utc=2026-05-18. Snapshot pins expired=true; resolve@now returns None.",
+      "input_bindings": [
+        {
+          "org_id": "wakir-labs",
+          "persona_id": "aisha",
+          "spiffe_id": "spiffe://wakir.wakir-labs/persona/aisha",
+          "not_after_utc": "2026-01-01T00:00:00Z",
+          "bind_state_sha256": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+          "expired": true
+        }
+      ],
+      "expected": {
+        "snapshot_jcs_bytes_b64": "eyJiaW5kaW5ncyI6W3siYmluZF9zdGF0ZV9zaGEyNTYiOiJzaGEyNTY6OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OSIsImV4cGlyZWQiOnRydWUsIm5vdF9hZnRlcl91dGMiOiIyMDI2LTAxLTAxVDAwOjAwOjAwWiIsIm9yZ19pZCI6Indha2lyLWxhYnMiLCJwZXJzb25hX2lkIjoiYWlzaGEiLCJzcGlmZmVfaWQiOiJzcGlmZmU6Ly93YWtpci53YWtpci1sYWJzL3BlcnNvbmEvYWlzaGEifV0sInNjaGVtYSI6Indha2lyLmlkZW50aXR5LnN2aWQtd29ya2xvYWQtY3Jvc3MtbGFuZy8xIn0=",
+        "snapshot_jcs_bytes_len": 314,
+        "snapshot_sha256_hex": "0e61d186a23aa090f46b0c53052fd30f23e9980a9c8157654f2babb41ed72fd1",
+        "snapshot_hash_prefixed": "sha256:0e61d186a23aa090f46b0c53052fd30f23e9980a9c8157654f2babb41ed72fd1"
+      },
+      "resolve_probe": {
+        "org_id": "wakir-labs",
+        "persona_id": "aisha",
+        "now_utc": "2026-05-18T00:00:00Z",
+        "expected_match": null
+      }
+    }
+  ]
+}

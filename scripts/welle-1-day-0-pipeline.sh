@@ -286,19 +286,27 @@ phase_mo_run() {
     local summary_out="$WORKDIR/phase-mo-summary.json"
 
     # 1) Trigger-gate aggregator
+    #
+    # NB: capture rc via "|| gates_rc=$?" rather than the
+    # "if ! cmd; then gates_rc=$?; fi" pattern. In bash, "if !"
+    # negates the command's exit status, so by the time the
+    # "then" branch runs, $? is the rc of the negation (always 0
+    # when the negated command exited non-zero) — losing the
+    # actual exit code we need to branch on later. The 0/1/2
+    # ladder (green/yellow/red) only works with the trailing
+    # "|| rc=$?" form. Cf. Welle-3 phase Mi.5 (PR #222) for the
+    # canonical commentary on the same pattern.
     local gates_rc=0
-    if ! python3 "$REPO_ROOT/scripts/phase-3c-trigger-gate-aggregator.py" \
-            --repo-root "$REPO_ROOT" --json >"$gates_out" 2>/dev/null; then
-        gates_rc=$?
-    fi
+    python3 "$REPO_ROOT/scripts/phase-3c-trigger-gate-aggregator.py" \
+            --repo-root "$REPO_ROOT" --json >"$gates_out" 2>/dev/null \
+            || gates_rc=$?
     log "trigger-gate-aggregator rc=$gates_rc artifact=$gates_out"
 
     # 2) Cutover dry-run for the requested component
     local dry_rc=0
-    if ! python3 "$REPO_ROOT/scripts/phase-3c-cutover-dry-run.py" \
-            --component "$COMPONENT" --output "$dry_out" >/dev/null 2>&1; then
-        dry_rc=$?
-    fi
+    python3 "$REPO_ROOT/scripts/phase-3c-cutover-dry-run.py" \
+            --component "$COMPONENT" --output "$dry_out" >/dev/null 2>&1 \
+            || dry_rc=$?
     log "cutover-dry-run rc=$dry_rc component=$COMPONENT artifact=$dry_out"
 
     # 3) Verdict — green when both succeeded and both envelopes parse-clean

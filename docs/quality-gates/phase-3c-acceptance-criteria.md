@@ -251,6 +251,106 @@ asymmetric-rollback audit-trail when DW-AC-3 fires in the field.
   Migrations-Rollback drill is covered by a `@pytest.mark.skip`
   placeholder in `test_doppel_welle_4_5_e2e.py`.
 
+## 10. Welle-3 Henrik-Caution-Extension (ADR-0066 §Beschluss Solo-Welle-Carve-out)
+
+ADR-0066 §Beschluss carves Welle-3 (`bridge_audit_writer`) out of the
+Doppel-Welle-Cadence as the only Solo-Welle (KW 25). The carve-out
+exists because the writer **is** the consistency-oracle substrate for
+all other Wellen — flipping the writer itself to Rust-default
+introduces a meta-question for the cutover-day Konsistenz-Report. Per
+ADR-0065 §Empfehlung Footnote, a hold-out Python-pinned writer-
+instance runs alongside the Rust-default writer during the cutover-Tag
+to serve as the consistency-oracle.
+
+Three additional Henrik-Caution-Acceptance criteria (HC-AC-1..3) layer
+on top of the per-welle AC-1...AC-5 baseline for the Welle-3 Solo-
+cutover. These criteria are **Welle-3-specific** — no other Welle
+carries the HC-AC layer because no other Welle is itself the writer-
+substrate.
+
+### 10.1 HC-AC-1 ... HC-AC-3 Acceptance-Kriterien
+
+| ID | Gate | Test-Helper | Constant |
+|---|---|---|---|
+| **HC-AC-1** | Independent-Oracle-Validation: bridge_audit_writer-Output cross-validated by PR #197 Cross-Modul-Stress-Test substrate (or Operator-Hand-deployed hold-out Python-writer-instance); bridge_audit_writer self-output explicitly rejected. | `assert_henrik_caution_ac_1_independent_oracle_validation` | `HENRIK_CAUTION_INDEPENDENT_ORACLE_SOURCES` |
+| **HC-AC-2** | Atomic ENV-Flag-Switch Rollback ≤600s SLA mit symmetrischen Gates für missed-rollback (false-negative bei Drift > 0.5pp ohne Trigger) und spurious-rollback (false-positive bei Drift ≤ 0.5pp mit Trigger). | `assert_henrik_caution_ac_2_atomic_rollback` | `HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD = 0.5`, `HENRIK_CAUTION_ROLLBACK_SLA_SECONDS = 600.0` |
+| **HC-AC-3** | Pre-Cutover-Observability-Window: 7-day baseline mit per-day-consistency-rate ≥99.5% an jedem Tag des Fensters. Längere Baseline als AC-1 (5-Tage-Konsistenz-Report) weil Welle-3 selbst der Writer ist. | `assert_henrik_caution_ac_3_pre_cutover_window` | `HENRIK_CAUTION_PRE_CUTOVER_WINDOW_DAYS = 7`, `HENRIK_CAUTION_PRE_CUTOVER_CONSISTENCY_PCT_FLOOR = 0.995` |
+
+### 10.2 Gate-Schwerpunkt — Henrik-Caution Justification
+
+Each HC-AC criterion drills deeper than a related AC criterion for the
+Welle-3 Solo-cutover-specific risk surface:
+
+* **HC-AC-1 vs AC-1**: AC-1 measures `python_envelope_sha256 ==
+  rust_envelope_sha256` parity *within the writer's own roundtrip
+  output*. For Welle-3, this is a self-referential measurement (the
+  writer measures itself). HC-AC-1 closes the self-validation loophole
+  by mandating an **independent oracle** outside the bridge_audit_
+  writer substrate.
+* **HC-AC-2 vs ADR-0065 §Rollback-Strategie**: ADR-0065 §Rollback-
+  Strategie sets the 600s ENV-Flag-Switch SLA. HC-AC-2 adds the
+  symmetric-gate discipline — both missed-rollback (false-negative)
+  and spurious-rollback (false-positive) are blocked. A false-negative
+  during Welle-3 contaminates the consistency-oracle substrate for the
+  remaining Wellen; a false-positive thrashes the operator-runbook
+  with cascading rollback-restart-cycles.
+* **HC-AC-3 vs AC-1 (5-day window)**: AC-1's 5-day Konsistenz-Report
+  window is the per-welle baseline. HC-AC-3 stretches the window to
+  7 days specifically for Welle-3 because the writer-pattern variation
+  is the strongest signal here — a full operational week absorbs the
+  weekly Quadlet-restart-pattern + weekend write-pattern-differential.
+
+### 10.3 Independent-Oracle-Substrate Sources
+
+The `HENRIK_CAUTION_INDEPENDENT_ORACLE_SOURCES` enumeration carries
+exactly two ADR-0066-blessed substrates:
+
+| Source | Provenance | Use-Case |
+|---|---|---|
+| `cross-modul-stress-test-pr-197` | Tomás Tag-29 Phase-2-Acceptance-Gate-Erweiterung (PR #197) | Default substrate — runs continuously, no Welle-3-specific deployment needed. |
+| `holdout-python-writer-instance` | Operator-Hand-deployed Python-pinned writer-instance (ADR-0065 §Empfehlung Footnote) | Cutover-Tag-specific — deployed parallel to the Rust-default writer for the Welle-3 cutover-day, decommissioned after AC-1 5/5 days green. |
+
+Adding a new substrate requires an ADR-Folge-Item, not a conftest-
+edit. The `bridge_audit_writer_self` substrate is explicitly excluded
+by absence; the assertion-helper guards the `self_referential_flag`
+field on every record.
+
+### 10.4 HC-AC-Opt-In-Gate
+
+HC-AC-1..3 are part of the per-welle test-file (`test_welle_3_bridge_
+audit_writer_e2e.py`) and ride on the existing `phase_3c_acceptance`
+marker + `WAKIR_PHASE_3C_E2E=1` env-var. No separate opt-in needed;
+the HC-AC layer activates whenever the per-welle Welle-3 lane is run.
+
+### 10.5 Zone-N coordination — Henrik-Caution delta
+
+Henrik (Internal Audit) Zone-N-Quarterly-Review (Aisha-moderiert)
+specifically covers the HC-AC-1 independent-oracle-validation
+evidence: Henrik audits whether the operator-runbook actually pulled
+from the ADR-blessed independent substrate and not from the bridge_
+audit_writer self. This is the named Henrik-Caution surface that
+motivated the carve-out in the first place — Henrik's audit-sample
+overlaps with HC-AC-1 by design.
+
+HC-AC-2 (atomic-rollback) and HC-AC-3 (7-day pre-cutover-window) are
+QA-only evidence-layers, no Zone-N hand-off.
+
+### 10.6 Vermutungs-Kennzeichnung (P2) — Henrik-Caution delta
+
+* The HC-AC-2 0.5pp divergence-threshold numerically equals the
+  CMD-AC-4 atomic-flip-threshold but applies whole-bridge-audit-
+  writer rather than per-modul (sanity-test `test_welle_3_hc_ac_2_
+  threshold_anchored_to_adr_0066`).
+* The HC-AC-3 7-day window length is ADR-0066-fixed; the choice of
+  7 (vs the AC-1 5-day length) absorbs a full operational week of
+  write-pattern variation (sanity-test `test_welle_3_hc_ac_3_window_
+  length_anchored_to_adr_0066`).
+* The HC-AC-3 99.5% per-day consistency-floor mirrors the CMD-AC-3
+  per-Komponente floor numerically but applies per-day (sanity-test
+  `test_welle_3_hc_ac_3_consistency_floor_anchored_to_adr_0066`).
+* The HC-AC layer is Welle-3-exclusive; under no circumstance applies
+  to any other Welle (no other Welle is itself the writer-substrate).
+
 ## 11. Doppel-Welle-4+5 Cross-Modul-Drift-Extension (ADR-0066 §Beschluss Cross-Modul-Drift-Focus)
 
 ADR-0066 §Beschluss labels Doppel-Welle-4+5 (KW 26, `state_backing` ×
@@ -515,3 +615,110 @@ drill execution itself.
   falls under a separate Reza-Folge-Spawn-Artefakt scoped to
   `state_backing` + `lifecycle_state_machine` schema-touching
   changes only.
+
+## 13. Doppel-Welle-6+7 Cross-Modul-Drift-Extension (ADR-0066 §Beschluss Welle-6+7-Extension)
+
+ADR-0066 §Beschluss + Priya CTO-Coordination-Plan v3 (Tag-32 Mini-
+Welle Welle-6+7-Extension) layer four additional Cross-Modul-Drift
+acceptance-criteria atop the DW-AC-1...DW-AC-5 baseline for the KW 27
+Doppel-Welle-6+7 cutover (`subscribe_loop` × `recovery_workflow`).
+Mirrors the §11 Welle-4+5 CMD-AC shape but specialised for the
+**stateful-loop-paar bidirectional contract**:
+
+* `subscribe_loop` emits ack-records (cursor + per-subject-delta) →
+  `recovery_workflow` consumes during restart-point reconstruction.
+* `recovery_workflow` decides on R1..R4 Re-subscribe-triggers →
+  `subscribe_loop` re-subscribes.
+
+These criteria are **Doppel-Welle-6+7-specific** — DW-1+2 (read-only-
+paar) does not carry a CMD-AC layer; DW-4+5 carries the §11 CMD-AC
+layer with a different oracle-set and a different stress-profile.
+The two CMD-AC layers run side-by-side in the suite (not nested).
+
+### 13.1 CMD-AC-6-7-1 ... CMD-AC-6-7-4 Acceptance-Kriterien
+
+| ID | Gate | Test-Helper | Constant |
+|---|---|---|---|
+| **CMD-AC-6-7-1** | `subscribe_loop-rust` emits ack-record → `recovery_workflow-rust` consumes byte-identical (deserialize → re-serialize round-trip + cursor-delta-survival, Bug-42-adjacent). | `assert_cross_modul_drift_welle_6_7_ac_1_ack_consume_round_trip` | — |
+| **CMD-AC-6-7-2** | `recovery_workflow-rust` R1..R4 Re-subscribe-trigger wire-form == `python-python-baseline` (singleton oracle-set; mid-Doppel-Welle hypothetical is operationally unreachable for Welle-6+7). | `assert_cross_modul_drift_welle_6_7_ac_2_resubscribe_trigger_wire_form` | `CROSS_MODUL_DRIFT_WELLE_6_7_WIRE_FORM_ORACLES = ("python-python-baseline",)` |
+| **CMD-AC-6-7-3** | Cross-Modul-Stress-Test (PR #197) per-Komponente consistency ≥99.5% auf Welle-6+7 joint-load (subscribe-event-flood + simultaneous recovery-restart-points). | `assert_cross_modul_drift_welle_6_7_ac_3_per_komponente_consistency` | `CROSS_MODUL_DRIFT_CONSISTENCY_PCT_FLOOR = 0.995` (shared with §11) |
+| **CMD-AC-6-7-4** | Drift > 0.5pp → atomic single-Komponente rollback (high-drift modul auf `python`, partner bleibt `rust`-Default), ≤600s SLA, single restart-cycle. Mit `phase_3c_ende_delay_weeks`-Klassifikation (recovery_workflow flip → +1 week Phase-3c-Ende-Delay). | `assert_cross_modul_drift_welle_6_7_ac_4_atomic_flip_rollback` | `CROSS_MODUL_DRIFT_ROLLBACK_PCT_THRESHOLD = 0.5` (shared with §11) |
+
+### 13.2 Differences from §11 Welle-4+5 CMD-AC layer
+
+The §11 and §13 CMD-AC layers share the **gate-shape pattern** (4
+criteria: round-trip parity, wire-form parity vs python-baseline,
+per-Komponente consistency-floor, atomic-flip rollback) but differ in
+substrate-specifics:
+
+| Aspect | §11 Welle-4+5 | §13 Welle-6+7 |
+|---|---|---|
+| Producer→Consumer direction | Producer (state_backing-rust) → Consumer (lifecycle_state_machine-rust) on JCS state-records. | Producer (subscribe_loop-rust) → Consumer (recovery_workflow-rust) on NATS-JetStream ack-records. |
+| Round-trip survival field | `schema_version_round_trip_ok` — schema-version field survives deserialize → re-serialize. | `cursor_delta_round_trip_ok` — cursor-delta field survives consumer-side round-trip (Bug-42-replay-class). |
+| Wire-form oracle-set | `(python-python-baseline, python-rust-welle-4-only)` — pair; mid-Doppel-Welle hypothetical applies because state_backing/lifecycle has a bisectable schema-touchpoint. | `(python-python-baseline,)` — singleton; subscribe/recovery contract crosses no bisectable schema touchpoint. |
+| Wire-form trigger-IDs | `(transition-spawn-to-ready, transition-ready-to-active, transition-active-to-archived)` — lifecycle state-transitions. | `(R1, R2, R3, R4)` — recovery_workflow Re-subscribe-triggers (cold-start, restart-point-replay, partial-replay, fast-forward). |
+| Stress-test load | 5000 requests (matches DW-AC-4 Welle-4+5 enhanced level). | 2000 requests (matches DW-AC-4 Welle-6+7 Standard-Acceptance level). |
+| Atomic-flip impact-classification | None — Welle-4+5 is mid-Phase-3c, no Phase-3c-Ende-delay risk. | `phase_3c_ende_delay_weeks` field — recovery_workflow flip surfaces +1 week Phase-3c-Ende-Delay (Welle-7 is the closing welle). |
+
+### 13.3 Gate-Schwerpunkt — Welle-6+7-Extension Justification
+
+* **CMD-AC-6-7-1 vs DW-AC-2**: DW-AC-2 covers single-touchpoint byte-
+  parity on the producer (subscribe_loop) side. CMD-AC-6-7-1 closes
+  the consumer-side round-trip loophole AND adds the cursor-delta-
+  survival check (Bug-42-replay-class regression surface).
+* **CMD-AC-6-7-2 vs DW-AC-2**: DW-AC-2 covers Cross-Modul-Schema-
+  Konsistenz on the subscribe-event-log surface. CMD-AC-6-7-2 covers
+  the inverse direction — recovery_workflow's R1..R4 Re-subscribe-
+  triggers flowing into subscribe_loop. Mid-Doppel-Welle hypothetical
+  drops to a singleton because the subscribe/recovery contract has no
+  bisectable schema touchpoint between Python and Rust sides.
+* **CMD-AC-6-7-3 vs DW-AC-4**: DW-AC-4 sets zero-failure-floor on the
+  aggregate stress-test. CMD-AC-6-7-3 sets a per-Komponente
+  consistency-rate ≥99.5% floor — catches transient latency-tail
+  drift that DW-AC-4 misses but operationally matters (recovery
+  computes wrong restart-points on cursor-drift, subscribe_loop
+  silently drops events on subscription-cursor-drift).
+* **CMD-AC-6-7-4 vs DW-AC-3**: DW-AC-3 covers operator-decided
+  asymmetric rollback. CMD-AC-6-7-4 enforces the drift-magnitude
+  trigger-precondition + atomic-flip discipline AND adds the
+  `phase_3c_ende_delay_weeks` impact-classification (non-blocking
+  field, surfaces in error-message for downstream operator-hand
+  triage).
+
+### 13.4 CMD-AC-6-7-Opt-In-Gate
+
+CMD-AC-6-7-1..4 are part of the Doppel-Welle test-file (`test_doppel_
+welle_6_7_e2e.py`) and ride on the existing `phase_3c_doppel_welle_
+acceptance` marker + `WAKIR_PHASE_3C_DOPPEL_E2E=1` env-var. No
+separate opt-in needed; the CMD-AC-6-7 layer activates whenever the
+Doppel-Welle-6+7 lane is run.
+
+### 13.5 Zone-N coordination — CMD-AC-6-7 delta
+
+Henrik (Internal Audit) Zone-N-Quarterly-Review (Aisha-moderiert)
+covers the CMD-AC-6-7-4 atomic-flip discipline + the `phase_3c_ende_
+delay_weeks` classification specifically: QA-evidence on the gate-
+shape is complementary to Henrik's audit-sample of the Backend-
+Decision-Audit-Trail under the closing-welle rollback.
+
+CMD-AC-6-7-1..3 are QA-only evidence-layers; CMD-AC-6-7-4 is the
+explicit Zone-N touchpoint for the Welle-6+7-Extension layer.
+
+### 13.6 Vermutungs-Kennzeichnung (P2) — CMD-AC-6-7 delta
+
+* The `phase_3c_ende_delay_weeks` field is an **operational-impact-
+  classification**, not a gate-blocker. A correctly-fired recovery_
+  workflow atomic-flip is still a valid cutover-recovery; the delay-
+  weeks=1 surfaces in the error-message for operator-hand triage.
+* The CMD-AC-6-7-2 oracle-set is singleton by ADR-0066 design;
+  Welle-6+7 has no bisectable mid-state oracle (sanity-test
+  `test_doppel_welle_6_7_cmd_ac_6_7_2_oracle_set_singleton_anchored_
+  to_adr_0066`).
+* The CMD-AC-6-7-3 99.5% floor and CMD-AC-6-7-4 0.5pp threshold are
+  **shared constants** with the §11 Welle-4+5 CMD-AC layer
+  (`CROSS_MODUL_DRIFT_CONSISTENCY_PCT_FLOOR`, `CROSS_MODUL_DRIFT_
+  ROLLBACK_PCT_THRESHOLD`); ADR-0066 explicitly anchored these values
+  across both Doppel-Welle CMD-AC layers.
+* The CMD-AC-6-7 layer is Doppel-Welle-6+7-exclusive; under no
+  circumstance applies to DW-1+2 (read-only-paar) or DW-4+5 (carries
+  its own §11 CMD-AC layer with different specifics).

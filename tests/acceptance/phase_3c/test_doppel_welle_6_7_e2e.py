@@ -47,13 +47,22 @@ from __future__ import annotations
 import pytest
 
 from ._ac_assertions import (
+    assert_cross_modul_drift_welle_6_7_ac_1_ack_consume_round_trip,
+    assert_cross_modul_drift_welle_6_7_ac_2_resubscribe_trigger_wire_form,
+    assert_cross_modul_drift_welle_6_7_ac_3_per_komponente_consistency,
+    assert_cross_modul_drift_welle_6_7_ac_4_atomic_flip_rollback,
     assert_dw_ac_1_both_moduln_boot_rust,
     assert_dw_ac_2_cross_modul_schema_byte_parity,
     assert_dw_ac_3_asymmetric_rollback,
     assert_dw_ac_4_cross_modul_stress_test_green,
     assert_dw_ac_5_backend_decision_audit_two_records_consistent,
 )
-from .conftest import DOPPEL_WELLE_BY_PAIR
+from .conftest import (
+    CROSS_MODUL_DRIFT_CONSISTENCY_PCT_FLOOR,
+    CROSS_MODUL_DRIFT_ROLLBACK_PCT_THRESHOLD,
+    CROSS_MODUL_DRIFT_WELLE_6_7_WIRE_FORM_ORACLES,
+    DOPPEL_WELLE_BY_PAIR,
+)
 
 MODUL_A = "subscribe_loop"
 MODUL_B = "recovery_workflow"
@@ -355,3 +364,423 @@ def test_doppel_welle_6_7_welle_ende_acceptance_handoff() -> None:
     the Doppel-Welle-specific value-add, not a WE-1...WE-4 duplicate.
     """
     raise NotImplementedError("pending Doppel-Welle-cutover")
+
+
+# ---------------------------------------------------------------------------
+# CMD-AC-6-7-1 — subscribe_loop ack-record → recovery_workflow consume
+# round-trip parity + cursor-delta-survival.
+#
+# Drills deeper than DW-AC-2 (single-touchpoint byte-parity on the
+# producer side) by exercising the deserialize → re-serialize round-
+# trip on the consumer side AND the cursor-delta-field survival
+# (Bug-42-adjacent surface).
+# ---------------------------------------------------------------------------
+
+
+def test_doppel_welle_6_7_cmd_ac_6_7_1_ack_consume_round_trip_parity(
+    mocked_cross_modul_drift_welle_6_7_ack_round_trip,
+) -> None:
+    """CMD-AC-6-7-1: subscribe_loop-rust ack → recovery_workflow-rust
+    consume byte-identical (cursor-delta-survival).
+
+    The Phase-3c-trigger sprint wires this against real NATS-JetStream
+    ack-records: subscribe_loop-rust emits the ack on subscription-
+    event, recovery_workflow-rust consumes during restart-point
+    reconstruction, deserialises into the typed Rust struct, then re-
+    serialises back. The re-serialised bytes must equal the original.
+    """
+    records = mocked_cross_modul_drift_welle_6_7_ack_round_trip(
+        MODUL_A, MODUL_B
+    )
+    assert_cross_modul_drift_welle_6_7_ac_1_ack_consume_round_trip(
+        records, WELLE_PAIR_LABEL
+    )
+
+
+def test_doppel_welle_6_7_cmd_ac_6_7_1_byte_drift_blocks(
+    mocked_cross_modul_drift_welle_6_7_ack_round_trip,
+) -> None:
+    """CMD-AC-6-7-1 failure-mode: ack-bytes mutate on consumer-side.
+
+    Welle-6+7-specific drift-source: Rust-side serde implementation
+    drift between subscribe_loop-rust (producer) and recovery_
+    workflow-rust (consumer) — Unicode-normalisation drift,
+    field-ordering drift in the ack-record envelope.
+    """
+    records = mocked_cross_modul_drift_welle_6_7_ack_round_trip(
+        MODUL_A,
+        MODUL_B,
+        drift_ack_ids=("ack-cursor-1",),
+    )
+    with pytest.raises(AssertionError, match="CMD-AC-6-7-1"):
+        assert_cross_modul_drift_welle_6_7_ac_1_ack_consume_round_trip(
+            records, WELLE_PAIR_LABEL
+        )
+
+
+def test_doppel_welle_6_7_cmd_ac_6_7_1_cursor_delta_drop_blocks(
+    mocked_cross_modul_drift_welle_6_7_ack_round_trip,
+) -> None:
+    """CMD-AC-6-7-1 failure-mode: cursor-delta dropped on round-trip.
+
+    This is the Bug-42-replay-class regression: the cursor-delta field
+    silently drops on consumer-side deserialize -> re-serialize,
+    causing recovery_workflow to compute a wrong restart-point on
+    next replay. Bug-42 lessons-learned coverage is the dominant
+    testing surface for this exact failure-class.
+    """
+    records = mocked_cross_modul_drift_welle_6_7_ack_round_trip(
+        MODUL_A,
+        MODUL_B,
+        cursor_delta_breakage_ids=("ack-keepalive-snapshot",),
+    )
+    with pytest.raises(AssertionError, match="CMD-AC-6-7-1"):
+        assert_cross_modul_drift_welle_6_7_ac_1_ack_consume_round_trip(
+            records, WELLE_PAIR_LABEL
+        )
+
+
+# ---------------------------------------------------------------------------
+# CMD-AC-6-7-2 — recovery_workflow R1..R4 Re-subscribe-trigger wire-form
+# parity vs python-python-baseline.
+#
+# Singleton oracle-set: only python-python-baseline. The Welle-4+5
+# mid-Doppel-Welle hypothetical (python-rust-welle-N-only) is
+# operationally unreachable for Welle-6+7 because the subscribe/
+# recovery contract crosses no bisectable schema touchpoint.
+# ---------------------------------------------------------------------------
+
+
+def test_doppel_welle_6_7_cmd_ac_6_7_2_resubscribe_trigger_wire_form_parity(
+    mocked_cross_modul_drift_welle_6_7_resubscribe,
+) -> None:
+    """CMD-AC-6-7-2: R1..R4 Re-subscribe-trigger wire-form matches
+    python-python-baseline.
+
+    The Phase-3c-trigger sprint wires this against:
+    * R1 — Re-subscribe-on-cold-start (post-engine-boot).
+    * R2 — Re-subscribe-with-restart-point-replay.
+    * R3 — Re-subscribe-with-partial-replay (cursor-walk-forward).
+    * R4 — Re-subscribe-with-fast-forward (skip-to-tip).
+
+    Rust-Rust trigger wire-form must match the pre-Doppel-Welle-6+7
+    production baseline byte-identically for every R1..R4 trigger.
+    """
+    records = mocked_cross_modul_drift_welle_6_7_resubscribe(
+        MODUL_A, MODUL_B
+    )
+    assert_cross_modul_drift_welle_6_7_ac_2_resubscribe_trigger_wire_form(
+        records, WELLE_PAIR_LABEL
+    )
+
+
+def test_doppel_welle_6_7_cmd_ac_6_7_2_python_baseline_drift_blocks(
+    mocked_cross_modul_drift_welle_6_7_resubscribe,
+) -> None:
+    """CMD-AC-6-7-2 failure-mode: Rust-Rust diverges from python-
+    python baseline.
+
+    This is the dominant regression-class for the Welle-6+7 Doppel-
+    Welle: the new Rust-Rust trigger wire-form produces a hash that
+    the long-standing Python-Python production state did not. Recovery
+    runbooks reading pre-cutover triggers become hash-divergent, raising
+    re-subscribe-storm risk during cutover-day.
+    """
+    records = mocked_cross_modul_drift_welle_6_7_resubscribe(
+        MODUL_A,
+        MODUL_B,
+        drift_trigger_ids=("R2",),
+    )
+    with pytest.raises(AssertionError, match="CMD-AC-6-7-2"):
+        assert_cross_modul_drift_welle_6_7_ac_2_resubscribe_trigger_wire_form(
+            records, WELLE_PAIR_LABEL
+        )
+
+
+def test_doppel_welle_6_7_cmd_ac_6_7_2_multiple_trigger_drifts_block(
+    mocked_cross_modul_drift_welle_6_7_resubscribe,
+) -> None:
+    """CMD-AC-6-7-2 failure-mode: multiple R1..R4 triggers drift.
+
+    The assertion-shape surfaces every drifting trigger in the error
+    message, not just the first one. Useful for operator-side triage
+    when the Rust-side recovery-runbook regressed all triggers
+    simultaneously (e.g. via a shared serialisation-helper change).
+    """
+    records = mocked_cross_modul_drift_welle_6_7_resubscribe(
+        MODUL_A,
+        MODUL_B,
+        drift_trigger_ids=("R1", "R3", "R4"),
+    )
+    with pytest.raises(AssertionError, match="CMD-AC-6-7-2"):
+        assert_cross_modul_drift_welle_6_7_ac_2_resubscribe_trigger_wire_form(
+            records, WELLE_PAIR_LABEL
+        )
+
+
+def test_doppel_welle_6_7_cmd_ac_6_7_2_oracle_set_singleton_anchored_to_adr_0066() -> None:
+    """CMD-AC-6-7-2 sanity: oracle-set is singleton (python-python-
+    baseline only), ADR-0066-fixed.
+
+    The Welle-4+5 mid-Doppel-Welle hypothetical (python-rust-welle-N-
+    only) does NOT apply to Welle-6+7 because the subscribe/recovery
+    contract crosses no bisectable schema touchpoint. Adding a second
+    oracle requires an ADR-Folge-Item.
+    """
+    assert CROSS_MODUL_DRIFT_WELLE_6_7_WIRE_FORM_ORACLES == (
+        "python-python-baseline",
+    ), (
+        f"CMD-AC-6-7-2 oracle-set anchored to ADR-0066 - must be "
+        f"singleton (python-python-baseline,); got "
+        f"{CROSS_MODUL_DRIFT_WELLE_6_7_WIRE_FORM_ORACLES!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# CMD-AC-6-7-3 — Welle-6+7 joint stress-load per-Komponente consistency
+# >=99.5%.
+#
+# Stress profile: subscribe-event-flood + simultaneous recovery-
+# restart-points. References Tomás Tag-29 substrate (Phase-2-Acceptance-
+# Gate-Erweiterung, PR #197). Both per-Komponente rates must clear the
+# 0.995 floor; joint-rate = min(rate_a, rate_b).
+# ---------------------------------------------------------------------------
+
+
+def test_doppel_welle_6_7_cmd_ac_6_7_3_per_komponente_consistency_green(
+    mocked_cross_modul_drift_welle_6_7_per_komponente_consistency,
+) -> None:
+    """CMD-AC-6-7-3: both per-Komponente consistency-rates >=99.5%.
+
+    The Phase-3c-trigger sprint wires this against PR #197 Cross-
+    Modul-Stress-Test substrate output broken out per Komponente:
+    one rate for subscribe_loop-rust's subscription-event-flood
+    handling and one rate for recovery_workflow-rust's simultaneous-
+    restart-point reconstruction.
+    """
+    record = mocked_cross_modul_drift_welle_6_7_per_komponente_consistency(
+        MODUL_A, MODUL_B
+    )
+    assert_cross_modul_drift_welle_6_7_ac_3_per_komponente_consistency(
+        record, WELLE_PAIR_LABEL
+    )
+
+
+def test_doppel_welle_6_7_cmd_ac_6_7_3_subscribe_loop_below_floor_blocks(
+    mocked_cross_modul_drift_welle_6_7_per_komponente_consistency,
+) -> None:
+    """CMD-AC-6-7-3 failure-mode: subscribe_loop per-Komponente rate
+    below 99.5% floor.
+
+    Even when the aggregate DW-AC-4 stress-test is zero-failure (e.g.
+    because the recovery side compensates), CMD-AC-6-7-3 catches a
+    subscribe_loop-side consistency degradation below 99.5%.
+    """
+    record = mocked_cross_modul_drift_welle_6_7_per_komponente_consistency(
+        MODUL_A, MODUL_B, modul_a_rate=0.989
+    )
+    with pytest.raises(AssertionError, match="CMD-AC-6-7-3"):
+        assert_cross_modul_drift_welle_6_7_ac_3_per_komponente_consistency(
+            record, WELLE_PAIR_LABEL
+        )
+
+
+def test_doppel_welle_6_7_cmd_ac_6_7_3_recovery_workflow_below_floor_blocks(
+    mocked_cross_modul_drift_welle_6_7_per_komponente_consistency,
+) -> None:
+    """CMD-AC-6-7-3 failure-mode: recovery_workflow per-Komponente rate
+    below 99.5% floor.
+
+    Particularly costly here: a recovery_workflow consistency drift
+    means restart-points are computed incorrectly, which propagates
+    through the entire recovery-pipeline.
+    """
+    record = mocked_cross_modul_drift_welle_6_7_per_komponente_consistency(
+        MODUL_A, MODUL_B, modul_b_rate=0.991
+    )
+    with pytest.raises(AssertionError, match="CMD-AC-6-7-3"):
+        assert_cross_modul_drift_welle_6_7_ac_3_per_komponente_consistency(
+            record, WELLE_PAIR_LABEL
+        )
+
+
+def test_doppel_welle_6_7_cmd_ac_6_7_3_both_below_floor_blocks(
+    mocked_cross_modul_drift_welle_6_7_per_komponente_consistency,
+) -> None:
+    """CMD-AC-6-7-3 failure-mode: both per-Komponente rates below floor.
+
+    Joint-rate (computed as min()) is the lower of the two; the
+    assertion-shape lists both failing moduln in the error message
+    for operator-side triage.
+    """
+    record = mocked_cross_modul_drift_welle_6_7_per_komponente_consistency(
+        MODUL_A, MODUL_B, modul_a_rate=0.990, modul_b_rate=0.988
+    )
+    with pytest.raises(AssertionError, match="CMD-AC-6-7-3"):
+        assert_cross_modul_drift_welle_6_7_ac_3_per_komponente_consistency(
+            record, WELLE_PAIR_LABEL
+        )
+
+
+def test_doppel_welle_6_7_cmd_ac_6_7_3_consistency_floor_anchored_to_adr_0066() -> None:
+    """CMD-AC-6-7-3 sanity: the 99.5% floor is ADR-0066-fixed.
+
+    Shared with Welle-4+5 CMD-AC-3 (same constant
+    CROSS_MODUL_DRIFT_CONSISTENCY_PCT_FLOOR = 0.995). Loosening
+    requires an ADR-Folge-Item, not a conftest-edit.
+    """
+    assert CROSS_MODUL_DRIFT_CONSISTENCY_PCT_FLOOR == 0.995, (
+        f"CMD-AC-6-7-3 consistency-floor anchored to ADR-0066 - must "
+        f"be 0.995 (99.5%); got {CROSS_MODUL_DRIFT_CONSISTENCY_PCT_FLOOR}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# CMD-AC-6-7-4 — Drift-triggered atomic single-Komponente rollback with
+# Phase-3c-Ende-delay-classification.
+#
+# Same gate-shape as Welle-4+5 CMD-AC-4 plus the Welle-6+7-specific
+# risk surface: a recovery_workflow rollback delays Phase-3c-Ende by
+# +1 week (Welle-7 is the closing welle).
+# ---------------------------------------------------------------------------
+
+
+def test_doppel_welle_6_7_cmd_ac_6_7_4_atomic_flip_subscribe_loop_no_delay(
+    mocked_cross_modul_drift_welle_6_7_atomic_flip,
+) -> None:
+    """CMD-AC-6-7-4: subscribe_loop drift > 0.5pp -> atomic flip,
+    Phase-3c-Ende-delay = 0 weeks.
+
+    recovery_workflow stays rust-Default. subscribe_loop rollback is
+    less costly than recovery_workflow rollback because subscribe_
+    loop is Welle-6 (not the closing welle) - Phase-3c-Ende-Tag is
+    unaffected.
+    """
+    record = mocked_cross_modul_drift_welle_6_7_atomic_flip(
+        MODUL_A,
+        MODUL_B,
+        high_drift_modul=MODUL_A,
+        measured_drift_pct=0.78,
+    )
+    assert_cross_modul_drift_welle_6_7_ac_4_atomic_flip_rollback(
+        record, WELLE_PAIR_LABEL
+    )
+    assert record.phase_3c_ende_delay_weeks == 0, (
+        f"subscribe_loop flip must surface delay-weeks=0; got "
+        f"{record.phase_3c_ende_delay_weeks}"
+    )
+
+
+def test_doppel_welle_6_7_cmd_ac_6_7_4_atomic_flip_recovery_workflow_one_week_delay(
+    mocked_cross_modul_drift_welle_6_7_atomic_flip,
+) -> None:
+    """CMD-AC-6-7-4: recovery_workflow drift > 0.5pp -> atomic flip,
+    Phase-3c-Ende-delay = +1 week.
+
+    The closing-welle rollback impact-surface: Welle-7 is the last
+    cutover-welle, so rolling it back delays Phase-3c-Ende by +1
+    week. The gate passes (atomic-flip discipline upheld) but the
+    delay-classification surfaces in the record for downstream
+    operator-hand triage.
+    """
+    record = mocked_cross_modul_drift_welle_6_7_atomic_flip(
+        MODUL_A,
+        MODUL_B,
+        high_drift_modul=MODUL_B,
+        measured_drift_pct=0.65,
+    )
+    assert_cross_modul_drift_welle_6_7_ac_4_atomic_flip_rollback(
+        record, WELLE_PAIR_LABEL
+    )
+    assert record.phase_3c_ende_delay_weeks == 1, (
+        f"recovery_workflow flip must surface delay-weeks=1; got "
+        f"{record.phase_3c_ende_delay_weeks}"
+    )
+
+
+def test_doppel_welle_6_7_cmd_ac_6_7_4_sub_threshold_flip_rejected(
+    mocked_cross_modul_drift_welle_6_7_atomic_flip,
+) -> None:
+    """CMD-AC-6-7-4 failure-mode: spurious sub-threshold flip rejected.
+
+    A flip on measured drift <=0.5pp is spurious. CMD-AC-6-7-4 catches
+    runbook over-firing during stress-window noise.
+    """
+    record = mocked_cross_modul_drift_welle_6_7_atomic_flip(
+        MODUL_A,
+        MODUL_B,
+        high_drift_modul=MODUL_A,
+        measured_drift_pct=0.32,
+    )
+    with pytest.raises(AssertionError, match="CMD-AC-6-7-4"):
+        assert_cross_modul_drift_welle_6_7_ac_4_atomic_flip_rollback(
+            record, WELLE_PAIR_LABEL
+        )
+
+
+def test_doppel_welle_6_7_cmd_ac_6_7_4_partner_contagion_blocks(
+    mocked_cross_modul_drift_welle_6_7_atomic_flip,
+) -> None:
+    """CMD-AC-6-7-4 failure-mode: partner also flipped -> contagious
+    rollback rejected.
+
+    Atomic-flip-pattern forbids contagion. A cross-modul-contract bug
+    triggers both-rollback through the DW-AC-3 path, not CMD-AC-6-7-4.
+    """
+    record = mocked_cross_modul_drift_welle_6_7_atomic_flip(
+        MODUL_A,
+        MODUL_B,
+        high_drift_modul=MODUL_A,
+        measured_drift_pct=0.81,
+        partner_also_flipped=True,
+    )
+    with pytest.raises(AssertionError, match="CMD-AC-6-7-4"):
+        assert_cross_modul_drift_welle_6_7_ac_4_atomic_flip_rollback(
+            record, WELLE_PAIR_LABEL
+        )
+
+
+def test_doppel_welle_6_7_cmd_ac_6_7_4_non_atomic_flip_blocks(
+    mocked_cross_modul_drift_welle_6_7_atomic_flip,
+) -> None:
+    """CMD-AC-6-7-4 failure-mode: multi-restart-cycle flip rejected."""
+    record = mocked_cross_modul_drift_welle_6_7_atomic_flip(
+        MODUL_A,
+        MODUL_B,
+        high_drift_modul=MODUL_B,
+        measured_drift_pct=0.72,
+        flip_was_atomic=False,
+    )
+    with pytest.raises(AssertionError, match="CMD-AC-6-7-4"):
+        assert_cross_modul_drift_welle_6_7_ac_4_atomic_flip_rollback(
+            record, WELLE_PAIR_LABEL
+        )
+
+
+def test_doppel_welle_6_7_cmd_ac_6_7_4_sla_violation_blocks(
+    mocked_cross_modul_drift_welle_6_7_atomic_flip,
+) -> None:
+    """CMD-AC-6-7-4 failure-mode: flip-elapsed > 600s SLA."""
+    record = mocked_cross_modul_drift_welle_6_7_atomic_flip(
+        MODUL_A,
+        MODUL_B,
+        high_drift_modul=MODUL_A,
+        measured_drift_pct=0.83,
+        flip_elapsed_seconds=730.0,
+    )
+    with pytest.raises(AssertionError, match="CMD-AC-6-7-4"):
+        assert_cross_modul_drift_welle_6_7_ac_4_atomic_flip_rollback(
+            record, WELLE_PAIR_LABEL
+        )
+
+
+def test_doppel_welle_6_7_cmd_ac_6_7_4_threshold_anchored_to_adr_0066() -> None:
+    """CMD-AC-6-7-4 sanity: the 0.5pp drift-threshold is ADR-0066-fixed.
+
+    Shared with Welle-4+5 CMD-AC-4 (same constant
+    CROSS_MODUL_DRIFT_ROLLBACK_PCT_THRESHOLD = 0.5).
+    """
+    assert CROSS_MODUL_DRIFT_ROLLBACK_PCT_THRESHOLD == 0.5, (
+        f"CMD-AC-6-7-4 drift-threshold anchored to ADR-0066 - must be "
+        f"0.5pp; got {CROSS_MODUL_DRIFT_ROLLBACK_PCT_THRESHOLD}"
+    )
