@@ -3,13 +3,14 @@
 | Field | Value |
 |---|---|
 | Owner | Amara Osei (QA), with Zone-N cross-check by Henrik (Internal Audit) |
-| Status | Tag-47 structural-audit — pending Phase-3c-Welle-Marathon execution (ADR-0066 four-Wochen-Cadence KW-24 -> KW-27) |
-| Phase | 3 (closing): Pre-Mortem failure-mode test-coverage audit + Tag-46 sweep + Tag-47 layer-consistency audit |
-| Source | Tag-45 Amara Auftrag (Continuous-Mode, 2026-05-18); Tag-46 Amara Coverage-Sweep (Continuous-Mode, 2026-05-18); Tag-47 Amara Pyramide-Layer-Audit (Continuous-Mode, 2026-05-18); Henrik Tag-44 Pre-Mortem-Skizze (`reports/audit/phase-3-marathon-pre-mortem-2026-05-18.md`); ADR-0066 §Beschluss + §Wochen-Plan; ADR-0065 §Verifikations-Plan |
-| Date | 2026-05-18 (creation Tag-45; sweep update Tag-46; layer-audit refresh Tag-47) |
+| Status | Tag-50 consolidated cross-range sweep — pending Phase-3c-Welle-Marathon execution (ADR-0066 four-Wochen-Cadence KW-24 -> KW-27) |
+| Phase | 3 (closing): Pre-Mortem failure-mode test-coverage audit + Tag-46 sweep + Tag-47 layer-consistency audit + Tag-50 Tag-44..49 consolidated sweep |
+| Source | Tag-45 Amara Auftrag (Continuous-Mode, 2026-05-18); Tag-46 Amara Coverage-Sweep (Continuous-Mode, 2026-05-18); Tag-47 Amara Pyramide-Layer-Audit (Continuous-Mode, 2026-05-18); Tag-50 Amara Consolidated Sweep Tag-44..49 (Continuous-Mode, 2026-05-19); Henrik Tag-44 Pre-Mortem-Skizze (`reports/audit/phase-3-marathon-pre-mortem-2026-05-18.md`); ADR-0066 §Beschluss + §Wochen-Plan; ADR-0065 §Verifikations-Plan |
+| Date | 2026-05-18 (creation Tag-45; sweep update Tag-46; layer-audit refresh Tag-47); 2026-05-19 (Tag-50 consolidated update) |
 | Test-File (Tag-45 baseline) | `tests/phase_3c/test_pre_mortem_failure_mode_coverage_audit.py` |
 | Test-File (Tag-46 sweep) | `tests/phase_3c/test_pre_mortem_coverage_sweep_tag_46.py` |
 | Test-File (Tag-47 structural-audit) | `tests/phase_3c/test_acceptance_pyramide_tag_46_validation.py` |
+| Test-File (Tag-50 consolidated sweep) | `tests/phase_3c/test_pre_mortem_coverage_sweep_tag_50_consolidated.py` |
 | Companion (positive marathon-sequence) | `tests/phase_3c/test_marathon_schluss_acceptance_drill.py` (Tag-43) |
 | Companion (anti-pattern control surface) | `tests/phase_3c/test_marathon_anti_patterns.py` (Tag-44) |
 | Companion (per-day walkthrough) | `tests/phase_3c/test_cutover_day_e2e_drill.py` (Tag-41) |
@@ -684,6 +685,173 @@ via `importlib`, collects their test-function names, and asserts
 the named pinning-tests exist. It does NOT re-execute the
 companion tests.
 
+## 7. Tag-50 consolidated sweep — Tag-44..49 PR-range
+
+The Tag-50 consolidated sweep
+(`tests/phase_3c/test_pre_mortem_coverage_sweep_tag_50_consolidated.py`,
+25 hermetic tests) is the cross-range audit that:
+
+1. **Re-verifies** that the four Tag-46 PARTIAL -> COVERED promotions
+   (A2 / A6 / A8 / B1) are still in place on `main` at Tag-50.
+2. **Surveys the Tag-47 / Tag-48 / Tag-49 side-substance** for
+   defence-in-depth pins on already-COVERED failure-modes plus
+   promotion candidates beyond A2 / A6 / A8 / B1.
+3. **Records side-finding promotion candidates** as P2 reading,
+   pending Henrik Zone-N partner-review.
+
+### 7.1 Tag-44..49 substance map (consolidated)
+
+| Tag | PR | Title-Keyword | Substance file | Modes touched | Kind | Owner |
+|---|---|---|---|---|---|---|
+| Tag-46 | #295 | A2 FSM-Phantom | `wirelang/tests/persona_engine/test_fsm_phantom_transition_coverage_a2.py` | A2 | covered-promotion | Reza |
+| Tag-46 | #298 | A6 Cosign-Drift | `tests/infra/test_cosign_drift_coverage_a6.py` | A6 | covered-promotion | Kai |
+| Tag-46 | #299 | B1 AR-Hand-Stop | `tests/ci/test_ar_hand_stop_marker_trigger_b1.py` | B1 | covered-promotion | Tomás |
+| Tag-46 | #300 | A8 JetStream-Loss | `wirelang/persona_engine/tests/test_nats_jetstream_loss_recovery_a8.py` | A8 | covered-promotion | Selin |
+| Tag-47 | #302 | Alert-Bridge | `tests/observability/test_alert_rule_to_mira_notify_bridge.py` | B1 | defence-in-depth | Noa |
+| Tag-47 | #304 | Marker-Listener-Workflow | `tests/ci/test_ar_hand_stop_marker_workflow.py` | B1 | defence-in-depth | Tomás |
+| Tag-47 | #305 | 15-Crate-Audit | `tests/audit/test_phase_3a_15_crate_consistency.py` | A1 | defence-in-depth | Henrik |
+| Tag-47 | #306 | Engine-Boot-Self-Test | `wirelang/tests/persona_engine/test_boot_self_test_tag47.py` | A2 | defence-in-depth | Selin |
+| Tag-47 | #307 | Keyless-OIDC-Drift-Probe | `tests/observability/test_cosign_keyless_oidc_drift_probe.py` | A6, D3 | partial-uplift | Kai |
+| Tag-48 | #308 | Spec-Drift-Reconciliation | `tests/specs/test_wirelang_spec_v0_4_1_drift_reconciliation.py` | A1 | defence-in-depth | Reza |
+| Tag-48 | #309 | Trend-Heatmap | `tests/observability/test_per_welle_trend_heatmap.py` | A1, C1 | defence-in-depth | Noa |
+| Tag-48 | #310 | 15-Binary-SBOM | `tests/observability/test_generate_15_binary_sbom.py` | A6, D3 | defence-in-depth | Kai |
+| Tag-48 | #311 | Bug-42-Regression | `tests/integration/test_bug_42_regression_suite_tag_48.py` | A4 | defence-in-depth | Amara |
+| Tag-48 | #313 | Bridge-Audit-Writer-Wire-In | `wirelang/tests/persona_engine/test_bridge_audit_writer_wire_in_tag48.py` | A5, A8 | defence-in-depth | Selin |
+| Tag-49 | #314 | Federation-Resolver-Cross-Lang-Pin | `tests/specs/test_wirelang_spec_v0_4_1_federation_resolver_cross_lang_pin_refresh.py` | A1 | defence-in-depth | Reza |
+| Tag-49 | #315 | Heatmap-Prometheus-Emitter | `tests/observability/test_per_welle_heatmap_prom_emitter.py` | A1, C1 | defence-in-depth | Noa |
+| Tag-49 | #316 | Cross-Welle-Hot-Spot-E2E | `tests/phase_3c/test_cross_welle_hot_spot_e2e.py` | A1, B2 | defence-in-depth | Amara |
+| Tag-49 | #317 | Cross-Welle-Hot-Spot-Aggregator | `tests/ci/test_cross_welle_hot_spot_aggregator.py` | A1 | defence-in-depth | Tomás |
+| Tag-49 | #318 | SBOM-vs-Baseline-Verifier | `tests/observability/test_verify_15_binary_sbom_against_baseline.py` | A6, D3 | defence-in-depth | Kai |
+
+### 7.2 Failure-modes touched by Tag-47..49 side-substance (count)
+
+| Mode | Tag-46 base state | Tag-47/48/49 anchors | Tag-50 reading |
+|---|---|---|---|
+| A1 Cross-Modul-Drift | COVERED (Tag-40 + Tag-43 + Tag-44 AP-4) | +6 (PR #305, #308, #309, #314, #315, #316, #317) | COVERED, marathon-rollup layer added |
+| A2 FSM-Phantom-Transition | COVERED (Tag-46 PR #295) | +1 (PR #306 Boot-Self-Test) | COVERED |
+| A4 NATS-Mode-Mismatch | COVERED | +1 (PR #311 Bug-42 regression) | COVERED |
+| A5 Self-Reference-Trap-Fire | COVERED | +1 (PR #313 bridge-audit-writer wire-in) | COVERED |
+| A6 Cosign-Verification-Drift | COVERED (Tag-46 PR #298 substrate) | +3 (PR #307 keyless, PR #310 SBOM, PR #318 verifier) | COVERED + marathon-defence anchors closed |
+| A8 NATS-JetStream-Loss | COVERED (Tag-46 PR #300) | +1 (PR #313 bridge-audit-writer wire-in) | COVERED |
+| B1 AR-Hand-Stop-Marker | COVERED (Tag-46 PR #299 marker-shape) | +2 (PR #302 alert-bridge, PR #304 marker-listener-workflow) | COVERED + operative-defence closed |
+| B2 Sign-Off-Sequenz-Bruch | COVERED | +1 (PR #316 cross-welle cascade) | COVERED |
+| C1 COMPLETE-Marker-False-Positive | COVERED | +2 (PR #309 heatmap, PR #315 prom-emitter) | COVERED |
+| D3 Cosign-Verification-Drift (sigstore-external) | GAP-ACCEPTED-external | +3 (PR #307 keyless-probe, PR #310 SBOM, PR #318 verifier) | **PARTIAL** (internal-observability uplift — P2 reading) |
+
+### 7.3 Tag-50 promotion candidates
+
+#### Candidate 1: D3 GAP-ACCEPTED-external -> PARTIAL (internal uplift)
+
+**Justification.** Tag-45 §2 D3 was classified GAP-ACCEPTED-external on
+the rationale that sigstore/Fulcio outage is operator-hand / fail-fast
+configuration. The Tag-47 PR #307 Cosign-Keyless-OIDC-Drift-Probe runs
+daily and detects three classes of external drift (trust-root, OIDC-
+identity, per-binary-signature), surfacing them in the Phase-3-marathon
+observability stack as Prometheus metrics and Mira-Notify alerts. The
+Tag-48 PR #310 15-binary SBOM generator + Tag-49 PR #318 SBOM-vs-baseline
+verifier add supply-chain-content drift detection. The three together
+constitute an **internal observability surface** for the external D3
+failure-mode that did not exist at Tag-45.
+
+The external failure-tolerance behaviour is unchanged; only the
+internal detection-surface lifts. Tag-50 P2 reading: D3 should be
+reclassified GAP-ACCEPTED-external -> PARTIAL with the §2 Notes
+section recording the three internal-observability anchors.
+
+**Zone-N review required.** Henrik decides whether the internal-
+observability uplift is a Class-D failure-mode boundary change or
+remains a Class-D anchor with a §2 note. Tag-50 doc-update does
+NOT auto-flip; it surfaces the candidate.
+
+#### Candidate 2: A6 marathon-defence-in-depth — Tag-45 §4 item 2b closed
+
+**Justification.** Tag-45 §4 named item 2b ("A6 Cosign-Verification-
+Drift (marathon defence-in-depth)") with placeholder file
+`test_cosign_chain_marathon_image_hash_stability.py` and Amara as
+owner, pending spawn. The Tag-47 PR #307 + Tag-48 PR #310 + Tag-49
+PR #318 combination delivers the marathon-level defence-in-depth
+anchors that Tag-45 §4 item 2b sought, **even though the canonical
+filename was not landed under that exact path**. The substance-
+equivalence is:
+
+| Tag-45 §4 item 2b sought | Tag-47/48/49 substance delivered |
+|---|---|
+| Daily cosign-chain image-hash-stability check | Tag-47 PR #307 cosign-keyless-OIDC-drift-probe (daily) |
+| Marathon-level signature-chain stability | Tag-48 PR #310 15-binary SBOM (content-baseline) |
+| Image-hash-vs-baseline enforcement | Tag-49 PR #318 SBOM-vs-baseline verifier (15 pinned baselines) |
+
+The Tag-50 doc-update records §4 item 2b as **closed by substance-
+equivalence** with the three Tag-47..49 anchors named. The
+canonical filename `test_cosign_chain_marathon_image_hash_stability
+.py` is retired as an unused placeholder.
+
+#### Candidate 3: A1 marathon-rollup defence-in-depth (cross-welle cascade)
+
+**Justification.** Tag-45 baseline classified A1 as COVERED via
+Tag-40 (pairwise isolation), Tag-43 (marathon-aggregate blocker
+rejection), and Tag-44 AP-4 (namespace-prefix discipline). The
+Tag-49 PR #316 Cross-Welle Hot-Spot E2E + PR #317 Cross-Welle
+Hot-Spot Aggregator add a fourth A1 defence: **marathon-rollup
+cascade detection** across the four-week trace. The Tag-50 §2 A1
+Notes section gains a fourth defence-in-depth bullet (22 E2E tests
+covering propagation-map, single-day-cascade, multi-day-flap,
+terminal-Welle-7-isolated-no-cascade).
+
+A1 stays COVERED; no state transition.
+
+### 7.4 Tag-50 §3 coverage-summary recomputation
+
+If the Zone-N partner-review (Henrik) accepts the D3 internal-
+observability uplift, the §3 totals shift:
+
+| Class | Total | COVERED | PARTIAL | GAP-ACCEPTED | GAP-OPEN |
+|---|---|---|---|---|---|
+| A (Technisch) | 8 | 8 (A1-A8) | 0 | 0 | 0 |
+| B (Operativ) | 6 | 3 (B1, B2, B4) | 1 (B3) | 2 (B5, B6) | 0 |
+| C (Prozedural) | 5 | 2 (C1, C2) | 0 | 3 (C3, C4, C5) | 0 |
+| D (Externe) | 5 | 0 | 1 (D3-internal-uplift) | 4 (D1, D2, D4, D5) | 0 |
+| **Total (Tag-50 P2)** | **24** | **13** | **2** | **9** | **0** |
+
+If Henrik retains D3 as GAP-ACCEPTED-external (Class-D boundary
+preserved), the §3 totals stay at the Tag-46 cumulative state:
+
+| Class | Total | COVERED | PARTIAL | GAP-ACCEPTED | GAP-OPEN |
+|---|---|---|---|---|---|
+| **Total (Tag-50 conservative)** | **24** | **12** | **2** | **10** | **0** |
+
+Either way, GAP-OPEN remains 0 and Total stays 24. The single
+unresolved Tag-50 question is the D3 boundary.
+
+### 7.5 Tag-50 sweep test-file contract
+
+The Tag-50 test file
+`tests/phase_3c/test_pre_mortem_coverage_sweep_tag_50_consolidated.py`
+(25 hermetic tests) is partitioned:
+
+- §1 — Tag-46 promotion re-verification (5 tests).
+- §2 — Tag-47 substance mapping (5 tests).
+- §3 — Tag-48 substance mapping (5 tests).
+- §4 — Tag-49 substance mapping (5 tests).
+- §5 — Side-finding consolidated promotion candidates (3 tests).
+- §6 — Tag-50 consolidated summary recomputation (2 tests).
+
+Hermetic posture: stdlib + pytest only, importlib for substance-
+file probing, no subprocess, no network, no live-VM.
+
+### 7.6 Tag-50 open items (Vermutungs-Kennzeichnung P2)
+
+- **B3 Welle-3-Pre-Auditor-Designation remains the hard-deferred
+  blocker** for KW-25 cutover (2026-06-15). No Tag-47/48/49 PR
+  addresses B3; Henrik's IIA-1130 Pre-Decision-Spec is the
+  AR-Hand-decision frame and the QA-side test
+  `test_welle_3_pre_auditor_designation_precondition.py` remains
+  pending pre-KW-25.
+- **D3 boundary**: as documented in §7.3 Candidate 1. Henrik
+  Zone-N review pending.
+- **GAP-OPEN candidates from pre-cutover-probes**: none surfaced
+  in the Tag-44..49 PR window. Tag-50 records 0 GAP-OPEN.
+
 — Amara Osei (QA), Tag-45 Pre-Mortem Coverage-Audit, 2026-05-18
 — Amara Osei (QA), Tag-46 Coverage-Sweep + A6/B1 Cross-Validation, 2026-05-18
 — Amara Osei (QA), Tag-47 Pyramide-Layer-Consistency-Audit + Doc-Refresh, 2026-05-18
+— Amara Osei (QA), Tag-50 Consolidated Coverage-Sweep Tag-44..49 + Doc-Refresh, 2026-05-19
