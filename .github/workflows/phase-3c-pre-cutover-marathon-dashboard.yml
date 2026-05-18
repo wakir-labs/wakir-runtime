@@ -1,0 +1,307 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase-3c Pre-Cutover Marathon Dashboard - Tag-42 / ADR-0066 KW-24..27
+# ----------------------------------------------------------------------
+#
+# Marathon-orchestrator that runs all seven ADR-0066 Welle pre-cutover
+# probes in parallel, aggregates them into a single Marathon-Readiness
+# verdict + rendered Markdown step-summary, and emits a verdict
+# envelope artifact.
+#
+# Relationship to phase-3c-pre-cutover-sanity.yml (Tag-41, PR #266)
+# -----------------------------------------------------------------
+#
+# The Tag-41 Pre-Cutover-Sanity workflow runs five structural sanity
+# probes against the marathon *substrates* (per-Welle smokes inventory,
+# generalprobe dry-run, tracker state, marker-workflow YAML, decision
+# aggregation). This Tag-42 Marathon-Dashboard runs the seven per-Welle
+# *pre-cutover probes* (`scripts/phase-3c/welle-N-pre-cutover-probe.sh`)
+# in parallel and reports the marathon-readiness from the probe
+# verdicts themselves. The two workflows are complementary:
+#
+#   - Sanity (Tag-41) verifies the orchestration substrate is intact.
+#   - Dashboard (Tag-42) verifies the seven probes themselves pass.
+#
+# Both must be GREEN/READY before KW-24 Cutover-Execution starts.
+#
+# Probe-script ownership
+# ----------------------
+#
+#   Welle-1 v907_verify              - Kai PR #267 (on main as of Tag-41).
+#   Welle-2 svid_workload_identity   - Selin Tag-42 (in flight).
+#   Welle-3 bridge_audit_writer      - Selin Tag-42 (in flight).
+#   Welle-4 state_backing            - Kai Tag-42 (in flight).
+#   Welle-5 lifecycle_state_machine  - Kai Tag-42 (in flight).
+#   Welle-6 subscribe_loop           - Amara Tag-42 (in flight).
+#   Welle-7 recovery_workflow        - Amara Tag-42 (in flight).
+#
+# The dashboard does NOT block when a probe script is missing - it
+# records the Welle's verdict as `NOT-EXEC` and lets the marathon
+# aggregator decide. This is by design: the Tag-42 dashboard ships
+# before all seven probes land, and AR-Direktive Tag-41 explicitly
+# mandates non-blocking behaviour on missing/unreachable probes.
+#
+# Sandbox-Stub-Mode
+# -----------------
+#
+# CI cannot SSH to the wakir-pilot VM. The dashboard runs every
+# per-Welle probe in `--dry-run` mode with `WAKIR_SSH_BIN=true`
+# (the GNU `true` binary, which silently consumes args and exits 0).
+# This exercises the probe's plumbing - arg parsing, axis dispatch,
+# verdict aggregation, exit-code mapping - without opening a real
+# socket. Probes that pass `--dry-run` in CI prove their structure
+# is correct; live-VM verification is operator-hand on Cutover-Day-
+# Morning (per ADR-0058 §Nachtrag).
+#
+# Trigger surface
+# ---------------
+#
+#   * `workflow_dispatch:` - Cutover-Operator manual invocation.
+#     Input `mode` selects `dry-run` (default) or `sandbox-stub`.
+#   * `schedule: cron "0 6 * * 1"` - every Monday 06:00 UTC. KW-24
+#     Cutover-Day-Morning is Mon 2026-06-08; we want the dashboard
+#     to be fresh that morning, so we run it every Monday in the
+#     four-week marathon window. Cron runs do not require operator-
+#     hand approval.
+#   * `push:` (path-filtered) - any change to
+#     `scripts/phase-3c/welle-*-pre-cutover-probe.sh` or to the
+#     aggregator/workflow triggers a re-probe.
+#
+# Output
+# ------
+#
+# Two artifacts:
+#
+#   1. `pre-cutover-marathon-dashboard-verdict.json` - the marathon
+#      envelope (verdict + per-Welle + cross-coupling + windows).
+#   2. `pre-cutover-marathon-dashboard-summary.md` - the rendered
+#      Markdown table (also appended to `$GITHUB_STEP_SUMMARY`).
+#
+# Marathon-Readiness rule (mirrors aggregator):
+#
+#   * READY     - all seven Welle-verdicts GREEN.
+#   * CAUTION   - 1..2 CAUTION/NOT-EXEC, zero BLOCK.
+#   * BLOCK     - any BLOCK, OR 3+ CAUTION/NOT-EXEC.
+#   * NOT-READY - all seven NOT-EXEC (sandbox-stub default before
+#                 any probes have been written).
+#
+# Cross-coupling indicators (ADR-0066 doppel-welle pairs):
+#
+#   * KW-24: Welle-1 + Welle-2 (parallel read-side flips).
+#   * KW-26: Welle-4 + Welle-5 (state-backing + FSM).
+#   * KW-27: Welle-6 + Welle-7 (subscribe-loop + recovery).
+#
+# A pair "drifts" when one half is GREEN and the other is BLOCK,
+# or when one is GREEN and the other is NOT-EXEC. The dashboard
+# surfaces drifts in the step-summary; the operator decides whether
+# to delay the pair.
+#
+# Not a required status check
+# ---------------------------
+#
+# Per `feedback_branch_protection_check_names.md` this workflow
+# gates a calendar-window (KW-24 marathon-start), not individual
+# PRs. It is NOT listed as a required status check on PRs.
+
+name: phase-3c-pre-cutover-marathon-dashboard
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Probe-mode (dry-run|sandbox-stub)"
+        required: false
+        default: "dry-run"
+      verbose:
+        description: "Emit per-Welle probe stdout (true|false)"
+        required: false
+        default: "false"
+  schedule:
+    # Monday 06:00 UTC - every Monday in the four-week KW-24..27 window.
+    - cron: "0 6 * * 1"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/phase-3c/welle-*-pre-cutover-probe.sh"
+      - "tooling/ci/aggregate_pre_cutover_marathon_dashboard.py"
+      - ".github/workflows/phase-3c-pre-cutover-marathon-dashboard.yml"
+      - "tests/ci/test_pre_cutover_marathon_dashboard.py"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: phase-3c-pre-cutover-marathon-dashboard
+  cancel-in-progress: false
+
+jobs:
+  welle-probe:
+    name: Welle-${{ matrix.welle }} probe (${{ matrix.component }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - welle: 1
+            component: v907_verify
+          - welle: 2
+            component: svid_workload_identity
+          - welle: 3
+            component: bridge_audit_writer
+          - welle: 4
+            component: state_backing
+          - welle: 5
+            component: lifecycle_state_machine
+          - welle: 6
+            component: subscribe_loop
+          - welle: 7
+            component: recovery_workflow
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Welle-${{ matrix.welle }} pre-cutover-probe (dry-run)
+        id: probe
+        shell: bash
+        env:
+          WELLE: ${{ matrix.welle }}
+          COMPONENT: ${{ matrix.component }}
+          VERBOSE: ${{ github.event.inputs.verbose }}
+        run: |
+          set -uo pipefail
+          script="scripts/phase-3c/welle-${WELLE}-pre-cutover-probe.sh"
+          mkdir -p out/probes
+          envelope="out/probes/welle-${WELLE}.json"
+          if [[ ! -x "$script" && ! -f "$script" ]]; then
+            # Probe-script not yet on this HEAD - record NOT-EXEC.
+            python3 tooling/ci/emit_marathon_probe_envelope.py \
+              --welle "$WELLE" \
+              --component "$COMPONENT" \
+              --probe-script "$script" \
+              --probe-present false \
+              --verdict NOT-EXEC \
+              --verdict-source probe-script-absent \
+              --details "probe script not yet on main" \
+              --output "$envelope"
+            cat "$envelope"
+            exit 0
+          fi
+          # Sandbox-Stub-Mode: stub SSH so the probe never opens a
+          # real connection.  `true` consumes all args + exits 0.
+          # Use a fresh temp HOME so the probe's SSH-key check resolves
+          # to a known-readable file we synthesise on the fly.
+          stub_home="$(mktemp -d)"
+          stub_keydir="$stub_home/.ssh"
+          mkdir -p "$stub_keydir"
+          # File only needs to exist + be readable.  The stub `ssh`
+          # never reads it; this satisfies the probe's precondition.
+          touch "$stub_keydir/wakir-pilot-vm-diagnose"
+          export HOME="$stub_home"
+          export WAKIR_SSH_BIN=true
+          # Force --dry-run to keep us hermetic; the probe still
+          # exercises all axis-functions + verdict aggregation.
+          set +e
+          probe_out=$(bash "$script" --dry-run --quiet 2>&1)
+          rc=$?
+          set -e
+          if [[ "${VERBOSE,,}" == "true" ]]; then
+            echo "--- probe stdout (rc=$rc) ---"
+            printf '%s\n' "$probe_out"
+            echo "--- end probe stdout ---"
+          fi
+          # Map exit-code to verdict (mirrors welle-N probe contract):
+          #   0 GREEN / 1 CAUTION / 2 BLOCK / 3 PRECOND / 4 NOT-EXEC.
+          case "$rc" in
+            0) verdict="GREEN" ;;
+            1) verdict="CAUTION" ;;
+            2) verdict="BLOCK" ;;
+            3) verdict="BLOCK" ;;
+            4) verdict="NOT-EXEC" ;;
+            *) verdict="BLOCK" ;;
+          esac
+          python3 tooling/ci/emit_marathon_probe_envelope.py \
+            --welle "$WELLE" \
+            --component "$COMPONENT" \
+            --probe-script "$script" \
+            --probe-present true \
+            --exit-code "$rc" \
+            --verdict "$verdict" \
+            --verdict-source probe-exit-code \
+            --details "dry-run via WAKIR_SSH_BIN=true" \
+            --output "$envelope"
+          cat "$envelope"
+      - name: Upload Welle-${{ matrix.welle }} probe envelope
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marathon-probe-welle-${{ matrix.welle }}
+          path: out/probes/welle-${{ matrix.welle }}.json
+          if-no-files-found: warn
+
+  marathon-aggregate:
+    name: Marathon-Readiness Aggregator (7 Welles -> READY/CAUTION/BLOCK/NOT-READY)
+    runs-on: ubuntu-latest
+    needs: welle-probe
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Download all per-Welle probe envelopes
+        uses: actions/download-artifact@v4
+        with:
+          path: out/probes-raw
+          pattern: marathon-probe-welle-*
+          merge-multiple: false
+      - name: Flatten per-Welle envelopes into single dir
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/probes
+          # download-artifact v4 creates one subdir per artifact when
+          # merge-multiple=false; flatten welle-N.json into out/probes/.
+          if [[ -d out/probes-raw ]]; then
+            find out/probes-raw -type f -name 'welle-*.json' -print0 \
+              | xargs -0 -I{} cp {} out/probes/
+          fi
+          echo "Per-Welle envelopes present:"
+          ls -la out/probes/ || true
+      - name: Aggregate into marathon-readiness verdict
+        id: aggregate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python3 tooling/ci/aggregate_pre_cutover_marathon_dashboard.py \
+            --probe-dir out/probes \
+            --output out/pre-cutover-marathon-dashboard-verdict.json \
+            --summary out/pre-cutover-marathon-dashboard-summary.md
+          verdict=$(python3 -c "import json; print(json.load(open('out/pre-cutover-marathon-dashboard-verdict.json'))['marathon_readiness'])")
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          # Append rendered Markdown summary to step-summary.
+          cat out/pre-cutover-marathon-dashboard-summary.md >> "$GITHUB_STEP_SUMMARY"
+          case "$verdict" in
+            BLOCK)
+              echo "::error::Marathon-Readiness verdict: BLOCK"
+              exit 1
+              ;;
+            CAUTION)
+              echo "::warning::Marathon-Readiness verdict: CAUTION"
+              ;;
+            NOT-READY)
+              echo "::warning::Marathon-Readiness verdict: NOT-READY (no probes ran)"
+              ;;
+            READY)
+              echo "Marathon-Readiness verdict: READY"
+              ;;
+          esac
+      - name: Upload marathon-readiness envelope
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-cutover-marathon-dashboard-verdict
+          path: |
+            out/pre-cutover-marathon-dashboard-verdict.json
+            out/pre-cutover-marathon-dashboard-summary.md
+          if-no-files-found: warn

@@ -1,0 +1,170 @@
+{
+  "report_date": "2026-05-18",
+  "runtime_head": "64b1c170418d",
+  "protocol_head": "9eca1e2d4b5b",
+  "enforce": false,
+  "allowlist_malformed": false,
+  "pairs": [
+    {
+      "runtime_path": "wirelang/schemas/layer-0-transport.json",
+      "protocol_path": "wakir_protocol/schemas/layer-0-transport.json",
+      "substance_class": "layer-0-schema",
+      "status": "DRIFT",
+      "runtime_sha256": "714f9d42b8fcaebac35fe6cd7d8e00322b836eca9c7aeb3a46e5111a2dc1ba58",
+      "protocol_sha256": "5e95e26c127ba64dcc1ca2df5081d3a857a6192736728a6175b347b736b1e429"
+    },
+    {
+      "runtime_path": "wirelang/schemas/layer-1-wire.json",
+      "protocol_path": "wakir_protocol/schemas/layer-1-wire.json",
+      "substance_class": "layer-1-schema",
+      "status": "ok",
+      "runtime_sha256": "15a8f97f89255a35617f9b04eb038588f30c83c9ba11a8f49e74e3d4baae852e",
+      "protocol_sha256": "15a8f97f89255a35617f9b04eb038588f30c83c9ba11a8f49e74e3d4baae852e"
+    },
+    {
+      "runtime_path": "wirelang/schemas/layer-2-semantic.json",
+      "protocol_path": "wakir_protocol/schemas/layer-2-semantic.json",
+      "substance_class": "layer-2-schema",
+      "status": "DRIFT",
+      "runtime_sha256": "c0f54b92f8ab448f0273136eb5f83535452bfdfec8c21c7ccb1143f6ab38dad9",
+      "protocol_sha256": "c9519af543479d4c6df8efbc19d150515a9638570c427668e17e79874bf3b646"
+    },
+    {
+      "runtime_path": "wirelang/schemas/layer-3-capability-token.json",
+      "protocol_path": "wakir_protocol/schemas/layer-3-capability-token.json",
+      "substance_class": "layer-3-schema",
+      "status": "DRIFT",
+      "runtime_sha256": "2b4eb8d067f566d0e9e7c8bf8fa4731d938551e840e23758ad687906bab29c32",
+      "protocol_sha256": "4d8e064c8133a9873a28eb2719fcca9ee4c13e16083c66f01a3ea26ff8c4bd3f"
+    },
+    {
+      "runtime_path": "wirelang/schemas/aip-document.json",
+      "protocol_path": "wakir_protocol/schemas/aip-document.json",
+      "substance_class": "aip",
+      "status": "DRIFT",
+      "runtime_sha256": "cec984969de3c1c751383f96b0622e60510fc2a1f50c4eabf6fea5a6beb209a8",
+      "protocol_sha256": "0219e3c0c39a1f6495e4665ccc66b8ae0f7e5363e755f43abe5eb1fcf2dede02"
+    },
+    {
+      "runtime_path": "wirelang/identity/aip_document.py",
+      "protocol_path": "wakir_protocol/identity_substrate/aip_document.py",
+      "substance_class": "aip",
+      "status": "ok",
+      "runtime_sha256": "ad520986ab69c18946673c677ce520f46bcfc4fef3e6aa5eea29f4ce0b05ba94",
+      "protocol_sha256": "ad520986ab69c18946673c677ce520f46bcfc4fef3e6aa5eea29f4ce0b05ba94"
+    },
+    {
+      "runtime_path": "wirelang/identity/dns_anchor.py",
+      "protocol_path": "wakir_protocol/identity_substrate/dns_anchor.py",
+      "substance_class": "aip",
+      "status": "ok",
+      "runtime_sha256": "9e3faabca58ea33cbe341e3b6bd6be1b81d919a4cb5dc4a880abc7324ca510a7",
+      "protocol_sha256": "9e3faabca58ea33cbe341e3b6bd6be1b81d919a4cb5dc4a880abc7324ca510a7"
+    },
+    {
+      "runtime_path": "wirelang/schemas/datalog-caveat.json",
+      "protocol_path": "wakir_protocol/schemas/datalog-caveat.json",
+      "substance_class": "capability",
+      "status": "ok",
+      "runtime_sha256": "dfe35884bbb98a071e7663d015763eeddc393f60416394a1585b40c87cf8a113",
+      "protocol_sha256": "dfe35884bbb98a071e7663d015763eeddc393f60416394a1585b40c87cf8a113"
+    },
+    {
+      "runtime_path": "wirelang/schemas/federation-trust-document.json",
+      "protocol_path": "wakir_protocol/schemas/federation-trust-document.json",
+      "substance_class": "capability",
+      "status": "DRIFT",
+      "runtime_sha256": "d1b09c7bc8152222035459d93762801a302e432a63be8b22db6d6546f032eb1d",
+      "protocol_sha256": "b1f4cc169a08d5b8e1c360d4209cd9b379cc3a94ac390dbde8b1f59f5e073126"
+    },
+    {
+      "runtime_path": "wirelang/canonical/caveat_set.py",
+      "protocol_path": "wakir_protocol/canonical/caveat_set.py",
+      "substance_class": "capability",
+      "status": "DRIFT",
+      "runtime_sha256": "a2155411ef6818d0bc2589bf97d7dbe07e7348081d52615620ba5f3549c9e933",
+      "protocol_sha256": "f7d391fab9e67eb24e20f663a85a57cb1285d57dc9161d908173225104f807e3"
+    }
+  ],
+  "welle": [
+    {
+      "welle": 1,
+      "smoke_present": true,
+      "runbook_present": true,
+      "validation_workflow_present": true,
+      "phase_3a_modules_present": [
+        true
+      ],
+      "protocol_doc_mentions_welle": null,
+      "overall_status": "consistent-runtime-only"
+    },
+    {
+      "welle": 2,
+      "smoke_present": true,
+      "runbook_present": true,
+      "validation_workflow_present": true,
+      "phase_3a_modules_present": [
+        true
+      ],
+      "protocol_doc_mentions_welle": null,
+      "overall_status": "consistent-runtime-only"
+    },
+    {
+      "welle": 3,
+      "smoke_present": true,
+      "runbook_present": true,
+      "validation_workflow_present": true,
+      "phase_3a_modules_present": [
+        true
+      ],
+      "protocol_doc_mentions_welle": null,
+      "overall_status": "consistent-runtime-only"
+    },
+    {
+      "welle": 4,
+      "smoke_present": true,
+      "runbook_present": true,
+      "validation_workflow_present": true,
+      "phase_3a_modules_present": [
+        true,
+        true
+      ],
+      "protocol_doc_mentions_welle": null,
+      "overall_status": "consistent-runtime-only"
+    },
+    {
+      "welle": 5,
+      "smoke_present": true,
+      "runbook_present": true,
+      "validation_workflow_present": true,
+      "phase_3a_modules_present": [
+        true,
+        true
+      ],
+      "protocol_doc_mentions_welle": null,
+      "overall_status": "consistent-runtime-only"
+    },
+    {
+      "welle": 6,
+      "smoke_present": true,
+      "runbook_present": true,
+      "validation_workflow_present": true,
+      "phase_3a_modules_present": [
+        true
+      ],
+      "protocol_doc_mentions_welle": null,
+      "overall_status": "consistent-runtime-only"
+    },
+    {
+      "welle": 7,
+      "smoke_present": true,
+      "runbook_present": true,
+      "validation_workflow_present": true,
+      "phase_3a_modules_present": [
+        true
+      ],
+      "protocol_doc_mentions_welle": null,
+      "overall_status": "consistent-runtime-only"
+    }
+  ]
+}
