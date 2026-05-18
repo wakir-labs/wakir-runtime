@@ -121,8 +121,29 @@ Panels:
 The dashboard reads from the same Prometheus textfile-collector
 gauges the existing Tag-30/31/32 welle-status dashboard does
 (`persona_engine_per_welle_heatmap_*`). The emitter that
-populates those gauges from the JSON envelope is a separate
-Tag-49 follow-up (out of scope for Tag-48 visualisation-only).
+populates those gauges from the JSON envelope shipped in Tag-49:
+
+* Script: `scripts/observability/per-welle-heatmap-prom-emitter.py`
+* Tests: `tests/observability/test_per_welle_heatmap_prom_emitter.py`
+  (23 hermetic tests).
+* Pipeline: the `phase-3c-pre-cutover-daily-probe.yml` workflow
+  now renders the Tag-48 envelope, runs the Tag-49 emitter, and
+  uploads the resulting `out/per-welle-heatmap.prom` as an
+  artifact. The conventional node_exporter scrape path is
+  `/var/lib/prometheus/node-exporter/per-welle-heatmap.prom`.
+
+Numeric verdict encoding (must match the Grafana state-timeline
+panel's value-text mapping):
+
+| Numeric | Verdict | Color |
+|---|---|---|
+| 0 | GREEN | green |
+| 1 | CAUTION | yellow |
+| 2 | NOT-EXEC | grey |
+| 3 | BLOCK | red |
+| 4 | READY | green |
+| 5 | NOT-READY | red |
+| -1 | MISSING | transparent |
 
 ## Failure modes
 

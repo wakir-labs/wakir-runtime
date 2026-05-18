@@ -102,17 +102,25 @@ on:
       - main
     paths:
       - "scripts/observability/pre-cutover-daily-trend-analyzer.py"
+      - "scripts/observability/per-welle-trend-heatmap.py"
+      - "scripts/observability/per-welle-heatmap-prom-emitter.py"
       - "scripts/phase-3c/pre-cutover-probe-phase-live-demo.py"
       - "scripts/phase-3c/welle-*-pre-cutover-probe.sh"
       - ".github/workflows/phase-3c-pre-cutover-daily-probe.yml"
       - "tests/observability/test_pre_cutover_daily_trend_analyzer.py"
+      - "tests/observability/test_per_welle_trend_heatmap.py"
+      - "tests/observability/test_per_welle_heatmap_prom_emitter.py"
   pull_request:
     paths:
       - "scripts/observability/pre-cutover-daily-trend-analyzer.py"
+      - "scripts/observability/per-welle-trend-heatmap.py"
+      - "scripts/observability/per-welle-heatmap-prom-emitter.py"
       - "scripts/phase-3c/pre-cutover-probe-phase-live-demo.py"
       - "scripts/phase-3c/welle-*-pre-cutover-probe.sh"
       - ".github/workflows/phase-3c-pre-cutover-daily-probe.yml"
       - "tests/observability/test_pre_cutover_daily_trend_analyzer.py"
+      - "tests/observability/test_per_welle_trend_heatmap.py"
+      - "tests/observability/test_per_welle_heatmap_prom_emitter.py"
 
 permissions:
   contents: read
@@ -217,10 +225,61 @@ jobs:
           echo "trend-report-md head:"
           head -40 out/trend-report.md || true
 
+      - name: Render Tag-48 per-Welle Trend-Heatmap envelope
+        id: heatmap
+        env:
+          TODAY: ${{ steps.inputs.outputs.today }}
+          WINDOW: ${{ steps.inputs.outputs.window }}
+        run: |
+          set -euo pipefail
+          # Tag-48 (PR #309) renderer: consumes the Tag-44 analyzer
+          # state directory and writes a per-Welle heatmap JSON +
+          # Markdown + ASCII. The JSON envelope is the canonical
+          # input for the Tag-49 Prometheus textfile emitter
+          # (next step). The Markdown rendering is appended to the
+          # Job-Summary so the operator-huddle sees the heatmap
+          # inline alongside the analyzer's trend-report.
+          mkdir -p state/per-welle-heatmap
+          python3 scripts/observability/per-welle-trend-heatmap.py \
+            --state-dir state/pre-cutover-daily-trend \
+            --today "${TODAY}" \
+            --window-days "${WINDOW}" \
+            --output-json "state/per-welle-heatmap/${TODAY}.json" \
+            --output-md "out/per-welle-heatmap.md" \
+            --output-ascii "out/per-welle-heatmap.txt"
+          echo "envelope-path=state/per-welle-heatmap/${TODAY}.json" \
+            >> "$GITHUB_OUTPUT"
+          ls -la state/per-welle-heatmap/
+          echo "heatmap-ascii head:"
+          head -20 out/per-welle-heatmap.txt || true
+
+      - name: Emit Tag-49 Prometheus textfile from heatmap envelope
+        id: prom-emitter
+        env:
+          TODAY: ${{ steps.inputs.outputs.today }}
+        run: |
+          set -euo pipefail
+          # Tag-49 (this PR) emitter: transforms the Tag-48 envelope
+          # into a Prometheus textfile-collector .prom file. The
+          # textfile populates the persona_engine_per_welle_heatmap_*
+          # gauge family that the Tag-48 Grafana dashboard
+          # (dashboards/per-welle-trend-heatmap.json) already
+          # references. The conventional node_exporter scrape path
+          # is /var/lib/prometheus/node-exporter/per-welle-heatmap.prom;
+          # within CI we write to out/ and surface it as an artifact.
+          python3 scripts/observability/per-welle-heatmap-prom-emitter.py \
+            --input-envelope "state/per-welle-heatmap/${TODAY}.json" \
+            --output "out/per-welle-heatmap.prom"
+          echo "prom-path=out/per-welle-heatmap.prom" >> "$GITHUB_OUTPUT"
+          ls -la out/per-welle-heatmap.prom
+          echo "prom textfile head:"
+          head -30 out/per-welle-heatmap.prom || true
+
       - name: Append Job-Summary
         if: always()
         env:
           REPORT_MD: out/trend-report.md
+          HEATMAP_MD: out/per-welle-heatmap.md
         run: |
           set -euo pipefail
           if [ -f "${REPORT_MD}" ]; then
@@ -231,6 +290,23 @@ jobs:
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "_Trend-report markdown missing -- analyzer did not run._" \
               >> "$GITHUB_STEP_SUMMARY"
+          fi
+          # Tag-48 heatmap rendering, appended below the trend-report
+          # so the operator huddle scans posture in one scroll.
+          if [ -f "${HEATMAP_MD}" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            cat "${HEATMAP_MD}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          # Tag-49 Prometheus textfile head as a code-fenced block
+          # for at-a-glance verification that the emitter ran.
+          if [ -f out/per-welle-heatmap.prom ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Tag-49 Prometheus textfile (head)" \
+              >> "$GITHUB_STEP_SUMMARY"
+            echo '' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            head -40 out/per-welle-heatmap.prom >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Render notify-events summary
@@ -260,7 +336,11 @@ jobs:
             out/live-demo-summary.md
             out/trend-report.json
             out/trend-report.md
+            out/per-welle-heatmap.md
+            out/per-welle-heatmap.txt
+            out/per-welle-heatmap.prom
             state/pre-cutover-daily-trend/${{ steps.inputs.outputs.today }}.json
+            state/per-welle-heatmap/${{ steps.inputs.outputs.today }}.json
             state/notify-events.jsonl
           if-no-files-found: warn
           retention-days: 30
