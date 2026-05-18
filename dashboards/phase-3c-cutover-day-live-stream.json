@@ -1,0 +1,312 @@
+{
+  "__comment": "Phase-3c Cutover-Day Live-Stream Grafana panel-subset (Noa Bergstroem / SRE, Tag-41). Extends the Tag-40 phase-3c-cross-welle-coordination dashboard (71 panels, PR #260) with seven realtime panels driven by the Tag-41 cutover-day-live-stream-aggregator.py output (wakir_cutover_live_* Prometheus gauges). Mounted as a separate dashboard rather than re-emitting the 71-panel parent so the Cutover-Tag-Morgen operator can open ONE focused view at 06:30 CEST instead of scrolling 71 panels. Panels: (1) Realtime BackendDecision distribution per active Welle (multi-line graph, one Welle per series), (2) per-Welle live tail of the last 60s of decisions (stat-counter), (3) Cross-Welle-Drift indicator grid (RED/AMBER/GREEN heat per Welle-pair), (4) Drift-band-crossing count over 1h (RED + AMBER), (5) per-Welle backend-decision latency histogram (p50/p95/p99 timeseries), (6) Active-Welle inventory (stat: count of Wellen with sample_count > 0), (7) Mira-Notify queue depth (count of RED-crossing events not yet acked by operator-runbook). Schema version Grafana 10.x (schemaVersion 38). Sole datasource UID 'prom' (Prometheus). Anchor: ADR-0066 Phase-3c Cutover-Plan Welle-1..7, Tag-41 Live-Stream-Aggregator + Cross-Welle-Drift-Live-Indicator.",
+  "title": "Wakir - Phase-3c Cutover-Day Live-Stream",
+  "uid": "wakir-phase-3c-cutover-day-live-stream",
+  "tags": [
+    "wakir",
+    "sre",
+    "phase-3c",
+    "cutover-day",
+    "live-stream",
+    "backend-decision",
+    "cross-welle-drift",
+    "adr-0066",
+    "tag-41",
+    "marathon-live"
+  ],
+  "schemaVersion": 38,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "refresh": "10s",
+  "templating": {
+    "list": [
+      {
+        "name": "welle",
+        "label": "Welle",
+        "type": "custom",
+        "query": "welle-1,welle-2,welle-3,welle-4,welle-5,welle-6,welle-7",
+        "current": {"text": "All", "value": "$__all"},
+        "options": [
+          {"text": "All", "value": "$__all", "selected": true},
+          {"text": "welle-1 (v907_verify KW-24)", "value": "welle-1"},
+          {"text": "welle-2 (svid_workload_identity KW-24)", "value": "welle-2"},
+          {"text": "welle-3 (bridge_audit_writer KW-25)", "value": "welle-3"},
+          {"text": "welle-4 (state_backing KW-26)", "value": "welle-4"},
+          {"text": "welle-5 (lifecycle_state_machine KW-26)", "value": "welle-5"},
+          {"text": "welle-6 (subscribe_loop KW-27)", "value": "welle-6"},
+          {"text": "welle-7 (recovery_workflow KW-27)", "value": "welle-7"}
+        ],
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Realtime BackendDecision-Distribution per Welle (live tail)",
+      "__comment": "Multi-line graph: one line per (welle, outcome) tuple, value is the fraction in [0,1] of the sliding window currently classified as that outcome. The Cutover-Tag-Morgen operator watches whether production-fraction stays > 0.95 on each active Welle (pre-cutover baseline) and whether shadow / fallback fractions remain near-zero. Source gauge: wakir_cutover_live_distribution from Tag-41 cutover-day-live-stream-aggregator.py. Per-Welle filtering via the $welle templating variable.",
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_cutover_live_distribution{welle=~\"$welle\"}",
+          "refId": "A",
+          "legendFormat": "{{welle}} / {{outcome}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["lastNotNull", "min", "max"]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Sliding-Window Sample Count per Welle (live tail)",
+      "__comment": "Per-Welle stat-counter showing the number of BackendDecision events in the active sliding window. Default window 300 events; a Welle with sample_count near 300 is at-capacity and the rollups are fully representative. A Welle with sample_count < 30 has too few samples for the drift indicator to be trustworthy (the operator-runbook calls this out). Source gauge: wakir_cutover_live_sample_count.",
+      "gridPos": {"h": 5, "w": 12, "x": 0, "y": 9},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_cutover_live_sample_count{welle=~\"$welle\"}",
+          "refId": "A",
+          "legendFormat": "{{welle}}",
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "red"},
+              {"value": 30, "color": "yellow"},
+              {"value": 100, "color": "green"}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "heatmap",
+      "title": "Cross-Welle-Drift Indicator (RED/AMBER/GREEN per Welle-Pair)",
+      "__comment": "Heatmap of pairwise total-variation drift between every two active Welle distributions. Y axis: welle_a; X axis: welle_b; cell value: drift in [0,1]. Threshold bands GREEN < 0.05, AMBER < 0.15, RED >= 0.15 (operator-tuned defaults in Tag-41 aggregator). The Doppel-Welle KW-26 pair (welle-4 state_backing + welle-5 lifecycle_state_machine, ADR-0066 Mitigation-1) is the highest-risk cell during KW-26 — the on-stream A7-test (ADR-0066 §Mitigation-2-Cross-Welle-Coordination-Test). Source gauge: wakir_cutover_live_drift.",
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 9},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_cutover_live_drift",
+          "refId": "A",
+          "format": "heatmap",
+          "legendFormat": "{{welle_a}}×{{welle_b}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {"scaleDistribution": {"type": "linear"}},
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "green"},
+              {"value": 0.05, "color": "yellow"},
+              {"value": 0.15, "color": "red"}
+            ]
+          }
+        }
+      },
+      "options": {
+        "calculate": false,
+        "color": {
+          "mode": "scheme",
+          "scheme": "RdYlGn",
+          "reverse": true
+        },
+        "tooltip": {"show": true, "showHistogram": false}
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Drift-Band-Crossing Count over 1h (RED + AMBER)",
+      "__comment": "Timeseries of the two drift-band-crossing counters over the last hour. wakir_cutover_live_drift_red is the count of Welle-pairs currently in the RED band; wakir_cutover_live_drift_amber the AMBER band. A non-zero RED line is the Mira-Notify-trigger; the Bash-wrapper greps DRIFT_RED_CROSSING on the aggregator stdout and forwards to notify queue (docs/observability/cutover-day-watch-runbook.md). An AMBER line crossing into RED within 5 minutes is the cutover-pause-threshold.",
+      "gridPos": {"h": 6, "w": 12, "x": 0, "y": 14},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_cutover_live_drift_red",
+          "refId": "A",
+          "legendFormat": "RED-band pairs"
+        },
+        {
+          "expr": "wakir_cutover_live_drift_amber",
+          "refId": "B",
+          "legendFormat": "AMBER-band pairs"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "lineWidth": 1
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "RED-band pairs"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "AMBER-band pairs"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "yellow"}}]
+          }
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "BackendDecision-Latency Histogram per Welle (p50/p95/p99 Realtime)",
+      "__comment": "Per-Welle BackendDecision-latency percentile timeseries. p50 / p95 / p99 lines per active Welle. Pre-cutover baseline target: p99 < 25ms across all active Wellen (Tag-38 SLI). A p99 spike correlated with a backend-distribution shift towards 'fallback' is the canonical cutover-failure signature. Source gauge: wakir_cutover_live_latency_ms.",
+      "gridPos": {"h": 6, "w": 12, "x": 12, "y": 18},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_cutover_live_latency_ms{welle=~\"$welle\"}",
+          "refId": "A",
+          "legendFormat": "{{welle}} / {{pct}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["lastNotNull", "max"]
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Active-Welle Inventory (Wellen with > 0 samples)",
+      "__comment": "Single-stat: count of Wellen the aggregator has seen at least one event from in the current run. During Doppel-Welle KW-26 this should read 2 (welle-4 + welle-5 active). During Solo-Welle KW-25 this should read 1 (welle-3). A value of 0 means the BackendDecision-stream is silent (operator-runbook §Stream-Silent-Investigation). A value > 2 means an unexpected Welle is in-flight outside the cutover-plan (operator-runbook §Unexpected-Welle-Activation).",
+      "gridPos": {"h": 4, "w": 8, "x": 0, "y": 20},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "count(wakir_cutover_live_sample_count > 0)",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "red"},
+              {"value": 1, "color": "green"},
+              {"value": 3, "color": "yellow"}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Mira-Notify Queue Depth (un-acked RED-Crossings)",
+      "__comment": "Single-stat counter of RED-band Welle-pairs currently active. Maps to the Bash-wrapper notify-log: each DRIFT_RED_CROSSING line waits for operator-runbook ack. Anything > 0 is a live cutover-pause condition. Source gauge: wakir_cutover_live_drift_red (the same gauge as panel 4, but with stat presentation for the top-of-dashboard at-a-glance check). The operator-runbook docs/observability/cutover-day-watch-runbook.md §Notify-Ack walks through the ack procedure.",
+      "gridPos": {"h": 4, "w": 8, "x": 8, "y": 20},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_cutover_live_drift_red",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "green"},
+              {"value": 1, "color": "red"}
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
