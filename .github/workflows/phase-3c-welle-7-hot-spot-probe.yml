@@ -1,0 +1,428 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase-3c Welle-7 Hot-Spot Probe (Tag-48 / Tomas, Henrik-Pre-Mortem-Folge)
+# ------------------------------------------------------------------------
+#
+# Purpose
+# -------
+#
+# Henrik Tag-44 + Tag-45 Pre-Mortem-Mitigation-Map identifies Welle-7
+# (``recovery_workflow``) as the terminal propagation-target Hot-Spot.
+# Welle-7 sits on the receiving end of propagation from Welle-3, -4,
+# -5, and -6. The structural risk has two dimensions:
+#
+#  (a) Recovery-Drill-Live: live R1..R4 replay against production
+#      state-backing snapshots. Static R1..R4 coverage landed in
+#      Tag-20+21; the cutover-window introduces a live-drill variant.
+#
+#  (b) IIA-1130 Pre-Auditor: Welle-7 is the ORIGINAL IIA-1130 case
+#      (Henrik Tag-39 Welle-6+7-Pre-Audit-Bundle). The audit-stream-
+#      contract author cannot self-certify the recovery story.
+#
+# Sandbox posture: strict hermetic, hosted-runner-safe.
+
+name: phase-3c-welle-7-hot-spot-probe
+
+on:
+  schedule:
+    # Daily at 06:50 UTC -- 5 min after Welle-6 hot-spot probe.
+    - cron: "50 6 * * *"
+  workflow_dispatch:
+    inputs:
+      today:
+        description: "Override snapshot date (yyyy-mm-dd; default UTC today)."
+        required: false
+        default: ""
+      persist:
+        description: "Stage state file for commit (true|false). Operator-hand only."
+        required: false
+        default: "false"
+  push:
+    branches:
+      - main
+    paths:
+      - "tooling/ci/welle_7_hot_spot_aggregator.py"
+      - ".github/workflows/phase-3c-welle-7-hot-spot-probe.yml"
+      - "tests/ci/test_welle_7_hot_spot_probe.py"
+      - "docs/ci/welle-7-hot-spot-probe-runbook.md"
+      - "scripts/phase-3c/welle-7-recovery-workflow-cutover-smoke.py"
+      - "scripts/phase-3c/welle-7-recovery-workflow-cutover-smoke.sh"
+      - "scripts/doppelbetrieb-score-aggregator.py"
+      - "state/welle-7-recovery-drill-live.json"
+      - "state/welle-7-pre-auditor-decision.json"
+  pull_request:
+    paths:
+      - "tooling/ci/welle_7_hot_spot_aggregator.py"
+      - ".github/workflows/phase-3c-welle-7-hot-spot-probe.yml"
+      - "tests/ci/test_welle_7_hot_spot_probe.py"
+      - "docs/ci/welle-7-hot-spot-probe-runbook.md"
+      - "scripts/phase-3c/welle-7-recovery-workflow-cutover-smoke.py"
+      - "scripts/phase-3c/welle-7-recovery-workflow-cutover-smoke.sh"
+      - "scripts/doppelbetrieb-score-aggregator.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase-3c-welle-7-hot-spot-probe
+  cancel-in-progress: false
+
+jobs:
+  check-1-self-reference-trap:
+    name: Check-1 Self-Reference-Trap-Pre-Detection
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      status: ${{ steps.scan.outputs.status }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Scan welle-7 cutover-window for recovery-workflow self-reference
+        id: scan
+        run: |
+          set -euo pipefail
+          status=green
+          smoke_py=scripts/phase-3c/welle-7-recovery-workflow-cutover-smoke.py
+          smoke_sh=scripts/phase-3c/welle-7-recovery-workflow-cutover-smoke.sh
+          crate_dir_a=wirelang-rust/crates/persona-engine-recovery
+          crate_dir_b=wirelang-rust/crates/persona-engine-recovery-replay
+
+          patterns='replay_own_recovery_trace|read_recovery_emit_for_self|self_referential_recovery_loop|recovery_self_oracle'
+
+          hits=$(grep -RInE "${patterns}" \
+            "${smoke_py}" "${smoke_sh}" "${crate_dir_a}/src" "${crate_dir_b}/src" 2>/dev/null \
+            | grep -vE "(\.md:|tests/|fixtures/|/target/)" || true)
+
+          if [ -n "${hits}" ]; then
+            echo "::error::Welle-7 self-reference-trap pattern detected:"
+            echo "${hits}"
+            status=red
+          fi
+
+          todo_hits=$(grep -InE "TODO.*cutover-window|FIXME.*recovery-replay" \
+            "${smoke_py}" "${smoke_sh}" 2>/dev/null || true)
+          if [ -n "${todo_hits}" ] && [ "${status}" = "green" ]; then
+            echo "::warning::Welle-7 cutover-window has open TODO/FIXME:"
+            echo "${todo_hits}"
+            status=yellow
+          fi
+
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          echo "check-1 verdict: ${status}"
+
+  check-2-recovery-drill-live:
+    name: Check-2 Recovery-Drill-Live
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      status: ${{ steps.eval.outputs.status }}
+      recovery_drill_live: ${{ steps.eval.outputs.recovery_drill_live }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Evaluate welle-7-recovery-drill-live state
+        id: eval
+        run: |
+          set -euo pipefail
+          state_file=state/welle-7-recovery-drill-live.json
+          if [ ! -f "${state_file}" ]; then
+            echo "::warning::${state_file} missing -- PENDING-FIRST-RUN."
+            echo "status=yellow" >> "$GITHUB_OUTPUT"
+            echo "recovery_drill_live=unknown" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          status=$(python3 -c '
+          import json, sys, pathlib
+          d = json.loads(pathlib.Path("'"${state_file}"'").read_text())
+          v = (d.get("recovery_drill_status") or "").strip().lower()
+          if v not in ("green", "yellow", "red"):
+              v = "red"
+          print(v)
+          ')
+          echo "recovery_drill_live=${status}" >> "$GITHUB_OUTPUT"
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          echo "check-2 verdict: ${status}"
+
+  check-3-independent-oracle:
+    name: Check-3 Independent-Oracle-Probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      status: ${{ steps.probe.outputs.status }}
+      disagreements: ${{ steps.probe.outputs.disagreements }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Run doppelbetrieb-score-aggregator (cross-modul-stress)
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          set +e
+          python3 scripts/doppelbetrieb-score-aggregator.py \
+            --mode cross-modul-stress \
+            --out out/independent-oracle-rollup.json
+          rc=$?
+          set -e
+          echo "aggregator_rc=${rc}"
+          if [ -f out/independent-oracle-rollup.json ]; then
+            head -200 out/independent-oracle-rollup.json
+          fi
+      - name: Cross-validate against welle-7 validation-last-verdict
+        id: probe
+        run: |
+          set -euo pipefail
+          status=green
+          disagreements=""
+          rollup=out/independent-oracle-rollup.json
+          welle7_state=state/welle-7-validation-last-verdict.json
+
+          if [ ! -f "${rollup}" ]; then
+            status=yellow
+            disagreements="independent-oracle-rollup-missing"
+          fi
+
+          if [ ! -f "${welle7_state}" ] && [ "${status}" = "green" ]; then
+            status=yellow
+            disagreements="welle-7-validation-last-verdict-missing"
+          fi
+
+          if [ -f "${rollup}" ] && [ -f "${welle7_state}" ]; then
+            disagreements=$(python3 -c '
+          import json, pathlib
+          r = json.loads(pathlib.Path("'"${rollup}"'").read_text())
+          w = json.loads(pathlib.Path("'"${welle7_state}"'").read_text())
+          ind_pass = bool(r.get("pass"))
+          welle_pass = (w.get("verdict") or "").upper() in ("READY", "PROCEED", "GREEN")
+          disagree = []
+          if ind_pass != welle_pass:
+              disagree.append("oracle-verdict-divergence")
+          for axis_name, axis in (r.get("axes") or {}).items():
+              if isinstance(axis, dict):
+                  axis_ok = bool(axis.get("ok"))
+              else:
+                  axis_ok = bool(axis)
+              if not axis_ok and welle_pass:
+                  disagree.append(f"axis-{axis_name}")
+          print(",".join(disagree))
+          ' || echo "python-error")
+
+            if [ "${disagreements}" = "python-error" ]; then
+              status=yellow
+              disagreements="python-eval-error"
+            elif [ -n "${disagreements}" ]; then
+              status=red
+            fi
+          fi
+
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          echo "disagreements=${disagreements}" >> "$GITHUB_OUTPUT"
+          echo "check-3 verdict: ${status} (disagreements=${disagreements})"
+
+  check-4-iia-1130-pre-auditor:
+    name: Check-4 IIA-1130-Pre-Auditor-Decision-Tracking
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      status: ${{ steps.eval.outputs.status }}
+      pre_auditor_state: ${{ steps.eval.outputs.pre_auditor_state }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Verify welle-7 pre-auditor-decision file exists + parses
+        id: eval
+        run: |
+          set -euo pipefail
+          decision_file=state/welle-7-pre-auditor-decision.json
+          if [ ! -f "${decision_file}" ]; then
+            echo "::warning::${decision_file} missing -- PENDING-AR-DESIGNATION."
+            echo "status=yellow" >> "$GITHUB_OUTPUT"
+            echo "pre_auditor_state=missing" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          parse_result=$(python3 -c '
+          import json, pathlib, sys
+          try:
+              d = json.loads(pathlib.Path("'"${decision_file}"'").read_text())
+          except Exception as e:
+              print(f"parse-error:{e}")
+              sys.exit(0)
+          required = ["welle", "auditor_role", "decision", "decided_at_utc"]
+          missing = [k for k in required if k not in d]
+          if missing:
+              print(f"missing-fields:{','.join(missing)}")
+              sys.exit(0)
+          welle = d.get("welle")
+          decision = (d.get("decision") or "").upper()
+          if welle != 7:
+              print(f"wrong-welle:{welle}")
+              sys.exit(0)
+          if decision not in ("APPROVED", "REJECTED", "PENDING"):
+              print(f"unknown-decision:{decision}")
+              sys.exit(0)
+          print(f"ok:{decision}")
+          ')
+          echo "parse_result=${parse_result}"
+          case "${parse_result}" in
+            ok:APPROVED)
+              echo "status=green" >> "$GITHUB_OUTPUT"
+              echo "pre_auditor_state=present" >> "$GITHUB_OUTPUT"
+              ;;
+            ok:PENDING)
+              echo "status=yellow" >> "$GITHUB_OUTPUT"
+              echo "pre_auditor_state=pending" >> "$GITHUB_OUTPUT"
+              ;;
+            ok:REJECTED)
+              echo "::error::Welle-7 pre-auditor decision REJECTED."
+              echo "status=red" >> "$GITHUB_OUTPUT"
+              echo "pre_auditor_state=present" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::Welle-7 pre-auditor-decision file invalid: ${parse_result}"
+              echo "status=red" >> "$GITHUB_OUTPUT"
+              echo "pre_auditor_state=missing" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+  aggregate:
+    name: Aggregate Welle-7 Hot-Spot Verdict
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs:
+      - check-1-self-reference-trap
+      - check-2-recovery-drill-live
+      - check-3-independent-oracle
+      - check-4-iia-1130-pre-auditor
+    if: always()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Resolve today
+        id: today
+        env:
+          INPUT_TODAY: ${{ github.event.inputs.today }}
+        run: |
+          set -euo pipefail
+          today="${INPUT_TODAY}"
+          if [ -z "${today}" ]; then
+            today="$(date -u +%Y-%m-%d)"
+          fi
+          echo "today=${today}" >> "$GITHUB_OUTPUT"
+      - name: Read prev verdict (if available)
+        id: prev
+        run: |
+          set -euo pipefail
+          prev=""
+          state_dir=state/welle-7-hot-spot-trend
+          if [ -d "${state_dir}" ]; then
+            prev=$(python3 -c '
+          import json, pathlib
+          d = pathlib.Path("'"${state_dir}"'")
+          files = sorted([p for p in d.glob("*.json")], reverse=True)
+          for f in files[:7]:
+              try:
+                  env = json.loads(f.read_text())
+              except Exception:
+                  continue
+              v = env.get("verdict")
+              if v:
+                  print(v)
+                  break
+          ' || true)
+          fi
+          echo "prev=${prev}" >> "$GITHUB_OUTPUT"
+          echo "prev verdict: ${prev:-<none>}"
+      - name: Run aggregator
+        id: agg
+        env:
+          CHECK1_STATUS: ${{ needs.check-1-self-reference-trap.outputs.status }}
+          CHECK2_STATUS: ${{ needs.check-2-recovery-drill-live.outputs.status }}
+          CHECK3_STATUS: ${{ needs.check-3-independent-oracle.outputs.status }}
+          CHECK4_STATUS: ${{ needs.check-4-iia-1130-pre-auditor.outputs.status }}
+          WELLE_7_RECOVERY_DRILL_LIVE: ${{ needs.check-2-recovery-drill-live.outputs.recovery_drill_live }}
+          INDEPENDENT_ORACLE_DISAGREEMENTS: ${{ needs.check-3-independent-oracle.outputs.disagreements }}
+          PRE_AUDITOR_STATE: ${{ needs.check-4-iia-1130-pre-auditor.outputs.pre_auditor_state }}
+        run: |
+          set -euo pipefail
+          mkdir -p out state/welle-7-hot-spot-trend
+          today="${{ steps.today.outputs.today }}"
+          prev="${{ steps.prev.outputs.prev }}"
+          python3 tooling/ci/welle_7_hot_spot_aggregator.py \
+            --output "out/welle-7-hot-spot-verdict.json" \
+            --notify-out "state/notify-events.jsonl" \
+            ${prev:+--prev-verdict "${prev}"} \
+            --print-stdout
+          cp "out/welle-7-hot-spot-verdict.json" \
+            "state/welle-7-hot-spot-trend/${today}.json"
+          verdict=$(python3 -c 'import json; print(json.load(open("out/welle-7-hot-spot-verdict.json"))["verdict"])')
+          echo "verdict=${verdict}" >> "$GITHUB_OUTPUT"
+          echo "Welle-7 Hot-Spot verdict: ${verdict}"
+      - name: Render Job-Summary
+        if: always()
+        env:
+          VERDICT: ${{ steps.agg.outputs.verdict }}
+          TODAY: ${{ steps.today.outputs.today }}
+        run: |
+          set -euo pipefail
+          echo "# Welle-7 Hot-Spot Probe -- ${TODAY}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Verdict:** ${VERDICT:-UNKNOWN}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f out/welle-7-hot-spot-verdict.json ]; then
+            echo "## Envelope" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat out/welle-7-hot-spot-verdict.json >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f state/notify-events.jsonl ]; then
+            count=$(wc -l < state/notify-events.jsonl | tr -d ' ')
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Notify-events feed" >> "$GITHUB_STEP_SUMMARY"
+            echo "Total events in feed: **${count}**" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-3c-welle-7-hot-spot-${{ steps.today.outputs.today }}
+          path: |
+            out/welle-7-hot-spot-verdict.json
+            out/independent-oracle-rollup.json
+            state/welle-7-hot-spot-trend/${{ steps.today.outputs.today }}.json
+            state/notify-events.jsonl
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Persist state (operator-hand only)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.persist == 'true'
+        run: |
+          set -euo pipefail
+          today="${{ steps.today.outputs.today }}"
+          echo "[persist] state file: state/welle-7-hot-spot-trend/${today}.json"
+          ls -la state/welle-7-hot-spot-trend/ || true
+          echo "[persist] note: actual push is operator-hand; runner has read-only contents."

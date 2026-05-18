@@ -1,0 +1,191 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# 15-Binary SBOM Generator Daily Workflow (Tag-48, Kai)
+# -----------------------------------------------------
+#
+# Purpose
+# -------
+#
+# Tag-45 PR #294 (Quadlet+Cosign 15-Binary substrate refresh) + Tag-46
+# PR #298 (substrate-layer A6 coverage matrix) + Tag-47 PR #307
+# (Cosign-Keyless-OIDC-Drift-Probe) cover the static-shape, the
+# coverage-matrix, and the upstream-drift axes of the 15-binary
+# substrate. None of them captures the per-binary dependency tree —
+# which third-party crate versions Cargo statically links into each
+# binary.
+#
+# This workflow runs the Tag-48 15-binary SBOM generator daily at
+# 07:00 UTC (offset by 30min after the Cosign-OIDC-Drift-Probe at
+# 06:30 UTC, so an operator looking at both at the same time sees
+# distinct, non-overlapping job-summary blocks). The generator
+# reads ``wirelang-rust/Cargo.lock`` + per-crate ``Cargo.toml``
+# files and emits:
+#
+#   * One CycloneDX-1.5 JSON per binary (15 files, per the Tag-45
+#     inventory).
+#   * An aggregate envelope JSON for at-a-glance review.
+#   * A Prometheus textfile with per-binary transitive-dep gauge.
+#   * A Markdown summary for Job-Summary.
+#
+# Audit-Trail anchor
+# ------------------
+#
+# ADR-0066 §AR-Hand-Gate requires a full provenance bundle at the
+# pre-cutover hand-off. The SBOM bundle is the missing
+# ``components-and-versions`` axis the operator hands AR alongside
+# the cosign-verified image digests.
+#
+# Sandbox posture
+# ---------------
+#
+# Strict hermetic: stdlib + tomllib only. No podman / cargo / cosign
+# / network egress. The generator runs in ``--mode=stdlib`` which
+# parses Cargo.lock + per-crate Cargo.toml deterministically. The
+# Operator-Hand ``--mode=cargo-cyclonedx`` fall-back lives in
+# ``docs/operations/15-binary-sbom-generator.md`` (Tag-48 operator
+# recipe); this workflow does not invoke it.
+#
+# Trigger surface
+# ---------------
+#
+#   * ``schedule: cron "0 7 * * *"`` -- daily at 07:00 UTC, offset
+#     30min after the cosign-keyless-OIDC-drift-probe at 06:30 UTC.
+#   * ``workflow_dispatch`` -- operator-hand manual invocation.
+#   * ``push:`` (path-filtered) -- any change to the generator
+#     script, test file, Cargo.lock, or workspace Cargo.toml
+#     re-runs the generator so substrate-side breakage surfaces on
+#     the PR base before merge.
+#   * ``pull_request:`` (path-filtered) -- same path-filter so PRs
+#     touching these files run the generator in dry-run before
+#     merge.
+#
+# Not a required status check
+# ---------------------------
+#
+# Per ``feedback_branch_protection_check_names.md`` this workflow
+# tracks a daily provenance signal, not individual PR acceptance.
+# It is NOT listed as a required status check on PRs; it surfaces
+# signal only via Job-Summary + artefact.
+
+name: 15-binary-sbom-daily
+
+on:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+    inputs:
+      sbom_format:
+        description: "SBOM output format (cyclonedx-1.5 | spdx-2.3)."
+        required: false
+        default: "cyclonedx-1.5"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/observability/generate-15-binary-sbom.py"
+      - "tests/observability/test_generate_15_binary_sbom.py"
+      - "wirelang-rust/Cargo.lock"
+      - "wirelang-rust/Cargo.toml"
+      - "policies/cosign-policy-phase-3b.yaml"
+      - ".github/workflows/15-binary-sbom-daily.yml"
+  pull_request:
+    paths:
+      - "scripts/observability/generate-15-binary-sbom.py"
+      - "tests/observability/test_generate_15_binary_sbom.py"
+      - "wirelang-rust/Cargo.lock"
+      - "wirelang-rust/Cargo.toml"
+      - "policies/cosign-policy-phase-3b.yaml"
+      - ".github/workflows/15-binary-sbom-daily.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: 15-binary-sbom-daily
+  cancel-in-progress: false
+
+jobs:
+  generate-sbom:
+    name: 15-Binary SBOM Generator (daily)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Run hermetic generator tests
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check \
+              'pytest==9.0.3'
+          python3 -m pytest -v \
+              tests/observability/test_generate_15_binary_sbom.py
+
+      - name: Resolve dispatch inputs
+        id: inputs
+        env:
+          INPUT_FORMAT: ${{ github.event.inputs.sbom_format }}
+        run: |
+          set -euo pipefail
+          sbom_format="${INPUT_FORMAT:-cyclonedx-1.5}"
+          case "${sbom_format}" in
+            cyclonedx-1.5|spdx-2.3) ;;
+            *) echo "Unsupported format: ${sbom_format}"; exit 2 ;;
+          esac
+          echo "sbom_format=${sbom_format}" >> "${GITHUB_OUTPUT}"
+
+      - name: Generate 15-binary SBOM bundle (stdlib mode)
+        id: generate
+        env:
+          SBOM_FORMAT: ${{ steps.inputs.outputs.sbom_format }}
+        run: |
+          set -euo pipefail
+          mkdir -p out/sbom
+          python3 scripts/observability/generate-15-binary-sbom.py \
+              --cargo-lock wirelang-rust/Cargo.lock \
+              --out-dir out/sbom \
+              --out-envelope out/sbom/envelope.json \
+              --out-textfile out/sbom/metrics.prom \
+              --out-markdown out/sbom/summary.md \
+              --format "${SBOM_FORMAT}" \
+              --mode stdlib \
+            > out/sbom/stdout.txt
+          # Sanity check: exactly 15 SBOM JSON files written.
+          if [ "${SBOM_FORMAT}" = "cyclonedx-1.5" ]; then
+            count=$(find out/sbom -name "*.cdx.json" -type f | wc -l)
+          else
+            count=$(find out/sbom -name "*.spdx.json" -type f | wc -l)
+          fi
+          echo "sbom_count=${count}" >> "${GITHUB_OUTPUT}"
+          if [ "${count}" -ne 15 ]; then
+            echo "Expected 15 SBOM files, got ${count}." >&2
+            exit 1
+          fi
+
+      - name: Render Job-Summary
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -f out/sbom/summary.md ]; then
+            cat out/sbom/summary.md >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "## 15-Binary SBOM — Run failed before summary." \
+                >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Upload SBOM bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 15-binary-sbom-${{ github.run_id }}
+          path: out/sbom/
+          retention-days: 30
+          if-no-files-found: warn
