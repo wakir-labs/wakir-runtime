@@ -1,10 +1,10 @@
 {
-  "__comment": "Grafana dashboard JSON for the wakir-persona-engine Phase-3c welle-status surface (Noa Bergstroem / SRE, Tag-30 Mini-Welle, extended Tag-31 Mini-Welle for Welle-3 high-frequency telemetry). Consumes Prometheus gauges produced by scripts/phase-3c-welle-status-emitter.py (general welle status) and scripts/welle-3-telemetry-emitter.py (Welle-3 solo cutover high-frequency telemetry, ADR-0066 Mitigation-2). The dashboard is the operator's per-welle live view across the seven ADR-0065 / ADR-0066 cutover welles: pre_cutover, in_cutover, post_cutover, rollback_active, welle_complete. Schema version targets Grafana 10.x (schemaVersion >= 38). Welle-1+2 KW 24, Welle-3 KW 25 solo, Welle-4+5 KW 26, Welle-6+7 KW 27. The doppel_welle_cap row turns red when welle_aktiv_count > 2 (ADR-0066 parallelitaet-cap). The cross_modul_drift panel turns red on a Phase-2-Acceptance-Gate cross_modul_pin_status=fail. The Welle-3 row (panels 41-46) shows the bridge_audit_writer self-consistency score on 10s tick alongside the independent Phase-2 cross-modul stress-test oracle; divergence > 0.5pp raises a red-flag tile (ADR-0066 Welle-3 immediate-rollback trigger per Henrik / Internal Audit caution).",
+  "__comment": "Grafana dashboard JSON for the wakir-persona-engine Phase-3c welle-status surface (Noa Bergstroem / SRE, Tag-30 Mini-Welle, extended Tag-31 Mini-Welle for Welle-3 high-frequency telemetry, extended Tag-32 Mini-Welle for Welle-1+2 KW-24 Day-0 doppel telemetry). Consumes Prometheus gauges produced by scripts/phase-3c-welle-status-emitter.py (general welle status), scripts/welle-3-telemetry-emitter.py (Welle-3 solo cutover high-frequency telemetry, ADR-0066 Mitigation-2), and scripts/welle-1-2-doppel-telemetry-emitter.py (Welle-1+2 KW-24 doppel-cutover Day-0 Observability). The dashboard is the operator's per-welle live view across the seven ADR-0065 / ADR-0066 cutover welles: pre_cutover, in_cutover, post_cutover, rollback_active, welle_complete. Schema version targets Grafana 10.x (schemaVersion >= 38). Welle-1+2 KW 24, Welle-3 KW 25 solo, Welle-4+5 KW 26, Welle-6+7 KW 27. The doppel_welle_cap row turns red when welle_aktiv_count > 2 (ADR-0066 parallelitaet-cap). The cross_modul_drift panel turns red on a Phase-2-Acceptance-Gate cross_modul_pin_status=fail. The Welle-3 row (panels 41-46) shows the bridge_audit_writer self-consistency score on 10s tick alongside the independent Phase-2 cross-modul stress-test oracle; divergence > 0.5pp raises a red-flag tile (ADR-0066 Welle-3 immediate-rollback trigger per Henrik / Internal Audit caution). The Welle-1+2 doppel row (panels 51-63) mirrors the Welle-3 panel set per welle (Welle-1 v907_verify, Welle-2 svid_workload_identity) and adds a single combined doppel health-score that captures the weaker of the two welles plus a combined red-flag tile that fires when ANY per-welle red-flag is set.",
   "title": "Wakir Persona-Engine - Phase-3c Welle Status",
   "uid": "wakir-persona-engine-phase-3c-welle-status",
-  "tags": ["wakir", "persona-engine", "sre", "phase-3c", "welle-status", "adr-0065", "adr-0066", "tag-30", "tag-31", "welle-3-telemetry"],
+  "tags": ["wakir", "persona-engine", "sre", "phase-3c", "welle-status", "adr-0065", "adr-0066", "tag-30", "tag-31", "tag-32", "welle-3-telemetry", "welle-1-2-doppel-telemetry"],
   "schemaVersion": 38,
-  "version": 2,
+  "version": 3,
   "editable": true,
   "graphTooltip": 1,
   "time": {
@@ -704,6 +704,474 @@
         "defaults": {
           "unit": "short",
           "color": {"mode": "palette-classic"}
+        }
+      }
+    },
+    {
+      "id": 500,
+      "type": "row",
+      "title": "Welle-1+2 KW-24 Doppel-Cutover Day-0 Telemetry (ADR-0066)",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 82},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 51,
+      "type": "timeseries",
+      "title": "Welle-1 v907_verify Consistency Score (10s tick)",
+      "description": "Welle-1 (v907_verify) self-consistency score = rust_count / total * 100, sampled at the configured high-frequency tick interval (default 10s). KW-24 doppel-cutover Monday Dry-Run / Wednesday Cutover. Compare against the per-welle Phase-2 cross-modul stress-test oracle in the panel to the right. Source: scripts/welle-1-2-doppel-telemetry-emitter.py.",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 83},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_doppel_welle_consistency_score{welle=\"1\"}",
+          "refId": "A",
+          "legendFormat": "welle-1 self-score"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 90},
+              {"color": "green", "value": 99}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 52,
+      "type": "timeseries",
+      "title": "Welle-1 Phase-2 Stress Oracle (Trendline)",
+      "description": "Independent oracle for Welle-1: Phase-2 cross-modul stress-test result, sampled outside the v907_verify code path. Trendline shows the stress-test cross-modul-rust-rate; status label switches GREEN/RED/YELLOW.",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 83},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_doppel_welle_stress_oracle_score{welle=\"1\"}",
+          "refId": "A",
+          "legendFormat": "welle-1 stress oracle ({{status}})"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 90},
+              {"color": "green", "value": 99}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 53,
+      "type": "stat",
+      "title": "Welle-1 Self-vs-Oracle Divergence (percentage points)",
+      "description": "Absolute delta between Welle-1 self-score and Welle-1 stress-oracle score. ADR-0066 rollback trigger for Welle-1: divergence > 0.5pp (default threshold).",
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 91},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_doppel_welle_divergence_pct{welle=\"1\"}",
+          "refId": "A",
+          "legendFormat": "welle-1 divergence pp"
+        }
+      ],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 5,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 0.3},
+              {"color": "red", "value": 0.5}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 54,
+      "type": "stat",
+      "title": "Welle-1 Red-Flag (>0.5pp divergence -> rollback)",
+      "description": "Binary red-flag tile for Welle-1. 1 = rollback trigger fired (per-welle divergence > threshold OR Welle-1 stress oracle reports fail). 0 = green. The reason label carries the diagnostic for the on-call operator (e.g. 'divergence-9.0000pct-exceeds-threshold-0.5000pct' or 'stress-oracle-status-fail').",
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 91},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_doppel_welle_divergence_red_flag{welle=\"1\"}",
+          "refId": "A",
+          "legendFormat": "welle-1 red-flag ({{reason}})"
+        }
+      ],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 1}
+            ]
+          },
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "green"}, "1": {"text": "RED-FLAG"}}}
+          ]
+        }
+      }
+    },
+    {
+      "id": 55,
+      "type": "stat",
+      "title": "Welle-1 Aktiv (1 = in_cutover or rollback_active)",
+      "description": "1 iff Welle-1 lifecycle state is in_cutover or rollback_active. KW 24 expects both Welle-1 and Welle-2 aktiv per ADR-0066 doppel-week design.",
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 91},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_doppel_welle_aktiv{welle=\"1\"}",
+          "refId": "A",
+          "legendFormat": "welle-1 aktiv ({{state}})"
+        }
+      ],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "blue", "value": null},
+              {"color": "yellow", "value": 1}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 56,
+      "type": "timeseries",
+      "title": "Welle-1 Window Backend Split (python | rust | fallback)",
+      "description": "Welle-1 (v907_verify) BackendDecision counts inside the configured sliding window (default 5 minutes). Three series: python, rust, fallback.",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 99},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_doppel_welle_window_python_count{welle=\"1\"}",
+          "refId": "A",
+          "legendFormat": "welle-1 python"
+        },
+        {
+          "expr": "persona_engine_doppel_welle_window_rust_count{welle=\"1\"}",
+          "refId": "B",
+          "legendFormat": "welle-1 rust"
+        },
+        {
+          "expr": "persona_engine_doppel_welle_window_fallback_count{welle=\"1\"}",
+          "refId": "C",
+          "legendFormat": "welle-1 fallback"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "palette-classic"}
+        }
+      }
+    },
+    {
+      "id": 57,
+      "type": "timeseries",
+      "title": "Welle-2 svid_workload_identity Consistency Score (10s tick)",
+      "description": "Welle-2 (svid_workload_identity) self-consistency score = rust_count / total * 100, sampled at the configured high-frequency tick interval (default 10s). KW-24 doppel-cutover partner of Welle-1. Source: scripts/welle-1-2-doppel-telemetry-emitter.py.",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 107},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_doppel_welle_consistency_score{welle=\"2\"}",
+          "refId": "A",
+          "legendFormat": "welle-2 self-score"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 90},
+              {"color": "green", "value": 99}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 58,
+      "type": "timeseries",
+      "title": "Welle-2 Phase-2 Stress Oracle (Trendline)",
+      "description": "Independent oracle for Welle-2: Phase-2 cross-modul stress-test result, sampled outside the svid_workload_identity code path.",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 107},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_doppel_welle_stress_oracle_score{welle=\"2\"}",
+          "refId": "A",
+          "legendFormat": "welle-2 stress oracle ({{status}})"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 90},
+              {"color": "green", "value": 99}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 59,
+      "type": "stat",
+      "title": "Welle-2 Self-vs-Oracle Divergence (percentage points)",
+      "description": "Absolute delta between Welle-2 self-score and Welle-2 stress-oracle score. ADR-0066 rollback trigger for Welle-2: divergence > 0.5pp (default threshold).",
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 115},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_doppel_welle_divergence_pct{welle=\"2\"}",
+          "refId": "A",
+          "legendFormat": "welle-2 divergence pp"
+        }
+      ],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 5,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 0.3},
+              {"color": "red", "value": 0.5}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 60,
+      "type": "stat",
+      "title": "Welle-2 Red-Flag (>0.5pp divergence -> rollback)",
+      "description": "Binary red-flag tile for Welle-2. 1 = rollback trigger fired. 0 = green.",
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 115},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_doppel_welle_divergence_red_flag{welle=\"2\"}",
+          "refId": "A",
+          "legendFormat": "welle-2 red-flag ({{reason}})"
+        }
+      ],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 1}
+            ]
+          },
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "green"}, "1": {"text": "RED-FLAG"}}}
+          ]
+        }
+      }
+    },
+    {
+      "id": 61,
+      "type": "stat",
+      "title": "Welle-2 Aktiv (1 = in_cutover or rollback_active)",
+      "description": "1 iff Welle-2 lifecycle state is in_cutover or rollback_active.",
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 115},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_doppel_welle_aktiv{welle=\"2\"}",
+          "refId": "A",
+          "legendFormat": "welle-2 aktiv ({{state}})"
+        }
+      ],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "blue", "value": null},
+              {"color": "yellow", "value": 1}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 62,
+      "type": "timeseries",
+      "title": "Welle-2 Window Backend Split (python | rust | fallback)",
+      "description": "Welle-2 (svid_workload_identity) BackendDecision counts inside the configured sliding window (default 5 minutes).",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 123},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_doppel_welle_window_python_count{welle=\"2\"}",
+          "refId": "A",
+          "legendFormat": "welle-2 python"
+        },
+        {
+          "expr": "persona_engine_doppel_welle_window_rust_count{welle=\"2\"}",
+          "refId": "B",
+          "legendFormat": "welle-2 rust"
+        },
+        {
+          "expr": "persona_engine_doppel_welle_window_fallback_count{welle=\"2\"}",
+          "refId": "C",
+          "legendFormat": "welle-2 fallback"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "palette-classic"}
+        }
+      }
+    },
+    {
+      "id": 63,
+      "type": "stat",
+      "title": "Welle-1+2 Combined Doppel Health-Score",
+      "description": "Aggregated doppel-welle health-score = min(welle-1 self-score, welle-2 self-score). The combined score captures the weaker of the two welles — the doppel-week is only as healthy as its weaker partner. The companion combined-red-flag fires when ANY per-welle red-flag is set; reason label cites which welle(s). When either welle has no traffic in the window, the combined score is NaN (no-signal) rather than falsely reading green.",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 131},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_doppel_welle_combined_health_score",
+          "refId": "A",
+          "legendFormat": "combined health-score"
+        },
+        {
+          "expr": "persona_engine_doppel_welle_combined_red_flag",
+          "refId": "B",
+          "legendFormat": "combined red-flag ({{reason}})"
+        },
+        {
+          "expr": "persona_engine_doppel_welle_pair_aktiv_count",
+          "refId": "C",
+          "legendFormat": "pair aktiv count"
+        }
+      ],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 90},
+              {"color": "green", "value": 99}
+            ]
+          }
         }
       }
     }
