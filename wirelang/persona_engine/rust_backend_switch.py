@@ -1127,6 +1127,33 @@ def _validate_federation_resolver_backend(
     return FederationResolverBackend(value)
 
 
+def _validate_bridge_audit_writer_backend(
+    value: Optional[str],
+) -> BridgeAuditWriterBackend:
+    """Validate a ``WAKIR_BRIDGE_AUDIT_WRITER_BACKEND`` value (or ``None``).
+
+    Empty / missing values default to
+    ``BridgeAuditWriterBackend.PYTHON``. Non-empty unknown values
+    raise :class:`BackendSwitchValidationError`.
+
+    Tag-48 wire-in — promotes the previously-held-back 10th
+    BackendDecision into the Stage-1 boot fan-out. The validator
+    mirrors the eight sibling validators byte-for-byte; the only
+    novelty is that the resolver below is now consulted from
+    :meth:`PersonaEngine.boot` (vs. lying dormant as a Tag-31
+    scaffold under MANIFEST-0.5.0-pre-cutover §5).
+    """
+    if value is None or value == "":
+        return BridgeAuditWriterBackend.PYTHON
+    if value not in VALID_BRIDGE_AUDIT_WRITER_BACKEND_VALUES:
+        raise BackendSwitchValidationError(
+            BRIDGE_AUDIT_WRITER_BACKEND_ENV,
+            value,
+            VALID_BRIDGE_AUDIT_WRITER_BACKEND_VALUES,
+        )
+    return BridgeAuditWriterBackend(value)
+
+
 # ---------------------------------------------------------------------------
 # Public resolution entry points.
 # ---------------------------------------------------------------------------
@@ -2069,6 +2096,125 @@ def resolve_federation_resolver_backend(
 # re-exported through ``__all__`` (it is a private auftrag-pin, not a
 # stable surface).
 _select_federation_resolver_backend = resolve_federation_resolver_backend
+
+
+def resolve_bridge_audit_writer_backend(
+    env: Optional[Mapping[str, str]] = None,
+    *,
+    log_sink: Optional[TextIO] = None,
+    binary_probe: Optional[Callable[[str], tuple[bool, Optional[str]]]] = None,
+) -> tuple[BridgeAuditWriterBackend, BackendDecision]:
+    """Resolve the bridge-audit-writer backend per env-var + binary availability.
+
+    Tag-48 wire-in — promotes the 10th Phase-3a production-default-
+    switch component into the Stage-1 boot fan-out. The Python
+    authority is :mod:`wirelang.persona_engine.bridge_audit_writer`
+    (PR #19 / Sprint-1 Tag-4 EngineeringOutputEvent envelope writer).
+    The Rust pendant is the ``wakir-persona-engine-bridge-audit-writer``
+    binary that ships from the ``persona-engine-bridge-audit-replay``
+    crate alongside the sibling ``replay_cli``. The cross-language
+    byte-parity contract is captured by the F1/F2/F3 stream-fixture
+    pins in the bridge-audit-replay crate; the Rust writer's
+    JCS-canonical envelope is byte-identical to the Python pendant's
+    ``EngineeringOutputEvent.to_jcs_bytes()`` output for the same
+    input.
+
+    Returns a ``(chosen_backend, decision)`` tuple. The decision
+    object is also logged via :func:`log_backend_decision`.
+
+    Same posture as :func:`resolve_recovery_backend` (and the eight
+    other sibling resolvers): default is Python, ``rust`` requested
+    + binary missing falls back to Python with a structured-log
+    warning.
+
+    This is the **10th** BackendDecision record emitted per boot
+    (Tag-17 recovery + state_backing + Tag-18 fsm + Tag-19 v907_verify
+    + Tag-20 bridge_diff + Tag-22 subscribe_loop + Tag-23
+    anchor_emitter + Tag-25 svid_workload_identity + Tag-30
+    federation_resolver + Tag-48 bridge_audit_writer). With this
+    wire-in the Phase-3b production-default-switch contract surface
+    closes at ten components and the engine version bumps to
+    ``0.5.1-pre-cutover``.
+
+    Parameters
+    ----------
+    env
+        Env-var mapping; defaults to :data:`os.environ`.
+    log_sink
+        Optional structured-log sink. If provided, the decision is
+        also written as a single JSON line.
+    binary_probe
+        Test-injection seam. Defaults to :func:`_binary_available`.
+
+    Raises
+    ------
+    BackendSwitchValidationError
+        On unknown env-var values.
+    """
+    start = time.perf_counter()
+    raw_value = _env_get(BRIDGE_AUDIT_WRITER_BACKEND_ENV, env)
+    requested = _validate_bridge_audit_writer_backend(raw_value)
+
+    if requested is BridgeAuditWriterBackend.PYTHON:
+        latency_us = int((time.perf_counter() - start) * 1_000_000)
+        decision = BackendDecision(
+            domain="bridge_audit_writer",
+            requested_backend=requested.value,
+            chosen_backend=BridgeAuditWriterBackend.PYTHON.value,
+            resolution_latency_us=latency_us,
+            fallback_reason=(
+                "explicit_python" if raw_value == "python" else None
+            ),
+            bin_path=None,
+        )
+        log_backend_decision(decision, log_sink=log_sink)
+        return BridgeAuditWriterBackend.PYTHON, decision
+
+    # Requested == RUST.
+    bin_path = _resolve_bridge_audit_writer_bin(env)
+    probe = binary_probe or _binary_available
+    available, fallback_reason = probe(bin_path)
+    if available:
+        latency_us = int((time.perf_counter() - start) * 1_000_000)
+        decision = BackendDecision(
+            domain="bridge_audit_writer",
+            requested_backend=requested.value,
+            chosen_backend=BridgeAuditWriterBackend.RUST.value,
+            resolution_latency_us=latency_us,
+            fallback_reason=None,
+            bin_path=bin_path,
+        )
+        log_backend_decision(decision, log_sink=log_sink)
+        return BridgeAuditWriterBackend.RUST, decision
+
+    # Graceful fallback to Python.
+    latency_us = int((time.perf_counter() - start) * 1_000_000)
+    decision = BackendDecision(
+        domain="bridge_audit_writer",
+        requested_backend=requested.value,
+        chosen_backend=BridgeAuditWriterBackend.PYTHON.value,
+        resolution_latency_us=latency_us,
+        fallback_reason=fallback_reason,
+        bin_path=bin_path,
+    )
+    log_backend_decision(decision, log_sink=log_sink)
+    log.warning(
+        "rust_backend_switch bridge_audit_writer requested=rust but "
+        "binary unavailable (%s @ %s); falling back to python",
+        fallback_reason,
+        bin_path,
+    )
+    return BridgeAuditWriterBackend.PYTHON, decision
+
+
+# Auftrag-named alias for :func:`resolve_bridge_audit_writer_backend`.
+# Tag-48 wire-in auftrag spec uses
+# ``_select_bridge_audit_writer_backend`` as the contract identifier;
+# the alias preserves that name while the public surface stays
+# consistent with the ``resolve_<domain>_backend`` family. The
+# underscore-prefixed alias is *not* re-exported through ``__all__``
+# (it is a private auftrag-pin, not a stable surface).
+_select_bridge_audit_writer_backend = resolve_bridge_audit_writer_backend
 
 
 # ---------------------------------------------------------------------------
@@ -4277,6 +4423,7 @@ __all__ = [
     "resolve_anchor_emitter_backend",
     "resolve_svid_workload_identity_backend",
     "resolve_federation_resolver_backend",
+    "resolve_bridge_audit_writer_backend",
     # Subprocess bridges.
     "RustSubprocessStateBacking",
     "RustSubprocessRecoveryRunner",

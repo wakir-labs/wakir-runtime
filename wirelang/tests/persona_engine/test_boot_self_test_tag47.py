@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tag-47 hermetic suite for the Persona-Engine Boot Self-Test.
+"""Tag-47/48 hermetic suite for the Persona-Engine Boot Self-Test.
 
 Re-runs every check in ``scripts/persona-engine/boot-self-test.py``
 inside pytest so the CI test runner enforces the same Stage-1 boot
-invariants the operator runs by hand during cutover.
+invariants the operator runs by hand during cutover. Tag-48 promotes
+the script to the 10-record 0.5.1-pre-cutover manifest; the test
+suite tracks the script's CHECKS registry verbatim.
 
 Hermetic envelope
 -----------------
@@ -14,8 +16,8 @@ Hermetic envelope
 * No subprocess. We invoke the resolver functions directly (the
   Rust subprocess path is never reached because the clean env keeps
   every selector at default ``python``).
-* No filesystem writes. The script reads ``MANIFEST-0.5.0-pre-cutover.md``
-  and ``pin-pack-0.5.0-pre-cutover.yaml`` from the repo; no temp
+* No filesystem writes. The script reads ``MANIFEST-0.5.1-pre-cutover.md``
+  and ``pin-pack-0.5.1-pre-cutover.yaml`` from the repo; no temp
   files are emitted.
 * Deterministic. The boot-fingerprint check itself is one of the
   invariants we assert.
@@ -209,25 +211,25 @@ def test_each_boot_self_test_check_passes(
 # ---------------------------------------------------------------------------
 
 
-def test_expected_boot_order_has_nine_records(boot_self_test_module):
-    """Script's EXPECTED_BOOT_ORDER constant must list 9 records."""
+def test_expected_boot_order_has_ten_records(boot_self_test_module):
+    """Script's EXPECTED_BOOT_ORDER constant must list 10 records (Tag-48)."""
     eb = boot_self_test_module.EXPECTED_BOOT_ORDER
-    assert len(eb) == 9
+    assert len(eb) == 10
     record_nos = [n for n, _, _ in eb]
-    assert record_nos == list(range(1, 10))
+    assert record_nos == list(range(1, 11))
 
 
 def test_expected_pin_pack_boot_wired_aligns(boot_self_test_module):
     """EXPECTED_PIN_PACK_BOOT_WIRED record-nos match EXPECTED_BOOT_ORDER."""
     eb = boot_self_test_module.EXPECTED_BOOT_ORDER
     pp = boot_self_test_module.EXPECTED_PIN_PACK_BOOT_WIRED
-    assert len(pp) == 9
+    assert len(pp) == 10
     assert [n for n, _ in pp] == [n for n, _, _ in eb]
 
 
 def test_expected_unwired_crate_count(boot_self_test_module):
-    """EXPECTED_PIN_PACK_UNWIRED must list 6 crates (9+6 = 15)."""
-    assert len(boot_self_test_module.EXPECTED_PIN_PACK_UNWIRED) == 6
+    """EXPECTED_PIN_PACK_UNWIRED must list 5 crates (10+5 = 15) in Tag-48."""
+    assert len(boot_self_test_module.EXPECTED_PIN_PACK_UNWIRED) == 5
 
 
 # ---------------------------------------------------------------------------

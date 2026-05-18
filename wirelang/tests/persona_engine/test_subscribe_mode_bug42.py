@@ -761,23 +761,24 @@ def test_engine_version_bumped_to_0_5_0_pilot():
 
 
 def test_containerfile_real_label_bumped():
-    """Containerfile.real LABEL is the Tag-45 pre-cutover image tag.
+    """Containerfile.real LABEL is the Tag-48 pre-cutover image tag.
 
-    Tag-45 (Sprint-Pengine-14, 2026-05-18) bumped the container
-    image tag from ``0.5.0-pilot`` to ``0.5.0-pre-cutover`` for the
-    Phase-3a/3b Doppelbetrieb engine consolidation (manifest +
-    pin pack). The Python ``ENGINE_VERSION`` constant remains at
-    ``0.5.0-pilot`` because the engine code itself is byte-stable
-    relative to Sprint-Pengine-13 — Tag-45 is a documentation /
-    cross-substrate-parity consolidation, not an engine-code bump.
-    Sprint-Pengine-13 / Bug-42 references stay in the header
-    comment for history.
+    Tag-48 (2026-05-19) bumped the container image tag from
+    ``0.5.0-pre-cutover`` to ``0.5.1-pre-cutover`` for the
+    bridge-audit-writer wire-in (10th BackendDecision record). The
+    Python ``ENGINE_VERSION`` constant remains at ``0.5.0-pilot``
+    because the engine code itself is byte-stable relative to
+    Sprint-Pengine-13 — Tag-48 is an engine-wiring extension layer
+    on top of the Tag-45 manifest, not an engine-code rewrite.
+    Sprint-Pengine-13 / Bug-42 / Tag-45 references stay in the
+    header comment for history.
     """
     from pathlib import Path
     cf = Path(__file__).resolve().parents[3] / "infra" / "persona-engine" / "Containerfile.real"
     text = cf.read_text(encoding="utf-8")
-    assert 'image.version="0.5.0-pre-cutover"' in text
+    assert 'image.version="0.5.1-pre-cutover"' in text
     assert "Sprint-Pengine-13" in text
     assert "Bug-42" in text
     assert "Sprint-Pengine-14" in text
     assert "Tag-45" in text
+    assert "Tag-48" in text
