@@ -402,7 +402,178 @@ covers Welle-4 + Welle-5 solo files independently.
   but applies *per-modul*, not whole-bridge-audit-writer (sanity-
   test `test_doppel_welle_4_5_cmd_ac_4_threshold_anchored_to_adr_
   0066`).
-* The CMD-AC layer is Doppel-Welle-4+5-exclusive; under no circumstance
-  applies to DW-1+2 (read-only-paar, no schema-touchpoint) or DW-6+7
-  (stateful-loop-paar, different drift-surface addressed by DW-6+7
-  schwerpunkte).
+* The CMD-AC-1 ... CMD-AC-4 layer (this section §11) is Doppel-Welle-
+  4+5-exclusive. DW-1+2 (read-only-paar) carries no CMD-AC layer at
+  all (no producer/consumer schema-touchpoint exists between v907_
+  verify and svid_workload_identity). DW-6+7 (stateful-loop-paar)
+  carries a *parallel* CMD-AC-6-7-1 ... CMD-AC-6-7-4 layer specialised
+  for its bidirectional contract (subscribe_loop ack-records flow
+  loop→recovery; recovery_workflow R1..R4 triggers flow recovery→
+  loop). See §13 for the Welle-6+7 extension; the two CMD-AC layers
+  are layered side-by-side, not nested.
+
+## 13. Doppel-Welle-6+7 Cross-Modul-AC-Extension (ADR-0066 §Beschluss Welle-6+7-Extension)
+
+ADR-0066 §Beschluss + Priya CTO-Coordination-Plan v3 (Tag-32 Mini-Welle,
+Welle-6+7 Cross-Modul-AC extension) introduce four additional acceptance
+criteria for the KW 27 Doppel-Welle-6+7 cutover (`subscribe_loop` ×
+`recovery_workflow`), parallel to the §11 CMD-AC layer for Welle-4+5.
+
+The Welle-6+7 contract is shaped differently from Welle-4+5:
+
+* **Welle-4+5**: `state_backing` (producer) → `lifecycle_state_machine`
+  (consumer). Unidirectional JCS-state-record schema-touchpoint;
+  producer/consumer contract on persisted state.
+* **Welle-6+7**: `subscribe_loop` *emits ack-records* that
+  `recovery_workflow` consumes during restart-point reconstruction
+  *and* `recovery_workflow` *emits R1..R4 Re-subscribe-triggers* that
+  `subscribe_loop` honours by emitting Re-subscribe-events. The
+  relationship is bidirectional: ack-records flow loop→recovery,
+  Re-subscribe-triggers flow recovery→loop.
+
+The Welle-6+7 CMD-AC layer adapts the §11 shape to this bidirectional
+contract — CMD-AC-6-7-1 covers loop→recovery ack-record consumption;
+CMD-AC-6-7-2 covers recovery→loop Re-subscribe-trigger emission;
+CMD-AC-6-7-3 and CMD-AC-6-7-4 share the §11 stress-test + atomic-flip
+shape with Welle-6+7-specific substrate and load profiles.
+
+### 13.1 CMD-AC-6-7-1 ... CMD-AC-6-7-4 Acceptance-Kriterien
+
+| ID | Gate | Test-Helper | Constant |
+|---|---|---|---|
+| **CMD-AC-6-7-1** | `subscribe_loop-rust` emittiert ack-records → `recovery_workflow-rust` konsumiert mit byte-identischer Schema-Deserialization (deserialize → re-serialize round-trip parity, cursor-delta survival). | `assert_cross_modul_drift_welle_6_7_ac_1_ack_consume_round_trip` | — |
+| **CMD-AC-6-7-2** | `recovery_workflow-rust` R1..R4 triggert `subscribe_loop-rust` Re-subscribe mit gleicher Wire-Form wie Python-Pendant (Rust-Rust vs. `python-python-baseline` oracle). | `assert_cross_modul_drift_welle_6_7_ac_2_resubscribe_trigger_wire_form` | `CROSS_MODUL_DRIFT_WELLE_6_7_RECOVERY_TRIGGER_IDS`, `CROSS_MODUL_DRIFT_WELLE_6_7_RECOVERY_TRIGGER_ORACLES` |
+| **CMD-AC-6-7-3** | Cross-Modul-Stress-Test (PR #197) zeigt Welle-6+7 Konsistenz beider Komponenten ≥99.5%; joint-rate = `min(rate_a, rate_b)`. | `assert_cross_modul_drift_welle_6_7_ac_3_per_komponente_consistency` | `CROSS_MODUL_DRIFT_CONSISTENCY_WELLE_6_7_PCT_FLOOR = 0.995` |
+| **CMD-AC-6-7-4** | Drift > 0.5pp → atomic single-Komponente rollback (high-drift modul auf `python`, partner bleibt `rust`-Default), ≤10min SLA, single restart-cycle. | `assert_cross_modul_drift_welle_6_7_ac_4_atomic_flip_rollback` | `CROSS_MODUL_DRIFT_ROLLBACK_WELLE_6_7_PCT_THRESHOLD = 0.5` |
+
+### 13.2 Gate-Schwerpunkt — Welle-6+7-specific Justification
+
+* **CMD-AC-6-7-1 vs DW-AC-2**: DW-AC-2 checks producer-side byte-parity
+  on a single ack-record touchpoint. CMD-AC-6-7-1 closes the round-trip
+  loophole on the consumer side (recovery_workflow-rust deserialize →
+  re-serialize) and adds a cursor-delta-survival sub-gate. The cursor-
+  delta path is Bug-42-adjacent: a one-byte mutation here causes
+  recovery to compute a wrong restart-point — the precise failure mode
+  Bug-42 surfaced during the per-welle Welle-6 substrate.
+* **CMD-AC-6-7-2 vs DW-AC-2**: DW-AC-2 compares producer-bytes against
+  consumer-bytes within the same cutover (Rust-Rust loop↔recovery).
+  CMD-AC-6-7-2 covers the *inverted* direction (recovery→loop) and
+  compares against the historical python-python-baseline. The Welle-6+7
+  oracle-set is single-valued (the python-rust-welle-6-only mid-state
+  is operationally unreachable under Doppel-Welle-6+7 because both
+  moduln share the same cutover-cycle).
+* **CMD-AC-6-7-3 vs DW-AC-4**: DW-AC-4 sets zero-failure on aggregate
+  stress (binary count-floor). CMD-AC-6-7-3 sets a quantitative per-
+  Komponente consistency-rate floor (≥99.5%) on the joint subscribe-
+  event-flood + simultaneous recovery-restart-points load profile.
+  Captures non-throw-class drift (e.g. NATS-reconnect-storm-induced
+  drop-rate without exception) that DW-AC-4 misses.
+* **CMD-AC-6-7-4 vs DW-AC-3**: DW-AC-3 covers manual Operator-Hand
+  asymmetric rollback discipline. CMD-AC-6-7-4 adds the *trigger-
+  precondition* (drift > 0.5pp) + the *atomicity property* (single
+  restart-cycle). A recovery_workflow rollback delays Phase-3c-Ende +
+  ADR-0035-C-Drift-Closure by ≥1 week; the atomic-flip discipline
+  minimises blast-radius by restricting rollback to the affected modul.
+
+### 13.3 Cross-Modul-Stress-Test substrate (PR #197) wire-up — Welle-6+7
+
+CMD-AC-6-7-3 references PR #197 Cross-Modul-Stress-Test substrate
+output broken out per Komponente for the Welle-6+7 joint-load profile:
+
+* `subscribe_loop_consistency_rate` — Rust-side NATS-subscribe-cycle
+  consistency under the subscribe-event-flood profile.
+* `recovery_workflow_consistency_rate` — Rust-side restart-point-
+  reconstruction consistency during the same window with simultaneous
+  recovery restart-points.
+
+The total-load default for the Welle-6+7 stress-fixture is `total=2000`
+(matching the existing DW-AC-4 default for the Welle-6+7 file). The
+Phase-3c-trigger-sprint wires the real load-targets via Tomás's Tag-29
+Cross-Modul-Stress-Test substrate.
+
+### 13.4 Atomic-flip-pattern runbook substrate — Welle-6+7
+
+CMD-AC-6-7-4 enforces an atomic-flip-pattern: when measured cross-modul-
+drift exceeds 0.5pp on exactly one of subscribe_loop / recovery_
+workflow, that modul flips back to python-Default while the partner
+stays on rust-Default. The runbook substrate is identical in shape to
+§11.4 with Welle-6+7-specific risk emphasis:
+
+1. **Drift-observability:** Noa-Prometheus-Gauges emit per-Komponente
+   drift-pct for subscribe_loop and recovery_workflow.
+2. **Operator-Hand-trigger:** at the 0.5pp threshold, the runbook
+   fires the atomic-flip on the high-drift modul only.
+3. **Post-flip verification:** ENV-flag rewrite verified, restart-
+   cycle completed inside 10min SLA, partner-modul backend confirmed
+   rust.
+4. **Audit-trail:** Backend-Decision-Audit emits a single rollback-
+   record; Henrik's Zone-N-Audit-Sample distinguishes rollback-record
+   from cutover-record at audit-time. Welle-6+7-specific note: a
+   recovery_workflow rollback record signals a Phase-3c-Ende delay
+   ≥1 week — Henrik's quarterly Zone-N-Boundary-Review carries this
+   as a flagged event.
+
+The runbook substrate is Operator-Hand territory; the CMD-AC-6-7-4
+test shape is the QA-side oracle the live drill compares against.
+
+### 13.5 Zone-N coordination — Welle-6+7 Cross-Modul-AC delta
+
+Henrik (Internal Audit) Zone-N-Quarterly-Review (Aisha-moderiert) gets
+a Doppel-Welle-6+7-specific evidence-bundle at the KW 27 Cutover-
+Mittwoch:
+
+* CMD-AC-6-7-1 ack-record round-trip log + cursor-delta-survival
+  attestation (Bug-42-Lessons-Learned cross-reference).
+* CMD-AC-6-7-2 R1..R4 Re-subscribe-trigger wire-form-parity matrix
+  vs. python-python-baseline with per-trigger-id diff.
+* CMD-AC-6-7-3 per-Komponente consistency-rate matrix over the
+  Welle-6+7 stress-window with joint-rate computation.
+* CMD-AC-6-7-4 atomic-flip decision-records (if any drift > 0.5pp was
+  observed) with trigger-precondition evidence + atomicity-property
+  evidence + Phase-3c-Ende-delay-assessment if recovery_workflow was
+  the flipped modul.
+
+Per Zone-N-Boundary-Discipline (ADR-0044 §Zone-N): QA-evidence from
+the CMD-AC-6-7 layer is *complementary* to Henrik's audit-sample,
+**not substitutive**. Henrik retains independent sampling rights on
+the Backend-Decision-Audit-Trail under the Doppel-Welle-6+7 cutover
+and on the atomic-flip rollback-records.
+
+### 13.6 Doppel-Welle-6+7-Opt-In-Gate
+
+CMD-AC-6-7 tests carry the `phase_3c_doppel_welle_acceptance` marker —
+they are Doppel-Welle-specific gates, opt-in via
+`WAKIR_PHASE_3C_DOPPEL_E2E=1` env-var or `pytest --phase-3c-doppel-
+welle-acceptance` CLI flag. The KW 27 Doppel-Welle-6+7 trigger-sprint
+runs the Doppel-Welle lane; the per-welle lane (`WAKIR_PHASE_3C_E2E=1`)
+covers Welle-6 + Welle-7 solo files independently.
+
+### 13.7 Vermutungs-Kennzeichnung (P2) — Welle-6+7 Cross-Modul-AC delta
+
+* The CMD-AC-6-7-1 ack-record-ids in the fixture defaults (`ack-
+  subscribe-init`, `ack-cycle-1`, `ack-cycle-2`, `ack-cursor-advance`,
+  `ack-keepalive-snapshot`) are placeholder shape-anchors pending
+  Phase-3c-trigger-sprint wire-up against real `subscribe_loop` Rust-
+  crate ack-emit output.
+* The CMD-AC-6-7-2 R1..R4 trigger-taxonomy is ADR-0066-fixed; adding
+  or removing trigger-ids requires an ADR-Folge-Item, not a conftest-
+  edit (sanity-test `test_doppel_welle_6_7_cmd_ac_6_7_2_trigger_
+  taxonomy_anchored_to_adr_0066`).
+* The CMD-AC-6-7-2 oracle-set (`python-python-baseline`) is ADR-0066-
+  fixed and single-valued; the mid-Doppel-Welle hypothetical (python-
+  rust-welle-6-only) is operationally unreachable and a Rust-Rust
+  self-referential oracle is explicitly forbidden (sanity-test
+  `test_doppel_welle_6_7_cmd_ac_6_7_2_oracle_set_anchored_to_adr_0066`).
+* The CMD-AC-6-7-3 consistency-floor (`0.995`, 99.5%) is ADR-0066-fixed
+  and uniform across the two CMD-AC-carrying Doppel-Wellen; loosening
+  per-DW requires an ADR-Folge-Item (sanity-test `test_doppel_welle_6_7_
+  cmd_ac_6_7_3_consistency_floor_anchored_to_adr_0066`).
+* The CMD-AC-6-7-4 drift-threshold (`0.5`, 0.5pp) is ADR-0066-fixed
+  and uniform across the two CMD-AC-carrying Doppel-Wellen — the
+  operationally-relevant atomic-flip bar (sanity-test `test_doppel_
+  welle_6_7_cmd_ac_6_7_4_threshold_anchored_to_adr_0066`).
+* The CMD-AC-6-7 layer is Doppel-Welle-6+7-exclusive; under no
+  circumstance applies to DW-1+2 (read-only-paar, no schema-touchpoint)
+  or DW-4+5 (different drift-surface addressed by §11's CMD-AC-1 ...
+  CMD-AC-4 layer). The two CMD-AC layers run side-by-side; tests
+  from the two layers do not share helpers or fixtures.

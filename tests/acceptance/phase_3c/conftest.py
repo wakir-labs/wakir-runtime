@@ -1279,3 +1279,414 @@ def mocked_cross_modul_drift_atomic_flip() -> Callable[
         )
 
     return _build
+
+
+# ---------------------------------------------------------------------------
+# Doppel-Welle-6+7 Cross-Modul-Drift Acceptance-Kriterien — CMD-AC-6-7-1 ...
+# CMD-AC-6-7-4
+#
+# Anchor: ADR-0066 §Beschluss + Priya CTO-Coordination-Plan v3 (Tag-32
+# Mini-Welle, Welle-6+7 Cross-Modul-AC extension). These criteria layer
+# atop DW-AC-1...DW-AC-5 specifically for the KW 27 Doppel-Welle-6+7
+# cutover (``subscribe_loop`` × ``recovery_workflow``) — the stateful-
+# loop-paar.
+#
+# The Welle-6+7 contract differs from Welle-4+5 in shape:
+#
+# * Welle-4+5: ``state_backing`` (producer) → ``lifecycle_state_machine``
+#   (consumer) — JCS-state-record schema-touchpoint, producer/consumer
+#   contract on persisted state.
+# * Welle-6+7: ``subscribe_loop`` *emits ack-records* that
+#   ``recovery_workflow`` consumes during restart-point reconstruction;
+#   ``recovery_workflow`` *triggers* Re-subscribe events that
+#   ``subscribe_loop`` re-honours. The relationship is bidirectional
+#   (ack-records flow loop→recovery, Re-subscribe-triggers flow
+#   recovery→loop).
+#
+# The CMD-AC-6-7 layer accordingly inverts CMD-AC-2's direction: where
+# CMD-AC-2 covers consumer→producer write-back wire-form, CMD-AC-6-7-2
+# covers consumer→producer Re-subscribe-trigger wire-form (recovery
+# triggers loop). The other three criteria mirror CMD-AC-1, CMD-AC-3,
+# CMD-AC-4 with Welle-6+7-specific substrate.
+#
+# Doppel-Welle-1+2 (read-only-paar) carries no CMD-AC layer — no
+# producer/consumer schema-touchpoint exists between v907_verify and
+# svid_workload_identity.
+# ---------------------------------------------------------------------------
+
+# CMD-AC-6-7-3 — per-Komponente joint-consistency floor for Welle-6+7.
+# Same 99.5% as CMD-AC-3 (Welle-4+5); ADR-0066-fixed across both
+# Doppel-Wellen carrying the CMD-AC layer. Loosening per-DW requires
+# an ADR-Folge-Item.
+CROSS_MODUL_DRIFT_CONSISTENCY_WELLE_6_7_PCT_FLOOR = 0.995
+
+# CMD-AC-6-7-4 — atomic-flip drift-threshold for Welle-6+7. Same 0.5pp
+# as CMD-AC-4 (Welle-4+5); the threshold is the operationally-relevant
+# bar across the two DWs.
+CROSS_MODUL_DRIFT_ROLLBACK_WELLE_6_7_PCT_THRESHOLD = 0.5
+
+# CMD-AC-6-7-2 — Re-subscribe-trigger taxonomy. recovery_workflow emits
+# four Re-subscribe-trigger types during restart-point reconstruction
+# (R1: cursor-restore, R2: connection-keepalive-replay, R3: backlog-
+# replay, R4: terminal-archive-rebuild). All four must round-trip with
+# byte-identical wire-form vs. the Python pendant.
+CROSS_MODUL_DRIFT_WELLE_6_7_RECOVERY_TRIGGER_IDS: tuple[str, ...] = (
+    "R1-cursor-restore",
+    "R2-keepalive-replay",
+    "R3-backlog-replay",
+    "R4-terminal-archive-rebuild",
+)
+
+# CMD-AC-6-7-2 — wire-form reference oracle for the Re-subscribe-trigger
+# path. The Welle-6+7 oracle is single-valued (python-python-baseline)
+# because the mid-Doppel-Welle hypothetical (python-rust-welle-6-only)
+# is operationally unreachable: subscribe_loop and recovery_workflow
+# share the same cutover-cycle by Doppel-Welle definition. The
+# Python-Python production state is the only historical reference.
+CROSS_MODUL_DRIFT_WELLE_6_7_RECOVERY_TRIGGER_ORACLES: tuple[str, ...] = (
+    "python-python-baseline",
+)
+
+
+# ---------------------------------------------------------------------------
+# CMD-AC-6-7-1 — subscribe_loop ack-record → recovery_workflow consume
+#                round-trip byte-parity record.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CrossModulDriftWelle6_7AckConsumeRecord:
+    """One ``subscribe_loop`` ack-record consumed by ``recovery_workflow``.
+
+    ``subscribe_loop-rust`` emits an ack-record (NATS-ack envelope +
+    subscription-cursor delta + keepalive-window snapshot) on each
+    successful subscribe-cycle. ``recovery_workflow-rust`` consumes
+    these records during restart-point reconstruction to compute the
+    correct resume-cursor.
+
+    CMD-AC-6-7-1 enforces byte-identical schema-deserialization across
+    the Rust-producer × Rust-consumer cross-lang ack-record contract:
+
+    * ``producer_ack_sha256`` — hash of bytes that
+      ``subscribe_loop-rust`` emitted.
+    * ``consumer_deserialized_reserialized_sha256`` — hash of bytes
+      after ``recovery_workflow-rust`` deserialised + re-serialised
+      the record to its canonical wire-form.
+    * ``cursor_delta_round_trip_ok`` — the subscription-cursor delta
+      field survives the deserialize→re-serialize round-trip without
+      mutation. This is the Bug-42-Lessons-Learned-adjacent surface
+      (cursor-serialisation drift would cause recovery to compute a
+      wrong restart-point).
+    """
+
+    welle_pair: tuple[str, str]
+    ack_record_id: str
+    producer_ack_sha256: str
+    consumer_deserialized_reserialized_sha256: str
+    cursor_delta_round_trip_ok: bool
+
+    @property
+    def is_round_trip_parity(self) -> bool:
+        return (
+            self.producer_ack_sha256
+            == self.consumer_deserialized_reserialized_sha256
+            and self.cursor_delta_round_trip_ok
+        )
+
+
+@pytest.fixture
+def mocked_cross_modul_drift_welle_6_7_ack_consume() -> Callable[
+    ..., list[CrossModulDriftWelle6_7AckConsumeRecord]
+]:
+    """Fixture returning a CMD-AC-6-7-1 ack-record consume-builder.
+
+    Default builder produces round-trip-parity-by-construction over a
+    Welle-6+7-realistic ack-record set (subscribe-init, ack-cycle-N,
+    cursor-advance, keepalive-snapshot). Tests inject:
+
+    * ``drift_ack_ids`` — ack-record-ids that exhibit producer vs.
+      consumer-reserialised hash drift (deserialization-mutation bug).
+    * ``cursor_breakage_ids`` — ack-record-ids where the cursor-delta
+      field is dropped or rewritten on round-trip (Bug-42-adjacent
+      cursor-serialisation drift).
+    """
+
+    def _build(
+        modul_a: str,
+        modul_b: str,
+        ack_record_ids: tuple[str, ...] = (
+            "ack-subscribe-init",
+            "ack-cycle-1",
+            "ack-cycle-2",
+            "ack-cursor-advance",
+            "ack-keepalive-snapshot",
+        ),
+        drift_ack_ids: tuple[str, ...] = (),
+        cursor_breakage_ids: tuple[str, ...] = (),
+    ) -> list[CrossModulDriftWelle6_7AckConsumeRecord]:
+        out: list[CrossModulDriftWelle6_7AckConsumeRecord] = []
+        for ack_id in ack_record_ids:
+            producer_hash = _envelope_hash(
+                f"{modul_a}->{modul_b}",
+                0,
+                ack_id,
+                salt="cmd-ac-6-7-1-producer",
+            )
+            if ack_id in drift_ack_ids:
+                consumer_hash = _envelope_hash(
+                    f"{modul_a}->{modul_b}",
+                    0,
+                    ack_id,
+                    salt="cmd-ac-6-7-1-consumer-drift",
+                )
+            else:
+                consumer_hash = producer_hash
+            out.append(
+                CrossModulDriftWelle6_7AckConsumeRecord(
+                    welle_pair=(modul_a, modul_b),
+                    ack_record_id=ack_id,
+                    producer_ack_sha256=producer_hash,
+                    consumer_deserialized_reserialized_sha256=consumer_hash,
+                    cursor_delta_round_trip_ok=(
+                        ack_id not in cursor_breakage_ids
+                    ),
+                )
+            )
+        return out
+
+    return _build
+
+
+# ---------------------------------------------------------------------------
+# CMD-AC-6-7-2 — recovery_workflow R1..R4 → subscribe_loop Re-subscribe
+#                trigger wire-form parity record.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CrossModulDriftWelle6_7ResubscribeTriggerRecord:
+    """One recovery→loop Re-subscribe-trigger wire-form record.
+
+    ``recovery_workflow-rust`` emits one of four R1..R4 Re-subscribe-
+    triggers during restart-point reconstruction:
+
+    * R1: cursor-restore — resume from a stored subscription-cursor.
+    * R2: keepalive-replay — replay the keepalive-window to re-arm.
+    * R3: backlog-replay — replay buffered backlog messages.
+    * R4: terminal-archive-rebuild — rebuild from terminal-archive.
+
+    ``subscribe_loop-rust`` honours each trigger by emitting a Re-
+    subscribe-event whose wire-form must be byte-identical to the
+    Python-pendant's output for the same logical trigger.
+
+    CMD-AC-6-7-2 enforces wire-form byte-parity vs. the
+    ``python-python-baseline`` oracle for every trigger-id.
+    """
+
+    welle_pair: tuple[str, str]
+    trigger_id: str  # one of R1..R4 from CROSS_MODUL_DRIFT_WELLE_6_7_RECOVERY_TRIGGER_IDS
+    rust_rust_wire_sha256: str
+    oracle_wire_sha256_by_oracle: dict[str, str]
+
+    def matches_oracle(self, oracle: str) -> bool:
+        return self.rust_rust_wire_sha256 == self.oracle_wire_sha256_by_oracle.get(
+            oracle
+        )
+
+
+@pytest.fixture
+def mocked_cross_modul_drift_welle_6_7_resubscribe_trigger() -> Callable[
+    ..., list[CrossModulDriftWelle6_7ResubscribeTriggerRecord]
+]:
+    """Fixture returning a CMD-AC-6-7-2 Re-subscribe-trigger record builder.
+
+    Default builder produces wire-form parity across the single
+    ``python-python-baseline`` oracle for every R1..R4 trigger. Tests
+    inject:
+
+    * ``drift_trigger_ids`` — set of trigger-ids that show Rust-Rust vs.
+      python-python-baseline wire-form divergence.
+    """
+
+    def _build(
+        modul_a: str,
+        modul_b: str,
+        trigger_ids: tuple[str, ...] = CROSS_MODUL_DRIFT_WELLE_6_7_RECOVERY_TRIGGER_IDS,
+        drift_trigger_ids: tuple[str, ...] = (),
+    ) -> list[CrossModulDriftWelle6_7ResubscribeTriggerRecord]:
+        out: list[CrossModulDriftWelle6_7ResubscribeTriggerRecord] = []
+        for trig_id in trigger_ids:
+            rust_rust_hash = _envelope_hash(
+                f"{modul_a}->{modul_b}",
+                0,
+                trig_id,
+                salt="cmd-ac-6-7-2-rust-rust",
+            )
+            oracle_hashes: dict[str, str] = {}
+            for oracle in CROSS_MODUL_DRIFT_WELLE_6_7_RECOVERY_TRIGGER_ORACLES:
+                if trig_id in drift_trigger_ids:
+                    oracle_hashes[oracle] = _envelope_hash(
+                        f"{modul_a}->{modul_b}",
+                        0,
+                        trig_id,
+                        salt=f"cmd-ac-6-7-2-{oracle}-drift",
+                    )
+                else:
+                    oracle_hashes[oracle] = rust_rust_hash
+            out.append(
+                CrossModulDriftWelle6_7ResubscribeTriggerRecord(
+                    welle_pair=(modul_a, modul_b),
+                    trigger_id=trig_id,
+                    rust_rust_wire_sha256=rust_rust_hash,
+                    oracle_wire_sha256_by_oracle=oracle_hashes,
+                )
+            )
+        return out
+
+    return _build
+
+
+# ---------------------------------------------------------------------------
+# CMD-AC-6-7-3 — Cross-Modul-Stress-Test per-Komponente consistency
+#                ≥99.5% for Welle-6+7 (PR #197 substrate joint-load
+#                broken out per Komponente, Welle-6+7-specific load).
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CrossModulDriftWelle6_7PerKomponenteConsistencyRecord:
+    """One Welle-6+7 per-Komponente consistency record.
+
+    Identical shape to ``CrossModulDriftPerKomponenteConsistencyRecord``
+    (CMD-AC-3, Welle-4+5) but distinguished by type to anchor Welle-6+7-
+    specific substrate wire-up. The PR #197 Cross-Modul-Stress-Test
+    output emits Welle-6+7-specific per-Komponente consistency-rates:
+
+    * ``subscribe_loop_consistency_rate`` — Rust-side NATS-subscribe-
+      cycle consistency observed during joint-load (subscribe-event-
+      flood profile).
+    * ``recovery_workflow_consistency_rate`` — Rust-side restart-point-
+      reconstruction consistency observed during the same window
+      (recovery-restart-points simultaneous to the subscribe-flood).
+
+    The joint-rate is computed as ``min(rate_a, rate_b)`` — both per-
+    Komponente rates must clear the 0.995 floor for the gate to pass.
+    """
+
+    welle_pair: tuple[str, str]
+    total_request_count: int
+    modul_a_consistency_rate: float
+    modul_b_consistency_rate: float
+
+    @property
+    def joint_consistency_rate(self) -> float:
+        return min(self.modul_a_consistency_rate, self.modul_b_consistency_rate)
+
+
+@pytest.fixture
+def mocked_cross_modul_drift_welle_6_7_per_komponente_consistency() -> Callable[
+    ..., CrossModulDriftWelle6_7PerKomponenteConsistencyRecord
+]:
+    """Fixture returning a CMD-AC-6-7-3 per-Komponente consistency builder.
+
+    Default builder produces both rates at 0.999 (above 0.995 floor).
+    Tests inject ``modul_a_rate`` / ``modul_b_rate`` overrides to
+    exercise the per-Komponente floor logic on the Welle-6+7 substrate.
+    """
+
+    def _build(
+        modul_a: str,
+        modul_b: str,
+        total: int = 2000,
+        modul_a_rate: float = 0.999,
+        modul_b_rate: float = 0.999,
+    ) -> CrossModulDriftWelle6_7PerKomponenteConsistencyRecord:
+        return CrossModulDriftWelle6_7PerKomponenteConsistencyRecord(
+            welle_pair=(modul_a, modul_b),
+            total_request_count=total,
+            modul_a_consistency_rate=modul_a_rate,
+            modul_b_consistency_rate=modul_b_rate,
+        )
+
+    return _build
+
+
+# ---------------------------------------------------------------------------
+# CMD-AC-6-7-4 — Drift-triggered atomic single-Komponente rollback
+#                record for Welle-6+7 (atomic-flip-pattern, ≤10min SLA).
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CrossModulDriftWelle6_7AtomicFlipRecord:
+    """One CMD-AC-6-7-4 drift-triggered atomic-flip rollback record.
+
+    Identical shape to ``CrossModulDriftAtomicFlipRecord`` (CMD-AC-4,
+    Welle-4+5) but distinguished by type to anchor Welle-6+7-specific
+    operator-hand-runbook wire-up. The atomic-flip-pattern means:
+
+    * When measured cross-modul-drift exceeds 0.5pp on exactly one of
+      the two Welle-6+7 moduln, that modul flips back to python while
+      the partner stays on rust-Default (atomic single-Komponente
+      rollback).
+    * The flip is single-shot (one ``systemctl restart`` cycle) and
+      completes within the 10min ENV-Flag-Switch SLA (600s).
+    * Welle-6+7-specific risk: a recovery_workflow rollback delays
+      Phase-3c-Ende + ADR-0035-C-Drift-Closure by ≥1 week because
+      recovery is the last welle. The atomic-flip discipline reduces
+      blast-radius vs. a both-modul rollback.
+
+    Gates: same shape as CMD-AC-4 — trigger-precondition (drift >
+    threshold), atomicity flag, post-flip backend-state per modul,
+    elapsed-seconds ≤ ROLLBACK_SLA_SECONDS.
+    """
+
+    welle_pair: tuple[str, str]
+    high_drift_modul: str
+    measured_drift_pct: float
+    threshold_drift_pct: float
+    flip_elapsed_seconds: float
+    flip_was_atomic: bool
+    post_flip_backend_per_modul: dict[str, str]
+
+
+@pytest.fixture
+def mocked_cross_modul_drift_welle_6_7_atomic_flip() -> Callable[
+    ..., CrossModulDriftWelle6_7AtomicFlipRecord
+]:
+    """Fixture returning a CMD-AC-6-7-4 atomic-flip record builder.
+
+    Default builder produces a successful atomic-flip (high-drift modul
+    rolled back to python, partner stays rust, elapsed = 180s, atomic
+    flag True). Tests inject the same failure-modes as CMD-AC-4:
+
+    * ``measured_drift_pct`` below threshold → spurious flip rejected.
+    * ``flip_elapsed_seconds`` > 600 → SLA-violation.
+    * ``partner_also_flipped=True`` → contagion failure-mode.
+    * ``flip_was_atomic=False`` → non-atomic multi-cycle flip.
+    """
+
+    def _build(
+        modul_a: str,
+        modul_b: str,
+        high_drift_modul: str,
+        measured_drift_pct: float = 0.8,
+        flip_elapsed_seconds: float = 180.0,
+        flip_was_atomic: bool = True,
+        partner_also_flipped: bool = False,
+    ) -> CrossModulDriftWelle6_7AtomicFlipRecord:
+        partner = modul_b if high_drift_modul == modul_a else modul_a
+        post_state = {modul: "python" for _, modul in WELLE_ORDER}
+        if not partner_also_flipped:
+            post_state[partner] = "rust"
+        return CrossModulDriftWelle6_7AtomicFlipRecord(
+            welle_pair=(modul_a, modul_b),
+            high_drift_modul=high_drift_modul,
+            measured_drift_pct=measured_drift_pct,
+            threshold_drift_pct=CROSS_MODUL_DRIFT_ROLLBACK_WELLE_6_7_PCT_THRESHOLD,
+            flip_elapsed_seconds=flip_elapsed_seconds,
+            flip_was_atomic=flip_was_atomic,
+            post_flip_backend_per_modul=post_state,
+        )
+
+    return _build

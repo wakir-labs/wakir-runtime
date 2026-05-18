@@ -23,7 +23,11 @@ from .conftest import (
     CONSISTENCY_REPORT_REQUIRED_GREEN_DAYS,
     CONSISTENCY_REPORT_WINDOW_DAYS,
     CROSS_MODUL_DRIFT_CONSISTENCY_PCT_FLOOR,
+    CROSS_MODUL_DRIFT_CONSISTENCY_WELLE_6_7_PCT_FLOOR,
     CROSS_MODUL_DRIFT_ROLLBACK_PCT_THRESHOLD,
+    CROSS_MODUL_DRIFT_ROLLBACK_WELLE_6_7_PCT_THRESHOLD,
+    CROSS_MODUL_DRIFT_WELLE_6_7_RECOVERY_TRIGGER_IDS,
+    CROSS_MODUL_DRIFT_WELLE_6_7_RECOVERY_TRIGGER_ORACLES,
     CROSS_MODUL_DRIFT_WIRE_FORM_ORACLES,
     CROSS_REVIEW_REQUIRED_PERSONAS,
     PERFORMANCE_HEADROOM_FACTOR,
@@ -33,6 +37,10 @@ from .conftest import (
     CrossModulDriftAtomicFlipRecord,
     CrossModulDriftDeserializationRecord,
     CrossModulDriftPerKomponenteConsistencyRecord,
+    CrossModulDriftWelle6_7AckConsumeRecord,
+    CrossModulDriftWelle6_7AtomicFlipRecord,
+    CrossModulDriftWelle6_7PerKomponenteConsistencyRecord,
+    CrossModulDriftWelle6_7ResubscribeTriggerRecord,
     CrossModulDriftWriteBackRecord,
     CrossModulSchemaRecord,
     CrossModulStressTestRecord,
@@ -585,6 +593,256 @@ def assert_cross_modul_drift_ac_4_atomic_flip_rollback(
     )
     assert record.flip_elapsed_seconds <= ROLLBACK_SLA_SECONDS, (
         f"CMD-AC-4[{welle_pair_label}]: flip elapsed "
+        f"{record.flip_elapsed_seconds:.1f}s exceeds "
+        f"{ROLLBACK_SLA_SECONDS:.0f}s SLA"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Doppel-Welle-6+7 Cross-Modul-Drift Acceptance-Kriterien — CMD-AC-6-7-1 ...
+# CMD-AC-6-7-4
+#
+# Anchor: ADR-0066 §Beschluss + Priya CTO-Coordination-Plan v3 (Tag-32
+# Mini-Welle Welle-6+7-extension). The CMD-AC-6-7 layer is a parallel
+# layer to CMD-AC-1...CMD-AC-4 (Welle-4+5), specialised for the
+# stateful-loop-paar (``subscribe_loop`` × ``recovery_workflow``) shape:
+#
+# * CMD-AC-6-7-1 — subscribe_loop ack-record → recovery_workflow
+#   consume round-trip parity (mirrors CMD-AC-1 direction).
+# * CMD-AC-6-7-2 — recovery_workflow R1..R4 → subscribe_loop Re-
+#   subscribe trigger wire-form parity vs. python-python-baseline
+#   (inverts CMD-AC-2 direction: consumer triggers producer).
+# * CMD-AC-6-7-3 — per-Komponente joint-consistency ≥99.5% on the
+#   Welle-6+7 stress-load (mirrors CMD-AC-3 shape).
+# * CMD-AC-6-7-4 — atomic single-Komponente rollback on drift > 0.5pp
+#   with partner-stays-rust discipline (mirrors CMD-AC-4 shape).
+#
+# Welle-6+7-specific gate-weights: CMD-AC-6-7-1 + CMD-AC-6-7-2 carry
+# the dominant weight (cursor-serialisation drift is Bug-42-adjacent;
+# Re-subscribe-trigger wire-form drift breaks Phase-3c-close). CMD-AC-
+# 6-7-3 + CMD-AC-6-7-4 are present as the stress-test + operator-
+# rollback substrate but have lower emphasis than CMD-AC-3/4 in
+# Welle-4+5 (where the schema-touchpoint drift-class was the
+# dominant risk).
+# ---------------------------------------------------------------------------
+
+
+def assert_cross_modul_drift_welle_6_7_ac_1_ack_consume_round_trip(
+    records: Iterable[CrossModulDriftWelle6_7AckConsumeRecord],
+    welle_pair_label: str,
+) -> None:
+    """CMD-AC-6-7-1 — subscribe_loop ack-record → recovery_workflow
+    consume byte-identical schema-deserialization round-trip.
+
+    Asserts:
+
+    * ``producer_ack_sha256 ==
+      consumer_deserialized_reserialized_sha256`` for every ack-record
+      in the set (deserialize→re-serialize round-trip parity).
+    * ``cursor_delta_round_trip_ok == True`` for every ack-record
+      (the subscription-cursor delta survives the round-trip without
+      mutation — Bug-42-adjacent surface).
+
+    Failure modes captured:
+
+    * Deserialization-mutation bug: serde drift between
+      ``subscribe_loop-rust`` emitter and ``recovery_workflow-rust``
+      consumer causes the re-serialised bytes to differ from the
+      producer bytes.
+    * Cursor-serialisation drift: the cursor-delta field is dropped or
+      mutated on the round-trip, which would cause recovery to compute
+      a wrong restart-point and replay messages incorrectly (the
+      Welle-6 Bug-42-Lessons-Learned regression class).
+    """
+    records_list = list(records)
+    assert records_list, (
+        f"CMD-AC-6-7-1[{welle_pair_label}]: must observe at least one "
+        f"subscribe_loop→recovery_workflow ack-record; got empty set"
+    )
+    drift: list[str] = []
+    cursor_breakage: list[str] = []
+    for rec in records_list:
+        if (
+            rec.producer_ack_sha256
+            != rec.consumer_deserialized_reserialized_sha256
+        ):
+            drift.append(
+                f"{rec.ack_record_id} "
+                f"prod={rec.producer_ack_sha256[:16]} "
+                f"cons={rec.consumer_deserialized_reserialized_sha256[:16]}"
+            )
+        if not rec.cursor_delta_round_trip_ok:
+            cursor_breakage.append(rec.ack_record_id)
+    assert not drift, (
+        f"CMD-AC-6-7-1[{welle_pair_label}]: subscribe_loop→recovery_"
+        f"workflow ack-record deserialization byte-drift at records: "
+        f"{drift}"
+    )
+    assert not cursor_breakage, (
+        f"CMD-AC-6-7-1[{welle_pair_label}]: cursor-delta round-trip "
+        f"failure (Bug-42-adjacent) at records: {cursor_breakage}"
+    )
+
+
+def assert_cross_modul_drift_welle_6_7_ac_2_resubscribe_trigger_wire_form(
+    records: Iterable[CrossModulDriftWelle6_7ResubscribeTriggerRecord],
+    welle_pair_label: str,
+) -> None:
+    """CMD-AC-6-7-2 — recovery_workflow R1..R4 Re-subscribe-trigger
+    wire-form byte-parity vs. python-python-baseline oracle.
+
+    Asserts:
+
+    * All four R1..R4 trigger-ids from
+      ``CROSS_MODUL_DRIFT_WELLE_6_7_RECOVERY_TRIGGER_IDS`` are present
+      in the record-set.
+    * For every trigger-id, the Rust-Rust wire-form matches every
+      oracle in ``CROSS_MODUL_DRIFT_WELLE_6_7_RECOVERY_TRIGGER_ORACLES``
+      (Welle-6+7-oracle-set is single-valued: python-python-baseline).
+
+    Failure mode: a Rust-Rust wire-form regression vs. the long-
+    standing Python production state breaks Phase-3c-Ende — the
+    Welle-7 recovery-workflow cannot read pre-cutover records when
+    its Re-subscribe-trigger output diverges from the historical
+    Python-emitted form that subscribe_loop expects.
+    """
+    records_list = list(records)
+    assert records_list, (
+        f"CMD-AC-6-7-2[{welle_pair_label}]: must observe at least one "
+        f"recovery→loop Re-subscribe-trigger record; got empty set"
+    )
+    observed_triggers = {rec.trigger_id for rec in records_list}
+    expected_triggers = set(CROSS_MODUL_DRIFT_WELLE_6_7_RECOVERY_TRIGGER_IDS)
+    missing_triggers = expected_triggers - observed_triggers
+    assert not missing_triggers, (
+        f"CMD-AC-6-7-2[{welle_pair_label}]: Re-subscribe-trigger record "
+        f"set missing R1..R4 trigger-ids: {sorted(missing_triggers)}; "
+        f"observed: {sorted(observed_triggers)}"
+    )
+
+    divergence: list[str] = []
+    for rec in records_list:
+        for oracle in CROSS_MODUL_DRIFT_WELLE_6_7_RECOVERY_TRIGGER_ORACLES:
+            if not rec.matches_oracle(oracle):
+                rust_rust = rec.rust_rust_wire_sha256[:16]
+                oracle_hash = rec.oracle_wire_sha256_by_oracle.get(
+                    oracle, "<missing>"
+                )[:16]
+                divergence.append(
+                    f"{rec.trigger_id}@{oracle} "
+                    f"rust-rust={rust_rust} oracle={oracle_hash}"
+                )
+    assert not divergence, (
+        f"CMD-AC-6-7-2[{welle_pair_label}]: Re-subscribe-trigger wire-"
+        f"form divergence vs. reference oracles: {divergence}"
+    )
+
+
+def assert_cross_modul_drift_welle_6_7_ac_3_per_komponente_consistency(
+    record: CrossModulDriftWelle6_7PerKomponenteConsistencyRecord,
+    welle_pair_label: str,
+) -> None:
+    """CMD-AC-6-7-3 — Cross-Modul-Stress-Test per-Komponente
+    consistency-rate ≥99.5% over the Welle-6+7 joint-load.
+
+    Both per-Komponente rates must clear the
+    ``CROSS_MODUL_DRIFT_CONSISTENCY_WELLE_6_7_PCT_FLOOR`` floor (0.995).
+    The joint-rate (``min(rate_a, rate_b)``) is the gate-evaluation
+    surface; a failure here means at least one of subscribe_loop /
+    recovery_workflow has below-floor consistency under the joint-load
+    stress profile (subscribe-event-flood + simultaneous recovery-
+    restart-points, PR #197 substrate).
+    """
+    modul_a, modul_b = record.welle_pair
+    assert record.total_request_count > 0, (
+        f"CMD-AC-6-7-3[{welle_pair_label}]: stress-test must observe ≥1 "
+        f"request; got total={record.total_request_count}"
+    )
+    floor = CROSS_MODUL_DRIFT_CONSISTENCY_WELLE_6_7_PCT_FLOOR
+    failing: list[str] = []
+    if record.modul_a_consistency_rate < floor:
+        failing.append(
+            f"{modul_a}={record.modul_a_consistency_rate:.4f}"
+        )
+    if record.modul_b_consistency_rate < floor:
+        failing.append(
+            f"{modul_b}={record.modul_b_consistency_rate:.4f}"
+        )
+    assert not failing, (
+        f"CMD-AC-6-7-3[{welle_pair_label}]: per-Komponente consistency-"
+        f"rate below {floor:.4f} floor: {failing}; "
+        f"joint-rate={record.joint_consistency_rate:.4f}"
+    )
+
+
+def assert_cross_modul_drift_welle_6_7_ac_4_atomic_flip_rollback(
+    record: CrossModulDriftWelle6_7AtomicFlipRecord,
+    welle_pair_label: str,
+) -> None:
+    """CMD-AC-6-7-4 — Drift-triggered atomic single-Komponente rollback
+    for Welle-6+7 with partner-stays-rust-Default discipline.
+
+    Gates (same shape as CMD-AC-4):
+
+    * Trigger-precondition: ``measured_drift_pct >
+      threshold_drift_pct`` (no spurious sub-threshold flips).
+    * Threshold-anchor: ``threshold_drift_pct`` equals
+      ``CROSS_MODUL_DRIFT_ROLLBACK_WELLE_6_7_PCT_THRESHOLD`` (ADR-0066-
+      fixed 0.5pp).
+    * ``flip_was_atomic`` — single restart-cycle, no partial state.
+    * Post-flip backend-per-modul: high-drift modul on python,
+      partner modul on rust-Default.
+    * ``flip_elapsed_seconds`` ≤ ``ROLLBACK_SLA_SECONDS`` (600s).
+
+    Welle-6+7-specific risk dimension: a recovery_workflow rollback
+    delays Phase-3c-Ende. The atomic-flip-pattern minimises blast-
+    radius by restricting the rollback to the affected modul only.
+    """
+    modul_a, modul_b = record.welle_pair
+    high_drift = record.high_drift_modul
+    assert high_drift in (modul_a, modul_b), (
+        f"CMD-AC-6-7-4[{welle_pair_label}]: high_drift_modul "
+        f"{high_drift!r} must be a member of the welle-pair "
+        f"({modul_a!r}, {modul_b!r})"
+    )
+    partner = modul_b if high_drift == modul_a else modul_a
+
+    assert (
+        record.measured_drift_pct > record.threshold_drift_pct
+    ), (
+        f"CMD-AC-6-7-4[{welle_pair_label}]: atomic-flip fired without a "
+        f"trigger-precondition: measured drift "
+        f"{record.measured_drift_pct:.4f}pp ≤ threshold "
+        f"{record.threshold_drift_pct:.4f}pp (sub-threshold flips "
+        f"are rejected as spurious)"
+    )
+    assert (
+        record.threshold_drift_pct
+        == CROSS_MODUL_DRIFT_ROLLBACK_WELLE_6_7_PCT_THRESHOLD
+    ), (
+        f"CMD-AC-6-7-4[{welle_pair_label}]: threshold_drift_pct must "
+        f"equal the ADR-0066-fixed "
+        f"{CROSS_MODUL_DRIFT_ROLLBACK_WELLE_6_7_PCT_THRESHOLD}pp; got "
+        f"{record.threshold_drift_pct}"
+    )
+    assert record.flip_was_atomic, (
+        f"CMD-AC-6-7-4[{welle_pair_label}]: atomic-flip must be a "
+        f"single restart-cycle; got non-atomic flip-record"
+    )
+    high_drift_state = record.post_flip_backend_per_modul.get(high_drift)
+    assert high_drift_state == "python", (
+        f"CMD-AC-6-7-4[{welle_pair_label}]: high-drift modul "
+        f"{high_drift!r} must end on python-backend; got "
+        f"{high_drift_state!r}"
+    )
+    partner_state = record.post_flip_backend_per_modul.get(partner)
+    assert partner_state == "rust", (
+        f"CMD-AC-6-7-4[{welle_pair_label}]: partner modul {partner!r} "
+        f"must stay on rust-Default (atomic-flip discipline); got "
+        f"{partner_state!r}"
+    )
+    assert record.flip_elapsed_seconds <= ROLLBACK_SLA_SECONDS, (
+        f"CMD-AC-6-7-4[{welle_pair_label}]: flip elapsed "
         f"{record.flip_elapsed_seconds:.1f}s exceeds "
         f"{ROLLBACK_SLA_SECONDS:.0f}s SLA"
     )
