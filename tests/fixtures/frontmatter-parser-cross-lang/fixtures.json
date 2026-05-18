@@ -1,0 +1,126 @@
+{
+  "_comment": "Cross-lang fixture vectors for the persona-engine frontmatter-parser canonical-trace (Tag-34 Mini-Welle Phase-3a Python-sync 11. Modul). The 'expected' block is the authoritative cross-lang pin: any drift on either side (Rust crate persona-engine-frontmatter-parser canonical-trace surface or Python wirelang.persona.frontmatter_parser_canonical) must change every other side too. Derivation procedure: run wirelang/tests/persona/test_frontmatter_parser_cross_lang_parity.py (Python sibling test) and wirelang-rust/crates/persona-engine-frontmatter-parser/tests/cross_lang_fixture_test.rs (Rust sibling test). Seven outcomes covered: full v9 persona, minimal v1 with list tools, v2 with comma-string tools + slug, missing closing fence (error path), malformed list-not-mapping (error path), invalid_shape unsupported schema_version (error path), yaml_parse_error syntactic (error path). Pinned 2026-05-18.",
+  "schema_version": "wakir.persona-engine.frontmatter-parser-canonical/1",
+  "fixed_ts_utc": "2026-05-18T00:00:00Z",
+  "fixtures": [
+    {
+      "name": "f01-full-v9-persona",
+      "input_md_b64": "LS0tCm5hbWU6IHByZS1mcmFtZXdvcmstYWdlbnQKZGVzY3JpcHRpb246ICJQcmUtZnJhbWV3b3JrIHBlcnNvbmEgZml4dHVyZSBmb3Igc2VsZi1taWdyYXRpb24gdmVjdG9yICh2OCwgc2NoZW1hIHBlcnNvbmEtdjAtaXNoIOKAlCBmbGFnZ2VkIGFzIHVuc3VwcG9ydGVkKS4iCnRvb2xzOgogIC0gUmVhZApzY2hlbWFfdmVyc2lvbjogcGVyc29uYS12MQppZGVudGl0eV9waW5uZWQ6CiAgY3Jvc3NfcmV2aWV3X3pvbmVzOiBbXQogIGF1dGhvcml0eToKICAgIHB1c2hfcmVtb3RlOiBmYWxzZQogICAgYnVkZ2V0X2NhcF9ldXJfcGVyX21vbnRoOiAwCiAgICBzdWJfZGVsZWdhdGlvbjogZmFsc2UKICBoaWVyYXJjaHk6CiAgICByZXBvcnRzX3RvOiBjdG8KICAgIGVzY2FsYXRpb246IGN0bwotLS0KCiMgRnJhbWV3b3JrLW5hdGl2ZSB0ZXN0IGZpeHR1cmUgKHY5IOKAlCBzZWxmLW1pZ3JhdGlvbiB0YXJnZXQpCgpTYW1lIGxvZ2ljYWwgcGVyc29uYSBhcyB2OCBidXQgc2NoZW1hX3ZlcnNpb24gdXBncmFkZWQgdG8gcGVyc29uYS12MS4KVGhpcyBpcyB0aGUgQURSLTAwMzYgY29udmVydGVyIHRhcmdldCBzaGFwZTogc2FtZSBjb250ZW50LCB2YWxpZApzY2hlbWEuIHBlcnNvbmFfaGFzaCBNVVNUIGJlIGNvbXB1dGFibGUgQU5EIGRpc3RpbmN0IGZyb20gYW55IHY4Cmhhc2ggKHNpbmNlIHY4IGlzIHJlamVjdGVkLCAiZGlzdGluY3QiIHJlZHVjZXMgdG8gInY5IGhhc2hlcwp3aXRob3V0IHJhaXNpbmciKS4K",
+      "expected": {
+        "accepted_status": "ok",
+        "error_class": "",
+        "persona_name": "pre-framework-agent",
+        "persona_slug": "",
+        "schema_version": "persona-v1",
+        "tools_count": 1,
+        "canonical_subset_jcs_sha256_hex": "0f298894204e6117e42ad7073b7a3af8ada1851de74d585fc5cb4c4d70e1d793",
+        "trace_jcs_bytes_b64": "eyJhY2NlcHRlZF9zdGF0dXMiOiJvayIsImNhbm9uaWNhbF9zdWJzZXRfamNzX3NoYTI1Nl9oZXgiOiIwZjI5ODg5NDIwNGU2MTE3ZTQyYWQ3MDczYjdhM2FmOGFkYTE4NTFkZTc0ZDU4NWZjNWNiNGM0ZDcwZTFkNzkzIiwiZXJyb3JfY2xhc3MiOiIiLCJwZXJzb25hX25hbWUiOiJwcmUtZnJhbWV3b3JrLWFnZW50IiwicGVyc29uYV9zbHVnIjoiIiwic2NoZW1hIjoid2FraXIucGVyc29uYS1lbmdpbmUuZnJvbnRtYXR0ZXItcGFyc2VyLWNhbm9uaWNhbC8xIiwic2NoZW1hX3ZlcnNpb24iOiJwZXJzb25hLXYxIiwidG9vbHNfY291bnQiOjF9",
+        "trace_jcs_bytes_len": 306,
+        "trace_sha256_hex": "8b1a02b7fe782ecdfbd49ef92cae7669fffc56d37e44db672a041a190243c3e0",
+        "trace_hash_prefixed": "sha256:8b1a02b7fe782ecdfbd49ef92cae7669fffc56d37e44db672a041a190243c3e0"
+      }
+    },
+    {
+      "name": "f02-minimal-v1-list-tools",
+      "input_md_b64": "LS0tCm5hbWU6IHJlemEKZGVzY3JpcHRpb246IFNwZWMtZmlyc3QgcHJvdG9jb2wgZW5naW5lZXIuCnRvb2xzOiBbUmVhZCwgV3JpdGUsIEJhc2hdCnNjaGVtYV92ZXJzaW9uOiBwZXJzb25hLXYxCmlkZW50aXR5X3Bpbm5lZDoKICBjcm9zc19yZXZpZXdfem9uZXM6CiAgICAtIHt6b25lOiBLLCBwYXJ0bmVyOiB3YXQtZW5nLCB0cmlnZ2VyOiB2LTkwNy1pbXBsfQogIGF1dGhvcml0eToKICAgIHB1c2hfcmVtb3RlOiBmYWxzZQogICAgYnVkZ2V0X2NhcF9ldXJfcGVyX21vbnRoOiAxMAogICAgc3ViX2RlbGVnYXRpb246IGZhbHNlCiAgaGllcmFyY2h5OgogICAgcmVwb3J0c190bzogY3RvCiAgICBlc2NhbGF0aW9uOiBjdG8KLS0tCgojIEJvZHkgdGV4dCDigJQgb3V0LW9mLWhhc2guCg==",
+      "expected": {
+        "accepted_status": "ok",
+        "error_class": "",
+        "persona_name": "reza",
+        "persona_slug": "",
+        "schema_version": "persona-v1",
+        "tools_count": 3,
+        "canonical_subset_jcs_sha256_hex": "50c7a1ada0b66cc910d5062cd24656719dcfde8b58a21a572bf165f7d3a26711",
+        "trace_jcs_bytes_b64": "eyJhY2NlcHRlZF9zdGF0dXMiOiJvayIsImNhbm9uaWNhbF9zdWJzZXRfamNzX3NoYTI1Nl9oZXgiOiI1MGM3YTFhZGEwYjY2Y2M5MTBkNTA2MmNkMjQ2NTY3MTlkY2ZkZThiNThhMjFhNTcyYmYxNjVmN2QzYTI2NzExIiwiZXJyb3JfY2xhc3MiOiIiLCJwZXJzb25hX25hbWUiOiJyZXphIiwicGVyc29uYV9zbHVnIjoiIiwic2NoZW1hIjoid2FraXIucGVyc29uYS1lbmdpbmUuZnJvbnRtYXR0ZXItcGFyc2VyLWNhbm9uaWNhbC8xIiwic2NoZW1hX3ZlcnNpb24iOiJwZXJzb25hLXYxIiwidG9vbHNfY291bnQiOjN9",
+        "trace_jcs_bytes_len": 291,
+        "trace_sha256_hex": "ca34d689801f3d4d17d8af487e3420f5bcfda0933ed6f58faec6ff3e9e882140",
+        "trace_hash_prefixed": "sha256:ca34d689801f3d4d17d8af487e3420f5bcfda0933ed6f58faec6ff3e9e882140"
+      }
+    },
+    {
+      "name": "f03-v2-comma-tools-with-slug",
+      "input_md_b64": "LS0tCm5hbWU6IHByaXlhCmRlc2NyaXB0aW9uOiAiQ1RPIG9mIFdha2lyIExhYnMuIgp0b29sczogIlJlYWQsIFdyaXRlLCBCYXNoLCBFZGl0IgpzY2hlbWFfdmVyc2lvbjogcGVyc29uYS12MgpwZXJzb25hX3NsdWc6IHByaXlhCmlkZW50aXR5X3Bpbm5lZDoKICBjcm9zc19yZXZpZXdfem9uZXM6IFtdCiAgYXV0aG9yaXR5OgogICAgcHVzaF9yZW1vdGU6IHRydWUKICAgIGJ1ZGdldF9jYXBfZXVyX3Blcl9tb250aDogNTAKICAgIHN1Yl9kZWxlZ2F0aW9uOiB0cnVlCiAgaGllcmFyY2h5OgogICAgcmVwb3J0c190bzogY2VvCiAgICBlc2NhbGF0aW9uOiBjZW8KLS0tCgpDVE8gYm9keS4K",
+      "expected": {
+        "accepted_status": "ok",
+        "error_class": "",
+        "persona_name": "priya",
+        "persona_slug": "priya",
+        "schema_version": "persona-v2",
+        "tools_count": 4,
+        "canonical_subset_jcs_sha256_hex": "e4cc876a86375005cd3c843b7e0e1e5f59efb508e0ea3742bd1d179e7f8e918a",
+        "trace_jcs_bytes_b64": "eyJhY2NlcHRlZF9zdGF0dXMiOiJvayIsImNhbm9uaWNhbF9zdWJzZXRfamNzX3NoYTI1Nl9oZXgiOiJlNGNjODc2YTg2Mzc1MDA1Y2QzYzg0M2I3ZTBlMWU1ZjU5ZWZiNTA4ZTBlYTM3NDJiZDFkMTc5ZTdmOGU5MThhIiwiZXJyb3JfY2xhc3MiOiIiLCJwZXJzb25hX25hbWUiOiJwcml5YSIsInBlcnNvbmFfc2x1ZyI6InByaXlhIiwic2NoZW1hIjoid2FraXIucGVyc29uYS1lbmdpbmUuZnJvbnRtYXR0ZXItcGFyc2VyLWNhbm9uaWNhbC8xIiwic2NoZW1hX3ZlcnNpb24iOiJwZXJzb25hLXYyIiwidG9vbHNfY291bnQiOjR9",
+        "trace_jcs_bytes_len": 297,
+        "trace_sha256_hex": "aa96492a114c587558cb0932c083f678c75a71d07864969181e19212001e10e6",
+        "trace_hash_prefixed": "sha256:aa96492a114c587558cb0932c083f678c75a71d07864969181e19212001e10e6"
+      }
+    },
+    {
+      "name": "f04-missing-closing-fence",
+      "input_md_b64": "LS0tCm5hbWU6IGJyb2tlbgpkZXNjcmlwdGlvbjogTm8gY2xvc2luZyBmZW5jZSBoZXJlLgp0b29sczogW1JlYWRdCnNjaGVtYV92ZXJzaW9uOiBwZXJzb25hLXYxCmlkZW50aXR5X3Bpbm5lZDoKICBjcm9zc19yZXZpZXdfem9uZXM6IFtdCiAgYXV0aG9yaXR5OiB7cHVzaF9yZW1vdGU6IGZhbHNlLCBidWRnZXRfY2FwX2V1cl9wZXJfbW9udGg6IDAsIHN1Yl9kZWxlZ2F0aW9uOiBmYWxzZX0KICBoaWVyYXJjaHk6IHtyZXBvcnRzX3RvOiBjdG8sIGVzY2FsYXRpb246IGN0b30KCmJvZHkgd2l0aG91dCBmZW5jZQo=",
+      "expected": {
+        "accepted_status": "missing_fence",
+        "error_class": "PersonaFrontmatterMissingError",
+        "persona_name": "",
+        "persona_slug": "",
+        "schema_version": "",
+        "tools_count": 0,
+        "canonical_subset_jcs_sha256_hex": "",
+        "trace_jcs_bytes_b64": "eyJhY2NlcHRlZF9zdGF0dXMiOiJtaXNzaW5nX2ZlbmNlIiwiY2Fub25pY2FsX3N1YnNldF9qY3Nfc2hhMjU2X2hleCI6IiIsImVycm9yX2NsYXNzIjoiUGVyc29uYUZyb250bWF0dGVyTWlzc2luZ0Vycm9yIiwicGVyc29uYV9uYW1lIjoiIiwicGVyc29uYV9zbHVnIjoiIiwic2NoZW1hIjoid2FraXIucGVyc29uYS1lbmdpbmUuZnJvbnRtYXR0ZXItcGFyc2VyLWNhbm9uaWNhbC8xIiwic2NoZW1hX3ZlcnNpb24iOiIiLCJ0b29sc19jb3VudCI6MH0=",
+        "trace_jcs_bytes_len": 254,
+        "trace_sha256_hex": "136d9992b9db7ce4b62b011ab0d2299d50d9a934b949a8cc151f86b091f85260",
+        "trace_hash_prefixed": "sha256:136d9992b9db7ce4b62b011ab0d2299d50d9a934b949a8cc151f86b091f85260"
+      }
+    },
+    {
+      "name": "f05-malformed-list-not-mapping",
+      "input_md_b64": "LS0tCi0gbmFtZTogaW52YWxpZAotIGRlc2NyaXB0aW9uOiBtdXN0IGJlIG1hcHBpbmcKLS0tCgpib2R5Cg==",
+      "expected": {
+        "accepted_status": "malformed",
+        "error_class": "PersonaFrontmatterMalformedError",
+        "persona_name": "",
+        "persona_slug": "",
+        "schema_version": "",
+        "tools_count": 0,
+        "canonical_subset_jcs_sha256_hex": "",
+        "trace_jcs_bytes_b64": "eyJhY2NlcHRlZF9zdGF0dXMiOiJtYWxmb3JtZWQiLCJjYW5vbmljYWxfc3Vic2V0X2pjc19zaGEyNTZfaGV4IjoiIiwiZXJyb3JfY2xhc3MiOiJQZXJzb25hRnJvbnRtYXR0ZXJNYWxmb3JtZWRFcnJvciIsInBlcnNvbmFfbmFtZSI6IiIsInBlcnNvbmFfc2x1ZyI6IiIsInNjaGVtYSI6Indha2lyLnBlcnNvbmEtZW5naW5lLmZyb250bWF0dGVyLXBhcnNlci1jYW5vbmljYWwvMSIsInNjaGVtYV92ZXJzaW9uIjoiIiwidG9vbHNfY291bnQiOjB9",
+        "trace_jcs_bytes_len": 252,
+        "trace_sha256_hex": "1b577885b550dc812b0b08e63d6cce02c6914ac15ffc3a0f3682a36a1211289c",
+        "trace_hash_prefixed": "sha256:1b577885b550dc812b0b08e63d6cce02c6914ac15ffc3a0f3682a36a1211289c"
+      }
+    },
+    {
+      "name": "f06-invalid-shape-schema-version",
+      "input_md_b64": "LS0tCm5hbWU6IGludmFsaWQtc2NoZW1hCmRlc2NyaXB0aW9uOiBTY2hlbWEgbm90IGluIGFjY2VwdGVkIHNldC4KdG9vbHM6IFtSZWFkXQpzY2hlbWFfdmVyc2lvbjogcGVyc29uYS12OTkKaWRlbnRpdHlfcGlubmVkOgogIGNyb3NzX3Jldmlld196b25lczogW10KICBhdXRob3JpdHk6IHtwdXNoX3JlbW90ZTogZmFsc2UsIGJ1ZGdldF9jYXBfZXVyX3Blcl9tb250aDogMCwgc3ViX2RlbGVnYXRpb246IGZhbHNlfQogIGhpZXJhcmNoeToge3JlcG9ydHNfdG86IGN0bywgZXNjYWxhdGlvbjogY3RvfQotLS0KCmJvZHkK",
+      "expected": {
+        "accepted_status": "invalid_shape",
+        "error_class": "InvalidShape",
+        "persona_name": "invalid-schema",
+        "persona_slug": "",
+        "schema_version": "persona-v99",
+        "tools_count": 1,
+        "canonical_subset_jcs_sha256_hex": "",
+        "trace_jcs_bytes_b64": "eyJhY2NlcHRlZF9zdGF0dXMiOiJpbnZhbGlkX3NoYXBlIiwiY2Fub25pY2FsX3N1YnNldF9qY3Nfc2hhMjU2X2hleCI6IiIsImVycm9yX2NsYXNzIjoiSW52YWxpZFNoYXBlIiwicGVyc29uYV9uYW1lIjoiaW52YWxpZC1zY2hlbWEiLCJwZXJzb25hX3NsdWciOiIiLCJzY2hlbWEiOiJ3YWtpci5wZXJzb25hLWVuZ2luZS5mcm9udG1hdHRlci1wYXJzZXItY2Fub25pY2FsLzEiLCJzY2hlbWFfdmVyc2lvbiI6InBlcnNvbmEtdjk5IiwidG9vbHNfY291bnQiOjF9",
+        "trace_jcs_bytes_len": 261,
+        "trace_sha256_hex": "62273b8c041e7b8b87555839ad7c79b512891e48b94c0a852cdc3bbc2ed90b06",
+        "trace_hash_prefixed": "sha256:62273b8c041e7b8b87555839ad7c79b512891e48b94c0a852cdc3bbc2ed90b06"
+      }
+    },
+    {
+      "name": "f07-yaml-parse-error",
+      "input_md_b64": "LS0tCm5hbWU6IHlhbWwtYnJva2VuCmRlc2NyaXB0aW9uOiAidW50ZXJtaW5hdGVkIHN0cmluZwp0b29sczogW1JlYWRdCi0tLQoKYm9keQo=",
+      "expected": {
+        "accepted_status": "yaml_parse_error",
+        "error_class": "YamlParseError",
+        "persona_name": "",
+        "persona_slug": "",
+        "schema_version": "",
+        "tools_count": 0,
+        "canonical_subset_jcs_sha256_hex": "",
+        "trace_jcs_bytes_b64": "eyJhY2NlcHRlZF9zdGF0dXMiOiJ5YW1sX3BhcnNlX2Vycm9yIiwiY2Fub25pY2FsX3N1YnNldF9qY3Nfc2hhMjU2X2hleCI6IiIsImVycm9yX2NsYXNzIjoiWWFtbFBhcnNlRXJyb3IiLCJwZXJzb25hX25hbWUiOiIiLCJwZXJzb25hX3NsdWciOiIiLCJzY2hlbWEiOiJ3YWtpci5wZXJzb25hLWVuZ2luZS5mcm9udG1hdHRlci1wYXJzZXItY2Fub25pY2FsLzEiLCJzY2hlbWFfdmVyc2lvbiI6IiIsInRvb2xzX2NvdW50IjowfQ==",
+        "trace_jcs_bytes_len": 241,
+        "trace_sha256_hex": "87385e89c3f05e699d04f83d2d67ce88aae6c0fae14630d93b57a2d269ce6185",
+        "trace_hash_prefixed": "sha256:87385e89c3f05e699d04f83d2d67ce88aae6c0fae14630d93b57a2d269ce6185"
+      }
+    }
+  ]
+}

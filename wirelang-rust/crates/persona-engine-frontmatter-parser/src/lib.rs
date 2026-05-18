@@ -597,3 +597,294 @@ fn yaml_type_name(v: &serde_yaml::Value) -> &'static str {
         serde_yaml::Value::Tagged(_) => "tagged",
     }
 }
+
+// ============================================================================
+// Canonical-trace surface — cross-lang sibling of Python
+// `wirelang.persona.frontmatter_parser_canonical` (Tag-34 Phase-3a Item 11).
+// ============================================================================
+
+/// Cross-lang canonical-trace helpers, byte-paritätisch zur Python
+/// `wirelang.persona.frontmatter_parser_canonical` Implementierung.
+///
+/// The sub-module exists so the canonical-trace surface is grouped
+/// behind a single import path (`persona_engine_frontmatter_parser::canonical::*`)
+/// and so the dev-test path can address it directly without leaking
+/// canonicalisation helpers into the top-level public API.
+pub mod canonical {
+    use super::parse_persona_markdown;
+    use crate::{FrontmatterParserError, PersonaDef, ToolsField};
+    use serde::{Deserialize, Serialize};
+    use serde_json::{Map, Value as JsonValue};
+
+    /// JCS-canonical schema id. Cross-lang anchor — must match the
+    /// Python constant of the same name.
+    pub const FRONTMATTER_TRACE_SCHEMA: &str =
+        "wakir.persona-engine.frontmatter-parser-canonical/1";
+
+    /// Outer-hash prefix. Cross-lang anchor.
+    pub const HASH_PREFIX: &str = "sha256:";
+
+    /// Length of a SHA-256 hex digest (32 bytes = 64 hex chars).
+    pub const SHA256_HEX_LEN: usize = 64;
+
+    /// Accepted-status wire-string values. Frozen across Rust/Python.
+    pub const STATUS_OK: &str = "ok";
+    /// Accepted-status: missing fence (no closing `---`).
+    pub const STATUS_MISSING_FENCE: &str = "missing_fence";
+    /// Accepted-status: malformed (front-matter not a YAML mapping).
+    pub const STATUS_MALFORMED: &str = "malformed";
+    /// Accepted-status: YAML parser raised a syntactic error.
+    pub const STATUS_YAML_PARSE_ERROR: &str = "yaml_parse_error";
+    /// Accepted-status: shape-level rejection (canonical-subset extractor).
+    pub const STATUS_INVALID_SHAPE: &str = "invalid_shape";
+
+    /// Error-class wire-strings. Frozen across Rust/Python. Empty
+    /// string reserved for the success path (`status == "ok"`).
+    pub const ERROR_CLASS_MISSING: &str = "PersonaFrontmatterMissingError";
+    /// Error-class wire-string for malformed front-matter.
+    pub const ERROR_CLASS_MALFORMED: &str = "PersonaFrontmatterMalformedError";
+    /// Error-class wire-string for YAML parser errors.
+    pub const ERROR_CLASS_YAML: &str = "YamlParseError";
+    /// Error-class wire-string for canonical-subset shape errors.
+    pub const ERROR_CLASS_INVALID_SHAPE: &str = "InvalidShape";
+
+    /// Structured canonical-trace projection of a persona-front-matter
+    /// parse outcome.
+    ///
+    /// Fields are NOT in alphabetical order at the struct level (the
+    /// JCS canonicalisation re-sorts them lexicographically anyway).
+    /// The seven fields plus the constant `schema` field appear on
+    /// the wire in alphabetical order:
+    ///
+    /// 1. `accepted_status`
+    /// 2. `canonical_subset_jcs_sha256_hex`
+    /// 3. `error_class`
+    /// 4. `persona_name`
+    /// 5. `persona_slug`
+    /// 6. `schema`              (constant: [`FRONTMATTER_TRACE_SCHEMA`])
+    /// 7. `schema_version`
+    /// 8. `tools_count`
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    pub struct FrontmatterParseTrace {
+        /// Status discriminant. One of [`STATUS_OK`],
+        /// [`STATUS_MISSING_FENCE`], [`STATUS_MALFORMED`],
+        /// [`STATUS_YAML_PARSE_ERROR`], [`STATUS_INVALID_SHAPE`].
+        pub accepted_status: String,
+        /// SHA-256 hex of the JCS bytes of the canonical subset. Empty
+        /// string when the parse did not reach the canonical-subset
+        /// projection (any non-`ok` status).
+        pub canonical_subset_jcs_sha256_hex: String,
+        /// Error class name when non-`ok`. Empty string on `ok`.
+        pub error_class: String,
+        /// `frontmatter["name"]` projected to string. Empty string when
+        /// not reachable.
+        pub persona_name: String,
+        /// `frontmatter["persona_slug"]` projected to string. Empty
+        /// string when absent or not reachable.
+        pub persona_slug: String,
+        /// Constant schema id; always [`FRONTMATTER_TRACE_SCHEMA`].
+        pub schema: String,
+        /// `frontmatter["schema_version"]` projected to string. Empty
+        /// string when not reachable.
+        pub schema_version: String,
+        /// Length of the normalised tools-list. `0` when not reachable.
+        pub tools_count: u64,
+    }
+
+    /// Build a canonical parse-outcome trace from persona markdown text.
+    ///
+    /// Infallible at the trace-build layer: every parse outcome
+    /// (success, missing fence, malformed YAML, invalid shape) is
+    /// captured as a structured trace with the appropriate
+    /// `accepted_status` and `error_class` populated.
+    pub fn build_frontmatter_trace(md_text: &str) -> FrontmatterParseTrace {
+        // Step 1+2 — parse_persona_markdown handles split + YAML +
+        // typed deserialisation, distinguishing the three pre-shape
+        // error classes via `FrontmatterParserError`.
+        let (persona_def, _body) = match parse_persona_markdown(md_text) {
+            Ok(t) => t,
+            Err(e) => return trace_from_parse_error(e),
+        };
+
+        let persona_name = persona_def.name.clone();
+        let persona_slug = persona_def
+            .persona_slug
+            .clone()
+            .unwrap_or_default();
+        let schema_version = persona_def.schema_version.clone();
+        let tools_count = match &persona_def.tools {
+            ToolsField::List(v) => v.len() as u64,
+            ToolsField::CommaString(s) => s
+                .split(',')
+                .map(str::trim)
+                .filter(|t| !t.is_empty())
+                .count() as u64,
+        };
+
+        // Step 3 — to_canonical_subset (invalid_shape path).
+        let canonical_subset = match persona_def.to_canonical_subset() {
+            Ok(v) => v,
+            Err(_) => {
+                return FrontmatterParseTrace {
+                    accepted_status: STATUS_INVALID_SHAPE.to_string(),
+                    canonical_subset_jcs_sha256_hex: String::new(),
+                    error_class: ERROR_CLASS_INVALID_SHAPE.to_string(),
+                    persona_name,
+                    persona_slug,
+                    schema: FRONTMATTER_TRACE_SCHEMA.to_string(),
+                    schema_version,
+                    tools_count,
+                };
+            }
+        };
+
+        // Step 4 — JCS bytes + SHA-256 hex.
+        let canonical_jcs = match serde_jcs::to_vec(&canonical_subset) {
+            Ok(b) => b,
+            Err(_) => {
+                // JCS error on a canonical-subset object is a
+                // programmer bug; surface as invalid_shape so the
+                // wire-form remains symmetric across Rust/Python.
+                return FrontmatterParseTrace {
+                    accepted_status: STATUS_INVALID_SHAPE.to_string(),
+                    canonical_subset_jcs_sha256_hex: String::new(),
+                    error_class: ERROR_CLASS_INVALID_SHAPE.to_string(),
+                    persona_name,
+                    persona_slug,
+                    schema: FRONTMATTER_TRACE_SCHEMA.to_string(),
+                    schema_version,
+                    tools_count,
+                };
+            }
+        };
+        let canonical_sha = sha256_hex(&canonical_jcs);
+
+        FrontmatterParseTrace {
+            accepted_status: STATUS_OK.to_string(),
+            canonical_subset_jcs_sha256_hex: canonical_sha,
+            error_class: String::new(),
+            persona_name,
+            persona_slug,
+            schema: FRONTMATTER_TRACE_SCHEMA.to_string(),
+            schema_version,
+            tools_count,
+        }
+    }
+
+    /// Project a parser error into the structured trace surface.
+    ///
+    /// The Python sibling drives the same five-way split:
+    /// `FrontmatterMissing` → `STATUS_MISSING_FENCE`,
+    /// `FrontmatterMalformed` → `STATUS_MALFORMED`,
+    /// `YamlParseError` → `STATUS_YAML_PARSE_ERROR`,
+    /// `InvalidShape` (from typed deserialisation) → `STATUS_YAML_PARSE_ERROR`.
+    ///
+    /// Note: the `parse_persona_markdown` Rust path raises `InvalidShape`
+    /// for typed-deserialisation shape errors (`tools` is neither list
+    /// nor string, etc.) — these correspond to the Python
+    /// `yaml.YAMLError` / type-coercion path that goes through
+    /// `serde_yaml` after the YAML-mapping pre-check. They get the
+    /// `yaml_parse_error` status on the wire to keep the cross-lang
+    /// classification stable.
+    fn trace_from_parse_error(err: FrontmatterParserError) -> FrontmatterParseTrace {
+        let (status, class) = match err {
+            FrontmatterParserError::FrontmatterMissing(_) => {
+                (STATUS_MISSING_FENCE, ERROR_CLASS_MISSING)
+            }
+            FrontmatterParserError::FrontmatterMalformed(_) => {
+                (STATUS_MALFORMED, ERROR_CLASS_MALFORMED)
+            }
+            FrontmatterParserError::YamlParseError(_)
+            | FrontmatterParserError::InvalidShape(_) => {
+                (STATUS_YAML_PARSE_ERROR, ERROR_CLASS_YAML)
+            }
+        };
+        FrontmatterParseTrace {
+            accepted_status: status.to_string(),
+            canonical_subset_jcs_sha256_hex: String::new(),
+            error_class: class.to_string(),
+            persona_name: String::new(),
+            persona_slug: String::new(),
+            schema: FRONTMATTER_TRACE_SCHEMA.to_string(),
+            schema_version: String::new(),
+            tools_count: 0,
+        }
+    }
+
+    /// Build the JCS-canonical wire-dict from a trace.
+    ///
+    /// Returns a `serde_json::Value::Object` whose keys appear in
+    /// alphabetical order at the wire level after JCS canonicalisation.
+    pub fn trace_to_wire_dict(trace: &FrontmatterParseTrace) -> JsonValue {
+        let mut m = Map::with_capacity(8);
+        m.insert(
+            "accepted_status".to_string(),
+            JsonValue::String(trace.accepted_status.clone()),
+        );
+        m.insert(
+            "canonical_subset_jcs_sha256_hex".to_string(),
+            JsonValue::String(trace.canonical_subset_jcs_sha256_hex.clone()),
+        );
+        m.insert(
+            "error_class".to_string(),
+            JsonValue::String(trace.error_class.clone()),
+        );
+        m.insert(
+            "persona_name".to_string(),
+            JsonValue::String(trace.persona_name.clone()),
+        );
+        m.insert(
+            "persona_slug".to_string(),
+            JsonValue::String(trace.persona_slug.clone()),
+        );
+        m.insert(
+            "schema".to_string(),
+            JsonValue::String(FRONTMATTER_TRACE_SCHEMA.to_string()),
+        );
+        m.insert(
+            "schema_version".to_string(),
+            JsonValue::String(trace.schema_version.clone()),
+        );
+        m.insert(
+            "tools_count".to_string(),
+            JsonValue::Number(trace.tools_count.into()),
+        );
+        JsonValue::Object(m)
+    }
+
+    /// Serialise a trace to its JCS-canonical UTF-8 bytes.
+    pub fn serialize_trace(trace: &FrontmatterParseTrace) -> Vec<u8> {
+        // `unwrap` is justified: the wire-dict is a pure
+        // `Map<String, JsonValue>` of strings + a single u64 — JCS
+        // canonicalisation is total over this domain.
+        serde_jcs::to_vec(&trace_to_wire_dict(trace))
+            .expect("trace wire-dict is always JCS-canonicalisable")
+    }
+
+    /// SHA-256 hex of the JCS bytes of `trace`.
+    pub fn trace_sha256_hex(trace: &FrontmatterParseTrace) -> String {
+        sha256_hex(&serialize_trace(trace))
+    }
+
+    /// Prefixed outer hash: `"sha256:" + trace_sha256_hex`.
+    pub fn trace_hash_prefixed(trace: &FrontmatterParseTrace) -> String {
+        let mut out = String::with_capacity(HASH_PREFIX.len() + SHA256_HEX_LEN);
+        out.push_str(HASH_PREFIX);
+        out.push_str(&trace_sha256_hex(trace));
+        out
+    }
+
+    fn sha256_hex(bytes: &[u8]) -> String {
+        use sha2::{Digest, Sha256};
+        let digest = Sha256::digest(bytes);
+        let mut s = String::with_capacity(SHA256_HEX_LEN);
+        for b in digest.iter() {
+            use std::fmt::Write as _;
+            let _ = write!(&mut s, "{:02x}", b);
+        }
+        s
+    }
+
+    /// Convenience accessor: superset PersonaDef behind `canonical::`.
+    pub type Persona = PersonaDef;
+}
