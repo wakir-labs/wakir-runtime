@@ -40,6 +40,9 @@ WORKFLOW_PATH = (
 AGGREGATOR_PATH = (
     REPO_ROOT / "tooling" / "ci" / "cross_welle_hot_spot_aggregator.py"
 )
+RENDER_SUMMARY_PATH = (
+    REPO_ROOT / "tooling" / "ci" / "cross_welle_hot_spot_render_summary.py"
+)
 RUNBOOK_PATH = (
     REPO_ROOT / "docs" / "ci" / "cross-welle-hot-spot-aggregator-runbook.md"
 )
@@ -489,3 +492,76 @@ def test_runbook_references_workflow_and_aggregator():
     assert "tooling/ci/cross_welle_hot_spot_aggregator.py" in text
     assert "Welle-3" in text
     assert "Welle-7" in text
+
+
+# ----------------------------------------------------------------------
+# Test 18 -- Job-Summary renderer emits the expected table + sections.
+# ----------------------------------------------------------------------
+def test_render_summary_table_and_sections():
+    spec = importlib.util.spec_from_file_location(
+        "cross_welle_hot_spot_render_summary", RENDER_SUMMARY_PATH
+    )
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["cross_welle_hot_spot_render_summary"] = mod
+    spec.loader.exec_module(mod)
+    envelope = {
+        "per_welle_slots": [
+            {
+                "welle": 3,
+                "verdict": "BLOCK",
+                "dated_at": "2026-05-19",
+                "counts": {"red": 2, "yellow": 1, "green": 1},
+                "propagation_targets": [4, 5, 7],
+            },
+            {
+                "welle": 4,
+                "verdict": "CLEAR",
+                "dated_at": "2026-05-19",
+                "counts": {"red": 0, "yellow": 0, "green": 4},
+                "propagation_targets": [],
+            },
+        ],
+        "cascade_fan_out": [4, 5, 7],
+        "top_hot_spots": [
+            {"welle": 3, "verdict": "BLOCK", "propagation_targets": [4, 5, 7]}
+        ],
+    }
+    out = mod.render(envelope)
+    assert "| Welle | Verdict | Dated-at | Counts(r/y/g) | Propagation |" in out
+    assert "| 3 | BLOCK | 2026-05-19 | 2/1/1 | 4,5,7 |" in out
+    assert "| 4 | CLEAR | 2026-05-19 | 0/0/4 | - |" in out
+    assert "## Cascade fan-out" in out
+    assert "Transitively reached downstream wellen: [4, 5, 7]" in out
+    assert "## Top hot-spots (ranked)" in out
+    assert "1. Welle-3 -- BLOCK (propagation_targets=[4, 5, 7])" in out
+
+
+# ----------------------------------------------------------------------
+# Test 19 -- Job-Summary renderer handles missing / empty data.
+# ----------------------------------------------------------------------
+def test_render_summary_handles_empty_envelope():
+    spec = importlib.util.spec_from_file_location(
+        "cross_welle_hot_spot_render_summary", RENDER_SUMMARY_PATH
+    )
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["cross_welle_hot_spot_render_summary"] = mod
+    spec.loader.exec_module(mod)
+    out = mod.render({})
+    assert "No propagation block fired." in out
+    # POST-CUTOVER slot with no counts must render "-" placeholders.
+    out2 = mod.render(
+        {
+            "per_welle_slots": [
+                {
+                    "welle": 1,
+                    "verdict": "POST-CUTOVER",
+                    "dated_at": None,
+                    "counts": None,
+                    "propagation_targets": [],
+                }
+            ]
+        }
+    )
+    assert "| 1 | POST-CUTOVER | - | - | - |" in out2

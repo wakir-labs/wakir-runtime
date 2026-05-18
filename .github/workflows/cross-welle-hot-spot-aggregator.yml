@@ -89,12 +89,14 @@ on:
       - main
     paths:
       - "tooling/ci/cross_welle_hot_spot_aggregator.py"
+      - "tooling/ci/cross_welle_hot_spot_render_summary.py"
       - ".github/workflows/cross-welle-hot-spot-aggregator.yml"
       - "tests/ci/test_cross_welle_hot_spot_aggregator.py"
       - "docs/ci/cross-welle-hot-spot-aggregator-runbook.md"
   pull_request:
     paths:
       - "tooling/ci/cross_welle_hot_spot_aggregator.py"
+      - "tooling/ci/cross_welle_hot_spot_render_summary.py"
       - ".github/workflows/cross-welle-hot-spot-aggregator.yml"
       - "tests/ci/test_cross_welle_hot_spot_aggregator.py"
       - "docs/ci/cross-welle-hot-spot-aggregator-runbook.md"
@@ -197,30 +199,9 @@ jobs:
           if [ -f out/cross-welle-hot-spot-verdict.json ]; then
             echo "## Per-Welle Slots" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            python3 -c '
-          import json, pathlib
-          env = json.loads(pathlib.Path("out/cross-welle-hot-spot-verdict.json").read_text())
-          print("| Welle | Verdict | Dated-at | Counts(r/y/g) | Propagation |")
-          print("|------:|:--------|:---------|:--------------|:------------|")
-          for s in env.get("per_welle_slots", []):
-              c = s.get("counts") or {}
-              counts = f"{c.get(\"red\", \"-\")}/{c.get(\"yellow\", \"-\")}/{c.get(\"green\", \"-\")}" if c else "-"
-              prop = ",".join(str(x) for x in (s.get("propagation_targets") or [])) or "-"
-              print(f"| {s[\"welle\"]} | {s[\"verdict\"]} | {s.get(\"dated_at\") or \"-\"} | {counts} | {prop} |")
-          print("")
-          print("## Cascade fan-out")
-          print("")
-          fan = env.get("cascade_fan_out") or []
-          if fan:
-              print(f"Transitively reached downstream wellen: {sorted(fan)}")
-          else:
-              print("No propagation block fired.")
-          print("")
-          print("## Top hot-spots (ranked)")
-          print("")
-          for i, t in enumerate(env.get("top_hot_spots", []), start=1):
-              print(f"{i}. Welle-{t[\"welle\"]} -- {t[\"verdict\"]} (propagation_targets={t.get(\"propagation_targets\") or []})")
-          ' >> "$GITHUB_STEP_SUMMARY"
+            python3 tooling/ci/cross_welle_hot_spot_render_summary.py \
+              out/cross-welle-hot-spot-verdict.json \
+              >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "## Envelope" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
