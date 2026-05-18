@@ -100,6 +100,7 @@ OPERATIONS_DOC = (
 
 EXPECTED_SCHEMA_VERSION = "wakir.cosign-policy.phase-3b/1"
 EXPECTED_BINARIES = (
+    # Tag-17..Tag-31 carrier-image inventory — first 9 entries.
     "recovery",
     "state-backing",
     "fsm",
@@ -109,6 +110,16 @@ EXPECTED_BINARIES = (
     "anchor-emitter",
     "svid-workload-identity",
     "bridge-audit-writer",
+    # Tag-33 Mini-Welle — Welle-4..7 dedicated single-binary images.
+    # The "-welleN" suffix distinguishes these dedicated single-binary
+    # images from the carrier-image variants of the same binaries;
+    # both ship the same Rust crates but the Tag-33 single-binary
+    # images are pinned by the Welle-4..7 cutover steps independently
+    # of the Carrier-Image digest. ADR-0066 anchor.
+    "state-backing-welle4",
+    "fsm-welle5",
+    "subscribe-loop-welle6",
+    "recovery-welle7",
 )
 EXPECTED_IN_IMAGE_PATHS = {
     "recovery": "/opt/wakir/bin/wakir-persona-engine-recovery",
@@ -124,6 +135,19 @@ EXPECTED_IN_IMAGE_PATHS = {
     "bridge-audit-writer": (
         "/opt/wakir/bin/wakir-persona-engine-bridge-audit-writer"
     ),
+    # Tag-33 Mini-Welle — Welle-4..7 dedicated single-binary images.
+    "state-backing-welle4": (
+        "/opt/wakir/bin/wakir-persona-engine-state-backing-welle4"
+    ),
+    "fsm-welle5": (
+        "/opt/wakir/bin/wakir-persona-engine-fsm-welle5"
+    ),
+    "subscribe-loop-welle6": (
+        "/opt/wakir/bin/wakir-persona-engine-subscribe-loop-welle6"
+    ),
+    "recovery-welle7": (
+        "/opt/wakir/bin/wakir-persona-engine-recovery-welle7"
+    ),
 }
 EXPECTED_ENV_SWITCHES = {
     "recovery": "WAKIR_RECOVERY_BACKEND",
@@ -135,7 +159,54 @@ EXPECTED_ENV_SWITCHES = {
     "anchor-emitter": "WAKIR_ANCHOR_EMITTER_BACKEND",
     "svid-workload-identity": "WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND",
     "bridge-audit-writer": "WAKIR_BRIDGE_AUDIT_WRITER_BACKEND",
+    # Tag-33 Mini-Welle — re-use the same env-switches as the
+    # Carrier-Image variants; the Welle-4..7 cutover steps flip the
+    # same `WAKIR_*_BACKEND` flag regardless of which image path
+    # actually delivers the binary.
+    "state-backing-welle4": "WAKIR_STATE_BACKING_BACKEND",
+    "fsm-welle5": "WAKIR_FSM_BACKEND",
+    "subscribe-loop-welle6": "WAKIR_SUBSCRIBE_LOOP_BACKEND",
+    "recovery-welle7": "WAKIR_RECOVERY_BACKEND",
 }
+# Subset of EXPECTED_BINARIES that are Carrier-Image deployments (the
+# nine binaries the persona-engine image installs at the canonical
+# /opt/wakir/bin/wakir-persona-engine-<name> paths via the Tag-22+
+# Quadlet installer). The Tag-33 Mini-Welle adds four dedicated
+# single-binary images for the Welle-4..7 cutover steps; those are
+# NOT in this set — they have their own dedicated Quadlets and do
+# not consume the rust_backend_switch.py DEFAULT_RUST_*_BIN
+# constants (the cutover step continues to use the existing
+# WAKIR_*_BACKEND env-switch + DEFAULT_RUST_*_BIN path, the Welle-N
+# image is pinned independently).
+CARRIER_IMAGE_BINARIES = frozenset(
+    {
+        "recovery",
+        "state-backing",
+        "fsm",
+        "v907-verify",
+        "bridge-diff",
+        "subscribe-loop",
+        "anchor-emitter",
+        "svid-workload-identity",
+        "bridge-audit-writer",
+    }
+)
+# Subset of EXPECTED_BINARIES that are Tag-33 dedicated single-binary
+# images (Welle-4..7 cutover-step images). These are validated by
+# the cross-substrate parity test against the Quadlet installer (the
+# 13-set must agree byte-for-byte across both files), but they do
+# NOT have their own DEFAULT_RUST_*_BIN constant in
+# rust_backend_switch.py — they re-use the existing constants of the
+# Carrier-Image siblings (e.g. state-backing-welle4 re-uses
+# DEFAULT_RUST_STATE_BACKING_BIN).
+WELLE_4_7_DEDICATED_IMAGES = frozenset(
+    {
+        "state-backing-welle4",
+        "fsm-welle5",
+        "subscribe-loop-welle6",
+        "recovery-welle7",
+    }
+)
 PLACEHOLDER_DIGEST = "sha256:DIGEST_PENDING_KAI_CROSS_REVIEW"
 CANONICAL_DIGEST_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
 PLACEHOLDER_OR_CANONICAL_RE = re.compile(
@@ -471,7 +542,15 @@ def test_in_image_paths_match_rust_backend_switch_defaults() -> None:
     # The defaults are declared as module-level constants — string-grep
     # them out (this test deliberately avoids importing the module so
     # it stays hermetic and import-side-effect-free).
+    #
+    # Tag-33 Mini-Welle: skip the Welle-4..7 dedicated single-binary
+    # images. They share the rust_backend_switch.py DEFAULT_RUST_*_BIN
+    # constants of their Carrier-Image siblings (e.g.
+    # state-backing-welle4 re-uses DEFAULT_RUST_STATE_BACKING_BIN, not
+    # DEFAULT_RUST_STATE_BACKING_WELLE4_BIN).
     for name, expected_path in EXPECTED_IN_IMAGE_PATHS.items():
+        if name in WELLE_4_7_DEDICATED_IMAGES:
+            continue
         # Match shape: ``DEFAULT_RUST_X_BIN = "<path>"``.
         # The constant name is derived from the binary name:
         #   recovery       -> DEFAULT_RUST_RECOVERY_BIN
@@ -543,15 +622,24 @@ def test_operations_doc_anchors_policy_file() -> None:
         "issuer"
     )
 
-    # Anchor: all seven canonical in-image paths are documented in
-    # the operator recipe (the binary-presence probe in §3.3).
-    for path in EXPECTED_IN_IMAGE_PATHS.values():
+    # Anchor: all canonical Carrier-Image in-image paths are
+    # documented in the operator recipe (the binary-presence probe
+    # in §3.3). Tag-33 Mini-Welle: skip the Welle-4..7 dedicated
+    # single-binary image paths — those have their own per-Welle
+    # cutover docs and are NOT covered by this Phase-3b cosign-
+    # policy operator recipe.
+    for name, path in EXPECTED_IN_IMAGE_PATHS.items():
+        if name in WELLE_4_7_DEDICATED_IMAGES:
+            continue
         assert path in text, (
             f"operations doc does not document the canonical in-image "
             f"path {path}"
         )
 
-    # Anchor: the seven ENV-switches are listed in the §5 wiring table.
+    # Anchor: the seven Carrier-Image ENV-switches are listed in the
+    # §5 wiring table. Tag-33 Welle-4..7 dedicated images re-use the
+    # existing ENV-switches, so this loop continues to cover them
+    # transitively via the Carrier-Image entries.
     for env in EXPECTED_ENV_SWITCHES.values():
         assert env in text, (
             f"operations doc does not document the ENV-switch {env}"

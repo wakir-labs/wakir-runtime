@@ -1,0 +1,161 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# This Containerfile and the image it produces are part of the Wakir
+# persona-engine runtime substrate. Licensed under the Business
+# Source License 1.1; see ../persona-engine/LICENSE-BSL.md (shared
+# substrate licence file for all persona-engine container images).
+# Change Date: 2030-05-15 (parity with the persona-engine image).
+# Change License: Apache License 2.0.
+#
+# wakir-persona-engine-state-backing — Rust-CLI runtime image for the
+# NATS-KV Persona-State-Backing operator-CLI (Tag-33 Mini-Welle,
+# ADR-0066 Welle-4 `state_backing` pre-cutover image, parallel to
+# Welle-1 V907-verify, Welle-2 SVID-workload-identity, Welle-3
+# bridge-audit-writer image-builds).
+#
+# Substrate scope
+# ---------------
+#
+# ADR-0066 (approved 2026-05-17) accelerates Phase-3c to 4 weeks
+# (Option A+). **Welle-4 is `state_backing`**: the third-lowest-
+# blast-radius write-side surface scheduled to flip from Python-
+# backend default to Rust-backend default after Welle-1 V907-verify,
+# Welle-2 SVID-workload-identity and Welle-3 bridge-audit-writer.
+# This image is the substrate the cutover step will pin against in
+# the Quadlet unit and in the `persona-engine` image's
+# `WAKIR_STATE_BACKING_BACKEND=rust_inmemory|rust_natskv` operator-
+# flag pathway.
+#
+# The binary itself (`wakir-persona-engine-state-backing`) surfaces
+# the canonical NATS-KV key-prefix constants
+# (`STATE_PACK_KEY_PREFIX`, `OFFSET_KEY_WIDTH`, `PINNED_KEY`,
+# `NEXT_OFFSET_KEY`, `LATEST_KEY`) and the `offset_key(off)`
+# zero-padded formatter. Byte-identical against the Python pendant
+# `wirelang.persona_engine.state_backing` — see
+# `wirelang-rust/crates/persona-engine-state-backing/src/main.rs` for
+# the subcommand surface (`info | offset-key OFFSET | --version |
+# --help`).
+#
+# Multi-stage build
+# -----------------
+#
+# Stage 1 (builder, `rust:1.85-slim-bookworm`) compiles the
+# `wakir-persona-engine-state-backing` binary in `--release` mode. We
+# pin the base image to the workspace's `rust-version = "1.85"` (see
+# `wirelang-rust/Cargo.toml`). The release profile is workspace-
+# configured for `lto = "thin"`, `codegen-units = 1`, `strip =
+# "symbols"`.
+#
+# Stage 2 (runtime, `gcr.io/distroless/cc-debian12:nonroot`) carries
+# only the binary plus a CA bundle (inherited from distroless-cc). No
+# shell, no package manager, no Python — the attack surface is the
+# Rust binary plus distroless glibc only.
+#
+# Why distroless-cc and not scratch
+# ---------------------------------
+#
+# Parity with the V907-verify image (PR #194), the SVID-workload-
+# identity image (PR #201) and the bridge-audit-writer image (PR #210).
+# The release binary links dynamically against glibc (the rust-slim
+# builder uses GNU libc, not musl). A pure `scratch` runtime would
+# require either a musl-toolchain rebuild (additional supply-chain
+# substrate) or static glibc linking (licensing complications under
+# LGPL §4(d)). distroless-cc-debian12 carries glibc + libgcc + libssl
+# under their respective upstream licences and gives us a
+# `nonroot:nonroot` uid 65532 entrypoint that satisfies the Quadlet
+# `User=` contract without a `useradd` step.
+#
+# OCI provenance + Cosign signing
+# -------------------------------
+#
+# Build path: ``.github/workflows/build-rust-cli-state-backing.yml``
+# (Operator-Hand ``workflow_dispatch`` only; the
+# ``inputs.push='true'`` opt-in pushes to
+# ``ghcr.io/wakir-labs/wakir-persona-engine-state-backing:<tag>``
+# and Sigstore-keyless-signs the resulting digest against the
+# GitHub-Actions OIDC identity. Parity with prior three image-builds).
+#
+# Pin path: the digest emitted by the workflow is resolved into the
+# Quadlet unit at cutover time (Welle-4 step on the ADR-0066 Wochen-
+# Plan). The resolver pattern is the same
+# `scripts/image-pin-idempotent-resolver.sh` PINS-array row that the
+# persona-engine, V907-verify, SVID-workload-identity and
+# bridge-audit-writer images use.
+#
+# Cross-references
+# ----------------
+#
+# - ADR-0066 §Phase-3c Welle-4 `state_backing` (approved 2026-05-17).
+# - ADR-0065 §Welle-4 listing.
+# - ADR-0060 — Cosign-Policy on Pilot-Container-Images (the policy
+#   this image must satisfy at cutover time).
+# - ADR-0035 §C-Drift-Closure — the ADR this cutover closes for the
+#   state_backing module.
+
+# ----------------------------------------------------------------------
+# Stage 1 — Rust release builder
+# ----------------------------------------------------------------------
+#
+# The exact `@sha256:` digest of the rust:1.85-slim-bookworm base
+# layer is materialised by the build workflow's `Resolve rust base-
+# layer digest` step (skopeo + crane cross-check). The placeholder
+# below is replaced in-runner; refusing to build without the
+# substitution prevents accidental floating-tag drift.
+
+FROM docker.io/library/rust:1.85-slim-bookworm@sha256:DIGEST_PENDING_KAI_REVIEW AS builder
+
+WORKDIR /build
+
+# Copy the entire wirelang-rust workspace (multi-crate cargo
+# workspace; the state-backing binary depends on workspace tokio /
+# serde_json / sha2 pins, so the workspace root is required as build
+# context).
+COPY wirelang-rust /build/wirelang-rust
+
+WORKDIR /build/wirelang-rust
+
+# Build only the state-backing binary in release mode. The workspace
+# profile sets lto+strip; the resulting artefact ends up at
+# `target/release/wakir-persona-engine-state-backing`.
+RUN cargo build --release \
+        -p persona-engine-state-backing \
+        --bin wakir-persona-engine-state-backing
+
+# Belt-and-suspenders strip (the workspace profile already strips,
+# but a second pass shaves a few KiB of debug-info residue that
+# `strip = "symbols"` does not touch).
+RUN apt-get update -qq \
+    && apt-get install -y --no-install-recommends binutils \
+    && strip --strip-unneeded \
+        /build/wirelang-rust/target/release/wakir-persona-engine-state-backing \
+    && apt-get purge -y binutils \
+    && rm -rf /var/lib/apt/lists/*
+
+# ----------------------------------------------------------------------
+# Stage 2 — distroless runtime
+# ----------------------------------------------------------------------
+#
+# The runtime layer carries only the state-backing binary plus the
+# distroless-cc glibc+ca-bundle inheritance. No shell, no apt, no
+# Python. The `nonroot` tag locks the default uid to 65532.
+
+FROM gcr.io/distroless/cc-debian12:nonroot@sha256:DIGEST_PENDING_KAI_REVIEW
+
+LABEL org.opencontainers.image.title="wakir-persona-engine-state-backing"
+LABEL org.opencontainers.image.description="Rust-CLI for the persona-engine NATS-KV Persona-State-Backing operator surface. ADR-0066 Welle-4 pre-cutover image (Tag-33 Mini-Welle, 2026-05-18)."
+LABEL org.opencontainers.image.version="0.1.0-pilot"
+LABEL org.opencontainers.image.licenses="BUSL-1.1"
+LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"
+LABEL org.opencontainers.image.url="https://github.com/wakir-labs/wakir-runtime"
+LABEL org.opencontainers.image.documentation="https://github.com/wakir-labs/wakir-runtime/blob/main/docs/operations/state-backing-image-build.md"
+
+COPY --from=builder \
+    /build/wirelang-rust/target/release/wakir-persona-engine-state-backing \
+    /usr/local/bin/wakir-persona-engine-state-backing
+
+USER nonroot:nonroot
+
+# The CLI exits with documented codes (0=info / offset-key / help /
+# version, 1=internal error, 64=usage-error).
+ENTRYPOINT ["/usr/local/bin/wakir-persona-engine-state-backing"]

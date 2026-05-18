@@ -1,0 +1,118 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# This Containerfile and the image it produces are part of the Wakir
+# persona-engine runtime substrate. Licensed under the Business
+# Source License 1.1; see ../persona-engine/LICENSE-BSL.md (shared
+# substrate licence file for all persona-engine container images).
+# Change Date: 2030-05-15 (parity with the persona-engine image).
+# Change License: Apache License 2.0.
+#
+# wakir-persona-engine-recovery — Rust-CLI runtime image for the
+# R1..R4 recovery-workflow operator-CLI (Tag-33 Mini-Welle, ADR-0066
+# Welle-7 `recovery_workflow` pre-cutover image, parallel to Welle-1
+# V907-verify, Welle-2 SVID-workload-identity, Welle-3 bridge-audit-
+# writer, Welle-4 state-backing, Welle-5 lifecycle-state-machine and
+# Welle-6 subscribe-loop image-builds).
+#
+# Substrate scope
+# ---------------
+#
+# ADR-0066 (approved 2026-05-17) accelerates Phase-3c to 4 weeks
+# (Option A+). **Welle-7 is `recovery_workflow`**: the final write-
+# side surface scheduled to flip from Python-backend default to
+# Rust-backend default. This image is the substrate the cutover
+# step will pin against in the Quadlet unit and in the
+# `persona-engine` image's `WAKIR_RECOVERY_BACKEND=rust` operator-
+# flag pathway.
+#
+# The binary itself (`wakir-persona-engine-recovery`) surfaces the
+# canonical R1..R4 recovery-workflow phase-order, the 30-second
+# total recovery budget, the per-phase soft-cap seconds and the
+# canonical recovery-outcome schema string. Byte-identical against
+# the Python pendant `wirelang.persona_engine.recovery_workflow` —
+# see `wirelang-rust/crates/persona-engine-recovery/src/main.rs` for
+# the subcommand surface (`info | soft-cap PHASE | --version |
+# --help`).
+#
+# Multi-stage build
+# -----------------
+#
+# Stage 1 (builder, `rust:1.85-slim-bookworm`) compiles the
+# `wakir-persona-engine-recovery` binary in `--release` mode. The
+# release profile is workspace-configured for `lto = "thin"`,
+# `codegen-units = 1`, `strip = "symbols"`.
+#
+# Stage 2 (runtime, `gcr.io/distroless/cc-debian12:nonroot`) carries
+# only the binary plus a CA bundle (inherited from distroless-cc).
+# No shell, no package manager, no Python — the attack surface is
+# the Rust binary plus distroless glibc only.
+#
+# Why distroless-cc and not scratch
+# ---------------------------------
+#
+# Parity with the prior six image-builds.
+#
+# OCI provenance + Cosign signing
+# -------------------------------
+#
+# Build path:
+# ``.github/workflows/build-rust-cli-recovery-workflow.yml``
+# (Operator-Hand ``workflow_dispatch`` only).
+#
+# Cross-references
+# ----------------
+#
+# - ADR-0066 §Phase-3c Welle-7 `recovery_workflow` (approved
+#   2026-05-17).
+# - ADR-0065 §Welle-7 listing.
+# - ADR-0060 — Cosign-Policy on Pilot-Container-Images.
+# - persona-engine-format-spec §3.7.4 — R1..R4 recovery-workflow
+#   contract.
+
+# ----------------------------------------------------------------------
+# Stage 1 — Rust release builder
+# ----------------------------------------------------------------------
+
+FROM docker.io/library/rust:1.85-slim-bookworm@sha256:DIGEST_PENDING_KAI_REVIEW AS builder
+
+WORKDIR /build
+
+COPY wirelang-rust /build/wirelang-rust
+
+WORKDIR /build/wirelang-rust
+
+RUN cargo build --release \
+        -p persona-engine-recovery \
+        --bin wakir-persona-engine-recovery
+
+RUN apt-get update -qq \
+    && apt-get install -y --no-install-recommends binutils \
+    && strip --strip-unneeded \
+        /build/wirelang-rust/target/release/wakir-persona-engine-recovery \
+    && apt-get purge -y binutils \
+    && rm -rf /var/lib/apt/lists/*
+
+# ----------------------------------------------------------------------
+# Stage 2 — distroless runtime
+# ----------------------------------------------------------------------
+
+FROM gcr.io/distroless/cc-debian12:nonroot@sha256:DIGEST_PENDING_KAI_REVIEW
+
+LABEL org.opencontainers.image.title="wakir-persona-engine-recovery"
+LABEL org.opencontainers.image.description="Rust-CLI for the persona-engine R1..R4 recovery-workflow operator surface (phase order, 30s budget, per-phase soft-caps, canonical outcome schema). ADR-0066 Welle-7 pre-cutover image (Tag-33 Mini-Welle, 2026-05-18)."
+LABEL org.opencontainers.image.version="0.1.0-pilot"
+LABEL org.opencontainers.image.licenses="BUSL-1.1"
+LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"
+LABEL org.opencontainers.image.url="https://github.com/wakir-labs/wakir-runtime"
+LABEL org.opencontainers.image.documentation="https://github.com/wakir-labs/wakir-runtime/blob/main/docs/operations/recovery-workflow-image-build.md"
+
+COPY --from=builder \
+    /build/wirelang-rust/target/release/wakir-persona-engine-recovery \
+    /usr/local/bin/wakir-persona-engine-recovery
+
+USER nonroot:nonroot
+
+# The CLI exits with documented codes (0=info / soft-cap / help /
+# version, 1=internal error, 64=usage-error).
+ENTRYPOINT ["/usr/local/bin/wakir-persona-engine-recovery"]
