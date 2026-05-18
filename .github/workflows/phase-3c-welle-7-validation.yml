@@ -881,6 +881,20 @@ jobs:
           sys.exit(0 if verdict in ("READY", "CAUTION") else 1)
           PY
 
+      # Step 6 — Emit Welle-7 sign-off envelope (Tag-51, Tomas).
+      #
+      # Welle-7 is the FINAL Phase-3 wave; its sign-off envelope is the
+      # signal that closes the Marathon-Final-Bilanz Henrik slot in
+      # ``--mode=post-welle-7`` aggregation runs.
+      - name: Step 6 — Emit Welle-7 sign-off envelope (Tag-51)
+        if: always()
+        run: |
+          mkdir -p state
+          python scripts/ci/emit-welle-sign-off.py \
+            --welle 7 \
+            --decision-envelope out/cutover-acceptance-decision.json \
+            --output state/welle-7-sign-off.json
+
       - name: Upload validation artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -900,5 +914,6 @@ jobs:
             out/recovery-drill-integrity.json
             out/pre-flight-snapshot.json
             out/pre-flight.log
+            state/welle-7-sign-off.json
           if-no-files-found: warn
           retention-days: 30
