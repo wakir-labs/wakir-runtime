@@ -1279,3 +1279,686 @@ def mocked_cross_modul_drift_atomic_flip() -> Callable[
         )
 
     return _build
+
+
+# ---------------------------------------------------------------------------
+# Welle-3 Henrik-Caution-Extension — HC-AC-1 ... HC-AC-3
+#
+# Anchor: ADR-0066 §Beschluss — Welle-3 (`bridge_audit_writer`) is the
+# only Solo-Welle in the Doppel-Welle-Cadence because the writer *is*
+# the consistency-oracle substrate. Three Henrik-Caution-Acceptance
+# criteria layer on top of the per-welle AC-1..AC-5 baseline for KW 25
+# Solo-Welle-3:
+#
+# * HC-AC-1 — Independent-Oracle-Validation (PR #197 Cross-Modul-Stress-
+#   Test substrate as hold-out independent oracle; bridge_audit_writer's
+#   own self-output is rejected as the validator).
+# * HC-AC-2 — Atomic ENV-Flag-Switch rollback ≤600s SLA with symmetric
+#   gates for missed-rollback (false-negative) and spurious-rollback
+#   (false-positive).
+# * HC-AC-3 — Pre-Cutover-Observability-Window 7-day per-day consistency
+#   ≥99.5% (longer-baseline than AC-1's 5-day window, layered atop).
+# ---------------------------------------------------------------------------
+
+# HC-AC-2 — Welle-3 divergence threshold for atomic ENV-Flag-Switch
+# rollback (percentage points). Numerically equals
+# CROSS_MODUL_DRIFT_ROLLBACK_PCT_THRESHOLD but applies whole-bridge-
+# audit-writer rather than per-modul.
+HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD = 0.5
+
+# HC-AC-2 — Atomic ENV-Flag-Switch rollback SLA (seconds). Same 10min
+# SLA as ROLLBACK_SLA_SECONDS but listed here as the Henrik-Caution-
+# specific gate-constant for symmetric documentation.
+HENRIK_CAUTION_ROLLBACK_SLA_SECONDS = 600.0
+
+# HC-AC-3 — Pre-Cutover-Observability-Window length (days). Seven days
+# is the ADR-0066-fixed minimum baseline for Welle-3 Solo-cutover —
+# longer than the AC-1 5-day Konsistenz-Report window because Welle-3
+# itself is the writer, so the baseline must absorb a full operational
+# week of write-pattern variation before the cutover-Tag.
+HENRIK_CAUTION_PRE_CUTOVER_WINDOW_DAYS = 7
+
+# HC-AC-3 — Per-day consistency-rate floor over the 7-day window.
+# Mirrors the CMD-AC-3 0.995 floor but applied per-day for the Welle-3
+# Pre-Cutover-Baseline rather than per-Komponente for the Welle-4+5
+# Stress-Window.
+HENRIK_CAUTION_PRE_CUTOVER_CONSISTENCY_PCT_FLOOR = 0.995
+
+# HC-AC-1 — The set of acceptable independent-oracle-substrate sources
+# for Welle-3 cross-validation. The bridge_audit_writer itself is
+# explicitly **not** in this set (would be self-referential / oracle-
+# self-validation, which Henrik-Caution rejects per ADR-0066).
+HENRIK_CAUTION_INDEPENDENT_ORACLE_SOURCES: tuple[str, ...] = (
+    "cross-modul-stress-test-pr-197",
+    "holdout-python-writer-instance",
+)
+
+
+# ---------------------------------------------------------------------------
+# HC-AC-1 — Independent-Oracle Validation Record.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class HenrikCautionIndependentOracleRecord:
+    """One Welle-3 Henrik-Caution independent-oracle validation record.
+
+    HC-AC-1 requires that the Welle-3 Bridge-Audit-Writer output is
+    cross-validated against an **independent** oracle substrate, not
+    against itself. The bridge_audit_writer *is* the consistency-
+    oracle for other Wellen; for Welle-3 cutover, that oracle role
+    falls to the PR #197 Cross-Modul-Stress-Test substrate (or the
+    Operator-Hand-deployed hold-out Python-writer-instance per
+    ADR-0065 §Empfehlung Footnote).
+
+    Self-referential validation (``oracle_source == "bridge_audit_
+    writer_self"``) is rejected at the gate level; HC-AC-1 sets the
+    oracle-source constraint to the
+    ``HENRIK_CAUTION_INDEPENDENT_ORACLE_SOURCES`` enumeration.
+
+    Fields:
+
+    * ``oracle_source`` — name of the independent substrate the
+      cross-validation pulls from.
+    * ``rust_writer_envelope_sha256`` — the Welle-3 Rust-writer's
+      observed envelope-hash for the validated request.
+    * ``independent_oracle_envelope_sha256`` — the independent
+      substrate's envelope-hash for the same request.
+    * ``self_referential_flag`` — guard-flag explicitly asserting
+      this record is NOT a bridge_audit_writer self-validation.
+    """
+
+    welle: str
+    request_id: str
+    oracle_source: str
+    rust_writer_envelope_sha256: str
+    independent_oracle_envelope_sha256: str
+    self_referential_flag: bool
+
+    @property
+    def is_consistent(self) -> bool:
+        return (
+            self.rust_writer_envelope_sha256
+            == self.independent_oracle_envelope_sha256
+        )
+
+
+@pytest.fixture
+def mocked_henrik_caution_independent_oracle() -> Callable[
+    ..., list[HenrikCautionIndependentOracleRecord]
+]:
+    """Fixture returning a HC-AC-1 independent-oracle record builder.
+
+    Default builder produces all-consistent records sourced from the
+    PR #197 Cross-Modul-Stress-Test substrate. Tests inject:
+
+    * ``oracle_source`` — switch to ``"holdout-python-writer-
+      instance"`` or to the rejected ``"bridge_audit_writer_self"``
+      to exercise the self-validation rejection path.
+    * ``drift_request_ids`` — record-set with Rust-writer/oracle
+      divergence.
+    * ``self_referential`` — explicit guard-flag flip for the
+      self-validation rejection path.
+    """
+
+    def _build(
+        welle: str = "bridge_audit_writer",
+        request_ids: tuple[str, ...] = (
+            "req-hc1-a",
+            "req-hc1-b",
+            "req-hc1-c",
+        ),
+        oracle_source: str = "cross-modul-stress-test-pr-197",
+        drift_request_ids: tuple[str, ...] = (),
+        self_referential: bool = False,
+    ) -> list[HenrikCautionIndependentOracleRecord]:
+        out: list[HenrikCautionIndependentOracleRecord] = []
+        for req in request_ids:
+            rust_hash = _envelope_hash(
+                welle, 0, req, salt="hc-ac-1-rust-writer"
+            )
+            if req in drift_request_ids:
+                oracle_hash = _envelope_hash(
+                    welle, 0, req, salt="hc-ac-1-oracle-drift"
+                )
+            else:
+                oracle_hash = rust_hash
+            out.append(
+                HenrikCautionIndependentOracleRecord(
+                    welle=welle,
+                    request_id=req,
+                    oracle_source=oracle_source,
+                    rust_writer_envelope_sha256=rust_hash,
+                    independent_oracle_envelope_sha256=oracle_hash,
+                    self_referential_flag=self_referential,
+                )
+            )
+        return out
+
+    return _build
+
+
+# ---------------------------------------------------------------------------
+# HC-AC-2 — Atomic ENV-Flag-Switch Rollback Record.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class HenrikCautionAtomicRollbackRecord:
+    """One Welle-3 atomic ENV-Flag-Switch rollback record.
+
+    HC-AC-2 layers an atomic-flip-discipline atop the per-welle AC
+    baseline for the Solo-Welle-3 case. Gates:
+
+    * The trigger-precondition: ``measured_divergence_pct >
+      HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD`` (0.5pp). Sub-threshold
+      flips are spurious-rollback failures (false-positive).
+    * The miss-detection-precondition: when divergence does cross the
+      threshold and the operator-hand-runbook fails to fire, that is a
+      missed-rollback failure (false-negative). The record carries the
+      ``rollback_fired`` flag to allow the gate to assert symmetric
+      behaviour.
+    * ``flip_elapsed_seconds`` ≤ ``HENRIK_CAUTION_ROLLBACK_SLA_
+      SECONDS`` (600s).
+    * ``post_flip_backend`` — bridge_audit_writer must end on python
+      after a valid trigger; on rust if no trigger fires.
+    """
+
+    welle: str
+    measured_divergence_pct: float
+    threshold_divergence_pct: float
+    rollback_fired: bool
+    flip_elapsed_seconds: float
+    flip_was_atomic: bool
+    post_flip_backend: str
+
+
+@pytest.fixture
+def mocked_henrik_caution_atomic_rollback() -> Callable[
+    ..., HenrikCautionAtomicRollbackRecord
+]:
+    """Fixture returning a HC-AC-2 atomic-rollback record builder.
+
+    Default builder produces a successful atomic-rollback: drift
+    0.8pp, rollback fired, elapsed 180s, atomic True, post-flip
+    python. Tests inject:
+
+    * ``measured_divergence_pct=0.35`` + ``rollback_fired=True`` to
+      exercise the spurious-rollback (false-positive) failure-mode.
+    * ``measured_divergence_pct=0.8`` + ``rollback_fired=False`` to
+      exercise the missed-rollback (false-negative) failure-mode.
+    * ``flip_elapsed_seconds=700`` for the SLA-violation path.
+    * ``flip_was_atomic=False`` for the non-atomic-flip path.
+    """
+
+    def _build(
+        welle: str = "bridge_audit_writer",
+        measured_divergence_pct: float = 0.8,
+        rollback_fired: bool = True,
+        flip_elapsed_seconds: float = 180.0,
+        flip_was_atomic: bool = True,
+        post_flip_backend: str | None = None,
+    ) -> HenrikCautionAtomicRollbackRecord:
+        if post_flip_backend is None:
+            post_flip_backend = "python" if rollback_fired else "rust"
+        return HenrikCautionAtomicRollbackRecord(
+            welle=welle,
+            measured_divergence_pct=measured_divergence_pct,
+            threshold_divergence_pct=HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD,
+            rollback_fired=rollback_fired,
+            flip_elapsed_seconds=flip_elapsed_seconds,
+            flip_was_atomic=flip_was_atomic,
+            post_flip_backend=post_flip_backend,
+        )
+
+    return _build
+
+
+# ---------------------------------------------------------------------------
+# HC-AC-3 — Pre-Cutover 7-day Observability-Window Record.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class HenrikCautionPreCutoverWindowRecord:
+    """One day's per-day consistency-rate inside the Welle-3 7-day
+    Pre-Cutover-Observability-Window.
+
+    HC-AC-3 layers a longer-baseline window atop AC-1's 5-day
+    Konsistenz-Report window. The 7-day window must observe every
+    day inside the window AND every day's per-day-consistency-rate
+    must clear the 99.5% floor.
+
+    Gates:
+
+    * ``day_index`` covers exactly 0..6 (no missing/extra days).
+    * ``per_day_consistency_rate`` ≥
+      ``HENRIK_CAUTION_PRE_CUTOVER_CONSISTENCY_PCT_FLOOR`` (0.995).
+    """
+
+    welle: str
+    day_index: int  # 0..(HENRIK_CAUTION_PRE_CUTOVER_WINDOW_DAYS-1)
+    per_day_total_request_count: int
+    per_day_consistency_rate: float
+
+
+@pytest.fixture
+def mocked_henrik_caution_pre_cutover_window() -> Callable[
+    ..., list[HenrikCautionPreCutoverWindowRecord]
+]:
+    """Fixture returning a HC-AC-3 7-day pre-cutover window builder.
+
+    Default builder produces 7 days at 0.999 per-day-rate (above
+    0.995 floor). Tests inject:
+
+    * ``low_rate_day_index`` — day_index where the per-day-rate is
+      below the 0.995 floor (single-day failure path).
+    * ``missing_day_index`` — day_index dropped from the window
+      (incomplete-observation failure path).
+    * ``per_day_rates`` — full override of per-day-rates list (must
+      have length == HENRIK_CAUTION_PRE_CUTOVER_WINDOW_DAYS).
+    """
+
+    def _build(
+        welle: str = "bridge_audit_writer",
+        per_day_total: int = 1000,
+        per_day_rates: tuple[float, ...] | None = None,
+        low_rate_day_index: int | None = None,
+        low_rate_value: float = 0.991,
+        missing_day_index: int | None = None,
+    ) -> list[HenrikCautionPreCutoverWindowRecord]:
+        if per_day_rates is None:
+            rates = [0.999] * HENRIK_CAUTION_PRE_CUTOVER_WINDOW_DAYS
+        else:
+            rates = list(per_day_rates)
+        if low_rate_day_index is not None:
+            rates[low_rate_day_index] = low_rate_value
+        out: list[HenrikCautionPreCutoverWindowRecord] = []
+        for day in range(HENRIK_CAUTION_PRE_CUTOVER_WINDOW_DAYS):
+            if missing_day_index is not None and day == missing_day_index:
+                continue
+            out.append(
+                HenrikCautionPreCutoverWindowRecord(
+                    welle=welle,
+                    day_index=day,
+                    per_day_total_request_count=per_day_total,
+                    per_day_consistency_rate=rates[day],
+                )
+            )
+        return out
+
+    return _build
+
+
+# ---------------------------------------------------------------------------
+# Welle-6+7 Cross-Modul-Drift-Extension — CMD-AC-6-7-1 ... CMD-AC-6-7-4
+#
+# Anchor: ADR-0066 §Beschluss + Priya CTO-Coordination-Plan v3 (Tag-32
+# Mini-Welle Welle-6+7-Extension). Mirrors the Welle-4+5 CMD-AC layer
+# shape but specialised for the stateful-loop-paar bidirectional
+# contract:
+#
+# * subscribe_loop emits ack-records → recovery_workflow consumes.
+# * recovery_workflow R1..R4 Re-subscribe-triggers → subscribe_loop
+#   re-subscribes.
+#
+# Differences from Welle-4+5 CMD-AC:
+#
+# * Wire-form oracle set is singleton (``python-python-baseline``
+#   only). The Welle-4+5 mid-Doppel-Welle hypothetical
+#   ``python-rust-welle-4-only`` was meaningful because state_backing
+#   and lifecycle have a JCS-write/JCS-read contract that can be
+#   bisected at the producer side. The Welle-6+7 subscribe/recovery
+#   contract has no such bisectable mid-state — once subscribe_loop is
+#   Python and recovery_workflow is Rust (or vice-versa), the cursor-
+#   readback contract crosses an operationally-unreachable boundary.
+# * CMD-AC-6-7-3 stress-load is the joint subscribe-event-flood +
+#   simultaneous recovery-restart-points profile (2000 requests,
+#   matches DW-AC-4 Welle-6+7 baseline).
+# * CMD-AC-6-7-4 atomic-flip on recovery_workflow has the
+#   Phase-3c-Ende+1-week-delay risk surface (Welle-7 is the closing
+#   welle).
+# ---------------------------------------------------------------------------
+
+# CMD-AC-6-7-2 — Wire-form parity oracle set for Welle-6+7. Singleton
+# (python-python-baseline only) by design — the mid-Doppel-Welle
+# python-rust-welle-6-only state is operationally unreachable because
+# the subscribe/recovery contract crosses no bisectable schema
+# touchpoint.
+CROSS_MODUL_DRIFT_WELLE_6_7_WIRE_FORM_ORACLES: tuple[str, ...] = (
+    "python-python-baseline",
+)
+
+
+# ---------------------------------------------------------------------------
+# CMD-AC-6-7-1 — subscribe_loop ack-record → recovery_workflow consume
+# round-trip parity (with cursor-delta-survival).
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CrossModulDriftWelle6_7AckRoundTripRecord:
+    """One subscribe_loop→recovery_workflow ack-record round-trip record.
+
+    ``subscribe_loop-rust`` emits an ack-record (subscription-cursor
+    + per-subject-delta) to the NATS-JetStream substrate;
+    ``recovery_workflow-rust`` consumes the ack during restart-point
+    reconstruction.
+
+    CMD-AC-6-7-1 enforces:
+
+    * Producer-emitted ack-bytes equal consumer-deserialised-and-re-
+      serialised bytes (Rust-Rust byte-parity round-trip).
+    * Cursor-delta survives the round-trip (Bug-42-adjacent: a one-
+      byte cursor-drift causes recovery to compute a wrong restart-
+      point).
+    """
+
+    welle_pair: tuple[str, str]
+    ack_record_id: str
+    producer_ack_sha256: str
+    consumer_consumed_reserialized_sha256: str
+    cursor_delta_round_trip_ok: bool
+
+    @property
+    def is_round_trip_parity(self) -> bool:
+        return (
+            self.producer_ack_sha256
+            == self.consumer_consumed_reserialized_sha256
+            and self.cursor_delta_round_trip_ok
+        )
+
+
+@pytest.fixture
+def mocked_cross_modul_drift_welle_6_7_ack_round_trip() -> Callable[
+    ..., list[CrossModulDriftWelle6_7AckRoundTripRecord]
+]:
+    """Fixture returning a CMD-AC-6-7-1 ack-record round-trip builder.
+
+    Default builder produces round-trip-parity-by-construction. Tests
+    inject:
+
+    * ``drift_ack_ids`` — set of ack-record-ids that exhibit byte
+      drift between producer-emit and consumer-consume.
+    * ``cursor_delta_breakage_ids`` — set of ack-record-ids where
+      the cursor-delta field is dropped or rewritten on round-trip
+      (Bug-42-replay-class regression).
+    """
+
+    def _build(
+        modul_a: str,
+        modul_b: str,
+        ack_record_ids: tuple[str, ...] = (
+            "ack-cursor-0",
+            "ack-cursor-1",
+            "ack-cursor-2",
+            "ack-keepalive-snapshot",
+        ),
+        drift_ack_ids: tuple[str, ...] = (),
+        cursor_delta_breakage_ids: tuple[str, ...] = (),
+    ) -> list[CrossModulDriftWelle6_7AckRoundTripRecord]:
+        out: list[CrossModulDriftWelle6_7AckRoundTripRecord] = []
+        for ack_id in ack_record_ids:
+            producer_hash = _envelope_hash(
+                f"{modul_a}->{modul_b}",
+                0,
+                ack_id,
+                salt="cmd-ac-6-7-1-producer",
+            )
+            if ack_id in drift_ack_ids:
+                consumer_hash = _envelope_hash(
+                    f"{modul_a}->{modul_b}",
+                    0,
+                    ack_id,
+                    salt="cmd-ac-6-7-1-consumer-drift",
+                )
+            else:
+                consumer_hash = producer_hash
+            out.append(
+                CrossModulDriftWelle6_7AckRoundTripRecord(
+                    welle_pair=(modul_a, modul_b),
+                    ack_record_id=ack_id,
+                    producer_ack_sha256=producer_hash,
+                    consumer_consumed_reserialized_sha256=consumer_hash,
+                    cursor_delta_round_trip_ok=(
+                        ack_id not in cursor_delta_breakage_ids
+                    ),
+                )
+            )
+        return out
+
+    return _build
+
+
+# ---------------------------------------------------------------------------
+# CMD-AC-6-7-2 — recovery_workflow R1..R4 Re-subscribe-trigger wire-form
+# parity vs python-python-baseline.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CrossModulDriftWelle6_7ResubscribeRecord:
+    """One recovery_workflow→subscribe_loop R1..R4 Re-subscribe-trigger
+    wire-form record.
+
+    ``recovery_workflow-rust`` decides on a Re-subscribe-trigger (one
+    of R1..R4 from the recovery-runbook: R1 cold-start, R2 restart-
+    point-replay, R3 partial-replay, R4 fast-forward). The trigger
+    flows into ``subscribe_loop-rust`` as a Re-subscribe-request.
+
+    CMD-AC-6-7-2 enforces that the Rust-Rust trigger wire-form is
+    byte-identical to the ``python-python-baseline`` oracle (the pre-
+    Doppel-Welle-6+7 production state). Inverted direction vs Welle-
+    4+5 CMD-AC-2 (which compares state_backing producer-emit).
+    Singleton oracle-set per the conftest comment block above.
+    """
+
+    welle_pair: tuple[str, str]
+    trigger_id: str  # "R1" | "R2" | "R3" | "R4"
+    rust_rust_wire_sha256: str
+    oracle_wire_sha256_by_oracle: dict[str, str]
+
+    def matches_oracle(self, oracle: str) -> bool:
+        return (
+            self.rust_rust_wire_sha256
+            == self.oracle_wire_sha256_by_oracle.get(oracle)
+        )
+
+
+@pytest.fixture
+def mocked_cross_modul_drift_welle_6_7_resubscribe() -> Callable[
+    ..., list[CrossModulDriftWelle6_7ResubscribeRecord]
+]:
+    """Fixture returning a CMD-AC-6-7-2 R1..R4 Re-subscribe-trigger
+    wire-form record builder.
+
+    Default builder produces wire-form parity across all R1..R4
+    triggers vs the python-python-baseline oracle. Tests inject:
+
+    * ``drift_trigger_ids`` — subset of R1..R4 that diverges from
+      the python-python-baseline oracle.
+    * ``trigger_ids`` — override the default R1..R4 enumeration.
+    """
+
+    def _build(
+        modul_a: str,
+        modul_b: str,
+        trigger_ids: tuple[str, ...] = ("R1", "R2", "R3", "R4"),
+        drift_trigger_ids: tuple[str, ...] = (),
+    ) -> list[CrossModulDriftWelle6_7ResubscribeRecord]:
+        out: list[CrossModulDriftWelle6_7ResubscribeRecord] = []
+        for trig_id in trigger_ids:
+            rust_rust_hash = _envelope_hash(
+                f"{modul_a}->{modul_b}",
+                0,
+                trig_id,
+                salt="cmd-ac-6-7-2-rust-rust",
+            )
+            oracle_hashes: dict[str, str] = {}
+            for oracle in CROSS_MODUL_DRIFT_WELLE_6_7_WIRE_FORM_ORACLES:
+                if trig_id in drift_trigger_ids:
+                    oracle_hashes[oracle] = _envelope_hash(
+                        f"{modul_a}->{modul_b}",
+                        0,
+                        trig_id,
+                        salt=f"cmd-ac-6-7-2-{oracle}-drift",
+                    )
+                else:
+                    oracle_hashes[oracle] = rust_rust_hash
+            out.append(
+                CrossModulDriftWelle6_7ResubscribeRecord(
+                    welle_pair=(modul_a, modul_b),
+                    trigger_id=trig_id,
+                    rust_rust_wire_sha256=rust_rust_hash,
+                    oracle_wire_sha256_by_oracle=oracle_hashes,
+                )
+            )
+        return out
+
+    return _build
+
+
+# ---------------------------------------------------------------------------
+# CMD-AC-6-7-3 — Welle-6+7 joint stress-load per-Komponente consistency.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CrossModulDriftWelle6_7PerKomponenteConsistencyRecord:
+    """One Welle-6+7 joint stress-load per-Komponente consistency record.
+
+    Mirrors ``CrossModulDriftPerKomponenteConsistencyRecord`` (Welle-
+    4+5 CMD-AC-3) but specialised for the Welle-6+7 stress profile:
+    subscribe-event-flood + simultaneous recovery-restart-points.
+    Both per-Komponente rates must clear the
+    ``CROSS_MODUL_DRIFT_CONSISTENCY_PCT_FLOOR`` (0.995) floor; the
+    joint-pair-rate is computed as the ``min()`` of the two for gate-
+    evaluation purposes.
+    """
+
+    welle_pair: tuple[str, str]
+    total_request_count: int
+    modul_a_consistency_rate: float
+    modul_b_consistency_rate: float
+
+    @property
+    def joint_consistency_rate(self) -> float:
+        return min(
+            self.modul_a_consistency_rate, self.modul_b_consistency_rate
+        )
+
+
+@pytest.fixture
+def mocked_cross_modul_drift_welle_6_7_per_komponente_consistency() -> (
+    Callable[
+        ..., CrossModulDriftWelle6_7PerKomponenteConsistencyRecord
+    ]
+):
+    """Fixture returning a CMD-AC-6-7-3 per-Komponente consistency builder.
+
+    Default builder produces both rates at 0.999 (above 0.995 floor).
+    Tests inject ``modul_a_rate`` / ``modul_b_rate`` overrides to
+    exercise the per-Komponente floor logic.
+    """
+
+    def _build(
+        modul_a: str,
+        modul_b: str,
+        total: int = 2000,
+        modul_a_rate: float = 0.999,
+        modul_b_rate: float = 0.999,
+    ) -> CrossModulDriftWelle6_7PerKomponenteConsistencyRecord:
+        return CrossModulDriftWelle6_7PerKomponenteConsistencyRecord(
+            welle_pair=(modul_a, modul_b),
+            total_request_count=total,
+            modul_a_consistency_rate=modul_a_rate,
+            modul_b_consistency_rate=modul_b_rate,
+        )
+
+    return _build
+
+
+# ---------------------------------------------------------------------------
+# CMD-AC-6-7-4 — Welle-6+7 atomic-flip rollback record.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CrossModulDriftWelle6_7AtomicFlipRecord:
+    """One Welle-6+7 drift-triggered atomic-flip rollback record.
+
+    Mirrors ``CrossModulDriftAtomicFlipRecord`` (Welle-4+5 CMD-AC-4)
+    with the Welle-6+7-specific risk surface: a recovery_workflow
+    rollback delays Phase-3c-Ende by +1 week (Welle-7 is the closing
+    welle). The ``phase_3c_ende_delay_weeks`` field carries the
+    operational-impact-classification for the gate to surface in the
+    error message.
+
+    Gates:
+
+    * ``measured_drift_pct > CROSS_MODUL_DRIFT_ROLLBACK_PCT_
+      THRESHOLD`` (0.5pp).
+    * ``post_flip_backend_per_modul`` — high-drift modul on
+      ``python``, partner modul on ``rust``.
+    * ``flip_elapsed_seconds`` ≤ ``ROLLBACK_SLA_SECONDS`` (600s).
+    * ``flip_was_atomic`` — single ``systemctl restart`` cycle.
+    """
+
+    welle_pair: tuple[str, str]
+    high_drift_modul: str
+    measured_drift_pct: float
+    threshold_drift_pct: float
+    flip_elapsed_seconds: float
+    flip_was_atomic: bool
+    post_flip_backend_per_modul: dict[str, str]
+    phase_3c_ende_delay_weeks: int
+
+
+@pytest.fixture
+def mocked_cross_modul_drift_welle_6_7_atomic_flip() -> Callable[
+    ..., CrossModulDriftWelle6_7AtomicFlipRecord
+]:
+    """Fixture returning a CMD-AC-6-7-4 atomic-flip record builder.
+
+    Default builder produces a successful atomic-flip on subscribe_
+    loop (drift 0.8pp, elapsed 180s, atomic True, recovery stays
+    rust → 0-week Phase-3c-Ende-delay). Tests inject:
+
+    * ``high_drift_modul="recovery_workflow"`` to flip the closing
+      welle (delay-weeks=1 surfaces in the gate-error).
+    * ``measured_drift_pct=0.35`` to exercise the sub-threshold-
+      spurious-rollback rejection.
+    * ``flip_elapsed_seconds=700`` to exercise the SLA-violation
+      path.
+    * ``partner_also_flipped=True`` to exercise the contagious-
+      rollback rejection.
+    """
+
+    def _build(
+        modul_a: str,
+        modul_b: str,
+        high_drift_modul: str,
+        measured_drift_pct: float = 0.8,
+        flip_elapsed_seconds: float = 180.0,
+        flip_was_atomic: bool = True,
+        partner_also_flipped: bool = False,
+    ) -> CrossModulDriftWelle6_7AtomicFlipRecord:
+        partner = modul_b if high_drift_modul == modul_a else modul_a
+        post_state = {modul: "python" for _, modul in WELLE_ORDER}
+        if not partner_also_flipped:
+            post_state[partner] = "rust"
+        # Phase-3c-Ende-Delay-Classification: a recovery_workflow
+        # rollback delays the closing-cutover by +1 week.
+        delay_weeks = 1 if high_drift_modul == "recovery_workflow" else 0
+        return CrossModulDriftWelle6_7AtomicFlipRecord(
+            welle_pair=(modul_a, modul_b),
+            high_drift_modul=high_drift_modul,
+            measured_drift_pct=measured_drift_pct,
+            threshold_drift_pct=CROSS_MODUL_DRIFT_ROLLBACK_PCT_THRESHOLD,
+            flip_elapsed_seconds=flip_elapsed_seconds,
+            flip_was_atomic=flip_was_atomic,
+            post_flip_backend_per_modul=post_state,
+            phase_3c_ende_delay_weeks=delay_weeks,
+        )
+
+    return _build
