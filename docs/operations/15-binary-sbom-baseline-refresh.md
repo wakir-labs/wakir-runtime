@@ -17,6 +17,45 @@ Mira-Notify event is emitted with `severity=page` (RED) or
 This runbook is what the operator runs when AR has approved the
 new dependency-tree state and the baseline must be refreshed.
 
+## Tag-50 — automated path
+
+The Tag-50 refresh CLI
+(`scripts/observability/refresh-15-binary-sbom-baseline.py`)
+collapses the seven-step manual sequence below into a single
+invocation guarded by an `--approval-token` argument:
+
+```bash
+# Dry-run preview (no state mutation, no token required):
+python3 scripts/observability/refresh-15-binary-sbom-baseline.py \
+    --dry-run \
+    --receipt-out /tmp/refresh-preview.json
+
+# Live refresh (token required, format checked client-side):
+python3 scripts/observability/refresh-15-binary-sbom-baseline.py \
+    --approval-token AR-HAND-GATE-2026-05-19-fred \
+    --receipt-out state/sbom-baseline-refresh-receipts/$(date -u +%Y%m%dT%H%M%SZ)-receipt.json
+```
+
+The CLI:
+
+1. Runs the Tag-48 generator with `--generator-ts 0.0` (deterministic).
+2. Runs the Tag-49 verifier in pre-refresh mode → captures drift.
+3. Blocks if `checksum-changed` drift is present unless
+   `--allow-checksum-changed` is also supplied.
+4. Copies the generated SBOMs into `state/sbom-baseline/`.
+5. Re-runs the verifier — asserts `GREEN`.
+6. Emits a refresh-receipt JSON capturing the AR token + drift
+   summary + cargo-lock-sha256 before/after.
+
+The CI surface is `.github/workflows/sbom-baseline-refresh.yml`
+(workflow_dispatch only — NEVER scheduled). The workflow runs
+the same CLI; the operator clicks "Run workflow" in the Actions
+tab and supplies the token + dry-run flag.
+
+The seven-step manual sequence below remains valid as the
+fallback procedure (e.g. when the CLI itself needs debugging)
+and as the authoritative narrative of the refresh semantics.
+
 ## When NOT to run this
 
 - The daily verifier is YELLOW/RED, but no AR sign-off for the

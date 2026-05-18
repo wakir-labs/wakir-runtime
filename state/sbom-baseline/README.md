@@ -38,6 +38,12 @@ deterministic embedded metadata).
 See `docs/operations/15-binary-sbom-baseline-refresh.md`. The
 refresh is Operator-Hand only, gated by AR sign-off.
 
+Tag-50 introduced the automated CLI
+(`scripts/observability/refresh-15-binary-sbom-baseline.py`) and
+the `workflow_dispatch`-only workflow
+(`.github/workflows/sbom-baseline-refresh.yml`). Receipts land
+in `state/sbom-baseline-refresh-receipts/` for the audit trail.
+
 ## Do NOT edit by hand
 
 These files are emitted by the generator. Hand-editing breaks the
