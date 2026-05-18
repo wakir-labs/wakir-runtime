@@ -1,0 +1,282 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# 15-Binary SBOM-vs-Baseline Verification Daily Workflow (Tag-49, Kai)
+# -------------------------------------------------------------------
+#
+# Purpose
+# -------
+#
+# Tag-48 PR #310 introduced the 15-binary SBOM generator. It emits
+# fresh SBOMs every morning at 07:00 UTC. What PR #310 does NOT do
+# is compare today's SBOMs against a baseline: the operator can
+# read the SBOM but cannot answer "did anything change since
+# AR-Hand-Gate sign-off?".
+#
+# This Tag-49 verification workflow runs the Tag-48 generator under
+# the same hermetic --mode=stdlib path (no live cargo / network),
+# then compares each per-binary SBOM against
+# state/sbom-baseline/<binary>.json. The verdict classification:
+#
+#   * GREEN  -- every binary matches its baseline on the comparable
+#               fields (components, versions, checksums).
+#   * YELLOW -- one or more binaries have component-added /
+#               component-removed / version-changed drift.
+#   * RED    -- one or more binaries have checksum-changed drift,
+#               OR a baseline is missing, OR the cargo-lock-sha256
+#               in any SBOM differs from the aggregate's value.
+#
+# On non-GREEN aggregate the workflow emits a Mira-Notify event via
+# scripts/observability/mira-notify-emitter.py so the operator
+# inbox surfaces the drift. The notify-event severity is mapped
+# from the verdict:
+#
+#   * RED    -> severity=page    (Mira-Hand-inbox high + ntfy + AR)
+#   * YELLOW -> severity=warning (Mira-Hand-inbox normal + ntfy)
+#
+# Schedule offset
+# ---------------
+#
+# Daily at 07:30 UTC -- offset 30min after the Tag-48 generator at
+# 07:00 UTC so the daily cadence is:
+#
+#   06:00 UTC  pre-cutover-daily-probe
+#   06:30 UTC  cosign-keyless-oidc-drift-probe
+#   07:00 UTC  15-binary-sbom-daily      (Tag-48 generator)
+#   07:30 UTC  sbom-verification-daily   (this workflow)
+#
+# An operator scanning the morning's Job-Summary pages sees four
+# distinct, non-overlapping blocks each covering a different
+# integrity-axis: substrate-health, cosign-time-axis, dependency-
+# tree-snapshot, dependency-tree-drift-vs-baseline.
+#
+# Sandbox posture
+# ---------------
+#
+# Strict hermetic: stdlib + tomllib only. No podman / cargo /
+# cosign / network egress. Re-uses the Tag-48 generator parser via
+# importlib.util so the dependency surface is exactly that of
+# PR #310.
+#
+# Audit-Trail anchor
+# ------------------
+#
+# ADR-0066 §AR-Hand-Gate requires a full provenance bundle at the
+# pre-cutover hand-off. The Tag-48 SBOM provides the snapshot;
+# this Tag-49 verifier provides the *delta-vs-pinned-baseline*
+# axis. The operator reads the GREEN aggregate verdict as
+# "dependency-tree byte-stable since last AR sign-off".
+#
+# Trigger surface
+# ---------------
+#
+#   * schedule: cron "30 7 * * *" -- daily at 07:30 UTC.
+#   * workflow_dispatch -- operator-hand manual invocation, with
+#     an optional exit-non-zero-on-drift flag for ad-hoc blocking.
+#   * push (path-filtered) -- any change to verifier script,
+#     test file, baseline files, generator script, or workflow
+#     re-runs verification so substrate-side breakage surfaces on
+#     PR base before merge.
+#   * pull_request (path-filtered) -- same path-filter so PRs
+#     touching these files run the verifier in dry-run before merge.
+#
+# Not a required status check
+# ---------------------------
+#
+# Per feedback_branch_protection_check_names.md this workflow
+# tracks a daily delta signal, not individual PR acceptance. It is
+# NOT listed as a required status check on PRs; it surfaces signal
+# only via Job-Summary + artefact + Mira-Notify emission.
+
+name: sbom-verification-daily
+
+on:
+  schedule:
+    - cron: "30 7 * * *"
+  workflow_dispatch:
+    inputs:
+      exit_non_zero_on_drift:
+        description: "Exit non-zero on aggregate non-GREEN (true|false)."
+        required: false
+        default: "false"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/observability/verify-15-binary-sbom-against-baseline.py"
+      - "scripts/observability/generate-15-binary-sbom.py"
+      - "scripts/observability/mira-notify-emitter.py"
+      - "tests/observability/test_verify_15_binary_sbom_against_baseline.py"
+      - "state/sbom-baseline/**"
+      - "wirelang-rust/Cargo.lock"
+      - "wirelang-rust/Cargo.toml"
+      - ".github/workflows/sbom-verification-daily.yml"
+  pull_request:
+    paths:
+      - "scripts/observability/verify-15-binary-sbom-against-baseline.py"
+      - "scripts/observability/generate-15-binary-sbom.py"
+      - "scripts/observability/mira-notify-emitter.py"
+      - "tests/observability/test_verify_15_binary_sbom_against_baseline.py"
+      - "state/sbom-baseline/**"
+      - "wirelang-rust/Cargo.lock"
+      - "wirelang-rust/Cargo.toml"
+      - ".github/workflows/sbom-verification-daily.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sbom-verification-daily
+  cancel-in-progress: false
+
+jobs:
+  verify-sbom:
+    name: 15-Binary SBOM-vs-Baseline Verifier (daily)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Run hermetic verifier tests
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check \
+              'pytest==9.0.3'
+          python3 -m pytest -v \
+              tests/observability/test_verify_15_binary_sbom_against_baseline.py
+
+      - name: Resolve dispatch inputs
+        id: inputs
+        env:
+          INPUT_EXIT_NONZERO: ${{ github.event.inputs.exit_non_zero_on_drift }}
+        run: |
+          set -euo pipefail
+          exit_flag=""
+          if [ "${INPUT_EXIT_NONZERO:-false}" = "true" ]; then
+            exit_flag="--exit-non-zero-on-drift"
+          fi
+          echo "exit_flag=${exit_flag}" >> "${GITHUB_OUTPUT}"
+
+      - name: Generate today's 15-binary SBOM bundle (stdlib mode)
+        id: generate
+        run: |
+          set -euo pipefail
+          mkdir -p out/sbom out/sbom-verification
+          python3 scripts/observability/generate-15-binary-sbom.py \
+              --cargo-lock wirelang-rust/Cargo.lock \
+              --out-dir out/sbom \
+              --out-envelope out/sbom/envelope.json \
+              --format cyclonedx-1.5 \
+              --mode stdlib \
+            > out/sbom/stdout.txt
+          # Sanity check: exactly 15 SBOM JSON files written.
+          count=$(find out/sbom -name "*.cdx.json" -type f | wc -l)
+          echo "sbom_count=${count}" >> "${GITHUB_OUTPUT}"
+          if [ "${count}" -ne 15 ]; then
+            echo "Expected 15 SBOM files, got ${count}." >&2
+            exit 1
+          fi
+
+      - name: Run SBOM-vs-baseline verifier
+        id: verify
+        env:
+          EXIT_FLAG: ${{ steps.inputs.outputs.exit_flag }}
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086
+          python3 scripts/observability/verify-15-binary-sbom-against-baseline.py \
+              --sbom-dir out/sbom \
+              --baseline-dir state/sbom-baseline \
+              --out-json out/sbom-verification/envelope.json \
+              --out-textfile out/sbom-verification/textfile.prom \
+              --out-markdown out/sbom-verification/summary.md \
+              ${EXIT_FLAG} \
+            > out/sbom-verification/stdout.txt
+          # Extract aggregate verdict for downstream notify step.
+          verdict=$(python3 -c 'import json; print(json.load(open("out/sbom-verification/envelope.json"))["verdict"])')
+          echo "aggregate_verdict=${verdict}" >> "${GITHUB_OUTPUT}"
+
+      - name: Render Job-Summary
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -f out/sbom-verification/summary.md ]; then
+            cat out/sbom-verification/summary.md >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "## SBOM-Verification — Run failed before summary." \
+                >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Upload SBOM-verification envelope + textfile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-verification-${{ github.run_id }}
+          path: out/sbom-verification/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Map verdict to notify severity
+        id: notify-map
+        if: ${{ steps.verify.outputs.aggregate_verdict != 'GREEN' }}
+        env:
+          VERDICT: ${{ steps.verify.outputs.aggregate_verdict }}
+        run: |
+          set -euo pipefail
+          case "${VERDICT}" in
+            RED)    severity="page" ;;
+            YELLOW) severity="warning" ;;
+            *)      severity="info" ;;
+          esac
+          echo "severity=${severity}" >> "${GITHUB_OUTPUT}"
+
+      - name: Emit Mira-Notify event on non-GREEN aggregate
+        if: ${{ steps.verify.outputs.aggregate_verdict != 'GREEN' }}
+        env:
+          VERDICT: ${{ steps.verify.outputs.aggregate_verdict }}
+          SEVERITY: ${{ steps.notify-map.outputs.severity }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          summary="15-binary SBOM-vs-baseline verdict ${VERDICT}; see run for drift detail."
+          # Extract counts from envelope for richer notify body.
+          counts=$(python3 -c '
+          import json
+          e = json.load(open("out/sbom-verification/envelope.json"))
+          print(
+              "ok=" + str(e["binaries_ok"])
+              + " yellow=" + str(e["binaries_yellow"])
+              + " red=" + str(e["binaries_red"])
+              + " missing=" + str(e["binaries_missing"])
+          )
+          ')
+          description="Aggregate verdict ${VERDICT} (${counts}). Run: ${RUN_URL}"
+          python3 scripts/observability/mira-notify-emitter.py emit \
+              --alert-name "SBOMVerificationDrift" \
+              --severity "${SEVERITY}" \
+              --summary "${summary}" \
+              --description "${description}" \
+              --runbook "https://github.com/${REPO}/blob/main/docs/operations/15-binary-sbom-baseline-refresh.md" \
+              --labels "verdict=${VERDICT}" "workflow=sbom-verification-daily" \
+              --source "sbom-verification-daily-workflow" \
+              --stdout
+          echo "::warning::SBOM-Verification aggregate verdict is ${VERDICT}"
+          echo "Run URL: ${RUN_URL}"
+
+      - name: Upload notify-log artefact
+        if: ${{ always() && steps.verify.outputs.aggregate_verdict != 'GREEN' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-verification-notify-${{ github.run_id }}
+          path: infra/notify-log.jsonl
+          retention-days: 30
+          if-no-files-found: warn
