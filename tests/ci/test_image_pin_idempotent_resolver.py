@@ -628,14 +628,17 @@ def test_persona_engine_version_label_in_containerfile_real() -> None:
     """The Containerfile.real must declare the current image version
     so the GHCR tag and the OCI label match (audit-invariant).
 
-    Sprint-Pengine-13 bump: 0.4.2-pilot -> 0.5.0-pilot for Bug-42
-    subscribe-mode-selector + iterator-fix. The image-tag rotation
-    follows the engine-version bump byte-for-byte (Tomás Sprint-10
-    Tag-4 image-pin-idempotent-resolver invariant).
+    Sprint-Pengine-14 / Tag-45 bump: 0.5.0-pilot -> 0.5.0-pre-cutover
+    for the Phase-3a/3b Doppelbetrieb engine consolidation
+    (manifest at wirelang/persona_engine/MANIFEST-0.5.0-pre-cutover.md
+    + pin pack at infra/persona-engine/pin-pack-0.5.0-pre-cutover.yaml).
+    The engine code itself is byte-stable relative to Sprint-Pengine-13;
+    the container-tag rotation tracks the consolidation milestone
+    (Tomás Sprint-10 Tag-4 image-pin-idempotent-resolver invariant).
     """
     cf = REPO_ROOT / "infra" / "persona-engine" / "Containerfile.real"
     text = cf.read_text(encoding="utf-8")
-    assert 'org.opencontainers.image.version="0.5.0-pilot"' in text
+    assert 'org.opencontainers.image.version="0.5.0-pre-cutover"' in text
 
 
 def test_real_shim_dispatches_to_cli_main() -> None:
