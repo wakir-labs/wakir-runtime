@@ -422,7 +422,13 @@ jobs:
         env:
           PRODUCTION_COUNT: ${{ needs.production-suite.outputs.collected }}
           SANDBOX_COUNT: ${{ needs.sandbox-suite-shadow.outputs.collected }}
-          EXPECTED_DELTA: '425'
+          # Tag-45 (2026-05-18, Selin): re-baselined 425 -> 448 because
+          # the new `test_manifest_0_5_0_pre_cutover.py` adds 23
+          # PyYAML-gated tests (the pin-pack loader uses
+          # pytest.importorskip("yaml") so all 23 collect in the
+          # production lane but skip in the sandbox lane, lifting the
+          # delta by exactly 23).
+          EXPECTED_DELTA: '448'
           DELTA_TOLERANCE: '5'
         run: |
           python - <<'PY'
