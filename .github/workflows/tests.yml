@@ -428,7 +428,18 @@ jobs:
           # pytest.importorskip("yaml") so all 23 collect in the
           # production lane but skip in the sandbox lane, lifting the
           # delta by exactly 23).
-          EXPECTED_DELTA: '448'
+          # Tag-48 (2026-05-19, Selin): re-baselined 448 -> 493 because
+          # the Tag-48 bridge-audit-writer wire-in adds two new
+          # PyYAML-gated test modules:
+          #   - test_bridge_audit_writer_wire_in_tag48.py: 25 tests
+          #   - test_manifest_0_5_1_pre_cutover.py: 23 tests
+          # Both modules use pytest.importorskip("yaml") for the
+          # 0.5.1-pre-cutover pin-pack/manifest loader, so all 48
+          # collect in production but skip in sandbox -- the delta
+          # lifts by exactly 45 (48 minus 3 superseded tests on
+          # `test_manifest_0_5_0_pre_cutover.py` that no longer
+          # parametrise the 10th record as "scaffolded-only").
+          EXPECTED_DELTA: '493'
           DELTA_TOLERANCE: '5'
         run: |
           python - <<'PY'

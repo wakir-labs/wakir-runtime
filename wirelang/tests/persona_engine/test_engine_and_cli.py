@@ -152,14 +152,18 @@ def test_engine_despawn_clean_returns_uninstantiated(tmp_path):
 
 @requires_v907_compute_deps
 def test_engine_boot_records_nine_backend_decisions(tmp_path):
-    """Tag-30 wire-in: boot() resolves NINE BackendDecisions in order
+    """Tag-48 wire-in: boot() resolves TEN BackendDecisions in order
     (recovery + state_backing + fsm + v907_verify + bridge_diff +
     subscribe_loop + anchor_emitter + svid_workload_identity +
-    federation_resolver). Verifies the per-boot Doppelbetrieb-anchor
-    count grew from 8 (Tag-25) to 9 (Tag-30) with the federation-
-    resolver wire-in — the **9th** production-default-switch component.
-    The Phase-3b production-default-switch contract surface is closed
-    at nine components with this wire-in.
+    federation_resolver + bridge_audit_writer). Verifies the per-boot
+    Doppelbetrieb-anchor count grew from 9 (Tag-30) to 10 (Tag-48)
+    with the bridge-audit-writer wire-in — the **10th** production-
+    default-switch component. The Phase-3b production-default-switch
+    contract surface is closed at ten components with this wire-in.
+
+    The function name retains the historical 'nine' marker so the
+    CHECKS registry / test discovery stays stable; the substance is
+    'all configured records present'.
 
     Each decision is the python-default with no fallback (env-clean
     test environment), and all carry resolution_latency_us >= 0.
@@ -234,10 +238,27 @@ def test_engine_boot_records_nine_backend_decisions(tmp_path):
         engine._federation_resolver_backend_decision.bin_path is None
     )
 
+    # Tag-48: 10th BackendDecision record — bridge_audit_writer.
+    assert (
+        engine._bridge_audit_writer_backend_decision.domain
+        == "bridge_audit_writer"
+    )
+    assert (
+        engine._bridge_audit_writer_backend_decision.chosen_backend
+        == "python"
+    )
+    assert (
+        engine._bridge_audit_writer_backend_decision.resolution_latency_us
+        >= 0
+    )
+    assert (
+        engine._bridge_audit_writer_backend_decision.bin_path is None
+    )
+
     # The log_sink carries one backend-decision line per domain. Count
-    # those to verify nine were emitted (recovery + state_backing + fsm
+    # those to verify ten were emitted (recovery + state_backing + fsm
     # + v907_verify + bridge_diff + subscribe_loop + anchor_emitter +
-    # svid_workload_identity + federation_resolver).
+    # svid_workload_identity + federation_resolver + bridge_audit_writer).
     log = engine.log_sink.getvalue()
     domains = set()
     for line in log.splitlines():
@@ -257,7 +278,8 @@ def test_engine_boot_records_nine_backend_decisions(tmp_path):
         "anchor_emitter",
         "svid_workload_identity",
         "federation_resolver",
-    }, f"expected nine BackendDecision records, got {sorted(domains)}"
+        "bridge_audit_writer",
+    }, f"expected ten BackendDecision records, got {sorted(domains)}"
 
 
 # -------------------- CLI parser --------------------

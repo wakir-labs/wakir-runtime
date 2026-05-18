@@ -1,0 +1,153 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# Licensed under the Business Source License 1.1; see ./LICENSE-BSL.md.
+# Change Date: 2030-05-15. Change License: Apache License 2.0.
+#
+# Wakir Persona-Engine — Cross-Language Pin Pack
+# ==============================================
+#
+# Tag-48 (2026-05-19). Phase-3a pre-cutover Rust-crate pin set for
+# the 0.5.1-pre-cutover engine release — the wire-in of the 10th
+# BackendDecision record (bridge-audit-writer) on top of the
+# Tag-45 0.5.0-pre-cutover anchor.
+#
+# This file is the machine-readable counterpart to
+# `wirelang/persona_engine/MANIFEST-0.5.1-pre-cutover.md` §3. It is
+# consumed by:
+#
+#   * `wirelang/tests/persona_engine/test_manifest_0_5_1_pre_cutover.py`
+#     — hermetic integrity tests verify each crate's Cargo.toml
+#     version matches the pinned version below.
+#
+#   * `wirelang/tests/persona_engine/test_bridge_audit_writer_wire_in_tag48.py`
+#     — hermetic Tag-48 wire-in tests verify the boot fan-out
+#     consults the 10th resolver and the pin-pack agrees that record
+#     #10 is wired, not held back.
+#
+#   * `.github/workflows/cross-substrate-parity-gate.yml` — the
+#     cross-substrate gate cross-checks the manifest table against
+#     this file and fails if the two diverge.
+#
+# Edit discipline
+# ---------------
+# Bumping a crate version here is an ADR-level decision: the
+# Phase-3a Doppelbetrieb gate hashes the joint pin set, and a bump
+# changes the parity fingerprint. Do not edit casually.
+
+manifest_version: "0.5.1-pre-cutover"
+manifest_path: "wirelang/persona_engine/MANIFEST-0.5.1-pre-cutover.md"
+tag: 48
+emitted_utc: "2026-05-19"
+
+# Wired into the boot sequence (records #1–10 in §1). Record #10
+# (bridge-audit-writer) is new in 0.5.1-pre-cutover; records #1–9
+# are byte-stable vs. 0.5.0-pre-cutover.
+boot_wired_crates:
+  - name: persona-engine-recovery
+    version: "0.1.0"
+    record: 1
+    python_authority: wirelang.persona_engine.recovery_workflow
+    selector_env: WAKIR_RECOVERY_BACKEND
+    binary_env: WAKIR_RUST_RECOVERY_BIN
+    fixtures: tests/fixtures/recovery-workflow-cross-lang/fixtures.json
+  - name: persona-engine-state-backing
+    version: "0.1.0"
+    record: 2
+    python_authority: wirelang.persona_engine.state_backing
+    selector_env: WAKIR_STATE_BACKING_BACKEND
+    binary_env: WAKIR_RUST_STATE_BACKING_BIN
+    fixtures: tests/fixtures/state-backing-cross-lang/fixtures.json
+  - name: persona-engine-fsm
+    version: "0.1.0"
+    record: 3
+    python_authority: wirelang.persona_engine.lifecycle_state_machine
+    selector_env: WAKIR_FSM_BACKEND
+    binary_env: WAKIR_RUST_FSM_BIN
+    fixtures: tests/fixtures/lifecycle-state-machine-cross-lang/fixtures.json
+  - name: persona-engine-v907-verify
+    version: "0.1.0"
+    record: 4
+    python_authority: wirelang.persona_engine.v907_verify
+    selector_env: WAKIR_V907_VERIFY_BACKEND
+    binary_env: WAKIR_RUST_V907_VERIFY_BIN
+    fixtures: tests/fixtures/v907-verify-cross-lang/fixtures.json
+  - name: persona-engine-bridge-diff
+    version: "0.1.0"
+    record: 5
+    python_authority: wirelang.persona_engine.bridge_audit_diff_engine
+    selector_env: WAKIR_BRIDGE_DIFF_BACKEND
+    binary_env: WAKIR_RUST_BRIDGE_DIFF_BIN
+    fixtures: tests/fixtures/bridge-audit-diff-engine-cross-lang/fixtures.json
+  - name: persona-engine-subscribe-loop
+    version: "0.1.0"
+    record: 6
+    python_authority: wirelang.persona_engine.subscribe_ack
+    selector_env: WAKIR_SUBSCRIBE_LOOP_BACKEND
+    binary_env: WAKIR_RUST_SUBSCRIBE_LOOP_BIN
+    fixtures: tests/fixtures/subscribe-loop-cross-lang/fixtures.json
+  - name: persona-engine-anchor-emitter
+    version: "0.1.0"
+    record: 7
+    python_authority: wirelang.persona_engine.anchor_emitter
+    selector_env: WAKIR_ANCHOR_EMITTER_BACKEND
+    binary_env: WAKIR_RUST_ANCHOR_EMITTER_BIN
+    fixtures: tests/fixtures/anchor-emitter-cross-lang/fixtures.json
+  - name: persona-engine-svid-workload-identity
+    version: "0.1.0"
+    record: 8
+    python_authority: wirelang.persona_engine.svid_workload_identity
+    selector_env: WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND
+    binary_env: WAKIR_RUST_SVID_WORKLOAD_IDENTITY_BIN
+    fixtures: tests/fixtures/svid-workload-cross-lang/fixtures.json
+  - name: persona-engine-federation-resolver
+    version: "0.1.0"
+    record: 9
+    python_authority: wirelang.identity.federation_resolver_canonical
+    selector_env: WAKIR_FEDERATION_RESOLVER_BACKEND
+    binary_env: WAKIR_RUST_FEDERATION_RESOLVER_BIN
+    fixtures: tests/fixtures/federation-resolver-cross-lang/fixtures.json
+  - name: persona-engine-bridge-audit-writer
+    version: "0.1.0"
+    record: 10
+    python_authority: wirelang.persona_engine.bridge_audit_writer
+    selector_env: WAKIR_BRIDGE_AUDIT_WRITER_BACKEND
+    binary_env: WAKIR_RUST_BRIDGE_AUDIT_WRITER_BIN
+    fixtures: tests/fixtures/bridge-audit-writer-cross-lang/fixtures.json
+
+# Phase-3a substrates that ship at parity but are not wired into
+# the boot fan-out (consumed lazily from the Python authority side).
+boot_unwired_crates:
+  - name: persona-engine-bridge-audit-replay
+    version: "0.1.0"
+    note: "Replay-side oracle for Phase-3a Doppelbetrieb comparison."
+    fixtures: tests/fixtures/bridge-audit-replay-cross-lang/fixtures.json
+  - name: persona-engine-anchor-submit-worker
+    version: "0.1.0"
+    note: "WAT-spool sibling; OTS-anchor emission worker."
+    fixtures: tests/fixtures/anchor-submit-worker-cross-lang/fixtures.json
+  - name: persona-engine-frontmatter-parser
+    version: "0.1.0"
+    note: "Persona-definition YAML frontmatter parser (Tag-34)."
+    fixtures: tests/fixtures/frontmatter-parser-cross-lang/fixtures.json
+  - name: persona-engine-bridge-forward
+    version: "0.1.0"
+    note: "Bridge-forward pipe Python<->Rust cross-lang parity."
+    fixtures: tests/fixtures/bridge-forward-cross-lang/fixtures.json
+  - name: persona-engine-federation-frame-parser
+    version: "0.1.0"
+    note: "Federation-frame parser; canonical-form oracle."
+    fixtures: ~
+
+# Cross-cutting timeout knob; uniform across every Rust subprocess.
+cross_backend:
+  timeout_env: WAKIR_RUST_BACKEND_TIMEOUT_S
+  default_timeout_s: 30
+
+# Invariants the hermetic test suite enforces.
+invariants:
+  total_wired_crates: 10
+  total_pin_pack_crates: 15
+  boot_record_count: 10
+  manifest_present: "wirelang/persona_engine/MANIFEST-0.5.1-pre-cutover.md"
+  containerfile_image_tag: "0.5.1-pre-cutover"

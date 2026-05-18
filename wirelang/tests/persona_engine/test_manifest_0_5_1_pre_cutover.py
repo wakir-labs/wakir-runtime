@@ -1,30 +1,27 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic Tag-45 manifest-integrity tests for the 0.5.0-pre-cutover engine.
+"""Hermetic Tag-48 manifest-integrity tests for the 0.5.1-pre-cutover engine.
 
-These tests pin the byte-shape of the Tag-45 Persona-Engine
-consolidation as a historical anchor for the Phase-3a Doppelbetrieb
-regression-comparison baseline:
+These tests pin the byte-shape of the Tag-48 Persona-Engine
+bridge-audit-writer wire-in:
 
-* `wirelang/persona_engine/MANIFEST-0.5.0-pre-cutover.md` — the
-  human/machine manifest with the 9-component inventory, the
+* `wirelang/persona_engine/MANIFEST-0.5.1-pre-cutover.md` — the
+  human/machine manifest with the 10-component inventory, the
   ENV-flag schema, the 15-crate pin pack, and the boot diagram.
-* `infra/persona-engine/pin-pack-0.5.0-pre-cutover.yaml` — the
+* `infra/persona-engine/pin-pack-0.5.1-pre-cutover.yaml` — the
   machine-readable counterpart.
-
-Tag-48 supersedes the Tag-45 anchor — the live Containerfile now
-references the 0.5.1-pre-cutover manifest (10 BackendDecision
-records, bridge-audit-writer wired in). The 0.5.0 manifest + pin
-pack remain in-tree byte-stable as the regression-comparison
-baseline; the Containerfile-related tests below were retired with
-Tag-48 (the live Containerfile is gated by
-``test_manifest_0_5_1_pre_cutover.py``).
+* `infra/persona-engine/Containerfile.real` — the version bump to
+  ``0.5.1-pre-cutover``.
 
 Why this matters
 ----------------
 The Phase-3a/3b Doppelbetrieb parity gate hashes a fingerprint of
-the joint state — manifest + pin pack — and any silent drift in
-the historical anchor would break the regression comparison.
+the joint state — manifest + pin pack + Containerfile tag — and any
+silent drift between the three sources would break the cutover.
+The 23 hermetic tests below assert that the three sources agree on
+every load-bearing field — and that the new 10th record
+(``bridge-audit-writer``) is present and consistent across all
+three.
 
 100% hermetic: no network, no subprocess, no Rust binary. Pure file
 inspection + YAML parse.
@@ -37,9 +34,6 @@ from pathlib import Path
 
 import pytest
 
-# PyYAML is part of the runtime extra; the "without rfc8785 /
-# jsonschema" CI lane installs the minimal substrate without the
-# extra, so we skip pin-pack-loading tests gracefully there.
 yaml = pytest.importorskip(
     "yaml",
     reason="PyYAML not available in this lane; pin-pack tests skipped.",
@@ -55,22 +49,22 @@ MANIFEST_PATH = (
     REPO_ROOT
     / "wirelang"
     / "persona_engine"
-    / "MANIFEST-0.5.0-pre-cutover.md"
+    / "MANIFEST-0.5.1-pre-cutover.md"
 )
 PIN_PACK_PATH = (
     REPO_ROOT
     / "infra"
     / "persona-engine"
-    / "pin-pack-0.5.0-pre-cutover.yaml"
+    / "pin-pack-0.5.1-pre-cutover.yaml"
 )
 CONTAINERFILE_PATH = (
     REPO_ROOT / "infra" / "persona-engine" / "Containerfile.real"
 )
 CRATES_ROOT = REPO_ROOT / "wirelang-rust" / "crates"
 
-EXPECTED_IMAGE_TAG = "0.5.0-pre-cutover"
+EXPECTED_IMAGE_TAG = "0.5.1-pre-cutover"
 
-# The 9 boot-wired components in their canonical boot order.
+# The 10 boot-wired components in their canonical boot order.
 EXPECTED_BOOT_ORDER = [
     "persona-engine-recovery",
     "persona-engine-state-backing",
@@ -81,9 +75,10 @@ EXPECTED_BOOT_ORDER = [
     "persona-engine-anchor-emitter",
     "persona-engine-svid-workload-identity",
     "persona-engine-federation-resolver",
+    "persona-engine-bridge-audit-writer",
 ]
 
-# The 9 selector-ENV flags in the same boot order.
+# The 10 selector-ENV flags in the same boot order.
 EXPECTED_SELECTOR_ENVS = [
     "WAKIR_RECOVERY_BACKEND",
     "WAKIR_STATE_BACKING_BACKEND",
@@ -94,6 +89,7 @@ EXPECTED_SELECTOR_ENVS = [
     "WAKIR_ANCHOR_EMITTER_BACKEND",
     "WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND",
     "WAKIR_FEDERATION_RESOLVER_BACKEND",
+    "WAKIR_BRIDGE_AUDIT_WRITER_BACKEND",
 ]
 
 EXPECTED_BINARY_ENVS = [
@@ -106,12 +102,12 @@ EXPECTED_BINARY_ENVS = [
     "WAKIR_RUST_ANCHOR_EMITTER_BIN",
     "WAKIR_RUST_SVID_WORKLOAD_IDENTITY_BIN",
     "WAKIR_RUST_FEDERATION_RESOLVER_BIN",
+    "WAKIR_RUST_BRIDGE_AUDIT_WRITER_BIN",
 ]
 
-# The 6 additional substrates that ship parity-pinned but are not
+# The 5 additional substrates that ship parity-pinned but are not
 # wired into the boot fan-out (Phase-3a oracles).
 EXPECTED_UNWIRED_CRATES = [
-    "persona-engine-bridge-audit-writer",
     "persona-engine-bridge-audit-replay",
     "persona-engine-anchor-submit-worker",
     "persona-engine-frontmatter-parser",
@@ -149,14 +145,14 @@ def containerfile_text() -> str:
 
 def test_01_manifest_file_exists() -> None:
     assert MANIFEST_PATH.is_file(), (
-        f"Tag-45 manifest missing at {MANIFEST_PATH}; cutover gate "
+        f"Tag-48 manifest missing at {MANIFEST_PATH}; cutover gate "
         "cannot hash an absent source."
     )
 
 
 def test_02_pin_pack_file_exists() -> None:
     assert PIN_PACK_PATH.is_file(), (
-        f"Tag-45 pin pack missing at {PIN_PACK_PATH}; "
+        f"Tag-48 pin pack missing at {PIN_PACK_PATH}; "
         "cross-substrate-parity-gate workflow has no input."
     )
 
@@ -180,10 +176,10 @@ def test_04_manifest_declares_image_tag(manifest_text: str) -> None:
     )
 
 
-def test_05_manifest_lists_all_nine_boot_crates(manifest_text: str) -> None:
+def test_05_manifest_lists_all_ten_boot_crates(manifest_text: str) -> None:
     missing = [c for c in EXPECTED_BOOT_ORDER if c not in manifest_text]
     assert not missing, (
-        f"Manifest §1 must reference all 9 boot-wired crates; "
+        f"Manifest §1 must reference all 10 boot-wired crates; "
         f"missing: {missing}"
     )
 
@@ -191,7 +187,7 @@ def test_05_manifest_lists_all_nine_boot_crates(manifest_text: str) -> None:
 def test_06_manifest_lists_all_selector_envs(manifest_text: str) -> None:
     missing = [e for e in EXPECTED_SELECTOR_ENVS if e not in manifest_text]
     assert not missing, (
-        f"Manifest §2.1 must reference all 9 WAKIR_*_BACKEND "
+        f"Manifest §2.1 must reference all 10 WAKIR_*_BACKEND "
         f"selector ENVs; missing: {missing}"
     )
 
@@ -199,7 +195,7 @@ def test_06_manifest_lists_all_selector_envs(manifest_text: str) -> None:
 def test_07_manifest_lists_all_binary_envs(manifest_text: str) -> None:
     missing = [e for e in EXPECTED_BINARY_ENVS if e not in manifest_text]
     assert not missing, (
-        f"Manifest §2.2 must reference all 9 WAKIR_RUST_*_BIN "
+        f"Manifest §2.2 must reference all 10 WAKIR_RUST_*_BIN "
         f"path-override ENVs; missing: {missing}"
     )
 
@@ -212,8 +208,8 @@ def test_08_manifest_documents_timeout_knob(manifest_text: str) -> None:
 
 
 def test_09_manifest_boot_order_is_canonical(manifest_text: str) -> None:
-    """The 9 crates must appear in the manifest in the canonical
-    boot order (record #1 → record #9). Reordering would invalidate
+    """The 10 crates must appear in the manifest in the canonical
+    boot order (record #1 → record #10). Reordering would invalidate
     the Doppelbetrieb boot-fingerprint."""
 
     positions = {
@@ -224,7 +220,7 @@ def test_09_manifest_boot_order_is_canonical(manifest_text: str) -> None:
     )
     ordered = sorted(EXPECTED_BOOT_ORDER, key=lambda c: positions[c])
     assert ordered == EXPECTED_BOOT_ORDER, (
-        f"Boot-order in manifest must be canonical (1→9); "
+        f"Boot-order in manifest must be canonical (1→10); "
         f"got file-order: {ordered}"
     )
 
@@ -243,8 +239,8 @@ def test_10_pin_pack_manifest_version_matches(pin_pack: dict) -> None:
 
 def test_11_pin_pack_wired_crate_count(pin_pack: dict) -> None:
     wired = pin_pack["boot_wired_crates"]
-    assert len(wired) == 9, (
-        f"Pin pack must list exactly 9 boot-wired crates; "
+    assert len(wired) == 10, (
+        f"Pin pack must list exactly 10 boot-wired crates; "
         f"got {len(wired)}"
     )
 
@@ -257,10 +253,10 @@ def test_12_pin_pack_wired_crate_order(pin_pack: dict) -> None:
     )
 
 
-def test_13_pin_pack_records_are_one_through_nine(pin_pack: dict) -> None:
+def test_13_pin_pack_records_are_one_through_ten(pin_pack: dict) -> None:
     records = [c["record"] for c in pin_pack["boot_wired_crates"]]
-    assert records == list(range(1, 10)), (
-        f"Pin pack boot_wired_crates must declare records 1..9 in "
+    assert records == list(range(1, 11)), (
+        f"Pin pack boot_wired_crates must declare records 1..10 in "
         f"order; got {records}"
     )
 
@@ -283,7 +279,7 @@ def test_15_pin_pack_total_is_fifteen(pin_pack: dict) -> None:
     unwired = pin_pack["boot_unwired_crates"]
     assert len(wired) + len(unwired) == 15, (
         f"Pin pack must total 15 Phase-3a crates "
-        f"(9 wired + 6 unwired); got {len(wired) + len(unwired)}"
+        f"(10 wired + 5 unwired); got {len(wired) + len(unwired)}"
     )
 
 
@@ -309,28 +305,54 @@ def test_17_pin_pack_selector_envs_consistent(pin_pack: dict) -> None:
 
 def test_18_pin_pack_invariants_block_matches_reality(pin_pack: dict) -> None:
     inv = pin_pack["invariants"]
-    assert inv["total_wired_crates"] == 9
+    assert inv["total_wired_crates"] == 10
     assert inv["total_pin_pack_crates"] == 15
-    assert inv["boot_record_count"] == 9
+    assert inv["boot_record_count"] == 10
     assert inv["containerfile_image_tag"] == EXPECTED_IMAGE_TAG
     assert inv["manifest_present"].endswith(
-        "MANIFEST-0.5.0-pre-cutover.md",
+        "MANIFEST-0.5.1-pre-cutover.md",
     )
 
 
 # ---------------------------------------------------------------------------
-# 4. Containerfile.real version-bump tests — retired by Tag-48.
+# 4. Containerfile.real version bump.
 # ---------------------------------------------------------------------------
-#
-# The live Containerfile now references 0.5.1-pre-cutover (10 records,
-# bridge-audit-writer wired in). Containerfile assertions moved to
-# ``test_manifest_0_5_1_pre_cutover.py``. The 0.5.0 manifest + pin
-# pack remain in-tree as historical anchors but no longer claim
-# ownership of the live container image tag.
+
+
+def test_19_containerfile_image_version_bumped(
+    containerfile_text: str,
+) -> None:
+    pattern = re.compile(
+        r'LABEL\s+org\.opencontainers\.image\.version="([^"]+)"'
+    )
+    match = pattern.search(containerfile_text)
+    assert match, "Containerfile.real must declare image.version label."
+    assert match.group(1) == EXPECTED_IMAGE_TAG, (
+        f"Containerfile.real image.version must be "
+        f"'{EXPECTED_IMAGE_TAG}'; got {match.group(1)!r}"
+    )
+
+
+def test_20_containerfile_references_manifest(
+    containerfile_text: str,
+) -> None:
+    assert "MANIFEST-0.5.1-pre-cutover.md" in containerfile_text, (
+        "Containerfile.real must reference the Tag-48 manifest in "
+        "its header comment for operator traceability."
+    )
+
+
+def test_21_containerfile_references_pin_pack(
+    containerfile_text: str,
+) -> None:
+    assert "pin-pack-0.5.1-pre-cutover.yaml" in containerfile_text, (
+        "Containerfile.real must reference the Tag-48 pin pack in "
+        "its header comment for operator traceability."
+    )
 
 
 # ---------------------------------------------------------------------------
-# 5. Cross-source consistency for the historical 0.5.0 anchor.
+# 5. Cross-source consistency — the three artifacts must agree.
 # ---------------------------------------------------------------------------
 
 
@@ -355,16 +377,23 @@ def test_22_pin_pack_crate_versions_match_cargo_toml(pin_pack: dict) -> None:
         if on_disk != crate["version"]:
             failures.append((crate["name"], crate["version"], on_disk))
     assert not failures, (
-        "Pin-pack ↔ Cargo.toml version drift detected: "
+        "Pin-pack <-> Cargo.toml version drift detected: "
         f"{failures}"
     )
 
 
 def test_23_manifest_and_pin_pack_share_image_tag(
-    manifest_text: str, pin_pack: dict,
+    manifest_text: str, pin_pack: dict, containerfile_text: str,
 ) -> None:
-    """Historical 0.5.0 anchor: manifest + pin pack must agree on tag."""
+    """All three sources must agree on the image tag string."""
 
     assert EXPECTED_IMAGE_TAG in manifest_text
     assert pin_pack["manifest_version"] == EXPECTED_IMAGE_TAG
     assert pin_pack["invariants"]["containerfile_image_tag"] == EXPECTED_IMAGE_TAG
+    pattern = re.compile(
+        r'LABEL\s+org\.opencontainers\.image\.version="([^"]+)"'
+    )
+    match = pattern.search(containerfile_text)
+    assert match and match.group(1) == EXPECTED_IMAGE_TAG, (
+        "Containerfile image.version must match manifest + pin pack."
+    )

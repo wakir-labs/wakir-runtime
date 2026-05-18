@@ -5,7 +5,7 @@
 # Licensed under the Business Source License 1.1; see
 # wirelang/persona_engine/LICENSE-BSL.md.
 # Change Date: 2030-05-15. Change License: Apache License 2.0.
-"""Persona-Engine 0.5.0-pre-cutover Boot Self-Test (Tag-47).
+"""Persona-Engine 0.5.1-pre-cutover Boot Self-Test (Tag-48).
 
 This is a **stdlib-only** boot harness that drives the real
 ``wirelang.persona_engine`` Stage-1 resolver fan-out in
@@ -13,11 +13,14 @@ This is a **stdlib-only** boot harness that drives the real
 SPIFFE / subprocess) and verifies the four post-cutover-gate
 invariants Selin owes Phase-3a/3b:
 
-  1. Stage-1 emits **exactly 9** ``BackendDecision`` records, in the
+  1. Stage-1 emits **exactly 10** ``BackendDecision`` records, in the
      boot-order spelled out in
-     ``wirelang/persona_engine/MANIFEST-0.5.0-pre-cutover.md`` §1.
-  2. The 9-record cross-language pin-pack anchors at
-     ``infra/persona-engine/pin-pack-0.5.0-pre-cutover.yaml`` align
+     ``wirelang/persona_engine/MANIFEST-0.5.1-pre-cutover.md`` §1.
+     Record #10 is the Tag-48 ``bridge-audit-writer`` wire-in
+     (previously held back per the Tag-45 0.5.0-pre-cutover manifest
+     §5).
+  2. The 10-record cross-language pin-pack anchors at
+     ``infra/persona-engine/pin-pack-0.5.1-pre-cutover.yaml`` align
      with the boot order (record-N <-> crate-N).
   3. The lifecycle FSM transition graph is **monotonic** along the
      happy path (uninstantiated -> spawning -> running -> migrated
@@ -32,10 +35,14 @@ Why a self-test and not just the existing ``pytest`` suite?
 The Tag-45 hermetic suite
 (``wirelang/tests/persona_engine/test_manifest_0_5_0_pre_cutover.py``)
 checks **documents** -- manifest text, pin-pack YAML, Containerfile
-labels. It does **not** boot the engine resolver fan-out. The Tag-46
-suites check coverage of failure modes around individual modules.
-Tag-47 closes the cutover-gate by exercising the **real Stage-1 boot
-path** without standing up the full engine (which would require NATS,
+labels -- but only for the 9-record 0.5.0-pre-cutover snapshot. It
+does not boot the engine resolver fan-out. The Tag-48 hermetic
+suites (``test_manifest_0_5_1_pre_cutover.py`` and
+``test_bridge_audit_writer_wire_in_tag48.py``) extend the same
+posture to the 10-record manifest. The Tag-46 suites check coverage
+of failure modes around individual modules. The self-test below
+closes the cutover-gate by exercising the **real Stage-1 boot path**
+without standing up the full engine (which would require NATS,
 SPIFFE, and Rust binaries -- none of which the pre-cutover sandbox
 provides).
 
@@ -93,18 +100,29 @@ MANIFEST_PATH = (
     REPO_ROOT
     / "wirelang"
     / "persona_engine"
-    / "MANIFEST-0.5.0-pre-cutover.md"
+    / "MANIFEST-0.5.1-pre-cutover.md"
 )
 PIN_PACK_PATH = (
     REPO_ROOT
     / "infra"
     / "persona-engine"
-    / "pin-pack-0.5.0-pre-cutover.yaml"
+    / "pin-pack-0.5.1-pre-cutover.yaml"
+)
+
+# Historical Tag-45 anchor — retained for the Doppelbetrieb
+# regression-comparison baseline. The self-test does not gate on it
+# directly; the file's presence is asserted by the dedicated Tag-48
+# wire-in suite (test_bridge_audit_writer_wire_in_tag48.py).
+LEGACY_MANIFEST_PATH = (
+    REPO_ROOT
+    / "wirelang"
+    / "persona_engine"
+    / "MANIFEST-0.5.0-pre-cutover.md"
 )
 
 
 # ---------------------------------------------------------------------------
-# Manifest constants (mirror MANIFEST-0.5.0-pre-cutover.md §1).
+# Manifest constants (mirror MANIFEST-0.5.1-pre-cutover.md §1).
 # ---------------------------------------------------------------------------
 
 # Canonical Stage-1 boot-order. Hard-coded here so the self-test
@@ -121,10 +139,11 @@ EXPECTED_BOOT_ORDER: Tuple[Tuple[int, str, str], ...] = (
     (7, "anchor-emitter", "anchor_emitter"),
     (8, "svid-workload-identity", "svid_workload_identity"),
     (9, "federation-resolver", "federation_resolver"),
+    (10, "bridge-audit-writer", "bridge_audit_writer"),
 )
 
 # Manifest pin-pack canonical crate-name -> record mapping (15 total
-# crates; only records 1..9 are wired into boot).
+# crates; records 1..10 are wired into boot as of Tag-48).
 EXPECTED_PIN_PACK_BOOT_WIRED: Tuple[Tuple[int, str], ...] = (
     (1, "persona-engine-recovery"),
     (2, "persona-engine-state-backing"),
@@ -135,10 +154,10 @@ EXPECTED_PIN_PACK_BOOT_WIRED: Tuple[Tuple[int, str], ...] = (
     (7, "persona-engine-anchor-emitter"),
     (8, "persona-engine-svid-workload-identity"),
     (9, "persona-engine-federation-resolver"),
+    (10, "persona-engine-bridge-audit-writer"),
 )
 
 EXPECTED_PIN_PACK_UNWIRED: Tuple[str, ...] = (
-    "persona-engine-bridge-audit-writer",
     "persona-engine-bridge-audit-replay",
     "persona-engine-anchor-submit-worker",
     "persona-engine-frontmatter-parser",
@@ -147,7 +166,7 @@ EXPECTED_PIN_PACK_UNWIRED: Tuple[str, ...] = (
 )
 
 EXPECTED_PIN_VERSION = "0.1.0"
-EXPECTED_MANIFEST_VERSION = "0.5.0-pre-cutover"
+EXPECTED_MANIFEST_VERSION = "0.5.1-pre-cutover"
 
 
 # ---------------------------------------------------------------------------
@@ -379,23 +398,23 @@ def check_manifest_boot_order() -> Tuple[bool, str]:
         for n, label in rows
         if not label.startswith("persona-engine-")
     ]
-    # Pick only the first 9 unique entries -- the §1 table.
+    # Pick only the first 10 unique entries -- the §1 table.
     seen: List[Tuple[int, str]] = []
     for r in component_rows:
         if r in seen:
             continue
         seen.append(r)
-        if len(seen) == 9:
+        if len(seen) == 10:
             break
-    if len(seen) != 9:
+    if len(seen) != 10:
         return (
             False,
-            f"could not extract 9 component rows from manifest §1, got {seen}",
+            f"could not extract 10 component rows from manifest §1, got {seen}",
         )
     expected = [(n, label) for n, label, _ in EXPECTED_BOOT_ORDER]
     if seen != expected:
         return False, f"manifest §1 boot order mismatch: got {seen}, expected {expected}"
-    return True, f"manifest §1 boot order matches 9-record constant"
+    return True, f"manifest §1 boot order matches 10-record constant"
 
 
 # ---------------------------------------------------------------------------
@@ -406,10 +425,10 @@ def check_manifest_boot_order() -> Tuple[bool, str]:
 def check_pin_pack_boot_wired() -> Tuple[bool, str]:
     pin_pack = _parse_pin_pack_yaml(PIN_PACK_PATH.read_text(encoding="utf-8"))
     wired = pin_pack.get("boot_wired_crates")
-    if not isinstance(wired, list) or len(wired) != 9:
+    if not isinstance(wired, list) or len(wired) != 10:
         return (
             False,
-            f"pin-pack boot_wired_crates is not a 9-element list: {wired!r}",
+            f"pin-pack boot_wired_crates is not a 10-element list: {wired!r}",
         )
     for (expected_no, expected_name), entry in zip(
         EXPECTED_PIN_PACK_BOOT_WIRED, wired
@@ -438,7 +457,7 @@ def check_pin_pack_boot_wired() -> Tuple[bool, str]:
                     f"got {entry.get('version')!r} expected {EXPECTED_PIN_VERSION!r}"
                 ),
             )
-    return True, "pin-pack 9 boot-wired crates align (record/name/version)"
+    return True, "pin-pack 10 boot-wired crates align (record/name/version)"
 
 
 # ---------------------------------------------------------------------------
@@ -449,10 +468,10 @@ def check_pin_pack_boot_wired() -> Tuple[bool, str]:
 def check_pin_pack_unwired() -> Tuple[bool, str]:
     pin_pack = _parse_pin_pack_yaml(PIN_PACK_PATH.read_text(encoding="utf-8"))
     unwired = pin_pack.get("boot_unwired_crates")
-    if not isinstance(unwired, list) or len(unwired) != 6:
+    if not isinstance(unwired, list) or len(unwired) != 5:
         return (
             False,
-            f"pin-pack boot_unwired_crates is not a 6-element list: {unwired!r}",
+            f"pin-pack boot_unwired_crates is not a 5-element list: {unwired!r}",
         )
     got_names = tuple(e.get("name") for e in unwired)
     if got_names != EXPECTED_PIN_PACK_UNWIRED:
@@ -472,7 +491,7 @@ def check_pin_pack_unwired() -> Tuple[bool, str]:
                     f"got {e.get('version')!r}"
                 ),
             )
-    return True, "pin-pack 6 boot-unwired crates align (name/version)"
+    return True, "pin-pack 5 boot-unwired crates align (name/version)"
 
 
 # ---------------------------------------------------------------------------
@@ -481,7 +500,7 @@ def check_pin_pack_unwired() -> Tuple[bool, str]:
 
 
 def _import_resolvers() -> Dict[str, Callable]:
-    """Import the 9 Stage-1 resolvers in stub-mode.
+    """Import the 10 Stage-1 resolvers in stub-mode.
 
     Importing the package is the boot the sandbox stub-mode actually
     runs. The resolvers themselves are pure-Python (no NATS, no
@@ -500,6 +519,7 @@ def _import_resolvers() -> Dict[str, Callable]:
         "anchor_emitter": rbs.resolve_anchor_emitter_backend,
         "svid_workload_identity": rbs.resolve_svid_workload_identity_backend,
         "federation_resolver": rbs.resolve_federation_resolver_backend,
+        "bridge_audit_writer": rbs.resolve_bridge_audit_writer_backend,
     }
 
 
@@ -536,10 +556,19 @@ def _drive_stage_1_boot(
 
 
 def check_stage_1_emits_nine() -> Tuple[bool, str]:
+    """Tag-48: this check now asserts ten BackendDecisions.
+
+    The function name is intentionally preserved from Tag-47 to
+    keep the ``CHECKS`` registry ordering stable; the *substance*
+    of the check is "Stage-1 emits the canonical record count for
+    the active manifest version". For 0.5.1-pre-cutover that
+    count is 10 (one additional record vs. the Tag-45 9-record
+    0.5.0-pre-cutover snapshot).
+    """
     decisions, _ = _drive_stage_1_boot()
-    if len(decisions) != 9:
-        return False, f"expected 9 BackendDecisions, got {len(decisions)}"
-    return True, "Stage-1 fan-out emitted exactly 9 BackendDecisions"
+    if len(decisions) != 10:
+        return False, f"expected 10 BackendDecisions, got {len(decisions)}"
+    return True, "Stage-1 fan-out emitted exactly 10 BackendDecisions"
 
 
 def check_stage_1_order() -> Tuple[bool, str]:
@@ -568,7 +597,7 @@ def check_stage_1_all_python_default() -> Tuple[bool, str]:
             False,
             f"default env should pick python everywhere, drifted: {bad}",
         )
-    return True, "Stage-1 default env -> 9 x chosen_backend='python'"
+    return True, "Stage-1 default env -> 10 x chosen_backend='python'"
 
 
 def check_stage_1_no_fallback_on_clean_env() -> Tuple[bool, str]:
@@ -590,10 +619,10 @@ def check_stage_1_log_sink_emission() -> Tuple[bool, str]:
     """Each resolver writes one JSON line via log_backend_decision."""
     _, log_text = _drive_stage_1_boot()
     lines = [ln for ln in log_text.splitlines() if ln.strip()]
-    if len(lines) != 9:
+    if len(lines) != 10:
         return (
             False,
-            f"log_sink should hold 9 JSON lines (one per decision), got {len(lines)}",
+            f"log_sink should hold 10 JSON lines (one per decision), got {len(lines)}",
         )
     # Parse each line as JSON and sanity-check the msg field.
     for n, ln in enumerate(lines, start=1):
@@ -606,7 +635,7 @@ def check_stage_1_log_sink_emission() -> Tuple[bool, str]:
                 False,
                 f"log_sink line {n} has msg={rec.get('msg')!r}, expected 'backend-decision'",
             )
-    return True, "log_sink emitted 9 well-formed backend-decision JSON lines"
+    return True, "log_sink emitted 10 well-formed backend-decision JSON lines"
 
 
 def check_stage_1_no_io_side_effects() -> Tuple[bool, str]:
@@ -798,8 +827,8 @@ def check_v907_pin_stable() -> Tuple[bool, str]:
 def check_cross_source_consistency() -> Tuple[bool, str]:
     pin_pack = _parse_pin_pack_yaml(PIN_PACK_PATH.read_text(encoding="utf-8"))
     wired = pin_pack.get("boot_wired_crates") or []
-    if len(wired) != 9:
-        return False, f"pin-pack boot_wired_crates length != 9: {len(wired)}"
+    if len(wired) != 10:
+        return False, f"pin-pack boot_wired_crates length != 10: {len(wired)}"
 
     # Pin-pack record-N's selector_env must mention the same domain
     # token the manifest §2 table uses. We verify the env-flag prefix
@@ -814,6 +843,7 @@ def check_cross_source_consistency() -> Tuple[bool, str]:
         "WAKIR_ANCHOR_EMITTER_BACKEND",
         "WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND",
         "WAKIR_FEDERATION_RESOLVER_BACKEND",
+        "WAKIR_BRIDGE_AUDIT_WRITER_BACKEND",
     )
     for (record_no, _name), entry, expected_env in zip(
         EXPECTED_PIN_PACK_BOOT_WIRED, wired, expected_env_prefixes
@@ -861,9 +891,9 @@ def check_pin_pack_invariants_block() -> Tuple[bool, str]:
     if not isinstance(inv, dict):
         return False, f"pin-pack invariants block missing: {inv!r}"
     wanted = {
-        "total_wired_crates": 9,
+        "total_wired_crates": 10,
         "total_pin_pack_crates": 15,
-        "boot_record_count": 9,
+        "boot_record_count": 10,
     }
     for k, expected in wanted.items():
         if inv.get(k) != expected:
@@ -876,7 +906,7 @@ def check_pin_pack_invariants_block() -> Tuple[bool, str]:
                 f"{inv.get('containerfile_image_tag')!r}"
             ),
         )
-    return True, "pin-pack invariants block matches 9/15/0.5.0-pre-cutover"
+    return True, "pin-pack invariants block matches 10/15/0.5.1-pre-cutover"
 
 
 # ---------------------------------------------------------------------------
@@ -922,45 +952,60 @@ def check_boot_fingerprint_deterministic() -> Tuple[bool, str]:
 
 
 # ---------------------------------------------------------------------------
-# Check #12 — 10th BackendDecision (bridge-audit-writer) is held back.
+# Check #12 — 10th BackendDecision (bridge-audit-writer) is wired in.
 # ---------------------------------------------------------------------------
 
 
-def check_bridge_audit_writer_held_back() -> Tuple[bool, str]:
-    """Manifest §5 promises bridge-audit-writer is held back from boot.
+def check_bridge_audit_writer_wired_in() -> Tuple[bool, str]:
+    """Tag-48: manifest §1 promises bridge-audit-writer is the 10th
+    Stage-1 BackendDecision.
 
-    We verify the resolver exists in rust_backend_switch.py but is
-    NOT consulted by the Stage-1 fan-out (i.e. the engine.py boot()
-    method does not import resolve_bridge_audit_writer_backend among
-    its 8 imports). This is what makes the boot fingerprint stable
-    across 0.4.2-pilot -> 0.5.0-pre-cutover.
+    Inverts the Tag-47 held-back check. We verify:
+
+    1. engine.py imports ``resolve_bridge_audit_writer_backend`` (the
+       wire-in is no longer a scaffold).
+    2. The resolver + enum exist in rust_backend_switch.py.
+    3. The clean-env boot fan-out emits the 10th BackendDecision with
+       domain="bridge_audit_writer".
+
+    This is what makes the boot fingerprint stable across
+    0.5.1-pre-cutover boots and what closes the held-back surface from
+    the Tag-45 0.5.0-pre-cutover manifest §5.
     """
     sys.path.insert(0, str(REPO_ROOT))
     engine_path = REPO_ROOT / "wirelang" / "persona_engine" / "engine.py"
     engine_src = engine_path.read_text(encoding="utf-8")
-    if "resolve_bridge_audit_writer_backend" in engine_src:
+    if "resolve_bridge_audit_writer_backend" not in engine_src:
         return (
             False,
-            "engine.py imports resolve_bridge_audit_writer_backend; "
-            "expected held back per manifest §5",
+            "engine.py does NOT import resolve_bridge_audit_writer_backend; "
+            "expected wired in per Tag-48 manifest §1",
         )
-    # And confirm the resolver does exist (so the Tag-46/47 wire-in
-    # has something to flip the switch on).
+
     from wirelang.persona_engine import rust_backend_switch as rbs  # noqa: E402
 
-    has_resolver = hasattr(rbs, "resolve_bridge_audit_writer_backend")
-    has_enum = hasattr(rbs, "BridgeAuditWriterBackend")
-    if not (has_resolver or has_enum):
-        # Soft warning: the held-back resolver was supposed to be
-        # present but is missing. Pass the check (boot determinism is
-        # what matters for cutover) but flag the discrepancy.
-        return True, (
-            "bridge-audit-writer correctly held back from engine.py boot "
-            "(no resolver scaffold yet -- Tag-46/47 will add it)"
+    if not hasattr(rbs, "resolve_bridge_audit_writer_backend"):
+        return False, (
+            "rust_backend_switch missing resolve_bridge_audit_writer_backend "
+            "function"
+        )
+    if not hasattr(rbs, "BridgeAuditWriterBackend"):
+        return False, (
+            "rust_backend_switch missing BridgeAuditWriterBackend enum"
+        )
+
+    # Confirm the clean-env boot emits the 10th decision with the
+    # bridge_audit_writer domain.
+    decisions, _ = _drive_stage_1_boot()
+    if not decisions or decisions[-1].domain != "bridge_audit_writer":
+        last_domain = decisions[-1].domain if decisions else "<empty>"
+        return False, (
+            f"Stage-1 last decision domain is {last_domain!r}, "
+            "expected 'bridge_audit_writer' (record #10)"
         )
     return True, (
-        "bridge-audit-writer correctly held back from engine.py boot "
-        "(resolver scaffold present, not wired)"
+        "bridge-audit-writer wired in as 10th BackendDecision "
+        "(resolver imported, enum present, last decision domain matches)"
     )
 
 
@@ -988,7 +1033,7 @@ CHECKS: Tuple[Tuple[str, Callable[[], Tuple[bool, str]]], ...] = (
     ("cross_backend_timeout", check_cross_backend_timeout),
     ("pin_pack_invariants_block", check_pin_pack_invariants_block),
     ("boot_fingerprint_deterministic", check_boot_fingerprint_deterministic),
-    ("bridge_audit_writer_held_back", check_bridge_audit_writer_held_back),
+    ("bridge_audit_writer_wired_in", check_bridge_audit_writer_wired_in),
 )
 
 
@@ -1003,7 +1048,7 @@ def run_self_test() -> SelfTestReport:
             if key.startswith("WAKIR_"):
                 del os.environ[key]
         report = SelfTestReport(
-            boot_baseline="0.5.0-pre-cutover (Tag-45 manifest)",
+            boot_baseline="0.5.1-pre-cutover (Tag-48 manifest, 10-record wire-in)",
             manifest_version=EXPECTED_MANIFEST_VERSION,
         )
         for name, fn in CHECKS:
@@ -1037,7 +1082,7 @@ def _print_human(report: SelfTestReport, *, quiet: bool) -> None:
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Persona-Engine 0.5.0-pre-cutover Boot Self-Test"
+        description="Persona-Engine 0.5.1-pre-cutover Boot Self-Test"
     )
     parser.add_argument(
         "--json",

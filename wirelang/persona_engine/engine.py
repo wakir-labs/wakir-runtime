@@ -383,6 +383,7 @@ class PersonaEngine:
         # comparison set has a deterministic per-boot anchor.
         from .rust_backend_switch import (
             resolve_anchor_emitter_backend,
+            resolve_bridge_audit_writer_backend,
             resolve_bridge_diff_backend,
             resolve_federation_resolver_backend,
             resolve_fsm_backend,
@@ -609,6 +610,47 @@ class PersonaEngine:
                 "level": "ERROR",
                 "msg": "backend-switch-validation-failed",
                 "domain": "federation_resolver",
+                "error": str(exc),
+            })
+            raise
+        # Tag-48 (PR #306 closeout): resolve bridge-audit-writer-backend
+        # choice up-front, parallel to recovery + state_backing + fsm +
+        # v907_verify + bridge_diff + subscribe_loop + anchor_emitter +
+        # svid_workload_identity + federation_resolver. Default is python
+        # (current behaviour, opt-in switch). Bridge-audit-writer is the
+        # Zone-C Doppelbetrieb-Shadow envelope substrate (per-event
+        # JCS-canonical envelope bytes; the engineering-output envelope
+        # the Python authority in
+        # :mod:`wirelang.persona_engine.bridge_audit_writer` writes to
+        # both audit sinks). The per-decision audit-record is critical
+        # for the Phase-3b Doppelbetrieb comparison set because any
+        # silent drift between Python and Rust envelope bytes would
+        # corrupt the entire Shadow-trace truth claim before the diff
+        # oracle ever hashes it. The engine keeps the Python
+        # authority active during Phase-3b; Phase-3c cutover (out of
+        # scope here) swaps in the Rust subprocess-bridge against the
+        # ``wakir-persona-engine-bridge-audit-writer`` binary shipped
+        # from the ``persona-engine-bridge-audit-replay`` crate
+        # (sibling ``replay_cli``). This is the **10th** BackendDecision
+        # record emitted per boot (Tag-17 recovery + state_backing +
+        # Tag-18 fsm + Tag-19 v907_verify + Tag-20 bridge_diff + Tag-22
+        # subscribe_loop + Tag-23 anchor_emitter + Tag-25
+        # svid_workload_identity + Tag-30 federation_resolver + Tag-48
+        # bridge_audit_writer) — the Phase-3b production-default-switch
+        # contract surface closes at ten components and the engine
+        # manifest bumps from 0.5.0-pre-cutover to 0.5.1-pre-cutover.
+        try:
+            (
+                self._bridge_audit_writer_backend,
+                self._bridge_audit_writer_backend_decision,
+            ) = resolve_bridge_audit_writer_backend(
+                env=None, log_sink=self.log_sink
+            )
+        except Exception as exc:  # noqa: BLE001 — strict env-validation
+            self._log({
+                "level": "ERROR",
+                "msg": "backend-switch-validation-failed",
+                "domain": "bridge_audit_writer",
                 "error": str(exc),
             })
             raise
