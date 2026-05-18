@@ -1,0 +1,115 @@
+{
+  "_comment": "Cross-lang fixture vectors for the persona-engine bridge-audit-diff-engine canonical-trace (Tag-36 Mini-Welle Phase-3a Python-sync, 13. Modul). Six outcomes covered: byte-identical happy path, single value-mismatch, only-in-a, only-in-b, type-mismatch (bool vs string), and a multi-field drift across nested-object + list with RFC-6901 escapes. The 'expected' block is the authoritative cross-lang pin: any drift on either side (Rust crate persona-engine-bridge-diff canonical module or Python wirelang.persona_engine.bridge_audit_diff_engine_canonical) must change every other side too. Pinned 2026-05-18.",
+  "schema_version": "wakir.persona-engine.bridge-audit-diff-canonical/1",
+  "fixed_ts_utc": "2026-05-18T00:00:00Z",
+  "fixtures": [
+    {
+      "name": "f01-byte-identical-cloudevent",
+      "input_envelope_a_json": "{\"event_kind\":\"engineering_output\",\"org_id\":\"wakir-labs\",\"output_kind\":\"tool_call\",\"output_payload_sha256\":\"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\"persona_id\":\"reza\",\"schema\":\"wakir.persona-engine.engineering-output/1\",\"session_id\":\"tag-36-sess\",\"step_index\":0,\"ts_utc\":\"2026-05-18T00:00:00Z\"}",
+      "input_envelope_b_json": "{\"event_kind\":\"engineering_output\",\"org_id\":\"wakir-labs\",\"output_kind\":\"tool_call\",\"output_payload_sha256\":\"sha256:0000000000000000000000000000000000000000000000000000000000000000\",\"persona_id\":\"reza\",\"schema\":\"wakir.persona-engine.engineering-output/1\",\"session_id\":\"tag-36-sess\",\"step_index\":0,\"ts_utc\":\"2026-05-18T00:00:00Z\"}",
+      "expected": {
+        "byte_identical": true,
+        "drift_count": 0,
+        "field_diffs_summary": "",
+        "jcs_hash_a": "sha256:cd97c93f0e257ead60fca55b8ac82e31228d8312e36a0a4568e61efc55ab7e75",
+        "jcs_hash_b": "sha256:cd97c93f0e257ead60fca55b8ac82e31228d8312e36a0a4568e61efc55ab7e75",
+        "leaves_total": 9,
+        "score_milli": 1000,
+        "trace_jcs_bytes_b64": "eyJieXRlX2lkZW50aWNhbCI6dHJ1ZSwiZHJpZnRfY291bnQiOjAsImZpZWxkX2RpZmZzX3N1bW1hcnkiOiIiLCJqY3NfaGFzaF9hIjoic2hhMjU2OmNkOTdjOTNmMGUyNTdlYWQ2MGZjYTU1YjhhYzgyZTMxMjI4ZDgzMTJlMzZhMGE0NTY4ZTYxZWZjNTVhYjdlNzUiLCJqY3NfaGFzaF9iIjoic2hhMjU2OmNkOTdjOTNmMGUyNTdlYWQ2MGZjYTU1YjhhYzgyZTMxMjI4ZDgzMTJlMzZhMGE0NTY4ZTYxZWZjNTVhYjdlNzUiLCJsZWF2ZXNfdG90YWwiOjksInNjaGVtYSI6Indha2lyLnBlcnNvbmEtZW5naW5lLmJyaWRnZS1hdWRpdC1kaWZmLWNhbm9uaWNhbC8xIiwic2NvcmVfbWlsbGkiOjEwMDB9",
+        "trace_jcs_bytes_len": 336,
+        "trace_sha256_hex": "dfb6028ede3864f60b6d31805b76fe5121acb8d200062b98c809a743e35a4cd4",
+        "trace_hash_prefixed": "sha256:dfb6028ede3864f60b6d31805b76fe5121acb8d200062b98c809a743e35a4cd4"
+      }
+    },
+    {
+      "name": "f02-value-mismatch-payload-sha",
+      "input_envelope_a_json": "{\"output_payload_sha256\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"schema\":\"wakir.persona-engine.engineering-output/1\",\"step_index\":1}",
+      "input_envelope_b_json": "{\"output_payload_sha256\":\"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"schema\":\"wakir.persona-engine.engineering-output/1\",\"step_index\":1}",
+      "expected": {
+        "byte_identical": false,
+        "drift_count": 1,
+        "field_diffs_summary": "/output_payload_sha256|value-mismatch",
+        "jcs_hash_a": "sha256:474b5192f97aaa95d1581739188011a0a5873e4d50a90ee9dedd5230c0ac773f",
+        "jcs_hash_b": "sha256:51ad0372fccdae626307799af8712709b6203ce089ca41d991d34fa35a9208f4",
+        "leaves_total": 3,
+        "score_milli": 666,
+        "trace_jcs_bytes_b64": "eyJieXRlX2lkZW50aWNhbCI6ZmFsc2UsImRyaWZ0X2NvdW50IjoxLCJmaWVsZF9kaWZmc19zdW1tYXJ5IjoiL291dHB1dF9wYXlsb2FkX3NoYTI1Nnx2YWx1ZS1taXNtYXRjaCIsImpjc19oYXNoX2EiOiJzaGEyNTY6NDc0YjUxOTJmOTdhYWE5NWQxNTgxNzM5MTg4MDExYTBhNTg3M2U0ZDUwYTkwZWU5ZGVkZDUyMzBjMGFjNzczZiIsImpjc19oYXNoX2IiOiJzaGEyNTY6NTFhZDAzNzJmY2NkYWU2MjYzMDc3OTlhZjg3MTI3MDliNjIwM2NlMDg5Y2E0MWQ5OTFkMzRmYTM1YTkyMDhmNCIsImxlYXZlc190b3RhbCI6Mywic2NoZW1hIjoid2FraXIucGVyc29uYS1lbmdpbmUuYnJpZGdlLWF1ZGl0LWRpZmYtY2Fub25pY2FsLzEiLCJzY29yZV9taWxsaSI6NjY2fQ==",
+        "trace_jcs_bytes_len": 373,
+        "trace_sha256_hex": "862b1d3afb7fe8b61f94802a98d5a4f015f13ab54f872bb09e29ea3baf2f27e5",
+        "trace_hash_prefixed": "sha256:862b1d3afb7fe8b61f94802a98d5a4f015f13ab54f872bb09e29ea3baf2f27e5"
+      }
+    },
+    {
+      "name": "f03-only-in-a-capability-token",
+      "input_envelope_a_json": "{\"capability_token_hash\":\"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"schema\":\"wakir.persona-engine.engineering-output/1\",\"step_index\":2}",
+      "input_envelope_b_json": "{\"schema\":\"wakir.persona-engine.engineering-output/1\",\"step_index\":2}",
+      "expected": {
+        "byte_identical": false,
+        "drift_count": 1,
+        "field_diffs_summary": "/capability_token_hash|only-in-a",
+        "jcs_hash_a": "sha256:1168242efbf18155a333c10f82879d85469e952b6acf7d130a377b3380516308",
+        "jcs_hash_b": "sha256:4adfe9744e715876fee6be795f8e14a34cd74c9b1396cf81c224772c8fcd839d",
+        "leaves_total": 3,
+        "score_milli": 666,
+        "trace_jcs_bytes_b64": "eyJieXRlX2lkZW50aWNhbCI6ZmFsc2UsImRyaWZ0X2NvdW50IjoxLCJmaWVsZF9kaWZmc19zdW1tYXJ5IjoiL2NhcGFiaWxpdHlfdG9rZW5faGFzaHxvbmx5LWluLWEiLCJqY3NfaGFzaF9hIjoic2hhMjU2OjExNjgyNDJlZmJmMTgxNTVhMzMzYzEwZjgyODc5ZDg1NDY5ZTk1MmI2YWNmN2QxMzBhMzc3YjMzODA1MTYzMDgiLCJqY3NfaGFzaF9iIjoic2hhMjU2OjRhZGZlOTc0NGU3MTU4NzZmZWU2YmU3OTVmOGUxNGEzNGNkNzRjOWIxMzk2Y2Y4MWMyMjQ3NzJjOGZjZDgzOWQiLCJsZWF2ZXNfdG90YWwiOjMsInNjaGVtYSI6Indha2lyLnBlcnNvbmEtZW5naW5lLmJyaWRnZS1hdWRpdC1kaWZmLWNhbm9uaWNhbC8xIiwic2NvcmVfbWlsbGkiOjY2Nn0=",
+        "trace_jcs_bytes_len": 368,
+        "trace_sha256_hex": "e648d4befcd5a028d6f308b557669fbb18b2b97b6c8bb820f04ede5dc16a7982",
+        "trace_hash_prefixed": "sha256:e648d4befcd5a028d6f308b557669fbb18b2b97b6c8bb820f04ede5dc16a7982"
+      }
+    },
+    {
+      "name": "f04-only-in-b-v907-pin",
+      "input_envelope_a_json": "{\"schema\":\"wakir.persona-engine.engineering-output/1\",\"step_index\":3}",
+      "input_envelope_b_json": "{\"schema\":\"wakir.persona-engine.engineering-output/1\",\"step_index\":3,\"v907_pin\":\"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"}",
+      "expected": {
+        "byte_identical": false,
+        "drift_count": 1,
+        "field_diffs_summary": "/v907_pin|only-in-b",
+        "jcs_hash_a": "sha256:6210118d41669f0e2b998966b18ed193d6b415b9b63e8cbc59b5d96601fe4985",
+        "jcs_hash_b": "sha256:014b9ffefb330a7a79a8fda86ee4545fd4d276fe7f219bbc6e1d4d59a048934d",
+        "leaves_total": 3,
+        "score_milli": 666,
+        "trace_jcs_bytes_b64": "eyJieXRlX2lkZW50aWNhbCI6ZmFsc2UsImRyaWZ0X2NvdW50IjoxLCJmaWVsZF9kaWZmc19zdW1tYXJ5IjoiL3Y5MDdfcGlufG9ubHktaW4tYiIsImpjc19oYXNoX2EiOiJzaGEyNTY6NjIxMDExOGQ0MTY2OWYwZTJiOTk4OTY2YjE4ZWQxOTNkNmI0MTViOWI2M2U4Y2JjNTliNWQ5NjYwMWZlNDk4NSIsImpjc19oYXNoX2IiOiJzaGEyNTY6MDE0YjlmZmVmYjMzMGE3YTc5YThmZGE4NmVlNDU0NWZkNGQyNzZmZTdmMjE5YmJjNmUxZDRkNTlhMDQ4OTM0ZCIsImxlYXZlc190b3RhbCI6Mywic2NoZW1hIjoid2FraXIucGVyc29uYS1lbmdpbmUuYnJpZGdlLWF1ZGl0LWRpZmYtY2Fub25pY2FsLzEiLCJzY29yZV9taWxsaSI6NjY2fQ==",
+        "trace_jcs_bytes_len": 355,
+        "trace_sha256_hex": "0eae5cdf4e98e9db96a19b100edfbf96e62f5e6ce588e34a615c15afa1c1561e",
+        "trace_hash_prefixed": "sha256:0eae5cdf4e98e9db96a19b100edfbf96e62f5e6ce588e34a615c15afa1c1561e"
+      }
+    },
+    {
+      "name": "f05-type-mismatch-bool-vs-string",
+      "input_envelope_a_json": "{\"active\":true,\"schema\":\"wakir.persona-engine.engineering-output/1\",\"step_index\":1}",
+      "input_envelope_b_json": "{\"active\":\"true\",\"schema\":\"wakir.persona-engine.engineering-output/1\",\"step_index\":1}",
+      "expected": {
+        "byte_identical": false,
+        "drift_count": 1,
+        "field_diffs_summary": "/active|type-mismatch",
+        "jcs_hash_a": "sha256:49981df89ea99c3cefdf6170f267e280937d538cd6a46dc61a357098e48d0ca3",
+        "jcs_hash_b": "sha256:824a5204d830da4cabb7d540ab23d9e137a61b5f6f036c45a61e5cb709f63f10",
+        "leaves_total": 3,
+        "score_milli": 666,
+        "trace_jcs_bytes_b64": "eyJieXRlX2lkZW50aWNhbCI6ZmFsc2UsImRyaWZ0X2NvdW50IjoxLCJmaWVsZF9kaWZmc19zdW1tYXJ5IjoiL2FjdGl2ZXx0eXBlLW1pc21hdGNoIiwiamNzX2hhc2hfYSI6InNoYTI1Njo0OTk4MWRmODllYTk5YzNjZWZkZjYxNzBmMjY3ZTI4MDkzN2Q1MzhjZDZhNDZkYzYxYTM1NzA5OGU0OGQwY2EzIiwiamNzX2hhc2hfYiI6InNoYTI1Njo4MjRhNTIwNGQ4MzBkYTRjYWJiN2Q1NDBhYjIzZDllMTM3YTYxYjVmNmYwMzZjNDVhNjFlNWNiNzA5ZjYzZjEwIiwibGVhdmVzX3RvdGFsIjozLCJzY2hlbWEiOiJ3YWtpci5wZXJzb25hLWVuZ2luZS5icmlkZ2UtYXVkaXQtZGlmZi1jYW5vbmljYWwvMSIsInNjb3JlX21pbGxpIjo2NjZ9",
+        "trace_jcs_bytes_len": 357,
+        "trace_sha256_hex": "218152671dae8cf34d7e20867cbfec62576dd0beea073dd1d410b7c308dff677",
+        "trace_hash_prefixed": "sha256:218152671dae8cf34d7e20867cbfec62576dd0beea073dd1d410b7c308dff677"
+      }
+    },
+    {
+      "name": "f06-multi-field-rfc6901-escapes",
+      "input_envelope_a_json": "{\"list\":[1,2,3],\"nested\":{\"a/b\":\"alpha\",\"c~d\":\"carbon\"},\"schema\":\"wakir.persona-engine.engineering-output/1\",\"ts_utc\":\"2026-05-18T00:00:00Z\"}",
+      "input_envelope_b_json": "{\"list\":[1,2,4],\"nested\":{\"a/b\":\"beta\",\"c~d\":\"carbon\"},\"schema\":\"wakir.persona-engine.engineering-output/1\",\"ts_utc\":\"2026-05-18T00:00:01Z\"}",
+      "expected": {
+        "byte_identical": false,
+        "drift_count": 3,
+        "field_diffs_summary": "/list/2|value-mismatch;/nested/a~1b|value-mismatch;/ts_utc|value-mismatch",
+        "jcs_hash_a": "sha256:0c591bc2350cdd69b72be86c407aeb16cf595a75d9250a11e777005d3bc84496",
+        "jcs_hash_b": "sha256:7babc91744141d5b778b1a3b429b267f258701d146303e541995294ec08e75c9",
+        "leaves_total": 7,
+        "score_milli": 571,
+        "trace_jcs_bytes_b64": "eyJieXRlX2lkZW50aWNhbCI6ZmFsc2UsImRyaWZ0X2NvdW50IjozLCJmaWVsZF9kaWZmc19zdW1tYXJ5IjoiL2xpc3QvMnx2YWx1ZS1taXNtYXRjaDsvbmVzdGVkL2F+MWJ8dmFsdWUtbWlzbWF0Y2g7L3RzX3V0Y3x2YWx1ZS1taXNtYXRjaCIsImpjc19oYXNoX2EiOiJzaGEyNTY6MGM1OTFiYzIzNTBjZGQ2OWI3MmJlODZjNDA3YWViMTZjZjU5NWE3NWQ5MjUwYTExZTc3NzAwNWQzYmM4NDQ5NiIsImpjc19oYXNoX2IiOiJzaGEyNTY6N2JhYmM5MTc0NDE0MWQ1Yjc3OGIxYTNiNDI5YjI2N2YyNTg3MDFkMTQ2MzAzZTU0MTk5NTI5NGVjMDhlNzVjOSIsImxlYXZlc190b3RhbCI6Nywic2NoZW1hIjoid2FraXIucGVyc29uYS1lbmdpbmUuYnJpZGdlLWF1ZGl0LWRpZmYtY2Fub25pY2FsLzEiLCJzY29yZV9taWxsaSI6NTcxfQ==",
+        "trace_jcs_bytes_len": 409,
+        "trace_sha256_hex": "283422f3ae3ca6b053203acde010558e9b351dfccb49ba4e1e455f3a07065219",
+        "trace_hash_prefixed": "sha256:283422f3ae3ca6b053203acde010558e9b351dfccb49ba4e1e455f3a07065219"
+      }
+    }
+  ]
+}
