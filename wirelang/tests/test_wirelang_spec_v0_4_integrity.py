@@ -76,6 +76,7 @@ def _frontmatter_block(spec_text: str) -> dict[str, str]:
 # -------------------------------------------------------------------------
 # T-1 / frontmatter pins
 # -------------------------------------------------------------------------
+# REUSE-IgnoreStart
 def test_t1_frontmatter_pins(spec_text: str) -> None:
     fm = _frontmatter_block(spec_text)
     assert fm.get("spec") == "wirelang"
@@ -84,15 +85,18 @@ def test_t1_frontmatter_pins(spec_text: str) -> None:
     assert fm.get("status") == "draft"
     assert fm.get("license") == "CC-BY-4.0"
     assert fm.get("replaced-by") == "null"
+# REUSE-IgnoreEnd
 
 
 # -------------------------------------------------------------------------
 # T-2 / SPDX + license header
 # -------------------------------------------------------------------------
+# REUSE-IgnoreStart
 def test_t2_spdx_license_header(spec_text: str) -> None:
     assert "SPDX-License-Identifier: CC-BY-4.0" in spec_text
     assert "Creative Commons Attribution" in spec_text
     assert "creativecommons.org/licenses/by/4.0" in spec_text
+# REUSE-IgnoreEnd
 
 
 # -------------------------------------------------------------------------
