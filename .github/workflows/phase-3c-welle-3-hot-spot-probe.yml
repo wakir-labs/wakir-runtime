@@ -1,0 +1,542 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase-3c Welle-3 Hot-Spot Probe (Tag-45 / Tomas, Henrik-Pre-Mortem-Folge)
+# -----------------------------------------------------------------------
+#
+# Purpose
+# -------
+#
+# Henrik Tag-44 Pre-Mortem identified Welle-3 (``bridge_audit_writer``
+# in its role as audit-stream-emitting oracle) as the #1 Cross-Welle
+# Hot-Spot in the pre-cutover marathon window
+# (2026-05-19 -> 2026-06-07). Welle-3 audit-trail-integrity propagates
+# downstream into Welle-4 (``state_backing``), Welle-5
+# (``lifecycle_state_machine``), and Welle-7 (``recovery_workflow``).
+#
+# This workflow runs Welle-3-specific hot-spot indicators daily,
+# emits a per-day JSON verdict envelope, surfaces it as a Job-Summary,
+# and appends notify-events into ``state/notify-events.jsonl`` for
+# Mira-Hand-Sichtung when critical findings emerge.
+#
+# Companion workflows
+# -------------------
+#
+#   * ``phase-3c-welle-3-validation.yml`` (Tag-30+) -- weekly
+#     Wednesday-06:00-UTC readiness gate for the Welle-3 cutover.
+#     This workflow is *in addition* and *daily*, focused only on
+#     hot-spot-class signals (self-reference-trap, propagation,
+#     independent-oracle disagreement, IIA-1130 pre-auditor state).
+#   * ``phase-3c-pre-cutover-daily-probe.yml`` (Reza Tag-44) -- daily
+#     trend tracker across all seven Wellen. This workflow is the
+#     Welle-3-deep-dive companion: when the all-seven trend probe
+#     flags Welle-3 yellow, this workflow shows *which* of the four
+#     hot-spot axes drove the yellow.
+#
+# Sandbox posture
+# ---------------
+#
+# Strict hermetic: stdlib-only python, no podman / cosign / live-VM,
+# no network egress. The four check-jobs operate on in-repo state +
+# in-repo source-text only. Hosted-runner-safe.
+#
+# Trigger surface
+# ---------------
+#
+#   * ``schedule: cron "30 6 * * *"`` -- daily at 06:30 UTC, 30 min
+#     after the Reza Tag-44 all-seven daily-probe (06:00 UTC) so an
+#     operator-hand-Sichtung sees the all-seven trend first, then
+#     the Welle-3 hot-spot deep-dive.
+#   * ``workflow_dispatch`` -- operator-hand manual invocation with
+#     optional ``today`` override (for replay / back-fill).
+#   * ``push`` (path-filtered) -- any change to the aggregator /
+#     welle-3 substrate re-runs the probe so test loops surface
+#     breakage immediately.
+#   * ``pull_request`` (path-filtered) -- same path-filter so PRs
+#     touching the substrate run the probe in dry-run before merge.
+#
+# Not a required status check
+# ---------------------------
+#
+# Per ``feedback_branch_protection_check_names.md`` this workflow
+# tracks a calendar-window hot-spot trend, not individual PR
+# acceptance. It is NOT listed as a required status check on PRs.
+#
+# Persistence
+# -----------
+#
+# Per ADR-0058 + AR-Direktive Tag-44, scheduled CI does NOT push to
+# main. Daily envelopes are uploaded as artifacts (retention 30
+# days). Operator-hand workflow_dispatch with ``persist=true``
+# stages the state file but does not push (the runner has
+# ``contents: read`` permission only).
+
+name: phase-3c-welle-3-hot-spot-probe
+
+on:
+  schedule:
+    # Daily at 06:30 UTC -- 30 min after the all-seven daily probe.
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+    inputs:
+      today:
+        description: "Override snapshot date (yyyy-mm-dd; default UTC today)."
+        required: false
+        default: ""
+      persist:
+        description: "Stage state file for commit (true|false). Operator-hand only."
+        required: false
+        default: "false"
+  push:
+    branches:
+      - main
+    paths:
+      - "tooling/ci/welle_3_hot_spot_aggregator.py"
+      - ".github/workflows/phase-3c-welle-3-hot-spot-probe.yml"
+      - "tests/ci/test_welle_3_hot_spot_probe.py"
+      - "docs/ci/welle-3-hot-spot-probe-runbook.md"
+      - "scripts/phase-3c/welle-3-bridge-audit-writer-cutover-smoke.py"
+      - "scripts/phase-3c/welle-3-bridge-audit-writer-cutover-smoke.sh"
+      - "scripts/doppelbetrieb-score-aggregator.py"
+      - "state/welle-3-audit-trail-integrity.json"
+      - "state/welle-3-pre-auditor-decision.json"
+  pull_request:
+    paths:
+      - "tooling/ci/welle_3_hot_spot_aggregator.py"
+      - ".github/workflows/phase-3c-welle-3-hot-spot-probe.yml"
+      - "tests/ci/test_welle_3_hot_spot_probe.py"
+      - "docs/ci/welle-3-hot-spot-probe-runbook.md"
+      - "scripts/phase-3c/welle-3-bridge-audit-writer-cutover-smoke.py"
+      - "scripts/phase-3c/welle-3-bridge-audit-writer-cutover-smoke.sh"
+      - "scripts/doppelbetrieb-score-aggregator.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase-3c-welle-3-hot-spot-probe
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------
+  # Check 1 -- Self-Reference-Trap-Pre-Detection
+  # ---------------------------------------------------------------
+  check-1-self-reference-trap:
+    name: Check-1 Self-Reference-Trap-Pre-Detection
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      status: ${{ steps.scan.outputs.status }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Scan welle-3 cutover-window for audit-stream self-reference
+        id: scan
+        run: |
+          set -euo pipefail
+          # The hot-spot is: does the welle-3 cutover-smoke script
+          # (or the persona-engine-bridge-audit-writer crate's
+          # cutover-window-marker block) read its own emitted
+          # audit-stream as input? If yes -> red (self-loop).
+          # If a partial match (e.g. a comment-only reference) -> yellow.
+          # If clean -> green.
+          status=green
+          smoke_py=scripts/phase-3c/welle-3-bridge-audit-writer-cutover-smoke.py
+          smoke_sh=scripts/phase-3c/welle-3-bridge-audit-writer-cutover-smoke.sh
+          crate_dir=wirelang-rust/crates/persona-engine-bridge-audit-writer
+
+          # Pattern set documents the self-loop signature: a read of
+          # the writer's own emitted stream from inside the cutover
+          # window. ``replay_own_emit`` is a sentinel introduced in
+          # this PR to make the check fail-fast if anyone ever wires
+          # the writer's read-path against its own output during
+          # cutover.
+          patterns='replay_own_emit|read_audit_stream_for_self|self_referential_audit_loop|audit_self_oracle'
+
+          # Live-code grep (excludes tests/fixtures/docs).
+          hits=$(grep -RInE "${patterns}" \
+            "${smoke_py}" "${smoke_sh}" "${crate_dir}/src" 2>/dev/null \
+            | grep -vE "(\.md:|tests/|fixtures/|/target/)" || true)
+
+          if [ -n "${hits}" ]; then
+            echo "::error::Welle-3 self-reference-trap pattern detected:"
+            echo "${hits}"
+            status=red
+          fi
+
+          # Yellow heuristic: presence of TODO/FIXME notes near the
+          # cutover-window in the smoke-script suggests an unstable
+          # state worth surfacing.
+          todo_hits=$(grep -InE "TODO.*cutover-window|FIXME.*audit-stream" \
+            "${smoke_py}" "${smoke_sh}" 2>/dev/null || true)
+          if [ -n "${todo_hits}" ] && [ "${status}" = "green" ]; then
+            echo "::warning::Welle-3 cutover-window has open TODO/FIXME:"
+            echo "${todo_hits}"
+            status=yellow
+          fi
+
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          echo "check-1 verdict: ${status}"
+
+  # ---------------------------------------------------------------
+  # Check 2 -- Cross-Welle-Propagation-Risk-Indikator
+  # ---------------------------------------------------------------
+  check-2-cross-welle-propagation:
+    name: Check-2 Cross-Welle-Propagation-Risk
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      status: ${{ steps.eval.outputs.status }}
+      audit_trail_integrity: ${{ steps.eval.outputs.audit_trail_integrity }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Evaluate welle-3-audit-trail-integrity state
+        id: eval
+        run: |
+          set -euo pipefail
+          state_file=state/welle-3-audit-trail-integrity.json
+          if [ ! -f "${state_file}" ]; then
+            # No state file yet -- yellow (PENDING-FIRST-RUN), not red,
+            # because Welle-3-validation workflow may not have run yet.
+            echo "::warning::${state_file} missing -- PENDING-FIRST-RUN."
+            echo "status=yellow" >> "$GITHUB_OUTPUT"
+            echo "audit_trail_integrity=unknown" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Read the audit_trail_integrity field; map to tri-state.
+          # Schema: {"audit_trail_integrity": "green"|"yellow"|"red", ...}
+          ati=$(python3 -c '
+          import json, sys, pathlib
+          d = json.loads(pathlib.Path("'"${state_file}"'").read_text())
+          v = (d.get("audit_trail_integrity") or "").strip().lower()
+          if v not in ("green", "yellow", "red"):
+              v = "red"
+          print(v)
+          ')
+          echo "audit_trail_integrity=${ati}" >> "$GITHUB_OUTPUT"
+          # The check's own status mirrors the audit_trail_integrity:
+          # red -> red (propagation fires), yellow -> yellow,
+          # green -> green.
+          echo "status=${ati}" >> "$GITHUB_OUTPUT"
+          echo "check-2 verdict: ${ati}"
+
+  # ---------------------------------------------------------------
+  # Check 3 -- Independent-Oracle-Probe
+  # ---------------------------------------------------------------
+  check-3-independent-oracle:
+    name: Check-3 Independent-Oracle-Probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      status: ${{ steps.probe.outputs.status }}
+      disagreements: ${{ steps.probe.outputs.disagreements }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Run doppelbetrieb-score-aggregator (cross-modul-stress)
+        id: aggregator
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          # Independent oracle: the cross-modul-stress aggregator does
+          # NOT use bridge_audit_writer as oracle. Its axes are
+          # structurally-independent of the welle-3 substrate.
+          set +e
+          python3 scripts/doppelbetrieb-score-aggregator.py \
+            --mode cross-modul-stress \
+            --out out/independent-oracle-rollup.json
+          rc=$?
+          set -e
+          echo "aggregator_rc=${rc}"
+          echo "aggregator_rc=${rc}" >> "$GITHUB_OUTPUT"
+          if [ -f out/independent-oracle-rollup.json ]; then
+            head -200 out/independent-oracle-rollup.json
+          fi
+      - name: Cross-validate against welle-3 audit-trail-integrity
+        id: probe
+        run: |
+          set -euo pipefail
+          # Independent-oracle agreement check:
+          #   * if the cross-modul-stress aggregator's three axes all
+          #     pass AND the welle-3-validation last-verdict was
+          #     READY/PROCEED -> green (oracles agree).
+          #   * if oracles disagree on any axis (one says green, the
+          #     other red) -> red.
+          #   * if any signal missing -> yellow (PENDING).
+          status=green
+          disagreements=""
+          rollup=out/independent-oracle-rollup.json
+          welle3_state=state/welle-3-validation-last-verdict.json
+
+          if [ ! -f "${rollup}" ]; then
+            status=yellow
+            disagreements="independent-oracle-rollup-missing"
+          fi
+
+          if [ ! -f "${welle3_state}" ] && [ "${status}" = "green" ]; then
+            status=yellow
+            disagreements="welle-3-validation-last-verdict-missing"
+          fi
+
+          # When both files present, compare:
+          if [ -f "${rollup}" ] && [ -f "${welle3_state}" ]; then
+            # Compute the disagreement set in a single python pass.
+            disagreements=$(python3 -c '
+          import json, pathlib
+          r = json.loads(pathlib.Path("'"${rollup}"'").read_text())
+          w = json.loads(pathlib.Path("'"${welle3_state}"'").read_text())
+          ind_pass = bool(r.get("pass"))
+          welle_pass = (w.get("verdict") or "").upper() in ("READY", "PROCEED", "GREEN")
+          disagree = []
+          if ind_pass != welle_pass:
+              disagree.append("oracle-verdict-divergence")
+          # Per-axis check: if any cross-modul axis is red but welle-3
+          # verdict is green, that is a mis-attribution risk.
+          for axis_name, axis in (r.get("axes") or {}).items():
+              if isinstance(axis, dict):
+                  axis_ok = bool(axis.get("ok"))
+              else:
+                  axis_ok = bool(axis)
+              if not axis_ok and welle_pass:
+                  disagree.append(f"axis-{axis_name}")
+          print(",".join(disagree))
+          ' || echo "python-error")
+
+            if [ "${disagreements}" = "python-error" ]; then
+              status=yellow
+              disagreements="python-eval-error"
+            elif [ -n "${disagreements}" ]; then
+              status=red
+            fi
+          fi
+
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          echo "disagreements=${disagreements}" >> "$GITHUB_OUTPUT"
+          echo "check-3 verdict: ${status} (disagreements=${disagreements})"
+
+  # ---------------------------------------------------------------
+  # Check 4 -- IIA-1130-Pre-Auditor-Decision-Tracking
+  # ---------------------------------------------------------------
+  check-4-iia-1130-pre-auditor:
+    name: Check-4 IIA-1130-Pre-Auditor-Decision-Tracking
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      status: ${{ steps.eval.outputs.status }}
+      pre_auditor_state: ${{ steps.eval.outputs.pre_auditor_state }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Verify welle-3 pre-auditor-decision file exists + parses
+        id: eval
+        run: |
+          set -euo pipefail
+          decision_file=state/welle-3-pre-auditor-decision.json
+          if [ ! -f "${decision_file}" ]; then
+            # By design yellow: AR has not yet designated the external
+            # pre-auditor for Welle-3 (per Henrik Tag-44 Pre-Mortem
+            # §AR-Hand-Entscheidung). Not red because the file is
+            # expected to land before KW-25 Welle-3 cutover-window opens.
+            echo "::warning::${decision_file} missing -- PENDING-AR-DESIGNATION."
+            echo "status=yellow" >> "$GITHUB_OUTPUT"
+            echo "pre_auditor_state=missing" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # File present: parse + verify required fields.
+          parse_result=$(python3 -c '
+          import json, pathlib, sys
+          try:
+              d = json.loads(pathlib.Path("'"${decision_file}"'").read_text())
+          except Exception as e:
+              print(f"parse-error:{e}")
+              sys.exit(0)
+          required = ["welle", "auditor_role", "decision", "decided_at_utc"]
+          missing = [k for k in required if k not in d]
+          if missing:
+              print(f"missing-fields:{','.join(missing)}")
+              sys.exit(0)
+          welle = d.get("welle")
+          decision = (d.get("decision") or "").upper()
+          if welle != 3:
+              print(f"wrong-welle:{welle}")
+              sys.exit(0)
+          if decision not in ("APPROVED", "REJECTED", "PENDING"):
+              print(f"unknown-decision:{decision}")
+              sys.exit(0)
+          print(f"ok:{decision}")
+          ')
+          echo "parse_result=${parse_result}"
+          case "${parse_result}" in
+            ok:APPROVED)
+              echo "status=green" >> "$GITHUB_OUTPUT"
+              echo "pre_auditor_state=present" >> "$GITHUB_OUTPUT"
+              ;;
+            ok:PENDING)
+              echo "status=yellow" >> "$GITHUB_OUTPUT"
+              echo "pre_auditor_state=pending" >> "$GITHUB_OUTPUT"
+              ;;
+            ok:REJECTED)
+              echo "::error::Welle-3 pre-auditor decision REJECTED."
+              echo "status=red" >> "$GITHUB_OUTPUT"
+              echo "pre_auditor_state=present" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::Welle-3 pre-auditor-decision file invalid: ${parse_result}"
+              echo "status=red" >> "$GITHUB_OUTPUT"
+              echo "pre_auditor_state=missing" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+  # ---------------------------------------------------------------
+  # Aggregate -- Combine the four checks into a single verdict
+  # ---------------------------------------------------------------
+  aggregate:
+    name: Aggregate Welle-3 Hot-Spot Verdict
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs:
+      - check-1-self-reference-trap
+      - check-2-cross-welle-propagation
+      - check-3-independent-oracle
+      - check-4-iia-1130-pre-auditor
+    if: always()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Resolve today
+        id: today
+        env:
+          INPUT_TODAY: ${{ github.event.inputs.today }}
+        run: |
+          set -euo pipefail
+          today="${INPUT_TODAY}"
+          if [ -z "${today}" ]; then
+            today="$(date -u +%Y-%m-%d)"
+          fi
+          echo "today=${today}" >> "$GITHUB_OUTPUT"
+      - name: Read prev verdict (if available)
+        id: prev
+        run: |
+          set -euo pipefail
+          # Walk back the last 7 days of state-dir for the most recent
+          # envelope; carry its verdict forward as ``prev``.
+          prev=""
+          state_dir=state/welle-3-hot-spot-trend
+          if [ -d "${state_dir}" ]; then
+            prev=$(python3 -c '
+          import json, pathlib
+          d = pathlib.Path("'"${state_dir}"'")
+          files = sorted([p for p in d.glob("*.json")], reverse=True)
+          for f in files[:7]:
+              try:
+                  env = json.loads(f.read_text())
+              except Exception:
+                  continue
+              v = env.get("verdict")
+              if v:
+                  print(v)
+                  break
+          ' || true)
+          fi
+          echo "prev=${prev}" >> "$GITHUB_OUTPUT"
+          echo "prev verdict: ${prev:-<none>}"
+      - name: Run aggregator
+        id: agg
+        env:
+          CHECK1_STATUS: ${{ needs.check-1-self-reference-trap.outputs.status }}
+          CHECK2_STATUS: ${{ needs.check-2-cross-welle-propagation.outputs.status }}
+          CHECK3_STATUS: ${{ needs.check-3-independent-oracle.outputs.status }}
+          CHECK4_STATUS: ${{ needs.check-4-iia-1130-pre-auditor.outputs.status }}
+          WELLE_3_AUDIT_TRAIL_INTEGRITY: ${{ needs.check-2-cross-welle-propagation.outputs.audit_trail_integrity }}
+          INDEPENDENT_ORACLE_DISAGREEMENTS: ${{ needs.check-3-independent-oracle.outputs.disagreements }}
+          PRE_AUDITOR_STATE: ${{ needs.check-4-iia-1130-pre-auditor.outputs.pre_auditor_state }}
+        run: |
+          set -euo pipefail
+          mkdir -p out state/welle-3-hot-spot-trend
+          today="${{ steps.today.outputs.today }}"
+          prev="${{ steps.prev.outputs.prev }}"
+          python3 tooling/ci/welle_3_hot_spot_aggregator.py \
+            --output "out/welle-3-hot-spot-verdict.json" \
+            --notify-out "state/notify-events.jsonl" \
+            ${prev:+--prev-verdict "${prev}"} \
+            --print-stdout
+          # Mirror today's envelope into the trend dir.
+          cp "out/welle-3-hot-spot-verdict.json" \
+            "state/welle-3-hot-spot-trend/${today}.json"
+          verdict=$(python3 -c 'import json; print(json.load(open("out/welle-3-hot-spot-verdict.json"))["verdict"])')
+          echo "verdict=${verdict}" >> "$GITHUB_OUTPUT"
+          echo "Welle-3 Hot-Spot verdict: ${verdict}"
+      - name: Render Job-Summary
+        if: always()
+        env:
+          VERDICT: ${{ steps.agg.outputs.verdict }}
+          TODAY: ${{ steps.today.outputs.today }}
+        run: |
+          set -euo pipefail
+          echo "# Welle-3 Hot-Spot Probe -- ${TODAY}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Verdict:** ${VERDICT:-UNKNOWN}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f out/welle-3-hot-spot-verdict.json ]; then
+            echo "## Envelope" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat out/welle-3-hot-spot-verdict.json >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f state/notify-events.jsonl ]; then
+            count=$(wc -l < state/notify-events.jsonl | tr -d ' ')
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Notify-events feed" >> "$GITHUB_STEP_SUMMARY"
+            echo "Total events in feed: **${count}**" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-3c-welle-3-hot-spot-${{ steps.today.outputs.today }}
+          path: |
+            out/welle-3-hot-spot-verdict.json
+            out/independent-oracle-rollup.json
+            state/welle-3-hot-spot-trend/${{ steps.today.outputs.today }}.json
+            state/notify-events.jsonl
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Persist state (operator-hand only)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.persist == 'true'
+        run: |
+          set -euo pipefail
+          # Per ADR-0058 + AR-Direktive Tag-44, scheduled CI does NOT
+          # push to main. This step exists to validate the
+          # persist=true dispatch path doesn't error; actual push is
+          # operator-hand.
+          today="${{ steps.today.outputs.today }}"
+          echo "[persist] state file: state/welle-3-hot-spot-trend/${today}.json"
+          ls -la state/welle-3-hot-spot-trend/ || true
+          echo "[persist] note: actual push is operator-hand; runner has read-only contents."
