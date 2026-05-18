@@ -63,6 +63,15 @@ from typing import Any, Dict, List
 
 import pytest
 
+# Cross-lang parity needs PyYAML + rfc8785 to build the canonical-trace
+# from a markdown input. The shadow-CI lane runs without either wheel
+# (see `wirelang/persona/persona_canonical_form.py` resolver docstring);
+# skip the entire suite on that lane via the same `importorskip` pattern
+# already established in `wirelang/tests/test_aip_document_golden.py`
+# and `wirelang/tests/test_did_document_golden.py`.
+pytest.importorskip("yaml")
+pytest.importorskip("rfc8785")
+
 from wirelang.persona.frontmatter_parser_canonical import (
     ACCEPTED_STATUS_VALUES,
     FRONTMATTER_TRACE_SCHEMA,
