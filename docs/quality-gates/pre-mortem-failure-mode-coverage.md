@@ -3,12 +3,13 @@
 | Field | Value |
 |---|---|
 | Owner | Amara Osei (QA), with Zone-N cross-check by Henrik (Internal Audit) |
-| Status | Tag-46 sweep — pending Phase-3c-Welle-Marathon execution (ADR-0066 four-Wochen-Cadence KW-24 -> KW-27) |
-| Phase | 3 (closing): Pre-Mortem failure-mode test-coverage audit + Tag-46 sweep |
-| Source | Tag-45 Amara Auftrag (Continuous-Mode, 2026-05-18); Tag-46 Amara Coverage-Sweep (Continuous-Mode, 2026-05-18); Henrik Tag-44 Pre-Mortem-Skizze (`reports/audit/phase-3-marathon-pre-mortem-2026-05-18.md`); ADR-0066 §Beschluss + §Wochen-Plan; ADR-0065 §Verifikations-Plan |
-| Date | 2026-05-18 (creation Tag-45; sweep update Tag-46) |
+| Status | Tag-47 structural-audit — pending Phase-3c-Welle-Marathon execution (ADR-0066 four-Wochen-Cadence KW-24 -> KW-27) |
+| Phase | 3 (closing): Pre-Mortem failure-mode test-coverage audit + Tag-46 sweep + Tag-47 layer-consistency audit |
+| Source | Tag-45 Amara Auftrag (Continuous-Mode, 2026-05-18); Tag-46 Amara Coverage-Sweep (Continuous-Mode, 2026-05-18); Tag-47 Amara Pyramide-Layer-Audit (Continuous-Mode, 2026-05-18); Henrik Tag-44 Pre-Mortem-Skizze (`reports/audit/phase-3-marathon-pre-mortem-2026-05-18.md`); ADR-0066 §Beschluss + §Wochen-Plan; ADR-0065 §Verifikations-Plan |
+| Date | 2026-05-18 (creation Tag-45; sweep update Tag-46; layer-audit refresh Tag-47) |
 | Test-File (Tag-45 baseline) | `tests/phase_3c/test_pre_mortem_failure_mode_coverage_audit.py` |
 | Test-File (Tag-46 sweep) | `tests/phase_3c/test_pre_mortem_coverage_sweep_tag_46.py` |
+| Test-File (Tag-47 structural-audit) | `tests/phase_3c/test_acceptance_pyramide_tag_46_validation.py` |
 | Companion (positive marathon-sequence) | `tests/phase_3c/test_marathon_schluss_acceptance_drill.py` (Tag-43) |
 | Companion (anti-pattern control surface) | `tests/phase_3c/test_marathon_anti_patterns.py` (Tag-44) |
 | Companion (per-day walkthrough) | `tests/phase_3c/test_cutover_day_e2e_drill.py` (Tag-41) |
@@ -41,6 +42,23 @@ The Phase-3-Acceptance pyramid grows to five layers with this file:
 | 3 — Marathon | `test_marathon_schluss_acceptance_drill.py` (Tag-43) | Amara | Does the four-Wochen-Sequence thread the per-day records into the AC-1..AC-5 conjunction, fire the marker, fire the Bilanz-Trigger? |
 | 4 — Anti-Pattern | `test_marathon_anti_patterns.py` (Tag-44) | Amara | Does the control-surface REJECT ten dedicated control-plane anti-patterns by construction? |
 | 5 — Pre-Mortem Coverage | `test_pre_mortem_failure_mode_coverage_audit.py` (Tag-45, this doc) | Amara | Does the union of Layer-1..4 cover the 23 Pre-Mortem failure-modes, or is each gap explicitly classified? |
+
+**Tag-47 structural-consistency audit.** The five-layer Pyramide is
+pinned as a structurally-coherent contract by
+`tests/phase_3c/test_acceptance_pyramide_tag_46_validation.py`
+(~20 hermetic tests). Where Layer-5 (Tag-45) and the Tag-46 sweep
+verify *content* (failure-modes covered, follow-ups landed), the
+Tag-47 audit verifies *structure*: (1) each layer's file exists and
+its predecessors all exist (file-presence cascade); (2) the §0
+pyramid-table is internally consistent with the canonical layer-
+file map (labels, Tag-N origins, file-basenames, Amara-Owner-per-row
+all reconciled); (3) the Layer-5 module references Layer-1..4 by
+name in its module-docstring (dependency-edge anchor); (4) each
+Tag-46 follow-up sits at a path consistent with its declared layer-
+slot (`tests/infra/` for A6 substrate, `wirelang/.../persona_engine/`
+for A2 + A8 persona-engine-module, `tests/ci/` for B1 CI-shape);
+(5) the Tag-46 sweep's `TAG46_FOLLOWUPS` constant covers exactly
+{A2, A6, A8, B1, B3} with cross-review-partners matching §4 / §4a.
 
 ## 1. Classification taxonomy
 
@@ -668,3 +686,4 @@ companion tests.
 
 — Amara Osei (QA), Tag-45 Pre-Mortem Coverage-Audit, 2026-05-18
 — Amara Osei (QA), Tag-46 Coverage-Sweep + A6/B1 Cross-Validation, 2026-05-18
+— Amara Osei (QA), Tag-47 Pyramide-Layer-Consistency-Audit + Doc-Refresh, 2026-05-18
