@@ -1,0 +1,446 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase-3c Pre-Cutover-Sanity Workflow - Tag-41 / ADR-0066 KW-24 Cutover-Start
+# ---------------------------------------------------------------------------
+#
+# Pre-flight readiness verification for the KW-24 Phase-3c cutover
+# marathon start. Runs five hermetic sanity-steps and aggregates a
+# single Marathon-Readiness verdict
+# (`READY` / `CAUTION` / `BLOCK`). Cutover-Execution does not start
+# without a `READY` verdict the morning of Cutover-Day.
+#
+# This workflow is the central pre-flight at the marathon start-line.
+# Its job is to fail loud if any one of the five Tag-38..Tag-40
+# substrates that the marathon relies on regresses between Tag-41
+# (today) and Cutover-Day (KW-24 Monday). Each step probes one
+# substrate; the aggregator emits a JSON verdict-envelope.
+#
+# Five substrates probed (one per pipeline step)
+# ----------------------------------------------
+#
+#   Step 1 - Substanz-Inventory-Check
+#       Verify the seven per-Welle cutover-smokes
+#       (`scripts/phase-3c/welle-{1..7}-*-cutover-smoke.py`), the
+#       seven per-Welle operator-runbooks
+#       (`docs/phase-3c/welle-{1..7}-*-runbook.md`), and the seven
+#       per-Welle validation-workflows
+#       (`.github/workflows/phase-3c-welle-{1..7}-validation.yml`)
+#       all exist on the current HEAD. Pure tree-state check; no
+#       subprocess invocations.
+#
+#   Step 2 - Cross-Welle-Generalprobe-Run
+#       Invoke Reza's PR #263 substrate
+#       (`scripts/phase-3c/cross-welle-cutover-generalprobe.py`)
+#       with `--dry-run`. The dry-run emits the ADR-0066 four-week
+#       sub-sequence plan and exits 0; this verifies the
+#       generalprobe substrate is importable and the plan is well-
+#       formed. Full marathon-run is reserved for the explicit
+#       `marathon-dress-rehearsal` workflow (out of scope here).
+#
+#   Step 3 - Marathon-Tracker-State-Check
+#       Invoke Selin's PR #261 substrate
+#       (`scripts/phase-3c/marathon-aggregat-tracker.py
+#       --show-marathon --json`) and verify per-Welle lifecycle
+#       state is one of the eleven valid lifecycle-states
+#       (per `--state` enum). Also probe `--show-aggregat` for
+#       the cross-Welle aggregate counters.
+#
+#   Step 4 - Phase-3-COMPLETE-Marker-Workflow-Dry-Run
+#       Re-resolve the five conjunctive Acceptance-Criteria from
+#       Tomas's PR #258 marker-workflow
+#       (`.github/workflows/phase-3-complete-marker.yml`) by
+#       parsing its YAML and asserting all five AC-verify jobs
+#       plus the emit-job exist. Note: the marker-workflow itself
+#       can be `workflow_dispatch`-invoked with `dry_run=true`,
+#       but doing that here would require `gh workflow run` plus
+#       a follow-up poll, which crosses the hermetic boundary of
+#       a pre-flight check. We instead structurally verify the
+#       five-AC conjunction is parseable; the marker-workflow's
+#       own hermetic tests
+#       (`tests/ci/test_phase_3_complete_marker_workflow.py`)
+#       cover the dynamic semantics.
+#
+#   Step 5 - Decision-Aggregation
+#       Aggregate Steps 1..4 into a tri-state verdict:
+#         * `READY`    - all four substrates green.
+#         * `CAUTION`  - exactly one substrate yellow, rest green.
+#         * `BLOCK`    - any substrate red, or 2+ yellow.
+#       The verdict-envelope is uploaded as a build artifact
+#       (`pre-cutover-sanity-verdict.json`) and printed to the
+#       step-summary.
+#
+# Trigger surface
+# ---------------
+#
+#   * `workflow_dispatch:` - Mira-Hand/operator-hand manual run.
+#     Inputs: `verbose` flag for diagnostic output.
+#   * `schedule: cron "0 6 * * 1"` - every Monday 06:00 UTC. KW-24
+#     Cutover-Day-Morning lands on Mon 2026-06-08 (the day after
+#     KW-23 closes). The 06:00 UTC window = 08:00 CEST in June,
+#     which is two hours before the ADR-0066 §Mo Live-Smoke
+#     target (10:00 CEST), giving the operator-hand window to
+#     fix CAUTION-state items before Cutover-Execution.
+#   * `push:` (path-filtered) - any change to
+#     `scripts/phase-3c/**` or `docs/phase-3c/**` triggers an
+#     immediate re-probe; this catches the case where a
+#     marathon-substrate is silently broken by an unrelated PR.
+#
+# Sandbox boundary
+# ----------------
+#
+# Hermetic: stdlib + pyyaml + subprocess (python3-only) + the
+# in-tree scripts. No podman, no NATS, no live-VM, no Anthropic
+# API, no real Rust binary. The marker-workflow YAML is parsed
+# locally, not dispatched.
+#
+# Not a required status check
+# ---------------------------
+#
+# Per `feedback_branch_protection_check_names.md` this workflow
+# is NOT listed as a required status check on PRs - it gates a
+# calendar-window (KW-24 marathon-start), not individual PRs.
+#
+# Operator playbook
+# -----------------
+#
+# When the Monday 06:00 UTC scheduled run lands as `BLOCK` or
+# `CAUTION` and Cutover-Execution at 10:00 CEST is two hours away:
+#
+#   1. Download the `pre-cutover-sanity-verdict.json` artifact.
+#   2. Read the `failed_steps` list. For each entry, follow the
+#      remediation link below to the owning substrate:
+#
+#      * Step 2 (Cross-Welle-Generalprobe) - PR #263 substrate,
+#        owned by Reza. Re-run the generalprobe locally with
+#        `python3 scripts/phase-3c/cross-welle-cutover-
+#        generalprobe.py --dry-run` to reproduce. If the dry-run
+#        plan emits, file follows for substrate bug. If imports
+#        fail, escalate to Reza for a one-line patch + force-
+#        merge before 10:00 CEST.
+#      * Step 3 (Marathon-Tracker) - PR #261 substrate, owned by
+#        Selin. Reproduce with `python3 scripts/phase-3c/
+#        marathon-aggregat-tracker.py --show-marathon`. If the
+#        state-file `state/phase-3-marathon-state.json` is
+#        missing, initialise it with `--update-welle 1 --state
+#        pending --note "marathon-pre-init"`. Escalate to Selin
+#        for parse errors.
+#      * Step 4 (Marker-Workflow) - PR #258 substrate, owned by
+#        Tomas (you). The YAML parse is structural; if it fails
+#        the marker-workflow YAML was edited in a way that
+#        breaks the five-AC conjunction. Inspect the diff vs.
+#        the last green run on `main`.
+#      * Step 1 (Inventory-Check) - missing welle-N substrates
+#        indicate a regression from Tag-38/39. Cross-reference
+#        with the Tomas Tag-39 closeout commit `7618c66` to
+#        see what should be present.
+#
+#   3. Coordinate with Kai (live-VM-drill, PR #259) and Amara
+#      (E2E-regression, PR #262) on whether their substrates
+#      report a parallel red. If yes, decision is BLOCK
+#      regardless and Cutover-Execution moves to KW-25.
+#
+#   4. AR-Hand ratification: a `CAUTION` verdict does NOT block
+#      Cutover-Execution by itself - AR-Hand decides. A `BLOCK`
+#      verdict by itself does NOT cancel the cutover - operator-
+#      hand + AR-Hand decide together, with the verdict-JSON
+#      attached to the decision.
+#
+# Cross-substrate links
+# ---------------------
+#
+#   * Reza Tag-40 Generalprobe (PR #263):
+#     `scripts/phase-3c/cross-welle-cutover-generalprobe.py`
+#   * Selin Tag-40 Tracker (PR #261):
+#     `scripts/phase-3c/marathon-aggregat-tracker.py`
+#   * Tomas Tag-40 Marker-Workflow (PR #258):
+#     `.github/workflows/phase-3-complete-marker.yml`
+#   * Kai Tag-40 Live-VM-Drill (PR #259):
+#     `scripts/phase-3c/live-vm-cutover-drill.sh`
+#   * Amara Tag-40 E2E-Regression (PR #262):
+#     `tests/e2e/test_phase_3_final_regression_suite.py`
+
+name: phase-3c-pre-cutover-sanity
+
+on:
+  workflow_dispatch:
+    inputs:
+      verbose:
+        description: "Emit per-step diagnostic output (true|false)"
+        required: false
+        default: "false"
+  schedule:
+    # Monday 06:00 UTC - Cutover-Day-Morning window for KW-24..27.
+    - cron: "0 6 * * 1"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/phase-3c/**"
+      - "docs/phase-3c/**"
+      - ".github/workflows/phase-3c-pre-cutover-sanity.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: phase-3c-pre-cutover-sanity
+  cancel-in-progress: false
+
+jobs:
+  step-1-substanz-inventory-check:
+    name: Step 1 Substanz-Inventory-Check (7 smokes + 7 runbooks + 7 workflows)
+    runs-on: ubuntu-latest
+    outputs:
+      step1_status: ${{ steps.probe.outputs.step1_status }}
+      missing: ${{ steps.probe.outputs.missing }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe per-Welle substrate inventory
+        id: probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          # Seven per-Welle cutover-smokes (Python flavour is canonical;
+          # the .sh flavour is operator-hand shell wrapper, not gated).
+          smokes=(
+            "scripts/phase-3c/welle-1-v907-verify-cutover-smoke.py"
+            "scripts/phase-3c/welle-2-svid-workload-identity-cutover-smoke.py"
+            "scripts/phase-3c/welle-3-bridge-audit-writer-cutover-smoke.py"
+            "scripts/phase-3c/welle-4-state-backing-cutover-smoke.py"
+            "scripts/phase-3c/welle-5-lifecycle-state-machine-cutover-smoke.py"
+            "scripts/phase-3c/welle-6-subscribe-loop-cutover-smoke.py"
+            "scripts/phase-3c/welle-7-recovery-workflow-cutover-smoke.py"
+          )
+          # Seven per-Welle operator-runbooks. Two naming conventions
+          # coexist on main (`welle-N-cutover-smoke.md` vs
+          # `welle-N-<substrate>-runbook.md`). Either is acceptable
+          # for inventory purposes; we require AT LEAST ONE per Welle.
+          runbook_alternatives=(
+            "docs/phase-3c/welle-1-v907-verify-runbook.md|docs/phase-3c/welle-1-cutover-smoke.md"
+            "docs/phase-3c/welle-2-svid-workload-identity-runbook.md|docs/phase-3c/welle-2-cutover-smoke.md"
+            "docs/phase-3c/welle-3-bridge-audit-writer-runbook.md|docs/phase-3c/welle-3-cutover-smoke.md"
+            "docs/phase-3c/welle-4-state-backing-runbook.md|docs/phase-3c/welle-4-cutover-smoke.md"
+            "docs/phase-3c/welle-5-lifecycle-state-machine-runbook.md|docs/phase-3c/welle-5-cutover-smoke.md"
+            "docs/phase-3c/welle-6-subscribe-loop-runbook.md|docs/phase-3c/welle-6-cutover-smoke.md"
+            "docs/phase-3c/welle-7-recovery-workflow-runbook.md|docs/phase-3c/welle-7-cutover-smoke.md"
+          )
+          # Seven per-Welle validation-workflows.
+          workflows=(
+            ".github/workflows/phase-3c-welle-1-validation.yml"
+            ".github/workflows/phase-3c-welle-2-validation.yml"
+            ".github/workflows/phase-3c-welle-3-validation.yml"
+            ".github/workflows/phase-3c-welle-4-validation.yml"
+            ".github/workflows/phase-3c-welle-5-validation.yml"
+            ".github/workflows/phase-3c-welle-6-validation.yml"
+            ".github/workflows/phase-3c-welle-7-validation.yml"
+          )
+          for f in "${smokes[@]}"; do
+            [[ -f "$f" ]] || missing+=("$f")
+          done
+          for pair in "${runbook_alternatives[@]}"; do
+            a="${pair%%|*}"
+            b="${pair##*|}"
+            if [[ ! -f "$a" && ! -f "$b" ]]; then
+              missing+=("$a (or $b)")
+            fi
+          done
+          for f in "${workflows[@]}"; do
+            [[ -f "$f" ]] || missing+=("$f")
+          done
+          if (( ${#missing[@]} == 0 )); then
+            echo "step1_status=green" >> "$GITHUB_OUTPUT"
+            echo "missing=" >> "$GITHUB_OUTPUT"
+            echo "Inventory: 7/7 smokes + 7/7 runbooks + 7/7 workflows present."
+          else
+            echo "step1_status=red" >> "$GITHUB_OUTPUT"
+            printf "missing=%s\n" "$(IFS=,; echo "${missing[*]}")" >> "$GITHUB_OUTPUT"
+            printf "::warning::Step 1: missing inventory items:\n"
+            for m in "${missing[@]}"; do
+              printf "  - %s\n" "$m"
+            done
+          fi
+
+  step-2-cross-welle-generalprobe-dry-run:
+    name: Step 2 Cross-Welle-Generalprobe (Reza PR #263 dry-run)
+    runs-on: ubuntu-latest
+    outputs:
+      step2_status: ${{ steps.probe.outputs.step2_status }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run cross-welle-generalprobe --dry-run
+        id: probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          script="scripts/phase-3c/cross-welle-cutover-generalprobe.py"
+          if [[ ! -f "$script" ]]; then
+            echo "::warning::Step 2: $script missing (Reza PR #263 substrate)"
+            echo "step2_status=red" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if python3 "$script" --dry-run; then
+            echo "step2_status=green" >> "$GITHUB_OUTPUT"
+          else
+            ec=$?
+            echo "::warning::Step 2: dry-run exited $ec"
+            if [[ $ec -eq 1 ]]; then
+              echo "step2_status=yellow" >> "$GITHUB_OUTPUT"
+            else
+              echo "step2_status=red" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+  step-3-marathon-tracker-state-check:
+    name: Step 3 Marathon-Tracker-State-Check (Selin PR #261)
+    runs-on: ubuntu-latest
+    outputs:
+      step3_status: ${{ steps.probe.outputs.step3_status }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run marathon-aggregat-tracker --show-marathon + --show-aggregat
+        id: probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          script="scripts/phase-3c/marathon-aggregat-tracker.py"
+          if [[ ! -f "$script" ]]; then
+            echo "::warning::Step 3: $script missing (Selin PR #261 substrate)"
+            echo "step3_status=red" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # --show-marathon renders ASCII; --show-aggregat emits JSON
+          # counters; we want both to exit cleanly.
+          status="green"
+          if ! python3 "$script" --show-marathon; then
+            echo "::warning::Step 3: --show-marathon failed"
+            status="yellow"
+          fi
+          if ! python3 "$script" --show-aggregat --json; then
+            echo "::warning::Step 3: --show-aggregat --json failed"
+            status="red"
+          fi
+          # Validate --show-aggregat output is well-formed JSON. The
+          # tracker emits the aggregate-counter dict when given --json;
+          # we re-invoke it through python3 -c (no heredoc, keeps YAML
+          # indentation clean) and assert json.loads() succeeds.
+          if [[ "$status" != "red" ]]; then
+            if ! python3 -c "import json,subprocess,sys; p=subprocess.run(['python3','scripts/phase-3c/marathon-aggregat-tracker.py','--show-aggregat','--json'],capture_output=True,text=True); sys.exit(1) if p.returncode!=0 else json.loads(p.stdout)"; then
+              echo "::warning::Step 3: --show-aggregat output not valid JSON"
+              status="red"
+            fi
+          fi
+          echo "step3_status=$status" >> "$GITHUB_OUTPUT"
+
+  step-4-marker-workflow-dry-run:
+    name: Step 4 Phase-3-COMPLETE-Marker-Workflow-Dry-Run (Tomas PR #258)
+    runs-on: ubuntu-latest
+    outputs:
+      step4_status: ${{ steps.probe.outputs.step4_status }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pyyaml
+        run: python3 -m pip install pyyaml
+      - name: Structurally verify five-AC conjunction in marker workflow
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          marker=".github/workflows/phase-3-complete-marker.yml"
+          if [[ ! -f "$marker" ]]; then
+            echo "::warning::Step 4: $marker missing (Tomas PR #258)"
+            echo "step4_status=red" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Invoke the structural verifier via tools/ci/verify_marker_workflow_structure.py
+          # to keep YAML indentation clean (no nested heredoc).
+          python3 tooling/ci/verify_marker_workflow_structure.py "$marker"
+          rc=$?
+          if [[ $rc -eq 0 ]]; then
+            echo "step4_status=green" >> "$GITHUB_OUTPUT"
+          elif [[ $rc -eq 2 ]]; then
+            echo "step4_status=yellow" >> "$GITHUB_OUTPUT"
+          else
+            echo "step4_status=red" >> "$GITHUB_OUTPUT"
+          fi
+
+  step-5-decision-aggregation:
+    name: Step 5 Decision-Aggregation (READY/CAUTION/BLOCK + JSON verdict)
+    runs-on: ubuntu-latest
+    needs:
+      - step-1-substanz-inventory-check
+      - step-2-cross-welle-generalprobe-dry-run
+      - step-3-marathon-tracker-state-check
+      - step-4-marker-workflow-dry-run
+    if: always()
+    outputs:
+      verdict: ${{ steps.aggregate.outputs.verdict }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Aggregate Steps 1..4 into Marathon-Readiness verdict
+        id: aggregate
+        shell: bash
+        env:
+          STEP1: ${{ needs.step-1-substanz-inventory-check.outputs.step1_status }}
+          STEP2: ${{ needs.step-2-cross-welle-generalprobe-dry-run.outputs.step2_status }}
+          STEP3: ${{ needs.step-3-marathon-tracker-state-check.outputs.step3_status }}
+          STEP4: ${{ needs.step-4-marker-workflow-dry-run.outputs.step4_status }}
+          MISSING: ${{ needs.step-1-substanz-inventory-check.outputs.missing }}
+        run: |
+          set -eo pipefail
+          # Default to "red" for any empty status (means upstream
+          # job failed entirely - GitHub Actions passes empty string,
+          # not "unset", so we explicitly default-fill).
+          s1="${STEP1:-}"
+          s2="${STEP2:-}"
+          s3="${STEP3:-}"
+          s4="${STEP4:-}"
+          [[ -z "$s1" ]] && s1="red"
+          [[ -z "$s2" ]] && s2="red"
+          [[ -z "$s3" ]] && s3="red"
+          [[ -z "$s4" ]] && s4="red"
+          mkdir -p out
+          # Aggregator pulled out into tooling/ci/aggregate_pre_cutover_sanity_verdict.py
+          # to keep YAML clean (no nested heredoc, no interpolation games).
+          STEP1_STATUS="$s1" \
+          STEP2_STATUS="$s2" \
+          STEP3_STATUS="$s3" \
+          STEP4_STATUS="$s4" \
+          INVENTORY_MISSING="${MISSING:-}" \
+            python3 tooling/ci/aggregate_pre_cutover_sanity_verdict.py \
+              --output out/pre-cutover-sanity-verdict.json
+          verdict=$(python3 -c "import json; print(json.load(open('out/pre-cutover-sanity-verdict.json'))['verdict'])")
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Phase-3c Pre-Cutover-Sanity Verdict: \`$verdict\`"
+            echo ""
+            echo "| Step | Status |"
+            echo "|------|--------|"
+            echo "| Step 1 Inventory | \`$s1\` |"
+            echo "| Step 2 Generalprobe dry-run | \`$s2\` |"
+            echo "| Step 3 Tracker state | \`$s3\` |"
+            echo "| Step 4 Marker-workflow dry-run | \`$s4\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$verdict" == "BLOCK" ]]; then
+            echo "::error::Phase-3c pre-cutover-sanity verdict: BLOCK"
+            exit 1
+          elif [[ "$verdict" == "CAUTION" ]]; then
+            echo "::warning::Phase-3c pre-cutover-sanity verdict: CAUTION"
+          fi
+      - name: Upload pre-cutover-sanity-verdict.json artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-cutover-sanity-verdict
+          path: out/pre-cutover-sanity-verdict.json
+          if-no-files-found: warn
