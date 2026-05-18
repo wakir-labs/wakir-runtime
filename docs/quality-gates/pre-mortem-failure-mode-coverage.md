@@ -133,17 +133,31 @@ classified into one of four coverage-states:
 
 #### A6 — Cosign-Verification-Drift (Image-Re-Bake mid-Marathon)
 
-- **Coverage state.** PARTIAL.
+- **Coverage state.** COVERED (Tag-46 substrate-layer closeout;
+  pre-Tag-46 state was PARTIAL).
 - **Pinning tests.**
   - `test_cosign_login_step_present` (`tests/ci/test_build_wakir_
-    provisioner_workflow.py`)
+    provisioner_workflow.py`) — Layer-1 CI-workflow shape.
   - `test_cosign_login_runs_before_sign`
-    (`tests/ci/test_build_wakir_provisioner_workflow.py`)
-- **Follow-up (Tag-46+).** The CI-layer cosign-chain tests verify
-  the workflow shape, but no Marathon-level test asserts the cross-
-  Welle invariant "Welle-N image-hash MUST equal Welle-N+1 image-hash
-  for the same image". Add `test_cosign_chain_marathon_image_hash_
-  stability.py`.
+    (`tests/ci/test_build_wakir_provisioner_workflow.py`) — Layer-1
+    CI-workflow shape.
+  - `tests/infra/test_cosign_drift_coverage_a6.py` (Tag-46, Kai) —
+    Layer-3 substrate, 17 hermetic invariants:
+    - `test_a6_per_binary_cosign_drift_invariant` (parametrised
+      across 15 binaries, TV-A6-01..15).
+    - `test_a6_image_digest_mismatch_recovery_posture` (TV-A6-16).
+    - `test_a6_cosign_installer_semver_pin` (TV-A6-17).
+    - `test_a6_keyless_oidc_identity_drift_detection` (TV-A6-18).
+    - `test_a6_sigstore_trust_root_posture` (TV-A6-19).
+    - `test_a6_coverage_classification_covered`
+      + `test_a6_coverage_matrix_doc_exists_and_named` (TV-A6-20).
+- **Notes.** Three-layered coverage: Layer-1 (CI-workflow shape) +
+  Layer-3 (substrate per-binary cosign-drift detection + recovery
+  posture + installer / OIDC / trust-root discipline). The Tag-46+
+  Layer-5 marathon-level pin
+  (`test_cosign_chain_marathon_image_hash_stability.py` — Amara owner)
+  remains an additional defence-in-depth follow-up extending COVERED
+  across the cutover sequence.
 
 #### A7 — Persona-Engine-Sprach-Drift (Python-Rest in Hot-Path)
 
@@ -359,11 +373,11 @@ Tag-45 contract scope (§0).
 
 | Class | Total | COVERED | PARTIAL | GAP-ACCEPTED | GAP-OPEN |
 |---|---|---|---|---|---|
-| A (Technisch) | 8 | 5 (A1, A3, A4, A5, A7) | 3 (A2, A6, A8) | 0 | 0 |
+| A (Technisch) | 8 | 6 (A1, A3, A4, A5, A6, A7) | 2 (A2, A8) | 0 | 0 |
 | B (Operativ) | 6 | 2 (B2, B4) | 2 (B1, B3) | 2 (B5, B6) | 0 |
 | C (Prozedural) | 5 | 2 (C1, C2) | 0 | 3 (C3, C4, C5) | 0 |
 | D (Externe) | 5 | 0 | 0 | 5 (D1-D5) | 0 |
-| **Total** | **24*** | **9** | **5** | **10** | **0** |
+| **Total** | **24*** | **10** | **4** | **10** | **0** |
 
 \* Henrik's Pre-Mortem-Skizze §6 names "23 hypothetische Failure-
 Modes" but the table-row count is A8 + B6 + C5 + D5 = 24. The
@@ -373,9 +387,10 @@ table-row count (24) as the canonical denominator.
 
 **Coverage interpretation.**
 
-- **9 of 24 failure-modes (37.5%) are directly COVERED** by at
-  least one test in Layer-1..4 of the Phase-3-Acceptance pyramid.
-- **5 of 24 failure-modes (20.8%) are PARTIAL** with an explicit
+- **10 of 24 failure-modes (41.7%) are directly COVERED** by at
+  least one test in Layer-1..4 of the Phase-3-Acceptance pyramid
+  (Tag-46 substrate-layer closeout flipped A6 PARTIAL -> COVERED).
+- **4 of 24 failure-modes (16.7%) are PARTIAL** with an explicit
   Tag-46+ follow-up item named for each.
 - **10 of 24 failure-modes (41.7%) are GAP-ACCEPTED** as structurally
   out-of-scope for the QA test surface (5 external D-class, 4
@@ -396,9 +411,13 @@ PARTIAL bucket clusters around three structural seams:
    Python-side smoke covers shape but not failure-mode. Tag-46+
    adds two Python-side tests to close the seam.
 3. **Image-Chain seam** (A6): cosign-verification-chain across
-   Welle-N -> Welle-N+1 image-hashes. The CI-workflow-shape is
-   pinned; the marathon-level image-hash-stability invariant is the
-   Tag-46+ follow-up.
+   Welle-N -> Welle-N+1 image-hashes. **Closed at substrate-layer
+   in Tag-46** by `tests/infra/test_cosign_drift_coverage_a6.py`
+   (17 hermetic invariants — per-binary drift-anchor slots + recovery
+   posture + installer / OIDC / trust-root discipline). The
+   marathon-level image-hash-stability invariant (Welle-N == Welle-N+1
+   image-hash) remains an additional defence-in-depth Tag-46+ pin
+   owned by Amara.
 
 ## 4. Tag-46+ follow-up items (named, not yet spawned)
 
@@ -407,18 +426,21 @@ test that closes the partial coverage. The Tag-45 coverage-audit
 **does not spawn** these follow-ups; it only names them so the
 Tag-46+ planning surface has explicit anchors.
 
-| # | Failure-Mode | Follow-up test | Layer | Owner |
-|---|---|---|---|---|
-| 1 | A2 FSM-Phantom-Transitions | `test_fsm_transition_legality_marathon.py` | 5 (this layer) | Amara |
-| 2 | A6 Cosign-Verification-Drift | `test_cosign_chain_marathon_image_hash_stability.py` | 5 (this layer) | Amara, with Kai cross-review |
-| 3 | A8 NATS-JetStream-Persistence-Loss | `test_welle_4_state_backing_persistence_loss.py` | 5 (this layer) | Amara, with Reza cross-review |
-| 4 | B1 AR-Hand-Stop-Marker-Trigger | `test_ar_hand_stop_marker_trigger_invariant.py` | 5 (this layer) | Amara |
-| 5 | B3 Welle-3-IIA-1130-Pre-Auditor-Designation | `test_welle_3_pre_auditor_designation_precondition.py` | 5 (this layer) | Amara, with Henrik cross-review (Zone N) |
+| # | Failure-Mode | Follow-up test | Layer | Owner | Status |
+|---|---|---|---|---|---|
+| 1 | A2 FSM-Phantom-Transitions | `test_fsm_transition_legality_marathon.py` | 5 (Marathon) | Amara | pending |
+| 2a | A6 Cosign-Verification-Drift (substrate) | `tests/infra/test_cosign_drift_coverage_a6.py` | 3 (substrate) | Kai (Zone-C cross-review) | **DONE (Tag-46, this audit; flipped A6 -> COVERED)** |
+| 2b | A6 Cosign-Verification-Drift (marathon defence-in-depth) | `test_cosign_chain_marathon_image_hash_stability.py` | 5 (Marathon) | Amara, with Kai cross-review | pending (additional defence) |
+| 3 | A8 NATS-JetStream-Persistence-Loss | `test_welle_4_state_backing_persistence_loss.py` | 5 (Marathon) | Amara, with Reza cross-review | pending |
+| 4 | B1 AR-Hand-Stop-Marker-Trigger | `test_ar_hand_stop_marker_trigger_invariant.py` | 5 (Marathon) | Amara | pending |
+| 5 | B3 Welle-3-IIA-1130-Pre-Auditor-Designation | `test_welle_3_pre_auditor_designation_precondition.py` | 5 (Marathon) | Amara, with Henrik cross-review (Zone N) | pending |
 
 **Sequencing observation (Vermutungs-Kennzeichnung P2).** Items 1
 and 3 (state-related) should be spawned before Marathon-Start (KW-24,
 2026-06-08) since they cover Welle-4 / Welle-5 cutover invariants.
-Items 2 (image-chain) and 4 (AR-Hand-Stop) can be spawned in parallel
+Item 2a (image-chain substrate) **landed Tag-46** (this audit) and
+closed A6 at substrate-layer. Item 2b (image-chain marathon
+defence-in-depth) and Item 4 (AR-Hand-Stop) can be spawned in parallel
 with Marathon-Start. Item 5 (Welle-3-Pre-Auditor designation) MUST
 be spawned before KW-25 (2026-06-16) since it is a Welle-3 cutover
 pre-condition.
