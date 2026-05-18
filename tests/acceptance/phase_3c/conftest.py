@@ -887,3 +887,395 @@ def mocked_single_komponente_rollback() -> Callable[
         )
 
     return _build
+
+
+# ---------------------------------------------------------------------------
+# Doppel-Welle-4+5 Cross-Modul-Drift Acceptance-Kriterien — CMD-AC-1 ...
+# CMD-AC-4
+#
+# Anchor: ADR-0066 §Beschluss §"Doppel-Welle-4+5 Cross-Modul-Drift-Focus"
+# + Priya CTO-Coordination-Plan v2 (Tag-32 Mini-Welle) identifying
+# Doppel-Welle-4+5 (``state_backing`` × ``lifecycle_state_machine``) as
+# the highest cross-modul-drift-risk slot of the three Doppel-Wellen.
+#
+# These criteria are layered atop DW-AC-1...DW-AC-5 specifically for
+# the KW 26 Doppel-Welle-4+5 cutover. The other two Doppel-Wellen
+# (DW-1+2 KW 24, DW-6+7 KW 27) do not carry the CMD-AC layer — they
+# have different drift-surfaces (read-only-paar resp. stateful-loop-
+# paar), addressed by their own DW-AC schwerpunkte.
+#
+# The DW-AC layer already covers byte-parity on a single touchpoint
+# (DW-AC-2) and aggregate stress-test green-rate (DW-AC-4). The CMD-AC
+# layer drills deeper into the Welle-4+5 producer/consumer contract:
+#
+# * CMD-AC-1 — Producer→Consumer deserialization round-trip parity
+#   under cross-lang Rust-Rust contract.
+# * CMD-AC-2 — Consumer-triggered Producer write-back wire-form parity
+#   vs. the Python-Python baseline (cross-lang baseline consistency).
+# * CMD-AC-3 — Cross-Modul-Stress-Test per-Komponente joint-consistency
+#   ≥99.5% (DW-AC-4 sets a zero-failure floor on aggregate; CMD-AC-3
+#   sets a per-Komponente consistency-rate floor).
+# * CMD-AC-4 — Drift-triggered atomic single-Komponente rollback when
+#   measured cross-modul-drift exceeds 0.5 percentage points; partner
+#   stays rust-Default (atomic-flip-pattern, DW-AC-3 nuance).
+# ---------------------------------------------------------------------------
+
+# CMD-AC-3 — Per-Komponente joint-consistency floor over the stress-
+# window. DW-AC-4 sets total-failures==0; CMD-AC-3 sets a tighter per-
+# Komponente consistency-rate floor on the joint state_backing ⇆
+# lifecycle_state_machine contract.
+CROSS_MODUL_DRIFT_CONSISTENCY_PCT_FLOOR = 0.995
+
+# CMD-AC-4 — Drift threshold for atomic-flip rollback (percentage
+# points). Tighter than the 1.0pp soft-warn threshold in the runbook;
+# at 0.5pp the operator-hand-runbook fires an atomic ENV-flag switch
+# on the affected modul only (partner stays rust per DW-AC-3
+# discipline). Mirrors the Welle-3 Henrik-Caution divergence threshold
+# numerically but the trigger is per-modul, not whole-bridge-audit-
+# writer.
+CROSS_MODUL_DRIFT_ROLLBACK_PCT_THRESHOLD = 0.5
+
+# CMD-AC-2 — wire-form parity is checked against the Python-Python
+# baseline (the pre-Welle-4-Cutover state) AND against the
+# Python-Rust mixed-state (the Welle-4-only mid-Doppel-Welle state).
+# Both reference oracles must agree byte-identically with the new
+# Rust-Rust state under Doppel-Welle.
+CROSS_MODUL_DRIFT_WIRE_FORM_ORACLES: tuple[str, ...] = (
+    "python-python-baseline",
+    "python-rust-welle-4-only",
+)
+
+
+# ---------------------------------------------------------------------------
+# CMD-AC-1 — Producer→Consumer deserialization round-trip record.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CrossModulDriftDeserializationRecord:
+    """One Producer→Consumer deserialization round-trip record.
+
+    ``state_backing-rust`` writes a JCS-canonicalised state-record to
+    disk; ``lifecycle_state_machine-rust`` reads + deserialises that
+    record on persona-spawn (initial-state) and on transition-resume.
+    CMD-AC-1 enforces byte-identical schema-deserialization across the
+    Rust-producer × Rust-consumer cross-lang contract.
+
+    Three fields are compared:
+
+    * ``producer_serialized_sha256`` — hash of bytes that ``state_
+      backing-rust`` wrote.
+    * ``consumer_deserialized_reserialized_sha256`` — hash of bytes
+      after ``lifecycle_state_machine-rust`` deserialised the record
+      and re-serialised it back to JCS (round-trip parity check).
+    * ``schema_version_round_trip_ok`` — schema-version field
+      survives the deserialize→re-serialize round-trip.
+    """
+
+    welle_pair: tuple[str, str]
+    record_id: str
+    producer_serialized_sha256: str
+    consumer_deserialized_reserialized_sha256: str
+    schema_version_round_trip_ok: bool
+
+    @property
+    def is_round_trip_parity(self) -> bool:
+        return (
+            self.producer_serialized_sha256
+            == self.consumer_deserialized_reserialized_sha256
+            and self.schema_version_round_trip_ok
+        )
+
+
+@pytest.fixture
+def mocked_cross_modul_drift_deserialization() -> Callable[
+    ..., list[CrossModulDriftDeserializationRecord]
+]:
+    """Fixture returning a CMD-AC-1 deserialization round-trip builder.
+
+    Default builder produces round-trip-parity-by-construction. Tests
+    inject:
+
+    * ``drift_record_ids`` — set of record-ids that exhibit serialized
+      vs. re-serialized hash drift (deserialization-mutation bug).
+    * ``schema_version_breakage_ids`` — set of record-ids where the
+      schema-version field is dropped or rewritten on round-trip
+      (schema-version-drift bug).
+    """
+
+    def _build(
+        modul_a: str,
+        modul_b: str,
+        record_ids: tuple[str, ...] = (
+            "rec-initial-state",
+            "rec-transition-1",
+            "rec-transition-2",
+            "rec-terminal-archived",
+        ),
+        drift_record_ids: tuple[str, ...] = (),
+        schema_version_breakage_ids: tuple[str, ...] = (),
+    ) -> list[CrossModulDriftDeserializationRecord]:
+        out: list[CrossModulDriftDeserializationRecord] = []
+        for rec_id in record_ids:
+            producer_hash = _envelope_hash(
+                f"{modul_a}->{modul_b}", 0, rec_id, salt="cmd-ac-1-producer"
+            )
+            if rec_id in drift_record_ids:
+                consumer_hash = _envelope_hash(
+                    f"{modul_a}->{modul_b}",
+                    0,
+                    rec_id,
+                    salt="cmd-ac-1-consumer-drift",
+                )
+            else:
+                consumer_hash = producer_hash
+            out.append(
+                CrossModulDriftDeserializationRecord(
+                    welle_pair=(modul_a, modul_b),
+                    record_id=rec_id,
+                    producer_serialized_sha256=producer_hash,
+                    consumer_deserialized_reserialized_sha256=consumer_hash,
+                    schema_version_round_trip_ok=(
+                        rec_id not in schema_version_breakage_ids
+                    ),
+                )
+            )
+        return out
+
+    return _build
+
+
+# ---------------------------------------------------------------------------
+# CMD-AC-2 — Consumer-triggered Producer write-back wire-form record.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CrossModulDriftWriteBackRecord:
+    """One Consumer-triggered Producer-write-back wire-form record.
+
+    ``lifecycle_state_machine-rust`` decides on a state-transition;
+    ``state_backing-rust`` persists the transition-record. CMD-AC-2
+    enforces that the Rust-Rust wire-form is byte-identical to the
+    Python-Python and Python-Rust reference oracles for the same
+    logical transition.
+
+    The ``rust_rust_wire_sha256`` is what Doppel-Welle-4+5 produces.
+    The ``oracle_wire_sha256_by_oracle`` carries the reference
+    wire-forms from the pre-Welle-4 baseline (Python-Python) and the
+    mid-Doppel-Welle hypothetical (Python-Rust, where state_backing
+    is Rust but lifecycle_state_machine is still Python — never
+    observed in production, but available as a synthetic oracle).
+    """
+
+    welle_pair: tuple[str, str]
+    transition_id: str
+    rust_rust_wire_sha256: str
+    oracle_wire_sha256_by_oracle: dict[str, str]
+
+    def matches_oracle(self, oracle: str) -> bool:
+        return self.rust_rust_wire_sha256 == self.oracle_wire_sha256_by_oracle.get(
+            oracle
+        )
+
+
+@pytest.fixture
+def mocked_cross_modul_drift_write_back() -> Callable[
+    ..., list[CrossModulDriftWriteBackRecord]
+]:
+    """Fixture returning a CMD-AC-2 wire-form record builder.
+
+    Default builder produces wire-form parity across all oracles.
+    Tests inject:
+
+    * ``drift_oracle`` — which oracle the rust-rust wire-form
+      diverges from (e.g. ``"python-python-baseline"`` for a
+      regression vs. the pre-Welle-4-cutover baseline).
+    * ``drift_transition_ids`` — set of transition-ids that show
+      drift; others stay parity-by-construction.
+    """
+
+    def _build(
+        modul_a: str,
+        modul_b: str,
+        transition_ids: tuple[str, ...] = (
+            "transition-spawn-to-ready",
+            "transition-ready-to-active",
+            "transition-active-to-archived",
+        ),
+        drift_oracle: str | None = None,
+        drift_transition_ids: tuple[str, ...] = (),
+    ) -> list[CrossModulDriftWriteBackRecord]:
+        out: list[CrossModulDriftWriteBackRecord] = []
+        for trans_id in transition_ids:
+            rust_rust_hash = _envelope_hash(
+                f"{modul_a}->{modul_b}",
+                0,
+                trans_id,
+                salt="cmd-ac-2-rust-rust",
+            )
+            oracle_hashes: dict[str, str] = {}
+            for oracle in CROSS_MODUL_DRIFT_WIRE_FORM_ORACLES:
+                if (
+                    drift_oracle == oracle
+                    and trans_id in drift_transition_ids
+                ):
+                    oracle_hashes[oracle] = _envelope_hash(
+                        f"{modul_a}->{modul_b}",
+                        0,
+                        trans_id,
+                        salt=f"cmd-ac-2-{oracle}-drift",
+                    )
+                else:
+                    oracle_hashes[oracle] = rust_rust_hash
+            out.append(
+                CrossModulDriftWriteBackRecord(
+                    welle_pair=(modul_a, modul_b),
+                    transition_id=trans_id,
+                    rust_rust_wire_sha256=rust_rust_hash,
+                    oracle_wire_sha256_by_oracle=oracle_hashes,
+                )
+            )
+        return out
+
+    return _build
+
+
+# ---------------------------------------------------------------------------
+# CMD-AC-3 — Cross-Modul-Stress-Test per-Komponente consistency record.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CrossModulDriftPerKomponenteConsistencyRecord:
+    """One Cross-Modul-Stress-Test per-Komponente consistency record.
+
+    Extends ``CrossModulStressTestRecord`` (DW-AC-4) with per-Komponente
+    consistency-rates. DW-AC-4 sets ``failure_count == 0`` on the
+    aggregate; CMD-AC-3 sets a per-Komponente consistency-rate ≥99.5%
+    floor — a Komponente may have non-failure-class drift (e.g.
+    transient latency-tail without throw) that DW-AC-4 misses but CMD-
+    AC-3 catches.
+
+    Both per-Komponente rates must clear the floor; the joint-pair-rate
+    is computed as the min() of the two for gate-evaluation purposes.
+    """
+
+    welle_pair: tuple[str, str]
+    total_request_count: int
+    modul_a_consistency_rate: float
+    modul_b_consistency_rate: float
+
+    @property
+    def joint_consistency_rate(self) -> float:
+        return min(self.modul_a_consistency_rate, self.modul_b_consistency_rate)
+
+
+@pytest.fixture
+def mocked_cross_modul_drift_per_komponente_consistency() -> Callable[
+    ..., CrossModulDriftPerKomponenteConsistencyRecord
+]:
+    """Fixture returning a CMD-AC-3 per-Komponente consistency record builder.
+
+    Default builder produces both rates at 0.999 (above 0.995 floor).
+    Tests inject ``modul_a_rate`` / ``modul_b_rate`` overrides to
+    exercise the per-Komponente floor logic.
+    """
+
+    def _build(
+        modul_a: str,
+        modul_b: str,
+        total: int = 5000,
+        modul_a_rate: float = 0.999,
+        modul_b_rate: float = 0.999,
+    ) -> CrossModulDriftPerKomponenteConsistencyRecord:
+        return CrossModulDriftPerKomponenteConsistencyRecord(
+            welle_pair=(modul_a, modul_b),
+            total_request_count=total,
+            modul_a_consistency_rate=modul_a_rate,
+            modul_b_consistency_rate=modul_b_rate,
+        )
+
+    return _build
+
+
+# ---------------------------------------------------------------------------
+# CMD-AC-4 — Drift-triggered atomic single-Komponente rollback record.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CrossModulDriftAtomicFlipRecord:
+    """One CMD-AC-4 drift-triggered atomic-flip rollback record.
+
+    Extends ``SingleKomponenteRollbackRecord`` (DW-AC-3) with the drift-
+    magnitude that triggered the flip. The atomic-flip-pattern means:
+    when measured cross-modul-drift exceeds 0.5pp, exactly the modul
+    whose drift signal exceeded the threshold is flipped back to
+    python; the partner stays on rust-Default (no contagious rollback).
+
+    Gates:
+
+    * ``measured_drift_pct > CROSS_MODUL_DRIFT_ROLLBACK_PCT_THRESHOLD``
+      → flip-trigger fires for the high-drift modul.
+    * ``post_flip_backend_per_modul`` — high-drift modul on
+      ``python``, partner modul on ``rust``.
+    * ``flip_elapsed_seconds`` ≤ ``ROLLBACK_SLA_SECONDS`` (10min, same
+      ENV-Flag-Switch SLA as DW-AC-3).
+    * ``flip_was_atomic`` — single ``systemctl restart`` cycle, no
+      partial state where both moduln are mid-flip simultaneously.
+    """
+
+    welle_pair: tuple[str, str]
+    high_drift_modul: str
+    measured_drift_pct: float
+    threshold_drift_pct: float
+    flip_elapsed_seconds: float
+    flip_was_atomic: bool
+    post_flip_backend_per_modul: dict[str, str]
+
+
+@pytest.fixture
+def mocked_cross_modul_drift_atomic_flip() -> Callable[
+    ..., CrossModulDriftAtomicFlipRecord
+]:
+    """Fixture returning a CMD-AC-4 atomic-flip record builder.
+
+    Default builder produces a successful atomic-flip (high-drift modul
+    rolled back to python, partner stays rust, elapsed = 180s, atomic
+    flag True). Tests inject:
+
+    * ``measured_drift_pct`` — set below 0.5pp to verify the no-flip
+      sub-threshold path (a flip on sub-threshold drift would be
+      spurious and is rejected).
+    * ``flip_elapsed_seconds=700`` — SLA-violation failure-mode.
+    * ``partner_also_flipped=True`` — non-atomic contagion failure-
+      mode (Doppel-Welle-4+5 discipline forbids this unless the bug
+      is in the contract, which is covered by DW-AC-3 both-rollback
+      path).
+    """
+
+    def _build(
+        modul_a: str,
+        modul_b: str,
+        high_drift_modul: str,
+        measured_drift_pct: float = 0.8,
+        flip_elapsed_seconds: float = 180.0,
+        flip_was_atomic: bool = True,
+        partner_also_flipped: bool = False,
+    ) -> CrossModulDriftAtomicFlipRecord:
+        partner = modul_b if high_drift_modul == modul_a else modul_a
+        post_state = {modul: "python" for _, modul in WELLE_ORDER}
+        if not partner_also_flipped:
+            post_state[partner] = "rust"
+        return CrossModulDriftAtomicFlipRecord(
+            welle_pair=(modul_a, modul_b),
+            high_drift_modul=high_drift_modul,
+            measured_drift_pct=measured_drift_pct,
+            threshold_drift_pct=CROSS_MODUL_DRIFT_ROLLBACK_PCT_THRESHOLD,
+            flip_elapsed_seconds=flip_elapsed_seconds,
+            flip_was_atomic=flip_was_atomic,
+            post_flip_backend_per_modul=post_state,
+        )
+
+    return _build
