@@ -89,6 +89,7 @@ WELLE_TABLE: Dict[int, Dict[str, Any]] = {
         "rust_value": "rust_inmemory",
         "pytest_selector": "state_backing",
         "has_cross_modul": True,
+        "tag_38_promoted": False,
         "artifact_name": "cutover-acceptance-decision-welle-4",
         "doppel_partner": "lifecycle_state_machine",
         "decision_schema": "wakir.phase-3c.welle-4-validation/1",
@@ -101,10 +102,18 @@ WELLE_TABLE: Dict[int, Dict[str, Any]] = {
         "env_var": "WAKIR_FSM_BACKEND",
         "rust_value": "rust",
         "pytest_selector": "fsm",
-        "has_cross_modul": True,
+        # Tag-38 promotion (PR-Tomas-Tag-38): Welle-5 moves from the
+        # Welle-1/2 5-step pattern to the Welle-3 strict pattern. The
+        # cross-modul drift step is renamed `cross-modul-drift` (was
+        # `cross-modul-stress`), the schema bumps to /2, and the
+        # artifact bundle drops `cross-modul-stress.json` in favour
+        # of `cross-modul-drift.json` + `cross-modul-stress-rollup.
+        # json`. Welle-4 stays on the original v1 pattern.
+        "has_cross_modul": False,  # Tag-38: renamed to cross-modul-drift, asserted separately
+        "tag_38_promoted": True,
         "artifact_name": "cutover-acceptance-decision-welle-5",
         "doppel_partner": "state_backing",
-        "decision_schema": "wakir.phase-3c.welle-5-validation/1",
+        "decision_schema": "wakir.phase-3c.welle-5-validation/2",
     },
     6: {
         "workflow": WORKFLOWS_DIR / "phase-3c-welle-6-validation.yml",
@@ -115,6 +124,7 @@ WELLE_TABLE: Dict[int, Dict[str, Any]] = {
         "rust_value": "rust",
         "pytest_selector": "subscribe_loop",
         "has_cross_modul": False,
+        "tag_38_promoted": False,
         "artifact_name": "cutover-acceptance-decision-welle-6",
         "doppel_partner": "recovery_workflow",
         "decision_schema": "wakir.phase-3c.welle-6-validation/1",
@@ -128,6 +138,7 @@ WELLE_TABLE: Dict[int, Dict[str, Any]] = {
         "rust_value": "rust",
         "pytest_selector": "recovery",
         "has_cross_modul": False,
+        "tag_38_promoted": False,
         "artifact_name": "cutover-acceptance-decision-welle-7",
         "doppel_partner": "subscribe_loop",
         "decision_schema": "wakir.phase-3c.welle-7-validation/1",
@@ -229,8 +240,11 @@ def test_trigger_surface_schedule_and_dispatch(
 def test_validation_steps_in_order(
     validation_steps: List[dict], welle: Dict[str, Any]
 ) -> None:
-    """Mandatory step-ids in chronological order. Welle-4/5 carry the
-    extra `cross-modul-stress` step; Welle-6/7 do not."""
+    """Mandatory step-ids in chronological order. Welle-4 carries the
+    extra `cross-modul-stress` step (KW-26 Doppel-Welle pre-Tag-38).
+    Welle-5 (Tag-38 promotion to Welle-3 pattern) carries
+    `cross-modul-drift` + `pre-flight-smoke` + `fsm-transition-
+    integrity` instead. Welle-6/7 carry neither."""
     step_ids = [s.get("id") for s in validation_steps if s.get("id")]
     expected = [
         "inputs",
@@ -239,9 +253,25 @@ def test_validation_steps_in_order(
         "persona-boot",
         "bridge-audit",
     ]
-    if welle["has_cross_modul"]:
-        expected.append("cross-modul-stress")
-    expected.append("decision")
+    if welle.get("tag_38_promoted"):
+        # Welle-5 Tag-38 pattern: pre-flight before gate-aggregator,
+        # fsm-transition-integrity after dry-run, cross-modul-drift
+        # after bridge-audit.
+        expected = [
+            "inputs",
+            "pre-flight-smoke",
+            "gate-aggregator",
+            "dry-run",
+            "fsm-transition-integrity",
+            "persona-boot",
+            "bridge-audit",
+            "cross-modul-drift",
+            "decision",
+        ]
+    else:
+        if welle["has_cross_modul"]:
+            expected.append("cross-modul-stress")
+        expected.append("decision")
     indices = [step_ids.index(x) for x in expected]
     assert indices == sorted(indices), (
         f"welle-{welle['welle']} step-id order drift: {step_ids}"
@@ -313,31 +343,64 @@ def test_step_invocation_contracts(
 
 
 def test_cross_modul_stress_step_only_on_welle_4_and_5() -> None:
-    """The KW-26 Doppel-Welle (Welle-4 + Welle-5) carries the cross-
-    modul-stress step per ADR-0066 §Mitigations §1. Welle-6 and Welle-7
-    (KW-27 Doppel-Welle) rely on the regular Phase-2-Acceptance-Gate
-    daily rollup which already aggregates the subscribe_loop x
-    recovery_workflow drift axis. The Bundle-Auftrag (Tag-32) is
-    explicit about this asymmetry; this test pins it."""
-    for w in (4, 5):
-        meta = WELLE_TABLE[w]
-        steps = _steps(_job(_load_yaml(meta["workflow"]), meta["job_id"]))
-        ids = [s.get("id") for s in steps if s.get("id")]
-        assert "cross-modul-stress" in ids, (
-            f"welle-{w} missing cross-modul-stress step"
-        )
-        # The step must invoke the aggregator with the cross-modul-stress mode.
-        cm_step = next(s for s in steps if s.get("id") == "cross-modul-stress")
-        run = cm_step.get("run") or ""
-        assert "scripts/doppelbetrieb-score-aggregator.py" in run
-        assert "--mode cross-modul-stress" in run
-        assert "out/cross-modul-stress.json" in run
+    """The KW-26 Doppel-Welle (Welle-4 + Welle-5) carries a cross-
+    modul drift-detection step per ADR-0066 §Mitigations §1. Welle-4
+    keeps the original ``cross-modul-stress`` step-id + aggregator
+    invocation. Welle-5 (Tag-38 promotion to Welle-3 pattern) renames
+    the step to ``cross-modul-drift`` and applies a strict
+    ``drift > 0 = BLOCK`` threshold via inline parse on top of the
+    same aggregator. Welle-6 and Welle-7 (KW-27) rely on the regular
+    Phase-2-Acceptance-Gate daily rollup."""
+    # Welle-4 - original cross-modul-stress contract.
+    meta_4 = WELLE_TABLE[4]
+    steps_4 = _steps(_job(_load_yaml(meta_4["workflow"]), meta_4["job_id"]))
+    ids_4 = [s.get("id") for s in steps_4 if s.get("id")]
+    assert "cross-modul-stress" in ids_4, (
+        "welle-4 missing cross-modul-stress step"
+    )
+    cm_step_4 = next(
+        s for s in steps_4 if s.get("id") == "cross-modul-stress"
+    )
+    run_4 = cm_step_4.get("run") or ""
+    assert "scripts/doppelbetrieb-score-aggregator.py" in run_4
+    assert "--mode cross-modul-stress" in run_4
+    assert "out/cross-modul-stress.json" in run_4
+
+    # Welle-5 - Tag-38 renamed to cross-modul-drift with strict
+    # threshold.
+    meta_5 = WELLE_TABLE[5]
+    steps_5 = _steps(_job(_load_yaml(meta_5["workflow"]), meta_5["job_id"]))
+    ids_5 = [s.get("id") for s in steps_5 if s.get("id")]
+    assert "cross-modul-drift" in ids_5, (
+        "welle-5 missing cross-modul-drift step (Tag-38 rename)"
+    )
+    cm_step_5 = next(
+        s for s in steps_5 if s.get("id") == "cross-modul-drift"
+    )
+    run_5 = cm_step_5.get("run") or ""
+    assert "scripts/doppelbetrieb-score-aggregator.py" in run_5
+    assert "cross-modul-stress" in run_5, (
+        "welle-5 cross-modul-drift step must still invoke the "
+        "cross-modul-stress aggregator mode"
+    )
+    assert "drift_gt_0_equals_block" in run_5, (
+        "welle-5 cross-modul-drift step must apply strict threshold"
+    )
+    # cross-modul-drift.json artifact may be constructed via pathlib
+    # (out_dir / "cross-modul-drift.json") or a literal "out/..."
+    # string; assert on the file-name token only.
+    assert "cross-modul-drift.json" in run_5
+
+    # Welle-6/7 - no cross-modul drift-detection step.
     for w in (6, 7):
         meta = WELLE_TABLE[w]
         steps = _steps(_job(_load_yaml(meta["workflow"]), meta["job_id"]))
         ids = [s.get("id") for s in steps if s.get("id")]
         assert "cross-modul-stress" not in ids, (
             f"welle-{w} unexpectedly carries cross-modul-stress step"
+        )
+        assert "cross-modul-drift" not in ids, (
+            f"welle-{w} unexpectedly carries cross-modul-drift step"
         )
 
 
@@ -588,11 +651,14 @@ def test_decision_envelope_schema_per_welle() -> None:
 
 def test_artifact_upload_bundles_canonical_paths_per_welle() -> None:
     """The trailing upload-artifact step must collect the canonical
-    output paths for each welle. Welle-4/5 additionally bundle the
-    cross-modul-stress.json file. Each artifact bundle carries a
-    welle-specific name so the four readiness reports do not collide
-    on the GitHub Actions artifact namespace when they run in the
-    same week."""
+    output paths for each welle. Welle-4 additionally bundles the
+    cross-modul-stress.json file (KW-26 Doppel-Welle pre-Tag-38).
+    Welle-5 (Tag-38 promotion) bundles cross-modul-drift.json +
+    cross-modul-stress-rollup.json + fsm-transition-integrity.json
+    + pre-flight-snapshot.json + pre-flight.log instead. Each
+    artifact bundle carries a welle-specific name so the four
+    readiness reports do not collide on the GitHub Actions artifact
+    namespace when they run in the same week."""
     canonical = {
         "cutover-acceptance-decision.json",
         "trigger-gate-report.json",
@@ -619,7 +685,19 @@ def test_artifact_upload_bundles_canonical_paths_per_welle() -> None:
             assert fname in paths_block, (
                 f"welle-{w} upload bundle missing {fname}"
             )
-        if meta["has_cross_modul"]:
+        if meta.get("tag_38_promoted"):
+            # Welle-5 Tag-38 bundle.
+            for fname in (
+                "cross-modul-drift.json",
+                "cross-modul-stress-rollup.json",
+                "fsm-transition-integrity.json",
+                "pre-flight-snapshot.json",
+                "pre-flight.log",
+            ):
+                assert fname in paths_block, (
+                    f"welle-{w} (Tag-38) upload bundle missing {fname}"
+                )
+        elif meta["has_cross_modul"]:
             assert "cross-modul-stress.json" in paths_block, (
                 f"welle-{w} upload bundle missing cross-modul-stress.json"
             )
