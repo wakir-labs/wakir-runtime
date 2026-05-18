@@ -6,7 +6,7 @@
 | Status | Draft skeleton — pending Phase-3c-Welle-Start trigger (ADR-0065 §Decision-Trigger) |
 | Phase | 3c — Per-Welle Cutover from Python-Default to Rust-Default for 7 Engine-Komponenten |
 | Source | ADR-0065 §Verifikations-Plan, ADR-0066 §Beschluss (Doppel-Welle-Beschleunigung), ADR-0063 §Phase-3c-Final-Cutover, ADR-0058 §Phase-3 |
-| Date | 2026-05-17 (skeleton creation); 2026-05-17 Doppel-Welle-Extension (Tag-30 Mini-Welle, ADR-0066 §Folge-Item); 2026-05-17 Doppel-Welle-4+5 Cross-Modul-Drift-Extension (Tag-32 Mini-Welle, ADR-0066 §Beschluss Doppel-Welle-4+5 Cross-Modul-Drift-Focus + Priya CTO-Coordination-Plan v2) |
+| Date | 2026-05-17 (skeleton creation); 2026-05-17 Doppel-Welle-Extension (Tag-30 Mini-Welle, ADR-0066 §Folge-Item); 2026-05-17 Doppel-Welle-4+5 Cross-Modul-Drift-Extension (Tag-32 Mini-Welle, ADR-0066 §Beschluss Doppel-Welle-4+5 Cross-Modul-Drift-Focus + Priya CTO-Coordination-Plan v2); 2026-05-18 Rollback-Drill SLA-Verifikations-Suite (Tag-32 Mini-Welle Retry, ADR-0065 §Rollback-Strategie + ADR-0066 §Rollback) |
 
 ## 0. Phase contract
 
@@ -406,3 +406,112 @@ covers Welle-4 + Welle-5 solo files independently.
   applies to DW-1+2 (read-only-paar, no schema-touchpoint) or DW-6+7
   (stateful-loop-paar, different drift-surface addressed by DW-6+7
   schwerpunkte).
+
+## 12. Rollback-Drill SLA-Verifikations-Suite (ADR-0065 §Rollback-Strategie + ADR-0066 §Rollback)
+
+ADR-0065 §Rollback-Strategie and ADR-0066 §Rollback fix the rollback
+contract for every Phase-3c-Komponente: an ENV-Flag-Switch from
+`rust` back to `python` must complete inside a 10-minute SLA and
+emit a Backend-Decision-Audit-Record for the rollback event. The
+Rollback-Drill-Suite (`tests/acceptance/phase_3c/rollback_drill/`)
+is the End-to-End QA-Evidence layer for that contract.
+
+### 12.1 Drill scope — nine Komponenten
+
+The drill-suite covers all nine Phase-3c-Komponenten that share the
+`WAKIR_ENGINE_<MODUL>_BACKEND=rust|python` ENV-Flag substrate. Seven
+of the nine map to the per-welle cutover-sequence (welle-1 ...
+welle-7); two additional Komponenten share the substrate but do not
+occupy a numbered welle-slot.
+
+| # | Komponente | Welle-Slot | Test-File |
+|---|---|---|---|
+| 1 | `v907_verify` | Welle-1 | `test_rollback_drill_v907_verify.py` |
+| 2 | `svid_workload_identity` | Welle-2 | `test_rollback_drill_svid_workload_identity.py` |
+| 3 | `bridge_audit_writer` | Welle-3 (Henrik-Caution-Carve-out) | `test_rollback_drill_bridge_audit_writer.py` |
+| 4 | `state_backing` | Welle-4 | `test_rollback_drill_state_backing.py` |
+| 5 | `lifecycle_state_machine` | Welle-5 | `test_rollback_drill_lifecycle_state_machine.py` |
+| 6 | `subscribe_loop` | Welle-6 | `test_rollback_drill_subscribe_loop.py` |
+| 7 | `recovery_workflow` | Welle-7 | `test_rollback_drill_recovery_workflow.py` |
+| 8 | `anchor_emitter` | — (additional, Phase-3c-Cutover-eligibel) | `test_rollback_drill_anchor_emitter.py` |
+| 9 | `federation_resolver` | — (additional, Phase-3c-Cutover-eligibel) | `test_rollback_drill_federation_resolver.py` |
+
+### 12.2 RD-1 ... RD-4 Acceptance-Kriterien
+
+Each drill-file carries exactly four tests, one per RD-criterion.
+The four criteria are encoded as assertion-helpers in
+`tests/acceptance/phase_3c/rollback_drill/conftest.py`.
+
+| ID | Gate | Test-Helper |
+|---|---|---|
+| **RD-1** | ENV-Flag `rust → python` switch hat Effekt — pre-switch backend `rust`, post-switch backend `python`, modul-identity matches drill-target. | `assert_rd_1_env_flag_switch_effective` |
+| **RD-2** | Backend-Decision-Audit-Record dokumentiert Rollback-Event — modul-name, `target_backend=python`, non-empty cutover-cycle-id, operator-actor populated. | `assert_rd_2_audit_record_documents_rollback` |
+| **RD-3** | Cross-Modul-Konsistenz nach Rollback grün — mocked Phase-2-Acceptance-Gate re-run returns `gate_green=True` with no failed sub-gates. | `assert_rd_3_cross_modul_konsistenz_post_rollback` |
+| **RD-4** | Time-to-rollback ≤10min SLA — mocked-clock elapsed-seconds strictly positive and ≤`ROLLBACK_SLA_SECONDS` (600.0s). | `assert_rd_4_time_to_rollback_within_sla` |
+
+### 12.3 Fixture substrate
+
+Two fixtures carry the drill-evidence shapes:
+
+* `mocked_rollback_event` — produces `RollbackEvent` records with
+  pre/post-switch ENV-state, mocked-clock elapsed-seconds, the
+  associated `BackendDecisionRecord`, and the Bridge-Audit-Writer-
+  Re-Verify status (ADR-0065 §Rollback-Strategie step 4).
+* `mocked_phase_2_acceptance_gate` — produces
+  `Phase2AcceptanceGateRecord` records for the post-rollback Phase-2-
+  Acceptance-Gate re-run; default green, with failure-mode injection
+  via `gate_green=False` + `failed_sub_gates=(...)`.
+
+### 12.4 Opt-in gate
+
+The drill-suite is **skip-by-default**, independently from the per-
+welle and Doppel-Welle skeletons:
+
+* **Drill opt-in:** `WAKIR_PHASE_3C_ROLLBACK_DRILL=1` env-var or
+  `pytest --rollback-drill` CLI flag.
+* **Marker:** `phase_3c_rollback_drill` (registered in
+  `pyproject.toml`).
+
+This separation lets the cutover-week + post-rollback-event drills
+run independently from the per-welle and Doppel-Welle acceptance
+lanes. A real rollback-event in production triggers the drill-suite
+to validate that the recovery completed inside the SLA contract.
+
+### 12.5 Zone-N coordination — Rollback-Drill delta
+
+Henrik-Zone-N (Internal Audit) consumes the RD-2 audit-record
+evidence on his audit-sample of the Backend-Decision-Audit-Trail.
+Per the Amara/Henrik Zone-N-Quarterly-Review, the drill-suite's
+RD-2 happy-path evidence is **complementary** to Henrik's audit-
+sample — Henrik retains his own ADR-0035 §C-Drift-Closure
+compliance-check on rollback-event audit-trails.
+
+The drill-suite's RD-1, RD-3, RD-4 evidence is QA-only (no Zone-N
+hand-off); RD-2 is the explicit Zone-N touchpoint.
+
+### 12.6 Hermetic-only sandbox boundary
+
+All fixtures are hermetic mocks. No live `systemctl restart wakir-
+persona-engine`, no host-side ENV-rewrite, no live NATS reconnect.
+The Phase-3c-trigger-sprint wires the mock against the real
+Operator-Hand-runbook output (Quadlet-ENV-rewrite + Prometheus-
+Gauge elapsed-seconds measurement). The live-VM-acceptance-lane
+(ADR-0060) remains Operator-Hand responsibility for the rollback
+drill execution itself.
+
+### 12.7 Vermutungs-Kennzeichnung (P2) — Rollback-Drill delta
+
+* The `ROLLBACK_SLA_SECONDS = 600.0` constant in
+  `tests/acceptance/phase_3c/rollback_drill/conftest.py` mirrors the
+  same constant in `tests/acceptance/phase_3c/_ac_assertions.py`
+  (ADR-0065/-0066-fixed 10min ENV-Flag-Switch SLA). Drift between
+  the two constants should be flagged at Phase-3c-trigger-sprint
+  wire-up time.
+* The `mocked_rollback_event` default elapsed-seconds (240.0s) is a
+  conservative anchor; Phase-3a benchmark data suggests typical
+  engine-boot-time ≤60s under steady-state load.
+* The Schema-Migrations-Rollback path (2-hour SLA per ADR-0065
+  §Rollback-Strategie) is **not** covered by this drill-suite — it
+  falls under a separate Reza-Folge-Spawn-Artefakt scoped to
+  `state_backing` + `lifecycle_state_machine` schema-touching
+  changes only.
