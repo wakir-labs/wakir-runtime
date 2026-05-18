@@ -81,19 +81,40 @@ classified into one of four coverage-states:
 
 - **Coverage state.** COVERED.
 - **Pinning tests.**
-  - `test_cw_welle_m_state_does_not_corrupt_welle_n_for_all_m_lt_n`
-    (Tag-40, `test_phase_3_final_regression.py`)
-  - `test_cw_welle_isolation_holds_under_intermediate_sequential_states`
-    (Tag-40, `test_phase_3_final_regression.py`)
-  - `test_neg_cross_modul_drift_welle_4_5_blocker_marker_not_set`
-    (Tag-43, `test_marathon_schluss_acceptance_drill.py`)
-  - AP-4 (Tag-44, `test_marathon_anti_patterns.py`) — Cross-Welle
-    FSM-state-leak via state-backing namespace prefix discipline.
-- **Notes.** Tag-40 pins the isolation invariant cross-Welle as a
-  pairwise property. Tag-43 pins the marathon-aggregate-level
-  blocker-rejection. Tag-44 AP-4 pins the namespace-prefix discipline
-  as the bidirectional invariant. Three suites together provide
-  defence-in-depth.
+  - **Defence-Layer-1 — Pairwise Welle-Isolation** (Tag-40):
+    - `test_cw_welle_m_state_does_not_corrupt_welle_n_for_all_m_lt_n`
+      (`test_phase_3_final_regression.py`)
+    - `test_cw_welle_isolation_holds_under_intermediate_sequential_states`
+      (`test_phase_3_final_regression.py`)
+  - **Defence-Layer-2 — Marathon-Aggregate Blocker-Rejection** (Tag-43):
+    - `test_neg_cross_modul_drift_welle_4_5_blocker_marker_not_set`
+      (`test_marathon_schluss_acceptance_drill.py`)
+  - **Defence-Layer-3 — Namespace-Prefix Discipline (AP-4)** (Tag-44):
+    - `test_marathon_anti_patterns.py` AP-4 — Cross-Welle FSM-state-
+      leak via state-backing namespace prefix discipline.
+  - **Defence-Layer-4 — Marathon-Rollup Cascade-Detection** (Tag-49
+    substrate PR #316 + PR #317, Tag-51 dedicated framing):
+    - Tag-49 PR #316 (`tests/phase_3c/test_cross_welle_hot_spot_e2e.py`)
+      — 22 E2E tests on the cross-welle aggregator: propagation-map
+      cross-validation per welle, single-day cascade detection,
+      4-week marathon trace scenarios (all-green, single-red, multi-
+      day-flap, terminal-Welle-7-isolated, cascade-overlap-union).
+    - Tag-49 PR #317 (`tests/ci/test_cross_welle_hot_spot_aggregator.py`)
+      — aggregator-side acceptance gate.
+    - Tag-51 (`tests/phase_3c/test_a1_marathon_cascade_defence_layer_4.py`)
+      — 22 A1-framed tests (A1-DL4-* IDs) pinning the four-week
+      marathon-trace cascade-detection invariant *as the A1
+      contract*: a per-welle BLOCK on day D forfeits downstream
+      readiness per the Henrik-Tag-44 Risiko-Matrix propagation map,
+      and the marathon-rollup escalates to BLOCK.
+- **Notes.** Four defence-in-depth layers cover A1.
+  Layer-1..3 catch *static contract* drift (schema / namespace /
+  blocker-marker). Layer-4 catches the *dynamic marathon-trace*
+  incarnation: temporal coupling where a Welle-N BLOCK on day D
+  mechanically invalidates downstream Welle-{N+1, ...} readiness
+  on day D even when their static contracts hold. Tag-51 records
+  Layer-4 as defence-in-depth — A1 stays COVERED, no state
+  transition.
 
 #### A2 — FSM-Phantom-Transitions (illegal state-transitions post-cutover)
 
@@ -851,7 +872,35 @@ file probing, no subprocess, no network, no live-VM.
 - **GAP-OPEN candidates from pre-cutover-probes**: none surfaced
   in the Tag-44..49 PR window. Tag-50 records 0 GAP-OPEN.
 
+### 7.7 Tag-51 A1 Defence-Layer-4 formalisation
+
+The Tag-50 §7.3 Candidate 3 (A1 marathon-rollup defence-in-depth)
+is formalised in Tag-51 by promoting the informal substrate-anchor
+in `test_pre_mortem_coverage_sweep_tag_50_consolidated.py`
+(`test_t50_a1_cross_welle_hot_spot_cascade_marathon_coverage_uplift`,
+one sweep-anchor) to a dedicated A1-framed test class in
+`tests/phase_3c/test_a1_marathon_cascade_defence_layer_4.py` with
+22 hermetic tests (A1-DL4-* IDs):
+
+| ID range | Count | Concern |
+|---|---|---|
+| A1-DL4-ANCHOR-* | 5 | Substrate anchors: per-welle aggregators (5), cross-welle aggregator, E2E test, CI test, matrix-doc Layer-4 record |
+| A1-DL4-PROP-* | 5 | Per-welle ``DOWNSTREAM_PROPAGATION_WELLEN`` matches Henrik Cross-Welle-Risiko-Matrix |
+| A1-DL4-CASCADE-* | 5 | Single-day cascade contract per source-welle (3→{4,5,7}; 4→{5,7}; 5→{7}; 6→{7}; 7 terminal) |
+| A1-DL4-MARATHON-* | 4 | 28-day all-green CLEAR; single-Welle-3-red escalates marathon to BLOCK; multi-day-flap each red recorded; terminal-Welle-7-red no cascade |
+| A1-DL4-DOC-* | 3 | §2 A1 entry names Layer-4; §7.3 Candidate-3 still inscribed; A1 stays COVERED (no state transition) |
+
+The §2 A1 entry above is rewritten to enumerate the four defence-
+layers explicitly with their pinning tests grouped per layer.
+
+A1 stays COVERED. The Tag-51 §3 summary is unchanged versus Tag-50:
+13 COVERED / 2 PARTIAL / 9 GAP-ACCEPTED / 0 GAP-OPEN (P2 Amara
+reading), or 12 COVERED / 2 PARTIAL / 10 GAP-ACCEPTED / 0 GAP-OPEN
+under the conservative Tag-50 reading pending Henrik Zone-N
+D3-boundary decision.
+
 — Amara Osei (QA), Tag-45 Pre-Mortem Coverage-Audit, 2026-05-18
 — Amara Osei (QA), Tag-46 Coverage-Sweep + A6/B1 Cross-Validation, 2026-05-18
 — Amara Osei (QA), Tag-47 Pyramide-Layer-Consistency-Audit + Doc-Refresh, 2026-05-18
 — Amara Osei (QA), Tag-50 Consolidated Coverage-Sweep Tag-44..49 + Doc-Refresh, 2026-05-19
+— Amara Osei (QA), Tag-51 A1 Defence-Layer-4 formalisation, 2026-05-19
