@@ -4,11 +4,39 @@
 # Licensed under the Business Source License 1.1; see ./LICENSE-BSL.md.
 # Change Date: 2030-05-15. Change License: Apache License 2.0.
 #
-# wakir-persona-engine REAL — Sprint-Pengine-14 / Tag-48 pre-cutover,
-# image tag ``0.5.1-pre-cutover``.
+# wakir-persona-engine REAL — Sprint-Pengine-14 / Tag-52
+# Pre-KW-24-Final-Consolidation, image tag
+# ``0.5.2-final-pre-cutover``.
 #
-# Tag-48 wire-in (Sprint-Pengine-14, 2026-05-19)
-# ----------------------------------------------
+# Tag-52 final consolidation (Sprint-Pengine-14, 2026-05-19)
+# ----------------------------------------------------------
+# Tag-52 is the Pre-KW-24-Final consolidation marker. The image
+# bump from ``0.5.1-pre-cutover`` to ``0.5.2-final-pre-cutover`` is
+# a **manifest-and-metadata-only** marker — no new BackendDecision
+# record, no flag rename, no flag-default flip, no crate-version
+# bump. The 10-component inventory, the consistent
+# ``WAKIR_*_BACKEND`` ENV-flag schema, and the 15-crate pin pack
+# are all byte-stable vs. 0.5.1-pre-cutover (Tag-48 PR #313). The
+# 0.5.2-final marker absorbs four Tag-48..51 sources:
+#
+#   * Tag-48 PR #313 — bridge-audit-writer wire-in (record #10).
+#   * Tag-50 PR #320 — v0.4.2 DRIFT-S4 reconciliation patch
+#     (Pin-Pack as SoT for spec §4.1 ENV-flag schema).
+#   * Tag-51 PR #327 — 10-Decision-Engine-Resilience suite
+#     (36 hermetic tests pinned-by-reference as the cutover-
+#     window resilience-substrate-pin).
+#   * Tag-51 PR #329 — legacy ``WAKIR_PE_*_BACKEND`` migration-
+#     detector (Reza substrate; warn-no-fallback posture).
+#
+# 0.5.2-final-pre-cutover is the last pre-cutover image before the
+# Phase-3c cutover window opens in KW 24. Operators rotate via
+# Quadlet image-tag bump (Operator-Hand). The Tag-48 0.5.1-pre-cutover
+# manifest + pin-pack + Tag-45 0.5.0-pre-cutover artefacts stay on
+# disk as historical anchors for the Doppelbetrieb regression-
+# comparison baseline.
+#
+# Tag-48 wire-in (Sprint-Pengine-14, 2026-05-19, absorbed)
+# --------------------------------------------------------
 # Tag-48 promotes the previously-held-back 10th BackendDecision
 # (bridge-audit-writer; manifest 0.5.0-pre-cutover §5) into the
 # Stage-1 boot fan-out. The 10-component inventory, the consistent
@@ -118,8 +146,8 @@ FROM docker.io/library/python:3.13-slim@sha256:DIGEST_PENDING_TOMAS_REVIEW
 
 # OCI metadata.
 LABEL org.opencontainers.image.title="wakir-persona-engine"
-LABEL org.opencontainers.image.description="Runtime image for the Wakir persona-engine real binary (Sprint-Pengine-14 / Tag-48, v0.5.1-pre-cutover; bridge-audit-writer wire-in — 10 BackendDecision components ENV-gated under WAKIR_*_BACKEND, 15-crate Phase-3a cross-lang pin pack anchored at infra/persona-engine/pin-pack-0.5.1-pre-cutover.yaml, manifest at wirelang/persona_engine/MANIFEST-0.5.1-pre-cutover.md; strict superset of 0.5.0-pre-cutover — no flag rename, no default flip, boot-order for records 1–9 byte-stable, record 10 promotes the previously-held-back bridge-audit-writer scaffold into Stage-1; previous Tag-45 consolidation closed at 9 records, previous Sprint-Pengine-13 Bug-42 fix — subscribe-mode-selector with core-callback default, core-iterator backward-compat fix, jetstream-pull Phase-2 substrate)."
-LABEL org.opencontainers.image.version="0.5.1-pre-cutover"
+LABEL org.opencontainers.image.description="Runtime image for the Wakir persona-engine real binary (Sprint-Pengine-14 / Tag-52, v0.5.2-final-pre-cutover; Pre-KW-24-Final consolidation marker — manifest-and-metadata-only bump from 0.5.1-pre-cutover; strict superset of 0.5.1-pre-cutover with no new BackendDecision record, no flag rename, no flag-default flip, no crate-version bump; absorbs Tag-48 bridge-audit-writer wire-in PR #313, Tag-50 v0.4.2 DRIFT-S4 reconciliation PR #320 (Pin-Pack as SoT for spec §4.1), Tag-51 10-Decision-Engine-Resilience suite PR #327 (36 hermetic tests pinned-by-reference as the cutover-window resilience-substrate-pin), and Tag-51 legacy WAKIR_PE_*_BACKEND migration-detector PR #329 (Reza substrate, warn-no-fallback posture); 10 BackendDecision components ENV-gated under WAKIR_*_BACKEND, 15-crate Phase-3a cross-lang pin pack anchored at infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml, manifest at wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md)."
+LABEL org.opencontainers.image.version="0.5.2-final-pre-cutover"
 LABEL org.opencontainers.image.licenses="BUSL-1.1"
 LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"
 LABEL org.opencontainers.image.url="https://github.com/wakir-labs/wakir-runtime"

@@ -319,35 +319,54 @@ def test_18_pin_pack_invariants_block_matches_reality(pin_pack: dict) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_19_containerfile_image_version_bumped(
+def test_19_containerfile_image_version_set(
     containerfile_text: str,
 ) -> None:
+    """The Containerfile must declare an image.version label.
+
+    Note (Tag-52 Pre-KW-24-Final consolidation, 2026-05-19):
+    The current image.version label tracks the latest pre-cutover
+    marker (0.5.2-final-pre-cutover and onwards), not the Tag-48
+    0.5.1-pre-cutover anchor this test-file historically pinned.
+    The 0.5.1-pre-cutover manifest + pin-pack stay on-disk as the
+    Doppelbetrieb regression-comparison baseline; this test now
+    asserts only that some valid image.version label is present.
+    The Tag-52 test-suite asserts the strict-equality bind for the
+    current image-tag.
+    """
     pattern = re.compile(
         r'LABEL\s+org\.opencontainers\.image\.version="([^"]+)"'
     )
     match = pattern.search(containerfile_text)
     assert match, "Containerfile.real must declare image.version label."
-    assert match.group(1) == EXPECTED_IMAGE_TAG, (
-        f"Containerfile.real image.version must be "
-        f"'{EXPECTED_IMAGE_TAG}'; got {match.group(1)!r}"
+    assert match.group(1), "image.version must not be empty."
+
+
+def test_20_manifest_self_identifies_with_image_tag(
+    manifest_text: str,
+) -> None:
+    """The Tag-48 manifest must self-identify with its own image tag.
+
+    Note (Tag-52 consolidation): The Containerfile image-version
+    label now tracks the latest pre-cutover marker. The Tag-48
+    0.5.1-pre-cutover manifest file is preserved on-disk as the
+    historical anchor — this test verifies the manifest content
+    is internally consistent, not that the Containerfile still
+    points at it.
+    """
+    assert EXPECTED_IMAGE_TAG in manifest_text, (
+        f"Tag-48 manifest must self-reference its own image tag "
+        f"'{EXPECTED_IMAGE_TAG}' for traceability."
     )
 
 
-def test_20_containerfile_references_manifest(
-    containerfile_text: str,
+def test_21_manifest_references_pin_pack(
+    manifest_text: str,
 ) -> None:
-    assert "MANIFEST-0.5.1-pre-cutover.md" in containerfile_text, (
-        "Containerfile.real must reference the Tag-48 manifest in "
-        "its header comment for operator traceability."
-    )
-
-
-def test_21_containerfile_references_pin_pack(
-    containerfile_text: str,
-) -> None:
-    assert "pin-pack-0.5.1-pre-cutover.yaml" in containerfile_text, (
-        "Containerfile.real must reference the Tag-48 pin pack in "
-        "its header comment for operator traceability."
+    """The Tag-48 manifest §3 must reference its companion pin pack
+    YAML file path for operator traceability."""
+    assert "pin-pack-0.5.1-pre-cutover.yaml" in manifest_text, (
+        "Tag-48 manifest must reference its companion pin pack in §3."
     )
 
 
@@ -382,18 +401,18 @@ def test_22_pin_pack_crate_versions_match_cargo_toml(pin_pack: dict) -> None:
     )
 
 
-def test_23_manifest_and_pin_pack_share_image_tag(
-    manifest_text: str, pin_pack: dict, containerfile_text: str,
+def test_23_manifest_and_pin_pack_internally_consistent(
+    manifest_text: str, pin_pack: dict,
 ) -> None:
-    """All three sources must agree on the image tag string."""
+    """The Tag-48 manifest and pin pack must agree on their own
+    self-declared image tag.
 
+    Note (Tag-52 consolidation): The Containerfile image-version
+    label now tracks the latest pre-cutover marker. This test now
+    verifies manifest/pin-pack internal consistency only; the
+    Containerfile cross-link is asserted by the Tag-52 test-suite
+    against the current marker.
+    """
     assert EXPECTED_IMAGE_TAG in manifest_text
     assert pin_pack["manifest_version"] == EXPECTED_IMAGE_TAG
     assert pin_pack["invariants"]["containerfile_image_tag"] == EXPECTED_IMAGE_TAG
-    pattern = re.compile(
-        r'LABEL\s+org\.opencontainers\.image\.version="([^"]+)"'
-    )
-    match = pattern.search(containerfile_text)
-    assert match and match.group(1) == EXPECTED_IMAGE_TAG, (
-        "Containerfile image.version must match manifest + pin pack."
-    )
