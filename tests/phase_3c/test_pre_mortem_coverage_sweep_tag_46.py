@@ -160,16 +160,45 @@ def _phase_3c_test_present(filename: str) -> bool:
     return (_repo_root() / "tests" / "phase_3c" / filename).is_file()
 
 
+def _follow_up_test_present_anywhere(filename: str) -> bool:
+    """Return True iff the named follow-up test file exists in any of
+    the accepted root-relative locations.
+
+    Tag-46 spawn-owners may place the follow-up file at one of:
+      - ``tests/phase_3c/<filename>`` (Tag-45 §4 canonical)
+      - ``wirelang/tests/persona_engine/<filename>`` (e.g. Reza A2 PR #295)
+      - ``tests/persona_engine/<filename>`` (alternate persona-engine layout)
+      - ``tests/ci/<filename>`` (CI-shape layer, e.g. Kai A6 cosign-workflow tests)
+
+    The sweep is layout-tolerant: any of these locations promotes the
+    follow-up to COVERED. The canonical Tag-45 §4 location remains the
+    preferred placement; non-canonical placements are accepted to avoid
+    spawn-owner / sweep author file-naming-collision lockouts.
+    """
+    candidate_dirs = (
+        _repo_root() / "tests" / "phase_3c",
+        _repo_root() / "wirelang" / "tests" / "persona_engine",
+        _repo_root() / "tests" / "persona_engine",
+        _repo_root() / "tests" / "ci",
+    )
+    for d in candidate_dirs:
+        if (d / filename).is_file():
+            return True
+    return False
+
+
 def _load_module_optional(filename: str, module_name: str) -> Optional[Any]:
-    """Load a sibling ``tests/phase_3c/`` module if it exists, else None.
+    """Load a Tag-46 follow-up test module if found at any accepted
+    location, else None.
 
     The optional-load is the structural mechanism by which this sweep
     is Tag-46-PR-arrival-tolerant: if the Tag-46 follow-up file has
-    landed, the module loads and we can introspect its names; if not,
-    the sweep records PARTIAL-retention without erroring.
+    landed (at any accepted layout location), the module loads and we
+    can introspect its names; if not, the sweep records PARTIAL-
+    retention without erroring.
     """
-    path = _repo_root() / "tests" / "phase_3c" / filename
-    if not path.is_file():
+    path = _resolve_follow_up_path(filename)
+    if path is None:
         return None
     spec = importlib.util.spec_from_file_location(module_name, str(path))
     if spec is None or spec.loader is None:
@@ -208,21 +237,36 @@ def _module_test_names(module: Any) -> FrozenSet[str]:
 
 @dataclass(frozen=True)
 class Tag46FollowUpItem:
-    """One Tag-46 follow-up spawn item."""
+    """One Tag-46 follow-up spawn item.
+
+    ``follow_up_filenames`` is a tuple of accepted file names — spawn-
+    owners may choose between the Tag-45 §4 canonical name and a
+    semantically equivalent variant. Any tuple-member's presence in
+    ``tests/phase_3c/`` promotes the item to COVERED.
+    """
 
     failure_mode_id: str  # "A2" | "A6" | "A8" | "B1" | "B3"
     spawn_owner: str  # "Reza" | "Kai" | "Selin" | "Tomás"
-    follow_up_filename: str  # tests/phase_3c/<filename>
+    follow_up_filenames: Tuple[str, ...]  # accepted filenames
     cross_review_partner: str  # "Amara" | "Kai" | "Tomás" | "Henrik"
     rationale_keyword: str  # short pin
     kw25_blocker: bool  # True iff hard prerequisite before KW-25
+
+    @property
+    def follow_up_filename(self) -> str:
+        """Primary (Tag-45 §4 canonical) filename for the follow-up."""
+        return self.follow_up_filenames[0]
 
 
 TAG46_FOLLOWUPS: Tuple[Tag46FollowUpItem, ...] = (
     Tag46FollowUpItem(
         failure_mode_id="A2",
         spawn_owner="Reza",
-        follow_up_filename="test_fsm_transition_legality_marathon.py",
+        follow_up_filenames=(
+            "test_fsm_transition_legality_marathon.py",
+            # Reza Tag-46 PR #295 landed under this name.
+            "test_fsm_phantom_transition_coverage_a2.py",
+        ),
         cross_review_partner="Amara",
         rationale_keyword="fsm-transition-legality",
         kw25_blocker=False,
@@ -230,7 +274,10 @@ TAG46_FOLLOWUPS: Tuple[Tag46FollowUpItem, ...] = (
     Tag46FollowUpItem(
         failure_mode_id="A6",
         spawn_owner="Kai",
-        follow_up_filename="test_cosign_chain_marathon_image_hash_stability.py",
+        follow_up_filenames=(
+            "test_cosign_chain_marathon_image_hash_stability.py",
+            "test_cosign_chain_image_hash_stability_a6.py",
+        ),
         cross_review_partner="Amara",
         rationale_keyword="cosign-marathon-image-hash-stability",
         kw25_blocker=False,
@@ -238,7 +285,10 @@ TAG46_FOLLOWUPS: Tuple[Tag46FollowUpItem, ...] = (
     Tag46FollowUpItem(
         failure_mode_id="A8",
         spawn_owner="Selin",
-        follow_up_filename="test_welle_4_state_backing_persistence_loss.py",
+        follow_up_filenames=(
+            "test_welle_4_state_backing_persistence_loss.py",
+            "test_welle_4_jetstream_persistence_loss_a8.py",
+        ),
         cross_review_partner="Reza",
         rationale_keyword="welle-4-state-backing-persistence-loss",
         kw25_blocker=False,
@@ -246,7 +296,10 @@ TAG46_FOLLOWUPS: Tuple[Tag46FollowUpItem, ...] = (
     Tag46FollowUpItem(
         failure_mode_id="B1",
         spawn_owner="Tomás",
-        follow_up_filename="test_ar_hand_stop_marker_trigger_invariant.py",
+        follow_up_filenames=(
+            "test_ar_hand_stop_marker_trigger_invariant.py",
+            "test_ar_hand_stop_marker_trigger_b1.py",
+        ),
         cross_review_partner="Amara",
         rationale_keyword="ar-hand-stop-marker-trigger-invariant",
         kw25_blocker=False,
@@ -254,7 +307,10 @@ TAG46_FOLLOWUPS: Tuple[Tag46FollowUpItem, ...] = (
     Tag46FollowUpItem(
         failure_mode_id="B3",
         spawn_owner="(deferred)",
-        follow_up_filename="test_welle_3_pre_auditor_designation_precondition.py",
+        follow_up_filenames=(
+            "test_welle_3_pre_auditor_designation_precondition.py",
+            "test_welle_3_pre_auditor_designation_b3.py",
+        ),
         cross_review_partner="Henrik",
         rationale_keyword="welle-3-pre-auditor-designation",
         kw25_blocker=True,
@@ -265,6 +321,33 @@ TAG46_FOLLOWUPS: Tuple[Tag46FollowUpItem, ...] = (
 TAG46_BY_ID: Mapping[str, Tag46FollowUpItem] = {
     item.failure_mode_id: item for item in TAG46_FOLLOWUPS
 }
+
+
+def _any_follow_up_filename_present(item: Tag46FollowUpItem) -> Optional[str]:
+    """Return the first follow-up filename that exists in any accepted
+    location, or None.
+    """
+    for candidate in item.follow_up_filenames:
+        if _follow_up_test_present_anywhere(candidate):
+            return candidate
+    return None
+
+
+def _resolve_follow_up_path(filename: str) -> Optional[Path]:
+    """Return the resolved Path to the follow-up file in any accepted
+    location, or None.
+    """
+    candidate_dirs = (
+        _repo_root() / "tests" / "phase_3c",
+        _repo_root() / "wirelang" / "tests" / "persona_engine",
+        _repo_root() / "tests" / "persona_engine",
+        _repo_root() / "tests" / "ci",
+    )
+    for d in candidate_dirs:
+        candidate = d / filename
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -278,89 +361,60 @@ TAG46_BY_ID: Mapping[str, Tag46FollowUpItem] = {
 
 
 def _resolve_promotion_state(failure_mode_id: str) -> str:
-    """Return "COVERED" if the Tag-46 follow-up file exists, else
-    "PARTIAL".
+    """Return "COVERED" if any accepted Tag-46 follow-up file exists,
+    else "PARTIAL".
     """
     item = TAG46_BY_ID[failure_mode_id]
-    return "COVERED" if _phase_3c_test_present(item.follow_up_filename) else "PARTIAL"
+    landed = _any_follow_up_filename_present(item)
+    return "COVERED" if landed is not None else "PARTIAL"
+
+
+def _assert_landed_file_loadable(
+    item: Tag46FollowUpItem, sweep_module_name: str
+) -> None:
+    """If any accepted file landed, assert it loads + has >= 1 test."""
+    landed = _any_follow_up_filename_present(item)
+    if landed is None:
+        return  # PARTIAL — nothing to assert beyond detection.
+    module = _load_module_optional(landed, sweep_module_name)
+    assert module is not None, (
+        f"{item.failure_mode_id} follow-up file {landed!r} present but "
+        f"module-load failed. {item.spawn_owner}-Tag-46 substance review "
+        f"needed (cross-review: {item.cross_review_partner})."
+    )
+    names = _module_test_names(module)
+    assert len(names) >= 1, (
+        f"{item.failure_mode_id} follow-up file {landed!r} present but "
+        f"contains no tests."
+    )
 
 
 def test_t46_a2_fsm_transition_legality_promotion_detection() -> None:
     """A2 follow-up detection: COVERED iff Reza-Tag-46 file landed."""
     state = _resolve_promotion_state("A2")
-    item = TAG46_BY_ID["A2"]
     assert state in ("COVERED", "PARTIAL"), state
-    if state == "COVERED":
-        # If file landed, must be loadable + contain >= 1 test.
-        module = _load_module_optional(
-            item.follow_up_filename, "amara_tag46_sweep_a2"
-        )
-        assert module is not None, (
-            f"A2 follow-up file claims to exist but module-load failed. "
-            f"Reza-Tag-46 substance review needed."
-        )
-        names = _module_test_names(module)
-        assert len(names) >= 1, (
-            f"A2 follow-up file present but contains no tests. "
-            f"Reza-Tag-46 substance review needed."
-        )
+    _assert_landed_file_loadable(TAG46_BY_ID["A2"], "amara_tag46_sweep_a2")
 
 
 def test_t46_a6_cosign_chain_marathon_promotion_detection() -> None:
     """A6 follow-up detection: COVERED iff Kai-Tag-46 file landed."""
     state = _resolve_promotion_state("A6")
-    item = TAG46_BY_ID["A6"]
     assert state in ("COVERED", "PARTIAL"), state
-    if state == "COVERED":
-        module = _load_module_optional(
-            item.follow_up_filename, "amara_tag46_sweep_a6"
-        )
-        assert module is not None, (
-            f"A6 follow-up file claims to exist but module-load failed. "
-            f"Kai-Tag-46 substance review needed (cross-review: Amara)."
-        )
-        names = _module_test_names(module)
-        assert len(names) >= 1, (
-            f"A6 follow-up file present but contains no tests."
-        )
+    _assert_landed_file_loadable(TAG46_BY_ID["A6"], "amara_tag46_sweep_a6")
 
 
 def test_t46_a8_state_backing_persistence_loss_promotion_detection() -> None:
     """A8 follow-up detection: COVERED iff Selin-Tag-46 file landed."""
     state = _resolve_promotion_state("A8")
-    item = TAG46_BY_ID["A8"]
     assert state in ("COVERED", "PARTIAL"), state
-    if state == "COVERED":
-        module = _load_module_optional(
-            item.follow_up_filename, "amara_tag46_sweep_a8"
-        )
-        assert module is not None, (
-            f"A8 follow-up file claims to exist but module-load failed. "
-            f"Selin-Tag-46 substance review needed (cross-review: Reza)."
-        )
-        names = _module_test_names(module)
-        assert len(names) >= 1, (
-            f"A8 follow-up file present but contains no tests."
-        )
+    _assert_landed_file_loadable(TAG46_BY_ID["A8"], "amara_tag46_sweep_a8")
 
 
 def test_t46_b1_ar_hand_stop_marker_trigger_promotion_detection() -> None:
     """B1 follow-up detection: COVERED iff Tomás-Tag-46 file landed."""
     state = _resolve_promotion_state("B1")
-    item = TAG46_BY_ID["B1"]
     assert state in ("COVERED", "PARTIAL"), state
-    if state == "COVERED":
-        module = _load_module_optional(
-            item.follow_up_filename, "amara_tag46_sweep_b1"
-        )
-        assert module is not None, (
-            f"B1 follow-up file claims to exist but module-load failed. "
-            f"Tomás-Tag-46 substance review needed (cross-review: Amara)."
-        )
-        names = _module_test_names(module)
-        assert len(names) >= 1, (
-            f"B1 follow-up file present but contains no tests."
-        )
+    _assert_landed_file_loadable(TAG46_BY_ID["B1"], "amara_tag46_sweep_b1")
 
 
 def test_t46_b3_welle_3_pre_auditor_designation_partial_retention() -> None:
@@ -617,7 +671,7 @@ def test_t46_sweep_summary_partial_to_covered_promotion_count() -> None:
             # B3 is the deferred KW-25 blocker; never expected to land
             # via Tag-46 sweep. Excluded from promotion-count.
             continue
-        if _phase_3c_test_present(item.follow_up_filename):
+        if _any_follow_up_filename_present(item) is not None:
             covered_count += 1
         else:
             partial_retained.append(item.failure_mode_id)
@@ -642,7 +696,7 @@ def test_t46_sweep_summary_projected_phase_3c_coverage_state() -> None:
     for item in TAG46_FOLLOWUPS:
         if item.failure_mode_id == "B3":
             continue
-        if _phase_3c_test_present(item.follow_up_filename):
+        if _any_follow_up_filename_present(item) is not None:
             covered_promoted += 1
     # Tag-45 baseline: 9 COVERED, 5 PARTIAL.
     projected_covered = 9 + covered_promoted
