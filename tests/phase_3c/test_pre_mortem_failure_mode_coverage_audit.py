@@ -245,12 +245,40 @@ _INFRA_A6 = _load_infra_test_module(
 )
 
 
+def _load_pengine_companion_module(
+    relative_path: str, module_name: str,
+) -> Any:
+    """Load a sibling test module from ``wirelang/persona_engine/tests/``.
+
+    Used for Tag-46+ A8 NATS-JetStream-Loss-Recovery coverage tests
+    that live in the persona-engine package tree rather than under
+    ``tests/phase_3c/``.
+    """
+    test_path = _repo_root() / relative_path
+    if not test_path.is_file():
+        pytest.fail(f"pengine companion test module not found at {test_path}")
+    spec = importlib.util.spec_from_file_location(module_name, str(test_path))
+    if spec is None or spec.loader is None:
+        pytest.fail(f"cannot build spec for {test_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    return module
+
+
+_TAG46_PENGINE_A8 = _load_pengine_companion_module(
+    "wirelang/persona_engine/tests/test_nats_jetstream_loss_recovery_a8.py",
+    "phase_3c_tag46_pengine_a8_for_pre_mortem_coverage",
+)
+
+
 TAG40_NAMES = _module_test_names(_TAG40)
 TAG41_NAMES = _module_test_names(_TAG41)
 TAG43_NAMES = _module_test_names(_TAG43)
 TAG44_NAMES = _module_test_names(_TAG44)
 TAG39_DW67_NAMES = _module_test_names(_TAG39_DW67)
 INFRA_A6_NAMES = _module_test_names(_INFRA_A6) if _INFRA_A6 is not None else frozenset()
+TAG46_PENGINE_A8_NAMES = _module_test_names(_TAG46_PENGINE_A8)
 
 
 # ---------------------------------------------------------------------------
@@ -406,9 +434,23 @@ COVERAGE_MATRIX: Tuple[CoverageClassification, ...] = (
     CoverageClassification(
         failure_mode_id="A8",
         klasse="A",
-        coverage_state="PARTIAL",
+        coverage_state="COVERED",
         pinning_tests=(
             ("smoke", "test_welle_4_cutover_smoke.py"),
+            (
+                "tag46_pengine_a8",
+                "test_a8_stream_disconnect_mid_publish_does_not_abort_loop",
+            ),
+            ("tag46_pengine_a8", "test_a8_consumer_ack_loss_does_not_crash_loop"),
+            ("tag46_pengine_a8", "test_a8_replica_failover_put_surfaces_error"),
+            (
+                "tag46_pengine_a8",
+                "test_a8_subject_routing_drift_drops_mismatched_persona",
+            ),
+            (
+                "tag46_pengine_a8",
+                "test_a8_replay_state_backing_byte_equal_snapshot_idempotent",
+            ),
         ),
         rationale_keyword="nats-jetstream-persistence-loss",
     ),
@@ -588,6 +630,8 @@ def _suite_contains(suite_tag: str, name: str) -> bool:
         return name in TAG44_NAMES
     if suite_tag == "tag39_dw67":
         return name in TAG39_DW67_NAMES
+    if suite_tag == "tag46_pengine_a8":
+        return name in TAG46_PENGINE_A8_NAMES
     if suite_tag == "smoke":
         path = _repo_root() / "tests" / "phase_3c" / name
         return path.is_file()
@@ -741,10 +785,19 @@ def test_pm_a7_persona_engine_sprach_drift() -> None:
 
 
 def test_pm_a8_nats_jetstream_persistence_loss_welle_4() -> None:
-    """A8 — NATS-JetStream-Persistence-Loss Welle-4-Cutover. PARTIAL."""
+    """A8 — NATS-JetStream-Loss-Recovery Welle-4-Cutover. COVERED.
+
+    Lifted from PARTIAL to COVERED in Tag-46 by the named follow-up
+    file ``wirelang/persona_engine/tests/test_nats_jetstream_loss_
+    recovery_a8.py`` (Selin auftrag 2026-05-18). Pinning-tests cover
+    the five hermetic JetStream-loss scenarios from §4 of the
+    coverage-matrix: Stream-Disconnect-Mid-Publish,
+    Consumer-Ack-Loss, JetStream-Replica-Failover,
+    Subject-Routing-Drift, Message-Replay-Idempotency.
+    """
     _per_failure_mode_test("A8")
     cls = COVERAGE_BY_ID["A8"]
-    assert cls.coverage_state == "PARTIAL"
+    assert cls.coverage_state == "COVERED"
 
 
 # Class-B Operativ.
@@ -904,18 +957,19 @@ def test_pm_d5_ots_calendar_outage_external() -> None:
 def test_pm_summary_totals_match_per_class_classifications() -> None:
     """§3 coverage-summary table totals must match §2 classifications.
 
-    The §3 table claims (post-Tag-46 substrate-layer A6 closeout):
-        Class A: 8 total | 6 COVERED | 2 PARTIAL | 0 GAP-ACCEPTED | 0 GAP-OPEN
+    The §3 table claims (post-Tag-46 closeouts — A6 substrate-layer +
+    A8 NATS-JetStream-Loss-Recovery):
+        Class A: 8 total | 7 COVERED | 1 PARTIAL | 0 GAP-ACCEPTED | 0 GAP-OPEN
         Class B: 6 total | 2 COVERED | 2 PARTIAL | 2 GAP-ACCEPTED | 0 GAP-OPEN
         Class C: 5 total | 2 COVERED | 0 PARTIAL | 3 GAP-ACCEPTED | 0 GAP-OPEN
         Class D: 5 total | 0 COVERED | 0 PARTIAL | 5 GAP-ACCEPTED | 0 GAP-OPEN
-        Total:  24       | 10        | 4         | 10              | 0
+        Total:  24       | 11        | 3         | 10              | 0
 
     This test recomputes the table from the COVERAGE_MATRIX and asserts
     consistency.
     """
     expected_per_class = {
-        "A": {"total": 8, "COVERED": 6, "PARTIAL": 2, "GAP-ACCEPTED": 0, "GAP-OPEN": 0},
+        "A": {"total": 8, "COVERED": 7, "PARTIAL": 1, "GAP-ACCEPTED": 0, "GAP-OPEN": 0},
         "B": {"total": 6, "COVERED": 2, "PARTIAL": 2, "GAP-ACCEPTED": 2, "GAP-OPEN": 0},
         "C": {"total": 5, "COVERED": 2, "PARTIAL": 0, "GAP-ACCEPTED": 3, "GAP-OPEN": 0},
         "D": {"total": 5, "COVERED": 0, "PARTIAL": 0, "GAP-ACCEPTED": 5, "GAP-OPEN": 0},
@@ -944,8 +998,9 @@ def test_pm_summary_totals_match_per_class_classifications() -> None:
     grand_gap_open = sum(actual_per_class[k]["GAP-OPEN"] for k in actual_per_class)
 
     assert grand_total == 24, f"expected 24 total failure-modes, got {grand_total}"
-    assert grand_covered == 10
-    assert grand_partial == 4
+    # Post-Tag-46 closeouts (A6 + A8 PARTIAL -> COVERED): 11 COVERED + 3 PARTIAL.
+    assert grand_covered == 11
+    assert grand_partial == 3
     assert grand_gap_accepted == 10
     assert grand_gap_open == 0
 

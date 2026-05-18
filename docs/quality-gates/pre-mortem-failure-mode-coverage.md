@@ -171,17 +171,35 @@ classified into one of four coverage-states:
   into Tag-43 KW-26 Doppel-Welle bundle. Live-Latency P95/P99 watch
   is operator-hand on Cutover-Tag.
 
-#### A8 — NATS-JetStream-Stream-Persistence-Loss (Welle-4-Cutover)
+#### A8 — NATS-JetStream-Loss-Recovery (Welle-4-Cutover)
 
-- **Coverage state.** PARTIAL.
+- **Coverage state.** COVERED (Tag-46 lift from PARTIAL).
 - **Pinning tests.**
   - `test_welle_4_cutover_smoke.py` — per-Welle smoke covers
-    state-backing layer-switch shape, but not the persistence-loss
-    failure-mode directly.
-- **Follow-up (Tag-46+).** Add hermetic state-backing-persistence-
-  loss probe: given an in-test state-backing snapshot, simulate a
-  cutover-window crash, assert the snapshot-restore invariant. Place
-  in `tests/phase_3c/test_welle_4_state_backing_persistence_loss.py`.
+    state-backing layer-switch shape (carried forward).
+  - `wirelang/persona_engine/tests/test_nats_jetstream_loss_recovery_a8.py`
+    (Tag-46, Selin auftrag 2026-05-18) — hermetic coverage of five
+    JetStream-loss scenarios:
+    - `test_a8_stream_disconnect_mid_publish_does_not_abort_loop`
+    - `test_a8_stream_disconnect_inbound_ack_still_called`
+    - `test_a8_consumer_ack_loss_does_not_crash_loop`
+    - `test_a8_consumer_ack_loss_outbound_publish_still_recorded`
+    - `test_a8_replica_failover_put_surfaces_error`
+    - `test_a8_replica_failover_get_returns_none_silently`
+    - `test_a8_replica_failover_recovers_after_window`
+    - `test_a8_subject_routing_drift_drops_mismatched_persona`
+    - `test_a8_subject_routing_drift_does_not_block_subsequent_correct_msg`
+    - `test_a8_subject_routing_drift_malformed_subject_does_not_alter_drop_path`
+    - `test_a8_replay_state_backing_byte_equal_snapshot_idempotent`
+    - `test_a8_replay_inbound_envelope_published_twice_on_redelivery`
+    - `test_a8_replay_bridge_audit_step_indices_strictly_monotonic`
+    - `test_a8_all_five_scenarios_share_loop_does_not_crash_invariant`
+- **Notes.** The five scenarios match the §4 Tag-46+ follow-up item
+  for A8: Stream-Disconnect-Mid-Publish, Consumer-Ack-Loss,
+  JetStream-Replica-Failover, Subject-Routing-Drift,
+  Message-Replay-Idempotency. The hermetic-stub posture mirrors
+  `wirelang/tests/persona_engine/test_state_backing_async.py` — no
+  nats-py wheel, no live socket, no threads.
 
 ### Class-B — Operativ (6 modes)
 
@@ -373,11 +391,11 @@ Tag-45 contract scope (§0).
 
 | Class | Total | COVERED | PARTIAL | GAP-ACCEPTED | GAP-OPEN |
 |---|---|---|---|---|---|
-| A (Technisch) | 8 | 6 (A1, A3, A4, A5, A6, A7) | 2 (A2, A8) | 0 | 0 |
+| A (Technisch) | 8 | 7 (A1, A3, A4, A5, A6, A7, A8) | 1 (A2) | 0 | 0 |
 | B (Operativ) | 6 | 2 (B2, B4) | 2 (B1, B3) | 2 (B5, B6) | 0 |
 | C (Prozedural) | 5 | 2 (C1, C2) | 0 | 3 (C3, C4, C5) | 0 |
 | D (Externe) | 5 | 0 | 0 | 5 (D1-D5) | 0 |
-| **Total** | **24*** | **10** | **4** | **10** | **0** |
+| **Total** | **24*** | **11** | **3** | **10** | **0** |
 
 \* Henrik's Pre-Mortem-Skizze §6 names "23 hypothetische Failure-
 Modes" but the table-row count is A8 + B6 + C5 + D5 = 24. The
@@ -387,10 +405,11 @@ table-row count (24) as the canonical denominator.
 
 **Coverage interpretation.**
 
-- **10 of 24 failure-modes (41.7%) are directly COVERED** by at
+- **11 of 24 failure-modes (45.8%) are directly COVERED** by at
   least one test in Layer-1..4 of the Phase-3-Acceptance pyramid
-  (Tag-46 substrate-layer closeout flipped A6 PARTIAL -> COVERED).
-- **4 of 24 failure-modes (16.7%) are PARTIAL** with an explicit
+  (Tag-46 closeouts: A6 substrate-layer PARTIAL -> COVERED + A8
+  NATS-JetStream-Loss-Recovery PARTIAL -> COVERED).
+- **3 of 24 failure-modes (12.5%) are PARTIAL** with an explicit
   Tag-46+ follow-up item named for each.
 - **10 of 24 failure-modes (41.7%) are GAP-ACCEPTED** as structurally
   out-of-scope for the QA test surface (5 external D-class, 4
@@ -408,8 +427,9 @@ PARTIAL bucket clusters around three structural seams:
 2. **State-Persistence seam** (A2/A8): FSM-transition-legality and
    state-backing-persistence-loss. The Tag-37 Rust FSM-Replay-Engine
    covers transition-legality at the Rust-crate-test layer; the
-   Python-side smoke covers shape but not failure-mode. Tag-46+
-   adds two Python-side tests to close the seam.
+   Python-side smoke covers shape but not failure-mode. Tag-46
+   closes the A8 half of this seam (hermetic JetStream-loss tests,
+   Selin); the A2 half remains in §4 follow-up.
 3. **Image-Chain seam** (A6): cosign-verification-chain across
    Welle-N -> Welle-N+1 image-hashes. **Closed at substrate-layer
    in Tag-46** by `tests/infra/test_cosign_drift_coverage_a6.py`
@@ -421,29 +441,33 @@ PARTIAL bucket clusters around three structural seams:
 
 ## 4. Tag-46+ follow-up items (named, not yet spawned)
 
-The five PARTIAL classifications each name a specific follow-up
-test that closes the partial coverage. The Tag-45 coverage-audit
+The PARTIAL classifications each name a specific follow-up test
+that closes the partial coverage. The Tag-45 coverage-audit
 **does not spawn** these follow-ups; it only names them so the
-Tag-46+ planning surface has explicit anchors.
+Tag-46+ planning surface has explicit anchors. The Tag-46 Selin
+spawn closed item #3 (A8) by landing the named hermetic-
+JetStream-loss test file in the persona-engine package tree.
 
 | # | Failure-Mode | Follow-up test | Layer | Owner | Status |
 |---|---|---|---|---|---|
 | 1 | A2 FSM-Phantom-Transitions | `test_fsm_transition_legality_marathon.py` | 5 (Marathon) | Amara | pending |
-| 2a | A6 Cosign-Verification-Drift (substrate) | `tests/infra/test_cosign_drift_coverage_a6.py` | 3 (substrate) | Kai (Zone-C cross-review) | **DONE (Tag-46, this audit; flipped A6 -> COVERED)** |
+| 2a | A6 Cosign-Verification-Drift (substrate) | `tests/infra/test_cosign_drift_coverage_a6.py` | 3 (substrate) | Kai (Zone-C cross-review) | **DONE (Tag-46; flipped A6 -> COVERED)** |
 | 2b | A6 Cosign-Verification-Drift (marathon defence-in-depth) | `test_cosign_chain_marathon_image_hash_stability.py` | 5 (Marathon) | Amara, with Kai cross-review | pending (additional defence) |
-| 3 | A8 NATS-JetStream-Persistence-Loss | `test_welle_4_state_backing_persistence_loss.py` | 5 (Marathon) | Amara, with Reza cross-review | pending |
+| 3 | A8 NATS-JetStream-Loss-Recovery | `wirelang/persona_engine/tests/test_nats_jetstream_loss_recovery_a8.py` | 5 (Marathon) | Selin (Tag-46), with Reza-substrate cross-review on KV-failover stub | **DONE (Tag-46, 2026-05-18; flipped A8 -> COVERED)** |
 | 4 | B1 AR-Hand-Stop-Marker-Trigger | `test_ar_hand_stop_marker_trigger_invariant.py` | 5 (Marathon) | Amara | pending |
 | 5 | B3 Welle-3-IIA-1130-Pre-Auditor-Designation | `test_welle_3_pre_auditor_designation_precondition.py` | 5 (Marathon) | Amara, with Henrik cross-review (Zone N) | pending |
 
-**Sequencing observation (Vermutungs-Kennzeichnung P2).** Items 1
-and 3 (state-related) should be spawned before Marathon-Start (KW-24,
-2026-06-08) since they cover Welle-4 / Welle-5 cutover invariants.
-Item 2a (image-chain substrate) **landed Tag-46** (this audit) and
-closed A6 at substrate-layer. Item 2b (image-chain marathon
-defence-in-depth) and Item 4 (AR-Hand-Stop) can be spawned in parallel
-with Marathon-Start. Item 5 (Welle-3-Pre-Auditor designation) MUST
-be spawned before KW-25 (2026-06-16) since it is a Welle-3 cutover
-pre-condition.
+**Sequencing observation (Vermutungs-Kennzeichnung P2).** Item 3
+(A8) closed Tag-46 (2026-05-18, Selin auftrag) — done before KW-26
+cutover-window as the Tag-46 auftrag explicitly required. Item 2a
+(image-chain substrate) **landed Tag-46** and closed A6 at
+substrate-layer. Item 1 (A2, state-related FSM-transition-legality)
+SHOULD still be spawned before Marathon-Start (KW-24, 2026-06-08)
+since it covers cross-cutover FSM invariants. Item 2b (image-chain
+marathon defence-in-depth) and Item 4 (AR-Hand-Stop) can be spawned
+in parallel with Marathon-Start. Item 5 (Welle-3-Pre-Auditor
+designation) MUST be spawned before KW-25 (2026-06-16) since it is
+a Welle-3 cutover pre-condition.
 
 ## 5. Zone-N alignment (Henrik / Internal Audit)
 
