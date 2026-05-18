@@ -34,7 +34,8 @@ explicitly records the gap as `GAP-ACCEPTED` (out-of-scope for the
 QA test surface, e.g. external dependencies / governance layer) or
 `GAP-OPEN` (Tag-46+ follow-up item).
 
-The Phase-3-Acceptance pyramid grows to five layers with this file:
+The Phase-3-Acceptance pyramid grows to six layers with this file
+(Tag-52 added Layer-6 Defence-in-Depth Run-Suite):
 
 | Layer | Suite | Owner | Contract |
 |---|---|---|---|
@@ -43,6 +44,7 @@ The Phase-3-Acceptance pyramid grows to five layers with this file:
 | 3 — Marathon | `test_marathon_schluss_acceptance_drill.py` (Tag-43) | Amara | Does the four-Wochen-Sequence thread the per-day records into the AC-1..AC-5 conjunction, fire the marker, fire the Bilanz-Trigger? |
 | 4 — Anti-Pattern | `test_marathon_anti_patterns.py` (Tag-44) | Amara | Does the control-surface REJECT ten dedicated control-plane anti-patterns by construction? |
 | 5 — Pre-Mortem Coverage | `test_pre_mortem_failure_mode_coverage_audit.py` (Tag-45, this doc) | Amara | Does the union of Layer-1..4 cover the 23 Pre-Mortem failure-modes, or is each gap explicitly classified? |
+| 6 — Defence-in-Depth (A1 atomic Run-Suite) | `test_defence_in_depth_layer_6.py` (Tag-52) | Amara | Do all four A1 defence-layers (DL1..DL4) fire together on a unified A1 attack-scenario, and does residual-capture hold under single-layer bypass? |
 
 **Tag-47 structural-consistency audit.** The five-layer Pyramide is
 pinned as a structurally-coherent contract by
@@ -899,8 +901,53 @@ reading), or 12 COVERED / 2 PARTIAL / 10 GAP-ACCEPTED / 0 GAP-OPEN
 under the conservative Tag-50 reading pending Henrik Zone-N
 D3-boundary decision.
 
+### 7.8 Tag-52 Pyramide Layer-6 Defence-in-Depth Run-Suite
+
+Where Tag-51 formalised the **fourth** A1 defence-layer (marathon-
+rollup cascade-detection) as a dedicated test-class, Tag-52
+formalises the **combined** defence-in-depth invariant as the
+**sixth Pyramide-Layer**: a single atomic Run-Suite
+(`tests/phase_3c/test_defence_in_depth_layer_6.py`, 22 hermetic
+tests) that imports all four A1 defence-layer modules and fires
+them together on a unified A1 attack-scenario.
+
+Layer-6 is operationally distinct from Layer-1..5:
+
+* Layer-1..4 each pin one **single contract surface** for A1
+  (static substrate / aggregate blocker / namespace prefix /
+  dynamic marathon-trace).
+* Layer-5 (Tag-45) is a **meta-audit** that asserts each A1 axis
+  is covered by *some* layer, but does not exercise the four
+  layers together.
+* Layer-6 (Tag-52, this section) is the **atomic Run-Suite** that
+  exercises DL1..DL4 in one composite-fire and asserts the
+  *residual-capture* property: under each single-layer-bypass
+  injection, at least one of the remaining three layers still
+  fires on the canonical A1 attack-scenario. This is the
+  operational definition of defence-in-depth — no single layer
+  is the sole gate.
+
+| ID range | Count | Concern |
+|---|---|---|
+| DL6-COMPOSITE-* | 5 | All four layers fire together on canonical attack; all silent on canonical green; deterministic under replay; axis-orthogonal per layer; axis-only scenarios trigger only the owning layer |
+| DL6-RESIDUAL-* | 4 | Residual-capture under Layer-1/2/3/4 single-bypass injection; expected residual fire-set per bypass |
+| DL6-AXIS-* | 4 | Per-layer axis-source probes (Layer-1 ENV_VAR/MODUL disjointness; Layer-2 NEG-anchor surface; Layer-3 StateBackingLeakLedger; Layer-4 reference rollup) |
+| DL6-INTEGRATION-* | 5 | Layer-1..4 substrate files on tree; matrix-doc Layer-6 row present and references the test-file basename |
+| DL6-INVARIANT-* | 4 | Layer-6 is strict superset of Layer-4; additive (not a replacement); A1 stays COVERED; residual-capture compound across all four bypass cases |
+
+Layer-6 is **additive** to Layer-1..5 — none of the previous five
+layers is replaced or absorbed. A1 stays COVERED. The §3 summary
+is unchanged versus Tag-51.
+
+The Tag-47 structural-consistency audit grows from a five-layer to
+a six-layer cascade in a follow-up sweep (the Tag-52 PR scope is
+deliberately small: the Layer-6 substrate plus this §0 + §7.8
+doc-update; the structural-audit-update is a separate Tag-N
+follow-up).
+
 — Amara Osei (QA), Tag-45 Pre-Mortem Coverage-Audit, 2026-05-18
 — Amara Osei (QA), Tag-46 Coverage-Sweep + A6/B1 Cross-Validation, 2026-05-18
 — Amara Osei (QA), Tag-47 Pyramide-Layer-Consistency-Audit + Doc-Refresh, 2026-05-18
 — Amara Osei (QA), Tag-50 Consolidated Coverage-Sweep Tag-44..49 + Doc-Refresh, 2026-05-19
 — Amara Osei (QA), Tag-51 A1 Defence-Layer-4 formalisation, 2026-05-19
+— Amara Osei (QA), Tag-52 Pyramide Layer-6 Defence-in-Depth Run-Suite, 2026-05-19
