@@ -195,13 +195,17 @@ def test_tag45_groups_present(alerts: dict):
     assert not missing, f"Tag-45 alert groups missing: {missing}"
 
 
-def test_total_group_count_matches_tag45_plus_tag40(alerts: dict):
-    # 4 Tag-40 + 8 Tag-45 = 12 expected groups. If a future task
-    # adds more, bump this expectation deliberately.
-    assert len(alerts["groups"]) == 12, (
-        f"Expected exactly Tag-40(4) + Tag-45(8) = 12 groups; "
-        f"got {len(alerts['groups'])}. Update test if expanding "
-        f"deliberately."
+def test_total_group_count_matches_tag45_plus_tag40_plus_tag50(alerts: dict):
+    # 4 Tag-40 + 8 Tag-45 + 7 Tag-50 = 19 expected groups. The
+    # Tag-50 Welle-N-specific groups are appended after the Tag-45
+    # failure-mode + hot-spot groups. See
+    # tests/ci/test_welle_n_specific_alerts.py for the Tag-50
+    # contract. If a future task adds more, bump this expectation
+    # deliberately.
+    assert len(alerts["groups"]) == 19, (
+        f"Expected exactly Tag-40(4) + Tag-45(8) + Tag-50(7) = 19 "
+        f"groups; got {len(alerts['groups'])}. Update test if "
+        f"expanding deliberately."
     )
 
 
