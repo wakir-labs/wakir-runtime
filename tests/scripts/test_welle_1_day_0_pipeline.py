@@ -12,7 +12,7 @@ deterministically.
 The pipeline script uses python3 (always present) for JSON
 emit/parse, so the tests do not need a `jq` binary on the host.
 
-Scope (12 tests, beyond the requested 8)
+Scope (16 tests, beyond the requested 8)
 ----------------------------------------
 
 1.  test_script_is_executable_and_has_help
@@ -27,6 +27,22 @@ Scope (12 tests, beyond the requested 8)
 10. test_phase_fr_no_go_when_any_phase_red
 11. test_full_pipeline_all_phases_emit_decision_json
 12. test_invalid_phase_argument_rejected
+
+Bash-bug-regression suite (Tag-33, from Kai PR #222 finding)
+------------------------------------------------------------
+
+The "if ! cmd; then rc=$?; fi" pattern silently clobbers $? to 0 in
+bash because $? takes the value of the negated test's exit (always
+0 when the negated command exited non-zero). The fixed form is
+"cmd || rc=$?". The four tests below would have failed if the bug
+re-appeared, because they exercise rc=1/rc=2 paths from the
+subprocess targets and rely on the captured rc propagating into the
+0/1/2 ladder (yellow / red verdict).
+
+13. test_bash_bug_regression_aggregator_rc2_surfaces_red
+14. test_bash_bug_regression_dry_run_rc2_surfaces_red
+15. test_bash_bug_regression_aggregator_rc1_surfaces_yellow
+16. test_bash_bug_regression_both_targets_rc2_surface_red
 """
 
 from __future__ import annotations
@@ -322,3 +338,107 @@ def test_invalid_phase_argument_rejected(tmp_path, env):
     cp = _run_pipeline(staging, args=["--phase", "garbage", "--dry-run-all"], env=env)
     assert cp.returncode == 2
     assert "invalid --phase" in cp.stderr
+
+
+# ---------------------------------------------------------------------------
+# Bash-bug-regression suite (Tag-33, from Kai PR #222 finding)
+#
+# These tests pin the contract that "phase mo" captures the actual
+# rc of the subprocess targets via the "cmd || rc=$?" form, NOT the
+# legacy "if ! cmd; then rc=$?; fi" form.  In the legacy form, bash
+# sets $? to the rc of the negated test (always 0 when the negated
+# command exited non-zero), so the captured rc is always 0 — the
+# 0/1/2 ladder silently degrades to "always green".
+#
+# Each test below sets up a stub that emits a benign JSON envelope
+# (status=green / dry_run=completed) but exits with rc=1 or rc=2.
+# Without the JSON-status path firing, the verdict has to come from
+# the captured rc — which only works with the fixed pattern.
+# ---------------------------------------------------------------------------
+
+
+def test_bash_bug_regression_aggregator_rc2_surfaces_red(tmp_path, env):
+    """Aggregator emits status=green but exits rc=2 (script error).
+
+    With the buggy "if ! cmd; then gates_rc=$?; fi" pattern, gates_rc
+    would be 0 and the verdict would mis-report green. The "|| rc=$?"
+    form propagates the real rc=2 into "(( gates_rc >= 2 ))" → red.
+    """
+    staging = _staging_repo(tmp_path)
+    _stub_aggregator(staging, status="green", rc=2)
+    _stub_dry_run(staging, dry_run="completed", rc=0)
+    cp = _run_pipeline(staging, args=["--phase", "mo", "--dry-run-all"], env=env)
+    assert cp.returncode == 2, cp.stderr
+    summary = json.loads((staging / ".welle-1-day-0-artifacts"
+                          / "phase-mo-summary.json").read_text())
+    assert summary["verdict"] == "red"
+    assert summary["gates_rc"] == 2, \
+        "gates_rc must capture the real subprocess rc, not 0 (bash $? clobber bug)"
+    # gates_status stays green because the JSON envelope said so —
+    # the red verdict therefore *only* comes from the captured rc.
+    assert summary["gates_status"] == "green"
+
+
+def test_bash_bug_regression_dry_run_rc2_surfaces_red(tmp_path, env):
+    """Dry-run target emits dry_run=completed but exits rc=2.
+
+    Same shape as the aggregator regression test, but on the dry_run
+    side of phase Mo. The verdict must come solely from the captured
+    dry_rc, with dry_status still reporting "completed".
+    """
+    staging = _staging_repo(tmp_path)
+    _stub_aggregator(staging, status="green", rc=0)
+    _stub_dry_run(staging, dry_run="completed", rc=2)
+    cp = _run_pipeline(staging, args=["--phase", "mo", "--dry-run-all"], env=env)
+    assert cp.returncode == 2, cp.stderr
+    summary = json.loads((staging / ".welle-1-day-0-artifacts"
+                          / "phase-mo-summary.json").read_text())
+    assert summary["verdict"] == "red"
+    assert summary["dry_rc"] == 2, \
+        "dry_rc must capture the real subprocess rc, not 0 (bash $? clobber bug)"
+    assert summary["dry_status"] == "completed"
+
+
+def test_bash_bug_regression_aggregator_rc1_surfaces_yellow(tmp_path, env):
+    """Aggregator emits status=green but exits rc=1 (threshold-fail).
+
+    The 0/1/2 ladder maps rc=1 to yellow via "(( gates_rc == 1 ))".
+    With the buggy pattern, gates_rc would be 0 and the run would
+    mis-report green. The fixed form propagates rc=1 → yellow even
+    when the JSON envelope says green.
+    """
+    staging = _staging_repo(tmp_path)
+    _stub_aggregator(staging, status="green", rc=1)
+    _stub_dry_run(staging, dry_run="completed", rc=0)
+    cp = _run_pipeline(staging, args=["--phase", "mo", "--dry-run-all"], env=env)
+    assert cp.returncode == 1, cp.stderr
+    summary = json.loads((staging / ".welle-1-day-0-artifacts"
+                          / "phase-mo-summary.json").read_text())
+    assert summary["verdict"] == "yellow"
+    assert summary["gates_rc"] == 1, \
+        "gates_rc must capture rc=1, not 0 (bash $? clobber bug)"
+    assert summary["gates_status"] == "green"
+
+
+def test_bash_bug_regression_both_targets_rc2_surface_red(tmp_path, env):
+    """Both aggregator and dry-run exit rc=2 with benign JSON envelopes.
+
+    Worst-case for the bug: with the legacy pattern, neither gates_rc
+    nor dry_rc would propagate, and the verdict would be a silent
+    green. The fix ensures both rcs are surfaced into the summary
+    envelope so audit can see the dual failure.
+    """
+    staging = _staging_repo(tmp_path)
+    _stub_aggregator(staging, status="green", rc=2)
+    _stub_dry_run(staging, dry_run="completed", rc=2)
+    cp = _run_pipeline(staging, args=["--phase", "mo", "--dry-run-all"], env=env)
+    assert cp.returncode == 2, cp.stderr
+    summary = json.loads((staging / ".welle-1-day-0-artifacts"
+                          / "phase-mo-summary.json").read_text())
+    assert summary["verdict"] == "red"
+    assert summary["gates_rc"] == 2
+    assert summary["dry_rc"] == 2
+    # Both JSON envelopes still say "green/completed" — the red verdict
+    # is structurally evidence that the rc-capture path works.
+    assert summary["gates_status"] == "green"
+    assert summary["dry_status"] == "completed"
