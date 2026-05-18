@@ -82,10 +82,12 @@ path = "src/lib.rs"
 serde      = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
-
-[dev-dependencies]
-# Cross-language round-trip: SHA-256 of the JCS bytes of the V9 canonical
-# subset must equal PERSONA_HASH_PIN_V9. Same dev-dep posture as
-# persona-canonical-form-yaml.
+# Cross-lang canonical-trace surface (Tag-34 Phase-3a Item 11): the
+# `canonical` sub-module emits JCS-canonical bytes + SHA-256 hashes
+# for byte-paritätischen Vergleich gegen
+# `wirelang.persona.frontmatter_parser_canonical` (Python). These two
+# crates were previously dev-deps only (V9 smoke test) — promoted to
+# runtime deps so the canonical-trace surface is reachable by
+# downstream consumers (persona-engine triangle).
 serde_jcs = { workspace = true }
 sha2      = { workspace = true, features = ["std"] }
