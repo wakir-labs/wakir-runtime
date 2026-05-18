@@ -513,6 +513,252 @@ impl ReplayEngine {
 }
 
 // ---------------------------------------------------------------------------
+// Canonical-trace sub-module (Tag-37 Phase-3a 14. Modul).
+//
+// This sub-module is the byte-paritätisch pendant of the Python sibling
+// `wirelang.persona_engine.bridge_audit_replay_canonical`.  Where the
+// outer crate exposes the operator-facing `ReplayReport` with its
+// per-step `Divergence` echoes and field-level `FieldDiff` list, the
+// canonical-trace exposes a stable nine-field JCS-canonical projection
+// that the Welle-3 Konsistenz-Oracle pins byte-for-byte across the
+// language boundary.
+//
+// Schema (alphabetical, 9 keys):
+//   actual_record_count, divergence_first_kind, divergence_first_step,
+//   divergences_summary, expected_record_count, schema,
+//   stream_hash_actual, stream_hash_expected, success.
+//
+// Sentinel: `divergence_first_step = -1` on success (instead of a
+// nullable integer) to keep the trace integer-typed across both
+// languages without a JSON-null drift surface inside the determinism
+// oracle.
+//
+// See module-level docstring of the Python sibling for the design
+// rationale (sibling-pattern parity with `bridge_audit_diff_engine_canonical`
+// (Tag-36 13. Modul) and `v907_verify_canonical` (Tag-35 12. Modul)).
+// ---------------------------------------------------------------------------
+
+/// Canonical-trace projection of a bridge-audit-replay outcome.
+///
+/// Byte-paritätisch with the Python pendant
+/// `wirelang.persona_engine.bridge_audit_replay_canonical.ReplayTrace`.
+pub mod canonical {
+    use super::{
+        AuditRecord, Divergence, DivergenceKind, ExpectedTrajectory, ReplayEngine,
+        ReplayError, ReplayReport,
+    };
+    use serde_jcs;
+    use serde_json::{json, Value};
+    use sha2::{Digest, Sha256};
+
+    /// JCS-canonical schema id for the bridge-audit-replay trace wire form.
+    pub const REPLAY_TRACE_SCHEMA: &str =
+        "wakir.persona-engine.bridge-audit-replay-canonical/1";
+
+    /// Outer-hash prefix.  Cross-lang anchor.
+    pub const HASH_PREFIX: &str = "sha256:";
+
+    /// Length of a SHA-256 hex digest (32 bytes = 64 hex chars).
+    pub const SHA256_HEX_LEN: usize = 64;
+
+    /// Sentinel integer for the success-path `divergence_first_step`
+    /// field.  Pins the trace to integer wire form across both
+    /// languages (no JSON-null drift surface).
+    pub const DIVERGENCE_NONE_SENTINEL: i64 = -1;
+
+    /// DivergenceKind wire-string alphabet (echo of the live enum).
+    pub const KIND_VALUE_MISMATCH: &str = "value-mismatch";
+    /// DivergenceKind wire-string for `MissingInActual`.
+    pub const KIND_MISSING_IN_ACTUAL: &str = "missing-in-actual";
+    /// DivergenceKind wire-string for `ExtraInActual`.
+    pub const KIND_EXTRA_IN_ACTUAL: &str = "extra-in-actual";
+
+    /// `;` — divergences-summary entry separator.  Wire-stable.
+    pub const SUMMARY_ENTRY_SEP: &str = ";";
+    /// `|` — divergences-summary step-vs-kind separator.  Wire-stable.
+    pub const SUMMARY_STEP_KIND_SEP: &str = "|";
+
+    /// Canonical-trace projection of a replay outcome.
+    ///
+    /// Fields are documented in the Python sibling's module-level
+    /// docstring; the Rust dataclass-equivalent here keeps the
+    /// signatures of `build_replay_trace` / `build_trace_from_report`
+    /// type-safe.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct ReplayTrace {
+        /// Number of records in the actual stream.
+        pub actual_record_count: u64,
+        /// Wire-string of the first divergence's kind, or `""` on success.
+        pub divergence_first_kind: String,
+        /// 0-based step index of the first divergence, or
+        /// [`DIVERGENCE_NONE_SENTINEL`] on success.
+        pub divergence_first_step: i64,
+        /// Compact deterministic divergence-list projection.
+        pub divergences_summary: String,
+        /// Number of records the trajectory expected.
+        pub expected_record_count: u64,
+        /// `"sha256:<64hex>"` of the actual record sequence.
+        pub stream_hash_actual: String,
+        /// `"sha256:<64hex>"` of the expected record sequence.
+        pub stream_hash_expected: String,
+        /// `true` iff every expected record matched the actual record.
+        pub success: bool,
+    }
+
+    impl ReplayTrace {
+        /// Project this trace onto a JSON-compatible value ready for JCS.
+        ///
+        /// Keys are inserted in alphabetical order to document the wire
+        /// contract; `serde_jcs::to_vec` will re-sort lexicographically
+        /// anyway so insertion order has no effect on the resulting
+        /// bytes.
+        #[must_use]
+        pub fn to_canonical_value(&self) -> Value {
+            json!({
+                "actual_record_count": self.actual_record_count,
+                "divergence_first_kind": self.divergence_first_kind,
+                "divergence_first_step": self.divergence_first_step,
+                "divergences_summary": self.divergences_summary,
+                "expected_record_count": self.expected_record_count,
+                "schema": REPLAY_TRACE_SCHEMA,
+                "stream_hash_actual": self.stream_hash_actual,
+                "stream_hash_expected": self.stream_hash_expected,
+                "success": self.success,
+            })
+        }
+    }
+
+    /// Render the divergence list as a compact deterministic string.
+    ///
+    /// Format: `"<step>|<kind>"` per entry, joined with `;` in
+    /// step-index order.  Empty string for an empty list.  Re-sorted
+    /// defensively so a caller who hand-builds a list cannot break the
+    /// trace.
+    fn divergences_summary(divs: &[Divergence]) -> String {
+        let mut entries: Vec<(usize, String)> = divs
+            .iter()
+            .map(|d| {
+                (
+                    d.step_index,
+                    format!(
+                        "{}{}{}",
+                        d.step_index,
+                        SUMMARY_STEP_KIND_SEP,
+                        match d.kind {
+                            DivergenceKind::ValueMismatch => KIND_VALUE_MISMATCH,
+                            DivergenceKind::MissingInActual => KIND_MISSING_IN_ACTUAL,
+                            DivergenceKind::ExtraInActual => KIND_EXTRA_IN_ACTUAL,
+                        }
+                    ),
+                )
+            })
+            .collect();
+        entries.sort_by_key(|t| t.0);
+        let parts: Vec<String> = entries.into_iter().map(|(_, s)| s).collect();
+        parts.join(SUMMARY_ENTRY_SEP)
+    }
+
+    /// Map a `DivergenceKind` to its wire-string form.
+    fn kind_to_wire(kind: DivergenceKind) -> &'static str {
+        match kind {
+            DivergenceKind::ValueMismatch => KIND_VALUE_MISMATCH,
+            DivergenceKind::MissingInActual => KIND_MISSING_IN_ACTUAL,
+            DivergenceKind::ExtraInActual => KIND_EXTRA_IN_ACTUAL,
+        }
+    }
+
+    /// Build a canonical replay-outcome trace.
+    ///
+    /// Takes the same arguments the live
+    /// [`ReplayEngine::replay_stream`] would, runs the engine, and
+    /// emits the canonical-trace projection.
+    ///
+    /// # Errors
+    ///
+    /// Surfaces [`ReplayError::Diff`] on JCS-canonicaliser failure
+    /// (unreachable in practice with well-formed input).
+    pub fn build_replay_trace(
+        actual: &[AuditRecord],
+        expected: &ExpectedTrajectory,
+    ) -> Result<ReplayTrace, ReplayError> {
+        let report = ReplayEngine::new().replay_stream(actual, expected)?;
+        Ok(build_trace_from_report(&report))
+    }
+
+    /// Project an existing live [`ReplayReport`] into a canonical-trace.
+    ///
+    /// Convenience helper for callers that already have a live report
+    /// and want the canonical projection without re-running the
+    /// engine.  Byte-identical to [`build_replay_trace`] on the same
+    /// inputs.
+    #[must_use]
+    pub fn build_trace_from_report(report: &ReplayReport) -> ReplayTrace {
+        if report.success {
+            return ReplayTrace {
+                actual_record_count: report.actual_record_count as u64,
+                divergence_first_kind: String::new(),
+                divergence_first_step: DIVERGENCE_NONE_SENTINEL,
+                divergences_summary: String::new(),
+                expected_record_count: report.expected_record_count as u64,
+                stream_hash_actual: report.stream_hash_actual.clone(),
+                stream_hash_expected: report.stream_hash_expected.clone(),
+                success: true,
+            };
+        }
+        let first = &report.divergences[0];
+        ReplayTrace {
+            actual_record_count: report.actual_record_count as u64,
+            divergence_first_kind: kind_to_wire(first.kind).to_string(),
+            divergence_first_step: first.step_index as i64,
+            divergences_summary: divergences_summary(&report.divergences),
+            expected_record_count: report.expected_record_count as u64,
+            stream_hash_actual: report.stream_hash_actual.clone(),
+            stream_hash_expected: report.stream_hash_expected.clone(),
+            success: false,
+        }
+    }
+
+    /// Serialise a trace to its JCS-canonical UTF-8 bytes.
+    ///
+    /// # Errors
+    ///
+    /// Surfaces a [`ReplayError::Diff`] wrapping the upstream
+    /// canonicaliser failure (unreachable in practice with
+    /// well-formed input — the trace dataclass cannot contain
+    /// non-finite floats or non-string keys).
+    pub fn serialize_trace(trace: &ReplayTrace) -> Result<Vec<u8>, ReplayError> {
+        let value = trace.to_canonical_value();
+        serde_jcs::to_vec(&value).map_err(|e| {
+            // Surface via the existing ReplayError::Diff variant —
+            // the upstream `BridgeDiffError::CanonicaliseError` wraps a
+            // canonicaliser failure message so we re-wrap the
+            // serde-json error the same way.
+            ReplayError::Diff(super::BridgeDiffError::CanonicaliseError(e.to_string()))
+        })
+    }
+
+    /// SHA-256 hex of the JCS bytes of `trace`.
+    ///
+    /// # Errors
+    ///
+    /// Forwards [`serialize_trace`] errors.
+    pub fn trace_sha256_hex(trace: &ReplayTrace) -> Result<String, ReplayError> {
+        let bytes = serialize_trace(trace)?;
+        let digest = Sha256::digest(&bytes);
+        Ok(hex::encode(digest))
+    }
+
+    /// Prefixed outer hash: `"sha256:" + trace_sha256_hex`.
+    ///
+    /// # Errors
+    ///
+    /// Forwards [`serialize_trace`] errors.
+    pub fn trace_hash_prefixed(trace: &ReplayTrace) -> Result<String, ReplayError> {
+        Ok(format!("{}{}", HASH_PREFIX, trace_sha256_hex(trace)?))
+    }
+}
+
+// ---------------------------------------------------------------------------
 // In-crate unit tests for non-pin invariants.
 // ---------------------------------------------------------------------------
 
