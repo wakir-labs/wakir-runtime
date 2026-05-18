@@ -31,6 +31,34 @@ The two artefacts have intentionally different roles:
   here does **not** imply future bytes will remain identical —
   follow-up sync verifications must re-run.
 
+## Tag-52 cross-repo-sync-audit refresh — 2026-05-19 (Reza)
+
+| Field | Value |
+| --- | --- |
+| Sprint | Tag-52 Cross-Repo-Sync-Audit-Refresh |
+| Date | 2026-05-19 |
+| Runtime HEAD | `b16e2631da2f` |
+| Protocol HEAD | `9eca1e2d4b5b` |
+| Mirror-pair tally | ok=4, DRIFT=6, allowed=0, missing=0 |
+| Refresh-delta vs. Tag-42 | newly-fixed=0, newly-drifting=0, still-drifting=6, additions=0, removals=0 |
+| Welle-substance | 7× consistent-runtime-only (unchanged) |
+| Drift-type classification | 5× json-formatting-only, 1× import-path-delta |
+| Phase-3-Marathon readiness | STABLE-BLOCKED (dormant audited surface, drift bilanz unchanged since Tag-42) |
+| Refresh report | `reports/cross-repo-audit/2026-05-19-runtime-protocol-sync-refresh.md` |
+
+### Notes
+
+* No commits touched the audited mirror-pair surface between Tag-42
+  and Tag-52 — verified via
+  `git log a87d427..HEAD -- wirelang/schemas wirelang/canonical
+  wirelang/identity/aip_document.py wirelang/identity/dns_anchor.py`.
+* All 5 JSON-schema drift items are byte-different but
+  `json.load`-equal; pure formatting drift.
+* The single Python drift item (`canonical/caveat_set.py`) is a
+  package-root import-path delta (`wirelang.identity._jcs_pure` ↔
+  `wakir_protocol.identity_substrate._jcs_pure`), structurally
+  permanent per ADR-0062 Cut-2.
+
 ## Wirelang Spec v0.2.1 — §13 Subscribe-Mode (Reza PR #77)
 
 | Field | Value |
