@@ -284,6 +284,98 @@ _STUB_SMOKE = textwrap.dedent(
     """
 )
 
+# Tag-34 substance-fix (Tomás, 2026-05-18): the bootstrap's step 5 calls
+# ``skopeo inspect docker://<image>`` for all 4 images in
+# ``WAKIR_SKIP_COSIGN_VERIFY=1`` mode (Bug-36 substance-fix, PR #71,
+# commit ece69a4, merged 2026-05-15 19:33Z). Before PR #71 only the
+# optional wakir-provisioner image was skopeo-resolved and any failure
+# was non-fatal. After PR #71 the three SPIRE/python images hard-fail
+# on skopeo-error. The e2e-container test stubbed systemctl/podman/
+# curl/git but NOT skopeo/cosign, so phase 5 made real network calls
+# inside the bind-stubbed substrate -- one of those calls fails (the
+# inspect of ghcr.io/spiffe/spire-server:1.14.6 in particular, but the
+# substrate is not designed to make network calls at all) and the test
+# never reaches phase 8. The fix: stub skopeo + cosign with canonical
+# digest output so step 5 is hermetic like every other stubbed phase.
+#
+# The digests below are valid-shape sha256s but NOT real upstream
+# digests -- the e2e-container test only asserts that phase 5
+# completed and phase 6 installed the Quadlet substrate; the real
+# digest values are validated by separate lanes (cosign-verify-images,
+# resolve-image-pins-ci).
+_STUB_SKOPEO = textwrap.dedent(
+    """\
+    #!/bin/bash
+    # Tag-34 stub: emit canonical skopeo-inspect JSON shape with a
+    # well-formed sha256 Digest so the bootstrap's jq parse succeeds.
+    # The actual digest value is not asserted by this E2E test; the
+    # ``cosign-verify-images`` and ``resolve-image-pins-ci`` lanes
+    # validate the real upstream digests.
+    echo "[stub-skopeo] $*" >> /tmp/skopeo-calls.log
+    case "${1:-}" in
+      inspect)
+        # The bootstrap pipes the output to ``jq -r '.Digest // empty'``;
+        # we only need to emit a JSON object with a Digest field.
+        cat <<'EOF'
+{
+  "Name": "stub-image",
+  "Digest": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+  "RepoTags": ["stub"],
+  "Architecture": "amd64",
+  "Os": "linux",
+  "Layers": []
+}
+EOF
+        exit 0
+        ;;
+      --version)
+        echo "skopeo version 1.99.0 (stub)"; exit 0
+        ;;
+      *)
+        exit 0
+        ;;
+    esac
+    """
+)
+
+_STUB_COSIGN = textwrap.dedent(
+    """\
+    #!/bin/bash
+    # Tag-34 stub: emit canonical cosign-verify JSON shape so the
+    # bootstrap's cosign+skopeo cross-check branch can also be exercised
+    # by future tests. The current test runs ``WAKIR_SKIP_COSIGN_VERIFY=1``
+    # so this stub is not strictly required, but providing it makes the
+    # substrate complete and unblocks adding a no-skip-cosign test
+    # variant later.
+    echo "[stub-cosign] $*" >> /tmp/cosign-calls.log
+    case "${1:-}" in
+      verify)
+        # Emit the canonical Sigstore-verify output shape so the
+        # bootstrap's jq parse picks up the docker-manifest-digest.
+        cat <<'EOF'
+[
+  {
+    "critical": {
+      "identity": {"docker-reference": "stub"},
+      "image": {"docker-manifest-digest": "sha256:0000000000000000000000000000000000000000000000000000000000000001"},
+      "type": "cosign container image signature"
+    },
+    "optional": null
+  }
+]
+EOF
+        exit 0
+        ;;
+      --version|version)
+        echo "cosign version 2.4.0 (stub)"; exit 0
+        ;;
+      *)
+        exit 0
+        ;;
+    esac
+    """
+)
+
 _STUB_OS_RELEASE = textwrap.dedent(
     """\
     NAME="Fedora Linux"
@@ -321,6 +413,13 @@ def _run_bootstrap_in_container(
         ("curl", _STUB_CURL),
         ("git", _STUB_GIT),
         ("proxmox-bringup-smoke", _STUB_SMOKE),
+        # Tag-34 substance-fix (Tomás, 2026-05-18): skopeo + cosign
+        # are called by step_5_image_pins(). The fedora:latest
+        # substrate does not ship them; even if it did, the test is
+        # designed to be hermetic and must not make network calls.
+        # See _STUB_SKOPEO / _STUB_COSIGN comment for the RCA.
+        ("skopeo", _STUB_SKOPEO),
+        ("cosign", _STUB_COSIGN),
     ):
         p = stubs / name
         p.write_text(content)
