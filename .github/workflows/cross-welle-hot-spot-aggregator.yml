@@ -1,0 +1,261 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Cross-Welle Hot-Spot Aggregator (Tag-49 / Tomas, Henrik-Pre-Mortem-Folge)
+# ------------------------------------------------------------------------
+#
+# Purpose
+# -------
+#
+# Tag-45 + Tag-48 shipped per-welle hot-spot probes for Welle-{3..7}.
+# Each probe answers "is this welle standing on its four hot-spot axes
+# today?" but none answer the cross-welle marathon question
+#
+#     "Across all seven cutover Wellen, what is the marathon
+#      hot-spot picture for KW-25..KW-27?"
+#
+# This workflow runs the cross-welle aggregator daily, reads the five
+# per-welle trend directories, composes a marathon-level rollup,
+# transitively closes the per-welle propagation blocks, ranks the
+# hot-spots, and emits a single JSON envelope + notify-events feed.
+#
+# Companion workflows
+# -------------------
+#
+#   * ``phase-3c-welle-{3,4,5,6,7}-hot-spot-probe.yml`` (Tag-45+48)
+#     -- the five per-welle deep-dives that populate the trend dirs
+#     this aggregator reads.
+#   * ``phase-3c-pre-cutover-daily-probe.yml`` (Reza Tag-44) -- the
+#     all-seven daily trend tracker. This aggregator is the
+#     "rollup-of-rollups" companion: when the all-seven trend probe
+#     flags any welle yellow / red, this workflow surfaces the
+#     marathon picture and the cascade fan-out.
+#
+# Sandbox posture
+# ---------------
+#
+# Strict hermetic: stdlib-only python, no podman / cosign / live-VM,
+# no network egress. Reads in-repo state files only. Hosted-runner-
+# safe.
+#
+# Trigger surface
+# ---------------
+#
+#   * ``schedule: cron "0 7 * * *"`` -- daily at 07:00 UTC, 30 min
+#     after the per-welle Welle-3 hot-spot probe (06:30 UTC) and the
+#     all-seven daily trend probe (06:00 UTC), so an operator-hand
+#     Sichtung sees the per-welle envelopes first, then the
+#     marathon rollup.
+#   * ``workflow_dispatch`` -- operator-hand manual invocation with
+#     optional ``today`` override (replay / back-fill) and
+#     ``persist`` flag.
+#   * ``push`` (path-filtered) -- any change to the aggregator,
+#     workflow, runbook, or tests re-runs the rollup.
+#   * ``pull_request`` (path-filtered) -- same filter so PRs touching
+#     the substrate run the rollup in dry-run before merge.
+#
+# Not a required status check
+# ---------------------------
+#
+# Per ``feedback_branch_protection_check_names.md`` this workflow
+# tracks a calendar-window cross-welle hot-spot trend, not individual
+# PR acceptance. It is NOT listed as a required status check on PRs.
+#
+# Persistence
+# -----------
+#
+# Per ADR-0058 + AR-Direktive Tag-44, scheduled CI does NOT push to
+# main. Daily envelopes are uploaded as artifacts (retention 30
+# days). Operator-hand workflow_dispatch with ``persist=true`` stages
+# the state file but does not push (runner has ``contents: read``).
+
+name: cross-welle-hot-spot-aggregator
+
+on:
+  schedule:
+    # Daily at 07:00 UTC -- 30 min after Welle-3 hot-spot probe.
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+    inputs:
+      today:
+        description: "Override snapshot date (yyyy-mm-dd; default UTC today)."
+        required: false
+        default: ""
+      persist:
+        description: "Stage state file for commit (true|false). Operator-hand only."
+        required: false
+        default: "false"
+  push:
+    branches:
+      - main
+    paths:
+      - "tooling/ci/cross_welle_hot_spot_aggregator.py"
+      - ".github/workflows/cross-welle-hot-spot-aggregator.yml"
+      - "tests/ci/test_cross_welle_hot_spot_aggregator.py"
+      - "docs/ci/cross-welle-hot-spot-aggregator-runbook.md"
+  pull_request:
+    paths:
+      - "tooling/ci/cross_welle_hot_spot_aggregator.py"
+      - ".github/workflows/cross-welle-hot-spot-aggregator.yml"
+      - "tests/ci/test_cross_welle_hot_spot_aggregator.py"
+      - "docs/ci/cross-welle-hot-spot-aggregator-runbook.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cross-welle-hot-spot-aggregator
+  cancel-in-progress: false
+
+jobs:
+  aggregate:
+    name: Aggregate Cross-Welle Hot-Spot Verdict
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Resolve today
+        id: today
+        env:
+          INPUT_TODAY: ${{ github.event.inputs.today }}
+        run: |
+          set -euo pipefail
+          today="${INPUT_TODAY}"
+          if [ -z "${today}" ]; then
+            today="$(date -u +%Y-%m-%d)"
+          fi
+          echo "today=${today}" >> "$GITHUB_OUTPUT"
+          echo "today: ${today}"
+
+      - name: Read prev verdict (if available)
+        id: prev
+        run: |
+          set -euo pipefail
+          # Walk back the last 7 days of trend-dir for the most recent
+          # cross-welle envelope; carry its verdict forward as ``prev``.
+          prev=""
+          trend_dir=state/cross-welle-hot-spot-trend
+          if [ -d "${trend_dir}" ]; then
+            prev=$(python3 -c '
+          import json, pathlib
+          d = pathlib.Path("'"${trend_dir}"'")
+          files = sorted([p for p in d.glob("*.json")], reverse=True)
+          for f in files[:7]:
+              try:
+                  env = json.loads(f.read_text())
+              except Exception:
+                  continue
+              v = env.get("verdict")
+              if v:
+                  print(v)
+                  break
+          ' || true)
+          fi
+          echo "prev=${prev}" >> "$GITHUB_OUTPUT"
+          echo "prev verdict: ${prev:-<none>}"
+
+      - name: Run cross-welle aggregator
+        id: agg
+        run: |
+          set -euo pipefail
+          mkdir -p out state/cross-welle-hot-spot-trend
+          today="${{ steps.today.outputs.today }}"
+          prev="${{ steps.prev.outputs.prev }}"
+          python3 tooling/ci/cross_welle_hot_spot_aggregator.py \
+            --state-root state \
+            --output "out/cross-welle-hot-spot-verdict.json" \
+            --notify-out "state/notify-events.jsonl" \
+            --today "${today}" \
+            ${prev:+--prev-verdict "${prev}"} \
+            --print-stdout
+          # Mirror today's envelope into the trend dir.
+          cp "out/cross-welle-hot-spot-verdict.json" \
+            "state/cross-welle-hot-spot-trend/${today}.json"
+          verdict=$(python3 -c 'import json; print(json.load(open("out/cross-welle-hot-spot-verdict.json"))["verdict"])')
+          echo "verdict=${verdict}" >> "$GITHUB_OUTPUT"
+          echo "Cross-Welle Hot-Spot verdict: ${verdict}"
+
+      - name: Render Job-Summary
+        if: always()
+        env:
+          VERDICT: ${{ steps.agg.outputs.verdict }}
+          TODAY: ${{ steps.today.outputs.today }}
+        run: |
+          set -euo pipefail
+          echo "# Cross-Welle Hot-Spot Aggregator -- ${TODAY}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Marathon Verdict:** ${VERDICT:-UNKNOWN}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f out/cross-welle-hot-spot-verdict.json ]; then
+            echo "## Per-Welle Slots" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            python3 -c '
+          import json, pathlib
+          env = json.loads(pathlib.Path("out/cross-welle-hot-spot-verdict.json").read_text())
+          print("| Welle | Verdict | Dated-at | Counts(r/y/g) | Propagation |")
+          print("|------:|:--------|:---------|:--------------|:------------|")
+          for s in env.get("per_welle_slots", []):
+              c = s.get("counts") or {}
+              counts = f"{c.get(\"red\", \"-\")}/{c.get(\"yellow\", \"-\")}/{c.get(\"green\", \"-\")}" if c else "-"
+              prop = ",".join(str(x) for x in (s.get("propagation_targets") or [])) or "-"
+              print(f"| {s[\"welle\"]} | {s[\"verdict\"]} | {s.get(\"dated_at\") or \"-\"} | {counts} | {prop} |")
+          print("")
+          print("## Cascade fan-out")
+          print("")
+          fan = env.get("cascade_fan_out") or []
+          if fan:
+              print(f"Transitively reached downstream wellen: {sorted(fan)}")
+          else:
+              print("No propagation block fired.")
+          print("")
+          print("## Top hot-spots (ranked)")
+          print("")
+          for i, t in enumerate(env.get("top_hot_spots", []), start=1):
+              print(f"{i}. Welle-{t[\"welle\"]} -- {t[\"verdict\"]} (propagation_targets={t.get(\"propagation_targets\") or []})")
+          ' >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Envelope" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat out/cross-welle-hot-spot-verdict.json >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f state/notify-events.jsonl ]; then
+            count=$(wc -l < state/notify-events.jsonl | tr -d ' ')
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Notify-events feed" >> "$GITHUB_STEP_SUMMARY"
+            echo "Total events in feed: **${count}**" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cross-welle-hot-spot-${{ steps.today.outputs.today }}
+          path: |
+            out/cross-welle-hot-spot-verdict.json
+            state/cross-welle-hot-spot-trend/${{ steps.today.outputs.today }}.json
+            state/notify-events.jsonl
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Persist state (operator-hand only)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.persist == 'true'
+        run: |
+          set -euo pipefail
+          # Per ADR-0058 + AR-Direktive Tag-44, scheduled CI does NOT
+          # push to main. This step exists to validate the
+          # persist=true dispatch path doesn't error; actual push is
+          # operator-hand.
+          today="${{ steps.today.outputs.today }}"
+          echo "[persist] state file: state/cross-welle-hot-spot-trend/${today}.json"
+          ls -la state/cross-welle-hot-spot-trend/ || true
+          echo "[persist] note: actual push is operator-hand; runner has read-only contents."
