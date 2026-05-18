@@ -83,12 +83,14 @@ on:
       - "wirelang/**"
       - "tests/infra/test_phase_2_acceptance_gates.py"
       - "docs/quality-gates/**"
+      - "docs/phase-3c/**"
       - ".github/workflows/phase-2-validation-gate.yml"
   pull_request:
     paths:
       - "wirelang/**"
       - "tests/infra/test_phase_2_acceptance_gates.py"
       - "docs/quality-gates/**"
+      - "docs/phase-3c/**"
       - ".github/workflows/phase-2-validation-gate.yml"
   workflow_dispatch: {}
 
