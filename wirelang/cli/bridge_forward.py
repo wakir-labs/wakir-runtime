@@ -236,6 +236,30 @@ def _build_parser() -> argparse.ArgumentParser:
             "test surface; does not import nats-py."
         ),
     )
+    # Tag-41 Bug-42 — Adapter-B substrate. Defaults to ``core`` per
+    # spec wirelang-spec-v0-2 §13.5 (Bridge-Forward-Pipe v1 binds
+    # core). Operators MAY set ``--publish-mode jetstream`` to
+    # match a JetStream-pull subscriber (spec §13.4 Adapter B).
+    # The env-var ``WAKIR_NATS_PUBLISH_MODE`` is the default
+    # surface if no CLI flag is passed.
+    p.add_argument(
+        "--publish-mode",
+        choices=("core", "jetstream"),
+        default=None,
+        help=(
+            "publish surface: 'core' (nc.publish) or 'jetstream' "
+            "(js.publish). Defaults to env $WAKIR_NATS_PUBLISH_MODE "
+            "or 'core'. See spec §13."
+        ),
+    )
+    p.add_argument(
+        "--jetstream-stream",
+        default=os.environ.get("WAKIR_NATS_JETSTREAM_STREAM"),
+        help=(
+            "JetStream stream name (required when --publish-mode is "
+            "'jetstream'). Defaults to env $WAKIR_NATS_JETSTREAM_STREAM."
+        ),
+    )
     return p
 
 
@@ -292,16 +316,71 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     canonical = envelope_to_jcs_bytes(envelope.to_dict())
 
+    # Tag-41 Bug-42 — resolve publish-mode early so dry-run also
+    # records the operator declaration. Mirror the live-path
+    # resolver below.
+    from wirelang.persona_engine.publish_mode_contract import (
+        resolve_publish_mode as _resolve_publish_mode_dry,
+    )
+    if args.publish_mode is not None:
+        dry_publish_mode = args.publish_mode
+    else:
+        try:
+            dry_publish_mode = _resolve_publish_mode_dry()
+        except ValueError:
+            # In dry-run mode, malformed env-var falls back to ``core``
+            # without erroring — the operator is exercising the
+            # envelope shape, not bringing up live publishes.
+            dry_publish_mode = "core"
+
     # Dry-run = stdout + return. Hermetic-test surface.
     if args.dry_run:
         # Write as UTF-8 text — sys.stdout may be a StringIO in tests
         # (no .buffer attribute). The canonical bytes are already
-        # UTF-8 by construction.
+        # UTF-8 by construction. The line ordering preserves the
+        # Sprint-10 contract (line 0 = subject comment, line 1 =
+        # canonical envelope) so existing tests stay valid. The
+        # Tag-41 publish_mode declaration is appended as a trailer
+        # comment so operators see the surface declaration without
+        # disturbing the envelope's line position.
         sys.stdout.write(f"# subject: {subject}\n")
         sys.stdout.write(canonical.decode("utf-8"))
         sys.stdout.write("\n")
+        sys.stdout.write(f"# publish_mode: {dry_publish_mode}\n")
         sys.stdout.flush()
         return 0
+
+    # Tag-41 Bug-42 — resolve the publish-mode (CLI flag > env-var >
+    # default ``core``). The mode determines whether we go through
+    # the core ``nc.publish`` path or the JetStream ``js.publish``
+    # path (Adapter B per spec §13.4).
+    from wirelang.persona_engine.publish_mode_contract import (
+        PUBLISH_MODE_CORE,
+        PUBLISH_MODE_JETSTREAM,
+        resolve_publish_mode,
+    )
+    if args.publish_mode is not None:
+        publish_mode = args.publish_mode
+    else:
+        try:
+            publish_mode = resolve_publish_mode()
+        except ValueError as exc:
+            print(
+                f"[wakir-bridge-forward] ERROR: env-misconfig: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+    if (
+        publish_mode == PUBLISH_MODE_JETSTREAM
+        and not args.jetstream_stream
+    ):
+        print(
+            "[wakir-bridge-forward] ERROR: --publish-mode jetstream "
+            "requires --jetstream-stream (or env "
+            "$WAKIR_NATS_JETSTREAM_STREAM)",
+            file=sys.stderr,
+        )
+        return 1
 
     # Live-publish path — lazy import per the marker_stack_emit
     # pattern so tests run without nats-py installed.
@@ -314,7 +393,17 @@ def main(argv: Optional[list[str]] = None) -> int:
             token = os.environ.get("WAKIR_NATS_TOKEN") or None
             nc = await nats.connect(args.nats_url, token=token)
             try:
-                await nc.publish(subject, canonical)
+                if publish_mode == PUBLISH_MODE_JETSTREAM:
+                    js = nc.jetstream()
+                    # js.publish raises on stream-not-found or
+                    # subject-mismatch; let the outer except handle.
+                    await js.publish(
+                        subject,
+                        canonical,
+                        stream=args.jetstream_stream,
+                    )
+                else:
+                    await nc.publish(subject, canonical)
                 # Flush to ensure the publish ack reaches the server.
                 await nc.flush(timeout=5.0)
             finally:

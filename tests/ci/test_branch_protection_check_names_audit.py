@@ -56,13 +56,27 @@ yaml = pytest.importorskip("yaml")
 BRANCH_PROTECTION_MIGRATED: bool = False
 
 
-#: Pre-cutover state. Per audit §2.2, captured from
+#: Pre-cutover state. Per audit §2.2, originally captured at
+#: 2026-05-18 09:15 CEST as a 3-name set. The audit-Phase-A
+#: AR-touch expansion (Mira-Hand API-call 2026-05-18 morning
+#: ahead of Tag-41) widened the protected set to six names —
+#: the three original gates plus three Phase-2 / Welle-3 gates
+#: that had reached production-quality but were not yet pinned.
+#: Re-captured from
 #: ``gh api repos/wakir-labs/wakir-runtime/branches/main/protection``
-#: at 2026-05-18 09:15 CEST.
+#: at 2026-05-18 19:48 CEST (Reza Tag-41 probe-dry-run).
+#:
+#: Order matches the live ``required_status_checks.contexts``
+#: array on ``main`` and is preserved for round-trip backup /
+#: rollback symmetry by the ADR-0068 Migration-Step-3 cutover
+#: script.
 REQUIRED_NAMES_RUNTIME_PRE_MIGRATION: tuple[str, ...] = (
     "License-Hygiene Gate (ADR-0061)",
     "wirelang suite with rfc8785 + jsonschema",
     "cross-repo drift (wakir-runtime ↔ wakir-protocol)",
+    "production-vs-sandbox drift envelope",
+    "wirelang suite without rfc8785 / jsonschema (shadow)",
+    "Phase-2 Aggregator (All Gates + Cross-Gate Non-Interference)",
 )
 
 
@@ -135,18 +149,21 @@ def test_required_names_constant_matches_audit_doc_count() -> None:
     cardinality for the current migration phase.
 
     Pre-migration (``BRANCH_PROTECTION_MIGRATED == False``):
-    cardinality is 3, matching audit doc Section 2.2.
+    cardinality is 6, matching the audit doc Section 2.2 plus the
+    Phase-A AR-touch expansion (Mira-Hand API-call 2026-05-18
+    morning) that widened the protected set from the original
+    three names to the six current names.
 
     Post-migration (``BRANCH_PROTECTION_MIGRATED == True``):
     cardinality is 1, matching ADR-0068 Migration-Step-3
     (``["ci-aggregator"]``).
 
-    A change in cardinality (Phase-A AR-touch expansion in the
-    pre-migration window, or any drift in the post-migration window)
-    MUST be reflected here and in the audit doc in the same PR.
-    This test pins that disciplinary coupling.
+    A change in cardinality (further Phase-A AR-touch expansion in
+    the pre-migration window, or any drift in the post-migration
+    window) MUST be reflected here and in the audit doc in the same
+    PR. This test pins that disciplinary coupling.
     """
-    expected = 1 if BRANCH_PROTECTION_MIGRATED else 3
+    expected = 1 if BRANCH_PROTECTION_MIGRATED else 6
     assert len(REQUIRED_NAMES_RUNTIME) == expected, (
         f"REQUIRED_NAMES_RUNTIME cardinality is "
         f"{len(REQUIRED_NAMES_RUNTIME)}, expected {expected} for "
