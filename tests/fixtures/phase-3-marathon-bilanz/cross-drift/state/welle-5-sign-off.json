@@ -1,0 +1,11 @@
+{
+  "audit_findings": [
+    "drift > 0.5 % budget",
+    "cross-welle correlation observed"
+  ],
+  "audit_ok": false,
+  "exception_count": 2,
+  "signed_off_at": "2026-06-15T10:00:00Z",
+  "signed_off_by": "henrik",
+  "welle_id": "welle-5-lifecycle-state-machine"
+}

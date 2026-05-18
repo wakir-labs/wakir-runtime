@@ -1,0 +1,29 @@
+{
+  "welle-1-v907-verify": {
+    "bucket_count": 7,
+    "drift_pct_samples": [
+      0.05,
+      0.1,
+      0.15,
+      0.2
+    ]
+  },
+  "welle-2-svid-workload-identity": {
+    "bucket_count": 7,
+    "drift_pct_samples": [
+      0.05,
+      0.1,
+      0.15,
+      0.2
+    ]
+  },
+  "welle-3-bridge-audit-writer": {
+    "bucket_count": 7,
+    "drift_pct_samples": [
+      0.6,
+      0.7,
+      0.8,
+      0.65
+    ]
+  }
+}

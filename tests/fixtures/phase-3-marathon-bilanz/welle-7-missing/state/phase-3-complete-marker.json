@@ -1,0 +1,16 @@
+{
+  "approver": "tomas",
+  "completed_at": "2026-06-29T23:59:00Z",
+  "evidence_refs": [
+    "state/welle-1-sign-off.json",
+    "state/welle-2-sign-off.json",
+    "state/welle-3-sign-off.json",
+    "state/welle-4-sign-off.json",
+    "state/welle-5-sign-off.json",
+    "state/welle-6-sign-off.json",
+    "state/welle-7-sign-off.json"
+  ],
+  "schema_version": "1.0.0",
+  "status": "COMPLETE",
+  "wellen_complete": 6
+}
