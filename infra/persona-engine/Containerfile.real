@@ -4,7 +4,24 @@
 # Licensed under the Business Source License 1.1; see ./LICENSE-BSL.md.
 # Change Date: 2030-05-15. Change License: Apache License 2.0.
 #
-# wakir-persona-engine REAL — Sprint-Pengine-13, image tag ``0.5.0-pilot``.
+# wakir-persona-engine REAL — Sprint-Pengine-14 / Tag-45 pre-cutover,
+# image tag ``0.5.0-pre-cutover``.
+#
+# Tag-45 pre-cutover consolidation (Sprint-Pengine-14, 2026-05-18)
+# ----------------------------------------------------------------
+# Tag-45 closes the engine side of the Phase-3a/3b Doppelbetrieb
+# cutover preparation: the 9-component BackendDecision inventory,
+# the consistent ``WAKIR_*_BACKEND`` ENV-flag schema, and the
+# 15-crate cross-language pin pack are now anchored in a single
+# machine-readable manifest at
+# ``wirelang/persona_engine/MANIFEST-0.5.0-pre-cutover.md`` (joined
+# with its YAML counterpart at
+# ``infra/persona-engine/pin-pack-0.5.0-pre-cutover.yaml``).
+#
+# 0.5.0-pre-cutover is a **strict superset** of 0.5.0-pilot: no
+# BackendDecision rename, no flag-default flip, no boot-order
+# change. The Doppelbetrieb boot-fingerprint hash is byte-stable.
+# Operators rotate via Quadlet image-tag bump (Operator-Hand).
 #
 # Bug-42 fix (Sprint-Pengine-13)
 # ------------------------------
@@ -88,8 +105,8 @@ FROM docker.io/library/python:3.13-slim@sha256:DIGEST_PENDING_TOMAS_REVIEW
 
 # OCI metadata.
 LABEL org.opencontainers.image.title="wakir-persona-engine"
-LABEL org.opencontainers.image.description="Runtime image for the Wakir persona-engine real binary (Sprint-Pengine-13, v0.5.0-pilot; Bug-42 fix — subscribe-mode-selector with core-callback default, core-iterator backward-compat fix, jetstream-pull Phase-2 substrate; previous Sprint-Pengine-12 CLI-async-wrap with auto subscribe-loop activation on WAKIR_SUBSCRIBE_ENV, NATS-KV asyncio state-backing, gRPC SPIFFE Workload-API SVID-fetch with graceful-fallback to socket-probe-only on Bug-40 wire-error, async engine wrapper with NATS-subscribe-loop + SVID-refetch background-task, Phase-2-Stub LLM-Call-Shim, Bridge-Forward-Pipe input plumbing)."
-LABEL org.opencontainers.image.version="0.5.0-pilot"
+LABEL org.opencontainers.image.description="Runtime image for the Wakir persona-engine real binary (Sprint-Pengine-14 / Tag-45, v0.5.0-pre-cutover; engine consolidation — 9 BackendDecision components ENV-gated under WAKIR_*_BACKEND, 15-crate Phase-3a cross-lang pin pack anchored at infra/persona-engine/pin-pack-0.5.0-pre-cutover.yaml, manifest at wirelang/persona_engine/MANIFEST-0.5.0-pre-cutover.md; strict superset of 0.5.0-pilot — no flag rename, no default flip, boot-fingerprint byte-stable; previous Sprint-Pengine-13 Bug-42 fix — subscribe-mode-selector with core-callback default, core-iterator backward-compat fix, jetstream-pull Phase-2 substrate)."
+LABEL org.opencontainers.image.version="0.5.0-pre-cutover"
 LABEL org.opencontainers.image.licenses="BUSL-1.1"
 LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"
 LABEL org.opencontainers.image.url="https://github.com/wakir-labs/wakir-runtime"
