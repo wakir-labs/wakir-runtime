@@ -1,0 +1,208 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Cosign-Keyless-OIDC-Drift-Probe Daily Tracker (Tag-47, Kai)
+# -----------------------------------------------------------
+#
+# Purpose
+# -------
+#
+# Tag-45 PR #294 (Quadlet+Cosign 15-Binary substrate refresh) +
+# Tag-46 PR #298 (substrate-layer A6 coverage matrix, 17 hermetic
+# invariants) pin the STATIC shape of the cosign-policy substrate.
+# Neither pins the TIME-axis: the Sigstore Trust-Root and the
+# GitHub-Actions OIDC identity bound to the keyless-cosign chain
+# are externally-controlled artefacts that can drift silently
+# between policy reads.
+#
+# This workflow runs the Tag-47 cosign-keyless-OIDC-drift-probe
+# every morning at 06:30 UTC (offset by 30min from the daily
+# pre-cutover-probe at 06:00 UTC so an operator looking at both
+# at the same time sees distinct, non-overlapping job-summary
+# blocks). The probe reads:
+#
+#   * ``policies/cosign-policy-phase-3b.yaml`` — the Tag-45
+#     15-binary inventory and its pinned identity regexp + issuer.
+#   * ``state/cosign-drift/pinned-trust-root.json`` — the pinned
+#     Sigstore Trust-Root (Operator-Hand refreshed; PENDING values
+#     in baseline-mode produce a self-consistent verdict).
+#   * ``.github/workflows/*.yml`` — the on-disk workflow inventory
+#     for the per-binary build_workflow drift axis.
+#
+# It emits:
+#
+#   * A Job-Summary Markdown block with the aggregate verdict +
+#     per-binary table (operator reads at-a-glance in the Actions
+#     UI).
+#   * A JSON envelope artefact (retention 30 days).
+#   * A Prometheus textfile artefact (retention 30 days).
+#
+# Sandbox posture
+# ---------------
+#
+# Strict hermetic: stdlib + pyyaml only. No podman / cosign /
+# crane / network egress. The probe runs in ``--mode=baseline``
+# which synthesises a self-consistent snapshot from the policy +
+# pinned-trust-root files. That still catches:
+#
+#   - policy YAML inventory drifted from the Tag-45 canonical 15.
+#   - per-binary build_workflow path renamed / deleted.
+#   - policy schema_version changed.
+#   - pinned-trust-root JSON malformed / missing keys.
+#
+# A LIVE-cosign refresh (operator-hand only, on a host with
+# Sigstore-network egress) is documented in
+# ``docs/operations/cosign-keyless-oidc-drift-probe.md`` (Tag-47
+# follow-up). The fixture-mode probe consumes the live snapshot
+# the operator captures.
+#
+# Trigger surface
+# ---------------
+#
+#   * ``schedule: cron "30 6 * * *"`` -- daily at 06:30 UTC,
+#     offset 30min after the pre-cutover-daily-probe at 06:00 UTC.
+#   * ``workflow_dispatch`` -- operator-hand manual invocation.
+#   * ``push:`` (path-filtered) -- any change to the probe script,
+#     test file, policy YAML, or pinned trust-root re-runs the
+#     probe so substrate-side breakage surfaces on the PR base
+#     before merge.
+#   * ``pull_request:`` (path-filtered) -- same path-filter so PRs
+#     touching these files run the probe in dry-run before merge.
+#
+# Not a required status check
+# ---------------------------
+#
+# Per ``feedback_branch_protection_check_names.md`` this workflow
+# tracks a calendar-window drift signal, not individual PR
+# acceptance. It is NOT listed as a required status check on PRs;
+# it surfaces signal only via Job-Summary + artefact.
+
+name: cosign-keyless-oidc-drift-probe
+
+on:
+  schedule:
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+    inputs:
+      exit_non_zero_on_drift:
+        description: "Exit non-zero on aggregate non-GREEN (true|false)."
+        required: false
+        default: "false"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/observability/cosign-keyless-oidc-drift-probe.py"
+      - "tests/observability/test_cosign_keyless_oidc_drift_probe.py"
+      - "policies/cosign-policy-phase-3b.yaml"
+      - "state/cosign-drift/pinned-trust-root.json"
+      - ".github/workflows/cosign-keyless-oidc-drift-probe.yml"
+  pull_request:
+    paths:
+      - "scripts/observability/cosign-keyless-oidc-drift-probe.py"
+      - "tests/observability/test_cosign_keyless_oidc_drift_probe.py"
+      - "policies/cosign-policy-phase-3b.yaml"
+      - "state/cosign-drift/pinned-trust-root.json"
+      - ".github/workflows/cosign-keyless-oidc-drift-probe.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cosign-keyless-oidc-drift-probe
+  cancel-in-progress: false
+
+jobs:
+  drift-probe:
+    name: Cosign-Keyless-OIDC-Drift-Probe (daily)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install pyyaml
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check \
+              'pyyaml==6.0.2'
+          python3 -c 'import yaml; print("pyyaml", yaml.__version__)'
+
+      - name: Run hermetic probe tests
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check \
+              'pytest==9.0.3'
+          python3 -m pytest -v \
+              tests/observability/test_cosign_keyless_oidc_drift_probe.py
+
+      - name: Resolve dispatch inputs
+        id: inputs
+        env:
+          INPUT_EXIT_NONZERO: ${{ github.event.inputs.exit_non_zero_on_drift }}
+        run: |
+          set -euo pipefail
+          exit_flag=""
+          if [ "${INPUT_EXIT_NONZERO:-false}" = "true" ]; then
+            exit_flag="--exit-non-zero-on-drift"
+          fi
+          echo "exit_flag=${exit_flag}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run drift probe (baseline mode)
+        id: probe
+        env:
+          EXIT_FLAG: ${{ steps.inputs.outputs.exit_flag }}
+        run: |
+          set -euo pipefail
+          mkdir -p out/cosign-drift
+          # shellcheck disable=SC2086
+          python3 scripts/observability/cosign-keyless-oidc-drift-probe.py \
+              --policy policies/cosign-policy-phase-3b.yaml \
+              --pinned-trust-root state/cosign-drift/pinned-trust-root.json \
+              --repo-root . \
+              --mode baseline \
+              --out-json out/cosign-drift/envelope.json \
+              --out-textfile out/cosign-drift/textfile.prom \
+              --out-markdown out/cosign-drift/summary.md \
+              ${EXIT_FLAG} \
+            > out/cosign-drift/stdout.txt
+          # Extract aggregate verdict for downstream.
+          verdict=$(python3 -c 'import json; print(json.load(open("out/cosign-drift/envelope.json"))["aggregate_verdict"])')
+          echo "aggregate_verdict=${verdict}" >> "${GITHUB_OUTPUT}"
+
+      - name: Render Job-Summary
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -f out/cosign-drift/summary.md ]; then
+            cat out/cosign-drift/summary.md >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "## Cosign-Drift-Probe — Run failed before summary." \
+                >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Upload drift-probe envelope + textfile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cosign-drift-probe-${{ github.run_id }}
+          path: out/cosign-drift/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Emit notify-event on non-GREEN aggregate
+        if: ${{ steps.probe.outputs.aggregate_verdict != 'GREEN' }}
+        env:
+          VERDICT: ${{ steps.probe.outputs.aggregate_verdict }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          echo "::warning::Cosign-Drift-Probe aggregate verdict is ${VERDICT}"
+          echo "Run URL: ${RUN_URL}"

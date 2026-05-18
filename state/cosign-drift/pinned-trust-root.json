@@ -1,0 +1,11 @@
+{
+  "_comment": "Tag-47 Kai — Pinned Sigstore Trust-Root for the Cosign-Keyless-OIDC-Drift-Probe. Operator-Hand refresh recipe lives in docs/operations/cosign-keyless-oidc-drift-probe.md. Schema: wakir.cosign-drift.pinned-trust-root/1. NEVER edit this from a sandbox-CI workflow; only Mira-Hand + Zone-C Tomás cross-review.",
+  "schema": "wakir.cosign-drift.pinned-trust-root/1",
+  "pinned_at": "2026-05-18",
+  "pinned_by": "Kai Hoffmann (Tag-47, Phase-3a-Foundation closeout pinning)",
+  "cosign_installer_action": "sigstore/cosign-installer@v3",
+  "cosign_installer_semver_major": "v3",
+  "fulcio_root_ca_sha256": "PENDING_OPERATOR_HAND_REFRESH",
+  "rekor_log_shard_id": "PENDING_OPERATOR_HAND_REFRESH",
+  "notes": "Fulcio root CA SHA-256 + Rekor log shard ID are filled in by an Operator-Hand step on a host with Sigstore-network egress; the daily baseline-mode probe synthesises a self-consistent snapshot, so the PENDING values do not trip the trust-root axis. Fixture-mode probes against a live snapshot will assert the snapshot value vs. the pinned value byte-for-byte — once refreshed, drift = the upstream Sigstore project re-tagged the cosign-installer or rotated the Fulcio CA / Rekor shard."
+}
