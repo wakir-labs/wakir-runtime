@@ -1,0 +1,879 @@
+{
+  "__comment": "Tag-52 Phase-3-Marathon Final-Pre-Cutover SLO-Dashboard (Noa Bergstroem / SRE). Consolidated single-view SLO surface across all Phase-3 Marathon SLOs, designed for the AR-Pre-Cutover-Sichtung and the Cutover-Day-Morgen operator. Every panel maps to exactly one SLO defined in docs/observability/sli-slo-phase-3-marathon.md (Tag-52 SLI/SLO catalogue). The dashboard is intentionally additive to and disjoint from: (a) phase-3c-cross-welle-coordination.json (Tag-40 71-panel deep-view), (b) phase-3c-cutover-day-live-stream.json (Tag-41 7-panel realtime view), (c) persona-engine-phase-3c-welle-status.json (Tag-30/31/32 per-Welle lifecycle). This dashboard is the SLO/Error-Budget rollup; the others are operational deep-views. Seven SLO groups (Welle-Cutover-Success-Rate / Cross-Modul-Drift-Rate / Alert-Volume-Trend / AR-Hand-Stop-Trigger-Rate / Build-Reproducibility / SBOM-Verdict / Cosign-OIDC-Drift) plus a Marathon-Health composite header. Schema version Grafana 10.x (schemaVersion 38). Sole datasource UID 'prom' (Prometheus). Anchors: ADR-0066 Phase-3c Marathon, ADR-0064 Phase-2 SLI/SLO substrate, ADR-0025 SRE-Performance-Mess-Anker. Cross-refs: docs/observability/sli-slo-phase-1b.md (Tag-15 Phase-1b SLOs), docs/observability/sli-slo-wat-phase-2.md (Tag-15 WAT-Pipeline SLOs).",
+  "title": "Wakir - Phase-3-Marathon Final-Pre-Cutover SLO-Dashboard",
+  "uid": "wakir-phase-3-marathon-slo-final",
+  "tags": [
+    "wakir",
+    "sre",
+    "phase-3-marathon",
+    "slo",
+    "error-budget",
+    "pre-cutover",
+    "adr-0066",
+    "tag-52",
+    "marathon-final"
+  ],
+  "schemaVersion": 38,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "welle",
+        "label": "Welle",
+        "type": "custom",
+        "query": "welle-1,welle-2,welle-3,welle-4,welle-5,welle-6,welle-7",
+        "current": {"text": "All", "value": "$__all"},
+        "options": [
+          {"text": "All", "value": "$__all", "selected": true},
+          {"text": "welle-1 (v907_verify KW-24)", "value": "welle-1"},
+          {"text": "welle-2 (svid_workload_identity KW-24)", "value": "welle-2"},
+          {"text": "welle-3 (bridge_audit_writer KW-25)", "value": "welle-3"},
+          {"text": "welle-4 (state_backing KW-26)", "value": "welle-4"},
+          {"text": "welle-5 (lifecycle_state_machine KW-26)", "value": "welle-5"},
+          {"text": "welle-6 (subscribe_loop KW-27)", "value": "welle-6"},
+          {"text": "welle-7 (recovery_workflow KW-27)", "value": "welle-7"}
+        ],
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Marathon Composite Health Header",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+      "collapsed": false
+    },
+    {
+      "id": 2,
+      "type": "gauge",
+      "title": "Phase-3-Marathon Aggregate Health Score (0-100)",
+      "__comment": "Composite health gauge from the Tag-40 health-score emitter. The single number that summarises Marathon-readiness. Thresholds align with the Tag-40 alert-rules: <50 page (red), 50-75 ticket (orange), 75-90 watch (yellow), 90-100 healthy (green). This panel duplicates the gauge from the Tag-40 71-panel dashboard intentionally so the SLO-rollup view is self-contained; the parent dashboard remains the operational deep-view.",
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 1},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_phase_3_marathon_health_score",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "red"},
+              {"value": 50, "color": "orange"},
+              {"value": 75, "color": "yellow"},
+              {"value": 90, "color": "green"}
+            ]
+          }
+        }
+      },
+      "options": {
+        "showThresholdLabels": true,
+        "showThresholdMarkers": true
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Wellen signed-off / 7 (Marathon Progress)",
+      "__comment": "Per-Welle state-machine signed-off count. Marathon-COMPLETE requires all 7 Wellen at state==3 (signed-off). Source: persona_engine_phase_3c_welle_state (Tag-30 emitter). Stat shows current count; the deeper per-Welle detail is in the Tag-30 dashboard.",
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 1},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "count(persona_engine_phase_3c_welle_state == 3)",
+          "refId": "A",
+          "instant": true,
+          "legendFormat": "signed-off"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "red"},
+              {"value": 1, "color": "orange"},
+              {"value": 4, "color": "yellow"},
+              {"value": 7, "color": "green"}
+            ]
+          },
+          "min": 0,
+          "max": 7
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Marathon-Progress percent (Tag-30 emitter)",
+      "__comment": "Same intent as panel 3 but sourced from the Tag-30 emitter's percent-pre-computed gauge. Kept as a cross-check on the count-based panel: if these two disagree, the emitter and the underlying state-machine have drifted (Zone-I Tomas + Zone-A Aisha review trigger). Source: persona_engine_phase_3c_marathon_progress_pct.",
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 1},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "persona_engine_phase_3c_marathon_progress_pct",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "red"},
+              {"value": 15, "color": "orange"},
+              {"value": 60, "color": "yellow"},
+              {"value": 100, "color": "green"}
+            ]
+          },
+          "min": 0,
+          "max": 100
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "SLO-1 Welle-Cutover-Success-Rate (rolling 24h)",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 7},
+      "collapsed": false
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "SLO-1 Welle-Cutover-Success-Rate per Welle (rate, 6h window)",
+      "__comment": "Per-Welle Cutover-Success-Rate = (signed-off transitions over the window) / (signed-off + rolled-back transitions). Computed from the Tag-30 welle-state-emitter via the persona_engine_phase_3c_welle_decisions_total and persona_engine_phase_3c_welle_fallback_total counters; a 6h rate window matches the SLO-1 evaluation window in the SLO doc. Target: success-rate per Welle >= 99% (1% rolled-back budget per Welle per window).",
+      "gridPos": {"h": 7, "w": 16, "x": 0, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "1 - (rate(persona_engine_phase_3c_welle_fallback_total{welle=~\"$welle\"}[6h]) / clamp_min(rate(persona_engine_phase_3c_welle_decisions_total{welle=~\"$welle\"}[6h]), 1e-12))",
+          "refId": "A",
+          "legendFormat": "{{welle}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "red"},
+              {"value": 0.95, "color": "orange"},
+              {"value": 0.99, "color": "green"}
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "thresholdsStyle": {"mode": "line"}
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["lastNotNull", "min", "max"]
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "SLO-1 Error-Budget burn (current 1h rate-multiplier)",
+      "__comment": "Burn-rate gauge: how many error-budgets-per-hour the fallback-rate is currently consuming. Computed as rate(fallback_total[1h]) / (1% * rate(decisions_total[1h])). A value of 1.0 means we are burning exactly the budget; 5.0 means 5x faster than the budget allows (5x-page-trigger threshold). Single rolled-up number across all Wellen.",
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "sum(rate(persona_engine_phase_3c_welle_fallback_total[1h])) / clamp_min(sum(rate(persona_engine_phase_3c_welle_decisions_total[1h])) * 0.01, 1e-12)",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "green"},
+              {"value": 1, "color": "yellow"},
+              {"value": 2, "color": "orange"},
+              {"value": 5, "color": "red"}
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 20,
+      "type": "row",
+      "title": "SLO-2 Cross-Modul-Drift-Rate",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 15},
+      "collapsed": false
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "SLO-2 Cross-Modul-Drift Count over Time",
+      "__comment": "Cross-Modul-Drift count from the Phase-2 Acceptance-Gate cross-modul-stress-score output. Source: wakir_cross_modul_drift_count. SLO target: drift_count == 0 over rolling 96h windows. Any non-zero value is the canonical 'Wave caused module-stress shift > 0.5pp baseline' signature (ADR-0066 immediate-rollback-trigger). The accompanying alert WakirPhase3CrossModulDriftDetected pages at increase > 0 for 60s.",
+      "gridPos": {"h": 7, "w": 16, "x": 0, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_cross_modul_drift_count",
+          "refId": "A",
+          "legendFormat": "drift count"
+        },
+        {
+          "expr": "wakir_cross_modul_drift_count_per_welle{welle=~\"$welle\"}",
+          "refId": "B",
+          "legendFormat": "per-welle {{welle}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "green"},
+              {"value": 1, "color": "red"}
+            ]
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 1
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["lastNotNull", "max"]
+        }
+      }
+    },
+    {
+      "id": 22,
+      "type": "stat",
+      "title": "SLO-2 Drift Events / 24h (Error-Budget = 0)",
+      "__comment": "Stat-counter: number of distinct drift-events over the trailing 24h window. SLO target: 0 events per 24h. Error-budget is hard-zero for Cross-Modul-Drift; any RED non-zero state requires Mira+Tomas+Henrik triage per ADR-0066 §A1-Cross-Modul-Drift-Mitigation.",
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "sum(increase(wakir_cross_modul_drift_count[24h]))",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "green"},
+              {"value": 0.5, "color": "red"}
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 30,
+      "type": "row",
+      "title": "SLO-3 Alert-Volume-Trend",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 23},
+      "collapsed": false
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "SLO-3 Alert Volume per Severity (firing alerts, 5m rate)",
+      "__comment": "Alert-volume-trend derived from the ALERTS pseudo-metric Prometheus emits for every active alert rule. Series broken out by severity (page / ticket / log). SLO target: page-alert volume <= 2 per 24h during pre-cutover steady state; cutover-day spike up to 20/day expected. Alert-fatigue threshold: >50 page-alerts per 24h triggers a Noa-Alert-Rule-Review (own-dogfooding).",
+      "gridPos": {"h": 7, "w": 16, "x": 0, "y": 24},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "sum by (severity) (ALERTS{alertstate=\"firing\",phase=\"phase-3-marathon\"})",
+          "refId": "A",
+          "legendFormat": "severity={{severity}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 25,
+            "stacking": {"mode": "normal"}
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "severity=page"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "severity=ticket"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "severity=log"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["lastNotNull", "max"]
+        }
+      }
+    },
+    {
+      "id": 32,
+      "type": "stat",
+      "title": "SLO-3 Current Firing Page-Alerts (instant)",
+      "__comment": "Instant count of severity=page alerts currently firing. SLO target: 0 page-alerts in steady-state. During cutover-day expected transient values up to 3 during Welle-handover; sustained > 5 is an SRE-attention condition.",
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 24},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "count(ALERTS{alertstate=\"firing\",severity=\"page\",phase=\"phase-3-marathon\"})",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "green"},
+              {"value": 1, "color": "yellow"},
+              {"value": 3, "color": "orange"},
+              {"value": 5, "color": "red"}
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 40,
+      "type": "row",
+      "title": "SLO-4 AR-Hand-Stop-Trigger-Rate",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 31},
+      "collapsed": false
+    },
+    {
+      "id": 41,
+      "type": "timeseries",
+      "title": "SLO-4 AR-Hand-Stop-Marker Trigger Frequency (rate, 1h)",
+      "__comment": "AR-Hand-Stop-Trigger-Rate from the wakir_ar_hand_stop_marker_total counter. SLO target: total marker fires <= 3 over the entire Marathon (KW-24..27) - the AR-Hand-Stop is the human-final-line and should fire only at expected Welle-handover checkpoints. The Tag-45 B1 alert WakirPhase3ARHandStopMissing fires when the marker is silent at a planned checkpoint; this panel surfaces the inverse trend.",
+      "gridPos": {"h": 7, "w": 16, "x": 0, "y": 32},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "rate(wakir_ar_hand_stop_marker_total[1h])",
+          "refId": "A",
+          "legendFormat": "AR-Hand-Stop fires/h"
+        },
+        {
+          "expr": "wakir_ar_hand_final_signoff_phase_3",
+          "refId": "B",
+          "legendFormat": "Final-Sign-Off marker"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "lineWidth": 1
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": ["lastNotNull", "sum"]
+        }
+      }
+    },
+    {
+      "id": 42,
+      "type": "stat",
+      "title": "SLO-4 AR-Hand-Stop-Triggers / Marathon-to-date",
+      "__comment": "Cumulative AR-Hand-Stop-Marker fires since Marathon start. SLO target: <= 3 fires over KW-24..27. A value >= 4 indicates either (a) more handover-checkpoints occurred than the Marathon plan calls for (Mira-review) or (b) a planning-vs-execution drift (Aisha + Mira retro). Reset-semantics: the counter is monotonic; Marathon-to-date is approximated via the wider time-range selector.",
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 32},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "max_over_time(wakir_ar_hand_stop_marker_total[28d])",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "green"},
+              {"value": 3, "color": "yellow"},
+              {"value": 4, "color": "orange"},
+              {"value": 6, "color": "red"}
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 50,
+      "type": "row",
+      "title": "SLO-5 Build-Reproducibility",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 39},
+      "collapsed": false
+    },
+    {
+      "id": 51,
+      "type": "stat",
+      "title": "SLO-5 Build-Reproducibility Drift Count (15 binaries)",
+      "__comment": "Aggregate count of binaries with non-deterministic fingerprints across the 15-binary release manifest. Source: wakir_build_reproducibility_drift_count (Tag-47 verify-15-binary-build-reproducibility.py output). SLO target: drift_count == 0 (all 15 binaries reproducible). Non-zero is a release-cut blocker per ADR-0066 §Cutover-Day-Acceptance-Gate.",
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 40},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_build_reproducibility_drift_count",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "green"},
+              {"value": 1, "color": "red"}
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 52,
+      "type": "table",
+      "title": "SLO-5 Per-Binary Reproducibility Verdict",
+      "__comment": "Per-binary deterministic-verdict table from the verify-15-binary-build-reproducibility script. 1 = byte-equal across the two derivation passes, 0 = drift. The whole-table-green is the cutover-acceptance signal; the row-level red surfaces which binary needs investigation (Reza for wirelang binaries, Tomas for wat binaries, Kai for orchestrator binaries). Source: wakir_build_reproducibility_deterministic{binary=...}.",
+      "gridPos": {"h": 6, "w": 16, "x": 8, "y": 40},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_build_reproducibility_deterministic",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "red"},
+              {"value": 1, "color": "green"}
+            ]
+          },
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "DRIFT", "color": "red"}, "1": {"text": "DETERMINISTIC", "color": "green"}}}
+          ],
+          "custom": {
+            "cellOptions": {"type": "color-background", "mode": "gradient"}
+          }
+        }
+      },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "id": 60,
+      "type": "row",
+      "title": "SLO-6 SBOM-Verdict",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 46},
+      "collapsed": false
+    },
+    {
+      "id": 61,
+      "type": "stat",
+      "title": "SLO-6 SBOM Aggregate Verdict (0=fail / 1=pass)",
+      "__comment": "Tag-49 verify-15-binary-sbom-against-baseline aggregate verdict. 1 = all 15 binaries' SBOMs match their pinned baseline within the allowed transitive-package set; 0 = at least one binary drifts. SLO target: aggregate_verdict == 1 at every cutover-acceptance gate. Source: wakir_sbom_verification_aggregate_verdict.",
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 47},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_sbom_verification_aggregate_verdict",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "red"},
+              {"value": 1, "color": "green"}
+            ]
+          },
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "FAIL", "color": "red"}, "1": {"text": "PASS", "color": "green"}}}
+          ]
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 62,
+      "type": "bargauge",
+      "title": "SLO-6 SBOM Binaries by Verdict",
+      "__comment": "Per-verdict count of binaries from the SBOM-verification run (pass / fail / unknown). Source: wakir_sbom_verification_binaries_by_verdict_count{verdict=...}. The full-15 PASS bar is the steady-state cutover-acceptance shape; any FAIL or UNKNOWN bar > 0 is a release blocker.",
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 47},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_sbom_verification_binaries_by_verdict_count",
+          "refId": "A",
+          "instant": true,
+          "legendFormat": "{{verdict}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "max": 15,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "green"}
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "fail"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "unknown"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "pass"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]
+          }
+        ]
+      },
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true
+      }
+    },
+    {
+      "id": 63,
+      "type": "timeseries",
+      "title": "SLO-6 SBOM Drift Count Trend (per-binary, 7d)",
+      "__comment": "Per-binary SBOM-drift-count trend over the last 7 days. Each line is one binary; the value is the count of transitive packages drifting from the baseline at each sample. SLO target: all lines flat at 0. A rising line is the canonical 'transitive dependency shifted' signal that Reza/Tomas/Kai need to triage before cutover. Source: wakir_sbom_verification_per_binary_drift_count.",
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 47},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_sbom_verification_per_binary_drift_count",
+          "refId": "A",
+          "legendFormat": "{{binary}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        }
+      }
+    },
+    {
+      "id": 70,
+      "type": "row",
+      "title": "SLO-7 Cosign-OIDC-Drift",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 53},
+      "collapsed": false
+    },
+    {
+      "id": 71,
+      "type": "stat",
+      "title": "SLO-7 Cosign-OIDC Aggregate Drift (0=ok / 1=drift)",
+      "__comment": "Tag-48 cosign-keyless-oidc-drift-probe aggregate signal. 1 = at least one binary's cosign-verify response now binds to a different OIDC issuer/subject than the pinned baseline; 0 = all signatures bind to the expected trust-root. SLO target: aggregate == 0 always. Drift is a supply-chain alarm (the keyless-OIDC binding changed unexpectedly) and is a release-blocker per ADR-0066 §Supply-Chain-Cutover-Gate. Source: wakir_cosign_drift_probe_aggregate.",
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 54},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_cosign_drift_probe_aggregate",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "green"},
+              {"value": 1, "color": "red"}
+            ]
+          },
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "OK", "color": "green"}, "1": {"text": "DRIFT", "color": "red"}}}
+          ]
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 72,
+      "type": "stat",
+      "title": "SLO-7 Cosign-Trust-Root (1=pinned-match)",
+      "__comment": "Trust-root pin verification. Source: wakir_cosign_drift_probe_trust_root. 1 = the public-good Fulcio + Rekor trust roots cosign-keyless validates against still match the pinned values from the ADR-0066 supply-chain-bundle; 0 = the trust-root rotated (rare but cutover-relevant event). SLO target: trust_root == 1 at every cutover-acceptance gate.",
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 54},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_cosign_drift_probe_trust_root",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "red"},
+              {"value": 1, "color": "green"}
+            ]
+          },
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "ROTATED", "color": "red"}, "1": {"text": "PINNED", "color": "green"}}}
+          ]
+        }
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 73,
+      "type": "table",
+      "title": "SLO-7 Cosign-OIDC Per-Binary Drift",
+      "__comment": "Per-binary cosign-drift verdict. 1 = OIDC binding drifted from baseline; 0 = pinned-match. Source: wakir_cosign_drift_probe_per_binary{binary=...}. Operator-runbook: a drifted row means the binary was re-signed against a different OIDC subject (e.g. CI service-account rotation, branch-trigger change). Cross-check with the cosign-keyless-oidc-baseline-bundle before deciding release-block vs accept-and-rebaseline.",
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 54},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_cosign_drift_probe_per_binary",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "green"},
+              {"value": 1, "color": "red"}
+            ]
+          },
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "PINNED", "color": "green"}, "1": {"text": "DRIFT", "color": "red"}}}
+          ],
+          "custom": {
+            "cellOptions": {"type": "color-background", "mode": "gradient"}
+          }
+        }
+      },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "id": 99,
+      "type": "text",
+      "title": "Tag-52 SLO-Dashboard Anchor",
+      "__comment": "Doc-anchor text panel. Surfaces the SLO-doc cross-reference and Marathon-COMPLETE conjunction definition so the operator-on-shift can re-validate at-a-glance which gauges count as cutover-blocking vs operator-watch.",
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 60},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "options": {
+        "mode": "markdown",
+        "content": "### Tag-52 Phase-3-Marathon Final Pre-Cutover SLO-Dashboard\n\n**SLO catalogue:** `docs/observability/sli-slo-phase-3-marathon.md` (Tag-52, Noa-SRE).\n\n**Cutover-blocking SLOs (release-gate, all must be GREEN):**\n\n- SLO-1 Welle-Cutover-Success-Rate: per-Welle success-rate >= 99% over 6h\n- SLO-2 Cross-Modul-Drift-Rate: drift_count == 0 over 24h\n- SLO-5 Build-Reproducibility: drift_count == 0 (15/15 binaries deterministic)\n- SLO-6 SBOM-Verdict: aggregate_verdict == 1 (15/15 binaries match baseline)\n- SLO-7 Cosign-OIDC-Drift: aggregate == 0 AND trust_root == 1\n\n**Operator-watch SLOs (informational, do not auto-block):**\n\n- SLO-3 Alert-Volume-Trend: page-alerts <= 2/24h steady, <= 20/24h cutover-day\n- SLO-4 AR-Hand-Stop-Trigger-Rate: <= 3 fires per Marathon\n\n**Marathon-COMPLETE conjunction (5-way AND, defined in Tag-40 dashboard):**\n\n1. All 7 Wellen at `persona_engine_phase_3c_welle_state == 3` (signed-off)\n2. `wakir_henrik_audit_signoff == 1` (Henrik Phase-3-Schluss-Audit)\n3. No Welle in `state == 4` (rolled-back)\n4. `wakir_cross_modul_drift_count == 0` (Phase-2 Acceptance-Gate)\n5. `wakir_ar_hand_final_signoff_phase_3 == 1` (AR-Hand-Final)\n\n**Cross-refs:** Tag-40 phase-3c-cross-welle-coordination (operational deep-view), Tag-41 phase-3c-cutover-day-live-stream (realtime per-Welle), Tag-30 persona-engine-phase-3c-welle-status (per-Welle lifecycle)."
+      }
+    }
+  ]
+}
