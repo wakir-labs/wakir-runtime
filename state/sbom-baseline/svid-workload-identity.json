@@ -1,0 +1,59 @@
+{
+  "bomFormat": "CycloneDX",
+  "components": [
+    {
+      "bom-ref": "persona-engine-svid-workload-identity@0.1.0",
+      "name": "persona-engine-svid-workload-identity",
+      "properties": [
+        {
+          "name": "wakir:source",
+          "value": "workspace"
+        }
+      ],
+      "purl": "pkg:cargo/persona-engine-svid-workload-identity@0.1.0?source=workspace",
+      "scope": "required",
+      "type": "library",
+      "version": "0.1.0"
+    }
+  ],
+  "dependencies": [
+    {
+      "dependsOn": [],
+      "ref": "persona-engine-svid-workload-identity@0.1.0"
+    }
+  ],
+  "metadata": {
+    "component": {
+      "bom-ref": "binary:svid-workload-identity",
+      "description": "15-Binary SBOM for svid-workload-identity (root crate persona-engine-svid-workload-identity).",
+      "name": "wakir-persona-engine-svid-workload-identity",
+      "type": "application",
+      "version": "0.1.0"
+    },
+    "properties": [
+      {
+        "name": "wakir:cargo-lock-sha256",
+        "value": "bc7f165107290707d2eddf7b67391950670518bae6c70acf7b2e53df999f03b5"
+      },
+      {
+        "name": "wakir:root-crate",
+        "value": "persona-engine-svid-workload-identity"
+      },
+      {
+        "name": "wakir:inventory-position",
+        "value": "7"
+      }
+    ],
+    "timestamp": "1970-01-01T00:00:00Z",
+    "tools": [
+      {
+        "name": "wakir-runtime-15-binary-sbom",
+        "vendor": "Wakir Labs",
+        "version": "tag-48"
+      }
+    ]
+  },
+  "serialNumber": "urn:uuid:b2be1e51-c6d0-3019-3695-1a89ece8c1d7",
+  "specVersion": "1.5",
+  "version": 1
+}
