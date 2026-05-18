@@ -1,0 +1,373 @@
+{
+  "aggregator_history_rollup": {
+    "failure_rate": 0.5,
+    "runs_failure": 2,
+    "runs_success": 2,
+    "runs_total": 4,
+    "sub_workflow_failure_buckets": {
+      "Phase-2 Aggregator (All Gates + Cross-Gate Non-Interference)": 1,
+      "production-vs-sandbox drift envelope": 1,
+      "wirelang suite production": 1
+    },
+    "wait_loop_p50_s": 915.0,
+    "wait_loop_p95_s": 1727.9999999999998,
+    "wait_loop_p99_s": 1785.6
+  },
+  "audit_aggregate": {
+    "aggregate_audit_ok": false,
+    "by_welle": {
+      "welle-1-v907-verify": {
+        "audit_findings": [],
+        "audit_ok": true,
+        "exception_count": 0,
+        "signed_off_at": "2026-06-25T10:00:00Z",
+        "signed_off_by": "henrik"
+      },
+      "welle-2-svid-workload-identity": {
+        "audit_findings": [],
+        "audit_ok": true,
+        "exception_count": 0,
+        "signed_off_at": "2026-06-25T10:00:00Z",
+        "signed_off_by": "henrik"
+      },
+      "welle-3-bridge-audit-writer": {
+        "audit_findings": [],
+        "audit_ok": true,
+        "exception_count": 0,
+        "signed_off_at": "2026-06-25T10:00:00Z",
+        "signed_off_by": "henrik"
+      },
+      "welle-4-state-backing": {
+        "audit_findings": [],
+        "audit_ok": true,
+        "exception_count": 0,
+        "signed_off_at": "2026-06-25T10:00:00Z",
+        "signed_off_by": "henrik"
+      },
+      "welle-5-lifecycle-state-machine": {
+        "audit_findings": [],
+        "audit_ok": true,
+        "exception_count": 0,
+        "signed_off_at": "2026-06-25T10:00:00Z",
+        "signed_off_by": "henrik"
+      },
+      "welle-6-subscribe-loop": {
+        "audit_findings": [],
+        "audit_ok": true,
+        "exception_count": 0,
+        "signed_off_at": "2026-06-25T10:00:00Z",
+        "signed_off_by": "henrik"
+      }
+    },
+    "missing_sign_offs": [
+      "welle-7-recovery-workflow"
+    ],
+    "total_exceptions": 0,
+    "total_findings": 0
+  },
+  "complete_marker_validation": {
+    "is_complete": false,
+    "present": false,
+    "status": null,
+    "validation_errors": [
+      "marker_file_missing"
+    ]
+  },
+  "executive_summary": {
+    "aggregator_failure_rate": 0.5,
+    "aggregator_runs_total": 4,
+    "audit_aggregate_ok": false,
+    "complete_marker_is_complete": false,
+    "drift_status_counts": {
+      "BREACH": 0,
+      "NO_DATA": 0,
+      "OK": 7,
+      "WARN": 0
+    },
+    "latency_status_counts": {
+      "BREACH": 0,
+      "NO_BUDGET": 0,
+      "NO_DATA": 0,
+      "OK": 7,
+      "WARN": 0
+    },
+    "marathon_last_update": "2026-06-12T09:15:00Z",
+    "wellen_total": 7,
+    "wellen_with_sign_off": 6
+  },
+  "generated_at": "2026-06-12T09:30:00Z",
+  "per_welle": {
+    "welle-1-v907-verify": {
+      "backend_snapshots": {
+        "first_snapshot_at": "2026-06-01T10:00:00Z",
+        "last_snapshot_at": "2026-06-02T10:00:00Z",
+        "python_decisions_total": 9,
+        "rust_decisions_total": 500,
+        "rust_share": 0.9823182711198428,
+        "snapshots_n": 2
+      },
+      "drift": {
+        "bucket_count": 7,
+        "drift_pct_max": 0.15,
+        "drift_pct_p50": 0.1,
+        "drift_pct_p95": 0.145,
+        "drift_pct_samples_n": 3,
+        "drift_status": "OK"
+      },
+      "latency_budget_ms": 1500,
+      "latency_status": "OK",
+      "marathon": {
+        "cutover_runs_python_fallback": 20,
+        "cutover_runs_rust": 1530,
+        "cutover_runs_total": 1550,
+        "decision_latency_ms_n": 5,
+        "decision_latency_ms_p50": 360.0,
+        "decision_latency_ms_p95": 576.0,
+        "decision_latency_ms_p99": 595.2,
+        "last_sample_at": "2026-06-10T22:30:00Z",
+        "rust_share": 0.9870967741935484
+      },
+      "short": "W1 v907-verify",
+      "sign_off": {
+        "audit_findings": [],
+        "audit_ok": true,
+        "exception_count": 0,
+        "signed_off_at": "2026-06-25T10:00:00Z",
+        "signed_off_by": "henrik"
+      }
+    },
+    "welle-2-svid-workload-identity": {
+      "backend_snapshots": {
+        "first_snapshot_at": "2026-06-01T10:00:00Z",
+        "last_snapshot_at": "2026-06-02T10:00:00Z",
+        "python_decisions_total": 9,
+        "rust_decisions_total": 500,
+        "rust_share": 0.9823182711198428,
+        "snapshots_n": 2
+      },
+      "drift": {
+        "bucket_count": 7,
+        "drift_pct_max": 0.15,
+        "drift_pct_p50": 0.1,
+        "drift_pct_p95": 0.145,
+        "drift_pct_samples_n": 3,
+        "drift_status": "OK"
+      },
+      "latency_budget_ms": 2000,
+      "latency_status": "OK",
+      "marathon": {
+        "cutover_runs_python_fallback": 20,
+        "cutover_runs_rust": 1580,
+        "cutover_runs_total": 1600,
+        "decision_latency_ms_n": 5,
+        "decision_latency_ms_p50": 480.0,
+        "decision_latency_ms_p95": 768.0,
+        "decision_latency_ms_p99": 793.6,
+        "last_sample_at": "2026-06-10T22:30:00Z",
+        "rust_share": 0.9875
+      },
+      "short": "W2 svid-workload-identity",
+      "sign_off": {
+        "audit_findings": [],
+        "audit_ok": true,
+        "exception_count": 0,
+        "signed_off_at": "2026-06-25T10:00:00Z",
+        "signed_off_by": "henrik"
+      }
+    },
+    "welle-3-bridge-audit-writer": {
+      "backend_snapshots": {
+        "first_snapshot_at": "2026-06-01T10:00:00Z",
+        "last_snapshot_at": "2026-06-02T10:00:00Z",
+        "python_decisions_total": 9,
+        "rust_decisions_total": 500,
+        "rust_share": 0.9823182711198428,
+        "snapshots_n": 2
+      },
+      "drift": {
+        "bucket_count": 7,
+        "drift_pct_max": 0.15,
+        "drift_pct_p50": 0.1,
+        "drift_pct_p95": 0.145,
+        "drift_pct_samples_n": 3,
+        "drift_status": "OK"
+      },
+      "latency_budget_ms": 2500,
+      "latency_status": "OK",
+      "marathon": {
+        "cutover_runs_python_fallback": 20,
+        "cutover_runs_rust": 1630,
+        "cutover_runs_total": 1650,
+        "decision_latency_ms_n": 5,
+        "decision_latency_ms_p50": 600.0,
+        "decision_latency_ms_p95": 959.9999999999999,
+        "decision_latency_ms_p99": 992.0,
+        "last_sample_at": "2026-06-10T22:30:00Z",
+        "rust_share": 0.9878787878787879
+      },
+      "short": "W3 bridge-audit-writer",
+      "sign_off": {
+        "audit_findings": [],
+        "audit_ok": true,
+        "exception_count": 0,
+        "signed_off_at": "2026-06-25T10:00:00Z",
+        "signed_off_by": "henrik"
+      }
+    },
+    "welle-4-state-backing": {
+      "backend_snapshots": {
+        "first_snapshot_at": "2026-06-01T10:00:00Z",
+        "last_snapshot_at": "2026-06-02T10:00:00Z",
+        "python_decisions_total": 9,
+        "rust_decisions_total": 500,
+        "rust_share": 0.9823182711198428,
+        "snapshots_n": 2
+      },
+      "drift": {
+        "bucket_count": 7,
+        "drift_pct_max": 0.15,
+        "drift_pct_p50": 0.1,
+        "drift_pct_p95": 0.145,
+        "drift_pct_samples_n": 3,
+        "drift_status": "OK"
+      },
+      "latency_budget_ms": 3000,
+      "latency_status": "OK",
+      "marathon": {
+        "cutover_runs_python_fallback": 50,
+        "cutover_runs_rust": 30,
+        "cutover_runs_total": 80,
+        "decision_latency_ms_n": 5,
+        "decision_latency_ms_p50": 720.0,
+        "decision_latency_ms_p95": 1152.0,
+        "decision_latency_ms_p99": 1190.4,
+        "last_sample_at": "2026-06-12T08:50:00Z",
+        "rust_share": 0.375
+      },
+      "short": "W4 state-backing",
+      "sign_off": {
+        "audit_findings": [],
+        "audit_ok": true,
+        "exception_count": 0,
+        "signed_off_at": "2026-06-25T10:00:00Z",
+        "signed_off_by": "henrik"
+      }
+    },
+    "welle-5-lifecycle-state-machine": {
+      "backend_snapshots": {
+        "first_snapshot_at": "2026-06-01T10:00:00Z",
+        "last_snapshot_at": "2026-06-02T10:00:00Z",
+        "python_decisions_total": 9,
+        "rust_decisions_total": 500,
+        "rust_share": 0.9823182711198428,
+        "snapshots_n": 2
+      },
+      "drift": {
+        "bucket_count": 7,
+        "drift_pct_max": 0.15,
+        "drift_pct_p50": 0.1,
+        "drift_pct_p95": 0.145,
+        "drift_pct_samples_n": 3,
+        "drift_status": "OK"
+      },
+      "latency_budget_ms": 3500,
+      "latency_status": "OK",
+      "marathon": {
+        "cutover_runs_python_fallback": 50,
+        "cutover_runs_rust": 30,
+        "cutover_runs_total": 80,
+        "decision_latency_ms_n": 5,
+        "decision_latency_ms_p50": 840.0,
+        "decision_latency_ms_p95": 1344.0,
+        "decision_latency_ms_p99": 1388.8,
+        "last_sample_at": "2026-06-12T08:50:00Z",
+        "rust_share": 0.375
+      },
+      "short": "W5 lifecycle-state-machine",
+      "sign_off": {
+        "audit_findings": [],
+        "audit_ok": true,
+        "exception_count": 0,
+        "signed_off_at": "2026-06-25T10:00:00Z",
+        "signed_off_by": "henrik"
+      }
+    },
+    "welle-6-subscribe-loop": {
+      "backend_snapshots": {
+        "first_snapshot_at": "2026-06-01T10:00:00Z",
+        "last_snapshot_at": "2026-06-02T10:00:00Z",
+        "python_decisions_total": 9,
+        "rust_decisions_total": 500,
+        "rust_share": 0.9823182711198428,
+        "snapshots_n": 2
+      },
+      "drift": {
+        "bucket_count": 7,
+        "drift_pct_max": 0.15,
+        "drift_pct_p50": 0.1,
+        "drift_pct_p95": 0.145,
+        "drift_pct_samples_n": 3,
+        "drift_status": "OK"
+      },
+      "latency_budget_ms": 2500,
+      "latency_status": "OK",
+      "marathon": {
+        "cutover_runs_python_fallback": 50,
+        "cutover_runs_rust": 30,
+        "cutover_runs_total": 80,
+        "decision_latency_ms_n": 5,
+        "decision_latency_ms_p50": 600.0,
+        "decision_latency_ms_p95": 959.9999999999999,
+        "decision_latency_ms_p99": 992.0,
+        "last_sample_at": "2026-06-12T08:50:00Z",
+        "rust_share": 0.375
+      },
+      "short": "W6 subscribe-loop",
+      "sign_off": {
+        "audit_findings": [],
+        "audit_ok": true,
+        "exception_count": 0,
+        "signed_off_at": "2026-06-25T10:00:00Z",
+        "signed_off_by": "henrik"
+      }
+    },
+    "welle-7-recovery-workflow": {
+      "backend_snapshots": {
+        "first_snapshot_at": "2026-06-01T10:00:00Z",
+        "last_snapshot_at": "2026-06-02T10:00:00Z",
+        "python_decisions_total": 9,
+        "rust_decisions_total": 500,
+        "rust_share": 0.9823182711198428,
+        "snapshots_n": 2
+      },
+      "drift": {
+        "bucket_count": 7,
+        "drift_pct_max": 0.15,
+        "drift_pct_p50": 0.1,
+        "drift_pct_p95": 0.145,
+        "drift_pct_samples_n": 3,
+        "drift_status": "OK"
+      },
+      "latency_budget_ms": 3000,
+      "latency_status": "OK",
+      "marathon": {
+        "cutover_runs_python_fallback": 50,
+        "cutover_runs_rust": 30,
+        "cutover_runs_total": 80,
+        "decision_latency_ms_n": 5,
+        "decision_latency_ms_p50": 720.0,
+        "decision_latency_ms_p95": 1152.0,
+        "decision_latency_ms_p99": 1190.4,
+        "last_sample_at": "2026-06-12T08:50:00Z",
+        "rust_share": 0.375
+      },
+      "short": "W7 recovery-workflow",
+      "sign_off": null
+    }
+  },
+  "phase_4_followups": [
+    "W7 recovery-workflow: Henrik sign-off MISSING -- blocker for Phase-3-COMPLETE acceptance",
+    "Phase-3-COMPLETE-marker not valid -- marker_file_missing"
+  ],
+  "schema_version": "1.0.0"
+}

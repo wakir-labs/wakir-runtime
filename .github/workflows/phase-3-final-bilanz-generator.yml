@@ -61,6 +61,16 @@ jobs:
       - name: Run tests
         run: |
           python3 -m pytest tests/observability/test_phase_3_final_bilanz_generator.py -v
+          python3 -m pytest tests/observability/test_bilanz_generator_validation_runs.py -v
+
+      - name: Validate reference samples (Tag-44)
+        # Both samples are stdlib-only validatable; this catches sample
+        # drift on every workflow_dispatch / marker-write.
+        run: |
+          python3 scripts/observability/bilanz-output-schema-validator.py \
+              samples/bilanz-output-happy-path.json --quiet
+          python3 scripts/observability/bilanz-output-schema-validator.py \
+              samples/bilanz-output-rollback-path.json --quiet
 
       - name: Run fixture validation tests (Selin Tag-44)
         run: |
@@ -71,6 +81,15 @@ jobs:
           python3 scripts/observability/phase-3-final-bilanz-generator.py \
               --auto-after-complete-marker \
               ${{ inputs.strict == 'true' && '--strict' || '' }}
+
+      - name: Validate generated bilanz against schema 1.0.0
+        # Tag-44: belt-and-suspenders schema check on the live output.
+        # If the marker was absent the generator exited 0 silently and
+        # this step is a no-op.
+        if: hashFiles('reports/phase-3-marathon-bilanz.json') != ''
+        run: |
+          python3 scripts/observability/bilanz-output-schema-validator.py \
+              reports/phase-3-marathon-bilanz.json
 
       - name: Upload bilanz artefacts
         if: hashFiles('reports/phase-3-marathon-bilanz.md') != ''
