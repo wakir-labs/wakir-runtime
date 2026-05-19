@@ -5,10 +5,20 @@ SPDX-License-Identifier: BUSL-1.1
 SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 -->
 
-**Status:** VORLAGE (Tomás-Matrix-Lead-Hut, Tag-65 Continuous-Mode,
-2026-05-19). Pre-Approval-Sichtung Mira-Hand erforderlich.
-Aufsichtsrat-Touch nicht erforderlich (operatives Override-Pattern
-analog Tag-44 Stop-Marker; kein Strategie-Bruch).
+> **⚠️ MIGRATED 2026-05-20**: Diese Datei ist die ursprüngliche Tomás-Tag-65-Vorlage
+> in wakir-runtime. Die offizielle Mira-Hand-approved Version liegt in der AI-Corp-
+> ADR-Hierarchie als **ADR-0069** (Re-Nummerierung weil ADR-0068 zum Migrations-
+> Zeitpunkt die Top-ID in AI-Corp war): `/AI-Corp/decisions/0069-ar-hand-cutover-
+> override-flag.md`. Code-Referenzen auf "ADR-0070" in wakir-runtime bleiben gültig
+> als Tomás-Vorlagen-Anker; die Strategy-Authority ist ADR-0069 in AI-Corp. Pattern
+> per ADR-Cross-Repo-Migration (Tomás Tag-66 PR #420, docs/operations/adr-cross-
+> repo-migration-pattern.md).
+
+**Status:** APPROVED (via Mira-Hand-Freigabe als ADR-0069 in AI-Corp, 2026-05-20
+nach AR-Delegation "Mira reicht", Aufsichtsrats-Dialog 2026-05-19 ~21:30 CEST).
+Ursprünglich VORLAGE (Tomás-Matrix-Lead-Hut, Tag-65 Continuous-Mode, 2026-05-19).
+Aufsichtsrat-Touch nicht direkt erforderlich (AR-Delegation an Mira-Hand, AR ist
+über Pattern + Wirkung informiert).
 
 **Numerierung:** ADR-0070 reiht sich an ADR-0068
 (Status-Aggregator-Workflow-Required-Check) und ADR-0069
