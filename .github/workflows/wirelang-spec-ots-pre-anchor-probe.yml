@@ -1,0 +1,230 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wirelang-Spec OTS Pre-Anchor Activation Probe (Tag-60)
+# ------------------------------------------------------
+#
+# Purpose
+# =======
+#
+# Tag-58 PR #371 (Reza) sealed the Wirelang-Spec v0.4.3 against
+# post-freeze drift via the freeze-seal probe. Tag-59 PR #380
+# (Tomás) added the *pre-activation-probe* mode for the persona-
+# engine manifest-hash OTS-anchor pipeline. Tag-60 mirrors the same
+# pre-activation-probe pattern to the Wirelang-Spec markdown files
+# themselves, so that once the Aufsichtsrat authorises live OTS
+# anchoring (KW-24 cutover gate), the spec files have a hermetic
+# green-light tripwire identical in shape to the manifest probe.
+#
+# The probe is hermetic: stdlib-only Python, no network I/O, no
+# subprocess to ``ots`` CLI, no podman socket. The Sandbox boundary
+# is preserved. Real OTS anchoring is Operator-Hand on a network-
+# attached host (see runbook docs/operations/wirelang-spec-ots-
+# anchor-wiring.md §6 / §7).
+#
+# Stages
+# ======
+#
+# Stage 1 — pre-activation-probe mode on every wired Wirelang-Spec
+#           markdown file (v0.4.3, v0.4.1, v0.2). Hermetic, stdlib-
+#           only.
+# Stage 2 — Schema-validate every emitted verdict envelope against
+#           the documented v1 shape (required keys, verdict literal,
+#           ``ar_authorisation_required: true``).
+# Stage 3 — Aggregate verdict: ``PROBE-READY`` if every per-spec
+#           verdict is PROBE-READY, otherwise ``PROBE-DEFECT``.
+#           Emit job-summary table.
+#
+# AR-Authorisation Pfad
+# =====================
+#
+# See ``docs/operations/wirelang-spec-ots-anchor-wiring.md`` §7.
+# The probe never crosses the Sandbox boundary; the live OTS call
+# is a separate Operator-Hand workflow that consumes the probe
+# verdict as an input gate.
+
+name: wirelang-spec-ots-pre-anchor-probe
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'tooling/ots/emit_wirelang_spec_ots_marker.py'
+      - 'tooling/ots/wirelang-spec-ots-anchor-stub.json'
+      - 'wirelang/specs/wirelang-spec-v0-4-3.md'
+      - 'wirelang/specs/wirelang-spec-v0-4-1.md'
+      - 'wirelang/specs/wirelang-spec-v0-2.md'
+      - 'tests/audit/test_wirelang_spec_ots_pre_anchor_probe_tag60.py'
+      - 'docs/operations/wirelang-spec-ots-anchor-wiring.md'
+      - '.github/workflows/wirelang-spec-ots-pre-anchor-probe.yml'
+  pull_request:
+    paths:
+      - 'tooling/ots/emit_wirelang_spec_ots_marker.py'
+      - 'tooling/ots/wirelang-spec-ots-anchor-stub.json'
+      - 'wirelang/specs/wirelang-spec-v0-4-3.md'
+      - 'wirelang/specs/wirelang-spec-v0-4-1.md'
+      - 'wirelang/specs/wirelang-spec-v0-2.md'
+      - 'tests/audit/test_wirelang_spec_ots_pre_anchor_probe_tag60.py'
+      - 'docs/operations/wirelang-spec-ots-anchor-wiring.md'
+      - '.github/workflows/wirelang-spec-ots-pre-anchor-probe.yml'
+  workflow_dispatch:
+    inputs:
+      enforce:
+        description: 'If "true", exit 1 on PROBE-DEFECT (default: true).'
+        required: false
+        default: 'true'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  wirelang-spec-ots-pre-anchor-probe:
+    name: Wirelang-Spec OTS Pre-Anchor Activation Probe (Tag-60)
+    runs-on: ubuntu-latest
+
+    env:
+      PROBE_ENFORCE: ${{ github.event.inputs.enforce || 'true' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python (stdlib-only; no pip install)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Stage 1 — Run pre-activation-probe per wired spec
+        id: stage1
+        shell: bash
+        run: |
+          set -eu
+          mkdir -p out/probe-verdicts
+          SPECS=(
+            "wirelang/specs/wirelang-spec-v0-4-3.md"
+            "wirelang/specs/wirelang-spec-v0-4-1.md"
+            "wirelang/specs/wirelang-spec-v0-2.md"
+          )
+          for s in "${SPECS[@]}"; do
+            name="$(basename "${s}" .md)"
+            python3 tooling/ots/emit_wirelang_spec_ots_marker.py \
+              --mode pre-activation-probe \
+              --spec "${s}" \
+              --probe-verdict-out "out/probe-verdicts/${name}.json" \
+              --actor "${GITHUB_ACTOR:-ci}" \
+              --now "$(date -u +%Y-%m-%dT%H:%M:%S+00:00)"
+          done
+          ls -la out/probe-verdicts/
+
+      - name: Stage 2 — Validate verdict-envelope shape
+        id: stage2
+        shell: bash
+        run: |
+          set -eu
+          python3 - <<'PY'
+          import json, pathlib, sys
+          required = {
+              "schema_version",
+              "kind",
+              "mode",
+              "verdict",
+              "stages",
+              "spec_sha256",
+              "spec_size_bytes",
+              "probed_at_utc",
+              "ar_authorisation_required",
+              "anchors",
+          }
+          stage_keys = {
+              "input_validation",
+              "hash_computation",
+              "payload_shape",
+              "sandbox_boundary",
+          }
+          fail = 0
+          for p in sorted(pathlib.Path("out/probe-verdicts").glob("*.json")):
+              data = json.loads(p.read_text(encoding="utf-8"))
+              keys = set(data.keys())
+              if keys != required:
+                  print(f"::error file={p}::verdict key drift: {keys ^ required}")
+                  fail += 1
+                  continue
+              if data["schema_version"] != 1:
+                  print(f"::error file={p}::schema_version != 1")
+                  fail += 1
+              if data["kind"] != "ots-pre-activation-probe-verdict":
+                  print(f"::error file={p}::kind drift: {data['kind']}")
+                  fail += 1
+              if data["mode"] != "pre-activation-probe":
+                  print(f"::error file={p}::mode drift: {data['mode']}")
+                  fail += 1
+              if data["verdict"] not in ("PROBE-READY", "PROBE-DEFECT"):
+                  print(f"::error file={p}::verdict literal drift: {data['verdict']}")
+                  fail += 1
+              if data["ar_authorisation_required"] is not True:
+                  print(f"::error file={p}::ar_authorisation_required must be true")
+                  fail += 1
+              if set(data["stages"].keys()) != stage_keys:
+                  print(f"::error file={p}::stages key drift: {set(data['stages'].keys()) ^ stage_keys}")
+                  fail += 1
+              print(f"{p.name}: shape OK, verdict={data['verdict']}")
+          sys.exit(0 if fail == 0 else 1)
+          PY
+
+      - name: Stage 3 — Aggregate verdict
+        id: stage3
+        shell: bash
+        run: |
+          set -u
+          aggregate="$(python3 - <<'PY'
+          import json, pathlib
+          per = []
+          all_ready = True
+          for p in sorted(pathlib.Path("out/probe-verdicts").glob("*.json")):
+              data = json.loads(p.read_text(encoding="utf-8"))
+              per.append((p.name, data["verdict"]))
+              if data["verdict"] != "PROBE-READY":
+                  all_ready = False
+          print("PROBE-READY" if all_ready else "PROBE-DEFECT")
+          PY
+          )"
+          echo "aggregate=${aggregate}" >> "$GITHUB_OUTPUT"
+          {
+            echo "# Wirelang-Spec OTS Pre-Anchor Activation Probe (Tag-60)"
+            echo
+            echo "**Aggregate verdict:** \`${aggregate}\`"
+            echo
+            echo "| Spec | Verdict |"
+            echo "| --- | --- |"
+            for f in out/probe-verdicts/*.json; do
+              name="$(basename "${f}" .json)"
+              v="$(python3 -c 'import sys, json; print(json.load(open(sys.argv[1]))["verdict"])' "${f}")"
+              echo "| \`${name}\` | \`${v}\` |"
+            done
+            echo
+            echo "See \`docs/operations/wirelang-spec-ots-anchor-wiring.md\` §6 / §7."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "wirelang-spec-ots-pre-anchor-probe: aggregate=${aggregate}"
+
+      - name: Run hermetic Tag-60 test-suite
+        run: |
+          set -eu
+          python3 -m unittest tests.audit.test_wirelang_spec_ots_pre_anchor_probe_tag60 -v
+
+      - name: Stage 3 — Enforce aggregate verdict
+        shell: bash
+        run: |
+          set -u
+          verdict="${{ steps.stage3.outputs.aggregate }}"
+          enforce="${PROBE_ENFORCE}"
+          echo "wirelang-spec-ots-pre-anchor-probe: aggregate=${verdict} enforce=${enforce}"
+          if [ "${enforce}" = "true" ] && [ "${verdict}" = "PROBE-DEFECT" ]; then
+            echo "::error::Wirelang-Spec OTS pre-anchor activation probe verdict is PROBE-DEFECT. Refusing to merge — see job summary."
+            exit 1
+          fi
+          if [ "${verdict}" = "PROBE-DEFECT" ]; then
+            echo "::warning::Wirelang-Spec OTS pre-anchor activation probe is DEFECT — running audit-only."
+          else
+            echo "Wirelang-Spec OTS pre-anchor activation probe READY (AR-authorisation gate next; see runbook §7)."
+          fi

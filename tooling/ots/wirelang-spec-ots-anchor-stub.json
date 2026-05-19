@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "kind": "wirelang-spec-ots-anchor-stub",
+  "mode": "audit-only",
+  "purpose": "Tag-60 mirror-twin of Tomás's Tag-59 manifest-hash OTS-anchor stub: declares the Wirelang-Spec OTS-anchor wiring intent without performing any actual OTS calendar call from the Sandbox. Real anchoring is Operator-Hand on a network-attached host. See docs/operations/wirelang-spec-ots-anchor-wiring.md for the runbook.",
+  "wired_specs": [
+    {
+      "name": "wirelang-spec-v0-4-3",
+      "version": "0.4.3",
+      "path": "wirelang/specs/wirelang-spec-v0-4-3.md",
+      "freeze_marker": "kw-24-cutover-gate",
+      "freeze_anchor": "persona-engine-0.5.2-final-pre-cutover",
+      "anchor_request_target": "opentimestamps-calendar"
+    },
+    {
+      "name": "wirelang-spec-v0-4-1",
+      "version": "0.4.1",
+      "path": "wirelang/specs/wirelang-spec-v0-4-1.md",
+      "freeze_marker": null,
+      "freeze_anchor": null,
+      "anchor_request_target": "opentimestamps-calendar"
+    },
+    {
+      "name": "wirelang-spec-v0-2",
+      "version": "0.2",
+      "path": "wirelang/specs/wirelang-spec-v0-2.md",
+      "freeze_marker": null,
+      "freeze_anchor": null,
+      "anchor_request_target": "opentimestamps-calendar"
+    }
+  ],
+  "wat_spool": {
+    "envelope_kind": "wirelang-spec-ots-anchor-request",
+    "envelope_schema_version": 1,
+    "emit_helper": "tooling/ots/emit_wirelang_spec_ots_marker.py",
+    "marker_output_dir": "tooling/ots/markers/",
+    "operator_hand_runbook": "docs/operations/wirelang-spec-ots-anchor-wiring.md"
+  },
+  "sandbox_boundary": {
+    "no_network_io": true,
+    "no_ots_cli_subprocess": true,
+    "no_calendar_call": true,
+    "rationale": "claude-dev Sandbox has no host-podman-socket or outbound network for OTS calendar. Audit-only emit covers the Repo-Side intent capture; real anchoring is Operator-Hand."
+  },
+  "cross_anchor_with_tomas_tag_59": {
+    "manifest_hash_stub": "tooling/ots/manifest-hash-ots-anchor-stub.json",
+    "shared_wat_spool_envelope_dir": "tooling/ots/markers/",
+    "shared_runbook_sections": "§6 AR-Authorisation, §7 Operator-Hand cutover",
+    "rationale": "Tomás anchors persona-engine manifests; Reza anchors the Wirelang-Spec markdown files. Both ride the same WAT-spool path and the same Operator-Hand runbook to KW-24 cutover. Cross-anchor keeps the two pipelines aligned but independently auditable."
+  },
+  "anchors": {
+    "adr_audit_trail": "decisions/0007-internal-audit-trail-ots.md",
+    "reza_tag_58_spec_seal_pr": 371,
+    "tomas_tag_59_manifest_hash_probe_pr": 380,
+    "reza_tag_60_spec_ots_probe_pr": null
+  }
+}
