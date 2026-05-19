@@ -1,0 +1,246 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Pyramide 6-Layer Cross-Layer Dependency-DAG Verify-Gate
+# -------------------------------------------------------
+# (Amara Tag-58, ADR-0066, Continuous-Mode)
+#
+# Verpflichtender CI-Status-Check fuer die Tag-58 Cross-Layer-
+# Dependency-DAG Verifikation gegen die Tag-57 Pre-Cutover
+# Acceptance Run-Order doc §4.1.
+#
+# Anlass: Tag-57 hat den DAG der zehn dep-graph-Edges zwischen den
+# sechs Pyramide-Layer-test-files dokumentiert
+# (``docs/quality-gates/pre-cutover-acceptance-run-order.md`` §4.1).
+# Tag-58 macht aus diesem statischen Doc-Eintrag einen hermetic-
+# verifizierten Gate: der DAG-Spec (im Helper-Script verbatim
+# embedded) wird live gegen die actually-observable Substrate-
+# Consumption-Topologie der sechs Layer-test-files cross-matched.
+#
+# Methodik (3 Stages)
+# -------------------
+#
+#   Stage 1: AST-walk pro Layer-test-file. Collect string-literal
+#            references to other Layer-test-file basenames.
+#            (Substrate-consumption signal.)
+#
+#   Stage 2: Cross-match observed-edge-set gegen den DAG-spec
+#            (LAYER_DEP_EDGES im Helper). Edge-classes:
+#              - source-cited: muss in AST observable sein
+#              - semantic-only: record-level coupling, NOT cited
+#              - dynamic-cross-check: runtime back-edge, exempt
+#
+#   Stage 3: Verdict-Emission.
+#              - DAG-CONSISTENT (exit 0): full match
+#              - DAG-DRIFT (exit 2): mismatch
+#              - DAG-CYCLE (exit 2): static-subset cycle
+#              - DAG-PARSE-ERROR (exit 1): file missing / parse fail
+#
+# Path-Filter
+# -----------
+# Trigger bei Drift in:
+#   - den sechs Layer-1..6 Test-Substraten
+#   - dem Helper-Script (Spec-source-of-truth)
+#   - der Tag-57 Run-Order-Doc (DAG-Spec-Doc-Parallel)
+#   - dem Gate-Workflow self
+#   - der Tag-58 Test-Suite
+#
+# Sandbox-Boundary
+# ----------------
+# Stdlib + pytest. Pure AST + file-system. Kein subprocess (ausser
+# pytest --collect-only auf den Layer-Files via importlib), kein
+# Network, kein podman, kein live-VM.
+#
+# Required-Status-Check (Mira-Hand-Folge)
+# ---------------------------------------
+# Erste Phase: **advisory**. Sobald dieser Workflow einmal auf
+# `main` gruen laeuft, soll Mira (Operator-Hand) ihn unter
+# Settings -> Branches -> main -> Required status checks aktivieren.
+# Der Job-Display-Name "pyramide layer-dependency DAG verify (6
+# layers, 16 edges)" ist der exakte zu aktivierende String per
+# feedback_branch_protection_check_names.md.
+
+name: pyramide-layer-dependency-verify-gate
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      # Layer-1..6 Pyramide-Test-Substrate (DAG-vertices)
+      - "tests/phase_3c/test_phase_3_final_regression.py"
+      - "tests/phase_3c/test_cutover_day_e2e_drill.py"
+      - "tests/phase_3c/test_marathon_schluss_acceptance_drill.py"
+      - "tests/phase_3c/test_marathon_anti_patterns.py"
+      - "tests/phase_3c/test_pre_mortem_failure_mode_coverage_audit.py"
+      - "tests/phase_3c/test_defence_in_depth_layer_6.py"
+      # DAG-Spec source-of-truth (Helper) + doc parallel
+      - "tooling/ci/verify_layer_dependency_dag.py"
+      - "docs/quality-gates/pre-cutover-acceptance-run-order.md"
+      # Gate test-suite
+      - "tests/ci/test_layer_dependency_dag_verify_tag58.py"
+      # Gate self
+      - ".github/workflows/pyramide-layer-dependency-verify-gate.yml"
+  pull_request:
+    paths:
+      - "tests/phase_3c/test_phase_3_final_regression.py"
+      - "tests/phase_3c/test_cutover_day_e2e_drill.py"
+      - "tests/phase_3c/test_marathon_schluss_acceptance_drill.py"
+      - "tests/phase_3c/test_marathon_anti_patterns.py"
+      - "tests/phase_3c/test_pre_mortem_failure_mode_coverage_audit.py"
+      - "tests/phase_3c/test_defence_in_depth_layer_6.py"
+      - "tooling/ci/verify_layer_dependency_dag.py"
+      - "docs/quality-gates/pre-cutover-acceptance-run-order.md"
+      - "tests/ci/test_layer_dependency_dag_verify_tag58.py"
+      - ".github/workflows/pyramide-layer-dependency-verify-gate.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pyramide-layer-dependency-verify-gate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  pyramide-layer-dependency-verify-gate:
+    # Job-Display-Name MUSS exakt dieser String sein - er ist der
+    # Required-Status-Check-Name den Mira-Hand in Branch-Protection
+    # aktiviert (per feedback_branch_protection_check_names.md).
+    name: "pyramide layer-dependency DAG verify (6 layers, 16 edges)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        # 3.13 mirrors the production-lane in tests.yml,
+        # hash-derivate-gate.yml und marathon-final-acceptance-
+        # live-verify-gate.yml.
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install gate dependencies
+        # Stdlib + pytest only. Helper is stdlib (ast, pathlib,
+        # collections, dataclasses, json, argparse). Test-suite
+        # uses pytest.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "pytest>=8.0"
+
+      - name: Stage 1 - Helper unit-test suite (>=12 hermetic tests)
+        # Tag-58 test-suite validates the helper's edge-classification,
+        # AST-walk, cross-match logic, and CLI surface. Failing tests
+        # here block the gate.
+        run: |
+          python -m pytest tests/ci/test_layer_dependency_dag_verify_tag58.py -v --tb=short
+
+      - name: Stage 2 - Live DAG-verify against main-tip substrate
+        # Walks the six Layer-test-files at the current commit,
+        # cross-matches against the embedded DAG-spec, exits 0 on
+        # DAG-CONSISTENT, 2 on DRIFT/CYCLE, 1 on PARSE-ERROR.
+        run: |
+          python tooling/ci/verify_layer_dependency_dag.py --repo-root . --json | tee dag-verdict.json
+          echo "---"
+          python tooling/ci/verify_layer_dependency_dag.py --repo-root .
+
+      - name: Stage 3 - Verdict snapshot (CI-summary diagnostic)
+        # Operator-readable snapshot of the verdict envelope. Stage 2
+        # already failed if the verdict is DRIFT/CYCLE/PARSE-ERROR;
+        # this step emits the snapshot for the PR-summary tab so the
+        # operator can see the diff at a glance. Soft: always-on.
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if not summary_path:
+              raise SystemExit(0)
+
+          verdict_path = Path("dag-verdict.json")
+          if not verdict_path.is_file():
+              with open(summary_path, "a", encoding="utf-8") as fh:
+                  fh.write("## Pyramide Layer-Dependency DAG Verify\n\n")
+                  fh.write("(no verdict snapshot — Stage 2 did not emit JSON)\n")
+              raise SystemExit(0)
+
+          envelope = json.loads(verdict_path.read_text(encoding="utf-8"))
+
+          lines: list[str] = []
+          lines.append("## Pyramide Layer-Dependency DAG Verify (Tag-58)")
+          lines.append("")
+          lines.append(f"**Verdict:** `{envelope.get('verdict')}` "
+                       f"(exit {envelope.get('exit_code')})")
+          lines.append("")
+          lines.append("| Metric | Count |")
+          lines.append("|---|---|")
+          lines.append(f"| Declared edges (total) | "
+                       f"{len(envelope.get('declared_edges', []))} |")
+          lines.append(f"| Observed source-cited edges | "
+                       f"{len(envelope.get('observed_edges', []))} |")
+          lines.append(f"| Missing edges (declared, not observed) | "
+                       f"{len(envelope.get('missing_edges', []))} |")
+          lines.append(f"| Extra edges (observed, not declared) | "
+                       f"{len(envelope.get('extra_edges', []))} |")
+          lines.append(f"| Soft-cites skipped | "
+                       f"{len(envelope.get('soft_cites_skipped', []))} |")
+          lines.append(f"| Cycle witness | "
+                       f"{len(envelope.get('cycle', []))} |")
+          lines.append("")
+          notes = envelope.get("notes", [])
+          if notes:
+              lines.append("**Notes:**")
+              lines.append("")
+              for n in notes:
+                  lines.append(f"- {n}")
+              lines.append("")
+          missing = envelope.get("missing_edges", [])
+          if missing:
+              lines.append("**Missing edges:**")
+              lines.append("")
+              for e in missing:
+                  lines.append(f"- L{e[0]} -> L{e[1]} (declared, no AST cite)")
+              lines.append("")
+          extras = envelope.get("extra_edges", [])
+          if extras:
+              lines.append("**Extra edges:**")
+              lines.append("")
+              for e in extras:
+                  lines.append(f"- L{e[0]} -> L{e[1]} (AST cite, not declared)")
+              lines.append("")
+          parse_errors = envelope.get("parse_errors", [])
+          if parse_errors:
+              lines.append("**Parse errors:**")
+              lines.append("")
+              for err in parse_errors:
+                  lines.append(f"- {err}")
+              lines.append("")
+          lines.append("")
+          lines.append("---")
+          lines.append("")
+          lines.append("Cross-Review markers: Zone-M (Engineering personae "
+                       "via Tomás) + Zone-N (Henrik Audit boundary). The "
+                       "6-Layer Pyramide test-substrate is co-owned by "
+                       "Amara (QA) for the dep-graph topology and the "
+                       "Engineering personae for the per-layer test "
+                       "content; Henrik audits the topology-claim for "
+                       "evidence-completeness.")
+          lines.append("")
+
+          with open(summary_path, "a", encoding="utf-8") as fh:
+              fh.write("\n".join(lines))
+          PY
+
+      - name: Stage 4 - Upload verdict envelope artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyramide-layer-dependency-dag-verdict
+          path: dag-verdict.json
+          if-no-files-found: warn
+          retention-days: 30
