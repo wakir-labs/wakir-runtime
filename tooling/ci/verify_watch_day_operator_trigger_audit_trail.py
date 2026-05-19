@@ -893,6 +893,31 @@ def cmd_stage3(args: argparse.Namespace) -> int:
     return _stage_exit_code(result.status)
 
 
+def cmd_catalog(args: argparse.Namespace) -> int:
+    """Tag-68 helper-surface-drift-fix.
+
+    The Tag-67 Watch-Day Pre-Cutover Live-Smoke workflow (Stage 5,
+    `.github/workflows/watch-day-pre-cutover-live-smoke.yml`) calls
+    this helper with ``--mode catalog`` (see Tag-67 PR #425).  The
+    semantic the workflow wants is the catalog-conformance check
+    against the canonical marker catalog -- *no envelope required*,
+    just the substrate-pin check that every catalogued marker class
+    surfaces in at least one downstream substrate.  That is exactly
+    Stage 3's contract.
+
+    Rather than re-implement, ``catalog`` is a thin alias of
+    ``stage-3`` with the same CLI surface and same exit codes:
+
+        0  catalog conformance green   (every marker class referenced)
+        2  catalog conformance yellow  (one orphan marker)
+        1  catalog conformance red     (>=2 orphans, or substrate gone)
+
+    Tests pin both this alias and the original ``stage-3`` invocation
+    so the workflow stays decoupled from the underlying stage name.
+    """
+    return cmd_stage3(args)
+
+
 def cmd_aggregate(args: argparse.Namespace) -> int:
     s1 = args.stage_1 or os.environ.get("STAGE_1_STATUS", STAGE_RED)
     s2 = args.stage_2 or os.environ.get("STAGE_2_STATUS", STAGE_RED)
@@ -1012,12 +1037,64 @@ def build_parser() -> argparse.ArgumentParser:
     )
     pf.set_defaults(func=cmd_full)
 
+    # Tag-68 helper-surface-drift-fix: ``catalog`` is an alias for
+    # ``stage-3`` (cross-substrate marker reference check). The Tag-67
+    # Live-Smoke workflow invokes this via ``--mode catalog``; the
+    # subcommand form ``catalog`` is registered here so both
+    # invocations resolve to the same code-path.
+    pc = sub.add_parser(
+        "catalog",
+        help=(
+            "Tag-68 alias for stage-3: catalog-conformance check "
+            "(no envelope required)."
+        ),
+    )
+    pc.add_argument("--repo-root", default=None)
+    pc.add_argument("--output", default=None)
+    pc.set_defaults(func=cmd_catalog)
+
     return parser
+
+
+# Tag-68: aliases the Tag-67 Live-Smoke workflow uses. The workflow
+# calls ``--mode catalog`` rather than the subcommand ``catalog``;
+# rewrite the argv before argparse runs so both forms reach
+# ``cmd_catalog``. Keeps the back-compat surface for the subcommand
+# form (used by tests + other callers).
+_MODE_FLAG_ALIASES: dict[str, str] = {
+    "catalog": "catalog",
+    "stage-1": "stage-1",
+    "stage-2": "stage-2",
+    "stage-3": "stage-3",
+    "aggregate": "aggregate",
+    "full": "full",
+}
+
+
+def _rewrite_mode_flag(argv: list[str]) -> list[str]:
+    """Rewrite ``--mode <name>`` into a leading subcommand.
+
+    Tag-67 PR #425 workflow Stage 5 calls
+    ``... --mode catalog`` (flag-style). The argparse surface is
+    subcommand-style. This shim makes both work.  Only rewrites if
+    ``--mode <known>`` is the first pair of args; otherwise leaves
+    argv untouched and lets argparse surface its own error.
+    """
+    if len(argv) >= 2 and argv[0] == "--mode" and argv[1] in _MODE_FLAG_ALIASES:
+        return [_MODE_FLAG_ALIASES[argv[1]]] + argv[2:]
+    # Also support the ``--mode=<name>`` single-token form for robustness.
+    if len(argv) >= 1 and argv[0].startswith("--mode="):
+        name = argv[0].split("=", 1)[1]
+        if name in _MODE_FLAG_ALIASES:
+            return [_MODE_FLAG_ALIASES[name]] + argv[1:]
+    return argv
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
-    args = parser.parse_args(argv)
+    argv_list = list(argv) if argv is not None else sys.argv[1:]
+    argv_list = _rewrite_mode_flag(argv_list)
+    args = parser.parse_args(argv_list)
     return args.func(args)
 
 

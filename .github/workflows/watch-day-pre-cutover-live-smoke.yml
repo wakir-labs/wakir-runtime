@@ -116,7 +116,13 @@ jobs:
 
       # ----------------------------------------------------------------
       # Stage 2 -- Tag-57 Cron-Pre-Fire readiness pin (hermetic; no
-      # actual cron scheduling).
+      # actual cron scheduling). Tag-68 helper-surface-drift-fix:
+      # the helper's CLI surface uses ``--mode {all,cron,paths,
+      # routing}``; the prior ``--mode pin`` invocation was a drift
+      # that the Tag-67 Live-Smoke surfaced as a hidden Stage-2
+      # regression. The ``all`` mode runs the full readiness pin
+      # (cron + paths + routing), which is what the workflow comment
+      # ("readiness pin") already promised.
       # ----------------------------------------------------------------
       - name: Stage 2 - cron-pre-fire-probe (Tag-57)
         id: stage2
@@ -124,7 +130,7 @@ jobs:
         run: |
           set +e
           python tooling/ci/verify_watch_day_cron_pre_fire_readiness.py \
-            --mode pin
+            --mode all
           rc=$?
           if [ $rc -eq 0 ]; then
             echo "STAGE2_STATUS=green" >> "$GITHUB_ENV"
@@ -137,23 +143,50 @@ jobs:
       # ----------------------------------------------------------------
       # Stage 3 -- Tag-59+61 Replay Multi-Sample. We re-run the
       # practice-run aggregator in replay-mode against the pinned
-      # fixture(s). If the fixture has drifted, mark yellow.
+      # multi-sample fixture set. Tag-68 helper-surface-drift-fix:
+      # the canonical fixture path is
+      # ``tests/observability/fixtures/watch-day-practice-run-sample-
+      # <set>.json`` (set in via Tag-59 PR + Tag-61 multi-sample
+      # extension). The earlier Tag-67 draft probed a legacy path
+      # ``tests/fixtures/observability/watch_day_practice_run_pinned.json``
+      # which never existed in main -- that is the Stage-3-yellow
+      # drift the Tag-67 Live-Smoke surfaced (PR #425). This step is
+      # multi-path-aware: it tries the canonical path first, then the
+      # legacy path, then falls back to yellow.
       # ----------------------------------------------------------------
       - name: Stage 3 - replay-multi-sample (Tag-59+61)
         id: stage3
         continue-on-error: true
         run: |
           set +e
-          fixture="tests/fixtures/observability/watch_day_practice_run_pinned.json"
-          if [ ! -f "$fixture" ]; then
-            # Fixture not present in this branch -- treat as yellow
-            # (substrate-present but cannot replay in this snapshot).
+          canonical_dir="tests/observability/fixtures"
+          legacy_fixture="tests/fixtures/observability/watch_day_practice_run_pinned.json"
+          # Prefer the canonical multi-sample green fixture (Tag-61
+          # default; Tag-59 backwards-compatible). The aggregator
+          # derives the fixture-path itself when --fixture-set is set,
+          # but we pass --fixture-path explicitly so Stage 3 logs the
+          # exact file the workflow probed (operator-debug surface).
+          fixture=""
+          if [ -f "${canonical_dir}/watch-day-practice-run-sample-green.json" ]; then
+            fixture="${canonical_dir}/watch-day-practice-run-sample-green.json"
+            fixture_set="green"
+          elif [ -f "$legacy_fixture" ]; then
+            fixture="$legacy_fixture"
+            fixture_set="green"
+          fi
+          if [ -z "$fixture" ]; then
+            # No fixture in any known path -- substrate present but
+            # cannot replay (Tag-68 documented Stage-3-yellow case).
             echo "STAGE3_STATUS=yellow" >> "$GITHUB_ENV"
+            echo "stage3_note=fixture-missing-in-canonical-and-legacy-paths" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           python tooling/ci/aggregate_watch_day_practice_run_verdict.py \
-            --mode replay --fixture-path "$fixture"
+            --mode replay \
+            --fixture-set "$fixture_set" \
+            --fixture-path "$fixture"
           rc=$?
+          echo "stage3_fixture_used=$fixture" >> "$GITHUB_OUTPUT"
           if [ $rc -eq 0 ]; then
             echo "STAGE3_STATUS=green" >> "$GITHUB_ENV"
           elif [ $rc -eq 2 ]; then
@@ -167,6 +200,12 @@ jobs:
       # Tag-62 helper emits a canonical envelope; we read it and
       # ensure it has the canonical required-key-set. This is the
       # cross-substrate check (Tag-63 routes; Tag-62 emits).
+      #
+      # Tag-68 helper-surface-drift-fix: the helper's CLI surface uses
+      # subcommands ``{pre-trigger, trigger, post-trigger, aggregate}``
+      # (not ``--mode emit``). The trigger output wraps the dispatch
+      # envelope under ``details.envelope`` (not at the top level).
+      # Both prior drifts caused Stage-4-yellow in Tag-67 PR #425.
       # ----------------------------------------------------------------
       - name: Stage 4 - operator-trigger-integration (Tag-62+63)
         id: stage4
@@ -174,17 +213,26 @@ jobs:
         run: |
           set +e
           python tooling/ci/simulate_watch_day_operator_trigger.py \
-            --mode emit --output stage4_envelope.json
+            trigger --output stage4_envelope.json
           rc=$?
-          if [ $rc -ne 0 ] || [ ! -f stage4_envelope.json ]; then
+          if [ $rc -ne 0 ] && [ $rc -ne 2 ]; then
+            # rc 0 = green stage, rc 2 = yellow stage from the
+            # Tag-62 helper itself; both produce a usable envelope.
+            echo "STAGE4_STATUS=red" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          if [ ! -f stage4_envelope.json ]; then
             echo "STAGE4_STATUS=red" >> "$GITHUB_ENV"
             exit 0
           fi
           python -c "
           import json, sys
-          d = json.load(open('stage4_envelope.json'))
+          payload = json.load(open('stage4_envelope.json'))
+          # Tag-68 fix: the dispatch envelope lives at
+          # payload['details']['envelope'], not at the top level.
+          envelope = payload.get('details', {}).get('envelope', {})
           required = {'event','workflow','ref','inputs'}
-          if not required.issubset(d.keys()):
+          if not required.issubset(envelope.keys()):
               sys.exit(2)
           "
           rc=$?
@@ -199,7 +247,15 @@ jobs:
       # ----------------------------------------------------------------
       # Stage 5 -- Tag-66 Audit-Trail Verifier. Runs the Tag-66
       # helper's catalog-conformance check (hermetic, no envelope
-      # required; substrate-pin mode).
+      # required; substrate-pin mode). Tag-68 helper-surface-drift-fix:
+      # the helper's CLI surface uses subcommands (stage-1, stage-2,
+      # stage-3, aggregate, full). Tag-67 PR #425 invoked
+      # ``--mode catalog`` -- which did not resolve. The Tag-68 fix
+      # adds an explicit ``catalog`` subcommand (aliasing stage-3
+      # cross-substrate marker-reference check, semantically the
+      # catalog conformance) AND a ``--mode catalog`` flag-shim so
+      # this exact call resolves cleanly without changing the
+      # workflow's invocation surface.
       # ----------------------------------------------------------------
       - name: Stage 5 - audit-trail-verify (Tag-66)
         id: stage5
@@ -214,9 +270,11 @@ jobs:
           elif [ $rc -eq 2 ]; then
             echo "STAGE5_STATUS=yellow" >> "$GITHUB_ENV"
           else
-            # Fallback: helper exists but lacks 'catalog' mode in this
-            # branch snapshot -- yellow (substrate-present, mode-drift).
-            echo "STAGE5_STATUS=yellow" >> "$GITHUB_ENV"
+            # Helper exists but invocation failed -- red. Tag-68 fixed
+            # the prior 'mode missing -> yellow' fallback because we
+            # now own the 'catalog' mode and a hard error here is a
+            # real substrate regression.
+            echo "STAGE5_STATUS=red" >> "$GITHUB_ENV"
           fi
 
       # ----------------------------------------------------------------
