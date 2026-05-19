@@ -194,7 +194,116 @@ Operator-Hand.
 
 ---
 
+## Tag-57 Addendum — OPEN-J1 Closeout (10-BackendDecision-Manifest-Parity)
+
+**Status:** Tag-57 (2026-05-19). Wires the Selin Tag-56
+Persona-Engine-0.5.2-final Production-Readiness-Audit
+**OPEN-J1 ("Cross-substrate-parity-gate green on PR")** into this gate.
+
+### Was Tag-57 hinzufügt
+
+Der Gate trägt ab Tag-57 zwei Substrat-Parity-Verträge unter einem
+Dach:
+
+**Vertrag A (Tag-32 Bestand, unverändert):** 9-Binary-Phase-3b-
+Inventory-Parity zwischen Cosign-Policy, Quadlet-Installer und
+Backend-Switch-Resolver. Treiber-Test:
+`tests/infra/test_cross_substrate_parity_3way.py` (6 Tests).
+
+**Vertrag B (Tag-57 neu):** 10-BackendDecision-Boot-Fan-Out-Parity
+zwischen den drei Substraten der Tag-52 Manifest-Konsolidierung:
+
+1. **Manifest** —
+   `wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md`
+   §1 (10 BackendDecision Records, Boot-Ordered).
+2. **Pin-Pack** —
+   `infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml`
+   `boot_wired_crates[]` (10 Einträge).
+3. **engine.py-Resolver** —
+   `wirelang/persona_engine/engine.py` `__init__` und `boot()`
+   (10 `resolve_*_backend()` Aufrufe).
+
+Treiber-Tests:
+- `wirelang/tests/persona_engine/test_manifest_0_5_2_final_pre_cutover.py`
+  (Selin-Manifest-Integrity-Suite, ~30 Tests, Tag-52-Anchor).
+- `tests/observability/test_cross_substrate_parity_gate_tag57.py`
+  (12 hermetic Tests, Workflow-Wiring + Triple-Witness-Konsistenz).
+
+### Workflow-Stages
+
+| Stage | Vertrag | Substrat | Driver-Tests |
+|---|---|---|---|
+| 1   | A | Cosign × Quadlet × rust_backend_switch | `test_cross_substrate_parity_3way.py` |
+| 1b  | B | Manifest × Pin-Pack × engine.py | `test_manifest_0_5_2_final_pre_cutover.py` |
+| 1c  | B-Meta | Workflow-Wiring + Triple-Witness | `test_cross_substrate_parity_gate_tag57.py` |
+| 2   | A-Diag | Inventory-Snapshot (CI-Summary) | (Python inline, `if: always()`) |
+
+Alle Stages sind hermetic (pytest-only, kein Subprocess, kein
+Netzwerk, kein Rust-Build, kein Engine-Boot).
+
+### Path-Trigger (Tag-57 erweitert)
+
+Der Gate triggert ab Tag-57 zusätzlich bei Änderungen an:
+
+- `wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md`
+- `infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml`
+- `wirelang/persona_engine/engine.py`
+- `wirelang/tests/persona_engine/test_manifest_0_5_2_final_pre_cutover.py`
+- `tests/observability/test_cross_substrate_parity_gate_tag57.py`
+
+Damit triggert jede Selin-Style-PR (die nur Manifest-/Pin-Pack-
+Inhalte berührt) ab Tag-57 automatisch den Gate; OPEN-J1 ist auf
+diesen PRs als CI-Check sichtbar.
+
+### Required-Status-Check-Konfiguration (Operator-Hand, Sandbox-Gap)
+
+Der CI-Workflow läuft jetzt automatisch auf PRs, aber Branch-
+Protection-Bindung ist Operator-Hand (Mira-Hand). Per
+`feedback_branch_protection_check_names.md` muss der exakte
+Job-Display-Name als Required-Status-Check eingetragen werden:
+
+**Required-Status-Check-Name (verbatim):**
+
+```
+cross-substrate parity (cosign ↔ quadlet ↔ backend-switch)
+```
+
+Aktivierungs-Schritte (Mira-Hand, einmalig):
+
+1. Repo-Settings → Branches → main → Edit branch protection rule.
+2. "Require status checks to pass before merging" aktiviert lassen.
+3. "Status checks that are required" → Search-Feld → obigen String
+   exakt einfügen (mit den beiden Unicode-`↔`-Pfeilen).
+4. Save changes.
+5. Verifizieren via:
+
+   ```sh
+   gh api repos/wakir-labs/wakir-runtime/branches/main/protection \
+     | python3 -c 'import sys,json; [print(c) for c in
+        json.load(sys.stdin)["required_status_checks"]["contexts"]]'
+   ```
+
+   Der String muss in der Output-Liste erscheinen.
+
+### Closeout-Trail (OPEN-J1)
+
+- **Auslöser:** Selin Tag-56 Audit-Bericht
+  `reports/audit/persona-engine-0-5-2-production-readiness-2026-05-19.md`
+  §4 Open-Item-Tracker, Zeile OPEN-J1.
+- **Schluss-Substanz:** PR `kai/tag-57-cross-substrate-parity-green`
+  (Tag-57). Erweitert den Gate um Vertrag B, fügt 12 Tag-57-Tests
+  hinzu, dokumentiert Required-Status-Check-Aktivierung.
+- **Sandbox-Gap:** Required-Status-Check-Aktivierung in Branch-
+  Protection ist Operator-Hand (Mira-Hand). Tag-57-PR-Merge schließt
+  die CI-Substanz; Branch-Protection-Aktivierung schließt OPEN-J1
+  vollständig.
+- **AR-Sichtung:** Henrik (Internal Audit) protokolliert die
+  Closeout-Sequenz im regulären Sample.
+
+---
+
 *Erstellt: Tag-32 Mini-Welle (ADR-0066 Welle-3 Mitigation).*
+*Erweitert: Tag-57 (2026-05-19, OPEN-J1 Closeout, Selin-Audit-Anker).*
 *Sibling-Runbooks:*
 - *`docs/operations/cosign-policy-phase-3b.md` — Cosign-Policy
   Operator-Hand-Recipe.*
