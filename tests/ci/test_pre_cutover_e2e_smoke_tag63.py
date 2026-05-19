@@ -498,22 +498,28 @@ class REUSEHeaderTests(unittest.TestCase):
 
     def test_aggregator_carries_reuse_wrap(self) -> None:
         text = HELPER.read_text(encoding="utf-8")
+        # REUSE-IgnoreStart
         self.assertIn("REUSE-IgnoreStart", text)
-        self.assertIn("SPDX-License-Identifier: Apache-2.0", text)
+        self.assertIn("SPDX-License" + "-Identifier: Apache-2.0", text)
         self.assertIn("REUSE-IgnoreEnd", text)
+        # REUSE-IgnoreEnd
 
     def test_workflow_carries_spdx_header(self) -> None:
+        # REUSE-IgnoreStart
         self.assertIn(
-            "SPDX-License-Identifier: Apache-2.0",
+            "SPDX-License" + "-Identifier: Apache-2.0",
             WORKFLOW.read_text(encoding="utf-8"),
         )
+        # REUSE-IgnoreEnd
 
     def test_this_test_suite_carries_reuse_wrap(self) -> None:
         # Self-witness: this file too.
         text = Path(__file__).read_text(encoding="utf-8")
+        # REUSE-IgnoreStart
         self.assertIn("REUSE-IgnoreStart", text)
-        self.assertIn("SPDX-License-Identifier: Apache-2.0", text)
+        self.assertIn("SPDX-License" + "-Identifier: Apache-2.0", text)
         self.assertIn("REUSE-IgnoreEnd", text)
+        # REUSE-IgnoreEnd
 
 
 if __name__ == "__main__":
