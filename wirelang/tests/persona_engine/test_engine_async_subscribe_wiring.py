@@ -110,7 +110,7 @@ class _FakePublishSink:
 
 
 def test_engine_async_version_bumped():
-    assert ASYNC_ENGINE_VERSION == "0.5.3-rc1"
+    assert ASYNC_ENGINE_VERSION == "0.5.3"
 
 
 def test_engine_async_variant_unchanged():

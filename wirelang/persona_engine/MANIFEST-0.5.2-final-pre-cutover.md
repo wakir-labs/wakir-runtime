@@ -66,53 +66,98 @@ and the cross-substrate parity gate
 
 ---
 
-## 0. Version Header (Tag-58, 0.5.3-rc1)
+## 0. Version Header (Tag-62, 0.5.3 Final)
 
-**Tag-58 (2026-05-19, Selin / Persona-Engine). Final Pre-Cutover RC
-before KW-24 cutover gate opens.** This §0 section pins the active
-engine version that consumes this manifest. The manifest body (§1–§7)
-remains byte-stable vs. its Tag-52 emit; the only change introduced
-by Tag-58 is the version-header marker recorded here so the hermetic
+**Tag-62 (2026-05-19, Selin / Persona-Engine). Final-Bump
+Pre-Cutover-Sealing.** This §0 section pins the active engine
+version that consumes this manifest. The manifest body (§1–§7)
+remains byte-stable vs. its Tag-52 emit and vs. the Tag-58
+0.5.3-rc1 §0 stamp. The only change introduced by Tag-62 is the
+rc1-suffix-drop in the version-header marker recorded here, plus
+matching surface updates at `__version__.py`, `cli.py`,
+`engine_async.py`, and `engine.py`'s import comment so the hermetic
 version-consistency tests have a single docstring anchor to assert
-against.
+against. The Tag-61 G5-PRE-CUTOVER-READY compositum verdict
+(PR #391) is sealed here as the substrate authority that authorised
+the rc1 → final promotion.
 
 | Field | Value |
 |---|---|
-| Engine version (Python source of truth) | `0.5.3-rc1` |
+| Engine version (Python source of truth) | `0.5.3` |
 | Module anchor | `wirelang/persona_engine/__version__.py` |
 | Manifest file | `wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md` (this file) |
 | Pin pack (machine-readable) | `infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml` |
-| Release notes | `docs/persona-engine/0-5-3-rc1-release-notes.md` |
-| Strict superset of | `0.5.2-final-pre-cutover` (Tag-52, PR #335) |
-| Carry-forward closeouts | Tag-57 OPEN-K1, OPEN-K2 (Tomás PR #366); Tag-57 OPEN-J1 (Kai PR #367); Tag-57 emit-order pin (Selin PR #363) |
-| Remaining open item | OPEN-J2 (Operator-Hand, cutover-day live-VM) |
-| Boot fan-out byte-shape | unchanged vs. 0.5.2-final — ten records, canonical order |
+| Release notes | `docs/persona-engine/0-5-3-final-release-notes.md` |
+| Strict superset of | `0.5.3-rc1` (Tag-58, PR #372); `0.5.2-final-pre-cutover` (Tag-52, PR #335) |
+| Carry-forward closeouts | Tag-57 OPEN-K1, OPEN-K2 (Tomás PR #366); Tag-57 OPEN-J1 (Kai PR #367); Tag-57 emit-order pin (Selin PR #363); Tag-59 V-907 hash-pin baseline seal (Selin PR #381); Tag-61 G5-PRE-CUTOVER-READY compositum (Selin PR #391) |
+| Remaining open item | OPEN-J2 (Operator-Hand, cutover-day live-VM, KW-24 T0 2026-06-08/09) |
+| Boot fan-out byte-shape | unchanged vs. 0.5.3-rc1 — ten records, canonical order |
+| V-907 composite-hash seal | unchanged vs. Tag-59 baseline (`a529d7d1b85ee33c61755cef7cb21793ff0ecf87d2efc5b9267f58526c818857`) — the §0 version-header is outside the V-907-bounded byte-range (§1 + pin-pack `boot_wired_crates` + engine.py resolver-block) |
 
-The 0.5.3-rc1 bump is **manifest-and-metadata-only**. It does **not**:
+The 0.5.3 final bump is **manifest-and-metadata-only**, narrower in
+scope than the Tag-58 rc1 bump because the rc1 substrate already
+absorbed the carry-forward. Tag-62 does **not**:
 
 * add or remove a `BackendDecision` record;
 * rename an ENV flag;
 * flip an ENV-flag default;
 * bump any crate version in the 15-crate cross-language pin pack;
-* alter the boot fan-out order pinned in Tag-57 PR #363.
+* alter the boot fan-out order pinned in Tag-57 PR #363;
+* refresh the Tag-59 V-907-baseline composite-hash seal;
+* re-open any Cross-Review gate (Zones J/K/L all carry forward).
 
 It only:
 
-* factors the Python version string from inline literals in
-  `__init__.py` + `engine.py` into the canonical
-  `wirelang/persona_engine/__version__.py` anchor;
-* stamps `0.5.3-rc1` at all four authority surfaces (this §0,
-  `__version__.py`, the release-notes file, and the test pin);
-* records the Tag-57 closeout chain as the absorbed substrate.
+* drops the `-rc1` suffix from the canonical version literal in
+  `wirelang/persona_engine/__version__.py` (`0.5.3-rc1` → `0.5.3`);
+* mirrors the drop at the three Tag-59 hot-fix surfaces
+  (`cli.py:3` docstring, `engine_async.py:96` literal,
+  `engine.py:84` import-comment narrative) — the four surfaces
+  whose drift the Tag-60 scanner is wired to catch;
+* updates `RELEASE_NOTES_RELPATH` to point at the new
+  `docs/persona-engine/0-5-3-final-release-notes.md` companion;
+* extends the Tag-60 drift-scanner allowlist to register
+  `0.5.3-rc1` as a legitimate stale literal in the historical
+  artefact files (v907-hash-baseline.json, tag58/59/60/61 tests,
+  the rc1 release-notes file).
 
 > **Scope discipline (Selin).** This §0 documents the engine
 > version-bump only. It does **not** modify persona definitions
 > (Aisha-Domäne, ADR-0043), WAT-core logic (Tomás-Domäne, Zone-K),
 > identity-substrate design (Reza-Domäne, Zone-L), or container-
 > infra (Kai-Domäne, Zone-J). The Cross-Review Zone-J/K/L Konsens
-> from Tag-56 audit (PR #362) and Tag-57 closeout chain
-> (PR #366, #367) is carried forward unchanged; no fresh Cross-
-> Review gate is opened by this bump.
+> from Tag-56 audit (PR #362), Tag-57 closeout chain
+> (PR #366, #367), Tag-59 V-907 seal (PR #381), and Tag-61
+> compositum verdict (PR #391) is carried forward unchanged; no
+> fresh Cross-Review gate is opened by this bump.
+
+### 0.1 Tag-58 Version-Header History (rc1)
+
+The original Tag-58 §0 header stamped `0.5.3-rc1` as active. That
+substrate is preserved as historical context here:
+
+* Tag-58 (2026-05-19, Selin, PR #372) — `0.5.3-rc1` final
+  Pre-Cutover RC, factored the Python version string from inline
+  literals in `__init__.py` + `engine.py` into the
+  `__version__.py` anchor, stamped rc1 at the four authority
+  surfaces (this §0, `__version__.py`, the
+  `docs/persona-engine/0-5-3-rc1-release-notes.md` companion, and
+  the `test_engine_0_5_3_rc1_release_notes_tag58.py` hermetic
+  consistency pin).
+* Tag-59 (2026-05-19, Selin/Mira, PR #381) — hot-fix sweep of
+  four version-literal drift sites (engine_async.py:96, cli.py:3,
+  seven hardcoded-literal test-files, and the prior-art
+  release-notes test) that escaped the Tag-58 audit. V-907
+  baseline sealed at this tag.
+* Tag-60 (2026-05-19, Selin) — drift-scanner +
+  fifteen-test pin (`test_engine_version_drift_full_coverage_tag60.py`)
+  that closes the Tag-58 audit gap. The scanner's
+  `ACTIVE_VERSION` constant is the single authority on which
+  literal is never flagged.
+* Tag-61 (2026-05-19, Selin, PR #391) — Engine-Final-Acceptance
+  compositum aggregator with G5-PRE-CUTOVER-READY verdict; the
+  upstream authority that authorises the Tag-62 rc1 → final
+  promotion recorded above.
 
 ---
 

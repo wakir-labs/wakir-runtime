@@ -1,59 +1,56 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tag-58 — Engine 0.5.3-rc1 release-notes consistency pin (Selin, Persona-Engine).
+"""Tag-58 — Engine 0.5.3-rc1 release-notes historical-fixture pin (Selin).
 
-The 0.5.3-rc1 bump is a **manifest-and-metadata-only** RC. It threads
-the same version string ``0.5.3-rc1`` across four authority surfaces:
+Originally the Tag-58 hermetic consistency pin for the
+``0.5.3-rc1`` four-surface authority bundle
+(``__version__.py`` ↔ manifest §0 ↔ release-notes ↔ test). The
+Tag-62 final-bump (0.5.3-rc1 → 0.5.3 final, rc1-suffix-drop)
+promoted that role to the fresh
+``test_engine_0_5_3_final_bump_tag62.py`` pin; this file is
+preserved as the **historical-fixture anchor** for the rc1
+substrate so the rc1 release-notes file and the manifest §0.1 Tag-58
+history sub-section remain auditable forever.
 
-1. ``wirelang/persona_engine/__version__.py`` — the canonical Python
-   source of truth (``__version__`` + ``ENGINE_VERSION``).
-2. ``wirelang/persona_engine/__init__.py`` — re-exports
-   ``__version__`` from #1.
-3. ``wirelang/persona_engine/engine.py`` — re-exports
-   ``ENGINE_VERSION`` from #1.
-4. ``wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md`` —
-   the §0 Version Header records the active engine version.
-5. ``docs/persona-engine/0-5-3-rc1-release-notes.md`` — the public
-   release-notes companion.
+What this file asserts after Tag-62
+-----------------------------------
 
-Any future bump that touches one of those surfaces but not the others
-breaks one of the assertions below. The test is the single hermetic
-guard that the four-file authority bundle stays consistent.
+1. The rc1 release-notes file (``docs/persona-engine/0-5-3-rc1-
+   release-notes.md``) is still present in the repo. It MUST NOT
+   be deleted by future bumps — it is the public-facing record of
+   the rc1 substrate.
+2. The rc1 release-notes file H1 still pins ``0.5.3-rc1`` (it is a
+   frozen artefact; its content does not migrate with the active
+   version).
+3. The rc1 release-notes file carries the five canonical sections
+   (Scope, Carry-Forward, OPEN-Items, Pre-Cutover Gate-Map,
+   Operator-Hand Items) it had at Tag-58 cut.
+4. The Tag-52 manifest preserves a §0.1 sub-section that narrates
+   the Tag-58 rc1 substrate as historical context (the Tag-62
+   final-bump §0 rewrite explicitly added this sub-section so the
+   rc1 → final transition stays auditable).
+5. The manifest §0 (now active 0.5.3 final) references the rc1
+   filename ``0.5.3-rc1`` somewhere in its body as predecessor
+   marker.
 
-Secondary contracts pinned here:
-
-* The release-notes file must mark **OPEN-J2 as the only remaining
-  Operator-Hand item** (Tag-57 PR #366 closed K1/K2; Tag-57 PR #367
-  closed J1).
-* The release-notes Pre-Cutover Gate-Map must reference the Tag-56
-  audit substrate (PR #362) and the Tag-57 closeout chain (PR #363,
-  #366, #367) by exact PR number.
-* The manifest §0 must list the four authority paths in the same
-  shape the ``__version__`` module advertises via ``MANIFEST_RELPATH``
-  and ``RELEASE_NOTES_RELPATH``.
-
-Hermetic envelope
------------------
-* No network. No NATS, no SPIRE, no gRPC.
-* No subprocess. No Rust binary build.
-* No filesystem writes — pure file inspection.
-* Deterministic — no clock-sensitive assertions.
+Live four-surface consistency checks (``__version__`` ==
+``ENGINE_VERSION`` == manifest §0 active-version-cell ==
+release-notes H1 == test ``EXPECTED_VERSION``) are owned by
+``test_engine_0_5_3_final_bump_tag62.py`` and have been removed
+from this file.
 
 Scope discipline (Selin)
 ------------------------
 This file does **not** modify persona definitions (Aisha-Domäne,
 ADR-0043), WAT-core logic (Tomás-Domäne, Zone-K), identity-substrate
-design (Reza-Domäne, Zone-L), or container-infra (Kai-Domäne, Zone-J).
-It only asserts the version-string consistency relation across the
-five files listed above.
+design (Reza-Domäne, Zone-L), or container-infra (Kai-Domäne,
+Zone-J).
 """
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
-
-import pytest
 
 # ---------------------------------------------------------------------------
 # Paths anchored from the repo root. This file lives at
@@ -62,236 +59,69 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
-VERSION_MODULE_PATH = (
-    REPO_ROOT / "wirelang" / "persona_engine" / "__version__.py"
-)
-INIT_PATH = REPO_ROOT / "wirelang" / "persona_engine" / "__init__.py"
-ENGINE_PATH = REPO_ROOT / "wirelang" / "persona_engine" / "engine.py"
 MANIFEST_PATH = (
     REPO_ROOT
     / "wirelang"
     / "persona_engine"
     / "MANIFEST-0.5.2-final-pre-cutover.md"
 )
-RELEASE_NOTES_PATH = (
+RC1_RELEASE_NOTES_PATH = (
     REPO_ROOT / "docs" / "persona-engine" / "0-5-3-rc1-release-notes.md"
 )
 
-EXPECTED_VERSION = "0.5.3-rc1"
-
-# Tag-57 closeout PR numbers that the release-notes Pre-Cutover Gate-Map
-# must reference. These are pinned by the auftrag context.
-TAG57_CLOSEOUT_PRS = ("#363", "#366", "#367")
-
-# Tag-56 audit substrate PR that the release-notes carry-forward table
-# must reference.
-TAG56_AUDIT_PR = "#362"
-
-# Five gate-substrate references that the Pre-Cutover Gate-Map must
-# include. Each is a Tag-X / PR-Y pair from the Tag-52..Tag-57
-# substrate chain.
-REQUIRED_GATE_REFERENCES = (
-    ("Tag-55", "#357"),  # Cosign-Strict-Mode G3+G5
-    ("Tag-56", "#359"),  # Watch-day-practice-run CI gate
-    ("Tag-56", "#361"),  # Phase-3-Marathon-Rollback workflow
-    ("Tag-57", "#363"),  # state_backing pre-boot emit-order pin
-    ("Tag-57", "#367"),  # OPEN-J1 Cross-Substrate-Parity-Gate closeout
-)
-
-
-# ---------------------------------------------------------------------------
-# Helpers.
-# ---------------------------------------------------------------------------
+# Tag-58 rc1 substrate constants — preserved as historical fixtures.
+RC1_VERSION = "0.5.3-rc1"
 
 
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _extract_version_literal(source: str, symbol: str) -> str:
-    """Extract ``SYMBOL = "<string>"`` literal from a python source file.
+# ===========================================================================
+# Test 1 — The rc1 release-notes file must survive as a historical artefact.
+# ===========================================================================
 
-    Falls back to the first quoted string on a line that starts with
-    ``SYMBOL = `` to keep the regex tolerant of import-alias patterns.
+
+def test_t01_rc1_release_notes_file_preserved_as_historical_artefact() -> None:
+    """docs/persona-engine/0-5-3-rc1-release-notes.md is preserved post-Tag-62.
+
+    The rc1 release-notes file is the public-facing record of the
+    Tag-58 substrate. Future bumps MUST NOT delete it — they only
+    add new release-notes files alongside.
     """
-    pattern = re.compile(
-        rf"^{re.escape(symbol)}\s*=\s*[\"']([^\"']+)[\"']", re.MULTILINE
-    )
-    match = pattern.search(source)
-    if match is None:
-        return ""
-    return match.group(1)
-
-
-# ===========================================================================
-# Test 1 — __version__.py is the canonical anchor.
-# ===========================================================================
-
-
-def test_t01_version_module_exists_and_pins_0_5_3_rc1() -> None:
-    """The Tag-58 anchor module must exist and pin exactly 0.5.3-rc1."""
-    assert VERSION_MODULE_PATH.is_file(), (
-        f"Tag-58 canonical version anchor missing: {VERSION_MODULE_PATH}"
-    )
-    source = _read(VERSION_MODULE_PATH)
-    literal = _extract_version_literal(source, "__version__")
-    assert literal == EXPECTED_VERSION, (
-        f"__version__.py pins {literal!r}, expected {EXPECTED_VERSION!r}"
+    assert RC1_RELEASE_NOTES_PATH.is_file(), (
+        f"Tag-58 rc1 release-notes file missing — Tag-62 final-bump must "
+        f"preserve historical artefacts: {RC1_RELEASE_NOTES_PATH}"
     )
 
 
 # ===========================================================================
-# Test 2 — ENGINE_VERSION mirrors __version__ inside __version__.py.
+# Test 2 — The rc1 release-notes H1 still pins 0.5.3-rc1.
 # ===========================================================================
 
 
-def test_t02_engine_version_alias_in_version_module() -> None:
-    """ENGINE_VERSION in __version__.py must alias __version__."""
-    source = _read(VERSION_MODULE_PATH)
-    # ENGINE_VERSION = __version__ is the canonical form. Accept either the
-    # alias form or a direct literal — both yield the same value at import.
-    assert "ENGINE_VERSION" in source, (
-        "ENGINE_VERSION symbol missing from canonical anchor module"
-    )
-    # If the alias is a literal, it must match expected.
-    literal = _extract_version_literal(source, "ENGINE_VERSION")
-    if literal:
-        assert literal == EXPECTED_VERSION, (
-            f"ENGINE_VERSION literal {literal!r} drifts from "
-            f"__version__ {EXPECTED_VERSION!r}"
-        )
-
-
-# ===========================================================================
-# Test 3 — __init__.py re-exports from __version__.py.
-# ===========================================================================
-
-
-def test_t03_init_py_imports_version_from_canonical_anchor() -> None:
-    """__init__.py must import __version__ from .__version__, not inline."""
-    source = _read(INIT_PATH)
-    assert "from .__version__ import __version__" in source, (
-        "wirelang/persona_engine/__init__.py must import __version__ "
-        "from the canonical anchor module (Tag-58 refactor)"
-    )
-    # Negative: no inline 0.5.2 / 0.5.1 / 0.5.0 literal leak.
-    for stale in ("0.5.0-pilot", "0.5.1-pre-cutover", "0.5.2-final-pre-cutover"):
-        assert f'__version__ = "{stale}"' not in source, (
-            f"__init__.py still carries stale inline literal {stale!r}"
-        )
-
-
-# ===========================================================================
-# Test 4 — engine.py imports ENGINE_VERSION from __version__.py.
-# ===========================================================================
-
-
-def test_t04_engine_py_imports_engine_version_from_canonical_anchor() -> None:
-    """engine.py must import ENGINE_VERSION from .__version__."""
-    source = _read(ENGINE_PATH)
-    assert "from .__version__ import ENGINE_VERSION" in source, (
-        "wirelang/persona_engine/engine.py must import ENGINE_VERSION "
-        "from the canonical anchor module (Tag-58 refactor)"
-    )
-    # Negative: no stale inline literal.
-    assert 'ENGINE_VERSION = "0.5.0-pilot"' not in source, (
-        "engine.py still carries the stale ENGINE_VERSION inline literal"
-    )
-
-
-# ===========================================================================
-# Test 5 — Public import surface yields the expected version string.
-# ===========================================================================
-
-
-def test_t05_public_import_surface_yields_expected_version() -> None:
-    """``import wirelang.persona_engine`` must expose the bumped version."""
-    pkg = pytest.importorskip("wirelang.persona_engine")
-    assert getattr(pkg, "__version__", None) == EXPECTED_VERSION, (
-        f"wirelang.persona_engine.__version__ = "
-        f"{getattr(pkg, '__version__', None)!r}, expected {EXPECTED_VERSION!r}"
-    )
-
-
-# ===========================================================================
-# Test 6 — Manifest §0 Version Header pins the same string.
-# ===========================================================================
-
-
-def test_t06_manifest_section_zero_pins_engine_version() -> None:
-    """The Tag-52 manifest §0 must record engine version 0.5.3-rc1."""
-    source = _read(MANIFEST_PATH)
-    assert "## 0. Version Header" in source, (
-        "Manifest §0 Version Header section missing (Tag-58 bump)"
-    )
-    # The §0 table must carry the exact bumped version inside a code-span.
-    assert f"`{EXPECTED_VERSION}`" in source, (
-        f"Manifest §0 does not record {EXPECTED_VERSION!r} as the active "
-        f"engine version"
-    )
-
-
-# ===========================================================================
-# Test 7 — Manifest §0 references all four authority paths.
-# ===========================================================================
-
-
-def test_t07_manifest_section_zero_lists_four_authority_paths() -> None:
-    """Manifest §0 must reference __version__.py, manifest, pin-pack, notes."""
-    source = _read(MANIFEST_PATH)
-    section_zero_start = source.index("## 0. Version Header")
-    section_one_start = source.index("## 1. Component Inventory")
-    section_zero = source[section_zero_start:section_one_start]
-
-    required_paths = (
-        "wirelang/persona_engine/__version__.py",
-        "wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md",
-        "infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml",
-        "docs/persona-engine/0-5-3-rc1-release-notes.md",
-    )
-    for relpath in required_paths:
-        assert relpath in section_zero, (
-            f"Manifest §0 missing authority-path reference: {relpath!r}"
-        )
-
-
-# ===========================================================================
-# Test 8 — Release-notes file exists at the expected path.
-# ===========================================================================
-
-
-def test_t08_release_notes_file_exists_at_canonical_path() -> None:
-    """docs/persona-engine/0-5-3-rc1-release-notes.md must exist."""
-    assert RELEASE_NOTES_PATH.is_file(), (
-        f"Tag-58 release-notes file missing: {RELEASE_NOTES_PATH}"
-    )
-
-
-# ===========================================================================
-# Test 9 — Release-notes header pins the same version string.
-# ===========================================================================
-
-
-def test_t09_release_notes_header_pins_engine_version() -> None:
-    """Release-notes title line must carry 0.5.3-rc1."""
-    source = _read(RELEASE_NOTES_PATH)
-    # The first H1 must mention the bumped version.
+def test_t02_rc1_release_notes_h1_still_pins_rc1_version() -> None:
+    """The frozen H1 of the rc1 file must still carry 0.5.3-rc1."""
+    source = _read(RC1_RELEASE_NOTES_PATH)
     h1_match = re.search(r"^#\s+(.+)$", source, re.MULTILINE)
-    assert h1_match is not None, "Release-notes file has no H1 title"
+    assert h1_match is not None, (
+        "rc1 release-notes file has no H1 title"
+    )
     h1 = h1_match.group(1)
-    assert EXPECTED_VERSION in h1, (
-        f"Release-notes H1 {h1!r} does not contain {EXPECTED_VERSION!r}"
+    assert RC1_VERSION in h1, (
+        f"rc1 release-notes H1 {h1!r} does not contain {RC1_VERSION!r} — "
+        f"the frozen historical artefact has been corrupted"
     )
 
 
 # ===========================================================================
-# Test 10 — Release-notes carries all five canonical sections.
+# Test 3 — The rc1 release-notes carries the five canonical sections.
 # ===========================================================================
 
 
-def test_t10_release_notes_has_all_five_canonical_sections() -> None:
-    """Release-notes must contain the five sections specified by the auftrag."""
-    source = _read(RELEASE_NOTES_PATH)
+def test_t03_rc1_release_notes_has_five_canonical_sections() -> None:
+    """The rc1 release-notes must keep its Tag-58 five-section shape."""
+    source = _read(RC1_RELEASE_NOTES_PATH)
     required_sections = (
         "## 1. Scope",
         "## 2. Carry-Forward",
@@ -301,139 +131,150 @@ def test_t10_release_notes_has_all_five_canonical_sections() -> None:
     )
     for section in required_sections:
         assert section in source, (
-            f"Release-notes missing required section: {section!r}"
+            f"rc1 release-notes missing canonical section: {section!r} — "
+            f"historical artefact corrupted"
         )
 
 
 # ===========================================================================
-# Test 11 — OPEN-J2 marker present as the only remaining Operator-Hand item.
+# Test 4 — The rc1 release-notes marks the K1/K2/J1 closeouts + OPEN-J2.
 # ===========================================================================
 
 
-def test_t11_release_notes_marks_open_j2_as_remaining_operator_hand() -> None:
-    """OPEN-J2 must be marked as the only remaining open item."""
-    source = _read(RELEASE_NOTES_PATH)
-    assert "OPEN-J2" in source, (
-        "Release-notes does not mark OPEN-J2 (Operator-Hand cutover-day)"
-    )
-    # And K1/K2/J1 must be marked closed (Tag-57 closeouts).
+def test_t04_rc1_release_notes_marks_tag57_closeouts_and_open_j2() -> None:
+    """rc1 file carries the Tag-57 closeout markers + OPEN-J2 remaining item."""
+    source = _read(RC1_RELEASE_NOTES_PATH)
     for closed_marker in ("OPEN-K1", "OPEN-K2", "OPEN-J1"):
         assert closed_marker in source, (
-            f"Release-notes does not reference Tag-57 closeout {closed_marker}"
+            f"rc1 release-notes missing Tag-57 closeout marker {closed_marker}"
         )
-    # The "Closed in Tag-57" subsection header is the contract anchor.
+    assert "OPEN-J2" in source, (
+        "rc1 release-notes missing OPEN-J2 (Operator-Hand cutover-day) marker"
+    )
     assert "Closed in Tag-57" in source, (
-        "Release-notes must explicitly mark K1/K2/J1 as closed in Tag-57"
+        "rc1 release-notes must mark K1/K2/J1 as closed in Tag-57"
     )
 
 
 # ===========================================================================
-# Test 12 — Pre-Cutover Gate-Map references Tag-56 + Tag-57 substrate by PR.
+# Test 5 — The rc1 release-notes references the Tag-56/Tag-57 PR substrate.
 # ===========================================================================
 
 
-def test_t12_release_notes_gate_map_references_tag56_tag57_substrate() -> None:
-    """Gate-Map must reference Tag-56 audit + Tag-57 closeout PRs by number."""
-    source = _read(RELEASE_NOTES_PATH)
-    # Tag-56 audit substrate is the anchor for the carry-forward table.
-    assert TAG56_AUDIT_PR in source, (
-        f"Release-notes does not reference Tag-56 audit PR {TAG56_AUDIT_PR}"
-    )
-    # Each Tag-57 closeout PR must be present.
-    for pr in TAG57_CLOSEOUT_PRS:
+def test_t05_rc1_release_notes_references_tag56_tag57_pr_substrate() -> None:
+    """rc1 file pins Tag-56 audit (#362) and Tag-57 closeouts (#363/#366/#367)."""
+    source = _read(RC1_RELEASE_NOTES_PATH)
+    for pr in ("#362", "#363", "#366", "#367"):
         assert pr in source, (
-            f"Release-notes does not reference Tag-57 closeout PR {pr}"
+            f"rc1 release-notes missing Tag-56/57 PR substrate reference {pr}"
         )
-    # And each required Tag-X/PR-Y gate-substrate pair must appear in the
-    # release-notes (they may appear in the carry-forward §2 or the gate-
-    # map §4 — both are acceptable).
-    for tag, pr in REQUIRED_GATE_REFERENCES:
-        assert tag in source, f"Release-notes missing {tag} reference"
-        assert pr in source, f"Release-notes missing {tag} PR {pr} reference"
 
 
 # ===========================================================================
-# Test 13 — Scope discipline: explicit non-goal markers for J/K/L zones.
+# Test 6 — Tag-52 manifest preserves the §0.1 Tag-58 history sub-section.
 # ===========================================================================
 
 
-def test_t13_release_notes_pins_scope_discipline_for_j_k_l_zones() -> None:
-    """Release-notes §1 must declare Aisha/Tomás/Reza/Kai zones out of scope."""
-    source = _read(RELEASE_NOTES_PATH)
-    # Lower-case for case-insensitive name match while keeping the zone
-    # labels exact.
-    lowered = source.lower()
-    assert "aisha" in lowered, "Release-notes does not mark Aisha-Domäne"
-    assert "tomás" in lowered or "tomas" in lowered, (
-        "Release-notes does not mark Tomás-Domäne"
+def test_t06_manifest_preserves_tag58_history_subsection() -> None:
+    """Manifest §0.1 must narrate the Tag-58 rc1 substrate post-Tag-62 bump.
+
+    The Tag-62 final-bump rewrote §0 to record 0.5.3 final as active.
+    To keep the rc1 substrate auditable, the rewrite added a §0.1
+    Tag-58 history sub-section that preserves the rc1 narrative.
+    """
+    source = _read(MANIFEST_PATH)
+    assert "### 0.1" in source or "## 0.1" in source, (
+        "Manifest missing §0.1 history sub-section — Tag-62 rewrite must "
+        "preserve a sub-section narrating the Tag-58 rc1 substrate"
     )
-    assert "reza" in lowered, "Release-notes does not mark Reza-Domäne"
-    assert "kai" in lowered, "Release-notes does not mark Kai-Domäne"
-    # And the three Cross-Review zone labels must appear explicitly.
+    # Find the §0.1 block (between the §0.1 heading and the next ##/### at
+    # the same or higher level).
+    sub_idx = source.find("### 0.1")
+    if sub_idx < 0:
+        sub_idx = source.find("## 0.1")
+    assert sub_idx >= 0
+    # Slice from §0.1 heading to the next ## (top-level §1+) heading.
+    section_one_idx = source.index("## 1.", sub_idx)
+    subsection = source[sub_idx:section_one_idx]
+    assert "Tag-58" in subsection, (
+        "Manifest §0.1 must reference Tag-58 explicitly"
+    )
+    assert RC1_VERSION in subsection, (
+        f"Manifest §0.1 must reference the rc1 version literal {RC1_VERSION!r}"
+    )
+
+
+# ===========================================================================
+# Test 7 — Tag-52 manifest §0 active-cell references rc1 as predecessor.
+# ===========================================================================
+
+
+def test_t07_manifest_section_zero_records_rc1_as_predecessor() -> None:
+    """The active §0 must reference rc1 as 'strict superset of' predecessor."""
+    source = _read(MANIFEST_PATH)
+    section_zero_idx = source.index("## 0. Version Header")
+    section_one_idx = source.index("## 1. Component Inventory")
+    section_zero = source[section_zero_idx:section_one_idx]
+    assert RC1_VERSION in section_zero, (
+        f"Manifest §0 does not reference {RC1_VERSION!r} as predecessor — "
+        f"the rc1 → final transition must remain visible in §0"
+    )
+
+
+# ===========================================================================
+# Test 8 — rc1 release-notes scope discipline block is preserved.
+# ===========================================================================
+
+
+def test_t08_rc1_release_notes_pins_scope_discipline_j_k_l() -> None:
+    """rc1 file §1 must declare Aisha/Tomás/Reza/Kai zones out of scope.
+
+    Historical anchor — the scope-discipline contract was already
+    binding at Tag-58 cut and remains visible in the frozen file.
+    """
+    source = _read(RC1_RELEASE_NOTES_PATH)
+    lowered = source.lower()
+    assert "aisha" in lowered
+    assert "tomás" in lowered or "tomas" in lowered
+    assert "reza" in lowered
+    assert "kai" in lowered
     for zone in ("Zone-J", "Zone-K", "Zone-L"):
         assert zone in source, (
-            f"Release-notes scope-discipline block missing {zone} label"
+            f"rc1 release-notes scope-discipline block missing {zone} label"
         )
 
 
 # ===========================================================================
-# Test 14 — Strict-superset claim: no stale 0.5.2-final/0.5.1/0.5.0 version
-#           string is silently substituted in the four authority surfaces.
+# Test 9 — rc1 release-notes signed by Selin.
 # ===========================================================================
 
 
-def test_t14_no_stale_version_literal_in_authority_surfaces() -> None:
-    """The four authority surfaces must not carry a stale __version__ literal."""
-    surfaces = (
-        VERSION_MODULE_PATH,
-        INIT_PATH,
-        ENGINE_PATH,
+def test_t09_rc1_release_notes_signed_by_selin() -> None:
+    """The rc1 file ends with the Selin signature line."""
+    source = _read(RC1_RELEASE_NOTES_PATH)
+    assert "— Selin" in source or "- Selin" in source, (
+        "rc1 release-notes missing the Selin signature line"
     )
-    stale_patterns = (
-        '__version__ = "0.5.0-pilot"',
-        '__version__ = "0.5.1-pre-cutover"',
-        '__version__ = "0.5.2-final-pre-cutover"',
-        'ENGINE_VERSION = "0.5.0-pilot"',
-        'ENGINE_VERSION = "0.5.1-pre-cutover"',
-        'ENGINE_VERSION = "0.5.2-final-pre-cutover"',
-    )
-    for path in surfaces:
-        text = _read(path)
-        for stale in stale_patterns:
-            assert stale not in text, (
-                f"{path.name} still carries stale literal: {stale!r}"
-            )
 
 
 # ===========================================================================
-# Test 15 — MANIFEST_RELPATH and RELEASE_NOTES_RELPATH point to real files.
+# Test 10 — The rc1 file no longer claims to be the active release.
 # ===========================================================================
 
 
-def test_t15_version_module_relpaths_resolve_to_real_files() -> None:
-    """The relpath constants in __version__.py must point to existing files."""
-    pytest.importorskip("wirelang.persona_engine")
-    # The anchor sub-module (not the package attribute) exports both
-    # relpath constants. Import the sub-module explicitly.
-    import importlib
+def test_t10_rc1_release_notes_is_frozen_historical_substrate() -> None:
+    """rc1 file MAY say it WAS the final RC, but the canonical 0.5.3 path
+    must now point to a different file.
 
-    anchor = importlib.import_module(
-        "wirelang.persona_engine.__version__"
-    )
-
-    manifest_path = REPO_ROOT / anchor.MANIFEST_RELPATH
-    notes_path = REPO_ROOT / anchor.RELEASE_NOTES_RELPATH
-
-    assert manifest_path.is_file(), (
-        f"MANIFEST_RELPATH points to non-existent file: {manifest_path}"
-    )
-    assert notes_path.is_file(), (
-        f"RELEASE_NOTES_RELPATH points to non-existent file: {notes_path}"
-    )
-    # And the release-notes path must end with the expected version slug.
-    assert anchor.RELEASE_NOTES_RELPATH.endswith(
-        f"{EXPECTED_VERSION.replace('.', '-')}-release-notes.md"
-    ), (
-        f"RELEASE_NOTES_RELPATH {anchor.RELEASE_NOTES_RELPATH!r} does not "
-        f"match the canonical {EXPECTED_VERSION} slug"
+    This test is a soft sanity check that the rc1 file remains an
+    rc1 artefact (not silently re-titled as the final).
+    """
+    h1_match = re.search(r"^#\s+(.+)$", _read(RC1_RELEASE_NOTES_PATH), re.MULTILINE)
+    assert h1_match is not None
+    h1 = h1_match.group(1)
+    # The H1 must explicitly carry the rc1 suffix; it is not the
+    # final-release file.
+    assert "rc1" in h1.lower(), (
+        f"rc1 release-notes H1 {h1!r} does not carry the rc1 suffix — "
+        f"the frozen artefact has drifted into a final-release claim"
     )

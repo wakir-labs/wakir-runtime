@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""CLI entry points for ``persona-engine`` (v0.5.3-rc1).
+"""CLI entry points for ``persona-engine`` (v0.5.3).
 
 Matches the CLI surface of the Sprint-10 Tag-4 stub binary
 (``spawn`` / ``healthcheck`` / ``version``) so the Quadlet contract

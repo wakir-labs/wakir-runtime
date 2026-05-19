@@ -238,8 +238,8 @@ async def test_run_spawn_async_wires_subscribe_loop_with_canonical_subject(
     assert "cli-async-dispatch" in log
     # Canonical subject must be in the dispatch log.
     assert "wakir.dev.agent.agent.task.assigned.tomas" in log
-    # Engine version must be the Sprint-Pengine-12 bump.
-    assert "0.5.3-rc1" in log
+    # Engine version must be the Tag-62 rc1-suffix-drop final.
+    assert "0.5.3" in log
 
 
 # ===========================================================================

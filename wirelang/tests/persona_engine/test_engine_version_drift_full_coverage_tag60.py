@@ -30,7 +30,7 @@ What this test pins
 * The scanner module imports cleanly and exposes the expected public
   API surface.
 * The active version constant matches ``__version__.__version__``.
-* The hunt set is exactly the three Tag-58/59 trigger literals.
+* The hunt set is exactly the documented Tag-58/59/62 trigger literals.
 * Scan globs cover engine_async.py + cli.py + every persona_engine
   module + every persona_engine test (the four surfaces the Tag-58
   prior-art missed).
@@ -61,7 +61,10 @@ control test — these strings are intentionally present here so the
 scanner-on-itself path exercises the allowlist):
 
     FIXTURE_STALE_LITERALS = ("0.5.0-pilot", "0.5.1-pre-cutover",
-                              "0.5.2-final-pre-cutover")
+                              "0.5.2-final-pre-cutover", "0.5.3-rc1")
+
+Tag-62 (2026-05-19, Selin) added ``0.5.3-rc1`` to the hunted set
+when the rc1-suffix-drop final-bump promoted ``0.5.3`` to active.
 """
 
 from __future__ import annotations
@@ -86,13 +89,15 @@ ALLOWLIST_PATH = (
     REPO_ROOT / "tooling" / "ci" / "engine-version-drift-allowlist.json"
 )
 
-# The three trigger literals (used by the synthetic-drift positive
+# The four trigger literals (used by the synthetic-drift positive
 # control). Verbatim string declaration — the scanner's allowlist
-# entry for this test file legitimises their presence.
+# entry for this test file legitimises their presence. Tag-62 added
+# 0.5.3-rc1 to the hunted set after the rc1-suffix-drop final-bump.
 FIXTURE_STALE_LITERALS = (
     "0.5.0-pilot",
     "0.5.1-pre-cutover",
     "0.5.2-final-pre-cutover",
+    "0.5.3-rc1",
 )
 
 
@@ -173,7 +178,13 @@ def test_02_active_version_matches_canonical_version_module(
 def test_03_stale_versions_is_exactly_three_trigger_literals(
     scanner_module,
 ) -> None:
-    """The hunt set is exactly the three Tag-58/59 trigger literals."""
+    """The hunt set is exactly the documented Tag-58/59 trigger literals.
+
+    Function name preserved across Tag-62 for test-id stability;
+    the hunt set is now four literals (rc1 added at Tag-62) but the
+    invariant — STALE_VERSIONS mirrors FIXTURE_STALE_LITERALS — is
+    unchanged.
+    """
     assert set(scanner_module.STALE_VERSIONS) == set(FIXTURE_STALE_LITERALS), (
         "STALE_VERSIONS drifted from the documented trigger set"
     )

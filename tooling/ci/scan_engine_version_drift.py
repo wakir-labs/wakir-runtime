@@ -31,10 +31,16 @@ Scan inputs (Tag-60 auftrag wording, verbatim):
 Target stale literals:
 
     STALE_VERSIONS = ("0.5.0-pilot", "0.5.1-pre-cutover",
-                      "0.5.2-final-pre-cutover")
+                      "0.5.2-final-pre-cutover", "0.5.3-rc1")
 
-The canonical active version (``0.5.3-rc1``, per
-``wirelang/persona_engine/__version__.py``) is NEVER flagged.
+The canonical active version (``0.5.3``, per
+``wirelang/persona_engine/__version__.py`` — Tag-62 rc1-suffix-drop)
+is NEVER flagged. Tag-62 extended the hunted set to include
+``0.5.3-rc1`` as the most recent stale literal, with the allowlist
+covering the legitimate rc1-surviving artefacts (the Tag-59
+V-907-baseline JSON, the Tag-58/59/60/61 hermetic-test fixtures,
+and the historical rc1 release-notes file under
+``docs/persona-engine/`` which is outside the scan-glob anyway).
 
 Allowlist mechanic
 ------------------
@@ -104,17 +110,21 @@ from typing import Iterable
 # Canonical constants. Bump in lockstep with __version__.py.
 # ---------------------------------------------------------------------------
 
-#: The active engine version. Never flagged.
-ACTIVE_VERSION = "0.5.3-rc1"
+#: The active engine version. Never flagged. Tag-62 dropped the rc1
+#: suffix; the rc1 literal joins ``STALE_VERSIONS`` below.
+ACTIVE_VERSION = "0.5.3"
 
-#: Stale version literals the Tag-60 scanner hunts. Ordered longest-first
-#: so substring overlap (e.g. ``0.5.2-final-pre-cutover`` contains
-#: ``0.5.2``) does not double-count matches: the scanner records the
-#: longest match per (path, line, col).
+#: Stale version literals the Tag-60/Tag-62 scanner hunts. Ordered
+#: longest-first so substring overlap (e.g. ``0.5.2-final-pre-cutover``
+#: contains ``0.5.2``) does not double-count matches: the scanner
+#: records the longest match per (path, line, col). Tag-62 added
+#: ``0.5.3-rc1`` as the most recent stale literal; the allowlist below
+#: covers the legitimate rc1-surviving contexts.
 STALE_VERSIONS: tuple[str, ...] = (
-    "0.5.2-final-pre-cutover",
-    "0.5.1-pre-cutover",
-    "0.5.0-pilot",
+    "0.5.2-final-pre-cutover",  # len 23
+    "0.5.1-pre-cutover",        # len 17
+    "0.5.0-pilot",              # len 11
+    "0.5.3-rc1",                # len 9
 )
 
 #: Repo-relative scan roots. Glob patterns are evaluated against

@@ -81,7 +81,7 @@ from .v907_verify import (
 )
 
 
-from .__version__ import ENGINE_VERSION  # Tag-58 canonical anchor (0.5.3-rc1)
+from .__version__ import ENGINE_VERSION  # Tag-62 canonical anchor (0.5.3, rc1 dropped)
 ENGINE_VARIANT = "real"
 DEFAULT_PERSONA_DEF_DIR = Path("/etc/wakir/persona")
 DEFAULT_HEARTBEAT_INTERVAL_SEC = 30

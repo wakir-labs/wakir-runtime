@@ -139,7 +139,8 @@ CROSS_SUBSTRATE_LINKS: dict[str, str] = {
 
 # The active persona-engine version string. Bump in lockstep with
 # wirelang/persona_engine/__version__.py when the next RC opens.
-EXPECTED_ACTIVE_VERSION: str = "0.5.3-rc1"
+# Tag-62 (2026-05-19, Selin): rc1-suffix-drop final promotion.
+EXPECTED_ACTIVE_VERSION: str = "0.5.3"
 
 
 def _normalise(raw: str | None) -> str:
