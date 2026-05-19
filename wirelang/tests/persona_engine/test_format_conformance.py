@@ -156,6 +156,6 @@ def test_engine_version_format_semver_pilot():
 
     parts = __version__.split("-")
     assert len(parts) == 2
-    assert parts[1] == "pilot"
+    assert parts[1] == "rc1"
     semver = parts[0]
     assert semver.count(".") == 2

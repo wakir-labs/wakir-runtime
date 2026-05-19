@@ -754,10 +754,10 @@ def test_cli_rejects_invalid_subscribe_mode(monkeypatch, tmp_path):
 
 
 def test_engine_version_bumped_to_0_5_0_pilot():
-    """Sprint-Pengine-13 bumps 0.4.2-pilot → 0.5.0-pilot."""
-    assert ENGINE_VERSION == "0.5.0-pilot"
-    assert ASYNC_ENGINE_VERSION == "0.5.0-pilot"
-    assert PKG_VERSION == "0.5.0-pilot"
+    """Sprint-Pengine-13 bumps 0.4.2-pilot → 0.5.3-rc1."""
+    assert ENGINE_VERSION == "0.5.3-rc1"
+    assert ASYNC_ENGINE_VERSION == "0.5.3-rc1"
+    assert PKG_VERSION == "0.5.3-rc1"
 
 
 def test_containerfile_real_label_bumped():
@@ -767,7 +767,7 @@ def test_containerfile_real_label_bumped():
     ``0.5.1-pre-cutover`` to ``0.5.2-final-pre-cutover`` as the
     Pre-KW-24-Final consolidation marker (manifest-and-metadata-only;
     strict superset of 0.5.1-pre-cutover). The Python
-    ``ENGINE_VERSION`` constant remains at ``0.5.0-pilot`` because
+    ``ENGINE_VERSION`` constant remains at ``0.5.3-rc1`` because
     the engine code itself is byte-stable relative to
     Sprint-Pengine-13 — Tag-52 is a consolidation marker layered on
     top of the Tag-48 manifest, not an engine-code rewrite.
