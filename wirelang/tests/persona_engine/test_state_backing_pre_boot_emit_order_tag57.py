@@ -69,7 +69,12 @@ from pathlib import Path
 from typing import Optional
 
 import pytest
-import yaml
+
+# PyYAML is only required for T-07 (pin-pack assertion). The other ten
+# tests run without it. The sandbox-ci lane ("without rfc8785 /
+# jsonschema") ships without PyYAML, so we defer the import into the
+# single test that needs it via pytest.importorskip rather than gating
+# the whole module on yaml availability.
 
 from wirelang.persona_engine import engine as engine_mod
 from wirelang.persona_engine.engine import (
@@ -438,7 +443,16 @@ def test_07_pin_pack_boot_wired_crates_contains_all_ten(tmp_path: Path) -> None:
     position 0 by emit-order). The pre-boot location does NOT remove
     state_backing from the wired set — it is still part of the
     Phase-3b production-default-switch contract surface.
+
+    Skipped on lanes without PyYAML — the manifest-section-1 test (T-08)
+    still covers the ten-substrate inventory via plain text scan.
     """
+    yaml = pytest.importorskip(
+        "yaml",
+        reason="PyYAML not available in this lane; pin-pack YAML parse "
+        "cannot run. T-08 still covers the ten-substrate inventory "
+        "via manifest text scan.",
+    )
     pp = yaml.safe_load(PIN_PACK_PATH.read_text(encoding="utf-8"))
     wired = pp.get("boot_wired_crates") or []
     assert isinstance(wired, list), (
