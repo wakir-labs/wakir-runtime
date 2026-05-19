@@ -43,6 +43,7 @@ import sys
 import time
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable, Optional, TextIO
 
 from .bridge_audit_writer import (
@@ -53,7 +54,14 @@ from .engine import (
     DEFAULT_HEARTBEAT_INTERVAL_SEC,
     ENGINE_VARIANT,
     EnvContract,
+    handle_welle_3_signoff_event as _sync_handle_welle_3_signoff_event,
+    handle_welle_rollback_event as _sync_handle_welle_rollback_event,
+    handle_welle_sealing_event as _sync_handle_welle_sealing_event,
     resolve_env,
+)
+from .welle_state_producer import (
+    AuditRecordEmitter,
+    WelleAuditRecord,
 )
 from .llm_call_shim import (
     EchoReflectionLlmHook,
@@ -770,3 +778,103 @@ class AsyncPersonaEngine:
             return InMemoryPersonaStateBacking()
         loop = asyncio.get_event_loop()
         return _AsyncBackingSyncShim(self.async_backing, loop)
+
+
+# ---------------------------------------------------------------------------
+# Tag-71 (Selin): Top-level async Welle-N event-handler wiring.
+#
+# Async wrappers around the sync top-level handlers in ``engine.py``. The
+# producer-substrate is stdlib filesystem-only (no network, no NATS, no
+# SPIRE), so there is no real async work to do; these wrappers exist
+# purely to give async-call-sites a coroutine-shaped surface. They run
+# the sync handler in the default loop's thread-pool via
+# :func:`asyncio.get_running_loop().run_in_executor` so the event loop
+# is not blocked by file I/O.
+#
+# Scope discipline (Selin)
+# ------------------------
+# Same dispatch-only contract as the sync side. No engine-state coupling.
+# Welle-3 pre-auditor gate enforced by the underlying sync handler via
+# the producer-substrate (no duplication of the guard at the async
+# layer).
+# ---------------------------------------------------------------------------
+
+
+async def handle_welle_sealing_event(
+    state_dir: Path,
+    signoff_iso: str,
+    *,
+    sign_off_marker_status: str,
+    doppelbetrieb_sealed_marker_status: str,
+    audit_emitter: Optional[AuditRecordEmitter] = None,
+) -> WelleAuditRecord:
+    """Async wrapper around :func:`engine.handle_welle_sealing_event`.
+
+    Runs the sync handler in the default loop's thread-pool executor so
+    file I/O does not block the event loop.
+    """
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        None,
+        lambda: _sync_handle_welle_sealing_event(
+            state_dir,
+            signoff_iso,
+            sign_off_marker_status=sign_off_marker_status,
+            doppelbetrieb_sealed_marker_status=doppelbetrieb_sealed_marker_status,
+            audit_emitter=audit_emitter,
+        ),
+    )
+
+
+async def handle_welle_rollback_event(
+    state_dir: Path,
+    welle_number: int,
+    rollback_iso: str,
+    *,
+    rollback_marker_status: str,
+    audit_emitter: Optional[AuditRecordEmitter] = None,
+) -> WelleAuditRecord:
+    """Async wrapper around :func:`engine.handle_welle_rollback_event`.
+
+    Runs the sync handler in the default loop's thread-pool executor so
+    file I/O does not block the event loop.
+    """
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        None,
+        lambda: _sync_handle_welle_rollback_event(
+            state_dir,
+            welle_number,
+            rollback_iso,
+            rollback_marker_status=rollback_marker_status,
+            audit_emitter=audit_emitter,
+        ),
+    )
+
+
+async def handle_welle_3_signoff_event(
+    state_dir: Path,
+    signoff_iso: str,
+    *,
+    sign_off_marker_status: str,
+    pre_auditor_decision: Optional[str] = None,
+    audit_emitter: Optional[AuditRecordEmitter] = None,
+) -> WelleAuditRecord:
+    """Async wrapper around :func:`engine.handle_welle_3_signoff_event`.
+
+    Runs the sync handler in the default loop's thread-pool executor so
+    file I/O does not block the event loop. The Welle-3 pre-auditor gate
+    (``pre_auditor_decision == "designated"``) is enforced by the
+    underlying producer-substrate.
+    """
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        None,
+        lambda: _sync_handle_welle_3_signoff_event(
+            state_dir,
+            signoff_iso,
+            sign_off_marker_status=sign_off_marker_status,
+            pre_auditor_decision=pre_auditor_decision,
+            audit_emitter=audit_emitter,
+        ),
+    )

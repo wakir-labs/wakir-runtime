@@ -57,6 +57,11 @@ from .lifecycle_state_machine import (
     LifecycleStateMachine,
     InvalidTransitionError,
 )
+from .welle_state_producer import (
+    AuditRecordEmitter,
+    WelleAuditRecord,
+    WelleStateProducer,
+)
 from .observability import PersonaEngineObservability
 from .state_backing import (
     InMemoryPersonaStateBacking,
@@ -1008,3 +1013,156 @@ class PersonaEngine:
             "total_elapsed_sec": result.total_elapsed_sec,
             "final_state": result.final_state,
         })
+
+
+# ---------------------------------------------------------------------------
+# Tag-71 (Selin): Top-level Welle-N event-handler wiring.
+#
+# These free functions are the engine-side event-dispatch surface for the
+# Tag-68 Producer-Wiring-Plan. They construct a stateless
+# :class:`WelleStateProducer` per call and delegate to the producer-substrate
+# (Tag-69 Welle-1, Tag-70 Welle-2 sealing + rollback, Tag-71 Welle-3
+# Bridge-Audit sign-off with pre-auditor gate).
+#
+# Scope discipline (Selin)
+# ------------------------
+# Top-level dispatch only -- no engine-state coupling. The producer is
+# stateless across handler invocations (see plan-doc §3.3), so a fresh
+# :class:`WelleStateProducer` is constructed per event. This keeps the
+# hot-path engine class (:class:`PersonaEngine`) free of welle-N rollup-
+# file knowledge -- the rollup-files live in ``state/welle-N.json`` and
+# are operator-curated; the engine is a producer, not the source-of-truth.
+#
+# Note: ``handle_welle_3_signoff_event`` is a Welle-3-pinned shorthand
+# (Bridge-Audit Welle, KW-24 Fr) that hard-codes ``welle_number=3`` and
+# delegates to :meth:`WelleStateProducer.handle_sign_off_event`. The
+# pre-auditor gate is enforced by the producer (Welle-3 is in
+# :data:`PRE_AUDITOR_GUARDED_WELLEN`). For Welle-1/4/5/6 sign-offs the
+# direct producer-method is used (no top-level shorthand needed).
+# ---------------------------------------------------------------------------
+
+
+def handle_welle_sealing_event(
+    state_dir: Path,
+    signoff_iso: str,
+    *,
+    sign_off_marker_status: str,
+    doppelbetrieb_sealed_marker_status: str,
+    audit_emitter: Optional[AuditRecordEmitter] = None,
+) -> WelleAuditRecord:
+    """Top-level dispatch for the Welle-2 Doppelbetrieb-Sealing sign-off.
+
+    Welle-2 closes the legacy <-> new dual-write window (KW-24 Mi). This
+    handler is the engine-side entry-point for that event; it constructs
+    a stateless :class:`WelleStateProducer` and delegates to
+    :meth:`WelleStateProducer.handle_welle_2_sealing_event`.
+
+    Args:
+        state_dir: Directory containing ``state/welle-2.json``.
+        signoff_iso: RFC 3339 sign-off timestamp.
+        sign_off_marker_status: Companion-marker status; must be
+            ``"signed-off"`` (refusal-to-write otherwise).
+        doppelbetrieb_sealed_marker_status: Sealing-marker status; must
+            be ``"sealed"`` (refusal-to-write otherwise).
+        audit_emitter: Optional audit-record sink; defaults to no-op.
+
+    Returns:
+        The :class:`WelleAuditRecord` describing the transition (or the
+        idempotent no-op if Welle-2 is already signed-off).
+    """
+    if audit_emitter is None:
+        producer = WelleStateProducer(state_dir=state_dir)
+    else:
+        producer = WelleStateProducer(
+            state_dir=state_dir, audit_emitter=audit_emitter
+        )
+    return producer.handle_welle_2_sealing_event(
+        signoff_iso=signoff_iso,
+        sign_off_marker_status=sign_off_marker_status,
+        doppelbetrieb_sealed_marker_status=doppelbetrieb_sealed_marker_status,
+    )
+
+
+def handle_welle_rollback_event(
+    state_dir: Path,
+    welle_number: int,
+    rollback_iso: str,
+    *,
+    rollback_marker_status: str,
+    audit_emitter: Optional[AuditRecordEmitter] = None,
+) -> WelleAuditRecord:
+    """Top-level dispatch for the Welle-N Rollback-Writer (Tag-70 §2.4).
+
+    Covers the three plan-doc §3.1 rollback transitions
+    (``pending -> rolled-back``, ``in-progress -> rolled-back``,
+    ``signed-off -> rolled-back``). Rollback is terminal; the producer
+    enforces the plan-doc §3.2 prohibition on ``rolled-back -> *``.
+
+    Args:
+        state_dir: Directory containing ``state/welle-N.json``.
+        welle_number: Welle number in 1..7.
+        rollback_iso: RFC 3339 rollback timestamp (captured in the
+            audit-record; not stored in the schema-pinned state-file).
+        rollback_marker_status: Authority marker; must be exactly
+            ``"rollback-authorized"`` (refusal-to-write otherwise).
+        audit_emitter: Optional audit-record sink; defaults to no-op.
+
+    Returns:
+        The :class:`WelleAuditRecord` describing the transition (or the
+        idempotent no-op if the Welle is already rolled-back).
+    """
+    if audit_emitter is None:
+        producer = WelleStateProducer(state_dir=state_dir)
+    else:
+        producer = WelleStateProducer(
+            state_dir=state_dir, audit_emitter=audit_emitter
+        )
+    return producer.handle_rollback_event(
+        welle_number=welle_number,
+        rollback_iso=rollback_iso,
+        rollback_marker_status=rollback_marker_status,
+    )
+
+
+def handle_welle_3_signoff_event(
+    state_dir: Path,
+    signoff_iso: str,
+    *,
+    sign_off_marker_status: str,
+    pre_auditor_decision: Optional[str] = None,
+    audit_emitter: Optional[AuditRecordEmitter] = None,
+) -> WelleAuditRecord:
+    """Top-level dispatch for the Welle-3 Bridge-Audit sign-off (Tag-71).
+
+    Welle-3 is the Bridge-Audit Welle (KW-24 Fr per the Tag-66 Welle-3
+    Pre-Auditor-Designation anchor). The sign-off is gated by the
+    pre-auditor-decision precondition: Welle-3 is in
+    :data:`PRE_AUDITOR_GUARDED_WELLEN`, so the producer requires
+    ``pre_auditor_decision == "designated"`` (Henrik-cannot-self-sign-
+    off invariant; plan-doc §2.2).
+
+    Args:
+        state_dir: Directory containing ``state/welle-3.json``.
+        signoff_iso: RFC 3339 sign-off timestamp.
+        sign_off_marker_status: Companion-marker status; must be
+            ``"signed-off"``.
+        pre_auditor_decision: Designated-pre-auditor decision-literal;
+            must be ``"designated"`` (Welle-3 is pre-auditor-guarded).
+        audit_emitter: Optional audit-record sink; defaults to no-op.
+
+    Returns:
+        The :class:`WelleAuditRecord` describing the transition (or the
+        idempotent no-op if Welle-3 is already signed-off).
+    """
+    if audit_emitter is None:
+        producer = WelleStateProducer(state_dir=state_dir)
+    else:
+        producer = WelleStateProducer(
+            state_dir=state_dir, audit_emitter=audit_emitter
+        )
+    return producer.handle_sign_off_event(
+        welle_number=3,
+        signoff_iso=signoff_iso,
+        sign_off_marker_status=sign_off_marker_status,
+        pre_auditor_decision=pre_auditor_decision,
+    )
