@@ -1,0 +1,166 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Cross-Repo-Drift-Allowlist-Audit (Tag-60 Noa)
+# =============================================
+#
+# Purpose
+# -------
+# This workflow is the **Pre-Enforce-Flip-Readiness-Substrate**
+# companion to ``cross-repo-drift-audit.yml`` (PR #105 / #111).
+#
+# That sibling workflow detects byte-level drift between
+# ``wakir-runtime`` and ``wakir-protocol`` mirror-pairs. Its
+# enforce-mode flag ``CROSS_REPO_DRIFT_ENFORCE`` is currently
+# pinned to ``false`` because (a) the allowlist
+# ``.cross-repo-drift-allowlist.yaml`` is empty by ADR-0062 Cut-2
+# design and (b) the Tag-31 baseline still shows ``drift=6/10``.
+# Flipping the enforce-flag today would red ``main`` on every
+# substance-touching push.
+#
+# This workflow answers the operator question
+#
+#   "When is it safe to flip ``CROSS_REPO_DRIFT_ENFORCE=true``?"
+#
+# by producing a deterministic 0..100 readiness score and a
+# verdict (``ENFORCE-READY`` / ``ENFORCE-CAUTION`` / ``ENFORCE-BLOCKED``).
+# The score blends two ratios:
+#
+#   * **coverage_ratio**   = strategies_assigned / drift_count_baseline
+#   * **trajectory_ratio** = clean_count / total_pairs
+#
+#   score = round(60 * coverage_ratio + 40 * trajectory_ratio)
+#
+# Stage layout
+# ------------
+# The job is intentionally split into four documented stages so the
+# job-summary block reads as an audit, not a black-box pass/fail:
+#
+#   * Stage 1 — Parse: lint the allowlist YAML structurally.
+#   * Stage 2 — Validate: cross-check entries against the actual
+#     drift inventory (Tag-31 baseline, locked in the helper).
+#   * Stage 3 — Score: compute the 0..100 readiness score.
+#   * Stage 4 — Verdict: render the verdict band.
+#
+# Audit-only by default
+# ---------------------
+# The job exits 0 even when the verdict is ``ENFORCE-BLOCKED`` —
+# the purpose is signal, not gate. Operators (or a future
+# Mira-Hand sprint) flip the ``fail_on`` workflow_dispatch input
+# to ``caution`` or ``blocked`` to promote this into a gate.
+#
+# Hermetic tests
+# --------------
+# ``tests/ci/test_audit_cross_repo_drift_allowlist.py`` pins the
+# parser semantics, the score formula, the verdict thresholds,
+# and the four-stage marker presence in this file.
+
+name: cross-repo-drift-allowlist-audit
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.cross-repo-drift-allowlist.yaml'
+      - 'tooling/ci/audit_cross_repo_drift_allowlist.py'
+      - 'tests/ci/test_audit_cross_repo_drift_allowlist.py'
+      - '.github/workflows/cross-repo-drift-allowlist-audit.yml'
+      - 'docs/operations/cross-repo-drift-enforce-flip-readiness.md'
+  pull_request:
+    paths:
+      - '.cross-repo-drift-allowlist.yaml'
+      - 'tooling/ci/audit_cross_repo_drift_allowlist.py'
+      - 'tests/ci/test_audit_cross_repo_drift_allowlist.py'
+      - '.github/workflows/cross-repo-drift-allowlist-audit.yml'
+      - 'docs/operations/cross-repo-drift-enforce-flip-readiness.md'
+  workflow_dispatch:
+    inputs:
+      fail_on:
+        description: 'Verdict level that triggers a non-zero exit (never|caution|blocked).'
+        required: false
+        default: 'never'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  allowlist-audit:
+    name: cross-repo drift allowlist audit (pre-enforce-flip-readiness)
+    runs-on: ubuntu-latest
+
+    env:
+      FAIL_ON: ${{ github.event.inputs.fail_on || 'never' }}
+
+    steps:
+      - name: Checkout wakir-runtime
+        uses: actions/checkout@v4
+
+      - name: Set up Python (stdlib-only, but pin for reproducibility)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Stage 1 + 2 + 3 + 4 — run hermetic audit helper
+        id: audit
+        shell: bash
+        run: |
+          set -u
+          # Stage 1 — Parse `.cross-repo-drift-allowlist.yaml`.
+          # Stage 2 — Validate against actual drift inventory.
+          # Stage 3 — Enforce-Flip-Readiness-Score (0..100).
+          # Stage 4 — Verdict ENFORCE-READY / ENFORCE-CAUTION /
+          #           ENFORCE-BLOCKED.
+          mkdir -p artifacts
+          set +e
+          python3 tooling/ci/audit_cross_repo_drift_allowlist.py \
+            --allowlist .cross-repo-drift-allowlist.yaml \
+            --workflow .github/workflows/cross-repo-drift-audit.yml \
+            --readiness-doc docs/operations/cross-repo-drift-enforce-flip-readiness.md \
+            --summary artifacts/allowlist-audit-summary.md \
+            --fail-on "${FAIL_ON}" \
+            > artifacts/allowlist-audit-report.json
+          rc=$?
+          set -e
+
+          # Re-read verdict + score for the job summary, even when
+          # the helper exited non-zero.
+          verdict=$(python3 - <<'PY'
+          import json
+          with open("artifacts/allowlist-audit-report.json", "r", encoding="utf-8") as f:
+              data = json.load(f)
+          print(data["stage_4_verdict"])
+          PY
+          )
+          score=$(python3 - <<'PY'
+          import json
+          with open("artifacts/allowlist-audit-report.json", "r", encoding="utf-8") as f:
+              data = json.load(f)
+          print(data["stage_3_readiness_score"]["score"])
+          PY
+          )
+          echo "verdict=${verdict}" >> "$GITHUB_OUTPUT"
+          echo "score=${score}"     >> "$GITHUB_OUTPUT"
+          echo "rc=${rc}"           >> "$GITHUB_OUTPUT"
+          exit "${rc}"
+
+      - name: Render job-summary block
+        if: always()
+        shell: bash
+        run: |
+          if [ -f artifacts/allowlist-audit-summary.md ]; then
+            cat artifacts/allowlist-audit-summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## Cross-Repo-Drift-Allowlist-Audit"          >> "$GITHUB_STEP_SUMMARY"
+            echo ""                                              >> "$GITHUB_STEP_SUMMARY"
+            echo "Audit helper produced no summary (rc=${{ steps.audit.outputs.rc }})." \
+                                                                 >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload audit artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cross-repo-drift-allowlist-audit
+          path: artifacts/
+          if-no-files-found: warn
