@@ -78,7 +78,7 @@ def _capture_log(sink: io.StringIO) -> List[dict]:
 def test_engine_version_constant_bumped_to_0_4_1_pilot():
     # Sprint-Pengine-11 bump: 0.4.0-pilot -> 0.4.2-pilot for the
     # Bug-40 SVID-fetch graceful-fallback pattern.
-    assert ENGINE_VERSION == "0.5.3-rc1"
+    assert ENGINE_VERSION == "0.5.3"
 
 
 @requires_v907_compute_deps

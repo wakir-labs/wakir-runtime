@@ -1,10 +1,10 @@
 {
   "_schema": {
-    "version": 1,
-    "description": "Tag-60 engine-version-drift scanner allowlist. Each entry declares a file path (repo-relative) and the legitimate stale-literal context. The scanner skips matches whose containing file matches an entry and whose match-category is in 'categories'. The categories are: 'historical-manifest' (the file IS a frozen manifest of an older version), 'historical-pin-pack-reference' (the file is a per-version verifier that intentionally references its own manifest filename), 'release-notes-negative-assertion' (the test asserts the stale literal is NOT present and therefore must mention it), 'historical-migration-narrative' (free-form prose in docstrings describing past migrations), 'v907-baseline-pin' (the JSON baseline file pins historical hash inputs that contain version strings), 'manifest-historical-comment' (single-line comment in production code referencing a past version transition for narrative purposes only — never an active version claim).",
+    "version": 2,
+    "description": "Tag-60 engine-version-drift scanner allowlist (extended Tag-62 for the 0.5.3-rc1 → 0.5.3 final-bump rc1-suffix-drop). Each entry declares a file path (repo-relative) and the legitimate stale-literal context. The scanner skips matches whose containing file matches an entry and whose match-category is in 'categories'. The categories are: 'historical-manifest' (the file IS a frozen manifest of an older version), 'historical-pin-pack-reference' (the file is a per-version verifier that intentionally references its own manifest filename), 'release-notes-negative-assertion' (the test asserts the stale literal is NOT present and therefore must mention it), 'historical-migration-narrative' (free-form prose in docstrings describing past migrations), 'v907-baseline-pin' (the JSON baseline file pins historical hash inputs that contain version strings), 'manifest-historical-comment' (single-line comment in production code referencing a past version transition for narrative purposes only — never an active version claim).",
     "owner": "Selin Celik (Persona-Engine)",
-    "tag": "Tag-60",
-    "linked_pr": "Mira-Hot-Fix #381 (engine_async.py:96 + cli.py:3 drift) was the trigger event.",
+    "tag": "Tag-62 (extends Tag-60)",
+    "linked_pr": "Mira-Hot-Fix #381 (engine_async.py:96 + cli.py:3 drift) was the original Tag-59/Tag-60 trigger event. Tag-62 final-bump (0.5.3-rc1 → 0.5.3) extends the hunted STALE_VERSIONS set with 0.5.3-rc1 and registers the legitimate rc1-surviving artefacts here.",
     "out_of_scope": [
       "Persona definitions (Aisha-Domaene, ADR-0043)",
       "WAT-core / V-907 logic (Tomas-Domaene, Zone-K)",
@@ -25,18 +25,18 @@
     },
     {
       "path": "wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md",
-      "categories": ["historical-manifest"],
-      "reason": "Tag-52 manifest, still referenced by __version__.MANIFEST_RELPATH as the active manifest file (0.5.3-rc1 is a metadata-only RC that re-uses the Tag-52 manifest body)."
+      "categories": ["historical-manifest", "manifest-historical-comment"],
+      "reason": "Tag-52 manifest, still referenced by __version__.MANIFEST_RELPATH as the active manifest file (0.5.3 final is a metadata-only bump that re-uses the Tag-52 manifest body). The §0 Version Header records the active version as 0.5.3 final and the §0.1 Tag-58 history sub-section narrates the rc1 substrate as historical anchor; both stale literals 0.5.2-final-pre-cutover (the filename) and 0.5.3-rc1 (the predecessor version) appear here legitimately."
     },
     {
       "path": "wirelang/persona_engine/v907-hash-baseline.json",
       "categories": ["v907-baseline-pin"],
-      "reason": "JSON pin of the V-907 hash inputs; the manifest filename and prior versions are deliberate input strings."
+      "reason": "JSON pin of the V-907 hash inputs; the manifest filename and prior versions are deliberate input strings. Tag-62 final-bump: this file remains sealed (Tag-59 contract requires Selin-Hand + Tomas Zone-K cross-review for any engine_version metadata refresh); the 0.5.3-rc1 literal in engine_version + note fields is intentionally preserved as the seal-time substrate. The V-907 composite_hash is byte-bounded to manifest §1 + pin-pack boot_wired_crates + engine.py resolver-block and is unchanged by the Tag-62 §0 version-header rewrite."
     },
     {
       "path": "wirelang/persona_engine/__version__.py",
       "categories": ["manifest-historical-comment"],
-      "reason": "MANIFEST_RELPATH points at the Tag-52 manifest filename as the active authority path; module docstring narrates the 0.5.2-final-pre-cutover -> 0.5.3-rc1 strict-superset relation."
+      "reason": "MANIFEST_RELPATH points at the Tag-52 manifest filename as the active authority path; module docstring narrates the 0.5.2-final-pre-cutover -> 0.5.3-rc1 -> 0.5.3 final strict-superset chain. Active version literal is 0.5.3; rc1 references are historical narrative."
     },
     {
       "path": "wirelang/persona_engine/engine.py",
@@ -65,8 +65,8 @@
     },
     {
       "path": "wirelang/tests/persona_engine/test_engine_0_5_3_rc1_release_notes_tag58.py",
-      "categories": ["release-notes-negative-assertion"],
-      "reason": "Tag-58 release-notes pin; the stale literals are listed in the NEGATIVE assertion (the 'must NOT be present' check). This is the prior-art Tag-60 extends — covers __version__/__init__/engine.py only."
+      "categories": ["release-notes-negative-assertion", "historical-migration-narrative"],
+      "reason": "Tag-58 release-notes pin; the stale literals are listed in the NEGATIVE assertion (the 'must NOT be present' check). This is the prior-art Tag-60 extends — covers __version__/__init__/engine.py only. Tag-62 final-bump retains this file as the historical Tag-58 rc1 substrate test; the EXPECTED_VERSION literal 0.5.3-rc1 is preserved here as a frozen anchor of the prior tag's contract (the Tag-62 fresh test in test_engine_0_5_3_final_bump_tag62.py is the current consistency pin)."
     },
     {
       "path": "wirelang/tests/persona_engine/test_10_decision_resilience.py",
@@ -120,13 +120,18 @@
     },
     {
       "path": "wirelang/tests/persona_engine/test_v907_hash_pin_build_step_tag59.py",
-      "categories": ["historical-manifest"],
-      "reason": "Tag-59 V-907 hash-pin test; pins against the Tag-52 manifest + pin-pack filenames (the v907-hash-baseline.json input strings)."
+      "categories": ["historical-manifest", "v907-baseline-pin"],
+      "reason": "Tag-59 V-907 hash-pin test; pins against the Tag-52 manifest + pin-pack filenames (the v907-hash-baseline.json input strings). Tag-62 final-bump: the engine_version literal 0.5.3-rc1 in this test asserts the sealed v907-hash-baseline.json content, which is intentionally preserved at rc1 per the Tag-59 seal contract; this category extension explicitly registers the rc1 literal as legitimate stale in the baseline-pin context."
     },
     {
       "path": "wirelang/tests/persona_engine/test_engine_version_drift_full_coverage_tag60.py",
       "categories": ["release-notes-negative-assertion"],
-      "reason": "Tag-60 self-test — the scanner allowlist must skip the scanner's own test fixture file (it lists stale literals as fixtures driving the scanner's own assertions, never as active version claims)."
+      "reason": "Tag-60 self-test — the scanner allowlist must skip the scanner's own test fixture file (it lists stale literals as fixtures driving the scanner's own assertions, never as active version claims). Tag-62: extended to cover the 0.5.3-rc1 stale literal which the Tag-62 scanner extension hunts."
+    },
+    {
+      "path": "wirelang/tests/persona_engine/test_engine_0_5_3_final_bump_tag62.py",
+      "categories": ["release-notes-negative-assertion", "historical-migration-narrative"],
+      "reason": "Tag-62 final-bump consistency pin — the four-surface authority bundle test for the 0.5.3-rc1 → 0.5.3 final rc1-suffix-drop promotion. It declares stale literal fixtures (PREDECESSOR_VERSION = '0.5.3-rc1', plus the full stale_patterns matrix in test_t22) as negative-assertion fixtures and historical-migration narrative. Active version assertions all assert 0.5.3 (never claim rc1 as active)."
     }
   ]
 }

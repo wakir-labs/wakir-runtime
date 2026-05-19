@@ -754,10 +754,10 @@ def test_cli_rejects_invalid_subscribe_mode(monkeypatch, tmp_path):
 
 
 def test_engine_version_bumped_to_0_5_0_pilot():
-    """Sprint-Pengine-13 bumps 0.4.2-pilot → 0.5.3-rc1."""
-    assert ENGINE_VERSION == "0.5.3-rc1"
-    assert ASYNC_ENGINE_VERSION == "0.5.3-rc1"
-    assert PKG_VERSION == "0.5.3-rc1"
+    """Sprint-Pengine-13 bumps 0.4.2-pilot → 0.5.3 (Tag-62 rc1-drop final)."""
+    assert ENGINE_VERSION == "0.5.3"
+    assert ASYNC_ENGINE_VERSION == "0.5.3"
+    assert PKG_VERSION == "0.5.3"
 
 
 def test_containerfile_real_label_bumped():
@@ -767,12 +767,13 @@ def test_containerfile_real_label_bumped():
     ``0.5.1-pre-cutover`` to ``0.5.2-final-pre-cutover`` as the
     Pre-KW-24-Final consolidation marker (manifest-and-metadata-only;
     strict superset of 0.5.1-pre-cutover). The Python
-    ``ENGINE_VERSION`` constant remains at ``0.5.3-rc1`` because
-    the engine code itself is byte-stable relative to
-    Sprint-Pengine-13 — Tag-52 is a consolidation marker layered on
-    top of the Tag-48 manifest, not an engine-code rewrite.
-    Sprint-Pengine-13 / Bug-42 / Tag-45 / Tag-48 references stay
-    in the header comment for history.
+    ``ENGINE_VERSION`` constant was at ``0.5.3-rc1`` between Tag-58
+    and Tag-62; Tag-62 dropped the rc1-suffix to ``0.5.3`` as the
+    final Pre-Cutover-Sealing bump. The engine code itself is
+    byte-stable relative to Sprint-Pengine-13 — Tag-52 is a
+    consolidation marker layered on top of the Tag-48 manifest, not
+    an engine-code rewrite. Sprint-Pengine-13 / Bug-42 / Tag-45 /
+    Tag-48 references stay in the header comment for history.
     """
     from pathlib import Path
     cf = Path(__file__).resolve().parents[3] / "infra" / "persona-engine" / "Containerfile.real"

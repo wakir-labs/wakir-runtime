@@ -152,10 +152,30 @@ def test_schema_carries_container_bridge_field():
 
 
 def test_engine_version_format_semver_pilot():
+    """Engine __version__ format invariant.
+
+    Pre-Tag-62 the engine version carried an ``-rc<N>`` pre-release
+    suffix. Tag-62 promoted to the rc-suffix-drop final; the format
+    invariant now accepts either:
+
+    * a bare three-dotted semver ``MAJOR.MINOR.PATCH`` (final tag), or
+    * a three-dotted semver with a single ``-<pre-release>`` suffix
+      (release-candidate, pilot, or other pre-release marker).
+    """
     from wirelang.persona_engine import __version__
 
     parts = __version__.split("-")
-    assert len(parts) == 2
-    assert parts[1] == "rc1"
+    assert 1 <= len(parts) <= 2, (
+        f"__version__={__version__!r} must be 'semver' or "
+        f"'semver-prerelease'"
+    )
     semver = parts[0]
-    assert semver.count(".") == 2
+    assert semver.count(".") == 2, (
+        f"__version__ semver core {semver!r} must be MAJOR.MINOR.PATCH"
+    )
+    if len(parts) == 2:
+        # Pre-release suffix must be a recognised label.
+        assert parts[1] in {"rc1", "rc2", "rc3", "pilot", "pre-cutover"}, (
+            f"__version__ pre-release suffix {parts[1]!r} is not a "
+            f"recognised label"
+        )

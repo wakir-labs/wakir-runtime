@@ -93,7 +93,7 @@ from .v907_verify import (
     verify_v907_pin,
 )
 
-ASYNC_ENGINE_VERSION = "0.5.3-rc1"
+ASYNC_ENGINE_VERSION = "0.5.3"
 ASYNC_ENGINE_VARIANT = "real-async"
 DEFAULT_SVID_REFETCH_INTERVAL_SEC = 300  # 5 min — Sprint-Pengine-11 Bug-40
 

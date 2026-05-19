@@ -178,7 +178,7 @@ class Tag61CompositeAggregatorTests(unittest.TestCase):
             "persona-engine-pre-cutover-final-acceptance-composite",
         )
         self.assertEqual(e["tag"], "tag-61")
-        self.assertEqual(e["engine_version"], "0.5.3-rc1")
+        self.assertEqual(e["engine_version"], "0.5.3")
 
     def test_11_envelope_all_green_ready_verdict(self) -> None:
         env = {f"G{i}_STATUS": "green" for i in range(1, 5)}
