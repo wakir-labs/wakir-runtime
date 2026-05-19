@@ -367,10 +367,14 @@ def _build_parser() -> argparse.ArgumentParser:
             "Watch-Day-Practice-Run CI workflow."
         ),
     )
+    # ``--mode`` is required *unless* the convenience alias
+    # ``--replay-mode`` is given. We enforce that in ``main``
+    # because argparse cannot express "required-unless" natively.
     p.add_argument(
         "--mode",
         choices=("pin", "sequence", "aggregate", "replay"),
-        required=True,
+        required=False,
+        default=None,
         help="Which step the helper runs for.",
     )
     p.add_argument(
@@ -406,7 +410,17 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: Iterable[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
-    mode = "replay" if args.replay_mode else args.mode
+    # Tag-59: ``--replay-mode`` is an alias for ``--mode replay``.
+    # If neither is given we surface the required-arg error
+    # explicitly (argparse no longer flags it because --mode is now
+    # ``required=False`` for the replay-alias case).
+    if args.replay_mode:
+        mode = "replay"
+    elif args.mode is not None:
+        mode = args.mode
+    else:
+        parser.error("--mode is required (or pass --replay-mode)")
+        return EXIT_ERROR  # unreachable
     if mode == "pin":
         return mode_pin(args.report)
     if mode == "sequence":

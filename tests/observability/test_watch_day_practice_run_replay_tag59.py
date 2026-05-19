@@ -247,6 +247,8 @@ def test_t11_replay_helper_detects_overall_pass_drift(
 def test_t12_replay_mode_cli_alias_equivalent(tmp_path: Path) -> None:
     out_a = tmp_path / "a.json"
     out_b = tmp_path / "b.json"
+    out_c = tmp_path / "c.json"
+    # Variant A: explicit --mode replay
     rc_a = subprocess.run(
         [
             sys.executable,
@@ -260,6 +262,7 @@ def test_t12_replay_mode_cli_alias_equivalent(tmp_path: Path) -> None:
         ],
         check=False,
     ).returncode
+    # Variant B: --mode override + --replay-mode alias
     rc_b = subprocess.run(
         [
             sys.executable,
@@ -274,11 +277,28 @@ def test_t12_replay_mode_cli_alias_equivalent(tmp_path: Path) -> None:
         ],
         check=False,
     ).returncode
+    # Variant C: --replay-mode alone (the form the workflow uses).
+    # Regression-pin: --mode must NOT be required when --replay-mode
+    # is given (Tag-59 first-CI-run found this gap).
+    rc_c = subprocess.run(
+        [
+            sys.executable,
+            str(HELPER_PATH),
+            "--replay-mode",
+            "--fixture-path",
+            str(FIXTURE_PATH),
+            "--output",
+            str(out_c),
+        ],
+        check=False,
+    ).returncode
     assert rc_a == 0
     assert rc_b == 0
+    assert rc_c == 0
     a = json.loads(out_a.read_text(encoding="utf-8"))
     b = json.loads(out_b.read_text(encoding="utf-8"))
-    assert a == b
+    c = json.loads(out_c.read_text(encoding="utf-8"))
+    assert a == b == c
     assert a["verdict"] == "REPLAY-STABLE"
 
 
