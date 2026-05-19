@@ -198,21 +198,25 @@ def test_tag45_groups_present(alerts: dict):
 def test_total_group_count_matches_tag45_plus_tag40_plus_tag50_plus_tag64(
     alerts: dict,
 ):
-    # 4 Tag-40 + 8 Tag-45 + 7 Tag-50 + 1 Tag-64 = 20 expected groups.
-    # The Tag-50 Welle-N-specific groups are appended after the
-    # Tag-45 failure-mode + hot-spot groups. Tag-64
-    # (Noa, PR #410) appends the
+    # 4 Tag-40 + 8 Tag-45 + 7 Tag-50 + 1 Tag-64 + 1 Tag-78 = 21
+    # expected groups. The Tag-50 Welle-N-specific groups are
+    # appended after the Tag-45 failure-mode + hot-spot groups.
+    # Tag-64 (Noa, PR #410) appends the
     # `cutover-day-morgen-trinary-routing` group with three trinary-
-    # verdict-reactive alarms (READY/CAUTION/BLOCK). See
-    # tests/ci/test_welle_n_specific_alerts.py for the Tag-50
-    # contract. If a future task adds more, bump this expectation
-    # deliberately (Amara-Tag-68 pre-existing-failures-fix raised
-    # the pin from 19 to 20 to absorb the Tag-64 trinary-routing
-    # group that landed before this test was refreshed).
-    assert len(alerts["groups"]) == 20, (
+    # verdict-reactive alarms (READY/CAUTION/BLOCK). Tag-78 (Noa,
+    # Continuous-Mode-Marathon-Polish 2026-05-19) appends the
+    # `marathon-closeout-routing` group with seven layer-verdict
+    # alarms (3 Closeout + 3 Final + 1 COMPLETE-Marker-Fire). See
+    # tests/ci/test_welle_n_specific_alerts.py for the Tag-50 and
+    # Tag-78 contract pins, and
+    # tests/observability/test_marathon_closeout_routing_tag78.py
+    # for the Tag-78 routing contract. If a future task adds more,
+    # bump this expectation deliberately.
+    assert len(alerts["groups"]) == 21, (
         f"Expected exactly Tag-40(4) + Tag-45(8) + Tag-50(7) + "
-        f"Tag-64(1) = 20 groups; got {len(alerts['groups'])}. "
-        f"Update test if expanding deliberately."
+        f"Tag-64(1) + Tag-78(1) = 21 groups; got "
+        f"{len(alerts['groups'])}. Update test if expanding "
+        f"deliberately."
     )
 
 

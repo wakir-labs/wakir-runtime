@@ -511,6 +511,73 @@ ALERT_CATALOG: dict[str, dict[str, str]] = {
             "welle-7-pre-auditor-signal-received"
         ),
     },
+    # Tag-78 Marathon-Closeout-Alert-Routing-Erweiterung (Noa SRE).
+    # Seven alerts aggregate the per-welle final-sealing outcomes
+    # (Welle-1..7) into THREE layer-verdicts (Closeout, Final, and
+    # the Phase-3-COMPLETE-Marker-Fire signal). The verdict-source
+    # recording rules are emitted by Tag-76 Marathon-Closeout-
+    # Aggregator (Reza, PR #479) and Phase-3-COMPLETE-Marker-Audit-
+    # Bundle (Tomás, PR #484). Routing-class family:
+    #
+    #   marathon-closeout-info    -> Ready, Intact, COMPLETE-Marker-Fire
+    #   marathon-closeout-warning -> Partial, Drift
+    #   marathon-closeout-page    -> Closeout-Defect, Final-Defect
+    "WakirMarathonCloseoutReady": {
+        "failure_mode_id": "Tag-78-MarathonCloseout-Ready",
+        "severity": "info",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/"
+            "marathon-closeout-ready"
+        ),
+    },
+    "WakirMarathonCloseoutPartial": {
+        "failure_mode_id": "Tag-78-MarathonCloseout-Partial",
+        "severity": "warning",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/"
+            "marathon-closeout-partial"
+        ),
+    },
+    "WakirMarathonCloseoutDefect": {
+        "failure_mode_id": "Tag-78-MarathonCloseout-Defect",
+        "severity": "page",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/"
+            "marathon-closeout-defect"
+        ),
+    },
+    "WakirMarathonFinalIntact": {
+        "failure_mode_id": "Tag-78-MarathonFinal-Intact",
+        "severity": "info",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/"
+            "marathon-final-intact"
+        ),
+    },
+    "WakirMarathonFinalDrift": {
+        "failure_mode_id": "Tag-78-MarathonFinal-Drift",
+        "severity": "warning",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/"
+            "marathon-final-drift"
+        ),
+    },
+    "WakirMarathonFinalDefect": {
+        "failure_mode_id": "Tag-78-MarathonFinal-Defect",
+        "severity": "page",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/"
+            "marathon-final-defect"
+        ),
+    },
+    "WakirPhase3CompleteMarkerFire": {
+        "failure_mode_id": "Tag-78-Phase3CompleteMarker-Fire",
+        "severity": "info",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/"
+            "phase-3-complete-marker-fire"
+        ),
+    },
 }
 
 # Tag-40 baseline alerts that pre-date the Pre-Mortem-extension.
@@ -656,6 +723,19 @@ ROUTING_CLASS_WELLE_6_SUBSCRIBE_LOOP_INFO = "welle-6-subscribe-loop-info"
 # sequence; closes the sealing handshake + Pre-Auditor-Signal
 # positive-acknowledgement).
 ROUTING_CLASS_WELLE_7_FINAL_SEALING_INFO = "welle-7-final-sealing-info"
+# Tag-78 Marathon-Closeout-Layer-Verdict routing-class family.
+# Three classes aggregate the per-welle final-sealing outcomes
+# (Welle-1..7) and the Phase-3-COMPLETE-Marker-Fire signal into a
+# Marathon-Closeout-Layer surface. The info-class carries the
+# positive verdicts (Ready, Intact, Marker-Fire); the warning-class
+# carries CAUTION-level layer-verdicts (Partial, Drift); the page-
+# class carries hard-failure verdicts (Closeout-Defect, Final-
+# Defect). The page-class includes pagerduty:sre-oncall so the
+# Marathon-Closeout layer fails closed; Phase-3-COMPLETE marker
+# emission is held pending AR-Hand decision under the page-class.
+ROUTING_CLASS_MARATHON_CLOSEOUT_INFO = "marathon-closeout-info"
+ROUTING_CLASS_MARATHON_CLOSEOUT_WARNING = "marathon-closeout-warning"
+ROUTING_CLASS_MARATHON_CLOSEOUT_PAGE = "marathon-closeout-page"
 
 VALID_ROUTING_CLASSES: frozenset[str] = frozenset(
     {
@@ -667,6 +747,9 @@ VALID_ROUTING_CLASSES: frozenset[str] = frozenset(
         ROUTING_CLASS_WELLE_5_CAPABILITY_TOKEN_INFO,
         ROUTING_CLASS_WELLE_6_SUBSCRIBE_LOOP_INFO,
         ROUTING_CLASS_WELLE_7_FINAL_SEALING_INFO,
+        ROUTING_CLASS_MARATHON_CLOSEOUT_INFO,
+        ROUTING_CLASS_MARATHON_CLOSEOUT_WARNING,
+        ROUTING_CLASS_MARATHON_CLOSEOUT_PAGE,
     }
 )
 
@@ -706,6 +789,19 @@ ROUTING_CLASS_CHANNELS: dict[str, tuple[str, ...]] = {
         "ntfy:ar-hand-info",
         "activity-log:append",
     ),
+    ROUTING_CLASS_MARATHON_CLOSEOUT_INFO: (
+        "ntfy:ar-hand-info",
+        "activity-log:append",
+    ),
+    ROUTING_CLASS_MARATHON_CLOSEOUT_WARNING: (
+        "ntfy:ar-hand",
+        "activity-log:append",
+    ),
+    ROUTING_CLASS_MARATHON_CLOSEOUT_PAGE: (
+        "pagerduty:sre-oncall",
+        "ntfy:ar-hand",
+        "activity-log:append",
+    ),
 }
 
 ROUTING_CLASS_ESCALATION_SECONDS: dict[str, int] = {
@@ -717,6 +813,14 @@ ROUTING_CLASS_ESCALATION_SECONDS: dict[str, int] = {
     ROUTING_CLASS_WELLE_5_CAPABILITY_TOKEN_INFO: 0,
     ROUTING_CLASS_WELLE_6_SUBSCRIBE_LOOP_INFO: 0,
     ROUTING_CLASS_WELLE_7_FINAL_SEALING_INFO: 0,
+    # Tag-78 Marathon-Closeout-Layer-Verdict trinary family. Info
+    # and warning have no escalation (the layer verdict is reviewed
+    # in the AR-Hand audit-trail). The page-class escalates after
+    # 600s (Marathon-Closeout-DEFECT must be acknowledged within
+    # 10 minutes or escalate to AR, mirroring the ops-on-call class).
+    ROUTING_CLASS_MARATHON_CLOSEOUT_INFO: 0,
+    ROUTING_CLASS_MARATHON_CLOSEOUT_WARNING: 0,
+    ROUTING_CLASS_MARATHON_CLOSEOUT_PAGE: 600,
 }
 
 # Set of alertnames that REQUIRE a routing_class label (Tag-64

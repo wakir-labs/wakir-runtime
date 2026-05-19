@@ -157,13 +157,16 @@ def alerts() -> dict:
 
 
 def test_alerts_group_count_is_twenty_after_tag64(alerts: dict):
-    """Tag-40(4) + Tag-45(8) + Tag-50(7) + Tag-64(1) = 20.
+    """Tag-40(4) + Tag-45(8) + Tag-50(7) + Tag-64(1) + Tag-78(1) = 21.
     Tag-68 raised the pin from 19 to 20 to absorb the Tag-64
-    ``cutover-day-morgen-trinary-routing`` group. The next
-    deliberate expansion must bump this number; the next
-    accidental drop must crash this test."""
-    assert len(alerts["groups"]) == 20, (
-        f"Tag-68 pin: alert groups must equal 20; got "
+    ``cutover-day-morgen-trinary-routing`` group; Tag-78 (Noa,
+    Continuous-Mode-Marathon-Polish 2026-05-19) bumped the pin
+    from 20 to 21 to absorb the ``marathon-closeout-routing``
+    group (7 layer-verdict alarms). The next deliberate expansion
+    must bump this number; the next accidental drop must crash
+    this test."""
+    assert len(alerts["groups"]) == 21, (
+        f"Tag-78 pin: alert groups must equal 21; got "
         f"{len(alerts['groups'])}"
     )
 
