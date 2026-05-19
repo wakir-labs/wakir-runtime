@@ -1,0 +1,165 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wirelang-Spec v0.4.3 Pre-Cutover-Freeze-Seal Probe
+# ---------------------------------------------------
+#
+# Purpose
+# =======
+#
+# The Wirelang specification at ``wirelang/specs/wirelang-spec-v0-4-3.md``
+# is declared ``status: pre-cutover-freeze`` with ``freeze-marker:
+# kw-24-cutover-gate`` for the KW-24 Phase-3c cutover gate (2026-06-09
+# start). The Tag-53 introduction PR landed the marker without a CI-side
+# tripwire that catches a post-freeze edit. The Tag-58 probe closes that
+# gap.
+#
+# Stages
+# ======
+#
+# Stage 1 — Detect freeze-marker in the live spec frontmatter.
+# Stage 2 — Hash-diff against the in-tree baseline lock
+#           (``wirelang/specs/freeze-baseline.json``).
+# Stage 3 — If Stage 2 surfaces a drift, classify every added line
+#           into ``errata-footer`` / ``typo-marker`` / ``unallowlisted``.
+# Stage 4 — Verdict: ``SEAL-INTACT`` (Stage 2 clean), ``SEAL-ALLOWED-
+#           DELTA`` (Stage 3 fully classifies inside the allowlist),
+#           or ``SEAL-BROKEN`` (frontmatter drift OR delta outside
+#           the allowlist).
+#
+# Audit-vs-enforce
+# ================
+#
+# This is the introduction cut. It runs in **enforce** mode on push
+# to ``main`` and on PR that touches the spec or the baseline lock;
+# ``workflow_dispatch`` lets the operator toggle audit-only via the
+# ``enforce`` input. Audit-mode emits the verdict envelope as the
+# job-summary but exits 0; enforce-mode exits 1 on ``SEAL-BROKEN``.
+#
+# Tests
+# =====
+#
+# Hermetic Python tests live at
+# ``tests/audit/test_wirelang_spec_freeze_seal_probe_tag58.py`` (>= 12
+# stdlib-only tests). The workflow runs them on every trigger.
+
+name: wirelang-spec-freeze-seal-probe
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'wirelang/specs/wirelang-spec-v0-4-3.md'
+      - 'wirelang/specs/freeze-baseline.json'
+      - 'tooling/audit/verify_wirelang_spec_freeze_seal.py'
+      - 'tests/audit/test_wirelang_spec_freeze_seal_probe_tag58.py'
+      - '.github/workflows/wirelang-spec-freeze-seal-probe.yml'
+  pull_request:
+    paths:
+      - 'wirelang/specs/wirelang-spec-v0-4-3.md'
+      - 'wirelang/specs/freeze-baseline.json'
+      - 'tooling/audit/verify_wirelang_spec_freeze_seal.py'
+      - 'tests/audit/test_wirelang_spec_freeze_seal_probe_tag58.py'
+      - '.github/workflows/wirelang-spec-freeze-seal-probe.yml'
+  workflow_dispatch:
+    inputs:
+      enforce:
+        description: 'If "true", exit 1 on SEAL-BROKEN (default: true).'
+        required: false
+        default: 'true'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  seal-probe:
+    name: wirelang spec v0.4.3 freeze-seal probe
+    runs-on: ubuntu-latest
+
+    env:
+      SEAL_PROBE_ENFORCE: ${{ github.event.inputs.enforce || 'true' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python (stdlib-only — no pip install needed)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Stage 1 — Detect freeze-marker
+        id: stage1
+        run: |
+          set -eu
+          python3 - <<'PY'
+          import pathlib, sys, json
+          spec = pathlib.Path("wirelang/specs/wirelang-spec-v0-4-3.md")
+          if not spec.exists():
+              print(f"::error file={spec}::spec file is missing")
+              sys.exit(1)
+          head = spec.read_text(encoding="utf-8").splitlines()[:30]
+          flat = "\n".join(head)
+          markers = (
+              "status: pre-cutover-freeze",
+              "freeze-marker: kw-24-cutover-gate",
+              "freeze-anchor: persona-engine-0.5.2-final-pre-cutover",
+          )
+          missing = [m for m in markers if m not in flat]
+          if missing:
+              for m in missing:
+                  print(f"::error file={spec}::missing frontmatter marker: {m}")
+              print(json.dumps({"stage": 1, "verdict": "frontmatter-missing"}))
+              sys.exit(1)
+          print(json.dumps({"stage": 1, "verdict": "frontmatter-present"}))
+          PY
+
+      - name: Stage 2 + 3 + 4 — Run verify helper
+        id: probe
+        shell: bash
+        run: |
+          set -u
+          envelope="$(python3 tooling/audit/verify_wirelang_spec_freeze_seal.py)"
+          echo "${envelope}"
+          verdict="$(printf '%s' "${envelope}" | python3 -c 'import sys, json; print(json.load(sys.stdin)["verdict"])')"
+          verdict_class="$(printf '%s' "${envelope}" | python3 -c 'import sys, json; print(json.load(sys.stdin)["verdict_class"])')"
+          echo "verdict=${verdict}"             >> "$GITHUB_OUTPUT"
+          echo "verdict_class=${verdict_class}" >> "$GITHUB_OUTPUT"
+          {
+            echo "# Wirelang-Spec v0.4.3 Pre-Cutover-Freeze-Seal Probe"
+            echo
+            echo "**Verdict:** \`${verdict}\` (\`${verdict_class}\`)"
+            echo
+            echo '```json'
+            printf '%s\n' "${envelope}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run hermetic Tag-58 test-suite
+        run: |
+          set -eu
+          python3 -m unittest tests.audit.test_wirelang_spec_freeze_seal_probe_tag58 -v
+
+      - name: Stage 4 — Enforce verdict
+        shell: bash
+        run: |
+          set -u
+          verdict="${{ steps.probe.outputs.verdict }}"
+          verdict_class="${{ steps.probe.outputs.verdict_class }}"
+          enforce="${SEAL_PROBE_ENFORCE}"
+
+          echo "wirelang-spec-freeze-seal-probe: verdict=${verdict} class=${verdict_class} enforce=${enforce}"
+
+          if [ "${enforce}" = "true" ] && [ "${verdict}" = "SEAL-BROKEN" ]; then
+            echo "::error::wirelang spec v0.4.3 seal is BROKEN (${verdict_class}). Refusing to merge — see job summary for the verdict envelope."
+            exit 1
+          fi
+
+          if [ "${verdict}" = "SEAL-BROKEN" ]; then
+            echo "::warning::wirelang spec v0.4.3 seal is BROKEN (${verdict_class}) — running in audit-only mode, not enforcing."
+          elif [ "${verdict}" = "SEAL-ALLOWED-DELTA" ]; then
+            echo "::notice::wirelang spec v0.4.3 seal admits an allowlist delta (${verdict_class})."
+          else
+            echo "wirelang spec v0.4.3 seal is INTACT."
+          fi

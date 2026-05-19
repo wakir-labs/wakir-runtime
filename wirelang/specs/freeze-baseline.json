@@ -1,0 +1,74 @@
+{
+  "$schema": "https://wakir-labs.example/wirelang/spec-freeze-baseline/v1.json",
+  "schema_version": 1,
+  "spec": "wirelang",
+  "spec_version": "0.4.3",
+  "spec_path": "wirelang/specs/wirelang-spec-v0-4-3.md",
+  "freeze_marker": "kw-24-cutover-gate",
+  "freeze_anchor": "persona-engine-0.5.2-final-pre-cutover",
+  "freeze_status": "pre-cutover-freeze",
+  "frozen_at": "2026-05-19T00:00:00Z",
+  "cutover_window": {
+    "starts": "2026-06-09T00:00:00Z",
+    "label": "KW-24-cutover-gate"
+  },
+  "baseline": {
+    "sha256": "81ddf5421a905439547a68c5251e21680e73269ee9689a89061acea078fb8442",
+    "byte_count": 13089,
+    "line_count": 296,
+    "first_line": "<!--",
+    "last_nontrivial_line": "— Reza"
+  },
+  "frontmatter_invariants": {
+    "version": "0.4.3",
+    "status": "pre-cutover-freeze",
+    "freeze-marker": "kw-24-cutover-gate",
+    "freeze-anchor": "persona-engine-0.5.2-final-pre-cutover"
+  },
+  "section_headers": [
+    "## 1. Scope of v0.4.3",
+    "## 2. Conformance keywords",
+    "## 3. §3 no change",
+    "## 4. §4 no change",
+    "## 5. §5 / §6 / §7 / §8 / §9 / §10 no change",
+    "## 6. Freeze-marker semantics",
+    "## 7. Backward compatibility",
+    "## 8. Audit conformance",
+    "## 9. Citation pointers"
+  ],
+  "allowlist": {
+    "modes": ["errata-footer", "typo-marker"],
+    "errata_footer": {
+      "anchor_regex": "^## Errata$",
+      "marker_regex": "^### ERR-S[0-9]+\\b",
+      "max_added_sections": 1,
+      "max_added_markers": 16,
+      "must_appear_after": "## 9. Citation pointers",
+      "must_appear_before_signoff": "— Reza"
+    },
+    "typo_marker": {
+      "inline_regex": "<!--\\s*typo:\\s*[a-z0-9\\-]+\\s*-->",
+      "max_per_section": 4,
+      "max_total": 32
+    },
+    "forbidden_outside_allowlist": [
+      "modifications to lines 1..62 (frontmatter + license header)",
+      "modifications to any `## N.` numbered section body",
+      "renaming any section header",
+      "removal of the `— Reza` signoff",
+      "introducing new normative MUST / MUST NOT clauses"
+    ]
+  },
+  "verdict_classes": {
+    "SEAL-INTACT": "Spec hash matches baseline byte-for-byte.",
+    "SEAL-ALLOWED-DELTA": "Hash differs but every delta line falls inside the errata-footer or typo-marker allowlist.",
+    "SEAL-BROKEN": "Hash differs and at least one delta line falls outside the allowlist."
+  },
+  "tag": "tag-58",
+  "owner": "reza",
+  "co_review_zone": "spec-zone-L",
+  "tracked_by": [
+    "PR #364 (Tag-57 ADR-Errata x Spec Cross-Site Mirror-Drift Audit)",
+    "Tag-53 v0.4.3 introduction (Reza-Hand, 2026-05-19 frontmatter-flip)"
+  ]
+}
