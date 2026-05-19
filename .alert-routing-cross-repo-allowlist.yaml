@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Alert-Routing-Spec cross-repo mirror allowlist (Tag-58)
+# =======================================================
+#
+# Consumed by:
+#   * .github/workflows/alert-routing-cross-repo-mirror.yml
+#   * tooling/ci/audit_alert_routing_cross_repo_mirror.py
+#
+# Purpose
+# -------
+# Some canonical-form drift between `wakir-runtime` (BUSL-dominant)
+# and `wakir-protocol` (Apache-2.0 + CC-BY) on the alert-routing
+# substrate may be structurally expected during the Cut-3 mirror
+# sync (e.g. a deliberate version-bump in flight, a deferred
+# protocol-side mirror, or a documented one-sided extension). Such
+# drift is acceptable as long as it is *named*, *justified*, and
+# *bounded* by a follow-up sync action.
+#
+# Initial-cut policy
+# ------------------
+# This file is **empty by design** for the Tag-58 introduction cut.
+# The CI workflow runs in audit-only mode by default; drift surfaces
+# as a job-summary block and as workflow annotations, but the job
+# exits 0. Cross-Review-Zone-I (Noa + Tomás, Aisha-protokolliert) will
+# review the observed baseline drift before any waivers are admitted.
+#
+# Schema
+# ------
+#   allow:
+#     - runtime: <runtime-relative-path>
+#       protocol: <protocol-relative-path>
+#       reason: <free text>
+#
+# A malformed YAML body is a soft-fail in audit-mode: the workflow
+# surfaces a `::warning::` and proceeds as if the allowlist were
+# empty.
+
+allow: []

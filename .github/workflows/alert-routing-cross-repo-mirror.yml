@@ -1,0 +1,184 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Alert-Routing-Spec cross-repo mirror audit — wakir-runtime ↔ wakir-protocol
+# --------------------------------------------------------------------------
+#
+# Tag-58 (Noa SRE). Companion to the sibling `cross-repo-drift-audit`
+# workflow but narrowed to the Alert-Routing-Spec substrate:
+#
+#   * docs/observability/pre-mortem-failure-mode-notify-catalog.md
+#   * dashboards/phase-3-marathon-alerts.yaml
+#   * dashboards/phase-3-marathon-slo-burn-rate-alerts.yaml
+#   * scripts/observability/alert-rule-to-mira-notify-bridge.py
+#
+# Watch-Day-Cron-Pre-Fire-Probe (Tag-57, PR #368) verifies the
+# Alert-Routing dry-run on wakir-runtime in Stage C. Pre-KW-24
+# closeout requires that the Alert-Routing-Spec is Cross-Repo-Mirror
+# consistent between wakir-runtime (BUSL) and wakir-protocol
+# (Apache + CC-BY) — both have Operator-Hand touchpoints.
+#
+# This audit is the tripwire.
+#
+# Verdict
+# =======
+#
+# * MIRROR-OK    — every mirror-pair canonicalises to the same
+#                  SHA-256 on both sides.
+# * MIRROR-DRIFT — at least one pair differs in canonical form,
+#                  or is missing on at least one side, and is not
+#                  on the allowlist.
+#
+# Audit-vs-enforce
+# ================
+#
+# Introduction cut: default mode is **audit-only**. The job exits 0
+# on MIRROR-DRIFT and surfaces the verdict via job-summary and
+# annotations. `workflow_dispatch` accepts an `enforce` input
+# (true|false) for one-shot enforcement runs. The follow-up
+# Cross-Review-Zone-I (Noa + Tomás) sign-off flips the default to
+# enforce.
+
+name: alert-routing-cross-repo-mirror
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'dashboards/phase-3-marathon-alerts.yaml'
+      - 'dashboards/phase-3-marathon-slo-burn-rate-alerts.yaml'
+      - 'docs/observability/pre-mortem-failure-mode-notify-catalog.md'
+      - 'scripts/observability/alert-rule-to-mira-notify-bridge.py'
+      - 'tooling/ci/audit_alert_routing_cross_repo_mirror.py'
+      - '.alert-routing-cross-repo-allowlist.yaml'
+      - '.github/workflows/alert-routing-cross-repo-mirror.yml'
+      - 'tests/observability/test_alert_routing_cross_repo_mirror_tag58.py'
+  pull_request:
+    paths:
+      - 'dashboards/phase-3-marathon-alerts.yaml'
+      - 'dashboards/phase-3-marathon-slo-burn-rate-alerts.yaml'
+      - 'docs/observability/pre-mortem-failure-mode-notify-catalog.md'
+      - 'scripts/observability/alert-rule-to-mira-notify-bridge.py'
+      - 'tooling/ci/audit_alert_routing_cross_repo_mirror.py'
+      - '.alert-routing-cross-repo-allowlist.yaml'
+      - '.github/workflows/alert-routing-cross-repo-mirror.yml'
+      - 'tests/observability/test_alert_routing_cross_repo_mirror_tag58.py'
+  workflow_dispatch:
+    inputs:
+      enforce:
+        description: 'If "true", fail the job on un-allowlisted drift (default: audit-only).'
+        required: false
+        default: 'false'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  alert-routing-mirror-audit:
+    name: alert-routing cross-repo mirror (wakir-runtime ↔ wakir-protocol)
+    runs-on: ubuntu-latest
+
+    env:
+      ALERT_ROUTING_MIRROR_ENFORCE: ${{ github.event.inputs.enforce || 'false' }}
+      PROTOCOL_REF: main
+      PROTOCOL_CLONE_DIR: /tmp/wakir-protocol-alert-routing
+
+    steps:
+      - name: Checkout wakir-runtime
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Clone wakir-protocol (public, read-only, depth=1)
+        run: |
+          # Public repo, no auth needed. We pin to a ref via the
+          # PROTOCOL_REF env so a future sprint can promote a
+          # specific protocol tag as the audit baseline.
+          git clone --depth=1 \
+            --branch "${PROTOCOL_REF}" \
+            https://github.com/wakir-labs/wakir-protocol.git \
+            "${PROTOCOL_CLONE_DIR}"
+
+      - name: Record protocol head commit (for audit traceability)
+        id: protocol_head
+        run: |
+          cd "${PROTOCOL_CLONE_DIR}"
+          head_sha="$(git rev-parse HEAD)"
+          head_short="$(git rev-parse --short HEAD)"
+          echo "head_sha=${head_sha}"   >> "$GITHUB_OUTPUT"
+          echo "head_short=${head_short}" >> "$GITHUB_OUTPUT"
+          echo "wakir-protocol audit baseline: ${head_short} (${head_sha})"
+
+      - name: Run alert-routing mirror audit (markdown to summary)
+        id: audit_md
+        run: |
+          {
+            echo "**Audit baseline (wakir-protocol):** \`${{ steps.protocol_head.outputs.head_short }}\` (\`${{ steps.protocol_head.outputs.head_sha }}\`)"
+            echo
+            echo "**Enforce mode:** \`${ALERT_ROUTING_MIRROR_ENFORCE}\`"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+          python3 tooling/ci/audit_alert_routing_cross_repo_mirror.py \
+            --runtime-root "${GITHUB_WORKSPACE}" \
+            --protocol-root "${PROTOCOL_CLONE_DIR}" \
+            --allowlist "${GITHUB_WORKSPACE}/.alert-routing-cross-repo-allowlist.yaml" \
+            --format markdown \
+            >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run alert-routing mirror audit (github annotations)
+        id: audit_gh
+        run: |
+          python3 tooling/ci/audit_alert_routing_cross_repo_mirror.py \
+            --runtime-root "${GITHUB_WORKSPACE}" \
+            --protocol-root "${PROTOCOL_CLONE_DIR}" \
+            --allowlist "${GITHUB_WORKSPACE}/.alert-routing-cross-repo-allowlist.yaml" \
+            --format github
+
+      - name: Run alert-routing mirror audit (json verdict)
+        id: audit_json
+        run: |
+          json_out="$(python3 tooling/ci/audit_alert_routing_cross_repo_mirror.py \
+            --runtime-root "${GITHUB_WORKSPACE}" \
+            --protocol-root "${PROTOCOL_CLONE_DIR}" \
+            --allowlist "${GITHUB_WORKSPACE}/.alert-routing-cross-repo-allowlist.yaml" \
+            --format json)"
+          # Echo to log unconditionally (verdict + counts visible to
+          # downstream consumers grepping the run log).
+          echo "${json_out}"
+          # Surface the top-level verdict + tallies as step outputs.
+          verdict=$(echo "${json_out}" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d["verdict"])')
+          drift=$(echo "${json_out}" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d["drift_count"])')
+          missing=$(echo "${json_out}" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d["missing_count"])')
+          ok=$(echo "${json_out}" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d["ok_count"])')
+          echo "verdict=${verdict}" >> "$GITHUB_OUTPUT"
+          echo "drift=${drift}"     >> "$GITHUB_OUTPUT"
+          echo "missing=${missing}" >> "$GITHUB_OUTPUT"
+          echo "ok=${ok}"           >> "$GITHUB_OUTPUT"
+
+      - name: Audit verdict
+        run: |
+          verdict="${{ steps.audit_json.outputs.verdict }}"
+          drift="${{ steps.audit_json.outputs.drift }}"
+          missing="${{ steps.audit_json.outputs.missing }}"
+          ok="${{ steps.audit_json.outputs.ok }}"
+
+          echo "alert-routing-cross-repo-mirror: verdict=${verdict} ok=${ok} drift=${drift} missing=${missing}"
+          echo "alert-routing-cross-repo-mirror: enforce=${ALERT_ROUTING_MIRROR_ENFORCE}"
+
+          if [ "${ALERT_ROUTING_MIRROR_ENFORCE}" = "true" ]; then
+            if [ "${verdict}" = "MIRROR-DRIFT" ]; then
+              echo "::error::alert-routing-cross-repo-mirror failed in enforce-mode: drift=${drift}, missing=${missing}"
+              exit 1
+            fi
+            echo "alert-routing-cross-repo-mirror passed in enforce-mode."
+          else
+            if [ "${verdict}" = "MIRROR-DRIFT" ]; then
+              echo "::warning::alert-routing-cross-repo-mirror observed drift=${drift}, missing=${missing}; running in audit-only mode (not enforcing)."
+            else
+              echo "alert-routing-cross-repo-mirror clean."
+            fi
+          fi
