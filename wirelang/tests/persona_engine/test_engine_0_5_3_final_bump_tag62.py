@@ -725,12 +725,18 @@ def test_t23_tag62_bump_does_not_touch_cross_zone_substrate() -> None:
 
 
 def test_t24_allowlist_schema_version_bumped_to_2() -> None:
-    """The Tag-62 allowlist-extension bumps ``_schema.version`` to 2."""
+    """The Tag-62 allowlist-extension bumps ``_schema.version`` to 2 (or later).
+
+    Tag-67 refresh: the Tag-62 contract was that the schema reaches
+    version 2; subsequent refreshes (Tag-67 bumped to 3) preserve the
+    Tag-62 invariant as ``>= 2`` since the v2 surface (0.5.3-rc1 in
+    STALE_VERSIONS) is byte-stable across the v2 -> v3 transition.
+    """
     allowlist_data = json.loads(_read(ALLOWLIST_PATH))
     schema_version = allowlist_data.get("_schema", {}).get("version")
-    assert schema_version == 2, (
-        f"allowlist _schema.version={schema_version!r}, expected 2 "
-        f"(Tag-62 extension)"
+    assert isinstance(schema_version, int) and schema_version >= 2, (
+        f"allowlist _schema.version={schema_version!r}, expected >= 2 "
+        f"(Tag-62 extension contract; Tag-67 refresh bumped to v3)"
     )
 
 
