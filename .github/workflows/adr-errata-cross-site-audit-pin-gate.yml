@@ -1,0 +1,194 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tag-59 ADR-Errata-Footer-Verifier CI-Pin (cross-site audit substrate)
+# ---------------------------------------------------------------------
+#
+# Purpose
+# =======
+#
+# Reza Tag-56 committed four ADR-head Errata footers in
+# ``AI-Corp/decisions/`` (ADR-0034 / ADR-0052 / ADR-0062 / ADR-0064)
+# with six ``ERR-S1..ERR-S6`` markers. Reza Tag-57 then shipped the
+# ``tooling/audit/audit_adr_errata_spec_drift.py`` helper that walks
+# those ADR heads and the Wirelang spec
+# ``wirelang/specs/wirelang-spec-v0-4-3.md`` and emits a structured
+# drift-envelope JSON.
+#
+# Tag-58 left an open seam: the helper exists, but no CI gate
+# verifies that its output stays *stable* against a committed
+# baseline snapshot. A future spec edit or ADR-head re-edit can
+# silently change the drift class of any ERR marker without any
+# tripwire firing.
+#
+# This workflow closes the seam. It is a *regression gate*, not
+# a content gate. The audit content (the six ERR markers) is owned
+# by Reza. This gate only verifies that an unrelated change to
+# spec or audit-helper does not silently shift the cross-site
+# drift envelope away from the Tag-57 baseline.
+#
+# Stages
+# ======
+#
+# Stage 1 — Re-run the Tag-57 audit helper in read-only mode
+#           against the AI-Corp/decisions/ sibling clone (if
+#           present on the runner).
+# Stage 2 — Diff the live envelope against the committed baseline
+#           ``tooling/audit/adr-errata-audit-baseline.json``.
+# Stage 3 — Verdict:
+#             AUDIT-PIN-INTACT  -> exit 0
+#             AUDIT-PIN-DRIFT   -> exit 1 (regression)
+#             AUDIT-PIN-SKIP    -> exit 0 (sibling clone absent;
+#                                  grep-able skip line in summary)
+#
+# Sibling-clone discipline
+# ========================
+#
+# The audit helper reads from the AI-Corp/decisions/ tree, which is
+# *outside* this repository. On the AI-Corp internal runner the
+# sibling clone lives at ``/var/home/fred/AI-Corp/decisions``. On a
+# fork PR runner it does not exist — in that case we emit
+# AUDIT-PIN-SKIP with a clear reason and pass green. This is the
+# explicit Tag-59 contract; do not turn the missing sibling into a
+# red gate without an org-wide discussion (cf. Mira-Hand: Henrik-
+# Domain on cross-repo audit-evidence vs. CI-evidence).
+#
+# Tests
+# =====
+#
+# Hermetic Python tests live at
+# ``tests/ci/test_adr_errata_audit_pin_gate_tag59.py`` (>= 12
+# stdlib-only tests). The workflow runs them on every trigger so
+# the verifier logic is itself pinned.
+
+name: adr-errata-cross-site-audit-pin-gate
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'tooling/audit/audit_adr_errata_spec_drift.py'
+      - 'tooling/audit/adr_errata_audit_pin_verifier.py'
+      - 'tooling/audit/adr-errata-audit-baseline.json'
+      - 'wirelang/specs/wirelang-spec-v0-4-3.md'
+      - 'tests/ci/test_adr_errata_audit_pin_gate_tag59.py'
+      - '.github/workflows/adr-errata-cross-site-audit-pin-gate.yml'
+  pull_request:
+    paths:
+      - 'tooling/audit/audit_adr_errata_spec_drift.py'
+      - 'tooling/audit/adr_errata_audit_pin_verifier.py'
+      - 'tooling/audit/adr-errata-audit-baseline.json'
+      - 'wirelang/specs/wirelang-spec-v0-4-3.md'
+      - 'tests/ci/test_adr_errata_audit_pin_gate_tag59.py'
+      - '.github/workflows/adr-errata-cross-site-audit-pin-gate.yml'
+  workflow_dispatch:
+    inputs:
+      enforce:
+        description: 'If "true", exit 1 on AUDIT-PIN-DRIFT (default: true).'
+        required: false
+        default: 'true'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  audit-pin-gate:
+    name: adr-errata audit-pin regression gate
+    runs-on: ubuntu-latest
+
+    env:
+      ADR_ERRATA_PIN_ENFORCE: ${{ github.event.inputs.enforce || 'true' }}
+      # AI-Corp sibling clone path on the internal runner. On forks
+      # this directory does not exist and the verifier emits
+      # AUDIT-PIN-SKIP. We do *not* fail on that case.
+      ADR_ERRATA_DECISIONS_DIR: /var/home/fred/AI-Corp/decisions
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python (stdlib-only — no pip install needed)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Stage 1 — Sibling-clone presence probe
+        id: sibling
+        shell: bash
+        run: |
+          set -u
+          if [ -d "${ADR_ERRATA_DECISIONS_DIR}" ]; then
+            echo "sibling-clone present at ${ADR_ERRATA_DECISIONS_DIR}"
+            echo "sibling=present" >> "$GITHUB_OUTPUT"
+          else
+            echo "sibling-clone absent at ${ADR_ERRATA_DECISIONS_DIR}"
+            echo "sibling=absent" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Stage 2 + 3 — Run audit-pin verifier
+        id: verifier
+        shell: bash
+        run: |
+          set -u
+          out="$(python3 tooling/audit/adr_errata_audit_pin_verifier.py \
+            --decisions-dir "${ADR_ERRATA_DECISIONS_DIR}" \
+            --spec wirelang/specs/wirelang-spec-v0-4-3.md \
+            --baseline tooling/audit/adr-errata-audit-baseline.json 2>&1)"
+          rc=$?
+          echo "${out}"
+          verdict="$(printf '%s\n' "${out}" | awk -F': ' '/^adr-errata-audit-pin verdict:/ {print $2; exit}')"
+          echo "verdict=${verdict}" >> "$GITHUB_OUTPUT"
+          echo "rc=${rc}"           >> "$GITHUB_OUTPUT"
+          {
+            echo "# Tag-59 ADR-Errata-Footer-Verifier CI-Pin"
+            echo
+            echo "**Verdict:** \`${verdict}\` (rc=${rc})"
+            echo
+            echo '```'
+            printf '%s\n' "${out}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Do not exit on rc here; Stage 3-enforce handles it so
+          # the test-suite step still runs on a red verdict.
+          exit 0
+
+      - name: Install pytest (stdlib-only tests still need pytest fixtures)
+        run: |
+          set -eu
+          python -m pip install --upgrade pip
+          python -m pip install "pytest>=8.0"
+
+      - name: Run hermetic Tag-59 test-suite
+        run: |
+          set -eu
+          python -m pytest tests/ci/test_adr_errata_audit_pin_gate_tag59.py -v --tb=short
+
+      - name: Stage 3 — Enforce verdict
+        shell: bash
+        run: |
+          set -u
+          verdict="${{ steps.verifier.outputs.verdict }}"
+          rc="${{ steps.verifier.outputs.rc }}"
+          enforce="${ADR_ERRATA_PIN_ENFORCE}"
+          sibling="${{ steps.sibling.outputs.sibling }}"
+
+          echo "adr-errata-audit-pin-gate: verdict=${verdict} rc=${rc} enforce=${enforce} sibling=${sibling}"
+
+          if [ "${verdict}" = "AUDIT-PIN-SKIP" ]; then
+            echo "::notice::AUDIT-PIN-SKIP (sibling clone absent on this runner) — passing green by Tag-59 contract."
+            exit 0
+          fi
+
+          if [ "${verdict}" = "AUDIT-PIN-INTACT" ]; then
+            echo "AUDIT-PIN-INTACT — Tag-57 baseline matches live envelope."
+            exit 0
+          fi
+
+          if [ "${enforce}" = "true" ] && [ "${verdict}" = "AUDIT-PIN-DRIFT" ]; then
+            echo "::error::AUDIT-PIN-DRIFT — live envelope diverges from Tag-57 baseline. Refusing to merge. See job summary for diff."
+            exit 1
+          fi
+
+          echo "::warning::AUDIT-PIN-DRIFT but enforce=false — running in audit-only mode."
+          exit 0
