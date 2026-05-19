@@ -1,0 +1,254 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Marathon-Final-Acceptance Live-Verify Gate (Amara Tag-56, ADR-0066)
+# -------------------------------------------------------------------
+#
+# Verpflichtender CI-Status-Check fuer die Tag-55 Live-Verify-Audit
+# (`tests/quality_gates/test_marathon_final_acceptance_live_verify.py`,
+# 75 hermetic tests).
+#
+# Anlass: Tag-54 lieferte den consolidated Final-Acceptance-Doc
+# (`docs/quality-gates/phase-3-marathon-final-acceptance.md`). Tag-55
+# baute die Live-Verify-Audit drauf — sie verifiziert nicht den Text
+# des Docs (das macht Tag-54s `test_phase_3_marathon_final_acceptance_doc.py`),
+# sondern jede Surface-Behauptung des Docs gegen das tatsaechliche
+# main-tip-Substrat: AC-1..AC-5 jobs im Marker-Workflow, Layer-1..6
+# Test-Counts der Pyramide, AP-1..AP-10 Anti-Pattern-Headings, Class-A..D
+# Pre-Mortem-Headings, SLI-MARATHON-1..7 Headings, S1..S7 Sanity-Gate-
+# Substrates, Cadence-Daten, Companion-Doc-H1-Parity.
+#
+# Tag-56 macht aus dieser Audit einen verpflichtenden CI-Gate: bei
+# jeder Drift in einem der sechs Pyramide-Layer, einem der sechs
+# Companion-Docs, dem Marker-Workflow, dem Sanity-Gate-Workflow, dem
+# consolidated Final-Acceptance-Doc, der Live-Verify-Audit selbst,
+# oder dem Gate-Workflow muss die Audit gegen das neue main-tip
+# laufen. Failt sie, blockt der Status-Check den Merge.
+#
+# Path-Filter (alle Drift-Quellen, die der Live-Verify pruef)
+# -----------------------------------------------------------
+#
+# Die Audit liest acht Surface-Sources. Eine Aenderung in EINER der
+# Sources kann die Audit roten. Daher path-filtert der Gate auf
+# alle acht Source-Familien + die Audit selbst + den Gate-Workflow:
+#
+#   Layer-1..6 Test-Substrate (6 files):
+#     tests/phase_3c/test_phase_3_final_regression.py
+#     tests/phase_3c/test_cutover_day_e2e_drill.py
+#     tests/phase_3c/test_marathon_schluss_acceptance_drill.py
+#     tests/phase_3c/test_marathon_anti_patterns.py
+#     tests/phase_3c/test_pre_mortem_failure_mode_coverage_audit.py
+#     tests/phase_3c/test_defence_in_depth_layer_6.py
+#
+#   Companion-Doc-Substrate (6 docs):
+#     docs/quality-gates/marathon-acceptance-pyramide.md
+#     docs/quality-gates/phase-3-marathon-anti-patterns.md
+#     docs/quality-gates/pre-mortem-failure-mode-coverage.md
+#     docs/quality-gates/phase-3-marathon-schluss-acceptance.md
+#     docs/observability/sli-slo-phase-3-marathon.md
+#     docs/ci/pre-cutover-final-sanity-gate-runbook.md
+#
+#   Workflow-Substrate (2 workflows the audit introspects):
+#     .github/workflows/phase-3-complete-marker.yml
+#     .github/workflows/pre-cutover-final-sanity-gate.yml
+#
+#   Consolidated-Doc + Live-Verify-Audit:
+#     docs/quality-gates/phase-3-marathon-final-acceptance.md
+#     tests/quality_gates/test_marathon_final_acceptance_live_verify.py
+#
+#   Gate self:
+#     .github/workflows/marathon-final-acceptance-live-verify-gate.yml
+#
+# Required-Status-Check (Mira-Hand-Folge)
+# ---------------------------------------
+# Erste Phase: **advisory**. Sobald dieser Workflow einmal auf
+# `main` gruen laeuft, soll Mira (Operator-Hand) ihn unter
+# Settings -> Branches -> main -> Required status checks aktivieren.
+# Der Job-Display-Name "marathon-final-acceptance live-verify (75
+# tests, 8 surfaces)" ist der exakte zu aktivierende String per
+# feedback_branch_protection_check_names.md.
+#
+# Sandbox-Boundary
+# ----------------
+# Hermetic. Stdlib + pytest. Die Audit hat keine Network-IO, kein
+# Subprocess (ausser pytest --collect-only auf Layer-Files, was nur
+# das lokale Repo liest), kein podman, keine GitHub-API, keine
+# live-VM. Pure file-system + re + dataclasses + pathlib.
+
+name: marathon-final-acceptance-live-verify-gate
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      # Layer-1..6 Pyramide-Test-Substrate
+      - "tests/phase_3c/test_phase_3_final_regression.py"
+      - "tests/phase_3c/test_cutover_day_e2e_drill.py"
+      - "tests/phase_3c/test_marathon_schluss_acceptance_drill.py"
+      - "tests/phase_3c/test_marathon_anti_patterns.py"
+      - "tests/phase_3c/test_pre_mortem_failure_mode_coverage_audit.py"
+      - "tests/phase_3c/test_defence_in_depth_layer_6.py"
+      # Companion-Docs (Surface-2..5 + Pre)
+      - "docs/quality-gates/marathon-acceptance-pyramide.md"
+      - "docs/quality-gates/phase-3-marathon-anti-patterns.md"
+      - "docs/quality-gates/pre-mortem-failure-mode-coverage.md"
+      - "docs/quality-gates/phase-3-marathon-schluss-acceptance.md"
+      - "docs/observability/sli-slo-phase-3-marathon.md"
+      - "docs/ci/pre-cutover-final-sanity-gate-runbook.md"
+      # Workflow-Substrate (introspected by the audit)
+      - ".github/workflows/phase-3-complete-marker.yml"
+      - ".github/workflows/pre-cutover-final-sanity-gate.yml"
+      # Consolidated-Doc + Live-Verify-Audit
+      - "docs/quality-gates/phase-3-marathon-final-acceptance.md"
+      - "tests/quality_gates/test_marathon_final_acceptance_live_verify.py"
+      # Gate self
+      - ".github/workflows/marathon-final-acceptance-live-verify-gate.yml"
+  pull_request:
+    paths:
+      - "tests/phase_3c/test_phase_3_final_regression.py"
+      - "tests/phase_3c/test_cutover_day_e2e_drill.py"
+      - "tests/phase_3c/test_marathon_schluss_acceptance_drill.py"
+      - "tests/phase_3c/test_marathon_anti_patterns.py"
+      - "tests/phase_3c/test_pre_mortem_failure_mode_coverage_audit.py"
+      - "tests/phase_3c/test_defence_in_depth_layer_6.py"
+      - "docs/quality-gates/marathon-acceptance-pyramide.md"
+      - "docs/quality-gates/phase-3-marathon-anti-patterns.md"
+      - "docs/quality-gates/pre-mortem-failure-mode-coverage.md"
+      - "docs/quality-gates/phase-3-marathon-schluss-acceptance.md"
+      - "docs/observability/sli-slo-phase-3-marathon.md"
+      - "docs/ci/pre-cutover-final-sanity-gate-runbook.md"
+      - ".github/workflows/phase-3-complete-marker.yml"
+      - ".github/workflows/pre-cutover-final-sanity-gate.yml"
+      - "docs/quality-gates/phase-3-marathon-final-acceptance.md"
+      - "tests/quality_gates/test_marathon_final_acceptance_live_verify.py"
+      - ".github/workflows/marathon-final-acceptance-live-verify-gate.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: marathon-final-acceptance-live-verify-gate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  marathon-final-acceptance-live-verify-gate:
+    # Job-Display-Name MUSS exakt dieser String sein - er ist der
+    # Required-Status-Check-Name, den Mira-Hand in Branch-Protection
+    # aktiviert (per feedback_branch_protection_check_names.md).
+    name: "marathon-final-acceptance live-verify (75 tests, 8 surfaces)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        # 3.13 mirrors the production-lane in tests.yml,
+        # hash-derivate-gate.yml und license-gate.yml.
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install gate dependencies
+        # Stdlib + pytest only. The live-verify audit itself uses
+        # subprocess to call `pytest --collect-only` against the
+        # Layer-1..6 test files, but no third-party deps beyond
+        # pytest are needed.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "pytest>=8.0" "PyYAML>=6.0"
+
+      - name: Stage 1 - Tag-55 Live-Verify-Audit (75 hermetic tests)
+        # 75 hermetic tests covering eight surfaces:
+        #   Surface-1: AC-1..AC-5 verify-jobs present in marker-workflow
+        #   Surface-2: Layer-1..6 test-file exists + count-floor + ceiling
+        #   Surface-3: AP-1..AP-10 ### headings in anti-patterns doc
+        #   Surface-4: Class-A..D + COVERED/PARTIAL/GAP-ACCEPTED/GAP-OPEN
+        #              taxonomy headings in pre-mortem doc
+        #   Surface-5: SLI-MARATHON-1..7 headings in SLI/SLO doc
+        #   Surface-Pre: S1..S7 needs.s<N>-* references in sanity-gate
+        #   Cadence: KW-24..KW-27 cutover + sign-off ISO chronology
+        #   Companion-doc H1 consistency: six companion files canonical H1
+        # Plus doc self-consistency: Layer-table rows + Sum-167 anchor.
+        run: |
+          python -m pytest tests/quality_gates/test_marathon_final_acceptance_live_verify.py -v --tb=short
+
+      - name: Stage 2 - Surface-shape snapshot (CI-summary diagnostic)
+        # Operator-readable snapshot of the eight surface anchor-counts.
+        # Stage 1 already failed if any surface is rot; Stage 2 emits
+        # the surface-shape table for the PR summary tab so an operator
+        # can see at a glance which surface drifted. Soft: always-on.
+        if: always()
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          REPO_ROOT = Path(".").resolve()
+          DOC = REPO_ROOT / "docs" / "quality-gates" / "phase-3-marathon-final-acceptance.md"
+          MARKER = REPO_ROOT / ".github" / "workflows" / "phase-3-complete-marker.yml"
+          AP_DOC = REPO_ROOT / "docs" / "quality-gates" / "phase-3-marathon-anti-patterns.md"
+          PM_DOC = REPO_ROOT / "docs" / "quality-gates" / "pre-mortem-failure-mode-coverage.md"
+          SLI_DOC = REPO_ROOT / "docs" / "observability" / "sli-slo-phase-3-marathon.md"
+          SANITY = REPO_ROOT / ".github" / "workflows" / "pre-cutover-final-sanity-gate.yml"
+
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          lines: list[str] = []
+          lines.append("# Marathon-Final-Acceptance Live-Verify Surface Snapshot")
+          lines.append("")
+          lines.append("Eight surface anchor-counts on main-tip (Tag-56 gate).")
+          lines.append("")
+          lines.append("| Surface | Anchor | Count | Source |")
+          lines.append("|---|---|---|---|")
+
+          def _safe_read(p: Path) -> str:
+              try:
+                  return p.read_text(encoding="utf-8")
+              except Exception:
+                  return ""
+
+          marker_text = _safe_read(MARKER)
+          ac_count = len(re.findall(r"name:\s*AC-\d+\s+verify", marker_text))
+          lines.append(f"| Surface-1 | AC-N verify jobs | {ac_count} | `phase-3-complete-marker.yml` |")
+
+          ap_text = _safe_read(AP_DOC)
+          ap_count = len(re.findall(r"^###\s+AP-\d+\b", ap_text, re.MULTILINE))
+          lines.append(f"| Surface-3 | AP-N ### headings | {ap_count} | `phase-3-marathon-anti-patterns.md` |")
+
+          pm_text = _safe_read(PM_DOC)
+          class_count = len(re.findall(r"^##\s+Class-[ABCD]\b", pm_text, re.MULTILINE))
+          state_count = sum(
+              1 for s in ("COVERED", "PARTIAL", "GAP-ACCEPTED", "GAP-OPEN")
+              if s in pm_text
+          )
+          lines.append(f"| Surface-4 | Class-A..D headings | {class_count} | `pre-mortem-failure-mode-coverage.md` |")
+          lines.append(f"| Surface-4 | State taxonomy (4) | {state_count} | `pre-mortem-failure-mode-coverage.md` |")
+
+          sli_text = _safe_read(SLI_DOC)
+          sli_count = len(re.findall(r"SLI-MARATHON-\d+", sli_text))
+          lines.append(f"| Surface-5 | SLI-MARATHON-N references | {sli_count} | `sli-slo-phase-3-marathon.md` |")
+
+          sanity_text = _safe_read(SANITY)
+          s_count = len(set(re.findall(r"needs\.s(\d+)-[a-z0-9-]+", sanity_text)))
+          lines.append(f"| Surface-Pre | S-N needs.* references | {s_count} | `pre-cutover-final-sanity-gate.yml` |")
+
+          doc_text = _safe_read(DOC)
+          sum_anchor = "Sum (Tag-53 snapshot): 167" in doc_text
+          lines.append(f"| Doc-Self | `Sum (Tag-53 snapshot): 167` anchor | {'present' if sum_anchor else 'MISSING'} | `phase-3-marathon-final-acceptance.md` |")
+
+          lines.append("")
+          lines.append(
+              "Expected per Tag-54 consolidated doc: Surface-1=5 (AC-1..AC-5), "
+              "Surface-3=10 (AP-1..AP-10), Surface-4 Class=4 (A..D), state=4, "
+              "Surface-5=7+ (SLI-MARATHON-1..7), Surface-Pre=7 (S1..S7), Sum-167 anchor present."
+          )
+
+          rendered = "\n".join(lines) + "\n"
+          if summary_path:
+              with open(summary_path, "a", encoding="utf-8") as fh:
+                  fh.write(rendered)
+          print(rendered)
+          PY
