@@ -234,7 +234,7 @@ def test_missing_quadlet_binary_exits_3(tmp_path: Path) -> None:
 
 
 def test_inventory_count_stable() -> None:
-    """The clean-run reports 23 units / side. Drift-guard: if the
+    """The clean-run reports 27 units / side. Drift-guard: if the
     Quadlet inventory grows or shrinks, this test surfaces the change
     so the next operator updates the expected count consciously rather
     than absorbing the drift.
@@ -251,12 +251,19 @@ def test_inventory_count_stable() -> None:
     wakir-rust-cli-bin.volume; the installer is a oneshot that copies
     five Rust-CLI binaries from the carrier image into /opt/wakir/bin/
     on the host).
+
+    Tag-55 Cosign-Strict-Mode G5 substanz-vollendung: 23 → 27 (four new
+    top-level Quadlet artefacts — wakir-rust-cli-welle4.container,
+    wakir-rust-cli-welle5.container, wakir-rust-cli-welle6.container,
+    wakir-rust-cli-welle7.container; each installs one welle-suffix
+    Rust-CLI binary from a dedicated single-binary image per the Tag-33
+    Mini-Welle policy inventory convention).
     """
     proc = _run_lint(REPO_ROOT)
     assert proc.returncode == 0, proc.stderr
-    # The final OK line is e.g. ``all sides OK (23 units / side)``.
-    assert "(23 units / side)" in proc.stdout, (
-        f"inventory drift: expected 23 units / side in OK line, "
+    # The final OK line is e.g. ``all sides OK (27 units / side)``.
+    assert "(27 units / side)" in proc.stdout, (
+        f"inventory drift: expected 27 units / side in OK line, "
         f"got stdout={proc.stdout!r}"
     )
 
