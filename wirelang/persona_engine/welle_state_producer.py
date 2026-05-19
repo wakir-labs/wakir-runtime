@@ -282,6 +282,64 @@ FINAL_SEALING_GUARDED_WELLEN = frozenset({7})
 # (Henrik Internal Audit Zone-N relies on this).
 FINAL_SEALING_CONFIRMED = "confirmed"
 
+# Tag-76 (Selin): Phase-3-COMPLETE Production-Bringup-Verifier constants.
+#
+# After Welle-7 sign-off (terminal Welle of the Phase-3c-Welle-Marathon),
+# the engine-side verifier checks that **all 7** Welle-State-Files report
+# canonical post-cutover-sign-off-State. Only then may the downstream
+# audit-trail consumer emit the ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7``
+# marker (per docs/quality-gates/phase-3c-doppel-welle-6-7.md §4.1).
+#
+# The verifier is **read-only** (Scope discipline, Selin): it does not
+# mutate any state-file. It returns a verdict record or refuses to
+# write. The marker-emit itself is audit-trail-consumer-territory
+# (Henrik Internal Audit Zone-N).
+#
+# The verifier is the **seventh** disjoint trigger-family in the
+# audit-stream: ``trigger="phase-3-complete-verify"``. Disjoint from
+# the six per-Welle triggers (cutover, sign-off, sealing, snapshot-
+# restore, capability-token-rotation, cross-substrate-parity, rollback,
+# final-sealing) and from any individual Welle's audit-record.
+PHASE_3_COMPLETE_TRIGGER = "phase-3-complete-verify"
+
+# The set of Wellen the verifier requires to be in ``signed-off`` state
+# for a green verdict. The verifier is parametric over this set
+# (verifier-substrate testing), but the canonical Phase-3c-marathon
+# set is {1, 2, 3, 4, 5, 6, 7}.
+PHASE_3_COMPLETE_REQUIRED_WELLEN = frozenset(range(1, 8))
+
+# Canonical KW-anchor ordering for cross-Welle cutover-ISO sequencing
+# (Tag-76 verifier invariant). Cutover_iso values across the 7 Wellen
+# MUST be monotone non-decreasing in welle_number when grouped by
+# (welle_number, kw_cutover_anchor). The verifier checks this as a
+# defensive integrity-invariant: a Welle-3 cutover_iso BEFORE a
+# Welle-1 cutover_iso would indicate operator-curated state-file
+# corruption. Per the canonical pre-cutover-acceptance-run-order.md
+# §3 table + the committed state/welle-N.json files:
+#   Welle-1: KW-22, Welle-2: KW-23, Welle-3: KW-25, Welle-4: KW-26,
+#   Welle-5: KW-26, Welle-6: KW-26, Welle-7: KW-27.
+PHASE_3_COMPLETE_CANONICAL_KW_ANCHOR = {
+    1: "KW-22",
+    2: "KW-23",
+    3: "KW-25",
+    4: "KW-26",
+    5: "KW-26",
+    6: "KW-26",
+    7: "KW-27",
+}
+
+# Phase-3-COMPLETE marker-literal (the verdict-literal returned by the
+# verifier when all 7 Welle-State-Files are in canonical signed-off
+# state). The literal is an audit-trail anchor; downstream marker-
+# emit consumers MUST check for this literal before firing the
+# ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7`` marker.
+#
+# Disjoint from all other marker-literals
+# (sealed, restored, rotated, verified, confirmed, rollback-authorized,
+# designated, signed-off). This ensures no audit-trail consumer can
+# confuse the cross-Welle verifier verdict with a per-Welle marker.
+PHASE_3_COMPLETE_VERIFIED = "phase-3-complete-verified"
+
 # Allowed lifecycle-state-machine transitions (plan-doc §3.1).
 ALLOWED_TRANSITIONS = frozenset({
     (STATUS_PENDING, STATUS_IN_PROGRESS),
@@ -374,6 +432,40 @@ class FinalSealingError(WelleProducerError):
     """
 
 
+class Phase3CompleteVerifierError(WelleProducerError):
+    """Raised when the Phase-3-COMPLETE cross-Welle verifier refuses (Tag-76).
+
+    The verifier (``WelleStateProducer.handle_phase_3_complete_event``)
+    checks that **all 7** Welle-State-Files
+    (``state/welle-{1..7}.json``) are in canonical post-cutover-sign-off
+    State before the downstream audit-trail consumer may fire the
+    ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7`` marker.
+
+    Refusal-conditions (refusal-to-verify, NOT refusal-to-write -- the
+    verifier is read-only):
+
+    * a required Welle-State-File is missing or unparseable (the
+      :class:`StateFileShapeError` is raised first if the underlying
+      ``_load_state_file`` / ``_enforce_shape`` rejects the file; this
+      class fires on the cross-Welle-aggregate conditions only),
+    * a required Welle is not in ``signed-off`` state (still
+      ``pending`` / ``in-progress``, or terminally ``rolled-back``),
+    * a required Welle has empty ``cutover_iso`` or ``signoff_iso``
+      (signed-off implies both timestamps are non-empty per plan-doc
+      §3.4 invariant),
+    * cross-Welle ``cutover_iso`` ordering violates the canonical
+      welle_number monotonicity (Welle-3 cutover BEFORE Welle-1 cutover
+      would indicate operator-state-file corruption).
+
+    The verifier does NOT raise on per-Welle preconditions (those are
+    enforced by the per-Welle sign-off handlers at the moment of
+    sign-off). The verifier is the cross-Welle-aggregate gate.
+
+    Disjoint from all other producer errors (the verifier is a NEW
+    refusal-axis introduced in Tag-76).
+    """
+
+
 class CrossSubstrateParityError(WelleProducerError):
     """Raised on a Welle-6 sign-off without parity-marker (Tag-74 §2.7).
 
@@ -452,7 +544,72 @@ class WelleAuditRecord:
         ).encode("utf-8")
 
 
+@dataclass(frozen=True)
+class Phase3CompleteAuditRecord:
+    """Tag-76 cross-Welle verifier verdict audit-record (Selin).
+
+    Emitted by :meth:`WelleStateProducer.handle_phase_3_complete_event`
+    on a successful all-7-Wellen verification pass. The record is
+    **disjoint** from :class:`WelleAuditRecord` (single-Welle record):
+    this record carries cross-Welle-aggregate fields. Downstream
+    audit-trail consumers (Henrik Internal Audit Zone-N) distinguish
+    the two record types by the ``trigger`` value
+    (``"phase-3-complete-verify"`` for this record).
+
+    Fields:
+
+    * ``verdict``: the verdict-literal. ``PHASE_3_COMPLETE_VERIFIED``
+      on green (the verifier never EMITS a record on red -- it raises
+      :class:`Phase3CompleteVerifierError` instead; a red record exists
+      only conceptually for forensic completeness, not as an emitted
+      value).
+    * ``verified_wellen``: the immutable tuple of welle_numbers that
+      were verified signed-off (sorted ascending). Canonically
+      ``(1, 2, 3, 4, 5, 6, 7)``.
+    * ``earliest_cutover_iso``: the smallest cutover_iso across the
+      verified Wellen (forensic: marathon start-anchor).
+    * ``latest_signoff_iso``: the largest signoff_iso across the
+      verified Wellen (forensic: marathon end-anchor; this is
+      logically the Welle-7 sign-off-iso under canonical ordering,
+      but the verifier picks max() for robustness against
+      non-monotone signoff_iso ordering across Wellen).
+    * ``verify_iso``: the timestamp at which the verifier was called
+      (caller-supplied; the verifier itself is clock-agnostic).
+    * ``trigger``: always ``PHASE_3_COMPLETE_TRIGGER`` =
+      ``"phase-3-complete-verify"``. Disjoint from the eight
+      single-Welle trigger-literals.
+    """
+
+    verdict: str
+    verified_wellen: Tuple[int, ...]
+    earliest_cutover_iso: str
+    latest_signoff_iso: str
+    verify_iso: str
+    trigger: str = PHASE_3_COMPLETE_TRIGGER
+
+    def to_json_bytes(self) -> bytes:
+        """Canonical JSON bytes for downstream audit-hash anchoring."""
+        return json.dumps(
+            {
+                "earliest_cutover_iso": self.earliest_cutover_iso,
+                "latest_signoff_iso": self.latest_signoff_iso,
+                "trigger": self.trigger,
+                "verdict": self.verdict,
+                "verified_wellen": list(self.verified_wellen),
+                "verify_iso": self.verify_iso,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+
+
 AuditRecordEmitter = Callable[[WelleAuditRecord], None]
+Phase3CompleteAuditEmitter = Callable[[Phase3CompleteAuditRecord], None]
+
+
+def _noop_phase_3_emitter(_record: Phase3CompleteAuditRecord) -> None:
+    """Default Phase-3-COMPLETE emitter: drops the record."""
 
 
 def _noop_emitter(_record: WelleAuditRecord) -> None:
@@ -1401,6 +1558,184 @@ class WelleStateProducer:
         _enforce_shape(data, target)
         return json.loads(json.dumps(data))
 
+    # -- Tag-76: Phase-3-COMPLETE cross-Welle verifier (Production-Bringup). --
+
+    def handle_phase_3_complete_event(
+        self,
+        verify_iso: str,
+        *,
+        required_wellen: frozenset = PHASE_3_COMPLETE_REQUIRED_WELLEN,
+        phase_3_emitter: Optional[Phase3CompleteAuditEmitter] = None,
+    ) -> Phase3CompleteAuditRecord:
+        """Verify all required Wellen are in canonical signed-off State (Tag-76).
+
+        Cross-Welle Production-Bringup-Verifier. **Read-only**: this
+        method does NOT mutate any Welle-State-File. It checks the
+        invariants required for the downstream audit-trail consumer
+        (Henrik Internal Audit Zone-N) to fire the
+        ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7`` marker.
+
+        The verifier is parametric over ``required_wellen`` for unit-
+        testability; the canonical Phase-3c production-bringup invariant
+        is ``required_wellen = {1, 2, 3, 4, 5, 6, 7}``.
+
+        Invariants checked (in refusal-order):
+
+        1. ``verify_iso`` shape (RFC 3339, second-precision UTC).
+        2. For each required welle_number:
+           a. ``state/welle-N.json`` exists and is shape-valid
+              (:func:`_load_state_file`, :func:`_enforce_shape`); a
+              missing/corrupt file raises :class:`StateFileShapeError`.
+           b. ``status == "signed-off"``; any other status (still
+              ``pending`` / ``in-progress`` / terminal ``rolled-back``)
+              raises :class:`Phase3CompleteVerifierError`.
+           c. ``cutover_iso`` and ``signoff_iso`` are non-empty
+              (signed-off implies both per plan-doc §3.4); empty
+              raises :class:`Phase3CompleteVerifierError`.
+        3. Cross-Welle cutover_iso monotonicity: for welle_number i < j
+           in the required set, cutover_iso[i] MUST be <= cutover_iso[j]
+           (timeline-integrity invariant). Violation raises
+           :class:`Phase3CompleteVerifierError`. NOTE: Welle-4/5/6 may
+           share the same KW-anchor (KW-26 per the canonical run-order),
+           so equal cutover_iso between welles 4 and 5, or 5 and 6, is
+           tolerated (the monotonicity is <=, not <).
+
+        On green verdict, returns a :class:`Phase3CompleteAuditRecord`
+        with ``verdict = PHASE_3_COMPLETE_VERIFIED`` and emits the
+        record via ``phase_3_emitter`` (defaults to no-op).
+
+        Idempotency: the verifier is pure-functional w.r.t. the on-disk
+        state (read-only). A second call with the same on-disk State
+        + the same ``verify_iso`` returns an identical record. A second
+        call with a later ``verify_iso`` returns a record whose
+        ``verify_iso`` reflects the later call (timestamps are caller-
+        supplied).
+
+        Scope discipline (Selin)
+        ------------------------
+
+        * No state-file mutation (read-only).
+        * No marker-file mutation (the
+          ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7`` marker file lives
+          downstream; this verifier is the engine-side gate-input).
+        * No persona-definition mutation (Aisha-Domaene).
+        * No WAT-core coupling (Tomas-Domaene, Zone-K).
+        * No identity-substrate coupling (Reza-Domaene, Zone-L).
+        * No container-infra coupling (Kai-Domaene, Zone-J).
+
+        Args:
+            verify_iso: RFC 3339 verification-timestamp (caller-supplied).
+            required_wellen: The frozenset of welle_numbers required
+                to be signed-off. Defaults to
+                :data:`PHASE_3_COMPLETE_REQUIRED_WELLEN` = {1..7}.
+            phase_3_emitter: Optional Phase-3-COMPLETE audit-record sink;
+                defaults to no-op.
+
+        Returns:
+            :class:`Phase3CompleteAuditRecord` on green verdict.
+
+        Raises:
+            TimeInvariantViolationError: ``verify_iso`` shape invalid.
+            StateFileShapeError: a required state-file is missing or
+                schema-invalid.
+            Phase3CompleteVerifierError: a required Welle is not
+                signed-off, has empty ISO timestamps, or violates the
+                cross-Welle cutover monotonicity.
+        """
+        _validate_iso_timestamp(verify_iso, "verify_iso")
+        if not required_wellen:
+            raise Phase3CompleteVerifierError(
+                "required_wellen must be non-empty"
+            )
+        for welle_number in required_wellen:
+            if welle_number not in VALID_WELLE_NUMBERS:
+                raise InvalidWelleNumberError(
+                    f"required_wellen contains invalid welle_number "
+                    f"{welle_number!r} (must be in 1..7)"
+                )
+
+        emitter = phase_3_emitter if phase_3_emitter is not None else _noop_phase_3_emitter
+        sorted_wellen = tuple(sorted(required_wellen))
+
+        # Pass 1: shape-validate every required Welle-State-File and
+        # collect (cutover_iso, signoff_iso, status) tuples.
+        per_welle_state: Dict[int, Tuple[str, str, str]] = {}
+        for welle_number in sorted_wellen:
+            target = _state_file_path(self.state_dir, welle_number)
+            data = _load_state_file(target)
+            _enforce_shape(data, target)
+            status = data["status"]
+            cutover_iso = data.get("cutover_iso", "")
+            signoff_iso = data.get("signoff_iso", "")
+            per_welle_state[welle_number] = (cutover_iso, signoff_iso, status)
+
+        # Pass 2: status invariant -- every required Welle MUST be
+        # signed-off. Refuse on pending/in-progress/rolled-back.
+        for welle_number in sorted_wellen:
+            cutover_iso, signoff_iso, status = per_welle_state[welle_number]
+            if status != STATUS_SIGNED_OFF:
+                raise Phase3CompleteVerifierError(
+                    f"welle-{welle_number} not signed-off: "
+                    f"status={status!r} (required: signed-off)"
+                )
+            if not cutover_iso:
+                raise Phase3CompleteVerifierError(
+                    f"welle-{welle_number} signed-off but cutover_iso "
+                    f"is empty (plan-doc §3.4 invariant violation)"
+                )
+            if not signoff_iso:
+                raise Phase3CompleteVerifierError(
+                    f"welle-{welle_number} signed-off but signoff_iso "
+                    f"is empty (plan-doc §3.4 invariant violation)"
+                )
+            # Per-Welle time-ordering (already enforced by the sign-off
+            # handlers, but the verifier re-checks defensively in case
+            # of operator-curated state-file edits between sign-off and
+            # verify).
+            _check_time_invariants(cutover_iso, signoff_iso)
+
+        # Pass 3: cross-Welle monotonicity. For sorted welle_numbers
+        # i < j in the required set, cutover_iso[i] <= cutover_iso[j].
+        # ISO 8601 second-precision UTC strings are lexicographically
+        # comparable (RFC 3339 §5.6 guarantees lexicographic order
+        # equals temporal order for normalised offsets; the verifier
+        # accepts +HH:MM offsets as well -- if offsets diverge across
+        # Wellen this is a forensic-readable signal in the audit-record
+        # but does not raise).
+        for idx in range(1, len(sorted_wellen)):
+            prev_welle = sorted_wellen[idx - 1]
+            curr_welle = sorted_wellen[idx]
+            prev_cutover = per_welle_state[prev_welle][0]
+            curr_cutover = per_welle_state[curr_welle][0]
+            if prev_cutover > curr_cutover:
+                raise Phase3CompleteVerifierError(
+                    f"cross-Welle cutover_iso monotonicity violated: "
+                    f"welle-{prev_welle} cutover_iso={prev_cutover!r} "
+                    f"> welle-{curr_welle} cutover_iso={curr_cutover!r} "
+                    f"(timeline-integrity invariant)"
+                )
+
+        # Aggregate forensic anchors.
+        all_cutovers = sorted(
+            per_welle_state[w][0] for w in sorted_wellen
+        )
+        all_signoffs = sorted(
+            per_welle_state[w][1] for w in sorted_wellen
+        )
+        earliest_cutover_iso = all_cutovers[0]
+        latest_signoff_iso = all_signoffs[-1]
+
+        record = Phase3CompleteAuditRecord(
+            verdict=PHASE_3_COMPLETE_VERIFIED,
+            verified_wellen=sorted_wellen,
+            earliest_cutover_iso=earliest_cutover_iso,
+            latest_signoff_iso=latest_signoff_iso,
+            verify_iso=verify_iso,
+            trigger=PHASE_3_COMPLETE_TRIGGER,
+        )
+        emitter(record)
+        return record
+
 
 # ---------------------------------------------------------------------------
 # Module-level public API summary (for static-tooling auditors).
@@ -1425,9 +1760,16 @@ __all__ = [
     "InvalidStatusTransitionError",
     "InvalidWelleNumberError",
     "ISO_TS_NONEMPTY_RE",
+    "PHASE_3_COMPLETE_CANONICAL_KW_ANCHOR",
+    "PHASE_3_COMPLETE_REQUIRED_WELLEN",
+    "PHASE_3_COMPLETE_TRIGGER",
+    "PHASE_3_COMPLETE_VERIFIED",
     "PHASE_LITERAL",
     "PRE_AUDITOR_GUARDED_WELLEN",
     "PathTraversalError",
+    "Phase3CompleteAuditEmitter",
+    "Phase3CompleteAuditRecord",
+    "Phase3CompleteVerifierError",
     "PreAuditorGuardError",
     "ROLLBACK_MARKER_AUTHORIZED",
     "RollbackAuthorityError",
