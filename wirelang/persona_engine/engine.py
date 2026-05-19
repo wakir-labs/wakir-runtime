@@ -1045,12 +1045,19 @@ class PersonaEngine:
 # :meth:`WelleStateProducer.handle_welle_4_signoff_event` with the
 # snapshot-restore-marker gate.
 #
-# ``handle_welle_5_signoff_event`` (Tag-73, this PR) is a Welle-5-pinned
-# shorthand (Capability-Token Welle, KW-25 Fr 2026-06-19, Reza-Zone-L)
-# that hard-codes ``welle_number=5`` and delegates to
+# ``handle_welle_5_signoff_event`` (Tag-73) is a Welle-5-pinned
+# shorthand (Capability-Token Welle, KW-26 per ``pre-cutover-acceptance-
+# run-order.md`` post Tag-74 reconciliation, Reza-Zone-L) that hard-
+# codes ``welle_number=5`` and delegates to
 # :meth:`WelleStateProducer.handle_welle_5_signoff_event` with the
-# capability-token-rotation-marker gate. For Welle-1/6 sign-offs the
-# direct producer-method is used (no top-level shorthand needed).
+# capability-token-rotation-marker gate.
+#
+# ``handle_welle_6_signoff_event`` (Tag-74, this PR) is a Welle-6-pinned
+# shorthand (Cross-Substrate-Parity-Welle) that hard-codes
+# ``welle_number=6`` and delegates to
+# :meth:`WelleStateProducer.handle_welle_6_signoff_event` with the
+# cross-substrate-parity-marker gate. For Welle-1 sign-offs the direct
+# producer-method is used (no top-level shorthand needed).
 # ---------------------------------------------------------------------------
 
 
@@ -1272,4 +1279,54 @@ def handle_welle_3_signoff_event(
         signoff_iso=signoff_iso,
         sign_off_marker_status=sign_off_marker_status,
         pre_auditor_decision=pre_auditor_decision,
+    )
+
+
+def handle_welle_6_signoff_event(
+    state_dir: Path,
+    signoff_iso: str,
+    *,
+    sign_off_marker_status: str,
+    cross_substrate_parity_marker_status: str,
+    audit_emitter: Optional[AuditRecordEmitter] = None,
+) -> WelleAuditRecord:
+    """Top-level dispatch for the Welle-6 Cross-Substrate-Parity sign-off (Tag-74).
+
+    Welle-6 is the Cross-Substrate-Parity-Welle (KW-26 per the engine-
+    side helper-default; ``docs/quality-gates/pre-cutover-acceptance-
+    run-order.md`` §3 lists Welle-6 on KW-27 -- see the Tag-74
+    reconciliation doc ``docs/persona-engine/welle-5-kw-anchor-
+    reconciliation-tag74.md``). The sign-off is gated by the cross-
+    substrate-parity-marker precondition (cosign ↔ quadlet ↔ backend-
+    switch parity across the three artefact-substrates, per Tomas'
+    ``cross-substrate-parity-gate`` workflow).
+
+    Args:
+        state_dir: Directory containing ``state/welle-6.json``.
+        signoff_iso: RFC 3339 sign-off timestamp.
+        sign_off_marker_status: Companion-marker status; must be
+            ``"signed-off"`` (refusal-to-write otherwise).
+        cross_substrate_parity_marker_status: Cross-substrate-parity
+            marker; must be exactly ``"verified"`` (refusal-to-write
+            otherwise). The marker is operator-curated by Tomas'
+            ``cross-substrate-parity-gate`` workflow.
+        audit_emitter: Optional audit-record sink; defaults to no-op.
+
+    Returns:
+        The :class:`WelleAuditRecord` describing the transition (or the
+        idempotent no-op if Welle-6 is already signed-off). The record
+        carries ``trigger="cross-substrate-parity"``.
+    """
+    if audit_emitter is None:
+        producer = WelleStateProducer(state_dir=state_dir)
+    else:
+        producer = WelleStateProducer(
+            state_dir=state_dir, audit_emitter=audit_emitter
+        )
+    return producer.handle_welle_6_signoff_event(
+        signoff_iso=signoff_iso,
+        sign_off_marker_status=sign_off_marker_status,
+        cross_substrate_parity_marker_status=(
+            cross_substrate_parity_marker_status
+        ),
     )

@@ -13,7 +13,10 @@ Seventeen tests cover:
 3.  Stubs carry the canonical ``schema_version: "tag-67-v1"`` pin.
 4.  Stubs carry the canonical ``phase: "phase-3-marathon"`` literal.
 5.  Welle-1 KW-anchor is KW-22 per ADR-0066-Reihenfolge.
-6.  Welle-{3,4,5} KW-anchor is KW-25 per ADR-0066-Reihenfolge.
+6.  Welle-3 KW-anchor stays on KW-25; Welle-4 + Welle-5 on KW-26 per
+    Tag-74 W5-anchor-Drift-Fix reconciliation (``docs/persona-engine/
+    welle-5-kw-anchor-reconciliation-tag74.md``; supersedes the Tag-67-
+    era pin that placed all three on KW-25).
 7.  Welle-7 KW-anchor is KW-27 per ADR-0066-Reihenfolge.
 8.  Verifier rejects a rollup with status not in the four-value enum.
 9.  Verifier rejects a rollup with mismatched welle_number-vs-filename.
@@ -125,12 +128,22 @@ def test_05_welle_1_kw_anchor_is_kw_22() -> None:
     assert doc["kw_cutover_anchor"] == "KW-22"
 
 
-def test_06_welle_345_kw_anchor_is_kw_25() -> None:
-    """ADR-0066-Reihenfolge: Welle-3 + Welle-4 + Welle-5 all KW-25."""
-    for n in (3, 4, 5):
+def test_06_welle_345_kw_anchor_per_pre_cutover_run_order() -> None:
+    """Tag-74 reconciliation: per ``pre-cutover-acceptance-run-order.md``
+    §3 table Welle-3 stays on KW-25, Welle-4 + Welle-5 are on KW-26
+    (Doppel-Welle-4+5 Cutover-Mittwoch 2026-06-24). The Tag-67-era
+    pin (all three on KW-25) is superseded by the Tag-74 W5-anchor-fix
+    PR; see ``docs/persona-engine/welle-5-kw-anchor-reconciliation-
+    tag74.md``.
+    """
+    expected = {3: "KW-25", 4: "KW-26", 5: "KW-26"}
+    for n, kw in expected.items():
         with (STATE_DIR / f"welle-{n}.json").open("r", encoding="utf-8") as fh:
             doc = json.load(fh)
-        assert doc["kw_cutover_anchor"] == "KW-25", f"welle-{n} KW drift"
+        assert doc["kw_cutover_anchor"] == kw, (
+            f"welle-{n} KW drift: expected {kw}, got "
+            f"{doc['kw_cutover_anchor']}"
+        )
 
 
 def test_07_welle_7_kw_anchor_is_kw_27() -> None:

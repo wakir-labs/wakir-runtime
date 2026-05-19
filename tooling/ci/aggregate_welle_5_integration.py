@@ -142,12 +142,15 @@ verifikation discipline):
   precedent and surfaces the Capability-Token view as parallel-
   substrate-evidence on the envelope.
 * Brief implied ``state/welle-5.json`` is canonical. In fact
-  ``state/welle-5.json`` carries ``kw_cutover_anchor: "KW-25"``
-  which conflicts with ``pre-cutover-acceptance-run-order.md``
-  row Welle-5 (KW-26 Doppel-Welle-4+5). The state-file drift
-  is surfaced as a pin-drift marker on the envelope; the state-
-  file is NOT modified by this smoke (Amara scope: surface, not
-  patch; ADR-0036 producer-domain is Selin).
+  the Tag-73-era ``state/welle-5.json`` carried
+  ``kw_cutover_anchor: "KW-25"`` which conflicted with
+  ``pre-cutover-acceptance-run-order.md`` row Welle-5 (KW-26
+  Doppel-Welle-4+5). Tag-74 (Selin, ADR-0036 producer-domain)
+  PATCHED the state-file to ``kw_cutover_anchor: "KW-26"`` per
+  the reconciliation rule in ``docs/persona-engine/welle-5-kw-
+  anchor-reconciliation-tag74.md``. The brief-vs-canonical row
+  remains on the envelope as a historical audit-trail anchor;
+  the resolution literal is post-Tag-74.
 * Brief framing "Doppel-Welle-4+5 parallel" matches canonical.
   This is consistent with Tag-72's Welle-4 framing and is
   surfaced verbatim on the envelope.
@@ -163,8 +166,11 @@ Welle-5 integration-smoke. It does NOT modify the Selin
 state-file-producer (Zone-O), the Tomas audit-trail-anchor wiring
 (Zone-K), the rollback-runbook (Zone-K), or the forward-cascade-
 rule helpers (Selin-domain). All four substrate envelopes are
-consumed read-only. The state/welle-5.json kw-anchor drift is
-surfaced but NOT patched (Selin-domain).
+consumed read-only. The state/welle-5.json kw-anchor drift was
+patched in Tag-74 (Selin, ADR-0036 producer-domain) and is now
+aligned with ``pre-cutover-acceptance-run-order.md``; the
+historical brief-vs-canonical row remains on the envelope as the
+audit-trail anchor.
 
 Cross-Review-Markers
 --------------------
@@ -392,16 +398,17 @@ BRIEF_VS_CANONICAL_RECONCILIATION: dict[str, dict[str, str]] = {
         ),
     },
     "welle_5_state_file_kw_anchor": {
-        "brief_value": "state/welle-5.json kw_cutover_anchor=KW-25 (implied canonical)",
+        "brief_value": "state/welle-5.json kw_cutover_anchor=KW-25 (implied canonical, Tag-73-era)",
         "canonical_value": "KW-26 Mi 2026-06-24 cutover / KW-26 Fr 2026-06-26 sign-off",
         "canonical_source": (
             "docs/quality-gates/pre-cutover-acceptance-run-order.md "
             "row Welle-5 (Doppel-Welle-4+5 parallel)"
         ),
         "resolution": (
-            "canonical wins (state-file pin-drift surfaced; "
-            "state-file NOT patched per Amara scope discipline, "
-            "ADR-0036 producer-domain is Selin)"
+            "canonical wins; state-file PATCHED in Tag-74 (Selin, "
+            "ADR-0036 producer-domain) per "
+            "docs/persona-engine/welle-5-kw-anchor-reconciliation-tag74.md "
+            "-- the Tag-73-era 'NOT patched' resolution is superseded"
         ),
     },
     "doppel_welle_4_5_framing": {

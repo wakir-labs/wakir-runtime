@@ -61,15 +61,45 @@ SCHEMA_VERSION = "tag-67-v1"
 PHASE_LITERAL = "phase-3-marathon"
 
 # Canonical KW-anchor map per the Marathon-Schedule, locked to the
-# Tag-67 stub-state-files committed to state/welle-N.json.
-# Wellen-Reihe: 1=KW-22, 2=KW-23, 3=KW-25 (Cutover-T0),
-# 4=KW-25, 5=KW-25, 6=KW-26, 7=KW-27.
+# operational Source-of-Truth ``docs/quality-gates/pre-cutover-
+# acceptance-run-order.md`` §3 per-Welle Run-Order table (lines 90..98).
+# Wellen-Reihe (post Tag-74 reconciliation):
+#   1=KW-22, 2=KW-23, 3=KW-25, 4=KW-26, 5=KW-26, 6=KW-26, 7=KW-27.
+#
+# Tag-74 W5-anchor reconciliation (Selin)
+# ---------------------------------------
+# The W5 default-map was previously KW-25 (Tag-67 render-helper default,
+# inherited from a pre-ADR-0066 schedule that placed Welle-5 on KW-25 Fr
+# 2026-06-19 as a solo-welle). ADR-0066 four-Wochen-Cadence locked the
+# Doppel-Welle-4+5 to KW-26 (Cutover-Mittwoch 2026-06-24, Sign-off-
+# Freitag 2026-06-26), which the operational Source-of-Truth
+# ``pre-cutover-acceptance-run-order.md`` §3 table reflects.
+#
+# Source-of-Truth resolution
+# --------------------------
+# When the persona-engine helper-default disagrees with another
+# canonical-doc reference, the operational Final-Reference
+# ``docs/quality-gates/pre-cutover-acceptance-run-order.md`` wins.
+# Rationale: it is the run-order doc Amara + Henrik + Aisha consult on
+# cutover-Mittwoch + sign-off-Freitag; older docstrings (e.g. the
+# ``handle_welle_5_signoff_event`` docstring's ``KW-25 Fr 2026-06-19``
+# inherited string) are historical references that do not gate the
+# producer-substrate's runtime behaviour (the producer is kw-anchor-
+# agnostic at the transition-machine level -- the kw-anchor lives in
+# the state-file's ``kw_cutover_anchor`` field, not in the transition
+# guard).
+#
+# The reconciliation is documented in
+# ``docs/persona-engine/welle-5-kw-anchor-reconciliation-tag74.md``.
+# This Tag-74 render-helper fix changes ONLY the default-map; the
+# ``state/welle-5.json`` on-disk file remains the operator-curated
+# source-of-truth for the runtime ``kw_cutover_anchor`` field.
 CANONICAL_KW_ANCHOR: Dict[int, str] = {
     1: "KW-22",
     2: "KW-23",
     3: "KW-25",
-    4: "KW-25",
-    5: "KW-25",
+    4: "KW-26",
+    5: "KW-26",
     6: "KW-26",
     7: "KW-27",
 }
