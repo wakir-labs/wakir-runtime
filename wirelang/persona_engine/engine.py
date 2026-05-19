@@ -1124,6 +1124,51 @@ def handle_welle_rollback_event(
     )
 
 
+def handle_welle_4_signoff_event(
+    state_dir: Path,
+    signoff_iso: str,
+    *,
+    sign_off_marker_status: str,
+    snapshot_restore_marker_status: str,
+    audit_emitter: Optional[AuditRecordEmitter] = None,
+) -> WelleAuditRecord:
+    """Top-level dispatch for the Welle-4 State-Backing sign-off (Tag-72).
+
+    Welle-4 is the State-Backing Welle (KW-25 Mo). The 10th pre-boot
+    BackendDecision (``state_backing`` rust<->python switch,
+    Tag-57-emit-order-pin) flips during this Welle; the sign-off is
+    gated by the snapshot-restore-marker precondition
+    (Tomas-Tag-56-Rollback-Workflow §J4).
+
+    Args:
+        state_dir: Directory containing ``state/welle-4.json``.
+        signoff_iso: RFC 3339 sign-off timestamp.
+        sign_off_marker_status: Companion-marker status; must be
+            ``"signed-off"`` (refusal-to-write otherwise).
+        snapshot_restore_marker_status: State-backing-snapshot-restore
+            marker; must be exactly ``"restored"`` (refusal-to-write
+            otherwise). The marker is operator-curated by the
+            state-backing-snapshot-restore-workflow.
+        audit_emitter: Optional audit-record sink; defaults to no-op.
+
+    Returns:
+        The :class:`WelleAuditRecord` describing the transition (or the
+        idempotent no-op if Welle-4 is already signed-off). The record
+        carries ``trigger="snapshot-restore"``.
+    """
+    if audit_emitter is None:
+        producer = WelleStateProducer(state_dir=state_dir)
+    else:
+        producer = WelleStateProducer(
+            state_dir=state_dir, audit_emitter=audit_emitter
+        )
+    return producer.handle_welle_4_signoff_event(
+        signoff_iso=signoff_iso,
+        sign_off_marker_status=sign_off_marker_status,
+        snapshot_restore_marker_status=snapshot_restore_marker_status,
+    )
+
+
 def handle_welle_3_signoff_event(
     state_dir: Path,
     signoff_iso: str,

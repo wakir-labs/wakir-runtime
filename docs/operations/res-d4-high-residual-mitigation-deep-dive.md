@@ -594,6 +594,182 @@ indefinite-deferral default is lifted by a re-evaluation trigger
 T1..T7 firing (§4.2). Until then, Tag-71 §6.3 sits on the shelf
 as a planning artifact alongside Tag-70 §6.2.
 
+### 6.4 HD-3 Audit-Coverage substrate catalogue (Tag-72)
+
+Tag-72 extends §6 with a concrete, audit-only audit-coverage
+catalogue and an audit-sample event inventory for the HD-3
+substrate. The catalogue is shipped as a stub-file at
+`tooling/audit/res-d4-hd3-audit-coverage-stub.json` and the
+corresponding helper is
+`tooling/audit/prepare_res_d4_hd3_audit_coverage_substrate.py`.
+Both are strictly audit-only: the helper runs in inspection
+mode, never emits an audit-sample-rotation entry, never
+directs Henrik Voss's audit-sample priority-list, never changes
+the NATS-KV schema or rollback-procedure defaults. The §8
+sandbox-boundary recital applies in full, with the HD-3-specific
+extensions documented below.
+
+§6.4 is the §6.2 / §6.3 sibling for HD-3. §6.2 framed the
+OTS-anchor substrate (HD-1); §6.3 framed the peer-roster
+substrate (HD-2); §6.4 frames the audit-coverage substrate
+(HD-3). §3.3 remains the parent HD-3 mitigation-strategy
+section; §6.4 layers a concrete audit-priority-tag +
+schema-extension-probe + rollback-choice catalogue on top of
+§3.3's framing.
+
+**Audit-priority-tag catalogue (three tags).** The catalogue
+enumerates exactly three audit-priority-tag entries that the
+probe must handle in audit-only mode. Each entry has
+`audit_sample_rotation_emit: false` per the audit-only
+discipline (the actual rotation amendment is HR/Audit-hand,
+not Reza-hand).
+
+| Tag name | `kind` | Expected verifier branch | Henrik-Voss action | Resolver call |
+|---|---|---|---|---|
+| `live-ots-critical-path` | fixture | accept (inspection-only) | none-in-audit-only | none |
+| `fixture-priority-default` | fixture | accept (inspection-only) | none-in-audit-only | none |
+| `reza-hand-priority-flip-forbidden` | fixture | reject (audit-priority-owner-mismatch diagnostic) | none-in-audit-only | none |
+
+The first tag is the canonical priority value RES-D4 carries
+in the Tag-72 audit-coverage catalogue. The second tag is the
+default priority value carried by every non-RES-D4 sample
+entry; it exists to demonstrate that the priority field is a
+discriminator (not a boolean flag). The third tag is the
+negative-control that pins the hand-boundary discipline: a
+probe asked to flip the priority value from Reza-hand MUST
+reject with an `audit-priority-owner-mismatch` diagnostic,
+because the priority-list owner is HR/Audit-hand (Henrik
+Voss + Aisha Rahman), not Reza-hand.
+
+**Schema-extension audit probes (three probes).** The catalogue
+enumerates exactly three schema-extension probe variants that
+the probe must handle in audit-only mode. The probe checks
+whether the proposed `registry-pointer-record` key-shape is a
+strict superset of the existing `route_registry_nats_kv_backend.py`
+discovery key-shape (Tag-67 §5.1 A4 mitigation) and whether
+v1-consumer compatibility holds across a v1→v2 migration
+(Tag-67 §5.1 A5 mitigation).
+
+| Probe name | `probe_state` | Expected verifier branch | Expected diagnostic |
+|---|---|---|---|
+| `schema-extension-probe--strict-superset-ok` | registry-pointer-record-is-strict-superset-of-discovery-key-shape | accept | (none) |
+| `schema-extension-probe--key-shape-collision` | registry-pointer-record-collides-with-discovery-key-shape | reject | `schema-extension-collision` |
+| `schema-extension-probe--v1-consumer-break` | v1-consumer-smoke-fails-against-v2 | reject | `v1-consumer-break` |
+
+The first probe exercises the accept-path: the new key-shape
+sits on top of the discovery key-shape without overlap. The
+second probe is the A4 negative-control: a key-shape collision
+between the registry-pointer-record extension and the existing
+discovery key-shape MUST be rejected with a
+`schema-extension-collision` diagnostic. The third probe is
+the A5 negative-control: a v1-consumer smoke that fails against
+the v2 schema MUST be rejected with a `v1-consumer-break`
+diagnostic. Both negative-controls pin the Tag-67 §5.1 A4 + A5
+failure-mode mitigations in tests.
+
+**Rollback-audit choices (three choices).** The catalogue
+enumerates exactly three rollback-choice variants that the
+probe must handle in audit-only mode. The two accept-path
+choices correspond to the Tag-67 §5.1 B4 mitigation strategy
+(d) — rollback procedure includes an explicit NATS-KV bucket
+schema atomic-revert step OR a forward-compat documentation
+note that the bucket extension is left in place by design.
+
+| Choice name | `rollback_mode` | Expected verifier branch | Expected diagnostic |
+|---|---|---|---|
+| `rollback-choice--atomic-revert` | atomic-revert-of-nats-kv-bucket-extension | accept | (none) |
+| `rollback-choice--forward-compat-note` | forward-compat-documentation-note-bucket-left-in-place | accept | (none) |
+| `rollback-choice--silent-leave-forbidden` | silent-leave-without-note | reject | `rollback-undocumented` |
+
+The third choice is the B4 negative-control: leaving the
+bucket extension in place after rollback without an explicit
+forward-compat note is forbidden. The probe MUST reject with
+a `rollback-undocumented` diagnostic. Both accept-path choices
+require `audit_trail_visibility_required: true` so Henrik
+Voss's audit-sample can observe the rollback decision.
+
+**Audit-sample event inventory (three events).** Tag-72
+documents the three audit-sample event types that the audit-
+trail bucket `audit_sample_rotation` will carry post-HD-3
+clearance. All three default to **not-emitted-in-audit-only**
+with `owner_hand: HR/Audit-hand`. The `priority`-discriminator
+is required on every entry so the audit-priority filter
+remains observable in the rotation log.
+
+| Event name | Audit-trail bucket | Priority discriminator | Default state | Owner |
+|---|---|---|---|---|
+| `audit-sample--res-d4-rotation-entry` | `audit_sample_rotation` | yes | not-emitted-in-audit-only | HR/Audit-hand |
+| `audit-sample--schema-extension-probe-result` | `audit_sample_rotation` | yes | not-emitted-in-audit-only | HR/Audit-hand |
+| `audit-sample--rollback-choice-record` | `audit_sample_rotation` | yes | not-emitted-in-audit-only | HR/Audit-hand |
+
+The owner-hand on every entry is **HR/Audit-hand**, not
+Reza-hand. Tag-72 documents the audit-trail shape of the
+event but does NOT emit any such event from this helper, nor
+does it direct Henrik Voss to emit one. The actual priority-
+list amendment is owned by HR/Audit-hand per §3.3 pre-
+conditions and ADR-0014 / ADR-0025.
+
+**Reuse-discipline.** The Tag-72 stub catalogue reuses the
+Tag-60 pre-activation fixture shape (PR #382) without
+modification, parallels the Tag-70 §6.2 HD-1 catalogue
+structure and the Tag-71 §6.3 HD-2 catalogue structure (three
+entries per family, one negative-control per family). Tag-72
+adds three audit-priority-tag variants, three schema-extension-
+probe variants, and three rollback-choice variants on top of
+the Tag-60 / Tag-70 / Tag-71 base shape; it does not redesign
+the audit-sample rotation key-shape or the NATS-KV
+`route_registry` bucket key-shape. Cross-anchor: Tag-60 §3 +
+Tag-66 PR #421 (OTS-probe coverage) + Tag-67 §5.1 A4/A5/B4/B5 +
+Tag-69 §3.3 + Tag-70 §6.2 + Tag-71 §6.3 + ADR-0014 + ADR-0025.
+
+**Strict audit-coverage invariant pin-point.** The §3.3
+mitigation is the load-bearing definition for HD-3. Tag-72
+§6.4 pins three concrete shapes that exercise the invariant:
+
+- Schema-extension that is a strict superset of the discovery
+  key-shape with v1-consumer-compat preserved → probe accepts
+  (probe 1).
+- Schema-extension that collides with the discovery key-shape
+  → probe rejects with `schema-extension-collision` diagnostic
+  (probe 2, Tag-67 §5.1 A4).
+- v1-consumer-smoke failing against v2 → probe rejects with
+  `v1-consumer-break` diagnostic (probe 3, Tag-67 §5.1 A5).
+- Rollback with documented choice (atomic-revert or forward-
+  compat note) → probe accepts (choices 1 + 2).
+- Rollback with silent-leave (no note) → probe rejects with
+  `rollback-undocumented` diagnostic (choice 3, Tag-67 §5.1 B4).
+- Priority-flip attempt from Reza-hand → probe rejects with
+  `audit-priority-owner-mismatch` diagnostic (priority-tag 3,
+  Tag-67 §5.1 B5).
+
+An audit-sample-config that legitimately satisfies HD-3
+(RES-D4 prioritised by HR/Audit-hand under ADR-0014 + ADR-0025)
+is **not** enumerated in the Tag-72 substrate, because
+enumerating such a configuration would constitute an
+audit-sample-config amendment claim, which §6.4 sandbox-
+boundary forbids.
+
+**What Tag-72 §6.4 does NOT do.** Tag-72 §6.4 is a substrate-
+prep catalogue. It does not:
+
+- Amend Henrik Voss's audit-sample-config priority-list.
+- Direct Henrik Voss's audit-sample priority-list rotation.
+- Open a promotion-PR.
+- Change the NATS-KV `route_registry` bucket schema default.
+- Change the rollback-procedure default.
+- Emit any audit-sample-rotation entry.
+- Open an AR-authorisation request (§8.2).
+- Recommend that the RES-D4 indefinite-deferral be lifted (§4.3).
+
+The HD-3 substrate is ready to be picked up by a future
+HR/Audit-hand action (audit-sample-config amendment under
+ADR-0014 + ADR-0025) and a follow-up Reza-hand verifier-side
+mitigation PR once the indefinite-deferral default is lifted
+by a re-evaluation trigger T1..T7 firing (§4.2). Until then,
+Tag-72 §6.4 sits on the shelf as a planning artifact alongside
+Tag-70 §6.2 and Tag-71 §6.3 — completing the three-hard-dep
+substrate trilogy at audit-only granularity.
+
 ---
 
 ## 7. Peer-Roster Substrate Preparation (Audit-Only)

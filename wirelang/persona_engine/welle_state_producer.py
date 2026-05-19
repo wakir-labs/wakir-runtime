@@ -22,7 +22,14 @@ hot-path engine code free of filesystem-layout knowledge and lets
 the producer-substrate be unit-tested in hermetic isolation.
 
 Tag-69 shipped the **Welle-1 producer-path** (Cutover-T0 first-fire)
-+ Sign-Off path. Tag-70 (this PR) adds:
++ Sign-Off path. Tag-72 (this PR) adds the **Welle-4 State-Backing
+sign-off** path (KW-25 Mo): a sign-off variant that additionally
+requires a ``snapshot_restore_marker_status == "restored"``
+precondition. Welle-4 is the only Welle whose sign-off is gated by
+the snapshot-restore-marker (state-backing rust<->python switch is
+the 10th pre-boot BackendDecision per the Tag-57-emit-order-pin;
+the snapshot-restore-workflow is captured in
+Tomas-Tag-56-Rollback-Workflow §J4). Tag-70 (earlier) added:
 
 * **Welle-2 Doppelbetrieb-Sealing** trigger (KW-24 Mi, plan-doc §2.3):
   a sign-off variant that additionally requires a
@@ -159,6 +166,22 @@ ROLLBACK_MARKER_AUTHORIZED = "rollback-authorized"
 # Welle-2 Doppelbetrieb-Sealing sign-off (Tag-70 §2.3).
 DOPPELBETRIEB_SEALED = "sealed"
 
+# Wellen for which the sign-off path additionally requires the
+# snapshot-restore-marker to report ``restored`` (Tag-72 §2.5,
+# Tomas-Tag-56-Rollback-Workflow §J4). Welle-4 is the State-Backing
+# Welle (KW-25 Mo); the 10th pre-boot BackendDecision (state_backing
+# rust<->python) is the only Welle whose sign-off requires a verified
+# snapshot-restore. Without the restore-marker the Welle-4 sign-off
+# would leave the state-backing substrate in an unverified state at
+# the moment of cutover finalisation.
+SNAPSHOT_RESTORE_GUARDED_WELLEN = frozenset({4})
+
+# Snapshot-restore-marker literal: callers MUST pass this exact value
+# as ``snapshot_restore_marker_status`` to authorise the Welle-4
+# State-Backing sign-off (Tag-72 §2.5). Mirrors the
+# :data:`DOPPELBETRIEB_SEALED` design.
+SNAPSHOT_RESTORE_VERIFIED = "restored"
+
 # Allowed lifecycle-state-machine transitions (plan-doc §3.1).
 ALLOWED_TRANSITIONS = frozenset({
     (STATUS_PENDING, STATUS_IN_PROGRESS),
@@ -212,6 +235,18 @@ class RollbackAuthorityError(WelleProducerError):
 
 class DoppelbetriebSealingError(WelleProducerError):
     """Raised on a Welle-2 sign-off without sealed-marker (Tag-70 §2.3)."""
+
+
+class SnapshotRestoreError(WelleProducerError):
+    """Raised on a Welle-4 sign-off without snapshot-restore-marker (Tag-72 §2.5).
+
+    Welle-4 is the State-Backing Welle (KW-25 Mo). The 10th pre-boot
+    BackendDecision (state_backing rust<->python switch) flips during
+    this Welle; the sign-off is only authorised once the operator-curated
+    snapshot-restore-marker has flipped to
+    :data:`SNAPSHOT_RESTORE_VERIFIED`. Mirrors the
+    :class:`DoppelbetriebSealingError` design for Welle-2.
+    """
 
 
 # ---------------------------------------------------------------------------
@@ -647,6 +682,98 @@ class WelleStateProducer:
         self.audit_emitter(record)
         return record
 
+    # -- Transition: Welle-4 State-Backing sign-off (Tag-72 §2.5) --
+
+    def handle_welle_4_signoff_event(
+        self,
+        signoff_iso: str,
+        *,
+        sign_off_marker_status: str,
+        snapshot_restore_marker_status: str,
+    ) -> WelleAuditRecord:
+        """Apply the Welle-4 State-Backing sign-off (Tag-72 §2.5).
+
+        Welle-4 is the State-Backing Welle (KW-25 Mo). The 10th pre-boot
+        BackendDecision (``state_backing`` rust<->python switch,
+        Tag-57-emit-order-pin) flips during this Welle. The sign-off
+        is structurally an in-progress -> signed-off transition with
+        **two** marker preconditions:
+
+        * the standard ``sign_off_marker_status == "signed-off"``
+          companion marker (same as :meth:`handle_sign_off_event`),
+        * the additional ``snapshot_restore_marker_status ==
+          "restored"`` marker which confirms the state-backing
+          snapshot-restore-workflow (Tomas-Tag-56-Rollback-Workflow
+          §J4) has been observed-complete by the operator (the new
+          state-backing substrate has been re-hydrated from the
+          pre-cutover snapshot and a parity-check against the legacy
+          substrate has returned clean). Refused otherwise.
+
+        Welle-4 is **not** in :data:`PRE_AUDITOR_GUARDED_WELLEN`, so
+        no pre-auditor guard applies here. The audit-record carries
+        ``trigger="snapshot-restore"`` to disambiguate from a vanilla
+        Welle-4 sign-off in the downstream audit-stream and from the
+        Welle-2 ``trigger="sealing"`` record.
+
+        Idempotency: a double-fire after a successful Welle-4 sign-off
+        returns an audit-record with ``prior_status == new_status ==
+        "signed-off"`` and ``trigger="snapshot-restore"`` (no on-disk
+        mutation). Mirrors the Welle-2 sealing idempotency path.
+
+        Forensic note: the snapshot-restore-iso itself is not stored
+        in the schema-pinned state-file (the schema-pin is unchanged
+        per Tag-67); it is recoverable from the audit-stream via the
+        ``trigger="snapshot-restore"`` record + ``signoff_iso``.
+        """
+        welle_number = 4
+        _validate_iso_timestamp(signoff_iso, "signoff_iso")
+        if sign_off_marker_status != STATUS_SIGNED_OFF:
+            raise SignOffPreconditionError(
+                f"sign-off-marker for welle-{welle_number} not "
+                f"signed-off: got {sign_off_marker_status!r}"
+            )
+        if snapshot_restore_marker_status != SNAPSHOT_RESTORE_VERIFIED:
+            raise SnapshotRestoreError(
+                f"welle-{welle_number} State-Backing sign-off "
+                f"requires snapshot-restore-marker; got "
+                f"snapshot_restore_marker_status="
+                f"{snapshot_restore_marker_status!r}"
+            )
+        target = _state_file_path(self.state_dir, welle_number)
+        data = _load_state_file(target)
+        _enforce_shape(data, target)
+        prior_status = data["status"]
+        if prior_status == STATUS_SIGNED_OFF:
+            # Idempotent no-op: state-backing sign-off already recorded.
+            record = WelleAuditRecord(
+                welle_number=welle_number,
+                prior_status=prior_status,
+                new_status=prior_status,
+                cutover_iso=data.get("cutover_iso", ""),
+                signoff_iso=data.get("signoff_iso", ""),
+                trigger="snapshot-restore",
+            )
+            self.audit_emitter(record)
+            return record
+        _check_transition(prior_status, STATUS_SIGNED_OFF)
+        new_data = dict(data)
+        new_data["status"] = STATUS_SIGNED_OFF
+        new_data["signoff_iso"] = signoff_iso
+        _check_time_invariants(
+            new_data.get("cutover_iso", ""), new_data["signoff_iso"]
+        )
+        _atomic_write_json(target, new_data)
+        record = WelleAuditRecord(
+            welle_number=welle_number,
+            prior_status=prior_status,
+            new_status=STATUS_SIGNED_OFF,
+            cutover_iso=new_data.get("cutover_iso", ""),
+            signoff_iso=signoff_iso,
+            trigger="snapshot-restore",
+        )
+        self.audit_emitter(record)
+        return record
+
     # -- Transition: ANY -> rolled-back (Tag-70 §2.4 Rollback-Writer) --
 
     def handle_rollback_event(
@@ -771,11 +898,14 @@ __all__ = [
     "ROLLBACK_MARKER_AUTHORIZED",
     "RollbackAuthorityError",
     "SCHEMA_VERSION_PIN",
+    "SNAPSHOT_RESTORE_GUARDED_WELLEN",
+    "SNAPSHOT_RESTORE_VERIFIED",
     "STATUS_IN_PROGRESS",
     "STATUS_PENDING",
     "STATUS_ROLLED_BACK",
     "STATUS_SIGNED_OFF",
     "SignOffPreconditionError",
+    "SnapshotRestoreError",
     "StateFileShapeError",
     "TimeInvariantViolationError",
     "VALID_KW_ANCHORS",

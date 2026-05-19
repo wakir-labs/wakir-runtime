@@ -420,6 +420,28 @@ ALERT_CATALOG: dict[str, dict[str, str]] = {
             "welle-3-pre-auditor-designated"
         ),
     },
+    # Tag-72 Welle-4 State-Backing-Alert-Routing-Erweiterung
+    # (Noa SRE). Two alerts close the state-backing positive-
+    # confirmation + rollback-Pfad routing gap. Both carry the
+    # `welle-4-state-backing-info` routing class; bridge routes
+    # via ROUTING_CLASS_CHANNELS to ntfy:ar-hand-info +
+    # activity-log:append. No on-call page from this block.
+    "WakirPhase3Welle4StateBackingActive": {
+        "failure_mode_id": "Tag-72-Welle4-StateBacking-Active",
+        "severity": "info",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/"
+            "welle-4-state-backing-active"
+        ),
+    },
+    "WakirPhase3Welle4SnapshotRestoreTriggered": {
+        "failure_mode_id": "Tag-72-Welle4-SnapshotRestore",
+        "severity": "warning",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/"
+            "welle-4-snapshot-restore-triggered"
+        ),
+    },
 }
 
 # Tag-40 baseline alerts that pre-date the Pre-Mortem-extension.
@@ -534,6 +556,12 @@ ROUTING_CLASS_OPS_ON_CALL_PLUS_MANAGEMENT = "ops-on-call-plus-management"
 # treat the Welle-3 Pre-Auditor designation as a named, auditable event
 # rather than blending it into the standard info stream.
 ROUTING_CLASS_WELLE_3_PRE_AUDITOR_INFO = "welle-3-pre-auditor-info"
+# Tag-72 Welle-4 State-Backing routing class. Same channel-set as the
+# standard / Welle-3 Pre-Auditor info classes (ntfy:ar-hand-info +
+# activity-log:append) but distinct routing-class string so the
+# AlertManager route-tree and audit-trail can attribute the events
+# specifically to the Welle-4 state-backing routing extension.
+ROUTING_CLASS_WELLE_4_STATE_BACKING_INFO = "welle-4-state-backing-info"
 
 VALID_ROUTING_CLASSES: frozenset[str] = frozenset(
     {
@@ -541,6 +569,7 @@ VALID_ROUTING_CLASSES: frozenset[str] = frozenset(
         ROUTING_CLASS_OPS_ON_CALL,
         ROUTING_CLASS_OPS_ON_CALL_PLUS_MANAGEMENT,
         ROUTING_CLASS_WELLE_3_PRE_AUDITOR_INFO,
+        ROUTING_CLASS_WELLE_4_STATE_BACKING_INFO,
     }
 )
 
@@ -564,6 +593,10 @@ ROUTING_CLASS_CHANNELS: dict[str, tuple[str, ...]] = {
         "ntfy:ar-hand-info",
         "activity-log:append",
     ),
+    ROUTING_CLASS_WELLE_4_STATE_BACKING_INFO: (
+        "ntfy:ar-hand-info",
+        "activity-log:append",
+    ),
 }
 
 ROUTING_CLASS_ESCALATION_SECONDS: dict[str, int] = {
@@ -571,6 +604,7 @@ ROUTING_CLASS_ESCALATION_SECONDS: dict[str, int] = {
     ROUTING_CLASS_OPS_ON_CALL: 600,
     ROUTING_CLASS_OPS_ON_CALL_PLUS_MANAGEMENT: 300,
     ROUTING_CLASS_WELLE_3_PRE_AUDITOR_INFO: 0,
+    ROUTING_CLASS_WELLE_4_STATE_BACKING_INFO: 0,
 }
 
 # Set of alertnames that REQUIRE a routing_class label (Tag-64

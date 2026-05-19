@@ -55,6 +55,7 @@ from .engine import (
     ENGINE_VARIANT,
     EnvContract,
     handle_welle_3_signoff_event as _sync_handle_welle_3_signoff_event,
+    handle_welle_4_signoff_event as _sync_handle_welle_4_signoff_event,
     handle_welle_rollback_event as _sync_handle_welle_rollback_event,
     handle_welle_sealing_event as _sync_handle_welle_sealing_event,
     resolve_env,
@@ -847,6 +848,34 @@ async def handle_welle_rollback_event(
             welle_number,
             rollback_iso,
             rollback_marker_status=rollback_marker_status,
+            audit_emitter=audit_emitter,
+        ),
+    )
+
+
+async def handle_welle_4_signoff_event(
+    state_dir: Path,
+    signoff_iso: str,
+    *,
+    sign_off_marker_status: str,
+    snapshot_restore_marker_status: str,
+    audit_emitter: Optional[AuditRecordEmitter] = None,
+) -> WelleAuditRecord:
+    """Async wrapper around :func:`engine.handle_welle_4_signoff_event`.
+
+    Runs the sync handler in the default loop's thread-pool executor so
+    file I/O does not block the event loop. The Welle-4 State-Backing
+    snapshot-restore-marker gate (``snapshot_restore_marker_status ==
+    "restored"``) is enforced by the underlying producer-substrate.
+    """
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        None,
+        lambda: _sync_handle_welle_4_signoff_event(
+            state_dir,
+            signoff_iso,
+            sign_off_marker_status=sign_off_marker_status,
+            snapshot_restore_marker_status=snapshot_restore_marker_status,
             audit_emitter=audit_emitter,
         ),
     )

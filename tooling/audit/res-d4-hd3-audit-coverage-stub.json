@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wakir.dev/schemas/audit/res-d4-hd3-audit-coverage-stub/v1",
+  "title": "RES-D4 HD-3 Audit-Coverage Substrate Stub (Tag-72)",
+  "description": "Audit-only fixture catalogue for the HD-3 Audit-Coverage substrate-preparation work. This file enumerates the audit-sample-priority-tag inventory, the schema-extension audit-probe shape, and the rollback/forward-compat documentation choices that the Tag-72 substrate-prep work is allowed to inspect, document, and probe-test in fixture mode. It MUST NOT be interpreted as a Henrik-Voss audit-sample-config amendment: every audit-priority marker carries 'kind: fixture', the probe defaults to inspection-only, and no audit-sample-config rotation entry is emitted. See docs/operations/res-d4-high-residual-mitigation-deep-dive.md §3.3 / §6.4 / §7 / §8.",
+  "doc_form_only": true,
+  "audit_only": true,
+  "tag": "Tag-72",
+  "hard_dep": "HD-3",
+  "upstream_anchors": {
+    "tag_67_pre_mortem_anchor": "§5.1 A4+A5+B4+B5 (NATS-KV key-shape collision, v1→v2 migration, rollback-leaves-bucket, audit-sample-misses)",
+    "tag_65_promotion_sequencing_anchor": "§5.2 acceptance criteria including v1→v2 migration test extension + §6.2 rollback procedure",
+    "tag_69_deep_dive_anchor": "§3.3 HD-3 mitigation strategy, §6 audit-only substrate-prep framing, §8 sandbox-boundary recital",
+    "tag_70_hd_1_substrate_pr": 446,
+    "tag_71_hd_2_substrate_pr": 452,
+    "tag_69_deep_dive_pr": 440,
+    "tag_66_ots_probe_coverage_pr": 421,
+    "tag_60_pre_activation_stub_pr": 382,
+    "adr_0014_audit_sample_rotation": "Audit-Sample Risk-Weighted Rotation",
+    "adr_0025_three_axis_audit_anchor": "Drei-Achsen-Modell (Audit-Disziplin)"
+  },
+  "sandbox_boundary": {
+    "no_audit_sample_config_amendment_emit": true,
+    "no_henrik_voss_priority_list_direction_emit": true,
+    "no_promotion_pr_opening": true,
+    "no_nats_kv_schema_default_change": true,
+    "no_rollback_procedure_default_change": true,
+    "probe_default_mode": "inspection-only",
+    "schema_extension_audit_default": "strict-superset-check"
+  },
+  "strict_audit_coverage_invariant": {
+    "audit_priority_value": "live-ots-critical-path",
+    "audit_priority_owner": "HR/Audit-hand (Henrik Voss + Aisha Rahman)",
+    "audit_priority_owner_is_not": "Reza-hand",
+    "schema_extension_rule": "registry-pointer-record key-shape MUST be a strict superset of route_registry_nats_kv_backend.py discovery key-shape",
+    "v1_to_v2_migration_compat_required": true,
+    "rollback_must_be_one_of": [
+      "atomic-revert-of-nats-kv-bucket-extension",
+      "forward-compat-documentation-note-bucket-left-in-place"
+    ],
+    "loose_audit_coverage_is_failure_mode": "Tag-67 §5.1 B5 (audit-sample misses RES-D4)"
+  },
+  "audit_priority_tags": [
+    {
+      "tag_name": "live-ots-critical-path",
+      "kind": "fixture",
+      "purpose": "Pin the canonical priority value RES-D4 carries in the Tag-72 audit-coverage catalogue. The verifier-acceptance branch reads this tag exclusively in inspection mode; no audit-sample-config rotation entry is emitted from this stub.",
+      "expected_henrik_voss_action": "none-in-audit-only",
+      "expected_resolver_call": false,
+      "audit_sample_rotation_emit": false,
+      "tag_60_compat": true
+    },
+    {
+      "tag_name": "fixture-priority-default",
+      "kind": "fixture",
+      "purpose": "Default priority value carried by every non-RES-D4 sample entry in the Tag-72 catalogue. Exists to demonstrate that the priority field is a discriminator (not a flag) and that flipping the discriminator requires HR/Audit-hand, not Reza-hand.",
+      "expected_henrik_voss_action": "none-in-audit-only",
+      "expected_resolver_call": false,
+      "audit_sample_rotation_emit": false,
+      "tag_60_compat": true
+    },
+    {
+      "tag_name": "reza-hand-priority-flip-forbidden",
+      "kind": "fixture",
+      "purpose": "Negative-control entry: a probe asked to flip the audit-sample priority value from Reza-hand MUST reject with an 'audit-priority-owner-mismatch' diagnostic. This entry pins the Tag-67 §5.1 B5 failure-mode mitigation under hand-boundary discipline.",
+      "expected_henrik_voss_action": "none-in-audit-only",
+      "expected_verifier_branch": "reject",
+      "expected_resolver_call": false,
+      "audit_sample_rotation_emit": false,
+      "tag_60_compat": true
+    }
+  ],
+  "schema_extension_audit_probes": [
+    {
+      "name": "schema-extension-probe--strict-superset-ok",
+      "kind": "fixture",
+      "probe_state": "registry-pointer-record-is-strict-superset-of-discovery-key-shape",
+      "purpose": "Validate the probe-side audit shape when the proposed registry-pointer-record key-shape is a strict superset of the existing route_registry_nats_kv_backend.py discovery key-shape. The probe accepts this configuration in inspection-only mode (Tag-67 §5.1 A4 mitigation).",
+      "expected_verifier_branch": "accept",
+      "expected_diagnostic": null,
+      "expected_resolver_call": false,
+      "audit_sample_rotation_emit": false,
+      "tag_60_compat": true
+    },
+    {
+      "name": "schema-extension-probe--key-shape-collision",
+      "kind": "fixture",
+      "probe_state": "registry-pointer-record-collides-with-discovery-key-shape",
+      "purpose": "Validate the probe-side audit shape when the proposed registry-pointer-record key-shape collides with the existing discovery key-shape (e.g. reuses a key with incompatible value-type). The probe MUST reject with a 'schema-extension-collision' diagnostic per Tag-67 §5.1 A4.",
+      "expected_verifier_branch": "reject",
+      "expected_diagnostic": "schema-extension-collision",
+      "expected_resolver_call": false,
+      "audit_sample_rotation_emit": false,
+      "tag_60_compat": true
+    },
+    {
+      "name": "schema-extension-probe--v1-consumer-break",
+      "kind": "fixture",
+      "probe_state": "v1-consumer-smoke-fails-against-v2",
+      "purpose": "Negative-control probe: v1→v2 migration where the v1-consumer compatibility smoke fails (a v1 consumer breaks against the v2 schema). The probe MUST reject with a 'v1-consumer-break' diagnostic per Tag-67 §5.1 A5.",
+      "expected_verifier_branch": "reject",
+      "expected_diagnostic": "v1-consumer-break",
+      "expected_resolver_call": false,
+      "audit_sample_rotation_emit": false,
+      "tag_60_compat": true
+    }
+  ],
+  "rollback_audit_choices": [
+    {
+      "choice_name": "rollback-choice--atomic-revert",
+      "kind": "fixture",
+      "rollback_mode": "atomic-revert-of-nats-kv-bucket-extension",
+      "purpose": "Document the atomic-revert rollback choice: on rollback, the NATS-KV bucket extension is explicitly torn down (key-removal of registry-pointer-record entries). Honours Tag-65 §6.2 step-3 rollback hot-spot tightening.",
+      "expected_verifier_branch": "accept",
+      "expected_diagnostic": null,
+      "expected_resolver_call": false,
+      "audit_trail_visibility_required": true,
+      "tag_60_compat": true
+    },
+    {
+      "choice_name": "rollback-choice--forward-compat-note",
+      "kind": "fixture",
+      "rollback_mode": "forward-compat-documentation-note-bucket-left-in-place",
+      "purpose": "Document the forward-compat rollback choice: on rollback, the NATS-KV bucket extension is left in place by design with an explicit forward-compat note. Honours Tag-67 §5.1 B4 mitigation (rollback-leaves-bucket is acceptable if documented).",
+      "expected_verifier_branch": "accept",
+      "expected_diagnostic": null,
+      "expected_resolver_call": false,
+      "audit_trail_visibility_required": true,
+      "tag_60_compat": true
+    },
+    {
+      "choice_name": "rollback-choice--silent-leave-forbidden",
+      "kind": "fixture",
+      "rollback_mode": "silent-leave-without-note",
+      "purpose": "Negative-control rollback choice: leaving the bucket extension in place without a forward-compat note is forbidden. The probe MUST reject with a 'rollback-undocumented' diagnostic per Tag-67 §5.1 B4.",
+      "expected_verifier_branch": "reject",
+      "expected_diagnostic": "rollback-undocumented",
+      "expected_resolver_call": false,
+      "audit_trail_visibility_required": true,
+      "tag_60_compat": true
+    }
+  ],
+  "audit_sample_event_inventory": [
+    {
+      "event_name": "audit-sample--res-d4-rotation-entry",
+      "audit_trail_bucket": "audit_sample_rotation",
+      "priority_discriminator_required": true,
+      "default_state": "not-emitted-in-audit-only",
+      "owner_hand": "HR/Audit-hand"
+    },
+    {
+      "event_name": "audit-sample--schema-extension-probe-result",
+      "audit_trail_bucket": "audit_sample_rotation",
+      "priority_discriminator_required": true,
+      "default_state": "not-emitted-in-audit-only",
+      "owner_hand": "HR/Audit-hand"
+    },
+    {
+      "event_name": "audit-sample--rollback-choice-record",
+      "audit_trail_bucket": "audit_sample_rotation",
+      "priority_discriminator_required": true,
+      "default_state": "not-emitted-in-audit-only",
+      "owner_hand": "HR/Audit-hand"
+    }
+  ],
+  "verifier_acceptance_rules": [
+    {
+      "rule": "audit-only branch accepts audit-priority-tag inspection without rotation-entry emit",
+      "tag_69_anchor": "§3.3 mitigation strategy (a)",
+      "priority_filter": "tag_name == live-ots-critical-path",
+      "rotation_emit_allowed": false
+    },
+    {
+      "rule": "schema-extension probe accepts strict-superset, rejects collision and v1-consumer-break",
+      "tag_69_anchor": "§3.3 mitigation strategy (b, c)",
+      "strict_superset_required": true,
+      "rotation_emit_allowed": false
+    },
+    {
+      "rule": "rollback-choice probe accepts atomic-revert OR forward-compat-note, rejects silent-leave",
+      "tag_69_anchor": "§3.3 mitigation strategy (d)",
+      "documented_rollback_required": true,
+      "rotation_emit_allowed": false
+    },
+    {
+      "rule": "audit-priority-owner is HR/Audit-hand, not Reza-hand (hand-boundary discipline)",
+      "tag_69_anchor": "§3.3 pre-conditions",
+      "owner_hand": "HR/Audit-hand",
+      "rotation_emit_allowed": false
+    }
+  ],
+  "cross_team_handoff_pointers": {
+    "hr_audit_owner_anchor": "§3.3 pre-conditions (Audit-sample-priority-list amendment is anchored in HR/Audit decision-doc, not in Reza's hand) + ADR-0014 + ADR-0025",
+    "tag_66_ots_probe_coverage_anchor": "§3.3 pre-conditions (Tag-66 PR #421 OTS-probe coverage extends to the RES-D4 verifier-acceptance code path)",
+    "selin_federation_handoff_anchor": "§7 (peer-rotation audit-trail entry pattern; Selin owns federation production-peer growth, audit-trail visibility is HR/Audit-hand)",
+    "sandbox_boundary_recital_anchor": "§8 (this doc) + §6.1 sketch reuse-pattern + §6.2 + §6.3"
+  },
+  "what_this_stub_is_not": [
+    "Not an audit-sample-config amendment.",
+    "Not a direction to Henrik Voss's audit-sample priority-list.",
+    "Not a draft-ADR.",
+    "Not a promotion-PR opening.",
+    "Not a NATS-KV schema default change.",
+    "Not a rollback-procedure default change.",
+    "Not a recommendation to lift the RES-D4 indefinite-deferral default.",
+    "Not an AR-authorisation request precursor."
+  ],
+  "signature": "-- Reza"
+}

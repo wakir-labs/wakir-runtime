@@ -570,4 +570,16 @@ bleibt T0-Datum.
 
 ---
 
-— Kai (Tag-58 Original, Tag-64-Append + Tag-68-Append 2026-05-19)
+— Kai (Tag-58 Original, Tag-64-Append + Tag-68-Append + Tag-72-Signaturzeile-Fix 2026-05-19)
+
+<!--
+Tag-72 Signaturzeile-Drift-Fix (Noa-Tag-71-Side-Finding):
+Footer ist append-only. Tag-58 Original ist der Anker. Tag-64-Append
++ Tag-68-Append + Tag-72-Signaturzeile-Fix sind Append-Wellen, die
+die Authorship-Chain dokumentieren. Append-Format-Regel:
+  "Tag-58 Original, Tag-<N>-Append [+ Tag-<M>-Append ...] YYYY-MM-DD"
+Test_17 in test_open_j3_containerfile_label_tag64.py prueft jetzt
+substring-tolerant (Tag-58 Original / Tag-64-Append / Datum), so
+dass zusaetzliche Append-Wellen ohne Test-Drift moeglich sind.
+-->
+
