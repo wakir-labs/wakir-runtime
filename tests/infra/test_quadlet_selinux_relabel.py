@@ -80,6 +80,16 @@ EXPECTED_QUADLET_FILES = {
     "quadlet/wakir-persona-tomas.container",
     "quadlet/wakir-recovery-drill-anchor.container",
     "quadlet/wakir-rust-cli.container",
+    # Tag-55 closeout: 4 dedicated per-Welle Quadlets added in lock-step
+    # with the Cosign-Strict-Mode readiness-check G5 substanz-vollendung.
+    # Each installs one welle-suffix Rust-CLI binary from a dedicated
+    # single-binary image (Tag-33 Mini-Welle policy inventory convention;
+    # carrier-image installer ``wakir-rust-cli.container`` keeps shipping
+    # the existing 11 carrier-image binaries).
+    "quadlet/wakir-rust-cli-welle4.container",
+    "quadlet/wakir-rust-cli-welle5.container",
+    "quadlet/wakir-rust-cli-welle6.container",
+    "quadlet/wakir-rust-cli-welle7.container",
     "infra/spire/federation/quadlet/wakir-spire-server-federation.container",
     "infra/spire/agent/quadlet/wakir-spire-agent-federation.container",
 }
