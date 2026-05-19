@@ -269,6 +269,54 @@
 # the existing page-level Welle-7 alerts (RecoveryRehearsalFail,
 # RecoveryReplayDivergence) cover the hard-failure surface.
 #
+# Tag-78 Marathon-Closeout-Alert-Routing-Erweiterung
+# --------------------------------------------------
+# Per Mira Continuous-Mode-Marathon-Polish (2026-05-19, Tag-78
+# Noa-Auftrag), seven additional alerts close the Marathon-
+# Closeout-Layer-Verdict routing gap. The per-welle final-sealing
+# routing classes (Tag-71..75) surface PER-WELLE positive- and
+# negative-state. The Tag-76 Marathon-Closeout-Aggregator (Reza,
+# PR #479) and the Phase-3-COMPLETE-Marker-Audit-Bundle (Tomás,
+# PR #484) then aggregate the seven per-welle outcomes into THREE
+# layer-verdicts:
+#
+#   1. Marathon-Closeout-Verdict (Reza Tag-76 Aggregator)
+#      in {READY, PARTIAL, DEFECT}; encoded as
+#      ``wakir_marathon_closeout_verdict_class`` (0/1/2).
+#   2. Marathon-Final-Verdict (Final-Sealing-Stability over the
+#      stability-window after the Closeout-Aggregator settles)
+#      in {INTACT, DRIFT, DEFECT}; encoded as
+#      ``wakir_marathon_final_verdict_class`` (0/1/2).
+#   3. Phase-3-COMPLETE-Marker-Fire (Tomás Tag-76 marker-emit-
+#      audit-bundle): the Phase-3-COMPLETE-marker has been emitted
+#      with ``marker_emit_ready=true`` and ``global_verdict=GREEN``;
+#      encoded as ``wakir_phase_3_complete_marker_fire`` == 1.
+#
+# Tag-78 adds seven alerts wired to a trinary routing-class
+# family ``marathon-closeout-{info,warning,page}``:
+#
+#   * WakirMarathonCloseoutReady       (info)
+#   * WakirMarathonCloseoutPartial     (warning)
+#   * WakirMarathonCloseoutDefect      (page)
+#   * WakirMarathonFinalIntact         (info)
+#   * WakirMarathonFinalDrift          (warning)
+#   * WakirMarathonFinalDefect         (page)
+#   * WakirPhase3CompleteMarkerFire    (info)
+#
+# Channel-sets:
+#   marathon-closeout-info    -> ntfy:ar-hand-info, activity-log:append
+#   marathon-closeout-warning -> ntfy:ar-hand, activity-log:append
+#   marathon-closeout-page    -> pagerduty:sre-oncall, ntfy:ar-hand,
+#                                activity-log:append
+#
+# Mutual-exclusion contract: at any time, EXACTLY ONE of the
+# three Closeout-Verdict alerts (Ready/Partial/Defect) must fire;
+# EXACTLY ONE of the three Final-Verdict alerts (Intact/Drift/
+# Defect) must fire; the COMPLETE-Marker-Fire alert fires
+# independently (latched once the marker is emitted). This is
+# enforced by the integer-encoded class value on the recording-
+# rule sources.
+#
 # Trinary-verdict-source contract: the source of truth is the Selin
 # Tag-64 Cutover-Day-Morgen Auto-Scheduler output envelope
 # (`out/cutover-day-morgen-verdict.json`, schema_version=1, tag=64,
@@ -2088,3 +2136,272 @@ groups:
             minutes of unacknowledged storm.
           runbook_url: "https://wakir-labs.example/runbooks/cutover-day-morgen-block"
           notify_path: "pagerduty:sre-oncall + pagerduty:management + ntfy:ar-hand + activity-log:hold-marker"
+
+  # ---------------------------------------------------------------
+  # Tag-78 Marathon-Closeout-Alert-Routing-Erweiterung (Noa SRE)
+  # ---------------------------------------------------------------
+  # Seven alerts surface the Marathon-Closeout-Layer-Verdicts that
+  # aggregate the per-welle final-sealing outcomes (Welle-1..7)
+  # into THREE layer-verdicts plus the Phase-3-COMPLETE-Marker-
+  # Fire signal. The verdict-source recording rules are emitted by
+  # the Tag-76 Marathon-Closeout-Aggregator (Reza, PR #479) and the
+  # Phase-3-COMPLETE-Marker-Audit-Bundle (Tomás, PR #484):
+  #
+  #   * ``wakir_marathon_closeout_verdict_class``
+  #     (0=READY, 1=PARTIAL, 2=DEFECT)
+  #   * ``wakir_marathon_final_verdict_class``
+  #     (0=INTACT, 1=DRIFT, 2=DEFECT)
+  #   * ``wakir_phase_3_complete_marker_fire``
+  #     (0=not-yet-emitted, 1=emitted with marker_emit_ready=true
+  #     AND global_verdict=GREEN)
+  #
+  # Mutual exclusion is enforced by integer-encoded class values on
+  # the recording-rule sources; exactly ONE of each verdict-family
+  # alert fires when the verdict is published. The Phase-3-COMPLETE-
+  # Marker-Fire alert is a level metric that latches at 1 once the
+  # marker is emitted (epoch-close marker).
+  #
+  # Routing-class family (Tag-78 trinary):
+  #   marathon-closeout-info    -> ntfy:ar-hand-info, activity-log:append
+  #   marathon-closeout-warning -> ntfy:ar-hand, activity-log:append
+  #   marathon-closeout-page    -> pagerduty:sre-oncall, ntfy:ar-hand,
+  #                                activity-log:append
+  - name: marathon-closeout-routing
+    interval: 30s
+    rules:
+      - alert: WakirMarathonCloseoutReady
+        # READY: Reza Tag-76 Marathon-Closeout-Aggregator emits
+        # closeout_verdict_class=0. All seven per-welle outcomes
+        # GREEN AND production-bringup-marker.bringup_status=ready
+        # AND phase_3_complete_marker_readiness.marker_emit_ready=true.
+        # Info routing -- AR-Hand sees a single ntfy ping on the
+        # closeout info topic + activity-log append. No page.
+        expr: wakir_marathon_closeout_verdict_class == 0
+        for: 2m
+        labels:
+          severity: info
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          tag: tag-78
+          layer: marathon-closeout
+          verdict_class: ready
+          routing_class: marathon-closeout-info
+          mitigation: marathon-closeout-routing-extension
+        annotations:
+          summary: "Marathon-Closeout verdict: READY (all 7 wellen GREEN; marker ready)"
+          description: >-
+            Reza Tag-76 Marathon-Closeout-Aggregator verdict
+            published as READY (closeout_verdict_class=0). All seven
+            per-welle outcomes (Welle-1..7) GREEN; production-
+            bringup-marker bringup_status=ready; Phase-3-COMPLETE-
+            Marker-Readiness marker_emit_ready=true with
+            global_verdict=GREEN. AR-Hand audit-trail records the
+            closeout-layer pass. No operator action.
+          runbook_url: "https://wakir-labs.example/runbooks/marathon-closeout-ready"
+          notify_path: "ntfy:ar-hand-info + activity-log:append"
+
+      - alert: WakirMarathonCloseoutPartial
+        # PARTIAL: Reza Tag-76 Closeout-Aggregator emits
+        # closeout_verdict_class=1. At least one per-welle outcome
+        # CAUTION (no RED) OR production-bringup-marker.bringup_status
+        # in {pending}. Operator review required before the Final-
+        # Verdict stability-window starts; ntfy:ar-hand only.
+        expr: wakir_marathon_closeout_verdict_class == 1
+        for: 2m
+        labels:
+          severity: warning
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          tag: tag-78
+          layer: marathon-closeout
+          verdict_class: partial
+          routing_class: marathon-closeout-warning
+          mitigation: marathon-closeout-routing-extension
+        annotations:
+          summary: "Marathon-Closeout verdict: PARTIAL (>= 1 welle CAUTION; review before Final)"
+          description: >-
+            Reza Tag-76 Marathon-Closeout-Aggregator verdict
+            published as PARTIAL (closeout_verdict_class=1). At
+            least one per-welle outcome CAUTION (none RED) OR
+            production-bringup-marker bringup_status=pending. Review
+            the closeout-document envelope (out/marathon-closeout-
+            verdict.json) for the CAUTION welle(s); AR-Hand decides
+            whether the Final-Verdict stability-window proceeds.
+            No on-call page; warning-channel only.
+          runbook_url: "https://wakir-labs.example/runbooks/marathon-closeout-partial"
+          notify_path: "ntfy:ar-hand + activity-log:append"
+
+      - alert: WakirMarathonCloseoutDefect
+        # DEFECT: Reza Tag-76 Closeout-Aggregator emits
+        # closeout_verdict_class=2. At least one per-welle outcome
+        # RED OR production-bringup-marker.bringup_status=blocked OR
+        # phase_3_complete_marker_readiness.marker_emit_ready=false
+        # with emit_blocked_reason set. SRE on-call paged; AR-Hand
+        # gets ntfy storm; Phase-3-COMPLETE marker emission HELD.
+        expr: wakir_marathon_closeout_verdict_class == 2
+        for: 2m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          tag: tag-78
+          layer: marathon-closeout
+          verdict_class: defect
+          routing_class: marathon-closeout-page
+          mitigation: marathon-closeout-routing-extension
+        annotations:
+          summary: "Marathon-Closeout verdict: DEFECT (>= 1 welle RED OR marker blocked)"
+          description: >-
+            Reza Tag-76 Marathon-Closeout-Aggregator verdict
+            published as DEFECT (closeout_verdict_class=2). At
+            least one per-welle outcome RED OR production-bringup-
+            marker bringup_status=blocked OR Phase-3-COMPLETE-
+            Marker-Readiness marker_emit_ready=false with
+            emit_blocked_reason set. Phase-3-COMPLETE marker
+            emission is HELD until explicit AR-Hand unblock. SRE
+            on-call must acknowledge within 10 minutes; otherwise
+            escalate to AR.
+          runbook_url: "https://wakir-labs.example/runbooks/marathon-closeout-defect"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand + activity-log:append"
+
+      - alert: WakirMarathonFinalIntact
+        # INTACT: Final-Verdict over the post-Closeout stability-
+        # window: closeout_verdict_class stayed at 0 for the full
+        # stability-window (>= 24h); no drift, no defect; the seven
+        # per-welle outcomes did not regress; Phase-3-COMPLETE
+        # marker remained emit_ready=true with global_verdict=GREEN.
+        # Info routing -- AR-Hand sees the positive seal.
+        expr: wakir_marathon_final_verdict_class == 0
+        for: 2m
+        labels:
+          severity: info
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          tag: tag-78
+          layer: marathon-final
+          verdict_class: intact
+          routing_class: marathon-closeout-info
+          mitigation: marathon-closeout-routing-extension
+        annotations:
+          summary: "Marathon-Final verdict: INTACT (closeout stable across window)"
+          description: >-
+            Marathon-Final-Verdict published as INTACT
+            (final_verdict_class=0). The Marathon-Closeout verdict
+            stayed at READY for the full Final stability-window
+            (>= 24h); no per-welle regression; Phase-3-COMPLETE
+            marker remained emit_ready=true with global_verdict=
+            GREEN. AR-Hand audit-trail closes the Marathon epoch
+            cleanly. No operator action.
+          runbook_url: "https://wakir-labs.example/runbooks/marathon-final-intact"
+          notify_path: "ntfy:ar-hand-info + activity-log:append"
+
+      - alert: WakirMarathonFinalDrift
+        # DRIFT: at least one per-welle outcome regressed from
+        # GREEN to CAUTION across the stability-window OR closeout
+        # toggled READY -> PARTIAL once or more inside the window.
+        # No RED; warning-routing.
+        expr: wakir_marathon_final_verdict_class == 1
+        for: 2m
+        labels:
+          severity: warning
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          tag: tag-78
+          layer: marathon-final
+          verdict_class: drift
+          routing_class: marathon-closeout-warning
+          mitigation: marathon-closeout-routing-extension
+        annotations:
+          summary: "Marathon-Final verdict: DRIFT (per-welle or closeout regression in window)"
+          description: >-
+            Marathon-Final-Verdict published as DRIFT
+            (final_verdict_class=1). At least one per-welle outcome
+            regressed from GREEN to CAUTION across the Final
+            stability-window OR closeout toggled READY -> PARTIAL
+            inside the window. No RED. Review the Final-Verdict
+            envelope (out/marathon-final-verdict.json) for which
+            welle drifted. AR-Hand decides whether to extend the
+            stability-window or accept the drift signal.
+          runbook_url: "https://wakir-labs.example/runbooks/marathon-final-drift"
+          notify_path: "ntfy:ar-hand + activity-log:append"
+
+      - alert: WakirMarathonFinalDefect
+        # DEFECT: a per-welle outcome flipped to RED inside the
+        # stability-window OR closeout dropped to DEFECT once or
+        # more inside the window OR the Phase-3-COMPLETE marker had
+        # to be revoked. SRE on-call paged; Phase-3 epoch-close
+        # treated as failed; AR-Hand decision required.
+        expr: wakir_marathon_final_verdict_class == 2
+        for: 2m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          tag: tag-78
+          layer: marathon-final
+          verdict_class: defect
+          routing_class: marathon-closeout-page
+          mitigation: marathon-closeout-routing-extension
+        annotations:
+          summary: "Marathon-Final verdict: DEFECT (welle flipped RED OR marker revoked in window)"
+          description: >-
+            Marathon-Final-Verdict published as DEFECT
+            (final_verdict_class=2). A per-welle outcome flipped to
+            RED inside the Final stability-window OR closeout
+            dropped to DEFECT inside the window OR the Phase-3-
+            COMPLETE marker had to be revoked. Phase-3 epoch-close
+            treated as FAILED. SRE on-call must acknowledge within
+            10 minutes; otherwise escalate to AR. The Marathon
+            cannot close cleanly without AR-Hand re-deliberation.
+          runbook_url: "https://wakir-labs.example/runbooks/marathon-final-defect"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand + activity-log:append"
+
+      - alert: WakirPhase3CompleteMarkerFire
+        # COMPLETE-MARKER-FIRE: the Tomás Tag-76 Phase-3-COMPLETE-
+        # marker-audit-bundle emitted the marker with
+        # marker_emit_ready=true AND global_verdict=GREEN. This is
+        # a level metric that latches at 1 once the marker is
+        # emitted; the alert fires once and stays firing until the
+        # marker is explicitly revoked. Distinct from the existing
+        # WakirPhase3CompleteMarkerFalsePositive (page) alert which
+        # surfaces conjunction-logic DRIFT; this alert is the
+        # positive-confirmation surface for the AR-Hand audit-trail.
+        expr: wakir_phase_3_complete_marker_fire == 1
+        for: 2m
+        labels:
+          severity: info
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          tag: tag-78
+          layer: phase-3-complete-marker
+          marker_event: marker-fire
+          routing_class: marathon-closeout-info
+          mitigation: marathon-closeout-routing-extension
+        annotations:
+          summary: "Phase-3-COMPLETE marker fired (marker_emit_ready=true; global_verdict=GREEN)"
+          description: >-
+            Tomás Tag-76 Phase-3-COMPLETE-Marker-Audit-Bundle has
+            emitted the Phase-3-COMPLETE marker with
+            marker_emit_ready=true AND global_verdict=GREEN. The
+            Marathon-Closeout-Layer is fully sealed; the Phase-3
+            epoch closes cleanly. AR-Hand audit-trail records the
+            marker-fire as a named, auditable event. Positive-
+            confirmation counterpart to
+            WakirPhase3CompleteMarkerFalsePositive (drift-page).
+            No operator action.
+          runbook_url: "https://wakir-labs.example/runbooks/phase-3-complete-marker-fire"
+          notify_path: "ntfy:ar-hand-info + activity-log:append"

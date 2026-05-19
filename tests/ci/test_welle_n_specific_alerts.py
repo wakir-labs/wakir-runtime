@@ -187,6 +187,32 @@ _TAG7X_EXTENSION_COUNT_PER_WELLE = {
 }
 
 
+# Tag-78 Marathon-Closeout-Layer-Verdict Anti-Regression Pin (Noa SRE).
+# The Tag-78 alerts live in the dedicated `marathon-closeout-routing`
+# group (NOT in the welle-N-alerts groups), but Noa-Tag-76-Lehre
+# applies: pin the new alerts at the SOURCE so cardinality drift on
+# the closeout-layer can be detected at the pin-file rather than at
+# the symptom. Tag-78 aggregates the seven per-welle final-sealing
+# outcomes into THREE layer-verdicts (Closeout, Final) plus the
+# Phase-3-COMPLETE-Marker-Fire signal. Maps alert-name -> tag.
+_TAG78_MARATHON_CLOSEOUT_ALERTS = {
+    "WakirMarathonCloseoutReady": "tag-78",
+    "WakirMarathonCloseoutPartial": "tag-78",
+    "WakirMarathonCloseoutDefect": "tag-78",
+    "WakirMarathonFinalIntact": "tag-78",
+    "WakirMarathonFinalDrift": "tag-78",
+    "WakirMarathonFinalDefect": "tag-78",
+    "WakirPhase3CompleteMarkerFire": "tag-78",
+}
+
+
+# Tag-78 Marathon-Closeout group contract (Noa SRE):
+# group-name -> (exact-rule-count, interval).
+_TAG78_GROUP_CONTRACT = {
+    "marathon-closeout-routing": (7, "30s"),
+}
+
+
 _ALLOWED_SEVERITIES = {"page", "ticket", "warning"}
 
 
@@ -631,6 +657,88 @@ def test_tag7x_extension_uses_wakirphase3_prefix(
         f"Tag-7X extension {alert_name} ({expected_tag}) must use "
         f"'WakirPhase3Welle' prefix"
     )
+
+
+@pytest.mark.parametrize(
+    "alert_name,expected_tag", sorted(_TAG78_MARATHON_CLOSEOUT_ALERTS.items())
+)
+def test_tag78_marathon_closeout_alert_present(
+    alerts_by_name: dict,
+    alert_name: str,
+    expected_tag: str,
+):
+    # Each pinned Tag-78 Marathon-Closeout alert must exist in the
+    # alerts YAML; the tag-label must match the pin.
+    assert alert_name in alerts_by_name, (
+        f"Tag-78 marathon-closeout alert missing from YAML: {alert_name}"
+    )
+    labels = alerts_by_name[alert_name].get("labels", {})
+    assert labels.get("tag") == expected_tag, (
+        f"{alert_name} carries tag={labels.get('tag')!r}; expected "
+        f"{expected_tag!r}"
+    )
+
+
+def test_tag78_marathon_closeout_alerts_live_in_dedicated_group(
+    groups_by_name: dict,
+):
+    # All seven Tag-78 alerts MUST live in the dedicated
+    # `marathon-closeout-routing` group, NOT in the welle-N-alerts
+    # groups (clean separation between per-welle and layer-verdict
+    # surfaces).
+    assert "marathon-closeout-routing" in groups_by_name, (
+        "Tag-78 marathon-closeout-routing group missing from YAML"
+    )
+    group_rule_names = {
+        r["alert"] for r in groups_by_name["marathon-closeout-routing"]["rules"]
+    }
+    expected = set(_TAG78_MARATHON_CLOSEOUT_ALERTS)
+    assert group_rule_names == expected, (
+        f"marathon-closeout-routing group rule-set drift: "
+        f"missing={sorted(expected - group_rule_names)} "
+        f"extra={sorted(group_rule_names - expected)}"
+    )
+
+
+@pytest.mark.parametrize(
+    "group_name", sorted(_TAG78_GROUP_CONTRACT)
+)
+def test_tag78_group_cardinality_pinned(
+    groups_by_name: dict, group_name: str
+):
+    expected_n, _ = _TAG78_GROUP_CONTRACT[group_name]
+    rules = groups_by_name[group_name]["rules"]
+    assert len(rules) == expected_n, (
+        f"{group_name} pinned to {expected_n} rules; got {len(rules)}"
+    )
+
+
+@pytest.mark.parametrize(
+    "group_name", sorted(_TAG78_GROUP_CONTRACT)
+)
+def test_tag78_group_interval_pinned(
+    groups_by_name: dict, group_name: str
+):
+    _, expected_interval = _TAG78_GROUP_CONTRACT[group_name]
+    actual = groups_by_name[group_name].get("interval")
+    assert actual == expected_interval, (
+        f"{group_name} interval drift: expected={expected_interval} "
+        f"got={actual}"
+    )
+
+
+def test_tag78_marathon_closeout_alerts_not_in_welle_n_groups(
+    welle_group_all_alerts_by_name: dict,
+):
+    # Hard separation: NONE of the Tag-78 alerts may appear inside
+    # any welle-N-alerts group. This protects the per-welle Tag-50
+    # + Tag-7X cardinality contract from accidental collisions with
+    # the layer-verdict surface.
+    for alert_name in _TAG78_MARATHON_CLOSEOUT_ALERTS:
+        assert alert_name not in welle_group_all_alerts_by_name, (
+            f"Tag-78 closeout-layer alert {alert_name} must NOT live "
+            f"in any welle-N-alerts group (cross-layer-contamination)"
+        )
 
 
 def test_tag50_group_contract_max_accommodates_pinned_extensions():
