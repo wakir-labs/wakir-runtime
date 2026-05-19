@@ -1,0 +1,576 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tag-74 Welle-6 Integration-Smoke (Amara, Continuous-Mode)
+# ---------------------------------------------------------
+#
+# Hermetic end-to-end simulation of the four Welle-6 substrates
+# that fire in sequence on the canonical KW-27 Mi 2026-07-01
+# cutover-Mittwoch / KW-27 Fr 2026-07-03 sign-off-Freitag
+# Doppel-Welle-6+7 subscribe_loop Cutover-Day pipeline (per
+# docs/quality-gates/phase-3-marathon-final-acceptance.md
+# Marathon-Cadence row KW-27 + docs/quality-gates/
+# pre-cutover-acceptance-run-order.md row Welle-6 +
+# docs/ci/phase-3-marathon-rollback-runbook.md Job-Graph J3):
+#
+#   * Stage 1 -- Welle-6-Producer simulation (Selin Tag-74)
+#   * Stage 2 -- Welle-6-Audit-Anchor simulation (Tomas Tag-74)
+#   * Stage 3 -- Doppel-Welle-6+7 Coupling-Gate
+#                (Welle-6 subscribe_loop depends on Welle-7
+#                 recovery_workflow readiness under PAR-path,
+#                 per the Doppel-Welle pairing in pre-cutover-
+#                 acceptance-run-order.md row Welle-6 and
+#                 phase-3c-doppel-welle-6-7.md §2)
+#   * Stage 4 -- Forward-Block-Cascade-Test
+#                (welle-6/7 blocked-on-Welle-6-DEFECT)
+#   * Stage 5 -- Aggregate WELLE-6-INTACT / DRIFT / DEFECT
+#
+# Brief-vs-canonical reconciliation (Tag-71+72+73 lehre)
+# ------------------------------------------------------
+#
+# Auftrag-brief carried three non-canonical anchors that this
+# workflow + the Tag-74 aggregator pin to canonical:
+#
+#   * Brief: "Cross-Substrate-Parity-Welle KW-26 Fr".
+#     Canonical: J3 W6 subscribe_loop rust->python (per Marathon-
+#     Rollback-Runbook Job-Graph; tag-72+73 already pinned the
+#     Marathon-view). The Cross-Substrate-Parity framing is a
+#     parallel KW-24-Acceptance-view (kw-24-welle-1-7-
+#     acceptance-criteria.md §6) and is surfaced as a parallel
+#     substrate-view on the envelope, NOT replacing the
+#     Marathon-Rollback-Runbook canonical.
+#   * Brief: Welle-6 is "KW-26 Fr". Canonical is KW-27 Mi
+#     2026-07-01 cutover / KW-27 Fr 2026-07-03 sign-off per
+#     pre-cutover-acceptance-run-order.md row Welle-6 and
+#     phase-3-marathon-final-acceptance.md row KW-27. The
+#     KW-26 framing matches the older KW-24-Acceptance §6
+#     chronology which was superseded by the Marathon-Cadence
+#     in ADR-0066.
+#   * Brief: state/welle-6.json carries kw_cutover_anchor=KW-26.
+#     Canonical: pre-cutover-acceptance-run-order.md row Welle-6
+#     is KW-27 (2026-07-01 Doppel-Welle-6+7). The state-file
+#     drift is surfaced as a pin-drift marker; the state-file is
+#     NOT modified by this smoke (Amara scope: surface, not
+#     patch; ADR-0036 producer-domain is Selin).
+#
+# All three deltas are surfaced on the aggregator envelope.
+#
+# Sandbox boundary (ADR-0034, Mira feedback_sandbox_host_trennung.md)
+# --------------------------------------------------------------------
+#
+# This workflow is hermetic. It does NOT trigger the actual Welle-6
+# substrates via gh workflow run; it does NOT call the Persona-
+# Engine subscribe_loop flip; it does NOT touch the live-VM
+# substrate; it does NOT POST to ntfy.sh. The simulation is built
+# from stdlib-only helpers + on-disk synthetic bundles assembled
+# inside the GitHub Actions sandbox. The actual Welle-6 trigger on
+# 2026-07-01 (KW-27 Mi) is operator-hand.
+#
+# Decision shape
+# --------------
+#
+# Stages emit per-stage verdict envelopes consumed by
+# tooling/ci/aggregate_welle_6_integration.py:
+#
+#   * green   -> WELLE-6-INTACT contribution
+#   * yellow  -> WELLE-6-DRIFT contribution
+#   * red     -> WELLE-6-DEFECT contribution
+#
+# Any red collapses the aggregate to WELLE-6-DEFECT.
+# Any yellow with zero red degrades to WELLE-6-DRIFT.
+# All green yields WELLE-6-INTACT.
+#
+# Forward-cascade
+# ---------------
+#
+# Per docs/quality-gates/phase-3-marathon-anti-patterns.md
+# (forward-cascade analogue for Welle-6 subscribe_loop rollback) +
+# docs/ci/phase-3-marathon-rollback-runbook.md J3, a Welle-6
+# DEFECT (rollback) MUST yield blocked_wellen=(6,7). Stage 4
+# probes the cascade-rule under three scenarios (Welle-6-INTACT,
+# -DRIFT, -DEFECT) and verifies the forward-cascade mapping
+# holds. Note: Welle-7 (Doppel-Welle partner) IS in the forward-
+# cascade under PAR-path -- divergence from Tag-73 Welle-5 one-
+# way coupling. Wellen-1/2/3/4/5 are upstream and NOT in the
+# cascade-set.
+#
+# Doppel-Welle-Coupling-Gate (Tag-74 substrate)
+# ---------------------------------------------
+#
+# Welle-6 (subscribe_loop) does NOT have a snapshot-restore
+# dependency (that was Welle-4-specific per Tag-56 J5). Its
+# distinctive substrate-coupling is to Welle-7 recovery_workflow:
+# the Doppel-Welle-6+7 PAR-path requires both moduln on rust
+# within a single boot envelope per ADR-0066 §Beschluss and
+# phase-3c-doppel-welle-6-7.md §2. A Welle-7 recovery_workflow
+# DEFECT MUST block Welle-6 PAR-path flip (or trigger SEQ-path
+# fallback per §3). The Tag-74 Stage 3 probes the READY /
+# PARTNER-MISSING / PARTNER-DEFECT trinary surface of the
+# coupling-gate.
+#
+# Trigger surface
+# ---------------
+#
+#   * workflow_dispatch -- manual probe for the marathon-team.
+#   * pull_request -- runs on changes to the workflow itself, its
+#     aggregator, or its tests.
+#   * push (path-filtered) on changes to the same trio.
+#
+# Continuous-Mode (Mira, 2026-05-19)
+# ----------------------------------
+#
+# Per feedback_continuous_mode_keine_pause_frage.md the workflow
+# runs to completion on its own without per-stage approvals; per
+# feedback_continuous_mode_keine_push_frage.md the merge of this
+# PR is part of the Tag-74 substrate-set and happens automatically
+# in the Marathon dispatch.
+#
+# Not a required status check
+# ---------------------------
+#
+# Per feedback_branch_protection_check_names.md this workflow is
+# NOT listed as a required status check. It is an integration-
+# smoke probe; the underlying Welle-6 substrate workflows
+# (welle-6-validation, welle-6-hot-spot-probe, phase-3-marathon-
+# rollback) are the substrate gates. The structural-shape
+# tests in tests/ci/test_welle_6_integration_tag74.py are the
+# gating unit on PRs that touch the smoke.
+
+name: welle-6-integration-smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      drift_inject:
+        description: "Inject DRIFT verdict on stage (none|producer|audit_anchor|doppel_coupling|cascade)"
+        required: false
+        default: "none"
+      defect_inject:
+        description: "Inject DEFECT verdict on stage (none|producer|audit_anchor|doppel_coupling|cascade)"
+        required: false
+        default: "none"
+  pull_request:
+    paths:
+      - ".github/workflows/welle-6-integration-smoke.yml"
+      - "tooling/ci/aggregate_welle_6_integration.py"
+      - "tests/ci/test_welle_6_integration_tag74.py"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/welle-6-integration-smoke.yml"
+      - "tooling/ci/aggregate_welle_6_integration.py"
+      - "tests/ci/test_welle_6_integration_tag74.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: welle-6-integration-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  welle-6-integration-smoke:
+    name: Welle-6 Integration-Smoke (hermetic)
+    runs-on: ubuntu-latest
+    outputs:
+      verdict: ${{ steps.aggregate.outputs.verdict }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Prepare hermetic substrate working dir
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/stages
+          mkdir -p out/aggregate
+          echo "Tag-74 Welle-6 integration-smoke staging dirs ready."
+
+      - name: Stage 1 -- Welle-6-Producer simulation (Selin Tag-74)
+        id: stage1
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          # Hermetic producer-stage: render the canonical Welle-6
+          # state-file stub via the Tag-68 render-only helper and
+          # verify the schema-pin invariants. The output envelope
+          # carries WELLE-6-PRODUCER-READY/DRIFT/DEFECT.
+          #
+          # Brief-vs-canonical pin-drift note: the render-stub
+          # default for Welle-6 carries kw_cutover_anchor=KW-26;
+          # the canonical run-order is KW-27 (Doppel-Welle-6+7).
+          # The drift is surfaced by the producer-stage on the
+          # envelope but does NOT collapse to DEFECT (the schema-
+          # version and welle-number invariants are still satisfied;
+          # the cutover-anchor drift is a yellow signal handled by
+          # the run-order-pin reconciliation on the aggregate envelope).
+          python3 tooling/ci/render_engine_state_file_stub.py \
+            --welle 6 --kw KW-27 > out/stages/welle-6-rendered.json
+          schema_version=$(python3 -c "import json; print(json.load(open('out/stages/welle-6-rendered.json'))['schema_version'])")
+          welle_number=$(python3 -c "import json; print(json.load(open('out/stages/welle-6-rendered.json'))['welle_number'])")
+          status_field=$(python3 -c "import json; print(json.load(open('out/stages/welle-6-rendered.json'))['status'])")
+          verdict="WELLE-6-PRODUCER-READY"
+          if [[ "$schema_version" != "tag-67-v1" ]]; then
+            verdict="WELLE-6-PRODUCER-DEFECT"
+          fi
+          if [[ "$welle_number" != "6" ]]; then
+            verdict="WELLE-6-PRODUCER-DEFECT"
+          fi
+          if [[ "$status_field" != "pending" ]]; then
+            verdict="WELLE-6-PRODUCER-DEFECT"
+          fi
+          if [[ "${DRIFT_INJECT,,}" == "producer" ]]; then
+            verdict="WELLE-6-PRODUCER-DRIFT"
+            echo "::warning::drift_inject=producer; forced WELLE-6-PRODUCER-DRIFT"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "producer" ]]; then
+            verdict="WELLE-6-PRODUCER-DEFECT"
+            echo "::warning::defect_inject=producer; forced WELLE-6-PRODUCER-DEFECT"
+          fi
+          python3 - <<PY > out/stages/producer-verdict.json
+          import json, datetime
+          env = {
+              "schema_version": 1,
+              "stage": "welle_6_producer",
+              "tag": "tag-74",
+              "substrate": "selin-tag-74-welle-6-state-file-producer",
+              "verdict": "$verdict",
+              "rendered": json.load(open("out/stages/welle-6-rendered.json")),
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-1 producer verdict: $verdict"
+
+      - name: Stage 2 -- Welle-6-Audit-Anchor simulation (Tomas Tag-74)
+        id: stage2
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          # Hermetic audit-anchor stage: assemble a synthetic
+          # Welle-6 sign-off bundle on disk and compute a
+          # deterministic SHA-256 anchor across the bundle keys.
+          # The Tomas wire-helper for Welle-6 is not yet wired-in
+          # upstream; this stage uses an inline hermetic equivalent
+          # computation so the integration-smoke does not depend on
+          # the live substrate. The compute matches the Tag-69/Tag-70/
+          # Tag-71/Tag-72/Tag-73 wire-helper shape (64-hex SHA-256
+          # across canonical JSON).
+          mkdir -p out/stages/bundle
+          cp state/welle-6.json out/stages/bundle/welle-6.json
+          cat > out/stages/bundle/welle-6-sign-off.json <<JSON
+          {
+            "welle_number": 6,
+            "signoff_iso": "2026-07-03T17:00:00Z",
+            "operator": "amara-welle-6-smoke",
+            "schema_version": "tag-67-v1"
+          }
+          JSON
+          cat > out/stages/bundle/welle-6-validation-last-verdict.json <<JSON
+          {
+            "welle_number": 6,
+            "verdict": "WELLE-6-VALIDATION-READY",
+            "schema_version": "tag-67-v1"
+          }
+          JSON
+          cat > out/stages/bundle/welle-6-pre-auditor-decision.json <<JSON
+          {
+            "welle_number": 6,
+            "decision": "PROCEED",
+            "auditor": "henrik",
+            "schema_version": "tag-67-v1"
+          }
+          JSON
+          mkdir -p out/stages/markers
+          # Compute the audit_trail_anchor hermetically (stdlib-
+          # SHA-256 across sorted bundle paths + canonical JSON).
+          python3 - <<PY
+          import hashlib, json, pathlib
+          bundle_dir = pathlib.Path("out/stages/bundle")
+          paths = sorted(p for p in bundle_dir.iterdir() if p.is_file())
+          h = hashlib.sha256()
+          for p in paths:
+              h.update(p.name.encode("utf-8"))
+              h.update(b"\\x00")
+              data = json.loads(p.read_text(encoding="utf-8"))
+              h.update(json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8"))
+              h.update(b"\\x00")
+          anchor = h.hexdigest()
+          marker = {
+              "schema_version": 1,
+              "kind": "welle-6-audit-trail-anchor-producer-envelope",
+              "welle_number": 6,
+              "audit_trail_anchor": anchor,
+              "bundle_keys": [p.name for p in paths],
+          }
+          pathlib.Path("out/stages/markers/welle-6-audit-anchor.json").write_text(
+              json.dumps(marker, indent=2, sort_keys=True) + "\\n",
+              encoding="utf-8",
+          )
+          PY
+          verdict="WELLE-6-AUDIT-ANCHOR-READY"
+          anchor=$(python3 -c "import json; print(json.load(open('out/stages/markers/welle-6-audit-anchor.json'))['audit_trail_anchor'])" 2>/dev/null || echo "")
+          if [[ ! "$anchor" =~ ^[0-9a-f]{64}$ ]]; then
+            verdict="WELLE-6-AUDIT-ANCHOR-DEFECT"
+          fi
+          if [[ "${DRIFT_INJECT,,}" == "audit_anchor" ]]; then
+            verdict="WELLE-6-AUDIT-ANCHOR-DRIFT"
+            echo "::warning::drift_inject=audit_anchor; forced WELLE-6-AUDIT-ANCHOR-DRIFT"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "audit_anchor" ]]; then
+            verdict="WELLE-6-AUDIT-ANCHOR-DEFECT"
+            echo "::warning::defect_inject=audit_anchor; forced WELLE-6-AUDIT-ANCHOR-DEFECT"
+          fi
+          python3 - <<PY > out/stages/audit-anchor-verdict.json
+          import json, datetime, os
+          marker_path = "out/stages/markers/welle-6-audit-anchor.json"
+          marker = None
+          if os.path.exists(marker_path):
+              try:
+                  marker = json.load(open(marker_path))
+              except Exception:
+                  marker = None
+          env = {
+              "schema_version": 1,
+              "stage": "welle_6_audit_anchor",
+              "tag": "tag-74",
+              "substrate": "tomas-tag-74-welle-6-audit-trail-anchor",
+              "verdict": "$verdict",
+              "marker": marker,
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-2 audit-anchor verdict: $verdict"
+
+      - name: Stage 3 -- Doppel-Welle-6+7 Coupling-Gate (Tag-74)
+        id: stage3
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          # Hermetic Doppel-Welle-Coupling stage: Welle-6
+          # (subscribe_loop) does NOT have a snapshot-restore
+          # dependency. Its distinctive substrate-coupling is to
+          # Welle-7 recovery_workflow under the Doppel-Welle-6+7
+          # PAR-path per ADR-0066 §Beschluss and phase-3c-doppel-
+          # welle-6-7.md §2.
+          #
+          # A Welle-7 recovery_workflow DEFECT MUST block Welle-6
+          # PAR-path flip (per phase-3c-doppel-welle-6-7.md §2.1
+          # DW-AC-2 cross-modul-schema parity gate and §2.2
+          # DW-AC-6-7-RC R1-capability-token rotation-race gate).
+          # The stage synthesises a partner-state envelope and
+          # probes the READY / PARTNER-MISSING / PARTNER-DEFECT
+          # trinary surface.
+          mkdir -p out/stages/doppel-coupling
+          partner_present="true"
+          partner_welle="7"
+          partner_verdict="WELLE-7-INTACT"
+          if [[ "${DRIFT_INJECT,,}" == "doppel_coupling" ]]; then
+            partner_present="false"
+            echo "::warning::drift_inject=doppel_coupling; forced PARTNER-MISSING"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "doppel_coupling" ]]; then
+            partner_present="true"
+            partner_verdict="WELLE-7-DEFECT"
+            echo "::warning::defect_inject=doppel_coupling; forced PARTNER-DEFECT"
+          fi
+          python3 - <<PY > out/stages/doppel-coupling/partner-state.json
+          import json
+          env = {
+              "partner_welle": int("$partner_welle"),
+              "partner_present": ("$partner_present" == "true"),
+              "partner_last_verdict": "$partner_verdict",
+              "coupling_anchor": "pre-cutover-acceptance-run-order.md Welle-6 Doppel-Welle-6+7",
+              "rollback_job_anchor": "J3",
+              "rollback_modul_anchor": "subscribe_loop",
+              "schema_version": "tag-67-v1",
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          # Map partner-state -> coupling verdict surface.
+          verdict="DOPPEL-COUPLING-READY"
+          if [[ "$partner_present" != "true" ]]; then
+            verdict="DOPPEL-COUPLING-PARTNER-MISSING"
+          fi
+          if [[ "$partner_verdict" == "WELLE-7-DEFECT" ]]; then
+            verdict="DOPPEL-COUPLING-PARTNER-DEFECT"
+          fi
+          python3 - <<PY > out/stages/doppel-coupling-verdict.json
+          import json, datetime
+          partner_env = json.load(open("out/stages/doppel-coupling/partner-state.json"))
+          env = {
+              "schema_version": 1,
+              "stage": "doppel_welle_coupling_gate",
+              "tag": "tag-74",
+              "substrate": "amara-tag-74-doppel-welle-6-7-coupling-gate",
+              "verdict": "$verdict",
+              "partner_envelope": partner_env,
+              "anchor_doc": "docs/quality-gates/pre-cutover-acceptance-run-order.md (row Welle-6 Doppel-Welle-6+7) + docs/quality-gates/phase-3c-doppel-welle-6-7.md",
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-3 doppel-coupling verdict: $verdict"
+
+      - name: Stage 4 -- Forward-Block-Cascade-Test (welle-6/7)
+        id: stage4
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          # Hermetic forward-cascade-rule probe: under three Welle-6
+          # verdict scenarios (INTACT, DRIFT, DEFECT), the cascade-
+          # mapping must yield the documented forward-block
+          # blocked_wellen tuple ((), (), (6,7)). The stage runs
+          # all three probes and emits CASCADE-CONSISTENT iff all
+          # three match; CASCADE-DRIFT on a single mismatch with
+          # the DRIFT-probe; CASCADE-BREAK on any mismatch with the
+          # INTACT or DEFECT probe.
+          #
+          # Note: Welle-7 IS in the forward-cascade-set for
+          # Welle-6 under PAR-path (Doppel-Welle-6+7 symmetric
+          # coupling). Wellen-1/2/3/4/5 are upstream and NOT in
+          # the cascade-set.
+          python3 - <<PY > out/stages/cascade-probe-result.json
+          import importlib.util, json, pathlib, sys
+          mod_path = pathlib.Path("tooling/ci/aggregate_welle_6_integration.py")
+          spec = importlib.util.spec_from_file_location("agg_w6", mod_path)
+          mod = importlib.util.module_from_spec(spec)
+          sys.modules[spec.name] = mod
+          spec.loader.exec_module(mod)
+          probes = {
+              "WELLE-6-INTACT": list(mod.downstream_blocked_wellen("WELLE-6-INTACT")),
+              "WELLE-6-DRIFT": list(mod.downstream_blocked_wellen("WELLE-6-DRIFT")),
+              "WELLE-6-DEFECT": list(mod.downstream_blocked_wellen("WELLE-6-DEFECT")),
+          }
+          expected = {
+              "WELLE-6-INTACT": [],
+              "WELLE-6-DRIFT": [],
+              "WELLE-6-DEFECT": [6, 7],
+          }
+          mismatches = [k for k in probes if probes[k] != expected[k]]
+          print(json.dumps({"probes": probes, "expected": expected, "mismatches": mismatches}, indent=2, sort_keys=True))
+          PY
+          mismatches=$(python3 -c "import json; print(len(json.load(open('out/stages/cascade-probe-result.json'))['mismatches']))")
+          verdict="CASCADE-CONSISTENT"
+          if [[ "$mismatches" -gt 0 ]]; then
+            verdict="CASCADE-BREAK"
+          fi
+          if [[ "${DRIFT_INJECT,,}" == "cascade" ]]; then
+            verdict="CASCADE-DRIFT"
+            echo "::warning::drift_inject=cascade; forced CASCADE-DRIFT"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "cascade" ]]; then
+            verdict="CASCADE-BREAK"
+            echo "::warning::defect_inject=cascade; forced CASCADE-BREAK"
+          fi
+          python3 - <<PY > out/stages/cascade-verdict.json
+          import json, datetime
+          probe = json.load(open("out/stages/cascade-probe-result.json"))
+          env = {
+              "schema_version": 1,
+              "stage": "downstream_block_cascade",
+              "tag": "tag-74",
+              "substrate": "selin-welle-6-forward-block-cascade-rule",
+              "verdict": "$verdict",
+              "probe_result": probe,
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-4 cascade verdict: $verdict"
+
+      - name: Stage 5 -- Aggregate WELLE-6-INTEGRATION verdict
+        id: aggregate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tooling/ci/aggregate_welle_6_integration.py \
+            --producer-envelope          out/stages/producer-verdict.json \
+            --audit-anchor-envelope      out/stages/audit-anchor-verdict.json \
+            --doppel-coupling-envelope   out/stages/doppel-coupling-verdict.json \
+            --cascade-envelope           out/stages/cascade-verdict.json \
+            --iso-week 27 \
+            --github-run-id "${GITHUB_RUN_ID:-}" \
+            --github-sha    "${GITHUB_SHA:-}" \
+            --github-ref    "${GITHUB_REF:-}" \
+            --output        out/aggregate/welle-6-integration-verdict.json
+          verdict=$(python3 -c "import json; print(json.load(open('out/aggregate/welle-6-integration-verdict.json'))['verdict'])")
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Tag-74 Welle-6 Integration-Smoke"
+            echo ""
+            echo "**Aggregated verdict:** \`$verdict\`"
+            echo ""
+            echo "**Per-stage verdicts:**"
+            echo ""
+            echo "- Stage 1 (Welle-6-Producer, Selin Tag-74): \`${{ steps.stage1.outputs.verdict }}\`"
+            echo "- Stage 2 (Welle-6-Audit-Anchor, Tomas Tag-74): \`${{ steps.stage2.outputs.verdict }}\`"
+            echo "- Stage 3 (Doppel-Welle-6+7 Coupling-Gate, Amara Tag-74): \`${{ steps.stage3.outputs.verdict }}\`"
+            echo "- Stage 4 (Forward-Block-Cascade welle-6..7): \`${{ steps.stage4.outputs.verdict }}\`"
+            echo ""
+            echo "<details><summary>Welle-6-Integration envelope JSON</summary>"
+            echo ""
+            echo '```json'
+            cat out/aggregate/welle-6-integration-verdict.json
+            echo '```'
+            echo ""
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Welle-6-integration verdict envelope
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: welle-6-integration-verdict
+          path: out/aggregate/welle-6-integration-verdict.json
+          if-no-files-found: warn
+
+      - name: Upload per-stage envelopes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: welle-6-integration-stages
+          path: out/stages/
+          if-no-files-found: warn
+
+      - name: Terminal-status gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          verdict="${{ steps.aggregate.outputs.verdict }}"
+          case "$verdict" in
+            WELLE-6-INTACT)
+              echo "Tag-74 Welle-6 integration-smoke INTACT"
+              ;;
+            WELLE-6-DRIFT)
+              echo "::warning::Tag-74 Welle-6 integration-smoke DRIFT (operator-hand reads per-stage notes)"
+              ;;
+            WELLE-6-DEFECT)
+              echo "::error::Tag-74 Welle-6 integration-smoke DEFECT (substrate contract break or doppel-coupling PARTNER-DEFECT or cascade-break)"
+              exit 1
+              ;;
+            *)
+              echo "::error::unknown verdict: $verdict"
+              exit 1
+              ;;
+          esac

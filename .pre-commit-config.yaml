@@ -127,3 +127,52 @@ repos:
         files: ^tests/.+\.py$
         pass_filenames: false
         stages: [pre-commit]
+
+      # ----------------------------------------------------------------
+      # Tag-74 — REUSE-IgnoreStart/End wrap pre-merge lint
+      #          (enforce-mode, Tomás Tag-73 follow-up)
+      # ----------------------------------------------------------------
+      #
+      # Tomás Tag-73 outbox-recommendation
+      # (`agents-workspaces/tomas/outbox/2026-05-19-tag-73-...`):
+      # the Tag-61 hint-mode hook caught the drift but did NOT block
+      # the commit, and three additional Tag-66/68/71 drift episodes
+      # slipped through despite the advisory output (developers
+      # dismissed the hint and force-pushed). The fix is to ADD a
+      # second hook in enforce-mode bound to the same script, scoped
+      # narrowly to the directories where the drift consistently
+      # recurs (`tests/observability/**/*.py` and
+      # `tests/phase_3c/**/*.py`). Enforce-mode exits non-zero on
+      # findings and blocks the commit; the hint-mode hook above
+      # remains for broader test-tree coverage as an advisory.
+      #
+      # Scope rationale:
+      #   * `tests/observability/**/*.py` — alert-rule + bridge
+      #     tests routinely carry SPDX-string-literal fixtures
+      #     in assert-strings; this is where 4 of the 6 Tag-56..71
+      #     drift episodes originated.
+      #   * `tests/phase_3c/**/*.py` — doppel-cutover acceptance
+      #     tests likewise reference SPDX-IDs in payload-fixture
+      #     dictionaries.
+      #   * Broader `tests/**/*.py` stays on hint-mode to avoid
+      #     blocking non-observability test work on a wrap-style
+      #     drift; the server-side gate still enforces full-tree.
+      #
+      # Mutual exclusion with the hint-mode hook:
+      #   * Files in scope of BOTH hooks: enforce-mode runs second
+      #     (pre-commit preserves declaration order) and short-
+      #     circuits the commit on a finding; hint-mode reports
+      #     are redundant once enforce blocks.
+      #   * Files in scope of hint-mode only: hint-mode runs alone,
+      #     advisory output, no block.
+      - id: reuse-wrap-pre-merge-lint-enforce
+        name: "REUSE-IgnoreStart/End wrap lint (Tag-74, enforce-mode, tests/observability + tests/phase_3c)"
+        entry: python tooling/ci/lint_reuse_ignore_wrap_pattern.py --mode enforce
+        language: python
+        # Narrow scope: only the two test sub-trees where
+        # SPDX-literal drift has consistently recurred. The
+        # hint-mode hook above keeps the broader tests/**/*.py
+        # coverage as an advisory.
+        files: ^tests/(observability|phase_3c)/.+\.py$
+        pass_filenames: false
+        stages: [pre-commit]
