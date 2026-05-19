@@ -164,6 +164,140 @@ If any of these invariants drifts, CI fails and Tag-57
 closeout regresses. The real OTS-calendar step
 (Operator-Hand) is explicitly out of CI scope.
 
+## 6. Pre-Activation-Probe-Mode (Tag-59)
+
+Tag-57 left the helper as a strict audit-only emitter. Tag-58 PR
+#371 (Reza) sealed the Wirelang-Spec v0.4.3 against post-freeze
+drift with a cutover window pinned at 2026-06-09 (KW-24 gate).
+Tag-59 closes the remaining gap: a hermetic *pre-activation-probe*
+that walks the exact shape an actual ``ots stamp`` invocation would
+take, without performing any network I/O.
+
+The probe is invoked via the same helper:
+
+```bash
+python3 tooling/ots/emit_manifest_hash_ots_marker.py \
+  --mode pre-activation-probe \
+  --manifest wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md \
+  --probe-verdict-out out/probe-verdicts/MANIFEST-0.5.2-final-pre-cutover.json \
+  --actor tomas \
+  --now 2026-05-19T12:00:00+00:00
+```
+
+The probe runs four stages:
+
+1. **Input validation.** Manifest path exists, is a file, is
+   readable, and is listed in
+   ``tooling/ots/manifest-hash-ots-anchor-stub.json`` (when the
+   manifest lives inside the repo; fixtures outside repo-root
+   are exempt).
+2. **Hash computation.** SHA-256 streamed in 64 KiB chunks,
+   byte-stable across runs.
+3. **Payload shape.** Build a candidate marker via ``build_marker``
+   and validate the v1 shape (required keys, ``schema_version``,
+   ``kind``, ``wat_spool_envelope.anchor_target``).
+4. **Sandbox boundary.** Reaffirmed OK-by-construction: this
+   module is stdlib-only and performs no subprocess / no socket
+   / no network. Tag-57 invariant ``test_t09_k2_stdlib_only``
+   plus the Tag-59 test-suite enforce this at CI time.
+
+The verdict envelope (``ots-pre-activation-probe-verdict``,
+``schema_version: 1``) reports ``PROBE-READY`` iff every stage
+starts with ``"OK"``, otherwise ``PROBE-DEFECT``. The envelope
+carries ``ar_authorisation_required: true`` as an explicit
+acknowledgement that no live calendar call has been performed and
+that AR-authorisation is still gating the next step.
+
+Verdict-envelope schema (v1):
+
+```json
+{
+  "schema_version": 1,
+  "kind": "ots-pre-activation-probe-verdict",
+  "mode": "pre-activation-probe",
+  "verdict": "PROBE-READY",
+  "stages": {
+    "input_validation": "OK",
+    "hash_computation": "OK: <64-hex>",
+    "payload_shape":    "OK",
+    "sandbox_boundary": "OK"
+  },
+  "manifest_sha256": "<64-hex>",
+  "manifest_size_bytes": 12345,
+  "probed_at_utc": "2026-05-19T...",
+  "ar_authorisation_required": true,
+  "anchors": {
+    "tomas_tag_59_pre_anchor_probe_pr": null,
+    "reza_tag_58_spec_seal_pr": 371,
+    "operator_hand_runbook":
+      "docs/operations/manifest-hash-ots-anchor-wiring.md"
+  }
+}
+```
+
+The CI workflow
+``.github/workflows/ots-pre-anchor-activation-probe.yml`` runs the
+probe on every pre-cutover manifest (0.5.0, 0.5.1, 0.5.2-final),
+schema-validates each verdict envelope, aggregates a job-summary
+table, and runs the hermetic Tag-59 test-suite
+(``tests/ci/test_ots_pre_anchor_activation_probe_tag59.py``).
+
+## 7. AR-Authorisierungs-Pfad
+
+The probe alone never produces a real OTS proof. It is the
+*green-light tripwire* that asserts the Repo-Side pipeline is
+ready for the live calendar call. The sequence to actual
+anchoring is:
+
+```
++----------------------------------+
+| (a) Probe = PROBE-READY on main  |  <-- CI gate (Tag-59)
++-------+--------------------------+
+        |
+        | (b) Mira requests AR-authorisation
+        |     (ADR or AR-Hand decision) for
+        |     KW-24 cutover gate (2026-06-09).
+        v
++----------------------------------+
+| (c) Aufsichtsrat authorisation   |
+|     dropped into                 |
+|     ar-hand/ inbox or signed     |
+|     decision marker.             |
++-------+--------------------------+
+        |
+        | (d) Operator-Hand picks up the marker
+        |     JSON from tooling/ots/markers/ on
+        |     a network-attached host.
+        v
++----------------------------------+
+| (e) ots stamp <marker.json>      |  <-- Operator-Hand
+|     ots upgrade <marker.json.ots>|      (out-of-band)
+|     ots verify <marker.json.ots> |
++-------+--------------------------+
+        |
+        | (f) Commit the .ots proof file as
+        |     a strict additive PR.
+        v
++----------------------------------+
+| (g) Marker + .ots proof land in  |
+|     tooling/ots/markers/ via PR. |
++----------------------------------+
+```
+
+Until step (c) lands explicitly, the helper refuses to perform
+any network operation by construction: there is no ``--mode live``
+flag, no subprocess call, no socket import. The
+``ar_authorisation_required: true`` flag in every probe verdict is
+the runtime reminder that the Sandbox-side substrate is fully
+ready and the next move is human.
+
+**Anchors (Pfad):**
+
+- ADR-0007 (Internal Audit Trail via OTS) — substrate.
+- Reza Tag-58 PR #371 — cutover window pinned 2026-06-09.
+- Tomás Tag-57 PR #366 — audit-only emit, OPEN-K2 closeout.
+- Tomás Tag-59 PR — pre-activation-probe + AR-authorisation pfad.
+
 ---
 
 **Anchors:**
@@ -171,3 +305,4 @@ closeout regresses. The real OTS-calendar step
 - ADR-0007 (Internal Audit Trail via OTS).
 - Selin's Tag-56 0.5.2-final audit (PR #362), OPEN-K2.
 - Tomás Tag-57 K1+K2 closeout PR.
+- Tomás Tag-59 pre-activation-probe PR.
