@@ -103,3 +103,27 @@ repos:
         files: ^REUSE\.toml$
         pass_filenames: false
         stages: [pre-commit]
+
+      # ----------------------------------------------------------------
+      # Tag-61 — REUSE-IgnoreStart/End wrap pre-merge lint (hint-mode)
+      # ----------------------------------------------------------------
+      #
+      # Three consecutive Tag-56 / Tag-59 / Tag-60 hot-fix episodes
+      # all shared the same root cause: a freshly-merged test file
+      # contained a single-line `"SPDX-License-Identifier: <ID>"`
+      # string literal outside REUSE-IgnoreStart/End sentinels, and
+      # the License-Hygiene Gate went red on `main`. This local hook
+      # mirrors `tooling/ci/lint_reuse_ignore_wrap_pattern.py` at
+      # commit time, so the developer sees the missing-wrap report
+      # before the PR ever lands. Runs in `hint` mode (advisory) by
+      # default; the server-side gate has `enforce` semantics.
+      - id: reuse-wrap-pre-merge-lint
+        name: "REUSE-IgnoreStart/End wrap lint (Tag-61, hint-mode)"
+        entry: python tooling/ci/lint_reuse_ignore_wrap_pattern.py --mode hint
+        language: python
+        # Scope: only `tests/**/*.py` carry payload-fixture SPDX
+        # literals; substance files have proper headers and are
+        # covered by the existing reuse + spdx-header-check hooks.
+        files: ^tests/.+\.py$
+        pass_filenames: false
+        stages: [pre-commit]
