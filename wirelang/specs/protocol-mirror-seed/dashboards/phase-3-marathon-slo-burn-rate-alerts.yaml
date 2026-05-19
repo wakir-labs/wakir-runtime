@@ -1,0 +1,524 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Tag-53 Phase-3-Marathon SLO Burn-Rate Alert-Rules
+# -------------------------------------------------
+#
+# Multi-Window Multi-Burn-Rate alert-rules per SLO from the Tag-52
+# SLI/SLO catalogue (docs/observability/sli-slo-phase-3-marathon.md).
+# Companion to the Tag-52 SLO-Dashboard (dashboards/phase-3-marathon-
+# slo-final.json). This file is ADDITIVE to and DISJOINT from:
+#   * dashboards/phase-3-marathon-alerts.yaml  (Tag-40/45/50 event-
+#     based alerts; immediate-trigger semantics).
+# Burn-rate-alerts answer a different question: "How fast are we
+# consuming the error-budget?" The Tag-40/45/50 alerts answer "What
+# event just fired?".
+#
+# Method per Google SRE Workbook §5 ("Alerting on SLOs") and Davies
+# "Implementing Service Level Objectives" Ch.6. For a 30-day SLO
+# window and a 99% objective:
+#
+#   * Fast-burn (Page):  14.4 x budget rate over (1h, 5m) windows
+#       -> Burns 2% of 30d budget in 1h -> page severity, fast feedback
+#   * Slow-burn (Ticket): 6 x budget rate over (6h, 30m) windows
+#       -> Burns 5% of 30d budget in 6h -> ticket severity, slow drain
+#
+# The Multi-Window design (long window AND short window) avoids
+# false-positives on transient spikes and false-negatives on slow
+# leaks; the dual-burn-rate design separates page-worthy from
+# ticket-worthy drain. Both are required to fire to alert.
+#
+# SLO coverage (Tag-52 catalogue):
+#
+#   * SLO-1 Welle-Cutover-Success-Rate (per Welle, 99% target, 6h
+#     evaluation, 30d SLO window). Budget-shaped. Fast-burn page +
+#     slow-burn ticket per Welle.
+#   * SLO-2 Cross-Modul-Drift (aggregate, hard-zero). Hard-zero
+#     budget; burn-rate semantic translates to "any drift event in
+#     the window pages on fast burn, persistent drift over slow
+#     window tickets". Distinct from Tag-40 WakirPhase3CrossModulDrift
+#     Detected which is event-based.
+#   * SLO-5 Build-Reproducibility (hard-zero). Fast-burn page on any
+#     drift_count > 0; slow-burn ticket on persistent drift over the
+#     last day.
+#   * SLO-6 SBOM-Verdict (aggregate hard-zero; per-binary informational).
+#     Fast-burn page on aggregate==0; slow-burn ticket on persistent
+#     per-binary drift over the trailing day.
+#   * SLO-7 Cosign-OIDC-Drift (aggregate hard-zero, trust-root pin).
+#     Fast-burn page on aggregate==1 OR trust_root==0; slow-burn
+#     ticket on persistent per-binary drift.
+#
+# SLO-3 (Alert-Volume-Trend) and SLO-4 (AR-Hand-Stop-Trigger-Rate)
+# are informational SLOs per the Tag-52 catalogue and intentionally
+# DO NOT get burn-rate-alerts here. Their values are surfaced on the
+# Tag-52 dashboard for operator awareness; over-volume is a Noa-
+# Alert-Rule-Review trigger, not an on-call page.
+#
+# Severity routing follows the Wakir SRE-standard: severity=page
+# targets the 24/7 on-call rotation via AlertManager pagerduty
+# receiver; severity=ticket opens a JIRA-style operations ticket via
+# webhook. Burn-rate-page-alerts carry an extra label
+# burn_rate_class=fast (Page) or burn_rate_class=slow (Ticket) so
+# the AlertManager routing tree can apply per-class silence rules
+# (e.g. silence slow-burn during planned migration windows without
+# suppressing fast-burn).
+#
+# Anchors:
+#   - Tag-52 SLI/SLO catalogue (docs/observability/sli-slo-phase-3-
+#     marathon.md)
+#   - Tag-52 SLO dashboard (dashboards/phase-3-marathon-slo-final.json)
+#   - ADR-0066 Phase-3c Beschleunigung
+#   - ADR-0025 SRE Performance-Mess-Anker
+#   - Google SRE Workbook §5 ("Alerting on SLOs"), Davies "Implementing
+#     Service Level Objectives" Ch.6 (Multi-Window Multi-Burn-Rate).
+#   - Tag-52 SLO doc §6 Open follow-ups: "Per-Welle Latency-Burn-Rate
+#     SLO rolled up into this dashboard ... Tag-53+ deferral." This
+#     file delivers the SLO-1 burn-rate alerting for that follow-up.
+
+groups:
+  # ---------------------------------------------------------------
+  # SLO-1 Welle-Cutover-Success-Rate (99% target, 30d SLO window)
+  # ---------------------------------------------------------------
+  # Per-Welle. Burn-rate is computed as (1 - success_rate) / (1 - 0.99)
+  # = fallback_rate / 0.01. A burn-rate of 1 means we are exactly on
+  # budget; 14.4 means we are burning 14.4x faster than budget; 6
+  # means 6x. Both windows must hold to fire (Multi-Window).
+
+  - name: slo-1-welle-cutover-success-rate-burn-rate
+    interval: 30s
+    rules:
+      - alert: WakirSlo1WelleCutoverSuccessRateFastBurn
+        # Fast-burn page: budget consumption at 14.4x over (1h, 5m)
+        # windows. At this rate the 30d budget is consumed in 50h
+        # (2% of budget in 1h). Page severity.
+        expr: |
+          (
+            (
+              rate(persona_engine_phase_3c_welle_fallback_total[1h])
+              /
+              clamp_min(rate(persona_engine_phase_3c_welle_decisions_total[1h]), 1e-12)
+            ) > (14.4 * 0.01)
+          )
+          and
+          (
+            (
+              rate(persona_engine_phase_3c_welle_fallback_total[5m])
+              /
+              clamp_min(rate(persona_engine_phase_3c_welle_decisions_total[5m]), 1e-12)
+            ) > (14.4 * 0.01)
+          )
+        for: 2m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          slo: slo-1
+          slo_objective: "0.99"
+          slo_window: "30d"
+          burn_rate_class: fast
+          burn_rate_threshold: "14.4"
+          budget_consumed_in_window: "2pct-of-30d-in-1h"
+        annotations:
+          summary: "SLO-1 Welle {{ $labels.welle }} Cutover-Success-Rate fast-burn: 14.4x budget over 1h+5m"
+          description: >-
+            SLO-1 (per-Welle Cutover-Success-Rate >= 99% over 30d)
+            burn-rate exceeds 14.4x over BOTH 1h and 5m windows for
+            welle={{ $labels.welle }}. At this rate the 30d error
+            budget (1% fallback) is consumed in 50h. Per Google SRE
+            Workbook §5: 14.4x over (1h,5m) = page, 2% of monthly
+            budget consumed in 1h. Investigate Welle BackendDecision
+            stream; cross-check Tag-30 emitter for the affected welle.
+          runbook_url: "https://wakir-labs.example/runbooks/slo-1-burn-rate-fast"
+          dashboard_url: "https://wakir-labs.example/d/wakir-phase-3-marathon-slo-final"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand + activity-log:append"
+
+      - alert: WakirSlo1WelleCutoverSuccessRateSlowBurn
+        # Slow-burn ticket: budget consumption at 6x over (6h, 30m)
+        # windows. At this rate the 30d budget is consumed in 5d
+        # (5% of budget in 6h). Ticket severity.
+        expr: |
+          (
+            (
+              rate(persona_engine_phase_3c_welle_fallback_total[6h])
+              /
+              clamp_min(rate(persona_engine_phase_3c_welle_decisions_total[6h]), 1e-12)
+            ) > (6 * 0.01)
+          )
+          and
+          (
+            (
+              rate(persona_engine_phase_3c_welle_fallback_total[30m])
+              /
+              clamp_min(rate(persona_engine_phase_3c_welle_decisions_total[30m]), 1e-12)
+            ) > (6 * 0.01)
+          )
+        for: 15m
+        labels:
+          severity: ticket
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          slo: slo-1
+          slo_objective: "0.99"
+          slo_window: "30d"
+          burn_rate_class: slow
+          burn_rate_threshold: "6"
+          budget_consumed_in_window: "5pct-of-30d-in-6h"
+        annotations:
+          summary: "SLO-1 Welle {{ $labels.welle }} Cutover-Success-Rate slow-burn: 6x budget over 6h+30m"
+          description: >-
+            SLO-1 burn-rate exceeds 6x over BOTH 6h and 30m windows
+            for welle={{ $labels.welle }}. At this rate the 30d
+            error budget is consumed in 5d (5% of monthly budget
+            in 6h). Per Google SRE Workbook §5 this is the slow-
+            burn ticket-severity threshold. Open an ops-ticket for
+            the affected Welle owner; no on-call page.
+          runbook_url: "https://wakir-labs.example/runbooks/slo-1-burn-rate-slow"
+          dashboard_url: "https://wakir-labs.example/d/wakir-phase-3-marathon-slo-final"
+          notify_path: "ticket:sre-ops + activity-log:append"
+
+  # ---------------------------------------------------------------
+  # SLO-2 Cross-Modul-Drift (hard-zero, 24h SLO window)
+  # ---------------------------------------------------------------
+  # Hard-zero budget. Burn-rate semantics translate to "any drift
+  # ticked in the window". Distinct from the Tag-40 event-based
+  # WakirPhase3CrossModulDriftDetected alert which fires on the
+  # instantaneous counter > 0 for 5m; here we measure burn-rate
+  # over the 24h SLO window.
+
+  - name: slo-2-cross-modul-drift-burn-rate
+    interval: 30s
+    rules:
+      - alert: WakirSlo2CrossModulDriftFastBurn
+        # Fast-burn page: any increase over (1h, 5m). Hard-zero
+        # budget means a single drift event is the whole 24h budget
+        # consumed.
+        expr: |
+          (
+            increase(wakir_cross_modul_drift_count[1h]) > 0
+          )
+          and
+          (
+            increase(wakir_cross_modul_drift_count[5m]) > 0
+          )
+        for: 2m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          slo: slo-2
+          slo_objective: "0"
+          slo_window: "24h"
+          burn_rate_class: fast
+          burn_rate_threshold: hard-zero
+          budget_consumed_in_window: "100pct-of-24h-on-any-event"
+        annotations:
+          summary: "SLO-2 Cross-Modul-Drift fast-burn: drift event in 1h+5m windows"
+          description: >-
+            SLO-2 (Cross-Modul-Drift hard-zero over 24h) burn-rate
+            exceeds budget over BOTH 1h and 5m windows. Hard-zero
+            budget means a single event consumes the entire 24h
+            budget. Per ADR-0066 §A1-Cross-Modul-Drift-Mitigation
+            this is an immediate-rollback-trigger. Engage Mira +
+            Tomas + Henrik triage. Companion event-alert:
+            WakirPhase3CrossModulDriftDetected.
+          runbook_url: "https://wakir-labs.example/runbooks/slo-2-burn-rate"
+          dashboard_url: "https://wakir-labs.example/d/wakir-phase-3-marathon-slo-final"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand-critical + activity-log:append"
+
+      - alert: WakirSlo2CrossModulDriftSlowBurn
+        # Slow-burn ticket: persistent drift over (6h, 30m). Catches
+        # the case where the Tag-40 immediate alert has been silenced
+        # but drift continues to accumulate.
+        expr: |
+          (
+            increase(wakir_cross_modul_drift_count[6h]) > 0
+          )
+          and
+          (
+            increase(wakir_cross_modul_drift_count[30m]) > 0
+          )
+        for: 15m
+        labels:
+          severity: ticket
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          slo: slo-2
+          slo_objective: "0"
+          slo_window: "24h"
+          burn_rate_class: slow
+          burn_rate_threshold: hard-zero
+          budget_consumed_in_window: "persistent-over-6h"
+        annotations:
+          summary: "SLO-2 Cross-Modul-Drift slow-burn: drift event persistent over 6h+30m"
+          description: >-
+            SLO-2 burn-rate persistent over BOTH 6h and 30m windows.
+            Drift is continuing to accumulate (or has not been
+            triaged after the initial fast-burn page). Open ops-
+            ticket for Henrik audit-trail follow-up.
+          runbook_url: "https://wakir-labs.example/runbooks/slo-2-burn-rate"
+          notify_path: "ticket:sre-ops + activity-log:append + henrik-audit-trail"
+
+  # ---------------------------------------------------------------
+  # SLO-5 Build-Reproducibility (hard-zero, per-CI-run)
+  # ---------------------------------------------------------------
+  # The metric is gauge-shaped (drift_count is set per CI run).
+  # Burn-rate semantics here measure "how long has the gauge been
+  # non-zero" via max_over_time.
+
+  - name: slo-5-build-reproducibility-burn-rate
+    interval: 1m
+    rules:
+      - alert: WakirSlo5BuildReproducibilityFastBurn
+        # Fast-burn page: drift_count > 0 over BOTH 1h and 5m windows.
+        # Hard-zero budget; a single non-deterministic build is the
+        # entire per-CI-run budget.
+        expr: |
+          (
+            max_over_time(wakir_build_reproducibility_drift_count[1h]) > 0
+          )
+          and
+          (
+            max_over_time(wakir_build_reproducibility_drift_count[5m]) > 0
+          )
+        for: 2m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          slo: slo-5
+          slo_objective: "0"
+          slo_window: per-ci-run
+          burn_rate_class: fast
+          burn_rate_threshold: hard-zero
+          budget_consumed_in_window: "100pct-on-any-drift"
+        annotations:
+          summary: "SLO-5 Build-Reproducibility fast-burn: drift_count > 0 over 1h+5m"
+          description: >-
+            SLO-5 (Build-Reproducibility hard-zero) shows drift_count
+            > 0 over BOTH 1h and 5m windows. At least one of the 15
+            release-manifest binaries is non-deterministic. ADR-0066
+            §Cutover-Day-Acceptance-Gate release-blocker. Engage Reza
+            (wirelang), Tomas (wat), or Kai (orchestrator) per the
+            affected binary label.
+          runbook_url: "https://wakir-labs.example/runbooks/slo-5-burn-rate"
+          dashboard_url: "https://wakir-labs.example/d/wakir-phase-3-marathon-slo-final"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand + activity-log:append"
+
+      - alert: WakirSlo5BuildReproducibilitySlowBurn
+        # Slow-burn ticket: drift persistent over (6h, 30m). Catches
+        # the case where a binary stays non-deterministic across
+        # multiple CI runs without action.
+        expr: |
+          (
+            max_over_time(wakir_build_reproducibility_drift_count[6h]) > 0
+          )
+          and
+          (
+            max_over_time(wakir_build_reproducibility_drift_count[30m]) > 0
+          )
+        for: 15m
+        labels:
+          severity: ticket
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          slo: slo-5
+          slo_objective: "0"
+          slo_window: per-ci-run
+          burn_rate_class: slow
+          burn_rate_threshold: hard-zero
+          budget_consumed_in_window: "persistent-over-6h"
+        annotations:
+          summary: "SLO-5 Build-Reproducibility slow-burn: drift persistent over 6h+30m"
+          description: >-
+            SLO-5 drift_count > 0 persistent over BOTH 6h and 30m
+            windows. The non-deterministic binary has not been
+            triaged. Ticket the binary owner per the binary label.
+          runbook_url: "https://wakir-labs.example/runbooks/slo-5-burn-rate"
+          notify_path: "ticket:sre-ops + activity-log:append"
+
+  # ---------------------------------------------------------------
+  # SLO-6 SBOM-Verdict (aggregate hard-zero; per-binary informational)
+  # ---------------------------------------------------------------
+  # Aggregate verdict is 0=fail / 1=pass. Burn = aggregate==0
+  # sustained. Per-binary drift_count is the informational tier
+  # which only feeds the slow-burn ticket path.
+
+  - name: slo-6-sbom-verdict-burn-rate
+    interval: 1m
+    rules:
+      - alert: WakirSlo6SbomVerdictFastBurn
+        # Fast-burn page: aggregate verdict has been 0 (fail) over
+        # BOTH 1h and 5m. Hard-zero on aggregate; release blocker.
+        expr: |
+          (
+            min_over_time(wakir_sbom_verification_aggregate_verdict[1h]) == 0
+          )
+          and
+          (
+            min_over_time(wakir_sbom_verification_aggregate_verdict[5m]) == 0
+          )
+        for: 2m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          slo: slo-6
+          slo_objective: "1"
+          slo_window: per-ci-run
+          burn_rate_class: fast
+          burn_rate_threshold: hard-zero
+          budget_consumed_in_window: "100pct-on-aggregate-fail"
+        annotations:
+          summary: "SLO-6 SBOM aggregate verdict fast-burn: FAIL over 1h+5m"
+          description: >-
+            SLO-6 (SBOM aggregate_verdict == 1) reads 0 (FAIL) over
+            BOTH 1h and 5m windows. At least one of the 15 binaries
+            SBOM has drifted beyond the allowed-transitives tolerance.
+            ADR-0066 §Supply-Chain-Cutover-Gate release-blocker.
+            Cross-check Tag-49 verify-15-binary-sbom-against-baseline
+            output for the affected binary.
+          runbook_url: "https://wakir-labs.example/runbooks/slo-6-burn-rate"
+          dashboard_url: "https://wakir-labs.example/d/wakir-phase-3-marathon-slo-final"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand + activity-log:append"
+
+      - alert: WakirSlo6SbomPerBinaryDriftSlowBurn
+        # Slow-burn ticket: per-binary drift_count persistent over
+        # (6h, 30m). Per-binary drift > 0 is informational per the
+        # SLO doc; aggregate may still be 1 if the drift is within
+        # tolerance. Slow-burn surfaces the review-trigger.
+        expr: |
+          (
+            max_over_time(wakir_sbom_verification_per_binary_drift_count[6h]) > 0
+          )
+          and
+          (
+            max_over_time(wakir_sbom_verification_per_binary_drift_count[30m]) > 0
+          )
+        for: 15m
+        labels:
+          severity: ticket
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          slo: slo-6
+          slo_objective: per-binary-zero
+          slo_window: per-ci-run
+          burn_rate_class: slow
+          burn_rate_threshold: per-binary-non-zero
+          budget_consumed_in_window: "persistent-over-6h"
+        annotations:
+          summary: "SLO-6 SBOM per-binary drift slow-burn: binary {{ $labels.binary }} non-zero over 6h+30m"
+          description: >-
+            SLO-6 per-binary drift_count > 0 persistent over BOTH 6h
+            and 30m for binary={{ $labels.binary }}. Aggregate verdict
+            may still be PASS if drift is within tolerance. This is a
+            Tier-2 ticket (review-trigger), not a release-block.
+          runbook_url: "https://wakir-labs.example/runbooks/slo-6-burn-rate"
+          notify_path: "ticket:sre-ops + activity-log:append"
+
+  # ---------------------------------------------------------------
+  # SLO-7 Cosign-OIDC-Drift (aggregate hard-zero, trust-root pin)
+  # ---------------------------------------------------------------
+  # SLO target = (aggregate == 0 AND trust_root == 1). Burn = either
+  # aggregate == 1 OR trust_root == 0 sustained.
+
+  - name: slo-7-cosign-oidc-drift-burn-rate
+    interval: 1m
+    rules:
+      - alert: WakirSlo7CosignOidcDriftFastBurn
+        # Fast-burn page: aggregate drift OR trust-root rotation
+        # over BOTH 1h and 5m. Either condition is supply-chain-
+        # suspicious and a release-blocker.
+        expr: |
+          (
+            (
+              max_over_time(wakir_cosign_drift_probe_aggregate[1h]) > 0
+              or
+              min_over_time(wakir_cosign_drift_probe_trust_root[1h]) == 0
+            )
+          )
+          and
+          (
+            (
+              max_over_time(wakir_cosign_drift_probe_aggregate[5m]) > 0
+              or
+              min_over_time(wakir_cosign_drift_probe_trust_root[5m]) == 0
+            )
+          )
+        for: 2m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          slo: slo-7
+          slo_objective: "aggregate-zero-and-trust-root-one"
+          slo_window: per-ci-run
+          burn_rate_class: fast
+          burn_rate_threshold: hard-zero
+          budget_consumed_in_window: "100pct-on-aggregate-or-trust-root"
+        annotations:
+          summary: "SLO-7 Cosign-OIDC-Drift fast-burn: aggregate OR trust-root violated over 1h+5m"
+          description: >-
+            SLO-7 (Cosign-OIDC-Drift aggregate == 0 AND trust_root
+            == 1) is violated over BOTH 1h and 5m windows. Either at
+            least one binary's OIDC-binding drifted (aggregate == 1)
+            or the Fulcio/Rekor trust-root rotated (trust_root == 0).
+            Per ADR-0066 §Supply-Chain-Cutover-Gate this is supply-
+            chain-suspicious and release-blocking until Henrik
+            (Internal Audit) re-baselines.
+          runbook_url: "https://wakir-labs.example/runbooks/slo-7-burn-rate"
+          dashboard_url: "https://wakir-labs.example/d/wakir-phase-3-marathon-slo-final"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand-critical + activity-log:append + henrik-audit-trail"
+
+      - alert: WakirSlo7CosignOidcDriftSlowBurn
+        # Slow-burn ticket: per-binary drift persistent over (6h, 30m).
+        # Catches per-binary OIDC drifts that don't yet flip the
+        # aggregate but indicate a creeping baseline rotation.
+        expr: |
+          (
+            max_over_time(wakir_cosign_drift_probe_per_binary[6h]) > 0
+          )
+          and
+          (
+            max_over_time(wakir_cosign_drift_probe_per_binary[30m]) > 0
+          )
+        for: 15m
+        labels:
+          severity: ticket
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          slo: slo-7
+          slo_objective: per-binary-zero
+          slo_window: per-ci-run
+          burn_rate_class: slow
+          burn_rate_threshold: per-binary-non-zero
+          budget_consumed_in_window: "persistent-over-6h"
+        annotations:
+          summary: "SLO-7 Cosign-OIDC per-binary drift slow-burn: binary {{ $labels.binary }} drifted over 6h+30m"
+          description: >-
+            SLO-7 per-binary drift > 0 persistent over BOTH 6h and
+            30m for binary={{ $labels.binary }}. The OIDC binding
+            for this binary changed. Cross-check with the cosign-
+            keyless-oidc-baseline-bundle and decide release-block
+            vs. accept-and-rebaseline per Henrik review.
+          runbook_url: "https://wakir-labs.example/runbooks/slo-7-burn-rate"
+          notify_path: "ticket:sre-ops + activity-log:append"
