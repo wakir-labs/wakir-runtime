@@ -331,7 +331,9 @@ def test_workflow_file_carries_spdx_header():
     """The workflow YAML carries the SPDX-License-Identifier."""
     assert WORKFLOW_PATH.exists(), f"missing workflow: {WORKFLOW_PATH}"
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
+    # REUSE-IgnoreStart
     assert "SPDX-License-Identifier: Apache-2.0" in text
+    # REUSE-IgnoreEnd
 
 
 # T-G1G2-SMOKE-17 ---------------------------------------------------------
