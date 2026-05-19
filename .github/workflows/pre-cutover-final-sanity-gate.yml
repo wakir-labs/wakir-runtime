@@ -1,0 +1,466 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Pre-Cutover Final Sanity Gate (Tomas Tag-53, ADR-0066)
+# ------------------------------------------------------
+#
+# Pre-KW-24 final readiness verification across all seven Phase-3-
+# Marathon substrates. Runs hermetic probe-jobs for each substrate
+# and aggregates a single Marathon-Readiness verdict (READY / CAUTION
+# / BLOCK). The cutover-day auto-scheduler reads the resulting
+# ``pre-cutover-final-sanity-gate-verdict.json`` artifact alongside
+# the existing Tag-41 ``pre-cutover-sanity-verdict.json``; either
+# verdict at BLOCK degrades the Monday cutover-day dispatch to
+# DRY_RUN_ONLY.
+#
+# This is the **final** gate before the KW-24 marathon-start. The
+# Tag-41 gate covers four substrates (inventory + generalprobe +
+# tracker + marker-workflow). The Tag-53 gate covers seven, with
+# overlap on the welle-probes and tracker substrates and three new
+# axes (engine-manifest, spec-freeze, supply-chain triad
+# SBOM+repro+cosign).
+#
+# Seven probe-jobs (S1..S7)
+# -------------------------
+#
+#   S1 - engine_manifest
+#       Persona-Engine Manifest 0.5.2-final-pre-cutover + Pin-Pack
+#       parity. Probes that the manifest doc + pin-pack YAML exist
+#       on HEAD and that the ``manifest_version`` field in the
+#       pin-pack matches ``0.5.2-final-pre-cutover``.
+#
+#   S2 - spec_freeze
+#       Wirelang spec v0.4.3-freeze marker. Probes
+#       ``wirelang/specs/wirelang-spec-v0-4-3.md`` exists on HEAD
+#       and carries a ``status: freeze`` frontmatter line. Pre-
+#       freeze (file missing) emits yellow; post-freeze with no
+#       freeze-marker emits red.
+#
+#   S3 - sbom
+#       15-binary CycloneDX SBOM bundle workflow presence (Kai
+#       Tag-48). Probes the workflow file exists; structural
+#       fields are verified by its own hermetic test suite. Tag-53
+#       only checks substrate presence at the workflow-discovery
+#       level.
+#
+#   S4 - build_reproducibility
+#       Build-Reproducibility-Daily workflow presence (Noa Tag-46).
+#       Same shape as S3 - workflow-discovery level.
+#
+#   S5 - cosign_oidc
+#       Cosign-Keyless-OIDC-Drift-Probe + cosign-verify-images
+#       workflow presence (Kai Tag-47). Probes both workflows
+#       exist; the OIDC-probe is the upstream-drift axis and the
+#       verify-images is the runtime axis.
+#
+#   S6 - welle_probes
+#       Seven per-Welle pre-cutover-probe shell scripts +
+#       five welle-hot-spot probe workflows. Probes the seven
+#       ``scripts/phase-3c/welle-N-pre-cutover-probe.sh`` files
+#       exist and the five ``phase-3c-welle-{3..7}-hot-spot-
+#       probe.yml`` workflows are present.
+#
+#   S7 - marathon_tracker
+#       Marathon-aggregat-tracker substrate + tracker-gate workflow.
+#       Probes the tracker script exists and the tracker-gate
+#       workflow is present.
+#
+#   S8 - aggregator
+#       Decision-aggregation. Walks S1..S7 status outputs, emits
+#       the verdict envelope, uploads it as a build artifact.
+#
+# Decision rule
+# -------------
+#
+#   * READY    - all seven substrates green.
+#   * CAUTION  - 1..2 substrates yellow, zero red.
+#   * BLOCK    - any substrate red, OR three or more yellow.
+#
+# The threshold ``yellows>=3 -> BLOCK`` is tighter than the four-
+# substrate Tag-41 gate's ``yellows>=2 -> BLOCK``. Seven substrates
+# carry more redundancy; up to two yellow signals can plausibly
+# clear via CAUTION-path operator-hand workaround.
+#
+# Hermetic posture
+# ----------------
+#
+# Strict hermetic: filesystem + pyyaml parse + stdlib only. No
+# podman, no NATS, no live-VM, no Anthropic API, no Cargo build,
+# no Cosign-OIDC handshake. The supply-chain triad (S3 SBOM, S4
+# repro, S5 cosign) is probed at the *workflow-discovery* level;
+# the workflows themselves carry their hermetic test suites.
+#
+# Trigger surface
+# ---------------
+#
+#   * workflow_dispatch - operator-hand / AR-Hand manual run.
+#     Input: ``verbose`` flag (default ``false``).
+#   * schedule: cron "0 5 * * 1" - every Monday 05:00 UTC, **one
+#     hour before** the Tag-41 sanity workflow's 06:00 UTC run.
+#     This ordering is intentional: the auto-scheduler at 07:00
+#     UTC reads both verdicts; running Tag-53 first gives Tag-41
+#     a clean baseline of the same HEAD.
+#   * push (path-filtered) - any change to the marathon-substrate
+#     paths re-probes immediately.
+#
+# Not a required status check
+# ---------------------------
+#
+# Per ``feedback_branch_protection_check_names.md`` this workflow
+# is NOT listed as a required status check on PRs - it gates a
+# calendar-window (KW-24 marathon-start), not individual PRs.
+
+name: pre-cutover-final-sanity-gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      verbose:
+        description: "Emit per-probe diagnostic output (true|false)"
+        required: false
+        default: "false"
+  schedule:
+    # Monday 05:00 UTC - one hour before the Tag-41 sanity probe
+    # at 06:00 UTC, two hours before the auto-scheduler at 07:00
+    # UTC. Tag-53 runs first so the auto-scheduler reads the
+    # freshest seven-substrate verdict.
+    - cron: "0 5 * * 1"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/phase-3c/**"
+      - "wirelang/persona_engine/MANIFEST-*.md"
+      - "wirelang/specs/wirelang-spec-*.md"
+      - "infra/persona-engine/pin-pack-*.yaml"
+      - ".github/workflows/pre-cutover-final-sanity-gate.yml"
+      - ".github/workflows/15-binary-sbom-daily.yml"
+      - ".github/workflows/build-reproducibility-daily.yml"
+      - ".github/workflows/cosign-keyless-oidc-drift-probe.yml"
+      - ".github/workflows/phase-3c-marathon-tracker-gate.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: pre-cutover-final-sanity-gate
+  cancel-in-progress: false
+
+jobs:
+  s1-engine-manifest:
+    name: S1 engine-manifest 0.5.2-final + pin-pack parity (Selin PR #336)
+    runs-on: ubuntu-latest
+    outputs:
+      s1_status: ${{ steps.probe.outputs.s1_status }}
+      s1_note: ${{ steps.probe.outputs.s1_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe engine-manifest substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          manifest="wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md"
+          pin_pack="infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml"
+          status="green"
+          note=""
+          if [[ ! -f "$manifest" ]]; then
+            status="red"
+            note="manifest missing"
+          elif [[ ! -f "$pin_pack" ]]; then
+            status="red"
+            note="pin-pack missing"
+          else
+            if ! grep -q 'manifest_version: "0.5.2-final-pre-cutover"' "$pin_pack"; then
+              status="yellow"
+              note="manifest_version mismatch in pin-pack"
+            fi
+          fi
+          echo "s1_status=$status" >> "$GITHUB_OUTPUT"
+          echo "s1_note=$note" >> "$GITHUB_OUTPUT"
+          echo "S1 engine_manifest: status=$status note='$note'"
+
+  s2-spec-freeze:
+    name: S2 spec v0.4.3-freeze marker (Reza)
+    runs-on: ubuntu-latest
+    outputs:
+      s2_status: ${{ steps.probe.outputs.s2_status }}
+      s2_note: ${{ steps.probe.outputs.s2_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe spec-freeze substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          spec="wirelang/specs/wirelang-spec-v0-4-3.md"
+          status="green"
+          note=""
+          if [[ ! -f "$spec" ]]; then
+            # Pre-freeze state: spec file not yet authored. This is
+            # not red - it is the expected pre-freeze posture until
+            # the Reza Tag-N substrate lands. Yellow signals AR-Hand
+            # that the freeze is not yet on HEAD.
+            status="yellow"
+            note="spec v0.4.3 not yet on HEAD (pre-freeze)"
+          else
+            # Post-freeze: the spec exists but the freeze-marker
+            # must be present in the frontmatter (line within first
+            # 30 lines containing ``status: freeze``).
+            if ! head -n 30 "$spec" | grep -qE '^status:[[:space:]]*freeze'; then
+              status="red"
+              note="spec present but no freeze-marker in frontmatter"
+            fi
+          fi
+          echo "s2_status=$status" >> "$GITHUB_OUTPUT"
+          echo "s2_note=$note" >> "$GITHUB_OUTPUT"
+          echo "S2 spec_freeze: status=$status note='$note'"
+
+  s3-sbom:
+    name: S3 15-binary SBOM substrate (Kai PR #311 Tag-48)
+    runs-on: ubuntu-latest
+    outputs:
+      s3_status: ${{ steps.probe.outputs.s3_status }}
+      s3_note: ${{ steps.probe.outputs.s3_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe SBOM substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          wf=".github/workflows/15-binary-sbom-daily.yml"
+          status="green"
+          note=""
+          if [[ ! -f "$wf" ]]; then
+            status="red"
+            note="15-binary SBOM workflow missing"
+          fi
+          echo "s3_status=$status" >> "$GITHUB_OUTPUT"
+          echo "s3_note=$note" >> "$GITHUB_OUTPUT"
+          echo "S3 sbom: status=$status note='$note'"
+
+  s4-build-reproducibility:
+    name: S4 build-reproducibility-daily substrate (Noa Tag-46)
+    runs-on: ubuntu-latest
+    outputs:
+      s4_status: ${{ steps.probe.outputs.s4_status }}
+      s4_note: ${{ steps.probe.outputs.s4_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe build-reproducibility substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          wf=".github/workflows/build-reproducibility-daily.yml"
+          status="green"
+          note=""
+          if [[ ! -f "$wf" ]]; then
+            status="red"
+            note="build-reproducibility workflow missing"
+          fi
+          echo "s4_status=$status" >> "$GITHUB_OUTPUT"
+          echo "s4_note=$note" >> "$GITHUB_OUTPUT"
+          echo "S4 build_reproducibility: status=$status note='$note'"
+
+  s5-cosign-oidc:
+    name: S5 cosign-keyless-oidc-drift-probe + verify-images (Kai PR #307)
+    runs-on: ubuntu-latest
+    outputs:
+      s5_status: ${{ steps.probe.outputs.s5_status }}
+      s5_note: ${{ steps.probe.outputs.s5_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe cosign-OIDC substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          drift_wf=".github/workflows/cosign-keyless-oidc-drift-probe.yml"
+          verify_wf=".github/workflows/cosign-verify-images.yml"
+          status="green"
+          note=""
+          missing=()
+          [[ -f "$drift_wf" ]] || missing+=("cosign-keyless-oidc-drift-probe")
+          [[ -f "$verify_wf" ]] || missing+=("cosign-verify-images")
+          if (( ${#missing[@]} == 2 )); then
+            status="red"
+            note="both cosign workflows missing"
+          elif (( ${#missing[@]} == 1 )); then
+            status="yellow"
+            note="partial cosign substrate: ${missing[0]} missing"
+          fi
+          echo "s5_status=$status" >> "$GITHUB_OUTPUT"
+          echo "s5_note=$note" >> "$GITHUB_OUTPUT"
+          echo "S5 cosign_oidc: status=$status note='$note'"
+
+  s6-welle-probes:
+    name: S6 welle-probes (7 pre-cutover-probes + 5 hot-spot probes)
+    runs-on: ubuntu-latest
+    outputs:
+      s6_status: ${{ steps.probe.outputs.s6_status }}
+      s6_note: ${{ steps.probe.outputs.s6_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe welle-probe substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          missing=()
+          # Seven per-Welle pre-cutover-probe shell scripts.
+          for n in 1 2 3 4 5 6 7; do
+            p="scripts/phase-3c/welle-${n}-pre-cutover-probe.sh"
+            [[ -f "$p" ]] || missing+=("$p")
+          done
+          # Five hot-spot probe workflows (Welle 3..7). Welle 1+2
+          # have validation workflows only; the hot-spot probes
+          # were introduced at Tag-45 starting at Welle-3.
+          for n in 3 4 5 6 7; do
+            p=".github/workflows/phase-3c-welle-${n}-hot-spot-probe.yml"
+            [[ -f "$p" ]] || missing+=("$p")
+          done
+          if (( ${#missing[@]} == 0 )); then
+            status="green"
+            note=""
+          elif (( ${#missing[@]} <= 2 )); then
+            status="yellow"
+            note="welle-probes degraded: ${#missing[@]} missing"
+          else
+            status="red"
+            note="welle-probes broken: ${#missing[@]} missing"
+          fi
+          echo "s6_status=$status" >> "$GITHUB_OUTPUT"
+          echo "s6_note=$note" >> "$GITHUB_OUTPUT"
+          echo "S6 welle_probes: status=$status note='$note'"
+          for m in "${missing[@]:-}"; do
+            [[ -n "$m" ]] && echo "  - missing: $m"
+          done
+
+  s7-marathon-tracker:
+    name: S7 marathon-tracker + tracker-gate (Selin PR #261)
+    runs-on: ubuntu-latest
+    outputs:
+      s7_status: ${{ steps.probe.outputs.s7_status }}
+      s7_note: ${{ steps.probe.outputs.s7_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe marathon-tracker substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          script="scripts/phase-3c/marathon-aggregat-tracker.py"
+          gate_wf=".github/workflows/phase-3c-marathon-tracker-gate.yml"
+          status="green"
+          note=""
+          missing=()
+          [[ -f "$script" ]] || missing+=("tracker-script")
+          [[ -f "$gate_wf" ]] || missing+=("tracker-gate-workflow")
+          if (( ${#missing[@]} == 2 )); then
+            status="red"
+            note="both tracker substrates missing"
+          elif (( ${#missing[@]} == 1 )); then
+            status="yellow"
+            note="partial tracker substrate: ${missing[0]} missing"
+          fi
+          echo "s7_status=$status" >> "$GITHUB_OUTPUT"
+          echo "s7_note=$note" >> "$GITHUB_OUTPUT"
+          echo "S7 marathon_tracker: status=$status note='$note'"
+
+  s8-aggregator:
+    name: S8 decision-aggregation (READY/CAUTION/BLOCK + JSON verdict)
+    runs-on: ubuntu-latest
+    needs:
+      - s1-engine-manifest
+      - s2-spec-freeze
+      - s3-sbom
+      - s4-build-reproducibility
+      - s5-cosign-oidc
+      - s6-welle-probes
+      - s7-marathon-tracker
+    if: always()
+    outputs:
+      verdict: ${{ steps.aggregate.outputs.verdict }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Aggregate S1..S7 into final-sanity-gate verdict
+        id: aggregate
+        shell: bash
+        env:
+          S1: ${{ needs.s1-engine-manifest.outputs.s1_status }}
+          S2: ${{ needs.s2-spec-freeze.outputs.s2_status }}
+          S3: ${{ needs.s3-sbom.outputs.s3_status }}
+          S4: ${{ needs.s4-build-reproducibility.outputs.s4_status }}
+          S5: ${{ needs.s5-cosign-oidc.outputs.s5_status }}
+          S6: ${{ needs.s6-welle-probes.outputs.s6_status }}
+          S7: ${{ needs.s7-marathon-tracker.outputs.s7_status }}
+          N1: ${{ needs.s1-engine-manifest.outputs.s1_note }}
+          N2: ${{ needs.s2-spec-freeze.outputs.s2_note }}
+          N3: ${{ needs.s3-sbom.outputs.s3_note }}
+          N4: ${{ needs.s4-build-reproducibility.outputs.s4_note }}
+          N5: ${{ needs.s5-cosign-oidc.outputs.s5_note }}
+          N6: ${{ needs.s6-welle-probes.outputs.s6_note }}
+          N7: ${{ needs.s7-marathon-tracker.outputs.s7_note }}
+        run: |
+          set -eo pipefail
+          # Default empty status to "red" (upstream-job missing output).
+          s1="${S1:-red}"; s2="${S2:-red}"; s3="${S3:-red}"
+          s4="${S4:-red}"; s5="${S5:-red}"; s6="${S6:-red}"; s7="${S7:-red}"
+          # Compose SUBSTRATE_NOTES as `;`-separated `<substrate>:<note>` records.
+          notes=""
+          add_note() {
+            local key="$1" val="$2"
+            [[ -z "$val" ]] && return 0
+            if [[ -z "$notes" ]]; then notes="$key:$val"; else notes="$notes;$key:$val"; fi
+          }
+          add_note "engine_manifest" "${N1:-}"
+          add_note "spec_freeze" "${N2:-}"
+          add_note "sbom" "${N3:-}"
+          add_note "build_reproducibility" "${N4:-}"
+          add_note "cosign_oidc" "${N5:-}"
+          add_note "welle_probes" "${N6:-}"
+          add_note "marathon_tracker" "${N7:-}"
+          mkdir -p out
+          S1_STATUS="$s1" \
+          S2_STATUS="$s2" \
+          S3_STATUS="$s3" \
+          S4_STATUS="$s4" \
+          S5_STATUS="$s5" \
+          S6_STATUS="$s6" \
+          S7_STATUS="$s7" \
+          SUBSTRATE_NOTES="$notes" \
+            python3 tooling/ci/aggregate_pre_cutover_final_sanity_gate_verdict.py \
+              --output out/pre-cutover-final-sanity-gate-verdict.json
+          verdict=$(python3 -c "import json; print(json.load(open('out/pre-cutover-final-sanity-gate-verdict.json'))['verdict'])")
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Pre-Cutover-Final-Sanity-Gate Verdict: \`$verdict\`"
+            echo ""
+            echo "| Substrate | Status | Note |"
+            echo "|-----------|--------|------|"
+            echo "| S1 engine_manifest | \`$s1\` | ${N1:-} |"
+            echo "| S2 spec_freeze | \`$s2\` | ${N2:-} |"
+            echo "| S3 sbom | \`$s3\` | ${N3:-} |"
+            echo "| S4 build_reproducibility | \`$s4\` | ${N4:-} |"
+            echo "| S5 cosign_oidc | \`$s5\` | ${N5:-} |"
+            echo "| S6 welle_probes | \`$s6\` | ${N6:-} |"
+            echo "| S7 marathon_tracker | \`$s7\` | ${N7:-} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$verdict" == "BLOCK" ]]; then
+            echo "::error::pre-cutover-final-sanity-gate verdict: BLOCK"
+            exit 1
+          elif [[ "$verdict" == "CAUTION" ]]; then
+            echo "::warning::pre-cutover-final-sanity-gate verdict: CAUTION"
+          fi
+      - name: Upload pre-cutover-final-sanity-gate-verdict.json artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-cutover-final-sanity-gate-verdict
+          path: out/pre-cutover-final-sanity-gate-verdict.json
+          if-no-files-found: warn
