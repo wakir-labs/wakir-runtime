@@ -1,0 +1,572 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tag-77 Marathon-Final-Smoke E2E (Amara, Continuous-Mode)
+# --------------------------------------------------------
+#
+# Umbrella hermetic Marathon-Polish-Phase smoke that consolidates
+# the entire Tag-69..Tag-76 substrate-set into a single end-to-end
+# verdict for the Phase-3c-Marathon-Closeout pipeline simulation:
+#
+#   * Stages 1..7 -- the seven per-Welle-Integration-Smoke
+#                    envelopes (Welle-1..Welle-7).
+#   * Stage 8     -- the Tag-76 Cross-Welle-Stability-Pin envelope
+#                    (Amara PR #483).
+#   * Stage 9     -- the Tag-76 Marathon-Closeout-Aggregator
+#                    envelope (Reza PR #479).
+#   * Stage 10    -- the Tag-76 Phase-3-COMPLETE-Marker-Audit-
+#                    Bundle envelope (Tomas PR #484).
+#   * Stage 11    -- the aggregated MARATHON-FINAL verdict
+#                    (INTACT / DRIFT / DEFECT).
+#
+# Anchors
+# -------
+#
+#   * docs/quality-gates/pre-cutover-acceptance-run-order.md §3
+#     -- seven Welle-Datumsanker (cross-Welle sequencing contract).
+#   * docs/quality-gates/phase-3-marathon-anti-patterns.md §AP-9
+#     -- Welle-3-Rollback-Cascade anchor (consumed indirectly via
+#     Stage 8 envelope).
+#   * decisions/0066-marathon-cadence-vier-wochen.md §Beschluss
+#     -- Doppel-Welle PAR-path discipline (consumed indirectly via
+#     Stage 8 envelope).
+#
+# Brief-vs-canonical reconciliation
+# ---------------------------------
+#
+# The Tag-77 brief was canonical-aligned. Two reconciliations surface
+# for the audit trail:
+#
+#   * Brief: "die 7 Welle-Integration-Smokes". Canonical: five
+#     integration-smoke aggregators exist on main as of Tag-77
+#     (Welle-3..Welle-7 = Tag-71..Tag-75); Welle-1 (Tag-69) and
+#     Welle-2 (Tag-70) carry audit-anchor wiring only. The
+#     aggregator accepts seven envelopes for completeness and flags
+#     Welle-1+2 envelopes as audit-anchor-derived stand-ins on the
+#     envelope (stage_provenance field).
+#
+#   * Brief: "Stage 9: Marathon-Closeout-Aggregator + Stage 10:
+#     Phase-3-COMPLETE-Marker-Audit-Bundle". Canonical: two distinct
+#     Tag-76 substrates -- Reza closeout-aggregator (PR #479) emits
+#     MARATHON-CLOSEOUT-READY / PARTIAL / DEFECT; Tomas Phase-3-
+#     COMPLETE-Marker-Audit-Bundle (PR #484) emits BUNDLE-READY /
+#     BUNDLE-PARTIAL / BUNDLE-DEFECT. Tag-77 surfaces both as
+#     separate stages with distinct verdict maps.
+#
+# Sandbox boundary (ADR-0034, feedback_sandbox_host_trennung.md)
+# --------------------------------------------------------------
+#
+# This workflow is hermetic. It does NOT trigger the underlying
+# Welle-N, Cross-Welle, Closeout, or Phase-3-COMPLETE workflows via
+# gh workflow run; it does NOT POST to ntfy.sh; it does NOT touch
+# the live-VM substrate; it does NOT emit the Phase-3-COMPLETE-
+# marker; it does NOT cut a release tag. The simulation is built
+# from stdlib-only helpers + on-disk synthetic per-stage verdict
+# envelopes assembled inside the GitHub Actions sandbox. The actual
+# Welle dispatch on the Marathon Cutover-Mittwoche (2026-06-10 /
+# 06-17 / 06-24 / 07-01) is operator-hand.
+#
+# Decision shape
+# --------------
+#
+# Stages 1..10 emit per-stage verdict envelopes consumed by
+# tooling/ci/aggregate_marathon_final_smoke.py at Stage 11:
+#
+#   * WELLE-N-INTACT             -> green (per-Welle)
+#   * WELLE-N-DRIFT              -> yellow
+#   * WELLE-N-DEFECT             -> red
+#   * CROSS-WELLE-STABILITY-INTACT -> green (stability pin)
+#   * CROSS-WELLE-STABILITY-DRIFT  -> yellow
+#   * CROSS-WELLE-STABILITY-DEFECT -> red
+#   * MARATHON-CLOSEOUT-READY    -> green (closeout)
+#   * PARTIAL                    -> yellow
+#   * DEFECT                     -> red
+#   * BUNDLE-READY               -> green (audit-bundle)
+#   * BUNDLE-PARTIAL             -> yellow
+#   * BUNDLE-DEFECT              -> red
+#
+# Any red collapses to MARATHON-FINAL-DEFECT.
+# Any yellow with zero red degrades to MARATHON-FINAL-DRIFT.
+# All green yields MARATHON-FINAL-INTACT.
+#
+# Trigger surface
+# ---------------
+#
+#   * workflow_dispatch -- manual probe for the marathon-team.
+#   * pull_request -- runs on changes to the workflow itself, its
+#     aggregator, or its tests.
+#   * push (path-filtered) on changes to the same trio.
+#
+# Continuous-Mode (Mira, 2026-05-19)
+# ----------------------------------
+#
+# Per feedback_continuous_mode_keine_pause_frage.md the workflow
+# runs to completion on its own without per-stage approvals; per
+# feedback_continuous_mode_keine_push_frage.md the merge of this
+# PR is part of the Tag-77 Marathon-Polish substrate-set and
+# happens automatically.
+#
+# Not a required status check
+# ---------------------------
+#
+# Per feedback_branch_protection_check_names.md this workflow is
+# NOT listed as a required status check. It is a Marathon-Polish-
+# umbrella aggregator; the underlying Tag-76 substrate workflows
+# are the substrate gates.
+
+name: marathon-final-smoke-e2e
+
+on:
+  workflow_dispatch:
+    inputs:
+      drift_inject:
+        description: "Inject DRIFT verdict on stage (none|welle_1..7|cross_welle|closeout|bundle)"
+        required: false
+        default: "none"
+      defect_inject:
+        description: "Inject DEFECT verdict on stage (none|welle_1..7|cross_welle|closeout|bundle)"
+        required: false
+        default: "none"
+  pull_request:
+    paths:
+      - ".github/workflows/marathon-final-smoke-e2e.yml"
+      - "tooling/ci/aggregate_marathon_final_smoke.py"
+      - "tests/ci/test_marathon_final_smoke_tag77.py"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/marathon-final-smoke-e2e.yml"
+      - "tooling/ci/aggregate_marathon_final_smoke.py"
+      - "tests/ci/test_marathon_final_smoke_tag77.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: marathon-final-smoke-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  marathon-final-smoke-e2e:
+    name: Marathon-Final-Smoke E2E (hermetic)
+    runs-on: ubuntu-latest
+    outputs:
+      verdict: ${{ steps.aggregate.outputs.verdict }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Prepare hermetic substrate working dir
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/stages
+          mkdir -p out/aggregate
+          echo "Tag-77 Marathon-Final-Smoke E2E staging dirs ready."
+
+      - name: Stage 1 -- Welle-1 Integration-Smoke envelope (Tag-69 stand-in)
+        id: stage1
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          verdict="WELLE-1-INTACT"
+          if [[ "${DRIFT_INJECT,,}" == "welle_1" ]]; then
+            verdict="WELLE-1-DRIFT"
+            echo "::warning::drift_inject=welle_1; forced WELLE-1-DRIFT"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "welle_1" ]]; then
+            verdict="WELLE-1-DEFECT"
+            echo "::warning::defect_inject=welle_1; forced WELLE-1-DEFECT"
+          fi
+          python3 - <<PY > out/stages/welle-1-envelope.json
+          import json, datetime
+          env = {
+              "schema_version": 1,
+              "stage": "welle_1_integration_smoke",
+              "tag": "tag-77",
+              "substrate_origin": "tag-69-audit-anchor-stand-in",
+              "verdict": "$verdict",
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-1 Welle-1 verdict: $verdict"
+
+      - name: Stage 2 -- Welle-2 Integration-Smoke envelope (Tag-70 stand-in)
+        id: stage2
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          verdict="WELLE-2-INTACT"
+          if [[ "${DRIFT_INJECT,,}" == "welle_2" ]]; then
+            verdict="WELLE-2-DRIFT"
+            echo "::warning::drift_inject=welle_2; forced WELLE-2-DRIFT"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "welle_2" ]]; then
+            verdict="WELLE-2-DEFECT"
+            echo "::warning::defect_inject=welle_2; forced WELLE-2-DEFECT"
+          fi
+          python3 - <<PY > out/stages/welle-2-envelope.json
+          import json, datetime
+          env = {
+              "schema_version": 1,
+              "stage": "welle_2_integration_smoke",
+              "tag": "tag-77",
+              "substrate_origin": "tag-70-audit-anchor-stand-in",
+              "verdict": "$verdict",
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-2 Welle-2 verdict: $verdict"
+
+      - name: Stage 3 -- Welle-3 Integration-Smoke envelope (Tag-71 canonical)
+        id: stage3
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          verdict="WELLE-3-INTACT"
+          if [[ "${DRIFT_INJECT,,}" == "welle_3" ]]; then
+            verdict="WELLE-3-DRIFT"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "welle_3" ]]; then
+            verdict="WELLE-3-DEFECT"
+          fi
+          python3 - <<PY > out/stages/welle-3-envelope.json
+          import json, datetime
+          env = {
+              "schema_version": 1,
+              "stage": "welle_3_integration_smoke",
+              "tag": "tag-77",
+              "substrate_origin": "tag-71-amara-canonical-aggregator",
+              "verdict": "$verdict",
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-3 Welle-3 verdict: $verdict"
+
+      - name: Stage 4 -- Welle-4 Integration-Smoke envelope (Tag-72 canonical)
+        id: stage4
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          verdict="WELLE-4-INTACT"
+          if [[ "${DRIFT_INJECT,,}" == "welle_4" ]]; then
+            verdict="WELLE-4-DRIFT"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "welle_4" ]]; then
+            verdict="WELLE-4-DEFECT"
+          fi
+          python3 - <<PY > out/stages/welle-4-envelope.json
+          import json, datetime
+          env = {
+              "schema_version": 1,
+              "stage": "welle_4_integration_smoke",
+              "tag": "tag-77",
+              "substrate_origin": "tag-72-amara-canonical-aggregator",
+              "verdict": "$verdict",
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-4 Welle-4 verdict: $verdict"
+
+      - name: Stage 5 -- Welle-5 Integration-Smoke envelope (Tag-73 canonical)
+        id: stage5
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          verdict="WELLE-5-INTACT"
+          if [[ "${DRIFT_INJECT,,}" == "welle_5" ]]; then
+            verdict="WELLE-5-DRIFT"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "welle_5" ]]; then
+            verdict="WELLE-5-DEFECT"
+          fi
+          python3 - <<PY > out/stages/welle-5-envelope.json
+          import json, datetime
+          env = {
+              "schema_version": 1,
+              "stage": "welle_5_integration_smoke",
+              "tag": "tag-77",
+              "substrate_origin": "tag-73-amara-canonical-aggregator",
+              "verdict": "$verdict",
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-5 Welle-5 verdict: $verdict"
+
+      - name: Stage 6 -- Welle-6 Integration-Smoke envelope (Tag-74 canonical)
+        id: stage6
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          verdict="WELLE-6-INTACT"
+          if [[ "${DRIFT_INJECT,,}" == "welle_6" ]]; then
+            verdict="WELLE-6-DRIFT"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "welle_6" ]]; then
+            verdict="WELLE-6-DEFECT"
+          fi
+          python3 - <<PY > out/stages/welle-6-envelope.json
+          import json, datetime
+          env = {
+              "schema_version": 1,
+              "stage": "welle_6_integration_smoke",
+              "tag": "tag-77",
+              "substrate_origin": "tag-74-amara-canonical-aggregator",
+              "verdict": "$verdict",
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-6 Welle-6 verdict: $verdict"
+
+      - name: Stage 7 -- Welle-7 Integration-Smoke envelope (Tag-75 canonical, terminal)
+        id: stage7
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          verdict="WELLE-7-INTACT"
+          if [[ "${DRIFT_INJECT,,}" == "welle_7" ]]; then
+            verdict="WELLE-7-DRIFT"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "welle_7" ]]; then
+            verdict="WELLE-7-DEFECT"
+          fi
+          python3 - <<PY > out/stages/welle-7-envelope.json
+          import json, datetime
+          env = {
+              "schema_version": 1,
+              "stage": "welle_7_integration_smoke",
+              "tag": "tag-77",
+              "substrate_origin": "tag-75-amara-canonical-aggregator-terminal-final-sealing",
+              "verdict": "$verdict",
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-7 Welle-7 verdict: $verdict"
+
+      - name: Stage 8 -- Cross-Welle-Stability-Pin envelope (Tag-76 Amara #483)
+        id: stage8
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          verdict="CROSS-WELLE-STABILITY-INTACT"
+          if [[ "${DRIFT_INJECT,,}" == "cross_welle" ]]; then
+            verdict="CROSS-WELLE-STABILITY-DRIFT"
+            echo "::warning::drift_inject=cross_welle; forced CROSS-WELLE-STABILITY-DRIFT"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "cross_welle" ]]; then
+            verdict="CROSS-WELLE-STABILITY-DEFECT"
+            echo "::warning::defect_inject=cross_welle; forced CROSS-WELLE-STABILITY-DEFECT"
+          fi
+          python3 - <<PY > out/stages/cross-welle-stability-envelope.json
+          import json, datetime
+          env = {
+              "schema_version": 1,
+              "stage": "cross_welle_stability_pin",
+              "tag": "tag-77",
+              "substrate_origin": "tag-76-amara-cross-welle-stability-pin-pr-483",
+              "verdict": "$verdict",
+              "anchor_doc": (
+                  "docs/quality-gates/phase-3-marathon-anti-patterns.md AP-9 + "
+                  "decisions/0066-*.md Beschluss"
+              ),
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-8 cross-welle-stability verdict: $verdict"
+
+      - name: Stage 9 -- Marathon-Closeout-Aggregator envelope (Tag-76 Reza #479)
+        id: stage9
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          verdict="MARATHON-CLOSEOUT-READY"
+          if [[ "${DRIFT_INJECT,,}" == "closeout" ]]; then
+            verdict="PARTIAL"
+            echo "::warning::drift_inject=closeout; forced PARTIAL"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "closeout" ]]; then
+            verdict="DEFECT"
+            echo "::warning::defect_inject=closeout; forced DEFECT"
+          fi
+          python3 - <<PY > out/stages/marathon-closeout-envelope.json
+          import json, datetime
+          env = {
+              "schema_version": 1,
+              "stage": "marathon_closeout_aggregator",
+              "tag": "tag-77",
+              "substrate_origin": "tag-76-reza-marathon-closeout-aggregator-pr-479",
+              "verdict": "$verdict",
+              "consumes_module": "tooling/audit/verify_marathon_closeout.py",
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-9 marathon-closeout verdict: $verdict"
+
+      - name: Stage 10 -- Phase-3-COMPLETE-Marker-Audit-Bundle envelope (Tag-76 Tomas #484)
+        id: stage10
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          verdict="BUNDLE-READY"
+          if [[ "${DRIFT_INJECT,,}" == "bundle" ]]; then
+            verdict="BUNDLE-PARTIAL"
+            echo "::warning::drift_inject=bundle; forced BUNDLE-PARTIAL"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "bundle" ]]; then
+            verdict="BUNDLE-DEFECT"
+            echo "::warning::defect_inject=bundle; forced BUNDLE-DEFECT"
+          fi
+          python3 - <<PY > out/stages/phase-3-complete-bundle-envelope.json
+          import json, datetime
+          env = {
+              "schema_version": 1,
+              "stage": "phase_3_complete_marker_audit_bundle",
+              "tag": "tag-77",
+              "substrate_origin": "tag-76-tomas-phase-3-complete-marker-audit-bundle-pr-484",
+              "verdict": "$verdict",
+              "consumes_module": "tooling/ci/wire_phase_3_complete_audit_bundle.py",
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-10 phase-3-complete-bundle verdict: $verdict"
+
+      - name: Stage 11 -- Aggregate MARATHON-FINAL verdict
+        id: aggregate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tooling/ci/aggregate_marathon_final_smoke.py \
+            --welle-1-envelope                       out/stages/welle-1-envelope.json \
+            --welle-2-envelope                       out/stages/welle-2-envelope.json \
+            --welle-3-envelope                       out/stages/welle-3-envelope.json \
+            --welle-4-envelope                       out/stages/welle-4-envelope.json \
+            --welle-5-envelope                       out/stages/welle-5-envelope.json \
+            --welle-6-envelope                       out/stages/welle-6-envelope.json \
+            --welle-7-envelope                       out/stages/welle-7-envelope.json \
+            --cross-welle-stability-envelope         out/stages/cross-welle-stability-envelope.json \
+            --marathon-closeout-envelope             out/stages/marathon-closeout-envelope.json \
+            --phase-3-complete-bundle-envelope       out/stages/phase-3-complete-bundle-envelope.json \
+            --iso-week                               24 \
+            --github-run-id                          "${GITHUB_RUN_ID:-}" \
+            --github-sha                             "${GITHUB_SHA:-}" \
+            --github-ref                             "${GITHUB_REF:-}" \
+            --output                                 out/aggregate/marathon-final-smoke-verdict.json
+          verdict=$(python3 -c "import json; print(json.load(open('out/aggregate/marathon-final-smoke-verdict.json'))['verdict'])")
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Tag-77 Marathon-Final-Smoke E2E"
+            echo ""
+            echo "**Aggregated verdict:** \`$verdict\`"
+            echo ""
+            echo "**Per-stage verdicts:**"
+            echo ""
+            echo "- Stage 1 (Welle-1 Integration-Smoke, Tag-69 stand-in): \`${{ steps.stage1.outputs.verdict }}\`"
+            echo "- Stage 2 (Welle-2 Integration-Smoke, Tag-70 stand-in): \`${{ steps.stage2.outputs.verdict }}\`"
+            echo "- Stage 3 (Welle-3 Integration-Smoke, Tag-71): \`${{ steps.stage3.outputs.verdict }}\`"
+            echo "- Stage 4 (Welle-4 Integration-Smoke, Tag-72): \`${{ steps.stage4.outputs.verdict }}\`"
+            echo "- Stage 5 (Welle-5 Integration-Smoke, Tag-73): \`${{ steps.stage5.outputs.verdict }}\`"
+            echo "- Stage 6 (Welle-6 Integration-Smoke, Tag-74): \`${{ steps.stage6.outputs.verdict }}\`"
+            echo "- Stage 7 (Welle-7 Integration-Smoke, Tag-75 terminal): \`${{ steps.stage7.outputs.verdict }}\`"
+            echo "- Stage 8 (Cross-Welle-Stability-Pin, Tag-76 Amara #483): \`${{ steps.stage8.outputs.verdict }}\`"
+            echo "- Stage 9 (Marathon-Closeout-Aggregator, Tag-76 Reza #479): \`${{ steps.stage9.outputs.verdict }}\`"
+            echo "- Stage 10 (Phase-3-COMPLETE-Marker-Audit-Bundle, Tag-76 Tomas #484): \`${{ steps.stage10.outputs.verdict }}\`"
+            echo ""
+            echo "<details><summary>Marathon-Final-Smoke verdict envelope JSON</summary>"
+            echo ""
+            echo '```json'
+            cat out/aggregate/marathon-final-smoke-verdict.json
+            echo '```'
+            echo ""
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Marathon-Final-Smoke verdict envelope
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marathon-final-smoke-verdict
+          path: out/aggregate/marathon-final-smoke-verdict.json
+          if-no-files-found: warn
+
+      - name: Upload per-stage envelopes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marathon-final-smoke-stages
+          path: out/stages/
+          if-no-files-found: warn
+
+      - name: Terminal-status gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          verdict="${{ steps.aggregate.outputs.verdict }}"
+          case "$verdict" in
+            MARATHON-FINAL-INTACT)
+              echo "Tag-77 Marathon-Final-Smoke E2E INTACT (all ten substrate inputs green)"
+              ;;
+            MARATHON-FINAL-DRIFT)
+              echo "::warning::Tag-77 Marathon-Final-Smoke E2E DRIFT (operator-hand reads per-stage notes before next live trigger)"
+              ;;
+            MARATHON-FINAL-DEFECT)
+              echo "::error::Tag-77 Marathon-Final-Smoke E2E DEFECT (per-substrate red OR envelope missing OR unknown verdict)"
+              exit 1
+              ;;
+            *)
+              echo "::error::unknown verdict: $verdict"
+              exit 1
+              ;;
+          esac
