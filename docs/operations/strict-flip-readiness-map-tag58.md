@@ -382,6 +382,192 @@ Drei AR-relevante Lese-Anker für die §9-Substanz:
   hinter §6 T7, nicht parallel zu T0..T9 — die Strict-Flip-Sequenz
   bleibt LABEL-byte-stabil.
 
+## §10 — Tag-67-Carry-Forward-Update (Tag-68-Append)
+
+Tag-68-Append (2026-05-19, Continuous-Mode-Marathon) zur Strict-Flip-
+Readiness-Map. Tag-58-Original ist neun Tage alt; zwischen Tag-58 und
+Tag-67 wurden vier substantielle Anker an die Strict-Flip-Sequenz
+angehängt, die hier konsolidiert dokumentiert werden, damit die Map
+ohne Sprung in andere Dokumente lesbar bleibt.
+
+Carry-Forward-Quellen Tag-58..Tag-67:
+
+| Tag | PR | Substanz | Map-Effekt |
+|---|---|---|---|
+| Tag-58 | #369 | Map-Original (G1..G6 + 7-Tage-Calendar) | Basis |
+| Tag-64 | #408 | OPEN-J3 Containerfile-Label Carry-Forward | §9 (Tag-64-Append) |
+| Tag-66 | #422 | Operator-Hand Cutover-Eve Final-Recipe | §10.1 |
+| Tag-67 | #425 | Watch-Day Pre-Cutover Live-Smoke | §10.2 |
+| Tag-67 | #426 | Eve-Recipe Dry-Run Probe | §10.1 |
+| Tag-67 | #427 | Wirelang-Spec v0.4.4 Activation Pre-Mortem | §10.3 |
+| Tag-67 | #429 | Welle-N State-File Conventions | §10.4 |
+
+### §10.1 — Cutover-Eve-Recipe-Status (Tag-66 PR #422 + Tag-67 PR #426)
+
+Operator-Hand-Cutover-Eve-Final-Recipe ist seit Tag-66 als Konsolidat
+verfügbar (`docs/operations/operator-hand-cutover-eve-final-recipe.md`,
+864 Zeilen). Tag-67 hat den hermetischen Dry-Run-Probe-Lauf nachgereicht
+(`tooling/ci/dry_run_operator_eve_recipe.py` + Workflow
+`.github/workflows/operator-eve-recipe-dry-run-probe.yml`, 14 Tests).
+
+| Property | Wert |
+|---|---|
+| Recipe-Doc | `docs/operations/operator-hand-cutover-eve-final-recipe.md` |
+| Dry-Run-Probe | `tooling/ci/dry_run_operator_eve_recipe.py` |
+| Dry-Run-Verdict | `CLEAN` (Tag-67 PR #426) |
+| Eve-Checks | E1..E7 (Dashboard, Post-Activate, Trust-Root, ...) |
+| Verdict-Marker | `EVE-E*-READY` / `EVE-E*-HOLD` / `EVE-E*-DEFECT` |
+| Owner | Kai (Recipe), Operator (Execution) |
+| Status | `READY-FOR-CUTOVER-EVE` (Tag-68 frozen) |
+| Sandbox-Scope | Recipe + Dry-Run **in** Sandbox; Live-Execution Operator-Hand |
+
+Anbindung an §2 7-Tage-Calendar: Day-6/Day-7 (G1-Bundle + Trockenlauf)
+sind das Pre-Eve-Window. Cutover-Eve = Tag-vor-T0 = 2026-06-07 (So) →
+Eve-Recipe-Run startet 17:00 CEST mit E1-Dashboard-Scan.
+
+### §10.2 — Live-Smoke-DEFECT-Status (Tag-67 PR #425, Noa-SRE)
+
+Tag-67 hat den Watch-Day-Pre-Cutover-Live-Smoke-Probe gelandet
+(`tooling/ci/aggregate_watch_day_pre_cutover_live_smoke.py` +
+Workflow `.github/workflows/watch-day-pre-cutover-live-smoke.yml`,
+16 Tests). Sechs-Stage-Layout (Practice-Run, Cron-Pre-Fire, Replay
+Multi-Sample, Operator-Trigger-Integration, Audit-Trail-Verify,
+Substrate-Coupling-Map-Cross-Check), Tri-State-Verdict
+`LIVE-SMOKE-INTACT` / `DRIFT` / `DEFECT`.
+
+Erster Lauf hat **4 Drift-Stages** befundet (Stage-2 Cron-Pre-Fire-
+Timing-Drift, Stage-3 Replay-Multi-Sample Off-by-one, Stage-4
+Operator-Trigger Alert-Routing-Race, Stage-5 Audit-Trail-Marker-
+Skew). Verdict: **DRIFT** (>=3 Yellow → grenzwertig zu DEFECT).
+
+| Property | Wert |
+|---|---|
+| Probe-Workflow | `.github/workflows/watch-day-pre-cutover-live-smoke.yml` |
+| Probe-Aggregator | `tooling/ci/aggregate_watch_day_pre_cutover_live_smoke.py` |
+| Erst-Lauf-Verdict | `DRIFT` (4 Drift-Stages) |
+| Affected Stages | Stage-2, Stage-3, Stage-4, Stage-5 |
+| Tag-68-Folge-Action | Sweep-Spawn pro Stage (Noa+Selin+Tomás+Amara) |
+| Required-Eve-Verdict | `LIVE-SMOKE-INTACT` vor Cutover-T0 |
+| Status | `DEFECT-CARRY-FORWARD` (4 Drifts → Tag-68 Sweep, dann Re-Probe) |
+
+**Cutover-Gate-Effekt:** §6 T0..T9 darf nicht starten, solange der
+Watch-Day-Live-Smoke-Probe `DRIFT` oder `DEFECT` meldet. Tag-68
+Sweep-Plan = Voraussetzung für Cutover-Eve-Recipe E2 (Post-Activate-
+Clean-Check), siehe §10.1.
+
+### §10.3 — Activation-Pre-Mortem-Cross-Anchor (Tag-67 PR #427, Reza)
+
+Wirelang-Spec v0.4.4 Activation Pre-Mortem ist seit Tag-67 verfügbar
+(`docs/spec/wirelang-spec-v0-4-4-activation-pre-mortem.md`, 327 Zeilen,
+17 Tests). Reza-Owner; Cross-Anchor zur Strict-Flip-Map via
+Cross-Substrate-Parity-Gate (§1 G5).
+
+| Property | Wert |
+|---|---|
+| Spec-Doc | `docs/spec/wirelang-spec-v0-4-4-activation-pre-mortem.md` |
+| Owner | Reza (Zone B) |
+| Map-Cross-Anchor | §1 G5 (Cross-Substrate-Parity-Gate) |
+| Verifier | `tooling/audit/verify_activation_pre_mortem_doc.py` |
+| Status | `LANDED-TAG-67` (Pre-Mortem-Konsens dokumentiert) |
+| Cutover-Effekt | Failure-Mode-Library für §7 Decision-A/B Erweiterung |
+
+**Konsequenz für §7:** Decision-A (G1-Fail) + Decision-B (G2-Fail)
+bleiben unverändert; das Pre-Mortem liefert keine neuen
+Failure-Pfade, die Strict-Flip-spezifisch sind. Wirelang-Layer-0-2-
+Failures sind Reza-Domain (Zone B) und werden über das eigene
+Reserve-Item-Promotion-Sequencing-Doc (Tag-65 PR #417) gehandhabt.
+
+### §10.4 — Welle-N State-File Conventions Cross-Anchor (Tag-67 PR #429, Amara)
+
+Tag-67 hat Welle-1..7 State-File-Conventions als Pre-Cutover-T0-Pin
+gelandet (`state/welle-{1..7}.json` + Doc
+`docs/operations/welle-n-state-file-conventions.md`, 18 Tests).
+Anker für die §6 T8 Health-Probe-Sequence (Welle-1..4 + Pilot-
+Persona).
+
+| Property | Wert |
+|---|---|
+| State-Files | `state/welle-1.json` .. `state/welle-7.json` |
+| Doc | `docs/operations/welle-n-state-file-conventions.md` |
+| Verifier | `tooling/ci/verify_welle_state_file_conventions.py` |
+| Pin-Status | `BYTE-STABLE-PRE-CUTOVER-T0` |
+| Map-Anker | §6 T8 (Welle-1..4 + Pilot-Persona Health-Probe ≤ 5 min) |
+| Status | `LANDED-TAG-67` |
+
+### §10.5 — OPEN-J3 Status-Refresh (Tag-64 PR #408, Kai-Hand-Refresh-Sequence)
+
+OPEN-J3 (Containerfile-Label-Carry-Forward von `0.5.2-final-pre-cutover`
+auf `0.5.3`, siehe §9) bleibt im `intentional-carry-forward`-Status.
+Tag-68-Refresh:
+
+| Property | Wert |
+|---|---|
+| Item-ID | OPEN-J3 |
+| Status-Tag-58..67 | unverändert `intentional-carry-forward` |
+| Substrat-Datei | `infra/persona-engine/Containerfile.real` Zeile 150 |
+| Refresh-Sub-Sequence | J3-A..J3-G (siehe §9.3) |
+| Refresh-Trigger | post Cutover-T0, Sub-Sequence §9.3 |
+| Time-Budget | ≤ 90 min Kai-Hand + ≤ 30 min Operator-Hand |
+| Tag-68-Decision | weiterhin Carry-Forward, keine Pre-Cutover-Action |
+| Cross-Anchor | §9 (Tag-64-Append), §6 T7-Folge (Cutover-Sub-Sequence) |
+
+**Begründung Tag-68 unverändert:** Die drei Carry-Forward-Gründe aus
+§9.2 (Scope-Split, Domain-Boundary, Byte-Stability) gelten 1:1 weiter.
+Keine Substanz aus Tag-65..Tag-67 invalidiert die Carry-Forward-
+Begründung.
+
+### §10.6 — 7-Pool Required-Status-Checks Aktivierungs-Status
+
+Tag-59 PR #375 + Tag-61 PR #389 haben das 7-Pool-Required-Status-
+Check-Target dokumentiert. Tag-62 PR (Bulk-Activation-Pre-Walk-Recipe)
+hat den Aktivierungs-Pfad als Operator-Hand-Recipe festgehalten.
+Stand Tag-68: alle 7 Pool-Checks sind **on main**, Aktivierung in
+Branch-Protection ist **Operator-Hand-pending** für Cutover-T0.
+
+| Pool-Check | Quelle | On-Main | BP-Aktivierung |
+|---|---|---|---|
+| `cosign-verify-images` | Tag-49 | yes | pending-T0 |
+| `hash-derivate-gate` | Tag-52 | yes | pending-T0 |
+| `cross-substrate-parity-gate` | Tag-57 PR #367 | yes | pending-T0 |
+| `cosign-keyless-oidc-drift-probe` | Tag-54 | yes | pending-T0 |
+| `cosign-strict-mode-readiness-check` | Tag-55 | yes | pending-T0 |
+| `trust-root-snapshot-pin-verify` | Tag-54 PR #344 | yes | pending-T0 |
+| `pre-cutover-final-sanity-gate` | Tag-55 | yes | pending-T0 |
+
+Aktivierung erfolgt im Cutover-T0.3 Bulk-Activation-Walk
+(`tooling/ops/_bulk_activate_required_checks.py --enforce`), siehe
+Tag-66 Eve-Final-Recipe §3.4. Sandbox-Boundary unverändert:
+`--enforce`-Modus ist **Operator-Hand-Sandbox-Gap**.
+
+**Anmerkung 8-Pool-Erweiterung:** Tag-64 OPEN-J3 referenziert einen
+optionalen 8. Check (`containerfile-label-verify`) für die KW-24-
+Cutover-Image-Build-Pipeline (§9.3 J3-G). Dieser ist **nicht** Teil
+des 7-Pool-Pre-Cutover-T0-Targets und wird post-Cutover-T0+1/+2
+als Kai-Hand-Action gewired.
+
+### §10.7 — Tag-68-Carry-Forward-Verdict
+
+Konsolidiertes Cutover-Readiness-Verdict per Tag-68:
+
+| Axis | Status | Blocker | Owner |
+|---|---|---|---|
+| G1 (Quadlet-Wiring) | **BLOCKED** | Operator-Hand-PR Day-3..Day-6 | Operator |
+| G2 (Trust-Root-Snapshot) | **BLOCKED** | Operator-Hand-PR Day-1..Day-2 | Operator |
+| G3..G6 (Hold-Steady) | **GREEN** | hold-steady-monitoring | Kai (CI) |
+| Cutover-Eve-Recipe | **READY** | Dry-Run-Probe CLEAN (Tag-67 PR #426) | Kai (Recipe), Operator (Run) |
+| Live-Smoke-Probe | **DRIFT (4 stages)** | Tag-68 Sweep nötig | Noa+Selin+Tomás+Amara |
+| Activation-Pre-Mortem | **LANDED** | — | Reza |
+| Welle-N State-Files | **PIN-STABLE** | — | Amara |
+| OPEN-J3 | **CARRY-FORWARD** | post-Cutover-T0 Sub-Sequence | Kai |
+| 7-Pool Required-Checks | **ON-MAIN** | BP-Aktivierung Cutover-T0.3 | Operator |
+
+**Gesamt-Verdict Tag-68:** Cutover-Pfad-Readiness ist **2 von 2
+Operator-Hand-Gates BLOCKED** + **1 Live-Smoke-DRIFT zu sweepen**.
+Erwartete Tag-68..Tag-71-Bewegung: Live-Smoke-Sweep schließt 4 Drifts;
+G1+G2 Operator-Hand-PRs durch Operator (Day-1..Day-6 7-Tage-Calendar);
+G3..G6 hold-steady. Kein Phase-3-Cutover-Slip erwartet, KW-24 (2026-06-08)
+bleibt T0-Datum.
+
 ---
 
-— Kai (Tag-58 Original, Tag-64-Append 2026-05-19)
+— Kai (Tag-58 Original, Tag-64-Append + Tag-68-Append 2026-05-19)
