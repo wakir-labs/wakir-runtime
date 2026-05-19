@@ -140,10 +140,10 @@ _TRIGGER_TOKENS = (
     "POST_HASH != PRE_HASH",
     "FSM-Phantom-Transition",
     "NATS-Consumer-Lag",
-    "Recovery-Drill",
-    "Henrik-Audit-Trail-Luecke",
+    "Pre-Cutover-Final-Sanity-Gate",
+    "AR-Hand-Stop-Cascade-Live-Test",
     "Quadlet-Restart-Failure",
-    "Mira-SSH-Authority-Loss",
+    "Cosign-Verify-Fail",
 )
 
 
@@ -503,7 +503,7 @@ class TestTriggerCascadeOnRunningCutoverWorkflows:
         for w in range(1, 3):
             orch.register_sign_off(w, "green")
         filename, payload = _build_marker(
-            welle=3, trigger="Henrik-Audit-Trail-Luecke"
+            welle=3, trigger="AR-Hand-Stop-Cascade-Live-Test"
         )
         orch.write_state(filename, payload)
         blocked = orch.downstream_welles_blocked()
@@ -600,7 +600,7 @@ class TestStopMarkerMidCutoverRaceCondition:
         orch.register_sign_off(2, "green")
         orch.start_welle(3)
         filename, payload = _build_marker(
-            welle=3, trigger="Mira-SSH-Authority-Loss"
+            welle=3, trigger="Cosign-Verify-Fail"
         )
         orch.write_state(filename, payload)
         verdict = orch.emit_rollback_verdict(3)
@@ -621,7 +621,7 @@ class TestStopMarkerMidCutoverRaceCondition:
         # welle-3 already green; marker lands now (rare, but
         # possible if operator detects post-hoc evidence).
         filename, payload = _build_marker(
-            welle=3, trigger="Recovery-Drill"
+            welle=3, trigger="Pre-Cutover-Final-Sanity-Gate"
         )
         orch.write_state(filename, payload)
         # welle-3 sign-off remains as the historical record
@@ -751,7 +751,7 @@ class TestMarkerPersistenceAndAuditTrail:
         state_dir = tmp_path / "state"
         state_dir.mkdir()
         fn, pl = _build_marker(
-            welle=3, trigger="Henrik-Audit-Trail-Luecke"
+            welle=3, trigger="AR-Hand-Stop-Cascade-Live-Test"
         )
         (state_dir / fn).write_text(
             json.dumps(pl, sort_keys=True), encoding="utf-8"
@@ -837,7 +837,7 @@ class TestCrossClassConsistency:
 
     def test_marker_payload_serialises_to_canonical_json(self) -> None:
         fn, pl = _build_marker(
-            welle=7, trigger="Recovery-Drill"
+            welle=7, trigger="Cosign-Verify-Fail"
         )
         serialised = json.dumps(pl, sort_keys=True)
         # round-trip and no surprises
