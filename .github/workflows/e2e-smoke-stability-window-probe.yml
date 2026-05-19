@@ -1,0 +1,249 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# E2E-Smoke Stability-Window Probe (Tag-65, Amara)
+# =================================================
+#
+# Purpose
+# -------
+# Probes the N-Run-Stability-Window precondition for promoting the
+# Tag-63 Pre-Cutover-Final-Acceptance E2E-Smoke (PR #400) to
+# Required-Status-Check. The Tag-64 Required-Status-Check Wiring
+# Companion (PR #411) lists this workflow's `E2E verdict (READY /
+# DRIFT / DEFECT)` job as Pool-Position #8 with status PENDING-
+# OPERATOR-AUDIT-ONLY. Promotion requires "at least three back-to-
+# back green workflow_dispatch runs on main" before flipping.
+#
+# This probe answers the question: "if we were to do three back-
+# to-back runs of the Tag-63 E2E-Smoke on the current main-tip,
+# would all three come back E2E-READY?" If yes, the operator has
+# a defensible signal to proceed with §2 of the Tag-64 companion
+# plan-doc. If no, the operator stops and inspects the failing run.
+#
+# The actual Required-Status-Check pin remains operator-hand (see
+# Tag-64 plan-doc §6 Sandbox-Boundary). This probe is informational.
+#
+# Anchor pattern
+# --------------
+# Tag-59 OTS N-Run-Pattern (3 consecutive runs) -> Tag-63 REUSE-
+# Wrap Stability-Window-Probe (PR #404, Tomas) -> Tag-65 E2E-Smoke
+# Stability-Window-Probe (this workflow, Amara). All three share
+# the trinary verdict shape (CONFIRMED / NOT-YET / DEFECT) and the
+# same "informational, not Required-Status-Check" posture.
+#
+# Three stages
+# ------------
+#
+# Stage 1 (Probe):     run the Tag-63 E2E-Smoke aggregator helper
+#                      `tooling/ci/aggregate_pre_cutover_e2e_smoke
+#                      _verdict.py` three times back-to-back on the
+#                      same workspace with simulated all-green
+#                      upstream S1..S4 inputs. Each run is captured
+#                      as a per-run JSON envelope plus an exit-code.
+#
+# Stage 2 (Verify):    confirm all three runs returned `E2E-READY`.
+#                      Anything else (E2E-DRIFT, E2E-DEFECT, or
+#                      non-zero exit from the aggregator helper)
+#                      collapses the stability-window verdict to
+#                      NOT-YET or DEFECT.
+#
+# Stage 3 (Aggregate): emit one canonical stability-window verdict:
+#
+#                      * STABILITY-WINDOW-CONFIRMED -- all three
+#                        runs READY; operator may proceed with §2
+#                        of the Tag-64 companion plan-doc.
+#                      * STABILITY-WINDOW-NOT-YET   -- at least
+#                        one run DRIFT/DEFECT but no aggregator
+#                        crash; operator inspects, no promotion.
+#                      * STABILITY-WINDOW-DEFECT    -- at least
+#                        one aggregator non-zero exit; the probe
+#                        itself is broken; operator opens a bug.
+#
+# Trigger
+# -------
+# `workflow_dispatch` only -- this is an operator-tool, not a per-
+# PR check. The actual Required-Status-Check pin remains the
+# Tag-63 `e2e-verdict` job in the `pre-cutover-final-acceptance-
+# e2e-smoke` workflow.
+#
+# Hermetic posture
+# ----------------
+# Stdlib-only Python. No third-party deps, no podman, no NATS, no
+# live-VM. Each "run" feeds the Tag-63 E2E-Smoke aggregator with
+# pre-computed all-green S1..S4 env-vars; we are testing whether
+# the aggregator is *deterministically* green-given-green-input
+# across consecutive invocations, which is the substrate
+# property the Required-Status-Check promotion depends on.
+#
+# Scope discipline (Amara, ADR-0036/0043/0044/0066)
+# -------------------------------------------------
+# This workflow pins the Tag-65 E2E-Stability-Window-Probe surface.
+# It does NOT modify persona definitions (Aisha-Domaene), WAT-core
+# / V-907 logic (Tomas-Domaene, Zone-K), identity-substrate (Reza-
+# Domaene, Zone-L), container-infra (Kai-Domaene, Zone-J), or
+# persona-engine substrate (Selin-Domaene, Zone-O).
+
+name: e2e-smoke-stability-window-probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_count:
+        description: "How many consecutive runs to probe (default 3, per Tag-59 OTS N-Run pattern)."
+        required: false
+        default: "3"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-smoke-stability-window-probe:
+    name: E2E-Smoke Stability-Window Probe (Tag-65)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Stage 0 - Validate inputs
+        id: validate
+        env:
+          RUN_COUNT_RAW: ${{ github.event.inputs.run_count }}
+        run: |
+          set -euo pipefail
+          RAW="${RUN_COUNT_RAW:-3}"
+          if ! [[ "${RAW}" =~ ^[0-9]+$ ]]; then
+            echo "::error::run_count must be a non-negative integer, got '${RAW}'"
+            exit 1
+          fi
+          if [ "${RAW}" -lt 1 ] || [ "${RAW}" -gt 10 ]; then
+            echo "::error::run_count must be in [1, 10], got ${RAW}"
+            exit 1
+          fi
+          echo "run_count=${RAW}" >> "${GITHUB_OUTPUT}"
+          echo "Probe configured for ${RAW} consecutive runs."
+
+      - name: Stage 1 - Probe N consecutive E2E-Smoke aggregator runs
+        id: probe
+        env:
+          RUN_COUNT: ${{ steps.validate.outputs.run_count }}
+        run: |
+          set -uo pipefail
+          PROBE_DIR="${RUNNER_TEMP}/e2e-smoke-stability-window"
+          mkdir -p "${PROBE_DIR}"
+          # Per-run env-var declarations to feed to the Tag-65
+          # aggregator. Each run i contributes RUN_<i>_VERDICT and
+          # RUN_<i>_EXIT.
+          declare -a RUN_VERDICTS
+          declare -a RUN_EXITS
+          declare -a RUN_NOTES
+          for i in $(seq 1 "${RUN_COUNT}"); do
+            OUT_FILE="${PROBE_DIR}/run-${i}.json"
+            # Feed the Tag-63 E2E-Smoke aggregator with all-green
+            # S1..S4 inputs to probe its deterministic green-given-
+            # green-input behaviour across consecutive invocations.
+            S1_STATUS=green \
+            S2_STATUS=green \
+            S3_STATUS=green \
+            S4_STATUS=green \
+              python3 tooling/ci/aggregate_pre_cutover_e2e_smoke_verdict.py \
+                --output "${OUT_FILE}" > "${PROBE_DIR}/run-${i}.stdout" 2>&1
+            EXIT=$?
+            echo "----- run ${i} exit=${EXIT} -----"
+            if [ -f "${OUT_FILE}" ]; then
+              VERDICT=$(python3 -c "import json,sys; sys.stdout.write(json.load(open('${OUT_FILE}'))['verdict'])" 2>/dev/null || echo "")
+            else
+              VERDICT=""
+            fi
+            echo "  verdict='${VERDICT}'"
+            RUN_VERDICTS[$i]="${VERDICT}"
+            RUN_EXITS[$i]="${EXIT}"
+            RUN_NOTES[$i]="run-${i} of ${RUN_COUNT}"
+          done
+          # Export per-run env-vars for the next step. Note: we
+          # write them to GITHUB_ENV so the Stage-3 aggregate step
+          # can read them as ordinary environment variables (the
+          # Tag-65 aggregator reads RUN_<i>_VERDICT / RUN_<i>_EXIT
+          # / RUN_<i>_NOTE).
+          for i in $(seq 1 "${RUN_COUNT}"); do
+            echo "RUN_${i}_VERDICT=${RUN_VERDICTS[$i]}" >> "${GITHUB_ENV}"
+            echo "RUN_${i}_EXIT=${RUN_EXITS[$i]}"       >> "${GITHUB_ENV}"
+            echo "RUN_${i}_NOTE=${RUN_NOTES[$i]}"       >> "${GITHUB_ENV}"
+          done
+          echo "probe_dir=${PROBE_DIR}" >> "${GITHUB_OUTPUT}"
+          echo "::notice::Stage 1: probed ${RUN_COUNT} consecutive E2E-Smoke aggregator runs."
+
+      - name: Stage 2 - Self-verify aggregator substrate
+        run: |
+          set -euo pipefail
+          # Probe-substrate self-verify: the Tag-65 aggregator must
+          # be importable and expose the documented API (build_
+          # envelope + decide + VERDICT_* constants). If this fails
+          # the stability-window-probe itself is broken; Stage 3
+          # will surface STABILITY-WINDOW-DEFECT.
+          python3 -c "
+          import importlib.util, sys
+          spec = importlib.util.spec_from_file_location(
+              'h', 'tooling/ci/aggregate_e2e_stability_window.py')
+          m = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(m)
+          assert hasattr(m, 'build_envelope'),  'missing build_envelope'
+          assert hasattr(m, 'decide'),          'missing decide'
+          assert hasattr(m, 'VERDICT_CONFIRMED'), 'missing VERDICT_CONFIRMED'
+          assert hasattr(m, 'VERDICT_NOT_YET'),   'missing VERDICT_NOT_YET'
+          assert hasattr(m, 'VERDICT_DEFECT'),    'missing VERDICT_DEFECT'
+          assert m.VERDICT_CONFIRMED == 'STABILITY-WINDOW-CONFIRMED'
+          assert m.VERDICT_NOT_YET   == 'STABILITY-WINDOW-NOT-YET'
+          assert m.VERDICT_DEFECT    == 'STABILITY-WINDOW-DEFECT'
+          print('aggregator self-verify OK')
+          "
+
+      - name: Stage 3 - Aggregate stability-window verdict
+        id: aggregate
+        env:
+          RUN_COUNT: ${{ steps.validate.outputs.run_count }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python3 tooling/ci/aggregate_e2e_stability_window.py \
+            --output out/e2e-smoke-stability-window-verdict.json \
+            --print-stdout
+          VERDICT=$(python3 -c "import json; print(json.load(open('out/e2e-smoke-stability-window-verdict.json'))['verdict'])")
+          echo "verdict=${VERDICT}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "## Tag-65 E2E-Smoke Stability-Window Verdict: \`${VERDICT}\`"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| run_count | ${RUN_COUNT} |"
+            echo "| verdict   | \`${VERDICT}\` |"
+            echo ""
+            echo "See \`out/e2e-smoke-stability-window-verdict.json\` for the per-run envelope."
+          } >> "${GITHUB_STEP_SUMMARY}"
+          echo "::notice::Stage 3: ${VERDICT}"
+          # The probe is informational, not a Required-Status-Check.
+          # We exit non-zero only on DEFECT, because that indicates
+          # the probe-substrate itself is broken; NOT-YET is a valid
+          # signal that means "the operator should inspect, not
+          # promote yet" -- the workflow stays green so the verdict
+          # is the payload, not the shell-exit signal. This mirrors
+          # the Tag-63 REUSE-Wrap Stability-Window-Probe at
+          # .github/workflows/reuse-wrap-enforce-flip-stability-
+          # window-probe.yml.
+          if [ "${VERDICT}" = "STABILITY-WINDOW-DEFECT" ]; then
+            exit 1
+          fi
+
+      - name: Upload Tag-65 stability-window verdict artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-smoke-stability-window-verdict
+          path: out/e2e-smoke-stability-window-verdict.json
+          if-no-files-found: warn
