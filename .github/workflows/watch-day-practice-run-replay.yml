@@ -1,0 +1,185 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tag-59 Watch-Day-Practice-Run Dry-Run-Replay Workflow / Noa-SRE
+# ---------------------------------------------------------------------------
+#
+# Hermetic replay-mode gate for the Tag-56 Watch-Day-Practice-Run
+# CI substrate.
+#
+# Context
+# -------
+#
+# Tag-56 (PR #359) shipped the Watch-Day-Practice-Run CI-Gate
+# (`.github/workflows/phase-3c-watch-day-practice-run.yml`) that
+# re-runs the live practice-run simulator on every push touching
+# the Tag-54/55 substrates. Tag-57 (PR #368) added a Tuesday
+# 05:00 UTC cron-pre-fire-probe so the calendar-aligned trigger is
+# wired up correctly.
+#
+# Tag-59 is the **replay companion**: a hermetic workflow that
+# does NOT re-execute the practice-run simulator. Instead it loads a
+# committed sample-artifact (the byte-pinned output of the
+# Tag-55 simulator as of Tag-59), replays it through the Tag-56
+# verdict-aggregator in `--replay-mode`, and pins the verdict-
+# tuple to a known-good baseline. This decouples "did the simulator
+# code drift" from "did the verdict-formula drift": Tag-56 catches
+# the former, Tag-59 catches the latter.
+#
+# Why both
+# --------
+#
+# During KW-24..27 Watch-Days the operator depends on the
+# practice-run verdict being byte-stable across re-runs. If a
+# refactor changes a verdict-string (say "AMBER" -> "amber") the
+# operator's runbook breaks silently. The Tag-56 gate catches that
+# only if the refactor breaks `overall_pass=true`. The Tag-59
+# replay gate catches it even if `overall_pass=true` stays - the
+# pinned per-scenario tuple drifts.
+#
+# Trigger surface
+# ---------------
+#
+#   * `workflow_dispatch:` - Mira-Hand manual re-pin.
+#   * `pull_request:` (path-filtered) - any PR touching the
+#     Tag-56 aggregator, the practice-run simulator, the Tag-54
+#     verdict module, or the Tag-59 fixture itself triggers a
+#     replay-stability check.
+#
+# Sandbox boundary
+# ----------------
+#
+# Pure stdlib + python 3.11. No network, no podman, no GitHub-API
+# calls, no third-party dependencies. The fixture is in-tree and
+# the verdict-aggregator is in-tree; the workflow is a closed loop.
+#
+# Verdict
+# -------
+#
+#   REPLAY-STABLE - fixture SHA-256 matches the pinned Tag-59
+#                   value AND every per-scenario verdict matches
+#                   the pinned tuple. Workflow passes.
+#   REPLAY-DRIFT  - either layer drifted. Workflow fails (REPLAY-
+#                   DRIFT is never a CAUTION: an operator-facing
+#                   contract change must be loud).
+#
+# Author: Noa Bergstroem (SRE)
+# Anchor: Tag-59 Pre-Sealing KW-24 Marathon-Continuous-Mode.
+
+name: Watch-Day-Practice-Run Replay (Tag-59)
+
+on:
+  workflow_dispatch: {}
+  pull_request:
+    paths:
+      - "scripts/observability/watch-day-practice-run.py"
+      - "scripts/observability/pre-cutover-watch-day-verdict.py"
+      - "docs/observability/pre-cutover-watch-day-spec.md"
+      - "tooling/ci/aggregate_watch_day_practice_run_verdict.py"
+      - "tests/observability/fixtures/watch-day-practice-run-sample.json"
+      - ".github/workflows/watch-day-practice-run-replay.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: watch-day-practice-run-replay-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  replay-stability:
+    name: Replay-Stability (Tag-59)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Stage 1 - Load committed sample-artifact
+        id: stage1
+        run: |
+          set -euo pipefail
+          FIXTURE="tests/observability/fixtures/watch-day-practice-run-sample.json"
+          if [[ ! -f "${FIXTURE}" ]]; then
+            echo "::error::fixture not committed: ${FIXTURE}"
+            exit 1
+          fi
+          # Quick JSON-well-formed check before we hand the file
+          # to the replay-helper.
+          python3 -c "import json,sys; json.load(open(sys.argv[1]))" "${FIXTURE}"
+          echo "fixture_bytes=$(wc -c < "${FIXTURE}")" >> "${GITHUB_OUTPUT}"
+          echo "fixture_sha256=$(sha256sum "${FIXTURE}" | cut -d' ' -f1)" >> "${GITHUB_OUTPUT}"
+          echo "fixture loaded: ${FIXTURE}"
+
+      - name: Stage 2 - Run replay-mode of Tag-56 verdict-aggregator
+        id: stage2
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          set +e
+          python3 tooling/ci/aggregate_watch_day_practice_run_verdict.py \
+            --replay-mode \
+            --fixture-path tests/observability/fixtures/watch-day-practice-run-sample.json \
+            --output out/watch-day-practice-run-replay-envelope.json
+          REPLAY_EXIT=$?
+          set -e
+          echo "replay_exit=${REPLAY_EXIT}" >> "${GITHUB_OUTPUT}"
+          # Exit 0 = stable, 2 = drift, 1 = error. We tolerate 0/2
+          # here and decide on the final verdict in Stage 3.
+          if [[ "${REPLAY_EXIT}" -eq 1 ]]; then
+            echo "::error::replay-helper internal error (exit 1)"
+            exit 1
+          fi
+
+      - name: Stage 3 - Compare to expected pinned verdict
+        id: stage3
+        run: |
+          set -euo pipefail
+          ENVELOPE="out/watch-day-practice-run-replay-envelope.json"
+          if [[ ! -f "${ENVELOPE}" ]]; then
+            echo "::error::replay envelope missing: ${ENVELOPE}"
+            exit 1
+          fi
+          VERDICT=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['verdict'])" "${ENVELOPE}")
+          echo "verdict=${VERDICT}" >> "${GITHUB_OUTPUT}"
+          echo "verdict from envelope: ${VERDICT}"
+          # Also surface drift_reasons for the workflow log.
+          python3 -c "import json,sys; d=json.load(open(sys.argv[1])); [print('drift:', r) for r in d.get('drift_reasons', [])]" "${ENVELOPE}"
+
+      - name: Stage 4 - Final verdict (REPLAY-STABLE / REPLAY-DRIFT)
+        run: |
+          set -euo pipefail
+          VERDICT="${{ steps.stage3.outputs.verdict }}"
+          echo "::notice::Watch-Day-Practice-Run replay verdict: ${VERDICT}"
+          case "${VERDICT}" in
+            REPLAY-STABLE)
+              echo "Tag-59 replay-stability gate: PASS"
+              exit 0
+              ;;
+            REPLAY-DRIFT)
+              echo "::error::Tag-59 replay-stability gate: FAIL (drift detected)"
+              echo "::error::Practice-run simulator or verdict-formula drifted from Tag-59 baseline."
+              echo "::error::Re-pin the fixture (and update TAG59_FIXTURE_SHA256 + TAG59_PINNED_VERDICTS in tooling/ci/aggregate_watch_day_practice_run_verdict.py) if and only if the drift is intentional."
+              exit 1
+              ;;
+            *)
+              echo "::error::unknown verdict-string from replay-helper: ${VERDICT}"
+              exit 1
+              ;;
+          esac
+
+      - name: Upload replay envelope
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: watch-day-practice-run-replay-envelope
+          path: out/watch-day-practice-run-replay-envelope.json
+          if-no-files-found: warn
+          retention-days: 30
