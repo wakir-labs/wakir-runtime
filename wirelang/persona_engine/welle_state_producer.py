@@ -2,31 +2,42 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreEnd
-"""Tag-69 Welle-N State-File Producer (Selin, persona-engine domain).
+"""Tag-69 / Tag-70 Welle-N State-File Producer (Selin, persona-engine).
 
 Implements the engine-side producer-path for ``state/welle-N.json``
 top-level rollup-files per the Tag-68 Producer-Wiring-Plan
 (``docs/persona-engine/state-file-producer-wiring-plan.md``).
 
-Scope (Tag-69, per Mira-Auftrag and plan-doc §5.1)
---------------------------------------------------
+Scope (Tag-69 + Tag-70, per Mira-Auftrag and plan-doc §5.1)
+-----------------------------------------------------------
 
 This module is the **producer-substrate** that Tag-69+ engine-side
 event-handlers will call. It is intentionally **decoupled** from
 ``engine.py`` / ``engine_async.py``: the handlers in those modules
-(``handle_welle_cutover_event``, ``handle_welle_sign_off_event``)
+(``handle_welle_cutover_event``, ``handle_welle_sign_off_event``,
+``handle_welle_rollback_event``, ``handle_welle_sealing_event``)
 construct a :class:`WelleStateProducer` and delegate the
 transition + atomic-write to this module. The decoupling keeps the
 hot-path engine code free of filesystem-layout knowledge and lets
 the producer-substrate be unit-tested in hermetic isolation.
 
-The Tag-69 deliverable in this PR focuses on the **Welle-1
-producer-path** (Cutover-T0 first-fire). The implementation is
-parametric over ``welle_number`` (1..7) and is therefore reused
-verbatim by Tag-69 / Tag-70 follow-ups for Welle-2..7; the
-test-suite pins the Welle-1 path as the canonical reference and
-adds parametric cross-coverage for all seven Wellen at the
-boundary.
+Tag-69 shipped the **Welle-1 producer-path** (Cutover-T0 first-fire)
++ Sign-Off path. Tag-70 (this PR) adds:
+
+* **Welle-2 Doppelbetrieb-Sealing** trigger (KW-24 Mi, plan-doc §2.3):
+  a sign-off variant that additionally requires a
+  ``doppelbetrieb_sealed_marker_status == "sealed"`` precondition.
+  Welle-2 is the only Welle whose sign-off is gated by the
+  Doppelbetrieb-Sealing-marker (legacy↔new dual-write window closed).
+* **Rollback-Writer** (``handle_rollback_event``) covering the three
+  plan-doc §3.1 rollback transitions ``pending -> rolled-back``,
+  ``in-progress -> rolled-back``, ``signed-off -> rolled-back``,
+  gated by a ``rollback_marker_status == "rollback-authorized"``
+  precondition. Rollback is terminal (plan-doc §3.2).
+
+The implementation is parametric over ``welle_number`` (1..7) and
+is therefore reused verbatim by Tag-71+ follow-ups for the
+remaining Wellen.
 
 Lifecycle-state-machine (plan-doc §3.1)
 ---------------------------------------
@@ -132,6 +143,22 @@ ISO_TS_NONEMPTY_RE = re.compile(
 # schema-pin §2.5 / §5).
 PRE_AUDITOR_GUARDED_WELLEN = frozenset({3, 7})
 
+# Wellen for which the sign-off path additionally requires the
+# Doppelbetrieb-Sealing-marker to report ``sealed`` (plan-doc §2.3,
+# Tag-70 add-on). Welle-2 is the legacy↔new dual-write window
+# closure; sign-off without sealed-marker is refused.
+DOPPELBETRIEB_SEALED_WELLEN = frozenset({2})
+
+# Rollback-marker authority literal: callers MUST pass this exact
+# value as ``rollback_marker_status`` to authorise a rollback
+# transition. Any other value is refused (Tag-70 §2.4).
+ROLLBACK_MARKER_AUTHORIZED = "rollback-authorized"
+
+# Doppelbetrieb-Sealing-marker literal: callers MUST pass this exact
+# value as ``doppelbetrieb_sealed_marker_status`` to authorise the
+# Welle-2 Doppelbetrieb-Sealing sign-off (Tag-70 §2.3).
+DOPPELBETRIEB_SEALED = "sealed"
+
 # Allowed lifecycle-state-machine transitions (plan-doc §3.1).
 ALLOWED_TRANSITIONS = frozenset({
     (STATUS_PENDING, STATUS_IN_PROGRESS),
@@ -179,6 +206,14 @@ class PathTraversalError(WelleProducerError):
     """Raised when state_dir resolves outside the repo (defensive)."""
 
 
+class RollbackAuthorityError(WelleProducerError):
+    """Raised on a rollback without rollback-marker-authority (Tag-70 §2.4)."""
+
+
+class DoppelbetriebSealingError(WelleProducerError):
+    """Raised on a Welle-2 sign-off without sealed-marker (Tag-70 §2.3)."""
+
+
 # ---------------------------------------------------------------------------
 # Audit-record emitter protocol.
 # ---------------------------------------------------------------------------
@@ -199,7 +234,7 @@ class WelleAuditRecord:
     new_status: str
     cutover_iso: str  # "" if not yet set
     signoff_iso: str  # "" if not yet set
-    trigger: str  # "cutover" | "sign-off" | "rollback"
+    trigger: str  # "cutover" | "sign-off" | "rollback" | "sealing"
 
     def to_json_bytes(self) -> bytes:
         """Canonical JSON bytes for downstream audit-hash anchoring."""
@@ -536,6 +571,168 @@ class WelleStateProducer:
         self.audit_emitter(record)
         return record
 
+    # -- Transition: Welle-2 Doppelbetrieb-Sealing sign-off (Tag-70 §2.3) --
+
+    def handle_welle_2_sealing_event(
+        self,
+        signoff_iso: str,
+        *,
+        sign_off_marker_status: str,
+        doppelbetrieb_sealed_marker_status: str,
+    ) -> WelleAuditRecord:
+        """Apply the Welle-2 Doppelbetrieb-Sealing sign-off (Tag-70 §2.3).
+
+        Welle-2 closes the legacy↔new dual-write window (KW-24 Mi).
+        The sign-off is structurally an in-progress -> signed-off
+        transition with **two** marker preconditions:
+
+        * the standard ``sign_off_marker_status == "signed-off"``
+          companion marker (same as :meth:`handle_sign_off_event`),
+        * the additional ``doppelbetrieb_sealed_marker_status ==
+          "sealed"`` marker which confirms the dual-write window
+          has been observed-closed by the operator (no legacy-side
+          writes remain). Refused otherwise.
+
+        Welle-2 is **not** in :data:`PRE_AUDITOR_GUARDED_WELLEN`, so
+        no pre-auditor guard applies here. The audit-record carries
+        ``trigger="sealing"`` to disambiguate from a vanilla Welle-2
+        sign-off in the downstream audit-stream.
+        """
+        welle_number = 2
+        _validate_iso_timestamp(signoff_iso, "signoff_iso")
+        if sign_off_marker_status != STATUS_SIGNED_OFF:
+            raise SignOffPreconditionError(
+                f"sign-off-marker for welle-{welle_number} not "
+                f"signed-off: got {sign_off_marker_status!r}"
+            )
+        if doppelbetrieb_sealed_marker_status != DOPPELBETRIEB_SEALED:
+            raise DoppelbetriebSealingError(
+                f"welle-{welle_number} Doppelbetrieb-Sealing sign-off "
+                f"requires sealed-marker; got "
+                f"doppelbetrieb_sealed_marker_status="
+                f"{doppelbetrieb_sealed_marker_status!r}"
+            )
+        target = _state_file_path(self.state_dir, welle_number)
+        data = _load_state_file(target)
+        _enforce_shape(data, target)
+        prior_status = data["status"]
+        if prior_status == STATUS_SIGNED_OFF:
+            # Idempotent no-op: sealing-sign-off already recorded.
+            record = WelleAuditRecord(
+                welle_number=welle_number,
+                prior_status=prior_status,
+                new_status=prior_status,
+                cutover_iso=data.get("cutover_iso", ""),
+                signoff_iso=data.get("signoff_iso", ""),
+                trigger="sealing",
+            )
+            self.audit_emitter(record)
+            return record
+        _check_transition(prior_status, STATUS_SIGNED_OFF)
+        new_data = dict(data)
+        new_data["status"] = STATUS_SIGNED_OFF
+        new_data["signoff_iso"] = signoff_iso
+        _check_time_invariants(
+            new_data.get("cutover_iso", ""), new_data["signoff_iso"]
+        )
+        _atomic_write_json(target, new_data)
+        record = WelleAuditRecord(
+            welle_number=welle_number,
+            prior_status=prior_status,
+            new_status=STATUS_SIGNED_OFF,
+            cutover_iso=new_data.get("cutover_iso", ""),
+            signoff_iso=signoff_iso,
+            trigger="sealing",
+        )
+        self.audit_emitter(record)
+        return record
+
+    # -- Transition: ANY -> rolled-back (Tag-70 §2.4 Rollback-Writer) --
+
+    def handle_rollback_event(
+        self,
+        welle_number: int,
+        rollback_iso: str,
+        *,
+        rollback_marker_status: str,
+    ) -> WelleAuditRecord:
+        """Apply a rollback transition (Tag-70 §2.4 Rollback-Writer).
+
+        Allowed prior states (plan-doc §3.1)::
+
+            pending      -> rolled-back   (pre-cutover-rollback, rare)
+            in-progress  -> rolled-back   (mid-Welle rollback)
+            signed-off   -> rolled-back   (post-sign-off rollback)
+
+        Refusal-to-write preconditions:
+
+        * ``rollback_marker_status`` MUST equal
+          :data:`ROLLBACK_MARKER_AUTHORIZED` ("rollback-authorized");
+          any other value raises :class:`RollbackAuthorityError`.
+          This guards against a stale or accidental rollback-event
+          (the rollback-marker file is operator-curated).
+        * the on-disk state-file MUST be shape-valid (same as the
+          other handlers).
+        * if the on-disk status is already ``rolled-back``, the call
+          is a no-op (idempotency; rolled-back is terminal so this
+          is the only no-op path for rollback).
+
+        The handler writes the rollback by updating ``status`` to
+        :data:`STATUS_ROLLED_BACK`. ``cutover_iso`` and ``signoff_iso``
+        are preserved (forensic: the rolled-back Welle still has a
+        cutover-iso for audit-trail purposes; rollback-iso itself
+        is captured in the audit-record, not in the state-file
+        schema -- the schema is pinned).
+
+        Note: rollback is a unidirectional terminal transition --
+        the plan-doc §3.2 prohibition on ``rolled-back -> *`` is
+        enforced by :func:`_check_transition`.
+        """
+        _validate_welle_number(welle_number)
+        _validate_iso_timestamp(rollback_iso, "rollback_iso")
+        if rollback_marker_status != ROLLBACK_MARKER_AUTHORIZED:
+            raise RollbackAuthorityError(
+                f"rollback for welle-{welle_number} requires "
+                f"rollback_marker_status="
+                f"{ROLLBACK_MARKER_AUTHORIZED!r}; got "
+                f"{rollback_marker_status!r}"
+            )
+        target = _state_file_path(self.state_dir, welle_number)
+        data = _load_state_file(target)
+        _enforce_shape(data, target)
+        prior_status = data["status"]
+        if prior_status == STATUS_ROLLED_BACK:
+            # Idempotent no-op: rollback already recorded (terminal).
+            record = WelleAuditRecord(
+                welle_number=welle_number,
+                prior_status=prior_status,
+                new_status=prior_status,
+                cutover_iso=data.get("cutover_iso", ""),
+                signoff_iso=data.get("signoff_iso", ""),
+                trigger="rollback",
+            )
+            self.audit_emitter(record)
+            return record
+        _check_transition(prior_status, STATUS_ROLLED_BACK)
+        new_data = dict(data)
+        new_data["status"] = STATUS_ROLLED_BACK
+        # Time-invariants on cutover_iso/signoff_iso continue to hold
+        # because we preserve them (rollback does not modify them).
+        _check_time_invariants(
+            new_data.get("cutover_iso", ""), new_data.get("signoff_iso", "")
+        )
+        _atomic_write_json(target, new_data)
+        record = WelleAuditRecord(
+            welle_number=welle_number,
+            prior_status=prior_status,
+            new_status=STATUS_ROLLED_BACK,
+            cutover_iso=new_data.get("cutover_iso", ""),
+            signoff_iso=new_data.get("signoff_iso", ""),
+            trigger="rollback",
+        )
+        self.audit_emitter(record)
+        return record
+
     # -- Read-only convenience: current status snapshot. --
 
     def current_status(self, welle_number: int) -> str:
@@ -561,6 +758,9 @@ __all__ = [
     "ALLOWED_STATUSES",
     "ALLOWED_TRANSITIONS",
     "AuditRecordEmitter",
+    "DOPPELBETRIEB_SEALED",
+    "DOPPELBETRIEB_SEALED_WELLEN",
+    "DoppelbetriebSealingError",
     "InvalidStatusTransitionError",
     "InvalidWelleNumberError",
     "ISO_TS_NONEMPTY_RE",
@@ -568,6 +768,8 @@ __all__ = [
     "PRE_AUDITOR_GUARDED_WELLEN",
     "PathTraversalError",
     "PreAuditorGuardError",
+    "ROLLBACK_MARKER_AUTHORIZED",
+    "RollbackAuthorityError",
     "SCHEMA_VERSION_PIN",
     "STATUS_IN_PROGRESS",
     "STATUS_PENDING",
