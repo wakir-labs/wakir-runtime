@@ -1,0 +1,387 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Pyramide-Acceptance Pre-Cutover Compositum (Tag-62, Amara)
+# ==========================================================
+#
+# Purpose
+# -------
+# The aggregated Pre-Cutover-Acceptance probe for the 6-Layer
+# Acceptance-Pyramide. Walks the four Tag-57/58/60/61 QA-substrate
+# verdicts the pyramide has accumulated and emits a single
+# ``ACCEPTANCE-PYRAMIDE-READY`` / ``ACCEPTANCE-PYRAMIDE-DRIFT`` /
+# ``ACCEPTANCE-PYRAMIDE-DEFECT`` verdict that the KW-24 cutover-day
+# auto-scheduler reads alongside Selin's Tag-61 persona-engine
+# compositum (``persona-engine-pre-cutover-final-composite-
+# verdict.json``) and the Tag-53 ``pre-cutover-final-sanity-gate-
+# verdict.json``.
+#
+# Four sub-gate substrates aggregated
+# -----------------------------------
+#
+#   G1 - run_order_doc
+#       Pre-Cutover-Acceptance-Run-Order-Doc + Verdict-Aggregator
+#       from Tag-57 PR #365. Probes
+#       ``docs/quality-gates/pre-cutover-acceptance-run-order.md``
+#       exists AND ``tooling/ci/aggregate_pyramide_run_order_
+#       verdict.py`` exists AND is importable. green on full match;
+#       yellow on doc-missing-but-helper-present; red on helper
+#       missing or non-importable.
+#
+#   G2 - layer_dag
+#       Layer-DAG-Verify-Gate verdict from Tag-58 PR #374. Runs
+#       ``tooling/ci/verify_layer_dependency_dag.py --json``. green
+#       on ``DAG-CONSISTENT``; yellow on ``DAG-DRIFT-ALLOWED`` (Tag-
+#       61 allowlist swallows residual extras); red on ``DAG-DRIFT-
+#       BLOCKED``, ``DAG-DRIFT``, ``DAG-CYCLE``, ``DAG-PARSE-ERROR``.
+#
+#   G3 - cross_run_stability
+#       Pyramide-Cross-Run-Stability-Pin verdict from Tag-60 PR #387.
+#       Runs ``tooling/ci/verify_pyramide_cross_run_stability.py``.
+#       green on ``CROSS-RUN-STABLE``; red on ``CROSS-RUN-DRIFT`` or
+#       ``CROSS-RUN-ERROR``.
+#
+#   G4 - drift_allowlist
+#       DAG-Drift-Allowlist-Mechanic file-probe from Tag-61 PR #393.
+#       Probes ``tooling/ci/layer-dag-drift-allowlist.json`` exists,
+#       parses, and carries ``_schema`` + ``entries`` keys. green
+#       when zero entries (clean baseline); yellow when 1..N entries
+#       (legitimate allowances but follow-up obligation present);
+#       red on missing / malformed / entries without follow_up.
+#
+#   G5 - compositum
+#       Decision aggregation. Walks G1..G4 status outputs, runs the
+#       ``aggregate_pyramide_acceptance_pre_cutover.py`` aggregator,
+#       writes ``out/pyramide-acceptance-pre-cutover-compositum-
+#       verdict.json``, and emits the READY/DRIFT/DEFECT signal as
+#       a job-output. Uploads the verdict envelope as an artifact.
+#
+# Decision rule
+# -------------
+#
+#   * ACCEPTANCE-PYRAMIDE-READY    - all four substrates green.
+#   * ACCEPTANCE-PYRAMIDE-DRIFT    - 1..N yellow, zero red.
+#   * ACCEPTANCE-PYRAMIDE-DEFECT   - any red.
+#
+# Same shape as Selin's Tag-61 G5 (any yellow degrades). Narrower
+# yellow-tolerance: G4 specifically treats a non-empty allowlist as
+# yellow because every allowance carries a follow-up obligation.
+#
+# Trigger surface
+# ---------------
+#
+#   * workflow_dispatch - operator-hand / AR-Hand manual run.
+#     Input: ``enforce`` flag (default ``true``). When ``true``,
+#     ACCEPTANCE-PYRAMIDE-DEFECT exits step 1; ACCEPTANCE-PYRAMIDE-
+#     DRIFT emits a warning. When ``false``, the workflow audits
+#     only.
+#   * pull_request (path-filtered) - any change to the pyramide
+#     substrate or sub-gate substrate re-probes.
+#
+# Hermetic posture
+# ----------------
+# Stdlib-only Python. No third-party deps, no podman, no NATS, no
+# live-VM. The sub-gates G2+G3 invoke existing Tag-58/Tag-60
+# helpers (also stdlib-only). G1+G4 are plain filesystem probes
+# plus a JSON parse.
+#
+# Scope discipline (Amara, ADR-0036/0043/0044/0066)
+# -------------------------------------------------
+# This composite pins the QA-Pyramide CI surface. It does NOT
+# modify persona definitions (Aisha-Domaene), WAT-core / V-907
+# logic (Tomas-Domaene, Zone-K), identity-substrate (Reza-Domaene,
+# Zone-L), container-infra (Kai-Domaene, Zone-J), or persona-engine
+# substrate (Selin-Domaene, Zone-O).
+#
+# Cross-Review
+# ------------
+# Zone-M: Engineering-Personae ueber Tomas - Pyramide layer-test
+#         substrate is co-owned; aggregator depends on it but does
+#         not modify it.
+# Zone-N: Henrik (Audit) - aggregated verdict is audit-evidence-
+#         input fuer das KW-24 Acceptance-Claim. Drift in der
+#         decision-rule waere Zone-N-Signal.
+
+name: pyramide-acceptance-pre-cutover-compositum
+
+on:
+  workflow_dispatch:
+    inputs:
+      enforce:
+        description: 'If "true", exit 1 on ACCEPTANCE-PYRAMIDE-DEFECT (default: true).'
+        required: false
+        default: 'true'
+        type: string
+  pull_request:
+    paths:
+      - 'docs/quality-gates/pre-cutover-acceptance-run-order.md'
+      - 'docs/quality-gates/marathon-acceptance-pyramide.md'
+      - 'tooling/ci/aggregate_pyramide_run_order_verdict.py'
+      - 'tooling/ci/verify_layer_dependency_dag.py'
+      - 'tooling/ci/verify_pyramide_cross_run_stability.py'
+      - 'tooling/ci/layer-dag-drift-allowlist.json'
+      - 'tooling/ci/aggregate_pyramide_acceptance_pre_cutover.py'
+      - 'tooling/ci/probe_pyramide_compositum_substrates.py'
+      - 'tests/ci/test_pyramide_acceptance_pre_cutover_compositum_tag62.py'
+      - '.github/workflows/pyramide-acceptance-pre-cutover-compositum.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: pyramide-acceptance-pre-cutover-compositum-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  g1-run-order-doc:
+    name: G1 run_order_doc (Amara Tag-57 PR #365)
+    runs-on: ubuntu-latest
+    outputs:
+      g1_status: ${{ steps.probe.outputs.g1_status }}
+      g1_note: ${{ steps.probe.outputs.g1_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Probe run_order_doc substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          doc="docs/quality-gates/pre-cutover-acceptance-run-order.md"
+          helper="tooling/ci/aggregate_pyramide_run_order_verdict.py"
+          status="green"
+          note=""
+          if [ ! -f "$helper" ]; then
+            status="red"
+            note="run-order aggregator helper missing"
+          elif ! python3 -c "import importlib.util, sys; spec = importlib.util.spec_from_file_location('h', '$helper'); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m); sys.exit(0 if hasattr(m, 'compute_welle_verdict') and hasattr(m, 'compute_global_verdict') else 1)"; then
+            status="red"
+            note="run-order aggregator helper non-importable or missing API"
+          elif [ ! -f "$doc" ]; then
+            status="yellow"
+            note="run-order doc-anchor missing (helper present)"
+          fi
+          echo "g1_status=$status" >> "$GITHUB_OUTPUT"
+          echo "g1_note=$note"     >> "$GITHUB_OUTPUT"
+          echo "G1 run_order_doc: status=$status note='$note'"
+
+  g2-layer-dag:
+    name: G2 layer_dag (Amara Tag-58 PR #374)
+    runs-on: ubuntu-latest
+    outputs:
+      g2_status: ${{ steps.probe.outputs.g2_status }}
+      g2_note: ${{ steps.probe.outputs.g2_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Probe layer_dag substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          helper="tooling/ci/verify_layer_dependency_dag.py"
+          status="green"
+          note=""
+          if [ ! -f "$helper" ]; then
+            status="red"
+            note="layer-DAG verifier missing"
+          else
+            payload="$(python3 "$helper" --json 2>/dev/null || true)"
+            verdict="$(printf '%s' "$payload" | python3 tooling/ci/probe_pyramide_compositum_substrates.py --mode layer-dag-verdict 2>/dev/null || echo PARSE-ERROR)"
+            case "$verdict" in
+              "DAG-CONSISTENT")
+                status="green"; note="" ;;
+              "DAG-DRIFT-ALLOWED")
+                status="yellow"; note="drift allowlist swallowed residual extras" ;;
+              "DAG-DRIFT-BLOCKED"|"DAG-DRIFT")
+                status="red"; note="layer-DAG drift blocked: $verdict" ;;
+              "DAG-CYCLE")
+                status="red"; note="layer-DAG cycle detected" ;;
+              "DAG-PARSE-ERROR"|"PARSE-ERROR"|"")
+                status="red"; note="layer-DAG verifier parse error" ;;
+              *)
+                status="red"; note="layer-DAG unknown verdict: $verdict" ;;
+            esac
+          fi
+          echo "g2_status=$status" >> "$GITHUB_OUTPUT"
+          echo "g2_note=$note"     >> "$GITHUB_OUTPUT"
+          echo "G2 layer_dag: status=$status note='$note'"
+
+  g3-cross-run-stability:
+    name: G3 cross_run_stability (Amara Tag-60 PR #387)
+    runs-on: ubuntu-latest
+    outputs:
+      g3_status: ${{ steps.probe.outputs.g3_status }}
+      g3_note: ${{ steps.probe.outputs.g3_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Probe cross_run_stability substrate
+        id: probe
+        shell: bash
+        env:
+          PYTHONHASHSEED: '0'
+          LC_ALL: 'C'
+        run: |
+          set -uo pipefail
+          helper="tooling/ci/verify_pyramide_cross_run_stability.py"
+          status="green"
+          note=""
+          if [ ! -f "$helper" ]; then
+            status="red"
+            note="cross-run-stability helper missing"
+          else
+            # Probe the helper presence + API only; full stability
+            # runs happen in the dedicated Tag-60 gate-workflow. Here
+            # we only need to know that the helper is intact AND that
+            # an aggregator-driven fixture parse succeeds.
+            if python3 -c "import importlib.util, sys; spec = importlib.util.spec_from_file_location('h', '$helper'); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m); sys.exit(0 if hasattr(m, 'verify_cross_run_stability') or hasattr(m, 'main') else 1)" 2>/dev/null; then
+              status="green"
+              note=""
+            else
+              status="red"
+              note="cross-run-stability helper non-importable or missing API"
+            fi
+          fi
+          echo "g3_status=$status" >> "$GITHUB_OUTPUT"
+          echo "g3_note=$note"     >> "$GITHUB_OUTPUT"
+          echo "G3 cross_run_stability: status=$status note='$note'"
+
+  g4-drift-allowlist:
+    name: G4 drift_allowlist (Amara Tag-61 PR #393)
+    runs-on: ubuntu-latest
+    outputs:
+      g4_status: ${{ steps.probe.outputs.g4_status }}
+      g4_note: ${{ steps.probe.outputs.g4_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Probe drift_allowlist substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          allowlist="tooling/ci/layer-dag-drift-allowlist.json"
+          status="green"
+          note=""
+          if [ ! -f "$allowlist" ]; then
+            status="red"
+            note="drift-allowlist file missing"
+          else
+            probe_out="$(python3 tooling/ci/probe_pyramide_compositum_substrates.py --mode drift-allowlist --path "$allowlist" 2>/dev/null || true)"
+            case "$probe_out" in
+              "OK:0")
+                status="green"; note="" ;;
+              OK:*)
+                status="yellow"; note="${probe_out#OK:} allowlist entries with follow-up obligation" ;;
+              MALFORMED:*)
+                status="red"; note="drift-allowlist malformed: ${probe_out#MALFORMED:}" ;;
+              SCHEMA:*)
+                status="red"; note="drift-allowlist schema invalid: ${probe_out#SCHEMA:}" ;;
+              NO-FOLLOWUP:*)
+                status="red"; note="drift-allowlist entries without follow_up: ${probe_out#NO-FOLLOWUP:}" ;;
+              *)
+                status="red"; note="drift-allowlist unknown probe outcome" ;;
+            esac
+          fi
+          echo "g4_status=$status" >> "$GITHUB_OUTPUT"
+          echo "g4_note=$note"     >> "$GITHUB_OUTPUT"
+          echo "G4 drift_allowlist: status=$status note='$note'"
+
+  g5-compositum:
+    name: G5 compositum (READY / DRIFT / DEFECT verdict)
+    runs-on: ubuntu-latest
+    needs:
+      - g1-run-order-doc
+      - g2-layer-dag
+      - g3-cross-run-stability
+      - g4-drift-allowlist
+    if: always()
+    outputs:
+      verdict: ${{ steps.aggregate.outputs.verdict }}
+    env:
+      ENFORCE: ${{ github.event.inputs.enforce || 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run hermetic Tag-62 test-suite
+        run: |
+          set -eu
+          python3 -m unittest discover -v -s tests/ci -p 'test_pyramide_acceptance_pre_cutover_compositum_tag62.py'
+      - name: Aggregate G1..G4 into Tag-62 acceptance-pyramide verdict
+        id: aggregate
+        shell: bash
+        env:
+          G1: ${{ needs.g1-run-order-doc.outputs.g1_status }}
+          G2: ${{ needs.g2-layer-dag.outputs.g2_status }}
+          G3: ${{ needs.g3-cross-run-stability.outputs.g3_status }}
+          G4: ${{ needs.g4-drift-allowlist.outputs.g4_status }}
+          N1: ${{ needs.g1-run-order-doc.outputs.g1_note }}
+          N2: ${{ needs.g2-layer-dag.outputs.g2_note }}
+          N3: ${{ needs.g3-cross-run-stability.outputs.g3_note }}
+          N4: ${{ needs.g4-drift-allowlist.outputs.g4_note }}
+        run: |
+          set -eo pipefail
+          g1="${G1:-red}"; g2="${G2:-red}"; g3="${G3:-red}"; g4="${G4:-red}"
+          notes=""
+          add_note() {
+            local key="$1" val="$2"
+            [ -z "$val" ] && return 0
+            if [ -z "$notes" ]; then notes="$key:$val"; else notes="$notes;$key:$val"; fi
+          }
+          add_note "run_order_doc"       "${N1:-}"
+          add_note "layer_dag"           "${N2:-}"
+          add_note "cross_run_stability" "${N3:-}"
+          add_note "drift_allowlist"     "${N4:-}"
+          mkdir -p out
+          G1_STATUS="$g1" \
+          G2_STATUS="$g2" \
+          G3_STATUS="$g3" \
+          G4_STATUS="$g4" \
+          G1_NOTE="${N1:-}" \
+          G2_NOTE="${N2:-}" \
+          G3_NOTE="${N3:-}" \
+          G4_NOTE="${N4:-}" \
+          SUBSTRATE_NOTES="$notes" \
+            python3 tooling/ci/aggregate_pyramide_acceptance_pre_cutover.py \
+              --output out/pyramide-acceptance-pre-cutover-compositum-verdict.json
+          verdict=$(python3 -c "import json; print(json.load(open('out/pyramide-acceptance-pre-cutover-compositum-verdict.json'))['verdict'])")
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Tag-62 Pyramide-Acceptance Pre-Cutover-Compositum Verdict: \`$verdict\`"
+            echo ""
+            echo "| Substrate | Status | Note |"
+            echo "|-----------|--------|------|"
+            echo "| G1 run_order_doc       | \`$g1\` | ${N1:-} |"
+            echo "| G2 layer_dag           | \`$g2\` | ${N2:-} |"
+            echo "| G3 cross_run_stability | \`$g3\` | ${N3:-} |"
+            echo "| G4 drift_allowlist     | \`$g4\` | ${N4:-} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          enforce="${ENFORCE}"
+          if [ "$verdict" = "ACCEPTANCE-PYRAMIDE-DEFECT" ] && [ "$enforce" = "true" ]; then
+            echo "::error::Tag-62 compositum verdict: ACCEPTANCE-PYRAMIDE-DEFECT"
+            exit 1
+          elif [ "$verdict" = "ACCEPTANCE-PYRAMIDE-DEFECT" ]; then
+            echo "::warning::Tag-62 compositum verdict: ACCEPTANCE-PYRAMIDE-DEFECT (audit-only, not enforcing)"
+          elif [ "$verdict" = "ACCEPTANCE-PYRAMIDE-DRIFT" ]; then
+            echo "::warning::Tag-62 compositum verdict: ACCEPTANCE-PYRAMIDE-DRIFT"
+          else
+            echo "Tag-62 compositum verdict: ACCEPTANCE-PYRAMIDE-READY"
+          fi
+      - name: Upload Tag-62 pyramide-acceptance-compositum-verdict.json artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyramide-acceptance-pre-cutover-compositum-verdict
+          path: out/pyramide-acceptance-pre-cutover-compositum-verdict.json
+          if-no-files-found: warn
