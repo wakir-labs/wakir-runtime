@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wakir.dev/schemas/audit/res-d4-hd1-ots-substrate-stub/v1",
+  "title": "RES-D4 HD-1 OTS-Calendar Substrate Stub (Tag-70)",
+  "description": "Audit-only fixture catalogue for the HD-1 OTS-Calendar substrate-preparation work. This file enumerates the fixture-frames, verifier-acceptance branches, and ENV-flag gating semantics that the Tag-70 substrate-prep work is allowed to inspect, document, and frame-test in fixture mode. It MUST NOT be interpreted as a live-OTS-calendar configuration: every endpoint marker carries 'kind: fixture' and every emit-branch is gated by an ENV-flag default-off. See docs/operations/res-d4-high-residual-mitigation-deep-dive.md §6 / §6.2 / §8.1.",
+  "doc_form_only": true,
+  "audit_only": true,
+  "tag": "Tag-70",
+  "hard_dep": "HD-1",
+  "upstream_anchors": {
+    "tag_67_pre_mortem_anchor": "§5.1 A1+B2+B5 (high-residual conjunction)",
+    "tag_65_promotion_sequencing_anchor": "§3 HARD-edge (live-OTS-anchor required)",
+    "tag_69_deep_dive_anchor": "§3.1 HD-1 mitigation strategy, §6 OTS-substrate-prep, §6.1 AR-authorisation request template (sketch only)",
+    "tag_60_pre_activation_stub_pr": 382,
+    "tag_69_deep_dive_pr": 440
+  },
+  "sandbox_boundary": {
+    "no_live_ots_calendar_traffic": true,
+    "no_ar_authorisation_request_emit": true,
+    "no_promotion_pr_opening": true,
+    "no_env_flag_default_on_change": true,
+    "verifier_emit_branch_default": "off"
+  },
+  "fixture_frames": [
+    {
+      "name": "registry-pointer-frame--pending-anchor",
+      "kind": "fixture",
+      "anchor_status": "pending",
+      "purpose": "Validate the producer-side frame shape when the OTS-calendar resolver returns no anchor yet. The verifier must accept this frame in audit-only mode and reject it in live-emit mode.",
+      "expected_verifier_branch": "audit-only",
+      "expected_resolver_call": false,
+      "tag_60_compat": true
+    },
+    {
+      "name": "registry-pointer-frame--anchor-fixture-stub",
+      "kind": "fixture",
+      "anchor_status": "stub",
+      "stub_calendar_url": "fixture://ots-calendar.invalid/audit-only/stub",
+      "purpose": "Validate frame-shape with a populated stub anchor field that DOES NOT correspond to any real OTS calendar. The 'fixture://' scheme is reserved for audit-only frames and the verifier rejects it in live-emit mode.",
+      "expected_verifier_branch": "audit-only",
+      "expected_resolver_call": false,
+      "tag_60_compat": true
+    },
+    {
+      "name": "registry-pointer-frame--live-emit-forbidden",
+      "kind": "fixture",
+      "anchor_status": "live-emit-attempt",
+      "purpose": "Negative-control frame: a frame asking the verifier to switch to live-emit while the ENV-flag is off. The verifier must reject this frame with a clear 'sandbox-boundary' diagnostic.",
+      "expected_verifier_branch": "reject",
+      "expected_resolver_call": false,
+      "tag_60_compat": true
+    }
+  ],
+  "verifier_acceptance_rules": [
+    {
+      "rule": "audit-only branch accepts anchor-status in {pending, stub}",
+      "tag_69_anchor": "§6 table-row 'Verifier-acceptance rule (audit-only mode)'",
+      "default_env_flag_state": "off",
+      "live_emit_allowed": false
+    },
+    {
+      "rule": "live-emit branch is gated by ENV-flag WAKIR_OTS_LIVE_EMIT=1",
+      "tag_69_anchor": "§6 table-row 'Verifier-acceptance rule (audit-only mode)'",
+      "default_env_flag_state": "off",
+      "live_emit_allowed_when_flag_on_and_ar_authorised": true,
+      "ar_authorisation_required": true
+    },
+    {
+      "rule": "fixture:// scheme is reserved for audit-only and rejected in live-emit",
+      "tag_69_anchor": "§6.2 (Tag-70 extension)",
+      "default_env_flag_state": "off",
+      "live_emit_allowed": false
+    }
+  ],
+  "env_flag_inventory": [
+    {
+      "name": "WAKIR_OTS_LIVE_EMIT",
+      "default": "0",
+      "semantics": "When unset or '0', verifier operates in audit-only mode and rejects every frame whose anchor-status is not in {pending, stub}. When '1', verifier enters live-emit mode and rejects every frame whose anchor-status is 'pending' or whose scheme is 'fixture://'. Switching to '1' requires AR-authorisation per §6.1 sketch and is out-of-scope for Tag-70.",
+      "ar_authorisation_required_to_set_to_1": true
+    },
+    {
+      "name": "WAKIR_OTS_CALENDAR_URL",
+      "default": "fixture://ots-calendar.invalid/audit-only/stub",
+      "semantics": "Audit-only default points at the invalid 'fixture://' scheme so any accidental resolver-call fails closed. Production URL is NOT enumerated in this stub.",
+      "ar_authorisation_required_to_change_to_live": true
+    }
+  ],
+  "ar_authorisation_request_template_pointers": {
+    "purpose_statement_anchor": "§6.1 first bullet",
+    "operational_scope_anchor": "§6.1 second bullet",
+    "rollback_path_anchor": "§6.1 third bullet (Tag-65 §6.2 step-3)",
+    "audit_trail_visibility_anchor": "§6.1 fourth bullet (Henrik Voss audit-sample)",
+    "sandbox_boundary_recital_anchor": "§6.1 fifth bullet"
+  },
+  "what_this_stub_is_not": [
+    "Not an AR-authorisation request.",
+    "Not a draft-ADR.",
+    "Not a promotion-PR opening.",
+    "Not a live-OTS-calendar configuration.",
+    "Not a recommendation to lift the RES-D4 indefinite-deferral default."
+  ],
+  "signature": "-- Reza"
+}
