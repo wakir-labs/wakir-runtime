@@ -38,14 +38,22 @@ Tag-57 run-order-doc §2):
   ``soft-cite`` (docstring-only cross-citation that does not change
   the topology).
 
-* **Stage C** - Verdict. Emit one of three verdicts:
+* **Stage C** - Verdict. Emit one of the following verdicts:
   - ``DAG-CONSISTENT``: declared = observed (modulo soft-cite
-    whitelist). Exit 0.
-  - ``DAG-DRIFT``: declared != observed. Specific drift-direction
-    enumerated in stderr. Exit 2.
+    whitelist) AND no allowlist entry was needed. Exit 0.
+  - ``DAG-DRIFT-ALLOWED``: residual extras (observed-but-not-
+    declared edges) are ALL covered by the Tag-61 drift-allowlist.
+    Each allowed extra carries an edge + reason + follow-up-
+    reference (e.g. an ADR/issue id). Exit 0. (Analogue of the
+    ADR-Errata CI-pin-skip-pattern.)
+  - ``DAG-DRIFT-BLOCKED``: residual extras or missing edges
+    remain after allowlist consultation. Exit 2.
+  - ``DAG-DRIFT``: legacy alias for ``DAG-DRIFT-BLOCKED`` for
+    backwards-compat with Tag-58 consumers that branch on the
+    short string. Same exit 2.
   - ``DAG-PARSE-ERROR``: a Layer-test-file failed to parse, the
-    DAG-spec failed to load, or the canonical Pyramide map is
-    missing. Exit 1.
+    DAG-spec failed to load, the canonical Pyramide map is
+    missing, or the allowlist file is malformed. Exit 1.
 
 The verifier also enforces the DAG-acyclicity invariant (per §4.3):
 the declared edges must form a DAG. If a cycle is detected, exit 2
@@ -85,6 +93,7 @@ Usage
     python tooling/ci/verify_layer_dependency_dag.py [--repo-root PATH]
                                                      [--json]
                                                      [--strict]
+                                                     [--allowlist-path PATH]
 
 * ``--repo-root PATH`` - root of the wakir-runtime checkout. Defaults
   to the current working directory.
@@ -96,6 +105,41 @@ Usage
   changes and are allowed to be unmatched. Set when the DAG-spec
   is intended to be the *complete* edge-set including soft-cites
   (e.g. for ADR-locked spec).
+* ``--allowlist-path PATH`` - Tag-61 drift-allowlist JSON file.
+  When the residual extras-set (after soft-cite filtering) is
+  fully covered by allowlist entries, the verdict downgrades from
+  ``DAG-DRIFT-BLOCKED`` (exit 2) to ``DAG-DRIFT-ALLOWED`` (exit 0).
+  Defaults to ``tooling/ci/layer-dag-drift-allowlist.json`` under
+  the repo-root. Missing file is OK (treated as empty allowlist).
+  Malformed file is a PARSE-ERROR.
+
+Allowlist file format (Tag-61)
+------------------------------
+
+JSON object with shape::
+
+    {
+      "_schema": {
+        "version": 1,
+        "description": "Tag-61 layer-DAG-verify drift allowlist...",
+        "owner": "Amara Osei (QA)"
+      },
+      "entries": [
+        {
+          "from_layer": 4,
+          "to_layer": 2,
+          "reason": "Why this cross-import is legitimate.",
+          "follow_up": "ADR-XXXX or issue-link tracking permanent
+                        spec update."
+        },
+        ...
+      ]
+    }
+
+Each entry covers ONE directed edge. ``follow_up`` is mandatory
+(no silent allowance): every drift-allowed edge MUST point at a
+tracked follow-up so the allowlist does not accumulate stale
+entries. Empty allowlist (initial Tag-61 state) is by design.
 """
 
 from __future__ import annotations
@@ -256,19 +300,45 @@ class LayerRef:
     raw: str  # the matched string-literal
 
 
+@dataclass(frozen=True)
+class AllowlistEntry:
+    """One Tag-61 drift-allowlist entry: a legitimate cross-layer
+    import that is observed in the substrate but not declared in
+    the DAG-spec, with a tracked follow-up reference."""
+
+    from_layer: int
+    to_layer: int
+    reason: str
+    follow_up: str
+
+
 @dataclass
 class VerifyResult:
     """Verdict envelope for one verifier run."""
 
-    verdict: str  # "DAG-CONSISTENT" | "DAG-DRIFT" | "DAG-CYCLE" | "DAG-PARSE-ERROR"
+    # Verdict values:
+    #   "DAG-CONSISTENT" - declared == observed, no allowlist needed
+    #   "DAG-DRIFT-ALLOWED" - residual extras all allowlist-covered (Tag-61)
+    #   "DAG-DRIFT-BLOCKED" - residual extras or missing remain (Tag-61)
+    #   "DAG-DRIFT" - legacy alias for BLOCKED (Tag-58 back-compat)
+    #   "DAG-CYCLE" - static-subset cycle
+    #   "DAG-PARSE-ERROR" - missing file, syntax error, or malformed allowlist
+    verdict: str
     exit_code: int
     declared_edges: List[Tuple[int, int]]
     observed_edges: List[Tuple[int, int]]
     missing_edges: List[Tuple[int, int]]  # declared but not observed
-    extra_edges: List[Tuple[int, int]]  # observed but not declared
+    extra_edges: List[Tuple[int, int]]  # observed but not declared (residual)
     cycle: List[int] = field(default_factory=list)
     parse_errors: List[str] = field(default_factory=list)
     soft_cites_skipped: List[Tuple[int, int]] = field(default_factory=list)
+    # Tag-61: extras that were observed-but-not-declared but were
+    # covered by an allowlist entry (and therefore not blocking).
+    allowlisted_extras: List[Tuple[int, int]] = field(default_factory=list)
+    # Tag-61: entries from the allowlist that did not match any
+    # observed extra (stale entries). NOT blocking by themselves
+    # but surfaced as notes for operator-hygiene.
+    stale_allowlist_entries: List[Tuple[int, int]] = field(default_factory=list)
     notes: List[str] = field(default_factory=list)
 
     def to_json(self) -> str:
@@ -283,6 +353,8 @@ class VerifyResult:
                 "cycle": list(self.cycle),
                 "parse_errors": list(self.parse_errors),
                 "soft_cites_skipped": sorted(self.soft_cites_skipped),
+                "allowlisted_extras": sorted(self.allowlisted_extras),
+                "stale_allowlist_entries": sorted(self.stale_allowlist_entries),
                 "notes": list(self.notes),
             },
             indent=2,
@@ -460,6 +532,114 @@ def _dynamic_cross_check_edge_set() -> Set[Tuple[int, int]]:
 
 
 # ---------------------------------------------------------------
+# Allowlist loader (Tag-61)
+# ---------------------------------------------------------------
+
+
+DEFAULT_ALLOWLIST_RELPATH: str = "tooling/ci/layer-dag-drift-allowlist.json"
+
+
+def load_allowlist(
+    allowlist_path: Path,
+) -> Tuple[List[AllowlistEntry], List[str]]:
+    """Load and validate the Tag-61 drift-allowlist file.
+
+    Returns ``(entries, errors)``. If ``errors`` is non-empty the
+    file was malformed and the caller should emit PARSE-ERROR.
+    If the file does not exist, returns ``([], [])`` (empty
+    allowlist is the documented default).
+
+    Validation rules:
+    * Top-level must be a JSON object with an ``entries`` array.
+    * Each entry must have integer ``from_layer`` in 1..6,
+      integer ``to_layer`` in 1..6, ``from != to``, non-empty
+      string ``reason``, non-empty string ``follow_up``.
+    * Duplicate (from, to) entries are an error (one reason +
+      one follow-up per edge).
+    """
+    errors: List[str] = []
+    if not allowlist_path.is_file():
+        return ([], errors)
+    try:
+        text = allowlist_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return ([], [f"allowlist read failure: {exc}"])
+    try:
+        doc = json.loads(text)
+    except json.JSONDecodeError as exc:
+        return ([], [f"allowlist JSON parse failure: {exc}"])
+    if not isinstance(doc, dict):
+        return ([], ["allowlist top-level is not a JSON object"])
+    raw_entries = doc.get("entries", [])
+    if not isinstance(raw_entries, list):
+        return ([], ["allowlist 'entries' is not a list"])
+    out: List[AllowlistEntry] = []
+    seen: Set[Tuple[int, int]] = set()
+    valid_layers = set(LAYER_FILES.keys())
+    for idx, raw in enumerate(raw_entries):
+        if not isinstance(raw, dict):
+            errors.append(f"allowlist entry {idx}: not an object")
+            continue
+        fl = raw.get("from_layer")
+        tl = raw.get("to_layer")
+        reason = raw.get("reason")
+        follow_up = raw.get("follow_up")
+        if not isinstance(fl, int) or fl not in valid_layers:
+            errors.append(
+                f"allowlist entry {idx}: from_layer must be int in "
+                f"{sorted(valid_layers)}, got {fl!r}"
+            )
+            continue
+        if not isinstance(tl, int) or tl not in valid_layers:
+            errors.append(
+                f"allowlist entry {idx}: to_layer must be int in "
+                f"{sorted(valid_layers)}, got {tl!r}"
+            )
+            continue
+        if fl == tl:
+            errors.append(
+                f"allowlist entry {idx}: self-edge L{fl}->L{tl} "
+                "is not a valid drift edge"
+            )
+            continue
+        if not isinstance(reason, str) or not reason.strip():
+            errors.append(
+                f"allowlist entry {idx}: 'reason' must be a "
+                "non-empty string"
+            )
+            continue
+        if not isinstance(follow_up, str) or not follow_up.strip():
+            errors.append(
+                f"allowlist entry {idx}: 'follow_up' must be a "
+                "non-empty string (ADR-id / issue-link required)"
+            )
+            continue
+        key = (fl, tl)
+        if key in seen:
+            errors.append(
+                f"allowlist entry {idx}: duplicate edge "
+                f"L{fl}->L{tl}; only one entry per edge"
+            )
+            continue
+        seen.add(key)
+        out.append(
+            AllowlistEntry(
+                from_layer=fl,
+                to_layer=tl,
+                reason=reason.strip(),
+                follow_up=follow_up.strip(),
+            )
+        )
+    return (out, errors)
+
+
+def _allowlist_edges(
+    entries: Sequence[AllowlistEntry],
+) -> Set[Tuple[int, int]]:
+    return {(e.from_layer, e.to_layer) for e in entries}
+
+
+# ---------------------------------------------------------------
 # Main verifier
 # ---------------------------------------------------------------
 
@@ -468,6 +648,7 @@ def verify(
     repo_root: Path,
     *,
     strict: bool = False,
+    allowlist_path: Path | None = None,
 ) -> VerifyResult:
     """Run the DAG-verifier over the repo at ``repo_root``.
 
@@ -475,12 +656,37 @@ def verify(
     1. Verify the six canonical Layer-files exist on disk.
     2. Verify the declared DAG is acyclic (sanity-check the spec).
     3. AST-walk each Layer-file, collect observed-edges.
-    4. Cross-match observed vs declared. Emit verdict.
+    4. Cross-match observed vs declared. Apply allowlist (Tag-61).
+       Emit verdict.
+
+    Tag-61: ``allowlist_path`` defaults to
+    ``{repo_root}/tooling/ci/layer-dag-drift-allowlist.json``.
+    Missing file = empty allowlist (no allowed extras). Malformed
+    file = DAG-PARSE-ERROR.
     """
     declared_all = _declared_edge_set()
     declared = _source_cited_edge_set()
     declared_list = sorted(declared_all)
     parse_errors: List[str] = []
+
+    # Tag-61: load allowlist before file-existence checks so that a
+    # malformed allowlist surfaces as PARSE-ERROR even if the layer-
+    # files are also missing (both are spec-integrity failures).
+    if allowlist_path is None:
+        allowlist_path = repo_root / DEFAULT_ALLOWLIST_RELPATH
+    allowlist_entries, allowlist_errors = load_allowlist(allowlist_path)
+    if allowlist_errors:
+        return VerifyResult(
+            verdict="DAG-PARSE-ERROR",
+            exit_code=1,
+            declared_edges=declared_list,
+            observed_edges=[],
+            missing_edges=[],
+            extra_edges=[],
+            parse_errors=[f"allowlist {allowlist_path}: {e}"
+                          for e in allowlist_errors],
+        )
+    allowlist_edges = _allowlist_edges(allowlist_entries)
 
     # Step 1: existence of all six canonical files
     paths: Dict[int, Path] = {}
@@ -573,7 +779,28 @@ def verify(
                 kept.append(e)
         extras = kept
 
-    if not missing and not extras:
+    # Tag-61: apply allowlist to residual extras. Allowlisted extras
+    # are moved out of the blocking set; missing-edges are NEVER
+    # allowlistable (the DAG-spec must accurately reflect what is
+    # required, and missing means the declared invariant is not in
+    # the substrate — that is a SPEC bug, not a drift to be excused).
+    allowlisted_extras: List[Tuple[int, int]] = []
+    residual_extras: List[Tuple[int, int]] = []
+    for e in extras:
+        if e in allowlist_edges:
+            allowlisted_extras.append(e)
+        else:
+            residual_extras.append(e)
+
+    # Stale-allowlist-detection: allowlist entries whose edge is
+    # not actually observed any more (e.g. because the cross-import
+    # was refactored away). Emitted as a note, not blocking.
+    observed_set: Set[Tuple[int, int]] = set(observed)
+    stale_allowlist = sorted(
+        e for e in allowlist_edges if e not in observed_set
+    )
+
+    if not missing and not residual_extras and not allowlisted_extras:
         return VerifyResult(
             verdict="DAG-CONSISTENT",
             exit_code=0,
@@ -582,6 +809,8 @@ def verify(
             missing_edges=[],
             extra_edges=[],
             soft_cites_skipped=sorted(soft_cites),
+            allowlisted_extras=[],
+            stale_allowlist_entries=stale_allowlist,
             notes=[
                 f"6 layers, {len(declared_all)} declared edges total "
                 f"({len(declared)} source-cited, "
@@ -591,26 +820,55 @@ def verify(
             ],
         )
 
-    notes = []
+    notes: List[str] = []
     if missing:
         notes.append(
             f"{len(missing)} declared source-cited edge(s) NOT observed "
             f"in substrate: {missing}"
         )
-    if extras:
+    if allowlisted_extras:
         notes.append(
-            f"{len(extras)} observed edge(s) NOT declared in spec: "
-            f"{extras}"
+            f"{len(allowlisted_extras)} observed extra(s) covered by "
+            f"Tag-61 drift-allowlist: {sorted(allowlisted_extras)}"
+        )
+    if residual_extras:
+        notes.append(
+            f"{len(residual_extras)} observed edge(s) NOT declared in "
+            f"spec AND NOT allowlisted: {residual_extras}"
+        )
+    if stale_allowlist:
+        notes.append(
+            f"{len(stale_allowlist)} stale allowlist entry/entries "
+            f"(edge not observed in substrate): {stale_allowlist}"
         )
 
+    # Tag-61 verdict decision:
+    # * missing edges OR residual non-allowlisted extras   -> BLOCKED
+    # * only allowlisted extras (no missing, no residual)  -> ALLOWED
+    if missing or residual_extras:
+        return VerifyResult(
+            verdict="DAG-DRIFT-BLOCKED",
+            exit_code=2,
+            declared_edges=declared_list,
+            observed_edges=observed_list,
+            missing_edges=missing,
+            extra_edges=residual_extras,
+            soft_cites_skipped=sorted(soft_cites),
+            allowlisted_extras=sorted(allowlisted_extras),
+            stale_allowlist_entries=stale_allowlist,
+            notes=notes,
+        )
+    # allowlisted_extras non-empty, missing/residual empty
     return VerifyResult(
-        verdict="DAG-DRIFT",
-        exit_code=2,
+        verdict="DAG-DRIFT-ALLOWED",
+        exit_code=0,
         declared_edges=declared_list,
         observed_edges=observed_list,
-        missing_edges=missing,
-        extra_edges=extras,
+        missing_edges=[],
+        extra_edges=[],
         soft_cites_skipped=sorted(soft_cites),
+        allowlisted_extras=sorted(allowlisted_extras),
+        stale_allowlist_entries=stale_allowlist,
         notes=notes,
     )
 
@@ -646,6 +904,16 @@ def _build_argparser() -> argparse.ArgumentParser:
         action="store_true",
         help="Treat soft-cite extras as DAG-DRIFT (no whitelist).",
     )
+    p.add_argument(
+        "--allowlist-path",
+        type=Path,
+        default=None,
+        help=(
+            "Tag-61 drift-allowlist JSON path. Defaults to "
+            "{repo-root}/tooling/ci/layer-dag-drift-allowlist.json. "
+            "Missing file = empty allowlist."
+        ),
+    )
     return p
 
 
@@ -659,7 +927,14 @@ def main(argv: Sequence[str]) -> int:
             file=sys.stderr,
         )
         return 1
-    result = verify(repo_root, strict=args.strict)
+    allowlist_path = args.allowlist_path
+    if allowlist_path is not None:
+        allowlist_path = allowlist_path.resolve()
+    result = verify(
+        repo_root,
+        strict=args.strict,
+        allowlist_path=allowlist_path,
+    )
     if args.json:
         print(result.to_json())
     # Always emit a one-line summary on stderr for workflow logs.
