@@ -465,6 +465,29 @@ ALERT_CATALOG: dict[str, dict[str, str]] = {
             "welle-5-capability-token-rotation-lag"
         ),
     },
+    # Tag-74 Welle-6 Cross-Substrate-Parity-Alert-Routing-
+    # Erweiterung (Noa SRE). Two alerts close the Welle-6
+    # subscribe-loop positive-confirmation + consumer-lag
+    # routing gap. Both carry the
+    # `welle-6-subscribe-loop-info` routing class; bridge routes
+    # via ROUTING_CLASS_CHANNELS to ntfy:ar-hand-info +
+    # activity-log:append. No on-call page from this block.
+    "WakirPhase3Welle6SubscribeLoopHealthy": {
+        "failure_mode_id": "Tag-74-Welle6-SubscribeLoop-Healthy",
+        "severity": "info",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/"
+            "welle-6-subscribe-loop-healthy"
+        ),
+    },
+    "WakirPhase3Welle6JetStreamConsumerLag": {
+        "failure_mode_id": "Tag-74-Welle6-SubscribeLoop-ConsumerLag",
+        "severity": "warning",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/"
+            "welle-6-jetstream-consumer-lag"
+        ),
+    },
 }
 
 # Tag-40 baseline alerts that pre-date the Pre-Mortem-extension.
@@ -592,6 +615,14 @@ ROUTING_CLASS_WELLE_4_STATE_BACKING_INFO = "welle-4-state-backing-info"
 # AlertManager route-tree and audit-trail attribute the events
 # specifically to the Welle-5 capability-token rotation extension.
 ROUTING_CLASS_WELLE_5_CAPABILITY_TOKEN_INFO = "welle-5-capability-token-info"
+# Tag-74 Welle-6 Cross-Substrate-Parity-Subscribe-Loop routing
+# class. Same channel-set as the standard / Welle-3 Pre-Auditor /
+# Welle-4 State-Backing / Welle-5 Capability-Token info classes
+# (ntfy:ar-hand-info + activity-log:append) but distinct routing-
+# class string so the AlertManager route-tree and audit-trail
+# attribute the events specifically to the Welle-6 subscribe-loop
+# cross-substrate-parity routing extension.
+ROUTING_CLASS_WELLE_6_SUBSCRIBE_LOOP_INFO = "welle-6-subscribe-loop-info"
 
 VALID_ROUTING_CLASSES: frozenset[str] = frozenset(
     {
@@ -601,6 +632,7 @@ VALID_ROUTING_CLASSES: frozenset[str] = frozenset(
         ROUTING_CLASS_WELLE_3_PRE_AUDITOR_INFO,
         ROUTING_CLASS_WELLE_4_STATE_BACKING_INFO,
         ROUTING_CLASS_WELLE_5_CAPABILITY_TOKEN_INFO,
+        ROUTING_CLASS_WELLE_6_SUBSCRIBE_LOOP_INFO,
     }
 )
 
@@ -632,6 +664,10 @@ ROUTING_CLASS_CHANNELS: dict[str, tuple[str, ...]] = {
         "ntfy:ar-hand-info",
         "activity-log:append",
     ),
+    ROUTING_CLASS_WELLE_6_SUBSCRIBE_LOOP_INFO: (
+        "ntfy:ar-hand-info",
+        "activity-log:append",
+    ),
 }
 
 ROUTING_CLASS_ESCALATION_SECONDS: dict[str, int] = {
@@ -641,6 +677,7 @@ ROUTING_CLASS_ESCALATION_SECONDS: dict[str, int] = {
     ROUTING_CLASS_WELLE_3_PRE_AUDITOR_INFO: 0,
     ROUTING_CLASS_WELLE_4_STATE_BACKING_INFO: 0,
     ROUTING_CLASS_WELLE_5_CAPABILITY_TOKEN_INFO: 0,
+    ROUTING_CLASS_WELLE_6_SUBSCRIBE_LOOP_INFO: 0,
 }
 
 # Set of alertnames that REQUIRE a routing_class label (Tag-64
