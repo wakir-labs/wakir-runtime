@@ -1,0 +1,341 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tag-66 Watch-Day Operator-Trigger Audit-Trail Verify / Noa-SRE
+# ---------------------------------------------------------------------------
+#
+# Pre-KW-24 hermetic CI gate that pins, for every individual Watch-Day
+# operator-trigger event, the canonical audit-trail-marker contract:
+#
+#     event ("workflow_dispatch") | workflow | ref | inputs
+#         | actor | dispatched_at | audit_marker_tag | trigger_sequence_id
+#
+# Sibling concern: Tomás' Tag-66 AR-Override-Audit-Trail verifier pins
+# the analogous property for AR-hand override-flag events. This
+# workflow pins the operator-trigger side.
+#
+# Co-substrates pinned by sibling gates:
+#
+#   * Tag-62 (PR #397)  Watch-Day Operator-Trigger Pipeline
+#                       (workflow: watch-day-operator-trigger-simulation)
+#   * Tag-63 (PR #402)  Operator-Trigger + Alert-Routing Integration
+#                       (workflow: operator-trigger-alert-routing-integration)
+#
+# Both pin *what* the operator emits and *which* routing-table receives
+# the event. Tag-66 pins the **per-event audit-trail conformance**.
+#
+# Four-stage hermetic verdict
+# ---------------------------
+#
+#   Stage 1  Trigger-Event-Schema-Audit
+#       For every envelope produced by the Tag-62 simulator (default
+#       single canonical envelope; optionally a fixture file with
+#       multiple historical envelopes), classify per audit-marker
+#       key-set conformance. Green: all keys present + shape correct.
+#       Yellow: base shape OK, audit-only overlay missing. Red:
+#       base shape malformed.
+#
+#   Stage 2  Marker-Tag-Catalog-Conformance
+#       Classify each `audit_marker_tag` against the canonical
+#       AUDIT_MARKER_CATALOG. Green: source recognised + expected
+#       event matches. Yellow: source recognised but expected event
+#       differs (e.g. cron-source in a dispatch event). Red: source
+#       unknown or tag pattern malformed.
+#
+#   Stage 3  Cross-Substrate-Marker-Reference
+#       Verify each marker class is referenced by >=1 of the
+#       downstream substrates (the Tag-66 marker-catalog markdown
+#       itself + the pre-mortem notify-catalog + backend alert rules
+#       + alert-rule-to-mira-notify bridge). Orphan-marker = yellow
+#       (1) or red (>=2).
+#
+#   Stage 4  Aggregate Verdict
+#       AUDIT-TRAIL-INTACT  -- all three stages green
+#       AUDIT-TRAIL-DRIFT   -- exactly one stage yellow, rest green
+#       AUDIT-TRAIL-DEFECT  -- any stage red, or 2+ stages yellow
+#
+# Trigger surface
+# ---------------
+#
+#   * workflow_dispatch: -- operator-hand manual run.
+#   * pull_request: (path-filtered) -- any PR touching the Tag-66
+#     substrate or the upstream Tag-62/Tag-63 substrates it depends on,
+#     or the canonical downstream substrate files.
+#
+# No push: trigger and no schedule: trigger. Tag-66 is review-time +
+# on-demand. The Tag-56/Tag-57/Tag-59 workflows remain the calendar-
+# pinned twins.
+#
+# Sandbox boundary
+# ----------------
+#
+# Hermetic: stdlib + python 3.11. No podman, no NATS, no AlertManager,
+# no Mira-Notify emit, no live VM, no Anthropic API, no GitHub-API call.
+# Reads the Tag-62 helper + four downstream substrate files as on-disk
+# text/JSON; emits stage envelopes + a final verdict envelope to
+# artifacts.
+#
+# Required status check (follow-up)
+# ---------------------------------
+#
+# Per `feedback_branch_protection_check_names.md` the required status
+# check, once promoted to a branch-protection gate, is:
+#   Stage 4 Aggregate Verdict (AUDIT-TRAIL-INTACT/DRIFT/DEFECT) /
+#   watch-day-operator-trigger-audit-trail-verify
+# Initial landing does NOT add the gate; promotion is a follow-up
+# after one green run on main.
+#
+# Author: Noa Bergstroem (SRE)
+# Anchor: Tag-66 Marathon-Continuous-Mode Pre-KW-24 Watch-Day
+#         Operator-Trigger Audit-Trail Verifier.
+
+name: watch-day-operator-trigger-audit-trail-verify
+
+on:
+  workflow_dispatch: {}
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/watch-day-operator-trigger-audit-trail-verify.yml"
+      - "tooling/ci/verify_watch_day_operator_trigger_audit_trail.py"
+      - "tooling/ci/simulate_watch_day_operator_trigger.py"
+      - "docs/observability/watch-day-operator-trigger-audit-trail-marker-catalog.md"
+      - "docs/observability/pre-mortem-failure-mode-notify-catalog.md"
+      - "dashboards/phase-3-marathon-alerts.yaml"
+      - "scripts/observability/alert-rule-to-mira-notify-bridge.py"
+      - "tests/observability/test_watch_day_audit_trail_tag66.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: watch-day-operator-trigger-audit-trail-verify-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  stage-1-trigger-event-schema-audit:
+    name: Stage 1 Trigger-Event-Schema-Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      stage_1_status: ${{ steps.probe.outputs.stage_1_status }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Stage 1 - trigger-event-schema-audit
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p out
+          set +e
+          python3 tooling/ci/verify_watch_day_operator_trigger_audit_trail.py \
+            stage-1 \
+            --scratch-dir out \
+            --output out/stage-1.json
+          rc=$?
+          set -e
+          if [[ $rc -eq 0 ]]; then
+            echo "stage_1_status=green" >> "$GITHUB_OUTPUT"
+          elif [[ $rc -eq 2 ]]; then
+            echo "stage_1_status=yellow" >> "$GITHUB_OUTPUT"
+            echo "::warning::Stage 1 DRIFT: trigger-event-schema-audit yellow"
+          else
+            echo "stage_1_status=red" >> "$GITHUB_OUTPUT"
+            echo "::warning::Stage 1 DEFECT: trigger-event-schema-audit red"
+          fi
+      - name: Upload Stage 1 artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tag66-stage-1
+          path: |
+            out/stage-1.json
+            out/tag62-trigger-envelope.json
+          if-no-files-found: warn
+
+  stage-2-marker-tag-catalog-conformance:
+    name: Stage 2 Marker-Tag-Catalog-Conformance
+    runs-on: ubuntu-latest
+    needs:
+      - stage-1-trigger-event-schema-audit
+    if: always()
+    timeout-minutes: 5
+    outputs:
+      stage_2_status: ${{ steps.probe.outputs.stage_2_status }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Download Stage 1 envelope
+        uses: actions/download-artifact@v4
+        with:
+          name: tag66-stage-1
+          path: out
+        continue-on-error: true
+      - name: Stage 2 - marker-tag-catalog-conformance
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p out
+          if [[ ! -f out/stage-1.json ]]; then
+            # No stage-1 envelope (stage-1 may have failed pre-output).
+            # Re-run stage-1 fresh to ensure stage-2 has input.
+            python3 tooling/ci/verify_watch_day_operator_trigger_audit_trail.py \
+              stage-1 \
+              --scratch-dir out \
+              --output out/stage-1.json || true
+          fi
+          set +e
+          python3 tooling/ci/verify_watch_day_operator_trigger_audit_trail.py \
+            stage-2 \
+            --stage-1-envelope out/stage-1.json \
+            --output out/stage-2.json
+          rc=$?
+          set -e
+          if [[ $rc -eq 0 ]]; then
+            echo "stage_2_status=green" >> "$GITHUB_OUTPUT"
+          elif [[ $rc -eq 2 ]]; then
+            echo "stage_2_status=yellow" >> "$GITHUB_OUTPUT"
+            echo "::warning::Stage 2 DRIFT: marker-tag-catalog-conformance yellow"
+          else
+            echo "stage_2_status=red" >> "$GITHUB_OUTPUT"
+            echo "::warning::Stage 2 DEFECT: marker-tag-catalog-conformance red"
+          fi
+      - name: Upload Stage 2 artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tag66-stage-2
+          path: out/stage-2.json
+          if-no-files-found: warn
+
+  stage-3-cross-substrate-marker-reference:
+    name: Stage 3 Cross-Substrate-Marker-Reference
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      stage_3_status: ${{ steps.probe.outputs.stage_3_status }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Stage 3 - cross-substrate-marker-reference
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p out
+          set +e
+          python3 tooling/ci/verify_watch_day_operator_trigger_audit_trail.py \
+            stage-3 \
+            --output out/stage-3.json
+          rc=$?
+          set -e
+          if [[ $rc -eq 0 ]]; then
+            echo "stage_3_status=green" >> "$GITHUB_OUTPUT"
+          elif [[ $rc -eq 2 ]]; then
+            echo "stage_3_status=yellow" >> "$GITHUB_OUTPUT"
+            echo "::warning::Stage 3 DRIFT: cross-substrate-marker-reference yellow"
+          else
+            echo "stage_3_status=red" >> "$GITHUB_OUTPUT"
+            echo "::warning::Stage 3 DEFECT: cross-substrate-marker-reference red"
+          fi
+      - name: Upload Stage 3 artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tag66-stage-3
+          path: out/stage-3.json
+          if-no-files-found: warn
+
+  stage-4-aggregate-verdict:
+    name: Stage 4 Aggregate Verdict (AUDIT-TRAIL-INTACT/DRIFT/DEFECT)
+    runs-on: ubuntu-latest
+    needs:
+      - stage-1-trigger-event-schema-audit
+      - stage-2-marker-tag-catalog-conformance
+      - stage-3-cross-substrate-marker-reference
+    if: always()
+    outputs:
+      verdict: ${{ steps.aggregate.outputs.verdict }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Aggregate Stages 1..3 into audit-trail verdict
+        id: aggregate
+        shell: bash
+        env:
+          STAGE_1_STATUS: ${{ needs.stage-1-trigger-event-schema-audit.outputs.stage_1_status }}
+          STAGE_2_STATUS: ${{ needs.stage-2-marker-tag-catalog-conformance.outputs.stage_2_status }}
+          STAGE_3_STATUS: ${{ needs.stage-3-cross-substrate-marker-reference.outputs.stage_3_status }}
+        run: |
+          set -uo pipefail
+          mkdir -p out
+          s1="${STAGE_1_STATUS:-red}"
+          s2="${STAGE_2_STATUS:-red}"
+          s3="${STAGE_3_STATUS:-red}"
+          set +e
+          python3 tooling/ci/verify_watch_day_operator_trigger_audit_trail.py \
+            aggregate \
+            --stage-1 "$s1" \
+            --stage-2 "$s2" \
+            --stage-3 "$s3" \
+            --output out/watch-day-operator-trigger-audit-trail-verdict.json
+          rc=$?
+          set -e
+          verdict=$(python3 -c "import json,sys; print(json.load(open('out/watch-day-operator-trigger-audit-trail-verdict.json'))['verdict'])")
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Tag-66 Watch-Day Operator-Trigger Audit-Trail Verdict: \`$verdict\`"
+            echo ""
+            echo "| Stage | Status |"
+            echo "|------|--------|"
+            echo "| Stage 1 Trigger-Event-Schema-Audit | \`$s1\` |"
+            echo "| Stage 2 Marker-Tag-Catalog-Conformance | \`$s2\` |"
+            echo "| Stage 3 Cross-Substrate-Marker-Reference | \`$s3\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          case "$verdict" in
+            AUDIT-TRAIL-INTACT)
+              echo "Tag-66 watch-day operator-trigger audit-trail: PASS"
+              exit 0
+              ;;
+            AUDIT-TRAIL-DRIFT)
+              echo "::warning::Tag-66 watch-day operator-trigger audit-trail: DRIFT"
+              exit 0
+              ;;
+            AUDIT-TRAIL-DEFECT)
+              echo "::error::Tag-66 watch-day operator-trigger audit-trail: DEFECT"
+              exit 1
+              ;;
+            *)
+              echo "::error::Tag-66 watch-day operator-trigger audit-trail: unknown verdict $verdict"
+              exit 1
+              ;;
+          esac
+      - name: Upload final verdict artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tag66-watch-day-operator-trigger-audit-trail-verdict
+          path: out/watch-day-operator-trigger-audit-trail-verdict.json
+          if-no-files-found: warn
