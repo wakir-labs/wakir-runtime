@@ -1,0 +1,281 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Cutover-Day-Morgen Auto-Scheduler (Selin Tag-64)
+# ------------------------------------------------
+#
+# Mo-Fr 06:00 UTC scheduler for KW-24..27 that reads the three
+# top-level pre-cutover-acceptance verdicts the Phase-3c marathon
+# converged on by Tag-63 and emits a single Cutover-Day-Morgen
+# aggregate verdict for operator-hand / AR-Hand morning-read.
+#
+# Three top-level verdicts read
+# -----------------------------
+#
+#   V1 engine_composite   - Selin Tag-61/63 Persona-Engine
+#                           Pre-Cutover-Final-Acceptance-Composite
+#                           (workflow:
+#                           persona-engine-pre-cutover-final-
+#                           acceptance-composite.yml)
+#   V2 pyramide_composite - Amara Tag-62 Pyramide-Acceptance
+#                           Pre-Cutover Compositum
+#                           (workflow:
+#                           pyramide-acceptance-pre-cutover-
+#                           compositum.yml)
+#   V3 e2e_smoke          - Amara Tag-63 Pre-Cutover-Final-
+#                           Acceptance E2E-Smoke
+#                           (workflow:
+#                           pre-cutover-final-acceptance-e2e-
+#                           smoke.yml)
+#
+# Aggregate verdict
+# -----------------
+#
+#   CUTOVER-DAY-MORGEN-READY   - all three top-level verdicts
+#                                green
+#   CUTOVER-DAY-MORGEN-CAUTION - at least one yellow, zero red
+#   CUTOVER-DAY-MORGEN-BLOCK   - at least one red, OR any
+#                                envelope missing
+#
+# Window gating
+# -------------
+#
+# Cron fires Mo-Fr 06:00 UTC unconditionally; the in-window
+# decision is made by the "Resolve ISO week" step. For ISO weeks
+# outside KW-24..27 the scheduler emits a dry-run envelope but
+# does NOT fail and does NOT trigger any fan-out -- the marathon-
+# dashboard surfaces the dry-run envelope so operator-hand sees
+# the scheduler is alive even on non-cutover days.
+#
+# Per ``feedback_continuous_mode_keine_push_frage.md`` the
+# scheduler is read-only (no gh workflow run fan-out at this
+# stage). Tag-64 is the read-aggregator substrate; subsequent
+# Tag-65+ work can wire the read into a notify-cascade.
+#
+# Per ``feedback_branch_protection_check_names.md`` this workflow
+# is NOT a required status check on PRs - it gates a calendar-
+# week (KW-24..27 cutover-marathon), not individual PRs. The
+# structural-shape tests in
+# ``wirelang/tests/persona_engine/test_cutover_day_morgen_scheduler_tag64.py``
+# are the gating unit on PRs that touch this scheduler.
+#
+# Sandbox boundary
+# ----------------
+#
+# Hermetic in unit-test mode (stdlib only). The artifact-fetch
+# steps use ``gh CLI`` against the same repository. Best-effort
+# fetch: a missing artifact maps to a missing envelope, which
+# the aggregator interprets as red on the affected substrate.
+# Per ``feedback_sandbox_host_trennung.md`` this workflow does
+# NOT touch operator-hand live-VM substrate.
+
+name: cutover-day-morgen-auto-scheduler
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_iso_week:
+        description: "Override ISO week (1..53) for dress-rehearsal/replay"
+        required: false
+        default: ""
+  schedule:
+    # Mo-Fr 06:00 UTC. Designed to fire ~1 h before operator-hand /
+    # AR-Hand morning standup on cutover-week days; outside
+    # KW-24..27 the workflow emits a dry-run envelope only.
+    - cron: "0 6 * * 1-5"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/cutover-day-morgen-auto-scheduler.yml"
+      - "tooling/ci/aggregate_cutover_day_morgen_verdict.py"
+      - "wirelang/tests/persona_engine/test_cutover_day_morgen_scheduler_tag64.py"
+
+permissions:
+  contents: read
+  actions: read   # gh run download requires actions:read
+
+concurrency:
+  group: cutover-day-morgen-auto-scheduler
+  cancel-in-progress: false
+
+jobs:
+  aggregate-cutover-day-morgen-verdict:
+    name: Aggregate Cutover-Day-Morgen verdict (3-verdict read)
+    runs-on: ubuntu-latest
+    outputs:
+      verdict: ${{ steps.aggregate.outputs.verdict }}
+      iso_week: ${{ steps.week.outputs.iso_week }}
+      in_window: ${{ steps.week.outputs.in_window }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Stage 0 -- Resolve ISO calendar week (UTC) + decide whether
+      # we are in the KW-24..27 cutover-marathon window. The
+      # aggregator does not gate on this, but the workflow surfaces
+      # it on the output envelope for marathon-dashboard correlation.
+      - name: Resolve ISO calendar week (UTC)
+        id: week
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${FORCE_WEEK:-}" ]]; then
+            wk="${FORCE_WEEK}"
+            echo "Forced ISO week: ${wk}"
+          else
+            wk=$(python3 -c "import datetime,sys; sys.stdout.write(str(datetime.datetime.utcnow().isocalendar()[1]))")
+            echo "Resolved ISO week (UTC): ${wk}"
+          fi
+          echo "iso_week=${wk}" >> "$GITHUB_OUTPUT"
+          if [[ "${wk}" == "24" || "${wk}" == "25" || "${wk}" == "26" || "${wk}" == "27" ]]; then
+            echo "in_window=true" >> "$GITHUB_OUTPUT"
+            echo "ISO week ${wk} is inside KW-24..27 cutover window"
+          else
+            echo "in_window=false" >> "$GITHUB_OUTPUT"
+            echo "ISO week ${wk} is outside KW-24..27 cutover window (dry-run mode)"
+          fi
+        env:
+          FORCE_WEEK: ${{ inputs.force_iso_week }}
+
+      # Stage 1 -- Fetch latest Engine-G5 verdict envelope.
+      - name: Stage 1 -- Fetch Engine-Composite verdict (Selin Tag-61/63)
+        id: fetch-engine
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts
+          if ! command -v gh >/dev/null 2>&1; then
+            echo "gh CLI not present - engine envelope will be 'missing'"
+            exit 0
+          fi
+          run_id=$(gh run list \
+            --workflow=persona-engine-pre-cutover-final-acceptance-composite.yml \
+            --status=success \
+            --limit=1 \
+            --json databaseId \
+            --jq '.[0].databaseId' 2>/dev/null || true)
+          if [[ -z "$run_id" || "$run_id" == "null" ]]; then
+            echo "no successful engine-composite run found; envelope missing"
+            exit 0
+          fi
+          gh run download "$run_id" \
+            -n persona-engine-pre-cutover-final-composite-verdict \
+            -D artifacts/engine 2>/dev/null || true
+          if [[ -f artifacts/engine/persona-engine-pre-cutover-final-composite-verdict.json ]]; then
+            echo "fetched engine envelope from run $run_id"
+          else
+            echo "engine artifact download returned no envelope file"
+          fi
+
+      # Stage 2 -- Fetch latest Pyramide-G5 verdict envelope.
+      - name: Stage 2 -- Fetch Pyramide-Composite verdict (Amara Tag-62)
+        id: fetch-pyramide
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts/pyramide
+          if ! command -v gh >/dev/null 2>&1; then
+            echo "gh CLI not present - pyramide envelope will be 'missing'"
+            exit 0
+          fi
+          run_id=$(gh run list \
+            --workflow=pyramide-acceptance-pre-cutover-compositum.yml \
+            --status=success \
+            --limit=1 \
+            --json databaseId \
+            --jq '.[0].databaseId' 2>/dev/null || true)
+          if [[ -z "$run_id" || "$run_id" == "null" ]]; then
+            echo "no successful pyramide-composite run found; envelope missing"
+            exit 0
+          fi
+          gh run download "$run_id" \
+            -n pyramide-acceptance-pre-cutover-compositum-verdict \
+            -D artifacts/pyramide 2>/dev/null || true
+          if [[ -f artifacts/pyramide/pyramide-acceptance-pre-cutover-compositum-verdict.json ]]; then
+            echo "fetched pyramide envelope from run $run_id"
+          else
+            echo "pyramide artifact download returned no envelope file"
+          fi
+
+      # Stage 3 -- Fetch latest E2E-Smoke verdict envelope.
+      - name: Stage 3 -- Fetch E2E-Smoke verdict (Amara Tag-63)
+        id: fetch-e2e
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts/e2e
+          if ! command -v gh >/dev/null 2>&1; then
+            echo "gh CLI not present - e2e envelope will be 'missing'"
+            exit 0
+          fi
+          run_id=$(gh run list \
+            --workflow=pre-cutover-final-acceptance-e2e-smoke.yml \
+            --status=success \
+            --limit=1 \
+            --json databaseId \
+            --jq '.[0].databaseId' 2>/dev/null || true)
+          if [[ -z "$run_id" || "$run_id" == "null" ]]; then
+            echo "no successful e2e-smoke run found; envelope missing"
+            exit 0
+          fi
+          gh run download "$run_id" \
+            -n pre-cutover-final-acceptance-e2e-smoke-verdict \
+            -D artifacts/e2e 2>/dev/null || true
+          if [[ -f artifacts/e2e/pre-cutover-final-acceptance-e2e-smoke-verdict.json ]]; then
+            echo "fetched e2e envelope from run $run_id"
+          else
+            echo "e2e artifact download returned no envelope file"
+          fi
+
+      # Stage 4 -- Aggregate the three envelopes into one Cutover-
+      # Day-Morgen verdict via the hermetic stdlib aggregator.
+      - name: Stage 4 -- Aggregate Cutover-Day-Morgen verdict
+        id: aggregate
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p out
+          python3 tooling/ci/aggregate_cutover_day_morgen_verdict.py \
+            --engine-envelope artifacts/engine/persona-engine-pre-cutover-final-composite-verdict.json \
+            --pyramide-envelope artifacts/pyramide/pyramide-acceptance-pre-cutover-compositum-verdict.json \
+            --e2e-envelope artifacts/e2e/pre-cutover-final-acceptance-e2e-smoke-verdict.json \
+            --iso-week "${{ steps.week.outputs.iso_week }}" \
+            --github-run-id "${GITHUB_RUN_ID:-}" \
+            --github-sha "${GITHUB_SHA:-}" \
+            --github-ref "${GITHUB_REF:-}" \
+            --output out/cutover-day-morgen-verdict.json
+          verdict=$(python3 -c "import json; print(json.load(open('out/cutover-day-morgen-verdict.json'))['verdict'])")
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Cutover-Day-Morgen aggregated verdict: $verdict"
+
+      - name: Upload Cutover-Day-Morgen verdict envelope
+        uses: actions/upload-artifact@v4
+        with:
+          name: cutover-day-morgen-verdict
+          path: out/cutover-day-morgen-verdict.json
+          if-no-files-found: error
+
+      - name: Render verdict summary
+        shell: bash
+        run: |
+          set -uo pipefail
+          {
+            echo "## Cutover-Day-Morgen Auto-Scheduler (Tag-64)"
+            echo ""
+            echo "- ISO week: ${{ steps.week.outputs.iso_week }}"
+            echo "- In KW-24..27 window: ${{ steps.week.outputs.in_window }}"
+            echo "- Aggregated verdict: ${{ steps.aggregate.outputs.verdict }}"
+            echo ""
+            echo '```json'
+            cat out/cutover-day-morgen-verdict.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
