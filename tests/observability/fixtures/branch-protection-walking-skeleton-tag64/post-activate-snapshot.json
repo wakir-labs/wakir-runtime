@@ -1,0 +1,18 @@
+{
+  "_fixture_description": "Tag-65 Walking-Skeleton fixture — post-activate snapshot. Represents the hypothetical GitHub branch-protection state for wakir-labs/wakir-runtime main AFTER the Tag-64 bulk-activation has been executed live (i.e. the value `gh api repos/.../branches/main/protection` would return). Read by the Tag-65 --post-activate-verify mode of the planner. The fixture is byte-identical (modulo metadata fields) to expected-post-snapshot.json; this is intentional — the Tag-65 verifier's contract is that the post-activate live state matches the planner's pre-computed expected-post-snapshot.",
+  "_fixture_id": "post-activate-snapshot",
+  "branch": "main",
+  "required_status_checks": {
+    "strict": true,
+    "contexts": [
+      "cross-substrate parity (cosign ↔ quadlet ↔ backend-switch)",
+      "pyramide layer-dependency DAG verify (6 layers, 16 edges)",
+      "verify-containerfile-base-image-digest-pins",
+      "wirelang spec v0.4.3 freeze-seal probe",
+      "alert-routing cross-repo mirror (wakir-runtime ↔ wakir-protocol)",
+      "pyramide cross-run stability pin (5 fixtures, 3 runs each)",
+      "g1-g2 operator-recipe smoke-validation",
+      "E2E verdict (READY / DRIFT / DEFECT)"
+    ]
+  }
+}

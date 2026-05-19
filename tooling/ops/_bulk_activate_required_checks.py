@@ -25,6 +25,19 @@ It then emits one of three output forms:
                        branch-protection API), and emits the
                        post-snapshot to --mock-post-snapshot.
                        Touches NO network. Sandbox-boundary safe.
+  * --post-activate-verify
+                       Tag-65 Post-Activate-Verify mode: reads a JSON
+                       post-activate snapshot fixture from
+                       --post-activate-snapshot (i.e. the hypothetical
+                       branch-protection state AFTER the bulk
+                       activation has run), and verifies — without
+                       network — that all expected Required-Status-
+                       Checks for the configured pool (7 or 8) are
+                       registered verbatim and that `strict=true`
+                       holds. Emits a verify-report (human or JSON
+                       per --json) and a non-zero exit on any
+                       discrepancy. Used by the Tag-65 walking-
+                       skeleton Stage-5 post-activate verifier.
 
 The planner does NOT touch GitHub. It is pure parse + render. The
 shell wrapper around it (`bulk_activate_required_checks.sh`) is
@@ -34,9 +47,11 @@ Exit codes
 ==========
 
   0   plan parsed cleanly, 7-Pool target set assembled
-      (or, in --mock-api-mode: mock post-snapshot written cleanly)
+      (or, in --mock-api-mode: mock post-snapshot written cleanly,
+       or, in --post-activate-verify: snapshot verified clean)
   1   plan inconsistent: doc parse error, count mismatch, duplicate
       display-name, or empty display-name
+      (or, in --post-activate-verify: missing/extra/unstrict context)
 """
 
 from __future__ import annotations
@@ -388,6 +403,125 @@ def render_mock_post_snapshot(combined, pre_snapshot: dict) -> dict:
     return post
 
 
+def verify_post_activate_snapshot(combined, snapshot: dict) -> Tuple[List[str], dict]:
+    """Tag-65 Post-Activate-Verify mode.
+
+    Compares a post-activate snapshot against the assembled pool and
+    returns ``(discrepancies, report)``. A clean snapshot yields an
+    empty ``discrepancies`` list. The report is a structured envelope
+    suitable for the Tag-65 walking-skeleton Stage-5 emitter.
+
+    Verification invariants (load-bearing):
+
+      1. ``required_status_checks`` block present.
+      2. ``strict`` is True (full GitHub branch-protection contract).
+      3. ``contexts`` is a list.
+      4. Every expected pool context appears verbatim in the snapshot
+         (missing-context detection).
+      5. No EXTRA context appears in the snapshot beyond the expected
+         pool (extra-context detection — guards against leftover
+         pre-existing required-checks that the bulk-activation PUT
+         should have swept away).
+      6. Order-equality: the snapshot context order matches the pool
+         order. The bulk-activation PUT writes contexts in pool
+         order; drift here means either a manual edit or a planner
+         bug. Order-equality is a Tag-65 acceptance criterion.
+
+    All discrepancies are accumulated; the function does NOT
+    short-circuit. The caller renders the full discrepancy list so
+    the Operator can fix all defects in one round-trip.
+    """
+    expected_contexts = [name for (_, name, _) in combined]
+    discrepancies: List[str] = []
+
+    if not isinstance(snapshot, dict):
+        discrepancies.append("post-activate snapshot must be a JSON object")
+        return discrepancies, {
+            "tag": "tag-65",
+            "schema": "bulk-activate-required-checks/post-activate-verify/v1",
+            "expected_pool_size": len(expected_contexts),
+            "expected_contexts": expected_contexts,
+            "observed_contexts": [],
+            "observed_strict": None,
+            "discrepancies": discrepancies,
+            "verdict": "POST-ACTIVATE-DEFECT",
+        }
+
+    rsc = snapshot.get("required_status_checks")
+    observed_contexts: List[str] = []
+    observed_strict = None
+    if not isinstance(rsc, dict):
+        discrepancies.append(
+            "post-activate snapshot missing required_status_checks block"
+        )
+    else:
+        observed_strict = rsc.get("strict")
+        if observed_strict is not True:
+            discrepancies.append(
+                f"required_status_checks.strict is not True (got {observed_strict!r})"
+            )
+        ctxs = rsc.get("contexts")
+        if not isinstance(ctxs, list):
+            discrepancies.append(
+                "required_status_checks.contexts is not a list"
+            )
+        else:
+            observed_contexts = list(ctxs)
+            expected_set = set(expected_contexts)
+            observed_set = set(observed_contexts)
+            missing = expected_set - observed_set
+            extra = observed_set - expected_set
+            for name in sorted(missing):
+                discrepancies.append(f"missing required-check context: '{name}'")
+            for name in sorted(extra):
+                discrepancies.append(f"extra (unexpected) context registered: '{name}'")
+            # Order-equality is checked only when the sets match — an
+            # order-violation message is meaningless if there are also
+            # missing/extra contexts (set-mismatch dominates).
+            if not missing and not extra and observed_contexts != expected_contexts:
+                discrepancies.append(
+                    "context order mismatch: snapshot order does not equal "
+                    "pool order"
+                )
+
+    report = {
+        "tag": "tag-65",
+        "schema": "bulk-activate-required-checks/post-activate-verify/v1",
+        "expected_pool_size": len(expected_contexts),
+        "expected_contexts": expected_contexts,
+        "observed_contexts": observed_contexts,
+        "observed_strict": observed_strict,
+        "discrepancies": discrepancies,
+        "verdict": "POST-ACTIVATE-CLEAN" if not discrepancies else "POST-ACTIVATE-DEFECT",
+    }
+    return discrepancies, report
+
+
+def render_verify_report_human(report: dict) -> str:
+    lines = []
+    lines.append("# Tag-65 Post-Activate-Verify Report")
+    lines.append("")
+    lines.append(f"expected pool size : {report['expected_pool_size']}")
+    lines.append(f"observed contexts  : {len(report['observed_contexts'])}")
+    lines.append(f"observed strict    : {report['observed_strict']}")
+    lines.append("")
+    lines.append("## Expected pool order")
+    lines.append("")
+    for i, name in enumerate(report["expected_contexts"], start=1):
+        lines.append(f"  {i}. {name}")
+    lines.append("")
+    if report["discrepancies"]:
+        lines.append("## Discrepancies")
+        lines.append("")
+        for d in report["discrepancies"]:
+            lines.append(f"  - {d}")
+        lines.append("")
+        lines.append(f"verdict: {report['verdict']}")
+    else:
+        lines.append(f"verdict: {report['verdict']}")
+    return "\n".join(lines)
+
+
 def main(argv: List[str]) -> int:
     parser = argparse.ArgumentParser(
         description="Tag-62 bulk-activation planner (stdlib-only, hermetic)"
@@ -444,6 +578,23 @@ def main(argv: List[str]) -> int:
         default=None,
         help="Output path for the simulated post-snapshot (for --mock-api-mode)",
     )
+    parser.add_argument(
+        "--post-activate-verify",
+        action="store_true",
+        help=(
+            "Tag-65 Post-Activate-Verify mode: read post-activate "
+            "snapshot from --post-activate-snapshot and verify all "
+            "expected required-checks are registered (verbatim, in "
+            "pool order, with strict=true). No network. Sandbox-"
+            "boundary safe."
+        ),
+    )
+    parser.add_argument(
+        "--post-activate-snapshot",
+        type=Path,
+        default=None,
+        help="Post-activate snapshot JSON fixture (for --post-activate-verify)",
+    )
     args = parser.parse_args(argv)
 
     combined, pool_bilanz, errors = assemble_pool(
@@ -484,6 +635,46 @@ def main(argv: List[str]) -> int:
             f"{len(pre['required_status_checks']['contexts'])})"
         )
         return 0
+
+    if args.post_activate_verify:
+        if errors:
+            print(
+                "REFUSED: --post-activate-verify requested but plan is inconsistent:",
+                file=sys.stderr,
+            )
+            for err in errors:
+                print(f"  - {err}", file=sys.stderr)
+            return 1
+        if args.post_activate_snapshot is None:
+            print(
+                "REFUSED: --post-activate-verify requires --post-activate-snapshot",
+                file=sys.stderr,
+            )
+            return 1
+        try:
+            snap_text = args.post_activate_snapshot.read_text(encoding="utf-8")
+        except FileNotFoundError as exc:
+            print(
+                f"REFUSED: post-activate snapshot not found: "
+                f"{args.post_activate_snapshot} ({exc})",
+                file=sys.stderr,
+            )
+            return 1
+        try:
+            snapshot = json.loads(snap_text)
+        except json.JSONDecodeError as exc:
+            print(
+                f"REFUSED: invalid JSON in post-activate snapshot "
+                f"{args.post_activate_snapshot}: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+        discrepancies, report = verify_post_activate_snapshot(combined, snapshot)
+        if args.json:
+            print(json.dumps(report, indent=2, ensure_ascii=False))
+        else:
+            print(render_verify_report_human(report))
+        return 0 if not discrepancies else 1
 
     if args.put_payload:
         if errors:
