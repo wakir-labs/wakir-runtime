@@ -572,7 +572,9 @@ def test_t23_verdict_envelope_serialised_shape(tmp_path):
 # ---------------------------------------------------------------------------
 # T24 - Helper SPDX banner is Apache-2.0 (license-clear-zone).
 # ---------------------------------------------------------------------------
+# REUSE-IgnoreStart
 def test_t24_helper_spdx_banner_apache():
     head = HELPER.read_text(encoding="utf-8").splitlines()[:5]
     joined = "\n".join(head)
     assert "SPDX-License-Identifier: Apache-2.0" in joined
+# REUSE-IgnoreEnd
