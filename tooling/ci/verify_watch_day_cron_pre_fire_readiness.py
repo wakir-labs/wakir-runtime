@@ -467,6 +467,87 @@ def stage_routing(spec_text: str) -> RoutingStageResult:
 # ---------------------------------------------------------------------------
 
 
+@dataclass
+class PinStageResult:
+    status: str  # "green" | "yellow" | "red"
+    workflow_present: bool = False
+    cron_expression: str | None = None
+    cron_exact_match: bool = False
+    push_paths_complete: bool = False
+    pull_request_paths_complete: bool = False
+    push_pr_drift: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+
+
+def stage_pin(workflow_path: Path, workflow_text: str | None) -> PinStageResult:
+    """Time-independent substrate+cron+path-coverage gate.
+
+    Tag-68 addition: Pre-Cutover-Live-Smoke (Tag-67 Stage 2) needs a
+    stable green signal that does not depend on the calendar instant
+    (the default Tag-57 ``all`` mode degrades to yellow once the
+    reference is far enough from KW-23 to push KW-24 out of the next-
+    four-firings window). ``pin`` checks only the time-invariant
+    substrate contracts:
+
+      * workflow file present
+      * schedule.cron string is exactly ``0 5 * * 2``
+      * the seven canonical CANONICAL_PATH_FILTER_SET substrates are
+        present in BOTH push.paths AND pull_request.paths
+
+    Returns:
+      green   -- workflow present, cron exact, all 7 substrates in
+                 BOTH path blocks, no push/pr drift.
+      yellow  -- workflow present, cron present (possibly drifted),
+                 or partial path-filter coverage; substrate is there
+                 but the contract has slipped (manual review).
+      red     -- workflow missing entirely, or cron field absent
+                 (the substrate itself is gone -- this is BLOCK).
+    """
+    res = PinStageResult(status="red", workflow_present=False)
+    if workflow_text is None:
+        res.notes.append("workflow_file_missing")
+        return res
+    res.workflow_present = True
+    cron = extract_cron_from_workflow(workflow_text)
+    res.cron_expression = cron
+    if cron is None:
+        res.notes.append("schedule_cron_missing")
+        return res
+    res.cron_exact_match = cron == CANONICAL_CRON
+    push_paths = extract_paths_block(workflow_text, "push")
+    pr_paths = extract_paths_block(workflow_text, "pull_request")
+    missing_push = [p for p in CANONICAL_PATH_FILTER_SET if p not in push_paths]
+    missing_pr = [p for p in CANONICAL_PATH_FILTER_SET if p not in pr_paths]
+    res.push_paths_complete = not missing_push and bool(push_paths)
+    res.pull_request_paths_complete = not missing_pr and bool(pr_paths)
+    push_only = sorted(set(push_paths) - set(pr_paths))
+    pr_only = sorted(set(pr_paths) - set(push_paths))
+    res.push_pr_drift = [f"push_only:{p}" for p in push_only] + [
+        f"pr_only:{p}" for p in pr_only
+    ]
+    if (
+        res.cron_exact_match
+        and res.push_paths_complete
+        and res.pull_request_paths_complete
+        and not res.push_pr_drift
+    ):
+        res.status = "green"
+        return res
+    # Substrate present but contract drifted: yellow (CAUTION).
+    if not res.cron_exact_match:
+        res.notes.append(
+            f"cron_drift expected={CANONICAL_CRON!r} actual={cron!r}"
+        )
+    if missing_push:
+        res.notes.append("push_paths_incomplete:" + ",".join(missing_push))
+    if missing_pr:
+        res.notes.append("pull_request_paths_incomplete:" + ",".join(missing_pr))
+    if res.push_pr_drift:
+        res.notes.append("push_pr_drift:" + ",".join(res.push_pr_drift))
+    res.status = "yellow"
+    return res
+
+
 def aggregate_verdict(
     cron_status: str, paths_status: str, routing_status: str
 ) -> str:
@@ -555,8 +636,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     p.add_argument(
         "--mode",
-        choices=("all", "cron", "paths", "routing"),
+        choices=("all", "cron", "paths", "routing", "pin"),
         default="all",
+        help=(
+            "all|cron|paths|routing run the full or single-stage probe; "
+            "'pin' runs a time-independent substrate+cron+path-coverage "
+            "pin gate suitable for Pre-Cutover Live-Smoke invocation "
+            "(Tag-67/Tag-68): green = workflow exists, cron exactly "
+            "'0 5 * * 2', and all seven canonical path-filter substrates "
+            "present in BOTH push and pull_request paths blocks. "
+            "Yellow = cron present but drifted or path-filter incomplete. "
+            "Red = workflow missing entirely or cron not parsable."
+        ),
     )
     p.add_argument("--json", action="store_true", help="Emit JSON to stdout")
     p.add_argument("--output", type=Path, default=None)
@@ -577,6 +668,44 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as exc:
         print(f"::error::bad reference-iso: {exc}", file=sys.stderr)
         return 1
+
+    # Tag-68 'pin' mode: time-independent substrate gate; no
+    # routing-stage, no calendar-dependent cron-fire check.
+    if args.mode == "pin":
+        pin_res = stage_pin(args.workflow, workflow_text)
+        verdict = (
+            "READY" if pin_res.status == "green"
+            else ("CAUTION" if pin_res.status == "yellow" else "BLOCK")
+        )
+        pin_envelope = {
+            "schema_version": 1,
+            "tag": 57,
+            "tool": "verify_watch_day_cron_pre_fire_readiness",
+            "mode": "pin",
+            "verdict": verdict,
+            "stages": {
+                "pin": {
+                    "status": pin_res.status,
+                    "workflow_present": pin_res.workflow_present,
+                    "cron_expression": pin_res.cron_expression,
+                    "cron_exact_match": pin_res.cron_exact_match,
+                    "push_paths_complete": pin_res.push_paths_complete,
+                    "pull_request_paths_complete": pin_res.pull_request_paths_complete,
+                    "push_pr_drift": pin_res.push_pr_drift,
+                    "notes": pin_res.notes,
+                }
+            },
+        }
+        if args.output is not None:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(
+                json.dumps(pin_envelope, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+        if args.json or args.output is None:
+            json.dump(pin_envelope, sys.stdout, indent=2, sort_keys=True)
+            sys.stdout.write("\n")
+        return exit_code_for_verdict(verdict)
 
     cron_res = stage_cron(workflow_text, reference)
     paths_res = stage_paths(workflow_text)
