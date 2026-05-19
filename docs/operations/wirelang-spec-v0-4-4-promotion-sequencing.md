@@ -472,4 +472,150 @@ Sandbox boundary.
 - Tag-64 PR #407 — v0.4.4-draft RES-D1..D5 sample-block coverage
   extension (Reza, 19 tests).
 
+---
+
+## 8. Tag-77 Promotion Pre-Readiness Score (Schluss-Stein)
+
+**Status:** Tag-77 substrate-trilogy completion marker; audit-only;
+indefinite-deferral remains the default for every RES-Dn item.
+**Owner:** Reza (Dev-Engineering-2).
+**Mirror-twin (Substanz-Aggregate):**
+[`tooling/audit/spec-v0-4-4-promotion-pre-readiness-snapshot.json`](../../tooling/audit/spec-v0-4-4-promotion-pre-readiness-snapshot.json)
+inspected by
+[`tooling/audit/prepare_spec_v0_4_4_promotion_substrate.py`](../../tooling/audit/prepare_spec_v0_4_4_promotion_substrate.py).
+
+### 8.1 Why this section exists
+
+Between Tag-63 (PR #403) and Tag-72 (PR #458) the v0.4.4 Reserve-
+Item lane accumulated ten distinct audit-only artefacts: a draft
+spec body, a sample-block coverage extension, a sequencing plan
+(this doc), an OTS-probe coverage row, an activation pre-mortem,
+a pre-mortem-coverage test-suite, a RES-D4 deep-dive, and three
+hard-dep substrate stubs (HD-1 OTS, HD-2 Peer-Roster, HD-3 Audit-
+Coverage). Each artefact is a per-axis pin; none alone tells a
+reader whether the v0.4.4 lane is "substrate-complete" or where
+the next missing piece lives.
+
+Tag-77 introduces the **Promotion Pre-Readiness Score** — a single
+per-RES-Dn integer (0..5) plus a global verdict — as the
+Schluss-Stein that reduces those ten artefacts to one inspection-
+only signal. The score is **advisory-only**: it does not authorise
+any promotion PR, does not lift the indefinite-deferral default,
+does not emit any audit-sample-rotation entry, and does not
+request AR-authorisation.
+
+### 8.2 Score methodology
+
+Each RES-Dn item is scored against five equal-weight dimensions
+(weight 1 each, integer-summed):
+
+| Dim | Name | Anchor Tag(s) | Reachable from Sandbox-Hand? |
+|---|---|---|---|
+| 1 | substrate-pinned | Tag-63 + Tag-64 | yes |
+| 2 | ots-probe-coverage | Tag-66 | yes (audit-only stub) |
+| 3 | pre-mortem-covered | Tag-67 + Tag-68 | yes |
+| 4 | hard-dep-substrate-prepared | Tag-70 + Tag-71 + Tag-72 (RES-D4 only) | yes |
+| 5 | ceo-triage-authorisation | per-item ADR-class entry | **no — Operator/AR-Hand only (ADR-0023a + ADR-0023b)** |
+
+Dimensions 1..4 are reachable from claude-dev hand. Dimension 5
+is FROZEN-FALSE in the Tag-77 audit-only snapshot. The Sandbox
+score ceiling is therefore **4/5** across every item, not 5/5.
+
+**Score interpretation:**
+
+- **5/5** — All dimensions satisfied; the item could theoretically
+  promote under a fresh CEO-Triage PR. **Unreachable from
+  Sandbox-Hand** in Tag-77 (Dim 5 frozen).
+- **4/5** — Substrate complete, CEO-Triage authorisation
+  outstanding. This is the natural Sandbox ceiling and the
+  Tag-77 expected state.
+- **<4/5** — Substrate gap. The missing dimension(s) MUST close
+  before any promotion PR is opened.
+
+### 8.3 Tag-77 Snapshot Result
+
+The Tag-77 snapshot evaluates **5 items at score 4/5 each** —
+substrate trilogy complete across the board, no substrate gap.
+The remaining ceiling-blocker is `ceo-triage-authorisation`
+(5 items) plus `live-OTS-anchor-activation` (RES-D4 additionally).
+
+| Item | Score | Ceiling | Ceiling Blocker |
+|---|---|---|---|
+| RES-D1 | 4/5 | 4 | ceo-triage-authorisation (Operator/AR-Hand only) |
+| RES-D2 | 4/5 | 4 | ceo-triage-authorisation (Operator/AR-Hand only) |
+| RES-D3 | 4/5 | 4 | ceo-triage-authorisation (Operator/AR-Hand only) |
+| RES-D4 | 4/5 | 4 | ceo-triage-authorisation AND live-OTS-anchor-activation (both Operator/AR-Hand only) |
+| RES-D5 | 4/5 | 4 | ceo-triage-authorisation (Operator/AR-Hand only) |
+
+**Aggregate verdict:** `substrate-complete-ceo-triage-pending`.
+This verdict does **not** authorise promotion — it only states
+that the substrate trilogy reached its Sandbox ceiling.
+
+### 8.4 What the snapshot is not
+
+- **Not a promotion-PR opening trigger.** The per-item promotion
+  PRs (Steps 1..5 in §4) remain fresh CEO-Triage decisions; the
+  Tag-77 snapshot informs but does not initiate them.
+- **Not an AR-authorisation request.** ADR-0023b governs the
+  request shape and routing; the Tag-77 helper does not draft
+  any AR-bound text.
+- **Not a draft-ADR.** Each promotion still requires a fresh
+  per-item ADR-class entry under §5.1 A5.
+- **Not an indefinite-deferral lifting.** The default remains
+  indefinite-deferral for every item; the score is a Reza-hand-
+  readable status snapshot under audit-only posture.
+- **Not a Pin-Pack edit.** Pin-Pack remains a Selin / Tomas axis
+  per §7.2.
+- **Not a NATS-KV schema default change.** Sandbox-boundary
+  recital from §7 carries forward to §8.
+- **Not an OTS-anchor activation.** Tag-60 stub remains audit-only
+  until ADR-0023a authorisation.
+- **Not a Henrik-Voss audit-sample-config amendment.**
+
+### 8.5 Sandbox-Boundary Recital (Tag-77 extension)
+
+The Tag-77 helper inherits the §7 Sandbox-boundary recital and
+extends it with these audit-only-default flags:
+
+- `no_promotion_pr_opening: true`
+- `no_ar_authorisation_request_emit: true`
+- `no_draft_adr_writing: true`
+- `no_indefinite_deferral_lifting: true`
+- `no_pin_pack_edit: true`
+- `no_nats_kv_schema_default_change: true`
+- `no_ots_anchor_activation: true`
+- `snapshot_default_mode: inspection-only`
+- `score_is_advisory_only: true`
+
+The helper writes to **stdout only**. It does **not** emit to
+notify-log, activity-log, or audit-sample-rotation. It carries
+**no timestamp drift** (snapshot is a static fixture; no
+wall-clock dependency).
+
+### 8.6 Tag-77 Cross-Anchor
+
+- ADR-0007 (Persona-Engine Pin-Pack discipline).
+- ADR-0014 (Audit-Sample Risk-Weighted Rotation).
+- ADR-0023a (Sandbox-Boundary).
+- ADR-0023b (Operator-Hand vs. AR-authorisation).
+- ADR-0025 (Three-axis performance measurement).
+- Tag-63 PR #403 — v0.4.4-draft baseline.
+- Tag-64 PR #407 — sample-block coverage extension.
+- Tag-65 PR #414 — this promotion-sequencing doc (parent).
+- Tag-66 PR #421 — RES-D OTS-probe coverage.
+- Tag-67 PR #428 — activation pre-mortem.
+- Tag-68 PR #433 — pre-mortem coverage.
+- Tag-69 PR #440 — RES-D4 mitigation deep-dive.
+- Tag-70 PR #446 — HD-1 OTS substrate stub.
+- Tag-71 PR #452 — HD-2 Peer-Roster substrate stub.
+- Tag-72 PR #458 — HD-3 Audit-Coverage substrate stub.
+
+The Tag-77 snapshot is the **Schluss-Stein** of the substrate
+trilogy. Any subsequent v0.4.4 Reserve-Item work must either
+(a) raise a Sandbox-reachable dimension that is currently
+counted as satisfied (substrate refinement), or (b) be an
+Operator/AR-Hand step (promotion PR, AR-authorisation, OTS
+activation). Either way: the Tag-77 helper is the inspection
+surface, not a gate.
+
 -- Reza
