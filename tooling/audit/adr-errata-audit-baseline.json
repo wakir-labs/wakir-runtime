@@ -1,0 +1,148 @@
+{
+  "audit_id": "tag-57-adr-errata-spec-cross-audit",
+  "spec_path": "wirelang/specs/wirelang-spec-v0-4-3.md",
+  "spec_freeze_marker": "pre-cutover-freeze",
+  "adr_heads": [
+    {
+      "adr_id": "ADR-0034",
+      "path": "0034-repo-lizenz-strategie.md",
+      "found": true,
+      "err_markers_extracted": [
+        "ERR-S1",
+        "ERR-S2",
+        "ERR-S3"
+      ]
+    },
+    {
+      "adr_id": "ADR-0052",
+      "path": "0052-class-p-promotion-caveat-hash.md",
+      "found": true,
+      "err_markers_extracted": [
+        "ERR-S4"
+      ]
+    },
+    {
+      "adr_id": "ADR-0062",
+      "path": "0062-repo-split-strategie-phase-2.md",
+      "found": true,
+      "err_markers_extracted": [
+        "ERR-S1",
+        "ERR-S2",
+        "ERR-S5"
+      ]
+    },
+    {
+      "adr_id": "ADR-0064",
+      "path": "0064-model-routing-prompt-caching-persona-engine.md",
+      "found": true,
+      "err_markers_extracted": [
+        "ERR-S6"
+      ]
+    }
+  ],
+  "err_markers": [
+    {
+      "marker_id": "ERR-S1",
+      "adr_id": "ADR-0034",
+      "canonical_forms": [
+        "wirelang/specs/",
+        "wirelang/specs/wirelang-spec-v0-4-3.md",
+        "wirelang/specs/wirelang-spec-v0-4-2.md",
+        "wirelang/specs/wirelang-spec-v0-4-1.md",
+        "wirelang/specs/wirelang-spec-v0-2.md"
+      ],
+      "legacy_forms": [
+        "wirelang/spec/v0.1.0/",
+        "wirelang/spec/"
+      ],
+      "mentions_canonical_form_in_spec": 5,
+      "mentions_legacy_form_in_spec": 0,
+      "legacy_form_citation_pointer": false,
+      "drift_class": "no-drift"
+    },
+    {
+      "marker_id": "ERR-S2",
+      "adr_id": "ADR-0034",
+      "canonical_forms": [
+        "wirelang/builder/",
+        "wirelang/canonical/",
+        "wirelang/identity/"
+      ],
+      "legacy_forms": [
+        "wirelang/parser/"
+      ],
+      "mentions_canonical_form_in_spec": 0,
+      "mentions_legacy_form_in_spec": 0,
+      "legacy_form_citation_pointer": false,
+      "drift_class": "no-drift"
+    },
+    {
+      "marker_id": "ERR-S3",
+      "adr_id": "ADR-0034",
+      "canonical_forms": [
+        "decisions/0023a-inter-agent-protokoll-layer-architektur.md"
+      ],
+      "legacy_forms": [
+        "decisions/0023a-wirelang-tech-spec.md"
+      ],
+      "mentions_canonical_form_in_spec": 0,
+      "mentions_legacy_form_in_spec": 0,
+      "legacy_form_citation_pointer": false,
+      "drift_class": "no-drift"
+    },
+    {
+      "marker_id": "ERR-S4",
+      "adr_id": "ADR-0052",
+      "canonical_forms": [
+        "wirelang/canonical/caveat_set.py"
+      ],
+      "legacy_forms": [
+        "wirelang/canonical/self_reference.py",
+        "verify_caveat_hash_self_reference"
+      ],
+      "mentions_canonical_form_in_spec": 0,
+      "mentions_legacy_form_in_spec": 0,
+      "legacy_form_citation_pointer": false,
+      "drift_class": "no-drift"
+    },
+    {
+      "marker_id": "ERR-S5",
+      "adr_id": "ADR-0062",
+      "canonical_forms": [
+        "wakir-runtime/wirelang/specs/",
+        "wakir-runtime/wirelang/builder/",
+        "wakir-runtime/wirelang/canonical/",
+        "wakir-runtime/wirelang/identity/"
+      ],
+      "legacy_forms": [
+        "wakir-runtime/wirelang/spec/",
+        "wakir-runtime/wirelang/parser/"
+      ],
+      "mentions_canonical_form_in_spec": 0,
+      "mentions_legacy_form_in_spec": 0,
+      "legacy_form_citation_pointer": false,
+      "drift_class": "no-drift"
+    },
+    {
+      "marker_id": "ERR-S6",
+      "adr_id": "ADR-0064",
+      "canonical_forms": [
+        "wirelang/persona_engine/llm_call_shim.py",
+        "EchoReflectionLlmHook",
+        "anthropic_messages_hook_phase_3_stub"
+      ],
+      "legacy_forms": [
+        "wirelang/persona_engine/llm_hook.py"
+      ],
+      "mentions_canonical_form_in_spec": 0,
+      "mentions_legacy_form_in_spec": 0,
+      "legacy_form_citation_pointer": false,
+      "drift_class": "no-drift"
+    }
+  ],
+  "summary": {
+    "markers_total": 6,
+    "markers_with_drift": 0,
+    "markers_with_citation_ok": 6
+  }
+}
