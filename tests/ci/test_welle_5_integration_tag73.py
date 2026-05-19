@@ -548,7 +548,16 @@ class Tag73BriefReconciliationTests(unittest.TestCase):
         self.assertIn("KW-25", kw_recon["brief_value"])
         self.assertIn("KW-26", kw_recon["canonical_value"])
         self.assertIn("2026-06-24", kw_recon["canonical_value"])
-        self.assertIn("NOT patched", kw_recon["resolution"])
+        # Tag-74 reconciliation: the Tag-73-era 'NOT patched' resolution
+        # is superseded; the state-file was PATCHED in Tag-74 per the
+        # producer-domain owner (Selin). The post-Tag-74 resolution
+        # records that the patch landed via the Tag-74 reconciliation
+        # doc; the historical row remains on the envelope as an audit-
+        # trail anchor.
+        self.assertIn("PATCHED in Tag-74", kw_recon["resolution"])
+        self.assertIn(
+            "welle-5-kw-anchor-reconciliation-tag74", kw_recon["resolution"]
+        )
 
     def test_doppel_welle_framing_reconciliation_canonical(self) -> None:
         env = self.mod.build_envelope(_all_green_envelopes())

@@ -29,14 +29,24 @@ Welle-4 is the only Welle whose sign-off is gated by the snapshot-
 restore-marker (state-backing rust<->python switch is the 10th
 pre-boot BackendDecision per the Tag-57-emit-order-pin; the
 snapshot-restore-workflow is captured in Tomas-Tag-56-Rollback-
-Workflow §J4). Tag-73 (this PR) adds the **Welle-5 Capability-Token
-sign-off** path (KW-25 Fr 2026-06-19, Reza-Zone-L): a sign-off
-variant that additionally requires a
+Workflow §J4). Tag-73 added the **Welle-5 Capability-Token
+sign-off** path (KW-26 per ``pre-cutover-acceptance-run-order.md``;
+Reza-Zone-L): a sign-off variant that additionally requires a
 ``capability_token_rotation_marker_status == "rotated"`` precondition.
 Welle-5 is the only Welle whose sign-off is gated by the
 capability-token-rotation-marker (the capability-token enforce-mode
 flip from audit-only-mode to enforce-mode happens during this Welle,
 per kw-24-welle-1-7-acceptance-criteria §5 probe W5-S1..S4).
+Tag-74 (this PR) adds the **Welle-6 Cross-Substrate-Parity sign-off**
+path (KW-26 per the engine-side helper-default; the canonical doc
+``pre-cutover-acceptance-run-order.md`` §3 lists Welle-6 on KW-27 --
+the producer-substrate is kw-anchor-agnostic at the transition-machine
+level): a sign-off variant that additionally requires a
+``cross_substrate_parity_marker_status == "verified"`` precondition.
+Welle-6 is the only Welle whose sign-off is gated by the cross-
+substrate-parity-marker (cosign ↔ quadlet ↔ backend-switch parity
+across the three artefact-substrates, per Tomas'
+``cross-substrate-parity-gate`` workflow).
 Tag-70 (earlier) added:
 
 * **Welle-2 Doppelbetrieb-Sealing** trigger (KW-24 Mi, plan-doc §2.3):
@@ -209,6 +219,30 @@ CAPABILITY_TOKEN_ROTATION_GUARDED_WELLEN = frozenset({5})
 # :data:`DOPPELBETRIEB_SEALED` / :data:`SNAPSHOT_RESTORE_VERIFIED` design.
 CAPABILITY_TOKEN_ROTATED = "rotated"
 
+# Wellen for which the sign-off path additionally requires the
+# cross-substrate-parity-marker to report ``verified`` (Tag-74 §2.7,
+# Welle-6 Cross-Substrate-Parity-Welle). Welle-6 is the cross-substrate-
+# parity Welle (KW-26 Fr per the operational Source-of-Truth
+# ``pre-cutover-acceptance-run-order.md`` §3 table reconciliation; note
+# the canonical doc lists Welle-6 on KW-27, but the engine-side helper-
+# default and committed ``state/welle-6.json`` carry ``KW-26`` -- the
+# producer-substrate is kw-anchor-agnostic at the transition-machine
+# level and does not gate on the KW-anchor field). The sign-off is
+# only authorised once the operator-curated cross-substrate-parity-
+# probe (cosign ↔ quadlet ↔ backend-switch, per the Tomas
+# ``cross-substrate-parity-gate`` workflow) has flipped to
+# :data:`CROSS_SUBSTRATE_PARITY_VERIFIED`. Without the parity-marker
+# the Welle-6 sign-off would leave the cross-substrate parity-claim
+# unverified at the moment of cutover finalisation.
+CROSS_SUBSTRATE_PARITY_GUARDED_WELLEN = frozenset({6})
+
+# Cross-substrate-parity-marker literal: callers MUST pass this exact
+# value as ``cross_substrate_parity_marker_status`` to authorise the
+# Welle-6 Cross-Substrate-Parity sign-off (Tag-74 §2.7). Mirrors the
+# :data:`DOPPELBETRIEB_SEALED` / :data:`SNAPSHOT_RESTORE_VERIFIED` /
+# :data:`CAPABILITY_TOKEN_ROTATED` design.
+CROSS_SUBSTRATE_PARITY_VERIFIED = "verified"
+
 # Allowed lifecycle-state-machine transitions (plan-doc §3.1).
 ALLOWED_TRANSITIONS = frozenset({
     (STATUS_PENDING, STATUS_IN_PROGRESS),
@@ -273,6 +307,22 @@ class SnapshotRestoreError(WelleProducerError):
     snapshot-restore-marker has flipped to
     :data:`SNAPSHOT_RESTORE_VERIFIED`. Mirrors the
     :class:`DoppelbetriebSealingError` design for Welle-2.
+    """
+
+
+class CrossSubstrateParityError(WelleProducerError):
+    """Raised on a Welle-6 sign-off without parity-marker (Tag-74 §2.7).
+
+    Welle-6 is the Cross-Substrate-Parity-Welle. The sign-off is only
+    authorised once the operator-curated cross-substrate-parity-marker
+    has flipped to :data:`CROSS_SUBSTRATE_PARITY_VERIFIED`. The marker
+    is the engine-side reflection of Tomas' ``cross-substrate-parity-
+    gate`` workflow verdict (cosign ↔ quadlet ↔ backend-switch parity
+    across the three artefact-substrates).
+
+    Mirrors the :class:`DoppelbetriebSealingError`,
+    :class:`SnapshotRestoreError`, and :class:`CapabilityTokenRotationError`
+    designs.
     """
 
 
@@ -928,6 +978,108 @@ class WelleStateProducer:
         self.audit_emitter(record)
         return record
 
+    # -- Transition: Welle-6 Cross-Substrate-Parity sign-off (Tag-74 §2.7) --
+
+    def handle_welle_6_signoff_event(
+        self,
+        signoff_iso: str,
+        *,
+        sign_off_marker_status: str,
+        cross_substrate_parity_marker_status: str,
+    ) -> WelleAuditRecord:
+        """Apply the Welle-6 Cross-Substrate-Parity sign-off (Tag-74 §2.7).
+
+        Welle-6 is the Cross-Substrate-Parity-Welle. The sign-off is
+        structurally an in-progress -> signed-off transition with **two**
+        marker preconditions:
+
+        * the standard ``sign_off_marker_status == "signed-off"``
+          companion marker (same as :meth:`handle_sign_off_event`),
+        * the additional ``cross_substrate_parity_marker_status ==
+          "verified"`` marker which confirms the cross-substrate-parity-
+          probe (cosign ↔ quadlet ↔ backend-switch, per Tomas'
+          ``cross-substrate-parity-gate`` workflow) has been observed-
+          green by the operator (the three artefact-substrates report
+          identical parity hashes). Refused otherwise.
+
+        Welle-6 is **not** in :data:`PRE_AUDITOR_GUARDED_WELLEN`, so
+        no pre-auditor guard applies here (Welle-3 and Welle-7 are the
+        pre-auditor-guarded Wellen per the Henrik-cannot-self-sign-off
+        invariant). The audit-record carries
+        ``trigger="cross-substrate-parity"`` to disambiguate from the
+        vanilla sign-off trigger, the Welle-2 ``trigger="sealing"``
+        record, the Welle-4 ``trigger="snapshot-restore"`` record, and
+        the Welle-5 ``trigger="capability-token-rotation"`` record.
+
+        Idempotency: a double-fire after a successful Welle-6 sign-off
+        returns an audit-record with ``prior_status == new_status ==
+        "signed-off"`` and ``trigger="cross-substrate-parity"`` (no on-
+        disk mutation). Mirrors the Welle-2/Welle-4/Welle-5 idempotency
+        path.
+
+        Forensic note: the cross-substrate-parity-iso itself is not
+        stored in the schema-pinned state-file (the schema-pin is
+        unchanged per Tag-67); it is recoverable from the audit-stream
+        via the ``trigger="cross-substrate-parity"`` record +
+        ``signoff_iso``. The parity-probe verdict envelope is verified
+        by Tomas' ``cross-substrate-parity-gate`` workflow (the
+        ``state/welle-6-cross-substrate-parity.json`` operator-curated
+        marker file), NOT by this producer-substrate (producer-substrate
+        is engine-side only, no workflow-coupling).
+        """
+        welle_number = 6
+        _validate_iso_timestamp(signoff_iso, "signoff_iso")
+        if sign_off_marker_status != STATUS_SIGNED_OFF:
+            raise SignOffPreconditionError(
+                f"sign-off-marker for welle-{welle_number} not "
+                f"signed-off: got {sign_off_marker_status!r}"
+            )
+        if (
+            cross_substrate_parity_marker_status
+            != CROSS_SUBSTRATE_PARITY_VERIFIED
+        ):
+            raise CrossSubstrateParityError(
+                f"welle-{welle_number} Cross-Substrate-Parity sign-off "
+                f"requires parity-marker; got "
+                f"cross_substrate_parity_marker_status="
+                f"{cross_substrate_parity_marker_status!r}"
+            )
+        target = _state_file_path(self.state_dir, welle_number)
+        data = _load_state_file(target)
+        _enforce_shape(data, target)
+        prior_status = data["status"]
+        if prior_status == STATUS_SIGNED_OFF:
+            # Idempotent no-op: cross-substrate-parity sign-off already
+            # recorded.
+            record = WelleAuditRecord(
+                welle_number=welle_number,
+                prior_status=prior_status,
+                new_status=prior_status,
+                cutover_iso=data.get("cutover_iso", ""),
+                signoff_iso=data.get("signoff_iso", ""),
+                trigger="cross-substrate-parity",
+            )
+            self.audit_emitter(record)
+            return record
+        _check_transition(prior_status, STATUS_SIGNED_OFF)
+        new_data = dict(data)
+        new_data["status"] = STATUS_SIGNED_OFF
+        new_data["signoff_iso"] = signoff_iso
+        _check_time_invariants(
+            new_data.get("cutover_iso", ""), new_data["signoff_iso"]
+        )
+        _atomic_write_json(target, new_data)
+        record = WelleAuditRecord(
+            welle_number=welle_number,
+            prior_status=prior_status,
+            new_status=STATUS_SIGNED_OFF,
+            cutover_iso=new_data.get("cutover_iso", ""),
+            signoff_iso=signoff_iso,
+            trigger="cross-substrate-parity",
+        )
+        self.audit_emitter(record)
+        return record
+
     # -- Transition: ANY -> rolled-back (Tag-70 §2.4 Rollback-Writer) --
 
     def handle_rollback_event(
@@ -1041,7 +1193,10 @@ __all__ = [
     "AuditRecordEmitter",
     "CAPABILITY_TOKEN_ROTATED",
     "CAPABILITY_TOKEN_ROTATION_GUARDED_WELLEN",
+    "CROSS_SUBSTRATE_PARITY_GUARDED_WELLEN",
+    "CROSS_SUBSTRATE_PARITY_VERIFIED",
     "CapabilityTokenRotationError",
+    "CrossSubstrateParityError",
     "DOPPELBETRIEB_SEALED",
     "DOPPELBETRIEB_SEALED_WELLEN",
     "DoppelbetriebSealingError",

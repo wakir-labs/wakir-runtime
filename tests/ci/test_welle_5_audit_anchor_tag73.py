@@ -93,7 +93,7 @@ def _canonical_welle_5_rollup() -> dict:
         "welle_number": 5,
         "schema_version": "tag-67-v1",
         "phase": "phase-3-marathon",
-        "kw_cutover_anchor": "KW-25",
+        "kw_cutover_anchor": "KW-26",
         "cutover_iso": "",
         "signoff_iso": "",
         "status": "pending",
