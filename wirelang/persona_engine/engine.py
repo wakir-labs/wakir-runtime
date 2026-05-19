@@ -1037,7 +1037,19 @@ class PersonaEngine:
 # (Bridge-Audit Welle, KW-24 Fr) that hard-codes ``welle_number=3`` and
 # delegates to :meth:`WelleStateProducer.handle_sign_off_event`. The
 # pre-auditor gate is enforced by the producer (Welle-3 is in
-# :data:`PRE_AUDITOR_GUARDED_WELLEN`). For Welle-1/4/5/6 sign-offs the
+# :data:`PRE_AUDITOR_GUARDED_WELLEN`).
+#
+# ``handle_welle_4_signoff_event`` (Tag-72) is a Welle-4-pinned
+# shorthand (State-Backing Welle, KW-25 Mo) that hard-codes
+# ``welle_number=4`` and delegates to
+# :meth:`WelleStateProducer.handle_welle_4_signoff_event` with the
+# snapshot-restore-marker gate.
+#
+# ``handle_welle_5_signoff_event`` (Tag-73, this PR) is a Welle-5-pinned
+# shorthand (Capability-Token Welle, KW-25 Fr 2026-06-19, Reza-Zone-L)
+# that hard-codes ``welle_number=5`` and delegates to
+# :meth:`WelleStateProducer.handle_welle_5_signoff_event` with the
+# capability-token-rotation-marker gate. For Welle-1/6 sign-offs the
 # direct producer-method is used (no top-level shorthand needed).
 # ---------------------------------------------------------------------------
 
@@ -1166,6 +1178,56 @@ def handle_welle_4_signoff_event(
         signoff_iso=signoff_iso,
         sign_off_marker_status=sign_off_marker_status,
         snapshot_restore_marker_status=snapshot_restore_marker_status,
+    )
+
+
+def handle_welle_5_signoff_event(
+    state_dir: Path,
+    signoff_iso: str,
+    *,
+    sign_off_marker_status: str,
+    capability_token_rotation_marker_status: str,
+    audit_emitter: Optional[AuditRecordEmitter] = None,
+) -> WelleAuditRecord:
+    """Top-level dispatch for the Welle-5 Capability-Token sign-off (Tag-73).
+
+    Welle-5 is the Capability-Token Welle (KW-25 Fr 2026-06-19,
+    Reza-Zone-L). The capability-token enforce-mode flip from audit-
+    only-mode to enforce-mode happens during this Welle (per
+    kw-24-welle-1-7-acceptance-criteria §5 probes W5-S1..S4); the
+    sign-off is gated by the capability-token-rotation-marker
+    precondition (operator-curated via ``state/capability-token-
+    rotation-drill.json``).
+
+    Args:
+        state_dir: Directory containing ``state/welle-5.json``.
+        signoff_iso: RFC 3339 sign-off timestamp.
+        sign_off_marker_status: Companion-marker status; must be
+            ``"signed-off"`` (refusal-to-write otherwise).
+        capability_token_rotation_marker_status: Capability-token-
+            rotation marker; must be exactly ``"rotated"`` (refusal-
+            to-write otherwise). The marker is operator-curated by the
+            capability-token-enforce-validate workflow
+            (kw-24-welle-1-7-acceptance-criteria §5.1 probe W5-S4).
+        audit_emitter: Optional audit-record sink; defaults to no-op.
+
+    Returns:
+        The :class:`WelleAuditRecord` describing the transition (or the
+        idempotent no-op if Welle-5 is already signed-off). The record
+        carries ``trigger="capability-token-rotation"``.
+    """
+    if audit_emitter is None:
+        producer = WelleStateProducer(state_dir=state_dir)
+    else:
+        producer = WelleStateProducer(
+            state_dir=state_dir, audit_emitter=audit_emitter
+        )
+    return producer.handle_welle_5_signoff_event(
+        signoff_iso=signoff_iso,
+        sign_off_marker_status=sign_off_marker_status,
+        capability_token_rotation_marker_status=(
+            capability_token_rotation_marker_status
+        ),
     )
 
 

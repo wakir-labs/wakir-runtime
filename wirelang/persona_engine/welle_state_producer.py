@@ -22,14 +22,22 @@ hot-path engine code free of filesystem-layout knowledge and lets
 the producer-substrate be unit-tested in hermetic isolation.
 
 Tag-69 shipped the **Welle-1 producer-path** (Cutover-T0 first-fire)
-+ Sign-Off path. Tag-72 (this PR) adds the **Welle-4 State-Backing
-sign-off** path (KW-25 Mo): a sign-off variant that additionally
-requires a ``snapshot_restore_marker_status == "restored"``
-precondition. Welle-4 is the only Welle whose sign-off is gated by
-the snapshot-restore-marker (state-backing rust<->python switch is
-the 10th pre-boot BackendDecision per the Tag-57-emit-order-pin;
-the snapshot-restore-workflow is captured in
-Tomas-Tag-56-Rollback-Workflow §J4). Tag-70 (earlier) added:
++ Sign-Off path. Tag-72 added the **Welle-4 State-Backing sign-off**
+path (KW-25 Mo): a sign-off variant that additionally requires a
+``snapshot_restore_marker_status == "restored"`` precondition.
+Welle-4 is the only Welle whose sign-off is gated by the snapshot-
+restore-marker (state-backing rust<->python switch is the 10th
+pre-boot BackendDecision per the Tag-57-emit-order-pin; the
+snapshot-restore-workflow is captured in Tomas-Tag-56-Rollback-
+Workflow §J4). Tag-73 (this PR) adds the **Welle-5 Capability-Token
+sign-off** path (KW-25 Fr 2026-06-19, Reza-Zone-L): a sign-off
+variant that additionally requires a
+``capability_token_rotation_marker_status == "rotated"`` precondition.
+Welle-5 is the only Welle whose sign-off is gated by the
+capability-token-rotation-marker (the capability-token enforce-mode
+flip from audit-only-mode to enforce-mode happens during this Welle,
+per kw-24-welle-1-7-acceptance-criteria §5 probe W5-S1..S4).
+Tag-70 (earlier) added:
 
 * **Welle-2 Doppelbetrieb-Sealing** trigger (KW-24 Mi, plan-doc §2.3):
   a sign-off variant that additionally requires a
@@ -182,6 +190,25 @@ SNAPSHOT_RESTORE_GUARDED_WELLEN = frozenset({4})
 # :data:`DOPPELBETRIEB_SEALED` design.
 SNAPSHOT_RESTORE_VERIFIED = "restored"
 
+# Wellen for which the sign-off path additionally requires the
+# capability-token-rotation-marker to report ``rotated`` (Tag-73 §2.6,
+# Reza-Zone-L capability-token-enforce-mode substrate). Welle-5 is the
+# Capability-Token Welle (KW-25 Fr 2026-06-19); the sign-off is only
+# authorised once the operator-curated capability-token-rotation-drill
+# (``state/capability-token-rotation-drill.json``, kw-24-welle-1-7-
+# acceptance-criteria §5.1 probe W5-S4) has flipped to
+# :data:`CAPABILITY_TOKEN_ROTATED`. Without the rotation-marker the
+# Welle-5 sign-off would leave the capability-token substrate in
+# audit-only-mode at the moment of cutover finalisation (kw-24-welle-1-
+# 7-acceptance-criteria §5.3 red-condition).
+CAPABILITY_TOKEN_ROTATION_GUARDED_WELLEN = frozenset({5})
+
+# Capability-token-rotation-marker literal: callers MUST pass this exact
+# value as ``capability_token_rotation_marker_status`` to authorise the
+# Welle-5 Capability-Token sign-off (Tag-73 §2.6). Mirrors the
+# :data:`DOPPELBETRIEB_SEALED` / :data:`SNAPSHOT_RESTORE_VERIFIED` design.
+CAPABILITY_TOKEN_ROTATED = "rotated"
+
 # Allowed lifecycle-state-machine transitions (plan-doc §3.1).
 ALLOWED_TRANSITIONS = frozenset({
     (STATUS_PENDING, STATUS_IN_PROGRESS),
@@ -246,6 +273,29 @@ class SnapshotRestoreError(WelleProducerError):
     snapshot-restore-marker has flipped to
     :data:`SNAPSHOT_RESTORE_VERIFIED`. Mirrors the
     :class:`DoppelbetriebSealingError` design for Welle-2.
+    """
+
+
+class CapabilityTokenRotationError(WelleProducerError):
+    """Raised on a Welle-5 sign-off without rotation-marker (Tag-73 §2.6).
+
+    Welle-5 is the Capability-Token Welle (KW-25 Fr 2026-06-19,
+    Reza-Zone-L). The capability-token enforce-mode flip from
+    audit-only-mode to enforce-mode happens during this Welle; the
+    sign-off is only authorised once the operator-curated
+    capability-token-rotation-marker has flipped to
+    :data:`CAPABILITY_TOKEN_ROTATED`. Mirrors the
+    :class:`DoppelbetriebSealingError` and :class:`SnapshotRestoreError`
+    designs.
+
+    The marker is sourced from the
+    ``state/capability-token-rotation-drill.json`` file curated by the
+    capability-token-enforce-validate workflow
+    (kw-24-welle-1-7-acceptance-criteria §5.1 probe W5-S4). Without
+    the rotation-marker the Welle-5 sign-off would leave the
+    capability-token substrate in audit-only-mode at the moment of
+    cutover finalisation (kw-24-welle-1-7-acceptance-criteria §5.3
+    red-condition).
     """
 
 
@@ -774,6 +824,110 @@ class WelleStateProducer:
         self.audit_emitter(record)
         return record
 
+    # -- Transition: Welle-5 Capability-Token sign-off (Tag-73 §2.6) --
+
+    def handle_welle_5_signoff_event(
+        self,
+        signoff_iso: str,
+        *,
+        sign_off_marker_status: str,
+        capability_token_rotation_marker_status: str,
+    ) -> WelleAuditRecord:
+        """Apply the Welle-5 Capability-Token sign-off (Tag-73 §2.6).
+
+        Welle-5 is the Capability-Token Welle (KW-25 Fr 2026-06-19,
+        Reza-Zone-L). The capability-token enforce-mode flips from
+        audit-only-mode to enforce-mode during this Welle. The sign-off
+        is structurally an in-progress -> signed-off transition with
+        **two** marker preconditions:
+
+        * the standard ``sign_off_marker_status == "signed-off"``
+          companion marker (same as :meth:`handle_sign_off_event`),
+        * the additional ``capability_token_rotation_marker_status ==
+          "rotated"`` marker which confirms the capability-token-
+          rotation-drill (sourced from ``state/capability-token-
+          rotation-drill.json``, kw-24-welle-1-7-acceptance-criteria
+          §5.1 probe W5-S4) has been observed-complete by the
+          operator (the enforce-mode flag is active and the
+          token-rotation has been audited green). Refused otherwise.
+
+        Welle-5 is **not** in :data:`PRE_AUDITOR_GUARDED_WELLEN`, so
+        no pre-auditor guard applies here (Welle-3 and Welle-7 are
+        the pre-auditor-guarded Wellen per the Henrik-cannot-self-
+        sign-off invariant). The audit-record carries
+        ``trigger="capability-token-rotation"`` to disambiguate from
+        the vanilla sign-off trigger, the Welle-2 ``trigger="sealing"``
+        record, and the Welle-4 ``trigger="snapshot-restore"`` record.
+
+        Idempotency: a double-fire after a successful Welle-5 sign-off
+        returns an audit-record with ``prior_status == new_status ==
+        "signed-off"`` and ``trigger="capability-token-rotation"`` (no
+        on-disk mutation). Mirrors the Welle-2/Welle-4 idempotency
+        path.
+
+        Forensic note: the capability-token-rotation-iso itself is not
+        stored in the schema-pinned state-file (the schema-pin is
+        unchanged per Tag-67); it is recoverable from the audit-stream
+        via the ``trigger="capability-token-rotation"`` record +
+        ``signoff_iso``. The rotation-drill anchor (timestamp >=
+        Welle-5 anchor-7d per kw-24-welle-1-7-acceptance-criteria §5.1
+        probe W5-S4) is verified by the workflow-side aggregator, NOT
+        by this producer-substrate (producer-substrate is engine-side
+        only, no workflow-coupling).
+        """
+        welle_number = 5
+        _validate_iso_timestamp(signoff_iso, "signoff_iso")
+        if sign_off_marker_status != STATUS_SIGNED_OFF:
+            raise SignOffPreconditionError(
+                f"sign-off-marker for welle-{welle_number} not "
+                f"signed-off: got {sign_off_marker_status!r}"
+            )
+        if (
+            capability_token_rotation_marker_status
+            != CAPABILITY_TOKEN_ROTATED
+        ):
+            raise CapabilityTokenRotationError(
+                f"welle-{welle_number} Capability-Token sign-off "
+                f"requires rotation-marker; got "
+                f"capability_token_rotation_marker_status="
+                f"{capability_token_rotation_marker_status!r}"
+            )
+        target = _state_file_path(self.state_dir, welle_number)
+        data = _load_state_file(target)
+        _enforce_shape(data, target)
+        prior_status = data["status"]
+        if prior_status == STATUS_SIGNED_OFF:
+            # Idempotent no-op: capability-token sign-off already
+            # recorded.
+            record = WelleAuditRecord(
+                welle_number=welle_number,
+                prior_status=prior_status,
+                new_status=prior_status,
+                cutover_iso=data.get("cutover_iso", ""),
+                signoff_iso=data.get("signoff_iso", ""),
+                trigger="capability-token-rotation",
+            )
+            self.audit_emitter(record)
+            return record
+        _check_transition(prior_status, STATUS_SIGNED_OFF)
+        new_data = dict(data)
+        new_data["status"] = STATUS_SIGNED_OFF
+        new_data["signoff_iso"] = signoff_iso
+        _check_time_invariants(
+            new_data.get("cutover_iso", ""), new_data["signoff_iso"]
+        )
+        _atomic_write_json(target, new_data)
+        record = WelleAuditRecord(
+            welle_number=welle_number,
+            prior_status=prior_status,
+            new_status=STATUS_SIGNED_OFF,
+            cutover_iso=new_data.get("cutover_iso", ""),
+            signoff_iso=signoff_iso,
+            trigger="capability-token-rotation",
+        )
+        self.audit_emitter(record)
+        return record
+
     # -- Transition: ANY -> rolled-back (Tag-70 §2.4 Rollback-Writer) --
 
     def handle_rollback_event(
@@ -885,6 +1039,9 @@ __all__ = [
     "ALLOWED_STATUSES",
     "ALLOWED_TRANSITIONS",
     "AuditRecordEmitter",
+    "CAPABILITY_TOKEN_ROTATED",
+    "CAPABILITY_TOKEN_ROTATION_GUARDED_WELLEN",
+    "CapabilityTokenRotationError",
     "DOPPELBETRIEB_SEALED",
     "DOPPELBETRIEB_SEALED_WELLEN",
     "DoppelbetriebSealingError",
