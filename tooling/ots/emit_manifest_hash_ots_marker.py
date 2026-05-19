@@ -232,6 +232,60 @@ canonical Tomás -> Henrik hand-off signal for Phase-3-COMPLETE-
 marker readiness, true iff a pre-auditor-decision is present in
 the bundle AND ``global_acceptance_verdict_recorded == True``.
 
+Tag-76 Marathon-Closeout-Audit-Anchor-Bundle (Phase-3-Complete-Marker)
+----------------------------------------------------------------------
+
+The ``--mode phase-3-complete-marker`` flag consolidates the seven
+Welle-N audit-anchor markers (the outputs of the welle-1..welle-7-
+audit-anchor modes) into a single Phase-3-COMPLETE-marker that
+Henrik's Zone-N Audit-Evidence-Index ingests as the canonical
+Phase-3-COMPLETE hand-off envelope.
+
+Hash recipe: identical to the per-Welle recipe (canonical-JSON of
+each Welle marker dict, concatenated in welle-number order with a
+single ``b"\n"`` separator, SHA-256 over the concatenation). The
+seven input markers are themselves byte-stable, so the closeout
+bundle anchor is deterministic across re-runs.
+
+The Welle-1..7-Kind-Disjointness-Pin is enforced at ingest: the
+seven input markers must cover ``welle_number`` 1..7 exactly with
+no duplicates and no gaps, and each marker's ``kind`` must match
+the expected ``welle-N-audit-trail-anchor-marker`` string. Any
+deviation raises ValueError before the bundle hash is computed.
+
+Inputs:
+
+  * ``--welle-N-marker`` for N in 1..7 (all seven required): paths
+    to the per-Welle audit-anchor marker JSON files.
+  * ``--marker-out`` (required): output path for the Phase-3-
+    COMPLETE-marker.
+
+Output: marker JSON at ``--marker-out`` with shape::
+
+  {
+    "schema_version": 1,
+    "kind": "phase-3-complete-marker",
+    "mode": "phase-3-complete-marker",
+    "phase_3_complete_bundle_anchor": "<64-hex>",
+    "welle_bundle_count": 7,
+    "welle_bundle_anchors": [
+      {"welle_number": N, "kind": "...", "audit_trail_anchor": "..."}
+    ],
+    "phase_3_final_sealing_tracking": { ... },  // from welle-7
+    "global_acceptance_verdict_recorded": bool,
+    "phase_3_complete_marker_ready": bool,
+    "pre_auditor_final_sealing_signaling_ready": bool,
+    "welle_1_7_kind_disjointness_pin_ok": true,
+    "wat_spool_envelope": { ... },
+    "emitted_at_utc": "<iso>",
+    "anchors": { ... },
+    "operator_hand_next_step": "..."
+  }
+
+The closeout-marker is **hermetic and audit-only**: no network
+I/O, no OTS calendar call, no subprocess. Real OTS stamping of
+the Phase-3-COMPLETE marker is an Operator-Hand follow-up step.
+
 Welle-4 carries its own discipline: the State-Backing-Snapshot-
 Restore-Pflicht-Flag (see Amara Tag-67 state-file conventions). The
 marker exposes a ``snapshot_restore_pflicht_tracking`` block:
@@ -346,6 +400,7 @@ MODE_WELLE_4_AUDIT_ANCHOR: str = "welle-4-audit-anchor"
 MODE_WELLE_5_AUDIT_ANCHOR: str = "welle-5-audit-anchor"
 MODE_WELLE_6_AUDIT_ANCHOR: str = "welle-6-audit-anchor"
 MODE_WELLE_7_AUDIT_ANCHOR: str = "welle-7-audit-anchor"
+MODE_PHASE_3_COMPLETE_MARKER: str = "phase-3-complete-marker"
 ANCHOR_TARGET_OTS_CALENDAR: str = "opentimestamps-calendar"
 
 # Tag-69 Welle-1 audit-trail-anchor mode constants.
@@ -469,6 +524,50 @@ WELLE_7_BUNDLE_ORDER: tuple[str, ...] = WELLE_1_BUNDLE_ORDER
 WELLE_7_BUNDLE_REQUIRED: frozenset[str] = WELLE_1_BUNDLE_REQUIRED
 WELLE_7_KIND_MARKER: str = "welle-7-audit-trail-anchor-marker"
 WELLE_7_KIND_ENVELOPE: str = "welle-7-audit-trail-anchor-envelope"
+
+# Tag-76 Phase-3-Complete-Marker mode constants. Marathon-Closeout-
+# Audit-Anchor-Bundle: consolidates the Welle-1..7 audit-anchor
+# markers (the outputs of the seven welle-N-audit-anchor modes added
+# on Tag-69..Tag-75) into a single Phase-3-COMPLETE marker that
+# Henrik's Zone-N Audit-Evidence-Index ingests as the canonical
+# Phase-3-COMPLETE-marker hand-off envelope.
+#
+# Hash recipe: identical to the Welle-N recipe -- ``_canonical_json_
+# bytes`` over each Welle-N marker dict (sort_keys + compact
+# separators), concatenated in welle-number order with a single
+# ``b"\n"`` separator, SHA-256 over the concatenation. The seven
+# input markers are themselves byte-stable artefacts (they were
+# emitted with ``json.dumps(..., sort_keys=True)``), so the
+# closeout-bundle anchor is deterministic across re-runs that pass
+# the same seven files.
+#
+# Welle-1..7-Kind-Disjointness-Pin: each welle marker carries a
+# distinct ``kind`` string (welle-N-audit-trail-anchor-marker) but
+# the underlying hash recipe is identical. The closeout marker
+# enforces this disjointness at ingest time by asserting that the
+# seven input markers cover ``welle_number`` 1..7 exactly with no
+# duplicates and no gaps -- any deviation raises ValueError before
+# the bundle hash is computed.
+#
+# Phase-3-COMPLETE-marker-readiness gate: the closeout marker
+# surfaces ``phase_3_complete_marker_ready`` (derived from welle-7's
+# tracking block) and ``global_acceptance_verdict_recorded`` (also
+# welle-7) plus ``pre_auditor_final_sealing_signaling_ready``
+# (welle-7) so a downstream consumer can dispatch the Henrik hand-
+# off without re-reading the underlying welle bundles.
+PHASE_3_COMPLETE_KIND_MARKER: str = "phase-3-complete-marker"
+PHASE_3_COMPLETE_KIND_ENVELOPE: str = "phase-3-complete-marker-envelope"
+PHASE_3_COMPLETE_WELLE_COUNT: int = 7
+PHASE_3_COMPLETE_EXPECTED_WELLE_NUMBERS: tuple[int, ...] = (1, 2, 3, 4, 5, 6, 7)
+PHASE_3_COMPLETE_EXPECTED_KINDS: tuple[str, ...] = (
+    WELLE_1_KIND_MARKER,
+    WELLE_2_KIND_MARKER,
+    WELLE_3_KIND_MARKER,
+    WELLE_4_KIND_MARKER,
+    WELLE_5_KIND_MARKER,
+    WELLE_6_KIND_MARKER,
+    WELLE_7_KIND_MARKER,
+)
 
 # Required top-level keys for a schema-v1 marker payload. Used by the
 # pre-activation-probe's ``payload_shape`` stage.
@@ -2114,6 +2213,260 @@ def load_welle_7_bundle(
     return bundle
 
 
+def load_phase_3_complete_bundle(
+    *,
+    welle_marker_paths: list[Path],
+) -> list[dict]:
+    """Load the seven Welle-N audit-anchor markers from disk.
+
+    The returned list is sorted by ``welle_number`` ascending so the
+    closeout bundle hash is deterministic regardless of the input
+    order.
+
+    Raises ``OSError`` if a file is unreadable, ``json.JSONDecodeError``
+    if a file is malformed, and ``ValueError`` if the markers do not
+    cover welle_number 1..7 exactly.
+    """
+    if len(welle_marker_paths) != PHASE_3_COMPLETE_WELLE_COUNT:
+        raise ValueError(
+            f"phase-3-complete bundle expects "
+            f"{PHASE_3_COMPLETE_WELLE_COUNT} welle markers, "
+            f"got {len(welle_marker_paths)}"
+        )
+
+    markers: list[dict] = []
+    for path in welle_marker_paths:
+        markers.append(json.loads(path.read_text(encoding="utf-8")))
+
+    return sorted(markers, key=lambda m: m.get("welle_number", -1))
+
+
+def assert_welle_1_7_kind_disjointness_pin(markers: list[dict]) -> None:
+    """Enforce the Welle-1..7-Kind-Disjointness-Pin at ingest.
+
+    The seven input markers must:
+
+      * cover ``welle_number`` 1..7 exactly with no duplicates and
+        no gaps,
+      * carry the expected ``kind`` string for their welle_number
+        (``welle-N-audit-trail-anchor-marker``),
+      * carry a 64-hex ``audit_trail_anchor``.
+
+    Raises ``ValueError`` on any deviation.
+    """
+    if len(markers) != PHASE_3_COMPLETE_WELLE_COUNT:
+        raise ValueError(
+            f"phase-3-complete bundle expects "
+            f"{PHASE_3_COMPLETE_WELLE_COUNT} markers, got {len(markers)}"
+        )
+
+    seen_welle_numbers: list[int] = []
+    for idx, marker in enumerate(markers):
+        if not isinstance(marker, dict):
+            raise ValueError(
+                f"phase-3-complete bundle marker #{idx} is not a dict: "
+                f"{type(marker).__name__}"
+            )
+        welle_number = marker.get("welle_number")
+        expected_welle = PHASE_3_COMPLETE_EXPECTED_WELLE_NUMBERS[idx]
+        if welle_number != expected_welle:
+            raise ValueError(
+                f"phase-3-complete bundle marker #{idx} carries "
+                f"welle_number={welle_number!r}, expected "
+                f"{expected_welle} (markers must be sorted 1..7 "
+                f"with no gaps and no duplicates)"
+            )
+        if welle_number in seen_welle_numbers:
+            raise ValueError(
+                f"phase-3-complete bundle marker #{idx} has "
+                f"duplicate welle_number={welle_number}"
+            )
+        seen_welle_numbers.append(welle_number)
+
+        expected_kind = PHASE_3_COMPLETE_EXPECTED_KINDS[idx]
+        if marker.get("kind") != expected_kind:
+            raise ValueError(
+                f"phase-3-complete bundle marker #{idx} "
+                f"(welle_number={welle_number}) carries "
+                f"kind={marker.get('kind')!r}, expected "
+                f"{expected_kind!r} (Welle-1..7-Kind-Disjointness-Pin "
+                f"violated)"
+            )
+
+        anchor = marker.get("audit_trail_anchor")
+        if not isinstance(anchor, str) or len(anchor) != 64 or not all(
+            c in "0123456789abcdef" for c in anchor
+        ):
+            raise ValueError(
+                f"phase-3-complete bundle marker #{idx} "
+                f"(welle_number={welle_number}) carries an invalid "
+                f"audit_trail_anchor (must be 64-hex SHA-256), got "
+                f"{anchor!r}"
+            )
+
+
+def compute_phase_3_complete_bundle_anchor(markers: list[dict]) -> str:
+    """Compute the Phase-3-COMPLETE bundle SHA-256 from seven markers.
+
+    Hash recipe: identical to the per-Welle recipe (canonical-JSON
+    of each Welle marker dict, concatenated in welle-number order
+    with a single ``b"\\n"`` separator, SHA-256 over concat).
+    Assumes the markers are already sorted by welle_number and have
+    passed ``assert_welle_1_7_kind_disjointness_pin``.
+    """
+    parts: list[bytes] = []
+    for marker in markers:
+        parts.append(_canonical_json_bytes(marker))
+    return hashlib.sha256(b"\n".join(parts)).hexdigest()
+
+
+def derive_phase_3_complete_summary(markers: list[dict]) -> dict:
+    """Derive the Phase-3-COMPLETE summary from the seven markers.
+
+    Surfaces the Phase-3-Final-Sealing-Tracking block (sourced from
+    the Welle-7 marker) plus the two Tag-75 signaling flags
+    (``global_acceptance_verdict_recorded``,
+    ``pre_auditor_final_sealing_signaling_ready``) so the Henrik
+    Zone-N hand-off does not have to re-read the welle bundles.
+    """
+    # markers[-1] is Welle-7 after sort.
+    welle_7 = markers[-1]
+    tracking = welle_7.get(
+        "phase_3_final_sealing_tracking",
+        {
+            "phase_3_final_sealing_active": False,
+            "phase_3_final_sealing_status": "unknown",
+            "phase_3_final_sealing_iso": "",
+            "global_acceptance_verdict_recorded": False,
+            "phase_3_complete_marker_ready": False,
+            "phase_3_final_sealing_evidence_ref": "",
+        },
+    )
+    global_acceptance = bool(
+        tracking.get("global_acceptance_verdict_recorded", False)
+    )
+    complete_ready = bool(
+        tracking.get("phase_3_complete_marker_ready", False)
+    )
+    pre_auditor_final_sealing = bool(
+        welle_7.get(
+            "pre_auditor_final_sealing_signaling_ready", False
+        )
+    )
+    return {
+        "phase_3_final_sealing_tracking": dict(tracking),
+        "global_acceptance_verdict_recorded": global_acceptance,
+        "phase_3_complete_marker_ready": complete_ready,
+        "pre_auditor_final_sealing_signaling_ready": (
+            pre_auditor_final_sealing
+        ),
+    }
+
+
+def build_phase_3_complete_marker(
+    *,
+    markers: list[dict],
+    bundle_anchor: str,
+    actor: str,
+    now_utc: _dt.datetime,
+) -> dict:
+    """Assemble the Phase-3-COMPLETE marker dict (Tag-76).
+
+    Marathon-Closeout-Audit-Anchor-Bundle. Bundles the seven
+    Welle-N audit-anchor markers under a single byte-stable
+    envelope keyed by ``phase_3_complete_bundle_anchor`` so
+    Henrik's Zone-N Audit-Evidence-Index can dispatch the Phase-3-
+    COMPLETE hand-off from one file.
+    """
+    iso_now = now_utc.isoformat()
+    summary = derive_phase_3_complete_summary(markers)
+    bundle_anchors = [
+        {
+            "welle_number": m.get("welle_number"),
+            "kind": m.get("kind"),
+            "audit_trail_anchor": m.get("audit_trail_anchor"),
+        }
+        for m in markers
+    ]
+    return {
+        "schema_version": 1,
+        "kind": PHASE_3_COMPLETE_KIND_MARKER,
+        "mode": MODE_PHASE_3_COMPLETE_MARKER,
+        "phase_3_complete_bundle_anchor": bundle_anchor,
+        "welle_bundle_count": PHASE_3_COMPLETE_WELLE_COUNT,
+        "welle_bundle_anchors": bundle_anchors,
+        "phase_3_final_sealing_tracking": summary[
+            "phase_3_final_sealing_tracking"
+        ],
+        "global_acceptance_verdict_recorded": summary[
+            "global_acceptance_verdict_recorded"
+        ],
+        "phase_3_complete_marker_ready": summary[
+            "phase_3_complete_marker_ready"
+        ],
+        "pre_auditor_final_sealing_signaling_ready": summary[
+            "pre_auditor_final_sealing_signaling_ready"
+        ],
+        "welle_1_7_kind_disjointness_pin_ok": True,
+        "wat_spool_envelope": {
+            "schema_version": 1,
+            "kind": PHASE_3_COMPLETE_KIND_ENVELOPE,
+            "phase_3_complete_bundle_anchor": bundle_anchor,
+            "requested_at_utc": iso_now,
+            "actor": actor,
+            "anchor_target": ANCHOR_TARGET_OTS_CALENDAR,
+        },
+        "emitted_at_utc": iso_now,
+        "anchors": {
+            "adr_audit_trail": "decisions/0007-internal-audit-trail-ots.md",
+            "amara_tag_67_state_file_conventions_pr": 429,
+            "tomas_tag_69_welle_1_audit_anchor_pr": 439,
+            "tomas_tag_70_welle_2_audit_anchor_pr": 445,
+            "tomas_tag_71_welle_3_audit_anchor_pr": 450,
+            "tomas_tag_72_welle_4_audit_anchor_pr": 457,
+            "tomas_tag_73_welle_5_audit_anchor_pr": 464,
+            "tomas_tag_74_welle_6_audit_anchor_pr": 470,
+            "tomas_tag_75_welle_7_audit_anchor_pr": 477,
+            "tomas_tag_76_closeout_bundle_pr": None,
+            "state_file_conventions_doc": (
+                "docs/quality-gates/welle-n-state-file-conventions.md"
+            ),
+            "pre_cutover_acceptance_run_order_doc": (
+                "docs/quality-gates/pre-cutover-acceptance-run-order.md"
+            ),
+            "phase_3_marathon_final_acceptance_doc": (
+                "docs/quality-gates/phase-3-marathon-final-acceptance.md"
+            ),
+            "marathon_closeout_context": (
+                "phase-3-marathon-closeout-audit-anchor-bundle"
+            ),
+            "phase_3_complete_marker_discipline": (
+                "tag-76-marathon-closeout-bundle-handoff-to-henrik-"
+                "zone-n-audit-evidence-index"
+            ),
+            "cross_substrate_parity_markers": [
+                "welle-1",
+                "welle-2",
+                "welle-3",
+                "welle-4",
+                "welle-5",
+                "welle-6",
+                "welle-7",
+            ],
+        },
+        "operator_hand_next_step": (
+            "Henrik's Zone-N Audit-Evidence-Index ingests this "
+            "Phase-3-COMPLETE marker as the canonical Marathon-"
+            "Closeout hand-off envelope. The bundle anchor "
+            "consolidates the Welle-1..7 audit-trail-anchors into "
+            "a single byte-stable artefact. Real OTS calendar "
+            "stamping of the Phase-3-COMPLETE marker is an "
+            "Operator-Hand follow-up step on a network-attached "
+            "host, separate from this audit-only emit."
+        ),
+    }
+
+
 def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="emit_manifest_hash_ots_marker",
@@ -2136,6 +2489,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             MODE_WELLE_5_AUDIT_ANCHOR,
             MODE_WELLE_6_AUDIT_ANCHOR,
             MODE_WELLE_7_AUDIT_ANCHOR,
+            MODE_PHASE_3_COMPLETE_MARKER,
         ),
         default=MODE_AUDIT_ONLY,
         help=(
@@ -2175,7 +2529,19 @@ def main(argv: Iterable[str] | None = None) -> int:
             "Acceptance-Verdict). Carries the phase_3_final_sealing_"
             "tracking block + Pre-Auditor-Final-Sealing-Signaling-"
             "Markers (Tomás -> Henrik hand-off signal for Phase-3-"
-            "COMPLETE-marker readiness)."
+            "COMPLETE-marker readiness). "
+            "phase-3-complete-marker (Tag-76): consolidates the "
+            "seven Welle-N audit-anchor markers (outputs of "
+            "welle-1..7-audit-anchor modes) into a single Marathon-"
+            "Closeout-Audit-Anchor-Bundle. Bundle hash recipe "
+            "identical to per-Welle recipe (canonical-JSON concat + "
+            "SHA-256). Enforces the Welle-1..7-Kind-Disjointness-Pin "
+            "at ingest. Surfaces Phase-3-Final-Sealing-Tracking + "
+            "global-acceptance-verdict-recorded + Phase-3-COMPLETE-"
+            "marker-ready + Pre-Auditor-Final-Sealing-Signaling-"
+            "Ready (all sourced from welle-7) so Henrik's Zone-N "
+            "Audit-Evidence-Index hand-off dispatches without "
+            "re-reading the underlying bundles."
         ),
     )
     parser.add_argument(
@@ -2441,6 +2807,69 @@ def main(argv: Iterable[str] | None = None) -> int:
             "Path to state/welle-7-pre-auditor-decision.json "
             "(optional for welle-7-audit-anchor mode; recommended "
             "for Phase-3-COMPLETE-marker readiness signaling)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-1-marker",
+        type=Path,
+        default=None,
+        help=(
+            "Path to the Welle-1 audit-anchor marker JSON "
+            "(required for phase-3-complete-marker mode)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-2-marker",
+        type=Path,
+        default=None,
+        help=(
+            "Path to the Welle-2 audit-anchor marker JSON "
+            "(required for phase-3-complete-marker mode)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-3-marker",
+        type=Path,
+        default=None,
+        help=(
+            "Path to the Welle-3 audit-anchor marker JSON "
+            "(required for phase-3-complete-marker mode)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-4-marker",
+        type=Path,
+        default=None,
+        help=(
+            "Path to the Welle-4 audit-anchor marker JSON "
+            "(required for phase-3-complete-marker mode)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-5-marker",
+        type=Path,
+        default=None,
+        help=(
+            "Path to the Welle-5 audit-anchor marker JSON "
+            "(required for phase-3-complete-marker mode)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-6-marker",
+        type=Path,
+        default=None,
+        help=(
+            "Path to the Welle-6 audit-anchor marker JSON "
+            "(required for phase-3-complete-marker mode)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-7-marker",
+        type=Path,
+        default=None,
+        help=(
+            "Path to the Welle-7 audit-anchor marker JSON "
+            "(required for phase-3-complete-marker mode)."
         ),
     )
     parser.add_argument(
@@ -3132,6 +3561,101 @@ def main(argv: Iterable[str] | None = None) -> int:
             f"{tracking['phase_3_complete_marker_ready']} "
             f"pre_auditor_final_sealing_signaling_ready="
             f"{marker['pre_auditor_final_sealing_signaling_ready']} "
+            f"-> {args.marker_out}"
+        )
+        return 0
+
+    if args.mode == MODE_PHASE_3_COMPLETE_MARKER:
+        welle_marker_args = [
+            args.welle_1_marker,
+            args.welle_2_marker,
+            args.welle_3_marker,
+            args.welle_4_marker,
+            args.welle_5_marker,
+            args.welle_6_marker,
+            args.welle_7_marker,
+        ]
+        if any(p is None for p in welle_marker_args):
+            print(
+                "emit_manifest_hash_ots_marker: "
+                "--welle-1-marker .. --welle-7-marker are all "
+                "required when --mode phase-3-complete-marker",
+                file=sys.stderr,
+            )
+            return 2
+        if args.marker_out is None:
+            print(
+                "emit_manifest_hash_ots_marker: "
+                "--marker-out is required when "
+                "--mode phase-3-complete-marker",
+                file=sys.stderr,
+            )
+            return 2
+
+        for path in welle_marker_args:
+            if not path.is_file():
+                print(
+                    f"emit_manifest_hash_ots_marker: welle marker "
+                    f"file missing: {path}",
+                    file=sys.stderr,
+                )
+                return 1
+
+        try:
+            markers = load_phase_3_complete_bundle(
+                welle_marker_paths=welle_marker_args,
+            )
+        except (OSError, json.JSONDecodeError) as exc:
+            print(
+                f"emit_manifest_hash_ots_marker: phase-3-complete "
+                f"bundle read/parse error: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+        except ValueError as exc:
+            print(
+                f"emit_manifest_hash_ots_marker: phase-3-complete "
+                f"bundle shape error: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+
+        try:
+            assert_welle_1_7_kind_disjointness_pin(markers)
+        except ValueError as exc:
+            print(
+                f"emit_manifest_hash_ots_marker: phase-3-complete "
+                f"disjointness-pin violation: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+
+        bundle_anchor = compute_phase_3_complete_bundle_anchor(markers)
+        marker = build_phase_3_complete_marker(
+            markers=markers,
+            bundle_anchor=bundle_anchor,
+            actor=args.actor,
+            now_utc=now_utc,
+        )
+
+        args.marker_out.parent.mkdir(parents=True, exist_ok=True)
+        args.marker_out.write_text(
+            json.dumps(marker, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+        print(
+            f"emit_manifest_hash_ots_marker: mode={marker['mode']} "
+            f"phase_3_complete_bundle_anchor={bundle_anchor} "
+            f"welle_bundle_count={marker['welle_bundle_count']} "
+            f"global_acceptance_verdict_recorded="
+            f"{marker['global_acceptance_verdict_recorded']} "
+            f"phase_3_complete_marker_ready="
+            f"{marker['phase_3_complete_marker_ready']} "
+            f"pre_auditor_final_sealing_signaling_ready="
+            f"{marker['pre_auditor_final_sealing_signaling_ready']} "
+            f"welle_1_7_kind_disjointness_pin_ok="
+            f"{marker['welle_1_7_kind_disjointness_pin_ok']} "
             f"-> {args.marker_out}"
         )
         return 0
