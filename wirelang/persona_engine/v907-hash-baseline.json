@@ -1,0 +1,22 @@
+{
+  "baseline_carry_forward_pr": 372,
+  "baseline_emitted_utc": "2026-05-19",
+  "baseline_tag": "tag-59",
+  "composite_algorithm": "sha256(manifest \\x1f pin_pack \\x1f engine_resolver) over UTF-8 bytes",
+  "composite_hash": "a529d7d1b85ee33c61755cef7cb21793ff0ecf87d2efc5b9267f58526c818857",
+  "engine_py_relpath": "wirelang/persona_engine/engine.py",
+  "engine_version": "0.5.3-rc1",
+  "manifest_relpath": "wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md",
+  "note": "V-907 persona-hash-pin baseline for engine 0.5.3-rc1 (Tag-58 PR #372). Sealed Tag-59. Refresh requires Selin-Hand + Tomas Zone-K cross-review.",
+  "pin_pack_relpath": "infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml",
+  "segment_byte_lengths": {
+    "engine_py_resolvers": 16710,
+    "manifest_section_1": 2322,
+    "pin_pack_boot_wired_crates": 3183
+  },
+  "segment_hashes": {
+    "engine_py_resolvers": "aedfc3bbd260588eacd6f99fd1ccc0129a5706000c6437a0f255b1b98aaf18a9",
+    "manifest_section_1": "303bcb58c8b09529a4fd66d7de170644b6cc59a7716fda6d78f3794a85bdaf1a",
+    "pin_pack_boot_wired_crates": "18f8df8ab82e8b610f4cfdb7a447cf35d76be9b482f93cef782e4f75c9ced206"
+  }
+}
