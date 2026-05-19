@@ -1,0 +1,318 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tag-63 Operator-Trigger + Alert-Routing Integration-Test / Noa-SRE
+# ---------------------------------------------------------------------------
+#
+# Pre-KW-24 hermetic integration test that pins the end-to-end
+# relationship between two previously orthogonal Pre-KW-24 substrates:
+#
+#   * Tag-62 (PR #397)  Watch-Day Operator-Trigger Pipeline
+#                       (workflow: watch-day-operator-trigger-simulation)
+#   * Tag-58 (PR #373)  Alert-Routing-Spec Cross-Repo-Mirror Audit
+#                       (workflow: alert-routing-cross-repo-mirror)
+#
+# Both substrates are independently regression-pinned. Neither pins
+# the **integration**: that the trigger-event the operator emits on
+# Cutover-Day T0 (Tue 2026-06-09 05:00 UTC) propagates correctly
+# through each of the four Tag-58 mirror-pair routing-tables and
+# lands as a recognisable telemetry source. Tag-63 closes that gap.
+#
+# Four-stage hermetic verdict
+# ---------------------------
+#
+#   Stage 1  Operator-Trigger-Simulation
+#       Re-use the Tag-62 simulator CLI (`tooling/ci/
+#       simulate_watch_day_operator_trigger.py trigger`) to emit a
+#       canonical workflow_dispatch envelope into the runner scratch
+#       directory. Captures the envelope JSON for downstream stages.
+#       Green: Tag-62 stage-2 returns 0 AND envelope.status == green.
+#
+#   Stage 2  Alert-Routing-Propagation-Check
+#       For each of the four canonical mirror-pairs from the Tag-58
+#       MIRROR_PAIRS table (notify-catalog, backend-alerts, slo-burn-
+#       rate, alert-catalog-bridge), verify the runtime-side routing-
+#       table file exists and contains at least one alertname OR one
+#       failure-mode-ID. Runtime-side-only check: the cross-repo
+#       mirror is a Tag-58 concern.
+#
+#   Stage 3  Trigger-Event-Landing-Verification
+#       For each routing-table, verify the trigger-event substrate
+#       (Tag-56 watch-day workflow + related telemetry anchors) is
+#       recognisable. A table that references zero landing-anchors
+#       AND zero failure-modes is a "weak landing" red signal.
+#
+#   Stage 4  Aggregate Verdict
+#       INTEGRATION-INTACT  -- all three stages green
+#       INTEGRATION-DRIFT   -- exactly one stage yellow, rest green
+#       INTEGRATION-DEFECT  -- any stage red, or 2+ stages yellow
+#
+# Trigger surface
+# ---------------
+#
+#   * workflow_dispatch: -- operator-hand manual run (Mira-Hand).
+#   * pull_request: (path-filtered) -- any PR touching the Tag-63
+#     substrate or the Tag-62 + Tag-58 substrates it depends on.
+#
+# No push: trigger and no schedule: trigger. Tag-63 is review-time +
+# on-demand. The Tag-56 / Tag-57 / Tag-59 workflows remain the
+# calendar-pinned twins.
+#
+# Sandbox boundary
+# ----------------
+#
+# Hermetic: stdlib + python 3.11. No podman, no NATS, no
+# AlertManager, no Mira-Notify emit, no live VM, no Anthropic API,
+# no GitHub-API call. Reads the Tag-62 helper + four routing-table
+# files as on-disk text; emits stage envelopes + a final verdict
+# envelope to artifacts.
+#
+# Required status check (follow-up)
+# ---------------------------------
+#
+# Per `feedback_branch_protection_check_names.md` the required
+# status check, once promoted to a branch-protection gate, is
+# `Stage 4 Aggregate Verdict (INTEGRATION-INTACT/DRIFT/DEFECT) /
+# operator-trigger-alert-routing-integration`. Initial landing does
+# NOT add the gate; promotion is a follow-up after one green run
+# on main.
+#
+# Author: Noa Bergstroem (SRE)
+# Anchor: Tag-63 Marathon-Continuous-Mode Pre-KW-24 Operator-
+#         Trigger + Alert-Routing Integration-Test.
+
+name: operator-trigger-alert-routing-integration
+
+on:
+  workflow_dispatch: {}
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/operator-trigger-alert-routing-integration.yml"
+      - ".github/workflows/watch-day-operator-trigger-simulation.yml"
+      - ".github/workflows/alert-routing-cross-repo-mirror.yml"
+      - "tooling/ci/verify_trigger_routing_integration.py"
+      - "tooling/ci/simulate_watch_day_operator_trigger.py"
+      - "tooling/ci/audit_alert_routing_cross_repo_mirror.py"
+      - "docs/observability/pre-mortem-failure-mode-notify-catalog.md"
+      - "dashboards/phase-3-marathon-alerts.yaml"
+      - "dashboards/phase-3-marathon-slo-burn-rate-alerts.yaml"
+      - "scripts/observability/alert-rule-to-mira-notify-bridge.py"
+      - "tests/observability/test_trigger_routing_integration_tag63.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: operator-trigger-alert-routing-integration-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  stage-1-operator-trigger-simulation:
+    name: Stage 1 Operator-Trigger-Simulation (re-use Tag-62)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      stage_1_status: ${{ steps.probe.outputs.stage_1_status }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Stage 1 - operator-trigger simulation (re-use Tag-62 CLI)
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p out
+          set +e
+          python3 tooling/ci/verify_trigger_routing_integration.py \
+            stage-1 \
+            --scratch-dir out \
+            --output out/stage-1.json
+          rc=$?
+          set -e
+          if [[ $rc -eq 0 ]]; then
+            echo "stage_1_status=green" >> "$GITHUB_OUTPUT"
+          elif [[ $rc -eq 2 ]]; then
+            echo "stage_1_status=yellow" >> "$GITHUB_OUTPUT"
+            echo "::warning::Stage 1 DRIFT: operator-trigger simulation yellow"
+          else
+            echo "stage_1_status=red" >> "$GITHUB_OUTPUT"
+            echo "::warning::Stage 1 DEFECT: operator-trigger simulation red"
+          fi
+      - name: Upload Stage 1 artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tag63-stage-1
+          path: |
+            out/stage-1.json
+            out/tag62-trigger-envelope.json
+          if-no-files-found: warn
+
+  stage-2-alert-routing-propagation-check:
+    name: Stage 2 Alert-Routing-Propagation-Check (4 mirror-pairs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      stage_2_status: ${{ steps.probe.outputs.stage_2_status }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Stage 2 - alert-routing propagation check (4 mirror-pairs)
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p out
+          set +e
+          python3 tooling/ci/verify_trigger_routing_integration.py \
+            stage-2 \
+            --output out/stage-2.json
+          rc=$?
+          set -e
+          if [[ $rc -eq 0 ]]; then
+            echo "stage_2_status=green" >> "$GITHUB_OUTPUT"
+          elif [[ $rc -eq 2 ]]; then
+            echo "stage_2_status=yellow" >> "$GITHUB_OUTPUT"
+            echo "::warning::Stage 2 DRIFT: routing-propagation yellow"
+          else
+            echo "stage_2_status=red" >> "$GITHUB_OUTPUT"
+            echo "::warning::Stage 2 DEFECT: routing-propagation red"
+          fi
+      - name: Upload Stage 2 artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tag63-stage-2
+          path: out/stage-2.json
+          if-no-files-found: warn
+
+  stage-3-trigger-event-landing-verification:
+    name: Stage 3 Trigger-Event-Landing-Verification (all 4 routing-tables)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      stage_3_status: ${{ steps.probe.outputs.stage_3_status }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Stage 3 - trigger-event landing verification
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p out
+          set +e
+          python3 tooling/ci/verify_trigger_routing_integration.py \
+            stage-3 \
+            --output out/stage-3.json
+          rc=$?
+          set -e
+          if [[ $rc -eq 0 ]]; then
+            echo "stage_3_status=green" >> "$GITHUB_OUTPUT"
+          elif [[ $rc -eq 2 ]]; then
+            echo "stage_3_status=yellow" >> "$GITHUB_OUTPUT"
+            echo "::warning::Stage 3 DRIFT: trigger-event landing yellow"
+          else
+            echo "stage_3_status=red" >> "$GITHUB_OUTPUT"
+            echo "::warning::Stage 3 DEFECT: trigger-event landing red"
+          fi
+      - name: Upload Stage 3 artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tag63-stage-3
+          path: out/stage-3.json
+          if-no-files-found: warn
+
+  stage-4-aggregate-verdict:
+    name: Stage 4 Aggregate Verdict (INTEGRATION-INTACT/DRIFT/DEFECT)
+    runs-on: ubuntu-latest
+    needs:
+      - stage-1-operator-trigger-simulation
+      - stage-2-alert-routing-propagation-check
+      - stage-3-trigger-event-landing-verification
+    if: always()
+    outputs:
+      verdict: ${{ steps.aggregate.outputs.verdict }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Aggregate Stages 1..3 into integration verdict
+        id: aggregate
+        shell: bash
+        env:
+          STAGE_1_STATUS: ${{ needs.stage-1-operator-trigger-simulation.outputs.stage_1_status }}
+          STAGE_2_STATUS: ${{ needs.stage-2-alert-routing-propagation-check.outputs.stage_2_status }}
+          STAGE_3_STATUS: ${{ needs.stage-3-trigger-event-landing-verification.outputs.stage_3_status }}
+        run: |
+          set -uo pipefail
+          mkdir -p out
+          s1="${STAGE_1_STATUS:-red}"
+          s2="${STAGE_2_STATUS:-red}"
+          s3="${STAGE_3_STATUS:-red}"
+          set +e
+          python3 tooling/ci/verify_trigger_routing_integration.py \
+            aggregate \
+            --stage-1 "$s1" \
+            --stage-2 "$s2" \
+            --stage-3 "$s3" \
+            --output out/trigger-routing-integration-verdict.json
+          rc=$?
+          set -e
+          verdict=$(python3 -c "import json,sys; print(json.load(open('out/trigger-routing-integration-verdict.json'))['verdict'])")
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Tag-63 Operator-Trigger + Alert-Routing Integration Verdict: \`$verdict\`"
+            echo ""
+            echo "| Stage | Status |"
+            echo "|------|--------|"
+            echo "| Stage 1 Operator-Trigger-Simulation | \`$s1\` |"
+            echo "| Stage 2 Alert-Routing-Propagation-Check | \`$s2\` |"
+            echo "| Stage 3 Trigger-Event-Landing-Verification | \`$s3\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          case "$verdict" in
+            INTEGRATION-INTACT)
+              echo "Tag-63 trigger-routing integration: PASS"
+              exit 0
+              ;;
+            INTEGRATION-DRIFT)
+              echo "::warning::Tag-63 trigger-routing integration: DRIFT"
+              exit 0
+              ;;
+            INTEGRATION-DEFECT)
+              echo "::error::Tag-63 trigger-routing integration: DEFECT"
+              exit 1
+              ;;
+            *)
+              echo "::error::Tag-63 trigger-routing integration: unknown verdict $verdict"
+              exit 1
+              ;;
+          esac
+      - name: Upload final verdict artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tag63-trigger-routing-integration-verdict
+          path: out/trigger-routing-integration-verdict.json
+          if-no-files-found: warn
