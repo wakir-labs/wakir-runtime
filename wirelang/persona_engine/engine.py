@@ -59,6 +59,9 @@ from .lifecycle_state_machine import (
 )
 from .welle_state_producer import (
     AuditRecordEmitter,
+    PHASE_3_COMPLETE_REQUIRED_WELLEN,
+    Phase3CompleteAuditEmitter,
+    Phase3CompleteAuditRecord,
     WelleAuditRecord,
     WelleStateProducer,
 )
@@ -1395,4 +1398,77 @@ def handle_welle_7_signoff_event(
         sign_off_marker_status=sign_off_marker_status,
         pre_auditor_decision=pre_auditor_decision,
         final_sealing_marker_status=final_sealing_marker_status,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Tag-76 (Selin): Phase-3-COMPLETE cross-Welle Production-Bringup-Verifier.
+#
+# After Welle-7 sign-off (terminal Welle of the Phase-3c-Welle-Marathon),
+# the engine-side cross-Welle verifier checks that all 7 Welle-State-Files
+# report canonical post-cutover-sign-off-State. Only then may the
+# downstream audit-trail consumer (Henrik Internal Audit Zone-N) fire
+# the ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7`` marker per
+# docs/quality-gates/phase-3c-doppel-welle-6-7.md §4.1.
+#
+# The handler is READ-ONLY at the engine-side: it does not mutate any
+# Welle-State-File. The verifier verdict (audit-record) is emitted via
+# the optional ``phase_3_emitter`` hook.
+# ---------------------------------------------------------------------------
+
+
+def handle_phase_3_complete_event(
+    state_dir: Path,
+    verify_iso: str,
+    *,
+    required_wellen: frozenset = PHASE_3_COMPLETE_REQUIRED_WELLEN,
+    phase_3_emitter: Optional[Phase3CompleteAuditEmitter] = None,
+) -> Phase3CompleteAuditRecord:
+    """Top-level dispatch for the Phase-3-COMPLETE cross-Welle verifier (Tag-76).
+
+    Verifies that **all 7** Welle-State-Files (``state/welle-{1..7}.json``)
+    are in canonical post-cutover-sign-off-State. On a green verdict
+    returns a :class:`Phase3CompleteAuditRecord` carrying
+    ``trigger="phase-3-complete-verify"`` (the seventh disjoint trigger-
+    family in the audit-stream, disjoint from the six per-Welle
+    triggers). On a red verdict raises
+    :class:`Phase3CompleteVerifierError` (or one of the per-Welle
+    refusal-errors during file-loading).
+
+    The Phase-3-COMPLETE marker emission itself is NOT this handler's
+    responsibility (audit-trail-consumer-territory; Henrik Internal
+    Audit Zone-N). This handler is the **engine-side gate-input**: a
+    successful return means the engine has verified all 7 Wellen are
+    in canonical signed-off state; the consumer may then emit the
+    ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7`` marker per
+    phase-3c-doppel-welle-6-7.md §4.1.
+
+    Args:
+        state_dir: Directory containing ``state/welle-{1..7}.json``.
+        verify_iso: RFC 3339 verification-timestamp (caller-supplied,
+            second-precision UTC).
+        required_wellen: The frozenset of welle_numbers required to
+            be signed-off. Defaults to
+            :data:`PHASE_3_COMPLETE_REQUIRED_WELLEN` = {1..7}. The
+            parameter exists for unit-testability; production callers
+            should accept the default.
+        phase_3_emitter: Optional Phase-3-COMPLETE audit-record sink;
+            defaults to no-op.
+
+    Returns:
+        :class:`Phase3CompleteAuditRecord` on green verdict.
+
+    Raises:
+        TimeInvariantViolationError: ``verify_iso`` shape invalid.
+        StateFileShapeError: a required state-file is missing or
+            schema-invalid.
+        Phase3CompleteVerifierError: a required Welle is not
+            signed-off, has empty ISO timestamps, or violates the
+            cross-Welle cutover monotonicity.
+    """
+    producer = WelleStateProducer(state_dir=state_dir)
+    return producer.handle_phase_3_complete_event(
+        verify_iso=verify_iso,
+        required_wellen=required_wellen,
+        phase_3_emitter=phase_3_emitter,
     )
