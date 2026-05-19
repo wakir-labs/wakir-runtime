@@ -12,6 +12,13 @@ emits one of three output forms:
   * --put-payload      raw required_status_checks JSON block for
                        gh api -X PUT (used by the shell wrapper's
                        --enforce path)
+  * --mock-api-mode    Tag-63 Walking-Skeleton mode: reads a JSON
+                       pre-snapshot fixture from --mock-pre-snapshot,
+                       computes a post-snapshot by full-replace
+                       semantics (PUT semantics of the GitHub
+                       branch-protection API), and emits the
+                       post-snapshot to --mock-post-snapshot.
+                       Touches NO network. Sandbox-boundary safe.
 
 The planner does NOT touch GitHub. It is pure parse + render. The
 shell wrapper around it (`bulk_activate_required_checks.sh`) is
@@ -21,6 +28,7 @@ Exit codes
 ==========
 
   0   plan parsed cleanly, 7-Pool target set assembled
+      (or, in --mock-api-mode: mock post-snapshot written cleanly)
   1   plan inconsistent: doc parse error, count mismatch, duplicate
       display-name, or empty display-name
 """
@@ -241,6 +249,63 @@ def render_put_payload(combined) -> str:
     return json.dumps(payload, indent=2, ensure_ascii=False)
 
 
+def _read_snapshot(path: Path) -> dict:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise SystemExit(
+            f"--mock-api-mode: missing pre-snapshot fixture: {path} ({exc})"
+        ) from exc
+    try:
+        snap = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(
+            f"--mock-api-mode: invalid JSON in pre-snapshot {path}: {exc}"
+        ) from exc
+    if not isinstance(snap, dict):
+        raise SystemExit(
+            f"--mock-api-mode: pre-snapshot must be a JSON object: {path}"
+        )
+    rsc = snap.get("required_status_checks")
+    if not isinstance(rsc, dict):
+        raise SystemExit(
+            f"--mock-api-mode: pre-snapshot missing required_status_checks: {path}"
+        )
+    if "contexts" not in rsc or not isinstance(rsc["contexts"], list):
+        raise SystemExit(
+            f"--mock-api-mode: pre-snapshot missing required_status_checks.contexts list: {path}"
+        )
+    return snap
+
+
+def render_mock_post_snapshot(combined, pre_snapshot: dict) -> dict:
+    """Simulate the GitHub branch-protection PUT (full-replace).
+
+    The mock applies the 7-Pool target as the new full
+    `required_status_checks` block, preserving the `branch` and
+    fixture metadata fields when present so the post-snapshot is
+    byte-identical to the expected fixture.
+    """
+    contexts = [name for (_, name, _) in combined]
+    post = {
+        "_fixture_description": (
+            "Tag-63 Walking-Skeleton fixture — expected post-snapshot. "
+            "Represents the GitHub branch-protection state for "
+            "wakir-labs/wakir-runtime main AFTER the bulk-activation "
+            "pre-walk pipeline has run, with all 7 Required-Status-"
+            "Checks wired. Byte-identical equality check against this "
+            "fixture is the walking-skeleton acceptance gate."
+        ),
+        "_fixture_id": "expected-post-snapshot",
+        "branch": pre_snapshot.get("branch", "main"),
+        "required_status_checks": {
+            "strict": True,
+            "contexts": contexts,
+        },
+    }
+    return post
+
+
 def main(argv: List[str]) -> int:
     parser = argparse.ArgumentParser(
         description="Tag-62 bulk-activation planner (stdlib-only, hermetic)"
@@ -265,9 +330,62 @@ def main(argv: List[str]) -> int:
         action="store_true",
         help="Emit raw required_status_checks PUT payload (for shell wrapper)",
     )
+    parser.add_argument(
+        "--mock-api-mode",
+        action="store_true",
+        help=(
+            "Tag-63 Walking-Skeleton mode: read pre-snapshot from "
+            "--mock-pre-snapshot, write post-snapshot to "
+            "--mock-post-snapshot. Sandbox-boundary safe (no network)."
+        ),
+    )
+    parser.add_argument(
+        "--mock-pre-snapshot",
+        type=Path,
+        default=None,
+        help="Pre-snapshot JSON fixture path (for --mock-api-mode)",
+    )
+    parser.add_argument(
+        "--mock-post-snapshot",
+        type=Path,
+        default=None,
+        help="Output path for the simulated post-snapshot (for --mock-api-mode)",
+    )
     args = parser.parse_args(argv)
 
     combined, pool_bilanz, errors = assemble_pool(args.tag59_doc, args.tag61_doc)
+
+    if args.mock_api_mode:
+        if errors:
+            print(
+                "REFUSED: --mock-api-mode requested but plan is inconsistent:",
+                file=sys.stderr,
+            )
+            for err in errors:
+                print(f"  - {err}", file=sys.stderr)
+            return 1
+        if args.mock_pre_snapshot is None or args.mock_post_snapshot is None:
+            print(
+                "REFUSED: --mock-api-mode requires --mock-pre-snapshot and "
+                "--mock-post-snapshot",
+                file=sys.stderr,
+            )
+            return 1
+        pre = _read_snapshot(args.mock_pre_snapshot)
+        post = render_mock_post_snapshot(combined, pre)
+        # Trailing newline keeps the file POSIX-clean and matches the
+        # expected fixture's trailing-newline shape, which is required
+        # for the Stage-3 byte-identical equality check.
+        args.mock_post_snapshot.write_text(
+            json.dumps(post, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        print(
+            f"MOCK-API-MODE: wrote post-snapshot to {args.mock_post_snapshot} "
+            f"({len(combined)} contexts, pre had "
+            f"{len(pre['required_status_checks']['contexts'])})"
+        )
+        return 0
 
     if args.put_payload:
         if errors:

@@ -1,0 +1,9 @@
+{
+  "_fixture_description": "Tag-63 Walking-Skeleton fixture — empty pre-snapshot. Represents the GitHub branch-protection state for wakir-labs/wakir-runtime main BEFORE any of the 7-Pool Required-Status-Checks have been wired.",
+  "_fixture_id": "pre-snapshot-empty",
+  "branch": "main",
+  "required_status_checks": {
+    "strict": false,
+    "contexts": []
+  }
+}

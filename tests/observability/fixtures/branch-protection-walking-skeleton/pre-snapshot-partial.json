@@ -1,0 +1,13 @@
+{
+  "_fixture_description": "Tag-63 Walking-Skeleton fixture — partial pre-snapshot. Represents the GitHub branch-protection state for wakir-labs/wakir-runtime main with 3 of 7 Required-Status-Checks already wired (Tag-59 §1 first half). Used to exercise the idempotency stage of the walking-skeleton test.",
+  "_fixture_id": "pre-snapshot-partial",
+  "branch": "main",
+  "required_status_checks": {
+    "strict": true,
+    "contexts": [
+      "cross-substrate parity (cosign ↔ quadlet ↔ backend-switch)",
+      "pyramide layer-dependency DAG verify (6 layers, 16 edges)",
+      "verify-containerfile-base-image-digest-pins"
+    ]
+  }
+}
