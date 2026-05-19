@@ -1,0 +1,1260 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Phase-3 Marathon Backend-Alerting-Rules (Tag-40 + Tag-45)
+# ---------------------------------------------------------
+#
+# Prometheus AlertManager-compatible alert rules for critical
+# Phase-3 Marathon events during KW-24..27. Companion to
+# dashboards/phase-3c-cross-welle-coordination.json (Tag-40
+# Marathon-Live-Extension; Tag-45 Hot-Spot extension).
+#
+# Tag-40 baseline event families:
+#
+#   1. Welle-Rollback  -- any welle transitions to state
+#      rollback_active (state=3) for >= 60s. Page severity.
+#   2. Phase-3-COMPLETE-Marker-False-Positive -- the
+#      five-condition conjunction (panel 156) flips to 1 while
+#      any individual condition (panels 151-155) is still 0.
+#      Indicates conjunction-logic drift in
+#      wakir_phase_3_marathon_health_score recording rules or
+#      stale welle-state samples. Page severity.
+#   3. Cross-Modul-Drift > 0  -- any non-zero drift count
+#      observed for >= 5m during marathon. ADR-0066 Mitigation-1
+#      breach signal for the KW-26 Doppel-Welle. Page severity.
+#
+# Tag-45 Pre-Mortem-Failure-Mode-Alert-Extension
+# ----------------------------------------------
+# Per Henrik Tag-44 Pre-Mortem-Skizze (reports/audit/
+# phase-3-marathon-pre-mortem-2026-05-18.md), the following
+# additional failure-mode-specific alerts are wired:
+#
+#   * Class-A1  Cross-Modul-Drift early-warning (per-welle).
+#     The Tag-40 baseline only fires on aggregate drift > 0;
+#     Tag-45 adds per-welle-pair signals so Welle-3 -> Welle-4
+#     hot-spot (Henrik Pre-Mortem Worst-Case 2.1+2.2) lights
+#     up before the global counter ticks.
+#   * Class-A2  FSM-Phantom-Transitions. illegale state-Uebergaenge
+#     nach Cutover (Welle-4 backing-Layer). Detection via Reza
+#     Tag-37 Replay-Engine + state-backing-Self-Check counter.
+#   * Class-A4  NATS-Mode-Mismatch (Tag-41 Bug-42-Klasse:
+#     Publisher/Subscriber-Mode-Drift). Detection via live-VM
+#     Acceptance-Gate metric exposure.
+#   * Class-A5  Self-Reference-Trap Welle-3 (bridge-audit-writer
+#     auditiert sich selbst). Critical for KW-25 SOLO; detection
+#     via BackendDecision-event-rate spike on welle-3 audit-bridge
+#     subject vs. baseline.
+#   * Class-B1  AR-Hand-Stop-Marker-Missing-Trigger (Drift
+#     exceeded but no activity-log entry). Detection via
+#     marker-rule freshness: marker counter unchanged AND drift > 0
+#     for >= 5m.
+#   * Class-B3  Welle-3 IIA-1130 Default-Path (Henrik vs.
+#     extern-Pre-Auditor). Warning-severity informational signal
+#     that surfaces when Welle-3 Schluss-Audit-Signoff arrives
+#     from auditor=henrik instead of an AR-designated externer
+#     Pre-Auditor.
+#   * Class-C1  Marker-False-Positive variant: granular per-
+#     condition view. The Tag-40 baseline guards the composite
+#     marker; Tag-45 adds individual sentinel alerts per
+#     Henrik-Spec condition so the AR-Hand sees which sub-
+#     condition flipped (helpful in post-mortem timeline).
+#
+# Tag-45 also adds a Cross-Welle-Hot-Spot Dashboard panel and a
+# notify-catalog (docs/observability/
+# pre-mortem-failure-mode-notify-catalog.md).
+#
+# Tag-50 Welle-N-Specific Alert-Rules
+# -----------------------------------
+# Tag-40 / Tag-45 alerts surface MARATHON-WIDE failure-modes
+# (aggregate drift, FSM-phantom global, marker-false-positive
+# composite, hot-spot couplings). Tag-50 adds a SEPARATE per-welle
+# alert group for each of the seven Phase-3c welles, so the
+# operator and the AR-Hand see welle-scoped pages immediately
+# WITHOUT having to disambiguate which welle is on fire from the
+# label of an aggregate alert.
+#
+# Welle inventory (per ADR-0065 / ADR-0066):
+#
+#   * Welle-1 v907_verify           (KW-24 doppel cutover partner)
+#   * Welle-2 svid_workload_identity (KW-24 doppel cutover partner)
+#   * Welle-3 bridge_audit_writer    (KW-25 SOLO -- CRITICAL)
+#   * Welle-4 state_backing          (KW-26 doppel cutover partner)
+#   * Welle-5 lifecycle_state_machine / FSM (KW-26 doppel partner)
+#   * Welle-6 subscribe_loop         (KW-27 doppel cutover partner)
+#   * Welle-7 recovery_workflow      (KW-27 doppel cutover partner)
+#
+# Each Tag-50 group has 2-3 welle-specific alarms. The selection
+# follows the Henrik Tag-44 Pre-Mortem Section-3 hot-spots plus the
+# per-welle telemetry-emitter surface that already exists:
+#
+#   * welle-1-alerts: doppel-divergence partner vs Welle-2; rust-
+#     rate-collapse on v907_verify (the Welle-1+2 doppel-telemetry-
+#     emitter exposes red_flag + self_score on 10s tick).
+#   * welle-2-alerts: SVID-rotation-failure (SPIFFE workload-identity
+#     refresh failure); doppel-partner divergence.
+#   * welle-3-alerts: SELF-REFERENCE-TRAP-FIRE (KW-25 SOLO worst-case
+#     per Henrik Pre-Mortem 2.1); SOLO-TOPOLOGY-VIOLATION (parallel
+#     welle during KW-25 forbidden window); bridge_audit_writer
+#     self-score divergence > 0.5pp vs Phase-2 stress-oracle.
+#   * welle-4-alerts: STATE-READ-FAIL (state-backing-self-check
+#     hash unstable on read); state-backing-migration-rollback;
+#     state-backing-write-latency P99 over budget.
+#   * welle-5-alerts: FSM-PHANTOM (welle-5 illegal lifecycle
+#     transition); lifecycle-orphan-state; Welle-5 audit-verifier
+#     signed off BEFORE Welle-4 state-backing-hash stable (cross-
+#     welle ordering violation specific to KW-26 doppel).
+#   * welle-6-alerts: subscribe-loop-stall (no message delivery for
+#     >= 2m on JetStream subject); subscribe-loop-replay-storm
+#     (re-delivery counter spike).
+#   * welle-7-alerts: recovery-rehearsal-fail; recovery WITHOUT
+#     pre-audit (IIA-1130 default-path warning, parallels B3 for
+#     Welle-7); recovery-replay-divergence vs baseline.
+#
+# Anchors:
+#   - ADR-0066 (Phase-3c Beschleunigung).
+#   - Tag-40 auftrag (Noa-SRE, Marathon Live-Coordination).
+#   - Tag-45 auftrag (Noa-SRE, Pre-Mortem-Failure-Mode-Alerts).
+#   - Tag-50 auftrag (Noa-SRE, Welle-N-Specific Alert-Rules).
+#   - dashboards/phase-3c-cross-welle-coordination.json (Tag-40+45).
+#   - dashboards/persona-engine-phase-3c-welle-status.json (welle map).
+#   - Henrik-Spec Phase-3-Schluss-Akzeptanz 5-Konjunktion.
+#   - reports/audit/phase-3-marathon-pre-mortem-2026-05-18.md (Henrik Tag-44).
+#
+# Alert routing follows the Wakir SRE-standard: severity=page
+# alerts target the 24/7 on-call rotation via AlertManager
+# pagerduty receiver; severity=ticket alerts open a JIRA-style
+# operations ticket via webhook. The for-windows are sized to
+# tolerate one Prometheus scrape gap (15s default) without
+# false-positives.
+
+groups:
+  - name: phase-3-marathon-welle-rollback
+    interval: 30s
+    rules:
+      - alert: WakirPhase3MarathonWelleRollback
+        expr: persona_engine_phase_3c_welle_state == 3
+        for: 60s
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+        annotations:
+          summary: "Welle {{ $labels.welle }} entered rollback_active state"
+          description: >-
+            Welle {{ $labels.welle }} has been in rollback_active
+            (state=3) for >= 60s. Per ADR-0066 §Welle-Sequencing
+            this blocks the next Welle from starting and triggers
+            immediate Henrik post-mortem. Investigate the welle's
+            phase_3c-welle-N-validation workflow + last
+            BackendDecision-stream sample.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-rollback"
+          dashboard_url: "https://wakir-labs.example/d/wakir-phase-3c-cross-welle-coordination"
+
+      - alert: WakirPhase3MarathonWelle3SoloViolation
+        expr: wakir_marathon_coordination_marker{topology="welle-3-solo"} == 3
+        for: 60s
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+        annotations:
+          summary: "Welle-3 SOLO topology violated: parallel welle detected during KW-25"
+          description: >-
+            ADR-0066 §Welle-3 requires KW-25 SOLO execution to
+            preserve Henrik full-audit-bandwidth. A parallel welle
+            was detected (marker=3 violated-parallel-detected).
+            Pause the conflicting welle immediately and confirm
+            scheduler-state.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-3-solo-violation"
+
+  - name: phase-3-marathon-complete-marker-integrity
+    interval: 30s
+    rules:
+      - alert: WakirPhase3CompleteMarkerFalsePositive
+        # Composite marker (panel 156) is 1, but at least one of
+        # the five conditions (panels 151-155) is still 0.
+        # Indicates conjunction-evaluation drift; the marker MUST
+        # be a strict AND of all five.
+        expr: |
+          (
+            (
+              (count(persona_engine_phase_3c_welle_state == 4) == 7)
+              and (count(wakir_henrik_audit_signoff == 1) == 21)
+              and (count(persona_engine_phase_3c_welle_state == 3) == 0)
+              and (max_over_time(wakir_cross_modul_drift_count[28d]) == 0)
+              and (wakir_ar_hand_final_signoff_phase_3 == 1)
+            ) == 1
+          )
+          unless
+          (
+            (count(persona_engine_phase_3c_welle_state == 4) == 7)
+            and (count(wakir_henrik_audit_signoff == 1) == 21)
+            and (count(persona_engine_phase_3c_welle_state == 3) == 0)
+            and (max_over_time(wakir_cross_modul_drift_count[28d]) == 0)
+            and (wakir_ar_hand_final_signoff_phase_3 == 1)
+          )
+        for: 1m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+        annotations:
+          summary: "Phase-3-COMPLETE marker reads true but a condition is still 0"
+          description: >-
+            The Phase-3-COMPLETE composite marker (dashboard panel
+            156) reports 1, but at least one of the five
+            Henrik-Spec conjunction conditions (panels 151-155) is
+            still 0. This is a conjunction-logic-drift signal --
+            either a recording rule is stale or a sample is
+            missing. Phase-3-COMPLETE MUST be a strict AND of all
+            five conditions. Hold AR-Hand-Final-Sign-Off until
+            resolved.
+          runbook_url: "https://wakir-labs.example/runbooks/phase-3-complete-marker-drift"
+
+  - name: phase-3-marathon-cross-modul-drift
+    interval: 30s
+    rules:
+      - alert: WakirPhase3CrossModulDriftDetected
+        expr: wakir_cross_modul_drift_count > 0
+        for: 5m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          mitigation: mitigation-1
+        annotations:
+          summary: "Cross-Modul-Drift detected during Phase-3 Marathon"
+          description: >-
+            wakir_cross_modul_drift_count = {{ $value }} for >= 5m.
+            ADR-0066 Mitigation-1 (cross-modul-stress-test gate for
+            KW-26 Doppel-Welle) is breached. Phase-3-COMPLETE Cond-4
+            (drift=0 for marathon duration) is invalidated. Engage
+            Welle-4/Welle-5 owners and Henrik for cross-modul
+            post-mortem.
+          runbook_url: "https://wakir-labs.example/runbooks/cross-modul-drift"
+          dashboard_url: "https://wakir-labs.example/d/wakir-phase-3c-cross-welle-coordination"
+
+      - alert: WakirPhase3CrossModulStressScoreHigh
+        expr: phase_2_acceptance_gate_cross_modul_stress_score > 0.005
+        for: 5m
+        labels:
+          severity: ticket
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+        annotations:
+          summary: "Cross-modul stress-score above 0.5% threshold"
+          description: >-
+            Component {{ $labels.component }} stress-score
+            {{ $value }} above ADR-0066 acceptance threshold for
+            >= 5m. Investigate before next welle cutover.
+
+  - name: phase-3-marathon-aggregate-health
+    interval: 1m
+    rules:
+      - alert: WakirPhase3MarathonHealthScoreLow
+        expr: wakir_phase_3_marathon_health_score < 75
+        for: 15m
+        labels:
+          severity: ticket
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+        annotations:
+          summary: "Phase-3 Marathon Aggregat-Health-Score below 75%"
+          description: >-
+            Marathon health-score = {{ $value }}% sustained < 75
+            for 15m. Inspect the contributing factors (welle_complete,
+            henrik_signoff, rollback, drift, ar_hand) on the
+            Tag-40 dashboard.
+
+      - alert: WakirPhase3MarathonHealthScoreCritical
+        expr: wakir_phase_3_marathon_health_score < 50
+        for: 5m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+        annotations:
+          summary: "Phase-3 Marathon Health-Score CRITICAL below 50%"
+          description: >-
+            Marathon health-score = {{ $value }}% for >= 5m.
+            Likely combination of rollback_active + missing
+            sign-offs. AR-Hand notification required.
+
+  # -------------------------------------------------------------
+  # Tag-45 Pre-Mortem-Failure-Mode-Alert-Groups
+  # Henrik Tag-44 Pre-Mortem (phase-3-marathon-pre-mortem-2026-05-18.md)
+  # -------------------------------------------------------------
+
+  - name: phase-3-marathon-failure-mode-a1-cross-modul-drift
+    interval: 30s
+    rules:
+      - alert: WakirPhase3FailureModeA1CrossModulDriftPerWelle
+        # Class-A1 early-warning: per-welle drift counter
+        # exceeds 0 for >= 2m. Detects Welle-N -> Welle-N+1
+        # propagation BEFORE the global aggregate ticks.
+        # Henrik Pre-Mortem 2.2 Worst-Case: Welle-3->Welle-4
+        # drift propagation latent for hours unless caught here.
+        expr: wakir_cross_modul_drift_count_per_welle > 0
+        for: 2m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          failure_mode: A1
+          mitigation: tag-39-cross-welle-cutover-spec
+        annotations:
+          summary: "A1 Cross-Modul-Drift propagating from Welle {{ $labels.source_welle }} to Welle {{ $labels.target_welle }}"
+          description: >-
+            Per-welle drift counter for source={{ $labels.source_welle }},
+            target={{ $labels.target_welle }} = {{ $value }} for >= 2m.
+            Henrik Tag-44 Pre-Mortem Class-A1: cross-modul-drift
+            silent-propagation hot-spot. Pause target welle, run
+            Pre-Cutover-Probe-Audit on the source welle, engage
+            Tomas BackendDecision-Stream-Drift-Monitor.
+          runbook_url: "https://wakir-labs.example/runbooks/failure-mode-a1-cross-modul-drift"
+          dashboard_url: "https://wakir-labs.example/d/wakir-phase-3c-cross-welle-coordination"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand + activity-log:append"
+
+  - name: phase-3-marathon-failure-mode-a2-fsm-phantom
+    interval: 30s
+    rules:
+      - alert: WakirPhase3FailureModeA2FsmPhantomTransition
+        # Class-A2 FSM-Phantom-Transitions: illegale state-Uebergaenge.
+        # Detected via lifecycle-state-machine illegal-transition
+        # counter exposed by Reza Tag-37 Replay-Engine.
+        expr: wakir_lifecycle_fsm_illegal_transition_total > 0
+        for: 60s
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          failure_mode: A2
+          mitigation: reza-tag-37-replay-engine
+        annotations:
+          summary: "A2 FSM-Phantom-Transition detected: welle={{ $labels.welle }} from={{ $labels.from_state }} to={{ $labels.to_state }}"
+          description: >-
+            Illegal FSM transition counter incremented for
+            welle={{ $labels.welle }}, from={{ $labels.from_state }},
+            to={{ $labels.to_state }} (count={{ $value }}). Henrik
+            Tag-44 Pre-Mortem Class-A2. Triggers AR-Hand-Stop and
+            invokes Reza Replay-Engine diff-vs-baseline. State-
+            backing-Self-Check on Welle-4 if welle in (welle-4,
+            welle-5, welle-7).
+          runbook_url: "https://wakir-labs.example/runbooks/failure-mode-a2-fsm-phantom"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand + activity-log:append"
+
+  - name: phase-3-marathon-failure-mode-a4-nats-mismatch
+    interval: 30s
+    rules:
+      - alert: WakirPhase3FailureModeA4NatsModeMismatch
+        # Class-A4 NATS-Mode-Mismatch (Tag-41 Bug-42-Klasse):
+        # publisher/subscriber-Mode-Drift on a JetStream subject.
+        # Detection metric is incremented by the live-VM-acceptance
+        # gate when mode assertion fails (see Tag-41 fix).
+        expr: wakir_nats_mode_mismatch_total > 0
+        for: 60s
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          failure_mode: A4
+          mitigation: tag-41-bug-42-fix
+        annotations:
+          summary: "A4 NATS-Mode-Mismatch: subject={{ $labels.subject }} publisher_mode={{ $labels.publisher_mode }} subscriber_mode={{ $labels.subscriber_mode }}"
+          description: >-
+            Publisher/Subscriber mode assertion failed on JetStream
+            subject={{ $labels.subject }} (count={{ $value }}).
+            Henrik Tag-44 Pre-Mortem Class-A4. CI-Acceptance-Gate
+            live-fcos-VM should have caught this; investigate
+            Tag-41 Bug-42 mode-assertion-regression.
+          runbook_url: "https://wakir-labs.example/runbooks/failure-mode-a4-nats-mode-mismatch"
+          notify_path: "pagerduty:sre-oncall + activity-log:append"
+
+  - name: phase-3-marathon-failure-mode-a5-self-reference-trap
+    interval: 15s
+    rules:
+      - alert: WakirPhase3FailureModeA5SelfReferenceTrapWelle3Critical
+        # Class-A5 Self-Reference-Trap: bridge-audit-writer in
+        # Welle-3 audits itself. Detected as BackendDecision-event-
+        # rate spike on the welle-3 audit-bridge subject above the
+        # baseline pre-cutover rate by a factor of >= 3.
+        # Henrik Pre-Mortem Worst-Case 2.1 calls this a +340%
+        # spike at T+12min; the 3x threshold below catches the
+        # spike with margin. Welle-3 SOLO topology = KW-25 critical.
+        expr: |
+          (
+            rate(persona_engine_backend_decision_total{welle="welle-3",subject="audit-bridge"}[5m])
+            /
+            avg_over_time(rate(persona_engine_backend_decision_total{welle="welle-3",subject="audit-bridge"}[5m])[1h:5m] offset 24h)
+          ) >= 3
+        for: 2m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          failure_mode: A5
+          welle: welle-3
+          critical: kw-25-solo
+          mitigation: welle-3-iia-1130-pre-decision-spec
+        annotations:
+          summary: "A5 Self-Reference-Trap fired in Welle-3 audit-bridge (KW-25 CRITICAL)"
+          description: >-
+            BackendDecision-event-rate on Welle-3 audit-bridge
+            subject is >= 3x baseline for >= 2m. Henrik Tag-44
+            Pre-Mortem Class-A5 worst-case auslöser (Recursion-
+            Loop). KW-25 SOLO welle - immediate AR-Hand-Stop,
+            quarantäne bridge-audit-writer-events, engage
+            AR-designierter externer Pre-Auditor for re-audit
+            (NOT Henrik per IIA-1130).
+          runbook_url: "https://wakir-labs.example/runbooks/failure-mode-a5-self-reference-trap"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand-critical + activity-log:append + henrik-iia-1130-trigger"
+
+  - name: phase-3-marathon-failure-mode-b1-ar-hand-stop-missing
+    interval: 30s
+    rules:
+      - alert: WakirPhase3FailureModeB1ArHandStopMissingTrigger
+        # Class-B1 AR-Hand-Stop-Marker-Missing-Trigger: drift > 0
+        # AND no activity-log marker increment in the last 5m.
+        # Detection: cross-modul-drift active AND ar-hand-stop-
+        # marker-counter unchanged (delta = 0) for the same window.
+        expr: |
+          (
+            wakir_cross_modul_drift_count > 0
+          )
+          and
+          (
+            (
+              increase(wakir_ar_hand_stop_marker_total[5m]) == 0
+            )
+          )
+        for: 5m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          failure_mode: B1
+          mitigation: cutover-day-audit-spec-marker-trigger-pflicht
+        annotations:
+          summary: "B1 AR-Hand-Stop-Marker missing trigger despite drift > 0"
+          description: >-
+            wakir_cross_modul_drift_count = {{ $value }} sustained
+            >= 5m, BUT no AR-Hand-Stop-Marker increment in the
+            same window. Henrik Tag-44 Pre-Mortem Class-B1.
+            Per Cutover-Day-Audit-Spec §1 the marker trigger is
+            Pflicht. ADR-0019 §6 Self-Audit-Kollision check:
+            ensure marker-Trigger logic is not gated by the
+            corrupted self-audit stream (Welle-3 A5-coupling).
+          runbook_url: "https://wakir-labs.example/runbooks/failure-mode-b1-ar-hand-stop-missing"
+          notify_path: "ntfy:ar-hand-critical + activity-log:append + henrik-audit-trail"
+
+  - name: phase-3-marathon-failure-mode-b3-iia-1130-default
+    interval: 1m
+    rules:
+      - alert: WakirPhase3FailureModeB3Iia1130DefaultPath
+        # Class-B3 Welle-3 IIA-1130-Default-Path: Welle-3-Schluss-
+        # Audit-Signoff arrives with auditor=henrik (default-pfad)
+        # instead of an AR-designated externer Pre-Auditor.
+        # Warning severity per Henrik Pre-Mortem (low probability,
+        # spec gesetzt, AR-Hand-Entscheidung steht aus).
+        expr: |
+          (
+            wakir_welle_schluss_audit_signoff{welle="welle-3", auditor="henrik"} == 1
+          )
+          and
+          (
+            wakir_welle_schluss_audit_signoff{welle="welle-3", auditor="external-pre-auditor"} == 0
+          )
+        for: 1m
+        labels:
+          severity: warning
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          failure_mode: B3
+          welle: welle-3
+          standard: iia-1130
+          mitigation: welle-3-iia-1130-pre-decision-spec
+        annotations:
+          summary: "B3 Welle-3 Schluss-Audit-Signoff via Henrik (IIA-1130 default-path)"
+          description: >-
+            Welle-3 Schluss-Audit-Signoff carries auditor=henrik
+            and no external-pre-auditor signoff is recorded.
+            Henrik Tag-44 Pre-Mortem Class-B3. IIA-Standard 1130
+            independence-impairment latent. AR-Hand-Entscheidung
+            to designate externer Pre-Auditor steht aus per
+            welle-3-iia-1130-pre-decision-spec-2026-05-18.md.
+            Warning surface; does not page the on-call.
+          runbook_url: "https://wakir-labs.example/runbooks/failure-mode-b3-iia-1130-default"
+          notify_path: "ntfy:ar-hand-info + activity-log:append"
+
+  - name: phase-3-marathon-failure-mode-c1-marker-false-positive-granular
+    interval: 30s
+    rules:
+      - alert: WakirPhase3FailureModeC1MarkerFalsePositiveCond1
+        # Class-C1 granular sentinel: AC-1 (all 7 wellen signed-off)
+        # condition flipped to 1 while any welle-state != 4.
+        expr: |
+          (
+            count(persona_engine_phase_3c_welle_state == 4) == 7
+          )
+          and
+          (
+            count(persona_engine_phase_3c_welle_state != 4) > 0
+          )
+        for: 1m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          failure_mode: C1
+          condition: cond-1-all-wellen-state-4
+        annotations:
+          summary: "C1 Marker-False-Positive Cond-1: count==7 but some welle != state 4"
+          description: >-
+            AC-1 ('all 7 wellen state == 4') reads true while at
+            least one welle reports state != 4. PromQL count
+            short-circuit drift or stale sample. Henrik Tag-44
+            Pre-Mortem Class-C1 granular sentinel. Hold
+            AR-Hand-Final-Sign-Off; rerun Marker-Audit-Trail.
+          runbook_url: "https://wakir-labs.example/runbooks/failure-mode-c1-marker-false-positive"
+          notify_path: "pagerduty:sre-oncall + activity-log:append + henrik-marker-audit"
+
+      - alert: WakirPhase3FailureModeC1MarkerFalsePositiveCond4
+        # AC-4 (drift == 0 for marathon duration) condition tile
+        # reports 1 while drift counter is currently > 0.
+        expr: |
+          (
+            max_over_time(wakir_cross_modul_drift_count[28d]) == 0
+          )
+          and
+          (
+            wakir_cross_modul_drift_count > 0
+          )
+        for: 1m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          failure_mode: C1
+          condition: cond-4-drift-zero-marathon
+        annotations:
+          summary: "C1 Marker-False-Positive Cond-4: max_over_time drift==0 but current drift > 0"
+          description: >-
+            AC-4 ('cross_modul_drift_count == 0 over marathon
+            window') reads true while the live drift counter is
+            > 0. Recording-rule lag or window-boundary drift.
+            Henrik Tag-44 Pre-Mortem Class-C1. Hold AR-Hand-
+            Final-Sign-Off; rebuild recording rule.
+          runbook_url: "https://wakir-labs.example/runbooks/failure-mode-c1-marker-false-positive"
+          notify_path: "pagerduty:sre-oncall + activity-log:append + henrik-marker-audit"
+
+  - name: phase-3-marathon-failure-mode-hot-spot-welle-3-4
+    interval: 30s
+    rules:
+      - alert: WakirPhase3HotSpotWelle3Welle4Coupling
+        # Cross-Welle-Hot-Spot: Welle-3 -> Welle-4 structural
+        # coupling per Henrik Pre-Mortem Section 3 "Strukturelle
+        # Hot-Spots" item 1. Fires if BOTH conditions hold:
+        # (a) Welle-3 bridge-audit-writer event-rate > 1.5x baseline
+        # (b) Welle-4 state-backing-self-check delta != 0
+        # for >= 2m. This is the precise coupling signal.
+        expr: |
+          (
+            (
+              rate(persona_engine_backend_decision_total{welle="welle-3",subject="audit-bridge"}[5m])
+              /
+              avg_over_time(rate(persona_engine_backend_decision_total{welle="welle-3",subject="audit-bridge"}[5m])[1h:5m] offset 24h)
+            ) > 1.5
+          )
+          and
+          (
+            changes(wakir_state_backing_self_check_hash{welle="welle-4"}[5m]) > 0
+          )
+        for: 2m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          failure_mode: A1+A5-coupling
+          hot_spot: welle-3-to-welle-4
+        annotations:
+          summary: "Hot-Spot Welle-3->Welle-4: audit-bridge spike + state-backing-hash drift"
+          description: >-
+            Henrik Pre-Mortem Hot-Spot #1: Welle-3 audit-bridge
+            event-rate elevated (>1.5x baseline) WHILE Welle-4
+            state-backing-self-check hash changes detected. This
+            is the precise A5+A1 coupling worst-case auslöser
+            (Pre-Mortem Section 2.2). Immediate AR-Hand-Stop on
+            Welle-4 cutover; quarantäne bridge-audit-writer.
+          runbook_url: "https://wakir-labs.example/runbooks/hot-spot-welle-3-4"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand-critical + activity-log:append"
+
+      - alert: WakirPhase3HotSpotWelle4Welle5Welle7Coupling
+        # Hot-Spot #2: Welle-4 state-backing as persistence truth
+        # for Welle-5/7. Fires when Welle-4 state-backing hash
+        # drifts AND Welle-5 audit-verifier signs-off OR Welle-7
+        # recovery-pre-audit reads state-backing.
+        expr: |
+          (
+            changes(wakir_state_backing_self_check_hash{welle="welle-4"}[10m]) > 0
+          )
+          and
+          (
+            (wakir_welle_schluss_audit_signoff{welle="welle-5"} == 1)
+            or
+            (wakir_welle_pre_audit_state_backing_read_total{welle="welle-7"} > 0)
+          )
+        for: 5m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          failure_mode: A3+A8-coupling
+          hot_spot: welle-4-to-welle-5-welle-7
+        annotations:
+          summary: "Hot-Spot Welle-4->Welle-5/7: state-backing drift consumed by downstream welle"
+          description: >-
+            Welle-4 state-backing-self-check hash changed AND
+            either Welle-5 audit-verifier already signed-off
+            using that state, or Welle-7 recovery-pre-audit is
+            reading state-backing. Henrik Pre-Mortem Hot-Spot
+            #2. Cascade-risk: silent state-drift propagation to
+            Welle-5/7. Pause Welle-5/7; rerun Pre-Cutover-Probe
+            on Welle-4 with operator-hand snapshot.
+          runbook_url: "https://wakir-labs.example/runbooks/hot-spot-welle-4-5-7"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand-critical + activity-log:append"
+
+  # =============================================================
+  # Tag-50 Welle-N-Specific Alert-Groups
+  # Per-welle scoped alarms, separate from Tag-40/45 aggregate +
+  # hot-spot rules. Each group contains 2-3 alarms specific to
+  # the welle's component identity and KW-week role.
+  # =============================================================
+
+  - name: welle-1-alerts
+    interval: 30s
+    rules:
+      - alert: WakirWelle1V907VerifyRustRateCollapse
+        # Welle-1 v907_verify rust-self-score below 95% for >= 2m
+        # indicates the rust-implementation is silently falling back
+        # to the python path -- the cutover acceptance criterion
+        # (>= 95% rust-rate on KW-24 doppel) is breached.
+        expr: persona_engine_welle1_v907_verify_self_score < 95
+        for: 2m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          welle: welle-1
+          component: v907_verify
+          kw_week: kw-24
+          topology: doppel
+        annotations:
+          summary: "Welle-1 v907_verify rust-self-score < 95% (KW-24 doppel)"
+          description: >-
+            persona_engine_welle1_v907_verify_self_score =
+            {{ $value }}% sustained < 95 for >= 2m. ADR-0066
+            KW-24-doppel rust-rate acceptance gate breached.
+            Engage Welle-1 owner; rerun Phase-2 cross-modul
+            stress-oracle; consider AR-Hand-Stop before Welle-2
+            tracks the divergence into the doppel-week health-
+            score.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-1-rust-rate-collapse"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand + activity-log:append"
+
+      - alert: WakirWelle1Welle2DoppelDivergence
+        # Welle-1 + Welle-2 are the KW-24 doppel-partners; their
+        # self-scores should track within 5pp. Larger divergence
+        # signals one welle is drifting alone and the doppel-health
+        # tile turns red.
+        expr: |
+          abs(
+            persona_engine_welle1_v907_verify_self_score
+            -
+            persona_engine_welle2_svid_workload_identity_self_score
+          ) > 5
+        for: 3m
+        labels:
+          severity: ticket
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          welle: welle-1
+          partner_welle: welle-2
+          kw_week: kw-24
+          topology: doppel
+        annotations:
+          summary: "Welle-1/Welle-2 doppel divergence > 5pp on self-score"
+          description: >-
+            |Welle-1 self-score - Welle-2 self-score| = {{ $value }}pp
+            sustained for >= 3m. The KW-24 doppel-partners should
+            track tightly; large divergence indicates one welle's
+            backend has shifted independently. Inspect both
+            telemetry-emitter outputs and the Phase-2 stress-oracle.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-1-2-doppel-divergence"
+          notify_path: "ticket:sre-ops + activity-log:append"
+
+  - name: welle-2-alerts
+    interval: 30s
+    rules:
+      - alert: WakirWelle2SvidRotationFailure
+        # Welle-2 svid_workload_identity: SPIFFE SVID rotation
+        # failures break workload-identity assertions on Welle-2
+        # cutover. Counter exposed by the SPIRE-Agent integration.
+        expr: increase(wakir_welle2_svid_rotation_failure_total[5m]) > 0
+        for: 60s
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          welle: welle-2
+          component: svid_workload_identity
+          kw_week: kw-24
+          topology: doppel
+        annotations:
+          summary: "Welle-2 SVID rotation failure detected"
+          description: >-
+            wakir_welle2_svid_rotation_failure_total increased
+            by {{ $value }} in the last 5m. SPIFFE workload-identity
+            cannot rotate -- downstream BackendDecision assertions
+            will fail authentication. Engage SPIRE-Agent operator;
+            check SPIRE-Server health; consider rollback to last
+            known-good SVID bundle.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-2-svid-rotation-failure"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand + activity-log:append"
+
+      - alert: WakirWelle2SelfScoreCollapse
+        # Welle-2 self-score below 95% (parallel to Welle-1).
+        expr: persona_engine_welle2_svid_workload_identity_self_score < 95
+        for: 2m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          welle: welle-2
+          component: svid_workload_identity
+          kw_week: kw-24
+          topology: doppel
+        annotations:
+          summary: "Welle-2 svid_workload_identity rust-self-score < 95% (KW-24 doppel)"
+          description: >-
+            persona_engine_welle2_svid_workload_identity_self_score
+            = {{ $value }}% sustained < 95 for >= 2m. ADR-0066
+            KW-24-doppel rust-rate acceptance gate breached for
+            the Welle-2 leg. Engage Welle-2 owner; rerun Phase-2
+            cross-modul stress-oracle.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-2-self-score-collapse"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand + activity-log:append"
+
+  - name: welle-3-alerts
+    interval: 15s
+    rules:
+      - alert: WakirWelle3SelfReferenceTrapFire
+        # Welle-3 SELF-REFERENCE-TRAP-FIRE: bridge_audit_writer
+        # auditing its own BackendDecision stream. Tighter
+        # threshold + faster window than the Tag-45 A5 alert; this
+        # is the welle-scoped page that fires FIRST on KW-25 SOLO.
+        # Distinct from Tag-45 A5 (which is the failure-mode-class
+        # alert) and from the Hot-Spot #1 (which requires Welle-4
+        # state-backing-hash drift coupling).
+        expr: |
+          (
+            rate(persona_engine_backend_decision_total{welle="welle-3",subject="audit-bridge"}[2m])
+            /
+            avg_over_time(rate(persona_engine_backend_decision_total{welle="welle-3",subject="audit-bridge"}[2m])[1h:2m] offset 24h)
+          ) >= 2
+        for: 90s
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          welle: welle-3
+          component: bridge_audit_writer
+          kw_week: kw-25
+          topology: solo
+          critical: kw-25-solo
+        annotations:
+          summary: "Welle-3 Self-Reference-Trap fired (rate >= 2x baseline, 90s window)"
+          description: >-
+            BackendDecision-event-rate on Welle-3 audit-bridge
+            >= 2x 24h-offset baseline for >= 90s. Welle-3 is on
+            KW-25 SOLO -- bridge_audit_writer auditing itself is
+            a recursion-loop signature. Immediate AR-Hand-Stop;
+            quarantine bridge-audit-writer-events; per IIA-1130
+            engage AR-designated externer Pre-Auditor (NOT Henrik
+            for self-audit independence).
+          runbook_url: "https://wakir-labs.example/runbooks/welle-3-self-reference-trap-fire"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand-critical + activity-log:append + henrik-iia-1130-trigger"
+
+      - alert: WakirWelle3SoloTopologyViolation
+        # Welle-3 KW-25 SOLO topology: NO parallel welle may be
+        # active during the Welle-3 cutover window. Detection via
+        # welle-state count: more than one welle in non-terminal
+        # states (1=pre, 2=in, 3=rollback, 4=complete) while Welle-3
+        # is in state 1 or 2 means a parallel welle is running.
+        expr: |
+          (
+            persona_engine_phase_3c_welle_state{welle="welle-3"} == 1
+            or
+            persona_engine_phase_3c_welle_state{welle="welle-3"} == 2
+          )
+          and
+          (
+            count(persona_engine_phase_3c_welle_state == 1) + count(persona_engine_phase_3c_welle_state == 2) > 1
+          )
+        for: 60s
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          welle: welle-3
+          kw_week: kw-25
+          topology: solo
+          critical: kw-25-solo
+        annotations:
+          summary: "Welle-3 SOLO topology violated: parallel welle active in KW-25"
+          description: >-
+            Welle-3 is in pre_cutover or in_cutover state AND at
+            least one other welle is also in pre_cutover/in_cutover.
+            ADR-0066 §Welle-3 forbids parallelism during KW-25 to
+            preserve Henrik full-audit-bandwidth and avoid A5
+            self-reference-trap amplification. Pause the conflicting
+            welle immediately.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-3-solo-topology-violation"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand-critical + activity-log:append"
+
+      - alert: WakirWelle3StressOracleDivergence
+        # Welle-3 bridge_audit_writer self-score vs Phase-2 stress
+        # oracle: divergence > 0.5pp is the ADR-0066 Welle-3
+        # immediate-rollback trigger (per Henrik / Internal Audit
+        # caution documented in the welle-status dashboard).
+        expr: |
+          abs(
+            persona_engine_welle3_bridge_audit_writer_self_score
+            -
+            phase_2_acceptance_gate_cross_modul_stress_oracle{component="bridge_audit_writer"}
+          ) > 0.5
+        for: 60s
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          welle: welle-3
+          component: bridge_audit_writer
+          kw_week: kw-25
+          topology: solo
+        annotations:
+          summary: "Welle-3 self-score diverges from stress-oracle by > 0.5pp"
+          description: >-
+            |Welle-3 self-score - Phase-2 stress-oracle| = {{ $value }}pp
+            for >= 60s. ADR-0066 Welle-3 immediate-rollback trigger
+            (Henrik caution in welle-status dashboard panel 43).
+            Self-reading score has decoupled from the independent
+            oracle -- bridge_audit_writer is reporting drift in its
+            own self-audit pipeline. Initiate rollback procedure.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-3-stress-oracle-divergence"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand-critical + activity-log:append"
+
+  - name: welle-4-alerts
+    interval: 30s
+    rules:
+      - alert: WakirWelle4StateReadFail
+        # Welle-4 state_backing: STATE-READ-FAIL on the self-check.
+        # Counter increments when a state-backing read returns a
+        # hash that does not match the previously persisted value
+        # (silent corruption detector). Coupling source for Hot-
+        # Spot #2.
+        expr: increase(wakir_welle4_state_backing_read_fail_total[5m]) > 0
+        for: 60s
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          welle: welle-4
+          component: state_backing
+          kw_week: kw-26
+          topology: doppel
+        annotations:
+          summary: "Welle-4 state-backing READ-FAIL detected"
+          description: >-
+            wakir_welle4_state_backing_read_fail_total increased
+            by {{ $value }} in the last 5m. State-backing read
+            returned a hash mismatching the persisted value --
+            silent corruption signature. Cascade risk into Welle-5
+            audit-verifier and Welle-7 recovery (Hot-Spot #2).
+            Pause Welle-5/7; snapshot state-backing for forensics;
+            engage Welle-4 owner.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-4-state-read-fail"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand-critical + activity-log:append"
+
+      - alert: WakirWelle4StateBackingMigrationRollback
+        # Welle-4 state-backing migration-rollback fired. Distinct
+        # from the global welle-rollback alert: this is the
+        # migration-script-level rollback counter from the
+        # state-backing-migration tooling.
+        expr: increase(wakir_welle4_state_backing_migration_rollback_total[10m]) > 0
+        for: 60s
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          welle: welle-4
+          component: state_backing
+          kw_week: kw-26
+          topology: doppel
+        annotations:
+          summary: "Welle-4 state-backing migration ROLLED BACK"
+          description: >-
+            wakir_welle4_state_backing_migration_rollback_total
+            increased by {{ $value }} in the last 10m. The state-
+            backing migration self-aborted and reverted. Inspect
+            migrate-version output; verify Welle-5 FSM did not
+            already consume migrated state. Cross-check with
+            Welle-rollback baseline alert.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-4-migration-rollback"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand + activity-log:append"
+
+      - alert: WakirWelle4WriteLatencyP99Excess
+        # Welle-4 state-backing write-latency P99 above 250ms
+        # for >= 5m. Phase-2 acceptance threshold for the
+        # state-backing tier (operator-tuned default).
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum by (le) (
+              rate(wakir_welle4_state_backing_write_latency_seconds_bucket[5m])
+            )
+          ) > 0.25
+        for: 5m
+        labels:
+          severity: ticket
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          welle: welle-4
+          component: state_backing
+          kw_week: kw-26
+          topology: doppel
+        annotations:
+          summary: "Welle-4 state-backing write-latency P99 > 250ms"
+          description: >-
+            P99 write-latency = {{ $value }}s for >= 5m. Above
+            the 250ms Phase-2 acceptance threshold. Investigate
+            persistence-tier IO (jetstream consumer-ack backpressure
+            candidate). Welle-5 FSM may stall waiting on backing
+            writes if untreated.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-4-write-latency"
+          notify_path: "ticket:sre-ops + activity-log:append"
+
+  - name: welle-5-alerts
+    interval: 30s
+    rules:
+      - alert: WakirWelle5FsmPhantomTransition
+        # Welle-5 lifecycle_state_machine: FSM-Phantom-Transition
+        # SCOPED to welle-5. Distinct from Tag-45 A2 (which fires
+        # on ANY welle's illegal-transition counter); this rule
+        # filters to welle="welle-5" so the welle-5 page-page is
+        # immediate and unambiguous on KW-26 doppel cutover.
+        expr: wakir_lifecycle_fsm_illegal_transition_total{welle="welle-5"} > 0
+        for: 60s
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          welle: welle-5
+          component: lifecycle_state_machine
+          kw_week: kw-26
+          topology: doppel
+        annotations:
+          summary: "Welle-5 FSM-Phantom transition: from={{ $labels.from_state }} to={{ $labels.to_state }}"
+          description: >-
+            Welle-5 lifecycle_state_machine reported an illegal
+            transition (from={{ $labels.from_state }},
+            to={{ $labels.to_state }}, count={{ $value }}). KW-26
+            doppel cutover with Welle-4 as state-backing partner;
+            if Welle-4 has any state-read-fail in the same window,
+            this is the Welle-4 -> Welle-5 cascade. AR-Hand-Stop
+            + Reza Replay-Engine diff-vs-baseline.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-5-fsm-phantom"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand + activity-log:append"
+
+      - alert: WakirWelle5LifecycleOrphanState
+        # Welle-5: orphan-state in FSM. The lifecycle_state_machine
+        # exposes an orphan-state counter when a transition leaves
+        # an entity in a state with no outgoing edges and no
+        # terminal classification.
+        expr: wakir_welle5_lifecycle_orphan_state_total > 0
+        for: 90s
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          welle: welle-5
+          component: lifecycle_state_machine
+          kw_week: kw-26
+          topology: doppel
+        annotations:
+          summary: "Welle-5 lifecycle-FSM orphan-state detected"
+          description: >-
+            wakir_welle5_lifecycle_orphan_state_total = {{ $value }}
+            for >= 90s. The FSM produced an entity in a state with
+            no defined outgoing transitions and no terminal label.
+            This is a spec-bug or migrated-state-corruption.
+            Engage Welle-5 owner; replay via Reza engine to
+            identify the trigger transition.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-5-orphan-state"
+          notify_path: "pagerduty:sre-oncall + activity-log:append"
+
+      - alert: WakirWelle5SignedOffBeforeWelle4Stable
+        # KW-26 doppel ordering rule: Welle-5 audit-verifier must
+        # NOT sign off until Welle-4 state-backing-self-check hash
+        # has been stable for >= 10m. Fires when Welle-5 signs off
+        # while Welle-4 hash recently changed.
+        expr: |
+          (
+            wakir_welle_schluss_audit_signoff{welle="welle-5"} == 1
+          )
+          and
+          (
+            changes(wakir_state_backing_self_check_hash{welle="welle-4"}[10m]) > 0
+          )
+        for: 60s
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          welle: welle-5
+          partner_welle: welle-4
+          kw_week: kw-26
+          topology: doppel
+          ordering: welle-4-must-stabilize-first
+        annotations:
+          summary: "Welle-5 signed off while Welle-4 state-backing-hash still moving"
+          description: >-
+            Welle-5 audit-verifier signed off but Welle-4 state-
+            backing-self-check-hash changed within the last 10m.
+            ADR-0066 KW-26-doppel ordering: Welle-4 must stabilize
+            BEFORE Welle-5 signs off, otherwise the verifier
+            attested over a moving target. Audit invalid; rerun
+            Welle-5 verification after Welle-4 hash quiet.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-5-signoff-ordering"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand + activity-log:append + henrik-audit-trail"
+
+  - name: welle-6-alerts
+    interval: 30s
+    rules:
+      - alert: WakirWelle6SubscribeLoopStall
+        # Welle-6 subscribe_loop: NO messages flowing on the
+        # JetStream subscriber for >= 2m. Subscriber-side stall
+        # detection (publisher could still be live).
+        expr: |
+          rate(wakir_welle6_subscribe_loop_message_delivered_total[2m]) == 0
+        for: 2m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          welle: welle-6
+          component: subscribe_loop
+          kw_week: kw-27
+          topology: doppel
+        annotations:
+          summary: "Welle-6 subscribe-loop stalled (no message delivery for >= 2m)"
+          description: >-
+            rate(wakir_welle6_subscribe_loop_message_delivered_total)
+            = 0 over a 2m window. The subscriber is not receiving
+            messages -- either consumer-ack failure, broker
+            disconnect, or subject-binding lost. Check JetStream
+            consumer state; verify NATS-Mode (Tag-41 Bug-42
+            regression check); inspect SPIFFE auth.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-6-subscribe-loop-stall"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand + activity-log:append"
+
+      - alert: WakirWelle6SubscribeLoopReplayStorm
+        # Welle-6 subscribe_loop: REPLAY-STORM. JetStream re-
+        # delivery counter spiking indicates consumer-ack flow
+        # is failing and the broker is retrying. Distinct from
+        # stall (which is zero traffic); replay-storm is
+        # excessive traffic.
+        expr: |
+          rate(wakir_welle6_subscribe_loop_redelivery_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          welle: welle-6
+          component: subscribe_loop
+          kw_week: kw-27
+          topology: doppel
+        annotations:
+          summary: "Welle-6 subscribe-loop replay-storm: redelivery > 10 msg/s for 2m"
+          description: >-
+            rate(wakir_welle6_subscribe_loop_redelivery_total) =
+            {{ $value }} msg/s sustained >= 2m. The broker is
+            re-delivering messages because the consumer-ack flow
+            is failing. Investigate consumer-ack-timeout config,
+            consumer crash-loop, or downstream BackendDecision
+            handler exception rate.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-6-replay-storm"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand + activity-log:append"
+
+  - name: welle-7-alerts
+    interval: 30s
+    rules:
+      - alert: WakirWelle7RecoveryRehearsalFail
+        # Welle-7 recovery_workflow: REHEARSAL-FAIL. The pre-
+        # cutover recovery-rehearsal returned non-zero exit.
+        # Counter exposed by the recovery-rehearsal tooling.
+        expr: increase(wakir_welle7_recovery_rehearsal_failure_total[15m]) > 0
+        for: 60s
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          welle: welle-7
+          component: recovery_workflow
+          kw_week: kw-27
+          topology: doppel
+        annotations:
+          summary: "Welle-7 recovery-rehearsal FAILED"
+          description: >-
+            wakir_welle7_recovery_rehearsal_failure_total
+            increased by {{ $value }} in the last 15m. Pre-cutover
+            recovery-rehearsal exit non-zero -- the recovery
+            workflow cannot be relied on. Welle-7 cutover BLOCKED
+            until rehearsal passes. Engage Welle-7 owner; cross-
+            check Welle-4 state-backing snapshot age (recovery
+            replays from there).
+          runbook_url: "https://wakir-labs.example/runbooks/welle-7-recovery-rehearsal-fail"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand-critical + activity-log:append"
+
+      - alert: WakirWelle7RecoveryWithoutPreAuditWarning
+        # Welle-7 recovery_workflow: IIA-1130-default-path
+        # WARNING parallel to Welle-3 B3 alert. Fires when Welle-7
+        # schluss-audit-signoff arrives with auditor=henrik
+        # (default) instead of an AR-designated externer Pre-
+        # Auditor. Warning severity per Henrik Pre-Mortem B4
+        # (low probability, spec gesetzt).
+        expr: |
+          (
+            wakir_welle_schluss_audit_signoff{welle="welle-7", auditor="henrik"} == 1
+          )
+          and
+          (
+            wakir_welle_schluss_audit_signoff{welle="welle-7", auditor="external-pre-auditor"} == 0
+          )
+        for: 1m
+        labels:
+          severity: warning
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          welle: welle-7
+          kw_week: kw-27
+          topology: doppel
+          standard: iia-1130
+          failure_mode: B4
+        annotations:
+          summary: "Welle-7 Schluss-Audit-Signoff via Henrik (IIA-1130 default-path, parallels B3)"
+          description: >-
+            Welle-7 Schluss-Audit-Signoff carries auditor=henrik
+            and no external-pre-auditor signoff is recorded. Same
+            structure as Tag-45 B3 (Welle-3); Henrik Pre-Mortem B4
+            tracks Welle-7 IIA-1130-Konflikt as low-probability /
+            high-impact. Warning surface; AR-Hand-Entscheidung on
+            external pre-auditor designation steht aus.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-7-iia-1130-default"
+          notify_path: "ntfy:ar-hand-info + activity-log:append"
+
+      - alert: WakirWelle7RecoveryReplayDivergence
+        # Welle-7 recovery_workflow: REPLAY-DIVERGENCE. The
+        # recovery replay produces a hash differing from the
+        # baseline replay-vector. Counter from Reza Tag-37 replay
+        # engine scoped to welle-7.
+        expr: increase(wakir_welle7_recovery_replay_divergence_total[10m]) > 0
+        for: 60s
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          welle: welle-7
+          component: recovery_workflow
+          kw_week: kw-27
+          topology: doppel
+        annotations:
+          summary: "Welle-7 recovery replay-divergence vs baseline detected"
+          description: >-
+            wakir_welle7_recovery_replay_divergence_total increased
+            by {{ $value }} in the last 10m. The recovery replay
+            produced a state-hash differing from the baseline
+            replay-vector. The recovery procedure is non-
+            deterministic or the baseline is stale. Cross-check
+            Welle-4 state-backing hash; rerun Reza replay engine
+            with operator-hand snapshot.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-7-replay-divergence"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand + activity-log:append"

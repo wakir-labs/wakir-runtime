@@ -218,6 +218,23 @@ STATUS_MISSING_BOTH = "missing-both"
 
 
 # ---------------------------------------------------------------------------
+# Tag-59 Cut-3 Protocol-Mirror-Seed stage
+# ---------------------------------------------------------------------------
+
+# Reza Tag-59 sandbox-boundary seed: the canonical protocol-side
+# content is staged inside the runtime repo under this prefix until
+# the Engineering-Lead hand-off PR mirrors it into wakir-protocol.
+# The seed prefix is rooted at the runtime checkout root.
+
+PROTOCOL_MIRROR_SEED_PREFIX = "wirelang/specs/protocol-mirror-seed"
+
+# Tag-59 sync-marker emitted by the new stage when a seed file is
+# present in the runtime checkout that corresponds to a known
+# mirror-pair. This is informational (not a drift verdict).
+SYNC_MARKER_PROTOCOL_SEED_READY = "protocol-mirror-seed-ready"
+
+
+# ---------------------------------------------------------------------------
 # Canonicaliser
 # ---------------------------------------------------------------------------
 
@@ -396,6 +413,83 @@ class PairResult:
 
 
 @dataclasses.dataclass(frozen=True)
+class SeedMarker:
+    """Tag-59 Cut-3 sync-marker for a single mirror-pair.
+
+    A SeedMarker is *informational* — it surfaces the fact that
+    the protocol-side canonical content for a given mirror-pair is
+    staged in the runtime repo under
+    ``wirelang/specs/protocol-mirror-seed/<protocol_path>`` and the
+    Engineering-Lead hand-off PR against ``wakir-protocol`` is ready
+    to be opened.
+
+    The marker does NOT flip the underlying ``PairResult`` status:
+    if the protocol-side file is still missing at its canonical
+    path, the pair still reports ``missing-protocol``.
+    """
+
+    protocol_path: str
+    seed_relpath: str
+    seed_sha: str
+    canonical_match: bool
+    marker: str = SYNC_MARKER_PROTOCOL_SEED_READY
+
+
+def detect_protocol_mirror_seeds(
+    runtime_root: Path,
+    results: Sequence["PairResult"],
+    mirror_pairs: Sequence[MirrorPair] = (),
+) -> tuple[SeedMarker, ...]:
+    """Tag-59 Cut-3 stage: scan for protocol-side seed files.
+
+    For each mirror-pair, look up
+    ``<runtime_root>/wirelang/specs/protocol-mirror-seed/<protocol_path>``.
+    When present, emit a SeedMarker with:
+
+      * ``seed_sha``  -- canonical SHA-256 of the seed bytes (same
+        canonicaliser as the audit core, so SPDX-banner skew is
+        absorbed identically).
+      * ``canonical_match`` -- True iff the seed's canonical SHA
+        matches the runtime-side canonical SHA for the same pair.
+        Mismatch is *not* a drift verdict; it is a hint that the
+        seed itself has drifted from the runtime original and the
+        seed copy needs a refresh before the hand-off PR is opened.
+
+    The function is read-only and never raises on a missing seed
+    file (absence is the default state pre-Cut-3).
+    """
+    pairs_iter = mirror_pairs or tuple(r.pair for r in results)
+    by_pair: dict[str, PairResult] = {r.pair.protocol_path: r for r in results}
+
+    markers: list[SeedMarker] = []
+    seed_root = runtime_root / PROTOCOL_MIRROR_SEED_PREFIX
+    if not seed_root.is_dir():
+        return tuple()
+
+    for pair in pairs_iter:
+        seed_abs = seed_root / pair.protocol_path
+        if not seed_abs.is_file():
+            continue
+        seed_bytes = seed_abs.read_bytes()
+        seed_sha = sha256_canonical(seed_bytes, pair.normaliser)
+        runtime_pr = by_pair.get(pair.protocol_path)
+        canonical_match = bool(
+            runtime_pr
+            and runtime_pr.runtime_present
+            and runtime_pr.runtime_sha == seed_sha
+        )
+        markers.append(
+            SeedMarker(
+                protocol_path=pair.protocol_path,
+                seed_relpath=f"{PROTOCOL_MIRROR_SEED_PREFIX}/{pair.protocol_path}",
+                seed_sha=seed_sha,
+                canonical_match=canonical_match,
+            )
+        )
+    return tuple(markers)
+
+
+@dataclasses.dataclass(frozen=True)
 class AuditResult:
     verdict: str
     ok_count: int
@@ -404,6 +498,7 @@ class AuditResult:
     missing_count: int
     results: tuple[PairResult, ...]
     allowlist_warning: str | None
+    seed_markers: tuple[SeedMarker, ...] = ()
 
 
 def audit_pair(
@@ -479,6 +574,13 @@ def audit(
     else:
         verdict = VERDICT_MIRROR_DRIFT
 
+    # Tag-59 Cut-3: scan for protocol-side seed files in the runtime
+    # checkout. Seed markers do not flip the verdict; they are
+    # additive informational signals.
+    seed_markers = detect_protocol_mirror_seeds(
+        runtime_root, tuple(results), tuple(mirror_pairs)
+    )
+
     return AuditResult(
         verdict=verdict,
         ok_count=ok_count,
@@ -487,6 +589,7 @@ def audit(
         missing_count=missing_count,
         results=tuple(results),
         allowlist_warning=warn,
+        seed_markers=seed_markers,
     )
 
 
@@ -516,6 +619,16 @@ def render_json(result: AuditResult) -> str:
                 "description": r.pair.description,
             }
             for r in result.results
+        ],
+        "seed_markers": [
+            {
+                "marker": m.marker,
+                "protocol_path": m.protocol_path,
+                "seed_relpath": m.seed_relpath,
+                "seed_sha": m.seed_sha,
+                "canonical_match": m.canonical_match,
+            }
+            for m in result.seed_markers
         ],
     }
     return json.dumps(payload, indent=2, sort_keys=True)
@@ -547,6 +660,18 @@ def render_markdown(result: AuditResult) -> str:
     out.append(f"- drift (un-allowlisted): {result.drift_count}")
     out.append(f"- drift (allowlisted): {result.drift_allowed_count}")
     out.append(f"- missing on either side: {result.missing_count}")
+    if result.seed_markers:
+        out.append("")
+        out.append("**Tag-59 Cut-3 Protocol-Mirror-Seed markers**")
+        out.append("")
+        out.append("| Marker | Protocol path | Seed relpath | Seed sha (canonical) | Canonical-match runtime? |")
+        out.append("|---|---|---|---|---|")
+        for m in result.seed_markers:
+            ss = (m.seed_sha[:12] + "...") if m.seed_sha else "-"
+            cm = "yes" if m.canonical_match else "no"
+            out.append(
+                f"| `{m.marker}` | `{m.protocol_path}` | `{m.seed_relpath}` | `{ss}` | {cm} |"
+            )
     return "\n".join(out) + "\n"
 
 
@@ -564,6 +689,13 @@ def render_github_annotations(result: AuditResult) -> list[str]:
                 f"::warning file={r.pair.runtime_path}::"
                 f"alert-routing cross-repo audit: {r.status}"
             )
+    # Tag-59 Cut-3 sync-markers: informational notices, not drift.
+    for m in result.seed_markers:
+        cm = "match" if m.canonical_match else "seed-stale"
+        lines.append(
+            f"::notice file={m.seed_relpath}::"
+            f"Tag-59 Cut-3 {m.marker} for protocol-path {m.protocol_path} ({cm})"
+        )
     return lines
 
 
