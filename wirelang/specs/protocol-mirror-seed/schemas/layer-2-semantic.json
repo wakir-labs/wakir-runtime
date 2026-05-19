@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wakir.dev/wirelang/schema/layer-2-semantic/0.1.0",
+  "x-spdx-license-identifier": "Apache-2.0",
+  "x-spdx-file-copyright-text": "2026 Callandor GmbH and contributors",
+  "title": "Wirelang Layer 2 — Semantic Frame (Domain vs. Meta Events)",
+  "description": "Schema for the Wirelang Layer-2 semantic frame envelope. Distinguishes domain events (wakir.<domain>.*) from meta events (wakir.meta.*) by namespace and pins schema-registry, vocabulary, and validity-window metadata.",
+  "type": "object",
+  "required": ["frame_class", "schema_id", "schema_version", "validafter"],
+  "additionalProperties": false,
+  "properties": {
+    "frame_class": {
+      "type": "string",
+      "enum": ["domain-event", "meta-event"],
+      "description": "Classification namespace. domain-event = business semantics (task.assigned, audit.anchor.created). meta-event = protocol-level signaling (capability.issued, schema.deprecation, persona.rotated)."
+    },
+    "schema_id": {
+      "type": "string",
+      "pattern": "^wakir\\.[a-z][a-z0-9._-]*$",
+      "description": "Schema-registry identifier. Domain events MUST NOT use the 'wakir.meta.' prefix; meta events MUST use 'wakir.meta.'."
+    },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "vocabulary": {
+      "type": "object",
+      "description": "Wakir vocabulary anchor. Layer-2 references the vocabulary version that defined the role/term strings used in this frame.",
+      "additionalProperties": false,
+      "required": ["id", "version"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^wakir\\.[a-z][a-z0-9._-]*$"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "anchor_url": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    },
+    "validafter": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Schema-version validity window start (RFC 3339)."
+    },
+    "validuntil": {
+      "type": ["string", "null"],
+      "description": "Schema-version validity window end (RFC 3339) or null for open-ended.",
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "format": "date-time" }
+      ]
+    },
+    "supersedes": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Predecessor schema_version this frame replaces, if any."
+    },
+    "overlap_with": {
+      "type": "array",
+      "description": "Overlapping-validity-window declarations for soft schema migrations.",
+      "items": {
+        "type": "object",
+        "required": ["version", "until"],
+        "additionalProperties": false,
+        "properties": {
+          "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+          "until": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "ots_anchor_path": {
+      "type": "string",
+      "pattern": "^meta/timestamps/wirelang-(schema|vocab)/[a-zA-Z0-9._-]+\\.ots$",
+      "description": "Cross-review zone 3 path proposal: OpenTimestamps file path for this schema/vocabulary version. Pending WAT-module owner consensus stamp."
+    },
+    "payload": {
+      "description": "Domain-specific or meta-specific payload. Schema is enforced by the document referenced via schema_id+schema_version, not by this envelope."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "frame_class": { "const": "meta-event" } }, "required": ["frame_class"] },
+      "then": {
+        "properties": {
+          "schema_id": { "pattern": "^wakir\\.meta\\.[a-z][a-z0-9._-]*$" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "frame_class": { "const": "domain-event" } }, "required": ["frame_class"] },
+      "then": {
+        "properties": {
+          "schema_id": { "not": { "pattern": "^wakir\\.meta\\." } }
+        }
+      }
+    }
+  ]
+}
