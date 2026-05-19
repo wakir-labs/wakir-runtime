@@ -32,6 +32,14 @@ Modes
   (i.e. its own SPDX-string-literal block is properly wrapped) and
   exit 0. Used by the Tag-61 test suite to confirm the helper does
   not trip on itself.
+* ``enforce-flip-readiness`` - scan, compute Coverage-Score over
+  ``tests/**/*.py`` (% of files with correct wrap *where needed*),
+  emit a structured verdict (READY / CAUTION / BLOCKED) consumed by
+  the Tag-62 Enforce-Flip-Readiness-Plan
+  (``docs/operations/reuse-wrap-enforce-flip-readiness-plan.md``).
+  Exit code is always 0 -- the verdict is the payload, not the
+  shell-exit signal. The flip decision is operator-hand, not
+  CI-auto.
 
 The hint mode also emits a unified-diff-style patch suggestion that
 shows where the ``# REUSE-IgnoreStart`` / ``# REUSE-IgnoreEnd``
@@ -277,6 +285,131 @@ def render_text_report(findings: list[Finding]) -> str:
     return "\n".join(lines) + "\n"
 
 
+@dataclass(frozen=True)
+class ReadinessReport:
+    """Outcome of the ``enforce-flip-readiness`` scan.
+
+    Coverage-Score model
+    --------------------
+
+    We count one file as *clean* if its scan yields zero findings,
+    and one file as *missing-wrap* if it has at least one finding.
+    Files in ``tests/**/*.py`` that contain no SPDX literals at all
+    are not counted (they are out of the helper's scope and do not
+    move the needle either way). The Coverage-Score is then:
+
+        score = 100 * clean / max(1, clean + missing_wrap)
+
+    Verdict thresholds
+    ------------------
+
+    * ``ENFORCE-FLIP-READY``   - score >= 95
+    * ``ENFORCE-FLIP-CAUTION`` - score >= 80 (< 95)
+    * ``ENFORCE-FLIP-BLOCKED`` - score <  80
+
+    Rationale for the thresholds: 95 % is the same coverage bar
+    Tomás used for the Tag-59 OTS N-Run-Stability-Window (>=3
+    consecutive green main-runs == ~100 % over a 3-run sample);
+    80 % is the threshold below which the workflow is more likely
+    to red a legit PR than catch a real hot-fix-pattern, based on
+    the three known precedent episodes (Tag-56, Tag-59-hot-fix,
+    Tag-60-self-fix).
+    """
+
+    files_scanned: int
+    files_clean: int
+    files_missing_wrap: int
+    files_no_spdx: int
+    score: float
+    verdict: str
+    findings: tuple[Finding, ...]
+
+
+def _classify_score(score: float) -> str:
+    """Map a Coverage-Score to one of the three verdict strings."""
+    if score >= 95.0:
+        return "ENFORCE-FLIP-READY"
+    if score >= 80.0:
+        return "ENFORCE-FLIP-CAUTION"
+    return "ENFORCE-FLIP-BLOCKED"
+
+
+def compute_readiness(roots: Iterable[Path]) -> ReadinessReport:
+    """Compute the Coverage-Score + Verdict for ``roots``.
+
+    Implementation note: we walk the same file list ``scan()`` would
+    visit, then bucket each file into clean / missing-wrap / no-SPDX
+    based on whether the per-file scan returns findings and whether
+    the file contains any SPDX literal at all.
+    """
+    files = _collect_files(roots)
+    clean = 0
+    missing_wrap = 0
+    no_spdx = 0
+    all_findings: list[Finding] = []
+    for f in files:
+        findings = _scan_file(f)
+        if findings:
+            missing_wrap += 1
+            all_findings.extend(findings)
+            continue
+        # Zero findings: either truly wrapped or no SPDX payload at all.
+        # Distinguish by re-scanning with the sentinel-suppression
+        # disabled. We do this by counting SPDX-literal hits on raw
+        # lines, ignoring sentinels but also ignoring header banners.
+        try:
+            content = f.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            no_spdx += 1
+            continue
+        has_spdx = False
+        for line in content.splitlines():
+            if _is_header_banner(line):
+                continue
+            for pat in _SPDX_LITERAL_PATTERNS:
+                if pat.search(line):
+                    has_spdx = True
+                    break
+            if has_spdx:
+                break
+        if has_spdx:
+            clean += 1
+        else:
+            no_spdx += 1
+    denom = clean + missing_wrap
+    score = 100.0 * clean / denom if denom > 0 else 100.0
+    verdict = _classify_score(score)
+    return ReadinessReport(
+        files_scanned=len(files),
+        files_clean=clean,
+        files_missing_wrap=missing_wrap,
+        files_no_spdx=no_spdx,
+        score=score,
+        verdict=verdict,
+        findings=tuple(all_findings),
+    )
+
+
+def render_readiness_report(report: ReadinessReport) -> str:
+    """Render the canonical text report for the readiness mode."""
+    lines = [
+        f"{report.verdict}: score={report.score:.2f}",
+        f"  files_scanned     = {report.files_scanned}",
+        f"  files_clean       = {report.files_clean}",
+        f"  files_missing_wrap= {report.files_missing_wrap}",
+        f"  files_no_spdx     = {report.files_no_spdx}",
+    ]
+    if report.findings:
+        lines.append("")
+        lines.append("Findings (first 10):")
+        for f in list(report.findings)[:10]:
+            lines.append(
+                f"  {f.path}:{f.line_no}: [{f.matched_token}] "
+                f"{f.text.strip()[:100]}"
+            )
+    return "\n".join(lines) + "\n"
+
+
 def _self_verify(helper_path: Path) -> int:
     """Confirm the helper file itself has no unwrapped SPDX literals.
 
@@ -313,12 +446,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--mode",
-        choices=("hint", "enforce", "self-verify"),
+        choices=("hint", "enforce", "self-verify", "enforce-flip-readiness"),
         default="hint",
         help=(
             "hint: advisory (exit 0 on findings). "
             "enforce: blocking (exit 1 on findings). "
-            "self-verify: check the helper file itself."
+            "self-verify: check the helper file itself. "
+            "enforce-flip-readiness: compute Coverage-Score + verdict "
+            "(Tag-62 plan, always exits 0)."
         ),
     )
     parser.add_argument(
@@ -331,6 +466,13 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.mode == "self-verify":
         return _self_verify(args.helper_path)
+
+    if args.mode == "enforce-flip-readiness":
+        report = compute_readiness(args.roots)
+        sys.stdout.write(render_readiness_report(report))
+        # Always exit 0: the verdict is the payload, the flip is
+        # operator-hand (see Tag-62 plan doc §5).
+        return 0
 
     findings = scan(args.roots)
     sys.stdout.write(render_text_report(findings))
