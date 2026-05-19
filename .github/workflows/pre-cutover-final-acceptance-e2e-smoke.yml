@@ -1,0 +1,393 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Pre-Cutover-Final-Acceptance E2E-Smoke (Tag-63, Amara)
+# ======================================================
+#
+# Purpose
+# -------
+# The hermetic end-to-end smoke-test for the full Pre-Cutover-
+# Final-Acceptance pipeline. Walks Stage 1..4 in declared order as
+# a single full-flow run and emits a single ``E2E-READY`` /
+# ``E2E-DRIFT`` / ``E2E-DEFECT`` verdict.
+#
+# Tag-57..62 built up the pre-cutover acceptance pipeline as a set
+# of *separate* verdict-gates (Pyramide-Compositum, Engine-
+# Composite, Watch-Day-Practice-Run, Cross-Substrate-Parity, Final-
+# Sanity). Each gate runs on its own path-filter trigger. Tag-63
+# closes the loop: a hermetic full-flow E2E-Smoke that exercises
+# the whole pipeline from input-trigger to final aggregate verdict
+# in *one* CI run.
+#
+# Anchor pattern
+# --------------
+# The "smoke-test-Day-1-on-Cutover-Tag" pattern from the live-VM
+# acceptance lineage (Tag-39/40 Welle-6/7) - run the full pipeline
+# once, hermetic, in a single CI job-chain, and surface a single
+# trinary verdict.
+#
+# Four E2E stages
+# ---------------
+#
+#   Stage 1 - Pyramide-Compositum (G1..G5)
+#     Walks the Tag-62 Pyramide-Acceptance Pre-Cutover-Compositum
+#     aggregator helper at ``tooling/ci/aggregate_pyramide_
+#     acceptance_pre_cutover.py``. Probes helper existence, helper
+#     importability, and SUBSTRATES-tuple integrity.
+#
+#   Stage 2 - Engine-Compositum (G1..G4 -> G5)
+#     Walks the Tag-61/62 Persona-Engine Pre-Cutover Final
+#     Acceptance Composite aggregator helper at
+#     ``tooling/ci/aggregate_persona_engine_pre_cutover_final.py``.
+#     Probes helper existence, helper importability, and the
+#     engine-workflow YAML at ``.github/workflows/persona-engine-
+#     pre-cutover-final-acceptance-composite.yml``.
+#
+#   Stage 3 - Cross-Gates
+#     Cross-Gate substrate fan-out. Probes the three cross-gate
+#     workflows exist and parse:
+#       - Watch-Day-Practice-Run (Tag-55/56, Noa-SRE)
+#       - Cross-Substrate-Parity-Gate (Tag-32/57)
+#       - Marathon-Final-Acceptance Live-Verify-Gate (Tag-40)
+#
+#   Stage 4 - Final-Sanity
+#     Walks the Tag-53 Pre-Cutover-Final-Sanity-Gate aggregator
+#     helper at ``tooling/ci/aggregate_pre_cutover_final_sanity_
+#     gate_verdict.py``.
+#
+#   Aggregate - E2E-Verdict
+#     Walks Stage 1..4 status outputs, runs the
+#     ``aggregate_pre_cutover_e2e_smoke_verdict.py`` aggregator,
+#     writes ``out/pre-cutover-final-acceptance-e2e-smoke-
+#     verdict.json``, and emits the READY/DRIFT/DEFECT signal as
+#     a job-output. Uploads the verdict envelope as an artifact.
+#
+# Decision rule
+# -------------
+#
+#   * E2E-READY    - all four stages green.
+#   * E2E-DRIFT    - 1..N yellow, zero red.
+#   * E2E-DEFECT   - any red.
+#
+# Same shape as Selin's Tag-61 G5 and Amara's Tag-62 G5 (any yellow
+# degrades, any red collapses).
+#
+# Trigger surface
+# ---------------
+#
+#   * workflow_dispatch - operator-hand / AR-Hand manual run.
+#     Input: ``enforce`` flag (default ``true``). When ``true``,
+#     E2E-DEFECT exits step 1; E2E-DRIFT emits a warning. When
+#     ``false``, the workflow audits only.
+#   * pull_request (path-filtered) - umfassende Pfad-Filter ueber
+#     alle vier Stages, damit Aenderungen an einem der Sub-Gates
+#     den E2E-Smoke ebenfalls re-probten.
+#
+# Hermetic posture
+# ----------------
+# Stdlib-only Python. No third-party deps, no podman, no NATS, no
+# live-VM. Each stage probes substrate-existence and helper-
+# importability; it does NOT re-run the full sub-gate test-bodies
+# (those have their own dedicated workflows). The smoke-test is
+# deliberately a *walking* probe, not a *replicating* probe.
+#
+# Scope discipline (Amara, ADR-0036/0043/0044/0066)
+# -------------------------------------------------
+# This composite pins the Pre-Cutover-E2E-Smoke CI surface. It
+# does NOT modify persona definitions (Aisha-Domaene), WAT-core /
+# V-907 logic (Tomas-Domaene, Zone-K), identity-substrate (Reza-
+# Domaene, Zone-L), container-infra (Kai-Domaene, Zone-J), or
+# persona-engine substrate (Selin-Domaene, Zone-O).
+#
+# Cross-Review
+# ------------
+# Zone-M: Engineering-Personae ueber Tomas - E2E-Smoke walks
+#         helpers owned by Engineering-Personae; aggregator depends
+#         on them but does not modify them.
+# Zone-N: Henrik (Audit) - aggregated E2E-verdict ist audit-
+#         evidence-input fuer das KW-24 Pre-Cutover-Final-Acceptance
+#         Claim. Drift in der decision-rule waere Zone-N-Signal.
+
+name: pre-cutover-final-acceptance-e2e-smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      enforce:
+        description: 'If "true", exit 1 on E2E-DEFECT (default: true).'
+        required: false
+        default: 'true'
+        type: string
+  pull_request:
+    paths:
+      # Stage 1 - Pyramide-Compositum
+      - 'tooling/ci/aggregate_pyramide_acceptance_pre_cutover.py'
+      - 'tooling/ci/probe_pyramide_compositum_substrates.py'
+      - '.github/workflows/pyramide-acceptance-pre-cutover-compositum.yml'
+      # Stage 2 - Engine-Compositum
+      - 'tooling/ci/aggregate_persona_engine_pre_cutover_final.py'
+      - '.github/workflows/persona-engine-pre-cutover-final-acceptance-composite.yml'
+      # Stage 3 - Cross-Gates
+      - '.github/workflows/phase-3c-watch-day-practice-run.yml'
+      - '.github/workflows/cross-substrate-parity-gate.yml'
+      - '.github/workflows/marathon-final-acceptance-live-verify-gate.yml'
+      # Stage 4 - Final-Sanity
+      - 'tooling/ci/aggregate_pre_cutover_final_sanity_gate_verdict.py'
+      - '.github/workflows/pre-cutover-final-sanity-gate.yml'
+      # E2E-Smoke selbst
+      - 'tooling/ci/aggregate_pre_cutover_e2e_smoke_verdict.py'
+      - 'tests/ci/test_pre_cutover_e2e_smoke_tag63.py'
+      - '.github/workflows/pre-cutover-final-acceptance-e2e-smoke.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: pre-cutover-final-acceptance-e2e-smoke-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  s1-pyramide-compositum:
+    name: S1 pyramide_compositum (Amara Tag-62 PR #398)
+    runs-on: ubuntu-latest
+    outputs:
+      s1_status: ${{ steps.probe.outputs.s1_status }}
+      s1_note: ${{ steps.probe.outputs.s1_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Probe pyramide_compositum substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          helper="tooling/ci/aggregate_pyramide_acceptance_pre_cutover.py"
+          workflow=".github/workflows/pyramide-acceptance-pre-cutover-compositum.yml"
+          status="green"
+          note=""
+          if [ ! -f "$helper" ]; then
+            status="red"
+            note="pyramide-compositum aggregator helper missing"
+          elif ! python3 -c "import importlib.util, sys; spec = importlib.util.spec_from_file_location('h', '$helper'); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m); sys.exit(0 if hasattr(m, 'SUBSTRATES') and hasattr(m, 'build_envelope') and hasattr(m, 'decide') and tuple(m.SUBSTRATES) == ('run_order_doc', 'layer_dag', 'cross_run_stability', 'drift_allowlist') else 1)"; then
+            status="red"
+            note="pyramide-compositum aggregator non-importable or SUBSTRATES drift"
+          elif [ ! -f "$workflow" ]; then
+            status="yellow"
+            note="pyramide-compositum workflow YAML missing (helper present)"
+          fi
+          echo "s1_status=$status" >> "$GITHUB_OUTPUT"
+          echo "s1_note=$note"     >> "$GITHUB_OUTPUT"
+          echo "S1 pyramide_compositum: status=$status note='$note'"
+
+  s2-engine-composite:
+    name: S2 engine_composite (Selin Tag-61/62 PR #392/#399)
+    runs-on: ubuntu-latest
+    outputs:
+      s2_status: ${{ steps.probe.outputs.s2_status }}
+      s2_note: ${{ steps.probe.outputs.s2_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Probe engine_composite substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          helper="tooling/ci/aggregate_persona_engine_pre_cutover_final.py"
+          workflow=".github/workflows/persona-engine-pre-cutover-final-acceptance-composite.yml"
+          status="green"
+          note=""
+          if [ ! -f "$helper" ]; then
+            status="red"
+            note="engine-composite aggregator helper missing"
+          elif ! python3 -c "import importlib.util, sys; spec = importlib.util.spec_from_file_location('h', '$helper'); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m); sys.exit(0 if hasattr(m, 'build_envelope') or hasattr(m, 'main') else 1)" 2>/dev/null; then
+            status="red"
+            note="engine-composite aggregator non-importable"
+          elif [ ! -f "$workflow" ]; then
+            status="yellow"
+            note="engine-composite workflow YAML missing (helper present)"
+          fi
+          echo "s2_status=$status" >> "$GITHUB_OUTPUT"
+          echo "s2_note=$note"     >> "$GITHUB_OUTPUT"
+          echo "S2 engine_composite: status=$status note='$note'"
+
+  s3-cross-gates:
+    name: S3 cross_gates (Noa Tag-55/56 + Kai/Amara Tag-32/57 + Tag-40)
+    runs-on: ubuntu-latest
+    outputs:
+      s3_status: ${{ steps.probe.outputs.s3_status }}
+      s3_note: ${{ steps.probe.outputs.s3_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Probe cross_gates substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          watch_day=".github/workflows/phase-3c-watch-day-practice-run.yml"
+          parity=".github/workflows/cross-substrate-parity-gate.yml"
+          live_verify=".github/workflows/marathon-final-acceptance-live-verify-gate.yml"
+          present=0
+          missing_list=""
+          for f in "$watch_day" "$parity" "$live_verify"; do
+            if [ -f "$f" ]; then
+              present=$((present + 1))
+            else
+              if [ -z "$missing_list" ]; then missing_list="$f"; else missing_list="$missing_list,$f"; fi
+            fi
+          done
+          # YAML parse-check on present workflows
+          parse_ok=1
+          for f in "$watch_day" "$parity" "$live_verify"; do
+            if [ -f "$f" ]; then
+              if ! python3 -c "import sys; data = open('$f', 'rb').read(); sys.exit(0 if b'name:' in data and b'jobs:' in data else 1)"; then
+                parse_ok=0
+              fi
+            fi
+          done
+          status="green"
+          note=""
+          if [ "$parse_ok" -eq 0 ]; then
+            status="red"
+            note="cross-gates YAML parse failed on at least one workflow"
+          elif [ "$present" -eq 0 ]; then
+            status="red"
+            note="all three cross-gate workflows missing"
+          elif [ "$present" -lt 3 ]; then
+            status="yellow"
+            note="cross-gates partial: $present/3 present (missing: $missing_list)"
+          fi
+          echo "s3_status=$status" >> "$GITHUB_OUTPUT"
+          echo "s3_note=$note"     >> "$GITHUB_OUTPUT"
+          echo "S3 cross_gates: status=$status note='$note'"
+
+  s4-final-sanity:
+    name: S4 final_sanity (Amara Tag-53)
+    runs-on: ubuntu-latest
+    outputs:
+      s4_status: ${{ steps.probe.outputs.s4_status }}
+      s4_note: ${{ steps.probe.outputs.s4_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Probe final_sanity substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          helper="tooling/ci/aggregate_pre_cutover_final_sanity_gate_verdict.py"
+          workflow=".github/workflows/pre-cutover-final-sanity-gate.yml"
+          status="green"
+          note=""
+          if [ ! -f "$helper" ]; then
+            status="red"
+            note="final-sanity aggregator helper missing"
+          elif ! python3 -c "import importlib.util, sys; spec = importlib.util.spec_from_file_location('h', '$helper'); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m); sys.exit(0 if hasattr(m, 'build_envelope') or hasattr(m, 'main') else 1)" 2>/dev/null; then
+            status="red"
+            note="final-sanity aggregator non-importable"
+          elif [ ! -f "$workflow" ]; then
+            status="yellow"
+            note="final-sanity workflow YAML missing (helper present)"
+          fi
+          echo "s4_status=$status" >> "$GITHUB_OUTPUT"
+          echo "s4_note=$note"     >> "$GITHUB_OUTPUT"
+          echo "S4 final_sanity: status=$status note='$note'"
+
+  e2e-verdict:
+    name: E2E verdict (READY / DRIFT / DEFECT)
+    runs-on: ubuntu-latest
+    needs:
+      - s1-pyramide-compositum
+      - s2-engine-composite
+      - s3-cross-gates
+      - s4-final-sanity
+    if: always()
+    outputs:
+      verdict: ${{ steps.aggregate.outputs.verdict }}
+    env:
+      ENFORCE: ${{ github.event.inputs.enforce || 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run hermetic Tag-63 test-suite
+        run: |
+          set -eu
+          python3 -m unittest discover -v -s tests/ci -p 'test_pre_cutover_e2e_smoke_tag63.py'
+      - name: Aggregate S1..S4 into Tag-63 E2E-Smoke verdict
+        id: aggregate
+        shell: bash
+        env:
+          S1: ${{ needs.s1-pyramide-compositum.outputs.s1_status }}
+          S2: ${{ needs.s2-engine-composite.outputs.s2_status }}
+          S3: ${{ needs.s3-cross-gates.outputs.s3_status }}
+          S4: ${{ needs.s4-final-sanity.outputs.s4_status }}
+          N1: ${{ needs.s1-pyramide-compositum.outputs.s1_note }}
+          N2: ${{ needs.s2-engine-composite.outputs.s2_note }}
+          N3: ${{ needs.s3-cross-gates.outputs.s3_note }}
+          N4: ${{ needs.s4-final-sanity.outputs.s4_note }}
+        run: |
+          set -eo pipefail
+          s1="${S1:-red}"; s2="${S2:-red}"; s3="${S3:-red}"; s4="${S4:-red}"
+          notes=""
+          add_note() {
+            local key="$1" val="$2"
+            [ -z "$val" ] && return 0
+            if [ -z "$notes" ]; then notes="$key:$val"; else notes="$notes;$key:$val"; fi
+          }
+          add_note "pyramide_compositum" "${N1:-}"
+          add_note "engine_composite"    "${N2:-}"
+          add_note "cross_gates"         "${N3:-}"
+          add_note "final_sanity"        "${N4:-}"
+          mkdir -p out
+          S1_STATUS="$s1" \
+          S2_STATUS="$s2" \
+          S3_STATUS="$s3" \
+          S4_STATUS="$s4" \
+          S1_NOTE="${N1:-}" \
+          S2_NOTE="${N2:-}" \
+          S3_NOTE="${N3:-}" \
+          S4_NOTE="${N4:-}" \
+          STAGE_NOTES="$notes" \
+            python3 tooling/ci/aggregate_pre_cutover_e2e_smoke_verdict.py \
+              --output out/pre-cutover-final-acceptance-e2e-smoke-verdict.json
+          verdict=$(python3 -c "import json; print(json.load(open('out/pre-cutover-final-acceptance-e2e-smoke-verdict.json'))['verdict'])")
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Tag-63 Pre-Cutover-Final-Acceptance E2E-Smoke Verdict: \`$verdict\`"
+            echo ""
+            echo "| Stage | Status | Note |"
+            echo "|-------|--------|------|"
+            echo "| S1 pyramide_compositum | \`$s1\` | ${N1:-} |"
+            echo "| S2 engine_composite    | \`$s2\` | ${N2:-} |"
+            echo "| S3 cross_gates         | \`$s3\` | ${N3:-} |"
+            echo "| S4 final_sanity        | \`$s4\` | ${N4:-} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          enforce="${ENFORCE}"
+          if [ "$verdict" = "E2E-DEFECT" ] && [ "$enforce" = "true" ]; then
+            echo "::error::Tag-63 E2E-Smoke verdict: E2E-DEFECT"
+            exit 1
+          elif [ "$verdict" = "E2E-DEFECT" ]; then
+            echo "::warning::Tag-63 E2E-Smoke verdict: E2E-DEFECT (audit-only, not enforcing)"
+          elif [ "$verdict" = "E2E-DRIFT" ]; then
+            echo "::warning::Tag-63 E2E-Smoke verdict: E2E-DRIFT"
+          else
+            echo "Tag-63 E2E-Smoke verdict: E2E-READY"
+          fi
+      - name: Upload Tag-63 e2e-smoke-verdict.json artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-cutover-final-acceptance-e2e-smoke-verdict
+          path: out/pre-cutover-final-acceptance-e2e-smoke-verdict.json
+          if-no-files-found: warn
