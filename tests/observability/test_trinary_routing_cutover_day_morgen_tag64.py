@@ -92,7 +92,16 @@ def test_t01_trinary_constants_present(bridge) -> None:
         == "ops-on-call-plus-management"
     )
     assert isinstance(bridge.VALID_ROUTING_CLASSES, frozenset)
-    assert len(bridge.VALID_ROUTING_CLASSES) == 3
+    # Tag-64 baseline: standard / ops-on-call / ops-on-call-plus-management.
+    # Tag-71 extends with welle-3-pre-auditor-info (positive ack for
+    # Welle-3 external Pre-Auditor designation). The Tag-64 trinary
+    # contract still holds for the cutover-day-morgen verdict surface;
+    # the new routing class is additive and orthogonal.
+    assert bridge.VALID_ROUTING_CLASSES >= {
+        bridge.ROUTING_CLASS_STANDARD,
+        bridge.ROUTING_CLASS_OPS_ON_CALL,
+        bridge.ROUTING_CLASS_OPS_ON_CALL_PLUS_MANAGEMENT,
+    }
     assert isinstance(bridge.TRINARY_ROUTING_ALERTNAMES, frozenset)
     assert len(bridge.TRINARY_ROUTING_ALERTNAMES) == 3
 
