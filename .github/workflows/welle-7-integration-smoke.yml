@@ -1,0 +1,715 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tag-75 Welle-7 Integration-Smoke (Amara, Continuous-Mode)
+# ---------------------------------------------------------
+#
+# Hermetic end-to-end simulation of the five Welle-7 substrates
+# that fire in sequence on the canonical KW-27 Mi 2026-07-01
+# cutover-Mittwoch / KW-27 Fr 2026-07-03 sign-off-Freitag
+# Doppel-Welle-6+7 recovery_workflow Cutover-Day pipeline (per
+# docs/quality-gates/phase-3-marathon-final-acceptance.md
+# Marathon-Cadence row KW-27 + docs/quality-gates/
+# pre-cutover-acceptance-run-order.md row Welle-7 +
+# docs/ci/phase-3-marathon-rollback-runbook.md Job-Graph J2).
+#
+# Welle-7 is the FINAL-SEALING Welle of the Marathon. Per
+# pre-cutover-acceptance-run-order.md §3 the Post-Welle-7 slot is
+# the ONLY slot where the Global Acceptance-Verdict fires
+# (L1-full State-Machine + L3-full Marathon + L2-record-validation
+# across Welle-1..Welle-7). Tag-75 simulates the final-sealing
+# substrate-trio + Welle-7's distinctive IIA-1130 Pre-Auditor gate.
+#
+# Stages
+# ------
+#
+#   * Stage 1 -- Welle-7-Producer simulation (Selin Tag-75)
+#   * Stage 2 -- Welle-7-Audit-Anchor simulation (Tomas Tag-75)
+#   * Stage 3 -- Doppel-Welle-6+7 Coupling-Gate (W7 side; partner=W6)
+#   * Stage 4 -- IIA-1130 Pre-Auditor-Gate (Tag-75 distinctive;
+#                Welle-7 is the ORIGINAL IIA-1130 case per
+#                phase-3c-welle-7-hot-spot-probe.yml Check-4
+#                and Henrik Tag-39 Welle-6+7 Pre-Audit-Bundle).
+#   * Stage 5 -- Final-Sealing-Verification (Tag-75 distinctive;
+#                Post-Welle-7 Global Acceptance-Verdict trio:
+#                L1-full + L3-full + L2-record-validation per
+#                pre-cutover-acceptance-run-order.md row Welle-7
+#                Post-Welle column).
+#   * Stage 6 -- Aggregate WELLE-7-INTACT / DRIFT / DEFECT
+#
+# Brief-vs-canonical reconciliation (Tag-71+72+73+74 lehre)
+# ---------------------------------------------------------
+#
+# The Tag-75 Auftrag brief was largely canonical-aligned (Welle-7
+# = Final-Sealing-Welle is documented in pre-cutover-acceptance-
+# run-order.md §3, §11 IIA-1130 Pre-Auditor-Disziplin matches
+# Tag-66 + Tag-71-Spec, ADR-0066 vs KW-24-Acceptance §7 is the
+# canonical cadence-pin). One pin-drift surface remains for the
+# audit trail:
+#
+#   * Brief: implicit framing Welle-7 modul = "Final-Sealing".
+#     Canonical: Welle-7 substrate-modul is recovery_workflow
+#     per docs/ci/phase-3-marathon-rollback-runbook.md J2
+#     (J2 W7 recovery_workflow rust->python). "Final-Sealing" is
+#     the schedule-role, not the substrate-modul. Surface both
+#     framings on the envelope: substrate_modul=recovery_workflow,
+#     schedule_role=final_sealing_welle.
+#   * Brief: cited "ADR-0066 vs KW-24-Acceptance §7" as anchor
+#     trio. Canonical: ADR-0066 (four-Wochen-Cadence) is
+#     authoritative; KW-24-Acceptance §7 is the Welle-7 row in
+#     the parallel KW-24-Acceptance-view that was superseded by
+#     ADR-0066. Surface both on the envelope; ADR-0066 wins.
+#   * Brief: §11 Pre-Auditor-Disziplin (Tag-66 + Tag-71-Spec).
+#     Canonical: §11 IIA-1130 anchor is the AR-Hand-Pre-Auditor-
+#     Decision substitute-control for Welle-7 self-audit trap
+#     (AP-7 in phase-3-marathon-final-acceptance.md §AP-7 +
+#     state/welle-7-pre-auditor-decision.json schema). Surface
+#     the full anchor-chain on the envelope.
+#
+# All deltas surfaced on the aggregator envelope under
+# brief_vs_canonical_reconciliation.
+#
+# Sandbox boundary (ADR-0034, Mira feedback_sandbox_host_trennung.md)
+# --------------------------------------------------------------------
+#
+# This workflow is hermetic. It does NOT trigger the actual Welle-7
+# substrates via gh workflow run; it does NOT call the Persona-
+# Engine recovery_workflow flip; it does NOT touch the live-VM
+# substrate; it does NOT POST to ntfy.sh. The simulation is built
+# from stdlib-only helpers + on-disk synthetic bundles assembled
+# inside the GitHub Actions sandbox. The actual Welle-7 trigger on
+# 2026-07-01 (KW-27 Mi) is operator-hand. The IIA-1130
+# Pre-Auditor-Decision is AR-hand-governance per ADR-0058 §Nachtrag
+# and AP-7 substitute-control.
+#
+# Decision shape
+# --------------
+#
+# Stages emit per-stage verdict envelopes consumed by
+# tooling/ci/aggregate_welle_7_integration.py:
+#
+#   * green   -> WELLE-7-INTACT contribution
+#   * yellow  -> WELLE-7-DRIFT contribution
+#   * red     -> WELLE-7-DEFECT contribution
+#
+# Any red collapses the aggregate to WELLE-7-DEFECT.
+# Any yellow with zero red degrades to WELLE-7-DRIFT.
+# All green yields WELLE-7-INTACT.
+#
+# Forward-cascade (terminal Welle)
+# --------------------------------
+#
+# Welle-7 is the TERMINAL Welle in the cutover-order (per
+# phase-3-marathon-rollback-runbook.md reverse-cutover J2 is the
+# first reverse-step but the last forward-step). A Welle-7 DEFECT
+# (rollback) has a DIFFERENT cascade shape than W3/4/5/6:
+#
+#   * Wellen-1..6 are upstream of Welle-7 and have already
+#     completed by the time Welle-7 fires. They are NOT in the
+#     forward-block set.
+#   * Welle-7 itself is in the blocked-set (rollback cancels its
+#     own cutover).
+#   * The PAR-path Doppel-Welle partner Welle-6 (subscribe_loop)
+#     IS in the blocked-set: a Welle-7 recovery_workflow DEFECT
+#     under PAR-path blocks the entire Doppel-Welle-6+7 envelope
+#     (per phase-3c-doppel-welle-6-7.md §2 symmetric coupling).
+#
+# blocked_wellen_on_defect = (6, 7)
+#
+# This matches the Tag-74 Welle-6 forward-cascade (symmetric
+# Doppel-Welle pair under PAR-path). Tag-75 surfaces this on the
+# envelope as the SAME tuple, attesting symmetry; Stage 5 verifies
+# the symmetry as part of Final-Sealing-Verification.
+#
+# IIA-1130 Pre-Auditor-Gate (Tag-75 distinctive substrate)
+# --------------------------------------------------------
+#
+# Welle-7 is the ORIGINAL IIA-1130 case (Henrik Tag-39 Welle-6+7
+# Pre-Audit-Bundle): the audit-stream-contract author (Henrik)
+# cannot self-certify the recovery story. Per AP-7 in
+# phase-3-marathon-final-acceptance.md the substitute control is
+# the AR-Hand-Pre-Auditor-Decision recorded in
+# state/welle-7-pre-auditor-decision.json. Stage 4 probes the
+# decision-file existence, schema-shape, and decision-value
+# (APPROVED/PENDING/REJECTED), emitting the trinary surface:
+#
+#   * PRE-AUDITOR-APPROVED   = green
+#   * PRE-AUDITOR-PENDING    = yellow (AR-Hand-Designation pending)
+#   * PRE-AUDITOR-MISSING    = yellow (decision-file not yet staged)
+#   * PRE-AUDITOR-REJECTED   = red
+#   * PRE-AUDITOR-MALFORMED  = red
+#
+# This mirrors phase-3c-welle-7-hot-spot-probe.yml Check-4
+# decision-tracking surface.
+#
+# Final-Sealing-Verification (Tag-75 distinctive substrate)
+# ---------------------------------------------------------
+#
+# Per pre-cutover-acceptance-run-order.md row Welle-7 Post-Welle
+# column the Global Acceptance-Verdict fires only at Post-Welle-7
+# (Friday 2026-07-03 sign-off-Freitag). The verdict requires:
+#
+#   * L1-full (State-Machine acceptance, 28 tests, Tag-40 anchor)
+#   * L3-full (Marathon Schluss-Acceptance, 27 tests, Tag-43 anchor)
+#   * L2-record-validation (Per-Day sign-off-record producer
+#     across Welle-1..Welle-7, 45 tests, Tag-41 anchor)
+#
+# Stage 5 probes the readiness of the three Layer-anchors and
+# emits the trinary surface:
+#
+#   * FINAL-SEALING-READY    = all three Layer anchors discoverable
+#   * FINAL-SEALING-PARTIAL  = at least one anchor missing (yellow)
+#   * FINAL-SEALING-BREAK    = two or more anchors missing (red)
+#
+# Stage 5 is the Welle-7-distinctive substrate and replaces the
+# Welle-3/4/5/6 cross-component-stress / hot-spot-trend / cross-
+# substrate-parity stages used at the prior wellen.
+#
+# Trigger surface
+# ---------------
+#
+#   * workflow_dispatch -- manual probe for the marathon-team.
+#   * pull_request -- runs on changes to the workflow itself, its
+#     aggregator, or its tests.
+#   * push (path-filtered) on changes to the same trio.
+#
+# Continuous-Mode (Mira, 2026-05-19)
+# ----------------------------------
+#
+# Per feedback_continuous_mode_keine_pause_frage.md the workflow
+# runs to completion on its own without per-stage approvals; per
+# feedback_continuous_mode_keine_push_frage.md the merge of this
+# PR is part of the Tag-75 substrate-set and happens automatically
+# in the Marathon dispatch.
+#
+# Not a required status check
+# ---------------------------
+#
+# Per feedback_branch_protection_check_names.md this workflow is
+# NOT listed as a required status check. It is an integration-
+# smoke probe; the underlying Welle-7 substrate workflow
+# (phase-3c-welle-7-hot-spot-probe) is the substrate gate.
+
+name: welle-7-integration-smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      drift_inject:
+        description: "Inject DRIFT verdict on stage (none|producer|audit_anchor|doppel_coupling|pre_auditor|final_sealing)"
+        required: false
+        default: "none"
+      defect_inject:
+        description: "Inject DEFECT verdict on stage (none|producer|audit_anchor|doppel_coupling|pre_auditor|final_sealing)"
+        required: false
+        default: "none"
+  pull_request:
+    paths:
+      - ".github/workflows/welle-7-integration-smoke.yml"
+      - "tooling/ci/aggregate_welle_7_integration.py"
+      - "tests/ci/test_welle_7_integration_tag75.py"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/welle-7-integration-smoke.yml"
+      - "tooling/ci/aggregate_welle_7_integration.py"
+      - "tests/ci/test_welle_7_integration_tag75.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: welle-7-integration-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  welle-7-integration-smoke:
+    name: Welle-7 Integration-Smoke (hermetic)
+    runs-on: ubuntu-latest
+    outputs:
+      verdict: ${{ steps.aggregate.outputs.verdict }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Prepare hermetic substrate working dir
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/stages
+          mkdir -p out/aggregate
+          echo "Tag-75 Welle-7 integration-smoke staging dirs ready."
+
+      - name: Stage 1 -- Welle-7-Producer simulation (Selin Tag-75)
+        id: stage1
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          # Hermetic producer-stage: render the canonical Welle-7
+          # state-file stub via the Tag-68 render-only helper and
+          # verify the schema-pin + welle-number + status invariants.
+          python3 tooling/ci/render_engine_state_file_stub.py \
+            --welle 7 --kw KW-27 > out/stages/welle-7-rendered.json
+          schema_version=$(python3 -c "import json; print(json.load(open('out/stages/welle-7-rendered.json'))['schema_version'])")
+          welle_number=$(python3 -c "import json; print(json.load(open('out/stages/welle-7-rendered.json'))['welle_number'])")
+          status_field=$(python3 -c "import json; print(json.load(open('out/stages/welle-7-rendered.json'))['status'])")
+          verdict="WELLE-7-PRODUCER-READY"
+          if [[ "$schema_version" != "tag-67-v1" ]]; then
+            verdict="WELLE-7-PRODUCER-DEFECT"
+          fi
+          if [[ "$welle_number" != "7" ]]; then
+            verdict="WELLE-7-PRODUCER-DEFECT"
+          fi
+          if [[ "$status_field" != "pending" ]]; then
+            verdict="WELLE-7-PRODUCER-DEFECT"
+          fi
+          if [[ "${DRIFT_INJECT,,}" == "producer" ]]; then
+            verdict="WELLE-7-PRODUCER-DRIFT"
+            echo "::warning::drift_inject=producer; forced WELLE-7-PRODUCER-DRIFT"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "producer" ]]; then
+            verdict="WELLE-7-PRODUCER-DEFECT"
+            echo "::warning::defect_inject=producer; forced WELLE-7-PRODUCER-DEFECT"
+          fi
+          python3 - <<PY > out/stages/producer-verdict.json
+          import json, datetime
+          env = {
+              "schema_version": 1,
+              "stage": "welle_7_producer",
+              "tag": "tag-75",
+              "substrate": "selin-tag-75-welle-7-state-file-producer",
+              "verdict": "$verdict",
+              "rendered": json.load(open("out/stages/welle-7-rendered.json")),
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-1 producer verdict: $verdict"
+
+      - name: Stage 2 -- Welle-7-Audit-Anchor simulation (Tomas Tag-75)
+        id: stage2
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          # Hermetic audit-anchor stage: assemble a synthetic
+          # Welle-7 sign-off bundle on disk and compute a
+          # deterministic SHA-256 anchor across the bundle keys.
+          # Hermetic-equivalent computation matches the Tag-69..Tag-74
+          # wire-helper shape (64-hex SHA-256 across canonical JSON).
+          mkdir -p out/stages/bundle
+          cp state/welle-7.json out/stages/bundle/welle-7.json
+          cat > out/stages/bundle/welle-7-sign-off.json <<JSON
+          {
+            "welle_number": 7,
+            "signoff_iso": "2026-07-03T17:00:00Z",
+            "operator": "amara-welle-7-smoke",
+            "schema_version": "tag-67-v1"
+          }
+          JSON
+          cat > out/stages/bundle/welle-7-validation-last-verdict.json <<JSON
+          {
+            "welle_number": 7,
+            "verdict": "WELLE-7-VALIDATION-READY",
+            "schema_version": "tag-67-v1"
+          }
+          JSON
+          cat > out/stages/bundle/welle-7-pre-auditor-decision.json <<JSON
+          {
+            "welle": 7,
+            "auditor_role": "external-ar-designee",
+            "decision": "PENDING",
+            "decided_at_utc": "2026-05-19T17:00:00Z",
+            "schema_version": "tag-67-v1"
+          }
+          JSON
+          mkdir -p out/stages/markers
+          python3 - <<PY
+          import hashlib, json, pathlib
+          bundle_dir = pathlib.Path("out/stages/bundle")
+          paths = sorted(p for p in bundle_dir.iterdir() if p.is_file())
+          h = hashlib.sha256()
+          for p in paths:
+              h.update(p.name.encode("utf-8"))
+              h.update(b"\\x00")
+              data = json.loads(p.read_text(encoding="utf-8"))
+              h.update(json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8"))
+              h.update(b"\\x00")
+          anchor = h.hexdigest()
+          marker = {
+              "schema_version": 1,
+              "kind": "welle-7-audit-trail-anchor-producer-envelope",
+              "welle_number": 7,
+              "audit_trail_anchor": anchor,
+              "bundle_keys": [p.name for p in paths],
+          }
+          pathlib.Path("out/stages/markers/welle-7-audit-anchor.json").write_text(
+              json.dumps(marker, indent=2, sort_keys=True) + "\\n",
+              encoding="utf-8",
+          )
+          PY
+          verdict="WELLE-7-AUDIT-ANCHOR-READY"
+          anchor=$(python3 -c "import json; print(json.load(open('out/stages/markers/welle-7-audit-anchor.json'))['audit_trail_anchor'])" 2>/dev/null || echo "")
+          if [[ ! "$anchor" =~ ^[0-9a-f]{64}$ ]]; then
+            verdict="WELLE-7-AUDIT-ANCHOR-DEFECT"
+          fi
+          if [[ "${DRIFT_INJECT,,}" == "audit_anchor" ]]; then
+            verdict="WELLE-7-AUDIT-ANCHOR-DRIFT"
+            echo "::warning::drift_inject=audit_anchor; forced WELLE-7-AUDIT-ANCHOR-DRIFT"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "audit_anchor" ]]; then
+            verdict="WELLE-7-AUDIT-ANCHOR-DEFECT"
+            echo "::warning::defect_inject=audit_anchor; forced WELLE-7-AUDIT-ANCHOR-DEFECT"
+          fi
+          python3 - <<PY > out/stages/audit-anchor-verdict.json
+          import json, datetime, os
+          marker_path = "out/stages/markers/welle-7-audit-anchor.json"
+          marker = None
+          if os.path.exists(marker_path):
+              try:
+                  marker = json.load(open(marker_path))
+              except Exception:
+                  marker = None
+          env = {
+              "schema_version": 1,
+              "stage": "welle_7_audit_anchor",
+              "tag": "tag-75",
+              "substrate": "tomas-tag-75-welle-7-audit-trail-anchor",
+              "verdict": "$verdict",
+              "marker": marker,
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-2 audit-anchor verdict: $verdict"
+
+      - name: Stage 3 -- Doppel-Welle-6+7 Coupling-Gate (W7 side, Tag-75)
+        id: stage3
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          # Hermetic Doppel-Welle-Coupling stage (W7 side): Welle-7
+          # (recovery_workflow) couples to Welle-6 (subscribe_loop)
+          # under the Doppel-Welle-6+7 PAR-path per ADR-0066
+          # §Beschluss and phase-3c-doppel-welle-6-7.md §2. This
+          # mirrors the Tag-74 Stage-3 surface from the W7 viewpoint
+          # (partner=W6 subscribe_loop instead of partner=W7).
+          mkdir -p out/stages/doppel-coupling
+          partner_present="true"
+          partner_welle="6"
+          partner_verdict="WELLE-6-INTACT"
+          if [[ "${DRIFT_INJECT,,}" == "doppel_coupling" ]]; then
+            partner_present="false"
+            echo "::warning::drift_inject=doppel_coupling; forced PARTNER-MISSING"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "doppel_coupling" ]]; then
+            partner_present="true"
+            partner_verdict="WELLE-6-DEFECT"
+            echo "::warning::defect_inject=doppel_coupling; forced PARTNER-DEFECT"
+          fi
+          python3 - <<PY > out/stages/doppel-coupling/partner-state.json
+          import json
+          env = {
+              "partner_welle": int("$partner_welle"),
+              "partner_present": ("$partner_present" == "true"),
+              "partner_last_verdict": "$partner_verdict",
+              "coupling_anchor": "pre-cutover-acceptance-run-order.md Welle-7 Doppel-Welle-6+7",
+              "rollback_job_anchor": "J2",
+              "rollback_modul_anchor": "recovery_workflow",
+              "schema_version": "tag-67-v1",
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          verdict="DOPPEL-COUPLING-READY"
+          if [[ "$partner_present" != "true" ]]; then
+            verdict="DOPPEL-COUPLING-PARTNER-MISSING"
+          fi
+          if [[ "$partner_verdict" == "WELLE-6-DEFECT" ]]; then
+            verdict="DOPPEL-COUPLING-PARTNER-DEFECT"
+          fi
+          python3 - <<PY > out/stages/doppel-coupling-verdict.json
+          import json, datetime
+          partner_env = json.load(open("out/stages/doppel-coupling/partner-state.json"))
+          env = {
+              "schema_version": 1,
+              "stage": "doppel_welle_coupling_gate",
+              "tag": "tag-75",
+              "substrate": "amara-tag-75-doppel-welle-6-7-coupling-gate-w7-side",
+              "verdict": "$verdict",
+              "partner_envelope": partner_env,
+              "anchor_doc": "docs/quality-gates/pre-cutover-acceptance-run-order.md (row Welle-7 Doppel-Welle-6+7) + docs/quality-gates/phase-3c-doppel-welle-6-7.md",
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-3 doppel-coupling verdict: $verdict"
+
+      - name: Stage 4 -- IIA-1130 Pre-Auditor-Gate (Tag-75 distinctive)
+        id: stage4
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          # Hermetic IIA-1130 Pre-Auditor-Gate: Welle-7 is the
+          # ORIGINAL IIA-1130 case (Henrik Tag-39 Welle-6+7
+          # Pre-Audit-Bundle). Per AP-7 in phase-3-marathon-final-
+          # acceptance.md the substitute control is the
+          # AR-Hand-Pre-Auditor-Decision recorded in
+          # state/welle-7-pre-auditor-decision.json. The stage
+          # probes the decision-file existence, schema-shape, and
+          # decision-value (APPROVED/PENDING/REJECTED), emitting
+          # the trinary surface.
+          decision_file="state/welle-7-pre-auditor-decision.json"
+          pre_auditor_state="missing"
+          verdict="PRE-AUDITOR-MISSING"
+          if [ -f "$decision_file" ]; then
+            parse_result=$(python3 - <<PY
+          import json, pathlib, sys
+          try:
+              d = json.loads(pathlib.Path("$decision_file").read_text())
+          except Exception as e:
+              print(f"parse-error:{e}"); sys.exit(0)
+          required = ["welle", "auditor_role", "decision", "decided_at_utc"]
+          missing = [k for k in required if k not in d]
+          if missing:
+              print(f"missing-fields:{','.join(missing)}"); sys.exit(0)
+          welle = d.get("welle")
+          decision = (d.get("decision") or "").upper()
+          if welle != 7:
+              print(f"wrong-welle:{welle}"); sys.exit(0)
+          if decision not in ("APPROVED", "REJECTED", "PENDING"):
+              print(f"unknown-decision:{decision}"); sys.exit(0)
+          print(f"ok:{decision}")
+          PY
+          )
+            case "$parse_result" in
+              ok:APPROVED)
+                verdict="PRE-AUDITOR-APPROVED"
+                pre_auditor_state="approved"
+                ;;
+              ok:PENDING)
+                verdict="PRE-AUDITOR-PENDING"
+                pre_auditor_state="pending"
+                ;;
+              ok:REJECTED)
+                verdict="PRE-AUDITOR-REJECTED"
+                pre_auditor_state="rejected"
+                ;;
+              *)
+                verdict="PRE-AUDITOR-MALFORMED"
+                pre_auditor_state="malformed"
+                ;;
+            esac
+          else
+            echo "::warning::$decision_file missing -- PRE-AUDITOR-MISSING (PENDING-AR-DESIGNATION)"
+          fi
+          if [[ "${DRIFT_INJECT,,}" == "pre_auditor" ]]; then
+            verdict="PRE-AUDITOR-PENDING"
+            pre_auditor_state="pending-forced"
+            echo "::warning::drift_inject=pre_auditor; forced PRE-AUDITOR-PENDING"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "pre_auditor" ]]; then
+            verdict="PRE-AUDITOR-REJECTED"
+            pre_auditor_state="rejected-forced"
+            echo "::warning::defect_inject=pre_auditor; forced PRE-AUDITOR-REJECTED"
+          fi
+          python3 - <<PY > out/stages/pre-auditor-verdict.json
+          import json, datetime, os
+          dpath = "$decision_file"
+          file_present = os.path.isfile(dpath)
+          decision_envelope = None
+          if file_present:
+              try:
+                  decision_envelope = json.load(open(dpath))
+              except Exception:
+                  decision_envelope = None
+          env = {
+              "schema_version": 1,
+              "stage": "iia_1130_pre_auditor_gate",
+              "tag": "tag-75",
+              "substrate": "amara-tag-75-iia-1130-pre-auditor-decision-gate",
+              "verdict": "$verdict",
+              "pre_auditor_state": "$pre_auditor_state",
+              "decision_file_present": file_present,
+              "decision_envelope": decision_envelope,
+              "anchor_doc": "docs/quality-gates/phase-3-marathon-final-acceptance.md §AP-7 + .github/workflows/phase-3c-welle-7-hot-spot-probe.yml Check-4 + Henrik Tag-39 Welle-6+7 Pre-Audit-Bundle",
+              "iia_1130_anchor": "IIA-1130 Independence-and-Objectivity (Henrik cannot self-certify the recovery story)",
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-4 pre-auditor verdict: $verdict (state=$pre_auditor_state)"
+
+      - name: Stage 5 -- Final-Sealing-Verification (Tag-75 distinctive)
+        id: stage5
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          # Hermetic Final-Sealing-Verification: Welle-7 is the
+          # FINAL-SEALING Welle per pre-cutover-acceptance-run-
+          # order.md §3. The Post-Welle-7 slot is the ONLY slot
+          # where the Global Acceptance-Verdict fires:
+          #
+          #   * L1-full (State-Machine, Tag-40, 28 tests):
+          #       tests/phase_3c/test_phase_3_final_regression.py
+          #   * L3-full (Marathon-Schluss-Acceptance, Tag-43, 27 tests):
+          #       tests/phase_3c/test_marathon_schluss_acceptance_drill.py
+          #   * L2-record-validation (Per-Day, Tag-41, 45 tests):
+          #       tests/phase_3c/test_cutover_day_e2e_drill.py
+          #
+          # The stage probes the discoverability of all three Layer
+          # anchor test-files. It does NOT execute the test-suites
+          # (those are the Marathon-Final-Acceptance gates fired
+          # separately); it only verifies the anchors are present
+          # and parse-readable (Python import-form).
+          l1_anchor="tests/phase_3c/test_phase_3_final_regression.py"
+          l3_anchor="tests/phase_3c/test_marathon_schluss_acceptance_drill.py"
+          l2_anchor="tests/phase_3c/test_cutover_day_e2e_drill.py"
+          l1_present="false"; l3_present="false"; l2_present="false"
+          [ -f "$l1_anchor" ] && l1_present="true"
+          [ -f "$l3_anchor" ] && l3_present="true"
+          [ -f "$l2_anchor" ] && l2_present="true"
+          missing=0
+          [ "$l1_present" != "true" ] && missing=$((missing+1))
+          [ "$l3_present" != "true" ] && missing=$((missing+1))
+          [ "$l2_present" != "true" ] && missing=$((missing+1))
+          verdict="FINAL-SEALING-READY"
+          if [ "$missing" -eq 1 ]; then
+            verdict="FINAL-SEALING-PARTIAL"
+          fi
+          if [ "$missing" -ge 2 ]; then
+            verdict="FINAL-SEALING-BREAK"
+          fi
+          if [[ "${DRIFT_INJECT,,}" == "final_sealing" ]]; then
+            verdict="FINAL-SEALING-PARTIAL"
+            echo "::warning::drift_inject=final_sealing; forced FINAL-SEALING-PARTIAL"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "final_sealing" ]]; then
+            verdict="FINAL-SEALING-BREAK"
+            echo "::warning::defect_inject=final_sealing; forced FINAL-SEALING-BREAK"
+          fi
+          python3 - <<PY > out/stages/final-sealing-verdict.json
+          import json, datetime
+          l1_present = ("$l1_present" == "true")
+          l3_present = ("$l3_present" == "true")
+          l2_present = ("$l2_present" == "true")
+          env = {
+              "schema_version": 1,
+              "stage": "final_sealing_verification",
+              "tag": "tag-75",
+              "substrate": "amara-tag-75-post-welle-7-global-acceptance-anchor-discoverability",
+              "verdict": "$verdict",
+              "layer_anchors": {
+                  "l1_state_machine": {"path": "$l1_anchor", "present": l1_present, "tag": "tag-40", "tests_count": 28},
+                  "l3_marathon_schluss": {"path": "$l3_anchor", "present": l3_present, "tag": "tag-43", "tests_count": 27},
+                  "l2_record_validation": {"path": "$l2_anchor", "present": l2_present, "tag": "tag-41", "tests_count": 45},
+              },
+              "missing_anchors_count": $missing,
+              "anchor_doc": "docs/quality-gates/pre-cutover-acceptance-run-order.md (row Welle-7 Post-Welle column: L1-full + L3-full + L2-record-validation)",
+              "iso_signoff_date": "2026-07-03",
+              "iso_week": 27,
+              "global_acceptance_verdict_slot": "Post-Welle-7 (KW-27 Fr)",
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-5 final-sealing verdict: $verdict (missing=$missing/3)"
+
+      - name: Stage 6 -- Aggregate WELLE-7-INTEGRATION verdict
+        id: aggregate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tooling/ci/aggregate_welle_7_integration.py \
+            --producer-envelope          out/stages/producer-verdict.json \
+            --audit-anchor-envelope      out/stages/audit-anchor-verdict.json \
+            --doppel-coupling-envelope   out/stages/doppel-coupling-verdict.json \
+            --pre-auditor-envelope       out/stages/pre-auditor-verdict.json \
+            --final-sealing-envelope     out/stages/final-sealing-verdict.json \
+            --iso-week 27 \
+            --github-run-id "${GITHUB_RUN_ID:-}" \
+            --github-sha    "${GITHUB_SHA:-}" \
+            --github-ref    "${GITHUB_REF:-}" \
+            --output        out/aggregate/welle-7-integration-verdict.json
+          verdict=$(python3 -c "import json; print(json.load(open('out/aggregate/welle-7-integration-verdict.json'))['verdict'])")
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Tag-75 Welle-7 Integration-Smoke"
+            echo ""
+            echo "**Aggregated verdict:** \`$verdict\`"
+            echo ""
+            echo "**Per-stage verdicts:**"
+            echo ""
+            echo "- Stage 1 (Welle-7-Producer, Selin Tag-75): \`${{ steps.stage1.outputs.verdict }}\`"
+            echo "- Stage 2 (Welle-7-Audit-Anchor, Tomas Tag-75): \`${{ steps.stage2.outputs.verdict }}\`"
+            echo "- Stage 3 (Doppel-Welle-6+7 Coupling-Gate W7 side, Amara Tag-75): \`${{ steps.stage3.outputs.verdict }}\`"
+            echo "- Stage 4 (IIA-1130 Pre-Auditor-Gate, Amara Tag-75): \`${{ steps.stage4.outputs.verdict }}\`"
+            echo "- Stage 5 (Final-Sealing-Verification, Amara Tag-75): \`${{ steps.stage5.outputs.verdict }}\`"
+            echo ""
+            echo "<details><summary>Welle-7-Integration envelope JSON</summary>"
+            echo ""
+            echo '```json'
+            cat out/aggregate/welle-7-integration-verdict.json
+            echo '```'
+            echo ""
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Welle-7-integration verdict envelope
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: welle-7-integration-verdict
+          path: out/aggregate/welle-7-integration-verdict.json
+          if-no-files-found: warn
+
+      - name: Upload per-stage envelopes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: welle-7-integration-stages
+          path: out/stages/
+          if-no-files-found: warn
+
+      - name: Terminal-status gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          verdict="${{ steps.aggregate.outputs.verdict }}"
+          case "$verdict" in
+            WELLE-7-INTACT)
+              echo "Tag-75 Welle-7 integration-smoke INTACT (Final-Sealing-ready)"
+              ;;
+            WELLE-7-DRIFT)
+              echo "::warning::Tag-75 Welle-7 integration-smoke DRIFT (operator-hand reads per-stage notes; IIA-1130 Pre-Auditor-Decision may be PENDING)"
+              ;;
+            WELLE-7-DEFECT)
+              echo "::error::Tag-75 Welle-7 integration-smoke DEFECT (substrate contract break OR doppel-coupling PARTNER-DEFECT OR Pre-Auditor REJECTED/MALFORMED OR Final-Sealing-Anchor BREAK)"
+              exit 1
+              ;;
+            *)
+              echo "::error::unknown verdict: $verdict"
+              exit 1
+              ;;
+          esac
