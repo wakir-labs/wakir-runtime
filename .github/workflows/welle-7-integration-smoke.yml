@@ -610,6 +610,9 @@ jobs:
           fi
           python3 - <<PY > out/stages/final-sealing-verdict.json
           import json, datetime
+          l1_present = ("$l1_present" == "true")
+          l3_present = ("$l3_present" == "true")
+          l2_present = ("$l2_present" == "true")
           env = {
               "schema_version": 1,
               "stage": "final_sealing_verification",
@@ -617,9 +620,9 @@ jobs:
               "substrate": "amara-tag-75-post-welle-7-global-acceptance-anchor-discoverability",
               "verdict": "$verdict",
               "layer_anchors": {
-                  "l1_state_machine": {"path": "$l1_anchor", "present": $l1_present, "tag": "tag-40", "tests_count": 28},
-                  "l3_marathon_schluss": {"path": "$l3_anchor", "present": $l3_present, "tag": "tag-43", "tests_count": 27},
-                  "l2_record_validation": {"path": "$l2_anchor", "present": $l2_present, "tag": "tag-41", "tests_count": 45},
+                  "l1_state_machine": {"path": "$l1_anchor", "present": l1_present, "tag": "tag-40", "tests_count": 28},
+                  "l3_marathon_schluss": {"path": "$l3_anchor", "present": l3_present, "tag": "tag-43", "tests_count": 27},
+                  "l2_record_validation": {"path": "$l2_anchor", "present": l2_present, "tag": "tag-41", "tests_count": 45},
               },
               "missing_anchors_count": $missing,
               "anchor_doc": "docs/quality-gates/pre-cutover-acceptance-run-order.md (row Welle-7 Post-Welle column: L1-full + L3-full + L2-record-validation)",
