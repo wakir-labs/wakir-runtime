@@ -1,0 +1,183 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# V-907 Persona-Hash-Pin-Build-Step (Tag-59)
+# ===========================================
+#
+# Purpose
+# -------
+# Engine 0.5.3-rc1 (Tag-58, PR #372) is the final Pre-Cutover RC
+# before the KW-24 cutover gate opens. Three authority surfaces
+# describe the byte-shape of the V-907 persona-hash that downstream
+# Phase-3c cutover acceptance pins against:
+#
+#   * Manifest §1 — the ten-row component-inventory table in
+#     ``wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md``.
+#   * Pin-Pack ``boot_wired_crates`` — the YAML list section in
+#     ``infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml``.
+#   * engine.py resolver-block — the import block + resolver-call
+#     sites in ``wirelang/persona_engine/engine.py``.
+#
+# A silent post-Tag-58 edit to any of these three surfaces breaks the
+# V-907 pin. The Tag-58 spec-seal probe
+# (``wirelang-spec-freeze-seal-probe.yml``) caught the spec-side
+# analog of this drift class; Tag-59 closes the persona-engine-side
+# gap with a dedicated hash-pin build-step.
+#
+# Stages
+# ======
+# Stage 1 — Compute the composite V-907 persona-hash over the three
+#           authority-surface slices.
+# Stage 2 — Diff against the baseline lock at
+#           ``wirelang/persona_engine/v907-hash-baseline.json``.
+# Stage 3 — Verdict: ``HASH-PIN-INTACT`` (clean) or ``HASH-PIN-DRIFT``
+#           with per-segment-localised drift class.
+#
+# Audit-vs-enforce
+# ================
+# Introduction cut runs in enforce mode on push to ``main`` and on
+# PRs that touch the three authority surfaces, the baseline lock,
+# the verifier helper, the hermetic test-suite, or this workflow.
+# ``workflow_dispatch`` exposes an ``enforce`` input so the operator
+# can flip to audit-only for a controlled refresh of the baseline.
+#
+# Tests
+# =====
+# Hermetic Python tests live at
+# ``wirelang/tests/persona_engine/test_v907_hash_pin_build_step_tag59.py``
+# (>= 12 stdlib-only tests). The workflow runs them on every trigger.
+#
+# Scope discipline (Selin, ADR-0036/0043/0065/0066)
+# -------------------------------------------------
+# This gate pins the persona-engine CI surface. It does **not**
+# modify persona definitions (Aisha-Domäne), WAT-core / V-907 logic
+# (Tomás-Domäne, Zone-K), identity-substrate (Reza-Domäne, Zone-L),
+# or container-infra (Kai-Domäne, Zone-J). Cross-zone unangetastet.
+
+name: v907-persona-hash-pin-build-step
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'wirelang/persona_engine/**'
+      - 'docs/persona-engine/**'
+      - 'infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml'
+      - 'tooling/ci/verify_v907_persona_hash_pin.py'
+      - 'wirelang/tests/persona_engine/test_v907_hash_pin_build_step_tag59.py'
+      - '.github/workflows/v907-persona-hash-pin-build-step.yml'
+  pull_request:
+    paths:
+      - 'wirelang/persona_engine/**'
+      - 'docs/persona-engine/**'
+      - 'infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml'
+      - 'tooling/ci/verify_v907_persona_hash_pin.py'
+      - 'wirelang/tests/persona_engine/test_v907_hash_pin_build_step_tag59.py'
+      - '.github/workflows/v907-persona-hash-pin-build-step.yml'
+  workflow_dispatch:
+    inputs:
+      enforce:
+        description: 'If "true", exit 1 on HASH-PIN-DRIFT (default: true).'
+        required: false
+        default: 'true'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  v907-hash-pin:
+    name: V-907 persona-hash-pin build-step
+    runs-on: ubuntu-latest
+
+    env:
+      V907_HASH_PIN_ENFORCE: ${{ github.event.inputs.enforce || 'true' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python (stdlib-only — no pip install needed)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Stage 1 — Authority-surface presence check
+        id: stage1
+        shell: bash
+        run: |
+          set -eu
+          for f in \
+            wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md \
+            infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml \
+            wirelang/persona_engine/engine.py \
+            wirelang/persona_engine/v907-hash-baseline.json \
+            tooling/ci/verify_v907_persona_hash_pin.py
+          do
+            if [ ! -f "$f" ]; then
+              echo "::error file=$f::authority surface is missing"
+              exit 1
+            fi
+          done
+          echo "all authority surfaces present"
+
+      - name: Stage 2 + 3 — Run verifier helper
+        id: probe
+        shell: bash
+        run: |
+          set -u
+          envelope="$(python3 tooling/ci/verify_v907_persona_hash_pin.py)"
+          rc=$?
+          echo "${envelope}"
+          verdict="$(printf '%s' "${envelope}" | python3 -c 'import sys, json; print(json.load(sys.stdin)["verdict"])')"
+          verdict_class="$(printf '%s' "${envelope}" | python3 -c 'import sys, json; print(json.load(sys.stdin)["verdict_class"])')"
+          composite="$(printf '%s' "${envelope}" | python3 -c 'import sys, json; print(json.load(sys.stdin).get("composite_hash", ""))')"
+          baseline_composite="$(printf '%s' "${envelope}" | python3 -c 'import sys, json; print(json.load(sys.stdin).get("baseline_composite_hash", ""))')"
+          drifted="$(printf '%s' "${envelope}" | python3 -c 'import sys, json; print(",".join(json.load(sys.stdin).get("drifted_segments", [])))')"
+          echo "verdict=${verdict}"                       >> "$GITHUB_OUTPUT"
+          echo "verdict_class=${verdict_class}"           >> "$GITHUB_OUTPUT"
+          echo "composite=${composite}"                   >> "$GITHUB_OUTPUT"
+          echo "baseline_composite=${baseline_composite}" >> "$GITHUB_OUTPUT"
+          echo "drifted=${drifted}"                       >> "$GITHUB_OUTPUT"
+          {
+            echo "# V-907 Persona-Hash-Pin-Build-Step (Tag-59)"
+            echo
+            echo "**Verdict:** \`${verdict}\` (\`${verdict_class}\`)"
+            echo
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Composite hash | \`${composite}\` |"
+            echo "| Baseline composite hash | \`${baseline_composite}\` |"
+            echo "| Drifted segments | \`${drifted:-<none>}\` |"
+            echo
+            echo '```json'
+            printf '%s\n' "${envelope}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run hermetic Tag-59 test-suite
+        run: |
+          set -eu
+          python3 -m unittest \
+            wirelang.tests.persona_engine.test_v907_hash_pin_build_step_tag59 -v
+
+      - name: Stage 3 — Enforce verdict
+        shell: bash
+        run: |
+          set -u
+          verdict="${{ steps.probe.outputs.verdict }}"
+          verdict_class="${{ steps.probe.outputs.verdict_class }}"
+          enforce="${V907_HASH_PIN_ENFORCE}"
+
+          echo "v907-persona-hash-pin: verdict=${verdict} class=${verdict_class} enforce=${enforce}"
+
+          if [ "${enforce}" = "true" ] && [ "${verdict}" = "HASH-PIN-DRIFT" ]; then
+            echo "::error::V-907 persona-hash-pin DRIFT detected (${verdict_class}). Refusing to merge — see job summary for the verdict envelope."
+            exit 1
+          fi
+
+          if [ "${verdict}" = "HASH-PIN-DRIFT" ]; then
+            echo "::warning::V-907 persona-hash-pin DRIFT (${verdict_class}) — running in audit-only mode, not enforcing."
+          else
+            echo "V-907 persona-hash-pin is INTACT."
+          fi
