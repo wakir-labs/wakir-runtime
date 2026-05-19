@@ -6,8 +6,10 @@
 # Purpose
 # -------
 # The final persona-engine pre-cutover acceptance probe. Aggregates
-# four Tag-58/59/60 substrate verdicts the engine 0.5.3-rc1 RC has
-# accumulated into a single ``PRE-CUTOVER-READY`` /
+# four Tag-58/59/60 substrate verdicts the engine has accumulated
+# (Tag-62 promoted active to 0.5.3 final; the historical 0.5.3-rc1
+# substrate is preserved as carry-forward) into a single
+# ``PRE-CUTOVER-READY`` /
 # ``PRE-CUTOVER-DRIFT`` / ``PRE-CUTOVER-DEFECT`` verdict that the
 # KW-24 cutover-day auto-scheduler reads alongside the Tag-53
 # ``pre-cutover-final-sanity-gate-verdict.json``.
@@ -29,13 +31,13 @@
 #       allowlisted hits exist; red on any un-allowlisted finding.
 #
 #   G3 - version_bump_coverage
-#       Engine 0.5.3-rc1 version-bump-coverage verdict from Tag-58
-#       PR #372. Probes the canonical anchor at
+#       Engine version-bump-coverage verdict. Originally Tag-58
+#       PR #372 (0.5.3-rc1); Tag-62 rc1-suffix-drop final-bump
+#       promoted active to 0.5.3. Probes the canonical anchor at
 #       ``wirelang/persona_engine/__version__.py`` carries
-#       ``__version__ = "0.5.3-rc1"`` AND the 0.5.3-rc1
-#       release-notes file is present. green on full match;
-#       yellow on anchor-match-but-notes-missing; red on anchor-
-#       mismatch.
+#       ``__version__ = "0.5.3"`` AND the 0.5.3-final release-notes
+#       file is present. green on full match; yellow on anchor-
+#       match-but-notes-missing; red on anchor-mismatch.
 #
 #   G4 - manifest_readiness
 #       Manifest + pin-pack readiness from Tag-52/Tag-58. Probes
@@ -217,18 +219,24 @@ jobs:
         run: |
           set -uo pipefail
           anchor="wirelang/persona_engine/__version__.py"
-          notes="docs/persona-engine/0-5-3-rc1-release-notes.md"
+          notes="docs/persona-engine/0-5-3-final-release-notes.md"
           status="green"
           note=""
+          # Tag-62 (2026-05-19, Selin): rc1-suffix-drop final-bump
+          # promoted the active version to 0.5.3. The probe now
+          # accepts the final literal; the rc1 release-notes file is
+          # preserved as a historical artefact alongside the new
+          # final-release-notes companion (this probe checks the
+          # active companion only).
           if [ ! -f "$anchor" ]; then
             status="red"
             note="version anchor module missing"
-          elif ! grep -q '^__version__ = "0.5.3-rc1"' "$anchor"; then
+          elif ! grep -q '^__version__ = "0.5.3"' "$anchor"; then
             status="red"
-            note="version anchor not 0.5.3-rc1"
+            note="version anchor not 0.5.3"
           elif [ ! -f "$notes" ]; then
             status="yellow"
-            note="release-notes 0.5.3-rc1 missing"
+            note="release-notes 0.5.3-final missing"
           fi
           echo "g3_status=$status" >> "$GITHUB_OUTPUT"
           echo "g3_note=$note"     >> "$GITHUB_OUTPUT"
