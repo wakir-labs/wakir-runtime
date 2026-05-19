@@ -1,0 +1,250 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# KW-24 Welle-1..7 Acceptance E2E-Smoke Schedule (Tag-66, Amara)
+# ===============================================================
+#
+# Purpose
+# -------
+# Per-Welle E2E-smoke-schedule for the KW-24..KW-27 Cutover-Marathon.
+# Walks the per-Welle acceptance-criteria pinned by Tag-66 in
+# ``docs/quality-gates/kw-24-welle-1-7-acceptance-criteria.md`` as a
+# matrix-strategy fan-out over Welle 1..7. Each matrix-cell emits a
+# per-Welle ``WELLE-{N}-{READY|DRIFT|DEFECT}`` verdict via
+# ``tooling/ci/aggregate_kw_24_welle_acceptance.py``.
+#
+# Companion to (not replacement of) the Tag-63 ``pre-cutover-final-
+# acceptance-e2e-smoke.yml`` workflow. The Tag-63 workflow probes the
+# full pipeline as a single hermetic walk; the Tag-66 schedule probes
+# each Welle independently on the documented anchor-day.
+#
+# Schedule (anchor-day cron-triggers)
+# -----------------------------------
+#   Welle-1 (Engine-Cutover)        KW-24 Mo 2026-06-08 06:00 UTC
+#   Welle-2 (Doppelbetrieb-Sealing) KW-24 Mi 2026-06-10 06:00 UTC
+#   Welle-3 (Bridge-Audit)          KW-24 Fr 2026-06-12 06:00 UTC
+#   Welle-4 (State-Backing)         KW-25 Mo 2026-06-15 06:00 UTC
+#   Welle-5 (Capability-Token)      KW-25 Fr 2026-06-19 06:00 UTC
+#   Welle-6 (Cross-Substrate)       KW-26 Fr 2026-06-26 06:00 UTC
+#   Welle-7 (Final-Sealing)         KW-27 Fr 2026-07-03 06:00 UTC
+#
+# Per-Welle verdict-rule
+# ----------------------
+#   any S{1..4} red    -> WELLE-{N}-DEFECT
+#   else any yellow    -> WELLE-{N}-DRIFT
+#   else               -> WELLE-{N}-READY
+#
+# Cross-Welle propagation
+# -----------------------
+# Welle-3 DEFECT downstream-blocks Welle-4/5/7 (Tag-45 hot-spot-
+# aggregator family). The aggregator carries the data-only flag;
+# downstream Wellen consume the flag in their own workflows.
+#
+# Hermetic posture
+# ----------------
+# stdlib-only Python. Each matrix-cell probes substrate-existence and
+# helper-importability per the docs/quality-gates/kw-24-welle-1-7-
+# acceptance-criteria.md §1..§7 stage-spec.
+#
+# Scope discipline (Amara, ADR-0036/0043/0044/0066)
+# -------------------------------------------------
+# Pins the Tag-66 Welle-by-Welle E2E-smoke surface. Does NOT modify
+# persona definitions (Aisha), WAT-core / V-907 (Tomas, Zone-K),
+# identity-substrate (Reza, Zone-L), container-infra (Kai, Zone-J),
+# or persona-engine substrate (Selin, Zone-O).
+#
+# Cross-Review
+# ------------
+# Zone-M: per-Welle stage-probe helpers owned by Engineering-Personae;
+#         this workflow only walks them.
+# Zone-N: Welle-3 and Welle-7 IIA-1130 Pre-Auditor-Decisions are
+#         Henrik's domain. Welle-3 downstream-block flag is data-only.
+
+name: kw-24-welle-acceptance-e2e-smoke-schedule
+
+on:
+  workflow_dispatch:
+    inputs:
+      welle:
+        description: 'Welle number to run (1..7 or "all", default: all).'
+        required: false
+        default: 'all'
+        type: string
+      enforce:
+        description: 'If "true", exit 1 on any WELLE-{N}-DEFECT (default: true).'
+        required: false
+        default: 'true'
+        type: string
+  schedule:
+    # Welle-1 KW-24 Mo 2026-06-08 06:00 UTC
+    - cron: '0 6 8 6 1'
+    # Welle-2 KW-24 Mi 2026-06-10 06:00 UTC
+    - cron: '0 6 10 6 3'
+    # Welle-3 KW-24 Fr 2026-06-12 06:00 UTC
+    - cron: '0 6 12 6 5'
+    # Welle-4 KW-25 Mo 2026-06-15 06:00 UTC
+    - cron: '0 6 15 6 1'
+    # Welle-5 KW-25 Fr 2026-06-19 06:00 UTC
+    - cron: '0 6 19 6 5'
+    # Welle-6 KW-26 Fr 2026-06-26 06:00 UTC
+    - cron: '0 6 26 6 5'
+    # Welle-7 KW-27 Fr 2026-07-03 06:00 UTC
+    - cron: '0 6 3 7 5'
+  pull_request:
+    paths:
+      - 'docs/quality-gates/kw-24-welle-1-7-acceptance-criteria.md'
+      - 'tooling/ci/aggregate_kw_24_welle_acceptance.py'
+      - 'tests/ci/test_kw_24_welle_acceptance_tag66.py'
+      - '.github/workflows/kw-24-welle-acceptance-e2e-smoke-schedule.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: kw-24-welle-acceptance-e2e-smoke-schedule-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  hermetic-test-suite:
+    name: Tag-66 hermetic test-suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run hermetic Tag-66 test-suite
+        run: |
+          set -eu
+          python3 -m unittest discover -v -s tests/ci -p 'test_kw_24_welle_acceptance_tag66.py'
+
+  per-welle-verdict:
+    name: Welle-${{ matrix.welle }} acceptance-verdict
+    runs-on: ubuntu-latest
+    needs: hermetic-test-suite
+    strategy:
+      fail-fast: false
+      matrix:
+        welle: [1, 2, 3, 4, 5, 6, 7]
+    outputs:
+      verdict_w1: ${{ steps.per_welle.outputs.verdict_w1 }}
+    env:
+      ENFORCE: ${{ github.event.inputs.enforce || 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Probe stage-statuses for Welle-${{ matrix.welle }}
+        id: probe
+        shell: bash
+        env:
+          WELLE: ${{ matrix.welle }}
+        run: |
+          set -uo pipefail
+          # Stage-1 / Stage-2 / Stage-3 / Stage-4 default to green if
+          # substrate-helpers exist and parse; yellow if partial; red
+          # if missing. The probes are deliberately conservative
+          # (existence + parse only, no run); same hermetic posture as
+          # Tag-63 E2E-Smoke.
+          s1="green"; s2="green"; s3="green"; s4="green"
+          n1=""; n2=""; n3=""; n4=""
+          case "${WELLE}" in
+            1)
+              [ -f ".github/workflows/persona-engine-pre-cutover-final-acceptance-composite.yml" ] || { s1="red"; n1="engine-composite workflow missing"; }
+              [ -f ".github/workflows/cutover-day-morgen-trinary-routing-validate.yml" ] || { s3="red"; n3="trinary-routing workflow missing"; }
+              [ -f ".github/workflows/cutover-day-morgen-auto-scheduler.yml" ] || { s4="yellow"; n4="auto-scheduler workflow missing (operator-hand fallback)"; }
+              ;;
+            2)
+              [ -f "docs/quality-gates/phase-3-bilanz-validation-fixtures.md" ] || { s1="red"; n1="bilanz-validation fixtures doc missing"; }
+              [ -f ".github/workflows/pyramide-acceptance-pre-cutover-compositum.yml" ] || { s4="yellow"; n4="pyramide-compositum workflow missing"; }
+              ;;
+            3)
+              [ -f "tooling/ci/welle_3_hot_spot_aggregator.py" ] || { s1="red"; n1="welle-3 hot-spot aggregator missing"; }
+              [ -f "docs/quality-gates/phase-3c-doppel-welle-4-5.md" ] || { s2="yellow"; n2="doppel-welle-4-5 doc missing"; }
+              ;;
+            4)
+              [ -f "tooling/ci/welle_4_hot_spot_aggregator.py" ] || { s1="red"; n1="welle-4 hot-spot aggregator missing"; }
+              [ -f "docs/quality-gates/phase-3c-doppel-welle-4-5.md" ] || { s2="yellow"; n2="doppel-welle-4-5 doc missing"; }
+              [ -f ".github/workflows/phase-3-marathon-rollback.yml" ] || { s3="yellow"; n3="marathon-rollback workflow missing"; }
+              ;;
+            5)
+              [ -f "tooling/ci/welle_5_hot_spot_aggregator.py" ] || { s1="red"; n1="welle-5 hot-spot aggregator missing"; }
+              [ -f "docs/ops/v0.4.4-reserve-item-promotion-sequencing.md" ] || { s2="yellow"; n2="reserve-item promotion-sequencing doc missing"; }
+              ;;
+            6)
+              [ -f ".github/workflows/cross-substrate-parity-gate.yml" ] || { s1="red"; n1="cross-substrate-parity workflow missing"; }
+              [ -f "tooling/ci/welle_6_hot_spot_aggregator.py" ] || { s2="red"; n2="welle-6 hot-spot aggregator missing"; }
+              [ -f "docs/quality-gates/phase-3c-doppel-welle-6-7.md" ] || { s4="yellow"; n4="doppel-welle-6-7 doc missing"; }
+              ;;
+            7)
+              [ -f ".github/workflows/marathon-final-acceptance-live-verify-gate.yml" ] || { s1="red"; n1="live-verify-gate workflow missing"; }
+              [ -f "tooling/ci/welle_7_hot_spot_aggregator.py" ] || { s2="red"; n2="welle-7 hot-spot aggregator missing"; }
+              ;;
+          esac
+          echo "s1=$s1" >> "$GITHUB_OUTPUT"
+          echo "s2=$s2" >> "$GITHUB_OUTPUT"
+          echo "s3=$s3" >> "$GITHUB_OUTPUT"
+          echo "s4=$s4" >> "$GITHUB_OUTPUT"
+          echo "n1=$n1" >> "$GITHUB_OUTPUT"
+          echo "n2=$n2" >> "$GITHUB_OUTPUT"
+          echo "n3=$n3" >> "$GITHUB_OUTPUT"
+          echo "n4=$n4" >> "$GITHUB_OUTPUT"
+          echo "Welle-${WELLE}: s1=$s1 s2=$s2 s3=$s3 s4=$s4"
+      - name: Aggregate per-Welle verdict
+        id: per_welle
+        shell: bash
+        env:
+          WELLE: ${{ matrix.welle }}
+          S1: ${{ steps.probe.outputs.s1 }}
+          S2: ${{ steps.probe.outputs.s2 }}
+          S3: ${{ steps.probe.outputs.s3 }}
+          S4: ${{ steps.probe.outputs.s4 }}
+          N1: ${{ steps.probe.outputs.n1 }}
+          N2: ${{ steps.probe.outputs.n2 }}
+          N3: ${{ steps.probe.outputs.n3 }}
+          N4: ${{ steps.probe.outputs.n4 }}
+        run: |
+          set -eo pipefail
+          mkdir -p out
+          W="${WELLE}"
+          export "W${W}_S1_STATUS=${S1}"
+          export "W${W}_S2_STATUS=${S2}"
+          export "W${W}_S3_STATUS=${S3}"
+          export "W${W}_S4_STATUS=${S4}"
+          export "W${W}_S1_NOTE=${N1}"
+          export "W${W}_S2_NOTE=${N2}"
+          export "W${W}_S3_NOTE=${N3}"
+          export "W${W}_S4_NOTE=${N4}"
+          python3 tooling/ci/aggregate_kw_24_welle_acceptance.py \
+            --welle "${W}" \
+            --output "out/welle-${W}-acceptance-verdict.json"
+          verdict=$(python3 -c "import json; print(json.load(open('out/welle-${W}-acceptance-verdict.json'))['verdict'])")
+          echo "verdict_w${W}=${verdict}" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Tag-66 Welle-${W} Acceptance Verdict: \`${verdict}\`"
+            echo ""
+            echo "| Stage | Status | Note |"
+            echo "|-------|--------|------|"
+            echo "| W${W}-S1 | \`${S1}\` | ${N1} |"
+            echo "| W${W}-S2 | \`${S2}\` | ${N2} |"
+            echo "| W${W}-S3 | \`${S3}\` | ${N3} |"
+            echo "| W${W}-S4 | \`${S4}\` | ${N4} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "${verdict}" = "WELLE-${W}-DEFECT" ] && [ "${ENFORCE}" = "true" ]; then
+            echo "::error::Tag-66 Welle-${W} verdict: ${verdict}"
+            exit 1
+          elif [ "${verdict}" = "WELLE-${W}-DEFECT" ]; then
+            echo "::warning::Tag-66 Welle-${W} verdict: ${verdict} (audit-only)"
+          elif [ "${verdict}" = "WELLE-${W}-DRIFT" ]; then
+            echo "::warning::Tag-66 Welle-${W} verdict: ${verdict}"
+          else
+            echo "Tag-66 Welle-${W} verdict: ${verdict}"
+          fi
+      - name: Upload per-Welle verdict envelope artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: welle-${{ matrix.welle }}-acceptance-verdict
+          path: out/welle-${{ matrix.welle }}-acceptance-verdict.json
+          if-no-files-found: warn
