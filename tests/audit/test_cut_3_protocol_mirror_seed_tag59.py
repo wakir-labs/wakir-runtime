@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+# REUSE-IgnoreStart
 """Tag-59 Cut-3 Protocol-Mirror-Seed tests (Reza Wirelang).
 
 These tests target the new ``protocol-mirror-seed-detect`` stage in
@@ -110,12 +111,15 @@ def test_seed_readme_documents_cut_3_purpose():
 
 
 def test_seed_files_carry_apache_2_0_spdx_header(audit_mod):
-    """Each seed file must show Apache-2.0 SPDX-License-Identifier on a top line."""
+    """Each seed file must show Apache-2.0 on its SPDX header line."""
+    # Build the substring at runtime to avoid REUSE-3.3 SPDX-expr
+    # parse-attempts on literal occurrences below.
+    spdx_token = "SPDX-License" + "-Identifier"
     offenders: list[str] = []
     for pair in audit_mod.MIRROR_PAIRS:
         seed_file = SEED_PREFIX / pair.protocol_path
         head = "\n".join(seed_file.read_text(encoding="utf-8").splitlines()[:10])
-        if "SPDX-License-Identifier" not in head or "Apache-2.0" not in head:
+        if spdx_token not in head or "Apache-2.0" not in head:
             offenders.append(pair.protocol_path)
     assert not offenders, f"seed files without Apache-2.0 SPDX header: {offenders}"
 
@@ -149,22 +153,24 @@ def test_seed_canonical_sha_equals_runtime_canonical_sha(audit_mod):
 
 def _build_runtime_with_seed(audit_mod, tmp_path: Path, include_seed: bool):
     """Create a minimal runtime checkout with the four mirror-pair files."""
+    # Construct the synthetic SPDX-header byte-string at runtime
+    # rather than as a literal — REUSE 3.3 string-scans every source
+    # file in this tree for SPDX-License-Identifier prefixes and
+    # would otherwise complain about the embedded duplicate tag.
+    spdx_token = "SPDX-License" + "-Identifier"
+    header = f"# {spdx_token}: Apache-2.0\n# body line\nhello\n".encode("utf-8")
     runtime = tmp_path / "runtime"
     runtime.mkdir()
     for pair in audit_mod.MIRROR_PAIRS:
         rel = runtime / pair.runtime_path
         rel.parent.mkdir(parents=True, exist_ok=True)
-        rel.write_bytes(
-            b"# SPDX-License-Identifier: Apache-2.0\n# body line\nhello\n"
-        )
+        rel.write_bytes(header)
         if include_seed:
             seed_rel = (
                 runtime / audit_mod.PROTOCOL_MIRROR_SEED_PREFIX / pair.protocol_path
             )
             seed_rel.parent.mkdir(parents=True, exist_ok=True)
-            seed_rel.write_bytes(
-                b"# SPDX-License-Identifier: Apache-2.0\n# body line\nhello\n"
-            )
+            seed_rel.write_bytes(header)
     return runtime
 
 
@@ -209,7 +215,10 @@ def test_seed_marker_canonical_match_false_on_seed_drift(audit_mod, tmp_path):
     )
     # Mutate the seed body so its canonical SHA diverges from the
     # runtime-side original.
-    seed_rel.write_bytes(b"# SPDX-License-Identifier: Apache-2.0\nDRIFTED BODY\n")
+    spdx_token = "SPDX-License" + "-Identifier"
+    seed_rel.write_bytes(
+        f"# {spdx_token}: Apache-2.0\nDRIFTED BODY\n".encode("utf-8")
+    )
     protocol = tmp_path / "protocol"
     protocol.mkdir()
     result = audit_mod.audit(runtime, protocol)
@@ -285,3 +294,5 @@ def test_github_annotations_use_notice_for_seed_markers(audit_mod, tmp_path):
     assert not error_lines_for_seed, (
         "Tag-59 seed markers must never surface as ::error annotations"
     )
+
+# REUSE-IgnoreEnd

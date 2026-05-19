@@ -37,11 +37,13 @@ whether the seed survives).
 
 ## 2. License / SPDX policy
 
+<!-- REUSE-IgnoreStart -->
 All four files in this tree carry **`SPDX-License-Identifier:
 Apache-2.0`** to match the protocol-side licensing posture (vs. the
 runtime-side BUSL-1.1 on the originals). The canonicaliser in the
 mirror audit strips SPDX/copyright headers before SHA-256, so
 license-banner asymmetry does **not** trigger drift verdicts.
+<!-- REUSE-IgnoreEnd -->
 
 ## 3. Boundary
 
