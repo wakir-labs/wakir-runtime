@@ -1,0 +1,353 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Persona-Engine Soak-Probe Daily-Cron (Tag-55, Selin)
+# ----------------------------------------------------
+#
+# Purpose
+# -------
+#
+# Tag-54 PR #348 shipped ``scripts/persona-engine/soak-probe-5-day.py``
+# -- a sandbox-side compressed-time 5-day soak probe for the
+# Persona-Engine 0.5.2-final-pre-cutover boot fan-out + FSM + V-907
+# substrates. This workflow promotes that single-shot probe into
+# an autonomous daily trend tracker for the ~3-week pre-KW-24-
+# Cutover window (2026-05-19 -> 2026-06-07):
+#
+#   1. Run the soak probe in sandbox-mode, capture the JSON report.
+#   2. Ingest the report into
+#      ``state/soak-probe-daily-trend/<yyyy-mm-dd>.json`` via the
+#      Tag-55 trend-analyzer
+#      (``scripts/persona-engine/soak-probe-trend-analyzer.py``).
+#   3. Compute Last-7-Days trend (per-invariant pass rate,
+#      consecutive-fail streak, fingerprint-drift detection).
+#   4. Emit Mira-notify-emitter-compatible JSONL events into
+#      ``state/soak-probe-notify-events.jsonl`` on:
+#        * INVARIANT-DEGRADED (severity=warning),
+#        * Persistent fail (streak >= 2; severity=page),
+#        * FINGERPRINT-DRIFT (severity=info).
+#   5. Render trend-report Markdown into the GitHub-Actions Job-
+#      Summary, upload daily-state artifact (retention 30 days).
+#
+# Posture
+# -------
+#
+# Strict hermetic: stdlib-only Python (3.13), no podman / cosign /
+# live-VM, no network, no subprocess fan-out beyond the probe itself
+# (which is itself stdlib-only and runs in <1s). The 5-day framing
+# is a counter -- no real time passes during the probe run.
+#
+# Companion workflows
+# -------------------
+#
+#   * ``phase-3c-pre-cutover-daily-probe.yml`` (Tag-44 Reza) -- daily
+#     Welle-orchestrator trend; different subsystem (pre-cutover
+#     probes), same daily-cadence pattern.
+#   * ``persona-engine-legacy-env-flag-migration-daily.yml`` (Tag-51
+#     Selin) -- daily migration-detector for legacy WAKIR_PE_*_BACKEND
+#     env flags; sibling daily-cron in the same persona-engine
+#     domain.
+#   * ``phase-3c-observability-daily-snapshot.yml`` (Tag-25 Noa) --
+#     daily backend-decision JSONL baseline tracker.
+#
+# Cron offset rationale
+# ---------------------
+#
+#   * 02:00 UTC -- 15-binary-sbom-daily.
+#   * 03:00 UTC -- phase-3c-observability-daily-snapshot.
+#   * 04:00 UTC -- persona-engine-legacy-env-flag-migration-daily.
+#   * 05:00 UTC -- this workflow (Tag-55 soak-probe daily). Avoids
+#     hosted-runner-pool contention with the four sibling daily-crons.
+#   * 06:00 UTC -- phase-3c-pre-cutover-daily-probe.
+#
+# Trigger surface
+# ---------------
+#
+#   * ``schedule: cron "0 5 * * *"`` -- daily at 05:00 UTC. Matches
+#     the cron-offset slot in the daily-cron schedule.
+#   * ``workflow_dispatch`` -- operator-hand manual invocation with
+#     optional ``today`` override (back-fill / replay) and a
+#     ``fail_on_invariant_fail`` flag (pre-cutover gate posture).
+#   * ``push:`` (path-filtered) -- any change to the probe / analyzer
+#     / test-suite re-runs the daily-probe so test-loop breakage
+#     surfaces immediately.
+#   * ``pull_request:`` (path-filtered) -- same path-filter; ensures
+#     PRs that touch these files run the hermetic tests +
+#     end-to-end smoke before merge.
+#
+# Persistence posture
+# -------------------
+#
+# Per ADR-0058 / AR-Direktive Tag-44, scheduled CI does NOT push
+# state to the main branch. State is uploaded as an artifact
+# (retention 30 days). Operator-hand can dispatch with
+# ``persist=true`` to stage the state-file locally; the actual
+# git-push remains operator-hand (the runner's GITHUB_TOKEN is
+# scoped to ``contents: read``). This matches the
+# ``phase-3c-pre-cutover-daily-probe.yml`` (Tag-44) discipline.
+#
+# Not a required status check
+# ---------------------------
+#
+# Per ``feedback_branch_protection_check_names.md`` this workflow
+# tracks a calendar-window trend (3-week pre-cutover), not
+# individual PR-acceptance. It is NOT listed as a required status
+# check on PRs; it surfaces signal only via Job-Summary + artifact
+# + (on a fail-streak) the Mira-notify-events JSONL feed.
+
+name: persona-engine-soak-probe-daily
+
+on:
+  schedule:
+    # Daily at 05:00 UTC (~07:00 CEST). See cron-offset rationale
+    # in the header comment.
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+    inputs:
+      today:
+        description: "Override snapshot date (yyyy-mm-dd; default UTC today)."
+        required: false
+        default: ""
+      window_days:
+        description: "Trend-window-size for analyzer (default 7)."
+        required: false
+        default: "7"
+      fail_on_invariant_fail:
+        description: >-
+          Escalate today's overall_ok=False to a job-failure (exit 1).
+          Default informational. Set to "true" for a pre-cutover
+          gate run.
+        required: false
+        default: "false"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/persona-engine/soak-probe-5-day.py"
+      - "scripts/persona-engine/soak-probe-trend-analyzer.py"
+      - "tests/scripts/test_soak_probe_5_day.py"
+      - "tests/scripts/test_soak_probe_trend_analyzer.py"
+      - ".github/workflows/persona-engine-soak-probe-daily.yml"
+  pull_request:
+    paths:
+      - "scripts/persona-engine/soak-probe-5-day.py"
+      - "scripts/persona-engine/soak-probe-trend-analyzer.py"
+      - "tests/scripts/test_soak_probe_5_day.py"
+      - "tests/scripts/test_soak_probe_trend_analyzer.py"
+      - ".github/workflows/persona-engine-soak-probe-daily.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: persona-engine-soak-probe-daily
+  cancel-in-progress: false
+
+jobs:
+  hermetic-tests:
+    # Always-on hermetic test of the analyzer + the probe module.
+    # Runs on every trigger so spec-drift between the probe and the
+    # analyzer is caught at PR-time rather than in the next 05:00 UTC
+    # schedule.
+    name: hermetic-tests (probe + analyzer)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Run soak-probe-5-day hermetic test suite (Tag-54)
+        run: |
+          pytest -v tests/scripts/test_soak_probe_5_day.py
+
+      - name: Run soak-probe-trend-analyzer hermetic test suite (Tag-55)
+        run: |
+          pytest -v tests/scripts/test_soak_probe_trend_analyzer.py
+
+  daily-probe:
+    name: Persona-Engine Soak-Probe Daily Trend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: hermetic-tests
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Resolve dispatch inputs
+        id: inputs
+        env:
+          INPUT_TODAY: ${{ github.event.inputs.today }}
+          INPUT_WINDOW: ${{ github.event.inputs.window_days }}
+          INPUT_FAIL_ON: ${{ github.event.inputs.fail_on_invariant_fail }}
+        run: |
+          set -euo pipefail
+          today="${INPUT_TODAY}"
+          if [ -z "${today}" ]; then
+            today="$(date -u +%Y-%m-%d)"
+          fi
+          window="${INPUT_WINDOW:-7}"
+          fail_on="${INPUT_FAIL_ON:-false}"
+          echo "today=${today}" >> "$GITHUB_OUTPUT"
+          echo "window=${window}" >> "$GITHUB_OUTPUT"
+          echo "fail_on=${fail_on}" >> "$GITHUB_OUTPUT"
+          echo "today=${today} window=${window} fail_on=${fail_on}"
+
+      - name: Run soak-probe-5-day (sandbox-mode, capture JSON)
+        id: probe
+        run: |
+          set -euo pipefail
+          mkdir -p out state/soak-probe-daily-trend
+          # Sandbox-mode: no real time passes (the "5 days" is a
+          # counter), no network, no subprocess, deterministic.
+          # The probe writes the JSON report to PATH via
+          # --json-output and emits the same JSON on stdout via
+          # --json. We capture only the --json-output file; stdout
+          # is discarded.
+          set +e
+          python3 scripts/persona-engine/soak-probe-5-day.py \
+            --quiet \
+            --json-output out/soak-report.json
+          PROBE_RC=$?
+          set -e
+          echo "probe_rc=${PROBE_RC}" >> "$GITHUB_OUTPUT"
+          echo "probe exit-code: ${PROBE_RC}"
+          ls -la out/
+          if [ -f out/soak-report.json ]; then
+            echo "soak-report (truncated):"
+            head -40 out/soak-report.json
+          fi
+
+      - name: Ingest + run trend analyzer
+        id: trend
+        env:
+          TODAY: ${{ steps.inputs.outputs.today }}
+          WINDOW: ${{ steps.inputs.outputs.window }}
+        run: |
+          set -euo pipefail
+          # The analyzer:
+          #   1. Ingests today's raw soak-report into
+          #      state/soak-probe-daily-trend/${TODAY}.json.
+          #   2. Walks the state-dir + builds Last-N-Days trend.
+          #   3. Emits notify-events on invariant-fail / persistent-
+          #      fail / fingerprint-drift.
+          #   4. Writes JSON + Markdown reports to out/.
+          python3 scripts/persona-engine/soak-probe-trend-analyzer.py \
+            --state-dir state/soak-probe-daily-trend \
+            --ingest-soak-report out/soak-report.json \
+            --today "${TODAY}" \
+            --window-days "${WINDOW}" \
+            --notify-path state/soak-probe-notify-events.jsonl \
+            --output-json out/trend-report.json \
+            --output-md out/trend-report.md
+          echo "state-dir contents:"
+          ls -la state/soak-probe-daily-trend/
+          echo "trend-report-md head:"
+          head -40 out/trend-report.md || true
+
+      - name: Append Job-Summary (trend report)
+        if: always()
+        env:
+          REPORT_MD: out/trend-report.md
+        run: |
+          set -euo pipefail
+          if [ -f "${REPORT_MD}" ]; then
+            cat "${REPORT_MD}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "# Persona-Engine Soak-Probe Daily-Trend -- ${TODAY:-unknown}" \
+              >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "_Trend-report markdown missing -- analyzer did not run._" \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Render notify-events summary
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -f state/soak-probe-notify-events.jsonl ]; then
+            count=$(wc -l < state/soak-probe-notify-events.jsonl | tr -d ' ')
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Notify-events appended this run" \
+              >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Total notify-events in feed: **${count}**" \
+              >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Most-recent (up to 10):" >> "$GITHUB_STEP_SUMMARY"
+            echo '' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -10 state/soak-probe-notify-events.jsonl \
+              >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "_No notify-events produced this run (clean tree)._" \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload daily-state artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: persona-engine-soak-probe-daily-${{ steps.inputs.outputs.today }}
+          path: |
+            out/soak-report.json
+            out/trend-report.json
+            out/trend-report.md
+            state/soak-probe-daily-trend/${{ steps.inputs.outputs.today }}.json
+            state/soak-probe-notify-events.jsonl
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Enforce dispatch-mode policy (fail_on_invariant_fail)
+        # Mirrors the persona-engine-legacy-env-flag-migration-daily
+        # pattern: workflow_dispatch + fail_on_invariant_fail=true
+        # honours the invariant-fail signal (exit 1). All other
+        # triggers treat findings as informational.
+        env:
+          PROBE_RC: ${{ steps.probe.outputs.probe_rc }}
+          EVENT_NAME: ${{ github.event_name }}
+          FAIL_ON: ${{ steps.inputs.outputs.fail_on }}
+        run: |
+          python3 - <<'PY'
+          import os, sys, json, pathlib
+          probe_rc = int(os.environ.get("PROBE_RC", "0"))
+          event = os.environ.get("EVENT_NAME", "")
+          fail_on = os.environ.get("FAIL_ON", "false")
+          # Probe rc=2 (usage error) always fails -- it indicates an
+          # internal mis-invocation of the script, not a soak result.
+          if probe_rc == 2:
+              print(f"probe internal usage error: rc={probe_rc}")
+              sys.exit(2)
+          # Probe rc=1 = soak invariant fail.
+          if event == "workflow_dispatch" and fail_on == "true":
+              if probe_rc != 0:
+                  print(f"workflow_dispatch + fail_on_invariant_fail: "
+                        f"probe_rc={probe_rc}, escalating to job-fail")
+                  sys.exit(probe_rc)
+          # Push/PR runs: invariant-fail on main-tree is a CI failure
+          # (we never want main to merge a probe-breaking change).
+          if event in ("push", "pull_request") and probe_rc >= 1:
+              print(f"{event} run: soak-probe invariant-fail (rc={probe_rc}); "
+                    f"failing CI to protect the main-tree probe invariant.")
+              sys.exit(1)
+          # Schedule + dispatch-without-fail: informational only.
+          print(f"informational run (event={event}): probe_rc={probe_rc} "
+                f"(not enforced)")
+          sys.exit(0)
+          PY
