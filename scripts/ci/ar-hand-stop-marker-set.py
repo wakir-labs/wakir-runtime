@@ -113,10 +113,10 @@ TRIGGER_TOKENS: tuple[str, ...] = (
     "POST_HASH != PRE_HASH",
     "FSM-Phantom-Transition",
     "NATS-Consumer-Lag",
-    "Recovery-Drill",
-    "Henrik-Audit-Trail-Luecke",
+    "Pre-Cutover-Final-Sanity-Gate",
+    "AR-Hand-Stop-Cascade-Live-Test",
     "Quadlet-Restart-Failure",
-    "Mira-SSH-Authority-Loss",
+    "Cosign-Verify-Fail",
 )
 
 # Welle range (Phase-3c cutover has 7 Wellen, ADR-0066).

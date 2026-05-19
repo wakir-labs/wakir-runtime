@@ -396,7 +396,7 @@ class TestMarkerSetCLI:
         # Spot-check vocabulary against cheat-sheet §I.
         assert "Cross-Modul-Drift" in tokens
         assert "OTS-Anchor-Emission-Stop" in tokens
-        assert "Mira-SSH-Authority-Loss" in tokens
+        assert "Cosign-Verify-Fail" in tokens
 
     def test_parse_marker_filename_round_trip(self, marker_set_mod):
         when = datetime(2026, 5, 19, tzinfo=timezone.utc)
