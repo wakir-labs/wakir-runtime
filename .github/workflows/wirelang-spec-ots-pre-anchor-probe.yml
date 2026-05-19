@@ -54,7 +54,9 @@ on:
       - 'wirelang/specs/wirelang-spec-v0-4-3.md'
       - 'wirelang/specs/wirelang-spec-v0-4-1.md'
       - 'wirelang/specs/wirelang-spec-v0-2.md'
+      - 'wirelang/specs/wirelang-spec-v0-4-4-draft.md'
       - 'tests/audit/test_wirelang_spec_ots_pre_anchor_probe_tag60.py'
+      - 'tests/audit/test_res_d_items_ots_probe_tag66.py'
       - 'docs/operations/wirelang-spec-ots-anchor-wiring.md'
       - '.github/workflows/wirelang-spec-ots-pre-anchor-probe.yml'
   pull_request:
@@ -64,7 +66,9 @@ on:
       - 'wirelang/specs/wirelang-spec-v0-4-3.md'
       - 'wirelang/specs/wirelang-spec-v0-4-1.md'
       - 'wirelang/specs/wirelang-spec-v0-2.md'
+      - 'wirelang/specs/wirelang-spec-v0-4-4-draft.md'
       - 'tests/audit/test_wirelang_spec_ots_pre_anchor_probe_tag60.py'
+      - 'tests/audit/test_res_d_items_ots_probe_tag66.py'
       - 'docs/operations/wirelang-spec-ots-anchor-wiring.md'
       - '.github/workflows/wirelang-spec-ots-pre-anchor-probe.yml'
   workflow_dispatch:
@@ -227,4 +231,171 @@ jobs:
             echo "::warning::Wirelang-Spec OTS pre-anchor activation probe is DEFECT — running audit-only."
           else
             echo "Wirelang-Spec OTS pre-anchor activation probe READY (AR-authorisation gate next; see runbook §7)."
+          fi
+
+  # ----------------------------------------------------------------
+  # Tag-66: per-RES-Dn item probe (matrix-strategy across 5 items).
+  # Each matrix leg runs the hermetic per-item probe for one
+  # RES-D[1-5] reserve item against the v0.4.4 draft. The probe does
+  # NOT touch the draft. Aggregate verdict is computed by the
+  # follow-on aggregator job.
+  # ----------------------------------------------------------------
+  wirelang-spec-res-d-item-probe:
+    name: Tag-66 RES-D Item Probe (matrix)
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        res_d_item:
+          - RES-D1
+          - RES-D2
+          - RES-D3
+          - RES-D4
+          - RES-D5
+
+    env:
+      PROBE_ENFORCE: ${{ github.event.inputs.enforce || 'true' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python (stdlib-only; no pip install)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run Tag-66 per-item probe (${{ matrix.res_d_item }})
+        id: probe
+        shell: bash
+        run: |
+          set -eu
+          mkdir -p out/res-d-verdicts
+          item="${{ matrix.res_d_item }}"
+          python3 tooling/ots/emit_wirelang_spec_ots_marker.py \
+            --mode res-d-item-probe \
+            --res-d-item "${item}" \
+            --spec wirelang/specs/wirelang-spec-v0-4-4-draft.md \
+            --probe-verdict-out "out/res-d-verdicts/${item}.json" \
+            --actor "${GITHUB_ACTOR:-ci}" \
+            --now "$(date -u +%Y-%m-%dT%H:%M:%S+00:00)"
+          verdict="$(python3 -c 'import sys, json; print(json.load(open(sys.argv[1]))["verdict"])' "out/res-d-verdicts/${item}.json")"
+          echo "verdict=${verdict}" >> "$GITHUB_OUTPUT"
+          {
+            echo "# Tag-66 RES-D Item Probe — ${item}"
+            echo
+            echo "**Verdict:** \`${verdict}\`"
+            echo
+            echo "Spec: \`wirelang/specs/wirelang-spec-v0-4-4-draft.md\` (draft untouched)"
+            echo
+            python3 -c "import sys, json; d=json.load(open(sys.argv[1])); [print(f'- \`{k}\`: \`{v}\`') for k,v in d['stages'].items()]" "out/res-d-verdicts/${item}.json"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload verdict artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: res-d-verdict-${{ matrix.res_d_item }}
+          path: out/res-d-verdicts/${{ matrix.res_d_item }}.json
+          if-no-files-found: error
+
+      - name: Enforce per-item verdict
+        shell: bash
+        run: |
+          set -u
+          verdict="${{ steps.probe.outputs.verdict }}"
+          enforce="${PROBE_ENFORCE}"
+          item="${{ matrix.res_d_item }}"
+          echo "tag-66 res-d-item-probe: item=${item} verdict=${verdict} enforce=${enforce}"
+          if [ "${enforce}" = "true" ] && [ "${verdict}" = "PROBE-DEFECT" ]; then
+            echo "::error::Tag-66 ${item} probe is PROBE-DEFECT. Refusing to merge — see job summary."
+            exit 1
+          fi
+          if [ "${verdict}" = "PROBE-DEFECT" ]; then
+            echo "::warning::Tag-66 ${item} probe is DEFECT — running audit-only."
+          fi
+
+  # ----------------------------------------------------------------
+  # Tag-66 aggregator: collect all 5 per-item verdicts, run the
+  # hermetic test-suite, emit a single aggregate summary.
+  # ----------------------------------------------------------------
+  wirelang-spec-res-d-aggregate:
+    name: Tag-66 RES-D Aggregate Verdict
+    runs-on: ubuntu-latest
+    needs:
+      - wirelang-spec-res-d-item-probe
+
+    env:
+      PROBE_ENFORCE: ${{ github.event.inputs.enforce || 'true' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python (stdlib-only; no pip install)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Download all per-item verdict artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: out/res-d-verdicts-dl
+          pattern: 'res-d-verdict-*'
+          merge-multiple: true
+
+      - name: Aggregate per-item verdicts
+        id: aggregate
+        shell: bash
+        run: |
+          set -u
+          aggregate="$(python3 - <<'PY'
+          import json, pathlib
+          per = []
+          all_ready = True
+          for p in sorted(pathlib.Path("out/res-d-verdicts-dl").glob("*.json")):
+              data = json.loads(p.read_text(encoding="utf-8"))
+              per.append((data.get("res_d_item", p.stem), data["verdict"]))
+              if data["verdict"] != "PROBE-READY":
+                  all_ready = False
+          print("PROBE-READY" if all_ready and len(per) == 5 else "PROBE-DEFECT")
+          PY
+          )"
+          echo "aggregate=${aggregate}" >> "$GITHUB_OUTPUT"
+          {
+            echo "# Tag-66 RES-D Item Probe — Aggregate"
+            echo
+            echo "**Aggregate verdict:** \`${aggregate}\`"
+            echo
+            echo "| RES-D Item | Verdict |"
+            echo "| --- | --- |"
+            for f in $(ls out/res-d-verdicts-dl/*.json | sort); do
+              item="$(python3 -c 'import sys, json; print(json.load(open(sys.argv[1]))["res_d_item"])' "${f}")"
+              v="$(python3 -c 'import sys, json; print(json.load(open(sys.argv[1]))["verdict"])' "${f}")"
+              echo "| \`${item}\` | \`${v}\` |"
+            done
+            echo
+            echo "Draft \`wirelang/specs/wirelang-spec-v0-4-4-draft.md\` invariant: \`draft_untouched: true\` on every leg."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "tag-66 aggregate=${aggregate}"
+
+      - name: Run Tag-66 hermetic test-suite
+        run: |
+          set -eu
+          python3 -m unittest tests.audit.test_res_d_items_ots_probe_tag66 -v
+
+      - name: Enforce aggregate verdict
+        shell: bash
+        run: |
+          set -u
+          verdict="${{ steps.aggregate.outputs.aggregate }}"
+          enforce="${PROBE_ENFORCE}"
+          if [ "${enforce}" = "true" ] && [ "${verdict}" = "PROBE-DEFECT" ]; then
+            echo "::error::Tag-66 RES-D aggregate is PROBE-DEFECT. Refusing to merge — see job summary."
+            exit 1
+          fi
+          if [ "${verdict}" = "PROBE-DEFECT" ]; then
+            echo "::warning::Tag-66 RES-D aggregate DEFECT — audit-only."
+          else
+            echo "Tag-66 RES-D aggregate READY."
           fi
