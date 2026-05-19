@@ -1,0 +1,292 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# Marathon-Final-Smoke Stability-Window Probe (Tag-78, Amara QA)
+# ==============================================================
+#
+# Purpose
+# -------
+# Probes the N-Run-Stability-Window precondition for treating the
+# Tag-77 Marathon-Final-Smoke-E2E umbrella (PR #489) as a reliable
+# Pre-Cutover-Pre-Run signal for the Phase-3-Marathon-Polish-Phase
+# Pre-Cutover-Readiness claim. Mirrors the Tag-63/65/69 pattern at
+# the Marathon-Umbrella level.
+#
+# This probe answers the question: "if we were to do three back-
+# to-back runs of the Tag-77 Marathon-Final-Smoke aggregator on the
+# current main-tip with all-INTACT upstream substrate inputs, would
+# all three come back MARATHON-FINAL-INTACT?" If yes, the operator
+# has a defensible signal that the Tag-77 umbrella is determini-
+# stically green-given-green-input across consecutive invocations.
+# If no, the operator stops and inspects the failing run.
+#
+# The actual Cutover-Wednesday Welle-N dispatch on 2026-06-10 /
+# 06-17 / 06-24 / 07-01 remains operator-hand. This probe is
+# informational.
+#
+# Anchor pattern
+# --------------
+# Tag-59 OTS N-Run-Pattern (3 consecutive runs)
+#   -> Tag-63 REUSE-Wrap Stability-Window-Probe (PR #404, Tomas)
+#   -> Tag-65 E2E-Smoke Stability-Window-Probe (Amara)
+#   -> Tag-69 Live-Smoke Stability-Window-Probe (Noa)
+#   -> Tag-78 Marathon-Final-Smoke Stability-Window-Probe
+#      (this workflow, Amara).
+# All five share the trinary verdict shape (CONFIRMED / NOT-YET /
+# DEFECT) and the same "informational, not Required-Status-Check"
+# posture.
+#
+# Three stages
+# ------------
+#
+# Stage 1 (Probe):     run the Tag-77 Marathon-Final-Smoke aggregator
+#                      `tooling/ci/aggregate_marathon_final_smoke.py`
+#                      three times back-to-back on the same workspace
+#                      with simulated all-INTACT Stage 1..10 upstream
+#                      input envelopes (synthetic JSON per the Tag-77
+#                      envelope shape). Each run is captured as a per-
+#                      run JSON envelope plus an exit-code.
+#
+# Stage 2 (Verify):    confirm all three runs returned `MARATHON-
+#                      FINAL-INTACT`. Anything else (DRIFT, DEFECT,
+#                      or non-zero exit from the aggregator helper)
+#                      collapses the stability-window verdict to
+#                      NOT-YET or DEFECT.
+#
+# Stage 3 (Aggregate): emit one canonical stability-window verdict:
+#
+#                      * STABILITY-WINDOW-CONFIRMED -- all three
+#                        runs INTACT; Tag-77 umbrella deterministic-
+#                        green confirmed.
+#                      * STABILITY-WINDOW-NOT-YET   -- at least
+#                        one run DRIFT/DEFECT but no aggregator
+#                        crash; operator inspects, no promotion.
+#                      * STABILITY-WINDOW-DEFECT    -- at least
+#                        one aggregator non-zero exit; the probe
+#                        itself is broken; operator opens a bug.
+#
+# Trigger
+# -------
+# `workflow_dispatch` only -- this is an operator-tool, not a per-
+# PR check. The Tag-77 Marathon-Final-Smoke aggregator remains the
+# substrate; this probe is the stability-window-pre-run.
+#
+# Hermetic posture
+# ----------------
+# Stdlib-only Python. No third-party deps, no podman, no NATS, no
+# live-VM. Each "run" feeds the Tag-77 Marathon-Final-Smoke
+# aggregator with pre-computed all-INTACT Stage 1..10 input
+# envelopes (synthetic JSON written under RUNNER_TEMP); we are
+# testing whether the aggregator is *deterministically* INTACT-
+# given-INTACT-input across consecutive invocations, which is the
+# substrate property the Pre-Cutover-Pre-Run-reliability claim
+# depends on.
+#
+# Scope discipline (Amara, ADR-0036/0043/0044/0066)
+# -------------------------------------------------
+# This workflow pins the Tag-78 Marathon-Final-Smoke-Stability-
+# Window-Probe surface. It does NOT modify persona definitions
+# (Aisha-Domaene), WAT-core / V-907 logic (Tomas-Domaene, Zone-K),
+# identity-substrate (Reza-Domaene, Zone-L), container-infra
+# (Kai-Domaene, Zone-J), or persona-engine substrate (Selin-
+# Domaene, Zone-O). It does NOT modify the Tag-77 umbrella
+# aggregator either; it consumes it read-only.
+
+name: marathon-final-stability-window-probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_count:
+        description: "How many consecutive runs to probe (default 3, per Tag-59 OTS N-Run pattern)."
+        required: false
+        default: "3"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  marathon-final-stability-window-probe:
+    name: Marathon-Final-Smoke Stability-Window Probe (Tag-78)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Stage 0 - Validate inputs
+        id: validate
+        env:
+          RUN_COUNT_RAW: ${{ github.event.inputs.run_count }}
+        run: |
+          set -euo pipefail
+          RAW="${RUN_COUNT_RAW:-3}"
+          if ! [[ "${RAW}" =~ ^[0-9]+$ ]]; then
+            echo "::error::run_count must be a non-negative integer, got '${RAW}'"
+            exit 1
+          fi
+          if [ "${RAW}" -lt 1 ] || [ "${RAW}" -gt 10 ]; then
+            echo "::error::run_count must be in [1, 10], got ${RAW}"
+            exit 1
+          fi
+          echo "run_count=${RAW}" >> "${GITHUB_OUTPUT}"
+          echo "Probe configured for ${RAW} consecutive runs."
+
+      - name: Stage 1 - Probe N consecutive Marathon-Final-Smoke aggregator runs
+        id: probe
+        env:
+          RUN_COUNT: ${{ steps.validate.outputs.run_count }}
+        run: |
+          set -uo pipefail
+          PROBE_DIR="${RUNNER_TEMP}/marathon-final-stability-window"
+          mkdir -p "${PROBE_DIR}/stages"
+          # Build the ten per-stage all-INTACT input envelopes once;
+          # the Tag-77 aggregator is pure read-only over these files,
+          # so feeding the same set across the three runs is the
+          # correct way to probe deterministic green-given-green
+          # behaviour.
+          PROBE_DIR_PY="${PROBE_DIR}" python3 - <<'PY'
+          import json, os, datetime
+          probe_dir = os.environ["PROBE_DIR_PY"]
+          now = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+          stages = [
+              ("welle-1-envelope.json",                       "welle_1_integration_smoke",            "WELLE-1-INTACT",                "tag-69-audit-anchor-stand-in"),
+              ("welle-2-envelope.json",                       "welle_2_integration_smoke",            "WELLE-2-INTACT",                "tag-70-audit-anchor-stand-in"),
+              ("welle-3-envelope.json",                       "welle_3_integration_smoke",            "WELLE-3-INTACT",                "tag-71-amara-canonical-aggregator"),
+              ("welle-4-envelope.json",                       "welle_4_integration_smoke",            "WELLE-4-INTACT",                "tag-72-amara-canonical-aggregator"),
+              ("welle-5-envelope.json",                       "welle_5_integration_smoke",            "WELLE-5-INTACT",                "tag-73-amara-canonical-aggregator"),
+              ("welle-6-envelope.json",                       "welle_6_integration_smoke",            "WELLE-6-INTACT",                "tag-74-amara-canonical-aggregator"),
+              ("welle-7-envelope.json",                       "welle_7_integration_smoke",            "WELLE-7-INTACT",                "tag-75-amara-canonical-aggregator-terminal-final-sealing"),
+              ("cross-welle-stability-envelope.json",         "cross_welle_stability_pin",            "CROSS-WELLE-STABILITY-INTACT",  "tag-76-amara-cross-welle-stability-pin-pr-483"),
+              ("marathon-closeout-envelope.json",             "marathon_closeout_aggregator",         "MARATHON-CLOSEOUT-READY",       "tag-76-reza-marathon-closeout-aggregator-pr-479"),
+              ("phase-3-complete-bundle-envelope.json",       "phase_3_complete_marker_audit_bundle", "BUNDLE-READY",                  "tag-76-tomas-phase-3-complete-marker-audit-bundle-pr-484"),
+          ]
+          os.makedirs(os.path.join(probe_dir, "stages"), exist_ok=True)
+          for fname, stage_id, verdict, provenance in stages:
+              env = {
+                  "schema_version": 1,
+                  "stage": stage_id,
+                  "tag": "tag-78-stability-window-probe-synthetic-all-intact",
+                  "substrate_origin": provenance,
+                  "verdict": verdict,
+                  "emitted_at_utc": now,
+              }
+              with open(os.path.join(probe_dir, "stages", fname), "w", encoding="utf-8") as fh:
+                  json.dump(env, fh, indent=2, sort_keys=True)
+                  fh.write("\n")
+          print("synthesised 10 all-INTACT input envelopes for probe")
+          PY
+
+          # Per-run aggregator invocations.
+          declare -a RUN_VERDICTS
+          declare -a RUN_EXITS
+          declare -a RUN_NOTES
+          for i in $(seq 1 "${RUN_COUNT}"); do
+            OUT_FILE="${PROBE_DIR}/run-${i}.json"
+            python3 tooling/ci/aggregate_marathon_final_smoke.py \
+              --welle-1-envelope                       "${PROBE_DIR}/stages/welle-1-envelope.json" \
+              --welle-2-envelope                       "${PROBE_DIR}/stages/welle-2-envelope.json" \
+              --welle-3-envelope                       "${PROBE_DIR}/stages/welle-3-envelope.json" \
+              --welle-4-envelope                       "${PROBE_DIR}/stages/welle-4-envelope.json" \
+              --welle-5-envelope                       "${PROBE_DIR}/stages/welle-5-envelope.json" \
+              --welle-6-envelope                       "${PROBE_DIR}/stages/welle-6-envelope.json" \
+              --welle-7-envelope                       "${PROBE_DIR}/stages/welle-7-envelope.json" \
+              --cross-welle-stability-envelope         "${PROBE_DIR}/stages/cross-welle-stability-envelope.json" \
+              --marathon-closeout-envelope             "${PROBE_DIR}/stages/marathon-closeout-envelope.json" \
+              --phase-3-complete-bundle-envelope       "${PROBE_DIR}/stages/phase-3-complete-bundle-envelope.json" \
+              --iso-week                               24 \
+              --output                                 "${OUT_FILE}" > "${PROBE_DIR}/run-${i}.stdout" 2>&1
+            EXIT=$?
+            echo "----- run ${i} exit=${EXIT} -----"
+            if [ -f "${OUT_FILE}" ]; then
+              VERDICT=$(python3 -c "import json,sys; sys.stdout.write(json.load(open('${OUT_FILE}'))['verdict'])" 2>/dev/null || echo "")
+            else
+              VERDICT=""
+            fi
+            echo "  verdict='${VERDICT}'"
+            RUN_VERDICTS[$i]="${VERDICT}"
+            RUN_EXITS[$i]="${EXIT}"
+            RUN_NOTES[$i]="run-${i} of ${RUN_COUNT}"
+          done
+          # Export per-run env-vars for the Stage-3 aggregate step.
+          for i in $(seq 1 "${RUN_COUNT}"); do
+            echo "RUN_${i}_VERDICT=${RUN_VERDICTS[$i]}" >> "${GITHUB_ENV}"
+            echo "RUN_${i}_EXIT=${RUN_EXITS[$i]}"       >> "${GITHUB_ENV}"
+            echo "RUN_${i}_NOTE=${RUN_NOTES[$i]}"       >> "${GITHUB_ENV}"
+          done
+          echo "probe_dir=${PROBE_DIR}" >> "${GITHUB_OUTPUT}"
+          echo "::notice::Stage 1: probed ${RUN_COUNT} consecutive Marathon-Final-Smoke aggregator runs."
+
+      - name: Stage 2 - Self-verify aggregator substrate
+        run: |
+          set -euo pipefail
+          # Probe-substrate self-verify: the Tag-78 aggregator must
+          # be importable and expose the documented API (build_
+          # envelope + decide + VERDICT_* constants). If this fails
+          # the stability-window-probe itself is broken; Stage 3
+          # will surface STABILITY-WINDOW-DEFECT.
+          python3 -c "
+          import importlib.util, sys
+          spec = importlib.util.spec_from_file_location(
+              'h', 'tooling/ci/aggregate_marathon_final_stability_window.py')
+          m = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(m)
+          assert hasattr(m, 'build_envelope'),  'missing build_envelope'
+          assert hasattr(m, 'decide'),          'missing decide'
+          assert hasattr(m, 'VERDICT_CONFIRMED'), 'missing VERDICT_CONFIRMED'
+          assert hasattr(m, 'VERDICT_NOT_YET'),   'missing VERDICT_NOT_YET'
+          assert hasattr(m, 'VERDICT_DEFECT'),    'missing VERDICT_DEFECT'
+          assert m.VERDICT_CONFIRMED == 'STABILITY-WINDOW-CONFIRMED'
+          assert m.VERDICT_NOT_YET   == 'STABILITY-WINDOW-NOT-YET'
+          assert m.VERDICT_DEFECT    == 'STABILITY-WINDOW-DEFECT'
+          print('aggregator self-verify OK')
+          "
+
+      - name: Stage 3 - Aggregate stability-window verdict
+        id: aggregate
+        env:
+          RUN_COUNT: ${{ steps.validate.outputs.run_count }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python3 tooling/ci/aggregate_marathon_final_stability_window.py \
+            --output out/marathon-final-stability-window-verdict.json \
+            --print-stdout
+          VERDICT=$(python3 -c "import json; print(json.load(open('out/marathon-final-stability-window-verdict.json'))['verdict'])")
+          echo "verdict=${VERDICT}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "## Tag-78 Marathon-Final-Smoke Stability-Window Verdict: \`${VERDICT}\`"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| run_count | ${RUN_COUNT} |"
+            echo "| verdict   | \`${VERDICT}\` |"
+            echo ""
+            echo "See \`out/marathon-final-stability-window-verdict.json\` for the per-run envelope."
+          } >> "${GITHUB_STEP_SUMMARY}"
+          echo "::notice::Stage 3: ${VERDICT}"
+          # The probe is informational, not a Required-Status-Check.
+          # We exit non-zero only on DEFECT, because that indicates
+          # the probe-substrate itself is broken; NOT-YET is a valid
+          # signal that means "the operator should inspect, not
+          # promote yet" -- the workflow stays green so the verdict
+          # is the payload, not the shell-exit signal. This mirrors
+          # the Tag-63 REUSE-Wrap + Tag-65 E2E-Smoke + Tag-69 Live-
+          # Smoke Stability-Window-Probes.
+          if [ "${VERDICT}" = "STABILITY-WINDOW-DEFECT" ]; then
+            exit 1
+          fi
+
+      - name: Upload Tag-78 stability-window verdict artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marathon-final-stability-window-verdict
+          path: out/marathon-final-stability-window-verdict.json
+          if-no-files-found: warn
