@@ -234,6 +234,41 @@
 # the existing page-level Welle-6 alerts (SubscribeLoopStall,
 # SubscribeLoopReplayStorm) cover the hard-failure surface.
 #
+# Tag-75 Welle-7 Final-Sealing-Alert-Routing-Erweiterung
+# -------------------------------------------------------
+# Two additional Welle-7 alerts (appended to the welle-7-alerts
+# group) close the Welle-7 Final-Sealing positive-confirmation
+# + Pre-Auditor-Signal routing gap surfaced during the KW-27
+# doppel-cutover Schluss-Audit-Closeout dry-run. Welle-7 is the
+# terminal wave in the KW-27 doppel-cutover sequence; the
+# existing alarms surface FAILURES (RecoveryRehearsalFail,
+# RecoveryReplayDivergence, RecoveryWithoutPreAuditWarning).
+# Tag-75 adds the positive-state surface so the AR-Hand audit-
+# trail closes Welle-7 without inferring success from absence-
+# of-failure:
+#
+#   * WakirPhase3Welle7FinalSealingComplete (severity=info,
+#       routing-class=welle-7-final-sealing-info) -- positive-
+#       confirmation: all prior welle Schluss-Audit-Signoffs
+#       (welles 1..6) recorded AND Welle-7 Schluss-Audit-Signoff
+#       carrying auditor=external-pre-auditor recorded; the
+#       KW-27 doppel-cutover sealing handshake is closed.
+#       AR-Hand info channel.
+#   * WakirPhase3Welle7PreAuditorSignalReceived (severity=info,
+#       routing-class=welle-7-final-sealing-info) -- the AR-
+#       designated external Pre-Auditor designation signal has
+#       been received by the Welle-7 schluss-audit pipeline
+#       (positive-acknowledgement counterpart to
+#       WakirWelle7RecoveryWithoutPreAuditWarning). AR-Hand info
+#       channel + activity-log.
+#
+# Both carry the `routing_class: welle-7-final-sealing-info`
+# label. The bridge ROUTING_CLASS_CHANNELS table is extended in
+# Tag-75 to include the new routing class -> (ntfy:ar-hand-info,
+# activity-log:append) mapping. No on-call page from this block;
+# the existing page-level Welle-7 alerts (RecoveryRehearsalFail,
+# RecoveryReplayDivergence) cover the hard-failure surface.
+#
 # Trinary-verdict-source contract: the source of truth is the Selin
 # Tag-64 Cutover-Day-Morgen Auto-Scheduler output envelope
 # (`out/cutover-day-morgen-verdict.json`, schema_version=1, tag=64,
@@ -1796,6 +1831,145 @@ groups:
             with operator-hand snapshot.
           runbook_url: "https://wakir-labs.example/runbooks/welle-7-replay-divergence"
           notify_path: "pagerduty:sre-oncall + ntfy:ar-hand + activity-log:append"
+
+      # ---------------------------------------------------------
+      # Tag-75 Welle-7 Final-Sealing-Alert-Routing-Erweiterung
+      # (Noa SRE, Continuous-Mode-Marathon)
+      # ---------------------------------------------------------
+      # Two additional alarms close the Welle-7 final-sealing
+      # routing gap identified during Tag-74 stability-window
+      # review. The existing Welle-7 alerts surface FAILURES
+      # (RecoveryRehearsalFail, RecoveryWithoutPreAuditWarning,
+      # RecoveryReplayDivergence); Tag-75 adds:
+      #
+      #   1. WakirPhase3Welle7FinalSealingComplete (info)
+      #      Positive-state indicator for the terminal welle in
+      #      the KW-27 doppel-cutover sequence. Fires when ALL
+      #      prior-welle Schluss-Audit-Signoffs are recorded
+      #      (welles 1..6) AND the Welle-7 Schluss-Audit-Signoff
+      #      carrying auditor=external-pre-auditor is recorded.
+      #      This is the positive-confirmation counterpart to the
+      #      Welle-7 RecoveryRehearsalFail page alert; it marks
+      #      "doppel-cutover sealing handshake closed" so the
+      #      AR-Hand audit trail closes the KW-27 doppel-cutover
+      #      epoch without inferring success from absence-of-
+      #      failure. Routing class `welle-7-final-sealing-info`
+      #      (info-only).
+      #
+      #   2. WakirPhase3Welle7PreAuditorSignalReceived (info)
+      #      Pre-Auditor-Signal-Alert: the AR-designated external
+      #      Pre-Auditor designation signal has been received by
+      #      the Welle-7 schluss-audit pipeline. Positive-
+      #      acknowledgement counterpart to the existing warning
+      #      WakirWelle7RecoveryWithoutPreAuditWarning. Fires when
+      #      wakir_welle_pre_auditor_designation_received{
+      #      welle="welle-7"} == 1 for >= 2m. Routing class
+      #      `welle-7-final-sealing-info`. AR-Hand info channel +
+      #      activity-log only; no page.
+      #
+      # Mutual exclusion contract:
+      #   external-pre-auditor signoff present AND all prior
+      #     welles sealed -> FinalSealingComplete fires.
+      #   external-pre-auditor signal received but welle-7
+      #     schluss-audit not yet sealed -> PreAuditorSignal
+      #     fires; FinalSealingComplete stays silent (gated on
+      #     welle-7 signoff upstream).
+      #   external-pre-auditor signoff absent AND henrik signoff
+      #     present -> warning regime; existing
+      #     WakirWelle7RecoveryWithoutPreAuditWarning covers.
+      #
+      # Routing class `welle-7-final-sealing-info` is added to
+      # the bridge ROUTING_CLASS_CHANNELS table (Tag-75) and
+      # channels to ntfy:ar-hand-info + activity-log:append.
+      - alert: WakirPhase3Welle7FinalSealingComplete
+        expr: |
+          (
+            wakir_welle_schluss_audit_signoff{welle="welle-1"} == 1
+          )
+          and
+          (
+            wakir_welle_schluss_audit_signoff{welle="welle-2"} == 1
+          )
+          and
+          (
+            wakir_welle_schluss_audit_signoff{welle="welle-3"} == 1
+          )
+          and
+          (
+            wakir_welle_schluss_audit_signoff{welle="welle-4"} == 1
+          )
+          and
+          (
+            wakir_welle_schluss_audit_signoff{welle="welle-5"} == 1
+          )
+          and
+          (
+            wakir_welle_schluss_audit_signoff{welle="welle-6"} == 1
+          )
+          and
+          (
+            wakir_welle_schluss_audit_signoff{welle="welle-7", auditor="external-pre-auditor"} == 1
+          )
+        for: 2m
+        labels:
+          severity: info
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          tag: tag-75
+          welle: welle-7
+          component: final_sealing
+          kw_week: kw-27
+          topology: doppel
+          routing_class: welle-7-final-sealing-info
+          mitigation: welle-7-final-sealing-routing-extension
+        annotations:
+          summary: "Welle-7 final sealing complete (KW-27 doppel-cutover sealed; all welles signed off)"
+          description: >-
+            All Welle Schluss-Audit-Signoffs recorded (welles 1..6)
+            AND Welle-7 Schluss-Audit-Signoff carrying
+            auditor=external-pre-auditor is set for >= 2m. The
+            KW-27 doppel-cutover sealing handshake is CLOSED. This
+            is the positive-confirmation counterpart to the
+            RecoveryRehearsalFail page alert; the AR-Hand audit-
+            trail closes the KW-27 doppel-cutover epoch without
+            inferring success from absence-of-failure. AR-Hand
+            marker; no operator action.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-7-final-sealing-complete"
+          notify_path: "ntfy:ar-hand-info + activity-log:append"
+
+      - alert: WakirPhase3Welle7PreAuditorSignalReceived
+        expr: wakir_welle_pre_auditor_designation_received{welle="welle-7"} == 1
+        for: 2m
+        labels:
+          severity: info
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          tag: tag-75
+          welle: welle-7
+          component: final_sealing
+          kw_week: kw-27
+          topology: doppel
+          routing_class: welle-7-final-sealing-info
+          mitigation: welle-7-final-sealing-routing-extension
+          signal_path: external-pre-auditor-designation-received
+        annotations:
+          summary: "Welle-7 Pre-Auditor designation signal received (positive-acknowledgement counterpart to IIA-1130 warning)"
+          description: >-
+            wakir_welle_pre_auditor_designation_received{welle="welle-7"}
+            == 1 for >= 2m. The AR-designated external Pre-Auditor
+            designation signal has been received by the Welle-7
+            schluss-audit pipeline. Positive-acknowledgement
+            counterpart to WakirWelle7RecoveryWithoutPreAuditWarning
+            (Henrik IIA-1130 default-path); the AR-Hand audit-trail
+            records the designation as a named, auditable event.
+            No operator action; the welle-7 schluss-audit pipeline
+            proceeds toward FinalSealingComplete.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-7-pre-auditor-signal-received"
+          notify_path: "ntfy:ar-hand-info + activity-log:append"
 
   # ---------------------------------------------------------------
   # Tag-64 Cutover-Day-Morgen Trinary-Verdict-Reactive-Routing

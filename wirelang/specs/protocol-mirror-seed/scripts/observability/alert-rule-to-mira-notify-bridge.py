@@ -488,6 +488,29 @@ ALERT_CATALOG: dict[str, dict[str, str]] = {
             "welle-6-jetstream-consumer-lag"
         ),
     },
+    # Tag-75 Welle-7 Final-Sealing-Alert-Routing-Erweiterung
+    # (Noa SRE). Two alerts close the Welle-7 final-sealing
+    # positive-confirmation + Pre-Auditor-signal routing gap.
+    # Both carry the `welle-7-final-sealing-info` routing class;
+    # bridge routes via ROUTING_CLASS_CHANNELS to
+    # ntfy:ar-hand-info + activity-log:append. No on-call page
+    # from this block.
+    "WakirPhase3Welle7FinalSealingComplete": {
+        "failure_mode_id": "Tag-75-Welle7-FinalSealing-Complete",
+        "severity": "info",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/"
+            "welle-7-final-sealing-complete"
+        ),
+    },
+    "WakirPhase3Welle7PreAuditorSignalReceived": {
+        "failure_mode_id": "Tag-75-Welle7-FinalSealing-PreAuditorSignal",
+        "severity": "info",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/"
+            "welle-7-pre-auditor-signal-received"
+        ),
+    },
 }
 
 # Tag-40 baseline alerts that pre-date the Pre-Mortem-extension.
@@ -623,6 +646,16 @@ ROUTING_CLASS_WELLE_5_CAPABILITY_TOKEN_INFO = "welle-5-capability-token-info"
 # attribute the events specifically to the Welle-6 subscribe-loop
 # cross-substrate-parity routing extension.
 ROUTING_CLASS_WELLE_6_SUBSCRIBE_LOOP_INFO = "welle-6-subscribe-loop-info"
+# Tag-75 Welle-7 Final-Sealing routing class. Same channel-set as
+# the standard / Welle-3 Pre-Auditor / Welle-4 State-Backing /
+# Welle-5 Capability-Token / Welle-6 Subscribe-Loop info classes
+# (ntfy:ar-hand-info + activity-log:append) but distinct routing-
+# class string so the AlertManager route-tree and audit-trail
+# attribute the events specifically to the Welle-7 final-sealing
+# routing extension (terminal welle in the KW-27 doppel-cutover
+# sequence; closes the sealing handshake + Pre-Auditor-Signal
+# positive-acknowledgement).
+ROUTING_CLASS_WELLE_7_FINAL_SEALING_INFO = "welle-7-final-sealing-info"
 
 VALID_ROUTING_CLASSES: frozenset[str] = frozenset(
     {
@@ -633,6 +666,7 @@ VALID_ROUTING_CLASSES: frozenset[str] = frozenset(
         ROUTING_CLASS_WELLE_4_STATE_BACKING_INFO,
         ROUTING_CLASS_WELLE_5_CAPABILITY_TOKEN_INFO,
         ROUTING_CLASS_WELLE_6_SUBSCRIBE_LOOP_INFO,
+        ROUTING_CLASS_WELLE_7_FINAL_SEALING_INFO,
     }
 )
 
@@ -668,6 +702,10 @@ ROUTING_CLASS_CHANNELS: dict[str, tuple[str, ...]] = {
         "ntfy:ar-hand-info",
         "activity-log:append",
     ),
+    ROUTING_CLASS_WELLE_7_FINAL_SEALING_INFO: (
+        "ntfy:ar-hand-info",
+        "activity-log:append",
+    ),
 }
 
 ROUTING_CLASS_ESCALATION_SECONDS: dict[str, int] = {
@@ -678,6 +716,7 @@ ROUTING_CLASS_ESCALATION_SECONDS: dict[str, int] = {
     ROUTING_CLASS_WELLE_4_STATE_BACKING_INFO: 0,
     ROUTING_CLASS_WELLE_5_CAPABILITY_TOKEN_INFO: 0,
     ROUTING_CLASS_WELLE_6_SUBSCRIBE_LOOP_INFO: 0,
+    ROUTING_CLASS_WELLE_7_FINAL_SEALING_INFO: 0,
 }
 
 # Set of alertnames that REQUIRE a routing_class label (Tag-64
