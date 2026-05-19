@@ -1,0 +1,183 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Cosign-Strict-Mode Readiness Check (Tag-54, Kai)
+# ------------------------------------------------
+#
+# Purpose
+# -------
+#
+# Pre-KW-24 we are preparing to flip cosign verification from
+# audit-only into **strict mode** (sibling-flow to
+# ``CROSS_REPO_DRIFT_ENFORCE=true``). The strict-flip applies three
+# substrate changes in lock-step:
+#
+#   S1. ``cosign-verify-images.yml`` -> ``pull_request`` + ``push``
+#       triggers with a path filter on Containerfile + policy YAML +
+#       Quadlet installer.
+#   S2. ``cosign-keyless-oidc-drift-probe.yml`` -> per-PR-required-
+#       status-check with ``exit_non_zero_on_drift=true``.
+#   S3. ``wakir-runtime`` branch-protection required-status-checks
+#       extended with both job display-names per
+#       ``feedback_branch_protection_check_names.md``.
+#
+# This workflow runs the **readiness check** that verifies the six
+# acceptance-gate conditions S1..S3 require before they are safe to
+# flip. The shape mirrors the cross-repo-drift-enforce-flip-readiness
+# substrate (docs/operations/cross-repo-drift-enforce-flip-readiness.md
+# §6 acceptance-gate thresholds).
+#
+# Trigger surface
+# ---------------
+#
+#   * ``schedule: cron "30 7 * * *"`` -- daily at 07:30 UTC, offset
+#     60min after the cosign-drift-probe at 06:30 UTC (so an operator
+#     reading both at the same time sees distinct, non-overlapping
+#     Job-Summary blocks).
+#   * ``workflow_dispatch`` -- operator-hand manual invocation.
+#   * ``push:`` (path-filtered) -- any change to the readiness script,
+#     test file, policy YAML, pinned trust-root, or Quadlet installer
+#     re-runs the check.
+#   * ``pull_request:`` (path-filtered) -- same path-filter so PRs
+#     touching these files run the check in dry-run before merge.
+#
+# Not a required status check (yet)
+# ---------------------------------
+#
+# Per ``feedback_branch_protection_check_names.md`` this workflow
+# tracks a calendar-window readiness signal, not individual PR
+# acceptance. It is NOT listed as a required status check on PRs
+# until S3 (branch-protection update) is applied as part of the
+# strict-flip recipe.
+
+name: cosign-strict-mode-readiness-check
+
+on:
+  schedule:
+    - cron: "30 7 * * *"
+  workflow_dispatch:
+    inputs:
+      exit_non_zero_on_block:
+        description: "Exit non-zero on aggregate non-GREEN (true|false)."
+        required: false
+        default: "false"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/observability/cosign-strict-mode-readiness-check.py"
+      - "tests/observability/test_cosign_strict_mode_readiness_check.py"
+      - "policies/cosign-policy-phase-3b.yaml"
+      - "state/cosign-drift/pinned-trust-root.json"
+      - "state/cosign-drift/last-probe-envelope.json"
+      - "quadlet/wakir-rust-cli.container"
+      - ".github/workflows/cosign-strict-mode-readiness-check.yml"
+      - "docs/operations/cosign-strict-mode-activation.md"
+  pull_request:
+    paths:
+      - "scripts/observability/cosign-strict-mode-readiness-check.py"
+      - "tests/observability/test_cosign_strict_mode_readiness_check.py"
+      - "policies/cosign-policy-phase-3b.yaml"
+      - "state/cosign-drift/pinned-trust-root.json"
+      - "state/cosign-drift/last-probe-envelope.json"
+      - "quadlet/wakir-rust-cli.container"
+      - ".github/workflows/cosign-strict-mode-readiness-check.yml"
+      - "docs/operations/cosign-strict-mode-activation.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cosign-strict-mode-readiness-check
+  cancel-in-progress: false
+
+jobs:
+  readiness-check:
+    name: Cosign-Strict-Mode Readiness Check (Tag-54)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install pyyaml + pytest
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check \
+              'pyyaml==6.0.2' 'pytest==9.0.3'
+          python3 -c 'import yaml; print("pyyaml", yaml.__version__)'
+
+      - name: Run hermetic readiness-check tests
+        run: |
+          set -euo pipefail
+          python3 -m pytest -v \
+              tests/observability/test_cosign_strict_mode_readiness_check.py
+
+      - name: Resolve dispatch inputs
+        id: inputs
+        env:
+          INPUT_EXIT_NONZERO: ${{ github.event.inputs.exit_non_zero_on_block }}
+        run: |
+          set -euo pipefail
+          exit_flag=""
+          if [ "${INPUT_EXIT_NONZERO:-false}" = "true" ]; then
+            exit_flag="--exit-non-zero-on-block"
+          fi
+          echo "exit_flag=${exit_flag}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run readiness check
+        id: check
+        env:
+          EXIT_FLAG: ${{ steps.inputs.outputs.exit_flag }}
+        run: |
+          set -euo pipefail
+          mkdir -p out/cosign-strict-mode
+          # shellcheck disable=SC2086
+          python3 scripts/observability/cosign-strict-mode-readiness-check.py \
+              --policy policies/cosign-policy-phase-3b.yaml \
+              --pinned-trust-root state/cosign-drift/pinned-trust-root.json \
+              --last-probe-envelope state/cosign-drift/last-probe-envelope.json \
+              --quadlet-installer quadlet/wakir-rust-cli.container \
+              --out-json out/cosign-strict-mode/envelope.json \
+              --out-markdown out/cosign-strict-mode/summary.md \
+              ${EXIT_FLAG} \
+            > out/cosign-strict-mode/stdout.txt
+          verdict=$(python3 -c 'import json; print(json.load(open("out/cosign-strict-mode/envelope.json"))["aggregate_verdict"])')
+          echo "aggregate_verdict=${verdict}" >> "${GITHUB_OUTPUT}"
+
+      - name: Render Job-Summary
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -f out/cosign-strict-mode/summary.md ]; then
+            cat out/cosign-strict-mode/summary.md >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "## Cosign-Strict-Mode Readiness Check — run failed before summary." \
+                >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Upload readiness-check envelope + summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cosign-strict-mode-readiness-${{ github.run_id }}
+          path: out/cosign-strict-mode/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Emit notify-event on non-GREEN aggregate
+        if: ${{ steps.check.outputs.aggregate_verdict != 'GREEN' }}
+        env:
+          VERDICT: ${{ steps.check.outputs.aggregate_verdict }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          echo "::warning::Cosign-Strict-Mode readiness aggregate verdict is ${VERDICT}"
+          echo "Run URL: ${RUN_URL}"
