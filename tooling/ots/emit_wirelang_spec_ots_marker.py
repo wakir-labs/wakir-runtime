@@ -31,6 +31,30 @@ and runs the real ``ots stamp`` invocation on a host that has
 network access to the OTS calendar. The marker file then gets the
 real ``.ots`` proof attached (out-of-band, Phase-3c-Schritt-N+1).
 
+Tag-66 RES-D-item probe mode
+----------------------------
+
+The ``--mode res-d-item-probe --res-d-item RES-D[1-5]`` flag pair
+adds a *per-item* hermetic probe that simulates the activation of
+a single Wirelang-Spec v0.4.4 reserve item (RES-D1..RES-D5) WITHOUT
+performing the actual activation. Concretely the per-item probe:
+
+  * Pins the spec path to ``wirelang/specs/wirelang-spec-v0-4-4-
+    draft.md`` (the canonical draft location for v0.4.4 reserves).
+  * Walks the same four hermetic stages as the Tag-60 probe
+    (input_validation, hash_computation, payload_shape, sandbox_
+    boundary) plus a fifth ``item_simulation`` stage that scans
+    the draft introspectively for the per-item anchor strings
+    (RES-D row, candidate-section heading, sample-block heading).
+  * Emits a verdict envelope with the additional fields
+    ``res_d_item``, ``item_metadata``, and ``draft_untouched: true``.
+
+The Tag-66 per-item probe NEVER edits the v0.4.4 draft file (the
+``draft_untouched`` flag is invariant-true). Per-item probing
+exists so the Aufsichtsrat can audit a *single* reserve item's
+activation pipeline in isolation, ahead of the Phase-4 governance
+decision (TBD) about which RES-Dn items get promoted.
+
 Tag-60 Pre-Activation-Probe mode
 --------------------------------
 
@@ -140,7 +164,52 @@ from typing import Iterable
 
 MODE_AUDIT_ONLY: str = "audit-only"
 MODE_PRE_ACTIVATION_PROBE: str = "pre-activation-probe"
+MODE_RES_D_ITEM_PROBE: str = "res-d-item-probe"
 ANCHOR_TARGET_OTS_CALENDAR: str = "opentimestamps-calendar"
+
+# Tag-66 — RES-D reserve items defined in v0.4.4 draft §5/§6.
+# Each item is *individually* simulatable through the per-item-probe
+# mode introduced in Tag-66. The probe does NOT activate the item
+# (the v0.4.4 draft remains untouched); it only walks the simulated
+# activation pipeline and emits a verdict envelope.
+RES_D_ITEM_IDS: tuple[str, ...] = (
+    "RES-D1",
+    "RES-D2",
+    "RES-D3",
+    "RES-D4",
+    "RES-D5",
+)
+
+# Per-RES-Dn topic + candidate-section anchors (lift from
+# wirelang/specs/wirelang-spec-v0-4-4-draft.md §5 table). The probe
+# uses these to validate the per-item simulation envelope shape.
+RES_D_ITEM_METADATA: dict[str, dict[str, str]] = {
+    "RES-D1": {
+        "topic": "identity-substrate-evolution",
+        "candidate_section": "§3.2.1",
+        "sample_block": "§6.1.1",
+    },
+    "RES-D2": {
+        "topic": "capability-token-refinements",
+        "candidate_section": "§7.4",
+        "sample_block": "§6.2.1",
+    },
+    "RES-D3": {
+        "topic": "bridge-audit-cleanup",
+        "candidate_section": "§4.1.10a",
+        "sample_block": "§6.3.1",
+    },
+    "RES-D4": {
+        "topic": "schema-registry-v2-prep",
+        "candidate_section": "§8.5",
+        "sample_block": "§6.4.1",
+    },
+    "RES-D5": {
+        "topic": "recovery-drill-leaf-projection-v2",
+        "candidate_section": "§6.4",
+        "sample_block": "§6.5.1",
+    },
+}
 
 # Required top-level keys for a schema-v1 marker payload. Used by the
 # pre-activation-probe's ``payload_shape`` stage.
@@ -174,6 +243,40 @@ PROBE_VERDICT_REQUIRED_KEYS: frozenset[str] = frozenset(
         "ar_authorisation_required",
         "anchors",
     }
+)
+
+# Required top-level keys for a Tag-66 per-RES-Dn probe-verdict
+# envelope. The shape mirrors the Tag-60 ``PROBE_VERDICT_REQUIRED_KEYS``
+# plus the item-identity fields ``res_d_item`` + ``item_metadata``
+# and the explicit ``draft_untouched`` invariant flag.
+RES_D_ITEM_VERDICT_REQUIRED_KEYS: frozenset[str] = frozenset(
+    {
+        "schema_version",
+        "kind",
+        "mode",
+        "verdict",
+        "stages",
+        "res_d_item",
+        "item_metadata",
+        "spec_sha256",
+        "spec_size_bytes",
+        "probed_at_utc",
+        "ar_authorisation_required",
+        "draft_untouched",
+        "anchors",
+    }
+)
+
+# Stage keys for the Tag-66 per-RES-Dn probe. Five stages — the four
+# Tag-60 stages, plus a fifth ``item_simulation`` stage that walks
+# the simulated activation pipeline for the chosen item without
+# touching the v0.4.4 draft.
+RES_D_PROBE_STAGE_KEYS: tuple[str, ...] = (
+    "input_validation",
+    "hash_computation",
+    "payload_shape",
+    "sandbox_boundary",
+    "item_simulation",
 )
 
 PROBE_STAGE_KEYS: tuple[str, ...] = (
@@ -313,6 +416,300 @@ def build_probe_verdict(
             ),
         },
     }
+
+
+def _empty_res_d_probe_stages() -> dict:
+    return {key: None for key in RES_D_PROBE_STAGE_KEYS}
+
+
+def build_res_d_item_verdict(
+    *,
+    res_d_item: str,
+    stages: dict,
+    spec_sha256: str,
+    spec_size_bytes: int,
+    now_utc: _dt.datetime,
+) -> dict:
+    """Assemble the Tag-66 per-RES-Dn item probe-verdict envelope.
+
+    ``stages`` must carry entries for all five
+    ``RES_D_PROBE_STAGE_KEYS``. Verdict is ``PROBE-READY`` iff every
+    stage starts with ``"OK"``; ``PROBE-DEFECT`` otherwise.
+
+    The ``draft_untouched`` flag is invariant-true: the per-item
+    probe NEVER edits the v0.4.4 draft file; it only walks a
+    simulated activation pipeline in-memory.
+    """
+    iso_now = now_utc.isoformat()
+    all_ok = all(
+        isinstance(stages.get(k), str) and stages[k].startswith("OK")
+        for k in RES_D_PROBE_STAGE_KEYS
+    )
+    verdict = PROBE_VERDICT_READY if all_ok else PROBE_VERDICT_DEFECT
+    metadata = RES_D_ITEM_METADATA[res_d_item]
+    return {
+        "schema_version": 1,
+        "kind": "ots-res-d-item-probe-verdict",
+        "mode": MODE_RES_D_ITEM_PROBE,
+        "verdict": verdict,
+        "stages": {k: stages[k] for k in RES_D_PROBE_STAGE_KEYS},
+        "res_d_item": res_d_item,
+        "item_metadata": {
+            "topic": metadata["topic"],
+            "candidate_section": metadata["candidate_section"],
+            "sample_block": metadata["sample_block"],
+        },
+        "spec_sha256": spec_sha256,
+        "spec_size_bytes": spec_size_bytes,
+        "probed_at_utc": iso_now,
+        "ar_authorisation_required": True,
+        "draft_untouched": True,
+        "anchors": {
+            "reza_tag_60_spec_ots_probe_pr": 385,
+            "reza_tag_63_v044_draft_pr": None,
+            "reza_tag_65_promotion_sequencing_pr": 417,
+            "v044_draft_path": (
+                "wirelang/specs/wirelang-spec-v0-4-4-draft.md"
+            ),
+            "operator_hand_runbook": (
+                "docs/operations/wirelang-spec-ots-anchor-wiring.md"
+            ),
+        },
+    }
+
+
+def _simulate_res_d_item_activation(
+    *,
+    res_d_item: str,
+    spec_path: Path,
+) -> str:
+    """Walk the simulated activation pipeline for a RES-D item.
+
+    The simulation is purely *introspective*: it scans the v0.4.4
+    draft for the canonical RES-D anchor strings (the item row, its
+    candidate-section heading, and the sample-block heading) and
+    verifies the per-item metadata is consistent. It does NOT edit
+    the draft. It does NOT call the OTS calendar. It does NOT emit
+    a real anchor request.
+
+    Returns an ``"OK"``-prefixed string on success or a
+    ``"FAIL: ..."``-prefixed string on detected drift.
+    """
+    if res_d_item not in RES_D_ITEM_METADATA:
+        return f"FAIL: unknown RES-D item: {res_d_item}"
+
+    if not spec_path.is_file():
+        return f"FAIL: v0.4.4 draft not found: {spec_path}"
+
+    try:
+        text = spec_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return f"FAIL: draft unreadable: {exc}"
+
+    metadata = RES_D_ITEM_METADATA[res_d_item]
+    expected_anchors = (
+        # Row marker — exact item-id (used by §5 reserve table).
+        res_d_item,
+        # Candidate-section header anchor.
+        metadata["candidate_section"],
+        # Topic name from §5 table.
+        metadata["topic"],
+    )
+    missing = [a for a in expected_anchors if a not in text]
+    if missing:
+        return (
+            f"FAIL: draft missing RES-D anchors for {res_d_item}: "
+            f"{missing}"
+        )
+
+    # Cross-check: the per-item sub-section heading must appear
+    # exactly as documented in §5 (probe defect if drift).
+    expected_heading = (
+        f"### 6.{int(res_d_item[-1])} {res_d_item}: {metadata['topic']}"
+    )
+    if expected_heading not in text:
+        return (
+            f"FAIL: draft missing per-item heading anchor: "
+            f"{expected_heading!r}"
+        )
+
+    return (
+        f"OK: simulated {res_d_item} activation walk; "
+        f"candidate-section={metadata['candidate_section']}; "
+        f"sample-block={metadata['sample_block']}; "
+        f"draft untouched"
+    )
+
+
+def run_res_d_item_probe(
+    *,
+    res_d_item: str,
+    spec_path: Path,
+    actor: str,
+    now_utc: _dt.datetime,
+    repo_root: Path,
+) -> dict:
+    """Execute the Tag-66 five-stage hermetic per-item probe.
+
+    The probe mirrors the Tag-60 four-stage probe and adds a fifth
+    ``item_simulation`` stage. It never calls the OTS calendar; it
+    never edits the v0.4.4 draft. Sandbox-boundary is OK-by-
+    construction (stdlib-only, no subprocess, no socket).
+    """
+    if res_d_item not in RES_D_ITEM_METADATA:
+        # Bail out with a structured DEFECT verdict; do not raise —
+        # the workflow surfaces verdicts uniformly.
+        stages = _empty_res_d_probe_stages()
+        for key in RES_D_PROBE_STAGE_KEYS:
+            stages[key] = f"FAIL: unknown RES-D item: {res_d_item}"
+        # Synthesise minimal metadata to keep the envelope shape
+        # stable even for unknown items. Builder requires the item
+        # to be in RES_D_ITEM_METADATA, so we patch a placeholder.
+        return {
+            "schema_version": 1,
+            "kind": "ots-res-d-item-probe-verdict",
+            "mode": MODE_RES_D_ITEM_PROBE,
+            "verdict": PROBE_VERDICT_DEFECT,
+            "stages": stages,
+            "res_d_item": res_d_item,
+            "item_metadata": {
+                "topic": "unknown",
+                "candidate_section": "unknown",
+                "sample_block": "unknown",
+            },
+            "spec_sha256": "",
+            "spec_size_bytes": 0,
+            "probed_at_utc": now_utc.isoformat(),
+            "ar_authorisation_required": True,
+            "draft_untouched": True,
+            "anchors": {
+                "reza_tag_60_spec_ots_probe_pr": 385,
+                "reza_tag_63_v044_draft_pr": None,
+                "reza_tag_65_promotion_sequencing_pr": 417,
+                "v044_draft_path": (
+                    "wirelang/specs/wirelang-spec-v0-4-4-draft.md"
+                ),
+                "operator_hand_runbook": (
+                    "docs/operations/wirelang-spec-ots-anchor-wiring.md"
+                ),
+            },
+        }
+
+    stages = _empty_res_d_probe_stages()
+    spec_sha256 = ""
+    spec_size_bytes = 0
+
+    # Stage 1 — input validation. Reuse Tag-60 semantics but
+    # additionally require the spec_path to be a v0.4.4 draft.
+    if not spec_path.exists():
+        stages["input_validation"] = (
+            f"FAIL: spec not found: {spec_path}"
+        )
+    elif not spec_path.is_file():
+        stages["input_validation"] = (
+            f"FAIL: spec is not a regular file: {spec_path}"
+        )
+    else:
+        # The Tag-66 probe targets the v0.4.4 draft specifically.
+        # Tests that supply fixture drafts outside repo_root pass
+        # through; in-repo invocations enforce the canonical path.
+        try:
+            rel = spec_path.resolve().relative_to(repo_root.resolve())
+            rel_str = str(rel).replace("\\", "/")
+            canonical = (
+                "wirelang/specs/wirelang-spec-v0-4-4-draft.md"
+            )
+            if rel_str != canonical:
+                stages["input_validation"] = (
+                    f"FAIL: Tag-66 probe expects {canonical}; got "
+                    f"{rel_str}"
+                )
+            else:
+                stages["input_validation"] = "OK"
+        except ValueError:
+            # Spec outside repo_root — used by test fixtures.
+            stages["input_validation"] = "OK"
+
+    # Stage 2 — hash computation.
+    if stages["input_validation"].startswith("OK"):
+        try:
+            spec_sha256, spec_size_bytes = compute_sha256(spec_path)
+            stages["hash_computation"] = f"OK: {spec_sha256}"
+        except OSError as exc:
+            stages["hash_computation"] = f"FAIL: read error: {exc}"
+    else:
+        stages["hash_computation"] = (
+            "FAIL: skipped (input_validation failed)"
+        )
+
+    # Stage 3 — payload shape. Build a candidate verdict and ensure
+    # it satisfies the Tag-66 schema-v1 envelope shape.
+    if stages["hash_computation"].startswith("OK"):
+        candidate = build_res_d_item_verdict(
+            res_d_item=res_d_item,
+            stages={k: "OK" for k in RES_D_PROBE_STAGE_KEYS},
+            spec_sha256=spec_sha256,
+            spec_size_bytes=spec_size_bytes,
+            now_utc=now_utc,
+        )
+        cand_keys = set(candidate.keys())
+        if cand_keys != RES_D_ITEM_VERDICT_REQUIRED_KEYS:
+            missing = RES_D_ITEM_VERDICT_REQUIRED_KEYS - cand_keys
+            extra = cand_keys - RES_D_ITEM_VERDICT_REQUIRED_KEYS
+            stages["payload_shape"] = (
+                f"FAIL: verdict key drift missing={sorted(missing)} "
+                f"extra={sorted(extra)}"
+            )
+        elif candidate["schema_version"] != 1:
+            stages["payload_shape"] = (
+                "FAIL: schema_version != 1 "
+                f"({candidate['schema_version']})"
+            )
+        elif candidate["kind"] != "ots-res-d-item-probe-verdict":
+            stages["payload_shape"] = (
+                f"FAIL: verdict kind drift: {candidate['kind']}"
+            )
+        elif candidate["mode"] != MODE_RES_D_ITEM_PROBE:
+            stages["payload_shape"] = (
+                f"FAIL: verdict mode drift: {candidate['mode']}"
+            )
+        elif candidate["draft_untouched"] is not True:
+            stages["payload_shape"] = (
+                "FAIL: draft_untouched invariant must be true"
+            )
+        elif candidate["ar_authorisation_required"] is not True:
+            stages["payload_shape"] = (
+                "FAIL: ar_authorisation_required invariant must be true"
+            )
+        else:
+            stages["payload_shape"] = "OK"
+    else:
+        stages["payload_shape"] = (
+            "FAIL: skipped (hash_computation failed)"
+        )
+
+    # Stage 4 — sandbox boundary. OK-by-construction.
+    stages["sandbox_boundary"] = "OK"
+
+    # Stage 5 — item simulation. Walk the v0.4.4 draft introspectively
+    # for the per-item anchors. NEVER edits the draft.
+    if stages["payload_shape"].startswith("OK"):
+        stages["item_simulation"] = _simulate_res_d_item_activation(
+            res_d_item=res_d_item,
+            spec_path=spec_path,
+        )
+    else:
+        stages["item_simulation"] = (
+            "FAIL: skipped (payload_shape failed)"
+        )
+
+    return build_res_d_item_verdict(
+        res_d_item=res_d_item,
+        stages=stages,
+        spec_sha256=spec_sha256,
+        spec_size_bytes=spec_size_bytes,
+        now_utc=now_utc,
+    )
 
 
 def _stub_registry_paths(repo_root: Path) -> set[str]:
@@ -462,12 +859,27 @@ def main(argv: Iterable[str] | None = None) -> int:
     )
     parser.add_argument(
         "--mode",
-        choices=(MODE_AUDIT_ONLY, MODE_PRE_ACTIVATION_PROBE),
+        choices=(
+            MODE_AUDIT_ONLY,
+            MODE_PRE_ACTIVATION_PROBE,
+            MODE_RES_D_ITEM_PROBE,
+        ),
         default=MODE_AUDIT_ONLY,
         help=(
             "audit-only (default): emit marker JSON. "
             "pre-activation-probe (Tag-60): run hermetic dry-run probe "
-            "of the OTS-call pipeline and emit verdict envelope."
+            "of the OTS-call pipeline and emit verdict envelope. "
+            "res-d-item-probe (Tag-66): run hermetic per-RES-Dn item "
+            "probe; draft is never touched."
+        ),
+    )
+    parser.add_argument(
+        "--res-d-item",
+        choices=RES_D_ITEM_IDS,
+        default=None,
+        help=(
+            "Tag-66 per-item probe selector (required when "
+            "--mode res-d-item-probe). One of RES-D1..RES-D5."
         ),
     )
     parser.add_argument(
@@ -521,6 +933,51 @@ def main(argv: Iterable[str] | None = None) -> int:
         now_utc = _dt.datetime.fromisoformat(args.now)
         if now_utc.tzinfo is None:
             now_utc = now_utc.replace(tzinfo=_dt.timezone.utc)
+
+    if args.mode == MODE_RES_D_ITEM_PROBE:
+        if args.res_d_item is None:
+            print(
+                "emit_wirelang_spec_ots_marker: "
+                "--res-d-item is required when "
+                "--mode res-d-item-probe",
+                file=sys.stderr,
+            )
+            return 2
+        if args.probe_verdict_out is None:
+            print(
+                "emit_wirelang_spec_ots_marker: "
+                "--probe-verdict-out is required when "
+                "--mode res-d-item-probe",
+                file=sys.stderr,
+            )
+            return 2
+
+        verdict = run_res_d_item_probe(
+            res_d_item=args.res_d_item,
+            spec_path=args.spec,
+            actor=args.actor,
+            now_utc=now_utc,
+            repo_root=args.repo_root,
+        )
+
+        args.probe_verdict_out.parent.mkdir(parents=True, exist_ok=True)
+        args.probe_verdict_out.write_text(
+            json.dumps(verdict, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+        print(
+            f"emit_wirelang_spec_ots_marker: mode={verdict['mode']} "
+            f"item={verdict['res_d_item']} "
+            f"verdict={verdict['verdict']} "
+            f"sha256={verdict['spec_sha256'] or '-'} "
+            f"size={verdict['spec_size_bytes']} "
+            f"-> {args.probe_verdict_out}"
+        )
+
+        # Exit 0 even on PROBE-DEFECT — the workflow surfaces the
+        # verdict and decides enforcement. Tests cover both cases.
+        return 0
 
     if args.mode == MODE_PRE_ACTIVATION_PROBE:
         if args.probe_verdict_out is None:

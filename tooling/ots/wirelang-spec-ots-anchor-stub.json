@@ -52,6 +52,21 @@
     "adr_audit_trail": "decisions/0007-internal-audit-trail-ots.md",
     "reza_tag_58_spec_seal_pr": 371,
     "tomas_tag_59_manifest_hash_probe_pr": 380,
-    "reza_tag_60_spec_ots_probe_pr": null
+    "reza_tag_60_spec_ots_probe_pr": 385,
+    "reza_tag_65_promotion_sequencing_pr": 417,
+    "reza_tag_66_res_d_items_probe_pr": null
+  },
+  "tag_66_res_d_per_item_probe": {
+    "kind": "ots-res-d-item-probe-extension",
+    "schema_version": 1,
+    "items": ["RES-D1", "RES-D2", "RES-D3", "RES-D4", "RES-D5"],
+    "target_spec_path": "wirelang/specs/wirelang-spec-v0-4-4-draft.md",
+    "invariant_draft_untouched": true,
+    "test_suite": "tests/audit/test_res_d_items_ots_probe_tag66.py",
+    "workflow_job_names": [
+      "wirelang-spec-res-d-item-probe",
+      "wirelang-spec-res-d-aggregate"
+    ],
+    "rationale": "Tag-66 — pro RES-Dn ein eigener hermetic Per-Item-Probe; simuliert Aktivierung OHNE Aktivierung. v0.4.4 Draft bleibt unangetastet (draft_untouched: true)."
   }
 }
