@@ -1,0 +1,9 @@
+{
+  "_fixture_description": "Tag-64 Walking-Skeleton fixture — pre-snapshot (empty start state). Represents the GitHub branch-protection state for wakir-labs/wakir-runtime main BEFORE any of the 8 Required-Status-Checks have been wired. Used as one of the two pre-snapshot inputs into the Tag-64 bulk-activation walking-skeleton acceptance gate.",
+  "_fixture_id": "pre-snapshot-empty",
+  "branch": "main",
+  "required_status_checks": {
+    "strict": false,
+    "contexts": []
+  }
+}

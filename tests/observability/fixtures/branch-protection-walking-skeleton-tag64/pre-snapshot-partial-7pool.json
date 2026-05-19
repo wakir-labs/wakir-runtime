@@ -1,0 +1,17 @@
+{
+  "_fixture_description": "Tag-64 Walking-Skeleton fixture — pre-snapshot (partial state, post-Tag-62 7-Pool already wired). Represents the GitHub branch-protection state for wakir-labs/wakir-runtime main AFTER the Tag-62-lineage 7-Pool has been activated but BEFORE the Tag-64 E2E-verdict #8 has been added. The Tag-64 walking-skeleton acceptance gate verifies idempotency: full-replace PUT from this partial state yields the same byte-identical 8-Pool post-snapshot as a PUT from the empty pre-state.",
+  "_fixture_id": "pre-snapshot-partial-7pool",
+  "branch": "main",
+  "required_status_checks": {
+    "strict": true,
+    "contexts": [
+      "cross-substrate parity (cosign ↔ quadlet ↔ backend-switch)",
+      "pyramide layer-dependency DAG verify (6 layers, 16 edges)",
+      "verify-containerfile-base-image-digest-pins",
+      "wirelang spec v0.4.3 freeze-seal probe",
+      "alert-routing cross-repo mirror (wakir-runtime ↔ wakir-protocol)",
+      "pyramide cross-run stability pin (5 fixtures, 3 runs each)",
+      "g1-g2 operator-recipe smoke-validation"
+    ]
+  }
+}
