@@ -242,9 +242,11 @@ def test_t01_helper_exists():
 
 def test_t02_helper_spdx_and_signature():
     text = HELPER_PATH.read_text(encoding="utf-8")
+    # REUSE-IgnoreStart
     assert "SPDX-License-Identifier: Apache-2.0" in text, (
         "helper must carry SPDX-License-Identifier: Apache-2.0 header"
     )
+    # REUSE-IgnoreEnd
     assert "-- Reza" in text, (
         "helper must carry the '-- Reza' signature line"
     )
