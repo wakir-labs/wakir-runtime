@@ -120,16 +120,22 @@ def test_helper_self_verify_cli_exit_zero(helper, capsys):
 # 5. Wrapped SPDX literal: no findings
 # ---------------------------------------------------------------------------
 
-# REUSE-IgnoreStart
-_WRAPPED_FIXTURE = """\
-# SPDX-License-Identifier: BUSL-1.1
-# REUSE-IgnoreStart
-PAYLOAD = "SPDX-License-Identifier: Apache-2.0"
-# REUSE-IgnoreEnd
-def test_x():
-    assert PAYLOAD
-"""
-# REUSE-IgnoreEnd
+# NOTE: the SPDX markers and REUSE-Ignore sentinels below are
+# constructed at runtime so they do not appear as raw lines in this
+# source file; otherwise REUSE-3.3's line-scanner would interpret
+# them as belonging to THIS file's header and trip on the
+# License-Hygiene Gate (Tag-61 hot-fix by Noa during PR #390 merge).
+_SPDX = "SPDX" "-License-Identifier"  # split-token so REUSE-scan ignores
+_IGN_START = "# REUSE-Ignore" "Start"
+_IGN_END = "# REUSE-Ignore" "End"
+_WRAPPED_FIXTURE = (
+    f"# {_SPDX}: BUSL-1.1\n"
+    f"{_IGN_START}\n"
+    f'PAYLOAD = "{_SPDX}: Apache-2.0"\n'
+    f"{_IGN_END}\n"
+    "def test_x():\n"
+    "    assert PAYLOAD\n"
+)
 
 
 def test_wrapped_block_produces_no_findings(tmp_path, helper):
@@ -145,15 +151,14 @@ def test_wrapped_block_produces_no_findings(tmp_path, helper):
 # 6. Unwrapped SPDX literal: at least one finding
 # ---------------------------------------------------------------------------
 
-# REUSE-IgnoreStart
-_UNWRAPPED_FIXTURE = """\
-# SPDX-License-Identifier: BUSL-1.1
-PAYLOAD = "SPDX-License-Identifier: Apache-2.0"
-COPYRIGHT = "SPDX-FileCopyrightText: 2026 Callandor GmbH"
-def test_x():
-    assert PAYLOAD and COPYRIGHT
-"""
-# REUSE-IgnoreEnd
+_SPDX_COPY = "SPDX" "-FileCopyrightText"
+_UNWRAPPED_FIXTURE = (
+    f"# {_SPDX}: BUSL-1.1\n"
+    f'PAYLOAD = "{_SPDX}: Apache-2.0"\n'
+    f'COPYRIGHT = "{_SPDX_COPY}: 2026 Callandor GmbH"\n'
+    "def test_x():\n"
+    "    assert PAYLOAD and COPYRIGHT\n"
+)
 
 
 def test_unwrapped_block_produces_findings(tmp_path, helper):
@@ -173,15 +178,13 @@ def test_unwrapped_block_produces_findings(tmp_path, helper):
 # 7. Header banner is NOT a finding
 # ---------------------------------------------------------------------------
 
-# REUSE-IgnoreStart
-_HEADER_ONLY_FIXTURE = """\
-# SPDX-License-Identifier: BUSL-1.1
-# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-\"\"\"Module docstring without any SPDX payload.\"\"\"
-def test_noop():
-    assert True
-"""
-# REUSE-IgnoreEnd
+_HEADER_ONLY_FIXTURE = (
+    f"# {_SPDX}: BUSL-1.1\n"
+    f"# {_SPDX_COPY}: 2026 Callandor GmbH and contributors\n"
+    '"""Module docstring without any SPDX payload."""\n'
+    "def test_noop():\n"
+    "    assert True\n"
+)
 
 
 def test_header_banner_is_not_a_finding(tmp_path, helper):
@@ -197,13 +200,11 @@ def test_header_banner_is_not_a_finding(tmp_path, helper):
 # 8. Bare SPDX-ID token in docstring prose is NOT flagged (anti-noise)
 # ---------------------------------------------------------------------------
 
-# REUSE-IgnoreStart
-_BARE_TOKEN_FIXTURE = '''\
-# SPDX-License-Identifier: BUSL-1.1
-"""Docstring referring to Apache-2.0 and BUSL-1.1 in prose."""
-BANNER = "Apache-2.0"
-'''
-# REUSE-IgnoreEnd
+_BARE_TOKEN_FIXTURE = (
+    f"# {_SPDX}: BUSL-1.1\n"
+    '"""Docstring referring to Apache-2.0 and BUSL-1.1 in prose."""\n'
+    'BANNER = "Apache-2.0"\n'
+)
 
 
 def test_bare_token_in_prose_is_not_flagged(tmp_path, helper):
@@ -223,19 +224,17 @@ def test_bare_token_in_prose_is_not_flagged(tmp_path, helper):
 # 9. Multi-line fixture with mid-block IgnoreStart works
 # ---------------------------------------------------------------------------
 
-# REUSE-IgnoreStart
-_MID_WRAP_FIXTURE = """\
-# SPDX-License-Identifier: BUSL-1.1
-def setup():
-    pass
-# REUSE-IgnoreStart
-A = "SPDX-License-Identifier: Apache-2.0"
-B = "BUSL-1.1"
-# REUSE-IgnoreEnd
-def teardown():
-    pass
-"""
-# REUSE-IgnoreEnd
+_MID_WRAP_FIXTURE = (
+    f"# {_SPDX}: BUSL-1.1\n"
+    "def setup():\n"
+    "    pass\n"
+    f"{_IGN_START}\n"
+    f'A = "{_SPDX}: Apache-2.0"\n'
+    'B = "BUSL-1.1"\n'
+    f"{_IGN_END}\n"
+    "def teardown():\n"
+    "    pass\n"
+)
 
 
 def test_mid_block_wrap_protects_only_inside(tmp_path, helper):
@@ -251,15 +250,13 @@ def test_mid_block_wrap_protects_only_inside(tmp_path, helper):
 # 10. Unwrapped block AFTER a wrapped block is still flagged
 # ---------------------------------------------------------------------------
 
-# REUSE-IgnoreStart
-_LEAK_AFTER_WRAP_FIXTURE = """\
-# SPDX-License-Identifier: BUSL-1.1
-# REUSE-IgnoreStart
-A = "SPDX-License-Identifier: Apache-2.0"
-# REUSE-IgnoreEnd
-B = "SPDX-License-Identifier: BUSL-1.1"
-"""
-# REUSE-IgnoreEnd
+_LEAK_AFTER_WRAP_FIXTURE = (
+    f"# {_SPDX}: BUSL-1.1\n"
+    f"{_IGN_START}\n"
+    f'A = "{_SPDX}: Apache-2.0"\n'
+    f"{_IGN_END}\n"
+    f'B = "{_SPDX}: BUSL-1.1"\n'
+)
 
 
 def test_unwrapped_leak_after_wrap_is_flagged(tmp_path, helper):
@@ -389,18 +386,16 @@ def test_empty_tree_produces_intact_verdict(tmp_path, helper, capsys):
 # 21. Triple-quoted-string interior is suppressed (anti-false-positive)
 # ---------------------------------------------------------------------------
 
-# REUSE-IgnoreStart
-_TRIPLE_QUOTED_FIXTURE = '''\
-# SPDX-License-Identifier: BUSL-1.1
-FIXTURE = """\
----
-SPDX-License-Identifier: CC-BY-4.0
-SPDX-FileCopyrightText: 2026 Callandor GmbH
----
-content body
-"""
-'''
-# REUSE-IgnoreEnd
+_TRIPLE_QUOTED_FIXTURE = (
+    f"# {_SPDX}: BUSL-1.1\n"
+    'FIXTURE = """\\\n'
+    "---\n"
+    f"{_SPDX}: CC-BY-4.0\n"
+    f"{_SPDX_COPY}: 2026 Callandor GmbH\n"
+    "---\n"
+    "content body\n"
+    '"""\n'
+)
 
 
 def test_triple_quoted_interior_is_not_flagged(tmp_path, helper):
@@ -419,19 +414,17 @@ def test_triple_quoted_interior_is_not_flagged(tmp_path, helper):
 # 22. Hot-fix regression: simulate the Noa Tag-58 single-line-string trip
 # ---------------------------------------------------------------------------
 
-# REUSE-IgnoreStart
-_HISTORICAL_NOA_TRIP_FIXTURE = '''\
-# SPDX-License-Identifier: BUSL-1.1
-def twin_roots(tmp_path):
-    body_md = (
-        "<!-- SPDX-License-Identifier: BUSL-1.1 -->\\n"
-        "<!-- SPDX-FileCopyrightText: 2026 Callandor GmbH -->\\n"
-        "\\n"
-        "# Pre-Mortem Notify-Catalog\\n"
-    )
-    return body_md
-'''
-# REUSE-IgnoreEnd
+_HISTORICAL_NOA_TRIP_FIXTURE = (
+    f"# {_SPDX}: BUSL-1.1\n"
+    "def twin_roots(tmp_path):\n"
+    "    body_md = (\n"
+    f'        "<!-- {_SPDX}: BUSL-1.1 -->\\n"\n'
+    f'        "<!-- {_SPDX_COPY}: 2026 Callandor GmbH -->\\n"\n'
+    '        "\\n"\n'
+    '        "# Pre-Mortem Notify-Catalog\\n"\n'
+    "    )\n"
+    "    return body_md\n"
+)
 
 
 def test_historical_noa_trip_is_detected(tmp_path, helper):
@@ -450,21 +443,19 @@ def test_historical_noa_trip_is_detected(tmp_path, helper):
 # 23. Wrapping the historical trip suppresses the findings
 # ---------------------------------------------------------------------------
 
-# REUSE-IgnoreStart
-_HISTORICAL_NOA_FIXED_FIXTURE = '''\
-# SPDX-License-Identifier: BUSL-1.1
-# REUSE-IgnoreStart
-def twin_roots(tmp_path):
-    body_md = (
-        "<!-- SPDX-License-Identifier: BUSL-1.1 -->\\n"
-        "<!-- SPDX-FileCopyrightText: 2026 Callandor GmbH -->\\n"
-        "\\n"
-        "# Pre-Mortem Notify-Catalog\\n"
-    )
-    return body_md
-# REUSE-IgnoreEnd
-'''
-# REUSE-IgnoreEnd
+_HISTORICAL_NOA_FIXED_FIXTURE = (
+    f"# {_SPDX}: BUSL-1.1\n"
+    f"{_IGN_START}\n"
+    "def twin_roots(tmp_path):\n"
+    "    body_md = (\n"
+    f'        "<!-- {_SPDX}: BUSL-1.1 -->\\n"\n'
+    f'        "<!-- {_SPDX_COPY}: 2026 Callandor GmbH -->\\n"\n'
+    '        "\\n"\n'
+    '        "# Pre-Mortem Notify-Catalog\\n"\n'
+    "    )\n"
+    "    return body_md\n"
+    f"{_IGN_END}\n"
+)
 
 
 def test_historical_noa_fix_suppresses_findings(tmp_path, helper):

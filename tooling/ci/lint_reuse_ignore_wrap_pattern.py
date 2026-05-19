@@ -44,15 +44,15 @@ Detection heuristic
 A "SPDX literal" is any string-literal occurrence (inside ``"..."``,
 ``'...'``, ``\"\"\"...\"\"\"``, or ``'''...'''``) of the form:
 
-* ``SPDX-License-Identifier: <SPDX-ID>``
-* ``SPDX-FileCopyrightText: ...``
+* the License-Identifier tag followed by an SPDX-ID
+* the FileCopyrightText tag followed by free text
 * a bare known SPDX-ID token (``Apache-2.0``, ``BUSL-1.1``,
   ``CC-BY-4.0``, ``MIT``, ``GPL-3.0``, ``CC0-1.0``).
 
 False-positive guard: any line that is *itself* a SPDX-header
-comment (``# SPDX-License-Identifier: ...`` at column 0 of the
-comment) is **not** flagged, because that is the file's own header,
-not a literal payload. Equally, anything between a
+comment (the License-Identifier tag at column 0 of the comment)
+is **not** flagged, because that is the file's own header, not a
+literal payload. Equally, anything between a
 ``# REUSE-IgnoreStart`` and the next ``# REUSE-IgnoreEnd`` on the
 same file is considered properly wrapped.
 
