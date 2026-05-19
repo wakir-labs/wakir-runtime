@@ -310,6 +310,61 @@ def _env_key(substrate: str) -> str:
     return f"V{idx}_ENVELOPE_PATH"
 
 
+def detect_override_marker(
+    marker_path: Path | None,
+) -> dict[str, Any] | None:
+    """Read-only detection of an AR-Hand override marker (Tag-65).
+
+    Returns a small descriptor dict on the envelope ONLY for
+    audit-trail surfacing -- the aggregator itself does NOT apply
+    the override (Tag-65 listener owns that responsibility). The
+    aggregator's verdict remains the un-overridden truth.
+
+    Returns ``None`` if no marker is present. Returns a minimal
+    descriptor on parse failure rather than raising; the listener
+    is the source of truth for marker validation.
+    """
+    if marker_path is None:
+        return None
+    if not marker_path.exists():
+        return None
+    try:
+        raw = marker_path.read_text(encoding="utf-8")
+        payload = json.loads(raw)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {
+            "present": True,
+            "parse_ok": False,
+            "path": str(marker_path),
+        }
+    if not isinstance(payload, Mapping):
+        return {
+            "present": True,
+            "parse_ok": False,
+            "path": str(marker_path),
+        }
+    return {
+        "present": True,
+        "parse_ok": True,
+        "path": str(marker_path),
+        "operator": (
+            payload.get("operator")
+            if isinstance(payload.get("operator"), str)
+            else None
+        ),
+        "accepted_risk_id": (
+            payload.get("accepted_risk_id")
+            if isinstance(payload.get("accepted_risk_id"), str)
+            else None
+        ),
+        "ts": (
+            payload.get("ts")
+            if isinstance(payload.get("ts"), str)
+            else None
+        ),
+    }
+
+
 def build_envelope(
     envelopes: Mapping[str, Mapping[str, Any] | None],
     *,
@@ -317,6 +372,7 @@ def build_envelope(
     github_run_id: str | None = None,
     github_sha: str | None = None,
     github_ref: str | None = None,
+    override_marker_path: Path | None = None,
 ) -> dict[str, Any]:
     """Build the aggregated verdict envelope.
 
@@ -332,6 +388,12 @@ def build_envelope(
         ``window.iso_week``; does NOT affect the verdict.
     github_run_id, github_sha, github_ref
         Optional GitHub Actions context surfaced verbatim.
+    override_marker_path
+        Optional path to an AR-Hand override marker file (Tag-65).
+        Read-only detection only -- the aggregator surfaces a
+        descriptor under ``ar_hand_override`` for the downstream
+        Tag-65 listener to pick up. The aggregator's own verdict
+        is NEVER modified by the marker.
     """
     steps: dict[str, str] = {}
     per_note: dict[str, str] = {}
@@ -345,6 +407,7 @@ def build_envelope(
     greens = sum(1 for v in steps.values() if v == "green")
     verdict = decide(steps)
     failed = [k for k, v in steps.items() if v != "green"]
+    override_descriptor = detect_override_marker(override_marker_path)
     return {
         "schema_version": 1,
         "workflow": "cutover-day-morgen-auto-scheduler",
@@ -381,6 +444,7 @@ def build_envelope(
             "caution": "at least one yellow, zero red",
             "block": "at least one red, OR any envelope missing",
         },
+        "ar_hand_override": override_descriptor,
     }
 
 
@@ -579,6 +643,17 @@ def _build_arg_parser() -> argparse.ArgumentParser:
             "notify-cascade transition rule. Default: None."
         ),
     )
+    p.add_argument(
+        "--ar-hand-override-marker",
+        type=Path,
+        default=None,
+        help=(
+            "Optional Tag-65 AR-Hand override marker file path. "
+            "Read-only detection -- the marker is surfaced on the "
+            "envelope under 'ar_hand_override' for the Tag-65 "
+            "listener to pick up. Does NOT modify the verdict."
+        ),
+    )
     return p
 
 
@@ -595,6 +670,7 @@ def main(argv: list[str] | None = None) -> int:
         github_run_id=args.github_run_id,
         github_sha=args.github_sha,
         github_ref=args.github_ref,
+        override_marker_path=args.ar_hand_override_marker,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
