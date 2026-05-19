@@ -259,6 +259,16 @@ def test_16_tag58_incumbent_verifier_still_green() -> None:
 
 
 def test_17_section9_signed_by_kai_tag64_append(doc_text: str) -> None:
-    assert "Tag-58 Original, Tag-64-Append 2026-05-19" in doc_text, (
+    # Tag-72 fix (Noa-Tag-71-Side-Finding): footer is append-only.
+    # Tag-58 Original is the anchor; subsequent appends (Tag-64, Tag-68, ...)
+    # are added in a comma+plus chain. We must tolerate ≥1 append-wave while
+    # still asserting the canonical Tag-64-Append authorship trail.
+    assert "Tag-58 Original" in doc_text, (
+        "Doc footer must reference Tag-58 Original anchor"
+    )
+    assert "Tag-64-Append" in doc_text, (
         "Doc footer must reflect the Tag-64-Append authorship trail"
+    )
+    assert "2026-05-19" in doc_text, (
+        "Doc footer must carry the Tag-64-Append date stamp"
     )
