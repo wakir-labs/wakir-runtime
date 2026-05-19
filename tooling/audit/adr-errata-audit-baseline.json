@@ -1,6 +1,6 @@
 {
   "audit_id": "tag-57-adr-errata-spec-cross-audit",
-  "spec_path": "wirelang/specs/wirelang-spec-v0-4-3.md",
+  "spec_path": "specs/wirelang-spec-v0-4-3.md",
   "spec_freeze_marker": "pre-cutover-freeze",
   "adr_heads": [
     {
@@ -144,5 +144,12 @@
     "markers_total": 6,
     "markers_with_drift": 0,
     "markers_with_citation_ok": 6
+  },
+  "draft_shape": {
+    "is_draft": false,
+    "spec_status": "pre-cutover-freeze",
+    "spec_version": "0.4.3",
+    "shape_invariants": {},
+    "shape_all_pass": false
   }
 }

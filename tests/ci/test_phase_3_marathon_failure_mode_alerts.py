@@ -195,17 +195,24 @@ def test_tag45_groups_present(alerts: dict):
     assert not missing, f"Tag-45 alert groups missing: {missing}"
 
 
-def test_total_group_count_matches_tag45_plus_tag40_plus_tag50(alerts: dict):
-    # 4 Tag-40 + 8 Tag-45 + 7 Tag-50 = 19 expected groups. The
-    # Tag-50 Welle-N-specific groups are appended after the Tag-45
-    # failure-mode + hot-spot groups. See
+def test_total_group_count_matches_tag45_plus_tag40_plus_tag50_plus_tag64(
+    alerts: dict,
+):
+    # 4 Tag-40 + 8 Tag-45 + 7 Tag-50 + 1 Tag-64 = 20 expected groups.
+    # The Tag-50 Welle-N-specific groups are appended after the
+    # Tag-45 failure-mode + hot-spot groups. Tag-64
+    # (Noa, PR #410) appends the
+    # `cutover-day-morgen-trinary-routing` group with three trinary-
+    # verdict-reactive alarms (READY/CAUTION/BLOCK). See
     # tests/ci/test_welle_n_specific_alerts.py for the Tag-50
     # contract. If a future task adds more, bump this expectation
-    # deliberately.
-    assert len(alerts["groups"]) == 19, (
-        f"Expected exactly Tag-40(4) + Tag-45(8) + Tag-50(7) = 19 "
-        f"groups; got {len(alerts['groups'])}. Update test if "
-        f"expanding deliberately."
+    # deliberately (Amara-Tag-68 pre-existing-failures-fix raised
+    # the pin from 19 to 20 to absorb the Tag-64 trinary-routing
+    # group that landed before this test was refreshed).
+    assert len(alerts["groups"]) == 20, (
+        f"Expected exactly Tag-40(4) + Tag-45(8) + Tag-50(7) + "
+        f"Tag-64(1) = 20 groups; got {len(alerts['groups'])}. "
+        f"Update test if expanding deliberately."
     )
 
 
