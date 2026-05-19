@@ -18,10 +18,16 @@ does not install ``pytest``. The workflow is non-required (does not gate
 PR merge), but a perma-red non-required check is exactly the kind of
 alert-fatigue noise SRE owns to eradicate.
 
-Tag-70 Noa minimal-fix: add an explicit ``Install pytest`` step between
-``setup-python`` and ``Stage 1``. Pin to ``pytest>=7,<9`` to avoid
-unannounced major-version drift while keeping the floor compatible with
-the rest of the repo's pytest invocations.
+Tag-70 Noa minimal-fix: add an explicit ``Install pytest + PyYAML``
+step between ``setup-python`` and ``Stage 1``. Pin pytest to
+``>=7,<9`` and PyYAML to ``>=6,<7`` to avoid unannounced major-version
+drift while keeping the floor compatible with the rest of the repo's
+pytest invocations.
+
+The first iteration of the fix shipped ``pytest`` only; a follow-up
+runner trace surfaced that the existing Tag-59 test-suite also
+imports ``yaml`` (PyYAML, non-stdlib). Including PyYAML in the same
+install step keeps the fix minimal (one step, one install command).
 
 Substance brief (>= 10 tests; suite carries 13)
 ================================================
@@ -184,6 +190,11 @@ def test_06_pytest_version_pin(probe_job: dict) -> None:
         "(prevents unannounced major-version drift). "
         f"run-body was:\n{run_body}"
     )
+    assert "PyYAML>=6,<7" in run_body, (
+        "Tag-70 invariant: PyYAML must be pinned to '>=6,<7' "
+        "(Tag-59 test-suite imports yaml; PyYAML is non-stdlib). "
+        f"run-body was:\n{run_body}"
+    )
     # Hard guard against unbounded install.
     assert re.search(r"pip install\s+pytest\s*$", run_body, re.MULTILINE) is None, (
         "Tag-70 invariant: no unbounded 'pip install pytest' line "
@@ -204,6 +215,10 @@ def test_07_install_pytest_upgrades_pip(probe_job: dict) -> None:
     assert "python3 -m pytest --version" in run_body, (
         "Tag-70 hygiene: install-step must self-verify by printing "
         "pytest --version (smoke-evidence in the workflow log)"
+    )
+    assert "import yaml" in run_body and "yaml.__version__" in run_body, (
+        "Tag-70 hygiene: install-step must self-verify PyYAML by "
+        "printing yaml.__version__ (smoke-evidence in the workflow log)"
     )
 
 
