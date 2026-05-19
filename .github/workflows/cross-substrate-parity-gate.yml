@@ -1,15 +1,27 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Cross-Substrate Parity Gate (Tag-32 Mini-Welle, ADR-0066 Welle-3 Mitigation)
+# Cross-Substrate Parity Gate (Tag-32 Mini-Welle, ADR-0066 Welle-3 Mitigation;
+#                              Tag-57 widening: OPEN-J1 closeout — 10-BackendDecision
+#                              manifest×pin-pack×engine.py parity)
 # ---------------------------------------------------------------------------
 #
-# Verpflichtender CI-Status-Check, der die 3-Way-Inventory-Parity
-# zwischen den drei Substraten des Phase-3b Rust-CLI 9-Binary-
-# Inventories enforcet:
+# Verpflichtender CI-Status-Check, der zwei Substrat-Parity-Verträge
+# enforcet:
 #
+# Vertrag A (Tag-32, 9-Binary-Phase-3b-Inventory):
 #   1. Cosign-Policy ............ policies/cosign-policy-phase-3b.yaml
 #   2. Quadlet-Installer ........ quadlet/wakir-rust-cli.container
 #   3. Backend-Switch Resolver .. wirelang/persona_engine/rust_backend_switch.py
+#
+# Vertrag B (Tag-57, 10-BackendDecision-Boot-Fan-Out):
+#   1. Manifest ................. wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md
+#   2. Pin-Pack ................. infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml
+#   3. engine.py-Resolver ....... wirelang/persona_engine/engine.py
+#
+# Vertrag B schließt Selin-Tag-56-Audit OPEN-J1 (Cross-substrate-
+# parity-gate green on PR). Die drei Substrate sind triple-witness
+# für die 10-Record-Boot-Fan-Out-Ordnung; jede Drift (Record
+# hinzugefügt / entfernt / umbenannt) muss laut tönen.
 #
 # Anlass: ADR-0066 Welle-3 Mitigation. Eine 2-Way-Parity-Test
 # (Cosign ↔ Quadlet) existiert bereits in
@@ -53,20 +65,36 @@ on:
     branches:
       - main
     paths:
+      # Vertrag A — 9-Binary-Phase-3b
       - "policies/cosign-policy-phase-3b.yaml"
       - "quadlet/wakir-rust-cli.container"
       - "wirelang/persona_engine/rust_backend_switch.py"
       - "tests/infra/test_cross_substrate_parity_3way.py"
       - "tests/infra/test_cosign_policy_phase_3b.py"
+      # Vertrag B — 10-BackendDecision-Boot-Fan-Out (Tag-57)
+      - "wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md"
+      - "infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml"
+      - "wirelang/persona_engine/engine.py"
+      - "wirelang/tests/persona_engine/test_manifest_0_5_2_final_pre_cutover.py"
+      - "tests/observability/test_cross_substrate_parity_gate_tag57.py"
+      # Runbook + Workflow selbst
       - "docs/operations/cross-substrate-parity-runbook.md"
       - ".github/workflows/cross-substrate-parity-gate.yml"
   pull_request:
     paths:
+      # Vertrag A — 9-Binary-Phase-3b
       - "policies/cosign-policy-phase-3b.yaml"
       - "quadlet/wakir-rust-cli.container"
       - "wirelang/persona_engine/rust_backend_switch.py"
       - "tests/infra/test_cross_substrate_parity_3way.py"
       - "tests/infra/test_cosign_policy_phase_3b.py"
+      # Vertrag B — 10-BackendDecision-Boot-Fan-Out (Tag-57)
+      - "wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md"
+      - "infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml"
+      - "wirelang/persona_engine/engine.py"
+      - "wirelang/tests/persona_engine/test_manifest_0_5_2_final_pre_cutover.py"
+      - "tests/observability/test_cross_substrate_parity_gate_tag57.py"
+      # Runbook + Workflow selbst
       - "docs/operations/cross-substrate-parity-runbook.md"
       - ".github/workflows/cross-substrate-parity-gate.yml"
   workflow_dispatch: {}
@@ -99,7 +127,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install "pytest>=8.0" "PyYAML>=6.0"
 
-      - name: Stage 1 — 3-Way Cross-Substrate Parity (hermetic)
+      - name: Stage 1 — 3-Way Cross-Substrate Parity (Vertrag A, 9-Binary)
         # Treibt die 6 hermetic Tests, die den 3-Way-Inventory-
         # Parity-Vertrag enforcen:
         #   * Test 1: 3-Way-Agreement (Cosign == Quadlet == Resolver-9)
@@ -112,6 +140,37 @@ jobs:
         #   * Test 6: Negative-Case: Synthetic-Extra-Detection.
         run: |
           python -m pytest tests/infra/test_cross_substrate_parity_3way.py -v --tb=short
+
+      - name: Stage 1b — 10-BackendDecision Manifest×Pin-Pack×engine.py Parity (Vertrag B, Tag-57)
+        # Treibt die hermetic Tag-52 Manifest-Integrity-Suite
+        # (test_manifest_0_5_2_final_pre_cutover.py, 30+ Tests). Diese
+        # Suite ist der Manifest-Side-Witness; bei Drift zwischen
+        # Manifest, Pin-Pack und engine.py-Resolver-Imports failt
+        # eine oder mehrere ihrer Assertions.
+        #
+        # Closeout-Anker: Selin Tag-56 Persona-Engine-0.5.2-final
+        # Production-Readiness-Audit OPEN-J1 ("Cross-substrate-
+        # parity-gate green on PR"). Tag-57 wires the manifest-side
+        # parity into the gate so the OPEN-J1 contract is enforced
+        # per-PR, not only via post-merge spot-checks.
+        run: |
+          python -m pytest wirelang/tests/persona_engine/test_manifest_0_5_2_final_pre_cutover.py -v --tb=short
+
+      - name: Stage 1c — Workflow-Wiring + Triple-Witness Smoke (Tag-57)
+        # Treibt den neuen tests/observability/test_cross_substrate_parity_gate_tag57.py
+        # (12 hermetic Tests), der:
+        #   * die Workflow-YAML-Pfad-Trigger byte-pint (Manifest,
+        #     Pin-Pack, engine.py müssen den Gate triggern);
+        #   * den Job-Display-Name als Required-Status-Check-Name
+        #     fix-pint (per feedback_branch_protection_check_names.md);
+        #   * die 10-BackendDecision-Triple-Witness-Konsistenz auf
+        #     Quelltext-Ebene bestätigt (canonical boot order in
+        #     Manifest §1 == Pin-Pack boot_wired_crates == engine.py
+        #     resolver imports);
+        #   * den Runbook-OPEN-J1-Closeout-Eintrag und die
+        #     Required-Status-Check-String-Dokumentation prüft.
+        run: |
+          python -m pytest tests/observability/test_cross_substrate_parity_gate_tag57.py -v --tb=short
 
       - name: Stage 2 — Inventory-Snapshot (CI-Summary diagnostic)
         # Human-readable Diagnose pro CI-Run im PR-Summary-Tab.
