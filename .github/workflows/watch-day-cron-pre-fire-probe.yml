@@ -1,0 +1,317 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase-3c Watch-Day Cron-Pre-Fire Probe - Tag-57 / Noa-SRE
+# ---------------------------------------------------------------------------
+#
+# Pre-KW-24-Cleanup adjacency to the Tag-56 CI gate
+# (`.github/workflows/phase-3c-watch-day-practice-run.yml`). The
+# Tag-56 workflow is calendar-scheduled `cron "0 5 * * 2"` -- every
+# Tuesday 05:00 UTC. KW-24 of 2026 starts 2026-06-09 (Tue), and that
+# is the first calendar fire that lands inside the live Watch-Day
+# window (KW-24..27 Tue per the Tag-54 spec
+# `docs/observability/pre-cutover-watch-day-spec.md` §4).
+#
+# Risk we close
+# -------------
+#
+# A scheduled workflow wired wrong fires silently. Three failure
+# classes specifically:
+#
+#   * Cron-expression-drift: the schedule landed as `0 5 * * 1` or
+#     `0 5 * * *` or some other value. KW-24 morning, no fire.
+#   * Path-filter-drift: the `push.paths` and `pull_request.paths`
+#     lists diverged. A PR-only landing skips the main re-pin, or
+#     a main-only landing skips the PR review-gate. The §7 verdict
+#     contract drifts unnoticed.
+#   * Routing-table-drift: §6 of the Tag-54 spec lists named-
+#     persona escalation routes (Mira-Notify push high-priority,
+#     inbox/kai/ + Mira-Notify medium, etc.). A spec edit can
+#     delete or rename a trigger; the operator finds out next
+#     Watch-Day.
+#
+# This workflow fires the three checks at PR-review time and on
+# manual dispatch, so any of the three regressions is caught
+# before KW-24 starts.
+#
+# Stages
+# ------
+#
+#   Stage A - Cron-Expression-Parse-Test
+#       Parse `schedule.cron` from the Tag-56 workflow file and
+#       assert the literal value is `0 5 * * 2`. Compute the next
+#       four firings from a hermetic reference instant and assert
+#       they cover the KW-24..27 live window of 2026.
+#
+#   Stage B - Path-Filter-Coverage-Test
+#       Parse `on.push.paths` and `on.pull_request.paths` from the
+#       Tag-56 workflow. Assert byte-identical contents and assert
+#       the seven canonical Tag-54/55/56 substrates are all
+#       present.
+#
+#   Stage C - Alert-Routing-Dry-Run
+#       Emit the resolved §6 routing-table as a JSON envelope:
+#       four Page-class routes + four Ticket-class routes. **No
+#       actual Mira-Notify event is emitted**; no NATS message,
+#       no AlertManager webhook. The dry-run validates the
+#       routing-table at code level and asserts each trigger is
+#       still mentioned by name in the Tag-54 spec.
+#
+#   Stage D - Decision-Aggregation
+#       Aggregate Stages A..C into a single tri-state CI verdict
+#       (READY / CAUTION / BLOCK). Emit a JSON envelope
+#       artifact. Exit non-zero on BLOCK only; CAUTION is a
+#       warning annotation (anti-Alert-Fatigue posture per Tag-54
+#       spec §5).
+#
+# Trigger surface
+# ---------------
+#
+#   * `workflow_dispatch:` - operator-hand manual run, e.g. before
+#     a Tag-N cleanup spawn.
+#   * `pull_request:` (path-filtered) - any PR that touches the
+#     Tag-56 workflow, the Tag-54 spec, or this probe's substrates
+#     triggers a fresh pre-fire check. This is the load-bearing
+#     trigger: it gates a Tag-56-workflow edit at review time.
+#
+# Notably **no** `push:` trigger and **no** `schedule:` trigger.
+# This probe is a review-time pre-fire check, not a calendar
+# re-pin. The Tag-56 workflow is the calendar-pinned twin.
+#
+# Sandbox boundary
+# ----------------
+#
+# Hermetic: stdlib + python 3.11. No podman, no NATS, no
+# AlertManager, no Mira-Notify emit, no live VM, no Anthropic API.
+# Reads two on-disk files (the Tag-56 workflow YAML and the Tag-54
+# spec MD) as text.
+#
+# Required status check
+# ---------------------
+#
+# Per `feedback_branch_protection_check_names.md` the required
+# status check, once promoted to a branch-protection gate, is
+# `Stage D Decision-Aggregation (READY/CAUTION/BLOCK) /
+# watch-day-cron-pre-fire-probe`. Initial landing does NOT add
+# the gate; that is a follow-up after one green run on main.
+
+name: watch-day-cron-pre-fire-probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      reference_iso:
+        description: "ISO-8601 reference instant for next-fire computation (default: 2026-06-02T05:00:01+00:00)"
+        required: false
+        default: "2026-06-02T05:00:01+00:00"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/phase-3c-watch-day-practice-run.yml"
+      - ".github/workflows/watch-day-cron-pre-fire-probe.yml"
+      - "docs/observability/pre-cutover-watch-day-spec.md"
+      - "tooling/ci/verify_watch_day_cron_pre_fire_readiness.py"
+      - "tests/observability/test_watch_day_cron_pre_fire_probe_tag57.py"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: watch-day-cron-pre-fire-probe-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  stage-a-cron-expression-parse-test:
+    name: Stage A Cron-Expression-Parse-Test (0 5 * * 2 + KW-24..27 coverage)
+    runs-on: ubuntu-latest
+    outputs:
+      stage_a_status: ${{ steps.probe.outputs.stage_a_status }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Stage A - cron expression + KW-24 coverage
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          ref="${{ github.event.inputs.reference_iso }}"
+          if [[ -z "$ref" ]]; then
+            ref="2026-06-02T05:00:01+00:00"
+          fi
+          set +e
+          python3 tooling/ci/verify_watch_day_cron_pre_fire_readiness.py \
+            --mode cron \
+            --reference-iso "$ref" \
+            --output out/stage-a-cron.json
+          rc=$?
+          set -e
+          if [[ $rc -eq 0 ]]; then
+            echo "stage_a_status=green" >> "$GITHUB_OUTPUT"
+          elif [[ $rc -eq 2 ]]; then
+            echo "stage_a_status=yellow" >> "$GITHUB_OUTPUT"
+            echo "::warning::Stage A CAUTION: cron next-fire window is not KW-24..27"
+          else
+            echo "stage_a_status=red" >> "$GITHUB_OUTPUT"
+            echo "::warning::Stage A BLOCK: cron expression drift or schedule missing"
+          fi
+      - name: Upload Stage A artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage-a-cron
+          path: out/stage-a-cron.json
+          if-no-files-found: warn
+
+  stage-b-path-filter-coverage-test:
+    name: Stage B Path-Filter-Coverage-Test (push.paths == pull_request.paths)
+    runs-on: ubuntu-latest
+    outputs:
+      stage_b_status: ${{ steps.probe.outputs.stage_b_status }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Stage B - path-filter coverage
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          set +e
+          python3 tooling/ci/verify_watch_day_cron_pre_fire_readiness.py \
+            --mode paths \
+            --output out/stage-b-paths.json
+          rc=$?
+          set -e
+          if [[ $rc -eq 0 ]]; then
+            echo "stage_b_status=green" >> "$GITHUB_OUTPUT"
+          elif [[ $rc -eq 2 ]]; then
+            echo "stage_b_status=yellow" >> "$GITHUB_OUTPUT"
+            echo "::warning::Stage B CAUTION: push.paths and pull_request.paths drift"
+          else
+            echo "stage_b_status=red" >> "$GITHUB_OUTPUT"
+            echo "::warning::Stage B BLOCK: canonical substrate missing from path-filter"
+          fi
+      - name: Upload Stage B artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage-b-paths
+          path: out/stage-b-paths.json
+          if-no-files-found: warn
+
+  stage-c-alert-routing-dry-run:
+    name: Stage C Alert-Routing-Dry-Run (P + T routes, hermetic, no emit)
+    runs-on: ubuntu-latest
+    outputs:
+      stage_c_status: ${{ steps.probe.outputs.stage_c_status }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Stage C - alert-routing dry-run
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          set +e
+          python3 tooling/ci/verify_watch_day_cron_pre_fire_readiness.py \
+            --mode routing \
+            --output out/stage-c-routing.json
+          rc=$?
+          set -e
+          if [[ $rc -eq 0 ]]; then
+            echo "stage_c_status=green" >> "$GITHUB_OUTPUT"
+          elif [[ $rc -eq 2 ]]; then
+            echo "stage_c_status=yellow" >> "$GITHUB_OUTPUT"
+            echo "::warning::Stage C CAUTION: spec-anchor drift, routing trigger no longer mentioned in spec"
+          else
+            echo "stage_c_status=red" >> "$GITHUB_OUTPUT"
+            echo "::warning::Stage C BLOCK: routing table malformed"
+          fi
+      - name: Upload Stage C artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage-c-routing
+          path: out/stage-c-routing.json
+          if-no-files-found: warn
+
+  stage-d-decision-aggregation:
+    name: Stage D Decision-Aggregation (READY/CAUTION/BLOCK)
+    runs-on: ubuntu-latest
+    needs:
+      - stage-a-cron-expression-parse-test
+      - stage-b-path-filter-coverage-test
+      - stage-c-alert-routing-dry-run
+    if: always()
+    outputs:
+      verdict: ${{ steps.aggregate.outputs.verdict }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Aggregate Stages A..C into pre-fire-probe verdict
+        id: aggregate
+        shell: bash
+        env:
+          STAGE_A: ${{ needs.stage-a-cron-expression-parse-test.outputs.stage_a_status }}
+          STAGE_B: ${{ needs.stage-b-path-filter-coverage-test.outputs.stage_b_status }}
+          STAGE_C: ${{ needs.stage-c-alert-routing-dry-run.outputs.stage_c_status }}
+        run: |
+          set -eo pipefail
+          a="${STAGE_A:-red}"
+          b="${STAGE_B:-red}"
+          c="${STAGE_C:-red}"
+          if [[ "$a" == "red" || "$b" == "red" || "$c" == "red" ]]; then
+            verdict="BLOCK"
+          elif [[ "$a" == "yellow" || "$b" == "yellow" || "$c" == "yellow" ]]; then
+            verdict="CAUTION"
+          else
+            verdict="READY"
+          fi
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          mkdir -p out
+          python3 -c "
+          import json
+          env = {
+              'schema_version': 1,
+              'tag': 57,
+              'tool': 'watch-day-cron-pre-fire-probe',
+              'verdict': '$verdict',
+              'stages': {
+                  'stage_a_cron': '$a',
+                  'stage_b_paths': '$b',
+                  'stage_c_routing': '$c',
+              },
+          }
+          with open('out/watch-day-cron-pre-fire-verdict.json', 'w') as f:
+              json.dump(env, f, indent=2, sort_keys=True)
+          "
+          {
+            echo "## Phase-3c Watch-Day Cron-Pre-Fire Probe Verdict: \`$verdict\`"
+            echo ""
+            echo "| Stage | Status |"
+            echo "|------|--------|"
+            echo "| Stage A Cron-Expression-Parse-Test | \`$a\` |"
+            echo "| Stage B Path-Filter-Coverage-Test | \`$b\` |"
+            echo "| Stage C Alert-Routing-Dry-Run | \`$c\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$verdict" == "BLOCK" ]]; then
+            echo "::error::Watch-Day cron-pre-fire-probe verdict: BLOCK"
+            exit 1
+          elif [[ "$verdict" == "CAUTION" ]]; then
+            echo "::warning::Watch-Day cron-pre-fire-probe verdict: CAUTION"
+          fi
+      - name: Upload pre-fire-verdict artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: watch-day-cron-pre-fire-verdict
+          path: out/watch-day-cron-pre-fire-verdict.json
+          if-no-files-found: warn
