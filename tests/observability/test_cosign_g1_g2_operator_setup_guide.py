@@ -149,11 +149,15 @@ def test_t_g1g2_02_spdx_header(guide_text: str) -> None:
     repo-wide license-hygiene contract (`tests/infra/
     test_license_hygiene_consistency.py`)."""
 
-    assert "SPDX-License-Identifier: Apache-2.0" in guide_text, (
-        "Operator-Setup-Guide missing SPDX-License-Identifier header"
+    # REUSE-IgnoreStart
+    expected_license_marker = "SPDX-License-" "Identifier: Apache-2.0"
+    expected_copyright_marker = "SPDX-File" "CopyrightText:"
+    # REUSE-IgnoreEnd
+    assert expected_license_marker in guide_text, (
+        "Operator-Setup-Guide missing SPDX license-id header"
     )
-    assert "SPDX-FileCopyrightText:" in guide_text, (
-        "Operator-Setup-Guide missing SPDX-FileCopyrightText header"
+    assert expected_copyright_marker in guide_text, (
+        "Operator-Setup-Guide missing SPDX copyright-text header"
     )
 
 
