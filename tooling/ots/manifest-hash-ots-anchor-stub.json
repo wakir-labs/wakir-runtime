@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "kind": "manifest-hash-ots-anchor-stub",
+  "mode": "audit-only",
+  "purpose": "Tag-57 OPEN-K2 closeout placeholder: declares the persona-engine manifest-hash OTS-anchor wiring intent without performing any actual OTS calendar call from the Sandbox. Real anchoring is Operator-Hand on a network-attached host. See docs/operations/manifest-hash-ots-anchor-wiring.md for the runbook.",
+  "wired_manifests": [
+    {
+      "name": "MANIFEST-0.5.2-final-pre-cutover",
+      "path": "wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md",
+      "anchor_request_target": "opentimestamps-calendar"
+    },
+    {
+      "name": "MANIFEST-0.5.1-pre-cutover",
+      "path": "wirelang/persona_engine/MANIFEST-0.5.1-pre-cutover.md",
+      "anchor_request_target": "opentimestamps-calendar"
+    },
+    {
+      "name": "MANIFEST-0.5.0-pre-cutover",
+      "path": "wirelang/persona_engine/MANIFEST-0.5.0-pre-cutover.md",
+      "anchor_request_target": "opentimestamps-calendar"
+    }
+  ],
+  "wat_spool": {
+    "envelope_kind": "ots-anchor-request",
+    "envelope_schema_version": 1,
+    "emit_helper": "tooling/ots/emit_manifest_hash_ots_marker.py",
+    "marker_output_dir": "tooling/ots/markers/",
+    "operator_hand_runbook": "docs/operations/manifest-hash-ots-anchor-wiring.md"
+  },
+  "sandbox_boundary": {
+    "no_network_io": true,
+    "no_ots_cli_subprocess": true,
+    "no_calendar_call": true,
+    "rationale": "claude-dev Sandbox has no host-podman-socket or outbound network for OTS calendar. Audit-only emit covers the Repo-Side intent capture; real anchoring is Operator-Hand."
+  },
+  "anchors": {
+    "adr_audit_trail": "decisions/0007-internal-audit-trail-ots.md",
+    "selin_tag_56_audit_pr": 362,
+    "tomas_tag_57_closeout_pr": null
+  }
+}

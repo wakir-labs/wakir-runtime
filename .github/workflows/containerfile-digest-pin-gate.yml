@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Containerfile Base-Image Digest-Pin Gate (Tag-57 OPEN-K1)
+# ---------------------------------------------------------
+#
+# Enforces the structural invariant that every Containerfile FROM
+# line under ``infra/`` carries an ``@sha256:<hex|allowed-placeholder>``
+# digest pin. Closes OPEN-K1 from Selin's Tag-56 0.5.2-final audit
+# (PR #362).
+#
+# The gate uses ``tooling/ci/verify_containerfile_base_image_digest.py``
+# (stdlib-only). It allows the documented placeholder tokens
+# (``DIGEST_PENDING_*_REVIEW``) because the Welle-N image-pin-rotation
+# pattern relies on them as resolve-image-pins-ci substrate. Any FROM
+# line with ``:tag`` only (no digest suffix) breaks the gate.
+
+name: containerfile-digest-pin-gate
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "infra/**/Containerfile*"
+      - "tooling/ci/verify_containerfile_base_image_digest.py"
+      - ".github/workflows/containerfile-digest-pin-gate.yml"
+  pull_request:
+    paths:
+      - "infra/**/Containerfile*"
+      - "tooling/ci/verify_containerfile_base_image_digest.py"
+      - ".github/workflows/containerfile-digest-pin-gate.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  verify-digest-pins:
+    name: verify-containerfile-base-image-digest-pins
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Verify Containerfile digest pins
+        run: |
+          python tooling/ci/verify_containerfile_base_image_digest.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --report containerfile-digest-pin-report.json
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: containerfile-digest-pin-report
+          path: containerfile-digest-pin-report.json
+          retention-days: 30
