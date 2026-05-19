@@ -619,6 +619,61 @@ def cmd_post_trigger(args: argparse.Namespace) -> int:
     return _stage_exit_code(result.status)
 
 
+def cmd_emit(args: argparse.Namespace) -> int:
+    """Tag-68 surface addition: emit a canonical workflow_dispatch
+    envelope to ``--output`` (or stdout if absent).
+
+    The Tag-67 Pre-Cutover Live-Smoke Stage 4 calls this helper as
+    ``simulate_watch_day_operator_trigger.py emit --output X`` and
+    then asserts the JSON dict has the canonical key-set
+    ``{event, workflow, ref, inputs}``. ``emit`` builds that envelope
+    via ``build_dispatch_envelope()`` so the Stage-2-trigger
+    canonical-shape contract and the Live-Smoke probe stay single-
+    sourced. No drift surface.
+
+    Exit codes:
+      0  envelope written successfully and shape-valid (green path).
+      1  internal error (cannot write to output path).
+    """
+    inputs = dict(CANONICAL_INPUTS)
+    if args.diagnostic_override is not None:
+        inputs["diagnostic"] = args.diagnostic_override
+    envelope = build_dispatch_envelope(
+        workflow=args.workflow,
+        ref=args.ref,
+        inputs=inputs,
+        actor=args.actor,
+    )
+    # Self-check: the emitted envelope must satisfy the Stage-2
+    # trigger validator. If our own canonical builder somehow
+    # produced a drifted envelope, fail fast (this catches regressions
+    # in CANONICAL_DISPATCH_KEYS vs build_dispatch_envelope drift).
+    self_check = stage_trigger(envelope)
+    if self_check.status == STAGE_RED:
+        print(
+            "::error::emit: self-check failed: "
+            + "; ".join(self_check.notes),
+            file=sys.stderr,
+        )
+        return EXIT_ERROR
+    output_path = Path(args.output) if args.output else None
+    if output_path is not None:
+        try:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(
+                json.dumps(envelope, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            print(f"::error::emit: cannot write {output_path}: {exc}", file=sys.stderr)
+            return EXIT_ERROR
+    else:
+        json.dump(envelope, sys.stdout, indent=2, sort_keys=True)
+        sys.stdout.write("\n")
+    print(f"emit: wrote canonical dispatch envelope (keys={sorted(envelope.keys())})")
+    return EXIT_OK
+
+
 def cmd_aggregate(args: argparse.Namespace) -> int:
     pre = os.environ.get("STAGE_1_STATUS", STAGE_RED)
     trigger = os.environ.get("STAGE_2_STATUS", STAGE_RED)
@@ -690,10 +745,78 @@ def build_parser() -> argparse.ArgumentParser:
     p_agg.add_argument("--output", default=None)
     p_agg.set_defaults(func=cmd_aggregate)
 
+    # Tag-68 addition: emit subcommand for Pre-Cutover Live-Smoke
+    # Stage 4. Builds the canonical workflow_dispatch envelope and
+    # writes it to --output as JSON (or stdout).
+    p_emit = subparsers.add_parser(
+        "emit",
+        help=(
+            "Tag-68: emit canonical workflow_dispatch envelope JSON "
+            "(used by Tag-67 Live-Smoke Stage 4)"
+        ),
+    )
+    p_emit.add_argument("--workflow", default=CANONICAL_WORKFLOW)
+    p_emit.add_argument("--ref", default=CANONICAL_REF)
+    p_emit.add_argument("--actor", default="mira-kessler")
+    p_emit.add_argument(
+        "--diagnostic-override",
+        default=None,
+        help="Override the diagnostic input value (default: 'true').",
+    )
+    p_emit.add_argument("--output", default=None)
+    p_emit.set_defaults(func=cmd_emit)
+
     return parser
 
 
+# Tag-68 addition: legacy --mode <name> invocation surface.
+# The Tag-67 Pre-Cutover Live-Smoke Stage 4 invokes this script as
+# `python simulate_watch_day_operator_trigger.py --mode emit --output X`,
+# i.e. with a top-level --mode flag rather than the subcommand-style
+# positional. We translate that surface to the subcommand surface to
+# avoid drift between caller-style and parser-style. Subcommand-style
+# invocations continue to work unchanged.
+_MODE_FLAG_ALIASES: dict[str, str] = {
+    "pre-trigger": "pre-trigger",
+    "trigger": "trigger",
+    "post-trigger": "post-trigger",
+    "aggregate": "aggregate",
+    "emit": "emit",
+}
+
+
+def _rewrite_mode_flag(argv: list[str]) -> list[str]:
+    """Translate '--mode <name> ...' to '<name> ...' for argparse.
+
+    If ``--mode <name>`` is the first or second token (with no
+    preceding subcommand) and ``<name>`` is a known subcommand, we
+    replace those two tokens with the bare subcommand name. This
+    keeps the helper invocable both as a subcommand-style CLI and as
+    a flag-style CLI without forking the parser.
+    """
+    if not argv:
+        return argv
+    # Find a leading '--mode <name>' pair before any subcommand token.
+    out: list[str] = list(argv)
+    for i, tok in enumerate(out):
+        if tok in _MODE_FLAG_ALIASES:
+            # Subcommand-style: nothing to do.
+            return out
+        if tok == "--mode" and i + 1 < len(out):
+            name = out[i + 1]
+            if name in _MODE_FLAG_ALIASES:
+                return out[:i] + [_MODE_FLAG_ALIASES[name]] + out[i + 2:]
+        if tok.startswith("--mode="):
+            name = tok.split("=", 1)[1]
+            if name in _MODE_FLAG_ALIASES:
+                return out[:i] + [_MODE_FLAG_ALIASES[name]] + out[i + 1:]
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+    argv = _rewrite_mode_flag(list(argv))
     parser = build_parser()
     args = parser.parse_args(argv)
     return args.func(args)
