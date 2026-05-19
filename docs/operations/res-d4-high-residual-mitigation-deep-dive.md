@@ -464,6 +464,136 @@ AR-hand action once the indefinite-deferral default is lifted by
 a re-evaluation trigger T1..T7 firing (§4.2). Until then, Tag-70
 §6.2 sits on the shelf as a planning artifact.
 
+### 6.3 HD-2 Peer-Roster substrate fixture-peer catalogue (Tag-71)
+
+Tag-71 extends §6 with a concrete, audit-only peer-roster catalogue
+and a roster-mutation event inventory for the HD-2 substrate. The
+catalogue is shipped as a stub-file at
+`tooling/audit/res-d4-hd2-peer-roster-stub.json` and the
+corresponding helper is
+`tooling/audit/prepare_res_d4_hd2_peer_roster_substrate.py`. Both
+are strictly audit-only: the helper runs in inspection mode, never
+emits a roster-mutation event, never claims a production peer-count,
+and never directs Selin's federation work-stream. The §8 sandbox-
+boundary recital applies in full, with the HD-2-specific extensions
+documented below.
+
+§6.3 is the §6.2 sibling for HD-2. §6 framed the OTS-anchor
+substrate (HD-1); §6.3 frames the peer-roster substrate (HD-2).
+§7 remains the parent peer-roster substrate section with the
+strict-interpretation invariant; §6.3 layers a concrete
+fixture-peer + fixture-frame catalogue on top of §7's framing.
+
+**Fixture-peer catalogue (three peers).** The catalogue enumerates
+exactly three fixture-peer entries that the verifier must handle
+in audit-only mode. Each entry contributes **zero** to the
+production-peer-count per the §7.1 strict-interpretation invariant.
+
+| Peer id | `kind` | Production-count contribution | Expected verifier branch | Resolver call |
+|---|---|---|---|---|
+| `fixture-peer-A` | fixture | 0 | audit-only (accept) | none |
+| `fixture-peer-B` | fixture | 0 | audit-only (accept) | none |
+| `loose-count-forbidden` | fixture | 0 | reject (strict-interpretation diagnostic) | none |
+
+The first two peers exercise the roster-snapshot shape and the
+verifier accept-path in audit-only mode. The pair `(peer-A,
+peer-B)` is deliberately the same pair as the Tag-60 federation-
+pair fixture (§7 table-row 1) — Tag-71 reuses that shape without
+modification and adds the third entry as a negative-control. The
+third entry is a fixture-peer that, if a verifier applied loose
+interpretation (counting fixtures as production), would falsely
+satisfy the literal HD-2 trigger; the verifier MUST reject this
+configuration with a `strict-interpretation` diagnostic and exit
+non-zero.
+
+**Fixture-frame catalogue (three frames).** The catalogue
+enumerates exactly three roster-snapshot frame variants that the
+verifier must handle in audit-only mode. Production-eligible
+handling (count >= 2 production peers) is deferred per §3.2
+pre-condition and §4.
+
+| Frame name | `roster_state` | Expected production count | Expected verifier branch |
+|---|---|---|---|
+| `roster-snapshot-frame--pending-production-growth` | two-fixture-peers-zero-production | 0 | audit-only (accept) |
+| `roster-snapshot-frame--single-production-insufficient` | one-production-one-fixture | 1 | audit-only (accept) |
+| `roster-snapshot-frame--loose-count-forbidden` | loose-count-attempt | 0 | reject (strict-interpretation diagnostic) |
+
+The first frame exercises the federation-zero-production state
+(today's posture). The second frame exercises the federation-
+partial-growth state (one production peer; HD-2 condition still
+pending). The third frame is the negative-control that asserts the
+verifier refuses loose-interpretation roster-snapshots; it MUST
+emit a `strict-interpretation` diagnostic and exit non-zero.
+
+**Roster-mutation event inventory (three events).** Tag-71
+documents the three roster-mutation event types that the
+audit-trail bucket `route_registry` will carry post-HD-2 clearance.
+All three default to **not-emitted-in-audit-only**. The
+`kind`-discriminator is required on every entry so the strict-
+interpretation invariant remains observable in the audit-trail.
+
+| Event name | Audit-trail bucket | Kind discriminator required | Default state |
+|---|---|---|---|
+| `roster-mutation--peer-added` | `route_registry` | yes | not-emitted-in-audit-only |
+| `roster-mutation--peer-removed` | `route_registry` | yes | not-emitted-in-audit-only |
+| `roster-mutation--kind-promoted` | `route_registry` | yes | not-emitted-in-audit-only |
+
+The `kind-promoted` event corresponds to a fixture-peer being
+re-classified as a production-active peer. This is the
+Selin-federation-handoff event: Tag-71 documents the audit-trail
+shape of the event but does NOT emit any such event from this
+helper, nor does it direct Selin to emit one. The actual
+promotion of `kind: fixture` to `kind: production` is owned by
+Selin's federation work-stream (§7 table-row 4 cross-team handoff).
+
+**Reuse-discipline.** The Tag-71 stub catalogue reuses the Tag-60
+federation-pair fixture shape (PR #382) without modification, and
+parallels the Tag-70 §6.2 HD-1 catalogue structure (three frames,
+one negative-control). Tag-71 adds three named fixture-peer
+variants and three named fixture-frame variants on top of the
+Tag-60 / Tag-70 base shape; it does not redesign the roster or the
+NATS-KV `route_registry` key-shape. Cross-anchor: Tag-60 §3 +
+Tag-67 §5.1 A2/B2/B3 + Tag-69 §3.2 + Tag-69 §7 + Tag-70 §6.2.
+
+**Strict-interpretation invariant pin-point.** The §7.1 invariant
+is the load-bearing definition for HD-2. Tag-71 §6.3 pins three
+concrete shapes that exercise the invariant:
+
+- Two-fixture-peers + zero-production → HD-2 NOT satisfied
+  (frame 1, expected production-count == 0).
+- One-production + one-fixture → HD-2 NOT satisfied (frame 2,
+  expected production-count == 1 < 2).
+- Loose-count attempt → verifier rejects with
+  `strict-interpretation` diagnostic (frame 3, peer 3).
+
+A federation that legitimately satisfies HD-2 (>= 2 production-
+active peers under strict interpretation) is **not** enumerated
+in the Tag-71 substrate, because enumerating such a configuration
+would constitute a production peer-count claim, which §6.3
+sandbox-boundary forbids.
+
+**What Tag-71 §6.3 does NOT do.** Tag-71 §6.3 is a substrate-prep
+catalogue. It does not:
+
+- Claim that the federation has any production-active peers
+  today.
+- Direct Selin's federation work-stream (§7 / Tag-67 §7.1).
+- Emit any roster-mutation event.
+- Emit a CFO ratification envelope (§3.2 mitigation strategy (d),
+  Tag-67 §5.1 B3).
+- Open an AR-authorisation request (§8.2).
+- Open a promotion-PR (§8.3).
+- Change the default `kind`-field semantics in
+  `route_registry_nats_kv_backend.py`.
+- Recommend that the RES-D4 indefinite-deferral be lifted (§4.3).
+
+The HD-2 substrate is ready to be picked up by a future
+Selin-hand action (federation production-peer growth) and a
+follow-up Reza-hand verifier-side mitigation PR once the
+indefinite-deferral default is lifted by a re-evaluation trigger
+T1..T7 firing (§4.2). Until then, Tag-71 §6.3 sits on the shelf
+as a planning artifact alongside Tag-70 §6.2.
+
 ---
 
 ## 7. Peer-Roster Substrate Preparation (Audit-Only)
@@ -601,8 +731,13 @@ is deferred to the appropriate downstream artifact.
 - Tag-69 PR #440 — RES-D4 high-residual mitigation deep-dive
   (this doc, baseline).
 - Tag-70 §6.2 — HD-1 OTS-Substrate fixture-frame catalogue
-  (audit-only, this PR; helper at
+  (audit-only, Tag-70 PR #446; helper at
   `tooling/audit/prepare_res_d4_hd1_ots_substrate.py`, stub at
   `tooling/audit/res-d4-hd1-ots-substrate-stub.json`).
+- Tag-71 §6.3 — HD-2 Peer-Roster Substrate fixture-peer +
+  fixture-frame + roster-mutation-event catalogue (audit-only,
+  this PR; helper at
+  `tooling/audit/prepare_res_d4_hd2_peer_roster_substrate.py`,
+  stub at `tooling/audit/res-d4-hd2-peer-roster-stub.json`).
 
 -- Reza
