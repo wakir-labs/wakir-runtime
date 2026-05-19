@@ -68,8 +68,11 @@ def test_t01_helper_and_workflow_exist():
     text = HELPER.read_text()
     assert "import argparse" in text
     assert "import json" in text
-    # SPDX header present
-    assert "SPDX-License-Identifier: Apache-2.0" in text
+    # SPDX header present (built via concat to avoid REUSE false-positive)
+    # REUSE-IgnoreStart
+    expected_spdx = "SPDX-License-Identifier: " + "Apache-2.0"
+    # REUSE-IgnoreEnd
+    assert expected_spdx in text
 
 
 # ---------------------------------------------------------------------------
@@ -327,11 +330,14 @@ def test_t15_workflow_permissions_minimal():
 
 
 def test_t16_helper_reuse_compliance():
+    # REUSE-IgnoreStart
+    spdx_tag = "SPDX-License-Identifier: " + "Apache-2.0"
+    # REUSE-IgnoreEnd
     text = HELPER.read_text()
-    assert "SPDX-License-Identifier: Apache-2.0" in text
+    assert spdx_tag in text
     assert "SPDX-FileCopyrightText" in text or "Copyright (c) 2026" in text
     assert "Noa Bergstroem" in text
     assert "Tag-67" in text
     workflow_text = WORKFLOW.read_text()
-    assert "SPDX-License-Identifier: Apache-2.0" in workflow_text
+    assert spdx_tag in workflow_text
     assert "Tag-67" in workflow_text

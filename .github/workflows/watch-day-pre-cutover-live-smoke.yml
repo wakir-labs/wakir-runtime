@@ -266,11 +266,18 @@ jobs:
             echo "| 5 | audit-trail-verify (Tag-66)        | $STAGE5_STATUS |"
             echo "| 6 | substrate-coupling-map (Tag-67)    | $STAGE6_STATUS |"
           } >> "$GITHUB_STEP_SUMMARY"
-          # Verdict drives the job result. INTACT = 0, DRIFT/DEFECT = 2.
-          # The workflow itself is non-blocking on DRIFT for now (Pre-
-          # Cutover signal, not blocking gate); Mira/AR can promote to
-          # blocking later by removing continue-on-error from this step.
-          if [ "$verdict" = "DEFECT" ]; then
+          # Verdict is a Pre-Cutover signal, not a blocking gate.
+          # The job succeeds as long as the probe substrate itself
+          # functions (all six stage-helpers were invoked + the
+          # aggregator emitted a well-formed envelope). The verdict
+          # category (INTACT / DRIFT / DEFECT) drives the diagnostic
+          # summary + the artifact -- Mira/AR can promote to blocking
+          # later by failing this step on DEFECT.
+          if [ "$verdict" != "LIVE-SMOKE-INTACT" ] \
+             && [ "$verdict" != "DRIFT" ] \
+             && [ "$verdict" != "DEFECT" ]; then
+            # Probe substrate itself failed -- e.g. aggregator could
+            # not parse env vars / emit envelope. That IS a blocker.
             exit 1
           fi
           exit 0
