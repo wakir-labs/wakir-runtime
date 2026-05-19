@@ -165,6 +165,24 @@
 # `.github/workflows/cutover-day-morgen-trinary-routing-validate.yml`
 # pins the label-presence and the alertname-set.
 #
+# Tag-72 Welle-4 State-Backing-Alert-Routing-Erweiterung
+# -------------------------------------------------------
+# Two additional Welle-4 alerts (appended to the welle-4-alerts
+# group) close the state-backing positive-confirmation + rollback-
+# Pfad routing gap:
+#
+#   * WakirPhase3Welle4StateBackingActive (severity=info,
+#       routing-class=welle-4-state-backing-info) -- positive-
+#       confirmation marker; AR-Hand info channel.
+#   * WakirPhase3Welle4SnapshotRestoreTriggered (severity=warning,
+#       routing-class=welle-4-state-backing-info) -- snapshot-
+#       restore rollback path; AR-Hand info channel + activity-log.
+#
+# Both carry the `routing_class: welle-4-state-backing-info` label.
+# The bridge ROUTING_CLASS_CHANNELS table is extended in Tag-72 to
+# include the new routing class -> (ntfy:ar-hand-info,
+# activity-log:append) mapping. No on-call page from this block.
+#
 # Trinary-verdict-source contract: the source of truth is the Selin
 # Tag-64 Cutover-Day-Morgen Auto-Scheduler output envelope
 # (`out/cutover-day-morgen-verdict.json`, schema_version=1, tag=64,
@@ -1107,6 +1125,122 @@ groups:
             writes if untreated.
           runbook_url: "https://wakir-labs.example/runbooks/welle-4-write-latency"
           notify_path: "ticket:sre-ops + activity-log:append"
+
+      # ---------------------------------------------------------
+      # Tag-72 Welle-4 State-Backing-Alert-Routing-Erweiterung
+      # (Noa SRE, Continuous-Mode-Marathon)
+      # ---------------------------------------------------------
+      # Two additional alarms close the Welle-4 state-backing
+      # routing gap identified during Tag-71 stability-window
+      # review. The existing Welle-4 alerts surface FAILURES
+      # (READ-FAIL, migration-ROLLBACK, write-latency excess);
+      # Tag-72 adds:
+      #
+      #   1. WakirPhase3Welle4StateBackingActive (info)
+      #      Positive-state indicator. Fires when the
+      #      state-backing tier has completed the KW-26 migration
+      #      AND is serving reads/writes on the new backing. This
+      #      is the positive-confirmation counterpart to the
+      #      WakirWelle4StateBackingMigrationRollback page alert;
+      #      it marks "state-backing is live and stable" so the
+      #      AR-Hand audit trail closes the migration epoch
+      #      without inferring success from absence-of-rollback.
+      #      Routing class `welle-4-state-backing-info` (info-only).
+      #
+      #   2. WakirPhase3Welle4SnapshotRestoreTriggered (warning)
+      #      Rollback-Pfad: snapshot-restore counter increases by
+      #      >= 1 in a 5m window. Snapshot-restore is the
+      #      manual-or-scripted recovery action that re-hydrates
+      #      the state-backing from a known-good snapshot when
+      #      the migration-rollback path is insufficient (e.g.
+      #      silent corruption past the rollback window). Warning
+      #      severity (NOT page): the trigger is human-initiated
+      #      or scheduled, but the AR-Hand must see the event
+      #      and audit-log it. Routing class
+      #      `welle-4-state-backing-info` (notify the standard
+      #      info channel + activity-log; no on-call page).
+      #
+      # Mutual exclusion contract:
+      #   active=1 AND restore=0 -> steady-state; Active fires.
+      #   active=1 AND restore=1 -> Restore fires; Active stays
+      #       silent (the active recording-rule is gated on
+      #       restore_in_progress=0 upstream).
+      #   active=0 AND restore=0 -> migration in flight; nothing
+      #       fires from this block (other Welle-4 alarms cover).
+      #
+      # Routing class `welle-4-state-backing-info` is added to
+      # the bridge ROUTING_CLASS_CHANNELS table (Tag-72) and
+      # channels to ntfy:ar-hand-info + activity-log:append.
+      - alert: WakirPhase3Welle4StateBackingActive
+        expr: |
+          (
+            wakir_welle4_state_backing_migration_complete == 1
+          )
+          and
+          (
+            wakir_welle4_state_backing_restore_in_progress == 0
+          )
+        for: 2m
+        labels:
+          severity: info
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          tag: tag-72
+          welle: welle-4
+          component: state_backing
+          kw_week: kw-26
+          topology: doppel
+          routing_class: welle-4-state-backing-info
+          mitigation: welle-4-state-backing-routing-extension
+        annotations:
+          summary: "Welle-4 state-backing live and stable (migration complete)"
+          description: >-
+            Welle-4 state-backing migration has reported complete
+            (wakir_welle4_state_backing_migration_complete == 1)
+            AND no snapshot-restore is in flight
+            (wakir_welle4_state_backing_restore_in_progress == 0)
+            for >= 2m. This is the positive-confirmation
+            counterpart to the migration-rollback page alert:
+            the KW-26 state-backing tier is serving reads/writes
+            on the new backing. AR-Hand audit-trail marker; no
+            operator action.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-4-state-backing-active"
+          notify_path: "ntfy:ar-hand-info + activity-log:append"
+
+      - alert: WakirPhase3Welle4SnapshotRestoreTriggered
+        expr: increase(wakir_welle4_state_backing_snapshot_restore_total[5m]) >= 1
+        for: 60s
+        labels:
+          severity: warning
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          tag: tag-72
+          welle: welle-4
+          component: state_backing
+          kw_week: kw-26
+          topology: doppel
+          routing_class: welle-4-state-backing-info
+          mitigation: welle-4-state-backing-routing-extension
+          rollback_path: snapshot-restore
+        annotations:
+          summary: "Welle-4 state-backing snapshot-restore triggered (rollback path)"
+          description: >-
+            wakir_welle4_state_backing_snapshot_restore_total
+            increased by {{ $value }} in the last 5m. A snapshot-
+            restore is the rollback-Pfad recovery action that
+            re-hydrates the state-backing from a known-good
+            snapshot when migration-rollback is insufficient
+            (e.g. silent corruption past the rollback window).
+            Warning severity: the trigger is human-initiated or
+            scheduled; AR-Hand must see the event for audit-log
+            closure. Cross-check with WakirWelle4StateReadFail
+            for the originating defect signature.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-4-snapshot-restore-triggered"
+          notify_path: "ntfy:ar-hand-info + activity-log:append"
 
   - name: welle-5-alerts
     interval: 30s
