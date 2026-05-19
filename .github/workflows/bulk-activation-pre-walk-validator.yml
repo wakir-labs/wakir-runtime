@@ -1,0 +1,191 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tag-62 Bulk-Activation Pre-Walk Validator
+# -----------------------------------------
+#
+# Purpose
+# =======
+#
+# Hermetic 3-stage validator that exercises the Tag-62
+# bulk-activation pre-walk recipe (`tooling/ops/bulk_activate_required_checks.sh`)
+# in --dry-run mode, parses the JSON plan envelope, and emits one of
+# two verdicts:
+#
+#   * BULK-ACTIVATION-READY    plan parses cleanly, 7-Pool target
+#                              assembled, JSON envelope shape valid
+#   * BULK-ACTIVATION-DEFECT   parse error, count mismatch, schema
+#                              shape invalid, or the planner exited
+#                              non-zero
+#
+# Sandbox boundary
+# ================
+#
+# Per ADR-0020 §10 + memory `feedback_sandbox_host_trennung.md`:
+# this workflow MUST NOT carry any branch-protection write scope.
+# Permissions are read-only. The planner shell wrapper detects $CI
+# and refuses --enforce on CI runners; this workflow only invokes
+# --dry-run (default).
+#
+# Trigger
+# =======
+#
+# workflow_dispatch only — this is a pre-walk verifier the Operator
+# runs ahead of the actual bulk-activation. It is intentionally NOT
+# wired as a pull_request gate (the 3-stage shape would block all
+# PRs on unrelated doc edits).
+
+name: bulk-activation-pre-walk-validator
+
+on:
+  workflow_dispatch:
+    inputs:
+      enforce:
+        description: 'If "true" (default), exit 1 on BULK-ACTIVATION-DEFECT.'
+        required: false
+        default: 'true'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  bulk-activation-pre-walk:
+    name: bulk-activation pre-walk validator (7-pool)
+    runs-on: ubuntu-latest
+
+    env:
+      BULK_VALIDATOR_ENFORCE: ${{ github.event.inputs.enforce || 'true' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python (stdlib-only — no pip install needed)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Sandbox-boundary assertion (defensive)
+        shell: bash
+        run: |
+          set -eu
+          # $CI must be set on hosted runners. The shell wrapper uses
+          # it to refuse --enforce. Assert here so a future CI-env
+          # change does not silently unlock the enforce path.
+          if [ -z "${CI:-}" ]; then
+            echo "::error::expected CI=true on hosted runner; sandbox-boundary detection in planner depends on it"
+            exit 1
+          fi
+          echo "CI=${CI} — sandbox-boundary contract holds for this run"
+
+      - name: Stage 1 — Run planner in --dry-run mode (human form)
+        id: dry_run
+        shell: bash
+        run: |
+          set -u
+          out="$(bash tooling/ops/bulk_activate_required_checks.sh --dry-run 2>&1)"
+          rc=$?
+          printf '%s\n' "${out}"
+          verdict="$(printf '%s\n' "${out}" | awk -F': ' '/^verdict:/ {print $2; exit}')"
+          {
+            echo "stage1_verdict=${verdict}"
+            echo "stage1_rc=${rc}"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "## Stage 1 — Dry-Run (human)"
+            echo
+            echo "**Verdict:** \`${verdict}\` (rc=${rc})"
+            echo
+            echo '```'
+            printf '%s\n' "${out}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "${rc}" -ne 0 ]; then
+            echo "::warning::planner non-zero exit in --dry-run (rc=${rc}); stage 3 will decide enforcement"
+          fi
+
+      - name: Stage 2 — Validate API-Call-Plan shape (JSON envelope)
+        id: json_shape
+        shell: bash
+        run: |
+          set -u
+          python3 tooling/ops/_bulk_activate_required_checks.py \
+            --tag59-doc docs/operations/branch-protection-required-checks-tag59.md \
+            --tag61-doc docs/operations/branch-protection-required-checks-tag61-addendum.md \
+            --json > /tmp/tag62-plan-envelope.json
+          rc=$?
+          echo "--- envelope ---"
+          cat /tmp/tag62-plan-envelope.json
+          echo "--- end envelope ---"
+
+          # Schema validation (stdlib-only, hermetic). Out-of-line
+          # script to avoid heredoc indentation traps.
+          python3 tooling/ci/validate_bulk_activation_envelope.py \
+            /tmp/tag62-plan-envelope.json
+          rc=$?
+          echo "stage2_rc=${rc}" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Stage 2 — JSON envelope shape"
+            echo
+            echo "rc=${rc}"
+            echo
+            echo '```json'
+            cat /tmp/tag62-plan-envelope.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit ${rc}
+
+      - name: Install pytest (test-suite uses unittest, but keep parity with sibling workflows)
+        run: |
+          set -eu
+          python -m pip install --upgrade pip
+          python -m pip install "pytest>=8.0"
+
+      - name: Run hermetic Tag-62 test-suite
+        run: |
+          set -eu
+          python -m pytest tests/observability/test_bulk_activation_pre_walk_recipe_tag62.py \
+            -v --tb=short
+
+      - name: Stage 3 — Verdict
+        shell: bash
+        run: |
+          set -u
+          v1="${{ steps.dry_run.outputs.stage1_verdict }}"
+          rc1="${{ steps.dry_run.outputs.stage1_rc }}"
+          rc2="${{ steps.json_shape.outputs.stage2_rc }}"
+          enforce="${BULK_VALIDATOR_ENFORCE}"
+
+          echo "stage1_verdict=${v1}"
+          echo "stage1_rc=${rc1}"
+          echo "stage2_rc=${rc2}"
+          echo "enforce=${enforce}"
+
+          if [ "${v1}" = "BULK-ACTIVATION-READY" ] && \
+             [ "${rc1}" = "0" ] && \
+             [ "${rc2}" = "0" ]; then
+            verdict="BULK-ACTIVATION-READY"
+            echo "::notice::${verdict} — Operator-Hand pre-walk gate green."
+          else
+            verdict="BULK-ACTIVATION-DEFECT"
+            echo "::error::${verdict} — planner or envelope shape failed."
+          fi
+
+          {
+            echo "## Stage 3 — Final verdict"
+            echo
+            echo "**Verdict:** \`${verdict}\`"
+            echo
+            echo "Stage 1 (dry-run): \`${v1}\` rc=${rc1}"
+            echo "Stage 2 (envelope shape): rc=${rc2}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${verdict}" = "BULK-ACTIVATION-READY" ]; then
+            exit 0
+          fi
+
+          if [ "${enforce}" = "true" ]; then
+            exit 1
+          fi
+          echo "::warning::${verdict} but enforce=false — running in audit-only mode."
+          exit 0
