@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wakir.dev/schemas/audit/res-d4-hd2-peer-roster-stub/v1",
+  "title": "RES-D4 HD-2 Peer-Roster Substrate Stub (Tag-71)",
+  "description": "Audit-only fixture catalogue for the HD-2 Peer-Roster substrate-preparation work. This file enumerates the peer-roster snapshot shape, the strict-interpretation invariant for production-active peer counting, the verifier-acceptance branches, and the cross-team handoff anchors that the Tag-71 substrate-prep work is allowed to inspect, document, and frame-test in fixture mode. It MUST NOT be interpreted as a federation peer-count claim: every enumerated peer carries 'kind: fixture' and every production-count branch is gated by the strict-interpretation invariant. See docs/operations/res-d4-high-residual-mitigation-deep-dive.md §3.2 / §6.3 / §7 / §8.",
+  "doc_form_only": true,
+  "audit_only": true,
+  "tag": "Tag-71",
+  "hard_dep": "HD-2",
+  "upstream_anchors": {
+    "tag_67_pre_mortem_anchor": "§5.1 A2+B2+B3 (peer-rotation TOCTOU + loose-count + CFO ratification envelope)",
+    "tag_65_promotion_sequencing_anchor": "§2.4 activation-trigger 'minimum two peers identified' (strict-interpretation)",
+    "tag_69_deep_dive_anchor": "§3.2 HD-2 mitigation strategy, §7 peer-roster substrate-prep, §7.1 strict-interpretation invariant",
+    "tag_70_hd_1_substrate_pr": 446,
+    "tag_69_deep_dive_pr": 440,
+    "tag_60_pre_activation_stub_pr": 382
+  },
+  "sandbox_boundary": {
+    "no_production_peer_count_claim": true,
+    "no_selin_federation_direction_emit": true,
+    "no_cfo_ratification_envelope_emit": true,
+    "no_kind_field_default_change": true,
+    "verifier_production_count_default": "strict"
+  },
+  "strict_interpretation_invariant": {
+    "minimum_two_peers": ">= 2",
+    "identified": "listed in production-active roster with kind: production",
+    "production_excludes": [
+      "test-fixture",
+      "catalogue-stub",
+      "tag-60-pre-activation-fixture"
+    ],
+    "loose_interpretation_is_failure_mode": "Tag-67 §5.1 B2"
+  },
+  "fixture_peers": [
+    {
+      "peer_id": "fixture-peer-A",
+      "kind": "fixture",
+      "purpose": "Validate the roster-snapshot shape with a fixture-peer entry. Verifier filters peer-count by 'kind == production', so this entry MUST NOT count toward the HD-2 minimum-two threshold.",
+      "expected_production_count_contribution": 0,
+      "expected_resolver_call": false,
+      "tag_60_compat": true
+    },
+    {
+      "peer_id": "fixture-peer-B",
+      "kind": "fixture",
+      "purpose": "Validate the roster-snapshot shape with a second fixture-peer entry. Pair (peer-A, peer-B) exercises the count-of-two literal trigger under strict-interpretation: count == 0 for production, even though count == 2 for fixture.",
+      "expected_production_count_contribution": 0,
+      "expected_resolver_call": false,
+      "tag_60_compat": true
+    },
+    {
+      "peer_id": "loose-count-forbidden",
+      "kind": "fixture",
+      "purpose": "Negative-control roster entry: a verifier asked to apply loose-interpretation (counting fixtures as production) MUST reject with a 'strict-interpretation' diagnostic. This frame exists to pin the B2 failure-mode mitigation in tests.",
+      "expected_production_count_contribution": 0,
+      "expected_verifier_branch": "reject",
+      "expected_resolver_call": false,
+      "tag_60_compat": true
+    }
+  ],
+  "fixture_frames": [
+    {
+      "name": "roster-snapshot-frame--pending-production-growth",
+      "kind": "fixture",
+      "roster_state": "two-fixture-peers-zero-production",
+      "purpose": "Validate the producer-side roster-snapshot frame shape when the federation has fixture peers but zero production peers. The verifier must accept this frame in audit-only mode and reject it in promotion-eligible mode.",
+      "expected_verifier_branch": "audit-only",
+      "expected_production_count": 0,
+      "expected_resolver_call": false,
+      "tag_60_compat": true
+    },
+    {
+      "name": "roster-snapshot-frame--single-production-insufficient",
+      "kind": "fixture",
+      "roster_state": "one-production-one-fixture",
+      "purpose": "Validate the producer-side roster-snapshot frame shape with one production peer and one fixture peer. The strict-interpretation invariant means production-count == 1 < 2, so HD-2 is NOT satisfied. The verifier accepts the frame in audit-only mode but the HD-2 condition remains pending.",
+      "expected_verifier_branch": "audit-only",
+      "expected_production_count": 1,
+      "expected_resolver_call": false,
+      "tag_60_compat": true
+    },
+    {
+      "name": "roster-snapshot-frame--loose-count-forbidden",
+      "kind": "fixture",
+      "roster_state": "loose-count-attempt",
+      "purpose": "Negative-control frame: a frame claiming production-count = 2 by counting fixtures. The verifier must reject this frame with a clear 'strict-interpretation' diagnostic per §7.1.",
+      "expected_verifier_branch": "reject",
+      "expected_production_count": 0,
+      "expected_resolver_call": false,
+      "tag_60_compat": true
+    }
+  ],
+  "verifier_acceptance_rules": [
+    {
+      "rule": "audit-only branch accepts roster-snapshots with kind-discriminated peer entries",
+      "tag_69_anchor": "§3.2 mitigation strategy (a)",
+      "production_count_filter": "kind == production",
+      "loose_interpretation_allowed": false
+    },
+    {
+      "rule": "promotion-eligible branch requires production_count >= 2",
+      "tag_69_anchor": "§3.2 mitigation strategy (b)",
+      "production_count_filter": "kind == production",
+      "loose_interpretation_allowed": false,
+      "selin_federation_handoff_required": true
+    },
+    {
+      "rule": "loose-interpretation roster-snapshots are rejected with 'strict-interpretation' diagnostic",
+      "tag_69_anchor": "§7.1 strict-interpretation invariant",
+      "production_count_filter": "kind == production",
+      "loose_interpretation_allowed": false
+    },
+    {
+      "rule": "roster-snapshot is read at issuance, not at verification (TOCTOU mitigation)",
+      "tag_69_anchor": "§3.2 mitigation strategy (a) — Tag-67 §5.1 A2 anchor",
+      "snapshot_timing": "issuance",
+      "loose_interpretation_allowed": false
+    }
+  ],
+  "roster_mutation_event_inventory": [
+    {
+      "event_name": "roster-mutation--peer-added",
+      "audit_trail_bucket": "route_registry",
+      "kind_discriminator_required": true,
+      "default_state": "not-emitted-in-audit-only"
+    },
+    {
+      "event_name": "roster-mutation--peer-removed",
+      "audit_trail_bucket": "route_registry",
+      "kind_discriminator_required": true,
+      "default_state": "not-emitted-in-audit-only"
+    },
+    {
+      "event_name": "roster-mutation--kind-promoted",
+      "audit_trail_bucket": "route_registry",
+      "kind_discriminator_required": true,
+      "default_state": "not-emitted-in-audit-only",
+      "selin_federation_handoff_required": true
+    }
+  ],
+  "cross_team_handoff_pointers": {
+    "selin_federation_owner_anchor": "§7 item 'Cross-team handoff to Selin' + Tag-67 §7.1 cross-team coordination mode-family",
+    "cfo_ratification_envelope_anchor": "§3.2 mitigation strategy (d) — Tag-67 §5.1 B3 anchor",
+    "audit_trail_visibility_anchor": "§7 item 'Peer-rotation audit-trail' + Tag-66 §3 (Henrik Voss audit-sample)",
+    "sandbox_boundary_recital_anchor": "§8 (this doc) + §6.1 sketch reuse-pattern"
+  },
+  "what_this_stub_is_not": [
+    "Not a production peer-count claim.",
+    "Not a draft-ADR.",
+    "Not a promotion-PR opening.",
+    "Not a direction to Selin's federation work-stream.",
+    "Not a CFO ratification envelope emit.",
+    "Not a recommendation to lift the RES-D4 indefinite-deferral default.",
+    "Not an AR-authorisation request precursor."
+  ],
+  "signature": "-- Reza"
+}
