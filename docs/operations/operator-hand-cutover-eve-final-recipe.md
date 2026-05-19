@@ -34,6 +34,7 @@ related_docs:
   - "docs/operations/phase-3c-welle-5-runbook.md"
   - "docs/operations/phase-3c-welle-6-runbook.md"
   - "docs/operations/phase-3c-welle-7-runbook.md"
+  - "docs/operations/g1-g2-last-mile-operator-checklist.md"
 related_prs:
   - "#367"
   - "#375"

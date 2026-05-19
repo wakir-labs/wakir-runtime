@@ -1,0 +1,192 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tag-70 Eve-Recipes Cross-Validation Probe
+# -----------------------------------------
+#
+# Purpose
+# =======
+#
+# Tag-66 PR #422 landed the consolidated Operator-Hand-Cutover-Eve
+# Final-Recipe at
+# `docs/operations/operator-hand-cutover-eve-final-recipe.md` (the
+# 8-day calendar plan, CEST, Eve 2026-05-29 -> T0 2026-06-08 ->
+# T0+6 2026-06-16). Tag-69 PR #441 landed the densified Last-Mile
+# Operator-Hand checklist at
+# `docs/operations/g1-g2-last-mile-operator-checklist.md` (the
+# minute-by-minute plan for the 24 h immediately before T0, UTC,
+# Su 2026-06-07 19:00 UTC -> Mo 2026-06-08 00:30 UTC).
+#
+# Both docs are doc-form-only, both are Operator-Hand-Sandbox-Gap
+# per ADR-0020 §10, and both target the same T0 calendar date
+# (2026-06-08). The Tag-69 doc is meant to be read inside the
+# Tag-66 plan (Tag-66 §2 = Eve-Day, Tag-69 = the actual Eve
+# evening; Tag-66 §3 = T0 cutover-day, Tag-69 §3 = the 30-min
+# strict-flip merge window inside T0.0-T0.1).
+#
+# This Tag-70 workflow runs a *hermetic cross-validation probe*
+# that parses both docs and confirms:
+#
+#   1. shared time-anchors (T0 = 2026-06-08; each doc's Eve-date
+#      present; Tag-69 UTC<->CEST conversion anchor present),
+#   2. shared verdict / step namespaces (Eve-E1..E12 + T0.0..T0.9
+#      named in both docs in either marker-form or heading-form),
+#   3. shared verdict roll-up terminals (Tag-66 `EVE-VERDICT-GO`
+#      + Tag-69 `EVE-VERDICT-GO-LAST-MILE`),
+#   4. shared action subjects appear in both docs (Strict-Flip-
+#      PR, Trust-Root, AR-pair, Rollback),
+#   5. sandbox-boundary disclaimer present in both intros,
+#   6. cross-reference closure (Tag-69 frontmatter lists Tag-66;
+#      Tag-66 frontmatter lists Tag-69 forward-link).
+#
+# Verdicts
+# ========
+#
+#   * `CROSS-VALIDATION-CLEAN`  - every cross-check green.
+#   * `CROSS-VALIDATION-DRIFT`  - one or more soft checks fail
+#                                 (forward-link warn).
+#   * `CROSS-VALIDATION-DEFECT` - one or more hard checks fail
+#                                 (missing time-anchor / missing
+#                                 namespace / contradiction).
+#
+# Sandbox Boundary
+# ================
+#
+# This workflow is **hermetic**:
+#
+#   * NO `gh api` calls.
+#   * NO `cosign` / `crane` / `podman` invocations.
+#   * NO network egress (the helper imports neither `socket` nor
+#     `urllib` - test #12 enforces this at the source level).
+#
+# Per ADR-0020 §10 + Memory `feedback_sandbox_host_trennung` +
+# Memory `feedback_live_bringup_sandbox_gap`. The recipe-texts
+# are parsed; no recipe step is *executed*. The Operator-Hand
+# execution remains operator-workstation work per the Tag-66 +
+# Tag-69 docs themselves.
+#
+# Trigger surface
+# ===============
+#
+#   * `push:` (path-filtered) - any edit to either recipe, the
+#     helper, the test-suite, or this workflow re-runs the probe.
+#   * `pull_request:` (same path-filter).
+#   * `workflow_dispatch:` - operator-hand manual invocation.
+
+name: eve-recipes-cross-validation-probe
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/operations/operator-hand-cutover-eve-final-recipe.md'
+      - 'docs/operations/g1-g2-last-mile-operator-checklist.md'
+      - 'tooling/ci/cross_validate_eve_recipes.py'
+      - 'tests/observability/test_eve_recipes_cross_validation_tag70.py'
+      - '.github/workflows/eve-recipes-cross-validation-probe.yml'
+  pull_request:
+    paths:
+      - 'docs/operations/operator-hand-cutover-eve-final-recipe.md'
+      - 'docs/operations/g1-g2-last-mile-operator-checklist.md'
+      - 'tooling/ci/cross_validate_eve_recipes.py'
+      - 'tests/observability/test_eve_recipes_cross_validation_tag70.py'
+      - '.github/workflows/eve-recipes-cross-validation-probe.yml'
+  workflow_dispatch:
+    inputs:
+      enforce:
+        description: 'If "true" (default), exit 1 on any DRIFT/DEFECT verdict.'
+        required: false
+        default: 'true'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  eve-recipes-cross-validation:
+    name: eve-recipes cross-validation (hermetic)
+    runs-on: ubuntu-latest
+
+    env:
+      CROSS_VALIDATION_ENFORCE: ${{ github.event.inputs.enforce || 'true' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python (stdlib-only helper)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Stage A — Cross-validation probe (human-readable)
+        id: cross-validate
+        shell: bash
+        run: |
+          set -u
+          out="$(python3 tooling/ci/cross_validate_eve_recipes.py \
+            --enforce false 2>&1)"
+          rc=$?
+          printf '%s\n' "${out}"
+          verdict="$(printf '%s\n' "${out}" | awk -F': ' '/^verdict:/ {print $2; exit}')"
+          echo "verdict=${verdict}" >> "$GITHUB_OUTPUT"
+          echo "rc=${rc}"           >> "$GITHUB_OUTPUT"
+          {
+            echo "# Tag-70 Eve-Recipes Cross-Validation Probe"
+            echo
+            echo "**Verdict:** \`${verdict}\` (rc=${rc})"
+            echo
+            echo '```'
+            printf '%s\n' "${out}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Always exit 0 here; the enforce-gate step decides the
+          # final job-status so the test-suite still runs on a
+          # non-CLEAN verdict.
+          exit 0
+
+      - name: Stage B — Machine-readable JSON envelope
+        shell: bash
+        run: |
+          set -u
+          python3 tooling/ci/cross_validate_eve_recipes.py --json \
+            --enforce false > /tmp/eve-recipes-cross-validation-envelope.json || true
+          echo "--- envelope ---"
+          cat /tmp/eve-recipes-cross-validation-envelope.json
+
+      - name: Install pytest (hermetic test-suite uses pytest fixtures)
+        run: |
+          set -eu
+          python -m pip install --upgrade pip
+          python -m pip install "pytest>=8.0"
+
+      - name: Stage C — Run Tag-70 hermetic test-suite
+        run: |
+          set -eu
+          python -m pytest tests/observability/test_eve_recipes_cross_validation_tag70.py \
+            -v --tb=short
+
+      - name: Stage D — Enforce verdict
+        shell: bash
+        run: |
+          set -u
+          verdict="${{ steps.cross-validate.outputs.verdict }}"
+          rc="${{ steps.cross-validate.outputs.rc }}"
+          enforce="${CROSS_VALIDATION_ENFORCE}"
+
+          echo "cross-validation: verdict=${verdict} rc=${rc} enforce=${enforce}"
+
+          if [ "${verdict}" = "CROSS-VALIDATION-CLEAN" ]; then
+            echo "::notice::CROSS-VALIDATION-CLEAN — both Eve-Recipes consistent."
+            exit 0
+          fi
+
+          if [ "${enforce}" = "true" ] && \
+             { [ "${verdict}" = "CROSS-VALIDATION-DRIFT" ] || \
+               [ "${verdict}" = "CROSS-VALIDATION-DEFECT" ]; }; then
+            echo "::error::${verdict} — Tag-66 ↔ Tag-69 recipe inconsistency. See job summary."
+            exit 1
+          fi
+
+          echo "::warning::${verdict} but enforce=false — running in audit-only mode."
+          exit 0
