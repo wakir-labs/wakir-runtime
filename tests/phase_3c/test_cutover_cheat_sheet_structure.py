@@ -8,7 +8,10 @@ YAML-front-matter subset by hand). Validates:
   1. File exists at the expected path under docs/phase-3c/.
   2. Has a YAML-frontmatter block opened and closed by '---'.
   3. Frontmatter contains the mandatory keys
-     (title, owner, audit, adr, status, sprint_tag, welle_count).
+     (title, owner, audit, adr, status, sprint_tag, welle_count)
+     plus Tag-54-Refresh-Anker keys (engine_anchor, spec_anchor,
+     sanity_gate_workflow, cascade_live_test_workflow,
+     marathon_cli, migration_helper).
   4. welle_count matches the seven Welle-Sections present in body.
   5. Every Welle-Section (§B..§H) declares the required sub-headings
      (Pre-Conditions, Cutover-Step, Post-Verify, Rollback-Step,
@@ -24,9 +27,17 @@ YAML-front-matter subset by hand). Validates:
      (pandoc OR markdown-pdf OR Browser-Print).
   10. All Welle-Runbook-Links resolve to existing files on disk
       (link-validity check).
-  11. Cheat-sheet body stays <= 500 lines (Auftrag-limit).
+  11. Cheat-sheet body stays <= 600 lines (Tag-54 target after
+      folding in Tag-44..53 substrates; baseline Tag-43 was 500).
+  12. Phone-a-Friend subsection present per Welle with named persona.
+  13. Tag-54-Refresh-Anker references (Engine 0.5.2-final, Spec
+      v0.4.3-freeze, Sanity-Gate PR #339, Cascade-Live-Test PR #335,
+      Migration-Helper PR #343, Marathon-CLI PR #276) all present
+      in the body.
+  14. Referenced workflow filenames and script paths actually exist
+      on disk in the repo tree.
 
-Scope (12 tests, exceeds Auftrag-Tag-43 minimum of 10)
+Scope (14 tests, exceeds Auftrag-Tag-54 minimum of 10)
 ------------------------------------------------------
 
  1. test_cheat_sheet_file_exists
@@ -39,8 +50,10 @@ Scope (12 tests, exceeds Auftrag-Tag-43 minimum of 10)
  8. test_phase_3_complete_marker_section_references_workflows
  9. test_pdf_render_section_documents_a_toolchain
 10. test_all_runbook_links_resolve_on_disk
-11. test_cheat_sheet_under_500_line_limit
+11. test_cheat_sheet_under_600_line_limit
 12. test_phone_a_friend_subsection_present_per_welle
+13. test_tag_54_refresh_anker_references_present
+14. test_referenced_workflows_and_scripts_exist
 """
 
 from __future__ import annotations
@@ -143,12 +156,23 @@ def test_frontmatter_has_mandatory_keys(
         "status",
         "sprint_tag",
         "welle_count",
+        # Tag-54 refresh-anker keys (added when folding Tag-44..53 substrates).
+        "engine_anchor",
+        "spec_anchor",
+        "sanity_gate_workflow",
+        "cascade_live_test_workflow",
+        "marathon_cli",
+        "migration_helper",
     }
     missing = mandatory - set(fm.keys())
     assert not missing, f"frontmatter missing mandatory keys: {missing}"
-    # sprint_tag must be the integer-string '43'.
-    assert fm["sprint_tag"] == "43", (
-        f"expected sprint_tag=43, got {fm['sprint_tag']!r}"
+    # Tag-54 refresh -> sprint_tag is current Tag, baseline=43 is tracked separately.
+    assert fm["sprint_tag"] == "54", (
+        f"expected sprint_tag=54, got {fm['sprint_tag']!r}"
+    )
+    assert fm.get("sprint_tag_baseline") == "43", (
+        f"expected sprint_tag_baseline=43 (Tag-43 Kai PR #281), got "
+        f"{fm.get('sprint_tag_baseline')!r}"
     )
     # welle_count must be the integer-string '7'.
     assert fm["welle_count"] == "7", (
@@ -306,13 +330,65 @@ def test_all_runbook_links_resolve_on_disk(
     )
 
 
-def test_cheat_sheet_under_500_line_limit(cheat_sheet_text: str) -> None:
+def test_cheat_sheet_under_600_line_limit(cheat_sheet_text: str) -> None:
+    """Tag-54 target: 600 lines (baseline Tag-43 was 500). The extra 100-line
+    budget covers Tag-44..53 substrate folds: Pre-Cutover-Final-Sanity-Gate,
+    AR-Hand-Stop-Cascade-Live-Test, Marathon-CLI, Migration-Helper, Engine
+    0.5.2-final-pre-cutover anchor, Spec v0.4.3-freeze."""
     line_count = cheat_sheet_text.count("\n") + (
         0 if cheat_sheet_text.endswith("\n") else 1
     )
-    assert line_count <= 500, (
-        f"cheat-sheet exceeds 500-line Auftrag-limit: {line_count} lines"
+    assert line_count <= 600, (
+        f"cheat-sheet exceeds 600-line Tag-54 target: {line_count} lines"
     )
+
+
+def test_tag_54_refresh_anker_references_present(
+    parsed: Tuple[Dict[str, str], str]
+) -> None:
+    """Tag-54 refresh must fold in Tag-44..53 substrate references."""
+    _, body = parsed
+    required = {
+        "Engine 0.5.2-final": ["0.5.2-final"],
+        "Spec v0.4.3-freeze": ["v0.4.3"],
+        "Pre-Cutover-Final-Sanity-Gate PR #339": ["#339"],
+        "AR-Hand-Stop-Cascade-Live-Test PR #335": ["#335"],
+        "Migration-Helper PR #343": ["#343"],
+        "Marathon-CLI PR #276": ["#276"],
+    }
+    missing = []
+    for label, needles in required.items():
+        if not all(n in body for n in needles):
+            missing.append(label)
+    assert not missing, (
+        f"Tag-54 refresh-anker missing references in body: {missing}"
+    )
+
+
+def test_referenced_workflows_and_scripts_exist(
+    parsed: Tuple[Dict[str, str], str]
+) -> None:
+    """Workflows + scripts referenced in cheat-sheet must exist on disk."""
+    _, body = parsed
+    repo = _repo_root()
+    paths_to_check = [
+        ".github/workflows/pre-cutover-final-sanity-gate.yml",
+        ".github/workflows/ar-hand-stop-cascade-live-test.yml",
+        ".github/workflows/phase-3-complete-marker.yml",
+        "scripts/persona-engine/migrate-0-5-1-to-0-5-2.sh",
+        "scripts/phase-3c/marathon-coordination-cli.py",
+    ]
+    missing = [p for p in paths_to_check if not (repo / p).is_file()]
+    assert not missing, (
+        f"cheat-sheet references non-existent paths on main: {missing}"
+    )
+    # Verify body actually mentions each by basename.
+    for p in paths_to_check:
+        name = Path(p).name
+        assert name in body, (
+            f"cheat-sheet body must reference filename {name!r} for "
+            f"discoverability"
+        )
 
 
 def test_phone_a_friend_subsection_present_per_welle(

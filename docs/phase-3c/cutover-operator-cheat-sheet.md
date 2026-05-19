@@ -1,17 +1,25 @@
 ---
 title: "Phase-3c Cutover-Operator-Cheat-Sheet"
-owner: "Kai Hoffmann (DevOps)"
+owner: "Tomás Reinhart (Dev-Engineering, Tag-54 refresh)"
 audit: "Henrik Voss (Internal Audit)"
-adr: "0065, 0066, 0058, 0060"
+adr: "0065, 0066, 0058, 0060, 0068"
 status: "ready-for-ar-pre-sichtung"
-sprint_tag: 43
+sprint_tag: 54
+sprint_tag_baseline: 43
 purpose: "compact quick-reference for cutover-day operator (print/side-by-side)"
-target_lines: 500
+target_lines: 600
 intended_render: "1-page-PDF (landscape, fontsize ~9pt) or 2-screen side-by-side"
 welle_count: 7
 phase_window_start: "2026-05-25"
 phase_window_end: "2026-06-29"
 phase_marathon_close: "Welle-7-Sign-Off-Green sets phase_3c_complete=true"
+engine_anchor: "persona-engine-0.5.2-final-pre-cutover (PR #336)"
+spec_anchor: "wakir-wirelang v0.4.3 pre-cutover-freeze (PR #338)"
+sanity_gate_workflow: "pre-cutover-final-sanity-gate.yml (PR #339)"
+cascade_live_test_workflow: "ar-hand-stop-cascade-live-test.yml (PR #335)"
+marathon_cli: "scripts/phase-3c/marathon-coordination-cli.py (PR #276)"
+migration_helper: "scripts/persona-engine/migrate-0-5-1-to-0-5-2.sh (PR #343)"
+refresh_log: "Tag-54 refresh by Tomás — Tag-43 baseline (Kai PR #281); folds in Tag-44..53 substrates"
 ---
 
 # Phase-3c Cutover-Operator-Cheat-Sheet
@@ -24,6 +32,17 @@ Cutover-Tag); dies hier ist Tasten-Referenz, kein Ersatz.
 **Mira-Hand-SSH-Authority** (ADR-0058 §Nachtrag) fuer alle Wellen.
 Pilot-VM: `root@192.168.178.116`. Banner: `wakir-pilot — FCOS — Phase-3b live`.
 
+**Tag-54-Refresh-Anker** (gegen Tag-43 baseline):
+
+- Engine **0.5.2-final-pre-cutover** (PR #336, Tag-52); rotation via
+  `migrate-0-5-1-to-0-5-2.sh` (PR #343, Tag-53).
+- Spec **wakir-wirelang v0.4.3-freeze** (PR #338, strict-superset / v0.4.2 PR #320).
+- **Pre-Cutover-Final-Sanity-Gate** (PR #339) Mo 05:00 UTC + Tag-41
+  Sanity-Probe 06:00 UTC -> Auto-Scheduler 07:00 (READY/CAUTION/BLOCK).
+- **AR-Hand-Stop-Cascade-Live-Test** (PR #335): E2E Marker->Detect->
+  Cascade->Cancel->Verdict.
+- **Marathon-Coordination-CLI** (PR #276): one-stop Operator-CLI.
+
 ---
 
 ## §A — Cross-Welle-Coordination-Mini-Tabelle
@@ -35,9 +54,18 @@ Pilot-VM: `root@192.168.178.116`. Banner: `wakir-pilot — FCOS — Phase-3b liv
 | 26 | 2026-06-22 (Mo) | W4 (state_backing) + W5 (lifecycle_state_machine) | parallel +Sequenz | W5-§3.1 post W4-§3.6 PRE_HASH==POST_HASH |
 | 27 | 2026-06-29 (Mo) | W6 (subscribe_loop) + W7 (recovery_workflow) | parallel +Sequenz | W7-§3 post W6-§3.6 Resume-Verify |
 
-**Hairpin-Rollback-Window:** Mi 09:00-13:00 CEST nach Cutover-Montag (Welle-3+ 4h-Slot).
-**Sign-Off-Lock:** Welle-N+1 startet nicht ohne Welle-N Sign-Off `green` ODER `green-with-yellow-notes`. Bei `yellow_henrik_hand_approval`: Henrik-Hand-Tag-Verzoegerung.
-**Phase-3c-Marathon-Ende:** ~2026-06-21 nach Welle-7-Sign-Off-Day plus Henrik-Hand-Tag.
+**Hairpin-Rollback-Window:** Mi 09:00-13:00 CEST nach Cutover-Montag.
+**Sign-Off-Lock:** Welle-N+1 startet nicht ohne Welle-N Sign-Off `green | green-with-yellow-notes`; bei `yellow_henrik_hand_approval` -> Henrik-Hand-Tag.
+**Marathon-Ende:** ~2026-06-30 (Welle-7-Sign-Off + Henrik-Hand-Tag).
+
+**Tag-54 Pre-Cutover-Day-Check** (KW-24 Mo 05:00..07:00 UTC):
+
+```bash
+gh run list --workflow=phase-3c-pre-cutover-sanity.yml --limit 1 --json conclusion       # Tag-41, 06:00 UTC
+gh run list --workflow=pre-cutover-final-sanity-gate.yml --limit 1 --json conclusion     # PR #339, 05:00 UTC
+gh run list --workflow=phase-3-cutover-day-auto-scheduler.yml --limit 1 --json conclusion # 07:00 UTC
+# Expect: all three `success` AND marathon_readiness=READY before Cutover-Start.
+```
 
 ---
 
@@ -48,10 +76,10 @@ Pilot-VM: `root@192.168.178.116`. Banner: `wakir-pilot — FCOS — Phase-3b liv
 ### Pre-Conditions (max 5)
 
 - [ ] Gate-1 Cosign-Policy-Signing-Inventar — green
-- [ ] Gate-2 Quadlet-Inventar — green
+- [ ] Gate-2 Quadlet-Inventar — green (15-Binary, Tag-48 PR #313)
 - [ ] Gate-3 Rust-Backend-Switch-Resolver wired — green
 - [ ] Welle-1-Wednesday-Validation-Run (2026-05-20) — green
-- [ ] Pilot-VM SSH erreichbar + Banner-Match
+- [ ] Pilot-VM SSH erreichbar + Banner-Match; Engine == 0.5.2-final
 
 ### Cutover-Step (copy-paste-ready)
 
@@ -148,7 +176,7 @@ echo "Rollback-Done: $(date -u +%Y-%m-%dT%H:%M:%SZ)" | tee -a /var/log/wakir/wel
 - [ ] Bridge-Audit-Konsistenz-Oracle (Cross-Modul-Stress-Aggregator) green
 - [ ] Welle-3-Wednesday-Validation-Run (2026-06-10) green + `henrik_caution_applied=true`
 - [ ] Welle-1+2-Sign-Off-Verdict `green` ODER `green-with-yellow-notes`
-- [ ] Cosign-Policy enthaelt `bridge-audit-writer` als 9. Binary
+- [ ] Cosign-Policy enthaelt `bridge-audit-writer` als 9. Binary; Wire-In Tag-48 PR #313
 - [ ] OTS-Anchor-Pipeline-Health green (Tomás-Cross-Review-Zone-C)
 
 ### Cutover-Step
@@ -391,61 +419,63 @@ echo "Rollback-Done: $(date -u +%Y-%m-%dT%H:%M:%SZ)" | tee -a /var/log/wakir/wel
 
 ## §I — AR-Hand-Stop-Marker — Operator-Trigger-Bedingungen
 
-Operator setzt **AR-Hand-Stop-Marker** und eskaliert sofort
-(Mira Stufe-0 -> Priya Stufe-1 -> AR Stufe-4 bei
-Substanz-Eskalation). **Cutover-Sequenz haltet bis Sign-Off.**
+Operator setzt **AR-Hand-Stop-Marker** und eskaliert sofort (Mira-0
+-> Priya-1 -> AR-4). **Cutover-Sequenz haltet bis Sign-Off.**
 
-1. **Cross-Modul-Drift > 0** im BackendDecision-Stream (component zeigt python trotz WAKIR_*_BACKEND=rust).
-2. **Self-Reference-Trap-Fire** (Cross-Lang-Hash-Parity-Probe produziert Python-Hash mit Rust-Backend).
-3. **OTS-Anchor-Emission-Stop** im Welle-3-Soak-Window — Bitcoin-Trail-Bruch.
-4. **POST_HASH != PRE_HASH** in Welle-4 — State-Backing-Read-Failure nach Rust-Switch.
-5. **FSM-Phantom-Transition** in Welle-5 — Transition-Counter-Delta ohne legitimes Event.
-6. **NATS-Consumer-Lag P95 > 500ms** in Welle-6 (10x baseline) — Subscribe-Loop-Drain-Failure.
-7. **Recovery-Drill R1..R4-Latency-Regression > 2x** in Welle-7 — Marathon-Closure blockiert.
-8. **Henrik-Audit-Trail-Luecke** (Bridge-Audit-Stream pausiert im Soak-Window) — IIA-1130-Risk.
-9. **Quadlet-Restart-Failure** mit Engine-Init-Loop (>3 restarts in 60s) — Container-Identity-Drift.
-10. **Mira-SSH-Authority-Loss** (Banner-Mismatch oder unerwarteter Pilot-VM-Zustand).
+1. **Cross-Modul-Drift > 0** im BackendDecision-Stream (python trotz WAKIR_*_BACKEND=rust).
+2. **Self-Reference-Trap-Fire** (Cross-Lang-Hash-Parity-Probe -> Python-Hash mit Rust-Backend).
+3. **OTS-Anchor-Emission-Stop** im Welle-3-Soak — Bitcoin-Trail-Bruch.
+4. **POST_HASH != PRE_HASH** in Welle-4 — State-Backing-Read-Failure.
+5. **FSM-Phantom-Transition** in Welle-5 — Transition-Counter-Delta ohne Event.
+6. **NATS-Consumer-Lag P95 > 500ms** in Welle-6 (10x baseline).
+7. **Pre-Cutover-Final-Sanity-Gate** (PR #339) `marathon_readiness=BLOCK` am Cutover-Morgen.
+8. **AR-Hand-Stop-Cascade-Live-Test** (PR #335) faellt durch beim Mo-night Run.
+9. **Quadlet-Restart-Failure** mit Engine-Init-Loop (Container-Identity-Drift / Image-Hash-Mismatch nach Restart).
+10. **Cosign-Verify-Fail** im Pre-Cutover-15-Binary-Live-Boot-Test (Supply-Chain-Triad-Bruch).
 
-**Marker-Setzen:** Operator-Hand schreibt
-`state/ar-hand-stop-welle-N-YYYYMMDD.json` mit
-`{"welle":N,"trigger":"<bedingung>","ts":"<utc>","operator":"mira"}`
-und pusht in `wakir-runtime/main`. Cutover-Sequenz haltet bis
-`state/ar-hand-stop-sign-off-welle-N.json` Sign-Off.
+**Marker-Setzen** (Tag-47 PR #304):
+
+```bash
+python scripts/ci/ar-hand-stop-marker-set.py --welle N --trigger "<bedingung>" --operator mira --commit --push
+# Listener (PR #304 + Cascade-Live-Test PR #335) reagiert <=2 min: Detect -> Cascade -> Cancel -> Verdict.
+```
+
+Cutover-Sequenz haltet bis `state/ar-hand-stop-sign-off-welle-N.json` im Repo.
 
 ---
 
 ## §J — Phase-3-COMPLETE-Marker — Finale Setzung
 
-Marathon-Closure ueber Tomás-Workflows (PR #258 + #266) im
+Marathon-Closure ueber Tomás-Workflows (PR #258 + PR #266) im
 `wakir-runtime`-Repo.
 
-**`phase-3-complete-marker.yml`** verifiziert konjunktiv:
+**`phase-3-complete-marker.yml`** (PR #258) verifiziert konjunktiv:
 
-- **AC-1:** 7 `state/welle-{1..7}-sign-off.json` mit `status in {green, yellow_henrik_hand_approval}`
-- **AC-2:** Aggregate-consistency — alle Welle-Validation-Workflows `success` auf `main`
-- **AC-3:** Phase-3a (15/15) + Phase-3b (9/9) + Phase-3c (7/7) Closure-Attestation
-- **AC-4:** `state/henrik-phase-3-complete-ratification.json` mit R-A1..R-A6 + `aggregate_verdict: ratified`
-- **AC-5:** `state/ar-hand-phase-3-complete-stamp.json` mit `ar_hand_ratification: true` + non-empty `ar_hand_quote`
+- **AC-1:** 7 `state/welle-{1..7}-sign-off.json` (green | yellow_henrik_hand_approval).
+- **AC-2:** Aggregate-consistency — alle Welle-Validation-Workflows `success` auf `main`.
+- **AC-3:** Phase-3a (15/15) + Phase-3b (9/9) + Phase-3c (7/7) Closure-Attestation.
+- **AC-4:** `state/henrik-phase-3-complete-ratification.json` (R-A1..R-A6, ratified).
+- **AC-5:** `state/ar-hand-phase-3-complete-stamp.json` (ar_hand_ratification:true).
 
 Nur bei ALL FIVE pass: emittiert `state/phase-3-complete-marker.json`.
 Trigger: `workflow_dispatch` (Mira-Hand) ODER `cron "0 12 * * 1"`.
+**`phase-3c-marathon-tracker-gate.yml`** (PR #266): Required-Status-Check.
 
-**`phase-3c-marathon-tracker-gate.yml`** (PR #266): Required-Status-
-Check, Pre-Condition fuer Marker-Workflow.
-
-**Operator-Setzung-Sequenz (Post-Welle-7-Sign-Off-Green):**
+**Operator-Setzung (Post-Welle-7-Sign-Off-Green):**
 
 ```bash
-# 1. Welle-7-Sign-Off-File (analog Welle-1..6) -> state/welle-7-sign-off.json
-# 2. Henrik-Hand: state/henrik-phase-3-complete-ratification.json
-# 3. AR-Hand: state/ar-hand-phase-3-complete-stamp.json
-# 4. Marker-Workflow:
+# 0. Engine-Rotation (Tag-53 PR #343), falls noch nicht passiert:
+scripts/persona-engine/migrate-0-5-1-to-0-5-2.sh pre-check && \
+  scripts/persona-engine/migrate-0-5-1-to-0-5-2.sh rotate --apply && \
+  scripts/persona-engine/migrate-0-5-1-to-0-5-2.sh post-verify
+# 1..3. Sign-Off-Files: welle-7-sign-off.json, henrik-phase-3-complete-ratification.json, ar-hand-phase-3-complete-stamp.json
+# 4. Marker:
 gh workflow run phase-3-complete-marker.yml --repo wakir-labs/wakir-runtime --ref main
-# 5. Erwartete Emission: state/phase-3-complete-marker.json
+# Emission: state/phase-3-complete-marker.json
 ```
 
-**IIA-1130:** Internal-Audit ratifiziert (AC-4); AR-Hand ratifiziert
-final (AC-5). Marker-Setzung mechanisch-exekutiv, nie bewertend.
+**IIA-1130:** Internal-Audit (AC-4); AR-Hand final (AC-5).
+Marker-Setzung mechanisch-exekutiv, nie bewertend.
 
 ---
 
@@ -453,46 +483,45 @@ final (AC-5). Marker-Setzung mechanisch-exekutiv, nie bewertend.
 
 Aus Markdown 1-Seite-PDF (Landscape, ~9pt) fuer Operator-Tisch.
 
-**Option A — pandoc (empfohlen):**
-
 ```bash
-cd /var/home/fred/AI-Corp/wakir-runtime
 pandoc docs/phase-3c/cutover-operator-cheat-sheet.md \
   -o /tmp/cutover-cheat-sheet.pdf --pdf-engine=xelatex \
-  -V geometry:landscape -V geometry:margin=8mm -V fontsize=9pt \
-  -V mainfont="DejaVu Sans" -V monofont="DejaVu Sans Mono"
+  -V geometry:landscape -V geometry:margin=8mm -V fontsize=9pt
 ```
 
-**Option B — Browser-Print:** Markdown-Preview oeffnen,
-Strg+P -> Save-as-PDF, Landscape A4, Margins=Minimum, Scale=80%.
-
-**Print-Empfehlung:** A4-Landscape, beidseitig (Welle-1+2 Front,
-Welle-3+4 Back; Welle-5+6 Front, Welle-7+§I+§J Back), laminiert.
+Alt: Browser-Print (Strg+P, Landscape A4, Margins=Minimum, Scale=80%).
+Print: A4-Landscape, beidseitig, laminiert.
 
 ---
 
-## §L — Anker-Tabelle (alle Welle-Runbooks)
+## §L — Anker-Tabelle (alle Welle-Runbooks + Tag-54 Refresh-Anker)
 
-- Welle-1: [welle-1-v907-verify-runbook.md](./welle-1-v907-verify-runbook.md)
-- Welle-2: [welle-2-svid-workload-identity-runbook.md](./welle-2-svid-workload-identity-runbook.md)
-- Welle-3: [welle-3-bridge-audit-writer-runbook.md](./welle-3-bridge-audit-writer-runbook.md)
-- Welle-4: [welle-4-state-backing-runbook.md](./welle-4-state-backing-runbook.md)
-- Welle-5: [welle-5-lifecycle-state-machine-runbook.md](./welle-5-lifecycle-state-machine-runbook.md)
-- Welle-6: [welle-6-subscribe-loop-runbook.md](./welle-6-subscribe-loop-runbook.md)
-- Welle-7: [welle-7-recovery-workflow-runbook.md](./welle-7-recovery-workflow-runbook.md)
+- W1: [welle-1-v907-verify-runbook.md](./welle-1-v907-verify-runbook.md)
+- W2: [welle-2-svid-workload-identity-runbook.md](./welle-2-svid-workload-identity-runbook.md)
+- W3: [welle-3-bridge-audit-writer-runbook.md](./welle-3-bridge-audit-writer-runbook.md)
+- W4: [welle-4-state-backing-runbook.md](./welle-4-state-backing-runbook.md)
+- W5: [welle-5-lifecycle-state-machine-runbook.md](./welle-5-lifecycle-state-machine-runbook.md)
+- W6: [welle-6-subscribe-loop-runbook.md](./welle-6-subscribe-loop-runbook.md)
+- W7: [welle-7-recovery-workflow-runbook.md](./welle-7-recovery-workflow-runbook.md)
 
-Cross-Welle: [cross-welle-generalprobe.md](./cross-welle-generalprobe.md),
-[live-vm-cutover-drill.md](./live-vm-cutover-drill.md),
-[marathon-aggregat-tracker.md](./marathon-aggregat-tracker.md).
+Cross-Welle: cross-welle-generalprobe.md, live-vm-cutover-drill.md,
+marathon-aggregat-tracker.md, marathon-coordination-cli.md.
 
-ADRs: 0065 (Cutover-Plan), 0066 (Option-A+), 0058 (Pilot-Migrations
-+SSH-Hand-Nachtrag), 0060 (Live-FCOS-VM-CI-Gate), 0068 (Status-
-Aggregator-Required-Check).
+**Tag-54 Refresh-Anker:**
+- Engine 0.5.2-final (PR #336 Selin) + rotate `migrate-0-5-1-to-0-5-2.sh` (PR #343).
+- Spec v0.4.3-freeze (PR #338 Reza).
+- `pre-cutover-final-sanity-gate.yml` (PR #339, Tag-53).
+- `ar-hand-stop-cascade-live-test.yml` (PR #335, Tag-52).
+- `marathon-coordination-cli.py` (PR #276, Tag-43).
+- `phase-3-complete-marker.yml` (PR #258) + Tracker-Gate (PR #266).
+
+ADRs: 0065 (Cutover-Plan), 0066 (Option-A+ KW-24..27), 0058 (SSH-
+Hand-Nachtrag), 0060 (Live-FCOS-CI-Gate), 0068 (Status-Aggregator).
 
 ---
 
-*Tag-43, Kai Hoffmann (DevOps). Verlinkt 7 Welle-Runbooks
-(Tag-34..39) + Live-VM-Drill (Tag-40). Hermetic-Tests:
+*Tag-54-Refresh, Tomás Reinhart. Baseline: Tag-43 Kai PR #281.
+Folds in Tag-44..53 substrates. Hermetic-Tests:
 `tests/phase_3c/test_cutover_cheat_sheet_structure.py`.*
 
-— Kai
+— Tomás
