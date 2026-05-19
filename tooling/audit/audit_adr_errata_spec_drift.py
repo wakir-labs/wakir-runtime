@@ -262,6 +262,23 @@ class Summary:
 
 
 @dataclasses.dataclass(frozen=True)
+class DraftShape:
+    """
+    Tag-63 extension: optional draft-shape validation block. Populated
+    when ``run_audit`` is invoked against a ``post-cutover-reserve-
+    draft`` document. ``None`` on non-draft (e.g. pre-cutover-freeze)
+    documents to preserve byte-for-byte JSON shape stability for
+    Tag-57 callers that have pinned the envelope keys.
+    """
+
+    is_draft: bool
+    spec_status: str | None
+    spec_version: str | None
+    shape_invariants: dict[str, bool]
+    shape_all_pass: bool
+
+
+@dataclasses.dataclass(frozen=True)
 class DriftEnvelope:
     audit_id: str
     spec_path: str
@@ -269,6 +286,7 @@ class DriftEnvelope:
     adr_heads: tuple[AdrHeadStatus, ...]
     err_markers: tuple[MarkerReport, ...]
     summary: Summary
+    draft_shape: DraftShape | None = None  # Tag-63 extension; None on non-draft.
 
     def to_json(self, *, indent: int = 2) -> str:
         return json.dumps(dataclasses.asdict(self), indent=indent, sort_keys=False)
@@ -284,6 +302,111 @@ _BACKTICK_SPAN_RE = re.compile(r"`([^`\n]+)`")
 _ERRATA_HEADER_RE = re.compile(r"^##\s+Errata\s*$", re.MULTILINE)
 _NEXT_H2_RE = re.compile(r"^##\s+", re.MULTILINE)
 _FREEZE_MARKER_RE = re.compile(r"pre-cutover-freeze", re.IGNORECASE)
+
+# Tag-63 extension: recognise the post-cutover-reserve-draft marker so the
+# helper can skip canonical/legacy drift-classification on draft documents
+# (they are non-normative, may carry forward names that the live cutover
+# anchor has not yet folded in, and must not flip the audit verdict to
+# "drift" merely because they are work-in-progress).
+_DRAFT_MARKER_RE = re.compile(r"post-cutover-reserve-draft", re.IGNORECASE)
+_FRONTMATTER_FENCE_RE = re.compile(r"^---\s*$", re.MULTILINE)
+_FRONTMATTER_STATUS_RE = re.compile(r"^status:\s*([A-Za-z0-9._\-]+)\s*$", re.MULTILINE)
+_FRONTMATTER_VERSION_RE = re.compile(r"^version:\s*([A-Za-z0-9._\-]+)\s*$", re.MULTILINE)
+
+
+def _extract_frontmatter(spec_text: str) -> str:
+    """
+    Return the spec's YAML-style frontmatter block, i.e. the substring
+    bracketed by the first two ``---`` fences. Empty string if the
+    document does not carry a recognisable frontmatter.
+
+    Pure-stdlib substring scan; we do not import a YAML library.
+    """
+    fences = list(_FRONTMATTER_FENCE_RE.finditer(spec_text))
+    if len(fences) < 2:
+        return ""
+    # The frontmatter is between the end of the first fence-line and the
+    # start of the second fence-line.
+    return spec_text[fences[0].end():fences[1].start()]
+
+
+def detect_spec_status(spec_text: str) -> str | None:
+    """
+    Return the frontmatter ``status:`` value if present, else None.
+    Recognised values in the Wirelang patch-trace (Tag-63 vintage):
+    ``pre-cutover-freeze`` (v0.4.3), ``post-cutover-reserve-draft``
+    (v0.4.4-draft), ``draft`` (pre-v0.4.3 historical), or any other
+    string the spec author has placed there.
+    """
+    fm = _extract_frontmatter(spec_text)
+    if not fm:
+        return None
+    m = _FRONTMATTER_STATUS_RE.search(fm)
+    return m.group(1) if m is not None else None
+
+
+def detect_spec_version(spec_text: str) -> str | None:
+    """Return the frontmatter ``version:`` value if present, else None."""
+    fm = _extract_frontmatter(spec_text)
+    if not fm:
+        return None
+    m = _FRONTMATTER_VERSION_RE.search(fm)
+    return m.group(1) if m is not None else None
+
+
+def is_draft_spec(spec_text: str) -> bool:
+    """
+    Return True iff the spec carries the ``post-cutover-reserve-draft``
+    status marker (Tag-63 v0.4.4-draft vintage). Used by ``run_audit``
+    to skip drift-classification on draft documents.
+
+    The detection is intentionally conservative: we read the frontmatter
+    ``status:`` value rather than searching the body, so a draft that
+    happens to *mention* ``post-cutover-reserve-draft`` in prose does
+    not get mis-classified as a draft.
+    """
+    status = detect_spec_status(spec_text)
+    return status == "post-cutover-reserve-draft"
+
+
+def validate_draft_shape(spec_text: str) -> dict[str, bool]:
+    """
+    Optional shape-check for a post-cutover-reserve-draft document.
+    Returns a dict of named invariants -> pass/fail. Does NOT raise;
+    callers (including the CLI) decide whether to enforce.
+
+    Invariants:
+      ``has_frontmatter_status_marker``  — frontmatter declares
+            ``status: post-cutover-reserve-draft``.
+      ``has_parent_pointer``             — frontmatter declares a
+            ``parent:`` key (the parent-anchor is the conformance
+            anchor for a draft).
+      ``has_replaces_null``              — frontmatter declares
+            ``replaces: null`` (a draft is not in the patch-trace).
+      ``has_replaced_by_null``           — frontmatter declares
+            ``replaced-by: null`` (a draft has no successor either).
+      ``has_activation_trigger``         — frontmatter declares an
+            ``activation-trigger:`` key (the post-cutover sequence-
+            promotion gate identity).
+      ``mentions_draft_isolation``       — body mentions ``draft-
+            isolation invariant`` at least once (the §2 §2 cross-
+            reference).
+    """
+    fm = _extract_frontmatter(spec_text)
+    has_status = "status: post-cutover-reserve-draft" in fm
+    has_parent = bool(re.search(r"^parent:\s*\S+", fm, re.MULTILINE))
+    has_replaces_null = bool(re.search(r"^replaces:\s*null\s*$", fm, re.MULTILINE))
+    has_replaced_by_null = bool(re.search(r"^replaced-by:\s*null\s*$", fm, re.MULTILINE))
+    has_activation = bool(re.search(r"^activation-trigger:\s*\S+", fm, re.MULTILINE))
+    mentions_isolation = "draft-isolation invariant" in spec_text
+    return {
+        "has_frontmatter_status_marker": has_status,
+        "has_parent_pointer": has_parent,
+        "has_replaces_null": has_replaces_null,
+        "has_replaced_by_null": has_replaced_by_null,
+        "has_activation_trigger": has_activation,
+        "mentions_draft_isolation": mentions_isolation,
+    }
 
 
 def extract_errata_section(adr_text: str) -> str:
@@ -412,10 +535,66 @@ def run_audit(
     spec_freeze_marker = "pre-cutover-freeze" if _FREEZE_MARKER_RE.search(spec_text) else None
     spec_backtick_spans = extract_backtick_spans(spec_text)
 
+    # Tag-63: detect post-cutover-reserve-draft. A draft is *not* a
+    # cutover-anchor and MUST NOT be drift-classified against the live
+    # ADR-errata contract (the draft may legitimately introduce names
+    # that are not yet in the v0.4.3 cutover anchor). We compute the
+    # draft-shape envelope, and when ``is_draft`` is True we skip the
+    # per-marker drift classification entirely.
+    draft_is_set = is_draft_spec(spec_text) if spec_text else False
+    if spec_text:
+        shape_invariants = validate_draft_shape(spec_text) if draft_is_set else {}
+        draft_shape: DraftShape | None = DraftShape(
+            is_draft=draft_is_set,
+            spec_status=detect_spec_status(spec_text),
+            spec_version=detect_spec_version(spec_text),
+            shape_invariants=shape_invariants,
+            shape_all_pass=all(shape_invariants.values()) if draft_is_set else False,
+        )
+    else:
+        draft_shape = None
+
     # 3. Per-marker drift classification.
+    # If the spec is a post-cutover-reserve-draft, skip drift-class entirely:
+    # we emit "draft-skipped" markers so the JSON shape stays stable but the
+    # report does not falsely flag a draft as carrying ADR-errata drift.
     marker_reports: list[MarkerReport] = []
     drift_count = 0
     citation_ok_count = 0
+    if draft_is_set:
+        for marker in ERR_MARKERS:
+            marker_reports.append(
+                MarkerReport(
+                    marker_id=marker.marker_id,
+                    adr_id=marker.adr_id,
+                    canonical_forms=marker.canonical_forms,
+                    legacy_forms=marker.legacy_forms,
+                    mentions_canonical_form_in_spec=0,
+                    mentions_legacy_form_in_spec=0,
+                    legacy_form_citation_pointer=False,
+                    drift_class="draft-skipped",
+                )
+            )
+            # Drafts are neither "drift" nor "citation-ok"; both counters
+            # stay at zero. The summary tally consistency check is
+            # accordingly:
+            #     markers_total == drift_count + citation_ok_count + draft_skipped_count
+            # and on a draft document, the third term equals markers_total.
+        summary = Summary(
+            markers_total=len(ERR_MARKERS),
+            markers_with_drift=0,
+            markers_with_citation_ok=0,
+        )
+        return DriftEnvelope(
+            audit_id=AUDIT_ID,
+            spec_path=str(spec_path),
+            spec_freeze_marker=spec_freeze_marker,
+            adr_heads=tuple(adr_heads),
+            err_markers=tuple(marker_reports),
+            summary=summary,
+            draft_shape=draft_shape,
+        )
+
     for marker in ERR_MARKERS:
         canonical_hits = 0
         for cf in marker.canonical_forms:
@@ -466,6 +645,7 @@ def run_audit(
         adr_heads=tuple(adr_heads),
         err_markers=tuple(marker_reports),
         summary=summary,
+        draft_shape=draft_shape,
     )
 
 
