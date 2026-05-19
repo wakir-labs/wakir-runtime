@@ -125,21 +125,42 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
+# Tag-67 sys.path bootstrap: when this helper runs as ``python
+# tooling/ci/verify_watch_day_operator_trigger_audit_trail.py`` (CLI
+# invocation, used by the workflow YAML + the Tag-66 integration
+# tests via subprocess), Python adds only the script directory to
+# ``sys.path``. The shared-constants module lives at
+# ``tooling/ci/shared/...`` and needs the *repo root* on the path
+# for ``from tooling.ci.shared import ...`` to resolve. Add it
+# idempotently before the import. Pytest test-collection already
+# inserts the repo root via repo-root ``conftest.py``, so this is a
+# no-op in that mode.
+_HERE = Path(__file__).resolve()
+_REPO_ROOT = _HERE.parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+# Tag-67 single-source-of-truth for audit-trail constants. The local
+# module-level names below are kept as aliases for the shared values
+# so this helper's behaviour and the Tag-66 test contract are
+# unchanged (additive refactor).
+from tooling.ci.shared import audit_trail_marker_constants as _shared  # noqa: E402
+
 
 # ---------------------------------------------------------------------------
-# Verdict constants (single-sourced; workflow YAML + tests rely on these)
+# Verdict constants (single-sourced; workflow YAML + tests rely on these).
+# Since Tag-67 these are sourced from
+# tooling/ci/shared/audit_trail_marker_constants.py.
 # ---------------------------------------------------------------------------
 
-VERDICT_INTACT = "AUDIT-TRAIL-INTACT"
-VERDICT_DRIFT = "AUDIT-TRAIL-DRIFT"
-VERDICT_DEFECT = "AUDIT-TRAIL-DEFECT"
+VERDICT_INTACT = _shared.WATCH_DAY_VERDICT_INTACT
+VERDICT_DRIFT = _shared.WATCH_DAY_VERDICT_DRIFT
+VERDICT_DEFECT = _shared.WATCH_DAY_VERDICT_DEFECT
 
-STAGE_GREEN = "green"
-STAGE_YELLOW = "yellow"
-STAGE_RED = "red"
-VALID_STAGE_STATUSES: frozenset[str] = frozenset(
-    {STAGE_GREEN, STAGE_YELLOW, STAGE_RED}
-)
+STAGE_GREEN = _shared.STAGE_STATUS_GREEN
+STAGE_YELLOW = _shared.STAGE_STATUS_YELLOW
+STAGE_RED = _shared.STAGE_STATUS_RED
+VALID_STAGE_STATUSES: frozenset[str] = _shared.VALID_STAGE_STATUSES
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -149,108 +170,60 @@ EXIT_CAUTION = 2
 # ---------------------------------------------------------------------------
 # Canonical audit-marker schema. Tag-62 envelope schema + audit-trail
 # overlay. The required-key set is the Tag-66 contract.
+# Since Tag-67 these primitives live in
+# tooling/ci/shared/audit_trail_marker_constants.py and are re-exported
+# here verbatim for the Tag-66 test contract.
 # ---------------------------------------------------------------------------
 
 
-CANONICAL_EVENT = "workflow_dispatch"
-CANONICAL_WORKFLOW = "phase-3c-watch-day-practice-run.yml"
-CANONICAL_REF = "refs/heads/main"
+CANONICAL_EVENT = _shared.CANONICAL_EVENT
+CANONICAL_WORKFLOW = _shared.CANONICAL_WORKFLOW
+CANONICAL_REF = _shared.CANONICAL_REF
 
 # Required keys for full Tag-66-conformant envelope.
 AUDIT_MARKER_REQUIRED_KEYS: tuple[str, ...] = (
-    "event",
-    "workflow",
-    "ref",
-    "inputs",
-    "actor",
-    "dispatched_at",
-    "audit_marker_tag",
-    "trigger_sequence_id",
+    _shared.WATCH_DAY_ENVELOPE_REQUIRED_KEYS
 )
 
 # Subset required for "envelope at least matches Tag-62 pre-audit-trail
 # shape". Missing audit-only keys downgrade to yellow, not red.
-TAG62_BASE_KEYS: tuple[str, ...] = (
-    "event",
-    "workflow",
-    "ref",
-    "inputs",
-)
+TAG62_BASE_KEYS: tuple[str, ...] = _shared.WATCH_DAY_BASE_KEYS_TAG62
 
-AUDIT_ONLY_KEYS: tuple[str, ...] = (
-    "actor",
-    "dispatched_at",
-    "audit_marker_tag",
-    "trigger_sequence_id",
-)
+AUDIT_ONLY_KEYS: tuple[str, ...] = _shared.WATCH_DAY_AUDIT_ONLY_KEYS
 
 # Audit-marker-tag pattern: "watch-day-<source>-<YYYYMMDD>-<short-hash>".
 # Example: "watch-day-operator-20260609-3bc7794"
-AUDIT_MARKER_TAG_PATTERN = re.compile(
-    r"^watch-day-(operator|ar|cron|replay)-(\d{8})-([0-9a-f]{7,12})$"
-)
+AUDIT_MARKER_TAG_PATTERN = _shared.AUDIT_MARKER_TAG_PATTERN
 
 # ISO-8601-ish dispatched_at: "YYYY-MM-DDThh:mm:ss[Z|+HH:MM]". Tolerant
 # of micro-seconds.
-DISPATCHED_AT_PATTERN = re.compile(
-    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?$"
-)
+DISPATCHED_AT_PATTERN = _shared.DISPATCHED_AT_PATTERN
 
 # trigger_sequence_id: canonical UUIDv4 string (Tag-62 simulator
 # generates these via uuid.uuid4()).
-UUID_PATTERN = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-    re.IGNORECASE,
-)
+UUID_PATTERN = _shared.UUID_PATTERN
 
 
 # ---------------------------------------------------------------------------
 # Audit-Marker-Catalog. The four source-classes enumerate every
 # legitimate trigger origin that produces an audit-trail event in
-# Phase-3 Marathon Cutover-Day. The catalog is single-sourced here;
-# downstream substrates (notify-catalog markdown, alert rules,
+# Phase-3 Marathon Cutover-Day. Since Tag-67 the catalog lives in the
+# shared module; ``MarkerClass`` here is preserved as a local alias of
+# ``MarkerSourceClass`` so the Tag-66 test contract (mod.MarkerClass,
+# mod.AUDIT_MARKER_CATALOG, mod.CATALOG_BY_SOURCE) is unchanged.
+# Downstream substrates (notify-catalog markdown, alert rules,
 # bridge ALERT_CATALOG) must reference at least one marker class.
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class MarkerClass:
-    name: str          # short label, single token, lower-kebab.
-    source: str        # tag-fragment used in audit_marker_tag.
-    description: str   # one-line operator-facing description.
-    expected_event: str  # which GitHub event-type emits this class.
+# Local alias for the shared dataclass. Both names point at the same
+# class, so isinstance() checks against either work transparently.
+MarkerClass = _shared.MarkerSourceClass
 
 
-AUDIT_MARKER_CATALOG: tuple[MarkerClass, ...] = (
-    MarkerClass(
-        name="operator-hand-dispatch",
-        source="operator",
-        description="Mira-Hand operator clicks Run workflow on Cutover-Day T0.",
-        expected_event="workflow_dispatch",
-    ),
-    MarkerClass(
-        name="ar-hand-override",
-        source="ar",
-        description="Aufsichtsrat override-flag dispatch (rare; Tag-65 AR listener).",
-        expected_event="workflow_dispatch",
-    ),
-    MarkerClass(
-        name="scheduled-cron",
-        source="cron",
-        description="Calendar-pinned cron trigger (Tag-56 watch-day, Tue 05:00 UTC).",
-        expected_event="schedule",
-    ),
-    MarkerClass(
-        name="replay-driver",
-        source="replay",
-        description="Tag-59 replay-driver re-dispatch for post-incident reconstruction.",
-        expected_event="workflow_dispatch",
-    ),
-)
+AUDIT_MARKER_CATALOG: tuple[MarkerClass, ...] = _shared.MARKER_SOURCE_CLASSES
 
-CATALOG_BY_SOURCE: dict[str, MarkerClass] = {
-    m.source: m for m in AUDIT_MARKER_CATALOG
-}
+CATALOG_BY_SOURCE: dict[str, MarkerClass] = _shared.MARKER_SOURCE_CLASSES_BY_SOURCE
 
 # Cross-substrate references the catalog must surface in. Each substrate
 # file must reference at least one marker class (by name or source
