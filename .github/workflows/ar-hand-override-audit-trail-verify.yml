@@ -1,0 +1,164 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# AR-Hand Override Audit-Trail Verifier Workflow — Tag-66 Tomás
+# -------------------------------------------------------------
+#
+# Audit-mode companion to the Tag-65 AR-Hand Cutover-Day-Morgen
+# Override-Flag Listener (PR #415,
+# `tooling/ci/ar_hand_cutover_override_listener.py`). Tag-65 wired
+# the override semantics; Tag-66 wires the verifier that proves
+# every override action produced a schema-conformant audit-trail
+# marker.
+#
+# Audit-mode
+# ----------
+#
+# This workflow is **NOT** a Required-Status-Check. It runs on:
+#   * `workflow_dispatch`            -- operator-hand on-demand replay
+#   * `pull_request` (paths-filter)  -- when a PR touches the
+#     listener or the verifier itself, the workflow runs and posts
+#     its rollup as an artifact.
+#   * `schedule` (weekly Sunday 03:00 UTC) -- scans any envelopes
+#     committed under `reports/ar-hand-override/` (operator-hand
+#     curated dossiers) so Henrik gets a weekly digest.
+#
+# It always exits zero unless the verifier itself crashes; FAIL
+# verdicts are recorded in the artifact but do not block any
+# downstream gate. Enforcement is operator-hand, mirroring
+# feedback_branch_protection_check_names.md.
+#
+# Sandbox boundary
+# ----------------
+#
+# Stdlib only on the runner side (ubuntu-latest + python 3.12).
+# No network, no podman, no gh CLI inside the verifier script.
+# REUSE-Wrap is enforced by the existing License-Hygiene Gate
+# (ADR-0061) on the verifier source file.
+#
+# Anchors
+# -------
+#
+#   * Tag-65 PR #415 (Listener).
+#   * ADR-0070 Override-Flag pattern (template in
+#     `docs/decisions/`, NOT yet migrated to AI-Corp/decisions/).
+#   * Tag-44 audit-marker pattern.
+#   * Cross-Repo Migration Helper:
+#     `docs/operations/adr-cross-repo-migration-pattern.md`.
+
+name: AR-Hand Override Audit-Trail Verify
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'tooling/ci/ar_hand_cutover_override_listener.py'
+      - 'tooling/ci/verify_ar_hand_override_audit_trail.py'
+      - 'tests/ci/test_ar_hand_override_audit_trail_tag66.py'
+      - 'reports/ar-hand-override/**'
+      - '.github/workflows/ar-hand-override-audit-trail-verify.yml'
+  workflow_dispatch:
+    inputs:
+      input_dir:
+        description: 'Directory of listener-output envelopes to scan'
+        required: false
+        type: string
+        default: 'reports/ar-hand-override'
+      allow_empty:
+        description: 'Treat zero-input as ADVISORY rather than usage error'
+        required: false
+        type: boolean
+        default: true
+  schedule:
+    # Weekly digest, Sunday 03:00 UTC -- audit-cadence aligned with
+    # Henrik's weekly Internal-Audit cron (ADR-0014).
+    - cron: '0 3 * * 0'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ar-hand-override-audit-trail-verify-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: verify-ar-hand-override-audit-trail
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Resolve input directory
+        id: resolve
+        env:
+          DISPATCH_INPUT_DIR: ${{ github.event.inputs.input_dir }}
+        run: |
+          set -euo pipefail
+          dir="${DISPATCH_INPUT_DIR:-reports/ar-hand-override}"
+          # Ensure the directory exists for --allow-empty to take effect
+          # cleanly; the verifier handles missing dirs as zero inputs.
+          mkdir -p "$dir"
+          echo "input_dir=$dir" >> "$GITHUB_OUTPUT"
+
+      - name: Run audit-trail verifier
+        id: verify
+        env:
+          INPUT_DIR: ${{ steps.resolve.outputs.input_dir }}
+        run: |
+          set -euo pipefail
+          mkdir -p reports/ar-hand-override-verify
+          python tooling/ci/verify_ar_hand_override_audit_trail.py \
+            "$INPUT_DIR" \
+            --output reports/ar-hand-override-verify/rollup.json \
+            --allow-empty \
+            | tee reports/ar-hand-override-verify/stdout.txt
+
+      - name: Summarise verdict
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -f reports/ar-hand-override-verify/rollup.json ]; then
+            python - <<'PY'
+          import json
+          import pathlib
+          p = pathlib.Path("reports/ar-hand-override-verify/rollup.json")
+          payload = json.loads(p.read_text(encoding="utf-8"))
+          print("Tag-66 AR-Hand Override Audit-Trail Verify")
+          print("-------------------------------------------")
+          print(f"verdict        : {payload['verdict']}")
+          print(f"input_count    : {payload['input_count']}")
+          print(f"pass_count     : {payload['pass_count']}")
+          print(f"advisory_count : {payload['advisory_count']}")
+          print(f"fail_count     : {payload['fail_count']}")
+          if payload.get("per_envelope"):
+              print()
+              print("Per-envelope verdicts:")
+              for e in payload["per_envelope"]:
+                  print(f"  - [{e['verdict']:<8}] {e['path']}")
+                  for v in e.get("violations", []):
+                      print(f"      ! {v}")
+                  for a in e.get("advisories", []):
+                      print(f"      ~ {a}")
+          PY
+          else
+            echo "No rollup produced; verifier may have errored out."
+          fi
+
+      - name: Upload audit-trail-verify rollup
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ar-hand-override-audit-trail-verify-rollup
+          path: reports/ar-hand-override-verify/
+          retention-days: 90
+          if-no-files-found: error

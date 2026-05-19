@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Cutover-Day-Morgen Auto-Scheduler (Selin Tag-64)
-# ------------------------------------------------
+# Cutover-Day-Morgen Auto-Scheduler (Selin Tag-64 + Tag-66 sidecar)
+# -----------------------------------------------------------------
 #
 # Mo-Fr 06:00 UTC scheduler for KW-24..27 that reads the three
 # top-level pre-cutover-acceptance verdicts the Phase-3c marathon
@@ -88,7 +88,9 @@ on:
     paths:
       - ".github/workflows/cutover-day-morgen-auto-scheduler.yml"
       - "tooling/ci/aggregate_cutover_day_morgen_verdict.py"
+      - "tooling/ci/render_cutover_day_morgen_tile.py"
       - "wirelang/tests/persona_engine/test_cutover_day_morgen_scheduler_tag64.py"
+      - "wirelang/tests/persona_engine/test_dashboard_sidecar_tag66.py"
 
 permissions:
   contents: read
@@ -264,12 +266,55 @@ jobs:
           path: out/cutover-day-morgen-verdict.json
           if-no-files-found: error
 
+      # Stage 5 -- Render Dashboard Tile + Emit Prometheus Textfile
+      # (Selin Tag-66). Sidecar-step consuming Stage-4's verdict-
+      # envelope via Noa-Tag-65 helper
+      # ``tooling/ci/render_cutover_day_morgen_tile.py``. The helper
+      # writes a Prometheus textfile-collector-shaped block that the
+      # marathon-dashboard panels (verdict-class, freshness-age,
+      # window-days-remaining, per-substrate-class) read.
+      #
+      # Hermetic / read-only:
+      # - Consumes ``out/cutover-day-morgen-verdict.json`` from
+      #   Stage 4 (no separate artifact-fetch).
+      # - Writes ``out/cutover-day-morgen-tile.prom`` for downstream
+      #   textfile-collector ingestion + best-effort renders it into
+      #   $GITHUB_STEP_SUMMARY.
+      # - Uses the Tag-64 ISO week resolved by Stage 0 as the
+      #   ``--today`` override is not set (helper defaults to UTC
+      #   today; deterministic-replay path is the test-suite).
+      # - Per ``feedback_continuous_mode_keine_push_frage.md`` and
+      #   ``feedback_sandbox_host_trennung.md`` the sidecar is
+      #   audit-only: no notify, no operator-hand fan-out.
+      - name: Stage 5 -- Render Dashboard Tile + Emit Prometheus Textfile
+        id: dashboard-tile
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p out
+          python3 tooling/ci/render_cutover_day_morgen_tile.py \
+            --envelope out/cutover-day-morgen-verdict.json \
+            --output out/cutover-day-morgen-tile.prom
+          rc=$?
+          if [[ "$rc" -ne 0 ]]; then
+            echo "tile renderer exited non-zero ($rc); sidecar audit-only -- continuing"
+          fi
+          echo "tile_path=out/cutover-day-morgen-tile.prom" >> "$GITHUB_OUTPUT"
+          echo "Dashboard tile rendered to out/cutover-day-morgen-tile.prom"
+
+      - name: Upload Cutover-Day-Morgen dashboard tile (Prometheus textfile)
+        uses: actions/upload-artifact@v4
+        with:
+          name: cutover-day-morgen-tile
+          path: out/cutover-day-morgen-tile.prom
+          if-no-files-found: error
+
       - name: Render verdict summary
         shell: bash
         run: |
           set -uo pipefail
           {
-            echo "## Cutover-Day-Morgen Auto-Scheduler (Tag-64)"
+            echo "## Cutover-Day-Morgen Auto-Scheduler (Tag-64 + Tag-66 sidecar)"
             echo ""
             echo "- ISO week: ${{ steps.week.outputs.iso_week }}"
             echo "- In KW-24..27 window: ${{ steps.week.outputs.in_window }}"
@@ -277,5 +322,11 @@ jobs:
             echo ""
             echo '```json'
             cat out/cutover-day-morgen-verdict.json
+            echo '```'
+            echo ""
+            echo "### Dashboard tile (Prometheus textfile, Tag-66)"
+            echo ""
+            echo '```'
+            cat out/cutover-day-morgen-tile.prom 2>/dev/null || echo "(tile not rendered)"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
