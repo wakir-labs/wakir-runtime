@@ -1,0 +1,466 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tag-70 Cutover-Day-T0 Integration-Smoke (Amara, Continuous-Mode)
+# ----------------------------------------------------------------
+#
+# Hermetic end-to-end simulation of the four Tag-69 substrates that
+# fire in sequence on the 2026-06-08 Welle-1-Cutover-Day (T0) Day-1
+# pipeline:
+#
+#   * Stage 1 -- Welle-1-Producer simulation (Selin Tag-69, PR #438)
+#   * Stage 2 -- Welle-1-Audit-Anchor simulation (Tomas Tag-69, PR #439)
+#   * Stage 3 -- Live-Smoke Stability-Window-Probe simulation
+#                (Noa Tag-69, PR #437)
+#   * Stage 4 -- Cutover-Day-Morgen Auto-Scheduler simulation
+#                (Selin Tag-64 + Tag-66 sidecar wiring)
+#   * Stage 5 -- Aggregate T0-INTEGRATION-INTACT / DRIFT / DEFECT
+#
+# Sandbox boundary (ADR-0034, Mira feedback_sandbox_host_trennung.md)
+# --------------------------------------------------------------------
+#
+# This workflow is hermetic. It does NOT trigger the actual T0
+# substrates via gh workflow run; it does NOT call the Persona-
+# Engine batch-writer; it does NOT touch the live-VM substrate;
+# it does NOT POST to ntfy.sh. The simulation is built from
+# stdlib-only helpers + on-disk synthetic bundles assembled inside
+# the GitHub Actions sandbox. The actual T0 trigger on
+# 2026-06-08 is operator-hand.
+#
+# Decision shape
+# --------------
+#
+# Stages emit per-stage verdict envelopes consumed by
+# tooling/ci/aggregate_cutover_day_t0_integration.py:
+#
+#   * green   -> T0-INTEGRATION-INTACT contribution
+#   * yellow  -> T0-INTEGRATION-DRIFT contribution
+#   * red     -> T0-INTEGRATION-DEFECT contribution
+#
+# Any red collapses the aggregate to T0-INTEGRATION-DEFECT.
+# Any yellow with zero red degrades to T0-INTEGRATION-DRIFT.
+# All green yields T0-INTEGRATION-INTACT.
+#
+# Trigger surface
+# ---------------
+#
+#   * workflow_dispatch -- manual probe for the marathon-team.
+#   * pull_request -- runs on changes to the workflow itself, its
+#     aggregator, or its tests.
+#   * push (path-filtered) on changes to the same trio.
+#
+# Continuous-Mode (Mira, 2026-05-19)
+# ----------------------------------
+#
+# Per feedback_continuous_mode_keine_pause_frage.md the workflow
+# runs to completion on its own without per-stage approvals; per
+# feedback_continuous_mode_keine_push_frage.md the merge of this
+# PR is part of the Tag-70 substrate-set and happens automatically
+# in the Marathon dispatch.
+#
+# Not a required status check
+# ---------------------------
+#
+# Per feedback_branch_protection_check_names.md this workflow is
+# NOT listed as a required status check. It is an integration-
+# smoke probe; the underlying Tag-69 substrate workflows
+# (welle-1-producer, welle-1-audit-anchor,
+# live-smoke-stability-window-probe, cutover-day-morgen-auto-
+# scheduler) are the substrate gates. The structural-shape tests
+# in tests/ci/test_cutover_day_t0_integration_tag70.py are the
+# gating unit on PRs that touch the smoke.
+
+name: cutover-day-t0-integration-smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      drift_inject:
+        description: "Inject DRIFT verdict on stage (none|producer|audit_anchor|live_smoke|auto_scheduler)"
+        required: false
+        default: "none"
+      defect_inject:
+        description: "Inject DEFECT verdict on stage (none|producer|audit_anchor|live_smoke|auto_scheduler)"
+        required: false
+        default: "none"
+  pull_request:
+    paths:
+      - ".github/workflows/cutover-day-t0-integration-smoke.yml"
+      - "tooling/ci/aggregate_cutover_day_t0_integration.py"
+      - "tests/ci/test_cutover_day_t0_integration_tag70.py"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/cutover-day-t0-integration-smoke.yml"
+      - "tooling/ci/aggregate_cutover_day_t0_integration.py"
+      - "tests/ci/test_cutover_day_t0_integration_tag70.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cutover-day-t0-integration-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  t0-integration-smoke:
+    name: Cutover-Day-T0 Integration-Smoke (hermetic)
+    runs-on: ubuntu-latest
+    outputs:
+      verdict: ${{ steps.aggregate.outputs.verdict }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Prepare hermetic substrate working dir
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/stages
+          mkdir -p out/aggregate
+          echo "Tag-70 T0-integration-smoke staging dirs ready."
+
+      - name: Stage 1 -- Welle-1-Producer simulation (Selin Tag-69)
+        id: stage1
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          # Hermetic producer-stage: render the canonical Welle-1
+          # state-file stub via the Tag-68 render-only helper and
+          # verify the schema-pin invariants. The output envelope
+          # carries WELLE-1-PRODUCER-READY/DRIFT/DEFECT.
+          python3 tooling/ci/render_engine_state_file_stub.py \
+            --welle 1 --kw KW-22 > out/stages/welle-1-rendered.json
+          # Stage-1 verdict construction: the stub renders the
+          # canonical pending-status; if the schema-version field
+          # matches tag-67-v1, the substrate-contract is intact.
+          schema_version=$(python3 -c "import json; print(json.load(open('out/stages/welle-1-rendered.json'))['schema_version'])")
+          welle_number=$(python3 -c "import json; print(json.load(open('out/stages/welle-1-rendered.json'))['welle_number'])")
+          status_field=$(python3 -c "import json; print(json.load(open('out/stages/welle-1-rendered.json'))['status'])")
+          verdict="WELLE-1-PRODUCER-READY"
+          if [[ "$schema_version" != "tag-67-v1" ]]; then
+            verdict="WELLE-1-PRODUCER-DEFECT"
+          fi
+          if [[ "$welle_number" != "1" ]]; then
+            verdict="WELLE-1-PRODUCER-DEFECT"
+          fi
+          if [[ "$status_field" != "pending" ]]; then
+            verdict="WELLE-1-PRODUCER-DEFECT"
+          fi
+          if [[ "${DRIFT_INJECT,,}" == "producer" ]]; then
+            verdict="WELLE-1-PRODUCER-DRIFT"
+            echo "::warning::drift_inject=producer; forced WELLE-1-PRODUCER-DRIFT"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "producer" ]]; then
+            verdict="WELLE-1-PRODUCER-DEFECT"
+            echo "::warning::defect_inject=producer; forced WELLE-1-PRODUCER-DEFECT"
+          fi
+          python3 - <<PY > out/stages/producer-verdict.json
+          import json, datetime
+          env = {
+              "schema_version": 1,
+              "stage": "welle_1_producer",
+              "tag": "tag-70",
+              "substrate": "selin-tag-69-welle-1-state-file-producer",
+              "verdict": "$verdict",
+              "rendered": json.load(open("out/stages/welle-1-rendered.json")),
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-1 producer verdict: $verdict"
+
+      - name: Stage 2 -- Welle-1-Audit-Anchor simulation (Tomas Tag-69)
+        id: stage2
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          # Hermetic audit-anchor stage: assemble a synthetic
+          # Welle-1 sign-off bundle on disk and invoke the Tomas
+          # Tag-69 wire-helper to compute the audit_trail_anchor.
+          mkdir -p out/stages/bundle
+          # Use the existing committed welle-1.json as the rollup
+          # input; synthesise the other three bundle files with
+          # deterministic placeholder contents for the smoke.
+          cp state/welle-1.json out/stages/bundle/welle-1.json
+          cat > out/stages/bundle/welle-1-sign-off.json <<JSON
+          {
+            "welle_number": 1,
+            "signoff_iso": "2026-06-08T18:00:00Z",
+            "operator": "amara-t0-smoke",
+            "schema_version": "tag-67-v1"
+          }
+          JSON
+          cat > out/stages/bundle/welle-1-validation-last-verdict.json <<JSON
+          {
+            "welle_number": 1,
+            "verdict": "WELLE-1-VALIDATION-READY",
+            "schema_version": "tag-67-v1"
+          }
+          JSON
+          cat > out/stages/bundle/welle-1-pre-auditor-decision.json <<JSON
+          {
+            "welle_number": 1,
+            "decision": "PROCEED",
+            "auditor": "henrik",
+            "schema_version": "tag-67-v1"
+          }
+          JSON
+          # Invoke the Tomas Tag-69 helper. If the helper returns
+          # non-zero or the envelope lacks a valid 64-hex anchor,
+          # the stage downgrades to DEFECT.
+          mkdir -p out/stages/markers
+          rc=0
+          python3 tooling/ci/wire_welle_1_audit_trail_anchor.py \
+            --welle-1-rollup    out/stages/bundle/welle-1.json \
+            --welle-1-sign-off  out/stages/bundle/welle-1-sign-off.json \
+            --welle-1-validation out/stages/bundle/welle-1-validation-last-verdict.json \
+            --welle-1-pre-auditor out/stages/bundle/welle-1-pre-auditor-decision.json \
+            --envelope-out out/stages/markers/welle-1-audit-anchor.json \
+            || rc=$?
+          verdict="WELLE-1-AUDIT-ANCHOR-READY"
+          if [[ "$rc" != "0" ]]; then
+            verdict="WELLE-1-AUDIT-ANCHOR-DEFECT"
+          else
+            anchor=$(python3 -c "import json; print(json.load(open('out/stages/markers/welle-1-audit-anchor.json'))['audit_trail_anchor'])" 2>/dev/null || echo "")
+            if [[ ! "$anchor" =~ ^[0-9a-f]{64}$ ]]; then
+              verdict="WELLE-1-AUDIT-ANCHOR-DEFECT"
+            fi
+          fi
+          if [[ "${DRIFT_INJECT,,}" == "audit_anchor" ]]; then
+            verdict="WELLE-1-AUDIT-ANCHOR-DRIFT"
+            echo "::warning::drift_inject=audit_anchor; forced WELLE-1-AUDIT-ANCHOR-DRIFT"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "audit_anchor" ]]; then
+            verdict="WELLE-1-AUDIT-ANCHOR-DEFECT"
+            echo "::warning::defect_inject=audit_anchor; forced WELLE-1-AUDIT-ANCHOR-DEFECT"
+          fi
+          python3 - <<PY > out/stages/audit-anchor-verdict.json
+          import json, datetime, os
+          marker_path = "out/stages/markers/welle-1-audit-anchor.json"
+          marker = None
+          if os.path.exists(marker_path):
+              try:
+                  marker = json.load(open(marker_path))
+              except Exception:
+                  marker = None
+          env = {
+              "schema_version": 1,
+              "stage": "welle_1_audit_anchor",
+              "tag": "tag-70",
+              "substrate": "tomas-tag-69-welle-1-audit-trail-anchor",
+              "verdict": "$verdict",
+              "marker": marker,
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-2 audit-anchor verdict: $verdict"
+
+      - name: Stage 3 -- Live-Smoke Stability-Window-Probe simulation (Noa Tag-69)
+        id: stage3
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          # Hermetic live-smoke stage: synthesise three trinary
+          # daily verdicts representing the 3-day stability window
+          # leading into T0. All three READY -> stage-green;
+          # exactly one DRIFT -> stage-yellow; any DEFECT or two+
+          # DRIFTs -> stage-red.
+          d1="READY"; d2="READY"; d3="READY"
+          if [[ "${DRIFT_INJECT,,}" == "live_smoke" ]]; then
+            d2="DRIFT"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "live_smoke" ]]; then
+            d2="DEFECT"
+          fi
+          # Count signals.
+          verdict="LIVE-SMOKE-STABILITY-WINDOW-READY"
+          drifts=0
+          defects=0
+          for d in "$d1" "$d2" "$d3"; do
+            case "$d" in
+              DRIFT) drifts=$((drifts+1)) ;;
+              DEFECT) defects=$((defects+1)) ;;
+            esac
+          done
+          if [[ "$defects" -ge 1 || "$drifts" -ge 2 ]]; then
+            verdict="LIVE-SMOKE-STABILITY-WINDOW-DEFECT"
+          elif [[ "$drifts" -eq 1 ]]; then
+            verdict="LIVE-SMOKE-STABILITY-WINDOW-DRIFT"
+          fi
+          python3 - <<PY > out/stages/live-smoke-verdict.json
+          import json, datetime
+          env = {
+              "schema_version": 1,
+              "stage": "live_smoke_stability_window",
+              "tag": "tag-70",
+              "substrate": "noa-tag-69-live-smoke-stability-window-probe",
+              "verdict": "$verdict",
+              "window_days": {
+                  "d_minus_2": "$d1",
+                  "d_minus_1": "$d2",
+                  "d_zero": "$d3",
+              },
+              "drift_count": $drifts,
+              "defect_count": $defects,
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-3 live-smoke verdict: $verdict"
+
+      - name: Stage 4 -- Auto-Scheduler simulation (Selin Tag-64 + Tag-66 sidecar)
+        id: stage4
+        shell: bash
+        env:
+          DRIFT_INJECT: ${{ inputs.drift_inject }}
+          DEFECT_INJECT: ${{ inputs.defect_inject }}
+        run: |
+          set -euo pipefail
+          # Hermetic auto-scheduler stage: assemble the three
+          # top-level input verdicts the Tag-64 aggregator
+          # consumes (engine_composite, pyramide_composite,
+          # e2e_smoke) with synthetic READY values, then invoke
+          # the aggregator. The aggregator's verdict directly
+          # maps to the Tag-70 auto-scheduler-stage verdict.
+          mkdir -p out/stages/auto-scheduler-input
+          eng="PRE-CUTOVER-READY"
+          pyr="ACCEPTANCE-PYRAMIDE-READY"
+          e2e="E2E-READY"
+          if [[ "${DRIFT_INJECT,,}" == "auto_scheduler" ]]; then
+            pyr="ACCEPTANCE-PYRAMIDE-DRIFT"
+          fi
+          if [[ "${DEFECT_INJECT,,}" == "auto_scheduler" ]]; then
+            e2e="E2E-DEFECT"
+          fi
+          python3 - <<PY > out/stages/auto-scheduler-input/engine.json
+          import json
+          print(json.dumps({"verdict": "$eng"}))
+          PY
+          python3 - <<PY > out/stages/auto-scheduler-input/pyramide.json
+          import json
+          print(json.dumps({"verdict": "$pyr"}))
+          PY
+          python3 - <<PY > out/stages/auto-scheduler-input/e2e.json
+          import json
+          print(json.dumps({"verdict": "$e2e"}))
+          PY
+          python3 tooling/ci/aggregate_cutover_day_morgen_verdict.py \
+            --engine-envelope    out/stages/auto-scheduler-input/engine.json \
+            --pyramide-envelope  out/stages/auto-scheduler-input/pyramide.json \
+            --e2e-envelope       out/stages/auto-scheduler-input/e2e.json \
+            --iso-week 24 \
+            --output             out/stages/auto-scheduler-aggregate.json
+          inner_verdict=$(python3 -c "import json; print(json.load(open('out/stages/auto-scheduler-aggregate.json'))['verdict'])")
+          # Map inner Tag-64 verdict onto the Tag-70 stage verdict
+          # surface. The aggregator helper consumes Tag-64
+          # verdict strings directly via AUTO_SCHEDULER_VERDICT_MAP,
+          # so we surface the inner verdict verbatim here.
+          python3 - <<PY > out/stages/auto-scheduler-verdict.json
+          import json, datetime
+          inner = json.load(open("out/stages/auto-scheduler-aggregate.json"))
+          env = {
+              "schema_version": 1,
+              "stage": "auto_scheduler",
+              "tag": "tag-70",
+              "substrate": "selin-tag-64-tag-66-cutover-day-morgen-auto-scheduler",
+              "verdict": inner["verdict"],
+              "inner_aggregate": inner,
+              "emitted_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+          }
+          print(json.dumps(env, indent=2, sort_keys=True))
+          PY
+          echo "verdict=$inner_verdict" >> "$GITHUB_OUTPUT"
+          echo "Stage-4 auto-scheduler verdict: $inner_verdict"
+
+      - name: Stage 5 -- Aggregate T0-INTEGRATION verdict
+        id: aggregate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tooling/ci/aggregate_cutover_day_t0_integration.py \
+            --producer-envelope       out/stages/producer-verdict.json \
+            --audit-anchor-envelope   out/stages/audit-anchor-verdict.json \
+            --live-smoke-envelope     out/stages/live-smoke-verdict.json \
+            --auto-scheduler-envelope out/stages/auto-scheduler-verdict.json \
+            --iso-week 24 \
+            --github-run-id "${GITHUB_RUN_ID:-}" \
+            --github-sha    "${GITHUB_SHA:-}" \
+            --github-ref    "${GITHUB_REF:-}" \
+            --output        out/aggregate/t0-integration-verdict.json
+          verdict=$(python3 -c "import json; print(json.load(open('out/aggregate/t0-integration-verdict.json'))['verdict'])")
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Tag-70 Cutover-Day-T0 Integration-Smoke"
+            echo ""
+            echo "**Aggregated verdict:** \`$verdict\`"
+            echo ""
+            echo "**Per-stage verdicts:**"
+            echo ""
+            echo "- Stage 1 (Welle-1-Producer, Selin Tag-69): \`${{ steps.stage1.outputs.verdict }}\`"
+            echo "- Stage 2 (Welle-1-Audit-Anchor, Tomas Tag-69): \`${{ steps.stage2.outputs.verdict }}\`"
+            echo "- Stage 3 (Live-Smoke-Stability-Window, Noa Tag-69): \`${{ steps.stage3.outputs.verdict }}\`"
+            echo "- Stage 4 (Auto-Scheduler, Selin Tag-64+66): \`${{ steps.stage4.outputs.verdict }}\`"
+            echo ""
+            echo "<details><summary>T0-Integration envelope JSON</summary>"
+            echo ""
+            echo '```json'
+            cat out/aggregate/t0-integration-verdict.json
+            echo '```'
+            echo ""
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload T0-integration verdict envelope
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cutover-day-t0-integration-verdict
+          path: out/aggregate/t0-integration-verdict.json
+          if-no-files-found: warn
+
+      - name: Upload per-stage envelopes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cutover-day-t0-integration-stages
+          path: out/stages/
+          if-no-files-found: warn
+
+      - name: Terminal-status gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          verdict="${{ steps.aggregate.outputs.verdict }}"
+          case "$verdict" in
+            T0-INTEGRATION-INTACT)
+              echo "Tag-70 T0-integration-smoke INTACT"
+              ;;
+            T0-INTEGRATION-DRIFT)
+              echo "::warning::Tag-70 T0-integration-smoke DRIFT (operator-hand reads per-stage notes)"
+              ;;
+            T0-INTEGRATION-DEFECT)
+              echo "::error::Tag-70 T0-integration-smoke DEFECT (substrate contract break)"
+              exit 1
+              ;;
+            *)
+              echo "::error::unknown verdict: $verdict"
+              exit 1
+              ;;
+          esac
