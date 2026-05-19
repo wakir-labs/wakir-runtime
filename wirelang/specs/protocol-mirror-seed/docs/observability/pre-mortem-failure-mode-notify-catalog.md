@@ -177,7 +177,9 @@ changes are slower-moving than event-stream rates.
 | `ntfy:ar-hand` | ntfy.sh topic (encrypted) | AR-Hand attention, non-immediate |
 | `ntfy:ar-hand-info` | ntfy.sh topic (encrypted) | AR-Hand information surface, governance |
 | `ticket:sre-ops` | JIRA-style ops ticket queue | Non-paging operational follow-up (Tag-50 ticket-severity Welle alarms) |
+| `pagerduty:management` | PagerDuty service (management escalation channel) | Tag-64 BLOCK-verdict storm-page co-target alongside sre-oncall |
 | `activity-log:append` | Local file `activity-log.md` append-only | Audit trail for Henrik |
+| `activity-log:hold-marker` | Local file `activity-log.md` append-only with `HOLD-MARKER:` prefix | Mira-Hand-Hold-Marker for Tag-64 trinary-routing BLOCK verdicts; AR-Hand re-deliberation trigger if not acknowledged within 5 minutes |
 | `henrik-iia-1130-trigger` | Internal-audit-workflow (webhook to Henrik inbox) | IIA-1130 policy enforcement marker |
 | `henrik-audit-trail` | Internal-audit-workflow | Standard audit-trail item |
 | `henrik-marker-audit` | Internal-audit-workflow | Phase-3-COMPLETE marker-audit-trail item |
