@@ -399,6 +399,71 @@ This sketch is intentionally not formatted as a draft-ADR or a
 draft-decision-doc. It is a planning artifact for an event that
 may never occur (per §4.3).
 
+### 6.2 HD-1 OTS-Substrate fixture-frame catalogue (Tag-70)
+
+Tag-70 extends §6 with a concrete, audit-only fixture-frame
+catalogue and an ENV-flag inventory for the HD-1 substrate. The
+catalogue is shipped as a stub-file at
+`tooling/audit/res-d4-hd1-ots-substrate-stub.json` and the
+corresponding helper is
+`tooling/audit/prepare_res_d4_hd1_ots_substrate.py`. Both are
+strictly audit-only: the helper runs in inspection mode, never
+calls a live OTS calendar, and never sets the `WAKIR_OTS_LIVE_EMIT`
+ENV-flag to `1`. The §8 sandbox-boundary recital applies in full.
+
+**Fixture-frame catalogue (three frames).** The catalogue
+enumerates exactly three fixture-frame variants that the verifier
+must handle in audit-only mode. Live-emit handling is deferred per
+§4.
+
+| Frame name | `kind` | `anchor-status` | Expected verifier branch | Resolver call |
+|---|---|---|---|---|
+| `registry-pointer-frame--pending-anchor` | fixture | pending | audit-only (accept) | none |
+| `registry-pointer-frame--anchor-fixture-stub` | fixture | stub | audit-only (accept) | none |
+| `registry-pointer-frame--live-emit-forbidden` | fixture | live-emit-attempt | reject (sandbox-boundary diagnostic) | none |
+
+The first two frames exercise the producer-side frame shape and
+the verifier accept-path in audit-only mode. The third frame is a
+negative-control that asserts the verifier refuses to switch to
+live-emit when the ENV-flag is off; it MUST emit a
+`sandbox-boundary` diagnostic and exit non-zero.
+
+**ENV-flag inventory (two flags).** Tag-70 documents the two
+ENV-flags that gate the live-emit branch. Both default to the
+audit-only state.
+
+| Flag name | Default | Audit-only semantics | AR-authorisation required to flip? |
+|---|---|---|---|
+| `WAKIR_OTS_LIVE_EMIT` | `0` | Verifier operates in audit-only mode and rejects every frame whose `anchor-status` is not in `{pending, stub}`. | Yes — per §6.1 sketch. |
+| `WAKIR_OTS_CALENDAR_URL` | `fixture://ots-calendar.invalid/audit-only/stub` | Default points at the invalid `fixture://` scheme so any accidental resolver-call fails closed. | Yes — per §6.1 sketch. |
+
+The `fixture://` scheme is reserved for audit-only frames; the
+verifier rejects it in live-emit mode. Production calendar URLs
+are NOT enumerated in the stub-file, since enumerating them would
+constitute an AR-authorisation request precursor and §8.2 forbids
+that.
+
+**Reuse-discipline.** The Tag-70 stub catalogue reuses the Tag-60
+pre-activation-stub frame shape (PR #382) without modification.
+Tag-70 adds three named fixture variants on top of the Tag-60 base
+shape; it does not redesign the frame. Cross-anchor: Tag-60 §3 +
+Tag-69 §6 + Tag-65 §3 HARD-edge restatement.
+
+**What Tag-70 §6.2 does NOT do.** Tag-70 §6.2 is a substrate-prep
+catalogue. It does not:
+
+- Open an AR-authorisation request (§8.2).
+- Open a promotion-PR (§8.3).
+- Emit live-OTS calendar traffic (§8.1).
+- Change the default ENV-flag state from `0` to `1`.
+- Recommend that the RES-D4 indefinite-deferral be lifted (§4.3).
+- Enumerate production OTS-calendar URLs.
+
+The substrate is ready to be picked up by a future Mira-hand or
+AR-hand action once the indefinite-deferral default is lifted by
+a re-evaluation trigger T1..T7 firing (§4.2). Until then, Tag-70
+§6.2 sits on the shelf as a planning artifact.
+
 ---
 
 ## 7. Peer-Roster Substrate Preparation (Audit-Only)
@@ -533,5 +598,11 @@ is deferred to the appropriate downstream artifact.
   §7.3 distribution).
 - Tag-68 PR #432 — pre-mortem coverage test-suite (163 tests,
   per-failure-mode coverage audit-trail).
+- Tag-69 PR #440 — RES-D4 high-residual mitigation deep-dive
+  (this doc, baseline).
+- Tag-70 §6.2 — HD-1 OTS-Substrate fixture-frame catalogue
+  (audit-only, this PR; helper at
+  `tooling/audit/prepare_res_d4_hd1_ots_substrate.py`, stub at
+  `tooling/audit/res-d4-hd1-ots-substrate-stub.json`).
 
 -- Reza
