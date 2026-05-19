@@ -1,0 +1,774 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase-3-Marathon-Rollback-Workflow (Tomas Tag-56)
+# -------------------------------------------------
+#
+# Operator-Hand-triggered rollback orchestration that walks the
+# Phase-3-Marathon back to the pre-Cutover-Day-N0 substrate state
+# in a deterministic, per-Welle sequence. The workflow is the
+# CI-side companion to the per-Komponente Rollback-Drill suite
+# (``tests/acceptance/phase_3c/rollback_drill/test_rollback_drill_
+# *.py``, ADR-0065 §Rollback-Strategie + ADR-0066 §Rollback) — it
+# stitches the per-Welle envelopes into a single rollback-run
+# manifest the AR-Hand can ratify.
+#
+# Why a dedicated workflow (vs. ad-hoc operator scripts)
+# ------------------------------------------------------
+#
+# 1.  **Determinism over fast-typing.** A rollback during a live
+#     Phase-3-Marathon is the worst possible moment to be
+#     hand-rolling shell-pipelines. The workflow encodes the
+#     ADR-0065 §Rollback-Strategie step-order once, exposes the
+#     three knobs an operator can legitimately tune
+#     (``start_at_welle``, ``mode``, ``dry_run``), and refuses to
+#     run if the audit-trail-marker file would land in the wrong
+#     place.
+#
+# 2.  **Audit-trail-first.** Every rollback fires an audit-marker
+#     before it does any work (J0 preamble + J1 audit-emit). If
+#     the workflow itself crashes mid-run, the audit trail still
+#     records the *attempt* — Henrik (Internal Audit) can count
+#     attempted vs. completed rollbacks against the rollback-
+#     drill SLA budget without scraping run-logs.
+#
+# 3.  **Sandbox-stub-mode.** The workflow MUST run in CI for the
+#     hermetic test-suite, but a real rollback touches Quadlet-
+#     ENV-state on the Pilot-VM, the live persona-engine restart-
+#     cycle, and the WAT-anchor-emit pipeline. We isolate the
+#     two surfaces via ``ROLLBACK_MODE`` (``stub`` vs. ``live``).
+#     Stub-mode runs deterministically in CI with no podman, no
+#     NATS, no Pilot-VM. Live-mode is reserved for the operator-
+#     hand fire on the Pilot-VM box itself.
+#
+# 4.  **AR-Hand-notify.** Final job emits an ntfy-shaped JSON
+#     envelope (uploaded as artifact, not POSTed — the workflow
+#     itself does not have ntfy credentials by design) that the
+#     operator-hand can curl-POST to ``ntfy.sh/wakir-ar-hand`` to
+#     wake the AR. Separation: CI prepares the payload, operator
+#     fires the notification. Matches the audit-trail-first
+#     pattern.
+#
+# Trigger surface
+# ---------------
+#
+# ``workflow_dispatch`` only. No ``schedule:``, no ``push:``.
+# Rollback is, by definition, AR-Hand or operator-hand. Auto-fire
+# would be a category-error.
+#
+# Inputs
+# ------
+#
+#   * ``rollback_reason`` (string, required): free-form text logged
+#     in the J0 preamble. Typical values: "Welle-3 RD-3 cross-
+#     modul-drift failed", "Cutover-Day-Practice-Run abort",
+#     "AR-Hand cancel".
+#   * ``start_at_welle`` (choice, default ``all``): one of
+#     ``all|w7|w6|w5|w4|w3|w2|w1``. ``all`` rolls back every
+#     Welle in reverse-cutover-order (Welle-7 first, Welle-1
+#     last, mirroring the cutover ordering). Setting a specific
+#     Welle starts the rollback from that point — useful when
+#     only the tail of the marathon needs to be rolled back.
+#   * ``mode`` (choice, default ``stub``): ``stub`` (CI hermetic
+#     run, no real backend-switch) or ``live`` (Pilot-VM, real
+#     Quadlet-ENV-rewrite). ``live`` is reserved for the
+#     operator-hand fire on the Pilot-VM box.
+#   * ``dry_run`` (boolean, default true): when true, the per-
+#     Welle backend-switch jobs emit the planned action but
+#     stop short of actually flipping the ENV-Flag (stub-mode
+#     dry_run is the canonical CI-validate path).
+#   * ``allow_partial_rollback`` (boolean, default false): when
+#     false, a per-Welle failure halts the whole orchestration
+#     (fail-fast); when true, downstream Wellen still execute.
+#     Default-false is the conservative posture: partial-rollback
+#     leaves the system in a mixed state that is harder to
+#     reason about than "either all back or stop".
+#
+# Hermetic posture
+# ----------------
+#
+# Stub-mode: filesystem + jq + python stdlib only. No podman, no
+# NATS, no Pilot-VM, no Anthropic API. The per-Welle jobs run a
+# Python stub-emitter that writes a per-Welle envelope-JSON to
+# ``out/rollback-welle-<N>.json``; the aggregator stitches the
+# nine envelopes into a single rollback-run manifest.
+#
+# Live-mode: documented but NOT executable from this workflow.
+# A guard-step refuses to run if ``ROLLBACK_MODE=live`` and
+# ``runs-on != self-hosted``. See ``docs/ci/phase-3-marathon-
+# rollback-runbook.md`` for the operator-hand procedure.
+#
+# Not a required status check
+# ---------------------------
+#
+# Per ``feedback_branch_protection_check_names.md`` this workflow
+# is NOT a required check on PRs. It is an AR-Hand instrument.
+
+name: phase-3-marathon-rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      rollback_reason:
+        description: "Free-form reason for the rollback (audit text)"
+        required: true
+        default: "AR-Hand initiated rollback"
+      start_at_welle:
+        description: "Which Welle to start the rollback at (reverse-cutover order from there)"
+        required: false
+        type: choice
+        default: "all"
+        options:
+          - "all"
+          - "w7"
+          - "w6"
+          - "w5"
+          - "w4"
+          - "w3"
+          - "w2"
+          - "w1"
+      mode:
+        description: "Execution mode (stub=CI hermetic, live=Pilot-VM operator-hand only)"
+        required: false
+        type: choice
+        default: "stub"
+        options:
+          - "stub"
+          - "live"
+      dry_run:
+        description: "Dry-run (emit planned actions only, no ENV-flip)"
+        required: false
+        type: boolean
+        default: true
+      allow_partial_rollback:
+        description: "Continue downstream Wellen on per-Welle failure (default false=fail-fast)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  # Distinct group from cutover-day-auto-scheduler so a rollback
+  # cannot be cancelled by an in-flight cutover ratification
+  # (and vice versa). One rollback at a time.
+  group: phase-3-marathon-rollback
+  cancel-in-progress: false
+
+jobs:
+  j0-preamble:
+    name: J0 rollback preamble (actor + reason + mode audit-log)
+    runs-on: ubuntu-latest
+    outputs:
+      reason: ${{ steps.preamble.outputs.reason }}
+      actor: ${{ steps.preamble.outputs.actor }}
+      mode: ${{ steps.preamble.outputs.mode }}
+      dry_run: ${{ steps.preamble.outputs.dry_run }}
+      start_at_welle: ${{ steps.preamble.outputs.start_at_welle }}
+      allow_partial_rollback: ${{ steps.preamble.outputs.allow_partial_rollback }}
+      rollback_cycle_id: ${{ steps.preamble.outputs.rollback_cycle_id }}
+    steps:
+      - name: Emit rollback preamble + cycle-id
+        id: preamble
+        shell: bash
+        env:
+          REASON: ${{ inputs.rollback_reason }}
+          ACTOR: ${{ github.actor }}
+          MODE: ${{ inputs.mode }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          START_AT_WELLE: ${{ inputs.start_at_welle }}
+          ALLOW_PARTIAL: ${{ inputs.allow_partial_rollback }}
+        run: |
+          set -uo pipefail
+          # Cycle-id binds J0..J11 to a single rollback-run for
+          # audit-record-correlation. Stable shape:
+          #   rb-<utc-yyyymmddhhmmss>-<run-attempt>-<short-sha>
+          ts=$(date -u +%Y%m%d%H%M%S)
+          short_sha=${GITHUB_SHA:0:7}
+          cycle_id="rb-${ts}-${GITHUB_RUN_ATTEMPT}-${short_sha}"
+          {
+            echo "## Phase-3-Marathon-Rollback Fire"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| actor | \`${ACTOR}\` |"
+            echo "| reason | ${REASON} |"
+            echo "| mode | \`${MODE}\` |"
+            echo "| dry_run | \`${DRY_RUN}\` |"
+            echo "| start_at_welle | \`${START_AT_WELLE}\` |"
+            echo "| allow_partial_rollback | \`${ALLOW_PARTIAL}\` |"
+            echo "| rollback_cycle_id | \`${cycle_id}\` |"
+            echo "| run_id | \`${GITHUB_RUN_ID}\` |"
+            echo "| ref | \`${GITHUB_REF}\` |"
+            echo "| sha | \`${GITHUB_SHA}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "reason=${REASON}" >> "$GITHUB_OUTPUT"
+          echo "actor=${ACTOR}" >> "$GITHUB_OUTPUT"
+          echo "mode=${MODE}" >> "$GITHUB_OUTPUT"
+          echo "dry_run=${DRY_RUN}" >> "$GITHUB_OUTPUT"
+          echo "start_at_welle=${START_AT_WELLE}" >> "$GITHUB_OUTPUT"
+          echo "allow_partial_rollback=${ALLOW_PARTIAL}" >> "$GITHUB_OUTPUT"
+          echo "rollback_cycle_id=${cycle_id}" >> "$GITHUB_OUTPUT"
+
+  j1-audit-emit:
+    name: J1 audit-trail marker emit (before any backend-switch)
+    runs-on: ubuntu-latest
+    needs: j0-preamble
+    outputs:
+      audit_marker_path: ${{ steps.emit.outputs.audit_marker_path }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Live-mode guard
+        shell: bash
+        env:
+          MODE: ${{ needs.j0-preamble.outputs.mode }}
+        run: |
+          set -uo pipefail
+          if [[ "${MODE}" == "live" ]]; then
+            echo "::error::live-mode rollback MUST run on a self-hosted Pilot-VM runner, not ubuntu-latest"
+            exit 1
+          fi
+          echo "stub-mode rollback: live-mode guard passes"
+      - name: Emit audit-trail marker
+        id: emit
+        shell: bash
+        env:
+          ROLLBACK_CYCLE_ID: ${{ needs.j0-preamble.outputs.rollback_cycle_id }}
+          ACTOR: ${{ needs.j0-preamble.outputs.actor }}
+          REASON: ${{ needs.j0-preamble.outputs.reason }}
+          MODE: ${{ needs.j0-preamble.outputs.mode }}
+          DRY_RUN: ${{ needs.j0-preamble.outputs.dry_run }}
+          START_AT_WELLE: ${{ needs.j0-preamble.outputs.start_at_welle }}
+        run: |
+          set -eo pipefail
+          mkdir -p out/rollback
+          marker="out/rollback/audit-marker-${ROLLBACK_CYCLE_ID}.json"
+          python3 tooling/ci/emit_marathon_rollback_audit_marker.py \
+            --cycle-id "${ROLLBACK_CYCLE_ID}" \
+            --actor "${ACTOR}" \
+            --reason "${REASON}" \
+            --mode "${MODE}" \
+            --dry-run "${DRY_RUN}" \
+            --start-at-welle "${START_AT_WELLE}" \
+            --output "${marker}"
+          echo "audit_marker_path=${marker}" >> "$GITHUB_OUTPUT"
+          echo "audit-marker emitted: ${marker}"
+      - name: Upload audit-marker artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marathon-rollback-audit-marker
+          path: out/rollback/audit-marker-*.json
+          if-no-files-found: error
+
+  j2-w7-recovery-workflow:
+    name: J2 Welle-7 recovery_workflow rust->python rollback
+    runs-on: ubuntu-latest
+    needs:
+      - j0-preamble
+      - j1-audit-emit
+    if: |
+      always() &&
+      needs.j1-audit-emit.result == 'success' &&
+      (inputs.start_at_welle == 'all' || inputs.start_at_welle == 'w7')
+    outputs:
+      welle_status: ${{ steps.switch.outputs.welle_status }}
+      welle_note: ${{ steps.switch.outputs.welle_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Stub backend-switch (Welle-7)
+        id: switch
+        shell: bash
+        env:
+          ROLLBACK_CYCLE_ID: ${{ needs.j0-preamble.outputs.rollback_cycle_id }}
+          MODE: ${{ needs.j0-preamble.outputs.mode }}
+          DRY_RUN: ${{ needs.j0-preamble.outputs.dry_run }}
+        run: |
+          set -eo pipefail
+          mkdir -p out/rollback
+          python3 tooling/ci/emit_marathon_rollback_welle_envelope.py \
+            --welle 7 \
+            --modul recovery_workflow \
+            --cycle-id "${ROLLBACK_CYCLE_ID}" \
+            --mode "${MODE}" \
+            --dry-run "${DRY_RUN}" \
+            --output out/rollback/rollback-welle-7.json
+          status=$(python3 -c "import json; print(json.load(open('out/rollback/rollback-welle-7.json'))['status'])")
+          note=$(python3 -c "import json; print(json.load(open('out/rollback/rollback-welle-7.json'))['note'])")
+          echo "welle_status=${status}" >> "$GITHUB_OUTPUT"
+          echo "welle_note=${note}" >> "$GITHUB_OUTPUT"
+          echo "Welle-7 recovery_workflow: status=${status} note='${note}'"
+      - name: Upload Welle-7 envelope
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marathon-rollback-welle-7
+          path: out/rollback/rollback-welle-7.json
+          if-no-files-found: warn
+
+  j3-w6-subscribe-loop:
+    name: J3 Welle-6 subscribe_loop rust->python rollback
+    runs-on: ubuntu-latest
+    needs:
+      - j0-preamble
+      - j1-audit-emit
+      - j2-w7-recovery-workflow
+    if: |
+      always() &&
+      needs.j1-audit-emit.result == 'success' &&
+      (inputs.allow_partial_rollback == true || needs.j2-w7-recovery-workflow.result != 'failure') &&
+      (inputs.start_at_welle == 'all' || inputs.start_at_welle == 'w7' || inputs.start_at_welle == 'w6')
+    outputs:
+      welle_status: ${{ steps.switch.outputs.welle_status }}
+      welle_note: ${{ steps.switch.outputs.welle_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Stub backend-switch (Welle-6)
+        id: switch
+        shell: bash
+        env:
+          ROLLBACK_CYCLE_ID: ${{ needs.j0-preamble.outputs.rollback_cycle_id }}
+          MODE: ${{ needs.j0-preamble.outputs.mode }}
+          DRY_RUN: ${{ needs.j0-preamble.outputs.dry_run }}
+        run: |
+          set -eo pipefail
+          mkdir -p out/rollback
+          python3 tooling/ci/emit_marathon_rollback_welle_envelope.py \
+            --welle 6 \
+            --modul subscribe_loop \
+            --cycle-id "${ROLLBACK_CYCLE_ID}" \
+            --mode "${MODE}" \
+            --dry-run "${DRY_RUN}" \
+            --output out/rollback/rollback-welle-6.json
+          status=$(python3 -c "import json; print(json.load(open('out/rollback/rollback-welle-6.json'))['status'])")
+          note=$(python3 -c "import json; print(json.load(open('out/rollback/rollback-welle-6.json'))['note'])")
+          echo "welle_status=${status}" >> "$GITHUB_OUTPUT"
+          echo "welle_note=${note}" >> "$GITHUB_OUTPUT"
+      - name: Upload Welle-6 envelope
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marathon-rollback-welle-6
+          path: out/rollback/rollback-welle-6.json
+          if-no-files-found: warn
+
+  j4-w5-lifecycle-state-machine:
+    name: J4 Welle-5 lifecycle_state_machine rust->python rollback
+    runs-on: ubuntu-latest
+    needs:
+      - j0-preamble
+      - j1-audit-emit
+      - j3-w6-subscribe-loop
+    if: |
+      always() &&
+      needs.j1-audit-emit.result == 'success' &&
+      (inputs.allow_partial_rollback == true || needs.j3-w6-subscribe-loop.result != 'failure') &&
+      (inputs.start_at_welle == 'all' || inputs.start_at_welle == 'w7' || inputs.start_at_welle == 'w6' || inputs.start_at_welle == 'w5')
+    outputs:
+      welle_status: ${{ steps.switch.outputs.welle_status }}
+      welle_note: ${{ steps.switch.outputs.welle_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Stub backend-switch (Welle-5)
+        id: switch
+        shell: bash
+        env:
+          ROLLBACK_CYCLE_ID: ${{ needs.j0-preamble.outputs.rollback_cycle_id }}
+          MODE: ${{ needs.j0-preamble.outputs.mode }}
+          DRY_RUN: ${{ needs.j0-preamble.outputs.dry_run }}
+        run: |
+          set -eo pipefail
+          mkdir -p out/rollback
+          python3 tooling/ci/emit_marathon_rollback_welle_envelope.py \
+            --welle 5 \
+            --modul lifecycle_state_machine \
+            --cycle-id "${ROLLBACK_CYCLE_ID}" \
+            --mode "${MODE}" \
+            --dry-run "${DRY_RUN}" \
+            --output out/rollback/rollback-welle-5.json
+          status=$(python3 -c "import json; print(json.load(open('out/rollback/rollback-welle-5.json'))['status'])")
+          note=$(python3 -c "import json; print(json.load(open('out/rollback/rollback-welle-5.json'))['note'])")
+          echo "welle_status=${status}" >> "$GITHUB_OUTPUT"
+          echo "welle_note=${note}" >> "$GITHUB_OUTPUT"
+      - name: Upload Welle-5 envelope
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marathon-rollback-welle-5
+          path: out/rollback/rollback-welle-5.json
+          if-no-files-found: warn
+
+  j5-w4-state-backing:
+    name: J5 Welle-4 state_backing rust->python rollback + snapshot-restore
+    runs-on: ubuntu-latest
+    needs:
+      - j0-preamble
+      - j1-audit-emit
+      - j4-w5-lifecycle-state-machine
+    if: |
+      always() &&
+      needs.j1-audit-emit.result == 'success' &&
+      (inputs.allow_partial_rollback == true || needs.j4-w5-lifecycle-state-machine.result != 'failure') &&
+      (inputs.start_at_welle == 'all' || inputs.start_at_welle == 'w7' || inputs.start_at_welle == 'w6' || inputs.start_at_welle == 'w5' || inputs.start_at_welle == 'w4')
+    outputs:
+      welle_status: ${{ steps.switch.outputs.welle_status }}
+      welle_note: ${{ steps.switch.outputs.welle_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Stub backend-switch + state-backing snapshot-restore (Welle-4)
+        id: switch
+        shell: bash
+        env:
+          ROLLBACK_CYCLE_ID: ${{ needs.j0-preamble.outputs.rollback_cycle_id }}
+          MODE: ${{ needs.j0-preamble.outputs.mode }}
+          DRY_RUN: ${{ needs.j0-preamble.outputs.dry_run }}
+        run: |
+          set -eo pipefail
+          mkdir -p out/rollback
+          # Welle-4 is special: state_backing rollback requires a
+          # snapshot-restore in addition to the ENV-Flag-Switch.
+          # The envelope-emitter --with-snapshot-restore=true flag
+          # adds the snapshot_restore_planned field which the
+          # aggregator counts toward the rollback-completeness check.
+          python3 tooling/ci/emit_marathon_rollback_welle_envelope.py \
+            --welle 4 \
+            --modul state_backing \
+            --cycle-id "${ROLLBACK_CYCLE_ID}" \
+            --mode "${MODE}" \
+            --dry-run "${DRY_RUN}" \
+            --with-snapshot-restore true \
+            --output out/rollback/rollback-welle-4.json
+          status=$(python3 -c "import json; print(json.load(open('out/rollback/rollback-welle-4.json'))['status'])")
+          note=$(python3 -c "import json; print(json.load(open('out/rollback/rollback-welle-4.json'))['note'])")
+          echo "welle_status=${status}" >> "$GITHUB_OUTPUT"
+          echo "welle_note=${note}" >> "$GITHUB_OUTPUT"
+      - name: Upload Welle-4 envelope
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marathon-rollback-welle-4
+          path: out/rollback/rollback-welle-4.json
+          if-no-files-found: warn
+
+  j6-w3-bridge-audit-writer:
+    name: J6 Welle-3 bridge_audit_writer rust->python rollback
+    runs-on: ubuntu-latest
+    needs:
+      - j0-preamble
+      - j1-audit-emit
+      - j5-w4-state-backing
+    if: |
+      always() &&
+      needs.j1-audit-emit.result == 'success' &&
+      (inputs.allow_partial_rollback == true || needs.j5-w4-state-backing.result != 'failure') &&
+      (inputs.start_at_welle == 'all' || inputs.start_at_welle == 'w7' || inputs.start_at_welle == 'w6' || inputs.start_at_welle == 'w5' || inputs.start_at_welle == 'w4' || inputs.start_at_welle == 'w3')
+    outputs:
+      welle_status: ${{ steps.switch.outputs.welle_status }}
+      welle_note: ${{ steps.switch.outputs.welle_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Stub backend-switch (Welle-3)
+        id: switch
+        shell: bash
+        env:
+          ROLLBACK_CYCLE_ID: ${{ needs.j0-preamble.outputs.rollback_cycle_id }}
+          MODE: ${{ needs.j0-preamble.outputs.mode }}
+          DRY_RUN: ${{ needs.j0-preamble.outputs.dry_run }}
+        run: |
+          set -eo pipefail
+          mkdir -p out/rollback
+          python3 tooling/ci/emit_marathon_rollback_welle_envelope.py \
+            --welle 3 \
+            --modul bridge_audit_writer \
+            --cycle-id "${ROLLBACK_CYCLE_ID}" \
+            --mode "${MODE}" \
+            --dry-run "${DRY_RUN}" \
+            --output out/rollback/rollback-welle-3.json
+          status=$(python3 -c "import json; print(json.load(open('out/rollback/rollback-welle-3.json'))['status'])")
+          note=$(python3 -c "import json; print(json.load(open('out/rollback/rollback-welle-3.json'))['note'])")
+          echo "welle_status=${status}" >> "$GITHUB_OUTPUT"
+          echo "welle_note=${note}" >> "$GITHUB_OUTPUT"
+      - name: Upload Welle-3 envelope
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marathon-rollback-welle-3
+          path: out/rollback/rollback-welle-3.json
+          if-no-files-found: warn
+
+  j7-w2-svid-workload-identity:
+    name: J7 Welle-2 svid_workload_identity rust->python rollback
+    runs-on: ubuntu-latest
+    needs:
+      - j0-preamble
+      - j1-audit-emit
+      - j6-w3-bridge-audit-writer
+    if: |
+      always() &&
+      needs.j1-audit-emit.result == 'success' &&
+      (inputs.allow_partial_rollback == true || needs.j6-w3-bridge-audit-writer.result != 'failure') &&
+      (inputs.start_at_welle != 'w1')
+    outputs:
+      welle_status: ${{ steps.switch.outputs.welle_status }}
+      welle_note: ${{ steps.switch.outputs.welle_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Stub backend-switch (Welle-2)
+        id: switch
+        shell: bash
+        env:
+          ROLLBACK_CYCLE_ID: ${{ needs.j0-preamble.outputs.rollback_cycle_id }}
+          MODE: ${{ needs.j0-preamble.outputs.mode }}
+          DRY_RUN: ${{ needs.j0-preamble.outputs.dry_run }}
+        run: |
+          set -eo pipefail
+          mkdir -p out/rollback
+          python3 tooling/ci/emit_marathon_rollback_welle_envelope.py \
+            --welle 2 \
+            --modul svid_workload_identity \
+            --cycle-id "${ROLLBACK_CYCLE_ID}" \
+            --mode "${MODE}" \
+            --dry-run "${DRY_RUN}" \
+            --output out/rollback/rollback-welle-2.json
+          status=$(python3 -c "import json; print(json.load(open('out/rollback/rollback-welle-2.json'))['status'])")
+          note=$(python3 -c "import json; print(json.load(open('out/rollback/rollback-welle-2.json'))['note'])")
+          echo "welle_status=${status}" >> "$GITHUB_OUTPUT"
+          echo "welle_note=${note}" >> "$GITHUB_OUTPUT"
+      - name: Upload Welle-2 envelope
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marathon-rollback-welle-2
+          path: out/rollback/rollback-welle-2.json
+          if-no-files-found: warn
+
+  j8-w1-v907-verify:
+    name: J8 Welle-1 v907_verify rust->python rollback
+    runs-on: ubuntu-latest
+    needs:
+      - j0-preamble
+      - j1-audit-emit
+      - j7-w2-svid-workload-identity
+    if: |
+      always() &&
+      needs.j1-audit-emit.result == 'success' &&
+      (inputs.allow_partial_rollback == true || needs.j7-w2-svid-workload-identity.result != 'failure')
+    outputs:
+      welle_status: ${{ steps.switch.outputs.welle_status }}
+      welle_note: ${{ steps.switch.outputs.welle_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Stub backend-switch (Welle-1)
+        id: switch
+        shell: bash
+        env:
+          ROLLBACK_CYCLE_ID: ${{ needs.j0-preamble.outputs.rollback_cycle_id }}
+          MODE: ${{ needs.j0-preamble.outputs.mode }}
+          DRY_RUN: ${{ needs.j0-preamble.outputs.dry_run }}
+        run: |
+          set -eo pipefail
+          mkdir -p out/rollback
+          python3 tooling/ci/emit_marathon_rollback_welle_envelope.py \
+            --welle 1 \
+            --modul v907_verify \
+            --cycle-id "${ROLLBACK_CYCLE_ID}" \
+            --mode "${MODE}" \
+            --dry-run "${DRY_RUN}" \
+            --output out/rollback/rollback-welle-1.json
+          status=$(python3 -c "import json; print(json.load(open('out/rollback/rollback-welle-1.json'))['status'])")
+          note=$(python3 -c "import json; print(json.load(open('out/rollback/rollback-welle-1.json'))['note'])")
+          echo "welle_status=${status}" >> "$GITHUB_OUTPUT"
+          echo "welle_note=${note}" >> "$GITHUB_OUTPUT"
+      - name: Upload Welle-1 envelope
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marathon-rollback-welle-1
+          path: out/rollback/rollback-welle-1.json
+          if-no-files-found: warn
+
+  j10-aggregator:
+    name: J10 rollback-run manifest aggregator (READY/PARTIAL/FAILED)
+    runs-on: ubuntu-latest
+    needs:
+      - j0-preamble
+      - j1-audit-emit
+      - j2-w7-recovery-workflow
+      - j3-w6-subscribe-loop
+      - j4-w5-lifecycle-state-machine
+      - j5-w4-state-backing
+      - j6-w3-bridge-audit-writer
+      - j7-w2-svid-workload-identity
+      - j8-w1-v907-verify
+    if: always()
+    outputs:
+      verdict: ${{ steps.aggregate.outputs.verdict }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Download all welle envelopes
+        uses: actions/download-artifact@v4
+        with:
+          path: out/rollback-artifacts
+      - name: Aggregate per-Welle envelopes into rollback-run manifest
+        id: aggregate
+        shell: bash
+        env:
+          ROLLBACK_CYCLE_ID: ${{ needs.j0-preamble.outputs.rollback_cycle_id }}
+          ACTOR: ${{ needs.j0-preamble.outputs.actor }}
+          REASON: ${{ needs.j0-preamble.outputs.reason }}
+          MODE: ${{ needs.j0-preamble.outputs.mode }}
+          DRY_RUN: ${{ needs.j0-preamble.outputs.dry_run }}
+          START_AT_WELLE: ${{ needs.j0-preamble.outputs.start_at_welle }}
+          ALLOW_PARTIAL: ${{ needs.j0-preamble.outputs.allow_partial_rollback }}
+          W7: ${{ needs.j2-w7-recovery-workflow.outputs.welle_status }}
+          W6: ${{ needs.j3-w6-subscribe-loop.outputs.welle_status }}
+          W5: ${{ needs.j4-w5-lifecycle-state-machine.outputs.welle_status }}
+          W4: ${{ needs.j5-w4-state-backing.outputs.welle_status }}
+          W3: ${{ needs.j6-w3-bridge-audit-writer.outputs.welle_status }}
+          W2: ${{ needs.j7-w2-svid-workload-identity.outputs.welle_status }}
+          W1: ${{ needs.j8-w1-v907-verify.outputs.welle_status }}
+          N7: ${{ needs.j2-w7-recovery-workflow.outputs.welle_note }}
+          N6: ${{ needs.j3-w6-subscribe-loop.outputs.welle_note }}
+          N5: ${{ needs.j4-w5-lifecycle-state-machine.outputs.welle_note }}
+          N4: ${{ needs.j5-w4-state-backing.outputs.welle_note }}
+          N3: ${{ needs.j6-w3-bridge-audit-writer.outputs.welle_note }}
+          N2: ${{ needs.j7-w2-svid-workload-identity.outputs.welle_note }}
+          N1: ${{ needs.j8-w1-v907-verify.outputs.welle_note }}
+        run: |
+          set -eo pipefail
+          mkdir -p out/rollback
+          notes=""
+          add_note() {
+            local key="$1" val="$2"
+            [[ -z "$val" ]] && return 0
+            if [[ -z "$notes" ]]; then notes="$key:$val"; else notes="$notes;$key:$val"; fi
+          }
+          add_note "w7_recovery_workflow" "${N7:-}"
+          add_note "w6_subscribe_loop" "${N6:-}"
+          add_note "w5_lifecycle_state_machine" "${N5:-}"
+          add_note "w4_state_backing" "${N4:-}"
+          add_note "w3_bridge_audit_writer" "${N3:-}"
+          add_note "w2_svid_workload_identity" "${N2:-}"
+          add_note "w1_v907_verify" "${N1:-}"
+          ROLLBACK_CYCLE_ID="$ROLLBACK_CYCLE_ID" \
+          ACTOR="$ACTOR" \
+          REASON="$REASON" \
+          MODE="$MODE" \
+          DRY_RUN="$DRY_RUN" \
+          START_AT_WELLE="$START_AT_WELLE" \
+          ALLOW_PARTIAL="$ALLOW_PARTIAL" \
+          W7_STATUS="${W7:-skipped}" \
+          W6_STATUS="${W6:-skipped}" \
+          W5_STATUS="${W5:-skipped}" \
+          W4_STATUS="${W4:-skipped}" \
+          W3_STATUS="${W3:-skipped}" \
+          W2_STATUS="${W2:-skipped}" \
+          W1_STATUS="${W1:-skipped}" \
+          WELLE_NOTES="$notes" \
+            python3 tooling/ci/aggregate_marathon_rollback_manifest.py \
+              --output out/rollback/marathon-rollback-manifest.json
+          verdict=$(python3 -c "import json; print(json.load(open('out/rollback/marathon-rollback-manifest.json'))['verdict'])")
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Marathon-Rollback Verdict: \`$verdict\`"
+            echo ""
+            echo "Cycle: \`${ROLLBACK_CYCLE_ID}\` — fired by \`${ACTOR}\` — reason: ${REASON}"
+            echo ""
+            echo "Mode: \`${MODE}\` — dry_run: \`${DRY_RUN}\` — start_at_welle: \`${START_AT_WELLE}\`"
+            echo ""
+            echo "| Welle | Modul | Status | Note |"
+            echo "|-------|-------|--------|------|"
+            echo "| W7 | recovery_workflow | \`${W7:-skipped}\` | ${N7:-} |"
+            echo "| W6 | subscribe_loop | \`${W6:-skipped}\` | ${N6:-} |"
+            echo "| W5 | lifecycle_state_machine | \`${W5:-skipped}\` | ${N5:-} |"
+            echo "| W4 | state_backing (+snapshot-restore) | \`${W4:-skipped}\` | ${N4:-} |"
+            echo "| W3 | bridge_audit_writer | \`${W3:-skipped}\` | ${N3:-} |"
+            echo "| W2 | svid_workload_identity | \`${W2:-skipped}\` | ${N2:-} |"
+            echo "| W1 | v907_verify | \`${W1:-skipped}\` | ${N1:-} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$verdict" == "FAILED" ]]; then
+            echo "::error::marathon-rollback verdict: FAILED"
+            exit 1
+          elif [[ "$verdict" == "PARTIAL" ]]; then
+            echo "::warning::marathon-rollback verdict: PARTIAL"
+          fi
+      - name: Upload rollback manifest artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marathon-rollback-manifest
+          path: out/rollback/marathon-rollback-manifest.json
+          if-no-files-found: warn
+
+  j11-ar-hand-notify:
+    name: J11 AR-Hand notify-payload (ntfy envelope artifact)
+    runs-on: ubuntu-latest
+    needs:
+      - j0-preamble
+      - j10-aggregator
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Download rollback manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: marathon-rollback-manifest
+          path: out/rollback
+      - name: Build ntfy notify-payload
+        shell: bash
+        env:
+          ROLLBACK_CYCLE_ID: ${{ needs.j0-preamble.outputs.rollback_cycle_id }}
+          ACTOR: ${{ needs.j0-preamble.outputs.actor }}
+          REASON: ${{ needs.j0-preamble.outputs.reason }}
+          VERDICT: ${{ needs.j10-aggregator.outputs.verdict }}
+          MODE: ${{ needs.j0-preamble.outputs.mode }}
+        run: |
+          set -eo pipefail
+          mkdir -p out/rollback
+          python3 tooling/ci/build_marathon_rollback_ar_notify.py \
+            --cycle-id "${ROLLBACK_CYCLE_ID}" \
+            --actor "${ACTOR}" \
+            --reason "${REASON}" \
+            --verdict "${VERDICT}" \
+            --mode "${MODE}" \
+            --manifest out/rollback/marathon-rollback-manifest.json \
+            --output out/rollback/ar-hand-notify-payload.json
+          echo "ar-hand notify-payload built; operator-hand curl-POSTs to ntfy.sh"
+      - name: Upload AR-Hand notify-payload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marathon-rollback-ar-hand-notify-payload
+          path: out/rollback/ar-hand-notify-payload.json
+          if-no-files-found: warn
