@@ -77,6 +77,7 @@ def _materialise_pair_files(
 
 
 @pytest.fixture
+# REUSE-IgnoreStart
 def twin_roots(tmp_path: Path, helper):
     """Build a runtime + protocol root that mirror cleanly."""
     runtime = tmp_path / "runtime"
@@ -261,6 +262,8 @@ def test_06_canonicaliser_idempotent(helper):
     twice = helper.canonicalise(once, helper.NORMALISER_PY)
     assert once == twice
 
+
+# REUSE-IgnoreEnd
 
 # ---------------------------------------------------------------------------
 # 07–10: audit() verdicts under MIRROR-OK, MIRROR-DRIFT, missing, allowed
