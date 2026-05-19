@@ -208,6 +208,32 @@
 # State, SignedOffBeforeWelle4Stable) cover the hard-failure
 # surface.
 #
+# Tag-74 Welle-6 Cross-Substrate-Parity-Alert-Routing-Erweiterung
+# ----------------------------------------------------------------
+# Two additional Welle-6 alerts (appended to the welle-6-alerts
+# group) close the JetStream-subscribe-loop positive-confirmation
+# + cross-substrate-parity-lag routing gap surfaced during the
+# KW-27 doppel-cutover audit (subscribe-loop healthy-flow vs.
+# consumer-lag race patterns, see
+# tests/phase_3c/test_doppel_welle_6_7_acceptance.py):
+#
+#   * WakirPhase3Welle6SubscribeLoopHealthy (severity=info,
+#       routing-class=welle-6-subscribe-loop-info) -- positive-
+#       confirmation: JetStream subscribe-loop is delivering
+#       messages AND consumer-ack flow is closed; AR-Hand info
+#       channel.
+#   * WakirPhase3Welle6JetStreamConsumerLag (severity=warning,
+#       routing-class=welle-6-subscribe-loop-info) -- consumer-
+#       lag exceeds target threshold but has not yet stalled;
+#       AR-Hand info channel + activity-log.
+#
+# Both carry the `routing_class: welle-6-subscribe-loop-info`
+# label. The bridge ROUTING_CLASS_CHANNELS table is extended in
+# Tag-74 to include the new routing class -> (ntfy:ar-hand-info,
+# activity-log:append) mapping. No on-call page from this block;
+# the existing page-level Welle-6 alerts (SubscribeLoopStall,
+# SubscribeLoopReplayStorm) cover the hard-failure surface.
+#
 # Trinary-verdict-source contract: the source of truth is the Selin
 # Tag-64 Cutover-Day-Morgen Auto-Scheduler output envelope
 # (`out/cutover-day-morgen-verdict.json`, schema_version=1, tag=64,
@@ -1549,6 +1575,126 @@ groups:
             handler exception rate.
           runbook_url: "https://wakir-labs.example/runbooks/welle-6-replay-storm"
           notify_path: "pagerduty:sre-oncall + ntfy:ar-hand + activity-log:append"
+
+      # ---------------------------------------------------------
+      # Tag-74 Welle-6 Cross-Substrate-Parity-Alert-Routing-
+      # Erweiterung (Noa SRE, Continuous-Mode-Marathon)
+      # ---------------------------------------------------------
+      # Two additional alarms close the Welle-6 subscribe-loop
+      # routing gap identified during Tag-73 stability-window
+      # review. The existing Welle-6 alerts surface FAILURES
+      # (SubscribeLoopStall, SubscribeLoopReplayStorm); Tag-74
+      # adds:
+      #
+      #   1. WakirPhase3Welle6SubscribeLoopHealthy (info)
+      #      Positive-state indicator. Fires when the JetStream
+      #      subscribe_loop is delivering messages (>= 0.1 msg/s
+      #      over the last 5m) AND consumer-ack lag is within the
+      #      target window (< 100 outstanding acks). This is the
+      #      positive-confirmation counterpart to the Welle-6
+      #      SubscribeLoopStall page alert; it marks "subscribe-
+      #      loop is live and healthy" so the AR-Hand audit trail
+      #      closes the KW-27 doppel-cutover epoch without
+      #      inferring success from absence-of-failure.
+      #      Routing class `welle-6-subscribe-loop-info` (info-only).
+      #
+      #   2. WakirPhase3Welle6JetStreamConsumerLag (warning)
+      #      Cross-substrate-parity-lag-Pfad: JetStream consumer
+      #      pending count >= 500 outstanding messages for >= 2m.
+      #      Distinct from SubscribeLoopReplayStorm (which fires
+      #      on excessive REdelivery); ConsumerLag fires on
+      #      accumulated backlog BEFORE delivery races materialise.
+      #      Warning severity (NOT page): the consumer is still
+      #      processing, but the lag is past the target SLO; the
+      #      AR-Hand must see the lag for audit-log closure and
+      #      schedule a follow-up (consumer-scaling or back-
+      #      pressure tuning). If the lag tips into stall or
+      #      replay-storm, the existing page-level Welle-6 alerts
+      #      take over. Routing class `welle-6-subscribe-loop-info`.
+      #
+      # Mutual exclusion contract:
+      #   delivery_rate >= 0.1 AND consumer_lag < 100 -> Healthy fires.
+      #   delivery_rate >= 0.1 AND consumer_lag >= 500 -> ConsumerLag
+      #     fires; Healthy stays silent (the healthy recording-rule
+      #     is gated on consumer_lag < 100 upstream).
+      #   delivery_rate < 0.1 -> stall regime; existing Welle-6
+      #     page-level alerts cover (SubscribeLoopStall fires when
+      #     rate == 0 for 2m).
+      #
+      # Routing class `welle-6-subscribe-loop-info` is added to
+      # the bridge ROUTING_CLASS_CHANNELS table (Tag-74) and
+      # channels to ntfy:ar-hand-info + activity-log:append.
+      - alert: WakirPhase3Welle6SubscribeLoopHealthy
+        expr: |
+          (
+            rate(wakir_welle6_subscribe_loop_message_delivered_total[5m]) >= 0.1
+          )
+          and
+          (
+            wakir_welle6_jetstream_consumer_pending_messages < 100
+          )
+        for: 2m
+        labels:
+          severity: info
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          tag: tag-74
+          welle: welle-6
+          component: subscribe_loop
+          kw_week: kw-27
+          topology: doppel
+          routing_class: welle-6-subscribe-loop-info
+          mitigation: welle-6-cross-substrate-parity-routing-extension
+        annotations:
+          summary: "Welle-6 subscribe-loop live and healthy (delivery active, consumer-lag in window)"
+          description: >-
+            Welle-6 subscribe-loop is delivering messages
+            (rate(wakir_welle6_subscribe_loop_message_delivered_total[5m]) >= 0.1)
+            AND consumer pending-count
+            (wakir_welle6_jetstream_consumer_pending_messages) is
+            below the 100-message threshold for >= 2m. This is
+            the positive-confirmation counterpart to the
+            SubscribeLoopStall page alert: the KW-27 doppel-
+            cutover subscribe-loop is live and ack-flow is healthy.
+            AR-Hand audit-trail marker; no operator action.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-6-subscribe-loop-healthy"
+          notify_path: "ntfy:ar-hand-info + activity-log:append"
+
+      - alert: WakirPhase3Welle6JetStreamConsumerLag
+        expr: wakir_welle6_jetstream_consumer_pending_messages >= 500
+        for: 2m
+        labels:
+          severity: warning
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          tag: tag-74
+          welle: welle-6
+          component: subscribe_loop
+          kw_week: kw-27
+          topology: doppel
+          routing_class: welle-6-subscribe-loop-info
+          mitigation: welle-6-cross-substrate-parity-routing-extension
+          lag_path: consumer-pending-past-target-threshold
+        annotations:
+          summary: "Welle-6 JetStream consumer-lag past target threshold (cross-substrate-parity-lag path)"
+          description: >-
+            wakir_welle6_jetstream_consumer_pending_messages =
+            {{ $value }} for >= 2m. Target consumer-lag SLO per
+            ADR-0066 KW-27 doppel-cutover spec is < 100 pending
+            messages; the >= 500-message threshold flags
+            accumulated backlog before delivery races materialise.
+            Warning severity: the consumer is still processing
+            but the lag is past target; AR-Hand must see the lag
+            for audit-log closure and schedule consumer-scaling or
+            back-pressure tuning follow-up. If lag tips into stall
+            (rate == 0) expect WakirWelle6SubscribeLoopStall
+            (page) to take over.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-6-jetstream-consumer-lag"
+          notify_path: "ntfy:ar-hand-info + activity-log:append"
 
   - name: welle-7-alerts
     interval: 30s
