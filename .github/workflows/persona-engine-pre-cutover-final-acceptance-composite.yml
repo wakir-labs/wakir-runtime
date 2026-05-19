@@ -1,0 +1,359 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Persona-Engine Pre-Cutover Final Acceptance Composite (Tag-61, Selin)
+# =====================================================================
+#
+# Purpose
+# -------
+# The final persona-engine pre-cutover acceptance probe. Aggregates
+# four Tag-58/59/60 substrate verdicts the engine 0.5.3-rc1 RC has
+# accumulated into a single ``PRE-CUTOVER-READY`` /
+# ``PRE-CUTOVER-DRIFT`` / ``PRE-CUTOVER-DEFECT`` verdict that the
+# KW-24 cutover-day auto-scheduler reads alongside the Tag-53
+# ``pre-cutover-final-sanity-gate-verdict.json``.
+#
+# Four sub-gate substrates aggregated
+# ----------------------------------
+#
+#   G1 - v907_pin
+#       V-907 persona-hash-pin verdict from Tag-59 PR #379. Runs
+#       ``tooling/ci/verify_v907_persona_hash_pin.py``. The upstream
+#       envelope is binary (HASH-PIN-INTACT | HASH-PIN-DRIFT); we
+#       normalise to green | red here.
+#
+#   G2 - drift_scanner
+#       Engine-version-drift full-coverage scanner from Tag-60
+#       PR #384. Runs ``tooling/ci/scan_engine_version_drift.py
+#       --json``. green when ``findings_unallowlisted`` AND
+#       ``findings_allowlisted`` are both empty; yellow when only
+#       allowlisted hits exist; red on any un-allowlisted finding.
+#
+#   G3 - version_bump_coverage
+#       Engine 0.5.3-rc1 version-bump-coverage verdict from Tag-58
+#       PR #372. Probes the canonical anchor at
+#       ``wirelang/persona_engine/__version__.py`` carries
+#       ``__version__ = "0.5.3-rc1"`` AND the 0.5.3-rc1
+#       release-notes file is present. green on full match;
+#       yellow on anchor-match-but-notes-missing; red on anchor-
+#       mismatch.
+#
+#   G4 - manifest_readiness
+#       Manifest + pin-pack readiness from Tag-52/Tag-58. Probes
+#       ``wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md``
+#       and ``infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml``
+#       exist AND the pin-pack carries
+#       ``manifest_version: "0.5.2-final-pre-cutover"``. green on
+#       full match; yellow on partial; red on missing.
+#
+#   G5 - compositum
+#       Decision aggregation. Walks G1..G4 status outputs, runs the
+#       ``aggregate_persona_engine_pre_cutover_final.py`` aggregator,
+#       writes ``out/persona-engine-pre-cutover-final-composite-
+#       verdict.json``, and emits the READY/DRIFT/DEFECT signal as
+#       a job-output. Uploads the verdict envelope as an artifact.
+#
+# Decision rule
+# -------------
+#
+#   * PRE-CUTOVER-READY    - all four substrates green.
+#   * PRE-CUTOVER-DRIFT    - 1..N yellow, zero red.
+#   * PRE-CUTOVER-DEFECT   - any red.
+#
+# Tighter than Tag-53 (which allows 1..2 yellow as CAUTION). The
+# four-substrate scope here is narrow enough that mixed-signal
+# results carry no redundancy-budget.
+#
+# Trigger surface
+# ---------------
+#
+#   * workflow_dispatch - operator-hand / AR-Hand manual run.
+#     Input: ``enforce`` flag (default ``true``). When ``true``,
+#     PRE-CUTOVER-DEFECT exits step 1; PRE-CUTOVER-DRIFT emits a
+#     warning. When ``false``, the workflow audits only.
+#   * pull_request (path-filtered) - any change to the engine-
+#     substrate or sub-gate substrate re-probes.
+#
+# Hermetic posture
+# ----------------
+# Stdlib-only Python. No third-party deps, no podman, no NATS, no
+# live-VM. The sub-gates G1+G2 invoke existing Tag-59/Tag-60
+# helpers (also stdlib-only). G3+G4 are plain filesystem probes.
+#
+# Scope discipline (Selin, ADR-0036/0043/0065/0066)
+# -------------------------------------------------
+# This composite pins the persona-engine CI surface. It does NOT
+# modify persona definitions (Aisha-Domaene), WAT-core / V-907
+# logic (Tomas-Domaene, Zone-K), identity-substrate (Reza-Domaene,
+# Zone-L), or container-infra (Kai-Domaene, Zone-J).
+
+name: persona-engine-pre-cutover-final-acceptance-composite
+
+on:
+  workflow_dispatch:
+    inputs:
+      enforce:
+        description: 'If "true", exit 1 on PRE-CUTOVER-DEFECT (default: true).'
+        required: false
+        default: 'true'
+        type: string
+  pull_request:
+    paths:
+      - 'wirelang/persona_engine/**'
+      - 'docs/persona-engine/**'
+      - 'infra/persona-engine/pin-pack-*.yaml'
+      - 'tooling/ci/verify_v907_persona_hash_pin.py'
+      - 'tooling/ci/scan_engine_version_drift.py'
+      - 'tooling/ci/engine-version-drift-allowlist.json'
+      - 'tooling/ci/aggregate_persona_engine_pre_cutover_final.py'
+      - 'wirelang/tests/persona_engine/**'
+      - '.github/workflows/persona-engine-pre-cutover-final-acceptance-composite.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: persona-engine-pre-cutover-final-acceptance-composite-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  g1-v907-pin:
+    name: G1 v907_pin (Selin Tag-59 PR #379)
+    runs-on: ubuntu-latest
+    outputs:
+      g1_status: ${{ steps.probe.outputs.g1_status }}
+      g1_note: ${{ steps.probe.outputs.g1_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Probe v907_pin substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          status="green"
+          note=""
+          if [ ! -f tooling/ci/verify_v907_persona_hash_pin.py ]; then
+            status="red"
+            note="v907 verifier missing"
+          elif [ ! -f wirelang/persona_engine/v907-hash-baseline.json ]; then
+            status="red"
+            note="v907 baseline missing"
+          else
+            envelope="$(python3 tooling/ci/verify_v907_persona_hash_pin.py)"
+            verdict="$(printf '%s' "$envelope" | python3 -c 'import sys, json; print(json.load(sys.stdin)["verdict"])')"
+            if [ "$verdict" = "HASH-PIN-INTACT" ]; then
+              status="green"
+              note=""
+            elif [ "$verdict" = "HASH-PIN-DRIFT" ]; then
+              status="red"
+              verdict_class="$(printf '%s' "$envelope" | python3 -c 'import sys, json; print(json.load(sys.stdin).get("verdict_class", ""))')"
+              note="hash-pin drift: $verdict_class"
+            else
+              status="red"
+              note="v907 verifier unknown verdict: $verdict"
+            fi
+          fi
+          echo "g1_status=$status" >> "$GITHUB_OUTPUT"
+          echo "g1_note=$note"     >> "$GITHUB_OUTPUT"
+          echo "G1 v907_pin: status=$status note='$note'"
+
+  g2-drift-scanner:
+    name: G2 drift_scanner (Selin Tag-60 PR #384)
+    runs-on: ubuntu-latest
+    outputs:
+      g2_status: ${{ steps.probe.outputs.g2_status }}
+      g2_note: ${{ steps.probe.outputs.g2_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Probe drift_scanner substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          status="green"
+          note=""
+          if [ ! -f tooling/ci/scan_engine_version_drift.py ]; then
+            status="red"
+            note="drift scanner missing"
+          elif [ ! -f tooling/ci/engine-version-drift-allowlist.json ]; then
+            status="red"
+            note="drift allowlist missing"
+          else
+            payload="$(python3 tooling/ci/scan_engine_version_drift.py --json || true)"
+            unallow="$(printf '%s' "$payload" | python3 -c 'import sys, json; d=json.load(sys.stdin); print(len(d.get("findings_unallowlisted", [])))')"
+            allow="$(printf '%s' "$payload" | python3 -c 'import sys, json; d=json.load(sys.stdin); print(len(d.get("findings_allowlisted", [])))')"
+            if [ "$unallow" -gt 0 ]; then
+              status="red"
+              note="un-allowlisted drift findings: $unallow"
+            elif [ "$allow" -gt 0 ]; then
+              status="yellow"
+              note="allowlisted historical hits: $allow"
+            else
+              status="green"
+              note=""
+            fi
+          fi
+          echo "g2_status=$status" >> "$GITHUB_OUTPUT"
+          echo "g2_note=$note"     >> "$GITHUB_OUTPUT"
+          echo "G2 drift_scanner: status=$status note='$note'"
+
+  g3-version-bump-coverage:
+    name: G3 version_bump_coverage (Selin Tag-58 PR #372)
+    runs-on: ubuntu-latest
+    outputs:
+      g3_status: ${{ steps.probe.outputs.g3_status }}
+      g3_note: ${{ steps.probe.outputs.g3_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe version_bump_coverage substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          anchor="wirelang/persona_engine/__version__.py"
+          notes="docs/persona-engine/0-5-3-rc1-release-notes.md"
+          status="green"
+          note=""
+          if [ ! -f "$anchor" ]; then
+            status="red"
+            note="version anchor module missing"
+          elif ! grep -q '^__version__ = "0.5.3-rc1"' "$anchor"; then
+            status="red"
+            note="version anchor not 0.5.3-rc1"
+          elif [ ! -f "$notes" ]; then
+            status="yellow"
+            note="release-notes 0.5.3-rc1 missing"
+          fi
+          echo "g3_status=$status" >> "$GITHUB_OUTPUT"
+          echo "g3_note=$note"     >> "$GITHUB_OUTPUT"
+          echo "G3 version_bump_coverage: status=$status note='$note'"
+
+  g4-manifest-readiness:
+    name: G4 manifest_readiness (Selin Tag-52 PR #336 + Tag-58 PR #372)
+    runs-on: ubuntu-latest
+    outputs:
+      g4_status: ${{ steps.probe.outputs.g4_status }}
+      g4_note: ${{ steps.probe.outputs.g4_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe manifest_readiness substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          manifest="wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md"
+          pin_pack="infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml"
+          status="green"
+          note=""
+          if [ ! -f "$manifest" ]; then
+            status="red"
+            note="manifest missing"
+          elif [ ! -f "$pin_pack" ]; then
+            status="red"
+            note="pin-pack missing"
+          else
+            if ! grep -q 'manifest_version: "0.5.2-final-pre-cutover"' "$pin_pack"; then
+              status="yellow"
+              note="manifest_version mismatch in pin-pack"
+            fi
+          fi
+          echo "g4_status=$status" >> "$GITHUB_OUTPUT"
+          echo "g4_note=$note"     >> "$GITHUB_OUTPUT"
+          echo "G4 manifest_readiness: status=$status note='$note'"
+
+  g5-compositum:
+    name: G5 compositum (READY / DRIFT / DEFECT verdict)
+    runs-on: ubuntu-latest
+    needs:
+      - g1-v907-pin
+      - g2-drift-scanner
+      - g3-version-bump-coverage
+      - g4-manifest-readiness
+    if: always()
+    outputs:
+      verdict: ${{ steps.aggregate.outputs.verdict }}
+    env:
+      ENFORCE: ${{ github.event.inputs.enforce || 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run hermetic Tag-61 test-suite
+        run: |
+          set -eu
+          python3 -m unittest \
+            wirelang.tests.persona_engine.test_engine_pre_cutover_final_composite_tag61 -v
+      - name: Aggregate G1..G4 into Tag-61 final-composite verdict
+        id: aggregate
+        shell: bash
+        env:
+          G1: ${{ needs.g1-v907-pin.outputs.g1_status }}
+          G2: ${{ needs.g2-drift-scanner.outputs.g2_status }}
+          G3: ${{ needs.g3-version-bump-coverage.outputs.g3_status }}
+          G4: ${{ needs.g4-manifest-readiness.outputs.g4_status }}
+          N1: ${{ needs.g1-v907-pin.outputs.g1_note }}
+          N2: ${{ needs.g2-drift-scanner.outputs.g2_note }}
+          N3: ${{ needs.g3-version-bump-coverage.outputs.g3_note }}
+          N4: ${{ needs.g4-manifest-readiness.outputs.g4_note }}
+        run: |
+          set -eo pipefail
+          g1="${G1:-red}"; g2="${G2:-red}"; g3="${G3:-red}"; g4="${G4:-red}"
+          notes=""
+          add_note() {
+            local key="$1" val="$2"
+            [ -z "$val" ] && return 0
+            if [ -z "$notes" ]; then notes="$key:$val"; else notes="$notes;$key:$val"; fi
+          }
+          add_note "v907_pin" "${N1:-}"
+          add_note "drift_scanner" "${N2:-}"
+          add_note "version_bump_coverage" "${N3:-}"
+          add_note "manifest_readiness" "${N4:-}"
+          mkdir -p out
+          G1_STATUS="$g1" \
+          G2_STATUS="$g2" \
+          G3_STATUS="$g3" \
+          G4_STATUS="$g4" \
+          G1_NOTE="${N1:-}" \
+          G2_NOTE="${N2:-}" \
+          G3_NOTE="${N3:-}" \
+          G4_NOTE="${N4:-}" \
+          SUBSTRATE_NOTES="$notes" \
+            python3 tooling/ci/aggregate_persona_engine_pre_cutover_final.py \
+              --output out/persona-engine-pre-cutover-final-composite-verdict.json
+          verdict=$(python3 -c "import json; print(json.load(open('out/persona-engine-pre-cutover-final-composite-verdict.json'))['verdict'])")
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Tag-61 Persona-Engine Pre-Cutover-Final-Composite Verdict: \`$verdict\`"
+            echo ""
+            echo "| Substrate | Status | Note |"
+            echo "|-----------|--------|------|"
+            echo "| G1 v907_pin              | \`$g1\` | ${N1:-} |"
+            echo "| G2 drift_scanner         | \`$g2\` | ${N2:-} |"
+            echo "| G3 version_bump_coverage | \`$g3\` | ${N3:-} |"
+            echo "| G4 manifest_readiness    | \`$g4\` | ${N4:-} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          enforce="${ENFORCE}"
+          if [ "$verdict" = "PRE-CUTOVER-DEFECT" ] && [ "$enforce" = "true" ]; then
+            echo "::error::Tag-61 compositum verdict: PRE-CUTOVER-DEFECT"
+            exit 1
+          elif [ "$verdict" = "PRE-CUTOVER-DEFECT" ]; then
+            echo "::warning::Tag-61 compositum verdict: PRE-CUTOVER-DEFECT (audit-only, not enforcing)"
+          elif [ "$verdict" = "PRE-CUTOVER-DRIFT" ]; then
+            echo "::warning::Tag-61 compositum verdict: PRE-CUTOVER-DRIFT"
+          else
+            echo "Tag-61 compositum verdict: PRE-CUTOVER-READY"
+          fi
+      - name: Upload Tag-61 final-composite-verdict.json artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: persona-engine-pre-cutover-final-composite-verdict
+          path: out/persona-engine-pre-cutover-final-composite-verdict.json
+          if-no-files-found: warn

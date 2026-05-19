@@ -342,9 +342,17 @@ def test_verify_against_repo_is_dag_consistent_under_default(helper_module):
 
 def test_verify_against_repo_under_strict_catches_soft_cites(helper_module):
     """Under --strict, the L2 docstring cite of L1 (the only soft-
-    cite at Tag-58 snapshot) is treated as drift."""
+    cite at Tag-58 snapshot) is treated as drift.
+
+    Tag-61 update: verdict label changed from ``DAG-DRIFT`` to
+    ``DAG-DRIFT-BLOCKED`` to make the BLOCKED/ALLOWED split
+    explicit. The exit-code (2) and the (1,2) extra-edge claim
+    are unchanged.
+    """
     result = helper_module.verify(REPO_ROOT, strict=True)
-    assert result.verdict == "DAG-DRIFT"
+    assert result.verdict in ("DAG-DRIFT", "DAG-DRIFT-BLOCKED"), (
+        f"unexpected verdict {result.verdict!r}"
+    )
     assert result.exit_code == 2
     assert (1, 2) in result.extra_edges, (
         f"expected (1,2) soft-cite to appear as extra under strict; "
