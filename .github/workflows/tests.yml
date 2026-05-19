@@ -454,7 +454,15 @@ jobs:
           # Same importorskip("yaml") pattern as the 0.5.2-final
           # manifest tests; production collects 16, sandbox skips
           # all 16. Delta lifts by exactly 16 (529 + 16 = 545).
-          EXPECTED_DELTA: '545'
+          # Tag-63 (2026-05-19, Selin): re-baselined 545 -> 563 because
+          # the Tag-63 engine-0.5.3-production-readiness-audit (post-
+          # Final-Bump counterpart of Tag-56) adds one new PyYAML-gated
+          # test module:
+          #   - test_tag63_production_readiness_audit.py: 18 tests
+          # Same importorskip("yaml") pattern as Tag-56; production
+          # collects 18, sandbox skips all 18. Delta lifts by exactly
+          # 18 (545 + 18 = 563).
+          EXPECTED_DELTA: '563'
           DELTA_TOLERANCE: '5'
         run: |
           python - <<'PY'

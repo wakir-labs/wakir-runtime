@@ -119,6 +119,16 @@
       "reason": "Tag-56 production-readiness audit; narrates the 0.5.0 -> 0.5.1 -> 0.5.2 -> 0.5.3-rc1 progression as audit context."
     },
     {
+      "path": "wirelang/tests/persona_engine/test_tag63_production_readiness_audit.py",
+      "categories": ["historical-migration-narrative", "historical-manifest", "v907-baseline-pin"],
+      "reason": "Tag-63 post-Final-Bump production-readiness audit. Pins the Tag-52 manifest filename + Tag-52 pin-pack filename as the active substrate (intentional carry-forward under the 0.5.3 final manifest-and-metadata-only bump per Tag-62 release-notes §1 'No pin-pack YAML refresh'). Asserts the V-907 baseline `engine_version: '0.5.3-rc1'` is the intentional Tag-59-seal-contract-protected literal (OPEN-K3). The 0.5.1-pre-cutover reference is the pin-pack `invariants.byte_stable_versus` carry-forward. All stale literals are legitimate."
+    },
+    {
+      "path": "reports/audit/persona-engine-0-5-3-production-readiness-2026-05-19.md",
+      "categories": ["historical-migration-narrative", "historical-manifest", "v907-baseline-pin"],
+      "reason": "Tag-63 audit report; narrates the 0.5.2-final-pre-cutover -> 0.5.3-rc1 -> 0.5.3 final progression as audit context plus the OPEN-K3 V-907-baseline carry-forward literal and OPEN-J3 Containerfile label carry-forward literal."
+    },
+    {
       "path": "wirelang/tests/persona_engine/test_v907_hash_pin_build_step_tag59.py",
       "categories": ["historical-manifest", "v907-baseline-pin"],
       "reason": "Tag-59 V-907 hash-pin test; pins against the Tag-52 manifest + pin-pack filenames (the v907-hash-baseline.json input strings). Tag-62 final-bump: the engine_version literal 0.5.3-rc1 in this test asserts the sealed v907-hash-baseline.json content, which is intentionally preserved at rc1 per the Tag-59 seal contract; this category extension explicitly registers the rc1 literal as legitimate stale in the baseline-pin context."
