@@ -1,0 +1,291 @@
+{
+  "__comment": "Tag-65 Marathon-Dashboard-Kachel for Cutover-Day-Morgen-Verdict (Noa Bergstroem / SRE). Single-screen tile-cluster that the AR-Hand / Operator-Hand opens once per cutover-week morning to read the Selin Tag-64 Auto-Scheduler verdict (READY / CAUTION / BLOCK) plus its supporting context: window-days-remaining in the KW-24..27 cutover-window, last-update-timestamp of the verdict envelope, and the trinary recording-rule integer-class. Driven by the Tag-64 recording-rule wakir_cutover_day_morgen_verdict_class (0=READY, 1=CAUTION, 2=BLOCK) and three companion gauges that the Tag-65 helper tooling/ci/render_cutover_day_morgen_tile.py emits onto the Prometheus textfile-exporter surface: wakir_cutover_day_morgen_verdict_emitted_at_seconds (Unix-seconds of envelope emission), wakir_cutover_day_morgen_window_days_remaining (calendar-days remaining in the KW-24..27 window, -1 if outside the window), wakir_cutover_day_morgen_in_cutover_window (0/1 boolean). Six panels: (1) Verdict-stat (single big READY/CAUTION/BLOCK stat with RdYlGn colour-band), (2) Window-days-remaining gauge (countdown 0..28), (3) Last-update timestamp (UTC ISO, stale-after-1h coloured red), (4) Per-substrate readiness ladder (engine_composite + pyramide_composite + e2e_smoke, three sub-stats green/yellow/red), (5) Verdict-class history sparkline last 24h, (6) AR-Hand action-link panel (text-only, deep-links to the runbooks). Anchors: Selin Tag-64 PR #406 (Auto-Scheduler), Noa Tag-64 PR #410 (Trinary-Routing-Reactive-Wiring), ADR-0066 Phase-3c Cutover-Plan. Schema version Grafana 10.x (schemaVersion 38). Sole datasource UID 'prom' (Prometheus).",
+  "title": "Wakir - Cutover-Day-Morgen Verdict Tile",
+  "uid": "wakir-cutover-day-morgen-verdict-tile",
+  "tags": [
+    "wakir",
+    "sre",
+    "phase-3-marathon",
+    "cutover-day-morgen",
+    "verdict-tile",
+    "trinary-verdict",
+    "ar-hand",
+    "adr-0066",
+    "tag-65"
+  ],
+  "schemaVersion": 38,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 0,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Prometheus",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {"text": "prom", "value": "prom"},
+        "hide": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Cutover-Day-Morgen Verdict (trinary)",
+      "__comment": "The single primary read of this dashboard. Translates the integer-encoded recording-rule wakir_cutover_day_morgen_verdict_class (0=READY, 1=CAUTION, 2=BLOCK) into a coloured READY/CAUTION/BLOCK text-stat. Thresholds: 0 -> green (READY), 1 -> yellow (CAUTION), 2 -> red (BLOCK). Value-mappings transform the integer to the canonical CUTOVER-DAY-MORGEN-{READY,CAUTION,BLOCK} string from tooling/ci/aggregate_cutover_day_morgen_verdict.py. This panel is the at-a-glance check the AR-Hand makes at 06:30 CEST every cutover-week-morning.",
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_cutover_day_morgen_verdict_class",
+          "refId": "A",
+          "instant": true,
+          "legendFormat": "verdict_class"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {"text": "READY", "color": "green", "index": 0},
+                "1": {"text": "CAUTION", "color": "yellow", "index": 1},
+                "2": {"text": "BLOCK", "color": "red", "index": 2}
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "green"},
+              {"value": 1, "color": "yellow"},
+              {"value": 2, "color": "red"}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "gauge",
+      "title": "Window-Days-Remaining (KW-24..27)",
+      "__comment": "Calendar-days remaining in the KW-24..27 cutover-window. The helper tooling/ci/render_cutover_day_morgen_tile.py computes this from the envelope's window.iso_week + emitted_at_utc: if iso_week is in {24,25,26,27}, days_remaining = (last-Friday-of-window) - (today). If iso_week is None or outside the window, the helper emits -1 and this gauge reads 'out-of-window'. The KW-24..27 window covers 28 calendar days; the gauge maxes at 28 and counts down. AR-Hand watches this descend each morning as a confidence-marker that the marathon is on schedule.",
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_cutover_day_morgen_window_days_remaining",
+          "refId": "A",
+          "instant": true,
+          "legendFormat": "days_remaining"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "showThresholdLabels": true,
+        "showThresholdMarkers": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d",
+          "min": -1,
+          "max": 28,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {"text": "out-of-window", "color": "blue", "index": 0}
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "red"},
+              {"value": 0, "color": "yellow"},
+              {"value": 7, "color": "green"}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Last-Update Timestamp (UTC)",
+      "__comment": "Stale-detector. The helper tooling/ci/render_cutover_day_morgen_tile.py emits wakir_cutover_day_morgen_verdict_emitted_at_seconds as the Unix-seconds of the envelope's emitted_at_utc field. Grafana 'now() - <emitted_at_seconds>' yields the freshness-age in seconds. Thresholds: < 600s green (fresh, last cron-tick was within 10 min), < 3600s yellow (stale up to 1h, the cron-tick is at 06:00 UTC so up to 1h is normal mid-morning), >= 3600s red (the auto-scheduler missed a tick - operator-runbook §Stale-Verdict). Display: seconds-ago + the absolute UTC ISO timestamp via secondary text.",
+      "gridPos": {"h": 5, "w": 12, "x": 0, "y": 7},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "time() - wakir_cutover_day_morgen_verdict_emitted_at_seconds",
+          "refId": "A",
+          "instant": true,
+          "legendFormat": "age_seconds"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "green"},
+              {"value": 600, "color": "yellow"},
+              {"value": 3600, "color": "red"}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Per-Substrate Readiness Ladder (engine / pyramide / e2e)",
+      "__comment": "Three sub-stats: engine_composite (Selin Tag-61/63 Persona-Engine Pre-Cutover-Final-Acceptance-Composite), pyramide_composite (Amara Tag-62 Pyramide-Acceptance Pre-Cutover Compositum), e2e_smoke (Amara Tag-63 Pre-Cutover-Final-Acceptance E2E-Smoke). Each substrate has its own integer-encoded class: 0=green, 1=yellow, 2=red. When the aggregate Cutover-Day-Morgen verdict is BLOCK or CAUTION, this panel tells the AR-Hand WHICH substrate degraded without opening the envelope.json.",
+      "gridPos": {"h": 5, "w": 12, "x": 12, "y": 7},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_cutover_day_morgen_substrate_class",
+          "refId": "A",
+          "instant": true,
+          "legendFormat": "{{substrate}}"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {"text": "green", "color": "green", "index": 0},
+                "1": {"text": "yellow", "color": "yellow", "index": 1},
+                "2": {"text": "red", "color": "red", "index": 2}
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "green"},
+              {"value": 1, "color": "yellow"},
+              {"value": 2, "color": "red"}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Verdict-Class History (last 24h)",
+      "__comment": "24h sparkline of the verdict-class integer. Visual confirmation of stability: a flat green line at y=0 is the desired pre-cutover-week pattern. Any step-up from 0 to 1 (yellow CAUTION) or 0 to 2 (red BLOCK) is the trigger for AR-Hand attention. The Tag-64 cron runs daily at 06:00 UTC so the line is discretised to ~24 sample-points per panel-window; if the line shows fewer points than expected, the auto-scheduler missed cron-ticks (the panel-3 stale-detector confirms).",
+      "gridPos": {"h": 7, "w": 24, "x": 0, "y": 12},
+      "datasource": {"type": "prometheus", "uid": "prom"},
+      "targets": [
+        {
+          "expr": "wakir_cutover_day_morgen_verdict_class",
+          "refId": "A",
+          "legendFormat": "verdict_class"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "max": 2,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "fillOpacity": 25,
+            "showPoints": "always",
+            "pointSize": 5
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {"text": "READY", "color": "green", "index": 0},
+                "1": {"text": "CAUTION", "color": "yellow", "index": 1},
+                "2": {"text": "BLOCK", "color": "red", "index": 2}
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"value": null, "color": "green"},
+              {"value": 1, "color": "yellow"},
+              {"value": 2, "color": "red"}
+            ]
+          },
+          "color": {"mode": "thresholds"}
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "text",
+      "title": "AR-Hand Action Links",
+      "__comment": "Static text-panel with the three deep-links the AR-Hand needs after reading the verdict: (a) READY-runbook (no action; informational), (b) CAUTION-runbook (review which substrate degraded; SRE on-call ack within 10 min), (c) BLOCK-runbook (T0 trigger on hold; AR-Hand decision required). Mirrors the runbook_url annotations on the three trinary alerts in dashboards/phase-3-marathon-alerts.yaml (Tag-64).",
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 19},
+      "options": {
+        "mode": "markdown",
+        "content": "### Cutover-Day-Morgen Verdict Runbooks\n\n* **READY (green)** -> [cutover-day-morgen-ready runbook](https://wakir-labs.example/runbooks/cutover-day-morgen-ready) -- AR-Hand may proceed with T0 operator-trigger at 05:00 UTC. No action required.\n* **CAUTION (yellow)** -> [cutover-day-morgen-caution runbook](https://wakir-labs.example/runbooks/cutover-day-morgen-caution) -- One or more inputs drifted (not blocking). SRE on-call must acknowledge within 10 minutes; otherwise escalate to AR.\n* **BLOCK (red)** -> [cutover-day-morgen-block runbook](https://wakir-labs.example/runbooks/cutover-day-morgen-block) -- T0 trigger held by Mira-Hand-Hold-Marker. AR-Hand decision required before T0 may fire.\n\n**Envelope:** `out/cutover-day-morgen-verdict.json` (per the Tag-64 Auto-Scheduler workflow `.github/workflows/cutover-day-morgen-auto-scheduler.yml`).\n\n**Recording rule:** `wakir_cutover_day_morgen_verdict_class` (0=READY, 1=CAUTION, 2=BLOCK).\n\n**Window:** KW-24..27 (2026-06-08 .. 2026-07-03)."
+      }
+    }
+  ]
+}
