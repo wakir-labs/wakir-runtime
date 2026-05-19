@@ -1,0 +1,410 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Phase-3c Watch-Day-Practice-Run CI-Gate - Tag-56 / Noa-SRE
+# ---------------------------------------------------------------------------
+#
+# Regression-pin for the Tag-54 Pre-Cutover-Watch-Day spec
+# (`docs/observability/pre-cutover-watch-day-spec.md`), its Tag-54
+# pure-function verdict reference implementation
+# (`scripts/observability/pre-cutover-watch-day-verdict.py`), and the
+# Tag-55 Watch-Day-Practice-Run simulator
+# (`scripts/observability/watch-day-practice-run.py`).
+#
+# Purpose
+# -------
+#
+# The Watch-Day procedure runs at most four times (KW-24..27 Tue) and
+# the operator must execute it correctly the first time. The spec
+# treats §4 (slot-sequence), §7 (verdict-formula) and §10 (journal-
+# schema) as a single coupled contract: a change to any one of them
+# can silently break the others. This workflow pins that contract
+# in CI: every push that touches the spec, verdict module or
+# practice-run simulator triggers a deterministic hermetic
+# practice-run, and the run must reach `overall_pass=true` over all
+# nine built-in scenarios.
+#
+# What gets pinned
+# ----------------
+#
+#   Step 1 - Substrate-Inventory-Check
+#       Verify the three Tag-54/55 substrates exist on the current
+#       HEAD: the spec (Tag-54), the verdict module (Tag-54), the
+#       practice-run simulator (Tag-55). Pure tree-state check; no
+#       subprocess invocations.
+#
+#   Step 2 - Hermetic-Practice-Run
+#       Invoke
+#       `python3 scripts/observability/watch-day-practice-run.py
+#        --json` and assert exit-code 0. Parse the emitted JSON and
+#       assert `overall_pass == true`, `failed == 0`, and
+#       `total == 9` (the nine built-in scenarios). The JSON
+#       report is uploaded as a build artifact.
+#
+#   Step 3 - Per-Scenario-Verdict-Pinning
+#       Parse the practice-run JSON report and assert each of the
+#       nine scenarios reached its expected verdict and expected
+#       red-blocker-tuple. This is the regression-pin proper: if a
+#       refactor of the §7 formula silently changes a scenario's
+#       verdict, this step fails loud.
+#
+#   Step 4 - Slot-Sequence-Validation
+#       Assert that every scenario's `sequence_validation_ok` is
+#       `true` (no slot skipped, no extra slot, no duplicate slot).
+#       The slot-sequence is §4-canonical and a change to it would
+#       invalidate the operator's training.
+#
+#   Step 5 - Decision-Aggregation
+#       Aggregate Steps 1..4 into a single tri-state CI verdict
+#       (`READY` / `CAUTION` / `BLOCK`) and emit a JSON envelope.
+#       Exit non-zero on `BLOCK`. CI-fails the workflow only on
+#       BLOCK; CAUTION emits a warning annotation but does not fail
+#       the build, mirroring the spec's anti-Alert-Fatigue posture.
+#
+# Trigger surface
+# ---------------
+#
+#   * `workflow_dispatch:` - Mira-Hand/operator-hand manual run.
+#   * `push:` (path-filtered) - any change to the three substrates
+#     triggers an immediate re-pin.
+#   * `pull_request:` (path-filtered) - same path-filter as push,
+#     so PRs touching the spec/verdict/simulator get blocked at
+#     review time if they regress the practice-run.
+#   * `schedule: cron "0 5 * * 2"` - every Tuesday 05:00 UTC, the
+#     calendar-window in which the live Watch-Day procedure runs
+#     (KW-24..27 Tue). The scheduled run is a calendar-aligned
+#     re-pin even if no push lands that week.
+#
+# Sandbox boundary
+# ----------------
+#
+# Hermetic: stdlib + python 3.11 subprocess + the in-tree
+# simulator. No podman, no NATS, no live-VM, no Anthropic API,
+# no real Prometheus, no real Grafana. The simulator is itself
+# hermetic-by-design (see its module docstring §Design contract).
+#
+# Required status check
+# ---------------------
+#
+# Per `feedback_branch_protection_check_names.md` the required
+# status check is `Step 5 Decision-Aggregation
+# (READY/CAUTION/BLOCK + JSON verdict) / phase-3c-watch-day-practice-
+# run` once added to the protected-branch ruleset. Initial landing
+# does NOT add the gate; that is a follow-up after one green run on
+# `main`.
+#
+# Operator playbook (when this workflow fails on main)
+# ----------------------------------------------------
+#
+# When a scheduled run lands as BLOCK on Tuesday 05:00 UTC and the
+# live Watch-Day at 08:00..18:00 CEST is two hours away:
+#
+#   1. Download the `watch-day-practice-run-report.json` artifact.
+#   2. For each scenario with `pass=false`, read `computed_verdict`
+#      vs `expected_verdict` and `computed_red_blockers` vs
+#      `expected_red_blockers`. The divergence identifies whether
+#      the regression is in §7 (verdict-formula) or §10 (journal-
+#      schema validation).
+#   3. Inspect the diff vs the last green run on `main`. The most
+#      likely cause is a §7 formula edit in `pre-cutover-watch-day-
+#      verdict.py` that changes the verdict for a previously-pinned
+#      scenario. The spec §13 explicitly requires that §7 formula
+#      changes be ADR-gated.
+#   4. If the regression is intentional (spec amendment landed),
+#      update the scenario's `expected_verdict` in
+#      `scripts/observability/watch-day-practice-run.py` and add a
+#      new test case in
+#      `tests/ci/test_phase_3c_watch_day_practice_run_workflow.py`
+#      documenting the change. The spec amendment should reference
+#      the new scenario.
+#
+# Cross-substrate links
+# ---------------------
+#
+#   * Tag-54 Spec (PR #347):
+#     `docs/observability/pre-cutover-watch-day-spec.md`
+#   * Tag-54 Verdict reference (PR #347):
+#     `scripts/observability/pre-cutover-watch-day-verdict.py`
+#   * Tag-55 Practice-Run Simulator (PR #353):
+#     `scripts/observability/watch-day-practice-run.py`
+#   * Tag-56 Aggregator (this workflow):
+#     `tooling/ci/aggregate_watch_day_practice_run_verdict.py`
+
+name: phase-3c-watch-day-practice-run
+
+on:
+  workflow_dispatch:
+    inputs:
+      verbose:
+        description: "Emit per-scenario diagnostic output (true|false)"
+        required: false
+        default: "false"
+  schedule:
+    # Tuesday 05:00 UTC - aligns with the KW-24..27 Tue Watch-Day
+    # calendar window; the practice-run is re-pinned the morning
+    # of each candidate live Watch-Day.
+    - cron: "0 5 * * 2"
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/observability/pre-cutover-watch-day-spec.md"
+      - "scripts/observability/pre-cutover-watch-day-verdict.py"
+      - "scripts/observability/watch-day-practice-run.py"
+      - "tests/observability/test_pre_cutover_watch_day_verdict.py"
+      - "tests/observability/test_watch_day_practice_run.py"
+      - ".github/workflows/phase-3c-watch-day-practice-run.yml"
+      - "tooling/ci/aggregate_watch_day_practice_run_verdict.py"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "docs/observability/pre-cutover-watch-day-spec.md"
+      - "scripts/observability/pre-cutover-watch-day-verdict.py"
+      - "scripts/observability/watch-day-practice-run.py"
+      - "tests/observability/test_pre_cutover_watch_day_verdict.py"
+      - "tests/observability/test_watch_day_practice_run.py"
+      - ".github/workflows/phase-3c-watch-day-practice-run.yml"
+      - "tooling/ci/aggregate_watch_day_practice_run_verdict.py"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: phase-3c-watch-day-practice-run-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  step-1-substrate-inventory-check:
+    name: Step 1 Substrate-Inventory-Check (spec + verdict + simulator)
+    runs-on: ubuntu-latest
+    outputs:
+      step1_status: ${{ steps.probe.outputs.step1_status }}
+      missing: ${{ steps.probe.outputs.missing }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe Tag-54/55 substrate inventory
+        id: probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          required=(
+            "docs/observability/pre-cutover-watch-day-spec.md"
+            "scripts/observability/pre-cutover-watch-day-verdict.py"
+            "scripts/observability/watch-day-practice-run.py"
+          )
+          for f in "${required[@]}"; do
+            [[ -f "$f" ]] || missing+=("$f")
+          done
+          if (( ${#missing[@]} == 0 )); then
+            echo "step1_status=green" >> "$GITHUB_OUTPUT"
+            echo "missing=" >> "$GITHUB_OUTPUT"
+            echo "Inventory: spec + verdict + simulator all present."
+          else
+            echo "step1_status=red" >> "$GITHUB_OUTPUT"
+            printf "missing=%s\n" "$(IFS=,; echo "${missing[*]}")" >> "$GITHUB_OUTPUT"
+            printf "::warning::Step 1: missing substrates:\n"
+            for m in "${missing[@]}"; do
+              printf "  - %s\n" "$m"
+            done
+          fi
+
+  step-2-hermetic-practice-run:
+    name: Step 2 Hermetic-Practice-Run (simulator exits 0, overall_pass)
+    runs-on: ubuntu-latest
+    outputs:
+      step2_status: ${{ steps.probe.outputs.step2_status }}
+      report_path: ${{ steps.probe.outputs.report_path }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run watch-day-practice-run.py --json
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          script="scripts/observability/watch-day-practice-run.py"
+          if [[ ! -f "$script" ]]; then
+            echo "::warning::Step 2: $script missing (Tag-55 substrate)"
+            echo "step2_status=red" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir -p out
+          set +e
+          python3 "$script" --json > out/watch-day-practice-run-report.json
+          rc=$?
+          set -e
+          echo "report_path=out/watch-day-practice-run-report.json" >> "$GITHUB_OUTPUT"
+          if [[ $rc -ne 0 ]]; then
+            echo "::warning::Step 2: simulator exited $rc"
+            echo "step2_status=red" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Assert overall_pass + failed==0 + total==9. The simulator
+          # ships nine built-in scenarios; a change to that count
+          # without a coordinated test update is a regression.
+          if ! python3 -c "import json,sys; r=json.load(open('out/watch-day-practice-run-report.json')); ok = (r.get('overall_pass') is True and r.get('failed') == 0 and r.get('total') == 9); sys.exit(0 if ok else 1)"; then
+            echo "::warning::Step 2: overall_pass false or scenario count drift"
+            echo "step2_status=red" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "step2_status=green" >> "$GITHUB_OUTPUT"
+      - name: Upload practice-run report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: watch-day-practice-run-report
+          path: out/watch-day-practice-run-report.json
+          if-no-files-found: warn
+
+  step-3-per-scenario-verdict-pinning:
+    name: Step 3 Per-Scenario-Verdict-Pinning (9 scenarios x verdict + blockers)
+    runs-on: ubuntu-latest
+    needs:
+      - step-2-hermetic-practice-run
+    outputs:
+      step3_status: ${{ steps.probe.outputs.step3_status }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Download practice-run report
+        uses: actions/download-artifact@v4
+        with:
+          name: watch-day-practice-run-report
+          path: out
+      - name: Pin each scenario verdict + red-blocker tuple
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          if [[ ! -f out/watch-day-practice-run-report.json ]]; then
+            echo "::warning::Step 3: practice-run report missing"
+            echo "step3_status=red" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          set +e
+          python3 tooling/ci/aggregate_watch_day_practice_run_verdict.py \
+            --mode pin \
+            --report out/watch-day-practice-run-report.json
+          rc=$?
+          set -e
+          if [[ $rc -eq 0 ]]; then
+            echo "step3_status=green" >> "$GITHUB_OUTPUT"
+          elif [[ $rc -eq 2 ]]; then
+            echo "step3_status=yellow" >> "$GITHUB_OUTPUT"
+          else
+            echo "step3_status=red" >> "$GITHUB_OUTPUT"
+          fi
+
+  step-4-slot-sequence-validation:
+    name: Step 4 Slot-Sequence-Validation (every scenario, six slots)
+    runs-on: ubuntu-latest
+    needs:
+      - step-2-hermetic-practice-run
+    outputs:
+      step4_status: ${{ steps.probe.outputs.step4_status }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Download practice-run report
+        uses: actions/download-artifact@v4
+        with:
+          name: watch-day-practice-run-report
+          path: out
+      - name: Validate slot-sequence per scenario
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          if [[ ! -f out/watch-day-practice-run-report.json ]]; then
+            echo "::warning::Step 4: practice-run report missing"
+            echo "step4_status=red" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          set +e
+          python3 tooling/ci/aggregate_watch_day_practice_run_verdict.py \
+            --mode sequence \
+            --report out/watch-day-practice-run-report.json
+          rc=$?
+          set -e
+          if [[ $rc -eq 0 ]]; then
+            echo "step4_status=green" >> "$GITHUB_OUTPUT"
+          elif [[ $rc -eq 2 ]]; then
+            echo "step4_status=yellow" >> "$GITHUB_OUTPUT"
+          else
+            echo "step4_status=red" >> "$GITHUB_OUTPUT"
+          fi
+
+  step-5-decision-aggregation:
+    name: Step 5 Decision-Aggregation (READY/CAUTION/BLOCK + JSON verdict)
+    runs-on: ubuntu-latest
+    needs:
+      - step-1-substrate-inventory-check
+      - step-2-hermetic-practice-run
+      - step-3-per-scenario-verdict-pinning
+      - step-4-slot-sequence-validation
+    if: always()
+    outputs:
+      verdict: ${{ steps.aggregate.outputs.verdict }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Aggregate Steps 1..4 into Watch-Day-Practice-Run CI verdict
+        id: aggregate
+        shell: bash
+        env:
+          STEP1: ${{ needs.step-1-substrate-inventory-check.outputs.step1_status }}
+          STEP2: ${{ needs.step-2-hermetic-practice-run.outputs.step2_status }}
+          STEP3: ${{ needs.step-3-per-scenario-verdict-pinning.outputs.step3_status }}
+          STEP4: ${{ needs.step-4-slot-sequence-validation.outputs.step4_status }}
+          MISSING: ${{ needs.step-1-substrate-inventory-check.outputs.missing }}
+        run: |
+          set -eo pipefail
+          s1="${STEP1:-}"; s2="${STEP2:-}"; s3="${STEP3:-}"; s4="${STEP4:-}"
+          [[ -z "$s1" ]] && s1="red"
+          [[ -z "$s2" ]] && s2="red"
+          [[ -z "$s3" ]] && s3="red"
+          [[ -z "$s4" ]] && s4="red"
+          mkdir -p out
+          STEP1_STATUS="$s1" \
+          STEP2_STATUS="$s2" \
+          STEP3_STATUS="$s3" \
+          STEP4_STATUS="$s4" \
+          INVENTORY_MISSING="${MISSING:-}" \
+            python3 tooling/ci/aggregate_watch_day_practice_run_verdict.py \
+              --mode aggregate \
+              --output out/watch-day-practice-run-verdict.json
+          verdict=$(python3 -c "import json; print(json.load(open('out/watch-day-practice-run-verdict.json'))['verdict'])")
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Phase-3c Watch-Day-Practice-Run Verdict: \`$verdict\`"
+            echo ""
+            echo "| Step | Status |"
+            echo "|------|--------|"
+            echo "| Step 1 Inventory | \`$s1\` |"
+            echo "| Step 2 Hermetic-Practice-Run | \`$s2\` |"
+            echo "| Step 3 Per-Scenario-Verdict-Pinning | \`$s3\` |"
+            echo "| Step 4 Slot-Sequence-Validation | \`$s4\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$verdict" == "BLOCK" ]]; then
+            echo "::error::Phase-3c watch-day-practice-run verdict: BLOCK"
+            exit 1
+          elif [[ "$verdict" == "CAUTION" ]]; then
+            echo "::warning::Phase-3c watch-day-practice-run verdict: CAUTION"
+          fi
+      - name: Upload watch-day-practice-run-verdict.json artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: watch-day-practice-run-verdict
+          path: out/watch-day-practice-run-verdict.json
+          if-no-files-found: warn
