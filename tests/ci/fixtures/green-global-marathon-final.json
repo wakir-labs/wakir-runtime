@@ -1,0 +1,21 @@
+{
+  "_doc": "Tag-60 Pyramide Cross-Run Stability fixture: Global Post-Welle-7 all-GREEN canonical happy-path. Exercises the Global verdict aggregator (L1-full, L3-full, live-verify-gate plus all 7 per-Welle verdicts).",
+  "_anchor": "docs/quality-gates/pre-cutover-acceptance-run-order.md",
+  "_owner": "amara",
+  "_tag": "tag-60",
+  "mode": "global",
+  "per_welle_verdicts": {
+    "1": "GREEN",
+    "2": "GREEN",
+    "3": "GREEN",
+    "4": "GREEN",
+    "5": "GREEN",
+    "6": "GREEN",
+    "7": "GREEN"
+  },
+  "layer_outcomes": {
+    "L1-full": "GREEN",
+    "L3-full": "GREEN",
+    "live-verify-gate": "GREEN"
+  }
+}

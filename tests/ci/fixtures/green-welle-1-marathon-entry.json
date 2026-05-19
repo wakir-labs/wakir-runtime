@@ -1,0 +1,18 @@
+{
+  "_doc": "Tag-60 Pyramide Cross-Run Stability fixture: Welle-1 marathon-entry all-GREEN canonical happy-path. Welle-1 is special - it carries the L4/L5/L6 full-runs as Pre-Welle-1 gate (marathon-entry).",
+  "_anchor": "docs/quality-gates/pre-cutover-acceptance-run-order.md",
+  "_owner": "amara",
+  "_tag": "tag-60",
+  "mode": "welle",
+  "welle": 1,
+  "layer_outcomes": {
+    "L1-smoke": "GREEN",
+    "L2-dryrun": "GREEN",
+    "L4-full": "GREEN",
+    "L5-full": "GREEN",
+    "L6-full": "GREEN",
+    "L2-live": "GREEN",
+    "L2-shadow": "GREEN",
+    "L2-record-validation": "GREEN"
+  }
+}
