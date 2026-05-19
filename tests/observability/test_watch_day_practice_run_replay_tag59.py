@@ -44,7 +44,7 @@ import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-FIXTURE_PATH = REPO_ROOT / "tests" / "observability" / "fixtures" / "watch-day-practice-run-sample.json"
+FIXTURE_PATH = REPO_ROOT / "tests" / "observability" / "fixtures" / "watch-day-practice-run-sample-green.json"
 HELPER_PATH = REPO_ROOT / "tooling" / "ci" / "aggregate_watch_day_practice_run_verdict.py"
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "watch-day-practice-run-replay.yml"
 
@@ -361,7 +361,7 @@ def test_t14_replay_mode_is_hermetic_no_simulator_subprocess(
 def test_t15_workflow_yaml_references_fixture_path() -> None:
     assert WORKFLOW_PATH.is_file()
     yaml_text = WORKFLOW_PATH.read_text(encoding="utf-8")
-    assert "tests/observability/fixtures/watch-day-practice-run-sample.json" in yaml_text
+    assert "tests/observability/fixtures/watch-day-practice-run-sample-green.json" in yaml_text
     assert "tooling/ci/aggregate_watch_day_practice_run_verdict.py" in yaml_text
     assert "REPLAY-STABLE" in yaml_text
     assert "REPLAY-DRIFT" in yaml_text

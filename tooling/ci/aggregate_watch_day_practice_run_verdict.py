@@ -243,6 +243,11 @@ REPLAY_DRIFT = "REPLAY-DRIFT"
 # --json` at the time Tag-59 was sealed. Any future re-capture must
 # produce byte-identical output; if not, the practice-run simulator
 # has drifted and the operator's training is invalidated.
+#
+# Tag-61: This now corresponds to the GREEN-day sample; the canonical
+# fixture file has been renamed to `watch-day-practice-run-sample-
+# green.json` and joined by `*-caution.json` and `*-red.json`
+# variants. See ``FIXTURE_SETS`` below.
 TAG59_FIXTURE_SHA256 = (
     "6cbb7e574e27baa1d08b7d0cafcbd0b4154b2b1194f14936c84fcca8f3d82cfc"
 )
@@ -263,6 +268,112 @@ TAG59_PINNED_VERDICTS: tuple[tuple[str, str], ...] = (
 )
 
 
+# ---------------------------------------------------------------------------
+# Tag-61 multi-sample-fixture-set extension.
+#
+# Where Tag-59 pinned a single (GREEN-day) practice-run output, the
+# operator's KW-24..27 Watch-Day runbook needs replay-coverage across
+# all three verdict-classes that the Tag-54 spec emits:
+#
+#   * GREEN-day   - 9/9 scenarios match expected; overall_pass=True.
+#                   Operator action: proceed.
+#   * CAUTION-day - 8/9 scenarios match; one scenario drifted from
+#                   its expected verdict (here: amber-dashboard-
+#                   drift was over-fired to GREEN by a simulator
+#                   refactor). Operator action: investigate, decide.
+#   * RED-day     - 6/9 scenarios diverged; multiple blockers
+#                   missed/over-fired plus one slot-sequence
+#                   validation error. Operator action: block cutover.
+#
+# The replay-helper now selects which pinned-tuple to compare against
+# via ``--fixture-set {green|caution|red}``. The Tag-59 default
+# remains GREEN for backwards compatibility (workflows that pre-date
+# Tag-61 keep working).
+#
+# CAUTION/RED pins also include ``overall_pass`` expectation so the
+# "broken-fixture-but-honest" failure mode stays detectable even when
+# the per-scenario tuple drift is the intended day-state.
+# ---------------------------------------------------------------------------
+
+
+TAG61_GREEN_FIXTURE_SHA256 = TAG59_FIXTURE_SHA256
+TAG61_GREEN_PINNED_VERDICTS = TAG59_PINNED_VERDICTS
+TAG61_GREEN_OVERALL_PASS = True
+
+TAG61_CAUTION_FIXTURE_SHA256 = (
+    "c94f6a0382060e546a213f2cd5a4e13f8fcc101e1b9ac7fe444b74fefac992c0"
+)
+# CAUTION-day pinned tuple: amber-dashboard-drift's computed_verdict
+# drifted to "GREEN" while expected stayed "AMBER". All other
+# scenarios match the GREEN-day tuple.
+TAG61_CAUTION_PINNED_VERDICTS: tuple[tuple[str, str], ...] = (
+    ("all-green", "GREEN"),
+    ("amber-dashboard-drift", "GREEN"),  # drifted (computed)
+    ("amber-probe", "AMBER"),
+    ("red-probe", "RED"),
+    ("red-hard-zero-slo", "RED"),
+    ("red-welle-slo-fast-burn", "RED"),
+    ("red-ci-gate-fail", "RED"),
+    ("green-slo1-burn-without-cutover-welle", "GREEN"),
+    ("red-multi-blocker", "RED"),
+)
+TAG61_CAUTION_OVERALL_PASS = False
+
+TAG61_RED_FIXTURE_SHA256 = (
+    "d23dc0352ea1717d6f30c991c25341f0ae5155b04950872e7634e73c379d901f"
+)
+# RED-day pinned tuple: amber-probe over-fired to RED; red-probe and
+# red-multi-blocker have computed_red_blockers drift; red-multi-
+# blocker also has sequence_validation drift.
+TAG61_RED_PINNED_VERDICTS: tuple[tuple[str, str], ...] = (
+    ("all-green", "GREEN"),
+    ("amber-dashboard-drift", "AMBER"),
+    ("amber-probe", "RED"),              # over-fired (computed)
+    ("red-probe", "RED"),
+    ("red-hard-zero-slo", "RED"),
+    ("red-welle-slo-fast-burn", "RED"),
+    ("red-ci-gate-fail", "RED"),
+    ("green-slo1-burn-without-cutover-welle", "GREEN"),
+    ("red-multi-blocker", "RED"),
+)
+TAG61_RED_OVERALL_PASS = False
+
+
+FIXTURE_SETS: dict[str, dict[str, Any]] = {
+    "green": {
+        "fixture_name": "watch-day-practice-run-sample-green.json",
+        "sha256": TAG61_GREEN_FIXTURE_SHA256,
+        "verdicts": TAG61_GREEN_PINNED_VERDICTS,
+        "overall_pass": TAG61_GREEN_OVERALL_PASS,
+    },
+    "caution": {
+        "fixture_name": "watch-day-practice-run-sample-caution.json",
+        "sha256": TAG61_CAUTION_FIXTURE_SHA256,
+        "verdicts": TAG61_CAUTION_PINNED_VERDICTS,
+        "overall_pass": TAG61_CAUTION_OVERALL_PASS,
+    },
+    "red": {
+        "fixture_name": "watch-day-practice-run-sample-red.json",
+        "sha256": TAG61_RED_FIXTURE_SHA256,
+        "verdicts": TAG61_RED_PINNED_VERDICTS,
+        "overall_pass": TAG61_RED_OVERALL_PASS,
+    },
+}
+
+
+def resolve_fixture_set(name: str) -> dict[str, Any]:
+    """Resolve a fixture-set name to its pinned-spec dict.
+
+    Raises KeyError with a helpful message if the name is unknown.
+    """
+    if name not in FIXTURE_SETS:
+        raise KeyError(
+            f"unknown fixture-set {name!r}; "
+            f"valid: {sorted(FIXTURE_SETS.keys())}"
+        )
+    return FIXTURE_SETS[name]
+
+
 def _sha256_of_file(path: Path) -> str | None:
     try:
         with path.open("rb") as fh:
@@ -276,17 +387,30 @@ def mode_replay(
     output_path: Path,
     expected_sha256: str = TAG59_FIXTURE_SHA256,
     expected_verdicts: tuple[tuple[str, str], ...] = TAG59_PINNED_VERDICTS,
+    expected_overall_pass: bool = True,
+    fixture_set_name: str = "green",
 ) -> int:
     """Hermetic replay-mode: re-validate a pinned fixture.
 
     Layer 1 - File-hash pinning. The fixture must hash to the
-    pinned Tag-59 SHA-256. Any byte-level drift fails REPLAY-DRIFT.
+    pinned SHA-256 for its fixture-set. Any byte-level drift
+    fails REPLAY-DRIFT.
 
     Layer 2 - Per-scenario verdict pinning. The fixture must contain
-    exactly the nine pinned scenario-name x verdict pairs in order.
-    A reordering, rename, or verdict-change fails REPLAY-DRIFT.
+    exactly the nine pinned scenario-name x computed_verdict pairs
+    in order, for its fixture-set. A reordering, rename, or verdict-
+    change fails REPLAY-DRIFT.
 
-    Both layers must pass for REPLAY-STABLE.
+    Layer 3 - overall_pass pinning. The fixture's ``overall_pass``
+    flag must match the fixture-set's expectation. Tag-59 fixed this
+    to ``True`` (GREEN-only); Tag-61 generalises to per-set
+    (CAUTION/RED sets pin ``False``).
+
+    All three layers must pass for REPLAY-STABLE.
+
+    ``fixture_set_name`` is recorded in the output envelope for
+    operator-facing context; it does not affect drift detection by
+    itself.
     """
     drift_reasons: list[str] = []
 
@@ -318,23 +442,30 @@ def mode_replay(
             f"pinned={list(expected_verdicts)!r}"
         )
 
-    # Also pin overall_pass=true so a "broken-fixture-but-honest"
-    # variant cannot pass replay.
-    if not report.get("overall_pass", False):
+    # Tag-61: pin overall_pass per fixture-set rather than hard-coded
+    # to True. The "broken-fixture-but-honest" failure mode still
+    # surfaces because the expected value is single-sourced in
+    # FIXTURE_SETS.
+    actual_overall_pass = report.get("overall_pass")
+    if actual_overall_pass != expected_overall_pass:
         drift_reasons.append(
-            f"overall_pass drift: actual={report.get('overall_pass')!r} pinned=True"
+            f"overall_pass drift: actual={actual_overall_pass!r} "
+            f"pinned={expected_overall_pass!r}"
         )
 
     verdict = REPLAY_DRIFT if drift_reasons else REPLAY_STABLE
     envelope = {
         "verdict": verdict,
+        "fixture_set": fixture_set_name,
         "fixture_path": str(fixture_path),
         "fixture_sha256_actual": actual_sha,
         "fixture_sha256_pinned": expected_sha256,
+        "overall_pass_actual": actual_overall_pass,
+        "overall_pass_pinned": expected_overall_pass,
         "scenarios_actual": [list(p) for p in actual_pairs],
         "scenarios_pinned": [list(p) for p in expected_verdicts],
         "drift_reasons": drift_reasons,
-        "schema_version": 1,
+        "schema_version": 2,
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as fh:
@@ -343,7 +474,7 @@ def mode_replay(
     if drift_reasons:
         print(
             f"::warning::watch-day-practice-run replay caught drift "
-            f"({len(drift_reasons)} reason(s)):",
+            f"(set={fixture_set_name}, {len(drift_reasons)} reason(s)):",
             file=sys.stderr,
         )
         for r in drift_reasons:
@@ -393,8 +524,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--fixture-path",
         type=Path,
-        default=Path("tests/observability/fixtures/watch-day-practice-run-sample.json"),
-        help="Path to the pinned practice-run fixture (replay mode).",
+        default=None,
+        help=(
+            "Path to the pinned practice-run fixture (replay mode). "
+            "If omitted, derived from --fixture-set."
+        ),
     )
     p.add_argument(
         "--replay-mode",
@@ -402,6 +536,19 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Alias: force --mode=replay. Convenience flag for the "
             "Tag-59 replay workflow."
+        ),
+    )
+    # Tag-61: pick which day-class the fixture represents. Each set
+    # has its own pinned SHA-256 + per-scenario verdict tuple +
+    # overall_pass expectation. ``green`` preserves the Tag-59
+    # default for backwards compatibility.
+    p.add_argument(
+        "--fixture-set",
+        choices=tuple(sorted(FIXTURE_SETS.keys())),
+        default="green",
+        help=(
+            "Which Watch-Day verdict-class the replay fixture "
+            "represents (Tag-61 multi-sample). Default: green."
         ),
     )
     return p
@@ -428,7 +575,27 @@ def main(argv: Iterable[str] | None = None) -> int:
     if mode == "aggregate":
         return mode_aggregate(args.output)
     if mode == "replay":
-        return mode_replay(args.fixture_path, args.output)
+        # Tag-61: resolve fixture-set -> pinned spec. If
+        # --fixture-path was not given, derive it from the set's
+        # canonical filename under tests/observability/fixtures/.
+        try:
+            spec = resolve_fixture_set(args.fixture_set)
+        except KeyError as exc:
+            parser.error(str(exc))
+            return EXIT_ERROR  # unreachable
+        fixture_path = args.fixture_path
+        if fixture_path is None:
+            fixture_path = Path(
+                "tests/observability/fixtures"
+            ) / spec["fixture_name"]
+        return mode_replay(
+            fixture_path,
+            args.output,
+            expected_sha256=spec["sha256"],
+            expected_verdicts=spec["verdicts"],
+            expected_overall_pass=spec["overall_pass"],
+            fixture_set_name=args.fixture_set,
+        )
     parser.error(f"unknown mode: {mode}")
     return EXIT_ERROR  # unreachable
 

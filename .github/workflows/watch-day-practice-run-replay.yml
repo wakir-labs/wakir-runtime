@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Tag-59 Watch-Day-Practice-Run Dry-Run-Replay Workflow / Noa-SRE
+# Tag-61 Multi-Sample-Fixture extension
 # ---------------------------------------------------------------------------
 #
 # Hermetic replay-mode gate for the Tag-56 Watch-Day-Practice-Run
@@ -25,6 +26,20 @@
 # code drift" from "did the verdict-formula drift": Tag-56 catches
 # the former, Tag-59 catches the latter.
 #
+# Tag-61 extends the replay coverage from a single GREEN-day sample
+# to a 3-class matrix:
+#
+#   * green   - 9/9 scenarios match; operator-day = GREEN
+#   * caution - 1 scenario diverged; operator-day = CAUTION
+#   * red     - 3 scenarios diverged + 1 sequence-validation drift;
+#               operator-day = RED
+#
+# Each set has its own pinned SHA-256, per-scenario verdict tuple,
+# and overall_pass expectation in `tooling/ci/aggregate_watch_day_
+# practice_run_verdict.py` (`FIXTURE_SETS`). The matrix-job below
+# runs one replay-stability check per set; the workflow only passes
+# when all three are REPLAY-STABLE.
+#
 # Why both
 # --------
 #
@@ -36,36 +51,44 @@
 # replay gate catches it even if `overall_pass=true` stays - the
 # pinned per-scenario tuple drifts.
 #
+# Tag-61's CAUTION + RED samples additionally ensure the replay
+# substrate stays correct for non-GREEN days: the operator's
+# CAUTION/BLOCK runbooks rely on the same verdict-string
+# vocabulary, and a refactor that only breaks the CAUTION/RED
+# branches would have slipped past a green-only gate.
+#
 # Trigger surface
 # ---------------
 #
 #   * `workflow_dispatch:` - Mira-Hand manual re-pin.
 #   * `pull_request:` (path-filtered) - any PR touching the
 #     Tag-56 aggregator, the practice-run simulator, the Tag-54
-#     verdict module, or the Tag-59 fixture itself triggers a
+#     verdict module, or any of the Tag-61 fixtures triggers a
 #     replay-stability check.
 #
 # Sandbox boundary
 # ----------------
 #
 # Pure stdlib + python 3.11. No network, no podman, no GitHub-API
-# calls, no third-party dependencies. The fixture is in-tree and
+# calls, no third-party dependencies. The fixtures are in-tree and
 # the verdict-aggregator is in-tree; the workflow is a closed loop.
 #
-# Verdict
-# -------
+# Verdict (per matrix-leg, then aggregated by workflow conclusion)
+# ----------------------------------------------------------------
 #
-#   REPLAY-STABLE - fixture SHA-256 matches the pinned Tag-59
-#                   value AND every per-scenario verdict matches
-#                   the pinned tuple. Workflow passes.
-#   REPLAY-DRIFT  - either layer drifted. Workflow fails (REPLAY-
+#   REPLAY-STABLE - fixture SHA-256 matches the pinned value for
+#                   its set AND every per-scenario verdict matches
+#                   the pinned tuple AND overall_pass matches the
+#                   pinned flag. Matrix-leg passes.
+#   REPLAY-DRIFT  - any layer drifted. Matrix-leg fails (REPLAY-
 #                   DRIFT is never a CAUTION: an operator-facing
 #                   contract change must be loud).
 #
 # Author: Noa Bergstroem (SRE)
-# Anchor: Tag-59 Pre-Sealing KW-24 Marathon-Continuous-Mode.
+# Anchor: Tag-59 Pre-Sealing KW-24 Marathon-Continuous-Mode +
+#         Tag-61 Multi-Sample-Fixture-Erweiterung.
 
-name: Watch-Day-Practice-Run Replay (Tag-59)
+name: Watch-Day-Practice-Run Replay (Tag-59/Tag-61)
 
 on:
   workflow_dispatch: {}
@@ -75,7 +98,9 @@ on:
       - "scripts/observability/pre-cutover-watch-day-verdict.py"
       - "docs/observability/pre-cutover-watch-day-spec.md"
       - "tooling/ci/aggregate_watch_day_practice_run_verdict.py"
-      - "tests/observability/fixtures/watch-day-practice-run-sample.json"
+      - "tests/observability/fixtures/watch-day-practice-run-sample-green.json"
+      - "tests/observability/fixtures/watch-day-practice-run-sample-caution.json"
+      - "tests/observability/fixtures/watch-day-practice-run-sample-red.json"
       - ".github/workflows/watch-day-practice-run-replay.yml"
 
 permissions:
@@ -87,9 +112,19 @@ concurrency:
 
 jobs:
   replay-stability:
-    name: Replay-Stability (Tag-59)
+    name: "Replay-Stability (${{ matrix.fixture_set }})"
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - fixture_set: green
+            fixture_file: watch-day-practice-run-sample-green.json
+          - fixture_set: caution
+            fixture_file: watch-day-practice-run-sample-caution.json
+          - fixture_set: red
+            fixture_file: watch-day-practice-run-sample-red.json
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -106,7 +141,7 @@ jobs:
         id: stage1
         run: |
           set -euo pipefail
-          FIXTURE="tests/observability/fixtures/watch-day-practice-run-sample.json"
+          FIXTURE="tests/observability/fixtures/${{ matrix.fixture_file }}"
           if [[ ! -f "${FIXTURE}" ]]; then
             echo "::error::fixture not committed: ${FIXTURE}"
             exit 1
@@ -126,8 +161,8 @@ jobs:
           set +e
           python3 tooling/ci/aggregate_watch_day_practice_run_verdict.py \
             --replay-mode \
-            --fixture-path tests/observability/fixtures/watch-day-practice-run-sample.json \
-            --output out/watch-day-practice-run-replay-envelope.json
+            --fixture-set ${{ matrix.fixture_set }} \
+            --output out/watch-day-practice-run-replay-envelope-${{ matrix.fixture_set }}.json
           REPLAY_EXIT=$?
           set -e
           echo "replay_exit=${REPLAY_EXIT}" >> "${GITHUB_OUTPUT}"
@@ -142,7 +177,7 @@ jobs:
         id: stage3
         run: |
           set -euo pipefail
-          ENVELOPE="out/watch-day-practice-run-replay-envelope.json"
+          ENVELOPE="out/watch-day-practice-run-replay-envelope-${{ matrix.fixture_set }}.json"
           if [[ ! -f "${ENVELOPE}" ]]; then
             echo "::error::replay envelope missing: ${ENVELOPE}"
             exit 1
@@ -157,16 +192,17 @@ jobs:
         run: |
           set -euo pipefail
           VERDICT="${{ steps.stage3.outputs.verdict }}"
-          echo "::notice::Watch-Day-Practice-Run replay verdict: ${VERDICT}"
+          SET="${{ matrix.fixture_set }}"
+          echo "::notice::Watch-Day-Practice-Run replay verdict (${SET}): ${VERDICT}"
           case "${VERDICT}" in
             REPLAY-STABLE)
-              echo "Tag-59 replay-stability gate: PASS"
+              echo "Tag-59/61 replay-stability gate (${SET}): PASS"
               exit 0
               ;;
             REPLAY-DRIFT)
-              echo "::error::Tag-59 replay-stability gate: FAIL (drift detected)"
-              echo "::error::Practice-run simulator or verdict-formula drifted from Tag-59 baseline."
-              echo "::error::Re-pin the fixture (and update TAG59_FIXTURE_SHA256 + TAG59_PINNED_VERDICTS in tooling/ci/aggregate_watch_day_practice_run_verdict.py) if and only if the drift is intentional."
+              echo "::error::Tag-59/61 replay-stability gate (${SET}): FAIL (drift detected)"
+              echo "::error::Practice-run simulator or verdict-formula drifted from ${SET}-set baseline."
+              echo "::error::Re-pin the fixture (and update the matching TAG61_*_FIXTURE_SHA256 + TAG61_*_PINNED_VERDICTS in tooling/ci/aggregate_watch_day_practice_run_verdict.py) if and only if the drift is intentional."
               exit 1
               ;;
             *)
@@ -179,7 +215,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: watch-day-practice-run-replay-envelope
-          path: out/watch-day-practice-run-replay-envelope.json
+          name: watch-day-practice-run-replay-envelope-${{ matrix.fixture_set }}
+          path: out/watch-day-practice-run-replay-envelope-${{ matrix.fixture_set }}.json
           if-no-files-found: warn
           retention-days: 30

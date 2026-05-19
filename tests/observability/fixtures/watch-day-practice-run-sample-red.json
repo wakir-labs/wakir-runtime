@@ -1,0 +1,1471 @@
+{
+  "failed": 3,
+  "overall_pass": false,
+  "passed": 6,
+  "scenarios": [
+    {
+      "computed_red_blockers": [],
+      "computed_verdict": "GREEN",
+      "expected_red_blockers": [],
+      "expected_verdict": "GREEN",
+      "pass": true,
+      "scenario": "all-green",
+      "sequence_validation_errors": [],
+      "sequence_validation_ok": true,
+      "slot_results": [
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "08",
+            "timestamp_iso": "2026-06-09T08:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "08",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "10",
+            "timestamp_iso": "2026-06-09T10:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "10",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "12",
+            "timestamp_iso": "2026-06-09T12:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "12",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "14",
+            "timestamp_iso": "2026-06-09T14:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "14",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "16",
+            "timestamp_iso": "2026-06-09T16:00:00+02:00",
+            "verdict": "GREEN"
+          },
+          "pass": true,
+          "slot": "16",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "18",
+            "timestamp_iso": "2026-06-09T18:00:00+02:00",
+            "verdict": "GREEN"
+          },
+          "pass": true,
+          "slot": "18",
+          "validation_errors": [],
+          "validation_ok": true
+        }
+      ]
+    },
+    {
+      "computed_red_blockers": [],
+      "computed_verdict": "AMBER",
+      "expected_red_blockers": [],
+      "expected_verdict": "AMBER",
+      "pass": true,
+      "scenario": "amber-dashboard-drift",
+      "sequence_validation_errors": [],
+      "sequence_validation_ok": true,
+      "slot_results": [
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 1,
+            "dashboards_pass_count": 9,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "08",
+            "timestamp_iso": "2026-06-09T08:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "08",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "10",
+            "timestamp_iso": "2026-06-09T10:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "10",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "12",
+            "timestamp_iso": "2026-06-09T12:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "12",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "14",
+            "timestamp_iso": "2026-06-09T14:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "14",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 1,
+            "dashboards_pass_count": 9,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "16",
+            "timestamp_iso": "2026-06-09T16:00:00+02:00",
+            "verdict": "AMBER"
+          },
+          "pass": true,
+          "slot": "16",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 1,
+            "dashboards_pass_count": 9,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "18",
+            "timestamp_iso": "2026-06-09T18:00:00+02:00",
+            "verdict": "AMBER"
+          },
+          "pass": true,
+          "slot": "18",
+          "validation_errors": [],
+          "validation_ok": true
+        }
+      ]
+    },
+    {
+      "computed_red_blockers": [],
+      "computed_verdict": "RED",
+      "expected_red_blockers": [],
+      "expected_verdict": "AMBER",
+      "pass": false,
+      "scenario": "amber-probe",
+      "sequence_validation_errors": [],
+      "sequence_validation_ok": true,
+      "slot_results": [
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 1,
+            "probes_pass_count": 1,
+            "slot": "08",
+            "timestamp_iso": "2026-06-09T08:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "08",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "10",
+            "timestamp_iso": "2026-06-09T10:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "10",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "12",
+            "timestamp_iso": "2026-06-09T12:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "12",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "14",
+            "timestamp_iso": "2026-06-09T14:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "14",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 1,
+            "probes_pass_count": 1,
+            "slot": "16",
+            "timestamp_iso": "2026-06-09T16:00:00+02:00",
+            "verdict": "AMBER"
+          },
+          "pass": true,
+          "slot": "16",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 1,
+            "probes_pass_count": 1,
+            "slot": "18",
+            "timestamp_iso": "2026-06-09T18:00:00+02:00",
+            "verdict": "AMBER"
+          },
+          "pass": true,
+          "slot": "18",
+          "validation_errors": [],
+          "validation_ok": true
+        }
+      ]
+    },
+    {
+      "computed_red_blockers": [],
+      "computed_verdict": "RED",
+      "expected_red_blockers": [
+        "probe-verdict-RED:welle-1"
+      ],
+      "expected_verdict": "RED",
+      "pass": false,
+      "scenario": "red-probe",
+      "sequence_validation_errors": [],
+      "sequence_validation_ok": true,
+      "slot_results": [
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 1,
+            "probes_pass_count": 1,
+            "slot": "08",
+            "timestamp_iso": "2026-06-09T08:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "08",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "10",
+            "timestamp_iso": "2026-06-09T10:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "10",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "12",
+            "timestamp_iso": "2026-06-09T12:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "12",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "14",
+            "timestamp_iso": "2026-06-09T14:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "14",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 1,
+            "probes_pass_count": 1,
+            "slot": "16",
+            "timestamp_iso": "2026-06-09T16:00:00+02:00",
+            "verdict": "RED"
+          },
+          "pass": true,
+          "slot": "16",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 1,
+            "probes_pass_count": 1,
+            "slot": "18",
+            "timestamp_iso": "2026-06-09T18:00:00+02:00",
+            "verdict": "RED"
+          },
+          "pass": true,
+          "slot": "18",
+          "validation_errors": [],
+          "validation_ok": true
+        }
+      ]
+    },
+    {
+      "computed_red_blockers": [
+        "hard-zero-slo-burn:SLO-5"
+      ],
+      "computed_verdict": "RED",
+      "expected_red_blockers": [
+        "hard-zero-slo-burn:SLO-5"
+      ],
+      "expected_verdict": "RED",
+      "pass": true,
+      "scenario": "red-hard-zero-slo",
+      "sequence_validation_errors": [],
+      "sequence_validation_ok": true,
+      "slot_results": [
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "08",
+            "timestamp_iso": "2026-06-09T08:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "08",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "10",
+            "timestamp_iso": "2026-06-09T10:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "10",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "12",
+            "timestamp_iso": "2026-06-09T12:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "12",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "14",
+            "timestamp_iso": "2026-06-09T14:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "14",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "16",
+            "timestamp_iso": "2026-06-09T16:00:00+02:00",
+            "verdict": "RED"
+          },
+          "pass": true,
+          "slot": "16",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "18",
+            "timestamp_iso": "2026-06-09T18:00:00+02:00",
+            "verdict": "RED"
+          },
+          "pass": true,
+          "slot": "18",
+          "validation_errors": [],
+          "validation_ok": true
+        }
+      ]
+    },
+    {
+      "computed_red_blockers": [
+        "welle-slo-fast-burn-with-tomorrow-cutover:SLO-1"
+      ],
+      "computed_verdict": "RED",
+      "expected_red_blockers": [
+        "welle-slo-fast-burn-with-tomorrow-cutover:SLO-1"
+      ],
+      "expected_verdict": "RED",
+      "pass": true,
+      "scenario": "red-welle-slo-fast-burn",
+      "sequence_validation_errors": [],
+      "sequence_validation_ok": true,
+      "slot_results": [
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "08",
+            "timestamp_iso": "2026-06-09T08:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "08",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "10",
+            "timestamp_iso": "2026-06-09T10:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "10",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "12",
+            "timestamp_iso": "2026-06-09T12:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "12",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "14",
+            "timestamp_iso": "2026-06-09T14:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "14",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "16",
+            "timestamp_iso": "2026-06-09T16:00:00+02:00",
+            "verdict": "RED"
+          },
+          "pass": true,
+          "slot": "16",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "18",
+            "timestamp_iso": "2026-06-09T18:00:00+02:00",
+            "verdict": "RED"
+          },
+          "pass": true,
+          "slot": "18",
+          "validation_errors": [],
+          "validation_ok": true
+        }
+      ]
+    },
+    {
+      "computed_red_blockers": [
+        "ci-gate-failed:C1"
+      ],
+      "computed_verdict": "RED",
+      "expected_red_blockers": [
+        "ci-gate-failed:C1"
+      ],
+      "expected_verdict": "RED",
+      "pass": true,
+      "scenario": "red-ci-gate-fail",
+      "sequence_validation_errors": [],
+      "sequence_validation_ok": true,
+      "slot_results": [
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "failure",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "08",
+            "timestamp_iso": "2026-06-09T08:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "08",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "failure",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "10",
+            "timestamp_iso": "2026-06-09T10:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "10",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "failure",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "12",
+            "timestamp_iso": "2026-06-09T12:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "12",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "failure",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "14",
+            "timestamp_iso": "2026-06-09T14:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "14",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "failure",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "16",
+            "timestamp_iso": "2026-06-09T16:00:00+02:00",
+            "verdict": "RED"
+          },
+          "pass": true,
+          "slot": "16",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "failure",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "18",
+            "timestamp_iso": "2026-06-09T18:00:00+02:00",
+            "verdict": "RED"
+          },
+          "pass": true,
+          "slot": "18",
+          "validation_errors": [],
+          "validation_ok": true
+        }
+      ]
+    },
+    {
+      "computed_red_blockers": [],
+      "computed_verdict": "GREEN",
+      "expected_red_blockers": [],
+      "expected_verdict": "GREEN",
+      "pass": true,
+      "scenario": "green-slo1-burn-without-cutover-welle",
+      "sequence_validation_errors": [],
+      "sequence_validation_ok": true,
+      "slot_results": [
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 0,
+            "slot": "08",
+            "timestamp_iso": "2026-06-09T08:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "08",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 0,
+            "slot": "10",
+            "timestamp_iso": "2026-06-09T10:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "10",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 0,
+            "slot": "12",
+            "timestamp_iso": "2026-06-09T12:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "12",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 0,
+            "slot": "14",
+            "timestamp_iso": "2026-06-09T14:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "14",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 0,
+            "slot": "16",
+            "timestamp_iso": "2026-06-09T16:00:00+02:00",
+            "verdict": "GREEN"
+          },
+          "pass": true,
+          "slot": "16",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "success",
+            "ci_gate_c2": "success",
+            "cutover_welle": [],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 0,
+            "slot": "18",
+            "timestamp_iso": "2026-06-09T18:00:00+02:00",
+            "verdict": "GREEN"
+          },
+          "pass": true,
+          "slot": "18",
+          "validation_errors": [],
+          "validation_ok": true
+        }
+      ]
+    },
+    {
+      "computed_red_blockers": [
+        "ci-gate-failed:C1"
+      ],
+      "computed_verdict": "RED",
+      "expected_red_blockers": [
+        "probe-verdict-RED:welle-1",
+        "hard-zero-slo-burn:SLO-5",
+        "welle-slo-fast-burn-with-tomorrow-cutover:SLO-1",
+        "ci-gate-failed:C1"
+      ],
+      "expected_verdict": "RED",
+      "pass": false,
+      "scenario": "red-multi-blocker",
+      "sequence_validation_errors": [
+        "slot-16 has duplicate timestamp_iso"
+      ],
+      "sequence_validation_ok": false,
+      "slot_results": [
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "failure",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "08",
+            "timestamp_iso": "2026-06-09T08:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "08",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "failure",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "10",
+            "timestamp_iso": "2026-06-09T10:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "10",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "failure",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "12",
+            "timestamp_iso": "2026-06-09T12:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "12",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "failure",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "14",
+            "timestamp_iso": "2026-06-09T14:00:00+02:00",
+            "verdict": null
+          },
+          "pass": true,
+          "slot": "14",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "failure",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "16",
+            "timestamp_iso": "2026-06-09T16:00:00+02:00",
+            "verdict": "RED"
+          },
+          "pass": true,
+          "slot": "16",
+          "validation_errors": [],
+          "validation_ok": true
+        },
+        {
+          "journal_entry": {
+            "alerts_fail_count": 0,
+            "alerts_pass_count": 2,
+            "ci_gate_c1": "failure",
+            "ci_gate_c2": "success",
+            "cutover_welle": [
+              "welle-1",
+              "welle-2"
+            ],
+            "dashboards_fail_count": 0,
+            "dashboards_pass_count": 10,
+            "notes": "",
+            "operator": "noa",
+            "probes_fail_count": 0,
+            "probes_pass_count": 2,
+            "slot": "18",
+            "timestamp_iso": "2026-06-09T18:00:00+02:00",
+            "verdict": "RED"
+          },
+          "pass": true,
+          "slot": "18",
+          "validation_errors": [],
+          "validation_ok": true
+        }
+      ]
+    }
+  ],
+  "total": 9
+}
