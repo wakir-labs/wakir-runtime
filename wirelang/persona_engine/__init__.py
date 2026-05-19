@@ -62,7 +62,7 @@ provisioner BUCKET_FAMILIES probe-pattern).
 
 from __future__ import annotations
 
-__version__ = "0.5.0-pilot"
+from .__version__ import __version__  # canonical Tag-58 anchor
 
 __all__ = [
     "__version__",
