@@ -303,7 +303,6 @@ jobs:
           # is registered, the gate is treated as BLOCK (defect).
           mkdir -p out/stages/pre-auditor-input
           decision="PROCEED"
-          designated="true"
           if [[ "${DRIFT_INJECT,,}" == "pre_auditor" ]]; then
             decision="CAUTION"
           fi
@@ -316,7 +315,7 @@ jobs:
               "welle_number": 3,
               "auditor": "henrik",
               "decision": "$decision",
-              "designated": $designated,
+              "designated": True,
               "paragraph_11_discipline": True,
               "schema_version": "tag-67-v1",
           }
