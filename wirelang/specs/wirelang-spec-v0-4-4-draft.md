@@ -88,6 +88,17 @@ candidate, not a contract. The post-cutover sequence-promotion
 step (Phase-4 governance, TBD) will decide which RES-Dn items get
 folded into the v0.4.4 or v0.5 final document.
 
+**Tag-64 coverage extension (Reza-Hand 2026-05-19):**
+Each RES-Dn sub-section in §6 carries a `§6.n.1 Sample` block
+with a canonical-form-shape pin (one block per reserve item). The
+sample blocks are **non-normative** under the same draft-isolation
+invariant as the rest of §6 (see §2). They exist so that the
+promotion PR has a shape-anchor to render normative — not so that
+verifiers or producers act on them today. The Tag-64 audit suite
+(`tests/audit/test_wirelang_spec_v0_4_4_coverage_tag64.py`)
+pins per-RES-Dn sample-block existence, canonical-form-validity,
+and reference-integrity to the parent v0.4.3 anchor.
+
 ## 2. Conformance keywords
 
 The keywords MUST, MUST NOT, SHOULD, SHOULD NOT, MAY are used as
@@ -207,6 +218,28 @@ shape; a new fixture
 `vector-3a-rotation-overlap-dual-path.json` will be added in the
 promotion PR.
 
+#### 6.1.1 Sample (non-normative) — Tag-64 coverage block RES-D1
+
+The following canonical-form sample illustrates a dual-path
+Identity-Substrate document carrying both the v0.4.3 default-emit
+path and the post-cutover rotation-path. It is **illustrative
+only**; the document does not bind any v0.4.3 verifier and is
+**not** an addition to the v0.4.3 §3.2 Identity-Substrate
+contract. The sample exists to pin the shape that a post-cutover
+promotion PR will render normative.
+
+```yaml
+# identity-substrate document, dual-path BIP32 sub-key derivation
+# (RES-D1 candidate shape; non-normative until sequence-promotion)
+identity-substrate-version: 0.4.4-draft-RES-D1
+hd-prefix-default-emit: "m/44'/<wakir-coin-type>'/0'/0/<index>"
+hd-prefix-rotation-path: "m/44'/<wakir-coin-type>'/0'/1/<index>"
+overlap-window-len: 256
+overlap-window-env-flag: WAKIR_BIP32_OVERLAP_WINDOW_LEN
+fixture-shape-anchor: vector-3-rotation-overlap.json
+promotion-fixture-target: vector-3a-rotation-overlap-dual-path.json
+```
+
 ### 6.2 RES-D2: capability-token-refinements (candidate §7.4)
 
 A v0.4.4-or-later canonical wire format MUST recognise a new
@@ -228,6 +261,33 @@ The per-issuer interaction: if a token carries both
 latter is already in v0.4.3), then `A <= B` MUST hold. A
 producer attempting to emit a token with `A > B` MUST abort with
 error `predicate-interval-empty`.
+
+#### 6.2.1 Sample (non-normative) — Tag-64 coverage block RES-D2
+
+The following canonical-form sample illustrates a Datalog-caveat
+carrying the new `min-attenuation-depth` predicate alongside the
+existing `max-attenuation-depth` predicate. It is **illustrative
+only**; a v0.4.3 verifier observing this sample MUST reject it as
+a protocol error (unknown predicate tag). The sample exists to
+pin the shape that the promotion PR will render normative.
+
+```yaml
+# Datalog-caveat sample (RES-D2 candidate shape; non-normative)
+caveat-vocabulary-version: 0.4.4-draft-RES-D2
+predicate-tag-allocation:
+  catalogue-row-existing: 16   # max-attenuation-depth (v0.4.3 §3)
+  catalogue-row-candidate: 17  # min-attenuation-depth (RES-D2)
+predicates:
+  - tag: max-attenuation-depth
+    encoding: varint
+    value: 5
+  - tag: min-attenuation-depth
+    encoding: varint
+    value: 2
+producer-side-invariant: "min-attenuation-depth <= max-attenuation-depth"
+producer-side-abort-error: predicate-interval-empty
+verifier-side-rejection-verdict: under-attenuated
+```
 
 ### 6.3 RES-D3: bridge-audit-cleanup (candidate §4.1.10a)
 
@@ -251,6 +311,38 @@ metadata (`mode: python | rust-native | shim-fallback`). The
 audit-trail invariant is that a downstream WAT-leaf MUST be able
 to identify the writer-mode from the envelope alone, without
 consulting the Pin-Pack at audit time.
+
+#### 6.3.1 Sample (non-normative) — Tag-64 coverage block RES-D3
+
+The following canonical-form sample illustrates a bridge-audit
+envelope under each of the three modes. The envelope shape (outer
+metadata + mode-tag) is the wire-anchor of RES-D3. It is
+**illustrative only** and does **not** modify the Pin-Pack record
+#10 schema in v0.4.3 §4.1.
+
+```yaml
+# bridge-audit envelope (RES-D3 candidate shape; non-normative)
+schema-version: 0.4.4-draft-RES-D3
+pin-pack-record-number: 10
+selector-env-flag: WAKIR_BRIDGE_AUDIT_WRITER_BACKEND
+mode-values:
+  - python          # legacy mode (Phase-2 / Phase-3a)
+  - rust-native     # production mode (Phase-3c)
+  - shim-fallback   # transitional mode (Phase-3a shim)
+precedence-order: ["rust-native", "shim-fallback", "python"]
+graceful-degradation-rule: |
+  rust-native -> shim-fallback : MAY happen without restart
+  any switch involving python  : MUST happen with restart
+envelope-example:
+  outer-metadata:
+    mode: rust-native
+    timestamp: "2026-05-19T14:00:00Z"
+    bridge-audit-writer-version: "0.5.3"
+  payload-anchor: <opaque to RES-D3; unchanged from v0.4.3 §4.1>
+audit-trail-invariant: |
+  A downstream WAT-leaf MUST resolve the writer-mode
+  from outer-metadata.mode alone, without Pin-Pack lookup.
+```
 
 ### 6.4 RES-D4: schema-registry-v2-prep (candidate §8.5)
 
@@ -284,6 +376,40 @@ schema MUST accept the schema as binding if and only if (a) the
 OTS-anchor pointer resolves to a confirmed Bitcoin block and
 (b) the publishing peer-identity is a recognised federation peer.
 
+#### 6.4.1 Sample (non-normative) — Tag-64 coverage block RES-D4
+
+The following canonical-form sample illustrates a `registry-
+pointer` frame referencing an externally-anchored schema document
+and the companion `registry-pointer-record` published into the
+`route_registry_nats_kv_backend`. It is **illustrative only** and
+does **not** modify the v1 schema-registry contract in
+`wirelang/specs/schema-registry-spec.md`.
+
+```yaml
+# schema-registry v2 frame (RES-D4 candidate shape; non-normative)
+schema-registry-version: 0.4.4-draft-RES-D4
+registry-pointer-frame:
+  ots-anchor-pointer: "ots://bitcoin/<block-height>/<merkle-leaf-id>"
+  peer-identity: "did:wakir:peer:<peer-pubkey-fingerprint>"
+  schema-id: "wakir-schema:capability-policy:0.4.4-peer-ext-001"
+  schema-document-hash: "sha256:<opaque-content-hash>"
+registry-pointer-record:
+  nats-kv-bucket: route_registry
+  key: "peer:<peer-pubkey-fingerprint>:schema-id:<schema-id>"
+  value-shape:
+    registry-url: "https://peer.example.org/wakir-schema/<schema-id>"
+    anchored-by: ots-anchor-pointer
+    versioned-by: ots-anchor-pointer
+anchor-cost-attribution:
+  publishing-peer-pays: true
+  wakir-labs-registry-cost: "1 OTS-anchor per ~1000 pointer-records (amortised)"
+  courtesy-anchor-policy: "subject to courtesy-anchor budget"
+verifier-acceptance-rule: |
+  schema is binding IFF
+    (a) ots-anchor-pointer resolves to confirmed Bitcoin block AND
+    (b) peer-identity is a recognised federation peer
+```
+
 ### 6.5 RES-D5: recovery-drill-leaf-projection-v2 (candidate §6.4 of `recovery-drill-leaf-projection.md`)
 
 A v0.4.4-or-later recovery-drill MUST support sharded leaf-
@@ -308,6 +434,42 @@ sharded drill MUST be back-compatible with single-shard
 verifiers (a single-shard verifier that observes only
 `shard-id: 0` of an `n > 1` drill MUST emit verdict
 `incomplete-projection` rather than `valid` or `invalid`).
+
+#### 6.5.1 Sample (non-normative) — Tag-64 coverage block RES-D5
+
+The following canonical-form sample illustrates a multi-shard
+recovery-drill leaf-projection envelope and the cross-shard
+concatenation invariant. It is **illustrative only** and does
+**not** modify the v1 leaf-projection contract in
+`wirelang/specs/recovery-drill-leaf-projection.md`.
+
+```yaml
+# recovery-drill leaf-projection v2 (RES-D5 candidate shape; non-normative)
+leaf-projection-version: 0.4.4-draft-RES-D5
+single-shard-baseline:
+  shard-count: 1
+  shard-id: 0
+  comment: "Phase-3 substrate; remains the default"
+multi-shard-envelope:
+  shard-count: 4
+  shard-id-range: "0..3"
+  per-shard-envelope-shape:
+    shard-id: <varint, 0..n-1>
+    shard-count: <varint, >=1>
+    leaf-tree: <opaque per-shard merkle subtree>
+canonical-concatenation-invariant: |
+  concat(shard[0].leaf-tree, shard[1].leaf-tree, ...,
+         shard[n-1].leaf-tree)
+    MUST byte-equal
+  single-shard-projection(same-underlying-leaf-set)
+backward-compatibility-rule: |
+  single-shard verifier observing only shard-id 0 of an n>1 drill
+    MUST emit verdict: incomplete-projection
+    MUST NOT emit verdict: valid OR invalid
+operator-contract-sharding-day-transition: |
+  operator MAY introduce sharded drill at any point post-cutover
+  no wire-format-bump required
+```
 
 ## 7. Backward compatibility
 
@@ -357,6 +519,14 @@ The hermetic test suite that accompanies this draft
 twelve or more tests, Tag-63) enforces these invariants
 statically (no NATS, no engine boot, no Rust build, no network
 import).
+
+The Tag-64 coverage-extension suite
+(`tests/audit/test_wirelang_spec_v0_4_4_coverage_tag64.py`,
+fifteen or more tests) extends the Tag-63 invariant set with one
+sample-block-pin per RES-Dn item: existence, canonical-form
+validity (YAML block + RES-Dn anchor string), and reference-
+integrity to v0.4.3 (sample blocks MUST NOT bind a v0.4.3
+verifier; the freeze-seal MUST remain intact).
 
 ## 9. Citation pointers
 
