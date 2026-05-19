@@ -1,0 +1,132 @@
+{
+  "_schema": {
+    "version": 1,
+    "description": "Tag-60 engine-version-drift scanner allowlist. Each entry declares a file path (repo-relative) and the legitimate stale-literal context. The scanner skips matches whose containing file matches an entry and whose match-category is in 'categories'. The categories are: 'historical-manifest' (the file IS a frozen manifest of an older version), 'historical-pin-pack-reference' (the file is a per-version verifier that intentionally references its own manifest filename), 'release-notes-negative-assertion' (the test asserts the stale literal is NOT present and therefore must mention it), 'historical-migration-narrative' (free-form prose in docstrings describing past migrations), 'v907-baseline-pin' (the JSON baseline file pins historical hash inputs that contain version strings), 'manifest-historical-comment' (single-line comment in production code referencing a past version transition for narrative purposes only — never an active version claim).",
+    "owner": "Selin Celik (Persona-Engine)",
+    "tag": "Tag-60",
+    "linked_pr": "Mira-Hot-Fix #381 (engine_async.py:96 + cli.py:3 drift) was the trigger event.",
+    "out_of_scope": [
+      "Persona definitions (Aisha-Domaene, ADR-0043)",
+      "WAT-core / V-907 logic (Tomas-Domaene, Zone-K)",
+      "Identity-substrate design (Reza-Domaene, Zone-L)",
+      "Container-infra (Kai-Domaene, Zone-J)"
+    ]
+  },
+  "entries": [
+    {
+      "path": "wirelang/persona_engine/MANIFEST-0.5.0-pre-cutover.md",
+      "categories": ["historical-manifest"],
+      "reason": "Frozen manifest of the 0.5.0-pre-cutover engine; mentions 0.5.0-pilot as its own image-tag history."
+    },
+    {
+      "path": "wirelang/persona_engine/MANIFEST-0.5.1-pre-cutover.md",
+      "categories": ["historical-manifest"],
+      "reason": "Frozen manifest of the 0.5.1-pre-cutover engine; references 0.5.0-pre-cutover and 0.5.1-pre-cutover as its own version chain."
+    },
+    {
+      "path": "wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md",
+      "categories": ["historical-manifest"],
+      "reason": "Tag-52 manifest, still referenced by __version__.MANIFEST_RELPATH as the active manifest file (0.5.3-rc1 is a metadata-only RC that re-uses the Tag-52 manifest body)."
+    },
+    {
+      "path": "wirelang/persona_engine/v907-hash-baseline.json",
+      "categories": ["v907-baseline-pin"],
+      "reason": "JSON pin of the V-907 hash inputs; the manifest filename and prior versions are deliberate input strings."
+    },
+    {
+      "path": "wirelang/persona_engine/__version__.py",
+      "categories": ["manifest-historical-comment"],
+      "reason": "MANIFEST_RELPATH points at the Tag-52 manifest filename as the active authority path; module docstring narrates the 0.5.2-final-pre-cutover -> 0.5.3-rc1 strict-superset relation."
+    },
+    {
+      "path": "wirelang/persona_engine/engine.py",
+      "categories": ["manifest-historical-comment"],
+      "reason": "Single comment on line 641 narrates the 0.5.0-pre-cutover -> 0.5.1-pre-cutover manifest bump for resolver-fan-out historical context. No active version claim."
+    },
+    {
+      "path": "wirelang/persona_engine/rust_backend_switch.py",
+      "categories": ["historical-migration-narrative"],
+      "reason": "Docstring at line 2137 narrates the 0.5.1-pre-cutover backend-switch wiring. No active version claim."
+    },
+    {
+      "path": "wirelang/tests/persona_engine/test_manifest_0_5_0_pre_cutover.py",
+      "categories": ["historical-manifest"],
+      "reason": "Hermetic manifest-integrity test for the frozen 0.5.0-pre-cutover manifest."
+    },
+    {
+      "path": "wirelang/tests/persona_engine/test_manifest_0_5_1_pre_cutover.py",
+      "categories": ["historical-manifest"],
+      "reason": "Hermetic manifest-integrity test for the frozen 0.5.1-pre-cutover manifest."
+    },
+    {
+      "path": "wirelang/tests/persona_engine/test_manifest_0_5_2_final_pre_cutover.py",
+      "categories": ["historical-manifest"],
+      "reason": "Hermetic manifest-integrity test for the Tag-52 manifest (still active per MANIFEST_RELPATH)."
+    },
+    {
+      "path": "wirelang/tests/persona_engine/test_engine_0_5_3_rc1_release_notes_tag58.py",
+      "categories": ["release-notes-negative-assertion"],
+      "reason": "Tag-58 release-notes pin; the stale literals are listed in the NEGATIVE assertion (the 'must NOT be present' check). This is the prior-art Tag-60 extends — covers __version__/__init__/engine.py only."
+    },
+    {
+      "path": "wirelang/tests/persona_engine/test_10_decision_resilience.py",
+      "categories": ["historical-migration-narrative"],
+      "reason": "Docstring narrates the 0.5.1-pre-cutover BackendDecision-count contract; no active version-literal assertion."
+    },
+    {
+      "path": "wirelang/tests/persona_engine/test_boot_self_test_tag47.py",
+      "categories": ["historical-manifest"],
+      "reason": "Tag-47 boot-self-test pins against the 0.5.1-pre-cutover manifest filename + pin-pack filename."
+    },
+    {
+      "path": "wirelang/tests/persona_engine/test_boot_self_test_v2_tag50.py",
+      "categories": ["historical-manifest"],
+      "reason": "Tag-50 boot-self-test v2 also pins against the 0.5.1-pre-cutover manifest as the historical anchor (the v2 contract did not bump the manifest reference)."
+    },
+    {
+      "path": "wirelang/tests/persona_engine/test_bridge_audit_writer_wire_in_tag48.py",
+      "categories": ["historical-manifest"],
+      "reason": "Tag-48 bridge-audit-writer wire-in test pins against the 0.5.1-pre-cutover manifest filename + pin-pack filename."
+    },
+    {
+      "path": "wirelang/tests/persona_engine/test_migrate_0_5_1_to_0_5_2_tag53.py",
+      "categories": ["historical-migration-narrative"],
+      "reason": "Tag-53 migration-converter test; the version literals 0.5.1-pre-cutover and 0.5.2-final-pre-cutover are the from/to inputs of the migration contract by definition."
+    },
+    {
+      "path": "wirelang/tests/persona_engine/test_migrate_version_cross_lang_parity.py",
+      "categories": ["historical-migration-narrative"],
+      "reason": "Cross-lang parity test of migrate_version; the prior-version literals are part of the migration-contract inputs."
+    },
+    {
+      "path": "wirelang/tests/persona_engine/test_pyproject_persona_engine_runtime_extra.py",
+      "categories": ["historical-migration-narrative"],
+      "reason": "Docstring narrates the 0.5.1-pre-cutover crate-pin contract that pyproject.toml inherits."
+    },
+    {
+      "path": "wirelang/tests/persona_engine/test_state_backing_pre_boot_emit_order_tag57.py",
+      "categories": ["historical-migration-narrative"],
+      "reason": "Tag-57 state-backing pre-boot emit-order pin; references the 0.5.1/0.5.2 boot-record contract history."
+    },
+    {
+      "path": "wirelang/tests/persona_engine/test_subscribe_mode_bug42.py",
+      "categories": ["historical-migration-narrative"],
+      "reason": "Bug-42 subscribe-mode regression test; references the 0.5.1-pre-cutover engine as the version where the contract was introduced."
+    },
+    {
+      "path": "wirelang/tests/persona_engine/test_tag56_production_readiness_audit.py",
+      "categories": ["historical-migration-narrative"],
+      "reason": "Tag-56 production-readiness audit; narrates the 0.5.0 -> 0.5.1 -> 0.5.2 -> 0.5.3-rc1 progression as audit context."
+    },
+    {
+      "path": "wirelang/tests/persona_engine/test_v907_hash_pin_build_step_tag59.py",
+      "categories": ["historical-manifest"],
+      "reason": "Tag-59 V-907 hash-pin test; pins against the Tag-52 manifest + pin-pack filenames (the v907-hash-baseline.json input strings)."
+    },
+    {
+      "path": "wirelang/tests/persona_engine/test_engine_version_drift_full_coverage_tag60.py",
+      "categories": ["release-notes-negative-assertion"],
+      "reason": "Tag-60 self-test — the scanner allowlist must skip the scanner's own test fixture file (it lists stale literals as fixtures driving the scanner's own assertions, never as active version claims)."
+    }
+  ]
+}
