@@ -192,6 +192,46 @@ This block lets the downstream observability surface dispatch the
 hygiene-discipline gate without re-reading the bundle. **No
 enforcement here** — the helper only surfaces tracking.
 
+Tag-75 Welle-7 audit-trail-anchor extension (FINAL Welle)
+---------------------------------------------------------
+
+The ``--mode welle-7-audit-anchor`` flag mirrors the Welle-1..6
+wiring for the FINAL Welle-7 sign-off-record bundle. Same canonical
+bundle shape (rollup + sign-off + validation + pre-auditor), same
+hash recipe (Welle-1..7-Kind-Disjointness-Pin: identical recipe
+across all seven Wellen, distinct kind strings per Welle).
+
+Welle-7 is the closing Welle of the Phase-3c-Welle-Marathon
+(KW-27 Doppel-Welle-6+7 entry, Cutover-Mittwoch 2026-07-01,
+Sign-off-Freitag 2026-07-03 = the Global Acceptance-Verdict per
+``docs/quality-gates/pre-cutover-acceptance-run-order.md`` §3.2).
+Welle-7 carries the Phase-3-Final-Sealing discipline. The marker
+exposes a ``phase_3_final_sealing_tracking`` block:
+
+  * ``phase_3_final_sealing_active``: bool — True iff the rollup
+    / sign-off carries the Final-Sealing discipline at all.
+  * ``phase_3_final_sealing_status``: one of "pending" / "sealed"
+    / "escalated" / "unknown" — derived from the rollup or sign-
+    off payload when present; "unknown" otherwise.
+  * ``phase_3_final_sealing_iso``: ISO-8601 timestamp at which
+    Final-Sealing was recorded, or empty string.
+  * ``global_acceptance_verdict_recorded``: bool — True iff the
+    sign-off declares the verdict-aggregator output has been
+    recorded (necessary precondition for the Phase-3-COMPLETE-
+    marker per Surface-1..5 conjunction).
+  * ``phase_3_complete_marker_ready``: bool — True iff the sign-
+    off declares the Phase-3-COMPLETE-marker is ready to fire.
+  * ``phase_3_final_sealing_evidence_ref``: free-form evidence
+    pointer (URL, doc-path, runbook-section) or empty string.
+
+Pre-Auditor-Signaling-Markers (Tag-75 final-welle variant): the
+Welle-7 marker carries TWO signaling flags. The first
+(``pre_auditor_signaling_ready``) mirrors the Welle-3 flag. The
+second (``pre_auditor_final_sealing_signaling_ready``) is the
+canonical Tomás -> Henrik hand-off signal for Phase-3-COMPLETE-
+marker readiness, true iff a pre-auditor-decision is present in
+the bundle AND ``global_acceptance_verdict_recorded == True``.
+
 Welle-4 carries its own discipline: the State-Backing-Snapshot-
 Restore-Pflicht-Flag (see Amara Tag-67 state-file conventions). The
 marker exposes a ``snapshot_restore_pflicht_tracking`` block:
@@ -305,6 +345,7 @@ MODE_WELLE_3_AUDIT_ANCHOR: str = "welle-3-audit-anchor"
 MODE_WELLE_4_AUDIT_ANCHOR: str = "welle-4-audit-anchor"
 MODE_WELLE_5_AUDIT_ANCHOR: str = "welle-5-audit-anchor"
 MODE_WELLE_6_AUDIT_ANCHOR: str = "welle-6-audit-anchor"
+MODE_WELLE_7_AUDIT_ANCHOR: str = "welle-7-audit-anchor"
 ANCHOR_TARGET_OTS_CALENDAR: str = "opentimestamps-calendar"
 
 # Tag-69 Welle-1 audit-trail-anchor mode constants.
@@ -390,6 +431,44 @@ WELLE_6_BUNDLE_ORDER: tuple[str, ...] = WELLE_1_BUNDLE_ORDER
 WELLE_6_BUNDLE_REQUIRED: frozenset[str] = WELLE_1_BUNDLE_REQUIRED
 WELLE_6_KIND_MARKER: str = "welle-6-audit-trail-anchor-marker"
 WELLE_6_KIND_ENVELOPE: str = "welle-6-audit-trail-anchor-envelope"
+
+# Tag-75 Welle-7 audit-trail-anchor mode constants. Mirror of the
+# Welle-1 / Welle-2 / Welle-3 / Welle-4 / Welle-5 / Welle-6 wiring
+# (same canonical bundle shape and same hash recipe). Welle-7 is the
+# FINAL Welle of the Phase-3c-Welle-Marathon (KW-27, Doppel-Welle-6+7
+# entry, Cutover-Mittwoch 2026-07-01, Sign-off-Freitag 2026-07-03 —
+# the Global Acceptance-Verdict sign-off-Freitag per
+# ``docs/quality-gates/pre-cutover-acceptance-run-order.md`` §3.2).
+# Additional discipline: the marker exposes a
+# ``phase_3_final_sealing_tracking`` block carrying the Phase-3
+# Final-Sealing status + sealing-iso + global-acceptance-verdict-
+# recorded flag + Phase-3-COMPLETE-marker-readiness + sealing-
+# evidence-ref so the downstream observability surface (and Henrik's
+# Zone-N Audit-Evidence-Index) can pin Final-Sealing readiness at
+# Post-Welle-7 sign-off without re-reading the bundle.
+#
+# Pre-Auditor-Signaling-Markers (Tag-75 auftrag, final-welle
+# variant): mirroring the Tag-71 Welle-3 ``pre_auditor_signaling_ready``
+# discipline, the Welle-7 marker exposes a
+# ``pre_auditor_signaling_ready`` flag (Henrik-IIA-1130 §11-
+# Discipline) AND a Welle-7-specific ``pre_auditor_final_sealing_
+# signaling_ready`` flag that is true only when (a) a pre-auditor-
+# decision is present in the bundle AND (b) the final-sealing-
+# tracking block reports the global-acceptance-verdict has been
+# recorded. The second flag is the canonical hand-off signal from
+# Tomás's audit-anchor side to Henrik's Audit-Evidence-Index for
+# Phase-3-COMPLETE-marker readiness.
+#
+# Cross-Substrate-Parity-Markers: the Welle-7 marker references
+# Welle-1..6 cross-coord anchors (parity-pin spans the full
+# Welle-1..7 lineage). Recipe-identity with Welle-1..6 is asserted
+# in the Tag-75 test suite (Welle-1..7-Kind-Disjointness-Pin: each
+# Welle has its own marker/envelope kind string but the hash recipe
+# is identical).
+WELLE_7_BUNDLE_ORDER: tuple[str, ...] = WELLE_1_BUNDLE_ORDER
+WELLE_7_BUNDLE_REQUIRED: frozenset[str] = WELLE_1_BUNDLE_REQUIRED
+WELLE_7_KIND_MARKER: str = "welle-7-audit-trail-anchor-marker"
+WELLE_7_KIND_ENVELOPE: str = "welle-7-audit-trail-anchor-envelope"
 
 # Required top-level keys for a schema-v1 marker payload. Used by the
 # pre-activation-probe's ``payload_shape`` stage.
@@ -1736,6 +1815,305 @@ def load_welle_6_bundle(
     return bundle
 
 
+def compute_welle_7_audit_anchor_hash(bundle: dict) -> str:
+    """Compute the Welle-7 audit-trail-anchor SHA-256 from a bundle.
+
+    Identical recipe to Welle-1..6 (canonical-JSON concat in
+    ``WELLE_7_BUNDLE_ORDER`` joined by ``b"\\n"``). Kept as its own
+    symbol — rather than aliasing the prior entries — so a future
+    Welle-7-specific recipe divergence (e.g. final-sealing-specific
+    canonicalisation or Phase-3-COMPLETE-marker-payload normalisation)
+    can be introduced without breaking the call-site contract. Recipe-
+    identity with Welle-1..6 is asserted in the Tag-75 test suite
+    (Welle-1..7-Kind-Disjointness-Pin).
+    """
+    missing = WELLE_7_BUNDLE_REQUIRED - set(bundle.keys())
+    if missing:
+        raise ValueError(
+            f"welle-7 bundle missing required keys: {sorted(missing)}"
+        )
+
+    parts: list[bytes] = []
+    for key in WELLE_7_BUNDLE_ORDER:
+        if key not in bundle:
+            continue
+        value = bundle[key]
+        if not isinstance(value, dict):
+            raise ValueError(
+                f"welle-7 bundle key {key!r} must be a JSON object dict, "
+                f"got {type(value).__name__}"
+            )
+        parts.append(_canonical_json_bytes(value))
+
+    return hashlib.sha256(b"\n".join(parts)).hexdigest()
+
+
+# Allowed phase-3-final-sealing-status enum (defensive — narrow vocab
+# so downstream consumers can dispatch on a small fixed set; anything
+# else becomes "unknown" in the tracking block). Mirrors the Welle-6
+# subscribe-loop-self-repair-hygiene-status enum shape.
+PHASE_3_FINAL_SEALING_STATUS_VALUES: frozenset[str] = frozenset(
+    {"pending", "sealed", "escalated", "unknown"}
+)
+
+
+def derive_phase_3_final_sealing_tracking(bundle: dict) -> dict:
+    """Derive the Welle-7 ``phase_3_final_sealing_tracking`` block.
+
+    Tag-75 Welle-7 is the FINAL Welle of the Phase-3c-Welle-Marathon
+    (Post-Welle-7 = Global Acceptance-Verdict per the run-order doc
+    §3.2). The rollup / sign-off declares whether Final-Sealing was
+    activated for this cutover, the canonical sealing-iso (the
+    timestamp at which Final-Sealing was recorded), whether the
+    Global-Acceptance-Verdict has been recorded by the verdict-
+    aggregator (necessary precondition for the Phase-3-COMPLETE-
+    marker per Surface-1..5 conjunction), whether the Phase-3-
+    COMPLETE-marker is ready to fire, and where the Final-Sealing
+    evidence lives.
+
+    The tracking block is read from the rollup / sign-off payloads
+    (in that order) so the marker can surface sealing-readiness
+    without forcing downstream consumers to re-read the bundle.
+    Conservative defaults: unknown status, empty iso / evidence-ref,
+    sealing-active False unless the bundle says so, global-
+    acceptance-verdict-recorded False unless the sign-off says so,
+    Phase-3-COMPLETE-marker-ready False unless the sign-off says so.
+
+    Shape::
+
+      {
+        "phase_3_final_sealing_active": bool,
+        "phase_3_final_sealing_status": str (enum),
+        "phase_3_final_sealing_iso": str (ISO-8601 or empty),
+        "global_acceptance_verdict_recorded": bool,
+        "phase_3_complete_marker_ready": bool,
+        "phase_3_final_sealing_evidence_ref": str,
+      }
+    """
+    rollup = bundle.get("rollup", {}) if isinstance(
+        bundle.get("rollup"), dict
+    ) else {}
+    sign_off = bundle.get("sign_off", {}) if isinstance(
+        bundle.get("sign_off"), dict
+    ) else {}
+
+    # Sealing-active: rollup carries the canonical value; sign-off may
+    # declare it only if rollup is silent.
+    sealing_active = bool(
+        rollup.get(
+            "phase_3_final_sealing_active",
+            sign_off.get("phase_3_final_sealing_active", False),
+        )
+    )
+
+    raw_status = (
+        rollup.get("phase_3_final_sealing_status")
+        or sign_off.get("phase_3_final_sealing_status")
+        or "unknown"
+    )
+    if raw_status not in PHASE_3_FINAL_SEALING_STATUS_VALUES:
+        raw_status = "unknown"
+
+    sealing_iso = (
+        rollup.get("phase_3_final_sealing_iso")
+        or sign_off.get("phase_3_final_sealing_iso")
+        or ""
+    )
+    if not isinstance(sealing_iso, str):
+        sealing_iso = ""
+
+    # Global-Acceptance-Verdict-recorded: sign-off carries the canonical
+    # value (sign-off-Freitag = the moment the verdict is recorded);
+    # rollup may surface it only as a fallback (e.g. for pre-sign-off
+    # tracking).
+    global_verdict_recorded = bool(
+        sign_off.get(
+            "global_acceptance_verdict_recorded",
+            rollup.get("global_acceptance_verdict_recorded", False),
+        )
+    )
+
+    # Phase-3-COMPLETE-marker-ready: same precedence as global-
+    # acceptance-verdict-recorded (sign-off canonical).
+    complete_marker_ready = bool(
+        sign_off.get(
+            "phase_3_complete_marker_ready",
+            rollup.get("phase_3_complete_marker_ready", False),
+        )
+    )
+
+    evidence_ref = (
+        rollup.get("phase_3_final_sealing_evidence_ref")
+        or sign_off.get("phase_3_final_sealing_evidence_ref")
+        or ""
+    )
+    if not isinstance(evidence_ref, str):
+        evidence_ref = ""
+
+    return {
+        "phase_3_final_sealing_active": sealing_active,
+        "phase_3_final_sealing_status": raw_status,
+        "phase_3_final_sealing_iso": sealing_iso,
+        "global_acceptance_verdict_recorded": global_verdict_recorded,
+        "phase_3_complete_marker_ready": complete_marker_ready,
+        "phase_3_final_sealing_evidence_ref": evidence_ref,
+    }
+
+
+def build_welle_7_audit_anchor_marker(
+    *,
+    bundle: dict,
+    anchor_hash: str,
+    actor: str,
+    now_utc: _dt.datetime,
+) -> dict:
+    """Assemble the Welle-7 audit-trail-anchor marker dict.
+
+    Mirror of the Welle-1..6 marker, with ``welle_number=7`` and
+    Welle-7-specific kind strings. The marker is the audit-only
+    artefact that Tomás emits and that Selin's Tag-75 producer reads
+    to populate ``state/welle-7.json:audit_trail_anchor``.
+
+    Tag-75 discipline: the marker exposes the
+    ``phase_3_final_sealing_tracking`` block so the Phase-3 Final-
+    Sealing status + global-acceptance-verdict-recorded + Phase-3-
+    COMPLETE-marker-ready flag surface on the observability channel
+    without re-reading the bundle.
+
+    Pre-Auditor-Signaling-Markers (Tag-75 auftrag, final-welle
+    variant): the marker carries TWO signaling flags:
+
+      * ``pre_auditor_signaling_ready`` (bool) — true iff a
+        pre-auditor-decision is present in the bundle. Mirror of the
+        Tag-71 Welle-3 flag.
+      * ``pre_auditor_final_sealing_signaling_ready`` (bool) — true
+        iff (a) pre-auditor-decision is present AND (b) the final-
+        sealing-tracking block reports
+        ``global_acceptance_verdict_recorded == True``. This is the
+        canonical Tomás -> Henrik hand-off signal for Phase-3-
+        COMPLETE-marker readiness at Post-Welle-7 sign-off.
+
+    Cross-Substrate-Parity-Markers (Tag-75 auftrag): the ``anchors``
+    block references Welle-1..6 cross-coord PRs so a downstream
+    consumer can trace the full Welle-1..7 audit-anchor lineage in a
+    single envelope (Welle-1..7-Kind-Disjointness-Pin: same hash
+    recipe across all seven Wellen, distinct marker/envelope kind
+    strings per Welle).
+    """
+    iso_now = now_utc.isoformat()
+    tracking = derive_phase_3_final_sealing_tracking(bundle)
+    pre_auditor_present = "pre_auditor" in bundle and isinstance(
+        bundle.get("pre_auditor"), dict
+    )
+    final_sealing_signaling_ready = bool(
+        pre_auditor_present
+        and tracking["global_acceptance_verdict_recorded"]
+    )
+    return {
+        "schema_version": 1,
+        "kind": WELLE_7_KIND_MARKER,
+        "mode": MODE_WELLE_7_AUDIT_ANCHOR,
+        "welle_number": 7,
+        "audit_trail_anchor": anchor_hash,
+        "bundle_keys": sorted(
+            k for k in WELLE_7_BUNDLE_ORDER if k in bundle
+        ),
+        "phase_3_final_sealing_tracking": tracking,
+        "pre_auditor_signaling_ready": pre_auditor_present,
+        "pre_auditor_final_sealing_signaling_ready": (
+            final_sealing_signaling_ready
+        ),
+        "wat_spool_envelope": {
+            "schema_version": 1,
+            "kind": WELLE_7_KIND_ENVELOPE,
+            "audit_trail_anchor": anchor_hash,
+            "requested_at_utc": iso_now,
+            "actor": actor,
+            "anchor_target": ANCHOR_TARGET_OTS_CALENDAR,
+        },
+        "emitted_at_utc": iso_now,
+        "anchors": {
+            "adr_audit_trail": "decisions/0007-internal-audit-trail-ots.md",
+            "amara_tag_67_state_file_conventions_pr": 429,
+            "tomas_tag_69_welle_1_audit_anchor_pr": 439,
+            "tomas_tag_70_welle_2_audit_anchor_pr": 445,
+            "tomas_tag_71_welle_3_audit_anchor_pr": 450,
+            "tomas_tag_72_welle_4_audit_anchor_pr": 457,
+            "tomas_tag_73_welle_5_audit_anchor_pr": 464,
+            "tomas_tag_74_welle_6_audit_anchor_pr": 470,
+            "selin_tag_75_producer_pr": None,
+            "tomas_tag_75_audit_anchor_pr": None,
+            "state_file_conventions_doc": (
+                "docs/quality-gates/welle-n-state-file-conventions.md"
+            ),
+            "producer_wiring_plan_doc": (
+                "docs/persona-engine/state-file-producer-wiring-plan.md"
+            ),
+            "pre_cutover_acceptance_run_order_doc": (
+                "docs/quality-gates/pre-cutover-acceptance-run-order.md"
+            ),
+            "phase_3_marathon_final_acceptance_doc": (
+                "docs/quality-gates/phase-3-marathon-final-acceptance.md"
+            ),
+            "welle_7_context": "phase-3-final-sealing-cutover-kw27",
+            "welle_7_cutover_date": "2026-07-01",
+            "welle_7_sign_off_date": "2026-07-03",
+            "phase_3_final_sealing_discipline": (
+                "tag-75-final-welle-global-acceptance-verdict-recording"
+            ),
+            "cross_substrate_parity_markers": [
+                "welle-1",
+                "welle-2",
+                "welle-3",
+                "welle-4",
+                "welle-5",
+                "welle-6",
+                "welle-7",
+            ],
+        },
+        "operator_hand_next_step": (
+            "Selin's persona-engine batch-writer "
+            "(engine.py::backfill_audit_trail_anchors, welle=7) reads "
+            "this marker and writes the audit_trail_anchor into "
+            "state/welle-7.json. Phase-3-Final-Sealing-Tracking + "
+            "Pre-Auditor-Final-Sealing-Signaling-Ready surface on "
+            "the observability channel for Henrik's Zone-N Audit-"
+            "Evidence-Index hand-off (Phase-3-COMPLETE-marker "
+            "readiness gate). Real OTS calendar stamping is "
+            "Operator-Hand on a network-attached host, separate step."
+        ),
+    }
+
+
+def load_welle_7_bundle(
+    *,
+    rollup_path: Path,
+    sign_off_path: Path,
+    validation_path: Path | None,
+    pre_auditor_path: Path | None,
+) -> dict:
+    """Load the Welle-7 sign-off-record bundle from disk.
+
+    Same shape as ``load_welle_1_bundle`` .. ``load_welle_6_bundle``.
+    Kept as its own symbol so a future Welle-7-specific schema
+    divergence (e.g. final-sealing-specific fields or Phase-3-
+    COMPLETE-marker-payload normalisation) does not require touching
+    the prior call-sites.
+    """
+    bundle: dict = {}
+    bundle["rollup"] = json.loads(rollup_path.read_text(encoding="utf-8"))
+    bundle["sign_off"] = json.loads(sign_off_path.read_text(encoding="utf-8"))
+    if validation_path is not None:
+        bundle["validation"] = json.loads(
+            validation_path.read_text(encoding="utf-8")
+        )
+    if pre_auditor_path is not None:
+        bundle["pre_auditor"] = json.loads(
+            pre_auditor_path.read_text(encoding="utf-8")
+        )
+    return bundle
+
+
 def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="emit_manifest_hash_ots_marker",
@@ -1757,6 +2135,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             MODE_WELLE_4_AUDIT_ANCHOR,
             MODE_WELLE_5_AUDIT_ANCHOR,
             MODE_WELLE_6_AUDIT_ANCHOR,
+            MODE_WELLE_7_AUDIT_ANCHOR,
         ),
         default=MODE_AUDIT_ONLY,
         help=(
@@ -1787,7 +2166,16 @@ def main(argv: Iterable[str] | None = None) -> int:
             "subscribe_loop Cutover bundle (KW-27, parallel to "
             "Welle-7). Carries the subscribe_loop_self_repair_hygiene_"
             "tracking block (Tag-73-Lehre: PR #461 cross-Persona "
-            "Self-Repair-Hygiene-Fix carry-through)."
+            "Self-Repair-Hygiene-Fix carry-through). "
+            "welle-7-audit-anchor (Tag-75): same recipe as welle-1..6 "
+            "(Cross-Substrate-Parity-Markers, full Welle-1..7-Kind-"
+            "Disjointness-Pin), but for the FINAL Welle-7 Final-"
+            "Sealing bundle (KW-27 Doppel-Welle-6+7, Cutover "
+            "2026-07-01, Sign-off-Freitag 2026-07-03 = Global "
+            "Acceptance-Verdict). Carries the phase_3_final_sealing_"
+            "tracking block + Pre-Auditor-Final-Sealing-Signaling-"
+            "Markers (Tomás -> Henrik hand-off signal for Phase-3-"
+            "COMPLETE-marker readiness)."
         ),
     )
     parser.add_argument(
@@ -2016,6 +2404,43 @@ def main(argv: Iterable[str] | None = None) -> int:
         help=(
             "Path to state/welle-6-pre-auditor-decision.json "
             "(optional for welle-6-audit-anchor mode)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-7-rollup",
+        type=Path,
+        default=None,
+        help=(
+            "Path to state/welle-7.json (required for "
+            "welle-7-audit-anchor mode)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-7-sign-off",
+        type=Path,
+        default=None,
+        help=(
+            "Path to state/welle-7-sign-off.json (required for "
+            "welle-7-audit-anchor mode)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-7-validation",
+        type=Path,
+        default=None,
+        help=(
+            "Path to state/welle-7-validation-last-verdict.json "
+            "(optional for welle-7-audit-anchor mode)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-7-pre-auditor",
+        type=Path,
+        default=None,
+        help=(
+            "Path to state/welle-7-pre-auditor-decision.json "
+            "(optional for welle-7-audit-anchor mode; recommended "
+            "for Phase-3-COMPLETE-marker readiness signaling)."
         ),
     )
     parser.add_argument(
@@ -2608,6 +3033,105 @@ def main(argv: Iterable[str] | None = None) -> int:
             f"{tracking['subscribe_loop_self_repair_hygiene_status']} "
             f"subscribe_loop_re_subscribe_window_closed="
             f"{tracking['subscribe_loop_re_subscribe_window_closed']} "
+            f"-> {args.marker_out}"
+        )
+        return 0
+
+    if args.mode == MODE_WELLE_7_AUDIT_ANCHOR:
+        if args.welle_7_rollup is None or args.welle_7_sign_off is None:
+            print(
+                "emit_manifest_hash_ots_marker: "
+                "--welle-7-rollup and --welle-7-sign-off are required "
+                "when --mode welle-7-audit-anchor",
+                file=sys.stderr,
+            )
+            return 2
+        if args.marker_out is None:
+            print(
+                "emit_manifest_hash_ots_marker: "
+                "--marker-out is required when --mode welle-7-audit-anchor",
+                file=sys.stderr,
+            )
+            return 2
+
+        if not args.welle_7_rollup.is_file():
+            print(
+                f"emit_manifest_hash_ots_marker: --welle-7-rollup not "
+                f"a file: {args.welle_7_rollup}",
+                file=sys.stderr,
+            )
+            return 1
+        if not args.welle_7_sign_off.is_file():
+            print(
+                f"emit_manifest_hash_ots_marker: --welle-7-sign-off "
+                f"not a file: {args.welle_7_sign_off}",
+                file=sys.stderr,
+            )
+            return 1
+
+        try:
+            bundle = load_welle_7_bundle(
+                rollup_path=args.welle_7_rollup,
+                sign_off_path=args.welle_7_sign_off,
+                validation_path=(
+                    args.welle_7_validation
+                    if args.welle_7_validation
+                    and args.welle_7_validation.is_file()
+                    else None
+                ),
+                pre_auditor_path=(
+                    args.welle_7_pre_auditor
+                    if args.welle_7_pre_auditor
+                    and args.welle_7_pre_auditor.is_file()
+                    else None
+                ),
+            )
+        except (OSError, json.JSONDecodeError) as exc:
+            print(
+                f"emit_manifest_hash_ots_marker: welle-7 bundle "
+                f"read/parse error: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+
+        try:
+            anchor_hash = compute_welle_7_audit_anchor_hash(bundle)
+        except ValueError as exc:
+            print(
+                f"emit_manifest_hash_ots_marker: welle-7 bundle "
+                f"shape error: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+
+        marker = build_welle_7_audit_anchor_marker(
+            bundle=bundle,
+            anchor_hash=anchor_hash,
+            actor=args.actor,
+            now_utc=now_utc,
+        )
+
+        args.marker_out.parent.mkdir(parents=True, exist_ok=True)
+        args.marker_out.write_text(
+            json.dumps(marker, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+        tracking = marker["phase_3_final_sealing_tracking"]
+        print(
+            f"emit_manifest_hash_ots_marker: mode={marker['mode']} "
+            f"welle=7 audit_trail_anchor={anchor_hash} "
+            f"bundle_keys={marker['bundle_keys']} "
+            f"phase_3_final_sealing_active="
+            f"{tracking['phase_3_final_sealing_active']} "
+            f"phase_3_final_sealing_status="
+            f"{tracking['phase_3_final_sealing_status']} "
+            f"global_acceptance_verdict_recorded="
+            f"{tracking['global_acceptance_verdict_recorded']} "
+            f"phase_3_complete_marker_ready="
+            f"{tracking['phase_3_complete_marker_ready']} "
+            f"pre_auditor_final_sealing_signaling_ready="
+            f"{marker['pre_auditor_final_sealing_signaling_ready']} "
             f"-> {args.marker_out}"
         )
         return 0
