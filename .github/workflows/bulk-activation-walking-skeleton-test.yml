@@ -57,7 +57,9 @@ on:
       - 'tooling/ops/_bulk_activate_required_checks.py'
       - 'tooling/ops/bulk_activate_required_checks.sh'
       - 'tests/observability/fixtures/branch-protection-walking-skeleton/**'
+      - 'tests/observability/fixtures/branch-protection-walking-skeleton-tag64/**'
       - 'tests/observability/test_bulk_activation_walking_skeleton_tag63.py'
+      - 'tests/observability/test_walking_skeleton_post_verify_tag65.py'
       - '.github/workflows/bulk-activation-walking-skeleton-test.yml'
 
 permissions:
@@ -71,8 +73,10 @@ jobs:
     env:
       WALKING_SKELETON_ENFORCE: ${{ github.event.inputs.enforce || 'true' }}
       FIXTURE_DIR: tests/observability/fixtures/branch-protection-walking-skeleton
+      FIXTURE_DIR_TAG64: tests/observability/fixtures/branch-protection-walking-skeleton-tag64
       TAG59_DOC: docs/operations/branch-protection-required-checks-tag59.md
       TAG61_DOC: docs/operations/branch-protection-required-checks-tag61-addendum.md
+      TAG64_DOC: docs/operations/branch-protection-required-checks-tag64-companion.md
 
     steps:
       - name: Checkout
@@ -184,6 +188,42 @@ jobs:
             tests/observability/test_bulk_activation_walking_skeleton_tag63.py \
             -v --tb=short
 
+      - name: Stage 5 - Tag-65 Post-Activate-Verify (8-pool)
+        id: stage5
+        shell: bash
+        run: |
+          set -u
+          # Tag-65 verifier: read the post-activate snapshot (the
+          # hypothetical live branch-protection state AFTER bulk-
+          # activation has run) and verify all 8 Required-Status-
+          # Checks are registered verbatim, in pool order, with
+          # strict=true. Sandbox-boundary safe — no network.
+          python3 tooling/ops/_bulk_activate_required_checks.py \
+            --tag59-doc "${TAG59_DOC}" \
+            --tag61-doc "${TAG61_DOC}" \
+            --tag64-doc "${TAG64_DOC}" \
+            --post-activate-verify \
+            --post-activate-snapshot "${FIXTURE_DIR_TAG64}/post-activate-snapshot.json"
+          rc=$?
+          echo "stage5_rc=${rc}" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Stage 5 - Tag-65 Post-Activate-Verify"
+            echo
+            echo "rc=${rc}"
+            echo
+            echo "Snapshot fixture: \`${FIXTURE_DIR_TAG64}/post-activate-snapshot.json\`"
+            echo
+            echo "Expected pool size: 8 (Tag-59 5 + Tag-61 2 + Tag-64 1)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit ${rc}
+
+      - name: Run hermetic Tag-65 post-verify test-suite
+        run: |
+          set -eu
+          python -m pytest \
+            tests/observability/test_walking_skeleton_post_verify_tag65.py \
+            -v --tb=short
+
       - name: Stage 4 - Verdict
         shell: bash
         run: |
@@ -191,16 +231,18 @@ jobs:
           rc1="${{ steps.stage1.outputs.stage1_rc }}"
           rc2="${{ steps.stage2.outputs.stage2_rc }}"
           rc3="${{ steps.stage3.outputs.stage3_rc }}"
+          rc5="${{ steps.stage5.outputs.stage5_rc }}"
           enforce="${WALKING_SKELETON_ENFORCE}"
 
           echo "stage1_rc=${rc1}"
           echo "stage2_rc=${rc2}"
           echo "stage3_rc=${rc3}"
+          echo "stage5_rc=${rc5}"
           echo "enforce=${enforce}"
 
-          if [ "${rc1}" = "0" ] && [ "${rc2}" = "0" ] && [ "${rc3}" = "0" ]; then
+          if [ "${rc1}" = "0" ] && [ "${rc2}" = "0" ] && [ "${rc3}" = "0" ] && [ "${rc5}" = "0" ]; then
             verdict="WALKING-SKELETON-INTACT"
-            echo "::notice::${verdict} - Tag-63 pipeline end-to-end mock-api green."
+            echo "::notice::${verdict} - Tag-63/65 pipeline end-to-end mock-api green."
           else
             verdict="WALKING-SKELETON-DEFECT"
             echo "::error::${verdict} - one or more stages failed."
@@ -211,7 +253,7 @@ jobs:
             echo
             echo "**Verdict:** \`${verdict}\`"
             echo
-            echo "Stage 1 rc=${rc1}, Stage 2 rc=${rc2}, Stage 3 rc=${rc3}"
+            echo "Stage 1 rc=${rc1}, Stage 2 rc=${rc2}, Stage 3 rc=${rc3}, Stage 5 rc=${rc5}"
           } >> "$GITHUB_STEP_SUMMARY"
 
           if [ "${verdict}" = "WALKING-SKELETON-INTACT" ]; then

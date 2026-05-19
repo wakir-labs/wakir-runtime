@@ -1,0 +1,249 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tag-64 Cutover-Day-Morgen Trinary-Verdict-Reactive-Routing-Validate / Noa-SRE
+# ---------------------------------------------------------------------------
+#
+# Hermetic validator for the Tag-64 trinary-routing substance. Confirms,
+# on every PR touching the substrate, that the alert-rule layer
+# (`dashboards/phase-3-marathon-alerts.yaml`) and the bridge layer
+# (`scripts/observability/alert-rule-to-mira-notify-bridge.py`) are in
+# structural agreement with the Selin Tag-64 Cutover-Day-Morgen
+# Auto-Scheduler trinary verdict contract (READY / CAUTION / BLOCK).
+#
+# Why a separate workflow
+# -----------------------
+#
+# The Tag-64 substance crosses three files in this repo (alerts YAML,
+# bridge .py, regression-test .py) and depends on a stable label-
+# contract that downstream surfaces (Kai-Zone-H route-tree, Mira-
+# Notify receiver) consume. A drift between any pair of these is a
+# silent failure mode at Cutover-Day-Morgen T-30min, so we pin the
+# contract in CI rather than waiting for a Watch-Day-replay to
+# surface it. The validator is intentionally narrow: it does NOT
+# re-run the trinary-routing-tests suite (the dedicated test file
+# already covers that on the standard pytest path) and it does NOT
+# call AlertManager / PagerDuty / ntfy / NATS.
+#
+# Validated invariants
+# --------------------
+#
+#   I1  All 3 expected trinary alertnames are present in the alerts
+#       YAML (WakirCutoverDayMorgenVerdictReady/Caution/Block).
+#   I2  Each trinary alert carries the expected `routing_class`
+#       label value (standard / ops-on-call / ops-on-call-plus-
+#       management) per EXPECTED_TRINARY_ROUTING in the bridge.
+#   I3  Each trinary alert carries a `verdict_class` label and a
+#       `tag: tag-64` label (audit-trail anchor).
+#   I4  The bridge ALERT_CATALOG contains all 3 Tag-64 entries.
+#   I5  The bridge ROUTING_CLASS_CHANNELS table has all 3 classes,
+#       each with a non-empty channel-tuple AND an escalation entry.
+#       Enforced by `validate_trinary_routing_table_shape`.
+#   I6  The bridge `validate-trinary-routing` CLI exits 0 (no
+#       missing classes / channels / escalations).
+#
+# Trigger surface
+# ---------------
+#
+#   * workflow_dispatch:  -- operator-hand manual run.
+#   * pull_request: path-filtered to the Tag-64 substrate.
+#
+# No push trigger, no schedule trigger. Tag-64 is review-time +
+# on-demand. The Tag-56 / Tag-57 / Tag-59 workflows remain the
+# calendar-pinned twins.
+#
+# Sandbox boundary
+# ----------------
+#
+# Hermetic: stdlib + python 3.11. No podman, no NATS, no Alert-
+# Manager, no live VM, no GitHub-API call. Reads alerts YAML +
+# bridge .py as on-disk text; emits a single JSON verdict envelope
+# under `out/`.
+#
+# Required-status-check (follow-up)
+# ---------------------------------
+#
+# Per `feedback_branch_protection_check_names.md` the eventual
+# branch-protection gate is:
+#   `Trinary routing-table validate (Tag-64) /
+#    cutover-day-morgen-trinary-routing-validate`
+# Initial landing does NOT add the gate; promotion is a follow-up
+# after one green run on main.
+#
+# Author: Noa Bergstroem (SRE)
+# Anchor: Tag-64 Marathon-Continuous-Mode Pre-KW-24 Alert-Routing
+#         Cutover-Day-Morgen Trinary-Verdict-Reactive-Wiring.
+
+name: cutover-day-morgen-trinary-routing-validate
+
+on:
+  workflow_dispatch: {}
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/cutover-day-morgen-trinary-routing-validate.yml"
+      - "dashboards/phase-3-marathon-alerts.yaml"
+      - "scripts/observability/alert-rule-to-mira-notify-bridge.py"
+      - "tests/observability/test_trinary_routing_cutover_day_morgen_tag64.py"
+      - "wirelang/specs/protocol-mirror-seed/dashboards/phase-3-marathon-alerts.yaml"
+      - "wirelang/specs/protocol-mirror-seed/scripts/observability/alert-rule-to-mira-notify-bridge.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cutover-day-morgen-trinary-routing-validate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  trinary-routing-table-validate:
+    name: Trinary routing-table validate (Tag-64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Invariant I5+I6 - bridge trinary-routing CLI exits 0
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python3 scripts/observability/alert-rule-to-mira-notify-bridge.py \
+            validate-trinary-routing > out/trinary-routing-table-shape.json
+          cat out/trinary-routing-table-shape.json
+
+      - name: Invariants I1..I4 - YAML + bridge contract pin
+        id: probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python3 - <<'PY' > out/trinary-routing-validate.json
+          import json
+          import re
+          import sys
+          from pathlib import Path
+
+          REPO = Path(".").resolve()
+          ALERTS = REPO / "dashboards/phase-3-marathon-alerts.yaml"
+          BRIDGE = REPO / "scripts/observability/alert-rule-to-mira-notify-bridge.py"
+
+          EXPECTED = {
+              "WakirCutoverDayMorgenVerdictReady": "standard",
+              "WakirCutoverDayMorgenVerdictCaution": "ops-on-call",
+              "WakirCutoverDayMorgenVerdictBlock": (
+                  "ops-on-call-plus-management"
+              ),
+          }
+
+          alerts_text = ALERTS.read_text(encoding="utf-8")
+          bridge_text = BRIDGE.read_text(encoding="utf-8")
+
+          # I1 -- all 3 alertnames present in YAML.
+          missing_alertnames = sorted(
+              n for n in EXPECTED if f"- alert: {n}" not in alerts_text
+          )
+
+          # I2 -- each alert carries the expected routing_class.
+          # The YAML structure puts the alert and its labels in a single
+          # contiguous block; we slice on `- alert: <Name>` boundaries.
+          alert_blocks = re.split(r"(?m)^\s*- alert:\s*", alerts_text)
+          alert_blocks_by_name: dict[str, str] = {}
+          for block in alert_blocks:
+              m = re.match(r"([A-Za-z0-9_]+)", block)
+              if not m:
+                  continue
+              name = m.group(1)
+              alert_blocks_by_name[name] = block
+
+          bad_routing_class: list[dict[str, str]] = []
+          missing_verdict_class: list[str] = []
+          missing_tag_label: list[str] = []
+          for name, expected_class in EXPECTED.items():
+              block = alert_blocks_by_name.get(name)
+              if block is None:
+                  continue
+              # Truncate the block at the next `- alert:` (safety net;
+              # the split already gave us the post-name slice).
+              block_slice = re.split(
+                  r"(?m)^\s*- alert:\s*", block
+              )[0]
+              m_rc = re.search(
+                  r"(?m)^\s*routing_class:\s*([A-Za-z0-9_-]+)\s*$",
+                  block_slice,
+              )
+              if m_rc is None or m_rc.group(1) != expected_class:
+                  bad_routing_class.append(
+                      {
+                          "alert": name,
+                          "expected": expected_class,
+                          "found": (
+                              m_rc.group(1) if m_rc is not None else None
+                          ),
+                      }
+                  )
+              if not re.search(
+                  r"(?m)^\s*verdict_class:\s*[A-Za-z0-9_-]+\s*$",
+                  block_slice,
+              ):
+                  missing_verdict_class.append(name)
+              if not re.search(
+                  r"(?m)^\s*tag:\s*tag-64\s*$",
+                  block_slice,
+              ):
+                  missing_tag_label.append(name)
+
+          # I4 -- bridge ALERT_CATALOG contains all 3 entries.
+          missing_catalog_entries = sorted(
+              n
+              for n in EXPECTED
+              if f'"{n}"' not in bridge_text
+          )
+
+          out = {
+              "schema_version": 1,
+              "tag": 64,
+              "tool": "cutover-day-morgen-trinary-routing-validate",
+              "expected_trinary_routing": EXPECTED,
+              "I1_missing_alertnames": missing_alertnames,
+              "I2_bad_routing_class": bad_routing_class,
+              "I3_missing_verdict_class_label": missing_verdict_class,
+              "I3_missing_tag_label": missing_tag_label,
+              "I4_missing_catalog_entries": missing_catalog_entries,
+          }
+          fail = (
+              missing_alertnames
+              or bad_routing_class
+              or missing_verdict_class
+              or missing_tag_label
+              or missing_catalog_entries
+          )
+          out["verdict"] = "TRINARY-ROUTING-OK" if not fail else "TRINARY-ROUTING-DRIFT"
+          print(json.dumps(out, indent=2, sort_keys=True))
+          if fail:
+              sys.exit(1)
+          PY
+          jq . out/trinary-routing-validate.json || true
+          verdict=$(python3 -c "import json; print(json.load(open('out/trinary-routing-validate.json'))['verdict'])")
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Tag-64 Trinary-Routing Validate: \`$verdict\`"
+            echo ""
+            echo "Invariants I1..I6 checked. See artifact for detail."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload trinary-routing-validate artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tag64-trinary-routing-validate
+          path: |
+            out/trinary-routing-validate.json
+            out/trinary-routing-table-shape.json
+          if-no-files-found: warn
