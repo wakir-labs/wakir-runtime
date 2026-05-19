@@ -183,6 +183,31 @@
 # include the new routing class -> (ntfy:ar-hand-info,
 # activity-log:append) mapping. No on-call page from this block.
 #
+# Tag-73 Welle-5 Capability-Token-Rotation-Alert-Routing-Erweiterung
+# -------------------------------------------------------------------
+# Two additional Welle-5 alerts (appended to the welle-5-alerts
+# group) close the capability-token-rotation positive-confirmation
+# + rotation-lag routing gap surfaced during the Welle-5 KW-26
+# doppel-cutover audit (DW-AC-6-7-RC R1 rotation-race patterns,
+# see tests/phase_3c/test_doppel_welle_6_7_acceptance.py):
+#
+#   * WakirPhase3Welle5CapabilityTokenRotated (severity=info,
+#       routing-class=welle-5-capability-token-info) -- positive-
+#       confirmation: cap-token rotation completed for the current
+#       rotation-epoch; AR-Hand info channel.
+#   * WakirPhase3Welle5CapabilityTokenRotationLag (severity=warning,
+#       routing-class=welle-5-capability-token-info) -- rotation
+#       is past the target rotation-interval but not yet a fault;
+#       AR-Hand info channel + activity-log.
+#
+# Both carry the `routing_class: welle-5-capability-token-info`
+# label. The bridge ROUTING_CLASS_CHANNELS table is extended in
+# Tag-73 to include the new routing class -> (ntfy:ar-hand-info,
+# activity-log:append) mapping. No on-call page from this block;
+# the existing page-level Welle-5 alerts (FSM-Phantom, Orphan-
+# State, SignedOffBeforeWelle4Stable) cover the hard-failure
+# surface.
+#
 # Trinary-verdict-source contract: the source of truth is the Selin
 # Tag-64 Cutover-Day-Morgen Auto-Scheduler output envelope
 # (`out/cutover-day-morgen-verdict.json`, schema_version=1, tag=64,
@@ -1341,6 +1366,126 @@ groups:
             Welle-5 verification after Welle-4 hash quiet.
           runbook_url: "https://wakir-labs.example/runbooks/welle-5-signoff-ordering"
           notify_path: "pagerduty:sre-oncall + ntfy:ar-hand + activity-log:append + henrik-audit-trail"
+
+      # ---------------------------------------------------------
+      # Tag-73 Welle-5 Capability-Token-Rotation-Alert-Routing-
+      # Erweiterung (Noa SRE, Continuous-Mode-Marathon)
+      # ---------------------------------------------------------
+      # Two additional alarms close the Welle-5 capability-token
+      # rotation routing gap surfaced during the KW-26 doppel-
+      # cutover audit. The existing Welle-5 alerts surface
+      # FAILURES (FSM-Phantom, Orphan-State, SignedOffBefore-
+      # Welle4Stable); Tag-73 adds:
+      #
+      #   1. WakirPhase3Welle5CapabilityTokenRotated (info)
+      #      Positive-state indicator. Fires when the Welle-5
+      #      capability-token rotator has completed a rotation
+      #      epoch (rotation_epoch counter increased by >= 1 in
+      #      the last 10m AND the rotator is in the steady
+      #      `rotated` state). This is the positive-confirmation
+      #      counterpart to the page-level Welle-5 alerts; it
+      #      marks "cap-token rotation closed" so the AR-Hand
+      #      audit trail attests each rotation epoch explicitly,
+      #      not by absence-of-fault. Routing class
+      #      `welle-5-capability-token-info` (info-only).
+      #
+      #   2. WakirPhase3Welle5CapabilityTokenRotationLag (warning)
+      #      Rotation is past the target rotation-interval but
+      #      has not yet failed. The Welle-5 capability-token
+      #      rotator exposes a gauge measuring seconds since the
+      #      last successful rotation; the target interval is
+      #      900s (15min) per ADR-0066 KW-26 doppel-cutover spec.
+      #      When the gauge exceeds the target by >= 50% (>= 1350s
+      #      i.e. > 22.5min) for >= 2m, this fires. Warning
+      #      severity (NOT page): rotation is still possible and
+      #      no production capability has expired; AR-Hand must
+      #      see + audit-log the lag so a follow-up does not get
+      #      lost. If rotation fully fails, the existing Welle-5
+      #      page-level alerts cover (FSM-Phantom, Orphan-State).
+      #      Routing class `welle-5-capability-token-info`.
+      #
+      # Mutual exclusion contract:
+      #   rotated=1 AND lag_seconds < 1350 -> Rotated fires.
+      #   rotated=1 AND lag_seconds >= 1350 -> RotationLag fires;
+      #     the rotation completed a previous epoch, but the
+      #     NEXT epoch is overdue. (The Rotated alert's "for: 2m"
+      #     and the recent-rotation-epoch increase gate keep it
+      #     from re-firing in this regime.)
+      #   rotated=0 -> hard failure surface; existing page-level
+      #     Welle-5 alerts cover.
+      #
+      # Routing class `welle-5-capability-token-info` is added to
+      # the bridge ROUTING_CLASS_CHANNELS table (Tag-73) and
+      # channels to ntfy:ar-hand-info + activity-log:append.
+      - alert: WakirPhase3Welle5CapabilityTokenRotated
+        expr: |
+          (
+            increase(wakir_welle5_capability_token_rotation_epoch_total[10m]) >= 1
+          )
+          and
+          (
+            wakir_welle5_capability_token_rotator_state{state="rotated"} == 1
+          )
+        for: 2m
+        labels:
+          severity: info
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          tag: tag-73
+          welle: welle-5
+          component: capability_token_rotator
+          kw_week: kw-26
+          topology: doppel
+          routing_class: welle-5-capability-token-info
+          mitigation: welle-5-capability-token-rotation-routing-extension
+        annotations:
+          summary: "Welle-5 capability-token rotation completed (epoch closed)"
+          description: >-
+            Welle-5 capability-token rotator reported a rotation-
+            epoch increase
+            (increase(wakir_welle5_capability_token_rotation_epoch_total[10m]) >= 1)
+            AND the rotator is in the steady `rotated` state for
+            >= 2m. Positive-confirmation marker for the AR-Hand
+            audit trail: cap-token rotation closed this epoch
+            without triggering FSM-Phantom or Orphan-State on
+            Welle-5. No operator action.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-5-capability-token-rotated"
+          notify_path: "ntfy:ar-hand-info + activity-log:append"
+
+      - alert: WakirPhase3Welle5CapabilityTokenRotationLag
+        expr: wakir_welle5_capability_token_rotation_lag_seconds >= 1350
+        for: 2m
+        labels:
+          severity: warning
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          tag: tag-73
+          welle: welle-5
+          component: capability_token_rotator
+          kw_week: kw-26
+          topology: doppel
+          routing_class: welle-5-capability-token-info
+          mitigation: welle-5-capability-token-rotation-routing-extension
+          rotation_path: lag-past-target-interval
+        annotations:
+          summary: "Welle-5 capability-token rotation lag past target interval"
+          description: >-
+            wakir_welle5_capability_token_rotation_lag_seconds =
+            {{ $value }} for >= 2m. Target rotation-interval per
+            ADR-0066 KW-26 doppel-cutover spec is 900s (15min);
+            the 1350s (>= 22.5min, +50%) threshold flags rotation
+            slippage before it becomes a hard failure. Warning
+            severity: no production capability has expired yet;
+            AR-Hand must see the lag for audit-log closure and
+            schedule a rotation-trigger follow-up. If the rotator
+            stays in `pending` past the next scrape window, expect
+            WakirWelle5FsmPhantomTransition (page) to take over.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-5-capability-token-rotation-lag"
+          notify_path: "ntfy:ar-hand-info + activity-log:append"
 
   - name: welle-6-alerts
     interval: 30s
