@@ -1,0 +1,307 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Operator-Items Health-Check Workflow (Kai Tag-78, Marathon-Polish)
+# ------------------------------------------------------------------
+#
+# Daily Pre-Cutover-Eve readiness probe for the ten Operator-Hand
+# Pending-Items I1..I10 consolidated in Tag-77 PR #486:
+#
+#   docs/operations/operator-hand-pending-items-konsolidat.md
+#
+# The Konsolidat-Doc aggregates the Operator-Hand-Sandbox-Gap-Items
+# that emerged across the Tag-50..Tag-76 spawn corridor into a
+# single Pre-Cutover-Eve walkthrough-checklist. This workflow does
+# **not** trigger any actual operator-hand step (no GitHub-API PUT,
+# no cosign sign, no systemctl restart, no podman pull). It only
+# evaluates the *static* pre-conditions per item that can be
+# observed from the repo working-tree, then emits a single
+# verdict-envelope.
+#
+# Three stages
+# ------------
+#
+#   Stage 1 -- parse-master-doc
+#       Reads the Tag-77 Konsolidat-Doc and extracts the ten
+#       Item-IDs and their **Prerequisites** narrative bullets.
+#       Confirms the helper's static per-item recipes are in sync
+#       with the master-doc.
+#
+#   Stage 2 -- check-pre-conditions
+#       Per item, evaluates the static recipe primitives (doc-
+#       presence, workflow-presence, helper-presence, state-dir-
+#       presence) against the runtime-repo HEAD. Emits per-item
+#       status (green/yellow/red) with the missing-primitive list.
+#
+#   Stage 3 -- aggregate-envelope
+#       Reduces the ten per-item statuses to one verdict-envelope:
+#
+#         * OPERATOR-ITEMS-READY    -- all ten green.
+#         * OPERATOR-ITEMS-CAUTION  -- 1..2 yellow, zero red.
+#         * OPERATOR-ITEMS-BLOCKED  -- any red, OR 3+ yellow.
+#
+#       Uploads ``operator-items-health-check-envelope.json`` as
+#       a build artifact. BLOCKED exits non-zero so the workflow
+#       turns red in the Actions UI; CAUTION emits a warning.
+#
+# Hermetic posture
+# ----------------
+#
+# Strict hermetic: stdlib + filesystem only. Per the Live-Bring-up
+# Sandbox-Gap memory note (2026-05-13), Live-VM-only primitives
+# (cosign verify, systemctl restart, gh api PUT) are explicitly
+# OUT of scope -- those remain Operator-Hand on the Live-VM and
+# are recorded in the Closure-Record files referenced in the Tag-77
+# §1..§8 narrative.
+#
+# Trigger surface
+# ---------------
+#
+#   * workflow_dispatch -- operator-hand / AR-Hand manual run.
+#     Input: ``verbose`` flag (default ``false``).
+#   * schedule: cron "0 6 * * *" -- daily 06:00 UTC. From Tag-78
+#     onward, this gives Mira-Hand + AR a daily ground-truth on
+#     the readiness of the ten Pre-Cutover-Eve items, well before
+#     the 2026-06-26 Fr stichtag.
+#   * push (path-filtered) -- any change to the master-doc, the
+#     helper, the tests, or the workflow itself re-probes.
+#
+# Not a required status check
+# ---------------------------
+#
+# Per ``feedback_branch_protection_check_names.md`` this workflow
+# is NOT listed as a required status check on PRs -- it gates a
+# calendar-window (Pre-Cutover-Eve 2026-06-26 Fr), not individual
+# PRs. The Tag-78 envelope feeds the Pre-Cutover-Eve verdict-roll-
+# up described in Tag-77 §9.
+#
+# Tag-78 Marathon-Polish-Phase
+
+name: operator-items-health-check
+
+on:
+  workflow_dispatch:
+    inputs:
+      verbose:
+        description: "Emit per-item diagnostic output (true|false)"
+        required: false
+        default: "false"
+  schedule:
+    # Daily 06:00 UTC. Runs every day from Tag-78 (2026-05-19)
+    # through Pre-Cutover-Eve (2026-06-26 Fr) and continues across
+    # the Marathon-Lauf to surface drift in Items I6/I7 (J3/K3-
+    # Carry-Forward) before Production-Bringup-Day-6 (2026-07-09).
+    - cron: "0 6 * * *"
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/operations/operator-hand-pending-items-konsolidat.md"
+      - "tooling/ci/health_check_operator_items.py"
+      - "tests/observability/test_operator_items_health_check_tag78.py"
+      - ".github/workflows/operator-items-health-check.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: operator-items-health-check
+  cancel-in-progress: false
+
+jobs:
+  stage-1-parse-master-doc:
+    name: Stage 1 parse Tag-77 master-doc (I1..I10 + Prerequisites)
+    runs-on: ubuntu-latest
+    outputs:
+      doc_present: ${{ steps.parse.outputs.doc_present }}
+      items_found: ${{ steps.parse.outputs.items_found }}
+      sync_ok: ${{ steps.parse.outputs.sync_ok }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Parse master-doc Item-IDs and Prerequisites
+        id: parse
+        shell: bash
+        run: |
+          set -uo pipefail
+          doc="docs/operations/operator-hand-pending-items-konsolidat.md"
+          if [[ ! -f "$doc" ]]; then
+            echo "doc_present=false" >> "$GITHUB_OUTPUT"
+            echo "items_found=" >> "$GITHUB_OUTPUT"
+            echo "sync_ok=false" >> "$GITHUB_OUTPUT"
+            echo "::error::Tag-77 master-doc missing at $doc"
+            exit 1
+          fi
+          echo "doc_present=true" >> "$GITHUB_OUTPUT"
+          # Use the helper's parse-function via a one-shot python
+          # invocation so we stay aligned with the Stage-2 helper.
+          items=$(
+            python3 - <<'PYEOF'
+          import importlib.util, pathlib, sys
+          spec = importlib.util.spec_from_file_location(
+              "h",
+              "tooling/ci/health_check_operator_items.py",
+          )
+          m = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(m)
+          doc = pathlib.Path(
+              "docs/operations/operator-hand-pending-items-konsolidat.md"
+          ).read_text(encoding="utf-8")
+          ids = m.parse_master_doc_items(doc)
+          print(",".join(ids))
+          PYEOF
+          )
+          echo "items_found=$items" >> "$GITHUB_OUTPUT"
+          expected="I1,I2,I3,I4,I5,I6,I7,I8,I9,I10"
+          if [[ "$items" == "$expected" ]]; then
+            echo "sync_ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sync_ok=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::master-doc items '$items' deviate from expected '$expected'"
+          fi
+          echo "Stage 1 parse: items_found=$items sync_ok=ok"
+
+  stage-2-check-pre-conditions:
+    name: Stage 2 check pre-conditions per item I1..I10
+    needs: stage-1-parse-master-doc
+    runs-on: ubuntu-latest
+    if: needs.stage-1-parse-master-doc.outputs.doc_present == 'true'
+    outputs:
+      per_item_json: ${{ steps.check.outputs.per_item_json }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run hermetic per-item pre-condition check
+        id: check
+        shell: bash
+        env:
+          VERBOSE: ${{ inputs.verbose || 'false' }}
+        run: |
+          set -uo pipefail
+          mkdir -p out
+          # Run the helper. Exit code is 0 for READY/CAUTION, 1 for
+          # BLOCKED, 2 for master-doc-missing. We capture all three
+          # so Stage 3 sees the envelope regardless.
+          set +e
+          python3 tooling/ci/health_check_operator_items.py \
+            --repo-root . \
+            --output out/operator-items-health-check-envelope.json \
+            $( [[ "$VERBOSE" == "true" ]] && echo "" || echo "--quiet" ) \
+            > out/operator-items-stdout.json 2> out/operator-items-stderr.log
+          rc=$?
+          set -e
+          echo "helper rc=$rc"
+          # Emit per-item summary into GITHUB_STEP_SUMMARY.
+          {
+            echo "## Tag-78 Operator-Items Health-Check"
+            echo ""
+            echo "| Item | Status | Note |"
+            echo "|------|--------|------|"
+            python3 - <<'PYEOF'
+          import json, pathlib
+          env = json.loads(
+              pathlib.Path("out/operator-items-health-check-envelope.json").read_text()
+          )
+          for it in env["items"]:
+              n = it.get("note", "") or ""
+              n = n.replace("|", "\\|")
+              print(f"| {it['item']} | `{it['status']}` | {n} |")
+          PYEOF
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Emit per-item JSON line for Stage 3.
+          per_item_json=$(python3 -c "import json; print(json.dumps(json.load(open('out/operator-items-health-check-envelope.json'))['items']))")
+          {
+            echo "per_item_json<<EOF"
+            echo "$per_item_json"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - name: Upload per-item envelope artifact (stage-2-snapshot)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: operator-items-stage-2-snapshot
+          path: out/operator-items-health-check-envelope.json
+          if-no-files-found: warn
+
+  stage-3-aggregate-envelope:
+    name: Stage 3 aggregate envelope (READY/CAUTION/BLOCKED)
+    needs:
+      - stage-1-parse-master-doc
+      - stage-2-check-pre-conditions
+    runs-on: ubuntu-latest
+    if: always()
+    outputs:
+      verdict: ${{ steps.aggregate.outputs.verdict }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Aggregate per-item statuses into final envelope
+        id: aggregate
+        shell: bash
+        env:
+          DOC_PRESENT: ${{ needs.stage-1-parse-master-doc.outputs.doc_present }}
+          SYNC_OK: ${{ needs.stage-1-parse-master-doc.outputs.sync_ok }}
+        run: |
+          set -uo pipefail
+          mkdir -p out
+          # Stage 3 re-runs the helper end-to-end so the final
+          # envelope is authoritative even if Stage 2 was skipped
+          # (master-doc missing).
+          if [[ "$DOC_PRESENT" != "true" ]]; then
+            echo "::error::Stage 1 reported master-doc missing"
+            # Synthesise a BLOCKED envelope so the artifact still
+            # carries actionable signal.
+            cat > out/operator-items-health-check-envelope.json <<'JSONEOF'
+          {
+            "envelope": "operator-items-health-check",
+            "version": 1,
+            "tag": "tag-78",
+            "verdict": "OPERATOR-ITEMS-BLOCKED",
+            "counts": {"green": 0, "yellow": 0, "red": 10},
+            "items": [],
+            "master_doc_sync": {
+              "ok": false,
+              "note": "Tag-77 master-doc missing"
+            }
+          }
+          JSONEOF
+            echo "verdict=OPERATOR-ITEMS-BLOCKED" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          set +e
+          python3 tooling/ci/health_check_operator_items.py \
+            --repo-root . \
+            --output out/operator-items-health-check-envelope.json \
+            --quiet \
+            > /dev/null
+          rc=$?
+          set -e
+          verdict=$(python3 -c "import json; print(json.load(open('out/operator-items-health-check-envelope.json'))['verdict'])")
+          counts=$(python3 -c "import json; print(json.dumps(json.load(open('out/operator-items-health-check-envelope.json'))['counts']))")
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Tag-78 Aggregate Verdict: \`$verdict\`"
+            echo ""
+            echo "* Counts: $counts"
+            echo "* Master-doc sync: $SYNC_OK"
+            echo ""
+            echo "Pre-Cutover-Eve stichtag: 2026-06-26 Fr"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$verdict" == "OPERATOR-ITEMS-BLOCKED" ]]; then
+            echo "::error::operator-items-health-check verdict: BLOCKED"
+            exit 1
+          elif [[ "$verdict" == "OPERATOR-ITEMS-CAUTION" ]]; then
+            echo "::warning::operator-items-health-check verdict: CAUTION"
+          fi
+      - name: Upload final envelope artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: operator-items-health-check-envelope
+          path: out/operator-items-health-check-envelope.json
+          if-no-files-found: warn
