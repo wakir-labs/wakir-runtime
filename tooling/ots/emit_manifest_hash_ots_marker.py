@@ -83,6 +83,18 @@ Selin's Tag-69 Persona-Engine producer
 (``engine.py::backfill_audit_trail_anchors``, producer-wiring-plan
 §2.4). Cross-Review-Zone-K (Tomás OTS / WAT-Hash semantics).
 
+Tag-70 Welle-2 audit-trail-anchor extension
+-------------------------------------------
+
+The ``--mode welle-2-audit-anchor`` flag mirrors the Welle-1 wiring
+for the Welle-2 Doppelbetrieb-Sealing sign-off-record bundle (same
+canonical bundle shape: rollup + sign-off + validation + pre-auditor).
+Cross-coordinated with Selin's Tag-70 Welle-2 Persona-Engine producer
+(``engine.py::backfill_audit_trail_anchors`` parametrised by welle
+number). The hash recipe is identical to Welle-1 (canonical-JSON
+concat with ``b"\\n"`` separator in ``WELLE_N_BUNDLE_ORDER``); only
+the kind/marker namespaces carry the welle number.
+
 Inputs:
 
   * ``--welle-1-rollup`` (required): path to ``state/welle-1.json``.
@@ -172,6 +184,7 @@ from typing import Iterable
 MODE_AUDIT_ONLY: str = "audit-only"
 MODE_PRE_ACTIVATION_PROBE: str = "pre-activation-probe"
 MODE_WELLE_1_AUDIT_ANCHOR: str = "welle-1-audit-anchor"
+MODE_WELLE_2_AUDIT_ANCHOR: str = "welle-2-audit-anchor"
 ANCHOR_TARGET_OTS_CALENDAR: str = "opentimestamps-calendar"
 
 # Tag-69 Welle-1 audit-trail-anchor mode constants.
@@ -190,6 +203,15 @@ WELLE_1_BUNDLE_ORDER: tuple[str, ...] = (
 WELLE_1_BUNDLE_REQUIRED: frozenset[str] = frozenset({"rollup", "sign_off"})
 WELLE_1_KIND_MARKER: str = "welle-1-audit-trail-anchor-marker"
 WELLE_1_KIND_ENVELOPE: str = "welle-1-audit-trail-anchor-envelope"
+
+# Tag-70 Welle-2 audit-trail-anchor mode constants. Mirror of the
+# Welle-1 wiring (same canonical bundle shape and same hash recipe);
+# only the marker/envelope kind strings carry the welle number so
+# downstream consumers can tell the two apart.
+WELLE_2_BUNDLE_ORDER: tuple[str, ...] = WELLE_1_BUNDLE_ORDER
+WELLE_2_BUNDLE_REQUIRED: frozenset[str] = WELLE_1_BUNDLE_REQUIRED
+WELLE_2_KIND_MARKER: str = "welle-2-audit-trail-anchor-marker"
+WELLE_2_KIND_ENVELOPE: str = "welle-2-audit-trail-anchor-envelope"
 
 # Required top-level keys for a schema-v1 marker payload. Used by the
 # pre-activation-probe's ``payload_shape`` stage.
@@ -595,6 +617,121 @@ def load_welle_1_bundle(
     return bundle
 
 
+def compute_welle_2_audit_anchor_hash(bundle: dict) -> str:
+    """Compute the Welle-2 audit-trail-anchor SHA-256 from a bundle.
+
+    Identical recipe to ``compute_welle_1_audit_anchor_hash`` (canonical
+    JSON concat in ``WELLE_2_BUNDLE_ORDER`` joined by ``b"\\n"``). The
+    function is kept as its own symbol — rather than aliasing the
+    Welle-1 entry — so a future recipe divergence between welles can be
+    introduced without breaking the call-site contract that Selin's
+    Tag-70 producer relies on.
+    """
+    missing = WELLE_2_BUNDLE_REQUIRED - set(bundle.keys())
+    if missing:
+        raise ValueError(
+            f"welle-2 bundle missing required keys: {sorted(missing)}"
+        )
+
+    parts: list[bytes] = []
+    for key in WELLE_2_BUNDLE_ORDER:
+        if key not in bundle:
+            continue
+        value = bundle[key]
+        if not isinstance(value, dict):
+            raise ValueError(
+                f"welle-2 bundle key {key!r} must be a JSON object dict, "
+                f"got {type(value).__name__}"
+            )
+        parts.append(_canonical_json_bytes(value))
+
+    return hashlib.sha256(b"\n".join(parts)).hexdigest()
+
+
+def build_welle_2_audit_anchor_marker(
+    *,
+    bundle: dict,
+    anchor_hash: str,
+    actor: str,
+    now_utc: _dt.datetime,
+) -> dict:
+    """Assemble the Welle-2 audit-trail-anchor marker dict.
+
+    Mirror of the Welle-1 marker (Tag-69), with ``welle_number=2`` and
+    Welle-2-specific kind strings. The marker is the audit-only
+    artefact that Tomás emits and that Selin's Tag-70 producer reads
+    to populate ``state/welle-2.json:audit_trail_anchor``.
+    """
+    iso_now = now_utc.isoformat()
+    return {
+        "schema_version": 1,
+        "kind": WELLE_2_KIND_MARKER,
+        "mode": MODE_WELLE_2_AUDIT_ANCHOR,
+        "welle_number": 2,
+        "audit_trail_anchor": anchor_hash,
+        "bundle_keys": sorted(
+            k for k in WELLE_2_BUNDLE_ORDER if k in bundle
+        ),
+        "wat_spool_envelope": {
+            "schema_version": 1,
+            "kind": WELLE_2_KIND_ENVELOPE,
+            "audit_trail_anchor": anchor_hash,
+            "requested_at_utc": iso_now,
+            "actor": actor,
+            "anchor_target": ANCHOR_TARGET_OTS_CALENDAR,
+        },
+        "emitted_at_utc": iso_now,
+        "anchors": {
+            "adr_audit_trail": "decisions/0007-internal-audit-trail-ots.md",
+            "amara_tag_67_state_file_conventions_pr": 429,
+            "tomas_tag_69_welle_1_audit_anchor_pr": 439,
+            "selin_tag_70_producer_pr": None,
+            "tomas_tag_70_audit_anchor_pr": None,
+            "state_file_conventions_doc": (
+                "docs/quality-gates/welle-n-state-file-conventions.md"
+            ),
+            "producer_wiring_plan_doc": (
+                "docs/persona-engine/state-file-producer-wiring-plan.md"
+            ),
+            "welle_2_context": "doppelbetrieb-sealing",
+        },
+        "operator_hand_next_step": (
+            "Selin's persona-engine batch-writer "
+            "(engine.py::backfill_audit_trail_anchors, welle=2) reads "
+            "this marker and writes the audit_trail_anchor into "
+            "state/welle-2.json. Real OTS calendar stamping is "
+            "Operator-Hand on a network-attached host, separate step."
+        ),
+    }
+
+
+def load_welle_2_bundle(
+    *,
+    rollup_path: Path,
+    sign_off_path: Path,
+    validation_path: Path | None,
+    pre_auditor_path: Path | None,
+) -> dict:
+    """Load the Welle-2 sign-off-record bundle from disk.
+
+    Same shape as ``load_welle_1_bundle``. Kept as its own symbol so a
+    future Welle-2-specific schema-divergence does not require touching
+    the Welle-1 call-sites.
+    """
+    bundle: dict = {}
+    bundle["rollup"] = json.loads(rollup_path.read_text(encoding="utf-8"))
+    bundle["sign_off"] = json.loads(sign_off_path.read_text(encoding="utf-8"))
+    if validation_path is not None:
+        bundle["validation"] = json.loads(
+            validation_path.read_text(encoding="utf-8")
+        )
+    if pre_auditor_path is not None:
+        bundle["pre_auditor"] = json.loads(
+            pre_auditor_path.read_text(encoding="utf-8")
+        )
+    return bundle
+
+
 def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="emit_manifest_hash_ots_marker",
@@ -611,6 +748,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             MODE_AUDIT_ONLY,
             MODE_PRE_ACTIVATION_PROBE,
             MODE_WELLE_1_AUDIT_ANCHOR,
+            MODE_WELLE_2_AUDIT_ANCHOR,
         ),
         default=MODE_AUDIT_ONLY,
         help=(
@@ -620,7 +758,9 @@ def main(argv: Iterable[str] | None = None) -> int:
             "welle-1-audit-anchor (Tag-69): compute Welle-1 audit-"
             "trail-anchor SHA-256 from sign-off-record bundle "
             "(rollup + sign-off + validation + pre-auditor) and emit "
-            "marker JSON for Selin's persona-engine producer."
+            "marker JSON for Selin's persona-engine producer. "
+            "welle-2-audit-anchor (Tag-70): same as welle-1 mode, but "
+            "for the Welle-2 Doppelbetrieb-Sealing bundle."
         ),
     )
     parser.add_argument(
@@ -668,6 +808,42 @@ def main(argv: Iterable[str] | None = None) -> int:
         help=(
             "Path to state/welle-1-pre-auditor-decision.json "
             "(optional for welle-1-audit-anchor mode)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-2-rollup",
+        type=Path,
+        default=None,
+        help=(
+            "Path to state/welle-2.json (required for "
+            "welle-2-audit-anchor mode)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-2-sign-off",
+        type=Path,
+        default=None,
+        help=(
+            "Path to state/welle-2-sign-off.json (required for "
+            "welle-2-audit-anchor mode)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-2-validation",
+        type=Path,
+        default=None,
+        help=(
+            "Path to state/welle-2-validation-last-verdict.json "
+            "(optional for welle-2-audit-anchor mode)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-2-pre-auditor",
+        type=Path,
+        default=None,
+        help=(
+            "Path to state/welle-2-pre-auditor-decision.json "
+            "(optional for welle-2-audit-anchor mode)."
         ),
     )
     parser.add_argument(
@@ -801,6 +977,93 @@ def main(argv: Iterable[str] | None = None) -> int:
         print(
             f"emit_manifest_hash_ots_marker: mode={marker['mode']} "
             f"welle=1 audit_trail_anchor={anchor_hash} "
+            f"bundle_keys={marker['bundle_keys']} -> {args.marker_out}"
+        )
+        return 0
+
+    if args.mode == MODE_WELLE_2_AUDIT_ANCHOR:
+        if args.welle_2_rollup is None or args.welle_2_sign_off is None:
+            print(
+                "emit_manifest_hash_ots_marker: "
+                "--welle-2-rollup and --welle-2-sign-off are required "
+                "when --mode welle-2-audit-anchor",
+                file=sys.stderr,
+            )
+            return 2
+        if args.marker_out is None:
+            print(
+                "emit_manifest_hash_ots_marker: "
+                "--marker-out is required when --mode welle-2-audit-anchor",
+                file=sys.stderr,
+            )
+            return 2
+
+        if not args.welle_2_rollup.is_file():
+            print(
+                f"emit_manifest_hash_ots_marker: --welle-2-rollup not "
+                f"a file: {args.welle_2_rollup}",
+                file=sys.stderr,
+            )
+            return 1
+        if not args.welle_2_sign_off.is_file():
+            print(
+                f"emit_manifest_hash_ots_marker: --welle-2-sign-off "
+                f"not a file: {args.welle_2_sign_off}",
+                file=sys.stderr,
+            )
+            return 1
+
+        try:
+            bundle = load_welle_2_bundle(
+                rollup_path=args.welle_2_rollup,
+                sign_off_path=args.welle_2_sign_off,
+                validation_path=(
+                    args.welle_2_validation
+                    if args.welle_2_validation
+                    and args.welle_2_validation.is_file()
+                    else None
+                ),
+                pre_auditor_path=(
+                    args.welle_2_pre_auditor
+                    if args.welle_2_pre_auditor
+                    and args.welle_2_pre_auditor.is_file()
+                    else None
+                ),
+            )
+        except (OSError, json.JSONDecodeError) as exc:
+            print(
+                f"emit_manifest_hash_ots_marker: welle-2 bundle "
+                f"read/parse error: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+
+        try:
+            anchor_hash = compute_welle_2_audit_anchor_hash(bundle)
+        except ValueError as exc:
+            print(
+                f"emit_manifest_hash_ots_marker: welle-2 bundle "
+                f"shape error: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+
+        marker = build_welle_2_audit_anchor_marker(
+            bundle=bundle,
+            anchor_hash=anchor_hash,
+            actor=args.actor,
+            now_utc=now_utc,
+        )
+
+        args.marker_out.parent.mkdir(parents=True, exist_ok=True)
+        args.marker_out.write_text(
+            json.dumps(marker, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+        print(
+            f"emit_manifest_hash_ots_marker: mode={marker['mode']} "
+            f"welle=2 audit_trail_anchor={anchor_hash} "
             f"bundle_keys={marker['bundle_keys']} -> {args.marker_out}"
         )
         return 0
