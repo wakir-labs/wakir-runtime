@@ -1,0 +1,113 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# REUSE-IgnoreStart/End Wrap Pre-Merge Lint (Tag-61)
+# --------------------------------------------------
+#
+# Three consecutive hot-fix episodes on the License-Hygiene Gate
+# (`license-gate.yml`, ADR-0061 Schritt 8) confirmed a Pattern:
+#
+#   * Tag-56 Kai hot-fix    a58f6e9 (his own test file)
+#   * Tag-59 Mira hot-fix   046a5e5 (Noa's Tag-58 test file)
+#   * Tag-60 Kai self-fix   211dbfb (his own Tag-60 test file)
+#
+# All three were "freshly-merged test contains SPDX-string-literal
+# payload outside REUSE-IgnoreStart/End markers, license-gate goes
+# red on `main`, hot-fix follows hours later." This workflow catches
+# the pattern at PR-time, before the gate ever has to fail.
+#
+# Three stages, advisory by default, blocking when invoked with the
+# `enforce` mode (set via repo variable `REUSE_WRAP_LINT_ENFORCE` ==
+# `1`; default unset = hint mode).
+#
+# Stage 1 (Hint-scan): run the helper in `hint` mode against the
+# pull-request workspace; emits a textual report.
+#
+# Stage 2 (Patch-comment): when the report contains
+# `REUSE-WRAP-MISSING`, post the patch suggestion as a PR comment.
+# In sandbox mode (`REUSE_WRAP_LINT_SANDBOX` == `1`) the comment
+# step is skipped; the patch is logged to the workflow run instead,
+# matching the Mira-Sandbox-vs-Host-Operations rule.
+#
+# Stage 3 (Verdict): emit the canonical verdict line. In enforce
+# mode a `REUSE-WRAP-MISSING` verdict fails the job; in hint mode
+# the job stays green but the verdict is still surfaced.
+
+name: reuse-wrap-pre-merge-lint
+
+on:
+  pull_request:
+    paths:
+      - "tests/**/*.py"
+      - "tooling/ci/lint_reuse_ignore_wrap_pattern.py"
+      - ".github/workflows/reuse-wrap-pre-merge-lint.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pull-requests: write  # only used by Stage 2 outside sandbox mode
+
+jobs:
+  reuse-wrap-pre-merge-lint:
+    name: REUSE-Wrap Pre-Merge Lint (Tag-61)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Stage 1 - Hint scan (tests/**/*.py)
+        id: scan
+        run: |
+          set -euo pipefail
+          REPORT_PATH="${RUNNER_TEMP}/reuse-wrap-report.txt"
+          python tooling/ci/lint_reuse_ignore_wrap_pattern.py \
+            --mode hint \
+            tests \
+            | tee "${REPORT_PATH}"
+          if grep -q '^REUSE-WRAP-MISSING' "${REPORT_PATH}"; then
+            echo "verdict=REUSE-WRAP-MISSING" >> "${GITHUB_OUTPUT}"
+          else
+            echo "verdict=REUSE-WRAP-INTACT"  >> "${GITHUB_OUTPUT}"
+          fi
+          echo "report_path=${REPORT_PATH}" >> "${GITHUB_OUTPUT}"
+
+      - name: Stage 1b - Self-verify (helper does not trip on itself)
+        run: |
+          python tooling/ci/lint_reuse_ignore_wrap_pattern.py \
+            --mode self-verify
+
+      - name: Stage 2 - Patch-suggestion (sandbox-aware)
+        if: steps.scan.outputs.verdict == 'REUSE-WRAP-MISSING'
+        env:
+          SANDBOX_MODE: ${{ vars.REUSE_WRAP_LINT_SANDBOX || '1' }}
+        run: |
+          set -euo pipefail
+          REPORT_PATH="${{ steps.scan.outputs.report_path }}"
+          if [ "${SANDBOX_MODE}" = "1" ]; then
+            echo "::notice::sandbox-mode active - skipping PR comment, logging patch instead:"
+            echo "----- patch-suggestion -----"
+            cat "${REPORT_PATH}"
+            echo "----- end patch-suggestion -----"
+          else
+            echo "::notice::non-sandbox-mode - PR-comment step would run here (not wired in Tag-61)."
+            cat "${REPORT_PATH}"
+          fi
+
+      - name: Stage 3 - Verdict
+        env:
+          ENFORCE_MODE: ${{ vars.REUSE_WRAP_LINT_ENFORCE || '0' }}
+        run: |
+          set -euo pipefail
+          VERDICT="${{ steps.scan.outputs.verdict }}"
+          echo "verdict=${VERDICT}"
+          if [ "${VERDICT}" = "REUSE-WRAP-MISSING" ] && [ "${ENFORCE_MODE}" = "1" ]; then
+            echo "::error::enforce-mode active and REUSE-wrap is missing - failing job."
+            exit 1
+          fi
+          echo "Job exits green (hint-mode or verdict intact)."

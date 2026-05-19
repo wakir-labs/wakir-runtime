@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wakir.dev/wirelang/schema/layer-0-transport/0.1.0",
+  "x-spdx-license-identifier": "Apache-2.0",
+  "x-spdx-file-copyright-text": "2026 Callandor GmbH and contributors",
+  "title": "Wirelang Layer 0 — Transport (NATS + JetStream)",
+  "description": "Schema for Wirelang Layer 0 transport-binding metadata. Validates NATS subject patterns and JetStream stream/consumer configuration shapes used by Wakir agents.",
+  "type": "object",
+  "required": ["binding", "subject", "delivery"],
+  "additionalProperties": false,
+  "properties": {
+    "binding": {
+      "type": "string",
+      "const": "nats-jetstream-1.0",
+      "description": "Transport binding identifier. Phase-1a is fixed to NATS+JetStream per ADR-0020 variant alpha."
+    },
+    "subject": {
+      "type": "object",
+      "description": "NATS subject decomposition following the wakir.<env>.<domain>.<event-type>[.<sub-id>] convention.",
+      "required": ["pattern", "env", "domain", "event_type"],
+      "additionalProperties": false,
+      "properties": {
+        "pattern": {
+          "type": "string",
+          "pattern": "^wakir\\.(dev|staging|prod)\\.[a-z][a-z0-9_-]*\\.[a-z][a-z0-9_.-]*(\\.[a-zA-Z0-9_.-]+)?$",
+          "description": "Full NATS subject string. Must match the Wakir hierarchical convention."
+        },
+        "env": {
+          "type": "string",
+          "enum": ["dev", "staging", "prod"]
+        },
+        "domain": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "description": "Logical Wakir domain such as agent, wat, treasury, comms."
+        },
+        "event_type": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.-]*$",
+          "description": "Reverse-DNS-style event type, identical to the CloudEvents 'type' attribute body."
+        },
+        "sub_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional granular sub-identifier (agent slug, task-id prefix)."
+        }
+      }
+    },
+    "stream": {
+      "type": "object",
+      "description": "JetStream stream configuration metadata.",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "description": "JetStream stream name. Convention: SCREAMING_SNAKE_CASE."
+        },
+        "subjects": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "retention_days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 365,
+          "description": "Retention window in days. Phase-1a default is 7; wat.* streams default to 14."
+        },
+        "storage": {
+          "type": "string",
+          "enum": ["memory", "file"],
+          "default": "file"
+        }
+      },
+      "required": ["name", "subjects", "retention_days"]
+    },
+    "delivery": {
+      "type": "object",
+      "description": "Delivery semantics declaration.",
+      "required": ["semantics", "ordering"],
+      "additionalProperties": false,
+      "properties": {
+        "semantics": {
+          "type": "string",
+          "enum": ["at-least-once"],
+          "description": "Phase-1a only supports at-least-once. Consumers MUST be idempotent against duplicate CloudEvents 'id' values."
+        },
+        "ordering": {
+          "type": "string",
+          "enum": ["per-stream-fifo"],
+          "description": "Ordering guarantee. Cross-stream ordering is NOT guaranteed."
+        }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "description": "Account-scoped subject permissions reservation. Phase-1b populates this from JWT-SVID claims (ADR-0020).",
+      "additionalProperties": false,
+      "properties": {
+        "publish": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "subscribe": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

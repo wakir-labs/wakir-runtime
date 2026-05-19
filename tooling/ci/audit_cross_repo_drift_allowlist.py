@@ -378,6 +378,153 @@ def compute_readiness_score(
 
 
 # ---------------------------------------------------------------------------
+# Stage 3b — Trajectory-Re-Sync detection (Tag-61, Reza).
+# ---------------------------------------------------------------------------
+#
+# The Tag-31 BASELINE_INVENTORY is locked: every row's `status` is
+# the captured baseline (`clean=4, drift=6`). The Stage-3 score-of-
+# record is also locked at 76 / ENFORCE-CAUTION while we are pre-re-
+# sync. Tag-61 introduces a *post-re-sync trajectory*: the canonical
+# mirror-seed for a `re-sync-*` drift row, landed inside
+# `wakir-runtime` under `wirelang/specs/protocol-mirror-seed/<canonical-
+# path>`, counts as a trajectory-clean signal. The mirror-seed has
+# been canonical-form-mirrored from the runtime side; once the
+# Engineering-Lead hand-off PR lands it on the `wakir-protocol` side
+# at its canonical path, the row flips to actually-clean in the next
+# BASELINE_INVENTORY refresh.
+#
+# Sandbox boundary: this helper only reads files inside the runtime
+# repo. The protocol-side presence is *not* inferred — only the
+# runtime-side seed file presence is. The trajectory-resync signal is
+# therefore a *ready-to-land* signal, not a *landed* signal.
+
+RESYNC_STRATEGIES: tuple[str, ...] = (
+    "re-sync-protocol-from-runtime",
+    "re-sync-runtime-from-protocol",
+)
+
+PROTOCOL_MIRROR_SEED_DIR = "wirelang/specs/protocol-mirror-seed"
+
+
+def _canonical_protocol_subpath(protocol_path: str) -> str:
+    """Strip the `wakir_protocol/` prefix to produce the seed sub-path.
+
+    Examples:
+        `wakir_protocol/schemas/layer-0-transport.json`
+            -> `schemas/layer-0-transport.json`
+        `wakir_protocol/identity_substrate/aip_document.py`
+            -> `identity_substrate/aip_document.py`
+
+    Rows that do not start with `wakir_protocol/` return the input
+    untouched (the seed lookup will then fail-closed).
+    """
+    prefix = "wakir_protocol/"
+    if protocol_path.startswith(prefix):
+        return protocol_path[len(prefix):]
+    return protocol_path
+
+
+def detect_trajectory_resync(
+    repo_root: Path,
+    inventory: tuple[dict[str, str], ...] = BASELINE_INVENTORY,
+) -> dict[str, Any]:
+    """Detect protocol-mirror-seed files for re-sync drift rows.
+
+    For every inventory row with status=`drift` and a re-sync strategy,
+    check whether the seed file
+    `<repo_root>/wirelang/specs/protocol-mirror-seed/<canonical-sub-
+    path>` exists. Return a structured report.
+    """
+    seed_root = repo_root / PROTOCOL_MIRROR_SEED_DIR
+    resync_rows: list[dict[str, Any]] = []
+    seeded = 0
+
+    for row in inventory:
+        if row["status"] != "drift":
+            continue
+        if row["strategy"] not in RESYNC_STRATEGIES:
+            continue
+        canonical_sub = _canonical_protocol_subpath(row["protocol"])
+        seed_path = seed_root / canonical_sub
+        present = seed_path.is_file()
+        if present:
+            seeded += 1
+        resync_rows.append(
+            {
+                "runtime": row["runtime"],
+                "protocol": row["protocol"],
+                "strategy": row["strategy"],
+                "seed_path": str(seed_path.relative_to(repo_root))
+                if seed_path.is_relative_to(repo_root)
+                else str(seed_path),
+                "seed_present": present,
+            }
+        )
+
+    expected = len(resync_rows)
+    completion = (seeded / expected) if expected else 1.0
+
+    return {
+        "resync_rows": resync_rows,
+        "expected_seeded": expected,
+        "actually_seeded": seeded,
+        "resync_completion": completion,
+    }
+
+
+def compute_post_resync_score(
+    coverage: dict[str, Any],
+    resync: dict[str, Any],
+    strategies_assigned: int | None = None,
+    inventory: tuple[dict[str, str], ...] = BASELINE_INVENTORY,
+) -> dict[str, Any]:
+    """Post-re-sync score: trajectory accounts for landed seeds.
+
+    Formula (locked):
+
+        post_resync_clean = clean_count + actually_seeded
+        post_resync_trajectory_ratio = post_resync_clean / total
+        post_resync_score = round(60 * coverage_ratio
+                                  + 40 * post_resync_trajectory_ratio)
+
+    Coverage ratio is unchanged (strategies were already assigned at
+    Tag-31). The score is clamped to [0, 100] via the [0.0, 1.0]
+    ratio clamps. The verdict is then computed by `compute_verdict`
+    on the post-re-sync score.
+    """
+    if strategies_assigned is None:
+        strategies_assigned = sum(1 for r in inventory if r["strategy"])
+
+    drift_baseline = coverage["drift_count_baseline"]
+    total = coverage["inventory_size"]
+    clean = coverage["clean_count"]
+    seeded = resync["actually_seeded"]
+
+    if drift_baseline == 0:
+        coverage_ratio = 1.0
+    else:
+        coverage_ratio = min(1.0, strategies_assigned / drift_baseline)
+
+    post_clean = clean + seeded
+    if total == 0:
+        post_trajectory_ratio = 1.0
+    else:
+        post_trajectory_ratio = min(1.0, post_clean / total)
+
+    coverage_ratio = max(0.0, coverage_ratio)
+    post_trajectory_ratio = max(0.0, post_trajectory_ratio)
+
+    post_score = round(60 * coverage_ratio + 40 * post_trajectory_ratio)
+    return {
+        "post_resync_score": post_score,
+        "post_resync_trajectory_ratio": post_trajectory_ratio,
+        "post_resync_clean_count": post_clean,
+        "coverage_ratio": coverage_ratio,
+        "strategies_assigned": strategies_assigned,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Stage 4 — Verdict.
 # ---------------------------------------------------------------------------
 
@@ -399,6 +546,7 @@ def run_audit(
     allowlist_path: Path,
     workflow_path: Path | None = None,
     readiness_doc_path: Path | None = None,
+    repo_root: Path | None = None,
 ) -> dict[str, Any]:
     """Run all four stages and return a JSON-shape report.
 
@@ -406,6 +554,11 @@ def run_audit(
     with the workflow caller; the baseline inventory is locked in
     this module and the file references are recorded in the report
     for traceability.
+
+    `repo_root` enables the Tag-61 Stage-3b trajectory-resync
+    detection. When omitted, the resync stage runs against the
+    allowlist file's parent (best-effort) so the existing CLI
+    keeps working without an explicit flag.
     """
     text = allowlist_path.read_text(encoding="utf-8")
     parse_error = None
@@ -419,9 +572,20 @@ def run_audit(
     score_info = compute_readiness_score(coverage)
     verdict = compute_verdict(score_info["score"])
 
+    if repo_root is None:
+        repo_root = allowlist_path.resolve().parent
+    resync = detect_trajectory_resync(repo_root)
+    post_resync = compute_post_resync_score(coverage, resync)
+    post_resync_verdict = compute_verdict(post_resync["post_resync_score"])
+
     return {
         "tag": "tag-60",
         "owner": "noa",
+        "tag_61_extension": {
+            "tag": "tag-61",
+            "owner": "reza",
+            "purpose": "trajectory-resync-detection",
+        },
         "allowlist_path": str(allowlist_path),
         "workflow_path": str(workflow_path) if workflow_path else None,
         "readiness_doc_path": (
@@ -434,7 +598,10 @@ def run_audit(
         },
         "stage_2_coverage": coverage,
         "stage_3_readiness_score": score_info,
+        "stage_3b_trajectory_resync": resync,
+        "stage_3b_post_resync_score": post_resync,
         "stage_4_verdict": verdict,
+        "stage_4_post_resync_verdict": post_resync_verdict,
     }
 
 
@@ -474,14 +641,37 @@ def render_markdown_summary(report: dict[str, Any]) -> str:
         f"- strategies_assigned: `{score['strategies_assigned']}`",
         f"- formula: `round(60 * coverage_ratio + 40 * trajectory_ratio)`",
         "",
-        "## Stage 4 — Verdict",
-        "",
-        f"- `{verdict}`",
-        f"  - `>= {SCORE_READY_MIN}` = {VERDICT_READY}",
-        f"  - `>= {SCORE_CAUTION_MIN}` = {VERDICT_CAUTION}",
-        f"  - `<  {SCORE_CAUTION_MIN}` = {VERDICT_BLOCKED}",
+        "## Stage 3b — Trajectory-Re-Sync (Tag-61, Reza)",
         "",
     ]
+    resync = report.get("stage_3b_trajectory_resync")
+    post = report.get("stage_3b_post_resync_score")
+    if resync is not None and post is not None:
+        lines.extend(
+            [
+                f"- expected seeded rows: `{resync['expected_seeded']}`",
+                f"- actually seeded rows: `{resync['actually_seeded']}`",
+                f"- resync completion: `{resync['resync_completion']:.2f}`",
+                f"- post-resync trajectory_ratio: "
+                f"`{post['post_resync_trajectory_ratio']:.2f}`",
+                f"- post-resync clean_count: `{post['post_resync_clean_count']}`",
+                f"- post-resync score: `{post['post_resync_score']}/100`",
+                f"- post-resync verdict: "
+                f"`{report.get('stage_4_post_resync_verdict', '—')}`",
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "## Stage 4 — Verdict",
+            "",
+            f"- `{verdict}`",
+            f"  - `>= {SCORE_READY_MIN}` = {VERDICT_READY}",
+            f"  - `>= {SCORE_CAUTION_MIN}` = {VERDICT_CAUTION}",
+            f"  - `<  {SCORE_CAUTION_MIN}` = {VERDICT_BLOCKED}",
+            "",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -526,11 +716,28 @@ def main(argv: list[str] | None = None) -> int:
             "(default: never — pure audit mode)"
         ),
     )
+    parser.add_argument(
+        "--repo-root",
+        default=None,
+        help=(
+            "repo root for Tag-61 trajectory-resync detection "
+            "(default: derived from allowlist parent)"
+        ),
+    )
+    parser.add_argument(
+        "--post-resync",
+        action="store_true",
+        help=(
+            "evaluate --fail-on against the post-resync verdict "
+            "instead of the locked baseline verdict"
+        ),
+    )
     args = parser.parse_args(argv)
 
     allowlist_path = Path(args.allowlist)
     workflow_path = Path(args.workflow)
     readiness_path = Path(args.readiness_doc)
+    repo_root = Path(args.repo_root) if args.repo_root else None
 
     if not allowlist_path.exists():
         print(
@@ -543,6 +750,7 @@ def main(argv: list[str] | None = None) -> int:
         allowlist_path=allowlist_path,
         workflow_path=workflow_path if workflow_path.exists() else None,
         readiness_doc_path=readiness_path if readiness_path.exists() else None,
+        repo_root=repo_root,
     )
 
     json.dump(report, sys.stdout, indent=2, sort_keys=True)
@@ -554,7 +762,10 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(summary_md, file=sys.stderr)
 
-    verdict = report["stage_4_verdict"]
+    if args.post_resync:
+        verdict = report["stage_4_post_resync_verdict"]
+    else:
+        verdict = report["stage_4_verdict"]
     if args.fail_on == "blocked" and verdict == VERDICT_BLOCKED:
         return 1
     if args.fail_on == "caution" and verdict in (VERDICT_BLOCKED, VERDICT_CAUTION):
