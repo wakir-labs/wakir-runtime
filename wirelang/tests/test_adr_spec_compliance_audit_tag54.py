@@ -61,6 +61,23 @@ def _audit_text() -> str:
     return _read(AUDIT_REPORT)
 
 
+def _require_adr(name: str) -> Path:
+    """Locate an ADR file or skip the test if the decisions/ tree is
+    not co-mounted next to the runtime repo (e.g. in GitHub-Actions
+    where only the runtime repo is checked out). On the AI-Corp host
+    the decisions/ tree sits one level above the runtime worktree.
+    """
+    path = DECISIONS_ROOT / name
+    if not path.exists():
+        pytest.skip(
+            f"decisions/{name} not reachable from this checkout "
+            "(expected — ADRs live in the parent AI-Corp tree, not "
+            "inside the runtime repo). The audit runs hermetically "
+            "on the host; CI re-confirms the substrate-side claims."
+        )
+    return path
+
+
 # --------------------------------------------------------------------- #
 # T-ADR-S-01 / T-ADR-S-02 / T-ADR-S-03 — report self-consistency
 # --------------------------------------------------------------------- #
@@ -148,8 +165,7 @@ def test_t_adr_s_07_drift_wirelang_parser_path() -> None:
 
 def test_t_adr_s_08_adr_0034_contains_path_typos() -> None:
     """T-ADR-S-08: ADR-0034 cites wirelang/spec/ and wirelang/parser/."""
-    adr = DECISIONS_ROOT / "0034-repo-lizenz-strategie.md"
-    assert adr.exists()
+    adr = _require_adr("0034-repo-lizenz-strategie.md")
     text = adr.read_text(encoding="utf-8")
     assert "wirelang/spec/" in text, (
         "ERR-S1 surface vanished — recheck ADR-0034 erratum status"
@@ -161,8 +177,7 @@ def test_t_adr_s_08_adr_0034_contains_path_typos() -> None:
 
 def test_t_adr_s_09_adr_0062_contains_path_typos() -> None:
     """T-ADR-S-09: ADR-0062 cites wirelang/spec/ and wirelang/parser/."""
-    adr = DECISIONS_ROOT / "0062-repo-split-strategie-phase-2.md"
-    assert adr.exists()
+    adr = _require_adr("0062-repo-split-strategie-phase-2.md")
     text = adr.read_text(encoding="utf-8")
     assert "wirelang/spec/" in text
     assert "wirelang/parser/" in text
@@ -174,35 +189,44 @@ def test_t_adr_s_09_adr_0062_contains_path_typos() -> None:
 
 
 def test_t_adr_s_10_adr_0064_llm_hook_drift() -> None:
-    """T-ADR-S-10: ADR-0064 cites llm_hook.py; main-tip lacks it."""
-    adr = DECISIONS_ROOT / "0064-model-routing-prompt-caching-persona-engine.md"
-    text = adr.read_text(encoding="utf-8")
-    assert "llm_hook.py" in text, (
-        "ERR-S6 surface vanished — recheck ADR-0064 erratum"
-    )
+    """T-ADR-S-10: ADR-0064 cites llm_hook.py; main-tip lacks it.
+
+    The substrate-side claim (llm_hook.py absent, three replacement
+    files present) is checked unconditionally. The ADR-side
+    confirmation skips gracefully when the decisions/ tree is not
+    co-mounted (CI sandbox).
+    """
+    # Substrate-side claim — always checkable.
     bad = REPO_ROOT / "wirelang" / "persona_engine" / "llm_hook.py"
     assert not bad.exists(), (
         "DRIFT-claim regressed: llm_hook.py appeared. "
         "Re-audit ADR-0064 — the rename has been undone or reverted."
     )
-    # Replacement surface present
     pe = REPO_ROOT / "wirelang" / "persona_engine"
     assert (pe / "llm_call_shim.py").exists()
     assert (pe / "llm_classifier.py").exists()
     assert (pe / "rust_adapter_hook.py").exists()
+    # ADR-side confirmation — host-only, skip in CI sandbox.
+    adr = _require_adr("0064-model-routing-prompt-caching-persona-engine.md")
+    text = adr.read_text(encoding="utf-8")
+    assert "llm_hook.py" in text, (
+        "ERR-S6 surface vanished — recheck ADR-0064 erratum"
+    )
 
 
 def test_t_adr_s_11_adr_0052_self_reference_drift() -> None:
     """T-ADR-S-11: ADR-0052 cites self_reference.py; main-tip lacks it."""
-    adr = DECISIONS_ROOT / "0052-class-p-promotion-caveat-hash.md"
-    text = adr.read_text(encoding="utf-8")
-    assert "self_reference.py" in text, (
-        "ERR-S4 surface vanished — recheck ADR-0052 erratum"
-    )
+    # Substrate-side claim — always checkable.
     bad = REPO_ROOT / "wirelang" / "canonical" / "self_reference.py"
     assert not bad.exists(), (
         "DRIFT-claim regressed: self_reference.py appeared. "
         "Re-audit ADR-0052 — confirm where helper lives now."
+    )
+    # ADR-side confirmation — host-only, skip in CI sandbox.
+    adr = _require_adr("0052-class-p-promotion-caveat-hash.md")
+    text = adr.read_text(encoding="utf-8")
+    assert "self_reference.py" in text, (
+        "ERR-S4 surface vanished — recheck ADR-0052 erratum"
     )
 
 
