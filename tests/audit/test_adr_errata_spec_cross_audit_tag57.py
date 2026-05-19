@@ -379,7 +379,11 @@ def test_t11_drift_envelope_json_shape_is_stable(tmp_path):
     payload = json.loads(envelope.to_json())
 
     # Top-level contract.
-    assert list(payload.keys()) == [
+    # Tag-63 extension: the envelope MAY carry an additional "draft_shape"
+    # key (None on a non-draft document). The Tag-57 pin is preserved by
+    # asserting the six original keys appear in order at the head of the
+    # payload; any later keys are accepted as compatible extensions.
+    assert list(payload.keys())[:6] == [
         "audit_id",
         "spec_path",
         "spec_freeze_marker",
@@ -387,6 +391,14 @@ def test_t11_drift_envelope_json_shape_is_stable(tmp_path):
         "err_markers",
         "summary",
     ]
+    assert set(payload.keys()) - {"draft_shape"} == {
+        "audit_id",
+        "spec_path",
+        "spec_freeze_marker",
+        "adr_heads",
+        "err_markers",
+        "summary",
+    }
     assert payload["audit_id"] == "tag-57-adr-errata-spec-cross-audit"
     # adr_heads inner shape.
     assert payload["adr_heads"] and all(
