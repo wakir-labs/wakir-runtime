@@ -405,6 +405,21 @@ ALERT_CATALOG: dict[str, dict[str, str]] = {
             "https://wakir-labs.example/runbooks/cutover-day-morgen-block"
         ),
     },
+    # Tag-71 Welle-3 Pre-Auditor Routing Element (Noa SRE).
+    # Positive-confirmation counterpart to the Tag-45 Class-B3
+    # default-path warning; fires when Welle-3 Schluss-Audit-Signoff
+    # arrives from an AR-designated external Pre-Auditor. Severity
+    # info, routing class welle-3-pre-auditor-info. See
+    # docs/observability/live-smoke-stability-window-operator-runbook.md
+    # Section 6.
+    "WakirPhase3Welle3PreAuditorDesignated": {
+        "failure_mode_id": "Tag-71-B3-PositiveAck",
+        "severity": "info",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/"
+            "welle-3-pre-auditor-designated"
+        ),
+    },
 }
 
 # Tag-40 baseline alerts that pre-date the Pre-Mortem-extension.
@@ -513,12 +528,19 @@ PROM_SEVERITY_TO_NOTIFY: dict[str, str] = {
 ROUTING_CLASS_STANDARD = "standard"
 ROUTING_CLASS_OPS_ON_CALL = "ops-on-call"
 ROUTING_CLASS_OPS_ON_CALL_PLUS_MANAGEMENT = "ops-on-call-plus-management"
+# Tag-71 Welle-3 Pre-Auditor positive-acknowledgement routing class.
+# Same channels as the Tag-64 standard class (ntfy info + activity-log),
+# but distinct routing-class string so the AlertManager route-tree can
+# treat the Welle-3 Pre-Auditor designation as a named, auditable event
+# rather than blending it into the standard info stream.
+ROUTING_CLASS_WELLE_3_PRE_AUDITOR_INFO = "welle-3-pre-auditor-info"
 
 VALID_ROUTING_CLASSES: frozenset[str] = frozenset(
     {
         ROUTING_CLASS_STANDARD,
         ROUTING_CLASS_OPS_ON_CALL,
         ROUTING_CLASS_OPS_ON_CALL_PLUS_MANAGEMENT,
+        ROUTING_CLASS_WELLE_3_PRE_AUDITOR_INFO,
     }
 )
 
@@ -538,12 +560,17 @@ ROUTING_CLASS_CHANNELS: dict[str, tuple[str, ...]] = {
         "ntfy:ar-hand",
         "activity-log:hold-marker",
     ),
+    ROUTING_CLASS_WELLE_3_PRE_AUDITOR_INFO: (
+        "ntfy:ar-hand-info",
+        "activity-log:append",
+    ),
 }
 
 ROUTING_CLASS_ESCALATION_SECONDS: dict[str, int] = {
     ROUTING_CLASS_STANDARD: 0,
     ROUTING_CLASS_OPS_ON_CALL: 600,
     ROUTING_CLASS_OPS_ON_CALL_PLUS_MANAGEMENT: 300,
+    ROUTING_CLASS_WELLE_3_PRE_AUDITOR_INFO: 0,
 }
 
 # Set of alertnames that REQUIRE a routing_class label (Tag-64
