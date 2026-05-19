@@ -1,0 +1,281 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Pyramide Pre-Cutover Acceptance Cross-Run Stability-Pin Gate
+# ------------------------------------------------------------
+# (Amara Tag-60, ADR-0066, Continuous-Mode)
+#
+# Verpflichtender CI-Status-Check fuer die byte-stability des
+# Pre-Cutover Final-Acceptance Pyramide Verdict-Envelope ueber
+# N >= 3 hintereinander auf identischem Input.
+#
+# Anlass
+# ------
+# Tag-57 PR #365: Pre-Cutover-Acceptance-Pyramide Run-Order-Doc
+#   + ``aggregate_pyramide_run_order_verdict.py`` Verdict-Aggregator
+#   (per-Welle + Global Envelope per §7).
+# Tag-58 PR #374: Cross-Layer Dependency-DAG Verify-Gate.
+# Tag-60 (this gate): die Pyramide muss byte-fuer-byte deterministisch
+#   sein. Wenn dasselbe Input-Fixture verschiedene Envelope-bytes
+#   ueber konsekutive Runs erzeugt, ist das Verdict kein stabiles
+#   Acceptance-Signal.
+#
+# Methodik (3 Stages)
+# -------------------
+#
+#   Stage 1: 3x consecutive runs des Verdict-Aggregator auf der
+#            canonical GREEN-marathon Fixture-Suite (Welle-1,2,5,7
+#            plus Global). Helper:
+#            ``tooling/ci/verify_pyramide_cross_run_stability.py``.
+#
+#   Stage 2: Compare Verdict-Envelopes byte-identical
+#            (sha256 ueber raw stdout bytes pro Run).
+#
+#   Stage 3: Verdict-Emission.
+#              - CROSS-RUN-STABLE   (exit 0): alle N Envelopes
+#                identisch (1 distinct sha256).
+#              - CROSS-RUN-DRIFT    (exit 2): >=2 distinct sha256.
+#              - CROSS-RUN-ERROR    (exit 1): Aggregator-Failure,
+#                Fixture-Parse-Error, missing-helper.
+#
+# Path-Filter
+# -----------
+# Trigger bei Drift in:
+#   - dem Aggregator-Helper (source-of-truth fuer envelope-format)
+#   - dem Cross-Run-Stability-Helper (gate-source-of-truth)
+#   - der canonical Fixture-Suite
+#   - der Tag-57 Run-Order-Doc (Envelope-Schema-Parallel)
+#   - dem Gate-Workflow self
+#   - der Tag-60 Test-Suite
+#
+# Sandbox-Boundary
+# ----------------
+# Stdlib + pytest. Helper invoces den Aggregator via subprocess
+# (python -m style, in-process). Kein Network, kein podman, kein
+# live-VM. PYTHONHASHSEED=0 und LC_ALL=C pinnen Determinism.
+#
+# Required-Status-Check (Mira-Hand-Folge)
+# ---------------------------------------
+# Erste Phase: **advisory**. Sobald dieser Workflow einmal auf
+# `main` gruen laeuft, soll Mira (Operator-Hand) ihn unter
+# Settings -> Branches -> main -> Required status checks aktivieren.
+# Der Job-Display-Name "pyramide cross-run stability pin (5 fixtures,
+# 3 runs each)" ist der exakte zu aktivierende String per
+# feedback_branch_protection_check_names.md.
+#
+# Cross-Review
+# ------------
+# Zone-M: Engineering-Personae ueber Tomas - Aggregator ist Tag-57
+#         Substrate-Owner, Cross-Run-Pin ist QA-Topology-Claim ueber
+#         dem Substrate.
+# Zone-N: Henrik (Audit) - Cross-Run-Verdict ist Audit-Evidence-
+#         Input fuer das "Verdict ist deterministisch" Audit-Claim;
+#         Drift waere Zone-N-Signal.
+
+name: pyramide-cross-run-stability-pin-gate
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      # Aggregator-Helper (Envelope source-of-truth)
+      - "tooling/ci/aggregate_pyramide_run_order_verdict.py"
+      # Cross-Run-Stability-Helper (Gate source-of-truth)
+      - "tooling/ci/verify_pyramide_cross_run_stability.py"
+      # Canonical fixture suite
+      - "tests/ci/fixtures/green-welle-1-marathon-entry.json"
+      - "tests/ci/fixtures/green-welle-2-doppel-entry.json"
+      - "tests/ci/fixtures/green-welle-5-doppel-entry.json"
+      - "tests/ci/fixtures/green-welle-7-doppel-final.json"
+      - "tests/ci/fixtures/green-global-marathon-final.json"
+      # Envelope-schema doc parallel
+      - "docs/quality-gates/pre-cutover-acceptance-run-order.md"
+      # Gate test-suite
+      - "tests/ci/test_pyramide_cross_run_stability_pin_tag60.py"
+      # Gate self
+      - ".github/workflows/pyramide-cross-run-stability-pin-gate.yml"
+  pull_request:
+    paths:
+      - "tooling/ci/aggregate_pyramide_run_order_verdict.py"
+      - "tooling/ci/verify_pyramide_cross_run_stability.py"
+      - "tests/ci/fixtures/green-welle-1-marathon-entry.json"
+      - "tests/ci/fixtures/green-welle-2-doppel-entry.json"
+      - "tests/ci/fixtures/green-welle-5-doppel-entry.json"
+      - "tests/ci/fixtures/green-welle-7-doppel-final.json"
+      - "tests/ci/fixtures/green-global-marathon-final.json"
+      - "docs/quality-gates/pre-cutover-acceptance-run-order.md"
+      - "tests/ci/test_pyramide_cross_run_stability_pin_tag60.py"
+      - ".github/workflows/pyramide-cross-run-stability-pin-gate.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pyramide-cross-run-stability-pin-gate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  pyramide-cross-run-stability-pin-gate:
+    # Job-Display-Name MUSS exakt dieser String sein - er ist der
+    # Required-Status-Check-Name den Mira-Hand in Branch-Protection
+    # aktiviert (per feedback_branch_protection_check_names.md).
+    name: "pyramide cross-run stability pin (5 fixtures, 3 runs each)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        # Mirrors the production-lane of tests.yml + Tag-57/58 gates.
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install gate dependencies
+        # Stdlib + pytest only. Helper is stdlib (json, hashlib,
+        # subprocess, sys, argparse, pathlib, typing, os).
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "pytest>=8.0"
+
+      - name: Stage 1 - Helper unit-test suite (>=12 hermetic tests)
+        # Tag-60 test-suite validates the cross-run-verifier's
+        # fixture-loading, aggregator-invocation, hash-stability,
+        # drift-detection, error-paths, CLI surface, and workflow
+        # contract. Failing tests here block the gate.
+        env:
+          PYTHONHASHSEED: "0"
+          LC_ALL: "C"
+        run: |
+          python -m pytest tests/ci/test_pyramide_cross_run_stability_pin_tag60.py -v --tb=short
+
+      - name: Stage 2 - Cross-run stability verify (5 fixtures, 3 runs each)
+        # Runs the cross-run-stability-pin helper against every
+        # canonical fixture in tests/ci/fixtures/green-*.json. Each
+        # fixture is invoked 3x consecutively; the helper hashes the
+        # aggregator stdout per run and asserts byte-identity. Any
+        # CROSS-RUN-DRIFT or CROSS-RUN-ERROR fails the gate.
+        env:
+          PYTHONHASHSEED: "0"
+          LC_ALL: "C"
+        run: |
+          set -e
+          mkdir -p artifacts
+          overall_exit=0
+          for fixture in \
+              tests/ci/fixtures/green-welle-1-marathon-entry.json \
+              tests/ci/fixtures/green-welle-2-doppel-entry.json \
+              tests/ci/fixtures/green-welle-5-doppel-entry.json \
+              tests/ci/fixtures/green-welle-7-doppel-final.json \
+              tests/ci/fixtures/green-global-marathon-final.json; do
+            slug="$(basename "$fixture" .json)"
+            echo "=== Cross-Run-Stability: ${slug} ==="
+            if ! python tooling/ci/verify_pyramide_cross_run_stability.py \
+                  --repo-root . \
+                  --fixture "$fixture" \
+                  --runs 3 \
+                  --json > "artifacts/cross-run-stability-${slug}.json"; then
+              overall_exit=$?
+              echo "FIXTURE ${slug} failed (exit ${overall_exit})"
+            fi
+            echo "---"
+            python tooling/ci/verify_pyramide_cross_run_stability.py \
+                  --repo-root . \
+                  --fixture "$fixture" \
+                  --runs 3 || true
+            echo
+          done
+          exit $overall_exit
+
+      - name: Stage 3 - Verdict snapshot (CI-summary diagnostic)
+        # Operator-readable snapshot of the cross-run verdict
+        # envelopes. Always-on: emit even on failure so the operator
+        # sees the drift at a glance.
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if not summary_path:
+              raise SystemExit(0)
+
+          art_dir = Path("artifacts")
+          envelopes: list[tuple[str, dict]] = []
+          if art_dir.is_dir():
+              for env_path in sorted(art_dir.glob("cross-run-stability-*.json")):
+                  try:
+                      envelopes.append(
+                          (env_path.stem, json.loads(env_path.read_text(encoding="utf-8")))
+                      )
+                  except json.JSONDecodeError:
+                      envelopes.append((env_path.stem, {}))
+
+          lines: list[str] = []
+          lines.append("## Pyramide Cross-Run Stability Pin (Tag-60)")
+          lines.append("")
+          if not envelopes:
+              lines.append("(no verdict snapshot - Stage 2 did not emit JSON)")
+              with open(summary_path, "a", encoding="utf-8") as fh:
+                  fh.write("\n".join(lines))
+              raise SystemExit(0)
+
+          lines.append("| Fixture | Verdict | Exit | N | Distinct hashes |")
+          lines.append("|---|---|---|---|---|")
+          all_stable = True
+          for slug, env in envelopes:
+              v = env.get("verdict", "?")
+              ex = env.get("exit_code", "?")
+              n = env.get("n_runs", "?")
+              hashes = env.get("envelope_hashes", []) or []
+              distinct = len(set(hashes)) if hashes else 0
+              if v != "CROSS-RUN-STABLE":
+                  all_stable = False
+              lines.append(f"| `{slug}` | `{v}` | {ex} | {n} | {distinct} |")
+          lines.append("")
+          lines.append(f"**Overall:** "
+                       f"{'`ALL-STABLE`' if all_stable else '`SOME-DRIFT-OR-ERROR`'}")
+          lines.append("")
+
+          # Drift detail per envelope
+          for slug, env in envelopes:
+              if env.get("verdict") == "CROSS-RUN-STABLE":
+                  continue
+              lines.append(f"### Drift detail: `{slug}`")
+              lines.append("")
+              for note in env.get("notes", []):
+                  lines.append(f"- {note}")
+              dp = env.get("drift_pairs", []) or []
+              if dp:
+                  lines.append("")
+                  lines.append("Drift-pairs (run-index a vs b):")
+                  for pair in dp:
+                      lines.append(f"- run {pair[0]} vs run {pair[1]}")
+              lines.append("")
+
+          lines.append("---")
+          lines.append("")
+          lines.append("Cross-Review markers: Zone-M (Engineering personae "
+                       "via Tomas) + Zone-N (Henrik Audit boundary). The "
+                       "Aggregator-Helper is Tag-57 Substrate (Engineering "
+                       "co-owned); the Cross-Run-Pin is a QA-Topology-Claim "
+                       "over the substrate. Drift is Zone-N evidence-input.")
+          lines.append("")
+
+          with open(summary_path, "a", encoding="utf-8") as fh:
+              fh.write("\n".join(lines))
+          PY
+
+      - name: Stage 4 - Upload cross-run-stability envelope artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pyramide-cross-run-stability-envelopes
+          path: artifacts/cross-run-stability-*.json
+          if-no-files-found: warn
+          retention-days: 30
