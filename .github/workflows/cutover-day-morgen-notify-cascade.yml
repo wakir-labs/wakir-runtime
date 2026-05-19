@@ -1,0 +1,273 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Cutover-Day-Morgen Notify-Cascade (Selin Tag-65, audit-only)
+# ------------------------------------------------------------
+#
+# This workflow wires the Tag-64 Cutover-Day-Morgen Auto-Scheduler
+# verdict into Noa's ntfy-routing table by emitting a ntfy-shaped
+# AUDIT-ONLY notify-cascade payload that operator-hand reads and
+# (manually) curl-POSTs to ntfy.sh after review.
+#
+# It is intentionally AUDIT-ONLY:
+#
+#   * NO ``curl`` to ntfy.sh.
+#   * NO outbound HTTPS.
+#   * NO secrets required (no ntfy-token, no signing key).
+#   * Side effect = artifact upload + step-summary render only.
+#
+# This is the Tag-65 follow-up to Selin Tag-64 PR #406. The
+# audit-only stance is per ADR-0034 sandbox-host-separation and
+# ``feedback_sandbox_host_trennung.md``: claude-dev / GitHub-
+# Actions MUST NOT fire actual operator-facing notifications.
+# Operator-hand inspects the audit envelope, then fires the curl.
+#
+# Routing-table (Noa Tag-64 docs/observability/mira-notify-runbook.md
+# + pre-mortem-failure-mode-notify-catalog.md):
+#
+#   * CUTOVER-DAY-MORGEN-BLOCK   -> ntfy/wakir-ar-hand-critical p5
+#   * CUTOVER-DAY-MORGEN-CAUTION -> ntfy/wakir-ar-hand          p4
+#                                   (only on transition from non-
+#                                   CAUTION; stable CAUTION emits
+#                                   a suppressed stub)
+#   * CUTOVER-DAY-MORGEN-READY   -> suppressed stub
+#
+# Trigger
+# -------
+#
+# Fires on completion of the Tag-64 ``cutover-day-morgen-auto-
+# scheduler`` workflow. The scheduler is the upstream verdict
+# producer; this workflow is a strict consumer.
+#
+# Also supports manual ``workflow_dispatch`` for dry-runs (the
+# operator supplies a path to a synthetic Tag-64 envelope JSON).
+#
+# Per ``feedback_branch_protection_check_names.md`` this workflow
+# is NOT a required status check on PRs - it consumes a calendar-
+# week scheduler verdict, not individual PR signal. The hermetic
+# unit-test suite in
+# ``wirelang/tests/persona_engine/test_notify_cascade_tag65.py``
+# is the gating unit on PRs that touch the cascade substrate.
+
+name: cutover-day-morgen-notify-cascade
+
+on:
+  workflow_dispatch:
+    inputs:
+      synthetic_envelope_path:
+        description: >-
+          Path inside the checkout to a synthetic Tag-64 verdict
+          envelope JSON to consume in dry-run mode (e.g.
+          ``samples/cutover-day-morgen/synthetic-block.json``). When
+          empty, the workflow expects the artifact-fetch path.
+        required: false
+        default: ""
+      prev_verdict:
+        description: >-
+          Optional previous run's aggregated verdict
+          (CUTOVER-DAY-MORGEN-READY/CAUTION/BLOCK) for the cascade
+          transition rule. Default: empty (treated as None).
+        required: false
+        default: ""
+  workflow_run:
+    workflows: ["cutover-day-morgen-auto-scheduler"]
+    types:
+      - completed
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/cutover-day-morgen-notify-cascade.yml"
+      - "tooling/ci/aggregate_cutover_day_morgen_verdict.py"
+      - "wirelang/tests/persona_engine/test_notify_cascade_tag65.py"
+
+permissions:
+  contents: read
+  actions: read    # gh run download requires actions:read
+
+concurrency:
+  group: cutover-day-morgen-notify-cascade
+  cancel-in-progress: false
+
+jobs:
+  emit-notify-cascade-audit:
+    name: Emit Cutover-Day-Morgen notify-cascade (audit-only)
+    runs-on: ubuntu-latest
+    outputs:
+      cascade_fired: ${{ steps.cascade.outputs.cascade_fired }}
+      verdict: ${{ steps.cascade.outputs.verdict }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Stage 0 -- Resolve the upstream Tag-64 verdict envelope path.
+      # Two paths: (a) workflow_dispatch with a synthetic envelope,
+      # (b) workflow_run consuming the latest scheduler artifact.
+      - name: Stage 0 -- Resolve verdict envelope source
+        id: resolve
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SYNTHETIC: ${{ inputs.synthetic_envelope_path }}
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts/cutover-day-morgen
+          target="artifacts/cutover-day-morgen/cutover-day-morgen-verdict.json"
+
+          if [[ -n "${SYNTHETIC:-}" ]]; then
+            if [[ -f "${SYNTHETIC}" ]]; then
+              cp "${SYNTHETIC}" "${target}"
+              echo "synthetic envelope used: ${SYNTHETIC}"
+              echo "source=synthetic" >> "$GITHUB_OUTPUT"
+              echo "envelope_path=${target}" >> "$GITHUB_OUTPUT"
+              exit 0
+            else
+              echo "synthetic envelope path supplied but not found: ${SYNTHETIC}"
+            fi
+          fi
+
+          if ! command -v gh >/dev/null 2>&1; then
+            echo "gh CLI not present; envelope will be 'missing'"
+            echo "source=missing" >> "$GITHUB_OUTPUT"
+            echo "envelope_path=${target}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          run_id=$(gh run list \
+            --workflow=cutover-day-morgen-auto-scheduler.yml \
+            --status=success \
+            --limit=1 \
+            --json databaseId \
+            --jq '.[0].databaseId' 2>/dev/null || true)
+          if [[ -z "$run_id" || "$run_id" == "null" ]]; then
+            echo "no successful Tag-64 scheduler run found; envelope missing"
+            echo "source=missing" >> "$GITHUB_OUTPUT"
+            echo "envelope_path=${target}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          gh run download "$run_id" \
+            -n cutover-day-morgen-verdict \
+            -D artifacts/cutover-day-morgen 2>/dev/null || true
+          if [[ -f "${target}" ]]; then
+            echo "fetched Tag-64 envelope from run $run_id"
+            echo "source=artifact" >> "$GITHUB_OUTPUT"
+          else
+            echo "Tag-64 artifact download returned no envelope file"
+            echo "source=missing" >> "$GITHUB_OUTPUT"
+          fi
+          echo "envelope_path=${target}" >> "$GITHUB_OUTPUT"
+
+      # Stage 1 -- Re-aggregate with --emit-notify-cascade audit mode.
+      # Re-running the aggregator (rather than directly consuming the
+      # Tag-64 envelope) keeps a single source of truth for the
+      # decision rule and cascade transition logic. When the upstream
+      # envelope is missing, we synthesise three "missing" inputs so
+      # the aggregator emits a BLOCK with the missing-substrate note.
+      - name: Stage 1 -- Emit notify-cascade audit payload
+        id: cascade
+        shell: bash
+        env:
+          PREV_VERDICT: ${{ inputs.prev_verdict }}
+          ENVELOPE_PATH: ${{ steps.resolve.outputs.envelope_path }}
+          SOURCE: ${{ steps.resolve.outputs.source }}
+        run: |
+          set -uo pipefail
+          mkdir -p out
+
+          # Build aggregator args. The aggregator already supports
+          # --emit-notify-cascade and treats missing input envelopes
+          # as red; we pass the Tag-64 envelope substrate-paths as
+          # they are referenced inside the upstream artifact.
+          AGG="tooling/ci/aggregate_cutover_day_morgen_verdict.py"
+
+          PREV_ARG=()
+          if [[ -n "${PREV_VERDICT:-}" ]]; then
+            PREV_ARG=(--prev-verdict "${PREV_VERDICT}")
+          fi
+
+          if [[ "${SOURCE}" == "synthetic" || "${SOURCE}" == "artifact" ]]; then
+            # We have an aggregated Tag-64 envelope. Re-encode it as
+            # a "single-input" by writing per-substrate envelopes from
+            # its input_verdicts map. This keeps the aggregator
+            # hermetic and the cascade decision rule single-sourced.
+            python3 - <<'PY'
+          import json
+          import pathlib
+          import os
+
+          src = pathlib.Path(os.environ["ENVELOPE_PATH"])
+          out_dir = pathlib.Path("artifacts/per-substrate")
+          out_dir.mkdir(parents=True, exist_ok=True)
+          envelope = json.loads(src.read_text(encoding="utf-8"))
+          input_verdicts = envelope.get("input_verdicts", {}) or {}
+          for key in ("engine_composite", "pyramide_composite", "e2e_smoke"):
+              raw = input_verdicts.get(key)
+              if raw is None:
+                  # Leave the file absent so aggregator marks red.
+                  continue
+              (out_dir / f"{key}.json").write_text(
+                  json.dumps({"schema_version": 1, "verdict": raw}, sort_keys=True),
+                  encoding="utf-8",
+              )
+          PY
+            ENG="artifacts/per-substrate/engine_composite.json"
+            PYR="artifacts/per-substrate/pyramide_composite.json"
+            E2E="artifacts/per-substrate/e2e_smoke.json"
+          else
+            # Missing upstream -> let the aggregator mark all red via
+            # absent files. Pass non-existent paths.
+            ENG="artifacts/per-substrate/missing-engine.json"
+            PYR="artifacts/per-substrate/missing-pyramide.json"
+            E2E="artifacts/per-substrate/missing-e2e.json"
+          fi
+
+          ISO_WEEK=$(date -u +%V)
+
+          python3 "${AGG}" \
+            --engine-envelope "${ENG}" \
+            --pyramide-envelope "${PYR}" \
+            --e2e-envelope "${E2E}" \
+            --iso-week "${ISO_WEEK}" \
+            --github-run-id "${GITHUB_RUN_ID:-}" \
+            --github-sha "${GITHUB_SHA:-}" \
+            --github-ref "${GITHUB_REF:-}" \
+            --output out/cutover-day-morgen-verdict-replay.json \
+            --emit-notify-cascade out/notify-cascade-payload.json \
+            "${PREV_ARG[@]}"
+
+          verdict=$(python3 -c "import json; print(json.load(open('out/cutover-day-morgen-verdict-replay.json'))['verdict'])")
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+
+          fired=$(python3 -c "import json; p=json.load(open('out/notify-cascade-payload.json')); print('false' if p.get('suppressed') else 'true')")
+          echo "cascade_fired=$fired" >> "$GITHUB_OUTPUT"
+          echo "Cutover-Day-Morgen notify-cascade verdict=$verdict cascade_fired=$fired"
+
+      - name: Upload notify-cascade audit payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: cutover-day-morgen-notify-cascade-payload
+          path: |
+            out/notify-cascade-payload.json
+            out/cutover-day-morgen-verdict-replay.json
+          if-no-files-found: error
+
+      - name: Render notify-cascade summary
+        shell: bash
+        run: |
+          set -uo pipefail
+          {
+            echo "## Cutover-Day-Morgen Notify-Cascade (Tag-65, audit-only)"
+            echo ""
+            echo "- Verdict (replay): ${{ steps.cascade.outputs.verdict }}"
+            echo "- Cascade fired:    ${{ steps.cascade.outputs.cascade_fired }}"
+            echo "- Audit-only:       true (NO ntfy POST, operator-hand fires curl)"
+            echo "- Source:           ${{ steps.resolve.outputs.source }}"
+            echo ""
+            echo "### Cascade payload"
+            echo ""
+            echo '```json'
+            cat out/notify-cascade-payload.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

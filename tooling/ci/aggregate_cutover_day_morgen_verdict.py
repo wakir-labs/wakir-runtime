@@ -83,6 +83,19 @@ Stdlib only. No network, no NATS, no SPIRE, no gRPC. The three
 input envelopes are read from disk paths supplied by the caller;
 the aggregator does not attempt to fetch them via gh CLI or
 GitHub API (that is the workflow's job).
+
+Tag-65 notify-cascade extension
+-------------------------------
+
+The ``--emit-notify-cascade`` mode (Tag-65) writes a ntfy-shaped
+audit-only JSON envelope when the aggregated verdict warrants
+operator-hand attention. The cascade fires unconditionally on
+BLOCK and conditionally on CAUTION (transition rule). READY and
+stable-CAUTION emit a "suppressed" stub instead so the workflow
+artifact-upload always has a deterministic file. The aggregator
+NEVER performs an HTTP POST to ntfy.sh - that is operator-hand
+territory per ADR-0034 sandbox-host-separation. See
+``.github/workflows/cutover-day-morgen-notify-cascade.yml``.
 """
 
 from __future__ import annotations
@@ -155,6 +168,51 @@ VERDICT_BLOCK: str = "CUTOVER-DAY-MORGEN-BLOCK"
 # cron). The aggregator surfaces these on the envelope for the
 # downstream notify-cascade; the workflow-cron is the actual gate.
 CUTOVER_WINDOW_ISO_WEEKS: tuple[int, ...] = (24, 25, 26, 27)
+
+
+# ---- Notify-cascade constants (Tag-65, audit-only) -----------------------
+
+# The notify-cascade is the Tag-65 follow-up substrate that wires
+# the Tag-64 verdict into Noa's ntfy-routing table. The cascade is
+# AUDIT-ONLY: this aggregator emits a ntfy-shaped JSON envelope to
+# disk; the workflow uploads it as an artifact; NO actual HTTPS POST
+# to ntfy.sh happens at this stage. The audit-only boundary is per
+# ADR-0034 sandbox-host-separation: only operator-hand fires the
+# actual ntfy POST, after reviewing the audit-payload.
+#
+# Routing table (from Noa Tag-64 docs/observability/mira-notify-
+# runbook.md + pre-mortem-failure-mode-notify-catalog.md):
+#   * BLOCK   -> ntfy topic ``wakir-ar-hand-critical``, priority 5,
+#                tags ``rotating_light``, ``cutover-day-morgen``
+#   * CAUTION -> ntfy topic ``wakir-ar-hand``,          priority 4,
+#                tags ``warning``,          ``cutover-day-morgen``
+#   * READY   -> no notify-cascade fires (suppressed).
+#
+# Audit semantics:
+#   * BLOCK fires every run (forensic trail; operator-hand reads).
+#   * CAUTION fires only on transition (prev_verdict != CAUTION)
+#     to avoid spamming Noa's notify-log during stable degraded
+#     states.
+#   * READY suppresses unconditionally.
+
+NOTIFY_CASCADE_TOPIC_BLOCK: str = "wakir-ar-hand-critical"
+NOTIFY_CASCADE_TOPIC_CAUTION: str = "wakir-ar-hand"
+
+NOTIFY_CASCADE_PRIORITY_MAP: dict[str, int] = {
+    VERDICT_BLOCK: 5,
+    VERDICT_CAUTION: 4,
+}
+
+NOTIFY_CASCADE_TAGS_MAP: dict[str, list[str]] = {
+    VERDICT_BLOCK: ["rotating_light", "cutover-day-morgen"],
+    VERDICT_CAUTION: ["warning", "cutover-day-morgen"],
+}
+
+NOTIFY_CASCADE_KIND: str = "cutover-day-morgen-notify-cascade-payload"
+
+# Audit-only marker. The workflow MUST NOT POST this payload to
+# ntfy.sh; that is operator-hand territory.
+NOTIFY_CASCADE_AUDIT_ONLY: bool = True
 
 
 # ---- Helpers --------------------------------------------------------------
@@ -326,6 +384,118 @@ def build_envelope(
     }
 
 
+# ---- Notify-cascade builder (Tag-65, audit-only) -------------------------
+
+
+def should_emit_notify_cascade(
+    verdict: str, prev_verdict: str | None
+) -> bool:
+    """Decide whether the notify-cascade fires for the current verdict.
+
+    Audit semantics (Tag-65):
+
+    * ``CUTOVER-DAY-MORGEN-BLOCK``   -> always fires (forensic trail).
+    * ``CUTOVER-DAY-MORGEN-CAUTION`` -> fires only on transition,
+      i.e. ``prev_verdict != "CUTOVER-DAY-MORGEN-CAUTION"``.
+    * ``CUTOVER-DAY-MORGEN-READY``   -> never fires (suppressed).
+    * Any unknown verdict             -> never fires (defensive).
+    """
+    if verdict == VERDICT_BLOCK:
+        return True
+    if verdict == VERDICT_CAUTION:
+        return prev_verdict != VERDICT_CAUTION
+    return False
+
+
+def build_notify_cascade_payload(
+    envelope: Mapping[str, Any],
+    *,
+    prev_verdict: str | None = None,
+) -> dict[str, Any] | None:
+    """Build the ntfy-shaped audit-only notify-cascade payload.
+
+    Returns ``None`` if the verdict does not warrant a notify-cascade
+    fire (READY, or stable CAUTION). Otherwise returns a JSON-
+    serialisable dict carrying the ntfy.sh-publish-as-JSON contract
+    (``topic`` / ``title`` / ``message`` / ``priority`` / ``tags``)
+    plus the audit-only marker and a forensic ``verdict_summary``
+    field carrying the Tag-64 aggregator envelope's decision signal.
+
+    The ``operator_curl_hint`` field documents how operator-hand
+    fires the actual ntfy POST after reviewing this audit artifact;
+    the workflow does NOT execute the curl itself (per ADR-0034
+    sandbox-host-separation).
+    """
+    verdict = envelope.get("verdict")
+    if not isinstance(verdict, str):
+        return None
+    if not should_emit_notify_cascade(verdict, prev_verdict):
+        return None
+    topic = (
+        NOTIFY_CASCADE_TOPIC_BLOCK
+        if verdict == VERDICT_BLOCK
+        else NOTIFY_CASCADE_TOPIC_CAUTION
+    )
+    priority = NOTIFY_CASCADE_PRIORITY_MAP[verdict]
+    tags = list(NOTIFY_CASCADE_TAGS_MAP[verdict])
+    iso_week = envelope.get("window", {}).get("iso_week")
+    in_window = envelope.get("window", {}).get("in_cutover_window", False)
+    step_results = envelope.get("step_results", {}) or {}
+    failed_steps = envelope.get("failed_steps", []) or []
+    counts = envelope.get("counts", {}) or {}
+    per_notes = envelope.get("per_substrate_notes", {}) or {}
+    title = f"Cutover-Day-Morgen {verdict} (KW-{iso_week})"
+    message_lines = [
+        f"Verdict: {verdict}",
+        f"ISO week: KW-{iso_week} (in_window={in_window})",
+        (
+            f"Substrates: "
+            f"engine_composite={step_results.get('engine_composite', '?')} "
+            f"pyramide_composite={step_results.get('pyramide_composite', '?')} "
+            f"e2e_smoke={step_results.get('e2e_smoke', '?')}"
+        ),
+        (
+            f"Counts: green={counts.get('green', 0)} "
+            f"yellow={counts.get('yellow', 0)} "
+            f"red={counts.get('red', 0)}"
+        ),
+    ]
+    if failed_steps:
+        message_lines.append(f"Failed substrates: {', '.join(failed_steps)}")
+    for substrate, note in sorted(per_notes.items()):
+        message_lines.append(f"- {substrate}: {note}")
+    return {
+        "schema_version": 1,
+        "kind": NOTIFY_CASCADE_KIND,
+        "audit_only": NOTIFY_CASCADE_AUDIT_ONLY,
+        "topic": topic,
+        "title": title,
+        "message": "\n".join(message_lines),
+        "priority": priority,
+        "tags": tags,
+        "verdict_summary": {
+            "verdict": verdict,
+            "prev_verdict": prev_verdict,
+            "iso_week": iso_week,
+            "in_cutover_window": in_window,
+            "step_results": dict(step_results),
+            "failed_steps": list(failed_steps),
+            "counts": dict(counts),
+            "per_substrate_notes": dict(per_notes),
+            "github_run_id": envelope.get("github_run_id"),
+            "github_sha": envelope.get("github_sha"),
+            "github_ref": envelope.get("github_ref"),
+        },
+        "operator_curl_hint": (
+            "curl -fsSL -X POST -H 'Content-Type: application/json' "
+            "-d @notify-cascade-payload.json https://ntfy.sh"
+        ),
+        "emitted_at_utc": datetime.now(timezone.utc).isoformat(
+            timespec="seconds"
+        ),
+    }
+
+
 # ---- CLI -----------------------------------------------------------------
 
 
@@ -386,6 +556,29 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         required=True,
         help="Path to write the verdict-envelope JSON.",
     )
+    p.add_argument(
+        "--emit-notify-cascade",
+        type=Path,
+        default=None,
+        help=(
+            "Optional path for the audit-only notify-cascade payload "
+            "JSON (Tag-65). When the aggregated verdict is BLOCK "
+            "(always) or CAUTION (only on transition from non-CAUTION), "
+            "a ntfy-shaped audit envelope is written to this path. "
+            "The aggregator NEVER performs an HTTP POST; that is "
+            "operator-hand territory per ADR-0034."
+        ),
+    )
+    p.add_argument(
+        "--prev-verdict",
+        type=str,
+        default=None,
+        help=(
+            "Optional previous run's aggregated verdict "
+            "(CUTOVER-DAY-MORGEN-READY/CAUTION/BLOCK) for the "
+            "notify-cascade transition rule. Default: None."
+        ),
+    )
     return p
 
 
@@ -408,6 +601,41 @@ def main(argv: list[str] | None = None) -> int:
         json.dumps(envelope, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+
+    # Tag-65 audit-only notify-cascade emission. Always writes a
+    # file when --emit-notify-cascade is set: either the payload
+    # (BLOCK / transition-CAUTION) or a "suppressed" stub (READY /
+    # stable-CAUTION) so downstream tooling (artifact-upload) has a
+    # deterministic file to consume.
+    if args.emit_notify_cascade is not None:
+        cascade_payload = build_notify_cascade_payload(
+            envelope, prev_verdict=args.prev_verdict
+        )
+        if cascade_payload is None:
+            cascade_payload = {
+                "schema_version": 1,
+                "kind": NOTIFY_CASCADE_KIND,
+                "audit_only": NOTIFY_CASCADE_AUDIT_ONLY,
+                "suppressed": True,
+                "suppression_reason": (
+                    "READY-verdict-no-cascade"
+                    if envelope.get("verdict") == VERDICT_READY
+                    else "stable-CAUTION-no-cascade"
+                ),
+                "verdict_summary": {
+                    "verdict": envelope.get("verdict"),
+                    "prev_verdict": args.prev_verdict,
+                    "iso_week": envelope.get("window", {}).get("iso_week"),
+                },
+                "emitted_at_utc": datetime.now(timezone.utc).isoformat(
+                    timespec="seconds"
+                ),
+            }
+        args.emit_notify_cascade.parent.mkdir(parents=True, exist_ok=True)
+        args.emit_notify_cascade.write_text(
+            json.dumps(cascade_payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
     return 0
 
 
