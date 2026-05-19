@@ -1,0 +1,476 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Pre-Cutover Final Sanity Gate — AR-Hand Trigger (Tomas Tag-55)
+# ---------------------------------------------------------------
+#
+# Companion workflow to ``pre-cutover-final-sanity-gate.yml``
+# (Tag-53 PR #339). That workflow runs on a Monday-05:00-UTC
+# ``schedule:`` trigger plus a path-filtered ``push:`` trigger.
+# This workflow is the dedicated, UI-only **AR-Hand trigger**
+# surface: ``workflow_dispatch`` only, no ``schedule:``, no
+# ``push:``.
+#
+# Why a separate file
+# -------------------
+#
+# 1.  **Trigger-Methodik distinct.** The Tag-53 workflow runs
+#     unattended. It auto-publishes a verdict the cutover-day
+#     auto-scheduler consumes. The Tag-55 trigger is an AR-Hand
+#     instrument — the Aufsichtsrat (and Mira, operator-hand)
+#     fires it from the Actions UI when an out-of-band sanity
+#     re-check is wanted (e.g. after a Friday hotfix landed, or
+#     when KW-24 starts mid-week and the Monday cron is the
+#     wrong cadence). Mixing UI-only triggers into the scheduled
+#     workflow risks two kinds of drift: (a) operator confusion
+#     about whether a UI-fired run carries the same semantics as
+#     the cron-fired run, (b) input-parameter creep that mutates
+#     the scheduled run's behaviour.
+#
+# 2.  **Auditability.** The GitHub Actions UI lists workflows
+#     by file. A workflow named ``pre-cutover-final-sanity-gate-
+#     ar-trigger`` shows the AR-Hand fires distinctly in the
+#     activity-log; we can grep ``actor==aufsichtsrat`` against
+#     ``workflow_name==pre-cutover-final-sanity-gate-ar-trigger``
+#     to count AR-Hand invocations for the closeout report.
+#
+# 3.  **Concurrency-isolation.** The Tag-53 workflow uses
+#     ``concurrency.group: pre-cutover-final-sanity-gate``. We
+#     deliberately pick a DIFFERENT concurrency group here so an
+#     AR-Hand fire is not cancelled by an in-flight scheduled
+#     run and vice versa. The two streams MUST be independent.
+#
+# 4.  **Verdict-artifact namespace.** The artifact this workflow
+#     uploads is named ``pre-cutover-final-sanity-gate-verdict-
+#     ar-trigger`` so downstream consumers (the cutover-day
+#     auto-scheduler in particular) can tell at a glance whether
+#     the verdict came from a scheduled run or an AR-Hand fire.
+#     The Tag-53 scheduled-run verdict remains the source of
+#     truth for the Monday auto-scheduler; the AR-trigger verdict
+#     is an *override probe* used by the operator-hand to confirm
+#     readiness mid-window.
+#
+# What it does
+# ------------
+#
+# The job-graph is identical to the Tag-53 workflow: S1..S7 probe
+# jobs plus an S8 aggregator. We deliberately do not re-implement
+# the probe-logic — each probe-job is a thin re-statement of the
+# Tag-53 substrate check. This is intentional: the AR-Hand fire
+# must produce a verdict directly comparable to the scheduled
+# fire. Any drift between this file and the Tag-53 workflow is a
+# bug; the hermetic test-suite enforces shape-parity.
+#
+# Inputs
+# ------
+#
+#   * ``reason`` (string, required): free-form text logged in the
+#     step-summary explaining why the AR-Hand fired the gate.
+#     Typical values: "post-hotfix re-check", "mid-week marathon
+#     start", "operator-hand audit".
+#   * ``verbose`` (boolean, default false): emit per-probe
+#     diagnostic output (same semantics as Tag-53).
+#   * ``allow_caution`` (boolean, default true): when false,
+#     CAUTION verdict is upgraded to BLOCK at the aggregator. AR-
+#     Hand uses this to demand strict-green for marathon-start.
+#
+# Hermetic posture
+# ----------------
+#
+# Identical to Tag-53: filesystem + pyyaml + stdlib only. No
+# podman, no NATS, no live-VM, no Anthropic API, no Cargo build,
+# no Cosign-OIDC handshake.
+#
+# Not a required status check
+# ---------------------------
+#
+# Per ``feedback_branch_protection_check_names.md`` this workflow
+# is NOT a required check on PRs. It gates an operator-hand
+# verification event, not individual PRs.
+
+name: pre-cutover-final-sanity-gate-ar-trigger
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Free-form reason for the AR-Hand fire (audit text)"
+        required: true
+        default: "AR-Hand pre-cutover re-check"
+      verbose:
+        description: "Emit per-probe diagnostic output"
+        required: false
+        type: boolean
+        default: false
+      allow_caution:
+        description: "Allow CAUTION verdict to pass (false upgrades to BLOCK)"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  # Distinct group from the scheduled Tag-53 workflow so an AR-Hand
+  # fire and a Monday-cron fire never cancel each other.
+  group: pre-cutover-final-sanity-gate-ar-trigger
+  cancel-in-progress: false
+
+jobs:
+  s0-ar-trigger-preamble:
+    name: S0 AR-trigger preamble (actor + reason audit-log)
+    runs-on: ubuntu-latest
+    outputs:
+      reason: ${{ steps.preamble.outputs.reason }}
+      actor: ${{ steps.preamble.outputs.actor }}
+    steps:
+      - name: Emit AR-trigger audit preamble
+        id: preamble
+        shell: bash
+        env:
+          REASON: ${{ inputs.reason }}
+          ACTOR: ${{ github.actor }}
+          ALLOW_CAUTION: ${{ inputs.allow_caution }}
+        run: |
+          set -uo pipefail
+          # Echo audit triple to the step-summary so the operator
+          # can scrape AR-fire records from workflow history.
+          {
+            echo "## AR-Hand Pre-Cutover-Final-Sanity-Gate Fire"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| actor | \`${ACTOR}\` |"
+            echo "| reason | ${REASON} |"
+            echo "| allow_caution | \`${ALLOW_CAUTION}\` |"
+            echo "| run_id | \`${GITHUB_RUN_ID}\` |"
+            echo "| ref | \`${GITHUB_REF}\` |"
+            echo "| sha | \`${GITHUB_SHA}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "reason=${REASON}" >> "$GITHUB_OUTPUT"
+          echo "actor=${ACTOR}" >> "$GITHUB_OUTPUT"
+
+  s1-engine-manifest:
+    name: S1 engine-manifest 0.5.2-final + pin-pack parity (AR-fire)
+    runs-on: ubuntu-latest
+    needs: s0-ar-trigger-preamble
+    outputs:
+      s1_status: ${{ steps.probe.outputs.s1_status }}
+      s1_note: ${{ steps.probe.outputs.s1_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe engine-manifest substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          manifest="wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md"
+          pin_pack="infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml"
+          status="green"
+          note=""
+          if [[ ! -f "$manifest" ]]; then
+            status="red"
+            note="manifest missing"
+          elif [[ ! -f "$pin_pack" ]]; then
+            status="red"
+            note="pin-pack missing"
+          else
+            if ! grep -q 'manifest_version: "0.5.2-final-pre-cutover"' "$pin_pack"; then
+              status="yellow"
+              note="manifest_version mismatch in pin-pack"
+            fi
+          fi
+          echo "s1_status=$status" >> "$GITHUB_OUTPUT"
+          echo "s1_note=$note" >> "$GITHUB_OUTPUT"
+          echo "S1 engine_manifest: status=$status note='$note'"
+
+  s2-spec-freeze:
+    name: S2 spec v0.4.3-freeze marker (AR-fire)
+    runs-on: ubuntu-latest
+    needs: s0-ar-trigger-preamble
+    outputs:
+      s2_status: ${{ steps.probe.outputs.s2_status }}
+      s2_note: ${{ steps.probe.outputs.s2_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe spec-freeze substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          spec="wirelang/specs/wirelang-spec-v0-4-3.md"
+          status="green"
+          note=""
+          if [[ ! -f "$spec" ]]; then
+            status="yellow"
+            note="spec v0.4.3 not yet on HEAD (pre-freeze)"
+          else
+            if ! head -n 30 "$spec" | grep -qE '^status:[[:space:]]*[A-Za-z0-9_-]*freeze'; then
+              status="red"
+              note="spec present but no freeze-marker in frontmatter"
+            fi
+          fi
+          echo "s2_status=$status" >> "$GITHUB_OUTPUT"
+          echo "s2_note=$note" >> "$GITHUB_OUTPUT"
+          echo "S2 spec_freeze: status=$status note='$note'"
+
+  s3-sbom:
+    name: S3 15-binary SBOM substrate (AR-fire)
+    runs-on: ubuntu-latest
+    needs: s0-ar-trigger-preamble
+    outputs:
+      s3_status: ${{ steps.probe.outputs.s3_status }}
+      s3_note: ${{ steps.probe.outputs.s3_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe SBOM substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          wf=".github/workflows/15-binary-sbom-daily.yml"
+          status="green"
+          note=""
+          if [[ ! -f "$wf" ]]; then
+            status="red"
+            note="15-binary SBOM workflow missing"
+          fi
+          echo "s3_status=$status" >> "$GITHUB_OUTPUT"
+          echo "s3_note=$note" >> "$GITHUB_OUTPUT"
+          echo "S3 sbom: status=$status note='$note'"
+
+  s4-build-reproducibility:
+    name: S4 build-reproducibility-daily substrate (AR-fire)
+    runs-on: ubuntu-latest
+    needs: s0-ar-trigger-preamble
+    outputs:
+      s4_status: ${{ steps.probe.outputs.s4_status }}
+      s4_note: ${{ steps.probe.outputs.s4_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe build-reproducibility substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          wf=".github/workflows/build-reproducibility-daily.yml"
+          status="green"
+          note=""
+          if [[ ! -f "$wf" ]]; then
+            status="red"
+            note="build-reproducibility workflow missing"
+          fi
+          echo "s4_status=$status" >> "$GITHUB_OUTPUT"
+          echo "s4_note=$note" >> "$GITHUB_OUTPUT"
+          echo "S4 build_reproducibility: status=$status note='$note'"
+
+  s5-cosign-oidc:
+    name: S5 cosign-keyless-oidc-drift-probe + verify-images (AR-fire)
+    runs-on: ubuntu-latest
+    needs: s0-ar-trigger-preamble
+    outputs:
+      s5_status: ${{ steps.probe.outputs.s5_status }}
+      s5_note: ${{ steps.probe.outputs.s5_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe cosign-OIDC substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          drift_wf=".github/workflows/cosign-keyless-oidc-drift-probe.yml"
+          verify_wf=".github/workflows/cosign-verify-images.yml"
+          status="green"
+          note=""
+          missing=()
+          [[ -f "$drift_wf" ]] || missing+=("cosign-keyless-oidc-drift-probe")
+          [[ -f "$verify_wf" ]] || missing+=("cosign-verify-images")
+          if (( ${#missing[@]} == 2 )); then
+            status="red"
+            note="both cosign workflows missing"
+          elif (( ${#missing[@]} == 1 )); then
+            status="yellow"
+            note="partial cosign substrate: ${missing[0]} missing"
+          fi
+          echo "s5_status=$status" >> "$GITHUB_OUTPUT"
+          echo "s5_note=$note" >> "$GITHUB_OUTPUT"
+          echo "S5 cosign_oidc: status=$status note='$note'"
+
+  s6-welle-probes:
+    name: S6 welle-probes (7 + 5 hot-spot) (AR-fire)
+    runs-on: ubuntu-latest
+    needs: s0-ar-trigger-preamble
+    outputs:
+      s6_status: ${{ steps.probe.outputs.s6_status }}
+      s6_note: ${{ steps.probe.outputs.s6_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe welle-probe substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          missing=()
+          for n in 1 2 3 4 5 6 7; do
+            p="scripts/phase-3c/welle-${n}-pre-cutover-probe.sh"
+            [[ -f "$p" ]] || missing+=("$p")
+          done
+          for n in 3 4 5 6 7; do
+            p=".github/workflows/phase-3c-welle-${n}-hot-spot-probe.yml"
+            [[ -f "$p" ]] || missing+=("$p")
+          done
+          if (( ${#missing[@]} == 0 )); then
+            status="green"
+            note=""
+          elif (( ${#missing[@]} <= 2 )); then
+            status="yellow"
+            note="welle-probes degraded: ${#missing[@]} missing"
+          else
+            status="red"
+            note="welle-probes broken: ${#missing[@]} missing"
+          fi
+          echo "s6_status=$status" >> "$GITHUB_OUTPUT"
+          echo "s6_note=$note" >> "$GITHUB_OUTPUT"
+          echo "S6 welle_probes: status=$status note='$note'"
+          for m in "${missing[@]:-}"; do
+            [[ -n "$m" ]] && echo "  - missing: $m"
+          done
+
+  s7-marathon-tracker:
+    name: S7 marathon-tracker + tracker-gate (AR-fire)
+    runs-on: ubuntu-latest
+    needs: s0-ar-trigger-preamble
+    outputs:
+      s7_status: ${{ steps.probe.outputs.s7_status }}
+      s7_note: ${{ steps.probe.outputs.s7_note }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe marathon-tracker substrate
+        id: probe
+        shell: bash
+        run: |
+          set -uo pipefail
+          script="scripts/phase-3c/marathon-aggregat-tracker.py"
+          gate_wf=".github/workflows/phase-3c-marathon-tracker-gate.yml"
+          status="green"
+          note=""
+          missing=()
+          [[ -f "$script" ]] || missing+=("tracker-script")
+          [[ -f "$gate_wf" ]] || missing+=("tracker-gate-workflow")
+          if (( ${#missing[@]} == 2 )); then
+            status="red"
+            note="both tracker substrates missing"
+          elif (( ${#missing[@]} == 1 )); then
+            status="yellow"
+            note="partial tracker substrate: ${missing[0]} missing"
+          fi
+          echo "s7_status=$status" >> "$GITHUB_OUTPUT"
+          echo "s7_note=$note" >> "$GITHUB_OUTPUT"
+          echo "S7 marathon_tracker: status=$status note='$note'"
+
+  s8-aggregator:
+    name: S8 AR-trigger decision-aggregation (READY/CAUTION/BLOCK)
+    runs-on: ubuntu-latest
+    needs:
+      - s0-ar-trigger-preamble
+      - s1-engine-manifest
+      - s2-spec-freeze
+      - s3-sbom
+      - s4-build-reproducibility
+      - s5-cosign-oidc
+      - s6-welle-probes
+      - s7-marathon-tracker
+    if: always()
+    outputs:
+      verdict: ${{ steps.aggregate.outputs.verdict }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Aggregate S1..S7 into AR-trigger verdict
+        id: aggregate
+        shell: bash
+        env:
+          S1: ${{ needs.s1-engine-manifest.outputs.s1_status }}
+          S2: ${{ needs.s2-spec-freeze.outputs.s2_status }}
+          S3: ${{ needs.s3-sbom.outputs.s3_status }}
+          S4: ${{ needs.s4-build-reproducibility.outputs.s4_status }}
+          S5: ${{ needs.s5-cosign-oidc.outputs.s5_status }}
+          S6: ${{ needs.s6-welle-probes.outputs.s6_status }}
+          S7: ${{ needs.s7-marathon-tracker.outputs.s7_status }}
+          N1: ${{ needs.s1-engine-manifest.outputs.s1_note }}
+          N2: ${{ needs.s2-spec-freeze.outputs.s2_note }}
+          N3: ${{ needs.s3-sbom.outputs.s3_note }}
+          N4: ${{ needs.s4-build-reproducibility.outputs.s4_note }}
+          N5: ${{ needs.s5-cosign-oidc.outputs.s5_note }}
+          N6: ${{ needs.s6-welle-probes.outputs.s6_note }}
+          N7: ${{ needs.s7-marathon-tracker.outputs.s7_note }}
+          AR_REASON: ${{ needs.s0-ar-trigger-preamble.outputs.reason }}
+          AR_ACTOR: ${{ needs.s0-ar-trigger-preamble.outputs.actor }}
+          ALLOW_CAUTION: ${{ inputs.allow_caution }}
+        run: |
+          set -eo pipefail
+          s1="${S1:-red}"; s2="${S2:-red}"; s3="${S3:-red}"
+          s4="${S4:-red}"; s5="${S5:-red}"; s6="${S6:-red}"; s7="${S7:-red}"
+          notes=""
+          add_note() {
+            local key="$1" val="$2"
+            [[ -z "$val" ]] && return 0
+            if [[ -z "$notes" ]]; then notes="$key:$val"; else notes="$notes;$key:$val"; fi
+          }
+          add_note "engine_manifest" "${N1:-}"
+          add_note "spec_freeze" "${N2:-}"
+          add_note "sbom" "${N3:-}"
+          add_note "build_reproducibility" "${N4:-}"
+          add_note "cosign_oidc" "${N5:-}"
+          add_note "welle_probes" "${N6:-}"
+          add_note "marathon_tracker" "${N7:-}"
+          mkdir -p out
+          S1_STATUS="$s1" \
+          S2_STATUS="$s2" \
+          S3_STATUS="$s3" \
+          S4_STATUS="$s4" \
+          S5_STATUS="$s5" \
+          S6_STATUS="$s6" \
+          S7_STATUS="$s7" \
+          SUBSTRATE_NOTES="$notes" \
+            python3 tooling/ci/aggregate_pre_cutover_final_sanity_gate_verdict.py \
+              --output out/pre-cutover-final-sanity-gate-verdict-ar-trigger.json
+          verdict=$(python3 -c "import json; print(json.load(open('out/pre-cutover-final-sanity-gate-verdict-ar-trigger.json'))['verdict'])")
+          # AR-trigger-specific: allow_caution=false upgrades CAUTION -> BLOCK.
+          if [[ "$verdict" == "CAUTION" && "${ALLOW_CAUTION,,}" == "false" ]]; then
+            verdict="BLOCK"
+            python3 tooling/ci/ar_trigger_strict_mode_upgrade.py \
+              --input out/pre-cutover-final-sanity-gate-verdict-ar-trigger.json
+          fi
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          {
+            echo "## AR-Trigger Pre-Cutover-Final-Sanity-Gate Verdict: \`$verdict\`"
+            echo ""
+            echo "Fired by \`${AR_ACTOR}\` — reason: ${AR_REASON}"
+            echo ""
+            echo "| Substrate | Status | Note |"
+            echo "|-----------|--------|------|"
+            echo "| S1 engine_manifest | \`$s1\` | ${N1:-} |"
+            echo "| S2 spec_freeze | \`$s2\` | ${N2:-} |"
+            echo "| S3 sbom | \`$s3\` | ${N3:-} |"
+            echo "| S4 build_reproducibility | \`$s4\` | ${N4:-} |"
+            echo "| S5 cosign_oidc | \`$s5\` | ${N5:-} |"
+            echo "| S6 welle_probes | \`$s6\` | ${N6:-} |"
+            echo "| S7 marathon_tracker | \`$s7\` | ${N7:-} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$verdict" == "BLOCK" ]]; then
+            echo "::error::pre-cutover-final-sanity-gate-ar-trigger verdict: BLOCK"
+            exit 1
+          elif [[ "$verdict" == "CAUTION" ]]; then
+            echo "::warning::pre-cutover-final-sanity-gate-ar-trigger verdict: CAUTION"
+          fi
+      - name: Upload AR-trigger verdict artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-cutover-final-sanity-gate-verdict-ar-trigger
+          path: out/pre-cutover-final-sanity-gate-verdict-ar-trigger.json
+          if-no-files-found: warn
