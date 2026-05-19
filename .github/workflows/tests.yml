@@ -447,7 +447,14 @@ jobs:
           # 0.5.2-final-pre-cutover pin-pack/manifest loader, so all
           # 36 collect in production but skip in sandbox -- the delta
           # lifts by exactly 36.
-          EXPECTED_DELTA: '529'
+          # Tag-56 (2026-05-19, Selin): re-baselined 529 -> 545 because
+          # the Tag-56 engine-0.5.2-production-readiness-audit adds
+          # one new PyYAML-gated test module:
+          #   - test_tag56_production_readiness_audit.py: 16 tests
+          # Same importorskip("yaml") pattern as the 0.5.2-final
+          # manifest tests; production collects 16, sandbox skips
+          # all 16. Delta lifts by exactly 16 (529 + 16 = 545).
+          EXPECTED_DELTA: '545'
           DELTA_TOLERANCE: '5'
         run: |
           python - <<'PY'
