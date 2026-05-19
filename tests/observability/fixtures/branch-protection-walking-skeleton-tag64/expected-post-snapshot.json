@@ -1,0 +1,18 @@
+{
+  "_fixture_description": "Tag-64 Walking-Skeleton fixture — expected post-snapshot. Represents the GitHub branch-protection state for wakir-labs/wakir-runtime main AFTER the Tag-64 bulk-activation pre-walk pipeline has run, with all 8 Required-Status-Checks wired (Tag-59 5 + Tag-61 2 + Tag-64 1). Byte-identical equality check against this fixture is the Tag-64 walking-skeleton acceptance gate.",
+  "_fixture_id": "expected-post-snapshot",
+  "branch": "main",
+  "required_status_checks": {
+    "strict": true,
+    "contexts": [
+      "cross-substrate parity (cosign ↔ quadlet ↔ backend-switch)",
+      "pyramide layer-dependency DAG verify (6 layers, 16 edges)",
+      "verify-containerfile-base-image-digest-pins",
+      "wirelang spec v0.4.3 freeze-seal probe",
+      "alert-routing cross-repo mirror (wakir-runtime ↔ wakir-protocol)",
+      "pyramide cross-run stability pin (5 fixtures, 3 runs each)",
+      "g1-g2 operator-recipe smoke-validation",
+      "E2E verdict (READY / DRIFT / DEFECT)"
+    ]
+  }
+}

@@ -4,8 +4,14 @@
 """Tag-62 Bulk-Activation Pre-Walk Recipe — Planner Helper.
 
 Hermetic, stdlib-only. Parses the Tag-59 + Tag-61 Branch-Protection
-Required-Check Wiring Docs to extract the 7-Pool target list, then
-emits one of three output forms:
+Required-Check Wiring Docs to extract the 7-Pool target list (Tag-62-
+lineage), or — when --tag64-doc is supplied — parses additionally the
+Tag-64 Companion doc to extract the 8-Pool target list (Tag-64 E2E-
+verdict added). Without --tag64-doc the planner falls back to the
+7-Pool behaviour, preserving Kai's Tag-62 walking-skeleton path
+byte-identically.
+
+It then emits one of three output forms:
 
   * default            human-readable plan (used by --dry-run)
   * --json             machine-readable plan envelope
@@ -43,10 +49,19 @@ from pathlib import Path
 from typing import List, Tuple
 
 
-# Expected pool size. Tag-59 contributes 5 checks; Tag-61 adds 2.
+# Expected pool size. Tag-59 contributes 5 checks; Tag-61 adds 2;
+# Tag-64 adds 1 additional check (E2E verdict). The Tag-64 doc is
+# OPTIONAL — without --tag64-doc the planner falls back to the
+# Tag-62-lineage 7-Pool behaviour, preserving Kai's Tag-62 walking-
+# skeleton path. With --tag64-doc the planner emits the 8-Pool.
 EXPECTED_TAG59_COUNT = 5
 EXPECTED_TAG61_COUNT = 2
-EXPECTED_POOL_TOTAL = EXPECTED_TAG59_COUNT + EXPECTED_TAG61_COUNT
+EXPECTED_TAG64_COUNT = 1
+EXPECTED_POOL_TOTAL_7 = EXPECTED_TAG59_COUNT + EXPECTED_TAG61_COUNT
+EXPECTED_POOL_TOTAL_8 = EXPECTED_POOL_TOTAL_7 + EXPECTED_TAG64_COUNT
+# Back-compat alias: existing call sites referencing EXPECTED_POOL_TOTAL
+# (e.g. Tag-63 walking-skeleton tests) keep working unchanged.
+EXPECTED_POOL_TOTAL = EXPECTED_POOL_TOTAL_7
 
 # Regex for table rows of shape:
 #   | # | `display-name` | `.github/workflows/file.yml` | ... |
@@ -100,10 +115,29 @@ def parse_tag61_addendum(text: str) -> List[Tuple[int, str, str]]:
     rows = []
     for match in _ROW_RE.finditer(text):
         idx = int(match.group("idx"))
-        if idx < EXPECTED_TAG59_COUNT + 1 or idx > EXPECTED_POOL_TOTAL:
+        if idx < EXPECTED_TAG59_COUNT + 1 or idx > EXPECTED_POOL_TOTAL_7:
             continue
         rows.append((idx, match.group("name"), match.group("wf")))
         if len(rows) == EXPECTED_TAG61_COUNT:
+            break
+    return rows
+
+
+def parse_tag64_companion(text: str) -> List[Tuple[int, str, str]]:
+    """Return [(idx, display-name, workflow-file), ...] for Tag-64 §1.
+
+    Tag-64 §1 Companion-Tabelle has exactly 1 row (row 8). The Tag-64
+    parser is additive: if the doc is absent, callers fall back to
+    the Tag-62-lineage 7-Pool. Idempotency-disciplined per
+    `feedback_high_tempo_spawn_collision`.
+    """
+    rows = []
+    for match in _ROW_RE.finditer(text):
+        idx = int(match.group("idx"))
+        if idx < EXPECTED_POOL_TOTAL_7 + 1 or idx > EXPECTED_POOL_TOTAL_8:
+            continue
+        rows.append((idx, match.group("name"), match.group("wf")))
+        if len(rows) == EXPECTED_TAG64_COUNT:
             break
     return rows
 
@@ -119,13 +153,31 @@ def parse_pool_bilanz(text: str) -> List[Tuple[int, str, str, str]]:
     return rows
 
 
-def assemble_pool(tag59_doc: Path, tag61_doc: Path):
+def assemble_pool(tag59_doc: Path, tag61_doc: Path, tag64_doc: Path = None):
+    """Assemble the Required-Status-Check pool.
+
+    Without ``tag64_doc``: 7-Pool (Tag-62-lineage; Kai walking-skeleton
+    compatibility). With ``tag64_doc``: 8-Pool (Tag-64 Companion).
+    """
     tag59_text = _read_text(tag59_doc)
     tag61_text = _read_text(tag61_doc)
 
     tag59_rows = parse_tag59_doc(tag59_text)
     tag61_rows = parse_tag61_addendum(tag61_text)
-    pool_bilanz = parse_pool_bilanz(tag61_text)
+
+    if tag64_doc is not None:
+        tag64_text = _read_text(tag64_doc)
+        tag64_rows = parse_tag64_companion(tag64_text)
+        # In 8-Pool mode the Gesamt-Pool-Bilanz lives in the Tag-64 doc.
+        pool_bilanz = parse_pool_bilanz(tag64_text)
+        expected_total = EXPECTED_POOL_TOTAL_8
+        bilanz_source_label = "Tag-64 §1 Gesamt-Pool-Bilanz"
+    else:
+        tag64_rows = []
+        # 7-Pool mode: bilanz from Tag-61 doc, unchanged from Tag-62.
+        pool_bilanz = parse_pool_bilanz(tag61_text)
+        expected_total = EXPECTED_POOL_TOTAL_7
+        bilanz_source_label = "Tag-61 §1 Gesamt-Pool-Bilanz"
 
     errors = []
     if len(tag59_rows) != EXPECTED_TAG59_COUNT:
@@ -136,13 +188,17 @@ def assemble_pool(tag59_doc: Path, tag61_doc: Path):
         errors.append(
             f"Tag-61 §1 row count: got {len(tag61_rows)}, expected {EXPECTED_TAG61_COUNT}"
         )
-    if len(pool_bilanz) != EXPECTED_POOL_TOTAL:
+    if tag64_doc is not None and len(tag64_rows) != EXPECTED_TAG64_COUNT:
         errors.append(
-            f"Tag-61 §1 Gesamt-Pool-Bilanz row count: got {len(pool_bilanz)}, "
-            f"expected {EXPECTED_POOL_TOTAL}"
+            f"Tag-64 §1 row count: got {len(tag64_rows)}, expected {EXPECTED_TAG64_COUNT}"
+        )
+    if len(pool_bilanz) != expected_total:
+        errors.append(
+            f"{bilanz_source_label} row count: got {len(pool_bilanz)}, "
+            f"expected {expected_total}"
         )
 
-    combined = tag59_rows + tag61_rows
+    combined = tag59_rows + tag61_rows + tag64_rows
     names = [name for (_, name, _) in combined]
 
     # Duplicate detection
@@ -179,11 +235,14 @@ def assemble_pool(tag59_doc: Path, tag61_doc: Path):
     return combined, pool_bilanz, errors
 
 
-def render_plan_human(combined, pool_bilanz, errors) -> str:
+def render_plan_human(combined, pool_bilanz, errors, target_total=None) -> str:
+    if target_total is None:
+        target_total = EXPECTED_POOL_TOTAL_7
+    plan_label = "Tag-64" if target_total == EXPECTED_POOL_TOTAL_8 else "Tag-62"
     lines = []
-    lines.append("# Tag-62 Bulk-Activation Pre-Walk Plan")
+    lines.append(f"# {plan_label} Bulk-Activation Pre-Walk Plan")
     lines.append("")
-    lines.append(f"target pool size: {EXPECTED_POOL_TOTAL}")
+    lines.append(f"target pool size: {target_total}")
     lines.append(f"parsed combined  : {len(combined)}")
     lines.append(f"parsed bilanz    : {len(pool_bilanz)}")
     lines.append("")
@@ -219,12 +278,15 @@ def render_plan_human(combined, pool_bilanz, errors) -> str:
     return "\n".join(lines)
 
 
-def render_plan_json(combined, pool_bilanz, errors) -> str:
+def render_plan_json(combined, pool_bilanz, errors, target_total=None) -> str:
+    if target_total is None:
+        target_total = EXPECTED_POOL_TOTAL_7
+    tag_label = "tag-64" if target_total == EXPECTED_POOL_TOTAL_8 else "tag-62"
     contexts = [name for (_, name, _) in combined]
     envelope = {
-        "tag": "tag-62",
+        "tag": tag_label,
         "schema": "bulk-activate-required-checks/plan/v1",
-        "target_pool_size": EXPECTED_POOL_TOTAL,
+        "target_pool_size": target_total,
         "parsed_combined_count": len(combined),
         "parsed_pool_bilanz_count": len(pool_bilanz),
         "endpoint": "PUT repos/wakir-labs/wakir-runtime/branches/main/protection",
@@ -281,21 +343,41 @@ def _read_snapshot(path: Path) -> dict:
 def render_mock_post_snapshot(combined, pre_snapshot: dict) -> dict:
     """Simulate the GitHub branch-protection PUT (full-replace).
 
-    The mock applies the 7-Pool target as the new full
+    The mock applies the target pool as the new full
     `required_status_checks` block, preserving the `branch` and
     fixture metadata fields when present so the post-snapshot is
     byte-identical to the expected fixture.
+
+    Pool-size aware: emits ``Tag-63``-shape description when pool is
+    7, ``Tag-64``-shape description when pool is 8. The Tag-63
+    walking-skeleton expected fixture lives at
+    ``tests/observability/fixtures/branch-protection-walking-
+    skeleton/expected-post-snapshot.json`` (unchanged); the Tag-64
+    fixture lives at the parallel ``-tag64/`` directory.
     """
     contexts = [name for (_, name, _) in combined]
-    post = {
-        "_fixture_description": (
+    pool_size = len(contexts)
+    if pool_size == EXPECTED_POOL_TOTAL_8:
+        description = (
+            "Tag-64 Walking-Skeleton fixture — expected post-snapshot. "
+            "Represents the GitHub branch-protection state for "
+            "wakir-labs/wakir-runtime main AFTER the Tag-64 bulk-"
+            "activation pre-walk pipeline has run, with all 8 "
+            "Required-Status-Checks wired (Tag-59 5 + Tag-61 2 + "
+            "Tag-64 1). Byte-identical equality check against this "
+            "fixture is the Tag-64 walking-skeleton acceptance gate."
+        )
+    else:
+        description = (
             "Tag-63 Walking-Skeleton fixture — expected post-snapshot. "
             "Represents the GitHub branch-protection state for "
             "wakir-labs/wakir-runtime main AFTER the bulk-activation "
             "pre-walk pipeline has run, with all 7 Required-Status-"
             "Checks wired. Byte-identical equality check against this "
             "fixture is the walking-skeleton acceptance gate."
-        ),
+        )
+    post = {
+        "_fixture_description": description,
         "_fixture_id": "expected-post-snapshot",
         "branch": pre_snapshot.get("branch", "main"),
         "required_status_checks": {
@@ -321,6 +403,17 @@ def main(argv: List[str]) -> int:
         type=Path,
         required=True,
         help="Path to Tag-61 addendum doc",
+    )
+    parser.add_argument(
+        "--tag64-doc",
+        type=Path,
+        default=None,
+        help=(
+            "Path to Tag-64 companion doc (OPTIONAL). When supplied, "
+            "the planner emits the 8-Pool target set. When absent, the "
+            "planner falls back to the Tag-62-lineage 7-Pool (Kai "
+            "walking-skeleton compatibility preserved)."
+        ),
     )
     parser.add_argument(
         "--json", action="store_true", help="Emit machine-readable JSON envelope"
@@ -353,7 +446,12 @@ def main(argv: List[str]) -> int:
     )
     args = parser.parse_args(argv)
 
-    combined, pool_bilanz, errors = assemble_pool(args.tag59_doc, args.tag61_doc)
+    combined, pool_bilanz, errors = assemble_pool(
+        args.tag59_doc, args.tag61_doc, args.tag64_doc
+    )
+    target_total = (
+        EXPECTED_POOL_TOTAL_8 if args.tag64_doc is not None else EXPECTED_POOL_TOTAL_7
+    )
 
     if args.mock_api_mode:
         if errors:
@@ -400,9 +498,9 @@ def main(argv: List[str]) -> int:
         return 0
 
     if args.json:
-        print(render_plan_json(combined, pool_bilanz, errors))
+        print(render_plan_json(combined, pool_bilanz, errors, target_total))
     else:
-        print(render_plan_human(combined, pool_bilanz, errors))
+        print(render_plan_human(combined, pool_bilanz, errors, target_total))
 
     return 0 if not errors else 1
 
