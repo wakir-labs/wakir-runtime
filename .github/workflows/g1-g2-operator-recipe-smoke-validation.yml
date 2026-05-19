@@ -1,0 +1,187 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tag-60 G1+G2 Operator-Hand-Recipe Sandbox-Smoke-Probe-Validation
+# ----------------------------------------------------------------
+#
+# Purpose
+# =======
+#
+# Tag-56 PR #360 landed the G1+G2 Operator-Hand setup-guide
+# (``docs/operations/cosign-g1-g2-operator-setup.md``) — a 7-section
+# step-by-step recipe with embedded ``crane digest`` / ``cosign
+# initialize`` / ``gh workflow run`` invocations and embedded
+# yaml/json substrate edits. Tag-58 PR #369 then produced the
+# strict-flip-readiness-map showing G3..G6 GREEN and G1+G2 still
+# BLOCKED (operator-host-egress-bound by design).
+#
+# Tag-60 closes a regression seam: the recipe-text itself currently
+# has no hermetic gate. A future edit can silently shift a flag
+# (``--repo`` -> ``-R``), drop a YAML colon, or reference a workflow
+# that no longer exists, and the recipe stays "readable" but is no
+# longer copy-paste-correct on the operator-host. This workflow runs
+# a hermetic 4-stage validator over the guide markdown and emits one
+# of three verdicts:
+#
+#   * ``RECIPE-INTACT``         -- all stages green, recipe is
+#                                  copy-paste-correct against the
+#                                  on-disk substrate.
+#   * ``RECIPE-SYNTAX-DRIFT``   -- at least one bash/yaml/json code-
+#                                  block has an unknown flag or fails
+#                                  to parse.
+#   * ``RECIPE-SEMANTIC-DRIFT`` -- bash parses but the embedded
+#                                  ``gh`` shapes or substrate-file
+#                                  references diverge from the
+#                                  workflows / files on disk.
+#
+# Sandbox boundary
+# ================
+#
+# Per ``feedback_sandbox_host_trennung.md`` + ADR-0051 this workflow
+# is **hermetic**:
+#
+#   * NO ``cosign`` / ``crane`` / ``podman`` binary invocations.
+#   * NO ``gh`` API calls (we shape-check the embedded ``gh`` calls,
+#     we do not execute them).
+#   * NO network egress to ``ghcr.io`` / Sigstore / Rekor.
+#
+# We only parse markdown + YAML + JSON on disk and a static known-
+# vocabulary table. This intentionally mirrors the
+# ``cosign-strict-mode-readiness-check`` workflow's read-only-stance
+# (Tag-54) and the branch-protection-check-names audit (Tag-35).
+#
+# Trigger surface
+# ===============
+#
+#   * ``push:`` (path-filtered) -- any edit to the guide, the
+#     validator helper, the test-suite, the substrate files the
+#     guide names, or this workflow re-runs validation.
+#   * ``pull_request:`` (same path-filter).
+#   * ``workflow_dispatch:`` -- operator-hand manual invocation.
+#
+# The path-filter is deliberately tight to keep the workflow off
+# unrelated PR runs (we run on >40 workflows already, signal-vs-noise
+# discipline per Reza/Aisha Tag-50 ops review).
+
+name: g1-g2-operator-recipe-smoke-validation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/operations/cosign-g1-g2-operator-setup.md'
+      - 'tooling/ci/validate_g1_g2_operator_recipe.py'
+      - 'tests/ci/test_g1_g2_operator_recipe_validation.py'
+      - 'policies/cosign-policy-phase-3b.yaml'
+      - 'state/cosign-drift/pinned-trust-root.json'
+      - '.github/workflows/g1-g2-operator-recipe-smoke-validation.yml'
+  pull_request:
+    paths:
+      - 'docs/operations/cosign-g1-g2-operator-setup.md'
+      - 'tooling/ci/validate_g1_g2_operator_recipe.py'
+      - 'tests/ci/test_g1_g2_operator_recipe_validation.py'
+      - 'policies/cosign-policy-phase-3b.yaml'
+      - 'state/cosign-drift/pinned-trust-root.json'
+      - '.github/workflows/g1-g2-operator-recipe-smoke-validation.yml'
+  workflow_dispatch:
+    inputs:
+      enforce:
+        description: 'If "true" (default), exit 1 on any drift verdict.'
+        required: false
+        default: 'true'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  recipe-smoke-validation:
+    name: g1-g2 operator-recipe smoke-validation
+    runs-on: ubuntu-latest
+
+    env:
+      RECIPE_SMOKE_ENFORCE: ${{ github.event.inputs.enforce || 'true' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python (stdlib-only — no pip install needed)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Stage 1+2+3 — Run hermetic recipe validator
+        id: validate
+        shell: bash
+        run: |
+          set -u
+          out="$(python3 tooling/ci/validate_g1_g2_operator_recipe.py \
+            --doc docs/operations/cosign-g1-g2-operator-setup.md \
+            --repo-root . 2>&1)"
+          rc=$?
+          printf '%s\n' "${out}"
+          verdict="$(printf '%s\n' "${out}" | awk -F': ' '/^verdict:/ {print $2; exit}')"
+          echo "verdict=${verdict}" >> "$GITHUB_OUTPUT"
+          echo "rc=${rc}"           >> "$GITHUB_OUTPUT"
+          {
+            echo "# Tag-60 G1+G2 Operator-Recipe Smoke-Validation"
+            echo
+            echo "**Verdict:** \`${verdict}\` (rc=${rc})"
+            echo
+            echo '```'
+            printf '%s\n' "${out}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Do not exit here; the test-suite step still runs even on
+          # a red verdict so the validator itself is regression-tested
+          # on the same run.
+          exit 0
+
+      - name: Emit machine-readable JSON envelope (for downstream)
+        shell: bash
+        run: |
+          set -u
+          python3 tooling/ci/validate_g1_g2_operator_recipe.py \
+            --doc docs/operations/cosign-g1-g2-operator-setup.md \
+            --repo-root . \
+            --json > /tmp/g1-g2-recipe-validation-envelope.json || true
+          echo "--- envelope ---"
+          cat /tmp/g1-g2-recipe-validation-envelope.json
+
+      - name: Install pytest (hermetic test-suite uses pytest fixtures)
+        run: |
+          set -eu
+          python -m pip install --upgrade pip
+          python -m pip install "pytest>=8.0" "PyYAML>=6.0"
+
+      - name: Run hermetic Tag-60 test-suite
+        run: |
+          set -eu
+          python -m pytest tests/ci/test_g1_g2_operator_recipe_validation.py \
+            -v --tb=short
+
+      - name: Stage 4 — Enforce verdict
+        shell: bash
+        run: |
+          set -u
+          verdict="${{ steps.validate.outputs.verdict }}"
+          rc="${{ steps.validate.outputs.rc }}"
+          enforce="${RECIPE_SMOKE_ENFORCE}"
+
+          echo "g1-g2-recipe-smoke: verdict=${verdict} rc=${rc} enforce=${enforce}"
+
+          if [ "${verdict}" = "RECIPE-INTACT" ]; then
+            echo "::notice::RECIPE-INTACT — guide is copy-paste-correct against on-disk substrate."
+            exit 0
+          fi
+
+          if [ "${enforce}" = "true" ] && \
+             { [ "${verdict}" = "RECIPE-SYNTAX-DRIFT" ] || \
+               [ "${verdict}" = "RECIPE-SEMANTIC-DRIFT" ]; }; then
+            echo "::error::${verdict} — guide is no longer copy-paste-correct. See job summary."
+            exit 1
+          fi
+
+          echo "::warning::${verdict} but enforce=false — running in audit-only mode."
+          exit 0
