@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Tag-55 Mini-Welle — Welle-6 dedicated single-binary installer Quadlet
+# ====================================================================
+#
+# ADR-0066 Welle-6 Quadlet — installs the dedicated single-binary
+# image for ``subscribe-loop-welle6`` (the NATS-JetStream subscribe-
+# loop operator-CLI). Sibling-shape with
+# ``wakir-rust-cli-welle4.container``; see that file for design
+# rationale.
+
+# Canonical in-image binary path installed by this Quadlet (anchor
+# for Tag-55 readiness-check G5):
+#
+#   /opt/wakir/bin/wakir-persona-engine-subscribe-loop-welle6
+
+[Unit]
+Description=Wakir ADR-0066 Welle-6 subscribe-loop-welle6 dedicated single-binary installer (oneshot)
+Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/docs/operations/quadlets-phase-3b-rust-cli.md
+After=network-online.target
+Wants=network-online.target
+Requires=wakir-rust-cli-bin-volume.service
+
+[Container]
+ContainerName=wakir-rust-cli-welle6-installer
+
+# Image pin: dedicated single-binary image for the Welle-6 cutover
+# step. Resolved Operator-Hand via resolve-image-pins-ci.
+Image=ghcr.io/wakir-labs/wakir-persona-engine-subscribe-loop-welle6:0.5.0-pilot@sha256:DIGEST_PENDING_KAI_CROSS_REVIEW
+
+# Copy the one canonical binary from the dedicated single-binary
+# image into the bind-mounted host-side volume.
+Entrypoint=/bin/sh
+Exec=-c "set -e; for b in wakir-persona-engine-subscribe-loop-welle6; do test -x \"/opt/wakir/bin/$b\" || { echo \"missing or non-exec in welle6 image: $b\" >&2; exit 2; }; install -m 0755 \"/opt/wakir/bin/$b\" \"/host-bin/$b\"; done; echo OK"
+
+ReadOnly=true
+User=1000
+Group=1000
+Volume=wakir-rust-cli-bin.volume:/host-bin:Z,U
+DropCapability=ALL
+NoNewPrivileges=true
+PodmanArgs=--cpus=0.2 --memory=128m
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target default.target
