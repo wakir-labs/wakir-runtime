@@ -1,0 +1,180 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Live-VM Rotation State-Machine Probe (Tag-60)
+# ---------------------------------------------
+#
+# Purpose
+# =======
+#
+# OPEN-J2 (Tag-56 reverse-map) records the live-VM rotation
+# 0.5.1 -> 0.5.2 / 0.5.3-rc1 as "kein CI-Substrat moeglich":
+# rotating an actual VM lifecycle (snapshot, image swap, quadlet
+# reload, post-rotation acceptance probe) is by construction
+# Operator-Hand. See ``feedback_sandbox_host_trennung.md``
+# (Mira-Memory) — claude-dev never reaches a live 192.168.178.*
+# VM, and that boundary is hard.
+#
+# What *can* be validated hermetically is the **rotation plan
+# state-machine**: the set of entry states, the transition table,
+# the recovery paths, and the operator decision-points. That
+# graph is deterministic and exhaustively exercisable in pure
+# Python (stdlib only, no subprocess, no podman, no qemu).
+#
+# This workflow runs that probe. It is the green-light tripwire
+# that asserts the Operator-Hand rotation recipe is internally
+# consistent and recoverable BEFORE the operator schedules the
+# live rotation.
+#
+# Stages
+# ======
+#
+# Stage 1 — Happy-path run from PRE_FLIGHT_CHECKS. Asserts the
+#           rotation completes at ROTATION_COMMITTED_v0_5_3_rc1.
+# Stage 2 — Recovery-path completeness. From every failure state
+#           in the table, the recovery strategy reaches a terminal
+#           healthy state in <= MAX_TRANSITIONS without cycling.
+# Stage 3 — All-entry-states sweep (happy_path strategy). Every
+#           entry-state must terminate at a healthy terminal.
+# Stage 4 — Aggregate verdict and job-summary table.
+#
+# Sandbox boundary
+# ----------------
+#
+# The simulator is stub-only. It never starts a VM, never invokes
+# podman, never calls out over the network. The word ``simulate``
+# in the filename is load-bearing.
+
+name: live-vm-rotation-state-machine-probe
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'tooling/ci/simulate_live_vm_rotation_state_machine.py'
+      - 'tests/ci/test_live_vm_rotation_state_machine_tag60.py'
+      - 'docs/operations/live-vm-rotation-state-machine.md'
+      - '.github/workflows/live-vm-rotation-state-machine-probe.yml'
+  pull_request:
+    paths:
+      - 'tooling/ci/simulate_live_vm_rotation_state_machine.py'
+      - 'tests/ci/test_live_vm_rotation_state_machine_tag60.py'
+      - 'docs/operations/live-vm-rotation-state-machine.md'
+      - '.github/workflows/live-vm-rotation-state-machine-probe.yml'
+  workflow_dispatch:
+    inputs:
+      enforce:
+        description: 'If "true", exit 1 on DRIFT (default: true).'
+        required: false
+        default: 'true'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  live-vm-rotation-state-machine-probe:
+    name: Live-VM Rotation State-Machine Probe (Tag-60)
+    runs-on: ubuntu-latest
+
+    env:
+      PROBE_ENFORCE: ${{ github.event.inputs.enforce || 'true' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python (stdlib-only; no pip install)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Stage 1 — Happy-path run from PRE_FLIGHT_CHECKS
+        id: stage1
+        shell: bash
+        run: |
+          set -eu
+          mkdir -p out/sm-traces
+          python3 tooling/ci/simulate_live_vm_rotation_state_machine.py \
+            --entry-state PRE_FLIGHT_CHECKS \
+            --strategy happy_path \
+            --out out/sm-traces/happy-path.json
+          ls -la out/sm-traces/
+
+      - name: Stage 2 — Recovery-path completeness
+        id: stage2
+        shell: bash
+        run: |
+          set -eu
+          python3 tooling/ci/simulate_live_vm_rotation_state_machine.py \
+            --verify-recovery-paths \
+            --out out/sm-traces/recovery-paths.json
+
+      - name: Stage 3 — All-entry-states sweep
+        id: stage3
+        shell: bash
+        run: |
+          set -eu
+          python3 tooling/ci/simulate_live_vm_rotation_state_machine.py \
+            --all-entry-states \
+            --strategy happy_path \
+            --out out/sm-traces/all-entry-states.json
+
+      - name: Stage 4 — Aggregate verdict
+        id: stage4
+        shell: bash
+        run: |
+          set -u
+          aggregate="$(python3 - <<'PY'
+          import json, pathlib
+          all_intact = True
+          for name in ("happy-path.json", "recovery-paths.json", "all-entry-states.json"):
+              p = pathlib.Path("out/sm-traces") / name
+              data = json.loads(p.read_text(encoding="utf-8"))
+              if data["verdict"] != "ROTATION-STATE-MACHINE-INTACT":
+                  all_intact = False
+          print("ROTATION-STATE-MACHINE-INTACT" if all_intact else "DRIFT")
+          PY
+          )"
+          echo "aggregate=${aggregate}" >> "$GITHUB_OUTPUT"
+          {
+            echo "# Live-VM Rotation State-Machine Probe (Tag-60)"
+            echo
+            echo "**Aggregate verdict:** \`${aggregate}\`"
+            echo
+            echo "| Stage | Verdict |"
+            echo "| --- | --- |"
+            for f in out/sm-traces/*.json; do
+              name="$(basename "${f}" .json)"
+              v="$(python3 -c 'import sys, json; print(json.load(open(sys.argv[1]))["verdict"])' "${f}")"
+              echo "| \`${name}\` | \`${v}\` |"
+            done
+            echo
+            echo "Rotation plan: \`0.5.1 -> 0.5.2 -> 0.5.3-rc1\`."
+            echo
+            echo "Sandbox-Boundary: stub-only. No VM started, no podman, no network."
+            echo "See \`docs/operations/live-vm-rotation-state-machine.md\` for the operator-companion view."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "live-vm-rotation-state-machine-probe: aggregate=${aggregate}"
+
+      - name: Run hermetic Tag-60 test-suite
+        run: |
+          set -eu
+          python3 -m pytest tests/ci/test_live_vm_rotation_state_machine_tag60.py -v
+
+      - name: Stage 4 — Enforce aggregate verdict
+        shell: bash
+        run: |
+          set -u
+          verdict="${{ steps.stage4.outputs.aggregate }}"
+          enforce="${PROBE_ENFORCE}"
+          echo "live-vm-rotation-state-machine-probe: aggregate=${verdict} enforce=${enforce}"
+          if [ "${enforce}" = "true" ] && [ "${verdict}" = "DRIFT" ]; then
+            echo "::error::Live-VM rotation state-machine probe verdict is DRIFT. Refusing to merge — see job summary."
+            exit 1
+          fi
+          if [ "${verdict}" = "DRIFT" ]; then
+            echo "::warning::Live-VM rotation state-machine probe is DRIFT — running audit-only."
+          else
+            echo "Live-VM rotation state-machine probe INTACT. Operator-Hand rotation may proceed when scheduled."
+          fi
