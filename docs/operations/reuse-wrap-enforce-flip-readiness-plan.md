@@ -1,10 +1,10 @@
 ---
-title: "REUSE-Wrap Pre-Merge Lint Enforce-Flip Readiness Plan (Tag-62)"
+title: "REUSE-Wrap Pre-Merge Lint Enforce-Flip Readiness + Actual-Plan (Tag-62 + Tag-63)"
 status: "active"
 owner: "tomas"
 audience: "operator,ar,engineering"
 created: "2026-05-19"
-tag: "tag-62"
+tag: "tag-63"
 predecessor: "docs/operations/branch-protection-required-checks-tag61-addendum.md"
 related_adrs:
   - "ADR-0020"
@@ -17,6 +17,8 @@ related_docs:
 related_prs:
   - "#389"
   - "#392"
+  - "#394"
+  - "#396"
 related_memory:
   - "feedback_branch_protection_check_names.md"
   - "feedback_sandbox_host_trennung.md"
@@ -373,7 +375,304 @@ branch-protection=<wired|unwired>. Reason: <free-form>.
 
 ---
 
-## §7 - Open questions (Tag-62)
+## §7 - Actual-Flip-Execution-Recipe (Tag-63)
+
+This section is the **executable** version of §5. §5 is the
+human-readable recipe; §7 is the same recipe expressed as a
+sequence of verifiable assertions, each of which the operator
+can copy-paste verbatim into a host shell. Every assertion is
+designed to short-circuit fast if a precondition is missing -- no
+"forge ahead anyway" path.
+
+### §7.1 - Pre-flip Stability-Window-Probe handshake
+
+Before any settings mutation, the operator runs the new Tag-63
+Stability-Window Probe workflow exactly once:
+
+```bash
+gh workflow run \
+  reuse-wrap-enforce-flip-stability-window-probe.yml \
+  --repo wakir-labs/wakir-runtime \
+  --ref main \
+  -f run_count=3
+```
+
+The probe runs the Tag-61 helper in
+`--mode enforce-flip-readiness` three times back-to-back on the
+current `main` workspace. It emits exactly one of three
+verdicts:
+
+| Probe verdict | Meaning | Next step |
+|---|---|---|
+| `STABILITY-WINDOW-CONFIRMED` | All 3 runs READY | Proceed to §7.2. |
+| `STABILITY-WINDOW-NOT-YET` | At least one CAUTION/BLOCKED | Stop. Run §6.1 cleanup-first. |
+| `STABILITY-WINDOW-DEFECT` | Helper crashed in probe | Stop. File bug; do not flip. |
+
+The probe is the *sandbox-side* expression of §3's N-Run-Stability-
+Window precondition. It does NOT replace the §3 main-branch
+N-counter: the §3 counter is the *history* (three real green main
+runs after Tag-62 merge), the §7.1 probe is the *handshake*
+(three back-to-back probe runs on the operator's chosen ref).
+Both must agree before the flip.
+
+### §7.2 - Pre-flip three-precondition handshake
+
+The operator confirms all three preconditions from §1, in this
+order, exiting non-zero on any failure:
+
+```bash
+set -euo pipefail
+
+# (a) N-Run: at least 3 consecutive green main-runs of the
+# Tag-61 workflow (this is the §3 history check, not the §7.1
+# probe).
+GREEN_RUNS=$(gh api \
+  /repos/wakir-labs/wakir-runtime/actions/workflows/reuse-wrap-pre-merge-lint.yml/runs \
+  --jq '[.workflow_runs[] | select(.head_branch == "main")] | .[:3] | map(.conclusion)')
+if ! echo "${GREEN_RUNS}" | grep -q '\["success","success","success"\]'; then
+  echo "PRECONDITION-A-FAIL: last 3 main runs not all success -- ${GREEN_RUNS}"
+  exit 1
+fi
+
+# (b) Required-Status-Check wiring under Branch-Protection
+WIRED=$(gh api \
+  /repos/wakir-labs/wakir-runtime/branches/main/protection/required_status_checks \
+  --jq '.contexts | index("REUSE-Wrap Pre-Merge Lint (Tag-61)") // "null"')
+if [ "${WIRED}" = "null" ]; then
+  echo "PRECONDITION-B-FAIL: Required-Status-Check not wired"
+  exit 1
+fi
+
+# (c) Coverage-Score: ENFORCE-FLIP-READY on current workspace
+python tooling/ci/lint_reuse_ignore_wrap_pattern.py \
+  --mode enforce-flip-readiness tests \
+  | tee /tmp/reuse-flip-readiness.txt
+if ! grep -q '^ENFORCE-FLIP-READY' /tmp/reuse-flip-readiness.txt; then
+  echo "PRECONDITION-C-FAIL: readiness verdict not READY"
+  exit 1
+fi
+
+echo "ALL-PRECONDITIONS-OK: proceed to §7.3 flip command."
+```
+
+If the script exits non-zero anywhere, the flip does NOT happen.
+The operator inspects the failing precondition, fixes it (or
+defers the flip), and re-runs.
+
+### §7.3 - Flip command (single point of mutation)
+
+The flip is exactly one `gh` call, recorded in the activity-log
+*before* it is executed (so the audit-trail timestamp brackets
+the actual change):
+
+```bash
+NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+echo "${NOW} REUSE-WRAP-LINT enforce-mode FLIP 0 -> 1 by operator" \
+  >> /var/home/fred/AI-Corp/activity-log.md
+
+gh variable set REUSE_WRAP_LINT_ENFORCE \
+  --body "1" \
+  --repo wakir-labs/wakir-runtime
+```
+
+This is the only command in the entire flip recipe that mutates
+host state. Everything before it is read-only; everything after
+it is verification.
+
+### §7.4 - Post-flip verification
+
+Within ten minutes of the flip, the operator triggers a
+no-op smoke PR (e.g. whitespace-only edit on a docs file) and
+confirms the workflow check shows up green:
+
+```bash
+gh pr create --title "smoke: post-flip verify (Tag-63)" \
+  --body "Post-flip smoke test, no substance." \
+  --base main --head smoke/post-flip-verify-tag63
+
+# Wait for the Tag-61 check to settle
+gh pr checks <PR-NUMBER> --watch \
+  --required \
+  | grep "REUSE-Wrap Pre-Merge Lint (Tag-61)"
+```
+
+Expected: the check shows up, conclusion `success`. If it shows
+up as `failure`, the operator immediately runs §8 (Rollback).
+
+### §7.5 - Audit-trail seal
+
+After the smoke PR is merged or closed, the operator appends a
+final audit-line:
+
+```bash
+NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+SHA=$(git -C /var/home/fred/AI-Corp/agents-workspaces/mira rev-parse HEAD)
+echo "${NOW} REUSE-WRAP-LINT enforce-mode SEALED post-smoke ${SHA}" \
+  >> /var/home/fred/AI-Corp/activity-log.md
+```
+
+The seal-line is the document-of-record that the flip completed
+cleanly. Without it, an auditor sees an unfinished episode.
+
+---
+
+## §8 - Rollback-Procedure (Tag-63 deepening of §6)
+
+§6 listed the rollback variants; §8 turns them into a single
+ordered procedure with a decision-routing helper. The mock-
+substrate in `tooling/ci/mock_reuse_lint_rollback.py` exercises
+the decision-logic hermetically; the host commands are the same
+as in §6, but here they are sequenced with explicit hand-off
+points.
+
+### §8.1 - Decision routing via the mock-substrate
+
+The operator first runs the mock-substrate against the current
+workflow-run-history to get a canonical rollback verdict:
+
+```bash
+# Fetch the last 5 main-branch runs of the Tag-61 workflow
+RUNS=$(gh api \
+  /repos/wakir-labs/wakir-runtime/actions/workflows/reuse-wrap-pre-merge-lint.yml/runs \
+  --jq '[.workflow_runs[] | select(.head_branch == "main")] | .[:5] | map({conclusion, head_sha})')
+
+# Get current enforce state
+STATE=$(gh variable get REUSE_WRAP_LINT_ENFORCE \
+  --repo wakir-labs/wakir-runtime --json value -q .value)
+
+# Run the decision-helper
+python tooling/ci/mock_reuse_lint_rollback.py \
+  --mode decide \
+  --enforce-state "${STATE}" \
+  --runs "${RUNS}" \
+  --flake-budget 1 \
+  --format text
+```
+
+Verdict routing:
+
+| Mock verdict | Action |
+|---|---|
+| `MOCK-ROLLBACK-NO-OP` | Enforce already off. Nothing to do. |
+| `MOCK-ROLLBACK-HOLD` | Reds fit flake-budget. Watch one more cycle, do not roll back. |
+| `MOCK-ROLLBACK-RECOMMEND` | Run §8.2 un-flip immediately. |
+| `MOCK-ROLLBACK-ESCALATE` | Run §8.2 un-flip AND notify Mira via inbox. |
+
+### §8.2 - Un-flip command (single point of mutation)
+
+The un-flip is the exact inverse of §7.3:
+
+```bash
+NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+echo "${NOW} REUSE-WRAP-LINT enforce-mode UN-FLIP 1 -> 0 by operator" \
+  >> /var/home/fred/AI-Corp/activity-log.md
+
+gh variable set REUSE_WRAP_LINT_ENFORCE \
+  --body "0" \
+  --repo wakir-labs/wakir-runtime
+```
+
+The Required-Status-Check wiring under Branch-Protection stays
+in place; only the workflow's Stage-3 enforce-mode switch is
+toggled. This means new PRs still *see* the check, it just goes
+back to advisory-green-on-finding behavior.
+
+### §8.3 - Post-rollback inspection
+
+Within one hour of the un-flip, the operator runs:
+
+```bash
+python tooling/ci/lint_reuse_ignore_wrap_pattern.py \
+  --mode hint tests \
+  | tee /tmp/reuse-rollback-inspection.txt
+```
+
+This enumerates the unwrapped files that triggered the
+regression. The operator then either:
+
+* opens a cleanup-PR (§6.1 path), OR
+* documents an exception (§6.3 path), OR
+* if the helper itself is broken: opens a helper-fix PR.
+
+The choice is recorded in the Mira inbox under
+`agents-workspaces/mira/inbox/YYYY-MM-DD-reuse-rollback-<reason>.md`
+following the Tag-59 / Tag-61 audit-trail format.
+
+### §8.4 - Re-flip preconditions
+
+After a rollback, a *second* flip attempt requires re-running the
+entire §7 recipe from the top. There is no shortcut: a rollback
+event means at least one precondition was wrong, and the operator
+has no way to know which one without redoing the handshake.
+
+The §7.1 Stability-Window-Probe is particularly important for
+re-flip, because the rollback typically happens after a real
+hot-fix landed on main, which means the readiness verdict may
+have changed.
+
+---
+
+## §9 - Cross-Anchors
+
+This section pins the cross-references that other docs and PRs
+rely on. Anchors are listed in chronological order.
+
+### §9.1 - Kai PR #389 (Tag-61, Branch-Protection-Wiring-Doc)
+
+`docs/operations/branch-protection-required-checks-tag61-addendum.md`
+is the addendum that holds the Required-Status-Check pool table
+which §4 of this plan extends with Check #8. Kai is the Branch-
+Protection-Owner; Tomás drafts the row in §4.2 and Kai imports.
+
+Quote from the addendum (§4 of #389): "the Job-Display-Name MUST
+match verbatim, including the `(Tag-NN)` suffix." This document
+satisfies that rule -- §4.1 cites the literal name
+`REUSE-Wrap Pre-Merge Lint (Tag-61)`.
+
+### §9.2 - Kai PR #396 (Tag-62, Bulk-Activation Pre-Walk Recipe)
+
+`tooling/ci/validate_bulk_activation_envelope.py` + supporting
+doc. The bulk-activation recipe is the *general* operator-pattern
+for adding multiple Required-Status-Checks at once; this plan
+follows the *single-check* slice of that recipe (Check #8 only).
+Once §7 here ships and the smoke-PR is green, Kai's next bulk-
+activation cycle can subsume the manual §7.3 step into the bulk
+pre-walk template. Until then, the Tag-63 recipe is canonical
+for this one workflow.
+
+### §9.3 - Tag-59 OTS N-Run-Stability-Window (precedent)
+
+`docs/operations/branch-protection-required-checks-tag59.md` §4
+established the N=3 pattern. §3 and §7.1 of this plan inherit
+that constant. Any future change to N must update both docs in
+the same commit -- divergence would create a precedent-vs-
+practice gap that the next auditor would have to reconcile.
+
+### §9.4 - Tag-62 PR #394 (predecessor)
+
+`docs/operations/reuse-wrap-enforce-flip-readiness-plan.md` is
+this document; PR #394 introduced §1-§6 and the
+`enforce-flip-readiness` helper-mode. Tag-63 extends with §7-§9.
+The Tag-62 18-test suite
+(`tests/ci/test_reuse_lint_enforce_flip_readiness_tag62.py`)
+remains in tree, unmodified; the new Tag-63 15-test suite
+(`tests/ci/test_reuse_lint_enforce_flip_actual_plan_tag63.py`)
+pins the §7-§9 additions + the mock-substrate.
+
+### §9.5 - Mira Memory entries (rule-cross-refs)
+
+* `feedback_sandbox_host_trennung` -- the host-side `gh variable
+  set` is operator-hand; everything in this doc that does not
+  mutate host state can live in claude-dev sandbox.
+* `feedback_branch_protection_check_names` -- the exact-name
+  rule for Required-Status-Check contexts (§4.1, §9.1).
+* `feedback_anti_eskalations_drift` -- the flip itself is an
+  operative-hygiene item; it does not need AR pre-approval, only
+  the documented recipe and the audit-trail seal.
+
+---
+
+## §10 - Open questions (Tag-62 + Tag-63)
 
 * **N=3 vs N=5:** Tag-59 picked N=3 by analogy with the OTS
   audit-only-to-required pattern. For a workflow with as light
@@ -390,5 +689,19 @@ branch-protection=<wired|unwired>. Reason: <free-form>.
   not have an equivalent license-gate-adjacent workflow yet.
   If it gets one, the readiness-mode helper should be mirrored
   with a `.../protocol` root argument. Out of Tag-62 scope.
+* **(Tag-63) Stability-Window-Probe trigger cadence:** the new
+  `reuse-wrap-enforce-flip-stability-window-probe.yml` workflow is
+  `workflow_dispatch` only. After enforce is live and the first
+  cleanup-cycle has shipped, this could become a weekly cron
+  to surface any quiet drift; that decision is post-Phase-3 and
+  belongs in the next Tag-N planning cycle.
+* **(Tag-63) Mock-substrate flake-budget default:** the rollback-
+  decision mock defaults to `flake_budget=0`. Real operator use
+  in §8.1 passes `--flake-budget 1` to absorb a single GHA-runner
+  blip without an immediate rollback. The "right" default is
+  empirical -- track the first month of post-flip runs and pick
+  the budget that minimises both false-positive rollbacks
+  (rolling back on a real flake) and false-negative holds
+  (holding through a real defect).
 
 --- Tomás

@@ -1,0 +1,175 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# REUSE-Wrap Pre-Merge Lint -- Enforce-Flip Stability-Window Probe (Tag-63)
+# ------------------------------------------------------------------------
+#
+# This workflow probes the N-Run-Stability-Window precondition (a)
+# from `docs/operations/reuse-wrap-enforce-flip-readiness-plan.md`
+# §1 + §3, in a deterministic, sandbox-side, hermetic way.
+#
+# The actual flip remains operator-hand (see plan-doc §5). This
+# probe just answers the question: "if we were to do three
+# back-to-back runs of the Tag-61 helper on the current main-tip,
+# would all three come back READY?" If the answer is YES, the
+# operator has a defensible signal to proceed with §5. If NO, the
+# operator stops and inspects the failing run.
+#
+# Three stages:
+#
+# Stage 1 (Probe): run the Tag-61 helper in enforce-flip-readiness
+#                  mode three times back-to-back on the same
+#                  workspace. Each run is captured as a verdict
+#                  line + a per-run JSON sidecar.
+#
+# Stage 2 (Verify): confirm all three runs returned
+#                   `ENFORCE-FLIP-READY`. Anything else (CAUTION,
+#                   BLOCKED, or non-zero exit) collapses the
+#                   verdict to NOT-YET or DEFECT.
+#
+# Stage 3 (Aggregate): emit one canonical stability-window verdict:
+#
+#   * `STABILITY-WINDOW-CONFIRMED`  -- all three runs READY, the
+#                                      operator may proceed with
+#                                      §5 of the plan-doc.
+#   * `STABILITY-WINDOW-NOT-YET`    -- at least one run CAUTION or
+#                                      BLOCKED, but no helper
+#                                      crash; the operator stops
+#                                      and inspects, no flip.
+#   * `STABILITY-WINDOW-DEFECT`     -- at least one run non-zero
+#                                      exit from the helper, the
+#                                      probe itself is broken;
+#                                      the operator opens a bug.
+#
+# Trigger is `workflow_dispatch` only -- this is an operator-tool,
+# not a per-PR check. The actual Required-Status-Check pin remains
+# the Tag-61 `reuse-wrap-pre-merge-lint` workflow.
+
+name: reuse-wrap-enforce-flip-stability-window-probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_count:
+        description: "How many consecutive runs to probe (default 3, per Tag-59 OTS N-Run pattern)."
+        required: false
+        default: "3"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  reuse-wrap-enforce-flip-stability-window-probe:
+    name: REUSE-Wrap Enforce-Flip Stability-Window Probe (Tag-63)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Stage 0 - Validate inputs
+        id: validate
+        env:
+          RUN_COUNT_RAW: ${{ github.event.inputs.run_count }}
+        run: |
+          set -euo pipefail
+          RAW="${RUN_COUNT_RAW:-3}"
+          if ! [[ "${RAW}" =~ ^[0-9]+$ ]]; then
+            echo "::error::run_count must be a non-negative integer, got '${RAW}'"
+            exit 1
+          fi
+          if [ "${RAW}" -lt 1 ] || [ "${RAW}" -gt 10 ]; then
+            echo "::error::run_count must be in [1, 10], got ${RAW}"
+            exit 1
+          fi
+          echo "run_count=${RAW}" >> "${GITHUB_OUTPUT}"
+          echo "Probe configured for ${RAW} consecutive runs."
+
+      - name: Stage 1 - Probe N consecutive readiness runs
+        id: probe
+        env:
+          RUN_COUNT: ${{ steps.validate.outputs.run_count }}
+        run: |
+          set -euo pipefail
+          PROBE_DIR="${RUNNER_TEMP}/reuse-wrap-stability-window"
+          mkdir -p "${PROBE_DIR}"
+          READY_COUNT=0
+          NOT_READY_COUNT=0
+          ERROR_COUNT=0
+          for i in $(seq 1 "${RUN_COUNT}"); do
+            OUT_FILE="${PROBE_DIR}/run-${i}.txt"
+            set +e
+            python tooling/ci/lint_reuse_ignore_wrap_pattern.py \
+              --mode enforce-flip-readiness \
+              tests \
+              > "${OUT_FILE}" 2>&1
+            EXIT=$?
+            set -e
+            echo "----- run ${i} output -----"
+            cat "${OUT_FILE}"
+            echo "----- run ${i} exit=${EXIT} -----"
+            if [ "${EXIT}" -ne 0 ]; then
+              ERROR_COUNT=$((ERROR_COUNT + 1))
+              continue
+            fi
+            if grep -q '^ENFORCE-FLIP-READY' "${OUT_FILE}"; then
+              READY_COUNT=$((READY_COUNT + 1))
+            else
+              NOT_READY_COUNT=$((NOT_READY_COUNT + 1))
+            fi
+          done
+          echo "ready_count=${READY_COUNT}"     >> "${GITHUB_OUTPUT}"
+          echo "not_ready_count=${NOT_READY_COUNT}" >> "${GITHUB_OUTPUT}"
+          echo "error_count=${ERROR_COUNT}"     >> "${GITHUB_OUTPUT}"
+          echo "probe_dir=${PROBE_DIR}"         >> "${GITHUB_OUTPUT}"
+          echo "::notice::Stage 1: ready=${READY_COUNT} not_ready=${NOT_READY_COUNT} error=${ERROR_COUNT} of ${RUN_COUNT}"
+
+      - name: Stage 2 - Self-verify rollback mock substrate
+        run: |
+          set -euo pipefail
+          python tooling/ci/mock_reuse_lint_rollback.py --mode self-verify
+
+      - name: Stage 3 - Aggregate stability-window verdict
+        id: aggregate
+        env:
+          RUN_COUNT: ${{ steps.validate.outputs.run_count }}
+          READY_COUNT: ${{ steps.probe.outputs.ready_count }}
+          NOT_READY_COUNT: ${{ steps.probe.outputs.not_ready_count }}
+          ERROR_COUNT: ${{ steps.probe.outputs.error_count }}
+        run: |
+          set -euo pipefail
+          if [ "${ERROR_COUNT}" -gt 0 ]; then
+            VERDICT="STABILITY-WINDOW-DEFECT"
+            REASON="${ERROR_COUNT} probe run(s) crashed; helper itself broken, file a bug"
+          elif [ "${READY_COUNT}" -eq "${RUN_COUNT}" ]; then
+            VERDICT="STABILITY-WINDOW-CONFIRMED"
+            REASON="all ${RUN_COUNT} probe runs READY; operator may proceed with plan-doc §5"
+          else
+            VERDICT="STABILITY-WINDOW-NOT-YET"
+            REASON="${NOT_READY_COUNT} probe run(s) returned CAUTION/BLOCKED; operator inspects, no flip"
+          fi
+          echo "verdict=${VERDICT}" >> "${GITHUB_OUTPUT}"
+          echo "::notice::Stage 3: ${VERDICT} -- ${REASON}"
+          echo "${VERDICT}"
+          echo "  run_count       = ${RUN_COUNT}"
+          echo "  ready_count     = ${READY_COUNT}"
+          echo "  not_ready_count = ${NOT_READY_COUNT}"
+          echo "  error_count     = ${ERROR_COUNT}"
+          echo "  reason          = ${REASON}"
+          # The probe is informational, not a Required-Status-Check.
+          # We exit non-zero only on DEFECT, because that indicates
+          # the probe-substrate itself is broken; NOT-YET is a valid
+          # signal that means "the operator should inspect, not flip
+          # yet" -- the workflow stays green so the verdict is the
+          # payload, not the shell-exit signal. This mirrors the
+          # Tag-62 helper's `enforce-flip-readiness` mode which
+          # always exits 0 with the verdict as payload.
+          if [ "${VERDICT}" = "STABILITY-WINDOW-DEFECT" ]; then
+            exit 1
+          fi
