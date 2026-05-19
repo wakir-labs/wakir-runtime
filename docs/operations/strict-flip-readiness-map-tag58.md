@@ -279,6 +279,109 @@ Out-of-Sandbox-Scope (Operator-Hand):
 Mira-Sandbox darf weder Host-podman-Socket-Zugriff noch
 Sigstore-Pull anstoßen. Verstoß = Hard-Stop, AR-Eskalation.
 
+## §9 — OPEN-J3 Containerfile-Label Carry-Forward (Tag-64-Append)
+
+Tag-64-Append (2026-05-19) zum Tag-63-Selin-Audit-Bericht
+`reports/audit/persona-engine-0-5-3-production-readiness-2026-05-19.md`
+§D6 OPEN-J3. Diese §9 dokumentiert den explizit-intentionalen
+Carry-Forward der OCI-`image.version`-Label-Refresh-Action von
+`0.5.2-final-pre-cutover` auf `0.5.3` als Operator-Hand-/Kai-Hand-
+Action der KW-24-Cutover-Image-Build-Pipeline, ausserhalb des
+Tag-62/Tag-63-Engine-Release-Scope.
+
+### §9.1 Quelle und Substrat-Beschreibung
+
+- Datei: `infra/persona-engine/Containerfile.real`.
+- Aktueller Wert (Tag-52-emittiert, byte-stable durch Tag-58, -62, -63):
+  `LABEL org.opencontainers.image.version="0.5.2-final-pre-cutover"`
+  (Containerfile.real Zeile 150).
+- Ziel-Wert (KW-24-Cutover-Image-Build): `0.5.3`.
+- 7 LABELs total (ADR-0061-LABEL-Konvention erfüllt):
+  `title`, `description`, `version`, `licenses`, `source`, `url`,
+  `documentation`.
+- Audit-Verdict §D6: `MATCH-WITH-1-INTENTIONAL-CARRY-FORWARD`.
+
+### §9.2 Begründung für Carry-Forward (kein Tag-64-Cleanup)
+
+Drei substantielle Gründe halten die Label-Refresh auf der KW-24-
+Cutover-Image-Build-Welle, **nicht** auf Tag-64:
+
+1. **Scope-Split-Disziplin (Tag-62-Release-Notes §1).**
+   Tag-62-Release-Notes §1 "Out of scope" listet explizit:
+   "Containerfile-tag or compose-file change beyond what Kai
+   coordinates separately (Zone-J)". Eine Tag-64-Label-Refresh-
+   Aktion auf `0.5.3` würde Tag-62's dokumentierten Scope brechen
+   und die Selin-Tag-63-Audit-Verdict-Substanz (engine-wiring vs.
+   image-rebuild getrennt) rückwirkend invalidieren.
+
+2. **Domain-Boundary (Selin endet bei Engine-Wiring, Kai beginnt
+   bei Image-Rebuild).**
+   Tag-63-Audit §D6 stellt fest: "Selin's domain ends at the
+   engine wiring; Kai's domain begins at the Containerfile
+   rebuild." Tag-64 ist nicht der Cutover-Image-Build-Tag.
+   Cutover-Image-Build ist die KW-24-Operator-Hand-Action mit
+   eigener Sequence (siehe §6 T6/T7 oben). Eine Tag-64-Label-
+   Pre-Refresh würde diese Sequence-Disziplin brechen.
+
+3. **Byte-Stability-Anker für Doppelbetrieb-Regression.**
+   Der Wert `0.5.2-final-pre-cutover` ist die byte-stabile Anker-
+   Identität, gegen die die Doppelbetrieb-Regression-Comparison-
+   Baseline (Tag-48..Tag-52) läuft. Vor dem Cutover-T0 darf
+   dieses Label nicht verändert werden, sonst entsteht ein
+   Drift-Vektor zwischen Pre-Cutover-Image-Manifest und Engine-
+   Substrat. Refresh erst **nach** Cutover-T0, im Image-Rebuild-
+   Schritt (siehe §6 T6-Folge).
+
+### §9.3 Refresh-Trigger-Sequence (KW-24-Cutover-Image-Build)
+
+Die OCI-`image.version`-Label-Refresh ist explizite Kai-Hand-Action
+im Folge-Schritt nach §6 T7 (Strict-Flip-PR-Merge + Quadlet-Reload).
+Diese Sub-Sequence wird **nicht** vom Operator-Hand-Strict-Flip-PR
+ausgeführt, sondern als separater Kai-Hand-Image-Rebuild:
+
+| Sub-T | Action | Owner | Stop-on-Fail |
+|---|---|---|---|
+| J3-A | Diff `image.version` LABEL Containerfile.real vs. Engine-Version 0.5.3 | Kai | yes |
+| J3-B | LABEL-Patch-PR: `0.5.2-final-pre-cutover` → `0.5.3` (Containerfile.real Zeile 150) | Kai | yes |
+| J3-C | LABEL-description-Refresh: Tag-62-Konsolidierungs-Prosa → Tag-`KW-24`-Cutover-Prosa | Kai | no |
+| J3-D | Image-Rebuild + Re-Sign (`cosign sign --keyless`) | Kai + Operator | yes |
+| J3-E | Quadlet-Image-Tag-Bump auf neuen `0.5.3`-Image-Digest | Operator | yes |
+| J3-F | Cross-Substrate-Parity-Gate green-on-PR | Kai (CI) | yes |
+| J3-G | Containerfile-LABEL-Verify (`podman inspect`) gegen Refresh-Manifest | Operator | yes |
+
+Total Time-Budget J3-A..J3-G: ≤ 90 min Kai-Hand + ≤ 30 min Operator-
+Hand, an Cutover-T0+1 oder Cutover-T0+2 (KW-24 Di/Mi). **Nicht** an
+Cutover-T0 selbst — der T0..T9-Pfad bleibt LABEL-byte-stable.
+
+### §9.4 Carry-Forward-Status-Tabelle
+
+| Property | Wert |
+|---|---|
+| Item-ID | OPEN-J3 |
+| Audit-Quelle | Tag-63 Selin-Audit §D6 (`reports/audit/persona-engine-0-5-3-production-readiness-2026-05-19.md`) |
+| Substrat-Datei | `infra/persona-engine/Containerfile.real` |
+| Substrat-Zeile | 150 |
+| Current-Label | `org.opencontainers.image.version="0.5.2-final-pre-cutover"` |
+| Target-Label | `org.opencontainers.image.version="0.5.3"` |
+| Owner | Kai (Zone-J) |
+| Severity | `blocker-for-cutover-image-build` |
+| Status | `intentional-carry-forward` |
+| Closes Before | KW-24-Cutover-Image-Build (post Cutover-T0, Sub-Sequence §9.3) |
+| Tag-64-Decision | Carry-Forward (kein Pre-Cutover-Refresh) |
+| Decision-Begründung | §9.2 (3 Gründe: Scope-Split, Domain-Boundary, Byte-Stability) |
+
+### §9.5 Rationale-Anker für AR-Sichtung
+
+Drei AR-relevante Lese-Anker für die §9-Substanz:
+
+- Audit-Quelle vs. Map-Eintrag konsistent: §9.1 zitiert Containerfile-
+  Zeile 150 wörtlich, §D6 zitiert dieselbe Stelle.
+- Scope-Disziplin: §9.2 Punkt 1 ist die direkte Out-of-Scope-Klausel
+  aus Tag-62-Release-Notes §1, byte-genau zitiert.
+- Refresh-Action im Cutover-Plan verankert: §9.3 J3-A..J3-G hängt
+  hinter §6 T7, nicht parallel zu T0..T9 — die Strict-Flip-Sequenz
+  bleibt LABEL-byte-stabil.
+
 ---
 
-— Kai (Tag-58, 2026-05-19)
+— Kai (Tag-58 Original, Tag-64-Append 2026-05-19)
