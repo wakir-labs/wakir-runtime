@@ -463,10 +463,17 @@ def test_simulator_and_spec_and_verdict_exist_on_head() -> None:
     assert SIMULATOR_SCRIPT.is_file(), f"simulator missing: {SIMULATOR_SCRIPT}"
 
 
-def test_aggregator_help_lists_three_modes(aggregator) -> None:
+def test_aggregator_help_lists_known_modes(aggregator) -> None:
+    """The aggregator-helper exposes a finite, pinned set of modes.
+
+    Tag-56 shipped ``pin``, ``sequence``, ``aggregate``. Tag-59
+    added ``replay`` for the hermetic dry-run-replay workflow
+    (``.github/workflows/watch-day-practice-run-replay.yml``). Any
+    further mode-addition must update this regression-pin loud.
+    """
     parser = aggregator._build_parser()
     # argparse stores ``choices`` on the ``--mode`` action.
     mode_action = next(
         a for a in parser._actions if "--mode" in (a.option_strings or [])
     )
-    assert set(mode_action.choices) == {"pin", "sequence", "aggregate"}
+    assert set(mode_action.choices) == {"pin", "sequence", "aggregate", "replay"}
