@@ -564,6 +564,65 @@ groups:
           runbook_url: "https://wakir-labs.example/runbooks/failure-mode-b3-iia-1130-default"
           notify_path: "ntfy:ar-hand-info + activity-log:append"
 
+      # ---------------------------------------------------------
+      # Tag-71 Welle-3 Pre-Auditor Routing Element (Noa SRE)
+      # ---------------------------------------------------------
+      # Positive-confirmation counterpart to
+      # WakirPhase3FailureModeB3Iia1130DefaultPath: fires when the
+      # AR-Hand has designated the external Pre-Auditor per the
+      # welle-3-iia-1130-pre-decision-spec-2026-05-18.md, i.e. the
+      # Schluss-Audit-Signoff for Welle-3 carries
+      # auditor=external-pre-auditor instead of auditor=henrik.
+      #
+      # Routing class `welle-3-pre-auditor-info` channels this
+      # signal to the AR-Hand ntfy info topic and to the
+      # activity-log. The Day-1 operator does NOT act on this
+      # alert; it is a cross-channel audit-trail marker that
+      # closes Henrik's Tag-44 Pre-Mortem Class-B3 routing gap.
+      #
+      # Mutual exclusion with the Tag-45 default-path warning:
+      #   ext=1 AND henrik=0 -> this alert (Tag-71, INFO).
+      #   ext=0 AND henrik=1 -> Tag-45 alert (WARNING).
+      #   both=0 -> pre-decision; nothing fires.
+      #   both=1 -> rejected upstream by recording-rule pipeline.
+      - alert: WakirPhase3Welle3PreAuditorDesignated
+        expr: |
+          (
+            wakir_welle_schluss_audit_signoff{welle="welle-3", auditor="external-pre-auditor"} == 1
+          )
+          and
+          (
+            wakir_welle_schluss_audit_signoff{welle="welle-3", auditor="henrik"} == 0
+          )
+        for: 1m
+        labels:
+          severity: info
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          tag: tag-71
+          failure_mode: B3
+          welle: welle-3
+          standard: iia-1130
+          routing_class: welle-3-pre-auditor-info
+          mitigation: welle-3-iia-1130-pre-decision-spec
+        annotations:
+          summary: "Welle-3 external Pre-Auditor designated (IIA-1130 independence confirmed)"
+          description: >-
+            Welle-3 Schluss-Audit-Signoff carries
+            auditor=external-pre-auditor and no auditor=henrik
+            signoff is recorded. This is the positive-
+            confirmation counterpart to the Tag-45 Class-B3
+            default-path warning: the AR-Hand has executed the
+            welle-3-iia-1130-pre-decision-spec-2026-05-18.md
+            and designated an externer Pre-Auditor for Welle-3
+            (KW-25 SOLO). IIA-Standard 1130 independence
+            posture confirmed. No operator action; alert is a
+            cross-channel audit-trail marker for AR-Hand.
+          runbook_url: "https://wakir-labs.example/runbooks/welle-3-pre-auditor-designated"
+          notify_path: "ntfy:ar-hand-info + activity-log:append"
+
   - name: phase-3-marathon-failure-mode-c1-marker-false-positive-granular
     interval: 30s
     rules:
