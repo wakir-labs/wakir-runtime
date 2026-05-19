@@ -66,6 +66,56 @@ and the cross-substrate parity gate
 
 ---
 
+## 0. Version Header (Tag-58, 0.5.3-rc1)
+
+**Tag-58 (2026-05-19, Selin / Persona-Engine). Final Pre-Cutover RC
+before KW-24 cutover gate opens.** This §0 section pins the active
+engine version that consumes this manifest. The manifest body (§1–§7)
+remains byte-stable vs. its Tag-52 emit; the only change introduced
+by Tag-58 is the version-header marker recorded here so the hermetic
+version-consistency tests have a single docstring anchor to assert
+against.
+
+| Field | Value |
+|---|---|
+| Engine version (Python source of truth) | `0.5.3-rc1` |
+| Module anchor | `wirelang/persona_engine/__version__.py` |
+| Manifest file | `wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md` (this file) |
+| Pin pack (machine-readable) | `infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml` |
+| Release notes | `docs/persona-engine/0-5-3-rc1-release-notes.md` |
+| Strict superset of | `0.5.2-final-pre-cutover` (Tag-52, PR #335) |
+| Carry-forward closeouts | Tag-57 OPEN-K1, OPEN-K2 (Tomás PR #366); Tag-57 OPEN-J1 (Kai PR #367); Tag-57 emit-order pin (Selin PR #363) |
+| Remaining open item | OPEN-J2 (Operator-Hand, cutover-day live-VM) |
+| Boot fan-out byte-shape | unchanged vs. 0.5.2-final — ten records, canonical order |
+
+The 0.5.3-rc1 bump is **manifest-and-metadata-only**. It does **not**:
+
+* add or remove a `BackendDecision` record;
+* rename an ENV flag;
+* flip an ENV-flag default;
+* bump any crate version in the 15-crate cross-language pin pack;
+* alter the boot fan-out order pinned in Tag-57 PR #363.
+
+It only:
+
+* factors the Python version string from inline literals in
+  `__init__.py` + `engine.py` into the canonical
+  `wirelang/persona_engine/__version__.py` anchor;
+* stamps `0.5.3-rc1` at all four authority surfaces (this §0,
+  `__version__.py`, the release-notes file, and the test pin);
+* records the Tag-57 closeout chain as the absorbed substrate.
+
+> **Scope discipline (Selin).** This §0 documents the engine
+> version-bump only. It does **not** modify persona definitions
+> (Aisha-Domäne, ADR-0043), WAT-core logic (Tomás-Domäne, Zone-K),
+> identity-substrate design (Reza-Domäne, Zone-L), or container-
+> infra (Kai-Domäne, Zone-J). The Cross-Review Zone-J/K/L Konsens
+> from Tag-56 audit (PR #362) and Tag-57 closeout chain
+> (PR #366, #367) is carried forward unchanged; no fresh Cross-
+> Review gate is opened by this bump.
+
+---
+
 ## 1. Component Inventory (10 BackendDecision Records, Boot-Ordered)
 
 The 0.5.2-final-pre-cutover engine emits **exactly ten**
