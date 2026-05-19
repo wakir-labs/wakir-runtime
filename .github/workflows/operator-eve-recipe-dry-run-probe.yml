@@ -1,0 +1,188 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tag-67 Operator-Hand Cutover-Eve Final-Recipe Dry-Run Probe
+# -----------------------------------------------------------
+#
+# Purpose
+# =======
+#
+# Tag-66 PR #422 landed the 864-line consolidated Operator-Hand-
+# Cutover-Eve Final-Recipe at
+# `docs/operations/operator-hand-cutover-eve-final-recipe.md`. The
+# Tag-66 verifier (`tooling/ci/verify_operator_eve_final_recipe_doc.py`)
+# checks that all 9 sections + sub-anchors are present.
+#
+# This Tag-67 workflow walks one level deeper: it executes a per-stage
+# *shape-probe* for every Eve-Check (E1..E12), every T0-step
+# (T0.0..T0.9), every Welle-Day (T0+1..T0+6), every Rollback-Path
+# (R1..R5) and every AR-Touchpoint (TP1..TP6). The probe confirms:
+#
+#   * the stage marker is present in the document body,
+#   * the per-stage block declares the documented field labels
+#     (Owner / Action / Sandbox-OK / Verdict-Marker / Trigger /
+#     Recovery / Time-budget / Question / AR-Hand etc. depending on
+#     stage class),
+#   * a Sandbox-OK or Operator-Hand-Sandbox-Gap boundary is named,
+#   * every §7 cross-referenced runbook path resolves on disk.
+#
+# Verdicts
+# ========
+#
+#   * `EVE-DRY-RUN-CLEAN`  — every stage shape-probe green, every §7
+#                            cross-reference resolves.
+#   * `EVE-DRY-RUN-DRIFT`  — at least one stage missing a field label
+#                            or sandbox-boundary marker.
+#   * `EVE-DRY-RUN-DEFECT` — at least one stage marker absent or a §7
+#                            cross-reference unresolved.
+#
+# Sandbox Boundary
+# ================
+#
+# This workflow is **hermetic**:
+#
+#   * NO `gh api` calls.
+#   * NO `cosign` / `crane` / `podman` invocations.
+#   * NO network egress (the helper imports neither `socket` nor
+#     `urllib` — Tag-67 test #14 enforces this at the source level).
+#
+# Per ADR-0020 §10 + Memory `feedback_sandbox_host_trennung` +
+# Memory `feedback_live_bringup_sandbox_gap`. The recipe-text is
+# parsed; no recipe step is *executed*. The Operator-Hand execution
+# remains operator-workstation work per the Tag-66 doc itself.
+#
+# Trigger surface
+# ===============
+#
+#   * `push:` (path-filtered) — any edit to the recipe, the helper,
+#     the test-suite, or this workflow re-runs the dry-run.
+#   * `pull_request:` (same path-filter).
+#   * `workflow_dispatch:` — operator-hand manual invocation.
+
+name: operator-eve-recipe-dry-run-probe
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/operations/operator-hand-cutover-eve-final-recipe.md'
+      - 'tooling/ci/dry_run_operator_eve_recipe.py'
+      - 'tooling/ci/verify_operator_eve_final_recipe_doc.py'
+      - 'tests/observability/test_eve_recipe_dry_run_tag67.py'
+      - 'tests/observability/test_operator_eve_final_recipe_tag66.py'
+      - '.github/workflows/operator-eve-recipe-dry-run-probe.yml'
+  pull_request:
+    paths:
+      - 'docs/operations/operator-hand-cutover-eve-final-recipe.md'
+      - 'tooling/ci/dry_run_operator_eve_recipe.py'
+      - 'tooling/ci/verify_operator_eve_final_recipe_doc.py'
+      - 'tests/observability/test_eve_recipe_dry_run_tag67.py'
+      - 'tests/observability/test_operator_eve_final_recipe_tag66.py'
+      - '.github/workflows/operator-eve-recipe-dry-run-probe.yml'
+  workflow_dispatch:
+    inputs:
+      enforce:
+        description: 'If "true" (default), exit 1 on any DRIFT/DEFECT verdict.'
+        required: false
+        default: 'true'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  eve-recipe-dry-run-probe:
+    name: eve-recipe dry-run probe (hermetic)
+    runs-on: ubuntu-latest
+
+    env:
+      EVE_DRY_RUN_ENFORCE: ${{ github.event.inputs.enforce || 'true' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python (stdlib-only helper)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Stage A — Per-stage shape-probe (human-readable)
+        id: dry-run
+        shell: bash
+        run: |
+          set -u
+          out="$(python3 tooling/ci/dry_run_operator_eve_recipe.py \
+            --enforce false 2>&1)"
+          rc=$?
+          printf '%s\n' "${out}"
+          verdict="$(printf '%s\n' "${out}" | awk -F': ' '/^verdict:/ {print $2; exit}')"
+          echo "verdict=${verdict}" >> "$GITHUB_OUTPUT"
+          echo "rc=${rc}"           >> "$GITHUB_OUTPUT"
+          {
+            echo "# Tag-67 Operator-Eve-Recipe Dry-Run Probe"
+            echo
+            echo "**Verdict:** \`${verdict}\` (rc=${rc})"
+            echo
+            echo '```'
+            printf '%s\n' "${out}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Always exit 0 here; the enforce-gate step decides the final
+          # job-status so the test-suite still runs on a non-CLEAN verdict.
+          exit 0
+
+      - name: Stage B — Machine-readable JSON envelope
+        shell: bash
+        run: |
+          set -u
+          python3 tooling/ci/dry_run_operator_eve_recipe.py --json \
+            --enforce false > /tmp/eve-dry-run-envelope.json || true
+          echo "--- envelope ---"
+          cat /tmp/eve-dry-run-envelope.json
+
+      - name: Stage C — Re-run Tag-66 structural verifier (cross-check)
+        shell: bash
+        run: |
+          set -eu
+          # The Tag-66 verifier is the structural pre-condition; if the
+          # 9-section shape is broken the Tag-67 probes will all DEFECT
+          # anyway. We re-run it here as a fast fail-fast cross-check.
+          python3 tooling/ci/verify_operator_eve_final_recipe_doc.py
+
+      - name: Install pytest (hermetic test-suite uses pytest fixtures)
+        run: |
+          set -eu
+          python -m pip install --upgrade pip
+          python -m pip install "pytest>=8.0"
+
+      - name: Stage D — Run Tag-67 hermetic test-suite
+        run: |
+          set -eu
+          python -m pytest tests/observability/test_eve_recipe_dry_run_tag67.py \
+            -v --tb=short
+
+      - name: Stage E — Enforce verdict
+        shell: bash
+        run: |
+          set -u
+          verdict="${{ steps.dry-run.outputs.verdict }}"
+          rc="${{ steps.dry-run.outputs.rc }}"
+          enforce="${EVE_DRY_RUN_ENFORCE}"
+
+          echo "eve-dry-run: verdict=${verdict} rc=${rc} enforce=${enforce}"
+
+          if [ "${verdict}" = "EVE-DRY-RUN-CLEAN" ]; then
+            echo "::notice::EVE-DRY-RUN-CLEAN — all stage probes green, all §7 cross-refs resolve."
+            exit 0
+          fi
+
+          if [ "${enforce}" = "true" ] && \
+             { [ "${verdict}" = "EVE-DRY-RUN-DRIFT" ] || \
+               [ "${verdict}" = "EVE-DRY-RUN-DEFECT" ]; }; then
+            echo "::error::${verdict} — Tag-66 recipe has per-stage shape drift. See job summary."
+            exit 1
+          fi
+
+          echo "::warning::${verdict} but enforce=false — running in audit-only mode."
+          exit 0
