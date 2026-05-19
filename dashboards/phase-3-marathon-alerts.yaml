@@ -120,11 +120,65 @@
 #   - Henrik-Spec Phase-3-Schluss-Akzeptanz 5-Konjunktion.
 #   - reports/audit/phase-3-marathon-pre-mortem-2026-05-18.md (Henrik Tag-44).
 #
+# Tag-64 Cutover-Day-Morgen Trinary-Verdict-Reactive-Routing
+# ----------------------------------------------------------
+# Selin Tag-64 ships a `phase-3-cutover-day-auto-scheduler` workflow
+# that emits a trinary verdict for the Cutover-Day-Morgen go/no-go
+# decision on Tue 2026-06-09 ~04:30 UTC, T-30min before the watch-day
+# operator trigger fires. The scheduler reads the last-N Watch-Day
+# practice-run verdicts + Pre-Cutover-Sanity verdict + Stability-
+# Window-Probe state and emits ONE of three Cutover-Day-Morgen
+# verdict classes:
+#
+#   * READY    -- last-N green, sanity green, stability green.
+#                 Standard info channel; AR-Hand sees a single
+#                 ntfy ping on the standard topic.
+#   * CAUTION  -- one or more inputs yellow (drift detected but
+#                 not blocking). Ops-on-call paged; AR-Hand sees
+#                 the page on the ops topic; standard info channel
+#                 also receives a copy for audit-trail completeness.
+#   * BLOCK    -- one or more inputs red (defect detected,
+#                 cutover go/no-go must be re-deliberated). Page-
+#                 storm: ops-on-call + management both paged; the
+#                 BLOCK verdict opens a Mira-Hand-Hold-Marker on
+#                 the activity-log + escalates to AR if not
+#                 acknowledged within 5 minutes.
+#
+# Tag-64 adds three Cutover-Day-Morgen-Verdict-Reactive alarms:
+#
+#   * WakirCutoverDayMorgenVerdictReady     (severity=info,
+#       routing-class=standard)  -- READY signal published; the
+#       alarm is informational and short (for-window=30s).
+#   * WakirCutoverDayMorgenVerdictCaution   (severity=page,
+#       routing-class=ops-on-call)  -- CAUTION signal published.
+#       Page the on-call SRE.
+#   * WakirCutoverDayMorgenVerdictBlock     (severity=page-storm,
+#       routing-class=ops-on-call-plus-management)  -- BLOCK
+#       signal published. Storm-page (ops + management) + Mira-
+#       Hand-Hold-Marker emitted in parallel.
+#
+# Each Tag-64 alert carries the new label `routing_class` (one of
+# standard / ops-on-call / ops-on-call-plus-management) so the
+# AlertManager-side route-tree can fan out without re-parsing
+# the alertname. The bridge maps `routing_class` -> emitter
+# severity/channel set; the workflow
+# `.github/workflows/cutover-day-morgen-trinary-routing-validate.yml`
+# pins the label-presence and the alertname-set.
+#
+# Trinary-verdict-source contract: the source of truth is the Selin
+# Tag-64 Cutover-Day-Morgen Auto-Scheduler output envelope
+# (`out/cutover-day-morgen-verdict.json`, schema_version=1, tag=64,
+# field `verdict` in {READY, CAUTION, BLOCK}). The alerts fire on
+# the `wakir_cutover_day_morgen_verdict_class` recording-rule
+# (string-encoded numeric: 0=READY, 1=CAUTION, 2=BLOCK), see the
+# Tag-64 helper `tooling/ci/decide_cutover_day_dispatch.py`.
+#
 # Alert routing follows the Wakir SRE-standard: severity=page
 # alerts target the 24/7 on-call rotation via AlertManager
 # pagerduty receiver; severity=ticket alerts open a JIRA-style
-# operations ticket via webhook. The for-windows are sized to
-# tolerate one Prometheus scrape gap (15s default) without
+# operations ticket via webhook. severity=page-storm fans out to
+# pagerduty + management mailing-list. The for-windows are sized
+# to tolerate one Prometheus scrape gap (15s default) without
 # false-positives.
 
 groups:
@@ -1258,3 +1312,121 @@ groups:
             with operator-hand snapshot.
           runbook_url: "https://wakir-labs.example/runbooks/welle-7-replay-divergence"
           notify_path: "pagerduty:sre-oncall + ntfy:ar-hand + activity-log:append"
+
+  # ---------------------------------------------------------------
+  # Tag-64 Cutover-Day-Morgen Trinary-Verdict-Reactive-Routing
+  # ---------------------------------------------------------------
+  # Three alerts that fire on the trinary verdict class emitted by
+  # the Selin Tag-64 Cutover-Day-Morgen Auto-Scheduler. Each alert
+  # carries a `routing_class` label that the AlertManager route-tree
+  # consumes to fan out into the correct channel set:
+  #
+  #   READY    -> routing_class=standard
+  #               -> notify channel: ntfy:ar-hand-info
+  #   CAUTION  -> routing_class=ops-on-call
+  #               -> notify channels: pagerduty:sre-oncall + ntfy:ar-hand
+  #   BLOCK    -> routing_class=ops-on-call-plus-management
+  #               -> notify channels: pagerduty:sre-oncall +
+  #                  pagerduty:management + ntfy:ar-hand +
+  #                  activity-log:hold-marker
+  #
+  # All three feed the same recording rule
+  # `wakir_cutover_day_morgen_verdict_class` (0=READY, 1=CAUTION,
+  # 2=BLOCK). Exactly ONE of the three alarms must fire at any time
+  # the verdict is published (mutual exclusion enforced by the
+  # decision-equality matcher on the integer-encoded class value).
+  - name: cutover-day-morgen-trinary-routing
+    interval: 30s
+    rules:
+      - alert: WakirCutoverDayMorgenVerdictReady
+        # READY: Selin Tag-64 Auto-Scheduler verdict = READY.
+        # Informational - the AR-Hand sees a single ntfy ping on the
+        # standard info topic. No page, no on-call wake-up. Short
+        # for-window because the verdict-class metric is a level
+        # value (a published verdict stays set until next decision).
+        expr: wakir_cutover_day_morgen_verdict_class == 0
+        for: 30s
+        labels:
+          severity: info
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          tag: tag-64
+          verdict_class: ready
+          routing_class: standard
+        annotations:
+          summary: "Cutover-Day-Morgen verdict: READY (go for T0 trigger)"
+          description: >-
+            Selin Tag-64 Cutover-Day-Morgen Auto-Scheduler verdict
+            published as READY (verdict_class=0). Last-N Watch-Day
+            practice-run verdicts green, Pre-Cutover-Sanity green,
+            Stability-Window-Probe green. AR-Hand may proceed with
+            T0 operator-trigger at 05:00 UTC. No action required.
+          runbook_url: "https://wakir-labs.example/runbooks/cutover-day-morgen-ready"
+          notify_path: "ntfy:ar-hand-info + activity-log:append"
+
+      - alert: WakirCutoverDayMorgenVerdictCaution
+        # CAUTION: Selin Tag-64 Auto-Scheduler verdict = CAUTION.
+        # One or more inputs yellow (drift detected, not blocking).
+        # Page the on-call SRE so the verdict-rationale is reviewed
+        # before T0. Standard channel also receives a copy for
+        # audit-trail completeness; the route-tree splits on the
+        # `routing_class=ops-on-call` label.
+        expr: wakir_cutover_day_morgen_verdict_class == 1
+        for: 30s
+        labels:
+          severity: page
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          tag: tag-64
+          verdict_class: caution
+          routing_class: ops-on-call
+        annotations:
+          summary: "Cutover-Day-Morgen verdict: CAUTION (drift detected; review before T0)"
+          description: >-
+            Selin Tag-64 Cutover-Day-Morgen Auto-Scheduler verdict
+            published as CAUTION (verdict_class=1). One or more
+            input gates yellow: review the Auto-Scheduler envelope
+            (out/cutover-day-morgen-verdict.json) for which gate
+            (last-N watch-day, sanity, stability) drifted. Decision
+            authority: AR-Hand. SRE on-call must acknowledge within
+            10 minutes; otherwise escalate to AR.
+          runbook_url: "https://wakir-labs.example/runbooks/cutover-day-morgen-caution"
+          notify_path: "pagerduty:sre-oncall + ntfy:ar-hand + activity-log:append"
+
+      - alert: WakirCutoverDayMorgenVerdictBlock
+        # BLOCK: Selin Tag-64 Auto-Scheduler verdict = BLOCK.
+        # One or more inputs red (defect detected); the go/no-go
+        # for Cutover-Day must be re-deliberated. Page-storm:
+        # pagerduty fans out to ops-on-call AND management; AR-Hand
+        # sees the ntfy storm; a Mira-Hand-Hold-Marker is written
+        # to the activity-log so the operator-trigger pipeline
+        # cannot fire T0 without explicit unblock. The route-tree
+        # splits on `routing_class=ops-on-call-plus-management`.
+        expr: wakir_cutover_day_morgen_verdict_class == 2
+        for: 30s
+        labels:
+          severity: page-storm
+          phase: phase-3-marathon
+          team: sre
+          owner: noa-sre
+          adr: adr-0066
+          tag: tag-64
+          verdict_class: block
+          routing_class: ops-on-call-plus-management
+        annotations:
+          summary: "Cutover-Day-Morgen verdict: BLOCK (cutover go/no-go must be re-deliberated)"
+          description: >-
+            Selin Tag-64 Cutover-Day-Morgen Auto-Scheduler verdict
+            published as BLOCK (verdict_class=2). One or more input
+            gates red: review the Auto-Scheduler envelope (out/
+            cutover-day-morgen-verdict.json) and the upstream gate
+            verdicts immediately. Mira-Hand-Hold-Marker emitted to
+            activity-log; T0 operator-trigger pipeline is HELD until
+            explicit AR-Hand unblock. Escalation to AR after 5
+            minutes of unacknowledged storm.
+          runbook_url: "https://wakir-labs.example/runbooks/cutover-day-morgen-block"
+          notify_path: "pagerduty:sre-oncall + pagerduty:management + ntfy:ar-hand + activity-log:hold-marker"
