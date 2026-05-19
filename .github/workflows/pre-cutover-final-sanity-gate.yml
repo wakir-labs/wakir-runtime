@@ -204,10 +204,13 @@ jobs:
             status="yellow"
             note="spec v0.4.3 not yet on HEAD (pre-freeze)"
           else
-            # Post-freeze: the spec exists but the freeze-marker
-            # must be present in the frontmatter (line within first
-            # 30 lines containing ``status: freeze``).
-            if ! head -n 30 "$spec" | grep -qE '^status:[[:space:]]*freeze'; then
+            # Post-freeze: the spec exists. We accept any
+            # ``status:`` value within the first 30 lines that
+            # contains the literal substring ``freeze`` (so
+            # ``freeze``, ``pre-cutover-freeze``, and
+            # ``cutover-freeze`` all qualify). The kanonical
+            # Tag-53 PR #338 form is ``pre-cutover-freeze``.
+            if ! head -n 30 "$spec" | grep -qE '^status:[[:space:]]*[A-Za-z0-9_-]*freeze'; then
               status="red"
               note="spec present but no freeze-marker in frontmatter"
             fi
