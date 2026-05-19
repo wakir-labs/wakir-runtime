@@ -1,0 +1,16 @@
+{
+  "welle_number": 5,
+  "schema_version": "tag-67-v1",
+  "phase": "phase-3-marathon",
+  "kw_cutover_anchor": "KW-25",
+  "cutover_iso": "",
+  "signoff_iso": "",
+  "status": "pending",
+  "rollup_links": {
+    "sign_off": "state/welle-5-sign-off.json",
+    "validation_last_verdict": "state/welle-5-validation-last-verdict.json",
+    "hot_spot_trend_dir": "state/welle-5-hot-spot-trend/",
+    "pre_auditor_decision": "state/welle-5-pre-auditor-decision.json"
+  },
+  "audit_trail_anchor": ""
+}
