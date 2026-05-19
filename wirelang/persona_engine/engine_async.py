@@ -58,6 +58,7 @@ from .engine import (
     handle_welle_4_signoff_event as _sync_handle_welle_4_signoff_event,
     handle_welle_5_signoff_event as _sync_handle_welle_5_signoff_event,
     handle_welle_6_signoff_event as _sync_handle_welle_6_signoff_event,
+    handle_welle_7_signoff_event as _sync_handle_welle_7_signoff_event,
     handle_welle_rollback_event as _sync_handle_welle_rollback_event,
     handle_welle_sealing_event as _sync_handle_welle_sealing_event,
     resolve_env,
@@ -966,6 +967,45 @@ async def handle_welle_3_signoff_event(
             signoff_iso,
             sign_off_marker_status=sign_off_marker_status,
             pre_auditor_decision=pre_auditor_decision,
+            audit_emitter=audit_emitter,
+        ),
+    )
+
+
+async def handle_welle_7_signoff_event(
+    state_dir: Path,
+    signoff_iso: str,
+    *,
+    sign_off_marker_status: str,
+    pre_auditor_decision: Optional[str] = None,
+    final_sealing_marker_status: str,
+    audit_emitter: Optional[AuditRecordEmitter] = None,
+) -> WelleAuditRecord:
+    """Async wrapper around :func:`engine.handle_welle_7_signoff_event`.
+
+    Runs the sync handler in the default loop's thread-pool executor so
+    file I/O does not block the event loop. The Welle-7 Final-Sealing
+    sign-off is the terminal Phase-3c-Welle-Marathon sign-off
+    (KW-27 per ``docs/quality-gates/pre-cutover-acceptance-run-order.md``
+    §3 + ``docs/quality-gates/phase-3c-doppel-welle-6-7.md`` §4
+    Phase-3-Marathon-Schluss-Acceptance). All three preconditions
+    (sign-off-marker, pre-auditor-decision, final-sealing-marker) are
+    enforced by the underlying producer-substrate.
+
+    The async wrapper is the engine_async event-loop entry-point;
+    downstream audit-trail consumers may fire the
+    ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7`` marker on the returned
+    record (per phase-3c-doppel-welle-6-7.md §4.1).
+    """
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        None,
+        lambda: _sync_handle_welle_7_signoff_event(
+            state_dir,
+            signoff_iso,
+            sign_off_marker_status=sign_off_marker_status,
+            pre_auditor_decision=pre_auditor_decision,
+            final_sealing_marker_status=final_sealing_marker_status,
             audit_emitter=audit_emitter,
         ),
     )

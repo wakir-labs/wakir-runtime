@@ -1330,3 +1330,69 @@ def handle_welle_6_signoff_event(
             cross_substrate_parity_marker_status
         ),
     )
+
+
+def handle_welle_7_signoff_event(
+    state_dir: Path,
+    signoff_iso: str,
+    *,
+    sign_off_marker_status: str,
+    pre_auditor_decision: Optional[str] = None,
+    final_sealing_marker_status: str,
+    audit_emitter: Optional[AuditRecordEmitter] = None,
+) -> WelleAuditRecord:
+    """Top-level dispatch for the Welle-7 Final-Sealing sign-off (Tag-75).
+
+    Welle-7 is the Final-Sealing-Welle (terminal Welle of the Phase-3c-
+    Welle-Marathon, KW-27 per
+    ``docs/quality-gates/pre-cutover-acceptance-run-order.md`` §3 +
+    ``docs/quality-gates/phase-3c-doppel-welle-6-7.md`` §4 Phase-3-
+    Marathon-Schluss-Acceptance). The sign-off is gated by three
+    preconditions:
+
+    * the standard sign-off-marker companion guard,
+    * the pre-auditor guard (Welle-7 is in
+      :data:`PRE_AUDITOR_GUARDED_WELLEN`, Henrik-cannot-self-sign-off
+      invariant; mirrors Welle-3),
+    * the final-sealing-marker (Tag-75 §2.8; operator-curated
+      ``state/welle-7-final-sealing.json``).
+
+    The downstream audit-trail consumer fires the
+    ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7`` marker on a successful
+    Welle-7 sign-off (per phase-3c-doppel-welle-6-7.md §4.1
+    ``test_dw_ac_6_7_p3m_welle_7_sign_off_triggers_phase_3_complete_marker``).
+    The marker emission itself is audit-trail-consumer-territory; this
+    handler emits only the producer-substrate ``WelleAuditRecord`` with
+    ``trigger="final-sealing"``.
+
+    Args:
+        state_dir: Directory containing ``state/welle-7.json``.
+        signoff_iso: RFC 3339 sign-off timestamp.
+        sign_off_marker_status: Companion-marker status; must be
+            ``"signed-off"`` (refusal-to-write otherwise).
+        pre_auditor_decision: Designated-pre-auditor decision-literal;
+            must be ``"designated"`` (Welle-7 is pre-auditor-guarded
+            per the Henrik-cannot-self-sign-off invariant).
+        final_sealing_marker_status: Final-sealing marker; must be
+            exactly ``"confirmed"`` (refusal-to-write otherwise). The
+            marker is operator-curated by the Phase-3-Marathon-Schluss-
+            Acceptance verdict workflow.
+        audit_emitter: Optional audit-record sink; defaults to no-op.
+
+    Returns:
+        The :class:`WelleAuditRecord` describing the transition (or the
+        idempotent no-op if Welle-7 is already signed-off). The record
+        carries ``trigger="final-sealing"``.
+    """
+    if audit_emitter is None:
+        producer = WelleStateProducer(state_dir=state_dir)
+    else:
+        producer = WelleStateProducer(
+            state_dir=state_dir, audit_emitter=audit_emitter
+        )
+    return producer.handle_welle_7_signoff_event(
+        signoff_iso=signoff_iso,
+        sign_off_marker_status=sign_off_marker_status,
+        pre_auditor_decision=pre_auditor_decision,
+        final_sealing_marker_status=final_sealing_marker_status,
+    )
