@@ -159,6 +159,39 @@ enforcement here** — the helper only surfaces tracking; the gate
 itself lives in Henrik's Internal-Audit + Reza-Identity-Substrate
 workflows.
 
+Tag-74 Welle-6 audit-trail-anchor extension
+-------------------------------------------
+
+The ``--mode welle-6-audit-anchor`` flag mirrors the Welle-1 /
+Welle-2 / Welle-3 / Welle-4 / Welle-5 wiring for the Welle-6
+``subscribe_loop`` Cutover (KW-27, parallel to Welle-7). Same
+canonical bundle shape, same hash recipe (Cross-Substrate-Parity-
+Markers asserted in the Tag-74 test suite).
+
+Welle-6 carries its own discipline: the subscribe-loop Self-Repair-
+Hygiene-Tracking (Tag-73-Lehre: PR #461 cross-Persona Self-Repair-
+Hygiene-Fix carry-through). The Welle-6 sign-off-record carries the
+Self-Repair-Hygiene cadence + last-cycle timestamp + re-subscribe-
+window flag + evidence-ref so the audit-trail anchor can pin the
+hygiene discipline at sign-off. The marker exposes a
+``subscribe_loop_self_repair_hygiene_tracking`` block:
+
+  * ``subscribe_loop_self_repair_hygiene_active``: bool — True iff
+    the rollup / sign-off carries the hygiene discipline at all.
+  * ``subscribe_loop_self_repair_hygiene_status``: one of "pending"
+    / "drilled" / "exempt" / "unknown" — derived from the rollup or
+    sign-off payload when present; "unknown" otherwise.
+  * ``subscribe_loop_last_hygiene_cycle_iso``: ISO-8601 timestamp
+    of the most recent Self-Repair-Hygiene drill, or empty string.
+  * ``subscribe_loop_re_subscribe_window_closed``: bool — True iff
+    the sign-off declares the re-subscribe-window closed.
+  * ``subscribe_loop_self_repair_hygiene_evidence_ref``: free-form
+    evidence pointer (URL, doc-path, runbook-section) or empty.
+
+This block lets the downstream observability surface dispatch the
+hygiene-discipline gate without re-reading the bundle. **No
+enforcement here** — the helper only surfaces tracking.
+
 Welle-4 carries its own discipline: the State-Backing-Snapshot-
 Restore-Pflicht-Flag (see Amara Tag-67 state-file conventions). The
 marker exposes a ``snapshot_restore_pflicht_tracking`` block:
@@ -271,6 +304,7 @@ MODE_WELLE_2_AUDIT_ANCHOR: str = "welle-2-audit-anchor"
 MODE_WELLE_3_AUDIT_ANCHOR: str = "welle-3-audit-anchor"
 MODE_WELLE_4_AUDIT_ANCHOR: str = "welle-4-audit-anchor"
 MODE_WELLE_5_AUDIT_ANCHOR: str = "welle-5-audit-anchor"
+MODE_WELLE_6_AUDIT_ANCHOR: str = "welle-6-audit-anchor"
 ANCHOR_TARGET_OTS_CALENDAR: str = "opentimestamps-calendar"
 
 # Tag-69 Welle-1 audit-trail-anchor mode constants.
@@ -338,6 +372,24 @@ WELLE_5_BUNDLE_ORDER: tuple[str, ...] = WELLE_1_BUNDLE_ORDER
 WELLE_5_BUNDLE_REQUIRED: frozenset[str] = WELLE_1_BUNDLE_REQUIRED
 WELLE_5_KIND_MARKER: str = "welle-5-audit-trail-anchor-marker"
 WELLE_5_KIND_ENVELOPE: str = "welle-5-audit-trail-anchor-envelope"
+
+# Tag-74 Welle-6 audit-trail-anchor mode constants. Mirror of the
+# Welle-1 / Welle-2 / Welle-3 / Welle-4 / Welle-5 wiring (same canonical
+# bundle shape and same hash recipe). Welle-6 covers ``subscribe_loop``
+# Cutover (KW-27, parallel to Welle-7); additional discipline: the
+# marker exposes a ``subscribe_loop_self_repair_hygiene_tracking``
+# block carrying the Self-Repair-Hygiene cadence + last-cycle-iso +
+# re-subscribe-window-closed flag + hygiene-evidence-ref so the
+# downstream observability surface can pin Self-Repair-Hygiene
+# readiness at sign-off without re-reading the bundle. Tag-73-Lehre
+# (cross-Persona Self-Repair-Hygiene-Fix from PR #461) carries through.
+# Cross-Substrate-Parity-Markers: the Welle-6 marker references the
+# Welle-1..5 cross-coord anchors (parity-pin), and recipe-identity
+# with Welle-1..5 is asserted in the Tag-74 test suite.
+WELLE_6_BUNDLE_ORDER: tuple[str, ...] = WELLE_1_BUNDLE_ORDER
+WELLE_6_BUNDLE_REQUIRED: frozenset[str] = WELLE_1_BUNDLE_REQUIRED
+WELLE_6_KIND_MARKER: str = "welle-6-audit-trail-anchor-marker"
+WELLE_6_KIND_ENVELOPE: str = "welle-6-audit-trail-anchor-envelope"
 
 # Required top-level keys for a schema-v1 marker payload. Used by the
 # pre-activation-probe's ``payload_shape`` stage.
@@ -1422,6 +1474,268 @@ def load_welle_5_bundle(
     return bundle
 
 
+# --------------------------------------------------------------------- #
+# Tag-74 Welle-6 audit-trail-anchor (subscribe_loop)
+# --------------------------------------------------------------------- #
+
+
+def compute_welle_6_audit_anchor_hash(bundle: dict) -> str:
+    """Compute the Welle-6 audit-trail-anchor SHA-256 from a bundle.
+
+    Identical recipe to Welle-1 / Welle-2 / Welle-3 / Welle-4 / Welle-5
+    (canonical-JSON concat in ``WELLE_6_BUNDLE_ORDER`` joined by
+    ``b"\\n"``). Kept as its own symbol — rather than aliasing the
+    prior entries — so a future recipe divergence (e.g. subscribe-loop-
+    specific canonicalisation or self-repair-hygiene-payload
+    normalisation) can be introduced without breaking the call-site
+    contract that Selin's Tag-74 producer relies on. Recipe-identity
+    with Welle-1..5 is asserted in the Tag-74 test suite (Cross-
+    Substrate-Parity-Markers).
+    """
+    missing = WELLE_6_BUNDLE_REQUIRED - set(bundle.keys())
+    if missing:
+        raise ValueError(
+            f"welle-6 bundle missing required keys: {sorted(missing)}"
+        )
+
+    parts: list[bytes] = []
+    for key in WELLE_6_BUNDLE_ORDER:
+        if key not in bundle:
+            continue
+        value = bundle[key]
+        if not isinstance(value, dict):
+            raise ValueError(
+                f"welle-6 bundle key {key!r} must be a JSON object dict, "
+                f"got {type(value).__name__}"
+            )
+        parts.append(_canonical_json_bytes(value))
+
+    return hashlib.sha256(b"\n".join(parts)).hexdigest()
+
+
+# Allowed subscribe-loop-self-repair-hygiene-status enum (defensive —
+# narrow vocab so downstream consumers can dispatch on a small fixed
+# set; anything else becomes "unknown" in the tracking block). Mirrors
+# the Welle-5 capability-token-rotation-status enum shape.
+SUBSCRIBE_LOOP_SELF_REPAIR_HYGIENE_STATUS_VALUES: frozenset[str] = frozenset(
+    {"pending", "drilled", "exempt", "unknown"}
+)
+
+
+def derive_subscribe_loop_self_repair_hygiene_tracking(bundle: dict) -> dict:
+    """Derive the Welle-6 ``subscribe_loop_self_repair_hygiene_tracking``.
+
+    Tag-74 Welle-6 carries the subscribe-loop Self-Repair-Hygiene
+    discipline (Tag-73-Lehre: PR #461 cross-Persona Self-Repair-Hygiene-
+    Fix carries through to Welle-6 ``subscribe_loop`` Cutover). The
+    rollup / sign-off declares whether the Self-Repair-Hygiene cycle
+    was drilled prior to cutover, when the last cycle was performed,
+    whether the re-subscribe-window is declared closed at cutover-time
+    by the sign-off, and where the hygiene-drill evidence lives.
+
+    The tracking block is read from the rollup / sign-off payloads
+    (in that order) so the marker can surface hygiene-readiness
+    without forcing downstream consumers to re-read the bundle.
+    Conservative defaults: unknown status, empty iso / evidence-ref,
+    hygiene-active False unless the bundle says so, re-subscribe-
+    window-closed False unless the sign-off says so.
+
+    Shape::
+
+      {
+        "subscribe_loop_self_repair_hygiene_active": bool,
+        "subscribe_loop_self_repair_hygiene_status": str (enum),
+        "subscribe_loop_last_hygiene_cycle_iso": str (ISO-8601 or empty),
+        "subscribe_loop_re_subscribe_window_closed": bool,
+        "subscribe_loop_self_repair_hygiene_evidence_ref": str,
+      }
+    """
+    rollup = bundle.get("rollup", {}) if isinstance(
+        bundle.get("rollup"), dict
+    ) else {}
+    sign_off = bundle.get("sign_off", {}) if isinstance(
+        bundle.get("sign_off"), dict
+    ) else {}
+
+    # Hygiene-active: rollup carries the canonical value; sign-off
+    # may declare it only if rollup is silent.
+    hygiene_active = bool(
+        rollup.get(
+            "subscribe_loop_self_repair_hygiene_active",
+            sign_off.get(
+                "subscribe_loop_self_repair_hygiene_active", False
+            ),
+        )
+    )
+
+    raw_status = (
+        rollup.get("subscribe_loop_self_repair_hygiene_status")
+        or sign_off.get("subscribe_loop_self_repair_hygiene_status")
+        or "unknown"
+    )
+    if raw_status not in SUBSCRIBE_LOOP_SELF_REPAIR_HYGIENE_STATUS_VALUES:
+        raw_status = "unknown"
+
+    last_cycle_iso = (
+        rollup.get("subscribe_loop_last_hygiene_cycle_iso")
+        or sign_off.get("subscribe_loop_last_hygiene_cycle_iso")
+        or ""
+    )
+    if not isinstance(last_cycle_iso, str):
+        last_cycle_iso = ""
+
+    # Re-subscribe-window-closed: sign-off carries the canonical value
+    # (cutover-time declaration); rollup may surface it only as a
+    # fallback (e.g. for pre-cutover tracking). Mirrors Welle-5
+    # replay-window-closed precedence.
+    re_subscribe_window_closed = bool(
+        sign_off.get(
+            "subscribe_loop_re_subscribe_window_closed",
+            rollup.get(
+                "subscribe_loop_re_subscribe_window_closed", False
+            ),
+        )
+    )
+
+    evidence_ref = (
+        rollup.get("subscribe_loop_self_repair_hygiene_evidence_ref")
+        or sign_off.get("subscribe_loop_self_repair_hygiene_evidence_ref")
+        or ""
+    )
+    if not isinstance(evidence_ref, str):
+        evidence_ref = ""
+
+    return {
+        "subscribe_loop_self_repair_hygiene_active": hygiene_active,
+        "subscribe_loop_self_repair_hygiene_status": raw_status,
+        "subscribe_loop_last_hygiene_cycle_iso": last_cycle_iso,
+        "subscribe_loop_re_subscribe_window_closed": re_subscribe_window_closed,
+        "subscribe_loop_self_repair_hygiene_evidence_ref": evidence_ref,
+    }
+
+
+def build_welle_6_audit_anchor_marker(
+    *,
+    bundle: dict,
+    anchor_hash: str,
+    actor: str,
+    now_utc: _dt.datetime,
+) -> dict:
+    """Assemble the Welle-6 audit-trail-anchor marker dict.
+
+    Mirror of the Welle-1 / Welle-2 / Welle-3 / Welle-4 / Welle-5
+    marker, with ``welle_number=6`` and Welle-6-specific kind strings.
+    The marker is the audit-only artefact that Tomás emits and that
+    Selin's Tag-74 producer reads to populate
+    ``state/welle-6.json:audit_trail_anchor``.
+
+    Tag-74 discipline: the marker exposes the
+    ``subscribe_loop_self_repair_hygiene_tracking`` block so the
+    Self-Repair-Hygiene cadence + last-cycle-iso + re-subscribe-window-
+    closed flag + hygiene-evidence-ref surface on the observability
+    channel without re-reading the bundle (Tag-73-Lehre carry-through:
+    PR #461 cross-Persona Self-Repair-Hygiene-Fix discipline).
+
+    Cross-Substrate-Parity-Markers (Tag-74 auftrag): the ``anchors``
+    block references Welle-1..5 cross-coord PRs so a downstream
+    consumer can trace the full Welle-1..6 audit-anchor lineage in
+    a single envelope.
+    """
+    iso_now = now_utc.isoformat()
+    tracking = derive_subscribe_loop_self_repair_hygiene_tracking(bundle)
+    return {
+        "schema_version": 1,
+        "kind": WELLE_6_KIND_MARKER,
+        "mode": MODE_WELLE_6_AUDIT_ANCHOR,
+        "welle_number": 6,
+        "audit_trail_anchor": anchor_hash,
+        "bundle_keys": sorted(
+            k for k in WELLE_6_BUNDLE_ORDER if k in bundle
+        ),
+        "subscribe_loop_self_repair_hygiene_tracking": tracking,
+        "wat_spool_envelope": {
+            "schema_version": 1,
+            "kind": WELLE_6_KIND_ENVELOPE,
+            "audit_trail_anchor": anchor_hash,
+            "requested_at_utc": iso_now,
+            "actor": actor,
+            "anchor_target": ANCHOR_TARGET_OTS_CALENDAR,
+        },
+        "emitted_at_utc": iso_now,
+        "anchors": {
+            "adr_audit_trail": "decisions/0007-internal-audit-trail-ots.md",
+            "amara_tag_67_state_file_conventions_pr": 429,
+            "tomas_tag_69_welle_1_audit_anchor_pr": 439,
+            "tomas_tag_70_welle_2_audit_anchor_pr": 445,
+            "tomas_tag_71_welle_3_audit_anchor_pr": 450,
+            "tomas_tag_72_welle_4_audit_anchor_pr": 457,
+            "tomas_tag_73_welle_5_audit_anchor_pr": 464,
+            "selin_tag_74_producer_pr": None,
+            "tomas_tag_74_audit_anchor_pr": None,
+            "state_file_conventions_doc": (
+                "docs/quality-gates/welle-n-state-file-conventions.md"
+            ),
+            "producer_wiring_plan_doc": (
+                "docs/persona-engine/state-file-producer-wiring-plan.md"
+            ),
+            "welle_6_context": "subscribe-loop-cutover-kw27",
+            "welle_6_runbook": (
+                "docs/operations/phase-3c-welle-6-runbook.md"
+            ),
+            "subscribe_loop_self_repair_hygiene_discipline": (
+                "tag-73-lehre-pr-461-cross-persona-self-repair-hygiene-fix"
+            ),
+            "cross_substrate_parity_markers": [
+                "welle-1",
+                "welle-2",
+                "welle-3",
+                "welle-4",
+                "welle-5",
+                "welle-6",
+            ],
+        },
+        "operator_hand_next_step": (
+            "Selin's persona-engine batch-writer "
+            "(engine.py::backfill_audit_trail_anchors, welle=6) reads "
+            "this marker and writes the audit_trail_anchor into "
+            "state/welle-6.json. Subscribe-Loop-Self-Repair-Hygiene-"
+            "Tracking surfaces on the observability channel for the "
+            "hygiene-discipline gate. Real OTS calendar stamping is "
+            "Operator-Hand on a network-attached host, separate step."
+        ),
+    }
+
+
+def load_welle_6_bundle(
+    *,
+    rollup_path: Path,
+    sign_off_path: Path,
+    validation_path: Path | None,
+    pre_auditor_path: Path | None,
+) -> dict:
+    """Load the Welle-6 sign-off-record bundle from disk.
+
+    Same shape as ``load_welle_1_bundle`` / ``load_welle_2_bundle`` /
+    ``load_welle_3_bundle`` / ``load_welle_4_bundle`` /
+    ``load_welle_5_bundle``. Kept as its own symbol so a future
+    Welle-6-specific schema divergence (e.g. subscribe-loop-specific
+    fields or self-repair-hygiene-payload normalisation) does not
+    require touching the prior call-sites.
+    """
+    bundle: dict = {}
+    bundle["rollup"] = json.loads(rollup_path.read_text(encoding="utf-8"))
+    bundle["sign_off"] = json.loads(sign_off_path.read_text(encoding="utf-8"))
+    if validation_path is not None:
+        bundle["validation"] = json.loads(
+            validation_path.read_text(encoding="utf-8")
+        )
+    if pre_auditor_path is not None:
+        bundle["pre_auditor"] = json.loads(
+            pre_auditor_path.read_text(encoding="utf-8")
+        )
+    return bundle
+
+
 def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="emit_manifest_hash_ots_marker",
@@ -1442,6 +1756,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             MODE_WELLE_3_AUDIT_ANCHOR,
             MODE_WELLE_4_AUDIT_ANCHOR,
             MODE_WELLE_5_AUDIT_ANCHOR,
+            MODE_WELLE_6_AUDIT_ANCHOR,
         ),
         default=MODE_AUDIT_ONLY,
         help=(
@@ -1466,7 +1781,13 @@ def main(argv: Iterable[str] | None = None) -> int:
             "welle-3 / welle-4 mode, but for the Welle-5 Lifecycle-"
             "State-Machine / FSM-Phantom-Detection bundle. Carries "
             "the capability_token_rotation_tracking block (Reza "
-            "Sprint-9 Capability-Token-Rotation+Replay sub)."
+            "Sprint-9 Capability-Token-Rotation+Replay sub). "
+            "welle-6-audit-anchor (Tag-74): same recipe as welle-1..5 "
+            "(Cross-Substrate-Parity-Markers), but for the Welle-6 "
+            "subscribe_loop Cutover bundle (KW-27, parallel to "
+            "Welle-7). Carries the subscribe_loop_self_repair_hygiene_"
+            "tracking block (Tag-73-Lehre: PR #461 cross-Persona "
+            "Self-Repair-Hygiene-Fix carry-through)."
         ),
     )
     parser.add_argument(
@@ -1659,6 +1980,42 @@ def main(argv: Iterable[str] | None = None) -> int:
         help=(
             "Path to state/welle-5-pre-auditor-decision.json "
             "(optional for welle-5-audit-anchor mode)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-6-rollup",
+        type=Path,
+        default=None,
+        help=(
+            "Path to state/welle-6.json (required for "
+            "welle-6-audit-anchor mode)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-6-sign-off",
+        type=Path,
+        default=None,
+        help=(
+            "Path to state/welle-6-sign-off.json (required for "
+            "welle-6-audit-anchor mode)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-6-validation",
+        type=Path,
+        default=None,
+        help=(
+            "Path to state/welle-6-validation-last-verdict.json "
+            "(optional for welle-6-audit-anchor mode)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-6-pre-auditor",
+        type=Path,
+        default=None,
+        help=(
+            "Path to state/welle-6-pre-auditor-decision.json "
+            "(optional for welle-6-audit-anchor mode)."
         ),
     )
     parser.add_argument(
@@ -2156,6 +2513,101 @@ def main(argv: Iterable[str] | None = None) -> int:
             f"{tracking['capability_token_rotation_status']} "
             f"capability_token_replay_window_closed="
             f"{tracking['capability_token_replay_window_closed']} "
+            f"-> {args.marker_out}"
+        )
+        return 0
+
+    if args.mode == MODE_WELLE_6_AUDIT_ANCHOR:
+        if args.welle_6_rollup is None or args.welle_6_sign_off is None:
+            print(
+                "emit_manifest_hash_ots_marker: "
+                "--welle-6-rollup and --welle-6-sign-off are required "
+                "when --mode welle-6-audit-anchor",
+                file=sys.stderr,
+            )
+            return 2
+        if args.marker_out is None:
+            print(
+                "emit_manifest_hash_ots_marker: "
+                "--marker-out is required when --mode welle-6-audit-anchor",
+                file=sys.stderr,
+            )
+            return 2
+
+        if not args.welle_6_rollup.is_file():
+            print(
+                f"emit_manifest_hash_ots_marker: --welle-6-rollup not "
+                f"a file: {args.welle_6_rollup}",
+                file=sys.stderr,
+            )
+            return 1
+        if not args.welle_6_sign_off.is_file():
+            print(
+                f"emit_manifest_hash_ots_marker: --welle-6-sign-off "
+                f"not a file: {args.welle_6_sign_off}",
+                file=sys.stderr,
+            )
+            return 1
+
+        try:
+            bundle = load_welle_6_bundle(
+                rollup_path=args.welle_6_rollup,
+                sign_off_path=args.welle_6_sign_off,
+                validation_path=(
+                    args.welle_6_validation
+                    if args.welle_6_validation
+                    and args.welle_6_validation.is_file()
+                    else None
+                ),
+                pre_auditor_path=(
+                    args.welle_6_pre_auditor
+                    if args.welle_6_pre_auditor
+                    and args.welle_6_pre_auditor.is_file()
+                    else None
+                ),
+            )
+        except (OSError, json.JSONDecodeError) as exc:
+            print(
+                f"emit_manifest_hash_ots_marker: welle-6 bundle "
+                f"read/parse error: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+
+        try:
+            anchor_hash = compute_welle_6_audit_anchor_hash(bundle)
+        except ValueError as exc:
+            print(
+                f"emit_manifest_hash_ots_marker: welle-6 bundle "
+                f"shape error: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+
+        marker = build_welle_6_audit_anchor_marker(
+            bundle=bundle,
+            anchor_hash=anchor_hash,
+            actor=args.actor,
+            now_utc=now_utc,
+        )
+
+        args.marker_out.parent.mkdir(parents=True, exist_ok=True)
+        args.marker_out.write_text(
+            json.dumps(marker, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+        tracking = marker["subscribe_loop_self_repair_hygiene_tracking"]
+        print(
+            f"emit_manifest_hash_ots_marker: mode={marker['mode']} "
+            f"welle=6 audit_trail_anchor={anchor_hash} "
+            f"bundle_keys={marker['bundle_keys']} "
+            f"subscribe_loop_self_repair_hygiene_active="
+            f"{tracking['subscribe_loop_self_repair_hygiene_active']} "
+            f"subscribe_loop_self_repair_hygiene_status="
+            f"{tracking['subscribe_loop_self_repair_hygiene_status']} "
+            f"subscribe_loop_re_subscribe_window_closed="
+            f"{tracking['subscribe_loop_re_subscribe_window_closed']} "
             f"-> {args.marker_out}"
         )
         return 0
