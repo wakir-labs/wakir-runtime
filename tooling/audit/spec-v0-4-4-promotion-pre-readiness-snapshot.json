@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wakir.dev/schemas/audit/spec-v0-4-4-promotion-pre-readiness-snapshot/v1",
+  "x-spdx-license-identifier": "Apache-2.0",
+  "x-spdx-file-copyright-text": "2026 Callandor GmbH and contributors",
+  "title": "Wirelang-Spec v0.4.4 Promotion Pre-Readiness Snapshot (Tag-77)",
+  "description": "Audit-only aggregate snapshot of the Tag-63..Tag-72 substrate trilogy for the v0.4.4 Reserve-Item promotion lane. Aggregates per-RES-Dn substrate-pinning evidence + HD-1/HD-2/HD-3 substrate-stub presence + Pre-Mortem (Tag-67) + Pre-Mortem-Coverage (Tag-68) anchors to a Promotion-Pre-Readiness-Score per item. The score is doc-form-only: it MUST NOT be interpreted as a promotion authorisation, an AR-authorisation request, or a draft-ADR. The score is a Reza-hand-readable status snapshot under audit-only posture; flipping any RES-Dn item from indefinite-deferral to active-candidate remains a CEO-Triage / AR-authorisation step under ADR-0023a + ADR-0023b. The Tag-77 snapshot is the Schluss-Stein of the v0.4.4 substrate-trilogy: Tag-63 baseline + Tag-64 coverage + Tag-65 sequencing + Tag-66 OTS-probes + Tag-67 pre-mortem + Tag-68 pre-mortem-coverage + Tag-69 deep-dive + Tag-70 HD-1 + Tag-71 HD-2 + Tag-72 HD-3. See docs/operations/wirelang-spec-v0-4-4-promotion-sequencing.md §8.",
+  "doc_form_only": true,
+  "audit_only": true,
+  "tag": "Tag-77",
+  "phase": "promotion-pre-vorbereitung",
+  "indefinite_deferral_default": true,
+  "upstream_anchors": {
+    "tag_63_v0_4_4_draft_pr": 403,
+    "tag_64_res_d_coverage_pr": 407,
+    "tag_65_promotion_sequencing_pr": 414,
+    "tag_66_res_d_ots_probe_pr": 421,
+    "tag_67_activation_pre_mortem_pr": 428,
+    "tag_68_pre_mortem_coverage_pr": 433,
+    "tag_69_res_d4_deep_dive_pr": 440,
+    "tag_70_hd_1_ots_substrate_pr": 446,
+    "tag_71_hd_2_peer_roster_substrate_pr": 452,
+    "tag_72_hd_3_audit_coverage_substrate_pr": 458,
+    "adr_0007_pin_pack_discipline": "Persona-Engine Pin-Pack discipline",
+    "adr_0014_audit_sample_rotation": "Audit-Sample Risk-Weighted Rotation",
+    "adr_0023a_sandbox_boundary": "Sandbox-Boundary",
+    "adr_0023b_operator_hand_vs_ar": "Operator-Hand vs. AR-authorisation",
+    "adr_0025_three_axis_audit_anchor": "Drei-Achsen-Modell"
+  },
+  "sandbox_boundary": {
+    "no_promotion_pr_opening": true,
+    "no_ar_authorisation_request_emit": true,
+    "no_draft_adr_writing": true,
+    "no_indefinite_deferral_lifting": true,
+    "no_pin_pack_edit": true,
+    "no_nats_kv_schema_default_change": true,
+    "no_ots_anchor_activation": true,
+    "snapshot_default_mode": "inspection-only",
+    "score_is_advisory_only": true
+  },
+  "scoring_methodology": {
+    "score_range": [0, 5],
+    "score_dimensions": [
+      {
+        "dimension_name": "substrate-pinned",
+        "weight": 1,
+        "purpose": "RES-Dn normative-shape text exists in v0.4.4-draft.md (Tag-63 baseline) AND sample block exists (Tag-64 coverage extension)."
+      },
+      {
+        "dimension_name": "ots-probe-coverage",
+        "weight": 1,
+        "purpose": "RES-Dn carries an OTS-probe-coverage row in the Tag-66 catalogue (audit-only-stub, no live OTS call)."
+      },
+      {
+        "dimension_name": "pre-mortem-covered",
+        "weight": 1,
+        "purpose": "RES-Dn is named in at least one Tag-67 pre-mortem failure-mode (A/B/C/D family) AND covered by the Tag-68 pre-mortem-coverage test-suite."
+      },
+      {
+        "dimension_name": "hard-dep-substrate-prepared",
+        "weight": 1,
+        "purpose": "If the item hard-depends on a substrate axis (HD-1 OTS, HD-2 Peer-Roster, HD-3 Audit-Coverage), the corresponding Tag-70/71/72 substrate-stub is present and audit-only-clean. Items without a hard-dep score this dimension trivially as satisfied."
+      },
+      {
+        "dimension_name": "ceo-triage-authorisation",
+        "weight": 1,
+        "purpose": "CEO-Triage has authorised promotion of this RES-Dn item. Default: false (indefinite-deferral). This dimension is FROZEN-FALSE in the Tag-77 audit-only snapshot; it can only be flipped to true outside the Sandbox boundary via ADR-0023a + ADR-0023b."
+      }
+    ],
+    "score_5_meaning": "All five dimensions satisfied; RES-Dn could theoretically promote under a fresh CEO-Triage PR. However: ceo-triage-authorisation is FROZEN-FALSE in Tag-77, so the score-5 ceiling is unreachable from Sandbox-Hand.",
+    "score_4_meaning": "Substrate complete (Tag-63..Tag-72) but CEO-Triage authorisation outstanding. This is the natural ceiling from Sandbox-Hand: the four substrate dimensions are claude-dev-reachable, the fifth is Operator/AR-Hand.",
+    "score_lt_4_meaning": "Substrate gap. The snapshot enumerates the missing dimension(s) per item; the gap MUST close before any promotion PR is opened.",
+    "advisory_only": true,
+    "not_a_promotion_authorisation": true
+  },
+  "per_item_snapshot": [
+    {
+      "item": "RES-D1",
+      "name": "identity-substrate-evolution (dual-path BIP32)",
+      "dependency_class": "soft-dep-precedes-RES-D5",
+      "hard_dep_axis": null,
+      "substrate_pinned": true,
+      "ots_probe_coverage": true,
+      "pre_mortem_covered": true,
+      "hard_dep_substrate_prepared": true,
+      "ceo_triage_authorisation": false,
+      "score": 4,
+      "score_ceiling_from_sandbox": 4,
+      "ceiling_blocker": "ceo-triage-authorisation (Operator/AR-Hand only)",
+      "deep_dive_pre_mortem_anchor": "Tag-67 §5.3 C1 (BIP32 derivation-path collision)",
+      "kind": "fixture"
+    },
+    {
+      "item": "RES-D2",
+      "name": "capability-token-refinements (min-attenuation-depth)",
+      "dependency_class": "independent",
+      "hard_dep_axis": null,
+      "substrate_pinned": true,
+      "ots_probe_coverage": true,
+      "pre_mortem_covered": true,
+      "hard_dep_substrate_prepared": true,
+      "ceo_triage_authorisation": false,
+      "score": 4,
+      "score_ceiling_from_sandbox": 4,
+      "ceiling_blocker": "ceo-triage-authorisation (Operator/AR-Hand only)",
+      "deep_dive_pre_mortem_anchor": "Tag-67 §5.2 B1 (predicate-interval-empty negative-path miss)",
+      "kind": "fixture"
+    },
+    {
+      "item": "RES-D3",
+      "name": "bridge-audit-cleanup (3-mode envelope)",
+      "dependency_class": "independent",
+      "hard_dep_axis": null,
+      "substrate_pinned": true,
+      "ots_probe_coverage": true,
+      "pre_mortem_covered": true,
+      "hard_dep_substrate_prepared": true,
+      "ceo_triage_authorisation": false,
+      "score": 4,
+      "score_ceiling_from_sandbox": 4,
+      "ceiling_blocker": "ceo-triage-authorisation (Operator/AR-Hand only)",
+      "deep_dive_pre_mortem_anchor": "Tag-67 §5.4 D1 (writer-image-build pipeline drift)",
+      "kind": "fixture"
+    },
+    {
+      "item": "RES-D4",
+      "name": "schema-registry-v2-prep (OTS-anchored multi-author)",
+      "dependency_class": "hard-dep-live-ots",
+      "hard_dep_axis": "HD-1+HD-2+HD-3",
+      "substrate_pinned": true,
+      "ots_probe_coverage": true,
+      "pre_mortem_covered": true,
+      "hard_dep_substrate_prepared": true,
+      "ceo_triage_authorisation": false,
+      "score": 4,
+      "score_ceiling_from_sandbox": 4,
+      "ceiling_blocker": "ceo-triage-authorisation AND live-OTS-anchor-activation (both Operator/AR-Hand only)",
+      "deep_dive_pre_mortem_anchor": "Tag-67 §5.1 A1..A5 + B1..B5 (full HARD-dep cluster)",
+      "kind": "fixture",
+      "hd_substrate_pr_refs": {
+        "hd_1_ots_substrate_pr": 446,
+        "hd_2_peer_roster_substrate_pr": 452,
+        "hd_3_audit_coverage_substrate_pr": 458
+      }
+    },
+    {
+      "item": "RES-D5",
+      "name": "recovery-drill-leaf-projection-v2 (sharded)",
+      "dependency_class": "soft-dep-follows-RES-D1",
+      "hard_dep_axis": null,
+      "substrate_pinned": true,
+      "ots_probe_coverage": true,
+      "pre_mortem_covered": true,
+      "hard_dep_substrate_prepared": true,
+      "ceo_triage_authorisation": false,
+      "score": 4,
+      "score_ceiling_from_sandbox": 4,
+      "ceiling_blocker": "ceo-triage-authorisation (Operator/AR-Hand only)",
+      "deep_dive_pre_mortem_anchor": "Tag-67 §5.5 E1 (single-shard back-compat regression)",
+      "kind": "fixture"
+    }
+  ],
+  "aggregate_snapshot": {
+    "items_evaluated": 5,
+    "items_at_ceiling_4": 5,
+    "items_at_score_5": 0,
+    "items_below_4": 0,
+    "substrate_trilogy_complete": true,
+    "ceo_triage_authorisation_pending_count": 5,
+    "live_ots_activation_pending_for_count": 1,
+    "global_ceiling_blocker": "ceo-triage-authorisation (5 items) + live-OTS-anchor-activation (RES-D4 only)",
+    "verdict": "substrate-complete-ceo-triage-pending",
+    "verdict_does_not_authorise_promotion": true
+  },
+  "what_this_snapshot_is_not": [
+    "Not a promotion-PR opening trigger.",
+    "Not an AR-authorisation request (ADR-0023b).",
+    "Not a draft-ADR (any ceo-triage flip requires a fresh per-item ADR-class entry per Tag-65 §5.1 A5).",
+    "Not a Pin-Pack 0.5.1 edit (Pin-Pack remains Selin/Tomas axis per Tag-65 §7.2).",
+    "Not a NATS-KV schema default change (sandbox-boundary recital).",
+    "Not an OTS-anchor activation (Tag-60 stub remains audit-only until ADR-0023a authorisation).",
+    "Not an indefinite-deferral lifting (default remains indefinite-deferral for all five items).",
+    "Not a Henrik-Voss audit-sample-config amendment."
+  ],
+  "snapshot_emit_discipline": {
+    "score_emit_default": "inspection-only",
+    "score_emit_target": "stdout-of-helper-only",
+    "score_does_not_emit_to_notify_log": true,
+    "score_does_not_emit_to_audit_sample_rotation": true,
+    "score_does_not_emit_to_activity_log": true,
+    "snapshot_carries_no_timestamp_drift": true
+  }
+}
