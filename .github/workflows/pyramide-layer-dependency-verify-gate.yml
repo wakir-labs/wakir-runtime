@@ -3,10 +3,21 @@
 # Pyramide 6-Layer Cross-Layer Dependency-DAG Verify-Gate
 # -------------------------------------------------------
 # (Amara Tag-58, ADR-0066, Continuous-Mode)
+# (Amara Tag-61 drift-allowlist extension, Continuous-Mode-Marathon)
 #
 # Verpflichtender CI-Status-Check fuer die Tag-58 Cross-Layer-
 # Dependency-DAG Verifikation gegen die Tag-57 Pre-Cutover
 # Acceptance Run-Order doc §4.1.
+#
+# Tag-61 erweitert das Gate um eine Drift-Allowlist-Mechanik
+# (Analogon zum ADR-Errata-CI-Pin-Skip-Pattern aus Tag-59):
+# legitime Layer-Cross-Imports die der DAG-Spec NOCH nicht
+# entsprechen, koennen explizit allowlisted werden mit
+# (edge, reason, follow_up). Verdict-Erweiterung:
+#   - DAG-CONSISTENT       : declared == observed (exit 0)
+#   - DAG-DRIFT-ALLOWED    : residual extras all allowlisted (exit 0)
+#   - DAG-DRIFT-BLOCKED    : residual extras OR missing remain (exit 2)
+# Missing edges sind NIE allowlistable (SPEC-bug, nicht drift).
 #
 # Anlass: Tag-57 hat den DAG der zehn dep-graph-Edges zwischen den
 # sechs Pyramide-Layer-test-files dokumentiert
@@ -76,8 +87,11 @@ on:
       # DAG-Spec source-of-truth (Helper) + doc parallel
       - "tooling/ci/verify_layer_dependency_dag.py"
       - "docs/quality-gates/pre-cutover-acceptance-run-order.md"
-      # Gate test-suite
+      # Tag-61 drift-allowlist file
+      - "tooling/ci/layer-dag-drift-allowlist.json"
+      # Gate test-suite (Tag-58 + Tag-61)
       - "tests/ci/test_layer_dependency_dag_verify_tag58.py"
+      - "tests/ci/test_layer_dag_drift_allowlist_tag61.py"
       # Gate self
       - ".github/workflows/pyramide-layer-dependency-verify-gate.yml"
   pull_request:
@@ -90,7 +104,9 @@ on:
       - "tests/phase_3c/test_defence_in_depth_layer_6.py"
       - "tooling/ci/verify_layer_dependency_dag.py"
       - "docs/quality-gates/pre-cutover-acceptance-run-order.md"
+      - "tooling/ci/layer-dag-drift-allowlist.json"
       - "tests/ci/test_layer_dependency_dag_verify_tag58.py"
+      - "tests/ci/test_layer_dag_drift_allowlist_tag61.py"
       - ".github/workflows/pyramide-layer-dependency-verify-gate.yml"
   workflow_dispatch: {}
 
@@ -130,21 +146,32 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install "pytest>=8.0"
 
-      - name: Stage 1 - Helper unit-test suite (>=12 hermetic tests)
+      - name: Stage 1 - Helper unit-test suite (Tag-58 + Tag-61)
         # Tag-58 test-suite validates the helper's edge-classification,
-        # AST-walk, cross-match logic, and CLI surface. Failing tests
-        # here block the gate.
+        # AST-walk, cross-match logic, and CLI surface. Tag-61 test-
+        # suite validates the drift-allowlist load/validate path and
+        # the DAG-DRIFT-ALLOWED/BLOCKED verdict split. Failing tests
+        # in either suite block the gate.
         run: |
-          python -m pytest tests/ci/test_layer_dependency_dag_verify_tag58.py -v --tb=short
+          python -m pytest tests/ci/test_layer_dependency_dag_verify_tag58.py \
+                          tests/ci/test_layer_dag_drift_allowlist_tag61.py \
+                          -v --tb=short
 
       - name: Stage 2 - Live DAG-verify against main-tip substrate
         # Walks the six Layer-test-files at the current commit,
-        # cross-matches against the embedded DAG-spec, exits 0 on
-        # DAG-CONSISTENT, 2 on DRIFT/CYCLE, 1 on PARSE-ERROR.
+        # cross-matches against the embedded DAG-spec, consults the
+        # Tag-61 drift-allowlist for residual extras, exits 0 on
+        # DAG-CONSISTENT or DAG-DRIFT-ALLOWED, 2 on DRIFT-BLOCKED/
+        # CYCLE, 1 on PARSE-ERROR.
         run: |
-          python tooling/ci/verify_layer_dependency_dag.py --repo-root . --json | tee dag-verdict.json
+          python tooling/ci/verify_layer_dependency_dag.py \
+              --repo-root . \
+              --allowlist-path tooling/ci/layer-dag-drift-allowlist.json \
+              --json | tee dag-verdict.json
           echo "---"
-          python tooling/ci/verify_layer_dependency_dag.py --repo-root .
+          python tooling/ci/verify_layer_dependency_dag.py \
+              --repo-root . \
+              --allowlist-path tooling/ci/layer-dag-drift-allowlist.json
 
       - name: Stage 3 - Verdict snapshot (CI-summary diagnostic)
         # Operator-readable snapshot of the verdict envelope. Stage 2
@@ -172,7 +199,7 @@ jobs:
           envelope = json.loads(verdict_path.read_text(encoding="utf-8"))
 
           lines: list[str] = []
-          lines.append("## Pyramide Layer-Dependency DAG Verify (Tag-58)")
+          lines.append("## Pyramide Layer-Dependency DAG Verify (Tag-58 + Tag-61)")
           lines.append("")
           lines.append(f"**Verdict:** `{envelope.get('verdict')}` "
                        f"(exit {envelope.get('exit_code')})")
@@ -185,8 +212,12 @@ jobs:
                        f"{len(envelope.get('observed_edges', []))} |")
           lines.append(f"| Missing edges (declared, not observed) | "
                        f"{len(envelope.get('missing_edges', []))} |")
-          lines.append(f"| Extra edges (observed, not declared) | "
+          lines.append(f"| Residual extra edges (blocking) | "
                        f"{len(envelope.get('extra_edges', []))} |")
+          lines.append(f"| Allowlisted extras (Tag-61, non-blocking) | "
+                       f"{len(envelope.get('allowlisted_extras', []))} |")
+          lines.append(f"| Stale allowlist entries (hygiene note) | "
+                       f"{len(envelope.get('stale_allowlist_entries', []))} |")
           lines.append(f"| Soft-cites skipped | "
                        f"{len(envelope.get('soft_cites_skipped', []))} |")
           lines.append(f"| Cycle witness | "
@@ -208,10 +239,24 @@ jobs:
               lines.append("")
           extras = envelope.get("extra_edges", [])
           if extras:
-              lines.append("**Extra edges:**")
+              lines.append("**Residual extra edges (blocking):**")
               lines.append("")
               for e in extras:
-                  lines.append(f"- L{e[0]} -> L{e[1]} (AST cite, not declared)")
+                  lines.append(f"- L{e[0]} -> L{e[1]} (AST cite, not declared, not allowlisted)")
+              lines.append("")
+          allowlisted = envelope.get("allowlisted_extras", [])
+          if allowlisted:
+              lines.append("**Allowlisted extras (Tag-61 drift-allowlist, non-blocking):**")
+              lines.append("")
+              for e in allowlisted:
+                  lines.append(f"- L{e[0]} -> L{e[1]} (allowlist-covered with follow-up)")
+              lines.append("")
+          stale = envelope.get("stale_allowlist_entries", [])
+          if stale:
+              lines.append("**Stale allowlist entries (operator-hygiene, non-blocking):**")
+              lines.append("")
+              for e in stale:
+                  lines.append(f"- L{e[0]} -> L{e[1]} (allowlist entry, edge no longer observed)")
               lines.append("")
           parse_errors = envelope.get("parse_errors", [])
           if parse_errors:

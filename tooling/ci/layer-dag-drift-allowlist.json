@@ -1,0 +1,29 @@
+{
+  "_schema": {
+    "version": 1,
+    "description": "Tag-61 6-Layer Acceptance-Pyramide cross-layer dependency-DAG drift allowlist. Each entry covers ONE directed edge (from_layer, to_layer) that is observed in the substrate but not declared in LAYER_DEP_EDGES (the DAG-spec). Allowlisted edges downgrade the verdict from DAG-DRIFT-BLOCKED (exit 2) to DAG-DRIFT-ALLOWED (exit 0). The mechanic is the analogue of the ADR-Errata CI-pin-skip-pattern (Tag-59 audit-pin-gate): legitimate substrate evolution between spec-updates does NOT block CI, but every allowance carries a tracked follow-up so the allowlist does not accumulate stale entries.",
+    "owner": "Amara Osei (QA)",
+    "tag": "Tag-61",
+    "linked_helper": "tooling/ci/verify_layer_dependency_dag.py",
+    "linked_workflow": ".github/workflows/pyramide-layer-dependency-verify-gate.yml",
+    "linked_test_suite": "tests/ci/test_layer_dag_drift_allowlist_tag61.py",
+    "linked_doc": "docs/quality-gates/pre-cutover-acceptance-run-order.md (§4.1 DAG-spec source-of-truth)",
+    "entry_schema": {
+      "from_layer": "integer 1..6 (producer layer)",
+      "to_layer": "integer 1..6 (consumer layer; from != to)",
+      "reason": "non-empty string explaining why the cross-import is legitimate",
+      "follow_up": "non-empty string with ADR-id / issue-link tracking the permanent DAG-spec update"
+    },
+    "out_of_scope": [
+      "missing edges (declared but not observed) - those are SPEC bugs, not allowlistable drifts",
+      "soft-cite whitelist (handled by SOFT_CITE_WHITELIST in helper)",
+      "semantic-only edges (handled by SEMANTIC_ONLY_EDGES in helper)",
+      "dynamic-cross-check back-edges (handled by DYNAMIC_CROSS_CHECK_TYPES in helper)"
+    ],
+    "cross_review_markers": [
+      "Zone-M: layer-test substrate co-owned with Engineering personae via Tomás (Matrix-Lead)",
+      "Zone-N: Henrik (Internal Audit) audits allowlist entries for follow-up-discipline"
+    ]
+  },
+  "entries": []
+}
