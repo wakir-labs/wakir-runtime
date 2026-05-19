@@ -243,6 +243,45 @@ CROSS_SUBSTRATE_PARITY_GUARDED_WELLEN = frozenset({6})
 # :data:`CAPABILITY_TOKEN_ROTATED` design.
 CROSS_SUBSTRATE_PARITY_VERIFIED = "verified"
 
+# Wellen for which the sign-off path additionally requires the
+# final-sealing-marker to report ``confirmed`` (Tag-75 §2.8, Welle-7
+# Final-Sealing-Welle). Welle-7 is the terminal Welle of the Phase-3c-
+# Welle-Marathon (KW-27 per
+# ``docs/quality-gates/pre-cutover-acceptance-run-order.md`` §3 + the
+# canonical ``docs/quality-gates/phase-3c-doppel-welle-6-7.md`` §4
+# Phase-3-Marathon-Schluss-Acceptance). Welle-7 sign-off fires the
+# ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7`` marker in the audit-trail
+# (per phase-3c-doppel-welle-6-7.md §4.1 the
+# ``test_dw_ac_6_7_p3m_welle_7_sign_off_triggers_phase_3_complete_marker``
+# closure-gate); the engine-side producer-substrate gates the sign-off
+# on the operator-curated final-sealing-marker
+# (``state/welle-7-final-sealing.json``) being flipped to
+# :data:`FINAL_SEALING_CONFIRMED`. Without the final-sealing-marker the
+# Welle-7 sign-off would leave the marathon-closure substrate
+# unverified at the moment of Phase-3c-Ende finalisation.
+#
+# Welle-7 is ALSO in :data:`PRE_AUDITOR_GUARDED_WELLEN` (Henrik-cannot-
+# self-sign-off invariant, plan-doc §2.2). Both guards apply: the
+# pre-auditor-decision MUST be ``"designated"`` AND the final-sealing-
+# marker MUST be ``"confirmed"``. The two guards are independent; the
+# refusal-order is pre-auditor first, then final-sealing-marker
+# (the pre-auditor guard rejects earliest in the validation chain;
+# the marker-guard is checked after on-disk shape-validation).
+FINAL_SEALING_GUARDED_WELLEN = frozenset({7})
+
+# Final-sealing-marker literal: callers MUST pass this exact value as
+# ``final_sealing_marker_status`` to authorise the Welle-7 Final-Sealing
+# sign-off (Tag-75 §2.8). Mirrors the :data:`DOPPELBETRIEB_SEALED` /
+# :data:`SNAPSHOT_RESTORE_VERIFIED` / :data:`CAPABILITY_TOKEN_ROTATED` /
+# :data:`CROSS_SUBSTRATE_PARITY_VERIFIED` design.
+#
+# Disjoint from :data:`DOPPELBETRIEB_SEALED` ("sealed", Welle-2): the
+# Welle-2 sealing closes the legacy<->new dual-write window;
+# the Welle-7 final-sealing closes the entire Phase-3c-Welle-Marathon.
+# A separate literal disambiguates the audit-trail trigger family
+# (Henrik Internal Audit Zone-N relies on this).
+FINAL_SEALING_CONFIRMED = "confirmed"
+
 # Allowed lifecycle-state-machine transitions (plan-doc §3.1).
 ALLOWED_TRANSITIONS = frozenset({
     (STATUS_PENDING, STATUS_IN_PROGRESS),
@@ -307,6 +346,31 @@ class SnapshotRestoreError(WelleProducerError):
     snapshot-restore-marker has flipped to
     :data:`SNAPSHOT_RESTORE_VERIFIED`. Mirrors the
     :class:`DoppelbetriebSealingError` design for Welle-2.
+    """
+
+
+class FinalSealingError(WelleProducerError):
+    """Raised on a Welle-7 sign-off without final-sealing-marker (Tag-75 §2.8).
+
+    Welle-7 is the Final-Sealing-Welle (terminal Welle of the Phase-3c-
+    Welle-Marathon, KW-27 per ``pre-cutover-acceptance-run-order.md`` §3
+    + ``phase-3c-doppel-welle-6-7.md`` §4). The sign-off is only
+    authorised once the operator-curated final-sealing-marker
+    (``state/welle-7-final-sealing.json``) has flipped to
+    :data:`FINAL_SEALING_CONFIRMED`. The marker is the engine-side
+    reflection of the Phase-3-Marathon-Schluss-Acceptance verdict (the
+    ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7`` marker fires on a
+    successful Welle-7 sign-off, per phase-3c-doppel-welle-6-7.md
+    §4.1).
+
+    Mirrors the :class:`DoppelbetriebSealingError`,
+    :class:`SnapshotRestoreError`, :class:`CapabilityTokenRotationError`,
+    and :class:`CrossSubstrateParityError` designs.
+
+    Welle-7 is ALSO pre-auditor-guarded (Henrik-cannot-self-sign-off,
+    plan-doc §2.2). The :class:`PreAuditorGuardError` is raised before
+    this error when both guards are violated (pre-auditor guard is
+    checked earliest in the validation chain).
     """
 
 
@@ -1080,6 +1144,161 @@ class WelleStateProducer:
         self.audit_emitter(record)
         return record
 
+    # -- Transition: Welle-7 Final-Sealing sign-off (Tag-75 §2.8) --
+
+    def handle_welle_7_signoff_event(
+        self,
+        signoff_iso: str,
+        *,
+        sign_off_marker_status: str,
+        pre_auditor_decision: Optional[str] = None,
+        final_sealing_marker_status: str,
+    ) -> WelleAuditRecord:
+        """Apply the Welle-7 Final-Sealing sign-off (Tag-75 §2.8).
+
+        Welle-7 is the Final-Sealing-Welle (terminal Welle of the
+        Phase-3c-Welle-Marathon, KW-27 per
+        ``docs/quality-gates/pre-cutover-acceptance-run-order.md`` §3 +
+        ``docs/quality-gates/phase-3c-doppel-welle-6-7.md`` §4). The
+        sign-off is structurally an in-progress -> signed-off transition
+        with **three** preconditions (the most-guarded sign-off path in
+        the producer-substrate):
+
+        * the standard ``sign_off_marker_status == "signed-off"``
+          companion marker (same as :meth:`handle_sign_off_event`),
+        * the pre-auditor guard ``pre_auditor_decision == "designated"``
+          (Welle-7 is in :data:`PRE_AUDITOR_GUARDED_WELLEN` per the
+          Henrik-cannot-self-sign-off invariant, plan-doc §2.2; mirrors
+          the Welle-3 Bridge-Audit sign-off guard),
+        * the final-sealing-marker ``final_sealing_marker_status ==
+          "confirmed"`` (Tag-75 §2.8; the operator-curated marker
+          ``state/welle-7-final-sealing.json`` confirms the Phase-3-
+          Marathon-Schluss-Acceptance verdict per phase-3c-doppel-
+          welle-6-7.md §4.1). Refused otherwise.
+
+        Refusal-order (deterministic for audit-trail forensics):
+
+        1. ``signoff_iso`` shape validation
+           (:class:`TimeInvariantViolationError`).
+        2. ``sign_off_marker_status`` companion-marker
+           (:class:`SignOffPreconditionError`).
+        3. ``pre_auditor_decision`` Welle-7 pre-auditor guard
+           (:class:`PreAuditorGuardError`).
+        4. ``final_sealing_marker_status`` final-sealing-marker
+           (:class:`FinalSealingError`).
+        5. State-file shape + transition validation.
+
+        Welle-7 sign-off is the **terminal** sign-off of Phase-3c.
+        The downstream audit-trail consumer fires the
+        ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7`` marker (per
+        phase-3c-doppel-welle-6-7.md §4.1
+        ``test_dw_ac_6_7_p3m_welle_7_sign_off_triggers_phase_3_complete_marker``)
+        when this handler returns a record with
+        ``new_status == "signed-off"`` and
+        ``trigger == "final-sealing"``. The Phase-3-COMPLETE-marker
+        emission itself is NOT this producer-substrate's responsibility
+        (audit-trail-consumer-territory; Henrik Internal Audit Zone-N).
+
+        The audit-record carries ``trigger="final-sealing"`` (the
+        sixth marker-family trigger, disambiguating from the Welle-2
+        ``"sealing"``, Welle-3/non-7 vanilla ``"sign-off"``, Welle-4
+        ``"snapshot-restore"``, Welle-5 ``"capability-token-rotation"``,
+        and Welle-6 ``"cross-substrate-parity"`` triggers). The literal
+        ``"final-sealing"`` is intentionally distinct from Welle-2's
+        ``"sealing"``: the Welle-2 sealing closes the legacy <-> new
+        dual-write window (one substrate boundary); the Welle-7 final-
+        sealing closes the entire Phase-3c-Welle-Marathon (substrate
+        closure of the four-Wochen-Cadence). The disjoint triggers let
+        the bridge-audit-writer consumer route to the correct downstream
+        sub-stream without ambiguity.
+
+        Idempotency: a double-fire after a successful Welle-7 sign-off
+        returns an audit-record with ``prior_status == new_status ==
+        "signed-off"`` and ``trigger="final-sealing"`` (no on-disk
+        mutation). Mirrors the Welle-2/Welle-4/Welle-5/Welle-6
+        idempotency path. NOTE: the idempotent path STILL enforces the
+        pre-auditor + final-sealing-marker preconditions; a retry of the
+        sign-off with degraded preconditions is rejected even if the
+        state-file already reports ``signed-off``. This is a stricter
+        idempotency contract than Welle-2 / Welle-4 / Welle-5 / Welle-6
+        (which do not pre-auditor-guard); the rationale is that the
+        Welle-7 sign-off is the terminal Phase-3-COMPLETE-marker
+        trigger, and the audit-trail forensic record MUST reflect the
+        marker substrate that authorised every successful and idempotent
+        sign-off call.
+
+        Forensic note: the final-sealing-iso itself is not stored in
+        the schema-pinned state-file (the schema-pin is unchanged per
+        Tag-67); it is recoverable from the audit-stream via the
+        ``trigger="final-sealing"`` record + ``signoff_iso``. The
+        Phase-3-Marathon-Schluss-Acceptance verdict envelope is
+        verified by the downstream marker-emit-gate at the audit-trail
+        consumer level (phase-3c-doppel-welle-6-7.md §4.1), NOT by this
+        producer-substrate (producer-substrate is engine-side only, no
+        marker-emit coupling).
+        """
+        welle_number = 7
+        _validate_iso_timestamp(signoff_iso, "signoff_iso")
+        if sign_off_marker_status != STATUS_SIGNED_OFF:
+            raise SignOffPreconditionError(
+                f"sign-off-marker for welle-{welle_number} not "
+                f"signed-off: got {sign_off_marker_status!r}"
+            )
+        # Welle-7 is pre-auditor-guarded (Henrik-cannot-self-sign-off,
+        # plan-doc §2.2). The guard fires before the final-sealing-marker
+        # check; this matches the Welle-3 pre-auditor-guard refusal-order.
+        if welle_number in PRE_AUDITOR_GUARDED_WELLEN:
+            if pre_auditor_decision != "designated":
+                raise PreAuditorGuardError(
+                    f"welle-{welle_number} sign-off requires a "
+                    f"designated pre-auditor (Henrik-cannot-self-"
+                    f"sign-off); got pre_auditor_decision="
+                    f"{pre_auditor_decision!r}"
+                )
+        if final_sealing_marker_status != FINAL_SEALING_CONFIRMED:
+            raise FinalSealingError(
+                f"welle-{welle_number} Final-Sealing sign-off requires "
+                f"final-sealing-marker; got "
+                f"final_sealing_marker_status="
+                f"{final_sealing_marker_status!r}"
+            )
+        target = _state_file_path(self.state_dir, welle_number)
+        data = _load_state_file(target)
+        _enforce_shape(data, target)
+        prior_status = data["status"]
+        if prior_status == STATUS_SIGNED_OFF:
+            # Idempotent no-op: final-sealing sign-off already recorded.
+            # Note: the preconditions above STILL applied (stricter
+            # idempotency than the other marker-family paths).
+            record = WelleAuditRecord(
+                welle_number=welle_number,
+                prior_status=prior_status,
+                new_status=prior_status,
+                cutover_iso=data.get("cutover_iso", ""),
+                signoff_iso=data.get("signoff_iso", ""),
+                trigger="final-sealing",
+            )
+            self.audit_emitter(record)
+            return record
+        _check_transition(prior_status, STATUS_SIGNED_OFF)
+        new_data = dict(data)
+        new_data["status"] = STATUS_SIGNED_OFF
+        new_data["signoff_iso"] = signoff_iso
+        _check_time_invariants(
+            new_data.get("cutover_iso", ""), new_data["signoff_iso"]
+        )
+        _atomic_write_json(target, new_data)
+        record = WelleAuditRecord(
+            welle_number=welle_number,
+            prior_status=prior_status,
+            new_status=STATUS_SIGNED_OFF,
+            cutover_iso=new_data.get("cutover_iso", ""),
+            signoff_iso=signoff_iso,
+            trigger="final-sealing",
+        )
+        self.audit_emitter(record)
+        return record
+
     # -- Transition: ANY -> rolled-back (Tag-70 §2.4 Rollback-Writer) --
 
     def handle_rollback_event(
@@ -1200,6 +1419,9 @@ __all__ = [
     "DOPPELBETRIEB_SEALED",
     "DOPPELBETRIEB_SEALED_WELLEN",
     "DoppelbetriebSealingError",
+    "FINAL_SEALING_CONFIRMED",
+    "FINAL_SEALING_GUARDED_WELLEN",
+    "FinalSealingError",
     "InvalidStatusTransitionError",
     "InvalidWelleNumberError",
     "ISO_TS_NONEMPTY_RE",
