@@ -1,0 +1,225 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tag-63 Bulk-Activation Walking-Skeleton Test
+# --------------------------------------------
+#
+# Purpose
+# =======
+#
+# Hermetic Walking-Skeleton-Test of the Bulk-Activation Pre-Walk
+# Recipe end-to-end pipeline:
+#
+#     Doc-Parse  ->  API-Call-Plan  ->  Pre-Snapshot
+#                                  \->  Diff
+#                                  \->  Post-Snapshot
+#
+# This workflow runs the full pipeline against LOCAL JSON FIXTURES
+# under `tests/observability/fixtures/branch-protection-walking-
+# skeleton/` instead of the live `gh api`. It never mutates real
+# branch-protection settings.
+#
+# Sandbox boundary
+# ================
+#
+# Per ADR-0020 sec.10 + memory `feedback_sandbox_host_trennung.md`:
+# the planner is invoked with --mock-api-mode. The shell wrapper's
+# --enforce path is NEVER touched. Permissions are read-only.
+#
+# Trigger
+# =======
+#
+#   * workflow_dispatch (manual)
+#   * pull_request (so each Tag-63 substance PR exercises the
+#     walking skeleton automatically)
+#
+# Verdict
+# =======
+#
+#   * WALKING-SKELETON-INTACT   all 4 stages green
+#   * WALKING-SKELETON-DEFECT   any stage red
+#
+# The Stage-3 byte-identical diff against `expected-post-snapshot.json`
+# is the load-bearing acceptance gate. Any drift in the planner's
+# output shape breaks Stage-3 first, before Stage-4 emits a verdict.
+
+name: bulk-activation-walking-skeleton-test
+
+on:
+  workflow_dispatch:
+    inputs:
+      enforce:
+        description: 'If "true" (default), exit 1 on WALKING-SKELETON-DEFECT.'
+        required: false
+        default: 'true'
+        type: string
+  pull_request:
+    paths:
+      - 'tooling/ops/_bulk_activate_required_checks.py'
+      - 'tooling/ops/bulk_activate_required_checks.sh'
+      - 'tests/observability/fixtures/branch-protection-walking-skeleton/**'
+      - 'tests/observability/test_bulk_activation_walking_skeleton_tag63.py'
+      - '.github/workflows/bulk-activation-walking-skeleton-test.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  walking-skeleton-test:
+    name: bulk-activation walking-skeleton test (7-pool, mock-api)
+    runs-on: ubuntu-latest
+
+    env:
+      WALKING_SKELETON_ENFORCE: ${{ github.event.inputs.enforce || 'true' }}
+      FIXTURE_DIR: tests/observability/fixtures/branch-protection-walking-skeleton
+      TAG59_DOC: docs/operations/branch-protection-required-checks-tag59.md
+      TAG61_DOC: docs/operations/branch-protection-required-checks-tag61-addendum.md
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python (stdlib-only mock-api path)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Sandbox-boundary assertion (defensive, mirrors Tag-62)
+        shell: bash
+        run: |
+          set -eu
+          if [ -z "${CI:-}" ]; then
+            echo "::error::expected CI=true on hosted runner; mock-api-mode contract depends on it"
+            exit 1
+          fi
+          # Defensive: make sure no live gh-api PUT can fire from
+          # this workflow by clearing any inherited operator-hand env.
+          unset BULK_ACTIVATE_OPERATOR_HAND || true
+          echo "CI=${CI} — walking-skeleton sandbox-boundary contract holds"
+
+      - name: Stage 1 - Run pipeline from empty pre-snapshot
+        id: stage1
+        shell: bash
+        run: |
+          set -u
+          mkdir -p /tmp/tag63
+          python3 tooling/ops/_bulk_activate_required_checks.py \
+            --tag59-doc "${TAG59_DOC}" \
+            --tag61-doc "${TAG61_DOC}" \
+            --mock-api-mode \
+            --mock-pre-snapshot "${FIXTURE_DIR}/pre-snapshot-empty.json" \
+            --mock-post-snapshot /tmp/tag63/post-from-empty.json
+          rc=$?
+          echo "stage1_rc=${rc}" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Stage 1 - empty -> all 7 set"
+            echo
+            echo "rc=${rc}"
+            echo
+            echo '```json'
+            cat /tmp/tag63/post-from-empty.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit ${rc}
+
+      - name: Stage 2 - Run pipeline from partial pre-snapshot (idempotency)
+        id: stage2
+        shell: bash
+        run: |
+          set -u
+          python3 tooling/ops/_bulk_activate_required_checks.py \
+            --tag59-doc "${TAG59_DOC}" \
+            --tag61-doc "${TAG61_DOC}" \
+            --mock-api-mode \
+            --mock-pre-snapshot "${FIXTURE_DIR}/pre-snapshot-partial.json" \
+            --mock-post-snapshot /tmp/tag63/post-from-partial.json
+          rc=$?
+          echo "stage2_rc=${rc}" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Stage 2 - partial -> all 7 set (idempotency)"
+            echo
+            echo "rc=${rc}"
+            echo
+            echo '```json'
+            cat /tmp/tag63/post-from-partial.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit ${rc}
+
+      - name: Stage 3 - Verify byte-identical post-snapshots
+        id: stage3
+        shell: bash
+        run: |
+          set -u
+          expected="${FIXTURE_DIR}/expected-post-snapshot.json"
+
+          diff -u "${expected}" /tmp/tag63/post-from-empty.json
+          rc_empty=$?
+          diff -u "${expected}" /tmp/tag63/post-from-partial.json
+          rc_partial=$?
+
+          {
+            echo "## Stage 3 - byte-identical diff"
+            echo
+            echo "empty   vs expected: rc=${rc_empty}"
+            echo "partial vs expected: rc=${rc_partial}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${rc_empty}" -eq 0 ] && [ "${rc_partial}" -eq 0 ]; then
+            echo "stage3_rc=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "stage3_rc=1" >> "$GITHUB_OUTPUT"
+          exit 1
+
+      - name: Install pytest (parity with Tag-62)
+        run: |
+          set -eu
+          python -m pip install --upgrade pip
+          python -m pip install "pytest>=8.0"
+
+      - name: Run hermetic Tag-63 test-suite
+        run: |
+          set -eu
+          python -m pytest \
+            tests/observability/test_bulk_activation_walking_skeleton_tag63.py \
+            -v --tb=short
+
+      - name: Stage 4 - Verdict
+        shell: bash
+        run: |
+          set -u
+          rc1="${{ steps.stage1.outputs.stage1_rc }}"
+          rc2="${{ steps.stage2.outputs.stage2_rc }}"
+          rc3="${{ steps.stage3.outputs.stage3_rc }}"
+          enforce="${WALKING_SKELETON_ENFORCE}"
+
+          echo "stage1_rc=${rc1}"
+          echo "stage2_rc=${rc2}"
+          echo "stage3_rc=${rc3}"
+          echo "enforce=${enforce}"
+
+          if [ "${rc1}" = "0" ] && [ "${rc2}" = "0" ] && [ "${rc3}" = "0" ]; then
+            verdict="WALKING-SKELETON-INTACT"
+            echo "::notice::${verdict} - Tag-63 pipeline end-to-end mock-api green."
+          else
+            verdict="WALKING-SKELETON-DEFECT"
+            echo "::error::${verdict} - one or more stages failed."
+          fi
+
+          {
+            echo "## Stage 4 - Final verdict"
+            echo
+            echo "**Verdict:** \`${verdict}\`"
+            echo
+            echo "Stage 1 rc=${rc1}, Stage 2 rc=${rc2}, Stage 3 rc=${rc3}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${verdict}" = "WALKING-SKELETON-INTACT" ]; then
+            exit 0
+          fi
+
+          if [ "${enforce}" = "true" ]; then
+            exit 1
+          fi
+          echo "::warning::${verdict} but enforce=false - audit-only mode."
+          exit 0
