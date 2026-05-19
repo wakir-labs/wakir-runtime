@@ -95,6 +95,26 @@ number). The hash recipe is identical to Welle-1 (canonical-JSON
 concat with ``b"\\n"`` separator in ``WELLE_N_BUNDLE_ORDER``); only
 the kind/marker namespaces carry the welle number.
 
+Tag-71 Welle-3 audit-trail-anchor extension
+-------------------------------------------
+
+The ``--mode welle-3-audit-anchor`` flag mirrors the Welle-1 / Welle-2
+wiring for the Welle-3 Bridge-Audit-Writer sign-off-record bundle
+(same canonical bundle shape: rollup + sign-off + validation +
+pre-auditor). Cross-coordinated with Selin's Tag-71 Welle-3 Persona-
+Engine producer (``engine.py::backfill_audit_trail_anchors``
+parametrised to welle=3).
+
+Welle-3 carries an additional discipline: Henrik (Internal Audit)
+applies §11-Discipline / IIA-1130 to Welle-3 pre-auditor signaling
+— the pre-auditor decision MUST be present in the bundle, and the
+marker exposes a ``pre_auditor_signaling_ready`` flag for the
+downstream observability surface to consume. The hash recipe is
+identical to Welle-1 / Welle-2 (canonical-JSON concat with ``b"\\n"``
+separator in ``WELLE_3_BUNDLE_ORDER``); only the kind/marker
+namespaces and the pre-auditor-signaling field carry Welle-3
+semantics.
+
 Inputs:
 
   * ``--welle-1-rollup`` (required): path to ``state/welle-1.json``.
@@ -185,6 +205,7 @@ MODE_AUDIT_ONLY: str = "audit-only"
 MODE_PRE_ACTIVATION_PROBE: str = "pre-activation-probe"
 MODE_WELLE_1_AUDIT_ANCHOR: str = "welle-1-audit-anchor"
 MODE_WELLE_2_AUDIT_ANCHOR: str = "welle-2-audit-anchor"
+MODE_WELLE_3_AUDIT_ANCHOR: str = "welle-3-audit-anchor"
 ANCHOR_TARGET_OTS_CALENDAR: str = "opentimestamps-calendar"
 
 # Tag-69 Welle-1 audit-trail-anchor mode constants.
@@ -212,6 +233,18 @@ WELLE_2_BUNDLE_ORDER: tuple[str, ...] = WELLE_1_BUNDLE_ORDER
 WELLE_2_BUNDLE_REQUIRED: frozenset[str] = WELLE_1_BUNDLE_REQUIRED
 WELLE_2_KIND_MARKER: str = "welle-2-audit-trail-anchor-marker"
 WELLE_2_KIND_ENVELOPE: str = "welle-2-audit-trail-anchor-envelope"
+
+# Tag-71 Welle-3 audit-trail-anchor mode constants. Mirror of the
+# Welle-1 / Welle-2 wiring (same canonical bundle shape and same hash
+# recipe); only the marker/envelope kind strings carry the welle number
+# so downstream consumers can dispatch unambiguously on ``kind``. Welle-3
+# additionally carries Henrik-IIA-1130 §11-Discipline pre-auditor
+# signaling — the marker exposes ``pre_auditor_signaling_ready`` to
+# downstream observability and Selin's producer.
+WELLE_3_BUNDLE_ORDER: tuple[str, ...] = WELLE_1_BUNDLE_ORDER
+WELLE_3_BUNDLE_REQUIRED: frozenset[str] = WELLE_1_BUNDLE_REQUIRED
+WELLE_3_KIND_MARKER: str = "welle-3-audit-trail-anchor-marker"
+WELLE_3_KIND_ENVELOPE: str = "welle-3-audit-trail-anchor-envelope"
 
 # Required top-level keys for a schema-v1 marker payload. Used by the
 # pre-activation-probe's ``payload_shape`` stage.
@@ -732,6 +765,136 @@ def load_welle_2_bundle(
     return bundle
 
 
+def compute_welle_3_audit_anchor_hash(bundle: dict) -> str:
+    """Compute the Welle-3 audit-trail-anchor SHA-256 from a bundle.
+
+    Identical recipe to Welle-1 / Welle-2 (canonical-JSON concat in
+    ``WELLE_3_BUNDLE_ORDER`` joined by ``b"\\n"``). Kept as its own
+    symbol — rather than aliasing the Welle-1 / Welle-2 entry — so a
+    future recipe divergence between welles can be introduced without
+    breaking the call-site contract that Selin's Tag-71 producer relies
+    on (Bridge-Audit-Writer welle).
+    """
+    missing = WELLE_3_BUNDLE_REQUIRED - set(bundle.keys())
+    if missing:
+        raise ValueError(
+            f"welle-3 bundle missing required keys: {sorted(missing)}"
+        )
+
+    parts: list[bytes] = []
+    for key in WELLE_3_BUNDLE_ORDER:
+        if key not in bundle:
+            continue
+        value = bundle[key]
+        if not isinstance(value, dict):
+            raise ValueError(
+                f"welle-3 bundle key {key!r} must be a JSON object dict, "
+                f"got {type(value).__name__}"
+            )
+        parts.append(_canonical_json_bytes(value))
+
+    return hashlib.sha256(b"\n".join(parts)).hexdigest()
+
+
+def build_welle_3_audit_anchor_marker(
+    *,
+    bundle: dict,
+    anchor_hash: str,
+    actor: str,
+    now_utc: _dt.datetime,
+) -> dict:
+    """Assemble the Welle-3 audit-trail-anchor marker dict.
+
+    Mirror of the Welle-1 / Welle-2 marker, with ``welle_number=3`` and
+    Welle-3-specific kind strings. The marker is the audit-only
+    artefact that Tomás emits and that Selin's Tag-71 producer reads
+    to populate ``state/welle-3.json:audit_trail_anchor``.
+
+    Tag-71 carries an extra discipline: Welle-3 falls under Henrik's
+    §11-Discipline / IIA-1130 pre-auditor signaling. The marker
+    exposes ``pre_auditor_signaling_ready`` (True iff the bundle
+    contains a ``pre_auditor`` part) so the downstream observability
+    surface (Henrik-Internal-Audit, Amara-QA) can pin pre-auditor
+    readiness without re-reading the bundle.
+    """
+    iso_now = now_utc.isoformat()
+    pre_auditor_signaling_ready = "pre_auditor" in bundle
+    return {
+        "schema_version": 1,
+        "kind": WELLE_3_KIND_MARKER,
+        "mode": MODE_WELLE_3_AUDIT_ANCHOR,
+        "welle_number": 3,
+        "audit_trail_anchor": anchor_hash,
+        "bundle_keys": sorted(
+            k for k in WELLE_3_BUNDLE_ORDER if k in bundle
+        ),
+        "pre_auditor_signaling_ready": pre_auditor_signaling_ready,
+        "wat_spool_envelope": {
+            "schema_version": 1,
+            "kind": WELLE_3_KIND_ENVELOPE,
+            "audit_trail_anchor": anchor_hash,
+            "requested_at_utc": iso_now,
+            "actor": actor,
+            "anchor_target": ANCHOR_TARGET_OTS_CALENDAR,
+        },
+        "emitted_at_utc": iso_now,
+        "anchors": {
+            "adr_audit_trail": "decisions/0007-internal-audit-trail-ots.md",
+            "amara_tag_67_state_file_conventions_pr": 429,
+            "tomas_tag_69_welle_1_audit_anchor_pr": 439,
+            "tomas_tag_70_welle_2_audit_anchor_pr": 445,
+            "selin_tag_71_producer_pr": None,
+            "tomas_tag_71_audit_anchor_pr": None,
+            "state_file_conventions_doc": (
+                "docs/quality-gates/welle-n-state-file-conventions.md"
+            ),
+            "producer_wiring_plan_doc": (
+                "docs/persona-engine/state-file-producer-wiring-plan.md"
+            ),
+            "welle_3_context": "bridge-audit-writer",
+            "henrik_pre_auditor_discipline": "IIA-1130-§11",
+        },
+        "operator_hand_next_step": (
+            "Selin's persona-engine batch-writer "
+            "(engine.py::backfill_audit_trail_anchors, welle=3) reads "
+            "this marker and writes the audit_trail_anchor into "
+            "state/welle-3.json. Henrik-IIA-1130 §11-Discipline: "
+            "pre_auditor_signaling_ready surfaces on the observability "
+            "channel for pre-auditor-decision gate. Real OTS calendar "
+            "stamping is Operator-Hand on a network-attached host, "
+            "separate step."
+        ),
+    }
+
+
+def load_welle_3_bundle(
+    *,
+    rollup_path: Path,
+    sign_off_path: Path,
+    validation_path: Path | None,
+    pre_auditor_path: Path | None,
+) -> dict:
+    """Load the Welle-3 sign-off-record bundle from disk.
+
+    Same shape as ``load_welle_1_bundle`` / ``load_welle_2_bundle``.
+    Kept as its own symbol so a future Welle-3-specific schema
+    divergence (e.g. Bridge-Audit-Writer-specific fields) does not
+    require touching the Welle-1 / Welle-2 call-sites.
+    """
+    bundle: dict = {}
+    bundle["rollup"] = json.loads(rollup_path.read_text(encoding="utf-8"))
+    bundle["sign_off"] = json.loads(sign_off_path.read_text(encoding="utf-8"))
+    if validation_path is not None:
+        bundle["validation"] = json.loads(
+            validation_path.read_text(encoding="utf-8")
+        )
+    if pre_auditor_path is not None:
+        bundle["pre_auditor"] = json.loads(
+            pre_auditor_path.read_text(encoding="utf-8")
+        )
+    return bundle
+
+
 def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="emit_manifest_hash_ots_marker",
@@ -749,6 +912,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             MODE_PRE_ACTIVATION_PROBE,
             MODE_WELLE_1_AUDIT_ANCHOR,
             MODE_WELLE_2_AUDIT_ANCHOR,
+            MODE_WELLE_3_AUDIT_ANCHOR,
         ),
         default=MODE_AUDIT_ONLY,
         help=(
@@ -760,7 +924,11 @@ def main(argv: Iterable[str] | None = None) -> int:
             "(rollup + sign-off + validation + pre-auditor) and emit "
             "marker JSON for Selin's persona-engine producer. "
             "welle-2-audit-anchor (Tag-70): same as welle-1 mode, but "
-            "for the Welle-2 Doppelbetrieb-Sealing bundle."
+            "for the Welle-2 Doppelbetrieb-Sealing bundle. "
+            "welle-3-audit-anchor (Tag-71): same as welle-1 / welle-2 "
+            "mode, but for the Welle-3 Bridge-Audit-Writer bundle. "
+            "Carries Henrik-IIA-1130 §11-Discipline pre-auditor "
+            "signaling flag."
         ),
     )
     parser.add_argument(
@@ -844,6 +1012,43 @@ def main(argv: Iterable[str] | None = None) -> int:
         help=(
             "Path to state/welle-2-pre-auditor-decision.json "
             "(optional for welle-2-audit-anchor mode)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-3-rollup",
+        type=Path,
+        default=None,
+        help=(
+            "Path to state/welle-3.json (required for "
+            "welle-3-audit-anchor mode)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-3-sign-off",
+        type=Path,
+        default=None,
+        help=(
+            "Path to state/welle-3-sign-off.json (required for "
+            "welle-3-audit-anchor mode)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-3-validation",
+        type=Path,
+        default=None,
+        help=(
+            "Path to state/welle-3-validation-last-verdict.json "
+            "(optional for welle-3-audit-anchor mode)."
+        ),
+    )
+    parser.add_argument(
+        "--welle-3-pre-auditor",
+        type=Path,
+        default=None,
+        help=(
+            "Path to state/welle-3-pre-auditor-decision.json "
+            "(optional for welle-3-audit-anchor mode; recommended for "
+            "Henrik-IIA-1130 §11-Discipline pre-auditor signaling)."
         ),
     )
     parser.add_argument(
@@ -1065,6 +1270,96 @@ def main(argv: Iterable[str] | None = None) -> int:
             f"emit_manifest_hash_ots_marker: mode={marker['mode']} "
             f"welle=2 audit_trail_anchor={anchor_hash} "
             f"bundle_keys={marker['bundle_keys']} -> {args.marker_out}"
+        )
+        return 0
+
+    if args.mode == MODE_WELLE_3_AUDIT_ANCHOR:
+        if args.welle_3_rollup is None or args.welle_3_sign_off is None:
+            print(
+                "emit_manifest_hash_ots_marker: "
+                "--welle-3-rollup and --welle-3-sign-off are required "
+                "when --mode welle-3-audit-anchor",
+                file=sys.stderr,
+            )
+            return 2
+        if args.marker_out is None:
+            print(
+                "emit_manifest_hash_ots_marker: "
+                "--marker-out is required when --mode welle-3-audit-anchor",
+                file=sys.stderr,
+            )
+            return 2
+
+        if not args.welle_3_rollup.is_file():
+            print(
+                f"emit_manifest_hash_ots_marker: --welle-3-rollup not "
+                f"a file: {args.welle_3_rollup}",
+                file=sys.stderr,
+            )
+            return 1
+        if not args.welle_3_sign_off.is_file():
+            print(
+                f"emit_manifest_hash_ots_marker: --welle-3-sign-off "
+                f"not a file: {args.welle_3_sign_off}",
+                file=sys.stderr,
+            )
+            return 1
+
+        try:
+            bundle = load_welle_3_bundle(
+                rollup_path=args.welle_3_rollup,
+                sign_off_path=args.welle_3_sign_off,
+                validation_path=(
+                    args.welle_3_validation
+                    if args.welle_3_validation
+                    and args.welle_3_validation.is_file()
+                    else None
+                ),
+                pre_auditor_path=(
+                    args.welle_3_pre_auditor
+                    if args.welle_3_pre_auditor
+                    and args.welle_3_pre_auditor.is_file()
+                    else None
+                ),
+            )
+        except (OSError, json.JSONDecodeError) as exc:
+            print(
+                f"emit_manifest_hash_ots_marker: welle-3 bundle "
+                f"read/parse error: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+
+        try:
+            anchor_hash = compute_welle_3_audit_anchor_hash(bundle)
+        except ValueError as exc:
+            print(
+                f"emit_manifest_hash_ots_marker: welle-3 bundle "
+                f"shape error: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+
+        marker = build_welle_3_audit_anchor_marker(
+            bundle=bundle,
+            anchor_hash=anchor_hash,
+            actor=args.actor,
+            now_utc=now_utc,
+        )
+
+        args.marker_out.parent.mkdir(parents=True, exist_ok=True)
+        args.marker_out.write_text(
+            json.dumps(marker, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+        print(
+            f"emit_manifest_hash_ots_marker: mode={marker['mode']} "
+            f"welle=3 audit_trail_anchor={anchor_hash} "
+            f"bundle_keys={marker['bundle_keys']} "
+            f"pre_auditor_signaling_ready="
+            f"{marker['pre_auditor_signaling_ready']} "
+            f"-> {args.marker_out}"
         )
         return 0
 
