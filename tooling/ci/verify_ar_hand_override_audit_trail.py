@@ -142,68 +142,64 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+# Tag-67 sys.path bootstrap: when this helper runs as
+# ``python tooling/ci/verify_ar_hand_override_audit_trail.py`` (CLI
+# invocation, used by the audit-mode workflow YAML), Python adds only
+# the script directory to ``sys.path``. The shared-constants module
+# lives at ``tooling/ci/shared/...`` and needs the *repo root* on
+# the path for ``from tooling.ci.shared import ...`` to resolve.
+# Add it idempotently before the import. Pytest test-collection
+# already inserts the repo root via repo-root ``conftest.py``, so
+# this is a no-op in that mode.
+_HERE = Path(__file__).resolve()
+_REPO_ROOT = _HERE.parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+# Tag-67 single-source-of-truth for audit-trail constants. The local
+# module-level names below are kept as aliases for the shared values
+# so this helper's behaviour and Tag-66 test contract are unchanged
+# (additive refactor).
+from tooling.ci.shared import audit_trail_marker_constants as _shared  # noqa: E402
+
 
 # ---------------------------------------------------------------------------
-# Schema constants (mirror Tag-65 listener verbatim).
+# Schema constants (mirror Tag-65 listener verbatim, sourced from
+# tooling/ci/shared/audit_trail_marker_constants.py since Tag-67).
 # ---------------------------------------------------------------------------
 
 OUTPUT_SCHEMA_VERSION: int = 1
 TAG66_TOOL_NAME: str = "verify_ar_hand_override_audit_trail"
 
 # Verdict tokens.
-VERDICT_READY: str = "CUTOVER-DAY-MORGEN-READY"
-VERDICT_CAUTION: str = "CUTOVER-DAY-MORGEN-CAUTION"
-VERDICT_BLOCK: str = "CUTOVER-DAY-MORGEN-BLOCK"
-ALLOWED_VERDICTS: frozenset[str] = frozenset(
-    {VERDICT_READY, VERDICT_CAUTION, VERDICT_BLOCK}
-)
+VERDICT_READY: str = _shared.VERDICT_CUTOVER_DAY_READY
+VERDICT_CAUTION: str = _shared.VERDICT_CUTOVER_DAY_CAUTION
+VERDICT_BLOCK: str = _shared.VERDICT_CUTOVER_DAY_BLOCK
+ALLOWED_VERDICTS: frozenset[str] = _shared.CUTOVER_DAY_VERDICTS
 
 # Listener-output envelope required keys.
 ENVELOPE_REQUIRED_KEYS: tuple[str, ...] = (
-    "schema_version",
-    "workflow",
-    "tag",
-    "emitted_at_utc",
-    "applied",
-    "verdict",
-    "input_verdict",
-    "override_marker",
-    "input_verdict_envelope",
-    "audit_trail_note",
-    "decision_rule",
+    _shared.AR_OVERRIDE_ENVELOPE_REQUIRED_KEYS
 )
 
 # Marker schema (must match Tag-65 listener exactly).
-MARKER_KIND: str = "ar-hand-cutover-override-flag"
-MARKER_SCHEMA_VERSION: int = 1
+MARKER_KIND: str = _shared.AR_OVERRIDE_MARKER_KIND
+MARKER_SCHEMA_VERSION: int = _shared.AR_OVERRIDE_MARKER_SCHEMA_VERSION
 MARKER_REQUIRED_FIELDS: tuple[str, ...] = (
-    "schema_version",
-    "kind",
-    "operator",
-    "ts",
-    "reason",
-    "accepted_risk_id",
-    "override_target_verdict",
-    "post_override_verdict",
+    _shared.AR_OVERRIDE_MARKER_REQUIRED_FIELDS
 )
-MARKER_OVERRIDE_TARGET: str = VERDICT_BLOCK
-MARKER_POST_OVERRIDE: str = VERDICT_CAUTION
+MARKER_OVERRIDE_TARGET: str = _shared.AR_OVERRIDE_TARGET_VERDICT
+MARKER_POST_OVERRIDE: str = _shared.AR_OVERRIDE_POST_VERDICT
 
-_SLUG_RE: re.Pattern[str] = re.compile(r"^[a-z0-9][a-z0-9-]{1,63}$")
-_TS_RE: re.Pattern[str] = re.compile(
-    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?"
-    r"(Z|[+-]\d{2}:\d{2})$"
-)
-REASON_MIN_LEN: int = 16
-REASON_MAX_LEN: int = 1024
+_SLUG_RE: re.Pattern[str] = _shared.SLUG_PATTERN
+_TS_RE: re.Pattern[str] = _shared.RFC3339_TIMESTAMP_PATTERN
+REASON_MIN_LEN: int = _shared.AR_OVERRIDE_REASON_MIN_LEN
+REASON_MAX_LEN: int = _shared.AR_OVERRIDE_REASON_MAX_LEN
 
 # Audit-trail-note canonical substrings.
-NOTE_APPLIED_PREFIX: str = "AR-Hand override applied"
-NOTE_GUARD_TOKENS: tuple[str, ...] = (
-    "marker recorded",
-    "verdict unchanged",
-)
-NOTE_NO_MARKER_TOKEN: str = "no override marker"
+NOTE_APPLIED_PREFIX: str = _shared.NOTE_OVERRIDE_APPLIED_PREFIX
+NOTE_GUARD_TOKENS: tuple[str, ...] = _shared.NOTE_STALE_MARKER_GUARD_TOKENS
+NOTE_NO_MARKER_TOKEN: str = _shared.NOTE_NO_MARKER_TOKEN
 
 
 # ---------------------------------------------------------------------------
