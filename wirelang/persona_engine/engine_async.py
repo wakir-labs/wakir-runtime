@@ -54,6 +54,7 @@ from .engine import (
     DEFAULT_HEARTBEAT_INTERVAL_SEC,
     ENGINE_VARIANT,
     EnvContract,
+    handle_phase_3_complete_event as _sync_handle_phase_3_complete_event,
     handle_welle_3_signoff_event as _sync_handle_welle_3_signoff_event,
     handle_welle_4_signoff_event as _sync_handle_welle_4_signoff_event,
     handle_welle_5_signoff_event as _sync_handle_welle_5_signoff_event,
@@ -65,6 +66,9 @@ from .engine import (
 )
 from .welle_state_producer import (
     AuditRecordEmitter,
+    PHASE_3_COMPLETE_REQUIRED_WELLEN,
+    Phase3CompleteAuditEmitter,
+    Phase3CompleteAuditRecord,
     WelleAuditRecord,
 )
 from .llm_call_shim import (
@@ -1007,5 +1011,54 @@ async def handle_welle_7_signoff_event(
             pre_auditor_decision=pre_auditor_decision,
             final_sealing_marker_status=final_sealing_marker_status,
             audit_emitter=audit_emitter,
+        ),
+    )
+
+
+async def handle_phase_3_complete_event(
+    state_dir: Path,
+    verify_iso: str,
+    *,
+    required_wellen: frozenset = PHASE_3_COMPLETE_REQUIRED_WELLEN,
+    phase_3_emitter: Optional[Phase3CompleteAuditEmitter] = None,
+) -> Phase3CompleteAuditRecord:
+    """Async wrapper around :func:`engine.handle_phase_3_complete_event` (Tag-76).
+
+    Runs the sync handler in the default loop's thread-pool executor so
+    the cross-Welle file I/O (7 state-file reads + shape-validation +
+    cross-Welle monotonicity check) does not block the event loop.
+
+    The Tag-76 Phase-3-COMPLETE Production-Bringup-Verifier is the
+    engine-side gate-input for the
+    ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7`` marker emission (per
+    ``docs/quality-gates/phase-3c-doppel-welle-6-7.md`` §4.1). The
+    handler returns a :class:`Phase3CompleteAuditRecord` on a green
+    verdict (all 7 Wellen in canonical signed-off state) or raises
+    :class:`Phase3CompleteVerifierError` on red.
+
+    Read-only: the handler does not mutate any Welle-State-File. The
+    marker-emit itself is audit-trail-consumer-territory (Henrik
+    Internal Audit Zone-N), NOT this handler's responsibility.
+
+    Args:
+        state_dir: Directory containing ``state/welle-{1..7}.json``.
+        verify_iso: RFC 3339 verification-timestamp.
+        required_wellen: The frozenset of welle_numbers required to
+            be signed-off. Defaults to
+            :data:`PHASE_3_COMPLETE_REQUIRED_WELLEN` = {1..7}.
+        phase_3_emitter: Optional Phase-3-COMPLETE audit-record sink;
+            defaults to no-op.
+
+    Returns:
+        :class:`Phase3CompleteAuditRecord` on green verdict.
+    """
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        None,
+        lambda: _sync_handle_phase_3_complete_event(
+            state_dir,
+            verify_iso,
+            required_wellen=required_wellen,
+            phase_3_emitter=phase_3_emitter,
         ),
     )
