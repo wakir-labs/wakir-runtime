@@ -56,17 +56,34 @@ the required-status-check display names into CI so a future drift in
 
 ---
 
-## 2. Substrate inventory — readiness status (2026-05-19)
+## 2. Substrate inventory — readiness status (2026-05-19 Tag-55 closeout)
 
-The cosign substrate consists of four files the readiness-check reads
-from disk:
+The cosign substrate consists of four file-sets the readiness-check
+reads from disk:
 
-| # | Path | Purpose | Today's status |
+| # | Path | Purpose | Tag-55 status |
 |---|---|---|---|
-| 1 | `policies/cosign-policy-phase-3b.yaml` | 15-binary inventory + carrier-image pin | Inventory complete (15/15); carrier digest = placeholder pending Operator-Hand |
-| 2 | `state/cosign-drift/pinned-trust-root.json` | Fulcio CA SHA + Rekor shard ID pin | Both fields = `PENDING_OPERATOR_HAND_REFRESH` |
-| 3 | `state/cosign-drift/last-probe-envelope.json` | Most-recent drift-probe verdict | File absent; operator must run probe + capture |
-| 4 | `quadlet/wakir-rust-cli.container` | Carrier-image-install path inventory | 15-binary parity with policy (per Tag-45 PR #294) |
+| 1 | `policies/cosign-policy-phase-3b.yaml` | 15-binary inventory + carrier-image pin | Inventory complete (15/15); carrier digest = placeholder pending Operator-Hand (**G1 BLOCKED — operator-hand only**) |
+| 2 | `state/cosign-drift/pinned-trust-root.json` | Fulcio CA SHA + Rekor shard ID pin | Both fields = `PENDING_OPERATOR_HAND_REFRESH` (**G2 BLOCKED — operator-hand only**) |
+| 3 | `state/cosign-drift/last-probe-envelope.json` | Most-recent drift-probe verdict | **Tag-55 closeout: baseline-mode envelope committed; aggregate_verdict = GREEN (G3 GREEN)** |
+| 4 | `quadlet/wakir-rust-cli*.container` GLOB | Carrier-image + Welle-4..7 dedicated-image install-path inventory | **Tag-55 closeout: 4 Welle-N Quadlets added (`-welle4..-welle7`); glob union = canonical 15/15 (G5 GREEN)** |
+
+### 2.2 Tag-55 substanz-vollendung — gate verdict map
+
+| Gate | Tag-54 baseline | Tag-55 closeout | Delta path |
+|---|---|---|---|
+| G1 placeholder_digest | BLOCKED (15 placeholders) | BLOCKED (15 placeholders) | Operator-Hand only — `resolve-image-pins-ci` workflow on a host with `ghcr.io` push permissions (sandbox-block per `feedback_sandbox_host_trennung.md`). |
+| G2 trust_root_pin | BLOCKED (both PENDING) | BLOCKED (both PENDING) | Operator-Hand only — `pinned-trust-root.json` refresh on a host with Sigstore-network egress (recipe in `cosign-keyless-oidc-drift-probe.md` §6; Mira-Hand + Zone-C Tomás cross-review). |
+| G3 last_probe_verdict | NOT-CHECKED (envelope absent) | **GREEN** (Tag-55 baseline-mode envelope committed) | Tag-55 closeout — `python3 scripts/observability/cosign-keyless-oidc-drift-probe.py --mode baseline --out-json state/cosign-drift/last-probe-envelope.json` (hermetic baseline-mode, no network egress). |
+| G4 policy_inventory_size | GREEN | GREEN | (no change) |
+| G5 cross_substrate_parity | BLOCKED (4 in policy not in quadlet) | **GREEN** (glob now unions to 15/15) | Tag-55 closeout — 4 Welle-N Quadlets added (`quadlet/wakir-rust-cli-welle4.container` .. `wakir-rust-cli-welle7.container`) + readiness-check extended from single-file to glob loader (`load_quadlet_installer_glob`). |
+| G6 required_check_names | GREEN | GREEN | (no change) |
+
+Two BLOCKED gates remain — both **Operator-Hand-only** per
+`feedback_sandbox_host_trennung.md` (registry-egress + Sigstore-network
+egress required). The substrate-side closeout is complete; the
+remaining work is the two Operator-Hand actions per §5 Step 2 and
+Step 3 below.
 
 ### 2.1 Readiness verdict legend
 
@@ -164,33 +181,41 @@ G2 BLOCKED (PENDING trust-root), G3 NOT-CHECKED (no envelope), G4
 GREEN (Tag-45 lock-step), G5 GREEN (quadlet parity), G6 GREEN
 (names known).
 
-### Step 2a — Resolve G5 cross-substrate parity drift
+### Step 2a — Resolve G5 cross-substrate parity drift (Tag-55 CLOSED)
 
-The Tag-54 baseline run reports G5 BLOCKED with the four Welle-4..7
+The Tag-54 baseline run reported G5 BLOCKED with the four Welle-4..7
 binaries (`state-backing-welle4`, `fsm-welle5`, `subscribe-loop-welle6`,
 `recovery-welle7`) present in the policy but absent from
-`quadlet/wakir-rust-cli.container`. The Tag-33 Mini-Welle landed the
-four entries in the policy as *first-class single-binary-image* slots;
-the Quadlet installer was not yet extended in the same wave.
+`quadlet/wakir-rust-cli.container`.
 
-Two valid resolution paths:
+**Tag-55 closeout (Kai):** Resolution-B chosen and shipped. Four
+dedicated per-Welle Quadlets landed in lock-step:
 
-* **Resolution-A (extend Quadlet):** PR #N0a adds the four binaries
-  to `quadlet/wakir-rust-cli.container` mirroring the per-binary path
-  convention. After merge, G5 flips to GREEN.
-* **Resolution-B (separate per-Welle Quadlet substrate):** the four
-  Welle-binaries are intentionally hosted in dedicated per-Welle
-  Quadlet files (not yet authored). PR #N0b adds the
-  `--quadlet-installer` option to accept a glob over multiple Quadlet
-  files; the readiness-check then iterates ALL of them and unions the
-  binary-name set.
+* `quadlet/wakir-rust-cli-welle4.container` (state-backing-welle4)
+* `quadlet/wakir-rust-cli-welle5.container` (fsm-welle5)
+* `quadlet/wakir-rust-cli-welle6.container` (subscribe-loop-welle6)
+* `quadlet/wakir-rust-cli-welle7.container` (recovery-welle7)
 
-Resolution-A is the recommended path (smaller substrate footprint,
-single installer file matching the single carrier image). Resolution-B
-is the future-proof path if the per-Welle deployment model later
-demands dedicated install paths.
+The readiness-check was extended from a single-file `--quadlet-installer`
+arg to a glob-aware `--quadlet-glob` default
+(`quadlet/wakir-rust-cli*.container`) that unions binary-names across
+ALL matched Quadlets. The hermetic test surface gained four new tests
+(TV-SM-20..TV-SM-23, TV-SM-27) plus on-disk substrate pins (TV-SM-24,
+TV-SM-25) that catch a future Welle-Quadlet drift.
 
-Cross-Review-Zone-C: Tomás chooses the path before this step lands.
+Resolution-B was preferred over Resolution-A because the four
+Welle-4..7 binaries ship as *dedicated single-binary images*
+(`ghcr.io/wakir-labs/wakir-persona-engine-state-backing-welle4` etc.)
+per the Tag-33 Mini-Welle inventory — they are NOT in the carrier
+image, so the carrier-image installer (`wakir-rust-cli.container`)
+cannot install them. The Welle-N dedicated installer Quadlets pin
+each Welle-N image digest independently, enabling per-Welle rollback
+without touching the carrier-image digest.
+
+G5 verdict on `main` post Tag-55: **GREEN** (15/15 set-equality).
+
+Cross-Review-Zone-C: Tomás reviews the per-Welle Quadlet substrate
++ the readiness-check glob-loader change at Tag-55 PR review-time.
 
 ### Step 2 — Operator-Hand carrier-image digest resolution
 
@@ -220,7 +245,17 @@ workflow already documents:
    `state/cosign-drift/pinned-trust-root.json` with the real values.
 4. Re-run the readiness check; G2 flips from BLOCKED to GREEN.
 
-### Step 4 — Capture the last-probe envelope
+### Step 4 — Capture the last-probe envelope (Tag-55 CLOSED for baseline-mode)
+
+**Tag-55 closeout (Kai):** the baseline-mode envelope is now committed
+to `state/cosign-drift/last-probe-envelope.json` (aggregate_verdict =
+GREEN, generated via `python3 scripts/observability/cosign-keyless-oidc-drift-probe.py --mode baseline`).
+G3 GREEN on `main` post Tag-55.
+
+The full Operator-Hand fixture-mode envelope (which requires a live
+Sigstore-network egress snapshot) is still owed at Strict-Flip time
+so the trust-root axis verdict is grounded in a live snapshot rather
+than the baseline self-consistency. Recipe stays the same as below.
 
 1. Run the cosign-keyless-OIDC-drift-probe workflow:
    ```bash

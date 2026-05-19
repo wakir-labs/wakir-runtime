@@ -10,7 +10,7 @@ cosign / network egress.
 Test-vector naming:
   TV-SM-NN  — readiness-check substrate test, NN = ordinal.
 
-Invariants (≥12, target 16):
+Invariants (≥12, target 16; Tag-55 closeout: extended to ≥27):
 
   TV-SM-01  inventory constant matches Tag-45 canonical size (15).
   TV-SM-02  inventory constant order is deterministic + frozen.
@@ -32,6 +32,23 @@ Invariants (≥12, target 16):
   TV-SM-17  aggregate_run_verdict precedence BLOCKED > NOT-CHECKED > GREEN.
   TV-SM-18  render_markdown_summary contains all six gate rows.
   TV-SM-19  envelope_to_json carries schema + run_ts + per-gate rows.
+
+  Tag-55 closeout additions:
+  TV-SM-20  load_quadlet_installer_glob returns None when no matches.
+  TV-SM-21  load_quadlet_installer_glob unions binary-names across all
+            matched Quadlet files in deterministic sorted-path order.
+  TV-SM-22  glob loader dedupes names across files.
+  TV-SM-23  on-disk Welle-4..7 Quadlets each declare exactly their
+            single welle-suffix binary name (regression pin).
+  TV-SM-24  on-disk policy YAML has the canonical 15 binaries in the
+            canonical order (G4 substrate-pin).
+  TV-SM-25  on-disk Quadlet glob unions to the canonical 15 binary
+            set (G5 substrate-pin post Tag-55 Welle-4..7 add).
+  TV-SM-26  on-disk last-probe-envelope.json is present and parses to
+            an aggregate_verdict (G3 substrate-pin).
+  TV-SM-27  G5 GREEN evaluator on a quadlet view that carries the
+            canonical 15 set (set-equality, order-insensitive).
+  TV-SM-28  REAL_DIGEST_RE only accepts well-formed sha256 + 64 hex.
 """
 
 from __future__ import annotations
@@ -375,3 +392,161 @@ def test_tv_sm_19_json_envelope_schema_and_rows(smod):
     assert len(payload["gate_results"]) == 2
     assert payload["gate_results"][0]["gate_id"] == "G1"
     assert payload["gate_results"][1]["detail"] == "x"
+
+
+# ---------------------------------------------------------------------------
+# Tag-55 closeout tests (glob loader + on-disk substrate pins)
+# ---------------------------------------------------------------------------
+
+
+def test_tv_sm_20_glob_loader_returns_none_on_empty(smod, tmp_path):
+    """TV-SM-20: glob loader returns None when no Quadlets match."""
+    result = smod.load_quadlet_installer_glob(tmp_path, "no-such-*.container")
+    assert result is None
+
+
+def test_tv_sm_21_glob_loader_unions_names_sorted_path(smod, tmp_path):
+    """TV-SM-21: glob loader unions binary-names in sorted-path order."""
+    # Two synthetic Quadlets — first carries A,B; second carries C.
+    (tmp_path / "quadlet").mkdir()
+    (tmp_path / "quadlet" / "a.container").write_text(
+        "/opt/wakir/bin/wakir-persona-engine-recovery\n"
+        "/opt/wakir/bin/wakir-persona-engine-fsm\n"
+    )
+    (tmp_path / "quadlet" / "b.container").write_text(
+        "/opt/wakir/bin/wakir-persona-engine-state-backing\n"
+    )
+    result = smod.load_quadlet_installer_glob(
+        tmp_path, "quadlet/*.container"
+    )
+    assert result is not None
+    # a.container loads first (sorted-path), so its names appear first.
+    assert result.binary_names == ("recovery", "fsm", "state-backing")
+
+
+def test_tv_sm_22_glob_loader_dedupes_across_files(smod, tmp_path):
+    """TV-SM-22: glob loader dedupes binary-names across files."""
+    (tmp_path / "quadlet").mkdir()
+    (tmp_path / "quadlet" / "a.container").write_text(
+        "/opt/wakir/bin/wakir-persona-engine-recovery\n"
+    )
+    (tmp_path / "quadlet" / "b.container").write_text(
+        # Same name as a.container; the union should keep one entry.
+        "/opt/wakir/bin/wakir-persona-engine-recovery\n"
+        "/opt/wakir/bin/wakir-persona-engine-fsm\n"
+    )
+    result = smod.load_quadlet_installer_glob(
+        tmp_path, "quadlet/*.container"
+    )
+    assert result is not None
+    assert result.binary_names == ("recovery", "fsm")
+
+
+def test_tv_sm_23_welle_quadlets_declare_single_binary(smod):
+    """TV-SM-23: each on-disk Welle-N Quadlet declares exactly its
+    single welle-suffix binary name (regression pin against accidental
+    drift where a sibling-shape Quadlet is copy-paste-edited and ends
+    up listing a wrong/extra binary).
+    """
+    expected = {
+        "welle4": "state-backing-welle4",
+        "welle5": "fsm-welle5",
+        "welle6": "subscribe-loop-welle6",
+        "welle7": "recovery-welle7",
+    }
+    for suffix, binary in expected.items():
+        path = _REPO_ROOT / "quadlet" / f"wakir-rust-cli-{suffix}.container"
+        assert path.exists(), f"Quadlet missing on disk: {path}"
+        text = path.read_text(encoding="utf-8")
+        names = smod.quadlet_installer_binary_names_from_text(text)
+        # Each welle-Quadlet must reference EXACTLY its single binary
+        # (anchor comment + Exec= path both contribute, but dedup
+        # collapses to one).
+        assert names == (binary,), (
+            f"{path.name} declares {names!r}, expected ({binary!r},)"
+        )
+
+
+def test_tv_sm_24_on_disk_policy_carries_canonical_15(smod):
+    """TV-SM-24: on-disk policy YAML has canonical 15 in canonical order.
+
+    Reads the real policy file (the script's load_policy_yaml requires
+    pyyaml; we keep this test inside the I/O substrate test surface
+    because it pins the on-disk substrate that G4 evaluates).
+    """
+    pytest_yaml = pytest.importorskip("yaml")
+    policy_path = _REPO_ROOT / "policies" / "cosign-policy-phase-3b.yaml"
+    raw = pytest_yaml.safe_load(policy_path.read_text(encoding="utf-8"))
+    view = smod.policy_view_from_raw(raw)
+    assert view.binary_names == smod.TAG45_CANONICAL_INVENTORY
+
+
+def test_tv_sm_25_on_disk_quadlet_glob_unions_to_canonical_15(smod):
+    """TV-SM-25: the on-disk Quadlet glob unions to the canonical 15
+    binary set (G5 substrate-pin post Tag-55 Welle-4..7 add)."""
+    result = smod.load_quadlet_installer_glob(
+        _REPO_ROOT, "quadlet/wakir-rust-cli*.container"
+    )
+    assert result is not None
+    assert set(result.binary_names) == set(smod.TAG45_CANONICAL_INVENTORY)
+    assert len(result.binary_names) == 15
+
+
+def test_tv_sm_26_on_disk_last_probe_envelope_present(smod):
+    """TV-SM-26: on-disk last-probe-envelope.json parses to a verdict.
+
+    The Tag-55 closeout commits a baseline-mode drift-probe envelope to
+    state/cosign-drift/last-probe-envelope.json so G3 evaluates against
+    a real on-disk envelope rather than NOT-CHECKED.
+    """
+    envelope_path = (
+        _REPO_ROOT / "state" / "cosign-drift" / "last-probe-envelope.json"
+    )
+    assert envelope_path.exists(), (
+        f"missing on-disk last-probe-envelope.json at {envelope_path}"
+    )
+    raw = json.loads(envelope_path.read_text(encoding="utf-8"))
+    assert "aggregate_verdict" in raw
+    assert raw["aggregate_verdict"] in (
+        "GREEN",
+        "NOT-CHECKED",
+        "DRIFT-WORKFLOW-PATH",
+        "DRIFT-CERTIFICATE-ISSUER",
+        "DRIFT-OIDC-IDENTITY",
+        "DRIFT-TRUST-ROOT",
+    )
+    # Tag-55 closeout committed a GREEN baseline envelope so G3 flips
+    # GREEN immediately on a fresh checkout.
+    assert raw["aggregate_verdict"] == "GREEN"
+
+
+def test_tv_sm_27_g5_green_on_full_canonical_set(smod):
+    """TV-SM-27: G5 GREEN on a quadlet view that carries the canonical
+    15 binary set (set-equality, order-insensitive)."""
+    policy = smod.PolicyInventoryView(
+        schema_version="wakir.cosign-policy.phase-3b/1",
+        carrier_expected_image_digest=_real_digest(),
+        binary_names=smod.TAG45_CANONICAL_INVENTORY,
+    )
+    # Reverse-order quadlet view -- set-equality so order does NOT
+    # matter for the G5 verdict.
+    quadlet = smod.QuadletInstallerView(
+        binary_names=tuple(reversed(smod.TAG45_CANONICAL_INVENTORY)),
+    )
+    result = smod.evaluate_gate_g5_cross_substrate_parity(policy, quadlet)
+    assert result.gate_id == "G5"
+    assert result.verdict == "GREEN"
+
+
+def test_tv_sm_28_real_digest_regex_strictness(smod):
+    """TV-SM-28: REAL_DIGEST_RE only accepts well-formed sha256 + 64 hex."""
+    valid = "sha256:" + "a" * 64
+    assert smod.REAL_DIGEST_RE.match(valid)
+    # Too short
+    assert not smod.REAL_DIGEST_RE.match("sha256:abc")
+    # Wrong algo prefix
+    assert not smod.REAL_DIGEST_RE.match("sha512:" + "a" * 64)
+    # Uppercase rejected (canonical sha256 is lowercase)
+    assert not smod.REAL_DIGEST_RE.match("sha256:" + "A" * 64)
+    # Placeholder rejected
+    assert not smod.REAL_DIGEST_RE.match(smod.PLACEHOLDER_DIGEST)

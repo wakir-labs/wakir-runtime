@@ -1,0 +1,97 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Tag-55 Mini-Welle — Welle-4 dedicated single-binary installer Quadlet
+# ====================================================================
+#
+# ADR-0066 Welle-4 Quadlet — installs the dedicated single-binary
+# image for ``state-backing-welle4`` (the NATS-KV Persona-State
+# backing operator-CLI). The carrier-image installer
+# (``wakir-rust-cli.container``) keeps shipping the existing 11
+# carrier-image binaries; this Quadlet installs the dedicated
+# single-binary image that the Welle-4 cutover step pins
+# INDEPENDENTLY of the carrier-image digest.
+#
+# Why a dedicated image
+# ---------------------
+# Per the Tag-33 Mini-Welle inventory comment in
+# ``policies/cosign-policy-phase-3b.yaml``, the four Welle-4..7
+# binaries (``state-backing-welle4``, ``fsm-welle5``,
+# ``subscribe-loop-welle6``, ``recovery-welle7``) each ship as a
+# dedicated single-binary image. The Welle-4..7 cutover steps pin
+# these images independently of the carrier image so a per-Welle
+# rollback can revert a single binary without touching the carrier-
+# image digest pin used by the persona-engine subprocess-bridge.
+#
+# Tag-55 closeout
+# ---------------
+# This Quadlet was added on Tag-55 (Kai) to close the Cosign-Strict-
+# Mode Readiness Check G5 gate. Before Tag-55 the readiness-check
+# reported cross-substrate parity drift between the 15-binary policy
+# inventory and the 11-binary carrier-image installer; the four
+# welle-suffix binaries were referenced only by the policy. The
+# Tag-55 readiness-check Glob (``quadlet/wakir-rust-cli*.container``)
+# now picks up this file + its three Welle-5..7 siblings, closing
+# the parity drift.
+#
+# Operator-Hand pre-cutover step
+# ------------------------------
+# The image digest below is the ``DIGEST_PENDING_KAI_CROSS_REVIEW``
+# placeholder, mirroring the carrier-image convention. Resolution
+# is Operator-Hand at Welle-4 cutover time per
+# ``docs/operations/cosign-policy-phase-3b.md`` §3.
+
+# Canonical in-image binary path installed by this Quadlet
+# (machine-grep target for the Tag-55 readiness-check G5 cross-
+# substrate-parity glob; the Exec= line below uses a shell variable
+# so the literal path appears here as a discoverability anchor):
+#
+#   /opt/wakir/bin/wakir-persona-engine-state-backing-welle4
+
+[Unit]
+Description=Wakir ADR-0066 Welle-4 state-backing-welle4 dedicated single-binary installer (oneshot)
+Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/docs/operations/quadlets-phase-3b-rust-cli.md
+After=network-online.target
+Wants=network-online.target
+Requires=wakir-rust-cli-bin-volume.service
+
+[Container]
+ContainerName=wakir-rust-cli-welle4-installer
+
+# Image pin: dedicated single-binary image for the Welle-4 cutover
+# step. Resolved Operator-Hand via resolve-image-pins-ci. Matches
+# policies/cosign-policy-phase-3b.yaml ``state-backing-welle4``
+# entry byte-for-byte.
+Image=ghcr.io/wakir-labs/wakir-persona-engine-state-backing-welle4:0.5.0-pilot@sha256:DIGEST_PENDING_KAI_CROSS_REVIEW
+
+# Copy the one canonical binary from the dedicated single-binary
+# image into the bind-mounted host-side volume.
+Entrypoint=/bin/sh
+Exec=-c "set -e; for b in wakir-persona-engine-state-backing-welle4; do test -x \"/opt/wakir/bin/$b\" || { echo \"missing or non-exec in welle4 image: $b\" >&2; exit 2; }; install -m 0755 \"/opt/wakir/bin/$b\" \"/host-bin/$b\"; done; echo OK"
+
+# Read-only root filesystem.
+ReadOnly=true
+
+# Non-root uid:gid; sibling Quadlet convention.
+User=1000
+Group=1000
+
+# Host-side binary install location, shared with the carrier-image
+# installer Quadlet via the named-volume ``wakir-rust-cli-bin.volume``.
+Volume=wakir-rust-cli-bin.volume:/host-bin:Z,U
+
+# Container-init hardening (parity with sibling Quadlets).
+DropCapability=ALL
+NoNewPrivileges=true
+
+# Resource envelope -- one ``install`` invocation.
+PodmanArgs=--cpus=0.2 --memory=128m
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target default.target

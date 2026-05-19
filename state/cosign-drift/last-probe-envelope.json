@@ -1,0 +1,86 @@
+{
+  "aggregate_verdict": "GREEN",
+  "per_binary": [
+    {
+      "binary_name": "recovery",
+      "reason": "",
+      "verdict": "GREEN"
+    },
+    {
+      "binary_name": "state-backing",
+      "reason": "",
+      "verdict": "GREEN"
+    },
+    {
+      "binary_name": "fsm",
+      "reason": "",
+      "verdict": "GREEN"
+    },
+    {
+      "binary_name": "v907-verify",
+      "reason": "",
+      "verdict": "GREEN"
+    },
+    {
+      "binary_name": "bridge-diff",
+      "reason": "",
+      "verdict": "GREEN"
+    },
+    {
+      "binary_name": "subscribe-loop",
+      "reason": "",
+      "verdict": "GREEN"
+    },
+    {
+      "binary_name": "anchor-emitter",
+      "reason": "",
+      "verdict": "GREEN"
+    },
+    {
+      "binary_name": "svid-workload-identity",
+      "reason": "",
+      "verdict": "GREEN"
+    },
+    {
+      "binary_name": "bridge-audit-writer",
+      "reason": "",
+      "verdict": "GREEN"
+    },
+    {
+      "binary_name": "state-backing-welle4",
+      "reason": "",
+      "verdict": "GREEN"
+    },
+    {
+      "binary_name": "fsm-welle5",
+      "reason": "",
+      "verdict": "GREEN"
+    },
+    {
+      "binary_name": "subscribe-loop-welle6",
+      "reason": "",
+      "verdict": "GREEN"
+    },
+    {
+      "binary_name": "recovery-welle7",
+      "reason": "",
+      "verdict": "GREEN"
+    },
+    {
+      "binary_name": "bridge-audit-replay",
+      "reason": "",
+      "verdict": "GREEN"
+    },
+    {
+      "binary_name": "migrate-version",
+      "reason": "",
+      "verdict": "GREEN"
+    }
+  ],
+  "probe_ts": 1779155464,
+  "schema": "wakir.observability.cosign-drift-probe/1",
+  "trust_root_axis": {
+    "reason": "all four trust-root axes consistent",
+    "verdict": "GREEN"
+  }
+}

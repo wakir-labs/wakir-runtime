@@ -95,12 +95,18 @@ Sandbox boundary
 
 Per ``feedback_sandbox_host_trennung.md`` + ADR-0051 this script
 NEVER calls cosign / crane / skopeo / podman / network egress. It
-reads four files from disk only:
+reads four file-sets from disk only:
 
   * ``policies/cosign-policy-phase-3b.yaml``
   * ``state/cosign-drift/pinned-trust-root.json``
   * ``state/cosign-drift/last-probe-envelope.json`` (optional)
-  * ``quadlet/wakir-rust-cli.container`` (optional, for G5)
+  * ``quadlet/wakir-rust-cli*.container`` GLOB (optional, for G5).
+    Tag-55 closeout extended G5 from single-file to glob-pattern;
+    the four Welle-4..7 dedicated single-binary installer Quadlets
+    (``wakir-rust-cli-welle4.container`` ..
+    ``wakir-rust-cli-welle7.container``) landed in lock-step and
+    are picked up by the glob alongside the carrier-image installer
+    ``wakir-rust-cli.container``.
 
 The strict-flip itself is **Operator-Hand** — this script only
 reports readiness. The Operator-Hand recipe lives in
@@ -719,12 +725,50 @@ def load_probe_envelope(path: Path) -> Optional[ProbeEnvelopeView]:
 
 
 def load_quadlet_installer(path: Path) -> Optional[QuadletInstallerView]:
-    """Load the Quadlet installer text + extract binary names."""
+    """Load the Quadlet installer text + extract binary names.
+
+    Single-file legacy entry-point — kept for backward-compat with
+    callers that pass a concrete Quadlet path. The Tag-55 glob-aware
+    entry-point ``load_quadlet_installer_glob`` is the preferred
+    surface; it unions binary-names across all glob-matched
+    Quadlets, which is what G5 needs after the Tag-55 Welle-4..7
+    dedicated single-binary installer Quadlets landed.
+    """
     if not path.exists():
         return None
     text = path.read_text(encoding="utf-8")
     names = quadlet_installer_binary_names_from_text(text)
     return QuadletInstallerView(binary_names=names)
+
+
+def load_quadlet_installer_glob(
+    repo_root: Path, pattern: str = "quadlet/wakir-rust-cli*.container"
+) -> Optional[QuadletInstallerView]:
+    """Load all Quadlet installer files matching ``pattern`` and union
+    their binary-names into a single QuadletInstallerView.
+
+    Tag-55 (Kai): the readiness-check G5 cross-substrate-parity gate
+    pre-Tag-55 only read ``quadlet/wakir-rust-cli.container`` (the
+    Tag-22 carrier-image installer). The four Welle-4..7 dedicated
+    single-binary installer Quadlets that landed Tag-55 are picked up
+    by the default glob ``quadlet/wakir-rust-cli*.container``.
+
+    The union preserves first-occurrence order across files in
+    sorted-path order so the resulting tuple is deterministic.
+    """
+    matched = sorted(repo_root.glob(pattern))
+    if not matched:
+        return None
+    found: List[str] = []
+    seen: set[str] = set()
+    for path in matched:
+        text = path.read_text(encoding="utf-8")
+        for name in quadlet_installer_binary_names_from_text(text):
+            if name in seen:
+                continue
+            seen.add(name)
+            found.append(name)
+    return QuadletInstallerView(binary_names=tuple(found))
 
 
 def write_json_envelope(path: Path, run: ReadinessRun) -> None:
@@ -775,11 +819,28 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument(
         "--quadlet-installer",
         type=Path,
-        default=Path("quadlet/wakir-rust-cli.container"),
+        default=None,
         help=(
-            "Path to the Quadlet installer file. "
-            "If absent, gate G5 returns NOT-CHECKED (which blocks readiness)."
+            "Legacy single-file path to a Quadlet installer. "
+            "If unset, the Tag-55 glob-pattern ``--quadlet-glob`` is used "
+            "instead, which unions binary-names across all matching "
+            "Quadlets (the Tag-55 closeout for G5 cross-substrate-parity)."
         ),
+    )
+    parser.add_argument(
+        "--quadlet-glob",
+        default="quadlet/wakir-rust-cli*.container",
+        help=(
+            "Glob (relative to --repo-root) for Quadlet installer files. "
+            "Tag-55 default picks up the carrier-image installer "
+            "AND the Welle-4..7 dedicated single-binary installer Quadlets."
+        ),
+    )
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        default=Path("."),
+        help="Repo root for resolving --quadlet-glob.",
     )
     parser.add_argument(
         "--out-json",
@@ -807,7 +868,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     policy, raw_binaries = load_policy_yaml(args.policy)
     trust_root = load_pinned_trust_root(args.pinned_trust_root)
     envelope = load_probe_envelope(args.last_probe_envelope)
-    quadlet = load_quadlet_installer(args.quadlet_installer)
+    if args.quadlet_installer is not None:
+        # Backward-compat single-file path.
+        quadlet = load_quadlet_installer(args.quadlet_installer)
+    else:
+        quadlet = load_quadlet_installer_glob(
+            args.repo_root, args.quadlet_glob
+        )
 
     gate_results: Tuple[GateResult, ...] = (
         evaluate_gate_g1_placeholder_digests(policy, raw_binaries),
