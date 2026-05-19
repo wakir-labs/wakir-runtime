@@ -102,9 +102,21 @@ The bridge derives event ids via the Tag-46 emitter's deterministic
 Tag-46 receiver dedupes on event_id, so repeated AlertManager
 re-fires are idempotent end-to-end.
 
+Tag-64 Cutover-Day-Morgen Trinary-Verdict-Reactive-Routing
+----------------------------------------------------------
+
+Three new catalog entries (Section 6) plus an in-module routing-class
+-> channel-set table. The Selin Tag-64 Cutover-Day-Morgen Auto-
+Scheduler emits one of three verdict classes (READY/CAUTION/BLOCK),
+each materialised as a Prometheus alert carrying a `routing_class`
+label that the bridge consumes to enrich the NotifyEvent labels with
+`notify_channels` (comma-separated channel-set) and
+`escalation_after_seconds`. The bridge does NOT call the channels --
+that remains a Kai-Zone-H Operator-Hand surface.
+
 Author: Noa Bergstroem (SRE)
 Anchor: Tag-45 catalog PR #292; Tag-46 emitter+receiver PR #296;
-        Tag-47 bridge substance.
+        Tag-47 bridge substance; Tag-64 trinary-routing extension.
 """
 
 from __future__ import annotations
@@ -364,6 +376,35 @@ ALERT_CATALOG: dict[str, dict[str, str]] = {
             "https://wakir-labs.example/runbooks/welle-7-replay-divergence"
         ),
     },
+    # Tag-64 Cutover-Day-Morgen Trinary-Verdict-Reactive-Routing
+    # (Section 6 of catalog). The three alerts feed off the same
+    # recording rule `wakir_cutover_day_morgen_verdict_class`; the
+    # `routing_class` label on each alert steers the AlertManager
+    # route-tree fan-out (standard / ops-on-call / ops-on-call-plus-
+    # management). The bridge maps each alert through the trinary
+    # ROUTING_CLASS_CHANNELS table below and the emitter receives
+    # the channel-set as part of the labels passthrough.
+    "WakirCutoverDayMorgenVerdictReady": {
+        "failure_mode_id": "Tag-64-Ready",
+        "severity": "info",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/cutover-day-morgen-ready"
+        ),
+    },
+    "WakirCutoverDayMorgenVerdictCaution": {
+        "failure_mode_id": "Tag-64-Caution",
+        "severity": "page",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/cutover-day-morgen-caution"
+        ),
+    },
+    "WakirCutoverDayMorgenVerdictBlock": {
+        "failure_mode_id": "Tag-64-Block",
+        "severity": "page-storm",
+        "runbook_url": (
+            "https://wakir-labs.example/runbooks/cutover-day-morgen-block"
+        ),
+    },
 }
 
 # Tag-40 baseline alerts that pre-date the Pre-Mortem-extension.
@@ -426,7 +467,15 @@ CATALOG_NON_PRE_MORTEM: dict[str, dict[str, str | None]] = {
 # Severity in the Prometheus rule label-namespace.  AlertManager
 # does not normalise; the bridge maps the catalog severity onto the
 # emitter severity-vocabulary (page/warning/info).
+#
+# Tag-64 addition: `page-storm` is a new severity for BLOCK-class
+# Cutover-Day-Morgen verdicts. The emitter vocabulary tops out at
+# `page`; the bridge maps `page-storm` -> `page` for the emitter
+# event-severity field, but the `routing_class` label is preserved
+# verbatim so the receiver/route-tree can fan out to the management
+# channel as well as the on-call channel.
 PROM_SEVERITY_TO_NOTIFY: dict[str, str] = {
+    "page-storm": "page",
     "page": "page",
     "critical": "page",
     "warning": "warning",
@@ -434,6 +483,132 @@ PROM_SEVERITY_TO_NOTIFY: dict[str, str] = {
     "info": "info",
     "informational": "info",
 }
+
+
+# ---------------------------------------------------------------------------
+# Tag-64 trinary-class -> channel-set routing table.
+#
+# The Selin Tag-64 Cutover-Day-Morgen Auto-Scheduler emits ONE of three
+# verdict classes (READY / CAUTION / BLOCK) and the three new Tag-64
+# alerts (WakirCutoverDayMorgenVerdictReady/Caution/Block) carry a
+# `routing_class` label set to one of:
+#
+#   * "standard"                      (READY)
+#   * "ops-on-call"                   (CAUTION)
+#   * "ops-on-call-plus-management"   (BLOCK)
+#
+# The bridge looks up the routing_class via ROUTING_CLASS_CHANNELS
+# and merges the channel-set into the NotifyEvent labels under the
+# key `notify_channels` (comma-separated, deterministic order). The
+# receiver-side route-tree consumes the channel-set; the bridge
+# itself does NOT call the channels (no PagerDuty HTTP, no SMTP,
+# no ntfy.sh -- those are Kai-Zone-H Operator-Hand surfaces).
+#
+# Each routing_class also pins an `escalation_after_seconds` value
+# that the receiver consumes to schedule the unacknowledged-storm
+# escalation (READY = no escalation; CAUTION = 600s = 10min;
+# BLOCK = 300s = 5min, with AR escalation as the final hop).
+# ---------------------------------------------------------------------------
+
+ROUTING_CLASS_STANDARD = "standard"
+ROUTING_CLASS_OPS_ON_CALL = "ops-on-call"
+ROUTING_CLASS_OPS_ON_CALL_PLUS_MANAGEMENT = "ops-on-call-plus-management"
+
+VALID_ROUTING_CLASSES: frozenset[str] = frozenset(
+    {
+        ROUTING_CLASS_STANDARD,
+        ROUTING_CLASS_OPS_ON_CALL,
+        ROUTING_CLASS_OPS_ON_CALL_PLUS_MANAGEMENT,
+    }
+)
+
+ROUTING_CLASS_CHANNELS: dict[str, tuple[str, ...]] = {
+    ROUTING_CLASS_STANDARD: (
+        "ntfy:ar-hand-info",
+        "activity-log:append",
+    ),
+    ROUTING_CLASS_OPS_ON_CALL: (
+        "pagerduty:sre-oncall",
+        "ntfy:ar-hand",
+        "activity-log:append",
+    ),
+    ROUTING_CLASS_OPS_ON_CALL_PLUS_MANAGEMENT: (
+        "pagerduty:sre-oncall",
+        "pagerduty:management",
+        "ntfy:ar-hand",
+        "activity-log:hold-marker",
+    ),
+}
+
+ROUTING_CLASS_ESCALATION_SECONDS: dict[str, int] = {
+    ROUTING_CLASS_STANDARD: 0,
+    ROUTING_CLASS_OPS_ON_CALL: 600,
+    ROUTING_CLASS_OPS_ON_CALL_PLUS_MANAGEMENT: 300,
+}
+
+# Set of alertnames that REQUIRE a routing_class label (Tag-64
+# trinary-routing contract). Used by the validator to fail-closed
+# when an alert in this set is missing the label.
+TRINARY_ROUTING_ALERTNAMES: frozenset[str] = frozenset(
+    {
+        "WakirCutoverDayMorgenVerdictReady",
+        "WakirCutoverDayMorgenVerdictCaution",
+        "WakirCutoverDayMorgenVerdictBlock",
+    }
+)
+
+# Pin the expected (alertname, routing_class) pairs as a structural
+# invariant: the trinary contract requires these exact three.
+EXPECTED_TRINARY_ROUTING: dict[str, str] = {
+    "WakirCutoverDayMorgenVerdictReady": ROUTING_CLASS_STANDARD,
+    "WakirCutoverDayMorgenVerdictCaution": ROUTING_CLASS_OPS_ON_CALL,
+    "WakirCutoverDayMorgenVerdictBlock": (
+        ROUTING_CLASS_OPS_ON_CALL_PLUS_MANAGEMENT
+    ),
+}
+
+
+def lookup_routing_class_channels(routing_class: str) -> tuple[str, ...]:
+    """Return the channel-tuple for a routing_class, or () if unknown."""
+    return ROUTING_CLASS_CHANNELS.get(routing_class, ())
+
+
+def lookup_routing_class_escalation_seconds(routing_class: str) -> int:
+    """Return the escalation-deadline for a routing_class (0 = none)."""
+    return ROUTING_CLASS_ESCALATION_SECONDS.get(routing_class, 0)
+
+
+def validate_trinary_routing_table_shape() -> dict[str, list[str]]:
+    """Validate the in-module trinary routing-table structural invariants.
+
+    Returns a dict with three lists:
+    * ``missing_class`` -- routing-classes referenced by
+      ``EXPECTED_TRINARY_ROUTING`` but not present in
+      ``ROUTING_CLASS_CHANNELS``.
+    * ``missing_channels`` -- routing-classes in
+      ``ROUTING_CLASS_CHANNELS`` whose channel-tuple is empty.
+    * ``missing_escalation`` -- routing-classes that lack an entry
+      in ``ROUTING_CLASS_ESCALATION_SECONDS``.
+
+    All three lists empty == trinary routing-table shape OK.
+    """
+    referenced_classes = set(EXPECTED_TRINARY_ROUTING.values())
+    missing_class = sorted(referenced_classes - set(ROUTING_CLASS_CHANNELS))
+    missing_channels = sorted(
+        cls
+        for cls in ROUTING_CLASS_CHANNELS
+        if not ROUTING_CLASS_CHANNELS[cls]
+    )
+    missing_escalation = sorted(
+        cls
+        for cls in ROUTING_CLASS_CHANNELS
+        if cls not in ROUTING_CLASS_ESCALATION_SECONDS
+    )
+    return {
+        "missing_class": missing_class,
+        "missing_channels": missing_channels,
+        "missing_escalation": missing_escalation,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -533,6 +708,20 @@ def map_alert_to_event_kwargs(
     # Strip the alertname out of labels (the emitter records it
     # separately in ``alert_name``) so we don't double-store it.
     label_passthrough = {k: v for k, v in labels.items() if k != "alertname"}
+
+    # Tag-64 trinary-routing enrichment: if the alert carries a
+    # `routing_class` label that the bridge recognises, attach
+    # the channel-set + escalation-deadline so the receiver-side
+    # route-tree can fan out without re-reading the routing table.
+    routing_class = labels.get("routing_class")
+    if routing_class and routing_class in VALID_ROUTING_CLASSES:
+        channels = lookup_routing_class_channels(routing_class)
+        if channels:
+            label_passthrough["notify_channels"] = ",".join(channels)
+        esc = lookup_routing_class_escalation_seconds(routing_class)
+        # Always set the escalation hint (0 == no escalation, still
+        # informative for the receiver-side audit log).
+        label_passthrough["escalation_after_seconds"] = str(esc)
 
     return {
         "alert_name": alert_name,
@@ -773,6 +962,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to phase-3-marathon-alerts.yaml (or compatible).",
     )
 
+    # Tag-64: validate-trinary-routing subcommand. Confirms the
+    # in-module trinary routing-table shape (3 classes, each with
+    # at least one channel + an escalation deadline entry).
+    sub.add_parser(
+        "validate-trinary-routing",
+        help=(
+            "Validate Tag-64 trinary routing-table shape: 3 classes "
+            "(standard/ops-on-call/ops-on-call-plus-management), "
+            "non-empty channel-tuples, escalation-deadline entries."
+        ),
+    )
+
     return p
 
 
@@ -816,12 +1017,21 @@ def cmd_validate_catalog(args: argparse.Namespace) -> int:
     return 1 if (audit["missing"] or audit["stale"]) else 0
 
 
+def cmd_validate_trinary_routing(_args: argparse.Namespace) -> int:
+    shape = validate_trinary_routing_table_shape()
+    print(json.dumps(shape, indent=2, sort_keys=True))
+    bad = any(shape[k] for k in shape)
+    return 1 if bad else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.cmd == "route":
         return cmd_route(args)
     if args.cmd == "validate-catalog":
         return cmd_validate_catalog(args)
+    if args.cmd == "validate-trinary-routing":
+        return cmd_validate_trinary_routing(args)
     return 2  # pragma: no cover
 
 
