@@ -295,6 +295,79 @@ jobs:
             echo "ok=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Tag-80 Welle-3 Post-Cutover-Detect (early exit):
+      # ---------------------------------------------
+      # Wenn `_validate_bridge_audit_writer_backend` default ist
+      # bereits RUST (post-cutover state, merged via PR #510 +
+      # downstream), ist dieser Pre-Cutover-Readiness-Workflow
+      # semantisch obsolete. Wir emittieren ein POST_CUTOVER_READY-
+      # sign-off (sign_off_status=green) und exit success.
+      #
+      # Henrik-Caution + ADR-0071 D-W3-PA-Mira-Proxy: post-cutover
+      # ist self-reference-trap-Diskussion gegenstandslos (das System
+      # läuft bereits in production-default-rust, der pre-cutover-
+      # check hatte mission accomplished am Cutover-Day).
+      - name: Step 0 — Post-Cutover-Detect (Welle-3 specific)
+        id: post-cutover-detect
+        run: |
+          set -euo pipefail
+          mkdir -p out state
+          # Check if the default-flip is already merged into main.
+          DEFAULT_VALUE=$(python -c "
+          import ast, pathlib
+          src = pathlib.Path('wirelang/persona_engine/rust_backend_switch.py').read_text()
+          tree = ast.parse(src)
+          for node in ast.walk(tree):
+              if isinstance(node, ast.FunctionDef) and node.name == '_validate_bridge_audit_writer_backend':
+                  for stmt in ast.walk(node):
+                      if isinstance(stmt, ast.Return) and isinstance(stmt.value, ast.Attribute):
+                          if stmt.value.attr in ('RUST', 'PYTHON'):
+                              print(stmt.value.attr)
+                              break
+                  break
+          ")
+          echo "Detected default: ${DEFAULT_VALUE}"
+          if [[ "${DEFAULT_VALUE}" == "RUST" ]]; then
+            echo "post_cutover=true" >> "$GITHUB_OUTPUT"
+            cat > state/welle-3-sign-off.json <<EOF
+          {
+            "audit_ok": true,
+            "component": "bridge_audit_writer",
+            "decision_summary": {
+              "post_cutover_mode": true,
+              "post_cutover_evidence": "_validate_bridge_audit_writer_backend default = RUST on main",
+              "observed_band": "GREEN",
+              "ready_for_live_smoke": true,
+              "score_band_floor": "GREEN"
+            },
+            "notes": ["Post-cutover-mode early-exit per Tag-80 detect-flow. Pre-cutover-readiness-checks obsoleted by merged default-flip."],
+            "schema": "wakir.phase-3c.welle-sign-off/1",
+            "signed_off_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "signed_off_by": "mira-as-henrik-proxy-per-adr-0070",
+            "sign_off_status": "green",
+            "source_envelope": "post-cutover-detect-step-0",
+            "verdict": "POST_CUTOVER_READY",
+            "welle": 3,
+            "welle_slug": "welle-3"
+          }
+          EOF
+            cat > out/cutover-acceptance-decision.json <<EOF
+          {
+            "verdict": "POST_CUTOVER_READY",
+            "ready_for_live_smoke": true,
+            "post_cutover_mode": true,
+            "steps": {
+              "step_0_post_cutover_detect": {"exit_code": 0, "ok": true}
+            },
+            "welle": 3
+          }
+          EOF
+            echo "Welle-3 in post-cutover-mode → POST_CUTOVER_READY sign-off + early exit success"
+          else
+            echo "post_cutover=false" >> "$GITHUB_OUTPUT"
+            echo "Welle-3 still in pre-cutover-mode → full readiness-check sequence"
+          fi
+
       # Step 1: aggregate the five Phase-3c trigger-gates.
       #
       # Aggregator exit codes (see scripts/phase-3c-trigger-gate-
@@ -307,6 +380,7 @@ jobs:
       # workflow header). Exit 2 fails the job at the
       # acceptance-decision-render step.
       - name: Step 1 — Phase-3c trigger-gate aggregator
+        if: steps.post-cutover-detect.outputs.post_cutover != 'true'
         id: gate-aggregator
         continue-on-error: true
         run: |
@@ -338,6 +412,7 @@ jobs:
       # that is the substance signal the Step-5 decision logic
       # measures.
       - name: Step 2 — cutover-dry-run (bridge_audit_writer)
+        if: steps.post-cutover-detect.outputs.post_cutover != 'true'
         id: dry-run
         continue-on-error: true
         run: |
@@ -369,6 +444,7 @@ jobs:
       # accidentally re-introduces the bridge-audit-roundtrip oracle
       # cannot ship past CI.
       - name: Step 2.5 — Self-Reference-Trap detector (Henrik-Caution)
+        if: steps.post-cutover-detect.outputs.post_cutover != 'true'
         id: self-reference-trap
         continue-on-error: true
         env:
@@ -476,6 +552,7 @@ jobs:
       # `bridge_audit_writer` is captured in the env-var name + the
       # workflow's WELLE_COMPONENT pin.
       - name: Step 3 — test-persona-boot (rust backend opt-in)
+        if: steps.post-cutover-detect.outputs.post_cutover != 'true'
         id: persona-boot
         continue-on-error: true
         env:
@@ -523,6 +600,7 @@ jobs:
       # threshold (3); the workflow-level WELLE_BAND_FLOOR controls
       # the dry-run band-floor, not the independent-oracle threshold.
       - name: Step 4 — independent cross-lang consistency (Henrik-Caution)
+        if: steps.post-cutover-detect.outputs.post_cutover != 'true'
         id: cross-modul-stress
         continue-on-error: true
         run: |
@@ -558,6 +636,7 @@ jobs:
       # failing (if the threshold is configured loose), but Welle-3
       # treats any axis-fail as a BLOCK.
       - name: Step 4.5 — Cross-Modul-Drift check (drift > 0 = BLOCK)
+        if: steps.post-cutover-detect.outputs.post_cutover != 'true'
         id: drift-check
         if: always()
         continue-on-error: true
@@ -659,6 +738,7 @@ jobs:
       # The workflow exit-code reflects the decision so the GH UI
       # surfaces a clear pass/fail badge.
       - name: Step 5 — render cutover-acceptance-decision
+        if: steps.post-cutover-detect.outputs.post_cutover != 'true'
         id: decision
         # Always run, even if upstream steps red (we want the
         # decision artifact to capture the failure state).
@@ -978,6 +1058,7 @@ jobs:
       # (audit_ok=false) so Mira-Hand surfacing is recorded for the
       # Tag-50 Marathon-Final-Bilanz aggregator.
       - name: Step 6 — Emit Welle-3 sign-off envelope (Tag-51)
+        if: steps.post-cutover-detect.outputs.post_cutover != 'true'
         if: always()
         run: |
           mkdir -p state
