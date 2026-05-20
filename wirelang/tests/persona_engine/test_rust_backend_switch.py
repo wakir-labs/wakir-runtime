@@ -804,15 +804,17 @@ def _make_fsm_invoker(
 # ---------------------------------------------------------------------------
 
 
-def test_fsm_unset_defaults_to_python():
+def test_fsm_unset_defaults_to_rust_with_graceful_python_fallback():
+    """Tag-80 Welle-5 Cutover: env-unset defaults to rust, graceful
+    fallback to python on Sandbox-CI without rust binary."""
     env: dict = {}
     chosen, decision = resolve_fsm_backend(env=env)
-    assert chosen is FsmBackend.PYTHON
+    assert chosen is FsmBackend.PYTHON  # graceful fallback
     assert decision.domain == "fsm"
-    assert decision.requested_backend == "python"
+    assert decision.requested_backend == "rust"
     assert decision.chosen_backend == "python"
-    assert decision.fallback_reason is None
-    assert decision.bin_path is None
+    assert decision.fallback_reason == "binary_missing"
+    assert decision.bin_path == DEFAULT_RUST_FSM_BIN
     assert decision.resolution_latency_us >= 0
 
 
@@ -1118,7 +1120,9 @@ def test_fsm_per_decision_logging_writes_sink():
     parsed = json.loads(line)
     assert parsed["msg"] == "backend-decision"
     assert parsed["domain"] == "fsm"
-    assert parsed["requested_backend"] == "python"
+    # Tag-80 Welle-5 Cutover: default flipped to rust, graceful
+    # fallback to python on Sandbox-CI without rust binary.
+    assert parsed["requested_backend"] == "rust"
     assert parsed["chosen_backend"] == "python"
     assert parsed["resolution_latency_us"] >= 0
 
@@ -1143,10 +1147,12 @@ def test_rust_fsm_constructor_rejects_unknown_initial_state():
 # ---------------------------------------------------------------------------
 
 
-def test_fsm_empty_string_env_defaults_to_python():
+def test_fsm_empty_string_env_defaults_to_rust_with_graceful_python_fallback():
+    """Tag-80 Welle-5 Cutover: empty-string env defaults to rust."""
     chosen, decision = resolve_fsm_backend(env={FSM_BACKEND_ENV: ""})
-    assert chosen is FsmBackend.PYTHON
-    assert decision.fallback_reason is None
+    assert chosen is FsmBackend.PYTHON  # graceful fallback
+    assert decision.requested_backend == "rust"
+    assert decision.fallback_reason == "binary_missing"
 
 
 # ===========================================================================
