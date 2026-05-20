@@ -1009,11 +1009,14 @@ def _validate_state_backing_backend(
 def _validate_fsm_backend(value: Optional[str]) -> FsmBackend:
     """Validate a ``WAKIR_FSM_BACKEND`` value (or ``None``).
 
-    Empty / missing values default to ``FsmBackend.PYTHON``.
+    Tag-80 Welle-5 Cutover (2026-05-20): default flipped PYTHON → RUST.
+    Graceful-fallback intakt. Per ADR-0065 + ADR-0066 Welle-5.
+
+    Empty / missing values default to ``FsmBackend.RUST``.
     Non-empty unknown values raise :class:`BackendSwitchValidationError`.
     """
     if value is None or value == "":
-        return FsmBackend.PYTHON
+        return FsmBackend.RUST
     if value not in VALID_FSM_BACKEND_VALUES:
         raise BackendSwitchValidationError(
             FSM_BACKEND_ENV, value, VALID_FSM_BACKEND_VALUES
