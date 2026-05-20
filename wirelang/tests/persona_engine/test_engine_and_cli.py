@@ -194,7 +194,12 @@ def test_engine_boot_records_nine_backend_decisions(tmp_path):
     assert (
         engine._subscribe_loop_backend_decision.resolution_latency_us >= 0
     )
-    assert engine._subscribe_loop_backend_decision.bin_path is None
+    # Tag-80 Welle-6 Cutover: rust-default + graceful fallback;
+    # bin_path resolved zum default-Pfad statt None.
+    assert (
+        engine._subscribe_loop_backend_decision.bin_path
+        == "/opt/wakir/bin/wakir-persona-engine-subscribe-loop"
+    )
 
     assert engine._anchor_emitter_backend_decision.domain == "anchor_emitter"
     assert (
