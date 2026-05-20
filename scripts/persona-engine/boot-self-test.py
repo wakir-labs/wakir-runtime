@@ -600,19 +600,44 @@ def check_stage_1_all_python_default() -> Tuple[bool, str]:
     return True, "Stage-1 default env -> 10 x chosen_backend='python'"
 
 
+#: Domains whose default backend has been flipped to rust per the
+#: Phase-3c Welle-1..7 cutover sequence (ADR-0066). On a clean env
+#: these emit fallback_reason="binary_missing" when the rust binary
+#: is not present (Sandbox-CI posture) — that is the expected post-
+#: cutover graceful-fallback decision-record, NOT a drift.
+#: Grows by one entry per merged welle-cutover-PR.
+RUST_DEFAULT_DOMAINS_POST_CUTOVER = frozenset({
+    "v907_verify",  # Welle-1 (Tag-80 2026-05-20)
+})
+
+
 def check_stage_1_no_fallback_on_clean_env() -> Tuple[bool, str]:
     decisions, _ = _drive_stage_1_boot()
-    # On a clean env, requested == python (default), so fallback_reason
-    # should be None on every record. An "explicit_python" token is
-    # tolerated for env={'WAKIR_*_BACKEND':'python'} but not for the
-    # empty-env path -- assert it is exactly None here.
+    # Tag-80 Welle-1 Cutover: for domains in
+    # RUST_DEFAULT_DOMAINS_POST_CUTOVER, the clean-env path emits
+    # fallback_reason="binary_missing" because the rust binary is
+    # not on the Sandbox-CI runner. That is the documented
+    # graceful-fallback decision-record. For all other (python-default)
+    # domains the original invariant holds: fallback_reason must be
+    # None on a clean env.
+    TOLERATED_FALLBACK = "binary_missing"
     bad: List[str] = []
     for d in decisions:
-        if d.fallback_reason is not None:
-            bad.append(f"{d.domain}={d.fallback_reason!r}")
+        if d.fallback_reason is None:
+            continue
+        if (
+            d.domain in RUST_DEFAULT_DOMAINS_POST_CUTOVER
+            and d.fallback_reason == TOLERATED_FALLBACK
+        ):
+            # Expected post-cutover graceful fallback.
+            continue
+        bad.append(f"{d.domain}={d.fallback_reason!r}")
     if bad:
         return False, f"clean-env should have no fallback_reason, drifted: {bad}"
-    return True, "Stage-1 clean-env emitted no fallback_reason tokens"
+    return True, (
+        f"Stage-1 clean-env: {len(RUST_DEFAULT_DOMAINS_POST_CUTOVER)} rust-default "
+        f"domain(s) with tolerated binary_missing fallback, rest fallback-free"
+    )
 
 
 def check_stage_1_log_sink_emission() -> Tuple[bool, str]:
