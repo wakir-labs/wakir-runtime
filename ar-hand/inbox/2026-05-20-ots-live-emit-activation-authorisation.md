@@ -1,6 +1,6 @@
 # AR-Authorisation Request — OTS Live-Emit Activation
 
-**Status:** REQUEST (Mira-Hand) — pending AR-Sign-off + Filename-Rename
+**Status:** APPROVED (AR-Sign-off 2026-05-20 ~03:50 CEST via Aufsichtsrats-Dialog Tag-80)
 **Date filed:** 2026-05-20 ~03:30 CEST
 **Filed by:** Mira Kessler (CEO)
 **Decision target:** Aufsichtsrat (Fred)
@@ -66,11 +66,18 @@ Spawn-Subagent contexts.
 ## AR-Sign-off (AR-Hand block — leave empty until AR signs)
 
 ```
-Signed: ____________________
-Date:   ____________________
-Cutover-target-date: ____________________  (per ADR-0066-symbolisch
-                                            oder neue AR-Trigger-Date)
+Signed: Fred (Aufsichtsrat AI-Corp / Wakir Labs)
+Date:   2026-05-20
+Cutover-target-date: AR-Hand-getriggert nach Operator-Setup-Done
+                     (kein fixes Datum, per Tag-79-AR-Direktive
+                     symbolische ADR-0066-Anker statt feste Termine)
 ```
+
+**AR-Sign-off Aufsichtsrats-Dialog Tag-80 (2026-05-20 ~03:50 CEST):**
+AR (Fred) hat in Tag-80-AR-Touch-Dialog die OTS-Live-Emit-Activation
+explizit AR-approved. Authorisation gilt für Operator-Hand-Toggle
+WAKIR_OTS_LIVE_EMIT=1 zum AR-Hand-getriggerten Cutover-T0. Bis dahin
+bleibt Sandbox audit-only.
 
 ## Mira-Hand Notes
 
