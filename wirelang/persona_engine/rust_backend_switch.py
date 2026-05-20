@@ -965,11 +965,15 @@ def _binary_available(bin_path: str) -> tuple[bool, Optional[str]]:
 def _validate_recovery_backend(value: Optional[str]) -> RecoveryBackend:
     """Validate a ``WAKIR_RECOVERY_BACKEND`` value (or ``None``).
 
-    Empty / missing values default to ``RecoveryBackend.PYTHON``.
+    Tag-80 Welle-7 Cutover (2026-05-20): default flipped PYTHON → RUST.
+    Graceful-fallback intakt. Per ADR-0065 + ADR-0066 Welle-7 (letzte
+    Welle der Phase-3c-Cutover-Sequenz).
+
+    Empty / missing values default to ``RecoveryBackend.RUST``.
     Non-empty unknown values raise :class:`BackendSwitchValidationError`.
     """
     if value is None or value == "":
-        return RecoveryBackend.PYTHON
+        return RecoveryBackend.RUST
     if value not in VALID_RECOVERY_BACKEND_VALUES:
         raise BackendSwitchValidationError(
             RECOVERY_BACKEND_ENV, value, VALID_RECOVERY_BACKEND_VALUES

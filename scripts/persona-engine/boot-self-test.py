@@ -613,6 +613,7 @@ RUST_DEFAULT_DOMAINS_POST_CUTOVER = frozenset({
     "state_backing",          # Welle-4 (Tag-80 2026-05-20)
     "fsm",                    # Welle-5 (Tag-80 2026-05-20)
     "subscribe_loop",         # Welle-6 (Tag-80 2026-05-20)
+    "recovery",               # Welle-7 (Tag-80 2026-05-20) — Phase-3c-Welle-Sequenz KOMPLETT
 })
 
 
