@@ -318,11 +318,19 @@ jobs:
             --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
             ghcr.io/wakir-labs/wakir-provisioner:${{ steps.pin.outputs.tag }}@${{ steps.pin.outputs.digest }}
 
-      - name: Cross-check digest via crane
+      - name: Cross-check digest via crane (platform linux/amd64)
         run: |
           set -euo pipefail
-          CRANE_DIGEST=$(crane digest ghcr.io/wakir-labs/wakir-provisioner:${{ steps.pin.outputs.tag }})
-          echo "crane: $CRANE_DIGEST"
+          # Tag-80: build-wakir-provisioner.yml produces a multi-arch
+          # OCI manifest-list; cosign signs the per-platform manifest
+          # (linux/amd64). `crane digest TAG` without --platform returns
+          # the index digest, which is NOT what cosign signed. Use
+          # --platform linux/amd64 so the cross-check compares apples
+          # to apples — the same platform-manifest the cosign-verify
+          # step above validates.
+          CRANE_DIGEST=$(crane digest --platform linux/amd64 \
+              ghcr.io/wakir-labs/wakir-provisioner:${{ steps.pin.outputs.tag }})
+          echo "crane (platform=linux/amd64): $CRANE_DIGEST"
           echo "pinned: ${{ steps.pin.outputs.digest }}"
           if [[ "$CRANE_DIGEST" != "${{ steps.pin.outputs.digest }}" ]]; then
             echo "::error::wakir-provisioner digest drift detected — possible republish without coordinated pin update"
