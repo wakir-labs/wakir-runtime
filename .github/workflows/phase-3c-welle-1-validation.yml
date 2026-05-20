@@ -109,7 +109,7 @@ jobs:
         # step and the bridge-audit-roundtrip-test step.
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e . "pytest>=8.0"
+          python -m pip install -e . "pytest>=8.0" "pyyaml>=6.0"
 
       - name: Resolve dispatch inputs
         id: inputs
