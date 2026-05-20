@@ -1153,14 +1153,14 @@ def _validate_bridge_audit_writer_backend(
     raise :class:`BackendSwitchValidationError`.
 
     Tag-48 wire-in — promotes the previously-held-back 10th
-    BackendDecision into the Stage-1 boot fan-out. The validator
-    mirrors the eight sibling validators byte-for-byte; the only
-    novelty is that the resolver below is now consulted from
-    :meth:`PersonaEngine.boot` (vs. lying dormant as a Tag-31
-    scaffold under MANIFEST-0.5.0-pre-cutover §5).
+    BackendDecision into the Stage-1 boot fan-out. Tag-80 Welle-3
+    Cutover (2026-05-20) flips the default from PYTHON to RUST;
+    graceful-fallback bleibt intakt (Sandbox-CI ohne binary →
+    chosen=python mit fallback_reason="binary_missing").
+    Per ADR-0065 + ADR-0066 Welle-3.
     """
     if value is None or value == "":
-        return BridgeAuditWriterBackend.PYTHON
+        return BridgeAuditWriterBackend.RUST
     if value not in VALID_BRIDGE_AUDIT_WRITER_BACKEND_VALUES:
         raise BackendSwitchValidationError(
             BRIDGE_AUDIT_WRITER_BACKEND_ENV,
