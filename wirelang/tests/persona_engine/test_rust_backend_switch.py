@@ -2389,15 +2389,17 @@ def _make_subscribe_loop_invoker_via_python_authority():
 # ---------------------------------------------------------------------------
 
 
-def test_subscribe_loop_unset_defaults_to_python():
+def test_subscribe_loop_unset_defaults_to_rust_with_graceful_python_fallback():
+    """Tag-80 Welle-6 Cutover: env-unset defaults to rust, graceful
+    fallback to python on Sandbox-CI without rust binary."""
     env: dict[str, str] = {}
     chosen, decision = resolve_subscribe_loop_backend(env=env)
-    assert chosen is SubscribeLoopBackend.PYTHON
+    assert chosen is SubscribeLoopBackend.PYTHON  # graceful fallback
     assert decision.domain == "subscribe_loop"
-    assert decision.requested_backend == "python"
+    assert decision.requested_backend == "rust"
     assert decision.chosen_backend == "python"
-    assert decision.fallback_reason is None
-    assert decision.bin_path is None
+    assert decision.fallback_reason == "binary_missing"
+    assert decision.bin_path == DEFAULT_RUST_SUBSCRIBE_LOOP_BIN
     assert decision.resolution_latency_us >= 0
 
 
@@ -2495,11 +2497,13 @@ def test_subscribe_loop_validation_rejects_unknown():
 # ---------------------------------------------------------------------------
 
 
-def test_subscribe_loop_empty_string_env_defaults_to_python():
+def test_subscribe_loop_empty_string_env_defaults_to_rust_with_graceful_python_fallback():
+    """Tag-80 Welle-6 Cutover: empty-string env defaults to rust."""
     env = {SUBSCRIBE_LOOP_BACKEND_ENV: ""}
     chosen, decision = resolve_subscribe_loop_backend(env=env)
-    assert chosen is SubscribeLoopBackend.PYTHON
-    assert decision.fallback_reason is None
+    assert chosen is SubscribeLoopBackend.PYTHON  # graceful fallback
+    assert decision.requested_backend == "rust"
+    assert decision.fallback_reason == "binary_missing"
 
 
 # ---------------------------------------------------------------------------
@@ -2765,7 +2769,9 @@ def test_subscribe_loop_per_decision_logging_writes_sink():
     parsed = json.loads(line)
     assert parsed["msg"] == "backend-decision"
     assert parsed["domain"] == "subscribe_loop"
-    assert parsed["requested_backend"] == "python"
+    # Tag-80 Welle-6 Cutover: default flipped to rust, graceful
+    # fallback to python on Sandbox-CI without rust binary.
+    assert parsed["requested_backend"] == "rust"
     assert parsed["chosen_backend"] == "python"
     assert parsed["resolution_latency_us"] >= 0
     assert chosen is SubscribeLoopBackend.PYTHON

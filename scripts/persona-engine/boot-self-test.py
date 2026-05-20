@@ -612,6 +612,7 @@ RUST_DEFAULT_DOMAINS_POST_CUTOVER = frozenset({
     "bridge_audit_writer",    # Welle-3 (Tag-80 2026-05-20)
     "state_backing",          # Welle-4 (Tag-80 2026-05-20)
     "fsm",                    # Welle-5 (Tag-80 2026-05-20)
+    "subscribe_loop",         # Welle-6 (Tag-80 2026-05-20)
 })
 
 

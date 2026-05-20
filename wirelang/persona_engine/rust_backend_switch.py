@@ -1076,11 +1076,14 @@ def _validate_subscribe_loop_backend(
 ) -> SubscribeLoopBackend:
     """Validate a ``WAKIR_SUBSCRIBE_LOOP_BACKEND`` value (or ``None``).
 
-    Empty / missing values default to ``SubscribeLoopBackend.PYTHON``.
+    Tag-80 Welle-6 Cutover (2026-05-20): default flipped PYTHON → RUST.
+    Graceful-fallback intakt. Per ADR-0065 + ADR-0066 Welle-6.
+
+    Empty / missing values default to ``SubscribeLoopBackend.RUST``.
     Non-empty unknown values raise :class:`BackendSwitchValidationError`.
     """
     if value is None or value == "":
-        return SubscribeLoopBackend.PYTHON
+        return SubscribeLoopBackend.RUST
     if value not in VALID_SUBSCRIBE_LOOP_BACKEND_VALUES:
         raise BackendSwitchValidationError(
             SUBSCRIBE_LOOP_BACKEND_ENV,
