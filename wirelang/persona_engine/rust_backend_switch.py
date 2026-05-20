@@ -1101,12 +1101,19 @@ def _validate_svid_workload_identity_backend(
 ) -> SvidWorkloadIdentityBackend:
     """Validate a ``WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND`` value (or ``None``).
 
+    Tag-80 Welle-2 Cutover (2026-05-20): default flipped from
+    ``SvidWorkloadIdentityBackend.PYTHON`` to
+    ``SvidWorkloadIdentityBackend.RUST``. Graceful-fallback-Pfad
+    bleibt intakt — Sandbox-CI ohne rust-Binary fällt auf python
+    zurück mit fallback_reason="binary_missing". Per ADR-0065 +
+    ADR-0066 Welle-2.
+
     Empty / missing values default to
-    ``SvidWorkloadIdentityBackend.PYTHON``. Non-empty unknown values
+    ``SvidWorkloadIdentityBackend.RUST``. Non-empty unknown values
     raise :class:`BackendSwitchValidationError`.
     """
     if value is None or value == "":
-        return SvidWorkloadIdentityBackend.PYTHON
+        return SvidWorkloadIdentityBackend.RUST
     if value not in VALID_SVID_WORKLOAD_IDENTITY_BACKEND_VALUES:
         raise BackendSwitchValidationError(
             SVID_WORKLOAD_IDENTITY_BACKEND_ENV,

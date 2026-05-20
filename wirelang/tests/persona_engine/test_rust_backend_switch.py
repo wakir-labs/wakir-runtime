@@ -3462,16 +3462,20 @@ def test_anchor_emitter_default_bin_and_logging_and_alias_and_validation(
 # ---------------------------------------------------------------------------
 
 
-def test_svid_workload_identity_unset_defaults_to_python():
-    """SVID01 — env-unset path: python default, no fallback_reason."""
+def test_svid_workload_identity_unset_defaults_to_rust_with_graceful_python_fallback():
+    """SVID01 — Tag-80 Welle-2: env-unset defaults to ``rust`` now.
+
+    Sandbox-CI ohne rust-Binary → graceful fallback python mit
+    fallback_reason="binary_missing".
+    """
     env: dict = {}
     chosen, decision = resolve_svid_workload_identity_backend(env=env)
-    assert chosen is SvidWorkloadIdentityBackend.PYTHON
+    assert chosen is SvidWorkloadIdentityBackend.PYTHON  # graceful fallback
     assert decision.domain == "svid_workload_identity"
-    assert decision.requested_backend == "python"
+    assert decision.requested_backend == "rust"
     assert decision.chosen_backend == "python"
-    assert decision.fallback_reason is None
-    assert decision.bin_path is None
+    assert decision.fallback_reason == "binary_missing"
+    assert decision.bin_path == DEFAULT_RUST_SVID_WORKLOAD_IDENTITY_BIN
     assert decision.resolution_latency_us >= 0
 
 
@@ -3550,13 +3554,16 @@ def test_svid_workload_identity_validation_rejects_unknown():
     assert err.valid_values == VALID_SVID_WORKLOAD_IDENTITY_BACKEND_VALUES
 
 
-def test_svid_workload_identity_empty_string_env_defaults_to_python():
-    """SVID07 — empty-string env value defaults to python (no error)."""
+def test_svid_workload_identity_empty_string_env_defaults_to_rust_with_graceful_python_fallback():
+    """SVID07 — Tag-80 Welle-2: empty-string env defaults to rust.
+
+    Same graceful-fallback semantics as the env-unset path.
+    """
     env = {SVID_WORKLOAD_IDENTITY_BACKEND_ENV: ""}
     chosen, decision = resolve_svid_workload_identity_backend(env=env)
-    assert chosen is SvidWorkloadIdentityBackend.PYTHON
-    assert decision.fallback_reason is None
-    assert decision.bin_path is None
+    assert chosen is SvidWorkloadIdentityBackend.PYTHON  # graceful fallback
+    assert decision.requested_backend == "rust"
+    assert decision.fallback_reason == "binary_missing"
 
 
 def test_svid_workload_identity_default_binary_path_when_env_unset():
@@ -3595,7 +3602,9 @@ def test_svid_workload_identity_per_decision_logging_writes_sink():
     parsed = json.loads(line)
     assert parsed["msg"] == "backend-decision"
     assert parsed["domain"] == "svid_workload_identity"
-    assert parsed["requested_backend"] == "python"
+    # Tag-80 Welle-2 Cutover: default flipped to rust, graceful
+    # fallback to python on Sandbox-CI without rust binary.
+    assert parsed["requested_backend"] == "rust"
     assert parsed["chosen_backend"] == "python"
     assert parsed["resolution_latency_us"] >= 0
     assert chosen is SvidWorkloadIdentityBackend.PYTHON
