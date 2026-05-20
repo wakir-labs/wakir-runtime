@@ -202,7 +202,7 @@ def test_module_loads_and_exports_public_surface():
         assert hasattr(agg, name), f"missing public surface: {name}"
     # Sanity: there are exactly seven resolvers expected.
     assert len(agg.PHASE_3B_RESOLVER_NAMES) == 7
-    assert agg.DEFAULT_TARGET_BINARY_COUNT == 7
+    assert agg.DEFAULT_TARGET_BINARY_COUNT == 15
 
 
 # ---------------------------------------------------------------------------

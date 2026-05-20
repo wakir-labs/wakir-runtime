@@ -88,9 +88,9 @@ on:
   workflow_dispatch:
     inputs:
       target-binary-count:
-        description: "Gate-2/3 expected binary-inventory count (default 7)"
+        description: "Gate-2/3 expected binary-inventory count (default 15, Tag-80 bump)"
         required: false
-        default: "7"
+        default: "15"
       boots:
         description: "Dry-run mocked-boot count (default 12)"
         required: false

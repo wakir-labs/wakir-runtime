@@ -98,10 +98,18 @@ from typing import Any, Dict, List, Optional
 # ---------------------------------------------------------------------------
 
 
-#: Default Rust-CLI binary inventory count expected once the Kai Tag-24
-#: PR has landed. Seven components: recovery, state_backing, fsm,
-#: v907_verify, bridge_diff, subscribe_loop, anchor_emitter.
-DEFAULT_TARGET_BINARY_COUNT = 7
+#: Default Rust-CLI binary inventory count for Gate-2 (cosign-policy)
+#: and Gate-3 (quadlet-installer). Tag-80 (2026-05-20) bump from 7→15:
+#: the original Tag-24 baseline was 7 resolvers. Tag-33 Mini-Welle added
+#: 4 dedicated Welle-4..7 single-binary images (state-backing-welle4,
+#: fsm-welle5, subscribe-loop-welle6, recovery-welle7). Tag-45 Mini-Welle
+#: added 2 canonical-trace bridges (bridge-audit-replay, migrate-version).
+#: Tag-37/38 added bridge-audit-writer + svid-workload-identity as
+#: first-class binaries. Total inventory = 15 (cross-verified by
+#: ``policies/cosign-policy-phase-3b.yaml`` + quadlet installer).
+#: PHASE_3B_RESOLVER_NAMES (Gate-1) stays at 7 — those are the
+#: ENV-switch resolvers, a strict subset of the full inventory.
+DEFAULT_TARGET_BINARY_COUNT = 15
 
 
 #: ENV that points at the on-disk backend-decision JSONL baseline.
