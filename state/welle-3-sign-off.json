@@ -1,0 +1,15 @@
+{
+  "welle_id": "welle-3-bridge-audit-writer",
+  "sign_off_status": "green",
+  "signed_off_by": "mira-kessler-ceo-sandbox-operator-hand",
+  "signed_off_at": "2026-05-20T14:30:00+02:00",
+  "cutover_merge_sha": "d1f46ce3",
+  "schema_version": "tag-67-v1",
+  "evidence": {
+    "validation_workflow": "phase-3c-welle-3-validation.yml",
+    "cutover_pr_branch": "cutover/welle-3-bridge-audit-writer-rust-default",
+    "default_flip": "_validate_bridge_audit_writer_backend: PYTHON -> RUST (graceful fallback intakt)"
+  },
+  "henrik_audit_status": "pending_proxy_per_adr_0070",
+  "notes": "Welle-3 Default-Flip merged Tag-80 2026-05-20. Sandbox-CI graceful fallback intakt (rust binary missing -> python). Production-Host mit rust binary: chosen=rust."
+}

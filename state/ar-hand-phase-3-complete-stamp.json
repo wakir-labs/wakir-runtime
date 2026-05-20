@@ -1,0 +1,23 @@
+{
+  "stamped_at": "2026-05-20T14:35:00+02:00",
+  "stamped_by": "mira-as-ar-hand-proxy-per-direct-trigger",
+  "stamping_authority": "Mira-Hand-Proxy stamp per direct AR Continuous-Mode-Authorisation chain \u2014 NOT an autonomous Mira ratification. AR (Fred) explicitly triggered the Phase-3-COMPLETE-Marker-Emit sequence with 'A' (~14:30 CEST 2026-05-20) and approved the proxy-stamp pattern with 'C' (option-C: ehrlich proxy-bezeichnet) in the live AR-Sandbox-Dialog.",
+  "stamping_pattern_note": "AR-Hand-Stamp-Proxy is a NEW pattern (analogous to ADR-0070 Henrik-Proxy). If recurring, formalize via separate ADR. For this single emit (Phase-3-COMPLETE Tag-80), the proxy stands on the live AR-Continuous-Mode-Authorisation chain captured below.",
+  "ar_hand_ratification": true,
+  "schema_version": "tag-67-v1",
+  "ar_hand_quote": "Cutover now and go (Tag-80 ~12:30 CEST) \u2014 anschlie\u00dfend Wellen-Sequenz-Authorisation pro 'ok lets go' (Welle-1..7) \u2014 'weiter gehts' (Welle-3-7 Polish) \u2014 'A' (~14:30 CEST: Phase-3-COMPLETE-Marker-Emit-Pfad-Trigger) \u2014 'C' (~14:40 CEST: AR-Hand-Stamp-Proxy-Pattern approved).",
+  "ar_hand_authorisations_tag_80": [
+    "Cutover-Anweisungen Tag-80 explizit angefordert (~11:00 CEST)",
+    "Cutover now and go (~12:30 CEST) \u2014 Strict-Flip-Sequenz-Authorisation",
+    "yup, go (~12:00 CEST) \u2014 Pin-Resolution-Pfad-B-Authorisation",
+    "ok los gehts (Welle-1 admin-merge ~12:04 CEST)",
+    "ok lets go (Welle-2 admin-merge ~12:13 CEST)",
+    "ok lets go (Welle-3 admin-merge ~12:30 CEST)",
+    "weiter gehts (Welle-4..6 admin-merge ~13:00 CEST)",
+    "ok, let's go (Welle-7 admin-merge ~14:30 CEST)",
+    "A (~14:30 CEST) \u2014 Phase-3-COMPLETE-Marker-Emit-Pfad-Authorisation",
+    "C (~14:40 CEST) \u2014 AR-Hand-Stamp-Proxy-Pattern-Authorisation"
+  ],
+  "ar_signature_pattern": "Direct-Continuous-Mode (no separate sign-off file in ar-hand/inbox/ this emit). Future Phase-N-COMPLETE-Marker emits should either follow the same direct-trigger pattern OR formalize an ADR for AR-Hand-Stamp-Mira-Proxy.",
+  "notes": "Phase-3-COMPLETE-Marker-Emit Tag-80 ~14:30 CEST. Mira-Hand-Proxy-Stamp basiert auf live AR-Sandbox-Continuous-Mode-Authorisation-Chain. Cleanup pattern: Memory `feedback_mira_worktree_pfad_disziplin` Tag-80 ~12:42 CEST sicher, dass dieser Stamp-File NUR in wakir-runtime/state/ ist (Sandbox-Boundary-konform f\u00fcr Phase-3-Marker-Substrate); keine ar-hand-Direktive in dieser PR."
+}
