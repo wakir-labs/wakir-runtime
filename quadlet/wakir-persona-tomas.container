@@ -154,7 +154,7 @@ ContainerName=wakir-persona-tomas
 # (Kai-side container-bridge ownership). The tag-form below is the
 # canonical Sprint-Pengine-7 Tag-5 pilot release; the @sha256
 # digest is resolved Operator-Hand before live bring-up.
-Image=ghcr.io/wakir-labs/wakir-persona-engine:0.1.0-pilot@sha256:DIGEST_PENDING_KAI_CROSS_REVIEW
+Image=ghcr.io/wakir-labs/wakir-persona-engine:0.1.0-pilot@sha256:6bd39e57173d999f4e5b59db2541cc6942cd239056bb18b3dee5f55446e80b7d
 
 # Command-line arguments — invokes the persona-engine entrypoint
 # with the Tomás persona slug and the pilot-phase mode (which

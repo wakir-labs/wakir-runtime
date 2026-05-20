@@ -27,7 +27,7 @@ ContainerName=wakir-rust-cli-welle7-installer
 
 # Image pin: dedicated single-binary image for the Welle-7 cutover
 # step. Resolved Operator-Hand via resolve-image-pins-ci.
-Image=ghcr.io/wakir-labs/wakir-persona-engine-recovery-welle7:0.5.0-pilot@sha256:DIGEST_PENDING_KAI_CROSS_REVIEW
+Image=ghcr.io/wakir-labs/wakir-persona-engine-recovery:0.5.0-pilot@sha256:02a5e0840f60e387549303b30701c2d65aa9210b5301233beee081bdf9f378d6
 
 # Copy the one canonical binary from the dedicated single-binary
 # image into the bind-mounted host-side volume.
