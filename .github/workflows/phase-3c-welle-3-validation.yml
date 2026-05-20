@@ -413,10 +413,22 @@ jobs:
               for trap in TRAP_STRINGS:
                   # Only flag in `run:`-context, not comments. We
                   # detect by checking the trap appears outside a
-                  # leading `#` line.
+                  # leading `#` line. Also exclude the detector's
+                  # own TRAP_STRINGS constant definition + the
+                  # report's henrik_caution string (Tag-80 self-
+                  # reference-trap-of-the-detector-itself fix).
                   for ln in wf_src.splitlines():
                       stripped = ln.lstrip()
                       if stripped.startswith("#"):
+                          continue
+                      # Skip the constant-definition lines for
+                      # TRAP_STRINGS itself.
+                      if "TRAP_STRINGS" in ln:
+                          continue
+                      if '"test_bridge_audit_roundtrip_e2e"' in ln or \
+                         '"bridge_audit_roundtrip_e2e"' in ln:
+                          # The string-literal tuple entries are the
+                          # detector's own constant; skip.
                           continue
                       if trap in ln:
                           findings.append({
