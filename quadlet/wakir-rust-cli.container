@@ -211,7 +211,7 @@ ContainerName=wakir-rust-cli-installer
 # Placeholder token resolved Operator-Hand via resolve-image-pins-ci.
 # Matches policies/cosign-policy-phase-3b.yaml carrier_image entry
 # byte-for-byte (registry + repository + tag + digest slot).
-Image=ghcr.io/wakir-labs/wakir-persona-engine:0.5.0-pilot@sha256:DIGEST_PENDING_KAI_CROSS_REVIEW
+Image=ghcr.io/wakir-labs/wakir-persona-engine:0.5.0-pilot@sha256:0b5dff0a5821875d13cd487c3b112b9cba0f915d6a624ff7b21ce37c70ae3e5a
 
 # Entry override: launch a shell that copies the nine canonical
 # binaries from the in-image install path into the bind-mounted
