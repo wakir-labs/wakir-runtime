@@ -1016,11 +1016,20 @@ def _validate_v907_verify_backend(
 ) -> V907VerifyBackend:
     """Validate a ``WAKIR_V907_VERIFY_BACKEND`` value (or ``None``).
 
-    Empty / missing values default to ``V907VerifyBackend.PYTHON``.
+    Tag-80 Welle-1 Cutover (2026-05-20): default flipped from
+    ``V907VerifyBackend.PYTHON`` to ``V907VerifyBackend.RUST``. The
+    ``resolve_v907_verify_backend`` graceful-fallback path stays
+    intact — when the Rust binary is missing or not executable, the
+    resolver still falls back to PYTHON with the appropriate
+    ``fallback_reason``. This preserves the audit-only Sandbox-CI
+    posture (no rust binary present) while flipping the production-
+    host default. Per ADR-0065 + ADR-0066 Welle-1.
+
+    Empty / missing values default to ``V907VerifyBackend.RUST``.
     Non-empty unknown values raise :class:`BackendSwitchValidationError`.
     """
     if value is None or value == "":
-        return V907VerifyBackend.PYTHON
+        return V907VerifyBackend.RUST
     if value not in VALID_V907_VERIFY_BACKEND_VALUES:
         raise BackendSwitchValidationError(
             V907_VERIFY_BACKEND_ENV,
