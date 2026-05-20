@@ -227,7 +227,7 @@ policy:
     registry: ghcr.io
     repository: wakir-labs/wakir-persona-engine
     expected_tag: 0.5.0-pilot
-    expected_image_digest: sha256:DIGEST_PENDING_KAI_CROSS_REVIEW
+    expected_image_digest: sha256:0b5dff0a5821875d13cd487c3b112b9cba0f915d6a624ff7b21ce37c70ae3e5a
     build_workflow: .github/workflows/build-wakir-persona-engine.yml
     containerfile: infra/persona-engine/Containerfile.real
 
