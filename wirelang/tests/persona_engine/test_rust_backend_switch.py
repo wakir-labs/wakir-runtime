@@ -725,12 +725,14 @@ def test_log_backend_decision_writes_sink():
 # ---------------------------------------------------------------------------
 
 
-def test_empty_string_env_defaults_to_python():
+def test_empty_string_env_defaults_to_rust_with_graceful_python_fallback():
+    """Tag-80 Welle-7 Cutover: empty-string env defaults to rust."""
     chosen, decision = resolve_recovery_backend(
         env={RECOVERY_BACKEND_ENV: ""}
     )
-    assert chosen is RecoveryBackend.PYTHON
-    assert decision.fallback_reason is None
+    assert chosen is RecoveryBackend.PYTHON  # graceful fallback
+    assert decision.requested_backend == "rust"
+    assert decision.fallback_reason == "binary_missing"
 
 
 # ===========================================================================

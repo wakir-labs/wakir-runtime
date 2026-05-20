@@ -252,23 +252,31 @@ def test_boot_fingerprint_stable_across_two_runs(
 
 
 def test_boot_fingerprint_changes_on_env_flip(boot_self_test_module):
-    """Flipping a backend selector to 'rust' should change the fingerprint.
+    """Flipping a backend selector should change the fingerprint.
 
     Establishes that the fingerprint is *not* a constant -- it
     actually captures the requested-backend per-record state via the
     explicit env-dict the resolvers receive.
-    """
-    fp_python = boot_self_test_module._compute_boot_fingerprint(env={})
 
-    # Flip one selector to 'rust'. Even if the Rust binary is
-    # missing on the sandbox box, the BackendDecision will record
-    # requested_backend=rust which the fingerprint hashes -- so the
-    # fingerprint must shift.
-    fp_rust = boot_self_test_module._compute_boot_fingerprint(
-        env={"WAKIR_RECOVERY_BACKEND": "rust"}
+    Tag-80 Welle-7 Cutover: recovery default is now ``rust``, so
+    flipping recovery to ``rust`` no longer shifts the fingerprint
+    (both unset and "rust" produce identical requested_backend).
+    Flip to ``python`` instead — explicit-python carries the
+    ``explicit_python`` fallback_reason which differs from the
+    clean-env unset path (no fallback_reason on rust-default).
+    """
+    fp_default = boot_self_test_module._compute_boot_fingerprint(env={})
+
+    # Flip recovery to explicit "python" — this differs from the
+    # rust-default (now active post-Welle-7) and carries the
+    # explicit_python fallback_reason in the decision record.
+    fp_explicit_python = boot_self_test_module._compute_boot_fingerprint(
+        env={"WAKIR_RECOVERY_BACKEND": "python"}
     )
 
-    assert fp_python != fp_rust, (
-        "fingerprint did not change when WAKIR_RECOVERY_BACKEND=rust; "
-        "either the selector is ignored or the fingerprint is too coarse"
+    assert fp_default != fp_explicit_python, (
+        "fingerprint did not change when WAKIR_RECOVERY_BACKEND=python; "
+        "either the selector is ignored or the fingerprint is too coarse "
+        "(post-Welle-7 the default is rust, so an explicit-python flip "
+        "is the diagnostic)"
     )
