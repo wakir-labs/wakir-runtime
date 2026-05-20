@@ -636,9 +636,8 @@ jobs:
       # failing (if the threshold is configured loose), but Welle-3
       # treats any axis-fail as a BLOCK.
       - name: Step 4.5 — Cross-Modul-Drift check (drift > 0 = BLOCK)
-        if: steps.post-cutover-detect.outputs.post_cutover != 'true'
+        if: ${{ always() && steps.post-cutover-detect.outputs.post_cutover != 'true' }}
         id: drift-check
-        if: always()
         continue-on-error: true
         run: |
           python - <<'PY'
@@ -738,11 +737,11 @@ jobs:
       # The workflow exit-code reflects the decision so the GH UI
       # surfaces a clear pass/fail badge.
       - name: Step 5 — render cutover-acceptance-decision
-        if: steps.post-cutover-detect.outputs.post_cutover != 'true'
         id: decision
         # Always run, even if upstream steps red (we want the
-        # decision artifact to capture the failure state).
-        if: always()
+        # decision artifact to capture the failure state). Skipped
+        # only in post-cutover-mode (Step 0 emitted sign-off).
+        if: ${{ always() && steps.post-cutover-detect.outputs.post_cutover != 'true' }}
         env:
           GATE_RC: ${{ steps.gate-aggregator.outputs.rc }}
           DRY_RUN_RC: ${{ steps.dry-run.outputs.rc }}
@@ -1058,8 +1057,7 @@ jobs:
       # (audit_ok=false) so Mira-Hand surfacing is recorded for the
       # Tag-50 Marathon-Final-Bilanz aggregator.
       - name: Step 6 — Emit Welle-3 sign-off envelope (Tag-51)
-        if: steps.post-cutover-detect.outputs.post_cutover != 'true'
-        if: always()
+        if: ${{ always() && steps.post-cutover-detect.outputs.post_cutover != 'true' }}
         run: |
           mkdir -p state
           python scripts/ci/emit-welle-sign-off.py \
