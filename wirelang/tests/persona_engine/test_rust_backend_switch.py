@@ -223,13 +223,15 @@ def test_recovery_unset_defaults_to_python():
 # ---------------------------------------------------------------------------
 
 
-def test_state_backing_unset_defaults_to_python():
+def test_state_backing_unset_defaults_to_rust_natskv_with_graceful_python_fallback():
+    """Tag-80 Welle-4 Cutover: env-unset defaults to rust_natskv,
+    graceful fallback to python on Sandbox-CI without rust binary."""
     env: dict = {}
     chosen, decision = resolve_state_backing_backend(env=env)
-    assert chosen is StateBackingBackend.PYTHON
-    assert decision.requested_backend == "python"
+    assert chosen is StateBackingBackend.PYTHON  # graceful fallback
+    assert decision.requested_backend == "rust_natskv"
     assert decision.chosen_backend == "python"
-    assert decision.fallback_reason is None
+    assert decision.fallback_reason == "binary_missing"
 
 
 # ---------------------------------------------------------------------------
