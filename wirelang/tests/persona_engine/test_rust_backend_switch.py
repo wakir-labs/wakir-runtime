@@ -1153,7 +1153,8 @@ def test_fsm_empty_string_env_defaults_to_python():
 #
 # Coverage map (17 hermetic vectors, ≥10 required):
 #
-#   V1.  WAKIR_V907_VERIFY_BACKEND unset → python default passthrough.
+#   V1.  WAKIR_V907_VERIFY_BACKEND unset → rust default + graceful
+#        python fallback when binary missing (Tag-80 Welle-1 Cutover).
 #   V2.  Explicit python → fallback_reason=explicit_python.
 #   V3.  rust requested + binary available → rust chosen.
 #   V4.  rust requested + binary missing → graceful fallback python,
@@ -1371,19 +1372,29 @@ def _make_v907_static_invoker(*, pin: str, mode: str = "real"):
 
 
 # ---------------------------------------------------------------------------
-# Vector V1 — WAKIR_V907_VERIFY_BACKEND unset → python default passthrough.
+# Vector V1 — WAKIR_V907_VERIFY_BACKEND unset → rust default + graceful
+# python fallback when binary missing (Tag-80 Welle-1 Cutover).
 # ---------------------------------------------------------------------------
 
 
-def test_v907_verify_unset_defaults_to_python():
+def test_v907_verify_unset_defaults_to_rust_with_graceful_python_fallback():
+    """Tag-80 Welle-1 Cutover: env-unset defaults to ``rust`` now.
+
+    Without the rust binary on disk (Sandbox-CI posture) the
+    graceful-fallback path chooses python and surfaces
+    ``binary_missing`` as the fallback_reason. The default-rust-
+    request semantics are visible in
+    ``decision.requested_backend == "rust"`` and the resolved
+    bin_path pointing at the canonical install location.
+    """
     env: dict = {}
     chosen, decision = resolve_v907_verify_backend(env=env)
-    assert chosen is V907VerifyBackend.PYTHON
+    assert chosen is V907VerifyBackend.PYTHON  # graceful fallback
     assert decision.domain == "v907_verify"
-    assert decision.requested_backend == "python"
+    assert decision.requested_backend == "rust"
     assert decision.chosen_backend == "python"
-    assert decision.fallback_reason is None
-    assert decision.bin_path is None
+    assert decision.fallback_reason == "binary_missing"
+    assert decision.bin_path == DEFAULT_RUST_V907_VERIFY_BIN
     assert decision.resolution_latency_us >= 0
 
 
@@ -1477,12 +1488,19 @@ def test_v907_verify_validation_rejects_unknown():
 # ---------------------------------------------------------------------------
 
 
-def test_v907_verify_empty_string_env_defaults_to_python():
+def test_v907_verify_empty_string_env_defaults_to_rust_with_graceful_python_fallback():
+    """Tag-80 Welle-1 Cutover: empty-string env defaults to rust now.
+
+    Same graceful-fallback semantics as the env-unset path — without
+    the rust binary, ``chosen`` resolves to python with
+    ``binary_missing`` fallback_reason.
+    """
     chosen, decision = resolve_v907_verify_backend(
         env={V907_VERIFY_BACKEND_ENV: ""}
     )
-    assert chosen is V907VerifyBackend.PYTHON
-    assert decision.fallback_reason is None
+    assert chosen is V907VerifyBackend.PYTHON  # graceful fallback
+    assert decision.requested_backend == "rust"
+    assert decision.fallback_reason == "binary_missing"
 
 
 # ---------------------------------------------------------------------------
@@ -1750,7 +1768,9 @@ def test_v907_verify_per_decision_logging_writes_sink():
     parsed = json.loads(line)
     assert parsed["msg"] == "backend-decision"
     assert parsed["domain"] == "v907_verify"
-    assert parsed["requested_backend"] == "python"
+    # Tag-80 Welle-1 Cutover: default flipped to rust, graceful
+    # fallback to python when binary missing on Sandbox-CI.
+    assert parsed["requested_backend"] == "rust"
     assert parsed["chosen_backend"] == "python"
     assert parsed["resolution_latency_us"] >= 0
 
