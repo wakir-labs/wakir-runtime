@@ -209,6 +209,10 @@ def test_engine_boot_records_nine_backend_decisions(tmp_path):
         engine._svid_workload_identity_backend_decision.domain
         == "svid_workload_identity"
     )
+    # Tag-80 Welle-2 Cutover: default flipped to rust. Sandbox-CI
+    # ohne rust-Binary → graceful fallback python (chosen_backend
+    # still "python"), aber bin_path resolved zum DEFAULT_RUST_*_BIN
+    # statt None (Resolver probes den default-Pfad bevor er fallt).
     assert (
         engine._svid_workload_identity_backend_decision.chosen_backend
         == "python"
@@ -218,7 +222,8 @@ def test_engine_boot_records_nine_backend_decisions(tmp_path):
         >= 0
     )
     assert (
-        engine._svid_workload_identity_backend_decision.bin_path is None
+        engine._svid_workload_identity_backend_decision.bin_path
+        == "/opt/wakir/bin/wakir-persona-engine-svid-workload-identity"
     )
 
     # Tag-30: 9th BackendDecision record — federation_resolver.

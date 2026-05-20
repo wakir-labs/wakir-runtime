@@ -607,7 +607,8 @@ def check_stage_1_all_python_default() -> Tuple[bool, str]:
 #: cutover graceful-fallback decision-record, NOT a drift.
 #: Grows by one entry per merged welle-cutover-PR.
 RUST_DEFAULT_DOMAINS_POST_CUTOVER = frozenset({
-    "v907_verify",  # Welle-1 (Tag-80 2026-05-20)
+    "v907_verify",            # Welle-1 (Tag-80 2026-05-20)
+    "svid_workload_identity", # Welle-2 (Tag-80 2026-05-20)
 })
 
 
