@@ -27,7 +27,7 @@ ContainerName=wakir-rust-cli-welle6-installer
 
 # Image pin: dedicated single-binary image for the Welle-6 cutover
 # step. Resolved Operator-Hand via resolve-image-pins-ci.
-Image=ghcr.io/wakir-labs/wakir-persona-engine-subscribe-loop-welle6:0.5.0-pilot@sha256:DIGEST_PENDING_KAI_CROSS_REVIEW
+Image=ghcr.io/wakir-labs/wakir-persona-engine-subscribe-loop:0.5.0-pilot@sha256:1847312cff684fb3df3a8010df6f234b43080f977a891328428bd782c3a93705
 
 # Copy the one canonical binary from the dedicated single-binary
 # image into the bind-mounted host-side volume.

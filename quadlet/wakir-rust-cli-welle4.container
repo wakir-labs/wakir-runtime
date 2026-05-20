@@ -62,7 +62,7 @@ ContainerName=wakir-rust-cli-welle4-installer
 # step. Resolved Operator-Hand via resolve-image-pins-ci. Matches
 # policies/cosign-policy-phase-3b.yaml ``state-backing-welle4``
 # entry byte-for-byte.
-Image=ghcr.io/wakir-labs/wakir-persona-engine-state-backing-welle4:0.5.0-pilot@sha256:DIGEST_PENDING_KAI_CROSS_REVIEW
+Image=ghcr.io/wakir-labs/wakir-persona-engine-state-backing:0.5.0-pilot@sha256:02eeb208dcebceef44bc00a5fcf4bcbf696a687ddb45ea523da595880d401749
 
 # Copy the one canonical binary from the dedicated single-binary
 # image into the bind-mounted host-side volume.
