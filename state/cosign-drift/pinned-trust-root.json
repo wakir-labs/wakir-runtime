@@ -1,11 +1,11 @@
 {
   "_comment": "Tag-47 Kai — Pinned Sigstore Trust-Root for the Cosign-Keyless-OIDC-Drift-Probe. Operator-Hand refresh recipe lives in docs/operations/cosign-keyless-oidc-drift-probe.md. Schema: wakir.cosign-drift.pinned-trust-root/1. NEVER edit this from a sandbox-CI workflow; only Mira-Hand + Zone-C Tomás cross-review.",
   "schema": "wakir.cosign-drift.pinned-trust-root/1",
-  "pinned_at": "2026-05-18",
-  "pinned_by": "Kai Hoffmann (Tag-47, Phase-3a-Foundation closeout pinning)",
+  "pinned_at": "2026-05-20",
+  "pinned_by": "Fred (Aufsichtsrat) + Mira Kessler (CEO Sandbox-Operator-Hand) — Tag-80 G2 Cutover Pre-Step",
   "cosign_installer_action": "sigstore/cosign-installer@v3",
   "cosign_installer_semver_major": "v3",
-  "fulcio_root_ca_sha256": "PENDING_OPERATOR_HAND_REFRESH",
-  "rekor_log_shard_id": "PENDING_OPERATOR_HAND_REFRESH",
-  "notes": "Fulcio root CA SHA-256 + Rekor log shard ID are filled in by an Operator-Hand step on a host with Sigstore-network egress; the daily baseline-mode probe synthesises a self-consistent snapshot, so the PENDING values do not trip the trust-root axis. Fixture-mode probes against a live snapshot will assert the snapshot value vs. the pinned value byte-for-byte — once refreshed, drift = the upstream Sigstore project re-tagged the cosign-installer or rotated the Fulcio CA / Rekor shard."
+  "fulcio_root_ca_sha256": "7425db2ed39274a73f011f40d48cc430542c5218e89c6993cab2727b2f9701d2",
+  "rekor_log_shard_id": "1193050959916656506",
+  "notes": "Tag-80 G2 Operator-Hand-Refresh (2026-05-20 ~12:30 CEST). Werte direkt vom Sigstore-Endpoint gezogen: Fulcio Root CA via curl https://fulcio.sigstore.dev/api/v1/rootCert (Endpoint liefert die aktuelle Sigstore Production Root CA Cert), Rekor Shard ID via curl https://rekor.sigstore.dev/api/v1/log (Top-Level treeID-Feld = aktiver Shard, exklusive der 2 inactiveShards 3904496407287907110 + 2605736670972794746). Refresh-Recipe in docs/operations/cosign-keyless-oidc-drift-probe.md Sek. 3.1 verwendet alten cosign-v1-Pfad ~/.sigstore/root/targets/fulcio_v1*.pem — cosign v2.5.2 cached die TUF-Root unter ~/.sigstore/root/tuf-repo-cdn.sigstore.dev/root.json (Targets sind in TUF-Bundle embedded, kein separater fulcio_v1.crt.pem mehr). Recipe-Update auf cosign-v2-Pfad als separater Folge-Auftrag an Kai. Cosign v2.5.2 installiert auf Operator-Host vor G2-Pin."
 }
