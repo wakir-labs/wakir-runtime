@@ -256,8 +256,11 @@ def test_engine_boot_records_nine_backend_decisions(tmp_path):
         engine._bridge_audit_writer_backend_decision.resolution_latency_us
         >= 0
     )
+    # Tag-80 Welle-3 Cutover: rust-default + graceful fallback;
+    # bin_path resolved zum default-Pfad statt None.
     assert (
-        engine._bridge_audit_writer_backend_decision.bin_path is None
+        engine._bridge_audit_writer_backend_decision.bin_path
+        == "/opt/wakir/bin/wakir-persona-engine-bridge-audit-writer"
     )
 
     # The log_sink carries one backend-decision line per domain. Count

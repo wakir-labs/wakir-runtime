@@ -188,18 +188,21 @@ def test_03_env_var_constants_exposed() -> None:
     )
 
 
-def test_04_clean_env_defaults_to_python(clean_wakir_env) -> None:
-    """Clean env yields ``chosen_backend='python'`` for the 10th record."""
+def test_04_clean_env_defaults_to_rust_with_graceful_python_fallback(clean_wakir_env) -> None:
+    """Tag-80 Welle-3 Cutover: clean env yields ``requested='rust'``
+    and graceful fallback to ``chosen='python'`` on Sandbox-CI
+    without rust binary, with ``fallback_reason='binary_missing'``."""
     from wirelang.persona_engine.rust_backend_switch import (
+        DEFAULT_RUST_BRIDGE_AUDIT_WRITER_BIN,
         resolve_bridge_audit_writer_backend,
     )
 
     _, decision = resolve_bridge_audit_writer_backend(env={})
     assert decision.domain == "bridge_audit_writer"
-    assert decision.chosen_backend == "python"
-    assert decision.requested_backend == "python"
-    assert decision.fallback_reason is None
-    assert decision.bin_path is None
+    assert decision.chosen_backend == "python"  # graceful fallback
+    assert decision.requested_backend == "rust"
+    assert decision.fallback_reason == "binary_missing"
+    assert decision.bin_path == DEFAULT_RUST_BRIDGE_AUDIT_WRITER_BIN
 
 
 def test_05_explicit_python_marks_explicit_fallback(clean_wakir_env) -> None:
@@ -497,12 +500,18 @@ def test_24_boot_fingerprint_extends_when_tenth_record_added(
 
 
 def test_25_tenth_record_clean_env_signature(clean_wakir_env) -> None:
-    """Under clean env the 10th record has the canonical default
-    signature ``(bridge_audit_writer, python, python, None)``."""
+    """Tag-80 Welle-3 Cutover: clean-env 10th record signature is
+    ``(bridge_audit_writer, requested=rust, chosen=python via
+    graceful fallback, fallback_reason=binary_missing,
+    bin_path=DEFAULT_RUST_*)``. Resolver probes default bin-Pfad
+    bevor er fallt."""
+    from wirelang.persona_engine.rust_backend_switch import (
+        DEFAULT_RUST_BRIDGE_AUDIT_WRITER_BIN,
+    )
     decisions, _ = _drive_stage_1()
     tenth = decisions[-1]
     assert tenth.domain == "bridge_audit_writer"
-    assert tenth.requested_backend == "python"
-    assert tenth.chosen_backend == "python"
-    assert tenth.fallback_reason is None
-    assert tenth.bin_path is None
+    assert tenth.requested_backend == "rust"
+    assert tenth.chosen_backend == "python"  # graceful fallback
+    assert tenth.fallback_reason == "binary_missing"
+    assert tenth.bin_path == DEFAULT_RUST_BRIDGE_AUDIT_WRITER_BIN
