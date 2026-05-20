@@ -982,11 +982,21 @@ def _validate_state_backing_backend(
 ) -> StateBackingBackend:
     """Validate a ``WAKIR_STATE_BACKING_BACKEND`` value (or ``None``).
 
-    Empty / missing values default to ``StateBackingBackend.PYTHON``.
+    Tag-80 Welle-4 Cutover (2026-05-20): default flipped PYTHON →
+    RUST_NATSKV (production variant per Tag-33 Mini-Welle cosign-
+    policy comment: "NATS-KV Persona-State-Backing"). Note: this
+    enum has TWO rust variants (RUST_INMEMORY + RUST_NATSKV); we
+    cutover to NATS-KV because that is the production-target. The
+    RUST_INMEMORY variant remains opt-in for development / testing.
+    Graceful-fallback intakt (Sandbox-CI ohne binary → chosen=python
+    mit fallback_reason="binary_missing"). Per ADR-0065 + ADR-0066
+    Welle-4.
+
+    Empty / missing values default to ``StateBackingBackend.RUST_NATSKV``.
     Non-empty unknown values raise :class:`BackendSwitchValidationError`.
     """
     if value is None or value == "":
-        return StateBackingBackend.PYTHON
+        return StateBackingBackend.RUST_NATSKV
     if value not in VALID_STATE_BACKING_BACKEND_VALUES:
         raise BackendSwitchValidationError(
             STATE_BACKING_BACKEND_ENV,
