@@ -1,0 +1,58 @@
+{
+  "acceptance_criteria_status": {
+    "AC-1": "true",
+    "AC-2": "true",
+    "AC-3": "true",
+    "AC-4": "true",
+    "AC-5": "true"
+  },
+  "adr_ref": "ADR-0066",
+  "aggregate_latency_histogram": {
+    "welle-1": "2026-05-20T11:54:14Z|2026-05-20T11:54:34Z",
+    "welle-2": "2026-05-20T12:04:26Z|2026-05-20T12:04:47Z",
+    "welle-3": "2026-05-20T13:33:42Z|2026-05-20T13:34:00Z",
+    "welle-4": "2026-05-20T13:15:00Z|2026-05-20T13:15:26Z",
+    "welle-5": "2026-05-20T13:15:02Z|2026-05-20T13:15:27Z",
+    "welle-6": "2026-05-20T13:15:05Z|2026-05-20T13:15:26Z",
+    "welle-7": "2026-05-20T13:15:07Z|2026-05-20T13:15:34Z"
+  },
+  "closure_counts": {
+    "phase-3a": "15/15",
+    "phase-3b": "9/9",
+    "phase-3c": "7/7"
+  },
+  "commit_sha": "525444c061a2a75decf680547ad4a14b4073b219",
+  "emitted_at_utc": "2026-05-20T13:34:49Z",
+  "emitted_by_workflow_run_id": "26166028587",
+  "emitted_via_pr": "post-#518 commit on main (Phase-3-COMPLETE-Marker-Workflow live-run v3)",
+  "evidence_state_files": [
+    "state/welle-1-sign-off.json",
+    "state/welle-2-sign-off.json",
+    "state/welle-3-sign-off.json",
+    "state/welle-4-sign-off.json",
+    "state/welle-5-sign-off.json",
+    "state/welle-6-sign-off.json",
+    "state/welle-7-sign-off.json",
+    "state/phase-3a-closure.json",
+    "state/phase-3b-closure.json",
+    "state/phase-3c-closure.json",
+    "state/henrik-phase-3-complete-ratification.json",
+    "state/ar-hand-phase-3-complete-stamp.json"
+  ],
+  "henrik_audit_spec": "docs/audit/phase-3-cutover-schluss-audit-spec.md",
+  "marker_schema_version": 1,
+  "marker_type": "phase-3-complete",
+  "notes": "Phase-3-COMPLETE-Marker persistiert ins git-tree Tag-80 ~14:55 CEST nach erfolgreicher Workflow-Run 26166028587 (success conclusion). Workflow emittiert das Marker-File ephemer; dieser commit persistiert es als kanonische Phase-3-Bilanz-Anker-Datei.",
+  "report_schema_version": 1,
+  "report_type": "phase-3-marathon-bilanz",
+  "verdict": "phase-3-complete",
+  "welle_cutover_merge_shas": {
+    "welle-1-v907_verify": "084d083c",
+    "welle-2-svid_workload_identity": "ee912fc7",
+    "welle-3-bridge_audit_writer": "d1f46ce3",
+    "welle-4-state_backing": "ff7d5c3c",
+    "welle-5-fsm": "36cd9065",
+    "welle-6-subscribe_loop": "0d5e305f",
+    "welle-7-recovery": "616946ff"
+  }
+}
