@@ -278,11 +278,13 @@ jobs:
         id: gate-aggregator
         continue-on-error: true
         run: |
+          set +e
           python scripts/phase-3c-trigger-gate-aggregator.py \
             --target-binary-count "${{ steps.inputs.outputs.binary_count }}" \
             --json \
             > out/trigger-gate-report.json
           RC=$?
+          set -e
           echo "rc=${RC}" >> "$GITHUB_OUTPUT"
           if [ "$RC" = "0" ]; then
             echo "gate_status=green" >> "$GITHUB_OUTPUT"
