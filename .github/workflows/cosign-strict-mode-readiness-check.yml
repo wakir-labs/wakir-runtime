@@ -144,7 +144,7 @@ jobs:
               --policy policies/cosign-policy-phase-3b.yaml \
               --pinned-trust-root state/cosign-drift/pinned-trust-root.json \
               --last-probe-envelope state/cosign-drift/last-probe-envelope.json \
-              --quadlet-installer quadlet/wakir-rust-cli.container \
+              --quadlet-glob "quadlet/wakir-rust-cli*.container" \
               --out-json out/cosign-strict-mode/envelope.json \
               --out-markdown out/cosign-strict-mode/summary.md \
               ${EXIT_FLAG} \
