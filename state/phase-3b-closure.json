@@ -1,0 +1,9 @@
+{
+  "phase": "3b",
+  "completed_count": 9,
+  "total_count": 9,
+  "closed_at": "2026-05-15T00:00:00+02:00",
+  "closed_at_tag": "Tag-50",
+  "schema_version": "tag-67-v1",
+  "evidence": "Phase-3b Default-Switch opt-in 9/9 Module abgeschlossen Tag-50. 9 production-default-switch resolvers (recovery, state_backing, fsm, v907_verify, bridge_diff, subscribe_loop, anchor_emitter, svid_workload_identity, bridge_audit_writer)."
+}
