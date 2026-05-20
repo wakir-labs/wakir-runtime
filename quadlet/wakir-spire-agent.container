@@ -75,7 +75,7 @@ ContainerName=wakir-spire-agent
 # agent.image. Version-parity with spire-server (1.14.6) by upstream
 # convention — SPIRE-Server and SPIRE-Agent are released as a paired
 # binary set.
-Image=ghcr.io/spiffe/spire-agent:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW
+Image=ghcr.io/spiffe/spire-agent:1.14.6@sha256:04e993cea4f09e1e954fb0b4ece786961c50873b4eb5ef722dd6825c4c8276ac
 
 # Command-line arguments (mirror of compose `command:` list).
 Exec=run -config /etc/spire/agent/agent.conf

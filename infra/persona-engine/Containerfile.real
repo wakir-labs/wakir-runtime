@@ -142,7 +142,7 @@
 # future opentelemetry-sdk pin from Noa) becomes a pyproject.toml
 # edit, not a Containerfile RUN-layer rewrite.
 
-FROM docker.io/library/python:3.13-slim@sha256:DIGEST_PENDING_TOMAS_REVIEW
+FROM docker.io/library/python:3.13-slim@sha256:e544a7fcbdf8555eceda66bf86cafb006c736339f76141918bcb812f3174c00a
 
 # OCI metadata.
 LABEL org.opencontainers.image.title="wakir-persona-engine"

@@ -144,7 +144,7 @@ ContainerName=wakir-nats-kv-bucket-init
 # intentionally NOT a real digest. See
 # ``infra/spire/federation/provisioner/`` for the Containerfile, the
 # build recipe, and the hash-pinned requirements set.
-Image=ghcr.io/wakir-labs/wakir-provisioner:0.1.2@sha256:DIGEST_PENDING_TOMAS_REVIEW
+Image=ghcr.io/wakir-labs/wakir-provisioner:0.1.2@sha256:514ca849539f71d764600532798547e7957c3f72e41db0dcd66bae355275d5e1
 
 # Exec invokes the provisioner against the local NATS, sourcing the
 # onboarded-orgs roster from a bind-mounted file. The ``--orgs-file``

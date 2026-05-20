@@ -100,7 +100,7 @@
 # pinned form ``ghcr.io/wakir-labs/wakir-persona-engine:0.1.0-pilot
 # @sha256:<digest>``.
 
-FROM docker.io/library/python:3.13-slim@sha256:DIGEST_PENDING_TOMAS_REVIEW
+FROM docker.io/library/python:3.13-slim@sha256:e544a7fcbdf8555eceda66bf86cafb006c736339f76141918bcb812f3174c00a
 
 # OCI metadata. The build workflow stamps build-time labels
 # (``org.opencontainers.image.revision`` etc.) at push time.
