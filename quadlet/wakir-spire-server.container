@@ -79,7 +79,7 @@ ContainerName=wakir-spire-server
 # Cosign-Digest-Pin placeholder; Operator-Hand substitutes the
 # canonical 64-hex digest before live bring-up (Cross-Review Zone-C,
 # Tomás-track). Parity test accepts both forms.
-Image=ghcr.io/spiffe/spire-server:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW
+Image=ghcr.io/spiffe/spire-server:1.14.6@sha256:0ed27f4651abae66e25b9bc8cf0e80b143629b3d34a7fcf4c8cce70c81c0043b
 
 # Command-line arguments (mirror of compose `command:` list, joined for
 # Quadlet's Exec= directive which takes a shell-form argument string).

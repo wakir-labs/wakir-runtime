@@ -49,7 +49,7 @@ services:
 
   spire-server-wakir:
     # SPIRE-Server for the ``wakir.test`` trust-domain side.
-    image: "ghcr.io/spiffe/spire-server:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW"
+    image: "ghcr.io/spiffe/spire-server:1.14.6@sha256:0ed27f4651abae66e25b9bc8cf0e80b143629b3d34a7fcf4c8cce70c81c0043b"
     container_name: wakir-spire-server-wakir
     # Sprint-9-Tag-6 Bug 7 substance-fix: drop the literal ``run``
     # token from the command list. The upstream entrypoint already
@@ -112,7 +112,7 @@ services:
 
   spire-server-partner:
     # SPIRE-Server for the ``partner.test`` trust-domain side.
-    image: "ghcr.io/spiffe/spire-server:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW"
+    image: "ghcr.io/spiffe/spire-server:1.14.6@sha256:0ed27f4651abae66e25b9bc8cf0e80b143629b3d34a7fcf4c8cce70c81c0043b"
     container_name: wakir-spire-server-partner
     # Sprint-9-Tag-6 Bug 7 substance-fix: drop the literal ``run``
     # token from the command list. The upstream entrypoint already

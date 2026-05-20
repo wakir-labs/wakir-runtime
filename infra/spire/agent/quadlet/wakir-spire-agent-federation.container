@@ -79,7 +79,7 @@ ContainerName=wakir-spire-agent-<SIDE>
 # services.spire-agent-<SIDE>.image. Version-parity with Tag-1
 # federation server (SPIRE v1.14.6 — upstream releases server+agent as
 # paired binary set).
-Image=ghcr.io/spiffe/spire-agent:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW
+Image=ghcr.io/spiffe/spire-agent:1.14.6@sha256:04e993cea4f09e1e954fb0b4ece786961c50873b4eb5ef722dd6825c4c8276ac
 
 # Command-line arguments (mirror of compose `command:` list).
 #

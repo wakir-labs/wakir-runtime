@@ -124,7 +124,7 @@ services:
     # ``tag@sha256:<digest>``. The digest token below is a documented
     # placeholder; Operator-Hand resolves the canonical digest via
     # ``cosign verify`` + ``skopeo inspect`` before any live bring-up.
-    image: "ghcr.io/spiffe/spire-server:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW"
+    image: "ghcr.io/spiffe/spire-server:1.14.6@sha256:0ed27f4651abae66e25b9bc8cf0e80b143629b3d34a7fcf4c8cce70c81c0043b"
     container_name: wakir-spire-server
     command:
       - "run"
@@ -221,7 +221,7 @@ services:
     # ``DIGEST_PENDING_TOMAS_REVIEW`` is resolved by Operator-Hand
     # before any live bring-up (same workflow as spire-server in
     # docs/spire-server-phase-2-1.md §2).
-    image: "ghcr.io/spiffe/spire-agent:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW"
+    image: "ghcr.io/spiffe/spire-agent:1.14.6@sha256:04e993cea4f09e1e954fb0b4ece786961c50873b4eb5ef722dd6825c4c8276ac"
     container_name: wakir-spire-agent
     # The agent needs the server to be reachable before it starts
     # attesting; ``depends_on`` triggers compose to start spire-server

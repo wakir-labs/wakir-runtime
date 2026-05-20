@@ -90,7 +90,7 @@ ContainerName=wakir-spire-server-federation-<SIDE>
 # resolves to the canonical sha256 digest in the same Operator-Hand
 # Cross-Review Zone-C workflow as the Sprint-6 SPIRE-Server image-pin
 # (docs/spire-server-phase-2-1.md §2).
-Image=ghcr.io/spiffe/spire-server:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW
+Image=ghcr.io/spiffe/spire-server:1.14.6@sha256:0ed27f4651abae66e25b9bc8cf0e80b143629b3d34a7fcf4c8cce70c81c0043b
 
 # Sprint-9-Tag-6 Bug 7 substance-fix: the upstream
 # ``ghcr.io/spiffe/spire-server`` image declares

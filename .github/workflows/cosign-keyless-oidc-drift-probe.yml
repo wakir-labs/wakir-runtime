@@ -147,10 +147,20 @@ jobs:
         id: inputs
         env:
           INPUT_EXIT_NONZERO: ${{ github.event.inputs.exit_non_zero_on_drift }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
+          # Tag-80 Strict-Flip (Cutover-Day-T0, Operator-Hand) per
+          # docs/operations/cosign-strict-mode-activation.md §S2:
+          # On pull_request, ALWAYS exit non-zero on drift so the
+          # job reds the PR (PR-gate posture). The daily scheduled
+          # cron "30 6 * * *" run stays soft (calendar-window-signal
+          # posture, exits 0 on drift; surfaces only via Job-Summary +
+          # notify-event). workflow_dispatch keeps the explicit input.
           exit_flag=""
-          if [ "${INPUT_EXIT_NONZERO:-false}" = "true" ]; then
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            exit_flag="--exit-non-zero-on-drift"
+          elif [ "${INPUT_EXIT_NONZERO:-false}" = "true" ]; then
             exit_flag="--exit-non-zero-on-drift"
           fi
           echo "exit_flag=${exit_flag}" >> "${GITHUB_OUTPUT}"
