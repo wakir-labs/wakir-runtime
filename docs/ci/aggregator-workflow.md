@@ -6,7 +6,7 @@ Copyright (c) 2026 Callandor GmbH and contributors
 # CI Aggregator Workflow — Operator Documentation
 
 **Status:** Active (ADR-0068 approved 2026-05-18).
-**Owner:** Tomás Reinhart (Dev-Engineering).
+**Owner:** Dev-Engineering.
 **Source:** `.github/workflows/ci-aggregator.yml` + `scripts/ci/ci_aggregator.py`.
 
 ## 1. What this workflow does
@@ -29,8 +29,8 @@ each with its own `paths:` filter. When a PR's changed-files set did
 not intersect a Required-Check's filter, GitHub reported the check as
 "never reported", and Branch-Protection treated that as `PENDING
 forever`. The only way out was an admin-merge or a "trigger-file
-touch" workaround PR. Tag-34/35/36 hit this pattern hard
-(PRs #228, #232, #236, plus four Mira-Hand workaround PRs in two days).
+touch" workaround PR. This pattern blocked merges repeatedly before
+ADR-0068 and required a series of operator workaround PRs.
 
 The aggregator structurally eliminates this class of bug: it always
 fires, so it always reports.
@@ -83,15 +83,15 @@ The six sub-workflows the aggregator watches are declared in
 | 3 | `tests.yml`                    | `wirelang suite without rfc8785 / jsonschema (shadow)` |
 | 4 | `tests.yml`                    | `production-vs-sandbox drift envelope` |
 | 5 | `cross-repo-drift-audit.yml`   | `cross-repo drift (wakir-runtime ↔ wakir-protocol)` |
-| 6 | `phase-2-validation-gate.yml`  | `Phase-2 Aggregator (All Gates + Cross-Gate Non-Interference)` |
+| 6 | `runtime-acceptance-gates.yml` | `runtime acceptance gates` |
 
-These are exactly the six Required-Status names that Mira-Hand will
-remove from Branch-Protection at migration Step 3 (see §4).
+These are exactly the six Required-Status names that the operator
+would remove from Branch-Protection at migration Step 3 (see §4).
 
 ## 3. Adding a new sub-workflow
 
-When a new critical sub-workflow lands (e.g. a future Welle-validation
-that promotes from "advisory" to "Required"), add it to the inventory:
+When a new critical sub-workflow lands (e.g. a gate that promotes from
+"advisory" to "Required"), add it to the inventory:
 
 1. Edit `scripts/ci/ci_aggregator.py::SUB_WORKFLOWS` and append a new
    `SubWorkflow(...)` row. Fields:
@@ -103,7 +103,7 @@ that promotes from "advisory" to "Required"), add it to the inventory:
      sub-workflow's `on.pull_request.paths` declaration.
    - `required`: set `True` only if this sub-workflow is/was a
      Branch-Protection Required-Status seed. New sub-workflows added
-     after the Mira-Hand-Folge migration should leave this `False` —
+     after the branch-protection migration should leave this `False` —
      they participate in the aggregator's verdict without needing
      their own Branch-Protection entry.
 2. Add a new hermetic test in
@@ -121,7 +121,7 @@ that promotes from "advisory" to "Required"), add it to the inventory:
    on its own run (self-evidence pattern, same as ADR-0068's
    acceptance criterion).
 
-## 4. Mira-Hand-Folge — Branch-Protection migration
+## 4. Branch-Protection migration (operator hand)
 
 The aggregator workflow itself lands on `main` first (this PR). Then
 the cutover proceeds in four steps:
@@ -130,21 +130,21 @@ the cutover proceeds in four steps:
 
 After this PR merges, both run in parallel:
 - the six existing Required-Status-Checks (license-gate, tests x3,
-  cross-repo-drift, phase-2)
+  cross-repo-drift, runtime acceptance gates)
 - the new `ci-aggregator` job (not yet Required)
 
 ### Step 2 — Observation window (~1 week, 2-3 PRs)
 
-Mira observes the first 2-3 follow-up PRs:
+The operator observes the first 2-3 follow-up PRs:
 - Does the aggregator's verdict match the union of the six legacy
   verdicts? (False-positive / false-negative check.)
 - Do the per-sub-workflow `expected/skip-ok` decisions match the
   intuitive "would this sub-workflow fire on this changed-files set?"
 - Do the polling-timings stay within the 75-minute job-level timeout?
 
-### Step 3 — Cutover (Mira-Hand, GitHub-Repo-Settings)
+### Step 3 — Cutover (operator hand, GitHub repo settings)
 
-Once observation is clean, Mira:
+Once observation is clean, the operator:
 1. Adds `ci-aggregator` to the Branch-Protection Required-Status
    set.
 2. Removes the six legacy names:
@@ -153,7 +153,7 @@ Once observation is clean, Mira:
    - `wirelang suite without rfc8785 / jsonschema (shadow)`
    - `production-vs-sandbox drift envelope`
    - `cross-repo drift (wakir-runtime ↔ wakir-protocol)`
-   - `Phase-2 Aggregator (All Gates + Cross-Gate Non-Interference)`
+   - `runtime acceptance gates`
 
 After this point, the Forever-Pending class is structurally
 impossible.
@@ -237,14 +237,13 @@ sub-workflow YAML's `paths:` filter. Fix the inventory.
   hermetic test suite covers all decision-logic; bugs that escape
   into the I/O layer can be diagnosed via the `decide-only` mode
   and fixed via workflow_dispatch + temporary admin-bypass
-  (Mira-Hand only). See ADR-0068 §"Risiken und Annahmen" item 1.
+  (operator hand only). See ADR-0068 §"Risiken und Annahmen" item 1.
 
 - **GitHub-API rate-limit:** at the default polling cadence (5s
   exponential to 60s, 60 attempts), one aggregator run makes ~20-40
   API calls per sub-workflow. With six sub-workflows and a typical
   10-PR day, ~1200-2400 API calls/day against a 5000/hr GITHUB_TOKEN
-  quota. Headroom is comfortable. Surge scenarios (Phase-3c Cutover
-  with 30+ PRs in a day) stay under quota.
+  quota. Headroom is comfortable. Surge scenarios (30+ PRs in a day) stay under quota.
 
 - **`SubWorkflow.path_filter_triggers` is not a 1:1 GitHub-Actions
   reimplementation:** GitHub-Actions uses minimatch (Bash glob) with
@@ -258,7 +257,7 @@ sub-workflow YAML's `paths:` filter. Fix the inventory.
 
 - ADR-0068 — Status-Aggregator-Workflow als alleiniger Required-
   Status-Check (`decisions/0068-status-aggregator-workflow-required-check.md`).
-- Tomás-Audit Tag-35 PR #231 — root-cause analysis of the path-
+- Branch-protection check-names audit (2026-05-18) — root-cause analysis of the path-
   filter / display-name double-axis problem
   (`docs/audit/branch-protection-check-names-audit-2026-05-18.md`).
 - `feedback_branch_protection_check_names.md` — operator memory

@@ -28,7 +28,7 @@ in two strictly-ordered Operator-Hand PRs.
 |---|---|---|
 | Host-host with `ghcr.io` push + Sigstore-network egress | Yes — Operator-Hand only | No — sandbox-CI runner |
 | Live `cosign` + `crane` + `skopeo` against `ghcr.io` | Yes | No — `feedback_sandbox_host_trennung.md` |
-| YAML / JSON edits against `policies/` and `state/cosign-drift/` | Yes — both substrate edits land here | n/a |
+| YAML / JSON edits against `policies/` and `tooling/baselines/cosign-drift/` | Yes — both substrate edits land here | n/a |
 | PR review by Tomás (Zone-C) | Required for both G1 and G2 PRs | n/a |
 | ADR vorlage | Not required — this is procedural closeout, not architecture | n/a |
 
@@ -55,8 +55,8 @@ Expected verdict:
 | Gate | Expected verdict | Source |
 |---|---|---|
 | G1 | BLOCKED (15 placeholders) | `policies/cosign-policy-phase-3b.yaml` carrier-image + 14 per-binary placeholder slots |
-| G2 | BLOCKED (both PENDING) | `state/cosign-drift/pinned-trust-root.json` — `fulcio_root_ca_sha256` + `rekor_log_shard_id` |
-| G3 | GREEN | `state/cosign-drift/last-probe-envelope.json` baseline-mode envelope |
+| G2 | BLOCKED (both PENDING) | `tooling/baselines/cosign-drift/pinned-trust-root.json` — `fulcio_root_ca_sha256` + `rekor_log_shard_id` |
+| G3 | GREEN | `tooling/baselines/cosign-drift/last-probe-envelope.json` baseline-mode envelope |
 | G4 | GREEN | 15-binary inventory size |
 | G5 | GREEN | quadlet glob-union ↔ policy parity |
 | G6 | GREEN | branch-protection display-names |
@@ -255,7 +255,7 @@ malformed and would falsely red the next probe run.
 
 Open PR #N2 against `wakir-runtime` with a single atomic commit that
 replaces the two `PENDING_OPERATOR_HAND_REFRESH` values in
-`state/cosign-drift/pinned-trust-root.json`. The PR diff should
+`tooling/baselines/cosign-drift/pinned-trust-root.json`. The PR diff should
 touch exactly one file. The four substrate fields after the edit:
 
 | Field | Source | Shape |
@@ -312,7 +312,7 @@ Both runs must be GREEN for G2 to count as truly closed.
 | `cosign initialize` cannot reach Sigstore | Operator-host network restriction | Halt — switch to a host with Sigstore-network egress; do not work around with cached PEMs. |
 | Fulcio SHA-256 differs across two consecutive captures | Sigstore re-tagged Fulcio mid-capture | Halt — wait for the upstream Sigstore release announcement to clarify the rotation, then re-capture. |
 | Rekor `treeID` is non-numeric | API contract change | Halt — open a Rekor-API-contract drift ticket; do not commit a non-numeric value. |
-| readiness-check shows G2 still BLOCKED post-merge | At least one `PENDING_OPERATOR_HAND_REFRESH` slot still on disk | Re-run `grep -n 'PENDING_OPERATOR_HAND_REFRESH' state/cosign-drift/pinned-trust-root.json` and patch the missed field. |
+| readiness-check shows G2 still BLOCKED post-merge | At least one `PENDING_OPERATOR_HAND_REFRESH` slot still on disk | Re-run `grep -n 'PENDING_OPERATOR_HAND_REFRESH' tooling/baselines/cosign-drift/pinned-trust-root.json` and patch the missed field. |
 | fixture-mode probe is non-GREEN despite G2 GREEN | Drift between the pinned values and a fresh snapshot taken at probe-time | Halt — reconcile per `docs/operations/cosign-keyless-oidc-drift-probe.md` §5 (halt-on-drift recipe). |
 | Tomás (Zone-C) rejects PR #N2 | Cross-review surfaced a trust-root capture discrepancy | Halt the merge; reconcile per Tomás's review comments before re-attempting. |
 

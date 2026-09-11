@@ -49,7 +49,7 @@ permissions:
 
 jobs:
   reuse-wrap-pre-merge-lint:
-    name: REUSE-Wrap Pre-Merge Lint (Tag-61)
+    name: REUSE-Wrap Pre-Merge Lint
     runs-on: ubuntu-latest
 
     steps:

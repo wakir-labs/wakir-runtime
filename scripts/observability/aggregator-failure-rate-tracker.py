@@ -134,7 +134,7 @@ LEGACY_REQUIRED_NAMES: Tuple[str, ...] = (
     "wirelang suite without rfc8785 / jsonschema (shadow)",
     "production-vs-sandbox drift envelope",
     "cross-repo drift (wakir-runtime ↔ wakir-protocol)",
-    "Phase-2 Aggregator (All Gates + Cross-Gate Non-Interference)",
+    "runtime acceptance gates",
 )
 
 AGGREGATOR_CHECK_NAME = "ci-aggregator"

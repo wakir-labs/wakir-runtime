@@ -9,7 +9,7 @@ This module covers the pure-function core of
 ``scripts/ci/ci_aggregator.py`` (the ``decide_expected_set``,
 ``aggregate_verdicts``, ``render_summary_table``, ``backoff_schedule``,
 and ``SubWorkflow.path_filter_triggers`` functions) plus the
-workflow-yaml shape invariants that Mira-Hand-Folge needs to rely on
+workflow-yaml shape invariants that branch-protection migration needs to rely on
 for the Branch-Protection migration.
 
 What is **not** covered here
@@ -20,7 +20,7 @@ What is **not** covered here
   GitHub-Actions REST API and are exercised in production by the
   aggregator's own self-run on the migration PR.
 - End-to-end CI behaviour. That is gated by the first 2-3 follow-up
-  PRs (Mira-Hand-Step-2 in the migration plan, see
+  PRs (migration step 2 in the migration plan, see
   ``docs/ci/aggregator-workflow.md`` §Migration).
 
 Sandbox boundary
@@ -28,7 +28,6 @@ Sandbox boundary
 
 Pure Python + the YAML on disk. No subprocess, no podman, no network.
 
-Author: Tomás Reinhart (Dev-Engineering)
 Anchor: ADR-0068 §"Folgeartefakte" — hermetic-tests requirement.
 """
 
@@ -87,7 +86,7 @@ def workflow_yaml() -> dict:
 
 def test_inventory_carries_six_required_seeds(agg) -> None:
     """The inventory must include all six existing Required-Status names
-    so the Mira-Hand-Folge cleanup has a 1:1 mapping.
+    so the branch-protection migration cleanup has a 1:1 mapping.
 
     Without this, removing the old Required-Names from Branch-Protection
     could leave a check uncovered.
@@ -101,7 +100,7 @@ def test_inventory_carries_six_required_seeds(agg) -> None:
         "wirelang suite without rfc8785 / jsonschema (shadow)",
         "production-vs-sandbox drift envelope",
         "cross-repo drift (wakir-runtime ↔ wakir-protocol)",
-        "Phase-2 Aggregator (All Gates + Cross-Gate Non-Interference)",
+        "runtime acceptance gates",
     }
     assert required_check_names == expected_required, (
         "inventory ``required=True`` rows must exactly match the six "
@@ -150,7 +149,7 @@ def test_decide_with_empty_diff_skips_everything(agg) -> None:
 def test_wirelang_diff_fires_wirelang_subworkflows(agg) -> None:
     """A diff touching only ``wirelang/foo.py`` should mark the three
     tests.yml-derived check rows and license-gate as ``expected``,
-    Phase-2 as ``expected`` (its filter includes ``wirelang/**``),
+    runtime acceptance gates as ``expected`` (its filter includes ``wirelang/**``),
     cross-repo-drift as ``expected``."""
     verdicts = agg.decide_expected_set(["wirelang/persona/foo.py"])
     by_name = {v.spec.check_name: v for v in verdicts}
@@ -158,48 +157,47 @@ def test_wirelang_diff_fires_wirelang_subworkflows(agg) -> None:
     assert by_name["wirelang suite without rfc8785 / jsonschema (shadow)"].expected
     assert by_name["production-vs-sandbox drift envelope"].expected
     assert by_name["License-Hygiene Gate (ADR-0061)"].expected
-    assert by_name["Phase-2 Aggregator (All Gates + Cross-Gate Non-Interference)"].expected
+    assert by_name["runtime acceptance gates"].expected
     assert by_name["cross-repo drift (wakir-runtime ↔ wakir-protocol)"].expected
 
 
 # ---------------------------------------------------------------------------
-# Test 5 — A docs-only diff fires license-gate + tests.yml but NOT Phase-2.
+# Test 5 — A docs-only diff fires license-gate + tests.yml but NOT runtime acceptance gates.
 # ---------------------------------------------------------------------------
 
 
-def test_docs_only_diff_skips_phase_2_gate(agg) -> None:
+def test_docs_only_diff_skips_runtime_acceptance_gates(agg) -> None:
     """A docs-only diff (e.g. ``docs/operations/foo.md``) should fire
     license-gate (which includes ``docs/**``) and tests.yml (which
-    includes ``docs/**``) but skip Phase-2 (which only covers
+    includes ``docs/**``) but skip runtime acceptance gates (which only covers
     ``docs/quality-gates/**``).
 
-    This is the precise scenario that caused PR #232's Forever-Pending
-    (Tag-35) and the rationale for ADR-0068.
+    This is the precise scenario that caused the Forever-Pending incident and the rationale for ADR-0068.
     """
     verdicts = agg.decide_expected_set(["docs/operations/cutover-runbook.md"])
     by_name = {v.spec.check_name: v for v in verdicts}
     assert by_name["License-Hygiene Gate (ADR-0061)"].expected
     assert by_name["wirelang suite with rfc8785 + jsonschema"].expected
     assert not by_name[
-        "Phase-2 Aggregator (All Gates + Cross-Gate Non-Interference)"
+        "runtime acceptance gates"
     ].expected, (
-        "Phase-2 path-filter is only ``docs/quality-gates/**``; "
+        "runtime-acceptance-gates path-filter is only ``docs/quality-gates/**``; "
         "operator docs should not trigger it"
     )
 
 
 # ---------------------------------------------------------------------------
-# Test 6 — A diff under docs/quality-gates/ fires Phase-2.
+# Test 6 — A diff under docs/quality-gates/ fires runtime acceptance gates.
 # ---------------------------------------------------------------------------
 
 
-def test_quality_gates_doc_fires_phase_2(agg) -> None:
+def test_quality_gates_doc_fires_runtime_acceptance_gates(agg) -> None:
     """Inverse of test 5: ``docs/quality-gates/foo.md`` should fire
-    Phase-2 (filter explicitly includes it)."""
+    runtime acceptance gates (filter explicitly includes it)."""
     verdicts = agg.decide_expected_set(["docs/quality-gates/phase-2.md"])
     by_name = {v.spec.check_name: v for v in verdicts}
     assert by_name[
-        "Phase-2 Aggregator (All Gates + Cross-Gate Non-Interference)"
+        "runtime acceptance gates"
     ].expected
 
 
@@ -210,14 +208,14 @@ def test_quality_gates_doc_fires_phase_2(agg) -> None:
 
 def test_workflow_yaml_diff_fires_subset(agg) -> None:
     """A diff touching ``.github/workflows/ci-aggregator.yml`` (a generic
-    workflow file not covered by the narrowed Phase-2 or cross-repo-
+    workflow file not covered by the narrowed runtime-acceptance-gates or cross-repo-
     drift filters) should fire the four broadly-filtered sub-workflows
-    (license-gate + tests.yml x3) but NOT Phase-2 (filter narrows to
-    ``phase-2-validation-gate.yml``) and NOT cross-repo-drift (filter
+    (license-gate + tests.yml x3) but NOT runtime acceptance gates (filter narrows to
+    ``runtime-acceptance-gates.yml``) and NOT cross-repo-drift (filter
     narrows to ``cross-repo-drift-audit.yml``).
 
     This distinguishes "broad workflow change" from "targeted workflow
-    change" and documents the Phase-2 + cross-repo-drift narrowing.
+    change" and documents the runtime-acceptance-gates + cross-repo-drift narrowing.
     """
     verdicts = agg.decide_expected_set([".github/workflows/ci-aggregator.yml"])
     by_name = {v.spec.check_name: v for v in verdicts}
@@ -232,9 +230,9 @@ def test_workflow_yaml_diff_fires_subset(agg) -> None:
         "ci-aggregator.yml touch should not trigger it"
     )
     assert not by_name[
-        "Phase-2 Aggregator (All Gates + Cross-Gate Non-Interference)"
+        "runtime acceptance gates"
     ].expected, (
-        "Phase-2 path-filter narrows to its own workflow file; "
+        "runtime-acceptance-gates path-filter narrows to its own workflow file; "
         "ci-aggregator.yml touch should not trigger it"
     )
 
@@ -356,13 +354,13 @@ def test_backoff_schedule_respects_cap(agg) -> None:
 
 
 def test_workflow_job_display_name_is_stable(workflow_yaml: dict) -> None:
-    """The aggregator job's ``name:`` field is what Mira-Hand-Folge
+    """The aggregator job's ``name:`` field is what branch-protection migration
     sets as the sole Required-Status-Check name in Branch-Protection.
     If this changes silently, the Required-Status reference would
     Forever-Pend until Branch-Protection is updated.
 
     Pin the value to ``ci-aggregator``. Any future rename requires a
-    coordinated Mira-Hand-Folge update.
+    coordinated branch-protection migration update.
     """
     jobs = workflow_yaml["jobs"]
     assert "ci-aggregator" in jobs, (

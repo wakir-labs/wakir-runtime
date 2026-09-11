@@ -22,7 +22,7 @@
 #
 #   * ``policies/cosign-policy-phase-3b.yaml`` — the Tag-45
 #     15-binary inventory and its pinned identity regexp + issuer.
-#   * ``state/cosign-drift/pinned-trust-root.json`` — the pinned
+#   * ``tooling/baselines/cosign-drift/pinned-trust-root.json`` — the pinned
 #     Sigstore Trust-Root (Operator-Hand refreshed; PENDING values
 #     in baseline-mode produce a self-consistent verdict).
 #   * ``.github/workflows/*.yml`` — the on-disk workflow inventory
@@ -94,14 +94,14 @@ on:
       - "scripts/observability/cosign-keyless-oidc-drift-probe.py"
       - "tests/observability/test_cosign_keyless_oidc_drift_probe.py"
       - "policies/cosign-policy-phase-3b.yaml"
-      - "state/cosign-drift/pinned-trust-root.json"
+      - "tooling/baselines/cosign-drift/pinned-trust-root.json"
       - ".github/workflows/cosign-keyless-oidc-drift-probe.yml"
   pull_request:
     paths:
       - "scripts/observability/cosign-keyless-oidc-drift-probe.py"
       - "tests/observability/test_cosign_keyless_oidc_drift_probe.py"
       - "policies/cosign-policy-phase-3b.yaml"
-      - "state/cosign-drift/pinned-trust-root.json"
+      - "tooling/baselines/cosign-drift/pinned-trust-root.json"
       - ".github/workflows/cosign-keyless-oidc-drift-probe.yml"
 
 permissions:
@@ -175,7 +175,7 @@ jobs:
           # shellcheck disable=SC2086
           python3 scripts/observability/cosign-keyless-oidc-drift-probe.py \
               --policy policies/cosign-policy-phase-3b.yaml \
-              --pinned-trust-root state/cosign-drift/pinned-trust-root.json \
+              --pinned-trust-root tooling/baselines/cosign-drift/pinned-trust-root.json \
               --repo-root . \
               --mode baseline \
               --out-json out/cosign-drift/envelope.json \

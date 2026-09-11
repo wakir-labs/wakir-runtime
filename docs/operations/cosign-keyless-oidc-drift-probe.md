@@ -33,7 +33,7 @@ The daily CI workflow at 06:30 UTC runs:
 ```
 python3 scripts/observability/cosign-keyless-oidc-drift-probe.py \
     --policy policies/cosign-policy-phase-3b.yaml \
-    --pinned-trust-root state/cosign-drift/pinned-trust-root.json \
+    --pinned-trust-root tooling/baselines/cosign-drift/pinned-trust-root.json \
     --repo-root . \
     --mode baseline
 ```
@@ -119,7 +119,7 @@ done
 ```bash
 python3 scripts/observability/cosign-keyless-oidc-drift-probe.py \
     --policy policies/cosign-policy-phase-3b.yaml \
-    --pinned-trust-root state/cosign-drift/pinned-trust-root.json \
+    --pinned-trust-root tooling/baselines/cosign-drift/pinned-trust-root.json \
     --repo-root . \
     --mode fixture \
     --snapshot /tmp/snapshot.json \
@@ -133,7 +133,7 @@ review the Markdown summary for the per-binary verdict + reason.
 
 When the Sigstore project re-tags the cosign-installer or rotates
 the Fulcio CA, an Operator-Hand PR updates
-`state/cosign-drift/pinned-trust-root.json` with the new values.
+`tooling/baselines/cosign-drift/pinned-trust-root.json` with the new values.
 Zone-C cross-review by Tomás is required (Container-Image-Pipeline
 x OTS-Anchoring).
 

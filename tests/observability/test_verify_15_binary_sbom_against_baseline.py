@@ -583,13 +583,13 @@ def test_TV_CLI_02_exit_non_zero_on_drift_flag_returns_1(tmp_path):
 
 
 def test_TV_BL_01_baseline_state_dir_contains_15_files():
-    """TV-BL-01: ``state/sbom-baseline/`` has fifteen baseline JSON files.
+    """TV-BL-01: ``tooling/baselines/sbom-baseline/`` has fifteen baseline JSON files.
 
     Substrate invariant -- the Tag-49 baseline-freeze is captured.
     Without this guard a future deletion of one of the fifteen
     baselines silently regresses the substrate to MISSING-BASELINE.
     """
-    baseline_dir = _REPO_ROOT / "state" / "sbom-baseline"
+    baseline_dir = _REPO_ROOT / "tooling" / "baselines" / "sbom-baseline"
     files = sorted(p.name for p in baseline_dir.glob("*.json"))
     assert len(files) == 15
     # Each file is well-formed JSON with a ``components`` array.
@@ -614,6 +614,6 @@ def test_TV_BL_02_baseline_inventory_matches_tag45():
     )
     gen = ver._load_generator_module(gen_path)
     inventory = set(gen.TAG45_BINARY_INVENTORY)
-    baseline_dir = _REPO_ROOT / "state" / "sbom-baseline"
+    baseline_dir = _REPO_ROOT / "tooling" / "baselines" / "sbom-baseline"
     file_names = {p.stem for p in baseline_dir.glob("*.json")}
     assert inventory == file_names

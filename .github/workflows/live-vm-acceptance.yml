@@ -509,7 +509,7 @@ jobs:
   # =============================================================
 
   live-vm-acceptance-phase-3b:
-    name: Live-VM acceptance Phase-3b (${{ matrix.recovery_backend }} + ${{ matrix.state_backing_backend }})
+    name: Live-VM acceptance rust-cli matrix (${{ matrix.recovery_backend }} + ${{ matrix.state_backing_backend }})
     needs: live-vm-acceptance
     if: |
       always() &&
@@ -740,7 +740,7 @@ jobs:
   # =============================================================
 
   live-vm-acceptance-phase-3b-aggregate:
-    name: Live-VM acceptance Phase-3b — aggregate
+    name: Live-VM acceptance rust-cli matrix — aggregate
     needs: live-vm-acceptance-phase-3b
     if: |
       always() &&

@@ -15,7 +15,7 @@
 # This Tag-49 verification workflow runs the Tag-48 generator under
 # the same hermetic --mode=stdlib path (no live cargo / network),
 # then compares each per-binary SBOM against
-# state/sbom-baseline/<binary>.json. The verdict classification:
+# tooling/baselines/sbom-baseline/<binary>.json. The verdict classification:
 #
 #   * GREEN  -- every binary matches its baseline on the comparable
 #               fields (components, versions, checksums).
@@ -106,7 +106,7 @@ on:
       - "scripts/observability/generate-15-binary-sbom.py"
       - "scripts/observability/mira-notify-emitter.py"
       - "tests/observability/test_verify_15_binary_sbom_against_baseline.py"
-      - "state/sbom-baseline/**"
+      - "tooling/baselines/sbom-baseline/**"
       - "wirelang-rust/Cargo.lock"
       - "wirelang-rust/Cargo.toml"
       - ".github/workflows/sbom-verification-daily.yml"
@@ -116,7 +116,7 @@ on:
       - "scripts/observability/generate-15-binary-sbom.py"
       - "scripts/observability/mira-notify-emitter.py"
       - "tests/observability/test_verify_15_binary_sbom_against_baseline.py"
-      - "state/sbom-baseline/**"
+      - "tooling/baselines/sbom-baseline/**"
       - "wirelang-rust/Cargo.lock"
       - "wirelang-rust/Cargo.toml"
       - ".github/workflows/sbom-verification-daily.yml"
@@ -194,7 +194,7 @@ jobs:
           # shellcheck disable=SC2086
           python3 scripts/observability/verify-15-binary-sbom-against-baseline.py \
               --sbom-dir out/sbom \
-              --baseline-dir state/sbom-baseline \
+              --baseline-dir tooling/baselines/sbom-baseline \
               --out-json out/sbom-verification/envelope.json \
               --out-textfile out/sbom-verification/textfile.prom \
               --out-markdown out/sbom-verification/summary.md \

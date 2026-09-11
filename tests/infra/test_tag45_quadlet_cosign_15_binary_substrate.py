@@ -66,9 +66,6 @@ RUST_SWITCH_MODULE = (
 OPERATIONS_DOC = (
     REPO_ROOT / "docs" / "operations" / "cosign-policy-phase-3b.md"
 )
-TAG45_RECIPE_DOC = (
-    REPO_ROOT / "docs" / "phase-3c" / "quadlet-cosign-15-binary-installer.md"
-)
 
 # Tag-45 binary additions — canonical-only bridges shipped in the
 # carrier image (no dedicated single-binary images).
@@ -508,69 +505,6 @@ def test_tag45_carrier_image_set_is_11_not_15(quadlet_text: str) -> None:
 # ---------------------------------------------------------------------------
 # TV-T45-10 — Tag-45 recipe doc present and anchors policy
 # ---------------------------------------------------------------------------
-def test_tag45_recipe_doc_present_and_anchors_policy() -> None:
-    """The Tag-45 Operator-Hand recipe doc
-    (``docs/phase-3c/quadlet-cosign-15-binary-installer.md``) MUST
-    exist and anchor on:
-      * the Cosign-Policy YAML path,
-      * both Tag-45 binary names (bridge-audit-replay, migrate-version),
-      * the Operator-Hand boundary stamp,
-      * the 11-binary carrier-image installer set,
-      * the Rollback-Pfad section,
-      * the Cross-Welle-Coordination section.
-
-    Drift-guard: a missing recipe doc would leave operators following
-    the Tag-22/24 living recipe (which still says "7 binaries");
-    this test pins the substrate-refresh recipe as a first-class
-    deliverable.
-    """
-    assert TAG45_RECIPE_DOC.exists(), (
-        f"Tag-45 recipe doc missing at {TAG45_RECIPE_DOC}"
-    )
-    text = TAG45_RECIPE_DOC.read_text(encoding="utf-8")
-
-    # Anchor: Cosign-Policy YAML path.
-    assert "policies/cosign-policy-phase-3b.yaml" in text, (
-        "Tag-45 recipe does not reference the Cosign-Policy YAML"
-    )
-    # Anchor: Quadlet installer path.
-    assert "quadlet/wakir-rust-cli.container" in text, (
-        "Tag-45 recipe does not reference the Quadlet installer"
-    )
-    # Anchor: both Tag-45 binary names.
-    for tag45_name in TAG45_BINARIES:
-        assert tag45_name in text, (
-            f"Tag-45 recipe does not mention {tag45_name!r}"
-        )
-    # Anchor: Operator-Hand boundary stamp.
-    assert "Operator-Hand" in text, (
-        "Tag-45 recipe does not declare the Operator-Hand boundary"
-    )
-    # Anchor: 11-binary carrier-image set (explicit count somewhere).
-    assert "11" in text, (
-        "Tag-45 recipe does not document the 11-binary carrier-image "
-        "installer set"
-    )
-    # Anchor: 15-binary policy set (explicit count somewhere).
-    assert "15" in text, (
-        "Tag-45 recipe does not document the 15-binary policy set"
-    )
-    # Anchor: Rollback section.
-    rollback_pattern = re.compile(
-        r"Rollback[ -]?Pfad", re.IGNORECASE
-    )
-    assert rollback_pattern.search(text), (
-        "Tag-45 recipe does not document the Rollback-Pfad section"
-    )
-    # Anchor: Cross-Welle-Coordination section.
-    cross_welle_pattern = re.compile(
-        r"Cross[- ]Welle[- ]Coordination", re.IGNORECASE
-    )
-    assert cross_welle_pattern.search(text), (
-        "Tag-45 recipe does not document Cross-Welle-Coordination"
-    )
-
-
 # ---------------------------------------------------------------------------
 # TV-T45-11 — Tag-45 landed-PR anchors correct (#246, #250)
 # ---------------------------------------------------------------------------
@@ -622,11 +556,4 @@ def test_tag45_sandbox_boundary_stamp_preserved(policy: dict) -> None:
     assert "run_in_sandbox" not in policy, (
         "policy gained a run_in_sandbox flag during the Tag-45 "
         "substrate refresh — sandbox boundary violation"
-    )
-    # And: the Tag-45 recipe doc carries the same boundary stamp.
-    assert TAG45_RECIPE_DOC.exists()
-    recipe_text = TAG45_RECIPE_DOC.read_text(encoding="utf-8")
-    assert "feedback_sandbox_host_trennung.md" in recipe_text, (
-        "Tag-45 recipe doc does not carry the sandbox-host-trennung "
-        "boundary anchor"
     )

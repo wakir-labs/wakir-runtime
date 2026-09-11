@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Verify the Tag-59 Branch-Protection Required-Check Wiring Doc.
+"""Verify the Branch-Protection Required-Checks inventory doc.
 
 Hermetic, stdlib-only. Parses the doc and asserts:
  - All 6 required sections (§1..§6) are present with the expected
    heading prefix.
- - §1 status table has exactly 5 rows (the 5 pending checks).
+ - §1 inventory table has exactly EXPECTED_CHECK_COUNT rows.
  - Each §1 row carries a non-empty display-name in backticks plus
    a workflow-file reference under `.github/workflows/`.
  - Display-names are unique (no accidental duplicate entry).
- - Sandbox-Boundary table in §6 is non-empty and references both
-   `Mira-Sandbox` and `Operator-Hand` columns.
+ - Sandbox-boundary table in §6 is non-empty and references both
+   the `sandbox` and `Operator-Hand` axes.
 
 Exit code 0 on pass, 1 on failure with a structured report on stderr.
 """
@@ -23,20 +23,19 @@ from pathlib import Path
 from typing import Iterable
 
 
-DOC_DEFAULT = (
-    "docs/operations/branch-protection-required-checks-tag59.md"
-)
+DOC_DEFAULT = "docs/ci/branch-protection-required-checks.md"
 
 REQUIRED_SECTIONS: tuple[str, ...] = (
-    "§1 — Status pro Required-Check",
-    "§2 — Operator-Hand-Aktivierungs-Recipe",
-    "§3 — Pre-Aktivierungs-Verifikations-Checklist",
-    "§4 — Aktivierungs-Reihenfolge mit Risk-Map",
-    "§5 — Post-Aktivierungs-Smoke",
-    "§6 — Sandbox-Boundary",
+    "§1 — Required-check inventory",
+    "§2 — Operator activation recipe",
+    "§3 — Pre-activation verification checklist",
+    "§4 — Activation order and risk map",
+    "§5 — Post-activation smoke",
+    "§6 — Sandbox boundary",
 )
 
-EXPECTED_CHECK_COUNT = 5
+#: 10 active contexts + `runtime acceptance gates` (pending operator activation).
+EXPECTED_CHECK_COUNT = 11
 
 
 class Finding:
@@ -78,8 +77,8 @@ def parse_status_table(section_text: str) -> list[dict[str, str]]:
     """Extract markdown table rows from §1 status section.
 
     Returns one dict per data row (header + alignment row skipped).
-    Keys: ``num``, ``display_name``, ``workflow``, ``source_pr``,
-    ``first_main_run``, ``status``.
+    Keys: ``num``, ``display_name``, ``workflow``, ``reach``,
+    ``since``, ``status``.
     """
     rows: list[dict[str, str]] = []
     in_table = False
@@ -104,8 +103,8 @@ def parse_status_table(section_text: str) -> list[dict[str, str]]:
                 "num": cells[0],
                 "display_name": cells[1],
                 "workflow": cells[2],
-                "source_pr": cells[3],
-                "first_main_run": cells[4],
+                "reach": cells[3],
+                "since": cells[4],
                 "status": cells[5],
             }
         )
@@ -193,14 +192,14 @@ def verify(doc_path: Path) -> list[Finding]:
             )
         )
 
-    # 4. §6 Sandbox-Boundary table has Mira-Sandbox + Operator-Hand cols.
+    # 4. §6 sandbox-boundary table has sandbox + Operator-Hand columns.
     s6 = sections.get(REQUIRED_SECTIONS[5], "")
-    if "Mira-Sandbox" not in s6 or "Operator-Hand" not in s6:
+    if "sandbox" not in s6.lower() or "Operator-Hand" not in s6:
         findings.append(
             Finding(
                 "error",
                 "§6-sandbox-boundary",
-                "Sandbox-Boundary section missing Mira-Sandbox/Operator-Hand axis",
+                "Sandbox-boundary section missing sandbox/Operator-Hand axis",
             )
         )
     if "|" not in s6:

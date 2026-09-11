@@ -39,7 +39,7 @@ Per ``feedback_sandbox_host_trennung.md`` + ADR-0051 these tests
 NEVER call cosign / crane / podman / network. They parse the guide
 markdown on disk plus the substrate files the guide references
 (``policies/cosign-policy-phase-3b.yaml``,
-``state/cosign-drift/pinned-trust-root.json``, the
+``tooling/baselines/cosign-drift/pinned-trust-root.json``, the
 ``quadlet/wakir-rust-cli*.container`` glob) and assert text-level
 consistency between the documentation and the substrate.
 
@@ -70,7 +70,7 @@ GUIDE_PATH = (
 )
 POLICY_PATH = REPO_ROOT / "policies" / "cosign-policy-phase-3b.yaml"
 PINNED_TRUST_ROOT_PATH = (
-    REPO_ROOT / "state" / "cosign-drift" / "pinned-trust-root.json"
+    REPO_ROOT / "tooling" / "baselines" / "cosign-drift" / "pinned-trust-root.json"
 )
 QUADLET_GLOB_DIR = REPO_ROOT / "quadlet"
 

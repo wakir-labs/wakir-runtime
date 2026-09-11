@@ -10,7 +10,7 @@ sign-off; ad-hoc on supply-chain advisory.
 The Tag-49 SBOM-Verification-Workflow
 (`.github/workflows/sbom-verification-daily.yml`) compares the
 daily-generated 15-binary SBOMs against the pinned baseline in
-`state/sbom-baseline/`. When the verdict is non-GREEN, a
+`tooling/baselines/sbom-baseline/`. When the verdict is non-GREEN, a
 Mira-Notify event is emitted with `severity=page` (RED) or
 `severity=warning` (YELLOW).
 
@@ -33,7 +33,7 @@ python3 scripts/observability/refresh-15-binary-sbom-baseline.py \
 # Live refresh (token required, format checked client-side):
 python3 scripts/observability/refresh-15-binary-sbom-baseline.py \
     --approval-token AR-HAND-GATE-2026-05-19-fred \
-    --receipt-out state/sbom-baseline-refresh-receipts/$(date -u +%Y%m%dT%H%M%SZ)-receipt.json
+    --receipt-out tooling/baselines/sbom-baseline-refresh-receipts/$(date -u +%Y%m%dT%H%M%SZ)-receipt.json
 ```
 
 The CLI:
@@ -42,7 +42,7 @@ The CLI:
 2. Runs the Tag-49 verifier in pre-refresh mode → captures drift.
 3. Blocks if `checksum-changed` drift is present unless
    `--allow-checksum-changed` is also supplied.
-4. Copies the generated SBOMs into `state/sbom-baseline/`.
+4. Copies the generated SBOMs into `tooling/baselines/sbom-baseline/`.
 5. Re-runs the verifier — asserts `GREEN`.
 6. Emits a refresh-receipt JSON capturing the AR token + drift
    summary + cargo-lock-sha256 before/after.
@@ -109,7 +109,7 @@ The output contains fifteen `<binary>.cdx.json` files plus
 ```bash
 python3 scripts/observability/verify-15-binary-sbom-against-baseline.py \
     --sbom-dir /tmp/sbom-baseline-refresh \
-    --baseline-dir state/sbom-baseline \
+    --baseline-dir tooling/baselines/sbom-baseline \
     --out-json /tmp/sbom-baseline-refresh/verify.json \
     --out-markdown /tmp/sbom-baseline-refresh/verify.md \
     --generator-ts 0.0
@@ -134,7 +134,7 @@ In the PR description (or AR-Hand-Gate doc) capture:
 ```bash
 for f in /tmp/sbom-baseline-refresh/*.cdx.json; do
   base=$(basename "$f" .cdx.json)
-  cp "$f" "state/sbom-baseline/${base}.json"
+  cp "$f" "tooling/baselines/sbom-baseline/${base}.json"
 done
 ```
 
@@ -143,7 +143,7 @@ done
 ```bash
 python3 scripts/observability/verify-15-binary-sbom-against-baseline.py \
     --sbom-dir /tmp/sbom-baseline-refresh \
-    --baseline-dir state/sbom-baseline \
+    --baseline-dir tooling/baselines/sbom-baseline \
     --generator-ts 0.0
 ```
 
@@ -156,7 +156,7 @@ Expected output:
 ### 7. Commit + PR
 
 ```bash
-git add state/sbom-baseline/
+git add tooling/baselines/sbom-baseline/
 git commit -m "ops(sbom-baseline): refresh Tag-NN baseline after AR sign-off"
 ```
 

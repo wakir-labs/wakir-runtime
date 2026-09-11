@@ -68,7 +68,7 @@ permissions:
 
 jobs:
   hash-derivate-gate:
-    name: Hash-Derivate-Drift Gate (Sprint-Stability Tag-3)
+    name: Hash-Derivate-Drift Gate
     runs-on: ubuntu-latest
 
     steps:

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# OTS Pre-Anchor Activation Probe (Tag-59)
+# OTS Pre-Anchor Activation Probe
 # ----------------------------------------
 #
 # Purpose
@@ -78,7 +78,7 @@ permissions:
 
 jobs:
   ots-pre-anchor-activation-probe:
-    name: OTS Pre-Anchor Activation Probe (Tag-59)
+    name: OTS Pre-Anchor Activation Probe
     runs-on: ubuntu-latest
 
     env:
@@ -206,7 +206,7 @@ jobs:
           )"
           echo "aggregate=${aggregate}" >> "$GITHUB_OUTPUT"
           {
-            echo "# OTS Pre-Anchor Activation Probe (Tag-59)"
+            echo "# OTS Pre-Anchor Activation Probe"
             echo
             echo "**Aggregate verdict:** \`${aggregate}\`"
             echo

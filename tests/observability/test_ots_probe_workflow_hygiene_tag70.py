@@ -142,7 +142,7 @@ def test_02_workflow_yaml_parses(workflow_doc: dict) -> None:
 
 def test_03_exactly_one_probe_job(probe_job: dict) -> None:
     assert probe_job.get("runs-on") == "ubuntu-latest"
-    assert probe_job.get("name") == "OTS Pre-Anchor Activation Probe (Tag-59)"
+    assert probe_job.get("name") == "OTS Pre-Anchor Activation Probe"
 
 
 def test_04_install_pytest_step_present(step_names: list[str]) -> None:

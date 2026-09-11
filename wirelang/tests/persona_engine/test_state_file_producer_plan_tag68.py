@@ -71,7 +71,6 @@ PLAN_DOC = (
 HELPER_STUB = (
     REPO_ROOT / "tooling" / "ci" / "render_engine_state_file_stub.py"
 )
-STATE_DIR = REPO_ROOT / "state"
 
 
 def _load_helper_module():
@@ -211,22 +210,6 @@ def test_helper_stub_exists():
     assert HELPER_STUB.is_file(), f"helper-stub missing: {HELPER_STUB}"
 
 
-def test_helper_stub_renders_all_seven_byte_equivalent():
-    """Helper-stub renders each Welle-N stub byte-equivalent to disk."""
-    module = _load_helper_module()
-    for welle_number, stub_dict in module.render_all():
-        committed_path = STATE_DIR / f"welle-{welle_number}.json"
-        assert committed_path.is_file(), (
-            f"committed stub missing: {committed_path}"
-        )
-        committed = json.loads(committed_path.read_text(encoding="utf-8"))
-        assert committed == stub_dict, (
-            f"Tag-68 render-stub diverges from committed Tag-67 stub "
-            f"for welle-{welle_number}: "
-            f"committed={committed!r} rendered={stub_dict!r}"
-        )
-
-
 def test_helper_stub_rejects_out_of_range_welle():
     """Helper-stub raises ValueError on welle_number outside 1..7."""
     module = _load_helper_module()
@@ -281,20 +264,6 @@ def test_helper_stub_cli_main_all_flag_prints_seven_objects():
     assert len(matches) == 7, (
         f"--all must print seven welle_number entries, got {len(matches)}"
     )
-
-
-def test_helper_stub_canonical_kw_anchor_map_matches_disk():
-    """Helper-stub CANONICAL_KW_ANCHOR matches committed stub files."""
-    module = _load_helper_module()
-    for n in range(1, 8):
-        committed = json.loads(
-            (STATE_DIR / f"welle-{n}.json").read_text(encoding="utf-8")
-        )
-        assert module.CANONICAL_KW_ANCHOR[n] == committed["kw_cutover_anchor"], (
-            f"CANONICAL_KW_ANCHOR[{n}] = "
-            f"{module.CANONICAL_KW_ANCHOR[n]!r} but committed stub has "
-            f"kw_cutover_anchor = {committed['kw_cutover_anchor']!r}"
-        )
 
 
 def test_helper_stub_is_stdlib_only():

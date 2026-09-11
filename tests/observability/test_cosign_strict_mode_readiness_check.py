@@ -496,11 +496,11 @@ def test_tv_sm_26_on_disk_last_probe_envelope_present(smod):
     """TV-SM-26: on-disk last-probe-envelope.json parses to a verdict.
 
     The Tag-55 closeout commits a baseline-mode drift-probe envelope to
-    state/cosign-drift/last-probe-envelope.json so G3 evaluates against
+    tooling/baselines/cosign-drift/last-probe-envelope.json so G3 evaluates against
     a real on-disk envelope rather than NOT-CHECKED.
     """
     envelope_path = (
-        _REPO_ROOT / "state" / "cosign-drift" / "last-probe-envelope.json"
+        _REPO_ROOT / "tooling" / "baselines" / "cosign-drift" / "last-probe-envelope.json"
     )
     assert envelope_path.exists(), (
         f"missing on-disk last-probe-envelope.json at {envelope_path}"

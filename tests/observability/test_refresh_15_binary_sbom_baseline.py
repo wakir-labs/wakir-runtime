@@ -66,7 +66,7 @@ _VER_PATH = (
     / "verify-15-binary-sbom-against-baseline.py"
 )
 _CARGO_LOCK_PATH = _REPO_ROOT / "wirelang-rust" / "Cargo.lock"
-_BASELINE_DIR_REAL = _REPO_ROOT / "state" / "sbom-baseline"
+_BASELINE_DIR_REAL = _REPO_ROOT / "tooling" / "baselines" / "sbom-baseline"
 
 
 def _load(path: Path, module_name: str):
@@ -214,7 +214,7 @@ def test_TR_RC_01_receipt_records_token_verbatim():
         refreshed=True,
         plan=plan,
         post_refresh_verdict="GREEN",
-        files_written=["state/sbom-baseline/foo.json"],
+        files_written=["tooling/baselines/sbom-baseline/foo.json"],
         refresh_ts=42.0,
         operator_invocation={"dry_run": False},
     )
@@ -225,7 +225,7 @@ def test_TR_RC_01_receipt_records_token_verbatim():
     assert receipt["cargo_lock_sha256_after"] == "newlock"
     assert receipt["refresh_ts"] == 42.0
     assert receipt["refreshed"] is True
-    assert receipt["files_written"] == ["state/sbom-baseline/foo.json"]
+    assert receipt["files_written"] == ["tooling/baselines/sbom-baseline/foo.json"]
 
 
 def test_TR_RC_02_receipt_schema_version_is_pinned():

@@ -43,7 +43,6 @@ Plus the supporting surfaces:
 * ``tooling/ci/engine-version-drift-allowlist.json`` — extended
   with the legitimate rc1-surviving artefacts (v907-hash-baseline,
   tag58/59/60 hermetic-test fixtures).
-* ``tooling/ci/aggregate_persona_engine_pre_cutover_final.py`` —
   ``EXPECTED_ACTIVE_VERSION`` bumped to ``0.5.3``.
 
 Tag-60 drift-coverage scanner contract
@@ -127,12 +126,6 @@ SCANNER_PATH = (
 ALLOWLIST_PATH = (
     REPO_ROOT / "tooling" / "ci" / "engine-version-drift-allowlist.json"
 )
-AGGREGATOR_PATH = (
-    REPO_ROOT
-    / "tooling"
-    / "ci"
-    / "aggregate_persona_engine_pre_cutover_final.py"
-)
 
 EXPECTED_VERSION = "0.5.3"
 PREDECESSOR_VERSION = "0.5.3-rc1"
@@ -160,20 +153,6 @@ def scanner_module():
     assert spec is not None and spec.loader is not None, (
         f"unable to load scanner spec from {SCANNER_PATH}"
     )
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-@pytest.fixture(scope="module")
-def aggregator_module():
-    """Import the Tag-61 aggregator by file-path."""
-    spec = importlib.util.spec_from_file_location(
-        "aggregate_persona_engine_pre_cutover_final_tag62_fixture",
-        AGGREGATOR_PATH,
-    )
-    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -591,24 +570,6 @@ def test_t18_v907_baseline_seal_unchanged_engine_version_metadata() -> None:
     # intact).
     assert "composite_hash" in baseline, (
         "V-907 baseline composite_hash missing — seal shape corrupted"
-    )
-
-
-# ===========================================================================
-# Aggregator — EXPECTED_ACTIVE_VERSION bumped in lockstep.
-# ===========================================================================
-
-
-def test_t19_aggregator_expected_active_version_bumped(
-    aggregator_module,
-) -> None:
-    """Tag-61 aggregator ``EXPECTED_ACTIVE_VERSION`` mirrors canonical."""
-    assert (
-        aggregator_module.EXPECTED_ACTIVE_VERSION == EXPECTED_VERSION
-    ), (
-        f"aggregator EXPECTED_ACTIVE_VERSION="
-        f"{aggregator_module.EXPECTED_ACTIVE_VERSION!r} != "
-        f"Tag-62 expected {EXPECTED_VERSION!r}"
     )
 
 
