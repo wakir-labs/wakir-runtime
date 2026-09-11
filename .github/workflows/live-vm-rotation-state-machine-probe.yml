@@ -84,10 +84,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python (stdlib-only; no pip install)
+      - name: Set up Python (stdlib for the probe; pytest for the test-suite step)
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
+      - name: Install pytest (hermetic test-suite step only)
+        # The probe stages are stdlib-only; the test-suite step runs
+        # ``python3 -m pytest`` which is not in the stdlib. Without this
+        # step the runner fails with ``No module named pytest`` (observed
+        # on every run of this workflow before this fix).
+        run: python3 -m pip install --quiet "pytest>=7,<9"
 
       - name: Stage 1 — Happy-path run from PRE_FLIGHT_CHECKS
         id: stage1
@@ -157,7 +164,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           echo "live-vm-rotation-state-machine-probe: aggregate=${aggregate}"
 
-      - name: Run hermetic Tag-60 test-suite
+      - name: Run hermetic test-suite
         run: |
           set -eu
           python3 -m pytest tests/ci/test_live_vm_rotation_state_machine_tag60.py -v
