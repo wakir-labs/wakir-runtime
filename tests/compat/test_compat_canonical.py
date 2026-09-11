@@ -86,6 +86,37 @@ def test_strip_removes_x_spdx_and_description_at_every_level():
     assert stripped["title"] == BASE["title"]
 
 
+def test_strip_keeps_non_string_description_and_x_spdx_members():
+    """Persona schemas *define* a property named ``description``; only
+    string-valued prose is stripped, the property definition is contract."""
+    doc = {
+        "description": "prose",
+        "x-spdx-license-identifier": "LICENSE-A",
+        "x-spdx-extra": {"nested": "object"},
+        "properties": {
+            "description": {"type": "string", "maxLength": 200, "description": "prose about the field"},
+        },
+    }
+    stripped = canon.strip_non_canonical(doc)
+    assert "description" not in stripped
+    assert "x-spdx-license-identifier" not in stripped
+    assert stripped["x-spdx-extra"] == {"nested": "object"}
+    assert stripped["properties"]["description"] == {"type": "string", "maxLength": 200}
+    # Changing the *property definition* changes the digest.
+    doc2 = json.loads(json.dumps(doc))
+    doc2["properties"]["description"]["maxLength"] = 100
+    assert canon.canonical_digest(doc) != canon.canonical_digest(doc2)
+
+
+def test_is_stripped_member_semantics():
+    assert canon.is_stripped_member("description", "text")
+    assert canon.is_stripped_member("x-spdx-license-identifier", "X")
+    assert not canon.is_stripped_member("description", {"type": "string"})
+    assert not canon.is_stripped_member("x-spdx-foo", ["list"])
+    assert not canon.is_stripped_member("title", "text")
+    assert not canon.is_stripped_member("x-canonical-home", "wakir-protocol")
+
+
 def test_strip_does_not_mutate_input():
     before = json.dumps(BASE, sort_keys=True)
     canon.strip_non_canonical(BASE)

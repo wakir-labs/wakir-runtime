@@ -3,27 +3,32 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Canonical schema digest for the cross-repo compatibility gate.
 
-Rule (shared with ``wakir-protocol/tooling/compat/`` — the two
-implementations must agree byte-for-byte):
+Rule (identical in ``wakir-protocol/tooling/compat/`` — the two
+implementations must agree byte-for-byte)::
 
-1. Parse the schema as JSON.
-2. Remove, **at every nesting level**, every object key that
-   * starts with ``x-spdx-`` (licence-header extension keys; the
-     protocol and runtime copies legitimately carry different licence
-     headers), or
-   * equals ``description`` (prose that may be edited independently
-     without changing the contract).
-3. Serialise the result with JCS (RFC 8785, ``rfc8785.dumps``).
-4. Digest with SHA-256, lower-case hex.
+    digest = sha256(JCS(strip(doc)))
 
-Why recursive: JSON-Schema ``description`` fields live inside
-``properties``, ``items``, ``$defs`` and so on. Stripping only the
-top level leaves 7 of the 16 mirrored schemas red on pure prose
-differences (measured 2026-09-11 against protocol ``b7de631``);
-stripping recursively yields 16/16 identical. Everything else —
-``enum``, ``const``, ``required``, ``pattern``, ``$id``, ``title``,
-``additionalProperties`` — is part of the contract and stays in the
-digest.
+where ``strip`` removes, **at every nesting level**, every object
+member whose key
+
+* starts with ``x-spdx-`` **and whose value is a string** (licence-
+  header extension keys; protocol and runtime copies legitimately carry
+  different licence headers), or
+* equals ``description`` **and whose value is a string** (prose that
+  may be edited independently without changing the contract).
+
+The string-valued condition matters: five persona schemas *define* a
+property named ``description`` (``"description": {"type": "string",
+...}``). That member is contract and must survive; only prose strings
+are dropped.
+
+Why recursive: JSON-Schema prose lives inside ``properties``,
+``items``, ``$defs`` and so on. Stripping only the top level leaves 7
+of the 16 mirrored schemas red on prose differences (measured
+2026-09-11 against protocol ``b7de631``); stripping recursively yields
+16/16 identical. Everything else — ``enum``, ``const``, ``required``,
+``pattern``, ``$id``, ``title``, ``additionalProperties``, ``examples``
+— is part of the contract and stays in the digest.
 
 Stdlib + ``rfc8785`` only.
 """
@@ -48,18 +53,20 @@ STUB_STATUS_KEY = "x-status"
 STUB_STATUS_VALUE = "stub"
 
 
-def is_stripped_key(key: str) -> bool:
-    """Return True when ``key`` is excluded from the canonical form."""
+def is_stripped_member(key: str, value: Any) -> bool:
+    """True when the object member ``key: value`` is excluded from the canonical form."""
+    if not isinstance(value, str):
+        return False
     return key.startswith(STRIPPED_KEY_PREFIX) or key in STRIPPED_KEYS
 
 
 def strip_non_canonical(obj: Any) -> Any:
-    """Return a deep copy of ``obj`` without the stripped keys (recursive)."""
+    """Return a deep copy of ``obj`` without the stripped members (recursive)."""
     if isinstance(obj, dict):
         return {
             key: strip_non_canonical(value)
             for key, value in obj.items()
-            if not is_stripped_key(key)
+            if not is_stripped_member(key, value)
         }
     if isinstance(obj, list):
         return [strip_non_canonical(item) for item in obj]
@@ -97,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Canonical (JCS, x-spdx-*/description stripped) SHA-256 of JSON schemas.",
+        description="Canonical (JCS, string-valued x-spdx-*/description stripped) SHA-256 of JSON schemas.",
     )
     parser.add_argument("paths", nargs="+", help="JSON schema files")
     args = parser.parse_args(argv)

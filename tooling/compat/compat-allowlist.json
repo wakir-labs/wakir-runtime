@@ -1,11 +1,4 @@
 {
   "schema": "wakir-compat-allowlist/v1",
-  "entries": [
-    {
-      "path": "wirelang/schemas/wakir-inclusion-proof-v1.json",
-      "until": "2026-09-30",
-      "tracking": "https://github.com/wakir-labs/wakir-runtime/pull/526",
-      "reason": "Bridge while the protocol canon for wakir-inclusion-proof/v1 lands (protocol W4). Runtime mirrors the canon in a follow-up PR and removes this entry."
-    }
-  ]
+  "entries": []
 }

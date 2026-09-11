@@ -20,8 +20,10 @@ vector  ``tests/fixtures/proof-path-vectors/vector-*.json`` from
         protocol are reproduced with ``wat.merkle.aggregator`` (leaf
         hashes, levels, root, sibling paths) and independently with
         ``wakir_verify.merkle_proof``; every embedded proof document
-        validates against the inclusion-proof schema; the tampered
-        case must *not* verify.
+        validates against the inclusion-proof schema; an embedded
+        ``manifest`` must validate against the protocol manifest schema
+        and load through ``wakir_verify.manifest``; the tampered case
+        must *not* verify.
 manif.  The manifest written by the runtime aggregator during
         ``make demo-proof`` validates against the protocol manifest
         schema, carries ``MANIFEST_VERSION``, loads through
@@ -428,6 +430,8 @@ def check_vectors(
 ) -> list[Finding]:
     findings: list[Finding] = []
     vector_dir = protocol_root / PROTOCOL_VECTOR_DIR
+    manifest_schema_path = protocol_root / PROTOCOL_SCHEMA_DIR / MANIFEST_SCHEMA_FILE
+    manifest_schema = canon.load_json(manifest_schema_path) if manifest_schema_path.exists() else None
     vectors = sorted(vector_dir.glob("vector-*.json")) if vector_dir.is_dir() else []
     if not vectors:
         return [Finding("vector", STATUS_FAIL, PROTOCOL_VECTOR_DIR.as_posix(), "no proof-path vectors in protocol")]
@@ -534,6 +538,28 @@ def check_vectors(
             except (KeyError, TypeError, ValueError) as exc:
                 problems.append(f"tampered block malformed: {exc}")
 
+        # Optional embedded manifest (protocol W4+): a wakir-wat-manifest/v1
+        # instance in runtime-aggregator form. It must validate against the
+        # protocol manifest schema, load through the wakir-verify loader
+        # and fold to the vector root.
+        embedded = vec.get("manifest")
+        has_manifest = isinstance(embedded, dict)
+        if has_manifest:
+            if manifest_schema is not None:
+                errors = validate_instance(manifest_schema, embedded)
+                if errors:
+                    problems.append("embedded manifest violates protocol manifest schema: " + "; ".join(errors[:2]))
+            if embedded.get("merkle_root") != root.hex():
+                problems.append("embedded manifest merkle_root ≠ runtime root")
+            try:
+                loaded = verify.manifest.load_manifest_from_dict(embedded)
+                if not verify.manifest.compute_manifest_consistency(loaded):
+                    problems.append("wakir_verify cannot re-derive the embedded manifest root")
+                if loaded.leaf_hashes != leaf_bytes:
+                    problems.append("embedded manifest leaves ≠ vector leaves")
+            except Exception as exc:  # noqa: BLE001 - surfaced as a finding
+                problems.append(f"wakir_verify rejects embedded manifest: {exc}")
+
         if problems:
             findings.append(Finding("vector", STATUS_FAIL, subject, "; ".join(problems)))
         else:
@@ -543,7 +569,8 @@ def check_vectors(
                     STATUS_OK,
                     subject,
                     f"{len(leaf_bytes)} leaf/leaves, root {root.hex()[:12]}, runtime + wakir_verify agree"
-                    + (", tampered case rejected" if tampered is not None else ""),
+                    + (", tampered case rejected" if tampered is not None else "")
+                    + (", embedded manifest ok" if has_manifest else ""),
                 )
             )
     return findings

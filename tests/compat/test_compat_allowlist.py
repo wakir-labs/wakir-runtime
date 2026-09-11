@@ -38,7 +38,13 @@ def _doc(*entries):
 
 
 def _entry(**overrides):
-    base = {"path": "wirelang/schemas/x.json", "until": "2026-12-31", "tracking": TRACKING}
+    base = {
+        "repo": "protocol",
+        "path": "wirelang/schemas/x.json",
+        "reason": "test bridge",
+        "until": "2026-12-31",
+        "tracking": TRACKING,
+    }
     base.update(overrides)
     for key in [k for k, v in base.items() if v is ...]:
         base.pop(key)
@@ -49,6 +55,8 @@ def test_valid_entry_parses_and_is_active():
     entries = allow.parse_entries(_doc(_entry(reason="bridge until mirror PR")))
     assert len(entries) == 1
     entry = entries[0]
+    assert entry.repo == "protocol"
+    assert entry.reason == "bridge until mirror PR"
     assert entry.path == "wirelang/schemas/x.json"
     assert entry.until == dt.date(2026, 12, 31)
     assert entry.tracking == TRACKING
@@ -87,6 +95,7 @@ def test_until_equal_to_today_is_still_active():
         "",
         "PR 123",
         "http://github.com/wakir-labs/wakir-runtime/pull/1",
+        "https://github.com/someone-else/wakir-runtime/pull/1",
         "https://github.com/wakir-labs/wakir-runtime",
         "https://github.com/wakir-labs/wakir-runtime/pull/",
         "https://gitlab.com/x/y/merge_requests/1",
@@ -106,6 +115,29 @@ def test_issue_url_is_accepted():
 def test_path_must_be_relative_exact(bad):
     with pytest.raises(allow.AllowlistError, match="path"):
         allow.parse_entries(_doc(_entry(path=bad)))
+
+
+@pytest.mark.parametrize("key", ["repo", "path", "reason", "tracking"])
+def test_every_field_is_mandatory(key):
+    with pytest.raises(allow.AllowlistError, match="missing mandatory"):
+        allow.parse_entries(_doc(_entry(**{key: ...})))
+
+
+@pytest.mark.parametrize("bad", ["", "  ", 7, None])
+def test_reason_must_be_non_empty_string(bad):
+    with pytest.raises(allow.AllowlistError, match="reason"):
+        allow.parse_entries(_doc(_entry(reason=bad)))
+
+
+@pytest.mark.parametrize("bad", ["wakir-protocol", "", "upstream", 1])
+def test_repo_must_be_known(bad):
+    with pytest.raises(allow.AllowlistError, match="repo"):
+        allow.parse_entries(_doc(_entry(repo=bad)))
+
+
+def test_all_three_repo_values_accepted():
+    for repo in ("runtime", "protocol", "verify"):
+        assert allow.parse_entries(_doc(_entry(repo=repo)))[0].repo == repo
 
 
 def test_duplicate_paths_rejected():

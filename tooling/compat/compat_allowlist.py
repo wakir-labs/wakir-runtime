@@ -3,7 +3,8 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Time-boxed allowlist for the cross-repo compatibility gate.
 
-File: ``tooling/compat/compat-allowlist.json``
+File: ``tooling/compat/compat-allowlist.json`` — same format as
+``wakir-protocol/tooling/compat/compat-allowlist.json``.
 
 .. code-block:: json
 
@@ -11,24 +12,28 @@ File: ``tooling/compat/compat-allowlist.json``
       "schema": "wakir-compat-allowlist/v1",
       "entries": [
         {
+          "repo": "protocol",
           "path": "wirelang/schemas/example.json",
+          "reason": "why the drift is tolerated and what removes it",
           "until": "2026-09-30",
-          "tracking": "https://github.com/wakir-labs/wakir-runtime/pull/123",
-          "reason": "optional free text"
+          "tracking": "https://github.com/wakir-labs/wakir-runtime/pull/123"
         }
       ]
     }
 
-Rules (identical in wakir-protocol):
+Every entry carries exactly these five mandatory members, no others:
 
+* ``repo`` — the *other* side whose copy drifts from ours
+  (``protocol`` or ``verify``; ``runtime`` is accepted for symmetry
+  with the protocol-side file).
 * ``path`` — repo-relative path of the mirrored file **in this repo**
   whose drift is tolerated. Exact match, no globs.
-* ``until`` — ISO date (``YYYY-MM-DD``). Mandatory. An entry without
-  it, with an unparsable value, or with a date in the past is a gate
-  failure — there is no such thing as a permanent waiver.
-* ``tracking`` — ``https://github.com/<org>/<repo>/pull/<n>`` or
-  ``.../issues/<n>``. Mandatory.
-* ``reason`` — optional, ignored by the gate.
+* ``reason`` — non-empty free text.
+* ``until`` — ISO date (``YYYY-MM-DD``). A missing or unparsable
+  value or a date in the past is a gate failure — there is no such
+  thing as a permanent waiver.
+* ``tracking`` — ``https://github.com/wakir-labs/<repo>/pull/<n>`` or
+  ``.../issues/<n>``.
 
 The gate reports entries that did not match any drift as ``warn`` so
 stale waivers are visible and get removed.
@@ -45,8 +50,11 @@ from typing import Any, Iterable
 
 ALLOWLIST_SCHEMA = "wakir-compat-allowlist/v1"
 
+REQUIRED_KEYS = frozenset({"repo", "path", "reason", "until", "tracking"})
+REPOS = frozenset({"runtime", "protocol", "verify"})
+
 _TRACKING_RE = re.compile(
-    r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/(pull|issues)/[0-9]+$"
+    r"^https://github\.com/wakir-labs/[A-Za-z0-9_.-]+/(pull|issues)/[0-9]+$"
 )
 
 
@@ -56,10 +64,11 @@ class AllowlistError(ValueError):
 
 @dataclass(frozen=True)
 class AllowlistEntry:
+    repo: str
     path: str
+    reason: str
     until: _dt.date
     tracking: str
-    reason: str = ""
 
     def is_active(self, today: _dt.date) -> bool:
         return self.until >= today
@@ -91,27 +100,34 @@ def parse_entries(data: Any) -> list[AllowlistEntry]:
     for index, raw in enumerate(raw_entries):
         if not isinstance(raw, dict):
             raise AllowlistError(f"entries[{index}] must be an object")
-        unknown = set(raw) - {"path", "until", "tracking", "reason"}
+        missing = REQUIRED_KEYS - set(raw)
+        if missing:
+            if "until" in missing:
+                raise AllowlistError(f"entries[{index}] is missing mandatory 'until'")
+            raise AllowlistError(f"entries[{index}] is missing mandatory keys: {sorted(missing)}")
+        unknown = set(raw) - REQUIRED_KEYS
         if unknown:
             raise AllowlistError(f"entries[{index}] has unknown keys: {sorted(unknown)}")
-        path = raw.get("path")
+
+        repo = raw["repo"]
+        if repo not in REPOS:
+            raise AllowlistError(f"entries[{index}].repo must be one of {sorted(REPOS)}, got {repo!r}")
+        path = raw["path"]
         if not isinstance(path, str) or not path or path.startswith("/") or "*" in path:
             raise AllowlistError(f"entries[{index}].path must be a non-empty repo-relative path")
         if path in seen:
             raise AllowlistError(f"entries[{index}].path duplicates an earlier entry: {path!r}")
         seen.add(path)
-        if "until" not in raw:
-            raise AllowlistError(f"entries[{index}] is missing mandatory 'until'")
+        reason = raw["reason"]
+        if not isinstance(reason, str) or not reason.strip():
+            raise AllowlistError(f"entries[{index}].reason must be a non-empty string")
         until = _parse_date(raw["until"], index)
-        tracking = raw.get("tracking")
+        tracking = raw["tracking"]
         if not isinstance(tracking, str) or not _TRACKING_RE.match(tracking):
             raise AllowlistError(
-                f"entries[{index}].tracking must be a GitHub PR or issue URL, got {tracking!r}"
+                f"entries[{index}].tracking must be a wakir-labs GitHub PR or issue URL, got {tracking!r}"
             )
-        reason = raw.get("reason", "")
-        if not isinstance(reason, str):
-            raise AllowlistError(f"entries[{index}].reason must be a string")
-        entries.append(AllowlistEntry(path=path, until=until, tracking=tracking, reason=reason))
+        entries.append(AllowlistEntry(repo=repo, path=path, reason=reason, until=until, tracking=tracking))
     return entries
 
 

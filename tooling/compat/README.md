@@ -24,18 +24,19 @@ wakir-runtime mirrors, wakir-verify consumes.
 
 ## Canonicalisation rule (shared with wakir-protocol)
 
-1. Parse the schema as JSON.
-2. Remove **at every nesting level** every key that starts with
-   `x-spdx-` (licence-header extension keys differ by design) or
-   equals `description` (prose).
-3. JCS (RFC 8785) via `rfc8785.dumps`.
-4. SHA-256, lower-case hex.
+`digest = sha256(JCS(strip(doc)))`, where `strip` removes **at every
+nesting level** every object member that is **string-valued** and whose
+key either starts with `x-spdx-` (licence-header extension keys differ
+by design) or equals `description` (prose). Nothing else is removed:
+five persona schemas *define* a property named `description` — that
+member is an object, not a string, and stays in the digest. Everything
+else (`enum`, `const`, `required`, `pattern`, `$id`, `title`,
+`additionalProperties`, `examples`, ...) is contract.
 
-Everything else (`enum`, `const`, `required`, `pattern`, `$id`,
-`title`, `additionalProperties`, ...) is contract and stays in the
-digest. Stripping only at the top level is not enough: on
-2026-09-11 (protocol `b7de631`) that left 7/16 schemas red on prose;
-recursive stripping gives 16/16 green.
+Stripping only at the top level is not enough: on 2026-09-11 (protocol
+`b7de631`) that left 7/16 schemas red on prose; recursive stripping
+gives 16/16 green. Protocol reference implementation:
+`wakir-protocol/tooling/compat/canonical_schema_digest.py`.
 
 ```
 python3 tooling/compat/compat_canonical.py wirelang/schemas/*.json
@@ -51,19 +52,22 @@ file lands.
 {
   "schema": "wakir-compat-allowlist/v1",
   "entries": [
-    {"path": "wirelang/schemas/example.json",
+    {"repo": "protocol",
+     "path": "wirelang/schemas/example.json",
+     "reason": "why the drift is tolerated and what removes it",
      "until": "2026-09-30",
-     "tracking": "https://github.com/wakir-labs/wakir-runtime/pull/123",
-     "reason": "optional"}
+     "tracking": "https://github.com/wakir-labs/wakir-runtime/pull/123"}
   ]
 }
 ```
 
-`path` is the runtime-side repo-relative path, exact match. `until`
-is mandatory; expired entries fail the gate. `tracking` must be a
-GitHub PR or issue URL. Unused entries are reported as `warn`.
-Legitimate schema evolution = version bump in protocol + time-boxed
-allowlist entry here + mirror PR; never byte tolerance.
+Exactly these five members, all mandatory, same format as in
+wakir-protocol: `repo` (`protocol` / `verify` — the other side; `runtime`
+accepted for symmetry), `path` (runtime-side repo-relative path, exact
+match), `reason`, `until` (expired = gate red, no silent expiry),
+`tracking` (wakir-labs GitHub PR or issue URL). Unused entries are
+reported as `warn`. Legitimate schema evolution = version bump in
+protocol + time-boxed entry + mirror PR; never byte tolerance.
 
 ## Constraint C1 (manifest level)
 
@@ -74,6 +78,26 @@ The runtime aggregator writes `version` + `hour_slot`; the
 `leaves[].{event_id, leaf_hash}`. The gate pins exactly this state:
 if either side starts emitting/reading the other's field, the value
 must equal its counterpart or the manifest level goes red.
+
+## Mirrors kept in this repo
+
+- `wirelang/schemas/*.json` ← `wakir_protocol/schemas/*.json` (compared by the schema level).
+- `tests/fixtures/proof-path-vectors/` ← protocol `tests/fixtures/proof-path-vectors/`
+  (passive byte copy so protocol's `check_mirror.py` can require it; the
+  runtime gate always loads the vectors from the protocol clone).
+
+## Cross-Review Zone 3 — `capability_token_hash`
+
+The leaf primitive and `aggregator_cli._validate_events` accept
+`capability_token_hash: ""` (pilot sentinel from
+`wat.anchor.bridge_audit_writer`), the canonical manifest schema requires
+`^[0-9a-f]{64}$`. Decision: the schema is right; non-capability events
+carry the all-zero digest (`"0" * 64`, as `make demo-proof` already
+does). The producer change (bridge writer sentinel, cross-lang fixtures,
+Rust twin) changes pilot leaf hashes and is a tracked follow-up of
+PR #526. `tests/compat/test_zone3_capability_token_hash.py` pins the
+current state on both sides so that whichever side moves has to update
+the pin consciously.
 
 ## Running locally
 

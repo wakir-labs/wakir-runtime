@@ -246,7 +246,10 @@ def test_schema_level_active_allowlist_entry_turns_drift_into_allowed(repos):
     doc = json.loads(path.read_text(encoding="utf-8"))
     doc["properties"]["mode"]["enum"] = ["a", "b", "c"]
     _write(path, doc)
-    entry = allow.AllowlistEntry(path="wirelang/schemas/simple.json", until=dt.date(2026, 12, 31), tracking=TRACKING)
+    entry = allow.AllowlistEntry(
+        repo="protocol", path="wirelang/schemas/simple.json", reason="test",
+        until=dt.date(2026, 12, 31), tracking=TRACKING,
+    )
     used: set[str] = set()
     findings = _by_subject(cc.check_schemas(repos["runtime"], repos["protocol"], {entry.path: entry}, used))
     assert findings["wirelang/schemas/simple.json"].status == cc.STATUS_ALLOWED
@@ -431,8 +434,8 @@ def test_full_run_expired_and_unused_allowlist_entries(repos, verify):
         {
             "schema": allow.ALLOWLIST_SCHEMA,
             "entries": [
-                {"path": "wirelang/schemas/simple.json", "until": "2026-09-01", "tracking": TRACKING},
-                {"path": "wirelang/schemas/other.json", "until": "2026-12-31", "tracking": TRACKING},
+                {"repo": "protocol", "path": "wirelang/schemas/simple.json", "reason": "t", "until": "2026-09-01", "tracking": TRACKING},
+                {"repo": "protocol", "path": "wirelang/schemas/other.json", "reason": "t", "until": "2026-12-31", "tracking": TRACKING},
             ],
         },
     )
@@ -444,7 +447,7 @@ def test_full_run_expired_and_unused_allowlist_entries(repos, verify):
 
 
 def test_full_run_invalid_allowlist_is_red(repos, verify):
-    _write(repos["allowlist"], {"schema": allow.ALLOWLIST_SCHEMA, "entries": [{"path": "x.json", "tracking": TRACKING}]})
+    _write(repos["allowlist"], {"schema": allow.ALLOWLIST_SCHEMA, "entries": [{"repo": "protocol", "path": "x.json", "reason": "t", "tracking": TRACKING}]})
     report = _run(repos)
     assert any(f.level == "allowlist" and f.status == cc.STATUS_FAIL for f in report.findings)
 
