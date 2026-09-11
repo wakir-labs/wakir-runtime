@@ -1,0 +1,159 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# proof-path — the proof path as a hard CI gate (ADR-0072 Phase 4, 4b)
+# --------------------------------------------------------------------
+#
+# Runs the one-command cross-repo proof demo (`make demo-proof`) on a
+# clean runner and refuses the change unless every one of the five
+# steps ran and succeeded, including the external cross-check through
+# the wakir-verify library:
+#
+#   protocol_event -> runtime_bridge -> merkle_manifest
+#                  -> inclusion_proof -> external_verify
+#
+# The driver (`scripts/demo-proof.sh`) exits 0 when a step is
+# `skipped`; this gate does not. `scripts/ci/validate_demo_proof_report.py`
+# is the strict half: schema `wakir-demo-proof/v1`, exactly five steps
+# in canonical order, no `failed` / `not_run`, `external_verify == ok`,
+# and `commits.wakir_runtime == GITHUB_SHA` so the report describes the
+# commit under test. Any violation exits non-zero and fails the job.
+#
+# Design notes
+# ------------
+# - Job display name is exactly `proof-path` (no matrix, no suffix).
+#   That string is the branch-protection required context; it is
+#   added by the operator after the first green run on `main`
+#   (docs/ci/branch-protection-required-checks.md §1 row 12).
+# - No `paths:` filter. A required context that does not report on
+#   a PR leaves the PR pending forever (docs/ci/... §1).
+# - The demo step does not abort the job by itself; it records the
+#   driver exit code so the validator step is the single visible
+#   gate and always sees the report. A non-zero driver exit is still
+#   enforced afterwards.
+# - wakir-verify is installed from a pinned commit so a verify-side
+#   change cannot silently move this gate; bumping the pin is a
+#   reviewed change in this file. Cross-repo compatibility against
+#   verify `main` is the job of `cross-repo-compat.yml` (Phase 4 W4).
+# - Actions are pinned by commit SHA (release tag in the comment).
+
+name: proof-path
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  # wakir-verify pin: verify `main` after PR #3 (ADR-0072 W1b sweep).
+  WAKIR_VERIFY_PIN: 706d3e3abe68ae47599a99ff2f06cd525f3a0091
+
+jobs:
+  proof-path:
+    name: proof-path
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.13"
+
+      - name: Install wakir-runtime (editable)
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+
+      - name: Install wakir-verify (pinned commit)
+        run: |
+          set -euo pipefail
+          python -m pip install "git+https://github.com/wakir-labs/wakir-verify@${WAKIR_VERIFY_PIN}"
+          python -c 'import wakir_verify, wakir_verify.manifest, wakir_verify.merkle_proof; print("wakir_verify importable")'
+
+      - name: Run the proof path (make demo-proof)
+        id: demo
+        env:
+          DEMO_PROOF_WORKDIR: ${{ runner.temp }}/demo
+          DEMO_PROOF_VERIFY_COMMIT: ${{ env.WAKIR_VERIFY_PIN }}
+        run: |
+          set -uo pipefail
+          # The driver's exit code is recorded, not acted on here: the
+          # validator step below is the gate and must always see the
+          # report. The exit code is enforced separately afterwards.
+          make demo-proof
+          rc=$?
+          echo "rc=${rc}" >> "$GITHUB_OUTPUT"
+          echo "demo-proof exit code: ${rc}"
+
+      - name: Validate report (hard gate)
+        env:
+          DEMO_PROOF_WORKDIR: ${{ runner.temp }}/demo
+        run: |
+          set -euo pipefail
+          python scripts/ci/validate_demo_proof_report.py \
+            "${DEMO_PROOF_WORKDIR}/demo-report.json" \
+            --require-external-verify-ok
+
+      - name: Enforce driver exit code
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.demo.outputs.rc }}" != "0" ]]; then
+            echo "::error::make demo-proof exited ${{ steps.demo.outputs.rc }}"
+            exit 1
+          fi
+
+      - name: shellcheck scripts/demo-proof.sh
+        if: always()
+        run: |
+          set -euo pipefail
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends shellcheck
+          fi
+          shellcheck --version
+          shellcheck scripts/demo-proof.sh
+
+      - name: Upload demo-proof report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: demo-proof-report-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/demo/demo-report.json
+            ${{ runner.temp }}/demo/proof.json
+            ${{ runner.temp }}/demo/verify-result.json
+            ${{ runner.temp }}/demo/*/manifest.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Summary
+        if: always()
+        env:
+          DEMO_PROOF_WORKDIR: ${{ runner.temp }}/demo
+        run: |
+          {
+            echo "## proof-path"
+            echo ""
+            echo "- commit under test: \`${GITHUB_SHA}\`"
+            echo "- wakir-verify pin: \`${WAKIR_VERIFY_PIN}\`"
+            echo "- driver exit code: \`${{ steps.demo.outputs.rc }}\`"
+            echo ""
+            if [[ -f "${DEMO_PROOF_WORKDIR}/demo-report.json" ]]; then
+              echo '```json'
+              python -c 'import json,sys; r=json.load(open(sys.argv[1])); print(json.dumps({"schema": r.get("schema"), "exit_code": r.get("exit_code"), "commits": r.get("commits"), "steps": [{"name": s.get("name"), "status": s.get("status")} for s in r.get("steps", [])]}, indent=2))' "${DEMO_PROOF_WORKDIR}/demo-report.json"
+              echo '```'
+            else
+              echo "_no report produced_"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

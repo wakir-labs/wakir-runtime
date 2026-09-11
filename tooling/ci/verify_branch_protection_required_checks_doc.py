@@ -34,8 +34,9 @@ REQUIRED_SECTIONS: tuple[str, ...] = (
     "§6 — Sandbox boundary",
 )
 
-#: 10 active contexts + `runtime acceptance gates` (pending operator activation).
-EXPECTED_CHECK_COUNT = 11
+#: 10 active contexts + `runtime acceptance gates` + `proof-path`
+#: (both pending operator activation, ADR-0072 Phase 4).
+EXPECTED_CHECK_COUNT = 12
 
 
 class Finding:
