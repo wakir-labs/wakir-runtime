@@ -87,10 +87,13 @@ jobs:
           DEMO_PROOF_WORKDIR: ${{ runner.temp }}/demo
           DEMO_PROOF_VERIFY_COMMIT: ${{ env.WAKIR_VERIFY_PIN }}
         run: |
+          # GitHub runs `bash -e {0}`; switch errexit off explicitly so
+          # a failing driver does not abort this step. The driver's exit
+          # code is recorded, not acted on here: the validator step
+          # below is the gate and must always see the report. The exit
+          # code is enforced separately afterwards.
+          set +e
           set -uo pipefail
-          # The driver's exit code is recorded, not acted on here: the
-          # validator step below is the gate and must always see the
-          # report. The exit code is enforced separately afterwards.
           make demo-proof
           rc=$?
           echo "rc=${rc}" >> "$GITHUB_OUTPUT"
