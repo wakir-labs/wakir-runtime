@@ -51,6 +51,7 @@ after the Phase-4 W1 reduction from 16 to 10 contexts (ADR-0072).
 | 9 | `cosign verify SPIRE images` | `.github/workflows/cosign-verify-images.yml` | image pins | 2026-05 | ACTIVE |
 | 10 | `Cosign-Keyless-OIDC-Drift-Probe (daily)` | `.github/workflows/cosign-keyless-oidc-drift-probe.yml` | schedule + trust-root | 2026-05 | ACTIVE |
 | 11 | `runtime acceptance gates` | `.github/workflows/runtime-acceptance-gates.yml` | wirelang + tests + docs + workflows | 2026-09 (renamed from the Phase-2 aggregator) | PENDING-OPERATOR (add after first green run on `main`) |
+| 12 | `proof-path` | `.github/workflows/proof-path.yml` | every PR + push to `main` (no path filter) | 2026-09 (ADR-0072 Phase 4 W3) | PENDING-OPERATOR (AR-Hand: add after first green run on `main`) |
 
 Removed in Phase 4 W1 (workflows deleted, contexts removed from
 protection by the operator on 2026-09-11):
@@ -60,9 +61,16 @@ see row 11), `pyramide layer-dependency DAG verify (6 layers, 16 edges)`,
 `g1-g2 operator-recipe smoke-validation`, `E2E verdict (READY / DRIFT / DEFECT)`,
 `alert-routing cross-repo mirror (wakir-runtime ↔ wakir-protocol)`.
 
-Planned additions (Phase 4): `proof-path` (W3, `proof-path.yml`) and
-`cross-repo compatibility (protocol ↔ runtime ↔ verify)` (W4, replaces
-row 5).
+Row 12 (`proof-path`) is the Phase-4 proof-path gate (ADR-0072 4b): it
+runs `make demo-proof` on a clean runner with a pinned wakir-verify and
+hard-fails through `scripts/ci/validate_demo_proof_report.py` unless all
+five steps are `ok` and the report names the commit under test. The
+context is added to protection by the operator after the first green
+run on `main` (§3 item 4); until then the job runs on every PR without
+blocking.
+
+Planned additions (Phase 4): `cross-repo compatibility (protocol ↔
+runtime ↔ verify)` (W4, replaces row 5).
 
 Trigger discipline — **required contexts must never be path-filtered**:
 a required context is matched per PR head commit; if the workflow that
@@ -114,7 +122,8 @@ gh api -X PATCH repos/wakir-labs/wakir-runtime/branches/main/protection/required
     "wirelang spec v0.4.3 freeze-seal probe",
     "cosign verify SPIRE images",
     "Cosign-Keyless-OIDC-Drift-Probe (daily)",
-    "runtime acceptance gates"
+    "runtime acceptance gates",
+    "proof-path"
   ]
 }
 JSON
@@ -165,6 +174,7 @@ ones first.
 | 3 | `runtime acceptance gates` | hermetic pytest suite, broad path filter | low |
 | 4 | `cross-substrate parity (cosign ↔ quadlet ↔ backend-switch)` | three-way parity across policy, quadlet and engine | medium |
 | 5 | `cross-repo drift (wakir-runtime ↔ wakir-protocol)` | clones `wakir-protocol`; network flake blocks merges | high |
+| 6 | `proof-path` | `pip install` from PyPI + `git+https` clone of `wakir-verify` at a pinned commit; network flake blocks merges; a verify-side API break at the pin surfaces here | medium |
 
 Pause between steps: one smoke PR (§5) per context before the next
 activation.
