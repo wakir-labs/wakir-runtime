@@ -10,28 +10,24 @@
 #                                 ->  Merkle inclusion proof
 #                                 ->  wakir-verify cross-check
 #
-# The script is deliberately bash + jq + python only; no extra host
-# tooling is required. Each step is isolated under a temp working
-# directory so multiple runs do not collide and CI can clean up by
-# nuking ``${DEMO_PROOF_WORKDIR}``.
+# Requirements: bash and python3. Nothing else. All JSON handling is
+# done by ``scripts/demo_proof_helpers.py``; this file only orders the
+# steps and applies the short-circuit rule.
 #
-# Output: a single JSON object on stdout describing pass/fail per
-# step plus the three repo commit-hashes the demo was driven against.
-# Exit code 0 on a clean pass, non-zero on any step failure (the JSON
-# payload is still emitted so CI can capture it as a build artifact).
+# Output: one ``wakir-demo-proof/v1`` JSON object on stdout with one
+# record per step (always all five, in fixed order) plus the three
+# repo commit hashes the demo was driven against.
 #
-# Step exit codes (set inside each step):
-#   0   step OK
-#   10  step FAILED (substance error)
-#   20  step SKIPPED (e.g. optional verifier not installed)
+# Exit code:
+#   0   no step failed (``ok`` and ``skipped`` steps both count as
+#       non-failing — a fresh clone without wakir-verify installed
+#       exits 0 with ``external_verify: skipped`` and a reason)
+#   10  at least one step ``failed``; downstream steps are ``not_run``
+#   2   python3 not found
 #
-# The aggregate exit code is the maximum step exit code, so a failed
-# step dominates a skipped step which dominates a clean pass.
-#
-# External-Audit-Folge 2026-05-17: this is the credibility-jump
-# demonstration the audit asked for. Operator runs ``make demo-proof``
-# and gets one JSON blob covering all five steps without having to
-# stitch together wakir-protocol / wakir-runtime / wakir-verify.
+# Per-step ``exit_code`` inside the report: 0 ok, 10 failed,
+# 20 skipped, 30 not_run. The CI gate additionally requires
+# ``external_verify == ok`` through the report validator.
 
 set -euo pipefail
 
@@ -39,39 +35,48 @@ set -euo pipefail
 # Configuration
 # ---------------------------------------------------------------------------
 
-# Repo root sits one level above ``scripts/``.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+HELPERS="${SCRIPT_DIR}/demo_proof_helpers.py"
 
-# Working directory for demo artefacts. Defaults to a per-PID tmpdir
-# so parallel CI runs cannot stomp each other; tests override this so
-# they can assert on the produced files.
-: "${DEMO_PROOF_WORKDIR:=$(mktemp -d -t wakir-demo-proof.XXXXXX)}"
+# Working directory for demo artefacts. Defaults to a fresh tmpdir so
+# parallel runs cannot stomp each other; tests override this so they
+# can assert on the produced files. Portable mktemp form (no -t).
+: "${DEMO_PROOF_WORKDIR:=$(mktemp -d "${TMPDIR:-/tmp}/wakir-demo-proof.XXXXXX")}"
 
-# Hour slot used for the demo. Pinned to a deterministic value rather
-# than ``$(date)`` so the proof is byte-for-byte reproducible.
+# Hour slot used for the demo. Pinned rather than ``$(date)`` so the
+# proof is byte-for-byte reproducible across runs.
 : "${DEMO_PROOF_HOUR:=2026-05-17T12}"
 
-# Optional override for the wakir-verify console-script lookup. CI may
-# point this at a venv-local path; default is the operator's PATH.
+# Online mode: when "1" *and* DEMO_PROOF_OTS_PROOF points at a real
+# OpenTimestamps receipt, step 5 additionally shells out to the
+# wakir-verify console script for the Bitcoin-anchor poles. Default
+# "0" keeps the run hermetic (library-only cross-check, no network).
+: "${DEMO_PROOF_VERIFY_ONLINE:=0}"
+: "${DEMO_PROOF_OTS_PROOF:=}"
 : "${DEMO_PROOF_VERIFY_CMD:=wakir-verify}"
 
-# When set to "1", the verify step shells out for real. Default "0"
-# keeps the script hermetic: we still go through the wakir-verify
-# code path (importing the module if available) but skip the network
-# poles. Tests flip this to "0" so they never touch the network.
-: "${DEMO_PROOF_VERIFY_ONLINE:=0}"
-
-# Cross-repo commit-hash pins. Optional inputs; when unset the script
-# resolves them locally where possible (runtime repo = current HEAD).
+# Cross-repo commit-hash pins. Optional; recorded verbatim in the report.
 : "${DEMO_PROOF_PROTOCOL_COMMIT:=}"
 : "${DEMO_PROOF_VERIFY_COMMIT:=}"
 
-# Demo report path.
-DEMO_REPORT="${DEMO_PROOF_WORKDIR}/demo-report.json"
+# Test hooks. Only honoured when DEMO_PROOF_TEST_MODE=1; ignored
+# otherwise so they cannot alter a production run by accident.
+#   DEMO_PROOF_FAIL_STEP=<step function name>   force that step to fail
+#   DEMO_PROOF_SIMULATE_NO_WAKIR_VERIFY=1       treat wakir_verify as absent
+: "${DEMO_PROOF_TEST_MODE:=0}"
+: "${DEMO_PROOF_FAIL_STEP:=}"
+: "${DEMO_PROOF_SIMULATE_NO_WAKIR_VERIFY:=0}"
+if [[ "${DEMO_PROOF_TEST_MODE}" != "1" ]]; then
+    DEMO_PROOF_FAIL_STEP=""
+    DEMO_PROOF_SIMULATE_NO_WAKIR_VERIFY="0"
+fi
 
-# Step artefact paths (kept stable so the runbook can reference them).
+# Report and artefact paths (kept stable so the runbook can reference them).
+DEMO_REPORT="${DEMO_PROOF_WORKDIR}/demo-report.json"
+STEPS_FILE="${DEMO_PROOF_WORKDIR}/.steps.jsonl"
 EVENT_PAYLOAD="${DEMO_PROOF_WORKDIR}/event.json"
+EVENT_ENVELOPE="${DEMO_PROOF_WORKDIR}/event.envelope.json"
 EVENT_PAYLOAD_HASH_FILE="${DEMO_PROOF_WORKDIR}/event.sha256"
 BRIDGE_RESULT="${DEMO_PROOF_WORKDIR}/bridge-result.json"
 SPOOL_ROOT="${DEMO_PROOF_WORKDIR}/spool"
@@ -80,53 +85,59 @@ MANIFEST_INPUT="${DEMO_PROOF_WORKDIR}/manifest-input.jsonl"
 MANIFEST_OUT="${DEMO_PROOF_WORKDIR}/${DEMO_PROOF_HOUR}/manifest.json"
 PROOF_OUT="${DEMO_PROOF_WORKDIR}/proof.json"
 VERIFY_RESULT="${DEMO_PROOF_WORKDIR}/verify-result.json"
+VERIFY_CLI_RESULT="${DEMO_PROOF_WORKDIR}/verify-cli-result.json"
 
 mkdir -p "${DEMO_PROOF_WORKDIR}" "$(dirname "${MANIFEST_OUT}")" "${SPOOL_ROOT}"
+: > "${STEPS_FILE}"
 
 # ---------------------------------------------------------------------------
 # Dependency check
 # ---------------------------------------------------------------------------
 
-require_cmd() {
-    local cmd="$1"
-    if ! command -v "${cmd}" >/dev/null 2>&1; then
-        printf 'demo-proof: required command not found: %s\n' "${cmd}" >&2
-        exit 2
-    fi
-}
-
-require_cmd python3
-require_cmd jq
+if ! command -v python3 >/dev/null 2>&1; then
+    printf 'demo-proof: required command not found: python3\n' >&2
+    exit 2
+fi
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-# emit_step <step_name> <status> <exit_code> <details_json>
-#
-# Appends one step record to a process-local file. We assemble the
-# final report at the end so partial failures still produce a
-# well-formed JSON output.
-STEPS_FILE="${DEMO_PROOF_WORKDIR}/.steps.jsonl"
-: > "${STEPS_FILE}"
-
-emit_step() {
-    local name="$1"
-    local status="$2"
-    local code="$3"
-    local details="${4:-{}}"
-    jq -c -n \
-        --arg name "${name}" \
-        --arg status "${status}" \
-        --argjson code "${code}" \
-        --argjson details "${details}" \
-        '{name: $name, status: $status, exit_code: $code, details: $details}' \
-        >> "${STEPS_FILE}"
+helper() {
+    python3 "${HELPERS}" "$@"
 }
 
-# Resolve the commit-hash for the local runtime repo. Fall back to an
-# explicit "unknown" marker if we are not in a git working tree (e.g.
-# distributed tarball install).
+# emit_step <name> <status> <exit_code> [emit-step options...]
+# Details are assembled and validated by the helper; see
+# ``do_emit_step`` for the accepted options (--result-file, --pick,
+# --kv, --int, --error-file, --details-json).
+emit_step() {
+    local name="$1" status="$2" code="$3"
+    shift 3
+    helper emit-step --steps-file "${STEPS_FILE}" \
+        --name "${name}" --status "${status}" --code "${code}" "$@"
+}
+
+# fail_step <name> <stderr-capture> [extra emit-step options...]
+fail_step() {
+    local name="$1" err_file="$2"
+    shift 2
+    emit_step "${name}" "failed" 10 --error-file "${err_file}" "$@"
+    return 10
+}
+
+# inject_fault <name> <step function>  — test-mode only (see above).
+inject_fault() {
+    local name="$1" fn="$2"
+    if [[ -n "${DEMO_PROOF_FAIL_STEP}" && "${DEMO_PROOF_FAIL_STEP}" == "${fn}" ]]; then
+        emit_step "${name}" "failed" 10 \
+            --kv "error=fault injected via DEMO_PROOF_FAIL_STEP=${fn}" \
+            --kv "fault_injected=true"
+        return 10
+    fi
+    return 0
+}
+
 resolve_runtime_commit() {
     if git -C "${REPO_ROOT}" rev-parse --verify HEAD >/dev/null 2>&1; then
         git -C "${REPO_ROOT}" rev-parse HEAD
@@ -145,83 +156,65 @@ VERIFY_COMMIT="${DEMO_PROOF_VERIFY_COMMIT:-unknown}"
 #
 # Materialise a B1-shape audit event matching the wakir-protocol
 # Wirelang frame contract (event_id / time / payload_hash /
-# capability_token_hash). The "protocol" leg is satisfied either by an
-# installed ``wakir_protocol`` package (preferred) or by an in-tree
-# schema validation against ``wirelang/schemas/wakir-wat-manifest-v1.json``
-# when running before the wakir-protocol pin lands.
-#
-# Exit codes: 0 OK, 10 FAILED.
+# capability_token_hash).
 
 step1_protocol_event() {
-    local rc=0
-    python3 "${SCRIPT_DIR}/demo_proof_helpers.py" build-event \
+    local name="protocol_event" err="${DEMO_PROOF_WORKDIR}/step1.err" rc=0
+    inject_fault "${name}" "${FUNCNAME[0]}" || return $?
+
+    helper build-event \
         --hour "${DEMO_PROOF_HOUR}" \
         --out "${EVENT_PAYLOAD}" \
         --hash-out "${EVENT_PAYLOAD_HASH_FILE}" \
-        2>"${DEMO_PROOF_WORKDIR}/step1.err" || rc=$?
-
+        2>"${err}" || rc=$?
     if [[ "${rc}" -ne 0 ]]; then
-        local err
-        err="$(cat "${DEMO_PROOF_WORKDIR}/step1.err" | jq -Rs .)"
-        emit_step "protocol_event" "failed" 10 \
-            "$(jq -c -n --argjson msg "${err}" '{error: $msg}')"
+        fail_step "${name}" "${err}"
         return 10
     fi
 
-    local payload_hash
-    payload_hash="$(cat "${EVENT_PAYLOAD_HASH_FILE}")"
-    emit_step "protocol_event" "ok" 0 "$(jq -c -n \
-        --arg path "${EVENT_PAYLOAD}" \
-        --arg hash "${payload_hash}" \
-        '{payload_path: $path, payload_hash: $hash}')"
-    return 0
+    emit_step "${name}" "ok" 0 \
+        --result-file "${EVENT_ENVELOPE}" --pick "payload_path,payload_hash"
 }
 
 # ---------------------------------------------------------------------------
 # Step 2 — runtime bridge
 # ---------------------------------------------------------------------------
 #
-# Push the event through the bridge-audit-writer. The bridge is the
-# Wakir-runtime substrate that fans an event out to both the WAT spool
-# and the Pre-Framework activity log; we exercise both sinks so the
-# demo demonstrates the full atomicity contract.
-#
-# Exit codes: 0 OK, 10 FAILED.
+# Push the event through the bridge-audit-writer. The bridge fans an
+# event out to both the WAT spool and the activity log; we exercise
+# both sinks so the demo demonstrates the full atomicity contract.
 
 step2_runtime_bridge() {
-    local rc=0
-    python3 "${SCRIPT_DIR}/demo_proof_helpers.py" run-bridge \
+    local name="runtime_bridge" err="${DEMO_PROOF_WORKDIR}/step2.err" rc=0
+    inject_fault "${name}" "${FUNCNAME[0]}" || return $?
+
+    local payload_hash
+    payload_hash="$(cat "${EVENT_PAYLOAD_HASH_FILE}")" || {
+        emit_step "${name}" "failed" 10 --kv "error=payload hash from step 1 missing"
+        return 10
+    }
+
+    helper run-bridge \
         --payload "${EVENT_PAYLOAD}" \
-        --payload-hash "$(cat "${EVENT_PAYLOAD_HASH_FILE}")" \
+        --payload-hash "${payload_hash}" \
         --spool-root "${SPOOL_ROOT}" \
         --activity-log "${ACTIVITY_LOG}" \
         --event-time "${DEMO_PROOF_HOUR}:00:00Z" \
         --out "${BRIDGE_RESULT}" \
-        2>"${DEMO_PROOF_WORKDIR}/step2.err" || rc=$?
-
+        2>"${err}" || rc=$?
     if [[ "${rc}" -ne 0 ]]; then
-        local err
-        err="$(cat "${DEMO_PROOF_WORKDIR}/step2.err" | jq -Rs .)"
-        emit_step "runtime_bridge" "failed" 10 \
-            "$(jq -c -n --argjson msg "${err}" '{error: $msg}')"
+        if [[ -f "${BRIDGE_RESULT}" ]]; then
+            fail_step "${name}" "${err}" \
+                --result-file "${BRIDGE_RESULT}" --pick "status:bridge_status,error:bridge_error"
+        else
+            fail_step "${name}" "${err}"
+        fi
         return 10
     fi
 
-    local status spool_path
-    status="$(jq -r '.status' "${BRIDGE_RESULT}")"
-    spool_path="$(jq -r '.wat_spool_path // ""' "${BRIDGE_RESULT}")"
-    if [[ "${status}" != "ok" ]]; then
-        emit_step "runtime_bridge" "failed" 10 \
-            "$(jq -c -n --arg s "${status}" '{bridge_status: $s}')"
-        return 10
-    fi
-
-    emit_step "runtime_bridge" "ok" 0 "$(jq -c -n \
-        --arg s "${status}" \
-        --arg spool "${spool_path}" \
-        --arg activity "${ACTIVITY_LOG}" \
-        '{bridge_status: $s, spool: $spool, activity_log: $activity}')"
-    return 0
+    emit_step "${name}" "ok" 0 \
+        --result-file "${BRIDGE_RESULT}" \
+        --pick "status:bridge_status,wat_spool_path:spool,activity_log_path:activity_log"
 }
 
 # ---------------------------------------------------------------------------
@@ -229,168 +222,150 @@ step2_runtime_bridge() {
 # ---------------------------------------------------------------------------
 
 step3_merkle_manifest() {
-    local rc=0
-    # The bridge writes one leaf per event into a per-hour JSONL file;
-    # the manifest aggregator consumes the canonical leaf shape, which
-    # may differ from the bridge's spool record. The helper transforms
-    # spool -> aggregator-input and then drives wakir-merkle.
-    python3 "${SCRIPT_DIR}/demo_proof_helpers.py" build-manifest \
+    local name="merkle_manifest" err="${DEMO_PROOF_WORKDIR}/step3.err" rc=0
+    inject_fault "${name}" "${FUNCNAME[0]}" || return $?
+
+    helper build-manifest \
         --spool-root "${SPOOL_ROOT}" \
         --hour "${DEMO_PROOF_HOUR}" \
         --aggregator-input "${MANIFEST_INPUT}" \
         --manifest-out "${MANIFEST_OUT}" \
-        2>"${DEMO_PROOF_WORKDIR}/step3.err" || rc=$?
-
+        2>"${err}" || rc=$?
     if [[ "${rc}" -ne 0 ]]; then
-        local err
-        err="$(cat "${DEMO_PROOF_WORKDIR}/step3.err" | jq -Rs .)"
-        emit_step "merkle_manifest" "failed" 10 \
-            "$(jq -c -n --argjson msg "${err}" '{error: $msg}')"
+        fail_step "${name}" "${err}"
         return 10
     fi
 
-    local root event_count
-    root="$(jq -r '.merkle_root' "${MANIFEST_OUT}")"
-    event_count="$(jq -r '.event_count' "${MANIFEST_OUT}")"
-    emit_step "merkle_manifest" "ok" 0 "$(jq -c -n \
-        --arg root "${root}" \
-        --argjson n "${event_count}" \
-        --arg path "${MANIFEST_OUT}" \
-        '{merkle_root: $root, event_count: $n, manifest_path: $path}')"
-    return 0
+    emit_step "${name}" "ok" 0 \
+        --result-file "${MANIFEST_OUT}" --pick "merkle_root,event_count" \
+        --kv "manifest_path=${MANIFEST_OUT}"
 }
 
 # ---------------------------------------------------------------------------
-# Step 4 — inclusion proof verification
+# Step 4 — inclusion proof (wakir-inclusion-proof/v1)
 # ---------------------------------------------------------------------------
 #
-# Rebuilds the inclusion proof for the demo event and verifies it
-# against the manifest's stored root. This is the local read-half of
-# the brand-proof contract; step 5 then adds the wakir-verify
-# cross-check for the cross-repo dependency leg.
+# Builds the inclusion proof for the demo event — sibling hashes with
+# side markers, so anyone can recompute the root with plain SHA-256 —
+# and verifies it against the manifest's stored root using the
+# in-tree Merkle implementation. Step 5 repeats the check through the
+# external verifier's code.
 
 step4_inclusion_proof() {
-    local rc=0
-    python3 "${SCRIPT_DIR}/demo_proof_helpers.py" verify-proof \
+    local name="inclusion_proof" err="${DEMO_PROOF_WORKDIR}/step4.err" rc=0
+    inject_fault "${name}" "${FUNCNAME[0]}" || return $?
+
+    helper verify-proof \
         --manifest "${MANIFEST_OUT}" \
         --event "${EVENT_PAYLOAD}" \
         --out "${PROOF_OUT}" \
-        2>"${DEMO_PROOF_WORKDIR}/step4.err" || rc=$?
-
+        2>"${err}" || rc=$?
     if [[ "${rc}" -ne 0 ]]; then
-        local err
-        err="$(cat "${DEMO_PROOF_WORKDIR}/step4.err" | jq -Rs .)"
-        emit_step "inclusion_proof" "failed" 10 \
-            "$(jq -c -n --argjson msg "${err}" '{error: $msg}')"
+        if [[ -f "${PROOF_OUT}" ]]; then
+            fail_step "${name}" "${err}" --kv "proof_path=${PROOF_OUT}" --details-json '{"verified": false}'
+        else
+            fail_step "${name}" "${err}"
+        fi
         return 10
     fi
 
-    local verified proof_depth
-    verified="$(jq -r '.verified' "${PROOF_OUT}")"
-    proof_depth="$(jq -r '.proof_depth' "${PROOF_OUT}")"
-    if [[ "${verified}" != "true" ]]; then
-        emit_step "inclusion_proof" "failed" 10 \
-            "$(jq -c -n --arg path "${PROOF_OUT}" '{proof_path: $path, verified: false}')"
-        return 10
-    fi
-
-    emit_step "inclusion_proof" "ok" 0 "$(jq -c -n \
-        --arg path "${PROOF_OUT}" \
-        --argjson depth "${proof_depth}" \
-        '{proof_path: $path, proof_depth: $depth, verified: true}')"
-    return 0
+    emit_step "${name}" "ok" 0 \
+        --result-file "${PROOF_OUT}" \
+        --pick "schema,merkle_root,leaf_hash,leaf_index,leaf_count,siblings" \
+        --kv "proof_path=${PROOF_OUT}" --details-json '{"verified": true}'
 }
 
 # ---------------------------------------------------------------------------
 # Step 5 — wakir-verify cross-check
 # ---------------------------------------------------------------------------
 #
-# Cross-repo dependency leg: shell out to the external ``wakir-verify``
-# console script (Apache-2.0 sibling repo). When the binary is absent
-# we fall back to a fixture-based assertion that re-runs the offline
-# Pole-1 (stdlib OTS parser) logic via the runtime-local merkle_proof
-# module — same root, same leaf, same proof, but no cross-repo
-# dependency exercised. The fallback is clearly flagged in the demo
-# report as ``status=skipped`` so an operator does not mistake it for
-# a real pass.
+# Cross-repo leg through the wakir-verify *library*: the runtime-built
+# manifest is loaded by ``wakir_verify.manifest``, its root re-derived
+# by the verifier's own Merkle code, and the step-4 proof is checked
+# with ``wakir_verify.merkle_proof``. No network. When the package is
+# not importable the step is ``skipped`` with a reason — never
+# silently dropped, never faked as ``ok``.
+#
+# Online mode (DEMO_PROOF_VERIFY_ONLINE=1 + DEMO_PROOF_OTS_PROOF) adds
+# a console-script run for the Bitcoin-anchor poles on top of the
+# library check. ONLINE=1 without a receipt is an explicit skip.
 
 step5_external_verify() {
-    if ! command -v "${DEMO_PROOF_VERIFY_CMD}" >/dev/null 2>&1; then
-        # Fixture-based fallback: assert that the manifest root is well
-        # formed and matches the locally re-derived root. This is the
-        # weakest of the three legs but still useful: it confirms the
-        # demo did not silently emit a manifest that disagrees with the
-        # in-tree verifier.
-        local rc=0
-        python3 "${SCRIPT_DIR}/demo_proof_helpers.py" fixture-verify \
-            --manifest "${MANIFEST_OUT}" \
-            --out "${VERIFY_RESULT}" \
-            2>"${DEMO_PROOF_WORKDIR}/step5.err" || rc=$?
-        if [[ "${rc}" -ne 0 ]]; then
-            local err
-            err="$(cat "${DEMO_PROOF_WORKDIR}/step5.err" | jq -Rs .)"
-            emit_step "external_verify" "failed" 10 \
-                "$(jq -c -n --argjson msg "${err}" '{error: $msg, fallback: "fixture"}')"
-            return 10
-        fi
-        local fixture_ok
-        fixture_ok="$(jq -r '.fixture_ok' "${VERIFY_RESULT}")"
-        if [[ "${fixture_ok}" != "true" ]]; then
-            emit_step "external_verify" "failed" 10 \
-                "$(jq -c -n '{fallback: "fixture", fixture_ok: false}')"
-            return 10
-        fi
-        emit_step "external_verify" "skipped" 20 "$(jq -c -n \
-            '{fallback: "fixture", reason: "wakir-verify not installed", fixture_ok: true}')"
+    local name="external_verify" err="${DEMO_PROOF_WORKDIR}/step5.err" rc=0
+    inject_fault "${name}" "${FUNCNAME[0]}" || return $?
+
+    if [[ "${DEMO_PROOF_VERIFY_ONLINE}" == "1" && -z "${DEMO_PROOF_OTS_PROOF}" ]]; then
+        emit_step "${name}" "skipped" 20 \
+            --kv "mode=online" \
+            --kv "reason=DEMO_PROOF_VERIFY_ONLINE=1 but DEMO_PROOF_OTS_PROOF unset"
         return 20
     fi
 
-    # Real cross-repo subprocess call. We use ``--capture-witnesses``
-    # mode would require live Bitcoin lookups, which we do not want by
-    # default; instead we run the local OTS-parser pole alone via
-    # ``--skip-pole`` for the three online poles. This still exercises
-    # the cross-repo CLI surface.
-    local anchor rc=0
-    anchor="$(jq -r '.merkle_root' "${MANIFEST_OUT}")"
-    # Demo OTS-proof file: a placeholder zero-byte file is enough to
-    # drive the CLI parser to a definite "unavailable" verdict for the
-    # online poles when ``--ots-proof`` is required; in hermetic mode
-    # (DEMO_PROOF_VERIFY_ONLINE=0) we instead invoke ``--help`` to
-    # confirm the binary is wired correctly without touching the
-    # network. Operator-driven full runs (DEMO_PROOF_VERIFY_ONLINE=1)
-    # are expected to supply a real OTS receipt via
-    # DEMO_PROOF_OTS_PROOF.
-    if [[ "${DEMO_PROOF_VERIFY_ONLINE}" = "1" && -n "${DEMO_PROOF_OTS_PROOF:-}" ]]; then
-        "${DEMO_PROOF_VERIFY_CMD}" \
-            --anchor "${anchor}" \
-            --ots-proof "${DEMO_PROOF_OTS_PROOF}" \
-            --output-format json \
-            > "${VERIFY_RESULT}" 2>"${DEMO_PROOF_WORKDIR}/step5.err" || rc=$?
-    else
-        # Hermetic mode: just probe the CLI binary exists and emits a
-        # parseable ``--help`` block. Record stub result.
-        if ! "${DEMO_PROOF_VERIFY_CMD}" --help >"${DEMO_PROOF_WORKDIR}/verify-help.txt" 2>&1; then
-            rc=10
-        fi
-        # Capture a stub verify-result JSON so the report has a stable shape.
-        jq -c -n --arg anchor "${anchor}" \
-            '{mode: "hermetic-probe", anchor: $anchor, help_ok: true}' \
-            > "${VERIFY_RESULT}"
+    local -a simulate=()
+    if [[ "${DEMO_PROOF_SIMULATE_NO_WAKIR_VERIFY}" == "1" ]]; then
+        simulate=(--simulate-missing)
     fi
 
-    if [[ "${rc}" -ne 0 ]]; then
-        local err
-        err="$(cat "${DEMO_PROOF_WORKDIR}/step5.err" 2>/dev/null | jq -Rs . || echo '""')"
-        emit_step "external_verify" "failed" 10 \
-            "$(jq -c -n --argjson msg "${err}" '{error: $msg, mode: "real"}')"
+    helper external-verify \
+        --manifest "${MANIFEST_OUT}" \
+        --proof "${PROOF_OUT}" \
+        --out "${VERIFY_RESULT}" \
+        "${simulate[@]}" \
+        2>"${err}" || rc=$?
+
+    case "${rc}" in
+        0)  ;;
+        20)
+            emit_step "${name}" "skipped" 20 \
+                --result-file "${VERIFY_RESULT}" --pick "mode,reason,local_root_rederived"
+            return 20
+            ;;
+        *)
+            if [[ -f "${VERIFY_RESULT}" ]]; then
+                fail_step "${name}" "${err}" --result-file "${VERIFY_RESULT}" \
+                    --pick "mode,wakir_verify_version,manifest_consistent,root_match,leaf_present,proof_verified"
+            else
+                fail_step "${name}" "${err}"
+            fi
+            return 10
+            ;;
+    esac
+
+    if [[ "${DEMO_PROOF_VERIFY_ONLINE}" != "1" ]]; then
+        emit_step "${name}" "ok" 0 \
+            --result-file "${VERIFY_RESULT}" \
+            --pick "mode,wakir_verify_version,manifest_consistent,root_match,leaf_present,proof_verified,leaf_count" \
+            --kv "verify_result_path=${VERIFY_RESULT}"
+        return 0
+    fi
+
+    # Online: operator supplied a real OTS receipt; drive the console script.
+    local anchor
+    anchor="$(helper json-get "${MANIFEST_OUT}" merkle_root)" || {
+        emit_step "${name}" "failed" 10 --kv "error=cannot read merkle_root from manifest"
+        return 10
+    }
+    if ! command -v "${DEMO_PROOF_VERIFY_CMD}" >/dev/null 2>&1; then
+        emit_step "${name}" "failed" 10 --kv "mode=library+online" \
+            --kv "error=DEMO_PROOF_VERIFY_ONLINE=1 but ${DEMO_PROOF_VERIFY_CMD} not on PATH"
         return 10
     fi
-
-    emit_step "external_verify" "ok" 0 "$(jq -c -n \
-        --arg path "${VERIFY_RESULT}" \
-        --arg anchor "${anchor}" \
-        '{verify_result_path: $path, anchor: $anchor}')"
-    return 0
+    rc=0
+    "${DEMO_PROOF_VERIFY_CMD}" \
+        --anchor "${anchor}" \
+        --ots-proof "${DEMO_PROOF_OTS_PROOF}" \
+        --output-format json \
+        >"${VERIFY_CLI_RESULT}" 2>"${err}" || rc=$?
+    if [[ "${rc}" -ne 0 ]]; then
+        fail_step "${name}" "${err}" --kv "mode=library+online" --kv "anchor=${anchor}"
+        return 10
+    fi
+    emit_step "${name}" "ok" 0 \
+        --result-file "${VERIFY_RESULT}" \
+        --pick "wakir_verify_version,manifest_consistent,root_match,leaf_present,proof_verified" \
+        --kv "mode=library+online" --kv "anchor=${anchor}" \
+        --kv "verify_result_path=${VERIFY_RESULT}" \
+        --kv "verify_cli_result_path=${VERIFY_CLI_RESULT}"
 }
 
 # ---------------------------------------------------------------------------
@@ -398,46 +373,39 @@ step5_external_verify() {
 # ---------------------------------------------------------------------------
 
 run_demo() {
-    local max_rc=0
+    local step rc short_circuited=""
     for step in step1_protocol_event step2_runtime_bridge \
                 step3_merkle_manifest step4_inclusion_proof \
                 step5_external_verify; do
-        if ! ${step}; then
-            local rc=$?
-            if [[ "${rc}" -gt "${max_rc}" ]]; then
-                max_rc=${rc}
-            fi
-            if [[ "${rc}" -eq 10 ]]; then
-                # A hard failure short-circuits subsequent steps;
-                # downstream steps would produce noise on broken inputs.
-                break
-            fi
+        rc=0
+        "${step}" || rc=$?
+        if [[ "${rc}" -eq 10 ]]; then
+            # A hard failure short-circuits; downstream steps would only
+            # produce noise on broken inputs. They are reported as not_run.
+            short_circuited="${step}"
+            break
         fi
     done
 
-    # Assemble final report.
-    jq -s \
-        --arg runtime "${RUNTIME_COMMIT}" \
-        --arg protocol "${PROTOCOL_COMMIT}" \
-        --arg verify "${VERIFY_COMMIT}" \
-        --arg workdir "${DEMO_PROOF_WORKDIR}" \
-        --arg hour "${DEMO_PROOF_HOUR}" \
-        '{
-            schema: "wakir-demo-proof/v1",
-            hour: $hour,
-            workdir: $workdir,
-            commits: {
-                wakir_runtime: $runtime,
-                wakir_protocol: $protocol,
-                wakir_verify: $verify
-            },
-            steps: .
-        }' \
-        "${STEPS_FILE}" \
-        > "${DEMO_REPORT}"
+    local -a sc_opt=()
+    if [[ -n "${short_circuited}" ]]; then
+        sc_opt=(--short-circuited-after "${short_circuited}")
+    fi
+    helper assemble-report \
+        --steps-file "${STEPS_FILE}" \
+        --out "${DEMO_REPORT}" \
+        --runtime-commit "${RUNTIME_COMMIT}" \
+        --protocol-commit "${PROTOCOL_COMMIT}" \
+        --verify-commit "${VERIFY_COMMIT}" \
+        --workdir "${DEMO_PROOF_WORKDIR}" \
+        --hour "${DEMO_PROOF_HOUR}" \
+        "${sc_opt[@]}"
 
     cat "${DEMO_REPORT}"
-    return "${max_rc}"
+
+    local exit_code
+    exit_code="$(helper json-get "${DEMO_REPORT}" exit_code)"
+    return "${exit_code}"
 }
 
 run_demo

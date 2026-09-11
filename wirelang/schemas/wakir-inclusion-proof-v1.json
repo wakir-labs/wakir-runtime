@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wakir.dev/wirelang/schema/wakir-inclusion-proof-v1/0.1.0",
+  "title": "WAT Merkle inclusion proof — wakir-inclusion-proof/v1",
+  "x-spdx-license-identifier": "Apache-2.0",
+  "x-spdx-file-copyright-text": "2026 Callandor GmbH and contributors",
+  "x-canonical-home": "wakir-protocol (this file is the runtime-side draft; the protocol repository holds the canonical copy and the cross-repo test vectors)",
+  "description": "Self-contained Merkle inclusion proof for one leaf of a wakir-wat-manifest/v1 hour manifest. A verifier needs nothing but SHA-256 to check it: start with leaf_hash, then for each entry of siblings in order compute SHA-256(sibling || current) when side is \"L\" or SHA-256(current || sibling) when side is \"R\"; the final value must equal merkle_root. Tree convention is the Bitcoin pattern used by wat.merkle.aggregator and wakir_verify.merkle_proof: leaves in manifest order, an odd level duplicates its last node, a single-leaf tree has the root equal to the leaf and an empty siblings list. leaf_index and leaf_count let a verifier cross-check the proof depth (ceil(log2(leaf_count)) for leaf_count > 1, 0 otherwise) and locate the leaf in the manifest's leaves array. The document carries no verdict field on purpose: a proof is data, the verdict belongs to the verifier.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "manifest_version", "merkle_root", "leaf_hash", "leaf_index", "leaf_count", "siblings"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "wakir-inclusion-proof/v1",
+      "description": "Document identifier."
+    },
+    "manifest_version": {
+      "type": "string",
+      "description": "The manifest envelope the proof was built from, e.g. \"wakir-wat-manifest/v1\" (the manifest's version field). Empty string when the manifest did not declare one."
+    },
+    "hour": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}$",
+      "description": "Optional hour slot of the manifest (YYYY-MM-DDTHH, UTC)."
+    },
+    "merkle_root": {
+      "$ref": "#/$defs/sha256hex",
+      "description": "The manifest's recorded Merkle root the proof resolves to."
+    },
+    "leaf_hash": {
+      "$ref": "#/$defs/sha256hex",
+      "description": "SHA-256 leaf hash of the proven event (JCS-canonicalised B1 four-tuple)."
+    },
+    "leaf_index": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Zero-based position of the leaf in the manifest's leaves array."
+    },
+    "leaf_count": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of leaves in the tree (manifest event_count)."
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional event identifier as recorded in the manifest row, for lookup convenience."
+    },
+    "siblings": {
+      "type": "array",
+      "description": "Bottom-up sibling path from the leaf to the root. Empty for a single-leaf tree.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["hash", "side"],
+        "properties": {
+          "hash": {
+            "$ref": "#/$defs/sha256hex",
+            "description": "The sibling node hash at this level."
+          },
+          "side": {
+            "type": "string",
+            "enum": ["L", "R"],
+            "description": "Where the sibling sits relative to the current node: \"L\" means hash(sibling || current), \"R\" means hash(current || sibling)."
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256hex": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Lower-case hex encoding of a 32-byte SHA-256 digest."
+    }
+  },
+  "examples": [
+    {
+      "schema": "wakir-inclusion-proof/v1",
+      "manifest_version": "wakir-wat-manifest/v1",
+      "hour": "2026-05-17T12",
+      "merkle_root": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "leaf_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "leaf_index": 0,
+      "leaf_count": 1,
+      "event_id": "evt-1",
+      "siblings": []
+    },
+    {
+      "schema": "wakir-inclusion-proof/v1",
+      "manifest_version": "wakir-wat-manifest/v1",
+      "hour": "2026-05-17T12",
+      "merkle_root": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "leaf_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "leaf_index": 1,
+      "leaf_count": 3,
+      "event_id": "evt-2",
+      "siblings": [
+        {"hash": "0000000000000000000000000000000000000000000000000000000000000000", "side": "L"},
+        {"hash": "2222222222222222222222222222222222222222222222222222222222222222", "side": "R"}
+      ]
+    }
+  ]
+}

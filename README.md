@@ -182,31 +182,45 @@ manifest with `merkle_root: null` and the hourly driver
 ## One-command proof demo (`make demo-proof`)
 
 The repository ships a single-command cross-repo evidence chain
-driver intended for external-audit walk-throughs and Aufsichtsrat
-demos. It runs five steps end-to-end and emits one JSON report:
+driver for external reviewers. It runs five steps end-to-end and
+emits one JSON report:
 
 1. **protocol event** — materialise a B1-canonical Wirelang frame
    (deterministic `event_id`, `time`, `payload_hash`,
    `capability_token_hash`).
 2. **runtime bridge** — push the event through
    `wat.anchor.bridge_audit_writer.write_bridge_audit`, exercising
-   both the WAT spool and the Pre-Framework activity-log sinks.
+   both the WAT spool and the activity-log sinks.
 3. **WAT manifest** — drive `wakir-merkle build` against the spool
    and emit the hourly manifest with the Merkle root.
-4. **inclusion proof** — rebuild the per-event inclusion proof from
-   the manifest's recorded leaf order and verify it against the
-   stored root using the in-tree merkle implementation.
-5. **wakir-verify cross-check** — shell out to the sibling
-   `wakir-verify` console script (Apache-2.0); falls back to a
-   fixture-based root re-derivation when the binary is not installed.
+4. **inclusion proof** — build the `wakir-inclusion-proof/v1`
+   artefact (`proof.json`: leaf hash, sibling hashes with side
+   markers, root) and verify it with the in-tree Merkle code.
+   Anyone can recompute the root from that file with plain SHA-256;
+   the schema draft is `wirelang/schemas/wakir-inclusion-proof-v1.json`.
+5. **wakir-verify cross-check** — load the manifest and re-verify the
+   proof through the sibling `wakir-verify` *library*
+   (`wakir_verify.manifest`, `wakir_verify.merkle_proof`, Apache-2.0).
+   When the package is not importable the step is `skipped` with a
+   reason; it is never omitted and never faked.
 
 ```sh
 make demo-proof
 ```
 
-By default the script runs in a per-PID tmpdir and pins the hour
-slot to a deterministic value for reproducibility. Override via
-environment for operator-driven full runs:
+Requirements: `bash` and `python3` (no `jq`). To make step 5 a real
+`ok`, install the verifier into the same Python environment first:
+
+```sh
+pip install git+https://github.com/wakir-labs/wakir-verify
+make demo-proof
+```
+
+By default the script runs in a fresh tmpdir and pins the hour slot
+to a deterministic value for reproducibility. Override via
+environment for operator-driven runs; online mode additionally
+drives the `wakir-verify` console script against a real
+OpenTimestamps receipt:
 
 ```sh
 DEMO_PROOF_WORKDIR=/var/tmp/wakir-demo-proof \
@@ -216,11 +230,15 @@ DEMO_PROOF_OTS_PROOF=/path/to/root.bin.ots \
 make demo-proof
 ```
 
-The JSON report has shape `{schema, hour, workdir, commits, steps[]}`
-with one step record per leg (`name`, `status`, `exit_code`,
-`details`). Exit code 0 = clean pass; non-zero = at least one step
-failed or was skipped. See `docs/operations/demo-proof-runbook.md`
-for the operator walkthrough.
+The JSON report has shape `{schema, hour, workdir, commits, steps[],
+exit_code}` with exactly five step records in fixed order (`name`,
+`status`, `exit_code`, `details`). Step status is `ok`, `skipped`
+(with `details.reason`), `failed`, or `not_run` (downstream of a
+failure). Process exit code 0 = no step failed (`skipped` counts as
+non-failing, so a fresh clone without wakir-verify exits 0);
+10 = at least one step `failed`. The CI proof-path gate additionally
+requires `external_verify == ok`. See
+`docs/operations/demo-proof-runbook.md` for the operator walkthrough.
 
 ## WAT hourly operations
 
