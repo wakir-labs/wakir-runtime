@@ -52,8 +52,14 @@ on:
         default: 'false'
 
 permissions:
-  # Least-privilege: read source, write to ``pull-requests`` for the
-  # auto-PR, write to ``contents`` for the auto-branch push. NO
+  # Least-privilege audit (ADR-0072 W7, 2026-09-11): ``contents: write``
+  # is REQUIRED and stays. The auto-PR step pushes a new branch with the
+  # job-scoped, ephemeral GITHUB_TOKEN (``git push origin "$BRANCH"``).
+  # Reducing to ``read`` would force a long-lived PAT or a GitHub-App
+  # installation token stored as a repository secret — a worse posture
+  # than the ephemeral token. Blast radius is bounded: the workflow runs
+  # on ``workflow_dispatch`` ONLY (no pull_request / fork-triggered path),
+  # and the auto-PR still requires human review and merge. NO
   # ``packages: write`` or ``id-token: write`` — this workflow neither
   # pushes images nor signs.
   contents: write

@@ -1,0 +1,96 @@
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# gitleaks configuration for wakir-runtime (ADR-0072 Phase 4, Sub-Item 4f).
+# Consumed by .github/workflows/secret-scan.yml (full-history scan on every
+# pull request and on push to main). The one-off 2026-09 history scan of
+# all three wakir repos is documented in
+# wakir-runtime/docs/security/secret-scan-2026-09.md (counts only).
+#
+# Policy
+#   - Default gitleaks rules, unchanged (`useDefault = true`).
+#   - Every allowlist entry is as narrow as possible: path AND content
+#     shape (`condition = "AND"`) wherever a path is involved, and each
+#     entry carries the reason it is a non-secret. Blanket allowlisting of
+#     tests/** or fixtures/** is NOT acceptable — add a new narrow entry
+#     with a justification comment instead.
+#   - Entries were reviewed against the 2026-09 history scan (gitleaks
+#     v8.30.1). Remove an entry when its subject leaves the history.
+
+title = "wakir-runtime gitleaks config"
+
+[extend]
+useDefault = true
+
+# --- Structural false positives (field shape, repo-wide) -------------------
+
+[[allowlists]]
+# WAT manifest / proof-path vectors: `capability_token_hash` is the SHA-256
+# digest of a capability token (hex64), never the token itself. Trips
+# generic-api-key only because of the `token` keyword in the field name.
+description = "WAT capability_token_hash is a SHA-256 digest field, not a token"
+regexTarget = "line"
+regexes = ['''"capability_token_hash":\s*"[0-9a-f]{64}"''']
+
+[[allowlists]]
+# Identity-substrate function registry: tuples of the form
+# ("key_derivation", "derive_sub_key_<alg>") map a category to a FUNCTION
+# NAME. The flagged "secret" is the function name, not key material.
+description = "identity-substrate registry entries are function names (derive_sub_key_*)"
+stopwords = ["derive_sub_key_"]
+
+# --- Test-only fixtures (explicitly marked test vectors) -------------------
+
+[[allowlists]]
+# AIP identity-document test vectors: `document.public_keys[].key_hex`
+# holds PUBLIC keys only (Ed25519 32 B = hex64, compressed secp256k1
+# 33 B = hex66). Scoped to that directory AND that field shape.
+description = "AIP document test vectors: public_keys[].key_hex are public keys"
+condition = "AND"
+paths = ['''^tests/fixtures/aip-document-vectors/[^/]+\.json$''']
+regexTarget = "line"
+regexes = ['''"key_hex":\s*"[0-9a-f]{64,66}"''']
+
+[[allowlists]]
+# Wirelang TV-W-3 replay fixture: a recorded AIP issuer document served by
+# the HTTPS replay harness; `public_keys[].key_hex` = public key (see above).
+description = "TV-W-3 replay fixture: recorded issuer document, public keys only"
+condition = "AND"
+paths = ['''^wirelang/tests/fixtures/tv-w-3/replay/.*\.json$''']
+regexTarget = "line"
+regexes = ['''"key_hex":\s*"[0-9a-f]{64,66}"''']
+
+# --- Test code with literal markers / synthetic dummies --------------------
+
+[[allowlists]]
+# PEM-format test module: the module docstring quotes the
+# `-----BEGIN PRIVATE KEY-----` marker to describe the accepted PKCS#8
+# envelope. All key pairs are generated at test runtime
+# (Ed25519PrivateKey.generate()); no key material is stored in the file.
+description = "test_aggregator_signing_pem docstring quotes the PEM marker; keys generated at runtime"
+condition = "AND"
+paths = ['''^tests/wat/test_aggregator_signing_pem\.py$''']
+regexTarget = "line"
+regexes = ['''BEGIN PRIVATE KEY''']
+
+[[allowlists]]
+# SBOM-baseline refresh test: `approval_token="..."` is a synthetic dummy
+# handed to render_receipt() to assert receipt rendering. No approval-token
+# mechanism with real tokens exists in this repository.
+description = "test_refresh_15_binary_sbom_baseline passes a synthetic approval_token literal"
+condition = "AND"
+paths = ['''^tests/observability/test_refresh_15_binary_sbom_baseline\.py$''']
+regexTarget = "line"
+regexes = ['''approval_token=''']
+
+# --- History-only (file removed in the Phase-4 W1 workflow cleanup) --------
+
+[[allowlists]]
+# Removed CI helper (deleted 2026-09-10, W1): `layer_key == "L2-..."`
+# compares a CI-layer enum string; flagged by the `key` keyword. Kept so
+# the full-history scan stays green; the file no longer exists on main.
+description = "removed tooling/ci helper compared a layer enum named layer_key"
+condition = "AND"
+paths = ['''^tooling/ci/aggregate_pyramide_run_order_verdict\.py$''']
+regexTarget = "line"
+regexes = ['''layer_key == "L2-''']
