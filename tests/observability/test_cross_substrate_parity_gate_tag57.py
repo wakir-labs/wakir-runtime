@@ -202,47 +202,24 @@ def test_02_workflow_job_display_name_is_required_status_check_name(
     )
 
 
-def test_03_workflow_triggers_on_manifest_change(workflow_yaml: dict) -> None:
-    """A change to the 0.5.2-final manifest must trigger the gate.
+def test_03_workflow_is_universal_trigger_no_path_filter(workflow_yaml: dict) -> None:
+    """The gate reports a required status context, so it must fire on
+    every pull request and every push to ``main`` — no ``paths:`` filter.
 
-    Tag-57 widening: previously the workflow only triggered on the
-    9-Binary substrate paths. Without the manifest in the path
-    list, Selin-style PRs that only touch the manifest would not
-    run the gate, and OPEN-J1 could not turn green on those PRs.
+    A path-filtered required context never reports on PRs outside the
+    filter and leaves them pending forever
+    (docs/ci/branch-protection-required-checks.md, trigger discipline).
     """
     on = workflow_yaml.get("on", workflow_yaml.get(True, {}))
-    pr_paths = on.get("pull_request", {}).get("paths", [])
-    manifest_rel = "wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md"
-    assert manifest_rel in pr_paths, (
-        f"Workflow pull_request.paths must include the 0.5.2-final "
-        f"manifest. Missing: {manifest_rel!r}"
+    assert "pull_request" in on, "workflow must trigger on pull_request"
+    assert "paths" not in (on.get("pull_request") or {}), (
+        "required-context workflow must not path-filter pull_request"
     )
-
-
-def test_04_workflow_triggers_on_pin_pack_change(workflow_yaml: dict) -> None:
-    """A change to the 0.5.2-final pin-pack must trigger the gate."""
-    on = workflow_yaml.get("on", workflow_yaml.get(True, {}))
-    pr_paths = on.get("pull_request", {}).get("paths", [])
-    pin_rel = "infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml"
-    assert pin_rel in pr_paths, (
-        f"Workflow pull_request.paths must include the 0.5.2-final "
-        f"pin-pack. Missing: {pin_rel!r}"
+    assert "paths" not in (on.get("push") or {}), (
+        "required-context workflow must not path-filter push"
     )
-
-
-def test_05_workflow_triggers_on_engine_py_change(workflow_yaml: dict) -> None:
-    """A change to ``engine.py`` (the resolver call-site) must trigger.
-
-    ``engine.py`` is the third substrate-witness for the 10-
-    BackendDecision boot fan-out (per the Tag-56 audit §6 matrix).
-    A silent edit there must run the gate.
-    """
-    on = workflow_yaml.get("on", workflow_yaml.get(True, {}))
-    pr_paths = on.get("pull_request", {}).get("paths", [])
-    engine_rel = "wirelang/persona_engine/engine.py"
-    assert engine_rel in pr_paths, (
-        f"Workflow pull_request.paths must include engine.py "
-        f"(third substrate-witness). Missing: {engine_rel!r}"
+    assert "main" in (on.get("push") or {}).get("branches", []), (
+        "workflow must run on push to main"
     )
 
 

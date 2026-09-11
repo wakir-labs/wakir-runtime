@@ -48,19 +48,7 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'wirelang/specs/wirelang-spec-v0-4-3.md'
-      - 'wirelang/specs/freeze-baseline.json'
-      - 'tooling/audit/verify_wirelang_spec_freeze_seal.py'
-      - 'tests/audit/test_wirelang_spec_freeze_seal_probe_tag58.py'
-      - '.github/workflows/wirelang-spec-freeze-seal-probe.yml'
   pull_request:
-    paths:
-      - 'wirelang/specs/wirelang-spec-v0-4-3.md'
-      - 'wirelang/specs/freeze-baseline.json'
-      - 'tooling/audit/verify_wirelang_spec_freeze_seal.py'
-      - 'tests/audit/test_wirelang_spec_freeze_seal_probe_tag58.py'
-      - '.github/workflows/wirelang-spec-freeze-seal-probe.yml'
   workflow_dispatch:
     inputs:
       enforce:

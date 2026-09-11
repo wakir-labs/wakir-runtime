@@ -64,6 +64,19 @@ Planned additions (Phase 4): `proof-path` (W3, `proof-path.yml`) and
 `cross-repo compatibility (protocol ↔ runtime ↔ verify)` (W4, replaces
 row 5).
 
+Trigger discipline — **required contexts must never be path-filtered**:
+a required context is matched per PR head commit; if the workflow that
+reports it declares `paths:` under `pull_request:` and the PR does not
+touch those paths, the check never reports and the PR stays pending
+forever (`mergeStateStatus: BLOCKED`, see memory
+`feedback_branch_protection_check_names`). Every workflow in the table
+above therefore fires on every pull request and every push to `main`
+without a `paths:` filter (removed in Phase 4 W1 for rows 6–10). If a
+required workflow has expensive steps, skip the substance inside the job
+via a change-detection step — the job itself must always run and end in
+`success`. `workflow_dispatch` runs on the branch do not attach to the
+PR rollup and cannot substitute for a `pull_request` run.
+
 Display-name discipline:
 
 - Copy names **verbatim**, including Unicode arrows (`↔`), parentheses

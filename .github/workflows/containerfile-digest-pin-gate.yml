@@ -20,15 +20,7 @@ on:
   push:
     branches:
       - main
-    paths:
-      - "infra/**/Containerfile*"
-      - "tooling/ci/verify_containerfile_base_image_digest.py"
-      - ".github/workflows/containerfile-digest-pin-gate.yml"
   pull_request:
-    paths:
-      - "infra/**/Containerfile*"
-      - "tooling/ci/verify_containerfile_base_image_digest.py"
-      - ".github/workflows/containerfile-digest-pin-gate.yml"
   workflow_dispatch: {}
 
 permissions:
