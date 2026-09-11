@@ -86,6 +86,9 @@ jobs:
         env:
           DEMO_PROOF_WORKDIR: ${{ runner.temp }}/demo
           DEMO_PROOF_VERIFY_COMMIT: ${{ env.WAKIR_VERIFY_PIN }}
+          # FAULT INJECTION — throwaway branch only. Proves the gate goes red.
+          DEMO_PROOF_TEST_MODE: "1"
+          DEMO_PROOF_FAIL_STEP: step3_merkle_manifest
         run: |
           set -uo pipefail
           # The driver's exit code is recorded, not acted on here: the
