@@ -89,12 +89,12 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install pytest (hermetic test-suite step only)
+      - name: Install pytest + PyYAML (hermetic test-suite step only)
         # The probe stages are stdlib-only; the test-suite step runs
         # ``python3 -m pytest`` which is not in the stdlib. Without this
         # step the runner fails with ``No module named pytest`` (observed
         # on every run of this workflow before this fix).
-        run: python3 -m pip install --quiet "pytest>=7,<9"
+        run: python3 -m pip install --quiet "pytest>=7,<9" "PyYAML>=6,<7"
 
       - name: Stage 1 — Happy-path run from PRE_FLIGHT_CHECKS
         id: stage1
