@@ -99,7 +99,7 @@ def test_inventory_carries_six_required_seeds(agg) -> None:
         "wirelang suite with rfc8785 + jsonschema",
         "wirelang suite without rfc8785 / jsonschema (shadow)",
         "production-vs-sandbox drift envelope",
-        "cross-repo drift (wakir-runtime ↔ wakir-protocol)",
+        "cross-repo compatibility (protocol ↔ runtime ↔ verify)",
         "runtime acceptance gates",
     }
     assert required_check_names == expected_required, (
@@ -150,7 +150,7 @@ def test_wirelang_diff_fires_wirelang_subworkflows(agg) -> None:
     """A diff touching only ``wirelang/foo.py`` should mark the three
     tests.yml-derived check rows and license-gate as ``expected``,
     runtime acceptance gates as ``expected`` (its filter includes ``wirelang/**``),
-    cross-repo-drift as ``expected``."""
+    cross-repo compatibility as ``expected`` (it has no path filter)."""
     verdicts = agg.decide_expected_set(["wirelang/persona/foo.py"])
     by_name = {v.spec.check_name: v for v in verdicts}
     assert by_name["wirelang suite with rfc8785 + jsonschema"].expected
@@ -158,7 +158,7 @@ def test_wirelang_diff_fires_wirelang_subworkflows(agg) -> None:
     assert by_name["production-vs-sandbox drift envelope"].expected
     assert by_name["License-Hygiene Gate (ADR-0061)"].expected
     assert by_name["runtime acceptance gates"].expected
-    assert by_name["cross-repo drift (wakir-runtime ↔ wakir-protocol)"].expected
+    assert by_name["cross-repo compatibility (protocol ↔ runtime ↔ verify)"].expected
 
 
 # ---------------------------------------------------------------------------
@@ -208,14 +208,14 @@ def test_quality_gates_doc_fires_runtime_acceptance_gates(agg) -> None:
 
 def test_workflow_yaml_diff_fires_subset(agg) -> None:
     """A diff touching ``.github/workflows/ci-aggregator.yml`` (a generic
-    workflow file not covered by the narrowed runtime-acceptance-gates or cross-repo-
-    drift filters) should fire the four broadly-filtered sub-workflows
-    (license-gate + tests.yml x3) but NOT runtime acceptance gates (filter narrows to
-    ``runtime-acceptance-gates.yml``) and NOT cross-repo-drift (filter
-    narrows to ``cross-repo-drift-audit.yml``).
+    workflow file not covered by the narrowed runtime-acceptance-gates
+    filter) should fire the four broadly-filtered sub-workflows
+    (license-gate + tests.yml x3) plus the unfiltered cross-repo
+    compatibility gate, but NOT runtime acceptance gates (filter narrows
+    to ``runtime-acceptance-gates.yml``).
 
     This distinguishes "broad workflow change" from "targeted workflow
-    change" and documents the runtime-acceptance-gates + cross-repo-drift narrowing.
+    change" and documents the runtime-acceptance-gates narrowing.
     """
     verdicts = agg.decide_expected_set([".github/workflows/ci-aggregator.yml"])
     by_name = {v.spec.check_name: v for v in verdicts}
@@ -223,11 +223,11 @@ def test_workflow_yaml_diff_fires_subset(agg) -> None:
     assert by_name["wirelang suite with rfc8785 + jsonschema"].expected
     assert by_name["wirelang suite without rfc8785 / jsonschema (shadow)"].expected
     assert by_name["production-vs-sandbox drift envelope"].expected
-    assert not by_name[
-        "cross-repo drift (wakir-runtime ↔ wakir-protocol)"
+    assert by_name[
+        "cross-repo compatibility (protocol ↔ runtime ↔ verify)"
     ].expected, (
-        "cross-repo-drift path-filter narrows to its own workflow file; "
-        "ci-aggregator.yml touch should not trigger it"
+        "cross-repo compatibility has no path filter and must fire on "
+        "every diff, including a ci-aggregator.yml touch"
     )
     assert not by_name[
         "runtime acceptance gates"
@@ -284,8 +284,14 @@ def test_aggregate_skip_ok_only_is_success(agg) -> None:
     # path-glob set. Force a synthetic "no matches" by feeding a path
     # that matches nothing in the inventory.
     verdicts = agg.decide_expected_set(["unrelated-top-level-file.txt"])
-    expected_count = sum(1 for v in verdicts if v.expected)
-    assert expected_count == 0
+    expected = [v for v in verdicts if v.expected]
+    # Only the unfiltered cross-repo compatibility gate fires (ADR-0072
+    # W4: required contexts must never be path-filtered); everything
+    # else is SKIP_OK.
+    assert [v.spec.check_name for v in expected] == [
+        "cross-repo compatibility (protocol ↔ runtime ↔ verify)"
+    ]
+    expected[0].status = "success"
     assert agg.aggregate_verdicts(verdicts) == "success"
 
 

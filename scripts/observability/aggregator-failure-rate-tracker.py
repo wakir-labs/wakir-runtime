@@ -12,7 +12,7 @@ Tomas Tag-37 PR #244 ``e29439dc``) as the single Required-Status-Check
 on ``main``. The aggregator is in a ~1-week observation window: it
 runs in parallel with the six legacy Required-Status-Check names
 (``License-Hygiene Gate``, ``wirelang suite production / shadow``,
-``production-vs-sandbox drift envelope``, ``cross-repo drift``,
+``production-vs-sandbox drift envelope``, ``cross-repo compatibility``,
 ``Phase-2 Aggregator``). After ~1 week of clean observation, the
 Mira-Hand-cutover (ADR-0068 §Migration-Step-3) drops the six legacy
 names and leaves ``ci-aggregator`` as the sole Required-Status-Check.
@@ -133,7 +133,7 @@ LEGACY_REQUIRED_NAMES: Tuple[str, ...] = (
     "wirelang suite with rfc8785 + jsonschema",
     "wirelang suite without rfc8785 / jsonschema (shadow)",
     "production-vs-sandbox drift envelope",
-    "cross-repo drift (wakir-runtime ↔ wakir-protocol)",
+    "cross-repo compatibility (protocol ↔ runtime ↔ verify)",
     "runtime acceptance gates",
 )
 

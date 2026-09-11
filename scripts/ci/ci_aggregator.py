@@ -257,21 +257,14 @@ SUB_WORKFLOWS: Tuple[SubWorkflow, ...] = (
         ),
         required=True,
     ),
-    # 5. cross-repo drift -- cross-repo-drift-audit.yml
+    # 5. cross-repo compatibility -- cross-repo-compat.yml (ADR-0072 W4).
+    #    No path filter by design: a required context that does not
+    #    report leaves the PR pending forever, so the gate fires on
+    #    every PR and every push to main.
     SubWorkflow(
-        workflow_file="cross-repo-drift-audit.yml",
-        check_name="cross-repo drift (wakir-runtime ↔ wakir-protocol)",
-        path_globs=(
-            "wirelang/**",
-            "wirelang-rust/**",
-            "pyproject.toml",
-            "tests/**",
-            "scripts/**",
-            "dashboards/**",
-            "docs/**",
-            ".cross-repo-drift-allowlist.yaml",
-            ".github/workflows/cross-repo-drift-audit.yml",
-        ),
+        workflow_file="cross-repo-compat.yml",
+        check_name="cross-repo compatibility (protocol ↔ runtime ↔ verify)",
+        path_globs=("**",),
         required=True,
     ),
     # 6. runtime acceptance gates -- runtime-acceptance-gates.yml

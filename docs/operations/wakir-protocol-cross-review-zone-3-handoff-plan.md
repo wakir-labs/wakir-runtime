@@ -1,6 +1,13 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors -->
 
+> **Superseded (2026-09-11, ADR-0072 Phase 4 W4).** The byte-level
+> `cross-repo-drift-audit` / `cross-repo-drift-allowlist-audit` workflows and
+> `.cross-repo-drift-allowlist.yaml` described here were removed. The enforcing
+> replacement is `.github/workflows/cross-repo-compat.yml` with
+> `tooling/compat/` (canonical JCS schema digests, proof-path vectors,
+> manifest roundtrip, proof format). This document is kept as history.
+
 # wakir-protocol Cross-Review-Zone-3 Hand-off Plan (Tag-62)
 
 **Owner:** Reza Tehrani (Wirelang / Spec)

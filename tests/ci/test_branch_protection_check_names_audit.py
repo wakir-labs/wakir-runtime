@@ -69,7 +69,7 @@ BRANCH_PROTECTION_MIGRATED: bool = False
 REQUIRED_NAMES_RUNTIME_PRE_MIGRATION: tuple[str, ...] = (
     "License-Hygiene Gate (ADR-0061)",
     "wirelang suite with rfc8785 + jsonschema",
-    "cross-repo drift (wakir-runtime ↔ wakir-protocol)",
+    "cross-repo compatibility (protocol ↔ runtime ↔ verify)",
     "production-vs-sandbox drift envelope",
     "wirelang suite without rfc8785 / jsonschema (shadow)",
     "verify-containerfile-base-image-digest-pins",

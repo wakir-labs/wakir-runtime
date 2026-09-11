@@ -79,7 +79,7 @@ signal, surfaced alongside the verdict.
 ## 6. Tag-61 extension — schemas/ sub-tree (Reza)
 
 Tag-61 (2026-05-19) re-uses this seed pattern for a *second* cross-
-repo audit: `tooling/ci/audit_cross_repo_drift_allowlist.py` (Noa
+repo audit: `tooling/compat/check_compat.py` (formerly `tooling/ci/audit_cross_repo_drift_allowlist.py`) (Noa
 Tag-60). The Tag-31 BASELINE_INVENTORY locks `clean=4, drift=6` —
 the four drift rows with re-sync strategies are:
 

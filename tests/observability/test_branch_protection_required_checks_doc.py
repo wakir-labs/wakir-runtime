@@ -44,7 +44,7 @@ EXPECTED_DISPLAY_NAMES = (
     "wirelang suite with rfc8785 + jsonschema",
     "wirelang suite without rfc8785 / jsonschema (shadow)",
     "production-vs-sandbox drift envelope",
-    "cross-repo drift (wakir-runtime ↔ wakir-protocol)",
+    "cross-repo compatibility (protocol ↔ runtime ↔ verify)",
     "verify-containerfile-base-image-digest-pins",
     "cross-substrate parity (cosign ↔ quadlet ↔ backend-switch)",
     "wirelang spec v0.4.3 freeze-seal probe",
@@ -56,7 +56,7 @@ EXPECTED_DISPLAY_NAMES = (
 EXPECTED_WORKFLOW_FILES = (
     ".github/workflows/license-gate.yml",
     ".github/workflows/tests.yml",
-    ".github/workflows/cross-repo-drift-audit.yml",
+    ".github/workflows/cross-repo-compat.yml",
     ".github/workflows/containerfile-digest-pin-gate.yml",
     ".github/workflows/cross-substrate-parity-gate.yml",
     ".github/workflows/wirelang-spec-freeze-seal-probe.yml",

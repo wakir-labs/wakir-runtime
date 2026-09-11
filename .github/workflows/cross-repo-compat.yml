@@ -1,0 +1,116 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Cross-repo compatibility gate — protocol ↔ runtime ↔ verify
+# ----------------------------------------------------------
+#
+# Replaces `cross-repo-drift-audit.yml` (byte-level SHA-256 on 10 file
+# pairs, audit-only) and `cross-repo-drift-allowlist-audit.yml`
+# (readiness score for a flip that never happened). See
+# `tooling/compat/README.md` for the four levels (schema / vector /
+# manifest / proof), the canonicalisation rule shared with
+# wakir-protocol, and the time-boxed allowlist format.
+#
+# Required-status-check context (branch protection matches the job
+# display name below verbatim, including the U+2194 arrows):
+#
+#   cross-repo compatibility (protocol ↔ runtime ↔ verify)
+#
+# No `paths:` filter on purpose — a required context that does not
+# report leaves the PR pending forever. Enforcing from day one.
+
+name: cross-repo-compat
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cross-repo-compat-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PROTOCOL_REF: main
+  VERIFY_REF: main
+
+jobs:
+  compat:
+    name: cross-repo compatibility (protocol ↔ runtime ↔ verify)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout wakir-runtime
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+
+      - name: Clone wakir-protocol and wakir-verify (public, depth 1)
+        run: |
+          set -euo pipefail
+          git clone --depth=1 --branch "${PROTOCOL_REF}" \
+            https://github.com/wakir-labs/wakir-protocol.git "${RUNNER_TEMP}/wakir-protocol"
+          git clone --depth=1 --branch "${VERIFY_REF}" \
+            https://github.com/wakir-labs/wakir-verify.git "${RUNNER_TEMP}/wakir-verify"
+          {
+            echo "wakir-protocol@${PROTOCOL_REF}: $(git -C "${RUNNER_TEMP}/wakir-protocol" rev-parse HEAD)"
+            echo "wakir-verify@${VERIFY_REF}:   $(git -C "${RUNNER_TEMP}/wakir-verify" rev-parse HEAD)"
+          } | tee "${RUNNER_TEMP}/compat-heads.txt"
+
+      - name: Install runtime, verify (from clone) and gate dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -e . -e "${RUNNER_TEMP}/wakir-verify" \
+            "jsonschema>=4.21" "pytest>=8.0"
+          python - <<'PY'
+          import importlib.metadata as md
+          for pkg in ("rfc8785", "jsonschema", "wakir-verify"):
+              print(f"{pkg} {md.version(pkg)}")
+          PY
+
+      - name: Hermetic tests for the gate tooling
+        run: python -m pytest tests/compat -q
+
+      - name: Run the proof path (make demo-proof)
+        env:
+          DEMO_PROOF_WORKDIR: ${{ runner.temp }}/demo-proof
+        run: |
+          set -euo pipefail
+          make demo-proof
+          python - <<'PY'
+          import json, os
+          report = json.load(open(os.path.join(os.environ["DEMO_PROOF_WORKDIR"], "demo-report.json")))
+          print({s["name"]: s["status"] for s in report["steps"]})
+          PY
+
+      - name: Cross-repo compatibility checks
+        run: |
+          set -euo pipefail
+          python3 tooling/compat/check_compat.py \
+            --protocol "${RUNNER_TEMP}/wakir-protocol" \
+            --verify "${RUNNER_TEMP}/wakir-verify" \
+            --demo-workdir "${RUNNER_TEMP}/demo-proof" \
+            --summary-md "${RUNNER_TEMP}/compat-summary.md" \
+            --report-json "${RUNNER_TEMP}/compat-report.json"
+
+      - name: Job summary
+        if: always()
+        run: |
+          if [ -f "${RUNNER_TEMP}/compat-summary.md" ]; then
+            cat "${RUNNER_TEMP}/compat-summary.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "## cross-repo compatibility (protocol ↔ runtime ↔ verify)"
+              echo
+              echo "Gate did not produce a summary (setup or demo-proof step failed)."
+              [ -f "${RUNNER_TEMP}/compat-heads.txt" ] && cat "${RUNNER_TEMP}/compat-heads.txt"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
