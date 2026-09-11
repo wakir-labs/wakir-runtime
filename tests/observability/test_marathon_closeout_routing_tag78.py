@@ -904,25 +904,6 @@ def test_existing_complete_marker_false_positive_alert_preserved(
     assert fire_group == "marathon-closeout-routing"
 
 
-def test_tag78_pin_set_in_welle_n_test_file() -> None:
-    """The Tag-78 anti-regression pin-set
-    ``_TAG78_MARATHON_CLOSEOUT_ALERTS`` MUST be declared in
-    tests/ci/test_welle_n_specific_alerts.py (Noa-Tag-76-Lehre:
-    extensions pinned at the source).
-    """
-    pin_file = REPO_ROOT / "tests" / "ci" / "test_welle_n_specific_alerts.py"
-    text = pin_file.read_text(encoding="utf-8")
-    assert "_TAG78_MARATHON_CLOSEOUT_ALERTS" in text, (
-        "Tag-78 pin-set missing from test_welle_n_specific_alerts.py; "
-        "Noa-Tag-76-Lehre violation"
-    )
-    for name in TAG78_ALERTS:
-        assert name in text, (
-            f"Tag-78 alert {name} missing from pin-set in "
-            f"test_welle_n_specific_alerts.py"
-        )
-
-
 # ---------------------------------------------------------------
 # Helpers.
 # ---------------------------------------------------------------

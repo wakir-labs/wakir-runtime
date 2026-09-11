@@ -64,39 +64,7 @@ on:
   push:
     branches:
       - main
-    paths:
-      # Vertrag A — 9-Binary-Phase-3b
-      - "policies/cosign-policy-phase-3b.yaml"
-      - "quadlet/wakir-rust-cli.container"
-      - "wirelang/persona_engine/rust_backend_switch.py"
-      - "tests/infra/test_cross_substrate_parity_3way.py"
-      - "tests/infra/test_cosign_policy_phase_3b.py"
-      # Vertrag B — 10-BackendDecision-Boot-Fan-Out (Tag-57)
-      - "wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md"
-      - "infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml"
-      - "wirelang/persona_engine/engine.py"
-      - "wirelang/tests/persona_engine/test_manifest_0_5_2_final_pre_cutover.py"
-      - "tests/observability/test_cross_substrate_parity_gate_tag57.py"
-      # Runbook + Workflow selbst
-      - "docs/operations/cross-substrate-parity-runbook.md"
-      - ".github/workflows/cross-substrate-parity-gate.yml"
   pull_request:
-    paths:
-      # Vertrag A — 9-Binary-Phase-3b
-      - "policies/cosign-policy-phase-3b.yaml"
-      - "quadlet/wakir-rust-cli.container"
-      - "wirelang/persona_engine/rust_backend_switch.py"
-      - "tests/infra/test_cross_substrate_parity_3way.py"
-      - "tests/infra/test_cosign_policy_phase_3b.py"
-      # Vertrag B — 10-BackendDecision-Boot-Fan-Out (Tag-57)
-      - "wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md"
-      - "infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml"
-      - "wirelang/persona_engine/engine.py"
-      - "wirelang/tests/persona_engine/test_manifest_0_5_2_final_pre_cutover.py"
-      - "tests/observability/test_cross_substrate_parity_gate_tag57.py"
-      # Runbook + Workflow selbst
-      - "docs/operations/cross-substrate-parity-runbook.md"
-      - ".github/workflows/cross-substrate-parity-gate.yml"
   workflow_dispatch: {}
 
 permissions:

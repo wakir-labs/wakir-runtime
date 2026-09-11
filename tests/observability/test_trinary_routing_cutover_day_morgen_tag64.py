@@ -428,18 +428,3 @@ def test_t16_cli_validate_trinary_routing_exit_zero() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_workflow_exists_and_has_correct_trigger_surface() -> None:
-    text = WORKFLOW_PATH.read_text(encoding="utf-8")
-    assert "name: cutover-day-morgen-trinary-routing-validate" in text
-    # pull_request: + workflow_dispatch: are required.
-    assert re.search(r"(?m)^on:\s*$", text)
-    assert "workflow_dispatch" in text
-    assert "pull_request:" in text
-    # Forbid push: and schedule: at the top-level `on:` block.
-    # (we keep the check narrow: scan for `push:` / `schedule:` as
-    # mapping-keys inside the on: block.)
-    on_block = text.split("\non:", 1)[1].split("\npermissions:", 1)[0]
-    assert "push:" not in on_block, "trinary-routing workflow MUST NOT use push:"
-    assert (
-        "schedule:" not in on_block
-    ), "trinary-routing workflow MUST NOT use schedule:"

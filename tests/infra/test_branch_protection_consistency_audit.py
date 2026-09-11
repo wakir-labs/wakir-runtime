@@ -417,7 +417,7 @@ _PATH_FILTERS: dict[str, tuple[str, ...]] = {
         ".github/workflows/hash-derivate-gate.yml",
         ".github/workflows/cross-repo-drift-audit.yml",
         ".cross-repo-drift-allowlist.yaml",
-        ".github/workflows/phase-2-validation-gate.yml",
+        ".github/workflows/runtime-acceptance-gates.yml",
         "dashboards/**",
         "docs/**",
     ),
@@ -437,7 +437,7 @@ _PATH_FILTERS: dict[str, tuple[str, ...]] = {
         ".github/workflows/hash-derivate-gate.yml",
         ".github/workflows/cross-repo-drift-audit.yml",
         ".cross-repo-drift-allowlist.yaml",
-        ".github/workflows/phase-2-validation-gate.yml",
+        ".github/workflows/runtime-acceptance-gates.yml",
         "dashboards/**",
         "docs/**",
         "tests/infra/test_spdx_header_consistency.py",
@@ -471,11 +471,11 @@ _PATH_FILTERS: dict[str, tuple[str, ...]] = {
         ".cross-repo-drift-allowlist.yaml",
         ".github/workflows/cross-repo-drift-audit.yml",
     ),
-    "phase-2-validation-gate.yml": (
+    "runtime-acceptance-gates.yml": (
         "wirelang/**",
         "tests/infra/test_phase_2_acceptance_gates.py",
         "docs/quality-gates/**",
-        ".github/workflows/phase-2-validation-gate.yml",
+        ".github/workflows/runtime-acceptance-gates.yml",
     ),
 }
 

@@ -10,7 +10,7 @@ Anchors
   the five Phase-2 acceptance-gates.
 - ``tests/infra/test_phase_2_acceptance_gates.py`` (Tomas, PR #109) —
   the hermetic gate-test suite (Gate-2-1..2-5 + aggregator).
-- ``.github/workflows/phase-2-validation-gate.yml`` (Tomas, PR #115) —
+- ``.github/workflows/runtime-acceptance-gates.yml`` (Tomas, PR #115) —
   the CI-workflow that pins the five gates as Repo-Invariante.
 - ``docs/quality-gates/phase-2-doppelbetrieb-audit.md`` (Amara, this
   PR) — the audit report this test-suite mechanically backs.
@@ -75,7 +75,7 @@ SPEC_PATH = REPO / "docs" / "quality-gates" / "phase-2-doppelbetrieb.md"
 AUDIT_PATH = REPO / "docs" / "quality-gates" / "phase-2-doppelbetrieb-audit.md"
 GATE_TEST_PATH = REPO / "tests" / "infra" / "test_phase_2_acceptance_gates.py"
 WORKFLOW_PATH = (
-    REPO / ".github" / "workflows" / "phase-2-validation-gate.yml"
+    REPO / ".github" / "workflows" / "runtime-acceptance-gates.yml"
 )
 
 
@@ -338,7 +338,7 @@ def test_workflow_invocations_pin_every_gate_test():
     untargeted = gate_functions - workflow_targets
     assert not untargeted, (
         f"gate-test functions exist but no CI-workflow job runs them: "
-        f"{untargeted}. add a job to phase-2-validation-gate.yml or "
+        f"{untargeted}. add a job to runtime-acceptance-gates.yml or "
         f"remove the unused test."
     )
 

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Wirelang-Spec OTS Pre-Anchor Activation Probe (Tag-60)
+# Wirelang-Spec OTS Pre-Anchor Activation Probe
 # ------------------------------------------------------
 #
 # Purpose
@@ -84,7 +84,7 @@ permissions:
 
 jobs:
   wirelang-spec-ots-pre-anchor-probe:
-    name: Wirelang-Spec OTS Pre-Anchor Activation Probe (Tag-60)
+    name: Wirelang-Spec OTS Pre-Anchor Activation Probe
     runs-on: ubuntu-latest
 
     env:
@@ -195,7 +195,7 @@ jobs:
           )"
           echo "aggregate=${aggregate}" >> "$GITHUB_OUTPUT"
           {
-            echo "# Wirelang-Spec OTS Pre-Anchor Activation Probe (Tag-60)"
+            echo "# Wirelang-Spec OTS Pre-Anchor Activation Probe"
             echo
             echo "**Aggregate verdict:** \`${aggregate}\`"
             echo
@@ -241,7 +241,7 @@ jobs:
   # follow-on aggregator job.
   # ----------------------------------------------------------------
   wirelang-spec-res-d-item-probe:
-    name: Tag-66 RES-D Item Probe (matrix)
+    name: RES-D Item Probe (matrix)
     runs-on: ubuntu-latest
 
     strategy:
@@ -283,7 +283,7 @@ jobs:
           verdict="$(python3 -c 'import sys, json; print(json.load(open(sys.argv[1]))["verdict"])' "out/res-d-verdicts/${item}.json")"
           echo "verdict=${verdict}" >> "$GITHUB_OUTPUT"
           {
-            echo "# Tag-66 RES-D Item Probe — ${item}"
+            echo "# RES-D Item Probe — ${item}"
             echo
             echo "**Verdict:** \`${verdict}\`"
             echo
@@ -320,7 +320,7 @@ jobs:
   # hermetic test-suite, emit a single aggregate summary.
   # ----------------------------------------------------------------
   wirelang-spec-res-d-aggregate:
-    name: Tag-66 RES-D Aggregate Verdict
+    name: RES-D Aggregate Verdict
     runs-on: ubuntu-latest
     needs:
       - wirelang-spec-res-d-item-probe
@@ -363,7 +363,7 @@ jobs:
           )"
           echo "aggregate=${aggregate}" >> "$GITHUB_OUTPUT"
           {
-            echo "# Tag-66 RES-D Item Probe — Aggregate"
+            echo "# RES-D Item Probe — Aggregate"
             echo
             echo "**Aggregate verdict:** \`${aggregate}\`"
             echo

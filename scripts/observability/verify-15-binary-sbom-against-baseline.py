@@ -27,7 +27,7 @@ but cannot answer:
 This Tag-49 verifier answers exactly that. It runs the Tag-48
 generator under the same hermetic ``--mode=stdlib`` path, then
 compares each per-binary SBOM byte-for-byte against the matching
-``state/sbom-baseline/<binary>.json`` file. Drift is classified
+``tooling/baselines/sbom-baseline/<binary>.json`` file. Drift is classified
 into four buckets:
 
   * ``component-added``    -- a new (name, version) tuple appeared.
@@ -160,7 +160,7 @@ DEFAULT_GENERATOR_REL: str = (
 DEFAULT_CARGO_LOCK_REL: str = "wirelang-rust/Cargo.lock"
 
 #: Default location of the baseline directory.
-DEFAULT_BASELINE_DIR_REL: str = "state/sbom-baseline"
+DEFAULT_BASELINE_DIR_REL: str = "tooling/baselines/sbom-baseline"
 
 #: Schema version for the verifier envelope output.
 VERIFIER_ENVELOPE_SCHEMA_VERSION: str = "1"
@@ -805,7 +805,7 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         description=(
             "Compare today's 15-binary SBOMs (emitted by the Tag-48 "
             "generator) against the pinned baseline in "
-            "state/sbom-baseline/. Drift classification + aggregate "
+            "tooling/baselines/sbom-baseline/. Drift classification + aggregate "
             "verdict for Mira-Notify routing."
         )
     )

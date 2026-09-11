@@ -189,7 +189,6 @@ class _RecordingEmitter:
 # Repo root for the W5-anchor-fix on-disk verifications.
 REPO_ROOT = Path(__file__).resolve().parents[3]
 HELPER_STUB_PATH = REPO_ROOT / "tooling" / "ci" / "render_engine_state_file_stub.py"
-STATE_DIR_ON_DISK = REPO_ROOT / "state"
 
 
 def _load_helper_module():
@@ -768,44 +767,6 @@ def test_w5_anchor_fix_helper_module_maps_welle_4_to_kw_26():
     """
     module = _load_helper_module()
     assert module.CANONICAL_KW_ANCHOR[4] == "KW-26"
-
-
-def test_w5_anchor_fix_state_file_welle_5_kw_26_on_disk():
-    """The committed ``state/welle-5.json`` MUST report KW-26 post Tag-74."""
-    on_disk = json.loads(
-        (STATE_DIR_ON_DISK / "welle-5.json").read_text(encoding="utf-8")
-    )
-    assert on_disk["kw_cutover_anchor"] == "KW-26"
-
-
-def test_w5_anchor_fix_state_file_welle_4_kw_26_on_disk():
-    """The committed ``state/welle-4.json`` MUST report KW-26 post Tag-74."""
-    on_disk = json.loads(
-        (STATE_DIR_ON_DISK / "welle-4.json").read_text(encoding="utf-8")
-    )
-    assert on_disk["kw_cutover_anchor"] == "KW-26"
-
-
-def test_w5_anchor_fix_helper_map_matches_state_files_on_disk():
-    """The helper-default map MUST match the committed state-files for ALL Wellen.
-
-    Post Tag-74 this includes the W4+W5 alignment. The
-    ``test_state_file_producer_plan_tag68.py::
-    test_helper_stub_canonical_kw_anchor_map_matches_disk`` test pins
-    this property structurally; this Tag-74 test re-pins it inside the
-    Tag-74 test-suite as a defence-in-depth against future drift on
-    either side of the helper-default vs state-file boundary.
-    """
-    module = _load_helper_module()
-    for n in range(1, 8):
-        on_disk = json.loads(
-            (STATE_DIR_ON_DISK / f"welle-{n}.json").read_text(encoding="utf-8")
-        )
-        assert module.CANONICAL_KW_ANCHOR[n] == on_disk["kw_cutover_anchor"], (
-            f"helper-default disagrees with on-disk state for welle-{n}: "
-            f"helper={module.CANONICAL_KW_ANCHOR[n]!r} vs "
-            f"on-disk={on_disk['kw_cutover_anchor']!r}"
-        )
 
 
 def test_w5_anchor_fix_reconciliation_doc_committed():

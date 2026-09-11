@@ -82,7 +82,7 @@ was either:
   1. ``--mode=fixture`` — a pre-computed snapshot fixture file
      (the hermetic-test mode).
   2. ``--mode=baseline`` — the in-repo baseline snapshot at
-     ``state/cosign-drift/baseline-snapshot.json`` (the daily
+     ``tooling/baselines/cosign-drift/baseline-snapshot.json`` (the daily
      CI-workflow checks the baseline against itself for substrate
      consistency; an Operator-Hand step refreshes the baseline
      against live cosign on a host with registry egress).
@@ -834,7 +834,7 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument(
         "--pinned-trust-root",
         type=Path,
-        default=Path("state/cosign-drift/pinned-trust-root.json"),
+        default=Path("tooling/baselines/cosign-drift/pinned-trust-root.json"),
         help="Path to the pinned-trust-root JSON.",
     )
     return parser.parse_args(argv)

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic test for the Tag-35 branch-protection check-names audit.
+"""Hermetic test for the branch-protection check-names audit.
 
 The audit
 ``docs/audit/branch-protection-check-names-audit-2026-05-18.md``
@@ -15,11 +15,10 @@ class the audit was written against).
 Sandbox boundary: parses YAML files on disk only. No GitHub API
 calls, no branch-protection state queries — the required-name set
 is encoded as a constant below and must be kept in sync with the
-audit doc by hand. A separate AR-touch follow-up (Phase A in the
-audit) will expand the required set; when that lands, this test's
+audit doc by hand. Whenever the required set changes, this test's
 ``REQUIRED_NAMES`` constant must be updated in the same PR.
 
-ADR-0068 Migration-Step-3 (Tag-39)
+ADR-0068 Migration-Step-3
 ----------------------------------
 
 ADR-0068 (approved 2026-05-18) replaces the multi-name required-set
@@ -31,7 +30,7 @@ the pre-cutover three-name set. After the cutover, the
 ``BRANCH_PROTECTION_MIGRATED`` flag below flips to ``True`` and
 the test pins the single-name post-cutover set instead.
 
-The flag flip is the canonical Mira-Hand-touch that confirms the
+The flag flip is the canonical operator-hand touch that confirms the
 migration is live: the cutover script writes the PATCH, the operator
 flips this flag in a follow-up PR, and from then on any drift in
 either direction (e.g. someone re-adding a legacy name without
@@ -56,15 +55,12 @@ yaml = pytest.importorskip("yaml")
 BRANCH_PROTECTION_MIGRATED: bool = False
 
 
-#: Pre-cutover state. Per audit §2.2, originally captured at
-#: 2026-05-18 09:15 CEST as a 3-name set. The audit-Phase-A
-#: AR-touch expansion (Mira-Hand API-call 2026-05-18 morning
-#: ahead of Tag-41) widened the protected set to six names —
-#: the three original gates plus three Phase-2 / Welle-3 gates
-#: that had reached production-quality but were not yet pinned.
+#: Pre-cutover state. Mirrors the live ``required_status_checks.contexts``
+#: list on ``main`` after the Phase-4 W1 workflow cleanup (ADR-0072).
+#: Canonical inventory: ``docs/ci/branch-protection-required-checks.md``.
 #: Re-captured from
 #: ``gh api repos/wakir-labs/wakir-runtime/branches/main/protection``
-#: at 2026-05-18 19:48 CEST (Reza Tag-41 probe-dry-run).
+#: at 2026-09-11 (post V2 reduction 16 -> 10).
 #:
 #: Order matches the live ``required_status_checks.contexts``
 #: array on ``main`` and is preserved for round-trip backup /
@@ -76,7 +72,11 @@ REQUIRED_NAMES_RUNTIME_PRE_MIGRATION: tuple[str, ...] = (
     "cross-repo drift (wakir-runtime ↔ wakir-protocol)",
     "production-vs-sandbox drift envelope",
     "wirelang suite without rfc8785 / jsonschema (shadow)",
-    "Phase-2 Aggregator (All Gates + Cross-Gate Non-Interference)",
+    "verify-containerfile-base-image-digest-pins",
+    "cross-substrate parity (cosign ↔ quadlet ↔ backend-switch)",
+    "wirelang spec v0.4.3 freeze-seal probe",
+    "cosign verify SPIRE images",
+    "Cosign-Keyless-OIDC-Drift-Probe (daily)",
 )
 
 
@@ -105,7 +105,7 @@ def _collect_job_display_names() -> set[str]:
 
     Matrix expansions (``${{ matrix.x }}``) are returned as the
     literal template string — sufficient for the current audit set
-    because the 3 protected names are all matrix-free.
+    because the protected names are all matrix-free.
     """
     names: set[str] = set()
     for wf in _workflows_dir().glob("*.yml"):
@@ -149,29 +149,26 @@ def test_required_names_constant_matches_audit_doc_count() -> None:
     cardinality for the current migration phase.
 
     Pre-migration (``BRANCH_PROTECTION_MIGRATED == False``):
-    cardinality is 6, matching the audit doc Section 2.2 plus the
-    Phase-A AR-touch expansion (Mira-Hand API-call 2026-05-18
-    morning) that widened the protected set from the original
-    three names to the six current names.
+    cardinality is 10, matching the live branch-protection set after
+    the Phase-4 W1 cleanup (``docs/ci/branch-protection-required-checks.md``).
 
     Post-migration (``BRANCH_PROTECTION_MIGRATED == True``):
     cardinality is 1, matching ADR-0068 Migration-Step-3
     (``["ci-aggregator"]``).
 
-    A change in cardinality (further Phase-A AR-touch expansion in
-    the pre-migration window, or any drift in the post-migration
-    window) MUST be reflected here and in the audit doc in the same
-    PR. This test pins that disciplinary coupling.
+    A change in cardinality MUST be reflected here and in
+    ``docs/ci/branch-protection-required-checks.md`` in the same PR.
+    This test pins that disciplinary coupling.
     """
-    expected = 1 if BRANCH_PROTECTION_MIGRATED else 6
+    expected = 1 if BRANCH_PROTECTION_MIGRATED else 10
     assert len(REQUIRED_NAMES_RUNTIME) == expected, (
         f"REQUIRED_NAMES_RUNTIME cardinality is "
         f"{len(REQUIRED_NAMES_RUNTIME)}, expected {expected} for "
         f"BRANCH_PROTECTION_MIGRATED={BRANCH_PROTECTION_MIGRATED}. "
         f"If you flipped BRANCH_PROTECTION_MIGRATED, also adjust the "
-        f"pre/post-migration tuple definitions; if you expanded the "
-        f"audit-Phase-A required set, update both this constant and "
-        f"the audit doc Section 2.2 in the same PR."
+        f"pre/post-migration tuple definitions; if you changed the "
+        f"required set, update both this constant and "
+        f"docs/ci/branch-protection-required-checks.md in the same PR."
     )
 
 

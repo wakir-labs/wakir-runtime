@@ -67,8 +67,8 @@ on:
       - "scripts/observability/cosign-strict-mode-readiness-check.py"
       - "tests/observability/test_cosign_strict_mode_readiness_check.py"
       - "policies/cosign-policy-phase-3b.yaml"
-      - "state/cosign-drift/pinned-trust-root.json"
-      - "state/cosign-drift/last-probe-envelope.json"
+      - "tooling/baselines/cosign-drift/pinned-trust-root.json"
+      - "tooling/baselines/cosign-drift/last-probe-envelope.json"
       - "quadlet/wakir-rust-cli.container"
       - ".github/workflows/cosign-strict-mode-readiness-check.yml"
       - "docs/operations/cosign-strict-mode-activation.md"
@@ -77,8 +77,8 @@ on:
       - "scripts/observability/cosign-strict-mode-readiness-check.py"
       - "tests/observability/test_cosign_strict_mode_readiness_check.py"
       - "policies/cosign-policy-phase-3b.yaml"
-      - "state/cosign-drift/pinned-trust-root.json"
-      - "state/cosign-drift/last-probe-envelope.json"
+      - "tooling/baselines/cosign-drift/pinned-trust-root.json"
+      - "tooling/baselines/cosign-drift/last-probe-envelope.json"
       - "quadlet/wakir-rust-cli.container"
       - ".github/workflows/cosign-strict-mode-readiness-check.yml"
       - "docs/operations/cosign-strict-mode-activation.md"
@@ -92,7 +92,7 @@ concurrency:
 
 jobs:
   readiness-check:
-    name: Cosign-Strict-Mode Readiness Check (Tag-54)
+    name: Cosign-Strict-Mode Readiness Check
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -142,8 +142,8 @@ jobs:
           # shellcheck disable=SC2086
           python3 scripts/observability/cosign-strict-mode-readiness-check.py \
               --policy policies/cosign-policy-phase-3b.yaml \
-              --pinned-trust-root state/cosign-drift/pinned-trust-root.json \
-              --last-probe-envelope state/cosign-drift/last-probe-envelope.json \
+              --pinned-trust-root tooling/baselines/cosign-drift/pinned-trust-root.json \
+              --last-probe-envelope tooling/baselines/cosign-drift/last-probe-envelope.json \
               --quadlet-glob "quadlet/wakir-rust-cli*.container" \
               --out-json out/cosign-strict-mode/envelope.json \
               --out-markdown out/cosign-strict-mode/summary.md \

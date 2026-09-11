@@ -58,7 +58,7 @@ The six gates the script evaluates:
   G3. ``last_drift_probe_verdict`` — the most recent
       cosign-keyless-OIDC-drift-probe envelope on disk reports
       aggregate_verdict == GREEN. (The script reads the latest
-      ``state/cosign-drift/last-probe-envelope.json`` if present;
+      ``tooling/baselines/cosign-drift/last-probe-envelope.json`` if present;
       if absent it returns NOT-CHECKED for this gate, which BLOCKS
       readiness — operator must run the probe + capture the envelope.)
       Threshold: ``GREEN``.
@@ -98,8 +98,8 @@ NEVER calls cosign / crane / skopeo / podman / network egress. It
 reads four file-sets from disk only:
 
   * ``policies/cosign-policy-phase-3b.yaml``
-  * ``state/cosign-drift/pinned-trust-root.json``
-  * ``state/cosign-drift/last-probe-envelope.json`` (optional)
+  * ``tooling/baselines/cosign-drift/pinned-trust-root.json``
+  * ``tooling/baselines/cosign-drift/last-probe-envelope.json`` (optional)
   * ``quadlet/wakir-rust-cli*.container`` GLOB (optional, for G5).
     Tag-55 closeout extended G5 from single-file to glob-pattern;
     the four Welle-4..7 dedicated single-binary installer Quadlets
@@ -640,7 +640,7 @@ def aggregate_run_verdict(
 def render_markdown_summary(run: ReadinessRun) -> str:
     """Render a Markdown summary suitable for GITHUB_STEP_SUMMARY."""
     lines: List[str] = []
-    lines.append("## Cosign-Strict-Mode Readiness Check (Tag-54)")
+    lines.append("## Cosign-Strict-Mode Readiness Check")
     lines.append("")
     badge_map = {
         "GREEN": "GREEN — strict-flip-ready",
@@ -791,7 +791,7 @@ def write_markdown_summary(path: Path, run: ReadinessRun) -> None:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Cosign-Strict-Mode Readiness Check (Tag-54). "
+            "Cosign-Strict-Mode Readiness Check. "
             "Evaluates six acceptance-gates pre-strict-flip."
         ),
     )
@@ -804,13 +804,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument(
         "--pinned-trust-root",
         type=Path,
-        default=Path("state/cosign-drift/pinned-trust-root.json"),
+        default=Path("tooling/baselines/cosign-drift/pinned-trust-root.json"),
         help="Path to the pinned-trust-root JSON.",
     )
     parser.add_argument(
         "--last-probe-envelope",
         type=Path,
-        default=Path("state/cosign-drift/last-probe-envelope.json"),
+        default=Path("tooling/baselines/cosign-drift/last-probe-envelope.json"),
         help=(
             "Path to the last cosign-keyless-OIDC-drift-probe envelope. "
             "If absent, gate G3 returns NOT-CHECKED (which blocks readiness)."

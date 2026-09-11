@@ -22,7 +22,7 @@
 #
 #   * ``policies/cosign-policy-phase-3b.yaml`` — the Tag-45
 #     15-binary inventory and its pinned identity regexp + issuer.
-#   * ``state/cosign-drift/pinned-trust-root.json`` — the pinned
+#   * ``tooling/baselines/cosign-drift/pinned-trust-root.json`` — the pinned
 #     Sigstore Trust-Root (Operator-Hand refreshed; PENDING values
 #     in baseline-mode produce a self-consistent verdict).
 #   * ``.github/workflows/*.yml`` — the on-disk workflow inventory
@@ -61,20 +61,18 @@
 #   * ``schedule: cron "30 6 * * *"`` -- daily at 06:30 UTC,
 #     offset 30min after the pre-cutover-daily-probe at 06:00 UTC.
 #   * ``workflow_dispatch`` -- operator-hand manual invocation.
-#   * ``push:`` (path-filtered) -- any change to the probe script,
-#     test file, policy YAML, or pinned trust-root re-runs the
-#     probe so substrate-side breakage surfaces on the PR base
-#     before merge.
-#   * ``pull_request:`` (path-filtered) -- same path-filter so PRs
-#     touching these files run the probe in dry-run before merge.
+#   * ``push:`` to ``main`` and ``pull_request:`` -- no path filter:
+#     the job display name is a required status context and must
+#     report on every PR (docs/ci/branch-protection-required-checks.md).
 #
-# Not a required status check
-# ---------------------------
+# Required status check
+# ---------------------
 #
-# Per ``feedback_branch_protection_check_names.md`` this workflow
-# tracks a calendar-window drift signal, not individual PR
-# acceptance. It is NOT listed as a required status check on PRs;
-# it surfaces signal only via Job-Summary + artefact.
+# The job display name ``Cosign-Keyless-OIDC-Drift-Probe (daily)`` is a
+# required status context on ``main`` (docs/ci/branch-protection-
+# required-checks.md). The workflow therefore runs on every pull
+# request and every push to ``main`` without a path filter; the daily
+# schedule adds the calendar-window drift signal on top.
 
 name: cosign-keyless-oidc-drift-probe
 
@@ -90,19 +88,7 @@ on:
   push:
     branches:
       - main
-    paths:
-      - "scripts/observability/cosign-keyless-oidc-drift-probe.py"
-      - "tests/observability/test_cosign_keyless_oidc_drift_probe.py"
-      - "policies/cosign-policy-phase-3b.yaml"
-      - "state/cosign-drift/pinned-trust-root.json"
-      - ".github/workflows/cosign-keyless-oidc-drift-probe.yml"
   pull_request:
-    paths:
-      - "scripts/observability/cosign-keyless-oidc-drift-probe.py"
-      - "tests/observability/test_cosign_keyless_oidc_drift_probe.py"
-      - "policies/cosign-policy-phase-3b.yaml"
-      - "state/cosign-drift/pinned-trust-root.json"
-      - ".github/workflows/cosign-keyless-oidc-drift-probe.yml"
 
 permissions:
   contents: read
@@ -175,7 +161,7 @@ jobs:
           # shellcheck disable=SC2086
           python3 scripts/observability/cosign-keyless-oidc-drift-probe.py \
               --policy policies/cosign-policy-phase-3b.yaml \
-              --pinned-trust-root state/cosign-drift/pinned-trust-root.json \
+              --pinned-trust-root tooling/baselines/cosign-drift/pinned-trust-root.json \
               --repo-root . \
               --mode baseline \
               --out-json out/cosign-drift/envelope.json \

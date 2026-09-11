@@ -40,40 +40,14 @@ on:
         description: 'Verbose cosign output (true/false)'
         required: false
         default: 'false'
-  # Tag-80 Strict-Flip (Cutover-Day-T0, Operator-Hand) — promotes
-  # cosign-verify to PR-gate per docs/operations/cosign-strict-mode-
-  # activation.md §S1. Path-filter on the cosign substrate so unrelated
-  # PRs don't pay the GHCR + Sigstore network-egress cost.
+  # PR gate per docs/operations/cosign-strict-mode-activation.md §S1.
+  # No path filter: the job `cosign verify SPIRE images` is a required
+  # status context and must report on every pull request
+  # (docs/ci/branch-protection-required-checks.md, trigger discipline).
   push:
     branches:
       - main
-    paths:
-      - "policies/cosign-policy-phase-3b.yaml"
-      - "infra/persona-engine/Containerfile.real"
-      - "quadlet/wakir-rust-cli.container"
-      - "quadlet/wakir-rust-cli-welle4.container"
-      - "quadlet/wakir-rust-cli-welle5.container"
-      - "quadlet/wakir-rust-cli-welle6.container"
-      - "quadlet/wakir-rust-cli-welle7.container"
-      - "quadlet/wakir-persona-tomas.container"
-      - "infra/spire/federation/compose/spire-federation.yaml"
-      - "infra/spire/agent/compose/spire-agent-federation.yaml"
-      - "infra/spire/federation/provisioner/Containerfile"
-      - ".github/workflows/cosign-verify-images.yml"
   pull_request:
-    paths:
-      - "policies/cosign-policy-phase-3b.yaml"
-      - "infra/persona-engine/Containerfile.real"
-      - "quadlet/wakir-rust-cli.container"
-      - "quadlet/wakir-rust-cli-welle4.container"
-      - "quadlet/wakir-rust-cli-welle5.container"
-      - "quadlet/wakir-rust-cli-welle6.container"
-      - "quadlet/wakir-rust-cli-welle7.container"
-      - "quadlet/wakir-persona-tomas.container"
-      - "infra/spire/federation/compose/spire-federation.yaml"
-      - "infra/spire/agent/compose/spire-agent-federation.yaml"
-      - "infra/spire/federation/provisioner/Containerfile"
-      - ".github/workflows/cosign-verify-images.yml"
 
 permissions:
   contents: read

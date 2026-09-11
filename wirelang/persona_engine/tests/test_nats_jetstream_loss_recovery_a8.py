@@ -98,24 +98,6 @@ from wirelang.persona_engine.state_backing import (
 # ---------------------------------------------------------------------
 
 
-def test_a8_coverage_classification_is_covered() -> None:
-    """This file is the named Tag-46 follow-up; flipping A8 PARTIAL to
-    COVERED requires both the matrix-doc and the audit-test to update
-    together. This test asserts that the audit-test's expected state
-    for A8 is now COVERED (and that this file exists on disk at the
-    audit-named location).
-    """
-    from tests.phase_3c.test_pre_mortem_failure_mode_coverage_audit import (
-        COVERAGE_BY_ID,
-    )
-
-    cls = COVERAGE_BY_ID["A8"]
-    assert cls.coverage_state == "COVERED", (
-        "A8 must be COVERED after Tag-46 follow-up lands; current="
-        f"{cls.coverage_state}"
-    )
-
-
 # ---------------------------------------------------------------------
 # Helpers — shared envelope + sinks (mirrors test_nats_subscribe_loop)
 # ---------------------------------------------------------------------

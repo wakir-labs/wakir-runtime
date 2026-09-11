@@ -8,7 +8,7 @@
 #
 # Tag-49 PR #318 introduced the daily SBOM-vs-baseline verifier
 # (.github/workflows/sbom-verification-daily.yml) which compares
-# today's generated SBOMs to state/sbom-baseline/<binary>.json
+# today's generated SBOMs to tooling/baselines/sbom-baseline/<binary>.json
 # and emits a Mira-Notify event on drift.
 #
 # Tag-49 documented the *refresh* procedure as an Operator-Hand
@@ -25,7 +25,7 @@
 # workflow" in the Actions tab and supplies the required AR-Hand-
 # Gate approval-token input. Rationale:
 #
-#   * Mutating state/sbom-baseline/ is a privileged operation
+#   * Mutating tooling/baselines/sbom-baseline/ is a privileged operation
 #     gated by ADR-0066 § AR-Hand-Gate.
 #   * Automatic scheduling would mask supply-chain drift behind
 #     a "self-healing" refresh -- the exact failure-mode we are
@@ -43,7 +43,7 @@
 #                          drift event (yanked-then-republished
 #                          crate with confirmed provenance).
 #   * dry_run          -- Default true. Set false to actually
-#                          mutate state/sbom-baseline/. The
+#                          mutate tooling/baselines/sbom-baseline/. The
 #                          conservative default is dry-run so
 #                          accidental clicks do not mutate state.
 #
@@ -60,9 +60,9 @@
 #
 # When dry_run=false, the workflow:
 #
-#   1. Runs the refresh CLI against state/sbom-baseline/.
-#   2. Stages the changes via `git add state/sbom-baseline/
-#      state/sbom-baseline-refresh-receipts/`.
+#   1. Runs the refresh CLI against tooling/baselines/sbom-baseline/.
+#   2. Stages the changes via `git add tooling/baselines/sbom-baseline/
+#      tooling/baselines/sbom-baseline-refresh-receipts/`.
 #   3. Uploads the receipt JSON as a workflow artefact (audit-
 #      trail anchor for the operation).
 #   4. Does NOT push to main. The operator opens a PR with the
@@ -77,7 +77,7 @@
 # ------------------
 #
 # Every successful refresh emits a receipt JSON to
-# state/sbom-baseline-refresh-receipts/<refresh_ts>-receipt.json
+# tooling/baselines/sbom-baseline-refresh-receipts/<refresh_ts>-receipt.json
 # capturing the AR approval-token, the cargo-lock-sha256
 # before/after, and the drift summary. The receipt is the
 # single source of truth for "which AR sign-off blessed this
@@ -181,12 +181,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out/refresh
-          mkdir -p state/sbom-baseline-refresh-receipts
-          receipt_path="state/sbom-baseline-refresh-receipts/${TS_SLUG}-receipt.json"
+          mkdir -p tooling/baselines/sbom-baseline-refresh-receipts
+          receipt_path="tooling/baselines/sbom-baseline-refresh-receipts/${TS_SLUG}-receipt.json"
           # shellcheck disable=SC2086
           python3 scripts/observability/refresh-15-binary-sbom-baseline.py \
               --cargo-lock wirelang-rust/Cargo.lock \
-              --baseline-dir state/sbom-baseline \
+              --baseline-dir tooling/baselines/sbom-baseline \
               --approval-token "${APPROVAL_TOKEN}" \
               --receipt-out "${receipt_path}" \
               --work-dir out/refresh \
@@ -207,7 +207,7 @@ jobs:
             echo "## 15-Binary SBOM Baseline Refresh"
             echo ""
             if [ -n "${DRY_FLAG}" ]; then
-              echo "**Mode:** dry-run (state/sbom-baseline NOT mutated)"
+              echo "**Mode:** dry-run (tooling/baselines/sbom-baseline NOT mutated)"
             else
               echo "**Mode:** live refresh"
             fi
@@ -242,13 +242,13 @@ jobs:
             echo "### git status (after refresh)"
             echo ""
             echo '```'
-            git status --short state/sbom-baseline state/sbom-baseline-refresh-receipts || true
+            git status --short tooling/baselines/sbom-baseline tooling/baselines/sbom-baseline-refresh-receipts || true
             echo '```'
             echo ""
             echo "### git diff --stat (after refresh)"
             echo ""
             echo '```'
-            git diff --stat state/sbom-baseline state/sbom-baseline-refresh-receipts || true
+            git diff --stat tooling/baselines/sbom-baseline tooling/baselines/sbom-baseline-refresh-receipts || true
             echo '```'
           } >> "${GITHUB_STEP_SUMMARY}"
 
@@ -259,7 +259,7 @@ jobs:
           name: sbom-baseline-refresh-${{ github.run_id }}
           path: |
             out/refresh/
-            state/sbom-baseline-refresh-receipts/
+            tooling/baselines/sbom-baseline-refresh-receipts/
           retention-days: 90
           if-no-files-found: warn
 

@@ -14,8 +14,8 @@ protection. Each Required-Check has its own ``paths:`` filter. When a
 PR's changed-files set does not intersect a Required-Check's path
 filter, GitHub registers the check as **never reported**, which the
 Branch-Protection rule treats as ``PENDING forever``. This is the
-"Forever-Pending" pattern that bit Tag-34/35/36 hard (PR #228, #232,
-#236, four Mira-Hand workaround PRs in two days).
+"Forever-Pending" pattern that repeatedly blocked merges before
+ADR-0068 and required operator workaround PRs.
 
 ADR-0068 §"Empfehlung" approves a single aggregator workflow as the
 sole Required-Status-Check. The aggregator:
@@ -57,7 +57,6 @@ is pure-function and fully unit-testable. The I/O wrappers
 (``fetch_pr_changed_files``, ``poll_workflow_runs``) are isolated at
 the bottom of the file behind the ``# --- I/O boundary ---`` marker.
 
-Author: Tomás Reinhart (Dev-Engineering)
 Anchor: ADR-0068 §"Beschluss" + §"Folgeartefakte"
 """
 
@@ -99,10 +98,10 @@ from typing import Iterable, List, Optional, Sequence, Tuple
 #       seed (the six contexts currently in Branch-Protection). The
 #       aggregator only **emits** one Required-Status; this flag
 #       documents lineage so the post-migration cleanup
-#       (Mira-Hand-Folge §4 in the auftrag) is auditable.
+#       (branch-protection migration, docs/ci/aggregator-workflow.md §4) is auditable.
 #
-# Inventory is ordered to match the Mira-Hand-Folge migration order
-# (license-hygiene first, Phase-2 aggregator last).
+# Inventory is ordered to match the branch-protection migration order
+# (license-hygiene first, runtime acceptance gates last).
 #
 # Note: ``tests.yml`` contributes three Required-Status names —
 # ``wirelang suite with rfc8785 + jsonschema`` (production),
@@ -275,15 +274,15 @@ SUB_WORKFLOWS: Tuple[SubWorkflow, ...] = (
         ),
         required=True,
     ),
-    # 6. Phase-2 aggregator -- phase-2-validation-gate.yml
+    # 6. runtime acceptance gates -- runtime-acceptance-gates.yml
     SubWorkflow(
-        workflow_file="phase-2-validation-gate.yml",
-        check_name="Phase-2 Aggregator (All Gates + Cross-Gate Non-Interference)",
+        workflow_file="runtime-acceptance-gates.yml",
+        check_name="runtime acceptance gates",
         path_globs=(
             "wirelang/**",
             "tests/infra/test_phase_2_acceptance_gates.py",
             "docs/quality-gates/**",
-            ".github/workflows/phase-2-validation-gate.yml",
+            ".github/workflows/runtime-acceptance-gates.yml",
         ),
         required=True,
     ),
@@ -388,7 +387,7 @@ def render_summary_table(verdicts: Sequence[SubWorkflowVerdict]) -> str:
         else:
             run_cell = "-"
         # Escape pipe in check_name (defensive; none of the current
-        # six contain pipes, but future Welle-validations might).
+        # six contain pipes, but future sub-workflows might).
         cn = v.spec.check_name.replace("|", "\\|")
         wf = v.spec.workflow_file
         lines.append(f"| `{wf}` | {cn} | {exp_marker} | `{v.status}` | {run_cell} |")

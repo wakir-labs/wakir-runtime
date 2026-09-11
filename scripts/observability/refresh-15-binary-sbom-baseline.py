@@ -8,7 +8,7 @@ Context
 
 Tag-48 PR #310 introduced the 15-binary SBOM generator. Tag-49
 PR #318 introduced the daily verifier which compares freshly-
-generated SBOMs to ``state/sbom-baseline/<binary>.json``. The
+generated SBOMs to ``tooling/baselines/sbom-baseline/<binary>.json``. The
 baseline files themselves are Operator-Hand-refreshed when AR
 signs off on a dependency-tree change (see
 ``docs/operations/15-binary-sbom-baseline-refresh.md`` Tag-49).
@@ -22,13 +22,13 @@ the refresh sequence end-to-end as one atomic operation:
      summary that AR signs off on.
   3. Block unless an ``--approval-token`` argument is supplied
      that matches the required token format. Without the token,
-     the script refuses to overwrite ``state/sbom-baseline/``.
+     the script refuses to overwrite ``tooling/baselines/sbom-baseline/``.
   4. Optionally refuse to refresh forward through any
      ``checksum-changed`` drift (RED-class supply-chain signal)
      unless ``--allow-checksum-changed`` is also supplied (extra
      gate on top of the approval token).
   5. Copy the generator's per-binary SBOMs into
-     ``state/sbom-baseline/<binary>.json``.
+     ``tooling/baselines/sbom-baseline/<binary>.json``.
   6. Run the verifier in post-refresh validation -- assert GREEN.
   7. Emit a refresh-receipt JSON describing the operation
      (cargo-lock-sha256 before/after, drift summary, AR approval
@@ -40,7 +40,7 @@ Sandbox posture
 Strict hermetic: stdlib + tomllib only (delegates SBOM parsing
 to the Tag-48 generator and Tag-49 verifier via importlib.util).
 No podman / cargo / cosign / network egress. The script does
-mutate ``state/sbom-baseline/`` -- that is the entire point --
+mutate ``tooling/baselines/sbom-baseline/`` -- that is the entire point --
 but only when the approval flag is supplied and the post-refresh
 verification produces GREEN.
 
@@ -150,7 +150,7 @@ DEFAULT_VERIFIER_REL: str = (
 DEFAULT_CARGO_LOCK_REL: str = "wirelang-rust/Cargo.lock"
 
 #: Default location of the baseline directory.
-DEFAULT_BASELINE_DIR_REL: str = "state/sbom-baseline"
+DEFAULT_BASELINE_DIR_REL: str = "tooling/baselines/sbom-baseline"
 
 #: Exit codes (stable + scriptable).
 EXIT_OK: int = 0
@@ -172,7 +172,7 @@ class RefreshPlan:
 
     Captures the *intent* of the refresh so it can be inspected
     by tests (and by ``--dry-run`` callers) without touching
-    ``state/sbom-baseline/``.
+    ``tooling/baselines/sbom-baseline/``.
     """
 
     cargo_lock_sha256_before: Optional[str]
@@ -609,7 +609,7 @@ def execute_refresh(
 def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Refresh state/sbom-baseline/ from a fresh generator run. "
+            "Refresh tooling/baselines/sbom-baseline/ from a fresh generator run. "
             "Operator-Hand only. Requires --approval-token in "
             "AR-HAND-GATE-YYYY-MM-DD-<initials> format."
         )
@@ -626,7 +626,7 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         required=False,
         type=Path,
         default=Path(DEFAULT_BASELINE_DIR_REL),
-        help="Path to baseline directory (default: state/sbom-baseline).",
+        help="Path to baseline directory (default: tooling/baselines/sbom-baseline).",
     )
     parser.add_argument(
         "--generator",
@@ -673,7 +673,7 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         "--dry-run",
         action="store_true",
         help=(
-            "Compute the plan but do NOT mutate state/sbom-baseline/. "
+            "Compute the plan but do NOT mutate tooling/baselines/sbom-baseline/. "
             "Useful for diff preview. Does not require --approval-token."
         ),
     )
@@ -684,7 +684,7 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         default=None,
         help=(
             "Path to write the refresh-receipt JSON envelope. "
-            "Recommended: state/sbom-baseline-refresh-receipts/"
+            "Recommended: tooling/baselines/sbom-baseline-refresh-receipts/"
             "<timestamp>-receipt.json."
         ),
     )

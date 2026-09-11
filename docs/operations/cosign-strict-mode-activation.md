@@ -64,8 +64,8 @@ reads from disk:
 | # | Path | Purpose | Tag-55 status |
 |---|---|---|---|
 | 1 | `policies/cosign-policy-phase-3b.yaml` | 15-binary inventory + carrier-image pin | Inventory complete (15/15); carrier digest = placeholder pending Operator-Hand (**G1 BLOCKED — operator-hand only**) |
-| 2 | `state/cosign-drift/pinned-trust-root.json` | Fulcio CA SHA + Rekor shard ID pin | Both fields = `PENDING_OPERATOR_HAND_REFRESH` (**G2 BLOCKED — operator-hand only**) |
-| 3 | `state/cosign-drift/last-probe-envelope.json` | Most-recent drift-probe verdict | **Tag-55 closeout: baseline-mode envelope committed; aggregate_verdict = GREEN (G3 GREEN)** |
+| 2 | `tooling/baselines/cosign-drift/pinned-trust-root.json` | Fulcio CA SHA + Rekor shard ID pin | Both fields = `PENDING_OPERATOR_HAND_REFRESH` (**G2 BLOCKED — operator-hand only**) |
+| 3 | `tooling/baselines/cosign-drift/last-probe-envelope.json` | Most-recent drift-probe verdict | **Tag-55 closeout: baseline-mode envelope committed; aggregate_verdict = GREEN (G3 GREEN)** |
 | 4 | `quadlet/wakir-rust-cli*.container` GLOB | Carrier-image + Welle-4..7 dedicated-image install-path inventory | **Tag-55 closeout: 4 Welle-N Quadlets added (`-welle4..-welle7`); glob union = canonical 15/15 (G5 GREEN)** |
 
 ### 2.2 Tag-55 substanz-vollendung — gate verdict map
@@ -74,7 +74,7 @@ reads from disk:
 |---|---|---|---|
 | G1 placeholder_digest | BLOCKED (15 placeholders) | BLOCKED (15 placeholders) | Operator-Hand only — `resolve-image-pins-ci` workflow on a host with `ghcr.io` push permissions (sandbox-block per `feedback_sandbox_host_trennung.md`). |
 | G2 trust_root_pin | BLOCKED (both PENDING) | BLOCKED (both PENDING) | Operator-Hand only — `pinned-trust-root.json` refresh on a host with Sigstore-network egress (recipe in `cosign-keyless-oidc-drift-probe.md` §6; Mira-Hand + Zone-C Tomás cross-review). |
-| G3 last_probe_verdict | NOT-CHECKED (envelope absent) | **GREEN** (Tag-55 baseline-mode envelope committed) | Tag-55 closeout — `python3 scripts/observability/cosign-keyless-oidc-drift-probe.py --mode baseline --out-json state/cosign-drift/last-probe-envelope.json` (hermetic baseline-mode, no network egress). |
+| G3 last_probe_verdict | NOT-CHECKED (envelope absent) | **GREEN** (Tag-55 baseline-mode envelope committed) | Tag-55 closeout — `python3 scripts/observability/cosign-keyless-oidc-drift-probe.py --mode baseline --out-json tooling/baselines/cosign-drift/last-probe-envelope.json` (hermetic baseline-mode, no network egress). |
 | G4 policy_inventory_size | GREEN | GREEN | (no change) |
 | G5 cross_substrate_parity | BLOCKED (4 in policy not in quadlet) | **GREEN** (glob now unions to 15/15) | Tag-55 closeout — 4 Welle-N Quadlets added (`quadlet/wakir-rust-cli-welle4.container` .. `wakir-rust-cli-welle7.container`) + readiness-check extended from single-file to glob loader (`load_quadlet_installer_glob`). |
 | G6 required_check_names | GREEN | GREEN | (no change) |
@@ -148,7 +148,7 @@ for the run to be strict-flip-ready.
 |---|---|---|
 | **G1** `placeholder_digest_count == 0` | All 15 binaries carry a real `sha256:[hex64]` digest | Strict-mode would red every PR otherwise — the placeholder is what audit-only tolerates. |
 | **G2** `pinned_trust_root_completeness` | Both `fulcio_root_ca_sha256` and `rekor_log_shard_id` are real (not `PENDING_OPERATOR_HAND_REFRESH`) | Drift-detection has no anchor without the real values; strict-mode passes trivially. |
-| **G3** `last_drift_probe_verdict == GREEN` | The most recent `state/cosign-drift/last-probe-envelope.json` carries `aggregate_verdict: GREEN` | Strict-flip on top of a drifted substrate red-flips immediately. |
+| **G3** `last_drift_probe_verdict == GREEN` | The most recent `tooling/baselines/cosign-drift/last-probe-envelope.json` carries `aggregate_verdict: GREEN` | Strict-flip on top of a drifted substrate red-flips immediately. |
 | **G4** `policy_inventory_size == 15` | The policy carries the Tag-45 canonical 15 binaries in canonical order | Drift here means PRs against a wrong inventory size red. |
 | **G5** `cross_substrate_parity == 0` | Quadlet installer and policy iterate the same 15 binaries | Strict-flip on a split substrate reds PRs that legitimately update one side first. |
 | **G6** `required_status_check_displaynames_known` | The two required-status-check display names are non-empty and exactly as listed in §3 | Per `feedback_branch_protection_check_names.md` — the strict-flip PR must use the exact names. |
@@ -242,13 +242,13 @@ workflow already documents:
    shard ID via the Rekor public API.
 3. PR #N2 against `wakir-runtime` replaces the two
    `PENDING_OPERATOR_HAND_REFRESH` values in
-   `state/cosign-drift/pinned-trust-root.json` with the real values.
+   `tooling/baselines/cosign-drift/pinned-trust-root.json` with the real values.
 4. Re-run the readiness check; G2 flips from BLOCKED to GREEN.
 
 ### Step 4 — Capture the last-probe envelope (Tag-55 CLOSED for baseline-mode)
 
 **Tag-55 closeout (Kai):** the baseline-mode envelope is now committed
-to `state/cosign-drift/last-probe-envelope.json` (aggregate_verdict =
+to `tooling/baselines/cosign-drift/last-probe-envelope.json` (aggregate_verdict =
 GREEN, generated via `python3 scripts/observability/cosign-keyless-oidc-drift-probe.py --mode baseline`).
 G3 GREEN on `main` post Tag-55.
 
@@ -265,7 +265,7 @@ than the baseline self-consistency. Recipe stays the same as below.
    GREEN (if not, the operator returns to §3 of the
    cosign-keyless-OIDC-drift-probe runbook).
 3. Operator-Hand downloads the envelope artefact and commits it as
-   `state/cosign-drift/last-probe-envelope.json` via PR #N3. The
+   `tooling/baselines/cosign-drift/last-probe-envelope.json` via PR #N3. The
    file is the byte-for-byte content of `envelope.json` from the
    workflow artefact.
 4. Re-run the readiness check; G3 flips from NOT-CHECKED to GREEN.
