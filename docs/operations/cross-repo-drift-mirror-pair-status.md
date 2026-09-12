@@ -3,6 +3,13 @@ SPDX-License-Identifier: CC-BY-4.0
 Copyright (c) 2026 Wakir Labs contributors
 -->
 
+> **Superseded (2026-09-11, ADR-0072 Phase 4 W4).** The byte-level
+> `cross-repo-drift-audit` / `cross-repo-drift-allowlist-audit` workflows and
+> `.cross-repo-drift-allowlist.yaml` described here were removed. The enforcing
+> replacement is `.github/workflows/cross-repo-compat.yml` with
+> `tooling/compat/` (canonical JCS schema digests, proof-path vectors,
+> manifest roundtrip, proof format). This document is kept as history.
+
 # Cross-repo mirror-pair sync status
 
 Status log of point-in-time sync verifications between mirror-pair

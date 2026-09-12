@@ -3,6 +3,13 @@ SPDX-License-Identifier: Apache-2.0
 Copyright (c) 2026 Callandor GmbH and contributors
 -->
 
+> **Superseded (2026-09-11, ADR-0072 Phase 4 W4).** The byte-level
+> `cross-repo-drift-audit` / `cross-repo-drift-allowlist-audit` workflows and
+> `.cross-repo-drift-allowlist.yaml` described here were removed. The enforcing
+> replacement is `.github/workflows/cross-repo-compat.yml` with
+> `tooling/compat/` (canonical JCS schema digests, proof-path vectors,
+> manifest roundtrip, proof format). This document is kept as history.
+
 # Cross-Repo-Drift Runbook (3-Repo Operating Manual)
 
 **Status:** Living operations document (read by humans + parsed by tests).

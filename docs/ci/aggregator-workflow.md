@@ -82,7 +82,7 @@ The six sub-workflows the aggregator watches are declared in
 | 2 | `tests.yml`                    | `wirelang suite with rfc8785 + jsonschema` |
 | 3 | `tests.yml`                    | `wirelang suite without rfc8785 / jsonschema (shadow)` |
 | 4 | `tests.yml`                    | `production-vs-sandbox drift envelope` |
-| 5 | `cross-repo-drift-audit.yml`   | `cross-repo drift (wakir-runtime ↔ wakir-protocol)` |
+| 5 | `cross-repo-compat.yml`        | `cross-repo compatibility (protocol ↔ runtime ↔ verify)` |
 | 6 | `runtime-acceptance-gates.yml` | `runtime acceptance gates` |
 
 These are exactly the six Required-Status names that the operator
@@ -130,7 +130,7 @@ the cutover proceeds in four steps:
 
 After this PR merges, both run in parallel:
 - the six existing Required-Status-Checks (license-gate, tests x3,
-  cross-repo-drift, runtime acceptance gates)
+  cross-repo compatibility, runtime acceptance gates)
 - the new `ci-aggregator` job (not yet Required)
 
 ### Step 2 — Observation window (~1 week, 2-3 PRs)
@@ -152,7 +152,7 @@ Once observation is clean, the operator:
    - `wirelang suite with rfc8785 + jsonschema`
    - `wirelang suite without rfc8785 / jsonschema (shadow)`
    - `production-vs-sandbox drift envelope`
-   - `cross-repo drift (wakir-runtime ↔ wakir-protocol)`
+   - `cross-repo compatibility (protocol ↔ runtime ↔ verify)`
    - `runtime acceptance gates`
 
 After this point, the Forever-Pending class is structurally

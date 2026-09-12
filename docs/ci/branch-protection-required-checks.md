@@ -44,7 +44,7 @@ after the Phase-4 W1 reduction from 16 to 10 contexts (ADR-0072).
 | 2 | `wirelang suite with rfc8785 + jsonschema` | `.github/workflows/tests.yml` | broad path filter | 2026-05 | ACTIVE |
 | 3 | `wirelang suite without rfc8785 / jsonschema (shadow)` | `.github/workflows/tests.yml` | broad path filter | 2026-05 | ACTIVE |
 | 4 | `production-vs-sandbox drift envelope` | `.github/workflows/tests.yml` | broad path filter | 2026-05 | ACTIVE |
-| 5 | `cross-repo drift (wakir-runtime ↔ wakir-protocol)` | `.github/workflows/cross-repo-drift-audit.yml` | code + tests + docs | 2026-05 | ACTIVE (to be replaced by the cross-repo compatibility gate, Phase 4 W4) |
+| 5 | `cross-repo compatibility (protocol ↔ runtime ↔ verify)` | `.github/workflows/cross-repo-compat.yml` | every PR + push to main (no path filter) | 2026-09 (W4, replaces the cross-repo drift context) | PENDING-OPERATOR (context swap at the W4 merge, see §2.3) |
 | 6 | `verify-containerfile-base-image-digest-pins` | `.github/workflows/containerfile-digest-pin-gate.yml` | Containerfiles | 2026-05 | ACTIVE |
 | 7 | `cross-substrate parity (cosign ↔ quadlet ↔ backend-switch)` | `.github/workflows/cross-substrate-parity-gate.yml` | policies + quadlet + engine | 2026-05 | ACTIVE |
 | 8 | `wirelang spec v0.4.3 freeze-seal probe` | `.github/workflows/wirelang-spec-freeze-seal-probe.yml` | spec directory | 2026-05 | ACTIVE |
@@ -69,8 +69,10 @@ context is added to protection by the operator after the first green
 run on `main` (§3 item 4); until then the job runs on every PR without
 blocking.
 
-Planned additions (Phase 4): `cross-repo compatibility (protocol ↔
-runtime ↔ verify)` (W4, replaces row 5).
+Row 5 is the W4 replacement of `cross-repo drift (wakir-runtime ↔ wakir-protocol)`
+(byte-level drift audit, removed together with
+`cross-repo-drift-allowlist-audit.yml`); the operator swaps the two
+contexts at the W4 merge (§2.3).
 
 Trigger discipline — **required contexts must never be path-filtered**:
 a required context is matched per PR head commit; if the workflow that
@@ -114,7 +116,7 @@ gh api -X PATCH repos/wakir-labs/wakir-runtime/branches/main/protection/required
   "contexts": [
     "License-Hygiene Gate (ADR-0061)",
     "wirelang suite with rfc8785 + jsonschema",
-    "cross-repo drift (wakir-runtime ↔ wakir-protocol)",
+    "cross-repo compatibility (protocol ↔ runtime ↔ verify)",
     "production-vs-sandbox drift envelope",
     "wirelang suite without rfc8785 / jsonschema (shadow)",
     "verify-containerfile-base-image-digest-pins",
@@ -142,6 +144,46 @@ source for everything that has to stay.
 `Settings → Branches → Branch protection rules → main → Edit → Require
 status checks to pass before merging`. Search each display name
 verbatim, add it, save. Re-read the list via gh api afterwards (§3.2).
+
+### §2.3 — Context swap for the W4 merge (operator-hand)
+
+The W4 PR deletes `cross-repo-drift-audit.yml`, so the old context
+`cross-repo drift (wakir-runtime ↔ wakir-protocol)` never reports on that PR and
+the PR shows `BLOCKED` until the context is swapped. This is expected.
+Order of operations:
+
+1. Confirm the other ten contexts are green on the PR and that the new
+   job `cross-repo compatibility (protocol ↔ runtime ↔ verify)` reports `success`
+   (`gh pr checks <n>`).
+2. PATCH the required set: remove the old context, add the new one
+   (the list below is the post-swap state; `runtime acceptance gates`
+   stays on the list only if it was already required).
+
+```bash
+gh api -X PATCH repos/wakir-labs/wakir-runtime/branches/main/protection/required_status_checks \
+  --input - <<'JSON'
+{
+  "strict": false,
+  "contexts": [
+    "License-Hygiene Gate (ADR-0061)",
+    "wirelang suite with rfc8785 + jsonschema",
+    "cross-repo compatibility (protocol ↔ runtime ↔ verify)",
+    "production-vs-sandbox drift envelope",
+    "wirelang suite without rfc8785 / jsonschema (shadow)",
+    "verify-containerfile-base-image-digest-pins",
+    "cross-substrate parity (cosign ↔ quadlet ↔ backend-switch)",
+    "wirelang spec v0.4.3 freeze-seal probe",
+    "cosign verify SPIRE images",
+    "Cosign-Keyless-OIDC-Drift-Probe (daily)"
+  ]
+}
+JSON
+```
+
+3. Merge the W4 PR. The first `main` run of `cross-repo-compat.yml`
+   happens on the merge commit; `push: main` is in its trigger set.
+4. Flip the row-5 status above from `PENDING-OPERATOR` to `ACTIVE` in a
+   follow-up commit and re-read the protection snapshot (§3.2).
 
 ## §3 — Pre-activation verification checklist
 
@@ -173,7 +215,7 @@ ones first.
 | 2 | `wirelang spec v0.4.3 freeze-seal probe` | isolated, spec directory + freeze marker | low |
 | 3 | `runtime acceptance gates` | hermetic pytest suite, broad path filter | low |
 | 4 | `cross-substrate parity (cosign ↔ quadlet ↔ backend-switch)` | three-way parity across policy, quadlet and engine | medium |
-| 5 | `cross-repo drift (wakir-runtime ↔ wakir-protocol)` | clones `wakir-protocol`; network flake blocks merges | high |
+| 5 | `cross-repo compatibility (protocol ↔ runtime ↔ verify)` | clones `wakir-protocol` + `wakir-verify`, runs `make demo-proof`; network flake blocks merges | high |
 | 6 | `proof-path` | `pip install` from PyPI + `git+https` clone of `wakir-verify` at a pinned commit; network flake blocks merges; a verify-side API break at the pin surfaces here | medium |
 
 Pause between steps: one smoke PR (§5) per context before the next

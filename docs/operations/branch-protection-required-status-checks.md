@@ -52,7 +52,7 @@ Post-§4.2-promotion stand (re-verified 2026-05-17 04:35 CEST via
 |---|---|---|
 | `License-Hygiene Gate (ADR-0061)` | `.github/workflows/license-gate.yml` | `License-Hygiene Gate (ADR-0061)` |
 | `wirelang suite with rfc8785 + jsonschema` | `.github/workflows/tests.yml` | `wirelang suite with rfc8785 + jsonschema` |
-| `cross-repo drift (wakir-runtime ↔ wakir-protocol)` | `.github/workflows/cross-repo-drift-audit.yml` | `cross-repo drift (wakir-runtime ↔ wakir-protocol)` |
+| `cross-repo compatibility (protocol ↔ runtime ↔ verify)` | `.github/workflows/cross-repo-compat.yml` | `cross-repo compatibility (protocol ↔ runtime ↔ verify)` (replaces `cross-repo drift (wakir-runtime ↔ wakir-protocol)`, ADR-0072 W4) |
 
 §4.2 promotion applied 2026-05-17 04:35 CEST (Mira-Hand-Operator, AR-
 authorised via "Ja, aktiviere Branch-Protection wakir-runtime/main"
