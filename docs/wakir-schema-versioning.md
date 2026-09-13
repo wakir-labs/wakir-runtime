@@ -137,7 +137,7 @@ with SCHEMA_PATH.open("r", encoding="utf-8") as fh:
   `$id` cannot accidentally drift onto a future MAJOR bump's
   file when the legacy file is renamed.
 - **Audit-trail.** Every `get_schema` call is greppable; direct
-  `json.load(SCHEMA_DIR /...)` calls are not.
+  `json.load(SCHEMA_DIR / ...)` calls are not.
 
 ### Out-of-scope (still allowed on direct path)
 
@@ -155,7 +155,7 @@ it MUST onboard directly on `get_schema($id)` from day one.
 **Onboarding via direct
 file-path access is not a supported migration step.** This is
 a hard rule, not a recommendation: a Phase-1b consumer that
-shows up with a `Path(...) / "schemas" /...` import in its
+shows up with a `Path(...) / "schemas" / ...` import in its
 review carries a blocking comment.
 
 ### Lint Hook (wired as pytest-AST test)

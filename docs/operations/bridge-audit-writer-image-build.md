@@ -115,7 +115,7 @@ surface so a future shared operator script can consume both.
 ## 3. Cross-language byte-parity contract
 
 The Rust emit envelope is byte-identical to the Python pendant's
-`EngineeringOutputEvent.to_jcs_bytes` output for the same input.
+`EngineeringOutputEvent.to_jcs_bytes()` output for the same input.
 Verification recipe (host-side, requires Python + the workspace):
 
 ```sh
@@ -276,9 +276,9 @@ invocations against `ghcr.io` from the sandbox.
 - ADR-0035 §C-Drift-Closure — the ADR this cutover will close for
   the bridge_audit_writer module.
 - PR #131 (`persona-engine-bridge-diff`) — JCS / hash primitive
-  reused via the lib crate's `AuditRecord::jcs_hash`.
+  reused via the lib crate's `AuditRecord::jcs_hash()`.
 - PR #147 (`persona-engine-bridge-audit-replay`) — the library
-  crate this binary lives in; the `AuditRecord::to_envelope` wire
+  crate this binary lives in; the `AuditRecord::to_envelope()` wire
   shape is the single-source-of-truth.
 - PR #194 (V907-verify image-build) — sibling wave-1 image.
 - PR #201 (SVID-workload-identity image-build) — sibling

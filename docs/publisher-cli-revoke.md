@@ -246,7 +246,7 @@ move instead.)
 ## Hermetic test path
 
 Tests inject a capability-bucket connect-factory via the public
-`capability_bucket_factory` argument of `run`:
+`capability_bucket_factory` argument of `run()`:
 
 ```python
 from wirelang.schemas.publisher_cli import run, ExitCode

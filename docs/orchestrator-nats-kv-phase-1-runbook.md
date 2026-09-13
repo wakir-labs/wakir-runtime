@@ -632,7 +632,7 @@ cache is not source-of-truth.
 If `init-nats-buckets.py` exits 2 with drift on a production cluster
 — or `check-nats-kv-health.py` exits 2 with `drift` on the read-side:
 
-1. Capture the JSON report (`script... > drift-report.json`). Both
+1. Capture the JSON report (`script ... > drift-report.json`). Both
    tools emit the same `{want, got}` diff shape on the per-bucket
    record.
 2. Triage with the engineering on-call: was the drift intentional

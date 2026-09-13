@@ -146,7 +146,7 @@ without iterating `hours[]`. All values are derived from `hours[]`
 (redundant, but avoids client-side aggregation).
 
 - `headline`: short copy-paste-fähige Aussage. Default DE; optional
-  i18n via separate `summary_i18n: {locale: {headline,...}}` block
+  i18n via separate `summary_i18n: {locale: {headline, ...}}` block
   if frontend needs it (later frontend item).
 - `hours_anchored`: `len(hours)`.
 - `calendars_per_hour`: derived `len(hours[0].calendar_anchors)`,

@@ -105,7 +105,7 @@ skip with an explicit reason.
 ### 1.4 SSH-runner fixture installed
 
 The skeleton `ssh_runner` fixture (PR #108) is a **refusal stub**: it
-raises `pytest.fail` if invoked outside a live run. A real run
+raises `pytest.fail()` if invoked outside a live run. A real run
 requires the operator-side test framework to install a real
 SSH-backed runner. A follow-up increment will land this
 runner; this Test-Plan is written assuming it exists.
@@ -362,7 +362,7 @@ vectors carry an implicit `xfail-on-CLI-mismatch` disposition (§1.5).
     `{"hour_root": "<64-hex>", "ots_state": "pending"|"anchored",
      "btc_block_height": <int>|null}`.
   * Verify-external:
-    `{"verdict": "verified"|"failed",...}` (verdict-key is
+    `{"verdict": "verified"|"failed", ...}` (verdict-key is
     load-bearing; rest is informational).
 * **dev engineering to confirm:** Subcommand-set exists on the on-VM `wat`
   binary; `--hours-ago N` is supported; `inject-synthetic-leaf` is

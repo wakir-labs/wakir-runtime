@@ -41,7 +41,7 @@ fixed.
 
 **Test file:** `wirelang/tests/persona_engine/test_bridge_audit_writer.py`.
 
-The Python `EngineeringOutputEvent.to_jcs_bytes` output is byte-pinned
+The Python `EngineeringOutputEvent.to_jcs_bytes()` output is byte-pinned
 to a known fixture. Drift in field-order, missing fields, or coercion
 quirks (e.g. integer-to-float widening) fails the gate.
 
@@ -54,7 +54,7 @@ hashes envelopes whose canonical bytes are pinned here.
 `wirelang-rust/crates/persona-engine-bridge-audit-replay/tests/replay_smoke_test.rs`,
 vectors 2-4.
 
-The Rust `AuditRecord::to_envelope` + `jcs_hash` output is
+The Rust `AuditRecord::to_envelope()` + `jcs_hash()` output is
 byte-pinned to the same fixture as Gate 1 record-for-record. If
 either Gate 1 or this gate moves, both must move together — a
 divergence here is a cross-language contract break.
@@ -78,14 +78,14 @@ This is the **stream-level** acceptance gate added in mini wave
 (2026-05-17). The roundtrip wires the production-side Python emit
 path to the Rust replay engine end-to-end:
 
-1. Python `BridgeAuditWriter.emit` produces a real
+1. Python `BridgeAuditWriter.emit()` produces a real
    `EngineeringOutputEvent` sequence into a hermetic
    `io.StringIO` sink.
-2. Python `wirelang.persona_engine.bridge_audit_stream_hash.records_to_jsonl_bytes`
+2. Python `wirelang.persona_engine.bridge_audit_stream_hash.records_to_jsonl_bytes()`
    serialises the sequence as JSONL (one JCS-canonical envelope per
    line) to a temp file.
 3. Rust `replay_cli --actual <path> [--expected <path>]` consumes
-   the JSONL, runs `ReplayEngine::replay_stream`, and emits a
+   the JSONL, runs `ReplayEngine::replay_stream()`, and emits a
    JSON CliReport on stdout.
 4. Python asserts:
    - Python-computed `stream_hash(events)` equals the Rust-reported
@@ -116,8 +116,8 @@ The gate also pins the three cross-language stream-hash anchors:
 | F3 | 3-record session | `sha256:fca1381878f461ea00520d9ee87d3e8c5b536e028e368c002f8de56d8b643bd4` |
 
 These are the canonical references — any new substance touching either
-the Python `record_envelope` / `stream_envelope` builders or the
-Rust `AuditRecord::to_envelope` / `stream_hash` builders MUST keep
+the Python `record_envelope()` / `stream_envelope()` builders or the
+Rust `AuditRecord::to_envelope()` / `stream_hash()` builders MUST keep
 all three pins green.
 
 **CI binding.** The gate runs in the `production-suite` job of
@@ -135,7 +135,7 @@ passes.
 Every gate above is hermetic:
 
 - No live NATS, no live network, no container runtime.
-- All filesystem writes go to `tempfile.TemporaryDirectory` /
+- All filesystem writes go to `tempfile.TemporaryDirectory()` /
   pytest `tmp_path` / the `CARGO_TARGET_DIR` build tree.
 - The Pre-Framework Markdown sink path is pinned inside `tmp_path` in
   Gate 4 so the writer's default `/var/lib/wakir/...` path does not

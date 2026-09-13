@@ -78,7 +78,7 @@ Prints the canonical NATS-KV key-prefix constants (one
 Renders the zero-padded NATS-KV key for a given non-negative
 integer offset using the library's `offset_key(off)` formatter.
 Byte-identical against the Python pendant
-`wirelang.persona_engine.state_backing.offset_key`.
+`wirelang.persona_engine.state_backing.offset_key()`.
 
 ### 2.3 Exit codes
 

@@ -70,7 +70,7 @@ Each zone has its own enforcement posture, owner, and CI lane.
   Flip-gated by §5 of [cross-repo-drift-enforce-flip-readiness.md](./cross-repo-drift-enforce-flip-readiness.md).
 * **Required-status-check:** *not yet* — added after Enforce-Flip
   per Step-7 of the Enforce-Flip-Readiness doc.
-* **Inventory:** ten mirror-pairs hard-coded in `pairs=(... )`.
+* **Inventory:** ten mirror-pairs hard-coded in `pairs=( ... )`.
 * **Allowlist:** `.cross-repo-drift-allowlist.yaml`. Currently
   **empty** by design (ADR-0062 Cut-2 follow-up).
 * **Owner:** protocol engineering (substance) + dev engineering (Cross-Review-Zone-3, OTS-
