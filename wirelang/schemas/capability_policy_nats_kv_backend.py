@@ -1,9 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """NATS-JetStream-KV-backed persistent capability-policy distribution
-for the Wirelang schema registry (Phase-2 Sprint-5 Tag-2).
+for the Wirelang schema registry.
 
-This module is the persistent-distribution tier for the Phase-2
-Sprint-4 Tag-6 :mod:`wirelang.schemas.registered_by_capability`
+This module is the persistent-distribution tier for the :mod:`wirelang.schemas.registered_by_capability`
 in-process registry. It persists :class:`CapabilityPolicy` bundles in
 a dedicated NATS-JetStream-KV bucket ``wakir-capability-policies`` so
 that capability policies survive operator-process restarts and can be
@@ -46,8 +45,7 @@ operator-side delivery.
 Design choices
 --------------
 
-The backend mirrors the Phase-1b Sprint-3 Tag-1
-``registry_nats_kv_backend.py`` pattern:
+The backend mirrors the ``registry_nats_kv_backend.py`` pattern:
 
 - Async backend surface (``get``, ``put``, ``delete``, ``snapshot``,
   ``list_keys``).
@@ -57,8 +55,7 @@ The backend mirrors the Phase-1b Sprint-3 Tag-1
   :class:`wirelang.schemas.registered_by_capability.CapabilityPolicyRegistry`
   directly. Verifier-side code (the
   :func:`check_registered_by_capability` gate) consumes the
-  :class:`CapabilityPolicyRegistry` byte-identical to the Sprint-4
-  Tag-6 in-process path; the only difference is the registry origin
+  :class:`CapabilityPolicyRegistry` byte-identical to the in-process path; the only difference is the registry origin
   (NATS-KV vs. operator-supplied).
 - Eager poisoned-envelope failure: a malformed value raises
   :class:`CapabilityPolicyEnvelopeError` from ``get`` and aborts
@@ -84,7 +81,7 @@ and idempotent; see :func:`key_for_policy_pair` and
 
 Two policies for the same ``registered_by`` MUST use different
 ``policy_id`` strings; the bucket enforces uniqueness by KV key.
-This mirrors the Sprint-4 Tag-6 in-process semantics
+This mirrors the in-process semantics
 (:meth:`CapabilityPolicyRegistry.add_policy` accepts multiple
 policies per issuer; the persistent surface keys them apart by
 ``policy_id`` so each policy is independently get-able).
@@ -138,18 +135,16 @@ write time:
    mis-keying).
 
 These gates keep poisoned envelopes off the bucket. Run-time policy
-evaluation (gate decisions) remains the in-process Sprint-4 Tag-6
-``check_registered_by_capability`` function; this module ships
+evaluation (gate decisions) remains the in-process ``check_registered_by_capability`` function; this module ships
 persistence, not evaluation.
 
-Phase-2 Sprint-5 Tag-2 boundary
+boundary
 -------------------------------
 
 - This module ships the persistent-distribution tier for capability
   policies. It DOES NOT replace the in-process
-  :class:`CapabilityPolicyRegistry` from Sprint-4 Tag-6: operators
-  who prefer to keep policies in operator-local JSON files (the
-  Sprint-5 Tag-1 ``--capability-registry`` flag) continue to use
+  :class:`CapabilityPolicyRegistry`: operators
+  who prefer to keep policies in operator-local JSON files (the ``--capability-registry`` flag) continue to use
   that path. The NATS-KV path is the *distribution* layer for
   multi-host deployments where keeping policy files in sync by hand
   is operator-hostile.
@@ -163,68 +158,56 @@ Phase-2 Sprint-5 Tag-2 boundary
   in-process registries. Publishers materialise a
   :class:`CapabilityPolicyRegistry` from
   :meth:`NatsKvCapabilityPolicyBackend.snapshot_registry` on
-  startup (or on a periodic refresh schedule). The Sprint-5 Tag-2
-  slot was full-snapshot only; the live tail
+  startup (or on a periodic refresh schedule). The live tail
   (:meth:`NatsKvCapabilityPolicyBackend.watch` /
-  :class:`LiveCapabilityPolicySnapshot`) is **added in Sprint-5 Tag-5**
-  (pattern-mirror on the schema-registry watch-stream, Sprint-3 Tag-4)
-  and stays a *consumer* surface: a long-running supervisor task feeds
+  :class:`LiveCapabilityPolicySnapshot`) is a pattern-mirror on the
+  schema-registry watch-stream and stays a *consumer* surface: a long-running supervisor task feeds
   a :class:`LiveCapabilityPolicySnapshot` from :meth:`watch` and hands
   frozen :class:`CapabilityPolicyRegistry` copies to verifier modules
   via :meth:`LiveCapabilityPolicySnapshot.as_registry`. The full
   :meth:`snapshot` / :meth:`snapshot_registry` path remains supported
   and orthogonal; CAS-pin is unaffected.
-- Sprint-5 Tag-2 ships PUT (LWW) only. The CAS-pinned upsert path
-  ``put_with_revision`` is **added in Sprint-5 Tag-4** (pattern-mirror
-  on the schema-registry CAS-pin, Sprint-3 Tag-3) — see
+- Two write paths exist. Plain ``put`` is last-write-wins; the
+  CAS-pinned upsert path ``put_with_revision`` is a pattern-mirror on
+  the schema-registry CAS-pin — see
   :meth:`NatsKvCapabilityPolicyBackend.put_with_revision` and
-  :class:`CapabilityPolicyConflictError` below. The Sprint-5 Tag-2
-  ``put`` LWW path remains supported and orthogonal: CAS-pin is the
+  :class:`CapabilityPolicyConflictError` below. The ``put`` LWW path
+  remains supported and orthogonal: CAS-pin is the
   opt-in lost-update-protection surface for operators who edit
   policies concurrently (e.g. rotating ``allowed_kids`` on a
   key-rollover), while LWW remains the default for create-once /
   rarely-touched policy authorship flows.
-- This module DOES NOT replace the Sprint-5 Tag-1
-  ``--capability-registry`` operator-local JSON file format. Both
+- This module DOES NOT replace the ``--capability-registry`` operator-local JSON file format. Both
   paths coexist: the JSON-file path is "policies you ship with your
   CLI invocation"; the NATS-KV path is "policies you publish once
-  for the cluster to discover". A future publisher-CLI integration
-  slot (Phase-2 Sprint-5 Tag-3+ candidate) can add a
-  ``--capability-bucket`` flag that reads policies from this
-  bucket; that integration is NOT part of Sprint-5 Tag-2.
+  for the cluster to discover". The publisher-CLI
+  ``--capability-bucket`` flag reads policies from this bucket; that
+  wiring lives in the publisher CLI, not in this module.
 
-Cross-Review-Zone-B interaction
--------------------------------
+Orchestrator bucket inventory
+-----------------------------
 
-Sprint-5 Tag-2 IS a Z-B Trigger. The orchestrator-side
-:data:`PHASE_1_BUCKETS` inventory currently carries 6 buckets
-(post-Sprint-4 Tag-5 Tag-5-bucket addition). Sprint-5 Tag-2 adds the
-7th bucket ``wakir-capability-policies``. The paired-update memo to
-the DevOps track (Kai) is shipped under
-``agents-workspaces/kai/inbox/`` and lists the byte-precise
-``BUCKET_CONFIG`` mirror contract; the orchestrator-side init script
-addition is operator-tracked as a Sprint-5 Tag-3+ Kai-side
-paired-update slot. The Wirelang-side consumer is byte-functional
-once the bucket is materialised on the live cluster (operator-hand
-``nats kv add wakir-capability-policies ...`` or routine init-script
-backfill — whichever the operator's chosen path).
+``wakir-capability-policies`` is part of the orchestrator-side bucket
+inventory. :data:`BUCKET_CONFIG` below is the byte-precise mirror
+contract the cluster-init script must reproduce for this bucket. The
+Wirelang-side consumer is byte-functional once the bucket is
+materialised on the live cluster (operator-hand
+``nats kv add wakir-capability-policies ...`` or the routine
+init-script backfill — whichever the operator's chosen path).
 
 References
 ----------
 
 - Spec: ``wirelang/specs/schema-registry-spec.md`` §5.14 (this slot).
-- In-process registry source: Sprint-4 Tag-6
-  :mod:`wirelang.schemas.registered_by_capability`.
-- Pattern source: Sprint-3 Tag-1
-  :mod:`wirelang.schemas.registry_nats_kv_backend` (mirror).
+- In-process registry source: :mod:`wirelang.schemas.registered_by_capability`.
+- Pattern source: :mod:`wirelang.schemas.registry_nats_kv_backend` (mirror).
 - Bucket inventory source: ``scripts/init-nats-buckets.py``
-  ``PHASE_1_BUCKETS`` (Sprint-4 Tag-5 currently lists 6 slots;
-  Sprint-5 Tag-2 paired-update memo requests a 7th).
+  ``PHASE_1_BUCKETS``.
 - Layer-3 Biscuit v3 target shape:
   ``wirelang/schemas/layer-3-capability-token.json`` (the on-the-wire
-  Capability-Token envelope; Sprint-5 Tag-2 ships an in-bucket JSON
-  envelope, not the Biscuit binary token shape — Phase-3 substrate).
-- Reza Persona §2 (Capability-Token-Layer: Reza-Owner-Domain).
+  Capability-Token envelope; this module ships an in-bucket JSON
+  envelope, not the Biscuit binary token shape, which is a separate
+  substrate).
 """
 
 from __future__ import annotations
@@ -250,9 +233,8 @@ from wirelang.schemas.registered_by_capability import (
 
 
 #: NATS-KV bucket name for the Wirelang capability-policy registry.
-#: Phase-2 Sprint-5 Tag-2 convention; this name will be registered in
-#: Kai's :data:`PHASE_1_BUCKETS` as the 7th bucket via the Sprint-5
-#: Tag-2 paired-update memo (DevOps-track Sprint-5 Tag-3+ slot).
+#: The same name is carried in the orchestrator-side
+#: ``PHASE_1_BUCKETS`` bucket inventory.
 BUCKET_NAME = "wakir-capability-policies"
 
 #: Documented bucket configuration. Drift-policy is identical to the
@@ -302,8 +284,7 @@ class CapabilityPolicyConflictError(CapabilityPolicyBackendError):
     """Raised when a CAS-pinned upsert is rejected because the live KV
     revision has drifted from the caller's expected revision.
 
-    Phase-2 Sprint-5 Tag-4 CAS-pin contract (pattern-mirror on the
-    Phase-1b Sprint-3 Tag-3 schema-registry CAS-pin path; see
+    CAS-pin contract (pattern-mirror on the schema-registry CAS-pin path; see
     :class:`wirelang.schemas.registry_nats_kv_backend.SchemaRegistryConflictError`).
 
     The caller of
@@ -322,12 +303,10 @@ class CapabilityPolicyConflictError(CapabilityPolicyBackendError):
     layer. ``actual_revision`` is ``None`` if the KV adapter does not
     surface it; callers can re-read the record and retry.
 
-    Lost-update protection on capability-policy authorship is the
-    Sprint-5 Tag-4 substance: two operators editing the same
+    Lost-update protection on capability-policy authorship is the substance: two operators editing the same
     ``(registered_by, policy_id)`` pair concurrently — for example to
     rotate ``allowed_kids`` after a key-rollover — would otherwise risk
-    one overwriting the other's edit silently under the Sprint-5
-    Tag-2 last-write-wins ``put`` contract. CAS-pin makes the conflict
+    one overwriting the other's edit silently under the last-write-wins ``put`` contract. CAS-pin makes the conflict
     explicit so the second writer can re-read and re-apply.
     """
 
@@ -350,7 +329,7 @@ class CapabilityPolicyRevocationConflict(CapabilityPolicyBackendError):
     revoked, or would advance the ``revoked_at`` instant strictly
     later than the live one.
 
-    Phase-2 Sprint-6 Tag-1: revocation is a one-way state transition.
+    revocation is a one-way state transition.
     Once a policy carries a ``revoked_at`` instant, subsequent writes
     MUST either preserve that instant byte-equally (idempotent
     re-write, e.g. note refresh) or refuse. A later revocation
@@ -363,7 +342,7 @@ class CapabilityPolicyRevocationConflict(CapabilityPolicyBackendError):
     This invariant is enforced on
     :meth:`NatsKvCapabilityPolicyBackend.put_with_revision` (the
     CAS-pinned write path); the unsafe LWW ``put`` path does NOT
-    enforce it (consistent with the Sprint-5 Tag-4 rationale: LWW
+    enforce it (consistent with the rationale: LWW
     writes are operator-deliberate, CAS-pinned writes guard the
     safety invariants).
 
@@ -396,7 +375,7 @@ _KEY_PREFIX = "capability-policies/"
 _POLICY_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 
 #: Permitted characters for ``registered_by`` (URI-safe ASCII subset,
-#: matches the Sprint-3 Tag-1 schema-registry convention).
+#: matches the schema-registry convention).
 _REGISTERED_BY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:\-]*$")
 
 
@@ -463,13 +442,13 @@ class UnrevokeAuditMarker:
     """Operator-deliberate-unrevoke audit marker carried on a
     :class:`CapabilityPolicyRecord` envelope.
 
-    Phase-2 Sprint-6 Tag-9 (additive over Sprint-6 Tag-7). The
-    publisher-CLI ``unrevoke`` subcommand (Sprint-6 Tag-7) writes a
+    The
+    publisher-CLI ``unrevoke`` subcommand writes a
     rewritten record with ``policy.revoked_at = None`` against a
     prior-revoked bucket entry. On the watch-stream that write is
     *structurally indistinguishable* on the policy axis from an
     out-of-band un-revoke (substrate corruption or manual override),
-    which the Sprint-6 Tag-3 classifier surfaces as
+    which the classifier surfaces as
     :attr:`RevocationEventKind.REVOCATION_MONOTONIC_BREACH`.
 
     To let audit consumers separate operator-deliberate unrevoke from
@@ -496,15 +475,15 @@ class UnrevokeAuditMarker:
       ``policy.revocation_reason`` (or ``None`` if the prior
       revocation carried no reason). Audit-only; not cross-checked.
 
-    Backward compatibility: every envelope written before Sprint-6
-    Tag-9 omits the marker; the decoder treats absence as ``None``
+    Backward compatibility: an envelope written before the marker
+    existed omits it; the decoder treats absence as ``None``
     (no marker) so legacy envelopes round-trip byte-equally. A
     legacy operator-bypass un-revoke (or a substrate-corruption
     un-revoke) still surfaces as BREACH on the classifier.
 
     Forward compatibility: the marker is gate-orthogonal — the
     :class:`CapabilityPolicy` bundle is unchanged by its presence.
-    Verifier-side gating (Sprint-4 Tag-6, Sprint-6 Tag-1 revocation
+    Verifier-side gating (revocation
     precedence) reads only ``policy.*`` fields; the marker is
     audit-axis state living on the record-bookkeeping side of the
     envelope, not on the policy bundle.
@@ -548,7 +527,7 @@ class UnrevokeAuditMarker:
 class CapabilityPolicyRecord:
     """One capability-policy record as persisted in the bucket.
 
-    The :class:`CapabilityPolicy` bundle from Sprint-4 Tag-6 carries
+    The :class:`CapabilityPolicy` bundle carries
     the gate-evaluation fields (``registered_by``, ``allowed_kids``,
     ``allowed_triples``, validity window, ``disabled``, ``note``). The
     record wraps the policy with operator-side bookkeeping:
@@ -562,7 +541,7 @@ class CapabilityPolicyRecord:
       as ``policy.registered_by``; this field audits the
       policy-authorship operator, that field audits the
       schema-registry publisher whose writes are being gated).
-    - ``unrevoke_audit_marker``: Phase-2 Sprint-6 Tag-9 additive
+    - ``unrevoke_audit_marker``: additive
       operator-deliberate-unrevoke marker. Default ``None`` for every
       legacy write path (publish, revoke, replication). The
       publisher-CLI ``unrevoke`` subcommand sets a non-None
@@ -581,7 +560,7 @@ class CapabilityPolicyRecord:
     policy_id: str
     registered_at: datetime
     registered_by_publisher: str
-    # Phase-2 Sprint-6 Tag-9: additive operator-deliberate-unrevoke
+    # additive operator-deliberate-unrevoke
     # marker. Default ``None`` for every non-unrevoke write path so
     # the field is byte-equally invisible to existing callers.
     unrevoke_audit_marker: Optional[UnrevokeAuditMarker] = None
@@ -619,7 +598,7 @@ class CapabilityPolicyRecord:
                 f"registered_by_publisher must be a non-empty string: "
                 f"got {self.registered_by_publisher!r}"
             )
-        # Phase-2 Sprint-6 Tag-9 invariant: the marker, if present,
+        # invariant: the marker, if present,
         # MUST refer to an unrevoked rewritten record. A marker on a
         # record whose policy is still revoked is a contradiction
         # (the marker witnesses the *transition to unrevoked*; if the
@@ -708,9 +687,8 @@ def _record_to_envelope(record: CapabilityPolicyRecord) -> bytes:
         ),
         "disabled": policy.disabled,
         "note": policy.note,
-        # Phase-2 Sprint-6 Tag-1: additive revocation surface.
-        # Both fields default to ``None`` (no revocation); a Sprint-5
-        # Tag-2..5 envelope without these keys decodes byte-equally
+        # additive revocation surface.
+        # Both fields default to ``None`` (no revocation); a envelope without these keys decodes byte-equally
         # via :func:`_envelope_to_record` to an unrevoked policy.
         "revoked_at": (
             _dt_to_rfc3339(policy.revoked_at)
@@ -721,10 +699,10 @@ def _record_to_envelope(record: CapabilityPolicyRecord) -> bytes:
         "registered_at": _dt_to_rfc3339(record.registered_at),
         "registered_by_publisher": record.registered_by_publisher,
     }
-    # Phase-2 Sprint-6 Tag-9: additive unrevoke-audit-marker. The key
+    # additive unrevoke-audit-marker. The key
     # is only emitted when a marker is present so legacy / non-unrevoke
     # write paths produce envelopes that are byte-equal to the
-    # Sprint-6 Tag-1..8 shape (back-compat invariant). The decoder's
+    # shape (back-compat invariant). The decoder's
     # ``payload.get("unrevoke_audit_marker")`` mirrors the asymmetry.
     if record.unrevoke_audit_marker is not None:
         marker = record.unrevoke_audit_marker
@@ -841,8 +819,8 @@ def _envelope_to_record(blob: bytes) -> CapabilityPolicyRecord:
             f"envelope note must be a string or null: type="
             f"{type(note_raw).__name__}"
         )
-    # Phase-2 Sprint-6 Tag-1: optional revocation fields (additive).
-    # Older Sprint-5 Tag-2..5 envelopes omit these keys; the decoder
+    # optional revocation fields (additive).
+    # Older envelopes omit these keys; the decoder
     # treats absence as ``None`` (unrevoked) so back-compat is
     # byte-precise. New envelopes carry RFC-3339 ``revoked_at`` and
     # a free-form ``revocation_reason`` string (or both ``null``).
@@ -865,7 +843,7 @@ def _envelope_to_record(blob: bytes) -> CapabilityPolicyRecord:
             f"envelope revocation_reason must be a string or null: type="
             f"{type(revocation_reason_raw).__name__}"
         )
-    # Phase-2 Sprint-6 Tag-9: optional unrevoke-audit-marker (additive,
+    # optional unrevoke-audit-marker (additive,
     # back-compat). Absence => marker is None; presence => fully-formed
     # sub-object with three keys. The decoder rejects partial / wrong-
     # shape sub-objects so a poisoned marker surfaces as an envelope
@@ -931,11 +909,11 @@ def _envelope_to_record(blob: bytes) -> CapabilityPolicyRecord:
             raise CapabilityPolicyEnvelopeError(
                 f"envelope unrevoke_audit_marker is invalid: {exc!r}"
             ) from exc
-    # Round-trip through the Sprint-4 Tag-6 CapabilityPolicy
+    # Round-trip through the CapabilityPolicy
     # constructor so every invariant (non-empty registered_by,
     # non-empty allowed_kids, valid window, etc.) is enforced
     # byte-equal at decode time. A malformed envelope surfaces as an
-    # envelope error (not a Sprint-4-Tag-6 RegisteredByCapabilityError);
+    # envelope error (not a RegisteredByCapabilityError);
     # the boundary is at the persistence layer.
     try:
         policy = CapabilityPolicy(
@@ -1031,7 +1009,7 @@ class NatsKvCapabilityPolicyBackend:
     ) -> Optional[Tuple[CapabilityPolicyRecord, int]]:
         """Return ``(record, revision)`` for ``key`` or ``None``.
 
-        Phase-2 Sprint-5 Tag-4 CAS-pin helper. The revision is the
+        CAS-pin helper. The revision is the
         same integer that :meth:`put_with_revision` expects as
         ``expected_revision``.
 
@@ -1114,8 +1092,7 @@ class NatsKvCapabilityPolicyBackend:
     ) -> int:
         """CAS-pinned upsert. Returns the new KV revision number.
 
-        Phase-2 Sprint-5 Tag-4 CAS-pin (pattern-mirror on the
-        Phase-1b Sprint-3 Tag-3 schema-registry CAS-pin path).
+        CAS-pin (pattern-mirror on the schema-registry CAS-pin path).
 
         Lost-update protection contract:
 
@@ -1151,7 +1128,7 @@ class NatsKvCapabilityPolicyBackend:
         envelope cannot leave the validation surface even if the
         revision happened to be stale. This mirrors the schema-registry
         CAS-pin "validation gates run BEFORE CAS" determinism contract
-        (Sprint-3 Tag-3 spec §5.4).
+        (spec §5.4).
         """
         if not isinstance(record, CapabilityPolicyRecord):
             raise TypeError("record must be a CapabilityPolicyRecord")
@@ -1169,7 +1146,7 @@ class NatsKvCapabilityPolicyBackend:
             )
         # Gate 2: pair ↔ key (raises on malformed components).
         key = record.key
-        # Gate 3 (Phase-2 Sprint-6 Tag-1): revocation-monotonic.
+        # Gate 3: revocation-monotonic.
         # If the live record at this key carries a revocation, the
         # incoming record MUST either preserve the same ``revoked_at``
         # instant or refuse. An incoming ``revoked_at=None`` against a
@@ -1183,7 +1160,7 @@ class NatsKvCapabilityPolicyBackend:
             existing = await self.get(key)
         except CapabilityPolicyEnvelopeError:
             # A poisoned live envelope is surfaced by ``get``; the
-            # CAS-pin path forwards that failure up. Reza-Hand: a
+            # CAS-pin path forwards that failure up: a
             # poisoned-on-disk policy must not be silently overwritten
             # by CAS-pin either.
             raise
@@ -1275,18 +1252,17 @@ class NatsKvCapabilityPolicyBackend:
 
     async def snapshot_registry(self) -> CapabilityPolicyRegistry:
         """Materialise the live bucket into a
-        :class:`CapabilityPolicyRegistry` ready for the Sprint-4
-        Tag-6 :func:`check_registered_by_capability` gate.
+        :class:`CapabilityPolicyRegistry` ready for the :func:`check_registered_by_capability` gate.
 
         Records are added to the registry in sorted-key order; the
         registry preserves insertion order per ``registered_by``, so
         the in-process gate evaluation sees policies in stable order
         (a determinism contract that mirrors the
-        :class:`InMemorySchemaRegistry.keys_sorted` Sprint-3 Tag-1
-        determinism contract).
+        :class:`InMemorySchemaRegistry.keys_sorted` determinism
+        contract).
 
         Disabled policies ARE included in the registry; the gate
-        evaluates them (Sprint-4 Tag-6 semantics: a disabled policy
+        evaluates them (semantics: a disabled policy
         contributes a fallback ``POLICY_DISABLED`` decision-source if
         no allowing match was found). Operators who want to evict a
         policy from the gate entirely call :meth:`delete` and
@@ -1299,7 +1275,7 @@ class NatsKvCapabilityPolicyBackend:
         return registry
 
     # ------------------------------------------------------------------
-    # Watch-stream (Phase-2 Sprint-5 Tag-5, additive over Sprint-5 Tag-4)
+    # Watch-stream
     # ------------------------------------------------------------------
 
     async def watch(self) -> "_CapabilityPolicyWatchStreamHandle":
@@ -1309,16 +1285,15 @@ class NatsKvCapabilityPolicyBackend:
         :class:`CapabilityPolicyWatchEvent` instances. See
         :func:`open_capability_policy_watch_stream` for details.
 
-        Phase-2 Sprint-5 Tag-5 boundary: the watch-stream is a *consumer*
+        boundary: the watch-stream is a *consumer*
         surface; it does NOT replace :meth:`snapshot_registry`. Use a
         :class:`LiveCapabilityPolicySnapshot` (bootstrapped from
         :meth:`snapshot_registry`, fed by :meth:`watch`) to maintain a
         long-running incremental view; pass frozen
-        :meth:`LiveCapabilityPolicySnapshot.as_registry` copies to the
-        Sprint-4 Tag-6 :func:`check_registered_by_capability` gate when
+        :meth:`LiveCapabilityPolicySnapshot.as_registry` copies to the :func:`check_registered_by_capability` gate when
         it needs a stable point-in-time view.
 
-        Pattern-mirror on Sprint-3 Tag-4 schema-registry watch-stream
+        Pattern-mirror on schema-registry watch-stream
         (:meth:`NatsKvSchemaRegistry.watch`).
         """
         return await open_capability_policy_watch_stream(self)
@@ -1372,7 +1347,7 @@ def _coerce_revision_from_entry(kve: Any) -> int:
     should normally observe a positive revision because it just read
     the entry from the bucket.
 
-    Phase-2 Sprint-5 Tag-4 CAS-pin helper (pattern-mirror on the
+    CAS-pin helper (pattern-mirror on the
     schema-registry CAS-pin helper of the same name).
     """
     if isinstance(kve, (bytes, bytearray)):
@@ -1415,7 +1390,7 @@ async def _kv_update_with_revision(
     markers in :data:`_CONFLICT_CLS_MARKERS`), the function raises
     :class:`CapabilityPolicyConflictError` with the observed metadata.
 
-    Phase-2 Sprint-5 Tag-4 CAS-pin helper (pattern-mirror on the
+    CAS-pin helper (pattern-mirror on the
     schema-registry CAS-pin helper of the same name; the schema-
     registry helper raises
     :class:`SchemaRegistryConflictError`, this one raises
@@ -1466,7 +1441,7 @@ async def _kv_update_with_revision(
 def _is_conflict_exception(exc: BaseException) -> bool:
     """True if ``exc``'s class name matches a CAS-conflict marker.
 
-    Phase-2 Sprint-5 Tag-4 CAS-pin helper (pattern-mirror on the
+    CAS-pin helper (pattern-mirror on the
     schema-registry CAS-pin helper of the same name; both detect
     nats-py-style conflict exception class names by class-name marker
     rather than by isinstance check, so the backend stays
@@ -1481,7 +1456,7 @@ def _extract_actual_revision(exc: BaseException) -> Optional[int]:
     the underlying KV adapter surfaces one. Best-effort, returns
     ``None`` when not available.
 
-    Phase-2 Sprint-5 Tag-4 CAS-pin helper (pattern-mirror on the
+    CAS-pin helper (pattern-mirror on the
     schema-registry CAS-pin helper of the same name).
     """
     for attr in ("actual_revision", "actual", "revision", "last"):
@@ -1510,18 +1485,18 @@ async def _list_keys(kv: Any) -> list:
 
 
 # ---------------------------------------------------------------------------
-# Watch-Stream-Snapshot Layer (Phase-2 Sprint-5 Tag-5, additive over Tag-4)
+# Watch-Stream-Snapshot Layer
 # ---------------------------------------------------------------------------
 #
-# Tag-2 (S5-2) shipped get/put/delete/snapshot/snapshot_registry. The
-# snapshot path is full-bucket: every verifier pass that wants fresh
+# The base backend surface is get/put/delete/snapshot/snapshot_registry.
+# The snapshot path is full-bucket: every verifier pass that wants fresh
 # state takes a fresh full snapshot. That is correct for determinism
 # but costly when policy turnover is high (e.g. operator-side rotation
 # campaigns rolling kids across many policies) or when a long-running
 # supervisor wants to track changes between snapshots without
 # re-listing.
 #
-# Tag-5 (S5-5) adds a watch-based incremental layer that consumes
+# The watch-based incremental layer on top of it consumes
 # nats-py's ``KeyValue.watchall()`` (or a mock-equivalent) and surfaces
 # decoded :class:`CapabilityPolicyWatchEvent` instances. The
 # synchronous verifier surface
@@ -1544,31 +1519,31 @@ async def _list_keys(kv: Any) -> list:
 # is taken at call time; subsequent watch events do NOT mutate the
 # returned registry (T-CPP-WS-determinism contract).
 #
-# Boundary (Phase-2 Sprint-5 Tag-5):
+# Boundary:
 #
 # - The watch-stream is a *consumer* surface. Operators connect the
-#   stream to a long-running supervisor task; the supervisor keeps a
-#   :class:`LiveCapabilityPolicySnapshot` warm and hands frozen
-#   :class:`CapabilityPolicyRegistry` instances to the
-#   :func:`check_registered_by_capability` gate per pass. The
-#   watch-stream itself is not the registry.
+# stream to a long-running supervisor task; the supervisor keeps a
+# :class:`LiveCapabilityPolicySnapshot` warm and hands frozen
+# :class:`CapabilityPolicyRegistry` instances to the
+# :func:`check_registered_by_capability` gate per pass. The
+# watch-stream itself is not the registry.
 # - A poisoned envelope on the stream raises
-#   :class:`CapabilityPolicyEnvelopeError` from the consumer iterator
-#   and terminates the iterator. The operator must observe the error,
-#   drop the :class:`LiveCapabilityPolicySnapshot`, and re-bootstrap
-#   from a fresh :meth:`NatsKvCapabilityPolicyBackend.snapshot`.
-#   Phase-2 Sprint-5 Tag-5 does not silently swallow envelope poison
-#   (same contract as the full snapshot path).
+# :class:`CapabilityPolicyEnvelopeError` from the consumer iterator
+# and terminates the iterator. The operator must observe the error,
+# drop the :class:`LiveCapabilityPolicySnapshot`, and re-bootstrap
+# from a fresh :meth:`NatsKvCapabilityPolicyBackend.snapshot`.
+# does not silently swallow envelope poison
+# (same contract as the full snapshot path).
 # - Watch-stream resumption / replay-from-revision is a Phase-3
-#   concern (nats-py supports it via ``watchall(..., resume_from=...)``;
-#   the Sprint-5 Tag-5 stream wrapper exposes the underlying revision
-#   but does not bake in resume policy).
-# - The watch-stream is orthogonal to the Tag-4 CAS-pin surface. A
-#   CAS-pin PUT (lossless update) yields one PUT event on the stream
-#   identical to a LWW PUT; an LWW write yields one PUT event; a
-#   stale CAS-pin write rejected by the bucket yields NO event (the
-#   write was not durable). Determinism contract: the stream is a
-#   strict suffix of the durable bucket history.
+# concern (nats-py supports it via ``watchall(..., resume_from=...)``;
+# the stream wrapper exposes the underlying revision
+# but does not bake in resume policy).
+# - The watch-stream is orthogonal to the CAS-pin surface. A
+# CAS-pin PUT (lossless update) yields one PUT event on the stream
+# identical to a LWW PUT; an LWW write yields one PUT event; a
+# stale CAS-pin write rejected by the bucket yields NO event (the
+# write was not durable). Determinism contract: the stream is a
+# strict suffix of the durable bucket history.
 
 
 class CapabilityPolicyWatchOp(enum.Enum):
@@ -1582,7 +1557,7 @@ class CapabilityPolicyWatchOp(enum.Enum):
 
     Byte-equal mirror of
     :class:`wirelang.schemas.registry_nats_kv_backend.WatchOp`
-    (Sprint-3 Tag-4). The class identity is module-local to keep the
+. The class identity is module-local to keep the
     two backends evolving independently.
     """
 
@@ -1799,7 +1774,7 @@ async def open_capability_policy_watch_stream(
 class LiveCapabilityPolicySnapshot:
     """Live, watch-stream-fed snapshot of the capability-policy registry.
 
-    Phase-2 Sprint-5 Tag-5 (S5-5) substrate. Initialises an in-memory
+    Watch-stream substrate. Initialises an in-memory
     copy from a full backend snapshot, then applies decoded
     :class:`CapabilityPolicyWatchEvent` instances to keep the copy in
     sync.
@@ -1817,7 +1792,7 @@ class LiveCapabilityPolicySnapshot:
     The map is the canonical state; :meth:`as_registry` rebuilds a
     :class:`CapabilityPolicyRegistry` from the values on each call.
     This indirection is intentional: the
-    :class:`CapabilityPolicyRegistry` from Sprint-4 Tag-6 is indexed by
+    :class:`CapabilityPolicyRegistry` is indexed by
     ``registered_by`` only (a single issuer may carry multiple
     policies); the watch-stream needs per-(issuer, policy_id) update /
     delete semantics, so we keep the key-indexed map alongside.
@@ -1832,9 +1807,9 @@ class LiveCapabilityPolicySnapshot:
     :class:`wirelang.schemas.registry_nats_kv_backend.LiveSchemaSnapshot`.
     """
 
-    initial: list  # list[CapabilityPolicyRecord]
+    initial: list # list[CapabilityPolicyRecord]
     last_revision: int = 0
-    _live: dict = field(init=False)  # dict[str, CapabilityPolicyRecord]
+    _live: dict = field(init=False) # dict[str, CapabilityPolicyRecord]
 
     def __post_init__(self) -> None:
         # Defensive copy: callers may keep a reference to ``initial``
@@ -1911,21 +1886,21 @@ class LiveCapabilityPolicySnapshot:
 
 
 # ---------------------------------------------------------------------------
-# Revocation Event Classifier (Phase-2 Sprint-6 Tag-3, consumer-side
-# symmetry to Sprint-6 Tag-1 backend revocation-axis)
+# Revocation Event Classifier (consumer-side
+# symmetry to the backend revocation-axis)
 # ---------------------------------------------------------------------------
 #
-# Sprint-6 Tag-1 added the backend-write side of the revocation surface
-# (the ``CapabilityPolicy.revoked_at`` + ``revocation_reason`` fields,
-# the ``CapabilityPolicyRevocationConflict`` invariants on the write
-# path, the publisher-CLI ``revoke`` subcommand from Tag-2). The
+# The backend-write side of the revocation surface is the
+# ``CapabilityPolicy.revoked_at`` + ``revocation_reason`` fields, the
+# ``CapabilityPolicyRevocationConflict`` invariants on the write path
+# and the publisher-CLI ``revoke`` subcommand. The
 # consumer side – an audit-track observer that watches the bucket and
 # wants to know "WHICH watch-event was a revocation?" – had no
 # explicit surface: a downstream consumer had to compare PUT-event
 # records' ``policy.revoked_at`` against its own prior view to
 # classify each event.
 #
-# Sprint-6 Tag-3 closes that asymmetry. The
+# This module closes that asymmetry. The
 # :class:`RevocationEventClassifier` keeps a per-key map of the last
 # observed ``revoked_at`` instant and turns each
 # :class:`CapabilityPolicyWatchEvent` into a
@@ -1942,7 +1917,7 @@ class LiveCapabilityPolicySnapshot:
 # policy state right now", the classifier tracks "what kind of
 # transition did each event represent".
 #
-# Symmetry with Sprint-6 Tag-1: the classifier mirrors the same
+# Symmetry with the write path: the classifier mirrors the same
 # revocation-monotonic invariant the backend enforces on writes – once
 # a key is revoked, subsequent PUTs MUST preserve ``revoked_at``
 # byte-equally; an apparent un-revoke or an advanced ``revoked_at`` is
@@ -1958,8 +1933,7 @@ class RevocationEventKind(enum.Enum):
     """Classification of a capability-policy watch event with respect
     to the revocation axis.
 
-    Six kinds (Sprint-6 Tag-3 introduced five, Sprint-6 Tag-9 added
-    :attr:`EXPLICIT_UNREVOKE`) cover the cross-product of {PUT,
+    Six kinds cover the cross-product of {PUT,
     DELETE/PURGE} x {prior-state present?} x {prior revoked?} x
     {incoming revoked?} x {operator-deliberate marker present?}.
 
@@ -1976,12 +1950,12 @@ class RevocationEventKind(enum.Enum):
       is an audit-trail refresh (e.g. ``revocation_reason`` updated,
       ``registered_at`` advanced) without altering the revocation
       decision. Verifier-side gating is unchanged.
-    - :attr:`EXPLICIT_UNREVOKE` (Sprint-6 Tag-9): a PUT against a
+    - :attr:`EXPLICIT_UNREVOKE`: a PUT against a
       prior-revoked key that drops ``revoked_at`` to ``None`` AND
       carries an :class:`UnrevokeAuditMarker` whose
       ``previous_revoked_at`` matches the classifier's prior view.
       This is the operator-deliberate counterpart of the publisher-
-      CLI ``unrevoke`` subcommand (Sprint-6 Tag-7); the marker
+      CLI ``unrevoke`` subcommand; the marker
       witnesses that an authorised operator performed the gesture and
       lets watch-side audit consumers distinguish it from
       :attr:`REVOCATION_MONOTONIC_BREACH` without cross-referencing a
@@ -1992,10 +1966,10 @@ class RevocationEventKind(enum.Enum):
       ``previous_revoked_at`` mismatches the classifier's prior view,
       or marker present but the gesture is otherwise inconsistent) or
       (b) carries a strictly different ``revoked_at`` instant
-      (advance or retreat). CAS-pin backend invariants from Sprint-6
-      Tag-1 forbid these transitions even via the LWW path's Sprint-6
-      Tag-7 unrevoke subcommand (which writes a fully-formed
-      unrevoked record on the LWW path); observing the unmarked
+      (advance or retreat). CAS-pin backend invariants
+      forbid these transitions even via the LWW path's ``unrevoke``
+      subcommand (which writes a fully-formed unrevoked record on the
+      LWW path); observing the unmarked
       shape on the watch-stream is a *witness* that the bucket state
       was mutated out-of-band (substrate corruption, manual override,
       or a classifier-internal book-keeping error). The classifier
@@ -2138,24 +2112,24 @@ class RevocationEventClassifier:
         the event's effect, so the next event for the same key is
         classified against the now-updated prior state.
 
-        Decision table (Sprint-6 Tag-9 extended with marker column):
+        Decision table (extended with marker column):
 
-        ===========  ============  ============  ============  ==================================
-        op           prior state   incoming      marker        kind
-        ===========  ============  ============  ============  ==================================
-        PUT          absent        None          any           NOT_REVOCATION_RELATED
-        PUT          absent        non-None      any           REVOCATION_TRANSITION
-        PUT          None          None          any           NOT_REVOCATION_RELATED
-        PUT          None          non-None      any           REVOCATION_TRANSITION
-        PUT          non-None X    None          marker.prev=X EXPLICIT_UNREVOKE
-        PUT          non-None X    None          absent / mismatch REVOCATION_MONOTONIC_BREACH
-        PUT          non-None X    non-None X    any           REVOCATION_REFRESH
-        PUT          non-None X    non-None Y    any           REVOCATION_MONOTONIC_BREACH
-        DELETE       any           N/A           N/A           KEY_REMOVED
-        PURGE        any           N/A           N/A           KEY_REMOVED
-        ===========  ============  ============  ============  ==================================
+        =========== ============ ============ ============ ==================================
+        op prior state incoming marker kind
+        =========== ============ ============ ============ ==================================
+        PUT absent None any NOT_REVOCATION_RELATED
+        PUT absent non-None any REVOCATION_TRANSITION
+        PUT None None any NOT_REVOCATION_RELATED
+        PUT None non-None any REVOCATION_TRANSITION
+        PUT non-None X None marker.prev=X EXPLICIT_UNREVOKE
+        PUT non-None X None absent / mismatch REVOCATION_MONOTONIC_BREACH
+        PUT non-None X non-None X any REVOCATION_REFRESH
+        PUT non-None X non-None Y any REVOCATION_MONOTONIC_BREACH
+        DELETE any N/A N/A KEY_REMOVED
+        PURGE any N/A N/A KEY_REMOVED
+        =========== ============ ============ ============ ==================================
 
-        Marker semantics (Sprint-6 Tag-9): the
+        Marker semantics: the
         :class:`UnrevokeAuditMarker` on the incoming record carries
         ``previous_revoked_at`` — the publisher-CLI ``unrevoke``
         subcommand reads the live record before rewriting and
@@ -2239,7 +2213,7 @@ class RevocationEventClassifier:
         else:
             # Prior state is revoked.
             if incoming_revoked_at is None:
-                # Apparent un-revoke. Sprint-6 Tag-9: branch on the
+                # Apparent un-revoke: branch on the
                 # operator-deliberate marker. A marker present AND
                 # whose ``previous_revoked_at`` matches the
                 # classifier's prior view authenticates the gesture.
@@ -2328,8 +2302,7 @@ async def filter_revocation_events(
       :class:`RevocationEventKind` values to surface. If ``None``,
       defaults to ``{REVOCATION_TRANSITION, REVOCATION_REFRESH,
       REVOCATION_MONOTONIC_BREACH, EXPLICIT_UNREVOKE}`` (the four
-      revocation-axis kinds — three from Sprint-6 Tag-3 plus the
-      Sprint-6 Tag-9 operator-deliberate-unrevoke kind). Pass
+      revocation-axis kinds — three plus the operator-deliberate-unrevoke kind). Pass
       ``frozenset(RevocationEventKind)`` to surface every classified
       event (useful for full-audit consumers).
 
@@ -2354,7 +2327,7 @@ async def filter_revocation_events(
             RevocationEventKind.REVOCATION_TRANSITION,
             RevocationEventKind.REVOCATION_REFRESH,
             RevocationEventKind.REVOCATION_MONOTONIC_BREACH,
-            # Sprint-6 Tag-9: surface operator-deliberate unrevoke
+            # surface operator-deliberate unrevoke
             # by default so audit consumers see the gesture on the
             # same default filter as BREACH (the two are sister
             # kinds on the prior-revoked-to-unrevoked transition).

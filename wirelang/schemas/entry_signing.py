@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Schema-registry entry signing (Phase-2 Sprint-4 Tag-1).
+"""Schema-registry entry signing.
 
 This module is the canonical Ed25519 signature substrate for
-schema-registry entries. It composes the Tag-1 envelope codec
+schema-registry entries. It composes the envelope codec
 (:mod:`wirelang.schemas.registry_nats_kv_backend`) with the
 :mod:`wirelang.identity.aip_signing` JCS + SHA-256 + Ed25519
 primitive byte-identical.
@@ -21,7 +21,7 @@ on the existing ``wakir.wirelang.schema-registry-entry/1`` value
 schema. No ``/2`` envelope is introduced — v0.5.0 readers see an
 unknown optional field and tolerate it (M-2 additive-only).
 
-Phase-2 Sprint-4 Tag-1 boundary (spec §5.8 Phase-2 boundary block):
+boundary (spec §5.8 Phase-2 boundary block):
 
 - This module ships the signing primitive and the
   :class:`VerifyMode` policy surface.
@@ -74,11 +74,11 @@ from wirelang.schemas.registry_nats_kv_backend import (
 # JCS resolver indirection (mirrors wirelang.identity.aip_signing).
 # ---------------------------------------------------------------------------
 
-try:  # pragma: no cover -- production path
+try: # pragma: no cover -- production path
     import rfc8785 as _rfc8785_lib
 
     _HAS_RFC8785 = True
-except ImportError:  # pragma: no cover -- sandbox fallback path
+except ImportError: # pragma: no cover -- sandbox fallback path
     _rfc8785_lib = None
     _HAS_RFC8785 = False
 
@@ -89,7 +89,7 @@ def _jcs_canonicalize(value: object) -> bytes:
     Production path: ``rfc8785.dumps``. Fallback path: the pure-Python
     canonicaliser in :mod:`wirelang.identity._jcs_pure`. The two paths
     produce byte-identical output for the schema-registry-entry envelope
-    shape; cross-equivalence is verified by the Tag-9 identity test
+    shape; cross-equivalence is verified by the identity test
     suite (the same canonicaliser is exercised there).
     """
     if _HAS_RFC8785:
@@ -131,7 +131,7 @@ class VerifyMode(enum.Enum):
       verified end-to-end.
     - ``STRICT``: entries WITHOUT a ``signature`` slot raise
       :class:`SchemaRegistrySignatureError`. Activation is operator-
-      controlled; Sprint-4 Tag-1 ships the policy surface only.
+      controlled; this module ships the policy surface only.
     """
 
     PERMISSIVE = "permissive"
@@ -144,7 +144,7 @@ class VerifyMode(enum.Enum):
 
 
 SIGNATURE_ALG: str = "Ed25519"
-_SIGNATURE_HEX_LEN: int = 128  # 64 bytes Ed25519 signature = 128 hex chars
+_SIGNATURE_HEX_LEN: int = 128 # 64 bytes Ed25519 signature = 128 hex chars
 _ED25519_KEY_LEN: int = 32
 
 
@@ -223,7 +223,7 @@ class SignedSchemaRegistryEntry:
 
 
 # ---------------------------------------------------------------------------
-# Envelope codec helpers (additive over Tag-1).
+# Envelope codec helpers.
 # ---------------------------------------------------------------------------
 
 
@@ -233,8 +233,7 @@ def _entry_to_signing_payload(
     """Return the envelope payload dict WITHOUT the ``signature`` slot.
 
     Mirrors :func:`wirelang.schemas.registry_nats_kv_backend._entry_to_envelope`
-    field-for-field so the JCS pre-image is byte-identical to the
-    Tag-1 envelope minus signature.
+    field-for-field so the JCS pre-image is byte-identical to the envelope minus signature.
     """
     if not isinstance(entry, SchemaRegistryEntry):
         raise TypeError("entry must be a SchemaRegistryEntry")
@@ -432,7 +431,7 @@ def envelope_with_signature(
 ) -> bytes:
     """Serialise a signed entry to canonical envelope bytes.
 
-    The output is identical to the Tag-1 envelope codec with one
+    The output is identical to the envelope codec with one
     additional optional field: ``signature``. The envelope schema URI
     remains ``wakir.wirelang.schema-registry-entry/1``.
     """
@@ -450,32 +449,32 @@ def envelope_with_signature(
 def envelope_to_signed_entry(
     blob: bytes,
 ) -> Union[SignedSchemaRegistryEntry, SchemaRegistryEntry]:
-    """Inverse of :func:`envelope_with_signature` plus Tag-1 codec.
+    """Inverse of :func:`envelope_with_signature` plus the base codec.
 
     When the envelope carries a ``signature`` slot, returns
     :class:`SignedSchemaRegistryEntry`. When the slot is absent, returns
-    a plain :class:`SchemaRegistryEntry` (Tag-1 codec parity).
+    a plain :class:`SchemaRegistryEntry` (codec parity).
 
     Raises:
         :class:`SchemaRegistryEnvelopeError`: on shape violation of the
-            base envelope (delegated to the Tag-1 codec).
+            base envelope (delegated to the codec).
         :class:`SchemaRegistrySignatureError`: on shape violation of the
             optional signature slot.
     """
-    # Delegate base envelope shape check to the Tag-1 codec, then peek
+    # Delegate base envelope shape check to the codec, then peek
     # at the signature slot if present.
     entry = _envelope_to_entry(blob)
-    # The Tag-1 decoder discards unknown fields; we re-parse the JSON
+    # The decoder discards unknown fields; we re-parse the JSON
     # ourselves to recover the optional slot if it exists.
     try:
         text = blob.decode("utf-8")
         payload = json.loads(text)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        # Tag-1 codec would already have raised; this is defence-in-depth.
+        # codec would already have raised; this is defence-in-depth.
         raise SchemaRegistryEnvelopeError(
             f"envelope re-parse failed: {exc!r}"
         ) from exc
-    if not isinstance(payload, dict):  # pragma: no cover -- Tag-1 catches
+    if not isinstance(payload, dict): # pragma: no cover -- base codec catches
         raise SchemaRegistryEnvelopeError(
             "envelope is not a JSON object on re-parse"
         )

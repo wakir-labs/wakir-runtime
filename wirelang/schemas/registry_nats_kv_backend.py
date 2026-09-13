@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 """NATS-JetStream-KV-backed Wirelang Schema Registry backend.
 
-Phase-1b Sprint-3 Tag-1 (S3-1) lands the production-target backend
+This module is the production-target backend
 for the Wirelang schema registry described in
 ``wirelang/specs/schema-registry-spec.md``. The registry persists the
 seven Phase-1b on-disk JSON-Schema documents (plus a reserved 8th
 slot for ``datalog-caveat/0.1.0``) in the
 ``wakir-schemas`` NATS-JetStream KV bucket already documented in
-Kai's Phase-1 bucket inventory (``scripts/init-nats-buckets.py``,
-Phase-1b Sprint-2 Tag-2).
+the orchestrator-side bucket inventory
+(``scripts/init-nats-buckets.py``).
 
 Substrate
 ---------
@@ -26,15 +26,15 @@ operator-side init script; this module declares the matching
 - ``replicas``: 1 (Phase-1 single-node).
 
 Cross-reference: this module does NOT add a new bucket. It is a
-*consumer* of Kai's existing :data:`PHASE_1_BUCKETS[0]` slot. The
-Tag-4 V-908 backend added ``wakir-federation-routes`` as the 5th
-bucket; Sprint-3 Tag-1 introduces no 6th bucket.
+*consumer* of the existing :data:`PHASE_1_BUCKETS[0]` slot. The V-908
+backend added ``wakir-federation-routes`` as the 5th bucket; this
+module introduces no further bucket.
 
 Design choices
 --------------
 
-The backend mirrors the V-908 NATS-KV route-registry pattern shipped
-in Phase-1b Sprint-2 Tag-4 (``route_registry_nats_kv_backend.py``).
+The backend mirrors the V-908 NATS-KV route-registry pattern
+(``route_registry_nats_kv_backend.py``).
 Specifically:
 
 - Async backend surface (``get``, ``put``, ``delete``, ``snapshot``).
@@ -94,7 +94,7 @@ These gates keep poisoned envelopes off the bucket. The Phase-1c
 same three gates BEFORE the revision-pin call (see Phase-1c CAS-pin
 contract below).
 
-Phase-1c CAS-pin contract (Sprint-3 Tag-3, OI-7-Phase-1c-CAS)
+Phase-1c CAS-pin contract (OI-7-Phase-1c-CAS)
 -------------------------------------------------------------
 
 Lost-update protection for concurrent schema upserts is added in
@@ -114,16 +114,16 @@ the canonical compare-and-swap idiom:
 
 The CAS-pin is a Phase-1c addition: the substrate to support it
 (revision integer threading through the KV adapter, conflict-class
-name detection) was already present in the V-908 Tag-4 backend
-pattern; Phase-1b Sprint-3 Tag-3 lands the schema-registry side of
+name detection) was already present in the V-908 backend
+pattern; this module carries the schema-registry side of
 the same surface. The :class:`SchemaRegistryConflictError` mirrors
 the V-908 :class:`RouteRegistryConflictError`.
 
-Phase-2 hardening on top of Phase-1c CAS-pin (out of scope for
-Tag-3): replication-aware quorum upserts, deprecation policy with
+Hardening deferred beyond the Phase-1c CAS-pin (out of scope for this
+module): replication-aware quorum upserts, deprecation policy with
 overlapping-validity windows, IPFS-anchored schema-document hashes.
 
-Phase-1c watch-stream contract (Sprint-3 Tag-4, OI-7-Phase-1c-watch)
+Phase-1c watch-stream contract (OI-7-Phase-1c-watch)
 --------------------------------------------------------------------
 
 Long-running consumers can subscribe to a watch-stream over the
@@ -132,8 +132,8 @@ watch-stream yields decoded :class:`WatchEvent` instances; consumers
 feed the events into a :class:`LiveSchemaSnapshot` to maintain an
 incremental in-memory view without re-snapshotting on every change.
 
-The pattern mirrors the V-908 Tag-6 watch-stream-snapshot layer
-shipped in :mod:`wirelang.federation.route_registry_nats_kv_backend`
+The pattern mirrors the V-908 watch-stream-snapshot layer in
+:mod:`wirelang.federation.route_registry_nats_kv_backend`
 (``WatchOp`` / ``WatchEvent`` / ``LiveSnapshot.from_backend``). The
 schema-registry side adds:
 
@@ -157,18 +157,17 @@ The test suite at
 the backend against an in-memory mock that mirrors the V-908 mock
 shape (``_MockKv`` / ``_MockKvEntry``). The mock is intentionally
 the same surface so the orchestrator-side and Wirelang-side both
-validate against the same nats-py contract. The Tag-4 watch-stream
+validate against the same nats-py contract. The watch-stream
 tests live in ``wirelang/tests/test_schema_registry_watch_stream.py``
-and mirror the V-908 Tag-6 ``test_..._watch_stream`` pattern with a
+and mirror the V-908 ``test_..._watch_stream`` pattern with a
 schema-registry-shaped fixture.
 
-References (URL-stamped 2026-05-07 by wirelang-eng):
+References:
 
-- Spec: ``wirelang/specs/schema-registry-spec.md`` (Phase-1b
-  Sprint-3 Tag-1 / Tag-3 / Tag-4).
+- Spec: ``wirelang/specs/schema-registry-spec.md``.
 - V-908 backend pattern source:
   ``wirelang/federation/route_registry_nats_kv_backend.py``.
-- V-908 Tag-6 watch-stream pattern source: same module, ``WatchOp`` /
+- V-908 watch-stream pattern source: same module, ``WatchOp`` /
   ``WatchEvent`` / ``LiveSnapshot`` section.
 - Bucket inventory source: ``scripts/init-nats-buckets.py``
   ``PHASE_1_BUCKETS[0]`` (``wakir-schemas``).
@@ -189,9 +188,9 @@ from typing import Any, Mapping, Optional
 # ---------------------------------------------------------------------------
 
 
-#: NATS-KV bucket name for the Wirelang schema registry. Phase-1b
-#: convention; this name MUST match the entry already registered in
-#: Kai's :data:`PHASE_1_BUCKETS[0]` (``scripts/init-nats-buckets.py``).
+#: NATS-KV bucket name for the Wirelang schema registry. This name
+#: MUST match the entry already registered in the orchestrator-side
+#: ``PHASE_1_BUCKETS[0]`` (``scripts/init-nats-buckets.py``).
 BUCKET_NAME = "wakir-schemas"
 
 #: Documented bucket configuration. Drift-policy is identical to the
@@ -244,7 +243,7 @@ class SchemaRegistryConflictError(SchemaRegistryBackendError):
     """Raised when a CAS-pinned upsert is rejected because the live KV
     revision has drifted from the caller's expected revision.
 
-    Phase-1c CAS-pin contract (Sprint-3 Tag-3, OI-7-Phase-1c-CAS).
+    Phase-1c CAS-pin contract (OI-7-Phase-1c-CAS).
 
     The caller of :meth:`NatsKvSchemaRegistry.put_with_revision`
     declares the revision it observed when it last read the entry.
@@ -386,7 +385,7 @@ def _jcs_canonicalise(obj: Any) -> bytes:
     no number-encoding edge cases that JCS would treat differently).
     """
     try:
-        from wirelang.canonical.jcs import canonicalise  # type: ignore
+        from wirelang.canonical.jcs import canonicalise # type: ignore
         return canonicalise(obj)
     except Exception:
         # Fallback: sorted keys + compact separators. Stable for the
@@ -708,7 +707,7 @@ class NatsKvSchemaRegistry:
     ) -> int:
         """CAS-pinned upsert. Returns the new KV revision number.
 
-        Phase-1c CAS-pin (Sprint-3 Tag-3, OI-7-Phase-1c-CAS).
+        Phase-1c CAS-pin (OI-7-Phase-1c-CAS).
 
         Lost-update protection contract:
 
@@ -823,7 +822,7 @@ class NatsKvSchemaRegistry:
         return in_memory
 
     # ------------------------------------------------------------------
-    # Watch-stream (Phase-1b Sprint-3 Tag-4, OI-7-Phase-1c-watch)
+    # Watch-stream (OI-7-Phase-1c-watch)
     # ------------------------------------------------------------------
 
     async def watch(self) -> "_SchemaWatchStreamHandle":
@@ -1011,16 +1010,16 @@ async def _list_keys(kv: Any) -> list:
 
 
 # ---------------------------------------------------------------------------
-# Watch-Stream-Snapshot Layer (Phase-1b Sprint-3 Tag-4, OI-7-Phase-1c-watch)
+# Watch-Stream-Snapshot Layer (OI-7-Phase-1c-watch)
 # ---------------------------------------------------------------------------
 #
-# Tag-1 (S3-1) shipped get/put/delete/snapshot. Snapshot is full-bucket:
+# The base backend surface is get/put/delete/snapshot. Snapshot is full-bucket:
 # every verifier pass that wants fresh state takes a fresh full snapshot.
 # That is correct for determinism but costly when schema turnover is high
 # or when a long-running supervisor wants to track changes between
 # snapshots without re-listing.
 #
-# Tag-4 (S3-4) adds a watch-based incremental layer that consumes
+# The watch-based incremental layer on top of it consumes
 # nats-py's ``KeyValue.watchall()`` (or a mock-equivalent) and surfaces
 # decoded :class:`WatchEvent` instances. The synchronous verifier
 # surface (:class:`InMemorySchemaRegistry.lookup`) is UNCHANGED: a
@@ -1040,23 +1039,23 @@ async def _list_keys(kv: Any) -> list:
 # frozen copy is taken at call time; subsequent watch events do NOT
 # mutate the returned registry (T-SR-WS-determinism contract).
 #
-# Boundary (Phase-1b, Sprint-3 Tag-4):
+# Boundary (Phase-1b):
 #
 # - The watch-stream is a *consumer* surface. Operators connect the
-#   stream to a long-running supervisor task; the supervisor keeps a
-#   :class:`LiveSchemaSnapshot` warm and hands frozen
-#   :class:`InMemorySchemaRegistry` instances to verifier modules per
-#   pass. The watch-stream itself is not the registry.
+# stream to a long-running supervisor task; the supervisor keeps a
+# :class:`LiveSchemaSnapshot` warm and hands frozen
+# :class:`InMemorySchemaRegistry` instances to verifier modules per
+# pass. The watch-stream itself is not the registry.
 # - A poisoned envelope on the stream raises
-#   :class:`SchemaRegistryEnvelopeError` from the consumer iterator
-#   and terminates the iterator. The operator must observe the error,
-#   drop the :class:`LiveSchemaSnapshot`, and re-bootstrap from a fresh
-#   :meth:`NatsKvSchemaRegistry.snapshot`. Phase-1c does not silently
-#   swallow envelope poison (same contract as full snapshot).
+# :class:`SchemaRegistryEnvelopeError` from the consumer iterator
+# and terminates the iterator. The operator must observe the error,
+# drop the :class:`LiveSchemaSnapshot`, and re-bootstrap from a fresh
+# :meth:`NatsKvSchemaRegistry.snapshot`. Phase-1c does not silently
+# swallow envelope poison (same contract as full snapshot).
 # - Watch-stream resumption / replay-from-revision is a Phase-2
-#   concern (nats-py supports it via ``watchall(..., resume_from=...)``;
-#   the Phase-1c stream wrapper exposes the underlying revision but
-#   does not bake in resume policy).
+# concern (nats-py supports it via ``watchall(..., resume_from=...)``;
+# the Phase-1c stream wrapper exposes the underlying revision but
+# does not bake in resume policy).
 
 
 class WatchOp(enum.Enum):
@@ -1246,7 +1245,7 @@ async def open_watch_stream(
 class LiveSchemaSnapshot:
     """Live, watch-stream-fed snapshot of the schema registry.
 
-    Phase-1b Sprint-3 Tag-4 (S3-4) substrate. Initialises an in-memory
+    Watch-stream substrate. Initialises an in-memory
     copy from a full backend snapshot, then applies decoded
     :class:`WatchEvent` instances to keep the copy in sync.
 
