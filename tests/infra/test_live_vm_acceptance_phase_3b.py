@@ -413,7 +413,7 @@ def test_doc_companion_anchors_present() -> None:
         "## 6. Latency budget rationale",
         "## 7. Operator runbook",
         "## 8. Cross-Review anchors",
-        "## 9. Out of scope (Tag-18)",
+        "## 9. Out of scope",
     ]
     for header in required_sections:
         assert header in body, f"doc missing section header: {header!r}"
