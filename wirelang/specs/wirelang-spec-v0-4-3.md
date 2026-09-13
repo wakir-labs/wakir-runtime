@@ -21,15 +21,15 @@ freeze-marker: kw-24-cutover-gate
 freeze-anchor: persona-engine-0.5.2-final-pre-cutover
 ---
 
-# Wirelang Specification v0.4.3 (Pre-Cutover-Freeze-Marker)
+# Wirelang Specification v0.4.3 (Tag-53 Pre-Cutover-Freeze-Marker)
 
-This document is a **status-only freeze-marker** over v0.4.2 (PR
-#320). It introduces **no substance diff** to v0.4.2: the
-on-the-wire format, frame attributes, caveat predicates,
-publish-mode contract, §3 catalogue, §4 ENV-flag schema, §5 welle
-inventory, §6 Bug-42 contract, §7 canonical wire format, §8 operator
-contract, §9 Phase-3c cutover, and §10 audit conformance are **all**
-carried forward from v0.4.2 unchanged.
+This document is a **status-only freeze-marker** over v0.4.2 (Tag-50
+PR #320). It introduces **no substance diff** to v0.4.2: the on-the-
+wire format, frame attributes, caveat predicates, publish-mode
+contract, §3 catalogue, §4 ENV-flag schema, §5 welle inventory,
+§6 Bug-42 contract, §7 canonical wire format, §8 operator contract,
+§9 Phase-3c cutover, and §10 audit conformance are **all** carried
+forward from v0.4.2 unchanged.
 
 The single normative change of v0.4.3 is the frontmatter
 `status:` flip from `draft` (v0.4.2) to `pre-cutover-freeze`
@@ -37,7 +37,7 @@ The single normative change of v0.4.3 is the frontmatter
 `freeze-marker: kw-24-cutover-gate` and
 `freeze-anchor: persona-engine-0.5.2-final-pre-cutover`.
 
-> **v0.4.3 (2026-05-19):** Strict-superset freeze-marker
+> **v0.4.3 (2026-05-19, Tag-53):** Strict-superset freeze-marker
 > over v0.4.2. **No on-the-wire change. No frame-attribute change.
 > No caveat-predicate addition or removal. No publish-mode-contract
 > change. No §3 catalogue change. No §4 ENV-flag schema change.**
@@ -52,15 +52,14 @@ The single normative change of v0.4.3 is the frontmatter
 > v0.4.0 frames (the spec change is governance-level, not
 > wire-level).
 
-v0.4.3 is the **complementary spec-side marker** to the
+v0.4.3 is the **complementary spec-side marker** to the Tag-52
 Persona-Engine 0.5.2-final-pre-cutover (PR #336) consolidated
 strict-superset bump: the engine declares "no further
-substance-side changes pre-cutover" via the
-`0.5.2-final-pre-cutover` tag; v0.4.3 declares "no further
-spec-side changes pre-cutover" via the `pre-cutover-freeze`
-status-bit. Together the two markers form the closed
-pre-cutover-freeze envelope for the KW-24 Phase-3c cutover
-gate.
+substance-side changes pre-cutover" via the `0.5.2-final-pre-
+cutover` tag; v0.4.3 declares "no further spec-side changes
+pre-cutover" via the `pre-cutover-freeze` status-bit. Together
+the two markers form the closed pre-cutover-freeze envelope for
+the KW-24 Phase-3c cutover gate.
 
 ## 1. Scope of v0.4.3
 
@@ -68,12 +67,12 @@ The marker resolves a single governance item.
 
 | Marker ID | Severity | Surface affected | v0.4.3 resolution |
 |---|---|---|---|
-| FREEZE-S1 | governance | Spec-side pre-cutover discipline: the KW-24 cutover gate requires a closed change-surface on both substrate (Persona-Engine binary) and spec (Wirelang document). Persona-Engine declared its closure via Tag-52 0.5.2-final-pre-cutover (PR #336). Spec closure was implicit (no PR planned past v0.4.2) but not explicit. | Frontmatter `status: pre-cutover-freeze` plus `freeze-marker: kw-24-cutover-gate` plus `freeze-anchor: persona-engine-0.5.2-final-pre-cutover`. The marker makes spec-side closure auditable, machine-readable, and synchronisable with the engine-side closure. |
+| FREEZE-S1 | governance | Spec-side pre-cutover discipline: the KW-24 cutover gate requires a closed change-surface on both substrate (Persona-Engine binary) and spec (Wirelang document). Persona-Engine declared its closure via Tag-52 0.5.2-final-pre-cutover (PR #336). Spec closure was implicit (no PR planned past Tag-50 v0.4.2) but not explicit. | Frontmatter `status: pre-cutover-freeze` plus `freeze-marker: kw-24-cutover-gate` plus `freeze-anchor: persona-engine-0.5.2-final-pre-cutover`. The marker makes spec-side closure auditable, machine-readable, and synchronisable with the engine-side closure. |
 
-**Source-of-truth direction (CEO-Triage 2026-05-19):** The
-Persona-Engine substrate is the cutover-trigger; the Wirelang
-spec is the conformance-anchor. A cutover gate requires both to
-be closed. v0.4.3 is the explicit spec-side closure-bit.
+**Source-of-truth direction (CEO-Triage 2026-05-19, Tag-53):**
+The Persona-Engine substrate is the cutover-trigger; the Wirelang
+spec is the conformance-anchor. A cutover gate requires both
+to be closed. v0.4.3 is the explicit spec-side closure-bit.
 
 The marker does **not** modify §3.1 catalogue (sixteen rows,
 unchanged from v0.4.2), §3.2 (Identity-Substrate byte-stability),
@@ -89,7 +88,7 @@ It is published as a separate file
 `wirelang-spec-v0-4-2.md` for the same two reasons that motivated
 the v0.4.0 → v0.4.1 → v0.4.2 splits:
 
-1. **Patch-trace integrity.** PR #320 (v0.4.2) is cited
+1. **Patch-trace integrity.** Tag-50 PR #320 (v0.4.2) is cited
    verbatim by the regression-pin in
    `tests/specs/test_wirelang_spec_v0_4_2_drift_s4_reconciliation.py`.
    Rewriting v0.4.2 in place — even just the frontmatter — would
@@ -210,8 +209,8 @@ a calendar deadline, it encodes a gate-identity.
 
 The `freeze-anchor: persona-engine-0.5.2-final-pre-cutover`
 annotation declares which Persona-Engine binary tag v0.4.3 is
-anchored to. The PR #336 consolidated strict-superset bump
-(Selin, Phase-3c-Marathon Final Pre-Cutover) tagged the
+anchored to. The Tag-52 PR #336 consolidated strict-superset
+bump (Selin, Phase-3c-Marathon Final Pre-Cutover) tagged the
 engine as `0.5.2-final-pre-cutover` declaring no further
 substance-side changes pre-cutover. v0.4.3 declares the
 complementary spec-side closure.
@@ -263,8 +262,8 @@ A spec document v0.4.3 is audit-conformant if and only if:
   `freeze-anchor: persona-engine-0.5.2-final-pre-cutover`.
 - The body declares "no substance diff" relative to v0.4.2
   prominently (intro paragraph and §1 marker table).
-- The body cross-references PR #336 (the engine-side
-  closure) and PR #320 (the v0.4.2 substance baseline).
+- The body cross-references Tag-52 PR #336 (the engine-side
+  closure) and Tag-50 PR #320 (the v0.4.2 substance baseline).
 - §3 catalogue contents are unchanged from v0.4.2 (no row
   added, removed, or modified).
 - §4.1 contents are unchanged from v0.4.2 (no row added,
@@ -273,19 +272,19 @@ A spec document v0.4.3 is audit-conformant if and only if:
 
 The hermetic test suite that accompanies this spec
 (`tests/specs/test_wirelang_spec_v0_4_3_pre_cutover_freeze.py`,
-ten or more tests) enforces these invariants statically (no
-NATS, no engine boot, no Rust build, no network import).
+ten or more tests, Tag-53) enforces these invariants statically
+(no NATS, no engine boot, no Rust build, no network import).
 
 ## 9. Citation pointers
 
-- PR #336 (engine-side pre-cutover-freeze counterpart):
-  `5b74b45 Persona-Engine 0.5.2-final-pre-cutover
+- Tag-52 PR #336 (engine-side pre-cutover-freeze counterpart):
+  `5b74b45 Tag-52 Persona-Engine 0.5.2-final-pre-cutover
   consolidated bump (Selin)`.
-- PR #320 (v0.4.2 substance baseline):
+- Tag-50 PR #320 (v0.4.2 substance baseline):
   `wirelang/specs/wirelang-spec-v0-4-2.md` (ee6c9ca).
-- PR #308 (v0.4.1 baseline):
+- Tag-48 PR #308 (v0.4.1 baseline):
   `wirelang/specs/wirelang-spec-v0-4-1.md` (100004b).
-- PR #291 (v0.4 baseline):
+- Tag-45 PR #291 (v0.4 baseline):
   `wirelang/specs/wirelang-spec-v0-4.md` (0300e74).
 - Pin-Pack substrate (source-of-truth for §4.1, unchanged):
   `infra/persona-engine/pin-pack-0.5.1-pre-cutover.yaml`.

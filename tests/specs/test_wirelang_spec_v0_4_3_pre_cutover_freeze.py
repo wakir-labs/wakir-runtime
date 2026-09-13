@@ -264,11 +264,12 @@ def test_t08_spec_v043_cites_engine_side_freeze_anchor():
 
 
 def test_t09_spec_v043_cites_v042_substance_baseline():
-    """T-09: v0.4.3 must cite PR #320 (v0.4.2 substance baseline)."""
+    """T-09: v0.4.3 must cite Tag-50 PR #320 (v0.4.2 substance baseline)."""
     body = SPEC_V043.read_text(encoding="utf-8")
     assert "v0.4.2" in body, "v0.4.3 must cite v0.4.2 (substance baseline)"
+    assert "Tag-50" in body, "v0.4.3 must cite Tag-50 (v0.4.2 release)"
     assert "PR #320" in body or "#320" in body, (
-        "v0.4.3 must cite PR #320 (the v0.4.2 substance baseline)"
+        "v0.4.3 must cite PR #320 (Tag-50 v0.4.2 substance baseline)"
     )
 
 
