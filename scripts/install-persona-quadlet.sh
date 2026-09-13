@@ -36,7 +36,7 @@
 # Invocation
 # ----------
 #
-#   sudo ./install-persona-tomas-quadlet.sh \
+#   sudo ./install-persona-quadlet.sh \
 #       --persona-md /path/to/tomas.md \
 #       --persona-json /path/to/tomas.json \
 #       --nats-creds /path/to/tomas.env \

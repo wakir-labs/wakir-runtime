@@ -51,7 +51,7 @@ fix at the codebase level: every Python / Rust source file is
 scanned for publish/subscribe sigils, every `wakir.<env>.*` literal
 is classified against the canonical schema regex, and every
 mode-aware module is cross-checked for dispatch and gate consistency.
-The first baseline (`reports/audit/2026-05-18-nats-jetstream-subjects-audit.md`):
+The first baseline (`docs/archive/evidence/audits/2026-05-18-nats-jetstream-subjects-audit.md`):
 0 drift rows across 276 scanned files.
 
 The Tag-48 regression-suite is the **third layer** of the closure

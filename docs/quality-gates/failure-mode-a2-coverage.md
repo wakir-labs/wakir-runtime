@@ -8,7 +8,6 @@
 | Source | Tag-46 Reza Auftrag (Continuous-Mode, 2026-05-18); Amara-Tag-45 §A2 follow-up scope (`docs/quality-gates/pre-mortem-failure-mode-coverage.md`); Henrik Tag-44 Pre-Mortem-Skizze §A2 (`reports/audit/phase-3-marathon-pre-mortem-2026-05-18.md`) |
 | Date | 2026-05-18 (creation, Tag-46 A2-coverage spawn) |
 | Test-File | `wirelang/tests/persona_engine/test_fsm_phantom_transition_coverage_a2.py` |
-| Companion (parent matrix) | `docs/quality-gates/pre-mortem-failure-mode-coverage.md` (Amara Tag-45) |
 
 ## 0. Contract scope
 

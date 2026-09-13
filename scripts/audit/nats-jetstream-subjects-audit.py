@@ -17,7 +17,7 @@ by switching to ``js.publish``, the Tag-43 question is:
 The audit is intentionally a *grep + parse* pass over the working
 tree — stdlib-only, no nats-py, no AST package outside Python's
 ``ast`` module, no network. It mirrors the pattern of
-``scripts/audit/cross-repo-sync-audit.py`` (Reza Tag-42) and is
+the former ``scripts/audit/cross-repo-sync-audit.py`` (superseded by ``tooling/compat/``) and is
 hermetic-test-friendly: the public surface (``audit_repo``,
 ``classify_call``, ``classify_subject_template``, ``render_report``)
 takes a repo-root :class:`pathlib.Path` and returns plain
@@ -106,7 +106,7 @@ Run examples
 
     # Write the report to the canonical path under reports/audit/.
     python3 scripts/audit/nats-jetstream-subjects-audit.py \\
-        --report reports/audit/2026-05-18-nats-jetstream-subjects-audit.md
+        --report docs/archive/evidence/audits/2026-05-18-nats-jetstream-subjects-audit.md
 
     # Enforce-mode (fail on any drift row).
     python3 scripts/audit/nats-jetstream-subjects-audit.py --enforce

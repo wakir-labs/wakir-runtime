@@ -288,7 +288,7 @@ Aktivierungs-Schritte (Mira-Hand, einmalig):
 ### Closeout-Trail (OPEN-J1)
 
 - **Auslöser:** Selin Tag-56 Audit-Bericht
-  `reports/audit/persona-engine-0-5-2-production-readiness-2026-05-19.md`
+  the persona-engine 0.5.2 production-readiness audit (git history, tag `archive/pre-phase-4`)
   §4 Open-Item-Tracker, Zeile OPEN-J1.
 - **Schluss-Substanz:** PR `kai/tag-57-cross-substrate-parity-green`
   (Tag-57). Erweitert den Gate um Vertrag B, fügt 12 Tag-57-Tests

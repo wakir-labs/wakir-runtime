@@ -19,7 +19,7 @@ The script periodically invokes ``wakir-anchor anchor-receipt --latest
 --json`` (Tomas' PR #124 subcommand), parses the structured-JSON
 output that the WAT-core emits, and writes a Prometheus textfile-
 collector record that Kai's node-exporter Quadlet already scrapes.
-Pattern parity with ``mira-hourly-watchdog.py`` (Noa's PR #81) and
+Pattern parity with the SRE textfile-adapter family and
 ``per-model-cost-aggregator.py`` + ``cache-hit-rate-aggregator.py``
 (Noa's PR #110 + #117): same stdlib-only floor, same atomic-write
 discipline, same textfile-collector default location.

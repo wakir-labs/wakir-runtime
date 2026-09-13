@@ -24,7 +24,7 @@ comparisons) where Bash's quoting + arithmetic surface would be
 brittle. The split mirrors the existing pattern from
 ``scripts/persona-engine/boot-self-test.py`` (Python self-test
 backed by a Bash invocation in CI) and
-``scripts/install-persona-tomas-quadlet.sh`` (Bash entry, Python
+``scripts/install-persona-quadlet.sh`` (Bash entry, Python
 sub-helpers).
 
 ADR scope

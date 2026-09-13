@@ -294,13 +294,13 @@ substrate-fix.
   inactive Quadlet, not the running `podman run` container.
 * **Root cause.** Production-install path was Mira-Hand-`podman
   run` workaround since Bug-35; Kai PR #76 ships
-  `scripts/install-persona-tomas-quadlet.sh` to replace the
+  `scripts/install-persona-quadlet.sh` to replace the
   workaround with a Quadlet-installed unit.
 * **Affects.** TV-LVD-03 only. TV-LVD-01/02/04 still work against
   the `podman run` container if the `wakir-persona-tomas` name
   resolves to it; TV-LVD-05..10 are unaffected (different
   containers).
-* **Disposition.** Run `install-persona-tomas-quadlet.sh` to
+* **Disposition.** Run `install-persona-quadlet.sh` to
   promote the workaround to a Quadlet; re-run TV-LVD-03.
 
 ### 4.6 Sandbox-host-collision (defence-in-depth, should never fire)

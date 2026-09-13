@@ -20,8 +20,6 @@ related_adrs:
 related_docs:
   - "docs/operations/manifest-hash-ots-anchor-wiring.md"
   - "docs/operations/wirelang-spec-ots-anchor-wiring.md"
-  - "docs/operations/res-d4-high-residual-mitigation-deep-dive.md"
-  - "docs/operations/operator-hand-cutover-eve-final-recipe.md"
 related_prs:
   - "#366"
   - "#371"

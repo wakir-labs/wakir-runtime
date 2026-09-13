@@ -18,7 +18,7 @@
 This document is the **substrate-layer coverage matrix** for
 failure-mode **A6 — Cosign-Verification-Drift (Image-Re-Bake
 mid-Marathon)** as classified in Amara's Tag-45 Pre-Mortem
-Coverage-Audit (`pre-mortem-failure-mode-coverage.md` §2 A6).
+Coverage-Audit (historical; git history, tag `archive/pre-phase-4`).
 
 The Tag-45 audit classified A6 as **PARTIAL** with two pinning tests
 (both CI-workflow-shape: `test_cosign_login_step_present`,

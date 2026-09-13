@@ -95,7 +95,6 @@ that persona-containers consume is owned by Reza:
 | SPIFFE-ID-Binding spec | `wirelang/specs/identity-substrate.md` §5 | Tag-4 (`ece8f45`) | Not yet merged into Tag-9 base |
 | Workload-API adapter skeleton | `wirelang/adapters/spiffe_workload_api.py` | Tag-4 (skeleton), Tag-5 (`9c94517` Mock adapter) | Not yet merged into Tag-9 base |
 | Real adapter | `wirelang/adapters/real_spiffe_workload_api.py` | Tag-7+ slot | Not in Sprint-6 Tag-7 yet |
-| Test-counts convention | `docs/test-counts-convention.md` | Tag-5 | Not yet merged |
 
 **Tag-9 does not import the Reza adapter** because none of the Reza
 Sprint-6 Tag-4/Tag-5 commits are in the Tag-9 baseline (`origin/kai/

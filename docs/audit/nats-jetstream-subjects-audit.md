@@ -8,7 +8,7 @@ Copyright (c) 2026 Callandor GmbH and contributors
 **Owner:** Selin Çelik (Persona-Engine Engineer)
 **Companion script:** [`scripts/audit/nats-jetstream-subjects-audit.py`](../../scripts/audit/nats-jetstream-subjects-audit.py)
 **Hermetic tests:** [`tests/audit/test_nats_jetstream_subjects_audit.py`](../../tests/audit/test_nats_jetstream_subjects_audit.py)
-**First report:** [`reports/audit/2026-05-18-nats-jetstream-subjects-audit.md`](../../reports/audit/2026-05-18-nats-jetstream-subjects-audit.md)
+**First report:** [`docs/archive/evidence/audits/2026-05-18-nats-jetstream-subjects-audit.md`](../../docs/archive/evidence/audits/2026-05-18-nats-jetstream-subjects-audit.md)
 **Related ADRs / spec sections:** Bug-42 Failure-Mode-Catalogue (`wirelang/specs/wirelang-spec-v0-2.md` §13.2 / §13.3 / §13.4), Tag-41 PR #265 (publish/subscribe surface compatibility contract).
 
 ---
@@ -237,7 +237,7 @@ guard is the Bug-42 compound defence.
 
 ## 8. Cross-Review references
 
-- Reza Tag-42: `scripts/audit/cross-repo-sync-audit.py` —
+- Reza Tag-42: the former `scripts/audit/cross-repo-sync-audit.py` (superseded by the `tooling/compat/` gate) —
   pattern template (stdlib-only, hermetic-testable, audit-only
   vs enforce-mode).
 - Tomás Tag-41: PR #265 substrate

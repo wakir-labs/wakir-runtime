@@ -35,6 +35,9 @@ git checkout archive/pre-phase-4 -- docs/phase-3c/   # restore a directory
 | `evidence/phase-3/ar-hand-phase-3-complete-stamp.json` | Supervisory-board ratification stamp for the marker | audit trail of the milestone |
 | `reports/live-vm/` | Live-VM pre-cutover probe reports, 2026-05-18 (7 files) | evidence for the live-bring-up gap between hermetic CI and real VMs |
 | `evidence/wat-live-runs/` | WAT TV-1 / TV-2 / TV-3 live-run and live-stamp memos, 2026-05-06/07 (6 files) | first real Bitcoin-anchored runs of the WAT pipeline (calendar receipts, block heights, Esplora confirmations) |
+| `evidence/audits/2026-05-18-nats-jetstream-subjects-audit.md` | First generated run of the NATS-JetStream subjects / publish-mode audit (0 drift rows) | baseline referenced by `wirelang/specs/wirelang-spec-v0-4.md` §8; the audit itself still runs via `scripts/audit/nats-jetstream-subjects-audit.py` |
+| `evidence/audits/phase-3a-15-crate-consistency-2026-05-19.md` | Phase-3a 15-crate consistency audit (Python ↔ Rust ↔ pin-pack) | reconciliation basis for spec v0.4.1 / v0.4.2; pinned by `tests/audit/test_phase_3a_15_crate_consistency.py` |
+| `evidence/audits/persona-engine-0-5-3-production-readiness-2026-05-19.md` | Persona-Engine 0.5.3 production-readiness audit (D1–D7 verdicts) | release evidence for the shipped 0.5.3 engine; pinned by `wirelang/tests/persona_engine/test_tag63_production_readiness_audit.py` and the engine-version-drift allowlist |
 
 Design knowledge extracted from deleted workflows lives in
 `docs/design-notes/` (e.g. `backend-rollback.md`), not here.

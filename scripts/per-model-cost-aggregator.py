@@ -26,7 +26,7 @@ the top-level key or from a sibling ``otel-metric`` record's
 compute total USD cost per model per scrape window. Output goes
 to the Prometheus textfile-collector substrate that Kai's
 node-exporter Quadlet already consumes (parity with
-``prometheus-textfile-adapter.py`` and ``mira-hourly-watchdog.py``
+``prometheus-textfile-adapter.py``
 in the same directory).
 
 Per ADR-0064 §Folgeartefakte Phase-2a Item 2:
@@ -81,7 +81,7 @@ Exit codes
 * ``2`` — output directory not writable.
 
 License: Apache-2.0 (parity with ``prometheus-textfile-adapter.py``
-and ``mira-hourly-watchdog.py``).
+).
 """
 
 from __future__ import annotations
