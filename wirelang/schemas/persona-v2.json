@@ -107,7 +107,7 @@
         },
         "identity_doc_ref": {
           "type": "string",
-          "description": "OPTIONAL. Forward-link to a Z-L identity-substrate document hash (identity-eng-slot domain, Zone L). HR-slot-ratification-pending; identity-eng-slot Forward-link-pending. Format is a URI string; precise URI scheme is Sprint-3-Tag-N consensus item.",
+          "description": "OPTIONAL. Forward-link to a Z-L identity-substrate document hash (identity-eng-slot domain, Zone L). HR-slot-ratification-pending; identity-eng-slot Forward-link-pending. Format is a URI string; precise URI scheme is an open cross-review consensus item.",
           "format": "uri",
           "minLength": 1
         },
@@ -125,7 +125,7 @@
     },
     "model_pin": {
       "type": "object",
-      "description": "OPTIONAL. Carries an explicit model-version pin so a persona's behaviour is reproducible across model upgrades. Phase-2 alignment item; Sprint-3 records the hash-input shape so v2-inputs that supply it are byte-stable. Field semantics HR-slot-ratification-pending (ADR-0029-Annex)."
+      "description": "OPTIONAL. Carries an explicit model-version pin so a persona's behaviour is reproducible across model upgrades. The hash-input shape is recorded so v2-inputs that supply it are byte-stable. Field semantics HR-slot-ratification-pending (ADR-0029-Annex)."
     },
     "spawn_constraints": {
       "type": "object",
@@ -141,7 +141,7 @@
     },
     "container_bridge_spec": {
       "type": "object",
-      "description": "RESERVED, no semantics in persona-v2. Anticipated owner: container-ops-slot (Zone-J persona-container-bridge override; Sprint-3 likely consumes it). Reserved-but-empty hashes the same as absent under the canonical-subset drop-empty discipline."
+      "description": "RESERVED, no semantics in persona-v2. Anticipated owner: container-ops-slot (Zone-J persona-container-bridge override). Reserved-but-empty hashes the same as absent under the canonical-subset drop-empty discipline."
     }
   }
 }

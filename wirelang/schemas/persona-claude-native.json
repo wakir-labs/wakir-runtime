@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://wakir.dev/schemas/persona-claude-native.json",
   "title": "Persona-Claude-Native front-matter schema (axis-A input)",
-  "description": "Schema for the YAML front-matter block of a .claude/agents/<slug>.md persona-definition file as authored against the Claude-Code spawner contract. Sprint-Pengine-7 Tag-1 documents the production input shape of the 13 active personae. The Markdown body is NOT covered by this schema and is treated as out-of-hash by V-907 (mirrored here as out-of-schema). Per the persona-engine-format-spec.md v1.0 §2, the front-matter is the lossless source for the wakir-persona-v1 conversion target.",
+  "description": "Schema for the YAML front-matter block of a .claude/agents/<slug>.md persona-definition file as authored against the Claude-Code spawner contract. This schema documents the production input shape of the active personae. The Markdown body is NOT covered by this schema and is treated as out-of-hash by V-907 (mirrored here as out-of-schema). Per the persona-engine-format-spec.md v1.0 §2, the front-matter is the lossless source for the wakir-persona-v1 conversion target.",
   "type": "object",
   "required": [
     "name",
