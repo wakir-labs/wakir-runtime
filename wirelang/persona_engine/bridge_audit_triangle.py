@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """3-Way-Mode bridge-audit cross-check triangle.
 
-Sprint-Pengine-15-Folge (ADR-0063 §Folgeartefakte Item 3, follow-on to
+(ADR-0063 §Folgeartefakte Item 3, follow-on to
 PR #106 Item 2 — the Deterministic-Diff-Engine).
 
 PR #106 shipped the pairwise diff-engine: given two CloudEvent envelopes

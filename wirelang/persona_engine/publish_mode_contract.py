@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Publisher/Subscriber surface compatibility contract (Tag-41 Bug-42).
+"""Publisher/Subscriber surface compatibility contract (Bug-42).
 
-This module is the Tag-41 substantive close-out of the Bug-42 class
+This module is the substantive close-out of the Bug-42 class
 documented in ``wirelang/specs/wirelang-spec-v0-2.md`` §13 (Layer-0
 Subscribe-Mode contract).
 
@@ -34,7 +34,7 @@ Design constraints
 - Mirrors :mod:`nats_subscribe_loop` mode-string conventions for the
   subscriber side; producer side is brand-new (Adapter-B substrate).
 - The matrix is a frozen table; new modes require an explicit
-  spec-update + matrix patch + Tomás cross-review (Zone K parity).
+  spec-update + matrix patch + the WAT side cross-review (Zone K parity).
 """
 
 from __future__ import annotations

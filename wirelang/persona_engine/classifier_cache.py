@@ -7,7 +7,7 @@ Overview
 
 ADR-0064 Phase-2c ships the LLM-Classifier path
 (:mod:`llm_classifier`) and the production-mode integration
-(:mod:`anthropic_call`). For Tag-16 we close the cost-control loop:
+(:mod:`anthropic_call`). We close the cost-control loop:
 every classifier verdict is keyed on a deterministic *task-hash*
 (persona-id + persona-def-pin + prompt-payload) and cached so that an
 identical task does **not** trigger a second Haiku call within the TTL
@@ -32,7 +32,7 @@ Design intent
   therefore safe.
 - **Default-aus**: TTL ``0`` (or unset env var) means the cache is
   disabled and every call hits the classifier. Production behaviour
-  stays byte-identical to pre-Tag-16 when the operator has not opted
+  stays byte-identical to earlier when the operator has not opted
   in.
 
 ENV variable contract

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Minimal SPIFFE Workload-API protobuf surface (Sprint-Pengine-9 OI-PEFR-2).
+"""Minimal SPIFFE Workload-API protobuf surface (OI-PEFR-2).
 
 Hand-rolled gRPC binding for the **read-only** subset of the SPIFFE
 Workload-API v0.4 protocol the persona-engine consumes:

@@ -23,7 +23,7 @@ Phase-2b is intentionally an opt-in, **observation-only** stub:
   ADR-0064 Phase-2b §4 can compare heuristic-suggested vs.
   static-configured models without changing production behaviour.
 - Live model-swap on the back of the heuristic is **Phase-3
-  substance** — Sprint-Heuristic-Routing-Stub-MINI ships the
+  substance** — ships the
   decision logic + telemetry envelope, **not** the live swap.
 
 The router is intentionally provider-agnostic in its decision type
@@ -54,8 +54,8 @@ Heuristic inputs
    prose with low schema-complexity tilts toward Haiku.
 
 4. **Persona-Befugnis-Rahmen**.
-   Audit-personas (Henrik Voss / Internal-Audit, Aisha Rahman / HR,
-   Mira-CEO-spawns) get an Opus-floor — the cost-spread is justified
+   Audit-personas (internal audit, HR,
+   orchestrator-CEO-spawns) get an Opus-floor — the cost-spread is justified
    by the consequence of mis-classification. Routine-comms-personas
    (julia-comms, brand-ops) get a Haiku-ceiling. Engineering-personas
    (tomas, kai, reza, lena, noa, selin, amara) use the heuristic
@@ -315,7 +315,7 @@ def _count_code_blocks(prompt: str) -> int:
 def _score_code_vs_prose(code_blocks: int, prompt_len: int) -> int:
     if prompt_len == 0:
         return 0
-    # Heavy code (>=3 fenced blocks): mid-tier Sonnet lean (+1).
+    # Heavy code (>=3 fenced blocks): mid-tier Sonnet lean (1).
     # Some code (1-2 blocks): neutral (0).
     # No code at all (pure prose): -1 Haiku-lean.
     if code_blocks >= 3:

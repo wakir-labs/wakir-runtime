@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Bridge-audit-diff-engine canonical-trace helpers (Tag-36 Phase-3a 13. Modul).
+"""Bridge-audit-diff-engine canonical-trace helpers (Phase-3a 13. Modul).
 
 This module is the **Python sibling** of the Rust canonical sub-module
-``persona_engine_bridge_diff::canonical`` (Tag-36 expansion of the
+``persona_engine_bridge_diff::canonical`` (expansion of the
 already-existing crate ``persona-engine-bridge-diff``).  Where the
 existing :mod:`wirelang.persona_engine.bridge_audit_diff_engine` provides
 the operator-facing ``DiffReport`` surface (with the live ``envelope_a``
@@ -30,8 +30,8 @@ stable projection — that is the canonical-trace.
 Keeping the helpers in a separate Apache-2.0 module preserves the
 existing ``bridge_audit_diff_engine.py`` BUSL surface unchanged
 (spec §5 anchor, no licence change) and matches the sibling-pattern
-Reza used for ``wirelang.persona_engine.v907_verify_canonical``
-(Tag-35 sibling of ``persona-engine-v907-verify``).
+the protocol side used for ``wirelang.persona_engine.v907_verify_canonical``
+(sibling of ``persona-engine-v907-verify``).
 
 Schema
 ------
@@ -130,7 +130,7 @@ ADR anchors
 -----------
 
 - ADR-0063 §Folgeartefakte Phase-3a — Item 2 (deterministic-diff oracle)
-  + Item 4 (Rust bridge-diff Crate, already merged Tag-17).
+  + Item 4 (Rust bridge-diff Crate, already merged).
 - ADR-0066 — Welle-3 Konsistenz-Oracle-Selbst-Cutover; this canonical
   surface closes the cross-lang trace leg for the diff-engine itself.
 """

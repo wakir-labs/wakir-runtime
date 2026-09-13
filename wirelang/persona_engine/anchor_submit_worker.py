@@ -897,11 +897,11 @@ def assert_spec_invariants() -> None:
         )
     if ENV_SUBMIT_RATE != "WAKIR_ANCHOR_SUBMIT_RATE":
         raise SubmitWorkerError(
-            "ENV_SUBMIT_RATE drifted from Sprint-Auftrag-pinned value"
+            "ENV_SUBMIT_RATE drifted from its pinned value"
         )
     if ENV_MAX_RETRY != "WAKIR_ANCHOR_MAX_RETRY":
         raise SubmitWorkerError(
-            "ENV_MAX_RETRY drifted from Sprint-Auftrag-pinned value"
+            "ENV_MAX_RETRY drifted from its pinned value"
         )
     if set(_VALID_KINDS) != {
         KIND_SUCCESS,

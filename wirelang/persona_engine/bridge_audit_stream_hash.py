@@ -3,7 +3,7 @@
 """Python pendant of the Rust ``persona-engine-bridge-audit-replay``
 stream-hash + JSONL-serialisation helpers.
 
-Sprint-Tag-14 Mini-Welle (Bridge-Audit-Roundtrip-E2E).
+Mini-Welle (Bridge-Audit-Roundtrip-E2E).
 
 The Phase-2 Doppelbetrieb-Bridge consistency drill ships two halves:
 

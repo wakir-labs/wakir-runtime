@@ -113,7 +113,7 @@ entry-point + the model-id-mapping + the decision telemetry only. The
 live ``messages.create`` plug-in is Phase-3 substance (and gated by an
 operator-supplied backend implementing the :class:`AnthropicBackend`
 protocol, never the SDK directly inside this module). This preserves
-the Mira-Sandbox-vs.-Host-Operations separation (MEMORY entry
+the orchestrator-Sandbox-vs.-Host-Operations separation (MEMORY entry
 ``feedback_sandbox_host_trennung``).
 """
 
@@ -365,7 +365,7 @@ class AnthropicBackend(Protocol):
     """Phase-3 plug-in surface for the live Anthropic-Messages call.
 
     Phase-2b ships :class:`MockAnthropicBackend` only. A real backend
-    (out of scope for Sprint-Pengine-15) wraps ``anthropic.Anthropic``
+    (out of scope) wraps ``anthropic.Anthropic``
     with the substrate's selected model-id + the operator-configured
     retry/backoff/cost-cap policy.
     """

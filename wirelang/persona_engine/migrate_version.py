@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Engine-version migration mechanic (spec §3.7.3, Sprint-Pengine-9 OI-PEFR-5).
+"""Engine-version migration mechanic (spec §3.7.3, OI-PEFR-5).
 
 Spec §3.7.3 declares that the persona-engine carries a semver
 ``engine_version`` tag (e.g. ``0.2.0-pilot``, ``0.3.0-pilot``) and
 must support **state-pack backward compatibility**: a state-pack
 written by an older engine MUST be readable by a newer engine on
-the same major version. Sprint-Pengine-9 0.3.0-pilot is the second
+the same major version. 0.3.0-pilot is the second
 real-engine release, and the migrate-version mechanic must guarantee
 that ``0.2.0-pilot`` state-packs round-trip cleanly through a
 ``0.3.0-pilot`` engine.
@@ -77,7 +77,7 @@ from .state_backing import (
 ENGINE_VERSION_KEY = "state-pack/__engine_version__"
 
 # Closed set of engine semver tags this workflow knows how to
-# read/write. Sprint-Pengine-10 adds 0.4.0-pilot (NATS-subscribe-loop +
+# read/write. A later revision adds 0.4.0-pilot (NATS-subscribe-loop +
 # Phase-2-Stub LLM-Call-Shim); the v0 envelope remains backward-compat
 # for 0.2.0-pilot and 0.3.0-pilot.
 KNOWN_ENGINE_VERSIONS: Tuple[str, ...] = (

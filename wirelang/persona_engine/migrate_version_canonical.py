@@ -3,7 +3,7 @@
 """Engine-version migration canonical-trace helpers (Phase-3a Modul 15).
 
 This module is the **Python sibling** of the Rust crate
-``persona-engine-migrate-version`` (Tag-38 Phase-3a-Foundation
+``persona-engine-migrate-version`` (Phase-3a-Foundation
 closing module). Where the BUSL-1.1 surface in
 :mod:`wirelang.persona_engine.migrate_version` provides the live
 state-pack workflow (:class:`MigrateVersionWorkflow`,
@@ -25,7 +25,7 @@ mocked backings.
 The **pre-flight decision** — "is this (from_version, to_version,
 allow_major_bump) tuple acceptable, and if not why?" — IS
 byte-paritätisch and is the cross-engine determinism anchor called
-out by the Selin roadmap §1.3 ("state-pack envelope must be
+out by the persona-engine side roadmap §1.3 ("state-pack envelope must be
 byte-stable across engines").
 
 The trace surface captures exactly that: parse both semver tags,

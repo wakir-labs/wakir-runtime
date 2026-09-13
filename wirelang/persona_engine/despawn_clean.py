@@ -202,7 +202,7 @@ def _default_nats_drain(persona_id: str) -> bool:
 
     Production binding emits the ``marker-stack-final-compose`` event
     and closes the per-persona put-stream. v0.2.0-pilot defers the
-    NATS-write to the Sprint-Pengine-9 axis (parity with state_backing).
+    NATS-write to the axis (parity with state_backing).
     """
     return True
 

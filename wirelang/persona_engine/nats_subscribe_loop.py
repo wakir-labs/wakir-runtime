@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""NATS-Subscribe-Loop — Sprint-Pengine-10 OI-PEFR-6.
+"""NATS-Subscribe-Loop — OI-PEFR-6.
 
 This module wires the Wakir-Runtime persona-engine to the
-Bridge-Forward-Pipe (Tomás Sprint-10 Tag-6 spec
+Bridge-Forward-Pipe (the WAT side spec
 ``wirelang/specs/bridge-forward-pipe-v1.md``).
 
 Subscribe contract
@@ -15,7 +15,7 @@ The engine subscribes to the canonical subject
 
 where ``<env>`` is ``WAKIR_ENV`` (default ``dev``) and
 ``<persona_slug>`` is ``WAKIR_PERSONA_ID`` (default ``tomas``). One
-message per Mira-side bridge-forward publish.
+message per orchestrator-side bridge-forward publish.
 
 Per-message flow
 ----------------
@@ -43,7 +43,7 @@ Ack semantics
 -------------
 
 The Bridge-Forward-Pipe v1 uses **core NATS pub-sub** (not JetStream)
-per the Tomás Sprint-10 Tag-6 spec §4.2. Core NATS does not require
+per the WAT side spec §4.2. Core NATS does not require
 ack — the subscribe-loop emits an **audit-ack** (a structured-log
 record with ``msg=task-ack``) but does not call ``msg.ack()``. If the
 substrate migrates to JetStream in Phase-3, the ack-path lights up via
@@ -59,10 +59,10 @@ an in-memory ``asyncio.Queue``-backed iterator. No ``nats-py`` import
 at module-import time (the connection-side import is lazy at
 ``run_live()`` time).
 
-Bug-42 fix (Sprint-Pengine-13)
+Bug-42 fix
 ------------------------------
 
-The pre-Sprint-13 implementation of :meth:`run_with_iterator` polled
+The pre- implementation of :meth:`run_with_iterator` polled
 ``msg_iter.__anext__()`` via ``asyncio.wait_for(..., timeout=0.5)`` so
 that ``stop_event`` could be honoured without blocking indefinitely on
 ``__anext__``. **This pattern silently drops NATS messages**: when
@@ -76,7 +76,7 @@ inner task may have already pulled a message off
 before the cancellation propagates. The message is then bound to a
 cancelled future and never delivered to the consumer.
 
-The Sprint-Pengine-13 fix replaces the ``wait_for``-poll loop with an
+The fix replaces the ``wait_for``-poll loop with an
 ``asyncio.wait(FIRST_COMPLETED)`` race between a persistent
 ``next_msg_task = create_task(__anext__())`` and the ``stop_event``
 wait. The next-msg task is kept alive across stop-event checks — when
@@ -142,7 +142,7 @@ OUTBOUND_OUTPUT_SCHEMA = "wakir.agent.task-output/1"
 PERSONA_SLUG_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
 
 # ---------------------------------------------------------------------------
-# Subscribe-mode constants (Sprint-Pengine-13 Bug-42 substrate)
+# Subscribe-mode constants (Bug-42 substrate)
 # ---------------------------------------------------------------------------
 
 #: Core-NATS subscribe with callback delivery. Production default.
@@ -150,7 +150,7 @@ PERSONA_SLUG_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
 SUBSCRIBE_MODE_CORE_CALLBACK = "core-callback"
 
 #: Core-NATS subscribe with iterator (``sub.messages``) delivery.
-#: Backward-compat path; safe again after the Sprint-Pengine-13
+#: Backward-compat path; safe again after the
 #: :meth:`NatsSubscribeLoop.run_with_iterator` fix.
 SUBSCRIBE_MODE_CORE_ITERATOR = "core-iterator"
 
@@ -501,7 +501,7 @@ class SubscribeLoopConfig:
     hook: LlmCallHook
     tracker: TaskProcessingTracker = field(default_factory=TaskProcessingTracker)
     publish_output: bool = True
-    #: Sprint-SRE Tag-15 — optional observability facade. When set, the
+    #: — optional observability facade. When set, the
     #: loop records ``persona_engine.subscribe.lag_seconds`` histograms
     #: per inbound message (lag = now-utc minus ts_utc from the
     #: envelope, in seconds) and wraps each handle_message call in a
@@ -763,7 +763,7 @@ class NatsSubscribeLoop:
         - ``stop_event`` is set (the engine signals shutdown).
         - The owning task is cancelled.
 
-        **Bug-42 fix (Sprint-Pengine-13).** This method previously
+        **Bug-42 fix.** This method previously
         polled ``msg_iter.__anext__()`` with
         ``asyncio.wait_for(..., timeout=0.5)`` to honour the
         stop_event. That pattern silently dropped messages because
@@ -857,7 +857,7 @@ class NatsSubscribeLoop:
         - ``"core-iterator"``: core-NATS subscribe with the
           iterator-style ``sub.messages`` API. Kept for backward-
           compat + Bug-42 hermetic-test reproduction. Now safe with
-          the Sprint-Pengine-13 :meth:`run_with_iterator` fix.
+          the :meth:`run_with_iterator` fix.
         - ``"jetstream-pull"``: JetStream pull-consumer (durable,
           replay-capable). Phase-2 migration substrate.
         """
@@ -941,7 +941,7 @@ class NatsSubscribeLoop:
     ) -> None:  # pragma: no cover - live binding
         """Backward-compat path — core-NATS iterator subscribe.
 
-        With the Sprint-Pengine-13 :meth:`run_with_iterator` fix the
+        With the :meth:`run_with_iterator` fix the
         iterator path is safe again. Retained as an alternative for
         operators who explicitly opt-in to ``core-iterator`` mode.
         """

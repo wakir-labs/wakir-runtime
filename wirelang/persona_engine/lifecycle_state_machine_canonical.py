@@ -13,21 +13,21 @@ without round-tripping through any other substrate.
 Why a sibling module?
 ---------------------
 
-``wirelang.persona_engine.lifecycle_state_machine`` (Selin
-Sprint-Pengine-8 PR #65) is a mature substrate that already drives
+``wirelang.persona_engine.lifecycle_state_machine`` (the persona-engine side
+PR #65) is a mature substrate that already drives
 the persona-engine's spawn-run-despawn semantics through
-:class:`LifecycleStateMachine`. The Tag-21 canonical-trace contract
+:class:`LifecycleStateMachine`. The canonical-trace contract
 is **orthogonal** to that flow: it is a pure-function pair
 ``build_lifecycle_trace`` / ``serialize_lifecycle_trace`` that takes
 either a live ``LifecycleStateMachine`` (or its history snapshot)
 and emits a byte-deterministic JCS-canonical wire-shape.
 
 Keeping the helpers in a separate Apache-2.0 module preserves the
-Sprint-10 Doppelbetrieb-Konsistenz contract (the existing
+Doppelbetrieb-Konsistenz contract (the existing
 state-machine's byte-output does not change) and matches the
-sibling-pattern Reza used for ``wirelang.persona_engine.subscribe_ack``
-(Tag-19 sibling of ``persona-engine-subscribe-loop``) and
-``wirelang.persona_engine.anchor_emitter`` (Tag-18 sibling of
+sibling-pattern used for ``wirelang.persona_engine.subscribe_ack``
+(sibling of ``persona-engine-subscribe-loop``) and
+``wirelang.persona_engine.anchor_emitter`` (sibling of
 ``persona-engine-anchor-emitter``). The pre-existing BUSL-licensed
 file ``lifecycle_state_machine.py`` is **NOT** touched by this
 module; the Apache-2.0 licence here keeps the cross-lang fixture
@@ -104,13 +104,13 @@ ADR anchors
 
 - ADR-0063 §Folgeartefakte Phase-3a Item — persona-engine FSM Rust
   migration (PR #137 authority).
-- Selin PR #65 (Sprint-Pengine-8) — Python schema authority for
+- PR #65 — Python schema authority for
   the underlying six-state, nine-transition envelope.
-- Reza  PR #170 (Tag-18) — sibling-module + cross-lang fixture
+- PR #170 — sibling-module + cross-lang fixture
   pattern reference (anchor-emitter).
-- Reza  PR #172 (Tag-19) — fixture-file structure + JCS-canonical
+- PR #172 — fixture-file structure + JCS-canonical
   serialisation reference (subscribe-loop ack-record).
-- Reza  PR #176 (Tag-20) — recovery-workflow canonical projection
+- PR #176 — recovery-workflow canonical projection
   reference (multi-record trace shape).
 """
 
@@ -149,7 +149,7 @@ SHA256_HEX_LEN = 64
 
 
 class LifecycleTraceError(ValueError):
-    """Raised when a caller-supplied input fails the Tag-21 shape
+    """Raised when a caller-supplied input fails the shape
     pre-conditions (unknown state strings, malformed records, etc.).
     """
 

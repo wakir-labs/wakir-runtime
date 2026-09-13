@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""LLM-Call-Shim — Sprint-Pengine-10 OI-PEFR-8 (Phase-2-Stub, Phase-3-Ersatz).
+"""LLM-Call-Shim — OI-PEFR-8 (Phase-2-Stub, Phase-3-Ersatz).
 
 Overview
 --------
 
 The Wakir-Runtime persona-engine receives engineering Aufträge via the
-Bridge-Forward-Pipe (Sprint-10 Tag-6, ``wirelang/specs/bridge-forward-
+Bridge-Forward-Pipe (``wirelang/specs/bridge-forward-
 pipe-v1.md``). To start the Doppelbetrieb-Vergleich-4-Wochen-Clock
 **we need outputs to compare** — but Phase-2-Pilot is intentionally
 *not* the moment when real LLM-inference goes live. Phase-3 (Anthropic
@@ -137,9 +137,9 @@ class LlmCallHook(Protocol):
 
     Phase-2 implementation: :class:`EchoReflectionLlmHook`.
     Phase-3 implementation: e.g. ``AnthropicMessagesHook`` (out of scope
-    for Sprint-Pengine-10).
+    ).
 
-    Sprint-Pengine-14 extension (ADR-0064 Phase-2a): hooks expose a
+    extension (ADR-0064 Phase-2a): hooks expose a
     :meth:`supports_caching` capability probe so the engine knows
     whether to attach the Anthropic-Messages-API ``cache_control``
     prefix-breakpoint to the request payload. Provider-lock-in
@@ -180,7 +180,7 @@ class EchoReflectionLlmHook:
     Does NOT call any LLM. Returns a reply derived purely from the
     inputs (persona_id, auftrag_id, prompt_payload, ts_utc) so the
     Doppelbetrieb-Score-CLI can compare against a Pre-Framework
-    Tomás-Spawn output with byte-stable determinism.
+    WAT-Spawn output with byte-stable determinism.
 
     Parameters:
 
@@ -253,7 +253,7 @@ class EchoReflectionLlmHook:
 class AnthropicMessagesHookNotImplemented(NotImplementedError):
     """Placeholder for the Phase-3 Anthropic Messages API hook.
 
-    Sprint-Pengine-10 ships the Phase-2-Stub (EchoReflectionLlmHook).
+    ships the Phase-2-Stub (EchoReflectionLlmHook).
     The Anthropic-API plug-in lands in a dedicated Phase-3 sprint with
     its own:
 
@@ -270,12 +270,12 @@ class AnthropicMessagesHookNotImplemented(NotImplementedError):
 def anthropic_messages_hook_phase_3_stub() -> LlmCallHook:
     """Factory that fails fast with a documented NotImplementedError.
 
-    The Sprint-Pengine-10 substrate intentionally does NOT ship a
+    The substrate intentionally does NOT ship a
     live-LLM-call. Callers that import this factory get a clear signal
     that Phase-3 substance is the next sprint.
     """
     raise AnthropicMessagesHookNotImplemented(
-        "AnthropicMessagesHook is Phase-3 substance; Sprint-Pengine-10 "
+        "AnthropicMessagesHook is Phase-3 substance; this build "
         "ships the Phase-2-Stub EchoReflectionLlmHook only."
     )
 

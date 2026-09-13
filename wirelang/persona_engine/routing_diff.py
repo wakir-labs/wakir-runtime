@@ -145,8 +145,8 @@ TIER_COST_UNITS: dict[str, int] = {
     "opus": 60,
 }
 
-# Default PASS-threshold for consistency-score (per Mira-Spec
-# Sprint-AB-Routing-Diff-CLI-MINI 2026-05-17).
+# Default PASS-threshold for consistency-score (per orchestrator-Spec
+# 2026-05-17).
 DEFAULT_CONSISTENCY_THRESHOLD = 0.95
 
 # Confidence-histogram bucket boundaries: 10 equal-width buckets

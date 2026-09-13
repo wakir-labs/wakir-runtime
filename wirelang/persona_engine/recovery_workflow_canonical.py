@@ -93,8 +93,8 @@ from .recovery_workflow import PhaseResult, RecoveryResult, RecoveryTrigger
 # Constants — pin to Rust sibling.
 # ---------------------------------------------------------------------------
 
-#: Schema identifier for the canonical-projection wire-form (Tag-20
-#: Python-sync cross-lang parity sweep). Byte-identical with the Rust
+#: Schema identifier for the canonical-projection wire-form
+#: (Python-sync cross-lang parity sweep). Byte-identical with the Rust
 #: sibling constant ``RECOVERY_OUTCOME_SCHEMA``.
 RECOVERY_OUTCOME_SCHEMA: str = "wakir.persona-engine.recovery-outcome/1"
 

@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """ENV-gated production-default switch for Rust recovery + state-backing + FSM + V907-verify + bridge-diff + subscribe-loop + anchor-emitter + svid-workload-identity + federation-resolver.
 
-Tag-17 / Tag-18 / Tag-19 / Tag-20 / Tag-22 / Tag-23 / Tag-25 / Tag-30 Mini-Welle —
+/ / / / / / / Mini-Welle —
 Phase-3b-Substanz. The Rust crates
 ``persona-engine-recovery`` (PR #135),
 ``persona-engine-state-backing`` (PR #140),
@@ -12,12 +12,12 @@ Phase-3b-Substanz. The Rust crates
 ``persona-engine-subscribe-loop`` (PR #132, ack-record sibling PR #172),
 ``persona-engine-anchor-emitter`` (PR #141, Python sibling PR #170),
 the ADR-0065 Welle-2 candidate ``persona-engine-svid-workload-identity``
-(Tag-25 wire-in; binary is **opt-in only**, the resolver gracefully
+(wire-in; binary is **opt-in only**, the resolver gracefully
 falls back to the Python SPIFFE Workload-API client when the binary is
 missing — see :mod:`wirelang.persona_engine.svid_workload_identity` for
 the Python authority), and
 ``persona-engine-federation-resolver`` (PR #188, Python sibling at
-:mod:`wirelang.identity.federation_resolver_canonical`; Tag-30 wire-in
+:mod:`wirelang.identity.federation_resolver_canonical`; wire-in
 adds the resolver scaffold as the **9th** backend-decision record per
 boot — the Rust crate ships byte-cross-lang-parity against the five
 ``tests/fixtures/federation-resolver-cross-lang/fixtures.json`` vectors)
@@ -35,18 +35,18 @@ the **production-default switch** — operators flip an env-var to opt
 into the Rust subprocess-bridge without disrupting the Python
 hot-path.
 
-Tag-19 anchor — V-907 is the hash-determinism anchor
+anchor — V-907 is the hash-determinism anchor
 -----------------------------------------------------
 
 V-907 is the **most critical** of the four switch components: it
 computes the persona-hash pin that the WAT-audit substrate consumes
 as the engine-side ground-truth. Any byte-drift between the Python
 authority and the Rust subprocess-bridge would silently corrupt the
-audit-trail. The Tag-19 wire-up therefore adds a hard byte-identity
+audit-trail. The wire-up therefore adds a hard byte-identity
 gate (all-pin-pack-vectors-rust-verified) on top of the same
-production-default-switch posture as Tag-17/Tag-18.
+production-default-switch posture as /.
 
-Tag-20 anchor — Bridge-Diff is the Doppelbetrieb oracle
+anchor — Bridge-Diff is the Doppelbetrieb oracle
 --------------------------------------------------------
 
 The bridge-diff engine is the Phase-3a/3b Doppelbetrieb comparison
@@ -55,13 +55,13 @@ level diffs (RFC 6901) CloudEvent envelopes emitted by two
 implementations of the same emission. Any drift in the canonicaliser,
 the hash, the field-walker, or the sort order surfaces in the audit-
 trail — making this the **integrity oracle** for the entire Phase-3a
-cross-language parity story. The Tag-20 wire-up therefore adds a hard
+cross-language parity story. The wire-up therefore adds a hard
 byte-identity gate across **all six cross-lang field-pin vectors**
 (see ``cross_lang_field_diff_fixtures.json`` and PR #166's emitter
 test) on top of the same production-default-switch posture as
-Tag-17/Tag-18/Tag-19.
+/ /.
 
-Tag-22 anchor — Subscribe-Loop is the NATS-ingress audit substrate
+anchor — Subscribe-Loop is the NATS-ingress audit substrate
 -------------------------------------------------------------------
 
 The subscribe-loop ack-record is the per-frame audit substrate of the
@@ -73,13 +73,13 @@ for the Phase-3a/3b 3-way-triangle Doppelbetrieb-Vergleich. The Python
 authority is :mod:`wirelang.persona_engine.subscribe_ack` (PR #172,
 sibling-module pattern). The Rust pendant is the
 ``persona-engine-subscribe-loop`` crate (PR #132, ack-record substrate
-in ``ack_record.rs``). The Tag-22 wire-up adds a hard byte-identity
+in ``ack_record.rs``). The wire-up adds a hard byte-identity
 gate across **all five cross-lang ack-record fixtures** (see
 ``tests/fixtures/subscribe-loop-cross-lang/fixtures.json``) on top of
 the same production-default-switch posture as
-Tag-17/Tag-18/Tag-19/Tag-20.
+/ / /.
 
-Tag-23 anchor — Anchor-Emitter is the WAT-spool envelope substrate
+anchor — Anchor-Emitter is the WAT-spool envelope substrate
 -------------------------------------------------------------------
 
 The anchor-emitter builds the outer WAT-anchor-envelope wire-shape
@@ -93,19 +93,19 @@ the bare hex tail is 64 lowercase characters. The Python authority is
 :mod:`wirelang.persona_engine.anchor_emitter` (PR #170, sibling-module
 pattern). The Rust pendant is the ``persona-engine-anchor-emitter``
 crate (PR #141, envelope substrate in ``anchor_envelope.rs``). The
-Tag-23 wire-up adds a hard byte-identity gate across **all five
+wire-up adds a hard byte-identity gate across **all five
 cross-lang anchor-envelope fixtures** (see
 ``tests/fixtures/anchor-emitter-cross-lang/fixtures.json``) on top of
 the same production-default-switch posture as
-Tag-17/Tag-18/Tag-19/Tag-20/Tag-22. The Tag-23 wire-in closed the
+/ / / /. The wire-in closed the
 seven-component Phase-3b production-default-switch surface; the
-Tag-25 SVID-Workload-Identity wire-in below extends the surface to
+SVID-Workload-Identity wire-in below extends the surface to
 eight components as an **ADR-0065 Welle-2 precondition** (the cutover
 script's Welle-2 stanza names ``svid_workload_identity`` and the
 backend-switch resolver was the missing precondition for the
 dry-run cutover to address the Welle-2 substrate).
 
-Tag-25 anchor — SVID-Workload-Identity is the Zone-L bind-substrate
+anchor — SVID-Workload-Identity is the Zone-L bind-substrate
 -------------------------------------------------------------------
 
 The SVID-Workload-Identity client is the Zone-L (spec §3.7.4 R3)
@@ -115,11 +115,11 @@ at ``/run/spire/agent-sockets/api.sock``, fetches the X.509 SVID,
 and emits the SPIFFE-ID + SAN list + not-after timestamp as the
 engine's cryptographic-identity audit annotation. The Python
 authority is :mod:`wirelang.persona_engine.svid_workload_identity`
-(Sprint-Pengine-9 OI-PEFR-2, full grpcio-backed Workload-API client
+(OI-PEFR-2, full grpcio-backed Workload-API client
 with a hermetic socket-presence probe path for boot-gate use). The
 Rust pendant is the (currently optional, opt-in only) future
 ``persona-engine-svid-workload-identity`` crate listed as
-**ADR-0065 Welle-2** in the Phase-3c cutover runbook — the Tag-25
+**ADR-0065 Welle-2** in the Phase-3c cutover runbook — the
 wire-in adds the resolver scaffold so the cutover dry-run can
 inspect the eighth backend-decision record without the Rust crate
 having shipped yet. Posture is intentionally **opt-in**: the
@@ -129,13 +129,13 @@ who flip ``WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND=rust`` before the
 Welle-2 crate ships will observe the ``binary_missing`` fallback
 record in their audit substrate — which is the explicit Welle-2
 **precondition signal** for the cutover script. The per-boot
-:class:`BackendDecision` record count rises from seven (Tag-23) to
+:class:`BackendDecision` record count rises from seven to
 eight with this wire-in; the Phase-3b surface remains the seven
-shipped-substrate components and Tag-25 extends the production-
+shipped-substrate components and extends the production-
 default-switch *contract* surface to cover the ADR-0065 Welle-2
 candidate.
 
-Tag-30 anchor — Federation-Resolver is the Zone-L org-key audit substrate
+anchor — Federation-Resolver is the Zone-L org-key audit substrate
 -------------------------------------------------------------------------
 
 The federation-resolver maps a ``(org_id, cluster_id)`` tuple to the
@@ -149,16 +149,16 @@ Schema is ``wakir.federation.resolver-snapshot/1``; the hash prefix is
 Python authority is
 :mod:`wirelang.identity.federation_resolver_canonical` (PR #188,
 sibling-module pattern: ``federation_resolver_canonical.py`` is the
-Tag-24 byte-parity sibling, while the legacy
+byte-parity sibling, while the legacy
 :mod:`wirelang.identity.federation_resolver` V-908 AIP-doc resolver
 stays untouched per the PR #188 hard-constraint). The Rust pendant is
 the ``persona-engine-federation-resolver`` crate (PR #188, snapshot
-substrate in ``src/lib.rs``). The Tag-30 wire-up adds a hard
+substrate in ``src/lib.rs``). The wire-up adds a hard
 byte-identity gate across **all five cross-lang resolver-snapshot
 fixtures** (see ``tests/fixtures/federation-resolver-cross-lang/
 fixtures.json``) on top of the same production-default-switch posture
-as Tag-17/Tag-18/Tag-19/Tag-20/Tag-22/Tag-23/Tag-25. The per-boot
-:class:`BackendDecision` record count rises from eight (Tag-25) to
+as / / / / / /. The per-boot
+:class:`BackendDecision` record count rises from eight to
 **nine** with this wire-in — the Phase-3b production-default-switch
 contract surface now covers the full ADR-0063 §Folgeartefakte
 Phase-3a Modul 9 inventory, and the Phase-3c cutover script's
@@ -265,7 +265,7 @@ log warning when the binary is not callable.
 
 * ``"python"`` (default) — Python SPIFFE Workload-API client
   in :mod:`wirelang.persona_engine.svid_workload_identity`
-  (Sprint-Pengine-9 OI-PEFR-2, grpcio-backed FetchX509SVID).
+  (OI-PEFR-2, grpcio-backed FetchX509SVID).
 * ``"rust"`` — Rust-CLI subprocess-bridge against the (future)
   ``persona-engine-svid-workload-identity`` crate (ADR-0065
   Welle-2 candidate; the binary is **opt-in only** during
@@ -328,7 +328,7 @@ log warning when the binary is not callable.
 * Absolute path to the Rust svid-workload-identity binary. Default
   ``/opt/wakir/bin/wakir-persona-engine-svid-workload-identity``.
   The default path is reserved for the ADR-0065 Welle-2 crate
-  ship — Tag-25 wires the resolver but does not require the
+  ship — wires the resolver but does not require the
   binary to exist.
 
 ``WAKIR_RUST_FEDERATION_RESOLVER_BIN``:
@@ -433,7 +433,7 @@ ANCHOR_EMITTER_BACKEND_ENV = "WAKIR_ANCHOR_EMITTER_BACKEND"
 SVID_WORKLOAD_IDENTITY_BACKEND_ENV = "WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND"
 FEDERATION_RESOLVER_BACKEND_ENV = "WAKIR_FEDERATION_RESOLVER_BACKEND"
 BRIDGE_AUDIT_WRITER_BACKEND_ENV = "WAKIR_BRIDGE_AUDIT_WRITER_BACKEND"
-# Tag-45 Mini-Welle additions — Phase-3a Modul 14 + 15 (PR #246, PR #250).
+# Mini-Welle additions — Phase-3a Modul 14 + 15 (PR #246, PR #250).
 # Both bridges are canonical-only (no live state-backing I/O); the
 # subprocess-bridge consumes the canonical-trace projection produced by
 # the Rust crate and compares it byte-for-byte against the Python sibling.
@@ -449,7 +449,7 @@ RUST_ANCHOR_EMITTER_BIN_ENV = "WAKIR_RUST_ANCHOR_EMITTER_BIN"
 RUST_SVID_WORKLOAD_IDENTITY_BIN_ENV = "WAKIR_RUST_SVID_WORKLOAD_IDENTITY_BIN"
 RUST_FEDERATION_RESOLVER_BIN_ENV = "WAKIR_RUST_FEDERATION_RESOLVER_BIN"
 RUST_BRIDGE_AUDIT_WRITER_BIN_ENV = "WAKIR_RUST_BRIDGE_AUDIT_WRITER_BIN"
-# Tag-45 Mini-Welle additions — see comment above.
+# Mini-Welle additions — see comment above.
 RUST_BRIDGE_AUDIT_REPLAY_BIN_ENV = "WAKIR_RUST_BRIDGE_AUDIT_REPLAY_BIN"
 RUST_MIGRATE_VERSION_BIN_ENV = "WAKIR_RUST_MIGRATE_VERSION_BIN"
 RUST_BACKEND_TIMEOUT_ENV = "WAKIR_RUST_BACKEND_TIMEOUT_S"
@@ -476,7 +476,7 @@ DEFAULT_RUST_FEDERATION_RESOLVER_BIN = (
 DEFAULT_RUST_BRIDGE_AUDIT_WRITER_BIN = (
     "/opt/wakir/bin/wakir-persona-engine-bridge-audit-writer"
 )
-# Tag-45 Mini-Welle — Phase-3a Modul 14 + 15. The crate-source binary
+# Mini-Welle — Phase-3a Modul 14 + 15. The crate-source binary
 # for `bridge-audit-replay` lives in the same
 # `persona-engine-bridge-audit-replay` crate as the existing writer
 # binary; the carrier-image install path mirrors the writer convention.
@@ -585,11 +585,11 @@ class SvidWorkloadIdentityBackend(str, Enum):
     Zone-L bind-substrate anchor (ADR-0065 Welle-2 precondition):
     the Python authority is
     :mod:`wirelang.persona_engine.svid_workload_identity`
-    (Sprint-Pengine-9 OI-PEFR-2, grpcio-backed Workload-API
+    (OI-PEFR-2, grpcio-backed Workload-API
     FetchX509SVID client). The Rust pendant is the (future, not yet
     shipped) ``persona-engine-svid-workload-identity`` crate listed
     as ADR-0065 Welle-2 in the Phase-3c cutover runbook. The
-    resolver is wired in at Tag-25 so the cutover dry-run can
+    resolver is wired in at so the cutover dry-run can
     inspect the eighth backend-decision record while the Rust crate
     is still in the queue — operators who flip
     ``WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND=rust`` before the crate
@@ -612,7 +612,7 @@ class FederationResolverBackend(str, Enum):
     SHA-256 hex output verified against all five cross-lang
     resolver-snapshot fixtures per
     ``tests/fixtures/federation-resolver-cross-lang/fixtures.json``).
-    Tag-30 wire-in extends the Phase-3b production-default-switch
+    wire-in extends the Phase-3b production-default-switch
     contract surface to the **9th** backend-decision per boot.
     """
 
@@ -626,17 +626,17 @@ class BridgeAuditWriterBackend(str, Enum):
     Zone-C Doppelbetrieb-Shadow-substrate anchor (ADR-0066 Welle-3
     precondition): the Python authority is
     :mod:`wirelang.persona_engine.bridge_audit_writer`
-    (Sprint-1 Tag-4 PR #19 EngineeringOutputEvent envelope writer).
+    (PR #19 EngineeringOutputEvent envelope writer).
     The Rust pendant is the
     ``wakir-persona-engine-bridge-audit-writer`` binary that ships
-    from the ``persona-engine-bridge-audit-replay`` crate (Tag-31
-    Mini-Welle, the writer-half of the round-trip whose replay-half
+    from the ``persona-engine-bridge-audit-replay`` crate
+    (Mini-Welle, the writer-half of the round-trip whose replay-half
     landed in PR #131 bridge-diff + PR #147 bridge-audit-replay).
     The cross-language byte-parity contract is captured by the
     F1/F2/F3 stream-fixture pins in the bridge-audit-replay crate;
     the Rust writer's JCS-canonical envelope is byte-identical to
     the Python pendant's `EngineeringOutputEvent.to_jcs_bytes()`
-    output for the same input. Tag-31 wire-in extends the Phase-3b
+    output for the same input. wire-in extends the Phase-3b
     production-default-switch contract surface to the **9th**
     Cosign-Policy-gated backend on the production hot-path.
     """
@@ -895,7 +895,7 @@ def _resolve_svid_workload_identity_bin(
 ) -> str:
     """Resolve the Rust SVID-Workload-Identity binary path.
 
-    Tag-25 ADR-0065 Welle-2 precondition wire-in. The default path
+    ADR-0065 Welle-2 precondition wire-in. The default path
     is reserved for the future ``persona-engine-svid-workload-identity``
     crate ship; the resolver does not require the binary to exist
     (graceful fallback to Python is the explicit Welle-2 signal).
@@ -909,7 +909,7 @@ def _resolve_federation_resolver_bin(
 ) -> str:
     """Resolve the Rust federation-resolver binary path.
 
-    Tag-30 wire-in. The default path is reserved for the
+    wire-in. The default path is reserved for the
     ``persona-engine-federation-resolver`` crate (PR #188); operators
     point ``WAKIR_RUST_FEDERATION_RESOLVER_BIN`` at a custom path for
     integration tests / hermetic CI runs.
@@ -923,7 +923,7 @@ def _resolve_bridge_audit_writer_bin(
 ) -> str:
     """Resolve the Rust bridge-audit-writer binary path.
 
-    Tag-31 ADR-0066 Welle-3 wire-in. The default path is reserved for
+    ADR-0066 Welle-3 wire-in. The default path is reserved for
     the ``persona-engine-bridge-audit-writer`` binary that ships from
     the ``persona-engine-bridge-audit-replay`` crate alongside the
     sibling ``replay_cli``. Operators point
@@ -965,7 +965,7 @@ def _binary_available(bin_path: str) -> tuple[bool, Optional[str]]:
 def _validate_recovery_backend(value: Optional[str]) -> RecoveryBackend:
     """Validate a ``WAKIR_RECOVERY_BACKEND`` value (or ``None``).
 
-    Tag-80 Welle-7 Cutover (2026-05-20): default flipped PYTHON → RUST.
+    Welle-7 Cutover (2026-05-20): default flipped PYTHON → RUST.
     Graceful-fallback intakt. Per ADR-0065 + ADR-0066 Welle-7 (letzte
     Welle der Phase-3c-Cutover-Sequenz).
 
@@ -986,8 +986,8 @@ def _validate_state_backing_backend(
 ) -> StateBackingBackend:
     """Validate a ``WAKIR_STATE_BACKING_BACKEND`` value (or ``None``).
 
-    Tag-80 Welle-4 Cutover (2026-05-20): default flipped PYTHON →
-    RUST_NATSKV (production variant per Tag-33 Mini-Welle cosign-
+    Welle-4 Cutover (2026-05-20): default flipped PYTHON →
+    RUST_NATSKV (production variant per Mini-Welle cosign-
     policy comment: "NATS-KV Persona-State-Backing"). Note: this
     enum has TWO rust variants (RUST_INMEMORY + RUST_NATSKV); we
     cutover to NATS-KV because that is the production-target. The
@@ -1013,7 +1013,7 @@ def _validate_state_backing_backend(
 def _validate_fsm_backend(value: Optional[str]) -> FsmBackend:
     """Validate a ``WAKIR_FSM_BACKEND`` value (or ``None``).
 
-    Tag-80 Welle-5 Cutover (2026-05-20): default flipped PYTHON → RUST.
+    Welle-5 Cutover (2026-05-20): default flipped PYTHON → RUST.
     Graceful-fallback intakt. Per ADR-0065 + ADR-0066 Welle-5.
 
     Empty / missing values default to ``FsmBackend.RUST``.
@@ -1033,7 +1033,7 @@ def _validate_v907_verify_backend(
 ) -> V907VerifyBackend:
     """Validate a ``WAKIR_V907_VERIFY_BACKEND`` value (or ``None``).
 
-    Tag-80 Welle-1 Cutover (2026-05-20): default flipped from
+    Welle-1 Cutover (2026-05-20): default flipped from
     ``V907VerifyBackend.PYTHON`` to ``V907VerifyBackend.RUST``. The
     ``resolve_v907_verify_backend`` graceful-fallback path stays
     intact — when the Rust binary is missing or not executable, the
@@ -1080,7 +1080,7 @@ def _validate_subscribe_loop_backend(
 ) -> SubscribeLoopBackend:
     """Validate a ``WAKIR_SUBSCRIBE_LOOP_BACKEND`` value (or ``None``).
 
-    Tag-80 Welle-6 Cutover (2026-05-20): default flipped PYTHON → RUST.
+    Welle-6 Cutover (2026-05-20): default flipped PYTHON → RUST.
     Graceful-fallback intakt. Per ADR-0065 + ADR-0066 Welle-6.
 
     Empty / missing values default to ``SubscribeLoopBackend.RUST``.
@@ -1121,7 +1121,7 @@ def _validate_svid_workload_identity_backend(
 ) -> SvidWorkloadIdentityBackend:
     """Validate a ``WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND`` value (or ``None``).
 
-    Tag-80 Welle-2 Cutover (2026-05-20): default flipped from
+    Welle-2 Cutover (2026-05-20): default flipped from
     ``SvidWorkloadIdentityBackend.PYTHON`` to
     ``SvidWorkloadIdentityBackend.RUST``. Graceful-fallback-Pfad
     bleibt intakt — Sandbox-CI ohne rust-Binary fällt auf python
@@ -1172,8 +1172,8 @@ def _validate_bridge_audit_writer_backend(
     ``BridgeAuditWriterBackend.PYTHON``. Non-empty unknown values
     raise :class:`BackendSwitchValidationError`.
 
-    Tag-48 wire-in — promotes the previously-held-back 10th
-    BackendDecision into the Stage-1 boot fan-out. Tag-80 Welle-3
+    wire-in — promotes the previously-held-back 10th
+    BackendDecision into the Stage-1 boot fan-out. Welle-3
     Cutover (2026-05-20) flips the default from PYTHON to RUST;
     graceful-fallback bleibt intakt (Sandbox-CI ohne binary →
     chosen=python mit fallback_reason="binary_missing").
@@ -1360,7 +1360,7 @@ def resolve_fsm_backend(
 ) -> tuple[FsmBackend, BackendDecision]:
     """Resolve the FSM backend per env-var + binary availability.
 
-    Tag-18 Mini-Welle — 3rd production-default switch component
+    Mini-Welle — 3rd production-default switch component
     (parallel to :func:`resolve_recovery_backend` and
     :func:`resolve_state_backing_backend`). The Python authority is
     :mod:`wirelang.persona_engine.lifecycle_state_machine` (six states,
@@ -1453,7 +1453,7 @@ def resolve_v907_verify_backend(
 ) -> tuple[V907VerifyBackend, BackendDecision]:
     """Resolve the V907-verify backend per env-var + binary availability.
 
-    Tag-19 Mini-Welle — 4th production-default switch component
+    Mini-Welle — 4th production-default switch component
     (parallel to :func:`resolve_recovery_backend`,
     :func:`resolve_state_backing_backend`, and
     :func:`resolve_fsm_backend`). The Python authority is
@@ -1550,7 +1550,7 @@ def resolve_bridge_diff_backend(
 ) -> tuple[BridgeDiffBackend, BackendDecision]:
     """Resolve the bridge-diff backend per env-var + binary availability.
 
-    Tag-20 Mini-Welle — 5th production-default switch component
+    Mini-Welle — 5th production-default switch component
     (parallel to :func:`resolve_recovery_backend`,
     :func:`resolve_state_backing_backend`,
     :func:`resolve_fsm_backend`, and
@@ -1652,7 +1652,7 @@ def resolve_subscribe_loop_backend(
 ) -> tuple[SubscribeLoopBackend, BackendDecision]:
     """Resolve the subscribe-loop backend per env-var + binary availability.
 
-    Tag-22 Mini-Welle — 6th production-default switch component
+    Mini-Welle — 6th production-default switch component
     (parallel to :func:`resolve_recovery_backend`,
     :func:`resolve_state_backing_backend`,
     :func:`resolve_fsm_backend`,
@@ -1677,9 +1677,9 @@ def resolve_subscribe_loop_backend(
     ingress-side audit-trail.
 
     This is the **6th** BackendDecision record emitted per boot
-    (Tag-17 recovery + state_backing + Tag-18 fsm + Tag-19 v907_verify
-    + Tag-20 bridge_diff + Tag-22 subscribe_loop). The
-    anchor-emitter switch (planned Tag-21) is deferred; when it
+    (recovery + state_backing + fsm + v907_verify
+    + bridge_diff + subscribe_loop). The
+    anchor-emitter switch (planned) is deferred; when it
     lands the per-boot count rises to 7.
 
     Parameters
@@ -1754,7 +1754,7 @@ def resolve_subscribe_loop_backend(
 
 
 # Auftrag-named alias for :func:`resolve_subscribe_loop_backend`.
-# The Tag-22 Mini-Welle auftrag spec uses ``_select_subscribe_loop_backend``
+# The Mini-Welle auftrag spec uses ``_select_subscribe_loop_backend``
 # as the contract identifier; this alias preserves that name while
 # the public surface stays consistent with the
 # ``resolve_<domain>_backend`` family (recovery / state_backing / fsm /
@@ -1772,7 +1772,7 @@ def resolve_anchor_emitter_backend(
 ) -> tuple[AnchorEmitterBackend, BackendDecision]:
     """Resolve the anchor-emitter backend per env-var + binary availability.
 
-    Tag-23 Mini-Welle — **seventh and final** Phase-3b production-default
+    Mini-Welle — **seventh and final** Phase-3b production-default
     switch component (parallel to :func:`resolve_recovery_backend`,
     :func:`resolve_state_backing_backend`,
     :func:`resolve_fsm_backend`,
@@ -1800,8 +1800,8 @@ def resolve_anchor_emitter_backend(
     it.
 
     This is the **7th and final** BackendDecision record emitted per
-    boot (Tag-17 recovery + state_backing + Tag-18 fsm + Tag-19
-    v907_verify + Tag-20 bridge_diff + Tag-22 subscribe_loop + Tag-23
+    boot (recovery + state_backing + fsm +
+    v907_verify + bridge_diff + subscribe_loop +
     anchor_emitter). The Phase-3b production-default-switch surface
     is closed with this wire-in; subsequent work targets Phase-3c
     cutover (flipping defaults to ``rust`` per-domain).
@@ -1878,7 +1878,7 @@ def resolve_anchor_emitter_backend(
 
 
 # Auftrag-named alias for :func:`resolve_anchor_emitter_backend`. The
-# Tag-23 Mini-Welle auftrag spec uses ``_select_anchor_emitter_backend``
+# Mini-Welle auftrag spec uses ``_select_anchor_emitter_backend``
 # as the contract identifier; this alias preserves that name while the
 # public surface stays consistent with the ``resolve_<domain>_backend``
 # family. Both names dispatch to the same call; the underscore-prefixed
@@ -1895,7 +1895,7 @@ def resolve_svid_workload_identity_backend(
 ) -> tuple[SvidWorkloadIdentityBackend, BackendDecision]:
     """Resolve the SVID-Workload-Identity backend per env-var + binary availability.
 
-    Tag-25 Mini-Welle — **eighth** production-default switch component
+    Mini-Welle — **eighth** production-default switch component
     (parallel to :func:`resolve_recovery_backend`,
     :func:`resolve_state_backing_backend`,
     :func:`resolve_fsm_backend`, :func:`resolve_v907_verify_backend`,
@@ -1903,11 +1903,11 @@ def resolve_svid_workload_identity_backend(
     :func:`resolve_subscribe_loop_backend`, and
     :func:`resolve_anchor_emitter_backend`). The Python authority is
     :mod:`wirelang.persona_engine.svid_workload_identity`
-    (Sprint-Pengine-9 OI-PEFR-2, grpcio-backed Workload-API
+    (OI-PEFR-2, grpcio-backed Workload-API
     FetchX509SVID client). The Rust pendant is the **future**
     ``persona-engine-svid-workload-identity`` crate listed as
     **ADR-0065 Welle-2** in the Phase-3c cutover runbook — the
-    Tag-25 wire-in adds the resolver so the cutover dry-run surfaces
+    wire-in adds the resolver so the cutover dry-run surfaces
     the eighth backend-decision record without the Rust crate having
     shipped yet.
 
@@ -1922,10 +1922,10 @@ def resolve_svid_workload_identity_backend(
     precondition signal.
 
     This is the **8th** BackendDecision record emitted per boot
-    (Tag-17 recovery + state_backing + Tag-18 fsm + Tag-19 v907_verify
-    + Tag-20 bridge_diff + Tag-22 subscribe_loop + Tag-23
-    anchor_emitter + Tag-25 svid_workload_identity). The Phase-3b
-    shipped-substrate surface remains seven components; Tag-25 extends
+    (recovery + state_backing + fsm + v907_verify
+    + bridge_diff + subscribe_loop +
+    anchor_emitter + svid_workload_identity). The Phase-3b
+    shipped-substrate surface remains seven components; A later revision extends
     the production-default-switch *contract* surface to cover the
     ADR-0065 Welle-2 candidate.
 
@@ -2003,7 +2003,7 @@ def resolve_svid_workload_identity_backend(
 
 
 # Auftrag-named alias for :func:`resolve_svid_workload_identity_backend`.
-# The Tag-25 Mini-Welle auftrag spec uses
+# The Mini-Welle auftrag spec uses
 # ``_select_svid_workload_identity_backend`` as the contract identifier;
 # this alias preserves that name while the public surface stays
 # consistent with the ``resolve_<domain>_backend`` family. Both names
@@ -2021,7 +2021,7 @@ def resolve_federation_resolver_backend(
 ) -> tuple[FederationResolverBackend, BackendDecision]:
     """Resolve the federation-resolver backend per env-var + binary availability.
 
-    Tag-30 Mini-Welle — **ninth** production-default switch component
+    Mini-Welle — **ninth** production-default switch component
     (parallel to :func:`resolve_recovery_backend`,
     :func:`resolve_state_backing_backend`,
     :func:`resolve_fsm_backend`, :func:`resolve_v907_verify_backend`,
@@ -2046,9 +2046,9 @@ def resolve_federation_resolver_backend(
     with a structured-log warning.
 
     This is the **9th** BackendDecision record emitted per boot
-    (Tag-17 recovery + state_backing + Tag-18 fsm + Tag-19 v907_verify
-    + Tag-20 bridge_diff + Tag-22 subscribe_loop + Tag-23
-    anchor_emitter + Tag-25 svid_workload_identity + Tag-30
+    (recovery + state_backing + fsm + v907_verify
+    + bridge_diff + subscribe_loop +
+    anchor_emitter + svid_workload_identity +
     federation_resolver). The Phase-3b production-default-switch
     contract surface is closed at nine components with this wire-in.
 
@@ -2124,7 +2124,7 @@ def resolve_federation_resolver_backend(
 
 
 # Auftrag-named alias for :func:`resolve_federation_resolver_backend`.
-# The Tag-30 Mini-Welle auftrag spec uses
+# The Mini-Welle auftrag spec uses
 # ``_select_federation_resolver_backend`` as the contract identifier;
 # this alias preserves that name while the public surface stays
 # consistent with the ``resolve_<domain>_backend`` family. Both names
@@ -2142,10 +2142,10 @@ def resolve_bridge_audit_writer_backend(
 ) -> tuple[BridgeAuditWriterBackend, BackendDecision]:
     """Resolve the bridge-audit-writer backend per env-var + binary availability.
 
-    Tag-48 wire-in — promotes the 10th Phase-3a production-default-
+    wire-in — promotes the 10th Phase-3a production-default-
     switch component into the Stage-1 boot fan-out. The Python
     authority is :mod:`wirelang.persona_engine.bridge_audit_writer`
-    (PR #19 / Sprint-1 Tag-4 EngineeringOutputEvent envelope writer).
+    (PR #19 / EngineeringOutputEvent envelope writer).
     The Rust pendant is the ``wakir-persona-engine-bridge-audit-writer``
     binary that ships from the ``persona-engine-bridge-audit-replay``
     crate alongside the sibling ``replay_cli``. The cross-language
@@ -2164,10 +2164,10 @@ def resolve_bridge_audit_writer_backend(
     warning.
 
     This is the **10th** BackendDecision record emitted per boot
-    (Tag-17 recovery + state_backing + Tag-18 fsm + Tag-19 v907_verify
-    + Tag-20 bridge_diff + Tag-22 subscribe_loop + Tag-23
-    anchor_emitter + Tag-25 svid_workload_identity + Tag-30
-    federation_resolver + Tag-48 bridge_audit_writer). With this
+    (recovery + state_backing + fsm + v907_verify
+    + bridge_diff + subscribe_loop +
+    anchor_emitter + svid_workload_identity +
+    federation_resolver + bridge_audit_writer). With this
     wire-in the Phase-3b production-default-switch contract surface
     closes at ten components and the engine version bumps to
     ``0.5.1-pre-cutover``.
@@ -2244,7 +2244,7 @@ def resolve_bridge_audit_writer_backend(
 
 
 # Auftrag-named alias for :func:`resolve_bridge_audit_writer_backend`.
-# Tag-48 wire-in auftrag spec uses
+# wire-in auftrag spec uses
 # ``_select_bridge_audit_writer_backend`` as the contract identifier;
 # the alias preserves that name while the public surface stays
 # consistent with the ``resolve_<domain>_backend`` family. The
@@ -2623,11 +2623,11 @@ class RustSubprocessFsm:
     spawn. The local-mirror posture keeps ``state`` / ``history`` /
     ``can_transition_to`` access subprocess-free.
 
-    Tag-18 posture
+    posture
     --------------
     This binding is the *opt-in* path: ``WAKIR_FSM_BACKEND=rust`` +
     available binary. Default and missing-binary fallback stay on
-    the Python authority. The engine wire-in (Tag-18) records the
+    the Python authority. The engine wire-in records the
     backend decision but keeps ``self.fsm`` Python-backed during
     Phase-3b Doppelbetrieb — the bridge is exercised by the tests
     and the future Phase-3c cutover.
@@ -2851,15 +2851,15 @@ class RustSubprocessV907Verify:
 
     Construction is cheap; per-call overhead is one subprocess spawn.
 
-    Tag-19 posture
+    posture
     --------------
     This binding is the *opt-in* path: ``WAKIR_V907_VERIFY_BACKEND=rust``
     + available binary. Default and missing-binary fallback stay on
-    the Python authority. The engine wire-in (Tag-19) records the
+    the Python authority. The engine wire-in records the
     backend decision but keeps ``self.v907_result`` Python-backed
     during Phase-3b Doppelbetrieb — the bridge is exercised by the
     tests and the future Phase-3c cutover (Zone-K coordination with
-    Tomás for the binary-hash-pinning step).
+    the WAT side for the binary-hash-pinning step).
     """
 
     def __init__(
@@ -3146,9 +3146,9 @@ def build_v907_verify(
     Both surfaces share the public method set
     (``compute_pin``, ``verify_pin``) so engine / despawn_clean
     callers cannot tell the backends apart at the API boundary.
-    Tag-19 keeps ``self.v907_result`` Python-backed during
+    keeps ``self.v907_result`` Python-backed during
     Phase-3b Doppelbetrieb; this factory is the Phase-3c-cutover
-    hook (Zone-K coordination with Tomás for the binary-hash-
+    hook (Zone-K coordination with the WAT side for the binary-hash-
     pinning step).
     """
     if backend is V907VerifyBackend.PYTHON:
@@ -3287,11 +3287,11 @@ class RustSubprocessBridgeDiff:
 
     Construction is cheap; per-call overhead is one subprocess spawn.
 
-    Tag-20 posture
+    posture
     --------------
     This binding is the *opt-in* path: ``WAKIR_BRIDGE_DIFF_BACKEND=rust``
     + available binary. Default and missing-binary fallback stay on
-    the Python authority. The engine wire-in (Tag-20) records the
+    the Python authority. The engine wire-in records the
     backend decision but keeps the Python authority active during
     Phase-3b Doppelbetrieb — the bridge is exercised by the tests
     and the future Phase-3c cutover. Cross-lang field-pin parity is
@@ -3587,7 +3587,7 @@ def build_bridge_diff(
     Both surfaces share the public method set
     (``jcs_hash``, ``diff_envelopes``, ``compare``) so engine /
     bridge-audit-writer callers cannot tell the backends apart at the
-    API boundary. Tag-20 keeps the Python authority active during
+    API boundary. keeps the Python authority active during
     Phase-3b Doppelbetrieb; this factory is the Phase-3c-cutover hook.
     """
     if backend is BridgeDiffBackend.PYTHON:
@@ -3670,12 +3670,12 @@ class RustSubprocessSubscribeLoop:
 
     Construction is cheap; per-call overhead is one subprocess spawn.
 
-    Tag-22 posture
+    posture
     --------------
     This binding is the *opt-in* path:
     ``WAKIR_SUBSCRIBE_LOOP_BACKEND=rust`` + available binary. Default
     and missing-binary fallback stay on the Python authority. The
-    engine wire-in (Tag-22) records the backend decision but keeps
+    engine wire-in records the backend decision but keeps
     the Python authority active during Phase-3b Doppelbetrieb — the
     bridge is exercised by the tests and the future Phase-3c cutover.
     Cross-lang parity is gated by the five fixture-pinned vectors per
@@ -3974,7 +3974,7 @@ def build_subscribe_loop(
     Both surfaces share the public method set
     (``serialize_ack``, ``hash_record``) so engine / subscribe-loop
     callers cannot tell the backends apart at the API boundary.
-    Tag-22 keeps the Python authority active during Phase-3b
+    keeps the Python authority active during Phase-3b
     Doppelbetrieb; this factory is the Phase-3c-cutover hook.
     """
     if backend is SubscribeLoopBackend.PYTHON:
@@ -4056,12 +4056,12 @@ class RustSubprocessAnchorEmitter:
 
     Construction is cheap; per-call overhead is one subprocess spawn.
 
-    Tag-23 posture
+    posture
     --------------
     This binding is the *opt-in* path:
     ``WAKIR_ANCHOR_EMITTER_BACKEND=rust`` + available binary. Default
     and missing-binary fallback stay on the Python authority. The
-    engine wire-in (Tag-23) records the backend decision but keeps
+    engine wire-in records the backend decision but keeps
     the Python authority active during Phase-3b Doppelbetrieb — the
     bridge is exercised by the tests and the future Phase-3c cutover.
     Cross-lang parity is gated by the five fixture-pinned vectors per
@@ -4369,7 +4369,7 @@ def build_anchor_emitter(
     Both surfaces share the public method set
     (``serialize_anchor``, ``hash_anchor``) so engine /
     anchor-emitter callers cannot tell the backends apart at the
-    API boundary. Tag-23 keeps the Python authority active during
+    API boundary. keeps the Python authority active during
     Phase-3b Doppelbetrieb; this factory is the Phase-3c-cutover
     hook.
     """

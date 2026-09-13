@@ -6,11 +6,11 @@ Engine-side caller for the SPIRE Workload-API socket bind-mounted
 into the persona-container at ``/run/spire/agent-sockets/api.sock``
 (Quadlet ``Volume=wakir-spire-agent-sockets.volume:...``).
 
-Sprint-Pengine-9 OI-PEFR-2 surface
+OI-PEFR-2 surface
 ----------------------------------
 
 The v0.2.0-pilot binding shipped only a **socket-presence probe**:
-``connect()``-on-UDS, no protocol exchange. Sprint-Pengine-9 adds
+``connect()``-on-UDS, no protocol exchange. A later revision adds
 the full Workload-API SVID-fetch via grpcio:
 
 1. **Socket-presence probe** (preserved). :func:`probe_workload_api_socket`
@@ -33,7 +33,7 @@ fake gRPC channel that replays canned SVID bytes.
 Zone-L cross-review
 -------------------
 
-Reza (Identity-Substrate) owns the SPIFFE-ID template + the
+the protocol side (Identity-Substrate) owns the SPIFFE-ID template + the
 certificate-not-after semantics. The protobuf surface
 (:mod:`wirelang.persona_engine._workload_api_pb2_minimal`)
 mirrors the SPIFFE Workload-API v0.4 proto fields the engine
@@ -175,7 +175,7 @@ def probe_workload_api_socket(
 ) -> SvidProbeResult:
     """Probe the workload-API socket presence and connectability.
 
-    Sprint-Pengine-9: still the boot-gate path. Engine boot runs this
+    still the boot-gate path. Engine boot runs this
     probe to fail fast on a missing SPIRE-Agent before attempting the
     gRPC SVID fetch.
     """
@@ -201,7 +201,7 @@ def probe_workload_api_socket(
 
 
 # ---------------------------------------------------------------------------
-# Sprint-Pengine-9 OI-PEFR-2 — full SVID-fetch over gRPC.
+# OI-PEFR-2 — full SVID-fetch over gRPC.
 # ---------------------------------------------------------------------------
 
 
@@ -258,9 +258,9 @@ class WorkloadApiClient:
     Hermetic-test posture: tests pass a stub channel + stub stub; no
     grpcio import happens. Production builds use grpcio.aio +
     a generated ``SpiffeWorkloadAPIStub`` from ``workload.proto``.
-    For Sprint-Pengine-9 we ship a *minimal* protobuf surface
+    We ship a *minimal* protobuf surface
     (see ``_workload_api_pb2_minimal.py``) that mirrors the v0.4
-    SPIRE proto fields we consume. A future Sprint-Pengine-10
+    SPIRE proto fields we consume. A future
     swap-in of the auto-generated ``workload_pb2`` is a drop-in:
     the field names align byte-for-byte.
     """
@@ -348,7 +348,7 @@ class WorkloadApiClient:
 
         start = time.monotonic()
         metadata = [WORKLOAD_API_SECURITY_HEADER]
-        # Sprint-Pengine-11 Bug-40 fix: the SPIRE-Agent gRPC stream
+        # Bug-40 fix: the SPIRE-Agent gRPC stream
         # can return transport-level errors that surface as
         # :class:`grpc.aio.AioRpcError` (or generic :class:`grpc.RpcError`),
         # neither of which is a subclass of :class:`SvidFetchError`.

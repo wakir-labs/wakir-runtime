@@ -2,17 +2,17 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Bridge-audit-writer (Doppelbetrieb-Shadow output bridging).
 
-Sprint-1 Tag-4 (PR #19, commit ``2c1f3a6``) introduced the bridge-
+(PR #19, commit ``2c1f3a6``) introduced the bridge-
 audit-writer: a structured envelope that mirrors every engineering
 output emission to **two sinks** so the Doppelbetrieb-Shadow phase
-can compare Pre-Framework Tomás-spawn output against the
+can compare Pre-Framework WAT-spawn output against the
 wakir-runtime persona-engine output byte-for-byte.
 
 This module is the engine-side caller. The two sinks are:
 
 1. **Pre-Framework sink.** A Markdown append to
    ``/var/lib/wakir/persona/<persona_id>/bridge-audit.md`` — a
-   pre-existing convention from the Pre-Framework Tomás spawn that
+   pre-existing convention from the Pre-Framework the WAT side spawn that
    keeps human-readable conversation tails. The persona-engine
    appends one section per output emission with a heading line + the
    JCS-canonical envelope rendered as a fenced JSON block.
@@ -20,7 +20,7 @@ This module is the engine-side caller. The two sinks are:
 2. **Wakir-Runtime sink.** A structured-log JSON envelope on stderr
    that the Quadlet ``podman logs`` substrate collects. The audit
    substrate (separate from this module) snapshots the log into
-   the NATS-KV state-pack bucket via the Sprint-9 Tag-1 forwarder
+   the NATS-KV state-pack bucket via the forwarder
    chain; we do not bind NATS directly here (NATS-write is the
    ``state_backing`` module's job).
 

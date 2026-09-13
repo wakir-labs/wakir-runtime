@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Scheduled R1..R4 recovery drills (Sprint-Pengine-9 OI-PEFR-4).
+"""Scheduled R1..R4 recovery drills (OI-PEFR-4).
 
 Spec §3.7.4 declares the R1..R4 recovery workflow, and §3.7.2.2
 invariant 4 enforces the 30-second end-to-end budget. The hermetic
@@ -8,7 +8,7 @@ test suite already covers per-phase semantics + budget enforcement
 (``test_recovery_workflow.py``), but the workflow has never run on
 a schedule — operator-Hand has been the only way to trigger it.
 
-Sprint-Pengine-9 OI-PEFR-4 adds :class:`DrillScheduler`:
+OI-PEFR-4 adds :class:`DrillScheduler`:
 
   - Periodic trigger (timer-thread, default 1 week interval).
   - Per-run :class:`RecoveryWorkflow.run()` invocation in
