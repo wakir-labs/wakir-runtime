@@ -18,14 +18,14 @@
 #                                           cache (consumed by
 #                                           ``wirelang.schemas.
 #                                           registry_nats_kv_backend``,
-#                                           Sprint-3 Tag-1)
+#)
 #      - ``wakir-aip-cache``                AIP-Document resolver cache
 #      - ``wakir-ftd-cache``                Federation-Trust-Document
 #                                           cache
 #      - ``wakir-ftd-poisoned``             FTD poison-list marker bucket
 #      - ``wakir-schema-registry-entries``  Wirelang schema-registry
 #                                           storage (5th bucket added
-#                                           Sprint-4 Tag-4, Phase-2-
+#, Phase-2-
 #                                           reserved; no Phase-1b
 #                                           consumer)
 #      - ``wakir-federation-routes``        V-908 federation-route
@@ -33,15 +33,15 @@
 #                                           Wirelang-side
 #                                           ``NatsKvRouteRegistry``
 #                                           backend (6th bucket added
-#                                           Sprint-4 Tag-5; closes the
-#                                           Sprint-2 Tag-7 Z-B
+#; closes the
+# Z-B
 #                                           inventory-drift follow-up
 #                                           that previously required
 #                                           an out-of-band ``nats kv
 #                                           add`` step per Runbook §6.5)
 #      - ``wakir-capability-policies``      Capability-policy persistence
 #                                           bucket (7th bucket added
-#                                           Sprint-5 Tag-2, Phase-3-
+#, Phase-3-
 #                                           reserved; no Phase-1b /
 #                                           Phase-2 consumer ships on
 #                                           it). Audit-friendly defaults
@@ -62,7 +62,7 @@
 # 4. Emits a structured JSON report to stdout (one document per
 #    invocation) plus a human-readable progress log to stderr. The
 #    JSON shape is the contract the operator-tooling pipeline parses
-#    (cron-driven monitoring is a Sprint-3 follow-up; the JSON shape
+# (cron-driven monitoring is a follow-up; the JSON shape
 #    is stable for that consumer).
 #
 # Why a separate tool from ``init-nats-buckets.py``: the init tool's

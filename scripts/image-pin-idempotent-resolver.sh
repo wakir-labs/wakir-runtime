@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-9 Tag-5 — Idempotent CI-side image-pin resolver.
+# Idempotent CI-side image-pin resolver.
 #
 # Companion to ``infra/spire/federation/proxmox/resolve-image-pins.sh``
 # (which is the Operator-Hand VM-side resolver). This script is the
@@ -134,9 +134,9 @@ fi
 
 # Format: <group_key>|<image_prefix>|<file1>[;<file2>...]
 #
-# Sprint-9 Tag-6: the wakir-provisioner row uses the BARE image-base
+# the wakir-provisioner row uses the BARE image-base
 # (no ``:<tag>`` suffix) so the resolver is tag-tolerant — the BSL-
-# Bulk-Edit-Welle (PR #37) drifted the Quadlet tag from ``:0.1.0``
+# bulk-edit pass (PR #37) drifted the Quadlet tag from ``:0.1.0``
 # to ``:0.1.2`` and the previous hardcoded ``:0.1.2`` prefix would
 # break the next time the tag rotates. The extractor honours the
 # bare-base form by accepting an optional ``:<tag>`` between base
@@ -144,10 +144,10 @@ fi
 # level grep). The SPIRE and python rows stay tag-pinned because
 # their tag is upstream-fixed (SPIRE release line, python minor).
 #
-# Sprint-10 Tag-4: the wakir-persona-engine row uses the bare base
+# the wakir-persona-engine row uses the bare base
 # too — the Pilot-Phase Schritt 9 image-availability gap-closer
 # ships ``0.1.0-pilot`` and rotates to ``0.2.0-pilot`` / ``1.0.0``
-# when Sprint-Pengine-8 lands the full engine; the bare-base form
+# when This revision lands the full engine; the bare-base form
 # keeps the resolver tag-tolerant across that rotation. The
 # Quadlet ``quadlet/wakir-persona-tomas.container`` line 86 carries
 # the consuming pin. The persona-engine pin's placeholder token is
@@ -197,13 +197,13 @@ fetch_live_digest() {
 # ----------------------------------------------------------------------
 
 # ----------------------------------------------------------------------
-# Placeholder-token regex — Sprint-10 Tag-4 generalisation.
+# Placeholder-token regex — generalisation.
 # ----------------------------------------------------------------------
 #
-# Until Sprint-10 Tag-4 the resolver recognised exactly one
+# Until the resolver recognised exactly one
 # placeholder token: ``sha256:DIGEST_PENDING_TOMAS_REVIEW``. The
-# Quadlet ``quadlet/wakir-persona-tomas.container`` line 86 (Selin
-# Sprint-Pengine-7 Tag-5 OI-PILOT-1) introduced a SECOND placeholder
+# Quadlet ``quadlet/wakir-persona-tomas.container`` line 86 (persona-engine engineering
+# OI-PILOT-1) introduced a SECOND placeholder
 # spelling: ``sha256:DIGEST_PENDING_KAI_CROSS_REVIEW`` — same token-
 # family, different cross-pair ownership annotation.
 #
@@ -232,7 +232,7 @@ extract_current_digest() {
   # Pulls the sha256:<hex> (or the placeholder token) currently
   # committed for <image_prefix> in <file>. Empty stdout = no match.
   #
-  # Sprint-9 Tag-6: the image_prefix may be EITHER tag-pinned
+  # the image_prefix may be EITHER tag-pinned
   # (``ghcr.io/spiffe/spire-server:1.14.6``) OR bare-base
   # (``ghcr.io/wakir-labs/wakir-provisioner``). In the bare-base
   # case we tolerate an arbitrary ``:<tag>`` between the prefix and
@@ -241,7 +241,7 @@ extract_current_digest() {
   # regex still anchors on the exact prefix because the prefix
   # already carries the ``:<tag>``.
   #
-  # Sprint-10 Tag-4: the placeholder portion of the regex now
+  # the placeholder portion of the regex now
   # accepts any uppercase ``DIGEST_PENDING_<ANNOTATION>`` token, not
   # only the historical ``_TOMAS_REVIEW`` suffix. See
   # ``PLACEHOLDER_OR_DIGEST_REGEX`` above for the contract.
@@ -319,7 +319,7 @@ for entry in "${PINS[@]}"; do
       # Substitute in-place. The pattern is anchored to
       # ``<image_prefix>[:<tag>]@<current>`` so we cannot
       # accidentally rewrite an unrelated digest line. When the
-      # PINS entry is bare-base (Sprint-9 Tag-6, wakir-provisioner),
+      # PINS entry is bare-base (wakir-provisioner),
       # we preserve the existing ``:<tag>`` byte-for-byte so a
       # digest rotation never silently strips the tag.
       existing_tag=$(extract_current_tag "$full" "$image_prefix")

@@ -3,8 +3,7 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreStart
 """Pre-commit SPDX-header check for newly-added substance files.
-
-Tag-32 EXT-AUDIT-FOLGE companion hook. Reads the list of staged
+ EXT-AUDIT-FOLGE companion hook. Reads the list of staged
 files passed by ``pre-commit`` on the command line, filters down to
 *added* files (status ``A`` from ``git diff --cached --name-status``)
 and verifies every survivor carries an ``SPDX-License-Identifier:``

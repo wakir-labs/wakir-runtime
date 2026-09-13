@@ -24,8 +24,7 @@ groups records by their ``model`` attribute (resolved either from
 the top-level key or from a sibling ``otel-metric`` record's
 ``attributes.model``), and applies the ADR-0064 pricing table to
 compute total USD cost per model per scrape window. Output goes
-to the Prometheus textfile-collector substrate that Kai's
-node-exporter Quadlet already consumes (parity with
+to the Prometheus textfile-collector substrate that the DevOps track's node-exporter Quadlet already consumes (parity with
 ``prometheus-textfile-adapter.py``
 in the same directory).
 
@@ -33,7 +32,7 @@ Per ADR-0064 §Folgeartefakte Phase-2a Item 2:
 
    "Per-Model-Cost-Tracking (separate Counter pro claude-opus-4-7,
    -sonnet-4-6, -haiku-4-5) ... Prometheus-textfile-Gauges via
-   Noa's Watchdog-Pattern"
+   the SRE track's Watchdog-Pattern"
 
 The Cache-Hit-Rate aggregator and the Grafana dashboard land in
 the follow-on wave; this MINI scope is cost-only.

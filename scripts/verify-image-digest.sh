@@ -3,8 +3,8 @@
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
 # Image-digest verification gate for the Phase-1b NATS substrate
-# (Phase-2 Sprint-4 Tag-3, Cross-Review Zone-C upgrade over the
-# Sprint-2-Tag-3 tag-pin).
+# (Cross-Review Zone-C upgrade over the
+# tag-pin).
 #
 # What this script does
 # ---------------------
@@ -309,8 +309,8 @@ if [[ "${WITH_COSIGN}" -eq 1 ]]; then
   log "cosign-verify: ${TAG_PART}@sha256:${DIGEST_PART}"
   # Capture stdout+stderr without losing the exit code. The previous
   # ``2>&1 || true`` form swallowed cosign's exit status into the
-  # ``|| true`` fallback so ``$?`` was always 0 (Sprint-6 Tag-4
-  # mock-cosign-test discovery; verify-image-digest.sh Tag-3 surface
+  # ``|| true`` fallback so ``$?`` was always 0 (
+  # mock-cosign-test discovery; verify-image-digest.sh surface
   # never actually wired the failure branch). Disable ``-e`` for the
   # invocation so a non-zero cosign exit lands in COSIGN_EXIT cleanly.
   set +e

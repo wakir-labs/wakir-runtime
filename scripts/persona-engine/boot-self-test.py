@@ -5,19 +5,19 @@
 # Licensed under the Business Source License 1.1; see
 # wirelang/persona_engine/LICENSE-BSL.md.
 # Change Date: 2030-05-15. Change License: Apache License 2.0.
-"""Persona-Engine 0.5.1-pre-cutover Boot Self-Test (Tag-48).
+"""Persona-Engine 0.5.1-pre-cutover Boot Self-Test.
 
 This is a **stdlib-only** boot harness that drives the real
 ``wirelang.persona_engine`` Stage-1 resolver fan-out in
 **sandbox-stub-mode** (clean env, default python backends, no NATS /
 SPIFFE / subprocess) and verifies the four post-cutover-gate
-invariants Selin owes Phase-3a/3b:
+invariants persona-engine engineering owes Phase-3a/3b:
 
   1. Stage-1 emits **exactly 10** ``BackendDecision`` records, in the
      boot-order spelled out in
      ``wirelang/persona_engine/MANIFEST-0.5.1-pre-cutover.md`` §1.
-     Record #10 is the Tag-48 ``bridge-audit-writer`` wire-in
-     (previously held back per the Tag-45 0.5.0-pre-cutover manifest
+     Record  #10 is the ``bridge-audit-writer`` wire-in
+     (previously held back per the 0.5.0-pre-cutover manifest
      §5).
   2. The 10-record cross-language pin-pack anchors at
      ``infra/persona-engine/pin-pack-0.5.1-pre-cutover.yaml`` align
@@ -32,21 +32,21 @@ invariants Selin owes Phase-3a/3b:
 Why a self-test and not just the existing ``pytest`` suite?
 -----------------------------------------------------------
 
-The Tag-45 hermetic suite
+The hermetic suite
 (``wirelang/tests/persona_engine/test_manifest_0_5_0_pre_cutover.py``)
 checks **documents** -- manifest text, pin-pack YAML, Containerfile
 labels -- but only for the 9-record 0.5.0-pre-cutover snapshot. It
-does not boot the engine resolver fan-out. The Tag-48 hermetic
+does not boot the engine resolver fan-out. The hermetic
 suites (``test_manifest_0_5_1_pre_cutover.py`` and
 ``test_bridge_audit_writer_wire_in_tag48.py``) extend the same
-posture to the 10-record manifest. The Tag-46 suites check coverage
+posture to the 10-record manifest. The suites check coverage
 of failure modes around individual modules. The self-test below
 closes the cutover-gate by exercising the **real Stage-1 boot path**
 without standing up the full engine (which would require NATS,
 SPIFFE, and Rust binaries -- none of which the pre-cutover sandbox
 provides).
 
-The script is intentionally importable from the Tag-47 hermetic test
+The script is intentionally importable from the hermetic test
 (see
 ``wirelang/tests/persona_engine/test_boot_self_test_tag47.py``)
 so the same Stage-1 invariants are reproducibly enforced in CI **and**
@@ -109,9 +109,9 @@ PIN_PACK_PATH = (
     / "pin-pack-0.5.1-pre-cutover.yaml"
 )
 
-# Historical Tag-45 anchor — retained for the Doppelbetrieb
+# Historical anchor — retained for the Doppelbetrieb
 # regression-comparison baseline. The self-test does not gate on it
-# directly; the file's presence is asserted by the dedicated Tag-48
+# directly; the file's presence is asserted by the dedicated
 # wire-in suite (test_bridge_audit_writer_wire_in_tag48.py).
 LEGACY_MANIFEST_PATH = (
     REPO_ROOT
@@ -143,7 +143,7 @@ EXPECTED_BOOT_ORDER: Tuple[Tuple[int, str, str], ...] = (
 )
 
 # Manifest pin-pack canonical crate-name -> record mapping (15 total
-# crates; records 1..10 are wired into boot as of Tag-48).
+# crates; records 1..10 are wired into boot).
 EXPECTED_PIN_PACK_BOOT_WIRED: Tuple[Tuple[int, str], ...] = (
     (1, "persona-engine-recovery"),
     (2, "persona-engine-state-backing"),
@@ -556,13 +556,13 @@ def _drive_stage_1_boot(
 
 
 def check_stage_1_emits_nine() -> Tuple[bool, str]:
-    """Tag-48: this check now asserts ten BackendDecisions.
+    """this check now asserts ten BackendDecisions.
 
-    The function name is intentionally preserved from Tag-47 to
+    The function name is intentionally preserved to
     keep the ``CHECKS`` registry ordering stable; the *substance*
     of the check is "Stage-1 emits the canonical record count for
     the active manifest version". For 0.5.1-pre-cutover that
-    count is 10 (one additional record vs. the Tag-45 9-record
+    count is 10 (one additional record vs. the 9-record
     0.5.0-pre-cutover snapshot).
     """
     decisions, _ = _drive_stage_1_boot()
@@ -601,25 +601,25 @@ def check_stage_1_all_python_default() -> Tuple[bool, str]:
 
 
 #: Domains whose default backend has been flipped to rust per the
-#: Phase-3c Welle-1..7 cutover sequence (ADR-0066). On a clean env
+#: Phase-3c waves 1..7 cutover sequence (ADR-0066). On a clean env
 #: these emit fallback_reason="binary_missing" when the rust binary
 #: is not present (Sandbox-CI posture) — that is the expected post-
 #: cutover graceful-fallback decision-record, NOT a drift.
 #: Grows by one entry per merged welle-cutover-PR.
 RUST_DEFAULT_DOMAINS_POST_CUTOVER = frozenset({
-    "v907_verify",            # Welle-1 (Tag-80 2026-05-20)
-    "svid_workload_identity", # Welle-2 (Tag-80 2026-05-20)
-    "bridge_audit_writer",    # Welle-3 (Tag-80 2026-05-20)
-    "state_backing",          # Welle-4 (Tag-80 2026-05-20)
-    "fsm",                    # Welle-5 (Tag-80 2026-05-20)
-    "subscribe_loop",         # Welle-6 (Tag-80 2026-05-20)
-    "recovery",               # Welle-7 (Tag-80 2026-05-20) — Phase-3c-Welle-Sequenz KOMPLETT
+    "v907_verify",  # wave 1
+    "svid_workload_identity",  # wave 2
+    "bridge_audit_writer",  # wave 3
+    "state_backing",  # wave 4
+    "fsm",  # wave 5
+    "subscribe_loop",  # wave 6
+    "recovery",  # wave 7 — last wave, sequence complete
 })
 
 
 def check_stage_1_no_fallback_on_clean_env() -> Tuple[bool, str]:
     decisions, _ = _drive_stage_1_boot()
-    # Tag-80 Welle-1 Cutover: for domains in
+    # wave 1 cutover: for domains in
     # RUST_DEFAULT_DOMAINS_POST_CUTOVER, the clean-env path emits
     # fallback_reason="binary_missing" because the rust binary is
     # not on the Sandbox-CI runner. That is the documented
@@ -801,7 +801,7 @@ def check_fsm_transition_dag_closure() -> Tuple[bool, str]:
 # into a canonical persona-v1 shape. The persona_canonical_form module
 # is parser-strict; the blob below intentionally uses the smallest
 # valid shape so we exercise pin determinism without dragging in the
-# full Aisha-domain persona-definition vocabulary.
+# full HR-domain persona-definition vocabulary.
 
 V907_AXIS_A_BLOB = b"""---
 persona_id: "pengine-test"
@@ -830,8 +830,8 @@ def check_v907_pin_stable() -> Tuple[bool, str]:
     except Exception as exc:  # noqa: BLE001
         # The persona_canonical_form pipeline may reject the minimal
         # blob shape if the persona-v1 schema validator rejects fields
-        # we did not supply. That is a Selin-domain *adjacent* concern
-        # (Aisha owns the schema); the self-test still establishes
+        # we did not supply. That is a persona-engine engineering-domain *adjacent* concern
+        # (HR owns the schema); the self-test still establishes
         # determinism via a sha256 over the raw bytes as the
         # always-available fallback signal -- but explicitly tag the
         # fallback so the operator sees that the strict v907 path
@@ -988,10 +988,10 @@ def check_boot_fingerprint_deterministic() -> Tuple[bool, str]:
 
 
 def check_bridge_audit_writer_wired_in() -> Tuple[bool, str]:
-    """Tag-48: manifest §1 promises bridge-audit-writer is the 10th
+    """manifest §1 promises bridge-audit-writer is the 10th
     Stage-1 BackendDecision.
 
-    Inverts the Tag-47 held-back check. We verify:
+    Inverts the held-back check. We verify:
 
     1. engine.py imports ``resolve_bridge_audit_writer_backend`` (the
        wire-in is no longer a scaffold).
@@ -1001,7 +1001,7 @@ def check_bridge_audit_writer_wired_in() -> Tuple[bool, str]:
 
     This is what makes the boot fingerprint stable across
     0.5.1-pre-cutover boots and what closes the held-back surface from
-    the Tag-45 0.5.0-pre-cutover manifest §5.
+    the 0.5.0-pre-cutover manifest §5.
     """
     sys.path.insert(0, str(REPO_ROOT))
     engine_path = REPO_ROOT / "wirelang" / "persona_engine" / "engine.py"
@@ -1010,7 +1010,7 @@ def check_bridge_audit_writer_wired_in() -> Tuple[bool, str]:
         return (
             False,
             "engine.py does NOT import resolve_bridge_audit_writer_backend; "
-            "expected wired in per Tag-48 manifest §1",
+            "expected wired in per manifest §1",
         )
 
     from wirelang.persona_engine import rust_backend_switch as rbs  # noqa: E402
@@ -1079,7 +1079,7 @@ def run_self_test() -> SelfTestReport:
             if key.startswith("WAKIR_"):
                 del os.environ[key]
         report = SelfTestReport(
-            boot_baseline="0.5.1-pre-cutover (Tag-48 manifest, 10-record wire-in)",
+            boot_baseline="0.5.1-pre-cutover (manifest, 10-record wire-in)",
             manifest_version=EXPECTED_MANIFEST_VERSION,
         )
         for name, fn in CHECKS:

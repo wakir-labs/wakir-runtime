@@ -5,7 +5,7 @@
 # Licensed under the Business Source License 1.1; see
 # wirelang/persona_engine/LICENSE-BSL.md.
 # Change Date: 2030-05-15. Change License: Apache License 2.0.
-"""Persona-Engine 0.5.2-final-pre-cutover 5-Day Soak Probe (Tag-54).
+"""Persona-Engine 0.5.2-final-pre-cutover 5-Day Soak Probe.
 
 Sandbox-mode compressed-time soak probe for the Persona-Engine. The
 probe simulates **5 daily engine boots** on a compressed clock (no
@@ -73,7 +73,7 @@ Public API
 ----------
 
 The module exposes a small set of entry points the hermetic test
-suite (Tag-54) and the operator CLI consume:
+suite and the operator CLI consume:
 
   * :func:`run_soak_probe` -- run the 5-day soak (or N days via
     ``days=`` override) and return a structured report dict.
@@ -90,13 +90,13 @@ CLI exit codes:
 Cross-zone discipline
 ---------------------
 
-This probe is sandbox-side persona-engine work (Selin / pengine
+This probe is sandbox-side persona-engine work (persona-engine engineering / pengine
 domain). It does NOT:
 
-  * Edit persona-definition files (Aisha-domain).
-  * Touch WAT-core / OTS-anchor logic (Tomás-domain, Zone K).
-  * Touch identity-substrate keys (Reza-domain, Zone L).
-  * Touch Quadlet container definitions (Kai-domain, Zone J).
+  * Edit persona-definition files (HR-domain).
+  * Touch WAT-core / OTS-anchor logic (dev-engineering-domain, Zone K).
+  * Touch identity-substrate keys (protocol engineering-domain, Zone L).
+  * Touch Quadlet container definitions (DevOps-domain, Zone J).
 
 It imports read-only from ``wirelang.persona_engine`` and
 ``wirelang.persona_engine.rust_backend_switch``; that is the
@@ -140,7 +140,7 @@ PIN_PACK_PATH = (
 
 DEFAULT_DAYS: int = 5
 
-# Boot-order matches Tag-48 wire-in (manifest §1). Mirrored here to keep
+# Boot-order matches wire-in (manifest §1). Mirrored here to keep
 # the probe self-contained; the hermetic test suite cross-checks the
 # probe's constants against ``boot-self-test-v2.py``'s EXPECTED_BOOT_ORDER
 # so any drift between the two files is caught.
@@ -174,7 +174,7 @@ SOAK_FSM_TRANSITIONS: Tuple[Tuple[str, str, str], ...] = (
 # bound is flagged as a soak-day drift signal.
 RESOURCE_OBJECT_DELTA_BUDGET: int = 5_000
 
-# Fixed persona blob for V-907 pin computation. Same blob as Tag-50
+# Fixed persona blob for V-907 pin computation. Same blob as
 # self-test v2 (line-for-line identical) so the probe and the boot
 # self-test reach the same V-907 pin value -- callers can sanity-check
 # cross-tool consistency.
@@ -605,7 +605,7 @@ def report_to_json(report: SoakReport, *, indent: int = 2) -> str:
 
 
 def _print_human_summary(report: SoakReport) -> None:
-    print("Persona-Engine 0.5.2-final-pre-cutover 5-Day Soak Probe (Tag-54)")
+    print("Persona-Engine 0.5.2-final-pre-cutover 5-Day Soak Probe")
     print("=" * 72)
     print(f"days observed: {report.summary['days_observed']}")
     print(

@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 #
 # Wakir orchestrator — federation-evaluator health-check service
-# (system unit; Sprint-2 Tag-7 tool).
+# (system unit; tool).
 #
 # Same install pattern as wakir-nats-kv-health.service; see that
 # file for the per-host setup steps. The PYTHONPATH knob is the only

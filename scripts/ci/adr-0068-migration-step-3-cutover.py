@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""ADR-0068 Migration-Step-3 Cutover-Script.
+"""ADR-0068 Migration-Step-3 cutover-Script.
 
 Context
 -------
 
 ADR-0068 (approved 2026-05-18) replaces the multi-name
 Required-Status-Checks list on ``wakir-runtime/main`` with a single
-``ci-aggregator`` Required-Status-Check. Tomas Tag-37 PR #244
-delivered the aggregator workflow itself; Noa Tag-38 PR #251
+``ci-aggregator`` Required-Status-Check. dev-engineering PR  #244
+delivered the aggregator workflow itself; the SRE track-38 PR  #251
 delivered the failure-rate-tracker observability layer that the
 present script reads. This script performs the final cutover:
 patch the GitHub branch-protection ``required_status_checks.contexts``
@@ -17,7 +17,7 @@ list to ``["ci-aggregator"]``.
 
 The cutover is gated by a three-gate read:
 
-  * Gate 1 - Drift Gate: Noa's tracker must report
+  * Gate 1 - Drift Gate: the SRE track's tracker must report
     ``summary.drift_event_count == 0`` over the most recent N
     (default 50) aggregator runs. A non-zero drift means the
     aggregator verdict diverged from the legacy-name union at least
@@ -27,7 +27,7 @@ The cutover is gated by a three-gate read:
     ADR-0068 approval (2026-05-18). The 7-day window matches the
     ADR-stated observation window for the aggregator.
 
-  * Gate 3 - Operator Gate: The operator (Mira-Hand) must
+  * Gate 3 - Operator Gate: The operator (operator-hand) must
     authorize via the ``MIRA_HAND_AUTHORIZED=1`` environment
     variable or the ``--mira-hand-authorized`` CLI flag. This is
     the explicit human-decision boundary; the script will not
@@ -78,12 +78,12 @@ Anchors
 -------
 
   * ADR-0068 (approved 2026-05-18)
-  * Noa tracker schema:
+  * SRE tracker schema:
     ``scripts/observability/aggregator-failure-rate-tracker.py``
     (PR #251, ``6d0bb73``)
   * Current branch-protection baseline:
     ``tests/ci/test_branch_protection_check_names_audit.py::REQUIRED_NAMES_RUNTIME``
-  * Tomas aggregator workflow:
+  * dev-engineering aggregator workflow:
     ``.github/workflows/ci-aggregator.yml`` (PR #244)
 """
 
@@ -206,7 +206,7 @@ def gate_drift(
 ) -> GateReading:
     """Gate 1: drift-event count over recent aggregator runs.
 
-    Reads Noa's tracker JSON
+    Reads the SRE track's tracker JSON
     (``scripts/observability/aggregator-failure-rate-tracker.py``)
     and asserts:
 
@@ -454,7 +454,7 @@ def build_cutover_plan(
     timestamp_unixtime: float,
     post_contexts: Sequence[str] = TARGET_REQUIRED_CONTEXTS,
 ) -> CutoverPlan:
-    """Construct a CutoverPlan with a timestamped backup path.
+    """Construct a cutoverPlan with a timestamped backup path.
 
     Backup-filename convention:
     ``branch-protection-pre-migration-{YYYYMMDDTHHMMSSZ}.json``.
@@ -573,7 +573,7 @@ def format_gate_report(report: GateReport) -> str:
 
 
 def format_plan(plan: CutoverPlan) -> str:
-    """Render a CutoverPlan for dry-run / pre-apply output.
+    """Render a cutoverPlan for dry-run / pre-apply output.
 
     Pure function.
     """
@@ -598,10 +598,10 @@ def format_plan(plan: CutoverPlan) -> str:
 
 
 def read_tracker_json(path: pathlib.Path) -> dict:
-    """Read Noa's tracker JSON from disk.
+    """Read the SRE track's tracker JSON from disk.
 
     I/O wrapper. Hermetic tests inject a fixture path; live mode
-    points to the path produced by Noa's tracker run (typically
+    points to the path produced by the SRE track's tracker run (typically
     ``/var/lib/prometheus/.../aggregator-failure-rate.json`` or
     a CI artifact).
     """
@@ -758,7 +758,7 @@ def _build_argparser() -> argparse.ArgumentParser:
         type=pathlib.Path,
         default=None,
         help=(
-            "Path to Noa's aggregator-failure-rate-tracker JSON "
+            "Path to the SRE track's aggregator-failure-rate-tracker JSON "
             "output. Required for --dry-run / --apply (not for "
             "--rollback)."
         ),

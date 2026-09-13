@@ -2,14 +2,14 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-Tag-8 — Live-VM-Acceptance CI-Wrapper
-# (Sprint-7 Item: codify the operator-hand procedure into a CI-callable
+# Live-VM-Acceptance CI-Wrapper
+# (Item: codify the operator-hand procedure into a CI-callable
 #  wrapper script).
 #
 # **Why this script exists.**
 #
 # `scripts/federation-live-vm-acceptance.sh` is the source-of-truth
-# acceptance lane (Tomás Tag-6/9 substrate). It runs ON the Pilot-VM,
+# acceptance lane. It runs ON the Pilot-VM,
 # as root, after the substrate has been installed at
 # /opt/wakir-runtime. That covers the manual Operator-Hand path.
 #
@@ -24,7 +24,7 @@
 #
 # This wrapper DOES NOT run in the claude-dev Sandbox. The Sandbox
 # cannot reach 192.168.178.* — see feedback_sandbox_host_trennung.md.
-# It runs on an operator-controlled host (Mira-Hand) or a CI runner
+# It runs on an operator-controlled host (operator-hand) or a CI runner
 # that has SSH access to wakir-orbit / wakir-pilot.
 #
 # Invocation
@@ -108,7 +108,7 @@
 #                         "Bug-36", "Bug-37", "Bug-38"]
 #   }
 #
-# -- Kai
+# -- DevOps
 
 set -eu -o pipefail
 

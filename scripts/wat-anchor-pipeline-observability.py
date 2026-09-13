@@ -7,26 +7,25 @@ Background
 ----------
 
 ADR-0064 §Folgeartefakte Phase-2-Observability (Approval 2026-05-16
-~15:30 CEST) and Noa's PR #81 Zone-I-trigger ("WAT-Pipeline-SLOs as
+~15:30 CEST) and the SRE track's PR  #81 Zone-I-trigger ("WAT-Pipeline-SLOs as
 Phase-2-Trigger") mandate live WAT-anchor-pipeline observability now
-that Tomas' PR #124 (``wakir-anchor anchor-receipt`` CLI surface) is
+that the dev-engineering track's PR  #124 (``wakir-anchor anchor-receipt`` CLI surface) is
 on ``wakir-runtime/main``. The deferred Phase-2 SLO catalogue
 (``docs/observability/sli-slo-wat-phase-2.md``) defines SLO-1
 finalization-rate, SLO-2 anchor-latency-p99, and SLO-3 Bitcoin-block-
 height-drift; this script is the gauge emitter that feeds those SLOs.
 
 The script periodically invokes ``wakir-anchor anchor-receipt --latest
---json`` (Tomas' PR #124 subcommand), parses the structured-JSON
+--json`` (the dev-engineering track's PR  #124 subcommand), parses the structured-JSON
 output that the WAT-core emits, and writes a Prometheus textfile-
-collector record that Kai's node-exporter Quadlet already scrapes.
+collector record that the DevOps track's node-exporter Quadlet already scrapes.
 Pattern parity with the SRE textfile-adapter family and
 ``per-model-cost-aggregator.py`` + ``cache-hit-rate-aggregator.py``
-(Noa's PR #110 + #117): same stdlib-only floor, same atomic-write
+(the SRE track's PR  #110 + #117): same stdlib-only floor, same atomic-write
 discipline, same textfile-collector default location.
 
 The CLI contract that this script depends on is documented in
-``docs/observability/sli-slo-wat-phase-2.md`` §A.1. The shape Tomas'
-PR #124 produces:
+``docs/observability/sli-slo-wat-phase-2.md`` §A.1. The shape the dev-engineering track's PR  #124 produces:
 
     {
       "schema_version": 1,
@@ -46,9 +45,9 @@ PR #124 produces:
     }
 
 The script is **read-only against the WAT pipeline** — it shells out
-to the CLI Tomas owns, never touches the receipt-DB, never re-anchors,
-never rewrites .ots files. Zone-I separation: Tomas owns the WAT-core,
-Noa measures whether it runs as expected.
+to the CLI dev-engineering owns, never touches the receipt-DB, never re-anchors,
+never rewrites.ots files. Zone-I separation: dev-engineering owns the WAT-core,
+SRE measures whether it runs as expected.
 
 Failure modes that the script must survive without raising:
 
@@ -121,7 +120,7 @@ DEFAULT_WINDOW_SIZE = 100
 ENV_WINDOW_SIZE = "WAKIR_OBS_WINDOW_SIZE"
 
 #: Default path of the per-anchor latency-observations JSONL emitted by
-#: the WAT pipeline (Tomas owns the producer; Noa consumes). One JSON
+#: the WAT pipeline (dev-engineering owns the producer; SRE consumes). One JSON
 #: object per line; the script tails the last ``--window`` lines.
 DEFAULT_LATENCY_SOURCE = "/var/lib/wakir/wat-anchor-latencies.jsonl"
 
@@ -170,7 +169,7 @@ DEFAULT_HISTOGRAM_BUCKETS_SECONDS: Tuple[float, ...] = (
 #: summary for ad-hoc operator inspection and CI assertions.
 SUPPORTED_OUTPUT_FORMATS: Tuple[str, ...] = ("json", "prom")
 
-#: Default subprocess command. Tomas' PR #124 ships the
+#: Default subprocess command. the dev-engineering track's PR #124 ships the
 #: ``wakir-anchor anchor-receipt --latest --json`` subcommand. Overridable
 #: via ``--cli-command`` for hermetic tests.
 DEFAULT_CLI_COMMAND: Tuple[str, ...] = (
@@ -185,7 +184,7 @@ DEFAULT_CLI_COMMAND: Tuple[str, ...] = (
 #: timer slot stays bounded.
 DEFAULT_CLI_TIMEOUT_SECONDS = 30
 
-#: Schema-version this script understands. Bumped together with Tomas'
+#: Schema-version this script understands. Bumped together with dev-engineering'
 #: PR #124 output shape. If the CLI returns a higher version we still
 #: parse the fields we know about and set
 #: ``wat_anchor_pipeline_schema_drift`` = 1.0.
@@ -611,7 +610,7 @@ def atomic_write(target: Path, payload: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Per-anchor latency histograms (Tag-12 mini-welle, Phase-2-operations-reife)
+# Per-anchor latency histograms (mini-welle, Phase-2-operations-reife)
 # ---------------------------------------------------------------------------
 #
 # The receipt-emitter path above (build_snapshot -> render_textfile) covers
@@ -621,7 +620,7 @@ def atomic_write(target: Path, payload: str) -> None:
 # but it does *not* answer SLO-2 (anchor-latency-p99): for that we need
 # per-anchor stage-level timings.
 #
-# Producer contract (Tomas, WAT-core)
+# Producer contract (dev-engineering, WAT-core)
 # -----------------------------------
 #
 # The WAT-core writes one JSON object per finalized anchor to a JSONL
@@ -643,7 +642,7 @@ def atomic_write(target: Path, payload: str) -> None:
 # may be racing rotation, or the consumer may sample mid-write); the line
 # is not counted toward the window.
 #
-# Consumer (Noa, SRE) — this script
+# Consumer (SRE, SRE) — this script
 # ----------------------------------
 #
 # Tail the last ``--window`` (default 100, ENV ``WAKIR_OBS_WINDOW_SIZE``)
@@ -654,7 +653,7 @@ def atomic_write(target: Path, payload: str) -> None:
 # The histogram path is *additive* to the receipt-emitter path. ``--format``
 # selects which output shape the script produces; default is the
 # receipt-emitter textfile (unchanged behavior, for backward compat with
-# the Tag-9 systemd timer).
+# the systemd timer).
 
 
 def resolve_window_size(
@@ -1051,7 +1050,7 @@ def build_argparser() -> argparse.ArgumentParser:
         description=(
             "Periodic emitter of Prometheus textfile-collector gauges for "
             "the WAT (Wakir Audit Trail) OTS-anchor pipeline. Consumes "
-            "'wakir-anchor anchor-receipt --latest --json' (Tomas' PR "
+            "'wakir-anchor anchor-receipt --latest --json' (the dev-engineering track's PR "
             "#124) and feeds the SLO catalogue in "
             "docs/observability/sli-slo-wat-phase-2.md."
         ),
@@ -1101,7 +1100,7 @@ def build_argparser() -> argparse.ArgumentParser:
         ),
     )
     # ------------------------------------------------------------------
-    # Per-anchor latency-histogram path (Tag-12 mini-welle).
+    # Per-anchor latency-histogram path (mini-welle).
     # ------------------------------------------------------------------
     p.add_argument(
         "--window",

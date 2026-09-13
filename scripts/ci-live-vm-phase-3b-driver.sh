@@ -2,18 +2,18 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-Tag-19 — Phase-3b Live-VM Acceptance Driver Script
-# (follow-up to Tag-18 PR #168; the workflow surface declared the
+# Phase-3b Live-VM Acceptance Driver Script
+# (follow-up to PR #168; the workflow surface declared the
 #  contract this driver fulfils).
 #
 # **Why this script exists.**
 #
-# `.github/workflows/live-vm-acceptance.yml` (Tag-18 Mini-Welle, PR
+# `.github/workflows/live-vm-acceptance.yml` (increment, PR
 # #168) introduced the `live-vm-acceptance-phase-3b` matrix job. Each
 # matrix-cell shells out to `scripts/ci-live-vm-phase-3b-driver.sh`
-# with seven flags and expects a structured JSON report. Tag-18
+# with seven flags and expects a structured JSON report.
 # tolerated the driver being absent by emitting a `driver-not-present`
-# stub from the workflow YAML itself; this Tag-19 deliverable ships
+# stub from the workflow YAML itself; this deliverable ships
 # the real driver and replaces that stub-path on the workflow side
 # (the workflow still keeps the stub-emit as a safety net — see
 # `live-vm-acceptance.yml:648` `if [[ -x "${DRIVER}" ]]; then`).
@@ -31,7 +31,7 @@
 #       --latency-budget-ms       <int> \
 #       --report-json             <output-path>
 #
-# Optional flags (Tag-19 additions, non-breaking to the workflow):
+# Optional flags (additions, non-breaking to the workflow):
 #
 #   --component               <recovery|state-backing|fsm>
 #                             Routing hint for sub-component focus.
@@ -62,7 +62,7 @@
 #
 # `--mode=self-test` is the safe surface for hermetic tests: it bypasses
 # SSH entirely and reads its verdict-shape from ENV-vars. This mirrors
-# the Tag-15/Tag-18 hermetic-test pattern (cf.
+# the/ hermetic-test pattern (cf.
 # `tests/infra/test_live_vm_acceptance_phase_3b.py`).
 #
 # Verdict-JSON schema (anchored in
@@ -350,7 +350,7 @@ exit_for_status() {
 # `tests/scripts/test_ci_live_vm_phase_3b_driver.py`. It reads the
 # verdict-shape from WAKIR_PHASE_3B_MOCK_* ENV-vars and emits a
 # fully-valid report without touching SSH or the Pilot-VM. This
-# matches the Tag-18 sandbox boundary: hermetic Sandbox cannot
+# matches the sandbox boundary: hermetic Sandbox cannot
 # reach 192.168.178.*, so any test surface for the driver must
 # bypass SSH.
 
@@ -424,15 +424,15 @@ run_self_test_mode() {
 # The SSH-mode path constructs a deterministic remote command, runs
 # it on the target VM, parses the JSON the remote emits to stdout,
 # and re-emits it locally as the verdict report. The remote script
-# (Tag-19 follow-up: `infra/persona-engine/phase-3b-acceptance.sh`)
+# (follow-up: `infra/persona-engine/phase-3b-acceptance.sh`)
 # is responsible for the actual persona-spawn + R1..R4 + state-
 # roundtrip. This driver's responsibility is the **transport** and
 # the **verdict-shape enforcement**.
 #
-# For Tag-19 the remote script is not yet present on every Pilot-VM
+# For the remote script is not yet present on every Pilot-VM
 # image. The driver therefore probes for it first and, if absent,
 # emits `driver-not-present` from the local side so the workflow
-# verdict-step sees a clean signal. This mirrors the Tag-18 stub
+# verdict-step sees a clean signal. This mirrors the stub
 # path that the workflow YAML emits when the *local* driver was
 # absent (now: when the *remote* driver is absent).
 

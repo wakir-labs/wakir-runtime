@@ -8,8 +8,8 @@ Run from the repo root:
     python3 scripts/derive-bridge-audit-writer-fixtures.py > \\
         tests/fixtures/bridge-audit-writer-cross-lang/fixtures.json
 
-This is the canonical derivation procedure for the Tag-30 Mini-Welle
-12. Modul (Phase-3a-Python-Sync / Welle-3 byte-parity oracle). Both the
+This is the canonical derivation procedure for the increment
+12. Modul (Phase-3a-Python-Sync / wave 3 byte-parity oracle). Both the
 Python side (``wirelang.persona_engine.bridge_audit_writer``) and the
 Rust side (``persona-engine-bridge-audit-writer`` crate, this Tag) run
 the same scripted scenarios and the JSON fixture pins the JCS-canonical
@@ -24,7 +24,7 @@ Five scripted scenarios cover the writer-side surface:
   f02-single-record-write
       One emit() call -- the minimal non-empty trajectory. Pins the
       step_index == 0 / payload-hash / JCS-byte invariants for the
-      Welle-3 single-record oracle.
+      wave 3 single-record oracle.
 
   f03-batch-write
       Three sequential emit() calls with distinct output_kind values
@@ -372,8 +372,8 @@ def build_fixtures() -> Dict[str, Any]:
     return {
         "_comment": (
             "Cross-lang fixture vectors for the persona-engine "
-            "bridge-audit-writer (Tag-30 Mini-Welle / Phase-3a Item 12 / "
-            "ADR-0066 Welle-3 byte-parity oracle). Authoritative wire-"
+            "bridge-audit-writer (increment / Phase-3a Item 12 / "
+            "ADR-0066 wave 3 byte-parity oracle). Authoritative wire-"
             "pin: any drift on either side (Rust crate persona-engine-"
             "bridge-audit-writer or Python wirelang.persona_engine."
             "bridge_audit_writer) must update this file in the same "

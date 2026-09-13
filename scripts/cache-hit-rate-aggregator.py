@@ -9,7 +9,7 @@ Background
 ADR-0064 (Model-Routing + Prompt-Caching, Approval 2026-05-16
 ~15:30 CEST) §Folgeartefakte Phase-2a Item 2 mandates per-persona +
 per-model cache-hit-rate tracking out of the persona-engine
-structured-JSON log substrate. Selin's PR #97 landed the
+structured-JSON log substrate. the persona-engine track's PR  #97 landed the
 ``anthropic_cache_telemetry`` event shape in
 ``wirelang/persona_engine/anthropic_cache.py``: one record per
 Anthropic Messages API response, carrying ``input_tokens`` /
@@ -18,7 +18,7 @@ Anthropic Messages API response, carrying ``input_tokens`` /
 ``cache_hit_rate_input_only`` plus the ``cache_affinity_key``
 that embeds the persona id and the model id.
 
-The cost-aggregator (Noa's PR #110) already groups by model and
+The cost-aggregator (the SRE track's PR  #110) already groups by model and
 applies the ADR-0064 pricing table. This MINI scope is the parallel
 **cache** view: per (persona, model) bucket how often we get a
 cache hit versus a cold miss, and what the resulting USD bilance is
@@ -31,7 +31,7 @@ per persona+model and read both cost and cache-efficiency off it.
 Cache-Hit-Rate definition
 -------------------------
 
-We adopt the same definition Selin's ``parse_cache_telemetry`` uses:
+We adopt the same definition the persona-engine track's ``parse_cache_telemetry`` uses:
 
     cache_hit_rate = cache_read_input_tokens / total_input_tokens
 
@@ -197,8 +197,7 @@ def read_log_records(log_path: Path) -> List[Dict[str, Any]]:
 def is_cache_telemetry_record(rec: Mapping[str, Any]) -> bool:
     """Return True iff the record is an ``anthropic_cache_telemetry`` event.
 
-    We filter on the explicit ``event`` discriminator that Selin's
-    :meth:`CacheTelemetry.to_structured_log_dict` emits. This avoids
+    We filter on the explicit ``event`` discriminator that the persona-engine track's:meth:`CacheTelemetry.to_structured_log_dict` emits. This avoids
     pulling in pure span / request-built / FSM records that happen to
     carry token-shape fields — the cache aggregator only sees
     response-side records.
@@ -283,7 +282,7 @@ def extract_cache_envelope(
     cache_read = _int_or_zero("cache_read_input_tokens")
     cache_creation = _int_or_zero("cache_creation_input_tokens")
     # Re-derive total to defend against a stale ``total_input_tokens``
-    # field that does not match its three components. Selin's writer
+    # field that does not match its three components. the persona-engine track's writer
     # always emits a consistent sum, but log fixtures hand-written by
     # operators occasionally drift.
     total = input_tokens + cache_read + cache_creation

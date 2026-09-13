@@ -560,17 +560,21 @@ def test_d3_audit_namespace_id_count_pinned(audit_result) -> None:
     namespace_ids = [
         s for s in audit_result.subjects if s.verdict == "namespace-id"
     ]
-    # Lower bound from Tag-43 baseline; upper bound generous to
-    # accommodate organic growth of telemetry meter names.
-    assert len(namespace_ids) >= 15, (
+    # Lower bound from the first audit baseline (17), re-pinned to 14 when
+    # three dead scripts carrying namespace-id literals were removed
+    # (ADR-0072 W5: welle-1-2-doppel-telemetry-emitter.py,
+    # welle-3-telemetry-emitter.py, spiffe_skizze_constants.py). Upper
+    # bound generous to accommodate organic growth of telemetry meter names.
+    assert len(namespace_ids) >= 14, (
         f"namespace-id count dropped to {len(namespace_ids)}; "
-        f"Tag-43 baseline was 17. A removed metric / schema-id is "
-        f"worth a review."
+        f"pinned floor is 14 (first baseline 17, minus three removed dead "
+        f"scripts). A removed metric / schema-id is worth a review."
     )
     total = len(audit_result.subjects)
-    assert total >= 22, (
+    assert total >= 21, (
         f"total wakir.* literal inventory shrank to {total}; "
-        f"Tag-43 baseline was 24"
+        f"pinned floor is 21 (first baseline 24, minus three removed dead "
+        f"scripts)"
     )
 
 
