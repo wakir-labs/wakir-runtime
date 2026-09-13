@@ -18,7 +18,7 @@
 //! is the cross-language test oracle: `len() == 387` and
 //! `sha256(jcs_bytes) == PERSONA_HASH_PIN_V9`.
 //!
-//! Default-Lock posture (Tag-5 Crate-2 box, mirrors Tag-4 Crate-1)
+//! Default-Lock posture (Crate-2 box, mirrors Crate-1)
 //! ---------------------------------------------------------------
 //!
 //! - **A-1 Mock-Format-Baseline:** this crate sees a `serde_json::Value`
@@ -96,7 +96,7 @@ impl std::error::Error for PersonaCanonicalFormError {}
 /// against Python `canonical_jcs_bytes` byte-for-byte without going
 /// through the hash step (catches JCS-canonicaliser drift in
 /// isolation, which is exactly what `serde_jcs 0.2.x` pre-1.0 risk
-/// requires us to guard against per Tag-8 skizze §4).
+/// requires us to guard against per sketch §4).
 ///
 /// # Arguments
 ///
@@ -185,7 +185,7 @@ mod tests {
     }
 
     // -------------------------------------------------------------------
-    // 1 / V9 ground-truth length anchor (Sprint-2 Tag-5 §A6 captured run)
+    // 1 / V9 ground-truth length anchor (§A6 captured run)
     //     Mirrors Python test_v9_canonical_jcs_bytes_length_is_387.
     // -------------------------------------------------------------------
 
@@ -301,8 +301,8 @@ mod tests {
     }
 
     // -------------------------------------------------------------------
-    // Sprint-5 Tag-3 Pin-Pack-Test-Coverage extension
-    // (Sprint-4-Closeout §539-541 Selin-recommendation).
+    // Pin-Pack-Test-Coverage extension
+    // (§539-541 review recommendation).
     //
     // Adds:
     //   - V8 canonical-subset bytes-length anchor (schema-v0 input)
@@ -368,26 +368,26 @@ mod tests {
         "f719fce4bedd8522874ae214ec2f982ef87964b535ca368134b3636207eb6669";
 
     // -------------------------------------------------------------------
-    // V8 Hex-Pin Hard-Freeze (Sprint-5 Tag-4 ceo-mandate, Option A).
+    // V8 Hex-Pin Hard-Freeze (ratified mandate, Option A).
     //
-    // Background — Sprint-5 Tag-3 design-choice §3.4 deliberately did
-    // NOT freeze a V8 hex pin on the JCS-bytes layer either, mirroring
-    // the persona-hash crate's reasoning. Tag-4 overrides that and pins
-    // V8 hex on this layer too: sha256(canonical_jcs_bytes(v8_subset))
-    // is locked Rust-only. No Python pendant exists or is needed
-    // (Python's V8 rejection class fires at the YAML/schema layer
-    // upstream of canonical_jcs_bytes). This pin enables a direct
-    // cross-language anchor for the JCS-bytes layer's V8 hash semantic
-    // without going through the persona-hash crate.
+    // Background — design-choice §3.4 deliberately did NOT freeze a V8
+    // hex pin on the JCS-bytes layer either, mirroring the persona-hash
+    // crate's reasoning. This crate overrides that and pins V8 hex on
+    // this layer too: sha256(canonical_jcs_bytes(v8_subset)) is locked
+    // Rust-only. No Python pendant exists or is needed (Python's V8
+    // rejection class fires at the YAML/schema layer upstream of
+    // canonical_jcs_bytes). This pin enables a direct cross-language
+    // anchor for the JCS-bytes layer's V8 hash semantic without going
+    // through the persona-hash crate.
     //
     // Captured 2026-05-11 via
     //   `sha256(serde_jcs::to_vec(v8_canonical_subset()))`
     // on `b23860a`.
     // -------------------------------------------------------------------
 
-    /// V8 hex-pin (Rust-only hard-freeze, Sprint-5 Tag-4). Pins
-    /// `sha256(canonical_jcs_bytes(v8_canonical_subset()))` byte-for-byte.
-    /// No Python pendant by design — see Tag-4 outbox §3 rationale.
+    /// V8 hex-pin (Rust-only hard-freeze). Pins
+    /// `sha256(canonical_jcs_bytes(v8_canonical_subset))` byte-for-byte.
+    /// No Python pendant by design — see outbox §3 rationale.
     const V8_PIN_HEX_RUST_ONLY: &str =
         "88d7ae38b6b37cfdbfcf80c236bae842bd91104ee34aa565a59ebc6e1c022228";
 
@@ -405,7 +405,7 @@ mod tests {
             V9_JCS_BYTES_LEN,
             "V8 JCS length must equal V9 (schema_version values are equal-length ASCII)"
         );
-        // Sprint-5 Tag-4 hard-freeze: V8 hex tail is pinned Rust-only.
+        // hard-freeze: V8 hex tail is pinned Rust-only.
         let got_hex = sha256_hex(&blob);
         assert_eq!(
             got_hex, V8_PIN_HEX_RUST_ONLY,
@@ -481,7 +481,7 @@ mod tests {
     #[test]
     #[allow(clippy::type_complexity)]
     fn t10_determinism_stress_10_iterations_jcs_and_sha256() {
-        // Sprint-5 Tag-4: V8 row promoted from None to V8_PIN_HEX_RUST_ONLY.
+        // V8 row promoted from None to V8_PIN_HEX_RUST_ONLY.
         let fixtures: [(&str, fn() -> Value, Option<&str>); 3] = [
             ("v8", v8_canonical_subset, Some(V8_PIN_HEX_RUST_ONLY)),
             ("v9", v9_canonical_subset, Some(V9_PIN_HEX)),
@@ -524,7 +524,7 @@ mod tests {
     }
 
     // -------------------------------------------------------------------
-    // 11 / V8 hard-freeze sha256 anchor (Sprint-5 Tag-4).
+    // 11 / V8 hard-freeze sha256 anchor.
     //
     //      Mirrors t2 (V9 ground-truth hash parity) for V8 on this
     //      JCS-bytes layer. Without this anchor, V8 hash semantics on

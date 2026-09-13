@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: BUSL-1.1
 """NATS-JetStream-KV-backed :class:`RouteRegistry` implementation.
 
-Phase-1b Sprint-2 Tag-4 (S2-3) lands the production-target backend
+This module is the production-target backend
 for the V-908 federation route registry consumed by
-:mod:`wirelang.federation.n2_evaluator`. The Tag-3 module reserved
+:mod:`wirelang.federation.n2_evaluator`. The module reserved
 :class:`RouteRegistry` as a Protocol and shipped
 :class:`InMemoryRouteRegistry` as the Phase-1b reference; this
 module supplies the durable production form (item I-11 vocabulary,
@@ -18,7 +18,7 @@ NATS-JetStream key-value bucket. The bucket is Phase-1b's
 documented configuration follows the same drift-policy contract
 as the four Phase-1 buckets initialised by
 ``scripts/init-nats-buckets.py`` (orchestrator runbook, Phase-1b
-Sprint-2 Tag-1..3 Kai-side delivery):
+the DevOps track-side delivery):
 
 - ``history``: 5  (allows audit-trail review of recent overwrites)
 - ``ttl_seconds``: 0  (unbounded; route windows have their own
@@ -57,7 +57,7 @@ evaluation time; instead the backend exposes:
   (re-querying the same registry instance MUST yield identical
   results).
 - :meth:`NatsKvRouteRegistry.watch` — async watch-stream surface
-  added in Phase-1b Sprint-2 Tag-6 (S2-5). Yields decoded
+  for incremental delta tracking. Yields decoded
   :class:`WatchEvent` instances for incremental delta tracking.
   Operators feed events into a :class:`LiveSnapshot` to maintain a
   long-running incremental view; the synchronous evaluator surface
@@ -98,21 +98,21 @@ Hermetic test contract
 The test suite at
 ``wirelang/tests/test_federation_route_registry_nats_kv_backend.py``
 exercises the backend against a small in-memory mock that mirrors
-Kai's Tag-1 ``_MockKv`` / ``_MockJetStream`` shape from
+the DevOps track's ``_MockKv`` / ``_MockJetStream`` shape from
 ``tests/orchestrator/test_init_nats_buckets.py``. The two mocks are
 intentionally analogous (same async surface, same field names) so
 the orchestrator-side and the Wirelang-side both validate against
 the same nats-py contract.
 
-References (URL-stamped 2026-05-07 by wirelang-eng):
+References:
 
 - V-908 spec: ``wirelang/specs/datalog-caveat-vocabulary-phase-2.md``
   §5.5 (Phase-1b N2 evaluator implementation note) and §5.6
-  (Phase-1b NATS-KV backend implementation note, added by Tag-4).
+  (Phase-1b NATS-KV backend implementation note).
 - N2 evaluator: ``wirelang/federation/n2_evaluator.py``.
 - Orchestrator NATS-KV bucket inventory:
   ``scripts/init-nats-buckets.py`` ``PHASE_1_BUCKETS`` constant
-  (Kai-side; this module's :data:`BUCKET_NAME` is the Phase-1b
+  (the DevOps track-side; this module's :data:`BUCKET_NAME` is the Phase-1b
   Federation-Routes addition that the orchestrator init script
   picks up via the registered constant import path).
 """
@@ -401,7 +401,7 @@ class NatsKvRouteRegistry:
         return in_memory
 
     # ------------------------------------------------------------------
-    # Watch-stream (Phase-1b Sprint-2 Tag-6, S2-5)
+    # Watch-stream (S2-5)
     # ------------------------------------------------------------------
 
     async def watch(self) -> "_WatchStreamHandle":
@@ -483,16 +483,17 @@ async def _list_keys(kv: Any) -> list:
 
 
 # ---------------------------------------------------------------------------
-# Watch-Stream-Snapshot Layer (Phase-1b Sprint-2 Tag-6, S2-5)
+# Watch-Stream-Snapshot Layer
 # ---------------------------------------------------------------------------
 #
-# Tag-4 (S2-3) shipped get/put/delete/snapshot. Snapshot is full-bucket:
+# The base backend surface is get/put/delete/snapshot. Snapshot is
+# full-bucket:
 # every evaluator pass that wants fresh state takes a fresh full
 # snapshot. That is correct for determinism but costly when route
 # turnover is high or when a long-running supervisor wants to track
 # changes between snapshots without re-listing.
 #
-# Tag-6 (S2-5) adds a watch-based incremental layer that consumes
+# The watch-based incremental layer on top of it consumes
 # nats-py's ``KeyValue.watch()`` (or a mock-equivalent) and surfaces
 # decoded :class:`WatchEvent` instances. The synchronous evaluator
 # surface (`RouteRegistry.lookup`) is UNCHANGED: a watch-stream is a
@@ -512,7 +513,7 @@ async def _list_keys(kv: Any) -> list:
 # call time; subsequent watch events do NOT mutate the returned
 # registry (T-LS-determinism contract).
 #
-# Boundary (Phase-1b, Sprint-2 Tag-6):
+# Boundary (Phase-1b):
 #
 # - The watch-stream is a *consumer* surface. Operators connect the
 #   stream to a long-running supervisor task; the supervisor keeps a
@@ -713,7 +714,7 @@ async def open_watch_stream(backend: "NatsKvRouteRegistry") -> _WatchStreamHandl
 class LiveSnapshot:
     """Live, watch-stream-fed snapshot of the route registry.
 
-    Phase-1b Sprint-2 Tag-6 (S2-5) substrate. Initialises an
+    Watch-stream substrate. Initialises an
     in-memory copy from a full backend snapshot, then applies decoded
     :class:`WatchEvent` instances to keep the copy in sync.
 

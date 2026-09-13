@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: BUSL-1.1
 """NATS-JetStream-KV-backed Multi-Org-Attestation registry.
 
-Phase-2 Sprint-7 Tag-2 lands the durable production-target backend
-for the multi-org federation substrate introduced by Sprint-7 Tag-1
-(:mod:`wirelang.federation.multi_org_substrate`). The Tag-1 module
-shipped the :class:`MultiOrgRouteAttestation` dataclass, an in-memory
+This module lands the durable production-target backend
+for the multi-org federation substrate in
+:mod:`wirelang.federation.multi_org_substrate`. That module
+ships the :class:`MultiOrgRouteAttestation` dataclass, an in-memory
 reference registry, and a mock-bridge-route resolver; this module
 supplies the durable, watch-stream-capable, CAS-pinned, cross-bucket-
 replicable backend for the production deployment.
@@ -17,7 +17,7 @@ NATS-JetStream key-value bucket named :data:`BUCKET_NAME`
 (``wakir-multi-org-attestations``). The bucket's documented
 configuration follows the same drift-policy contract as the four
 Phase-1 buckets initialised by ``scripts/init-nats-buckets.py`` and
-the Sprint-3 Tag-6 ``wakir-federation-routes`` bucket: this backend
+the ``wakir-federation-routes`` bucket: this backend
 does NOT auto-create or auto-correct bucket configuration — it
 expects an operator-run ``init-nats-buckets`` to have established
 the bucket before any :class:`NatsKvMultiOrgAttestationRegistry`
@@ -42,20 +42,19 @@ bucket in the same idempotent inventory pass.
 Design choices
 --------------
 
-The synchronous surface that downstream code queries is the Tag-1
-:class:`InMemoryMultiOrgAttestationRegistry` (``add`` / ``lookup``);
+The synchronous surface that downstream code queries is the :class:`InMemoryMultiOrgAttestationRegistry` (``add`` / ``lookup``);
 nats-py's KV API is async. We therefore do NOT make the backend
 itself the registry object: instead the backend exposes async
 operations and a :meth:`snapshot` method that materialises a
 deterministic :class:`InMemoryMultiOrgAttestationRegistry` for one
-caller pass. Same pattern as the Sprint-3 Tag-6 route-registry
-backend (Reza-Hand: pattern-mirror, not new pattern).
+caller pass. Same pattern as the route-registry
+backend (pattern-mirror, not new pattern).
 
 CAS-pin (lost-update protection): :meth:`put_with_revision` accepts
 an ``expected_revision`` and forwards it to the underlying nats-py
 ``KeyValue.update(key, value, last=...)`` call. A stale revision
 surfaces as :class:`MultiOrgAttestationConflictError`. The
-Sprint-5 Tag-4 capability-policy CAS-pin helper is the pattern
+capability-policy CAS-pin helper is the pattern
 this backend mirrors.
 
 Monotonic-invariant (authority-gesture contract): attestations are
@@ -75,7 +74,7 @@ replicator).
 The monotonic-invariant gate runs BEFORE any KV write (defence in
 depth against partial replicator state) and BEFORE CAS-pin (so a
 revoked authority anchor cannot sneak in via a stale-revision
-race). This mirrors the Sprint-6 Tag-1 capability-policy
+race). This mirrors the capability-policy
 ``revoked_at``-monotonic gate.
 
 Value envelope
@@ -106,27 +105,23 @@ Hermetic test contract
 The test suite at
 ``wirelang/tests/test_federation_multi_org_attestation_nats_kv_backend.py``
 exercises the backend against a small in-memory mock that mirrors
-the Sprint-3 Tag-6 route-registry mock (which itself mirrors Kai's
-Tag-1 ``_MockKv``).
+the route-registry mock (which itself mirrors the DevOps track's
+``_MockKv``).
 
 References:
 
-- Sprint-7 Tag-1 substrate:
+- substrate:
   ``wirelang/federation/multi_org_substrate.py``.
-- Sprint-3 Tag-6 route-registry backend (pattern-mirror):
+- route-registry backend (pattern-mirror):
   ``wirelang/federation/route_registry_nats_kv_backend.py``.
-- Sprint-5 Tag-4 CAS-pin pattern:
+- CAS-pin pattern:
   ``wirelang/schemas/capability_policy_nats_kv_backend.py``
   (``put_with_revision`` + ``_kv_update_with_revision``).
-- Sprint-6 Tag-1 monotonic-invariant pattern: same module,
+- monotonic-invariant pattern: same module,
   ``CapabilityPolicyRevocationConflict``.
-- Sprint-6 Tag-6 cross-bucket replication pattern:
+- cross-bucket replication pattern:
   ``wirelang/schemas/capability_policy_replication.py``.
 
-ADR-0050 Tool-Surface-Stempel: this file was authored using Read,
-Edit, Write, Bash. No Agent-Tool, no WebFetch. Pre-Box-Worktree
-ADR-0049 ``/tmp/reza-sprint-7-tag-2-runtime`` (suffix ``-runtime``
-per Tag-1 Tip ``9aef092``).
 """
 
 from __future__ import annotations
@@ -153,21 +148,18 @@ from .multi_org_substrate import (
 
 
 #: NATS-KV bucket name for the multi-org-attestation registry.
-#: Phase-2 Sprint-7 convention: ``wakir-`` prefix, kebab-case,
+#: convention: ``wakir-`` prefix, kebab-case,
 #: plural-domain noun (attestations form a side-table keyed by
 #: route_id, conceptually a collection — hence the plural).
 BUCKET_NAME = "wakir-multi-org-attestations"
 
 #: Documented bucket configuration. The drift-policy is identical
-#: to the Sprint-3 Tag-6 route-registry bucket: any deviation
+#: to the route-registry bucket: any deviation
 #: between the live cluster and these values is reported as drift,
 #: never auto-corrected.
 BUCKET_CONFIG: Mapping[str, Any] = {
     "name": BUCKET_NAME,
-    "description": (
-        "V-908 multi-org-federation attestation registry "
-        "(Phase-2 Sprint-7)"
-    ),
+    "description": "V-908 multi-org-federation attestation registry (Phase-2)",
     "history": 5,
     "ttl_seconds": 0,
     "max_value_size": 4096,
@@ -176,7 +168,7 @@ BUCKET_CONFIG: Mapping[str, Any] = {
 }
 
 #: Schema-URI fragment embedded in every value envelope. Re-exported
-#: from the Tag-1 substrate so callers have a single import path.
+#: from the substrate so callers have a single import path.
 VALUE_SCHEMA = ATTESTATION_VALUE_SCHEMA
 
 
@@ -211,9 +203,9 @@ class MultiOrgAttestationCasConflict(MultiOrgAttestationBackendError):
     """Raised when a CAS-pinned upsert is rejected because the live
     KV revision has changed since the caller observed it.
 
-    Phase-2 Sprint-7 Tag-2 CAS-pin contract (pattern-mirror on the
-    Phase-2 Sprint-5 Tag-4 capability-policy CAS-pin and the
-    Phase-1b Sprint-3 Tag-3 schema-registry CAS-pin).
+    CAS-pin contract (pattern-mirror on the
+    capability-policy CAS-pin and the
+    schema-registry CAS-pin).
 
     Attributes:
         route_id: the registry key that failed CAS.
@@ -310,7 +302,7 @@ def _envelope_to_attestation(blob: bytes) -> MultiOrgRouteAttestation:
     :class:`MultiOrgAttestationEnvelopeError` on shape violation.
 
     All grammar / type validation is delegated to the
-    :class:`MultiOrgRouteAttestation` constructor (Tag-1 substrate);
+    :class:`MultiOrgRouteAttestation` constructor (substrate);
     if the constructor rejects the payload, the
     :class:`MultiOrgAttestationValidationError` is re-raised as a
     :class:`MultiOrgAttestationEnvelopeError` so callers can rely on
@@ -557,8 +549,7 @@ class NatsKvMultiOrgAttestationRegistry:
     ) -> int:
         """CAS-pinned upsert. Returns the new KV revision.
 
-        Phase-2 Sprint-7 Tag-2 CAS-pin (pattern-mirror on Sprint-5
-        Tag-4 capability-policy CAS-pin).
+        CAS-pin (pattern-mirror on capability-policy CAS-pin).
 
         Gate ordering (defensive):
 
@@ -603,7 +594,7 @@ class NatsKvMultiOrgAttestationRegistry:
         an attestation; the bucket history retains the operation, and
         the audit trail is the source of truth. If the policy
         requires "no delete on live attestations", that gate belongs
-        in an operator wrapper (out of scope for Tag-2).
+        in an operator wrapper (out of scope here).
         """
         if not isinstance(route_id, str) or not route_id:
             raise ValueError("route_id must be a non-empty string")
@@ -761,8 +752,7 @@ async def _kv_update_with_revision(
 ) -> Any:
     """CAS-pinned KV write.
 
-    Accepts three KV adapter shapes (same as the Sprint-5 Tag-4
-    capability-policy helper):
+    Accepts three KV adapter shapes (same as the capability-policy helper):
 
     1. ``kv.update(key, value, last=revision)`` — canonical nats-py.
     2. ``kv.update(key, value, expected_revision)`` — positional
@@ -817,8 +807,8 @@ async def _kv_update_with_revision(
 # Watch-stream
 # ---------------------------------------------------------------------------
 #
-# Pattern-mirror on the Sprint-3 Tag-6 route-registry watch-stream
-# and the Sprint-5 Tag-5 capability-policy watch-stream. The consumer
+# Pattern-mirror on the route-registry watch-stream
+# and the capability-policy watch-stream. The consumer
 # surface is a decoded :class:`MultiOrgAttestationWatchEvent`; the
 # producer is the underlying nats-py ``KeyWatcher`` (or mock-equivalent).
 # A :class:`LiveMultiOrgAttestationSnapshot` keeps an in-memory copy
@@ -863,7 +853,7 @@ def _decode_watch_update(update: Any) -> MultiOrgAttestationWatchEvent:
     """Decode one watcher update into a
     :class:`MultiOrgAttestationWatchEvent`.
 
-    Mirrors the Sprint-3 Tag-6 helper of the same name.
+    Mirrors the helper of the same name.
     """
     op_raw = getattr(update, "operation", None)
     if op_raw is None and isinstance(update, Mapping):
@@ -912,7 +902,7 @@ def _decode_watch_update(update: Any) -> MultiOrgAttestationWatchEvent:
 class _WatchStreamHandle:
     """Internal wrapper around the underlying nats-py watcher.
 
-    Mirrors the Sprint-3 Tag-6 ``_WatchStreamHandle`` shape: adapts
+    Mirrors the ``_WatchStreamHandle`` shape: adapts
     to both async-iter watchers (Shape 1) and ``await updates()``
     watchers (Shape 2).
     """
@@ -956,7 +946,7 @@ class _WatchStreamHandle:
 async def _open_watcher(kv: Any) -> Any:
     """Open the underlying watcher on the KV handle.
 
-    Mirrors the Sprint-3 Tag-6 helper.
+    Mirrors the helper.
     """
     watch_fn = getattr(kv, "watchall", None)
     if watch_fn is None:
@@ -1028,7 +1018,7 @@ class LiveMultiOrgAttestationSnapshot:
         consumer side: the write was already gated at the producer
         (the backend's ``put`` / ``put_with_revision`` path). The
         watch-stream is a *strict suffix* of the durable bucket
-        history (Sprint-5 Tag-5 contract); applying it here just
+        history (contract); applying it here just
         replays the producer's ordering.
         """
         if not isinstance(event, MultiOrgAttestationWatchEvent):
@@ -1072,14 +1062,14 @@ class LiveMultiOrgAttestationSnapshot:
 
 
 # ---------------------------------------------------------------------------
-# Cross-bucket replication (Phase-2 Sprint-7 Tag-2)
+# Cross-bucket replication
 # ---------------------------------------------------------------------------
 #
-# Pattern-mirror on the Sprint-6 Tag-6 capability-policy replication.
-# Trimmed for the Tag-2 90-min budget: bootstrap pass + per-event
+# Pattern-mirror on the capability-policy replication.
+# Deliberately narrow: bootstrap pass + per-event
 # replicator with two conflict policies (SOURCE_WINS / CAS_PIN) and
 # a monotonic-invariant metrics counter. Watch-stream-fed live tail
-# composition is the same shape as the Sprint-6 Tag-6 replicator;
+# composition is the same shape as the replicator;
 # the test suite exercises the bootstrap pass and the per-event
 # decisions directly.
 
@@ -1123,7 +1113,7 @@ def _accept_all_attestation(
 class MultiOrgAttestationReplicationMetrics:
     """Counters surfaced by the multi-org-attestation replicator.
 
-    Fields mirror the Sprint-6 Tag-6 capability-policy metrics
+    Fields mirror the capability-policy metrics
     shape with the cross-bucket monotonic-invariant counter
     re-named for the attestation domain.
     """

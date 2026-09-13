@@ -463,7 +463,7 @@ fn schema_validation_bad_timestamp_shape_rejected() {
 //
 // These tests pin the EXACT JCS bytes of two reference frames. The
 // Python sibling `wirelang/federation/federation_frame.py` (landed
-// Tag-14 Mini-Welle) ships byte-identical output for the same inputs;
+// this crate) ships byte-identical output for the same inputs;
 // the authoritative cross-lang contract anchor is the fixture file at
 // `tests/federation/fixtures/federation_frame_cross_lang_pins.json`
 // (referenced by [`CROSS_LANG_PYTHON_FRAME_PARITY_PIN`]). The two

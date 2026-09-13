@@ -1,9 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Real NATS adapter — wirelang-side surface mirror for Phase-2c.
 
-Phase: Phase-2c Sprint-8 Tag-1 (RealAdapter-Mirror, paired with
-Sprint-7 Tag-3 SpiffeCrossTrustDomainBridge and Tag-2
-MultiOrgAttestationNatsKvBackend).
+Scope: RealAdapter mirror, paired with SpiffeCrossTrustDomainBridge
+and MultiOrgAttestationNatsKvBackend.
 Status: Live-NATS-Connection-fähig (best-effort lokal) mit
 Mock-Mirror als deterministic Test-Pfad. Operator-Hand-SPIRE-Substrate
 ist als blockiert akzeptiert — Fallback auf JWT-Auth-Mock wenn die
@@ -13,13 +12,13 @@ SPIRE-Workload-API nicht erreichbar ist
 Purpose
 =======
 
-Sprint-6/Sprint-7 Wirelang-Substrate adressierte NATS-KV-Backends
-(Sprint-5 Tag-2 capability-policy, Sprint-7 Tag-2 multi-org-attestation,
-Sprint-7 Tag-1 federation-route-registry) ausschliesslich gegen ein
+Das bisherige Wirelang-Substrate adressierte NATS-KV-Backends
+(capability-policy, multi-org-attestation,
+federation-route-registry) ausschliesslich gegen ein
 Mock-Backend, das in-memory Bucket-State hält. Dieses Modul bildet
 den **Slot-2 RealAdapter-Mirror** — die wirelang-Seite einer
 echten NATS-Live-Connection — analog zum
-:mod:`wirelang.adapters.real_spiffe_workload_api` Tag-7-Mirror-Stub.
+:mod:`wirelang.adapters.real_spiffe_workload_api` Mirror-Stub.
 
 Im Gegensatz zum SPIRE-Stub liefert dieses Modul eine **funktionale
 Live-Adapter-Implementierung**, weil die nats-py-Lib in der
@@ -34,7 +33,7 @@ Drei Substanz-Schichten:
    gehaltene stable Surface über ``nats-py`` ``Client``.
 2. :class:`MockNatsConnectionAdapter` — deterministic in-process
    Mock, hermetic, no network. Pattern-Mirror auf
-   :class:`MockSpiffeWorkloadApiAdapter` (Sprint-6 Tag-5).
+   :class:`MockSpiffeWorkloadApiAdapter`.
 3. :class:`RealNatsConnectionAdapter` — Live-Adapter, lazy-import
    von ``nats.aio.client``, mit
    :class:`NatsAdapterUnavailable`-Mapping auf socket-level Errors.
@@ -42,10 +41,10 @@ Drei Substanz-Schichten:
 Operator-Hand-SPIRE-Substrate-Block
 ====================================
 
-Das Sprint-7 Tag-3 SpiffeCrossTrustDomainBridge-Pattern erwartet
-JWT-SVID-Auth gegenüber NATS via ``user_jwt_cb`` (Kai-DevOps-Track).
+Das SpiffeCrossTrustDomainBridge-Pattern erwartet
+JWT-SVID-Auth gegenüber NATS via ``user_jwt_cb`` (DevOps track).
 Die SPIRE-Workload-API-Erreichbarkeit ist Operator-Hand-Fedora-Host-
-gated (M-2 Sprint-7-Closeout-Stempel). Dieser Adapter folgt der
+gated (Milestone M-2). Dieser Adapter folgt der
 **SPIRE-Fallback-Policy**:
 
 - Wenn ``SPIRE_AGENT_SOCKET`` als URI gesetzt ist UND erreichbar:
@@ -53,7 +52,7 @@ gated (M-2 Sprint-7-Closeout-Stempel). Dieser Adapter folgt der
   this module — delegiert an :mod:`real_spiffe_workload_api`).
 - Wenn ``SPIRE_AGENT_SOCKET=none`` ODER nicht gesetzt:
   Fallback auf JWT-Auth-Mock (operator-side acceptable for
-  development; production NATS-Cluster wird per Kai-DevOps-Track
+  development; production NATS-Cluster wird per DevOps track
   später auf SPIRE-Live umgestellt).
 - Status-Surface ``status()`` markiert den aktuellen Auth-Mode als
   ``"live-spiffe"`` / ``"mock-jwt"`` / ``"no-auth"``, sodass der

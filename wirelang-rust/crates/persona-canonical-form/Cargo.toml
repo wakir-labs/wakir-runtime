@@ -14,7 +14,7 @@
 # `persona-canonical-form-yaml` crate. The split mirrors the explicit
 # Python public surface: `canonical_jcs_bytes` is the bytes-level
 # boundary that the Phase-1c Rust crate must reproduce byte-for-byte
-# (Sprint-2 Tag-5 outbox §A6 cross-lang parity contract).
+# (outbox §A6 cross-lang parity contract).
 
 [package]
 name = "persona-canonical-form"

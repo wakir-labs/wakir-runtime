@@ -4,7 +4,7 @@
   "x-spdx-license-identifier": "Apache-2.0",
   "x-spdx-file-copyright-text": "2026 Callandor GmbH and contributors",
   "title": "Persona-Engine Recovery-Drill Outcome Envelope (Wakir Persona 1)",
-  "description": "JSON Schema for the persona-engine recovery_drill_outcome envelope (Sprint-Pengine-7 Tag-4 §3.7.4 recovery-workflow, Tag-5 OI-PILOT-4 cron consumer). Each envelope records the outcome of ONE executed recovery drill (per §3.7.2.1 drill registry). The envelope is persisted append-only to the per-persona NATS-KV bucket family `wakir-persona-state-<org_id>-<persona_id>` under the `recovery-audit/<drill_run_id>` key prefix (OI-PILOT-2 schema). The Sprint-Pengine-7 Tag-5 OI-PILOT-4 cron (`wirelang.persona.recovery_drill_anchor`) anchors unanchored envelopes hourly into the WAT spool; idempotency is via the optional `wat_anchored_at` field — once populated, the envelope is treated as already anchored. Schema-registry id: 'wakir.persona.recovery-drill-outcome/1'. Anchor-pipeline: OTS-anchor target deferred to a follow-on paired-update (Phase-2 Sprint-Pengine-7 Tag-N+) mirroring §5.19 (caveat-override-event-export) pattern.",
+  "description": "JSON Schema for the persona-engine recovery_drill_outcome envelope (persona-engine spec §3.7.4 recovery-workflow, OI-PILOT-4 cron consumer). Each envelope records the outcome of ONE executed recovery drill (per §3.7.2.1 drill registry). The envelope is persisted append-only to the per-persona NATS-KV bucket family `wakir-persona-state-<org_id>-<persona_id>` under the `recovery-audit/<drill_run_id>` key prefix (OI-PILOT-2 schema). The OI-PILOT-4 cron (`wirelang.persona.recovery_drill_anchor`) anchors unanchored envelopes hourly into the WAT spool; idempotency is via the optional `wat_anchored_at` field — once populated, the envelope is treated as already anchored. Schema-registry id: 'wakir.persona.recovery-drill-outcome/1'. Anchor-pipeline: OTS-anchor target deferred to a follow-on paired-update mirroring §5.19 (caveat-override-event-export) pattern.",
   "type": "object",
   "required": [
     "schema",
@@ -47,7 +47,7 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:\\-]*$",
       "minLength": 1,
-      "description": "Organisation identifier. URI-safe ASCII subset (mirrors Sprint-7 peer_org predicate alphabet and `wirelang.federation.marker_stack_kv._IDENT_RE`). MUST match the bucket's org prefix; cross-org reads are refused at the consumer layer."
+      "description": "Organisation identifier. URI-safe ASCII subset (mirrors the federation peer_org predicate alphabet and `wirelang.federation.marker_stack_kv._IDENT_RE`). MUST match the bucket's org prefix; cross-org reads are refused at the consumer layer."
     },
     "outcome": {
       "type": "string",
@@ -66,7 +66,7 @@
     "wat_anchored_at": {
       "type": "string",
       "format": "date-time",
-      "description": "RFC-3339 UTC timestamp of the WAT-anchor write. Populated by the Sprint-Pengine-7 Tag-5 OI-PILOT-4 cron (`wirelang.persona.recovery_drill_anchor.anchor_one_envelope`) after a successful `wat.anchor.bridge_audit_writer.write_bridge_audit` call. Absence (or empty-after-strip) means the envelope is unanchored; a populated value triggers the idempotent-skip path on the next cron tick. The field is OPTIONAL at write-time by the persona-engine — the persona-engine writes the envelope first without this field; the WAT-anchor cron is the ONLY writer that populates it."
+      "description": "RFC-3339 UTC timestamp of the WAT-anchor write. Populated by the OI-PILOT-4 cron (`wirelang.persona.recovery_drill_anchor.anchor_one_envelope`) after a successful `wat.anchor.bridge_audit_writer.write_bridge_audit` call. Absence (or empty-after-strip) means the envelope is unanchored; a populated value triggers the idempotent-skip path on the next cron tick. The field is OPTIONAL at write-time by the persona-engine — the persona-engine writes the envelope first without this field; the WAT-anchor cron is the ONLY writer that populates it."
     },
     "wat_spool_path": {
       "type": "string",

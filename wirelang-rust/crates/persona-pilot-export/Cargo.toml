@@ -2,12 +2,11 @@
 #
 # persona-pilot-export — ADR-0058 Pilot-Persona Migration, Schritt 8.
 #
-# Operator-facing CLI for the Tomás-Persona-State-Export rehearsal:
+# Operator-facing CLI for the persona-state-export rehearsal:
 # produces a deterministic state-export bundle from the Claude-Code-
-# Sandbox-side persona artefacts (persona-definition + workspace
-# state + active-spawn-memory) into a Wakir-Runtime-format JSON
-# document ready to be consumed by the wakir-runtime persona-engine
-# spawn pipeline.
+# Sandbox-side persona artefacts (persona-definition + workspace state +
+# active-spawn-memory) into a Wakir-Runtime-format JSON document ready
+# to be consumed by the wakir-runtime persona-engine spawn pipeline.
 #
 # Posture (mirror of persona-converter Crate-9):
 # - Thin shim over `persona-engine-format` map_claude_native_to_wakir_v1
@@ -31,7 +30,7 @@
 [package]
 name = "persona-pilot-export"
 version = "0.1.0"
-description = "ADR-0058 Pilot-Persona Migration Schritt 8: Tomás-Persona-State-Export-CLI. Produces deterministic state-export bundle (persona-definition + workspace-state + active-spawn-memory) for wakir-runtime spawn ingestion."
+description = "ADR-0058 pilot-persona migration step 8: persona-state-export CLI. Produces deterministic state-export bundle (persona-definition + workspace-state + active-spawn-memory) for wakir-runtime spawn ingestion."
 edition.workspace      = true
 rust-version.workspace = true
 license.workspace      = true

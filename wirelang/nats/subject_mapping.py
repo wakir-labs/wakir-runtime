@@ -3,7 +3,7 @@
 transport substrate.
 
 This module is the operational counterpart of
-``specs/nats-subject-mapping-v1.md`` (Phase-1b Sprint-2 Tag-1, S2-Item
+``specs/nats-subject-mapping-v1.md`` (S2-Item
 I-1). It provides deterministic build / parse / validate helpers for
 the canonical subject form
 
@@ -113,7 +113,7 @@ _SCHEMA_INVENTORY = {
     "federation.ftd": "https://wakir.dev/wirelang/schema/federation-trust-document/0.1.0",
     "federation.peer": "https://wakir.dev/wirelang/schema/federation-trust-document/0.1.0",
     "federation.route": "https://wakir.dev/wirelang/schema/federation-trust-document/0.1.0",
-    "wat.audit": None,        # Tomás-owner schema, no Wirelang authoritative hint
+    "wat.audit": None,  # WAT-owned schema, no authoritative hint
     "wat.leaf": None,
     "agent.task": "https://wakir.dev/wirelang/schema/layer-2-semantic/0.1.0",
     "meta.schema": "https://wakir.dev/wirelang/schema/layer-2-semantic/0.1.0",
@@ -214,7 +214,7 @@ def build_subject(
         warnings.warn(
             f"domain {domain!r} is not in the §4 reserved list "
             f"{RESERVED_DOMAINS}; accepting for forward-compatibility "
-            f"(R5). Phase-1b Sprint-2 Tag-1 may tighten to hard-reject "
+            f"(R5). This module may tighten to hard-reject "
             f"in v1.1.",
             stacklevel=2,
         )
@@ -566,7 +566,7 @@ def schema_for_subject(subject: str) -> Optional[str]:
     ``schemaid`` carry for this subject?
 
     Returns None when the subject does not have a Wirelang-authoritative
-    schema (e.g. WAT-domain events owned by Tomás).
+    schema (e.g. WAT-domain events owned by the WAT track).
     """
 
     parsed = parse_subject(subject)

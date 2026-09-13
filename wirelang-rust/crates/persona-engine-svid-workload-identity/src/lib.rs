@@ -4,7 +4,7 @@
 //! Rust pendant of
 //! `wirelang.persona_engine.svid_workload_identity.probe_workload_api_socket`
 //! (Python). Mirrors the v0.2.0-pilot socket-presence probe semantics
-//! preserved by Sprint-Pengine-9 (`connect()`-on-UDS, no protocol
+//! preserved by the persona-engine work (`connect()`-on-UDS, no protocol
 //! exchange) — the boot-gate path that fails fast on a missing
 //! SPIRE-Agent before the full gRPC `FetchX509SVID` RPC is attempted.
 //!
@@ -15,9 +15,9 @@
 //! domain socket bind-mounted into the persona-container at
 //! `/run/spire/agent-sockets/api.sock` (Quadlet
 //! `wakir-spire-agent-sockets.volume`). This crate is the Rust
-//! pendant slot ADR-0066 Welle-2 cuts over to once shipping.
+//! pendant slot ADR-0066 wave 2 cuts over to once shipping.
 //!
-//! Skeleton scope (Tag-29 Mini-Welle)
+//! Skeleton scope (this crate)
 //! ----------------------------------
 //!
 //! This crate ships the **socket-presence probe** and the operator
@@ -26,7 +26,7 @@
 //! shipping — Tonic/grpcio substrate is substantially larger than
 //! the probe surface and warrants its own Zone-L cross-review
 //! pass. The CLI `probe` subcommand is sufficient to flip the
-//! Welle-2 backend-decision from `binary_missing` to `binary_present`
+//! wave-2 backend-decision from `binary_missing` to `binary_present`
 //! and to give the boot-gate path a Rust pendant.
 //!
 //! Determinism contract
@@ -45,12 +45,12 @@
 //! Cross-references
 //! ----------------
 //!
-//! - ADR-0066 §Phase-3c Welle-2 `svid_workload_identity` —
-//!   Welle-2 pre-cutover image-build (Tag-29 Mini-Welle).
+//! - ADR-0066 §Phase-3c wave 2 `svid_workload_identity` —
+//!   wave-2 pre-cutover image-build (this crate).
 //! - `wirelang/persona_engine/svid_workload_identity.py` —
 //!   Python authority; preserves the same `connect()`-on-UDS
 //!   semantics in `probe_workload_api_socket`.
-//! - Zone-L cross-review — Reza owns the SPIFFE-ID + cert
+//! - Zone-L cross-review — the Wirelang track owns the SPIFFE-ID + cert
 //!   semantics; the probe surface is shape-neutral wrt SPIFFE-ID.
 
 use std::os::unix::net::UnixStream;

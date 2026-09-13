@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Callandor GmbH and contributors
 //
 // Cross-lang fixture parity tests for persona-engine-federation-resolver
-// (Tag-24 Mini-Welle, Phase-3a Python-sync, 9. Modul).
+// (Phase-3a Python-sync, 9. Modul).
 //
 // These tests consume the same authoritative JSON fixture file
 // (`tests/fixtures/federation-resolver-cross-lang/fixtures.json` at
@@ -39,8 +39,8 @@
 // text-only. Rather than add the `base64` crate as a dev-dependency
 // we inline a small lookup-table decoder; the fixture data is
 // hard-coded and base64-decoded once per test. Identical pattern to
-// `persona-engine-state-backing` (Tag-23 PR #183) and
-// `persona-engine-recovery` (Tag-20).
+// `persona-engine-state-backing` (PR #183) and
+// `persona-engine-recovery` .
 
 use persona_engine_federation_resolver::{
     resolver_snapshot_hash_prefixed, resolver_snapshot_sha256_hex,

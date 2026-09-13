@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 Callandor GmbH and contributors
 
-//! Persona-Engine Federation-Resolver -- Tag-24 Mini-Welle (9. Modul).
+//! Persona-Engine Federation-Resolver -- this crate (9. Modul).
 //!
 //! Rust authority for the [`FederationResolver`] trait and the
 //! [`InMemoryFederationResolver`] reference implementation. The
@@ -14,7 +14,7 @@
 //!
 //! Byte-identical Python sibling at
 //! `wirelang/identity/federation_resolver_canonical.py` (Apache-2.0,
-//! same Tag-24 bundle). Both modules emit identical JCS-canonical
+//! same bundle). Both modules emit identical JCS-canonical
 //! bytes for the cross-lang fixture file
 //! `tests/fixtures/federation-resolver-cross-lang/fixtures.json`.
 //!
@@ -63,10 +63,10 @@
 //!
 //! - ADR-0063 §Folgeartefakte Phase-3a Item 9 (federation-frame
 //!   parser; downstream consumer).
-//! - Reza PR #148 / #157 -- federation-frame-parser Rust / Python.
-//! - Reza PR #176 (Tag-20) -- recovery-workflow canonical-projection.
-//! - Reza PR #177 (Tag-21) -- lifecycle-FSM canonical-trace pattern.
-//! - Reza PR #183 (Tag-23) -- state-backing cross-lang parity pattern.
+//! - PR #148 / #157 -- federation-frame-parser Rust / Python.
+//! - PR #176 -- recovery-workflow canonical-projection.
+//! - PR #177 -- lifecycle-FSM canonical-trace pattern.
+//! - PR #183 -- state-backing cross-lang parity pattern.
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -99,7 +99,7 @@ pub const DEFAULT_ALG: &str = "Ed25519";
 // Errors
 // ---------------------------------------------------------------------
 
-/// Error surface for caller-supplied input that fails Tag-24 shape
+/// Error surface for caller-supplied input that fails the shape
 /// pre-conditions. Mirrors `FederationResolverError` on the Python side.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FederationResolverError {
@@ -208,7 +208,7 @@ impl OperatorOrgKeyEntry {
         }
     }
 
-    /// Validate the entry against the Tag-24 shape pre-conditions.
+    /// Validate the entry against the the shape pre-conditions.
     /// Returns `Ok(())` on success or [`FederationResolverError`]
     /// describing the first detected violation.
     pub fn validate(&self) -> Result<(), FederationResolverError> {
@@ -284,7 +284,7 @@ pub struct WireEntry {
     pub valid_until: String,
 }
 
-/// The Tag-24 canonical snapshot wire-shape. Two alphabetically-
+/// The canonical snapshot wire-shape. Two alphabetically-
 /// ordered top-level fields. Entries are sorted lexicographically by
 /// `(org_id, cluster_id, valid_from)`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

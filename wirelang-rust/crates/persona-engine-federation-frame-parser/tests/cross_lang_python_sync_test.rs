@@ -15,7 +15,7 @@
 // equivalent assertion. Byte-drift in either direction breaks both
 // lanes simultaneously — that is the cross-lang contract.
 //
-// Tag-14 Mini-Welle Phase-3a-Folge: closes the
+// this crate Phase-3a-Folge: closes the
 // `TODO_PYTHON_FRAME_PARITY_PIN` placeholder shipped with PR #148
 // (Rust crate ship-day). The placeholder is now deprecated and the
 // real pin lives in this file plus the fixture JSON.

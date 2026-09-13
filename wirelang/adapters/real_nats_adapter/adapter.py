@@ -321,14 +321,14 @@ class RealNatsConnectionAdapter:
 
     - Wenn nicht gesetzt ODER explizit ``"none"`` ODER leer:
       Fallback auf ``auth_mode="mock-jwt"`` (Operator-side
-      acceptable for development; siehe Sprint-7-Closeout-Stempel
-      M-2 "SPIRE-Live als Operator-Hand-blockiert akzeptiert").
+      acceptable for development; siehe Milestone M-2,
+      "SPIRE-Live als Operator-Hand-blockiert akzeptiert").
     - Wenn auf eine URI gesetzt (z.B.
       ``unix:///tmp/spire-agent/public/api.sock``):
       Markiert ``auth_mode="live-spiffe"`` — die tatsächliche
       Workload-API-Anbindung läuft über
       :mod:`wirelang.adapters.real_spiffe_workload_api`
-      (Sprint-7+ / Phase-2c, Konstruktor-Gate WAKIR_SPIRE_LIVE=1).
+      (Phase-2c, Konstruktor-Gate WAKIR_SPIRE_LIVE=1).
       Wenn die SPIRE-Workload-API beim ``connect`` nicht erreichbar
       ist, raised :class:`NatsAdapterAuthenticationError` —
       Live-SPIFFE wurde explizit angefordert aber kann nicht
@@ -355,8 +355,7 @@ class RealNatsConnectionAdapter:
     Cross-Trust-Domain-Bridge-Anbindung
     ------------------------------------
 
-    Der Adapter ist als Substrat-Layer für Sprint-7 Tag-3
-    :mod:`wirelang.federation` SpiffeCrossTrustDomainBridge gedacht.
+    Der Adapter ist als Substrat-Layer für :mod:`wirelang.federation` SpiffeCrossTrustDomainBridge gedacht.
     Wenn ``auth_mode="live-spiffe"``, MUSS der Konsument die
     SPIFFE-ID des Workloads aus
     :mod:`wirelang.adapters.real_spiffe_workload_api` ableiten und
@@ -417,7 +416,7 @@ class RealNatsConnectionAdapter:
         For ``auth_mode="live-spiffe"``, the SPIFFE-Workload-API
         anbindung is currently Operator-Hand-blocked — raised
         :class:`NatsAdapterAuthenticationError` because the
-        live-SPIFFE path requires Kai's DevOps-Track SPIRE-server
+        live-SPIFFE path requires the DevOps track's SPIRE-server
         bootstrap (Phase-2c+ Operator-Hand). Operator-side bypass
         via ``SPIRE_AGENT_SOCKET=none`` to fall back to ``mock-jwt``.
         """
@@ -433,8 +432,8 @@ class RealNatsConnectionAdapter:
         if self._auth_mode == "live-spiffe":
             raise NatsAdapterAuthenticationError(
                 "RealNatsConnectionAdapter: auth_mode=live-spiffe is "
-                "Operator-Hand-blocked (Sprint-7-Closeout-Stempel M-2: "
-                "SPIRE-Live Phase-2.3+ pending Kai-DevOps-Track). "
+                "Operator-Hand-blocked (milestone M-2: "
+                "SPIRE-Live Phase-2.3+ pending DevOps track). "
                 "Set SPIRE_AGENT_SOCKET=none to fall back to mock-jwt."
             )
 

@@ -12,8 +12,7 @@
 //! Determinism contract
 //! --------------------
 //!
-//! For the V9 ground-truth canonical subset (Phase-1b Sprint-3 Tag-3
-//! pin pack):
+//! For the V9 ground-truth canonical subset (pin pack):
 //!
 //! - `V0ToV1Step::apply(v8_canonical)` produces a dict whose
 //!   `sha256(canonical_jcs_bytes(...))` equals
@@ -27,7 +26,7 @@
 //!   produces a dict whose hash equals
 //!   `PERSONA_HASH_PIN_V8_MIGRATED_TO_V2` (= `PERSONA_HASH_PIN_V9_MIGRATED_TO_V2`
 //!   by construction; this is the **M-1 linear-chain direct-anchor**
-//!   that Sprint-2 flagged as currently indirect).
+//! that flagged as currently indirect).
 //!
 //! All three byte-identities are asserted in the test suite below.
 //!
@@ -45,7 +44,7 @@
 //!   concern. Steps operate on the canonical subset only.
 //! - **D-2 mitigation:** every default value the step injects is
 //!   written *explicitly* in code, never via JSON-Schema default
-//!   inference (Tag-4 Skizze §2.3). Sprint-4 Tag-4 V0->V1 and V1->V2
+//! inference (Sketch §2.3). V0->V1 and V1->V2
 //!   are pure `schema_version` const flips with no other default
 //!   injection — the strictest possible D-2-explicit posture.
 //!
@@ -74,13 +73,12 @@ use serde_json::{Map, Value};
 // ---------------------------------------------------------------------
 //
 // Verbatim mirrors of the values frozen in
-// `wirelang/persona/_internal/pin_pack_constants.py` (Phase-1b
-// Sprint-1 Tag-2 for V9, Sprint-2 Tag-1 for V8_MIGRATED_TO_V1,
-// Sprint-3 Tag-3 for V9_MIGRATED_TO_V2 / V8_MIGRATED_TO_V2). Any drift
-// in JCS canonicalisation, in the canonical-subset shape, or in the
-// step output trips the cross-check tests below.
+// `wirelang/persona/_internal/pin_pack_constants.py` (for V9, for
+// V8_MIGRATED_TO_V1, for V9_MIGRATED_TO_V2 / V8_MIGRATED_TO_V2). Any
+// drift in JCS canonicalisation, in the canonical-subset shape, or in
+// the step output trips the cross-check tests below.
 
-/// V9 ground-truth pin (Sprint-1 Tag-2 baseline).
+/// V9 ground-truth pin (baseline).
 ///
 /// Equal to Python `wirelang.persona._internal.pin_pack_constants.PERSONA_HASH_PIN_V9`.
 pub const PERSONA_HASH_PIN_V9: &str =
@@ -98,7 +96,7 @@ pub const PERSONA_HASH_PIN_V8_MIGRATED_TO_V1: &str = PERSONA_HASH_PIN_V9;
 /// Self-migration target pin: hash of the canonical subset produced
 /// by `V1ToV2Step::apply` on the V9 canonical subset.
 ///
-/// **Not** equal to [`PERSONA_HASH_PIN_V9`] (Tag-1-Sketch §3 explicit
+/// **Not** equal to [`PERSONA_HASH_PIN_V9`] (-Sketch §3 explicit
 /// design choice — the canonical subset *includes* `schema_version`,
 /// so lifting v1 to v2 yields a new hash). Mirrors Python
 /// `PERSONA_HASH_PIN_V9_MIGRATED_TO_V2`.
@@ -201,8 +199,8 @@ pub trait MigrationStep {
 
 // Shared helper: clone the input object, verify the source version,
 // flip the schema_version key. Used by both V0->V1 and V1->V2 because
-// in Sprint-4 Tag-4 they are *both* pure schema_version const flips
-// per the Default-Lock D-2-explicit-default-only posture.
+// in they are *both* pure schema_version const flips per the
+// Default-Lock D-2-explicit-default-only posture.
 fn apply_const_flip(
     definition: &Value,
     expected_source: &'static str,
@@ -241,10 +239,10 @@ fn apply_const_flip(
 /// `persona-v0 -> persona-v1` schema-version lift.
 ///
 /// Mirrors Python `wirelang.persona._internal.migration_steps.V0ToV1Step`.
-/// Per Tag-4 Skizze §3.2 R1-R4 and Default-Lock A-1/A-2/A-3, the v0
-/// to v1 transition is a schema-version edit only. All other top-level
-/// keys, the full `identity_pinned` block, and the markdown body
-/// (out-of-hash per A-3) pass through unchanged.
+/// Per Sketch §3.2 R1-R4 and Default-Lock A-1/A-2/A-3, the v0 to v1
+/// transition is a schema-version edit only. All other top-level keys, the
+/// full `identity_pinned` block, and the markdown body (out-of-hash per
+/// A-3) pass through unchanged.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct V0ToV1Step;
 
@@ -269,13 +267,12 @@ impl MigrationStep for V0ToV1Step {
 /// `persona-v1 -> persona-v2` schema-version lift.
 ///
 /// Mirrors Python `wirelang.persona._internal.migration_steps.V1ToV2Step`.
-/// Per Tag-1-Sketch §3 (Phase-1b Sprint-3 Tag-1, V10-Migration-
-/// Vorbereitung) and Default-Lock A-1/A-2/A-3, the v1 to v2 transition
-/// is a schema-version edit only. The persona-v2 schema authored at
-/// Sprint-3 Tag-2 (`wirelang/schemas/persona-v2.json`) opens a closed
-/// allow-list of additive optional fields and three reserved top-level
-/// keys; none of those are injected by this step (D-2-explicit
-/// posture, Tag-4 Skizze §2.3).
+/// Per -Sketch §3 (V10-Migration- Vorbereitung) and Default-Lock
+/// A-1/A-2/A-3, the v1 to v2 transition is a schema-version edit only. The
+/// persona-v2 schema authored at 
+/// (`wirelang/schemas/persona-v2.json`) opens a closed allow-list of
+/// additive optional fields and three reserved top-level keys; none of
+/// those are injected by this step (D-2-explicit posture, Sketch §2.3).
 ///
 /// Pin-pack consequence: the canonical subset *includes* `schema_version`,
 /// so the V9-migrated-to-V2 hash is **not** equal to the V9 hash. See
@@ -310,8 +307,8 @@ impl MigrationStep for V1ToV2Step {
 /// semantic.
 ///
 /// The full chain resolver (Python `_resolve_chain`) is a Phase-1c
-/// follow-up crate; Sprint-4 Tag-4 keeps the resolver Python-side and
-/// exercises the chain here via direct composition.
+/// follow-up crate; keeps the resolver Python-side and exercises the
+/// chain here via direct composition.
 pub fn registered_steps() -> Vec<Box<dyn MigrationStep>> {
     vec![Box::new(V0ToV1Step), Box::new(V1ToV2Step)]
 }
@@ -656,7 +653,7 @@ mod tests {
 
     // -------------------------------------------------------------------
     // 11 / 10-iteration determinism stress on V0->V1 apply (Phase-1b
-    //      Sprint-6 Tag-5 pin-pack coverage extension). Pattern mirror
+    // pin-pack coverage extension). Pattern mirror
     //      of Crate-1 t10 / Crate-2 t10. Goal: any non-determinism in
     //      `step.apply(d)` (e.g. dict-insertion-order leak, schema_version
     //      string allocation drift) would surface as cross-iteration
@@ -736,16 +733,16 @@ mod tests {
     //      future Python-side V8_MIGRATED_TO_V1_HEX constant cross-
     //      check without needing the full "sha256:" prefix re-derive.
     //
-    //      Rust-only Sprint-6 Tag-5 addition. No Python pendant needed
+    // Rust-only addition. No Python pendant needed
     //      because Python's pin-pack ships full "sha256:<64hex>"
     //      constants and tests anchor against those directly.
     // -------------------------------------------------------------------
 
-    /// V0->V1 migration output hex pin (Rust-only Sprint-6 Tag-5).
-    /// Equals the 64-hex tail of [`PERSONA_HASH_PIN_V8_MIGRATED_TO_V1`]
-    /// (= [`PERSONA_HASH_PIN_V9`] by construction). Pinning the hex
-    /// form separately catches a regression where a malformed prefix
-    /// would still match the full-form check.
+    /// V0->V1 migration output hex pin (Rust-only). Equals the 64-hex
+    /// tail of [`PERSONA_HASH_PIN_V8_MIGRATED_TO_V1`] (=
+    /// [`PERSONA_HASH_PIN_V9`] by construction). Pinning the hex form
+    /// separately catches a regression where a malformed prefix would
+    /// still match the full-form check.
     const V8_MIGRATED_TO_V1_HEX_RUST_ONLY: &str =
         "0f298894204e6117e42ad7073b7a3af8ada1851de74d585fc5cb4c4d70e1d793";
 
@@ -771,8 +768,8 @@ mod tests {
         );
     }
 
-    /// V1->V2 migration output hex pin (Rust-only Sprint-6 Tag-5).
-    /// Equals the 64-hex tail of [`PERSONA_HASH_PIN_V9_MIGRATED_TO_V2`].
+    /// V1->V2 migration output hex pin (Rust-only). Equals the 64-hex
+    /// tail of [`PERSONA_HASH_PIN_V9_MIGRATED_TO_V2`].
     const V9_MIGRATED_TO_V2_HEX_RUST_ONLY: &str =
         "f719fce4bedd8522874ae214ec2f982ef87964b535ca368134b3636207eb6669";
 

@@ -30,7 +30,7 @@ consensus marker (Cross-Review Zone 1).
 The two axes share a single persona seed so that a single SLIP-39
 Shamir cold-storage pattern recovers both master keys.
 
-Lazy-import discipline (Sprint-9 Tag-4)
+Lazy-import discipline
 ---------------------------------------
 
 This package eagerly imports **no submodule that has a top-level
@@ -41,17 +41,17 @@ submodule (e.g. ``wirelang.identity.federation_resolver``, which
 itself carries no crypto dependency) does NOT transitively load
 ``cryptography`` via this package's ``__init__``.
 
-Background: the Sprint-9 Tag-1 NATS-KV bucket provisioner imports
+Background: the NATS-KV bucket provisioner imports
 ``wirelang.federation.marker_stack_kv`` for its bucket-naming
 constants. That module's import chain transitively reaches
 ``wirelang.identity.federation_resolver`` (via
-``wirelang.federation.n2_evaluator``). Before Tag-4 this triggered
+``wirelang.federation.n2_evaluator``). Before this triggered
 the eager ``from .key_derivation import …`` in this ``__init__``,
 which in turn required the ``cryptography`` package — breaking the
 operator-side ``nats-kv-bucket-init`` container image that
 intentionally ships a minimal Python runtime without cryptography.
 
-The Tag-4 lazy-import pattern decouples the crypto dependency from
+The lazy-import pattern decouples the crypto dependency from
 the package-init step:
 
 - Consumers that only need crypto-free submodules
@@ -70,7 +70,7 @@ This is byte-stable for every existing consumer: the public
 attribute-access shape is unchanged, only the eager-load timing
 moves.
 
-Public API (unchanged from Tag-3):
+Public API:
 
 - :func:`derive_persona_master_secp256k1`
 - :func:`derive_persona_master_ed25519`

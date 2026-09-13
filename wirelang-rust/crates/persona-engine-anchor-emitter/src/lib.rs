@@ -5,15 +5,15 @@
 //
 // Schema-parity authority: `envelope_jcs_bytes` /
 // `envelope_payload_hash` in
-// `wirelang/persona/recovery_drill_anchor.py` (Selin / Reza
-// Sprint-Pengine-7 Tag-5 OI-PILOT-4 + OI-PEF-11). Downstream
+// `wirelang/persona/recovery_drill_anchor.py` (
+// OI-PILOT-4 + OI-PEF-11). Downstream
 // consumer: `wat.anchor.bridge_audit_writer.write_bridge_audit`
-// (Tomás / WAT-team) — that boundary keys on the SHA-256 of the
+// (the WAT track) — that boundary keys on the SHA-256 of the
 // JCS-canonical bytes that this crate emits.
 //
 // Design notes
 // ------------
-// - `AnchorEnvelope` carries the four Sprint-Auftrag fields
+// - `AnchorEnvelope` carries the four crate brief fields
 //   (`event_id`, `timestamp_utc`, `persona_id`, `payload_jcs_bytes`).
 //   The first three are RFC-3339-shaped strings / opaque IDs; the
 //   fourth is the already-canonicalised payload byte string. This
@@ -37,7 +37,7 @@
 //   Python-side equivalent shape so any drift on either side is
 //   caught.
 // - `hash_anchor` returns the string `"sha256:<lower-case-64-hex>"`
-//   per Sprint-Auftrag. The hash domain is the outer envelope JCS
+//   per crate brief. The hash domain is the outer envelope JCS
 //   bytes; the cross-lang smoke test also pins the bare-hex form
 //   so consumers that compare against the Python
 //   `envelope_payload_hash` (which returns bare hex) can do so
@@ -124,7 +124,7 @@ impl std::error::Error for AnchorEmitterError {}
 // ---------------------------------------------------------------------
 
 /// Caller-supplied input to [`build_anchor_envelope`]. Mirrors the
-/// four Sprint-Auftrag fields verbatim.
+/// four crate brief fields verbatim.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AnchorEmitterInput {
     /// Unique identifier of the event being anchored. Caller-owned;
@@ -307,7 +307,7 @@ pub fn serialize_anchor(env: &AnchorEnvelope) -> Vec<u8> {
 
 /// Compute the `"sha256:<hex>"` payload-hash string for an envelope.
 /// Mirrors the Python `envelope_payload_hash` shape with the
-/// Sprint-Auftrag-mandated `sha256:` prefix.
+/// crate brief-mandated `sha256:` prefix.
 ///
 /// Implementation: SHA-256 of the [`serialize_anchor`] output. The
 /// bare-hex form (matching Python) is available via the helper
@@ -369,7 +369,7 @@ pub fn assert_spec_invariants() -> Result<(), &'static str> {
         return Err("ENVELOPE_SCHEMA must carry an explicit /<version> tag");
     }
     if HASH_PREFIX != "sha256:" {
-        return Err("HASH_PREFIX drifted from Sprint-Auftrag-pinned value");
+        return Err("HASH_PREFIX drifted from crate brief-pinned value");
     }
     if SHA256_HEX_LEN != 64 {
         return Err("SHA256_HEX_LEN must equal 64 (256 bits / 4)");

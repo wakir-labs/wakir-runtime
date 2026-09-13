@@ -10,7 +10,7 @@
 #   be Python; Phase-1c is the Rust migration window.
 # - ADR-0036 — Self-Migration-Konverter requirements (V-907 pin pack
 #   is the determinism anchor that Rust must match byte-for-byte).
-# - Tag-8 phase-1c skizze (2026-05-07) — module order:
+# - phase-1c sketch (2026-05-07) — module order:
 #     canonical_form -> hash -> steps -> migration.
 #
 # Crate roster (Phase-1c step-2 = persona-hash + persona-canonical-form)
@@ -22,7 +22,7 @@
 #   vectors).
 # - persona-canonical-form : JCS-bytes boundary helper. Mirrors the
 #   Python `wirelang.persona.persona_canonical_form.canonical_jcs_bytes`
-#   helper (Sprint-2 Tag-5 cross-lang parity anchor). Consumes an
+# helper (cross-lang parity anchor). Consumes an
 #   already-extracted canonical subset (`serde_json::Value::Object`) and
 #   emits the RFC 8785 JCS UTF-8 byte string. YAML front-matter parsing
 #   is intentionally out-of-scope for this crate (Phase-1c-Tag-N item).
@@ -33,7 +33,7 @@
 #   byte-identical against Python pin constants
 #   PERSONA_HASH_PIN_V8_MIGRATED_TO_V1 / V9_MIGRATED_TO_V2 /
 #   V8_MIGRATED_TO_V2 via the sister `persona-canonical-form` crate.
-#   Added Phase-1b Sprint-4 Tag-4 (2026-05-11).
+# Added 2026-05-11.
 #
 # - persona-migration-resolver : multi-input `migrate_persona`
 #   dispatcher + linear chain resolver Rust pendant. Mirrors
@@ -44,7 +44,7 @@
 #   parsing and the `persona-migration` step registry for the chain
 #   walk. Cross-checked byte-identical against Python pins for all
 #   three migration vectors (V8→V1, V9→V2, V8→chain→V2). Added
-#   Phase-1b Sprint-4 Tag-5 (2026-05-11).
+# Added 2026-05-11.
 #
 # - persona-cli : Operator-facing `wakir-persona migrate` binary.
 #   Rust pendant of `wirelang.persona.cli`. Thin shim over
@@ -52,29 +52,28 @@
 #   file IO, sorted-keys JSON stdout, exit-code mapping per spec
 #   §7.4 (0/1/2/3/64). Byte-identical stdout / stderr / exit-code
 #   cross-check against the Python CLI for the V8 / V9 fixture
-#   vectors. Added Phase-1b Sprint-5 Tag-1 (2026-05-11).
+# vectors. Added 2026-05-11.
 #
-# - persona-engine-format : Sprint-Pengine-7 Tag-1 Crate-8. Byte-
+# - persona-engine-format : Crate-8. Byte-
 #   deterministic mapping from .claude/agents/<slug>.md (axis-A
 #   persona-claude-native) to wakir.persona/<slug>.json (axis-C
 #   wakir-persona-v1). Anchor: wirelang/specs/persona-engine-format-
 #   spec.md v1.0/v1.1. V-907 hash integration is delegated to
 #   persona-hash; no new hash function is introduced. Added 2026-05-13.
-#   v1.1 (Tag-2 cut-over) adds the SYNTHESIS_DEFAULT_EXCEPTIONS table
-#   per Aisha-HR Counter-Vorschlag 1 (cfo / internal-audit
+#   v1.1 (cut-over) adds the SYNTHESIS_DEFAULT_EXCEPTIONS table
+#   per HR counter-proposal 1 (cfo / internal-audit
 #   reports_to/escalation -> aufsichtsrat).
 #
-# - persona-converter : Sprint-Pengine-7 Tag-2 Crate-9. Operator-facing
+# - persona-converter : Crate-9. Operator-facing
 #   `wakir-persona-convert from-claude` CLI binary. Thin shim over
 #   `persona-engine-format::map_claude_native_to_wakir_v1` +
 #   `jcs_canonicalise_wakir_persona_v1` + `wakir_persona_hash`.
 #   Provides `--in / --out / --pin-hash-v907 / --quiet` and the
 #   exit-code mapping 0 / 1 / 2 / 3 / 64 (success / schema-error /
 #   hash-drift / input-not-found / argparse). Closes OI-PEF-4 from
-#   the Tag-1 spec open-items. Added 2026-05-13 (Tag-2).
+# the spec open-items. Added 2026-05-13.
 #
-# - persona-engine-frontmatter-parser : Sprint-Rust-Frontmatter-Parser-MINI
-#   (Phase-3a Item 8). Typed YAML front-matter parser that sits ABOVE
+# - persona-engine-frontmatter-parser : Phase-3a Item 8. Typed YAML front-matter parser that sits ABOVE
 #   `persona-canonical-form-yaml`: exposes a `PersonaDef` Rust struct
 #   with all front-matter fields (canonical-subset keys + extension
 #   keys like `persona_slug` / `capabilities` / `befugnis_rahmen` /
@@ -87,8 +86,8 @@
 #   alongside `persona-canonical-form-yaml`). Python
 #   `persona_canonical_form.py` is UNCHANGED. Added 2026-05-17.
 #
-# - persona-engine-bridge-audit-replay : Sprint-Bridge-Audit-Replay-
-#   Engine-Rust-MINI (Phase-3a Item 11). Stream-level oracle that
+# - persona-engine-bridge-audit-replay : Phase-3a Item 11. Stream-level
+#   oracle that
 #   deterministically replays a recorded Bridge-Audit `EngineeringOutputEvent`
 #   stream and validates it against an expected trajectory. Distinguishes
 #   `value-mismatch` / `missing-in-actual` / `extra-in-actual` divergence
@@ -99,23 +98,23 @@
 #   fixtures. Added 2026-05-17.
 #
 # Crates explicitly NOT in this workspace yet (Phase-1c follow-up boxes):
-# - (none — Crate-6 closes the Sprint-4 Open-Item §1.
-#   Crate-8 closes Sprint-Pengine-7 Tag-1.
-#   Crate-9 closes Sprint-Pengine-7 Tag-2 OI-PEF-4.)
+# - (none — Crate-6 closes the Open-Item §1.
+# Crate-8 closes.
+# Crate-9 closes OI-PEF-4.)
 #
-# - persona-engine-federation-frame-parser : Sprint-Rust-Federation-Frame-
-#   Parser-MINI (Phase-3a Item 9). Typed Rust parser + serialiser for
+# - persona-engine-federation-frame-parser : Phase-3a Item 9. Typed Rust
+#   parser + serialiser for
 #   inter-runtime federation frames — the JCS-canonical envelope shape
 #   that wraps task-assigned / task-output / multi-org-attestation /
 #   spiffe-bundle-sync payloads for transport between Wakir-Runtime
 #   instances belonging to different operator-orgs (or, in single-org
-#   pilot mode, between Mira-Sandbox and the Pilot-VM). No Python
+#   pilot mode, between the build sandbox and the pilot VM). No Python
 #   sibling exists yet (2026-05-17); the cross-lang pin placeholders
 #   flag the spots where a future `wirelang/federation/federation_frame.py`
 #   must byte-match. Added 2026-05-17.
 #
-# - persona-engine-federation-resolver : Tag-24 Mini-Welle (Phase-3a
-#   Python-Sync 9. Modul). Typed Rust `FederationResolver` trait +
+# - persona-engine-federation-resolver : Phase-3a Python-Sync, module 9.
+#   Typed Rust `FederationResolver` trait +
 #   `InMemoryFederationResolver` reference implementation. Maps
 #   `(org_id, cluster_id) -> operator-org Ed25519 public key`, accounting
 #   for key-rotation history and overlapping validity windows. Sits
@@ -130,8 +129,8 @@
 #   multi-org-disjoint / key-rotation-history / expired-mapping).
 #   Added 2026-05-17.
 #
-# - persona-engine-loop-latency-bench : Tag-13 Mini-Welle (Phase-3a
-#   Item 15 — closes Foundation 15/15). End-to-end latency benchmark
+# - persona-engine-loop-latency-bench : Phase-3a Item 15 (closes
+#   Foundation 15/15). End-to-end latency benchmark
 #   for the NATS Subscribe-Loop crate (`persona-engine-subscribe-loop`,
 #   PR #132). Drives `run_subscribe_loop_with_timeout` with synthetic
 #   envelopes at a target rate (10 / 100 / 1000 Hz) over a 1-sec
@@ -144,20 +143,18 @@
 #   verifies compile only (operator-hand runs the bench). Added
 #   2026-05-17.
 #
-# - persona-engine-recovery-replay : Sprint-Recovery-Replay-Engine-Rust-MINI
-#   (Phase-3a Item 13). Stream-level deterministic oracle for
+# - persona-engine-recovery-replay : Phase-3a Item 13. Stream-level deterministic oracle for
 #   recovery-workflow R1..R4 `PhaseResult` sequences (the sister of
 #   `persona-engine-bridge-audit-replay` for the recovery-workflow
 #   side). Depends on `persona-engine-recovery` for the `PhaseResult`
-#   type (re-exported as `RecoveryStep` for Sprint-Auftrag-signature-
-#   parity). Three Recovery-Fixtures cover clean R1->R4, R2-fail-retry
+#   type (re-exported as `RecoveryStep` for signature parity). Three Recovery-Fixtures cover clean R1->R4, R2-fail-retry
 #   and R3-skip trajectories; the workflow-hash envelope wraps the
 #   phase sequence in `{"phases": [...], "phases_len": <n>, "schema":
 #   "wakir.persona.recovery-workflow/1"}` for length-resistant
 #   discrimination. Added 2026-05-17.
 #
-# - persona-engine-v907-recompute-bench : Sprint-V907-Recompute-Bench-MINI
-#   (Phase-3a Modul 14). Performance-benchmark crate for the V-907
+# - persona-engine-v907-recompute-bench : Phase-3a module 14.
+#   Performance-benchmark crate for the V-907
 #   engine-side persona-hash recompute path. Sits ABOVE
 #   `persona-engine-v907-verify` (Crate-13) as a pure measurement layer;
 #   does NOT introduce a second hash implementation. Provides:
@@ -182,8 +179,7 @@
 # - A-3 Body out-of-hash: same posture as Python — only the canonical
 #   subset goes into JCS; Markdown body bytes never reach this crate.
 #
-# - persona-engine-integration-tests : Tag-15 Mini-Welle (Phase-3a
-#   Item 16). Test-only crate that wires the FULL persona-engine-*
+# - persona-engine-integration-tests : Phase-3a Item 16. Test-only crate that wires the FULL persona-engine-*
 #   stack together for cross-crate scenarios: subscribe-loop ->
 #   frontmatter-parser -> fsm -> bridge-diff -> anchor-emitter ->
 #   submit-worker -> recovery -> recovery-replay -> v907-verify. Five
@@ -239,10 +235,10 @@ repository = "https://github.com/wakir-labs/wakir-runtime"
 authors = ["pengine-eng <pengine@wakir.local>"]
 
 # Pinned crate versions — explicit, auditable, byte-stability-relevant.
-# Rationale (verified against Tag-8 skizze §4 crate selection):
+# Rationale (verified against sketch §4 crate selection):
 #
 # - sha2 0.10.x : SHA-256 implementation. The 0.10 line is the
-#   long-term-stable major; 0.11 was floated in the Tag-8 skizze but
+# long-term-stable major; 0.11 was floated in the sketch but
 #   0.10.8 is what currently ships in the Rust ecosystem and matches
 #   stdlib `Sha256` semantics. Pinned to ^0.10 with explicit minor for
 #   reproducibility.
@@ -250,13 +246,12 @@ authors = ["pengine-eng <pengine@wakir.local>"]
 #   as a serde_json::Value tree (Map preserves insertion order; we sort
 #   keys lexicographically ourselves to match JCS).
 # - serde_jcs 0.2.x : RFC 8785 JCS canonicaliser. Pre-1.0 (P2 risk
-#   acknowledged in Tag-8 skizze §4); behaviour cross-checked against
+#   acknowledged in sketch §4); behaviour cross-checked against
 #   Python `rfc8785` for the V9 vector before this crate is trusted.
 # - hex 0.4.x : lower-case hex tail emission to match Python
 #   `hashlib.sha256().hexdigest()`.
 # - serde_yaml 0.9.34 : YAML 1.1 front-matter parser (Crate-3
-#   `persona-canonical-form-yaml`). Mira-ratified default per
-#   Sprint-3-Closeout-Stempel 2026-05-07 ~18:15 CEST. Pinned to
+#   `persona-canonical-form-yaml`). Ratified default. Pinned to
 #   =0.9.34 for byte-stability across CI machines. Marked "deprecated"
 #   upstream (maintainership transition) but behaviourally stable on
 #   the trivial YAML 1.1 subset the V-907 mock format uses (no

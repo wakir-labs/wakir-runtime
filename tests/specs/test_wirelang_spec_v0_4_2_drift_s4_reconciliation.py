@@ -440,7 +440,7 @@ def test_t16_section_9_citation_pointers_include_pin_pack_and_v041():
     """T-16: §9 citation pointers include Pin-Pack-0.5.1 and v0.4.1 spec."""
     body = SPEC_V042.read_text(encoding="utf-8")
     section_9_match = re.search(
-        r"## 9\. Citation pointers.*?(?=— Reza)",
+        r"## 9\. Citation pointers.*",
         body,
         re.S,
     )

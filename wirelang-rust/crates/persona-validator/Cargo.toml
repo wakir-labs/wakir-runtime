@@ -2,7 +2,7 @@
 #
 # persona-validator — Rust pendant of `wirelang.persona.persona_validator`.
 #
-# Scope (Phase-1c Sprint-6 Tag-1, Crate-7):
+# Scope (Crate-7):
 # - Read-only validator over a parsed front-matter mapping (Rust:
 #   `serde_json::Value::Object`). Mirrors the Python
 #   `validate_persona(input)` function.

@@ -1,15 +1,14 @@
 # SPDX-License-Identifier: BUSL-1.1
 """UnrevokeAuditMarker cross-org export surface.
 
-Phase-2 Sprint-7 Tag-5 lands the cross-org export pattern for the
-Sprint-6 Tag-9
+This module lands the cross-org export pattern for the
 :class:`~wirelang.schemas.capability_policy_nats_kv_backend.UnrevokeAuditMarker`.
 The marker is a load-bearing audit-trail-artefact within a single
-Wakir-Org bucket: the watch-stream classifier from Sprint-6 Tag-3
+Wakir-Org bucket: the watch-stream classifier
 uses the marker to distinguish operator-deliberate unrevoke
 (``EXPLICIT_UNREVOKE``) from substrate-corruption /
 out-of-band-override (``REVOCATION_MONOTONIC_BREACH``). For
-**multi-org federation** scenarios (Sprint-7 Tag-1+ substrate), the
+**multi-org federation** scenarios (substrate), the
 internal marker MUST NOT leak naively across an org boundary: the
 marker carries free-form operator-supplied text
 (``unrevoke_reason``) and operator-supplied prior-revocation text
@@ -82,7 +81,7 @@ export surface — which consumes the marker, not the record —
 cannot leak the operator identity by construction. (A future
 extension that wanted to publish the marker *with* its record-
 wrapper would require a separate `CapabilityPolicyRecord` cross-
-org exporter — out of scope for Tag-5.)
+org exporter — out of scope here.)
 
 The hash for ``previous_revocation_reason_hash`` is keyed by the
 ``route_id`` to prevent cross-route equality-correlation: the
@@ -116,7 +115,7 @@ WAT-Audit-Federation-Annex anchoring
 
 The export artefact carries the schema URI
 ``wakir.federation.unrevoke-audit-marker-export/1`` so the
-WAT-Audit-Federation-Annex (Tomás D-1, forthcoming) can anchor
+WAT-Audit-Federation-Annex (D-1, forthcoming) can anchor
 exported markers into both peer-org and Wakir-org WAT merkle
 leaves with a stable label. Phase-1b convention applies:
 ``wakir.`` prefix, kebab-case noun, integer version suffix. The
@@ -126,38 +125,21 @@ and route-scoped, mirroring the
 :attr:`~wirelang.federation.capability_attenuation_chain_verifier.VerifiedAttenuationChain.chain_hash`
 and
 :attr:`~wirelang.federation.spiffe_cross_trust_domain_bridge.BRIDGE_RESOLUTION_SCHEMA`
-conventions established Tag-3..Tag-4.
+conventions.
 
-ADR-0050 Tool-Surface-Stempel
-=============================
-
-This file was authored using Read, Edit, Write, Bash. No
-Agent-Tool, no WebFetch within this module.
-
-ADR-0049 Pre-Box-Worktree
-=========================
-
-This module was authored in an isolated worktree
-``/tmp/reza-sprint-7-tag-5-runtime`` with the ``-runtime``
-suffix from Tag-4-Tip ``3e2ebbe``. Tag-5 substantively depends
-on Sprint-6 Tag-9
-:class:`~wirelang.schemas.capability_policy_nats_kv_backend.UnrevokeAuditMarker`
-and Sprint-7 Tag-1
-:class:`~wirelang.federation.multi_org_substrate.MultiOrgRouteAttestation`.
-The worktree is cleaned up after the β-push.
 
 Cross-references
 ================
 
-- Sprint-6 Tag-9 ``UnrevokeAuditMarker``:
+- ``UnrevokeAuditMarker``:
   ``wirelang/schemas/capability_policy_nats_kv_backend.py``.
-- Sprint-6 Tag-3 revocation-event-filter classifier
+- revocation-event-filter classifier
   (consumes the marker on the watch-side):
   ``wirelang/schemas/revocation_event_filter.py``.
-- Sprint-7 Tag-1 federation substrate
+- federation substrate
   (``MultiOrgRouteAttestation`` carrier of the export route):
   ``wirelang/federation/multi_org_substrate.py``.
-- Sprint-7 Tag-2 NATS-KV backend (durable target):
+- NATS-KV backend (durable target):
   ``wirelang/federation/multi_org_attestation_nats_kv_backend.py``.
 - ADR-0031 D4 Pseudonymisierungs-Pattern.
 
@@ -191,7 +173,7 @@ from ..schemas.capability_policy_nats_kv_backend import (
 
 
 #: Schema-URI for the exported-unrevoke-audit-marker artefact.
-#: Consumed by the WAT-Audit-Federation-Annex (Tomás D-1,
+#: Consumed by the WAT-Audit-Federation-Annex (D-1,
 #: forthcoming) when anchoring an exported marker into both
 #: peer-org and Wakir-org WAT merkle leaves. Phase-1b convention:
 #: ``wakir.`` prefix, kebab-case noun, integer version suffix.

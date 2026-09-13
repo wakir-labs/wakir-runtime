@@ -2,16 +2,16 @@
 """Cross-bucket capability-policy replication for the Wirelang
 capability-policy backend.
 
-Phase-2 Sprint-6 Tag-6 (S6-6) lands the cross-bucket replication
+This module is the cross-bucket replication
 layer for ``wakir-capability-policies``. The replication layer
 mirrors the contents of one capability-policy bucket onto another
-in the same shape as the Phase-1b Sprint-3 Tag-6 schema-registry
+in the same shape as the schema-registry
 replication layer
 (:mod:`wirelang.schemas.replication`), but with one cross-cutting
 addition: replication MUST preserve the **revocation-monotonic
-invariant** established in Phase-2 Sprint-6 Tag-1.
+invariant** the capability-policy backend enforces on writes.
 
-Use-cases (mirror of Sprint-3 Tag-6 schema-registry replicator):
+Use-cases (mirror of schema-registry replicator):
 
 - **multi-org federation:** two organisations run independent NATS
   clusters and want a one-way mirror of a curated set of capability
@@ -26,18 +26,18 @@ Use-cases (mirror of Sprint-3 Tag-6 schema-registry replicator):
 Composition contract
 --------------------
 
-The replicator is a *thin composition* of three Phase-2 Sprint-5
-and Sprint-6 surfaces that already shipped:
+The replicator is a *thin composition* of backend surfaces that
+already exist:
 
-- **Source side (Sprint-5 Tag-5 watch-stream):** the replicator
+- **Source side (watch-stream):** the replicator
   opens an :func:`open_capability_policy_watch_stream` over the
   source backend and consumes decoded
   :class:`CapabilityPolicyWatchEvent` instances one at a time.
   Bootstrap is taken from :meth:`NatsKvCapabilityPolicyBackend.snapshot`
   so the target starts from a complete, self-consistent view; the
   watch-stream then fills in the live tail.
-- **Target side (Sprint-5 Tag-4 CAS-pin + Sprint-5 Tag-2 LWW +
-  Sprint-6 Tag-1 revocation-monotonic invariant):** the replicator
+- **Target side (CAS-pin + LWW + revocation-monotonic
+  invariant):** the replicator
   writes each event to the target backend through one of two paths,
   selectable via :class:`CapabilityPolicyReplicationConflictPolicy`:
 
@@ -46,7 +46,7 @@ and Sprint-6 surfaces that already shipped:
     source-of-truth is the source bucket; whatever the source emits
     lands on the target unconditionally. **Note:** under SOURCE_WINS
     the target's revocation-monotonic invariant is NOT enforced at
-    the backend (consistent with the Sprint-5 Tag-4 rationale that
+    the backend (consistent with the rationale that
     LWW writes are operator-deliberate). The replicator therefore
     surfaces an in-band check that refuses to overwrite a live
     revoked policy with an unrevoked envelope under SOURCE_WINS,
@@ -55,17 +55,16 @@ and Sprint-6 surfaces that already shipped:
     stale un-revoked envelope onto a revoked target.
   - ``CAS_PIN``: writes go through
     :meth:`NatsKvCapabilityPolicyBackend.put_with_revision` against
-    the target's currently-observed revision. The Sprint-6 Tag-1
-    revocation-monotonic gate then runs server-side; if the source
+    the target's currently-observed revision. The revocation-monotonic gate then runs server-side; if the source
     emits an un-revoke or advance-instant envelope against a revoked
     target, the target raises
     :class:`CapabilityPolicyRevocationConflict` and the replicator
     surfaces it via :attr:`revocation_breaches`. CAS conflicts
     proper surface via :attr:`cas_conflicts`.
 
-- **Operator-input side (Sprint-6 Tag-2 publisher-CLI revoke):**
+- **Operator-input side (publisher-CLI revoke):**
   when an operator needs to deliberately revoke a policy on the
-  source, they invoke the Tag-2 ``revoke`` subcommand against the
+  source, they invoke the ``revoke`` subcommand against the
   source bucket; the resulting revocation envelope propagates to
   the target via the replicator's regular event-loop path. The
   replicator does NOT itself bake an operator-override into its
@@ -89,10 +88,10 @@ single layer:
    filtered-out event is observed by the replicator but not
    applied to the target.
 
-Revocation-Monotonicity Contract (Tag-6)
+Revocation-Monotonicity Contract
 ----------------------------------------
 
-The Sprint-6 Tag-1 backend-write invariant guarantees that on the
+The backend-write invariant guarantees that on the
 **CAS-pin path** the target never accepts an un-revoke
 (``revoked_at: None`` against a revoked target) nor an
 advance-instant write (``revoked_at`` strictly greater than the
@@ -115,10 +114,9 @@ live one). The replicator extends this invariant **cross-bucket**:
   AND the incoming source record either drops the revocation or
   advances the instant, the replicator refuses the write, advances
   :attr:`revocation_breaches`, and (by default) continues. This
-  preserves the Sprint-6 Tag-1 monotonicity guarantee across
+  preserves the monotonicity guarantee across
   buckets even under LWW propagation; an operator who deliberately
-  wants to overwrite the revocation must use the Sprint-6 Tag-2
-  publisher-CLI directly against the target.
+  wants to overwrite the revocation must use the publisher-CLI directly against the target.
 
 The cross-bucket invariant is therefore: **once a key carries a
 revocation on the target, no replication path will silently
@@ -126,16 +124,16 @@ overwrite it.** The breach is always observable through the
 metrics counter, and operator intervention is always required to
 proceed.
 
-Phase-2 Sprint-6 boundary
--------------------------
+Non-goals
+---------
 
 The replicator does NOT implement:
 
-- **Bidirectional replication.** Tag-6 is one-way (source →
+- **Bidirectional replication.** Replication is one-way (source →
   target). Bidirectional replication requires conflict-free
-  CRDT-style merges that are out of scope for Sprint-6 (Phase-3
-  reservation: bidir-replication slot).
-- **Multi-source fan-in.** Tag-6 has exactly one source backend
+  CRDT-style merges, which are out of scope for this module
+  (reserved: bidir-replication slot).
+- **Multi-source fan-in.** The replicator has exactly one source backend
   and one target backend per
   :class:`CapabilityPolicyReplicator` instance; operators that
   want fan-in run multiple replicators against one target.
@@ -147,8 +145,7 @@ The replicator does NOT implement:
   replicator inherits whatever NATS credentials the operator's
   environment provides on each backend.
 - **Token-level revocation propagation.** The replicator carries
-  **policy-level** revocation envelopes (the Sprint-6 Tag-1
-  authority gesture on the policy bundle). Biscuit v3 token-level
+  **policy-level** revocation envelopes (the authority gesture on the policy bundle). Biscuit v3 token-level
   revocation-list propagation is a Phase-3 Datalog-substrate slot.
 
 Determinism contract
@@ -181,8 +178,8 @@ backends:
   :attr:`CapabilityPolicyReplicationMetrics.revocation_breaches`;
   the replicator continues with the next source event by default.
 
-Pattern source: the Sprint-3 Tag-6 schema-registry replicator
-(:mod:`wirelang.schemas.replication`). Tag-6 is the
+Pattern source: the schema-registry replicator
+(:mod:`wirelang.schemas.replication`). This module is the
 capability-policy analogue with the revocation-monotonic-invariant
 extension; the SchemaRegistry replicator has no equivalent
 invariant because schema-registry entries are append-only at the
@@ -223,14 +220,14 @@ __all__ = [
 class CapabilityPolicyReplicationConflictPolicy(enum.Enum):
     """How the replicator writes to the target capability-policy bucket.
 
-    - ``SOURCE_WINS``: target writes are LWW (Sprint-5 Tag-2 path);
+    - ``SOURCE_WINS``: target writes are LWW;
       whatever the source emits lands on the target unconditionally,
       with the single exception of revocation-monotonic refusals
       enforced in-band by the replicator (a live revoked target
       record is never silently overwritten with an unrevoked source
       record).
     - ``CAS_PIN``: target writes are CAS-pinned against the target's
-      observed revision (Sprint-5 Tag-4 path); a target-side
+      observed revision; a target-side
       concurrent write surfaces as
       :class:`CapabilityPolicyConflictError` and the replicator
       surfaces the conflict to the metrics counter. A revocation-
@@ -279,7 +276,7 @@ class CapabilityPolicyReplicationMetrics:
     The replicator updates these counters synchronously inside its
     event loop. Tests assert against the final shape; production
     operators expose them via a metrics-pull endpoint (out of scope
-    for Tag-6).
+    here).
 
     Fields
     ------
@@ -484,10 +481,9 @@ async def bootstrap_capability_policy_target_from_source(
 class CapabilityPolicyReplicator:
     """One-way capability-policy replicator (source → target).
 
-    Composes the Sprint-5 Tag-5 source-side watch-stream + the
-    Sprint-5 Tag-4 / Tag-2 target-side write paths + the
-    Sprint-6 Tag-1 revocation-monotonic invariant. Bootstrap is
-    via :func:`bootstrap_capability_policy_target_from_source`
+    Composes the source-side watch-stream, the CAS-pin and LWW
+    target-side write paths and the revocation-monotonic invariant.
+    Bootstrap is via :func:`bootstrap_capability_policy_target_from_source`
     (called by :meth:`run` once before the watch-stream loop).
 
     Construction is cheap: the replicator performs no I/O until
@@ -507,7 +503,7 @@ class CapabilityPolicyReplicator:
       target writes go through ``put_with_revision`` against the
       target's currently-observed revision (read via
       :meth:`NatsKvCapabilityPolicyBackend.get_with_revision`
-      just before the write). The Sprint-6 Tag-1 server-side
+      just before the write). The server-side
       revocation-monotonic gate enforces the invariant; the
       replicator catches the
       :class:`CapabilityPolicyRevocationConflict` and surfaces it
@@ -682,7 +678,7 @@ class CapabilityPolicyReplicator:
                 event.record, observed_revision
             )
         except CapabilityPolicyRevocationConflict:
-            # Sprint-6 Tag-1 server-side gate: revocation-monotonic
+            # server-side gate: revocation-monotonic
             # invariant breached. Counted as a revocation breach
             # (NOT as a CAS conflict — the CAS check itself did
             # not run because the revocation gate is earlier).
@@ -712,7 +708,7 @@ class CapabilityPolicyReplicator:
         DELETE / PURGE removes a revocation lineage from the
         target (substrate-level hard removal); a subsequent PUT
         for the same key has fresh prior-state on the target.
-        This is consistent with the Sprint-6 Tag-3 revocation-
+        This is consistent with the revocation-
         event-classifier behaviour where DELETE drops the
         per-key state from the classifier.
         """

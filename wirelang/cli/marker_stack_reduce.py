@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Operator-facing marker-stack reducer CLI (Phase-2 Sprint-9 Tag-3 Teil A).
+"""Operator-facing marker-stack reducer CLI (Teil A).
 
-Sprint-8 Tag-3 shipped the in-memory marker-stack reducer
+This module shipped the in-memory marker-stack reducer
 (``wirelang.federation.marker_composition.reduce_marker_stack``);
-Sprint-8 Tag-4 shipped the durable per-org marker-stack KV backend
+This module shipped the durable per-org marker-stack KV backend
 (``wirelang.federation.marker_stack_kv.NatsKvMarkerStackBackend``).
 Together they form the API surface a verifier or audit-emitter
 uses to re-constitute and reduce the marker stack for one
@@ -31,7 +31,7 @@ The CLI is hermetic by construction: the live NATS connection
 factory and the marker-stack backend factory are swappable
 (constructor-injection on :class:`OperatorRunner`). Tests inject
 mock backends; the live-path is operator-hand by sandbox-boundary
-policy (Mira-Sandbox vs. Host-Operations Trennung — claude-dev
+policy (build sandbox vs. Host-Operations Trennung — claude-dev
 cannot speak to the host's nats-py runtime).
 
 Surface
@@ -73,7 +73,7 @@ CLI can import the mapping directly.
 Pretty-print format
 -------------------
 
-Stable across Tag-3+. A consumer that pipes the pretty output
+The pretty format is stable. A consumer that pipes the pretty output
 into a downstream tool can rely on the line-shape and ordering.
 Format example::
 
@@ -135,11 +135,6 @@ The live NATS connection factory uses ``nats.aio.client.NATSClient``
 import nats-py (the live factory is gated behind a runtime
 import). Tests do not exercise the live factory at all.
 
-ADR-0050 Tool-Surface-Stempel: this module was authored using
-Read, Edit, Write, Bash. No Agent-Tool, no WebFetch.
-ADR-0049 Pre-Box-Worktree: ``/tmp/reza-sprint-9-tag-3-operator-
-cli-replicator-runtime`` with ``-runtime`` suffix from the
-Tag-2-Branch tip ``98b3556``.
 """
 
 from __future__ import annotations
@@ -238,7 +233,7 @@ def pretty_print_verdict(
     """Render a :class:`CompositionVerdict` as the operator-facing
     pretty-print text block.
 
-    The format is stable across Tag-3+; pretty-print-format-
+    The format is stable; pretty-print-format-
     stability is enforced by hermetic tests in
     :mod:`tests.test_cli_marker_stack_reduce`.
 
@@ -325,7 +320,7 @@ def verdict_to_json(
 ) -> str:
     """Render a :class:`CompositionVerdict` as a stable JSON string.
 
-    The shape is stable across Tag-3+; JSON-schema-stability is
+    The shape is stable; JSON-schema-stability is
     enforced by hermetic tests in
     :mod:`tests.test_cli_marker_stack_reduce`.
 
@@ -598,8 +593,7 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="wakir-marker-stack-reduce",
         description=(
             "Reduce a per-org marker stack for one capability-"
-            "token-id and emit the audit trace (Phase-2 Sprint-9 "
-            "Tag-3 Teil A)."
+            "token-id and emit the audit trace (Teil A)."
         ),
     )
     p.add_argument(

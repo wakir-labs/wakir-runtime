@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 """V-908 Federation-Resolver pipeline (Phase-1b PS-5).
 
-This module ties the Tag-6 FTD-verifier (``ftd_verifier``) together
+This module ties the FTD-verifier (``ftd_verifier``) together
 with the Phase-1a AIP-document resolver (``aip_resolver``) into a
 single end-to-end entry point for cross-org AIP-doc resolution::
 
@@ -41,7 +41,7 @@ Layering / sandbox boundary
 
 Phase-1a's reference :mod:`wirelang.identity.aip_resolver` module
 hard-imports ``rfc8785`` and ``jsonschema``; both are absent in
-the current sandbox build (Tag-2 / Tag-5 / Tag-6 capability stamp).
+the current sandbox build (capability stamp).
 This federation resolver therefore declares an
 :class:`AIPResolverLike` ``Protocol`` that any AIP-side resolver
 (production or test stub) must satisfy. Production deployments
@@ -49,7 +49,7 @@ plug in :class:`wirelang.identity.aip_resolver.AIPResolver`
 directly; the test suite supplies a small in-tree stub that
 implements the same Protocol with pure-Python primitives.
 
-This deliberately mirrors the Tag-6 strategy of "verify pipeline
+This deliberately mirrors the strategy of "verify pipeline
 hot path runs in pure Python so tests stay sandbox-grade" while
 preserving the production-grade plug-in path. The Protocol
 boundary is the only API contract between this module and the
@@ -74,9 +74,9 @@ References (URL-stamped 2026-05-07 by wirelang-eng, see V-908
 spec §9):
 
 - V-908 spec: ``wirelang/specs/wakir-v-908-federation-resolver-spec.md``
-- AIP resolver: ``wirelang/identity/aip_resolver.py`` (Tag-21 stub)
-- FTD verifier: ``wirelang/identity/ftd_verifier.py`` (Tag-6 PS-4)
-- DNS anchor: ``wirelang/identity/dns_anchor.py`` (Tag-5)
+- AIP resolver: ``wirelang/identity/aip_resolver.py`` (stub)
+- FTD verifier: ``wirelang/identity/ftd_verifier.py`` (PS-4)
+- DNS anchor: ``wirelang/identity/dns_anchor.py``
 """
 
 from __future__ import annotations
@@ -241,7 +241,7 @@ class FederatedResolveResult:
 def _aip_url_host(aip_id: str) -> str:
     """Extract the host component the AIP document is served from.
 
-    The Phase-1a fixtures and Tag-21 resolver use AIP ids of the
+    The Phase-1a fixtures and resolver use AIP ids of the
     shape ``aip:web:<host>/<persona-path>``; production extension
     will use ``https://<host>/...`` URIs once the HTTPS transport
     is wired (V-908 section 3.3, Phase-1b boundary).
@@ -322,7 +322,7 @@ def resolve_federated_aip(
 
     This is the single public entry point for cross-org AIP
     resolution under a federation trust domain. It composes the
-    Tag-6 FTD-verifier with the Phase-1a AIP-resolver and adds
+    FTD-verifier with the Phase-1a AIP-resolver and adds
     the V-908 federation-specific cross-checks
     (``FTDDomainMismatchError``, ``FederatedIssuerKeyError``).
 

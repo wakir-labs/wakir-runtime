@@ -10,14 +10,14 @@
 # persona-container at `/run/spire/agent-sockets/api.sock`). The
 # Python authority lives at
 # `wirelang/persona_engine/svid_workload_identity.py`; this crate is
-# the Rust pendant slot that ADR-0065 Welle-2 cuts over to once the
+# the Rust pendant slot that ADR-0065 wave 2 cuts over to once the
 # binary ships. Until then, the resolver in
 # `wirelang/persona_engine/rust_backend_switch.py`
-# (Tag-25 PR #191, `_resolve_svid_workload_identity_bin`) records the
-# Welle-2 precondition `binary_missing` per boot — this crate
+# (PR #191, `_resolve_svid_workload_identity_bin`) records the
+# wave-2 precondition `binary_missing` per boot — this crate
 # delivers the binary.
 #
-# Scope of this PR (Tag-29 Mini-Welle, ADR-0066 Welle-2 image-build)
+# Scope of this PR (ADR-0066 wave 2 image-build)
 # ------------------------------------------------------------------
 #
 # Skeleton substrate ONLY — the socket-presence probe (preserved
@@ -48,11 +48,11 @@
 # Cross-references
 # ----------------
 #
-# - ADR-0066 §Phase-3c Welle-2 `svid_workload_identity` —
-#   Welle-2 pre-cutover image-build (Tag-29 Mini-Welle).
-# - PR #191 (Selin) — Python-side resolver + `binary_missing`
+# - ADR-0066 §Phase-3c wave 2 `svid_workload_identity` —
+#   wave-2 pre-cutover image-build (this crate).
+# - PR #191 — Python-side resolver + `binary_missing`
 #   precondition record (the gap this crate closes).
-# - Zone-L (SPIFFE Workload-API) — Reza owns the SPIFFE-ID
+# - Zone-L (SPIFFE Workload-API) — the Wirelang track owns the SPIFFE-ID
 #   template + certificate-not-after semantics. The probe surface
 #   is shape-neutral wrt the SPIFFE-ID; Zone-L cross-review is
 #   required before the future `fetch` subcommand lands.
@@ -71,7 +71,7 @@ authors.workspace      = true
 name = "persona_engine_svid_workload_identity"
 path = "src/lib.rs"
 
-# Tag-29 Mini-Welle: Operator-CLI binary for the SPIFFE Workload-API
+# this crate: Operator-CLI binary for the SPIFFE Workload-API
 # probe path. Thin wrapper around the library; consumed by the
 # container-image-build-pipeline (.github/workflows/build-rust-cli-
 # svid-workload-identity.yml). See src/main.rs for the subcommand

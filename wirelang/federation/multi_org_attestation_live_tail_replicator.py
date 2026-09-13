@@ -1,12 +1,11 @@
 # SPDX-License-Identifier: BUSL-1.1
 """Multi-org-attestation cross-bucket live-tail replicator.
 
-Phase-2 Sprint-7 Tag-6 lands the **live-tail replicator** as the
-continuous-stream composition layer on top of the Sprint-7 Tag-2
-:func:`bootstrap_multi_org_attestation_target_from_source` one-shot
+This module lands the **live-tail replicator** as the
+continuous-stream composition layer on top of the :func:`bootstrap_multi_org_attestation_target_from_source` one-shot
 bootstrap. Together the two surfaces form the **full cross-bucket
 replication suite** for the ``wakir-multi-org-attestations`` bucket
-(pattern-mirror on the Sprint-6 Tag-6 capability-policy
+(pattern-mirror on the capability-policy
 cross-bucket replicator at
 :mod:`wirelang.schemas.capability_policy_replication`).
 
@@ -14,17 +13,17 @@ Surface
 -------
 
 This module ships a single primary class plus three lightweight
-co-types (re-exported from the Tag-2 backend for caller-side
+co-types (re-exported from the backend for caller-side
 convenience):
 
 - :class:`MultiOrgAttestationReplicator` — the replicator orchestrator.
-  Composes Tag-2 backend ``snapshot`` + ``watch`` + ``put`` /
+  Composes backend ``snapshot`` + ``watch`` + ``put`` /
   ``put_with_revision`` into a one-way (source → target)
   durable-stream replicator. The replicator is async; the caller
   is responsible for opening the underlying NATS KV handles on
   both backends.
 
-The Tag-2 :func:`bootstrap_multi_org_attestation_target_from_source`
+The :func:`bootstrap_multi_org_attestation_target_from_source`
 remains the one-shot bootstrap entry-point and is composed by the
 replicator on every :meth:`MultiOrgAttestationReplicator.run` call
 (modulo the ``bootstrap`` opt-out flag).
@@ -32,22 +31,22 @@ replicator on every :meth:`MultiOrgAttestationReplicator.run` call
 Composition contract
 --------------------
 
-The replicator composes three Sprint-7 Tag-2 surfaces that already
+The replicator composes three surfaces that already
 shipped:
 
-- **Bootstrap pass (Sprint-7 Tag-2):** the replicator delegates to
+- **Bootstrap pass:** the replicator delegates to
   :func:`bootstrap_multi_org_attestation_target_from_source` for the
   initial-sync phase. The bootstrap pass is idempotent against
   re-runs (byte-equal records are no-ops), honours the optional
   filter, and counts monotonic-invariant breaches separately from
-  live-tail breaches (mirror of the Sprint-6 Tag-6 capability-
+  live-tail breaches (mirror of the capability-
   policy replicator's bootstrap/live counter split).
-- **Live-tail (Sprint-7 Tag-2 watch-stream):** the replicator opens
+- **Live-tail (watch-stream):** the replicator opens
   a :func:`open_watch_stream` over the source backend and consumes
   decoded :class:`MultiOrgAttestationWatchEvent` instances one at a
   time. Each event is filtered, then routed to the target's write
   or delete path per the configured conflict policy.
-- **Conflict policies (Sprint-7 Tag-2):** writes go through either
+- **Conflict policies:** writes go through either
   :meth:`NatsKvMultiOrgAttestationRegistry.put` (SOURCE_WINS,
   default — LWW with in-band monotonic-invariant gate) or
   :meth:`NatsKvMultiOrgAttestationRegistry.put_with_revision`
@@ -59,14 +58,13 @@ shipped:
 
 The replicator is **a thin composition** — no new backend surface,
 no new envelope shape, no schema-version bump on the per-record
-envelope. The Tag-6 spec-bump (v0.27.0 → v0.28.0) reflects the new
+envelope. The spec-bump (v0.27.0 → v0.28.0) reflects the new
 composition surface, not a new substrate.
 
-Reused-from-Tag-2 surfaces (no re-definition)
+Reused-from-surfaces (no re-definition)
 ---------------------------------------------
 
-The replicator re-uses (does NOT re-define) these Sprint-7 Tag-2
-public types:
+The replicator re-uses (does NOT re-define) these public types:
 
 - :class:`MultiOrgAttestationReplicationConflictPolicy` —
   enum SOURCE_WINS / CAS_PIN.
@@ -84,15 +82,15 @@ public types:
   :class:`MultiOrgAttestationMonotonicConflict`,
   :class:`MultiOrgAttestationEnvelopeError`.
 
-The Tag-2 ``MultiOrgAttestationReplicationMetrics`` dataclass
+The ``MultiOrgAttestationReplicationMetrics`` dataclass
 already carries every counter the live-tail needs
 (``events_applied_put``, ``events_applied_delete``,
 ``events_skipped_by_filter``, ``cas_conflicts``,
-``monotonic_breaches``, ``envelope_errors``); the Tag-6 replicator
+``monotonic_breaches``, ``envelope_errors``); the replicator
 populates those during the watch-stream loop while the bootstrap
 pass already populates the ``bootstrap_*`` counters.
 
-Resume-from-revision (Tag-6 surface)
+Resume-from-revision (surface)
 ------------------------------------
 
 The replicator tracks the highest revision observed on the live
@@ -100,12 +98,12 @@ tail in the additive :attr:`MultiOrgAttestationReplicator.last_revision`
 field. This counter is the **resume signal** for operator-side
 tooling: on a crash-restart, an operator can read the persisted
 ``last_revision`` and (in Phase-3) pass it back as a resume cursor
-to ``watch(..., resume_from=...)``. Tag-6 itself does NOT bake the
+to ``watch(..., resume_from=...)``. itself does NOT bake the
 resume cursor into the watch-stream open call — that requires
 nats-py adapter support which we keep out of scope for the
-90-min Tag-6 budget (mirror of the Sprint-6 Tag-6 capability-
+90-min budget (mirror of the capability-
 policy replicator's Phase-3-reserved resume semantics). The
-Tag-6 replicator's contract is therefore:
+replicator's contract is therefore:
 
 - ``last_revision`` advances monotonically across every observed
   live-tail event (PUT, DELETE, PURGE — applied or filtered).
@@ -126,8 +124,7 @@ Halt policy
 -----------
 
 The replicator surfaces three halt flags (each defaulting to a
-"continue and count" posture, mirror of the Sprint-6 Tag-6
-capability-policy replicator):
+"continue and count" posture, mirror of the capability-policy replicator):
 
 - ``halt_on_envelope_error`` (default ``True``): a poisoned
   source-side envelope terminates :meth:`run` with the
@@ -167,15 +164,15 @@ Determinism contract
   ``last_revision`` carries over (operators that want a clean
   resume construct a new replicator).
 
-Phase-2 boundary (NOT in Tag-6)
--------------------------------
+Non-goals
+---------
 
 The replicator does NOT implement:
 
-- **Bidirectional replication.** Tag-6 is one-way (source →
+- **Bidirectional replication.** Replication is one-way (source →
   target). Bidirectional replication requires conflict-free
   CRDT-style merges and is out of scope for Phase-2.
-- **Multi-source fan-in.** Tag-6 has exactly one source backend
+- **Multi-source fan-in.** The replicator has exactly one source backend
   and one target backend per replicator instance.
 - **Watch-stream resume-from-revision wire-up.** The cursor is
   tracked but not consumed by the open-call (Phase-3 enhancement
@@ -188,24 +185,20 @@ The replicator does NOT implement:
 Cross-references
 ----------------
 
-- Sprint-7 Tag-2 backend module (bootstrap pass owner):
+- backend module (bootstrap pass owner):
   :mod:`wirelang.federation.multi_org_attestation_nats_kv_backend`.
-- Sprint-6 Tag-6 capability-policy replicator (pattern source):
+- capability-policy replicator (pattern source):
   :mod:`wirelang.schemas.capability_policy_replication`.
-- Sprint-7 Tag-5 :class:`UnrevokeAuditMarkerCrossOrgExporter`
+- :class:`UnrevokeAuditMarkerCrossOrgExporter`
   (cross-org privacy boundary on a different axis): the live-tail
   replicator MAY propagate attestations referencing peer policy
   pointers whose downstream audit-trail entries are cross-org
-  exported via the Tag-5 module. The two modules compose
+  exported via the module. The two modules compose
   orthogonally: the replicator mirrors the attestation envelope
   byte-precisely; the exporter handles the audit-trail
-  pseudonymisation. No coupling is needed at the Tag-6 layer.
+  pseudonymisation. No coupling is needed at the layer.
 
-ADR-0050 Tool-Surface-Stempel: this file was authored using Read,
-Edit, Write, Bash. No Agent-Tool, no WebFetch.
 
-ADR-0049 Pre-Box-Worktree: ``/tmp/reza-sprint-7-tag-6-runtime``
-with ``-runtime`` suffix from Tag-5-Tip ``d0669f9``.
 """
 
 from __future__ import annotations
@@ -231,14 +224,14 @@ from .multi_org_attestation_nats_kv_backend import (
 
 
 # ---------------------------------------------------------------------------
-# Sprint-9 Tag-3 Teil B — detect_replay-callsite-mirror hook
+# Teil B — detect_replay-callsite-mirror hook
 # ---------------------------------------------------------------------------
 #
 # The replicator's primary payload is the multi-org-attestation envelope
-# (an authority-gesture, not a capability-event payload). Sprint-9 Tag-1
-# shipped the symmetric :func:`detect_replay` gate for
+# (an authority-gesture, not a capability-event payload). The
+# symmetric :func:`detect_replay` gate exists for
 # :class:`ExportedCaveatOverrideEvent` envelopes; the durable
-# :class:`NatsKvSequenceNumberLedger` (Sprint-9 Tag-2) lets a downstream
+# :class:`NatsKvSequenceNumberLedger` lets a downstream
 # verifier persist per-pair last-seen sequence numbers cross-process.
 #
 # The live-tail replicator's contribution to that gate is **structural,
@@ -261,7 +254,7 @@ from .multi_org_attestation_nats_kv_backend import (
 # The hook is operator-supplied. The default no-op implementation
 # (:func:`_default_pass_through`) is wired when ``replay_detector_fn``
 # is unset; with the default, the replicator's behaviour is
-# byte-identical to Sprint-7 Tag-6.
+# byte-identical to the replicator without the hook.
 #
 # The hook signature receives the watch event (not a token-burst
 # payload) because the replicator's stream carries the attestation
@@ -306,7 +299,8 @@ def _default_pass_through(
     """Default no-op replay detector: every event passes through.
 
     With the default, the replicator's behaviour is byte-identical
-    to Sprint-7 Tag-6 (no replay-protection layer). Operators wire
+    to the replicator without the hook (no replay-protection layer).
+    Operators wire
     their own detector for the cross-org capability-event stream.
     """
     return ReplayDetectorDecision.PASS_THROUGH
@@ -323,11 +317,9 @@ __all__ = [
 class MultiOrgAttestationReplicator:
     """One-way multi-org-attestation replicator (source → target).
 
-    Composes the Sprint-7 Tag-2 :func:`bootstrap_multi_org_attestation_
-    target_from_source` (initial sync) and the Sprint-7 Tag-2
-    :func:`open_watch_stream` (continuous live tail) into a single
-    one-way replicator. Pattern-mirror on the Sprint-6 Tag-6
-    capability-policy replicator at
+    Composes the :func:`bootstrap_multi_org_attestation_
+    target_from_source` (initial sync) and the :func:`open_watch_stream` (continuous live tail) into a single
+    one-way replicator. Pattern-mirror on the capability-policy replicator at
     :class:`~wirelang.schemas.capability_policy_replication.CapabilityPolicyReplicator`.
 
     Construction is cheap: the replicator performs no I/O until
@@ -342,7 +334,7 @@ class MultiOrgAttestationReplicator:
       (default): target writes go through
       :meth:`NatsKvMultiOrgAttestationRegistry.put` (LWW). The
       monotonic-invariant gate runs in-band on every write
-      (Sprint-7 Tag-2 backend contract); a breach surfaces as
+      (backend contract); a breach surfaces as
       :class:`MultiOrgAttestationMonotonicConflict`, the
       ``monotonic_breaches`` counter advances, and the replicator
       continues (or re-raises if ``halt_on_monotonic_breach`` is
@@ -352,7 +344,7 @@ class MultiOrgAttestationReplicator:
       :meth:`NatsKvMultiOrgAttestationRegistry.put_with_revision`
       against the target's currently-observed revision (read via
       :meth:`NatsKvMultiOrgAttestationRegistry.get_with_revision`
-      just before the write). The Tag-2 backend gate ordering runs
+      just before the write). The backend gate ordering runs
       the monotonic-invariant check BEFORE the CAS-pin check, so a
       revoked-authority race cannot sneak in via a stale-revision
       window. A CAS conflict (concurrent target-side mutation)
@@ -396,7 +388,7 @@ class MultiOrgAttestationReplicator:
     :attr:`last_revision` tracks the highest revision observed on
     the live tail. Operators that want a crash-restart resume cursor
     read this value (typically through a sidecar journal) and re-bake
-    it into their resume-from-revision policy. Tag-6 does NOT wire
+    it into their resume-from-revision policy. This module does NOT wire
     the cursor back into the watch-stream open call; that is a
     Phase-3 enhancement.
     """
@@ -415,14 +407,14 @@ class MultiOrgAttestationReplicator:
     )
     last_revision: int = 0
 
-    # Sprint-9 Tag-3 Teil B — detect_replay-callsite-mirror.
+    # Teil B — detect_replay-callsite-mirror.
     # Operator-supplied hook invoked AFTER the filter and BEFORE the
-    # apply step. Default: no-op pass-through (byte-identical to
-    # Sprint-7 Tag-6). See module docstring for the contract.
+    # apply step. Default: no-op pass-through (byte-identical to the
+    # hook-less replicator). See module docstring for the contract.
     replay_detector_fn: ReplayDetectorFn = field(
         default=_default_pass_through
     )
-    # Per-org replay-drop counter (Sprint-9 Tag-3 Teil B). The
+    # Per-org replay-drop counter (Teil B). The
     # replicator carries one bucket per peer ``org_id`` it has
     # observed on the live tail; the ``org_id`` is sourced from the
     # event's :attr:`MultiOrgAttestationWatchEvent.attestation.
@@ -468,7 +460,7 @@ class MultiOrgAttestationReplicator:
     async def bootstrap(
         self,
     ) -> MultiOrgAttestationReplicationMetrics:
-        """Run the one-shot bootstrap pass via the Tag-2 helper.
+        """Run the one-shot bootstrap pass via the helper.
 
         Convenience method that delegates to
         :func:`bootstrap_multi_org_attestation_target_from_source`
@@ -491,7 +483,7 @@ class MultiOrgAttestationReplicator:
         Routes through :meth:`NatsKvMultiOrgAttestationRegistry.put`
         (SOURCE_WINS) or
         :meth:`NatsKvMultiOrgAttestationRegistry.put_with_revision`
-        (CAS_PIN). The Tag-2 backend's monotonic-invariant gate runs
+        (CAS_PIN). The backend's monotonic-invariant gate runs
         in-band on either path; a breach raises
         :class:`MultiOrgAttestationMonotonicConflict`. CAS conflicts
         surface only under CAS_PIN.
@@ -551,7 +543,7 @@ class MultiOrgAttestationReplicator:
         (filter accept and filter reject alike). The resume cursor
         is a stream-level high-water mark, NOT a target-write mark.
 
-        Sprint-9 Tag-3 Teil B: between the filter and the apply
+        Teil B: between the filter and the apply
         step, the operator-supplied :attr:`replay_detector_fn` is
         invoked. A ``REPLAY`` decision drops the event (no target
         write) and advances the per-org replay-drop counter; a
@@ -575,7 +567,7 @@ class MultiOrgAttestationReplicator:
             self.metrics.events_skipped_by_filter += 1
             return
 
-        # Sprint-9 Tag-3 Teil B — replay-detector hook.
+        # Teil B — replay-detector hook.
         replay_decision = self.replay_detector_fn(event)
         if not isinstance(
             replay_decision, ReplayDetectorDecision

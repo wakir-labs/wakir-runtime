@@ -3,7 +3,7 @@
 # persona-engine-nats-subjects — Typed Subject-Hierarchy für die
 # Persona-Engine NATS-Topology (Phase-3a Modul 10).
 #
-# Scope (Phase-3a Modul 10, Tag-12 Mini-Welle):
+# Scope (Phase-3a Modul 10, this crate):
 # - Zentrale `persona.*` Subject-Familie (intra-persona-engine,
 #   parallel zur bestehenden `wakir.{env}.*` Layer-0-Konvention aus
 #   `wirelang/schemas/layer-0-transport.json`).
@@ -32,7 +32,7 @@
 #
 # Default-Lock posture:
 # - A-1: Pure data-layer crate. Keine Persona-Definition-Inhalte
-#   berührt (Aisha-Domäne unverändert).
+#   berührt (HR-Domäne unverändert).
 # - A-2: Additiv. Neue Crate-19 neben den bestehenden 18 Workspace-
 #   Membern. Keine Datei in den existierenden Crates editiert.
 # - A-3: Keine Body-Bytes berührt. Keine Cargo-deps-Änderungen in

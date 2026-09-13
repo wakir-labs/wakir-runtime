@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 Callandor GmbH and contributors
 //
-// Persona-engine anchor-submit-worker — Tag-13 Mini-Welle, Phase-3a Modul 12.
+// Persona-engine anchor-submit-worker — this crate, Phase-3a Modul 12.
 //
 // Design summary
 // --------------
@@ -39,7 +39,7 @@
 // --------------------
 // `SubmitResult::Throttled` returns *without invoking the transport*
 // — this is the "throttle-no-side-effects" invariant the
-// Sprint-Auftrag calls out explicitly. The token-bucket check
+// crate brief calls out explicitly. The token-bucket check
 // happens first; only after a token is consumed do we call
 // `SubmitTransport::submit`.
 //
@@ -58,7 +58,7 @@
 // The "monotonic backoff" smoke test does not assert that delays grow
 // strictly monotonically (the jitter would break that). It asserts
 // that the *upper bound* doubles per attempt; the lower bound stays
-// at zero. This is the contract the Sprint-Auftrag's "monotonic"
+// at zero. This is the contract the crate brief's "monotonic"
 // wording maps to in the full-jitter formulation.
 //
 // Dead-letter store
@@ -101,7 +101,7 @@ pub use persona_engine_anchor_emitter::AnchorEnvelope;
 // ---------------------------------------------------------------------
 
 /// Default token-bucket refill rate: 1 request per 30 seconds. Matches
-/// the Sprint-Auftrag default and the OpenTimestamps public-calendar
+/// the crate brief default and the OpenTimestamps public-calendar
 /// civility cap.
 pub const DEFAULT_RATE_REQUESTS: u32 = 1;
 
@@ -485,7 +485,7 @@ struct QueuedEnvelope {
 // Token-bucket (internal).
 // ---------------------------------------------------------------------
 
-/// Single-endpoint token bucket. Per Sprint-Auftrag "per submit
+/// Single-endpoint token bucket. Per crate brief "per submit
 /// endpoint", multi-endpoint support is the Phase-3c follow-up;
 /// for the Phase-3a substrate we model a single bucket.
 #[derive(Debug)]
@@ -779,10 +779,10 @@ pub fn assert_spec_invariants() -> Result<(), &'static str> {
         return Err("DEFAULT_RETRY_MAX_DELAY must be >= DEFAULT_RETRY_BASE_DELAY");
     }
     if ENV_SUBMIT_RATE != "WAKIR_ANCHOR_SUBMIT_RATE" {
-        return Err("ENV_SUBMIT_RATE drifted from Sprint-Auftrag-pinned value");
+        return Err("ENV_SUBMIT_RATE drifted from crate brief-pinned value");
     }
     if ENV_MAX_RETRY != "WAKIR_ANCHOR_MAX_RETRY" {
-        return Err("ENV_MAX_RETRY drifted from Sprint-Auftrag-pinned value");
+        return Err("ENV_MAX_RETRY drifted from crate brief-pinned value");
     }
     Ok(())
 }

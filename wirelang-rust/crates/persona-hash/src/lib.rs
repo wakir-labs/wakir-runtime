@@ -320,8 +320,8 @@ mod tests {
     }
 
     // -------------------------------------------------------------------
-    // Sprint-5 Tag-3 Pin-Pack-Test-Coverage extension
-    // (Sprint-4-Closeout §539-541 Selin-recommendation).
+    // Pin-Pack-Test-Coverage extension
+    // (§539-541 review recommendation).
     //
     // Adds:
     //   - V8 canonical-subset (schema_version=persona-v0) hash-stability
@@ -391,18 +391,17 @@ mod tests {
         "sha256:f719fce4bedd8522874ae214ec2f982ef87964b535ca368134b3636207eb6669";
 
     // -------------------------------------------------------------------
-    // V8 Hex-Pin Hard-Freeze (Sprint-5 Tag-4 ceo-mandate, Option A).
+    // V8 Hex-Pin Hard-Freeze (ratified mandate, Option A).
     //
-    // Background — Sprint-5 Tag-3 design-choice §3.4 deliberately did
-    // NOT freeze a V8 hex pin, on the reasoning that V8 is REJECTED
-    // schema-v0 input and has no Python pendant in
-    // `pin_pack_constants.py`. That reasoning is overridden in Tag-4
-    // (ceo-slot mandate, Option A): the Rust crate IS allowed to be stricter
-    // than the Python pin pack. V8 hashes deterministically; pinning its
-    // hex tail catches a future regression in `v8_canonical_subset()`
-    // construction (e.g. accidental key-name typo, value drift) or in
-    // the serde_jcs / sha2 pipeline that would otherwise only surface
-    // indirectly via the t7 V8->V1 schema-flip equality.
+    // Background — design-choice §3.4 deliberately did NOT freeze a V8 hex pin,
+    // on the reasoning that V8 is REJECTED schema-v0 input and has no Python
+    // pendant in `pin_pack_constants.py`. That reasoning is overridden here
+    // (ceo-slot mandate, Option A): the Rust crate IS allowed to be stricter than
+    // the Python pin pack. V8 hashes deterministically; pinning its hex tail
+    // catches a future regression in `v8_canonical_subset` construction (e.g.
+    // accidental key-name typo, value drift) or in the serde_jcs / sha2 pipeline
+    // that would otherwise only surface indirectly via the t7 V8->V1 schema-flip
+    // equality.
     //
     // Asymmetry rationale (Rust-only pin):
     //   - Python `pin_pack_constants.py` keeps V8 as REJECTED vector
@@ -425,8 +424,8 @@ mod tests {
     // are equal-length ASCII).
     // -------------------------------------------------------------------
 
-    /// V8 hex-pin (Rust-only hard-freeze, Sprint-5 Tag-4). Pins
-    /// `sha256(jcs(v8_canonical_subset()))` byte-for-byte. No Python
+    /// V8 hex-pin (Rust-only hard-freeze). Pins
+    /// `sha256(jcs(v8_canonical_subset))` byte-for-byte. No Python
     /// pendant by design — see module-level rationale above the const.
     const V8_PIN_RUST_ONLY: &str =
         "sha256:88d7ae38b6b37cfdbfcf80c236bae842bd91104ee34aa565a59ebc6e1c022228";
@@ -456,8 +455,8 @@ mod tests {
         // Sanity: V8 hash must still be a well-formed full-form pin.
         assert!(h_v8_first.starts_with(PERSONA_HASH_PREFIX));
         assert_eq!(h_v8_first.len(), PERSONA_HASH_FULL_LENGTH);
-        // Sprint-5 Tag-4 hard-freeze: V8 hex tail is pinned Rust-only.
-        // See module-level rationale on `V8_PIN_RUST_ONLY`.
+        // hard-freeze: V8 hex tail is pinned Rust-only. See
+        // module-level rationale on `V8_PIN_RUST_ONLY`.
         assert_eq!(
             h_v8_first, V8_PIN_RUST_ONLY,
             "V8 hash must match Rust-only V8_PIN_RUST_ONLY hard-freeze"
@@ -521,8 +520,8 @@ mod tests {
     fn t9_determinism_stress_10_iterations_byte_identical() {
         // Build each subset fresh on each iteration to also cover
         // parser-construction determinism (not just intra-call stability).
-        // Sprint-5 Tag-4: V8 row promoted from None to V8_PIN_RUST_ONLY
-        // (Rust-only hard-freeze). The other two rows are unchanged.
+        // V8 row promoted from None to V8_PIN_RUST_ONLY (Rust-only
+        // hard-freeze). The other two rows are unchanged.
         let fixtures: [(&str, fn() -> Value, Option<&str>); 3] = [
             ("v8", v8_canonical_subset, Some(V8_PIN_RUST_ONLY)),
             ("v9", v9_canonical_subset, Some(V9_PIN)),
@@ -569,7 +568,7 @@ mod tests {
 
     #[test]
     fn t10_hash_equals_sha256_of_jcs_canonicalise_roundtrip() {
-        // Sprint-5 Tag-4: V8 row promoted from None to V8_PIN_RUST_ONLY.
+        // V8 row promoted from None to V8_PIN_RUST_ONLY.
         for (label, builder, expected_pin) in [
             (
                 "v8",
@@ -603,7 +602,7 @@ mod tests {
     }
 
     // -------------------------------------------------------------------
-    // 11 / V8 hard-freeze pin-argument mechanics (Sprint-5 Tag-4).
+    // 11 / V8 hard-freeze pin-argument mechanics.
     //
     //      Mirrors t3 (V9 pin-argument mechanics): full-form pin passes,
     //      bare-hex pin passes, drift produces a Mismatch. This is the

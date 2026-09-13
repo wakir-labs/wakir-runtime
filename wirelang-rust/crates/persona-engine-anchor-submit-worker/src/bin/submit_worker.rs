@@ -3,7 +3,7 @@
 //
 // Operator CLI for the persona-engine-anchor-submit-worker.
 //
-// Tag-16 Mini-Welle — Phase-3b production-wiring.
+// Phase-3b production-wiring.
 //
 // Role
 // ----
@@ -16,7 +16,7 @@
 // Single-shot, single-envelope, no embedded loop. The Python caller
 // owns the queue and the eligibility decision; this binary is the
 // "one transport attempt + state transition" hop. This mirrors the
-// `replay_cli` posture established by Tag-14 (PR #156).
+// `replay_cli` posture established  (PR #156).
 //
 // Transport selection
 // -------------------

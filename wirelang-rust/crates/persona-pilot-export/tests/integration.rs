@@ -27,11 +27,11 @@ use persona_pilot_export::{
 };
 
 // ---------------------------------------------------------------------
-// Test fixture: minimal axis-A persona-definition for tomas-pilot
+// Test fixture: minimal axis-A persona-definition for the pilot persona
 // rehearsal. Mirrors the .claude/agents/<slug>.md front-matter shape.
 // ---------------------------------------------------------------------
 
-const FIXTURE_PERSONA_DEF: &str = "---\nname: tomas\ndescription: Dev-Engineering + Matrix-Lead\ntools: [Read, Write, Edit, Bash]\n---\n\n# Tomás Reinhart — Pilot-Fixture\n\nFixture for the pilot-export rehearsal. Body is dropped from V-907 hash.\n";
+const FIXTURE_PERSONA_DEF: &str = "---\nname: tomas\ndescription: Dev-Engineering + Matrix-Lead\ntools: [Read, Write, Edit, Bash]\n---\n\n# Pilot fixture\n\nFixture for the pilot-export rehearsal. Body is dropped from V-907 hash.\n";
 
 fn write_persona_def(dir: &std::path::Path, body: &str) -> PathBuf {
     let p = dir.join("tomas.md");

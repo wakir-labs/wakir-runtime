@@ -3,7 +3,7 @@
 // persona-engine-nats-subjects — Typed Subject-Hierarchy für die
 // Persona-Engine NATS-Topology.
 //
-// Phase-3a Modul 10 (2026-05-17, Tag-12 Mini-Welle).
+// Phase-3a Modul 10 (2026-05-17, this crate).
 //
 // Subject-Familie:
 //
@@ -21,7 +21,7 @@
 // Cross-Lang-Pin-Posture:
 //
 //   8 Pin-Fixtures (siehe `pins`-Modul) sind cross-language
-//   parity-verified seit Tag-14 (2026-05-17): das Python-Pendant
+//   parity-verified seit 2026-05-17: das Python-Pendant
 //   `wirelang/persona_engine/nats_subjects.py` reproduziert dieselben
 //   8 Fixtures byte-identisch, und beide Seiten pinnen denselben
 //   SHA-256-Digest (`PIN_PACK_CROSS_LANG_SHA256_HEX`) über die
@@ -365,7 +365,7 @@ pub fn persona_root_wildcard() -> Result<String, SubjectError> {
 /// Cross-Lang-Hash-Pin-Fixtures.
 ///
 /// 8 fixed Subjects (eine pro Subject-Klasse × Variation), gepinnt
-/// als Rust + Python parity-verified Strings (Tag-14, 2026-05-17).
+/// als Rust + Python parity-verified Strings (2026-05-17).
 /// Das Python-Pendant lebt unter
 /// `wirelang/persona_engine/nats_subjects.py`; dieselben Konstanten
 /// stehen dort als `FIXTURE_*` und werden vom Test

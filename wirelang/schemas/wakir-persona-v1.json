@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://wakir.dev/schemas/wakir-persona-v1.json",
   "title": "Wakir framework-native persona-definition target format v1.0",
-  "description": "Target schema for the framework-native persona-definition format, as defined by persona-engine-format-spec.md v1.0 (Sprint-Pengine-7 Tag-1, 2026-05-13). The wakir-persona-v1 document is a single JSON object that embeds (a) the V-907 persona-v1 canonical subset verbatim — this is the SINGLE source for the V-907 hash, byte-unchanged from the Phase-1b hash function — and (b) lifecycle / state-persistence / container-bridge / migration-metadata wrapper fields that are out-of-hash by V-907 design. Strict additionalProperties=false at every level; unknown keys are a schema error.",
+  "description": "Target schema for the framework-native persona-definition format, as defined by persona-engine-format-spec.md v1.0. The wakir-persona-v1 document is a single JSON object that embeds (a) the V-907 persona-v1 canonical subset verbatim — this is the SINGLE source for the V-907 hash, byte-unchanged from the Phase-1b hash function — and (b) lifecycle / state-persistence / container-bridge / migration-metadata wrapper fields that are out-of-hash by V-907 design. Strict additionalProperties=false at every level; unknown keys are a schema error.",
   "type": "object",
   "required": [
     "schema_version",
@@ -168,7 +168,7 @@
     },
     "state_persistence": {
       "type": "object",
-      "description": "NATS-KV state-persistence binding for sessions-across persona state. Pattern source: Sprint-8 Tag-4 marker-stack-kv backend.",
+      "description": "NATS-KV state-persistence binding for sessions-across persona state. Pattern source: the marker-stack-kv backend.",
       "required": [
         "bucket_template",
         "value_envelope_schema",
@@ -203,7 +203,7 @@
     },
     "container_bridge": {
       "type": "object",
-      "description": "Zone-J persona-container-bridge spec. Sprint-Pengine-7 Tag-1 records SHAPE only; container-ops-slot-side Quadlet implementation is Sprint-Pengine-7 Tag-4 (Zone-J cross-review-gated).",
+      "description": "Zone-J persona-container-bridge spec. This schema records SHAPE only; the container-ops-slot-side Quadlet implementation is separate (Zone-J cross-review-gated).",
       "required": [
         "image_template",
         "metadata_labels",
@@ -258,7 +258,7 @@
       }
     },
     "model_override": {
-      "description": "Claude-Code model-override echo from axis-A 'model:' field, or null when absent. The hr.md persona is the Sprint-Pengine-7 Tag-1 inventory edge case (model: sonnet without explicit tools list).",
+      "description": "Claude-Code model-override echo from axis-A 'model:' field, or null when absent. The hr.md persona is the inventory edge case (model: sonnet without explicit tools list).",
       "oneOf": [
         { "type": "null" },
         { "type": "string", "minLength": 1 }

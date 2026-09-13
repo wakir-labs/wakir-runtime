@@ -1,18 +1,17 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Operator-facing marker-stack emitter CLI (Sprint-Pengine-7 Tag-5
-OI-PILOT-3).
+"""Operator-facing marker-stack emitter CLI (OI-PILOT-3).
 
-This module is the WRITE-SIDE companion to Sprint-9 Tag-3 Teil-A
+This module is the WRITE-SIDE companion to Teil-A
 ``wirelang.cli.marker_stack_reduce`` (the READ-SIDE reducer CLI).
 While the reducer CLI is verifier-grade (it READS marker-stack
 events from a per-org bucket and reduces them to a verdict), the
 emitter CLI is operator-grade: it EMITS migration-audit markers
-during Sprint-Migration-Pilot-Phase setup, teardown, and audit
+during migration-pilot-phase setup, teardown, and audit
 checkpoints.
 
-Use cases (Sprint-Migration-Pilot-Phase, ADR-0058)
----------------------------------------------------
+Use cases (migration pilot phase, ADR-0058)
+-------------------------------------------
 
 - ``setup-marker``: write a "pilot-phase-active" marker at the
   start of a Doppelbetrieb session (Migration-Playbook Schritt 4).
@@ -49,19 +48,19 @@ The envelope can be:
 
 - emitted to stdout as a single JCS-canonical JSON line (default,
   ``--mode stdout``), so the operator can pipe it directly into
-  ``wakir-bridge-audit-write --payload-file -`` (Sprint-Migration
+  ``wakir-bridge-audit-write --payload-file -`` (the migration
   WAT-anchoring path), OR
 - written to a NATS-KV bucket as an append-only sequence entry
   (``--mode nats-kv``), which is the live-substrate path during
   Pilot-Phase. The bucket is the operator-supplied
   ``--bucket`` flag and defaults to ``wakir-marker-stack-<org_id>``
-  (the Sprint-8 Tag-4 federation bucket). For SETUP/TEARDOWN/
-  MIGRATION-AUDIT markers — which are Sprint-Migration-Tooling
+  (the federation bucket). For SETUP/TEARDOWN/
+  MIGRATION-AUDIT markers — which are migration-tooling
   events, NOT capability-marker events — the operator MUST set
   ``--bucket`` to a dedicated per-org migration-audit bucket
   (e.g. ``wakir-migration-audit-acme``); the default falls back
   to the federation bucket only because no migration-audit
-  bucket family is defined yet (Cross-Review Zone-B with Reza
+  bucket family is defined yet (Cross-Review Zone-B
   before promotion to a registered family).
 
 Sandbox boundary
@@ -145,7 +144,7 @@ def jcs_dumps(value: Mapping[str, Any]) -> bytes:
     """Return the RFC 8785 JCS canonical-form bytes for ``value``.
 
     The implementation prefers the upstream ``rfc8785`` package if
-    available (Phase-2 Sprint-5 cross-lang parity anchor); falls
+    available (cross-lang parity anchor); falls
     back to a sorted-keys + compact-separator JSON serialisation if
     not. The fallback is byte-precise enough for the persona-emitter
     CLI use case (the input is a plain dict with str/int/bool/list
@@ -280,9 +279,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="wakir-marker-stack-emit",
         description=(
-            "Emit a Sprint-Migration-Pilot-Phase marker event with "
+            "Emit a migration-pilot-phase marker event with "
             "JCS canonical-form + V-907 linear hash-chain "
-            "(Sprint-Pengine-7 Tag-5 OI-PILOT-3)."
+            "(OI-PILOT-3)."
         ),
     )
     p.add_argument(

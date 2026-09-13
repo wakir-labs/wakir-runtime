@@ -68,12 +68,12 @@ _TXT_RE = re.compile(r"^v=1;\s*sha256=([0-9a-f]{64})$")
 
 
 # Phase-1b minimum cache TTL, in seconds. V-908 spec §3.4 plus
-# Tag-4 risk-item §8.2 ("TTL-spoofing-risiko bei niedrigen Cache-TTLs"):
+# risk-item §8.2 ("TTL-spoofing-risiko bei niedrigen Cache-TTLs"):
 # we refuse to honour DNS-derived TTLs below this floor when the caller
 # uses :func:`fetch_anchor` to drive a cache. The actual cache lives in
 # the federation resolver (item I-5), not here; this floor is the
 # normatively-minimum value that callers MUST clamp against. See
-# V-908 spec §3.4 for the spec-level wording added in Tag-5 (B-Mikro).
+# V-908 spec §3.4 for the spec-level wording.
 MIN_TTL_FLOOR_S: int = 60
 
 
@@ -108,7 +108,7 @@ class TxtResolver(Protocol):
     Python strings, with surrounding zone-file quotes already stripped
     and multi-character-string TXT records (RFC 1035 §3.3.14) already
     concatenated into a single string per the V-908 §3.4 normative
-    rule (Tag-5 minor edit; see §3.4 of the spec for canonical wording).
+    rule (minor edit; see §3.4 of the spec for canonical wording).
 
     Returning ``[]`` means NXDOMAIN, NoAnswer, or a successful query
     with no TXT records. The caller distinguishes "absent" from
@@ -140,9 +140,9 @@ class StdlibDoHResolver:
     all providers fail it raises :class:`DnsAnchorError` carrying the
     last-seen exception; the caller does not retry.
 
-    Tag-4 verification (2026-05-06): both providers return RFC-8484
+    verification (2026-05-06): both providers return RFC-8484
     JSON with HTTP 200 and ``Status: 0`` for live ``example.com``
-    TXT lookups in the project sandbox. Tag-4 outbox §1 / §7.
+    TXT lookups in the project sandbox. outbox §1 / §7.
 
     Args:
         providers: Tuple of DoH JSON endpoint URLs. Default is
@@ -241,7 +241,7 @@ class StdlibDoHResolver:
         RFC 1035 §3.3.14 allows a TXT RR to consist of multiple
         ``<character-string>`` segments. DoH-JSON encodes such records
         as ``"first" "second"`` (space-separated, each segment quoted)
-        in the ``data`` field. V-908 §3.4 (Tag-5 minor edit) requires
+        in the ``data`` field. V-908 §3.4 (minor edit) requires
         the resolver to concatenate these segments before returning,
         so the caller sees the same single-string payload regardless
         of the wire-level segmentation.
@@ -313,12 +313,12 @@ class DnsPythonResolver:
     StdlibDoHResolver path remains usable in dependency-restricted
     environments.
 
-    Future-default note (Tag-4 outbox §1.2): once the
+    Future-default note (outbox §1.2): once the
     ``dnspython``-pip-install policy is decided (PS-1, owned by CTO /
     CEO), this resolver becomes the production default for deployments
     where ``dnspython`` is on the path. DoH stays as a fallback for
     sandbox / minimal-dep environments and as the implementation-
-    equivalence cross-check (Tag-4 outbox §2.3 test category 3).
+    equivalence cross-check (outbox §2.3 test category 3).
 
     Args:
         nameservers: Optional explicit list of resolver IPs. ``None``

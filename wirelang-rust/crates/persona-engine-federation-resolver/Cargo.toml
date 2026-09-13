@@ -10,14 +10,14 @@
 # signs federation frames coming from that org/cluster pair, accounting
 # for key-rotation history and overlapping validity windows.
 #
-# Phase-3a positioning (Tag-24 Mini-Welle, 9. Modul)
+# Phase-3a positioning (9. Modul)
 # --------------------------------------------------
-# Tag-24 (Phase-3a-Python-Sync). The federation-frame-parser (Tag-14 PR
+# the Python sync. The federation-frame-parser (PR
 # #148 Rust, PR #157 Python) ships a typed frame parser without an
 # associated higher-layer resolver. This crate supplies that resolver
 # as a byte-cross-lang-parity sibling of the Python module
 # `wirelang/identity/federation_resolver_canonical.py` (PR
-# parameter — same Tag-24 bundle as this crate).
+# parameter — same bundle as this crate).
 #
 # Cross-language posture (byte-identical Python sibling)
 # ------------------------------------------------------
@@ -50,11 +50,11 @@
 # lexicographically by `(org_id, cluster_id, valid_from)` before
 # emission. The fixture vectors pin the exact byte output.
 #
-# Hard-Constraints (per Sprint-Auftrag)
+# Hard-Constraints (per crate brief)
 # -------------------------------------
 # - No touches to `wirelang/persona_engine/`,
 #   `wirelang/federation/`, or `wirelang/identity/federation_resolver.py`
-#   (the V-908 AIP-doc resolver is left untouched; the Tag-24 Python
+#   (the V-908 AIP-doc resolver is left untouched; the Python
 #   sibling lives at `wirelang/identity/federation_resolver_canonical.py`).
 # - No LICENSING / NOTICE / .github/workflows touches.
 # - `cargo test -p persona-engine-federation-resolver` must run green.
@@ -74,14 +74,14 @@
 # -----------
 # - ADR-0063 §Folgeartefakte Phase-3a Item 9 (federation-frame-parser;
 #   downstream consumer of this resolver).
-# - Reza PR #148 (Sprint-Federation-Frame-Parser-Rust) -- frame parser.
-# - Reza PR #157 (Sprint-Federation-Frame-Python-Sync) -- Python frame
+# - PR #148 (the Rust frame parser) -- frame parser.
+# - PR #157 (the Python-sync) -- Python frame
 #   parser sibling.
-# - Reza PR #176 (Tag-20) -- recovery-workflow canonical-projection
+# - PR #176 -- recovery-workflow canonical-projection
 #   reference (multi-record snapshot shape).
-# - Reza PR #177 (Tag-21) -- lifecycle-FSM canonical-trace reference
+# - PR #177 -- lifecycle-FSM canonical-trace reference
 #   (sibling-module + cross-lang fixture pattern).
-# - Reza PR #183 (Tag-23) -- state-backing cross-lang parity reference
+# - PR #183 -- state-backing cross-lang parity reference
 #   (InMemory* + 5-fixture file pattern).
 
 [package]

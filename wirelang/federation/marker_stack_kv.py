@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: BUSL-1.1
-"""Persistent marker-stack NATS-KV backend (Sprint-8 Tag-4).
+"""Persistent marker-stack NATS-KV backend.
 
-Sprint-8 Tag-3 (``wirelang.federation.marker_composition``) shipped
-the pure in-memory marker-stack reducer. In production the marker
+``wirelang.federation.marker_composition`` supplies the pure
+in-memory marker-stack reducer. In production the marker
 stack must survive operator-process restarts and be replayable for
 cross-org audit-trail recovery. This module is the persistent tier:
 an **append-only event-sourced NATS-KV bucket per organisation**
@@ -13,7 +13,7 @@ given ``(org_id, capability_token_id)`` pair.
 Why event-sourced
 -----------------
 
-The Sprint-8 Tag-3 reducer is **deterministic and sort-stable**:
+The reducer is **deterministic and sort-stable**:
 out-of-order arrivals collapse to the same verdict. Persisting
 individual events (rather than overwriting a single
 ``MarkerStack`` blob) is therefore a natural fit:
@@ -22,12 +22,11 @@ individual events (rather than overwriting a single
   bucket under a monotonically-increasing sequence number. Two
   appends for the same token-id never overwrite each other.
 - :meth:`GetMarkerStack` reads all events for the token-id and
-  hands them to the Sprint-8 Tag-3
-  :func:`reduce_marker_stack` for a byte-identical verdict.
+  hands them to the :func:`reduce_marker_stack` for a byte-identical verdict.
 - :meth:`WatchMarkerStack` streams new event appends to a
   consumer for live audit-trail recovery.
 
-This mirrors the **Sprint-5 Tag-2 capability-policy backend**
+This mirrors the **capability-policy backend**
 pattern (a single bucket with per-key envelopes) but with two
 deliberate differences:
 
@@ -37,7 +36,7 @@ deliberate differences:
    accumulation.
 2. **Per-organisation bucket isolation**: each org gets its own
    bucket ``wakir-marker-stack-{org_id}``. Cross-org reads MUST
-   go through the Sprint-7 cross-trust-domain bridge surface;
+   go through the cross-trust-domain bridge surface;
    there is no shared bucket that one org can directly read
    from another.
 
@@ -46,7 +45,7 @@ Bucket identity
 
 Bucket name: ``wakir-marker-stack-{org_id}`` (deterministically
 derived from a validated ``org_id``). ``org_id`` follows the same
-permitted-character regex as Sprint-7 ``peer_org`` predicates
+permitted-character regex as ``peer_org`` predicates
 (URI-safe ASCII subset, no slashes, no whitespace).
 
 Key schema: ``marker-events/<capability_token_id>/<sequence>``
@@ -70,7 +69,7 @@ Each KV value is a JSON object with these fields:
 - ``event_kind``: one of ``"revoke"``, ``"unrevoke"``,
   ``"re_issuance"``, ``"caveat_override"``, ``"bridge_revoked"``.
 - ``event_payload``: a JSON object carrying the per-event-kind
-  fields (decodes to the corresponding Sprint-8 Tag-3 event
+  fields (decodes to the corresponding event
   dataclass).
 - ``stack_context``: a JSON object carrying the marker-stack
   identity fields (``minted_at``, ``original_caveat_set``); the
@@ -91,7 +90,7 @@ Each org operates against its own
 backend) return :class:`MarkerStackCrossOrgBoundaryError`
 without I/O — the org-id mismatch is a hard refusal, not a
 silent empty stack. Cross-org reads MUST go through the
-explicit Sprint-7 ``SpiffeCrossTrustDomainBridge`` /
+explicit ``SpiffeCrossTrustDomainBridge`` /
 ``MultiOrgAttestationEnvelope`` surfaces, which are out of
 scope for this module.
 
@@ -99,27 +98,25 @@ Reducer integration
 -------------------
 
 :meth:`GetMarkerStack` returns a fully-constituted
-:class:`MarkerStack` ready to hand to the Sprint-8 Tag-3
-:func:`reduce_marker_stack`. The verdict is byte-identical to
+:class:`MarkerStack` ready to hand to the :func:`reduce_marker_stack`. The verdict is byte-identical to
 what an in-memory caller would have computed from the same
 sequence of events: the persistent tier is a **transport layer
 for the same reducer**, never a replacement.
 
-Phase-2 Sprint-8 Tag-4 boundary
+boundary
 -------------------------------
 
 - This module ships **persistent storage and live recovery**.
-  It does NOT introduce new reducer rules; the Sprint-8 Tag-3
-  reducer is byte-unchanged.
+  It does NOT introduce new reducer rules; the reducer is byte-unchanged.
 - This module enforces **per-org bucket isolation**; it does
   NOT implement cross-org bridge operations. Cross-org reads
   are explicit operator-deliberate gestures wired through the
-  Sprint-7 bridge surface.
+  bridge surface.
 - This module persists events with **append-only semantics**;
   there is no UPDATE or DELETE on individual events. Operators
   who need to redact a poisoned event MUST issue a PURGE on the
-  entire token-id key-space (a separate operator-tool, out of
-  scope for Tag-4) and re-bootstrap. The audit-trail invariant
+  entire token-id key-space (a separate operator tool, out of
+  scope here) and re-bootstrap. The audit-trail invariant
   forbids silent event mutation.
 - This module does NOT bake CAS-pin on event-payload contents;
   the CAS-pin invariant is on the **sequence number** axis only
@@ -130,21 +127,16 @@ Sandbox boundary
 
 Live NATS connections are operator-hand (per
 ``feedback_sandbox_host_trennung.md`` memory). All tests in this
-module run against an in-memory mock that mirrors the Sprint-5
-Tag-2 :class:`_MockKv` shape.
+module run against an in-memory mock that mirrors the :class:`_MockKv` shape.
 
 References
 ----------
 
-- Reducer source: Sprint-8 Tag-3
-  :mod:`wirelang.federation.marker_composition`.
-- Pattern source: Sprint-5 Tag-2
-  :mod:`wirelang.schemas.capability_policy_nats_kv_backend`.
-- Cross-trust-domain bridge: Sprint-7 Tag-3
-  ``SpiffeCrossTrustDomainBridge``.
+- Reducer source: :mod:`wirelang.federation.marker_composition`.
+- Pattern source: :mod:`wirelang.schemas.capability_policy_nats_kv_backend`.
+- Cross-trust-domain bridge: ``SpiffeCrossTrustDomainBridge``.
 - Spec: ``wirelang/specs/schema-registry-spec.md`` §5.16
   (added in v0.31.0).
-- Reza Persona §2 (Capability-Token-Layer: Reza-Owner-Domain).
 """
 
 from __future__ import annotations
@@ -193,7 +185,7 @@ BUCKET_NAME_PREFIX = "wakir-marker-stack-"
 
 #: Documented bucket configuration. Drift-policy: any deviation
 #: between the live cluster and these values is reported as drift,
-#: never auto-corrected (same contract as Sprint-5 Tag-2).
+#: never auto-corrected (same contract as the other KV backends).
 BUCKET_CONFIG: Mapping[str, Any] = {
     "description": "Wirelang persistent marker-stack event log (Phase-2)",
     "history": 1,
@@ -366,7 +358,7 @@ class MarkerStackCrossOrgBoundaryError(MarkerStackBackendError):
     read or write events under ``org_id=B``.
 
     Cross-org reads are explicit operator-deliberate gestures that
-    flow through the Sprint-7 cross-trust-domain bridge surface
+    flow through the cross-trust-domain bridge surface
     (``SpiffeCrossTrustDomainBridge`` /
     ``MultiOrgAttestationEnvelope``). A direct cross-bucket read
     via :class:`NatsKvMarkerStackBackend` is a configuration
@@ -406,7 +398,7 @@ class MarkerEventKind(enum.Enum):
     """Closed enumeration of supported event kinds for the
     persistent backend.
 
-    Byte-equal mirror of the five Sprint-8 Tag-3 event-dataclass
+    Byte-equal mirror of the five event-dataclass
     families. The string values are stable wire identifiers and
     MUST NOT be renamed without a major-version envelope bump.
     """
@@ -418,7 +410,7 @@ class MarkerEventKind(enum.Enum):
     BRIDGE_REVOKED = "bridge_revoked"
 
 
-# Type alias: any of the five Sprint-8 Tag-3 event dataclasses.
+# Type alias: any of the five event dataclasses.
 MarkerEvent = (
     RevokeEvent
     | UnrevokeEvent
@@ -564,7 +556,7 @@ def _decode_caveat_set(
 
 
 def _event_kind_for(event: MarkerEvent) -> MarkerEventKind:
-    """Map a Sprint-8 Tag-3 event dataclass to its wire enum."""
+    """Map a event dataclass to its wire enum."""
     if isinstance(event, RevokeEvent):
         return MarkerEventKind.REVOKE
     if isinstance(event, UnrevokeEvent):
@@ -576,7 +568,7 @@ def _event_kind_for(event: MarkerEvent) -> MarkerEventKind:
     if isinstance(event, BridgeRevokedEvent):
         return MarkerEventKind.BRIDGE_REVOKED
     raise MarkerStackArgumentError(
-        f"event must be a Sprint-8 Tag-3 marker event, got "
+        f"event must be a marker event, got "
         f"type={type(event).__name__}"
     )
 
@@ -634,7 +626,7 @@ def _encode_event_payload(event: MarkerEvent) -> Mapping[str, Any]:
             "wat_anchor_manifest_id": event.wat_anchor_manifest_id,
         }
     raise MarkerStackArgumentError(
-        f"event must be a Sprint-8 Tag-3 marker event, got "
+        f"event must be a marker event, got "
         f"type={type(event).__name__}"
     )
 
@@ -743,7 +735,7 @@ def _encode_envelope(
 
     The encoder uses sorted-key + compact-separator output so the
     bytes are reproducible byte-for-byte per caller, in line with
-    the Sprint-5 Tag-2 envelope contract.
+    the envelope contract.
     """
     kind = _event_kind_for(event)
     payload: dict = {
@@ -931,7 +923,7 @@ def _is_conflict_exception(exc: BaseException) -> bool:
 
 
 async def _list_keys(kv: Any) -> List[str]:
-    """List all keys in the bucket; mirrors the Sprint-5 Tag-2 helper."""
+    """List all keys in the bucket; mirrors the helper."""
     if hasattr(kv, "keys"):
         result = kv.keys()
         if hasattr(result, "__await__"):
@@ -1046,7 +1038,7 @@ class NatsKvMarkerStackBackend:
                 cross-org appends raise
                 :class:`MarkerStackCrossOrgBoundaryError`.
             capability_token_id: the token this event belongs to.
-            marker_event: a Sprint-8 Tag-3 event dataclass.
+            marker_event: a event dataclass.
             stack_context: the marker-stack identity. Validated
                 against any prior events for this token-id; a
                 mismatch raises
@@ -1159,7 +1151,7 @@ class NatsKvMarkerStackBackend:
 
         Returns ``None`` if no events have been logged for this
         token-id. The returned stack is ready to hand to the
-        Sprint-8 Tag-3 :func:`reduce_marker_stack`.
+        :func:`reduce_marker_stack`.
 
         Raises:
             :class:`MarkerStackCrossOrgBoundaryError`: if

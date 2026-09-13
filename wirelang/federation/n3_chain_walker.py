@@ -1,9 +1,8 @@
 # SPDX-License-Identifier: BUSL-1.1
 """V-908 N3 multi-FTD delegation-chain walker.
 
-This module is the Phase-1b Sprint-2 Tag-5 production-form of the
-delegation-chain walker. It is the third iteration after N1 (Sprint-1
-stub: vocabulary reservation only) and N2 (Sprint-2 Tag-3 live
+This module is the production-form of the
+delegation-chain walker. It is the third iteration after N1 (stub: vocabulary reservation only) and N2 (live
 evaluator: single-hop ``peer_org`` and ``federation_route``).
 
 The N3 walker answers a strictly-stronger version of the ``peer_org``
@@ -27,7 +26,7 @@ Design notes
 The walker is **stateless** with respect to time: the freshness of
 each hop's federation-route window is checked against the
 evaluator-pinned ``eval_now`` from the supplied
-:class:`FederationContext` (Tag-3 N2 contract preserved). The
+:class:`FederationContext` (N2 contract preserved). The
 walker does NOT consult the wall-clock independently. Determinism
 across re-runs is therefore an invariant of construction (T-N3-09).
 
@@ -94,9 +93,9 @@ References (URL-stamped 2026-05-07 by wirelang-eng):
   §5.1 "rooted at, or be reachable via a delegation chain that
   includes" / §5.5 "Phase-2 will extend this to delegation-chain
   walking".
-- Phase-2 spec §5.7 (this Tag-5 module's informative anchor).
+- Phase-2 spec §5.7 (this module's informative anchor).
 - N2 evaluator surface:
-  ``wirelang/federation/n2_evaluator.py`` (Tag-3, commit a8b08ae).
+  ``wirelang/federation/n2_evaluator.py`` (commit a8b08ae).
 """
 
 from __future__ import annotations
@@ -317,7 +316,7 @@ class ChainWalker:
     produce the same verdict (or the same typed error).
 
     The walker is pure-Python and has no external dependencies
-    beyond the Tag-3 N2 evaluator surface (``RouteRegistry`` Protocol,
+    beyond the N2 evaluator surface (``RouteRegistry`` Protocol,
     ``RouteRegistryEntry`` dataclass).
     """
 

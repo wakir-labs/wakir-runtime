@@ -30,13 +30,13 @@
 //!
 //! Zero new dependencies. No clap, no anyhow, no env_logger — the
 //! binary is a static-link-friendly thin shim for the Container-
-//! Image-Build-Pipeline (Tag-29 Mini-Welle, ADR-0066 Welle-2 image-
+//! Image-Build-Pipeline (ADR-0066 wave 2 image-
 //! build).
 //!
 //! Cross-references
 //! ----------------
 //!
-//! - ADR-0066 §Phase-3c Welle-2 `svid_workload_identity` — image-
+//! - ADR-0066 §Phase-3c wave 2 `svid_workload_identity` — image-
 //!   build pre-cutover. This binary is the artefact the
 //!   `.github/workflows/build-rust-cli-svid-workload-identity.yml`
 //!   workflow publishes.

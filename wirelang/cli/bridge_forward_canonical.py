@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Bridge-Forward-Pipe canonical-frame helpers (Tag-25 Mini-Welle).
+"""Bridge-Forward-Pipe canonical-frame helpers.
 
 This module is the **Python authority** for the cross-language
 canonical-frame surface of the Bridge-Forward-Pipe publisher. A
@@ -14,12 +14,12 @@ Why a sibling module?
 ---------------------
 
 The pre-existing :mod:`wirelang.cli.bridge_forward` module
-(Sprint-10 Tag-6, PR landed 2026-05-15) is the Mira-side publisher
+(PR landed 2026-05-15) is the operator-side publisher
 CLI. It already exposes the canonical helpers (:class:`AuftragEnvelope`,
 :func:`build_subject`, :func:`envelope_to_jcs_bytes`,
 :func:`validate_envelope`) under Apache-2.0; this sibling module
 **re-exports** those helpers AND adds the cross-lang contract
-surface that the Tag-25 Mini-Welle introduces:
+surface:
 
 - :func:`build_forward_frame` — pure-function frame constructor
   from a :class:`ForwardFrameInput` dataclass; mirrors the Rust
@@ -34,8 +34,8 @@ surface that the Tag-25 Mini-Welle introduces:
   prefixed_hash) for one-shot consumers.
 
 The pre-existing :mod:`wirelang.cli.bridge_forward` module is
-**unchanged** by this Tag-25 sibling; the CLI continues to honour
-its Sprint-10 Tag-6 contract and emits the same envelope bytes.
+**unchanged** by this sibling; the CLI continues to honour
+its contract and emits the same envelope bytes.
 The canonical helpers in this module are a **superset**: the
 forward-frame wire-shape adds a ``forward_frame`` outer wrapper
 around the existing envelope so the Rust pendant can emit and
@@ -49,7 +49,7 @@ The canonical forward-frame carries exactly three top-level fields
 (alphabetical):
 
 - ``envelope`` — The ``AuftragEnvelope.to_dict()`` projection of
-  the inner Sprint-10 Tag-6 envelope (nine-field shape: ``schema``,
+  the inner envelope (nine-field shape: ``schema``,
   ``event_kind``, ``org_id``, ``persona_id``, ``auftrag_id``,
   ``ts_utc``, ``source``, ``prompt_sha256``, ``prompt_payload``,
   ``metadata``). Sort-key invariance is delegated to the inner
@@ -89,14 +89,14 @@ Five fixture vectors map the surface:
 
 - f01-empty-payload — minimal envelope, empty ``prompt_payload`` /
   empty ``metadata``.
-- f02-single-record — Sprint-10 Tag-6 golden envelope (single
+- f02-single-record — golden envelope (single
   ``prompt_payload`` line, two-key metadata).
 - f03-multi-record-batch — five metadata keys, multi-line prompt.
 - f04-error-frame — wire-shape for the size-limit / validation
   rejection path: prompt at exact ``MAX_PROMPT_PAYLOAD_BYTES``
   boundary (still valid, byte-pinned).
 - f05-large-payload — 4 KiB + 1 byte prompt_payload (above the
-  4 KiB threshold mentioned in the Sprint-Auftrag).
+  4 KiB threshold).
 
 Schema-parity table (Python <-> Rust)
 --------------------------------------
@@ -119,19 +119,18 @@ Schema-parity table (Python <-> Rust)
 ADR anchors
 -----------
 
-- ADR-0063 §Folgeartefakte Phase-3a Item 10 (this Mini-Welle).
-- Reza PR #170 (Tag-18) — anchor-emitter Python sibling +
+- ADR-0063 §Folgeartefakte Phase-3a Item 10.
+- PR #170 — anchor-emitter Python sibling +
   cross-lang fixture pattern reference (sibling-module + 5-fixture
   file).
-- Reza PR #177 (Tag-21) — lifecycle-FSM canonical-trace cross-lang
+- PR #177 — lifecycle-FSM canonical-trace cross-lang
   fixture pattern reference.
-- Reza PR #183 (Tag-23) — state-backing cross-lang parity
+- PR #183 — state-backing cross-lang parity
   reference (InMemory* + 5-fixture file pattern).
-- Reza PR #188 (Tag-24) — federation-resolver cross-lang parity
+- PR #188 — federation-resolver cross-lang parity
   reference (most recent sibling).
-- Sprint-10 Tag-6 — original Sprint-10 Bridge-Forward-Pipe CLI
-  (PR landed 2026-05-15; spec at ``wirelang/specs/bridge-forward-
-  pipe-v1.md``).
+- the original Bridge-Forward-Pipe CLI (spec at
+  ``wirelang/specs/bridge-forward-pipe-v1.md``).
 """
 
 from __future__ import annotations
@@ -142,7 +141,7 @@ from dataclasses import dataclass, field
 from typing import Mapping, Optional, Tuple
 
 # Re-export the canonical helpers + size constants from the pre-existing
-# Sprint-10 Tag-6 CLI module. The CLI module is Apache-2.0; we do NOT
+# CLI module. The CLI module is Apache-2.0; we do NOT
 # duplicate the envelope construction logic here.
 from wirelang.cli.bridge_forward import (
     AGENT_TASK_ASSIGNED_SCHEMA,
@@ -189,7 +188,7 @@ class ForwardFrameInput:
     :class:`AuftragEnvelope`; the ``env`` and ``persona_slug`` fields
     are pulled in for subject construction. ``metadata`` is optional
     (defaults to empty); ``source`` and ``org_id`` default to the
-    Sprint-10 Tag-6 CLI defaults (``"mira-sandbox"`` / ``"acme"``).
+    CLI defaults (``"mira-sandbox"`` / ``"acme"``).
     """
 
     env: str
@@ -240,13 +239,12 @@ class ForwardFrame:
 def build_forward_frame(input_: ForwardFrameInput) -> ForwardFrame:
     """Construct a :class:`ForwardFrame` from a :class:`ForwardFrameInput`.
 
-    Pure function: no IO, no clock, no network. Re-uses the Sprint-10
-    Tag-6 :func:`build_subject` for subject construction (which also
+    Pure function: no IO, no clock, no network. Re-uses the :func:`build_subject` for subject construction (which also
     enforces the subject-mapping-v1 regex) and
     :class:`AuftragEnvelope` for the inner envelope. The forward-frame
     inherits the inner envelope's size invariants (callers MUST
     :func:`validate_envelope` the inner envelope to enforce the
-    Sprint-10 Tag-6 §3.3 size envelope).
+    spec §3.3 size envelope).
 
     :param input_: Logical input dataclass.
     :returns: Canonical :class:`ForwardFrame`.
@@ -326,7 +324,7 @@ def serialize_and_hash(frame: ForwardFrame) -> Tuple[bytes, str]:
 
 
 def validate_forward_frame(frame: ForwardFrame) -> None:
-    """Apply the Sprint-10 Tag-6 §3.3 size envelope to the inner envelope.
+    """Apply the spec §3.3 size envelope to the inner envelope.
 
     Raises :class:`SizeLimitError` (re-exported from the parent CLI
     module) if any size invariant is breached. The forward-frame
@@ -349,14 +347,14 @@ __all__ = [
     "MAX_AUFTRAG_ID_OCTETS",
     "MAX_METADATA_BYTES",
     "MAX_PROMPT_PAYLOAD_BYTES",
-    # Re-exported envelope helpers (Sprint-10 Tag-6).
+    # Re-exported envelope helpers.
     "AuftragEnvelope",
     "EnvelopeFormatError",
     "SizeLimitError",
     "build_subject",
     "envelope_to_jcs_bytes",
     "validate_envelope",
-    # Tag-25 cross-lang canonical surface.
+    # cross-lang canonical surface.
     "ForwardFrame",
     "ForwardFrameInput",
     "build_forward_frame",

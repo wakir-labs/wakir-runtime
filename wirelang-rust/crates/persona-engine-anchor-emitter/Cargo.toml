@@ -11,8 +11,8 @@
 # that downstream WAT spool / Merkle / OTS pipelines key on.
 #
 # Schema-parity authority is the Python helper pair in
-# `wirelang/persona/recovery_drill_anchor.py` (Selin / Reza
-# Sprint-Pengine-7 Tag-5 OI-PILOT-4 + OI-PEF-11):
+# `wirelang/persona/recovery_drill_anchor.py` (
+# OI-PILOT-4 + OI-PEF-11):
 #
 #   - `envelope_jcs_bytes(envelope) -> bytes`
 #     Returns the RFC 8785 JCS-canonical bytes for an envelope
@@ -54,7 +54,7 @@
 # `payload_hash=` kwarg of `write_bridge_audit`) accepts both the
 # bare-hex and the `sha256:`-prefixed forms via the WAT-spool
 # normaliser. The Rust pendant uses the prefixed form by default
-# because the Sprint-Auftrag explicitly specifies it
+# because the crate brief explicitly specifies it
 # (`"sha256:<hex>"`); the cross-lang smoke test pins both: the
 # prefixed Rust output AND the bare-hex Python form, so any drift
 # on either side is caught.
@@ -72,12 +72,12 @@
 # ADR anchors
 # -----------
 # - ADR-0063 §Folgeartefakte Phase-3a Item 7 (this crate).
-# - Selin / Reza Sprint-Pengine-7 Tag-5 OI-PILOT-4 + OI-PEF-11 —
+# - OI-PILOT-4 + OI-PEF-11 —
 #   recovery_drill_anchor.py is the helper-pair authority.
-# - Selin PR #131 (bridge-diff-rust) — cross-lang-hash-pin
+# - PR #131 (bridge-diff-rust) — cross-lang-hash-pin
 #   precedent (the FSM PR #137 and bridge-diff PR #131 patterns
 #   both pin the SHA-256 hex tail across Rust + Python).
-# - Reza PR #137 (persona-engine-fsm) — most recent sibling crate;
+# - PR #137 (persona-engine-fsm) — most recent sibling crate;
 #   workspace-pin pattern adopted here.
 # - WAT module `wat/anchor/__init__.py` — downstream consumer of
 #   the canonical payload bytes (OTS-Merkle-root substrate).
@@ -97,7 +97,7 @@
 # - hex        =0.4.3   : lower-case hex emission to match Python
 #                         `hashlib.sha256().hexdigest()` shape.
 #
-# Hard-Constraints (per Sprint-Auftrag)
+# Hard-Constraints (per crate brief)
 # -------------------------------------
 # - No touches to `wat/anchor/` (Python tree stays unchanged).
 # - No LICENSING / NOTICE / .github/workflows touches.
@@ -112,7 +112,7 @@ edition = "2021"
 rust-version = "1.85"
 license = "Apache-2.0"
 repository = "https://github.com/wakir-labs/wakir-runtime"
-authors = ["Reza Tehrani <reza@wakir.local>"]
+authors = ["Wakir Labs"]
 description = "Rust pendant of the WAT anchor-envelope emitter (JCS-canonical bytes + SHA-256 payload hash; parity with envelope_jcs_bytes/envelope_payload_hash in wirelang/persona/recovery_drill_anchor.py)."
 publish = false
 

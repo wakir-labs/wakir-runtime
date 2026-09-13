@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Federation-Resolver canonical-snapshot helpers (Tag-24 Mini-Welle).
+"""Federation-Resolver canonical-snapshot helpers.
 
 This module is the **Python authority** for the
 ``FederationResolver`` Protocol surface and the
@@ -26,14 +26,14 @@ Why a sibling module?
 
 The Phase-1b ``federation_resolver.py`` module is the V-908
 AIP-doc resolver: cross-org AIP-document fetch with FTD
-cross-check. The Tag-24 surface is **orthogonal**: a low-level
+cross-check. The surface is **orthogonal**: a low-level
 org-id -> cluster-id -> operator-org-public-key registry, used
 downstream by frame-signature verifiers, the WAT-anchor pipeline
 (per-frame operator attestation), and the Phase-2 ``peer_org``
 predicate evaluator.
 
 Keeping the helpers in a separate Apache-2.0 module preserves the
-Tag-21 / Tag-23 sibling-pattern Reza established for
+sibling-pattern used for
 ``lifecycle_state_machine_canonical`` and the persona-engine
 ``state_backing`` parity surface. The pre-existing
 ``federation_resolver.py`` (V-908 AIP-doc resolver) is **NOT**
@@ -104,16 +104,16 @@ ADR anchors
 
 - ADR-0063 §Folgeartefakte Phase-3a Item 9 (federation-frame
   parser; this module's downstream consumer).
-- Reza PR #148 (Sprint-Federation-Frame-Parser-Rust) -- Rust
+- PR #148 (federation-frame parser, Rust) -- Rust
   ``persona-engine-federation-frame-parser`` crate (frame parser
   authority).
-- Reza PR #157 (Sprint-Federation-Frame-Python-Sync) -- Python
+- PR #157 (federation-frame parser, Python sync) -- Python
   ``wirelang/federation/federation_frame.py`` sibling.
-- Reza PR #176 (Tag-20)   -- recovery-workflow canonical
+- PR #176 -- recovery-workflow canonical
   projection reference (multi-record snapshot shape).
-- Reza PR #177 (Tag-21)   -- lifecycle-FSM canonical-trace
+- PR #177 -- lifecycle-FSM canonical-trace
   reference (sibling-module + cross-lang fixture pattern).
-- Reza PR #183 (Tag-23)   -- state-backing cross-lang parity
+- PR #183 -- state-backing cross-lang parity
   reference (InMemory* + 5-fixture file pattern).
 """
 
@@ -152,7 +152,7 @@ DEFAULT_ALG = "Ed25519"
 
 
 class FederationResolverError(ValueError):
-    """Raised when caller-supplied input fails Tag-24 shape pre-
+    """Raised when caller-supplied input fails shape pre-
     conditions (malformed entries, duplicate (org, cluster, valid_from)
     triples, unknown algorithm, etc.).
     """
@@ -225,7 +225,7 @@ def _is_lower_hex(s: str, expected_len: int) -> bool:
 
 def _validate_entry(entry: OperatorOrgKeyEntry) -> None:
     """Raise :class:`FederationResolverError` if ``entry`` violates
-    Tag-24 shape pre-conditions.
+    shape pre-conditions.
 
     Checks:
 

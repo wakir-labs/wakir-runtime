@@ -185,7 +185,7 @@ def test_real_adapter_live_spiffe_path_is_operator_hand_blocked(
 ) -> None:
     """When auth_mode resolves to "live-spiffe", connect() refuses
     with NatsAdapterAuthenticationError — the live-SPIFFE-JWT path
-    is Operator-Hand-blocked per Sprint-7-Closeout-Stempel M-2.
+    is Operator-Hand-blocked per milestone M-2.
 
     The refusal happens AFTER the reachability-probe passes (we use
     a probe-side guard so the gate exercises with a reachable
@@ -212,7 +212,7 @@ def test_real_adapter_live_spiffe_path_is_operator_hand_blocked(
         # bypass instruction
         assert "Operator-Hand-block" in str(exc_info.value)
         assert "SPIRE_AGENT_SOCKET=none" in str(exc_info.value)
-        assert "Sprint-7-Closeout-Stempel M-2" in str(exc_info.value)
+        assert "milestone M-2" in str(exc_info.value)
 
     asyncio.run(_drive())
 

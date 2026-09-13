@@ -66,7 +66,7 @@ from cryptography.hazmat.primitives.serialization import (
 from . import _jcs_pure
 
 
-# Resolver indirection (Tag-9): see ``aip_signing._jcs_canonicalize``.
+# Resolver indirection: see ``aip_signing._jcs_canonicalize``.
 try:
     import rfc8785 as _rfc8785_lib
 

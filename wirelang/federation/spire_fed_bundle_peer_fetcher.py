@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: BUSL-1.1
 """SPIRE-Federation-Bundle peer-trust-bundle fetcher (Live-Component).
 
-Phase-2 Sprint-7 Pfad-B Tag-5 lands the **live-component** adapter
-that wires the Sprint-7 Tag-3 :class:`SpiffeCrossTrustDomainBridge`
-to the Sprint-8 Tag-1 ``infra/spire/federation/bin/spire_fed_bundle``
+This module is the **live-component** adapter
+that wires the :class:`SpiffeCrossTrustDomainBridge`
+to the ``infra/spire/federation/bin/spire_fed_bundle``
 hermetic-mode CLI. With this adapter on the bridge's
 ``trust_bundle_fetcher`` slot, a Wakir-side bridge can resolve a
 peer-org's trust-bundle by exporting the peer-org's hermetic-fixture
@@ -49,8 +49,8 @@ implement the same :class:`PeerTrustBundleFetcher` Protocol by
 issuing an HTTPS GET against the peer's bundle-endpoint listener
 (loopback-bound in the compose substrate, ``https_spiffe`` profile
 in production federation). The adapter shipped here is the bridge
-between hermetic-only Sprint-7 substrate and operator-hand-gated
-Sprint-8+ live federation trial.
+between the hermetic-only substrate and the operator-hand-gated
+live federation trial.
 
 Caching
 =======
@@ -82,14 +82,6 @@ is the *bridge-consumed* artefact: the bridge stores it as the
 production federation, the same URL is the
 ``https_spiffe://``-shaped bundle-endpoint URL.
 
-ADR-0050 Tool-Surface-Stempel
-=============================
-
-This file was authored using Read, Edit, Write, Bash. No
-Agent-Tool, no WebFetch within this module. Pre-Box-Worktree
-ADR-0049 ``/tmp/reza-sprint-7-pfad-b-tag-5-runtime`` (suffix
-``-runtime`` per Cross-Agent-Worktree-Collision policy), forked
-from ``origin/main`` tip ``a2647ba``.
 
 ADR-0051 Sandbox-Boundary
 =========================
@@ -97,22 +89,22 @@ ADR-0051 Sandbox-Boundary
 This module is **hermetic-only**. It does NOT call podman, does NOT
 shell out to a live SPIRE-Server container, and does NOT depend on
 any operator-hand artefact. The live-mode counterpart is a
-Phase-2c Sprint-8+ artefact that lives in its own module so the
+Phase-2c artefact that lives in its own module so the
 Sandbox-Host trennung (feedback_sandbox_host_trennung.md) is
 preserved at the import-graph layer.
 
 Cross-Review Zone-O
 ===================
 
-This module is a Reza-side Wirelang substrate (Zone-O Reza-track).
+This module is a Wirelang-side Wirelang substrate (Zone-O Wirelang track).
 Cross-review consumers:
 
-- **D-2 Kai (DevOps/SPIRE-Federation-Bundle-Endpoint):** the URL
+- **D-2 DevOps (DevOps/SPIRE-Federation-Bundle-Endpoint):** the URL
   shape this adapter consumes (``https://...`` bundle-endpoint
-  URLs) MUST match the Kai-side SPIRE-Server config
+  URLs) MUST match the the DevOps track-side SPIRE-Server config
   ``federation.bundle_endpoint`` listener configuration. The
   Phase-2c live fetcher will hit the same URL.
-- **D-1 Tomás (WAT-Audit-Federation-Annex):** the
+- **D-1 WAT (WAT-Audit-Federation-Annex):** the
   :class:`FetchedTrustBundle.bundle_bytes` this adapter returns
   is what the WAT-Audit-Federation-Annex sweep anchors as the
   cross-org trust-bundle leaf.

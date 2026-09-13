@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """``registered_by`` capability-gating for schema-registry entries
-(Phase-2 Sprint-4 Tag-6).
+.
 
 This module is the Layer-3 capability-gating tier for Phase-2 schema-
 registry signing. It binds the ``registered_by`` field of a
@@ -40,11 +40,11 @@ Design contract (spec §5.12):
    - ``note``: optional free-form audit string (carried verbatim into
      the :class:`CapabilityGateDecision` for downstream logs).
 
-3. **Glob semantics.** Tag-6 ships ``fnmatch`` glob matching for
+3. **Glob semantics.** The gate uses ``fnmatch`` glob matching for
    schema names. The layer field is matched literally with one
    wildcard escape (``"*"``). This is intentionally restrictive: more
    expressive policy languages (regex, Datalog) are out of scope for
-   Tag-6 and remain Phase-3 slots.
+   and remain Phase-3 slots.
 
 4. **Decision shape.** Every gate call returns a
    :class:`CapabilityGateDecision`. The decision records ``allowed``
@@ -60,7 +60,7 @@ Design contract (spec §5.12):
    first allowing match. A policy missing the entry's
    ``registered_by`` is invisible to the gate.
 
-Phase-2 Sprint-4 Tag-6 boundary (spec §5.12 boundary block):
+boundary (spec §5.12 boundary block):
 
 - This module ships the policy bundle, the registry, and the gating
   function. It does NOT ship Biscuit binary token machinery (Phase-3:
@@ -80,17 +80,17 @@ Phase-2 Sprint-4 Tag-6 boundary (spec §5.12 boundary block):
 
 Cross-Review-Zone-1 (Identity-Substrate) interaction:
 
-- Z-1-K-Sprint-4-1 (kid-Resolver-Shape) is consumed *upstream* by the
+- The kid-resolver shape is consumed *upstream* by the
   caller; the gate takes the ``signature_block["kid"]`` byte-equal as
   the caller supplied it and checks set-membership against
   ``allowed_kids``. The gate does NOT call
   :func:`wirelang.identity.kid_resolver.resolve_kid`.
-- Z-1-K-Sprint-4-2 (JCS-Resolver-Lock) is non-touched: the gate does
+- The JCS resolver lock is non-touched: the gate does
   not canonicalise anything; it is policy-evaluation only.
-- Z-1-K-Sprint-4-3 (Curve-Choice = Ed25519) is reinforced indirectly:
+- The curve choice (Ed25519) is reinforced indirectly:
   the gate operates on the entry-signing layer (which is Ed25519); it
   carries no curve choice of its own.
-- Z-1-K-Sprint-4-4 (STRICT-Mode-Activation-Owner) is non-touched:
+- STRICT-mode activation ownership is non-touched:
   the gate is *additional* policy and is orthogonal to the
   :class:`wirelang.schemas.entry_signing.VerifyMode` toggle.
 
@@ -100,9 +100,7 @@ References:
 - Schema-registry spec §5.8 (entry-signing layer; the upstream
   cryptographic primitive).
 - :file:`wirelang/schemas/layer-3-capability-token.json` (the
-  Wakir-Wirelang Layer-3 Biscuit v3 wrapper JSON schema; this Tag-6
-  layer is a *prelude* to the full Biscuit machinery).
-- Reza Persona §2 (Capability-Token-Layer: Reza-Owner-Domain).
+  Wakir-Wirelang Layer-3 Biscuit v3 wrapper JSON schema; this layer is a *prelude* to the full Biscuit machinery).
 """
 
 from __future__ import annotations
@@ -184,14 +182,14 @@ class CapabilityPolicy:
     not_after: Optional[datetime] = None
     disabled: bool = False
     note: Optional[str] = None
-    # Phase-2 Sprint-6 Tag-1: explicit revocation surface.
+    # explicit revocation surface.
     # ``revoked_at`` is the wall-clock instant at which the policy
     # becomes revoked; if supplied, the gate denies any call with
     # ``as_of >= revoked_at`` with source ``POLICY_REVOKED``.
     # ``revocation_reason`` is a free-form audit string (carried into
     # the decision for downstream logs). Both fields default to
     # ``None`` (no revocation); shape is additive to the
-    # Sprint-4 Tag-6 bundle. Revocation has *precedence* over disabled
+    # bundle. Revocation has *precedence* over disabled
     # / kid / triple / window checks: a revoked policy denies
     # categorically once the revocation instant has passed.
     revoked_at: Optional[datetime] = None
@@ -261,7 +259,7 @@ class CapabilityPolicy:
                 f"note must be a string or None: type="
                 f"{type(self.note).__name__}"
             )
-        # Phase-2 Sprint-6 Tag-1: revocation field validation.
+        # revocation field validation.
         if self.revoked_at is not None and not isinstance(
             self.revoked_at, datetime
         ):
@@ -389,13 +387,13 @@ def _is_revoked(
     """Return True iff the policy carries an explicit revocation and
     ``as_of`` has reached or passed the revocation instant.
 
-    Phase-2 Sprint-6 Tag-1: an unrevoked policy returns False
+    an unrevoked policy returns False
     regardless of ``as_of``. A revoked policy returns True for any
     ``as_of`` greater than or equal to ``policy.revoked_at``. When
     ``as_of`` is ``None`` (callers that omit time-gating intent), a
     revoked policy is treated as revoked unconditionally — revocation
     is a categorical authority gesture, not a window. This is
-    deliberately stricter than the Sprint-4 Tag-6 ``_window_contains``
+    deliberately stricter than the ``_window_contains``
     semantics for ``not_before`` / ``not_after`` (which skip on
     ``as_of=None``); a revocation must never be silently bypassed by
     a verifier that omits a clock.
@@ -511,7 +509,7 @@ def check_registered_by_capability(
     all_disabled = True
 
     for policy in candidates:
-        # Phase-2 Sprint-6 Tag-1: revocation has top precedence.
+        # revocation has top precedence.
         # An issuer's revoked policy is filtered out before the
         # disabled / kid / triple / window checks; a revoked policy
         # never produces an allow decision, regardless of any other

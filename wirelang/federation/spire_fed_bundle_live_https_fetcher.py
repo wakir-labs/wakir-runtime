@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: BUSL-1.1
 """SPIRE-Federation-Bundle live HTTPS peer-trust-bundle fetcher (Phase-2c).
 
-Phase-2 Sprint-7 Pfad-B Tag-6 lands the **Phase-2c live HTTPS
-counterpart** to the Sprint-7 Pfad-B Tag-5 hermetic-mode
+This module is the **Phase-2c live HTTPS
+counterpart** to the hermetic-mode
 :class:`SpireFedBundlePeerTrustBundleFetcher`. The live fetcher
 implements the same :class:`PeerTrustBundleFetcher` Protocol so a
 Wakir-side bridge can be wired to either implementation
@@ -33,7 +33,7 @@ The live fetcher composes three on-disk surfaces:
 The adapter is **fail-closed at every step**:
 
 - Trust-domain not in the pin set → :class:`UnpinnedTrustDomainError`
-  (re-used from the Tag-5 hermetic module).
+  (re-used from the hermetic module).
 - Bridge-supplied URL ≠ pinned URL for the trust-domain →
   :class:`UrlTrustDomainMismatchError` (also re-used).
 - Network / DNS / TCP failure → :class:`LiveBundleFetchError`
@@ -68,13 +68,13 @@ any other suffix (``/bundle``, ``/spiffe/bundle``) will yield a
 ``404 Not Found`` from the SPIRE-Server and surface as
 :class:`LiveBundleHttpStatusError` on the adapter side.
 
-This decision closes the **Tag-5 Open-Item** (``2026-05-14
+This decision closes the **Open-Item** (``2026-05-14
 sprint-7-pfad-b-tag-5-federation-live-component.md`` cross-review
-Zone-A D-2 Kai): the Tag-5 hermetic adapter's pinned-URL shape
+Zone-A D-2 DevOps): the hermetic adapter's pinned-URL shape
 included a ``/bundle`` suffix because the hermetic exporter is
 opaque to URL — only the trust-domain literal feeds the JWKS
 fixture. For the live fetcher the URL is **load-bearing** and
-MUST be root-path. The Tag-5 hermetic adapter's URL-suffix
+MUST be root-path. The hermetic adapter's URL-suffix
 convention is therefore a *hermetic-mode convenience* and does NOT
 constrain the live-mode pin set.
 
@@ -90,8 +90,7 @@ The live fetcher accepts two TLS modes via the constructor:
    CAs. This is the boring-default for any production federation.
 2. ``insecure_tls`` (Phase-2c-pilot only): boolean. When ``True``,
    the fetcher disables certificate validation entirely. This is
-   the **pilot-stand** posture documented in Mira's Sprint-7 Pfad-B
-   Tag-6 inbox: the two pilot VMs (wakir-pilot 192.168.178.116 and
+   the **pilot-stand** posture of the pilot stand: the two pilot VMs (wakir-pilot 192.168.178.116 and
    wakir-orbit 192.168.178.191) currently run with self-signed
    SPIRE-Server certs and no shared CA-bootstrap path yet. The
    ``insecure_tls=True`` mode is gated by an explicit constructor
@@ -109,8 +108,7 @@ ADR-0051 Sandbox-Boundary
 =========================
 
 This module is **the** live-counterpart module. The
-:mod:`wirelang.federation.spire_fed_bundle_peer_fetcher` Tag-5
-hermetic module remains hermetic-only; *this* module is the
+:mod:`wirelang.federation.spire_fed_bundle_peer_fetcher` hermetic module remains hermetic-only; *this* module is the
 explicit boundary-crossing surface. Callers that opt into live
 federation MUST import this module explicitly — the import-graph
 signal is the architectural marker for the Sandbox-Host trennung
@@ -123,21 +121,21 @@ on ``/``, and the live fetcher hits it. The boundary-crossing
 artefact in production is the operator-hand TLS-CA-bootstrap, not
 the test surface.
 
-Cross-Review Zone-A (Kai)
+Cross-Review Zone-A (the DevOps track)
 =========================
 
 The URL shape this fetcher consumes (``https://<peer-host>:8443``,
 root path, no suffix) is the canonical SPIRE-Server federation
-bundle endpoint URL form. Kai's
+bundle endpoint URL form. the DevOps track's
 ``infra/spire/federation/config/spire-server-{orbit,wakir}.conf``
 ``federation { bundle_endpoint { ... } }`` block configures the
 listener at ``port = 8443`` on the SPIRE-Server's bind address; the
 SPIRE-Server then serves the bundle at the listener's root path.
-The two pilot VMs' mutual DNS (Mira-Hand 2026-05-15 04:53 CEST via
+The two pilot VMs' mutual DNS (operator-hand 2026-05-15 04:53 CEST via
 ``/etc/hosts``) maps ``wakir-pilot`` and ``wakir-orbit`` to their
 respective IPs so the URL is hostname-keyed, NOT IP-keyed.
 
-Cross-Review Zone-Q (Amara, optional)
+Cross-Review Zone-Q (QA, optional)
 =====================================
 
 The fail-closed-gate test inventory in
@@ -176,8 +174,8 @@ from .spire_fed_bundle_peer_fetcher import (
 
 #: Schema-URI fragment for this live fetcher. Carried in
 #: :attr:`LiveHttpsSpireFedBundleFetcher.adapter_schema` so downstream
-#: audit consumers can disambiguate the hermetic Tag-5 surface from the
-#: live Tag-6 surface by schema-pin rather than by class identity.
+#: audit consumers can disambiguate the hermetic surface from the
+#: live surface by schema-pin rather than by class identity.
 SPIRE_FED_BUNDLE_LIVE_HTTPS_FETCHER_SCHEMA = (
     "wakir.federation.spire-fed-bundle-live-https-fetcher/1"
 )
@@ -212,10 +210,9 @@ class SpireFedBundleLiveFetcherError(Exception):
     test surface a precise type to assert against for live-fetcher-
     side failure modes (vs. bridge-wrapped errors).
 
-    All concrete live-fetcher errors subclass this base. The Tag-5
-    pin-set errors (:class:`UnpinnedTrustDomainError` and
+    All concrete live-fetcher errors subclass this base. The pin-set errors (:class:`UnpinnedTrustDomainError` and
     :class:`UrlTrustDomainMismatchError`) are re-used from the
-    hermetic Tag-5 module — they parent
+    hermetic module — they parent
     :class:`SpireFedBundlePeerFetcherError` there, NOT this base.
     Callers that want to absorb every adapter-side error uniformly
     catch ``(SpireFedBundleLiveFetcherError,
@@ -337,8 +334,7 @@ class LiveHttpsSpireFedBundleFetcher:
     Construction:
 
     - ``trust_domain_to_url``: mapping from trust-domain literal to
-      the URL the bridge will consume. Same shape as the Tag-5
-      hermetic adapter so an operator can swap one for the other
+      the URL the bridge will consume. Same shape as the hermetic adapter so an operator can swap one for the other
       via a single constructor call. URLs MUST resolve to the
       SPIRE-Server federation bundle endpoint root path (no path
       suffix); see module docstring "URL contract — root-path
@@ -364,11 +360,12 @@ class LiveHttpsSpireFedBundleFetcher:
     Resolution contract (:meth:`fetch`):
 
     1. Reject if ``trust_domain`` is not in the pinned mapping
-       (raise :class:`UnpinnedTrustDomainError` — re-used from
-       Tag-5).
+       (raise :class:`UnpinnedTrustDomainError` — re-used from the
+       hermetic fetcher).
     2. Reject if ``url`` does not equal the pinned URL for the
        requested ``trust_domain`` (raise
-       :class:`UrlTrustDomainMismatchError` — re-used from Tag-5).
+       :class:`UrlTrustDomainMismatchError` — re-used from the
+       hermetic fetcher).
     3. Issue an HTTPS GET against the pinned URL inside
        :func:`asyncio.to_thread` (so the bridge's asyncio event
        loop is not blocked). The TLS posture is determined by
@@ -399,7 +396,7 @@ class LiveHttpsSpireFedBundleFetcher:
         )
 
     The URLs above are the canonical Phase-2c pilot URLs given the
-    mutual DNS resolution Mira-Hand-set on both VMs (2026-05-15
+    mutual DNS resolution operator-hand-set on both VMs (2026-05-15
     ~04:53 CEST).
     """
 

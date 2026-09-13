@@ -7,9 +7,9 @@ for the JSON subset used by Wakir Phase-1b documents (AIP-document,
 FTD-document, federation-document, DID-document).
 
 The module is intentionally lifted out of ``ftd_verifier._local_jcs``
-(Tag-6) so that ``aip_signing``, ``did_document_signing`` and any
+ so that ``aip_signing``, ``did_document_signing`` and any
 future signer / verifier can share a single canonicaliser without
-duplicating it. Tag-9 introduced this central module as part of the
+duplicating it. This module introduced this central module as part of the
 "resolver indirection" pattern: production callers wrap the import
 in a ``try/except`` and fall back to :func:`canonicalize` when the
 ``rfc8785`` package is not installed in the runtime environment.
@@ -55,7 +55,7 @@ def canonicalize(value: object) -> bytes:
     The output is byte-identical to ``rfc8785.dumps(value)`` for the
     JSON subset exercised by Phase-1b documents; cross-equivalence is
     verified by ``test_jcs_pure_matches_rfc8785_per_vector`` in the
-    Tag-9 test suite.
+    test suite.
 
     Args:
         value: A JSON-compatible Python object. Permitted types:

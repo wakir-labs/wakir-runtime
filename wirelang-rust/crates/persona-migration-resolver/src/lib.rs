@@ -62,11 +62,11 @@
 //! - **A-3 Body out-of-hash:** markdown body bytes are dropped by
 //!   `split_frontmatter` and never reach this crate's hash path.
 //!
-//! Scope cut (Phase-1c Sprint-4 Tag-5)
+//! Scope cut
 //! -----------------------------------
 //!
 //! - **Persona-CLI (`wakir-persona migrate`):** Rust pendant lives in
-//!   a separate `persona-cli` crate (Sprint-5/6 candidate).
+//! a separate `persona-cli` crate.
 //! - **WAT-leaf migration-audit-trail (Phase-2 P2-01):** Cross-Review
 //!   Zone K, wat-eng owns; this crate emits the pre/post hash pair
 //!   on request but does not produce a WAT-frame.
@@ -125,9 +125,9 @@ pub use persona_migration::{
 /// Mirrors Python `PERSONA_SCHEMA_VERSION_LATEST`. Stays at
 /// `"persona-v1"` until the HR-slot ratifies persona-v2 content
 /// (ADR-0029-Annex) or the Default-Lock window lifts the
-/// engine-default-mock — neither has happened on Sprint-4 Tag-5, so a
-/// bare `migrate_persona(definition, None, None)` call still targets
-/// v1 by default.
+/// engine-default-mock — neither has happened on, so a bare
+/// `migrate_persona(definition, None, None)` call still targets v1 by
+/// default.
 pub const PERSONA_SCHEMA_VERSION_LATEST: &str = "persona-v1";
 
 /// Ordered list of all schema-versions known to this build.
@@ -874,7 +874,7 @@ mod tests {
     // Test fixtures: hand-built front-matter dicts matching the V8 / V9
     // canonical-subset shapes used by the sister `persona-migration`
     // crate's tests. Hashing path verified byte-identical against
-    // Python pins on 2026-05-11 (Sprint-4 Tag-4).
+    // Python pins on 2026-05-11.
     // -------------------------------------------------------------------
 
     /// V8 front-matter (schema_version=persona-v0).
@@ -1141,9 +1141,9 @@ mod tests {
 
     // -------------------------------------------------------------------
     // 13 / 10-iteration determinism stress on `migrate_persona` dispatcher
-    //      (Dict input, full V8 → V2 chain). Phase-1b Sprint-6 Tag-5
+    // (Dict input, full V8 → V2 chain). 
     //      pin-pack coverage extension — mirror of Crate-4 t11 / t12 and
-    //      Crate-1+2 Tag-3 patterns at the dispatcher layer rather than
+    // Crate-1+2 patterns at the dispatcher layer rather than
     //      the per-step layer.
     //
     //      Goal: a hash-evaluation non-determinism that lurks across the
@@ -1248,7 +1248,7 @@ mod tests {
     }
 
     // -------------------------------------------------------------------
-    // 15 / V8-chain-to-V2 hex-pin hard-freeze (Rust-only Sprint-6 Tag-5).
+    // 15 / V8-chain-to-V2 hex-pin hard-freeze (Rust-only).
     //
     //      Mirrors Crate-4 t13 / t14 hard-freeze pattern at the
     //      dispatcher layer. Pins the 64-hex tail of the

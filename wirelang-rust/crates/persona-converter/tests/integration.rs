@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-//! Integration tests for `persona-converter` (Sprint-Pengine-7 Tag-2,
-//! Crate-9).
+//! Integration tests for `persona-converter` (Crate-9).
 //!
 //! Spec anchor: `wirelang/specs/persona-engine-format-spec.md` v1.1
 //! (§4 mapping pipeline, §4.3.1 synthesis-default-exceptions table).
 //!
-//! Test inventory (Tag-2 floor: +10..+15 over Tag-1 base of 11):
+//! Test inventory (floor: +10..+15 over base of 11):
 //!
 //! - **T-PCV-01** — `from-claude --in <mira-fixture> --out <tmp>`
 //!   produces a non-empty file and exits 0.
@@ -25,9 +24,9 @@
 //!   success.
 //! - **T-PCV-11** — Argparse usage error (missing required `--in`)
 //!   exits 64.
-//! - **T-PCV-12** — Aisha-§4.3.1 exception: cfo-fixture conversion
+//! - **T-PCV-12** — spec §4.3.1 exception: cfo-fixture conversion
 //!   produces `identity_pinned.hierarchy.reports_to: "aufsichtsrat"`.
-//! - **T-PCV-13** — Aisha-§4.3.1 exception: internal-audit-fixture
+//! - **T-PCV-13** — spec §4.3.1 exception: internal-audit-fixture
 //!   conversion produces `identity_pinned.hierarchy.escalation:
 //!   "aufsichtsrat"`.
 //! - **T-PCV-14** — Default-personae (mira / kai / reza / pengine) all
@@ -47,12 +46,12 @@ use std::path::{Path, PathBuf};
 // ---------------------------------------------------------------------
 // Test-fixture inventory.
 //
-// The Tag-2 converter tests reuse the Tag-1 fixture pack from
+// The converter tests reuse the fixture pack from
 // `persona-engine-format/tests/fixtures/claude-agents/`. We resolve
 // the fixture path relative to CARGO_MANIFEST_DIR (this crate's own
 // dir) and walk one level up to the sister crate. Brand-Guide §9
 // posture: these fixtures are synthetic-anonymous (not the production
-// `.claude/agents/*.md` files); Aisha-Option-B ratification permits
+// `.claude/agents/*.md` files); the Option-B ratification permits
 // operator-side `examples/` paths to consume the real files separately,
 // but public-PR test fixtures stay synthetic.
 // ---------------------------------------------------------------------
@@ -90,8 +89,7 @@ fn fixture_path(slug: &str) -> PathBuf {
 fn tmp_path(base: &str) -> PathBuf {
     // Tests run in parallel; suffix with thread id + nanos for
     // uniqueness on the same filesystem. (We do not use the `tempfile`
-    // crate to keep the Sprint-Pengine-7 Tag-2 dependency footprint
-    // identical to Tag-1.)
+    // crate to keep the dependency footprint identical to.)
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let n = COUNTER.fetch_add(1, Ordering::SeqCst);
@@ -437,7 +435,7 @@ fn t_pcv_11_argparse_usage_error_exits_64() {
 }
 
 // ---------------------------------------------------------------------
-// T-PCV-12 — Aisha §4.3.1: cfo-fixture override produces
+// T-PCV-12 — spec §4.3.1: cfo-fixture override produces
 // reports_to=aufsichtsrat
 // ---------------------------------------------------------------------
 
@@ -468,16 +466,16 @@ fn t_pcv_12_aisha_exception_cfo_reports_to_aufsichtsrat() {
         .expect("escalation");
     assert_eq!(
         reports_to, "aufsichtsrat",
-        "Aisha §4.3.1: cfo reports_to MUST be aufsichtsrat"
+        "spec §4.3.1: cfo reports_to MUST be aufsichtsrat"
     );
     assert_eq!(
         escalation, "aufsichtsrat",
-        "Aisha §4.3.1: cfo escalation MUST be aufsichtsrat"
+        "spec §4.3.1: cfo escalation MUST be aufsichtsrat"
     );
 }
 
 // ---------------------------------------------------------------------
-// T-PCV-13 — Aisha §4.3.1: internal-audit-fixture override
+// T-PCV-13 — spec §4.3.1: internal-audit-fixture override
 // ---------------------------------------------------------------------
 
 #[test]
@@ -507,11 +505,11 @@ fn t_pcv_13_aisha_exception_internal_audit_escalation_aufsichtsrat() {
         .expect("escalation");
     assert_eq!(
         reports_to, "aufsichtsrat",
-        "Aisha §4.3.1: internal-audit reports_to MUST be aufsichtsrat"
+        "spec §4.3.1: internal-audit reports_to MUST be aufsichtsrat"
     );
     assert_eq!(
         escalation, "aufsichtsrat",
-        "Aisha §4.3.1: internal-audit escalation MUST be aufsichtsrat"
+        "spec §4.3.1: internal-audit escalation MUST be aufsichtsrat"
     );
 }
 
