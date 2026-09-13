@@ -5,7 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # external-verifier-validation(1) — Driver Manpage
 
-Status: Phase-2 Sprint-6 Tag-2 (2026-05-11).
+Status: Phase-2 (2026-05-11).
 Tool: `scripts/external_verifier_validation.py`
 Companion guide: [`external-verifier-conformance.md`](./external-verifier-conformance.md)
 
@@ -40,8 +40,8 @@ against a freshly-signed in-memory copy of the cohort.
 python scripts/external_verifier_validation.py
 ```
 
-Reads `tooling/external-verifier-ajv/test-vectors.json` (31 vectors as
-of Sprint-6 Tag-1), validates each against every available validator,
+Reads `tooling/external-verifier-ajv/test-vectors.json` (31 vectors at
+the time of writing), validates each against every available validator,
 emits per-validator reports and the N-way parity verdict.
 
 ### Real-cohort mode
@@ -58,7 +58,7 @@ validators AND the `verify_real_manifest_file` pipeline (integrity-
 rebuild + OTS-anchor side-files). `--real-tv2` and `--real-tv3` are
 mutually exclusive.
 
-### Signature-aware real-cohort mode (Sprint-6 Tag-2)
+### Signature-aware real-cohort mode
 
 ```sh
 python scripts/external_verifier_validation.py --real-tv2 --verify-signature
@@ -144,7 +144,5 @@ python scripts/external_verifier_validation.py --vectors my-vectors.json
 ## See also
 
 - [`external-verifier-conformance.md`](./external-verifier-conformance.md) — adoption guide and §7 driver-mode contract.
-- [`wat-manifest-v2-spec.md`](./wat-manifest-v2-spec.md) §11 — change log (Sprint-6 Tag-1 / Tag-2 entries).
+- [`wat-manifest-v2-spec.md`](./wat-manifest-v2-spec.md) §11 — change log.
 - [`tooling/external-verifier-ajv/README.md`](../tooling/external-verifier-ajv/README.md) — Node.js side runner.
-
-— Tomás

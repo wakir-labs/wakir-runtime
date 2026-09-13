@@ -51,7 +51,7 @@ after the Phase-4 W1 reduction from 16 to 10 contexts (ADR-0072).
 | 9 | `cosign verify SPIRE images` | `.github/workflows/cosign-verify-images.yml` | image pins | 2026-05 | ACTIVE |
 | 10 | `Cosign-Keyless-OIDC-Drift-Probe (daily)` | `.github/workflows/cosign-keyless-oidc-drift-probe.yml` | schedule + trust-root | 2026-05 | ACTIVE |
 | 11 | `runtime acceptance gates` | `.github/workflows/runtime-acceptance-gates.yml` | wirelang + tests + docs + workflows | 2026-09 (renamed from the Phase-2 aggregator) | PENDING-OPERATOR (add after first green run on `main`) |
-| 12 | `proof-path` | `.github/workflows/proof-path.yml` | every PR + push to `main` (no path filter) | 2026-09 (ADR-0072 Phase 4 W3) | PENDING-OPERATOR (AR-Hand: add after first green run on `main`) |
+| 12 | `proof-path` | `.github/workflows/proof-path.yml` | every PR + push to `main` (no path filter) | 2026-09 (ADR-0072 Phase 4 W3) | PENDING-OPERATOR (operator-hand: add after first green run on `main`) |
 
 Removed in Phase 4 W1 (workflows deleted, contexts removed from
 protection by the operator on 2026-09-11):

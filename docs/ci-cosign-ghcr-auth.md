@@ -1,8 +1,8 @@
 # CI-Note: Cosign + GHCR Authentication for Sigstore-keyless Signing
 
-**Status:** Live as of Phase-2 Sprint-9 Tag-5 (2026-05-13).
+**Status:** Live as of Phase-2 (2026-05-13).
 **Scope:** `.github/workflows/build-wakir-provisioner.yml`.
-**Owner:** Tomás (dev-engineering Matrix-Lead).
+**Owner:** dev-engineering.
 
 ---
 
@@ -88,7 +88,7 @@ without actually publishing an image. Adding a `push=false` dry-run
 to the build path doesn't help here — without a push there's no
 sign step.
 
-The first live Operator-Hand run (Tag-4 closeout, 2026-05-13 11:39
+The first live operator-hand run (2026-05-13 11:39
 UTC) was the first time the sign step ever executed end-to-end. The
 bug was visible only at live-bring-up time, not in the sandbox.
 
@@ -180,12 +180,10 @@ When publishing a new wakir-provisioner version:
    - Build image with buildah
    - Login to GHCR (buildah)
    - Push to GHCR
-   - **Cosign login to GHCR ← new in Sprint-9 Tag-5**
+   - **Cosign login to GHCR**
    - Sigstore-keyless sign
    - Emit workflow summary
 6. Copy the pushed digest from the workflow summary into the
    bucket-init Quadlet per IMAGE_PINS.md §2.5 (or run the
    `resolve-image-pins-ci` workflow, see
    `docs/ci-image-pin-resolution.md`).
-
-— Tomás

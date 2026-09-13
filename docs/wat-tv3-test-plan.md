@@ -6,11 +6,11 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 # WAT TV-3 — Backfill-Leg Test Plan
 
 Status: draft, Phase 1a, scheduled for KW 21-22 of 2026.
-Parent plan: `docs/wat-smoke-test-plan.md` (Tag-22 full-smoke).
+Parent plan: `docs/wat-smoke-test-plan.md` (full-smoke).
 Sibling plans: `docs/wat-tv1-test-plan.md` (volume),
 `docs/wat-tv2-test-plan.md` (chain-check, in flight).
 
-This document concretises Test Vector 3 (TV-3) of the Tag-22
+This document concretises Test Vector 3 (TV-3) of the
 full-smoke plan: the **backfill leg**. TV-1 and TV-2 cover the
 happy-path hourly anchor; TV-3 covers what happens when the public
 OpenTimestamps calendars are unreachable for several consecutive
@@ -104,7 +104,7 @@ assume systemd-user is available in CI). TV-3 instead asserts:
   invoking the actual `process_pending_queue` (the test stubs the
   Python entry point so no real OTS calendar is contacted).
 
-## 5. Acceptance criteria (mirror of Tag-22 plan A1-A5)
+## 5. Acceptance criteria (mirror of plan A1-A5)
 
 - **A1.** `tests/wat/test_tv3_backfill_leg.py` passes with
   `OTS_INTEGRATION_TEST=1`. The test does **not** contact public
@@ -133,7 +133,7 @@ than a real OTS submission. If the spool format spec
 sidecar files next to the `.ots` (e.g. a separate manifest JSON
 that the upgrade path reads), the TV-3 fixture builder must be
 extended to write those sidecars too. **Owner: wirelang-eng.** Surface as
-a Tag-12 cross-review-zone-2 sync item if detected during TV-3
+a cross-review-zone-2 sync item if detected during TV-3
 implementation rather than patching the fixture inline.
 
 ## 7. Cross-Review-Hinweis — SRE persona (backfill monitoring)

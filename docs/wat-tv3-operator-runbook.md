@@ -5,7 +5,7 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 
 # WAT TV-3 — Operator Runbook
 
-Status: draft, Phase 1a Tag-18, scheduled live-probe sequence Tag-19+
+Status: draft, Phase 1a, scheduled live-probe sequence
 across the next 2-3 UTC days subject to public-calendar daily budget.
 Companion to `docs/wat-tv3-test-plan.md` (spec) and
 `scripts/wat-tv3-run-persistent.sh` (driver). Gated regression

@@ -1,6 +1,6 @@
 # Wirelang Schema Inventory (Phase-1a)
 
-**Status:** Phase-1a Tag-15 baseline. Owner: wirelang-eng
+**Status:** Phase-1a baseline. Owner: wirelang-eng
 (Wirelang / Capability-Token-Layer / Identity-Substrate-Owner).
 Cross-Review-Zone-3 boundary: WAT-Manifest-Spec is **out of
 scope** of this inventory and remains under wat-eng's
@@ -18,11 +18,11 @@ Wirelang-internal schema-registry (`wirelang/schemas/registry.py`).
 | 2 | `wirelang/schemas/layer-1-wire.json`                | `https://wakir.dev/wirelang/schema/layer-1-wire/0.1.0`                         | 2020-12   | object | Layer-1 wire frame (CloudEvents 1.0 + Wakir extensions).                             |
 | 3 | `wirelang/schemas/layer-2-semantic.json`            | `https://wakir.dev/wirelang/schema/layer-2-semantic/0.1.0`                     | 2020-12   | object | Layer-2 semantic frame (domain vs. meta events).                                     |
 | 4 | `wirelang/schemas/layer-3-capability-token.json`    | `https://wakir.dev/wirelang/schema/layer-3-capability-token/0.1.0`             | 2020-12   | object | Layer-3 capability-token JSON envelope around Biscuit v3.                            |
-| 5 | `wirelang/schemas/datalog-caveat.json`              | `https://wakir.dev/wirelang/schema/datalog-caveat/0.2.1`                       | 2020-12   | array  | Datalog-caveat array (Wakir Phase-1b vocabulary v0.2.1; ADR-0052 Class-P promotion of `caveat_hash`, Sprint-6 Tag-8). |
+| 5 | `wirelang/schemas/datalog-caveat.json`              | `https://wakir.dev/wirelang/schema/datalog-caveat/0.2.1`                       | 2020-12   | array  | Datalog-caveat array (Wakir Phase-1b vocabulary v0.2.1; ADR-0052 Class-P promotion of `caveat_hash`). |
 | 6 | `wirelang/schemas/aip-document.json`                | `https://wakir.dev/wirelang/schema/aip-document/0.1.0`                         | 2020-12   | object | AIP document per draft-prakash-aip-00 with Wakir extensions.                         |
 | 7 | `wirelang/schemas/aip-frame-envelope.json`          | `https://wakir.dev/wirelang/schema/aip-frame-envelope/0.1.0`                   | 2020-12   | object | Wirelang-internal envelope wrapping Layer-3 token + AIP-document reference.          |
 
-**Count:** 7 schemas. **Consistency-check (Tag-15 baseline):**
+**Count:** 7 schemas. **Consistency-check (baseline):**
 all schemas have `$id`, `$schema` (2020-12 in every case),
 `title`, `description`, and a top-level `type`. Every `$id` is
 unique (URI-form `https://wakir.dev/wirelang/schema/<name>/<semver>`).
@@ -60,19 +60,19 @@ paths):
 | `wirelang/identity/capability_token.py`           | layer-3-capability-token, datalog-caveat, aip-frame-envelope  |
 | `wirelang/tests/conftest.py` (fixtures)           | all seven (test-only, fixture-scoped)                         |
 
-Tag-15 ships the registry; **migration of consumers** from
+ships the registry; **migration of consumers** from
 direct file-path loading to registry-lookup is incremental and
-**not** part of Tag-15. Phase-1a Tag-16+ may convert
+**not** part of. Phase-1a may convert
 consumers; this inventory is the prerequisite.
 
 ## Cross-Review-Zone-3 Boundary
 
-Per the Tag-15 Cross-Review-Zone-3 sync-memo from wirelang-eng
+Per the Cross-Review-Zone-3 sync-memo from wirelang-eng
 to wat-eng (Matrix-Lead), the following is **out of scope** of
 this inventory:
 
 - WAT-Manifest-Spec (`docs/wat-manifest-spec.md`) — wat-eng-owned.
-- OTS-Schema-Anker-Format — Phase-1b item, not Tag-15.
+- OTS-Schema-Anker-Format — Phase-1b item, not.
 - Persona-Definition-Schema (persona-engine-eng) — Phase-1b
   consumer-side.
 - Container-Bridge-Schema (container-bridge-eng) — Phase-1b

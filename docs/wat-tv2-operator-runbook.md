@@ -5,7 +5,7 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 
 # WAT TV-2 — Operator Runbook
 
-Status: draft, Phase 1a Tag-16, scheduled live-run KW 21-22 of 2026.
+Status: draft, Phase 1a, scheduled live-run KW 21-22 of 2026.
 Companion to `docs/wat-tv2-test-plan.md` (spec) and
 `scripts/wat-tv2-run-persistent.sh` (driver).
 

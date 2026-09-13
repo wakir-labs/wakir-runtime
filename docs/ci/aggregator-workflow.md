@@ -142,7 +142,7 @@ The operator observes the first 2-3 follow-up PRs:
   intuitive "would this sub-workflow fire on this changed-files set?"
 - Do the polling-timings stay within the 75-minute job-level timeout?
 
-### Step 3 — Cutover (operator hand, GitHub repo settings)
+### Step 3 — cutover (operator hand, GitHub repo settings)
 
 Once observation is clean, the operator:
 1. Adds `ci-aggregator` to the Branch-Protection Required-Status
