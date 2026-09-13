@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""V-907 9-vector pin-pack constants (Phase-1b Sprint-1 Tag-2).
+"""V-907 9-vector pin-pack constants.
 
 These are the frozen JCS-SHA-256 hex tails for the nine canonical
 test fixtures under
@@ -26,7 +26,7 @@ Vector layout
        no hex pin; the test asserts the rejection class instead).
 - v9 — self-migration target, schema_version=persona-v1.
 
-Pins are populated by the Tag-2 bootstrap test
+Pins are populated by the bootstrap test
 ``test_pin_pack_constants_match_fixtures`` once fixtures are
 in tree. The values below are the actually-computed hex tails
 captured at that bootstrap step; updating any fixture front-matter
@@ -60,7 +60,7 @@ PERSONA_HASH_PIN_V9: Final[str] = (
 )
 
 #: Self-migration target pin: hash of the canonical subset produced
-#: by ``V0ToV1Step.apply`` on the v8 fixture (Sprint-2 Tag-1 S2-T1-06).
+#: by ``V0ToV1Step.apply`` on the v8 fixture (S2-T1-06).
 #:
 #: By design EQUAL to :data:`PERSONA_HASH_PIN_V9` — the v8 and v9
 #: fixtures share every front-matter key except ``schema_version``,
@@ -73,13 +73,13 @@ PERSONA_HASH_PIN_V8_MIGRATED_TO_V1: Final[str] = PERSONA_HASH_PIN_V9
 
 #: Self-migration target pin (V9-to-V2): hash of the canonical subset
 #: produced by ``V1ToV2Step.apply`` on the v9 fixture (Phase-1b
-#: Sprint-3 Tag-3, V10-Migration-Pfad). The V9-to-V2 lift is a
+#: V10-Migration-Pfad). The V9-to-V2 lift is a
 #: ``schema_version`` const flip from ``persona-v1`` to ``persona-v2``;
 #: every other canonical-subset byte is preserved. Because the
 #: canonical-subset *includes* ``schema_version``, this pin is **not**
-#: equal to :data:`PERSONA_HASH_PIN_V9` (Tag-1-Sketch §3 explicit
+#: equal to :data:`PERSONA_HASH_PIN_V9` (the design sketch §3 explicit
 #: design choice). The hex tail below was computed from the
-#: ``v9-persona-framework-native.md`` fixture during Sprint-3 Tag-3
+#: ``v9-persona-framework-native.md`` fixture
 #: implementation; updating the v9 fixture front-matter forces a
 #: re-pin sweep here.
 PERSONA_HASH_PIN_V9_MIGRATED_TO_V2: Final[str] = (
@@ -93,7 +93,7 @@ PERSONA_HASH_PIN_V9_MIGRATED_TO_V2: Final[str] = (
 #: fixtures share every canonical-subset key except ``schema_version``,
 #: and the chain endpoint sets ``schema_version=persona-v2`` either
 #: way. This is the **M-1 (linear-chain) direct-anchor** that the
-#: Sprint-2 M-Konsens-Marker companion memo flagged as currently
+#: M-Konsens-Marker companion memo flagged as currently
 #: indirect. Pinning it explicitly so a chain-resolver regression
 #: (e.g. accidental short-circuit at v1) trips an explicit assertion
 #: and not just an indirect equality.

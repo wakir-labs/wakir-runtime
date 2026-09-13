@@ -32,18 +32,18 @@ Public API
 - :data:`PERSONA_HASH_HEX_LENGTH` — ``64``.
 - :data:`PERSONA_EMPTY_REF_SENTINEL` — ``""`` (V-908 federation stub).
 
-Format posture (Phase-1b Sprint-1 Tag-2)
+Format posture
 ----------------------------------------
 
 The hash input format is the **mock canonical subset** documented in
 ``wirelang/specs/persona-hash-spec.md`` §2 — extended YAML
 front-matter following ``schema_version: persona-v1``. The HR-slot
 governance owner has not yet ratified the final format (ADR-0029
-pending as of Phase-1b Sprint-1). The mock subset is engine-default;
+pending). The mock subset is engine-default;
 an HR override triggers a re-hash sweep of the test-vector pack but
 does not change the public API surface.
 
-Lazy-import discipline (Sprint-Pengine-7 Tag-5)
+Lazy-import discipline
 -----------------------------------------------
 
 This package eagerly imports **no submodule that has a top-level
@@ -56,18 +56,18 @@ constants-only shim for the NATS-KV bucket family) does NOT
 transitively load ``rfc8785`` / ``cryptography`` via this
 package's ``__init__``.
 
-Background: the Sprint-9 Tag-1 NATS-KV bucket provisioner imports
+Background: the NATS-KV bucket provisioner imports
 ``wirelang.persona.persona_state_kv_constants`` for its bucket-
-naming constants (Sprint-Pengine-7 Tag-5 OI-PILOT-2). On the
+naming constants (OI-PILOT-2). On the
 production ``wakir-provisioner:0.1.x`` container image (post-
 ADR-0059 BSL-1.1 wheel set: ``nats-py`` + ``cryptography``, **no**
 ``rfc8785``) the prior eager-import shape raised ``ImportError``
 during the bucket-family probe, silently dropping the persona-
 state family from ``BUCKET_FAMILIES`` and turning the
 ``--persona-state-pair`` flag into a silent no-op on the pilot VM
-(Reza Cross-Review Zone-B B-5). The Tag-5 lazy-import pattern is
-parity with the Tag-4 ``wirelang.identity`` disentanglement
-(Sprint-9 Tag-4 Bug-6 fix, PEP-562 ``__getattr__``).
+(cross-review Zone-B B-5). The lazy-import pattern is
+parity with the ``wirelang.identity`` disentanglement
+(Bug-6 fix, PEP-562 ``__getattr__``).
 
 This is byte-stable for every existing consumer: the public
 attribute-access shape is unchanged, only the eager-load timing
@@ -158,7 +158,7 @@ def __getattr__(name: str) -> Any:
 
 def __dir__() -> list[str]:
     """Surface the lazy names for ``dir(wirelang.persona)`` / IDE
-    autocomplete parity with the pre-Tag-5 eager-import shape.
+    autocomplete parity with the earlier eager-import shape.
     """
     return sorted(set(globals().keys()) | set(_LAZY_CRYPTO_ATTRS.keys()))
 

@@ -6,7 +6,7 @@
 # (the wirelang-package canonical header). Change Date: four (4)
 # years after first publication; Change License: Apache 2.0.
 """Constants-only shim for the persona-state NATS-KV bucket family
-(Sprint-Pengine-7 Tag-5 OI-PILOT-2 + Reza-Cross-Review Zone-B B-5).
+(OI-PILOT-2 + cross-review Zone-B B-5).
 
 This module is the **crypto-free** import surface for the per-org-
 per-persona NATS-JetStream KV bucket family that
@@ -22,7 +22,7 @@ Why a separate shim
 The full ``wirelang.persona.persona_state_kv`` module is a thin
 wrapper that itself imports only ``re`` and ``typing`` at top level.
 But importing **any** module under ``wirelang.persona.*`` triggers
-``wirelang.persona.__init__`` which, prior to the Tag-5 PEP-562
+``wirelang.persona.__init__`` which, prior to the PEP-562
 disentanglement (see ``wirelang/persona/__init__.py`` lazy block),
 eagerly imported ``persona_hash`` → ``rfc8785``.
 
@@ -32,11 +32,11 @@ On the production ``wakir-provisioner:0.1.x`` container image
 and the provisioner driver's family-probe try-chain caught it,
 silently dropping the persona-state family from
 ``BUCKET_FAMILIES``. The ``--persona-state-pair`` flag then became
-a silent no-op on the pilot VM (Tag-4 Bug-6 pattern, recurrence).
+a silent no-op on the pilot VM (Bug-6 pattern, recurrence).
 
 The constants-only shim restores byte-equal substrate semantics
 **without** triggering any persona-engine-side crypto-bearing
-import chain. Tag-5 paired-update on the ``__init__`` side
+import chain. paired-update on the ``__init__`` side
 (PEP-562 lazy block) closes the residual issue that even
 ``from wirelang.persona.persona_state_kv_constants import X`` would
 otherwise trigger ``wirelang.persona.__init__`` eager imports;
@@ -77,11 +77,11 @@ crypto-bearing transitive dependency.
 References
 ----------
 
-- Reza-Cross-Review Zone-B B-5 (Sprint-Pengine-7 Tag-5):
+- cross-review Zone-B B-5:
   ``https://github.com/wakir-labs/wakir-runtime/pull/61``.
-- Tag-4 Bug-6 lazy-crypto-import pattern:
+- Bug-6 lazy-crypto-import pattern:
   ``wirelang/identity/__init__.py`` (PEP-562 ``__getattr__``).
-- Sprint-9 Tag-1 provisioner driver:
+- provisioner driver:
   ``bin/nats_kv_bucket_provision.py`` (multi-family registry
   consumer).
 - ADR-0059 BSL-1.1 wakir-provisioner image wheel-set.
@@ -146,7 +146,7 @@ def bucket_name_for_org(combined: str) -> str:
 
     Byte-equal to
     ``wirelang.persona.persona_state_kv.bucket_name_for_org``. The
-    Sprint-9 Tag-1 provisioner driver's ``BucketFamily`` surface
+    provisioner driver's ``BucketFamily`` surface
     treats each family as keyed by ONE identifier (``org_id``); for
     the persona-state family the driver-side identifier is the
     combined token ``"<org_id>-<persona_id>"``. This shim lets the

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""V-907 persona-hash primitive (Phase-1b Sprint-1 Tag-2 skeleton).
+"""V-907 persona-hash primitive (skeleton).
 
 Public API
 ==========
@@ -47,7 +47,7 @@ from wirelang.persona.persona_canonical_form import (
 
 # Optional-dependency resolver indirection — see the equivalent block in
 # ``wirelang/persona/persona_canonical_form.py`` for the design
-# rationale. Sprint-Stability Tag-2 (2026-05-16) moved this from an
+# rationale. (2026-05-16) moved this from an
 # eager ``import rfc8785`` to a try/except resolver so the module can
 # load on a minimal-deps host (shadow-lane CI, embedded test
 # substrates) without exploding. The function that actually needs JCS
@@ -101,7 +101,7 @@ class PersonaHashMismatchError(AssertionError):
     Raised by :func:`compute_persona_hash` when ``expected_jcs_sha256``
     is supplied and does not match the freshly-computed value. The
     caller-pin pattern mirrors the AIP-document resolver
-    (identity-eng-slot, Tag-21 spec anchor).
+    (identity-eng-slot, spec anchor).
     """
 
 

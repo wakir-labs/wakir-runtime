@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Persona-definition read-only validator (Phase-1b Sprint-6 Tag-1).
+"""Persona-definition read-only validator.
 
 Public API
 ==========
@@ -41,7 +41,7 @@ Why a separate crate / module?
   the persona-hash leans on, applied to the validator output. This
   makes Rust↔Python byte-parity a load-bearing test anchor.
 
-Out-of-scope (Phase-1b Sprint-6)
+Out-of-scope (Phase-1b)
 ================================
 
 - **No body inspection.** The Markdown body after the closing ``---``

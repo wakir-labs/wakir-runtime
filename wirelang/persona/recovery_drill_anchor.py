@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Periodic WAT-anchoring driver for recovery_drill_outcome events
-(Sprint-Pengine-7 Tag-5 OI-PILOT-4 + Cross-Pair Reza OI-PEF-11).
+(OI-PILOT-4 + cross-pair OI-PEF-11).
 
-Sprint-Pengine-7 Tag-4 §3.7.4 introduced the impl-axis
+§3.7.4 introduced the impl-axis
 recovery-workflow that emits one ``recovery_drill_outcome``
 envelope per executed drill. The drill registry is the closed
 three-class set per ``wirelang/specs/persona-engine-format-spec.md``
@@ -15,7 +15,7 @@ persisted to the persona-state NATS-KV bucket under the
 ``wirelang.persona.persona_state_kv``). Future drill-class
 extensions require a paired persona-engine-format-spec minor bump
 plus a paired ``recovery-drill-outcome/v2`` schema-registry entry
-(no silent enum extension; Reza-Cross-Review Zone-L L-2 boundary).
+(no silent enum extension; cross-review Zone-L L-2 boundary).
 
 OI-PILOT-4 is the periodic WAT-anchoring side of that envelope
 flow. A Quadlet timer fires this driver every ~15 minutes during
@@ -40,17 +40,17 @@ pilot phase; the driver:
    number of envelopes seen, anchored, skipped (already
    anchored), errored.
 
-Cross-Pair contract with Reza (OI-PEF-11)
+Cross-Pair contract with the protocol side (OI-PEF-11)
 ------------------------------------------
 
 The driver consumes the ``recovery_drill_outcome`` envelope schema
-that Selin defines in Sprint-Pengine-7 Tag-4 §3.7.4 and the WAT-
-anchoring bridge that Tomás/WAT-team owns; Reza's OI-PEF-11 is
+that the persona-engine side defines in §3.7.4 and the WAT-
+anchoring bridge that the WAT team owns; the protocol-side OI-PEF-11 is
 the **schema-registry-Entry** that lets cross-org verifiers
 re-parse the envelope from the wire. The driver here does NOT
 re-encode the schema; it consumes the persona-state envelope
 verbatim and forwards the canonical bytes to WAT. Schema-drift
-detection is out of scope — Reza's schema-registry-Entry is the
+detection is out of scope — the protocol-side schema-registry-Entry is the
 single source of truth.
 
 Sandbox boundary
@@ -84,7 +84,7 @@ The driver expects each envelope to carry at least:
 
 - ``schema`` == ``"wakir.persona.recovery-drill-outcome/1"``
 - ``drill_run_id`` (string)
-- ``drill_class`` (one of the three Tag-3 §3.7.2.1 enum values:
+- ``drill_class`` (one of the three §3.7.2.1 enum values:
   ``DRILL_CONTAINER_CRASH``, ``DRILL_NATS_BUCKET_LOST``,
   ``DRILL_SPIRE_SVID_EXPIRED``)
 - ``persona_id`` (string, matches the bucket's persona-suffix)
@@ -129,7 +129,7 @@ RECOVERY_DRILL_OUTCOME_SCHEMA = "wakir.persona.recovery-drill-outcome/1"
 RECOVERY_AUDIT_KEY_PREFIX = "recovery-audit/"
 
 #: Action-type passed to the WAT bridge-audit-writer. Stable
-#: across Tag-5+; the WAT-spool consumer keys on this string for
+#: across +; the WAT-spool consumer keys on this string for
 #: filtered queries.
 WAT_ACTION_TYPE = "recovery-drill-outcome"
 
@@ -208,7 +208,7 @@ def envelope_jcs_bytes(envelope: Mapping[str, Any]) -> bytes:
     Implementation parity with
     :func:`wirelang.cli.marker_stack_emit.jcs_dumps`; declared
     locally so this module does not import the marker-emit CLI
-    (which is a peer-domain Selin-side module).
+    (which is a peer-domain engine-side module).
     """
     try:  # pragma: no cover - prefer real JCS when available
         import rfc8785
@@ -245,7 +245,7 @@ def already_anchored(envelope: Mapping[str, Any]) -> bool:
 
 def schema_matches(envelope: Mapping[str, Any]) -> bool:
     """Return True iff the envelope's ``schema`` URI matches the
-    documented Selin-side schema.
+    documented engine-side schema.
     """
     return envelope.get("schema") == RECOVERY_DRILL_OUTCOME_SCHEMA
 
@@ -483,7 +483,7 @@ def _build_parser() -> argparse.ArgumentParser:
         description=(
             "Anchor unanchored recovery_drill_outcome envelopes from "
             "a persona-state NATS-KV bucket to the WAT spool "
-            "(Sprint-Pengine-7 Tag-5 OI-PILOT-4)."
+            "(OI-PILOT-4)."
         ),
     )
     p.add_argument(

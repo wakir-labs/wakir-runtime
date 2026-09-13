@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Self-migration converter for persona-definitions (ADR-0036, V-907).
 
-Phase-1b Sprint-2 Tag-1 implementation (S2-T1-01).
+Implementation (S2-T1-01).
 
 Public API
 ==========
@@ -23,7 +23,7 @@ Engine-default mock canonical subset per Default-Lock A-1+A-2+A-3
 (ratified 2026-05-07 ~10:00 CEST by ceo-slot via the engine-side
 inbox decision file for Phase-0 default-lock answer A-1/A-2/A-3):
 
-- **A-1:** mock canonical subset is the input shape (Tag-2 baseline).
+- **A-1:** mock canonical subset is the input shape (baseline).
 - **A-2:** semver-major-only, additiv-only, linear chain — every
   step is an additive transition; field removal is forbidden.
 - **A-3:** front-matter is in-hash, markdown body is out-of-hash;
@@ -32,14 +32,14 @@ inbox decision file for Phase-0 default-lock answer A-1/A-2/A-3):
 Determinism guarantee (V-907 pin-pillar)
 ========================================
 
-The converter is byte-deterministic by construction (Tag-4-Skizze §2.2
+The converter is byte-deterministic by construction (the design sketch §2.2
 Regel B1). Every ``MigrationStep.apply`` writes default values
 *explicitly* in code rather than via JSON-Schema default inference,
 which neutralises the D-2 risk class. The resulting canonical-subset
 dict, fed to ``compute_persona_hash_from_canonical``, must reproduce
 the pre-frozen V-907 pin of the equivalent native v_{n+1} fixture.
 
-Out-of-scope (Phase-1b Sprint-2 Tag-1)
+Out-of-scope
 ======================================
 
 - **Markdown-body migration:** body is out-of-hash; if a future format
@@ -79,11 +79,11 @@ from wirelang.persona.persona_hash import (
 PERSONA_SCHEMA_VERSION_LATEST: Final[str] = SUPPORTED_SCHEMA_VERSION
 #: Ordered tuple of all schema-versions known to this build.
 #:
-#: Phase-1b Sprint-3 Tag-3 appends ``persona-v2`` as the converter's
+#: A later revision appends ``persona-v2`` as the converter's
 #: registered next major (``V1ToV2Step``). ``PERSONA_SCHEMA_VERSION_LATEST``
 #: deliberately stays at ``persona-v1`` until HR-slot ratifies the
 #: persona-v2 content (ADR-0029-Annex) or the T-B Default-Lock window
-#: lifts the engine-default-mock — neither has happened on Tag-3, so a
+#: lifts the engine-default-mock — neither has happened, so a
 #: bare ``migrate_persona(definition)`` call still targets v1 by default.
 PERSONA_SCHEMA_VERSION_LIST: Final[tuple[str, ...]] = (
     "persona-v0",
@@ -92,7 +92,7 @@ PERSONA_SCHEMA_VERSION_LIST: Final[tuple[str, ...]] = (
 )
 
 #: Safety guard against cycles in the step registry. The Phase-1b
-#: linear-chain assumption (Tag-4-Skizze §3.1) means a real chain
+#: linear-chain assumption (the design sketch §3.1) means a real chain
 #: never exceeds ``len(REGISTERED_STEPS)``; anything larger indicates
 #: a bug in step registration.
 _MAX_CHAIN_LENGTH: Final[int] = 32
@@ -180,7 +180,7 @@ def _coerce_to_dict(
       ``---`` are treated as raw markdown; everything else is rejected
       to keep the call-site explicit).
 
-    Defensive posture (Sprint-2 Tag-2 S2-T1-03):
+    Defensive posture (S2-T1-03):
     Front-matter parse failures from
     :mod:`wirelang.persona.persona_canonical_form` (missing fence,
     malformed YAML, non-mapping) are re-wrapped as
