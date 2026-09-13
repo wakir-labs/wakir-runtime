@@ -1,14 +1,14 @@
-# `tooling/baselines/sbom-baseline-refresh-receipts/` — Refresh Audit Trail (Tag-50)
+# `tooling/baselines/sbom-baseline-refresh-receipts/` — Refresh Audit Trail
 
 Append-only directory of refresh-receipt JSON envelopes emitted
-by the Tag-50 CLI
+by the CLI
 (`scripts/observability/refresh-15-binary-sbom-baseline.py`) and
 the dispatch-only workflow
 (`.github/workflows/sbom-baseline-refresh.yml`).
 
 Each receipt records:
 
-- `approval_token` — the AR-Hand-Gate token typed by the operator
+- `approval_token` — the operator sign-off gate token typed by the operator
   (format `AR-HAND-GATE-YYYY-MM-DD-<initials>`).
 - `cargo_lock_sha256_before` / `cargo_lock_sha256_after` — the
   cargo-lock state pinned by the baseline before vs. after the
@@ -26,7 +26,7 @@ Each receipt records:
 
 Every refresh emits exactly one receipt. The receipt is the
 single source of truth for "which AR sign-off blessed this
-baseline mutation". Internal Audit (Henrik) reads this
+baseline mutation". Internal Audit reads this
 directory to reconstruct the dependency-tree provenance trail.
 
 ## Do NOT delete
@@ -38,10 +38,9 @@ receipt's filename) rather than deleting.
 
 ## Anchors
 
-- Tag-50 — refresh CLI + workflow + this directory.
-- Tag-49 PR #318 — daily verifier + baseline directory.
-- Tag-48 PR #310 — 15-binary SBOM generator.
-- ADR-0066 § AR-Hand-Gate.
+- — refresh CLI + workflow + this directory.
+- PR #318 — daily verifier + baseline directory.
+- PR #310 — 15-binary SBOM generator.
+- ADR-0066 § operator sign-off gate.
 - `docs/operations/15-binary-sbom-baseline-refresh.md` — operator runbook.
 
-— Kai

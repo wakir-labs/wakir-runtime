@@ -31,8 +31,8 @@ a real schema-correctness signal.
 
 ## What this directory is NOT
 
-This is not the second-language-family pole. The original Sprint-6
-Tag-6 mandate targeted Rust, Go, or Java for second-language-family
+This is not the second-language-family pole. The original
+ mandate targeted Rust, Go, or Java for second-language-family
 witness; the sandbox host has none of those toolchains installed
 (no `cargo`, `go`, or `java` on PATH) and no privilege to install
 system packages. Hyperjump is the substance-preserving in-scope

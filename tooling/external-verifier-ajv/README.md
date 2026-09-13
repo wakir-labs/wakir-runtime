@@ -80,7 +80,7 @@ per-vector verdicts in an N-way parity check:
 python scripts/external_verifier_validation.py
 ```
 
-Configured validators (Sprint-6 Tag-6):
+Configured validators:
 
 | Tool                       | Language | Library                  | Role                  |
 |----------------------------|----------|--------------------------|-----------------------|

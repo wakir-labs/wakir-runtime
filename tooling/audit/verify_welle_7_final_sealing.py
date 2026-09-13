@@ -2,11 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Tag-75 Welle-7 Final-Sealing Spec-Conformance Verifier.
+ wave-7 Final-Sealing Spec-Conformance Verifier.
 
 Audit-only mode. This helper validates a *final-sealing
-document* against the Welle-7 (Final-Sealing) conformance
-invariants for the Phase-3c-Cutover-Marathon-Schluss-Sealing.
+document* against the wave-7 (Final-Sealing) conformance
+invariants for the Phase-3c-cutover-migration run-Schluss-Sealing.
 It does NOT actually execute the engine, does NOT load the
 schema-registry, does NOT touch the audit-trail WAT-leaves,
 does NOT call the protocol-spec compiler, does NOT open any
@@ -59,8 +59,8 @@ shape::
 A welle-record (one for each predecessor welle 1..6) has::
 
     {
-      "welle_id":       "<one of: Welle-1 .. Welle-6>",
-      "tag_origin":     "<Tag-69 .. Tag-74>",
+      "welle_id": "<one of: wave-1.. wave-6>",
+      "tag_origin": "<.. Tag-74>",
       "signoff_kind":   "<one of: spec | producer | verifier |
                                    sweep | substrate | parity>",
       "signoff_status": "<one of: signed-off | pending | rejected>",
@@ -87,23 +87,23 @@ A chain-link (one rung in the OTS-anchor-chain) has::
       "anchor_pin":      "<opaque pin string>"
     }
 
-Invariants checked (Welle-7 Final-Sealing):
+Invariants checked (wave-7 Final-Sealing):
 
-  I-1   ``tag`` is ``Tag-75`` and ``welle`` is ``Welle-7``.
+  I-1 ``tag`` is ``Tag-75`` and ``welle`` is ``wave-7``.
   I-2   ``audit_only`` and ``doc_form_only`` are both true. The
         helper refuses to validate a non-audit-only document.
   I-3   ``sealing_scope`` is exactly ``Final-Sealing``.
   I-4   ``sealing_id`` is a non-empty string matching
         ``^sealing-[a-z0-9-]{4,64}$``.
   I-5   ``predecessor_wellen`` is a list of exactly six welle-
-        records, one for each of Welle-1 .. Welle-6.  Duplicates
+        records, one for each of wave-1.. wave-6. Duplicates
         are rejected, missing wellen are rejected.
   I-6   Each welle-record carries the five required fields and
         no extras.  ``signoff_status`` MUST be ``signed-off``
         for every predecessor welle (final sealing cannot
         proceed with any pending or rejected predecessor).
   I-7   ``marker_families`` is a non-empty list of family-records
-        (at least one family per Welle-1..6 producer is expected
+        (at least one family per waves 1..6 producer is expected
         but not required; budget allows partial finalisation).
         Each family_id is unique.  At least one family must have
         ``family_kind == 'capability'`` and one
@@ -152,7 +152,7 @@ Invariants checked (Welle-7 Final-Sealing):
         no_promotion_pr_opening, no_release_tag_cut) and
         ``probe_default_mode == 'inspection-only'``.
   I-17  ``cross_anchors`` references the nine baseline anchors
-        including ``tag_74_parity_layer`` (Welle-6 carry-forward).
+        including ``tag_74_parity_layer`` (wave-6 carry-forward).
   I-18  No top-level unknown fields (strict shape).
   I-19  ``audit_only`` is type bool exactly; integers / strings
         rejected.
@@ -190,7 +190,6 @@ Sandbox-boundary recital:
   - No release-tag cut by this helper.
   - probe_default_mode is inspection-only.
 
--- Reza
 """
 from __future__ import annotations
 
@@ -316,7 +315,7 @@ TOP_LEVEL_REQUIRED_KEYS = frozenset(
 
 
 class VerifyError(Exception):
-    """Raised when a Welle-7 final-sealing-spec invariant fails."""
+    """Raised when a wave-7 final-sealing-spec invariant fails."""
 
 
 def _require(condition: bool, invariant_id: str, message: str) -> None:
@@ -952,7 +951,7 @@ def _check_cross_anchors(doc: dict) -> None:
 
 
 def verify_sealing(doc: Any) -> None:
-    """Validate a Welle-7 final-sealing-spec document.
+    """Validate a wave-7 final-sealing-spec document.
 
     Raises ``VerifyError`` with an invariant-tagged message on the
     first failing invariant. Returns ``None`` on success.

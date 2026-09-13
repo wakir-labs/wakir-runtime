@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Tag-62 Operator-Hand Bulk-Activation Pre-Walk Recipe
+# Operator-Hand Bulk-Activation Pre-Walk Recipe
 # -----------------------------------------------------
 #
 # Purpose
@@ -14,7 +14,7 @@
 # documented in:
 #   - docs/operations/branch-protection-required-checks-tag59.md
 #   - docs/operations/branch-protection-required-checks-tag61-addendum.md
-#   - docs/operations/bulk-activation-pre-walk-recipe.md (Tag-62)
+#   - docs/operations/bulk-activation-pre-walk-recipe.md
 #
 # Default mode is --dry-run (read-only). The script PRINTS the API
 # call plan and exits 0 when the plan is consistent. It does NOT
@@ -26,7 +26,7 @@
 # ================
 #
 # Per ADR-0020 §10 + memory `feedback_sandbox_host_trennung.md`:
-# Mira-Sandbox MUST NOT hold a write-scoped GitHub token for
+# agent sandbox MUST NOT hold a write-scoped GitHub token for
 # `wakir-labs/wakir-runtime` branch-protection. The script refuses
 # `--enforce` whenever:
 #   - the env var BULK_ACTIVATE_OPERATOR_HAND is not set to "1", OR

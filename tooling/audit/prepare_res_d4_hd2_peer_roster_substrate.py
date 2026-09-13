@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Tag-71 RES-D4 HD-2 Peer-Roster Substrate-Preparation helper.
+ RES-D4 HD-2 Peer-Roster Substrate-Preparation helper.
 
-Audit-only mode. This helper inspects the Tag-71 HD-2 peer-roster
+Audit-only mode. This helper inspects the HD-2 peer-roster
 substrate stub-file at
 ``tooling/audit/res-d4-hd2-peer-roster-stub.json`` and asserts:
 
@@ -12,8 +12,8 @@ substrate stub-file at
   - The stub-file declares ``audit_only: true`` and
     ``doc_form_only: true``.
   - The stub-file declares ``tag: Tag-71`` and ``hard_dep: HD-2``.
-  - The stub-file declares the upstream Tag-67 / Tag-65 / Tag-69
-    anchors and the Tag-70 HD-1 substrate PR number (#446).
+  - The stub-file declares the upstream / /
+    anchors and the HD-1 substrate PR number (#446).
   - The stub-file enumerates the strict-interpretation invariant
     explicitly (minimum_two_peers, identified, production_excludes).
   - The stub-file enumerates exactly three fixture-peers, each
@@ -35,7 +35,7 @@ substrate stub-file at
     not-emitted-in-audit-only.
   - The helper itself does NOT call any external network endpoint.
   - The helper itself does NOT emit any roster-mutation event.
-  - The helper itself does NOT direct Selin's federation work-stream.
+  - The helper itself does NOT direct the persona-engine federation work-stream.
 
 The helper is invoked from the test-suite at
 ``tests/audit/test_hd_2_peer_roster_substrate_tag71.py`` via
@@ -47,13 +47,13 @@ Standard library only.
 Sandbox-boundary recital (per deep-dive §8 + §6.3):
 
   - No production peer-count claim is emitted by this helper.
-  - No direction to Selin's federation work-stream is emitted by
+  - No direction to the persona-engine federation work-stream is emitted by
     this helper.
   - No CFO ratification envelope is emitted by this helper.
   - No kind-field default change is performed by this helper.
 
-This helper is the Tag-71 §6.3 deep-dive operational counterpart
-(parallel to the Tag-70 §6.2 HD-1 helper).
+This helper is the §6.3 deep-dive operational counterpart
+(parallel to the §6.2 HD-1 helper).
 """
 from __future__ import annotations
 

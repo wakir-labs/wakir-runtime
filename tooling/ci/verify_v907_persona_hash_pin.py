@@ -2,19 +2,19 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Tag-59 V-907 Persona-Hash-Pin-Build-Step Verifier
+ V-907 Persona-Hash-Pin-Build-Step Verifier
 =================================================
 
 Purpose
 -------
-Engine 0.5.3-rc1 (Tag-58, PR #372) is the final Pre-Cutover RC before
-the KW-24 cutover gate opens. The persona-engine emits ten
+Engine 0.5.3-rc1 (PR #372) is the final Pre-cutover RC before
+the cutover gate opens. The persona-engine emits ten
 ``BackendDecision`` records on every cold-start in a strictly-ordered
 boot fan-out (manifest §1). V-907 (record #4) is the persona-hash
 integrity anchor; the surrounding nine records are the substrate the
 manifest pins as byte-stable.
 
-A silent post-Tag-58 edit to any of the three authority surfaces below
+A silent earlier edit to any of the three authority surfaces below
 breaks the V-907 pin against which Phase-3c cutover acceptance is
 declared:
 
@@ -29,7 +29,7 @@ declared:
     ``wirelang/persona_engine/engine.py``.
 
 This helper is **stdlib-only** by design (no pip install in CI). It
-mirrors the structure of the Tag-58 spec-seal probe
+mirrors the structure of the spec-seal probe
 (``tooling/audit/verify_wirelang_spec_freeze_seal.py``) so the CI
 gate boilerplate is byte-stable.
 
@@ -42,7 +42,7 @@ Stage 1 — Extract canonical bytes from the three authority surfaces.
     is normalised by stripping trailing whitespace and collapsing CRLF.
   - Pin-Pack ``boot_wired_crates`` section is sliced between the
     ``boot_wired_crates:`` line and the next top-level YAML key
-    (``boot_unwired_crates:`` in the Tag-58 layout, or any other
+    (``boot_unwired_crates:`` in the layout, or any other
     top-level key that comes after).
   - engine.py resolver-block is the contiguous import block that
     contains all ten ``resolve_*_backend`` symbols, plus the body of
@@ -66,7 +66,7 @@ Output
 ------
 The helper prints a single JSON envelope to stdout (one line) and an
 optional human-readable verdict banner to stderr. The envelope schema
-matches the Tag-58 seal-probe envelope as far as ``verdict`` and
+matches the seal-probe envelope as far as ``verdict`` and
 ``verdict_class`` so the CI gate boilerplate can be re-used.
 
 Scope discipline (Selin, ADR-0036/0043/0065/0066)

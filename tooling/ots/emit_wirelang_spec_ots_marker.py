@@ -3,13 +3,13 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Emit an OTS-anchor stub marker for the Wirelang specification file.
 
-Tag-60 mirror-twin of Tomás's Tag-59 manifest-hash OTS-anchor probe.
+ mirror-twin of the manifest-hash OTS-anchor probe.
 Where Tomás anchors persona-engine ``MANIFEST-*.md`` files via the
 WAT spool, this helper anchors the Wirelang-Spec markdown documents
 (currently ``wirelang/specs/wirelang-spec-v0-4-3.md`` and any sibling
-spec versions that ship pre-cutover). The Tag-58 freeze-seal probe
+spec versions that ship pre-cutover). The freeze-seal probe
 (Reza, PR #371) sealed the live spec against post-freeze drift; the
-Tag-60 OTS-anchor probe is the *cryptographic timestamp* tripwire
+ OTS-anchor probe is the *cryptographic timestamp* tripwire
 that will, once AR-authorised, anchor the sealed spec at the
 OpenTimestamps calendar.
 
@@ -31,7 +31,7 @@ and runs the real ``ots stamp`` invocation on a host that has
 network access to the OTS calendar. The marker file then gets the
 real ``.ots`` proof attached (out-of-band, Phase-3c-Schritt-N+1).
 
-Tag-66 RES-D-item probe mode
+ RES-D-item probe mode
 ----------------------------
 
 The ``--mode res-d-item-probe --res-d-item RES-D[1-5]`` flag pair
@@ -41,7 +41,7 @@ performing the actual activation. Concretely the per-item probe:
 
   * Pins the spec path to ``wirelang/specs/wirelang-spec-v0-4-4-
     draft.md`` (the canonical draft location for v0.4.4 reserves).
-  * Walks the same four hermetic stages as the Tag-60 probe
+  * Walks the same four hermetic stages as the probe
     (input_validation, hash_computation, payload_shape, sandbox_
     boundary) plus a fifth ``item_simulation`` stage that scans
     the draft introspectively for the per-item anchor strings
@@ -49,13 +49,13 @@ performing the actual activation. Concretely the per-item probe:
   * Emits a verdict envelope with the additional fields
     ``res_d_item``, ``item_metadata``, and ``draft_untouched: true``.
 
-The Tag-66 per-item probe NEVER edits the v0.4.4 draft file (the
+The per-item probe NEVER edits the v0.4.4 draft file (the
 ``draft_untouched`` flag is invariant-true). Per-item probing
-exists so the Aufsichtsrat can audit a *single* reserve item's
+exists so the repository owner can audit a *single* reserve item's
 activation pipeline in isolation, ahead of the Phase-4 governance
 decision (TBD) about which RES-Dn items get promoted.
 
-Tag-60 Pre-Activation-Probe mode
+ Pre-Activation-Probe mode
 --------------------------------
 
 The ``--mode pre-activation-probe`` flag adds a dry-run pass that
@@ -67,7 +67,7 @@ I/O. Concretely the probe verifies:
     matches the in-tree spec-anchor-stub registry.
   * Hash computation: SHA-256 streamed in 64 KiB chunks, byte-stable.
   * Payload shape: marker JSON validates against schema-v1 (all
-    required keys, no unexpected keys) AND the additional Tag-60
+    required keys, no unexpected keys) AND the additional
     ``pre_activation_probe`` envelope is present.
   * Sandbox boundary still intact: no network calls, no ots CLI
     subprocess, no podman socket. The probe asserts this by being
@@ -167,9 +167,9 @@ MODE_PRE_ACTIVATION_PROBE: str = "pre-activation-probe"
 MODE_RES_D_ITEM_PROBE: str = "res-d-item-probe"
 ANCHOR_TARGET_OTS_CALENDAR: str = "opentimestamps-calendar"
 
-# Tag-66 — RES-D reserve items defined in v0.4.4 draft §5/§6.
+# RES-D reserve items defined in v0.4.4 draft §5/§6.
 # Each item is *individually* simulatable through the per-item-probe
-# mode introduced in Tag-66. The probe does NOT activate the item
+# mode introduced in. The probe does NOT activate the item
 # (the v0.4.4 draft remains untouched); it only walks the simulated
 # activation pipeline and emits a verdict envelope.
 RES_D_ITEM_IDS: tuple[str, ...] = (
@@ -245,8 +245,8 @@ PROBE_VERDICT_REQUIRED_KEYS: frozenset[str] = frozenset(
     }
 )
 
-# Required top-level keys for a Tag-66 per-RES-Dn probe-verdict
-# envelope. The shape mirrors the Tag-60 ``PROBE_VERDICT_REQUIRED_KEYS``
+# Required top-level keys for a per-RES-Dn probe-verdict
+# envelope. The shape mirrors the ``PROBE_VERDICT_REQUIRED_KEYS``
 # plus the item-identity fields ``res_d_item`` + ``item_metadata``
 # and the explicit ``draft_untouched`` invariant flag.
 RES_D_ITEM_VERDICT_REQUIRED_KEYS: frozenset[str] = frozenset(
@@ -267,8 +267,8 @@ RES_D_ITEM_VERDICT_REQUIRED_KEYS: frozenset[str] = frozenset(
     }
 )
 
-# Stage keys for the Tag-66 per-RES-Dn probe. Five stages — the four
-# Tag-60 stages, plus a fifth ``item_simulation`` stage that walks
+# Stage keys for the per-RES-Dn probe. Five stages — the four
+# stages, plus a fifth ``item_simulation`` stage that walks
 # the simulated activation pipeline for the chosen item without
 # touching the v0.4.4 draft.
 RES_D_PROBE_STAGE_KEYS: tuple[str, ...] = (
@@ -386,7 +386,7 @@ def build_probe_verdict(
     spec_size_bytes: int,
     now_utc: _dt.datetime,
 ) -> dict:
-    """Assemble the Tag-60 pre-activation-probe verdict envelope.
+    """Assemble the pre-activation-probe verdict envelope.
 
     ``stages`` must contain entries for all four ``PROBE_STAGE_KEYS``.
     Verdict is ``PROBE-READY`` iff every stage starts with ``"OK"``,
@@ -430,7 +430,7 @@ def build_res_d_item_verdict(
     spec_size_bytes: int,
     now_utc: _dt.datetime,
 ) -> dict:
-    """Assemble the Tag-66 per-RES-Dn item probe-verdict envelope.
+    """Assemble the per-RES-Dn item probe-verdict envelope.
 
     ``stages`` must carry entries for all five
     ``RES_D_PROBE_STAGE_KEYS``. Verdict is ``PROBE-READY`` iff every
@@ -549,9 +549,9 @@ def run_res_d_item_probe(
     now_utc: _dt.datetime,
     repo_root: Path,
 ) -> dict:
-    """Execute the Tag-66 five-stage hermetic per-item probe.
+    """Execute the five-stage hermetic per-item probe.
 
-    The probe mirrors the Tag-60 four-stage probe and adds a fifth
+    The probe mirrors the four-stage probe and adds a fifth
     ``item_simulation`` stage. It never calls the OTS calendar; it
     never edits the v0.4.4 draft. Sandbox-boundary is OK-by-
     construction (stdlib-only, no subprocess, no socket).
@@ -599,7 +599,7 @@ def run_res_d_item_probe(
     spec_sha256 = ""
     spec_size_bytes = 0
 
-    # Stage 1 — input validation. Reuse Tag-60 semantics but
+    # Stage 1 — input validation. Reuse semantics but
     # additionally require the spec_path to be a v0.4.4 draft.
     if not spec_path.exists():
         stages["input_validation"] = (
@@ -610,7 +610,7 @@ def run_res_d_item_probe(
             f"FAIL: spec is not a regular file: {spec_path}"
         )
     else:
-        # The Tag-66 probe targets the v0.4.4 draft specifically.
+        # The probe targets the v0.4.4 draft specifically.
         # Tests that supply fixture drafts outside repo_root pass
         # through; in-repo invocations enforce the canonical path.
         try:
@@ -643,7 +643,7 @@ def run_res_d_item_probe(
         )
 
     # Stage 3 — payload shape. Build a candidate verdict and ensure
-    # it satisfies the Tag-66 schema-v1 envelope shape.
+    # it satisfies the schema-v1 envelope shape.
     if stages["hash_computation"].startswith("OK"):
         candidate = build_res_d_item_verdict(
             res_d_item=res_d_item,
@@ -834,7 +834,7 @@ def run_pre_activation_probe(
         stages["payload_shape"] = "FAIL: skipped (hash_computation failed)"
 
     # Stage 4 — sandbox boundary. This module is stdlib-only and
-    # performs no subprocess / no socket / no network. The Tag-60
+    # performs no subprocess / no socket / no network. The
     # invariant tests reinforce this at CI time. The flag here is
     # the runtime acknowledgement.
     stages["sandbox_boundary"] = "OK"

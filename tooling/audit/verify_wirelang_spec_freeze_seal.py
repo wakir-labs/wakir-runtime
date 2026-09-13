@@ -2,25 +2,25 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Tag-58 Wirelang-Spec Pre-Cutover-Freeze-Seal Probe
+ Wirelang-Spec Pre-cutover-Freeze-Seal Probe
 ==================================================
 
 Purpose
 -------
 The Wirelang specification at ``wirelang/specs/wirelang-spec-v0-4-3.md``
 is declared ``status: pre-cutover-freeze`` with ``freeze-marker:
-kw-24-cutover-gate`` for the KW-24 Phase-3c cutover gate
-(2026-06-09 start). Tag-53 introduced the marker; until Tag-58 there
+kw-24-cutover-gate`` for the Phase-3c cutover gate
+(2026-06-09 start). introduced the marker; until there
 was no CI-side tripwire that catches a post-freeze edit that is not
 a typographic correction or an errata-footer addition.
 
 A silent post-freeze edit is a strictly larger bug class than a
 schema-drift: it breaks the *temporal* anchor that downstream
 adopters (the persona-engine 0.5.2-final-pre-cutover boot, the
-KW-24 cutover-gate acceptance criteria, the four ADR-head errata
-footers from Tag-56) all pin against. The audit-trail surface of
-the marathon depends on the seal staying intact between Tag-53 and
-the KW-24 cutover-day.
+cutover-gate acceptance criteria, the four ADR-head errata
+footers from) all pin against. The audit-trail surface of
+the marathon depends on the seal staying intact between and
+the cutover-day.
 
 Substance — what we seal
 ========================
@@ -72,9 +72,9 @@ Scope discipline
 This is a **path-level** seal, not a semantic-review seal. It does
 not parse the §3 catalogue or the §4 ENV-flag schema. The earlier
 hermetic suite at ``tests/specs/test_wirelang_spec_v0_4_3_pre_cutover
-_freeze.py`` (Tag-53) covers the substance contract. The Tag-58
+_freeze.py`` covers the substance contract. The
 seal probe covers the *temporal* contract on top of it. A spec that
-passes the Tag-53 hermetic suite but fails the Tag-58 seal probe
+passes the hermetic suite but fails the seal probe
 means: the substance is still v0.4.3-compliant, but the freeze
 discipline was breached.
 
@@ -121,7 +121,7 @@ VERDICTS = (VERDICT_INTACT, VERDICT_ALLOWED, VERDICT_BROKEN)
 # Allowlist regexes (pre-compiled in module scope)                            #
 # --------------------------------------------------------------------------- #
 
-# Inline typo-marker. Tag-58 default form is ``<!-- typo: <slug> -->``
+# Inline typo-marker. default form is ``<!-- typo: <slug> -->``
 # where <slug> is a lowercase-kebab token (a..z, 0..9, '-').
 TYPO_MARKER_RE = re.compile(r"<!--\s*typo:\s*[a-z0-9\-]+\s*-->")
 

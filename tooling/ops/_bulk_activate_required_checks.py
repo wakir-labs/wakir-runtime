@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Tag-62 Bulk-Activation Pre-Walk Recipe — Planner Helper.
+""" Bulk-Activation Pre-Walk Recipe — Planner Helper.
 
-Hermetic, stdlib-only. Parses the Tag-59 + Tag-61 Branch-Protection
-Required-Check Wiring Docs to extract the 7-Pool target list (Tag-62-
+Hermetic, stdlib-only. Parses the + Branch-Protection
+Required-Check Wiring Docs to extract the 7-Pool target list (-
 lineage), or — when --tag64-doc is supplied — parses additionally the
-Tag-64 Companion doc to extract the 8-Pool target list (Tag-64 E2E-
+ Companion doc to extract the 8-Pool target list (E2E-
 verdict added). Without --tag64-doc the planner falls back to the
-7-Pool behaviour, preserving Kai's Tag-62 walking-skeleton path
+7-Pool behaviour, preserving the walking-skeleton path
 byte-identically.
 
 It then emits one of three output forms:
@@ -18,7 +18,7 @@ It then emits one of three output forms:
   * --put-payload      raw required_status_checks JSON block for
                        gh api -X PUT (used by the shell wrapper's
                        --enforce path)
-  * --mock-api-mode    Tag-63 Walking-Skeleton mode: reads a JSON
+  * --mock-api-mode Walking-Skeleton mode: reads a JSON
                        pre-snapshot fixture from --mock-pre-snapshot,
                        computes a post-snapshot by full-replace
                        semantics (PUT semantics of the GitHub
@@ -26,7 +26,7 @@ It then emits one of three output forms:
                        post-snapshot to --mock-post-snapshot.
                        Touches NO network. Sandbox-boundary safe.
   * --post-activate-verify
-                       Tag-65 Post-Activate-Verify mode: reads a JSON
+ Post-Activate-Verify mode: reads a JSON
                        post-activate snapshot fixture from
                        --post-activate-snapshot (i.e. the hypothetical
                        branch-protection state AFTER the bulk
@@ -36,7 +36,7 @@ It then emits one of three output forms:
                        registered verbatim and that `strict=true`
                        holds. Emits a verify-report (human or JSON
                        per --json) and a non-zero exit on any
-                       discrepancy. Used by the Tag-65 walking-
+                       discrepancy. Used by the walking-
                        skeleton Stage-5 post-activate verifier.
 
 The planner does NOT touch GitHub. It is pure parse + render. The
@@ -64,10 +64,10 @@ from pathlib import Path
 from typing import List, Tuple
 
 
-# Expected pool size. Tag-59 contributes 5 checks; Tag-61 adds 2;
-# Tag-64 adds 1 additional check (E2E verdict). The Tag-64 doc is
+# Expected pool size. contributes 5 checks; adds 2;
+# adds 1 additional check (E2E verdict). The doc is
 # OPTIONAL — without --tag64-doc the planner falls back to the
-# Tag-62-lineage 7-Pool behaviour, preserving Kai's Tag-62 walking-
+# -lineage 7-Pool behaviour, preserving the walking-
 # skeleton path. With --tag64-doc the planner emits the 8-Pool.
 EXPECTED_TAG59_COUNT = 5
 EXPECTED_TAG61_COUNT = 2
@@ -75,7 +75,7 @@ EXPECTED_TAG64_COUNT = 1
 EXPECTED_POOL_TOTAL_7 = EXPECTED_TAG59_COUNT + EXPECTED_TAG61_COUNT
 EXPECTED_POOL_TOTAL_8 = EXPECTED_POOL_TOTAL_7 + EXPECTED_TAG64_COUNT
 # Back-compat alias: existing call sites referencing EXPECTED_POOL_TOTAL
-# (e.g. Tag-63 walking-skeleton tests) keep working unchanged.
+# (e.g. walking-skeleton tests) keep working unchanged.
 EXPECTED_POOL_TOTAL = EXPECTED_POOL_TOTAL_7
 
 # Regex for table rows of shape:
@@ -87,7 +87,7 @@ _ROW_RE = re.compile(
     re.MULTILINE,
 )
 
-# Regex for the Tag-61 §1 Gesamt-Pool-Bilanz table row shape:
+# Regex for the §1 Gesamt-Pool-Bilanz table row shape:
 #   | <pool-slot> | `display-name` | <activation-status> | <tag-quelle> |
 _POOL_BILANZ_RE = re.compile(
     r"^\|\s*(?P<slot>\d+)\s*\|\s*`(?P<name>[^`]+)`\s*\|"
@@ -105,15 +105,15 @@ def _read_text(path: Path) -> str:
 
 
 def parse_tag59_doc(text: str) -> List[Tuple[int, str, str]]:
-    """Return [(idx, display-name, workflow-file), ...] for Tag-59 §1.
+    """Return [(idx, display-name, workflow-file),...] for §1.
 
-    Tag-59 §1 has exactly 5 rows (rows 1..5).
+ §1 has exactly 5 rows (rows 1..5).
     """
     rows = []
     for match in _ROW_RE.finditer(text):
         idx = int(match.group("idx"))
         if idx > EXPECTED_TAG59_COUNT:
-            # Tag-59 doc only carries rows 1..5 in §1; defensive
+            # doc only carries rows 1..5 in §1; defensive
             # break in case the doc later grows.
             continue
         rows.append((idx, match.group("name"), match.group("wf")))
@@ -123,9 +123,9 @@ def parse_tag59_doc(text: str) -> List[Tuple[int, str, str]]:
 
 
 def parse_tag61_addendum(text: str) -> List[Tuple[int, str, str]]:
-    """Return [(idx, display-name, workflow-file), ...] for Tag-61 §1.
+    """Return [(idx, display-name, workflow-file),...] for §1.
 
-    Tag-61 §1 Addendum-Tabelle has exactly 2 rows (rows 6..7).
+ §1 Addendum-Tabelle has exactly 2 rows (rows 6..7).
     """
     rows = []
     for match in _ROW_RE.finditer(text):
@@ -139,9 +139,9 @@ def parse_tag61_addendum(text: str) -> List[Tuple[int, str, str]]:
 
 
 def parse_tag64_companion(text: str) -> List[Tuple[int, str, str]]:
-    """Return [(idx, display-name, workflow-file), ...] for Tag-64 §1.
+    """Return [(idx, display-name, workflow-file),...] for §1.
 
-    Tag-64 §1 Companion-Tabelle has exactly 1 row (row 8). The Tag-64
+ §1 Companion-Tabelle has exactly 1 row (row 8). The
     parser is additive: if the doc is absent, callers fall back to
     the Tag-62-lineage 7-Pool. Idempotency-disciplined per
     `feedback_high_tempo_spawn_collision`.
@@ -158,7 +158,7 @@ def parse_tag64_companion(text: str) -> List[Tuple[int, str, str]]:
 
 
 def parse_pool_bilanz(text: str) -> List[Tuple[int, str, str, str]]:
-    """Return [(slot, name, status, src), ...] for Tag-61 §1 bilanz table."""
+    """Return [(slot, name, status, src),...] for §1 bilanz table."""
     rows = []
     for match in _POOL_BILANZ_RE.finditer(text):
         slot = int(match.group("slot"))
@@ -171,8 +171,8 @@ def parse_pool_bilanz(text: str) -> List[Tuple[int, str, str, str]]:
 def assemble_pool(tag59_doc: Path, tag61_doc: Path, tag64_doc: Path = None):
     """Assemble the Required-Status-Check pool.
 
-    Without ``tag64_doc``: 7-Pool (Tag-62-lineage; Kai walking-skeleton
-    compatibility). With ``tag64_doc``: 8-Pool (Tag-64 Companion).
+    Without ``tag64_doc``: 7-Pool (-lineage; Kai walking-skeleton
+    compatibility). With ``tag64_doc``: 8-Pool (Companion).
     """
     tag59_text = _read_text(tag59_doc)
     tag61_text = _read_text(tag61_doc)
@@ -183,13 +183,13 @@ def assemble_pool(tag59_doc: Path, tag61_doc: Path, tag64_doc: Path = None):
     if tag64_doc is not None:
         tag64_text = _read_text(tag64_doc)
         tag64_rows = parse_tag64_companion(tag64_text)
-        # In 8-Pool mode the Gesamt-Pool-Bilanz lives in the Tag-64 doc.
+        # In 8-Pool mode the Gesamt-Pool-Bilanz lives in the doc.
         pool_bilanz = parse_pool_bilanz(tag64_text)
         expected_total = EXPECTED_POOL_TOTAL_8
         bilanz_source_label = "Tag-64 §1 Gesamt-Pool-Bilanz"
     else:
         tag64_rows = []
-        # 7-Pool mode: bilanz from Tag-61 doc, unchanged from Tag-62.
+        # 7-Pool mode: bilanz from doc, unchanged from.
         pool_bilanz = parse_pool_bilanz(tag61_text)
         expected_total = EXPECTED_POOL_TOTAL_7
         bilanz_source_label = "Tag-61 §1 Gesamt-Pool-Bilanz"
@@ -364,10 +364,10 @@ def render_mock_post_snapshot(combined, pre_snapshot: dict) -> dict:
     byte-identical to the expected fixture.
 
     Pool-size aware: emits ``Tag-63``-shape description when pool is
-    7, ``Tag-64``-shape description when pool is 8. The Tag-63
+    7, ``Tag-64``-shape description when pool is 8. The
     walking-skeleton expected fixture lives at
     ``tests/observability/fixtures/branch-protection-walking-
-    skeleton/expected-post-snapshot.json`` (unchanged); the Tag-64
+    skeleton/expected-post-snapshot.json`` (unchanged); the
     fixture lives at the parallel ``-tag64/`` directory.
     """
     contexts = [name for (_, name, _) in combined]
@@ -404,12 +404,12 @@ def render_mock_post_snapshot(combined, pre_snapshot: dict) -> dict:
 
 
 def verify_post_activate_snapshot(combined, snapshot: dict) -> Tuple[List[str], dict]:
-    """Tag-65 Post-Activate-Verify mode.
+    """ Post-Activate-Verify mode.
 
     Compares a post-activate snapshot against the assembled pool and
     returns ``(discrepancies, report)``. A clean snapshot yields an
     empty ``discrepancies`` list. The report is a structured envelope
-    suitable for the Tag-65 walking-skeleton Stage-5 emitter.
+    suitable for the walking-skeleton Stage-5 emitter.
 
     Verification invariants (load-bearing):
 
@@ -425,7 +425,7 @@ def verify_post_activate_snapshot(combined, snapshot: dict) -> Tuple[List[str], 
       6. Order-equality: the snapshot context order matches the pool
          order. The bulk-activation PUT writes contexts in pool
          order; drift here means either a manual edit or a planner
-         bug. Order-equality is a Tag-65 acceptance criterion.
+         bug. Order-equality is a acceptance criterion.
 
     All discrepancies are accumulated; the function does NOT
     short-circuit. The caller renders the full discrepancy list so

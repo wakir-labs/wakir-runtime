@@ -2,12 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Tag-78 Wirelang-Spec v0.4.3 vs v0.4.4-draft Cross-Validation Helper
+ Wirelang-Spec v0.4.3 vs v0.4.4-draft Cross-Validation Helper
 (audit-only).
 
-The Tag-77 trilogy (Tag-63 v0.4.4-draft baseline, Tag-64 sample
-coverage, Tag-77 promotion-pre-readiness aggregate) pinned the
-v0.4.4-draft side of the Phase-3c cutover gate. The Tag-58
+The trilogy (v0.4.4-draft baseline, sample
+coverage, promotion-pre-readiness aggregate) pinned the
+v0.4.4-draft side of the Phase-3c cutover gate. The
 freeze-seal probe pinned the v0.4.3 side. Both sides are now
 substrate-pinned, but the **pairwise consistency between them**
 has never been audited as a single artefact.

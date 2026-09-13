@@ -3,7 +3,7 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Verify every Containerfile FROM line carries an ``@sha256:<hex>`` digest pin.
 
-Tag-57 OPEN-K1 closeout (from Selin's Tag-56 0.5.2-final audit, PR #362):
+ OPEN-K1 closeout (from the persona-engine 0.5.2-final audit, PR #362):
 
   > OPEN-K1: Containerfile base-image SHA digest (Tomás Zone-K)
 
@@ -21,7 +21,7 @@ This helper enforces the structural invariant as a Repo-Gate:
   * Every ``FROM`` line in ``infra/**/Containerfile*`` MUST have the
     ``image@sha256:<64-hex|placeholder-token>`` shape.
   * Allowed placeholder tokens are explicitly listed (DIGEST_PENDING_*
-    family) so that the Welle-N rotation pattern keeps working.
+    family) so that the wave-N rotation pattern keeps working.
   * Any FROM line with ``:tag`` only (no ``@sha256:...``) fails the
     gate.
   * Multi-stage builds (``FROM ... AS builder``) are handled.
@@ -79,7 +79,7 @@ from pathlib import Path
 from typing import Iterable
 
 
-# Allowed placeholder tokens — Welle-rotation pattern keeps these around
+# Allowed placeholder tokens — wave-rotation pattern keeps these around
 # until ``resolve-image-pins-ci`` replaces them with live digests.
 ALLOWED_PLACEHOLDERS: frozenset[str] = frozenset(
     {
@@ -94,7 +94,7 @@ ALLOWED_PLACEHOLDERS: frozenset[str] = frozenset(
 # FROM line shape — three legal patterns:
 #   1. ``FROM scratch`` (no digest required)
 #   2. ``FROM <image>@sha256:<64-hex>`` (real digest pin)
-#   3. ``FROM <image>@sha256:<allowed-placeholder-token>`` (Welle-rotation)
+#   3. ``FROM <image>@sha256:<allowed-placeholder-token>`` (wave-rotation)
 # Optional ``:tag`` between image and ``@sha256`` is allowed.
 # Optional ``AS <stage>`` suffix for multi-stage builds is allowed.
 

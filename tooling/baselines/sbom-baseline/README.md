@@ -1,14 +1,14 @@
-# `tooling/baselines/sbom-baseline/` — 15-Binary SBOM Baseline (Tag-49)
+# `tooling/baselines/sbom-baseline/` — 15-Binary SBOM Baseline
 
-Pinned, AR-approved SBOM snapshot per Tag-45 binary. The
-Tag-49 daily verification workflow
+Pinned, AR-approved SBOM snapshot per binary. The
+ daily verification workflow
 (`.github/workflows/sbom-verification-daily.yml`) compares the
-freshly-generated SBOMs (Tag-48 generator) against these files
-and emits a Mira-Notify event on drift.
+freshly-generated SBOMs (generator) against these files
+and emits a mira-notify event on drift.
 
 ## Files
 
-Fifteen files matching the Tag-45 inventory:
+Fifteen files matching the inventory:
 
 ```
 anchor-emitter.json
@@ -29,7 +29,7 @@ v907-verify.json
 ```
 
 Each file is a CycloneDX-1.5 JSON document — byte-identical to
-what the Tag-48 generator produces against the pinned
+what the generator produces against the pinned
 `wirelang-rust/Cargo.lock` (with `--generator-ts 0.0` for
 deterministic embedded metadata).
 
@@ -38,7 +38,7 @@ deterministic embedded metadata).
 See `docs/operations/15-binary-sbom-baseline-refresh.md`. The
 refresh is Operator-Hand only, gated by AR sign-off.
 
-Tag-50 introduced the automated CLI
+ introduced the automated CLI
 (`scripts/observability/refresh-15-binary-sbom-baseline.py`) and
 the `workflow_dispatch`-only workflow
 (`.github/workflows/sbom-baseline-refresh.yml`). Receipts land
@@ -52,6 +52,6 @@ substrate-consistency check on the embedded
 
 ## Anchors
 
-- Tag-48 PR #310 — generator that produced these baselines.
-- Tag-49 — verifier + workflow that consume these baselines.
-- ADR-0066 §AR-Hand-Gate — pre-cutover sign-off bundle.
+- PR #310 — generator that produced these baselines.
+- — verifier + workflow that consume these baselines.
+- ADR-0066 §operator sign-off gate — pre-cutover sign-off bundle.

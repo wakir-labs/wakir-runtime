@@ -2,16 +2,16 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Tag-70 RES-D4 HD-1 OTS-Calendar Substrate-Preparation helper.
+ RES-D4 HD-1 OTS-Calendar Substrate-Preparation helper.
 
-Audit-only mode. This helper inspects the Tag-70 HD-1 OTS-substrate
+Audit-only mode. This helper inspects the HD-1 OTS-substrate
 stub-file at
 ``tooling/audit/res-d4-hd1-ots-substrate-stub.json`` and asserts:
 
   - The stub-file is well-formed JSON.
   - The stub-file declares ``audit_only: true`` and
     ``doc_form_only: true``.
-  - The stub-file declares the Tag-70 / HD-1 anchors.
+  - The stub-file declares the / HD-1 anchors.
   - The stub-file enumerates exactly three fixture-frames and each
     carries ``kind: fixture``.
   - The third fixture-frame is the live-emit-forbidden
@@ -38,7 +38,7 @@ Sandbox-boundary recital (per deep-dive §8):
   - No promotion-PR is opened by this helper.
   - No ENV-flag default-on change is performed by this helper.
 
-This helper is the Tag-70 §6.2 deep-dive operational counterpart.
+This helper is the §6.2 deep-dive operational counterpart.
 """
 from __future__ import annotations
 

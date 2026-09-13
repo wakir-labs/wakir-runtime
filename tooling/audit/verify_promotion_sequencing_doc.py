@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Verify the Tag-65 Wirelang-Spec v0.4.4 Reserve-Item Promotion-Sequencing doc.
+Verify the Wirelang-Spec v0.4.4 Reserve-Item Promotion-Sequencing doc.
 
 Parses
 ``docs/operations/wirelang-spec-v0-4-4-promotion-sequencing.md``

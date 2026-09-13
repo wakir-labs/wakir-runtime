@@ -3,20 +3,20 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreEnd
-"""Shared audit-trail marker constants (Tag-67, Tomás).
+"""Shared audit-trail marker constants.
 
 Single-source-of-truth for the audit-trail marker primitives that
-are referenced by **both** Tag-66 verifier helpers:
+are referenced by **both** verifier helpers:
 
 * ``tooling/ci/verify_ar_hand_override_audit_trail.py``
-  (Tomás Tag-66, PR #420) -- pins the AR-Hand Override-Flag event
+  (Tomás PR #420) -- pins the operator-hand Override-Flag event
   audit-trail-schema.
 
 * ``tooling/ci/verify_watch_day_operator_trigger_audit_trail.py``
-  (Noa Tag-66, PR #423) -- pins the Watch-Day Operator-Trigger
+  (Noa PR #423) -- pins the watch-day Operator-Trigger
   event audit-trail-schema.
 
-Before Tag-67 each helper carried a private copy of:
+Before each helper carried a private copy of:
 
 * the canonical marker source classes (``operator`` / ``ar`` /
   ``cron`` / ``replay``),
@@ -25,7 +25,7 @@ Before Tag-67 each helper carried a private copy of:
 * the common timestamp / slug / UUID regex primitives,
 * the audit-trail schema field tuples.
 
-Two copies drift. Tag-67 extracts these into this module so a
+Two copies drift. extracts these into this module so a
 single canonical definition is consumed by both helpers (and any
 future verifier in the audit-trail family).
 
@@ -33,7 +33,7 @@ Discipline
 ----------
 
 * **Additive refactor.** Both helpers continue to re-export their
-  pre-Tag-67 module-level names verbatim; the existing Tag-66
+  earlier module-level names verbatim; the existing
   test-suites for both helpers MUST stay green without edit.
 * **stdlib only.** No third-party deps. python >= 3.11.
 * **Read-only.** This module defines constants, dataclasses, and
@@ -45,13 +45,13 @@ Discipline
 Anchors
 -------
 
-* Tag-66 AR-Hand Override-Audit-Trail Verifier (PR #420, Tomás).
-* Tag-66 Watch-Day Operator-Trigger Audit-Trail Verifier (PR #423,
+* operator-hand Override-Audit-Trail Verifier (PR #420, Tomás).
+* watch-day Operator-Trigger Audit-Trail Verifier (PR #423,
   Noa).
 * ADR-0070 Override-Flag pattern (audit-replay-SLA budget).
-* Tag-65 AR-Hand Cutover-Day-Morgen Override-Flag Listener
+* operator-hand cutover day-Morgen Override-Flag Listener
   (``tooling/ci/ar_hand_cutover_override_listener.py``).
-* Tag-62 Watch-Day Operator-Trigger Pipeline simulator
+* watch-day Operator-Trigger Pipeline simulator
   (``tooling/ci/simulate_watch_day_operator_trigger.py``).
 """
 
@@ -67,23 +67,23 @@ from typing import Final
 # ---------------------------------------------------------------------------
 
 #: The GitHub workflow event type that every audit-trail-marker
-#: envelope is built around for the Cutover-Day pipeline. Scheduled
+#: envelope is built around for the cutover day pipeline. Scheduled
 #: cron triggers emit ``"schedule"`` (see CATALOG_BY_SOURCE), but
-#: the canonical event the Watch-Day verifier checks against is
+#: the canonical event the watch-day verifier checks against is
 #: ``workflow_dispatch``.
 CANONICAL_EVENT: Final[str] = "workflow_dispatch"
 
-#: The Tag-56 phase-3c watch-day workflow filename. Pinned by both
+#: The phase-3c watch-day workflow filename. Pinned by both
 #: helpers + the workflow YAML itself.
 CANONICAL_WORKFLOW: Final[str] = "phase-3c-watch-day-practice-run.yml"
 
-#: Canonical Git ref the operator dispatches against on Cutover-Day.
+#: Canonical Git ref the operator dispatches against on cutover day.
 CANONICAL_REF: Final[str] = "refs/heads/main"
 
 
 # ---------------------------------------------------------------------------
 # Marker source classes -- the four legitimate trigger origins that
-# produce an audit-trail event in Phase-3 Marathon Cutover-Day.
+# produce an audit-trail event in Phase-3 migration cutover day.
 # ---------------------------------------------------------------------------
 
 
@@ -94,8 +94,8 @@ class MarkerSourceClass:
     A marker source class identifies *who/what* dispatched the
     workflow that produced the audit-trail event. The four classes
     enumerated below cover every legitimate trigger origin for the
-    Cutover-Day pipeline; an envelope whose audit_marker_tag does
-    not parse into one of these sources is a Tag-66 schema
+    cutover day pipeline; an envelope whose audit_marker_tag does
+    not parse into one of these sources is a schema
     violation.
 
     Attributes
@@ -201,9 +201,9 @@ RFC3339_TIMESTAMP_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"(Z|[+-]\d{2}:\d{2})$"
 )
 
-#: Tolerant ISO-8601-ish dispatched_at pattern (Tag-66 Noa-side).
+#: Tolerant ISO-8601-ish dispatched_at pattern (SRE-side).
 #: Same as ``RFC3339_TIMESTAMP_PATTERN`` but the trailing offset is
-#: optional (legacy Tag-62 envelopes may omit it). Audit-replay
+#: optional (legacy envelopes may omit it). Audit-replay
 #: tolerates absence; new envelopes should always carry the offset.
 DISPATCHED_AT_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}"
@@ -216,7 +216,7 @@ UUID_PATTERN: Final[re.Pattern[str]] = re.compile(
     re.IGNORECASE,
 )
 
-#: Watch-Day audit-marker-tag pattern:
+#: watch-day audit-marker-tag pattern:
 #: ``watch-day-<source>-<YYYYMMDD>-<short-hash>``.
 #: Example: ``watch-day-operator-20260609-3bc7794``.
 AUDIT_MARKER_TAG_PATTERN: Final[re.Pattern[str]] = re.compile(
@@ -228,8 +228,8 @@ AUDIT_MARKER_TAG_PATTERN: Final[re.Pattern[str]] = re.compile(
 # Audit-trail schema field tuples.
 # ---------------------------------------------------------------------------
 
-#: Required top-level keys for the Tag-65 AR-Hand Override-Flag
-#: Listener output envelope (Tomás Tag-66 verifier schema).
+#: Required top-level keys for the operator-hand Override-Flag
+#: Listener output envelope (Tomás verifier schema).
 AR_OVERRIDE_ENVELOPE_REQUIRED_KEYS: Final[tuple[str, ...]] = (
     "schema_version",
     "workflow",
@@ -244,8 +244,8 @@ AR_OVERRIDE_ENVELOPE_REQUIRED_KEYS: Final[tuple[str, ...]] = (
     "decision_rule",
 )
 
-#: Required fields for the AR-Hand override marker payload (sub-
-#: schema inside ``override_marker``; Tomás Tag-66 schema).
+#: Required fields for the operator-hand override marker payload (sub-
+#: schema inside ``override_marker``; Tomás schema).
 AR_OVERRIDE_MARKER_REQUIRED_FIELDS: Final[tuple[str, ...]] = (
     "schema_version",
     "kind",
@@ -257,8 +257,8 @@ AR_OVERRIDE_MARKER_REQUIRED_FIELDS: Final[tuple[str, ...]] = (
     "post_override_verdict",
 )
 
-#: Required keys for a Tag-66-fully-conformant Watch-Day Operator-
-#: Trigger envelope (Noa Tag-66 schema).
+#: Required keys for a Tag-66-fully-conformant watch-day Operator-
+#: Trigger envelope (Noa schema).
 WATCH_DAY_ENVELOPE_REQUIRED_KEYS: Final[tuple[str, ...]] = (
     "event",
     "workflow",
@@ -271,7 +271,7 @@ WATCH_DAY_ENVELOPE_REQUIRED_KEYS: Final[tuple[str, ...]] = (
 )
 
 #: Subset of WATCH_DAY_ENVELOPE_REQUIRED_KEYS that matches the legacy
-#: Tag-62 pre-audit-trail shape. Missing audit-only keys downgrades
+#: pre-audit-trail shape. Missing audit-only keys downgrades
 #: the envelope verdict to yellow rather than red.
 WATCH_DAY_BASE_KEYS_TAG62: Final[tuple[str, ...]] = (
     "event",
@@ -280,7 +280,7 @@ WATCH_DAY_BASE_KEYS_TAG62: Final[tuple[str, ...]] = (
     "inputs",
 )
 
-#: The audit-only delta -- keys that Tag-66 adds on top of
+#: The audit-only delta -- keys that adds on top of
 #: ``WATCH_DAY_BASE_KEYS_TAG62``. Missing any of these moves the
 #: envelope from green to yellow (audit-keys-missing).
 WATCH_DAY_AUDIT_ONLY_KEYS: Final[tuple[str, ...]] = (
@@ -292,30 +292,30 @@ WATCH_DAY_AUDIT_ONLY_KEYS: Final[tuple[str, ...]] = (
 
 
 # ---------------------------------------------------------------------------
-# AR-Hand Override-Flag marker schema constants (Tag-65 listener).
+# operator-hand Override-Flag marker schema constants (listener).
 # ---------------------------------------------------------------------------
 
-#: The ``kind`` value that an AR-Hand override marker MUST carry.
+#: The ``kind`` value that an operator-hand override marker MUST carry.
 AR_OVERRIDE_MARKER_KIND: Final[str] = "ar-hand-cutover-override-flag"
 
-#: Schema version for the AR-Hand override marker payload.
+#: Schema version for the operator-hand override marker payload.
 AR_OVERRIDE_MARKER_SCHEMA_VERSION: Final[int] = 1
 
-#: Minimum / maximum reason length (after strip) for the AR-Hand
+#: Minimum / maximum reason length (after strip) for the operator-hand
 #: override marker.
 AR_OVERRIDE_REASON_MIN_LEN: Final[int] = 16
 AR_OVERRIDE_REASON_MAX_LEN: Final[int] = 1024
 
 
 # ---------------------------------------------------------------------------
-# Cutover-Day verdict tokens (Tomás Tag-66 schema).
+# cutover day verdict tokens (Tomás schema).
 # ---------------------------------------------------------------------------
 
 VERDICT_CUTOVER_DAY_READY: Final[str] = "CUTOVER-DAY-MORGEN-READY"
 VERDICT_CUTOVER_DAY_CAUTION: Final[str] = "CUTOVER-DAY-MORGEN-CAUTION"
 VERDICT_CUTOVER_DAY_BLOCK: Final[str] = "CUTOVER-DAY-MORGEN-BLOCK"
 
-#: All legitimate Cutover-Day verdict tokens for input/output checks.
+#: All legitimate cutover day verdict tokens for input/output checks.
 CUTOVER_DAY_VERDICTS: Final[frozenset[str]] = frozenset(
     {
         VERDICT_CUTOVER_DAY_READY,
@@ -331,7 +331,7 @@ AR_OVERRIDE_POST_VERDICT: Final[str] = VERDICT_CUTOVER_DAY_CAUTION
 
 
 # ---------------------------------------------------------------------------
-# Watch-Day audit-trail four-stage verdict tokens (Noa Tag-66 schema).
+# watch-day audit-trail four-stage verdict tokens (Noa schema).
 # ---------------------------------------------------------------------------
 
 WATCH_DAY_VERDICT_INTACT: Final[str] = "AUDIT-TRAIL-INTACT"
@@ -357,7 +357,7 @@ VALID_STAGE_STATUSES: Final[frozenset[str]] = frozenset(
 
 
 # ---------------------------------------------------------------------------
-# Audit-trail-note canonical substrings (Tomás Tag-66 verifier).
+# Audit-trail-note canonical substrings (Tomás verifier).
 # ---------------------------------------------------------------------------
 
 #: Substring that an applied-override audit_trail_note MUST contain.
@@ -469,19 +469,19 @@ __all__ = (
     "WATCH_DAY_ENVELOPE_REQUIRED_KEYS",
     "WATCH_DAY_BASE_KEYS_TAG62",
     "WATCH_DAY_AUDIT_ONLY_KEYS",
-    # AR-Hand marker constants
+    # operator-hand marker constants
     "AR_OVERRIDE_MARKER_KIND",
     "AR_OVERRIDE_MARKER_SCHEMA_VERSION",
     "AR_OVERRIDE_REASON_MIN_LEN",
     "AR_OVERRIDE_REASON_MAX_LEN",
-    # Cutover-Day verdict tokens
+    # cutover day verdict tokens
     "VERDICT_CUTOVER_DAY_READY",
     "VERDICT_CUTOVER_DAY_CAUTION",
     "VERDICT_CUTOVER_DAY_BLOCK",
     "CUTOVER_DAY_VERDICTS",
     "AR_OVERRIDE_TARGET_VERDICT",
     "AR_OVERRIDE_POST_VERDICT",
-    # Watch-Day verdict tokens
+    # watch-day verdict tokens
     "WATCH_DAY_VERDICT_INTACT",
     "WATCH_DAY_VERDICT_DRIFT",
     "WATCH_DAY_VERDICT_DEFECT",

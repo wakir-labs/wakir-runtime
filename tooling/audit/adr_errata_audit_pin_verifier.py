@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Tag-59 ADR-Errata-Footer-Verifier CI-Pin
+ ADR-Errata-Footer-Verifier CI-Pin
 ========================================
 
 Cross-site audit regression gate. Consumes the
@@ -31,15 +31,15 @@ The verifier emits one of three verdicts:
                                 fork PR without the sibling clone).
                                 Exit 0 with explicit skip line.
 
-The skip path is the Tag-59 escape hatch: we do not want a
+The skip path is the escape hatch: we do not want a
 red gate on forks that legitimately cannot reach AI-Corp/decisions.
 The skip line is grep-able for the operator (and for the
-Tag-60+ follow-up that may decide to require the AI-Corp clone
+ follow-up that may decide to require the AI-Corp clone
 on the runner unconditionally).
 
 Pure stdlib. No JSON-schema validator, no network.
 
-Tag-59, Amara-Hand, continuous-mode.
+Amara-Hand, continuous-mode.
 """
 
 from __future__ import annotations
@@ -161,7 +161,7 @@ def run_pin_check(
     baseline_path: pathlib.Path,
 ) -> PinResult:
     """
-    Execute the Tag-59 pin gate.
+    Execute the pin gate.
 
     Skip discipline
     ---------------

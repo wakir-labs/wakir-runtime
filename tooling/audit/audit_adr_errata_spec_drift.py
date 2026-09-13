@@ -2,12 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Tag-57 ADR-Head-Errata x Wirelang-Spec cross-site mirror-drift audit
+ ADR-Head-Errata x Wirelang-Spec cross-site mirror-drift audit
 ====================================================================
 
 Purpose
 -------
-The Tag-56 ADR-Errata commit landed six ``ERR-S1..ERR-S6`` footer
+The ADR-Errata commit landed six ``ERR-S1..ERR-S6`` footer
 markers on four ADR heads in ``AI-Corp/decisions/``:
 
   * ADR-0034 (``0034-repo-lizenz-strategie.md``) — ERR-S1, ERR-S2, ERR-S3
@@ -19,7 +19,7 @@ Each ERR marker describes a *canonical-form* path or symbol on the
 runtime-main-tip that the original ADR body either mis-cites or did
 not pin. The Wirelang Spec ``v0.4.3-pre-cutover-freeze`` is the
 contract-surface that downstream adopters, the persona-engine
-0.5.2-final-pre-cutover boot, and the Tag-56 marathon acceptance
+0.5.2-final-pre-cutover boot, and the marathon acceptance
 gate all anchor against. If the spec mentions any of the
 canonical-form artefacts in a way that drifts from the ERR-marker
 text, an adopter implementing against the public spec will end up
@@ -98,7 +98,7 @@ Pure stdlib. No network, no git invocation, no JSON-schema
 validator dependency. Importable from the hermetic test suite
 under ``tests/audit/test_adr_errata_spec_cross_audit_tag57.py``.
 
-Tag-57, Reza-Hand, AI-Corp continuous-mode.
+Reza-Hand, AI-Corp continuous-mode.
 """
 
 from __future__ import annotations
@@ -116,7 +116,7 @@ AUDIT_ID = "tag-57-adr-errata-spec-cross-audit"
 # ERR-marker contract                                              #
 # --------------------------------------------------------------- #
 #
-# The marker contract is hard-coded against the Tag-56 ADR-head
+# The marker contract is hard-coded against the ADR-head
 # errata text. If the ADR bodies are re-edited and the canonical/
 # legacy forms shift, this contract must be updated in lockstep —
 # that is exactly the property the hermetic tests pin. We list
@@ -264,11 +264,11 @@ class Summary:
 @dataclasses.dataclass(frozen=True)
 class DraftShape:
     """
-    Tag-63 extension: optional draft-shape validation block. Populated
+ extension: optional draft-shape validation block. Populated
     when ``run_audit`` is invoked against a ``post-cutover-reserve-
     draft`` document. ``None`` on non-draft (e.g. pre-cutover-freeze)
     documents to preserve byte-for-byte JSON shape stability for
-    Tag-57 callers that have pinned the envelope keys.
+ callers that have pinned the envelope keys.
     """
 
     is_draft: bool
@@ -303,7 +303,7 @@ _ERRATA_HEADER_RE = re.compile(r"^##\s+Errata\s*$", re.MULTILINE)
 _NEXT_H2_RE = re.compile(r"^##\s+", re.MULTILINE)
 _FREEZE_MARKER_RE = re.compile(r"pre-cutover-freeze", re.IGNORECASE)
 
-# Tag-63 extension: recognise the post-cutover-reserve-draft marker so the
+# extension: recognise the post-cutover-reserve-draft marker so the
 # helper can skip canonical/legacy drift-classification on draft documents
 # (they are non-normative, may carry forward names that the live cutover
 # anchor has not yet folded in, and must not flip the audit verdict to
@@ -333,7 +333,7 @@ def _extract_frontmatter(spec_text: str) -> str:
 def detect_spec_status(spec_text: str) -> str | None:
     """
     Return the frontmatter ``status:`` value if present, else None.
-    Recognised values in the Wirelang patch-trace (Tag-63 vintage):
+    Recognised values in the Wirelang patch-trace (vintage):
     ``pre-cutover-freeze`` (v0.4.3), ``post-cutover-reserve-draft``
     (v0.4.4-draft), ``draft`` (pre-v0.4.3 historical), or any other
     string the spec author has placed there.
@@ -357,7 +357,7 @@ def detect_spec_version(spec_text: str) -> str | None:
 def is_draft_spec(spec_text: str) -> bool:
     """
     Return True iff the spec carries the ``post-cutover-reserve-draft``
-    status marker (Tag-63 v0.4.4-draft vintage). Used by ``run_audit``
+    status marker (v0.4.4-draft vintage). Used by ``run_audit``
     to skip drift-classification on draft documents.
 
     The detection is intentionally conservative: we read the frontmatter
@@ -486,7 +486,7 @@ def run_audit(
     spec_path: pathlib.Path,
 ) -> DriftEnvelope:
     """
-    Execute the Tag-57 cross-site mirror-drift audit.
+    Execute the cross-site mirror-drift audit.
 
     Parameters
     ----------
@@ -535,7 +535,7 @@ def run_audit(
     spec_freeze_marker = "pre-cutover-freeze" if _FREEZE_MARKER_RE.search(spec_text) else None
     spec_backtick_spans = extract_backtick_spans(spec_text)
 
-    # Tag-63: detect post-cutover-reserve-draft. A draft is *not* a
+    #: detect post-cutover-reserve-draft. A draft is *not* a
     # cutover-anchor and MUST NOT be drift-classified against the live
     # ADR-errata contract (the draft may legitimately introduce names
     # that are not yet in the v0.4.3 cutover anchor). We compute the

@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Tag-74 Cross-Substrate-Parity Spec-Conformance Verifier (Welle-6).
+ Cross-Substrate-Parity Spec-Conformance Verifier (wave-6).
 
 Audit-only mode. This helper validates a *cross-substrate-parity
-spec document* against the Welle-6 (Cross-Substrate-Parity)
+spec document* against the wave-6 (Cross-Substrate-Parity)
 conformance invariants. It does NOT actually execute the engine,
 does NOT load the schema-registry, does NOT touch the audit-trail
 WAT-leaves, does NOT call the protocol-spec compiler, and does NOT
@@ -68,9 +68,9 @@ A claim-record (one assertion that MUST hold across substrates) has::
       "parity_status":         "<one of: parity | divergent | unobserved>"
     }
 
-Invariants checked (Welle-6 Cross-Substrate-Parity):
+Invariants checked (wave-6 Cross-Substrate-Parity):
 
-  I-1  ``tag`` is ``Tag-74`` and ``welle`` is ``Welle-6``.
+  I-1 ``tag`` is ``Tag-74`` and ``welle`` is ``wave-6``.
   I-2  ``audit_only`` and ``doc_form_only`` are both true.  The
        helper refuses to validate a non-audit-only document.
   I-3  ``parity_scope`` is exactly ``Cross-Substrate-Parity``.
@@ -121,7 +121,7 @@ Invariants checked (Welle-6 Cross-Substrate-Parity):
        no_promotion_pr_opening) and
        ``probe_default_mode == 'inspection-only'``.
   I-16 ``cross_anchors`` references the seven baseline anchors plus
-       ``tag_73_capability_layer`` (Welle-5 carry-forward).
+       ``tag_73_capability_layer`` (wave-5 carry-forward).
   I-17 No top-level unknown fields (strict shape).
   I-18 ``audit_only`` is type bool exactly; integers / strings rejected.
   I-19 At least three of the four substrates MUST have non-empty
@@ -155,7 +155,6 @@ Sandbox-boundary recital:
   - No promotion-PR opening by this helper.
   - probe_default_mode is inspection-only.
 
--- Reza
 """
 from __future__ import annotations
 
@@ -242,7 +241,7 @@ TOP_LEVEL_REQUIRED_KEYS = frozenset(
 
 
 class VerifyError(Exception):
-    """Raised when a Welle-6 cross-substrate-parity-spec invariant fails."""
+    """Raised when a wave-6 cross-substrate-parity-spec invariant fails."""
 
 
 def _require(condition: bool, invariant_id: str, message: str) -> None:
@@ -727,7 +726,7 @@ def _check_coverage_breadth(doc: dict) -> None:
 
 
 def verify_parity(doc: Any) -> None:
-    """Validate a Welle-6 cross-substrate-parity-spec document.
+    """Validate a wave-6 cross-substrate-parity-spec document.
 
     Raises ``VerifyError`` with an invariant-tagged message on the
     first failing invariant. Returns ``None`` on success.

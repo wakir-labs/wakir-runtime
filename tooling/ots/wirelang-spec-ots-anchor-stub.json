@@ -2,7 +2,7 @@
   "schema_version": 1,
   "kind": "wirelang-spec-ots-anchor-stub",
   "mode": "audit-only",
-  "purpose": "Tag-60 mirror-twin of Tomás's Tag-59 manifest-hash OTS-anchor stub: declares the Wirelang-Spec OTS-anchor wiring intent without performing any actual OTS calendar call from the Sandbox. Real anchoring is Operator-Hand on a network-attached host. See docs/operations/wirelang-spec-ots-anchor-wiring.md for the runbook.",
+  "purpose": " mirror-twin of the manifest-hash OTS-anchor stub: declares the Wirelang-Spec OTS-anchor wiring intent without performing any actual OTS calendar call from the Sandbox. Real anchoring is Operator-Hand on a network-attached host. See docs/operations/wirelang-spec-ots-anchor-wiring.md for the runbook.",
   "wired_specs": [
     {
       "name": "wirelang-spec-v0-4-3",
@@ -46,7 +46,7 @@
     "manifest_hash_stub": "tooling/ots/manifest-hash-ots-anchor-stub.json",
     "shared_wat_spool_envelope_dir": "tooling/ots/markers/",
     "shared_runbook_sections": "§6 AR-Authorisation, §7 Operator-Hand cutover",
-    "rationale": "Tomás anchors persona-engine manifests; Reza anchors the Wirelang-Spec markdown files. Both ride the same WAT-spool path and the same Operator-Hand runbook to KW-24 cutover. Cross-anchor keeps the two pipelines aligned but independently auditable."
+    "rationale": "Tomás anchors persona-engine manifests; Reza anchors the Wirelang-Spec markdown files. Both ride the same WAT-spool path and the same Operator-Hand runbook to cutover. Cross-anchor keeps the two pipelines aligned but independently auditable."
   },
   "anchors": {
     "adr_audit_trail": "decisions/0007-internal-audit-trail-ots.md",
@@ -67,6 +67,6 @@
       "wirelang-spec-res-d-item-probe",
       "wirelang-spec-res-d-aggregate"
     ],
-    "rationale": "Tag-66 — pro RES-Dn ein eigener hermetic Per-Item-Probe; simuliert Aktivierung OHNE Aktivierung. v0.4.4 Draft bleibt unangetastet (draft_untouched: true)."
+    "rationale": " — pro RES-Dn ein eigener hermetic Per-Item-Probe; simuliert Aktivierung OHNE Aktivierung. v0.4.4 Draft bleibt unangetastet (draft_untouched: true)."
   }
 }

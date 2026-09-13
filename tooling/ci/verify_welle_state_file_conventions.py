@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Welle-N State-File Conventions Verifier -- Tag-67 (Amara / Pre-Cutover-T0 pin).
+"""wave-N State-File Conventions Verifier -- (Amara / Pre-cutover T0 pin).
 
 This helper enforces the canonical schema of the
 ``state/welle-N-*.json`` family as pinned by
-``docs/quality-gates/welle-n-state-file-conventions.md`` (Tag-67).
+``docs/quality-gates/welle-n-state-file-conventions.md``.
 
 It is a **stdlib-only** Python module (no third-party dependencies)
 intended to be shellable from any producer-workflow as well as from
-the Tag-67 conformance test-suite.
+the conformance test-suite.
 
 Usage (CLI)
 -----------
@@ -34,7 +34,7 @@ Sandbox-Boundary
 ----------------
 
 This module is hermetic: it reads files, never writes, never makes
-network calls. Per Mira's Sandbox-vs-Host-Operations Trennung,
+network calls. Per the operator's Sandbox-vs-Host-Operations Trennung,
 ``*-live.json`` state-files (operator-emitted on the host) are
 schema-checked here but file-existence is NOT required at sandbox-
 verification-time.
@@ -51,7 +51,7 @@ from pathlib import Path
 from typing import Any, Iterable, List, Mapping, Sequence
 
 # ---------------------------------------------------------------------------
-# Canonical schema-pin constants (Tag-67 v1)
+# Canonical schema-pin constants (v1)
 # ---------------------------------------------------------------------------
 
 SCHEMA_VERSION_PIN = "tag-67-v1"
