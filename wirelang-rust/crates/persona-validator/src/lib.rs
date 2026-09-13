@@ -18,7 +18,7 @@
 //! `PERSONA_VALIDATOR_REPORT_PIN_V9_HEX` / `..._V8_HEX` SHA-256 anchors
 //! in the test module.
 //!
-//! Default-Lock posture (Sprint-6 Crate-7 box)
+//! Default-Lock posture (Crate-7 box)
 //! ------------------------------------------
 //!
 //! - **A-1 Mock-Format-Baseline:** validator consumes either a

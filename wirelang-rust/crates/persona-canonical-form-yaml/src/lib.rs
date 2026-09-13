@@ -7,7 +7,7 @@
 //! `persona-canonical-form` (Crate-2) then turns into RFC 8785 JCS
 //! bytes, which in turn `persona-hash` (Crate-1) feeds into SHA-256.
 //!
-//! Persona-definition file shape (V-907 mock format, Phase-1b Sprint-1):
+//! Persona-definition file shape (V-907 mock format):
 //!
 //! - Persona definitions are markdown files with a YAML front-matter
 //!   block delimited by `---` lines (Jekyll/Hugo-style).
@@ -29,7 +29,7 @@
 //! (`0f298894...e1d793`). This binds Crate-3 + Crate-2 + Crate-1 into
 //! the same V-907 pin-pack as the Python tree.
 //!
-//! Default-Lock posture (Sprint-4 Crate-3 box, mirrors Crate-1 + Crate-2)
+//! Default-Lock posture (Crate-3 box, mirrors Crate-1 + Crate-2)
 //! ----------------------------------------------------------------------
 //!
 //! - **A-1 Mock-Format-Baseline:** parse YAML front-matter from a
@@ -57,8 +57,7 @@
 //! - [`read_canonical_subset`] — end-to-end helper: markdown text →
 //!   canonical-subset `serde_json::Value`.
 //!
-//! Mira-Decision (Sprint-3-Closeout-Stempel, ratified 2026-05-07
-//! ~18:15 CEST): `serde_yaml = 0.9.34` is the default YAML parser.
+//! Ratified decision: `serde_yaml = 0.9.34` is the default YAML parser.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -66,8 +65,8 @@
 use serde_json::{Map, Value as JsonValue};
 use serde_yaml::Value as YamlValue;
 
-/// Supported persona-definition schema_version (V-907 mock format,
-/// Phase-1b Sprint-1).
+/// Supported persona-definition schema_version (V-907 mock
+/// format).
 pub const SUPPORTED_SCHEMA_VERSION: &str = "persona-v1";
 
 /// Front-matter keys preserved in the canonical subset, in *insertion*

@@ -2,25 +2,23 @@
 //! Operator CLI for the persona self-migration converter + validator
 //! + inspect (Rust pendant of `wirelang.persona.cli`).
 //!
-//! Phase-1c Sprint-5 Tag-1 implementation. Thin shim around
-//! [`persona_migration_resolver::migrate_persona`] for ad-hoc operator
-//! use, CI-pipeline integration, and the wakir-runtime self-migration
-//! shell scripts ADR-0036 anticipates.
+//! implementation. Thin shim around
+//! [`persona_migration_resolver::migrate_persona`] for ad-hoc operator use,
+//! CI-pipeline integration, and the wakir-runtime self-migration shell
+//! scripts ADR-0036 anticipates.
 //!
-//! Sprint-6 Tag-2 added the `validate` subcommand: thin shim over
+//! added the `validate` subcommand: thin shim over
 //! [`persona_validator::validate_persona`] that emits the
-//! `PersonaValidationReport` as canonical-subset JSON on stdout and
-//! maps `is_valid` to exit-code 0 / 1.
+//! `PersonaValidationReport` as canonical-subset JSON on stdout and maps
+//! `is_valid` to exit-code 0 / 1.
 //!
-//! Sprint-6 Tag-3 added the `inspect` subcommand: read-only sister
-//! of migrate / validate. Thin shim over
-//! [`persona_canonical_form_yaml::read_canonical_subset`] +
-//! [`persona_hash::compute_persona_hash_from_canonical`] that emits
-//! a `PersonaInspectReport` (canonical_subset + persona_hash +
+//! added the `inspect` subcommand: read-only sister of migrate / validate.
+//! Thin shim over [`persona_canonical_form_yaml::read_canonical_subset`] +
+//! [`persona_hash::compute_persona_hash_from_canonical`] that emits a
+//! `PersonaInspectReport` (canonical_subset + persona_hash +
 //! report_schema_version) on stdout. No migration is applied; no
-//! validator-report is emitted. A parse / extractor failure maps
-//! to exit-code 1 (the persona-definition was unreadable as a
-//! canonical subset).
+//! validator-report is emitted. A parse / extractor failure maps to exit-code
+//! 1 (the persona-definition was unreadable as a canonical subset).
 //!
 //! Synopsis
 //! ========
@@ -73,8 +71,8 @@
 //! Cross-language byte-parity contract
 //! ===================================
 //!
-//! Sprint-5 Tag-1 cross-checks the Rust CLI against the Python CLI
-//! for the V8 / V9 fixture vectors:
+//! cross-checks the Rust CLI against the Python CLI for the V8 / V9 fixture
+//! vectors:
 //!
 //! - stdout JSON shape (sorted keys, two-space indent, trailing
 //!   newline) byte-identical;
@@ -137,25 +135,25 @@ pub const EXIT_USAGE_ERROR: i32 = 64;
 
 /// Alias for the validator failure path. Conceptually distinct from a
 /// migration chain failure but mapped to the same code so a single
-/// `$?` check in a shell pipeline branches the same way. Sprint-6
-/// Tag-2 addition; mirrors Python `EXIT_VALIDATION_FAILED`.
+/// `$?` check in a shell pipeline branches the same way. addition;
+/// mirrors Python `EXIT_VALIDATION_FAILED`.
 pub const EXIT_VALIDATION_FAILED: i32 = EXIT_MIGRATION_ERROR;
 
 /// Alias for the inspect failure path (canonical-subset extraction
 /// failed). Same posture as [`EXIT_VALIDATION_FAILED`]; mirrors
-/// Python `EXIT_INSPECT_FAILED`. Sprint-6 Tag-3 addition.
+/// Python `EXIT_INSPECT_FAILED`. addition.
 pub const EXIT_INSPECT_FAILED: i32 = EXIT_MIGRATION_ERROR;
 
 /// Alias for the pin failure path (canonical-subset extraction
 /// failed). Same posture as [`EXIT_INSPECT_FAILED`]; mirrors Python
-/// `EXIT_PIN_FAILED`. Sprint-6 Tag-4 addition. ``pin`` shares the
-/// inspect read-only-path, so the failure mapping is identical.
+/// `EXIT_PIN_FAILED`. addition. ``pin`` shares the inspect
+/// read-only-path, so the failure mapping is identical.
 pub const EXIT_PIN_FAILED: i32 = EXIT_MIGRATION_ERROR;
 
 /// `report_schema_version` value on the inspect-stdout report. Bumped
 /// lock-step with breaking shape changes; the byte-identity fixtures
 /// under `tests/fixtures/v*-inspected.expected.json` pin the v1
-/// shape. Sprint-6 Tag-3 addition; mirrors Python
+/// shape. addition; mirrors Python
 /// `PERSONA_INSPECT_REPORT_SCHEMA_VERSION`.
 pub const PERSONA_INSPECT_REPORT_SCHEMA_VERSION: &str = "persona-inspect-v1";
 
@@ -192,9 +190,8 @@ pub enum Command {
     Migrate(MigrateArgs),
     /// Validate a persona-definition file (read-only, no migration).
     ///
-    /// Sprint-6 Tag-2 addition; mirrors Python `validate` subcommand
-    /// byte-for-byte on stdout (canonical-subset
-    /// `PersonaValidationReport` JSON).
+    /// addition; mirrors Python `validate` subcommand byte-for-byte
+    /// on stdout (canonical-subset `PersonaValidationReport` JSON).
     #[command(
         about = "Validate a persona-definition file (read-only, no migration).",
         long_about = "Run the read-only persona-validator on a persona-definition file and emit the canonical-subset PersonaValidationReport on stdout as JSON. Exit code 0 if is_valid, 1 if not. See wirelang/persona/persona_validator.py for the report schema (persona-validation-v1)."
@@ -202,8 +199,8 @@ pub enum Command {
     Validate(ValidateArgs),
     /// Inspect a persona-definition file (read-only canonical-subset + hash).
     ///
-    /// Sprint-6 Tag-3 addition; mirrors Python `inspect` subcommand
-    /// byte-for-byte on stdout (`PersonaInspectReport` JSON).
+    /// addition; mirrors Python `inspect` subcommand byte-for-byte on stdout
+    /// (`PersonaInspectReport` JSON).
     #[command(
         about = "Inspect a persona-definition file (read-only canonical-subset + hash).",
         long_about = "Run the read-only canonical-subset extractor + V-907 persona-hash on a persona-definition file and emit the PersonaInspectReport on stdout as JSON. Exit code 0 on success, 1 on parse / extractor failure. See wirelang/persona/persona_canonical_form.py for the canonical-subset shape (persona-inspect-v1)."
@@ -211,12 +208,11 @@ pub enum Command {
     Inspect(InspectArgs),
     /// Emit the V-907 persona-hash on stdout (minimal-footprint).
     ///
-    /// Sprint-6 Tag-4 addition; mirrors Python `pin` subcommand
-    /// byte-for-byte on stdout (single line `sha256:<64hex>\n`).
-    /// Designed for shell-pipeline capture:
-    /// `pin=$(wakir-persona pin file.md)`. Mirror of
-    /// `inspect --emit-hash --quiet` but with the pin on stdout
-    /// instead of stderr.
+    /// addition; mirrors Python `pin` subcommand byte-for-byte on
+    /// stdout (single line `sha256:<64hex>\n`). Designed for
+    /// shell-pipeline capture: `pin=$(wakir-persona pin
+    /// file.md)`. Mirror of `inspect --emit-hash --quiet` but
+    /// with the pin on stdout instead of stderr.
     #[command(
         about = "Emit the V-907 persona-hash on stdout (minimal-footprint).",
         long_about = "Run the read-only canonical-subset extractor + V-907 persona-hash on a persona-definition file and emit ONLY the persona-hash on stdout (one line, 'sha256:<64hex>\\n'). Designed for shell-pipeline capture: `pin=$(wakir-persona pin file.md)` is a clean one-liner with no JSON / 2>&1 redirect gymnastics. Exit code 0 on success, 1 on parse / extractor failure. V-907-CLI-invariant: stdout equals `migrate --emit-hash` stderr-last-line equals `inspect --emit-hash --quiet` stderr-pin."
@@ -263,10 +259,10 @@ pub struct MigrateArgs {
 
 /// Arguments for the `validate` subcommand.
 ///
-/// Sprint-6 Tag-2 addition. Deliberately narrower than [`MigrateArgs`]:
-/// the validator is read-only, so there is no `--target`,
-/// `--expect-hash`, or `--emit-hash` knob. Only `--quiet` is shared
-/// with `migrate` for stderr-progress-line suppression.
+/// addition. Deliberately narrower than [`MigrateArgs`]: the validator
+/// is read-only, so there is no `--target`, `--expect-hash`, or
+/// `--emit-hash` knob. Only `--quiet` is shared with `migrate` for
+/// stderr-progress-line suppression.
 #[derive(Debug, Parser)]
 pub struct ValidateArgs {
     /// Filesystem path to a UTF-8 markdown persona-definition.
@@ -279,11 +275,11 @@ pub struct ValidateArgs {
 
 /// Arguments for the `inspect` subcommand.
 ///
-/// Sprint-6 Tag-3 addition. Wider than [`ValidateArgs`] (carries
-/// `--emit-hash` so the operator can pipe the V-907 pin into shell
-/// scripts) but narrower than [`MigrateArgs`] (no `--target` /
-/// `--expect-hash` — inspect is read-only, no schema-version
-/// gymnastics). `--quiet` is shared with migrate / validate.
+/// addition. Wider than [`ValidateArgs`] (carries `--emit-hash` so
+/// the operator can pipe the V-907 pin into shell scripts) but
+/// narrower than [`MigrateArgs`] (no `--target` / `--expect-hash`
+/// — inspect is read-only, no schema-version gymnastics).
+/// `--quiet` is shared with migrate / validate.
 #[derive(Debug, Parser)]
 pub struct InspectArgs {
     /// Filesystem path to a UTF-8 markdown persona-definition.
@@ -303,12 +299,12 @@ pub struct InspectArgs {
 
 /// Arguments for the `pin` subcommand.
 ///
-/// Sprint-6 Tag-4 addition. Strict subset of [`InspectArgs`]: no
-/// `--emit-hash` flag (the subcommand already emits the pin on
-/// stdout — a redundant flag would be noise) and no `--target` /
-/// `--expect-hash` (pin is read-only, no schema-version gymnastics).
-/// Only `--quiet` is shared with the other subcommands for
-/// stderr-progress-line suppression.
+/// addition. Strict subset of [`InspectArgs`]: no `--emit-hash` flag
+/// (the subcommand already emits the pin on stdout — a redundant
+/// flag would be noise) and no `--target` / `--expect-hash` (pin is
+/// read-only, no schema-version gymnastics). Only `--quiet` is
+/// shared with the other subcommands for stderr-progress-line
+/// suppression.
 #[derive(Debug, Parser)]
 pub struct PinArgs {
     /// Filesystem path to a UTF-8 markdown persona-definition.
@@ -556,8 +552,8 @@ pub fn run_migrate(args: &MigrateArgs) -> CliOutcome {
     // match Python byte-identical.
     //
     // Implementation note: the project helper lives in the resolver
-    // crate as a private function (Sprint-4 Tag-5 scope cut). We
-    // reuse the migrated full dict, project locally with the same
+    // crate as a private function (scope cut). We reuse the migrated
+    // full dict, project locally with the same
     // CANONICAL_TOP_LEVEL_KEYS contract, and serialise that.
     // Behaviour identity is verified by the cross-check tests below.
     let canonical = match project_canonical_subset_public(&migrated) {
@@ -604,7 +600,7 @@ pub fn run_migrate(args: &MigrateArgs) -> CliOutcome {
 }
 
 // ---------------------------------------------------------------------
-// `validate` subcommand handler (Sprint-6 Tag-2)
+// `validate` subcommand handler
 // ---------------------------------------------------------------------
 
 /// Serialise a [`persona_validator::ValidationReport`] canonical-value
@@ -687,7 +683,7 @@ pub fn run_validate(args: &ValidateArgs) -> CliOutcome {
 }
 
 // ---------------------------------------------------------------------
-// `inspect` subcommand handler (Sprint-6 Tag-3)
+// `inspect` subcommand handler
 // ---------------------------------------------------------------------
 
 /// Serialise a `PersonaInspectReport` (the Python-side name; the
@@ -720,7 +716,7 @@ pub fn serialise_inspect_report(report: &Value) -> String {
 /// - `persona_hash`: the V-907 `"sha256:<64hex>"` pin computed over
 ///   the canonical subset via
 ///   [`compute_persona_hash_from_canonical`]. By construction this
-///   equals the Sprint-4 `PERSONA_HASH_PIN_V9` constant for the V9
+/// equals the `PERSONA_HASH_PIN_V9` constant for the V9
 ///   fixture.
 /// - `report_schema_version`: `"persona-inspect-v1"`.
 ///
@@ -827,7 +823,7 @@ pub fn run_inspect(args: &InspectArgs) -> CliOutcome {
 }
 
 // ---------------------------------------------------------------------
-// `pin` subcommand handler (Sprint-6 Tag-4)
+// `pin` subcommand handler
 // ---------------------------------------------------------------------
 
 /// Execute the `pin` subcommand against the given arguments.
@@ -848,9 +844,9 @@ pub fn run_inspect(args: &InspectArgs) -> CliOutcome {
 /// failed: ..."` marker.
 ///
 /// V-907-CLI-invariant: on a v9 (no-op-chain) input, this stdout
-/// equals `inspect --emit-hash --quiet` stderr-pin equals
-/// `migrate --emit-hash` stderr-last-line. The Tag-4 test pack pins
-/// all three forms against `PERSONA_HASH_PIN_V9`.
+/// equals `inspect --emit-hash --quiet` stderr-pin equals `migrate
+/// --emit-hash` stderr-last-line. The test pack pins all three forms
+/// against `PERSONA_HASH_PIN_V9`.
 pub fn run_pin(args: &PinArgs) -> CliOutcome {
     let mut outcome = CliOutcome::default();
 
@@ -928,12 +924,11 @@ pub fn run_pin(args: &PinArgs) -> CliOutcome {
 ///
 /// Mirror of the private `project_canonical_subset` in
 /// [`persona_migration_resolver`] (the resolver does not expose it
-/// because Sprint-4 Tag-5 explicitly kept the public surface narrow
-/// — Tag-5 Outbox §A1 documents the scope cut). The CLI needs the
-/// projection to emit a developer-readable canonical-subset on
-/// stdout; we re-implement it here verbatim from the resolver's
-/// contract to avoid widening that crate's public surface in
-/// Sprint-5 Tag-1.
+/// because explicitly kept the public surface narrow — Outbox §A1
+/// documents the scope cut). The CLI needs the projection to emit a
+/// developer-readable canonical-subset on stdout; we re-implement
+/// it here verbatim from the resolver's contract to avoid widening
+/// that crate's public surface in.
 ///
 /// Contract:
 /// - Required top-level keys: `name`, `description`, `tools`,
@@ -1467,9 +1462,8 @@ mod tests {
     /// The expected blob is checked into the test fixtures directory
     /// and was generated by `python -m wirelang.persona.cli migrate
     /// v8-persona-pre-framework.md --quiet > expected.json` on
-    /// 2026-05-11 (Sprint-5 Tag-1 Box). A future Rust-side regression
-    /// in the sort order, ASCII-escape, or indent shape breaks this
-    /// test.
+    /// 2026-05-11 (Box). A future Rust-side regression in the sort
+    /// order, ASCII-escape, or indent shape breaks this test.
     #[test]
     fn t13_v8_to_v1_stdout_byte_identical_to_python_cli() {
         let outcome = run_in_process("byte-anchor", v8_fixture(), &["--quiet"]);
@@ -1520,14 +1514,11 @@ mod tests {
 }
 
 // ---------------------------------------------------------------------
-// `--target persona-v2` operator-CLI test pack (Phase-1b Sprint-5 Tag-2).
+// `--target persona-v2` operator-CLI test pack.
 //
-// Rust mirror of `wirelang/tests/test_persona_migration_cli_v2_target.py`
-// (7 Python tests). Covers the `wakir-persona migrate --target persona-v2`
-// surface that Sprint-3 Tag-3 wired into the CLI's `--target` choices via
-// `PERSONA_SCHEMA_VERSION_LIST`. Each Rust test is paired 1:1 with a
-// Python test so that a future regression in either tree fails the
-// matching test on the other side.
+// Rust mirror of `wirelang/tests/test_persona_migration_cli_v2_target.py` (7 Python tests). Covers the `wakir-persona migrate
+// --target persona-v2` surface that wired into the CLI's `--target` choices via `PERSONA_SCHEMA_VERSION_LIST`. Each Rust test
+// is paired 1:1 with a Python test so that a future regression in either tree fails the matching test on the other side.
 //
 // Pairing:
 //
@@ -1585,7 +1576,7 @@ mod v2_target_tests {
 
     // -------------------------------------------------------------------
     // vt1 / Parser surface: --target persona-v2 must be an accepted
-    //       choice after Tag-3's PERSONA_SCHEMA_VERSION_LIST extension.
+    // choice after the PERSONA_SCHEMA_VERSION_LIST extension.
     //
     // Mirror of Python `test_build_parser_accepts_target_persona_v2`.
     // Regression guard for the resolver's PERSONA_SCHEMA_VERSION_LIST
@@ -1601,7 +1592,7 @@ mod v2_target_tests {
         assert_eq!(
             validate_target("persona-v2"),
             Ok("persona-v2".to_string()),
-            "validate_target must accept persona-v2 after Tag-3 list extension"
+            "validate_target must accept persona-v2 after list extension"
         );
 
         // Full clap parse path: argv shape mirrors the Python invocation
@@ -1824,7 +1815,7 @@ mod v2_target_tests {
 }
 
 // ---------------------------------------------------------------------
-// `validate` subcommand test pack (Phase-1b Sprint-6 Tag-2).
+// `validate` subcommand test pack.
 //
 // Rust mirror of `wirelang/tests/test_persona_validator_cli.py`. Pairs
 // 1:1 with the Python tests so that a regression on either side fails
@@ -2073,7 +2064,7 @@ mod validate_tests {
     // -------------------------------------------------------------------
     // va10 / V9 stdout byte-identical to the Python-frozen fixture.
     //
-    // The fixture was generated on 2026-05-11 (Sprint-6 Tag-2 Box) by
+    // The fixture was generated on 2026-05-11 (Box) by
     // `python -m wirelang.persona.cli validate v9-persona-framework-
     // native.md --quiet > v9-validated.expected.json`. A drift on
     // either side breaks this anchor.
@@ -2170,7 +2161,7 @@ mod validate_tests {
 }
 
 // ---------------------------------------------------------------------
-// `inspect` subcommand test pack (Phase-1b Sprint-6 Tag-3).
+// `inspect` subcommand test pack.
 //
 // Rust mirror of `wirelang/tests/test_persona_inspect_cli.py`. Pairs
 // 1:1 with the Python tests so that a regression on either side fails
@@ -2241,7 +2232,7 @@ mod inspect_tests {
 
     /// Helper that runs the in-process CLI against a fixture file via
     /// the `inspect` subcommand. Mirror of [`run_in_process`] (which
-    /// targets `migrate`) and `run_validate_in_process` (Tag-2).
+    /// targets `migrate`) and `run_validate_in_process`.
     fn run_inspect_in_process(persona_file: PathBuf, extra: &[&str]) -> CliOutcome {
         let path_str = persona_file.to_string_lossy().into_owned();
         let mut argv: Vec<&str> = vec!["wakir-persona", "inspect", &path_str];
@@ -2494,7 +2485,7 @@ mod inspect_tests {
     // -------------------------------------------------------------------
     // vi12 / V9 stdout byte-identical to the Python-frozen fixture.
     //
-    // The fixture was generated on 2026-05-11 (Sprint-6 Tag-3 Box) by
+    // The fixture was generated on 2026-05-11 (Box) by
     // `python -m wirelang.persona.cli inspect v9-persona-framework-
     // native.md --quiet > v9-inspected.expected.json`. A drift on
     // either side breaks this anchor.
@@ -2642,7 +2633,7 @@ mod inspect_tests {
 }
 
 // ---------------------------------------------------------------------
-// `pin` subcommand test pack (Sprint-6 Tag-4)
+// `pin` subcommand test pack
 //
 // Pure-CLI-shim coverage for the `pin` subcommand. Minimal-footprint
 // shell-pipeline wrapper: stdout = the V-907 persona-hash, one line,
@@ -2717,8 +2708,8 @@ mod pin_tests {
 
     /// Helper that runs the in-process CLI against a fixture file via
     /// the `pin` subcommand. Mirror of [`run_in_process`] (targets
-    /// `migrate`), `run_validate_in_process` (Tag-2), and
-    /// `run_inspect_in_process` (Tag-3).
+    /// `migrate`), `run_validate_in_process`, and
+    /// `run_inspect_in_process`.
     fn run_pin_in_process(persona_file: PathBuf, extra: &[&str]) -> CliOutcome {
         let path_str = persona_file.to_string_lossy().into_owned();
         let mut argv: Vec<&str> = vec!["wakir-persona", "pin", &path_str];
@@ -2968,7 +2959,7 @@ mod pin_tests {
     // -------------------------------------------------------------------
     // vp12 / V9 stdout byte-identical to the Python-frozen fixture.
     //
-    // The fixture was generated on 2026-05-11 (Sprint-6 Tag-4 Box) by
+    // The fixture was generated on 2026-05-11 (Box) by
     // `python -m wirelang.persona.cli pin v9-persona-framework-native.md
     //  --quiet > v9-pin.expected.txt`. A drift on either side breaks
     // this anchor.
@@ -3158,12 +3149,11 @@ mod pin_tests {
 // =====================================================================
 // Help-text cross-subcommand-consistency test pack
 //
-// Phase-1b Sprint-6 Tag-5 addition. Rust pendant of
+// addition. Rust pendant of
 // `wirelang/tests/test_persona_cli_help_text.py`. Asserts the same
 // soft-match contracts the Python pack pins (shared-flag wording
-// uniformity, subcommand registration inventory, exit-code semantics
-// on `--help`, flag-surface scope) against the Rust `clap::Command`
-// tree.
+// uniformity, subcommand registration inventory, exit-code semantics on
+// `--help`, flag-surface scope) against the Rust `clap::Command` tree.
 //
 // Posture (vs. cross-language byte-identity)
 // ==========================================
@@ -3630,7 +3620,7 @@ mod help_text_consistency_tests {
 }
 
 // =====================================================================
-// stderr-Wording-Byte-Parität test pack (Phase-1b Sprint-6 Tag-6 — Item 1)
+// stderr-Wording-Byte-Parität test pack (Item 1)
 //
 // Sister of wirelang/tests/test_persona_cli_stderr_parity.py. The two
 // packs pin a shared Cross-Lang-Diff-Pin on the per-subcommand stderr

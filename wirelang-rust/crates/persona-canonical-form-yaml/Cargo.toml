@@ -15,26 +15,23 @@
 # - extract_canonical_subset(parsed) -> serde_json::Value object
 # - read_canonical_subset(text) -> serde_json::Value object
 #
-# Cross-language parity contract (Sprint-3-Tag-5 outbox §A2 + Sprint-4-
-# Tag-1 box): for the V9 ground-truth fixture
+# Cross-language parity contract: for the V9 ground-truth fixture
 # `wirelang/tests/fixtures/persona_definitions/v9-persona-framework-native.md`,
-# the resulting canonical-subset must JCS-serialise to a byte string of
-# length 387 whose SHA-256 equals `PERSONA_HASH_PIN_V9`
-# (`0f298894...e1d793`). This binds Crate-3 + Crate-2 + Crate-1
-# together into the same V-907 pin-pack as the Python tree.
+# the resulting canonical-subset must JCS-serialise to a byte string of length
+# 387 whose SHA-256 equals `PERSONA_HASH_PIN_V9` (`0f298894...e1d793`). This
+# binds Crate-3 + Crate-2 + Crate-1 together into the same V-907 pin-pack as
+# the Python tree.
 #
-# Mira-Decision YAML-Parser (Sprint-3-Closeout-Stempel, ratified 2026-05-07
-# ~18:15 CEST): `serde_yaml = 0.9.34` is the default. Rationale: broadest
-# Rust-ecosystem footprint, MIT-licensed, byte-stable on the YAML 1.1
-# subset that the V-907 mock format uses (no anchors / no flow-style
-# floats / no exotic scalars). The crate is marked "deprecated" by its
-# upstream maintainer in version 0.9.34, but it remains the de-facto
-# YAML parser used by Cargo itself and by serde's own integration
-# tests; the deprecation marker reflects a maintainership transition,
-# not a behavioural regression. Phase-1c follow-up: re-evaluate
-# `saphyr` / `serde-saphyr` for strict YAML 1.2 conformance when
-# the persona-definition format moves beyond the current trivial
-# YAML 1.1 subset.
+# Ratified YAML-parser decision: `serde_yaml = 0.9.34` is the default. Rationale: broadest
+# Rust-ecosystem footprint, MIT-licensed, byte-stable on the YAML 1.1 subset
+# that the V-907 mock format uses (no anchors / no flow-style floats / no
+# exotic scalars). The crate is marked "deprecated" by its upstream maintainer
+# in version 0.9.34, but it remains the de-facto YAML parser used by Cargo
+# itself and by serde's own integration tests; the deprecation marker reflects
+# a maintainership transition, not a behavioural regression. Phase-1c
+# follow-up: re-evaluate `saphyr` / `serde-saphyr` for strict YAML 1.2
+# conformance when the persona-definition format moves beyond the current
+# trivial YAML 1.1 subset.
 
 [package]
 name = "persona-canonical-form-yaml"
