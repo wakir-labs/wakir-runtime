@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //! `wakir-persona-engine-state-backing` binary entry-point.
 //!
-//! Tag-33 Mini-Welle (ADR-0066 Welle-4 `state_backing` pre-cutover
+//! Mini-Welle (ADR-0066 Welle-4 `state_backing` pre-cutover
 //! image, parallel to ADR-0066 Welle-1 V907-verify, Welle-2 SVID-
 //! workload-identity and Welle-3 bridge-audit-writer image-builds).
 //!
@@ -37,7 +37,7 @@
 //!
 //! Zero new dependencies. No clap, no anyhow, no env_logger — the
 //! binary is a static-link-friendly thin shim for the Container-
-//! Image-Build-Pipeline (Tag-33 Mini-Welle, ADR-0066 Welle-4 image-
+//! Image-Build-Pipeline (Mini-Welle, ADR-0066 Welle-4 image-
 //! build). Parity with the `wakir-persona-engine-svid-workload-identity`
 //! and `wakir-persona-engine-bridge-audit-writer` operator-CLI surface.
 //!
@@ -62,7 +62,7 @@
 //!   publishes.
 //! - ADR-0060 — Cosign-Policy on Pilot-Container-Images.
 //! - persona-engine-format-spec §3.7.5 — state-backing trait contract.
-//! - Selin PR #65 (Sprint-Pengine-8) — Python schema authority.
+//! - PR #65 — Python schema authority.
 
 use std::process::ExitCode;
 

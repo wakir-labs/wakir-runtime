@@ -5,9 +5,9 @@
 //!
 //! This is the **initial Rust scaffold** of the persona-engine
 //! subscribe-loop. The Python reference implementation lives at
-//! `wirelang/persona_engine/nats_subscribe_loop.py` (Selin Bug-42-Fix
-//! PR #79, Sprint-Pengine-13). The Doppelbetrieb-Konsistenz contract
-//! (Selin PR #113 3-way-triangle) requires this Rust substrate to
+//! `wirelang/persona_engine/nats_subscribe_loop.py` (the persona-engine side Bug-42-Fix
+//! PR #79). The Doppelbetrieb-Konsistenz contract
+//! (PR #113 3-way-triangle) requires this Rust substrate to
 //! produce schema-byte-parity with the Python loop at the JSON
 //! envelope boundary.
 //!
@@ -22,7 +22,7 @@
 //! the same posture as the Python hermetic-test surface
 //! (`run_with_iterator(asyncio.Queue)`).
 //!
-//! # Schema parity with Selin PR #79
+//! # Schema parity with PR #79
 //!
 //! | Python concept | Rust type |
 //! |---|---|
@@ -36,10 +36,10 @@
 //! # ADR anchors
 //!
 //! - ADR-0063 §Folgeartefakte Phase-3a Item 4 (initial Rust scaffold).
-//! - Selin PR #79  (Schema-Quelle, Bug-42 fix).
-//! - Selin PR #113 (3-way-triangle Doppelbetrieb).
-//! - Selin PR #118 (rust-adapter-hook).
-//! - Reza  PR #120 (Phase-3a crate-smoke precedent).
+//! - PR #79  (Schema-Quelle, Bug-42 fix).
+//! - PR #113 (3-way-triangle Doppelbetrieb).
+//! - PR #118 (rust-adapter-hook).
+//! - PR #120 (Phase-3a crate-smoke precedent).
 
 use std::future::Future;
 use std::pin::Pin;
@@ -50,7 +50,7 @@ use serde_json::Value;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::Mutex;
 
-// Tag-19 Mini-Welle: subscribe-ack-record cross-lang substrate.
+// Mini-Welle: subscribe-ack-record cross-lang substrate.
 // Lives in its own module so the existing `run_subscribe_loop`
 // state-contract stays unchanged; the ack-record substrate is
 // orthogonal and re-exported at crate root for ergonomic import.
@@ -88,7 +88,7 @@ pub const SUBSCRIBE_SUBJECT_TEMPLATE: &str =
 /// Subscribe-loop construction parameters.
 ///
 /// Schema-parity-subset of the Python `SubscribeLoopConfig`, with the
-/// fields explicitly listed in the Sprint-Auftrag: `subject_pattern`,
+/// fields explicitly listed in the: `subject_pattern`,
 /// `nats_url`, `durable_name`, `max_inflight`.
 #[derive(Debug, Clone)]
 pub struct SubscribeLoopConfig {
@@ -135,8 +135,8 @@ impl SubscribeLoopConfig {
 /// Snapshot of subscribe-loop runtime state.
 ///
 /// Collapses the Python `TaskProcessingTracker` counters with the
-/// Sprint-SRE Tag-15 subscribe-lag observability into a single
-/// returnable value, matching the Sprint-Auftrag signature
+/// subscribe-lag observability into a single
+/// returnable value, matching the signature
 /// `async fn run_subscribe_loop(config) -> SubscribeLoopState`.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct SubscribeLoopState {
@@ -409,7 +409,7 @@ pub fn utc_now_rfc3339() -> String {
 /// Async driver that consumes an in-memory message channel and
 /// dispatches each message through the supplied handler.
 ///
-/// The signature mirrors the Sprint-Auftrag contract:
+/// The signature mirrors the contract:
 ///
 /// ```ignore
 /// async fn run_subscribe_loop(config) -> SubscribeLoopState
@@ -436,7 +436,7 @@ pub async fn run_subscribe_loop(
                 // surface that counter yet — we deliberately do NOT
                 // bump `messages_processed`. Future versions add an
                 // explicit `malformed_count` field; the current
-                // contract is the Sprint-Auftrag's 3-field struct.
+                // contract is the 's 3-field struct.
                 continue;
             }
         };

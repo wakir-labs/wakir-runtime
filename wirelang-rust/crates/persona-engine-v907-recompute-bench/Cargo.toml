@@ -44,7 +44,7 @@
 #   floating-point drift between machines; the public API surfaces
 #   microsecond u64 fields.
 #
-# Default-Lock posture (Sprint-V907-Recompute-Bench-MINI, Phase-3a
+# Default-Lock posture (Phase-3a
 # Modul 14)
 # -----------------------------------------------------------------
 # - A-1 Measurement-only baseline: this crate does NOT introduce a
@@ -63,7 +63,7 @@
 # - ADR-0063 §Folgeartefakte Phase-3a — Rust-Crate-Bundle Item 14
 #   (recompute benchmark + JSON output for cross-lang compare).
 # - PR #136 (persona-engine-v907-verify merged) — direct dependency.
-# - Sprint-Pengine-7 Tag-1 Crate-8 (persona-engine-format) — same
+# - Crate-8 (persona-engine-format) — same
 #   axis-A surface.
 #
 # Criterion as dev-dep

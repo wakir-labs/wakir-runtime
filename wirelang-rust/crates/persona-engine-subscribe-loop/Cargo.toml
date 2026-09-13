@@ -7,7 +7,7 @@
 # First substantive Rust implementation of a persona-engine module:
 # the NATS Subscribe-Loop module. Schema-parity with the Python
 # reference implementation `wirelang/persona_engine/nats_subscribe_loop.py`
-# (Selin Bug-42-Fix PR #79, Sprint-Pengine-13).
+# (the persona-engine side Bug-42-Fix PR #79).
 #
 # This crate is the **initial Rust scaffold** of the subscribe-loop. It
 # defines the type-level contract (`SubscribeLoopConfig`,
@@ -17,7 +17,7 @@
 # during Phase-3a; this crate is the deterministic substrate the
 # Phase-3a 3-way bridge will compare against.
 #
-# Schema parity (Selin Bug-42-Fix PR #79 + Sprint-Pengine-13)
+# Schema parity (the persona-engine side Bug-42-Fix PR #79)
 # ----------------------------------------------------------
 # The Rust types mirror the Python dataclasses byte-for-byte at the
 # JSON level:
@@ -42,15 +42,15 @@
 # ADR anchors
 # -----------
 # - ADR-0063 §Folgeartefakte Phase-3a Item 4 — initial Rust scaffold
-#   of a real persona-engine module (Selin Sprint-Pengine-15-Folge
-#   and Reza Sprint-Pengine-7 crate-stack feed into Phase-3a).
-# - Selin PR #79 (Sprint-Pengine-13 Bug-42 fix) — schema authority
+#   of a real persona-engine module (the persona-engine side
+#   and the protocol side crate-stack feed into Phase-3a).
+# - PR #79 (Bug-42 fix) — schema authority
 #   for the Python reference implementation.
-# - Selin PR #113 (3-way-triangle) — Doppelbetrieb-Vergleich
+# - PR #113 (3-way-triangle) — Doppelbetrieb-Vergleich
 #   substrate; this crate is the third leg.
-# - Selin PR #118 (rust-adapter-hook skeleton) — the adapter that
+# - PR #118 (rust-adapter-hook skeleton) — the adapter that
 #   will eventually wire this loop into the Python engine.
-# - Reza PR #120 (Phase-3a crate-smoke) — dependency-island
+# - PR #120 (Phase-3a crate-smoke) — dependency-island
 #   precedent for direct version pins.
 #
 # Versioning rationale (verified HTTP-200 against crates.io API on
@@ -75,7 +75,7 @@
 #   fields. Mirrors the Python `time.strftime("%Y-%m-%dT%H:%M:%SZ")`
 #   shape with `chrono::SecondsFormat::Secs`.
 #
-# Hard-Constraints (per Sprint-Auftrag)
+# Hard-Constraints
 # -------------------------------------
 # - No touches to `wakir-runtime/wirelang/persona_engine/subscribe_loop.py`
 #   (Python engine unchanged; Doppelbetrieb-Konsistenz preserved).
@@ -89,8 +89,8 @@ edition = "2021"
 rust-version = "1.85"
 license = "Apache-2.0"
 repository = "https://github.com/wakir-labs/wakir-runtime"
-authors = ["Reza Tehrani <reza@wakir.local>"]
-description = "Initial Rust scaffold of the persona-engine NATS Subscribe-Loop (Phase-3a Item 4, schema-parity with Selin PR #79)."
+authors = ["Wakir Labs"]
+description = "Initial Rust scaffold of the persona-engine NATS Subscribe-Loop (Phase-3a Item 4, schema-parity with PR #79)."
 publish = false
 
 [lib]
@@ -100,7 +100,7 @@ path = "src/lib.rs"
 # Operator-CLI binary: surface the subscribe-loop schema constants
 # (inbound + outbound + ack-record schemas, subject template, valid
 # outcomes) to operator scripts. Subcommands: `info`, `--version`,
-# `--help`. Tag-33 Mini-Welle, ADR-0066 Welle-6 `subscribe_loop`
+# `--help`. Mini-Welle, ADR-0066 Welle-6 `subscribe_loop`
 # pre-cutover image. Parity with the
 # `wakir-persona-engine-state-backing` operator-CLI surface.
 [[bin]]
@@ -121,7 +121,7 @@ serde_json = "=1.0.140"
 # RFC-3339 second-precision timestamp formatting.
 chrono = { version = "=0.4.44", default-features = false, features = ["clock", "std"] }
 
-# SHA-256 for the Tag-19 subscribe-ack-record cross-lang substrate
+# SHA-256 for the subscribe-ack-record cross-lang substrate
 # (`ack_record` module). Workspace pin =0.10.8 (default-features=false)
 # matches the `persona-engine-anchor-emitter` dependency posture so the
 # two crates do not pull in different `sha2` versions.

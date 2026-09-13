@@ -27,7 +27,7 @@
 //! Zero new dependencies beyond the workspace deps the library
 //! already pulls in. No clap, no anyhow, no env_logger — the binary
 //! is a static-link-friendly thin shim for the Container-Image-Build-
-//! Pipeline (Tag-26 Mini-Welle, ADR-0065 Welle-1 `v907_verify`
+//! Pipeline (Mini-Welle, ADR-0065 Welle-1 `v907_verify`
 //! pre-cutover image).
 //!
 //! Cross-references

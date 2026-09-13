@@ -12,9 +12,9 @@ Initial Rust scaffold of the persona-engine NATS Subscribe-Loop
 
 First substantive Rust implementation of a persona-engine module.
 The Python reference implementation lives at
-`wirelang/persona_engine/nats_subscribe_loop.py` (Selin Bug-42-Fix
-PR #79, Sprint-Pengine-13). This crate is the third leg of the
-Doppelbetrieb-Konsistenz triangle (Selin PR #113) — Python /
+`wirelang/persona_engine/nats_subscribe_loop.py` (the persona-engine side Bug-42-Fix
+PR #79). This crate is the third leg of the
+Doppelbetrieb-Konsistenz triangle (PR #113) — Python /
 audit-substrate / Rust.
 
 ## Scope of this scaffold
@@ -34,7 +34,7 @@ surface (`run_with_iterator(asyncio.Queue)`).
 | Type / fn | Parity reference |
 |---|---|
 | `SubscribeLoopConfig` | Python `SubscribeLoopConfig` (sprint subset) |
-| `SubscribeLoopState` | Python `TaskProcessingTracker` + Sprint-SRE Tag-15 lag |
+| `SubscribeLoopState` | Python `TaskProcessingTracker` + lag |
 | `SubscribeMessage` | Python `InboundMessage` protocol |
 | `MessageHandler` trait | Python `LlmCallHook` + `_handle_message_inner` |
 | `ParsedEnvelope` | Python `ParsedAuftrag` |
@@ -55,7 +55,7 @@ surface (`run_with_iterator(asyncio.Queue)`).
 ## ADR anchors
 
 - ADR-0063 §Folgeartefakte Phase-3a Item 4 — initial Rust scaffold.
-- Selin PR #79 — Schema-Quelle, Bug-42 fix.
-- Selin PR #113 — 3-way-triangle Doppelbetrieb.
-- Selin PR #118 — rust-adapter-hook skeleton.
-- Reza PR #120 — Phase-3a crate-smoke (dependency-island precedent).
+- PR #79 — Schema-Quelle, Bug-42 fix.
+- PR #113 — 3-way-triangle Doppelbetrieb.
+- PR #118 — rust-adapter-hook skeleton.
+- PR #120 — Phase-3a crate-smoke (dependency-island precedent).

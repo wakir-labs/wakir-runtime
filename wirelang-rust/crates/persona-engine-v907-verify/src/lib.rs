@@ -584,7 +584,7 @@ mod unit_tests {
 }
 
 // =====================================================================
-// Canonical-trace cross-lang surface (Tag-35 Phase-3a 12. Modul)
+// Canonical-trace cross-lang surface (Phase-3a 12. Modul)
 // =====================================================================
 
 /// Cross-lang canonical-trace surface for the V-907 engine-side verify.

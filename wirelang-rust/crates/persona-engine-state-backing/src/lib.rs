@@ -7,8 +7,8 @@
 //! This is the **initial Rust scaffold** of the persona-engine
 //! NATS-KV Persona-State backing module. The Python reference
 //! implementation lives at `wirelang/persona_engine/state_backing.py`
-//! (Selin Sprint-Pengine-8 PR #65, persona-engine-format-spec §3.7.5).
-//! The Doppelbetrieb-Konsistenz contract (Selin PR #113 3-way-triangle)
+//! (the persona-engine side PR #65, persona-engine-format-spec §3.7.5).
+//! The Doppelbetrieb-Konsistenz contract (PR #113 3-way-triangle)
 //! requires this Rust substrate to produce schema-byte-parity with
 //! the Python module at the JCS-canonical envelope boundary.
 //!
@@ -42,11 +42,11 @@
 //! | `offset_key(off)`                           | [`offset_key`]                   |
 //! | `offset_from_key(k)`                        | [`offset_from_key`]              |
 //!
-//! # Watch-Revisions extension (Sprint-Auftrag surface)
+//! # Watch-Revisions extension (surface)
 //!
 //! The Python trait declares four operations
 //! (`snapshot / restore_latest / list_snapshots /
-//! atomic_swap_pinned_offset`). The Sprint-Auftrag adds a fifth op
+//! atomic_swap_pinned_offset`). The adds a fifth op
 //! [`StateBacking::watch_revisions`] — a NATS-KV-native revision
 //! stream emitting [`RevisionEvent`] items as new snapshots land.
 //! The Python pendant is the `nats-py KeyValue.watch()` async
@@ -59,14 +59,14 @@
 //! # ADR anchors
 //!
 //! - ADR-0063 §Folgeartefakte Phase-3a Item 6 (this crate).
-//! - Selin PR #65   (Sprint-Pengine-8) — Python schema authority.
-//! - Selin PR #113  (3-way-triangle)   — Doppelbetrieb substrate.
-//! - Selin PR #131  (bridge-diff-rust) — sibling crate.
-//! - Reza  PR #132  (subscribe-loop-rust) — sibling crate (async-nats
+//! - PR #65 — Python schema authority.
+//! - PR #113  (3-way-triangle)   — Doppelbetrieb substrate.
+//! - PR #131  (bridge-diff-rust) — sibling crate.
+//! - PR #132  (subscribe-loop-rust) — sibling crate (async-nats
 //!   version precedent).
-//! - Selin PR #135  (recovery-rust)    — sibling crate (Tokio version
+//! - PR #135  (recovery-rust)    — sibling crate (Tokio version
 //!   precedent).
-//! - Selin PR #136  (v907-verify-rust) — sibling crate.
+//! - PR #136  (v907-verify-rust) — sibling crate.
 //! - persona-engine-format-spec §3.7.5  — state-backing trait contract.
 
 use std::collections::BTreeMap;
@@ -192,7 +192,7 @@ pub struct PersonaStateSnapshot {
 /// preserving insertion order.
 ///
 /// Byte-equality with Python is asserted at the 3-way-triangle
-/// boundary (Selin PR #113); the smoke-tests in this crate include
+/// boundary (PR #113); the smoke-tests in this crate include
 /// a golden-vector regression test against the byte string emitted
 /// by the Python reference.
 pub fn snapshot_to_jcs_bytes(snap: &PersonaStateSnapshot) -> Vec<u8> {
@@ -377,7 +377,7 @@ impl std::fmt::Display for StateBackingError {
 impl std::error::Error for StateBackingError {}
 
 // ---------------------------------------------------------------------------
-// Watch-Revisions surface (Sprint-Auftrag fifth op).
+// Watch-Revisions surface (fifth op).
 // ---------------------------------------------------------------------------
 
 /// Event emitted by [`StateBacking::watch_revisions`] when a new
@@ -441,7 +441,7 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 ///    — CAS-update the pinned offset. Used by spec §3.7.3
 ///    migrate-version mechanic.
 /// 5. [`watch_revisions`](StateBacking::watch_revisions) — open a
-///    revision-event stream for the persona's bucket. Sprint-Auftrag
+///    revision-event stream for the persona's bucket.
 ///    fifth op; Python pendant is `nats-py KeyValue.watch()`.
 pub trait StateBacking: Send + Sync {
     /// Persist `state` and return its new `audit_trace_offset`.
@@ -489,7 +489,7 @@ pub trait StateBacking: Send + Sync {
     /// for low-volume operator-facing observers; tune up for the
     /// WAT-anchor-pipeline observer).
     ///
-    /// Sprint-Auftrag fifth op. Python pendant: `nats-py
+    /// fifth op. Python pendant: `nats-py
     /// KeyValue.watch()` async iterator.
     fn watch_revisions<'a>(
         &'a self,

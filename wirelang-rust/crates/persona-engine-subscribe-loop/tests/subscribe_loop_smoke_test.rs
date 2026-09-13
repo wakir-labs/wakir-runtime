@@ -173,7 +173,7 @@ fn t4_build_subscribe_subject_parity() {
     assert!(build_subscribe_subject("evil", "reza").is_err());
 
     // Bad slug rejected.
-    assert!(build_subscribe_subject("prod", "Reza").is_err()); // uppercase
+    assert!(build_subscribe_subject("prod", "Uppercase").is_err()); // uppercase
     assert!(build_subscribe_subject("prod", "1reza").is_err()); // leading digit
     assert!(build_subscribe_subject("prod", "").is_err()); // empty
     assert!(build_subscribe_subject("prod", "re.za").is_err()); // dot

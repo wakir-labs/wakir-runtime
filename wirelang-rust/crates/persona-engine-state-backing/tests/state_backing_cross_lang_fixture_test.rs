@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Callandor GmbH and contributors
 //
 // Cross-lang fixture parity tests for persona-engine-state-backing
-// (Tag-23 Mini-Welle, Phase-3a Python-sync, 8. Modul).
+// (Mini-Welle, Phase-3a Python-sync, 8. Modul).
 //
 // These tests consume the same authoritative JSON fixture file
 // (`tests/fixtures/state-backing-cross-lang/fixtures.json` at the
@@ -41,7 +41,7 @@
 // text-only. Rather than add the `base64` crate as a dev-dependency
 // we inline a small lookup-table decoder; the fixture data is
 // hard-coded and base64-decoded once per test. Identical pattern to
-// the `persona-engine-recovery` Tag-20 PR cross-lang fixture test.
+// the `persona-engine-recovery` PR cross-lang fixture test.
 
 use persona_engine_state_backing::{
     snapshot_from_jcs_bytes, snapshot_payload_sha256, snapshot_to_jcs_bytes, InMemoryStateBacking,
