@@ -4,11 +4,11 @@
 # Part of the Wakir Audit Trail (WAT) module. Licensed under
 # Business Source License 1.1; see ../LICENSE-BSL.md.
 
-"""WAT-manifest signing layer (Phase-1b Sprint-4 Tag-6).
+"""WAT-manifest signing layer.
 
 This module is the WAT-side parallel to the Identity-Substrate-
 engineering schema-registry-entry-signing layer
-(``wirelang.schemas.entry_signing``, Phase-2 Sprint-4 Tag-1). It
+(``wirelang.schemas.entry_signing``). It
 ships an Ed25519 signing primitive for WAT hour-manifests
 (``wat-manifest/1.0`` and ``wat-manifest/2.0``) that is *byte-
 identical in shape* to the AIP-document and schema-registry-entry
@@ -24,8 +24,7 @@ The on-the-wire manifest envelope gains an OPTIONAL top-level
 ``signature`` field. The hour-manifest schema URI is NOT bumped
 (no v3); v2 readers that pre-date this slot ignore an unknown
 optional top-level key (forward-compatible additive-only convention).
-
-Phase-1b Sprint-4 Tag-6 boundary:
+Module boundary:
 
 - This module ships the signing primitive, the
   :class:`WatManifestSignatureError` typed exception, the
@@ -40,9 +39,9 @@ Phase-1b Sprint-4 Tag-6 boundary:
   round-trips through the verifier without schema-validation entry.
 - This module does NOT wire the signing helpers into the existing
   hour-manifest verifier (``wat/verify/manifest_v2.py``). Verifier
-  wire-up is a Tag-7+ item that would gate the signature check on a
+  wire-up is a later item that would gate the signature check on a
   caller-supplied public key or a kid-resolver hit (the resolver
-  lives in :mod:`wat.identity.anchor_kid` per Sprint-4 Tag-5).
+  lives in :mod:`wat.identity.anchor_kid`).
 - This module does NOT ship the ``kid`` -> public-key resolver path.
   Callers supply the 32-byte raw Ed25519 public key directly on
   :func:`verify_manifest_signature`. The kid value is captured in
@@ -61,9 +60,9 @@ an AIP-document ``public_keys`` entry; the resolver belongs in
 References:
 
 - ``wirelang.identity.aip_signing`` (AIP-document signing convention).
-- ``wirelang.schemas.entry_signing`` (Identity-Substrate-engineering
-  Phase-2 Sprint-4 Tag-1, structural ancestor of this module).
-- :mod:`wat.identity.anchor_kid` (Sprint-4 Tag-5, kid-resolver bridge).
+- ``wirelang.schemas.entry_signing`` (Identity-Substrate-engineering,
+  structural ancestor of this module).
+- :mod:`wat.identity.anchor_kid` (kid-resolver bridge).
 - RFC 8032 Ed25519: https://datatracker.ietf.org/doc/html/rfc8032
 - RFC 8785 JCS: https://datatracker.ietf.org/doc/html/rfc8785
 """
@@ -121,7 +120,7 @@ class VerifyMode(enum.Enum):
       Signed manifests are verified end-to-end.
     - ``STRICT``: manifests WITHOUT a ``signature`` slot raise
       :class:`WatManifestSignatureError`. Activation is operator-
-      controlled; Tag-6 ships only the policy surface.
+      controlled; this module ships only the policy surface.
     """
 
     PERMISSIVE = "permissive"

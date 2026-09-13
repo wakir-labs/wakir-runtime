@@ -5,13 +5,12 @@
 # Business Source License 1.1; see ../LICENSE-BSL.md.
 
 """Backend dispatcher for WAT anchor-submit.
-
-Tag-16 Mini-Welle — Phase-3b production-wiring.
+Phase-3b production-wiring.
 
 This module is the integration boundary between the legacy Python
 anchor pipeline (``wat.anchor.ots_anchor.anchor_root``) and the Rust
 ``persona-engine-anchor-submit-worker`` crate (PR #149, gemerged) and
-its operator CLI ``submit_worker`` (Tag-16).
+its operator CLI ``submit_worker``.
 
 Backend selection
 -----------------
@@ -50,8 +49,8 @@ ADR anchors
 -----------
 
 * ADR-0063 §Folgeartefakte Phase-3a Modul 12 (Rust crate).
-* PR #149 — persona-engine-anchor-submit-worker (Reza, gemerged).
-* PR #154 — wat/anchor latency-emission (Noa) — pinned the per-stage
+* PR #149 — persona-engine-anchor-submit-worker.
+* PR #154 — wat/anchor latency-emission — pinned the per-stage
   latency emit hooks that this dispatcher intentionally does not
   duplicate (the Python backend keeps owning the per-stage histogram
   for now).

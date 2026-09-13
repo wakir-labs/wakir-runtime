@@ -432,7 +432,7 @@ def verify_receipt(
     and runs ``ots verify``. Returns ``True`` iff the receipt is
     finalised against Bitcoin and the root matches.
 
-    Esplora HTTP fallback (Phase-1a Tag-15)
+    Esplora HTTP fallback
     ---------------------------------------
 
     ``ots verify`` requires a local Bitcoin node (or an OTS-server-

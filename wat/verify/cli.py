@@ -338,7 +338,7 @@ def _check_hour_chain(
     Skipped cases:
 
     - Manifest does not carry the ``prev_hour_root`` key at all
-      (legacy pre-Tag-8 manifest from before the always-emit fix).
+      (legacy manifest from before the always-emit fix).
     - ``prev_hour_root`` is ``null`` -- cold-start of the audit trail
       or post-gap chain boundary; either way there is no link to walk.
 
@@ -641,7 +641,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     0   verified (and chain-verified, if ``--chain-check`` was set)
     1   failed (proof or OTS-receipt mismatch, missing manifest, ...)
     3   pending (proof OK, OTS receipt not yet finalised on Bitcoin)
-    4   chain-mismatch (Tag-8 addition; ``--chain-check`` only)
+    4   chain-mismatch (``--chain-check`` only)
     """
     parser = build_parser()
     args = parser.parse_args(argv)

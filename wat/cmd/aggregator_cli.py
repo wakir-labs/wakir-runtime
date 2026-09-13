@@ -174,7 +174,7 @@ def _sorted_by_time_then_event_id(
     CLI relies on this property to recompute the leaf list in manifest
     order without consulting an external index.
 
-    Phase-1a-Tag-8 fix: the previous implementation sorted by
+    Ordering fix: the previous implementation sorted by
     ``event_id`` only, which drifted from the spool-spec contract.
     The two sort keys agree for typical traffic (UUIDv7 monotonic with
     time) but disagree under coalesced timestamps or out-of-order
@@ -185,7 +185,7 @@ def _sorted_by_time_then_event_id(
 
 
 # ---------------------------------------------------------------------------
-# Backwards-compat alias. The Tag-7 internals re-exported this name on
+# Backwards-compat alias. Earlier internals re-exported this name on
 # the module surface; keep it pointing at the new implementation so any
 # in-repo or downstream caller that imported it directly does not break
 # silently. The alias is private (leading underscore) so it is not part
@@ -211,8 +211,8 @@ def _build_manifest_object(
     spec.md`` "prev_hour_root reservation"). It is optional in v1 with
     ``null`` as the default; v1 verifiers ignore the value, but writing
     it now lets v2 chain-check work over historical hours once the v2
-    verifier ships. Phase-1a-Tag-7: emit only when explicitly supplied;
-    Phase-1a-Tag-8 will wire the previous-hour discovery into the
+    verifier ships. Emit only when explicitly supplied;
+    A later revision will wire the previous-hour discovery into the
     hourly driver so the field is populated automatically.
     """
     leaves_bytes: List[bytes] = []
@@ -257,7 +257,7 @@ def _build_manifest_object(
         # writers always emit the field, defaulting to ``null`` when
         # no previous-hour root was discovered. v1 readers MUST
         # tolerate; v2 readers under ``--chain-check`` use the value
-        # to walk the chain. Phase-1a-Tag-8 wires this from the
+        # to walk the chain. This revision wires this from the
         # hourly driver via ``wat-hourly.sh`` automatic discovery.
         "prev_hour_root": prev_hour_root,
     }
@@ -301,7 +301,7 @@ def _build_empty_manifest(
 
 
 # ---------------------------------------------------------------------------
-# Aggregator-side signing (Phase-2 Sprint-6 Tag-3).
+# Aggregator-side signing.
 #
 # The aggregator emits an Ed25519 detached signature on the hour-manifest
 # when both ``--sign-key`` and ``--sign-kid`` are supplied (or the
@@ -312,14 +312,14 @@ def _build_empty_manifest(
 # :func:`wat.verify.manifest_v2.verify_real_manifest_file` under
 # ``verify_signature=True``. Closing this loop means a production
 # manifest now ships with its signature slot embedded on disk; the
-# downstream verifier-side wire-up (Sprint-5 Tag-2 / Sprint-6 Tag-2)
+# downstream verifier-side wire-up
 # accepts it end-to-end without further plumbing.
 #
 # Key-material handling accepts two formats:
 #
 # 1. 64-char hex-encoded raw seed (32 bytes). Matches the AIP-document
 #    ``public_keys[].key_hex`` slot and the test-fixture convention. A
-#    trailing newline is tolerated. This is the original Sprint-6-Tag-3
+#    trailing newline is tolerated. This is the original
 #    format and remains the canonical compact form.
 #
 # 2. PEM-encoded PKCS#8 unencrypted Ed25519 private key. Matches the
@@ -378,7 +378,7 @@ def _load_sign_key(path: str | Path) -> bytes:
 
 
 def _load_sign_key_hex(key_path: Path, stripped: str) -> bytes:
-    """Decode the original Sprint-6-Tag-3 hex format."""
+    """Decode the original hex format."""
     try:
         seed = bytes.fromhex(stripped)
     except ValueError as exc:
@@ -691,7 +691,7 @@ def build_command(
     v1-compatible).
 
     ``sign_key`` + ``sign_kid`` enable production-side signing
-    (Sprint-6 Tag-3). When both are supplied, the manifest written to
+    When both are supplied, the manifest written to
     disk carries the optional top-level ``signature`` slot populated
     by :func:`wat.identity.manifest_signing.sign_manifest`. The
     returned dict mirrors the on-disk shape. Partial configuration

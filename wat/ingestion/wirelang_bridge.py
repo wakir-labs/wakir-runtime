@@ -6,7 +6,7 @@
 
 """Wirelang Layer-1 frame -> WAT leaf projection.
 
-Implements the four contracts handed over by the Tag-6 spec pack:
+Implements the four contracts handed over by the spec pack:
 
 - ``wirelang/specs/wat-leaf-projection.md`` -- the frame -> leaf
   projection rule (4 B1-hash fields).
@@ -139,7 +139,7 @@ def compute_payload_hash(frame_data: Any) -> str:
 def extract_capability_token_hash(frame: Mapping[str, Any]) -> str:
     """Project a frame's ``caprefs`` onto a single ``capability_token_hash``.
 
-    Multi-cap-ordering disciplin (Tag-7 sync clarification 2)
+    Multi-cap-ordering disciplin (sync clarification 2)
     ------------------------------------------------------
 
     Per ``wirelang/specs/wat-leaf-projection.md`` §3.4.1 the projection
@@ -194,7 +194,7 @@ def project_l1_frame_to_leaf(frame: Mapping[str, Any]) -> LeafRecord:
     every conformant implementation MUST produce the same 9-field
     tuple (``wirelang/specs/wat-leaf-projection.md`` §1).
 
-    Recovery-drill-prefix namespace disjointness (Tag-7 sync clarification 3)
+    Recovery-drill-prefix namespace disjointness (sync clarification 3)
     ---------------------------------------------------------------------
 
     The ``recovery-drill-`` ``event_id`` prefix used by the Phase-1b
@@ -259,7 +259,7 @@ def project_l1_frame_to_leaf(frame: Mapping[str, Any]) -> LeafRecord:
 #: discipline for v1 forward-compatibility — a frame without
 #: AIP-Document binding projects to the empty string under v2.
 #:
-#: Phase-1b sketch (Tag-21 stretch, full implementation in Tag-22-23).
+#: Phase-1b sketch (stretch goal; full implementation follows).
 #: See ``wirelang/specs/wat-leaf-projection.md`` §3.4.2.
 NO_AIP_DOCUMENT_SENTINEL = ""
 
@@ -295,7 +295,7 @@ def extract_aip_document_hash(token: Mapping[str, Any]) -> str:
       ``sha256:`` prefix) projects to the sentinel; the downstream
       audit query surfaces the anomaly.
 
-    Cross-Import disciplin (Tag-21 wirelang-eng memo, accepted)
+    Cross-Import disciplin (wirelang-eng memo, accepted)
     -----------------------------------------------------------
 
     The WAT-side hex pin test ``wat/tests/test_aip_refs_pin.py``
@@ -304,7 +304,7 @@ def extract_aip_document_hash(token: Mapping[str, Any]) -> str:
     ``wirelang/tests/test_aip_document_pin.py`` instead of
     duplicating the hex strings — bidirectional pin-drift detection.
 
-    Test-vector pin (Tag-23 wirelang-eng side)
+    Test-vector pin (wirelang-eng side)
     ------------------------------------------
 
     The Phase-1a vector pack pins three distinct AIP-Document JCS-
@@ -320,7 +320,7 @@ def extract_aip_document_hash(token: Mapping[str, Any]) -> str:
     """
     raise NotImplementedError(
         "Phase-1b sketch only — see wat-leaf-projection.md §3.4.2. "
-        "Full implementation lands in I-13 Tag-22/23."
+        "Full implementation lands in I-13."
     )
 
 
