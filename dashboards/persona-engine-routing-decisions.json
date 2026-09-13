@@ -1,5 +1,5 @@
 {
-  "__comment": "Grafana dashboard JSON for the wakir-persona-engine Tag-16 Routing-Decision-Observability surface (Noa Bergstroem / SRE). Consumes Prometheus gauges produced by scripts/routing-decision-observability.py. Schema version targets Grafana 10.x (schemaVersion >= 38). Every panel answers a concrete operator question: which model is the router choosing, how fast does it decide, which mode-mix is in production, and is the classifier path earning its keep (vs silently falling back). ADR-0064 Phase-2b (PR #159) + Phase-2c (Selin Tag-16).",
+  "__comment": "Grafana dashboard JSON for the wakir-persona-engine routing-decision observability surface. Consumes Prometheus gauges produced by scripts/routing-decision-observability.py. Schema version targets Grafana 10.x (schemaVersion >= 38). Every panel answers a concrete operator question: which model is the router choosing, how fast does it decide, which mode-mix is in production, and is the classifier path earning its keep (vs silently falling back). ADR-0064.",
   "title": "Wakir Persona-Engine - Routing Decisions",
   "uid": "wakir-persona-engine-routing-decisions",
   "tags": ["wakir", "persona-engine", "sre", "routing", "adr-0064", "phase-2b", "phase-2c"],

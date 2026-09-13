@@ -1,5 +1,5 @@
 {
-  "__comment": "Grafana dashboard JSON for the wakir-persona-engine Phase-2b Cost + Cache visualisation (Sprint Grafana-Dashboard-MINI, Noa Bergstroem / SRE). Consumes Prometheus gauges produced by scripts/per-model-cost-aggregator.py (PR #110) and scripts/cache-hit-rate-aggregator.py (PR #112). Schema version targets Grafana 10.x (schemaVersion >= 38). Dashboard is operational, not Vanity: every panel answers an operator question and is reachable from an alert-rule expression. ADR-0064 Phase-2a Folgeartefakt 2.",
+  "__comment": "Grafana dashboard JSON for the wakir-persona-engine cost + cache visualisation. Consumes Prometheus gauges produced by scripts/per-model-cost-aggregator.py (PR #110) and scripts/cache-hit-rate-aggregator.py (PR #112). Schema version targets Grafana 10.x (schemaVersion >= 38). Dashboard is operational, not vanity: every panel answers an operator question and is reachable from an alert-rule expression. ADR-0064 follow-up artefact.",
   "title": "Wakir Persona-Engine — Cost & Cache",
   "uid": "wakir-persona-engine-cost-cache",
   "tags": ["wakir", "persona-engine", "sre", "cost", "cache", "phase-2b"],

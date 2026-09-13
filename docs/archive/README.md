@@ -46,6 +46,7 @@ git checkout archive/pre-phase-4 -- docs/phase-3c/   # restore a directory
 | `evidence/decisions/doppelbetrieb-bridge-smoke-acceptance.md` | Acceptance rationale for the dual-operation federation bridge smoke gate | records why the two-emitter smoke shape was accepted |
 | `evidence/decisions/anthropic-prompt-caching-phase-2a.md` | Delivery record for the prompt-caching payload builder and telemetry (phase 2a) | closed delivery note, superseded by the shipped module and its tests |
 | `evidence/decisions/phase-3-nodeattestor-migration.md` | Tracking note for the planned `x509pop` NodeAttestor migration | historic planning note; phase 3 is complete, the migration was not executed |
+| `dead-dashboards/` (5 files) | Grafana dashboards and alert definitions whose panels query metrics no longer produced by any script: the cutover-morning verdict tile, the cross-wave coordination board, the wave-status board, the per-wave trend heatmap and the migration-marathon SLO board | staged for deletion, not evidence — the migration they observed is complete and their producers are gone. Recoverable from tag `archive/pre-phase-4` |
 
 Design knowledge extracted from deleted workflows lives in
 `docs/design-notes/` (e.g. `backend-rollback.md`), not here.

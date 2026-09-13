@@ -1,8 +1,8 @@
 {
-  "__comment": "Grafana dashboard JSON for the wakir-persona-engine Tag-22 BackendDecision observability surface (Noa Bergstroem / SRE). Consumes Prometheus gauges produced by scripts/backend-decision-observability.py. Schema version targets Grafana 10.x (schemaVersion >= 38). Each of the five Phase-3b components (recovery, state_backing, fsm, v907_verify, bridge_diff) gets a dedicated python-vs-rust counter panel. An aggregated fallback-rate panel and a per-component latency-comparison histogram round out the picture. ADR-0061 et seq Phase-3b production-default switches (Tag-17..Tag-21).",
+  "__comment": "Grafana dashboard JSON for the wakir-persona-engine BackendDecision observability surface. Consumes Prometheus gauges produced by scripts/backend-decision-observability.py. Schema version targets Grafana 10.x (schemaVersion >= 38). Each of the five backend-switchable components (recovery, state_backing, fsm, v907_verify, bridge_diff) gets a dedicated python-vs-rust counter panel. An aggregated fallback-rate panel and a per-component latency-comparison histogram round out the picture. ADR-0061 et seq production-default switches.",
   "title": "Wakir Persona-Engine - Backend Decisions",
   "uid": "wakir-persona-engine-backend-decisions",
-  "tags": ["wakir", "persona-engine", "sre", "backend-decisions", "adr-0061", "phase-3b", "tag-22"],
+  "tags": ["wakir", "persona-engine", "sre", "backend-decisions", "adr-0061"],
   "schemaVersion": 38,
   "version": 1,
   "editable": true,
@@ -51,7 +51,7 @@
       "id": 1,
       "type": "barchart",
       "title": "recovery — python vs rust (current window)",
-      "description": "Per-boot count of the 'recovery' component decisions, split python vs rust. Tag-17 (PR #168) wired the recovery switch as the first Phase-3b production-default. A sustained python skew here in a Rust-default deployment means the binary is missing or non-executable on the host — check the fallback_reason panel below.",
+      "description": "Per-boot count of the 'recovery' component decisions, split python vs rust. The recovery switch was the first component to default to the Rust backend. A sustained python skew here in a Rust-default deployment means the binary is missing or non-executable on the host — check the fallback_reason panel below.",
       "gridPos": {"h": 8, "w": 8, "x": 0, "y": 1},
       "datasource": {"type": "prometheus", "uid": "prom"},
       "targets": [
@@ -79,7 +79,7 @@
       "id": 2,
       "type": "barchart",
       "title": "state_backing — python vs rust (current window)",
-      "description": "Per-boot count of the 'state_backing' component decisions, split python vs rust (rust splits further into rust_inmemory / rust_natskv depending on the requested storage adapter). Tag-17 (PR #168) wired this twin emit-point alongside recovery. The dual rust-flavour split is intentional — rust_natskv implies a NATS-KV-backed run while rust_inmemory implies a smoke-test or ephemeral session.",
+      "description": "Per-boot count of the 'state_backing' component decisions, split python vs rust (rust splits further into rust_inmemory / rust_natskv depending on the requested storage adapter). This twin emit-point was wired alongside recovery. The dual rust-flavour split is intentional — rust_natskv implies a NATS-KV-backed run while rust_inmemory implies a smoke-test or ephemeral session.",
       "gridPos": {"h": 8, "w": 8, "x": 8, "y": 1},
       "datasource": {"type": "prometheus", "uid": "prom"},
       "targets": [
@@ -107,7 +107,7 @@
       "id": 3,
       "type": "barchart",
       "title": "fsm — python vs rust (current window)",
-      "description": "Per-boot count of the 'fsm' component decisions, split python vs rust. Tag-18 (PR #169) wired the fsm switch as the third Phase-3b production-default. The Rust pendant is the persona-engine-fsm crate (PR #137, schema-byte-parity).",
+      "description": "Per-boot count of the 'fsm' component decisions, split python vs rust. The Rust pendant is the persona-engine-fsm crate, which is schema-byte-parity with the Python implementation.",
       "gridPos": {"h": 8, "w": 8, "x": 16, "y": 1},
       "datasource": {"type": "prometheus", "uid": "prom"},
       "targets": [
@@ -135,7 +135,7 @@
       "id": 4,
       "type": "barchart",
       "title": "v907_verify — python vs rust (current window)",
-      "description": "Per-boot count of the 'v907_verify' component decisions, split python vs rust. Tag-19 (PR #171) wired the v907_verify switch. V-907 is the MOST CRITICAL of the Phase-3b switches: it is the spec §5 hash-determinism anchor — every wire-frame depends on the verifier returning a byte-identical pin across both backends. A sustained python skew is acceptable (parity-safe fallback); a sustained MIXED skew within the same deployment indicates a partial Rust rollout that needs auditing.",
+      "description": "Per-boot count of the 'v907_verify' component decisions, split python vs rust. V-907 is the most critical of the backend switches: it is the spec §5 hash-determinism anchor — every wire-frame depends on the verifier returning a byte-identical pin across both backends. A sustained python skew is acceptable (parity-safe fallback); a sustained MIXED skew within the same deployment indicates a partial Rust rollout that needs auditing.",
       "gridPos": {"h": 8, "w": 8, "x": 0, "y": 9},
       "datasource": {"type": "prometheus", "uid": "prom"},
       "targets": [
@@ -163,7 +163,7 @@
       "id": 5,
       "type": "barchart",
       "title": "bridge_diff — python vs rust (current window)",
-      "description": "Per-boot count of the 'bridge_diff' component decisions, split python vs rust. Tag-20 (PR #175) wired the bridge_diff switch as the fifth and most recent Phase-3b production-default. The bridge-diff component computes the cross-language diff between Python and Rust persona-engine outputs — it is itself part of the doppelbetrieb-comparison substrate and must boot stably.",
+      "description": "Per-boot count of the 'bridge_diff' component decisions, split python vs rust. The bridge-diff component computes the cross-language diff between Python and Rust persona-engine outputs — it is itself part of the doppelbetrieb-comparison substrate and must boot stably.",
       "gridPos": {"h": 8, "w": 8, "x": 8, "y": 9},
       "datasource": {"type": "prometheus", "uid": "prom"},
       "targets": [
