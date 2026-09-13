@@ -196,7 +196,7 @@ Operator-Hand.
 ## Tag-57 Addendum — OPEN-J1 Closeout (10-BackendDecision-Manifest-Parity)
 
 <!-- The "Tag-57" anchor in this heading is pinned verbatim by
-     tests/observability/test_cross_substrate_parity_gate_tag57.py;
+     tests/observability/test_cross_substrate_parity_gate.py;
      it is an archaeology-lint allowlist entry until that test is
      renamed. -->
 
@@ -229,7 +229,7 @@ drei Substraten der Manifest-Konsolidierung:
 Treiber-Tests:
 - `wirelang/tests/persona_engine/test_manifest_0_5_2_final_pre_cutover.py`
   (Manifest-Integrity-Suite, ~30 Tests).
-- `tests/observability/test_cross_substrate_parity_gate_tag57.py`
+- `tests/observability/test_cross_substrate_parity_gate.py`
   (12 hermetic Tests, Workflow-Wiring + Triple-Witness-Konsistenz).
 
 ### Workflow-Stages
@@ -238,7 +238,7 @@ Treiber-Tests:
 |---|---|---|---|
 | 1   | A | Cosign × Quadlet × rust_backend_switch | `test_cross_substrate_parity_3way.py` |
 | 1b  | B | Manifest × Pin-Pack × engine.py | `test_manifest_0_5_2_final_pre_cutover.py` |
-| 1c  | B-Meta | Workflow-Wiring + Triple-Witness | `test_cross_substrate_parity_gate_tag57.py` |
+| 1c  | B-Meta | Workflow-Wiring + Triple-Witness | `test_cross_substrate_parity_gate.py` |
 | 2   | A-Diag | Inventory-Snapshot (CI-Summary) | (Python inline, `if: always()`) |
 
 Alle Stages sind hermetic (pytest-only, kein Subprocess, kein
@@ -252,7 +252,7 @@ Der Gate triggert zusätzlich bei Änderungen an:
 - `infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml`
 - `wirelang/persona_engine/engine.py`
 - `wirelang/tests/persona_engine/test_manifest_0_5_2_final_pre_cutover.py`
-- `tests/observability/test_cross_substrate_parity_gate_tag57.py`
+- `tests/observability/test_cross_substrate_parity_gate.py`
 
 Damit triggert auch eine PR, die nur Manifest-/Pin-Pack-Inhalte
 berührt, automatisch den Gate; OPEN-J1 ist auf diesen PRs als

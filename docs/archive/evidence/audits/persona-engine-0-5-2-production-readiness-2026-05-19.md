@@ -121,7 +121,7 @@ independent witnesses:
 - the Rust crate manifests under `wirelang-rust/crates/<name>/`.
 
 The audit is deterministic and reproducible. The hermetic test
-suite `wirelang/tests/persona_engine/test_tag56_production_readiness_audit.py`
+suite `wirelang/tests/persona_engine/test_production_readiness_audit_0_5_2.py`
 encodes every numeric and string assertion in this report; a
 divergence between this document and the substrate trips the
 suite in the next CI cycle.
@@ -466,7 +466,7 @@ production-ready under Selin's authority.
 ## 5. Hermetic Test Surface (Tag-56 Audit-Companion)
 
 The hermetic test module
-`wirelang/tests/persona_engine/test_tag56_production_readiness_audit.py`
+`wirelang/tests/persona_engine/test_production_readiness_audit_0_5_2.py`
 encodes every numeric and string assertion in §3 as an executable
 test. The module is structured per-dimension with one test class
 per dimension (D1..D7) plus a cross-cutting audit-report-presence

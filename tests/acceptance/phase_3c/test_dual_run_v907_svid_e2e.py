@@ -11,7 +11,7 @@ Anchors
   beider, Mi gleichzeitig Cutover, Fr Acceptance-Decision beider.
 - ADR-0065 §Rollback-Strategie — ENV-Flag-Switch ≤10min SLA pro
   Komponente (asymmetrischer Rollback unter Doppel-Welle).
-- ``test_welle_1_v907_verify_e2e.py`` + ``test_welle_2_svid_workload_
+- ``test_v907_verify_e2e.py`` + ``test_welle_2_svid_workload_
   identity_e2e.py`` — per-welle sister files this doppel-welle file
   extends with cross-modul-parallel-cutover acceptance.
 

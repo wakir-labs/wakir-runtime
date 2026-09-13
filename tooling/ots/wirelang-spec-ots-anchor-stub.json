@@ -62,7 +62,7 @@
     "items": ["RES-D1", "RES-D2", "RES-D3", "RES-D4", "RES-D5"],
     "target_spec_path": "wirelang/specs/wirelang-spec-v0-4-4-draft.md",
     "invariant_draft_untouched": true,
-    "test_suite": "tests/audit/test_res_d_items_ots_probe_tag66.py",
+    "test_suite": "tests/audit/test_res_d_items_ots_probe.py",
     "workflow_job_names": [
       "wirelang-spec-res-d-item-probe",
       "wirelang-spec-res-d-aggregate"

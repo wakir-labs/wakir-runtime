@@ -6,7 +6,7 @@ Trigger event
 -------------
 Mira's Hot-Fix #381 on Tag-59 had to sweep four drift layers after the
 Tag-58 0.5.3-rc1 bump escaped the existing
-``test_engine_0_5_3_rc1_release_notes_tag58.py`` net:
+``test_engine_0_5_3_rc1_release_notes.py`` net:
 
 (a) ``wirelang/persona_engine/engine_async.py`` line 96 still carried
     ``ASYNC_ENGINE_VERSION = "0.5.0-pilot"`` (now 0.5.3-rc1).
@@ -561,7 +561,7 @@ def test_23_allowlist_entry_unused_does_not_exist(
     allowlist = scanner_module.load_allowlist(ALLOWLIST_PATH)
     self_test_path = (
         "wirelang/tests/persona_engine/"
-        "test_engine_version_drift_full_coverage_tag60.py"
+        "test_engine_version_drift_full_coverage.py"
     )
     for path, entry in allowlist.items():
         if path == self_test_path:

@@ -28,7 +28,7 @@
         "action": "audit-anchor-additions",
         "pr": "post-#399",
         "owner": "Selin",
-        "note": "Added Tag-63 production-readiness audit report + test_tag63_production_readiness_audit.py + test_v907_hash_pin_build_step_tag59.py as v907-baseline-pin/historical-manifest carriers."
+        "note": "Added Tag-63 production-readiness audit report + test_production_readiness_audit_0_5_3.py + test_v907_hash_pin_build_step.py as v907-baseline-pin/historical-manifest carriers."
       },
       {
         "tag": "Tag-67",
@@ -105,9 +105,9 @@
       "reason": "Hermetic manifest-integrity test for the Tag-52 manifest (still active per MANIFEST_RELPATH)."
     },
     {
-      "path": "wirelang/tests/persona_engine/test_engine_0_5_3_rc1_release_notes_tag58.py",
+      "path": "wirelang/tests/persona_engine/test_engine_0_5_3_rc1_release_notes.py",
       "categories": ["release-notes-negative-assertion", "historical-migration-narrative"],
-      "reason": "Tag-58 release-notes pin; the stale literals are listed in the NEGATIVE assertion (the 'must NOT be present' check) plus historical Tag-58 fixture pins for the rc1 release-notes file. This is the prior-art Tag-60 extended (covers __version__/__init__/engine.py only). Tag-62 final-bump retained this file as the historical Tag-58 rc1 substrate test; the EXPECTED_VERSION literal 0.5.3-rc1 is preserved here as a frozen anchor of the prior tag's contract (the Tag-62 fresh test in test_engine_0_5_3_final_bump_tag62.py is the current consistency pin). Tag-67 refresh: 8 occurrences of 0.5.3-rc1 confirmed as Tag-58 historical fixture (RC1_VERSION constant + rc1 release-notes file content assertions)."
+      "reason": "Tag-58 release-notes pin; the stale literals are listed in the NEGATIVE assertion (the 'must NOT be present' check) plus historical Tag-58 fixture pins for the rc1 release-notes file. This is the prior-art Tag-60 extended (covers __version__/__init__/engine.py only). Tag-62 final-bump retained this file as the historical Tag-58 rc1 substrate test; the EXPECTED_VERSION literal 0.5.3-rc1 is preserved here as a frozen anchor of the prior tag's contract (the Tag-62 fresh test in test_engine_0_5_3_final_bump.py is the current consistency pin). Tag-67 refresh: 8 occurrences of 0.5.3-rc1 confirmed as Tag-58 historical fixture (RC1_VERSION constant + rc1 release-notes file content assertions)."
     },
     {
       "path": "wirelang/tests/persona_engine/test_10_decision_resilience.py",
@@ -115,22 +115,22 @@
       "reason": "Docstring narrates the 0.5.1-pre-cutover BackendDecision-count contract; no active version-literal assertion."
     },
     {
-      "path": "wirelang/tests/persona_engine/test_boot_self_test_tag47.py",
+      "path": "wirelang/tests/persona_engine/test_boot_self_test.py",
       "categories": ["historical-manifest", "historical-pin-pack-reference"],
       "reason": "Tag-47 boot-self-test pins against the 0.5.1-pre-cutover manifest filename + pin-pack filename. Tag-67 refresh: category tightened to add historical-pin-pack-reference (pin-pack-0.5.1-pre-cutover.yaml literal)."
     },
     {
-      "path": "wirelang/tests/persona_engine/test_boot_self_test_v2_tag50.py",
+      "path": "wirelang/tests/persona_engine/test_boot_self_test_v2.py",
       "categories": ["historical-manifest", "historical-pin-pack-reference"],
       "reason": "Tag-50 boot-self-test v2 also pins against the 0.5.1-pre-cutover manifest as the historical anchor (the v2 contract did not bump the manifest reference). Tag-67 refresh: category tightened to add historical-pin-pack-reference."
     },
     {
-      "path": "wirelang/tests/persona_engine/test_bridge_audit_writer_wire_in_tag48.py",
+      "path": "wirelang/tests/persona_engine/test_bridge_audit_writer_wire_in.py",
       "categories": ["historical-manifest", "historical-pin-pack-reference"],
       "reason": "Tag-48 bridge-audit-writer wire-in test pins against the 0.5.1-pre-cutover manifest filename + pin-pack filename. Tag-67 refresh: category tightened to add historical-pin-pack-reference."
     },
     {
-      "path": "wirelang/tests/persona_engine/test_migrate_0_5_1_to_0_5_2_tag53.py",
+      "path": "wirelang/tests/persona_engine/test_migrate_0_5_1_to_0_5_2.py",
       "categories": ["historical-migration-narrative"],
       "reason": "Tag-53 migration-converter test; the version literals 0.5.1-pre-cutover and 0.5.2-final-pre-cutover are the from/to inputs of the migration contract by definition."
     },
@@ -145,7 +145,7 @@
       "reason": "Docstring narrates the 0.5.1-pre-cutover crate-pin contract that pyproject.toml inherits; pin-pack-0.5.1/0.5.2 references are pin-pack-filename anchors. Tag-67 refresh: category tightened to add historical-pin-pack-reference."
     },
     {
-      "path": "wirelang/tests/persona_engine/test_state_backing_pre_boot_emit_order_tag57.py",
+      "path": "wirelang/tests/persona_engine/test_state_backing_pre_boot_emit_order.py",
       "categories": ["historical-migration-narrative"],
       "reason": "Tag-57 state-backing pre-boot emit-order pin; references the 0.5.1/0.5.2 boot-record contract history."
     },
@@ -155,12 +155,12 @@
       "reason": "Bug-42 subscribe-mode regression test; references the 0.5.1-pre-cutover engine as the version where the contract was introduced + the 0.5.2-final-pre-cutover Containerfile image-tag transition narrative + a single 0.5.3-rc1 historical-narrative mention in a Tag-52 docstring describing the rc1-to-final progression. No active version claim. Tag-67 refresh: 0.5.3-rc1 mention (1) confirmed as docstring narrative; active assertions all assert 0.5.3."
     },
     {
-      "path": "wirelang/tests/persona_engine/test_tag56_production_readiness_audit.py",
+      "path": "wirelang/tests/persona_engine/test_production_readiness_audit_0_5_2.py",
       "categories": ["historical-migration-narrative"],
       "reason": "Tag-56 production-readiness audit; narrates the 0.5.0 -> 0.5.1 -> 0.5.2 -> 0.5.3-rc1 progression as audit context."
     },
     {
-      "path": "wirelang/tests/persona_engine/test_tag63_production_readiness_audit.py",
+      "path": "wirelang/tests/persona_engine/test_production_readiness_audit_0_5_3.py",
       "categories": ["historical-migration-narrative", "historical-manifest", "v907-baseline-pin"],
       "reason": "Tag-63 post-Final-Bump production-readiness audit. Pins the Tag-52 manifest filename + Tag-52 pin-pack filename as the active substrate (intentional carry-forward under the 0.5.3 final manifest-and-metadata-only bump per Tag-62 release-notes Section 1 'No pin-pack YAML refresh'). Asserts the V-907 baseline engine_version: '0.5.3-rc1' is the intentional Tag-59-seal-contract-protected literal (OPEN-K3). The 0.5.1-pre-cutover reference is the pin-pack invariants.byte_stable_versus carry-forward. All stale literals are legitimate."
     },
@@ -170,22 +170,22 @@
       "reason": "Tag-63 audit report; narrates the 0.5.2-final-pre-cutover -> 0.5.3-rc1 -> 0.5.3 final progression as audit context plus the OPEN-K3 V-907-baseline carry-forward literal and OPEN-J3 Containerfile label carry-forward literal."
     },
     {
-      "path": "wirelang/tests/persona_engine/test_v907_hash_pin_build_step_tag59.py",
+      "path": "wirelang/tests/persona_engine/test_v907_hash_pin_build_step.py",
       "categories": ["historical-manifest", "v907-baseline-pin", "historical-pin-pack-reference"],
       "reason": "Tag-59 V-907 hash-pin test; pins against the Tag-52 manifest + pin-pack filenames (the v907-hash-baseline.json input strings). The engine_version literal 0.5.3-rc1 in this test asserts the sealed v907-hash-baseline.json content, which is intentionally preserved at rc1 per the Tag-59 seal contract; this category extension explicitly registers the rc1 literal as legitimate stale in the baseline-pin context. Tag-67 refresh: category tightened to add historical-pin-pack-reference."
     },
     {
-      "path": "wirelang/tests/persona_engine/test_engine_version_drift_full_coverage_tag60.py",
+      "path": "wirelang/tests/persona_engine/test_engine_version_drift_full_coverage.py",
       "categories": ["release-notes-negative-assertion"],
       "reason": "Tag-60 self-test - the scanner allowlist must skip the scanner's own test fixture file (it lists stale literals as fixtures driving the scanner's own assertions, never as active version claims). Tag-62: extended to cover the 0.5.3-rc1 stale literal which the Tag-62 scanner extension hunts. Tag-67 refresh: confirmed FIXTURE_STALE_LITERALS still declares all 4 hunted literals."
     },
     {
-      "path": "wirelang/tests/persona_engine/test_engine_0_5_3_final_bump_tag62.py",
+      "path": "wirelang/tests/persona_engine/test_engine_0_5_3_final_bump.py",
       "categories": ["release-notes-negative-assertion", "historical-migration-narrative"],
       "reason": "Tag-62 final-bump consistency pin - the four-surface authority bundle test for the 0.5.3-rc1 -> 0.5.3 final rc1-suffix-drop promotion. It declares stale literal fixtures (PREDECESSOR_VERSION = '0.5.3-rc1', plus the full stale_patterns matrix in test_t22) as negative-assertion fixtures and historical-migration narrative. Active version assertions all assert 0.5.3 (never claim rc1 as active)."
     },
     {
-      "path": "wirelang/tests/persona_engine/test_drift_allowlist_refresh_tag67.py",
+      "path": "wirelang/tests/persona_engine/test_drift_allowlist_refresh.py",
       "categories": ["release-notes-negative-assertion", "historical-migration-narrative"],
       "reason": "Tag-67 drift-allowlist refresh audit test (this PR). It declares the STALE_LITERALS tuple as negative-assertion fixtures (mirroring the Tag-60 scanner self-test pattern) and embeds historical-migration narrative in docstrings describing the Tag-58/59/60/62/63/67 refresh chain. The V-907 seal contract reference ('engine_version: 0.5.3-rc1') appears in test_t11 as a substrate-pin assertion, not as an active version claim. Active version assertions all assert 0.5.3 (test_t12 + test_t13)."
     }

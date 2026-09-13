@@ -45,7 +45,7 @@ Substance brief (>= 10 tests; suite carries 13)
   7. The Install-pytest step runs ``python3 -m pip install --upgrade pip``
      (clean baseline, deterministic).
   8. The hermetic test-suite step still invokes
-     ``python3 -m pytest tests/ci/test_ots_pre_anchor_activation_probe_tag59.py``
+     ``python3 -m pytest tests/ci/test_ots_pre_anchor_activation_probe.py``
      (the bug-target line is preserved verbatim — fix did not refactor
      the call shape).
   9. Stages 1/2/3 of the probe remain stdlib-only (no pip install nor
@@ -230,7 +230,7 @@ def test_08_bug_target_line_preserved(probe_job: dict) -> None:
     run_body = test_step.get("run", "")
     expected = (
         "python3 -m pytest "
-        "tests/ci/test_ots_pre_anchor_activation_probe_tag59.py -v"
+        "tests/ci/test_ots_pre_anchor_activation_probe.py -v"
     )
     assert expected in run_body, (
         f"Tag-70 minimal-fix invariant: the bug-target call shape "

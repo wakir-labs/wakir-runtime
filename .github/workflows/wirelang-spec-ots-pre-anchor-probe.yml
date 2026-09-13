@@ -55,8 +55,8 @@ on:
       - 'wirelang/specs/wirelang-spec-v0-4-1.md'
       - 'wirelang/specs/wirelang-spec-v0-2.md'
       - 'wirelang/specs/wirelang-spec-v0-4-4-draft.md'
-      - 'tests/audit/test_wirelang_spec_ots_pre_anchor_probe_tag60.py'
-      - 'tests/audit/test_res_d_items_ots_probe_tag66.py'
+      - 'tests/audit/test_wirelang_spec_ots_pre_anchor_probe.py'
+      - 'tests/audit/test_res_d_items_ots_probe.py'
       - 'docs/operations/wirelang-spec-ots-anchor-wiring.md'
       - '.github/workflows/wirelang-spec-ots-pre-anchor-probe.yml'
   pull_request:
@@ -67,8 +67,8 @@ on:
       - 'wirelang/specs/wirelang-spec-v0-4-1.md'
       - 'wirelang/specs/wirelang-spec-v0-2.md'
       - 'wirelang/specs/wirelang-spec-v0-4-4-draft.md'
-      - 'tests/audit/test_wirelang_spec_ots_pre_anchor_probe_tag60.py'
-      - 'tests/audit/test_res_d_items_ots_probe_tag66.py'
+      - 'tests/audit/test_wirelang_spec_ots_pre_anchor_probe.py'
+      - 'tests/audit/test_res_d_items_ots_probe.py'
       - 'docs/operations/wirelang-spec-ots-anchor-wiring.md'
       - '.github/workflows/wirelang-spec-ots-pre-anchor-probe.yml'
   workflow_dispatch:
@@ -214,7 +214,7 @@ jobs:
       - name: Run hermetic test-suite
         run: |
           set -eu
-          python3 -m unittest tests.audit.test_wirelang_spec_ots_pre_anchor_probe_tag60 -v
+          python3 -m unittest tests.audit.test_wirelang_spec_ots_pre_anchor_probe -v
 
       - name: Stage 3 — Enforce aggregate verdict
         shell: bash
@@ -382,7 +382,7 @@ jobs:
       - name: Run hermetic test-suite
         run: |
           set -eu
-          python3 -m unittest tests.audit.test_res_d_items_ots_probe_tag66 -v
+          python3 -m unittest tests.audit.test_res_d_items_ots_probe -v
 
       - name: Enforce aggregate verdict
         shell: bash

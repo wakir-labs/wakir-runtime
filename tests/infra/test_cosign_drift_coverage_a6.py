@@ -66,7 +66,7 @@ Sibling tests
   * ``tests/infra/test_cosign_policy_phase_3b.py`` — full-shape
     invariants for the cosign-policy YAML (the substrate this file
     asserts drift-detection on).
-  * ``tests/infra/test_tag45_quadlet_cosign_15_binary_substrate.py``
+  * ``tests/infra/test_quadlet_cosign_15_binary_substrate.py``
     — Tag-45 13->15-binary inventory closeout invariants.
   * ``tests/ci/test_build_wakir_provisioner_workflow.py`` — the
     CI-workflow-shape cosign-login pin Amara's Tag-45 audit cited.

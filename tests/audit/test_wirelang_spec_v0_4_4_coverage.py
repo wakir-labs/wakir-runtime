@@ -73,7 +73,7 @@ Test inventory (>= 15 hermetic, all stdlib):
   T15  Source-of-truth direction §1 mentions Tag-64 coverage
        extension ('Tag-64 coverage extension').
   T16  §8 audit-conformance mentions the Tag-64 coverage suite
-       ('test_wirelang_spec_v0_4_4_coverage_tag64').
+       ('test_wirelang_spec_v0_4_4_coverage').
   T17  v0.4.3 freeze-seal intact: SHA-256 of
        'wirelang-spec-v0-4-3.md' matches the value in
        'freeze-baseline.json'. Tag-64 promise: the coverage
@@ -331,7 +331,7 @@ def test_T15_source_of_truth_mentions_tag_64_coverage(spec_text: str):
 
 
 def test_T16_audit_conformance_mentions_tag_64_suite(spec_text: str):
-    assert "test_wirelang_spec_v0_4_4_coverage_tag64" in spec_text, (
+    assert "test_wirelang_spec_v0_4_4_coverage" in spec_text, (
         "§8 audit-conformance MUST reference the Tag-64 coverage suite"
     )
 

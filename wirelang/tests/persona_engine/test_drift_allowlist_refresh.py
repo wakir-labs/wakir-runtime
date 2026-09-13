@@ -48,7 +48,7 @@ What this test pins
 * The five ``never_allowlistable`` surfaces never appear as
   allowlist entries (defence in depth).
 * The drift scanner exits 0 against the refreshed allowlist.
-* The Tag-58 historical fixture (``test_engine_0_5_3_rc1_release_notes_tag58.py``)
+* The Tag-58 historical fixture (``test_engine_0_5_3_rc1_release_notes.py``)
   still carries ``RC1_VERSION = "0.5.3-rc1"``.
 * The V-907 baseline file still carries the sealed
   ``engine_version: "0.5.3-rc1"`` literal (Tag-59 seal contract).
@@ -101,7 +101,7 @@ TAG58_RC1_TEST_PATH = (
     / "wirelang"
     / "tests"
     / "persona_engine"
-    / "test_engine_0_5_3_rc1_release_notes_tag58.py"
+    / "test_engine_0_5_3_rc1_release_notes.py"
 )
 
 # The four stale literals the Tag-60+Tag-62 scanner hunts.

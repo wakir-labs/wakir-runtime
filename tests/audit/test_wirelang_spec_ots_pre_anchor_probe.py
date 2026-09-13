@@ -7,7 +7,7 @@ This suite covers the Tag-60 emit helper at
 stub registry, workflow, and runbook. All tests are stdlib-only; no
 network I/O, no subprocess to ``ots`` CLI, no podman socket. The
 test-suite is a mirror-twin of Tomás's Tag-59 manifest-hash probe
-suite (``tests/ci/test_ots_pre_anchor_activation_probe_tag59.py``).
+suite (``tests/ci/test_ots_pre_anchor_activation_probe.py``).
 
 Test count: 18 (>= 12 per Tag-60 brief).
 """
@@ -466,7 +466,7 @@ class TestT15WorkflowFileReferences(unittest.TestCase):
             "tooling/ots/wirelang-spec-ots-anchor-stub.json", text
         )
         self.assertIn(
-            "tests/audit/test_wirelang_spec_ots_pre_anchor_probe_tag60.py",
+            "tests/audit/test_wirelang_spec_ots_pre_anchor_probe.py",
             text,
         )
         self.assertIn(

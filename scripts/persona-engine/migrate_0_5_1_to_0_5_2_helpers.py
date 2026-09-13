@@ -11,7 +11,7 @@ Stdlib-only helper module backing the Bash entry script
 ``scripts/persona-engine/migrate-0-5-1-to-0-5-2.sh``. The functions
 here are pure (no I/O beyond reading the in-tree manifest +
 pin-pack files) and importable from the hermetic test
-suite ``wirelang/tests/persona_engine/test_migrate_0_5_1_to_0_5_2_tag53.py``.
+suite ``wirelang/tests/persona_engine/test_migrate_0_5_1_to_0_5_2.py``.
 
 Why a Python helper backing a Bash entry script?
 ------------------------------------------------

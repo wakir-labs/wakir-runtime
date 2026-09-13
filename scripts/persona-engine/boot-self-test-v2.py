@@ -55,7 +55,7 @@ Why a v2 file and not edits to ``boot-self-test.py``?
 -----------------------------------------------------
 
 * **Patch-trace integrity.** The file is referenced by
-  ``test_boot_self_test_tag47.py`` and the wire-in audit
+  ``test_boot_self_test.py`` and the wire-in audit
   trail. Editing it in place would silently change the contract
   the existing hermetic suite was approved against.
 * **cutover-day boot harness.** v2 runs **alongside** v1 in the

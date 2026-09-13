@@ -21,7 +21,7 @@
 # This script is OPERATOR-HAND. It runs on the Live-VM, as root,
 # under Operator-Hand control. It is NOT run in the claude-dev
 # sandbox. The hermetic test suite in
-# `wirelang/tests/persona_engine/test_migrate_0_5_1_to_0_5_2_tag53.py`
+# `wirelang/tests/persona_engine/test_migrate_0_5_1_to_0_5_2.py`
 # exercises the Python helpers directly without invoking this Bash
 # wrapper, so the test suite remains hermetic even though the
 # wrapper is operator-only.

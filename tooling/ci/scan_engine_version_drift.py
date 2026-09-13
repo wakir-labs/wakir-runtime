@@ -10,7 +10,7 @@ the operator's Hot-Fix #381 had to sweep four drift layers (engine_async.py,
 cli.py docstring, 7 hardcoded-literal test-files, and the historical
 release-notes test that only covered engine.py + __version__.py).
 closes that gap with a hermetic scanner + a 15-test pin in
-``wirelang/tests/persona_engine/test_engine_version_drift_full_coverage_tag60.py``.
+``wirelang/tests/persona_engine/test_engine_version_drift_full_coverage.py``.
 
 Substrate ownership (persona-engine, ADR-0036/0043/0065/0066):
 

@@ -24,7 +24,7 @@ full Phase-3c-Komponenten-Inventory.
 
 The four RD-1...RD-4 gates verify the ENV-Flag-Switch contract under
 the most demanding cross-modul-load. The Doppel-Welle DW-6+7 test-
-file ``test_doppel_welle_6_7_e2e.py`` covers the paired-rollback
+file ``test_dual_run_subscribe_recovery_e2e.py`` covers the paired-rollback
 shape; this file covers the single-Komponente rollback in isolation.
 """
 

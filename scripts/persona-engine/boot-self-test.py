@@ -38,7 +38,7 @@ checks **documents** -- manifest text, pin-pack YAML, Containerfile
 labels -- but only for the 9-record 0.5.0-pre-cutover snapshot. It
 does not boot the engine resolver fan-out. The hermetic
 suites (``test_manifest_0_5_1_pre_cutover.py`` and
-``test_bridge_audit_writer_wire_in_tag48.py``) extend the same
+``test_bridge_audit_writer_wire_in.py``) extend the same
 posture to the 10-record manifest. The suites check coverage
 of failure modes around individual modules. The self-test below
 closes the cutover-gate by exercising the **real Stage-1 boot path**
@@ -48,7 +48,7 @@ provides).
 
 The script is intentionally importable from the hermetic test
 (see
-``wirelang/tests/persona_engine/test_boot_self_test_tag47.py``)
+``wirelang/tests/persona_engine/test_boot_self_test.py``)
 so the same Stage-1 invariants are reproducibly enforced in CI **and**
 on operator boxes during cutover.
 
@@ -112,7 +112,7 @@ PIN_PACK_PATH = (
 # Historical anchor — retained for the Doppelbetrieb
 # regression-comparison baseline. The self-test does not gate on it
 # directly; the file's presence is asserted by the dedicated
-# wire-in suite (test_bridge_audit_writer_wire_in_tag48.py).
+# wire-in suite (test_bridge_audit_writer_wire_in.py).
 LEGACY_MANIFEST_PATH = (
     REPO_ROOT
     / "wirelang"

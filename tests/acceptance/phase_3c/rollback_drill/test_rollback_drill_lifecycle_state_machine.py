@@ -61,7 +61,7 @@ def test_rd_2_audit_record_documents_rollback(mocked_rollback_event) -> None:
     For Doppel-Welle DW-4+5 the rollback may be **asymmetric** —
     lifecycle_state_machine alone, or together with state_backing.
     The drill here gates the lifecycle-alone audit-record; the
-    Doppel-Welle test-file ``test_doppel_welle_4_5_e2e.py`` covers
+    Doppel-Welle test-file ``test_dual_run_state_backing_lifecycle_e2e.py`` covers
     the paired-audit cardinality.
     """
     event = mocked_rollback_event(MODUL)

@@ -337,7 +337,7 @@ def test_plan_doc_references_helper_stub_filename():
 def test_plan_doc_references_tag_68_test_filename():
     """Plan-doc references this test-suite by filename."""
     text = PLAN_DOC.read_text(encoding="utf-8")
-    assert "test_state_file_producer_plan_tag68.py" in text, (
+    assert "test_state_file_producer_plan.py" in text, (
         "plan-doc must reference Tag-68 test-suite filename"
     )
 

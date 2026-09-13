@@ -392,7 +392,7 @@ class WorkflowSurfaceTests(unittest.TestCase):
             "docs/persona-engine/**",
             "infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml",
             "tooling/ci/verify_v907_persona_hash_pin.py",
-            "wirelang/tests/persona_engine/test_v907_hash_pin_build_step_tag59.py",
+            "wirelang/tests/persona_engine/test_v907_hash_pin_build_step.py",
             ".github/workflows/v907-persona-hash-pin-build-step.yml",
         ):
             with self.subTest(needle=needle):

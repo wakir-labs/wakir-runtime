@@ -236,7 +236,7 @@ PersonaEngine.__init__()
 ```
 
 **Invariants** (verified by hermetic tests in
-`test_manifest_0_5_1_pre_cutover.py` and `test_bridge_audit_writer_wire_in_tag48.py`):
+`test_manifest_0_5_1_pre_cutover.py` and `test_bridge_audit_writer_wire_in.py`):
 
 - Stage-1 emits exactly 10 BackendDecision records.
 - Stage-1 emits the records in the order above (1 → 10).
@@ -300,7 +300,7 @@ all are owned by the persona-engine box.
 - [x] Hermetic manifest-integrity tests (15) in
       `wirelang/tests/persona_engine/test_manifest_0_5_1_pre_cutover.py`.
 - [x] Hermetic wire-in tests (15) in
-      `wirelang/tests/persona_engine/test_bridge_audit_writer_wire_in_tag48.py`.
+      `wirelang/tests/persona_engine/test_bridge_audit_writer_wire_in.py`.
 - [ ] Cross-substrate-parity-gate green on PR (CI).
 - [ ] Operator-hand live-VM rotation from `0.5.0-pre-cutover` to
       `0.5.1-pre-cutover` (the infra side / Operator-Hand).

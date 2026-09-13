@@ -7,7 +7,7 @@ Originally the Tag-58 hermetic consistency pin for the
 (``__version__.py`` ↔ manifest §0 ↔ release-notes ↔ test). The
 Tag-62 final-bump (0.5.3-rc1 → 0.5.3 final, rc1-suffix-drop)
 promoted that role to the fresh
-``test_engine_0_5_3_final_bump_tag62.py`` pin; this file is
+``test_engine_0_5_3_final_bump.py`` pin; this file is
 preserved as the **historical-fixture anchor** for the rc1
 substrate so the rc1 release-notes file and the manifest §0.1 Tag-58
 history sub-section remain auditable forever.
@@ -36,7 +36,7 @@ What this file asserts after Tag-62
 Live four-surface consistency checks (``__version__`` ==
 ``ENGINE_VERSION`` == manifest §0 active-version-cell ==
 release-notes H1 == test ``EXPECTED_VERSION``) are owned by
-``test_engine_0_5_3_final_bump_tag62.py`` and have been removed
+``test_engine_0_5_3_final_bump.py`` and have been removed
 from this file.
 
 Scope discipline (Selin)

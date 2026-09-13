@@ -16,7 +16,7 @@ Anchors
   state-records that Welle-4 (Rust-state_backing) wrote; the contract
   is now *two-sided rust* under Doppel-Welle (vs. one-sided rust in
   the original ADR-0065 sequential plan).
-- ``test_welle_4_state_backing_e2e.py`` + ``test_welle_5_lifecycle_state_
+- ``test_state_backing_e2e.py`` + ``test_welle_5_lifecycle_state_
   machine_e2e.py`` — per-welle sister files. Welle-4 first introduces
   persistent state; Welle-5 first introduces cross-modul dependency.
   Doppel-Welle-4+5 collapses these two risk-classes into one cutover.

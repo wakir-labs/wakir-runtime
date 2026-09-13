@@ -39,7 +39,7 @@
 # =====
 #
 # Hermetic Python tests live at
-# ``tests/audit/test_wirelang_spec_freeze_seal_probe_tag58.py`` (>= 12
+# ``tests/audit/test_wirelang_spec_freeze_seal_probe.py`` (>= 12
 # stdlib-only tests). The workflow runs them on every trigger.
 
 name: wirelang-spec-freeze-seal-probe
@@ -127,7 +127,7 @@ jobs:
       - name: Run hermetic test-suite
         run: |
           set -eu
-          python3 -m unittest tests.audit.test_wirelang_spec_freeze_seal_probe_tag58 -v
+          python3 -m unittest tests.audit.test_wirelang_spec_freeze_seal_probe -v
 
       - name: Stage 4 — Enforce verdict
         shell: bash

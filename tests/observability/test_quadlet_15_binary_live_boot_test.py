@@ -13,7 +13,7 @@ ADR-0051; this test surface reads files on disk only.
 Sibling tests
 -------------
 
-  * ``tests/infra/test_tag45_quadlet_cosign_15_binary_substrate.py``
+  * ``tests/infra/test_quadlet_cosign_15_binary_substrate.py``
     -- Tag-45 substrate-shape invariants (12 tests).
   * ``tests/observability/test_cosign_keyless_oidc_drift_probe.py``
     -- Tag-47 OIDC-drift invariants.

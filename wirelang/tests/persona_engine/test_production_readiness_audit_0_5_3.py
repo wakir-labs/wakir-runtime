@@ -18,7 +18,7 @@ build, no engine boot, no NATS. Pure file inspection + YAML parse +
 source-grep.
 
 Relationship to Tag-56 audit suite
-(``test_tag56_production_readiness_audit.py``): this Tag-63 suite
+(``test_production_readiness_audit_0_5_2.py``): this Tag-63 suite
 is the post-Final-Bump counterpart. Audit pattern and dimension
 list are deliberately byte-stable; assertions diverge only where
 the 0.5.3 final-bump introduced a metadata change (version

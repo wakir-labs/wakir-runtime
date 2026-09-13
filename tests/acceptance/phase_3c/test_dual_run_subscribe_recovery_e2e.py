@@ -16,7 +16,7 @@ Anchors
 - ADR-0065 §Welle-Ende-Acceptance §WE-1...WE-4 — fires after Welle-7
   completes. Doppel-Welle-6+7 telescopes the Welle-7-AC + WE-1...WE-4
   into the same cutover-week.
-- ``test_welle_6_subscribe_loop_e2e.py`` + ``test_welle_7_recovery_
+- ``test_subscribe_loop_e2e.py`` + ``test_welle_7_recovery_
   workflow_e2e.py`` — per-welle sister files.
 
 Doppel-Welle character — stateful-loop-paar
@@ -92,7 +92,7 @@ def test_doppel_welle_6_7_dw_ac_1_both_moduln_boot_rust(
 
     Post-cutover this completes Phase-3c — all 7 moduln on rust-
     default. WE-1...WE-4 fire after Friday Acceptance-Decision (see
-    test_welle_7_recovery_workflow_e2e.py for the Welle-Ende-Acceptance
+    test_recovery_workflow_e2e.py for the Welle-Ende-Acceptance
     gates).
     """
     boot = mocked_engine_boot_doppel(MODUL_A, MODUL_B)
@@ -187,7 +187,7 @@ def test_doppel_welle_6_7_dw_ac_3_rollback_subscribe_partner_stays_rust(
     now reads a Python-subscribe-loop's cursor — the cross-language
     cursor-readback is the asymmetric-rollback risk surface, mitigated
     by the per-welle Welle-6 Bug-42-Lessons-Learned coverage that's
-    already in test_welle_6_subscribe_loop_e2e.py.
+    already in test_subscribe_loop_e2e.py.
     """
     record = mocked_single_komponente_rollback(
         MODUL_A,
@@ -343,7 +343,7 @@ def test_doppel_welle_6_7_dw_ac_5_wrong_target_backend_blocks(
     reason=(
         "pending Doppel-Welle-cutover — WE-1...WE-4 Welle-Ende-"
         "Acceptance hand-off (covered welle-for-welle in"
-        " test_welle_7_recovery_workflow_e2e.py)"
+        " test_recovery_workflow_e2e.py)"
     )
 )
 def test_doppel_welle_6_7_welle_ende_acceptance_handoff() -> None:

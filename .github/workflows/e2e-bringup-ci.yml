@@ -59,7 +59,7 @@ on:
       - 'quadlet/**'
       - 'tests/infra/test_pilot_bringup_substance.py'
       - 'tests/infra/test_pilot_bringup_e2e_container.py'
-      - 'tests/infra/test_pilot_bringup_tag9_cleanup.py'
+      - 'tests/infra/test_pilot_bringup_cleanup_bug_22_race.py'
       - 'tests/infra/test_quadlet_lint.py'
       - '.github/workflows/e2e-bringup-ci.yml'
   pull_request:
@@ -71,7 +71,7 @@ on:
       - 'quadlet/**'
       - 'tests/infra/test_pilot_bringup_substance.py'
       - 'tests/infra/test_pilot_bringup_e2e_container.py'
-      - 'tests/infra/test_pilot_bringup_tag9_cleanup.py'
+      - 'tests/infra/test_pilot_bringup_cleanup_bug_22_race.py'
       - 'tests/infra/test_quadlet_lint.py'
       - '.github/workflows/e2e-bringup-ci.yml'
   workflow_dispatch: {}
@@ -106,10 +106,10 @@ jobs:
         run: |
           python -m pytest \
             tests/infra/test_pilot_bringup_substance.py \
-            tests/infra/test_pilot_bringup_tag6_cleanup.py \
-            tests/infra/test_pilot_bringup_tag7_cleanup.py \
-            tests/infra/test_pilot_bringup_tag8_cleanup.py \
-            tests/infra/test_pilot_bringup_tag9_cleanup.py \
+            tests/infra/test_pilot_bringup_cleanup_bugs_1_to_15.py \
+            tests/infra/test_pilot_bringup_cleanup_bugs_16_to_18.py \
+            tests/infra/test_pilot_bringup_cleanup_bugs_19_to_21.py \
+            tests/infra/test_pilot_bringup_cleanup_bug_22_race.py \
             tests/infra/test_pilot_bringup_single_org_config.py \
             tests/infra/test_quadlet_selinux_relabel.py \
             -v --color=yes

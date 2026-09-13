@@ -43,7 +43,7 @@
 # Tests
 # =====
 # Hermetic Python tests live at
-# ``wirelang/tests/persona_engine/test_v907_hash_pin_build_step_tag59.py``
+# ``wirelang/tests/persona_engine/test_v907_hash_pin_build_step.py``
 # (>= 12 stdlib-only tests). The workflow runs them on every trigger.
 #
 # Scope discipline (ADR-0036/0043/0065/0066)
@@ -64,7 +64,7 @@ on:
       - 'docs/persona-engine/**'
       - 'infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml'
       - 'tooling/ci/verify_v907_persona_hash_pin.py'
-      - 'wirelang/tests/persona_engine/test_v907_hash_pin_build_step_tag59.py'
+      - 'wirelang/tests/persona_engine/test_v907_hash_pin_build_step.py'
       - '.github/workflows/v907-persona-hash-pin-build-step.yml'
   pull_request:
     paths:
@@ -72,7 +72,7 @@ on:
       - 'docs/persona-engine/**'
       - 'infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml'
       - 'tooling/ci/verify_v907_persona_hash_pin.py'
-      - 'wirelang/tests/persona_engine/test_v907_hash_pin_build_step_tag59.py'
+      - 'wirelang/tests/persona_engine/test_v907_hash_pin_build_step.py'
       - '.github/workflows/v907-persona-hash-pin-build-step.yml'
   workflow_dispatch:
     inputs:
@@ -159,7 +159,7 @@ jobs:
         run: |
           set -eu
           python3 -m unittest \
-            wirelang.tests.persona_engine.test_v907_hash_pin_build_step_tag59 -v
+            wirelang.tests.persona_engine.test_v907_hash_pin_build_step -v
 
       - name: Stage 3 — Enforce verdict
         shell: bash

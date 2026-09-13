@@ -484,7 +484,7 @@ def test_p13_tag59_workflow_yaml_shape():
     )
     assert "tooling/ots/emit_manifest_hash_ots_marker.py" in step_text
     assert "--mode pre-activation-probe" in step_text
-    assert "tests/ci/test_ots_pre_anchor_activation_probe_tag59.py" in step_text
+    assert "tests/ci/test_ots_pre_anchor_activation_probe.py" in step_text
     # Stage 3 verdict literal.
     assert "PROBE-READY" in step_text
     assert "PROBE-DEFECT" in step_text

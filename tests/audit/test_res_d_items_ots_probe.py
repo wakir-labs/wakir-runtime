@@ -12,7 +12,7 @@ touched by the probe.
 
 All tests are stdlib-only; no network I/O, no subprocess to ``ots``
 CLI, no podman socket. The suite is a sibling of Tag-60's
-``test_wirelang_spec_ots_pre_anchor_probe_tag60.py`` and reuses the
+``test_wirelang_spec_ots_pre_anchor_probe.py`` and reuses the
 helper-loading pattern from that file.
 
 Test count: 18 (>= 15 per Tag-66 brief).
@@ -381,7 +381,7 @@ class TestWorkflowWiring(unittest.TestCase):
     def test_workflow_aggregator_job_present(self):
         text = WORKFLOW_PATH.read_text(encoding="utf-8")
         self.assertIn("wirelang-spec-res-d-aggregate", text)
-        self.assertIn("test_res_d_items_ots_probe_tag66", text)
+        self.assertIn("test_res_d_items_ots_probe", text)
 
     def test_workflow_paths_include_v044_draft(self):
         text = WORKFLOW_PATH.read_text(encoding="utf-8")

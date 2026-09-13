@@ -95,7 +95,7 @@ blocks are **non-normative** under the same draft-isolation
 invariant as the rest of §6 (see §2). They exist so that the
 promotion PR has a shape-anchor to render normative — not so that
 verifiers or producers act on them today. The audit suite
-(`tests/audit/test_wirelang_spec_v0_4_4_coverage_tag64.py`) pins
+(`tests/audit/test_wirelang_spec_v0_4_4_coverage.py`) pins
 per-RES-Dn sample-block existence, canonical-form-validity, and
 reference-integrity to the parent v0.4.3 anchor.
 
@@ -515,12 +515,12 @@ A spec document v0.4.4-draft is audit-conformant if and only if:
   and §6 is annotated as non-normative.
 
 The hermetic test suite that accompanies this draft
-(`tests/audit/test_wirelang_spec_v0_4_4_draft_tag63.py`,
+(`tests/audit/test_wirelang_spec_v0_4_4_draft.py`,
 twelve or more tests) enforces these invariants statically (no
 NATS, no engine boot, no Rust build, no network import).
 
 The coverage-extension suite
-(`tests/audit/test_wirelang_spec_v0_4_4_coverage_tag64.py`,
+(`tests/audit/test_wirelang_spec_v0_4_4_coverage.py`,
 fifteen or more tests) extends the invariant set with one
 sample-block-pin per RES-Dn item: existence, canonical-form
 validity (YAML block + RES-Dn anchor string), and

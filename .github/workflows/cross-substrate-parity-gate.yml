@@ -125,7 +125,7 @@ jobs:
           python -m pytest wirelang/tests/persona_engine/test_manifest_0_5_2_final_pre_cutover.py -v --tb=short
 
       - name: Stage 1c — Workflow-Wiring + Triple-Witness Smoke
-        # Treibt den neuen tests/observability/test_cross_substrate_parity_gate_tag57.py
+        # Treibt den neuen tests/observability/test_cross_substrate_parity_gate.py
         # (12 hermetic Tests), der:
         #   * die Workflow-YAML-Pfad-Trigger byte-pint (Manifest,
         #     Pin-Pack, engine.py müssen den Gate triggern);
@@ -138,7 +138,7 @@ jobs:
         #   * den Runbook-OPEN-J1-Closeout-Eintrag und die
         #     Required-Status-Check-String-Dokumentation prüft.
         run: |
-          python -m pytest tests/observability/test_cross_substrate_parity_gate_tag57.py -v --tb=short
+          python -m pytest tests/observability/test_cross_substrate_parity_gate.py -v --tb=short
 
       - name: Stage 2 — Inventory-Snapshot (CI-Summary diagnostic)
         # Human-readable Diagnose pro CI-Run im PR-Summary-Tab.

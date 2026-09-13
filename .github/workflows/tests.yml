@@ -412,7 +412,7 @@ jobs:
           #: re-baselined 448 -> 493 because
           # the bridge-audit-writer wire-in adds two new
           # PyYAML-gated test modules:
-          #   - test_bridge_audit_writer_wire_in_tag48.py: 25 tests
+          #   - test_bridge_audit_writer_wire_in.py: 25 tests
           #   - test_manifest_0_5_1_pre_cutover.py: 23 tests
           # Both modules use pytest.importorskip("yaml") for the
           # 0.5.1-pre-cutover pin-pack/manifest loader, so all 48
@@ -431,7 +431,7 @@ jobs:
           #: re-baselined 529 -> 545 because
           # the engine-0.5.2-production-readiness-audit adds
           # one new PyYAML-gated test module:
-          #   - test_tag56_production_readiness_audit.py: 16 tests
+          #   - test_production_readiness_audit_0_5_2.py: 16 tests
           # Same importorskip("yaml") pattern as the 0.5.2-final
           # manifest tests; production collects 16, sandbox skips
           # all 16. Delta lifts by exactly 16 (529 + 16 = 545).
@@ -439,7 +439,7 @@ jobs:
           # the engine-0.5.3-production-readiness-audit (post-
           # Final-Bump counterpart of the pre-cutover audit) adds one new PyYAML-gated
           # test module:
-          #   - test_tag63_production_readiness_audit.py: 18 tests
+          #   - test_production_readiness_audit_0_5_3.py: 18 tests
           # Same importorskip("yaml") pattern as above; production
           # collects 18, sandbox skips all 18. Delta lifts by exactly
           # 18 (545 + 18 = 563).
