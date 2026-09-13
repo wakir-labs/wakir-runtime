@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Operator CLI for the Bridge-Audit-Replay-Engine.
 //!
-//! Sprint-Tag-14 Mini-Welle (Bridge-Audit-Roundtrip-E2E).
+//! Mini-Welle (Bridge-Audit-Roundtrip-E2E).
 //!
 //! The CLI is the wire-end of the cross-language roundtrip used in
 //! `tests/integration/test_bridge_audit_roundtrip_e2e.py`:

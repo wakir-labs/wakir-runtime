@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 Callandor GmbH and contributors
 
-//! Persona-Engine Bridge-Audit-Writer — Tag-30 Mini-Welle (12. Modul,
+//! Persona-Engine Bridge-Audit-Writer — Mini-Welle (12. Modul,
 //! Welle-3-Komponente per ADR-0066).
 //!
 //! Rust authority for the engineering-output envelope produced by the
 //! Python sibling `wirelang.persona_engine.bridge_audit_writer.
-//! BridgeAuditWriter` (PR #106 / Sprint-1 Tag-4).
+//! BridgeAuditWriter` (PR #106 /).
 //!
 //! # Scope
 //!
@@ -78,10 +78,10 @@
 //! # ADR anchors
 //!
 //! - ADR-0066 Welle-3 (KW 25) -- bridge_audit_writer the 12. Modul.
-//! - PR #106 (bridge_audit_writer.py, Sprint-1 Tag-4) -- Python authority.
-//! - Reza PR #170 (Tag-18) -- anchor-emitter Python sibling pattern.
-//! - Reza PR #188 (Tag-24) -- federation-resolver cross-lang parity pattern.
-//! - Reza PR #195 (Tag-26) -- anchor-submit-worker cross-lang pattern.
+//! - PR #106 (bridge_audit_writer.py) -- Python authority.
+//! - PR #170 -- anchor-emitter Python sibling pattern.
+//! - PR #188 -- federation-resolver cross-lang parity pattern.
+//! - PR #195 -- anchor-submit-worker cross-lang pattern.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -237,7 +237,7 @@ impl EngineeringOutputEvent {
 
     /// JCS-canonical byte form. Cross-lang-pinned byte-identical against
     /// the Python `EngineeringOutputEvent.to_jcs_bytes()` output for the
-    /// Tag-30 fixture set.
+    /// fixture set.
     ///
     /// # Errors
     ///

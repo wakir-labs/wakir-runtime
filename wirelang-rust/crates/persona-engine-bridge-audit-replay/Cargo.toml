@@ -64,7 +64,7 @@ path = "src/bin/replay_cli.rs"
 
 # Operator-CLI binary: write a single Bridge-Audit
 # EngineeringOutputEvent envelope to stdout (JCS-canonical JSON line).
-# Tag-31 Mini-Welle, ADR-0066 Welle-3 `bridge_audit_writer` pre-cutover
+# Mini-Welle, ADR-0066 Welle-3 `bridge_audit_writer` pre-cutover
 # image. Parity with `wakir-persona-engine-svid-workload-identity` and
 # `wakir-persona-engine-v907-verify` operator-CLI surface.
 [[bin]]

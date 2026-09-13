@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Wakir-Runtime / wirelang Rust workspace — persona-engine-bridge-forward
-# crate (Tag-25 Mini-Welle Phase-3a-Python-Sync, 10. Modul).
+# crate (Mini-Welle Phase-3a-Python-Sync, 10. Modul).
 #
 # Purpose
 # -------
-# Rust pendant of the Mira-side Bridge-Forward-Pipe canonical-frame
+# Rust pendant of the orchestrator-side Bridge-Forward-Pipe canonical-frame
 # surface. The pre-existing Python authority is
-# `wirelang/cli/bridge_forward.py` (Sprint-10 Tag-6); the Tag-25
+# `wirelang/cli/bridge_forward.py`; the
 # sibling `wirelang/cli/bridge_forward_canonical.py` exposes the
 # higher-layer `ForwardFrame` wire-shape that this crate mirrors
 # byte-for-byte.
@@ -30,7 +30,7 @@
 # Wire-shape contract
 # -------------------
 # Forward-frame: three alphabetical top-level keys
-#   - `envelope` : the Sprint-10 Tag-6 nine-key envelope dict
+#   - `envelope` : the nine-key envelope dict
 #                  (alphabetically sorted: auftrag_id, event_kind,
 #                  metadata, org_id, persona_id, prompt_payload,
 #                  prompt_sha256, schema, source, ts_utc).
@@ -49,10 +49,10 @@
 # consumed by both this crate's smoke test and the Python sibling test
 # `tests/cli/test_bridge_forward_cross_lang_parity.py`.
 #
-# Hard-Constraints (per Sprint-Auftrag)
+# Hard-Constraints
 # -------------------------------------
 # - No touches to `wirelang/cli/bridge_forward.py` (Python tree
-#   stays unchanged); the Tag-25 sibling is the new Apache-2.0
+#   stays unchanged); the sibling is the new Apache-2.0
 #   module `wirelang/cli/bridge_forward_canonical.py`.
 # - No LICENSING / NOTICE / .github/workflows touches.
 # - `cargo test -p persona-engine-bridge-forward` runs green.
@@ -64,11 +64,11 @@
 # ADR anchors
 # -----------
 # - ADR-0063 §Folgeartefakte Phase-3a Item 10 (this crate).
-# - Reza PR #170 (Tag-18) -- anchor-emitter Python sibling pattern.
-# - Reza PR #177 (Tag-21) -- lifecycle-FSM canonical-trace pattern.
-# - Reza PR #183 (Tag-23) -- state-backing cross-lang parity pattern.
-# - Reza PR #188 (Tag-24) -- federation-resolver cross-lang parity pattern.
-# - Sprint-10 Tag-6 -- pre-existing Bridge-Forward-Pipe CLI authority.
+# - PR #170 -- anchor-emitter Python sibling pattern.
+# - PR #177 -- lifecycle-FSM canonical-trace pattern.
+# - PR #183 -- state-backing cross-lang parity pattern.
+# - PR #188 -- federation-resolver cross-lang parity pattern.
+# - -- Pre-existing Bridge-Forward-Pipe CLI authority.
 
 [package]
 name = "persona-engine-bridge-forward"
@@ -77,8 +77,8 @@ edition = "2021"
 rust-version = "1.85"
 license = "Apache-2.0"
 repository = "https://github.com/wakir-labs/wakir-runtime"
-authors = ["Reza Tehrani <reza@wakir.local>"]
-description = "Rust pendant of the Mira-side Bridge-Forward-Pipe canonical-frame surface (parity with wirelang/cli/bridge_forward_canonical.py)."
+authors = ["Wakir Labs"]
+description = "Rust pendant of the orchestrator-side Bridge-Forward-Pipe canonical-frame surface (parity with wirelang/cli/bridge_forward_canonical.py)."
 publish = false
 
 [lib]

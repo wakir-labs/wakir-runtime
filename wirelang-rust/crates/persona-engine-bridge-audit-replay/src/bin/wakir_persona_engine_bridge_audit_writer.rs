@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //! `wakir-persona-engine-bridge-audit-writer` binary entry-point.
 //!
-//! Tag-31 Mini-Welle (ADR-0066 Welle-3 `bridge_audit_writer` pre-cutover
+//! Mini-Welle (ADR-0066 Welle-3 `bridge_audit_writer` pre-cutover
 //! image, parallel to ADR-0066 Welle-1 V907-verify and Welle-2 SVID-
 //! workload-identity image-builds).
 //!
@@ -39,7 +39,7 @@
 //!
 //! Zero new dependencies. No `clap`, no `anyhow`, no `env_logger` — the
 //! binary is a static-link-friendly thin shim for the Container-
-//! Image-Build-Pipeline (Tag-31 Mini-Welle, ADR-0066 Welle-3 image-
+//! Image-Build-Pipeline (Mini-Welle, ADR-0066 Welle-3 image-
 //! build). Parity with the `wakir-persona-engine-svid-workload-identity`
 //! and `wakir-persona-engine-v907-verify` operator-CLI surface.
 //!

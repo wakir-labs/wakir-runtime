@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Bridge-Diff-Engine smoke-tests with cross-language anchor pins.
 //!
-//! Sprint-Bridge-Diff-Engine-Rust-MINI smoke suite. Each cross-language
+//! smoke suite. Each cross-language
 //! pin in this file was captured on 2026-05-16 from the Python pendant
 //! (`wirelang/persona_engine/bridge_audit_diff_engine.py`, PR #106)
 //! running against the SAME fixture in the same source tree. A future

@@ -4,7 +4,7 @@
 # Phase-3a Doppelbetrieb-Shadow bridge (Rust pendant).
 #
 # Rust port of wirelang/persona_engine/bridge_audit_diff_engine.py
-# (PR #106, Sprint-Pengine-15-Mini). The Python implementation stays
+# (PR #106). The Python implementation stays
 # in the tree unchanged; this crate ships in parallel so the cutover
 # acceptance gate can compare Python-engine output against Rust-
 # engine output for the same logical input.

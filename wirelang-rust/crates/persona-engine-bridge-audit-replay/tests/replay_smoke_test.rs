@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Bridge-Audit-Replay-Engine smoke-tests with cross-language anchor pins.
 //!
-//! Sprint-Bridge-Audit-Replay-Engine-Rust-MINI smoke suite (ADR-0063
+//! smoke suite (ADR-0063
 //! §Folgeartefakte Phase-3a Item 11). Each cross-language pin in this
 //! file was captured 2026-05-17 from the Python pendant
 //! (`wirelang.persona_engine.bridge_audit_writer.EngineeringOutputEvent`

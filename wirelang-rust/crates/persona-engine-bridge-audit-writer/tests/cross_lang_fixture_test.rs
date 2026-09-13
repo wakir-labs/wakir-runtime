@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Callandor GmbH and contributors
 //
 // Cross-lang fixture parity tests for persona-engine-bridge-audit-writer
-// (Tag-30 Mini-Welle / Phase-3a-Python-Sync / Welle-3 12. Modul).
+// (Mini-Welle / Phase-3a-Python-Sync / Welle-3 12. Modul).
 //
 // These tests consume the same authoritative JSON fixture file
 // (`tests/fixtures/bridge-audit-writer-cross-lang/fixtures.json` at the
@@ -12,7 +12,7 @@
 // through the deterministic envelope-construction surface and pin the
 // same JCS bytes + record hashes. Any drift on either side breaks both
 // test suites -- that is the intended boundary detector for the Welle-3
-// Konsistenz-Oracle self-cutover (Henrik-Audit-Caution mitigation).
+// Konsistenz-Oracle self-cutover (audit-Audit-Caution mitigation).
 //
 // Test taxonomy
 // -------------

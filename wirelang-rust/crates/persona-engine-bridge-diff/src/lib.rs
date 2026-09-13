@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Deterministic-diff oracle for the Phase-3a Doppelbetrieb-Shadow bridge.
 //!
-//! Sprint-Bridge-Diff-Engine-Rust-MINI (ADR-0063 §Folgeartefakte Item 4).
+//! (ADR-0063 §Folgeartefakte Item 4).
 //!
 //! Rust port of `wirelang.persona_engine.bridge_audit_diff_engine`
 //! (PR #106, the Python pendant of this crate). During the Phase-3a
@@ -608,7 +608,7 @@ where
 }
 
 // ---------------------------------------------------------------------------
-// Canonical-trace sub-module (Tag-36 Phase-3a-Python-Sync, 13. Modul)
+// Canonical-trace sub-module (Phase-3a-Python-Sync, 13. Modul)
 // ---------------------------------------------------------------------------
 
 /// Canonical-trace projection of a bridge-audit-diff compare outcome.

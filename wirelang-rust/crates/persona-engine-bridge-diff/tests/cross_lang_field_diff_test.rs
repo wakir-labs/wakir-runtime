@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Cross-language Field-Level Diff parity tests against Python pins.
 //!
-//! Tag-17 Mini-Welle, Phase-3a-Python-Sync-Erweiterung — sister to the
+//! Mini-Welle, Phase-3a-Python-Sync-Erweiterung — sister to the
 //! Python-side cross-language test ``wirelang/tests/persona_engine/
 //! test_bridge_diff_field_level_parity.py``.
 //!

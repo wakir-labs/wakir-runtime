@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Callandor GmbH and contributors
 //
 // Cross-lang fixture parity tests for persona-engine-bridge-audit-replay
-// canonical-trace (Tag-37 Mini-Welle Phase-3a Python-sync, 14. Modul).
+// canonical-trace (Mini-Welle Phase-3a Python-sync, 14. Modul).
 //
 // These tests consume the same authoritative JSON fixture file
 // (`tests/fixtures/bridge-audit-replay-cross-lang/fixtures.json` at the
@@ -56,7 +56,7 @@ use std::path::PathBuf;
 
 // ---------------------------------------------------------------------
 // Inline base64 decoder (RFC 4648 standard alphabet, no line breaks).
-// Identical pattern to the Tag-36 / Tag-35 sibling fixture tests so
+// Identical pattern to the / sibling fixture tests so
 // the test suite has no extra deps beyond what the workspace already
 // pulls in.
 // ---------------------------------------------------------------------
@@ -187,7 +187,7 @@ fn f02_fixture_file_structure_pin() {
     assert_eq!(
         fixtures.len(),
         6,
-        "Tag-37 cross-lang vector count is 6 (3 success-paths + 3 drift-kinds)"
+        "cross-lang vector count is 6 (3 success-paths + 3 drift-kinds)"
     );
     for f in fixtures {
         let f_obj = f.as_object().expect("fixture entry must be object");
