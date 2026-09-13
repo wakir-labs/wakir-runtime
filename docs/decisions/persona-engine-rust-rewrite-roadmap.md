@@ -1,6 +1,6 @@
-# Persona-Engine Rust-Rewrite-Roadmap (Sprint-Pengine-13 Strategy Doc)
+# Persona-Engine Rust-Rewrite-Roadmap (strategy document)
 
-**Author:** Selin Çelik (Persona-Engine-Engineer)
+**Author:** Persona-Engine Engineering
 **Date:** 2026-05-16
 **Status:** Strategy proposal — NOT implementation
 **Trigger:** ADR-0035 (`Sprache-pro-Komponente`) requires the Persona-
@@ -46,7 +46,7 @@ when the Pilot-Phase concludes.
 |---|---|---|
 | `rfc8785` | `>=0.1.4` | JCS-canonical JSON for V-907 hash + envelope determinism |
 | `PyYAML` | `>=6.0` | Persona-md axis-A YAML parsing |
-| `shamir-mnemonic` | `>=0.3.0` | Shamir-Secret-Sharing for backup-substrate (Reza Zone-B) |
+| `shamir-mnemonic` | `>=0.3.0` | Shamir-Secret-Sharing for the backup substrate (identity-substrate scope) |
 | `cryptography` | `>=42` | X.509 cert parsing for SVID (`not_after`, SAN URIs) |
 | `nats-py` | `>=2.6` | NATS pub-sub + JetStream KV state-backing |
 | `grpcio` | `>=1.60` | SPIFFE Workload-API gRPC channel |
@@ -74,7 +74,7 @@ the Self-Migration-Konverter (ADR-0036) cannot bridge.
 |---|---|---|
 | `engine.py` + `engine_async.py` | `wakir-persona-engine-core` (new) | Tokio-async-first; sync wrapper around async core via `block_on` for backward-compat. |
 | `cli.py` | `wakir-persona-engine-cli` (new, binary crate) | `clap` for argparse-parity. Same exit codes. |
-| `lifecycle_state_machine.py` | inline in core crate, **type-state-pattern** | Selin's stärke per persona-def (Rust ownership = lifecycle modeling). `PhantomData<Uninstantiated>` → `PhantomData<Running>` etc. |
+| `lifecycle_state_machine.py` | inline in core crate, **type-state-pattern** | Rust ownership maps directly onto lifecycle modelling. `PhantomData<Uninstantiated>` → `PhantomData<Running>` etc. |
 | `bridge_audit_writer.py` | inline in core crate | `serde_json` for emit; double-sink trait. |
 | `v907_verify.py` | `serde-json-canonicalization` crate (rust crates.io) for JCS; `sha2` crate for sha256; `serde_yaml` for axis-A | `serde-json-canonicalization` v0.2+ implements RFC-8785. Byte-equiv with `rfc8785` Python wheel verified via test vectors. |
 | `svid_workload_identity.py` | `tonic` for gRPC + auto-generated stub from `spiffe-workload-api.proto` | Tonic replaces the hand-rolled `_workload_api_pb2_minimal.py`. |
@@ -93,7 +93,7 @@ the Self-Migration-Konverter (ADR-0036) cannot bridge.
 |---|---|---|
 | `rfc8785` | `serde-json-canonicalization` v0.2+ | Available; byte-equiv test vectors needed |
 | `PyYAML` | `serde_yaml` v0.9+ | Available; round-trip test vectors needed |
-| `shamir-mnemonic` | `shamirsecretsharing` crate OR Reza-built crate | **Open question** — see §2.3 |
+| `shamir-mnemonic` | `shamirsecretsharing` crate OR an in-house crate | **Open question** — see §2.3 |
 | `cryptography` | `rustls` + `x509-parser` OR `rustcrypto/x509-cert` | Available; cert-parse parity test vectors needed |
 | `nats-py` | `async-nats` | Available; Synadia-maintained, parity-tested |
 | `grpcio` | `tonic` | Available; Tokio-native |
@@ -105,7 +105,7 @@ the Self-Migration-Konverter (ADR-0036) cannot bridge.
   shares). Rust crates: `shamirsecretsharing` (Apache-2.0,
   generic-bytes; no SLIP-0039 mnemonic layer) vs.
   `slip-0039` (apparently not yet on crates.io; need verification).
-  **Action:** Reza Zone-B + Zone-L cross-review before crate-pin —
+  **Action:** identity-substrate and schema review before the crate pin —
   the backup-substrate format is identity-substrate-critical and a
   format-mismatch breaks recovery.
 - **JCS determinism cross-language.** The Python `rfc8785` wheel
@@ -126,13 +126,12 @@ the Self-Migration-Konverter (ADR-0036) cannot bridge.
 
 ### Phase 0 — Strategy approval (this document)
 
-- Aufsichtsrat / CTO approval of this roadmap.
+- Maintainer approval of this roadmap.
 - ADR-0XXX (follow-up to ADR-0035) formalises the Rust-Persona-
   Engine crate split + cutover-gate criteria.
-- Reza Zone-B + Zone-L cross-review on Shamir + cryptography
-  crate-pins.
-- Tomás Zone-K cross-review on JCS + V-907 hash byte-equiv test
-  vectors.
+- Identity-substrate and schema review on the Shamir + cryptography
+  crate pins.
+- WAT / V-907 review on JCS + hash byte-equivalence test vectors.
 - Estimated duration: 1-2 weeks calendar.
 
 ### Phase 1 — Doppelbetrieb-Bridge (Rust-Core skeleton, runs alongside Python)
@@ -184,24 +183,24 @@ Each flip ships as a Quadlet-pinned image bump
 (`0.5.x-pilot → 0.6.x-pilot → ...`). The doppelbetrieb-Shadow
 container stays up across all flips to catch regressions.
 
-Estimated duration: 8-12 weeks (1 engineer + Kai for Quadlet
-rotations).
+Estimated duration: 8-12 weeks (1 engineer plus container-substrate
+support for the Quadlet rotations).
 
 ### Phase 3 — Final cutover (Python removed)
 
 **Goal:** Remove `wirelang/persona_engine/*.py` from the image
 build, keep only the Rust binary. The Python wheel
 (`wirelang/persona_engine/`) becomes a deprecated thin compatibility
-shim for downstream consumers (Aisha persona-tooling).
+shim for downstream persona tooling.
 
-**Cutover gate (see §4):** All Phase-2 module-flips green, all
-acceptance gates passed, AR-approval recorded.
+**Switchover gate (see §4):** all Phase-2 module flips green, all
+acceptance gates passed, maintainer approval recorded.
 
 Estimated duration: 2-3 weeks.
 
 ---
 
-## 4 / Acceptance Gates for Phase-2 Rust Cutover
+## 4 / Acceptance gates for the Phase-2 Rust switchover
 
 ### 4.1 Cross-engine byte-equivalence gates
 
@@ -246,21 +245,21 @@ Estimated duration: 2-3 weeks.
 
 ### 4.4 Governance gates
 
-- **Gate G-10 / Reza Zone-B/L sign-off:** Identity-substrate +
+- **Gate G-10 / identity-substrate sign-off:** identity-substrate +
   schema sign-off on the Rust crate choice (especially Shamir
   + cryptography).
-- **Gate G-11 / Tomás Zone-K sign-off:** WAT-OTS + V-907
+- **Gate G-11 / WAT sign-off:** WAT-OTS + V-907
   sign-off on the Rust V-907 implementation.
-- **Gate G-12 / Kai Zone-J sign-off:** Container substrate
+- **Gate G-12 / container-substrate sign-off:** container substrate
   (Quadlet, supply-chain provenance) sign-off on the Rust
   image-build workflow.
-- **Gate G-13 / Aisha HR Persona-Definition compatibility:**
+- **Gate G-13 / persona-definition compatibility:**
   Persona-md axis-A files unchanged; YAML strict-mode parse
   identical in both engines on the full agents-workspaces corpus.
-- **Gate G-14 / Henrik Audit sign-off:** Audit-trail emit shape
+- **Gate G-14 / internal-audit sign-off:** audit-trail emit shape
   unchanged; double-sink semantics preserved.
-- **Gate G-15 / AR + CTO final approval:** Mira + Priya + AR
-  sign-off recorded in an ADR-0XXX-cutover document.
+- **Gate G-15 / final approval:** maintainer sign-off recorded in an
+  ADR-0XXX switchover document.
 
 ---
 
@@ -283,37 +282,31 @@ Estimated duration: 2-3 weeks.
   area for byte-divergence — extensive test vectors are
   non-negotiable.
 - **Persona-Engine team capacity.** Phase-1 + Phase-2 is a
-  4-6 month commitment for a single engineer; AR needs to weigh
-  this against Pilot-feature-velocity.
+  4-6 month commitment for a single engineer; that has to be weighed
+  against pilot feature velocity.
 
 ---
 
 ## 6 / Out-of-Scope (explicitly)
 
 - **Persona-Definition format changes.** This roadmap is engine-
-  side; Aisha's persona-md governance is unchanged.
-- **WAT-Core re-implementation.** Tomás's WAT crate is already
-  Rust (Sprint-Tag-N-Wert-Hash); this roadmap does not touch it.
-- **Identity-Substrate (Reza) re-implementation.** SPIRE +
+  side; persona-md governance is unchanged.
+- **WAT-Core re-implementation.** The WAT crate is already Rust;
+  this roadmap does not touch it.
+- **Identity-substrate re-implementation.** SPIRE +
   trust-bundle handling stays where it is; the engine only
   consumes SVIDs.
-- **Container-Bridge (Kai) infra changes.** Quadlet rotation
+- **Container-bridge infra changes.** Quadlet rotation
   pattern unchanged; only the image tag/contents flip per Phase-2
-  module-cutover.
-- **Wirelang schema changes.** Reza Zone-B's schema-formalisation
+  module flip.
+- **Wirelang schema changes.** The schema formalisation
   is independent of this roadmap.
 
 ---
 
 ## 7 / Next Steps (if approved)
 
-1. Mira / Priya / AR review of this document (review-deadline:
-   end of KW 22).
-2. ADR-0XXX drafting (formal cutover decision record).
-3. Tomás Zone-K + Reza Zone-B/L cross-review on crate choices.
-4. Phase-0 close, Phase-1 sprint dispatch (Selin + Priya-CTO
-   spawned Rust-engineer pairing).
-
----
-
-*— Selin Çelik (Persona-Engine-Engineer), Sprint-Pengine-13*
+1. Maintainer review of this document.
+2. ADR-0XXX drafting (formal switchover decision record).
+3. WAT and identity-substrate review of the crate choices.
+4. Phase-0 close, Phase-1 dispatch.
