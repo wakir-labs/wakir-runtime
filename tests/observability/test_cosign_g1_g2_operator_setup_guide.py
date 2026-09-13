@@ -198,13 +198,20 @@ def test_t_g1g2_04_placeholder_inventory(
     quadlet_files_with_placeholder: Set[str],
     policy_text: str,
 ) -> None:
-    """The §3.1 inventory table lists exactly the on-disk placeholder
-    slots.
+    """The §3.1 inventory table covers every on-disk placeholder slot
+    and names only files that exist.
 
     If a future change introduces a new placeholder slot without
-    updating the guide, the operator would miss it in PR #N1 and G1
-    would stay BLOCKED post-merge. This test rejects that drift at
+    updating the guide, the operator would miss it and G1 would stay
+    BLOCKED post-merge. This test rejects that drift at
     PR-review-time.
+
+    Direction matters. A slot that has since been closed (the file
+    now carries a resolved ``sha256:`` digest) is *progress*, not
+    drift, and must not fail the guide: the inventory table documents
+    which files participate in the G1 closeout, not which of them are
+    still open. Only a guide entry for a file that does not exist on
+    disk is drift.
     """
 
     # Policy carries the carrier-image placeholder.
@@ -227,16 +234,19 @@ def test_t_g1g2_04_placeholder_inventory(
         )
 
     # Symmetric check — the guide must not list a quadlet file that
-    # has no placeholder on disk (false positive in the table).
+    # does not exist on disk (false positive in the table). Files that
+    # exist but no longer carry the placeholder are closed slots and
+    # stay legitimately listed.
     quadlet_mention_re = re.compile(
         r"`quadlet/(wakir-[a-z0-9-]+\.container)`"
     )
     mentioned = set(quadlet_mention_re.findall(guide_text))
-    spurious = mentioned - quadlet_files_with_placeholder
-    assert not spurious, (
-        f"Guide §3.1 mentions quadlet file(s) {sorted(spurious)} that "
-        "do not currently carry a placeholder digest on disk. "
-        "Either the substrate or the guide has drifted."
+    on_disk = {p.name for p in QUADLET_GLOB_DIR.glob("wakir-*.container")}
+    missing = mentioned - on_disk
+    assert not missing, (
+        f"Guide §3.1 mentions quadlet file(s) {sorted(missing)} that "
+        "do not exist on disk. Either the substrate or the guide has "
+        "drifted."
     )
 
 
@@ -289,24 +299,44 @@ def test_t_g1g2_06_g2_token_exact_match(
     If the guide drifts to e.g. `PENDING_OPERATOR_REFRESH`, the
     operator's `grep -n` recipe in §4.5 misses the slot and G2
     stays BLOCKED post-merge.
+
+    The on-disk trust root may be in either of exactly two states:
+    still pending (both fields carry the token) or refreshed (both
+    fields carry a resolved value of the documented shape — Fulcio a
+    lowercase 64-hex SHA-256, Rekor a decimal shard id). What is
+    *not* allowed is a half-refreshed trust root, because a resolved
+    Fulcio pin next to a placeholder Rekor pin makes the drift probe
+    compare against a value nobody ever verified.
     """
 
     token = "PENDING_OPERATOR_HAND_REFRESH"
     assert token in guide_text, (
         f"Guide must mention the literal G2 PENDING token '{token}'"
     )
-    # The on-disk pinned-trust-root must currently carry the token in
-    # both Fulcio + Rekor fields, else G2 is already closed and the
-    # guide is stale.
     fulcio = pinned_trust_root.get("fulcio_root_ca_sha256")
     rekor = pinned_trust_root.get("rekor_log_shard_id")
-    assert fulcio == token, (
-        f"pinned-trust-root.fulcio_root_ca_sha256 must equal '{token}' "
-        f"while G2 is BLOCKED; got '{fulcio}'."
+
+    if fulcio == token or rekor == token:
+        # G2 still open — then both slots must be pending.
+        assert fulcio == token and rekor == token, (
+            "pinned-trust-root is half-refreshed: "
+            f"fulcio_root_ca_sha256='{fulcio}', "
+            f"rekor_log_shard_id='{rekor}'. Both fields carry the "
+            f"'{token}' slot together or neither does."
+        )
+        return
+
+    # G2 closed — the resolved values must have the documented shape,
+    # otherwise the drift probe pins a malformed trust root.
+    assert isinstance(fulcio, str) and re.fullmatch(
+        r"[0-9a-f]{64}", fulcio
+    ), (
+        "pinned-trust-root.fulcio_root_ca_sha256 must be a lowercase "
+        f"64-hex SHA-256 once refreshed; got '{fulcio}'."
     )
-    assert rekor == token, (
-        f"pinned-trust-root.rekor_log_shard_id must equal '{token}' "
-        f"while G2 is BLOCKED; got '{rekor}'."
+    assert isinstance(rekor, str) and re.fullmatch(r"[0-9]+", rekor), (
+        "pinned-trust-root.rekor_log_shard_id must be a decimal shard "
+        f"id once refreshed; got '{rekor}'."
     )
 
 

@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""15-Binary SBOM-vs-Baseline Verification (Tag-49, Kai).
+"""15-Binary SBOM-vs-Baseline Verification.
 
 Context
 -------
 
-Tag-48 PR #310 introduced the 15-binary SBOM generator
+introduced the 15-binary SBOM generator
 (``scripts/observability/generate-15-binary-sbom.py``). The
-generator emits, for each of the fifteen Tag-45 inventory binaries,
+generator emits, for each of the fifteen inventory binaries,
 a CycloneDX-1.5 (or SPDX-2.3) document listing every transitively-
 reachable Cargo package and its pinned version + checksum.
 
@@ -17,14 +17,14 @@ a *baseline*. Without a baseline, the operator can read the SBOM
 but cannot answer:
 
   * Did a dependency get added, removed, or version-bumped since
-    the last AR-Hand-Gate sign-off?
+    the last Operator-Hand-Gate sign-off?
   * Is the cargo-lock SHA256 still the one the cosign-pinned image
     was built against?
   * Has any component's pinned crates.io checksum changed underneath
     us (which would indicate a yanked-then-republished crate or a
     supply-chain manipulation)?
 
-This Tag-49 verifier answers exactly that. It runs the Tag-48
+This verifier answers exactly that. It runs the
 generator under the same hermetic ``--mode=stdlib`` path, then
 compares each per-binary SBOM byte-for-byte against the matching
 ``tooling/baselines/sbom-baseline/<binary>.json`` file. Drift is classified
@@ -70,7 +70,7 @@ The verdict is emitted to:
 Sandbox posture
 ---------------
 
-Strict hermetic: stdlib + tomllib only (re-uses the Tag-48
+Strict hermetic: stdlib + tomllib only (re-uses the
 generator's parser). No podman / cargo / cosign / network egress.
 The verifier does NOT mutate baseline files -- baseline-refresh is
 an Operator-Hand procedure documented in
@@ -79,22 +79,22 @@ an Operator-Hand procedure documented in
 Audit-Trail anchor
 ------------------
 
-ADR-0066 §AR-Hand-Gate requires pre-cutover stability + signed
+ADR-0066 §Operator-Hand-Gate requires pre-cutover stability + signed
 provenance for every Welle. The SBOM-vs-Baseline verifier closes
-the time-axis on the dependency-tree the Tag-48 generator captured.
+the time-axis on the dependency-tree the generator captured.
 
 Anchors
 -------
 
-  * Tag-48 PR #310 -- 15-binary SBOM generator + workflow.
-  * Tag-47 PR #307 -- Cosign-Keyless-OIDC-Drift-Probe (time-axis
+  * -- 15-binary SBOM generator + workflow.
+  * -- Cosign-Keyless-OIDC-Drift-Probe (time-axis
     pattern this verifier mirrors).
-  * Tag-45 PR #294 -- 15-binary cosign-policy substrate refresh.
-  * ADR-0066 §AR-Hand-Gate -- pre-cutover sign-off bundle.
+  * -- 15-binary cosign-policy substrate refresh.
+  * ADR-0066 §Operator-Hand-Gate -- pre-cutover sign-off bundle.
   * feedback_sandbox_host_trennung.md -- no live cargo I/O.
 
-Author: Kai Hoffmann (Dev-Engineering-3 / Container-Orchestration)
-Tag: 49 (KW-22)
+
+
 """
 
 from __future__ import annotations
@@ -111,12 +111,12 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 
 # ---------------------------------------------------------------------------
-# Loader: import the Tag-48 generator module so we re-use its parser.
+# Loader: import the generator module so we re-use its parser.
 # ---------------------------------------------------------------------------
 
 
 def _load_generator_module(script_path: Path) -> Any:
-    """Load the hyphenated Tag-48 generator script as a module."""
+    """Load the hyphenated generator script as a module."""
     spec = importlib.util.spec_from_file_location(
         "generate_15_binary_sbom", str(script_path)
     )
@@ -151,12 +151,12 @@ BIN_DRIFT_YELLOW: str = "DRIFT-YELLOW"
 BIN_DRIFT_RED: str = "DRIFT-RED"
 BIN_MISSING_BASELINE: str = "MISSING-BASELINE"
 
-#: Default location of the Tag-48 generator script (relative to repo).
+#: Default location of the generator script (relative to repo).
 DEFAULT_GENERATOR_REL: str = (
     "scripts/observability/generate-15-binary-sbom.py"
 )
 
-#: Default location of the Tag-48 generator's Cargo.lock input.
+#: Default location of the generator's Cargo.lock input.
 DEFAULT_CARGO_LOCK_REL: str = "wirelang-rust/Cargo.lock"
 
 #: Default location of the baseline directory.
@@ -302,7 +302,7 @@ def extract_cargo_lock_sha256_from_cyclonedx(
 ) -> Optional[str]:
     """Extract the ``wakir:cargo-lock-sha256`` property value, if present.
 
-    The Tag-48 generator embeds the cargo-lock-sha256 in the SBOM's
+    The generator embeds the cargo-lock-sha256 in the SBOM's
     ``metadata.properties`` array. Returns None if the property is
     missing (e.g. an externally-produced SBOM was placed in the
     baseline directory).
@@ -803,7 +803,7 @@ def write_text(path: Path, body: str) -> None:
 def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Compare today's 15-binary SBOMs (emitted by the Tag-48 "
+            "Compare today's 15-binary SBOMs (emitted by the "
             "generator) against the pinned baseline in "
             "tooling/baselines/sbom-baseline/. Drift classification + aggregate "
             "verdict for Mira-Notify routing."
@@ -884,13 +884,13 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
 def main(argv: Sequence[str]) -> int:
     args = _parse_args(argv)
 
-    # Re-use the Tag-48 generator constants for the inventory order
+    # Re-use the generator constants for the inventory order
     # (single source of truth).
     here = Path(__file__).resolve().parent
     gen_path = here / "generate-15-binary-sbom.py"
     if not gen_path.is_file():
         print(
-            f"ERROR: Tag-48 generator script missing at {gen_path}",
+            f"ERROR: generator script missing at {gen_path}",
             file=sys.stderr,
         )
         return 2

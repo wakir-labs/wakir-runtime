@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Phase-3-Final-Bilanz-Generator (Tag-43, Noa SRE).
+"""Phase-3-Final-Bilanz-Generator.
 
 Context
 -------
 
-The Phase-3 Marathon (KW-21..KW-27, ~2026-05-12 .. ~2026-06-29) drives
+The Phase-3 Marathon .., ~2026-05-12 .. ~2026-06-29) drives
 seven cutover-Wellen (W1 v907-verify .. W7 lifecycle-recovery) from
-Python-default to Rust-default. Tag-38..Tag-42 produced live
+Python-default to Rust-default. .. produced live
 observability scaffolding:
 
-  * Tag-38 ci-aggregator-Failure-Rate-Tracker (Noa #251)
-  * Tag-40 Marathon-Live-Dashboard + alerts (Noa #257)
-  * Tag-40 Marathon-Aggregat-Tracker (Selin #261) -> state file
+  * ci-aggregator-Failure-Rate-Tracker ( #251)
+  * Marathon-Live-Dashboard + alerts ( #257)
+  * Marathon-Aggregat-Tracker ( #261) -> state file
     ``state/phase-3-marathon-state.json``
-  * Tag-41 Live-Stream-Aggregator (Noa)
-  * Tag-42 Probe-Observability (Noa)
-  * Per-Welle Henrik-Sign-Off ``state/welle-N-sign-off.json``
+  * Live-Stream-Aggregator
+  * Probe-Observability
+  * Per-Welle audit sign-off ``state/welle-N-sign-off.json``
   * Phase-3-COMPLETE-Marker ``state/phase-3-complete-marker.json``
-    (Tomas Tag-42 #258)
+    ( #258)
 
 This generator stitches the streams into a single end-of-Marathon
 bilanz. It is invoked manually via CLI **and** auto-triggered by the
@@ -35,7 +35,7 @@ same inputs:
   * ``reports/phase-3-marathon-bilanz.md`` -- ~500..800 lines of
     operator-readable Markdown.
   * ``reports/phase-3-marathon-bilanz.json`` -- machine-readable
-    rollup, suitable for ingestion by Henrik (Internal Audit) and
+    rollup, suitable for ingestion by (Internal Audit) and
     by the Phase-4 pre-substanz-plan generator.
 
 Sandbox boundary
@@ -65,12 +65,12 @@ Anchors
   * ADR-0066 (Phase-3c 4W-Beschleunigung, approved 2026-05-17)
   * ADR-0068 (ci-aggregator single Required-Status-Check, approved
     2026-05-18)
-  * Noa Tag-38 PR (aggregator-failure-rate-tracker)
-  * Noa Tag-40 PR (marathon dashboard + alerts)
-  * Selin Tag-40 PR #261 (marathon-aggregat-tracker)
-  * Tomas Tag-42 PR #258 (phase-3-complete-marker spec)
+  * PR (aggregator-failure-rate-tracker)
+  * PR (marathon dashboard + alerts)
+  * (marathon-aggregat-tracker)
+  * (phase-3-complete-marker spec)
 
--- Noa
+
 """
 
 from __future__ import annotations
@@ -223,7 +223,7 @@ def drift_status(observed_pct: Optional[float]) -> str:
 def normalize_marathon_state(state: Dict[str, Any]) -> Dict[str, Any]:
     """Extract per-welle counts + global counts from marathon-state.
 
-    Expected input (Selin #261 schema, simplified):
+    Expected input ( #261 schema, simplified):
 
         {
           "schema_version": "1.0.0",
@@ -272,7 +272,7 @@ def normalize_marathon_state(state: Dict[str, Any]) -> Dict[str, Any]:
 def normalize_aggregator_history(history: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Roll up ci-aggregator failure-rate history into a single bilanz.
 
-    Expected entry shape (Noa #251 schema):
+    Expected entry shape ( #251 schema):
 
         {
           "run_id": "123456789",
@@ -361,7 +361,7 @@ def normalize_drift_histograms(histograms: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def normalize_sign_offs(sign_offs: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Index Henrik per-welle sign-off files by welle-id.
+    """Index per-welle sign-off files by welle-id.
 
     Expected per-file shape:
 
@@ -581,7 +581,7 @@ def render_markdown(bilanz: Dict[str, Any]) -> str:
       2. Executive summary
       3. Per-welle mini-bilanz (7 sections)
       4. Cross-welle coupling
-      5. Henrik audit aggregate
+      5. audit aggregate
       6. Phase-3-COMPLETE-marker validation
       7. Phase-4 follow-up items
       8. Footer / source-of-truth list
@@ -818,7 +818,7 @@ def render_markdown(bilanz: Dict[str, Any]) -> str:
     lines.append("---")
     lines.append("")
 
-    # ---- Henrik audit aggregate ----
+    # ---- audit aggregate ----
     lines.append("## 4. Henrik Audit Aggregate")
     lines.append("")
     aud = bilanz["audit_aggregate"]

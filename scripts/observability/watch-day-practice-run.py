@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Pre-Cutover Watch-Day Practice-Run Simulator (Tag-55).
+"""Pre-Cutover Watch-Day Practice-Run Simulator.
 
 Context
 -------
 
-Tag-54 (PR #347) shipped the Pre-Cutover-Watch-Day Spec at
+shipped the Pre-Cutover-Watch-Day Spec at
 ``docs/observability/pre-cutover-watch-day-spec.md`` plus the
 pure-function verdict reference implementation at
 ``scripts/observability/pre-cutover-watch-day-verdict.py``.
 
-Tag-55 is the **practice-run companion**: a sandbox-mode simulator
+is the **practice-run companion**: a sandbox-mode simulator
 that walks through the full 08:00..18:00 CEST six-slot procedure
 end-to-end with **mock inputs**. It exercises the verdict-formula
 along every path the spec §4 procedure can take, validates every
@@ -21,7 +21,7 @@ slot-sequence, and emits a deterministic practice-run report.
 Why this matters
 ~~~~~~~~~~~~~~~~
 
-The Watch-Day procedure runs at most four times (KW-24..27 Tue).
+The Watch-Day procedure runs at most four times ..27 Tue).
 The operator must execute it correctly the *first* time. The
 spec § 9 anti-Alert-Fatigue discipline forbids ad-hoc improvisation
 during the live shift. The only safe way to learn the procedure
@@ -35,10 +35,10 @@ Design contract
 * **No live podman / Prometheus / Grafana / GitHub calls.** Every
   external dependency is mocked. The simulator runs offline,
   in a tmp_path-isolated state-directory.
-* **Verdict-computation delegates to the Tag-54 verdict module.**
+* **Verdict-computation delegates to the verdict module.**
   This module does not re-implement §7; it imports the reference
   implementation and drives it.
-* **Journal-entries are validated through the same Tag-54
+* **Journal-entries are validated through the same
   validators.** The §10 schema is single-sourced; this module does
   not reimplement it.
 * **Scenarios are deterministic.** Each scenario is a frozen
@@ -50,9 +50,9 @@ Design contract
   diverged from the spec (a regression in the spec implementation
   or this driver).
 
-Anchor: Tag-55 Noa-SRE Watch-Day-Practice-Run.
-Predecessor: Tag-54 Pre-Cutover-Watch-Day Spec (PR #347).
-Author: Noa Bergstroem (SRE)
+Anchor: Watch-Day-Practice-Run.
+Predecessor: Pre-Cutover-Watch-Day Spec.
+
 """
 
 from __future__ import annotations
@@ -67,7 +67,7 @@ from typing import Any, Callable
 
 
 # ---------------------------------------------------------------------------
-# Loader: import the Tag-54 verdict reference module from its hyphenated
+# Loader: import the verdict reference module from its hyphenated
 # path. The verdict module is a sibling under scripts/observability/.
 # ---------------------------------------------------------------------------
 
@@ -76,7 +76,7 @@ def _load_verdict_module() -> Any:
     verdict_path = here / "pre-cutover-watch-day-verdict.py"
     if not verdict_path.exists():
         raise FileNotFoundError(
-            f"Tag-54 verdict module not found at {verdict_path!s}"
+            f"verdict module not found at {verdict_path!s}"
         )
     spec = importlib.util.spec_from_file_location(
         "pre_cutover_watch_day_verdict", str(verdict_path)
@@ -163,7 +163,7 @@ def scenario_all_green() -> Scenario:
 
 
 def scenario_amber_dashboard_drift() -> Scenario:
-    """Dashboard D4 fails to render -> AMBER (drift-type-A, Noa-domain)."""
+    """Dashboard D4 fails to render -> AMBER (drift-type-A, observability domain)."""
     dashboards = _all_dashboards_green()
     dashboards["D4"] = False
     tallies = _all_green_tallies()
@@ -208,7 +208,7 @@ def scenario_amber_probe() -> Scenario:
 
 
 def scenario_red_probe() -> Scenario:
-    """Per-Welle pre-cutover-probe RED -> RED -> AR-Hand-Stop (§5.3, §6.1)."""
+    """Per-Welle pre-cutover-probe RED -> RED -> Operator-Hand-Stop (§5.3, §6.1)."""
     tallies = _all_green_tallies()
     red_tally = (10, 0, 2, 0, 1, 1)
     tallies = {**tallies, "08": red_tally, "16": red_tally, "18": red_tally}
@@ -562,7 +562,7 @@ def format_human_report(report: PracticeRunReport) -> str:
     """Render the PracticeRunReport as a deterministic plaintext block."""
     lines: list[str] = []
     lines.append("=" * 68)
-    lines.append("Pre-Cutover Watch-Day Practice-Run Report (Tag-55)")
+    lines.append("Pre-Cutover Watch-Day Practice-Run Report ")
     lines.append("=" * 68)
     for result in report.scenarios:
         status = "PASS" if result.pass_ else "FAIL"

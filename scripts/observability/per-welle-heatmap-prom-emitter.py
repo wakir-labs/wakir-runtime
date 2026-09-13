@@ -1,51 +1,51 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Phase-3c Per-Welle Trend-Heatmap Prometheus-Textfile Emitter (Tag-49).
+"""Phase-3c Per-Welle Trend-Heatmap Prometheus-Textfile Emitter.
 
 Context
 -------
 
-Tag-48 (Noa, PR #309) shipped the Per-Welle Trend-Heatmap renderer
+ shipped the Per-Welle Trend-Heatmap renderer
 (``scripts/observability/per-welle-trend-heatmap.py``) which consumes
-the Tag-44 Daily-Trend-Analyzer state and emits ASCII + JSON + Markdown
+the Daily-Trend-Analyzer state and emits ASCII + JSON + Markdown
 heatmap envelopes into ``state/per-welle-heatmap/yyyy-mm-dd.json``.
 
-Tag-48 also shipped the Grafana dashboard
-(``dashboards/per-welle-trend-heatmap.json``) which already references
+also shipped the Grafana dashboard
+(the per-Welle trend-heatmap dashboard) which already references
 the gauge family ``persona_engine_per_welle_heatmap_*``. The runbook
-of Tag-48 explicitly notes that the emitter that *populates* those
-gauges from the JSON envelope is a Tag-49 follow-up. That is this
+of explicitly notes that the emitter that *populates* those
+gauges from the JSON envelope is a follow-up. That is this
 script.
 
 Pipeline
 --------
 
-The Tag-49 emitter sits between Tag-48 JSON envelope and the Tag-48
+The emitter sits between JSON envelope and the
 Grafana panels::
 
-    state/pre-cutover-daily-trend/yyyy-mm-dd.json    (Reza Tag-44)
+    state/pre-cutover-daily-trend/yyyy-mm-dd.json
                        |
                        v
-    per-welle-trend-heatmap.py (Noa Tag-48)
+    per-welle-trend-heatmap.py
                        |
                        v
-    state/per-welle-heatmap/yyyy-mm-dd.json          (Tag-48 envelope)
+    state/per-welle-heatmap/yyyy-mm-dd.json (envelope)
                        |
                        v
-    per-welle-heatmap-prom-emitter.py (THIS, Tag-49)
+    per-welle-heatmap-prom-emitter.py (THIS)
                        |
                        v
     /var/lib/prometheus/node-exporter/per-welle-heatmap.prom
                        |
                        v
-    Grafana state-timeline panel (Tag-48 dashboard)
+    Grafana state-timeline panel (dashboard)
 
 Metrics emitted
 ---------------
 
 All gauges live under the ``persona_engine_per_welle_heatmap_*``
-namespace so the Tag-48 dashboard finds them without any change.
+namespace so the dashboard finds them without any change.
 
 * ``persona_engine_per_welle_heatmap_verdict{row_key, welle, verdict, glyph, color, date_iso}``
     Numeric encoding of the verdict for a (row, date) cell:
@@ -59,7 +59,7 @@ namespace so the Tag-48 dashboard finds them without any change.
         -1 -> MISSING   (no snapshot)
 
     The numeric mapping matches the Grafana panel's value-text mapping
-    in ``dashboards/per-welle-trend-heatmap.json`` so cell colors line
+    in the trend-heatmap dashboard so cell colors line
     up without extra transforms.
 
 * ``persona_engine_per_welle_heatmap_summary_count{row_key, verdict}``
@@ -109,12 +109,12 @@ Anchors
 -------
 
 * ADR-0065 Phase-3c cutover sequence.
-* ADR-0066 Doppel-Welle KW-24/26/27 ordering.
-* Reza Tag-44 PR #285 Pre-Cutover Daily-Trend-Analyzer.
-* Noa Tag-48 PR #309 Per-Welle Trend-Heatmap Renderer + Dashboard.
-* Tag-48 runbook explicit deferral of emitter to Tag-49 follow-up.
+* ADR-0066 Doppel-Welle /26/27 ordering.
+* Pre-Cutover Daily-Trend-Analyzer.
+* Per-Welle Trend-Heatmap Renderer + Dashboard.
+* runbook explicit deferral of emitter to follow-up.
 
-Author: Noa Bergstroem (SRE), Sprint-Tag-49, 2026-05-19.
+
 """
 
 from __future__ import annotations
@@ -137,7 +137,7 @@ from typing import Any, Iterable, Mapping
 SCHEMA_VERSION = "1.0"
 
 # Numeric verdict encoding. Must match the Grafana state-timeline
-# value-text mapping in dashboards/per-welle-trend-heatmap.json.
+# value-text mapping in the trend-heatmap dashboard.
 VERDICT_TO_NUMERIC: dict[str, int] = {
     "GREEN": 0,
     "CAUTION": 1,
@@ -197,7 +197,7 @@ def _today_iso_to_unix(today_iso: str) -> float:
 
 
 def _normalise_envelope(envelope: Mapping[str, Any]) -> dict[str, Any]:
-    """Coerce the Tag-48 heatmap envelope into a stable shape.
+    """Coerce the heatmap envelope into a stable shape.
 
     Returns a dict with keys::
 
@@ -309,7 +309,7 @@ def render_prometheus_textfile(
     *,
     timestamp_unixtime: float | None = None,
 ) -> str:
-    """Render a Tag-48 heatmap envelope as Prometheus textfile.
+    """Render a heatmap envelope as Prometheus textfile.
 
     Pure function (no I/O). The output is a single utf-8 string
     terminated by a trailing newline.
@@ -340,7 +340,7 @@ def render_prometheus_textfile(
         persona_engine_per_welle_heatmap_render_timestamp_seconds <today_unix> <ts_ms>
 
     The label set matches the Grafana dashboard's variable bindings
-    in ``dashboards/per-welle-trend-heatmap.json`` (row_key, verdict)
+    in the trend-heatmap dashboard (row_key, verdict)
     and adds ``welle`` / ``glyph`` / ``color`` / ``date_iso`` as
     free-form extra labels for tooltip rendering.
     """
@@ -358,8 +358,7 @@ def render_prometheus_textfile(
         "verdict for one (row_key,date) cell of the Phase-3c "
         "Per-Welle Trend-Heatmap. 0=GREEN, 1=CAUTION, 2=NOT-EXEC, "
         "3=BLOCK, 4=READY, 5=NOT-READY, -1=MISSING. Source: "
-        "state/per-welle-heatmap/yyyy-mm-dd.json (Noa Tag-48 PR #309 "
-        "renderer)."
+        "state/per-welle-heatmap/yyyy-mm-dd.json (renderer output)."
     )
     lines.append("# TYPE persona_engine_per_welle_heatmap_verdict gauge")
     for cell in norm["cells"]:
@@ -387,7 +386,7 @@ def render_prometheus_textfile(
         "of days in the heatmap window where ``row_key`` had verdict "
         "``verdict``. Cardinality is statically bounded: 8 rows "
         "(welle-1..7 + aggregate) x ~6 verdict buckets. Source: "
-        "Tag-48 envelope summary_counts field."
+        "envelope summary_counts field."
     )
     lines.append("# TYPE persona_engine_per_welle_heatmap_summary_count gauge")
     for row_key in norm["rows"]:
@@ -425,7 +424,7 @@ def render_prometheus_textfile(
     # ----- window-days informational gauge ----------------------------
     lines.append(
         "# HELP persona_engine_per_welle_heatmap_window_days Trend "
-        "window size in days (matches the Tag-48 envelope window_days "
+        "window size in days (matches the envelope window_days "
         "field). Informational; Grafana panel time-range follows the "
         "dashboard time-picker independently."
     )
@@ -441,7 +440,7 @@ def render_prometheus_textfile(
     lines.append(
         "# HELP persona_engine_per_welle_heatmap_render_timestamp_seconds "
         "Unix-seconds value of the envelope's today_date_iso midnight "
-        "UTC. Used by the Tag-48 Grafana annotation "
+        "UTC. Used by the Grafana annotation "
         "``changes(...)[1d]`` to draw a re-render marker on the "
         "heatmap each morning."
     )
@@ -463,7 +462,7 @@ def render_prometheus_textfile(
 
 
 def load_envelope(path: Path) -> dict[str, Any]:
-    """Load and parse a Tag-48 heatmap envelope file.
+    """Load and parse a heatmap envelope file.
 
     Raises ``FileNotFoundError`` for a missing file (the CLI surfaces
     this as a non-zero exit so the workflow fails fast). Raises
@@ -540,11 +539,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="per-welle-heatmap-prom-emitter",
         description=(
-            "Transform a Tag-48 per-Welle heatmap JSON envelope into a "
+            "Transform a per-Welle heatmap JSON envelope into a "
             "Prometheus textfile-collector .prom file. Output is "
             "compatible with node_exporter "
-            "--collector.textfile.directory and the Tag-48 Grafana "
-            "dashboard ``dashboards/per-welle-trend-heatmap.json``."
+            "--collector.textfile.directory and the Grafana "
+            "per-Welle trend-heatmap dashboard."
         ),
     )
     p.add_argument(

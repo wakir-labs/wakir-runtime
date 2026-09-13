@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Aggregator-Failure-Rate-Tracker (ADR-0068 Observability, Tag-38).
+"""Aggregator-Failure-Rate-Tracker (ADR-0068 Observability).
 
 Context
 -------
 
 ADR-0068 (approved 2026-05-18) introduced the ``ci-aggregator`` workflow
 (``.github/workflows/ci-aggregator.yml`` + ``scripts/ci/ci_aggregator.py``,
-Tomas Tag-37 PR #244 ``e29439dc``) as the single Required-Status-Check
+``e29439dc``) as the single Required-Status-Check
 on ``main``. The aggregator is in a ~1-week observation window: it
 runs in parallel with the six legacy Required-Status-Check names
 (``License-Hygiene Gate``, ``wirelang suite production / shadow``,
@@ -67,13 +67,13 @@ Anchors
   vs-display-name footgun that the aggregator structurally fixed and
   that this tracker is the observability-side of.
 
-Author: Noa Bergstroem (SRE)
-Tag: 38 (KW-22)
 
-Tag-42 patch (2026-05-18)
+
+
+patch (2026-05-18)
 -------------------------
 
-``fetch_aggregator_runs_via_gh_cli`` had a 404-bug on Reza's Tag-41
+``fetch_aggregator_runs_via_gh_cli`` had a 404-bug on 's
 probe-run. Query parameters (``per_page``, ``page``) were passed via
 ``gh api -f key=value``, which adds the field to the request body and
 forces ``gh`` to use POST semantics. The GitHub-Actions ``runs``
@@ -692,7 +692,7 @@ def _gh_api_get(
     req.add_header("Accept", "application/vnd.github+json")
     req.add_header("X-GitHub-Api-Version", "2022-11-28")
     req.add_header(
-        "User-Agent", "wakir-aggregator-failure-rate-tracker/1.0 (Tag-38)"
+        "User-Agent", "wakir-aggregator-failure-rate-tracker/1.0"
     )
     with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
         return json.loads(resp.read().decode("utf-8"))
@@ -746,7 +746,7 @@ def fetch_aggregator_runs(
 def _build_gh_cli_get_cmd(path: str, query: Optional[dict] = None) -> List[str]:
     """Build a ``gh api`` command-line for a GET with query params.
 
-    Tag-42 fix for the Reza-probe-run 404. The previous implementation
+    Fix for the probe-run 404. The previous implementation
     used ``-f key=value`` for ``per_page`` and ``page``. With ``gh api``,
     ``-f`` adds the field to the request *body* (and forces the method
     to POST), which for a GET endpoint either yields HTTP 404 (path
@@ -789,10 +789,10 @@ def fetch_aggregator_runs_via_gh_cli(
     already configured but no ``GITHUB_TOKEN`` env var set. Delegates
     to ``gh api`` with the same paths.
 
-    Tag-42 fix: query parameters (``per_page``, ``page``) are now embedded
+    fix: query parameters (``per_page``, ``page``) are now embedded
     in the URL path rather than passed as ``-f key=value`` form fields.
     The latter caused ``gh`` to POST the body and the API to return 404
-    on Reza's Tag-41 probe-run. See ``_build_gh_cli_get_cmd``.
+    on a probe run. See ``_build_gh_cli_get_cmd``.
     """
     out: List[AggregatorRun] = []
     pages_needed = (max_runs + 99) // 100
@@ -865,7 +865,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="aggregator-failure-rate-tracker",
         description=(
-            "Aggregator-Failure-Rate-Tracker (ADR-0068 Tag-38 SRE). "
+            "Aggregator-Failure-Rate-Tracker (ADR-0068 SRE). "
             "Polls ci-aggregator runs, rolls up per-sub-workflow "
             "failure-rate + latency, detects drift between aggregator "
             "verdict and the six legacy Required-Status-Check verdicts."

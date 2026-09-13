@@ -1,17 +1,17 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors -->
 
-# Mira-Notify Runbook (Tag-46)
+# Mira-Notify Runbook
 
-**Owner:** Noa Bergstroem (SRE)
+**Owner:** SRE
 **Companion artefacts:**
 - `scripts/observability/mira-notify-emitter.py`
 - `scripts/observability/mira-notify-receiver.py`
 - `docs/observability/pre-mortem-failure-mode-notify-catalog.md`
-  (Tag-45 catalog, PR #292)
+ (catalog, PR #292)
 - `dashboards/phase-3-marathon-alerts.yaml`
 
-**Status:** proposed (pending Henrik catalog cross-review + Kai
+**Status:** proposed (pending internal audit catalog cross-review + container-infra
 Zone-H deployment substrate review).
 
 ---
@@ -19,14 +19,14 @@ Zone-H deployment substrate review).
 ## 1. Scope
 
 This runbook explains how the Mira-Notify substance (emitter +
-receiver) materialises catalogued alert-fires into the Mira-Hand
+receiver) materialises catalogued alert-fires into the Operator-Hand
 inbox so the operator can act without polling Grafana or PagerDuty
-during Cutover-Tag.
+during a cutover day.
 
 It does **not** cover:
 
-* PagerDuty webhook fan-out (deferred to Tag-47 candidate;
-  requires external secrets the Mira-Sandbox cannot resolve).
+* PagerDuty webhook fan-out (deferred to candidate;
+  requires external secrets the agent sandbox cannot resolve).
 * ntfy push-channel fan-out (same reason).
 * Alert-rule authoring; see `phase-3-marathon-alerts.yaml`.
 
@@ -61,13 +61,13 @@ It does **not** cover:
 
 ## 3. Severity contract
 
-| Severity  | Filename prefix    | Required fields                  | Side effects (Tag-46 scope) |
+| Severity | Filename prefix | Required fields | Side effects (scope) |
 |-----------|--------------------|----------------------------------|----------------------------|
 | `page`    | `notify-page-`     | `alert_name`, `summary`, `runbook_url`, `fired_at_utc` | Inbox markdown (high prio) |
 | `warning` | `notify-warn-`     | `alert_name`, `summary`, `fired_at_utc`               | Inbox markdown (normal)    |
 | `info`    | `notify-info-`     | `alert_name`, `summary`, `fired_at_utc`               | Inbox markdown (low)       |
 
-The receiver embeds the severity in the filename so Mira-Hand can
+The receiver embeds the severity in the filename so Operator-Hand can
 glob-prioritise (`inbox/notify-page-*.md` first).
 
 ## 4. Emitter (producer-side)
@@ -197,7 +197,7 @@ Recovery procedure:
 1. Inspect `inbox/.notify-dead-letter.jsonl`.
 2. Identify upstream tool from the line content (or `_raw` field).
 3. Fix the emitter side; if unfixable, hand-write the equivalent
-   Mira-Hand-inbox markdown file.
+ Operator-Hand-inbox markdown file.
 4. Truncate the dead-letter file once entries are processed:
    `: > inbox/.notify-dead-letter.jsonl`.
 
@@ -218,15 +218,15 @@ python3 -m pytest tests/observability/test_mira_notify_emitter.py \
                    tests/observability/test_mira_notify_receiver.py -v
 ```
 
-## 9. Dead-letter queue (Tag-51 substance)
+## 9. Dead-letter queue (substance)
 
 The receiver writes one record per failed intake to
 `<inbox>/.notify-dead-letter.jsonl` with envelope
-`{"_error": "...", "_raw": "..."}`.  Until Tag-51 this file was
+`{"_error": "...", "_raw": "..."}`. Until this file was
 write-only; an event that failed validation simply vanished from
-Mira-Hand's perspective.
+Operator-Hand's perspective.
 
-`scripts/observability/mira-notify-dlq.py` (Tag-51) closes the loop:
+`scripts/observability/mira-notify-dlq.py` closes the loop:
 
 * **`inspect`** (read-only): summarise total / by-category / by-alert-name
   / earliest+latest fired_at_utc.  Output JSON or Markdown.
@@ -270,30 +270,30 @@ remains read-only.
   not be recovered with the supplied patches.  The workflow surfaces
   this as a red Job-Summary.
 
-## 10. Out-of-scope (Tag-52+)
+## 10. Out-of-scope
 
 * PagerDuty webhook fan-out (catalogued severity=page also needs
-  PagerDuty; today only the Mira-Hand inbox side is implemented).
+ PagerDuty; today only the Operator-Hand inbox side is implemented).
 * ntfy push-channel fan-out.
-* Receiver as a long-running container (Kai Zone-H deployment).
-* Receiver-side Activity-Log append (currently Mira-Hand reads
+* Receiver as a long-running container (container-infra Zone-H deployment).
+* Receiver-side Activity-Log append (currently Operator-Hand reads
   inbox markdown and appends as part of normal triage).
 
 ## 11. Cross-Review-Zones
 
-* **Zone H (SRE x Kai):** Container substrate for a long-running
-  receiver is Kai's territory; the Tag-46 substance is invocation-
-  bound (cron / inline). When Kai turns the receiver into a daemon,
+* **Zone H (SRE x container-infra):** Container substrate for a long-running
+ receiver is container-infra's territory; the substance is invocation-
+ bound (cron / inline). When container-infra turns the receiver into a daemon,
   the `--mode=tail` semantics + offset-file contract here are the
   invariant.
-* **Zone I (SRE x Tomas):** WAT-pipeline alerts route through the
-  same emitter once Tomas's WAT-Anker SLOs land. Field schema is
-  stable from Tag-46; only the catalog gets new entries.
-* **Henrik (Audit):** Catalog cross-review (Tag-45 PR #292) is the
+* **Zone I (SRE x engineering lead):** WAT-pipeline alerts route through the
+ same emitter once engineering lead's WAT-Anker SLOs land. Field schema is
+ stable; only the catalog gets new entries.
+* **internal audit (Audit):** Catalog cross-review is the
   pre-condition for treating page-severity emissions as actionable
   for the AR-Ticker.
 
 ---
 
-_Maintained by Noa Bergstroem (SRE). Bring catalog updates first;
+_Maintained by SRE. Bring catalog updates first;
 adjust this runbook only when the data flow changes._

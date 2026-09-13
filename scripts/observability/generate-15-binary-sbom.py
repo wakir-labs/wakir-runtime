@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""15-Binary SBOM (Software-Bill-of-Materials) generator (Tag-48, Kai).
+"""15-Binary SBOM (Software-Bill-of-Materials) generator.
 
 Context
 -------
 
-Tag-45 PR #294 closed the Phase-3a-Foundation 15-Binary substrate
+closed the Phase-3a-Foundation 15-Binary substrate
 refresh by pinning the lock-step between
 ``policies/cosign-policy-phase-3b.yaml`` (15-binary cosign-policy
 inventory) and ``quadlet/wakir-rust-cli.container`` (11-carrier-image
-installer). Tag-46 PR #298 added the substrate-layer A6 coverage
-matrix (17 hermetic invariants). Tag-47 PR #307 added the Cosign-
+installer). added the substrate-layer A6 coverage
+matrix (17 hermetic invariants). added the Cosign-
 Keyless-OIDC-Drift-Probe (the time-axis drift detector against the
 Sigstore Trust-Root).
 
@@ -32,7 +32,7 @@ in the cosign policy and emits one SBOM document per binary.
 Audit-Trail anchor
 ------------------
 
-ADR-0066 §AR-Hand-Gate requires pre-cutover stability + signed
+ADR-0066 §Operator-Hand-Gate requires pre-cutover stability + signed
 provenance for every Welle. The 15-Binary SBOM is the missing
 ``components-and-versions`` axis: when the operator hands off a
 Welle to AR for sign-off, the SBOM bundle is the artefact that
@@ -79,18 +79,18 @@ the bottom.
 Anchors
 -------
 
-  * Tag-45 PR #294 — Quadlet+Cosign 15-Binary substrate refresh.
-  * Tag-46 PR #298 — A6 substrate-layer coverage matrix.
-  * Tag-47 PR #307 — Cosign-Keyless-OIDC-Drift-Probe (time-axis).
-  * ADR-0066 §AR-Hand-Gate — pre-cutover sign-off requires a
+  * Quadlet+Cosign 15-Binary substrate refresh.
+  * A6 substrate-layer coverage matrix.
+  * Cosign-Keyless-OIDC-Drift-Probe (time-axis).
+  * ADR-0066 §Operator-Hand-Gate — pre-cutover sign-off requires a
     full provenance bundle.
   * feedback_sandbox_host_trennung.md — no live cargo I/O from
     sandbox.
   * CycloneDX spec v1.5 (industry-standard).
   * SPDX spec v2.3 (industry-standard).
 
-Author: Kai Hoffmann (Dev-Engineering-3 / Container-Orchestration)
-Tag: 48 (KW-22)
+
+
 """
 
 from __future__ import annotations
@@ -112,7 +112,7 @@ from typing import Dict, List, Mapping, Optional, Sequence, Set, Tuple
 # Constants
 # ---------------------------------------------------------------------------
 
-#: Canonical inventory order — must match the Tag-45 Cosign-Policy
+#: Canonical inventory order — must match the Cosign-Policy
 #: 15-binary inventory byte-for-byte. The generator iterates this
 #: tuple so the per-binary SBOM filenames are deterministic across
 #: runs.
@@ -901,7 +901,7 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Generate one SBOM per binary (CycloneDX-1.5 or SPDX-2.3) "
-            "for the Tag-45 15-binary inventory."
+            "for the 15-binary inventory."
         )
     )
     parser.add_argument(

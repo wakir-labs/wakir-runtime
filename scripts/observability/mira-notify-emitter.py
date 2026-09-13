@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Mira-Notify Emitter (Phase-3c, Tag-46, Noa SRE).
+"""Mira-Notify Emitter (Phase-3c, SRE).
 
 Context
 -------
 
-The Tag-45 Pre-Mortem-Failure-Mode Notify-Catalog
+The Pre-Mortem-Failure-Mode Notify-Catalog
 (`docs/observability/pre-mortem-failure-mode-notify-catalog.md`)
-maps each Henrik Tag-44 Pre-Mortem failure-mode to a Prometheus
+maps each Pre-Mortem failure-mode to a Prometheus
 alert rule, severity, runbook anchor and notify-path.  The catalog
 specifies *what* should happen on a fire; this emitter is the
 substance that produces a uniformly-formatted notify-event so
@@ -33,8 +33,8 @@ exposes two surfaces:
 
 2. **CLI** (`python mira-notify-emitter.py emit --severity page
    --alert-name ... --summary ... --runbook ...`):
-   one-shot emission for shell-script callers (cutover-day-watch.sh,
-   ad-hoc Operator-Hand emission).
+   one-shot emission for shell-script callers and ad-hoc
+   Operator-Hand emission.
 
 In both surfaces the output is one JSON object written to:
 
@@ -63,7 +63,7 @@ The notify-event JSON object has the following fields:
 * ``fired_at_utc`` (str, ISO-8601 with ``Z``-suffix): the time the
   alert went active.  Caller supplies this; if absent the emitter
   fills in ``now``.
-* ``failure_mode_id`` (str | null): Henrik Pre-Mortem ID (e.g. "A1",
+* ``failure_mode_id`` (str | null): Pre-Mortem ID (e.g. "A1",
   "C1").  Null when the notify is not catalogued (free-form).
 * ``runbook_url`` (str | null): URL where the operator finds the
   response procedure.  Required for ``severity=page``.
@@ -91,8 +91,8 @@ event.  This matters because Prometheus alert-rules in
 underlying condition persists; without dedupe the Mira-Hand inbox
 would flood.
 
-Author: Noa Bergstroem (SRE)
-Anchor: Tag-45 catalog PR #292; Tag-46 receiver substance.
+
+Anchor: catalog PR #292; receiver substance.
 """
 
 from __future__ import annotations

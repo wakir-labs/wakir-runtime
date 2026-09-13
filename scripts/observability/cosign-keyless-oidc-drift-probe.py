@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Cosign-Keyless-OIDC-Drift-Probe (Tag-47, Kai).
+"""Cosign-Keyless-OIDC-Drift-Probe.
 
 Context
 -------
 
-Tag-45 PR #294 (Quadlet+Cosign 15-Binary substrate refresh) closed
+(Quadlet+Cosign 15-Binary substrate refresh) closed
 the Phase-3a-Foundation 15-module sweep in lock-step between the
 ``policies/cosign-policy-phase-3b.yaml`` 15-binary inventory and the
 ``quadlet/wakir-rust-cli.container`` 11-carrier-image installer.
-Tag-46 PR #298 added the substrate-layer A6 coverage matrix
+added the substrate-layer A6 coverage matrix
 (``tests/infra/test_cosign_drift_coverage_a6.py``, 17 hermetic
 invariants TV-A6-01..20). Both tests pin the static substrate shape
 at the moment the policy YAML is read from disk.
@@ -103,23 +103,23 @@ function, hermetic-test target. The I/O wrappers
 Anchors
 -------
 
-  * Tag-45 PR #294 — Quadlet+Cosign 15-Binary substrate refresh.
-  * Tag-46 PR #298 — A6 substrate-layer coverage matrix (17 hermetic
+  * Quadlet+Cosign 15-Binary substrate refresh.
+  * A6 substrate-layer coverage matrix (17 hermetic
     invariants).
-  * ADR-0066 §AR-Hand-Gate — pre-cutover stability over ~3-day
-    window is AR-Hand-Sign-Off pre-condition.
+  * ADR-0066 §Operator-Hand-Gate — pre-cutover stability over ~3-day
+    window is Operator-Hand-Sign-Off pre-condition.
   * feedback_sandbox_host_trennung.md — no live registry I/O from
     sandbox.
   * Sibling-script:
     ``scripts/observability/pre-cutover-probe-failure-rate-tracker.py``
-    (Tag-42 Noa) — same Prometheus-textfile + fixture-mode pattern.
+     — same Prometheus-textfile + fixture-mode pattern.
   * Sibling-test:
-    ``tests/infra/test_cosign_drift_coverage_a6.py`` (Tag-46) — the
+    ``tests/infra/test_cosign_drift_coverage_a6.py`` — the
     substrate-layer A6 coverage matrix this probe extends along
     the time-axis.
 
-Author: Kai Hoffmann (Dev-Engineering-3 / Container-Orchestration)
-Tag: 47 (KW-22)
+
+
 """
 
 from __future__ import annotations
@@ -138,7 +138,7 @@ from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 # Constants
 # ---------------------------------------------------------------------------
 
-#: Canonical inventory order — must match the Tag-45 Cosign-Policy
+#: Canonical inventory order — must match the Cosign-Policy
 #: 15-binary inventory (``policies/cosign-policy-phase-3b.yaml``)
 #: byte-for-byte. The probe consumes the policy at runtime, but the
 #: order constant exists so dashboards + textfile output is stable
@@ -306,7 +306,7 @@ def policy_from_raw(raw_policy: Mapping[str, object]) -> PolicySnapshot:
             continue
         names.append(name)
         # The policy YAML carries a per-binary 'build_workflow' OR
-        # falls back to the carrier_image-level workflow. Tag-45
+        # falls back to the carrier_image-level workflow.
         # convention: ALL 15 binaries ship in the same carrier image,
         # so the workflow is identical for all (the
         # build-wakir-persona-engine.yml). We accept either schema.
@@ -684,7 +684,7 @@ def synthesise_baseline_snapshot(
 
       - workflow file renamed / deleted
       - policy schema changed
-      - binary inventory drifted from the Tag-45 canonical 15
+      - binary inventory drifted from the canonical 15
     """
     per_binary: List[Dict[str, str]] = []
     for name in policy.binary_names:
@@ -769,9 +769,9 @@ def write_textfile(path: Path, content: str) -> None:
 def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Cosign-Keyless-OIDC-Drift-Probe (Tag-47). Tracks the "
+            "Cosign-Keyless-OIDC-Drift-Probe. Tracks the "
             "Sigstore Trust-Root + per-binary OIDC-identity drift "
-            "for the Tag-45 15-binary Cosign-Policy inventory."
+            "for the 15-binary Cosign-Policy inventory."
         )
     )
     parser.add_argument(

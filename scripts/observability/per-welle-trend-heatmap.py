@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Phase-3c Per-Welle Trend-Heatmap Renderer (Tag-48).
+"""Phase-3c Per-Welle Trend-Heatmap Renderer.
 
 Context
 -------
 
-Tag-44 (Reza, PR #285) shipped the Pre-Cutover Daily-Trend-Analyzer
+ shipped the Pre-Cutover Daily-Trend-Analyzer
 which aggregates per-day verdicts into a Last-7-Days window per
 Welle and produces a Markdown table.
 
-Tag-46 (Noa, PR #296) shipped the Mira-Notify emitter+receiver
+ shipped the Mira-Notify emitter+receiver
 chain so trend-degradation events surface as operator-inbox feeds.
 
-Tag-47 (Noa, PR #302) shipped the Alert-Rule-to-Mira-Notify
+ shipped the Alert-Rule-to-Mira-Notify
 bridge so PromQL alerts also funnel into the same operator inbox.
 
-Tag-48 (this script) adds the *visualisation layer*: an at-a-glance
+(this script) adds the *visualisation layer*: an at-a-glance
 heatmap renderer that consumes the same daily-state directory the
 analyzer writes (``state/pre-cutover-daily-trend/yyyy-mm-dd.json``)
 and emits a per-Welle ASCII-grid (operator console) plus a
@@ -69,12 +69,12 @@ Anchors
 -------
 
 * ADR-0065 Phase-3c cutover sequence.
-* ADR-0066 Doppel-Welle KW-24/26/27 ordering.
-* Reza Tag-44 PR #285 Pre-Cutover Daily-Trend-Analyzer.
-* Noa Tag-46 PR #296 Mira-Notify emitter+receiver chain.
-* Noa Tag-47 PR #302 Alert-Rule-to-Mira-Notify bridge.
+* ADR-0066 Doppel-Welle /26/27 ordering.
+* Pre-Cutover Daily-Trend-Analyzer.
+* Mira-Notify emitter+receiver chain.
+* Alert-Rule-to-Mira-Notify bridge.
 
-Author: Noa Bergstroem (SRE), Sprint-Tag-48, 2026-05-19.
+
 """
 
 from __future__ import annotations

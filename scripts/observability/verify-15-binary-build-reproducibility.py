@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""15-Binary Build-Reproducibility Audit (Tag-51, Kai).
+"""15-Binary Build-Reproducibility Audit.
 
 Context
 -------
 
-Tag-45 PR #294 pinned the 15-binary substrate via Cosign-Policy
-inventory. Tag-46 PR #298 added the A6 substrate-layer coverage
-matrix. Tag-47 PR #307 added the Cosign-Keyless-OIDC-Drift-Probe.
-Tag-48 PR #310 added the per-binary SBOM generator
-(``generate-15-binary-sbom.py``). Tag-49 PR #318 added the daily
-SBOM-vs-baseline verifier. Tag-50 PR #323 added the end-to-end
+pinned the 15-binary substrate via Cosign-Policy
+inventory. added the A6 substrate-layer coverage
+matrix. added the Cosign-Keyless-OIDC-Drift-Probe.
+added the per-binary SBOM generator
+(``generate-15-binary-sbom.py``). added the daily
+SBOM-vs-baseline verifier. added the end-to-end
 baseline-refresh CLI.
 
 What is still missing is the *build-reproducibility* axis: do two
@@ -21,7 +21,7 @@ leak into a hash, or an environment-variable leak into the
 fingerprint would silently break supply-chain provenance — the
 generator would still produce SBOMs, but two operators running
 the same source tree on the same Cargo.lock would get distinct
-byte-streams. That is the failure-mode this Tag-51 substrate
+byte-streams. That is the failure-mode this substrate
 defends against.
 
 This script computes a deterministic "build-fingerprint" for each
@@ -43,8 +43,8 @@ check is the entire substance of the audit.
 
 This script does NOT invoke ``cargo build``. The "build" axis it
 covers is the *derivation* of the build-fingerprint, not the
-compile step. The compile-step axis is covered by Reza's
-``cargo build --frozen`` CI gate and Tomás' Cosign-Policy
+compile step. The compile-step axis is covered by 's
+``cargo build --frozen`` CI gate and ' Cosign-Policy
 attestation chain. This script fills the gap between those two:
 the fingerprint that the Cosign-Policy attestation chain anchors
 must itself be deterministic.
@@ -69,7 +69,7 @@ Exit codes
     Notify payload is written and the workflow surfaces the
     failure via Job-Summary.
 
-Author: Kai Hoffmann (Dev-Engineering-3)
+
 """
 
 from __future__ import annotations
@@ -93,7 +93,7 @@ from typing import (
 
 
 # ---------------------------------------------------------------------------
-# Constants -- mirror the Tag-48 generator inventory byte-for-byte.
+# Constants -- mirror the generator inventory byte-for-byte.
 # ---------------------------------------------------------------------------
 
 #: Canonical inventory order -- must match
@@ -120,7 +120,7 @@ TAG45_BINARY_INVENTORY: Tuple[str, ...] = (
 )
 
 #: Mapping of policy-name -> source crate-name. Mirrored from the
-#: Tag-48 generator so the Tag-51 fingerprint is parameterised by
+#: generator so the fingerprint is parameterised by
 #: the exact same root-crate mapping.
 POLICY_NAME_TO_CRATE: Mapping[str, str] = {
     "recovery": "persona-engine-recovery",
@@ -216,7 +216,7 @@ def parse_cargo_lock(
 ) -> Tuple[CratePackage, ...]:
     """Parse the raw bytes of a Cargo.lock file deterministically.
 
-    Mirrors the Tag-48 generator's parser invariants exactly: same
+    Mirrors the generator's parser invariants exactly: same
     handling of the ``"name version (source)"`` dependency-string
     form, same alphabetical sort preservation, same TOML loader.
 
@@ -263,8 +263,8 @@ def build_package_index(
     pin chooses v0.5). The index returns all versions so the
     closure walker can include every Cargo-linked variant.
 
-    This mirrors the Tag-48 generator's ``index_packages_by_name``
-    semantics exactly, so the Tag-51 fingerprint enumerates the
+    This mirrors the generator's ``index_packages_by_name``
+    semantics exactly, so the fingerprint enumerates the
     same package set the SBOM generator does.
     """
     out: Dict[str, List[CratePackage]] = {}
@@ -285,7 +285,7 @@ def transitive_closure(
     The output is sorted lexicographically by ``(name, version)``
     so the fingerprint is order-stable. Optional / target-conditional
     dependencies that Cargo did not resolve are skipped silently
-    (consistent with the Tag-48 generator's behavior).
+    (consistent with the generator's behavior).
 
     Args:
         root_name: the workspace-local crate name to start from.
@@ -316,7 +316,7 @@ def transitive_closure(
                 if dep_name not in pkg_index:
                     # Optional / target-conditional dep that Cargo
                     # did not resolve into the lock-file. Skip
-                    # silently; the Tag-48 generator does the same.
+                    # silently; the generator does the same.
                     continue
                 for candidate in pkg_index[dep_name]:
                     cand_key = (candidate.name, candidate.version)
@@ -620,7 +620,7 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         description=(
             "Verify that the 15-binary build-fingerprint "
             "derivation is byte-equal across two independent "
-            "passes over Cargo.lock. Tag-51 Kai."
+            "passes over Cargo.lock.."
         )
     )
     parser.add_argument(

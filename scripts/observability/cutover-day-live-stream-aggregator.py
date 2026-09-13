@@ -1,31 +1,31 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Cutover-Day-Live-Stream-Aggregator (Phase-3c, Tag-41, Noa SRE).
+"""Cutover-Day-Live-Stream-Aggregator (Phase-3c, SRE).
 
 Context
 -------
 
 ADR-0066 (Phase-3c Cutover-Plan) schedules seven Cutover-Wellen across
-KW-24..27 (Welle-1 v907_verify KW-24, Welle-2 svid_workload_identity
-KW-24, Welle-3 bridge_audit_writer KW-25 solo, Welle-4 state_backing
-KW-26, Welle-5 lifecycle_state_machine KW-26, Welle-6 subscribe_loop
-KW-27, Welle-7 recovery_workflow KW-27). For each Welle the
+..27 (Welle-1 v907_verify, Welle-2 svid_workload_identity
+, Welle-3 bridge_audit_writer solo, Welle-4 state_backing
+, Welle-5 lifecycle_state_machine, Welle-6 subscribe_loop
+, Welle-7 recovery_workflow). For each Welle the
 persona-engine emits a stream of ``BackendDecision`` audit-events on
 the NATS subject ``wakir.persona-engine.boot-decision-audit.*`` (see
 ``scripts/persona-engine/backend-decision-observability.py`` /
 ``dashboards/persona-engine-backend-decisions.json``).
 
 During a Cutover-Tag-Morgen the operator needs three things that the
-existing post-hoc Aggregator-Failure-Rate-Tracker (Tag-38 PR #251)
-and Marathon-Dashboard (Tag-40 PR #260) do NOT produce:
+existing post-hoc Aggregator-Failure-Rate-Tracker
+and Marathon-Dashboard do NOT produce:
 
   1. **Realtime per-Welle BackendDecision distribution.** Operator
      question: "is Welle-N's backend-switch ratio (production vs.
      shadow vs. fallback) holding steady, or is it drifting away
      from the pre-cutover baseline within the first 5/30/60 minutes?"
   2. **Realtime Cross-Welle-Drift.** When two Wellen run on the same
-     day (Doppel-Welle KW-26: Welle-4 + Welle-5, ADR-0066 Mitigation-1),
+     day (Doppel-Welle: Welle-4 + Welle-5, ADR-0066 Mitigation-1),
      do their backend-switch distributions diverge in a way that
      would not show up in the per-Welle view? This is the A7-test
      (ADR-0066 §Mitigation-2-Cross-Welle-Coordination-Test) but
@@ -50,12 +50,12 @@ and by the Operator-Doku dry-run-rehearsal at the start of each
 Cutover-Tag.
 
 The ``--mode=nats`` path shells out to ``nats sub`` (the NATS-CLI;
-see Kai's ADR-0020 Container-Orchestration NATS substrate) and
+see ADR-0020 Container-Orchestration NATS substrate) and
 pipes one JSON event per line into the aggregation pipeline. We
 deliberately do NOT take a hard dependency on the ``nats-py``
 library: stdlib + the NATS-CLI is enough, keeps the SRE-side
 hermetically testable, and avoids a Python-runtime version-pin
-fight with Kai's container substrate.
+fight with container substrate.
 
 Pure-function-vs-IO split
 -------------------------
@@ -94,13 +94,13 @@ Anchors
 
 * ADR-0066 §Cutover-Plan (Phase-3c Welle-1..7).
 * ADR-0066 §Mitigation-2-Cross-Welle-Coordination-Test (A7).
-* PR #251 (Tag-38 aggregator-failure-rate-tracker) — pattern source.
-* PR #260 (Tag-40 phase-3-marathon dashboard 71 panels) — extended.
+* The aggregator-failure-rate-tracker — pattern source.
+* The phase-3-marathon dashboard (71 panels) — extended.
 * ``scripts/persona-engine/backend-decision-observability.py`` —
-  upstream emit-points (Reza/persona-engine), schema source.
+  upstream emit-points (/persona-engine), schema source.
 
-Author: Noa Bergstroem (SRE)
-Tag: 41 (KW-22, Cutover-Tag-Morgen-Werkzeug)
+
+
 """
 
 from __future__ import annotations
@@ -136,8 +136,7 @@ from typing import (
 #
 # The seven Phase-3c-Cutover-Wellen (ADR-0066 Cutover-Plan). Keep this
 # list in lock-step with the welle-templating in
-# ``dashboards/phase-3c-cross-welle-coordination.json`` and with
-# ``dashboards/persona-engine-phase-3c-welle-status.json``. The
+# the cross-Welle coordination and Welle-status dashboards. The
 # hermetic test ``test_welle_inventory_matches_dashboard`` asserts the
 # names below match a fixture extracted from the Grafana JSON.
 
@@ -161,7 +160,7 @@ WELLE_NAMES: Tuple[str, ...] = (
 
 WINDOW_SIZES: Tuple[int, ...] = (60, 300, 1800)
 
-# BackendDecision outcomes the aggregator knows about. Source: Reza's
+# BackendDecision outcomes the aggregator knows about. Source: 's
 # ``backend-decision-observability.py`` event-emit schema. ``unknown``
 # is the catch-all bucket for events with an outcome string we don't
 # recognise (forward-compat for new backends added during Phase-3c).
@@ -186,7 +185,7 @@ DRIFT_RED_THRESHOLD = 0.15
 DEFAULT_NATS_SUBJECT = "wakir.persona-engine.boot-decision-audit.*"
 
 # Default Prometheus-textfile path (matches the node-exporter
-# convention from Tag-38 aggregator-failure-rate-tracker.py).
+# convention from aggregator-failure-rate-tracker.py).
 
 DEFAULT_PROMETHEUS_TEXTFILE_PATH = (
     "/var/lib/prometheus/node-exporter/wakir_cutover_live_stream.prom"
@@ -498,7 +497,7 @@ def render_state_json(
 ) -> str:
     """Render aggregator state as JSON for the operator stdout tail.
 
-    Pure function. Schema mirrors the post-hoc JSON of the Tag-38
+    Pure function. Schema mirrors the post-hoc JSON of the
     tracker but with a realtime-tail layout (per-Welle distribution
     + per-pair drift + per-Welle latency percentiles).
     """
@@ -791,7 +790,7 @@ def nats_subscribe_line_iterator(
 
     Shells out to the NATS-CLI. Requires the operator's SPIFFE
     workload-identity SVID to be mounted at the conventional path
-    (see Kai's ADR-0020 NATS substrate). Does NOT take a hard
+    (see ADR-0020 NATS substrate). Does NOT take a hard
     dependency on the ``nats-py`` library.
 
     Loops until the subprocess exits. SIGINT in the parent kills the
@@ -853,8 +852,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         prog="cutover-day-live-stream-aggregator",
         description=(
             "Realtime BackendDecision-Stream-Aggregator + Cross-Welle-"
-            "Drift-Live-Indicator for Phase-3c Cutover-Tage KW-24..27 "
-            "(Tag-41 Noa SRE). Subscribes to the NATS BackendDecision-"
+            "Drift-Live-Indicator for the Phase-3c cutover days. "
+            "Subscribes to the NATS BackendDecision-"
             "stream (or polls a fixture-file in hermetic-test mode), "
             "rolls up per-Welle distributions over a sliding window, "
             "computes pairwise total-variation drift, emits JSON-stream "

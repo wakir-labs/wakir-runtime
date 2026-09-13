@@ -1,5 +1,5 @@
 {
-  "__comment": "Grafana dashboard JSON for the wakir-persona-engine real-implementation (Sprint-SRE Tag-15, Noa Bergstroem / SRE). Targets the OTLP/Prometheus metrics emitted by wirelang/persona_engine/observability.py. Schema version targets Grafana 10.x (dashboard schemaVersion >= 38) which is the long-term-stable line as of 2026-05. Dashboard is deliberately operational, not Vanity: every panel maps to one SLI/SLO defined in docs/observability/sli-slo-phase-1b.md.",
+  "__comment": "Grafana dashboard JSON for the wakir-persona-engine real implementation. Targets the OTLP/Prometheus metrics emitted by wirelang/persona_engine/observability.py. Schema version targets Grafana 10.x (dashboard schemaVersion >= 38). Dashboard is deliberately operational, not vanity: every panel maps to one SLI/SLO defined in docs/observability/sli-slo-phase-1b.md.",
   "title": "Wakir Persona-Engine — Health",
   "uid": "wakir-persona-engine-health",
   "tags": ["wakir", "persona-engine", "sre", "phase-1b-pilot"],
@@ -240,103 +240,6 @@
       "fieldConfig": {
         "defaults": {
           "unit": "ops"
-        }
-      }
-    },
-    {
-      "id": 9,
-      "type": "stat",
-      "title": "Mira-Hourly watchdog",
-      "description": "Mira-Hourly stack health from scripts/mira-hourly-watchdog.py. 0 = healthy, 1 = consecutive aborts above threshold OR last tick stale.",
-      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 22},
-      "targets": [
-        {
-          "expr": "mira_hourly_watchdog_unhealthy",
-          "legendFormat": "unhealthy",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {"color": "green", "value": null},
-              {"color": "red", "value": 1}
-            ]
-          }
-        }
-      }
-    },
-    {
-      "id": 10,
-      "type": "stat",
-      "title": "Mira-Hourly last tick age",
-      "description": "Seconds since the most recent mira-hourly telemetry record landed. Healthy < 4800s (80 minutes).",
-      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 22},
-      "targets": [
-        {
-          "expr": "mira_hourly_last_tick_age_seconds",
-          "legendFormat": "age",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {"color": "green", "value": null},
-              {"color": "orange", "value": 3600},
-              {"color": "red", "value": 4800}
-            ]
-          }
-        }
-      }
-    },
-    {
-      "id": 11,
-      "type": "stat",
-      "title": "Mira-Hourly consecutive aborts",
-      "description": "Consecutive abort-shaped telemetry records (quota cap signature). Threshold for unhealthy = 2.",
-      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 22},
-      "targets": [
-        {
-          "expr": "mira_hourly_consecutive_abort_count",
-          "legendFormat": "aborts",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {"color": "green", "value": null},
-              {"color": "orange", "value": 1},
-              {"color": "red", "value": 2}
-            ]
-          }
-        }
-      }
-    },
-    {
-      "id": 12,
-      "type": "stat",
-      "title": "V-907 verify p95 (alt zoom)",
-      "description": "Duplicate panel for at-a-glance view alongside the Mira-Hourly cluster. Same metric as panel 3.",
-      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 22},
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(persona_engine_v907_verify_duration_seconds_bucket{persona_id=~\"$persona_id\", org_id=~\"$org_id\"}[15m])))",
-          "legendFormat": "p95",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s"
         }
       }
     }

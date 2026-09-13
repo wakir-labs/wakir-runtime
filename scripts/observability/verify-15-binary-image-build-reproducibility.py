@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tag-53 15-Binary Image-Build-Reproducibility-Live-Test (Kai).
+"""15-Binary Image-Build-Reproducibility-Live-Test.
 
 Context
 -------
 
-Tag-51 PR #328 closed the Cargo.lock-Derivation-Reproducibility
+closed the Cargo.lock-Derivation-Reproducibility
 axis: two independent in-process passes over the lock-file produce
 byte-equal SHA-256 build-fingerprints per binary. That gauge is
 necessary but not sufficient -- the *Cargo.lock derivation* is
@@ -18,7 +18,7 @@ fingerprint would still be byte-stable, but two operators running
 ``cargo build --release`` on the same Cargo.lock would get distinct
 ELF binaries.
 
-That gap is the Tag-53 closer: an *Image-Build-Reproducibility*
+That gap is the closer: an *Image-Build-Reproducibility*
 live-test that runs ``cargo build --release`` twice over the same
 workspace and asserts byte-equal SHA-256 per resulting binary in
 ``wirelang-rust/target/release/``. The default operation mode in
@@ -32,7 +32,7 @@ toolchain and ``SOURCE_DATE_EPOCH`` set.
 What the sandbox-stub mode actually does
 ----------------------------------------
 
-For each of the 15 binaries declared by the canonical Tag-45
+For each of the 15 binaries declared by the canonical
 inventory the simulator:
 
   1. **pass1_hash** -- Deterministically derives a SHA-256 "as-if"
@@ -96,25 +96,25 @@ Exit codes
     payload is written and the workflow surfaces the failure via
     Job-Summary.
 
-Why this is separate from Tag-51
+Why this is separate from
 --------------------------------
 
-Tag-51 (PR #328) covers the *Cargo.lock derivation* axis: do two
+covers the *Cargo.lock derivation* axis: do two
 in-process derivations of the build-graph produce byte-equal
 output? That is a property of the *Python derivation script* (no
 dict-ordering bug, no timestamp leak into a hash).
 
-Tag-53 covers the *image-build* axis: do two ``cargo build``
+covers the *image-build* axis: do two ``cargo build``
 invocations against the same Cargo.lock produce byte-equal ELF
 binaries? That is a property of the *Rust toolchain + workspace
 build-graph + environment surface* (no clock-leak into ELF
 headers, no ``RUSTFLAGS`` drift, no ``CARGO_BUILD_JOBS``-dependent
 macro expansion).
 
-Both axes must be GREEN for the AR-Hand-Gate provenance bundle to
+Both axes must be GREEN for the Operator-Hand-Gate provenance bundle to
 attest end-to-end build-reproducibility.
 
-Author: Kai Hoffmann (Dev-Engineering-3)
+
 """
 
 from __future__ import annotations
@@ -138,7 +138,7 @@ from typing import (
 
 
 # ---------------------------------------------------------------------------
-# Constants -- mirror the Tag-48 generator inventory byte-for-byte.
+# Constants -- mirror the generator inventory byte-for-byte.
 # ---------------------------------------------------------------------------
 
 #: Canonical inventory order -- must match
@@ -165,7 +165,7 @@ TAG45_BINARY_INVENTORY: Tuple[str, ...] = (
 )
 
 #: Mapping of policy-name -> source crate-name. Mirrored from the
-#: Tag-48 generator. The image-build-reproducibility hash binds the
+#: generator. The image-build-reproducibility hash binds the
 #: root-crate identity so a future POLICY_NAME_TO_CRATE rotation
 #: visibly invalidates the fingerprint set.
 POLICY_NAME_TO_CRATE: Mapping[str, str] = {
@@ -262,7 +262,7 @@ def assert_cargo_lock_parsable(cargo_lock_bytes: bytes) -> None:
     """Assert the Cargo.lock is a well-formed TOML with packages.
 
     The image-build axis does not need the parsed package tree
-    (Tag-51 already covers that). But we still parse it as a
+    (the binary-level check already covers that). But we still parse it as a
     structural anchor: if the lock-file is corrupt, the live-mode
     ``cargo build`` would also fail; we surface that here as a
     clean argument-error rather than a cargo-stderr blob.
@@ -567,7 +567,7 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
             "Verify that the 15-binary image-build is byte-equal "
             "across two cargo build --release passes. Default mode "
             "is sandbox-stub (CI-safe, hermetic). Live mode is "
-            "Operator-Hand only. Tag-53 Kai."
+            "Operator-Hand only.."
         )
     )
     parser.add_argument(

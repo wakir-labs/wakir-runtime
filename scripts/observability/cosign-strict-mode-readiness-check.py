@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Cosign-Strict-Mode Readiness Check (Tag-54, Kai).
+"""Cosign-Strict-Mode Readiness Check.
 
 Context
 -------
 
-Tag-45 PR #294 (Quadlet+Cosign 15-Binary substrate refresh) and
-Tag-47 PR #318 (Cosign-Keyless-OIDC-Drift-Probe) ship the cosign
+(Quadlet+Cosign 15-Binary substrate refresh) and
+(Cosign-Keyless-OIDC-Drift-Probe) ship the cosign
 substrate that gates the Phase-3b carrier-image trust-chain. Both
 substrates today run in **audit-only** posture:
 
@@ -42,7 +42,7 @@ flip. The shape is the same one ``CROSS_REPO_DRIFT_ENFORCE=true``
 already follows (see
 ``docs/operations/cross-repo-drift-enforce-flip-readiness.md`` §6).
 
-Acceptance-gate matrix (Tag-54)
+Acceptance-gate matrix
 -------------------------------
 
 The six gates the script evaluates:
@@ -63,7 +63,7 @@ The six gates the script evaluates:
       readiness — operator must run the probe + capture the envelope.)
       Threshold: ``GREEN``.
   G4. ``policy_inventory_size`` — the cosign-policy carries the
-      Tag-45 canonical 15 binaries (matches
+      canonical 15 binaries (matches
       ``TAG45_BINARY_INVENTORY`` order). A policy with 14 or 16
       binaries means the inventory drifted from the canonical set
       and the strict-flip would either over-block (missing entries
@@ -101,7 +101,7 @@ reads four file-sets from disk only:
   * ``tooling/baselines/cosign-drift/pinned-trust-root.json``
   * ``tooling/baselines/cosign-drift/last-probe-envelope.json`` (optional)
   * ``quadlet/wakir-rust-cli*.container`` GLOB (optional, for G5).
-    Tag-55 closeout extended G5 from single-file to glob-pattern;
+    closeout extended G5 from single-file to glob-pattern;
     the four Welle-4..7 dedicated single-binary installer Quadlets
     (``wakir-rust-cli-welle4.container`` ..
     ``wakir-rust-cli-welle7.container``) landed in lock-step and
@@ -110,7 +110,7 @@ reads four file-sets from disk only:
 
 The strict-flip itself is **Operator-Hand** — this script only
 reports readiness. The Operator-Hand recipe lives in
-``docs/operations/cosign-strict-mode-activation.md`` (Tag-54
+``docs/operations/cosign-strict-mode-activation.md``
 sibling document).
 
 Pure-function-vs-IO split
@@ -126,17 +126,17 @@ bottom.
 Anchors
 -------
 
-  * Tag-45 PR #294 — Quadlet+Cosign 15-Binary substrate refresh.
-  * Tag-47 PR #318 — Cosign-Keyless-OIDC-Drift-Probe daily tracker.
+  * Quadlet+Cosign 15-Binary substrate refresh.
+  * Cosign-Keyless-OIDC-Drift-Probe daily tracker.
   * ``docs/operations/cross-repo-drift-enforce-flip-readiness.md``
     — sibling readiness-flow for CROSS_REPO_DRIFT_ENFORCE.
   * ``feedback_branch_protection_check_names.md`` — exact-name
     required-status-check rule.
-  * ADR-0066 §AR-Hand-Gate — pre-cutover stability over ~3-day
-    window is AR-Hand-Sign-Off pre-condition.
+  * ADR-0066 §Operator-Hand-Gate — pre-cutover stability over ~3-day
+    window is Operator-Hand-Sign-Off pre-condition.
 
-Author: Kai Hoffmann (Dev-Engineering-3 / Container-Orchestration)
-Tag: 54 (KW-23 pre-KW-24 strict-mode-prep)
+
+
 """
 
 from __future__ import annotations
@@ -155,7 +155,7 @@ from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 # Constants
 # ---------------------------------------------------------------------------
 
-#: Canonical 15-binary inventory (Tag-45). MUST match the policy YAML
+#: Canonical 15-binary inventory. MUST match the policy YAML
 #: byte-for-byte; G4 verifies the policy is in lock-step.
 TAG45_CANONICAL_INVENTORY: Tuple[str, ...] = (
     "recovery",
@@ -351,7 +351,7 @@ def quadlet_installer_binary_names_from_text(text: str) -> Tuple[str, ...]:
     via regexp. Order matches first occurrence.
 
     The regexp tolerates trailing-suffix variants (e.g. ``-welle4``)
-    because the Tag-33 Mini-Welle introduced ``state-backing-welle4``
+    because the Mini-Welle introduced ``state-backing-welle4``
     as a first-class binary with the ``-welle4`` suffix in its name.
     """
     # Match the canonical in-image path + capture the suffix.
@@ -382,7 +382,7 @@ def evaluate_gate_g1_placeholder_digests(
 
     The per-binary digest lives in the policy at
     ``binaries[i].expected_image_digest`` OR falls back to the
-    carrier-image-level digest (Tag-45 convention: all 15 binaries
+    carrier-image-level digest (by convention all 15 binaries
     ship in the same carrier image, so the carrier-level digest is
     the canonical one).
     """
@@ -512,7 +512,7 @@ def evaluate_gate_g3_last_probe_verdict(
 def evaluate_gate_g4_inventory_size(
     policy: PolicyInventoryView,
 ) -> GateResult:
-    """G4: policy carries the Tag-45 canonical 15 binaries in canonical order."""
+    """G4: policy carries the canonical 15 binaries in canonical order."""
     expected = TAG45_CANONICAL_INVENTORY
     actual = policy.binary_names
     if len(actual) != len(expected):
@@ -521,7 +521,7 @@ def evaluate_gate_g4_inventory_size(
             verdict="BLOCKED",
             summary=(
                 f"G4 BLOCKED — policy inventory has {len(actual)} binaries, "
-                f"expected {len(expected)} (Tag-45 canonical inventory)"
+                f"expected {len(expected)} (canonical inventory)"
             ),
             detail=f"actual: {actual!r}\nexpected: {expected!r}",
         )
@@ -531,7 +531,7 @@ def evaluate_gate_g4_inventory_size(
             gate_id="G4",
             verdict="BLOCKED",
             summary=(
-                "G4 BLOCKED — policy inventory drifted from canonical Tag-45 "
+                "G4 BLOCKED — policy inventory drifted from canonical "
                 "order (set or order differs)"
             ),
             detail=f"actual: {actual!r}\nexpected: {expected!r}",
@@ -728,10 +728,10 @@ def load_quadlet_installer(path: Path) -> Optional[QuadletInstallerView]:
     """Load the Quadlet installer text + extract binary names.
 
     Single-file legacy entry-point — kept for backward-compat with
-    callers that pass a concrete Quadlet path. The Tag-55 glob-aware
+    callers that pass a concrete Quadlet path. The glob-aware
     entry-point ``load_quadlet_installer_glob`` is the preferred
     surface; it unions binary-names across all glob-matched
-    Quadlets, which is what G5 needs after the Tag-55 Welle-4..7
+    Quadlets, which is what G5 needs after the Welle-4..7
     dedicated single-binary installer Quadlets landed.
     """
     if not path.exists():
@@ -747,10 +747,10 @@ def load_quadlet_installer_glob(
     """Load all Quadlet installer files matching ``pattern`` and union
     their binary-names into a single QuadletInstallerView.
 
-    Tag-55 (Kai): the readiness-check G5 cross-substrate-parity gate
-    pre-Tag-55 only read ``quadlet/wakir-rust-cli.container`` (the
-    Tag-22 carrier-image installer). The four Welle-4..7 dedicated
-    single-binary installer Quadlets that landed Tag-55 are picked up
+    : the readiness-check G5 cross-substrate-parity gate
+    earlier revisions only read ``quadlet/wakir-rust-cli.container`` (the
+    carrier-image installer). The four dedicated
+    single-binary installer Quadlets are picked up
     by the default glob ``quadlet/wakir-rust-cli*.container``.
 
     The union preserves first-occurrence order across files in
@@ -822,9 +822,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         default=None,
         help=(
             "Legacy single-file path to a Quadlet installer. "
-            "If unset, the Tag-55 glob-pattern ``--quadlet-glob`` is used "
+            "If unset, the glob-pattern ``--quadlet-glob`` is used "
             "instead, which unions binary-names across all matching "
-            "Quadlets (the Tag-55 closeout for G5 cross-substrate-parity)."
+            "Quadlets (the closeout for G5 cross-substrate-parity)."
         ),
     )
     parser.add_argument(
@@ -832,8 +832,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         default="quadlet/wakir-rust-cli*.container",
         help=(
             "Glob (relative to --repo-root) for Quadlet installer files. "
-            "Tag-55 default picks up the carrier-image installer "
-            "AND the Welle-4..7 dedicated single-binary installer Quadlets."
+            "The default picks up the carrier-image installer AND the "
+            "Welle-4..7 dedicated single-binary installer Quadlets."
         ),
     )
     parser.add_argument(

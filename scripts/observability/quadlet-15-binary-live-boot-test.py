@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tag-52 Quadlet-15-Binary Live-Boot-Test (Kai).
+""" Quadlet-15-Binary Live-Boot-Test.
 
 Context
 -------
 
-Tag-45 PR #294 pinned the 15-binary substrate via Cosign-Policy
+pinned the 15-binary substrate via Cosign-Policy
 inventory (13 -> 15) and bumped the Quadlet-installer Exec= loop
-(9 -> 11 carrier-image binaries). Tag-46..Tag-51 progressively
+(9 -> 11 carrier-image binaries). .. progressively
 hardened the static + provenance axes: substrate-layer coverage
 matrix, Cosign-Keyless-OIDC drift, SBOM generation + baseline
 verification + reproducibility audit. NONE of them exercises the
@@ -16,7 +16,7 @@ verification + reproducibility audit. NONE of them exercises the
 can actually be (a) loaded as a Quadlet unit, (b) cosign-verified,
 (c) started, (d) responds to a health-check, (e) exits cleanly.
 
-That gap is the Tag-52 closer: a Live-Boot-Test that simulates
+That gap is the closer: a Live-Boot-Test that simulates
 exactly that 5-step sequence for every one of the 15 binaries
 the Cosign-Policy declares. The default operation mode in CI is
 ``--mode=sandbox-stub`` -- a deterministic, hermetic simulation
@@ -95,7 +95,7 @@ Exit codes
   * 2 -- one or more binaries RED. The Mira-Notify payload is
     written and the workflow surfaces the failure via Job-Summary.
 
-Author: Kai Hoffmann (Dev-Engineering-3)
+
 """
 
 from __future__ import annotations
@@ -112,11 +112,11 @@ import yaml
 
 
 # ---------------------------------------------------------------------------
-# Constants -- Tag-45 substrate anchors.
+# Constants -- substrate anchors.
 # ---------------------------------------------------------------------------
 
-#: Canonical Tag-45 binary inventory order (Cosign-Policy declaration
-#: order). Mirrors the Tag-48/Tag-51 generators byte-for-byte so a
+#: Canonical binary inventory order (Cosign-Policy declaration
+#: order). Mirrors the generators byte-for-byte so a
 #: drift here surfaces as an inventory-shape regression.
 TAG45_BINARY_INVENTORY: Tuple[str, ...] = (
     "recovery",
@@ -644,7 +644,7 @@ def render_markdown(verdict: AggregateVerdict) -> str:
     """Render the Job-Summary Markdown block."""
     badge = "GREEN" if verdict.overall_green else "RED"
     lines: List[str] = []
-    lines.append("## Tag-52 Quadlet-15-Binary Live-Boot-Test")
+    lines.append("## Quadlet-15-Binary Live-Boot-Test")
     lines.append("")
     lines.append(f"**Mode:** `{verdict.mode}`")
     lines.append(f"**Aggregate verdict:** `{badge}`")
@@ -722,7 +722,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="quadlet-15-binary-live-boot-test",
         description=(
-            "Tag-52 Quadlet-15-Binary Live-Boot-Test (Kai, "
+            " Quadlet-15-Binary Live-Boot-Test ("
             "sandbox-stub default)."
         ),
     )
@@ -811,7 +811,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parser.parse_args(argv)
 
     if args.mode == "live":
-        # Operator-Hand-only mode -- not in scope for Tag-52
+        # Operator-Hand-only mode -- not in scope for
         # sandbox-stub substrate. Live wiring is a future Mini-
         # Welle per ``feedback_sandbox_host_trennung.md``.
         raise NotImplementedError(
