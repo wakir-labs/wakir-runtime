@@ -338,7 +338,7 @@ class DriftMapEntry:
 
 
 @dataclasses.dataclass(frozen=True)
-class WelleStateMachineDrift:
+class WaveStateMachineDrift:
     """
  D4 dimension report. The wave-state-machine (status +
     transitions + guarded-welle-sets + marker-literals) lives only on
@@ -378,7 +378,7 @@ class DriftEnvelope:
     python_authorities: Tuple[PythonAuthorityReport, ...]
     rust_crates: Tuple[RustCrateReport, ...]
     drift_map: Tuple[DriftMapEntry, ...]
-    welle_state_machine_drift: WelleStateMachineDrift
+    welle_state_machine_drift: WaveStateMachineDrift
     summary: Summary
 
     def to_json(self, *, indent: int = 2) -> str:
@@ -587,7 +587,7 @@ def compute_welle_state_machine_drift(
     *,
     python_authorities: Iterable[PythonAuthorityReport],
     drift_map: Iterable[DriftMapEntry],
-) -> WelleStateMachineDrift:
+) -> WaveStateMachineDrift:
     """
     Compose the D4 wave-state-machine drift block. Looks up the
     welle_state_producer authority and its (possibly empty) Rust
@@ -615,7 +615,7 @@ def compute_welle_state_machine_drift(
         drift_class = "rust-pendant-absent-drift"
 
     if auth is None:
-        return WelleStateMachineDrift(
+        return WaveStateMachineDrift(
             python_authority=WELLE_STATE_AUTHORITY_PATH,
             python_authority_present=False,
             python_status_constants=0,
@@ -628,7 +628,7 @@ def compute_welle_state_machine_drift(
             drift_class="rust-pendant-absent-expected" if expected_absent else "rust-pendant-absent-drift",
         )
 
-    return WelleStateMachineDrift(
+    return WaveStateMachineDrift(
         python_authority=WELLE_STATE_AUTHORITY_PATH,
         python_authority_present=auth.present,
         python_status_constants=auth.symbol_kinds.status_constants,
