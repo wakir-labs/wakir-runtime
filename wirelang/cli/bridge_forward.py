@@ -1,20 +1,20 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Bridge-Forward-Pipe publisher CLI — Sprint-10 Tag-6 substrate-closer.
+"""Bridge-Forward-Pipe publisher CLI — substrate-closer.
 
-This module is the Mira-side publisher for the Doppelbetrieb-Auftrags-
+This module is the operator-side publisher for the Doppelbetrieb-Auftrags-
 Mirror (spec: ``wirelang/specs/bridge-forward-pipe-v1.md``).
 
-When Mira runs an engineering Auftrag against the Pre-Framework Tomás-
-Spawn (``Agent(subagent_type=dev-engineering, prompt=...)``), this CLI
+When an operator runs an engineering Auftrag against the Pre-Framework
+spawn (``Agent(subagent_type=dev-engineering, prompt=...)``), this CLI
 mirrors the prompt onto the canonical NATS subject
 
     wakir.<env>.agent.agent.task.assigned.<persona-slug>
 
-so the Wakir-Runtime Tomás-Container can subscribe and execute the same
+so the Wakir-Runtime runtime container can subscribe and execute the same
 Auftrag as a Shadow-Spawn. Output-side wiring (engineering-output
 envelope on the companion subject) is owned by the persona-engine
-async-engine-wrapper (Selin OI-PEFR-3).
+async-engine-wrapper (OI-PEFR-3).
 
 Hermetic-test surface (stdout/dry-run path)
 -------------------------------------------
@@ -24,8 +24,8 @@ stdout WITHOUT importing nats-py and WITHOUT touching a NATS server.
 This is the hermetic test surface in
 ``wirelang/tests/cli/test_bridge_forward.py``.
 
-The live-NATS-publish path is exercised by the Mira-Hand-SSH-Smoke-
-Test (Operator-Hand-Pfad, sandbox boundary per
+The live-NATS-publish path is exercised by the operator-hand SSH smoke
+test (sandbox boundary per
 ``feedback_sandbox_host_trennung.md``).
 
 Determinism
@@ -193,8 +193,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="wakir-bridge-forward",
         description=(
-            "Mira-side Bridge-Forward-Pipe publisher. Mirrors a Tomás-"
-            "Persona Auftrag onto the Doppelbetrieb-NATS-subject so the "
+            "Operator-side Bridge-Forward-Pipe publisher. Mirrors a "
+            "persona Auftrag onto the Doppelbetrieb-NATS-subject so the "
             "Wakir-Runtime Shadow-Spawn can subscribe and execute in "
             "parallel. Spec: wirelang/specs/bridge-forward-pipe-v1.md"
         ),
@@ -236,7 +236,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "test surface; does not import nats-py."
         ),
     )
-    # Tag-41 Bug-42 — Adapter-B substrate. Defaults to ``core`` per
+    # Bug-42 — Adapter-B substrate. Defaults to ``core`` per
     # spec wirelang-spec-v0-2 §13.5 (Bridge-Forward-Pipe v1 binds
     # core). Operators MAY set ``--publish-mode jetstream`` to
     # match a JetStream-pull subscriber (spec §13.4 Adapter B).
@@ -316,7 +316,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     canonical = envelope_to_jcs_bytes(envelope.to_dict())
 
-    # Tag-41 Bug-42 — resolve publish-mode early so dry-run also
+    # Bug-42 — resolve publish-mode early so dry-run also
     # records the operator declaration. Mirror the live-path
     # resolver below.
     from wirelang.persona_engine.publish_mode_contract import (
@@ -338,9 +338,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         # Write as UTF-8 text — sys.stdout may be a StringIO in tests
         # (no .buffer attribute). The canonical bytes are already
         # UTF-8 by construction. The line ordering preserves the
-        # Sprint-10 contract (line 0 = subject comment, line 1 =
+        # contract (line 0 = subject comment, line 1 =
         # canonical envelope) so existing tests stay valid. The
-        # Tag-41 publish_mode declaration is appended as a trailer
+        # publish_mode declaration is appended as a trailer
         # comment so operators see the surface declaration without
         # disturbing the envelope's line position.
         sys.stdout.write(f"# subject: {subject}\n")
@@ -350,7 +350,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         sys.stdout.flush()
         return 0
 
-    # Tag-41 Bug-42 — resolve the publish-mode (CLI flag > env-var >
+    # Bug-42 — resolve the publish-mode (CLI flag > env-var >
     # default ``core``). The mode determines whether we go through
     # the core ``nc.publish`` path or the JetStream ``js.publish``
     # path (Adapter B per spec §13.4).

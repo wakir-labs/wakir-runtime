@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Doppelbetrieb-Score-CLI — Sprint-10 Tag-6 substrate-closer.
+"""Doppelbetrieb-Score-CLI — substrate-closer.
 
 This module is the companion to ``wakir-bridge-forward``: it consumes
 two engineering outputs (Pre-Framework + Wakir-Runtime) for the same
-``auftrag_id`` and emits a 4-axis Score-JSON for Mira-Hand weekly
+``auftrag_id`` and emits a 4-axis Score-JSON for operator-hand weekly
 Doppelbetrieb-Bilanz (ADR-0058 §Pilot-Phase Schritt 10).
 
 Spec: ``wirelang/specs/bridge-forward-pipe-v1.md`` §6.
@@ -27,7 +27,7 @@ Score axes (v1, intentionally simple)
 
 4. **spurious_divergence** — count of non-empty, non-whitespace lines
    in wakir that do NOT appear anywhere in pre-framework. Hard count,
-   not a ratio (Mira-Hand-readable).
+   not a ratio (operator-readable).
 
 Verdict mapping (spec §6.3):
 
@@ -35,7 +35,7 @@ Verdict mapping (spec §6.3):
 - ``pass-with-drift`` if ``functional_equivalence >= 0.80``
 - else ``fail``
 
-Mira-Hand-Bilanz overrides the verdict at the weekly review.
+operator-hand review overrides the verdict at the weekly review.
 
 Hermetic-test surface
 ---------------------

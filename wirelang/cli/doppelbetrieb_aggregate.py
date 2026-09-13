@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Doppelbetrieb-Aggregate-CLI — Sprint-Pengine-10 OI-PEFR-9.
+"""Doppelbetrieb aggregate CLI (OI-PEFR-9).
 
-Sprint-10 Tag-6 shipped :mod:`wirelang.cli.doppelbetrieb_score` which
-emits a per-Auftrag 4-axis score JSON. Sprint-Pengine-10 adds this
+This module shipped :mod:`wirelang.cli.doppelbetrieb_score` which
+emits a per-Auftrag 4-axis score JSON. This module adds
 aggregator: it consumes a directory of per-Auftrag score-JSONs and
 emits a **weekly Bilanz** with per-axis sums + deltas for the
-Mira-Hand-Bilanz weekly review (ADR-0058 §Pilot-Phase Schritt 10).
+operator-hand review weekly review (ADR-0058 §Pilot-Phase Schritt 10).
 
 Input shape
 -----------
@@ -293,7 +293,7 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="wakir-doppelbetrieb-aggregate",
         description=(
             "Aggregate per-Auftrag Doppelbetrieb-Score JSONs into a "
-            "weekly Bilanz for Mira-Hand review. Spec: ADR-0058 "
+            "weekly Bilanz for operator-hand review. Spec: ADR-0058 "
             "§Pilot-Phase Schritt 10."
         ),
     )

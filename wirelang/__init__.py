@@ -29,35 +29,4 @@ or ``pip install wakir-protocol``) and import from
 ``wakir_protocol.*`` instead of ``wirelang.*``. See
 ``docs/decisions/cut2-protocol-substance-classification.md`` for
 the full path-to-target classification table.
-
-Branch-Protection §4.2 promotion note (2026-05-17)
---------------------------------------------------
-The ``cross-repo drift (wakir-runtime ↔ wakir-protocol)`` Required-
-Status-Check was promoted into the wakir-runtime/main protection set
-on 2026-05-17 04:35 CEST (Mira-Hand-Operator §4.2 command-block).
-This touch ensures the post-apply doc-sync PR triggers the new gate
-through the ``wirelang/**`` path-filter so the live state catches up.
-
-Tag-15 mapping-fix trigger note (2026-05-17 05:40 CEST)
--------------------------------------------------------
-PR #158 (Kai _RUNTIME_CHECKNAME_TO_WORKFLOW mapping-fix) needs the
-cross-repo-drift Required-check to trigger; tests/-only PRs do not
-match the workflow path-filter. Pfad A (workflow path-filter add for
-this specific test file) is planned as a Tag-16 follow-up — for now,
-no-op wirelang/__init__.py touch unblocks PR #158.
-
-Tag-15 doppelbetrieb-score-aggregator trigger note (2026-05-17 06:00 CEST)
---------------------------------------------------------------------------
-PR #160 (Tomás Doppelbetrieb-Score-Aggregator) is scripts/+tests/-only
-and would not match the cross-repo-drift path-filter. No-op wirelang/
-touch unblocks PR #160 per the PR #153/#158 pattern. Pfad A
-(workflow path-filter precision-add) remains a Tag-16 follow-up.
-
-Tag-15 cross-crate-integration trigger note (2026-05-17 06:15 CEST)
--------------------------------------------------------------------
-PR #161 (Reza Cross-Crate Integration-Test-Suite) is wirelang-rust/**
-only and would not match the cross-repo-drift path-filter. No-op
-wirelang/ touch unblocks PR #161. Tag-16 Pfad A should add
-``wirelang-rust/**`` to the cross-repo-drift workflow path-filter to
-eliminate this class of Rust-only-PR-blockers permanently.
 """

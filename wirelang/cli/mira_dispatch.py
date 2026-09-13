@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Mira-Dispatcher Side-CLI — Sprint-Pengine-10 OI-PEFR-7.
+"""Operator dispatcher side-CLI (OI-PEFR-7).
 
-When Mira (CEO) dispatches an engineering Auftrag to the Pre-Framework
-``dev-engineering`` subagent, the same prompt should be mirrored onto
+When an operator dispatches an engineering Auftrag to the
+Pre-Framework ``dev-engineering`` subagent, the same prompt should be mirrored onto
 the Bridge-Forward-Pipe so the Wakir-Runtime persona-container can
 subscribe and run the Doppelbetrieb-Shadow-Spawn.
 
@@ -286,7 +286,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="wakir-mira-dispatch",
         description=(
-            "Mira-side parallel dispatcher: runs the Pre-Framework "
+            "Operator-side parallel dispatcher: runs the Pre-Framework "
             "engineering Auftrag AND mirrors the prompt onto the "
             "Bridge-Forward-Pipe so the Wakir-Runtime persona-engine "
             "can run the Doppelbetrieb-Shadow-Spawn. "

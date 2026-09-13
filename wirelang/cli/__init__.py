@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Wirelang operator-facing CLI surfaces (Phase-2 Sprint-9 Tag-3+).
+"""Wirelang operator-facing CLI surfaces.
 
 This package collects Wirelang-side CLI helpers that ship as
 operator entry-points under ``bin/wakir-*``. Each CLI shim under
@@ -14,7 +14,7 @@ Modules
 
 - :mod:`wirelang.cli.marker_stack_reduce` — operator-facing
   marker-stack reducer with audit-trace pretty-print and JSON
-  pipeline-mode (Phase-2 Sprint-9 Tag-3 Teil A).
+  pipeline-mode (Teil A).
 
 Protocol-layer consolidation (ADR-0062 Cut-2, 2026-05-16)
 ---------------------------------------------------------
