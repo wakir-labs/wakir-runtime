@@ -136,7 +136,7 @@ Henrik's Audit-Sample for Phase 1b consumes:
 * **C.** The Doppelbetrieb-Score JSON outputs (Migration-Playbook §5
   comparison-test-set evidence — sampled per Doppelbetrieb-week).
 * **D.** This document, the test-plan
-  `docs/test-plans/sprint-qa-tag-15-e2e-pilot-smoke.md`, and the
+  `docs/test-plans/e2e-pilot-smoke.md`, and the
   test-suite coverage-report — for Zone-N boundary verification
   (does QA-evidence overlap with audit-evidence?).
 

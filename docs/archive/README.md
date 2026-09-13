@@ -34,6 +34,7 @@ git checkout archive/pre-phase-4 -- docs/phase-3c/   # restore a directory
 | `evidence/phase-3/henrik-phase-3-complete-ratification.json` | Internal-audit ratification stamp for the marker | audit trail of the milestone |
 | `evidence/phase-3/ar-hand-phase-3-complete-stamp.json` | Supervisory-board ratification stamp for the marker | audit trail of the milestone |
 | `reports/live-vm/` | Live-VM pre-cutover probe reports, 2026-05-18 (7 files) | evidence for the live-bring-up gap between hermetic CI and real VMs |
+| `evidence/wat-live-runs/` | WAT TV-1 / TV-2 / TV-3 live-run and live-stamp memos, 2026-05-06/07 (6 files) | first real Bitcoin-anchored runs of the WAT pipeline (calendar receipts, block heights, Esplora confirmations) |
 
 Design knowledge extracted from deleted workflows lives in
 `docs/design-notes/` (e.g. `backend-rollback.md`), not here.

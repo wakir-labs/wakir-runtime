@@ -6,7 +6,7 @@ Rotation-Sequence" (DevOps-track Operations, no Wirelang-side
 block; Reza-Z-A-Ack-Slot-4 §4.4).
 
 **Cross-Reference:** SPIFFE-Skizze §4.2 (Sequenz-Schritte
-Phase-2-Boot, `docs/spiffe-z-a-jwt-svid-skizze.md`) is the
+Phase-2-Boot, `docs/spiffe-jwt-svid-identity.md`) is the
 canonical reference for the bootstrap-sequence the rotation steps
 inherit from.
 

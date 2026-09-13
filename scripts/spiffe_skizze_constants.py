@@ -7,7 +7,7 @@
 # This module is **Skizze-Validations-Substanz**. It does not
 # implement a SPIRE client, an attestor, or a NATS-JWT-Auth adapter.
 # It defines the format constants proposed in
-# ``docs/spiffe-z-a-jwt-svid-skizze.md`` §3.1, §3.2, §2 (Trust-Domain)
+# ``docs/spiffe-jwt-svid-identity.md`` §3.1, §3.2, §2 (Trust-Domain)
 # and §4.1 (Workload-API socket path) as testable Python constants.
 #
 # Purpose: when the Cross-Review Zone A consensus later overrides one
@@ -22,7 +22,7 @@
 # - Konsens not yet recorded; HR-track-protocol pending.
 # - All constants here are *proposals*, not decisions.
 #
-# Reference: docs/spiffe-z-a-jwt-svid-skizze.md (Tag-6).
+# Reference: docs/spiffe-jwt-svid-identity.md (Tag-6).
 """SPIFFE Z-A skizze format constants (Phase-2 Sprint-4 Tag-6)."""
 
 from __future__ import annotations

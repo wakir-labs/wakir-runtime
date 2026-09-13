@@ -31,7 +31,7 @@
 #   surface by name; tests use a Tag-10-local :class:`InMemorySvidCache`
 #   stub so the skizze module remains importable without the wirelang
 #   adapter substrate landing in the same branch.
-# - ``docs/spiffe-z-a-jwt-svid-skizze.md`` §4.2-Punkt-7 + §6 §3 — the
+# - ``docs/spiffe-jwt-svid-identity.md`` §4.2-Punkt-7 + §6 §3 — the
 #   refresh-on-reconnect client-side-callback pattern (Reza-Ack-Slot-4
 #   correction; NOT a NATS-server feature).
 # - ``scripts/spiffe_skizze_constants.py`` — re-used for

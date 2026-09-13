@@ -1979,7 +1979,7 @@ for `init-nats-buckets.py`; see V-908 operator playbook).
 ### 7.8 SPIFFE Z-A JWT-SVID Container-Identity-Skizze (Phase-2 Sprint-4 Tag-6)
 
 Sprint-4 Tag-6 added a stand-alone Skizze document
-`docs/spiffe-z-a-jwt-svid-skizze.md` describing the proposed
+`docs/spiffe-jwt-svid-identity.md` describing the proposed
 SPIFFE/SPIRE Container-Identity substrate path for Phase-2 Sprint-5
 and beyond. The Skizze is **Cross-Review Zone A preparation
 material**: no substrate change has been applied, and no SPIRE
@@ -2554,7 +2554,7 @@ Z-B scope.
 - Authoring date (Phase-2 Sprint-4 Tag-6 update): `date -u`
   2026-05-11T18:30:01Z (CEST 2026-05-11 20:30). Sprint-4 Tag-6
   60-min-box. Substance delivered: (a) new stand-alone Skizze
-  document `docs/spiffe-z-a-jwt-svid-skizze.md` (~430 lines)
+  document `docs/spiffe-jwt-svid-identity.md` (~430 lines)
   describing the proposed SPIFFE/SPIRE Container-Identity substrate
   path for Phase-2 Sprint-5 and beyond — Cross-Review Zone A
   preparation material, no substrate change; (b) new constants-only
