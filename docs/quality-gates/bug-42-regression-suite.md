@@ -3,15 +3,15 @@ SPDX-License-Identifier: Apache-2.0
 Copyright (c) 2026 Callandor GmbH and contributors
 -->
 
-# Quality-Gate — Bug-42 Regression-Suite (Tag-48)
+# Quality-Gate — Bug-42 Regression-Suite
 
 | Field | Value |
 |---|---|
-| Owner | Amara Osei (QA), with Zone-M cross-check by Selin Çelik (Persona-Engine) |
-| Status | Tag-48 baseline — drift-free, 25 tests passing |
+| Owner | QA engineering (QA), with Zone-M cross-check by persona-engine engineering (Persona-Engine) |
+| Status | baseline — drift-free, 25 tests passing |
 | Phase | 3 (closing): Bug-42 silent-drop closure regression-suite |
-| Source | Tag-48 Amara Auftrag (Continuous-Mode, 2026-05-19); Tag-41 PR #265 (Selin) Bug-42 fix; Tag-43 PR #278 (Selin) NATS-subjects-audit baseline |
-| Date | 2026-05-19 (Tag-48 creation) |
+| Source | QA engineering (Continuous-Mode, 2026-05-19); PR #265 (persona-engine engineering) Bug-42 fix; PR #278 (persona-engine engineering) NATS-subjects-audit baseline |
+| Date | 2026-05-19 (creation) |
 | Test-File | [`tests/integration/test_bug_42_regression_suite_tag_48.py`](../../tests/integration/test_bug_42_regression_suite_tag_48.py) |
 | Companion (contract module) | [`wirelang/persona_engine/publish_mode_contract.py`](../../wirelang/persona_engine/publish_mode_contract.py) |
 | Companion (audit script) | [`scripts/audit/nats-jetstream-subjects-audit.py`](../../scripts/audit/nats-jetstream-subjects-audit.py) |
@@ -24,10 +24,10 @@ Copyright (c) 2026 Callandor GmbH and contributors
 ## 0. Contract scope
 
 This document is the **Bug-42 regression-suite quality-gate** for
-the Tag-48 substantive closure of the publish/subscribe surface
-silent-drop class (Tag-41 PR #265).
+the substantive closure of the publish/subscribe surface
+silent-drop class (PR #265).
 
-Tag-41 PR #265 (Selin) closed Bug-42 F-1 by landing three artefacts:
+PR #265 (persona-engine engineering) closed Bug-42 F-1 by landing three artefacts:
 
 1. **Adapter-B substrate** at
    `wirelang/persona_engine/publish_mode_contract.py` — the
@@ -45,7 +45,7 @@ Tag-41 PR #265 (Selin) closed Bug-42 F-1 by landing three artefacts:
    the `require_compatible(...)` call that refuses silent-drop pairs
    before binding the JetStream consumer.
 
-Tag-43 PR #278 (Selin) extended the closure with a **static audit**
+PR #278 (persona-engine engineering) extended the closure with a **static audit**
 at `scripts/audit/nats-jetstream-subjects-audit.py` that pins the
 fix at the codebase level: every Python / Rust source file is
 scanned for publish/subscribe sigils, every `wakir.<env>.*` literal
@@ -54,7 +54,7 @@ mode-aware module is cross-checked for dispatch and gate consistency.
 The first baseline (`docs/archive/evidence/audits/2026-05-18-nats-jetstream-subjects-audit.md`):
 0 drift rows across 276 scanned files.
 
-The Tag-48 regression-suite is the **third layer** of the closure
+The regression-suite is the **third layer** of the closure
 contract: it pins the substantive invariants of the contract module
 AND the audit script as observable test surface in CI, so a future
 refactor on either side cannot silently re-open Bug-42.
@@ -62,7 +62,7 @@ refactor on either side cannot silently re-open Bug-42.
 This is **not** a re-implementation of either upstream test surface
 (`tests/persona_engine/test_publish_mode_contract.py` already pins
 the contract module's unit-level behaviour; `tests/audit/test_nats_jetstream_subjects_audit.py`
-already pins the audit script's hermetic classifier). The Tag-48
+already pins the audit script's hermetic classifier). The
 suite is an **integration cross-check**: it asserts that the union
 of the two surfaces is internally consistent and externally pinned
 against the spec / schema source-of-truth.
@@ -93,7 +93,7 @@ correctness (server-config-dependent).
 
 ### 1.2 Section B — NATS-Subject-Pattern-Drift (6 tests)
 
-The Tag-43 audit baseline lists **24 wakir.* literals** in
+The audit baseline lists **24 wakir.* literals** in
 production code (NATS subjects: 7, namespace-ids: 17). The 7 NATS
 subjects span:
 
@@ -110,7 +110,7 @@ subjects span:
 | Test | Contract |
 |---|---|
 | B1 | The audit's `SCHEMA_SUBJECT_REGEX` mirrors `wirelang/schemas/layer-0-transport.json` `subject.pattern` exactly. |
-| B2 | The inventory has exactly 7 NATS-subject hits (Tag-43 baseline). 8+ means a new publisher needs review; <7 means a publisher silently demoted. |
+| B2 | The inventory has exactly 7 NATS-subject hits (baseline). 8+ means a new publisher needs review; <7 means a publisher silently demoted. |
 | B3 | Every NATS-subject row the audit classifies as `ok` actually matches the regex (templates → `TEMPLATE_SUBJECT_REGEX`, concrete → `SCHEMA_SUBJECT_REGEX`). |
 | B4 | The inventory covers both event types (`task.assigned`, `task.output`) and contains a persona-slug concrete literal (`.tomas` / `.reza`). |
 | B5 | Canonical regex rejects `wakir.dev.Agent.task.assigned` (capital domain) and `wakir.test.agent.task.assigned` (non-{dev,staging,prod} env). |
@@ -147,16 +147,16 @@ would let drift slip through CI undetected.
 |---|---|
 | D1 | `audit_repo(.)` reports drift_count=0 and scanned_files≥200 at HEAD. |
 | D2 | Three mode-cross-validation modules at HEAD: `bridge_forward.py`, `persona_engine/cli.py`, `publish_mode_contract.py`. 4+ means a new publisher needs Bug-42 review. |
-| D3 | Namespace-id count ≥15 (Tag-43 baseline 17, allows growth, flags shrinkage); total wakir.* inventory ≥22 (Tag-43 baseline 24). |
+| D3 | Namespace-id count ≥15 (baseline 17, allows growth, flags shrinkage); total wakir.* inventory ≥22 (baseline 24). |
 | D4 | Audit CLI exits 0 in audit-only and 0 in `--enforce` mode (drift-free repo). |
 
 ---
 
-## 2. Tag-48 baseline summary
+## 2. baseline summary
 
 - **Tests:** 25 collection-IDs (20 logical tests; A1 parametrized
   over 6 matrix cells contributes 6 IDs).
-- **Pass rate at Tag-48 baseline:** 25/25.
+- **Pass rate at baseline:** 25/25.
 - **Runtime:** ~2 seconds (hermetic, subprocess `--enforce` adds
   one fork).
 - **Hermetic profile:** no live NATS, no container runtime, no
@@ -172,11 +172,11 @@ The Bug-42 closure now stands on three layers:
 
 | Layer | Suite | Owner | Pin |
 |---|---|---|---|
-| 1 — Contract unit | `tests/persona_engine/test_publish_mode_contract.py` (Tag-41) | Selin | Per-function behaviour of contract module (matrix, gate, env resolver). |
-| 2 — Audit hermetic | `tests/audit/test_nats_jetstream_subjects_audit.py` (Tag-43) | Selin | Audit script classifier behaviour against synthetic fixtures (14 hermetic tests). |
-| 3 — Integration regression | `tests/integration/test_bug_42_regression_suite_tag_48.py` (Tag-48, this gate) | Amara | Cross-check that the union of Layer-1 + Layer-2 stays internally consistent and externally pinned against spec / schema SoT. |
+| 1 — Contract unit | `tests/persona_engine/test_publish_mode_contract.py` | persona-engine engineering | Per-function behaviour of contract module (matrix, gate, env resolver). |
+| 2 — Audit hermetic | `tests/audit/test_nats_jetstream_subjects_audit.py` | persona-engine engineering | Audit script classifier behaviour against synthetic fixtures (14 hermetic tests). |
+| 3 — Integration regression | `tests/integration/test_bug_42_regression_suite_tag_48.py` (this gate) | QA engineering | Cross-check that the union of Layer-1 + Layer-2 stays internally consistent and externally pinned against spec / schema SoT. |
 
-Layer 1 and Layer 2 are Selin's substantive surface; Layer 3 is the
+Layer 1 and Layer 2 are persona-engine engineering's substantive surface; Layer 3 is the
 QA Zone-M cross-component pin. The three layers are complementary,
 not redundant: removing Layer 1 would leave the contract surface
 unpinned; removing Layer 2 would leave the codebase-wide audit
@@ -187,7 +187,7 @@ two unpinned against the spec / schema SoT.
 
 ## 4. Quality-Gate criteria (Phase-3-acceptance)
 
-For Phase-3-Welle-Marathon acceptance the Bug-42 closure must
+For Phase-3-wave-rollout campaign acceptance the Bug-42 closure must
 satisfy:
 
 1. **G-Bug-42-1:** `tests/integration/test_bug_42_regression_suite_tag_48.py`
@@ -200,27 +200,27 @@ satisfy:
    the early warning when this discipline lapses.
 4. **G-Bug-42-4:** No spec §13 amendment (failure-mode-catalogue or
    compatibility matrix) lands without an accompanying update to
-   this regression-suite and the Tag-43 audit script. Tests C1, C2,
+   this regression-suite and the audit script. Tests C1, C2,
    and B1 are the early warnings.
 
 ---
 
 ## 5. Zone-M / Zone-N posture
 
-- **Zone-M (QA × Persona-Engine):** Selin owns the substantive
-  surface (contract module + audit script). Amara owns the
-  integration regression-suite as cross-component pin. Tag-48
-  delivery coordinated as a read-only consumer of Selin's surface
+- **Zone-M (QA × Persona-Engine):** persona-engine engineering owns the substantive
+  surface (contract module + audit script). QA engineering owns the
+  integration regression-suite as cross-component pin.
+  delivery coordinated as a read-only consumer of persona-engine engineering's surface
   (no edits to `publish_mode_contract.py` or the audit script).
 
-- **Zone-N (QA × Internal-Audit, Henrik):** This gate's evidence
+- **Zone-N (QA × Internal-Audit, internal audit):** This gate's evidence
   (test pass-rate, audit drift-count) is a QA-evidence input for
-  Henrik's quarterly Audit-Sample. The boundary is preserved: QA
-  verifies *functional behaviour*, Henrik verifies *governance
+  internal audit's quarterly Audit-Sample. The boundary is preserved: QA
+  verifies *functional behaviour*, internal audit verifies *governance
   compliance* (ADR-Konsistenz, sample-based review of the audit
-  workflow's CI posture). Henrik may consume the test pass-rate as
+  workflow's CI posture). internal audit may consume the test pass-rate as
   one input but does not re-run the suite.
 
 ---
 
-*Created: 2026-05-19 (Tag-48). — Amara*
+*Created: 2026-05-19. — QA engineering*

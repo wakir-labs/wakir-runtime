@@ -1,55 +1,55 @@
-# Quality-Gate — Failure-Mode A2 FSM-Phantom-Transition Coverage Matrix Update (Tag-46)
+# Quality-Gate — Failure-Mode A2 FSM-Phantom-Transition Coverage Matrix Update
 
 | Field | Value |
 |---|---|
-| Owner | Reza Tehrani (Dev-Engineering-2 / Wirelang), with Tomás cross-review (Zone-1 Identity-Substrate) |
-| Status | COVERED — re-classification of Amara-Tag-45 PARTIAL classification |
+| Owner | protocol engineering, with dev engineering cross-review (Zone-1 Identity-Substrate) |
+| Status | COVERED — re-classification of PARTIAL classification |
 | Phase | 3 (closing): Pre-Mortem failure-mode test-coverage follow-up |
-| Source | Tag-46 Reza Auftrag (Continuous-Mode, 2026-05-18); Amara-Tag-45 §A2 follow-up scope (`docs/quality-gates/pre-mortem-failure-mode-coverage.md`); Henrik Tag-44 Pre-Mortem-Skizze §A2 (`reports/audit/phase-3-marathon-pre-mortem-2026-05-18.md`) |
-| Date | 2026-05-18 (creation, Tag-46 A2-coverage spawn) |
+| Source | protocol engineering (Continuous-Mode, 2026-05-18); §A2 follow-up scope (`docs/quality-gates/pre-mortem-failure-mode-coverage.md`); internal audit Pre-Mortem-sketch §A2 (`reports/audit/phase-3-marathon-pre-mortem-2026-05-18.md`) |
+| Date | 2026-05-18 (creation A2-coverage spawn) |
 | Test-File | `wirelang/tests/persona_engine/test_fsm_phantom_transition_coverage_a2.py` |
 
 ## 0. Contract scope
 
-This document updates the **A2 row** of the Tag-45 Pre-Mortem
+This document updates the **A2 row** of the Pre-Mortem
 Failure-Mode Coverage-Matrix from **PARTIAL** to **COVERED**, citing
 the new hermetic test surface in
 `wirelang/tests/persona_engine/test_fsm_phantom_transition_coverage_a2.py`.
 
-The Tag-45 audit named this Tag-46 follow-up explicitly (Tag-45
-§4 row 1, table-id "A2 FSM-Phantom-Transitions"). The Tag-46
+The audit named this follow-up explicitly (
+§4 row 1, table-id "A2 FSM-Phantom-Transitions"). The
 spawn closes the named gap.
 
 This document is **scoped narrowly to A2**. It does not modify the
 A1/A3..A8/B/C/D classifications in the parent matrix. Items A6 and
-A8 remain PARTIAL and are tracked for separate Tag-46+ follow-ups
+A8 remain PARTIAL and are tracked for separate follow-ups
 (`test_cosign_chain_marathon_image_hash_stability.py` and
 `test_welle_4_state_backing_persistence_loss.py`).
 
 ## 1. A2 row — before and after
 
-### Before (Tag-45 classification)
+### Before (classification)
 
 | Field | Value |
 |---|---|
 | Failure-mode | A2 — FSM-Phantom-Transitions (illegal state-transitions post-cutover) |
 | Coverage state | **PARTIAL** |
-| Pinning tests | AP-4 (Tag-44) — partial coverage of FSM-state-leak via namespace-prefix discipline, but does NOT exercise transition-legality oracle directly. Tag-37 Rust FSM-Replay-Engine — out-of-scope for the Python suite. |
-| Follow-up named | Tag-46+ — add Python-side FSM-transition-legality oracle. |
+| Pinning tests | AP-4 — partial coverage of FSM-state-leak via namespace-prefix discipline, but does NOT exercise transition-legality oracle directly. Rust FSM-Replay-Engine — out-of-scope for the Python suite. |
+| Follow-up named | — add Python-side FSM-transition-legality oracle. |
 
-### After (Tag-46 update)
+### After (update)
 
 | Field | Value |
 |---|---|
 | Failure-mode | A2 — FSM-Phantom-Transitions (illegal state-transitions post-cutover) |
 | Coverage state | **COVERED** |
-| Pinning tests | (Existing) AP-4 (Tag-44) — namespace-prefix discipline arm. (New, Tag-46) 15 hermetic tests in `test_fsm_phantom_transition_coverage_a2.py` covering four sub-pathways: state-machine-edge-cases (5 tests), race-conditions in transition-emit (3 tests), snapshot-corruption-recovery (4 tests), cross-modul-leak to state_backing (3 tests). |
-| Follow-up | None — A2 closed for Phase-3-Marathon. |
+| Pinning tests | (Existing) AP-4 — namespace-prefix discipline arm. (New) 15 hermetic tests in `test_fsm_phantom_transition_coverage_a2.py` covering four sub-pathways: state-machine-edge-cases (5 tests), race-conditions in transition-emit (3 tests), snapshot-corruption-recovery (4 tests), cross-modul-leak to state_backing (3 tests). |
+| Follow-up | None — A2 closed for Phase-3-rollout campaign. |
 
-## 2. Tag-46 sub-pathway coverage map
+## 2. sub-pathway coverage map
 
-The Tag-45 follow-up scope named four sub-pathways for A2. Each is
-covered by a dedicated test block in the Tag-46 file.
+The follow-up scope named four sub-pathways for A2. Each is
+covered by a dedicated test block in the file.
 
 ### Sub-pathway 1 — state-machine-edge-cases
 
@@ -98,9 +98,9 @@ to state_backing seam.
 | `test_a2_no_leak_state_backing_snapshot_does_not_advance_other_fsm` | Persona-B state_backing snapshot does not advance persona-A's FSM. |
 | `test_a2_phantom_transition_attempt_does_not_corrupt_state_backing` | A rejected FSM phantom-transition does not silently mutate state_backing snapshot bytes. |
 
-## 3. Coverage-matrix delta against Tag-45 §3
+## 3. Coverage-matrix delta against §3
 
-The Tag-45 §3 coverage-summary table is updated as follows. Only
+The §3 coverage-summary table is updated as follows. Only
 Class-A changes; B/C/D rows unchanged.
 
 | Class | Total | COVERED | PARTIAL | GAP-ACCEPTED | GAP-OPEN |
@@ -113,29 +113,29 @@ Class-A changes; B/C/D rows unchanged.
 
 **Coverage interpretation delta.**
 
-- COVERED: 9 of 24 (37.5%) -> **10 of 24 (41.7%)** after Tag-46.
-- PARTIAL: 5 of 24 (20.8%) -> **4 of 24 (16.7%)** after Tag-46.
+- COVERED: 9 of 24 (37.5%) -> **10 of 24 (41.7%)** after.
+- PARTIAL: 5 of 24 (20.8%) -> **4 of 24 (16.7%)** after.
 - GAP-ACCEPTED: 10 of 24 (41.7%) — unchanged.
 - GAP-OPEN: 0 of 24 (0%) — unchanged.
 
 ## 4. Cross-review observations (Vermutungs-Kennzeichnung P2)
 
-**Zone-1 Identity-Substrate-Konsens (Reza/Tomás).** Sub-pathway 4
+**Zone-1 Identity-Substrate-Konsens (protocol engineering/dev engineering).** Sub-pathway 4
 (cross-modul-leak) pins the FSM <-> state_backing seam by persona_id.
 This aligns with the Zone-1 cross-review-zone scope (persona-identity
-namespace bidirectional isolation). No new Tomás-cross-review item is
+namespace bidirectional isolation). No new dev-engineering cross-review item is
 spawned by this document; the existing Zone-1 cadence is sufficient.
 
-**A2 versus AP-4 relationship.** AP-4 (Tag-44, control-plane anti-
+**A2 versus AP-4 relationship.** AP-4 (control-plane anti-
 pattern) pins the structural arm "namespace-prefix discipline rejects
-cross-Welle state-leak". The Tag-46 file additionally pins the
+cross-wave state-leak". The file additionally pins the
 "transition-legality oracle" arm. Together the two layers are
 defence-in-depth: AP-4 catches the namespace-pollution failure-mode,
-A2-Tag-46 catches the in-namespace-but-illegal-edge failure-mode.
+A2 catches the in-namespace-but-illegal-edge failure-mode.
 
-**Rust FSM-Replay-Engine relationship (Tag-37).** The Tag-37 Rust
+**Rust FSM-Replay-Engine relationship.** The Rust
 crate tests in `bridge-audit/` are the authoritative oracle for the
-replay-engine binary-protocol layer. The Tag-46 Python tests are the
+replay-engine binary-protocol layer. The Python tests are the
 oracle for the Python-side LifecycleStateMachine surface. The two
 layers are independent; no Rust-Python parity test is mandated by
 this document. (A Rust-Python parity test for the FSM exists at
@@ -152,4 +152,4 @@ python -m pytest wirelang/tests/persona_engine/test_fsm_phantom_transition_cover
 
 Expected: 15 passed in <1s. No opt-in marker required.
 
-— Reza Tehrani (Dev-Engineering-2 / Wirelang), Tag-46 A2 FSM-Phantom-Transition Coverage, 2026-05-18
+— protocol engineering A2 FSM-Phantom-Transition Coverage, 2026-05-18
