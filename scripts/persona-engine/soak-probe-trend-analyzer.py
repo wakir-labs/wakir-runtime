@@ -608,7 +608,7 @@ def build_notify_events(
                 "summary": (
                     f"Persona-Engine soak-probe has been failing for "
                     f"{report.consecutive_fail_streak} consecutive "
-                    f"days (ending {report.today_date_iso}). Cutover-"
+                    f"days (ending {report.today_date_iso}). Release-"
                     f"blocker."
                 )[:200],
                 "description": None,
@@ -916,7 +916,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--notify-path",
         default=DEFAULT_NOTIFY_PATH,
         help=(
-            f"JSONL feed for Mira-notify-emitter events "
+            f"JSONL feed for notify-emitter events "
             f"(default: {DEFAULT_NOTIFY_PATH})."
         ),
     )

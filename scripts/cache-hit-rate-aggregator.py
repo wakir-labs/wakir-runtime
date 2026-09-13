@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""cache-hit-rate-aggregator — Sprint-Phase-2b-Cache-Hit-Rate-Aggregator-MINI.
+"""cache-hit-rate-aggregator — Phase-2b cache-hit-rate aggregator.
 
 Background
 ----------

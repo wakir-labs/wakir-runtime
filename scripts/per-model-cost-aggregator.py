@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""per-model-cost-aggregator — Sprint-Phase-2b-Cost-Aggregator-MINI.
+"""per-model-cost-aggregator — Phase-2b per-model cost aggregator.
 
 Background
 ----------

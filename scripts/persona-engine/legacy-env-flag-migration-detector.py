@@ -393,7 +393,7 @@ def _emit_deprecation_warning(count: int, stream: Any) -> None:
         f"usage{plural} detected. Migrate to canonical "
         f"WAKIR_*_BACKEND names per Wirelang Spec v0.4.2 §6. "
         f"See https://github.com/wakir-labs/wakir-runtime/pulls "
-        f"PR #320 (Tag-50)."
+        f"PR #320."
     )
     print(msg, file=stream)
 

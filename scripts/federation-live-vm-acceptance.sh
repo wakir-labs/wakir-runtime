@@ -30,9 +30,9 @@
 # --------------
 #
 # This script is the "Live-VM acceptance" lane that ADR-0060 was meant
-# to formalise but was rejected on cost grounds; the kostenfreie
-# alternative (Quadlet-Lint + SELinux-Hermetic + this Live-VM script
-# triggered by-hand on Sprint-Substrate-Closers) covers the same gap.
+# to formalise but was rejected on cost grounds; the
+# no-cost alternative (Quadlet-lint + SELinux-hermetic + this Live-VM script
+# triggered by hand when a substrate change lands) covers the same gap.
 # When a new federation-substrate PR lands on main, the operator runs this
 # script against wakir-orbit (or wakir-pilot) before the next
 # Migrations-Pilot phase-gate.

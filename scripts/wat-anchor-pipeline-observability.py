@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""wat-anchor-pipeline-observability — Sprint-WAT-Anchor-Pipeline-Live-Observability-MINI.
+"""wat-anchor-pipeline-observability — WAT anchor-pipeline live observability.
 
 Background
 ----------
