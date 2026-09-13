@@ -162,28 +162,25 @@ def test_wirelang_diff_fires_wirelang_subworkflows(agg) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 5 — A docs-only diff fires license-gate + tests.yml but NOT runtime acceptance gates.
+# Test 5 — A docs-only diff fires every required context.
 # ---------------------------------------------------------------------------
 
 
-def test_docs_only_diff_skips_runtime_acceptance_gates(agg) -> None:
-    """A docs-only diff (e.g. ``docs/operations/foo.md``) should fire
-    license-gate (which includes ``docs/**``) and tests.yml (which
-    includes ``docs/**``) but skip runtime acceptance gates (which only covers
-    ``docs/quality-gates/**``).
+def test_docs_only_diff_fires_every_required_context(agg) -> None:
+    """A docs-only diff (e.g. ``docs/operations/foo.md``) fires all five
+    required contexts.
 
-    This is the precise scenario that caused the Forever-Pending incident and the rationale for ADR-0068.
+    Rebaselined in ADR-0072 W5: the required workflows lost their
+    ``paths:`` filters, because a required context that never reports
+    leaves the pull request pending forever. The inventory therefore
+    carries ``("**",)`` for every required row and no required context
+    can be skipped by a path filter any more.
     """
-    verdicts = agg.decide_expected_set(["docs/operations/cutover-runbook.md"])
+    verdicts = agg.decide_expected_set(["docs/operations/release-runbook.md"])
     by_name = {v.spec.check_name: v for v in verdicts}
     assert by_name["License-Hygiene Gate (ADR-0061)"].expected
     assert by_name["wirelang suite with rfc8785 + jsonschema"].expected
-    assert not by_name[
-        "runtime acceptance gates"
-    ].expected, (
-        "runtime-acceptance-gates path-filter is only ``docs/quality-gates/**``; "
-        "operator docs should not trigger it"
-    )
+    assert by_name["runtime acceptance gates"].expected
 
 
 # ---------------------------------------------------------------------------
@@ -207,15 +204,13 @@ def test_quality_gates_doc_fires_runtime_acceptance_gates(agg) -> None:
 
 
 def test_workflow_yaml_diff_fires_subset(agg) -> None:
-    """A diff touching ``.github/workflows/ci-aggregator.yml`` (a generic
-    workflow file not covered by the narrowed runtime-acceptance-gates
-    filter) should fire the four broadly-filtered sub-workflows
-    (license-gate + tests.yml x3) plus the unfiltered cross-repo
-    compatibility gate, but NOT runtime acceptance gates (filter narrows
-    to ``runtime-acceptance-gates.yml``).
+    """A diff touching ``.github/workflows/ci-aggregator.yml`` fires every
+    sub-workflow.
 
-    This distinguishes "broad workflow change" from "targeted workflow
-    change" and documents the runtime-acceptance-gates narrowing.
+    Rebaselined in ADR-0072 W5 together with test 5: with the
+    ``paths:`` filters removed from the required workflows there is no
+    "targeted workflow change" case left — every required context
+    reports on every diff.
     """
     verdicts = agg.decide_expected_set([".github/workflows/ci-aggregator.yml"])
     by_name = {v.spec.check_name: v for v in verdicts}
@@ -229,11 +224,11 @@ def test_workflow_yaml_diff_fires_subset(agg) -> None:
         "cross-repo compatibility has no path filter and must fire on "
         "every diff, including a ci-aggregator.yml touch"
     )
-    assert not by_name[
+    assert by_name[
         "runtime acceptance gates"
     ].expected, (
-        "runtime-acceptance-gates path-filter narrows to its own workflow file; "
-        "ci-aggregator.yml touch should not trigger it"
+        "runtime acceptance gates is a required context without a path "
+        "filter and must fire on every diff"
     )
 
 
@@ -280,18 +275,13 @@ def test_aggregate_skip_ok_only_is_success(agg) -> None:
     structurally eliminates Forever-Pending — a docs-cleanup PR that
     touches only README.md no longer hangs.
     """
-    # README.md is in license-gate's path-globs but not in any other
-    # path-glob set. Force a synthetic "no matches" by feeding a path
-    # that matches nothing in the inventory.
-    verdicts = agg.decide_expected_set(["unrelated-top-level-file.txt"])
-    expected = [v for v in verdicts if v.expected]
-    # Only the unfiltered cross-repo compatibility gate fires (ADR-0072
-    # W4: required contexts must never be path-filtered); everything
-    # else is SKIP_OK.
-    assert [v.spec.check_name for v in expected] == [
-        "cross-repo compatibility (protocol ↔ runtime ↔ verify)"
-    ]
-    expected[0].status = "success"
+    # Since ADR-0072 W5 no required context carries a path filter, so
+    # every required row fires even on an unrelated top-level file and
+    # the skip-ok-only case can only be produced by an empty inventory.
+    verdicts = agg.decide_expected_set(
+        ["unrelated-top-level-file.txt"], inventory=()
+    )
+    assert [v for v in verdicts if v.expected] == []
     assert agg.aggregate_verdicts(verdicts) == "success"
 
 

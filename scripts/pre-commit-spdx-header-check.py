@@ -35,9 +35,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Files whose SPDX-presence is enforced by this hook. The list mirrors
-# the file-types-of-substance enumerated in the server-side license-
-# gate path-filter (`.github/workflows/license-gate.yml`).
+# Files whose SPDX-presence is enforced by this hook. The list is the
+# file-types-of-substance the server-side License-Hygiene Gate checks
+# (`.github/workflows/license-gate.yml`, which runs on every pull
+# request and carries no `paths:` filter since ADR-0072 W5).
 SUBSTANCE_SUFFIXES = frozenset(
     {
         ".py",

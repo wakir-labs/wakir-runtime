@@ -12,7 +12,7 @@ Phase-3b carrier-image inventory pinned in
 `.github/workflows/cosign-verify-images.yml` (audit-only,
 workflow_dispatch) and `.github/workflows/cosign-keyless-oidc-drift-probe.yml`
 (daily, audit-only).
-**Authored:** 2026-05-19 (Kai, Tag-54 RE-DISPATCH).
+**Authored:** 2026-05-19 (infrastructure engineering RE-DISPATCH).
 **Sibling-doc:** `docs/operations/cross-repo-drift-enforce-flip-readiness.md`
 (Cross-Repo-Drift `ENFORCE=true` readiness — same shape).
 
@@ -56,27 +56,27 @@ the required-status-check display names into CI so a future drift in
 
 ---
 
-## 2. Substrate inventory — readiness status (2026-05-19 Tag-55 closeout)
+## 2. Substrate inventory — readiness status (2026-05-19 closeout)
 
 The cosign substrate consists of four file-sets the readiness-check
 reads from disk:
 
-| # | Path | Purpose | Tag-55 status |
+| # | Path | Purpose | status |
 |---|---|---|---|
 | 1 | `policies/cosign-policy-phase-3b.yaml` | 15-binary inventory + carrier-image pin | Inventory complete (15/15); carrier digest = placeholder pending Operator-Hand (**G1 BLOCKED — operator-hand only**) |
 | 2 | `tooling/baselines/cosign-drift/pinned-trust-root.json` | Fulcio CA SHA + Rekor shard ID pin | Both fields = `PENDING_OPERATOR_HAND_REFRESH` (**G2 BLOCKED — operator-hand only**) |
-| 3 | `tooling/baselines/cosign-drift/last-probe-envelope.json` | Most-recent drift-probe verdict | **Tag-55 closeout: baseline-mode envelope committed; aggregate_verdict = GREEN (G3 GREEN)** |
-| 4 | `quadlet/wakir-rust-cli*.container` GLOB | Carrier-image + Welle-4..7 dedicated-image install-path inventory | **Tag-55 closeout: 4 Welle-N Quadlets added (`-welle4..-welle7`); glob union = canonical 15/15 (G5 GREEN)** |
+| 3 | `tooling/baselines/cosign-drift/last-probe-envelope.json` | Most-recent drift-probe verdict | **closeout: baseline-mode envelope committed; aggregate_verdict = GREEN (G3 GREEN)** |
+| 4 | `quadlet/wakir-rust-cli*.container` GLOB | Carrier-image + wave-4..7 dedicated-image install-path inventory | **closeout: 4 wave-N Quadlets added (`-welle4..-welle7`); glob union = canonical 15/15 (G5 GREEN)** |
 
-### 2.2 Tag-55 substanz-vollendung — gate verdict map
+### 2.2 substanz-vollendung — gate verdict map
 
-| Gate | Tag-54 baseline | Tag-55 closeout | Delta path |
+| Gate | baseline | closeout | Delta path |
 |---|---|---|---|
 | G1 placeholder_digest | BLOCKED (15 placeholders) | BLOCKED (15 placeholders) | Operator-Hand only — `resolve-image-pins-ci` workflow on a host with `ghcr.io` push permissions (sandbox-block per `feedback_sandbox_host_trennung.md`). |
-| G2 trust_root_pin | BLOCKED (both PENDING) | BLOCKED (both PENDING) | Operator-Hand only — `pinned-trust-root.json` refresh on a host with Sigstore-network egress (recipe in `cosign-keyless-oidc-drift-probe.md` §6; Mira-Hand + Zone-C Tomás cross-review). |
-| G3 last_probe_verdict | NOT-CHECKED (envelope absent) | **GREEN** (Tag-55 baseline-mode envelope committed) | Tag-55 closeout — `python3 scripts/observability/cosign-keyless-oidc-drift-probe.py --mode baseline --out-json tooling/baselines/cosign-drift/last-probe-envelope.json` (hermetic baseline-mode, no network egress). |
+| G2 trust_root_pin | BLOCKED (both PENDING) | BLOCKED (both PENDING) | Operator-Hand only — `pinned-trust-root.json` refresh on a host with Sigstore-network egress (recipe in `cosign-keyless-oidc-drift-probe.md` §6; engineering-hand + Zone-C dev engineering cross-review). |
+| G3 last_probe_verdict | NOT-CHECKED (envelope absent) | **GREEN** (baseline-mode envelope committed) | closeout — `python3 scripts/observability/cosign-keyless-oidc-drift-probe.py --mode baseline --out-json tooling/baselines/cosign-drift/last-probe-envelope.json` (hermetic baseline-mode, no network egress). |
 | G4 policy_inventory_size | GREEN | GREEN | (no change) |
-| G5 cross_substrate_parity | BLOCKED (4 in policy not in quadlet) | **GREEN** (glob now unions to 15/15) | Tag-55 closeout — 4 Welle-N Quadlets added (`quadlet/wakir-rust-cli-welle4.container` .. `wakir-rust-cli-welle7.container`) + readiness-check extended from single-file to glob loader (`load_quadlet_installer_glob`). |
+| G5 cross_substrate_parity | BLOCKED (4 in policy not in quadlet) | **GREEN** (glob now unions to 15/15) | closeout — 4 wave-N Quadlets added (`quadlet/wakir-rust-cli-welle4.container` .. `wakir-rust-cli-welle7.container`) + readiness-check extended from single-file to glob loader (`load_quadlet_installer_glob`). |
 | G6 required_check_names | GREEN | GREEN | (no change) |
 
 Two BLOCKED gates remain — both **Operator-Hand-only** per
@@ -149,7 +149,7 @@ for the run to be strict-flip-ready.
 | **G1** `placeholder_digest_count == 0` | All 15 binaries carry a real `sha256:[hex64]` digest | Strict-mode would red every PR otherwise — the placeholder is what audit-only tolerates. |
 | **G2** `pinned_trust_root_completeness` | Both `fulcio_root_ca_sha256` and `rekor_log_shard_id` are real (not `PENDING_OPERATOR_HAND_REFRESH`) | Drift-detection has no anchor without the real values; strict-mode passes trivially. |
 | **G3** `last_drift_probe_verdict == GREEN` | The most recent `tooling/baselines/cosign-drift/last-probe-envelope.json` carries `aggregate_verdict: GREEN` | Strict-flip on top of a drifted substrate red-flips immediately. |
-| **G4** `policy_inventory_size == 15` | The policy carries the Tag-45 canonical 15 binaries in canonical order | Drift here means PRs against a wrong inventory size red. |
+| **G4** `policy_inventory_size == 15` | The policy carries the canonical 15 binaries in canonical order | Drift here means PRs against a wrong inventory size red. |
 | **G5** `cross_substrate_parity == 0` | Quadlet installer and policy iterate the same 15 binaries | Strict-flip on a split substrate reds PRs that legitimately update one side first. |
 | **G6** `required_status_check_displaynames_known` | The two required-status-check display names are non-empty and exactly as listed in §3 | Per `feedback_branch_protection_check_names.md` — the strict-flip PR must use the exact names. |
 
@@ -178,18 +178,18 @@ Confirm the run completes and produces an envelope artefact. Save
 the workflow run-id as the *baseline run* for the rollback story.
 Expected initial state: G1 BLOCKED (placeholder digest),
 G2 BLOCKED (PENDING trust-root), G3 NOT-CHECKED (no envelope), G4
-GREEN (Tag-45 lock-step), G5 GREEN (quadlet parity), G6 GREEN
+GREEN (lock-step), G5 GREEN (quadlet parity), G6 GREEN
 (names known).
 
-### Step 2a — Resolve G5 cross-substrate parity drift (Tag-55 CLOSED)
+### Step 2a — Resolve G5 cross-substrate parity drift (CLOSED)
 
-The Tag-54 baseline run reported G5 BLOCKED with the four Welle-4..7
+The baseline run reported G5 BLOCKED with the four wave-4..7
 binaries (`state-backing-welle4`, `fsm-welle5`, `subscribe-loop-welle6`,
 `recovery-welle7`) present in the policy but absent from
 `quadlet/wakir-rust-cli.container`.
 
-**Tag-55 closeout (Kai):** Resolution-B chosen and shipped. Four
-dedicated per-Welle Quadlets landed in lock-step:
+**Closeout (infrastructure engineering):** Resolution-B chosen and shipped. Four
+dedicated per-wave Quadlets landed in lock-step:
 
 * `quadlet/wakir-rust-cli-welle4.container` (state-backing-welle4)
 * `quadlet/wakir-rust-cli-welle5.container` (fsm-welle5)
@@ -201,21 +201,21 @@ arg to a glob-aware `--quadlet-glob` default
 (`quadlet/wakir-rust-cli*.container`) that unions binary-names across
 ALL matched Quadlets. The hermetic test surface gained four new tests
 (TV-SM-20..TV-SM-23, TV-SM-27) plus on-disk substrate pins (TV-SM-24,
-TV-SM-25) that catch a future Welle-Quadlet drift.
+TV-SM-25) that catch a future wave-Quadlet drift.
 
 Resolution-B was preferred over Resolution-A because the four
-Welle-4..7 binaries ship as *dedicated single-binary images*
+wave-4..7 binaries ship as *dedicated single-binary images*
 (`ghcr.io/wakir-labs/wakir-persona-engine-state-backing-welle4` etc.)
-per the Tag-33 Mini-Welle inventory — they are NOT in the carrier
+per the mini wave inventory — they are NOT in the carrier
 image, so the carrier-image installer (`wakir-rust-cli.container`)
-cannot install them. The Welle-N dedicated installer Quadlets pin
-each Welle-N image digest independently, enabling per-Welle rollback
+cannot install them. The wave-N dedicated installer Quadlets pin
+each wave-N image digest independently, enabling per-wave rollback
 without touching the carrier-image digest.
 
-G5 verdict on `main` post Tag-55: **GREEN** (15/15 set-equality).
+G5 verdict on `main` post: **GREEN** (15/15 set-equality).
 
-Cross-Review-Zone-C: Tomás reviews the per-Welle Quadlet substrate
-+ the readiness-check glob-loader change at Tag-55 PR review-time.
+Cross-Review-Zone-C: dev engineering reviews the per-wave Quadlet substrate
++ the readiness-check glob-loader change at PR review-time.
 
 ### Step 2 — Operator-Hand carrier-image digest resolution
 
@@ -224,7 +224,7 @@ workflow already documents:
 
 1. Operator-Hand on a host with GHCR-network egress runs
    `infra/persona-engine/scripts/resolve-image-pins-ci.sh` (or the
-   Tag-20 equivalent recipe), producing the byte-for-byte real
+   equivalent recipe), producing the byte-for-byte real
    sha256 digest for `ghcr.io/wakir-labs/wakir-persona-engine:0.5.0-pilot`.
 2. PR #N1 against `wakir-runtime` replaces the
    `DIGEST_PENDING_KAI_CROSS_REVIEW` placeholder in
@@ -245,12 +245,12 @@ workflow already documents:
    `tooling/baselines/cosign-drift/pinned-trust-root.json` with the real values.
 4. Re-run the readiness check; G2 flips from BLOCKED to GREEN.
 
-### Step 4 — Capture the last-probe envelope (Tag-55 CLOSED for baseline-mode)
+### Step 4 — Capture the last-probe envelope (CLOSED for baseline-mode)
 
-**Tag-55 closeout (Kai):** the baseline-mode envelope is now committed
+**Closeout (infrastructure engineering):** the baseline-mode envelope is now committed
 to `tooling/baselines/cosign-drift/last-probe-envelope.json` (aggregate_verdict =
 GREEN, generated via `python3 scripts/observability/cosign-keyless-oidc-drift-probe.py --mode baseline`).
-G3 GREEN on `main` post Tag-55.
+G3 GREEN on `main` post.
 
 The full Operator-Hand fixture-mode envelope (which requires a live
 Sigstore-network egress snapshot) is still owed at Strict-Flip time
@@ -273,7 +273,7 @@ than the baseline self-consistency. Recipe stays the same as below.
 ### Step 5 — Cross-Review-Zone-C sign-off
 
 Per the Container-Image-Pipeline × OTS-Anchoring cross-review zone
-(ADR-0020 Zone C, Tomás moderator): Tomás reviews the post-Step-4
+(ADR-0020 Zone C, dev engineering moderator): dev engineering reviews the post-Step-4
 readiness-check run and leaves a sign-off comment referencing this
 document. The sign-off comment is the audit-trail entry; no
 separate ADR.
@@ -298,7 +298,7 @@ The PR description references this document by heading anchor.
 ### Step 7 — Rollback path
 
 If a post-flip PR is unjustly red'd by a drift the cleanup missed,
-Mira-Hand may temporarily revert S2's `pull_request:`
+An operator may temporarily revert S2's `pull_request:`
 `exit_non_zero_on_drift` default to `'false'` for that one PR's
 required re-run, while the new substrate drift is resolved per the
 appropriate runbook. Reverting S3 (the branch-protection rule)
@@ -323,9 +323,9 @@ flip strict". The hermetic test
 | `placeholder_digest_count` | `== 0` | Zero placeholders. Strict-mode would red every PR otherwise. |
 | `pending_trust_root_field_count` | `== 0` | Zero `PENDING_OPERATOR_HAND_REFRESH`. Drift-detection needs anchors. |
 | `last_probe_aggregate_verdict` | `== "GREEN"` | No pre-existing drift carrying into the flip. |
-| `policy_inventory_size` | `== 15` | Tag-45 canonical inventory lock-step. |
+| `policy_inventory_size` | `== 15` | canonical inventory lock-step. |
 | `cross_substrate_parity_diff_count` | `== 0` | Quadlet ↔ policy parity. |
-| Cross-Review-Zone-C sign-off | Tomás | Procedural gate (Container-Image-Pipeline × OTS-Anchoring zone). |
+| Cross-Review-Zone-C sign-off | dev engineering | Procedural gate (Container-Image-Pipeline × OTS-Anchoring zone). |
 | Baseline run ID recorded | non-empty | For rollback per Step 7. |
 
 A run that meets all seven thresholds is **flip-ready**. A run that
@@ -340,7 +340,7 @@ The audit-trail for the Strict-Flip consists of:
 
 * The baseline run-id (Step 1) and its `head_sha` for `main`.
 * The PR numbers from Steps 2 / 3 / 4 / 6.
-* Tomás's Cross-Review-Zone-C sign-off comment from Step 5.
+* dev engineering's Cross-Review-Zone-C sign-off comment from Step 5.
 * The post-flip readiness-check run from Step 6 (must be GREEN).
 * The branch-protection change record from Step 6
   (via `gh api repos/wakir-labs/wakir-runtime/branches/main/protection`
@@ -350,5 +350,3 @@ All five items are captured in the operator's task-archive entry
 under the heading "Cosign-Strict-Mode Activation — completion log".
 
 ---
-
-— Kai

@@ -140,9 +140,10 @@ decision == "designated"` (Henrik-cannot-self-sign-off
 constraint per Schema-Pin §2.5 / §5).
 
 **Audit-trail:** emits two records to the bridge-audit-writer:
-the rollup-file-write itself, and a marker-record using the
-Tag-67 shared `audit_trail_marker_constants` module (Tomás PR
-#430).
+the rollup-file-write itself, and a marker-record using the shared
+marker-constant definitions of the audit-trail substrate (the former
+`audit_trail_marker_constants` helper was removed in ADR-0072 W5; see
+git history at tag `archive/pre-phase-4`).
 
 ### §2.3 Trigger: `Welle-N-Rollback-Event-Received`
 
