@@ -1,26 +1,26 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Cosign-Keyless-OIDC-Drift-Probe Daily Tracker (Tag-47, Kai)
+# Cosign-Keyless-OIDC-Drift-Probe Daily Tracker
 # -----------------------------------------------------------
 #
 # Purpose
 # -------
 #
-# Tag-45 PR #294 (Quadlet+Cosign 15-Binary substrate refresh) +
-# Tag-46 PR #298 (substrate-layer A6 coverage matrix, 17 hermetic
+# PR #294 (Quadlet+Cosign 15-Binary substrate refresh) +
+# PR #298 (substrate-layer A6 coverage matrix, 17 hermetic
 # invariants) pin the STATIC shape of the cosign-policy substrate.
 # Neither pins the TIME-axis: the Sigstore Trust-Root and the
 # GitHub-Actions OIDC identity bound to the keyless-cosign chain
 # are externally-controlled artefacts that can drift silently
 # between policy reads.
 #
-# This workflow runs the Tag-47 cosign-keyless-OIDC-drift-probe
+# This workflow runs the cosign-keyless-OIDC-drift-probe
 # every morning at 06:30 UTC (offset by 30min from the daily
 # pre-cutover-probe at 06:00 UTC so an operator looking at both
 # at the same time sees distinct, non-overlapping job-summary
 # blocks). The probe reads:
 #
-#   * ``policies/cosign-policy-phase-3b.yaml`` — the Tag-45
+#   * ``policies/cosign-policy-phase-3b.yaml`` — the
 #     15-binary inventory and its pinned identity regexp + issuer.
 #   * ``tooling/baselines/cosign-drift/pinned-trust-root.json`` — the pinned
 #     Sigstore Trust-Root (Operator-Hand refreshed; PENDING values
@@ -44,15 +44,15 @@
 # which synthesises a self-consistent snapshot from the policy +
 # pinned-trust-root files. That still catches:
 #
-#   - policy YAML inventory drifted from the Tag-45 canonical 15.
+#   - policy YAML inventory drifted from the canonical 15.
 #   - per-binary build_workflow path renamed / deleted.
 #   - policy schema_version changed.
 #   - pinned-trust-root JSON malformed / missing keys.
 #
 # A LIVE-cosign refresh (operator-hand only, on a host with
 # Sigstore-network egress) is documented in
-# ``docs/operations/cosign-keyless-oidc-drift-probe.md`` (Tag-47
-# follow-up). The fixture-mode probe consumes the live snapshot
+# ``docs/operations/cosign-keyless-oidc-drift-probe.md``.
+# The fixture-mode probe consumes the live snapshot
 # the operator captures.
 #
 # Trigger surface
@@ -136,7 +136,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          # Tag-80 Strict-Flip (Cutover-Day-T0, Operator-Hand) per
+          # Strict-Flip (cutover day, Operator-Hand) per
           # docs/operations/cosign-strict-mode-activation.md §S2:
           # On pull_request, ALWAYS exit non-zero on drift so the
           # job reds the PR (PR-gate posture). The daily scheduled

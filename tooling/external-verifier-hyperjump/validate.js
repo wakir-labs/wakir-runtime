@@ -21,7 +21,7 @@
 //   set therefore reveals a real schema-side ambiguity, not a
 //   shared-implementation peculiarity.
 //
-//   Sprint-6 Tag-6 wanted a Rust/Go/Java pole for second-language-
+// wanted a Rust/Go/Java pole for second-language-
 //   family witness. None of those toolchains are present on this
 //   sandbox host (no go, cargo, rustc, java), and the sandbox is not
 //   permitted to install system packages. Hyperjump-as-fourth-pole

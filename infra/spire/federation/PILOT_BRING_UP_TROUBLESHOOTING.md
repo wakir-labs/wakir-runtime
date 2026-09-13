@@ -7,11 +7,11 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 
 Companion document to `wakir-pilot-bootstrap.sh` and
 `PROXMOX_BRING_UP_RECIPE.md`. Captures the diagnose-recipes for the
-Sprint-9-Tag-4 live-bring-up bug bundle (Bug 7: SPIRE-Server / SPIRE-
+live-bring-up bug bundle (Bug 7: SPIRE-Server / SPIRE-
 Agent restart-loop on a single-org Phase-1b pilot VM).
 
 Sandbox boundary: every step below is **Operator-Hand on the live VM**.
-The hermetic Sprint-9-Tag-4 test surface (`tests/infra/test_pilot_
+The hermetic test surface (`tests/infra/test_pilot_
 bootstrap.py`) does not exercise the live failure modes documented
 here — those require an actual SPIRE container runtime.
 
@@ -19,8 +19,8 @@ here — those require an actual SPIRE container runtime.
 
 ### Symptom
 
-After `wakir-pilot-bootstrap.sh` Phase 6 completes (with the Sprint-9-
-Tag-4 Bug 1-5 fixes applied), the smoke-test reports:
+After `wakir-pilot-bootstrap.sh` Phase 6 completes (with the
+Bug 1-5 fixes applied), the smoke-test reports:
 
 ```
 wakir-spire-server-federation-wakir.service: activating (auto-restart) since 4s ago
@@ -62,7 +62,7 @@ sudo ausearch -m AVC -ts recent | tail -40
 
 **Probability: very high**
 
-The Sprint-8 Tag-1 `infra/spire/federation/config/spire-server-wakir.
+The `infra/spire/federation/config/spire-server-wakir.
 conf` declares a `federates_with "partner.test"` block that points at
 `spire-server-partner:8443` inside the `wakir-federation` network. On
 a single-org Phase-1b pilot only the `wakir` side is installed — the
@@ -100,8 +100,8 @@ JWKS is never staged, the agent fails to attest, and stays `inactive
 If the server comes up `active (running)` and the agent comes up
 `active (running)`, H1 is confirmed and the proper Source-fix is to
 ship a **single-org pilot config variant** that omits the
-`federates_with` block. Tracked as the follow-up Sprint-9-Tag-5
-Source-task (Reza for config-shape spec, Kai for bootstrap template
+`federates_with` block. Tracked as the follow-up
+source task (identity-substrate for config-shape spec, infra for bootstrap template
 selection).
 
 #### H2. Volume-permission / SELinux issue on Fedora-CoreOS
@@ -170,7 +170,7 @@ server crash-loop. Cross-check with `grep trust_domain
 
 ## Operator-Hand-Verify-Recipe (second bring-up attempt)
 
-After the Sprint-9-Tag-4 PR merges and the operator wants to retry
+After the PR merges and the operator wants to retry
 the bring-up:
 
 ### Option A: from-scratch (preferred — clean state)
@@ -184,7 +184,7 @@ the bring-up:
    latest bootstrap.
 4. `sudo /opt/wakir-runtime/infra/spire/federation/wakir-pilot-
     bootstrap.sh` (or pipe-from-curl, same as before).
-5. The Sprint-9-Tag-4 Bug 1-5 fixes will produce a clean Phase 6
+5. The Bug 1-5 fixes will produce a clean Phase 6
    install with the correct volume / service names.
 6. Bug 7 follow-up: if the smoke-test still reports SPIRE-Server
    restart-loop, apply the H1 single-org fix-hypothesis above
@@ -206,7 +206,7 @@ the bring-up:
 3. `sudo /opt/wakir-runtime/infra/spire/federation/wakir-pilot-
     bootstrap.sh --resume-from 6`.
 
-The Sprint-9-Tag-4 idempotent Phase-6 logic will only write files
+The idempotent Phase-6 logic will only write files
 where the rendered content differs from the on-disk target.
 
 ## Hand-off
@@ -217,9 +217,9 @@ SPIRE-Agent-healthy + Workload-API-reachable + marker-stack-bucket-
 present + bucket-init-oneshot-completed). Any other outcome warrants
 a fresh diagnose-recipe pass against the journal output.
 
-## Sprint-9-Tag-5 Bug 7 Source-Fix Status
+## Bug 7 Source-Fix Status
 
-The Sprint-9-Tag-5 substance-fix (ships in PR
+The substance-fix (ships in PR
 `kai/sprint-9-tag-5-spire-agent-stability`) resolves H1 and H3 at the
 SOURCE template level:
 
@@ -230,7 +230,7 @@ SOURCE template level:
   `insecure_bootstrap = true`, and NO `trust_bundle_path`.
   `wakir-pilot-bootstrap.sh` gains the `WAKIR_PILOT_MODE` env-var
   (default `single-org`) that selects between the new single-org
-  configs and the Sprint-8 Tag-1/Tag-2 federation configs.
+  configs and the federation configs.
 
 * **H3 fixed in source.** Server + agent Quadlet templates raised
   `HealthStartPeriod=30s` to `HealthStartPeriod=60s` (cold-start CA-
@@ -242,9 +242,8 @@ SOURCE template level:
   installation. Recipe is Operator-Hand-driven (no automatic
   install — H2 is a contingency, not the primary failure mode).
 
-After Sprint-9-Tag-5 merges, the second bring-up attempt should not
+After merges, the second bring-up attempt should not
 require any of the H1 / H3 Operator-Hand fixes documented above (they
 are now in the source templates). H2 (SELinux) and H4/H5 (config-path
 / trust-domain mismatch) remain Operator-Hand-contingency paths.
 
-— Kai

@@ -6,16 +6,16 @@
 # Purpose
 # =======
 #
-# Tag-57 PR #366 closed OPEN-K2 with an *audit-only* manifest-hash
-# OTS-anchor wiring (no real OTS calendar call). Tag-58 PR #371
-# (Reza) sealed the Wirelang-Spec v0.4.3 against post-freeze drift
+# PR #366 closed OPEN-K2 with an *audit-only* manifest-hash
+# OTS-anchor wiring (no real OTS calendar call). PR #371
+# sealed the Wirelang-Spec v0.4.3 against post-freeze drift
 # with a cutover window pinned at 2026-06-09.
 #
-# Tag-59 adds the *pre-activation-probe* mode to the K2 helper:
+# adds the *pre-activation-probe* mode to the K2 helper:
 # a hermetic dry-run that walks the exact OTS-call pipeline shape
 # (input validation, hash computation, payload shape, sandbox
 # boundary) WITHOUT performing any network I/O. When the
-# Aufsichtsrat authorises live anchoring (KW-24 cutover gate), a
+# repository owner authorises live anchoring (cutover gate), a
 # separate Operator-Hand step performs the real ``ots stamp``
 # invocation — this probe is the green-light tripwire that asserts
 # the Repo-Side pipeline is ready.
@@ -93,13 +93,13 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install pytest + PyYAML (for hermetic Tag-59 test-suite step)
-        # Tag-70 (Noa): the probe stages 1–3 are stdlib-only by design, but
+      - name: Install pytest + PyYAML (for hermetic test-suite step)
+        # The probe stages 1–3 are stdlib-only by design, but
         # the "Run hermetic Tag-59 test-suite" step below invokes
         # ``python3 -m pytest`` which is NOT in the stdlib. Without an
         # explicit ``pip install pytest`` the runner errors with
-        # ``No module named pytest`` (observed Tag-62 push 26094551884
-        # onwards). The Tag-59 test-suite additionally imports ``yaml``
+        # ``No module named pytest`` (observed push 26094551884
+        # onwards). The test-suite additionally imports ``yaml``
         # (PyYAML, also non-stdlib) to parse the workflow file. Pin both
         # to a version range to avoid unannounced major-version drift.
         shell: bash
@@ -222,7 +222,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           echo "ots-pre-anchor-activation-probe: aggregate=${aggregate}"
 
-      - name: Run hermetic Tag-59 test-suite
+      - name: Run hermetic Tag-59 test-suite  # step name pinned by tests/observability/test_ots_probe_workflow_hygiene_tag70.py
         run: |
           set -eu
           python3 -m pytest tests/ci/test_ots_pre_anchor_activation_probe_tag59.py -v

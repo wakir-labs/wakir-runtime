@@ -9,8 +9,8 @@ Change License: Apache-2.0. Per-wheel licences inside the image
 dependencies — BSD/Apache-2.0) ship in the wheels themselves and
 are reachable via `pip show <pkg>`; the BSL header does not extend
 to those transitive wheels.
-**Sprint context:** Phase-2 Sprint-9 Tag-4 — Bug-Fix-Welle for the
-Pilot-VM bring-up regression (Mira-Bug-Bilanz 2026-05-13, Bug 6).
+**Context:** bug-fix increment for the
+Pilot-VM bring-up regression (live bring-up bug report 2026-05-13, Bug 6).
 **Relicense context:** AR-Decision 2026-05-13 ~14:00 CEST —
 Apache-2.0 → BSL 1.1, consistent with the WAT-Pipeline-Server
 Phase-1a BSL pattern (ADR-0034 federation-server-substrate-
@@ -21,7 +21,7 @@ sequence).
 ## Scope
 
 Minimal Python image carrying the runtime wheel the per-org NATS-KV
-bucket provisioner (`bin/nats-kv-bucket-provision`, Sprint-9 Tag-1)
+bucket provisioner (`bin/nats-kv-bucket-provision`)
 needs at runtime:
 
 - `nats-py` (NATS-JetStream client)
@@ -32,7 +32,7 @@ needs at runtime:
   `cryptography`, `rfc8785`, `jsonschema`) to satisfy the
   provisioner's transitive imports through `wirelang.identity`.
   Apache-2.0.
-- **v0.1.1** — post Reza-PR #33 (Wirelang-Import-Disentanglement,
+- **v0.1.1** — post PR #33 (Wirelang-Import-Disentanglement,
   PEP-562 lazy `__getattr__` on `wirelang.federation`); wheel set
   shrunk to `nats-py` only. Apache-2.0.
 - **v0.1.2** — BSL 1.1 relicense (AR-Decision 2026-05-13). No
@@ -41,11 +41,11 @@ needs at runtime:
   Change License Apache-2.0. Consistent with the WAT-Pipeline-
   Server Phase-1a BSL pattern (ADR-0034).
 
-### Wheel-set shrink (v0.1.1, post Reza-PR #33)
+### Wheel-set shrink (v0.1.1, post PR #33)
 
 The v0.1.0 image carried four wheels (`nats-py`, `cryptography`,
 `rfc8785`, `jsonschema`) to satisfy the provisioner's transitive
-imports through `wirelang.identity`. After Reza-PR #33
+imports through `wirelang.identity`. After PR #33
 (Wirelang-Import-Disentanglement, PEP-562 lazy `__getattr__` on
 `wirelang.federation`), the transitive identity-stack import chain
 no longer fires for the marker-stack-kv / sequence-number-ledger
@@ -60,10 +60,10 @@ the `nats-py` wheel pin above does.
 
 ## Why a dedicated image (and not `python:3.13-slim` plus pip-install)
 
-The Sprint-9 Tag-1 Quadlet was authored against
+The Quadlet was authored against
 `docker.io/library/python:3.13-slim` on the (incorrect) assumption
-that the slim image ships `nats-py` pre-installed. The Sprint-9
-Tag-4 live-bring-up on the Pilot-VM crashed at unit-start with
+that the slim image ships `nats-py` pre-installed. The
+first live-bring-up on the Pilot-VM crashed at unit-start with
 `ModuleNotFoundError: cryptography` because the provisioner's
 transitive imports through `wirelang.federation.marker_stack_kv`
 pull in `wirelang.identity` which requires `cryptography`. `nats-py`
@@ -76,11 +76,11 @@ Three resolution options were on the table:
 |---|---|---|
 | **A** Dedicated image (this) | Wheels baked at image build time, hash-pinned, digest-pinned at Quadlet pull time | One supply-chain artifact to provenance; cold-start = single image pull |
 | **B** `ExecStartPre` pip-install | Wheels installed to tmpfs at unit start | Re-introduces a supply-chain network egress on every unit start, breaks `ReadOnly` posture, fails under air-gap |
-| **C** Wirelang-side disentanglement | Refactor `marker_stack_kv` to import its substrate-shaping constants without triggering `wirelang.identity` | Owned by Reza; tidies the codebase but doesn't ship `nats-py` — A is still needed |
+| **C** Wirelang-side disentanglement | Refactor `marker_stack_kv` to import its substrate-shaping constants without triggering `wirelang.identity` | Owned by the Wirelang side; tidies the codebase but doesn't ship `nats-py` — A is still needed |
 
-Mira-recommendation (Bug 6, Bug-Bilanz 2026-05-13) was A + C. This
-README + Containerfile is the A track; the C track is Reza's
-Sprint-9 Tag-4 Wirelang-import-disentanglement work.
+The bug-report recommendation (Bug 6, 2026-05-13) was A + C. This
+README + Containerfile is the A track; the C track is the
+Wirelang-import-disentanglement work.
 
 ## Build + publish recipe (Operator-Hand)
 
@@ -174,7 +174,7 @@ git commit -m "chore(provisioner): pin wakir-provisioner:0.1.2 to verified diges
 
 ## Caller contract (no baked ENTRYPOINT, no baked CMD)
 
-**Sprint-9 Tag-6 change.** The image is strictly caller-driven: it
+** change.** The image is strictly caller-driven: it
 ships **no** `ENTRYPOINT` and **no** `CMD`. The caller (the
 bucket-init Quadlet, or any future operator-side `podman run`
 invocation) MUST supply the full command line including the Python
@@ -207,13 +207,13 @@ with `python3: can't open file '/opt/wakir-runtime/python3'`
 
 Two fix paths were on the table — drop the entrypoint, or remove
 `python3` from the Quadlet `Exec=`. Both work, but they only work
-when chosen consistently. The Sprint-9 Tag-6 resolution applies BOTH
+when chosen consistently. The resolution applies BOTH
 as defence-in-depth:
 
-1. The Quadlet keeps `Exec=python3 /opt/wakir/bin/...` (Kai's Tag-6
-   edit; the Quadlet stays the canonical caller and is explicit
+1. The Quadlet keeps `Exec=python3 /opt/wakir/bin/...` (the
+   Quadlet-side edit; the Quadlet stays the canonical caller and is explicit
    about which interpreter it wants).
-2. The image drops `ENTRYPOINT` and `CMD` entirely (Tomás-side; the
+2. The image drops `ENTRYPOINT` and `CMD` entirely (image side; the
    image cannot silently re-introduce the doubled-`python3` bug for
    any future caller).
 
@@ -282,4 +282,3 @@ announcement (Docker Library GitHub release notes + Python release
 notes). Same posture as `infra/spire/federation/IMAGE_PINS.md` §2.4
 for direct `python:3.13-slim` consumers.
 
-— Tomás

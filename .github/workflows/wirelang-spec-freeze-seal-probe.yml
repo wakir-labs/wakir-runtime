@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Wirelang-Spec v0.4.3 Pre-Cutover-Freeze-Seal Probe
+# Wirelang-Spec v0.4.3 Pre-cutover-Freeze-Seal Probe
 # ---------------------------------------------------
 #
 # Purpose
@@ -8,9 +8,9 @@
 #
 # The Wirelang specification at ``wirelang/specs/wirelang-spec-v0-4-3.md``
 # is declared ``status: pre-cutover-freeze`` with ``freeze-marker:
-# kw-24-cutover-gate`` for the KW-24 Phase-3c cutover gate (2026-06-09
-# start). The Tag-53 introduction PR landed the marker without a CI-side
-# tripwire that catches a post-freeze edit. The Tag-58 probe closes that
+# kw-24-cutover-gate`` for the Phase-3c cutover gate (2026-06-09
+# start). The introduction PR landed the marker without a CI-side
+# tripwire that catches a post-freeze edit. The probe closes that
 # gap.
 #
 # Stages
@@ -115,7 +115,7 @@ jobs:
           echo "verdict=${verdict}"             >> "$GITHUB_OUTPUT"
           echo "verdict_class=${verdict_class}" >> "$GITHUB_OUTPUT"
           {
-            echo "# Wirelang-Spec v0.4.3 Pre-Cutover-Freeze-Seal Probe"
+            echo "# Wirelang-Spec v0.4.3 Pre-cutover-Freeze-Seal Probe"
             echo
             echo "**Verdict:** \`${verdict}\` (\`${verdict_class}\`)"
             echo
@@ -124,7 +124,7 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Run hermetic Tag-58 test-suite
+      - name: Run hermetic test-suite
         run: |
           set -eu
           python3 -m unittest tests.audit.test_wirelang_spec_freeze_seal_probe_tag58 -v

@@ -9,17 +9,17 @@
 # Change License: Apache License 2.0.
 #
 # wakir-persona-engine-subscribe-loop — Rust-CLI runtime image for
-# the NATS-JetStream subscribe-loop operator-CLI (Tag-33 Mini-Welle,
-# ADR-0066 Welle-6 `subscribe_loop` pre-cutover image, parallel to
-# Welle-1 V907-verify, Welle-2 SVID-workload-identity, Welle-3
-# bridge-audit-writer, Welle-4 state-backing and Welle-5 lifecycle-
+# the NATS-JetStream subscribe-loop operator-CLI
+# (ADR-0066 wave-6 `subscribe_loop` pre-cutover image, parallel to
+# wave-1 V907-verify, wave-2 SVID-workload-identity, wave-3
+# bridge-audit-writer, wave-4 state-backing and wave-5 lifecycle-
 # state-machine image-builds).
 #
 # Substrate scope
 # ---------------
 #
 # ADR-0066 (approved 2026-05-17) accelerates Phase-3c to 4 weeks
-# (Option A+). **Welle-6 is `subscribe_loop`**: the fifth-lowest-
+# (Option A). **wave-6 is `subscribe_loop`**: the fifth-lowest-
 # blast-radius write-side surface scheduled to flip from Python-
 # backend default to Rust-backend default. This image is the
 # substrate the cutover step will pin against in the Quadlet unit and
@@ -66,9 +66,9 @@
 # Cross-references
 # ----------------
 #
-# - ADR-0066 §Phase-3c Welle-6 `subscribe_loop` (approved
+# - ADR-0066 §Phase-3c wave-6 `subscribe_loop` (approved
 #   2026-05-17).
-# - ADR-0065 §Welle-6 listing.
+# - ADR-0065 §wave-6 listing.
 # - ADR-0060 — Cosign-Policy on Pilot-Container-Images.
 # - PR #132 (`persona-engine-subscribe-loop`) — async-nats version
 #   precedent.
@@ -103,7 +103,7 @@ RUN apt-get update -qq \
 FROM gcr.io/distroless/cc-debian12:nonroot@sha256:DIGEST_PENDING_KAI_REVIEW
 
 LABEL org.opencontainers.image.title="wakir-persona-engine-subscribe-loop"
-LABEL org.opencontainers.image.description="Rust-CLI for the persona-engine NATS-JetStream subscribe-loop operator surface (ack-record schema, subject template, valid outcomes). ADR-0066 Welle-6 pre-cutover image (Tag-33 Mini-Welle, 2026-05-18)."
+LABEL org.opencontainers.image.description="Rust-CLI for the persona-engine NATS-JetStream subscribe-loop operator surface (ack-record schema, subject template, valid outcomes). ADR-0066 wave-6 pre-cutover image."
 LABEL org.opencontainers.image.version="0.1.0-pilot"
 LABEL org.opencontainers.image.licenses="BUSL-1.1"
 LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"

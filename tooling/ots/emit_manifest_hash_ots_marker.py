@@ -3,9 +3,9 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Emit an OTS-anchor stub marker for a persona-engine manifest hash.
 
-Tag-57 OPEN-K2 closeout (from Selin's Tag-56 0.5.2-final audit, PR #362):
+OPEN-K2 closeout (from the persona-engine 0.5.2-final audit, PR #362):
 
-  > OPEN-K2: OTS-anchor of manifest hash via WAT spool (Tomás Zone-K)
+  > OPEN-K2: OTS-anchor of manifest hash via WAT spool (WAT-core zone)
 
 This helper is the **audit-only stub** for the future OTS-anchor wiring
 of persona-engine manifest hashes via the WAT spool. It computes the
@@ -26,7 +26,7 @@ and runs the real ``ots stamp`` invocation on a host that has network
 access to the OTS calendar. The marker file then gets the real
 ``.ots`` proof attached (out-of-band, Phase-3c-Schritt-N+1).
 
-Tag-59 Pre-Activation-Probe extension
+ Pre-Activation-Probe extension
 -------------------------------------
 
 The ``--mode pre-activation-probe`` flag adds a dry-run pass that walks
@@ -37,7 +37,7 @@ without performing any network I/O. Concretely the probe verifies:
     matches the in-tree anchor-stub registry.
   * Hash computation: SHA-256 streamed in 64 KiB chunks, byte-stable.
   * Payload shape: marker JSON validates against schema-v1 (all
-    required keys, no unexpected keys) AND the additional Tag-59
+    required keys, no unexpected keys) AND the additional
     ``pre_activation_probe`` envelope is present.
   * Sandbox boundary still intact: no network calls, no ots CLI
     subprocess, no podman socket. The probe asserts this by being
@@ -73,69 +73,69 @@ The probe is hermetic. **It still performs no real OTS calendar call.**
 AR-authorisation flips a future runtime gate (see §6 + §7 of the
 runbook doc); the probe itself never crosses the Sandbox boundary.
 
-Tag-69 Welle-1 audit-trail-anchor extension
+ wave-1 audit-trail-anchor extension
 -------------------------------------------
 
 The ``--mode welle-1-audit-anchor`` flag computes the SHA-256 audit-
-trail-anchor over the Welle-1 sign-off-record bundle (rollup +
+trail-anchor over the wave-1 sign-off-record bundle (rollup +
 sign-off + validation + pre-auditor) and emits a marker JSON for
-Selin's Tag-69 Persona-Engine producer
+the persona-engine Persona-Engine producer
 (``engine.py::backfill_audit_trail_anchors``, producer-wiring-plan
-§2.4). Cross-Review-Zone-K (Tomás OTS / WAT-Hash semantics).
+§2.4). Cross-review zone K (OTS / WAT-hash semantics).
 
-Tag-70 Welle-2 audit-trail-anchor extension
+wave-2 audit-trail-anchor extension
 -------------------------------------------
 
-The ``--mode welle-2-audit-anchor`` flag mirrors the Welle-1 wiring
-for the Welle-2 Doppelbetrieb-Sealing sign-off-record bundle (same
+The ``--mode welle-2-audit-anchor`` flag mirrors the wave-1 wiring
+for the wave-2 Doppelbetrieb-Sealing sign-off-record bundle (same
 canonical bundle shape: rollup + sign-off + validation + pre-auditor).
-Cross-coordinated with Selin's Tag-70 Welle-2 Persona-Engine producer
+Cross-coordinated with the persona-engine wave-2 Persona-Engine producer
 (``engine.py::backfill_audit_trail_anchors`` parametrised by welle
-number). The hash recipe is identical to Welle-1 (canonical-JSON
+number). The hash recipe is identical to wave-1 (canonical-JSON
 concat with ``b"\\n"`` separator in ``WELLE_N_BUNDLE_ORDER``); only
 the kind/marker namespaces carry the welle number.
 
-Tag-71 Welle-3 audit-trail-anchor extension
+ wave-3 audit-trail-anchor extension
 -------------------------------------------
 
-The ``--mode welle-3-audit-anchor`` flag mirrors the Welle-1 / Welle-2
-wiring for the Welle-3 Bridge-Audit-Writer sign-off-record bundle
+The ``--mode welle-3-audit-anchor`` flag mirrors the wave-1 / wave-2
+wiring for the wave-3 Bridge-Audit-Writer sign-off-record bundle
 (same canonical bundle shape: rollup + sign-off + validation +
-pre-auditor). Cross-coordinated with Selin's Tag-71 Welle-3 Persona-
+pre-auditor). Cross-coordinated with the persona-engine wave-3 Persona-
 Engine producer (``engine.py::backfill_audit_trail_anchors``
 parametrised to welle=3).
 
-Welle-3 carries an additional discipline: Henrik (Internal Audit)
-applies §11-Discipline / IIA-1130 to Welle-3 pre-auditor signaling
+wave-3 carries an additional discipline: internal audit (Internal Audit)
+applies §11-Discipline / IIA-1130 to wave-3 pre-auditor signaling
 — the pre-auditor decision MUST be present in the bundle, and the
 marker exposes a ``pre_auditor_signaling_ready`` flag for the
 downstream observability surface to consume. The hash recipe is
-identical to Welle-1 / Welle-2 (canonical-JSON concat with ``b"\\n"``
+identical to wave-1 / wave-2 (canonical-JSON concat with ``b"\\n"``
 separator in ``WELLE_3_BUNDLE_ORDER``); only the kind/marker
-namespaces and the pre-auditor-signaling field carry Welle-3
+namespaces and the pre-auditor-signaling field carry wave-3
 semantics.
 
-Tag-72 Welle-4 audit-trail-anchor extension
+ wave-4 audit-trail-anchor extension
 -------------------------------------------
 
-The ``--mode welle-4-audit-anchor`` flag mirrors the Welle-1 /
-Welle-2 / Welle-3 wiring for the Welle-4 State-Backing-Snapshot-
+The ``--mode welle-4-audit-anchor`` flag mirrors the wave-1 /
+wave-2 / wave-3 wiring for the wave-4 State-Backing-Snapshot-
 Restore sign-off-record bundle. Same canonical bundle shape
 (rollup + sign-off + validation + pre-auditor), same hash recipe.
 
-Tag-73 Welle-5 audit-trail-anchor extension
+ wave-5 audit-trail-anchor extension
 -------------------------------------------
 
-The ``--mode welle-5-audit-anchor`` flag mirrors the Welle-1 /
-Welle-2 / Welle-3 / Welle-4 wiring for the Welle-5 Lifecycle-State-
+The ``--mode welle-5-audit-anchor`` flag mirrors the wave-1 /
+wave-2 / wave-3 / wave-4 wiring for the wave-5 Lifecycle-State-
 Machine / FSM-Phantom-Detection sign-off-record bundle. Same
 canonical bundle shape (rollup + sign-off + validation + pre-
 auditor), same hash recipe.
 
-Welle-5 carries its own discipline: the Capability-Token-Rotation
-markers (Reza Sprint-9 Capability-Token-Rotation+Replay sub).
+wave-5 carries its own discipline: the Capability-Token-Rotation
+markers (capability-token rotation + replay sub-discipline).
 Capability-Tokens minted by ``/agent/`` SVIDs are short-lived and
-rotated on a schedule; the Welle-5 sign-off-record carries the
+rotated on a schedule; the wave-5 sign-off-record carries the
 rotation cadence + last-rotation timestamp + replay-window flag so
 the audit-trail anchor can pin the rotation discipline at sign-off.
 The marker exposes a ``capability_token_rotation_tracking`` block:
@@ -148,29 +148,29 @@ The marker exposes a ``capability_token_rotation_tracking`` block:
   * ``capability_token_last_rotation_iso``: ISO-8601 timestamp of
     the most recent rotation, or empty string.
   * ``capability_token_replay_window_closed``: bool — True iff the
-    sign-off declares the replay-window closed (Reza Sprint-9
-    replay-window discipline).
+    sign-off declares the replay-window closed (replay-window
+    discipline).
   * ``capability_token_rotation_evidence_ref``: free-form evidence
     pointer (URL, doc-path, runbook-section) or empty string.
 
 This block lets the downstream observability surface dispatch the
 rotation-discipline gate without re-reading the bundle. **No
 enforcement here** — the helper only surfaces tracking; the gate
-itself lives in Henrik's Internal-Audit + Reza-Identity-Substrate
+itself lives in internal audit's Internal-Audit + Reza-Identity-Substrate
 workflows.
 
-Tag-74 Welle-6 audit-trail-anchor extension
+ wave-6 audit-trail-anchor extension
 -------------------------------------------
 
-The ``--mode welle-6-audit-anchor`` flag mirrors the Welle-1 /
-Welle-2 / Welle-3 / Welle-4 / Welle-5 wiring for the Welle-6
-``subscribe_loop`` Cutover (KW-27, parallel to Welle-7). Same
+The ``--mode welle-6-audit-anchor`` flag mirrors the wave-1 /
+wave-2 / wave-3 / wave-4 / wave-5 wiring for the wave-6
+``subscribe_loop`` cutover. Same
 canonical bundle shape, same hash recipe (Cross-Substrate-Parity-
-Markers asserted in the Tag-74 test suite).
+Markers asserted in the test suite).
 
-Welle-6 carries its own discipline: the subscribe-loop Self-Repair-
-Hygiene-Tracking (Tag-73-Lehre: PR #461 cross-Persona Self-Repair-
-Hygiene-Fix carry-through). The Welle-6 sign-off-record carries the
+wave-6 carries its own discipline: the subscribe-loop Self-Repair-
+Hygiene-Tracking (-Lehre: PR #461 cross-Persona Self-Repair-
+Hygiene-Fix carry-through). The wave-6 sign-off-record carries the
 Self-Repair-Hygiene cadence + last-cycle timestamp + re-subscribe-
 window flag + evidence-ref so the audit-trail anchor can pin the
 hygiene discipline at sign-off. The marker exposes a
@@ -192,20 +192,20 @@ This block lets the downstream observability surface dispatch the
 hygiene-discipline gate without re-reading the bundle. **No
 enforcement here** — the helper only surfaces tracking.
 
-Tag-75 Welle-7 audit-trail-anchor extension (FINAL Welle)
+ wave-7 audit-trail-anchor extension (FINAL wave)
 ---------------------------------------------------------
 
-The ``--mode welle-7-audit-anchor`` flag mirrors the Welle-1..6
-wiring for the FINAL Welle-7 sign-off-record bundle. Same canonical
+The ``--mode welle-7-audit-anchor`` flag mirrors the waves 1..6
+wiring for the FINAL wave-7 sign-off-record bundle. Same canonical
 bundle shape (rollup + sign-off + validation + pre-auditor), same
-hash recipe (Welle-1..7-Kind-Disjointness-Pin: identical recipe
-across all seven Wellen, distinct kind strings per Welle).
+hash recipe (waves 1..7-Kind-Disjointness-Pin: identical recipe
+across all seven waves, distinct kind strings per wave).
 
-Welle-7 is the closing Welle of the Phase-3c-Welle-Marathon
-(KW-27 Doppel-Welle-6+7 entry, Cutover-Mittwoch 2026-07-01,
+wave-7 is the closing wave of the Phase-3c backend migration
+(waves 6+7 entry, cutover Wednesday 2026-07-01,
 Sign-off-Freitag 2026-07-03 = the Global Acceptance-Verdict per
 ``docs/quality-gates/pre-cutover-acceptance-run-order.md`` §3.2).
-Welle-7 carries the Phase-3-Final-Sealing discipline. The marker
+wave-7 carries the Phase-3-Final-Sealing discipline. The marker
 exposes a ``phase_3_final_sealing_tracking`` block:
 
   * ``phase_3_final_sealing_active``: bool — True iff the rollup
@@ -224,30 +224,30 @@ exposes a ``phase_3_final_sealing_tracking`` block:
   * ``phase_3_final_sealing_evidence_ref``: free-form evidence
     pointer (URL, doc-path, runbook-section) or empty string.
 
-Pre-Auditor-Signaling-Markers (Tag-75 final-welle variant): the
-Welle-7 marker carries TWO signaling flags. The first
-(``pre_auditor_signaling_ready``) mirrors the Welle-3 flag. The
+Pre-Auditor-Signaling-Markers (final-welle variant): the
+wave-7 marker carries TWO signaling flags. The first
+(``pre_auditor_signaling_ready``) mirrors the wave-3 flag. The
 second (``pre_auditor_final_sealing_signaling_ready``) is the
-canonical Tomás -> Henrik hand-off signal for Phase-3-COMPLETE-
+canonical engineering -> internal audit hand-off signal for Phase-3-COMPLETE-
 marker readiness, true iff a pre-auditor-decision is present in
 the bundle AND ``global_acceptance_verdict_recorded == True``.
 
-Tag-76 Marathon-Closeout-Audit-Anchor-Bundle (Phase-3-Complete-Marker)
+Closeout-Audit-Anchor-Bundle (Phase-3-Complete-Marker)
 ----------------------------------------------------------------------
 
 The ``--mode phase-3-complete-marker`` flag consolidates the seven
-Welle-N audit-anchor markers (the outputs of the welle-1..welle-7-
+wave-N audit-anchor markers (the outputs of the welle-1..welle-7-
 audit-anchor modes) into a single Phase-3-COMPLETE-marker that
-Henrik's Zone-N Audit-Evidence-Index ingests as the canonical
+internal audit's Zone-N Audit-Evidence-Index ingests as the canonical
 Phase-3-COMPLETE hand-off envelope.
 
-Hash recipe: identical to the per-Welle recipe (canonical-JSON of
-each Welle marker dict, concatenated in welle-number order with a
+Hash recipe: identical to the per-wave recipe (canonical-JSON of
+each wave marker dict, concatenated in welle-number order with a
 single ``b"\n"`` separator, SHA-256 over the concatenation). The
 seven input markers are themselves byte-stable, so the closeout
 bundle anchor is deterministic across re-runs.
 
-The Welle-1..7-Kind-Disjointness-Pin is enforced at ingest: the
+The waves 1..7-Kind-Disjointness-Pin is enforced at ingest: the
 seven input markers must cover ``welle_number`` 1..7 exactly with
 no duplicates and no gaps, and each marker's ``kind`` must match
 the expected ``welle-N-audit-trail-anchor-marker`` string. Any
@@ -256,7 +256,7 @@ deviation raises ValueError before the bundle hash is computed.
 Inputs:
 
   * ``--welle-N-marker`` for N in 1..7 (all seven required): paths
-    to the per-Welle audit-anchor marker JSON files.
+    to the per-wave audit-anchor marker JSON files.
   * ``--marker-out`` (required): output path for the Phase-3-
     COMPLETE-marker.
 
@@ -286,8 +286,8 @@ The closeout-marker is **hermetic and audit-only**: no network
 I/O, no OTS calendar call, no subprocess. Real OTS stamping of
 the Phase-3-COMPLETE marker is an Operator-Hand follow-up step.
 
-Welle-4 carries its own discipline: the State-Backing-Snapshot-
-Restore-Pflicht-Flag (see Amara Tag-67 state-file conventions). The
+wave-4 carries its own discipline: the State-Backing-Snapshot-
+Restore-Pflicht-Flag (see the state-file conventions). The
 marker exposes a ``snapshot_restore_pflicht_tracking`` block:
 
   * ``snapshot_restore_pflicht_active``: bool — True iff the
@@ -303,7 +303,7 @@ marker exposes a ``snapshot_restore_pflicht_tracking`` block:
 This block lets the downstream observability surface dispatch the
 restore-Pflicht gate without re-reading the bundle. **No
 enforcement here** — the helper only surfaces tracking; the gate
-itself lives in Henrik's Internal-Audit + Amara-QA workflows.
+itself lives in internal audit's Internal-Audit + QA workflows.
 
 Inputs:
 
@@ -330,8 +330,8 @@ Output: marker JSON at ``--marker-out`` with shape::
     "operator_hand_next_step": "..."
   }
 
-The Welle-1 mode is **hermetic and audit-only**: no network I/O,
-no OTS calendar call, no subprocess. Selin's producer reads the
+The wave-1 mode is **hermetic and audit-only**: no network I/O,
+no OTS calendar call, no subprocess. the persona-engine producer reads the
 marker, extracts ``audit_trail_anchor``, writes it into
 ``state/welle-1.json:audit_trail_anchor``. Real OTS stamping is
 an Operator-Hand follow-up (separate runbook step).
@@ -403,11 +403,11 @@ MODE_WELLE_7_AUDIT_ANCHOR: str = "welle-7-audit-anchor"
 MODE_PHASE_3_COMPLETE_MARKER: str = "phase-3-complete-marker"
 ANCHOR_TARGET_OTS_CALENDAR: str = "opentimestamps-calendar"
 
-# Tag-69 Welle-1 audit-trail-anchor mode constants.
+# wave-1 audit-trail-anchor mode constants.
 # The anchor is computed over a canonical, byte-stable concatenation of
-# the Welle-1 sign-off-record-bundle: rollup + sign-off + validation +
-# pre-auditor decision (when present). Cross-coordinated with Selin's
-# Tag-69 Persona-Engine producer (`engine.py::backfill_audit_trail_
+# the wave-1 sign-off-record-bundle: rollup + sign-off + validation +
+# pre-auditor decision (when present). Cross-coordinated with the persona-engine
+# Persona-Engine producer (`engine.py::backfill_audit_trail_
 # anchors`, plan §2.4) which calls this helper for the hash-side and
 # writes the result into `state/welle-1.json:audit_trail_anchor`.
 WELLE_1_BUNDLE_ORDER: tuple[str, ...] = (
@@ -420,8 +420,8 @@ WELLE_1_BUNDLE_REQUIRED: frozenset[str] = frozenset({"rollup", "sign_off"})
 WELLE_1_KIND_MARKER: str = "welle-1-audit-trail-anchor-marker"
 WELLE_1_KIND_ENVELOPE: str = "welle-1-audit-trail-anchor-envelope"
 
-# Tag-70 Welle-2 audit-trail-anchor mode constants. Mirror of the
-# Welle-1 wiring (same canonical bundle shape and same hash recipe);
+# wave-2 audit-trail-anchor mode constants. Mirror of the
+# wave-1 wiring (same canonical bundle shape and same hash recipe);
 # only the marker/envelope kind strings carry the welle number so
 # downstream consumers can tell the two apart.
 WELLE_2_BUNDLE_ORDER: tuple[str, ...] = WELLE_1_BUNDLE_ORDER
@@ -429,21 +429,21 @@ WELLE_2_BUNDLE_REQUIRED: frozenset[str] = WELLE_1_BUNDLE_REQUIRED
 WELLE_2_KIND_MARKER: str = "welle-2-audit-trail-anchor-marker"
 WELLE_2_KIND_ENVELOPE: str = "welle-2-audit-trail-anchor-envelope"
 
-# Tag-71 Welle-3 audit-trail-anchor mode constants. Mirror of the
-# Welle-1 / Welle-2 wiring (same canonical bundle shape and same hash
+# wave-3 audit-trail-anchor mode constants. Mirror of the
+# wave-1 / wave-2 wiring (same canonical bundle shape and same hash
 # recipe); only the marker/envelope kind strings carry the welle number
-# so downstream consumers can dispatch unambiguously on ``kind``. Welle-3
-# additionally carries Henrik-IIA-1130 §11-Discipline pre-auditor
+# so downstream consumers can dispatch unambiguously on ``kind``. wave-3
+# additionally carries IIA-1130 §11-Discipline pre-auditor
 # signaling — the marker exposes ``pre_auditor_signaling_ready`` to
-# downstream observability and Selin's producer.
+# downstream observability and the persona-engine producer.
 WELLE_3_BUNDLE_ORDER: tuple[str, ...] = WELLE_1_BUNDLE_ORDER
 WELLE_3_BUNDLE_REQUIRED: frozenset[str] = WELLE_1_BUNDLE_REQUIRED
 WELLE_3_KIND_MARKER: str = "welle-3-audit-trail-anchor-marker"
 WELLE_3_KIND_ENVELOPE: str = "welle-3-audit-trail-anchor-envelope"
 
-# Tag-72 Welle-4 audit-trail-anchor mode constants. Mirror of the
-# Welle-1 / Welle-2 / Welle-3 wiring (same canonical bundle shape and
-# same hash recipe). Welle-4 covers State-Backing-Snapshot-Restore;
+# wave-4 audit-trail-anchor mode constants. Mirror of the
+# wave-1 / wave-2 / wave-3 wiring (same canonical bundle shape and
+# same hash recipe). wave-4 covers State-Backing-Snapshot-Restore;
 # additional discipline: the marker exposes a
 # ``snapshot_restore_pflicht_tracking`` block carrying the
 # snapshot-restore-Pflicht-Flag plus restore-iso / restore-evidence-ref
@@ -454,86 +454,86 @@ WELLE_4_BUNDLE_REQUIRED: frozenset[str] = WELLE_1_BUNDLE_REQUIRED
 WELLE_4_KIND_MARKER: str = "welle-4-audit-trail-anchor-marker"
 WELLE_4_KIND_ENVELOPE: str = "welle-4-audit-trail-anchor-envelope"
 
-# Tag-73 Welle-5 audit-trail-anchor mode constants. Mirror of the
-# Welle-1 / Welle-2 / Welle-3 / Welle-4 wiring (same canonical bundle
-# shape and same hash recipe). Welle-5 covers Lifecycle-State-Machine
+# wave-5 audit-trail-anchor mode constants. Mirror of the
+# wave-1 / wave-2 / wave-3 / wave-4 wiring (same canonical bundle
+# shape and same hash recipe). wave-5 covers Lifecycle-State-Machine
 # / FSM-Phantom-Detection; additional discipline: the marker exposes
 # a ``capability_token_rotation_tracking`` block carrying the
 # Capability-Token-Rotation cadence + last-rotation-iso +
 # replay-window-closed flag + rotation-evidence-ref so the downstream
 # observability surface can pin rotation-discipline at sign-off
-# without re-reading the bundle. Cross-coord with Reza Sprint-9
-# Capability-Token-Rotation+Replay sub.
+# without re-reading the bundle. Cross-coordinated with the
+# capability-token rotation + replay sub-discipline.
 WELLE_5_BUNDLE_ORDER: tuple[str, ...] = WELLE_1_BUNDLE_ORDER
 WELLE_5_BUNDLE_REQUIRED: frozenset[str] = WELLE_1_BUNDLE_REQUIRED
 WELLE_5_KIND_MARKER: str = "welle-5-audit-trail-anchor-marker"
 WELLE_5_KIND_ENVELOPE: str = "welle-5-audit-trail-anchor-envelope"
 
-# Tag-74 Welle-6 audit-trail-anchor mode constants. Mirror of the
-# Welle-1 / Welle-2 / Welle-3 / Welle-4 / Welle-5 wiring (same canonical
-# bundle shape and same hash recipe). Welle-6 covers ``subscribe_loop``
-# Cutover (KW-27, parallel to Welle-7); additional discipline: the
+# wave-6 audit-trail-anchor mode constants. Mirror of the
+# wave-1 / wave-2 / wave-3 / wave-4 / wave-5 wiring (same canonical
+# bundle shape and same hash recipe). wave-6 covers ``subscribe_loop``
+# cutover; additional discipline: the
 # marker exposes a ``subscribe_loop_self_repair_hygiene_tracking``
 # block carrying the Self-Repair-Hygiene cadence + last-cycle-iso +
 # re-subscribe-window-closed flag + hygiene-evidence-ref so the
 # downstream observability surface can pin Self-Repair-Hygiene
-# readiness at sign-off without re-reading the bundle. Tag-73-Lehre
+# readiness at sign-off without re-reading the bundle. 73-Lehre
 # (cross-Persona Self-Repair-Hygiene-Fix from PR #461) carries through.
-# Cross-Substrate-Parity-Markers: the Welle-6 marker references the
-# Welle-1..5 cross-coord anchors (parity-pin), and recipe-identity
-# with Welle-1..5 is asserted in the Tag-74 test suite.
+# Cross-Substrate-Parity-Markers: the wave-6 marker references the
+# waves 1..5 cross-coord anchors (parity-pin), and recipe-identity
+# with waves 1..5 is asserted in the test suite.
 WELLE_6_BUNDLE_ORDER: tuple[str, ...] = WELLE_1_BUNDLE_ORDER
 WELLE_6_BUNDLE_REQUIRED: frozenset[str] = WELLE_1_BUNDLE_REQUIRED
 WELLE_6_KIND_MARKER: str = "welle-6-audit-trail-anchor-marker"
 WELLE_6_KIND_ENVELOPE: str = "welle-6-audit-trail-anchor-envelope"
 
-# Tag-75 Welle-7 audit-trail-anchor mode constants. Mirror of the
-# Welle-1 / Welle-2 / Welle-3 / Welle-4 / Welle-5 / Welle-6 wiring
-# (same canonical bundle shape and same hash recipe). Welle-7 is the
-# FINAL Welle of the Phase-3c-Welle-Marathon (KW-27, Doppel-Welle-6+7
-# entry, Cutover-Mittwoch 2026-07-01, Sign-off-Freitag 2026-07-03 —
+# wave-7 audit-trail-anchor mode constants. Mirror of the
+# wave-1 / wave-2 / wave-3 / wave-4 / wave-5 / wave-6 wiring
+# (same canonical bundle shape and same hash recipe). wave-7 is the
+# FINAL wave of the Phase-3c backend migration (waves 6+7
+# entry, cutover Wednesday 2026-07-01, Sign-off-Freitag 2026-07-03
 # the Global Acceptance-Verdict sign-off-Freitag per
 # ``docs/quality-gates/pre-cutover-acceptance-run-order.md`` §3.2).
 # Additional discipline: the marker exposes a
 # ``phase_3_final_sealing_tracking`` block carrying the Phase-3
 # Final-Sealing status + sealing-iso + global-acceptance-verdict-
 # recorded flag + Phase-3-COMPLETE-marker-readiness + sealing-
-# evidence-ref so the downstream observability surface (and Henrik's
+# evidence-ref so the downstream observability surface (and internal audit's
 # Zone-N Audit-Evidence-Index) can pin Final-Sealing readiness at
-# Post-Welle-7 sign-off without re-reading the bundle.
+# Post-wave-7 sign-off without re-reading the bundle.
 #
-# Pre-Auditor-Signaling-Markers (Tag-75 auftrag, final-welle
-# variant): mirroring the Tag-71 Welle-3 ``pre_auditor_signaling_ready``
-# discipline, the Welle-7 marker exposes a
-# ``pre_auditor_signaling_ready`` flag (Henrik-IIA-1130 §11-
-# Discipline) AND a Welle-7-specific ``pre_auditor_final_sealing_
+# Pre-Auditor-Signaling-Markers (auftrag, final-welle
+# variant): mirroring the wave-3 ``pre_auditor_signaling_ready``
+# discipline, the wave-7 marker exposes a
+# ``pre_auditor_signaling_ready`` flag (IIA-1130 §11-
+# Discipline) AND a wave-7-specific ``pre_auditor_final_sealing_
 # signaling_ready`` flag that is true only when (a) a pre-auditor-
 # decision is present in the bundle AND (b) the final-sealing-
 # tracking block reports the global-acceptance-verdict has been
 # recorded. The second flag is the canonical hand-off signal from
-# Tomás's audit-anchor side to Henrik's Audit-Evidence-Index for
+# the audit-anchor side to internal audit's Audit-Evidence-Index for
 # Phase-3-COMPLETE-marker readiness.
 #
-# Cross-Substrate-Parity-Markers: the Welle-7 marker references
-# Welle-1..6 cross-coord anchors (parity-pin spans the full
-# Welle-1..7 lineage). Recipe-identity with Welle-1..6 is asserted
-# in the Tag-75 test suite (Welle-1..7-Kind-Disjointness-Pin: each
-# Welle has its own marker/envelope kind string but the hash recipe
+# Cross-Substrate-Parity-Markers: the wave-7 marker references
+# waves 1..6 cross-coord anchors (parity-pin spans the full
+# waves 1..7 lineage). Recipe-identity with waves 1..6 is asserted
+# in the test suite (waves 1..7-Kind-Disjointness-Pin: each
+# wave has its own marker/envelope kind string but the hash recipe
 # is identical).
 WELLE_7_BUNDLE_ORDER: tuple[str, ...] = WELLE_1_BUNDLE_ORDER
 WELLE_7_BUNDLE_REQUIRED: frozenset[str] = WELLE_1_BUNDLE_REQUIRED
 WELLE_7_KIND_MARKER: str = "welle-7-audit-trail-anchor-marker"
 WELLE_7_KIND_ENVELOPE: str = "welle-7-audit-trail-anchor-envelope"
 
-# Tag-76 Phase-3-Complete-Marker mode constants. Marathon-Closeout-
-# Audit-Anchor-Bundle: consolidates the Welle-1..7 audit-anchor
+# Phase-3-Complete-Marker mode constants. closeout-
+# Audit-Anchor-Bundle: consolidates the waves 1..7 audit-anchor
 # markers (the outputs of the seven welle-N-audit-anchor modes added
-# on Tag-69..Tag-75) into a single Phase-3-COMPLETE marker that
-# Henrik's Zone-N Audit-Evidence-Index ingests as the canonical
+# on..) into a single Phase-3-COMPLETE marker that
+# internal audit's Zone-N Audit-Evidence-Index ingests as the canonical
 # Phase-3-COMPLETE-marker hand-off envelope.
 #
-# Hash recipe: identical to the Welle-N recipe -- ``_canonical_json_
-# bytes`` over each Welle-N marker dict (sort_keys + compact
+# Hash recipe: identical to the wave-N recipe -- ``_canonical_json_
+# bytes`` over each wave-N marker dict (sort_keys + compact
 # separators), concatenated in welle-number order with a single
 # ``b"\n"`` separator, SHA-256 over the concatenation. The seven
 # input markers are themselves byte-stable artefacts (they were
@@ -541,7 +541,7 @@ WELLE_7_KIND_ENVELOPE: str = "welle-7-audit-trail-anchor-envelope"
 # closeout-bundle anchor is deterministic across re-runs that pass
 # the same seven files.
 #
-# Welle-1..7-Kind-Disjointness-Pin: each welle marker carries a
+# waves 1..7-Kind-Disjointness-Pin: each welle marker carries a
 # distinct ``kind`` string (welle-N-audit-trail-anchor-marker) but
 # the underlying hash recipe is identical. The closeout marker
 # enforces this disjointness at ingest time by asserting that the
@@ -553,7 +553,7 @@ WELLE_7_KIND_ENVELOPE: str = "welle-7-audit-trail-anchor-envelope"
 # surfaces ``phase_3_complete_marker_ready`` (derived from welle-7's
 # tracking block) and ``global_acceptance_verdict_recorded`` (also
 # welle-7) plus ``pre_auditor_final_sealing_signaling_ready``
-# (welle-7) so a downstream consumer can dispatch the Henrik hand-
+# (welle-7) so a downstream consumer can dispatch the internal audit hand-
 # off without re-reading the underlying welle bundles.
 PHASE_3_COMPLETE_KIND_MARKER: str = "phase-3-complete-marker"
 PHASE_3_COMPLETE_KIND_ENVELOPE: str = "phase-3-complete-marker-envelope"
@@ -687,7 +687,7 @@ def build_probe_verdict(
     manifest_size_bytes: int,
     now_utc: _dt.datetime,
 ) -> dict:
-    """Assemble the Tag-59 pre-activation-probe verdict envelope.
+    """Assemble the pre-activation-probe verdict envelope.
 
     ``stages`` must contain entries for all four ``PROBE_STAGE_KEYS``.
     Verdict is ``PROBE-READY`` iff every stage starts with ``"OK"``,
@@ -832,8 +832,8 @@ def run_pre_activation_probe(
         stages["payload_shape"] = "FAIL: skipped (hash_computation failed)"
 
     # Stage 4 — sandbox boundary. This module is stdlib-only and
-    # performs no subprocess / no socket / no network. The Tag-57
-    # invariant test ``test_t09_k2_stdlib_only`` plus the Tag-59
+    # performs no subprocess / no socket / no network. The
+    # invariant test ``test_t09_k2_stdlib_only`` plus the
     # tests reinforce this at CI time. The flag here is the
     # runtime acknowledgement.
     stages["sandbox_boundary"] = "OK"
@@ -859,7 +859,7 @@ def _canonical_json_bytes(doc: dict) -> bytes:
 
 
 def compute_welle_1_audit_anchor_hash(bundle: dict) -> str:
-    """Compute the Welle-1 audit-trail-anchor SHA-256 from a bundle.
+    """Compute the wave-1 audit-trail-anchor SHA-256 from a bundle.
 
     ``bundle`` must be a dict with at least the keys in
     ``WELLE_1_BUNDLE_REQUIRED``. Optional keys in ``WELLE_1_BUNDLE_ORDER``
@@ -868,7 +868,7 @@ def compute_welle_1_audit_anchor_hash(bundle: dict) -> str:
     with a single ``b"\\n"`` separator between parts.
 
     The deterministic concat-with-separator scheme matches the format
-    that Selin's Persona-Engine batch-writer (plan §2.4) expects when
+    that the persona-engine Persona-Engine batch-writer (plan §2.4) expects when
     it backfills `audit_trail_anchor` from this helper's envelope.
     """
     missing = WELLE_1_BUNDLE_REQUIRED - set(bundle.keys())
@@ -899,10 +899,10 @@ def build_welle_1_audit_anchor_marker(
     actor: str,
     now_utc: _dt.datetime,
 ) -> dict:
-    """Assemble the Welle-1 audit-trail-anchor marker dict.
+    """Assemble the wave-1 audit-trail-anchor marker dict.
 
-    The marker is the audit-only artefact that Tomás emits and that
-    Selin's producer reads to populate
+    The marker is the audit-only artefact that the anchoring side emits and that
+    the persona-engine producer reads to populate
     ``state/welle-1.json:audit_trail_anchor``.
     """
     iso_now = now_utc.isoformat()
@@ -953,7 +953,7 @@ def load_welle_1_bundle(
     validation_path: Path | None,
     pre_auditor_path: Path | None,
 ) -> dict:
-    """Load the Welle-1 sign-off-record bundle from disk.
+    """Load the wave-1 sign-off-record bundle from disk.
 
     Reads the four JSON files into a dict keyed by the canonical
     ``WELLE_1_BUNDLE_ORDER`` names. Optional inputs are omitted from
@@ -974,14 +974,14 @@ def load_welle_1_bundle(
 
 
 def compute_welle_2_audit_anchor_hash(bundle: dict) -> str:
-    """Compute the Welle-2 audit-trail-anchor SHA-256 from a bundle.
+    """Compute the wave-2 audit-trail-anchor SHA-256 from a bundle.
 
     Identical recipe to ``compute_welle_1_audit_anchor_hash`` (canonical
     JSON concat in ``WELLE_2_BUNDLE_ORDER`` joined by ``b"\\n"``). The
     function is kept as its own symbol — rather than aliasing the
-    Welle-1 entry — so a future recipe divergence between welles can be
-    introduced without breaking the call-site contract that Selin's
-    Tag-70 producer relies on.
+    wave-1 entry — so a future recipe divergence between welles can be
+    introduced without breaking the call-site contract that the persona-engine
+ producer relies on.
     """
     missing = WELLE_2_BUNDLE_REQUIRED - set(bundle.keys())
     if missing:
@@ -1011,11 +1011,11 @@ def build_welle_2_audit_anchor_marker(
     actor: str,
     now_utc: _dt.datetime,
 ) -> dict:
-    """Assemble the Welle-2 audit-trail-anchor marker dict.
+    """Assemble the wave-2 audit-trail-anchor marker dict.
 
-    Mirror of the Welle-1 marker (Tag-69), with ``welle_number=2`` and
-    Welle-2-specific kind strings. The marker is the audit-only
-    artefact that Tomás emits and that Selin's Tag-70 producer reads
+    Mirror of the wave-1 marker, with ``welle_number=2`` and
+    wave-2-specific kind strings. The marker is the audit-only
+    artefact that the anchoring side emits and that the persona-engine producer reads
     to populate ``state/welle-2.json:audit_trail_anchor``.
     """
     iso_now = now_utc.isoformat()
@@ -1068,11 +1068,11 @@ def load_welle_2_bundle(
     validation_path: Path | None,
     pre_auditor_path: Path | None,
 ) -> dict:
-    """Load the Welle-2 sign-off-record bundle from disk.
+    """Load the wave-2 sign-off-record bundle from disk.
 
     Same shape as ``load_welle_1_bundle``. Kept as its own symbol so a
-    future Welle-2-specific schema-divergence does not require touching
-    the Welle-1 call-sites.
+    future wave-2-specific schema-divergence does not require touching
+    the wave-1 call-sites.
     """
     bundle: dict = {}
     bundle["rollup"] = json.loads(rollup_path.read_text(encoding="utf-8"))
@@ -1089,13 +1089,13 @@ def load_welle_2_bundle(
 
 
 def compute_welle_3_audit_anchor_hash(bundle: dict) -> str:
-    """Compute the Welle-3 audit-trail-anchor SHA-256 from a bundle.
+    """Compute the wave-3 audit-trail-anchor SHA-256 from a bundle.
 
-    Identical recipe to Welle-1 / Welle-2 (canonical-JSON concat in
+    Identical recipe to wave-1 / wave-2 (canonical-JSON concat in
     ``WELLE_3_BUNDLE_ORDER`` joined by ``b"\\n"``). Kept as its own
-    symbol — rather than aliasing the Welle-1 / Welle-2 entry — so a
+    symbol — rather than aliasing the wave-1 / wave-2 entry — so a
     future recipe divergence between welles can be introduced without
-    breaking the call-site contract that Selin's Tag-71 producer relies
+    breaking the call-site contract that the persona-engine producer relies
     on (Bridge-Audit-Writer welle).
     """
     missing = WELLE_3_BUNDLE_REQUIRED - set(bundle.keys())
@@ -1126,18 +1126,18 @@ def build_welle_3_audit_anchor_marker(
     actor: str,
     now_utc: _dt.datetime,
 ) -> dict:
-    """Assemble the Welle-3 audit-trail-anchor marker dict.
+    """Assemble the wave-3 audit-trail-anchor marker dict.
 
-    Mirror of the Welle-1 / Welle-2 marker, with ``welle_number=3`` and
-    Welle-3-specific kind strings. The marker is the audit-only
-    artefact that Tomás emits and that Selin's Tag-71 producer reads
+    Mirror of the wave-1 / wave-2 marker, with ``welle_number=3`` and
+    wave-3-specific kind strings. The marker is the audit-only
+    artefact that the anchoring side emits and that the persona-engine producer reads
     to populate ``state/welle-3.json:audit_trail_anchor``.
 
-    Tag-71 carries an extra discipline: Welle-3 falls under Henrik's
+ carries an extra discipline: wave-3 falls under internal audit's
     §11-Discipline / IIA-1130 pre-auditor signaling. The marker
     exposes ``pre_auditor_signaling_ready`` (True iff the bundle
     contains a ``pre_auditor`` part) so the downstream observability
-    surface (Henrik-Internal-Audit, Amara-QA) can pin pre-auditor
+    surface (internal audit, QA) can pin pre-auditor
     readiness without re-reading the bundle.
     """
     iso_now = now_utc.isoformat()
@@ -1197,12 +1197,12 @@ def load_welle_3_bundle(
     validation_path: Path | None,
     pre_auditor_path: Path | None,
 ) -> dict:
-    """Load the Welle-3 sign-off-record bundle from disk.
+    """Load the wave-3 sign-off-record bundle from disk.
 
     Same shape as ``load_welle_1_bundle`` / ``load_welle_2_bundle``.
-    Kept as its own symbol so a future Welle-3-specific schema
+    Kept as its own symbol so a future wave-3-specific schema
     divergence (e.g. Bridge-Audit-Writer-specific fields) does not
-    require touching the Welle-1 / Welle-2 call-sites.
+    require touching the wave-1 / wave-2 call-sites.
     """
     bundle: dict = {}
     bundle["rollup"] = json.loads(rollup_path.read_text(encoding="utf-8"))
@@ -1219,14 +1219,14 @@ def load_welle_3_bundle(
 
 
 def compute_welle_4_audit_anchor_hash(bundle: dict) -> str:
-    """Compute the Welle-4 audit-trail-anchor SHA-256 from a bundle.
+    """Compute the wave-4 audit-trail-anchor SHA-256 from a bundle.
 
-    Identical recipe to Welle-1 / Welle-2 / Welle-3 (canonical-JSON
+    Identical recipe to wave-1 / wave-2 / wave-3 (canonical-JSON
     concat in ``WELLE_4_BUNDLE_ORDER`` joined by ``b"\\n"``). Kept as
     its own symbol — rather than aliasing the prior entries — so a
     future recipe divergence (e.g. State-Backing-Snapshot-Restore-
     specific canonicalisation) can be introduced without breaking the
-    call-site contract that Selin's Tag-72 producer relies on.
+    call-site contract that the persona-engine producer relies on.
     """
     missing = WELLE_4_BUNDLE_REQUIRED - set(bundle.keys())
     if missing:
@@ -1258,9 +1258,9 @@ SNAPSHOT_RESTORE_STATUS_VALUES: frozenset[str] = frozenset(
 
 
 def derive_snapshot_restore_tracking(bundle: dict) -> dict:
-    """Derive the Welle-4 ``snapshot_restore_pflicht_tracking`` block.
+    """Derive the wave-4 ``snapshot_restore_pflicht_tracking`` block.
 
-    Tag-72 Welle-4 carries the State-Backing-Snapshot-Restore-Pflicht-
+ wave-4 carries the State-Backing-Snapshot-Restore-Pflicht-
     Flag. The tracking block is read from the rollup / sign-off
     payloads (in that order) so the marker can surface restore-
     readiness without forcing downstream consumers to re-read the
@@ -1329,15 +1329,15 @@ def build_welle_4_audit_anchor_marker(
     actor: str,
     now_utc: _dt.datetime,
 ) -> dict:
-    """Assemble the Welle-4 audit-trail-anchor marker dict.
+    """Assemble the wave-4 audit-trail-anchor marker dict.
 
-    Mirror of the Welle-1 / Welle-2 / Welle-3 marker, with
-    ``welle_number=4`` and Welle-4-specific kind strings. The marker
-    is the audit-only artefact that Tomás emits and that Selin's
-    Tag-72 producer reads to populate
+    Mirror of the wave-1 / wave-2 / wave-3 marker, with
+    ``welle_number=4`` and wave-4-specific kind strings. The marker
+    is the audit-only artefact that the anchoring side emits and that the persona-engine
+ producer reads to populate
     ``state/welle-4.json:audit_trail_anchor``.
 
-    Tag-72 discipline: the marker exposes the
+ discipline: the marker exposes the
     ``snapshot_restore_pflicht_tracking`` block so the State-Backing-
     Snapshot-Restore-Pflicht-Flag and accompanying restore metadata
     surface on the observability channel without re-reading the
@@ -1402,11 +1402,11 @@ def load_welle_4_bundle(
     validation_path: Path | None,
     pre_auditor_path: Path | None,
 ) -> dict:
-    """Load the Welle-4 sign-off-record bundle from disk.
+    """Load the wave-4 sign-off-record bundle from disk.
 
     Same shape as ``load_welle_1_bundle`` / ``load_welle_2_bundle`` /
     ``load_welle_3_bundle``. Kept as its own symbol so a future
-    Welle-4-specific schema divergence (e.g. State-Backing-Snapshot-
+    wave-4-specific schema divergence (e.g. State-Backing-Snapshot-
     Restore-specific fields) does not require touching the prior
     call-sites.
     """
@@ -1425,15 +1425,15 @@ def load_welle_4_bundle(
 
 
 def compute_welle_5_audit_anchor_hash(bundle: dict) -> str:
-    """Compute the Welle-5 audit-trail-anchor SHA-256 from a bundle.
+    """Compute the wave-5 audit-trail-anchor SHA-256 from a bundle.
 
-    Identical recipe to Welle-1 / Welle-2 / Welle-3 / Welle-4
+    Identical recipe to wave-1 / wave-2 / wave-3 / wave-4
     (canonical-JSON concat in ``WELLE_5_BUNDLE_ORDER`` joined by
     ``b"\\n"``). Kept as its own symbol — rather than aliasing the
     prior entries — so a future recipe divergence (e.g. Lifecycle-
     State-Machine-specific canonicalisation or capability-token-
     payload normalisation) can be introduced without breaking the
-    call-site contract that Selin's Tag-73 producer relies on.
+    call-site contract that the persona-engine producer relies on.
     """
     missing = WELLE_5_BUNDLE_REQUIRED - set(bundle.keys())
     if missing:
@@ -1465,10 +1465,10 @@ CAPABILITY_TOKEN_ROTATION_STATUS_VALUES: frozenset[str] = frozenset(
 
 
 def derive_capability_token_rotation_tracking(bundle: dict) -> dict:
-    """Derive the Welle-5 ``capability_token_rotation_tracking`` block.
+    """Derive the wave-5 ``capability_token_rotation_tracking`` block.
 
-    Tag-73 Welle-5 carries the Capability-Token-Rotation discipline
-    (Reza Sprint-9 sub: Capability-Tokens minted by ``/agent/`` SVIDs
+    wave-5 carries the Capability-Token-Rotation discipline
+    (Capability-Tokens minted by ``/agent/`` SVIDs
     are short-lived and rotated on a schedule, with a replay-window
     that the sign-off declares closed at cutover-time).
 
@@ -1555,19 +1555,19 @@ def build_welle_5_audit_anchor_marker(
     actor: str,
     now_utc: _dt.datetime,
 ) -> dict:
-    """Assemble the Welle-5 audit-trail-anchor marker dict.
+    """Assemble the wave-5 audit-trail-anchor marker dict.
 
-    Mirror of the Welle-1 / Welle-2 / Welle-3 / Welle-4 marker, with
-    ``welle_number=5`` and Welle-5-specific kind strings. The marker
-    is the audit-only artefact that Tomás emits and that Selin's
-    Tag-73 producer reads to populate
+    Mirror of the wave-1 / wave-2 / wave-3 / wave-4 marker, with
+    ``welle_number=5`` and wave-5-specific kind strings. The marker
+    is the audit-only artefact that the anchoring side emits and that the persona-engine
+ producer reads to populate
     ``state/welle-5.json:audit_trail_anchor``.
 
-    Tag-73 discipline: the marker exposes the
+ discipline: the marker exposes the
     ``capability_token_rotation_tracking`` block so the Capability-
     Token-Rotation cadence + last-rotation-iso + replay-window-closed
     flag + rotation-evidence-ref surface on the observability channel
-    without re-reading the bundle (Reza Sprint-9 cross-coord).
+    without re-reading the bundle.
     """
     iso_now = now_utc.isoformat()
     tracking = derive_capability_token_rotation_tracking(bundle)
@@ -1629,11 +1629,11 @@ def load_welle_5_bundle(
     validation_path: Path | None,
     pre_auditor_path: Path | None,
 ) -> dict:
-    """Load the Welle-5 sign-off-record bundle from disk.
+    """Load the wave-5 sign-off-record bundle from disk.
 
     Same shape as ``load_welle_1_bundle`` / ``load_welle_2_bundle`` /
     ``load_welle_3_bundle`` / ``load_welle_4_bundle``. Kept as its
-    own symbol so a future Welle-5-specific schema divergence (e.g.
+    own symbol so a future wave-5-specific schema divergence (e.g.
     Lifecycle-State-Machine-specific fields or capability-token-
     payload normalisation) does not require touching the prior
     call-sites.
@@ -1653,21 +1653,21 @@ def load_welle_5_bundle(
 
 
 # --------------------------------------------------------------------- #
-# Tag-74 Welle-6 audit-trail-anchor (subscribe_loop)
+# wave-6 audit-trail-anchor (subscribe_loop)
 # --------------------------------------------------------------------- #
 
 
 def compute_welle_6_audit_anchor_hash(bundle: dict) -> str:
-    """Compute the Welle-6 audit-trail-anchor SHA-256 from a bundle.
+    """Compute the wave-6 audit-trail-anchor SHA-256 from a bundle.
 
-    Identical recipe to Welle-1 / Welle-2 / Welle-3 / Welle-4 / Welle-5
+    Identical recipe to wave-1 / wave-2 / wave-3 / wave-4 / wave-5
     (canonical-JSON concat in ``WELLE_6_BUNDLE_ORDER`` joined by
     ``b"\\n"``). Kept as its own symbol — rather than aliasing the
     prior entries — so a future recipe divergence (e.g. subscribe-loop-
     specific canonicalisation or self-repair-hygiene-payload
     normalisation) can be introduced without breaking the call-site
-    contract that Selin's Tag-74 producer relies on. Recipe-identity
-    with Welle-1..5 is asserted in the Tag-74 test suite (Cross-
+    contract that the persona-engine producer relies on. Recipe-identity
+    with waves 1..5 is asserted in the test suite (Cross-
     Substrate-Parity-Markers).
     """
     missing = WELLE_6_BUNDLE_REQUIRED - set(bundle.keys())
@@ -1694,18 +1694,18 @@ def compute_welle_6_audit_anchor_hash(bundle: dict) -> str:
 # Allowed subscribe-loop-self-repair-hygiene-status enum (defensive —
 # narrow vocab so downstream consumers can dispatch on a small fixed
 # set; anything else becomes "unknown" in the tracking block). Mirrors
-# the Welle-5 capability-token-rotation-status enum shape.
+# the wave-5 capability-token-rotation-status enum shape.
 SUBSCRIBE_LOOP_SELF_REPAIR_HYGIENE_STATUS_VALUES: frozenset[str] = frozenset(
     {"pending", "drilled", "exempt", "unknown"}
 )
 
 
 def derive_subscribe_loop_self_repair_hygiene_tracking(bundle: dict) -> dict:
-    """Derive the Welle-6 ``subscribe_loop_self_repair_hygiene_tracking``.
+    """Derive the wave-6 ``subscribe_loop_self_repair_hygiene_tracking``.
 
-    Tag-74 Welle-6 carries the subscribe-loop Self-Repair-Hygiene
-    discipline (Tag-73-Lehre: PR #461 cross-Persona Self-Repair-Hygiene-
-    Fix carries through to Welle-6 ``subscribe_loop`` Cutover). The
+ wave-6 carries the subscribe-loop Self-Repair-Hygiene
+    discipline (-Lehre: PR #461 cross-Persona Self-Repair-Hygiene-
+    Fix carries through to wave-6 ``subscribe_loop`` cutover). The
     rollup / sign-off declares whether the Self-Repair-Hygiene cycle
     was drilled prior to cutover, when the last cycle was performed,
     whether the re-subscribe-window is declared closed at cutover-time
@@ -1764,7 +1764,7 @@ def derive_subscribe_loop_self_repair_hygiene_tracking(bundle: dict) -> dict:
 
     # Re-subscribe-window-closed: sign-off carries the canonical value
     # (cutover-time declaration); rollup may surface it only as a
-    # fallback (e.g. for pre-cutover tracking). Mirrors Welle-5
+    # fallback (e.g. for pre-cutover tracking). Mirrors wave-5
     # replay-window-closed precedence.
     re_subscribe_window_closed = bool(
         sign_off.get(
@@ -1799,24 +1799,24 @@ def build_welle_6_audit_anchor_marker(
     actor: str,
     now_utc: _dt.datetime,
 ) -> dict:
-    """Assemble the Welle-6 audit-trail-anchor marker dict.
+    """Assemble the wave-6 audit-trail-anchor marker dict.
 
-    Mirror of the Welle-1 / Welle-2 / Welle-3 / Welle-4 / Welle-5
-    marker, with ``welle_number=6`` and Welle-6-specific kind strings.
-    The marker is the audit-only artefact that Tomás emits and that
-    Selin's Tag-74 producer reads to populate
+    Mirror of the wave-1 / wave-2 / wave-3 / wave-4 / wave-5
+    marker, with ``welle_number=6`` and wave-6-specific kind strings.
+    The marker is the audit-only artefact that the anchoring side emits and that
+    the persona-engine producer reads to populate
     ``state/welle-6.json:audit_trail_anchor``.
 
-    Tag-74 discipline: the marker exposes the
+ discipline: the marker exposes the
     ``subscribe_loop_self_repair_hygiene_tracking`` block so the
     Self-Repair-Hygiene cadence + last-cycle-iso + re-subscribe-window-
     closed flag + hygiene-evidence-ref surface on the observability
-    channel without re-reading the bundle (Tag-73-Lehre carry-through:
+    channel without re-reading the bundle (-Lehre carry-through:
     PR #461 cross-Persona Self-Repair-Hygiene-Fix discipline).
 
-    Cross-Substrate-Parity-Markers (Tag-74 auftrag): the ``anchors``
-    block references Welle-1..5 cross-coord PRs so a downstream
-    consumer can trace the full Welle-1..6 audit-anchor lineage in
+    Cross-Substrate-Parity-Markers (auftrag): the ``anchors``
+    block references waves 1..5 cross-coord PRs so a downstream
+    consumer can trace the full waves 1..6 audit-anchor lineage in
     a single envelope.
     """
     iso_now = now_utc.isoformat()
@@ -1891,12 +1891,12 @@ def load_welle_6_bundle(
     validation_path: Path | None,
     pre_auditor_path: Path | None,
 ) -> dict:
-    """Load the Welle-6 sign-off-record bundle from disk.
+    """Load the wave-6 sign-off-record bundle from disk.
 
     Same shape as ``load_welle_1_bundle`` / ``load_welle_2_bundle`` /
     ``load_welle_3_bundle`` / ``load_welle_4_bundle`` /
     ``load_welle_5_bundle``. Kept as its own symbol so a future
-    Welle-6-specific schema divergence (e.g. subscribe-loop-specific
+    wave-6-specific schema divergence (e.g. subscribe-loop-specific
     fields or self-repair-hygiene-payload normalisation) does not
     require touching the prior call-sites.
     """
@@ -1915,16 +1915,16 @@ def load_welle_6_bundle(
 
 
 def compute_welle_7_audit_anchor_hash(bundle: dict) -> str:
-    """Compute the Welle-7 audit-trail-anchor SHA-256 from a bundle.
+    """Compute the wave-7 audit-trail-anchor SHA-256 from a bundle.
 
-    Identical recipe to Welle-1..6 (canonical-JSON concat in
+    Identical recipe to waves 1..6 (canonical-JSON concat in
     ``WELLE_7_BUNDLE_ORDER`` joined by ``b"\\n"``). Kept as its own
     symbol — rather than aliasing the prior entries — so a future
-    Welle-7-specific recipe divergence (e.g. final-sealing-specific
+    wave-7-specific recipe divergence (e.g. final-sealing-specific
     canonicalisation or Phase-3-COMPLETE-marker-payload normalisation)
     can be introduced without breaking the call-site contract. Recipe-
-    identity with Welle-1..6 is asserted in the Tag-75 test suite
-    (Welle-1..7-Kind-Disjointness-Pin).
+    identity with waves 1..6 is asserted in the test suite
+    (waves 1..7-Kind-Disjointness-Pin).
     """
     missing = WELLE_7_BUNDLE_REQUIRED - set(bundle.keys())
     if missing:
@@ -1949,7 +1949,7 @@ def compute_welle_7_audit_anchor_hash(bundle: dict) -> str:
 
 # Allowed phase-3-final-sealing-status enum (defensive — narrow vocab
 # so downstream consumers can dispatch on a small fixed set; anything
-# else becomes "unknown" in the tracking block). Mirrors the Welle-6
+# else becomes "unknown" in the tracking block). Mirrors the wave-6
 # subscribe-loop-self-repair-hygiene-status enum shape.
 PHASE_3_FINAL_SEALING_STATUS_VALUES: frozenset[str] = frozenset(
     {"pending", "sealed", "escalated", "unknown"}
@@ -1957,10 +1957,10 @@ PHASE_3_FINAL_SEALING_STATUS_VALUES: frozenset[str] = frozenset(
 
 
 def derive_phase_3_final_sealing_tracking(bundle: dict) -> dict:
-    """Derive the Welle-7 ``phase_3_final_sealing_tracking`` block.
+    """Derive the wave-7 ``phase_3_final_sealing_tracking`` block.
 
-    Tag-75 Welle-7 is the FINAL Welle of the Phase-3c-Welle-Marathon
-    (Post-Welle-7 = Global Acceptance-Verdict per the run-order doc
+ wave-7 is the FINAL wave of the Phase-3c backend migration
+    (Post-wave-7 = Global Acceptance-Verdict per the run-order doc
     §3.2). The rollup / sign-off declares whether Final-Sealing was
     activated for this cutover, the canonical sealing-iso (the
     timestamp at which Final-Sealing was recorded), whether the
@@ -2066,38 +2066,38 @@ def build_welle_7_audit_anchor_marker(
     actor: str,
     now_utc: _dt.datetime,
 ) -> dict:
-    """Assemble the Welle-7 audit-trail-anchor marker dict.
+    """Assemble the wave-7 audit-trail-anchor marker dict.
 
-    Mirror of the Welle-1..6 marker, with ``welle_number=7`` and
-    Welle-7-specific kind strings. The marker is the audit-only
-    artefact that Tomás emits and that Selin's Tag-75 producer reads
+    Mirror of the waves 1..6 marker, with ``welle_number=7`` and
+    wave-7-specific kind strings. The marker is the audit-only
+    artefact that the anchoring side emits and that the persona-engine producer reads
     to populate ``state/welle-7.json:audit_trail_anchor``.
 
-    Tag-75 discipline: the marker exposes the
+ discipline: the marker exposes the
     ``phase_3_final_sealing_tracking`` block so the Phase-3 Final-
     Sealing status + global-acceptance-verdict-recorded + Phase-3-
     COMPLETE-marker-ready flag surface on the observability channel
     without re-reading the bundle.
 
-    Pre-Auditor-Signaling-Markers (Tag-75 auftrag, final-welle
+    Pre-Auditor-Signaling-Markers (auftrag, final-welle
     variant): the marker carries TWO signaling flags:
 
       * ``pre_auditor_signaling_ready`` (bool) — true iff a
         pre-auditor-decision is present in the bundle. Mirror of the
-        Tag-71 Welle-3 flag.
+        wave-3 flag.
       * ``pre_auditor_final_sealing_signaling_ready`` (bool) — true
         iff (a) pre-auditor-decision is present AND (b) the final-
         sealing-tracking block reports
         ``global_acceptance_verdict_recorded == True``. This is the
-        canonical Tomás -> Henrik hand-off signal for Phase-3-
-        COMPLETE-marker readiness at Post-Welle-7 sign-off.
+        canonical engineering -> internal audit hand-off signal for Phase-3-
+        COMPLETE-marker readiness at Post-wave-7 sign-off.
 
-    Cross-Substrate-Parity-Markers (Tag-75 auftrag): the ``anchors``
-    block references Welle-1..6 cross-coord PRs so a downstream
-    consumer can trace the full Welle-1..7 audit-anchor lineage in a
-    single envelope (Welle-1..7-Kind-Disjointness-Pin: same hash
-    recipe across all seven Wellen, distinct marker/envelope kind
-    strings per Welle).
+    Cross-Substrate-Parity-Markers (auftrag): the ``anchors``
+    block references waves 1..6 cross-coord PRs so a downstream
+    consumer can trace the full waves 1..7 audit-anchor lineage in a
+    single envelope (waves 1..7-Kind-Disjointness-Pin: same hash
+    recipe across all seven waves, distinct marker/envelope kind
+    strings per wave).
     """
     iso_now = now_utc.isoformat()
     tracking = derive_phase_3_final_sealing_tracking(bundle)
@@ -2191,10 +2191,10 @@ def load_welle_7_bundle(
     validation_path: Path | None,
     pre_auditor_path: Path | None,
 ) -> dict:
-    """Load the Welle-7 sign-off-record bundle from disk.
+    """Load the wave-7 sign-off-record bundle from disk.
 
     Same shape as ``load_welle_1_bundle`` .. ``load_welle_6_bundle``.
-    Kept as its own symbol so a future Welle-7-specific schema
+    Kept as its own symbol so a future wave-7-specific schema
     divergence (e.g. final-sealing-specific fields or Phase-3-
     COMPLETE-marker-payload normalisation) does not require touching
     the prior call-sites.
@@ -2217,7 +2217,7 @@ def load_phase_3_complete_bundle(
     *,
     welle_marker_paths: list[Path],
 ) -> list[dict]:
-    """Load the seven Welle-N audit-anchor markers from disk.
+    """Load the seven wave-N audit-anchor markers from disk.
 
     The returned list is sorted by ``welle_number`` ascending so the
     closeout bundle hash is deterministic regardless of the input
@@ -2242,7 +2242,7 @@ def load_phase_3_complete_bundle(
 
 
 def assert_welle_1_7_kind_disjointness_pin(markers: list[dict]) -> None:
-    """Enforce the Welle-1..7-Kind-Disjointness-Pin at ingest.
+    """Enforce the waves 1..7-Kind-Disjointness-Pin at ingest.
 
     The seven input markers must:
 
@@ -2308,8 +2308,8 @@ def assert_welle_1_7_kind_disjointness_pin(markers: list[dict]) -> None:
 def compute_phase_3_complete_bundle_anchor(markers: list[dict]) -> str:
     """Compute the Phase-3-COMPLETE bundle SHA-256 from seven markers.
 
-    Hash recipe: identical to the per-Welle recipe (canonical-JSON
-    of each Welle marker dict, concatenated in welle-number order
+    Hash recipe: identical to the per-wave recipe (canonical-JSON
+    of each wave marker dict, concatenated in welle-number order
     with a single ``b"\\n"`` separator, SHA-256 over concat).
     Assumes the markers are already sorted by welle_number and have
     passed ``assert_welle_1_7_kind_disjointness_pin``.
@@ -2324,12 +2324,12 @@ def derive_phase_3_complete_summary(markers: list[dict]) -> dict:
     """Derive the Phase-3-COMPLETE summary from the seven markers.
 
     Surfaces the Phase-3-Final-Sealing-Tracking block (sourced from
-    the Welle-7 marker) plus the two Tag-75 signaling flags
+    the wave-7 marker) plus the two signaling flags
     (``global_acceptance_verdict_recorded``,
-    ``pre_auditor_final_sealing_signaling_ready``) so the Henrik
+    ``pre_auditor_final_sealing_signaling_ready``) so the internal audit
     Zone-N hand-off does not have to re-read the welle bundles.
     """
-    # markers[-1] is Welle-7 after sort.
+    # markers[-1] is wave-7 after sort.
     welle_7 = markers[-1]
     tracking = welle_7.get(
         "phase_3_final_sealing_tracking",
@@ -2370,12 +2370,12 @@ def build_phase_3_complete_marker(
     actor: str,
     now_utc: _dt.datetime,
 ) -> dict:
-    """Assemble the Phase-3-COMPLETE marker dict (Tag-76).
+    """Assemble the Phase-3-COMPLETE marker dict.
 
-    Marathon-Closeout-Audit-Anchor-Bundle. Bundles the seven
-    Welle-N audit-anchor markers under a single byte-stable
+    closeout-Audit-Anchor-Bundle. Bundles the seven
+    wave-N audit-anchor markers under a single byte-stable
     envelope keyed by ``phase_3_complete_bundle_anchor`` so
-    Henrik's Zone-N Audit-Evidence-Index can dispatch the Phase-3-
+    internal audit's Zone-N Audit-Evidence-Index can dispatch the Phase-3-
     COMPLETE hand-off from one file.
     """
     iso_now = now_utc.isoformat()
@@ -3705,7 +3705,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         # verdict and decides enforcement. Tests cover both cases.
         return 0
 
-    # mode == audit-only (default, Tag-57 path).
+    # mode == audit-only (default, path).
     if args.marker_out is None:
         print(
             "emit_manifest_hash_ots_marker: "

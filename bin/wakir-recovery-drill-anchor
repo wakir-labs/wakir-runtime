@@ -7,7 +7,7 @@
 # is itself licensed under BUSL-1.1 for consistency with the imported
 # implementation (ADR-0061, Schritt 7 Option A).
 #
-# Sprint-Pengine-7 Tag-5 OI-PILOT-4 — Periodic WAT-anchoring driver
+# OI-PILOT-4 — Periodic WAT-anchoring driver
 # for recovery_drill_outcome envelopes. Thin shim over
 # ``wirelang.persona.recovery_drill_anchor``.
 

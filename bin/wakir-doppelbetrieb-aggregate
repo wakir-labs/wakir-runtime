@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 #
-# Sprint-Pengine-10 OI-PEFR-9 — Doppelbetrieb-Aggregate CLI entrypoint.
+# OI-PEFR-9 — Doppelbetrieb-Aggregate CLI entrypoint.
 # Thin shim over ``wirelang.cli.doppelbetrieb_aggregate``.
 #
 # See ``wirelang/cli/doppelbetrieb_aggregate.py`` module docstring and

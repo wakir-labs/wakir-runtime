@@ -6,13 +6,13 @@
 # Purpose
 # =======
 #
-# Tag-58 PR #371 (Reza) sealed the Wirelang-Spec v0.4.3 against
-# post-freeze drift via the freeze-seal probe. Tag-59 PR #380
-# (Tomás) added the *pre-activation-probe* mode for the persona-
-# engine manifest-hash OTS-anchor pipeline. Tag-60 mirrors the same
+# PR #371 sealed the Wirelang-Spec v0.4.3 against
+# post-freeze drift via the freeze-seal probe. PR #380
+# added the *pre-activation-probe* mode for the persona-
+# engine manifest-hash OTS-anchor pipeline. mirrors the same
 # pre-activation-probe pattern to the Wirelang-Spec markdown files
-# themselves, so that once the Aufsichtsrat authorises live OTS
-# anchoring (KW-24 cutover gate), the spec files have a hermetic
+# themselves, so that once the repository owner authorises live OTS
+# anchoring (cutover gate), the spec files have a hermetic
 # green-light tripwire identical in shape to the manifest probe.
 #
 # The probe is hermetic: stdlib-only Python, no network I/O, no
@@ -211,7 +211,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           echo "wirelang-spec-ots-pre-anchor-probe: aggregate=${aggregate}"
 
-      - name: Run hermetic Tag-60 test-suite
+      - name: Run hermetic test-suite
         run: |
           set -eu
           python3 -m unittest tests.audit.test_wirelang_spec_ots_pre_anchor_probe_tag60 -v
@@ -234,7 +234,7 @@ jobs:
           fi
 
   # ----------------------------------------------------------------
-  # Tag-66: per-RES-Dn item probe (matrix-strategy across 5 items).
+  #: per-RES-Dn item probe (matrix-strategy across 5 items).
   # Each matrix leg runs the hermetic per-item probe for one
   # RES-D[1-5] reserve item against the v0.4.4 draft. The probe does
   # NOT touch the draft. Aggregate verdict is computed by the
@@ -266,7 +266,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Run Tag-66 per-item probe (${{ matrix.res_d_item }})
+      - name: Run per-item probe (${{ matrix.res_d_item }})
         id: probe
         shell: bash
         run: |
@@ -308,15 +308,15 @@ jobs:
           item="${{ matrix.res_d_item }}"
           echo "tag-66 res-d-item-probe: item=${item} verdict=${verdict} enforce=${enforce}"
           if [ "${enforce}" = "true" ] && [ "${verdict}" = "PROBE-DEFECT" ]; then
-            echo "::error::Tag-66 ${item} probe is PROBE-DEFECT. Refusing to merge — see job summary."
+            echo "::error::${item} probe is PROBE-DEFECT. Refusing to merge — see job summary."
             exit 1
           fi
           if [ "${verdict}" = "PROBE-DEFECT" ]; then
-            echo "::warning::Tag-66 ${item} probe is DEFECT — running audit-only."
+            echo "::warning::${item} probe is DEFECT — running audit-only."
           fi
 
   # ----------------------------------------------------------------
-  # Tag-66 aggregator: collect all 5 per-item verdicts, run the
+  # Aggregator: collect all 5 per-item verdicts, run the
   # hermetic test-suite, emit a single aggregate summary.
   # ----------------------------------------------------------------
   wirelang-spec-res-d-aggregate:
@@ -379,7 +379,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           echo "tag-66 aggregate=${aggregate}"
 
-      - name: Run Tag-66 hermetic test-suite
+      - name: Run hermetic test-suite
         run: |
           set -eu
           python3 -m unittest tests.audit.test_res_d_items_ots_probe_tag66 -v
@@ -391,11 +391,11 @@ jobs:
           verdict="${{ steps.aggregate.outputs.aggregate }}"
           enforce="${PROBE_ENFORCE}"
           if [ "${enforce}" = "true" ] && [ "${verdict}" = "PROBE-DEFECT" ]; then
-            echo "::error::Tag-66 RES-D aggregate is PROBE-DEFECT. Refusing to merge — see job summary."
+            echo "::error::RES-D aggregate is PROBE-DEFECT. Refusing to merge — see job summary."
             exit 1
           fi
           if [ "${verdict}" = "PROBE-DEFECT" ]; then
-            echo "::warning::Tag-66 RES-D aggregate DEFECT — audit-only."
+            echo "::warning::RES-D aggregate DEFECT — audit-only."
           else
-            echo "Tag-66 RES-D aggregate READY."
+            echo "RES-D aggregate READY."
           fi

@@ -1,73 +1,73 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Tag-22 Mini-Welle — Operations-Reife — Phase-3b Rust-CLI binary
-# installer oneshot Quadlet unit (retry after Tag-21 quota-hit; no
-# substance change, identical bytes-shape as the Tag-21 draft).
+# Operations-Reife — Phase-3b Rust-CLI binary
+# installer oneshot Quadlet unit (retry after quota-hit; no
+# substance change, identical bytes-shape as the draft).
 #
-# Tag-24 Mini-Welle update (ADR-0065 Phase-3c Trigger-Gate 3)
+# update (ADR-0065 Phase-3c Trigger-Gate 3)
 # -----------------------------------------------------------
 # Inventory extended from 5 to 7 binaries in lock-step with the
-# Cosign-Policy Tag-24 update (Trigger-Gate 2). Added
-# ``subscribe-loop`` (Tag-22 PR #181 wired switch) and
-# ``anchor-emitter`` (Tag-23 PR #184 wired switch). The
+# Cosign-Policy update (Trigger-Gate 2). Added
+# ``subscribe-loop`` (PR #181 wired switch) and
+# ``anchor-emitter`` (PR #184 wired switch). The
 # cross-substrate parity test
 # (test_cross_substrate_parity_with_quadlet_installer) enforces
 # lock-step agreement with the Cosign-Policy YAML.
 #
-# Tag-29 Mini-Welle update (ADR-0066 Welle-2 image-build)
+# update (ADR-0066 wave-2 image-build)
 # -------------------------------------------------------
 # Inventory extended from 7 to 8 binaries in lock-step with the
-# Cosign-Policy Tag-29 update. One addition:
-# ``svid-workload-identity`` (Tag-25 Mini-Welle PR #191 wired the
-# resolver — Selin's resolver recording ``binary_missing`` as the
-# Welle-2 precondition signal; Tag-29 ships the crate substrate
+# Cosign-Policy update. One addition:
+# ``svid-workload-identity`` (PR #191 wired the
+# resolver — the persona-engine resolver recording ``binary_missing`` as the
+# wave-2 precondition signal; ships the crate substrate
 # closing that precondition). The cross-substrate parity test
 # (test_cross_substrate_parity_with_quadlet_installer) enforces
 # lock-step agreement with the Cosign-Policy YAML.
 #
-# Tag-33 Mini-Welle update (ADR-0066 Welle-4-7 image-build bundle)
+# update (ADR-0066 waves 4-7 image-build bundle)
 # ----------------------------------------------------------------
 # Inventory extended from 9 to 13 binaries in lock-step with the
-# Cosign-Policy Tag-33 update. Four additions in a single Mini-Welle
-# bundle — dedicated single-binary images for the Welle-4..7
+# Cosign-Policy update. Four additions in a single increment
+# bundle — dedicated single-binary images for the waves 4..7
 # cutover steps (the carrier image at the bottom of this Quadlet
-# unit continues to ship the same nine binaries; the four Tag-33
-# additions are pinned by the Welle-4..7 cutover steps INDEPENDENTLY
-# of this Quadlet via dedicated per-Welle Quadlets that the cutover
-# Mini-Wellen will land):
+# unit continues to ship the same nine binaries; the four
+# additions are pinned by the waves 4..7 cutover steps INDEPENDENTLY
+# of this Quadlet via dedicated per-wave Quadlets that the cutover
+# increments will land):
 #
-#   * ``wakir-persona-engine-state-backing-welle4`` (Tag-33 Welle-4)
-#   * ``wakir-persona-engine-fsm-welle5`` (Tag-33 Welle-5, the
+#   * ``wakir-persona-engine-state-backing-welle4`` (wave-4)
+#   * ``wakir-persona-engine-fsm-welle5`` (wave-5, the
 #     `lifecycle-state-machine` substrate)
-#   * ``wakir-persona-engine-subscribe-loop-welle6`` (Tag-33 Welle-6)
-#   * ``wakir-persona-engine-recovery-welle7`` (Tag-33 Welle-7, the
+#   * ``wakir-persona-engine-subscribe-loop-welle6`` (wave-6)
+#   * ``wakir-persona-engine-recovery-welle7`` (wave-7, the
 #     `recovery-workflow` substrate)
 #
 # Same Sigstore-keyless-OIDC verification pattern as the prior nine
 # binaries; the cross-substrate parity test
 # (test_cross_substrate_parity_with_quadlet_installer) enforces
 # lock-step agreement with the Cosign-Policy YAML. The Exec= line
-# below does NOT install the four Tag-33 single-binary additions —
-# those are deployed via per-Welle dedicated Quadlets in the
-# Welle-4..7 cutover Mini-Wellen.
+# below does NOT install the four single-binary additions
+# those are deployed via per-wave dedicated Quadlets in the
+# waves 4..7 cutover increments.
 #
-# Tag-45 Mini-Welle update (Phase-3a-Foundation 14 + 15 closeout)
+# update (Phase-3a-Foundation 14 + 15 closeout)
 # ----------------------------------------------------------------
 # Inventory extended from 9 to 11 carrier-image binaries in lock-step
-# with the Cosign-Policy Tag-45 update (13 -> 15 with the four
-# Welle-4..7 dedicated single-binary images unchanged). Two additions
-# in a single Mini-Welle bundle — both Phase-3a-Foundation closeout
-# modules from Reza's 15-module sweep:
+# with the Cosign-Policy update (13 -> 15 with the four
+# waves 4..7 dedicated single-binary images unchanged). Two additions
+# in a single increment bundle — both Phase-3a-Foundation closeout
+# modules from the 15-module sweep:
 #
-#   * ``bridge-audit-replay`` (Tag-37 Mini-Welle PR #246 — 14. Phase-3a
+#   * ``bridge-audit-replay`` (PR #246 — 14. Phase-3a
 #     Modul; deterministic-replay-oracle from ADR-0063 §Folgeartefakte
 #     Item 11. Binary lives in the same
 #     ``persona-engine-bridge-audit-replay`` crate as the existing
-#     bridge-audit-writer; the Tag-45 Mini-Welle promotes the
+#     bridge-audit-writer; the replay binary promotes the
 #     canonical-trace surface to the
 #     /opt/wakir/bin/wakir-persona-engine-bridge-audit-replay path.)
-#   * ``migrate-version`` (Tag-38 Mini-Welle PR #250 — 15. Phase-3a
+#   * ``migrate-version`` (PR #250 — 15. Phase-3a
 #     Modul; engine-version migration pre-flight decision
 #     canonical-trace. New stand-alone canonical-only crate
 #     persona-engine-migrate-version. Ships at
@@ -80,15 +80,15 @@
 # (test_cross_substrate_parity_with_quadlet_installer) enforces
 # lock-step agreement with the Cosign-Policy YAML.
 #
-# Tag-31 Mini-Welle update (ADR-0066 Welle-3 image-build)
+# update (ADR-0066 wave-3 image-build)
 # -------------------------------------------------------
 # Inventory extended from 8 to 9 binaries in lock-step with the
-# Cosign-Policy Tag-31 update. One addition:
-# ``bridge-audit-writer`` (Tag-31 Mini-Welle, ADR-0066 Welle-3
+# Cosign-Policy update. One addition:
+# ``bridge-audit-writer`` (ADR-0066 wave-3
 # pre-cutover image — ships the writer-half of the Doppelbetrieb-
 # Shadow EngineeringOutputEvent envelope substrate. The replay-half
 # (PR #131 bridge-diff + PR #147 bridge-audit-replay) already shipped;
-# Tag-31 closes the cross-language round-trip Python↔Rust). The
+# closes the cross-language round-trip Python↔Rust). The
 # cross-substrate parity test
 # (test_cross_substrate_parity_with_quadlet_installer) enforces
 # lock-step agreement with the Cosign-Policy YAML.
@@ -96,10 +96,9 @@
 # Purpose
 # -------
 # Installs the nine Phase-3b Rust-CLI binaries from the published
-# ``ghcr.io/wakir-labs/wakir-persona-engine`` carrier image (Tag-17
-# through Tag-23 + Tag-29 + Tag-31 Mini-Welle PRs #167, #169, #171,
-# #175, #181, #184 + the Tag-29 SVID-image-build PR + the Tag-31
-# bridge-audit-writer image-build PR) into the Pilot-VM host
+# ``ghcr.io/wakir-labs/wakir-persona-engine`` carrier image
+# (PRs #167, #169, #171, #175, #181, #184 + the SVID-image-build
+# PR #201 + the bridge-audit-writer image-build PR #210) into the Pilot-VM host
 # filesystem at the canonical ``/opt/wakir/bin/`` paths. The default
 # ``DEFAULT_RUST_*_BIN`` constants in
 # ``wirelang/persona_engine/rust_backend_switch.py`` resolve to
@@ -112,45 +111,45 @@
 # Eleven binaries installed (alphabetical by component)
 # ------------------------------------------------------
 #   1. /opt/wakir/bin/wakir-persona-engine-anchor-emitter
-#      (Tag-23 Mini-Welle PR #184 — WAT-anchor-envelope emitter bridge;
-#      Cosign-Policy 7-binary inventory landed lock-step in Tag-24.)
+# (PR #184 — WAT-anchor-envelope emitter bridge;
+#      Cosign-Policy 7-binary inventory landed lock-step in.)
 #   2. /opt/wakir/bin/wakir-persona-engine-bridge-audit-replay
-#      (Tag-37 Mini-Welle PR #246 — Phase-3a-Foundation 14. Modul;
-#      deterministic-replay-oracle canonical-trace bridge. Tag-45
-#      Mini-Welle promotes the canonical-trace surface to this path
+# (PR #246 — Phase-3a-Foundation 14. Modul;
+#      deterministic-replay-oracle canonical-trace bridge.
+#      increment promotes the canonical-trace surface to this path
 #      lock-step with the Cosign-Policy 15-binary inventory.)
 #   3. /opt/wakir/bin/wakir-persona-engine-bridge-audit-writer
-#      (Tag-31 Mini-Welle — Doppelbetrieb-Shadow EngineeringOutputEvent
+# (— Doppelbetrieb-Shadow EngineeringOutputEvent
 #      envelope writer bridge; Cosign-Policy 9-binary inventory landed
-#      lock-step in Tag-31.)
+#      lock-step in.)
 #   4. /opt/wakir/bin/wakir-persona-engine-bridge-diff
-#      (Tag-20 Mini-Welle PR #175 — Doppelbetrieb diff oracle;
-#      Cosign-Policy 5-binary inventory landed lock-step in Tag-23.)
+# (PR #175 — Doppelbetrieb diff oracle;
+#      Cosign-Policy 5-binary inventory landed lock-step in.)
 #   5. /opt/wakir/bin/wakir-persona-engine-fsm
-#      (Tag-18 Mini-Welle PR #169 — lifecycle FSM bridge)
+# (PR #169 — lifecycle FSM bridge)
 #   6. /opt/wakir/bin/wakir-persona-engine-migrate-version
-#      (Tag-38 Mini-Welle PR #250 — Phase-3a-Foundation 15. Modul;
+# (PR #250 — Phase-3a-Foundation 15. Modul;
 #      engine-version migration pre-flight decision canonical-trace.
 #      Closes the Phase-3a-Foundation sweep at 15/15.)
 #   7. /opt/wakir/bin/wakir-persona-engine-recovery
-#      (Tag-17 Mini-Welle PR #167 — R1..R4 recovery-workflow bridge)
+# (PR #167 — R1..R4 recovery-workflow bridge)
 #   8. /opt/wakir/bin/wakir-persona-engine-state-backing
-#      (Tag-17 Mini-Welle PR #167 — NATS-KV state-backing bridge)
+# (PR #167 — NATS-KV state-backing bridge)
 #   9. /opt/wakir/bin/wakir-persona-engine-subscribe-loop
-#      (Tag-22 Mini-Welle PR #181 — NATS-JetStream ack-record bridge;
-#      Cosign-Policy 7-binary inventory landed lock-step in Tag-24.)
+# (PR #181 — NATS-JetStream ack-record bridge;
+#      Cosign-Policy 7-binary inventory landed lock-step in.)
 #  10. /opt/wakir/bin/wakir-persona-engine-svid-workload-identity
-#      (Tag-25 Mini-Welle PR #191 wired the Python resolver,
-#      Tag-29 Mini-Welle ships the Rust crate skeleton + image-build;
+# (PR #191 wired the Python resolver,
+# ships the Rust crate skeleton + image-build;
 #      SPIFFE Workload-API socket-presence probe bridge; Cosign-Policy
-#      8-binary inventory landed lock-step in Tag-29.)
+#      8-binary inventory landed lock-step in.)
 #  11. /opt/wakir/bin/wakir-persona-engine-v907-verify
-#      (Tag-19 Mini-Welle PR #171 — V-907 pin-hash bridge)
+# (PR #171 — V-907 pin-hash bridge)
 #
-# Cross-Review-Anchor: Zone-C (Container-Image-Pipeline x Tomás-OTS)
+# Cross-Review-Anchor: Zone-C (Container-Image-Pipeline x OTS anchoring)
 # ------------------------------------------------------------------
 # The carrier image is the same wakir-persona-engine image that the
-# Tag-15-Konsens-Bundle persona-tomas-Quadlet pins; no image-build-
+# 15-Konsens-Bundle persona-tomas-Quadlet pins; no image-build-
 # path change introduced here. The image digest placeholder is
 # resolved Operator-Hand via the ``resolve-image-pins-ci.yml``
 # workflow once Operator-Hand confirms the upstream Sigstore-keyless
@@ -198,7 +197,7 @@
 # so the carrier-image digest stays single-sourced.
 
 [Unit]
-Description=Wakir Tag-22/24/29/31/45 Phase-3b Rust-CLI host-side binary installer (oneshot, 11 carrier-image binaries)
+Description=Wakir Phase-3b Rust-CLI host-side binary installer (oneshot, 11 carrier-image binaries)
 Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/docs/operations/quadlets-phase-3b-rust-cli.md
 After=network-online.target
 Wants=network-online.target
@@ -234,7 +233,7 @@ Group=1000
 
 # Host-side binary install location, mounted as a Quadlet named-
 # volume sidecar. ``:Z`` is the SELinux relabel-private flag
-# (FCOS enforcing-mode hosts; ADR-0009 Sprint-9-Tag-8 Bug-20
+# (FCOS enforcing-mode hosts; ADR-0009 Bug-20
 # substance-fix). ``:U`` remaps named-volume ownership to the
 # container's uid:1000 (same fix shape as the SPIRE-Agent + NATS
 # named volumes). Both flags are mandatory per the

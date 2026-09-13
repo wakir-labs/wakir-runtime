@@ -22,9 +22,9 @@
 # supply-chain provenance; this file gives build-side supply-chain
 # provenance. Hash drift in either layer halts the rollout.
 #
-# Sprint-9 Tag-4 hygiene (Tag-4 follow-up, image v0.1.1)
+# hygiene (follow-up, image v0.1.1)
 # ------------------------------------------------------
-# After Reza-PR #33 (Wirelang-Import-Disentanglement, PEP-562 lazy
+# After PR #33 (Wirelang-Import-Disentanglement, PEP-562 lazy
 # ``__getattr__`` on ``wirelang.federation``), the provisioner's
 # transitive import chain through ``wirelang.federation.marker_stack_kv``
 # no longer pulls in ``wirelang.identity`` at import time. Three of the
@@ -65,7 +65,7 @@
 #      ``quadlet/wakir-nats-kv-bucket-init.container``.
 
 # nats-py — NATS-JetStream client. Same version pin as
-# ``requirements-nats.txt`` (Sprint-4 Tag-2 First-Time-Live-Smoke
+# ``requirements-nats.txt`` (First-Time-Live-Smoke
 # baseline). License: Apache-2.0.
 nats-py==2.14.0 \
     --hash=sha256:4116f5d2233ce16e63c3d5538fa40a5e207f75fcf42a741773929ddf1e29d19d \

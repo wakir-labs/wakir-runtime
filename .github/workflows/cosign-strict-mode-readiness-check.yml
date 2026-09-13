@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Cosign-Strict-Mode Readiness Check (Tag-54, Kai)
+# Cosign-Strict-Mode Readiness Check
 # ------------------------------------------------
 #
 # Purpose
 # -------
 #
-# Pre-KW-24 we are preparing to flip cosign verification from
+# pre-cutover we are preparing to flip cosign verification from
 # audit-only into **strict mode** (sibling-flow to
 # ``CROSS_REPO_DRIFT_ENFORCE=true``). The strict-flip applies three
 # substrate changes in lock-step:

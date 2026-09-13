@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-6 — Quadlet network sidecar for the Wakir orchestrator
+# Quadlet network sidecar for the Wakir orchestrator
 # bridge network. Mirror of compose/nats.yaml top-level networks: block.
 #
 # Install path: /etc/containers/systemd/wakir-orchestrator.network

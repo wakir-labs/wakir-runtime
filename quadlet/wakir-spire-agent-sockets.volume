@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-6 Tag-11 — Quadlet volume sidecar for the SPIFFE-
+# Quadlet volume sidecar for the SPIFFE-
 # Workload-API socket-share. Mirror of compose/spire.yaml top-level
 # volumes.spire_agent_sockets.name.
 #

@@ -7,7 +7,7 @@
 # licensed under BUSL-1.1 for consistency with the imported implementation
 # (ADR-0061, Schritt 7 Option A).
 #
-# Phase-2 Sprint-9 Tag-3 Teil A — Operator-facing marker-stack reducer
+# Teil A — Operator-facing marker-stack reducer
 # CLI entrypoint. Thin shim over ``wirelang.cli.marker_stack_reduce``.
 #
 # The hyphen in this filename makes a direct ``import`` syntactically

@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Build + sign + push the wakir-persona-engine-bridge-audit-writer image
-# (Tag-31 Mini-Welle, ADR-0066 Welle-3 `bridge_audit_writer`
-# pre-cutover image, parallel to ADR-0066 Welle-1 V907-verify image
-# (PR #194) and Welle-2 SVID-workload-identity image (PR #201)).
+# (ADR-0066 wave-3 `bridge_audit_writer`
+# pre-cutover image, parallel to ADR-0066 wave-1 V907-verify image
+# (PR #194) and wave-2 SVID-workload-identity image (PR #201)).
 #
 # Posture
 # -------
@@ -48,7 +48,7 @@
 #   6. (workflow_dispatch + push=true only) Pushes the image to GHCR
 #      and Sigstore-keyless-signs the published digest against the
 #      GitHub-Actions OIDC identity.
-#   7. Emits the resulting digest as a workflow output so the Welle-3
+#   7. Emits the resulting digest as a workflow output so the wave-3
 #      cutover step can copy it into the Quadlet pin.
 #
 # Sandbox boundary
@@ -109,7 +109,7 @@ jobs:
         # On workflow_dispatch: tag + push come from inputs.
         # Substrate-fence: refuse free-form values that do not match
         # the known ``MAJOR.MINOR.PATCH-pilot`` shape on
-        # workflow_dispatch (Sprint-Pengine-13 pattern). Push-to-main
+        # workflow_dispatch (pattern). Push-to-main
         # tags are not subject to the suffix check because they are
         # never published.
         run: |
@@ -337,7 +337,7 @@ jobs:
             if [[ "${{ steps.inputs.outputs.push }}" == "true" ]]; then
               echo "- pushed digest: \`${{ steps.push.outputs.digest }}\`"
               echo ""
-              echo "Welle-3 cutover pin substitution recipe:"
+              echo "wave-3 cutover pin substitution recipe:"
               echo ""
               echo "    scripts/image-pin-idempotent-resolver.sh --digest-source crane"
               echo ""

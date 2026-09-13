@@ -5,7 +5,7 @@ GHCR per [`feedback_sandbox_host_trennung.md`][sandbox-trennung].
 
 [sandbox-trennung]: ../../../../.claude/feedback_sandbox_host_trennung.md
 
-This file is the Phase-2 Sprint-8 Tag-4 SINGLE-SOURCE-OF-TRUTH index
+This file is the SINGLE-SOURCE-OF-TRUTH index
 for SPIRE image-pins used by the Federation substrate. Operator-Hand
 resolves each placeholder by running `cosign verify` + a digest-
 resolver (`crane`, `skopeo`, or `cosign triangulate`) and substituting
@@ -26,10 +26,10 @@ between the two has been observed to break federation-bundle handshake
 in prior upstream releases.
 
 The `python:3.13-slim` image is the BASE LAYER for the
-`wakir-provisioner` image (Sprint-9 Tag-4, see
-`infra/spire/federation/provisioner/`). Until Sprint-9 Tag-4 the
+`wakir-provisioner` image (see
+`infra/spire/federation/provisioner/`). Before the provisioner image, the
 Quadlet `wakir-nats-kv-bucket-init.container` referenced
-`python:3.13-slim` directly; the Tag-1 author-time assumption that
+`python:3.13-slim` directly; the author-time assumption that
 the slim image ships `nats-py` was incorrect, and the Pilot-VM
 bring-up on 2026-05-13 surfaced the gap as
 `ModuleNotFoundError: No module named 'cryptography'` (the
@@ -38,7 +38,7 @@ require `cryptography`, which the slim image does not carry). The
 `wakir-provisioner` image is the substitute substrate. The v0.1.0
 image carried four wheels (`nats-py`, `cryptography`, `rfc8785`,
 `jsonschema`) to satisfy the provisioner's transitive imports
-through `wirelang.identity`. After Reza-PR #33
+through `wirelang.identity`. After PR #33
 (Wirelang-Import-Disentanglement, PEP-562 lazy `__getattr__` on
 `wirelang.federation`), the transitive identity-stack import chain
 no longer fires for the marker-stack-kv / sequence-number-ledger
@@ -125,7 +125,7 @@ crane digest ghcr.io/spiffe/spire-agent:1.14.6
 
 Both digests MUST match the `docker-manifest-digest` from
 `cosign verify`. If they DON'T match, refuse to pin — possible tag
-re-push event upstream, requires Tomás Zone-C cross-review.
+re-push event upstream, requires image-pipeline cross-review.
 
 ### 2.3 Substitute placeholders (single edit, multi-file)
 
@@ -160,10 +160,10 @@ pin invariant breach.
 
 ### 2.4 python:3.13-slim — DockerHub OCI resolution (base layer)
 
-Added in Phase-2 Sprint-9 Tag-3 alongside the per-org NATS-KV bucket
-provisioner Quadlet (ADR-0048); re-targeted in Sprint-9 Tag-4 from
+Added in alongside the per-org NATS-KV bucket
+provisioner Quadlet (ADR-0048); re-targeted in from
 the Quadlet directly to the `wakir-provisioner` image's
-`Containerfile` base layer (the Tag-1/3 direct-consume path
+`Containerfile` base layer (the direct-consume path
 surfaced as Bug 6 on the Pilot-VM bring-up). The `python:3.13-slim`
 image is published on DockerHub, not on the Sigstore-backed GHCR
 path used by SPIRE. The resolution path is a plain manifest-digest
@@ -207,7 +207,7 @@ Library GitHub release notes + Python release notes).
 
 ### 2.5 wakir-provisioner — GHCR Sigstore-keyless resolution
 
-Added in Phase-2 Sprint-9 Tag-4. The `wakir-provisioner` image is
+The `wakir-provisioner` image is
 published by Wakir Labs to GHCR
 (`ghcr.io/wakir-labs/wakir-provisioner`); it is built from
 `infra/spire/federation/provisioner/Containerfile` against the
@@ -246,20 +246,20 @@ pytest tests/infra/test_wakir_provisioner_image_pin_form.py
 ```
 
 Why this image and not `python:3.13-slim` directly? See the §1
-table notes — the Tag-1 author-time assumption that the slim image
+table notes — the author-time assumption that the slim image
 ships `nats-py` was incorrect, and the Pilot-VM bring-up surfaced
 the gap as `ModuleNotFoundError`. The `wakir-provisioner` image is
 the substrate that closes the wheel-availability gap in a single
 supply-chain artifact, hash-pinned at build time and digest-pinned
 at pull time.
 
-## 3. CI integration (optional, Phase-2 Sprint-8 Tag-4 follow-up)
+## 3. CI integration (optional, follow-up)
 
 A CI job can run `cosign verify` as a pre-build gate. Sketch:
 
 ```yaml
-# .github/workflows/cosign-verify-federation.yml (Phase-2 Sprint-8
-# Tag-4 follow-up — Operator-Hand activation, gated on Tomás Zone-C
+# .github/workflows/cosign-verify-federation.yml (follow-up —
+# Operator-Hand activation, gated on image-pipeline review
 # cross-review for the GHCR-network-access policy).
 jobs:
   cosign-verify-spire-images:
@@ -283,11 +283,11 @@ jobs:
         run: |
           # Extract pinned digests from the compose files and compare
           # to live cosign-verified digests. (Implementation detail
-          # of the Tomás Zone-C follow-up.)
-          echo "TODO Phase-2 Sprint-8 Tag-4 follow-up"
+          # of the image-pipeline review follow-up.)
+          echo "TODO follow-up"
 ```
 
-Activation is **gated on Tomás Zone-C cross-review** for two reasons:
+Activation is **gated on image-pipeline cross-review** for two reasons:
 
   * The CI job pulls from GHCR on every PR — this is a supply-chain
     network egress that needs the same Zone-C approval as the image-
@@ -295,7 +295,7 @@ Activation is **gated on Tomás Zone-C cross-review** for two reasons:
 
   * A failing `cosign verify` on a previously-pinned digest is an
     upstream-key-rotation event; the response is NOT "auto-update the
-    pin" but "halt merges + Tomás reviews the upstream signing event".
+    pin" but "halt merges + image-pipeline review of the upstream signing event".
 
 ## 4. Sandbox boundary
 
@@ -306,12 +306,11 @@ validates the placeholder/digest SYNTAX only — the live verification
 is Operator-Hand on a host that has registry network access and the
 `cosign` / `skopeo` / `crane` CLIs installed.
 
-— Kai
 
-## 5. Sprint-9 Tag-3 follow-up (Tomás)
+## 5. follow-up
 
 - Added `python:3.13-slim` to the inventory (§1, §2.4) so the
-  Sprint-9 Tag-1 per-org NATS-KV bucket-init Quadlet stays in scope
+  per-org NATS-KV bucket-init Quadlet stays in scope
   for the Zone-C cross-review.
 - Promoted the §3 CI sketch into a real workflow file at
   `.github/workflows/cosign-verify-images.yml`, gated on
@@ -321,24 +320,23 @@ is Operator-Hand on a host that has registry network access and the
   `tests/infra/test_python_image_pin_form.py` mirroring the
   SPIRE-pin hermetic invariants.
 
-— Tomás
 
-## 6. Sprint-9 Tag-4 follow-up (Tomás) — Bucket-Init Bug-Fix-Welle
+## 6. follow-up — Bucket-Init Bug-Fix-wave
 
-Driver: Mira-Bug-Bilanz 2026-05-13, Bug 6
+Driver: live bring-up bug report 2026-05-13, Bug 6
 (`agents-workspaces/mira/outbox/2026-05-13-pilot-bringup-bug-bilanz.md`).
 Pilot-VM bring-up crashed at unit start with
 `ModuleNotFoundError: No module named 'cryptography'` because the
-Tag-1 author-time assumption that `python:3.13-slim` ships `nats-py`
+author-time assumption that `python:3.13-slim` ships `nats-py`
 was incorrect (the slim image ships the CPython stdlib only).
 
-Tag-4 substrate:
+Provisioner substrate:
 
 - Added `ghcr.io/wakir-labs/wakir-provisioner` to the inventory
   (§1, §2.5). The v0.1.0 image carried four wheels (`nats-py`,
   `cryptography`, `rfc8785`, `jsonschema`) to satisfy the
   provisioner's transitive imports through `wirelang.identity`.
-  After Reza-PR #33 (Wirelang-Import-Disentanglement, PEP-562 lazy
+  After PR #33 (Wirelang-Import-Disentanglement, PEP-562 lazy
   `__getattr__` on `wirelang.federation`), the transitive identity-
   stack import chain no longer fires for the marker-stack-kv /
   sequence-number-ledger code paths the provisioner exercises. The
@@ -366,27 +364,26 @@ Tag-4 substrate:
   `cosign-verify-images.yml` learnt a third job for the
   `wakir-provisioner` digest cross-check.
 
-Reza-Sprint-9-Tag-4 coordination (Wirelang-import-disentanglement):
+Cross-team coordination (Wirelang-import-disentanglement):
 
 - The provisioner's `bin/nats_kv_bucket_provision.py` now probes
-  `wirelang.federation.marker_stack_kv_constants` (Reza-target
+  `wirelang.federation.marker_stack_kv_constants` (Wirelang-side target
   name, **assumed**) before falling back to
   `wirelang.federation.marker_stack_kv`. Same shape for
-  `sequence_number_ledger_kv_constants`. If Reza picks a different
+  `sequence_number_ledger_kv_constants`. If the Wirelang side picks a different
   module name, the fallback still works on the baseline tip; the
-  defensive probe is a no-op at that point. Tomás-side flips the
-  probe target to the actual Reza-side name in a follow-up commit
-  once Reza-PR lands.
+  defensive probe is a no-op at that point. The provisioner side flips the
+  probe target to the actual wirelang-side name in a follow-up commit
+  once the Wirelang PR lands.
 - The `wakir-provisioner` v0.1.0 image carried `cryptography`
-  regardless of the Reza-side outcome: the image-gap closure
-  unblocked the Pilot bring-up the same day. With Reza-PR #33
+  regardless of the wirelang-side outcome: the image-gap closure
+  unblocked the Pilot bring-up the same day. With PR #33
   merged, the v0.1.1 hygiene-follow-up drops the now-unused wheels
   (`cryptography`, `rfc8785`, `jsonschema`) and lands the lean
-  one-wheel image (Tomás-PR §"Sprint-9 Tag-4 hygiene").
+  one-wheel image (PR §" hygiene").
 
-— Tomás
 
-## 7. Sprint-9 Tag-4 follow-up (Tomás) — BSL 1.1 relicense
+## 7. follow-up — BSL 1.1 relicense
 
 Driver: AR-Decision 2026-05-13 ~14:00 CEST, consistent with the
 WAT-Pipeline-Server Phase-1a BSL pattern (ADR-0034 federation-
@@ -423,4 +420,3 @@ Post-merge Operator-Hand: trigger
 `wakir-provisioner:0.1.2` artefact carrying the BSL label, then
 resolve the digest into the Quadlet per §2.5.
 
-— Tomás

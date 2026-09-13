@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# CI-side image-pin idempotent resolver (Phase-2 Sprint-9 Tag-5).
+# CI-side image-pin idempotent resolver.
 #
 # License posture: Apache-2.0 (CI / build tooling layer, consistent
 # with the rest of .github/workflows/). The script the workflow

@@ -15,21 +15,21 @@
 # the upstream projects ship them.
 #
 # wakir-provisioner — minimal Python image carrying the wheel set the
-# Phase-2 Sprint-9 per-org NATS-KV bucket provisioner needs at runtime.
+# per-org NATS-KV bucket provisioner needs at runtime.
 #
 # Why a dedicated image
 # ---------------------
-# The Sprint-9 Tag-1 Quadlet (``quadlet/wakir-nats-kv-bucket-init.container``)
+# The Quadlet (``quadlet/wakir-nats-kv-bucket-init.container``)
 # was authored against ``docker.io/library/python:3.13-slim`` on the
 # assumption that the slim image ships ``nats-py`` pre-installed. It
-# does not — slim ships the CPython stdlib only. The Sprint-9 Tag-4
+# does not — slim ships the CPython stdlib only. The
 # live-bring-up on the Pilot-VM crashed at unit-start with
 # ``ModuleNotFoundError: cryptography`` because the provisioner's
 # transitive imports through ``wirelang.federation.marker_stack_kv``
 # pulled in ``wirelang.identity`` (the v0.1.0 image carried
 # ``cryptography``, ``rfc8785``, ``jsonschema`` to satisfy that chain).
 #
-# Three options were on the table (Mira-Bug-Bilanz 2026-05-13, Bug 6):
+# Three options were on the table (live bring-up bug report 2026-05-13, Bug 6):
 #
 #   A) bump the base image to one that ships every wheel the
 #      provisioner needs (the v0.1.0 image);
@@ -38,24 +38,24 @@
 #      hardened Quadlet (ReadOnly + DropCapability), and re-introduces
 #      a supply-chain network egress on every unit start;
 #   C) refactor the provisioner so the transitive Wirelang-imports
-#      don't trigger ``cryptography`` (Reza-side, Sprint-9 Tag-4
+#      don't trigger ``cryptography`` (wirelang-side,
 #      Wirelang-import-disentanglement track, PR #33).
 #
 # A and C are complementary, not exclusive. A closed the wheel-
-# availability gap in v0.1.0; C landed in Reza-PR #33 (PEP-562 lazy
+# availability gap in v0.1.0; C landed in PR #33 (PEP-562 lazy
 # ``__getattr__`` on ``wirelang.federation``) and shrinks the
 # provisioner's runtime wheel need from four wheels to one. This
 # v0.1.1 image reflects the post-disentanglement minimum.
 #
-# Image scope (v0.1.1, post Reza-PR #33)
+# Image scope (v0.1.1, post PR #33)
 # --------------------------------------
 # The image carries exactly the runtime wheel set:
 #
 #   * ``nats-py`` — pinned to the same version the orchestrator-side
-#     ``requirements-nats.txt`` pins (Sprint-4 Tag-2 First-Time-Live-
+#     ``requirements-nats.txt`` pins (First-Time-Live-
 #     Smoke version), hash-pinned for supply-chain provenance.
 #
-# After Reza-PR #33, the previously transitive ``cryptography``,
+# After PR #33, the previously transitive ``cryptography``,
 # ``rfc8785``, ``jsonschema`` imports are gated behind the lazy
 # ``wirelang.federation.__getattr__`` and resolve only on identity-
 # stack access paths the provisioner does not exercise. The
@@ -97,7 +97,7 @@ FROM docker.io/library/python:3.13-slim@sha256:9d2e5553305c7c7b0097999bb17187c69
 # OCI metadata. The build workflow stamps build-time labels
 # (``org.opencontainers.image.revision`` etc.) at push time.
 LABEL org.opencontainers.image.title="wakir-provisioner"
-LABEL org.opencontainers.image.description="Runtime image for the Wakir per-org NATS-KV bucket provisioner (Sprint-9 Tag-4, v0.1.2 BSL-1.1 relicense: nats-py only; AR-Decision 2026-05-13)."
+LABEL org.opencontainers.image.description="Runtime image for the Wakir per-org NATS-KV bucket provisioner (v0.1.2 BSL-1.1 relicense: nats-py only; AR-Decision 2026-05-13)."
 LABEL org.opencontainers.image.version="0.1.2"
 LABEL org.opencontainers.image.licenses="BUSL-1.1"
 LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"
@@ -131,7 +131,7 @@ WORKDIR /opt/wakir-runtime
 
 # No ENTRYPOINT, no CMD.
 #
-# Sprint-9 Tag-6 (Bug 6 from Live-Bring-up-2-Bilanz 2026-05-14):
+# (Bug 6 from Live-Bring-up-2-Bilanz 2026-05-14):
 # the v0.1.2 image previously baked ``ENTRYPOINT ["python3"]`` plus
 # a default ``CMD ["--version"]``. The bucket-init Quadlet supplies
 # its own ``Exec=python3 /opt/wakir/bin/nats-kv-bucket-provision
@@ -142,8 +142,8 @@ WORKDIR /opt/wakir-runtime
 # start with ``python3: can't open file '/opt/wakir-runtime/python3'``.
 #
 # Fix: the Quadlet stays the canonical caller and supplies the
-# Python interpreter explicitly (Bug-8-Pfad-B per Kai's quadlet edit
-# in the matching Tag-6 PR). To keep the image robust against any
+# Python interpreter explicitly (Bug-8-Pfad-B per the quadlet edit
+# in the matching PR). To keep the image robust against any
 # OTHER caller that also supplies its own interpreter, we drop the
 # ENTRYPOINT entirely and leave CMD empty: the image is strictly
 # caller-driven (defence-in-depth).

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-8 Tag-1 — Quadlet sidecar volume: SPIRE-Server data
+# Quadlet sidecar volume: SPIRE-Server data
 # directory (datastore + key material) for the federation substrate.
 # The SAME file is installed twice with sed-substituted ``<SIDE>`` —
 # once for the wakir side, once for the partner side — so each side

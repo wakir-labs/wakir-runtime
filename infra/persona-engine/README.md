@@ -7,10 +7,10 @@
 Change License: Apache-2.0. CPython stdlib inside the image ships
 under PSF-2.0 and is reachable via `python3 --version`; the BSL
 header does not extend to the stdlib.
-**Sprint context:** Phase-2 Sprint-10 Tag-4 — substrate-gap-closer
-for ADR-0058 Schritt 9 (Pilot-Phase Tomás-Persona-Spawn). The
-Quadlet `quadlet/wakir-persona-tomas.container` (Selin Sprint-
-Pengine-7 Tag-5 OI-PILOT-1) was authored against this image tag
+**Context:** — substrate-gap-closer
+for ADR-0058 Schritt 9 (Pilot-Phase tomas-persona-Spawn). The
+Quadlet `quadlet/wakir-persona-tomas.container` (OI-PILOT-1)
+was authored against this image tag
 ahead of the binary itself landing; this directory fills the gap.
 
 [cf]: ./Containerfile
@@ -32,7 +32,7 @@ binary that satisfies the Quadlet contract declared in
 The stub computes a deterministic SHA-256 over the axis-A bytes and
 emits it as a stub-flavoured pin-hash (`sha256-stub:...`); it does
 not yet cross-check against the expected V-907 pin (that is a
-Sprint-Pengine-8 axis surface).
+full-engine surface).
 
 The stub idles on a heartbeat loop after spawn and exits clean on
 SIGTERM/SIGINT (so the Quadlet `Restart=on-failure` policy never
@@ -40,7 +40,7 @@ fires by accident).
 
 ## Why the stub exists
 
-ADR-0058 Schritt 9 (Tomás-Persona-Spawn on the Pilot-VM) declared
+ADR-0058 Schritt 9 (tomas-persona-Spawn on the Pilot-VM) declared
 the Quadlet `wakir-persona-tomas.container` against the image tag
 `ghcr.io/wakir-labs/wakir-persona-engine:0.1.0-pilot` ahead of the
 persona-engine binary itself landing. The substrate-layer (Quadlet,
@@ -50,13 +50,13 @@ from running against a real Pilot-VM with a stub engine, not from
 waiting until the engine is real to find out whether the substrate
 is sound.
 
-Mira-Hand-Decision 2026-05-15 (Sprint-10 Tag-4): ship the stub now,
-rotate to the real engine when Sprint-Pengine-8 lands. The
+operator decision 2026-05-15: ship the stub now,
+rotate to the real engine when it lands. The
 4-Wochen-Doppelbetrieb-Clock is qualified accordingly: stub-period
 output is excluded from the 4-Achsen-Score-Bilanz; the clock
 effectively starts when `0.2.0-pilot` lands.
 
-## Deferred surfaces (Sprint-Pengine-8 axis)
+## Deferred surfaces (axis)
 
 The stub does NOT implement, and explicitly logs at startup that it
 defers, the following surfaces:
@@ -69,14 +69,14 @@ defers, the following surfaces:
 - Doppelbetrieb-Shadow output bridging per
   `infra/migration-pilot/TOMAS_SPAWN_RECIPE.md` §0.
 
-When the Sprint-Pengine-8 axis lands these surfaces, the image tag
+When the axis lands these surfaces, the image tag
 rotates (`0.2.0-pilot` or `1.0.0`) and
 `scripts/image-pin-idempotent-resolver.sh` flips the digest pin on
 the Quadlet via the standard `resolve-image-pins-ci` workflow.
 
-## Sprint-Pengine-8 real-engine image (`0.2.0-pilot`)
+## real-engine image (`0.2.0-pilot`)
 
-Sprint-Pengine-8 (Selin) lands the **real** engine implementation
+The full-engine release lands the **real** engine implementation
 alongside the stub. The real engine is sourced from
 `wirelang/persona_engine/` (a normal Python package under the
 wakir-runtime tree) and entered via the thin shim
@@ -85,10 +85,10 @@ six deferred surfaces:
 
 1. NATS-KV state-pack persistence (`state_backing.py` —
    `InMemoryPersonaStateBacking` shipped; `NatsKvPersonaStateBacking`
-   reserved for Sprint-Pengine-9 asyncio-binding).
+   reserved for asyncio-binding).
 2. SPIRE Workload-API probe (`svid_workload_identity.py` — socket-
    presence + SPIFFE-ID-template surface; full grpc SVID fetch
-   reserved for Sprint-Pengine-9).
+   reserved for a later increment).
 3. Lifecycle state-machine (`lifecycle_state_machine.py` — six states,
    nine transitions, full audit-replay surface).
 4. V-907 pin-verify (`v907_verify.py` — delegates to the existing
@@ -177,7 +177,7 @@ The image-pin lives in:
 The resolver tolerates `DIGEST_PENDING_<TOKEN>` placeholders for the
 digest hex (any uppercase token prefixed with `DIGEST_PENDING_`).
 The persona-engine pin uses `DIGEST_PENDING_KAI_CROSS_REVIEW` to
-keep cross-pair ownership (Kai Zone-J) explicit in the diff history.
+keep cross-pair ownership (Zone-J) explicit in the diff history.
 
 ## Operator local smoke
 

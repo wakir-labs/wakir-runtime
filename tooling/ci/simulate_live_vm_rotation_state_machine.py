@@ -4,7 +4,7 @@
 """Hermetic Sandbox-Stub Simulator for the Live-VM Rotation Plan
 (0.5.1 -> 0.5.2 -> 0.5.3-rc1).
 
-OPEN-J2 (Tag-56 reverse map): the live-VM rotation 0.5.1 -> 0.5.2 /
+OPEN-J2 (reverse map): the live-VM rotation 0.5.1 -> 0.5.2 /
 0.5.3-rc1 itself cannot run inside the hermetic CI substrate because
 the rotation drives an actual VM lifecycle (snapshot, image swap,
 quadlet reload, post-rotation acceptance probe). It stays Operator-

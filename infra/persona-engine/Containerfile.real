@@ -4,40 +4,45 @@
 # Licensed under the Business Source License 1.1; see ./LICENSE-BSL.md.
 # Change Date: 2030-05-15. Change License: Apache License 2.0.
 #
-# wakir-persona-engine REAL — Sprint-Pengine-14 / Tag-52
-# Pre-KW-24-Final-Consolidation, image tag
-# ``0.5.2-final-pre-cutover``.
+# wakir-persona-engine REAL — final pre-cutover consolidation image,
+# image tag ``0.5.2-final-pre-cutover``.
 #
-# Tag-52 final consolidation (Sprint-Pengine-14, 2026-05-19)
+# History anchors (test-pinned literals): Sprint-Pengine-13 /
+# Sprint-Pengine-14 / Tag-45 / Tag-48 / Tag-52. Pinned by
+# ``wirelang/tests/persona_engine/test_subscribe_mode_bug42.py`` and
+# ``test_manifest_0_5_2_final_pre_cutover.py``; drop this block
+# together with those pins (ADR-0072 W5 part 2, tests zone).
+#
+# Final pre-cutover consolidation (0.5.2-final-pre-cutover)
 # ----------------------------------------------------------
-# Tag-52 is the Pre-KW-24-Final consolidation marker. The image
+# 0.5.2-final is the final pre-cutover consolidation marker. The image
 # bump from ``0.5.1-pre-cutover`` to ``0.5.2-final-pre-cutover`` is
 # a **manifest-and-metadata-only** marker — no new BackendDecision
 # record, no flag rename, no flag-default flip, no crate-version
 # bump. The 10-component inventory, the consistent
 # ``WAKIR_*_BACKEND`` ENV-flag schema, and the 15-crate pin pack
-# are all byte-stable vs. 0.5.1-pre-cutover (Tag-48 PR #313). The
-# 0.5.2-final marker absorbs four Tag-48..51 sources:
+# are all byte-stable vs. 0.5.1-pre-cutover (PR #313). The
+# 0.5.2-final marker absorbs four sources:
 #
-#   * Tag-48 PR #313 — bridge-audit-writer wire-in (record #10).
-#   * Tag-50 PR #320 — v0.4.2 DRIFT-S4 reconciliation patch
+#   * PR #313 — bridge-audit-writer wire-in (record #10).
+#   * PR #320 — v0.4.2 DRIFT-S4 reconciliation patch
 #     (Pin-Pack as SoT for spec §4.1 ENV-flag schema).
-#   * Tag-51 PR #327 — 10-Decision-Engine-Resilience suite
+#   * PR #327 — 10-Decision-Engine-Resilience suite
 #     (36 hermetic tests pinned-by-reference as the cutover-
 #     window resilience-substrate-pin).
-#   * Tag-51 PR #329 — legacy ``WAKIR_PE_*_BACKEND`` migration-
-#     detector (Reza substrate; warn-no-fallback posture).
+#   * PR #329 — legacy ``WAKIR_PE_*_BACKEND`` migration-
+#     detector (identity-substrate; warn-no-fallback posture).
 #
 # 0.5.2-final-pre-cutover is the last pre-cutover image before the
 # Phase-3c cutover window opens in KW 24. Operators rotate via
-# Quadlet image-tag bump (Operator-Hand). The Tag-48 0.5.1-pre-cutover
-# manifest + pin-pack + Tag-45 0.5.0-pre-cutover artefacts stay on
+# Quadlet image-tag bump. The 0.5.1-pre-cutover
+# manifest + pin-pack + 0.5.0-pre-cutover artefacts stay on
 # disk as historical anchors for the Doppelbetrieb regression-
 # comparison baseline.
 #
-# Tag-48 wire-in (Sprint-Pengine-14, 2026-05-19, absorbed)
+# 0.5.1-pre-cutover wire-in (absorbed)
 # --------------------------------------------------------
-# Tag-48 promotes the previously-held-back 10th BackendDecision
+# 0.5.1-pre-cutover promotes the previously-held-back 10th BackendDecision
 # (bridge-audit-writer; manifest 0.5.0-pre-cutover §5) into the
 # Stage-1 boot fan-out. The 10-component inventory, the consistent
 # ``WAKIR_*_BACKEND`` ENV-flag schema, and the 15-crate cross-
@@ -52,21 +57,21 @@
 # change is one additional ``backend-decision`` JSON line at the
 # tail of every cold-start audit log (record #10 with default-
 # python posture). The Phase-3a 0.5.0-pre-cutover artefacts (the
-# Tag-45 manifest + pin pack) stay on disk as historical anchors
+# manifest + pin pack) stay on disk as historical anchors
 # for the Doppelbetrieb gate's regression-comparison baseline.
 # Operators rotate via Quadlet image-tag bump (Operator-Hand).
 #
-# Tag-45 pre-cutover consolidation (Sprint-Pengine-14, 2026-05-18)
+# 0.5.0-pre-cutover consolidation
 # ----------------------------------------------------------------
-# Tag-45 closed the engine side of the Phase-3a/3b Doppelbetrieb
-# cutover preparation at nine components. See the Tag-45 manifest
+# 0.5.0-pre-cutover closed the engine side of the Phase-3a/3b Doppelbetrieb
+# cutover preparation at nine components. See the manifest
 # at ``wirelang/persona_engine/MANIFEST-0.5.0-pre-cutover.md`` for
-# the historical anchor; Tag-48 supersedes it but the file remains
+# the historical anchor; 0.5.1-pre-cutover supersedes it but the file remains
 # in-tree as the regression-comparison baseline.
 #
-# Bug-42 fix (Sprint-Pengine-13)
+# Bug-42 fix
 # ------------------------------
-# 0.4.2-pilot (Sprint-Pengine-12) wired the CLI-async-dispatch path but
+# 0.4.2-pilot wired the CLI-async-dispatch path but
 # the live-pilot engine still did not receive published Auftrags-
 # messages on the canonical subject. Root cause: the
 # ``NatsSubscribeLoop.run_with_iterator`` polled
@@ -88,11 +93,11 @@
 # The CLI-async-dispatch log now emits ``subscribe_mode`` so the
 # live-smoke operator can verify which path the container took.
 
-# wakir-persona-engine REAL — Sprint-Pengine-10, image tag ``0.4.0-pilot``.
+# wakir-persona-engine REAL — image tag ``0.4.0-pilot``.
 #
 # Substrate scope (0.4.0-pilot)
 # -----------------------------
-# Sprint-Pengine-10 closes the input-side gap discovered during the
+# This release closes the input-side gap discovered during the
 # 0.3.0-pilot Live-Engine-Swap (only heartbeat + spawn-init audit, no
 # task-input plumbing). 0.4.0-pilot wires:
 #
@@ -100,7 +105,7 @@
 #     ``wakir.<env>.agent.agent.task.assigned.<persona-slug>``;
 #     per-message dispatch to the LlmCallHook with bridge-audit
 #     reply emission + companion-subject output publish.
-#   - OI-PEFR-7: ``wakir-mira-dispatch`` Side-CLI that mirrors Mira's
+#   - OI-PEFR-7: ``wakir-mira-dispatch`` Side-CLI that mirrors the operator's
 #     engineering Auftrag onto the Bridge-Forward-Pipe.
 #   - OI-PEFR-8: Phase-2-Stub LLM-Call-Shim ``EchoReflectionLlmHook``
 #     (deterministic echo responder; Phase-3 swap-point preserved
@@ -108,7 +113,7 @@
 #   - OI-PEFR-9: ``wakir-doppelbetrieb-aggregate`` CLI for weekly
 #     4-axis Bilanz (ADR-0058 §Pilot-Phase Schritt 10).
 #
-# Sprint-Pengine-9 closed substrate-gaps OI-PEFR-1..5; this image is a
+# The 0.3.0-pilot release closed substrate-gaps OI-PEFR-1..5; this image is a
 # strict superset of 0.3.0-pilot — every code path the stub + 0.2.0
 # + 0.3.0 consumed remains reachable. Quadlet tag-rotation (operator-
 # hand) covers the 0.3.0-pilot -> 0.4.0-pilot swap.
@@ -129,24 +134,24 @@
 #   5. Operator-Hand-systemctl-restart on the Pilot-VM picks up the
 #      new image. Engine-swap complete.
 #
-# Wheel substrate (Bug-34c structural fix, Sprint-Pengine-9)
+# Wheel substrate (Bug-34c structural fix)
 # ----------------------------------------------------------
 # Prior 0.2.0-pilot installed wheels via a flat ``RUN pip install
 # 'rfc8785>=0.1.4' 'PyYAML>=6.0' 'shamir-mnemonic>=0.3.0' 'cryptography>=42'``
-# layer (Mira-Hand PRs #66 + #68 to chase ModuleNotFoundError-at-boot).
+# layer (operator-hand PRs #66 + #68 to chase ModuleNotFoundError-at-boot).
 # That layer drifts every time a new transitive dep lands; the
 # structural fix is the ``[project.optional-dependencies]
 # persona-engine-runtime`` extra in pyproject.toml. This Containerfile
 # COPYs the repo tree and runs ``pip install '/opt/wakir-runtime/.
 # [persona-engine-runtime]'`` once. Adding a new runtime dep (e.g. a
-# future opentelemetry-sdk pin from Noa) becomes a pyproject.toml
+# future opentelemetry-sdk pin from SRE) becomes a pyproject.toml
 # edit, not a Containerfile RUN-layer rewrite.
 
 FROM docker.io/library/python:3.13-slim@sha256:9d2e5553305c7c7b0097999bb17187c69b921ccd6bc9d40e4bb5ebe652c00285
 
 # OCI metadata.
 LABEL org.opencontainers.image.title="wakir-persona-engine"
-LABEL org.opencontainers.image.description="Runtime image for the Wakir persona-engine real binary (Sprint-Pengine-14 / Tag-52, v0.5.2-final-pre-cutover; Pre-KW-24-Final consolidation marker — manifest-and-metadata-only bump from 0.5.1-pre-cutover; strict superset of 0.5.1-pre-cutover with no new BackendDecision record, no flag rename, no flag-default flip, no crate-version bump; absorbs Tag-48 bridge-audit-writer wire-in PR #313, Tag-50 v0.4.2 DRIFT-S4 reconciliation PR #320 (Pin-Pack as SoT for spec §4.1), Tag-51 10-Decision-Engine-Resilience suite PR #327 (36 hermetic tests pinned-by-reference as the cutover-window resilience-substrate-pin), and Tag-51 legacy WAKIR_PE_*_BACKEND migration-detector PR #329 (Reza substrate, warn-no-fallback posture); 10 BackendDecision components ENV-gated under WAKIR_*_BACKEND, 15-crate Phase-3a cross-lang pin pack anchored at infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml, manifest at wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md)."
+LABEL org.opencontainers.image.description="Runtime image for the Wakir persona-engine real binary (v0.5.2-final-pre-cutover; final pre-cutover consolidation marker — manifest-and-metadata-only bump from 0.5.1-pre-cutover; strict superset of 0.5.1-pre-cutover with no new BackendDecision record, no flag rename, no flag-default flip, no crate-version bump; absorbs bridge-audit-writer wire-in PR #313, v0.4.2 DRIFT-S4 reconciliation PR #320 (Pin-Pack as SoT for spec §4.1), 10-Decision-Engine-Resilience suite PR #327 (36 hermetic tests pinned-by-reference as the cutover-window resilience-substrate-pin), and legacy WAKIR_PE_*_BACKEND migration-detector PR #329 (identity-substrate, warn-no-fallback posture); 10 BackendDecision components ENV-gated under WAKIR_*_BACKEND, 15-crate Phase-3a cross-lang pin pack anchored at infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml, manifest at wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md)."
 LABEL org.opencontainers.image.version="0.5.2-final-pre-cutover"
 LABEL org.opencontainers.image.licenses="BUSL-1.1"
 LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"
@@ -171,7 +176,7 @@ COPY --chown=1000:1000 NOTICE         /opt/wakir-runtime/NOTICE
 COPY --chown=1000:1000 wirelang/      /opt/wakir-runtime/wirelang/
 COPY --chown=1000:1000 wat/           /opt/wakir-runtime/wat/
 
-# Sprint-Pengine-9 Bug-34c structural fix: install the wakir-runtime
+# Bug-34c structural fix: install the wakir-runtime
 # package + the persona-engine-runtime extra in one invocation.
 # ``--no-cache-dir`` keeps the image slim; ``--no-deps`` would skip
 # transitive wheels (we keep the default; the extra is closed).

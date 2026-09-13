@@ -2,7 +2,7 @@
   "schema_version": 1,
   "kind": "manifest-hash-ots-anchor-stub",
   "mode": "audit-only",
-  "purpose": "Tag-57 OPEN-K2 closeout placeholder: declares the persona-engine manifest-hash OTS-anchor wiring intent without performing any actual OTS calendar call from the Sandbox. Real anchoring is Operator-Hand on a network-attached host. See docs/operations/manifest-hash-ots-anchor-wiring.md for the runbook.",
+  "purpose": " OPEN-K2 closeout placeholder: declares the persona-engine manifest-hash OTS-anchor wiring intent without performing any actual OTS calendar call from the Sandbox. Real anchoring is Operator-Hand on a network-attached host. See docs/operations/manifest-hash-ots-anchor-wiring.md for the runbook.",
   "wired_manifests": [
     {
       "name": "MANIFEST-0.5.2-final-pre-cutover",

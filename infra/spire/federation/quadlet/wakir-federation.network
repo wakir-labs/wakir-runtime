@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-8 Tag-1 — Quadlet sidecar: dedicated bridge network
+# Quadlet sidecar: dedicated bridge network
 # for the SPIRE-Federation-Bundle-Endpoint substrate. NOT shared with
-# the Sprint-6 wakir-orchestrator.network — the two surfaces stay
+# the wakir-orchestrator.network — the two surfaces stay
 # isolated. Both Quadlet-instances (wakir + partner) attach to this
 # network so each side can reach the other's bundle-endpoint at the
 # SPIFFE-internal DNS names ``spire-server-wakir`` / ``spire-server-

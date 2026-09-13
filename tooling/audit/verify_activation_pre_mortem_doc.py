@@ -2,12 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Verify the Tag-67 Wirelang-Spec v0.4.4 Activation Pre-Mortem doc.
+Verify the Wirelang-Spec v0.4.4 Activation Pre-Mortem doc.
 
 Parses
 ``docs/operations/wirelang-spec-v0-4-4-activation-pre-mortem.md``
 and asserts the structural invariants of a doc-form-only
-pre-mortem (Tag-44 form-anchor pattern applied to the per-RES-Dn
+pre-mortem (form-anchor pattern applied to the per-RES-Dn
 activation axis):
 
   - All seven sections (§1..§7) are present and in order.
@@ -22,8 +22,8 @@ activation axis):
   - §7 carries the aggregate-risk-map: cross-item failure-mode
     aggregation, cross-item hot spots, residual-risk distribution,
     and a cross-anchor block citing ADR-0007, ADR-0014, ADR-0023a,
-    ADR-0023b, ADR-0025 plus the Tag-44 form-anchor citation and
-    the Tag-58 / Tag-60 / Tag-63 / Tag-64 / Tag-65 / Tag-66 Tag-N
+    ADR-0023b, ADR-0025 plus the form-anchor citation and
+    the / / / / / Tag-N
     PR pointers.
   - Doc carries the SPDX CC-BY-4.0 header and a `-- Reza`
     signature line.

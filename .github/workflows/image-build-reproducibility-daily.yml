@@ -1,28 +1,28 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# 15-Binary Image-Build-Reproducibility-Live-Test Daily Workflow (Tag-53, Kai)
+# 15-Binary Image-Build-Reproducibility-Live-Test Daily Workflow
 # ----------------------------------------------------------------------------
 #
 # Purpose
 # -------
 #
-# Tag-51 PR #328 (build-reproducibility-daily.yml) covers the
+# PR #328 (build-reproducibility-daily.yml) covers the
 # *Cargo.lock derivation* axis: two in-process derivations of the
 # build-graph produce byte-equal output. That is a property of the
 # Python derivation script (no dict-ordering bug, no timestamp leak
 # into a hash).
 #
-# This Tag-53 workflow covers the *image-build* axis: do two
+# This workflow covers the *image-build* axis: do two
 # ``cargo build --release`` invocations against the same Cargo.lock
 # produce byte-equal ELF binaries? That is a property of the Rust
 # toolchain + workspace build-graph + environment surface (no
 # clock-leak into ELF headers, no ``RUSTFLAGS`` drift, no
 # ``CARGO_BUILD_JOBS``-dependent macro expansion).
 #
-# Both axes must be GREEN for the AR-Hand-Gate provenance bundle
+# Both axes must be GREEN for the operator sign-off gate provenance bundle
 # to attest end-to-end build-reproducibility.
 #
-# Daily schedule at 08:15 UTC -- offset by 30min after the Tag-51
+# Daily schedule at 08:15 UTC -- offset by 30min after the
 # Cargo.lock-derivation audit at 07:45 UTC so an operator looking
 # at both at the same time sees distinct, non-overlapping
 # Job-Summary blocks.
@@ -30,13 +30,13 @@
 # Audit-Trail anchor
 # ------------------
 #
-# ADR-0066 §AR-Hand-Gate provenance bundle now includes:
+# ADR-0066 §operator sign-off gate provenance bundle now includes:
 #
-#   * The Tag-47 Cosign-Keyless-OIDC-Drift-Probe verdict.
-#   * The Tag-48 15-binary SBOM bundle.
-#   * The Tag-49 SBOM-vs-baseline verifier verdict.
-#   * The Tag-51 Cargo.lock-derivation build-reproducibility verdict.
-#   * **The Tag-53 image-build-reproducibility verdict (this gauge).**
+#   * The Cosign-Keyless-OIDC-Drift-Probe verdict.
+#   * The 15-binary SBOM bundle.
+#   * The SBOM-vs-baseline verifier verdict.
+#   * The Cargo.lock-derivation build-reproducibility verdict.
+#   * **The image-build-reproducibility verdict (this gauge).**
 #
 # Sandbox posture
 # ---------------
@@ -45,7 +45,7 @@
 # podman / cargo / cosign / network egress from the workflow.
 # Live verification is Operator-Hand only per
 # ``feedback_sandbox_host_trennung.md`` + ADR-0051; a future
-# Mini-Welle wires ``--mode=live`` against a Pilot-VM host.
+# increment wires ``--mode=live`` against a Pilot-VM host.
 #
 # Trigger surface
 # ---------------
@@ -66,7 +66,7 @@
 # Per ``feedback_branch_protection_check_names.md`` this workflow
 # tracks a daily provenance signal, not individual PR acceptance.
 # It is NOT listed as a required status check on PRs; it surfaces
-# signal only via Job-Summary + artefact + Mira-Notify event.
+# signal only via Job-Summary + artefact + mira-notify event.
 
 name: image-build-reproducibility-daily
 
@@ -143,7 +143,7 @@ jobs:
           #   1 -- input / argument error (treat as workflow failure).
           #   2 -- RED, one or more binaries byte-unequal.
           # We propagate rc=1 as a hard failure; rc=2 we let the
-          # next step surface via Job-Summary + Mira-Notify
+          # next step surface via Job-Summary + mira-notify
           # artefact and then fail the job at the end.
           if [ "${rc}" -eq 1 ]; then
             echo "Verifier reported input/argument error." >&2
@@ -162,13 +162,13 @@ jobs:
                 >> "${GITHUB_STEP_SUMMARY}"
           fi
 
-      - name: Surface Mira-Notify drift event
+      - name: Surface mira-notify drift event
         if: always()
         run: |
           set -euo pipefail
           notify_path="out/image-build-reproducibility/mira-notify.json"
           if [ -s "${notify_path}" ]; then
-            echo "## Mira-Notify Drift Event Emitted" \
+            echo "## mira-notify Drift Event Emitted" \
                 >> "${GITHUB_STEP_SUMMARY}"
             echo '```json' >> "${GITHUB_STEP_SUMMARY}"
             cat "${notify_path}" >> "${GITHUB_STEP_SUMMARY}"

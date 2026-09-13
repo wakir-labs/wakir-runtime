@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic acceptance tests for the Phase-2 Sprint-8 Tag-3
+"""Hermetic acceptance tests for the
 ``spire-fed-bundle-rotator`` CLI.
 
 Rotation lifecycle covered:
 
-  * Soft-Cutover: rotate produces a two-key JWKS; both keys verify
+  * Soft-cutover: rotate produces a two-key JWKS; both keys verify
     accepted during the grace-window.
   * Hard-Revoke: expire after grace-window removes the old key;
     old kid no longer verifies.
@@ -71,7 +71,7 @@ GRACE_24H = 86400
 
 
 def _export_base(fed_bundle, td: str, dst: Path) -> Path:
-    """Use the Tag-1 spire-fed-bundle to seed the rotation input."""
+    """Use the spire-fed-bundle to seed the rotation input."""
     fed_bundle.main(["export", "--trust-domain", td, "--out", str(dst)])
     return dst
 
@@ -81,7 +81,7 @@ def _load(path: Path) -> dict:
 
 
 # ---------------------------------------------------------------------
-# 1. Rotate produces a two-key JWKS (Soft-Cutover entry)
+# 1. Rotate produces a two-key JWKS (Soft-cutover entry)
 # ---------------------------------------------------------------------
 
 
@@ -112,7 +112,7 @@ def test_rotate_appends_new_key_keeps_old(
 
 
 # ---------------------------------------------------------------------
-# 2. Soft-Cutover: both keys verify accepted during grace
+# 2. Soft-cutover: both keys verify accepted during grace
 # ---------------------------------------------------------------------
 
 
@@ -351,7 +351,7 @@ def test_two_consecutive_rotations_increment_counter(
         if "_wakir_rotation_counter" in k
     )
     # v3 must contain {0=base via _max_rotation_counter, 1=first rot,
-    # 2=second rot}. The base export from Tag-1 has no
+    # 2=second rot}. The base export from has no
     # _wakir_rotation_counter, so _max_rotation_counter returned 0
     # and the first rotation assigned 1; second rotation assigned 2.
     assert counters == [1, 2], (

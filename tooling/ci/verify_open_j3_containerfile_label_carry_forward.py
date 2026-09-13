@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Tag-64 OPEN-J3 Containerfile-Label Carry-Forward verifier.
+ OPEN-J3 Containerfile-Label Carry-Forward verifier.
 
-Verifies the §9 OPEN-J3 carry-forward append to the Tag-58
+Verifies the §9 OPEN-J3 carry-forward append to the
 Strict-Flip-Readiness-Map plus the underlying Containerfile.real
 LABEL-substrate is still in the intentional-carry-forward state
 (`0.5.2-final-pre-cutover` LABEL, ADR-0061-LABEL-Konvention satisfied
 with 7 OCI-image LABELs, no premature `0.5.3` refresh).
 
 Decision-Pfad: carry-forward (siehe inbox/2026-05-19-kai-tag-64-j3-label-done.md).
-Pre-Cutover-Cleanup ist explizit ausgeschlossen — Tag-62-Release-Notes
-§1 Out-of-Scope + Tag-63-Audit §D6 Domain-Boundary.
+Pre-cutover cleanup is explicitly out of scope — release-notes §1
+Out-of-Scope plus audit §D6 domain boundary.
 
 Exit 0 on green carry-forward, exit 1 on substrate-drift.
 stdlib only.

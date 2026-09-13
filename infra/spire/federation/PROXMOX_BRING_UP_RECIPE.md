@@ -5,8 +5,8 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 
 # Proxmox-VM Bring-up-Recipe — Phase-1b Single-Org-Pilot
 
-Status: Phase-2 Sprint-9 Tag-1 (Migrations-Schritt-1). Operator-Hand-
-Pfad fuer den Aufsichtsrat-Bring-up auf Proxmox. Sandbox-Boundary:
+Status: (Migrations-Schritt-1). Operator-Hand-
+Pfad fuer den Operator-Bring-up auf Proxmox. Sandbox-Boundary:
 dieses Dokument beschreibt was der Operator (Fred) auf dem Proxmox-
 Host tut; die Sandbox fuehrt keinen Live-Bring-up aus
 (`feedback_sandbox_host_trennung.md`).
@@ -40,7 +40,7 @@ auf der vier Container-Workloads parallel laufen:
    Agent-Sidecar, der Workload-API-Sockets bereitstellt.
 4. **NATS-KV-Bucket-Init** (`wakir-nats-kv-bucket-init`) — der
    einmalige Provisioner, der pro Org einen Marker-Stack-Bucket
-   anlegt (Sprint-8 Tag-4 / Sprint-9 Tag-1).
+   anlegt.
 
 Alle vier laufen als systemd-Quadlet-Units auf Podman. Es gibt
 keinen Compose-Aufruf im Live-Pfad — Compose bleibt das
@@ -53,14 +53,14 @@ Reservierung; hermetic-only). Die Phase-3a-Produktions-Trust-
 Domain `<FTD-ID>.wakir.dev` ist explizit **noch nicht Thema** —
 keine Live-DNS, keine Production-CA. Wir bauen das Pilot-System
 ueber `wakir.test`, validieren die SVID-Roundtrip-Mechanik, und
-heben spaeter (Sprint-10+) auf die Produktions-Trust-Domain.
+heben spaeter auf die Produktions-Trust-Domain.
 
 ### Sandbox vs. Operator-Hand-Grenze
 
 | Phase | Wer | Wo |
 |---|---|---|
-| Spec/Code-Bauen | Sandbox (Kai, Reza, Tomás) | wakir-runtime-Repo, hermetische Tests |
-| Image-Pin-Aufloesung | Operator-Hand (Tomás Cross-Review) | `cosign verify` auf Host |
+| Spec/Code-Bauen | Sandbox | wakir-runtime-Repo, hermetische Tests |
+| Image-Pin-Aufloesung | Operator-Hand (image-pipeline cross-review) | `cosign verify` auf Host |
 | VM-Erstellung | Operator-Hand (Fred) | Proxmox-Web-UI |
 | Quadlet-Install | Operator-Hand (Fred) | SSH auf VM, `sudo systemctl ...` |
 | Smoke-Verify | Operator-Hand (Fred) | `bin/proxmox-bringup-smoke` auf VM |
@@ -193,7 +193,7 @@ sha256sum /tmp/proxmox-bundle-v1.0.tar.gz
 # Erwartet: identisch zu /opt/wakir-runtime/infra/spire/federation/proxmox-bundle-v1.0.sha256
 ```
 
-## 3. Image-Pin-Aufloesung (Cross-Review Zone-C, Tomás-Track)
+## 3. Image-Pin-Aufloesung (Cross-Review Zone-C, image-pipeline review)
 
 Vor Live-Bring-up loest Operator-Hand die `DIGEST_PENDING_TOMAS_REVIEW`-
 Platzhalter zu echten sha256-Digests auf. Dieser Schritt ist
@@ -230,7 +230,7 @@ skopeo inspect docker://ghcr.io/spiffe/spire-agent:1.14.6 | jq -r '.Digest'
 
 Beide Werte (cosign-Output + skopeo-Output) MUESSEN
 byte-identisch sein. Falls nicht: **STOP**, Cross-Review-Eskalation
-an Tomás. Snapshot zurueckrollen.
+an den Image-Pipeline-Owner. Snapshot zurueckrollen.
 
 ### 3.2 Placeholder-Resolution mit Skript
 
@@ -310,7 +310,7 @@ ls /etc/containers/systemd/
 
 ```bash
 # Per-Side-Substitution: wakir.test bekommt host-port 8443 + 8082.
-# Sprint-10 Tag-3: <HOST_BUNDLE_BIND> = 127.0.0.1 (single-org Phase-
+#: <HOST_BUNDLE_BIND> = 127.0.0.1 (single-org Phase-
 # 1b pilot, loopback-only). Federation-Mode (Cross-VM Trial) siehe
 # PARTNER_VM_BRING_UP_RECIPE.md §5 (HOST_BUNDLE_BIND=0.0.0.0 dort).
 sed -e 's/<SIDE>/wakir/g' \
@@ -446,7 +446,7 @@ qm snapshot 101 post-spire --description "SPIRE-SVID-Roundtrip ok"
 
 ## 5. NATS-KV-Bucket-Init (Pilot-Org acme)
 
-Der Sprint-9-Tag-1 One-Shot-Provisioner legt pro Org einen
+Der One-Shot-Provisioner legt pro Org einen
 Marker-Stack-Bucket an.
 
 ### 5.1 Onboarded-Orgs-Roster
@@ -530,8 +530,7 @@ sudo /opt/wakir-runtime/bin/proxmox-bringup-smoke --org acme
 #   [bringup-smoke] SUMMARY: 6/6 checks PASS
 ```
 
-Bei einem `FAIL`: §7 Rollback und Bug-Report an Kai (Outbox-
-Rapport-Pfad).
+Bei einem `FAIL`: §7 Rollback und Bug-Report an den Infra-Owner.
 
 **Snapshot:**
 
@@ -565,11 +564,11 @@ die VM auf den frischen OS-Install zurueck.
 ## 8. Was Phase-1b-Pilot NICHT abdeckt
 
 - **Kein Phase-3a-Production-Trust-Domain.** Wir bleiben auf
-  `wakir.test`. Live-`<FTD-ID>.wakir.dev` ist Sprint-10+-Thema.
+  `wakir.test`. Live-`<FTD-ID>.wakir.dev` ist ein Folge-Thema.
 - **Kein Multi-Org-Federation in diesem Recipe.** Single-Org-
   Pilot mit `acme`-Bucket. Der zweite Pilot-Org-Onboard
   (`partner.test`-Spiegel) ist in `MULTI_ORG_ONBOARDING_RECIPE.md`
-  (Sprint-9 Tag-2) als Erweiterung dokumentiert; die Quadlet-
+  als Erweiterung dokumentiert; die Quadlet-
   Substrate dafuer existiert bereits unter
   `infra/spire/federation/quadlet/` (per-side Templates).
 - **Kein SPIFFE-JWT-SVID-NATS-Auth.** Phase-1b NATS laeuft offen
@@ -598,12 +597,11 @@ ausgerollt wird.
 
 | Zone | Counterparty | Was |
 |---|---|---|
-| Zone A | Reza (Wirelang) | SPIFFE-Trust-Domain-Literal (wakir.test ok, wakir.dev Phase-3) |
-| Zone B | Reza (NATS-Schema) | per-org `wakir-marker-stack-{org_id}` Bucket-Family (Sprint-8 Tag-4 owner) |
-| Zone C | Tomás (OTS / Image-Pipeline) | Cosign-Pin-Resolve fuer SPIRE-Server/Agent + python:3.13-slim |
-| Zone D | Reza (V-904 Identity-Bridge) | nicht in Pilot-Scope (Phase-3) |
+| Zone A | Wirelang | SPIFFE-Trust-Domain-Literal (wakir.test ok, wakir.dev Phase-3) |
+| Zone B | NATS-Schema | per-org `wakir-marker-stack-{org_id}` Bucket-Family (owner) |
+| Zone C | OTS / Image-Pipeline | Cosign-Pin-Resolve fuer SPIRE-Server/Agent + python:3.13-slim |
+| Zone D | V-904 Identity-Bridge | nicht in Pilot-Scope (Phase-3) |
 
-Aisha protokolliert Konsens-Zeitpunkte. Bei Bring-up-Block:
-Spawn-Return mit Diagnose an Kai (Outbox-Rapport-Pfad).
+Konsens-Zeitpunkte werden protokolliert. Bei Bring-up-Block:
+Bug-Report mit Diagnose an den Infra-Owner.
 
-— Kai

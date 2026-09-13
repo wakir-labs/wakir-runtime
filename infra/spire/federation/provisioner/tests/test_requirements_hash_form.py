@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Hermetic hash-pin form invariants for the wakir-provisioner image's
-build-input requirements file (Phase-2 Sprint-9 Tag-4).
+build-input requirements file.
 
 The Containerfile installs the runtime wheel set with
-``pip install --require-hashes -r requirements.txt``. After Reza-PR
+``pip install --require-hashes -r requirements.txt``. After PR
 #33 (Wirelang-Import-Disentanglement, PEP-562 lazy ``__getattr__`` on
 ``wirelang.federation``), the v0.1.1 image's wheel set shrinks to a
 single wheel — ``nats-py`` only. The v0.1.0 image carried three
@@ -81,7 +81,7 @@ def test_requirements_file_exists() -> None:
 
 
 def test_every_expected_package_is_pinned_exactly_once() -> None:
-    """The runtime wheel set (v0.1.1: ``nats-py`` only, post Reza-PR
+    """The runtime wheel set (v0.1.1: ``nats-py`` only, post PR
     #33) MUST be pinned exactly once each. A duplicate pin (e.g. two
     ``nats-py==...`` lines) indicates a bump or rebase mistake. The
     inverted assertion (extras-set is empty) also rejects accidental

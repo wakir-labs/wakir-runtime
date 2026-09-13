@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Verify the Tag-62 wakir-protocol Cross-Review-Zone-3 hand-off plan doc.
+Verify the wakir-protocol Cross-Review-Zone-3 hand-off plan doc.
 
 Parses
 docs/operations/wakir-protocol-cross-review-zone-3-handoff-plan.md
@@ -8,8 +8,8 @@ and asserts:
 
   - All 8 sections (§1..§8) are present in order.
   - §2 source-state table lists all 8 mirror seed files at their
-    canonical runtime-side paths (4 Tag-59 alert-routing files +
-    4 Tag-61 schema files).
+    canonical runtime-side paths (4 alert-routing files +
+    4 schema files).
   - §3 target-state table lists all 8 protocol-side canonical
     mirror paths and the runtime->protocol mapping per row.
   - §4 Operator-Hand recipe has 6 sub-sections §4.1..§4.6 and
@@ -24,8 +24,8 @@ and asserts:
     Path-Drift explicitly.
   - §7 sandbox-boundary delimits Sandbox-Scope vs.
     Out-of-Sandbox-Scope and mentions Operator-Hand-Sandbox-Gap.
-  - §8 cross-anchor cites runtime PR #376 (Tag-59 Reza),
-    PR #382 (Tag-60 Noa), PR #388 (Tag-61 Reza).
+  - §8 cross-anchor cites runtime PR #376,
+    PR #382, PR #388.
   - Doc carries a Reza signature line (-- Reza).
 
 Exit 0 on green, exit 1 on any failure with a clear stderr

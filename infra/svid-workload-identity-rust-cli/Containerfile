@@ -10,17 +10,17 @@
 #
 # wakir-persona-engine-svid-workload-identity — Rust-CLI runtime
 # image for the SPIFFE Workload-API socket-presence probe path
-# (Tag-29 Mini-Welle, ADR-0066 Welle-2 `svid_workload_identity`
-# pre-cutover image, parallel to Welle-1 V907-verify image).
+# (ADR-0066 wave-2 `svid_workload_identity`
+# pre-cutover image, parallel to wave-1 V907-verify image).
 #
 # Substrate scope
 # ---------------
 #
 # ADR-0066 (approved 2026-05-17) accelerates Phase-3c to 4 weeks
-# (Option A+). **Welle-2 is `svid_workload_identity`**: the SPIFFE
+# (Option A). **wave-2 is `svid_workload_identity`**: the SPIFFE
 # Workload-API socket-presence probe path, the second-lowest-blast-
 # radius read-only surface scheduled to flip from Python-backend
-# default to Rust-backend default after Welle-1 V907-verify. This
+# default to Rust-backend default after wave-1 V907-verify. This
 # image is the substrate the cutover step will pin against in the
 # Quadlet unit and in the `persona-engine` image's
 # `WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND=rust` operator-flag pathway.
@@ -34,7 +34,7 @@
 # full Workload-API gRPC `FetchX509SVID` RPC is deferred to a
 # future Zone-L-reviewed crate revision (Tonic substrate larger
 # than the probe surface). The probe is sufficient to flip the
-# Welle-2 backend-decision from `binary_missing` to `binary_present`.
+# wave-2 backend-decision from `binary_missing` to `binary_present`.
 #
 # Multi-stage build
 # -----------------
@@ -73,10 +73,10 @@
 # ``ghcr.io/wakir-labs/wakir-persona-engine-svid-workload-identity:<tag>``
 # and Sigstore-keyless-signs the resulting digest against the
 # GitHub-Actions OIDC identity. Parity with
-# ``build-rust-cli-v907-verify.yml`` from Tag-26 PR #194).
+# ``build-rust-cli-v907-verify.yml`` from PR #194).
 #
 # Pin path: the digest emitted by the workflow is resolved into the
-# Quadlet unit at cutover time (Welle-2 step on the ADR-0066
+# Quadlet unit at cutover time (wave-2 step on the ADR-0066
 # Wochen-Plan). The resolver pattern is the same
 # `scripts/image-pin-idempotent-resolver.sh` PINS-array row that the
 # persona-engine and V907-verify images use.
@@ -99,10 +99,10 @@
 # Cross-references
 # ----------------
 #
-# - ADR-0066 §Phase-3c Welle-2 `svid_workload_identity` (approved
+# - ADR-0066 §Phase-3c wave-2 `svid_workload_identity` (approved
 #   2026-05-17).
-# - ADR-0065 §Welle-2 listing (precondition closure via PR #191
-#   Selin's resolver — this PR ships the binary the resolver was
+# - ADR-0065 §wave-2 listing (precondition closure via PR #191
+#   the persona-engine resolver — this PR ships the binary the resolver was
 #   recording `binary_missing` against).
 # - ADR-0060 — Cosign-Policy on Pilot-Container-Images (the policy
 #   this image must satisfy at cutover time).
@@ -160,7 +160,7 @@ RUN apt-get update -qq \
 FROM gcr.io/distroless/cc-debian12:nonroot@sha256:DIGEST_PENDING_KAI_REVIEW
 
 LABEL org.opencontainers.image.title="wakir-persona-engine-svid-workload-identity"
-LABEL org.opencontainers.image.description="Rust-CLI for the SPIFFE Workload-API socket-presence probe. ADR-0066 Welle-2 pre-cutover image (Tag-29 Mini-Welle, 2026-05-17)."
+LABEL org.opencontainers.image.description="Rust-CLI for the SPIFFE Workload-API socket-presence probe. ADR-0066 wave-2 pre-cutover image."
 LABEL org.opencontainers.image.version="0.1.0-pilot"
 LABEL org.opencontainers.image.licenses="BUSL-1.1"
 LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"

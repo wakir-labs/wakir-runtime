@@ -9,14 +9,14 @@
 # Change License: Apache License 2.0.
 #
 # wakir-v907-verify — Rust-CLI runtime image for the V-907 engine-
-# side pin-compute + verify path (Tag-26 Mini-Welle, ADR-0065 Welle-1
+# side pin-compute + verify path (ADR-0065 wave-1
 # `v907_verify` pre-cutover image).
 #
 # Substrate scope
 # ---------------
 #
 # ADR-0065 (approved 2026-05-17) splits the Python-default → Rust-
-# default cutover into seven weekly waves. **Welle-1 is `v907_verify`**:
+# default cutover into seven weekly waves. **wave-1 is `v907_verify`**:
 # the lowest-blast-radius read-only verify path, scheduled to flip
 # from Python-backend default to Rust-backend default at the start
 # of the Phase-3c marathon. This image is the substrate the cutover
@@ -30,8 +30,7 @@
 # the subcommand surface. It is a thin CLI shim over the library
 # crate's `compute_v907_pin` / `verify_v907_pin` API and ships with
 # byte-for-byte cross-language pin parity against the Python
-# reference (anchor pin captured 2026-05-16, smoke-tested locally
-# Tag-26).
+# reference (anchor pin captured 2026-05-16, smoke-tested locally).
 #
 # Multi-stage build
 # -----------------
@@ -72,7 +71,7 @@
 # identity. Parity with ``build-wakir-persona-engine.yml``).
 #
 # Pin path: the digest emitted by the workflow is resolved into the
-# Quadlet unit at cutover time (Welle-1 step on the ADR-0065
+# Quadlet unit at cutover time (wave-1 step on the ADR-0065
 # Wochen-Plan, Mo Vormittag). The resolver pattern is the same
 # `scripts/image-pin-idempotent-resolver.sh` PINS-array row that the
 # persona-engine image uses.
@@ -80,7 +79,7 @@
 # Cross-references
 # ----------------
 #
-# - ADR-0065 §Phase-3c Welle-1 `v907_verify` (approved 2026-05-17).
+# - ADR-0065 §Phase-3c wave-1 `v907_verify` (approved 2026-05-17).
 # - ADR-0063 §Folgeartefakte Phase-3a Rust-Crate-Bundle Item 3
 #   (the library crate this binary wraps).
 # - ADR-0060 — Cosign-Policy on Pilot-Container-Images (the policy
@@ -136,7 +135,7 @@ RUN apt-get update -qq \
 FROM gcr.io/distroless/cc-debian12:nonroot@sha256:DIGEST_PENDING_KAI_REVIEW
 
 LABEL org.opencontainers.image.title="wakir-v907-verify"
-LABEL org.opencontainers.image.description="Rust-CLI for V-907 engine-side pin-compute + verify. ADR-0065 Welle-1 pre-cutover image (Tag-26 Mini-Welle, 2026-05-17)."
+LABEL org.opencontainers.image.description="Rust-CLI for V-907 engine-side pin-compute + verify. ADR-0065 wave-1 pre-cutover image."
 LABEL org.opencontainers.image.version="0.1.0-pilot"
 LABEL org.opencontainers.image.licenses="BUSL-1.1"
 LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-8 Tag-1 — Quadlet unit for the SPIRE-Server-Federation-
+# Quadlet unit for the SPIRE-Server-Federation-
 # Bundle-Endpoint substrate. This unit is the single-side Quadlet form
 # of the compose/spire-federation.yaml substrate; the SAME unit file is
 # installed twice (once per trust-domain side) with two different
@@ -10,7 +10,7 @@
 # The Quadlet companion exists for atomic-distro hosts (Fedora Atomic /
 # Bluefin / Silverblue / Kinoite) that prefer host-native systemd
 # integration over ``podman compose up``. The compose surface remains
-# the primary Phase-2-Sprint-8 contract (the hermetic test surface in
+# the primary contract (the hermetic test surface in
 # infra/spire/federation/tests/ is compose-shape-asserted; the Quadlet
 # file is byte-precise mirrored).
 #
@@ -24,18 +24,18 @@
 #   partner.test side (hermetic same-host federation):
 #       SIDE=partner, HOST_BUNDLE_PORT=8444, HOST_GRPC_PORT=8083,
 #       HOST_BUNDLE_BIND=127.0.0.1
-#   orbit.test side (Cross-VM Federation Live Trial, Sprint-10 Tag-3):
+#   orbit.test side (Cross-VM Federation Live Trial):
 #       SIDE=orbit,   HOST_BUNDLE_PORT=8443, HOST_GRPC_PORT=8082,
 #       HOST_BUNDLE_BIND=0.0.0.0
 #
-# ``<HOST_BUNDLE_BIND>`` rationale (Sprint-10 Tag-3, M-3 Live-Trial):
+# ``<HOST_BUNDLE_BIND>`` rationale (M-3 Live-Trial):
 #   The bundle-endpoint listener is the ONLY port a federation peer
 #   must reach from across a VM boundary. The gRPC API (8081) and any
 #   single-org pilot's bundle-endpoint stay loopback-only (127.0.0.1)
 #   so an unfederated pilot never exposes its bundle. Cross-VM
 #   federation REQUIRES the bundle-endpoint host-bind to be the
 #   wildcard (0.0.0.0) so a peer VM can connect over the wakir-
-#   federation-internal Proxmox-bridge (or, for the Sprint-10-Tag-3
+#   federation-internal Proxmox-bridge (or, for the
 #   home-LAN dogfood topology, the host's LAN-facing IP).
 #   wakir-pilot-bootstrap.sh wires this automatically:
 #     * WAKIR_PILOT_MODE=single-org  -> HOST_BUNDLE_BIND=127.0.0.1
@@ -88,11 +88,11 @@ ContainerName=wakir-spire-server-federation-<SIDE>
 # Image pin: mirror of compose/spire-federation.yaml services.spire-
 # server-<SIDE>.image. The placeholder ``DIGEST_PENDING_TOMAS_REVIEW``
 # resolves to the canonical sha256 digest in the same Operator-Hand
-# Cross-Review Zone-C workflow as the Sprint-6 SPIRE-Server image-pin
+# Cross-Review Zone-C workflow as the SPIRE-Server image-pin
 # (docs/spire-server-phase-2-1.md §2).
 Image=ghcr.io/spiffe/spire-server:1.14.6@sha256:0ed27f4651abae66e25b9bc8cf0e80b143629b3d34a7fcf4c8cce70c81c0043b
 
-# Sprint-9-Tag-6 Bug 7 substance-fix: the upstream
+# Bug 7 substance-fix: the upstream
 # ``ghcr.io/spiffe/spire-server`` image declares
 # ``ENTRYPOINT ["/opt/spire/bin/spire-server"]`` and its CMD is empty.
 # Quadlet's ``Exec=`` value is APPENDED as positional args (it does
@@ -110,7 +110,7 @@ Image=ghcr.io/spiffe/spire-server:1.14.6@sha256:0ed27f4651abae66e25b9bc8cf0e80b1
 Exec=-config /etc/spire/server/server.conf
 
 # Bundle-endpoint listener — host bind controlled by <HOST_BUNDLE_BIND>
-# (Sprint-10 Tag-3, M-3 Live-Trial). For same-host hermetic test or
+# (M-3 Live-Trial). For same-host hermetic test or
 # single-org pilot deployments, HOST_BUNDLE_BIND=127.0.0.1 keeps the
 # listener loopback-only. For Cross-VM federation (WAKIR_PILOT_MODE=
 # federation), HOST_BUNDLE_BIND=0.0.0.0 so a peer VM can fetch the
@@ -140,7 +140,7 @@ Volume=/etc/wakir/spire-federation/spire-server-<SIDE>.conf:/etc/spire/server/se
 
 # Named volume sidecars (per-side).
 #
-# Sprint-9-Tag-8 Bug-20 substance-fix: ``:Z`` SELinux-relabel-private
+# Bug-20 substance-fix: ``:Z`` SELinux-relabel-private
 # is mandatory on FCOS-enforced hosts; without it the named volume
 # stays labeled ``root_t`` while the container runs as ``container_t``
 # and gets EACCES on first write. Bug-20 was observed as a SPIRE-Agent
@@ -150,7 +150,7 @@ Volume=wakir-spire-server-federation-<SIDE>-data.volume:/var/lib/spire/server:Z,
 Volume=wakir-spire-server-federation-<SIDE>-sockets.volume:/run/spire/sockets:Z,U
 Volume=wakir-spire-server-federation-<SIDE>-bundles.volume:/var/lib/spire/bundles:Z,U
 
-# Sprint-9-Tag-6 Bug 12 substance-fix: the previous mode=0700 made
+# Bug 12 substance-fix: the previous mode=0700 made
 # /run/spire root-only, which blocked the uid:1000 server process
 # from creating the gRPC API socket file inside ``/run/spire/sockets``
 # (bind-mounted from the per-side ``-sockets.volume``). The agent then
@@ -164,7 +164,7 @@ Tmpfs=/run/spire:rw,size=16m,mode=0755
 # share this network so each can reach the other's bundle-endpoint at
 # the SPIFFE-internal DNS name spire-server-<peer-side>.
 #
-# Sprint-9-Tag-6 Bug 10 substance-fix: the single-org agent config
+# Bug 10 substance-fix: the single-org agent config
 # (spire-agent-pilot-single-org.conf) addresses the server via
 # ``server_address = "spire-server-wakir"``. The Quadlet ContainerName
 # expands to ``wakir-spire-server-federation-<SIDE>`` -- the bare
@@ -184,7 +184,7 @@ HealthCmd=/opt/spire/bin/spire-server healthcheck
 HealthInterval=10s
 HealthTimeout=5s
 HealthRetries=5
-# Sprint-9-Tag-5 Bug 7 (H3): cold-start CA-init on a slow Pilot-VM can
+# Bug 7 (H3): cold-start CA-init on a slow Pilot-VM can
 # exceed 30s. SPIRE-Server first-start does CA-keypair generation +
 # datastore SQLite migration + JWT-signing-key setup before the
 # healthcheck binary reports ready. 60s gives the cold-start path

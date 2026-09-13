@@ -15,10 +15,10 @@
 #      Substance-Datei einen SPDX-License-Identifier-Header trägt
 #      und dass jede in irgendeinem Header genannte Lizenz auch
 #      als Volltext im `LICENSES/`-Verzeichnis liegt. Dieser Gate
-#      bleibt RED, bis Reza das `LICENSES/`-Verzeichnis mit den
+#      bleibt RED, bis das `LICENSES/`-Verzeichnis mit den
 #      drei Volltexten (Apache-2.0, BUSL-1.1, CC-BY-4.0) gemerged
 #      hat. Das ist beabsichtigt — der Gate fungiert als Merge-
-#      Koordinations-Anker für die Welle.
+#      Koordinations-Anker für die wave.
 #
 #   2. SPDX-Header-Konsistenz — der bereits bestehende
 #      `tests/infra/test_spdx_header_consistency.py` (ADR-0059)
@@ -56,12 +56,12 @@
 #      Header trägt und gleichzeitig den underscored-Namens-
 #      Geschwister-Import (`-` → `_`, `.py`-Suffix) macht, dessen
 #      Geschwister `BUSL-1.1` trägt, ist ein License-Mismatch und
-#      bricht den Gate. Reza fixt das in ihrer Welle-PR; dieser
+#      bricht den Gate. Der Fix landet in der Lizenz-PR; dieser
 #      Gate macht die Mismatch-Liste sichtbar.
 #
 # Required-Status-Check
 # ---------------------
-# Sobald dieser Workflow auf `main` einmal grün läuft, soll Mira
+# Sobald dieser Workflow auf `main` einmal grün läuft, soll der Operator
 # (Operator-Hand, GitHub-Repo-Settings) ihn unter
 # `Settings → Branches → main → Branch Protection Rules →
 #  Require status checks to pass before merging` aktivieren. Damit
@@ -75,45 +75,12 @@ on:
   push:
     branches:
       - main
-    paths:
-      - "**/*.py"
-      - "**/*.toml"
-      - "**/LICENSE*"
-      - "**/NOTICE"
-      - "LICENSING.md"
-      - "LICENSES/**"
-      - "README.md"
-      - "bin/**"
-      - "infra/spire/**/bin/**"
-      - ".github/workflows/**"
-      - ".cross-repo-drift-allowlist.yaml"
-      - "dashboards/**"
-      - "docs/**"
-      - "wirelang-rust/**"
-      - "tests/infra/test_spdx_header_consistency.py"
-      - "tests/infra/test_license_hygiene_consistency.py"
-      - "tests/infra/test_licensing_md_state.py"
-      - "REUSE.toml"
-  pull_request:
-    paths:
-      - "**/*.py"
-      - "**/*.toml"
-      - "**/LICENSE*"
-      - "**/NOTICE"
-      - "LICENSING.md"
-      - "LICENSES/**"
-      - "README.md"
-      - "bin/**"
-      - "infra/spire/**/bin/**"
-      - ".github/workflows/**"
-      - ".cross-repo-drift-allowlist.yaml"
-      - "dashboards/**"
-      - "docs/**"
-      - "wirelang-rust/**"
-      - "tests/infra/test_spdx_header_consistency.py"
-      - "tests/infra/test_license_hygiene_consistency.py"
-      - "tests/infra/test_licensing_md_state.py"
-      - "REUSE.toml"
+    # No `paths:` filter — see the pull_request note below; the same
+    # invariant applies to pushes on `main`.
+  # No `paths:` filter. This workflow feeds a required status context;
+  # a required context that never reports leaves the pull request
+  # pending forever, so it fires on every pull request.
+  pull_request: {}
   workflow_dispatch: {}
 
 permissions:
@@ -155,7 +122,7 @@ jobs:
         #     similar declaration scheme),
         #   - every license mentioned in any header has a matching
         #     full-text file under `LICENSES/`.
-        # While the Welle is in flight (Reza has not yet shipped
+        # While the license wave is in flight (the license PR has not yet shipped
         # `LICENSES/Apache-2.0.txt`, `BUSL-1.1.txt`, `CC-BY-4.0.txt`),
         # this step is allowed to be RED. The other stages still run
         # so the PR-Run shows a complete diagnostic.
@@ -178,7 +145,7 @@ jobs:
         run: |
           python -m pytest tests/infra/test_license_hygiene_consistency.py -v --tb=short
 
-      - name: Stage 3b — LICENSING.md state audit (Tag-31 EXT-AUDIT-FOLGE)
+      - name: Stage 3b — LICENSING.md state audit (EXT-AUDIT-FOLGE)
         # State-audit cross-referencing LICENSING.md ↔ on-disk BSL
         # sub-trees ↔ REUSE.toml ↔ pyproject.toml license-files. Adds
         # `wirelang-rust/` workspace coverage and README repository-
@@ -280,8 +247,8 @@ jobs:
           print("license-gate: no Apache-Shim-um-BUSL violations")
           PY
 
-      - name: Stage 1 result enforcement (post-Welle)
-        # Post-Welle invariant: every file MUST have both copyright
+      - name: Stage 1 result enforcement (post-wave)
+        # Post-wave invariant: every file MUST have both copyright
         # and license info. REUSE 3.3 also reports "Invalid SPDX
         # License Expressions" as warnings when a file contains an
         # SPDX-pattern in a non-header position (JSON-schema
@@ -299,7 +266,7 @@ jobs:
             reuse_out=$(reuse lint 2>&1 || true)
             # Block if any file lacks copyright/licensing info.
             if echo "$reuse_out" | grep -qE "^\* Missing licenses: [^0]"; then
-              echo "license-gate: post-Welle, files MUST have license info." >&2
+              echo "license-gate: post-wave, files MUST have license info." >&2
               echo "$reuse_out" >&2
               exit 1
             fi
@@ -310,6 +277,6 @@ jobs:
             echo "license-gate: LICENSES/ complete + all files have license + copyright info."
             echo "license-gate: invalid-SPDX-expression warnings are tracked as Phase-1-Folge-Item."
           else
-            echo "license-gate: Welle in flight — LICENSES/ not yet complete."
-            echo "license-gate: reuse lint may be RED until Reza-PR merges."
+            echo "license-gate: wave in flight — LICENSES/ not yet complete."
+            echo "license-gate: reuse lint may be RED until the license PR merges."
           fi

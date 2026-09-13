@@ -2,18 +2,18 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Tag-72 RES-D4 HD-3 Audit-Coverage Substrate-Preparation helper.
+ RES-D4 HD-3 Audit-Coverage Substrate-Preparation helper.
 
-Audit-only mode. This helper inspects the Tag-72 HD-3 audit-coverage
+Audit-only mode. This helper inspects the HD-3 audit-coverage
 substrate stub-file at
 ``tooling/audit/res-d4-hd3-audit-coverage-stub.json`` and asserts:
 
   - The stub-file is well-formed JSON.
   - The stub-file declares ``audit_only: true`` and
     ``doc_form_only: true``.
-  - The stub-file declares ``tag: Tag-72`` and ``hard_dep: HD-3``.
-  - The stub-file declares the upstream Tag-67 / Tag-65 / Tag-69
-    anchors and the Tag-70 HD-1 + Tag-71 HD-2 substrate PR numbers
+  - The stub-file declares its audit tag and ``hard_dep: HD-3``.
+  - The stub-file declares the upstream / /
+    anchors and the HD-1 + HD-2 substrate PR numbers
     (#446 + #452), plus ADR-0014 + ADR-0025 audit-anchors.
   - The stub-file enumerates the strict audit-coverage invariant
     explicitly (audit_priority_value, owner-is-not-Reza,
@@ -22,7 +22,7 @@ substrate stub-file at
   - The stub-file enumerates exactly three audit-priority-tags,
     each carrying ``kind: fixture`` and contributing zero audit-
     sample-rotation emit (HD-3 substrate must never claim a
-    Henrik-Voss audit-sample-config amendment from fixture
+    internal audit audit-sample-config amendment from fixture
     entries).
   - The third priority-tag (`reza-hand-priority-flip-forbidden`)
     is the negative-control with
@@ -37,7 +37,7 @@ substrate stub-file at
     B4 anchor).
   - The stub-file's sandbox-boundary section sets every boundary to
     its audit-only default (no audit-sample-config amendment, no
-    Henrik-Voss-priority-direction emit, no promotion-PR opening,
+    internal audit-priority-direction emit, no promotion-PR opening,
     no NATS-KV-schema default change, no rollback-procedure default
     change; probe_default_mode == inspection-only).
   - The stub-file enumerates the three audit-sample event types
@@ -47,7 +47,7 @@ substrate stub-file at
   - The helper itself does NOT call any external network endpoint.
   - The helper itself does NOT emit any audit-sample rotation
     entry.
-  - The helper itself does NOT direct Henrik Voss's audit-sample
+  - The helper itself does NOT direct internal audit's audit-sample
     priority-list.
   - The helper itself does NOT change the NATS-KV schema or
     rollback-procedure defaults.
@@ -62,14 +62,14 @@ Standard library only.
 Sandbox-boundary recital (per deep-dive §8 + §6.4):
 
   - No audit-sample-config amendment is emitted by this helper.
-  - No direction to Henrik Voss's audit-sample priority-list is
+  - No direction to internal audit's audit-sample priority-list is
     emitted by this helper.
   - No NATS-KV schema default change is performed by this helper.
   - No rollback-procedure default change is performed by this
     helper.
 
-This helper is the Tag-72 §6.4 deep-dive operational counterpart
-(parallel to the Tag-70 §6.2 HD-1 helper and the Tag-71 §6.3 HD-2
+This helper is the §6.4 deep-dive operational counterpart
+(parallel to the §6.2 HD-1 helper and the §6.3 HD-2
 helper). It completes the three-hard-dep substrate trilogy at
 audit-only granularity.
 """

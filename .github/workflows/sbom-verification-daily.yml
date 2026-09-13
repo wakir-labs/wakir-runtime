@@ -1,18 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# 15-Binary SBOM-vs-Baseline Verification Daily Workflow (Tag-49, Kai)
+# 15-Binary SBOM-vs-Baseline Verification Daily Workflow
 # -------------------------------------------------------------------
 #
 # Purpose
 # -------
 #
-# Tag-48 PR #310 introduced the 15-binary SBOM generator. It emits
+# PR #310 introduced the 15-binary SBOM generator. It emits
 # fresh SBOMs every morning at 07:00 UTC. What PR #310 does NOT do
 # is compare today's SBOMs against a baseline: the operator can
 # read the SBOM but cannot answer "did anything change since
-# AR-Hand-Gate sign-off?".
+# the last operator sign-off?".
 #
-# This Tag-49 verification workflow runs the Tag-48 generator under
+# This verification workflow runs the generator under
 # the same hermetic --mode=stdlib path (no live cargo / network),
 # then compares each per-binary SBOM against
 # tooling/baselines/sbom-baseline/<binary>.json. The verdict classification:
@@ -25,23 +25,23 @@
 #               OR a baseline is missing, OR the cargo-lock-sha256
 #               in any SBOM differs from the aggregate's value.
 #
-# On non-GREEN aggregate the workflow emits a Mira-Notify event via
+# On non-GREEN aggregate the workflow emits a mira-notify event via
 # scripts/observability/mira-notify-emitter.py so the operator
 # inbox surfaces the drift. The notify-event severity is mapped
 # from the verdict:
 #
-#   * RED    -> severity=page    (Mira-Hand-inbox high + ntfy + AR)
-#   * YELLOW -> severity=warning (Mira-Hand-inbox normal + ntfy)
+#   * RED -> severity=page (operator inbox high + ntfy + AR)
+#   * YELLOW -> severity=warning (operator inbox normal + ntfy)
 #
 # Schedule offset
 # ---------------
 #
-# Daily at 07:30 UTC -- offset 30min after the Tag-48 generator at
+# Daily at 07:30 UTC -- offset 30min after the generator at
 # 07:00 UTC so the daily cadence is:
 #
 #   06:00 UTC  pre-cutover-daily-probe
 #   06:30 UTC  cosign-keyless-oidc-drift-probe
-#   07:00 UTC  15-binary-sbom-daily      (Tag-48 generator)
+#   07:00 UTC 15-binary-sbom-daily (generator)
 #   07:30 UTC  sbom-verification-daily   (this workflow)
 #
 # An operator scanning the morning's Job-Summary pages sees four
@@ -53,16 +53,16 @@
 # ---------------
 #
 # Strict hermetic: stdlib + tomllib only. No podman / cargo /
-# cosign / network egress. Re-uses the Tag-48 generator parser via
+# cosign / network egress. Re-uses the generator parser via
 # importlib.util so the dependency surface is exactly that of
 # PR #310.
 #
 # Audit-Trail anchor
 # ------------------
 #
-# ADR-0066 §AR-Hand-Gate requires a full provenance bundle at the
-# pre-cutover hand-off. The Tag-48 SBOM provides the snapshot;
-# this Tag-49 verifier provides the *delta-vs-pinned-baseline*
+# The ADR-0066 sign-off gate requires a full provenance bundle at the
+# pre-cutover hand-off. The SBOM provides the snapshot;
+# this verifier provides the *delta-vs-pinned-baseline*
 # axis. The operator reads the GREEN aggregate verdict as
 # "dependency-tree byte-stable since last AR sign-off".
 #
@@ -85,7 +85,7 @@
 # Per feedback_branch_protection_check_names.md this workflow
 # tracks a daily delta signal, not individual PR acceptance. It is
 # NOT listed as a required status check on PRs; it surfaces signal
-# only via Job-Summary + artefact + Mira-Notify emission.
+# only via Job-Summary + artefact + mira-notify emission.
 
 name: sbom-verification-daily
 
@@ -238,7 +238,7 @@ jobs:
           esac
           echo "severity=${severity}" >> "${GITHUB_OUTPUT}"
 
-      - name: Emit Mira-Notify event on non-GREEN aggregate
+      - name: Emit mira-notify event on non-GREEN aggregate
         if: ${{ steps.verify.outputs.aggregate_verdict != 'GREEN' }}
         env:
           VERDICT: ${{ steps.verify.outputs.aggregate_verdict }}

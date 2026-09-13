@@ -58,17 +58,12 @@ on:
   push:
     branches:
       - main
-    paths:
-      - "wirelang/**"
-      - "tests/**"
-      - "docs/**"
-      - ".github/workflows/**"
-  pull_request:
-    paths:
-      - "wirelang/**"
-      - "tests/**"
-      - "docs/**"
-      - ".github/workflows/**"
+    # No `paths:` filter — see the pull_request note below; the same
+    # invariant applies to pushes on `main`.
+  # No `paths:` filter. This workflow feeds a required status context;
+  # a required context that never reports leaves the pull request
+  # pending forever, so it fires on every pull request.
+  pull_request: {}
   workflow_dispatch: {}
 
 permissions:

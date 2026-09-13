@@ -7,7 +7,7 @@
 # itself licensed under BUSL-1.1 for consistency with the imported
 # implementation.
 #
-# Sprint-AB-Routing-Diff-CLI-MINI — Operator-facing CLI entrypoint for
+# routing-diff CLI — Operator-facing CLI entrypoint for
 # the ADR-0064 §4 A/B-test diff. Thin shim over
 # ``wirelang.persona_engine.routing_diff:main``.
 #

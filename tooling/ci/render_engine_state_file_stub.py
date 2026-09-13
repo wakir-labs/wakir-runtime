@@ -3,17 +3,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreEnd
-"""Tag-68 Engine-Side State-File Render-Stub (Selin, audit-only).
+""" Engine-Side State-File Render-Stub (Selin, audit-only).
 
 This helper accompanies
-``docs/persona-engine/state-file-producer-wiring-plan.md`` (Tag-68).
+``docs/persona-engine/state-file-producer-wiring-plan.md``.
 It is a **render-only** stub: given a ``(welle_number, kw_anchor)``
 pair, it produces the canonical pending-status JSON for
-``state/welle-N.json`` per the Tag-67 schema-pin
+``state/welle-N.json`` per the schema-pin
 (``docs/quality-gates/welle-n-state-file-conventions.md``).
 
-The stub is **audit-only**: it has no write-mode. Tag-68 is a
-plan-doc-only deliverable; the actual write-path is the Tag-69+
+The stub is **audit-only**: it has no write-mode. is a
+plan-doc-only deliverable; the actual write-path is the
 engine-side writer's responsibility, as documented in
 ``state-file-producer-wiring-plan.md`` §5.
 
@@ -23,9 +23,9 @@ Usage (CLI)
 ::
 
     python3 tooling/ci/render_engine_state_file_stub.py \\
-        --welle 3 --kw KW-25
+        --welle 3 --kw <calendar-week>
 
-    # Render all seven canonical stubs (pre-Cutover-T0 initial-state):
+    # Render all seven canonical stubs (pre-cutover T0 initial-state):
     python3 tooling/ci/render_engine_state_file_stub.py --all
 
 Exit-code: 0 on success, 1 on invalid input.
@@ -38,16 +38,15 @@ Sandbox-Boundary
 * Output is to stdout exclusively (CLI) or returned as a Python
   ``dict`` / JSON string (library use).
 
-This module is hermetic-by-construction per Mira's
-Sandbox-vs-Host-Operations Trennung and the Tag-68 plan-doc §6.
+This module is hermetic-by-construction per the operator's
+Sandbox-vs-Host-Operations Trennung and the plan-doc §6.
 
-Scope discipline (Selin)
+Scope discipline
 ------------------------
-This stub does NOT modify persona definitions (Aisha-Domaene,
-ADR-0043), WAT-core logic (Tomas-Domaene, Zone-K),
-identity-substrate design (Reza-Domaene, Zone-L), or
-container-infra (Kai-Domaene, Zone-J). It renders strings that
-match the Tag-67 schema-pin (Amara-domain, QA).
+This stub does NOT modify persona definitions (ADR-0043),
+WAT-core logic (zone K), identity-substrate design (zone L),
+or container infra (zone J). It renders strings that match the
+schema pin (QA domain).
 """
 
 from __future__ import annotations
@@ -60,18 +59,18 @@ from typing import Dict, List, Tuple
 SCHEMA_VERSION = "tag-67-v1"
 PHASE_LITERAL = "phase-3-marathon"
 
-# Canonical KW-anchor map per the Marathon-Schedule, locked to the
+# Canonical KW-anchor map per the migration schedule, locked to the
 # operational Source-of-Truth ``docs/quality-gates/pre-cutover-
-# acceptance-run-order.md`` §3 per-Welle Run-Order table (lines 90..98).
-# Wellen-Reihe (post Tag-74 reconciliation):
-#   1=KW-22, 2=KW-23, 3=KW-25, 4=KW-26, 5=KW-26, 6=KW-26, 7=KW-27.
+# acceptance-run-order.md`` §3 per-wave Run-Order table (lines 90..98).
+# waves-Reihe (post reconciliation):
+#   one calendar-week anchor per wave, waves 1..7.
 #
-# Tag-74 W5-anchor reconciliation (Selin)
+# W5-anchor reconciliation
 # ---------------------------------------
-# The W5 default-map was previously KW-25 (Tag-67 render-helper default,
-# inherited from a pre-ADR-0066 schedule that placed Welle-5 on KW-25 Fr
+# The W5 default-map was previously (render-helper default,
+# inherited from a pre-ADR-0066 schedule that placed wave-5 on Fr
 # 2026-06-19 as a solo-welle). ADR-0066 four-Wochen-Cadence locked the
-# Doppel-Welle-4+5 to KW-26 (Cutover-Mittwoch 2026-06-24, Sign-off-
+# waves 4+5 to (cutover Wednesday 2026-06-24, Sign-off-
 # Freitag 2026-06-26), which the operational Source-of-Truth
 # ``pre-cutover-acceptance-run-order.md`` §3 table reflects.
 #
@@ -80,9 +79,9 @@ PHASE_LITERAL = "phase-3-marathon"
 # When the persona-engine helper-default disagrees with another
 # canonical-doc reference, the operational Final-Reference
 # ``docs/quality-gates/pre-cutover-acceptance-run-order.md`` wins.
-# Rationale: it is the run-order doc Amara + Henrik + Aisha consult on
+# Rationale: it is the run-order doc QA, internal audit and HR consult on
 # cutover-Mittwoch + sign-off-Freitag; older docstrings (e.g. the
-# ``handle_welle_5_signoff_event`` docstring's ``KW-25 Fr 2026-06-19``
+# ``handle_welle_5_signoff_event`` docstring's ``Fr 2026-06-19``
 # inherited string) are historical references that do not gate the
 # producer-substrate's runtime behaviour (the producer is kw-anchor-
 # agnostic at the transition-machine level -- the kw-anchor lives in
@@ -91,7 +90,7 @@ PHASE_LITERAL = "phase-3-marathon"
 #
 # The reconciliation is documented in
 # ``docs/persona-engine/welle-5-kw-anchor-reconciliation-tag74.md``.
-# This Tag-74 render-helper fix changes ONLY the default-map; the
+# This render-helper fix changes ONLY the default-map; the
 # ``state/welle-5.json`` on-disk file remains the operator-curated
 # source-of-truth for the runtime ``kw_cutover_anchor`` field.
 CANONICAL_KW_ANCHOR: Dict[int, str] = {
@@ -133,7 +132,7 @@ def render_stub(welle_number: int, kw_anchor: str) -> Dict[str, object]:
 
     Returns a Python dict that, when serialised with
     ``json.dumps(..., indent=2)`` and a trailing newline,
-    reproduces the Tag-67 stub-file shape exactly.
+    reproduces the stub-file shape exactly.
 
     Raises ``ValueError`` if ``welle_number`` is not in 1..7 or
     ``kw_anchor`` does not match ``^KW-2[2-7]$``.
@@ -160,10 +159,10 @@ def render_stub(welle_number: int, kw_anchor: str) -> Dict[str, object]:
 
 
 def render_all() -> List[Tuple[int, Dict[str, object]]]:
-    """Render the seven canonical stubs for Welle-1..7.
+    """Render the seven canonical stubs for waves 1..7.
 
     Returns a list of ``(welle_number, stub_dict)`` tuples in
-    Welle-number order, using the canonical KW-anchor map.
+    wave-number order, using the canonical KW-anchor map.
     """
     return [
         (n, render_stub(n, CANONICAL_KW_ANCHOR[n]))

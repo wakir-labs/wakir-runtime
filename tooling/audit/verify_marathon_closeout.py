@@ -2,13 +2,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Tag-76 Marathon-Closeout-Aggregator (Welle-1..7 Verifier-Family Bundler).
+ closeout-Aggregator (waves 1..7 Verifier-Family Bundler).
 
-Audit-only mode. This helper aggregates the seven per-Welle verifier
-outcomes (Welle-1..7 Final-Sealing-Verifier-Family) into a single
+Audit-only mode. This helper aggregates the seven per-wave verifier
+outcomes (waves 1..7 Final-Sealing-Verifier-Family) into a single
 marathon-closeout verdict and inspects the Production-Bringup-Marker
-post-Welle-7-sign-off-trigger and the Phase-3-COMPLETE-Marker-Readiness
-state. It does NOT execute any per-Welle verifier, does NOT consult
+post-wave-7-sign-off-trigger and the Phase-3-COMPLETE-Marker-Readiness
+state. It does NOT execute any per-wave verifier, does NOT consult
 the audit-trail WAT-leaves, does NOT touch the schema-registry, does
 NOT open any promotion-PR, does NOT cut a release tag, and does NOT
 emit the Phase-3-COMPLETE-marker. It is a structural / invariant
@@ -59,10 +59,10 @@ inspector over a closeout-document of shape::
       }
     }
 
-A welle-outcome (one for each Welle-1..7) has::
+A welle-outcome (one for each waves 1..7) has::
 
     {
-      "welle_id":         "<one of: Welle-1 .. Welle-7>",
+      "welle_id": "<one of: wave-1.. wave-7>",
       "verifier_pin":     "<opaque verifier-identity pin>",
       "verifier_kind":    "<one of: v907-verify | state-conventions |
                                     recipe-patch-doc | state-backing |
@@ -73,9 +73,9 @@ A welle-outcome (one for each Welle-1..7) has::
       "test_count":       <integer >=1>
     }
 
-Invariants checked (Marathon-Closeout):
+Invariants checked (closeout):
 
-  I-1   ``tag`` is exactly ``Tag-76``.
+  I-1 ``tag`` is exactly ``Tag-76``.
   I-2   ``marathon_id`` is exactly ``phase-3c-welle-marathon``.
   I-3   ``audit_only`` and ``doc_form_only`` are both type bool and
         both true. Helper refuses to validate a non-audit-only
@@ -83,7 +83,7 @@ Invariants checked (Marathon-Closeout):
   I-4   ``closeout_id`` is a non-empty string matching
         ``^closeout-[a-z0-9-]{4,64}$``.
   I-5   ``welle_verifier_outcomes`` is a list of exactly seven welle-
-        outcome records, one for each of Welle-1 .. Welle-7.
+        outcome records, one for each of wave-1.. wave-7.
         Duplicates rejected, missing wellen rejected, unknown
         welle-ids rejected.
   I-6   Each welle-outcome carries the six required fields and no
@@ -91,20 +91,20 @@ Invariants checked (Marathon-Closeout):
         >=1; ``verdict`` in {GREEN, CAUTION, RED}.
   I-7   Each ``verifier_kind`` is from the canonical set; the kind
         MUST match the canonical-kind-per-welle expectation derived
-        from the run-order doc (Welle-1=v907-verify,
-        Welle-2=state-conventions, Welle-3=recipe-patch-doc,
-        Welle-4=state-backing, Welle-5=capability-token,
-        Welle-6=parity, Welle-7=final-sealing).
+        from the run-order doc (wave-1=v907-verify,
+        wave-2=state-conventions, wave-3=recipe-patch-doc,
+        wave-4=state-backing, wave-5=capability-token,
+        wave-6=parity, wave-7=final-sealing).
   I-8   ``signoff_date`` is an ISO-8601 date string matching
-        ``^\\d{4}-\\d{2}-\\d{2}$``. For Welle-6 and Welle-7 the date
+        ``^\\d{4}-\\d{2}-\\d{2}$``. For wave-6 and wave-7 the date
         MUST be ``2026-07-03`` (canonical sign-off-Freitag per the
-        run-order doc); for Welle-1/2 ``2026-06-12``, Welle-3
-        ``2026-06-19``, Welle-4/5 ``2026-06-26``.
+        run-order doc); for wave-1/2 ``2026-06-12``, wave-3
+        ``2026-06-19``, wave-4/5 ``2026-06-26``.
   I-9   ``production_bringup_marker`` carries the five required
         fields and no extras. ``trigger_kind`` is exactly
         ``post-welle-7-signoff``. ``trigger_date`` matches
         ``^\\d{4}-\\d{2}-\\d{2}$`` and equals ``2026-07-03`` (the
-        Welle-7 sign-off-Freitag). ``production_substrate`` is a
+        wave-7 sign-off-Freitag). ``production_substrate`` is a
         non-empty string.
   I-10  ``bringup_status`` is one of {ready, pending, blocked}.
         ``operator_handoff_required`` is type bool.
@@ -196,7 +196,7 @@ Sandbox-boundary recital:
   - No release-tag cut by this helper.
   - probe_default_mode is inspection-only.
 
--- Reza
+-- Reza  (signature literal pinned by tests/audit t02; drop with W5 part 2)
 """
 from __future__ import annotations
 
@@ -314,7 +314,7 @@ EXPECTED_WELLE_7_SIGNOFF_DATE = "2026-07-03"
 
 
 class VerifyError(Exception):
-    """Raised when a Tag-76 Marathon-Closeout invariant fails."""
+    """Raised when a closeout invariant fails."""
 
 
 def _require(condition: bool, invariant_id: str, message: str) -> None:
@@ -719,7 +719,7 @@ def _check_cross_anchors(doc: dict) -> None:
 
 
 def verify_closeout(doc: Any) -> None:
-    """Validate a Tag-76 Marathon-Closeout document.
+    """Validate a closeout document.
 
     Raises ``VerifyError`` with an invariant-tagged message on the
     first failing invariant. Returns ``None`` on success.

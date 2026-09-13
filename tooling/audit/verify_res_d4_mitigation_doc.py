@@ -2,12 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Verify the Tag-69 RES-D4 High-Residual Mitigation Deep-Dive doc.
+Verify the RES-D4 High-Residual Mitigation Deep-Dive doc.
 
 Parses
 ``docs/operations/res-d4-high-residual-mitigation-deep-dive.md``
 and asserts the structural invariants of a doc-form-only,
-single-RES-Dn-item deep-dive (downstream of the Tag-67
+single-RES-Dn-item deep-dive (downstream of the
 activation pre-mortem §5):
 
   - All eight sections (§1..§8) are present and in order.
@@ -15,19 +15,19 @@ activation pre-mortem §5):
     skizze posture (GOVERNANCE.md §10), the RES-D4-single-item
     focus, and the joint-necessity framing of the three hard-deps.
   - §2 hard-dep inventory enumerates HD-1, HD-2, HD-3 with
-    Tag-67 §5 cross-anchored failure-mode codes.
+ §5 cross-anchored failure-mode codes.
   - §3 mitigation strategies carry one decomposition table per
     hard-dep (3.1, 3.2, 3.3) and an aggregate §3.4.
   - §4 indefinite-deferral justification enumerates re-evaluation
     triggers T1..T7.
-  - §5 cross-anchor to Tag-67 + Tag-65 + HARD-edge restatement.
+  - §5 cross-anchor to + + HARD-edge restatement.
   - §6 OTS-anchor substrate preparation is marked audit-only.
   - §7 peer-roster substrate preparation is marked audit-only.
   - §8 sandbox-boundary carries the three boundaries (no live-OTS,
     no AR-authorisation, no promotion-PR opening).
   - §9 cross-anchor cites ADR-0007, ADR-0014, ADR-0023a,
-    ADR-0023b, ADR-0025, GOVERNANCE.md, and Tag-44 / Tag-58 /
-    Tag-60 / Tag-63 / Tag-64 / Tag-65 / Tag-66 / Tag-67 / Tag-68
+    ADR-0023b, ADR-0025, GOVERNANCE.md, and / /
+ / / / / / /
     Tag-N pointers.
   - Doc carries the SPDX CC-BY-4.0 header and a ``-- Reza``
     signature line.
@@ -167,7 +167,7 @@ def check_hard_dep_inventory(section2: str) -> None:
     for hd in REQUIRED_HARD_DEPS:
         if hd not in section2:
             fail(f"§2 hard-dep inventory missing '{hd}'")
-    # Tag-67 §5 cross-anchored failure-mode codes must appear in
+    # §5 cross-anchored failure-mode codes must appear in
     # the hard-dep inventory (collectively, not per-row).
     missing_codes = [
         c for c in REQUIRED_RES_D4_FAILURE_CODES if c not in section2
@@ -230,7 +230,7 @@ def check_deferral_and_triggers(section4: str) -> None:
 def check_cross_anchor_and_hard_edge(section5: str) -> None:
     if "HARD edge" not in section5 and "HARD-edge" not in section5:
         fail("§5 must restate the Tag-65 §3 HARD-edge framing")
-    # Tag-67 and Tag-65 must both be cited in §5.
+    # and must both be cited in §5.
     for upstream in ("Tag-67", "Tag-65"):
         if upstream not in section5:
             fail(f"§5 must cite upstream '{upstream}' artifact")

@@ -1,18 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-1b Sprint-2 Box-3 — single-node NATS-JetStream substrate for
+# Single-node NATS-JetStream substrate for
 # the orchestrator read-through cache (7 KV buckets: wakir-schemas,
 # wakir-aip-cache, wakir-ftd-cache, wakir-ftd-poisoned,
 # wakir-schema-registry-entries, wakir-federation-routes,
-# wakir-capability-policies — the 5th bucket added Sprint-4 Tag-4 is
+# wakir-capability-policies — the 5th bucket is
 # a Phase-2-reserved schema-registry storage bucket with no Phase-1b
 # consumer and bucket-config mirrors wakir-schemas; the 6th bucket
-# added Sprint-4 Tag-5 is the V-908 federation-route registry consumed
+# added is the V-908 federation-route registry consumed
 # by the Wirelang-side NatsKvRouteRegistry backend with bucket-config
 # mirroring the Wirelang BUCKET_CONFIG byte-precisely; the 7th bucket
-# added Sprint-5 Tag-2 is a Phase-3-reserved capability-policy
-# persistence bucket for the Sprint-5 Tag-1 publisher-CLI
+# added is a Phase-3-reserved capability-policy
+# persistence bucket for the publisher-CLI
 # --capability-registry shape with audit-friendly defaults
 # (history=10, max_value_size=4 KiB) mirroring wakir-ftd-poisoned's
 # small-marker layout, registered ahead of time so the future Phase-3
@@ -29,7 +29,7 @@
 # What this file does NOT do:
 #   * No multi-node cluster (Phase-3 follow-up; ``replicas`` field on
 #     the bucket initialiser is plumbed end-to-end already).
-#   * No TLS termination (mTLS / SPIFFE JWT-SVID is a Sprint-3 item;
+#   * No TLS termination (mTLS / SPIFFE JWT-SVID is a item;
 #     Phase-1b uses token auth via Infisical-injected env on the
 #     orchestrator client side).
 #   * No metrics scrape config (OTel collector is a separate compose
@@ -61,8 +61,8 @@ services:
     #   * ``2.11-alpine`` is the conservative maintained choice
     #     (2.11.17 GA, last alpine-tag push 2026-04-28).
     #
-    # Digest-pin (Phase-2 Sprint-4 Tag-3, Cross-Review Zone-C upgrade
-    # over the Sprint-2-Tag-3 tag-pin):
+    # Digest-pin (Cross-Review Zone-C upgrade
+    # over the tag-pin):
     #
     #   tag:           nats:2.11-alpine
     #   manifest-list: sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00

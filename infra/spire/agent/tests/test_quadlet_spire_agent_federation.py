@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic Quadlet template parity tests for Sprint-8 Tag-2.
+"""Hermetic Quadlet template parity tests for the SPIRE-Agent federation units.
 
 Asserts the wakir-spire-agent-federation.container template carries
 the byte-precise mirror of compose/spire-agent-federation.yaml
 hardening posture, with the documented <SIDE>/<TRUST_DOMAIN>/
-<SERVER_DNS> placeholders. Mirror of Sprint-8 Tag-1 federation server
+<SERVER_DNS> placeholders. Mirror of federation server
 Quadlet template test convention.
 
 Asserts:
@@ -16,11 +16,11 @@ Asserts:
   * HealthCmd uses the spire-agent self-check subcommand.
   * Volume directives reference the per-side <SIDE> placeholder for
     data, sockets, and bundles volumes.
-  * Network=wakir-federation.network (external from Tag-1).
+  * Network=wakir-federation.network (external, owned by the server template).
   * After/Requires order the agent unit after the matching <SIDE>
     server unit.
   * Volume sidecar templates exist for data + sockets (and the
-    bundles volume is owned by the Tag-1 server template — agent
+    bundles volume is owned by the server template — agent
     template MUST NOT redeclare it).
 """
 
@@ -97,7 +97,7 @@ def test_image_pin_form(container_text: str) -> None:
         r"@sha256:([0-9a-f]{64}|DIGEST_PENDING_TOMAS_REVIEW)$"
     )
     assert re.match(pattern, img), (
-        f"Image-pin form must match Tag-1 Cosign-Digest-Pin convention; "
+        f"Image-pin form must match the Cosign-Digest-Pin convention; "
         f"got {img!r}"
     )
 
@@ -147,8 +147,8 @@ def test_volume_directives_reference_side_placeholder(
         r"Volume=wakir-spire-agent-<SIDE>-sockets\.volume:/run/spire/agent-sockets",
         container_text,
     ), "Quadlet must mount per-side sockets volume at SPIFFE-canonical path"
-    # Bundles volume is owned by Tag-1 server template; agent mounts
-    # read-only. Sprint-9-Tag-4 Bug 3 fix: the server-side bundles
+    # Bundles volume is owned by server template; agent mounts
+    # read-only. Bug 3 fix: the server-side bundles
     # volume sidecar carries the ``-federation-`` mid-token in its
     # VolumeName (mirror of the server template's
     # ``wakir-spire-server-federation-<SIDE>-bundles`` form), so the
@@ -157,14 +157,14 @@ def test_volume_directives_reference_side_placeholder(
         r"Volume=wakir-spire-server-federation-<SIDE>-bundles\.volume:/var/lib/spire/bundles:ro",
         container_text,
     ), (
-        "Quadlet must mount Tag-1-owned server-side bundles volume READ-"
+        "Quadlet must mount the server-owned bundles volume READ-"
         "ONLY at /var/lib/spire/bundles"
     )
 
 
 def test_network_external_federation(container_text: str) -> None:
     assert "Network=wakir-federation.network" in container_text, (
-        "Quadlet must join wakir-federation.network (Tag-1-owned)"
+        "Quadlet must join wakir-federation.network (server-owned)"
     )
 
 
@@ -180,10 +180,10 @@ def test_after_and_requires_match_side_server_unit(
     REQUIRE it (compose's depends_on: condition: service_healthy
     equivalent — strict ordering plus restart-on-failure).
 
-    Sprint-9-Tag-4 Bug 4 fix: the federation server is installed as
+    Bug 4 fix: the federation server is installed as
     ``wakir-spire-server-federation-<SIDE>.service`` (mirror of the
-    Tag-1 server template's ContainerName), NOT as the side-only form
-    which corresponds to the Sprint-6-Tag-9 single-trust-domain stack.
+    server template's ContainerName), NOT as the side-only form
+    which corresponds to the single-trust-domain stack.
     The agent's After=/Requires= must reference the federation form
     so the dependency resolves at install time.
     """
@@ -226,10 +226,10 @@ def test_sockets_volume_template_declares_volumename(
 
 
 def test_agent_template_does_not_redeclare_bundles_volume() -> None:
-    """The bundles volume is owned by the Tag-1 federation server-side
+    """The bundles volume is owned by the federation server-side
     Quadlet template. The agent template must NOT redeclare it as a
     .volume sidecar — that would create a conflict at install-time."""
-    # Sprint-9-Tag-4 Bug 3 fix: the federation server bundles volume
+    # Bug 3 fix: the federation server bundles volume
     # template lives at ``wakir-spire-server-federation-bundles.volume``
     # in the federation server quadlet directory (per-side filename is
     # produced at install time by the bootstrap step 6b sub).
@@ -239,7 +239,7 @@ def test_agent_template_does_not_redeclare_bundles_volume() -> None:
     ):
         assert not candidate.exists(), (
             "agent Quadlet must NOT redeclare bundles volume sidecar "
-            "(Tag-1 server template owns it)"
+            "(the server template owns it)"
         )
     # Also assert no file named with literal 'spire-agent' and 'bundles'
     # to catch a slightly-different naming-scheme variant.

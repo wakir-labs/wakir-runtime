@@ -2,13 +2,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreStart
-"""REUSE-IgnoreStart/End wrap pre-merge lint helper (Tag-61).
+"""REUSE-IgnoreStart/End wrap pre-merge lint helper.
 
 Pattern
 -------
 
-Three consecutive hot-fix episodes (Tag-56 Kai ``a58f6e9``, Tag-59
-Mira ``046a5e5`` for Noa's Tag-58 test, Tag-60 Kai self-fix
+Three consecutive hot-fix episodes (``a58f6e9``,
+``046a5e5`` for the SRE test, and the self-fix
 ``211dbfb``) all share the same root cause: a freshly-merged test
 file contains SPDX-License-Identifier string literals (typically
 ``Apache-2.0``, ``BUSL-1.1``, or ``CC-BY-4.0`` inside fixture
@@ -30,12 +30,12 @@ Modes
 * ``enforce``- scan, report, exit 1 on findings (blocking).
 * ``self-verify`` - assert the helper file itself is wrap-clean
   (i.e. its own SPDX-string-literal block is properly wrapped) and
-  exit 0. Used by the Tag-61 test suite to confirm the helper does
+  exit 0. Used by the test suite to confirm the helper does
   not trip on itself.
 * ``enforce-flip-readiness`` - scan, compute Coverage-Score over
   ``tests/**/*.py`` (% of files with correct wrap *where needed*),
   emit a structured verdict (READY / CAUTION / BLOCKED) consumed by
-  the Tag-62 Enforce-Flip-Readiness-Plan
+  the Enforce-Flip-Readiness-Plan
   (``docs/operations/reuse-wrap-enforce-flip-readiness-plan.md``).
   Exit code is always 0 -- the verdict is the payload, not the
   shell-exit signal. The flip decision is operator-hand, not
@@ -43,7 +43,7 @@ Modes
 
 The hint mode also emits a unified-diff-style patch suggestion that
 shows where the ``# REUSE-IgnoreStart`` / ``# REUSE-IgnoreEnd``
-markers ought to land. This patch is consumed by the Tag-61
+markers ought to land. This patch is consumed by the
 workflow's Stage-2 PR-comment job (sandbox-mode: skip comment).
 
 Detection heuristic
@@ -308,12 +308,12 @@ class ReadinessReport:
     * ``ENFORCE-FLIP-BLOCKED`` - score <  80
 
     Rationale for the thresholds: 95 % is the same coverage bar
-    Tomás used for the Tag-59 OTS N-Run-Stability-Window (>=3
+    used for the OTS N-Run-Stability-Window (>=3
     consecutive green main-runs == ~100 % over a 3-run sample);
     80 % is the threshold below which the workflow is more likely
     to red a legit PR than catch a real hot-fix-pattern, based on
-    the three known precedent episodes (Tag-56, Tag-59-hot-fix,
-    Tag-60-self-fix).
+    the three known precedent episodes (the first hot-fix,
+    -self-fix).
     """
 
     files_scanned: int
@@ -413,7 +413,7 @@ def render_readiness_report(report: ReadinessReport) -> str:
 def _self_verify(helper_path: Path) -> int:
     """Confirm the helper file itself has no unwrapped SPDX literals.
 
-    Used by Tag-61 tests as the regression guard against the helper
+    Used by tests as the regression guard against the helper
     tripping on its own internals.
     """
     findings = _scan_file(helper_path)
@@ -471,7 +471,7 @@ def main(argv: list[str] | None = None) -> int:
         report = compute_readiness(args.roots)
         sys.stdout.write(render_readiness_report(report))
         # Always exit 0: the verdict is the payload, the flip is
-        # operator-hand (see Tag-62 plan doc §5).
+        # operator-hand (see plan doc §5).
         return 0
 
     findings = scan(args.roots)

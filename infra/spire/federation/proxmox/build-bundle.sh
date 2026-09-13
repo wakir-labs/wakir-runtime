@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-9 Tag-1 — Reproducible Proxmox-bundle builder.
+# Reproducible Proxmox-bundle builder.
 #
 # Produces:
 #   infra/spire/federation/proxmox/proxmox-bundle-v1.0.tar.gz

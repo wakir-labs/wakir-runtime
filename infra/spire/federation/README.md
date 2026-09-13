@@ -1,4 +1,4 @@
-# SPIRE-Federation-Bundle-Endpoint (Phase-2 Sprint-8 Tag-1)
+# SPIRE-Federation-Bundle-Endpoint
 
 **Status:** Hermetic substrate. Live bring-up is Operator-Hand per
 [`feedback_sandbox_host_trennung.md`][sandbox-trennung]. The sandbox does
@@ -6,12 +6,12 @@ NOT touch the host's podman socket.
 
 [sandbox-trennung]: ../../../../.claude/feedback_sandbox_host_trennung.md
 
-This directory carries the Phase-2 Sprint-8 Tag-1 SPIRE-Federation-
+This directory carries the SPIRE-Federation-
 Bundle-Endpoint substrate: two SPIRE-Server containers in two distinct
 hermetic trust-domains (`wakir.test` and `partner.test`), wired so each
 server's federation-bundle-endpoint listener is reachable to the other's
 HTTPS-SPIFFE-profile peer-fetch. Substrate is the live counterpart to
-Reza's Sprint-7 Tag-3 SPIFFE-Cross-Trust-Domain-Bridge
+the SPIFFE-Cross-Trust-Domain-Bridge
 (`wirelang/federation/spiffe_cross_trust_domain_bridge.py`) — the bridge
 consumes the federation-bundle-endpoint via pluggable
 `PeerTrustBundleFetcher` and `PeerSvidVerifier` Protocols, and this
@@ -26,28 +26,28 @@ substrate is the live impl those Protocols target in Phase-2c+.
 | `config/spire-server-partner.conf` | `partner.test` side SPIRE-Server config. |
 | `bin/spire-fed-bundle` | Bundle Export/Import CLI (hermetic-fixture JWKS). |
 | `bin/spire_fed_bundle.py` | CLI module (import target for tests). |
-| `bin/spire-fed-bundle-rotator` | Bundle-Rotation CLI (Tag-3). |
+| `bin/spire-fed-bundle-rotator` | Bundle-Rotation CLI. |
 | `bin/spire_fed_bundle_rotator.py` | Rotator CLI module (import target for tests). |
-| `bin/spire-fed-health` | Federation Health-Check HTTP-server (Tag-4). |
+| `bin/spire-fed-health` | Federation Health-Check HTTP-server. |
 | `bin/spire_fed_health.py` | Health-server module (import target for tests). |
-| `bin/spire-fed-metrics` | Federation Prometheus-text-format metrics surface (Tag-4). |
+| `bin/spire-fed-metrics` | Federation Prometheus-text-format metrics surface. |
 | `bin/spire_fed_metrics.py` | Metrics-server module (import target for tests). |
-| `IMAGE_PINS.md` | Cosign-Digest-Pin resolution index (Tag-4). |
-| `quadlet/wakir-spire-server-federation.container` | Quadlet template (placeholders for `<SIDE>`, `<HOST_BUNDLE_PORT>`, `<HOST_GRPC_PORT>`, `<HOST_BUNDLE_BIND>` — last one parametrises bundle-endpoint host bind per Sprint-10 Tag-3 for Cross-VM federation). |
+| `IMAGE_PINS.md` | Cosign-Digest-Pin resolution index. |
+| `quadlet/wakir-spire-server-federation.container` | Quadlet template (placeholders for `<SIDE>`, `<HOST_BUNDLE_PORT>`, `<HOST_GRPC_PORT>`, `<HOST_BUNDLE_BIND>` — last one parametrises bundle-endpoint host bind per for Cross-VM federation). |
 | `quadlet/wakir-federation.network` | Quadlet bridge-network sidecar. |
 | `quadlet/wakir-spire-server-federation-{data,sockets,bundles}.volume` | Quadlet named-volume sidecars (per-side via placeholder). |
 | `tests/test_federation_compose.py` | Hermetic compose-shape + config-shape invariants. |
 | `tests/test_spire_fed_bundle_cli.py` | Hermetic CLI roundtrip + trust-domain mismatch guard. |
 | `tests/test_federation_quadlet.py` | Compose ↔ Quadlet byte-precision parity. |
-| `tests/test_spire_fed_bundle_rotator.py` | Rotation-Lifecycle (Tag-3): soft-cutover, hard-revoke, grace-window, cross-TD-isolation, determinism. |
-| `tests/test_spire_fed_health.py` | Health-server (Tag-4): /live, /health, /ready, schema, rotation-mid-state. |
-| `tests/test_spire_fed_metrics.py` | Metrics-server (Tag-4): counters, gauges, Prometheus text-format, determinism. |
-| `tests/test_image_pin_digest_form.py` | Image-pin syntax invariants (Tag-4): server-agent version-parity, atomic resolution state. |
+| `tests/test_spire_fed_bundle_rotator.py` | Rotation-Lifecycle: soft-cutover, hard-revoke, grace-window, cross-TD-isolation, determinism. |
+| `tests/test_spire_fed_health.py` | Health-server: /live, /health, /ready, schema, rotation-mid-state. |
+| `tests/test_spire_fed_metrics.py` | Metrics-server: counters, gauges, Prometheus text-format, determinism. |
+| `tests/test_image_pin_digest_form.py` | Image-pin syntax invariants: server-agent version-parity, atomic resolution state. |
 
 ## 1. Compose substrate
 
 Two SPIRE-Server containers on a dedicated `wakir-federation` bridge
-network (isolated from the Sprint-6 `wakir-orchestrator` network). Each
+network (isolated from the `wakir-orchestrator` network). Each
 server's bundle-endpoint listener binds container port `8443`. Host
 port-publish (hermetic same-host topology):
 
@@ -61,7 +61,7 @@ DNS (`spire-server-wakir`, `spire-server-partner`), NOT over the host's
 loopback. Host port-publish is loopback-only and exists for operator
 introspection during bring-up.
 
-**Sprint-10 Tag-3 Cross-VM federation extension:** for a Pilot-VM
+** Cross-VM federation extension:** for a Pilot-VM
 running in `WAKIR_PILOT_MODE=federation` (Cross-VM M-3 Live-Trial),
 the Quadlet bundle-endpoint publishes on `0.0.0.0:8443` instead of
 `127.0.0.1:8443` so a peer VM can fetch the bundle. The gRPC API
@@ -92,7 +92,7 @@ loss is acceptable in hermetic mode.
 
 ## 3. Bundle roundtrip + cross-trust X.509-SVID verify
 
-The Sprint-8 Tag-1 acceptance is the cross-trust-domain bundle
+The acceptance is the cross-trust-domain bundle
 roundtrip. Two variants:
 
 ### 3a. Hermetic CLI roundtrip (sandbox-safe)
@@ -182,11 +182,11 @@ chains to side B's federated-bundle-set entry for side A's trust-domain)
 is the live-gated test slot. The sandbox does not have podman-host
 socket access per `feedback_sandbox_host_trennung.md`; the operator
 performs this verify and posts the `spire-server bundle list` output as
-the Sprint-8 Tag-1 acceptance evidence.
+the acceptance evidence.
 
-## 4. Anbindung an Reza-Sprint-7-Tag-3 Cross-Trust-Domain-Bridge
+## 4. Anbindung an Cross-Trust-Domain-Bridge
 
-Reza's `wirelang/federation/spiffe_cross_trust_domain_bridge.py` defines
+the `wirelang/federation/spiffe_cross_trust_domain_bridge.py` defines
 two Protocols this substrate fulfills in live mode:
 
 | Protocol | Substrate impl |
@@ -199,16 +199,16 @@ accept/reject verdict over a peer SVID. The hermetic test surface in
 `wirelang/tests/test_spiffe_cross_trust_domain_bridge*.py` injects
 Protocol fakes; this substrate is the live impl those Protocols target
 once the live HTTPS-fetch impl lands (Phase-2c follow-up — own Quadlet/
-compose surface, not in scope for Sprint-8 Tag-1).
+compose surface, not in scope here).
 
 ## 5. Cross-Review Gates
 
 | Zone | Counterparty | Item | Status |
 |---|---|---|---|
-| Zone A | Reza (Wirelang) | SPIFFE-trust-domain literal alignment (`wakir.test` + `partner.test` are hermetic-only; Phase-3a production literal `<FTD-ID>.wakir.dev` is unchanged). | Tag-1 hermetic — no Phase-3a literal touched. |
-| Zone B | Reza (NATS-Schema) | None — federation substrate does NOT use NATS. The `multi-org-attestation-nats-kv-backend` (Reza Sprint-7 Tag-2) is unaffected. | Tag-1 unaffected. |
-| Zone C | Tomás (Container-Image-Pipeline × OTS-Anchoring) | Cosign-Digest-Pin placeholder `DIGEST_PENDING_TOMAS_REVIEW` resolves to the canonical sha256 digest before live bring-up — same Operator-Hand workflow as compose/spire.yaml (Sprint-6 Tag-8 rebase). | Tag-1 hermetic — placeholder preserved. |
-| Zone D | Reza (V-904 Identity-Bridge) | Federation substrate is the V-908 Phase-2-3 surface, not V-904 (Phala-Cloud). No overlap with V-904 Annex Gate. | Not applicable. |
+| Zone A | Wirelang | SPIFFE-trust-domain literal alignment (`wakir.test` + `partner.test` are hermetic-only; Phase-3a production literal `<FTD-ID>.wakir.dev` is unchanged). | hermetic — no Phase-3a literal touched. |
+| Zone B | NATS-Schema | None — federation substrate does NOT use NATS. The `multi-org-attestation-nats-kv-backend` is unaffected. | unaffected. |
+| Zone C | Container-Image-Pipeline × OTS-Anchoring | Cosign-Digest-Pin placeholder `DIGEST_PENDING_TOMAS_REVIEW` resolves to the canonical sha256 digest before live bring-up — same Operator-Hand workflow as compose/spire.yaml (Pfad-B rebase). | hermetic — placeholder preserved. |
+| Zone D | V-904 Identity-Bridge | Federation substrate is the V-908 Phase-2-3 surface, not V-904 (Phala-Cloud). No overlap with V-904 Annex Gate. | Not applicable. |
 
 ## 6. Hermetic test surface
 
@@ -217,17 +217,17 @@ compose surface, not in scope for Sprint-8 Tag-1).
 pytest infra/spire/federation/tests/ -v
 ```
 
-Four test files (Tag-3 adds the rotator suite); all hermetic (compose-
+Four test files (adds the rotator suite); all hermetic (compose-
 parse + CLI-roundtrip + Quadlet byte-precision parity + rotation-
-lifecycle). None of them touch podman or pull images. The Sprint-8
-Tag-3 acceptance is **green hermetic test surface + this README §7
+lifecycle). None of them touch podman or pull images. The
+The acceptance is **green hermetic test surface + this README §7
 shipped; live cross-trust SVID verify and live rotation drill are
 Operator-Hand-pendet**.
 
-## 7. Rotation (Phase-2 Sprint-8 Tag-3)
+## 7. Rotation
 
-The Tag-3 substrate adds the time-driven JWKS rotation surface on top
-of the Tag-1 static bundle endpoint. The lifecycle has four operator-
+The substrate adds the time-driven JWKS rotation surface on top
+of the static bundle endpoint. The lifecycle has four operator-
 hand steps wired through the `spire-fed-bundle-rotator` CLI:
 
 | Step | CLI | Trigger | Cron-cadence (recommended) |
@@ -276,7 +276,7 @@ EXPIRE_NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     --now "$EXPIRE_NOW"
 
 # Verify the post-grace verify rejects the old kid (sanity check):
-OLD_KID="spiffe://wakir.test/spire/server/fixture-key"   # Tag-1 base kid
+OLD_KID="spiffe://wakir.test/spire/server/fixture-key" # base kid
 ./spire-fed-bundle-rotator verify \
     --in-file /tmp/wakir-v3.jwks \
     --kid "$OLD_KID" \
@@ -328,7 +328,7 @@ The live SPIRE-Server accepts a JWKS with multiple keys and uses
 all of them for SVID verification, so the soft-cutover invariant
 holds in live mode without additional tooling.
 
-## 8. Tag-4: Health + Metrics + Cosign-Digest-Pin
+## 8.: Health + Metrics + Cosign-Digest-Pin
 
 ### 8.1 Health-endpoint (`spire-fed-health`)
 
@@ -382,7 +382,7 @@ spire-fed-health \
     --agent-connections 3
 ```
 
-The `--agent-connections` value is operator-provided in Tag-4; Phase-
+The `--agent-connections` value is operator-provided for now; Phase-
 2c+ wires it from the SPIRE-Agent Workload-API admin counter.
 
 ### 8.2 Metrics-endpoint (`spire-fed-metrics`)
@@ -445,27 +445,26 @@ enforces SYNTAX invariants on the four pinned files:
 Live `cosign verify` is **Operator-Hand** per
 [`feedback_sandbox_host_trennung.md`][sandbox-trennung]; the sandbox
 does NOT touch GHCR. A CI activation sketch is in IMAGE_PINS.md §3
-(gated on Tomás Zone-C cross-review for the GHCR network egress
+(gated on image-pipeline cross-review for the GHCR network egress
 policy).
 
-## 9. Known follow-ups (Phase-2c / Sprint-9+)
+## 9. Known follow-ups (Phase-2c)
 
 * **Live HTTPS-fetch impl of `PeerTrustBundleFetcher`** — the bridge in
   `wirelang/federation/spiffe_cross_trust_domain_bridge.py` declares the
   Protocol; this substrate provides the listener. The HTTPS-client
   impl that calls into Wirelang's `LiveBridgeResolution` is a separate
   module (likely `wirelang/federation/spire_bundle_endpoint_fetcher.py`)
-  — Reza-track, not Kai-track.
+  — identity-substrate track, not infra track.
 * **Refresh-hint cadence tuning** — SPIRE-Server default refresh-hint
   is 5 min; production cadence may be longer to reduce HTTPS-load.
   Phase-3a tune slot.
 * **DataStore migration sqlite3 → postgres** — Phase-3a path.
 * **Trust-Bundle-Rotation drill on the federation surface** —
-  hermetic substrate in place as of Sprint-8 Tag-3 (§7). The live-
+  hermetic substrate in place (§7). The live-
   bring-up rotation drill (Operator-Hand on the host SPIRE-Server
   with native `bundle set`) is the next step; the recipe is in §7.
 * **K8s-native equivalent** — Phase-3 Helm-chart for K8s consumers
   (ADR-0020 Box-5).
 
 ---
-*— Kai*

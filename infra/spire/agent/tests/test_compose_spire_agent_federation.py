@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic acceptance tests for the Sprint-8 Tag-2 SPIRE-Agent-
+"""Hermetic acceptance tests for the SPIRE-Agent-
 Federation substrate
 (``infra/spire/agent/compose/spire-agent-federation.yaml``).
 
@@ -9,16 +9,16 @@ container run, no SVID issuance, no podman/docker socket touch.
 
 Asserts:
   * Two services (``spire-agent-wakir``, ``spire-agent-partner``) with
-    Cosign-Digest-Pin parity (mirror of Sprint-8 Tag-1 federation
+    Cosign-Digest-Pin parity (mirror of federation
     server convention).
   * Both agents join the EXTERNAL ``wakir-federation`` bridge network
-    (declared external from Sprint-8 Tag-1 federation substrate, NOT
+    (declared external by the federation substrate, NOT
     re-created here).
   * Both agents mount the federated-bundles ingest volume read-only
-    (the Sprint-8 Tag-1 server-side bundles volume, declared external).
+    (the server-side bundles volume, declared external).
   * Workload-API sockets volume present at the canonical SPIFFE-spec
     path ``/run/spire/agent-sockets``.
-  * Hardening posture parity with Sprint-6 Tag-9 (cap_drop ALL,
+  * Hardening posture parity with (cap_drop ALL,
     no-new-privileges, read_only, non-root, tmpfs /run/spire,
     healthcheck via spire-agent self-check subcommand).
   * Per-side data + sockets volumes are INTERNAL (created by this
@@ -82,7 +82,7 @@ def test_two_agent_services_present(services: dict) -> None:
 def test_image_pin_form(services: dict, svc_name: str) -> None:
     img = services[svc_name].get("image")
     assert isinstance(img, str), f"{svc_name}.image must be a string"
-    # Cosign-Digest-Pin parity with Sprint-8 Tag-1 federation server:
+    # Cosign-Digest-Pin parity with federation server:
     # ghcr.io/spiffe/spire-agent:1.14.6@sha256:<digest-or-placeholder>
     pattern = (
         r"^ghcr\.io/spiffe/spire-agent:1\.14\.\d+"
@@ -179,7 +179,7 @@ def test_per_side_volumes_wired(
     assert any(
         v.startswith(f"{expected_data_volume}:") for v in vols if isinstance(v, str)
     ), f"{svc_name} must mount {expected_data_volume}"
-    # Bundles read-only ingest from Tag-1 server-side volume.
+    # Bundles read-only ingest from server-side volume.
     assert any(
         v.startswith(f"{expected_bundles_volume}:") and v.endswith(":ro")
         for v in vols
@@ -226,24 +226,24 @@ def test_federation_network_external(compose_doc: dict) -> None:
         "networks.wakir-federation must be declared"
     )
     assert fed.get("external") is True, (
-        "networks.wakir-federation must be EXTERNAL (owned by Sprint-8 "
-        "Tag-1 federation substrate; agent compose does NOT re-create it)"
+        "networks.wakir-federation must be EXTERNAL (owned by the "
+        "federation substrate; agent compose does NOT re-create it)"
     )
     assert fed.get("name") == "wakir-federation"
 
 
 def test_bundles_volumes_external(compose_doc: dict) -> None:
-    """The two federated-bundles volumes are external (owned by Tag-1).
+    """The two federated-bundles volumes are external (owned by the server substrate).
     The per-side agent-data + agent-sockets volumes are internal
     (owned by this compose unit)."""
     vols = compose_doc.get("volumes") or {}
     wakir_bundles = vols.get("spire_server_wakir_bundles") or {}
     partner_bundles = vols.get("spire_server_partner_bundles") or {}
     assert wakir_bundles.get("external") is True, (
-        "spire_server_wakir_bundles must be external (Tag-1-owned)"
+        "spire_server_wakir_bundles must be external (server-owned)"
     )
     assert partner_bundles.get("external") is True, (
-        "spire_server_partner_bundles must be external (Tag-1-owned)"
+        "spire_server_partner_bundles must be external (server-owned)"
     )
 
     # Per-side data/sockets are internal — assert they exist and do NOT
@@ -257,7 +257,7 @@ def test_bundles_volumes_external(compose_doc: dict) -> None:
         v = vols.get(vol_name)
         assert isinstance(v, dict), f"volume {vol_name} must be declared"
         assert v.get("external") is not True, (
-            f"volume {vol_name} must be internal (Tag-2-owned)"
+            f"volume {vol_name} must be internal (agent-owned)"
         )
 
 

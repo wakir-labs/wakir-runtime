@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Tag-73 Capability-Token-Layer State-Conformance Verifier (Welle-5).
+ Capability-Token-Layer State-Conformance Verifier (wave-5).
 
 Audit-only mode. This helper validates a *capability-token-layer
-state document* against the Welle-5 (Capability-Token-Rotation)
+state document* against the wave-5 (Capability-Token-Rotation)
 conformance invariants. It does NOT actually rotate any token, does
 NOT call any Biscuit/AIP issuer, does NOT mint or revoke keys, does
 NOT touch the NATS-KV capability-policy bucket, and does NOT open
@@ -47,23 +47,23 @@ state-document of shape::
       }
     }
 
-Invariants checked (Welle-5 / Doppel-Welle-4+5):
+Invariants checked (wave-5 / waves 4+5):
 
-  I-1  ``tag`` is ``Tag-73`` and ``welle`` is ``Welle-5``.
-  I-2  ``audit_only`` and ``doc_form_only`` are both true. (Tag-73
+  I-1 ``tag`` is ``Tag-73`` and ``welle`` is ``wave-5``.
+  I-2 ``audit_only`` and ``doc_form_only`` are both true. (
        MUST NOT claim to actually perform rotation; the helper
        refuses to validate a non-audit-only document.)
   I-3  ``layer`` is ``Layer-3-AIP+Biscuit`` (load-bearing for the
-       Reza domain, ADR-0009 / capability-token-layer charter).
+       protocol domain, ADR-0009 / capability-token-layer charter).
   I-4  ``rotation_state`` is one of the four canonical states
        (pre-rotation, rotation-in-progress, post-rotation-grace,
        post-rotation-sealed). Any other value rejects.
   I-5  ``issuer_curve`` is one of Ed25519 / secp256k1 (Two-Curve-
-       Stack per Reza-Strang-2-Korrektur, 2026-05-06).
+       stack per the protocol-owner correction, 2026-05-06).
   I-6  ``token_format`` is ``biscuit-v3`` (single supported format
-       in the Welle-5 cutover; v2 is forbidden by ADR-0017 anchor).
+       in the wave-5 cutover; v2 is forbidden by ADR-0017 anchor).
   I-7  ``attenuation_depth_max`` is an integer in [1, 8]. Depth 0
-       is forbidden (an unattenuable root-token is not a Welle-5
+       is forbidden (an unattenuable root-token is not a wave-5
        valid state); depth >8 exceeds Biscuit-v3 conservative
        budget.
   I-8  ``active_tokens`` is a list (possibly empty in pre-rotation
@@ -137,7 +137,7 @@ Sandbox-boundary recital:
   - No promotion-PR opening by this helper.
   - probe_default_mode is inspection-only.
 
--- Reza
+-- Reza  (signature literal pinned by tests/audit t02; drop with W5 part 2)
 """
 from __future__ import annotations
 
@@ -215,7 +215,7 @@ TOP_LEVEL_REQUIRED_KEYS = frozenset(
 
 
 class VerifyError(Exception):
-    """Raised when a Welle-5 capability-token-layer-state invariant fails."""
+    """Raised when a wave-5 capability-token-layer-state invariant fails."""
 
 
 def _require(condition: bool, invariant_id: str, message: str) -> None:
@@ -609,7 +609,7 @@ def _check_forward_progress(state: dict) -> None:
 
 
 def verify_state(state: Any) -> None:
-    """Validate a Welle-5 capability-token-layer state document.
+    """Validate a wave-5 capability-token-layer state document.
 
     Raises ``VerifyError`` with an invariant-tagged message on the
     first failing invariant. Returns ``None`` on success.

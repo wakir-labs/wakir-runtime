@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Wirelang sandbox-CI lane (Phase-1b Tag-11)
+# Wirelang sandbox-CI lane
 # ------------------------------------------
 #
 # Purpose: prove that the wirelang test suite stays green when the two
@@ -15,7 +15,7 @@
 # - Sandbox lane (this workflow): minimal install set; suite must be
 #   green with the jsonschema/rfc8785-dependent tests skipped via
 #   `pytest.importorskip`.
-# - Production lane (companion workflow `tests.yml`, follow-up Tag-12+):
+# - Production lane (companion workflow `tests.yml`, follow-up):
 #   full install set including `rfc8785` and `jsonschema`; suite must
 #   be green with zero skips on those keys.
 #
@@ -23,8 +23,8 @@
 # tree, plus a manual dispatch for ad-hoc verification. The sandbox
 # lane is a hermetic correctness gate, not a perf gate.
 #
-# This workflow is the Tag-11 deliverable for Phase-1b-I-5
-# closeout (Tag-9 acceptance gap "suite green without rfc8785 /
+# This workflow is the deliverable for Phase-1b-I-5
+# closeout (acceptance gap "suite green without rfc8785 /
 # jsonschema") and acts as the regression net for any future change
 # that might silently re-introduce a hard dependency on either library.
 

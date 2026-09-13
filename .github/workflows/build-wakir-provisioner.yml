@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Build + sign + push the wakir-provisioner image (Phase-2 Sprint-9
-# Tag-4).
+# Build + sign + push the wakir-provisioner image.
 #
 # Posture
 # -------
@@ -17,7 +16,7 @@
 #   otherwise auto-publish an image with the GitHub-Actions OIDC
 #   identity, defeating the supply-chain provenance posture. The
 #   manual-only trigger keeps the human-in-the-loop boundary
-#   explicit (see Tomás Zone-C posture for GHCR-network-access).
+#   explicit (see image-pipeline review posture for GHCR-network-access).
 #
 # What the workflow does
 # ----------------------
@@ -59,8 +58,8 @@ on:
         default: 'false'
 
 permissions:
-  # Least-privilege permission set for build + sign + push (Sprint-9
-  # Tag-5 CI-hygiene review). Each scope is required for a specific
+  # Least-privilege permission set for build + sign + push
+  # (CI-hygiene review). Each scope is required for a specific
   # step; removing any of these will fail the run.
   #
   #   contents:  read   — actions/checkout pulls workflow + source.
@@ -204,7 +203,7 @@ jobs:
 
       - name: Cosign login to GHCR
         if: ${{ github.event.inputs.push == 'true' }}
-        # Sprint-9 Tag-5 fix (CI-hygiene): cosign sign writes its
+        # fix (CI-hygiene): cosign sign writes its
         # signature artefact (``*.sig`` blob) into GHCR via a separate
         # registry-auth handshake than buildah's. The earlier buildah
         # login authenticated only the buildah client; cosign carried

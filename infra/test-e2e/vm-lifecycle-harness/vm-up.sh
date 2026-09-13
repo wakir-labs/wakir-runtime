@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-9 Tag-5 — Disposable Wakir-Pilot Acceptance-Gate VM
+# Disposable Wakir-Pilot Acceptance-Gate VM
 #                          provisioner (vm-up).
 #
 # Provider-agnostic entry point. Selects between `qemu` (default, self-

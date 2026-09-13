@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Hash-Derivate-Drift Gate (Sprint-Stability Tag-3, 2026-05-16)
+# Hash-Derivate-Drift Gate (stability 2026-05-16)
 # -------------------------------------------------------------
 #
 # Verpflichtender CI-Status-Check, der die Hash-Derivate unter
 # `tests/fixtures/schema-registry/` gegen die Live-Schema-Bytes
-# verifiziert. Anlass: Reza-PR #98 (Schema-Fixture-Drift-Fix nach
+# verifiziert. Anlass: PR #98 (Schema-Fixture-Drift-Fix nach
 # JSON-Schema-SPDX-Migration aus PR #92). Der Drift entstand, weil
 # eine Schema-Datei-Modifikation die hash-derivativen
 # Fixture-Artefakte (`anchor-manifest.json schema_file_sha256`,
@@ -34,7 +34,7 @@
 #
 # Required-Status-Check
 # ---------------------
-# Sobald dieser Workflow auf `main` einmal gruen laeuft, soll Mira
+# Sobald dieser Workflow auf `main` einmal gruen laeuft, soll der Operator
 # (Operator-Hand, GitHub-Repo-Settings) ihn unter
 # `Settings -> Branches -> main -> Branch Protection Rules ->
 #  Require status checks to pass before merging` aktivieren (analog

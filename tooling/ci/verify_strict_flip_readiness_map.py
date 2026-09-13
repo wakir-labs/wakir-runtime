@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Verify the Tag-58 Strict-Flip-Readiness-Map doc.
+Verify the Strict-Flip-Readiness-Map doc.
 
 Parses docs/operations/strict-flip-readiness-map-tag58.md and asserts:
   - All 10 sections (§1..§10) are present in order.
-    (§9 Tag-64-Append, §10 Tag-68-Append.)
+    (§9 64-Append, §10 68-Append.)
   - §1 gate table covers G1..G6 with one of {BLOCKED, GREEN} statuses.
   - §2 7-day-calendar lists all 7 Day-N entries.
   - §3 G1-recipe covers all 5 wiring targets G1.1..G1.5.
@@ -13,10 +13,10 @@ Parses docs/operations/strict-flip-readiness-map-tag58.md and asserts:
   - §7 has Decision-A and Decision-B.
   - §8 mentions Operator-Hand-Sandbox-Gap.
   - §9 OPEN-J3 Carry-Forward sub-blocks §9.1..§9.5 present.
-  - §10 Tag-68-Carry-Forward sub-blocks §10.1..§10.7 present and
-    cover (Cutover-Eve-Recipe, Live-Smoke-DEFECT, Activation-Pre-
-    Mortem, Welle-N-State-Files, OPEN-J3-Refresh, 7-Pool-Checks,
-    Tag-68-Verdict).
+  - §10 68-Carry-Forward sub-blocks §10.1..§10.7 present and
+    cover (cutover-eve-Recipe, Live-Smoke-DEFECT, Activation-Pre-
+    Mortem, wave-N-State-Files, OPEN-J3-Refresh, 7-Pool-Checks,
+    68-Verdict).
   - No recipe-stage section body is empty.
 
 Exit 0 on green, exit 1 on any failure with a clear stderr message.
@@ -230,7 +230,7 @@ def check_section10_tag68_carry_forward(section10: str) -> None:
     for sub in REQUIRED_SECTION10_SUBS:
         if f"### {sub}" not in section10:
             fail(f"§10 missing sub-section {sub}")
-    # Tag-67 PR anchors required
+    # PR anchors required
     for pr_ref in ["#422", "#425", "#426", "#427", "#429"]:
         if pr_ref not in section10:
             fail(f"§10 must reference Tag-66/67 PR {pr_ref}")
@@ -246,13 +246,13 @@ def check_section10_tag68_carry_forward(section10: str) -> None:
     for chk in REQUIRED_POOL_CHECKS:
         if chk not in section10:
             fail(f"§10.6 must list pool-required check '{chk}'")
-    # Tag-68 verdict matrix present
+    # verdict matrix present
     if "Tag-68-Carry-Forward-Verdict" not in section10:
         fail("§10 must include a Tag-68-Carry-Forward-Verdict block")
     # OPEN-J3 carry-forward unchanged
     if "OPEN-J3" not in section10:
         fail("§10.5 must include an OPEN-J3 status-refresh entry")
-    # Cutover-T0 date still anchored
+    # cutover T0 date still anchored
     if "2026-06-08" not in section10:
         fail("§10 must keep the 2026-06-08 Cutover-T0 anchor")
 

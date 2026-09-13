@@ -1,18 +1,18 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-8 Tag-1 — SPIRE-Federation hermetic substrate.
+# SPIRE-Federation hermetic substrate.
 #
 # Substrate: two SPIRE-Server containers in two different hermetic
 # trust-domains (``wakir.test`` and ``partner.test``), wired so each
 # server's federation bundle-endpoint listener is reachable to the
-# other's HTTPS-SPIFFE-profile peer-fetch. The Sprint-8-Tag-1
+# other's HTTPS-SPIFFE-profile peer-fetch. The
 # acceptance is the X.509-SVID cross-trust-verify roundtrip per
 # README §3 (Operator-Hand-pendet from the sandbox).
 #
-# This compose unit is SEPARATE from compose/spire.yaml (Sprint-6-Tag-6
+# This compose unit is SEPARATE from compose/spire.yaml (the
 # single-server ``example.test`` substrate) so the two surfaces do not
-# share state, networks, or volumes. Sprint-6 substrate keeps its
+# share state, networks, or volumes. substrate keeps its
 # single-server posture for Phase-2.1-Phase-2.6 production-loop, this
 # substrate is the Phase-3a Multi-Org-Federation preparation surface.
 #
@@ -37,13 +37,13 @@
 #   Phase-3a production federation trust-domain
 #   ``<FTD-ID>.wakir.dev``. Operators who see ``wakir.test`` or
 #   ``partner.test`` in a container's ``trust_domain`` know
-#   immediately this is the Sprint-8-Tag-1 federation hermetic
+#   immediately this is the federation hermetic
 #   skeleton, not a production stand.
 #
 # Image-Tag rationale (mirror of compose/spire.yaml — same SPIRE
 # v1.14.6 baseline). Cosign-Digest-Pin form (Pfad B) with the same
 # placeholder convention; Operator-Hand substitutes the canonical
-# digest before live bring-up. Cross-Review Zone-C Tomás-track.
+# digest before live bring-up. Cross-Review Zone-C image-pipeline review.
 
 services:
 
@@ -51,7 +51,7 @@ services:
     # SPIRE-Server for the ``wakir.test`` trust-domain side.
     image: "ghcr.io/spiffe/spire-server:1.14.6@sha256:0ed27f4651abae66e25b9bc8cf0e80b143629b3d34a7fcf4c8cce70c81c0043b"
     container_name: wakir-spire-server-wakir
-    # Sprint-9-Tag-6 Bug 7 substance-fix: drop the literal ``run``
+    # Bug 7 substance-fix: drop the literal ``run``
     # token from the command list. The upstream entrypoint already
     # invokes ``spire-server``; on derivative images that bake ``run``
     # into the entrypoint, the duplicate ``run`` token is interpreted
@@ -74,7 +74,7 @@ services:
       # federation-bundle-endpoint fetch is the steady-state path
       # after bootstrap.
       - "spire_server_wakir_bundles:/var/lib/spire/bundles"
-    # Sprint-9-Tag-6 Bug 12 substance-fix: mode=0755 (was 0700) so the
+    # Bug 12 substance-fix: mode=0755 (was 0700) so the
     # uid:1000 container user can bind sockets under /run/spire. The
     # Quadlet template mirrors this value.
     tmpfs:
@@ -114,7 +114,7 @@ services:
     # SPIRE-Server for the ``partner.test`` trust-domain side.
     image: "ghcr.io/spiffe/spire-server:1.14.6@sha256:0ed27f4651abae66e25b9bc8cf0e80b143629b3d34a7fcf4c8cce70c81c0043b"
     container_name: wakir-spire-server-partner
-    # Sprint-9-Tag-6 Bug 7 substance-fix: drop the literal ``run``
+    # Bug 7 substance-fix: drop the literal ``run``
     # token from the command list. The upstream entrypoint already
     # invokes ``spire-server``; on derivative images that bake ``run``
     # into the entrypoint, the duplicate ``run`` token is interpreted
@@ -130,7 +130,7 @@ services:
       - "spire_server_partner_data:/var/lib/spire/server"
       - "spire_server_partner_sockets:/run/spire/sockets"
       - "spire_server_partner_bundles:/var/lib/spire/bundles"
-    # Sprint-9-Tag-6 Bug 12 substance-fix: mode=0755 (was 0700) so the
+    # Bug 12 substance-fix: mode=0755 (was 0700) so the
     # uid:1000 container user can bind sockets under /run/spire. The
     # Quadlet template mirrors this value.
     tmpfs:
@@ -176,7 +176,7 @@ volumes:
 
 networks:
   # Dedicated federation bridge. NOT shared with the
-  # ``wakir-orchestrator`` network of compose/spire.yaml (Sprint-6
+  # ``wakir-orchestrator`` network of compose/spire.yaml (the
   # single-server substrate) — the two surfaces stay isolated. The
   # internal DNS names ``spire-server-wakir`` and
   # ``spire-server-partner`` are how each side reaches the other's

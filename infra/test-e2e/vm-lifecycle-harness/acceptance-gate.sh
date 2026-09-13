@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-9 Tag-5 — Acceptance-Gate verdict for the disposable
+# Acceptance-Gate verdict for the disposable
 #                          VM bring-up run.
 #
 # Reads:

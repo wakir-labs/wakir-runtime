@@ -4,24 +4,23 @@
 # Licensed under the Business Source License 1.1; see
 # wirelang/persona_engine/LICENSE-BSL.md.
 # Change Date: 2030-05-15. Change License: Apache License 2.0.
-"""Tag-60 engine-version-drift scanner (Selin, Persona-Engine).
+""" engine-version-drift scanner (Selin, Persona-Engine).
 
-Mira's Tag-59 Hot-Fix #381 had to sweep four drift layers (engine_async.py,
+the operator's Hot-Fix #381 had to sweep four drift layers (engine_async.py,
 cli.py docstring, 7 hardcoded-literal test-files, and the historical
-release-notes test that only covered engine.py + __version__.py). Tag-60
+release-notes test that only covered engine.py + __version__.py).
 closes that gap with a hermetic scanner + a 15-test pin in
 ``wirelang/tests/persona_engine/test_engine_version_drift_full_coverage_tag60.py``.
 
-Substrate ownership (Selin, ADR-0036/0043/0065/0066):
+Substrate ownership (persona-engine, ADR-0036/0043/0065/0066):
 
 * This scanner is Persona-Engine-Owner substrate. It does NOT modify
-  persona definitions (Aisha-Domaene, ADR-0043), WAT-core logic
-  (Tomas-Domaene, Zone-K), identity-substrate design (Reza-Domaene,
-  Zone-L), or container-infra (Kai-Domaene, Zone-J).
+  persona definitions (ADR-0043), WAT-core logic (zone K),
+  identity-substrate design (zone L), or container infra (zone J).
 * It is a pure stdlib helper. No third-party deps, no network, no
   subprocess. Deterministic byte-shape output sorted by (path, line).
 
-Scan inputs (Tag-60 auftrag wording, verbatim):
+Scan inputs (auftrag wording, verbatim):
 
 1. ``wirelang/persona_engine/*.py``                    — production code
 2. ``wirelang/persona_engine/**/*.md``                  — narrative docs
@@ -34,11 +33,11 @@ Target stale literals:
                       "0.5.2-final-pre-cutover", "0.5.3-rc1")
 
 The canonical active version (``0.5.3``, per
-``wirelang/persona_engine/__version__.py`` — Tag-62 rc1-suffix-drop)
-is NEVER flagged. Tag-62 extended the hunted set to include
+``wirelang/persona_engine/__version__.py`` — rc1-suffix-drop)
+is NEVER flagged. extended the hunted set to include
 ``0.5.3-rc1`` as the most recent stale literal, with the allowlist
-covering the legitimate rc1-surviving artefacts (the Tag-59
-V-907-baseline JSON, the Tag-58/59/60/61 hermetic-test fixtures,
+covering the legitimate rc1-surviving artefacts (the
+V-907-baseline JSON, the hermetic-test fixtures,
 and the historical rc1 release-notes file under
 ``docs/persona-engine/`` which is outside the scan-glob anyway).
 
@@ -110,14 +109,14 @@ from typing import Iterable
 # Canonical constants. Bump in lockstep with __version__.py.
 # ---------------------------------------------------------------------------
 
-#: The active engine version. Never flagged. Tag-62 dropped the rc1
+#: The active engine version. Never flagged. dropped the rc1
 #: suffix; the rc1 literal joins ``STALE_VERSIONS`` below.
 ACTIVE_VERSION = "0.5.3"
 
-#: Stale version literals the Tag-60/Tag-62 scanner hunts. Ordered
+#: Stale version literals the scanner hunts. Ordered
 #: longest-first so substring overlap (e.g. ``0.5.2-final-pre-cutover``
 #: contains ``0.5.2``) does not double-count matches: the scanner
-#: records the longest match per (path, line, col). Tag-62 added
+#: records the longest match per (path, line, col). added
 #: ``0.5.3-rc1`` as the most recent stale literal; the allowlist below
 #: covers the legitimate rc1-surviving contexts.
 STALE_VERSIONS: tuple[str, ...] = (

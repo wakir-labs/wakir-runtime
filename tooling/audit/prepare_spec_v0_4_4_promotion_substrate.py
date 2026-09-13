@@ -2,17 +2,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Tag-77 Wirelang-Spec v0.4.4 Promotion-Pre-Vorbereitung Substrate
+ Wirelang-Spec v0.4.4 Promotion-Pre-Vorbereitung Substrate
 helper (audit-only).
 
-This helper is the Schluss-Stein of the Tag-63..Tag-72 substrate
+This helper is the Schluss-Stein of the substrate
 trilogy for the v0.4.4 Reserve-Item promotion lane. It aggregates
 evidence from the per-RES-Dn artefacts already pinned across
-Tag-63 / Tag-64 (baseline + sample coverage), Tag-65 (sequencing
-doc), Tag-66 (RES-D OTS-probe coverage), Tag-67 (activation
-pre-mortem), Tag-68 (pre-mortem coverage), Tag-69 (RES-D4
+ / (baseline + sample coverage), (sequencing
+doc), (RES-D OTS-probe coverage), (activation
+pre-mortem), (pre-mortem coverage), (RES-D4
 mitigation deep-dive), and the three hard-dep substrate stubs at
-Tag-70 (HD-1 OTS), Tag-71 (HD-2 Peer-Roster), and Tag-72 (HD-3
+ (HD-1 OTS), (HD-2 Peer-Roster), and (HD-3
 Audit-Coverage). The aggregate is reduced to a per-item
 Promotion-Pre-Readiness-Score (range 0..5) and a global verdict.
 
@@ -27,7 +27,7 @@ Audit-only posture (per ADR-0023a + ADR-0023b):
     does NOT touch git remotes, and does NOT depend on
     wall-clock time.
   - The ceo-triage-authorisation dimension is FROZEN-FALSE in the
-    Tag-77 audit-only snapshot. Flipping it to true is a
+ audit-only snapshot. Flipping it to true is a
     CEO-Triage / AR-authorisation step under ADR-0023a + ADR-0023b
     and is OUT OF SCOPE for this helper.
   - The score ceiling reachable from Sandbox-Hand is 4/5. Any
@@ -36,7 +36,7 @@ Audit-only posture (per ADR-0023a + ADR-0023b):
     state and prints the ceiling-blocker per item.
 
 Sandbox-boundary recital (per docs/operations/wirelang-spec-v0-4-4-
-promotion-sequencing.md §7 + the Tag-77 §8 extension):
+promotion-sequencing.md §7 + the §8 extension):
 
   - No promotion-PR opening.
   - No AR-authorisation request emit.
@@ -159,7 +159,7 @@ def assert_upstream_anchors(stub: dict) -> None:
                 f"'{key}'"
             )
     # The HD-1/2/3 PR numbers are load-bearing (they pin the
-    # Tag-70/71/72 substrate-stub provenance).
+    # substrate-stub provenance).
     if anchors.get("tag_70_hd_1_ots_substrate_pr") != 446:
         fail(
             "upstream_anchors.tag_70_hd_1_ots_substrate_pr "
@@ -275,7 +275,7 @@ def assert_per_item_snapshot(stub: dict) -> None:
                 "'kind: fixture'"
             )
         # The ceo-triage-authorisation dimension is FROZEN-FALSE in
-        # the Tag-77 snapshot. Any flip to true would violate the
+        # the snapshot. Any flip to true would violate the
         # Sandbox boundary (ADR-0023a).
         if entry.get("ceo_triage_authorisation") is not False:
             fail(
@@ -283,7 +283,7 @@ def assert_per_item_snapshot(stub: dict) -> None:
                 "'ceo_triage_authorisation: false' "
                 "(FROZEN-FALSE in Tag-77 audit-only snapshot)"
             )
-        # The four substrate dimensions MUST all be true at Tag-77
+        # The four substrate dimensions MUST all be true at
         # (the substrate trilogy is complete).
         for substrate_dim in (
             "substrate_pinned",
@@ -299,7 +299,7 @@ def assert_per_item_snapshot(stub: dict) -> None:
                     "load-bearing)"
                 )
         # The Sandbox ceiling for every item is 4. Score must equal
-        # 4 (not 5, not 3-or-less) in a clean Tag-77 snapshot.
+        # 4 (not 5, not 3-or-less) in a clean snapshot.
         score = entry.get("score")
         if score != 4:
             fail(

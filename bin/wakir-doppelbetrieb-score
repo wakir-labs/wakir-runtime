@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 #
-# Sprint-10 Tag-6 substrate-closer — Doppelbetrieb-Score CLI
+# substrate-closer — Doppelbetrieb-Score CLI
 # entrypoint. Thin shim over ``wirelang.cli.doppelbetrieb_score``.
 #
 # See ``wirelang/cli/doppelbetrieb_score.py`` module docstring and

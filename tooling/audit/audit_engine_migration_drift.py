@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Tag-78 Engine-Migration-Drift Audit (Selin, persona-engine).
+Engine-Migration-Drift Audit (persona-engine).
 ============================================================
 
 Purpose
@@ -13,8 +13,8 @@ authority** (``wirelang/persona_engine/welle_state_producer.py``,
 modules) and the **Rust Stage-2 plan substrate** (the
 ``wirelang-rust/crates/persona-engine-*`` workspace members).
 
-The Phase-3c-Welle-Marathon is in its closeout window
-(Tag-77 Marathon-Final-Smoke PR #489 merged). The post-cutover
+The Phase-3c backend migration is in its closeout window
+ (final smoke PR #489 merged). The post-cutover
 sequence calls for the Rust Stage-2 plan substrate to progressively
 absorb the Python authority surface. Before the cutover-anchor flips,
 operators need a **read-only drift map**: which Python authority
@@ -25,8 +25,8 @@ resolves (i.e. a stale or renamed authority).
 This helper is **audit-only**. It performs no migration step. It
 neither modifies Python nor Rust sources, neither schedules a
 cutover, nor proposes a parity-anchor relocation. The output is a
-JSON drift-envelope intended for Operator-Hand triage in the Tag-78
-Marathon-Polish-Phase.
+JSON drift-envelope intended for Operator-Hand triage in the
+polish phase.
 
 Drift dimensions
 ----------------
@@ -53,12 +53,12 @@ The audit walks four orthogonal drift dimensions:
       that declares it cannot be found on disk (``stale-anchor``,
       defensive case).
 
-  D4. *Welle-state-machine drift* — the Welle-state-machine
+  D4. *wave-state-machine drift* — the wave-state-machine
       (``welle_state_producer.py``: STATUS_PENDING, STATUS_IN_PROGRESS,
       STATUS_SIGNED_OFF, STATUS_ROLLED_BACK + ALLOWED_TRANSITIONS) is
-      the Stage-1-authority for the Phase-3c-Welle-Marathon. The
+      the Stage-1-authority for the Phase-3c backend migration. The
       audit records whether any Rust crate declares it as parity-
-      anchor. Tag-78 expectation: ``rust-pendant-absent`` (no
+      anchor. expectation: ``rust-pendant-absent`` (no
       ``persona-engine-welle-state-producer`` crate exists). This is
       **not a regression**; it is the post-cutover migration map.
 
@@ -137,12 +137,12 @@ Scope discipline
 - **Hermetic-test-friendly.** All file I/O takes explicit path
   parameters; the test suite passes ``tmp_path`` fixtures and
   manufactures the authority/crate skeleton in isolation.
-- **Domain-respect (Selin).** This audit does NOT propose any
+- **Domain-respect.** This audit does NOT propose any
   Python or Rust code change. It does NOT touch persona-definition
-  files (Aisha-Domaene), WAT-core (Tomas), identity-substrate (Reza),
-  or container-infra (Kai).
+  files (persona-definition domain), WAT-core, identity-substrate,
+  or container-infra.
 
-Tag-78, Selin-Hand, AI-Corp Continuous-Mode.
+Persona-engine owner.
 """
 
 from __future__ import annotations
@@ -161,11 +161,11 @@ AUDIT_ID = "tag-78-engine-migration-drift-audit"
 # Python authority catalogue                                       #
 # ---------------------------------------------------------------- #
 #
-# The Tag-78 audit pins the *catalogue* of Python authority modules
-# that the Phase-3c-Welle-Marathon engine substrate depends on. The
+# The audit pins the *catalogue* of Python authority modules
+# that the Phase-3c backend migration engine substrate depends on. The
 # catalogue is intentionally hard-coded: it is the cross-side
-# migration-map contract that the Tag-78 polish-layer pins. New
-# Python authorities (e.g. Tag-78+ additions) must be added here in
+# migration-map contract that the polish-layer pins. New
+# Python authorities (e.g. additions) must be added here in
 # lockstep with the parity-anchor declaration on the Rust side.
 #
 # The path is relative to the runtime-root (typically the
@@ -204,8 +204,8 @@ PYTHON_AUTHORITY_MODULES: Tuple[str, ...] = (
 
 
 # Python authority modules whose Rust pendant is *expected absent*
-# at Tag-78 (the welle-state-producer is the Stage-1-only authority
-# for the Phase-3c Marathon; no Rust pendant has been spawned yet).
+# at (the welle-state-producer is the Stage-1-only authority
+# for the Phase-3c migration run; no Rust pendant has been spawned yet).
 # Modules in this set are NOT counted as drift even if no Rust
 # anchor is declared. The set is used for verdict-classification
 # only; the drift_map entry still carries the ``rust-pendant-absent``
@@ -255,7 +255,7 @@ _SYMBOL_KIND_PATTERNS = {
 # Only the ``persona-engine-*`` crates (workspace member prefix) are
 # scanned. The ``persona-hash`` / ``persona-canonical-form`` family
 # crates belong to a different migration anchor (V-907 hash pin)
-# and are deliberately out-of-scope for the Welle-Marathon drift map.
+# and are deliberately out-of-scope for the backend migration drift map.
 
 RUST_CRATES_DIR = "wirelang-rust/crates"
 RUST_CRATE_PREFIX = "persona-engine-"
@@ -338,11 +338,11 @@ class DriftMapEntry:
 
 
 @dataclasses.dataclass(frozen=True)
-class WelleStateMachineDrift:
+class WaveStateMachineDrift:
     """
-    Tag-78 D4 dimension report. The Welle-state-machine (status +
+ D4 dimension report. The wave-state-machine (status +
     transitions + guarded-welle-sets + marker-literals) lives only on
-    the Python side at Tag-78. This block surfaces the salient
+    the Python side at. This block surfaces the salient
     properties of that asymmetry as a stable, easy-to-cite shape.
     """
 
@@ -378,7 +378,7 @@ class DriftEnvelope:
     python_authorities: Tuple[PythonAuthorityReport, ...]
     rust_crates: Tuple[RustCrateReport, ...]
     drift_map: Tuple[DriftMapEntry, ...]
-    welle_state_machine_drift: WelleStateMachineDrift
+    welle_state_machine_drift: WaveStateMachineDrift
     summary: Summary
 
     def to_json(self, *, indent: int = 2) -> str:
@@ -576,7 +576,7 @@ def classify_drift(
 
 
 # ---------------------------------------------------------------- #
-# Welle-state-machine drift block                                  #
+# wave-state-machine drift block #
 # ---------------------------------------------------------------- #
 
 
@@ -587,11 +587,11 @@ def compute_welle_state_machine_drift(
     *,
     python_authorities: Iterable[PythonAuthorityReport],
     drift_map: Iterable[DriftMapEntry],
-) -> WelleStateMachineDrift:
+) -> WaveStateMachineDrift:
     """
-    Compose the D4 Welle-state-machine drift block. Looks up the
+    Compose the D4 wave-state-machine drift block. Looks up the
     welle_state_producer authority and its (possibly empty) Rust
-    pendant set, and resolves the drift-class. Tag-78 expectation:
+    pendant set, and resolves the drift-class. expectation:
     ``rust-pendant-absent-expected`` (the welle_state_producer has
     no Rust pendant by design; that is the Stage-2 plan gap).
     """
@@ -615,7 +615,7 @@ def compute_welle_state_machine_drift(
         drift_class = "rust-pendant-absent-drift"
 
     if auth is None:
-        return WelleStateMachineDrift(
+        return WaveStateMachineDrift(
             python_authority=WELLE_STATE_AUTHORITY_PATH,
             python_authority_present=False,
             python_status_constants=0,
@@ -628,7 +628,7 @@ def compute_welle_state_machine_drift(
             drift_class="rust-pendant-absent-expected" if expected_absent else "rust-pendant-absent-drift",
         )
 
-    return WelleStateMachineDrift(
+    return WaveStateMachineDrift(
         python_authority=WELLE_STATE_AUTHORITY_PATH,
         python_authority_present=auth.present,
         python_status_constants=auth.symbol_kinds.status_constants,
@@ -649,7 +649,7 @@ def compute_welle_state_machine_drift(
 
 def run_audit(*, runtime_root: pathlib.Path) -> DriftEnvelope:
     """
-    Execute the Tag-78 Engine-Migration-Drift audit against the
+    Execute the Engine-Migration-Drift audit against the
     given ``runtime_root`` (the wakir-runtime repo tip). Pure
     function: no side-effects beyond file reads.
     """
@@ -682,7 +682,7 @@ def run_audit(*, runtime_root: pathlib.Path) -> DriftEnvelope:
         rust_crates=rust_crates,
     )
 
-    # D4. Welle-state-machine drift block.
+    # D4. wave-state-machine drift block.
     welle_drift = compute_welle_state_machine_drift(
         python_authorities=python_authorities,
         drift_map=drift_map,
@@ -773,7 +773,7 @@ def main(argv: list[str] | None = None) -> int:
     # Exit-code contract: 0 if no unexpected drift, 1 if any
     # ``stale-anchor`` entry surfaces (the only audit-only error
     # condition; ``rust-pendant-absent`` is informational and does
-    # not flip the exit-code at Tag-78). The welle-state-machine
+    # not flip the exit-code at). The welle-state-machine
     # absence is *expected* and does not affect exit-code.
     return 1 if envelope.summary.stale_anchor_count > 0 else 0
 
