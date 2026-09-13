@@ -1,16 +1,15 @@
 # Wirelang NATS Subject Naming Convention and Mapping — v1
 
-**Spec ID:** `wirelang/specs/nats-subject-mapping-v1`
-**Status:** Draft (Phase-1b Sprint-2 Tag-1, S2-Item I-1)
-**Owner:** Reza Tehrani (Dev-Engineering-2 / Wirelang)
-**Cross-Review:** Kai Nakamura (Federation-Substrate-Ops, Zone H)
-**Date:** 2026-05-07 (`date -u` 2026-05-07T11:04:32Z)
-**Supersedes:** none (formalises the convention sketched in
-`specs/wirelang-spec-v0-2.md` §4 and `specs/layer-0-2-overview.md`
-§"Layer 0").
-**Schema anchor:** `schemas/layer-0-transport.json` v0.1.0
-(`subject.pattern` regex remains the single source of normative
-truth; this spec narrows usage and documents semantics).
+**Spec ID:** `wirelang/specs/nats-subject-mapping-v1` **Status:**
+Draft (S2-Item I-1) **Owner:** Reza Tehrani (Dev-Engineering-2 /
+Wirelang) **Cross-Review:** Kai Nakamura
+(Federation-Substrate-Ops, Zone H) **Date:** 2026-05-07 (`date -u`
+2026-05-07T11:04:32Z) **Supersedes:** none (formalises the
+convention sketched in `specs/wirelang-spec-v0-2.md` §4 and
+`specs/layer-0-2-overview.md` §"Layer 0"). **Schema anchor:**
+`schemas/layer-0-transport.json` v0.1.0 (`subject.pattern` regex
+remains the single source of normative truth; this spec narrows
+usage and documents semantics).
 
 SPDX-License-Identifier: Apache-2.0
 
@@ -271,10 +270,11 @@ JWT-SVID claims (ADR-0020). Spec-level rules:
 
 ## 8 / Cross-Reference: Schema-Registry Inventory
 
-The mapping module integrates with the Phase-1a-Tag-15
-Schema-Registry (`schemas/registry.py`). Each NATS subject
-that carries an AIP-Frame envelope binds — via the CloudEvents
-`schemaid` attribute — to one of the eight schemas:
+The mapping module integrates with the
+Phase-1a-Schema-Registry (`schemas/registry.py`). Each NATS
+subject that carries an AIP-Frame envelope binds — via the
+CloudEvents `schemaid` attribute — to one of the eight
+schemas:
 
 | Domain × event_type prefix | Schema `$id` | Source file |
 |---|---|---|
@@ -349,7 +349,7 @@ may be introduced in a v1.1 errata if log-aggregation requires it.
 ## 10 / Determinism Invariants and Tests
 
 The mapping module MUST satisfy the following invariants. Each gets
-a determinism test (8+ tests required for Tag-1 acceptance).
+a determinism test (8+ tests required for acceptance).
 
 | ID | Invariant | Test slug |
 |---|---|---|
@@ -421,7 +421,7 @@ In addition, the test module exercises six negative controls:
 - **Hook Z3-Schema-Inventory.** §8 inventory list includes
   `federation-trust-document.json` and the `datalog-caveat.json`
   v0.2.0 bump. Both are already Z3-K1/K2/K3-acknowledged
-  (Phase-1b Tag-15). No new Z3 burden from this spec.
+  . No new Z3 burden from this spec.
 
 ---
 

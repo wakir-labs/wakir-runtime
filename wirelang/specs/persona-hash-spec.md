@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
-# V-907 Persona-Hash Spec (Phase-1b Sprint-1 Tag-2 skeleton)
+# V-907 Persona-Hash Spec (skeleton)
 
 | Field | Value |
 |---|---|
@@ -163,7 +163,7 @@ This spec is CC-BY-4.0; the implementation modules are Apache-2.0
 
 ---
 
-## Annex A — Hex-Pin Posture (Phase-1b Sprint-6 Tag-6)
+## Annex A — Hex-Pin Posture
 
 ### A.1 What is pinned, where, and why
 
@@ -182,7 +182,7 @@ The two forms are tied together by self-consistency tests
 (e.g. `PERSONA_HASH_PIN_V9.ends_with(V8_MIGRATED_TO_V1_HEX_RUST_ONLY)`):
 any drift on one form trips a test on the other.
 
-### A.2 Frozen pin-pack (Phase-1b Sprint-6 state)
+### A.2 Frozen pin-pack (state)
 
 Operator-facing `sha256:<64hex>` pins (cross-language, byte-equal):
 
@@ -203,7 +203,7 @@ Rust-only hex-tail hard-freeze constants:
 
 | Constant | Asserts the hex tail of | Lives in |
 |---|---|---|
-| `V8_PIN_HEX_RUST_ONLY` | the JCS-SHA-256 of the v8 canonical subset (no migration) — promoted from `None` in Sprint-5 Tag-4 | `persona-canonical-form/src/lib.rs` |
+| `V8_PIN_HEX_RUST_ONLY` | the JCS-SHA-256 of the v8 canonical subset (no migration) — promoted from `None` in Tag-4 | `persona-canonical-form/src/lib.rs` |
 | `V8_MIGRATED_TO_V1_HEX_RUST_ONLY` | `V0ToV1Step` output hex (== tail of `PERSONA_HASH_PIN_V9`) | `persona-migration/src/lib.rs` |
 | `V9_MIGRATED_TO_V2_HEX_RUST_ONLY` | `V1ToV2Step` output hex (== tail of `PERSONA_HASH_PIN_V9_MIGRATED_TO_V2`) | `persona-migration/src/lib.rs` |
 | `V8_CHAIN_TO_V2_HEX_RUST_ONLY` | `migrate_persona(... target=persona-v2)` dispatcher output on V8 Markdown input (== tail of `PERSONA_HASH_PIN_V8_MIGRATED_TO_V2`) | `persona-migration-resolver/src/lib.rs` |
@@ -264,7 +264,7 @@ The pin-pack is **not** updated for:
 ### A.5 Cross-Reference test-anchors
 
 Each pin is exercised by at least one byte-equal test on each side.
-The Phase-1b Sprint-6 anchor matrix:
+The anchor matrix:
 
 | Pin | Python anchor | Rust anchor (crate) |
 |---|---|---|
@@ -279,7 +279,7 @@ The Phase-1b Sprint-6 anchor matrix:
 | `V8_CHAIN_TO_V2_HEX_RUST_ONLY` | (none; Rust-only) | `persona-migration-resolver` `t15` |
 | Re-derivation roundtrip (registry-iteration) | (none; Rust-only — Python equivalent runs via `migrate_persona` end-to-end tests) | `persona-migration` `t15`, `persona-migration-resolver` `t16` |
 
-### A.6 CLI-side cross-reference (Sprint-6 Tag-1 .. Tag-5)
+### A.6 CLI-side cross-reference (Tag-1..)
 
 The operator-facing CLI (`wakir-persona`) re-uses the same pins:
 
@@ -293,15 +293,15 @@ The operator-facing CLI (`wakir-persona`) re-uses the same pins:
   (`sha256:<64hex>\n`), so shell scripts can capture without
   `2>&1` redirect gymnastics.
 
-The cross-language V-907-CLI-invariant (`pin` stdout ==
-`inspect --emit-hash --quiet` stderr-pin == `migrate --emit-hash`
+The cross-language V-907-CLI-invariant (`pin` stdout == `inspect
+--emit-hash --quiet` stderr-pin == `migrate --emit-hash`
 stderr-last-line on a v9 no-op-chain input) holds against
-`PERSONA_HASH_PIN_V9` in both Python and Rust CLIs. The
-Tag-4 test pack pins all three forms simultaneously
+`PERSONA_HASH_PIN_V9` in both Python and Rust CLIs. The test pack
+pins all three forms simultaneously
 (`test_persona_pin_cli::test_pin_v9_matches_inspect_and_migrate`
 plus the Rust `pin_tests` mod's cross-form anchor).
 
-### A.7 stderr-Wording-Byte-Parität (Sprint-6 Tag-6 — Item 1)
+### A.7 stderr-Wording-Byte-Parität (Tag-6 — Item 1)
 
 The error-path stderr surface carries a Cross-Lang-Diff-Pin on the
 six per-subcommand markers. See `wirelang/tests/test_persona_cli_stderr_parity.py`

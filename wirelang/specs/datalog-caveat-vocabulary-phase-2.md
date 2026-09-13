@@ -42,7 +42,7 @@ additions that the sketch deliberately deferred:
    `federation_route` are promoted from "candidate" to "Phase-2
    ratified, subject to V-908 backend availability".
 3. A **TV-W-2 Pin-Stability Guarantee** (§6) — the spec-level contract
-   that lets the Tag-16+ TV-W-2 implementation pin verification-trace
+   that lets the TV-W-2 implementation pin verification-trace
    hashes without re-baselining on every minor producer change.
 
 The Phase-1a vocabulary v0.1 (20 predicates, normative in
@@ -65,7 +65,7 @@ becomes invalid under Phase-2.
 - The TV-W-2 pin-stability guarantee (§6): which producer changes
   may trigger a re-baseline of TV-W-2 verification-trace fixtures,
   and which may not.
-- **v0.2.1 patch (ADR-0052, Sprint-6 Tag-8 2026-05-12):** Class-P
+- **v0.2.1 patch (ADR-0052, Tag-8 2026-05-12):** Class-P
   promotion of `caveat_hash(self_hash)` to Class N1 with a
   dedicated schema-pattern arm and a ratified verifier behaviour
   (§6.7). The promotion is strictly additive (every v0.2.0 caveat
@@ -173,21 +173,20 @@ by ADR".
 | Predicate | Status | Promotion path |
 |---|---|---|
 | `persona_pin(pin_hash)` | reserved | v0.1.x patch on Wirelang Layer-1-attribute spec |
-| `caveat_hash(self_hash)` | **promoted to N1 in v0.2.1 (ADR-0052 approved 2026-05-12, landed Sprint-6 Tag-8 2026-05-12)** | landed — see §3.4-N1-promoted-slot below and §6.7 |
+| `caveat_hash(self_hash)` | **promoted to N1 in v0.2.1 (ADR-0052 approved 2026-05-12, landed Tag-8 2026-05-12)** | landed — see §3.4-N1-promoted-slot below and §6.7 |
 
 The residual Class-P predicate `persona_pin` is an out-of-band
 candidate: ratification requires only a clarifying ADR on the
 verifier behaviour, no infrastructure rollout.
 
 **§3.4-N1-promoted-slot for `caveat_hash` (v0.2.1 ratified, ADR-0052
-landed Sprint-6 Tag-8 2026-05-12).**
+landed Tag-8 2026-05-12).**
 
 ADR-0052 (`decisions/0052-class-p-promotion-caveat-hash.md`,
 approved 2026-05-12 by the Aufsichtsrat on Option B) ratifies the
 v0.2.0 → v0.2.1 schema patch promoting `caveat_hash(self_hash)`
 from Class P (reserved-patch-eligible) to Class N1
-(normative-now). The Sprint-6 Tag-8 implementation landed the
-following:
+(normative-now). The implementation landed the following:
 
 1. **Algorithm definition (ratified).** The `caveat_hash(self_hash)`
    predicate carries the lower-case-hex SHA-256 of
@@ -229,7 +228,7 @@ following:
 5. **Test inventory (landed).** Tag-8 adds five ratification
    probes in
    `wirelang/tests/test_caveat_hash_promotion_substrate.py`
-   (T-CHP-07..11) on top of the seven Tag-2 substrate probes
+   (T-CHP-07..11) on top of the seven substrate probes
    (T-CHP-01..06 + aux); plus five v0.2.1 schema-admission
    probes in
    `wirelang/tests/test_datalog_vocabulary_phase_2.py`
@@ -377,11 +376,11 @@ from inception.
 ## 5. V-908 Federation Caveat Extension
 
 V-908 (DNS-anchored AIP federation, ratified in
-`wirelang/specs/wirelang-spec-v0-2.md` §6.5 and implemented in
-Phase-1b Tag-5..Tag-8) provides the substrate for cross-org
-capability flows. Two predicates from the Phase-2 sketch are
-ratified here as **N2** (Normative-Deferred): vocabulary is
-normative; evaluator availability is gated on the V-908
+`wirelang/specs/wirelang-spec-v0-2.md` §6.5 and implemented
+in..) provides the substrate for cross-org capability flows.
+Two predicates from the Phase-2 sketch are ratified here as
+**N2** (Normative-Deferred): vocabulary is normative;
+evaluator availability is gated on the V-908
 federation-resolver being reachable.
 
 ### 5.1 `peer_org(aip_id: did)`
@@ -462,15 +461,14 @@ v0.1.0 → v0.2.0; v0.1.0 schema consumers continue to validate
 v0.1 caveats against v0.1 schema, and v0.2.0 schema consumers
 admit both v0.1 and v0.2 caveats.
 
-**v0.2.1 patch update (ADR-0052, Sprint-6 Tag-8).** A second
-alternation arm has been added to the items.pattern admitting the
-canonical literal shape `caveat_hash("<64-lower-hex>")`. The arm
-is dedicated rather than folded into the predicate-name list
-because the argument must be pinned to an exact regex
-(`[0-9a-f]{64}` quoted literal) — a producer cannot emit a
-variable or a non-canonical hex shape past the schema. The first
-arm (22 N1∪N2 predicates) is byte-unchanged. See §6.7 for the
-ratified verifier behaviour.
+**v0.2.1 patch update (ADR-0052).** A second alternation arm has
+been added to the items.pattern admitting the canonical literal
+shape `caveat_hash("<64-lower-hex>")`. The arm is dedicated
+rather than folded into the predicate-name list because the
+argument must be pinned to an exact regex (`[0-9a-f]{64}` quoted
+literal) — a producer cannot emit a variable or a non-canonical
+hex shape past the schema. The first arm (22 N1∪N2 predicates) is
+byte-unchanged. See §6.7 for the ratified verifier behaviour.
 
 The schema does NOT yet admit Class R reserved predicates (§3.3)
 or the residual Class P patch-eligible predicate `persona_pin`
@@ -483,10 +481,9 @@ Datalog-evaluation time.
 
 ### 5.5 Phase-1b N2 evaluator implementation note (informative)
 
-Phase-1b Sprint-2 Tag-3 (S2-2) lands the live N2 evaluator for
-`peer_org` and `federation_route` in
-`wirelang/federation/n2_evaluator.py`. The evaluator is a pure
-layer over an already-verified
+Tag-3 (S2-2) lands the live N2 evaluator for `peer_org` and
+`federation_route` in `wirelang/federation/n2_evaluator.py`.
+The evaluator is a pure layer over an already-verified
 `wirelang.identity.federation_resolver.FederatedResolveResult`
 and a caller-supplied `RouteRegistry`. It does not consult the
 network, the wall-clock outside of `eval_now`, or any state
@@ -533,11 +530,11 @@ green (T-N2-01..10 plus 4 sanity probes).
 
 ### 5.6 Phase-1b NATS-KV backend implementation note (informative)
 
-Phase-1b Sprint-2 Tag-4 (S2-3) lands the production-target backend
-for the V-908 federation-route registry as
-`wirelang/federation/route_registry_nats_kv_backend.py`. The Tag-3
-N2 evaluator reserved `RouteRegistry` as a Protocol; this backend
-supplies the durable form (item I-11 vocabulary). The Tag-3 module
+Tag-4 (S2-3) lands the production-target backend for the V-908
+federation-route registry as
+`wirelang/federation/route_registry_nats_kv_backend.py`. The N2
+evaluator reserved `RouteRegistry` as a Protocol; this backend
+supplies the durable form (item I-11 vocabulary). The module
 surface is unchanged.
 
 Module surface:
@@ -586,15 +583,15 @@ Test coverage:
 
 ### 5.7 Phase-1b N3 multi-FTD chain walker implementation note (informative)
 
-Phase-1b Sprint-2 Tag-5 (S2-4) lands the N3 multi-FTD delegation-chain
-walker in `wirelang/federation/n3_chain_walker.py`. N3 is the third
-iteration after N1 (Sprint-1 stub: vocabulary reservation only) and
-N2 (Sprint-2 Tag-3 single-hop live evaluator). N3 implements the
-`peer_org` predicate's delegation-chain-walking extension that §5.1
-already reserved as the Phase-2 evolution path ("rooted at, or be
-reachable via a delegation chain that includes, the AIP `aip_id`")
-and that §5.5 N2-implementation-note marked as the next iteration
-after the single-hop FTD-id-equality match.
+Tag-5 (S2-4) lands the N3 multi-FTD delegation-chain walker in
+`wirelang/federation/n3_chain_walker.py`. N3 is the third iteration
+after N1 (stub: vocabulary reservation only) and N2 (single-hop live
+evaluator). N3 implements the `peer_org` predicate's
+delegation-chain-walking extension that §5.1 already reserved as the
+Phase-2 evolution path ("rooted at, or be reachable via a delegation
+chain that includes, the AIP `aip_id`") and that §5.5
+N2-implementation-note marked as the next iteration after the
+single-hop FTD-id-equality match.
 
 Module surface:
 
@@ -696,16 +693,16 @@ and the unreachable zero-hop-mismatch defensive branch).
 
 ### 5.8 Phase-1b NATS-KV watch-stream snapshot layer (informative)
 
-Phase-1b Sprint-2 Tag-6 (S2-5) extends the Tag-4 backend
+Tag-6 (S2-5) extends the backend
 (`wirelang/federation/route_registry_nats_kv_backend.py`) with a
-watch-based incremental snapshot layer. The Tag-4 §5.6 implementation
-note explicitly reserved this evolution path: "Snapshot is full-bucket.
+watch-based incremental snapshot layer. The §5.6 implementation note
+explicitly reserved this evolution path: "Snapshot is full-bucket.
 Phase-2 may add a watch-based incremental snapshot; the
-synchronous-bridge contract makes the swap source-compatible." Tag-6
-delivers that layer at the source-compatible boundary while keeping
-the synchronous evaluator surface unchanged.
+synchronous-bridge contract makes the swap source-compatible." delivers
+that layer at the source-compatible boundary while keeping the
+synchronous evaluator surface unchanged.
 
-Module surface (additive over Tag-4):
+Module surface (additive):
 
 - `WatchOp` — enum of update kinds surfaced on the stream
   (`PUT`, `DELETE`, `PURGE`). Mirrors nats-py's `KeyValueOp` shape.
@@ -753,7 +750,7 @@ Decode contract:
 
 `WatchEvent`s are decoded from the underlying watcher's update
 records. The decoder accepts two watcher shapes (Phase-1b
-mock-flexibility, mirroring the Tag-4 `_coerce_value_bytes` /
+mock-flexibility, mirroring the `_coerce_value_bytes` /
 `_list_keys` pattern):
 
 - Shape A: `await watcher.updates()` returns the next update or
@@ -790,18 +787,18 @@ Phase-1b boundary (informative):
 Cross-review hooks:
 
 - Zone B (NATS-KV × Wirelang): the watch-stream consumes Kai's
-  Phase-1 NATS-JetStream substrate (orchestrator I-3 Tag-3 compose
-  + Tag-1/Tag-2 bucket inventory). The Tag-4 `BUCKET_NAME`
+  Phase-1 NATS-JetStream substrate (orchestrator I-3 compose
+  + Tag-1/bucket inventory). The `BUCKET_NAME`
   contract is unchanged; the watch-stream operates on the same
   `wakir-federation-routes` bucket. Operators running the
   orchestrator Phase-1 substrate can consume the watch-stream
   without additional configuration. A non-blocking consumer-side
   Z-B note may be delivered to Kai's inbox documenting the
   expected `watchall()` surface; no Aisha-Z-B-marker is required
-  because Phase-1b form ships under the existing Tag-4 marker
+  because Phase-1b form ships under the existing marker
   and the watch-stream is additive.
 - Zone 1 (Identity-Substrate): unchanged. The watch-stream
-  surfaces the same `RouteRegistryEntry` shape as the Tag-4 full
+  surfaces the same `RouteRegistryEntry` shape as the full
   snapshot; the `source_ftd_id` field continues to be the hop
   identity binding consumed by N2 §5.5 and the N3 §5.7 chain
   walker.
@@ -811,16 +808,15 @@ Cross-review hooks:
 
 Test coverage:
 `wirelang/tests/test_federation_route_registry_nats_kv_backend.py`
-— 26 tests green (13 Tag-4 T-NKV-01..10 + 3 aux probes, plus 13
-Tag-6 T-NKV-WS-01..10 + 3 aux probes covering Shape-1 async-iter,
+— 26 tests green (13 T-NKV-01..10 + 3 aux probes, plus 13
+T-NKV-WS-01..10 + 3 aux probes covering Shape-1 async-iter,
 non-WatchEvent rejection, and PUT-without-entry rejection).
 
 ### 5.5 Phase-1b N2 evaluator implementation note (informative)
 
-Phase-1b Sprint-2 Tag-3 (S2-2) lands the live N2 evaluator for
-`peer_org` and `federation_route` in
-`wirelang/federation/n2_evaluator.py`. The evaluator is a pure
-layer over an already-verified
+Tag-3 (S2-2) lands the live N2 evaluator for `peer_org` and
+`federation_route` in `wirelang/federation/n2_evaluator.py`.
+The evaluator is a pure layer over an already-verified
 `wirelang.identity.federation_resolver.FederatedResolveResult`
 and a caller-supplied `RouteRegistry`. It does not consult the
 network, the wall-clock outside of `eval_now`, or any state
@@ -947,8 +943,8 @@ The guarantee explicitly survives the following non-events:
 
 The drift envelope from Phase-1b Tag-12 (`production - sandbox =
 144 ±5`) covers TV-W-2 once implemented. Adding the TV-W-2 test
-module bumps `EXPECTED_DELTA` per Tag-12 protocol; the workflow-
-PR re-baseline is the ratification event.
+module bumps `EXPECTED_DELTA` per protocol; the workflow- PR
+re-baseline is the ratification event.
 
 ### 6.6 Phase-1b N3 chain-walker note (re-anchored from §5.7)
 
@@ -959,11 +955,10 @@ v0.2.1 self-reference predicate. No content here; see §5.7.
 ### 6.7 v0.2.1 Self-Reference Predicate Verification (ADR-0052)
 
 ADR-0052 (decision date 2026-05-12, Aufsichtsrat ratified Option B
-on Mira-Empfehlung) promotes `caveat_hash(self_hash)` from
-Class P (§3.4) to Class N1 via the v0.2.0 → v0.2.1 schema patch.
-This subsection ratifies the verifier behaviour. Implementation
-landed in Sprint-6 Tag-8 (2026-05-12); test inventory is
-T-CHP-01..11 in
+on Mira-Empfehlung) promotes `caveat_hash(self_hash)` from Class P
+(§3.4) to Class N1 via the v0.2.0 → v0.2.1 schema patch. This
+subsection ratifies the verifier behaviour. Implementation landed
+in Tag-8 (2026-05-12); test inventory is T-CHP-01..11 in
 `wirelang/tests/test_caveat_hash_promotion_substrate.py` and
 T-V0.2.1-01..05 in
 `wirelang/tests/test_datalog_vocabulary_phase_2.py`.
@@ -1076,17 +1071,17 @@ vorlage `ddf11545…d7532`.
 
 #### 6.7.6 Drift surface impact
 
-The Tag-8 implementation does NOT shift the
-production-vs-sandbox `EXPECTED_DELTA` envelope past tolerance.
-The five new Phase-B substrate-promotion probes (T-CHP-07..11)
-land in `test_caveat_hash_promotion_substrate.py` which does NOT
-gate on `jsonschema` (it operates on regex against the schema
-pattern directly) — they run in BOTH production and sandbox
-lanes. The five new schema-admission probes (T-V0.2.1-01..05)
-land in `test_datalog_vocabulary_phase_2.py` which DOES gate on
-`jsonschema` — they run in production lane only and contribute
-+5 to the delta. Tag-15 baseline `EXPECTED_DELTA=149` becomes 154
-post-Tag-8 (drift 5 = tolerance 5, at-edge). The `tests.yml`
+The implementation does NOT shift the production-vs-sandbox
+`EXPECTED_DELTA` envelope past tolerance. The five new Phase-B
+substrate-promotion probes (T-CHP-07..11) land in
+`test_caveat_hash_promotion_substrate.py` which does NOT gate on
+`jsonschema` (it operates on regex against the schema pattern
+directly) — they run in BOTH production and sandbox lanes. The
+five new schema-admission probes (T-V0.2.1-01..05) land in
+`test_datalog_vocabulary_phase_2.py` which DOES gate on
+`jsonschema` — they run in production lane only and contribute +5
+to the delta. baseline `EXPECTED_DELTA=149` becomes 154
+post-revision (drift 5 = tolerance 5, at-edge). The `tests.yml`
 EXPECTED_DELTA is re-baselined in this commit; the §6.3
 re-baseline-list item 1 (vocabulary additions) is the relevant
 re-baseline trigger.
@@ -1238,7 +1233,7 @@ Each test is a determinism probe for one ratified clause.
     promotion-path patch lands.
 
 The catalogue is intentionally minimal-coverage (10 tests) at
-ratification time. TV-W-2 implementation in Tag-16+ adds the
+ratification time. TV-W-2 implementation in adds the
 trace-pin-stability tests on top of this base.
 
 ## 11. Out of scope

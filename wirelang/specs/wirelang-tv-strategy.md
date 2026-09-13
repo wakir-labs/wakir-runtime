@@ -9,8 +9,8 @@ License: This document is licensed under the Creative Commons Attribution
 
 # Wirelang Test-Vector Strategy (TV-W)
 
-Status: draft, Phase 1b, Tag-13 spec-only.
-Counterpart of: `wakir-runtime/docs/wat-tv1-test-plan.md`,
+Status: draft, Phase 1b, spec-only. Counterpart of:
+`wakir-runtime/docs/wat-tv1-test-plan.md`,
 `wat-tv2-test-plan.md`, `wat-tv3-test-plan.md` (WAT side).
 Author: Reza, 2026-05-07.
 
@@ -277,8 +277,8 @@ wirelang/
 
 Fixture files are deterministic JSON (RFC 8785 canonicalised) so the
 golden hashes are stable across platforms. Replay bundles use the
-existing DNS-anchor and HTTPS-backend replay protocols introduced in
-Phase-1b Tag-5..Tag-8.
+existing DNS-anchor and HTTPS-backend replay protocols introduced
+in...
 
 ## 5. CI integration
 
@@ -292,7 +292,7 @@ All three TV-W vectors are correctness-gates in both CI lanes
 (hermetic). Live mode is operator-on-demand, mirroring the WAT
 public-OTS pattern.
 
-Drift-detection (Tag-12 Companion) covers TV-W tests in the existing
+Drift-detection (Companion) covers TV-W tests in the existing
 `production_count - sandbox_count = 144 ±5` envelope; if TV-W test
 modules are added, the `EXPECTED_DELTA` constant requires explicit
 re-baseline via workflow-PR.
@@ -323,7 +323,7 @@ this spec when the fixture pins crystallise.
   TV-W is CPU-bound and adding budgets here is theatre.
 - **Coverage metrics:** TV-W is hash-pinned-output verification, not
   coverage-driven. A separate coverage layer is a different topic
-  (Tag-12 Option B).
+  (Option B).
 - **Mutation testing:** TV-W-2 includes a single negative-control
   mutation (caveat-removal). Full mutation-testing on the Datalog
   evaluator is out of scope.
@@ -343,7 +343,7 @@ Pin values are added here as each TV-W vector is implemented. A
 re-baseline of any pin is an explicit engineering event and requires
 an updated entry below plus a workflow-PR note.
 
-### A.1 TV-W-1 (Phase-1b Tag-14, 2026-05-07)
+### A.1 TV-W-1 (2026-05-07)
 
 - Golden fixture: `wirelang/tests/fixtures/tv-w-1/pin-pack.json`.
 - Builder / regenerator: `wirelang.tests._tv_w_1_pin_pack_builder`
@@ -359,7 +359,7 @@ an updated entry below plus a workflow-PR note.
   excluded from the pin-pack. The unsigned DID-body JCS-SHA-256 is
   the byte-stable substitute.
 
-### A.2 TV-W-2 (Phase-1b Tag-16, 2026-05-07)
+### A.2 TV-W-2 (2026-05-07)
 
 - Golden fixture: `wirelang/tests/fixtures/tv-w-2/pin-pack.json`.
 - Builder / regenerator: `wirelang.tests._tv_w_2_pin_pack_builder`
@@ -392,11 +392,11 @@ an updated entry below plus a workflow-PR note.
   deterministically from the TV-W-1 seed via labelled SHA-256
   expansion (see `_derive_chain_seed` in the builder).
 - Drift envelope (Tag-12 §5): TV-W-2 module additions (+29 production
-  / +28 sandbox = +1 net delta over Tag-15 baseline 149) leave the
+  / +28 sandbox = +1 net delta over baseline 149) leave the
   envelope at 150 (drift 1, tolerance 5) — no `EXPECTED_DELTA`
   re-baseline required.
 
-### A.3 TV-W-3 (Phase-1b Tag-17, 2026-05-07)
+### A.3 TV-W-3 (2026-05-07)
 
 - Golden fixture: `wirelang/tests/fixtures/tv-w-3/pin-pack.json`.
 - Replay bundle: `wirelang/tests/fixtures/tv-w-3/replay/` (DNS TXT

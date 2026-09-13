@@ -20,15 +20,15 @@ license: CC-BY-4.0
 
 # Wirelang Specification v0.4 (Phase-3 consolidation refresh)
 
-This document is the Tag-45 consolidation refresh of the Wirelang
+This document is the consolidation refresh of the Wirelang
 inter-agent messaging stack. It is the **Phase-3-era reference
-spec**: it consolidates the Phase-3a Rust foundation surface,
-the Phase-3b ENV-flag-driven double-runtime substrate, and the
+spec**: it consolidates the Phase-3a Rust foundation surface, the
+Phase-3b ENV-flag-driven double-runtime substrate, and the
 Phase-3c per-welle cutover substrate, into one document that the
 on-call operator and the auditor can read end-to-end without
 chasing per-Tag memos.
 
-> **v0.4.0 (2026-05-18, Tag-45):** Additive minor bump over v0.3.
+> **v0.4.0 (2026-05-18):** Additive minor bump over v0.3.
 > No on-the-wire change. No frame-attribute change. No caveat-
 > predicate addition or removal. The change surface is operational
 > metadata, runtime backend selection, and audit-baseline
@@ -46,10 +46,10 @@ chasing per-Tag memos.
 
 It supersedes the per-Tag refresh memos shipped during the
 Sprint-Pengine-13 / Sprint-7 / Phase-3-trigger-window
-(approximately Tag-39 through Tag-44) and references — but
-does not duplicate — the JSON-Schema documents, the per-crate
-READMEs under `wirelang-rust/crates/*/`, and the per-welle
-runbooks under `docs/phase-3c/`.
+(approximately through) and references — but does not
+duplicate — the JSON-Schema documents, the per-crate READMEs
+under `wirelang-rust/crates/*/`, and the per-welle runbooks
+under `docs/phase-3c/`.
 
 The intent of v0.4 is **consolidation, not redesign**. The wire
 format, the semantic envelope, the trust layer, and the
@@ -141,10 +141,10 @@ is its Phase-3 role".
 ### 3.1 Catalogue
 
 The Rust workspace under `wirelang-rust/crates/` contains 32
-crates as of Tag-45. Of these, fifteen are **Phase-3a-foundation**
-crates — i.e., they are the deterministic substrate that the
-Phase-3b ENV-flag substrate (§8) selects between, and that the
-Phase-3c per-welle cutover (§9) migrates from Python-default to
+crates as of. Of these, fifteen are **Phase-3a-foundation** crates
+— i.e., they are the deterministic substrate that the Phase-3b
+ENV-flag substrate (§8) selects between, and that the Phase-3c
+per-welle cutover (§9) migrates from Python-default to
 Rust-default one welle at a time.
 
 | # | Crate | Phase-3-role | Welle | Substrat-Klassifikation |
@@ -444,7 +444,7 @@ v0.4 records the following Adapter-B status:
   encodes the §13.2 compatibility matrix as a static gate
   callable by both producers (pre-publish) and subscribers
   (pre-bind, via `require_compatible(...)`).
-- The Tag-41 PR #265 closure documented in
+- The PR #265 closure documented in
   `docs/audit/nats-jetstream-subjects-audit.md` is the
   engineering-side substantive close.
 
@@ -504,7 +504,7 @@ The audit is implemented by:
 - **Hermetic tests.** `tests/audit/test_nats_jetstream_subjects_audit.py`
   — covers the parse + classify + report-emit pipeline.
 - **First report.** `reports/audit/2026-05-18-nats-jetstream-subjects-audit.md`
-  — the Tag-43 baseline report.
+  — the baseline report.
 - **CI workflow.** `.github/workflows/nats-jetstream-subjects-audit.yml`
   — re-runs the audit on every PR and emits a check-status.
 
@@ -530,12 +530,12 @@ The audit classifies each NATS publish/subscribe call site as:
 
 ### 8.3 Baseline guarantee
 
-At v0.4 publication, the Tag-43 audit baseline report
+At v0.4 publication, the audit baseline report
 (`reports/audit/2026-05-18-nats-jetstream-subjects-audit.md`)
-documents zero `UNCLASSIFIED` findings against the Tag-43
-working tree. The audit CI workflow enforces this as a hard
-gate: any PR that introduces an `UNCLASSIFIED` call site
-fails check `nats-jetstream-subjects-audit` and cannot merge.
+documents zero `UNCLASSIFIED` findings against the working
+tree. The audit CI workflow enforces this as a hard gate: any
+PR that introduces an `UNCLASSIFIED` call site fails check
+`nats-jetstream-subjects-audit` and cannot merge.
 
 This is the **emission-side discipline counterpart** of the
 verifier-side discipline encoded by `publish_mode_contract.
@@ -676,7 +676,7 @@ the per-layer specs and have been checked against
 - `specs/identity-substrate.md` — persona substrate.
 - `specs/nats-subject-mapping-v1.md` — Layer-0 subject naming.
 - `specs/schema-registry-spec.md` — schema registry NATS-KV
-  backend (Sprint-7 Pfad-B).
+  backend (Pfad-B).
 - `specs/wat-leaf-projection.md` — Layer-4 hand-off contract.
 - `specs/bridge-forward-pipe-v1.md` — Bug-42-fix-anchor
   reference (§6).
@@ -726,12 +726,12 @@ the per-layer specs and have been checked against
 
 ## 13. Acknowledgements
 
-The Tag-45 consolidation follows the per-Tag substrate work of
-the Sprint-Pengine-13 / Sprint-7 / Phase-3-trigger-window
+The consolidation follows the per-Tag substrate work of the
+Sprint-Pengine-13 / Sprint-7 / Phase-3-trigger-window
 contributors (role-strings only: Persona-Engine-Engineer,
 Dev-Engineering-2 / Wirelang, Federation-Substrate-Ops, QA,
 Internal Audit, Observability, CTO, CEO). Per-actor file-author
-attribution is preserved in the referenced runbook and quality-
-gate documents.
+attribution is preserved in the referenced runbook and
+quality-gate documents.
 
 — *role: wirelang-spec-owner*

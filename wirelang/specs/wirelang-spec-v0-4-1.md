@@ -19,17 +19,17 @@ audience: implementers, integrators, operators, auditors
 license: CC-BY-4.0
 ---
 
-# Wirelang Specification v0.4.1 (Tag-47 Drift Reconciliation Patch)
+# Wirelang Specification v0.4.1 (Drift Reconciliation Patch)
 
-This document is an **additive patch** over v0.4 (Tag-45 PR #291).
-It reconciles the three drift items recorded in the Tag-47 15-Crate
+This document is an **additive patch** over v0.4 (PR #291). It
+reconciles the three drift items recorded in the Tag-47 15-Crate
 Consistency Audit (PR #305,
-`reports/audit/phase-3a-15-crate-consistency-2026-05-19.md`)
-between the spec §3.1 crate catalogue, the pin-pack substrate
-(`infra/persona-engine/pin-pack-0.5.0-pre-cutover.yaml`), and the
-boot manifest (`wirelang/persona_engine/MANIFEST-0.5.0-pre-cutover.md`).
+`reports/audit/phase-3a-15-crate-consistency-2026-05-19.md`) between the
+spec §3.1 crate catalogue, the pin-pack substrate
+(`infra/persona-engine/pin-pack-0.5.0-pre-cutover.yaml`), and the boot
+manifest (`wirelang/persona_engine/MANIFEST-0.5.0-pre-cutover.md`).
 
-> **v0.4.1 (2026-05-19, Tag-48):** Additive patch over v0.4.0.
+> **v0.4.1 (2026-05-19):** Additive patch over v0.4.0.
 > No on-the-wire change. No frame-attribute change. No caveat-
 > predicate addition or removal. No ENV-flag-schema change. No
 > publish-mode-contract change. The change surface is the §3.1
@@ -46,7 +46,7 @@ boot manifest (`wirelang/persona_engine/MANIFEST-0.5.0-pre-cutover.md`).
 It is published as a separate file (`wirelang-spec-v0-4-1.md`)
 rather than as an edit to `wirelang-spec-v0-4.md` for two reasons:
 
-1. **Patch-trace integrity.** The Tag-47 audit references
+1. **Patch-trace integrity.** The audit references
    v0.4.0 §3.1 verbatim. Rewriting v0.4.0 in place would break
    the audit's citation trail and the regression-pin in
    `tests/audit/test_phase_3a_15_crate_consistency.py`.
@@ -137,7 +137,7 @@ exercises, so a separate pin would introduce a circular oracle
 (see §3.3 foundation-circularity argument).
 
 Verifiers and auditors MUST treat row 13 + row 14 as one
-substrate unit. The Tag-47 audit's `companion` notation in the
+substrate unit. The audit's `companion` notation in the
 per-crate substrate check (audit §5 row 14) is the canonical
 expression of this contract.
 
@@ -146,9 +146,9 @@ expression of this contract.
 `persona-engine-federation-resolver` is the **federation-route
 resolver** that the persona-engine cold-start fan-out invokes
 to seed the NATS-KV-backed federation route table (per
-`docs/orchestrator-nats-kv-phase-1-runbook.md` I-3, Sprint-2
-Tag-3, commit `7d5580f`). It is record 9 of the nine wired
-boot-records in `MANIFEST-0.5.0-pre-cutover.md` §1.
+`docs/orchestrator-nats-kv-phase-1-runbook.md` I-3,, commit
+`7d5580f`). It is record 9 of the nine wired boot-records in
+`MANIFEST-0.5.0-pre-cutover.md` §1.
 
 It is added to v0.4.1 §3.1 as row 16 with the following
 classification:
@@ -172,7 +172,7 @@ The row is added to §3.1 (not §3 "remaining seventeen") because:
 1. It is a wired boot-record per manifest §1. Boot-records are
    the operationally-visible substrate of the engine and belong
    in the §3.1 catalogue.
-2. The Tag-47 audit identified the §3.1 / pin-pack symmetric
+2. The audit identified the §3.1 / pin-pack symmetric
    difference, of which federation-resolver was the substantive
    item (audit §4.3).
 
@@ -246,7 +246,7 @@ tooling sub-population into two operationally-distinct subclasses:
 > The two subclasses together form the sixteen-crate tooling
 > sub-population. The sixteen-crate Phase-3a-foundation
 > sub-population (§3.1 catalogue) plus the sixteen-crate tooling
-> sub-population sums to 32 = the workspace total at Tag-48.
+> sub-population sums to 32 = the workspace total at.
 
 This clarification removes the v0.4.0 wording ambiguity
 identified in the audit §4.3 ("classification drift" for the
@@ -280,7 +280,7 @@ v0.4.0 continue to pass v0.4.1.
 
 ### 5.4 Audit baseline
 
-The Tag-47 audit (`reports/audit/phase-3a-15-crate-consistency-
+The audit (`reports/audit/phase-3a-15-crate-consistency-
 2026-05-19.md`) cited v0.4.0 §3.1 verbatim. v0.4.1 reconciles
 the three drift items the audit recorded, but does **not**
 invalidate the audit. A future Tag-N audit re-run will pin
@@ -289,11 +289,11 @@ on DRIFT-S1, DRIFT-S2, DRIFT-S3.
 
 The regression-pin in
 `tests/audit/test_phase_3a_15_crate_consistency.py` continues to
-pin against v0.4.0 §3.1's fifteen-row catalogue at Tag-48; a
-follow-up audit-update spawn will re-pin against v0.4.1's
-sixteen-row catalogue once the spec is merged. This is the
-audit-spec-trace discipline (audit cites a frozen spec version;
-spec updates do not retroactively re-pin closed audits).
+pin against v0.4.0 §3.1's fifteen-row catalogue at; a follow-up
+audit-update spawn will re-pin against v0.4.1's sixteen-row
+catalogue once the spec is merged. This is the audit-spec-trace
+discipline (audit cites a frozen spec version; spec updates do
+not retroactively re-pin closed audits).
 
 ### 5.5 Foundation-circularity argument
 
@@ -335,8 +335,7 @@ cutover.
 ## 7. Verification
 
 A static-pass verifier of v0.4.1 §3.1 (sixteen-row catalogue)
-against the working-copy substrate at Tag-48 main-tip must
-produce:
+against the working-copy substrate at main-tip must produce:
 
 - 16/16 spec §3.1 crates exist in `wirelang-rust/crates/`.
 - 14/16 have Python siblings (Foundation rows #1, #2, #15 and
@@ -370,11 +369,11 @@ no Rust build, no network import).
 
 ## 8. Citation pointers
 
-- Tag-47 audit report:
+- audit report:
   `reports/audit/phase-3a-15-crate-consistency-2026-05-19.md`
   (PR #305, baseline `7ada5ab`).
 - v0.4.0 spec being extended:
-  `wirelang/specs/wirelang-spec-v0-4.md` (Tag-45 PR #291).
+  `wirelang/specs/wirelang-spec-v0-4.md` (PR #291).
 - Pin-pack substrate:
   `infra/persona-engine/pin-pack-0.5.0-pre-cutover.yaml`.
 - Boot manifest:

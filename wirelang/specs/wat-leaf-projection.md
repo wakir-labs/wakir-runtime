@@ -152,7 +152,7 @@ Status: **non-normative sketch for Phase-1b**. v1 leaf projection is
 unchanged by this subsection.
 
 A capability token's `aip_refs[]` field (Capability-Token-Layer §2.E,
-wirelang-eng Tag-23 vector pin pack) carries one or more
+wirelang-eng vector pin pack) carries one or more
 `sha256:<64-char-hex>` references to AIP-Documents that authenticate
 the token issuer. Phase-1b will likely want to commit a single
 `aip_document_hash` field into the leaf projection so that the audit
@@ -176,11 +176,11 @@ and wat-leaf-projection v2:
   silently re-defines what "payload" means and conflicts with the
   Layer-2 `data` semantics.
 
-wirelang-eng Tag-23 + wat-eng 2.E-Ack defer the choice to Phase-1b.
-The Tag-25 Phase-1b-tracking-doc Item I-13 captures the discussion. v1 leaf
-projection treats `aip_refs[]` as **out-of-scope** at the leaf layer:
-the field is carried by the capability token itself and is
-recoverable by a receipt verifier that has the original frame.
+wirelang-eng Tag-23 + wat-eng 2.E-Ack defer the choice to Phase-1b. The
+Phase-1b-tracking-doc Item I-13 captures the discussion. v1 leaf projection
+treats `aip_refs[]` as **out-of-scope** at the leaf layer: the field is
+carried by the capability token itself and is recoverable by a receipt
+verifier that has the original frame.
 
 The first-entry-wins discipline of §3.4.1 carries forward to any
 v2 `aip_document_hash` derivation: if `aip_refs[]` has multiple

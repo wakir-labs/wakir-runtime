@@ -135,7 +135,7 @@ This document is a draft. Open items before Phase-1b finalisation:
 
 - **First production drill: Q3 2026.** A dry-run drill in Q2 2026
   validates the projection against the bridge implementation
-  (Phase-1a-Tag-7+). Q3 2026 is the first cadence-bearing drill that
+  (Phase-1a-). Q3 2026 is the first cadence-bearing drill that
   is expected to anchor cleanly.
 - **Capability-token issuer.** The HR module is the planned issuer of
   quarterly-drill tokens; the issuer DID and token shape are

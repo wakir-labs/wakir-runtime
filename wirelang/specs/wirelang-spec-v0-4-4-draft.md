@@ -25,7 +25,7 @@ activation-trigger: kw-24-cutover-T0-post-promotion
 activation-policy: sequence-promotion-only
 ---
 
-# Wirelang Specification v0.4.4-draft (Tag-63 Post-Cutover-Reserve-Draft)
+# Wirelang Specification v0.4.4-draft (Post-Cutover-Reserve-Draft)
 
 This document is a **post-cutover-reserve-draft** maintained as a
 parallel-track file alongside the frozen
@@ -37,7 +37,7 @@ collects substance-side increments that are known to be wanted
 2026-06-14), so that the cutover-day team is not forced to draft
 new spec text under cutover-day pressure.
 
-> **v0.4.4-draft (2026-05-19, Tag-63):** Reserve-substrate only.
+> **v0.4.4-draft (2026-05-19):** Reserve-substrate only.
 > **No on-the-wire authority. No frame-attribute authority. No
 > caveat-predicate authority. No operator-contract authority.**
 > The document holds **candidate** increments that MAY be promoted
@@ -54,15 +54,15 @@ v0.4.4-draft exists as a **separate file** for the same two
 discipline reasons that motivated the v0.4.0 → v0.4.1 → v0.4.2 →
 v0.4.3 file-per-marker splits:
 
-1. **Seal integrity.** The v0.4.3 freeze-seal (Tag-58 probe,
+1. **Seal integrity.** The v0.4.3 freeze-seal (probe,
    `tooling/audit/verify_wirelang_spec_freeze_seal.py`) hashes
    `wirelang-spec-v0-4-3.md` byte-for-byte against
    `freeze-baseline.json`. Even an intra-section reorder of
    v0.4.3 would flip the seal verdict to `SEAL-BROKEN`.
    Reserve-draft work MUST therefore live in a separate file.
-2. **Patch-trace integrity.** Tag-53 PR (v0.4.3) is the spec-side
-   pre-cutover closure-bit cited by Tag-56 ADR-head errata,
-   Tag-58 seal-probe, Tag-60 OTS pre-anchor probe, and the
+2. **Patch-trace integrity.** PR (v0.4.3) is the spec-side
+   pre-cutover closure-bit cited by ADR-head errata,
+   seal-probe, OTS pre-anchor probe, and the
    KW-24 cutover-gate acceptance criteria. Reserve-draft work
    MUST NOT contaminate that patch-trace.
 
@@ -81,23 +81,23 @@ been merged pre-cutover*:
 | RES-D4 | schema-registry-v2-prep | Schema registry (`wirelang/specs/schema-registry-spec.md`): the current schema-registry is a single-author single-anchor design. Post-cutover, an OTS-anchored multi-author registry is wanted so federation peers can publish their own schema extensions without consuming Wakir-Labs anchor capacity. The reserve-draft codifies the v2 registry-frame layout, the anchor-cost-attribution rule (the publishing peer pays the OTS-anchor cost on its own side; Wakir-Labs registry-side anchor cost is a small registry-pointer only), and the verifier-conformance bit. | Add §8.5 covering the registry-v2 frame layout (a thin `registry-pointer` frame referencing an externally-anchored schema document), the federation-side discovery contract (peer publishes its registry URL via a `registry-pointer-record` in the `route_registry_nats_kv_backend`), and the verifier-conformance bit for accepting a peer-anchored schema as binding. |
 | RES-D5 | recovery-drill-leaf-projection-v2 | Recovery drill leaf-projection (`wirelang/specs/recovery-drill-leaf-projection.md`): the current leaf-projection contract assumes a single-shard recovery-drill (Phase-3 substrate). Post-cutover Phase-4 sequence-promotion will introduce sharded recovery-drills; the reserve-draft codifies the multi-shard leaf-projection invariant so the sharding step does not require a wire-format-bump. | Add §6.4 covering the multi-shard leaf-projection envelope, the shard-id encoding, the cross-shard merge invariant (a verifier observing shards `0..n-1` MUST be able to reconstruct a single canonical projection), and the operator-contract for the sharding-day transition. |
 
-**Source-of-truth direction (Reza-Hand 2026-05-19, Tag-63):**
-v0.4.3 (`pre-cutover-freeze`) is the conformance anchor; v0.4.4-draft
-is the post-cutover reserve substrate. A reserve item is a
-candidate, not a contract. The post-cutover sequence-promotion
-step (Phase-4 governance, TBD) will decide which RES-Dn items get
-folded into the v0.4.4 or v0.5 final document.
+**Source-of-truth direction (Reza-Hand 2026-05-19):** v0.4.3
+(`pre-cutover-freeze`) is the conformance anchor; v0.4.4-draft is the
+post-cutover reserve substrate. A reserve item is a candidate, not a
+contract. The post-cutover sequence-promotion step (Phase-4
+governance, TBD) will decide which RES-Dn items get folded into the
+v0.4.4 or v0.5 final document.
 
-**Tag-64 coverage extension (Reza-Hand 2026-05-19):**
-Each RES-Dn sub-section in §6 carries a `§6.n.1 Sample` block
-with a canonical-form-shape pin (one block per reserve item). The
-sample blocks are **non-normative** under the same draft-isolation
+**coverage extension (Reza-Hand 2026-05-19):** Each RES-Dn
+sub-section in §6 carries a `§6.n.1 Sample` block with a
+canonical-form-shape pin (one block per reserve item). The sample
+blocks are **non-normative** under the same draft-isolation
 invariant as the rest of §6 (see §2). They exist so that the
 promotion PR has a shape-anchor to render normative — not so that
-verifiers or producers act on them today. The Tag-64 audit suite
-(`tests/audit/test_wirelang_spec_v0_4_4_coverage_tag64.py`)
-pins per-RES-Dn sample-block existence, canonical-form-validity,
-and reference-integrity to the parent v0.4.3 anchor.
+verifiers or producers act on them today. The audit suite
+(`tests/audit/test_wirelang_spec_v0_4_4_coverage_tag64.py`) pins
+per-RES-Dn sample-block existence, canonical-form-validity, and
+reference-integrity to the parent v0.4.3 anchor.
 
 ## 2. Conformance keywords
 
@@ -218,7 +218,7 @@ shape; a new fixture
 `vector-3a-rotation-overlap-dual-path.json` will be added in the
 promotion PR.
 
-#### 6.1.1 Sample (non-normative) — Tag-64 coverage block RES-D1
+#### 6.1.1 Sample (non-normative) — coverage block RES-D1
 
 The following canonical-form sample illustrates a dual-path
 Identity-Substrate document carrying both the v0.4.3 default-emit
@@ -262,7 +262,7 @@ latter is already in v0.4.3), then `A <= B` MUST hold. A
 producer attempting to emit a token with `A > B` MUST abort with
 error `predicate-interval-empty`.
 
-#### 6.2.1 Sample (non-normative) — Tag-64 coverage block RES-D2
+#### 6.2.1 Sample (non-normative) — coverage block RES-D2
 
 The following canonical-form sample illustrates a Datalog-caveat
 carrying the new `min-attenuation-depth` predicate alongside the
@@ -312,7 +312,7 @@ audit-trail invariant is that a downstream WAT-leaf MUST be able
 to identify the writer-mode from the envelope alone, without
 consulting the Pin-Pack at audit time.
 
-#### 6.3.1 Sample (non-normative) — Tag-64 coverage block RES-D3
+#### 6.3.1 Sample (non-normative) — coverage block RES-D3
 
 The following canonical-form sample illustrates a bridge-audit
 envelope under each of the three modes. The envelope shape (outer
@@ -376,7 +376,7 @@ schema MUST accept the schema as binding if and only if (a) the
 OTS-anchor pointer resolves to a confirmed Bitcoin block and
 (b) the publishing peer-identity is a recognised federation peer.
 
-#### 6.4.1 Sample (non-normative) — Tag-64 coverage block RES-D4
+#### 6.4.1 Sample (non-normative) — coverage block RES-D4
 
 The following canonical-form sample illustrates a `registry-
 pointer` frame referencing an externally-anchored schema document
@@ -435,7 +435,7 @@ verifiers (a single-shard verifier that observes only
 `shard-id: 0` of an `n > 1` drill MUST emit verdict
 `incomplete-projection` rather than `valid` or `invalid`).
 
-#### 6.5.1 Sample (non-normative) — Tag-64 coverage block RES-D5
+#### 6.5.1 Sample (non-normative) — coverage block RES-D5
 
 The following canonical-form sample illustrates a multi-shard
 recovery-drill leaf-projection envelope and the cross-shard
@@ -483,9 +483,9 @@ The Pin-Pack-0.5.1-pre-cutover substrate
 the source-of-truth for §4.1 ENV-flag schema. The draft does not
 propose a Pin-Pack revision.
 
-The Tag-58 freeze-seal probe over v0.4.3 remains intact: the
-draft is a separate file (`wirelang-spec-v0-4-4-draft.md`) and
-the seal probe hashes only `wirelang-spec-v0-4-3.md`. A v0.4.3
+The freeze-seal probe over v0.4.3 remains intact: the draft is
+a separate file (`wirelang-spec-v0-4-4-draft.md`) and the seal
+probe hashes only `wirelang-spec-v0-4-3.md`. A v0.4.3
 seal-probe run alongside this draft MUST emit `SEAL-INTACT`.
 
 ## 8. Audit conformance
@@ -516,28 +516,27 @@ A spec document v0.4.4-draft is audit-conformant if and only if:
 
 The hermetic test suite that accompanies this draft
 (`tests/audit/test_wirelang_spec_v0_4_4_draft_tag63.py`,
-twelve or more tests, Tag-63) enforces these invariants
-statically (no NATS, no engine boot, no Rust build, no network
-import).
+twelve or more tests) enforces these invariants statically (no
+NATS, no engine boot, no Rust build, no network import).
 
-The Tag-64 coverage-extension suite
+The coverage-extension suite
 (`tests/audit/test_wirelang_spec_v0_4_4_coverage_tag64.py`,
-fifteen or more tests) extends the Tag-63 invariant set with one
+fifteen or more tests) extends the invariant set with one
 sample-block-pin per RES-Dn item: existence, canonical-form
-validity (YAML block + RES-Dn anchor string), and reference-
-integrity to v0.4.3 (sample blocks MUST NOT bind a v0.4.3
-verifier; the freeze-seal MUST remain intact).
+validity (YAML block + RES-Dn anchor string), and
+reference-integrity to v0.4.3 (sample blocks MUST NOT bind a
+v0.4.3 verifier; the freeze-seal MUST remain intact).
 
 ## 9. Citation pointers
 
-- Tag-53 PR (v0.4.3 pre-cutover-freeze parent):
+- PR (v0.4.3 pre-cutover-freeze parent):
   `wirelang/specs/wirelang-spec-v0-4-3.md`.
-- Tag-50 PR #320 (v0.4.2 substance baseline carried forward):
+- PR #320 (v0.4.2 substance baseline carried forward):
   `wirelang/specs/wirelang-spec-v0-4-2.md`.
-- Tag-58 PR (v0.4.3 freeze-seal probe):
+- PR (v0.4.3 freeze-seal probe):
   `tooling/audit/verify_wirelang_spec_freeze_seal.py` +
   `wirelang/specs/freeze-baseline.json`.
-- Tag-60 PR (v0.4.3 OTS pre-anchor probe):
+- PR (v0.4.3 OTS pre-anchor probe):
   `tooling/audit/verify_wirelang_spec_ots_pre_anchor.py`.
 - Pin-Pack substrate (source-of-truth for §4.1, unchanged):
   `infra/persona-engine/pin-pack-0.5.1-pre-cutover.yaml`.
