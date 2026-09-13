@@ -33,13 +33,13 @@
         "current": {"text": "All", "value": "$__all"},
         "options": [
           {"text": "All", "value": "$__all", "selected": true},
-          {"text": "welle-1 (v907_verify KW-24)", "value": "welle-1"},
-          {"text": "welle-2 (svid_workload_identity KW-24)", "value": "welle-2"},
-          {"text": "welle-3 (bridge_audit_writer KW-25)", "value": "welle-3"},
-          {"text": "welle-4 (state_backing KW-26)", "value": "welle-4"},
-          {"text": "welle-5 (lifecycle_state_machine KW-26)", "value": "welle-5"},
-          {"text": "welle-6 (subscribe_loop KW-27)", "value": "welle-6"},
-          {"text": "welle-7 (recovery_workflow KW-27)", "value": "welle-7"}
+          {"text": "welle-1 (v907_verify)", "value": "welle-1"},
+          {"text": "welle-2 (svid_workload_identity)", "value": "welle-2"},
+          {"text": "welle-3 (bridge_audit_writer)", "value": "welle-3"},
+          {"text": "welle-4 (state_backing)", "value": "welle-4"},
+          {"text": "welle-5 (lifecycle_state_machine)", "value": "welle-5"},
+          {"text": "welle-6 (subscribe_loop)", "value": "welle-6"},
+          {"text": "welle-7 (recovery_workflow)", "value": "welle-7"}
         ],
         "includeAll": true,
         "allValue": ".+",
