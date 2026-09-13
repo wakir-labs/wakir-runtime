@@ -1,7 +1,7 @@
 //! Operator-side pin-pack derivation example.
 //!
 //! Prints the V-907 persona-hash for each of the 13 active personae.
-//! Intended for the Sprint-Pengine-7 Tag-1 outbox report and as the
+//! Intended for the outbox report and as the
 //! seed of the operator-side pin-pack registry (§5.2 of the spec).
 use persona_engine_format::{
     jcs_canonicalise_wakir_persona_v1, map_claude_native_to_wakir_v1, wakir_persona_hash,

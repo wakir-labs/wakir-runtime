@@ -53,7 +53,7 @@
 # `dev-deps only` in the sense that it produces no consumer-facing
 # artefact — `[lib]` is a minimal helper shim).
 #
-# Hard-Constraints (per Tag-15 Mini-Welle Sprint-Auftrag)
+# Hard-Constraints (per Mini-Welle)
 # -------------------------------------------------------
 # - No production binary; no `[[bin]]` section.
 # - Dep on all 15+ `persona-engine-*` crates (the full Phase-3a roster).
@@ -82,13 +82,13 @@
 # ADR anchors
 # -----------
 # - ADR-0063 §Folgeartefakte Phase-3a Item 16 (this crate).
-# - Reza PR #120 (subscribe-loop) — Scenario-1 substrate.
-# - Reza PR #141 (anchor-emitter) — Scenario-1 substrate.
-# - Reza PR #150 (anchor-submit-worker) — Scenario-1 substrate.
-# - Reza PR #137 (fsm) — Scenario-1 substrate.
-# - Selin PR #131 (bridge-diff) — Scenario-1 substrate.
-# - Reza PR #155 (recovery-replay) — Scenario-2 + Scenario-5 substrate.
-# - Reza PR #156 (federation-frame-parser) — Scenario-1 (envelope shape
+# - PR #120 (subscribe-loop) — Scenario-1 substrate.
+# - PR #141 (anchor-emitter) — Scenario-1 substrate.
+# - PR #150 (anchor-submit-worker) — Scenario-1 substrate.
+# - PR #137 (fsm) — Scenario-1 substrate.
+# - PR #131 (bridge-diff) — Scenario-1 substrate.
+# - PR #155 (recovery-replay) — Scenario-2 + Scenario-5 substrate.
+# - PR #156 (federation-frame-parser) — Scenario-1 (envelope shape
 #   parity check).
 
 [package]
@@ -98,7 +98,7 @@ edition = "2021"
 rust-version = "1.85"
 license = "Apache-2.0"
 repository = "https://github.com/wakir-labs/wakir-runtime"
-authors = ["Reza Tehrani <reza@wakir.local>"]
+authors = ["Wakir Labs"]
 description = "Cross-crate integration-test suite for the persona-engine-* Rust crate stack (test-only; no production binary)."
 publish = false
 

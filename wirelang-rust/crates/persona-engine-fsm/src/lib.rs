@@ -4,7 +4,7 @@
 // Persona-engine lifecycle state-machine — Rust pendant.
 //
 // Schema-parity authority: `wirelang/persona_engine/lifecycle_state_machine.py`
-// (Selin Sprint-Pengine-8 PR #65). Spec authority:
+// (the persona-engine side PR #65). Spec authority:
 // `wirelang/specs/persona-engine-format-spec.md` §3.3
 // "Lifecycle states and transitions".
 //
@@ -32,7 +32,7 @@
 //! ADR anchors. Public surface: [`FsmState`], [`FsmTransition`],
 //! [`TransitionRecord`], [`PersonaFsm`], [`FsmError`].
 //!
-//! Tag-21 Mini-Welle adds the canonical-trace cross-lang surface in
+//! Mini-Welle adds the canonical-trace cross-lang surface in
 //! the [`canonical`] module: [`canonical::LifecycleTrace`],
 //! [`canonical::serialize_trace`], [`canonical::trace_sha256_hex`],
 //! [`canonical::trace_hash_prefixed`]. Byte-for-byte parity with
@@ -41,7 +41,7 @@
 //! pinned by the cross-lang fixture vectors under
 //! `tests/fixtures/lifecycle-state-machine-cross-lang/fixtures.json`.
 
-/// Tag-21 canonical-trace cross-lang surface (see module docs).
+/// canonical-trace cross-lang surface (see module docs).
 pub mod canonical;
 
 use serde::{Deserialize, Serialize};

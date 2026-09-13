@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-//! Integration tests for `persona-engine-format` (Sprint-Pengine-7 Tag-1).
+//! Integration tests for `persona-engine-format`.
 //!
 //! Anchor: `wirelang/specs/persona-engine-format-spec.md` v1.0 §6.
 //!
@@ -513,7 +513,7 @@ fn t_pef_det_03_persona_hash_stable_across_json_roundtrip() {
 }
 
 // ---------------------------------------------------------------------
-// Sprint-Pengine-7 Tag-3 — Lifecycle Protocols (§3.7 of spec v1.2)
+// — Lifecycle Protocols (§3.7 of spec v1.2)
 // ---------------------------------------------------------------------
 //
 // T-PEF-LIFE-01..08 — eight tests pinning the pure-data lifecycle
@@ -801,7 +801,7 @@ fn t_pef_life_08_migrate_version_transition_sequence_preserves_rollback_window()
 }
 
 // ---------------------------------------------------------------------
-// Sprint-Pengine-7 Tag-4 — Recovery Workflow + State Backing (§3.7.4/5)
+// — Recovery Workflow + State Backing (§3.7.4/5)
 // ---------------------------------------------------------------------
 //
 // T-PEF-REC-01..10 — ten tests pinning the recovery-workflow surface
@@ -1140,8 +1140,8 @@ fn t_pef_rec_10_recovery_workflow_invariants_pair_with_drill_acceptance() {
     assert_eq!(RECOVERY_BUDGET_SECONDS, 30);
 
     // (b) Drill acceptance invariants count matches the spec
-    // count (four invariants); already tested by Tag-3 LIFE-05 but
-    // pin again as the Tag-4 cross-§ anchor.
+    // count (four invariants); already tested by LIFE-05 but
+    // pin again as the cross-§ anchor.
     assert_eq!(ALL_RECOVERY_DRILL_ACCEPTANCE_INVARIANTS.len(), 4);
     let inv_set: HashSet<_> = ALL_RECOVERY_DRILL_ACCEPTANCE_INVARIANTS.iter().collect();
     assert_eq!(inv_set.len(), 4);

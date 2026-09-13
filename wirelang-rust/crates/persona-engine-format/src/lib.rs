@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-//! persona-engine-format — Sprint-Pengine-7 Tag-1, Crate-8.
+//! persona-engine-format —, Crate-8.
 //!
 //! Byte-deterministic mapping from `.claude/agents/<slug>.md`
 //! (axis-A `persona-claude-native`) to `wakir.persona/<slug>.json`
@@ -81,12 +81,12 @@ pub const CLAUDE_NATIVE_REQUIRED_KEYS: &[&str] = &["name", "description"];
 // Synthesis-default exceptions (§4.3.1 of the spec, v1.1)
 // ---------------------------------------------------------------------
 //
-// Aisha-HR Counter-Vorschlag 1 (2026-05-13 bedingt-ack): the safe
+// HR-HR Counter-Vorschlag 1 (2026-05-13 bedingt-ack): the safe
 // defaults `reports_to: "mira"` / `escalation: "mira"` are inhaltlich
 // incorrect for two personae whose .claude/agents/<slug>.md body
-// explicitly carries an Aufsichtsrat-direct reporting line.
+// explicitly carries an the supervisory board-direct reporting line.
 //
-// This table is the load-bearing pre-Tag-3 (OI-PEF-1 Markdown-body-
+// This table is the load-bearing earlier (OI-PEF-1 Markdown-body-
 // parser) hard-coded override surface. Once OI-PEF-1 lands, the body
 // parser can extract the same information from the persona-files
 // themselves; until then, this table is the authoritative source.
@@ -104,7 +104,7 @@ pub struct SynthesisDefaultException {
     pub rationale: &'static str,
 }
 
-/// Hard-coded synthesis-default exceptions, ratified by Aisha-HR
+/// Hard-coded synthesis-default exceptions, ratified by HR-HR
 /// 2026-05-13 bedingt-ack on spec v1.1 §4.3.1.
 ///
 /// **MUST** be consulted by `synthesise_canonical_subset` before the
@@ -356,7 +356,7 @@ fn synthesise_canonical_subset(name: &str, description: &str, tools: &[String]) 
     let tools_arr: Vec<JsonValue> = tools.iter().map(|t| JsonValue::String(t.clone())).collect();
 
     // §4.3.1 (v1.1) — synthesis-default-exceptions table.
-    // Aisha-HR Counter-Vorschlag 1 (2026-05-13 bedingt-ack).
+    // HR-HR Counter-Vorschlag 1 (2026-05-13 bedingt-ack).
     let (reports_to, escalation) = match lookup_synthesis_default_exception(name) {
         Some(row) => (row.reports_to, row.escalation),
         None => ("mira", "mira"),
@@ -384,7 +384,7 @@ fn synthesise_canonical_subset(name: &str, description: &str, tools: &[String]) 
 
 // ---------------------------------------------------------------------
 // spawn_lifecycle, state_persistence, container_bridge,
-// migration_metadata — Sprint-Pengine-7 Tag-1 fixed shapes
+// migration_metadata — fixed shapes
 // ---------------------------------------------------------------------
 
 fn spawn_lifecycle_block() -> JsonValue {
@@ -589,7 +589,7 @@ pub fn jcs_canonicalise_wakir_persona_v1(
 }
 
 // ---------------------------------------------------------------------
-// Sprint-Pengine-7 Tag-3 — Lifecycle Protocols (§3.7 of spec v1.2)
+// — Lifecycle Protocols (§3.7 of spec v1.2)
 // ---------------------------------------------------------------------
 //
 // Pure-data surface for the three operational protocols layered over
@@ -601,10 +601,10 @@ pub fn jcs_canonicalise_wakir_persona_v1(
 // - §3.7.3 `migrate_version` — trigger conditions + backward-compat.
 //
 // The JSON envelope (§3.3 / §3.4 / §3.5 / §3.6) is BYTE-UNCHANGED
-// from v1.1. Tag-3 only adds spec-level operator protocols; the
+// from v1.1. only adds spec-level operator protocols; the
 // `map_claude_native_to_wakir_v1` output remains byte-identical.
 
-/// Sprint-Pengine-7 Tag-3 lifecycle-protocols surface (§3.7).
+/// lifecycle-protocols surface (§3.7).
 pub mod lifecycle_protocols {
     /// The four canonical phases of a clean despawn, in execution order
     /// (§3.7.1.1). Re-ordering is a protocol violation — the audit-trail
@@ -675,7 +675,7 @@ pub mod lifecycle_protocols {
     /// `ContainerCrash` is weekly (7d); `NatsBucketLost` and
     /// `SpireSvidExpired` are monthly (30d). The cadence is a contract
     /// surface for the operator-side scheduler (OI-PEF-9 Quadlet
-    /// `OnCalendar=` template, out of Tag-3 scope).
+    /// `OnCalendar=` template, out of scope).
     pub const fn recovery_drill_cadence_days(class: RecoveryDrillClass) -> u32 {
         match class {
             RecoveryDrillClass::ContainerCrash => 7,
@@ -819,10 +819,10 @@ pub mod lifecycle_protocols {
 
 /// Recovery-workflow surfaces (§3.7.4 of the spec).
 ///
-/// Sprint-Pengine-7 Tag-4 impl-axis pendant of the Tag-3 spec-level
+/// impl-axis pendant of the spec-level
 /// recovery-drill pattern (`lifecycle_protocols::RecoveryDrillClass`).
 ///
-/// Posture mirror of `lifecycle_protocols` (Tag-3): pure-data + small
+/// Posture mirror of `lifecycle_protocols`: pure-data + small
 /// validator functions, no async, no I/O, no Tokio dependency. The
 /// concrete engine runtime wiring (Quadlet `OnFailure=` hook,
 /// SPIFFE workload-API binding, marker-stack-replay) lives outside
@@ -994,7 +994,7 @@ pub mod recovery_workflow {
 /// Backend-agnostic surface consumed by recovery workflow R2 (Reload)
 /// and migrate-version R3.7.3.4 atomic swap. NATS-KV is the production
 /// binding (Tag-N+, OI-PEF-13). In-memory is the hermetic-test binding,
-/// shipped with this Tag-4.
+/// shipped with this.
 ///
 /// Posture: trait + plain-data envelope + in-memory implementation. No
 /// async, no I/O on the trait surface; concrete implementations may
@@ -1112,7 +1112,7 @@ pub mod state_backing {
 
     /// Hermetic-test in-memory backing (§3.7.5.3). Single-writer
     /// HashMap; no thread-safety guarantees. Used by recovery-drill
-    /// tests and the migration-pilot Tomás-export rehearsal
+    /// tests and the migration-pilot WAT-export rehearsal
     /// (Schiene B Schritt 8).
     #[derive(Debug, Default, Clone)]
     pub struct InMemoryPersonaStateBacking {

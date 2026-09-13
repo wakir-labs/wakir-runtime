@@ -14,7 +14,7 @@
 //! CI does NOT run `cargo bench` — it only verifies that the bench
 //! file COMPILES (`cargo build --benches`). Bench execution is
 //! operator-hand (`cargo bench -p persona-engine-loop-latency-bench`).
-//! This matches the Sprint-Auftrag hard-constraint that criterion
+//! This matches the hard-constraint that criterion
 //! benches must not run in CI (they're inherently scheduler-sensitive
 //! and would be flaky).
 //!

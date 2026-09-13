@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# persona-engine-format — Sprint-Pengine-7 Tag-1, Crate-8.
+# persona-engine-format —, Crate-8.
 #
 # Implements the byte-deterministic mapping from `.claude/agents/<slug>.md`
 # (axis-A `persona-claude-native`) to `wakir.persona/<slug>.json`
@@ -16,8 +16,8 @@
 #   No file deletion. No existing API surface narrowed.
 # - A-3 Body out-of-hash: the Markdown body after the closing `---`
 #   fence is read at conversion time only to record body-length and
-#   body-sha256 are NOT collected in v1.0 (Sprint-Pengine-7 Tag-2 may
-#   extract sections; Tag-1 ignores the body entirely).
+#   body-sha256 are NOT collected in v1.0 (may
+#   extract sections; ignores the body entirely).
 #
 # V-907 integration:
 # - The `wakir_persona_hash` function in this crate is a thin wrapper
@@ -30,7 +30,7 @@
 [package]
 name = "persona-engine-format"
 version = "0.3.0"
-description = "Sprint-Pengine-7 Tag-1: byte-deterministic mapping from .claude/agents/*.md (persona-claude-native) to wakir.persona/*.json (wakir-persona-v1), per persona-engine-format-spec.md v1.3. Tag-3 added lifecycle_protocols pure-data surface (§3.7 of spec). Tag-4 adds recovery_workflow + state_backing (§3.7.4-5 of spec): three trigger modes, four R1..R4 phases, InMemory state backing trait surface. Byte-stable JSON envelope unchanged across Tag-3/Tag-4."
+description = ": byte-deterministic mapping from .claude/agents/*.md (persona-claude-native) to wakir.persona/*.json (wakir-persona-v1), per persona-engine-format-spec.md v1.3. A later revision added lifecycle_protocols pure-data surface (§3.7 of spec). A later revision adds recovery_workflow + state_backing (§3.7.4-5 of spec): three trigger modes, four R1..R4 phases, InMemory state backing trait surface. Byte-stable JSON envelope unchanged across /."
 edition.workspace      = true
 rust-version.workspace = true
 license.workspace      = true
@@ -42,7 +42,7 @@ name = "persona_engine_format"
 path = "src/lib.rs"
 
 [dependencies]
-# Reuse the Sprint-3 Tag-5 YAML front-matter parser. We do NOT depend
+# Reuse the YAML front-matter parser. We do NOT depend
 # on its canonical-subset extractor here, because the extractor requires
 # schema_version=persona-v1 which is *not* present in axis-A input; we
 # walk the YAML mapping manually.

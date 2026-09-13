@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 Callandor GmbH and contributors
 //
-// Tag-21 canonical-trace surface for the persona-engine FSM.
+// canonical-trace surface for the persona-engine FSM.
 //
 // This module is the Rust authority for the JCS-canonical lifecycle
 // trace wire-shape; the Python sibling lives at
@@ -68,7 +68,7 @@ pub const SHA256_HEX_LEN: usize = 64;
 // Errors
 // ---------------------------------------------------------------------
 
-/// Error surface for caller-supplied input that fails the Tag-21
+/// Error surface for caller-supplied input that fails the
 /// shape pre-conditions. Mirrors `LifecycleTraceError` on the
 /// Python side.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -139,7 +139,7 @@ impl TransitionRecordWire {
     }
 }
 
-/// The Tag-21 canonical-trace wire-shape. Six alphabetically-ordered
+/// The canonical-trace wire-shape. Six alphabetically-ordered
 /// fields. Construct via [`LifecycleTrace::from_fsm`] /
 /// [`LifecycleTrace::from_records`] (or the free-standing
 /// [`build_lifecycle_trace_from_records`] for fixture builders).
