@@ -101,8 +101,10 @@ RELEASE_NOTES_PATH = (
 )
 AUDIT_REPORT_PATH = (
     REPO_ROOT
-    / "reports"
-    / "audit"
+    / "docs"
+    / "archive"
+    / "evidence"
+    / "audits"
     / "persona-engine-0-5-3-production-readiness-2026-05-19.md"
 )
 

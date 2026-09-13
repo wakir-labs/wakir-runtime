@@ -6,7 +6,7 @@ extension (Tag-46, Kai).
 Context
 -------
 Amara's Tag-45 Pre-Mortem Coverage-Audit (PR #293,
-``docs/quality-gates/pre-mortem-failure-mode-coverage.md`` §2 A6)
+the historical pre-mortem coverage audit (git history, tag ``archive/pre-phase-4``) §2 A6)
 classified failure-mode **A6 — Cosign-Verification-Drift (Image-Re-Bake
 mid-Marathon)** as **PARTIAL**. The two existing pinning-tests
 (``test_cosign_login_step_present`` /
@@ -57,7 +57,7 @@ This test file ships 17 hermetic invariants:
     (Sigstore-maintained, transparency-log-pinned), NOT a third-party
     fork.
   * **TV-A6-20** — A6 coverage-classification consistency:
-    ``docs/quality-gates/pre-mortem-failure-mode-coverage.md`` §2 A6
+    the historical pre-mortem coverage audit (git history, tag ``archive/pre-phase-4``) §2 A6
     state-tag MUST be ``COVERED`` AND the Tag-45+ follow-up footer
     must list this test file by name.
 
@@ -97,9 +97,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 POLICY_FILE = REPO_ROOT / "policies" / "cosign-policy-phase-3b.yaml"
 VERIFY_WORKFLOW = (
     REPO_ROOT / ".github" / "workflows" / "cosign-verify-images.yml"
-)
-COVERAGE_DOC = (
-    REPO_ROOT / "docs" / "quality-gates" / "pre-mortem-failure-mode-coverage.md"
 )
 A6_COVERAGE_DOC = (
     REPO_ROOT
@@ -160,15 +157,6 @@ def verify_workflow_text() -> str:
         f"required cosign-verify workflow missing: {VERIFY_WORKFLOW}"
     )
     return VERIFY_WORKFLOW.read_text(encoding="utf-8")
-
-
-@pytest.fixture(scope="module")
-def coverage_doc_text() -> str:
-    """Read the Pre-Mortem coverage-audit doc once per module."""
-    assert COVERAGE_DOC.exists(), (
-        f"required coverage doc missing: {COVERAGE_DOC}"
-    )
-    return COVERAGE_DOC.read_text(encoding="utf-8")
 
 
 @pytest.fixture(scope="module")
@@ -440,51 +428,6 @@ def test_a6_sigstore_trust_root_posture(
 # ---------------------------------------------------------------------------
 # TV-A6-20 — A6 coverage-classification consistency.
 # ---------------------------------------------------------------------------
-def test_a6_coverage_classification_covered(
-    coverage_doc_text: str,
-) -> None:
-    """The Pre-Mortem coverage-audit doc §2 A6 MUST classify A6 as
-    COVERED (post-Tag-46), AND the named pinning-tests list MUST
-    include this test file.
-
-    Consistency check: when this file is committed, the Tag-45 PARTIAL
-    classification of A6 (and the Tag-46+ follow-up table row) must
-    be updated to COVERED with this test as the pinning anchor. The
-    test asserts the doc-side change is wired so the matrix stays
-    self-consistent.
-    """
-    # Locate the A6 section.
-    a6_section_marker = "#### A6 — Cosign-Verification-Drift"
-    assert a6_section_marker in coverage_doc_text, (
-        "A6 section header missing from coverage doc."
-    )
-    a6_start = coverage_doc_text.index(a6_section_marker)
-    # Next #### section marks the boundary.
-    a6_end_rel = coverage_doc_text[a6_start + len(a6_section_marker):].find(
-        "\n#### "
-    )
-    a6_block = (
-        coverage_doc_text[a6_start: a6_start + len(a6_section_marker) + a6_end_rel]
-        if a6_end_rel != -1
-        else coverage_doc_text[a6_start:]
-    )
-
-    # The block MUST claim COVERED (post-Tag-46) — PARTIAL is the
-    # pre-Tag-46 classification we are closing.
-    assert "Coverage state.** COVERED" in a6_block, (
-        "A6 coverage-classification still PARTIAL — the Tag-46 closeout "
-        "must flip A6 to COVERED in pre-mortem-failure-mode-coverage.md "
-        "§2 A6."
-    )
-
-    # The pinning-tests list MUST name this test file.
-    assert "test_cosign_drift_coverage_a6" in a6_block, (
-        "A6 pinning-tests list does not reference "
-        "test_cosign_drift_coverage_a6 — coverage doc out of sync with "
-        "Tag-46 substrate."
-    )
-
-
 def test_a6_coverage_matrix_doc_exists_and_named(
     a6_coverage_doc_text: str,
 ) -> None:

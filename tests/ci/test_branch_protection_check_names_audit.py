@@ -3,7 +3,7 @@
 """Hermetic test for the branch-protection check-names audit.
 
 The audit
-``docs/audit/branch-protection-check-names-audit-2026-05-18.md``
+the 2026-05-18 check-names audit (git history, tag ``archive/pre-phase-4``)
 documented (Section 2.3) that all currently-required-status-check
 names in ``wakir-runtime`` match the actual job-display-names found
 in ``.github/workflows/*.yml``. This test pins that match so a

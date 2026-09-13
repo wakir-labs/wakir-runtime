@@ -253,7 +253,7 @@ def test_a5_env_var_resolver_roundtrips_and_rejects(monkeypatch) -> None:
 # Section B — NATS-Subject-Pattern-Drift (6 tests)
 # ---------------------------------------------------------------------------
 #
-# Tag-43 baseline (`reports/audit/2026-05-18-nats-jetstream-subjects-audit.md`):
+# Tag-43 baseline (`docs/archive/evidence/audits/2026-05-18-nats-jetstream-subjects-audit.md`):
 # - 24 wakir.* literals total (NATS subjects: 7, namespace-ids: 17)
 # - 0 drift rows
 #
@@ -509,7 +509,7 @@ def test_c5_compatible_and_fanout_verdicts_have_no_failure_mode_id() -> None:
 def test_d1_audit_reports_zero_drift_at_head(audit_result) -> None:
     """D1: At repo HEAD the audit reports exactly 0 drift rows.
 
-    Tag-43 baseline (``reports/audit/2026-05-18-nats-jetstream-subjects-audit.md``):
+    Tag-43 baseline (``docs/archive/evidence/audits/2026-05-18-nats-jetstream-subjects-audit.md``):
     0 drift, 276 scanned files. Tag-48 pins the 0-drift invariant; the
     file count is allowed to grow as the codebase grows.
     """

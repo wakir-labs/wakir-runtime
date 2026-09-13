@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Hermetic tests for Sprint-Tag-8 Bug-35-Folge-Item: production-
-Quadlet for wakir-persona-tomas (install-persona-tomas-quadlet.sh)
+Quadlet for wakir-persona-tomas (install-persona-quadlet.sh)
 and the Quadlet-content invariants the install-script depends on.
 
 Anlass — AR-Direktive 2026-05-15 23:35 CEST. Bug-35 (Sprint-10 Tag-6)
@@ -63,7 +63,7 @@ import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _QUADLET = _REPO_ROOT / "quadlet" / "wakir-persona-tomas.container"
-_INSTALL_SCRIPT = _REPO_ROOT / "scripts" / "install-persona-tomas-quadlet.sh"
+_INSTALL_SCRIPT = _REPO_ROOT / "scripts" / "install-persona-quadlet.sh"
 
 
 @pytest.fixture(scope="module")
