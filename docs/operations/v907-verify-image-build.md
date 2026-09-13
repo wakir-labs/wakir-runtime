@@ -3,7 +3,7 @@
 **Scope:** Operator-recipe for building, signing and pushing the
 `wakir-v907-verify` container image (`ghcr.io/wakir-labs/wakir-v907-verify:<tag>`).
 
-**Tag-26 Mini-Welle, ADR-0065 Welle-1 pre-cutover image. Owner: Kai
+**ADR-0065 wave-1 pre-cutover image. Owner: infrastructure engineering
 Hoffmann (Dev-Engineering-3 / DevOps).**
 
 ## 1. What this image is
@@ -34,10 +34,10 @@ Exit-code mapping:
 
 ## 2. ADR alignment
 
-- **ADR-0065** approved 2026-05-17 — Phase-3c Cutover-Plan (Python-
-  Default → Rust-Default). Welle-1 is `v907_verify`: lowest-blast-
+- **ADR-0065** approved 2026-05-17 — Phase-3c cutover-Plan (Python-
+  Default → Rust-Default). wave-1 is `v907_verify`: lowest-blast-
   radius, read-only verify path, first to flip. This image is the
-  substrate the Welle-1 cutover step pins against.
+  substrate the wave-1 cutover step pins against.
 - **ADR-0063** approved 2026-05-16 — Persona-Engine-Sprach-Revision-
   Rust-Rewrite. The library crate this binary wraps is Phase-3a-
   Rust-Crate-Bundle Item 3.
@@ -93,7 +93,7 @@ When `push='true'`, the workflow:
 3. Sigstore-keyless-signs the resulting digest.
 4. Emits the digest as a workflow output AND uploads a
    `wakir-v907-verify-digest` artefact (retention 90 days).
-5. Writes a workflow-summary block with the Welle-1 cutover pin-
+5. Writes a workflow-summary block with the wave-1 cutover pin-
    substitution recipe.
 
 ## 4. Pre-publish checklist
@@ -119,7 +119,7 @@ Before clicking "Run workflow" with `push=true`:
 ## 4.5 Substrate-path choice — parallel to PR #187 carrier image
 
 The existing Quadlet
-`quadlet/wakir-rust-cli.container` (PR #187, Tag-24 Mini-Welle)
+`quadlet/wakir-rust-cli.container` (PR #187 mini wave)
 installs the V-907 Verify binary as the seventh of a seven-binary
 inventory shipped from the `wakir-persona-engine` carrier image.
 That carrier-image path remains the production substrate for the
@@ -129,7 +129,7 @@ The image this workflow publishes (`wakir-v907-verify`) is a
 **parallel substrate option** — a single-binary distroless image
 that contains only the V-907 verify CLI. It is useful for:
 
-- Welle-1 cutover **canary deployments** where the operator wants
+- wave-1 cutover **canary deployments** where the operator wants
   the smallest-possible attack surface for the V-907 verify path
   before flipping the cluster-wide default.
 - Out-of-band V-907 verify smoke runs from a CI lane that does not
@@ -148,14 +148,14 @@ for any axis-A markdown input.
 
 A separate Quadlet (`quadlet/wakir-v907-verify.container`) for the
 distroless image is **not added in this PR** — that artefact is a
-Welle-1-cutover-PR item, gated on the Mira-Hand selection between
+wave-1 cutover-PR item, gated on the operator-hand selection between
 "carrier-image-only" vs. "distroless-canary-then-carrier" cutover
 shapes. The image must exist (this PR) before that Quadlet can pin
 it; the substrate-fence here is therefore additive-only.
 
-## 5. Post-publish (Welle-1 cutover pin-step)
+## 5. Post-publish (wave-1 cutover pin-step)
 
-After the workflow publishes the image, the Welle-1 cutover step
+After the workflow publishes the image, the wave-1 cutover step
 (scheduled Monday morning per ADR-0065 §Verifikations-Plan)
 resolves the pushed digest into the consuming Quadlet pin:
 
@@ -177,9 +177,9 @@ The resolver script's PINS array carries (will carry, post-cutover)
 a `wakir_v907_verify` row that consumes the digest and substitutes
 the `quadlet/wakir-v907-verify.container` pin.
 
-**Tomás Zone-C Cross-Review:** The Welle-1 cutover-PR that adds the
+**Zone-C cross-review:** The wave-1 cutover-PR that adds the
 PINS row + the Quadlet unit + the ENV-flag default flip is a Zone-C
-artefact (Container-Image-Pipeline × OTS-Anchoring). Tomás Matrix-
+artefact (Container-Image-Pipeline × OTS-Anchoring). Dev-engineering Matrix-
 Lead reviews before merge per the ADR-0009 Zone-C contract.
 
 ## 6. Rollback procedure
@@ -187,11 +187,11 @@ Lead reviews before merge per the ADR-0009 Zone-C contract.
 If the V-907 verify Rust-backend shows a substanz-bug post-cutover
 (per ADR-0065 §Rollback-Strategie):
 
-1. **Operator-Hand-Decision** (Reza + Tomás Matrix-Lead).
+1. **Operator-hand decision** (protocol + dev engineering).
 2. Flip `WAKIR_ENGINE_V907_VERIFY_BACKEND=python` in the Quadlet
    unit (`quadlet/wakir-persona-tomas.container` `Environment=` line).
 3. `systemctl --user restart wakir-persona-engine.service`.
-4. Bridge-Audit-Writer-Konsistenz-Re-Verify (Selin).
+4. Bridge-audit-writer consistency re-verify (persona-engine engineering).
 5. The Rust image stays in GHCR (do not delete — Cosign-signed
    artefacts are write-once on the audit trail).
 6. Postmortem per `decisions/strategy-postmortem-template.md`.
@@ -248,13 +248,13 @@ claims.
 
 ## 9. Cross-references
 
-- ADR-0065 (Phase-3c Cutover-Plan)
+- ADR-0065 (Phase-3c cutover-Plan)
 - ADR-0063 (Persona-Engine-Sprach-Revision)
 - ADR-0060 (Live-FCOS-VM CI-Gate + Cosign-Policy)
 - `docs/operations/phase-3c-cutover-runbook.md` (the Wochen-Plan
   this image feeds into)
 - `docs/operations/phase-3c-trigger-gates.md` (the gate aggregator
-  that must be green before Welle-1 starts)
+  that must be green before wave-1 starts)
 - `docs/operations/cosign-policy-phase-3b.md` (the policy this
   image's signatures satisfy)
 - `infra/v907-verify-rust-cli/Containerfile` (this image's source)
@@ -265,4 +265,4 @@ claims.
 
 ---
 
-_— Kai Hoffmann (Dev-Engineering-3 / DevOps), Tag-26 Mini-Welle, 2026-05-17._
+

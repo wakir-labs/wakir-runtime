@@ -3,10 +3,10 @@ SPDX-License-Identifier: CC-BY-4.0
 Copyright (c) 2026 Wakir Labs contributors
 -->
 
-# 15-Binary SBOM Generator — Operator Recipe (Tag-48, Kai)
+# 15-Binary SBOM Generator — Operator Recipe
 
 This runbook accompanies
-`scripts/observability/generate-15-binary-sbom.py` (Tag-48, Kai)
+`scripts/observability/generate-15-binary-sbom.py`
 and the daily workflow at
 `.github/workflows/15-binary-sbom-daily.yml`.
 
@@ -25,26 +25,26 @@ The Phase-3a-Foundation 15-binary substrate is pinned across
 three independent surfaces:
 
 - `policies/cosign-policy-phase-3b.yaml` — the canonical
-  15-binary cosign-policy inventory (Tag-45 PR #294).
+  15-binary cosign-policy inventory (PR #294).
 - `quadlet/wakir-rust-cli.container` — the carrier-image
-  installer (Tag-45 substrate refresh).
+  installer (substrate refresh).
 - `wirelang/specs/wirelang-spec-v0-4.md` §3.1 — the spec
-  reference catalogue (Tag-45 PR #291).
+  reference catalogue (PR #291).
 
-Tag-46 PR #298 added the A6 substrate-layer coverage matrix (17
-hermetic invariants) and Tag-47 PR #307 added the
+PR #298 added the A6 substrate-layer coverage matrix (17
+hermetic invariants) and PR #307 added the
 Cosign-Keyless-OIDC-Drift-Probe (Sigstore Trust-Root time-axis).
 
 What none of these captured is the per-binary dependency tree —
 which third-party crate versions Cargo statically links into
-each binary. **That is the gap this Tag-48 generator fills.**
+each binary. **That is the gap this generator fills.**
 
-When AR signs off a Welle (per ADR-0066 §AR-Hand-Gate), the
+When AR signs off a wave (per ADR-0066 §operator-hand-Gate), the
 audit-trail bundle now includes:
 
 - The cosign-verified image digest.
 - The OIDC-drift-probe verdict for the day.
-- **The 15-binary SBOM bundle (this Tag-48 deliverable).**
+- **The 15-binary SBOM bundle (this deliverable).**
 
 ## 2. Reading the daily Job-Summary
 
@@ -174,11 +174,11 @@ grep '^  - name:' policies/cosign-policy-phase-3b.yaml \
 
 The two lists must match byte-for-byte. If they drift, the
 generator update goes in the same PR as the policy update
-(Tag-45 cross-substrate parity contract).
+(cross-substrate parity contract).
 
 ## 6. Substrate growth path
 
-If a future Welle adds an N-th binary (e.g. a Welle-8 closeout
+If a future wave adds an N-th binary (e.g. a wave-8 closeout
 adds a 16th cosign-policy entry):
 
 1. Update `policies/cosign-policy-phase-3b.yaml` (add binary).
@@ -195,13 +195,11 @@ parity.
 
 ## 7. Anchors
 
-- Tag-45 PR #294 — Quadlet+Cosign 15-Binary substrate refresh.
-- Tag-46 PR #298 — A6 substrate-layer coverage matrix.
-- Tag-47 PR #307 — Cosign-Keyless-OIDC-Drift-Probe (time-axis).
-- ADR-0066 §AR-Hand-Gate — pre-cutover sign-off pre-condition.
+- PR #294 — Quadlet+Cosign 15-Binary substrate refresh.
+- PR #298 — A6 substrate-layer coverage matrix.
+- PR #307 — Cosign-Keyless-OIDC-Drift-Probe (time-axis).
+- ADR-0066 §operator-hand-Gate — pre-cutover sign-off pre-condition.
 - CycloneDX spec v1.5 (industry-standard).
 - SPDX spec v2.3 (industry-standard).
 - feedback_sandbox_host_trennung.md — no live cargo I/O from
   sandbox.
-
-— Kai

@@ -3,11 +3,11 @@ SPDX-License-Identifier: CC-BY-4.0
 Copyright (c) 2026 Wakir Labs contributors
 -->
 
-# 15-Binary Build-Reproducibility Audit — Operator Recipe (Tag-51, Kai)
+# 15-Binary Build-Reproducibility Audit — Operator Recipe
 
 This runbook accompanies
 `scripts/observability/verify-15-binary-build-reproducibility.py`
-(Tag-51, Kai) and the daily workflow at
+(infrastructure engineering owns it) and the daily workflow at
 `.github/workflows/build-reproducibility-daily.yml`.
 
 It tells an operator how to:
@@ -23,33 +23,33 @@ It tells an operator how to:
 The Phase-3a-Foundation 15-binary substrate is now pinned across
 six provenance surfaces:
 
-- `policies/cosign-policy-phase-3b.yaml` — Tag-45 cosign-policy
+- `policies/cosign-policy-phase-3b.yaml` — cosign-policy
   inventory.
-- `wirelang/specs/wirelang-spec-v0-4.md` §3.1 — Tag-45 spec
+- `wirelang/specs/wirelang-spec-v0-4.md` §3.1 — spec
   reference catalogue.
-- Tag-47 PR #307 — Cosign-Keyless-OIDC-Drift-Probe.
-- Tag-48 PR #310 — 15-binary SBOM generator.
-- Tag-49 PR #318 — SBOM-vs-baseline verifier.
-- Tag-50 PR #323 — SBOM-baseline-refresh CLI.
+- PR #307 — Cosign-Keyless-OIDC-Drift-Probe.
+- PR #310 — 15-binary SBOM generator.
+- PR #318 — SBOM-vs-baseline verifier.
+- PR #323 — SBOM-baseline-refresh CLI.
 
-**Tag-51 (this deliverable)** adds a seventh axis: *fingerprint-
+**(this deliverable)** adds a seventh axis: *fingerprint-
 derivation determinism*. The earlier axes assume the build-graph
 derivation is byte-stable across invocations. If that assumption
 silently breaks (a dict-ordering bug, a timestamp leak, an env-var
 leak into the hash), the SBOM-baseline verifier would still report
 GREEN but two operators on the same source tree would produce
-distinct attestation chains. Tag-51 catches that failure-mode
+distinct attestation chains. catches that failure-mode
 explicitly: it runs the derivation twice in a single invocation
 and asserts byte-equal SHA-256 fingerprints per binary.
 
-When AR signs off a Welle (per ADR-0066 §AR-Hand-Gate), the
+When AR signs off a wave (per ADR-0066 §operator-hand-Gate), the
 audit-trail bundle now includes:
 
 - Cosign-verified image digest.
-- OIDC-drift-probe verdict (Tag-47).
-- 15-binary SBOM bundle (Tag-48).
-- SBOM-vs-baseline verdict (Tag-49).
-- **Build-reproducibility verdict (Tag-51, this gauge).**
+- OIDC-drift-probe verdict.
+- 15-binary SBOM bundle.
+- SBOM-vs-baseline verdict.
+- **Build-reproducibility verdict (this gauge).**
 
 ## 2. Reading the daily Job-Summary
 
@@ -121,7 +121,7 @@ in the same process). The expected RED causes are:
 
 Triage procedure on RED:
 
-1. Identify the drift binaries from the Mira-Notify event.
+1. Identify the drift binaries from the Notify event.
 2. Reproduce locally with `--out-json drift.json` and inspect
    `per_binary[*]` for the diverging entries.
 3. Add a print-statement at the top of `fingerprint_binary` to
@@ -156,11 +156,9 @@ the substrate-regression failure-mode this audit defends against.
 
 ## 6. Cross-references
 
-- ADR-0066 §AR-Hand-Gate — provenance bundle requirement.
-- `docs/operations/15-binary-sbom-generator.md` — Tag-48
+- ADR-0066 §operator-hand-Gate — provenance bundle requirement.
+- `docs/operations/15-binary-sbom-generator.md` —
   generator runbook.
-- `docs/operations/15-binary-sbom-baseline-refresh.md` — Tag-49
+- `docs/operations/15-binary-sbom-baseline-refresh.md` —
   refresh runbook.
 - `feedback_sandbox_host_trennung.md` — sandbox-boundary rule.
-
-— Kai

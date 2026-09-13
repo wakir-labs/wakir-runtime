@@ -6,15 +6,15 @@ Copyright (c) 2026 Callandor GmbH and contributors
 # wakir-persona-engine-svid-workload-identity image build
 
 Operator runbook for the SPIFFE Workload-API socket-presence probe
-Rust-CLI container image (Tag-29 Mini-Welle, ADR-0066 Welle-2
-pre-cutover image, parallel to ADR-0065 Welle-1 V907-verify image
+Rust-CLI container image (mini wave, ADR-0066 wave-2
+pre-cutover image, parallel to ADR-0065 wave-1 V907-verify image
 from PR #194).
 
 > **Status (2026-05-17):** image build pipeline + Rust crate skeleton
-> ship in Tag-29; the full Workload-API gRPC `FetchX509SVID` RPC is
+> ship in; the full Workload-API gRPC `FetchX509SVID` RPC is
 > intentionally deferred to a future Zone-L-reviewed crate revision
 > (Tonic substrate larger than the probe surface). The probe + info
-> subcommands are sufficient to flip the Welle-2 backend-decision
+> subcommands are sufficient to flip the wave-2 backend-decision
 > from `binary_missing` to `binary_present`.
 
 ---
@@ -23,10 +23,10 @@ from PR #194).
 
 This document covers operator-hand publication of the
 `wakir-persona-engine-svid-workload-identity` container image and
-the Welle-2 cutover-pin propagation. The Rust-CLI binary inside the
+the wave-2 cutover-pin propagation. The Rust-CLI binary inside the
 image wraps the
 `persona_engine_svid_workload_identity::probe_workload_api_socket`
-library and is the substrate the Welle-2 cutover step in
+library and is the substrate the wave-2 cutover step in
 `wirelang.persona_engine.rust_backend_switch` resolves to once
 `WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND=rust` is set in operator
 ENV.
@@ -119,12 +119,12 @@ The workflow then performs steps 1–5 above PLUS:
 
 `version_tag` is fenced against the regex
 `^[0-9]+\.[0-9]+\.[0-9]+-pilot$` — free-form values are rejected
-with exit code 64. Parity with Tag-26 V907-verify (PR #194) and
-Sprint-Pengine-13 substrate-fence pattern.
+with exit code 64. Parity with V907-verify (PR #194) and the
+substrate-fence pattern used by the sibling images.
 
 ---
 
-## 3. Welle-2 cutover pin substitution
+## 3. wave-2 cutover pin substitution
 
 After the publish lane returns a digest, propagate the digest into:
 
@@ -139,7 +139,7 @@ After the publish lane returns a digest, propagate the digest into:
    (`Image=ghcr.io/wakir-labs/wakir-persona-engine:<tag>@<digest>`).
 3. **rust_backend_switch.py:** no code change needed — the resolver
    already records `binary_missing` as the precondition signal
-   per Tag-25 PR #191; once the binary is present at
+   per PR #191; once the binary is present at
    `/opt/wakir/bin/wakir-persona-engine-svid-workload-identity`
    on the Pilot-VM, the resolver flips to `binary_present`.
 
@@ -188,24 +188,22 @@ ghcr.io per `feedback_sandbox_host_trennung.md`. Live publication
 
 ## 6. Cross-references
 
-- **ADR-0066** §Phase-3c Welle-2 `svid_workload_identity` —
+- **ADR-0066** §Phase-3c wave-2 `svid_workload_identity` —
   approved 2026-05-17, Option A+ 4-week acceleration.
-- **ADR-0065** §Welle-2 listing — `svid_workload_identity`
-  precondition closure via Selin's resolver PR #191; this PR
+- **ADR-0065** §wave-2 listing — `svid_workload_identity`
+  precondition closure via the persona-engine track's resolver PR #191; this PR
   ships the binary the resolver was recording `binary_missing`
   against.
 - **ADR-0060** — Cosign-Policy on Pilot-Container-Images (the
   policy this image must satisfy at cutover time).
 - **ADR-0035** §C-Drift-Closure — the ADR this cutover closes
   for the svid_workload_identity module.
-- **PR #194** (Tag-26 Mini-Welle) — V907-verify Rust-CLI
+- **PR #194** (mini wave) — V907-verify Rust-CLI
   container-image-build-pipeline; this PR mirrors that pattern
   for the SVID-workload-identity module.
-- **PR #191** (Tag-25 Mini-Welle, Selin) — Python-side resolver
+- **PR #191** (mini wave, persona-engine engineering) — Python-side resolver
   + `binary_missing` precondition record (the gap this crate
   closes).
 - **`docs/operations/cosign-policy-phase-3b.md`** — Operator-Hand
-  cosign-verify recipe for the carrier image (extended Tag-29
+  cosign-verify recipe for the carrier image (extended
   to 8-binary inventory including svid-workload-identity).
-
-— Kai

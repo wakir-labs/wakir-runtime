@@ -8,13 +8,13 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 **Status:** Living operations document.
 **Scope:** Build, sign and publish the
 `wakir-persona-engine-bridge-audit-writer` Rust-CLI container image.
-**ADR anchor:** ADR-0066 §Phase-3c Welle-3 `bridge_audit_writer`
-(approved 2026-05-17). Tag-31 Mini-Welle.
+**ADR anchor:** ADR-0066 §Phase-3c wave-3 `bridge_audit_writer`
+(approved 2026-05-17). mini wave.
 **Sibling docs:**
-- `docs/operations/v907-verify-image-build.md` (Tag-26 V907-verify
-  image, ADR-0066 Welle-1; same build pattern).
-- `docs/operations/svid-workload-identity-image-build.md` (Tag-29
-  SVID-workload-identity image, ADR-0066 Welle-2; same build pattern).
+- `docs/operations/v907-verify-image-build.md` (V907-verify
+  image, ADR-0066 wave-1; same build pattern).
+- `docs/operations/svid-workload-identity-image-build.md` (
+  SVID-workload-identity image, ADR-0066 wave-2; same build pattern).
 - `docs/operations/cosign-policy-phase-3b.md` (the policy the image
   must satisfy at cutover time; 9-binary inventory now includes
   `bridge-audit-writer`).
@@ -27,24 +27,24 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 ## 1. Why this image exists
 
 ADR-0066 (approved 2026-05-17) accelerates Phase-3c to 4 weeks
-(Option A+). Each Welle ships a single low-blast-radius backend
+(Option A+). Each wave ships a single low-blast-radius backend
 flip from the Python production-default to a compiled Rust-CLI
 subprocess-bridge:
 
-- **Welle-1 (Tag-19/26):** `v907-verify` — pin-hash recompute path.
-- **Welle-2 (Tag-25/29):** `svid-workload-identity` — SPIFFE
+- **wave-1 (/26):** `v907-verify` — pin-hash recompute path.
+- **wave-2 (/29):** `svid-workload-identity` — SPIFFE
   Workload-API socket-presence probe path.
-- **Welle-3 (Tag-31, this image):** `bridge_audit_writer` — the
+- **wave-3 (this image):** `bridge_audit_writer` — the
   Doppelbetrieb-Shadow `EngineeringOutputEvent` envelope writer.
 
 The writer is the **emit-half** of the Doppelbetrieb-Shadow audit
 substrate; the replay-half lives in PR #131
 (`persona-engine-bridge-diff`) and PR #147
 (`persona-engine-bridge-audit-replay`) and shipped earlier in
-Phase-3a. Tag-31 closes the cross-language Python↔Rust round-trip:
+Phase-3a. closes the cross-language Python↔Rust round-trip:
 the Rust writer emits a JCS-canonical envelope byte-identical to the
 Python `wirelang.persona_engine.bridge_audit_writer.
-EngineeringOutputEvent.to_jcs_bytes()` output, and the replay engine
+EngineeringOutputEvent.to_jcs_bytes` output, and the replay engine
 consumes both indistinguishably.
 
 ---
@@ -115,7 +115,7 @@ surface so a future shared operator script can consume both.
 ## 3. Cross-language byte-parity contract
 
 The Rust emit envelope is byte-identical to the Python pendant's
-`EngineeringOutputEvent.to_jcs_bytes()` output for the same input.
+`EngineeringOutputEvent.to_jcs_bytes` output for the same input.
 Verification recipe (host-side, requires Python + the workspace):
 
 ```sh
@@ -184,7 +184,7 @@ Hybrid trigger surface:
 Substrate fences enforced at workflow time:
 
 - `version_tag` matches `^[0-9]+\.[0-9]+\.[0-9]+-pilot$` on
-  workflow_dispatch (Sprint-Pengine-13 pattern).
+  workflow_dispatch (same pattern as the sibling image builds).
 - Base-layer digests resolved via skopeo **and** crane; refuses to
   proceed if the two disagree.
 - `DIGEST_PENDING_KAI_REVIEW` placeholders in the Containerfile must
@@ -230,7 +230,7 @@ cosign verify \
 
 ---
 
-## 6. Welle-3 cutover step
+## 6. wave-3 cutover step
 
 Once the image is published and Sigstore-verified:
 
@@ -268,20 +268,18 @@ invocations against `ghcr.io` from the sandbox.
 
 ## 8. Cross-references
 
-- ADR-0066 §Phase-3c Welle-3 `bridge_audit_writer` (approved
+- ADR-0066 §Phase-3c wave-3 `bridge_audit_writer` (approved
   2026-05-17).
-- ADR-0065 §Welle-3 listing (precondition closure via PR #131
-  bridge-diff + PR #147 bridge-audit-replay + this Tag-31 image-build).
+- ADR-0065 §wave-3 listing (precondition closure via PR #131
+  bridge-diff + PR #147 bridge-audit-replay + this image-build).
 - ADR-0060 — Cosign-Policy on Pilot-Container-Images.
 - ADR-0035 §C-Drift-Closure — the ADR this cutover will close for
   the bridge_audit_writer module.
 - PR #131 (`persona-engine-bridge-diff`) — JCS / hash primitive
-  reused via the lib crate's `AuditRecord::jcs_hash()`.
+  reused via the lib crate's `AuditRecord::jcs_hash`.
 - PR #147 (`persona-engine-bridge-audit-replay`) — the library
-  crate this binary lives in; the `AuditRecord::to_envelope()` wire
+  crate this binary lives in; the `AuditRecord::to_envelope` wire
   shape is the single-source-of-truth.
-- PR #194 (Tag-26 V907-verify image-build) — sibling Welle-1 image.
-- PR #201 (Tag-29 SVID-workload-identity image-build) — sibling
-  Welle-2 image.
-
-— Kai
+- PR #194 (V907-verify image-build) — sibling wave-1 image.
+- PR #201 (SVID-workload-identity image-build) — sibling
+  wave-2 image.
