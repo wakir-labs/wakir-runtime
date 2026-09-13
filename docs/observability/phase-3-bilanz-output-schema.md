@@ -4,15 +4,15 @@
 |---|---|
 | Document type | Output schema reference |
 | Schema version | `1.0.0` |
-| Generator | `scripts/observability/phase-3-final-bilanz-generator.py` (PR #280, Tag-43) |
-| Validator | `scripts/observability/bilanz-output-schema-validator.py` (Tag-44) |
-| Owner | Noa (SRE) |
-| Last update | 2026-05-18 (Tag-44 validation pass) |
+| Generator | `scripts/observability/phase-3-final-bilanz-generator.py` |
+| Validator | `scripts/observability/bilanz-output-schema-validator.py` |
+| Owner | SRE |
+| Last update | 2026-05-18 (validation pass) |
 
 ## 1. Purpose
 
 This document is the contract reference for the JSON output of the
-Phase-3 Final Bilanz Generator. Downstream consumers (Henrik Internal
+Phase-3 Final Bilanz Generator. Downstream consumers (internal audit Internal
 Audit, the Phase-4 pre-substanz-plan generator, the workflow-hook
 artefact uploader) rely on the shape described here. Any change must
 bump the schema version and update both the generator and the
@@ -195,7 +195,7 @@ rely on:
 
 | Schema version | Validator branch | Status |
 |---|---|---|
-| `1.0.0` | `validate_bilanz_dict` (Tag-44) | current |
+| `1.0.0` | `validate_bilanz_dict` | current |
 
 Schema changes that **add** keys without altering existing semantics
 remain `1.x`. Any change that **renames**, **removes**, or
@@ -253,7 +253,7 @@ fixtures to regenerate.
 
 - ADR-0065 (Phase-3c Cutover Plan, approved 2026-05-17 ~18:10 CEST).
 - ADR-0066 (Phase-3c 4W-Beschleunigung).
-- PR #280 — Phase-3 Final Bilanz Generator (Tag-43, Noa).
-- Tag-44 — Bilanz Validation Mock Runs + Output-Schema Validation (this PR).
+- PR #280 — Phase-3 Final Bilanz Generator (SRE).
+- Bilanz Validation Mock Runs + Output-Schema Validation (this PR).
 
--- Noa
+-SRE

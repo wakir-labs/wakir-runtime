@@ -1,7 +1,7 @@
 # Phase-3 Final Bilanz Generator -- Runbook
 
-Owner: Noa Bergstrom (SRE).
-Status: Tag-43 substanz.
+Owner: SRE.
+Status: substanz.
 Related code: `scripts/observability/phase-3-final-bilanz-generator.py`.
 Related tests: `tests/observability/test_phase_3_final_bilanz_generator.py`.
 
@@ -9,13 +9,13 @@ Related tests: `tests/observability/test_phase_3_final_bilanz_generator.py`.
 
 ## 1. Purpose
 
-The Phase-3 Marathon (KW-21..KW-27, ~2026-05-12..~2026-06-29) drives
+The Phase-3 Marathon .., ~2026-05-12..~2026-06-29) drives
 seven cutover-Wellen from Python-default to Rust-default. The end of
 the Marathon needs **one consolidated artefact** that:
 
   1. Pulls every observability stream into a single Markdown
      bilanz operator-readable end-to-end.
-  2. Emits a machine-readable JSON rollup for Henrik (Internal
+ 2. Emits a machine-readable JSON rollup for internal audit (Internal
      Audit) and the Phase-4 pre-substanz aufstellung.
   3. Validates the Phase-3-COMPLETE-marker (presence + status +
      welle-count + approver + completed_at).
@@ -32,13 +32,13 @@ to do when it reports a breach.
 Run the generator any time during the Marathon to get a current
 bilanz snapshot. Two typical scenarios:
 
-  * **Mid-Marathon checkpoint** -- after each Welle Henrik sign-off,
+ * **Mid-Marathon checkpoint** -- after each Welle internal audit sign-off,
     run the generator to confirm the cumulative state. The bilanz
     will mark not-yet-completed wellen as `NO_DATA` rather than
     failing.
   * **End-of-Marathon final** -- run the generator after the
     Phase-3-COMPLETE-marker has been written. This produces the
-    artefact handed to the Aufsichtsrat and to Henrik.
+ artefact handed to the supervisory board and to internal audit.
 
 ```
 python3 scripts/observability/phase-3-final-bilanz-generator.py
@@ -85,12 +85,12 @@ The generator reads six observability streams. Each path is overridable.
 
 | Stream | Default path | Owner | Schema |
 |---|---|---|---|
-| Marathon-Aggregat-Tracker state | `state/phase-3-marathon-state.json` | Selin #261 | per-welle cutover counts + latency samples |
-| ci-aggregator failure-rate history | `state/aggregator-failure-rate-history.json` | Noa #251 | list of aggregator runs |
-| BackendDecision snapshots (per welle) | `state/backend-decision-snapshots/<welle-id>.json` | Noa Tag-41 | list of snapshot dicts per welle |
-| Cross-welle drift histograms | `state/cross-welle-drift-histograms.json` | Noa Tag-41 | per-welle drift-pct samples |
-| Henrik per-welle sign-off | `state/welle-N-sign-off.json` (glob) | Henrik | sign-off dict |
-| Phase-3-COMPLETE marker | `state/phase-3-complete-marker.json` | Tomas #258 | marker dict |
+| Marathon-Aggregat-Tracker state | `state/phase-3-marathon-state.json` | persona-engine owner #261 | per-welle cutover counts + latency samples |
+| ci-aggregator failure-rate history | `state/aggregator-failure-rate-history.json` | SRE #251 | list of aggregator runs |
+| BackendDecision snapshots (per welle) | `state/backend-decision-snapshots/<welle-id>.json` | SRE | list of snapshot dicts per welle |
+| Cross-welle drift histograms | `state/cross-welle-drift-histograms.json` | SRE | per-welle drift-pct samples |
+| internal audit per-welle sign-off | `state/welle-N-sign-off.json` (glob) | internal audit | sign-off dict |
+| Phase-3-COMPLETE marker | `state/phase-3-complete-marker.json` | engineering lead #258 | marker dict |
 
 If a stream is missing the generator falls back to "no data" -- it
 does not abort. The exception is the Marathon-Aggregat-Tracker state
@@ -183,7 +183,7 @@ Both are deterministic for fixed input + fixed `--now-iso`.
   3. Per-welle mini-bilanz (sections 2.1..2.7, one per welle:
      substanz-anker, latency, snapshots, drift, sign-off).
   4. Cross-welle coupling (wait-loop latency, sub-workflow buckets).
-  5. Henrik audit aggregate (sign-off table).
+ 5. internal audit audit aggregate (sign-off table).
   6. Phase-3-COMPLETE-marker validation.
   7. Phase-4 follow-up items (derived).
   8. Source-of-truth inputs.
@@ -218,10 +218,10 @@ in the bilanz output.
 
 | Symptom | Likely cause | Remediation |
 |---|---|---|
-| Generator exits 2 with "marathon-state file missing" | Selin's tracker not yet written | Verify Tag-40 Marathon-Aggregat-Tracker is running; check `state/` permissions |
-| Bilanz shows `NO_DATA` for all latency p95 | Decision-latency-samples not collected | Confirm Selin's tracker is sampling; check `decision_latency_ms_samples` is populated |
-| Drift BREACH on multiple wellen at once | Systemic NATS/SPIFFE issue, not welle-local | Page Kai (Container-Infra) before continuing the Marathon |
-| Missing Henrik sign-off | Henrik audit not yet filed | Block Phase-4 start until sign-off is filed |
+| Generator exits 2 with "marathon-state file missing" | persona-engine owner's tracker not yet written | Verify Marathon-Aggregat-Tracker is running; check `state/` permissions |
+| Bilanz shows `NO_DATA` for all latency p95 | Decision-latency-samples not collected | Confirm persona-engine owner's tracker is sampling; check `decision_latency_ms_samples` is populated |
+| Drift BREACH on multiple wellen at once | Systemic NATS/SPIFFE issue, not welle-local | Page container-infra before continuing the Marathon |
+| Missing internal audit sign-off | internal audit audit not yet filed | Block Phase-4 start until sign-off is filed |
 | COMPLETE-marker valid but audit aggregate not OK | Sign-off filed with `audit_ok=false` | Re-open the welle; do not proceed to Phase-4 |
 | Strict mode exits 1 in CI | A BREACH was detected | Open the bilanz Markdown; resolve each BREACH; re-run |
 
@@ -230,14 +230,14 @@ in the bilanz output.
 Recommended end-of-Marathon sequence:
 
   1. Confirm all seven `state/welle-N-sign-off.json` files are
-     present (Henrik check).
-  2. Tomas writes `state/phase-3-complete-marker.json` with status
-     COMPLETE (Tag-42 PR #258 spec).
+ present (internal audit check).
+ 2. engineering lead writes `state/phase-3-complete-marker.json` with status
+ COMPLETE (spec).
   3. The auto-trigger hook fires the generator.
-  4. Mira reviews `reports/phase-3-marathon-bilanz.md`.
+ 4. CEO reviews `reports/phase-3-marathon-bilanz.md`.
   5. If the bilanz has zero BREACH and zero follow-ups: Phase-4
      pre-substanz aufstellung may start.
-  6. If breaches or follow-ups exist: Mira routes them as
+ 6. If breaches or follow-ups exist: CEO routes them as
      Phase-4 work-items before Phase-4 kick-off.
 
 ## 9. Hermetic test surface
@@ -272,17 +272,17 @@ python3 -m pytest tests/observability/test_phase_3_final_bilanz_generator.py -v
 
 ## 10. Cross-review zones
 
-  * **Zone H (Noa x Kai):** Kai owns the workflow runner that
+ * **Zone H (SRE x container-infra):** container-infra owns the workflow runner that
     invokes the auto-trigger hook. Coordinate before changing
     the script's CLI surface.
-  * **Zone I (Noa x Tomas):** Tomas owns the COMPLETE-marker
+ * **Zone I (SRE x engineering lead):** engineering lead owns the COMPLETE-marker
     schema. Coordinate before changing
     `validate_complete_marker()` keys.
-  * **Henrik (Internal Audit):** consumes the JSON output. Notify
+ * **internal audit:** consumes the JSON output. Notify
     if `phase_4_followups` semantics change.
 
 ## 11. Changelog
 
-  * 2026-05-18 -- v1.0.0 -- Tag-43 substanz, Noa.
+ * 2026-05-18 -- v1.0.0 -- substanz, SRE.
 
--- Noa
+-SRE

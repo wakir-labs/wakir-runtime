@@ -136,8 +136,7 @@ from typing import (
 #
 # The seven Phase-3c-Cutover-Wellen (ADR-0066 Cutover-Plan). Keep this
 # list in lock-step with the welle-templating in
-# ``dashboards/phase-3c-cross-welle-coordination.json`` and with
-# ``dashboards/persona-engine-phase-3c-welle-status.json``. The
+# the cross-Welle coordination and Welle-status dashboards. The
 # hermetic test ``test_welle_inventory_matches_dashboard`` asserts the
 # names below match a fixture extracted from the Grafana JSON.
 

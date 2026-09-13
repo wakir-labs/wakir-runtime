@@ -48,6 +48,12 @@ git checkout archive/pre-phase-4 -- docs/phase-3c/   # restore a directory
 | `evidence/decisions/phase-3-nodeattestor-migration.md` | Tracking note for the planned `x509pop` NodeAttestor migration | historic planning note; phase 3 is complete, the migration was not executed |
 | `dead-dashboards/` (5 files) | Grafana dashboards and alert definitions whose panels query metrics no longer produced by any script: the cutover-morning verdict tile, the cross-wave coordination board, the wave-status board, the per-wave trend heatmap and the migration-marathon SLO board | staged for deletion, not evidence — the migration they observed is complete and their producers are gone. Recoverable from tag `archive/pre-phase-4` |
 | `dead-migration-tooling/cutover-day-watch.sh` | Bash wrapper that ran the migration-day live-stream aggregator in a watch loop and forwarded drift crossings to the notify queue | staged for deletion — the cutover day it drove is past and nothing references the script |
+| `dead-migration-tooling/cutover-day-watch-runbook.md` | Operator runbook for the migration-day watch loop | staged for deletion — describes a one-off event that ended 2026-05-20 |
+| `dead-migration-tooling/pre-cutover-watch-day-spec.md` | Specification of the pre-cutover watch day (dashboard inventory D1-D7, trigger catalogue, verdict rules) | staged for deletion — the watch day it specifies is past; the verdict script it inspired still ships |
+| `dead-migration-tooling/pre-cutover-probe-dashboard.md` | Dashboard spec for the pre-cutover probe failure-rate view | staged for deletion — probe window closed |
+| `dead-migration-tooling/per-welle-trend-heatmap-runbook.md` | Runbook for the per-wave trend heatmap | staged for deletion — the heatmap dashboard is gone with it |
+| `dead-migration-tooling/sli-slo-phase-3-marathon.md` | SLI/SLO catalogue for the migration marathon | staged for deletion — superseded by `docs/observability/sli-slo-phase-1b.md` and `sli-slo-wat-phase-2.md`, which cover the surviving services |
+| `dead-migration-tooling/watch-day-operator-trigger-audit-trail-marker-catalog.md` | Catalogue of audit-trail markers the watch-day operator was to emit | staged for deletion — no consumer left |
 
 Design knowledge extracted from deleted workflows lives in
 `docs/design-notes/` (e.g. `backend-rollback.md`), not here.

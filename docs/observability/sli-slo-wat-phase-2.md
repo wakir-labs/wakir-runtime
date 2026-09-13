@@ -1,12 +1,12 @@
 # SLI / SLO Catalogue — WAT Anchor Pipeline (Phase 2)
 
-**Owner:** Noa Bergstroem (SRE) · **Sprint:** Sprint-WAT-Anchor-Pipeline-Live-Observability-MINI · **Status:** proposed (pending Zone I Tomas consensus, then Priya CTO approval)
+**Owner:** SRE · **:** WAT-Anchor-Pipeline-Live-Observability-MINI · **Status:** proposed (pending Zone I engineering lead consensus, then CTO approval)
 
-This document is the canonical SLI/SLO catalogue for the WAT (Wakir Audit Trail) OTS-anchor pipeline. It is the sister-doc to `docs/observability/sli-slo-phase-1b.md` (Phase 1b pilot — persona-engine + Mira-Hourly stack) and was tagged "TBD" there pending Tomas' PR #124 `wakir-anchor anchor-receipt` CLI landing on `wakir-runtime/main`.
+This document is the canonical SLI/SLO catalogue for the WAT (Wakir Audit Trail) OTS-anchor pipeline. It is the sister-doc to `docs/observability/sli-slo-phase-1b.md` (Phase 1b pilot — persona-engine + hourly agent stack) and was tagged "TBD" there pending the engineering lead's `wakir-anchor anchor-receipt` CLI landing on `wakir-runtime/main`.
 
 PR #124 is now on main (ADR-0064 §Folgeartefakte Phase-2-Observability, ~01:00 CEST 2026-05-17 deployment). The gauge-emitter that feeds this catalogue ships in the same PR: `scripts/wat-anchor-pipeline-observability.py`.
 
-The instrumentation seam is Tomas' `wakir-anchor` CLI; the gauge surface is the Prometheus textfile-collector under Kai's node-exporter Quadlet (Zone H deployment substrate). This catalogue defines **what** is measured and **what threshold counts as a breach**; Kai's Zone H Quadlet bundle defines **how** the collector picks it up; the alert-rules referencing these SLOs land in a follow-on doc (`docs/observability/alert-rules-wat-phase-2.md`, TBD next sprint).
+The instrumentation seam is the engineering lead's `wakir-anchor` CLI; the gauge surface is the Prometheus textfile-collector under container-infra's node-exporter Quadlet (Zone H deployment substrate). This catalogue defines **what** is measured and **what threshold counts as a breach**; container-infra's Zone H Quadlet bundle defines **how** the collector picks it up; the alert-rules referencing these SLOs land in a follow-on doc (`docs/observability/alert-rules-wat-phase-2.md`, TBD next sprint).
 
 ---
 
@@ -17,18 +17,18 @@ The instrumentation seam is Tomas' `wakir-anchor` CLI; the gauge surface is the 
 - **OTS calendar attestation flow:** Merkle root submission to OpenTimestamps calendars, calendar-attestation count, upgrade-to-finalized transition.
 - **Bitcoin-block-height finalization:** the upgrade-to-finalized path that lands a calendar attestation as a Bitcoin-block-confirmed timestamp.
 - **Anchor-pending age:** how long a pending receipt stays pending before finalization.
-- **Bitcoin-block-height drift detection:** CI-probe drift vs. an external block-height source (mempool.space public endpoint) as a sanity check on the Bitcoin-node Tomas' WAT-core consumes.
+- **Bitcoin-block-height drift detection:** CI-probe drift vs. an external block-height source (mempool.space public endpoint) as a sanity check on the Bitcoin-node the WAT core consumes.
 - **Schema-drift detection:** the observability CLI contract (PR #124 stdout shape) is a stable surface; drift in either direction (older CLI emitting fewer fields, newer CLI emitting an unknown schema_version) surfaces as an explicit gauge so the SLO dashboard does not silently degrade.
 
 ### Out of scope (deferred to Phase 3)
 
-- **Merkle-tree-build time SLO:** Tomas' merkle-aggregator already has timing instrumentation but the persona-engine spawn rate has not yet produced enough leaves per aggregate window to make the latency observable. Deferred until steady-state Phase-2 traffic shows a stable build-time distribution.
-- **Cross-org WAT federation SLOs:** federation-evaluator response time, cross-trust-domain anchor relay. Owned by Reza; requires Zone B cross-review.
+- **Merkle-tree-build time SLO:** The merkle aggregator already has timing instrumentation but the persona-engine spawn rate has not yet produced enough leaves per aggregate window to make the latency observable. Deferred until steady-state Phase-2 traffic shows a stable build-time distribution.
+- **Cross-org WAT federation SLOs:** federation-evaluator response time, cross-trust-domain anchor relay. Owned by protocol owner; requires Zone B cross-review.
 - **Receipt-DB write-latency SLOs:** the receipt-spool is a flat-file spool today; promotion to a transactional store is a separate ADR.
 - **OTS-calendar-per-attestation latency SLIs:** per-calendar response-time histograms are useful for diagnosing a single bad upstream but introduce metric-sprawl (3+ calendars × per-request latency bucket per second). Deferred until a real OTS-calendar incident motivates per-upstream observability.
 
 ### Out-of-band: cost
-Anchor-flow USD cost (Bitcoin mempool fee for the calendar's aggregate transaction) is not borne by Wakir Labs — the OTS-calendar operator pays. Cost SLOs deferred to Daniel (CFO) per the Phase-1b sister-doc.
+Anchor-flow USD cost (Bitcoin mempool fee for the calendar's aggregate transaction) is not borne by Wakir Labs — the OTS-calendar operator pays. Cost SLOs deferred to the CFO per the Phase-1b sister-doc.
 
 ---
 
@@ -44,14 +44,14 @@ Five SLIs, each backed by exactly one Prometheus gauge from the observability sc
 | Definition | Fraction of WAT anchor receipts in `verifier_state=finalized` over the spool lifetime. |
 | Window | 96-hour trailing |
 | Rationale | The WAT-anchor pipeline's entire value proposition is: anchors that were stamped against OTS calendars must eventually transition to Bitcoin-block-confirmed (finalized). A non-finalizing receipt is either stuck waiting on the calendar to publish or is genuinely broken. 96 h is the upper bound on the OTS calendar -> Bitcoin publication cadence under the OpenTimestamps aggregator-of-aggregators contract (calendars batch and submit roughly daily; 4 days of slack covers a long weekend and one missed batch). |
-| Aggregation | `wat_anchor_finalized_count / clamp_min(wat_anchor_finalized_count + wat_anchor_pending_count + wat_anchor_failed_count, 1)` (recording rule; Zone H Kai deliverable to land it in Prometheus rules) |
+| Aggregation | `wat_anchor_finalized_count / clamp_min(wat_anchor_finalized_count + wat_anchor_pending_count + wat_anchor_failed_count, 1)` (recording rule; Zone H container-infra deliverable to land it in Prometheus rules) |
 | Labels | none (spool-wide aggregate) |
 
 **SLO-1:** 96-hour-trailing finalization-rate > **99%**.
 
-**Error budget:** 1% of receipts in the window may stay non-finalized. Burn-rate alert at 2 × budget over 24 h triggers a Tomas ticket; at 5 × over 4 h pages.
+**Error budget:** 1% of receipts in the window may stay non-finalized. Burn-rate alert at 2 × budget over 24 h triggers a engineering lead ticket; at 5 × over 4 h pages.
 
-**Justification of 99% target:** Tomas' WAT-Core has been observed to finalize within 24 hours under healthy conditions (Phase-1b dogfooding logs, Tag-9 through Tag-15). A 1% miss rate budgets for one stuck receipt per 100 anchors; that is one receipt per ~3 hourly Mira-anchors per day in current traffic — a tolerable Tier-2 ticket cadence, not a paging event.
+**Justification of 99% target:** the WAT core has been observed to finalize within 24 hours under healthy conditions (Phase-1b dogfooding logs). A 1% miss rate budgets for one stuck receipt per 100 anchors; that is one receipt per ~3 hourly agent anchors per day in current traffic — a tolerable Tier-2 ticket cadence, not a paging event.
 
 ### 2.2 Anchor-pending latency (`SLI-WAT-2`)
 
@@ -66,7 +66,7 @@ Five SLIs, each backed by exactly one Prometheus gauge from the observability sc
 
 **SLO-2:** p99 of pending-anchor age < **2 hours** (7200 seconds).
 
-**Error budget:** 1% of the time the pending-age may exceed 2 h. Burn-rate alert at 2 × over 6 h triggers a Tomas ticket; at 5 × over 1 h pages the on-call.
+**Error budget:** 1% of the time the pending-age may exceed 2 h. Burn-rate alert at 2 × over 6 h triggers a engineering lead ticket; at 5 × over 1 h pages the on-call.
 
 **Justification of 2-hour target:** OpenTimestamps calendars aggregate every ~1 hour per the public-aggregator contract. A 2-hour budget covers one missed aggregation slot plus the next slot's batch landing. Anything longer indicates the calendar dropped our submission or the WAT-core's pending-spool is not being polled.
 
@@ -96,7 +96,7 @@ Five SLIs, each backed by exactly one Prometheus gauge from the observability sc
 | Metric | `wat_anchor_pipeline_schema_drift` (gauge, 0.0 / 1.0) |
 | Definition | 1.0 when the CLI emits an unknown `schema_version` or `verifier_state`, 0.0 otherwise. |
 | Window | Instantaneous |
-| Rationale | The CLI contract between Tomas' PR #124 and Noa's observability script is the entire surface this SLI catalogue depends on. If Tomas bumps the schema and Noa's script lags, the gauges silently misalign with reality. The schema-drift gauge is the canary. |
+| Rationale | The CLI contract between the `wakir-anchor` CLI and the observability script is the entire surface this SLI catalogue depends on. If the CLI bumps the schema and the observability script lags, the gauges silently misalign with reality. The schema-drift gauge is the canary. |
 | Aggregation | direct gauge |
 | Labels | none |
 
@@ -109,10 +109,10 @@ Five SLIs, each backed by exactly one Prometheus gauge from the observability sc
 | Metric | `wat_anchor_cli_unavailable` + `wat_anchor_pipeline_cli_failure` (gauges, 0/1) |
 | Definition | `wat_anchor_cli_unavailable=1.0` when the `wakir-anchor` binary is not on PATH (the observability script's host container has lost the WAT package). `wat_anchor_pipeline_cli_failure=1.0` when the CLI ran but returned non-zero or produced unparseable JSON. |
 | Window | Instantaneous |
-| Rationale | These two gauges separate "infra broken" (CLI missing — Kai's container-orchestration domain) from "WAT-core broken" (CLI ran and failed — Tomas' WAT-core domain). The separation matters for paging routing. |
+| Rationale | These two gauges separate "infra broken" (CLI missing — container-infra's container-orchestration domain) from "WAT-core broken" (CLI ran and failed — WAT-core domain). The separation matters for paging routing. |
 | Labels | none |
 
-**Threshold:** `wat_anchor_cli_unavailable == 1.0` for > 10 minutes pages the SRE on-call **and** the Kai container-infra on-call. `wat_anchor_pipeline_cli_failure == 1.0` for > 30 minutes pages the SRE on-call **and** the Tomas matrix-lead. The 30 vs. 10 minute split reflects the recovery shape: a missing binary is a quick Kai-side fix; a failing CLI may need Tomas to investigate the WAT-core logs.
+**Threshold:** `wat_anchor_cli_unavailable == 1.0` for > 10 minutes pages the SRE on-call **and** the container-infra on-call. `wat_anchor_pipeline_cli_failure == 1.0` for > 30 minutes pages the SRE on-call **and** the engineering lead matrix-lead. The 30 vs. 10 minute split reflects the recovery shape: a missing binary is a quick container-infra side fix; a failing CLI may need engineering lead to investigate the WAT-core logs.
 
 ---
 
@@ -132,7 +132,7 @@ Three burn-rate alert tiers (parity with Phase-1b sister-doc §4.2):
 
 | Tier | Window | Burn-rate multiplier | Action |
 |---|---|---|---|
-| **Slow** | 24 h | 2 × budget | Ticket (Henrik audit-trail) |
+| **Slow** | 24 h | 2 × budget | Ticket (internal audit audit-trail) |
 | **Fast** | 4 h | 5 × budget | Page (operator on-call) |
 | **Page-now** | 15 min | 14.4 × budget | Page + ntfy AR-channel |
 
@@ -142,9 +142,9 @@ The slow tier window is widened from 6 h (persona-engine SLOs) to 24 h here beca
 
 When the 28-day error budget for any of SLI-WAT-1, WAT-2, or WAT-3 is fully consumed:
 
-1. **Strategy-Hand-Mira halts new persona-engine releases that depend on WAT-anchor finalization** (Phase-2 release-gating predicate). Existing pilots stay running.
-2. **Cross-Review Zone I (Noa + Tomas) convenes within 12 h** to root-cause. Aisha protocols consensus per `agents-workspaces/hr/cross-review-protocols/`.
-3. **Tomas WAT-core deep-dive:** receipt-spool inspection, OTS-calendar HTTP probe, Bitcoin-RPC sanity check.
+1. **The CEO halts new persona-engine releases that depend on WAT-anchor finalization** (Phase-2 release-gating predicate). Existing pilots stay running.
+2. **Cross-Review Zone I (SRE + engineering lead) convenes within 12 h** to root-cause. HR protocols consensus per `agents-workspaces/hr/cross-review-protocols/`.
+3. **engineering lead WAT-core deep-dive:** receipt-spool inspection, OTS-calendar HTTP probe, Bitcoin-RPC sanity check.
 4. **AR (Fred)** receives an A-class `needs-attention.md` item.
 
 The 12-hour Zone-I convening window is tighter than the Zone-H 24-hour analog from Phase-1b sister-doc §4.3 because WAT-anchor breaches affect the audit-trail substrate that downstream Phase-2 sales artefacts depend on. A WAT-pipeline outage that lasts longer than half a day starts breaking commit-OTS pipelines further out.
@@ -157,7 +157,7 @@ A single Grafana single-stat panel renders the daily error-budget consumption ra
 
 ## 4. Recording rules (Zone H deliverable)
 
-The following Prometheus recording rules are required for SLO dashboards to be performant. **Kai owns the deployment**; Noa specifies them here as Monitoring-Requirements:
+The following Prometheus recording rules are required for SLO dashboards to be performant. **container-infra owns the deployment**; SRE specifies them here as Monitoring-Requirements:
 
 ```yaml
 groups:
@@ -202,17 +202,17 @@ Alert rules that reference these recording-rule names land in `docs/observabilit
 
 ## 5. Review cadence
 
-- **Weekly:** Noa reviews the WAT-anchor pipeline dashboard every Monday morning. Burn-rate trends feed the weekly CTO report.
-- **Monthly:** SLO targets re-validated. The 99% finalization-rate target is the load-bearing number; if monthly review shows we are hitting 99.9%, Mira can tighten the target via a follow-up ADR. If we are hitting 95%, Tomas root-causes before any target change.
-- **Per WAT-core change:** Tomas pings Noa on every WAT-anchor-path PR. Noa reviews whether the change affects the gauge schema; if yes, the observability script and this catalogue are revised together.
+- **Weekly:** SRE reviews the WAT-anchor pipeline dashboard every Monday morning. Burn-rate trends feed the weekly CTO report.
+- **Monthly:** SLO targets re-validated. The 99% finalization-rate target is the load-bearing number; if monthly review shows we are hitting 99.9%, CEO can tighten the target via a follow-up ADR. If we are hitting 95%, engineering lead root-causes before any target change.
+- **Per WAT-core change:** engineering lead pings SRE on every WAT-anchor-path PR. SRE reviews whether the change affects the gauge schema; if yes, the observability script and this catalogue are revised together.
 
 ---
 
 ## 6. Cross-review zones
 
-This catalogue lives in the Zone-I cross-review (Noa × Tomas) per ADR-0042 §SRE Persona Definition. Tomas reviews the SLO definitions before deployment; the gauge-emitter script side (`scripts/wat-anchor-pipeline-observability.py`) is reviewed in the same Zone-I PR.
+This catalogue lives in the Zone-I cross-review (SRE × engineering lead) per ADR-0042 §SRE Persona Definition. engineering lead reviews the SLO definitions before deployment; the gauge-emitter script side (`scripts/wat-anchor-pipeline-observability.py`) is reviewed in the same Zone-I PR.
 
-Zone-H (Noa × Kai) covers the textfile-collector substrate (the observability script writes into the same `/var/lib/node_exporter/textfile_collector/` path that Kai's node-exporter Quadlet already scrapes). No new Zone-H surface is opened by this sprint; the pattern matches `mira-hourly-watchdog.py`, `per-model-cost-aggregator.py`, and `cache-hit-rate-aggregator.py`.
+Zone-H (SRE × container-infra) covers the textfile-collector substrate (the observability script writes into the same `/var/lib/node_exporter/textfile_collector/` path that container-infra's node-exporter Quadlet already scrapes). No new Zone-H surface is opened by this sprint; the pattern matches `mira-hourly-watchdog.py`, `per-model-cost-aggregator.py`, and `cache-hit-rate-aggregator.py`.
 
 ---
 
@@ -241,7 +241,7 @@ Zone-H (Noa × Kai) covers the textfile-collector substrate (the observability s
 }
 ```
 
-The `schema_version` field is the cross-review-contract anchor: bumping it requires a synchronous Zone-I review with Noa. The observability script's `EXPECTED_SCHEMA_VERSION` constant (currently 1) tracks the latest reviewed schema; a CLI returning a higher version is treated as drift (SLI-WAT-4).
+The `schema_version` field is the cross-review-contract anchor: bumping it requires a synchronous Zone-I review with SRE. The observability script's `EXPECTED_SCHEMA_VERSION` constant (currently 1) tracks the latest reviewed schema; a CLI returning a higher version is treated as drift (SLI-WAT-4).
 
 Fields whose value may be `null` (`bitcoin_block_height`, `bitcoin_block_hash`, `anchor_timestamp_utc`, `finalized_timestamp_utc`, `age_seconds_since_anchor`, `age_seconds_since_finalized`) are `null` exactly when the receipt is still in `verifier_state=pending` (Bitcoin block not yet known, finalize-time not yet known) or `verifier_state=failed`. The observability script renders `null` ages as `-1` and `null` block heights as `0` in the Prometheus textfile (so the gauge surface stays additive).
 
@@ -270,8 +270,8 @@ Every Prometheus gauge emitted by `scripts/wat-anchor-pipeline-observability.py`
 | `wat_last_finalized_age_seconds` | (operator-diagnostic) | `-1` if no data. |
 | `wat_bitcoin_block_height_latest` | SLI-WAT-3 (left side of the drift equation) | `0` if pending. |
 | `wat_anchor_pipeline_schema_drift` | SLI-WAT-4 | 0/1. |
-| `wat_anchor_cli_unavailable` | SLI-WAT-5 (Kai-side) | 0/1. |
-| `wat_anchor_pipeline_cli_failure` | SLI-WAT-5 (Tomas-side) | 0/1. |
+| `wat_anchor_cli_unavailable` | SLI-WAT-5 (container-infra side) | 0/1. |
+| `wat_anchor_pipeline_cli_failure` | SLI-WAT-5 (engineering lead side) | 0/1. |
 | `wat_anchor_pipeline_scrape_timestamp_seconds` | (correlator) | POSIX-epoch of last write. |
 
 ---
@@ -280,13 +280,13 @@ Every Prometheus gauge emitted by `scripts/wat-anchor-pipeline-observability.py`
 
 - **Observability emitter:** `scripts/wat-anchor-pipeline-observability.py`
 - **Hermetic tests:** `tests/infra/test_wat_anchor_pipeline_observability.py`
-- **WAT-core CLI source:** `wat/cmd/anchor_cli.py` (Tomas PR #124 adds the `anchor-receipt` subcommand and the `--latest --json` flag pair)
-- **Sister-doc (Phase 1b):** `docs/observability/sli-slo-phase-1b.md` — persona-engine + Mira-Hourly stack SLOs.
+- **WAT-core CLI source:** `wat/cmd/anchor_cli.py` (engineering lead PR #124 adds the `anchor-receipt` subcommand and the `--latest --json` flag pair)
+- **Sister-doc (Phase 1b):** `docs/observability/sli-slo-phase-1b.md` — persona-engine + hourly agent stack SLOs.
 - **ADR anchors:** ADR-0064 §Folgeartefakte Phase-2-Observability (this sprint's mandate); ADR-0042 §SRE Persona Definition (Zone H + Zone I cross-review contract); ADR-0007 (WAT-Pipeline overview).
-- **Cross-review zones:** Zone H (Noa × Kai container-operations — textfile-collector substrate); Zone I (Noa × Tomas WAT-core — CLI contract + SLO definitions).
+- **Cross-review zones:** Zone H (SRE × container-infra container-operations — textfile-collector substrate); Zone I (SRE × engineering lead WAT-core — CLI contract + SLO definitions).
 - **OTS calendar contract reference:** `https://github.com/opentimestamps/python-opentimestamps` (the WAT-core's vendored dependency).
 - **Bitcoin-block-height reference (Phase-2 follow-up):** `https://mempool.space/api/blocks/tip/height` — public endpoint, no API key, parsed as plain text integer.
 
 ---
 
-*Noa Bergstroem — SRE, Wakir Labs · Sprint-WAT-Anchor-Pipeline-Live-Observability-MINI · 2026-05-16*
+*SRE — SRE, Wakir Labs · WAT-Anchor-Pipeline-Live-Observability-MINI · 2026-05-16*

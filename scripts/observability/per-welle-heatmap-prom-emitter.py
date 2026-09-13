@@ -12,7 +12,7 @@ the Daily-Trend-Analyzer state and emits ASCII + JSON + Markdown
 heatmap envelopes into ``state/per-welle-heatmap/yyyy-mm-dd.json``.
 
 also shipped the Grafana dashboard
-(``dashboards/per-welle-trend-heatmap.json``) which already references
+(the per-Welle trend-heatmap dashboard) which already references
 the gauge family ``persona_engine_per_welle_heatmap_*``. The runbook
 of explicitly notes that the emitter that *populates* those
 gauges from the JSON envelope is a follow-up. That is this
@@ -59,7 +59,7 @@ namespace so the dashboard finds them without any change.
         -1 -> MISSING   (no snapshot)
 
     The numeric mapping matches the Grafana panel's value-text mapping
-    in ``dashboards/per-welle-trend-heatmap.json`` so cell colors line
+    in the trend-heatmap dashboard so cell colors line
     up without extra transforms.
 
 * ``persona_engine_per_welle_heatmap_summary_count{row_key, verdict}``
@@ -137,7 +137,7 @@ from typing import Any, Iterable, Mapping
 SCHEMA_VERSION = "1.0"
 
 # Numeric verdict encoding. Must match the Grafana state-timeline
-# value-text mapping in dashboards/per-welle-trend-heatmap.json.
+# value-text mapping in the trend-heatmap dashboard.
 VERDICT_TO_NUMERIC: dict[str, int] = {
     "GREEN": 0,
     "CAUTION": 1,
@@ -340,7 +340,7 @@ def render_prometheus_textfile(
         persona_engine_per_welle_heatmap_render_timestamp_seconds <today_unix> <ts_ms>
 
     The label set matches the Grafana dashboard's variable bindings
-    in ``dashboards/per-welle-trend-heatmap.json`` (row_key, verdict)
+    in the trend-heatmap dashboard (row_key, verdict)
     and adds ``welle`` / ``glyph`` / ``color`` / ``date_iso`` as
     free-form extra labels for tooltip rendering.
     """
@@ -543,7 +543,7 @@ def build_parser() -> argparse.ArgumentParser:
             "Prometheus textfile-collector .prom file. Output is "
             "compatible with node_exporter "
             "--collector.textfile.directory and the Grafana "
-            "dashboard ``dashboards/per-welle-trend-heatmap.json``."
+            "per-Welle trend-heatmap dashboard."
         ),
     )
     p.add_argument(

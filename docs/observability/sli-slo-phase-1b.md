@@ -1,13 +1,13 @@
 # SLI / SLO Catalogue — Phase 1b Pilot
 
-**Owner:** Noa Bergstroem (SRE) · **Sprint:** SRE Tag-15 · **Status:** proposed (pending Zone H Kai consensus, then Priya CTO approval)
+**Owner:** SRE · **:** SRE · **Status:** proposed (pending Zone H container-infra consensus, then CTO approval)
 
 This document is the canonical SLI/SLO catalogue for the Phase 1b Pilot. It covers two systems:
 
-1. **wakir-persona-engine** — the real-implementation persona-engine container (image tag `0.4.2-pilot`, Sprint-Pengine-12). Instrumentation seam: `wirelang/persona_engine/observability.py`.
+1. **wakir-persona-engine** — the real-implementation persona-engine container (image tag `0.4.2-pilot`, Pengine-12). Instrumentation seam: `wirelang/persona_engine/observability.py`.
 2. **mira-hourly stack** — the hourly CEO-check synthesis loop driven by `aicorp-mira-hourly.timer` + `scripts/mira-hourly.sh` + the watchdog (`scripts/mira-hourly-watchdog.py`).
 
-Both systems share one OTLP collector + Prometheus pipeline. The collector deployment is Kai's domain (Zone H); this document is the Monitoring-Requirements input.
+Both systems share one OTLP collector + Prometheus pipeline. The collector deployment is container-infra's domain (Zone H); this document is the Monitoring-Requirements input.
 
 ---
 
@@ -19,14 +19,14 @@ Both systems share one OTLP collector + Prometheus pipeline. The collector deplo
 - Steady-state path: NATS-subscribe-loop dispatch latency, FSM transition health.
 - Recovery path: R1..R4 trigger counts, outcome split.
 - SVID fence health: full-fetch failure rate (Bug-40 fence-to-probe-only path).
-- Mira-Hourly tick presence and quota-cap-abort detection.
+- hourly agent tick presence and quota-cap-abort detection.
 
 ### Out of scope (deferred to Phase 2)
 
-- WAT-pipeline SLOs (OTS anchor latency, Merkle-tree-build time, anchor failure rate). Owned by Tomás (WAT-core); requires Zone I cross-review first. Skeleton lives in `docs/observability/sli-slo-wat-phase-2.md` (TBD).
-- Cross-org federation SLOs (federation-evaluator response time, cross-trust-domain bridge latency). Owned by Reza; requires Zone B cross-review.
-- Frontend SLIs (Quartz render p95, AR-dashboard load time). Owned by Lena.
-- Cost SLOs (USD-per-spawn, hourly-tick token-budget). Owned by Daniel (CFO); Phase 2 once steady-state token usage stabilises.
+- WAT-pipeline SLOs (OTS anchor latency, Merkle-tree-build time, anchor failure rate). Owned by engineering lead (WAT-core); requires Zone I cross-review first. Skeleton lives in `docs/observability/sli-slo-wat-phase-2.md` (TBD).
+- Cross-org federation SLOs (federation-evaluator response time, cross-trust-domain bridge latency). Owned by protocol owner; requires Zone B cross-review.
+- Frontend SLIs (Quartz render p95, AR-dashboard load time). Owned by frontend owner.
+- Cost SLOs (USD-per-spawn, hourly-tick token-budget). Owned by the CFO; Phase 2 once steady-state token usage stabilises.
 
 ---
 
@@ -56,7 +56,7 @@ Five SLIs, each mapped to exactly one OTel meter (no metric sprawl). Sources def
 | Metric | `persona_engine.subscribe.lag_seconds` (Histogram) |
 | Definition | Wall-clock between the inbound auftrag envelope's `ts_utc` and the subscribe-loop's per-msg dispatch in `_handle_message_inner`. |
 | Window | 15-minute trailing |
-| Rationale | The Doppelbetrieb-Vergleichs-Score depends on the persona-engine processing Mira-side bridge-forward auftraege within the same second the Pre-Framework Tomás would. A growing lag indicates JetStream backpressure or a stuck hook. |
+| Rationale | The Doppelbetrieb-Vergleichs-Score depends on the persona-engine processing CEO-side bridge-forward requests within the same second the pre-framework path would. A growing lag indicates JetStream backpressure or a stuck hook. |
 | Aggregation | `histogram_quantile(0.99, sum by (le) (rate(...[15m])))` |
 | Labels | `persona_id`, `org_id`, `subject` |
 
@@ -87,7 +87,7 @@ Five SLIs, each mapped to exactly one OTel meter (no metric sprawl). Sources def
 | Definition | Time elapsed in a non-terminal state (`spawning`, `despawning`, `recovered`) without a transition. Derived from the absence of new transitions for a given `(persona_id, session_id)` pair. |
 | Window | 5-minute rolling |
 | Rationale | The lifecycle FSM has six states (spec §3.3). Three are transient (`spawning`, `despawning`, `recovered`). An engine stuck in `spawning` for longer than 5 minutes is a definitive crash signal. |
-| Aggregation | `time() - max by (persona_id, session_id) (max_over_time(persona_engine_fsm_transitions_total{accepted="true"}[5m]))` — Recording rule to be defined in Prometheus rules (Zone H deliverable from Kai). |
+| Aggregation | `time - max by (persona_id, session_id) (max_over_time(persona_engine_fsm_transitions_total{accepted="true"}[5m]))` — Recording rule to be defined in Prometheus rules (Zone H deliverable from container-infra). |
 | Labels | `persona_id`, `org_id`, `session_id`, `from_state`, `to_state` |
 
 **SLO:** No persona-engine instance in a transient state for > 5 minutes.
@@ -114,7 +114,7 @@ Five SLIs, each mapped to exactly one OTel meter (no metric sprawl). Sources def
 | Attribute | Value |
 |---|---|
 | Metric | `persona_engine.svid.fetch_failures_total` (Counter) |
-| Definition | Rate of fence-to-probe-only entries (Sprint-Pengine-11 Bug-40 graceful-fallback). |
+| Definition | Rate of fence-to-probe-only entries (Pengine-11 Bug-40 graceful-fallback). |
 | Window | 1-hour trailing |
 | Rationale | Bug-40 protects against SPIRE-Agent flakiness, but a sustained fence rate above 1/h indicates the SPIRE-Agent is itself unreliable. This is an internal-reliability metric, not a user-facing SLO — but it must be alertable. |
 | Labels | `persona_id`, `org_id`, `fence_mode` (`wheel-missing` / `fetch-failure`) |
@@ -123,7 +123,7 @@ Five SLIs, each mapped to exactly one OTel meter (no metric sprawl). Sources def
 
 ---
 
-## 3. Mira-Hourly stack SLIs
+## 3. hourly agent stack SLIs
 
 Two SLIs, sourced from `scripts/mira-hourly-watchdog.py` (Prometheus textfile-collector output).
 
@@ -134,7 +134,7 @@ Two SLIs, sourced from `scripts/mira-hourly-watchdog.py` (Prometheus textfile-co
 | Metric | `mira_hourly_last_tick_age_seconds` (Gauge, textfile-collector) |
 | Definition | Seconds since the most recent record in `infra/mira-hourly-telemetry.jsonl`. |
 | Window | Instantaneous |
-| Rationale | The hourly CEO-check is the heartbeat of the Aufsichtsrats-Synthesis loop. If it stops, the corp is running blind. |
+| Rationale | The hourly CEO-check is the heartbeat of the supervisory-board synthesis loop. If it stops, the corp is running blind. |
 | Aggregation | Direct gauge |
 | Labels | none |
 
@@ -149,7 +149,7 @@ Two SLIs, sourced from `scripts/mira-hourly-watchdog.py` (Prometheus textfile-co
 | Metric | `mira_hourly_consecutive_abort_count` (Gauge, textfile-collector) |
 | Definition | Number of consecutive abort-shaped records at the tail of the telemetry JSONL. Abort signature: `is_error == true` AND `num_turns <= 1` AND `total_cost_usd == 0` AND `duration_ms < 5000` (quota-cap or rate-limit response shape). |
 | Window | Instantaneous (most recent N records) |
-| Rationale | The 2026-05-15 18:00 + 19:00 CEST incident showed the wrapper firing on schedule but the underlying `claude` CLI aborting sub-second on quota cap. The telemetry record exists, but it's not a real synthesis run — Aufsichtsrats-visibility into the corp is silently degraded. |
+| Rationale | The 2026-05-15 18:00 + 19:00 CEST incident showed the wrapper firing on schedule but the underlying `claude` CLI aborting sub-second on quota cap. The telemetry record exists, but it's not a real synthesis run — supervisory-board visibility into the corp is silently degraded. |
 | Aggregation | Direct gauge |
 | Labels | none |
 
@@ -175,7 +175,7 @@ Three burn-rate alert tiers:
 
 | Tier | Window | Burn-rate multiplier | Action |
 |---|---|---|---|
-| **Slow** | 6 h | 2 × budget | Ticket (Henrik audit-trail) |
+| **Slow** | 6 h | 2 × budget | Ticket (internal audit audit-trail) |
 | **Fast** | 1 h | 5 × budget | Page (operator on-call) |
 | **Page-now** | 5 min | 14.4 × budget | Page + ntfy AR-channel |
 
@@ -185,18 +185,18 @@ Burn-rate multipliers chosen per the Google SRE Workbook table-2 worked example,
 
 When the 28-day error budget for any persona-engine SLI is fully consumed:
 
-1. **Strategy-Hand-Mira halts new persona-engine releases.** Phase-1b-Pilot stays on the last green tag.
-2. **Cross-Review Zone H (Noa + Kai) convenes within 24 h** to root-cause.
-3. **Tomás Matrix-Lead consulted** if the budget breach implicates WAT-pipeline (Zone I trigger).
-4. **AR (Fred)** receives an A-class needs-attention.md item.
+1. **The CEO halts new persona-engine releases.** Phase-1b-Pilot stays on the last green tag.
+2. **Cross-Review Zone H (SRE + container-infra) convenes within 24 h** to root-cause.
+3. **engineering lead Matrix-Lead consulted** if the budget breach implicates WAT-pipeline (Zone I trigger).
+4. **The supervisory board** receives an A-class needs-attention item.
 
-Mira-Hourly SLIs (SLI-MH-1, MH-2) use a different rule: any breach is page-immediate, no burn-rate windowing. Justified: the Aufsichtsrats-Synthesis loop is the corp's nervous system; quiet degradation is not acceptable.
+hourly agent SLIs (SLI-MH-1, MH-2) use a different rule: any breach is page-immediate, no burn-rate windowing. Justified: the supervisory-board synthesis loop is the corp's nervous system; quiet degradation is not acceptable.
 
 ---
 
 ## 5. Recording rules (Zone H deliverable)
 
-The following Prometheus recording rules are required for the SLO dashboards to be performant. **Kai owns the deployment**; Noa specifies them here as Monitoring-Requirements.
+The following Prometheus recording rules are required for the SLO dashboards to be performant. **container-infra owns the deployment**; SRE specifies them here as Monitoring-Requirements.
 
 ```yaml
 groups:
@@ -215,13 +215,13 @@ groups:
         expr: sum by (persona_id, fence_mode) (rate(persona_engine_svid_fetch_failures_total[1h]) * 3600)
 ```
 
-Alert rules referencing these recording-rule names are in `docs/observability/alert-rules-phase-1b.md` (TBD, follow-up Sprint).
+Alert rules referencing these recording-rule names are in `docs/observability/alert-rules-phase-1b.md` (TBD, follow-up).
 
 ---
 
 ## 6. Review cadence
 
-- **Weekly:** Noa reviews the SLO dashboard (`dashboards/persona-engine-health.json`) every Monday morning. Burn-rate trends fed into the weekly report.
+- **Weekly:** SRE reviews the SLO dashboard (`dashboards/persona-engine-health.json`) every Monday morning. Burn-rate trends fed into the weekly report.
 - **Monthly:** SLO targets re-validated. Targets that are easy by 10× should tighten; targets that are missed by 2× need root-cause work.
 - **Per-release:** A persona-engine release that introduces a new instrumentation seam must add or revise the corresponding SLI in this document.
 
@@ -231,14 +231,14 @@ Alert rules referencing these recording-rule names are in `docs/observability/al
 
 - **Persona-engine instrumentation module:** `wirelang/persona_engine/observability.py`
 - **Persona-engine hermetic tests:** `wirelang/tests/persona_engine/test_observability.py`
-- **Mira-Hourly watchdog:** `scripts/mira-hourly-watchdog.py`
-- **Mira-Hourly watchdog tests:** `tests/test_mira_hourly_watchdog.py`
+- **hourly agent watchdog:** `scripts/mira-hourly-watchdog.py`
+- **hourly agent watchdog tests:** `tests/test_mira_hourly_watchdog.py`
 - **Grafana dashboard:** `dashboards/persona-engine-health.json`
 - **OTel-Extra:** `pyproject.toml [project.optional-dependencies] persona-engine-observability`
-- **Cross-review zone:** ADR-0042 (SRE persona definition) §Zone H (Noa × Kai container-operations)
+- **Cross-review zone:** ADR-0042 (SRE persona definition) §Zone H (SRE × container-infra container-operations)
 - **Spec anchor:** `wirelang/specs/persona-engine-format-spec.md` §3.3 (FSM), §3.7.4 (recovery), §5 (V-907)
-- **Sister-doc (deferred Phase 2):** `docs/observability/sli-slo-wat-phase-2.md` — WAT-pipeline SLOs (Zone I, Tomás review required first).
+- **Sister-doc (deferred Phase 2):** `docs/observability/sli-slo-wat-phase-2.md` — WAT-pipeline SLOs (Zone I, engineering lead review required first).
 
 ---
 
-*Noa Bergstroem — SRE, Wakir Labs · Sprint-SRE Tag-15 · 2026-05-16*
+*SRE — SRE, Wakir Labs · SRE · 2026-05-16*

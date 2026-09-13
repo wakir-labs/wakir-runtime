@@ -2,35 +2,34 @@
 
 # Aggregator Monitoring — Operator Documentation
 
-**Audience:** SRE / Mira-Hand operators triaging the ADR-0068
-`ci-aggregator` migration window (Tag-37 PR #244 land → ~1-week
-observation → Mira-Hand-cutover).
+**Audience:** SRE / Operator-Hand operators triaging the ADR-0068
+`ci-aggregator` migration window (land → ~1-week
+observation → Operator-Hand-cutover).
 
-**Authors:** Noa Bergstroem (SRE), Tag-38.
+**Authors:** SRE,.
 **Anchors:** ADR-0068 §Migration-Strategy + §Beschluss; PR #244
-`e29439dc` (Tomas, Tag-37); `scripts/ci/ci_aggregator.py` substrate.
+`e29439dc` (engineering lead); `scripts/ci/ci_aggregator.py` substrate.
 
 ---
 
 ## What this document covers
 
-1. The three Tag-38 observability substrates and how they fit together.
+1. The three observability substrates and how they fit together.
 2. How to run the failure-rate-tracker (operator workstation + CI).
-3. The drift-detection schema — what fires, what gates the Mira-Hand-
+3. The drift-detection schema — what fires, what gates the Operator-Hand-
    cutover.
 4. The Prometheus / Grafana access path for the cross-welle dashboard.
-5. Notify-paths and the Mira-Hand follow-up checklist for non-zero drift.
+5. Notify-paths and the Operator-Hand follow-up checklist for non-zero drift.
 
 ---
 
 ## 1. Substrates
 
-Three artefacts ship with the Tag-38 spawn (this PR):
+Three artefacts ship with the spawn (this PR):
 
 | Artefact | Path | Role |
 |---|---|---|
 | Failure-rate tracker | `scripts/observability/aggregator-failure-rate-tracker.py` | Polls ci-aggregator runs, rolls per-check failure-rate + latency, detects drift vs legacy-union. |
-| Cross-welle dashboard | `dashboards/phase-3c-cross-welle-coordination.json` | Grafana JSON — five operator-views unified (Welle-status, cross-modul-drift, BackendDecision-snapshot, aggregator-verdict-stream, Henrik-signoff). |
 | Hermetic tests | `tests/observability/test_aggregator_failure_rate_tracker.py` | 23 tests covering pure-function decision core. |
 
 The tracker is the **producer** of the `wakir_aggregator_*` Prometheus
@@ -64,7 +63,7 @@ python3 scripts/observability/aggregator-failure-rate-tracker.py \
 
 ### CI-host mode (`live`, urllib + `GITHUB_TOKEN`)
 
-For invocation from a Kai-Container-Infra-deployed cron / systemd-timer
+For invocation from a container-infra Container-Infra-deployed cron / systemd-timer
 host (no `gh` CLI installed):
 
 ```bash
@@ -77,8 +76,8 @@ GITHUB_TOKEN=ghp_... python3 scripts/observability/aggregator-failure-rate-track
 ```
 
 The Prometheus textfile path is the conventional node-exporter scrape
-directory. Kai owns the node-exporter deployment; coordination via
-Zone-H (Noa-Spec, Kai-Substrate). See `agents-workspaces/sre/` for the
+directory. container-infra owns the node-exporter deployment; coordination via
+Zone-H (SRE Spec, container-infra Substrate). See `agents-workspaces/sre/` for the
 spec-side ownership.
 
 ### Hermetic / dry-run mode
@@ -130,14 +129,14 @@ week observation window. A single divergence is enough to:
 1. Make the tracker exit non-zero (operator-visible signal).
 2. Increment `wakir_aggregator_drift_events` to `>=1`.
 3. Light up panel 31 of the cross-welle dashboard red.
-4. Block the Mira-Hand-cutover script from running until investigated.
+4. Block the Operator-Hand-cutover script from running until investigated.
 
 ### Investigation flow
 
 When a drift event fires:
 
 1. **Capture context** — the tracker's JSON output includes
-   `legacy_per_check` for every drift event. Pin this in a Mira-inbox
+   `legacy_per_check` for every drift event. Pin this in an operator-inbox
    note (path under `agents-workspaces/mira/inbox/`).
 2. **Classify** — was the drift a `false-positive` (aggregator said
    `failure`, legacy-union said `success`) or `false-negative`
@@ -170,7 +169,7 @@ Conventional location:
 ```
 
 The node-exporter `--collector.textfile.directory=` flag must point at
-the parent directory. Kai's container-infra substrate owns the
+the parent directory. container-infra's substrate owns the
 node-exporter deployment.
 
 ### Gauges produced
@@ -180,7 +179,7 @@ node-exporter deployment.
 | `wakir_aggregator_failure_rate` | `check`, `window` | Failures / (failures + successes). Skipped excluded. |
 | `wakir_aggregator_latency_seconds` | `check`, `window`, `pct` (p50/p95/p99) | Wait-loop latency percentiles. |
 | `wakir_aggregator_sample_count` | `check`, `window` | Sample count per window (for denominator-sanity). |
-| `wakir_aggregator_drift_events` | (no labels) | Drift event count. Cutover-blocker if `>= 1`. |
+| `wakir_aggregator_drift_events` | (no labels) | Drift event count. cutover blocker if `>= 1`. |
 
 ### Dashboard import
 
@@ -196,7 +195,7 @@ after import: `https://grafana.internal/d/wakir-phase-3c-cross-welle-coordinatio
 
 ---
 
-## 5. Notify paths and Mira-Hand follow-up
+## 5. Notify paths and Operator-Hand follow-up
 
 ### Tracker invocation cadence
 
@@ -210,10 +209,10 @@ strain (500 runs / 15 min = ~33 req/min, well below GitHub's
 ### Notify-event semantics
 
 A non-zero tracker exit code maps to a Mira-Notify event. The
-suggested wiring (Kai-substrate-owned):
+suggested wiring (container-infra substrate-owned):
 
 ```bash
-# In a Kai-deployed systemd-timer wrapper script:
+# In a container-infra deployed systemd-timer wrapper script:
 if ! python3 scripts/observability/aggregator-failure-rate-tracker.py ...; then
   # Tracker exited non-zero => drift detected.
   /usr/local/bin/mira-notify-emitter \
@@ -223,12 +222,12 @@ if ! python3 scripts/observability/aggregator-failure-rate-tracker.py ...; then
 fi
 ```
 
-The `mira-notify-emitter` script does not yet exist as Tag-38; see the
-**Mira-Hand follow-up items** below.
+The `mira-notify-emitter` script does not exist yet; see the
+**Operator-Hand follow-up items** below.
 
 ### Cutover gate
 
-ADR-0068 §Migration-Step-3 (Mira-Hand-cutover, "remove the six legacy
+ADR-0068 §Migration-Step-3 (Operator-Hand-cutover, "remove the six legacy
 Required-Status names from Branch-Protection, add `ci-aggregator` as
 the sole Required name") is gated on:
 
@@ -239,35 +238,35 @@ the sole Required name") is gated on:
    (`wakir_aggregator_sample_count{window="50"} >= 50` for the
    `ci-aggregator` check).
 
-The Mira-Hand-cutover script (not in this PR — Mira-Hand-Folge item)
+The Operator-Hand-cutover script (not in this PR — Operator-Hand-Folge item)
 should read these gauges and refuse to run if any of the three gates
 fail.
 
 ---
 
-## Mira-Hand follow-up items
+## Operator-Hand follow-up items
 
-These are out of Noa's substrate scope and require Mira-Hand or a
-Kai-container-infra spawn:
+These are out of SRE's substrate scope and require Operator-Hand or a
+container-infra spawn:
 
-1. **Kai-substrate:** Deploy node-exporter on the Mira-Hourly-Stack
+1. **container-infra substrate:** Deploy node-exporter on the hourly agent stack
    host with `--collector.textfile.directory=` pointing at
    `/var/lib/prometheus/node-exporter/`. Coordinate via Zone-H.
-2. **Kai-substrate:** Systemd-timer wrapper that invokes the tracker
+2. **container-infra substrate:** Systemd-timer wrapper that invokes the tracker
    every 15 minutes during the cutover-observation window.
-3. **Mira-Hand:** Wire `mira-notify-emitter` (or equivalent ntfy
+3. **Operator-Hand:** Wire `mira-notify-emitter` (or equivalent ntfy
    channel) for non-zero tracker exit codes. Notify-payload should
    include the drift event's `head_sha` so the operator can
    re-run-workflow.
-4. **Mira-Hand:** When the gate conditions in §5 hold, run the
+4. **Operator-Hand:** When the gate conditions in §5 hold, run the
    `gh api -X PUT /repos/wakir-labs/wakir-runtime/branches/main/protection`
    patch to remove the six legacy required-status-check names and
    add `ci-aggregator` as the sole name. This is the ADR-0068
    §Migration-Step-3 action.
-5. **Henrik-coordination:** Henrik's `henrik-signoff-emitter` (panel
+5. **internal audit coordination:** internal audit's `henrik-signoff-emitter` (panel
    41-45 source) is referenced by the dashboard but not yet
    implemented. Until it lands, those tiles read uniformly `pending`.
-   Henrik-spawn or Mira-Hand can write the gauge directly via the
+ internal audit spawn or Operator-Hand can write the gauge directly via the
    persona-engine pushgateway as an interim.
 
 ---
@@ -275,11 +274,10 @@ Kai-container-infra spawn:
 ## Cross-references
 
 - ADR-0068 (Status-Aggregator-Workflow als alleiniger Required-Status-Check, approved 2026-05-18)
-- ADR-0066 (Phase-3c Beschleunigung Option A+, KW-24..27 Wellen-Plan)
-- `scripts/ci/ci_aggregator.py` (Tomas Tag-37 PR #244 substrate)
-- `docs/ci/aggregator-workflow.md` (Tomas Tag-37 PR #244 docs)
+- ADR-0066 (Phase-3c acceleration plan)
+- `scripts/ci/ci_aggregator.py` (engineering lead substrate)
+- `docs/ci/aggregator-workflow.md` (engineering lead docs)
 - `scripts/backend-decision-observability.py` PR #179 (BackendDecision-Aggregator)
-- `dashboards/persona-engine-phase-3c-welle-status.json` (per-welle high-frequency view)
 - `dashboards/persona-engine-backend-decisions.json` (per-engine BackendDecision drill-down)
 
-— Noa Bergstroem (SRE), Tag-38
+— SRE

@@ -33,8 +33,8 @@ exposes two surfaces:
 
 2. **CLI** (`python mira-notify-emitter.py emit --severity page
    --alert-name ... --summary ... --runbook ...`):
-   one-shot emission for shell-script callers (cutover-day-watch.sh,
-   ad-hoc Operator-Hand emission).
+   one-shot emission for shell-script callers and ad-hoc
+   Operator-Hand emission.
 
 In both surfaces the output is one JSON object written to:
 
