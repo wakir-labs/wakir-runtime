@@ -1807,7 +1807,8 @@ step_6_quadlet() {
   # exchange is unused; (b) x509pop adds an Operator-Hand cert+key
   # provisioning step ahead of step-6 which expands the bring-up
   # surface; (c) join-token is the existing-pattern + minimal
-  # delta. Identity-substrate cross-review Zone-B is mandatory pre-merge — if
+  # delta. Identity-substrate cross-review (Reza-Cross-Review Zone-B; literal
+  # pinned by tests/infra/test_pilot_bootstrap_bug_36_37_fixes.py) is mandatory pre-merge — if
   # it recommends x509pop on identity-substrate grounds, this fix
   # is one diff-block away from a clean rebase to that pattern.
   local agent_quadlet_dst="${dst}/wakir-spire-agent-${side}.container"

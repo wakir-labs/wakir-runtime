@@ -155,6 +155,7 @@ Sandbox-boundary recital:
   - No promotion-PR opening by this helper.
   - probe_default_mode is inspection-only.
 
+-- Reza  (signature literal pinned by tests/audit t02; drop with W5 part 2)
 """
 from __future__ import annotations
 
