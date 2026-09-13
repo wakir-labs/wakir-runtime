@@ -1,14 +1,14 @@
-# NATS-JWT-Auth Integration — Phase-2.4 Hermetic Skizze (Sprint-6 Tag-10)
+# NATS-JWT-Auth Integration — Phase-2.4 Hermetic sketch
 
 This document describes the **Phase-2.4 NATS-JWT-Auth wire-up** between
-the SPIRE-Agent Workload-API (Phase-2.2, Tag-9) and the NATS-JetStream
+the SPIRE-Agent Workload-API (Phase-2.2) and the NATS-JetStream
 Python client (`nats-py`). It is the paired companion to:
 
-- `docs/spire-server-phase-2-1.md` (SPIRE-Server sidecar, Tag-6).
-- `docs/spire-agent-phase-2-2.md` (SPIRE-Agent sidecar, Tag-9).
-- `docs/spiffe-jwt-svid-identity.md` (Z-A skizze, Tag-5 re-write).
+- `docs/spire-server-phase-2-1.md` (SPIRE-Server sidecar).
+- `docs/spire-agent-phase-2-2.md` (SPIRE-Agent sidecar).
+- `docs/spiffe-jwt-svid-identity.md` (Z-A skizze re-write).
 
-**Hermetic-only**: the Tag-10 substrate adds a callback-factory module
+**Hermetic-only**: the substrate adds a callback-factory module
 and 20 hermetic tests. No NATS-server is started. No SPIRE-Agent is
 contacted. No real `nats.connect()` is issued. Live bring-up (real
 SPIRE-Agent + real NATS-server + JWT-Auth handshake) is the
@@ -16,30 +16,30 @@ Phase-2.5 Operator-Hand slot (see §6).
 
 ## 0. Box-Brief alignment
 
-| Item | Spec | Tag-10 deliverable |
+| Item | Spec | deliverable |
 |---|---|---|
 | Substrate-Voraussetzung 1 | `nats-py` exposes `user_jwt_cb` callback (Client-Side) | Verified `nats/aio/client.py` Z. 110, 317, 370, 1666-1668 (see §3.1) |
 | Substrate-Voraussetzung 2 | P7-verified | Confirmed; this runbook §3.1 carries the line-by-line citation |
 | Substrate-Voraussetzung 3 | Z-A re-write `docs/spiffe-jwt-svid-identity.md` §4.2-Punkt-7 + §6 §3 | Cross-referenced (§3.2 below) |
-| Skizze | NATS-JWT-Auth wire-up between SPIRE-Agent Workload-API and NATS-JetStream client | `scripts/nats_jwt_callback_skizze.py` + this runbook |
-| Mock/Stub `user_jwt_cb` | Path-by-name reference to Reza Mock-Adapter `MockSpiffeWorkloadApiAdapter` | §4 + `scripts/nats_jwt_callback_skizze.py` (`InMemorySvidCache` stub, NOT a wirelang import) |
+| sketch | NATS-JWT-Auth wire-up between SPIRE-Agent Workload-API and NATS-JetStream client | `scripts/nats_jwt_callback_skizze.py` + this runbook |
+| Mock/Stub `user_jwt_cb` | Path-by-name reference to protocol engineering Mock-Adapter `MockSpiffeWorkloadApiAdapter` | §4 + `scripts/nats_jwt_callback_skizze.py` (`InMemorySvidCache` stub, NOT a wirelang import) |
 | Hermetic tests | No real NATS-server, no real SPIRE-Agent | `tests/orchestrator/test_nats_jwt_auth_phase_2_4.py` (20 tests) |
-| JWT-Refresh-on-Reconnect pattern | Client-Side, per Reza-Ack §4.2 corrections | §3.3 + Block-4 tests |
+| JWT-Refresh-on-Reconnect pattern | Client-Side, per Ack §4.2 corrections | §3.3 + Block-4 tests |
 | Runbook | Operator-workflow + acceptance-list | This document |
-| Reza Cross-Reference | `MockSpiffeWorkloadApiAdapter` path-by-name, no import | §4 |
-| Reza-Tag-7 parallel landing | If `real_spiffe_workload_api.py` lands: update F-8 sync-item | F-8 status updated in §8 |
+| protocol engineering Cross-Reference | `MockSpiffeWorkloadApiAdapter` path-by-name, no import | §4 |
+| parallel landing | If `real_spiffe_workload_api.py` lands: update F-8 sync-item | F-8 status updated in §8 |
 
 ## 1. Substrate components
 
 | Component | Path | Owner | Tag |
 |---|---|---|---|
-| NATS-JWT callback factory skizze | `scripts/nats_jwt_callback_skizze.py` | Kai | Tag-10 |
-| `JwtSvidCacheView` Protocol surface | same file | Kai | Tag-10 |
-| `InMemorySvidCache` hermetic stub | same file | Kai | Tag-10 |
-| `make_user_jwt_cb` factory | same file | Kai | Tag-10 |
-| Error hierarchy (`NatsJwtCallbackError` family) | same file | Kai | Tag-10 |
-| Hermetic acceptance tests (20) | `tests/orchestrator/test_nats_jwt_auth_phase_2_4.py` | Kai | Tag-10 |
-| SPIFFE constants (re-used) | `scripts/spiffe_skizze_constants.py` (Tag-6) | Kai | Tag-6 (re-used) |
+| NATS-JWT callback factory skizze | `scripts/nats_jwt_callback_skizze.py` | infrastructure engineering | |
+| `JwtSvidCacheView` Protocol surface | same file | infrastructure engineering | |
+| `InMemorySvidCache` hermetic stub | same file | infrastructure engineering | |
+| `make_user_jwt_cb` factory | same file | infrastructure engineering | |
+| Error hierarchy (`NatsJwtCallbackError` family) | same file | infrastructure engineering | |
+| Hermetic acceptance tests (20) | `tests/orchestrator/test_nats_jwt_auth_phase_2_4.py` | infrastructure engineering | |
+| SPIFFE constants (re-used) | `scripts/spiffe_skizze_constants.py` | infrastructure engineering | (re-used) |
 
 ## 2. Architecture
 
@@ -51,12 +51,12 @@ Phase-2.5 Operator-Hand slot (see §6).
 │                                                                  │
 │  ┌──────────────┐  ┌──────────────┐    ┌────────────────────┐    │
 │  │ SPIRE-Server │◄─┤ SPIRE-Agent  │◄───┤ Persona-Container  │    │
-│  │  (Tag-6)     │  │   (Tag-9)    │WL  │ - wirelang adapter │    │
-│  └──────────────┘  └──────┬───────┘ A  │   (Reza Sprint-6+) │    │
+│  │              │  │              │WL  │ - wirelang adapter │    │
+│  └──────────────┘  └──────┬───────┘ A  │   (protocol track) │    │
 │   trust-bundle             │ Pi│       │ - JwtSvidCache     │    │
 │   |                        ▼   │       │ - WatchJWTSVIDs    │    │
 │   |                  /run/spire/agent  │   stream            │    │
-│   |                  -sockets/api.sock │ - Tag-10 callback   │    │
+│   |                  -sockets/api.sock │ - JWT callback      │    │
 │   |                                    │   factory            │    │
 │   |                                    └─────────┬───────────┘    │
 │   |                                              │ user_jwt_cb    │
@@ -70,30 +70,30 @@ Phase-2.5 Operator-Hand slot (see §6).
 
 Components:
 
-- **SPIRE-Server** (Tag-6): issues JWT-SVIDs; trust-bundle published to NATS.
-- **SPIRE-Agent** (Tag-9): attests workloads, exposes Workload-API UDS.
-- **Wirelang-side adapter** (Reza Sprint-6 Tag-5+; path-by-name):
+- **SPIRE-Server**: issues JWT-SVIDs; trust-bundle published to NATS.
+- **SPIRE-Agent**: attests workloads, exposes Workload-API UDS.
+- **Wirelang-side adapter** (protocol engineering; path-by-name):
   - Holds a `JwtSvidCache` populated by a background `WatchJWTSVIDs`
     stream against the Workload-API.
   - Surface: `MockSpiffeWorkloadApiAdapter` (hermetic) + real adapter
-    (Reza Tag-7+ when landed).
-- **Tag-10 callback factory** (this skizze): builds the zero-arg
+    (protocol engineering when landed).
+- **callback factory** (this skizze): builds the zero-arg
   callable `nats-py` invokes at every CONNECT-frame build.
 - **NATS-JetStream**: configured with JWT-Auth; validates incoming
   JWT against the SPIRE trust-bundle.
 
 ### 2.2 Trust boundaries
 
-| Boundary | Owner | Tag-10 stance |
+| Boundary | Owner | stance |
 |---|---|---|
-| SPIRE-Server config (issuer, TTL, datastore) | Kai (DevOps-track) | unchanged from Tag-6 |
-| SPIRE-Agent config (attestor selectors, server-DNS) | Kai (DevOps-track) | unchanged from Tag-9 |
-| Workload-API UDS path inside persona-container | Kai + Reza (Z-A) | path-by-name (`/run/spire/agent-sockets/api.sock`) |
-| `WatchJWTSVIDs` background stream | Reza (wirelang-side adapter) | path-by-name; NOT in Tag-10 substrate |
-| `JwtSvidCache` shape + lifecycle | Reza (wirelang-side adapter) | Tag-10 references the Protocol surface; `InMemorySvidCache` is a hermetic-test stub |
-| `user_jwt_cb` callable | Kai (Tag-10 factory) | factory in `scripts/nats_jwt_callback_skizze.py` |
-| NATS-server JWT-Auth config | Kai (DevOps-track) | Phase-2.5+ Operator-Hand slot |
-| JWT-SVID validation against trust-bundle | NATS-server | not part of Tag-10 substrate |
+| SPIRE-Server config (issuer, TTL, datastore) | infrastructure engineering (DevOps-track) | unchanged from |
+| SPIRE-Agent config (attestor selectors, server-DNS) | infrastructure engineering (DevOps-track) | unchanged from |
+| Workload-API UDS path inside persona-container | infrastructure engineering + protocol engineering (Z-A) | path-by-name (`/run/spire/agent-sockets/api.sock`) |
+| `WatchJWTSVIDs` background stream | protocol engineering (wirelang-side adapter) | path-by-name; NOT in substrate |
+| `JwtSvidCache` shape + lifecycle | protocol engineering (wirelang-side adapter) | references the Protocol surface; `InMemorySvidCache` is a hermetic-test stub |
+| `user_jwt_cb` callable | infrastructure engineering (factory) | factory in `scripts/nats_jwt_callback_skizze.py` |
+| NATS-server JWT-Auth config | infrastructure engineering (DevOps-track) | Phase-2.5+ Operator-Hand slot |
+| JWT-SVID validation against trust-bundle | NATS-server | not part of substrate |
 
 ## 3. The `user_jwt_cb` Client-Side Callback Pattern
 
@@ -125,9 +125,9 @@ and a SPIFFE-aware `signature_cb` is wired alongside the
 `user_jwt_cb`. Phase-2.5 Operator-Hand bring-up (live wire-up) is the
 verification point for this branch ordering.
 
-### 3.2 Z-A-Skizze cross-reference
+### 3.2 Z-A-sketch cross-reference
 
-Per Reza-Z-A-Ack-Slot-4 (`reza/outbox/2026-05-11-z-a-cross-review-
+Per Z-A-Ack-Slot-4 (`reza/outbox/2026-05-11-z-a-cross-review-
 ack.md` §4.2):
 
 > The NATS-JWT refresh-on-reconnect behaviour is a **Client-Side
@@ -138,13 +138,13 @@ ack.md` §4.2):
 > `user_jwt` string parameter) is the correct integration point.
 
 `docs/spiffe-jwt-svid-identity.md` §4.2-Punkt-7 + §6 §3 document the
-same correction and are the upstream reference for Tag-10 substrate.
+same correction and are the upstream reference for substrate.
 
-### 3.3 Refresh-on-Reconnect contract (Tag-10 substrate)
+### 3.3 Refresh-on-Reconnect contract (substrate)
 
 ```
 ┌───────────────────────────────────────────────────────────┐
-│ Wirelang-side adapter (Reza Sprint-6+)                    │
+│ Wirelang-side adapter (protocol track)                    │
 │                                                           │
 │   ┌────────────────────┐    Workload-API     ┌────────┐  │
 │   │ WatchJWTSVIDs      │ ◄──UDS stream─── ─► │ SPIRE  │  │
@@ -161,7 +161,7 @@ same correction and are the upstream reference for Tag-10 substrate.
 └───────────────────────────────────────────│──────────────┘
                                             │
                               ┌─────────────│─────────────┐
-                              │ Tag-10 factory             │
+                              │ callback factory           │
                               │  make_user_jwt_cb(cache)   │
                               │  → returns closure         │
                               └─────────────│──────────────┘
@@ -174,7 +174,7 @@ same correction and are the upstream reference for Tag-10 substrate.
                               └─────────────────────────────┘
 ```
 
-Three invariants the Tag-10 callback enforces:
+Three invariants the callback enforces:
 
 1. **Current-state read on every invocation.** The closure captures
    the cache reference, not a token snapshot. Each `nats-py`
@@ -184,16 +184,16 @@ Three invariants the Tag-10 callback enforces:
    that cleared the cache), the callback raises
    `NatsJwtCallbackCacheEmpty`. The persona-container boot path
    gates `nats.connect()` on cache-hot status (wirelang-side
-   adapter exposes a "wait for first SVID" surface; Tag-10 does
+   adapter exposes a "wait for first SVID" surface; does
    not).
 3. **Expiry-check is opt-in.** Default `enforce_exp=False` — NATS-
    server validates `exp` server-side. Tests / diagnostic paths
    set `enforce_exp=True` to surface stalled `WatchJWTSVIDs`
    streams client-side.
 
-## 4. Cross-reference: Reza Mock-Adapter
+## 4. Cross-reference: protocol engineering Mock-Adapter
 
-Reza Sprint-6 Tag-5 (`9c94517`) added
+protocol engineering (`9c94517`) added
 `wirelang/adapters/spiffe_workload_api.py` containing:
 
 - `JwtSvid` value object (frozen dataclass; spiffe_id, token,
@@ -203,28 +203,28 @@ Reza Sprint-6 Tag-5 (`9c94517`) added
 - Error hierarchy: `SpiffeAdapterError`, `...Unavailable`,
   `...AttestationFailed`, `...AudienceRejected`.
 
-**Tag-10 reference posture (path-by-name, NO import):**
+**reference posture (path-by-name, NO import):**
 
-- The Tag-10 skizze module (`scripts/nats_jwt_callback_skizze.py`)
+- The skizze module (`scripts/nats_jwt_callback_skizze.py`)
   references the wirelang adapter path in its module docstring and
   in error messages (`NatsJwtCallbackCacheEmpty.__str__` names
   `wirelang/adapters/spiffe_workload_api.py JwtSvidCache wait-for-
   first-SVID surface`).
-- The Tag-10 tests do NOT `import wirelang.*`; they use the local
+- The tests do NOT `import wirelang.*`; they use the local
   `InMemorySvidCache` stub. Verified by Block-7 test
   `test_path_by_name_pin_for_wirelang_adapter_holds`.
-- **Why path-by-name**: the wirelang adapter is on Reza-track and
-  evolves on a different branch; the Tag-10 branch
+- **Why path-by-name**: the wirelang adapter is on the protocol track and
+  evolves on a different branch; the branch
   (`kai/phase-2-sprint-6-tag-10-nats-jwt-auth` forked from
   `kai/phase-2-sprint-6-tag-9-spire-agent-sidecar` tip `740215b`)
-  does NOT carry Reza's `9c94517` adapter commit. Importing would
+  does NOT carry protocol engineering's `9c94517` adapter commit. Importing would
   break the hermetic-skizze constraint.
 
 **Real-world wire-up** (Phase-2.5+ Operator-Hand):
 
-The wirelang-side `JwtSvidCache` (when Reza Tag-7+ lands the real
+The wirelang-side `JwtSvidCache` (when protocol engineering lands the real
 adapter `real_spiffe_workload_api.py`) implements the
-`JwtSvidCacheView` Protocol from Tag-10. The persona-container boot
+`JwtSvidCacheView` Protocol from. The persona-container boot
 path:
 
 1. Instantiates the wirelang adapter (real or mock).
@@ -232,7 +232,7 @@ path:
 3. Builds the callback: `cb = make_user_jwt_cb(adapter.cache)`.
 4. Calls `await nats.connect(url, user_jwt_cb=cb, signature_cb=...)`.
 
-## 5. Acceptance criteria (Tag-10)
+## 5. Acceptance criteria
 
 | AC | Criterion | Status |
 |---|---|---|
@@ -245,30 +245,30 @@ path:
 | AC-7 | Expiry-check opt-in via `enforce_exp` parameter | done (Block-6 tests 6-1, 6-2, 6-3) |
 | AC-8 | Clock-injection for deterministic tests | done (Block-6 test 6-3) |
 | AC-9 | `InMemorySvidCache` validates input shape (token type, naive datetime, empty SPIFFE-ID) | done (Block-2 tests 2-1, 2-2, 2-3) |
-| AC-10 | Tag-10 substrate does NOT import from `wirelang.*` | done (Block-7 test 7-3) |
+| AC-10 | substrate does NOT import from `wirelang.*` | done (Block-7 test 7-3) |
 | AC-11 | `docs/nats-jwt-auth-phase-2-4.md` runbook present | done (this file) |
-| AC-12 | Hermetic-only — no real `nats.connect()`, no real SPIRE-Agent calls | done (verify: no `import nats`, no `from nats` in Tag-10 module) |
-| AC-13 | Reza-adapter cross-reference path-by-name documented | done (§4) |
+| AC-12 | Hermetic-only — no real `nats.connect()`, no real SPIRE-Agent calls | done (verify: no `import nats`, no `from nats` in module) |
+| AC-13 | Protocol-adapter cross-reference path-by-name documented | done (§4) |
 | AC-14 | `nats-py` Z. 110/317/370/1666-1668 cited line-by-line | done (§3.1 table) |
-| AC-15 | Z-A-Skizze §4.2-Punkt-7 + §6 §3 cross-referenced | done (§3.2) |
-| AC-16 | Test-self-check pins 20 tests in the Tag-10 test file | done (Block-8 test 8-1) |
+| AC-15 | Z-A-sketch §4.2-Punkt-7 + §6 §3 cross-referenced | done (§3.2) |
+| AC-16 | Test-self-check pins 20 tests in the test file | done (Block-8 test 8-1) |
 | AC-17 | Full hermetic suite: +20 tests, 0 regressions on green tests | done (orchestrator 207 passed, full hermetic 341 passed, 25 skipped; 3 F-5 carry-over unchanged) |
-| AC-18 | Worktree-Pattern ADR-0049 followed | done (worktree `/tmp/kai-sprint-6-tag-10-nats-jwt-runtime` from Tag-9 tip `740215b`) |
+| AC-18 | Worktree-Pattern ADR-0049 followed | done (worktree `/tmp/kai-sprint-6-tag-10-nats-jwt-runtime` from tip `740215b`) |
 | AC-19 | Tool-Surface-Stempel ADR-0050 declared | done (outbox header) |
 | AC-20 | Sandbox-Host-Trennung ADR-0051 honoured (no podman/skopeo/cosign/socket calls) | done |
 
 ## 6. Operator-Hand workflow (Phase-2.5+ Live Wire-Up)
 
-Tag-10 substrate is hermetic. The live wire-up is Phase-2.5+ and is
+substrate is hermetic. The live wire-up is Phase-2.5+ and is
 Operator-Hand (per ADR-0051 sandbox-trennung). The workflow below is
 a runbook for the Operator; the persona-container does NOT execute
 these steps autonomously.
 
 ### 6.1 Pre-conditions
 
-- [ ] Tomás Zone-C-Ack for SPIRE-Server digest-pin (F-1 carry-over).
-- [ ] Tomás Zone-C-Ack for SPIRE-Agent digest-pin (F-1' from Tag-9).
-- [ ] Reza Tag-7+ `real_spiffe_workload_api.py` landed in the wirelang
+- Zone-C-Ack for SPIRE-Server digest-pin (F-1 carry-over).
+- Zone-C-Ack for SPIRE-Agent digest-pin (F-1' from).
+- protocol engineering `real_spiffe_workload_api.py` landed in the wirelang
       adapter substrate (currently F-8 carry-over).
 - [ ] NATS-server image with JWT-Auth-compile-flag (NATS 2.x default).
 - [ ] SPIRE-Server registration-entry for the persona-container's
@@ -339,75 +339,73 @@ these steps autonomously.
 
 ## 8. Follow-up items
 
-| ID | Item | Owner | Status (Tag-10) |
+| ID | Item | Owner | Status |
 |---|---|---|---|
-| F-1 | SPIRE-Server digest-pin substitution | Operator-Hand + Tomás Zone-C-Ack | unchanged from Tag-9 — pending |
-| F-1' | SPIRE-Agent digest-pin substitution | Operator-Hand + Tomás Zone-C-Ack | unchanged from Tag-9 — pending |
-| F-5 | WAT-Aggregator-Test-Isolation drift (3 failing tests) | Tomás WAT-Core-track | unchanged carry-over — 3 fail, Tag-10 does not touch |
-| F-7 | Phase-2.5 End-to-End Smoke (real SPIRE + NATS) | Operator-Hand | NEW Tag-10 prereqs added; gated on F-1, F-1', F-8 |
-| F-8 | Reza Tag-7+ `real_spiffe_workload_api.py` landing | Reza | observed Reza-Sprint-6-Tag-7 branch `reza-sprint-6-tag-7-publisher-cli-unrevoke` is publisher-CLI, NOT the SPIFFE adapter; `real_spiffe_workload_api.py` not yet landed; Tag-10 keeps the path-by-name reference posture |
-| F-9 (NEW) | Phase-2.6 Trust-Bundle-Rotation Runbook | Kai | scoped: rotation procedure when SPIRE-Server reissues trust-bundle (NATS-server config reload + persona-container reconnect verification) |
-| F-10 (NEW) | Quadlet extension for SPIRE-Server + Agent | Kai | scoped: analog Tag-1 `quadlet/wakir-nats-server.container` pattern; lands after Phase-2.5 live-validation |
+| F-1 | SPIRE-Server digest-pin substitution | Operator-Hand + dev engineering Zone-C-Ack | unchanged from — pending |
+| F-1' | SPIRE-Agent digest-pin substitution | Operator-Hand + dev-engineering Zone-C ack | unchanged — pending |
+| F-5 | WAT-Aggregator-Test-Isolation drift (3 failing tests) | dev engineering (WAT core) | unchanged carry-over — the three failures do not touch this substrate |
+| F-7 | Phase-2.5 End-to-End Smoke (real SPIRE + NATS) | Operator-Hand | NEW prereqs added; gated on F-1, F-1', F-8 |
+| F-8 | `real_spiffe_workload_api.py` landing | protocol engineering | the observed protocol-track branch is publisher-CLI, NOT the SPIFFE adapter; `real_spiffe_workload_api.py` not yet landed; keeps the path-by-name reference posture |
+| F-9 (NEW) | Phase-2.6 Trust-Bundle-Rotation Runbook | infrastructure engineering | scoped: rotation procedure when SPIRE-Server reissues trust-bundle (NATS-server config reload + persona-container reconnect verification) |
+| F-10 (NEW) | Quadlet extension for SPIRE-Server + Agent | infrastructure engineering | scoped: analog `quadlet/wakir-nats-server.container` pattern; lands after Phase-2.5 live-validation |
 
-## 9. Risk register (Tag-10)
+## 9. Risk register
 
 | Risk | Disposition |
 |---|---|
 | `nats-py` Z. 1666-1668 callback invocation is gated on `nonce` + `signature_cb` | Phase-2.5 live wire-up MUST configure a SPIFFE-aware `signature_cb` alongside `user_jwt_cb`; documented in §3.1 nuance |
-| `JwtSvidCacheView` Protocol drift between Tag-10 stub and Reza real adapter | Path-by-name pin (Block-7 test) breaks if path moves; Protocol-shape drift is Z-A re-coordination signal |
-| Persona-container boot races (cold cache at first `nats.connect()`) | Persona-container MUST await cache-hot signal from wirelang adapter; Tag-10 callback raises a clean `NatsJwtCallbackCacheEmpty` if the gate is missed |
+| `JwtSvidCacheView` Protocol drift between stub and protocol engineering real adapter | Path-by-name pin (Block-7 test) breaks if path moves; Protocol-shape drift is Z-A re-coordination signal |
+| Persona-container boot races (cold cache at first `nats.connect()`) | Persona-container MUST await cache-hot signal from wirelang adapter; callback raises a clean `NatsJwtCallbackCacheEmpty` if the gate is missed |
 | Stale token in cache surviving past `exp` | `enforce_exp=True` opt-in raises client-side; default relies on NATS-server-side `exp` validation |
-| Reza adapter Protocol shape change | Tag-10 `InMemorySvidCache` MUST satisfy `JwtSvidCacheView` Protocol; any drift breaks Block-1 Protocol tests + forces co-edit |
+| protocol engineering adapter Protocol shape change | `InMemorySvidCache` MUST satisfy `JwtSvidCacheView` Protocol; any drift breaks Block-1 Protocol tests + forces co-edit |
 | NATS-server JWT-Auth config typo (trust-bundle pem mis-pathed) | Operator-Hand checklist §6.1 step + §6.4 first-symptom row |
 
 ## 10. Anti-Bullshit-Disziplin (P5/P7/P2)
 
 - **Authoring timestamp:** `date -u` 2026-05-12T18:30:45Z
-  (CEST 20:30, Phase-2 Sprint-6 Tag-10 box).
+  (Phase-2 box).
 - **`nats-py` line-by-line citation verified (P7):** Read tool
   against `/var/home/fred/AI-Corp/agents-workspaces/kai/wakir-
   runtime/.venv/lib/python3.14/site-packages/nats/aio/client.py`
   Z. 100-115, 313-322, 365-379, 1660-1680. Substance matches the
-  Z-A-Skizze §4.2-Punkt-7 + §6 §3 citations.
-- **Reza-Mock-Adapter source verified (P7):** `git show 9c94517:
+  Z-A sketch §4.2 item 7 + §6 §3 citations.
+- **Mock-Adapter source verified (P7):** `git show 9c94517:
   wirelang/adapters/spiffe_workload_api.py` against
   `/tmp/kai-sprint-6-tag-10-nats-jwt-runtime` — `MockSpiffeWorkloadApi
   Adapter`, `JwtSvid`, error hierarchy confirmed.
-- **Reza Tag-7 publisher-CLI branch verified (P7):** `git log --oneline
+- **Protocol publisher-CLI branch verified (P7):** `git log --oneline
   origin/reza-sprint-6-tag-7-publisher-cli-unrevoke -1` — branch name
   is publisher-cli, not adapter. F-8 status confirmed.
-- **Tag-10 test-execution verified:** `pytest tests/orchestrator/
+- **test-execution verified:** `pytest tests/orchestrator/
   test_nats_jwt_auth_phase_2_4.py -v` → 20 passed.
 - **Full hermetic suite verified:** `pytest tests/` → 341 passed,
-  25 skipped, 3 failed (F-5 WAT-Aggregator carry-over, Tomás-Hand).
+  25 skipped, 3 failed (F-5 WAT-Aggregator carry-over).
 - **P2 explicit:** the Phase-2.5 live wire-up step ordering
   (`signature_cb` + `user_jwt_cb` paired) is documented based on
   `nats/aio/client.py` Z. 1661-1668 branch reading; behaviour under
   live SPIFFE-JWT-Auth is verified by Operator-Hand at Phase-2.5
   bring-up (F-7).
-- **P2 explicit:** the wirelang-side `JwtSvidCache` shape is Tag-10's
-  Protocol surface proposal; Reza-track may refine the surface
-  (e.g. add `wait_for_first_svid()` async method); Tag-10's path-by-
+- **P2 explicit:** the wirelang-side `JwtSvidCache` shape is's
+  Protocol surface proposal; the protocol track may refine the surface
+  (e.g. add a `wait_for_first_svid()` async method); the path-by-
   name pin breaks loudly if the path or core surface drifts.
 
-## 11. Domain-Disziplin (Tag-10 footer)
+## 11. Domain-Disziplin (footer)
 
 - **DevOps-track-owned:** the `user_jwt_cb` callback factory pattern
   itself, the runbook, the hermetic tests, the Operator-Hand
   bring-up procedure, the Trust-Bundle-Rotation slot (F-9), the
   Quadlet extension slot (F-10).
-- **Wirelang-side-owned (Reza):** the `JwtSvidCache` concrete type,
+- **Wirelang-side-owned (protocol engineering):** the `JwtSvidCache` concrete type,
   the `WatchJWTSVIDs` background stream implementation, the real
-  `spiffe_workload_api.py` adapter (Tag-7+ landing), the Persona-
+  `spiffe_workload_api.py` adapter (pending), the Persona-
   Container boot-path "wait for first SVID" surface.
-- **NATS-server-side-owned (Kai, Phase-2.5):** the JWT-Auth config,
+- **NATS-server-side-owned (infrastructure engineering, Phase-2.5):** the JWT-Auth config,
   the trust-bundle import, the audience-validation policy.
 - **Cross-Review-Zone-A bound:** the Protocol surface (`JwtSvidCache
   View`) is Z-A-Substanz; any shape change triggers Z-A re-
   coordination.
-- **No ADR introduced:** Tag-10 is hermetic skizze, no architecture
+- **No ADR introduced:** is hermetic skizze, no architecture
   decision. Phase-2.5 live wire-up may surface ADR-worthy decisions
   (e.g. `signature_cb` SPIFFE-binding implementation choice); flagged
   for that box.
-
-— Kai
