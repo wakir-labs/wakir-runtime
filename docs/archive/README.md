@@ -38,6 +38,9 @@ git checkout archive/pre-phase-4 -- docs/phase-3c/   # restore a directory
 | `evidence/audits/2026-05-18-nats-jetstream-subjects-audit.md` | First generated run of the NATS-JetStream subjects / publish-mode audit (0 drift rows) | baseline referenced by `wirelang/specs/wirelang-spec-v0-4.md` §8; the audit itself still runs via `scripts/audit/nats-jetstream-subjects-audit.py` |
 | `evidence/audits/phase-3a-15-crate-consistency-2026-05-19.md` | Phase-3a 15-crate consistency audit (Python ↔ Rust ↔ pin-pack) | reconciliation basis for spec v0.4.1 / v0.4.2; pinned by `tests/audit/test_phase_3a_15_crate_consistency.py` |
 | `evidence/audits/persona-engine-0-5-3-production-readiness-2026-05-19.md` | Persona-Engine 0.5.3 production-readiness audit (D1–D7 verdicts) | release evidence for the shipped 0.5.3 engine; pinned by `wirelang/tests/persona_engine/test_tag63_production_readiness_audit.py` and the engine-version-drift allowlist |
+| `evidence/audits/persona-engine-0-5-2-production-readiness-2026-05-19.md` | Persona-Engine 0.5.2-final-pre-cutover production-readiness audit (seven dimensions) | predecessor release evidence for the 0.5.3 audit; pinned by `wirelang/tests/persona_engine/test_tag56_production_readiness_audit.py` |
+| `evidence/audits/adr-spec-compliance-audit-2026-05-19.md` | ADR ↔ spec compliance audit (drift summary per ADR) | basis of the six path errata below; pinned by `wirelang/tests/test_adr_spec_compliance_audit_tag54.py` |
+| `evidence/decisions/adr-errata-path-typo-fixes.md` | Errata addendum ERR-S1..S6 for path typos in accepted ADRs | records corrections to accepted decision records; pinned by `wirelang/tests/test_adr_errata_tag55.py` |
 
 Design knowledge extracted from deleted workflows lives in
 `docs/design-notes/` (e.g. `backend-rollback.md`), not here.

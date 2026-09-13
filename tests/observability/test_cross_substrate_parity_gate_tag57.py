@@ -5,7 +5,8 @@
 Audit anchor
 ------------
 Selin Tag-56 Persona-Engine 0.5.2-final production-readiness audit
-(``reports/audit/persona-engine-0-5-2-production-readiness-2026-05-19.md``)
+(``docs/archive/evidence/audits/
+persona-engine-0-5-2-production-readiness-2026-05-19.md``)
 left OPEN-J1 open:
 
 > OPEN-J1: Cross-substrate-parity-gate green on PR (Kai Zone-J)

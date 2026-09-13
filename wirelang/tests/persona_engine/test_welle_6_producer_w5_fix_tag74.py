@@ -769,6 +769,27 @@ def test_w5_anchor_fix_helper_module_maps_welle_4_to_kw_26():
     assert module.CANONICAL_KW_ANCHOR[4] == "KW-26"
 
 
+def test_w5_anchor_fix_reconciliation_doc_committed():
+    """The Tag-74 reconciliation doc MUST exist at the canonical path."""
+    reconciliation_doc = (
+        REPO_ROOT
+        / "docs"
+        / "persona-engine"
+        / "welle-5-kw-anchor-reconciliation-tag74.md"
+    )
+    assert reconciliation_doc.exists(), (
+        f"Tag-74 reconciliation doc missing at {reconciliation_doc}; "
+        "the engine-side audit-trail anchor for the W4+W5 KW-anchor "
+        "alignment lives in this file."
+    )
+    body = reconciliation_doc.read_text(encoding="utf-8")
+    # Pin the Source-of-Truth resolution rule and the W4+W5 KW-26 fix.
+    assert "pre-cutover-acceptance-run-order.md" in body
+    assert "KW-26" in body
+    assert "Welle-5" in body or "welle-5" in body
+    assert "Welle-4" in body or "welle-4" in body
+
+
 # ---------------------------------------------------------------------------
 # (9) Audit-record byte-canonical JSON for the Welle-6 record.
 # ---------------------------------------------------------------------------
