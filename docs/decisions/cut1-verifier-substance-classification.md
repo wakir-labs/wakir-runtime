@@ -2,7 +2,7 @@
 
 **Datum:** 2026-05-16
 **Trigger:** ADR-0062 Phase-2 Cut-1 (`wakir-verify` Apache-2.0)
-**Autor:** Tomás Reinhart (Dev-Engineering, Matrix-Lead)
+**Autor:** Dev-Engineering
 **ADR-Anker:** ADR-0034 §3.1, ADR-0062 "Cut 1", ADR-0061 (License-Hygiene Phase-1)
 
 ## Zweck
@@ -10,7 +10,7 @@
 Inventar der Verifier-Substanz in `wakir-labs/wakir-runtime` mit
 Klassifikation **Brand-Beweis-Werkzeug** (Apache-2.0, Migration nach
 `wakir-verify`) vs. **Hosted-Service-Substrat** (BUSL-1.1, bleibt in
-wakir-runtime). Re-Klassifikationen sind Mira-Hand-autorisiert via
+wakir-runtime). Re-Klassifikationen sind maintainer-autorisiert via
 ADR-0062 §"Cut 1 Source-Origin"-Erweiterung in Verbindung mit
 ADR-0034 §3.1.
 
@@ -74,16 +74,16 @@ tests/
 
 Cross-Repo-Import-Adaption: `wakir-runtime`-Code, der bisher
 `wat.anchor.external_verifier.*` importiert hat, wird in einem
-Folge-Sprint auf `wakir_verify.*` umgestellt (Reza-Hand pro
-ADR-0062 §Cut-1-Folgeartefakte). Dieses File dokumentiert nur die
-Substanz-Klassifikation, nicht die Adapter-Welle.
+Folgeschritt auf `wakir_verify.*` umgestellt (ADR-0062
+§Cut-1-Folgeartefakte). Dieses File dokumentiert nur die
+Substanz-Klassifikation, nicht die Adapter-Umstellung.
 
 ## Risiken
 
 - **Cross-Repo-Dependency-Drift:** Tests in `wakir-runtime` die
   bisher `from wat.anchor.external_verifier import ...` nutzten,
-  laufen weiter, weil Source-Code bleibt parallel im wakir-runtime
-  noch eine Welle. Removal-Welle ist Cut-1-Folgesprint nach Adopter-
+  laufen weiter, weil der Source-Code parallel im wakir-runtime
+  bleibt. Die Entfernung ist ein Cut-1-Folgeschritt nach Adopter-
   Feedback (~1 Woche).
 
 - **Merkle-Read-Half-Re-Klassifikation BUSL→Apache:** partial-
@@ -100,5 +100,5 @@ Substanz-Klassifikation, nicht die Adapter-Welle.
 ## Verweise
 
 - ADR-0034 §3.1 — Tier-1-Apache-Klassifikation `wakir-verify` CLI
-- ADR-0061 — License-Hygiene-Welle Phase-1
+- ADR-0061 — License-Hygiene Phase-1
 - ADR-0062 — Cut-1 Phase-2-Repo-Split-Strategie

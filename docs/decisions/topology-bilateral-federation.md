@@ -5,7 +5,7 @@ SPDX-License-Identifier: BUSL-1.1
 SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 -->
 
-**Status:** OPEN — AR/Mira decision pending. Sprint-Tag-8 ships
+**Status:** OPEN — maintainer decision pending. The repository ships
 substrate for both variants; the runtime selector
 `WAKIR_BILATERAL_PRECHECK` chooses between them.
 
@@ -14,7 +14,7 @@ substrate for both variants; the runtime selector
 VMs to be in federation-mode. The current Pilot topology is
 asymmetric:
 
-- **wakir-pilot** runs in `single-org-mode` (one Tomás-persona
+- **wakir-pilot** runs in `single-org-mode` (one persona
   container, V2-Anchor, no federation peer). This is the
   ADR-0058 Doppelbetrieb-shadow host.
 - **wakir-orbit** runs in `federation-mode` against wakir-pilot.
@@ -36,12 +36,12 @@ SKIPs on either side.
 - Closes Bug-39 inside the Pilot-Phase. The federation gate runs
   on both sides; observability of the federation-bundle-sync path
   improves.
-- The Migration-Pilot acceptance criteria (ADR-0058 §"Phase 4
-  Cutover") can be exercised end-to-end before Phase-3 cutover.
+- The migration-pilot acceptance criteria of ADR-0058 can be
+  exercised end-to-end before the production switchover.
 
 **Cons:**
 
-- The running Tomás-persona container on wakir-pilot needs a
+- The running persona container on wakir-pilot needs a
   re-spawn after the mode-flip. The SPIRE-server-federation-${side}
   unit is a different systemd unit name; the SPIFFE-ID changes
   from
@@ -53,7 +53,7 @@ SKIPs on either side.
   in the Pilot-Phase because the persona-engine state-pack is
   involved.
 
-**Substrate shipped Sprint-Tag-8:**
+**Substrate in the repository:**
 
 - `WAKIR_BILATERAL_PRECHECK=1` enables `step_15_bilateral_precheck`
   in `infra/spire/federation/wakir-pilot-bootstrap.sh`. The precheck:
@@ -68,9 +68,9 @@ SKIPs on either side.
   wakir-pilot) is the regular bootstrap path; the persona re-spawn
   stays Operator-Hand because it touches the state-pack.
 
-## Option B — Sprint-12+ Production-Setup-Item (park to Phase 3)
+## Option B — production-setup item (park to the rollout phase)
 
-Park Bug-39 as a Phase-3 Production-rollout item. The asymmetric
+Park the asymmetry as a production-rollout item. The asymmetric
 topology stays in place for the remainder of the Pilot-Phase; both
 VMs flip to federation-mode in a single coordinated Operator-Hand
 window during Phase-3 cutover.
@@ -79,10 +79,10 @@ window during Phase-3 cutover.
 
 - Zero Pilot-Phase Operator-Hand cost. The Doppelbetrieb-shadow
   keeps running on the topology that has been live since 2026-05-13.
-- The mode-flip + persona re-spawn lands in the Phase-3 cutover
-  window which is already an Operator-Hand-coordinated event
-  (ADR-0058 §"Phase 4 Cutover"). No additional re-spawn-window
-  needs to be scheduled.
+- The mode-flip + persona re-spawn lands in the production
+  switchover window, which is already an operator-coordinated event
+  per ADR-0058. No additional re-spawn window needs to be
+  scheduled.
 
 **Cons:**
 
@@ -90,16 +90,16 @@ window during Phase-3 cutover.
   on the pilot-side until Phase-3. A bug in the bundle-sync path
   may surface late.
 - The Pilot-Phase acceptance criteria (ADR-0058) cannot be checked
-  end-to-end in symmetric federation-mode before cutover.
+  end-to-end in symmetric federation-mode before the switchover.
 
-**Substrate shipped Sprint-Tag-8:**
+**Substrate in the repository:**
 
 - Default behaviour. `WAKIR_BILATERAL_PRECHECK` unset or `0`;
   `step_15_bilateral_precheck` is a no-op.
 - The asymmetric topology continues to run.
-- This decision-note captures the topology rationale for AR review.
+- This decision-note captures the topology rationale for review.
 
-## Decision-points for AR / Mira
+## Decision points
 
 1. **Severity of the bundle-sync gate gap.** Is the Doppelbetrieb-
    shadow value sufficient to defer federation-bundle-sync
@@ -129,8 +129,5 @@ window during Phase-3 cutover.
   documented in the bootstrap header.
 
 Either option can be activated without a source-patch — the
-decision is purely runtime-selectable. Both substrates ship in the
-same PR-bundle (Sprint-Tag-8) so the AR can pick the variant
-without Engineering-rework.
-
-— Kai
+decision is purely runtime-selectable. Both substrates ship
+together so the variant can be picked without engineering rework.
