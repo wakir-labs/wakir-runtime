@@ -1,8 +1,8 @@
 {
   "schema_registry_id": "wakir.federation.caveat-override-event-export/1",
   "schema_file_path": "wirelang/schemas/caveat-override-event-export.json",
-  "schema_file_sha256": "353a617e30a8c25842f66d815b3750043a14d64e6bb6c172718429e6708464a2",
-  "schema_file_bytes": 6988,
+  "schema_file_sha256": "b170ecbf741fecbdfeb6cb0869771cc414042c9be14a266d31a0001fd2a5b786",
+  "schema_file_bytes": 6958,
   "anchor_kind": "wakir.schema-registry.ots-anchor/1",
   "anchor_digest_algorithm": "sha256",
   "anchor_digest_target": "schema.sha256.bin",
