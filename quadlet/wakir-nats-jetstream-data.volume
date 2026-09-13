@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-6 — Quadlet volume sidecar for JetStream persistence.
+# Quadlet volume sidecar for JetStream persistence.
 # Mirror of compose/nats.yaml top-level volumes.jetstream_data.name.
 #
 # Install path: /etc/containers/systemd/wakir-nats-jetstream-data.volume

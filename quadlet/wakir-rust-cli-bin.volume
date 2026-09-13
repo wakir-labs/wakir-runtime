@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Tag-22 Mini-Welle — Named-volume sidecar for the Phase-3b Rust-CLI
+# Named-volume sidecar for the Phase-3b Rust-CLI
 # binaries that the persona-engine production-default switch
 # (``wirelang.persona_engine.rust_backend_switch``) subprocess-bridges
-# to at the canonical ``/opt/wakir/bin/`` paths. Retry after Tag-21
-# quota-hit; identical bytes-shape as the Tag-21 draft.
+# to at the canonical ``/opt/wakir/bin/`` paths. Retry after
+# quota-hit; identical bytes-shape as the draft.
 #
 # This volume backs the host-side install location of five Rust-CLI
 # binaries extracted from the published ``wakir-persona-engine``
-# carrier image (Tag-17/18/19/20 Mini-Welle PRs #167, #169, #171,
+# carrier image (PRs #167, #169, #171,
 # #175):
 #
 #   * /opt/wakir/bin/wakir-persona-engine-recovery        (PR #167)
@@ -22,7 +22,7 @@
 # ----------------------------------------------------
 # The carrier image already ships the binaries at the canonical
 # in-image paths; persona-engine-internal callers consume them
-# directly. The Tag-21 host-side install path serves the OUT-OF-
+# directly. The host-side install path serves the OUT-OF-
 # CONTAINER consumers — Operator-Hand recovery-drill scripts,
 # systemd oneshot jobs, and CI/operator-toolchain probes that run
 # on the Pilot-VM host without entering the persona-engine
@@ -45,7 +45,7 @@
 # carrier image.
 
 [Unit]
-Description=Wakir Tag-22 Phase-3b Rust-CLI host-side binary volume
+Description=Wakir Phase-3b Rust-CLI host-side binary volume
 
 [Volume]
 # Default driver (local). No explicit Driver= line — Quadlet

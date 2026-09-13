@@ -9,17 +9,17 @@
 # Change Date: 2030-05-13 (four years after the first BSL-licensed
 # image publication, `wakir-provisioner:0.1.2`).
 # Change License: Apache License 2.0.
-"""Per-org NATS-JetStream KV bucket provisioner (Phase-2 Sprint-9 Tag-1,
-Sprint-9 Tag-2 multi-family extension).
+"""Per-org NATS-JetStream KV bucket provisioner (
+ multi-family extension).
 
-Sprint-8 Tag-4 (`wirelang.federation.marker_stack_kv`) introduced
+ (`wirelang.federation.marker_stack_kv`) introduced
 the marker-stack-event bucket FAMILY: one bucket per organisation,
-named ``wakir-marker-stack-{org_id}``. Sprint-9 Tag-2 introduced a
+named ``wakir-marker-stack-{org_id}``. introduced a
 second per-org family (`wirelang.federation.sequence_number_ledger_kv`):
 ``wakir-caveat-override-export-sequence-{org_id}``. Both families
 share the same per-org isolation contract; they differ only on
 ``max_value_size`` (32 KiB for marker-stack, 4 KiB for the ledger)
-and ``description``. The Sprint-2/4/5 inventory in
+and ``description``. The iteration-2/4/5 inventory in
 ``scripts/init-nats-buckets.py`` was hard-coded for a fixed seven-
 bucket layout where bucket names were inventory-globals. That driver
 cannot enrol per-org buckets because the org-id is supplied at runtime
@@ -39,25 +39,25 @@ This module is the per-org tier:
 3. Idempotency contract: re-running against a cluster that already
    has a bucket is a no-op. Drift between the live config and the
    documented ``BUCKET_CONFIG`` is REPORTED, never auto-corrected
-   (mirrors the Sprint-5 Tag-2 ``init-nats-buckets`` semantics).
+   (mirrors the ``init-nats-buckets`` semantics).
 4. Emits a structured JSON report on stdout and a human-readable log
    line per bucket on stderr.
 
-Bucket-family registry (Sprint-9 Tag-2)
+Bucket-family registry
 ---------------------------------------
 
 The driver carries a small registry of per-org families it
 provisions. Each family entry sources its constants byte-precisely
 from the Wirelang-side single-source-of-truth module:
 
-- **marker-stack** (Sprint-8 Tag-4):
+- **marker-stack**:
   ``wirelang.federation.marker_stack_kv`` — append-only per-org
   marker-event log; ``max_value_size=32_768``.
-- **sequence-ledger** (Sprint-9 Tag-2):
+- **sequence-ledger**:
   ``wirelang.federation.sequence_number_ledger_kv`` — durable
   ``SequenceNumberLedger`` cell-per-pair store with CAS-pin;
   ``max_value_size=4_096``. Imported defensively: if the Wirelang-
-  side module is absent (e.g. Reza-Tag-2 not yet merged into the
+  side module is absent (e.g. sequence-ledger module not yet merged into the
   consuming branch), this family is skipped silently and the
   driver continues to provision marker-stack buckets only.
 
@@ -69,13 +69,13 @@ cross-reference invariant for every registered family.
 Why a separate driver
 ---------------------
 
-The Sprint-5 ``init-nats-buckets`` driver has a fixed seven-bucket
+The ``init-nats-buckets`` driver has a fixed seven-bucket
 inventory and a tight cross-reference to Wirelang-side BUCKET_CONFIG
 constants. Layering per-org runtime buckets on top of that driver
 would either:
 
-- Make the inventory dynamic, breaking the Sprint-4-Tag-4 / Tag-5 /
-  Sprint-5-Tag-2 byte-mirror anchor invariants between the
+- Make the inventory dynamic, breaking the / /
+ byte-mirror anchor invariants between the
   orchestrator-side spec and the Wirelang-side consumer constants, or
 - Spawn a per-org code-path that the existing driver's tests do not
   cover, increasing the risk that a bug in the per-org path silently
@@ -107,7 +107,7 @@ test suite (`tests/orchestrator/test_nats_kv_bucket_provision.py`)
 asserts the re-export shape so a Wirelang-side rename breaks the
 test before the driver ships broken to ops.
 
-Bucket family layout (Sprint-8 Tag-4 reference)
+Bucket family layout (reference)
 -----------------------------------------------
 
 For two organisations ``acme`` and ``orbit``, the provisioner ensures
@@ -187,45 +187,45 @@ from typing import Any, Iterable, List, Mapping, Optional, Sequence
 # constants for every per-org bucket family. Importing them here
 # guarantees the driver and the consumers agree byte-precisely.
 #
-# Sprint-9 Tag-4 import-path posture
+# import-path posture
 # ----------------------------------
 # The provisioner is a SUBSTRATE-SHAPING driver: its job is to ensure
 # per-org JetStream KV buckets exist with the documented config. It
 # does NOT need any of the cryptographic / identity-stack machinery
-# the Wirelang Sprint-8 Tag-4 ``marker_stack_kv`` module pulls in
+# the Wirelang ``marker_stack_kv`` module pulls in
 # transitively (the identity-stack import chain on the live tip:
 # ``marker_stack_kv -> n2_evaluator -> identity.federation_resolver
 # -> identity.__init__ -> identity.key_derivation -> cryptography``).
 #
-# The Sprint-9 Tag-4 live-bring-up on the Pilot-VM exposed the
+# The live-bring-up on the Pilot-VM exposed the
 # transitive import as a runtime crash on a base image that does not
-# ship ``cryptography`` (Mira-Bug-Bilanz 2026-05-13, Bug 6). The
-# wakir-provisioner image (Tomás Sprint-9 Tag-4, Option A) ships
+# ship ``cryptography`` (live bring-up bug report 2026-05-13, Bug 6). The
+# wakir-provisioner image (Tomás Option A) ships
 # ``cryptography`` so the transitive chain resolves regardless; the
-# constants-only import path below (Reza Sprint-9 Tag-4, Option C)
+# constants-only import path below (Reza Option C)
 # flattens the chain so a future image that does NOT ship
 # ``cryptography`` still works.
 #
 # The two tracks are additive defence-in-depth: the image gap closure
 # unblocks the Pilot bring-up TODAY without depending on Reza
-# Sprint-9 Tag-4 merge timing, and the constants-only import path
+# merge timing, and the constants-only import path
 # eliminates a class of unnecessary transitive dependencies once Reza
-# Sprint-9 Tag-4 lands on the consuming branch.
+# lands on the consuming branch.
 #
 # The defensive try-chain below probes the lightweight constants-only
-# module first (Reza Sprint-9 Tag-4 target name) and falls back to
+# module first (Reza target name) and falls back to
 # the full module on tips that don't yet carry the disentangled
-# layer. The Reza-side module name is documented in
+# layer. The wirelang-side module name is documented in
 # ``2026-05-13-tomas-sprint-9-tag-4-bucket-init-image-fix.md`` as an
 # assumption to be ratified; if Reza picks a different name, the
 # fallback path still works.
 # ---------------------------------------------------------------------------
 
-# The Sprint-8 Tag-4 module is the canonical owner of the marker-stack
+# The module is the canonical owner of the marker-stack
 # bucket name prefix, the bucket-config mapping, and the validated
 # bucket-name derivation. We import them and propagate them; we DO NOT
-# re-encode. Probe the constants-only target first (Reza Sprint-9
-# Tag-4 disentanglement); fall back to the full module on baseline
+# re-encode. Probe the constants-only target first (Reza
+# disentanglement); fall back to the full module on baseline
 # tips that don't yet carry it.
 try:  # pragma: no cover - import-path probe
     from wirelang.federation.marker_stack_kv_constants import (  # noqa: E402
@@ -240,15 +240,15 @@ except ImportError:  # pragma: no cover - baseline path
         bucket_name_for_org as _marker_stack_bucket_name_for_org,
     )
 
-# Tag-1 backwards-compatibility alias: the single-family era exposed
+# backwards-compatibility alias: the single-family era exposed
 # ``bucket_name_for_org`` as a module-level name. We keep that alias
-# pointing at the marker-stack family so Tag-1 hermetic tests
+# pointing at the marker-stack family so hermetic tests
 # continue to pass byte-precisely.
 bucket_name_for_org = _marker_stack_bucket_name_for_org
 
-# The Sprint-9 Tag-2 module is the canonical owner of the durable
+# The module is the canonical owner of the durable
 # sequence-number-ledger bucket family. Defensive import: when the
-# consuming branch does not yet carry the Tag-2 module (e.g. the
+# consuming branch does not yet carry the module (e.g. the
 # Wirelang-side PR is still under review), the driver gracefully
 # degrades to the marker-stack family only. Same constants-only
 # probe + fallback as the marker-stack family above.
@@ -273,12 +273,12 @@ except ImportError:  # pragma: no cover - fall back to full module
         _sequence_ledger_bucket_name_for_org = None  # type: ignore[assignment]
         _HAS_SEQUENCE_LEDGER_FAMILY = False
 
-# The Sprint-Pengine-7 Tag-5 module is the canonical owner of the
-# persona-state bucket family (OI-PILOT-2, Selin-owned domain).
+# The module is the canonical owner of the
+# persona-state bucket family (OI-PILOT-2, persona-engine domain).
 # Same constants-only-import posture as the federation families:
 # the bucket-config + the name derivation come from a single source
 # of truth on the Persona-Engine side. Defensive try-chain in case
-# the Selin-side module is absent on a non-bundle deployment.
+# the persona-engine-side module is absent on a non-bundle deployment.
 try:  # pragma: no cover - constants-only probe
     from wirelang.persona.persona_state_kv_constants import (  # noqa: E402
         BUCKET_CONFIG as PERSONA_STATE_BUCKET_CONFIG,
@@ -325,10 +325,10 @@ class BucketFamily:
 def _registered_families() -> List[BucketFamily]:
     """Return the registered per-org bucket families.
 
-    Order is deterministic: marker-stack first (Sprint-8 Tag-4
+    Order is deterministic: marker-stack first (
     legacy alphabetical anchor), sequence-ledger second when
-    available (Sprint-9 Tag-2 paired-update), persona-state third
-    when available (Sprint-Pengine-7 Tag-5 OI-PILOT-2 paired-
+    available (paired-update), persona-state third
+    when available (OI-PILOT-2 paired-
     update). The persona-state family treats its driver-side
     identifier as the combined ``"<org_id>-<persona_id>"`` token;
     callers feed one such token per persona-per-org pair into the
@@ -486,7 +486,7 @@ def spec_for_org(
     ``org_id``) and re-keys the ``ttl_seconds`` field to the
     nats-py ``ttl`` name.
 
-    ``family`` defaults to the marker-stack family for Tag-1
+    ``family`` defaults to the marker-stack family for
     backwards-compatibility. Pass a registered :class:`BucketFamily`
     to request the spec for a different family.
 
@@ -519,7 +519,7 @@ def _drift_diff(
     ``{field: {"want": ..., "got": ...}}``. ``description`` is not
     checked (operators sometimes annotate it).
 
-    ``family`` defaults to the marker-stack family for Tag-1
+    ``family`` defaults to the marker-stack family for
     backwards-compatibility.
     """
     fam = family if family is not None else BUCKET_FAMILIES[0]
@@ -578,14 +578,14 @@ async def plan_and_apply(
     per registered family (in registry order: marker-stack first,
     then sequence-ledger when available). A malformed ``org_id``
     short-circuits the family loop with a single Tag-1-shape error
-    action (matches the Tag-1 hermetic-test invariant that errored
+    action (matches the hermetic-test invariant that errored
     orgs do not get N action records).
 
     ``families`` defaults to :data:`BUCKET_FAMILIES`. Passing a
     custom sequence is the test-friendly hook for asserting the
     multi-family fan-out shape under controlled fixtures.
 
-    ``persona_state_pairs`` (Sprint-Pengine-7 Tag-5 OI-PILOT-2):
+    ``persona_state_pairs`` (OI-PILOT-2):
     an additional iterable of combined ``"<org_id>-<persona_id>"``
     tokens that the persona-state family iterates over. The
     persona-state family treats each token as a single identifier
@@ -621,7 +621,7 @@ async def plan_and_apply(
         # Pre-validate the org_id once before fanning out per
         # family: if the identifier is malformed every family
         # rejects it identically, so we emit ONE error action
-        # (Tag-1-shape) rather than N.
+        # (-shape) rather than N.
         if not org_fams:
             # Degenerate case: caller filtered everything out via
             # the ``families=`` argument and only persona-state
@@ -758,7 +758,7 @@ async def plan_and_apply(
                     )
                 )
 
-    # Persona-state-pair iteration (Sprint-Pengine-7 Tag-5
+    # Persona-state-pair iteration (
     # OI-PILOT-2). Disjoint from the org-iteration above; each
     # pair token produces one action under the persona-state
     # family. Same status-classification + idempotency contract
@@ -1018,7 +1018,7 @@ def _collect_org_ids(
     wins.
 
     Raises :class:`ValueError` if no orgs are provided at all and
-    ``allow_empty`` is False (the Sprint-Pengine-7 Tag-5 path
+    ``allow_empty`` is False (the path
     permits an empty per-org input as long as
     ``persona_state_pairs`` carries at least one token).
     """

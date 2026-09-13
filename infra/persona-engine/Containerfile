@@ -9,16 +9,16 @@
 # Change License: Apache License 2.0.
 #
 # wakir-persona-engine — runtime image for the Wakir persona-engine
-# pilot binary (Sprint-10 Tag-4, ADR-0058 Pilot-Phase Schritt 9).
+# pilot binary (ADR-0058 Pilot-Phase Schritt 9).
 #
 # Substrate scope (0.1.0-pilot)
 # -----------------------------
 # This is the **substrate-closer** image for ADR-0058 Schritt 9. The
-# Quadlet ``quadlet/wakir-persona-tomas.container`` (Selin Sprint-
-# Pengine-7 Tag-5 OI-PILOT-1) was authored against
+# Quadlet ``quadlet/wakir-persona-tomas.container`` (Selin iteration-
+# Pengine-7 OI-PILOT-1) was authored against
 # ``ghcr.io/wakir-labs/wakir-persona-engine:0.1.0-pilot`` ahead of the
 # binary itself landing; this image fills the substrate gap so the
-# Pilot-VM can launch the Tomás-Doppelbetrieb-Shadow without further
+# Pilot-VM can launch the tomas-persona shadow run without further
 # image-availability blockers.
 #
 # The 0.1.0-pilot binary is a deliberately minimal Python stub
@@ -26,17 +26,17 @@
 # ``wirelang/specs/persona-engine-format-spec.md`` §"CLI invocation
 # contract" (``spawn`` + ``healthcheck`` subcommands) with the
 # Env-var contract declared in §"Env var contract". The full Rust
-# implementation lands on the Sprint-Pengine-8 axis (Selin); when
+# implementation lands on the axis; when
 # that lands, this image's tag rotates to ``0.2.0-pilot`` (or
 # ``1.0.0``) and the same Quadlet pin-rotation workflow
 # (``resolve-image-pins-ci``) closes the swap idempotently.
 #
 # Why ship the stub
 # -----------------
-# Three options were on the table (Tomás Sprint-10 Tag-4 substrate-
+# Three options were on the table (Tomás substrate-
 # gap-analysis 2026-05-15):
 #
-#   A) Block ADR-0058 Schritt 9 until Sprint-Pengine-8 lands the full
+#   A) Block ADR-0058 Schritt 9 until lands the full
 #      persona-engine. Cost: Pilot-Phase opens delayed; Doppelbetrieb
 #      4-Wochen-Clock starts later than approved.
 #   B) Hand-roll a podman-run command outside the Quadlet substrate
@@ -46,11 +46,11 @@
 #   C) Ship a substrate-stub image now that satisfies the Quadlet
 #      contract (CLI surface, healthcheck, Env-var contract,
 #      Sigstore-keyless-signed digest) and rotate to the real engine
-#      when Sprint-Pengine-8 lands. Cost: the Doppelbetrieb-Vergleich
+#      when lands. Cost: the Doppelbetrieb-Vergleich
 #      4-Wochen-Clock starts on a stub-engine that emits stub-output
 #      and does not yet drive comparable Engineering traffic.
 #
-# Mira-Hand-Decision 2026-05-15: option C, because the substrate-
+# operator decision 2026-05-15: option C, because the substrate-
 # layer (Quadlet, SPIRE-SVID, NATS-KV bucket, Doppelbetrieb-Shadow
 # bridging) is the actual ADR-0058 Schritt 9 risk-surface — those
 # moving pieces benefit from running against a real Pilot-VM with a
@@ -65,7 +65,7 @@
 # The image carries exactly the runtime wheel set:
 #
 #   * (none) — the stub is pure CPython stdlib (json, os, sys,
-#     signal, time, hashlib). The Sprint-Pengine-8 successor image
+#     signal, time, hashlib). The successor image
 #     will pull in nats-py + cryptography for SVID-fetch + NATS-KV
 #     state-pack persistence; the stub does neither (it emits the
 #     stub-mode telemetry log line and idles on SIGTERM).
@@ -105,7 +105,7 @@ FROM docker.io/library/python:3.13-slim@sha256:9d2e5553305c7c7b0097999bb17187c69
 # OCI metadata. The build workflow stamps build-time labels
 # (``org.opencontainers.image.revision`` etc.) at push time.
 LABEL org.opencontainers.image.title="wakir-persona-engine"
-LABEL org.opencontainers.image.description="Runtime image for the Wakir persona-engine pilot binary (Sprint-10 Tag-4, v0.1.0-pilot substrate-stub closing the ADR-0058 Schritt 9 image-availability gap; full engine lands on the Sprint-Pengine-8 axis)."
+LABEL org.opencontainers.image.description="Runtime image for the Wakir persona-engine pilot binary (v0.1.0-pilot substrate-stub closing the ADR-0058 Schritt 9 image-availability gap; full engine lands on the axis)."
 LABEL org.opencontainers.image.version="0.1.0-pilot"
 LABEL org.opencontainers.image.licenses="BUSL-1.1"
 LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"

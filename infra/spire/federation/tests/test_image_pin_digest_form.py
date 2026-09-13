@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic image-pin syntax invariants for the Phase-2 Sprint-8 Tag-4
+"""Hermetic image-pin syntax invariants for the
 Cosign-Digest-Pin-Resolution path.
 
 The Federation substrate pins the SPIRE-Server and SPIRE-Agent images
@@ -151,7 +151,7 @@ def test_digest_resolution_state_consistent() -> None:
         text = _read(path)
         per_file_states: set[str] = set()
         # Combine server + agent matches in a single sweep — same file
-        # could carry both in principle (although Tag-4 splits them).
+        # could carry both in principle (although splits them).
         for regex in (_SERVER_PIN_RE, _AGENT_PIN_RE):
             for m in regex.finditer(text):
                 digest = m.group("digest")
@@ -207,8 +207,8 @@ def test_image_pins_md_documents_sandbox_boundary() -> None:
 
 
 def test_pinned_tag_matches_documented_baseline() -> None:
-    """The documented pin tag (Tag-4 baseline) is 1.14.6 per Tag-2 +
-    Tag-3 acceptance. This test catches accidental tag-drift."""
+    """The documented pin tag (baseline) is 1.14.6 per +
+ acceptance. This test catches accidental tag-drift."""
     expected_tag = "1.14.6"
     for path in SERVER_PIN_FILES:
         text = _read(path)

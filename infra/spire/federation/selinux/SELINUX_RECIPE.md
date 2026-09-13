@@ -5,7 +5,7 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 
 # SELinux-AVC Defense-in-Depth Recipe
 
-Companion document to the Sprint-9-Tag-5 SPIRE-Agent stability fix
+Companion document to the SPIRE-Agent stability fix
 (`PILOT_BRING_UP_TROUBLESHOOTING.md` §H2). This document captures the
 Operator-Hand recipes for handling SELinux AVC-Denials that COULD
 manifest on the Fedora-CoreOS Pilot-VM after the H1 single-org config
@@ -19,7 +19,7 @@ on a real `auditd` log.
 
 ## When this document applies
 
-If after the Sprint-9-Tag-5 substance-fix the SPIRE-Server still
+If after the substance-fix the SPIRE-Server still
 crash-loops AND the journal mentions any of:
 
 - `permission denied` on `/var/lib/spire/server/*` or
@@ -200,4 +200,3 @@ mismatch) or §H5 (trust-domain literal mismatch).
   https://access.redhat.com/solutions/3268521 (gated; mirror in
   upstream `policycoreutils-python-utils` manpage)
 
-— Kai

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic acceptance tests for the Sprint-8 Tag-2 SPIRE-Agent
+"""Hermetic acceptance tests for the SPIRE-Agent
 federation configs (``config/spire-agent-{wakir,partner}.conf``).
 
 Pure string-presence + key-presence invariants. No HCL parser
@@ -9,18 +9,18 @@ hermetic substrate asserts shape via regex/string-presence so the
 test suite stays dep-free).
 
 Asserts:
-  * Each side's trust_domain literal matches the Tag-1 federation pair.
-  * Each side's server_address matches the Tag-1 federation server-side
+  * Each side's trust_domain literal matches the federation pair.
+  * Each side's server_address matches the federation server-side
     DNS name on the wakir-federation bridge network.
   * trust_bundle_path is wired to the federated-bundles ingest volume.
   * trust_bundle_format is ``spiffe`` (JWKS — federation https_spiffe
     profile parity).
   * insecure_bootstrap is FALSE for federation (stricter than the
-    Sprint-6 single-trust-domain agent).
+ single-trust-domain agent).
   * Workload-API socket_path follows the SPIFFE-spec convention
     ``/run/spire/agent-sockets/api.sock``.
   * NodeAttestor=join_token, KeyManager=memory, WorkloadAttestor=unix
-    (parity with Sprint-6 Tag-9 agent.conf).
+    (parity with agent.conf).
   * Per-side trust-domain literals are mutually exclusive (a wakir-
     side config does NOT reference partner.test and vice-versa,
     excluding peer-reference contexts — none exist in agent config).
@@ -213,7 +213,7 @@ def test_workload_api_socket_path_spiffe_canonical(
 
 
 # ---------------------------------------------------------------------
-# Plugin shape (parity with Sprint-6 Tag-9)
+# Plugin shape (parity with)
 # ---------------------------------------------------------------------
 
 

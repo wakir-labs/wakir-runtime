@@ -12,11 +12,11 @@ posture).
 
 Substrates with Quadlet dual-track coverage:
 
-- **Phase-1b NATS-JetStream** (Sprint-6 Tag-1): mirror of
+- **Phase-1b NATS-JetStream**: mirror of
   `compose/nats.yaml`.
-- **Phase-2.1 SPIRE-Server hermetic sidecar** (Sprint-6 Tag-11):
+- **Phase-2.1 SPIRE-Server hermetic sidecar**:
   mirror of `compose/spire.yaml` services.spire-server.
-- **Phase-2.2 SPIRE-Agent hermetic sidecar** (Sprint-6 Tag-11):
+- **Phase-2.2 SPIRE-Agent hermetic sidecar**:
   mirror of `compose/spire.yaml` services.spire-agent.
 
 **Scope-disclaimer:** this dual-track is operator-facing
@@ -45,10 +45,10 @@ content alignment to the existing compose state.
 | `wakir-spire-agent.container` | Quadlet container unit | Phase-2.2 SPIRE-Agent, mirror of `compose/spire.yaml` services.spire-agent |
 | `wakir-spire-agent-data.volume` | Quadlet volume unit | SPIRE-Agent SVID cache + bootstrap-bundle, mirror of `compose/spire.yaml` volumes.spire_agent_data |
 | `wakir-spire-agent-sockets.volume` | Quadlet volume unit | SPIFFE-Workload-API socket-share (Agent <-> persona-container), mirror of `compose/spire.yaml` volumes.spire_agent_sockets |
-| `wakir-rust-cli.container` | Quadlet container unit | Tag-22/24 Phase-3b Rust-CLI host-side binary installer oneshot (seven binaries from carrier image `wakir-persona-engine` -> `/opt/wakir/bin/`) |
-| `wakir-rust-cli-bin.volume` | Quadlet volume unit | Tag-22 Phase-3b Rust-CLI host-side binary volume mounted by `wakir-rust-cli.container` |
+| `wakir-rust-cli.container` | Quadlet container unit | Phase-3b Rust-CLI host-side binary installer oneshot (seven binaries from carrier image `wakir-persona-engine` -> `/opt/wakir/bin/`) |
+| `wakir-rust-cli-bin.volume` | Quadlet volume unit | Phase-3b Rust-CLI host-side binary volume mounted by `wakir-rust-cli.container` |
 
-For the Tag-22 Phase-3b Rust-CLI installer Operator recipe see
+For the Phase-3b Rust-CLI installer Operator recipe see
 [`docs/operations/quadlets-phase-3b-rust-cli.md`](../docs/operations/quadlets-phase-3b-rust-cli.md).
 
 ---
@@ -152,7 +152,7 @@ Hand resolves the canonical 64-hex digest via `cosign verify` +
 in the same commit. The parity test
 `tests/orchestrator/test_quadlet_spire.py` accepts both forms so
 the substitution does not break the contract surface. Cross-Review
-Zone-C (Tomás-track) approves the digest before substitution.
+Zone-C (image-pipeline review) approves the digest before substitution.
 
 ---
 
@@ -233,15 +233,15 @@ SPIRE-Server, no SVID issuance.
 
 ---
 
-## Open items (Sprint-6 box-end)
+## Open items (box-end)
 
-- **OI-Q1 (carryover from Tag-4 Skizze):** Live-host smoke against a
+- **OI-Q1 (carryover from design sketch):** Live-host smoke against a
   real atomic-distro VM (Bluefin or Silverblue). Sandbox-trennung
   per ADR-0051 means this is operator-hand, not DevOps-solo. P2
   marker: the Quadlet directive shape is doc-form-verified against
   Podman 5.8.2 manual but not yet live-tested on a Wakir-baseline
   atomic-host install.
-- **OI-Q3 (resolved this box, partial):** Tag-4 Skizze flagged
+- **OI-Q3 (resolved this box, partial):** design sketch flagged
   Scenario-B commitment as "operator-Hand / CEO-side strategy call,
   not DevOps-solo." This dual-track commits the **runnable-file
   skeleton** but does not change the recommendation: compose
@@ -250,7 +250,7 @@ SPIRE-Server, no SVID issuance.
   remains operator-hand.
 - **OI-Q4 (deferred to Phase-3):** If Quadlet becomes primary at
   Phase-3, the compose-test surface needs a Quadlet-equivalent
-  refactor. Estimated effort: one Phase-3-Sprint-N box.
+  refactor. Estimated effort: one Phase-3-iteration-N box.
 
 ---
 
@@ -266,7 +266,7 @@ SPIRE-Server, no SVID issuance.
   `HealthTimeout`, `HealthRetries`, `HealthStartPeriod`,
   `PodmanArgs`. **OI-Q2 resolved.**
 - Image-digest-pin alignment: byte-precise mirror of
-  `compose/nats.yaml` Sprint-4 Tag-3 digest-pin
+  `compose/nats.yaml` digest-pin
   `sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00`.
   Parity test enforces this hermetically.
 - Hermetic-only: no container engine invocations during test runs.

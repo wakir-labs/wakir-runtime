@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """spire-fed-bundle — hermetic Bundle-Export / Bundle-Import CLI for
-the Phase-2 Sprint-8 Tag-1 SPIRE-Federation-Bundle-Endpoint substrate.
+the SPIRE-Federation-Bundle-Endpoint substrate.
 
 This CLI orchestrates the manual bootstrap path of SPIRE-Federation:
 on the wakir side, ``spire-fed-bundle export --trust-domain wakir.test``
@@ -33,7 +33,7 @@ Two modes:
     end-to-end and asserts export-then-import produces a
     bit-identical JWKS.
 
-Hermetic mode is the surface the Sprint-8-Tag-1 acceptance test runs
+Hermetic mode is the surface the acceptance test runs
 against. Live mode is documented in README §3 for the Operator-Hand
 roundtrip.
 """

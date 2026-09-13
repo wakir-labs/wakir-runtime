@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-8 Tag-2 — Quadlet named-volume template for the
+# Quadlet named-volume template for the
 # SPIRE-Agent-Federation data directory. Per-side instance file is
 # installed as wakir-spire-agent-<SIDE>-data.volume (sed-substitution
-# from this template, mirror of Tag-1 server-side convention).
+# from this template, mirror of server-side convention).
 
 [Volume]
 VolumeName=wakir-spire-agent-<SIDE>-data

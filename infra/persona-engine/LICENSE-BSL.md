@@ -51,7 +51,7 @@ Foundation License Version 2 (PSF-2.0); the stdlib licence is
 unaffected by the BSL header on the image as a whole and remains
 reachable via `python3 --version` inside a running container.
 
-The Sprint-Pengine-8 successor image (`0.2.0-pilot` or later) will
+The successor image (`0.2.0-pilot` or later) will
 carry `nats-py` (Apache-2.0) and `cryptography` (Apache-2.0 / BSD)
 in addition to the stdlib; per-wheel licence text will ship in the
 wheels themselves and be reachable via `pip show <pkg>` inside a

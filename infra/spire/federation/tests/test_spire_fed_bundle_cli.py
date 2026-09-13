@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Hermetic acceptance tests for the ``spire-fed-bundle`` CLI
-(Phase-2 Sprint-8 Tag-1 SPIRE-Federation manual bootstrap path).
+ (SPIRE-Federation manual bootstrap path).
 
 Roundtrip exercise:
 
@@ -216,7 +216,7 @@ def test_import_rejects_jwk_missing_required_field(cli, tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------
-# Cross-trust-domain bundle roundtrip — the Sprint-8 Tag-1 X.509-SVID
+# Cross-trust-domain bundle roundtrip — the X.509-SVID
 # cross-trust verify SUBSTRATE (hermetic; live verify is Operator-Hand)
 # ---------------------------------------------------------------------
 
@@ -224,7 +224,7 @@ def test_import_rejects_jwk_missing_required_field(cli, tmp_path: Path) -> None:
 def test_cross_trust_domain_roundtrip(cli, tmp_path: Path) -> None:
     """Wakir exports → partner imports → partner exports → wakir imports.
 
-    This is the Sprint-8 Tag-1 acceptance roundtrip in hermetic form:
+    This is the acceptance roundtrip in hermetic form:
     each side exports its own JWKS, the operator (or automation) copies
     the JWKS across, the peer imports it as its peer-trust-anchor.
     Live cross-trust X.509-SVID verify is documented in README §3

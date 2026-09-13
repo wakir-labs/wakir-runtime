@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-6 — Scenario-B dual-track Quadlet unit for the Phase-1b
+# Scenario-B dual-track Quadlet unit for the Phase-1b
 # NATS-JetStream substrate. Byte-precise mirror of compose/nats.yaml so
 # operators on atomic-distro hosts (Fedora Atomic / Bluefin / Silverblue /
 # Kinoite) can consume the host-native systemd integration instead of
 # `podman compose -f compose/nats.yaml up -d`.
 #
-# This file is the runnable Quadlet companion to the design-form Skizze
+# This file is the runnable Quadlet companion to the design sketch
 # in `docs/quadlet-systemd-migration-skizze.md`. Compose remains the
 # primary Phase-2 contract surface (tests/orchestrator/test_compose_nats.py
 # is the authoritative test surface; tests/orchestrator/test_quadlet_nats.py
@@ -29,7 +29,7 @@
 # `systemctl --user` instead of `sudo systemctl`.
 #
 # Verification (hermetic-by-default — no live-smoke from sandbox; live
-# verification is operator-hand per ADR-0051 Mira-Sandbox-vs-Host-
+# verification is operator-hand per ADR-0051 sandbox-vs-host-
 # Operations-Trennung):
 #
 #   systemctl status wakir-nats.service
@@ -60,7 +60,7 @@ ContainerName=wakir-nats
 # ambiguity. Update path: any change here MUST also update
 # compose/nats.yaml and the digest must match byte-precise.
 #
-# Phase-2 Sprint-4 Tag-3 Cross-Review Zone-C digest-pin upgrade:
+# Cross-Review Zone-C digest-pin upgrade:
 #   tag:           nats:2.11-alpine
 #   manifest-list: sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00
 #   tag-pushed:    2026-04-28T01:57:25Z (UTC)
@@ -82,7 +82,7 @@ PublishPort=127.0.0.1:8222:8222
 # wakir-nats-jetstream-data.volume sidecar. Quadlet references
 # .volume units by basename + .volume suffix.
 #
-# Sprint-9-Tag-8 Bug-20 substance-fix: ``:Z`` SELinux-relabel-private
+# Bug-20 substance-fix: ``:Z`` SELinux-relabel-private
 # is mandatory on FCOS-enforced hosts; without it the named volume
 # stays labeled ``root_t`` and the uid:1000 NATS process gets EACCES
 # on JetStream-store creation. Bug-20 was observed on the SPIRE-Agent

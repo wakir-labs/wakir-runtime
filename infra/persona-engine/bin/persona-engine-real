@@ -2,13 +2,13 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 #
-# wakir-persona-engine real binary (Sprint-Pengine-8, image tag
+# wakir-persona-engine real binary (image tag
 # ``0.2.0-pilot``).
 #
 # Posture
 # -------
 # This is the **real-implementation** binary that swaps in for the
-# Sprint-10 Tag-4 ``persona-engine`` substrate-stub at image tag
+# ``persona-engine`` substrate-stub at image tag
 # ``0.2.0-pilot``. The CLI surface is identical (``spawn`` /
 # ``healthcheck`` / ``version``) so the Quadlet ``Exec=`` line is
 # byte-stable across the swap.

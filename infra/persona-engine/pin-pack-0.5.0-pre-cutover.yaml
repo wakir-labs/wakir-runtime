@@ -7,7 +7,7 @@
 # Wakir Persona-Engine — Cross-Language Pin Pack
 # ==============================================
 #
-# Tag-45 (2026-05-18). Phase-3a pre-cutover Rust-crate pin set for
+#. Phase-3a pre-cutover Rust-crate pin set for
 # the 0.5.0-pre-cutover engine release.
 #
 # This file is the machine-readable counterpart to
@@ -104,7 +104,7 @@ boot_wired_crates:
 boot_unwired_crates:
   - name: persona-engine-bridge-audit-writer
     version: "0.1.0"
-    note: "10th BackendDecision held back; wire-in scheduled Tag-46/47."
+    note: "10th BackendDecision held back; wire-in scheduled."
     selector_env: WAKIR_BRIDGE_AUDIT_WRITER_BACKEND
     binary_env: WAKIR_RUST_BRIDGE_AUDIT_WRITER_BIN
     fixtures: tests/fixtures/bridge-audit-writer-cross-lang/fixtures.json
@@ -118,7 +118,7 @@ boot_unwired_crates:
     fixtures: tests/fixtures/anchor-submit-worker-cross-lang/fixtures.json
   - name: persona-engine-frontmatter-parser
     version: "0.1.0"
-    note: "Persona-definition YAML frontmatter parser (Tag-34)."
+    note: "Persona-definition YAML frontmatter parser."
     fixtures: tests/fixtures/frontmatter-parser-cross-lang/fixtures.json
   - name: persona-engine-bridge-forward
     version: "0.1.0"

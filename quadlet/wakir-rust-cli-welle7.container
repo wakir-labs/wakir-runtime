@@ -1,22 +1,22 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Tag-55 Mini-Welle — Welle-7 dedicated single-binary installer Quadlet
+# wave-7 dedicated single-binary installer Quadlet
 # ====================================================================
 #
-# ADR-0066 Welle-7 Quadlet — installs the dedicated single-binary
+# ADR-0066 wave-7 Quadlet — installs the dedicated single-binary
 # image for ``recovery-welle7`` (the R1..R4 recovery-workflow
 # operator-CLI). Sibling-shape with
 # ``wakir-rust-cli-welle4.container``; see that file for design
 # rationale.
 
 # Canonical in-image binary path installed by this Quadlet (anchor
-# for Tag-55 readiness-check G5):
+# for readiness-check G5):
 #
 #   /opt/wakir/bin/wakir-persona-engine-recovery-welle7
 
 [Unit]
-Description=Wakir ADR-0066 Welle-7 recovery-welle7 dedicated single-binary installer (oneshot)
+Description=Wakir ADR-0066 wave-7 recovery-welle7 dedicated single-binary installer (oneshot)
 Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/docs/operations/quadlets-phase-3b-rust-cli.md
 After=network-online.target
 Wants=network-online.target
@@ -25,7 +25,7 @@ Requires=wakir-rust-cli-bin-volume.service
 [Container]
 ContainerName=wakir-rust-cli-welle7-installer
 
-# Image pin: dedicated single-binary image for the Welle-7 cutover
+# Image pin: dedicated single-binary image for the wave-7 cutover
 # step. Resolved Operator-Hand via resolve-image-pins-ci.
 Image=ghcr.io/wakir-labs/wakir-persona-engine-recovery:0.5.0-pilot@sha256:02a5e0840f60e387549303b30701c2d65aa9210b5301233beee081bdf9f378d6
 

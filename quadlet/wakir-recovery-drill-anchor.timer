@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-Pengine-7 Tag-5 — OI-PILOT-4 timer sidecar that
+# OI-PILOT-4 timer sidecar that
 # triggers ``wakir-recovery-drill-anchor.service`` every 15 minutes
 # during pilot phase.
 #
@@ -21,7 +21,7 @@
 # Cadence rationale (pilot phase, 4-week Doppelbetrieb):
 #
 #   Recovery-drill envelopes accumulate slowly during normal
-#   operation (the Tag-3 §3.7.2 drill registry is small — five
+#   operation (the §3.7.2 drill registry is small — five
 #   drill classes — and operators schedule drills weekly per
 #   Migration-Playbook §6.4). A 15-minute anchoring cadence
 #   gives WAT-recovery a comfortable window (the WAT hourly
@@ -31,7 +31,7 @@
 #   OnUnitActiveSec= below.
 
 [Unit]
-Description=Wakir recovery-drill WAT-anchor periodic timer (Sprint-Pengine-7 Tag-5 OI-PILOT-4)
+Description=Wakir recovery-drill WAT-anchor periodic timer (OI-PILOT-4)
 After=wakir-nats.service
 
 [Timer]

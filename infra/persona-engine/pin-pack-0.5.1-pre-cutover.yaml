@@ -7,10 +7,10 @@
 # Wakir Persona-Engine — Cross-Language Pin Pack
 # ==============================================
 #
-# Tag-48 (2026-05-19). Phase-3a pre-cutover Rust-crate pin set for
+#. Phase-3a pre-cutover Rust-crate pin set for
 # the 0.5.1-pre-cutover engine release — the wire-in of the 10th
 # BackendDecision record (bridge-audit-writer) on top of the
-# Tag-45 0.5.0-pre-cutover anchor.
+# 0.5.0-pre-cutover anchor.
 #
 # This file is the machine-readable counterpart to
 # `wirelang/persona_engine/MANIFEST-0.5.1-pre-cutover.md` §3. It is
@@ -21,7 +21,7 @@
 #     version matches the pinned version below.
 #
 #   * `wirelang/tests/persona_engine/test_bridge_audit_writer_wire_in_tag48.py`
-#     — hermetic Tag-48 wire-in tests verify the boot fan-out
+#     — hermetic wire-in tests verify the boot fan-out
 #     consults the 10th resolver and the pin-pack agrees that record
 #     #10 is wired, not held back.
 #
@@ -128,7 +128,7 @@ boot_unwired_crates:
     fixtures: tests/fixtures/anchor-submit-worker-cross-lang/fixtures.json
   - name: persona-engine-frontmatter-parser
     version: "0.1.0"
-    note: "Persona-definition YAML frontmatter parser (Tag-34)."
+    note: "Persona-definition YAML frontmatter parser."
     fixtures: tests/fixtures/frontmatter-parser-cross-lang/fixtures.json
   - name: persona-engine-bridge-forward
     version: "0.1.0"

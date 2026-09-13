@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 #
-# wakir-persona-engine pilot stub binary (Sprint-10 Tag-4, image tag
+# wakir-persona-engine pilot stub binary (image tag
 # ``0.1.0-pilot``).
 #
 # Purpose
@@ -12,8 +12,8 @@
 # declared in ``quadlet/wakir-persona-tomas.container`` (CLI surface
 # ``spawn`` + ``healthcheck``, Env-var contract per persona-engine-
 # format-spec §"Env var contract") without yet driving real
-# Engineering traffic — the full engine lands on the Sprint-Pengine-8
-# axis (Selin) and rotates this image tag to ``0.2.0-pilot``.
+# Engineering traffic — the full engine lands on the
+# axis and rotates this image tag to ``0.2.0-pilot``.
 #
 # Contracts honoured (today, v0.1.0-pilot)
 # ----------------------------------------
@@ -28,11 +28,11 @@
 #         if present; refuses to spawn if either is absent.
 #       - Computes a SHA-256 digest of the axis-A bytes and prints
 #         it as the spawn-time V-907 pin-hash (this is the byte the
-#         Sprint-Pengine-8 successor will cross-check against the
+# successor will cross-check against the
 #         expected pin; the stub only computes + reports).
 #       - Idles on a SIGTERM/SIGINT loop, emitting a single
 #         heartbeat log line every 30s ("substrate-stub heartbeat;
-#         Sprint-Pengine-8 engine pending"). The Quadlet
+# engine pending"). The Quadlet
 #         ``Restart=on-failure`` policy is left as-is — the stub
 #         never exits non-zero on its own; only the Operator's
 #         ``systemctl stop`` triggers the SIGTERM path.
@@ -44,7 +44,7 @@
 #         stub stays trivially healthy so the Quadlet
 #         ``HealthCmd=`` line evaluates cleanly.
 #
-# Contracts NOT honoured (Sprint-Pengine-8 axis, deferred)
+# Contracts NOT honoured (axis, deferred)
 # --------------------------------------------------------
 #
 #   * NATS-KV state-pack persistence (no nats-py).

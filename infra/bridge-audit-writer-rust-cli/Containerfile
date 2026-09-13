@@ -10,18 +10,18 @@
 #
 # wakir-persona-engine-bridge-audit-writer — Rust-CLI runtime image
 # for the Doppelbetrieb-Shadow EngineeringOutputEvent envelope writer
-# (Tag-31 Mini-Welle, ADR-0066 Welle-3 `bridge_audit_writer`
-# pre-cutover image, parallel to Welle-1 V907-verify image and
-# Welle-2 SVID-workload-identity image).
+# (ADR-0066 wave-3 `bridge_audit_writer`
+# pre-cutover image, parallel to wave-1 V907-verify image and
+# wave-2 SVID-workload-identity image).
 #
 # Substrate scope
 # ---------------
 #
 # ADR-0066 (approved 2026-05-17) accelerates Phase-3c to 4 weeks
-# (Option A+). **Welle-3 is `bridge_audit_writer`**: the second-lowest-
+# (Option A). **wave-3 is `bridge_audit_writer`**: the second-lowest-
 # blast-radius write-side surface scheduled to flip from Python-backend
-# default to Rust-backend default after Welle-1 V907-verify and
-# Welle-2 SVID-workload-identity. This image is the substrate the
+# default to Rust-backend default after wave-1 V907-verify and
+# wave-2 SVID-workload-identity. This image is the substrate the
 # cutover step will pin against in the Quadlet unit and in the
 # `persona-engine` image's `WAKIR_BRIDGE_AUDIT_WRITER_BACKEND=rust`
 # operator-flag pathway.
@@ -36,7 +36,7 @@
 # surface (`emit | info | --version | --help`).
 #
 # Read-side of the same Doppelbetrieb-Shadow audit substrate is the
-# `wakir-persona-engine-bridge-diff` binary (PR #175, Welle landed
+# `wakir-persona-engine-bridge-diff` binary (PR #175, wave landed
 # earlier). The replay engine in the same library crate
 # (`persona-engine-bridge-audit-replay::ReplayEngine`) consumes audit-
 # record streams produced by THIS writer; the cross-language pin
@@ -80,11 +80,11 @@
 # ``ghcr.io/wakir-labs/wakir-persona-engine-bridge-audit-writer:<tag>``
 # and Sigstore-keyless-signs the resulting digest against the
 # GitHub-Actions OIDC identity. Parity with
-# ``build-rust-cli-v907-verify.yml`` from Tag-26 PR #194 and
-# ``build-rust-cli-svid-workload-identity.yml`` from Tag-29 PR #201).
+# ``build-rust-cli-v907-verify.yml`` from PR #194 and
+# ``build-rust-cli-svid-workload-identity.yml`` from PR #201).
 #
 # Pin path: the digest emitted by the workflow is resolved into the
-# Quadlet unit at cutover time (Welle-3 step on the ADR-0066
+# Quadlet unit at cutover time (wave-3 step on the ADR-0066
 # Wochen-Plan). The resolver pattern is the same
 # `scripts/image-pin-idempotent-resolver.sh` PINS-array row that the
 # persona-engine, V907-verify and SVID-workload-identity images use.
@@ -106,11 +106,11 @@
 # Cross-references
 # ----------------
 #
-# - ADR-0066 §Phase-3c Welle-3 `bridge_audit_writer` (approved
+# - ADR-0066 §Phase-3c wave-3 `bridge_audit_writer` (approved
 #   2026-05-17).
-# - ADR-0065 §Welle-3 listing (precondition closure via PR #131
+# - ADR-0065 §wave-3 listing (precondition closure via PR #131
 #   bridge-diff Rust crate + PR #147 bridge-audit-replay Rust crate
-#   + this Tag-31 binary that ships the writer-half of the round-trip).
+#   + this binary that ships the writer-half of the round-trip).
 # - ADR-0060 — Cosign-Policy on Pilot-Container-Images (the policy
 #   this image must satisfy at cutover time).
 # - ADR-0035 §C-Drift-Closure — the ADR this cutover closes for the
@@ -167,7 +167,7 @@ RUN apt-get update -qq \
 FROM gcr.io/distroless/cc-debian12:nonroot@sha256:DIGEST_PENDING_KAI_REVIEW
 
 LABEL org.opencontainers.image.title="wakir-persona-engine-bridge-audit-writer"
-LABEL org.opencontainers.image.description="Rust-CLI for the Doppelbetrieb-Shadow EngineeringOutputEvent envelope writer. ADR-0066 Welle-3 pre-cutover image (Tag-31 Mini-Welle, 2026-05-17)."
+LABEL org.opencontainers.image.description="Rust-CLI for the Doppelbetrieb-Shadow EngineeringOutputEvent envelope writer. ADR-0066 wave-3 pre-cutover image."
 LABEL org.opencontainers.image.version="0.1.0-pilot"
 LABEL org.opencontainers.image.licenses="BUSL-1.1"
 LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"

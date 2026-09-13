@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-8 Tag-1 — Quadlet sidecar volume: SPIRE-Server Unix-
+# Quadlet sidecar volume: SPIRE-Server Unix-
 # socket directory (Admin-API gRPC) for the federation substrate. Per-
 # side isolated (no socket sharing across the federation peers — by
 # design).

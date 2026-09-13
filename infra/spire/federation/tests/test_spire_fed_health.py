@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic acceptance tests for the Phase-2 Sprint-8 Tag-4
+"""Hermetic acceptance tests for the
 ``spire-fed-health`` CLI / HTTP server.
 
 Surfaces covered:
@@ -134,7 +134,7 @@ def test_compute_status_schema_shape(health_mod, fed_bundle, tmp_path):
     assert status["trust_domain"] == "wakir.test"
     assert status["active_keys"] == 1
     # last_rotation_at is None for the pre-rotation seed bundle (the
-    # Tag-1 export does NOT carry _wakir_issued_at; only Tag-3 rotate
+    # export does NOT carry _wakir_issued_at; only rotate
     # adds that marker).
     assert status["last_rotation_at"] is None
     assert status["agent_connections"] == 3

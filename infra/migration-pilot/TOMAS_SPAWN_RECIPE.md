@@ -3,10 +3,10 @@ SPDX-License-Identifier: CC-BY-4.0
 SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 -->
 
-# Tomás-Persona-Spawn-Recipe — ADR-0058 Pilot-Phase Schritt 9 (Operator-Hand)
+# tomas-persona-Spawn-Recipe — ADR-0058 Pilot-Phase Schritt 9
 
-**Status:** Phase-1c ADR-0058-Pilot, Sprint-9 Tag-9 (Migrations-Pilot
-Schritt 9, Spawn-Procedure-Spec). Operator-Hand-Pfad für den Aufsichtsrat
+**Status:** Phase-1c ADR-0058-Pilot, (Migrations-Pilot
+Schritt 9, Spawn-Procedure-Spec). Operator-Hand-Pfad für den Operator
 (Fred). Sandbox-Boundary: dieses Dokument beschreibt was der Operator
 auf der Pilot-VM tut; die Sandbox führt **keinen Live-Spawn** aus
 ([`feedback_sandbox_host_trennung.md`](../../docs/feedback-anchors.md)).
@@ -29,7 +29,7 @@ weiterklicken.
 
 ## 0. Was hier passiert (Überblick)
 
-Wir spawnen die **Tomás-Persona** auf der Pilot-VM (Phase-1b-Bring-up,
+Wir spawnen die **tomas-persona** auf der Pilot-VM (Phase-1b-Bring-up,
 ADR-0055-Stufe-3-Proxmox-Pattern). Der Spawn nutzt:
 
 - den **Export-Bundle** aus Schritt 8 (von der Operator-Sandbox
@@ -37,21 +37,21 @@ ADR-0055-Stufe-3-Proxmox-Pattern). Der Spawn nutzt:
 - eine **SPIFFE-SVID** vom Pilot-VM-SPIRE-Server (Trust-Domain
   `wakir.test`, Workload-Identity `spiffe://wakir.test/persona/tomas`),
 - den **NATS-KV-Bucket** `wakir-persona-state-tomas`
-  (Sprint-Pengine-7-Tag-4-Spec §3.4 + §3.7.5 PersonaStateBacking),
-- eine **Quadlet-Unit** `wakir-persona-tomas.service` (Sprint-9-Tag-X
+ (-Spec §3.4 + §3.7.5 PersonaStateBacking),
+- eine **Quadlet-Unit** `wakir-persona-tomas.service` (-Tag-X
   Kai-substrate, **noch nicht in main**; bis dahin: manueller
   podman-Run mit explicit env-vars).
 
-Nach diesem Recipe laufen **parallel** zwei Tomás-Spawns
+Nach diesem Recipe laufen **parallel** zwei tomas-persona spawn
 (Doppelbetrieb-Modus für die 4-Wochen-Pilot-Phase):
 
 | Spawn | Stelle | Aufträge | Zweck |
 |---|---|---|---|
-| **Pre-Framework-Tomás** | Claude-Code-Sandbox auf Mira-Host | regulär Engineering | unverändert produktiv, Engineering läuft weiter |
-| **Wakir-Runtime-Tomás** | Pilot-VM `wakir.test` Container | gleiche Aufträge als Schatten-Spawn | Vergleichs-Output, 4-Achsen-Score |
+| **pre-framework tomas** | Claude-Code-Sandbox auf Mira-Host | regulär Engineering | unverändert produktiv, Engineering läuft weiter |
+| **wakir-runtime tomas** | Pilot-VM `wakir.test` Container | gleiche Aufträge als Schatten-Spawn | Vergleichs-Output, 4-Achsen-Score |
 
 Der Bridge-Audit-Writer (PR #19 `2c1f3a6`) schreibt **beide** Outputs
-in dieselben Sinks. Vergleich erfolgt 4 Wochen lang per Mira-Hand-
+in dieselben Sinks. Vergleich erfolgt 4 Wochen lang per operator-hand-
 Score-Bilanz.
 
 ## 1. Vorbedingungen
@@ -65,7 +65,7 @@ sein:
 | V2 | Persona-Engine-Format-Spec v1.3 ratifiziert | PR #22 + #26 + #49 merged auf main |
 | V3 | Persona-Converter byte-deterministisch | PR #23 merged, `wakir-persona-convert from-claude` smoke-grün |
 | V4 | Pilot-Export-CLI verfügbar | dieser PR (Schritt 8): `cargo build --release -p persona-pilot-export` grün |
-| V5 | Bridge-Audit-Writer aktiv | PR #19 `2c1f3a6` merged + Quadlet-Sidecar deployed (Kai Tag-N+) |
+| V5 | Bridge-Audit-Writer aktiv | PR #19 `2c1f3a6` merged + Quadlet-Sidecar deployed (Kai Tag-N) |
 | V6 | Tomás-Pre-Framework-Spawn unverändert produktiv | aktueller Stand: kein Eingriff erforderlich |
 | V7 | NATS-KV-Bucket-Init-Unit für `wakir-persona-state-tomas` | Kai Quadlet-Substanz Tag-N+ (manueller Bucket-Create-Workaround in §3 unten beschrieben) |
 
@@ -122,7 +122,7 @@ Phase-Tomás-Bezeichnung.
 scp /tmp/wakir-pilot-exports/tomas.pilot-export.json \
     operator@<pilot-vm-ip>:/var/lib/wakir/pilot-imports/
 
-# (b) Persona-Files-Staging (Sprint-10 Tag-6 Bug-35 substance-fix).
+# (b) Persona-Files-Staging (Bug-35 substance-fix).
 #     Die Quadlet-Unit `wakir-persona-tomas.container` bind-mountet
 #     /etc/wakir/persona/<slug>.{md,json} read-only ins Container.
 #     Die Quelle-Files leben im AI-Corp-Hauptrepo (.claude/agents/
@@ -140,7 +140,7 @@ sudo install -m 644 /tmp/tomas.md   /etc/wakir/persona/tomas.md
 sudo install -m 644 /tmp/tomas.json /etc/wakir/persona/tomas.json
 rm /tmp/tomas.md /tmp/tomas.json  # cleanup
 
-# (c) Bucket-Create auf der Pilot-VM (vorläufig, bis Kai's
+# (c) Bucket-Create auf der Pilot-VM (vorläufig, bis the
 #     bucket-init-Unit für die persona-state-Family in main ist):
 sudo -u wakir nats kv add wakir-persona-state-dev-engineering \
   --history=10 --max-value-size=65536 --storage=file --replicas=1
@@ -156,12 +156,12 @@ sudo -u wakir nats kv ls | grep wakir-persona-state-dev-engineering
 # Erwartet: wakir-persona-state-dev-engineering (eine Zeile)
 ```
 
-## 4. Schritt 9b — SPIFFE-SVID-Issuance für Tomás-Persona
+## 4. Schritt 9b — SPIFFE-SVID-Issuance für tomas-persona
 
 Auf der Pilot-VM:
 
 ```bash
-# (a) SPIRE-Registry-Entry für Tomás-Persona-Workload erstellen:
+# (a) SPIRE-Registry-Entry für tomas-persona-Workload erstellen:
 sudo -u wakir /opt/spire/bin/spire-server entry create \
   -spiffeID    spiffe://wakir.test/persona/dev-engineering \
   -parentID    spiffe://wakir.test/spire/agent/x509pop/$(sudo -u wakir /opt/spire/bin/spire-server agent list -format=json | jq -r '.agents[0].id_x509svid_serial_number') \
@@ -188,7 +188,7 @@ openssl x509 -in /tmp/tomas-svid/svid.0.pem -noout -subject -ext subjectAltName 
 ## 5. Schritt 9c — Persona-Spawn (Container-Start)
 
 **Wichtig:** Quadlet-Unit `wakir-persona-tomas.service` ist noch nicht
-in main (Kai Sprint-9-Tag-X impl-axis). Bis dahin: manueller
+in main (Kai iteration-9-Tag-X impl-axis). Bis dahin: manueller
 `podman run`-Aufruf mit den Env-Vars die die zukünftige Quadlet-Unit
 setzen wird (siehe persona-engine-format-spec §3.5 `container_bridge`):
 
@@ -196,7 +196,7 @@ setzen wird (siehe persona-engine-format-spec §3.5 `container_bridge`):
 # Persona-Hash aus Bundle holen für die V-907-pin-Verify:
 PIN="$(jq -r '.v907_persona_hash' /var/lib/wakir/pilot-imports/tomas.pilot-export.json)"
 
-# Wakir-Runtime-Tomás-Container starten (Schatten-Spawn):
+# wakir-runtime tomas-Container starten (Schatten-Spawn):
 sudo -u wakir podman run -d \
   --name wakir-persona-dev-engineering \
   --label "wakir.persona.id=dev-engineering" \
@@ -215,7 +215,7 @@ sudo -u wakir podman run -d \
 ```
 
 **Hinweis zum Bild-Tag `:latest`:** für die Pilot-Phase ist das
-operativ ausreichend. Production-Cutover (ADR-0058 §Phase-4)
+operativ ausreichend. Production-cutover (ADR-0058 §Phase-4)
 fordert einen pinned digest `@sha256:...`.
 
 **Verifikation:**
@@ -240,7 +240,7 @@ sudo -u wakir podman logs wakir-persona-dev-engineering | head -20
 ## 6. Schritt 9d — Marker-Stack-Event (Pilot-Spawn-Signal)
 
 Auf der Operator-Sandbox-Side ein Marker-Stack-Event in den
-`wakir-marker-stack-acme`-Bucket einreichen (Sprint-6-Tag-9-Pattern):
+`wakir-marker-stack-acme`-Bucket einreichen (-Pattern):
 
 ```bash
 cd /var/home/fred/AI-Corp/wakir-runtime
@@ -274,7 +274,7 @@ sudo -u wakir nats kv get wakir-marker-stack-acme \
 **Rollback-Sequenz (atomic, Pre-Framework bleibt unbeeinflusst):**
 
 ```bash
-# (a) Wakir-Runtime-Tomás-Container stoppen + entfernen:
+# (a) wakir-runtime tomas-Container stoppen + entfernen:
 sudo -u wakir podman stop wakir-persona-dev-engineering
 sudo -u wakir podman rm   wakir-persona-dev-engineering
 
@@ -296,7 +296,7 @@ cd /var/home/fred/AI-Corp/wakir-runtime
   --metadata '{"reason":"<one-liner>","pilot_phase":"aborted"}'
 ```
 
-**Pre-Framework-Tomás-Spawn bleibt unverändert produktiv** — Engineering
+**Pre-Framework-tomas-persona spawn bleibt unverändert produktiv** — Engineering
 läuft weiter ohne Unterbrechung.
 
 ## 8. Erfolgs-Kriterien (Schritt-9-Done-Definition)
@@ -306,7 +306,7 @@ läuft weiter ohne Unterbrechung.
 - ✅ NATS-KV-Bucket `wakir-persona-state-dev-engineering` hat mindestens 1 spawn-event.
 - ✅ Container-Logs zeigen `v907_pin_verified=true`.
 - ✅ Marker-Stack-Event `tomas-pilot-spawn` im `wakir-marker-stack-acme`-Bucket.
-- ✅ Pre-Framework-Tomás-Spawn unverändert (Engineering läuft parallel).
+- ✅ Pre-Framework-tomas-persona spawn unverändert (Engineering läuft parallel).
 
 **Wenn alle 6 ✅:** Schritt 9 done. Weiter mit Schritt 10
 (`docs/migration-pilot-validation-phase-setup.md`).
@@ -316,16 +316,15 @@ läuft weiter ohne Unterbrechung.
 Während der 4-Wochen-Doppelbetrieb-Phase (ADR-0058 §Phase-2):
 
 - Wöchentlich (Mo 09:00 CEST): 4-Achsen-Score-Bilanz Pre-Framework vs.
-  Wakir-Runtime-Output (Mira-Hand).
-- Wöchentlich (Mo 10:00 CEST): Henrik-Sample-Audit (1 Engineering-Auftrag).
+  Wakir-Runtime-Output (operator-hand).
+- Wöchentlich (Mo 10:00 CEST): internal audit sample (1 Engineering-Auftrag).
 - Täglich (passiv): Marker-Stack-Event-Konsistenz-Check via
   `wakir-marker-stack-verify`.
 
-Sprint-9 Tag-N+ Items (Kai/Reza/Selin parallel):
+ Tag-N+ Items (Kai/Reza/Selin parallel):
 
 - Quadlet-Unit `wakir-persona-tomas.service` (Kai impl-axis).
-- NATS-KV-Bucket-Init-Unit für `wakir-persona-state-*`-Family (Kai).
+- NATS-KV-Bucket-Init-Unit für `wakir-persona-state-*`-Family.
 - `NatsKvPersonaStateBacking` impl (Selin OI-PEF-13).
 - Recovery-Drill-Scheduler (Selin OI-PEF-9 Quadlet-OnCalendar-Timer).
 
-— Selin (pengine-eng) + Mira-Hand-Mitschrift

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-9 Tag-3 — One-Shot Wakir-Pilot-VM Bring-up.
+# One-Shot Wakir-Pilot-VM Bring-up.
 #
 # Companion zum (laengeren) PROXMOX_BRING_UP_RECIPE.md. Wo der Recipe-
 # Text dem Operator jeden Schritt einzeln zeigt, fasst dieses Skript
@@ -20,14 +20,14 @@
 #   WAKIR_ORG_ID              default: acme
 #   WAKIR_TRUST_DOMAIN        default: wakir.test (auto-syncs with
 #                             WAKIR_SIDE when SIDE != wakir and the
-#                             operator did not override; Sprint-10-
-#                             Tag-1 Cross-VM-Federation substance)
+#                             operator did not override; iteration-10-
+# Cross-VM-Federation substance)
 #   WAKIR_SIDE                default: wakir  (alt: orbit, partner;
-#                             Sprint-10-Tag-1 substance — selects
+# substance — selects
 #                             which Quadlet-instance + config-pair
 #                             the bootstrap installs. ``orbit`` is
 #                             the Cross-VM Federation peer-VM.)
-#   WAKIR_PILOT_MODE          default: single-org  (Sprint-9-Tag-5
+#   WAKIR_PILOT_MODE default: single-org (
 #                             Bug 7 substance-fix: choose between
 #                             ``single-org`` Phase-1b pilot config
 #                             variants and ``federation`` dual-side
@@ -36,12 +36,12 @@
 #                             a federation peer; using the federation
 #                             configs in single-org mode crashes the
 #                             SPIRE-Server on partner-peer-DNS-miss.
-#                             Sprint-10-Tag-3 substance: federation
+# substance: federation
 #                             mode now wires <HOST_BUNDLE_BIND>=0.0.0.0
 #                             so the bundle-endpoint is reachable
 #                             cross-VM. Single-org keeps the bundle-
 #                             endpoint loopback-only.)
-#   WAKIR_PEER_SIDE           default: (unset) — Sprint-10-Tag-3.
+#   WAKIR_PEER_SIDE default: (unset) —.
 #                             Federation-mode only. Peer trust-domain
 #                             side literal (e.g. ``wakir`` on the
 #                             orbit-VM; ``orbit`` on the wakir-VM).
@@ -52,7 +52,7 @@
 #                             ``spire-server-<peer_side>`` to the
 #                             peer VM's IP. Unset means Operator-Hand
 #                             /etc/hosts setup (manual).
-#   WAKIR_PEER_HOST           default: (unset) — Sprint-10-Tag-3.
+#   WAKIR_PEER_HOST default: (unset) —.
 #                             Federation-mode only. Peer VM's IP for
 #                             the /etc/hosts auto-install. For the
 #                             home-LAN dogfood topology this is the
@@ -92,7 +92,6 @@
 #   7  NATS-KV-Bucket-Init fuer Pilot-Org
 #   8  Smoke-Test (proxmox-bringup-smoke --org $WAKIR_ORG_ID)
 #
-# -- Kai
 
 set -u
 
@@ -107,7 +106,7 @@ RESUME_FROM=1
 # Resolve a stable script reference for resume hints. When the bootstrap
 # is invoked via `curl ... | sudo bash`, $0 collapses to ``bash`` and a
 # naive ${PROG} reference would print `sudo bash bash --resume-from N`
-# (Sprint-9-Tag-4 Bug 1). After step 4 the repo is on disk at
+# (Bug 1). After step 4 the repo is on disk at
 # ${WAKIR_REPO_ROOT}; prefer the installed path. Until then we fall back
 # to a documented absolute path for a typical operator workflow.
 _resume_cmd() {
@@ -127,15 +126,15 @@ _resume_cmd() {
 : "${WAKIR_ORG_ID:=acme}"
 : "${WAKIR_TRUST_DOMAIN:=wakir.test}"
 
-# Sprint-10-Tag-1 Cross-VM-Federation substance: the bootstrap is
+# Cross-VM-Federation substance: the bootstrap is
 # side-aware. ``WAKIR_SIDE`` selects which Quadlet-instance + which
 # SPIRE-Server/Agent config-pair the bootstrap installs on this VM.
 #
 #   wakir   -> spire-server-wakir.conf + spire-agent-wakir.conf
 #              (DEFAULT; the wakir-side Pilot-VM that has shipped
-#              since Sprint-9 Tag-1)
+#              since)
 #   orbit   -> spire-server-orbit.conf + spire-agent-orbit.conf
-#              (Sprint-10-Tag-1 Cross-VM Federation peer-VM)
+# (Cross-VM Federation peer-VM)
 #
 # The side literal is substituted into Quadlet ContainerName,
 # NetworkAlias, volume basenames, and bind-mount paths via the
@@ -166,9 +165,9 @@ fi
 : "${WAKIR_SKIP_PROMPTS:=0}"
 : "${COSIGN_VERSION:=v2.4.1}"
 
-# Sprint-Tag-8 Bug-36-Härtung: explicit resolver trust-mode selector.
+# Bug-36-Härtung: explicit resolver trust-mode selector.
 #
-# Bug-36-Fix (Sprint-10 Tag-7) collapsed skip-cosign-mode into a
+# Bug-36-Fix collapsed skip-cosign-mode into a
 # skopeo-only-all-4 resolve path. That fix unblocked the Live-VM run
 # at the cost of broadening the trust-base: SPIRE-server / SPIRE-
 # agent / python pins are now resolved from repository-served
@@ -189,7 +188,7 @@ fi
 #
 #   skopeo-only-all-4   Pilot-Phase-DEV. Resolves all 4 image pins
 #                   via skopeo only. No Sigstore signature
-#                   verification. Equivalent to the Sprint-10 Tag-7
+#                   verification. Equivalent to the
 #                   Bug-36-Fix path; this mode is the canonical
 #                   spelling for the Bug-36-Fix behaviour and is
 #                   what WAKIR_SKIP_COSIGN_VERIFY=1 maps to.
@@ -242,7 +241,7 @@ else
   fi
 fi
 
-# Sprint-9-Tag-5 Bug 7 substance-fix: single-org pilot mode toggles the
+# Bug 7 substance-fix: single-org pilot mode toggles the
 # SPIRE-Server + SPIRE-Agent config variants the bootstrap installs.
 #
 #   single-org   -> spire-server-pilot-single-org.conf
@@ -254,7 +253,7 @@ fi
 #                    line-deletion).
 #   federation   -> spire-server-${side}.conf
 #                   spire-agent-${side}.conf
-#                   (Sprint-8 Tag-1/Tag-2 dual-side variants; requires
+# (dual-side variants; requires
 #                    BOTH wakir and partner sides to be installed on
 #                    the SAME host to avoid the partner-peer-DNS-miss
 #                    that crashes the server in Bug 7 H1).
@@ -270,7 +269,7 @@ case "$WAKIR_PILOT_MODE" in
     ;;
 esac
 
-# Sprint-10 Tag-3 substance-fix (M-3 Live-Trial): peer-host wiring for
+# substance-fix (M-3 Live-Trial): peer-host wiring for
 # Cross-VM federation. When WAKIR_PILOT_MODE=federation, the bootstrap
 # can OPTIONALLY install an /etc/hosts entry that maps the peer-side
 # SPIRE-Server's DNS name (``spire-server-<peer_side>``) to the peer
@@ -293,7 +292,7 @@ esac
 : "${WAKIR_PEER_SIDE:=}"
 : "${WAKIR_PEER_HOST:=}"
 
-# Sprint-Tag-8 Bug-39 Option-A substrate: bilateral-federation-handshake
+# Bug-39 Option-A substrate: bilateral-federation-handshake
 # precheck gate. When set to "1", an OPTIONAL post-step (step_15) runs
 # after step_8_smoke and verifies the prereqs for a bilateral mode-flip
 # (peer-side in federation-mode + persona-container re-spawn-window
@@ -329,7 +328,7 @@ fi
 : "${WAKIR_BOOTSTRAP_TOOLBOX:=toolbox}"
 : "${WAKIR_BOOTSTRAP_SLEEP:=sleep}"   # Bug-25 wait-helpers; tests inject noop
 
-# Sprint-10 Tag-3: hermetic-friendly path for the /etc/hosts peer-host
+#: hermetic-friendly path for the /etc/hosts peer-host
 # entry. Tests inject WAKIR_BOOTSTRAP_HOSTS=/path/to/fake-hosts so the
 # bootstrap appends to the fixture, not to the system file.
 : "${WAKIR_BOOTSTRAP_HOSTS:=/etc/hosts}"
@@ -429,8 +428,8 @@ Env vars (see top of script for full list):
   WAKIR_TRUST_DOMAIN        (default: wakir.test; auto-syncs with WAKIR_SIDE)
   WAKIR_SIDE                (default: wakir; alt: orbit, partner)
   WAKIR_PILOT_MODE          (default: single-org; alt: federation)
-  WAKIR_PEER_SIDE           (Sprint-10-T3; federation-mode only; e.g. orbit)
-  WAKIR_PEER_HOST           (Sprint-10-T3; federation-mode only; peer VM IP)
+  WAKIR_PEER_SIDE (-T3; federation-mode only; e.g. orbit)
+  WAKIR_PEER_HOST (-T3; federation-mode only; peer VM IP)
   WAKIR_SKIP_COSIGN_VERIFY  (default: 0; set 1 for tag-only quick-pilot)
   WAKIR_SKIP_PROMPTS        (default: 0; set 1 for headless / CI)
 EOF
@@ -577,13 +576,13 @@ EOF
     log_ok "/etc/containers/systemd present"
   fi
 
-  # 1g. Sprint-9 Tag-7 substance-fix (Bug-16, Mira-Bug-Bilanz
+  # 1g. substance-fix (Bug-16, live bring-up bug report
   # 2026-05-14): explicit CLI-dependency check. Live-Bring-up-3 from-
   # scratch on Fedora-CoreOS revealed that the Step-5 image-pin
   # resolver relied on ``perl`` which is NOT on the FCOS host PATH.
   # The resolver silent-fell-through, the placeholder ``DIGEST_
   # PENDING_TOMAS_REVIEW`` remained in the bucket-init Quadlet, and
-  # Step 7 crashed with ``invalid reference format``. The Tag-7
+  # Step 7 crashed with ``invalid reference format``. The
   # resolver refactor (Bash-native) removes the perl dependency; this
   # pre-flight check codifies the full resolver / bootstrap CLI-set
   # so a future regression cannot silent-fall-through the same way.
@@ -814,14 +813,14 @@ step_4_repo_clone() {
 step_5_image_pins() {
   log_step 5 "$TOTAL_STEPS" "Image-Pin-Resolve via cosign + skopeo (4 Images)"
 
-  # Sprint-9-Tag-6 Bug 4 substance-fix: when ``WAKIR_SKIP_COSIGN_VERIFY=1``
+  # Bug 4 substance-fix: when ``WAKIR_SKIP_COSIGN_VERIFY=1``
   # is set, the previous form returned immediately without resolving the
   # ``wakir-provisioner`` digest. The bucket-init Quadlet then started
   # with the literal ``DIGEST_PENDING_TOMAS_REVIEW`` placeholder in its
   # ``Image=`` line and Podman refused the pull. The fix: in skip-cosign
   # mode, fall through to a skopeo-only resolution path.
   #
-  # Sprint-10 Tag-7 Bug-36 substance-fix (Live-VM-Acceptance 2026-05-15
+  # Bug-36 substance-fix (Live-VM-Acceptance 2026-05-15
   # ~20:10 CEST): the prior skip-cosign branch resolved ONLY the
   # wakir-provisioner image and left ``DIGEST_PENDING_TOMAS_REVIEW`` in
   # spire-server-federation, spire-agent-federation, and the python-base
@@ -851,7 +850,7 @@ step_5_image_pins() {
     return 2
   fi
 
-  # Sprint-Tag-8 Bug-36-Härtung: announce the resolver trust-mode
+  # Bug-36-Härtung: announce the resolver trust-mode
   # explicitly so the bring-up log records which trust-base was used.
   # See docs/RESOLVER-TRUST-MODES.md for the threat-model.
   log_note "resolver trust-mode: ${WAKIR_RESOLVER_TRUST_MODE}"
@@ -861,7 +860,7 @@ step_5_image_pins() {
     local image
     local -A skip_digests=()
     local skopeo_image
-    # Sprint-10 Tag-7 Bug-36: resolve all four pins via skopeo. The
+    # Bug-36: resolve all four pins via skopeo. The
     # ordering mirrors the cosign+skopeo branch below so log-output
     # is consistent between modes.
     for image in \
@@ -876,7 +875,7 @@ step_5_image_pins() {
         | jq -r '.Digest // empty' || echo "")
       if [[ -z "$d" ]]; then
         if [[ "$image" == ghcr.io/wakir-labs/wakir-provisioner:* ]]; then
-          # Provisioner remains optional on first bring-up (Sprint-9 Tag-4
+          # Provisioner remains optional on first bring-up (
           # baseline) — the image may not yet be published. Log + continue.
           log_note "wakir-provisioner skopeo inspect failed (image may not be published yet); skipping its pin substitution"
           continue
@@ -907,7 +906,7 @@ step_5_image_pins() {
     return 0
   fi
 
-  # Sprint-Tag-8 Bug-36-Härtung: mixed-mode (Sigstore-Outage-Fallback).
+  # Bug-36-Härtung: mixed-mode (Sigstore-Outage-Fallback).
   # Cosign-verify on signed images; skopeo-fallback for the
   # SPIRE-allowlist only when the cosign step itself produced an empty
   # digest (proxy for Sigstore-outage). python:3.13-slim is already
@@ -940,15 +939,15 @@ step_5_image_pins() {
 
   local image
   local -A digests=()
-  # Sprint-9 Tag-4: wakir-provisioner is OPTIONAL on first bring-up
+  #: wakir-provisioner is OPTIONAL on first bring-up
   # because the image may not yet be published. The loop tries it
   # last; a skopeo-failure for wakir-provisioner is non-fatal and
   # falls back to the placeholder-retain path (the Quadlet will not
   # start the bucket-init service until Operator-Hand re-resolves).
-  # Sprint-9-Tag-6 Bug 4 substance-fix: bump the wakir-provisioner tag
+  # Bug 4 substance-fix: bump the wakir-provisioner tag
   # from 0.1.0 to 0.1.2 (the BSL-1.1 relicensed image; AR-Decision
   # 2026-05-13). 0.1.0 carried four wheels (nats-py + cryptography +
-  # rfc8785 + jsonschema); 0.1.2 carries nats-py only post-Reza-PR #33
+  # rfc8785 + jsonschema); 0.1.2 carries nats-py only post-PR #33
   # Wirelang-Import-Disentanglement. The bucket-init Quadlet (Image=
   # ghcr.io/wakir-labs/wakir-provisioner:0.1.2@sha256:DIGEST_...) is
   # the single consumer of this digest.
@@ -979,7 +978,7 @@ step_5_image_pins() {
         | jq -r '.[0].critical.image."docker-manifest-digest" // empty' \
         || echo "")
       if [[ -z "$cosign_digest" ]]; then
-        # Sprint-Tag-8 Bug-36-Härtung: mixed-mode demotes cosign-failure
+        # Bug-36-Härtung: mixed-mode demotes cosign-failure
         # on the SPIRE-allowlist from rc=2-fatal to logged skopeo-
         # fallback. See docs/RESOLVER-TRUST-MODES.md mixed-mode section.
         if [[ "$WAKIR_RESOLVER_TRUST_MODE" == "mixed" ]] \
@@ -998,7 +997,7 @@ step_5_image_pins() {
         | jq -r '.[0].critical.image."docker-manifest-digest" // empty' \
         || echo "")
       if [[ -z "$cosign_digest" ]]; then
-        # Sprint-9 Tag-4: image may not yet be published on first
+        #: image may not yet be published on first
         # bring-up. Log + continue with empty digest; the skopeo
         # step below decides whether to treat this as fatal.
         log_note "wakir-provisioner cosign verify failed (image may not be published yet)"
@@ -1059,7 +1058,7 @@ step_5_image_pins() {
 # Helper: chown a Podman named-volume backing directory to uid:gid
 # 1000:1000 and verify the result via ``stat``. Idempotent and
 # defensive — safe to invoke before every ``systemctl start`` of a
-# Quadlet container that mounts the volume (Bug-22 Tag-9 substance
+# Quadlet container that mounts the volume (Bug-22 substance
 # fix, see step 6g rationale block).
 #
 # Args:
@@ -1187,12 +1186,12 @@ _pre_start_chown_sweep() {
 # still ``activating``. The Quadlet-generated containers spend
 # noticeable wall-time in ``activating`` on first-boot (image-pull-from-
 # cache, container-init, server-attestation handshake, SVID-caching,
-# Workload-API socket bind). The Sprint-9 bring-up-1/2/3/4/5/6 smoke
+# Workload-API socket bind). The bring-up-1/2/3/4/5/6 smoke
 # runs all observed this race: the bootstrap returned success and the
 # smoke-test (attempts=6, ~30s) caught the unit still in
 # ``activating`` state.
 #
-# Bug-25 (Sprint-9 Tag-10) substance fix: after each ``systemctl
+# Bug-25 substance fix: after each ``systemctl
 # start`` of a long-running Quadlet container, block until ``is-active
 # --quiet`` returns 0, capped at ``WAKIR_BOOTSTRAP_WAIT_ACTIVE_TIMEOUT``
 # seconds. The 300s default covers a cold-cache image pull on a slow
@@ -1253,7 +1252,7 @@ _wait_for_service_active() {
 # units active, healthcheck still fails because the workload-API
 # socket has not been created yet.
 #
-# Bug-25 (Sprint-9 Tag-10) substance fix: after the agent unit reaches
+# Bug-25 substance fix: after the agent unit reaches
 # ``is-active``, additionally block until ``podman exec ... test -S
 # /run/spire/agent-sockets/api.sock`` returns 0. This closes the
 # second race window inside step_6_quadlet, before bootstrap completes
@@ -1268,9 +1267,9 @@ _wait_for_service_active() {
 # ---------------------------------------------------------------------------
 
 _wait_for_workload_api_socket() {
-  # Sprint-9-Tag-11 Bug-27 fix: SPIRE-Agent ist distroless-Container
+  # Bug-27 fix: SPIRE-Agent ist distroless-Container
   # (ghcr.io/spiffe/spire-agent: nur ``spire-agent``-binary, kein ``test``/
-  # ``sh``/Coreutils). Tag-10 Tomás-Variante via ``podman exec <ctr> test
+  # ``sh``/Coreutils). Tomás-Variante via ``podman exec <ctr> test
   # -S <path>`` returnt IMMER rc=127 ("executable file 'test' not found
   # in PATH") — Loop läuft 120s leer und meldet "not bound" obwohl Socket
   # längst da ist (Live-Diagnose 2026-05-15 ~01:51 UTC bestätigt).
@@ -1320,17 +1319,17 @@ _wait_for_workload_api_socket() {
 }
 
 # ---------------------------------------------------------------------------
-# Sprint-10 Tag-3: peer-host /etc/hosts wiring helper
+#: peer-host /etc/hosts wiring helper
 #
 # When WAKIR_PILOT_MODE=federation AND both WAKIR_PEER_SIDE +
 # WAKIR_PEER_HOST are set, append (if missing) an /etc/hosts entry
 # mapping ``spire-server-<peer_side>`` to the peer VM's IP. This is
-# the substance-fix for the M-3 Live-Trial: Reza's PR #59 Phase-2c
+# the substance-fix for the M-3 Live-Trial: the PR #59 Phase-2c
 # live-counterpart-adapter pins URLs at ``https://spire-server-<peer-
 # side>:8443`` — that hostname MUST resolve to the peer VM. Without
 # the /etc/hosts entry, the federation-bundle-sync-reachable smoke
 # check FAILs with DNS-NXDOMAIN and `Connection refused` cascades
-# back through the adapter test in Reza's test_live_int_live_partner_vm.
+# back through the adapter test in the test_live_int_live_partner_vm.
 #
 # Idempotent: a marker comment (``# wakir-bootstrap: peer-side
 # <peer_side>``) on the entry's line lets the bootstrap recognise the
@@ -1395,7 +1394,7 @@ _install_peer_host_entry() {
 step_6_quadlet() {
   log_step 6 "$TOTAL_STEPS" "Quadlet-Units installieren (Networks, Volumes, SPIRE, NATS)"
 
-  # Sprint-10 Tag-3: peer-host /etc/hosts entry for Cross-VM federation.
+  #: peer-host /etc/hosts entry for Cross-VM federation.
   # No-op in single-org mode. See _install_peer_host_entry header.
   _install_peer_host_entry || return 2
 
@@ -1403,7 +1402,7 @@ step_6_quadlet() {
   local fed_src="${WAKIR_REPO_ROOT}/infra/spire/federation/quadlet"
   local agent_src="${WAKIR_REPO_ROOT}/infra/spire/agent/quadlet"
   local dst="/etc/containers/systemd"
-  # Sprint-10-Tag-1 Cross-VM-Federation substance: side is no longer
+  # Cross-VM-Federation substance: side is no longer
   # hardcoded; the WAKIR_SIDE env-var (validated in the post-defaults
   # block) drives Quadlet-naming, config-file selection, and the
   # SERVER_DNS NetworkAlias substitution.
@@ -1416,7 +1415,7 @@ step_6_quadlet() {
 
   # Helper: install $1 (source) to $2 (dest), substituting <SIDE>
   # and other tokens in the file CONTENT. Skipped (idempotent) when
-  # dest already matches the source-after-substitution. Sprint-9-Tag-4
+  # dest already matches the source-after-substitution.
   # Bug 5: bootstrap Phase 6 must be safely re-runnable after operator
   # manual fixes -- if the rendered content matches what's already on
   # disk, do not overwrite.
@@ -1456,7 +1455,7 @@ step_6_quadlet() {
 
   # 6b. Volumes (with per-side substitution).
   #
-  # Sprint-9-Tag-4 Bug 2: source filenames in the federation/agent
+  # Bug 2: source filenames in the federation/agent
   # quadlet directories are side-agnostic (e.g.
   # ``wakir-spire-server-federation-data.volume``), but the
   # SPIRE-Server-Federation container references the per-side form
@@ -1532,13 +1531,13 @@ step_6_quadlet() {
 
   # 6c. SPIRE-Server-Federation container (per-side substitution).
   #
-  # Sprint-9-Tag-5 Bug 7 substance-fix: WAKIR_PILOT_MODE selects which
+  # Bug 7 substance-fix: WAKIR_PILOT_MODE selects which
   # server-config variant the bootstrap installs.
   #   * single-org -> spire-server-pilot-single-org.conf
   #   * federation -> spire-server-${side}.conf
   # See top-of-file rationale block at WAKIR_PILOT_MODE definition.
   #
-  # Sprint-10-Tag-3 substance-fix (M-3 Live-Trial): wire <HOST_BUNDLE_BIND>
+  # substance-fix (M-3 Live-Trial): wire <HOST_BUNDLE_BIND>
   # from WAKIR_PILOT_MODE. Single-org pilots keep the bundle-endpoint
   # loopback-only (no peer to expose it to). Federation pilots bind the
   # bundle-endpoint on 0.0.0.0 so a cross-VM peer can fetch the bundle
@@ -1576,7 +1575,7 @@ step_6_quadlet() {
     # TV-BRINGUP-06 config-path invariant.
     if [[ -f "$server_conf_src" ]]; then
       local server_conf_dst="/etc/wakir/spire-federation/spire-server-${side}.conf"
-      # Sprint-10-Tag-2 Bug-28 fix: single-org server config is now
+      # Bug-28 fix: single-org server config is now
       # ``<TRUST_DOMAIN>``-tokenised (mirror of the Quadlet-template
       # substitution at L1269-1273). Use _install_substituted so the
       # tokens are replaced with the side-specific values at install
@@ -1596,7 +1595,7 @@ step_6_quadlet() {
 
   # 6d. SPIRE-Agent-Federation container (per-side substitution).
   #
-  # Sprint-9-Tag-5 Bug 7 substance-fix: WAKIR_PILOT_MODE selects which
+  # Bug 7 substance-fix: WAKIR_PILOT_MODE selects which
   # agent-config variant the bootstrap installs. In single-org mode
   # the agent template's federated-bundles read-only volume mount is
   # dropped (no peer exposes a bundles volume; the line would be a
@@ -1635,7 +1634,7 @@ step_6_quadlet() {
     # /etc/wakir/spire-agent-${side}.conf in BOTH modes.
     if [[ -f "$agent_conf_src" ]]; then
       local agent_conf_dst="/etc/wakir/spire-agent-${side}.conf"
-      # Sprint-10-Tag-2 Bug-28 fix: single-org agent config is now
+      # Bug-28 fix: single-org agent config is now
       # ``<TRUST_DOMAIN>``/``<SERVER_DNS>``-tokenised. Use
       # _install_substituted (idempotent on already-substituted
       # federation variants).
@@ -1671,7 +1670,7 @@ step_6_quadlet() {
   fi
   log_ok "systemctl daemon-reload"
 
-  # 6g. Sprint-9-Tag-6 Bug 2 substance-fix: chown the named-volume
+  # 6g. Bug 2 substance-fix: chown the named-volume
   # backing directories to uid:gid 1000:1000 so the uid:1000 SPIRE
   # processes can write into them. Podman creates the named volumes
   # owned by root by default; the container processes are non-root
@@ -1686,7 +1685,7 @@ step_6_quadlet() {
   # We let Podman create the volumes first via ``podman volume create
   # --ignore`` (idempotent) and then chown their backing mount-point.
   #
-  # Sprint-9-Tag-8 Bug-21 substance-fix: the previous block swallowed
+  # Bug-21 substance-fix: the previous block swallowed
   # chown stderr via ``2>/dev/null`` and degraded a real failure to a
   # log_warn while still emitting the global ``OK normalised`` line.
   # On Bring-up-4 (AR Fred, 2026-05-14) the volumes stayed root-owned
@@ -1695,7 +1694,7 @@ step_6_quadlet() {
   # write. Fix: surface chown stderr, hard-verify owner via stat, halt
   # the bootstrap with return-code 2 on mismatch.
   #
-  # Sprint-9-Tag-9 Bug-22 substance-fix: on Bring-up-5 (AR Fred,
+  # Bug-22 substance-fix: on Bring-up-5 (repository owner,
   # 2026-05-14 ~14:00 CEST) the bootstrap reported the Bug-21 OK
   # line (``stat-verified``) yet the SPIRE-Agent immediately crash-
   # looped with the Bug-20 ``permission denied`` symptom on
@@ -1740,7 +1739,7 @@ step_6_quadlet() {
   # parallel from a single systemctl-start race-loop reliably loses
   # the first attestation attempt and forces a restart cycle.
   #
-  # Sprint-9-Tag-9 Bug-22 substance-fix: defensive re-chown of the
+  # Bug-22 substance-fix: defensive re-chown of the
   # server's volume set IMMEDIATELY before systemctl start. Closes
   # the TOC-vs-TOU race window between step 6g's ad-hoc chown and
   # the podman-system-generator's volume reconciliation at service-
@@ -1757,7 +1756,7 @@ step_6_quadlet() {
       return 2
     fi
     log_ok "${server_unit} started"
-    # Bug-25 (Sprint-9 Tag-10) substance fix: systemctl start returns
+    # Bug-25 substance fix: systemctl start returns
     # while the unit is still ``activating``. Block until is-active
     # before issuing the join-token generate against the server (step
     # 6i) — otherwise ``podman exec ... spire-server token generate``
@@ -1765,9 +1764,9 @@ step_6_quadlet() {
     _wait_for_service_active "$server_unit" || return 2
   fi
 
-  # 6i. Sprint-9-Tag-6 Bug 1/15 substance-fix: single-org Phase-1b
+  # 6i. Bug 1/15 substance-fix: single-org Phase-1b
   # pilots use the join-token node-attestor. Token generation is a
-  # mandatory Operator-Hand step in the Sprint-8 manual recipe; the
+  # mandatory Operator-Hand step in the manual recipe; the
   # one-shot bootstrap automates it by issuing
   # ``spire-server token generate`` against the just-started server,
   # parsing the token value, and substituting it into the agent
@@ -1776,8 +1775,8 @@ step_6_quadlet() {
   # is already attested, the token-generate + sed-substitute steps
   # are skipped.
   #
-  # Sprint-10 Tag-7 Bug-37 substance-fix (Live-VM-Acceptance
-  # 2026-05-15 ~20:10-20:15 CEST Mira-Hand-Diagnose): the prior code
+  # Bug-37 substance-fix (Live-VM-Acceptance
+  # 2026-05-15 ~20:10-20:15 CEST operator diagnosis): the prior code
   # only ran the token-generate path for ``WAKIR_PILOT_MODE ==
   # single-org`` and replaced it with a placeholder-strip in
   # federation-mode (step 6j sed-delete). That created a CONFIG
@@ -1798,9 +1797,9 @@ step_6_quadlet() {
   # single-org agent enrollment. The only federation-mode-specific
   # difference is the cross-bundle exchange between SPIRE-servers,
   # which is wired in spire-server-<side>.conf §federates_with and
-  # is already covered by Sprint-10 Tag-5 Bug-30..32 substance-fixes.
+  # is already covered by Bug-30..32 substance-fixes.
   #
-  # Disagree-note: Mira's Bug-37 brief recommended Option A
+  # Disagree-note: the operator's Bug-37 brief recommended Option A
   # (x509pop) — "clean federation-attestation-pattern". Kai-Hand-
   # disagree-note: x509pop is overkill for the wakir-orbit-VM-pair
   # federation pilot because (a) each SPIRE-server attests its OWN
@@ -1854,7 +1853,7 @@ step_6_quadlet() {
 
   # 6j. Start the agent + NATS.
   #
-  # Sprint-10 Tag-7 Bug-37 substance-fix: federation-mode previously
+  # Bug-37 substance-fix: federation-mode previously
   # stripped the join-token placeholder here (sed-delete on the
   # ExecStart line). That code-path created the Bug-37 config-
   # coherency drift. With step-6i now running for BOTH modes, the
@@ -1870,7 +1869,7 @@ step_6_quadlet() {
   # ``-joinToken <hex>`` arg. Both modes now share the same
   # coherent config shape.
 
-  # Sprint-9-Tag-9 Bug-22 substance-fix: defensive re-chown of each
+  # Bug-22 substance-fix: defensive re-chown of each
   # container's volume set IMMEDIATELY before its systemctl start.
   # ``server`` is handled in step 6h above; here we handle agent +
   # NATS. The kind-to-volume mapping lives in _pre_start_chown_sweep.
@@ -1898,7 +1897,7 @@ step_6_quadlet() {
       return 2
     fi
     log_ok "${unit} started"
-    # Bug-25 (Sprint-9 Tag-10) substance fix: wait for the unit to
+    # Bug-25 substance fix: wait for the unit to
     # actually reach is-active before proceeding. systemctl start
     # returns while the unit is still ``activating`` (Quadlet-
     # generated container does image-pull-from-cache + container-init
@@ -1964,7 +1963,7 @@ EOF
     log_err "bucket-init unit source not found: ${src}"
     return 2
   fi
-  # Sprint-9 Tag-7 substance-fix (Bug-18, Mira-Bug-Bilanz 2026-05-14):
+  # substance-fix (Bug-18, live bring-up bug report 2026-05-14):
   # daemon-reload MUST fire unconditionally after the install-or-skip
   # block, BEFORE the systemctl start. Live-Bring-up-3 observed
   # ``Warning: The unit file ... changed on disk. Run 'systemctl
@@ -1998,7 +1997,7 @@ EOF
 # ---------------------------------------------------------------------------
 
 step_8_smoke() {
-  # Sprint-10-Tag-2 Bug-29 fix: smoke is side-aware (since PR #53), but
+  # Bug-29 fix: smoke is side-aware (since PR #53), but
   # the bootstrap forgot to pass --side and so the smoke probe always
   # checked the ``wakir``-side units. On the orbit-side VM that yielded
   # a deterministic FAIL because the wakir-side units do not exist
@@ -2006,8 +2005,8 @@ step_8_smoke() {
   # pre-PR-53 default smoke behaviour so existing single-VM (pilot)
   # smoke continues to work unchanged.
   local side="${WAKIR_SIDE:-wakir}"
-  # Sprint-10-Tag-8 Bug-38 fix: in federation-mode the smoke CLI's two
-  # Sprint-10-Tag-1 substance checks (federation-bundle-sync-reachable +
+  # Bug-38 fix: in federation-mode the smoke CLI's two
+  # substance checks (federation-bundle-sync-reachable +
   # federation-cross-trust-domain-verify) are gated on
   # WAKIR_FEDERATION_MODE=enabled AND --peer-side. The bootstrap KNOWS
   # both pieces here (mode=federation + WAKIR_PEER_SIDE), so wire them
@@ -2038,7 +2037,7 @@ step_8_smoke() {
 }
 
 # ---------------------------------------------------------------------------
-# Step 15 (optional, Sprint-Tag-8 Bug-39 Option-A substrate):
+# Step 15 (optional, Bug-39 Option-A substrate):
 # Bilateral-Federation-Handshake-Precheck.
 # ---------------------------------------------------------------------------
 #
@@ -2060,13 +2059,13 @@ step_8_smoke() {
 #              the persona-engine inside the container has to
 #              re-authenticate.
 #
-#   Option B — Sprint-12+ Production-Setup-Item: park Bug-39 as a
+#   Option B — Production-Setup-Item: park Bug-39 as a
 #              Phase-3 Production-rollout item. Both VMs flip to
 #              federation-mode in a single coordinated Operator-Hand
 #              window; the Pilot-Phase Doppelbetrieb-shadow tolerates
 #              the asymmetry until then.
 #
-# Mira / AR decides which variant goes live. This bootstrap ships
+# The operator decides which variant goes live. This bootstrap ships
 # **both substrates** so the decision can be made at run-time without
 # a source-patch:
 #
@@ -2173,7 +2172,7 @@ main() {
     fi
   done
 
-  # Sprint-Tag-8 Bug-39 Option-A substrate: optional bilateral-
+  # Bug-39 Option-A substrate: optional bilateral-
   # federation-handshake-precheck post-step. No-op unless
   # WAKIR_BILATERAL_PRECHECK=1; see the step_15_bilateral_precheck
   # header for the full Option-A vs Option-B decision-rationale.
@@ -2196,7 +2195,7 @@ ${_GREEN}${_BOLD}Wakir-Pilot-VM bring-up complete.${_RESET}
 EOF
 }
 
-# Sprint-10 Tag-3 substance: only auto-run main when the script is
+# substance: only auto-run main when the script is
 # executed directly. Sourcing the script (e.g. from a hermetic test
 # that wants to invoke a single function like _install_peer_host_entry)
 # must NOT trigger the full bring-up flow. The ``BASH_SOURCE`` check

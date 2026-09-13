@@ -1,17 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-6 Tag-6 — SPIRE-Server hermetic sidecar substrate.
-# Phase-2 Sprint-6 Tag-8 — Cosign-Digest-Pin form (Pfad B) added on
-#   top of the Tag-6 substrate per Mira-Box-Brief Tag-8 (rebase of
-#   Tag-7 substance that was authored on a /tmp-worktree without
-#   origin-setup). Header preserved; Tag-6 hermetic posture (trust-
+# SPIRE-Server hermetic sidecar substrate.
+# Cosign-Digest-Pin form (Pfad B) added on
+#   top of the substrate per iteration brief (rebase of
+# substance that was authored on a /tmp-worktree without
+#   origin-setup). Header preserved; hermetic posture (trust-
 #   domain ``example.test``, networks, deploy-limits, named volumes)
 #   is unchanged. The added items are: image @sha256-digest-pin form,
 #   read_only rootfs, non-root user, tmpfs for /run/spire, and an
 #   explicit loopback ports mapping. See ``docs/spire-server-phase-
 #   2-1.md`` for the Operator-Hand digest-substitution workflow.
-# Phase-2 Sprint-6 Tag-9 — SPIRE-Agent hermetic sidecar substrate.
+# SPIRE-Agent hermetic sidecar substrate.
 #   Adds the paired ``spire-agent`` service block as the Phase-2.2
 #   companion to the Phase-2.1 ``spire-server`` block. The agent
 #   uses the ``join_token`` NodeAttestor in Mock/Stub form (no real
@@ -23,12 +23,12 @@
 #   ``/run/spire/agent-sockets/api.sock``. Persona-container Workload-
 #   API-consumers (Phase-2.3+, Operator-Hand) mount the
 #   ``spire_agent_sockets`` volume read-only at the same path.
-#   Cosign-Digest-Pin form mirrors the Tag-8 SPIRE-Server convention.
+#   Cosign-Digest-Pin form mirrors the SPIRE-Server convention.
 #   See ``docs/spire-agent-phase-2-2.md`` for the SPIFFE-ID-Binding
 #   cross-reference (Reza ``wirelang/specs/identity-substrate.md`` §5,
 #   Mock-Adapter ``wirelang/adapters/spiffe_workload_api.py`` on the
-#   Reza-Sprint-6-Tag-5 track; real-adapter ``real_spiffe_workload_
-#   api.py`` is a Reza-Tag-7+ slot, not present in the Tag-9 baseline).
+# track; real-adapter ``real_spiffe_workload_
+#   api.py`` is a slot, not present in the baseline).
 #
 # What this file is:
 #   A hermetic, Mock/Stub-only compose unit that declares a SPIRE-Server
@@ -50,8 +50,8 @@
 #     in Phase-1b auth-free mode in ``compose/nats.yaml``; JWT-Auth
 #     switch is Phase-2.4.
 #   * No cosign digest-pin on the SPIRE-Server image — the digest-pin
-#     follows the Tag-3-Cosign-Skizze cadence (Cross-Review Zone-C
-#     Tomás-Hand). Tag-only form is sufficient for this hermetic
+#     follows the cosign design sketch cadence (Cross-Review Zone-C
+#     operator-hand). Tag-only form is sufficient for this hermetic
 #     surface; the test-suite accepts both forms in advance, so a
 #     follow-up Cosign-Pin patch does not break the contract surface.
 #
@@ -84,18 +84,18 @@
 #   substrate clearly distinguishable from any future live-gated
 #   bring-up by name alone — an operator who sees ``example.test``
 #   in a container's ``trust_domain`` config knows immediately this
-#   is the Sprint-6-Tag-6 hermetic skeleton, not a production stand.
+#   is the hermetic skeleton, not a production stand.
 #
 # Image-Tag rationale (P7 verified 2026-05-11; Cosign-Digest-Pin form
-# added Sprint-6-Tag-8 rebase per Mira-Box-Brief):
+# added rebase per iteration brief):
 #   * Image: ``ghcr.io/spiffe/spire-server``
 #   * Tag:   ``1.14.6``
 #   * Latest stable release at authoring time: SPIRE v1.14.6
 #     (released 2026-04-27 23:58 UTC per
 #     https://github.com/spiffe/spire/releases — WebFetch verified
-#     Sprint-6-Tag-6 box).
+# box).
 #   * Apache-2.0, CNCF-graduated project.
-#   * Cosign-Digest-Pin form (Pfad B, added Sprint-6-Tag-8):
+#   * Cosign-Digest-Pin form (Pfad B, added):
 #     ``ghcr.io/spiffe/spire-server:1.14.6@sha256:<digest>``.
 #     The literal ``@sha256:<digest>`` suffix is the verbindlich pin
 #     (tag is moveable, digest is not). The placeholder token
@@ -105,7 +105,7 @@
 #     the substitution before any live bring-up. The acceptance
 #     suite accepts both the placeholder token and a 64-hex sha256
 #     digest, so the follow-up substitution does not break tests.
-#   * Cross-Review-Gate: Tomás Zone-C (Container-Image-Pipeline ×
+#   * Cross-Review-Gate: image-pipeline review (Container-Image-Pipeline ×
 #     OTS-Anchoring) confirms before substrate goes live (see
 #     ``dev-engineering/inbox/2026-05-12-zone-c-cross-review-spire-
 #     server-image-pin.md``).
@@ -120,7 +120,7 @@ services:
     # workload-registrations are pre-loaded — the
     # ``registration-entries.yaml`` is an empty stub for Phase-2.2.
     #
-    # Image-pin form (Sprint-6-Tag-8 rebase, Pfad B Cosign-Digest-Pin):
+    # Image-pin form (rebase, Pfad B Cosign-Digest-Pin):
     # ``tag@sha256:<digest>``. The digest token below is a documented
     # placeholder; Operator-Hand resolves the canonical digest via
     # ``cosign verify`` + ``skopeo inspect`` before any live bring-up.
@@ -130,7 +130,7 @@ services:
       - "run"
       - "-config"
       - "/etc/spire/server/server.conf"
-    # Read-only root filesystem (Tag-8 hardening addition). The SPIRE-
+    # Read-only root filesystem (hardening addition). The SPIRE-
     # Server writes only to the named volume mounted at
     # ``/var/lib/spire/server`` and the tmpfs at ``/run/spire``.
     read_only: true
@@ -152,13 +152,13 @@ services:
       # attached yet (the Workload-API socket is on the SPIRE-Agent
       # side, which is a Phase-2.2 follow-up).
       - "spire_server_sockets:/run/spire/sockets"
-    # tmpfs for ephemeral SPIRE runtime paths (Tag-8 hardening
+    # tmpfs for ephemeral SPIRE runtime paths (hardening
     # addition). Keeps the root filesystem strictly read-only.
     tmpfs:
       - "/run/spire:rw,size=16m,mode=0700"
     # Loopback-only port mapping for the SPIRE-Server gRPC API
-    # (Tag-8 explicit port-mapping addition). The hermetic Tag-6
-    # form omitted ports entirely; Tag-8 adds an explicit
+    # (explicit port-mapping addition). The hermetic
+    # form omitted ports entirely; adds an explicit
     # 127.0.0.1-bound mapping so that an operator running on the
     # host can ``spire-server`` CLI-introspect during bring-up
     # without exposing the API to other hosts.
@@ -203,7 +203,7 @@ services:
           memory: "256M"
 
   spire-agent:
-    # SPIRE-Agent Phase-2.2 hermetic sidecar (Sprint-6 Tag-9).
+    # SPIRE-Agent Phase-2.2 hermetic sidecar.
     #
     # The agent runs the upstream SPIRE-Agent with a Mock/Stub config
     # bind-mounted into ``/etc/spire/agent/agent.conf``. The Mock
@@ -216,7 +216,7 @@ services:
     # (Server ↔ Agent) is on the shared ``spire_server_sockets``
     # volume at ``/run/spire/sockets``.
     #
-    # Image-pin form (Tag-9, Pfad B Cosign-Digest-Pin parity with
+    # Image-pin form (Pfad B Cosign-Digest-Pin parity with
     # spire-server): ``tag@sha256:<digest>``. Placeholder
     # ``DIGEST_PENDING_TOMAS_REVIEW`` is resolved by Operator-Hand
     # before any live bring-up (same workflow as spire-server in
@@ -300,7 +300,7 @@ volumes:
 
 networks:
   # Shared with ``compose/nats.yaml`` — the SPIRE-Server-Sidecar,
-  # the SPIRE-Agent-Sidecar (Tag-9), and the NATS-Substrate coexist
+  # the SPIRE-Agent-Sidecar, and the NATS-Substrate coexist
   # on the same user-defined bridge network. ``external: false`` so
   # that ``docker compose -f spire.yaml up`` alone is sufficient to
   # create the network if it does not exist yet; subsequent NATS

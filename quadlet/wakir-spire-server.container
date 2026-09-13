@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-6 Tag-11 — Scenario-B dual-track Quadlet unit for the
+# Scenario-B dual-track Quadlet unit for the
 # Phase-2.1 SPIRE-Server-Sidecar substrate. Byte-precise mirror of
 # compose/spire.yaml services.spire-server so operators on atomic-
 # distro hosts (Fedora Atomic / Bluefin / Silverblue / Kinoite) can
 # consume the host-native systemd integration instead of
 # `podman compose -f compose/spire.yaml up -d`.
 #
-# This file is the runnable Quadlet companion to the design-form Skizze
+# This file is the runnable Quadlet companion to the design sketch
 # in `docs/quadlet-systemd-migration-skizze.md` and the SPIRE-Server-
 # substrate description in `docs/spire-server-phase-2-1.md`. Compose
 # remains the primary Phase-2 contract surface
@@ -41,7 +41,7 @@
 # layout (e.g. ~/.config/wakir/spire-server.conf).
 #
 # Verification (hermetic-by-default — no live-smoke from sandbox; live
-# verification is operator-hand per ADR-0051 Mira-Sandbox-vs-Host-
+# verification is operator-hand per ADR-0051 sandbox-vs-host-
 # Operations-Trennung):
 #
 #   systemctl status wakir-spire-server.service
@@ -55,7 +55,7 @@
 #   podman volume rm wakir-spire-server-data
 #   podman volume rm wakir-spire-server-sockets
 #
-# Image-Pin form (Cosign-Digest-Pin Pfad B, mirror of compose Sprint-6-
+# Image-Pin form (Cosign-Digest-Pin Pfad B, mirror of compose iteration-6-
 # Tag-8 rebase): the placeholder token `DIGEST_PENDING_TOMAS_REVIEW`
 # is intentionally NOT a real digest — Operator-Hand must run `cosign
 # verify` and `skopeo inspect` to resolve the canonical digest and
@@ -78,7 +78,7 @@ ContainerName=wakir-spire-server
 # server.image. The `@sha256:DIGEST_PENDING_TOMAS_REVIEW` suffix is the
 # Cosign-Digest-Pin placeholder; Operator-Hand substitutes the
 # canonical 64-hex digest before live bring-up (Cross-Review Zone-C,
-# Tomás-track). Parity test accepts both forms.
+# image-pipeline review). Parity test accepts both forms.
 Image=ghcr.io/spiffe/spire-server:1.14.6@sha256:0ed27f4651abae66e25b9bc8cf0e80b143629b3d34a7fcf4c8cce70c81c0043b
 
 # Command-line arguments (mirror of compose `command:` list, joined for
@@ -86,7 +86,7 @@ Image=ghcr.io/spiffe/spire-server:1.14.6@sha256:0ed27f4651abae66e25b9bc8cf0e80b1
 Exec=run -config /etc/spire/server/server.conf
 
 # Loopback-only port mapping for the SPIRE-Server gRPC API. Mirror of
-# the Tag-8 explicit ports: 127.0.0.1:8081:8081. The hermetic Phase-2.1
+# the explicit ports: 127.0.0.1:8081:8081. The hermetic Phase-2.1
 # substrate must NEVER expose the SPIRE-Server gRPC API to non-loopback
 # without explicit operator opt-in (matches the compose invariant
 # tested by test_compose_spire.py).
@@ -114,12 +114,12 @@ Volume=/etc/wakir/spire-server.conf:/etc/spire/server/server.conf:ro,Z
 #    volume sidecar so an operator-driven recreate does not destroy
 #    the bootstrap-CA. `podman volume rm wakir-spire-server-data`
 #    deliberately drops it.
-# Sprint-9-Tag-8 Bug-20 substance-fix: ``:Z`` SELinux-relabel-private
+# Bug-20 substance-fix: ``:Z`` SELinux-relabel-private
 # is mandatory on FCOS-enforced hosts; without it the named volume
 # stays labeled ``root_t`` while the container runs as ``container_t``
 # and gets EACCES on first write. Bug-20 was observed as a SPIRE-Agent
 # crash-loop ("directory validation failed: permission denied") on
-# Bring-up-4 (2026-05-14, AR Fred). See ADR-pending-Tag-8 PR body.
+# Bring-up-4 (2026-05-14, repository owner). See ADR-pending- PR body.
 Volume=wakir-spire-server-data.volume:/var/lib/spire/server:Z,U
 #
 # 3) SPIRE-Server Unix-socket directory (for SPIRE-Agent gRPC channel).

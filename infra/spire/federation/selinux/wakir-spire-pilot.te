@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-9 Tag-5 — Wakir-SPIRE-Pilot canonical SELinux policy
+# Wakir-SPIRE-Pilot canonical SELinux policy
 # baseline for the Fedora-CoreOS Pilot-VM. See SELINUX_RECIPE.md §4
 # for installation steps and rationale.
 #

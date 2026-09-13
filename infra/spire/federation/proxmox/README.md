@@ -3,7 +3,7 @@ SPDX-License-Identifier: CC-BY-4.0
 SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 -->
 
-# Proxmox-Pilot-Bundle (Phase-2 Sprint-9 Tag-1)
+# Proxmox-Pilot-Bundle
 
 Status: Operator-Hand-Companion zu `PROXMOX_BRING_UP_RECIPE.md`.
 

@@ -1,16 +1,16 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """spire-fed-health — Federation-Bundle-Endpoint Health-Check substrate
-for the Phase-2 Sprint-8 Tag-4 monitoring surface.
+for the monitoring surface.
 
-Today the SPIRE-Federation-Bundle-Endpoint (Tag-1) serves JWKS on
+Today the SPIRE-Federation-Bundle-Endpoint serves JWKS on
 host port 8443 (wakir side) / 8444 (partner side). Operator-Hand and
 monitoring tooling can only verify endpoint health by parsing the
 JWKS document — there is no boolean ``up/down`` answer and no
 ``how-many-keys-active`` answer that a Prometheus scrape or a systemd
 ``ExecStartPost`` probe could consume.
 
-Tag-4 splits this into two artefacts:
+ splits this into two artefacts:
 
   * ``spire_fed_health`` (this module): a tiny HTTP server that
     exposes a ``/health`` endpoint returning a structured JSON
@@ -27,7 +27,7 @@ Both modules are hermetic by construction:
 
   * No podman, no container, no live SPIRE — they read JWKS bundle
     files from the local filesystem (the same bundle files the
-    Tag-1/Tag-3 CLIs produce).
+    / CLIs produce).
 
   * No wall-clock dependency for status calculation — the
     ``last_rotation_at`` timestamp is read out of the JWKS keys'
@@ -45,7 +45,7 @@ Quadlet ``HealthCmd``; ``spire-fed-health`` adds the BUNDLE-side
 introspection that scriptable monitoring tools (Prometheus blackbox,
 systemd ConditionPathExists, manual ``curl``) can consume.
 
-Status-document shape (stable for Phase-2 Sprint-8 Tag-4 — bumped via
+Status-document shape (stable for — bumped via
 SemVer-style ``_schema_version`` field for future evolution):
 
     {
@@ -64,7 +64,7 @@ SemVer-style ``_schema_version`` field for future evolution):
     }
 
 The ``agent_connections`` field is a hermetic-fixture surface for
-Tag-4: in Phase-2c+ it will be populated from the SPIRE-Agent's
+: in Phase-2c+ it will be populated from the SPIRE-Agent's
 ``/run/spire/agent-sockets/api.sock`` admin-API or a Workload-API
 counter. For now the server accepts ``--agent-connections N`` as a
 CLI argument so the operator can wire it from an external source
@@ -87,7 +87,7 @@ from typing import Any
 
 
 # Re-use the rotator's parsing primitives via sibling-file load (the
-# bin/ directory has no __init__.py — the Tag-1/Tag-3 CLIs are loaded
+# bin/ directory has no __init__.py — the Tag-1/ CLIs are loaded
 # the same way by the hermetic test surface). This keeps the trust-
 # domain validation and key-status logic single-source-of-truth shared
 # with the rotator, without forcing a package install step.

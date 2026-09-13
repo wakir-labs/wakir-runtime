@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-Pengine-7 Tag-5 — OI-PILOT-4 + Cross-Pair Reza
+# OI-PILOT-4 + Cross-Pair Reza
 # OI-PEF-11 — One-shot Quadlet unit that anchors unanchored
 # recovery_drill_outcome envelopes from the persona-state
 # NATS-KV bucket to the WAT spool.
@@ -53,7 +53,7 @@
 #
 # Image-Pin form (Cosign-Digest-Pin Pfad B): the anchor driver
 # runs inside the dedicated ``ghcr.io/wakir-labs/wakir-provisioner``
-# image (Sprint-9 Tag-4 BSL-1.1, re-used because it carries the
+# image (BSL-1.1, re-used because it carries the
 # same Python wheel set the anchor driver needs: nats-py +
 # cryptography for the WAT bridge-audit-writer). The placeholder
 # token ``DIGEST_PENDING_REZA_CROSS_REVIEW`` is the OI-PEF-11
@@ -61,7 +61,7 @@
 # the digest pin before live bring-up.
 
 [Unit]
-Description=Wakir Sprint-Pengine-7 Tag-5 recovery-drill WAT-anchor oneshot (Quadlet OI-PILOT-4)
+Description=Wakir recovery-drill WAT-anchor oneshot (Quadlet OI-PILOT-4)
 Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/wirelang/persona/recovery_drill_anchor.py
 After=network-online.target wakir-nats.service
 Wants=network-online.target
@@ -70,7 +70,7 @@ Requires=wakir-nats.service
 [Container]
 ContainerName=wakir-recovery-drill-anchor
 
-# Image pin: re-use the wakir-provisioner image (Sprint-9 Tag-4)
+# Image pin: re-use the wakir-provisioner image
 # because it ships the wheel set the driver needs (nats-py +
 # cryptography for the WAT bridge-audit-writer's hash chain).
 # The placeholder token is resolved Operator-Hand under

@@ -31,7 +31,7 @@ verify the Federation-Server live substrate:
 
 - `bin/proxmox-bringup-smoke` — Operator-Hand Self-Verify suite for
   the Pilot-VM bring-up. Re-licensed Apache-2.0 -> BSL 1.1 in
-  Sprint-9 Tag-6 (Pilot-VM live-bring-up #2, 2026-05-14).
+ (Pilot-VM live-bring-up #2, 2026-05-14).
 
 The Wakir Provisioner image, sitting in the
 `infra/spire/federation/provisioner/` subdirectory, has its own

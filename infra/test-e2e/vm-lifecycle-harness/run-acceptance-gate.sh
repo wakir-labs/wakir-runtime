@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-9 Tag-5 — One-shot Acceptance-Gate orchestrator.
+# One-shot Acceptance-Gate orchestrator.
 #
 # Runs vm-up.sh + vm-bringup-run.sh + acceptance-gate.sh in order and
 # unconditionally tears down via trap EXIT (success or failure). This

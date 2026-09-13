@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-Pengine-7 Tag-5 — Named volume sidecar for the
-# Tomás-Persona pilot container workspace data (OI-PILOT-1).
+# Named volume sidecar for the
+# tomas-persona pilot container workspace data (OI-PILOT-1).
 #
 # This volume carries the persona-engine spawn-session journal:
 # the task-archive log, the conversation tail (Phase-1b
@@ -23,7 +23,7 @@
 # via OI-PILOT-4 hourly cron) is independent of this volume.
 
 [Unit]
-Description=Wakir Tomás-Persona pilot workspace volume (Quadlet OI-PILOT-1)
+Description=Wakir tomas-persona pilot workspace volume (Quadlet OI-PILOT-1)
 
 [Volume]
 # Default driver (local). No explicit Driver= line — Quadlet

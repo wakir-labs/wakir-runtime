@@ -115,7 +115,7 @@ def test_quadlet_hardening_posture(quadlet_text: str) -> None:
     assert "Group=1000" in quadlet_text
     assert "DropCapability=ALL" in quadlet_text
     assert "NoNewPrivileges=true" in quadlet_text
-    # Sprint-9-Tag-6 Bug 12 substance-fix: the previous mode=0700 made
+    # Bug 12 substance-fix: the previous mode=0700 made
     # /run/spire root-only and blocked the uid:1000 SPIRE process from
     # creating the gRPC API socket inside the bind-mounted -sockets
     # volume. Live Pilot-VM bring-up 2026-05-14 observed
@@ -129,7 +129,7 @@ def test_quadlet_health_probe(quadlet_text: str) -> None:
     assert "HealthInterval=10s" in quadlet_text
     assert "HealthTimeout=5s" in quadlet_text
     assert "HealthRetries=5" in quadlet_text
-    # Sprint-9-Tag-5 Bug 7 H3 substance-fix: HealthStartPeriod was 30s
+    # Bug 7 H3 substance-fix: HealthStartPeriod was 30s
     # but cold-start CA-init on a slow Pilot-VM can exceed 30s. Raised
     # to 60s. The 30s lower-bound is no longer correct as a HARD
     # assertion; the 60s value is the new floor.
@@ -139,7 +139,7 @@ def test_quadlet_health_probe(quadlet_text: str) -> None:
 def test_quadlet_publishes_bundle_endpoint(quadlet_text: str) -> None:
     # The template uses placeholders; the literal container port 8443 is
     # the invariant. Host port + host bind are substituted at install.
-    # Sprint-10 Tag-3 substance: the bundle-endpoint host bind is now
+    # substance: the bundle-endpoint host bind is now
     # parametrised via <HOST_BUNDLE_BIND> so federation-mode bind on
     # 0.0.0.0 is possible (Cross-VM access), while single-org keeps
     # 127.0.0.1 loopback-only.
@@ -150,7 +150,7 @@ def test_quadlet_publishes_bundle_endpoint(quadlet_text: str) -> None:
     # The gRPC API stays LITERALLY loopback-only — this is a security
     # invariant (the gRPC API is the privileged control plane). The
     # bind for 8081 must remain hardcoded ``127.0.0.1``, NOT a
-    # placeholder. Drift would be a regression of the Sprint-10 Tag-3
+    # placeholder. Drift would be a regression of the
     # security posture.
     assert re.search(
         r"PublishPort=127\.0\.0\.1:<HOST_GRPC_PORT>:8081", quadlet_text
@@ -165,7 +165,7 @@ def test_quadlet_placeholders_preserved(quadlet_text: str) -> None:
     """The template MUST keep the documented placeholders so the
     install-time sed-substitution stays explicit.
 
-    Sprint-10 Tag-3 adds ``<HOST_BUNDLE_BIND>`` to the placeholder set;
+ adds ``<HOST_BUNDLE_BIND>`` to the placeholder set;
     the bootstrap wires it from WAKIR_PILOT_MODE (single-org -> 127.0.0.1,
     federation -> 0.0.0.0).
     """
@@ -182,7 +182,7 @@ def test_quadlet_placeholders_preserved(quadlet_text: str) -> None:
 
 
 def test_quadlet_grpc_port_bind_is_literal_loopback(quadlet_text: str) -> None:
-    """Sprint-10 Tag-3 security invariant: the gRPC API host bind MUST
+    """ security invariant: the gRPC API host bind MUST
     NOT be parametrised. Only the bundle-endpoint host bind is
     parametrised (because federation-mode requires Cross-VM access).
     The gRPC API is the privileged control plane (token-generate,

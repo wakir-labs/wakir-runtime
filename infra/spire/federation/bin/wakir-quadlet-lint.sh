@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Sprint-9-Tag-9 Bug-23 substance-fix: Quadlet-Lint pre-check.
+# Bug-23 substance-fix: Quadlet-Lint pre-check.
 #
 # This wrapper invokes ``/usr/libexec/podman/quadlet --dryrun`` against
 # the substituted Wakir Quadlet inventory and exits non-zero on any
@@ -10,9 +10,9 @@
 # free-of-cost CI gate that closes the Live-Bring-up-Sandbox-Gap class
 # of bugs that has now hit the pilot four bring-ups in a row:
 #
-#   * Bug-20 (Tag-8): missing ``:Z`` flags on named-volume mounts.
-#   * Bug-21 (Tag-8): chown stderr swallow + missing stat verification.
-#   * Bug-22 (Tag-9): TOC-vs-TOU race between ad-hoc volume create and
+#   * Bug-20: missing ``:Z`` flags on named-volume mounts.
+#   * Bug-21: chown stderr swallow + missing stat verification.
+#   * Bug-22: TOC-vs-TOU race between ad-hoc volume create and
 #                     podman-system-generator reconcile.
 #   * Bug-23 itself: forecast — any future Volume= syntax slip,
 #                    missing dependency, malformed Image= line, etc.
@@ -24,15 +24,15 @@
 #
 # The Phase-2 SPIRE-Federation templates contain ``<SIDE>``,
 # ``<TRUST_DOMAIN>``, ``<SERVER_DNS>``, ``<HOST_BUNDLE_PORT>``,
-# ``<HOST_GRPC_PORT>``, and (Sprint-10 Tag-3) ``<HOST_BUNDLE_BIND>``
+# ``<HOST_GRPC_PORT>``, and ``<HOST_BUNDLE_BIND>``
 # placeholders that the bootstrap script substitutes at install time. The Quadlet generator does not know
 # about these placeholders and reports them as missing-volume
 # references. We mirror the bootstrap's substitution into a tmp
 # staging dir and run the dryrun against that.
 #
 # We exercise three sides: ``wakir`` (the Phase-1b Pilot-VM Side),
-# ``partner`` (the same-host hermetic federation peer from Sprint-8
-# Tag-1), and ``orbit`` (the Sprint-10 Tag-1 Cross-VM Federation peer-
+# ``partner`` (the same-host hermetic federation peer from
+#), and ``orbit`` (the Cross-VM Federation peer-
 # VM). The orbit-side is a strict mirror of the wakir-side under the
 # Cross-VM dual-trust-domain
 # +(partner-side stays as same-host hermetic-test fixture)
@@ -50,7 +50,6 @@
 # write, no systemd daemon-reload, no live volumes/networks/containers
 # created. Pure source-level lint.
 #
-# -- Tomás
 
 set -euo pipefail
 
@@ -110,7 +109,7 @@ stage_for_side() {
   done
 
   if [[ -f "$FED_QUADLET/wakir-spire-server-federation.container" ]]; then
-    # Sprint-10 Tag-3 substance: <HOST_BUNDLE_BIND> substitution.
+    # substance: <HOST_BUNDLE_BIND> substitution.
     # The lint runs against the WORST-CASE federation deployment shape
     # (0.0.0.0 bundle-endpoint), since that is the bind that has to
     # pass podman-quadlet's syntactic + network validation. The
@@ -153,7 +152,7 @@ stage_for_side() {
 
 stage_wakir=$(stage_for_side "wakir" "wakir.test" "spire-server-wakir")
 stage_partner=$(stage_for_side "partner" "partner.test" "spire-server-partner")
-# Sprint-10-Tag-1 Cross-VM-Federation substance: ``orbit`` is the
+# Cross-VM-Federation substance: ``orbit`` is the
 # Partner-VM-Side trust-domain. The lint exercises it as a third
 # stage variant so any Quadlet-template drift that breaks orbit-side
 # substitution is caught at PR-time, not on the live Partner-VM.
@@ -205,5 +204,5 @@ if [[ "$rc" -ne 0 ]]; then
 fi
 
 echo "$PROG: all sides OK ($(ls "$stage_wakir" | wc -l) units / side)"
-echo "$PROG: sides=wakir+partner+orbit (Sprint-10 Tag-1 Cross-VM-Federation substance)"
+echo "$PROG: sides=wakir+partner+orbit (Cross-VM-Federation substance)"
 exit 0

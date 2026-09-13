@@ -3,7 +3,7 @@ SPDX-License-Identifier: BUSL-1.1
 SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 -->
 
-# Disposable-VM E2E Acceptance-Gate Harness — Sprint-9 Tag-5
+# Disposable-VM E2E Acceptance-Gate Harness
 
 Operator-hand-run substrate that materialises a single-use Fedora-CoreOS
 VM, drives the full `wakir-pilot-bootstrap.sh` end-to-end against the
@@ -11,15 +11,15 @@ real (un-stubbed) systemd + podman + curl surface, and grades the result
 through `proxmox-bringup-smoke`. The acceptance gate is binary: **6/6
 PASS or the gate fails**.
 
-This closes the sandbox-hermetic-test gap documented in the Mira-Memory
+This closes the sandbox-hermetic-test gap documented in the operator notes
 `feedback_live_bringup_sandbox_gap.md` (2026-05-13): seven substance
-bugs slipped past the hermetic sandbox tests of Sprint-9 Tag-4 and
+bugs slipped past the hermetic sandbox tests of and
 surfaced only during the Operator-Hand bring-up of 2026-05-13 ~12:45
 CEST.
 
-## Why a real VM and not the Sprint-9 Tag-4 Fedora-container substrate
+## Why a real VM and not the Fedora-container substrate
 
-The Tag-4 container suite (`tests/infra/test_pilot_bringup_e2e_container.py`)
+The container suite (`tests/infra/test_pilot_bringup_e2e_container.py`)
 stubs `systemctl`, `podman`, `curl`, `git`, `proxmox-bringup-smoke`. The
 stubs let CI exercise the bootstrap *control flow*, but they never
 materialise:
@@ -34,7 +34,7 @@ Any of the seven 2026-05-13 substance bugs (Volume-filename mismatch,
 Agent-Requires mismatch, Python `cryptography` ModuleNotFoundError,
 SPIRE-Server restart loop, etc.) lives in exactly that layer.
 
-The Tag-5 harness fixes the gap by running the bootstrap inside a
+The harness fixes the gap by running the bootstrap inside a
 genuine Fedora-CoreOS QEMU VM with a fresh Ignition config on every
 invocation. The VM is disposable: cold-start, drive, grade, destroy.
 
@@ -184,7 +184,6 @@ run is gated on:
 - Reza-NATS-Discrepancy + Wirelang-Import-Disentanglement merged (Bug 6),
 - Pilot-VM rolled back to `pre-bring-up` snapshot.
 
-Bring-up-2 from the Mira-Bug-Bilanz §"Pilot-Phase-Verschiebung" is the
+Bring-up-2 from the live bring-up bug report §"Pilot-Phase-Verschiebung" is the
 first run scheduled.
 
-— Amara

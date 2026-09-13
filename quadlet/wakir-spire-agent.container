@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-6 Tag-11 — Scenario-B dual-track Quadlet unit for the
+# Scenario-B dual-track Quadlet unit for the
 # Phase-2.2 SPIRE-Agent-Sidecar substrate. Byte-precise mirror of
 # compose/spire.yaml services.spire-agent. Pairs with
 # wakir-spire-server.container; the agent attests against the server
@@ -10,7 +10,7 @@
 # `wakir-spire-agent-sockets.volume` at
 # `/run/spire/agent-sockets/api.sock`.
 #
-# This file is the runnable Quadlet companion to the design-form Skizze
+# This file is the runnable Quadlet companion to the design sketch
 # in `docs/quadlet-systemd-migration-skizze.md` and the SPIRE-Agent-
 # substrate description in `docs/spire-agent-phase-2-2.md`. Compose
 # remains the primary Phase-2 contract surface
@@ -54,10 +54,10 @@
 #   podman volume rm wakir-spire-agent-data
 #   podman volume rm wakir-spire-agent-sockets
 #
-# Image-Pin form (Cosign-Digest-Pin Pfad B, mirror of compose Sprint-6-
-# Tag-9 with parity to Tag-8 server form): placeholder token
+# Image-Pin form (Cosign-Digest-Pin Pfad B, mirror of compose iteration-6-
+# with parity to server form): placeholder token
 # `DIGEST_PENDING_TOMAS_REVIEW` resolved by Operator-Hand before live
-# bring-up (Cross-Review Zone-C, Tomás-track).
+# bring-up (Cross-Review Zone-C, image-pipeline review).
 
 [Unit]
 Description=Wakir Phase-2.2 SPIRE-Agent hermetic sidecar (Quadlet dual-track)
@@ -96,12 +96,12 @@ Volume=/etc/wakir/spire-agent.conf:/etc/spire/agent/agent.conf:ro,Z
 # 2) SPIRE-Agent data directory (bootstrap-trust-bundle cache, SVID
 #    cache). Named volume sidecar so operator-driven recreate does not
 #    destroy the bootstrap trust-bundle.
-# Sprint-9-Tag-8 Bug-20 substance-fix: ``:Z`` SELinux-relabel-private
+# Bug-20 substance-fix: ``:Z`` SELinux-relabel-private
 # is mandatory on FCOS-enforced hosts; without it the named volume
 # stays labeled ``root_t`` while the container runs as ``container_t``
 # and gets EACCES on first write. Bug-20 was observed as a SPIRE-Agent
 # crash-loop ("directory validation failed: permission denied") on
-# Bring-up-4 (2026-05-14, AR Fred). See ADR-pending-Tag-8 PR body.
+# Bring-up-4 (2026-05-14, repository owner). See ADR-pending- PR body.
 Volume=wakir-spire-agent-data.volume:/var/lib/spire/agent:Z,U
 #
 # 3) Server-Admin-API channel — the SPIRE-Agent reaches the SPIRE-

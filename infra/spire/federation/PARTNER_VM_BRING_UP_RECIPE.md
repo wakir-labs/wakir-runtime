@@ -3,16 +3,16 @@ SPDX-License-Identifier: CC-BY-4.0
 SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 -->
 
-# Partner-VM Bring-up-Recipe — Sprint-10 Cross-VM Federation Trial
+# Partner-VM Bring-up-Recipe — Cross-VM Federation Trial
 
-Status: Phase-2 Sprint-10 Tag-1 (Cross-VM Federation Live Trial). Operator-
-Hand-Pfad fuer den Aufsichtsrat-Bring-up der ZWEITEN Proxmox-VM als
+Status: (Cross-VM Federation Live Trial). Operator-
+Hand-Pfad fuer den Operator-Bring-up der ZWEITEN Proxmox-VM als
 Federation-Partner-Side. Sandbox-Boundary: dieses Dokument beschreibt
 was der Operator (Fred) auf dem Proxmox-Host tut; die Sandbox fuehrt
 keinen Live-Bring-up aus (`feedback_sandbox_host_trennung.md`).
 
 **Dogfood-First-Posture (AR-Decision 2026-05-14 19:30 CEST):** das
-M-3 Live-Federation-Trial-Gate aus Sprint-7-Closeout §7 wird mit einer
+M-3 Live-Federation-Trial-Gate aus iteration-7-Closeout §7 wird mit einer
 **zweiten Proxmox-VM** umgesetzt, nicht mit einem externen Partner.
 Beide VMs laufen auf demselben Proxmox-Host, sind ueber eine interne
 Proxmox-Bridge gekoppelt, und gehoeren vollstaendig der Wakir-
@@ -21,16 +21,16 @@ dieses Recipes.
 
 Companion-Artefakte:
 
-- `PROXMOX_BRING_UP_RECIPE.md` — die Wakir-Side-Recipe (Sprint-9 Tag-1
+- `PROXMOX_BRING_UP_RECIPE.md` — die Wakir-Side-Recipe (
   Baseline). Dieses Recipe ist der **Spiegel** der Wakir-Side mit
   Side=orbit. Lies das Wakir-Side-Recipe zuerst, dann hier den Diff.
-- `wakir-pilot-bootstrap.sh` (Sprint-10-Tag-1 patched) — der One-Shot-
+- `wakir-pilot-bootstrap.sh` (patched) — der One-Shot-
   Bootstrap-Skript, jetzt `WAKIR_SIDE=orbit`-aware.
-- `proxmox-bringup-smoke` (Sprint-10-Tag-1 patched) — `--side` +
+- `proxmox-bringup-smoke` (patched) — `--side` +
   `--peer-side` parametrisiert.
 - `config/spire-server-orbit.conf` + `config/spire-agent-orbit.conf`
   (NEU) — die Orbit-Side-Configs fuer das Federation-Peering.
-- `bin/wakir-quadlet-lint.sh` (Sprint-10-Tag-1 patched) — lintet jetzt
+- `bin/wakir-quadlet-lint.sh` (patched) — lintet jetzt
   drei Sides (wakir, partner, orbit).
 
 Lesepfad: dieser Recipe-Text ist **sequenziell**. Jeder Schritt
@@ -67,7 +67,7 @@ sich gegenseitig **federieren koennen**:
 
 ### Trust-Domain-Naming (AR-Decision-Slot 2026-05-15)
 
-Wir nutzen folgende Default-Variante (Variante-C aus Mira-Empfehlung
+Wir nutzen folgende Default-Variante (Variante-C aus operator recommendation
 2026-05-14 19:30 CEST):
 
 | Side | Trust-Domain | VM-Hostname | Bridge-IP (default) |
@@ -89,14 +89,14 @@ RFC-6761-Hygiene. Die Wakir-Side bleibt unveraendert auf `wakir.test`.
 
 Phase-3a-Production-Trust-Domain (`<FTD-ID>.wakir.dev` jeweils) ist
 **explizit nicht Thema** dieses Recipes — Live-DNS, Production-CA,
-und Trust-Domain-Migration sind Sprint-12+-Items.
+und Trust-Domain-Migration sind 12+-Items.
 
 ### Sandbox vs. Operator-Hand-Grenze
 
 | Phase | Wer | Wo |
 |---|---|---|
-| Spec/Code-Bauen | Sandbox (Kai, Reza, Tomás) | wakir-runtime-Repo, hermetische Tests |
-| Image-Pin-Aufloesung | Operator-Hand (Tomás Cross-Review) | `cosign verify` auf Host |
+| Spec/Code-Bauen | Sandbox | wakir-runtime-Repo, hermetische Tests |
+| Image-Pin-Aufloesung | Operator-Hand (image-pipeline cross-review) | `cosign verify` auf Host |
 | VM-Erstellung (Orbit-VM) | Operator-Hand (Fred) | Proxmox-Web-UI / qm-CLI |
 | Cross-VM-Bridge-Setup | Operator-Hand (Fred) | Proxmox-Web-UI (vmbr1) |
 | Quadlet-Install | Operator-Hand (Fred) | SSH auf Orbit-VM, `WAKIR_SIDE=orbit` |
@@ -107,7 +107,7 @@ und Trust-Domain-Migration sind Sprint-12+-Items.
 ## 1. Voraussetzung: Wakir-Side-VM steht
 
 Bevor die Orbit-VM hochgebracht wird, MUSS die Wakir-Side-VM den
-Sprint-9-Tag-9-Smoke vollstaendig bestehen:
+9-Tag-9-Smoke vollstaendig bestehen:
 
 ```bash
 # Auf der Wakir-VM:
@@ -252,7 +252,7 @@ Auf der **Wakir-VM** (rueckwirkend):
 
 ```bash
 sudo tee -a /etc/hosts <<'EOF'
-# Sprint-10-Tag-1 Cross-VM Federation peer (Orbit-Side)
+# Cross-VM Federation peer (Orbit-Side)
 10.0.42.11   spire-server-orbit  wakir-orbit-pilot
 EOF
 ```
@@ -261,7 +261,7 @@ Auf der **Orbit-VM**:
 
 ```bash
 sudo tee -a /etc/hosts <<'EOF'
-# Sprint-10-Tag-1 Cross-VM Federation peer (Wakir-Side)
+# Cross-VM Federation peer (Wakir-Side)
 10.0.42.10   spire-server-wakir  wakir-pilot
 EOF
 ```
@@ -294,7 +294,7 @@ Identisch zur Wakir-Side-Recipe §2 + §3. Kurzform:
 sudo mkdir -p /opt
 sudo git clone https://github.com/wakir-labs/wakir-runtime.git /opt/wakir-runtime
 
-# Cosign-Verify + Skopeo-Cross-Check (Cross-Review Zone-C, Tomás-Track):
+# Cosign-Verify + Skopeo-Cross-Check (Cross-Review Zone-C, image-pipeline review):
 sudo dnf install -y cosign skopeo jq
 cosign verify \
   --certificate-identity-regexp 'https://github\.com/spiffe/spire/' \
@@ -338,20 +338,20 @@ dann automatisch:
 - Network-Alias `spire-server-orbit` (statt `spire-server-wakir`).
 - Trust-Domain-Substitution `orbit.test` (auto-sync mit
   `WAKIR_SIDE`, siehe Bootstrap-Header).
-- **(NEU, Sprint-10 Tag-3)** Bundle-Endpoint-Host-Bind auf `0.0.0.0`
+- **(NEU)** Bundle-Endpoint-Host-Bind auf `0.0.0.0`
   (statt `127.0.0.1`) wenn `WAKIR_PILOT_MODE=federation`. Das ist die
   substantielle Voraussetzung dass der peer-VM den Bundle-Endpoint
   ueberhaupt erreichen kann. Single-Org-Mode bleibt loopback-only.
   gRPC-API-Port 8081 bleibt in beiden Modi loopback-only (Security-
   Invariant — privilegierte Control-Plane).
-- **(NEU, Sprint-10 Tag-3)** `WAKIR_PEER_SIDE` + `WAKIR_PEER_HOST`
+- **(NEU)** `WAKIR_PEER_SIDE` + `WAKIR_PEER_HOST`
   Env-Vars: setzen + die `/etc/hosts`-Entry fuer die Peer-VM wird
   automatisch installiert. Ohne diese Vars: Operator-Hand-Edit von
   `/etc/hosts` (siehe §5.2 unten).
 
 ### 5.1 Bootstrap-Skript mit WAKIR_SIDE starten
 
-**Empfohlene Variante (Sprint-10 Tag-3, Cross-VM auto-wired):**
+**Empfohlene Variante (Cross-VM auto-wired):**
 
 ```bash
 # In der Orbit-VM (Beispiel: wakir-pilot ist auf 192.168.178.116):
@@ -369,7 +369,7 @@ sudo env \
 # Der HTTPS-Endpoint des wakir-VM wird damit cross-VM erreichbar.
 ```
 
-**Klassische Variante (vor Sprint-10 Tag-3, `/etc/hosts` per Hand):**
+**Klassische Variante (vor `/etc/hosts` per Hand):**
 
 ```bash
 sudo env \
@@ -386,8 +386,8 @@ sudo env \
 **Hinweis:** `WAKIR_PILOT_MODE=federation` ist die Wahl die den
 Bootstrap die Federation-Configs installieren laesst (statt der
 Single-Org-Pilot-Configs). Beide VMs MUESSEN `federation`-Mode
-verwenden, sonst startet der SPIRE-Server nicht (Bug 7 H1, Sprint-9
-Tag-5).
+verwenden, sonst startet der SPIRE-Server nicht (Bug 7 H1,
+).
 
 ### 5.2 Verifikation
 
@@ -411,8 +411,8 @@ qm snapshot 102 post-spire --description "Orbit-Side SPIRE-Stack laeuft"
 
 ### 5.3 Wakir-Side: Federation-Mode aktivieren (rueckwirkend)
 
-Falls die Wakir-Side aktuell im `single-org`-Mode laeuft (Sprint-9-
-Tag-1-Baseline), muss sie auf `federation`-Mode umgestellt werden,
+Falls die Wakir-Side aktuell im `single-org`-Mode laeuft (-
+1-Baseline), muss sie auf `federation`-Mode umgestellt werden,
 damit der `federates_with "orbit.test"`-Block aktiv ist UND der
 Bundle-Endpoint-Host-Bind von `127.0.0.1` auf `0.0.0.0` flippt. Auf
 der Wakir-VM:
@@ -437,7 +437,7 @@ sudo systemctl start wakir-spire-server-federation-wakir.service
 sudo systemctl start wakir-spire-agent-wakir.service
 ```
 
-**Sprint-10 Tag-3 Effect-Check:** Nach dem `federation`-Mode-Switch
+** Effect-Check:** Nach dem `federation`-Mode-Switch
 MUSS der Bundle-Endpoint auf `0.0.0.0` binden, nicht mehr auf
 `127.0.0.1`. Verifikation:
 
@@ -453,8 +453,8 @@ sudo cat /etc/containers/systemd/wakir-spire-server-federation-wakir.container \
 ```
 
 **Wichtig:** Die Wakir-Side-Config `spire-server-wakir.conf` enthaelt
-einen `federates_with "partner.test"`-Block (Sprint-8 Tag-1 same-host
-hermetic peer). Fuer das Sprint-10 Cross-VM-Setup MUSS dieser Block
+einen `federates_with "partner.test"`-Block (same-host
+hermetic peer). Fuer das Cross-VM-Setup MUSS dieser Block
 auf `orbit.test` zeigen. Edit von Hand oder kuenftiger Bootstrap-
 Switch — siehe §10 Open-Items.
 
@@ -537,9 +537,9 @@ qm snapshot 101 post-bundle-sync --description "Wakir hat orbit.test-Bundle geca
 qm snapshot 102 post-bundle-sync --description "Orbit hat wakir.test-Bundle gecacht"
 ```
 
-## 7. Federation-Smoke-Acceptance (NEU, Sprint-10 Tag-1)
+## 7. Federation-Smoke-Acceptance (NEU)
 
-Der `proxmox-bringup-smoke`-Skript wurde fuer Sprint-10 erweitert
+Der `proxmox-bringup-smoke`-Skript wurde fuer erweitert
 mit zwei Cross-VM-Checks:
 
 - `federation-bundle-sync-reachable` — HTTPS-GET gegen Peer-Endpoint.
@@ -585,7 +585,7 @@ sudo env \
 ```
 
 Wenn BEIDE Sides 8/8 melden: M-3 Live-Federation-Trial-Gate ist
-strukturell **vollstaendig geschlossen**. Sprint-7-Closeout §7 ist
+strukturell **vollstaendig geschlossen**. iteration-7-Closeout §7 ist
 formal abschluss-faehig; Phase-2 ist eroffnungs-faehig.
 
 **Snapshot:**
@@ -595,16 +595,16 @@ qm snapshot 101 post-fed-smoke-clean --description "Wakir-Side 8/8 Federation-Sm
 qm snapshot 102 post-fed-smoke-clean --description "Orbit-Side 8/8 Federation-Smoke ok"
 ```
 
-### 7.3 M-3 Live-Trial Validation (Mira-Hand-Pfad, Sprint-10 Tag-3)
+### 7.3 M-3 Live-Trial Validation (operator-hand path)
 
 Diese Sektion ist die explizite Sequenz die Mira nach dem Merge des
-Sprint-10-Tag-3-PR auf den beiden Live-VMs ausfuehrt. Sandbox-Boundary:
+-PR auf den beiden Live-VMs ausfuehrt. Sandbox-Boundary:
 Kai liefert die Substanz (Code, Configs, Tests, Recipe-Update); Mira
 fuehrt den Live-Trial aus. Erfolgs-Kriterium: 8/8 PASS auf beiden
-Sides + Reza's Live-HTTPS-Adapter-Test (`test_live_int_live_partner_vm`)
+Sides + the Live-HTTPS-Adapter-Test (`test_live_int_live_partner_vm`)
 gruen gegen `WAKIR_LIVE_PARTNER_URL=https://wakir-orbit:8443`.
 
-**Bootstrap-Sequenz (beide VMs, Sprint-10 Tag-3 auto-wired):**
+**Bootstrap-Sequenz (beide VMs, auto-wired):**
 
 ```bash
 # Schritt 1: wakir-orbit (192.168.178.191) auf federation-mode flashen.
@@ -641,7 +641,7 @@ sudo env \
     --peer-side wakir
 # Erwartet: 8/8 checks PASS
 
-# Schritt 5: Reza's Live-Adapter-Test (von der Sandbox, oder von
+# Schritt 5: the Live-Adapter-Test (von der Sandbox, oder von
 # wakir-pilot mit installiertem wirelang):
 WAKIR_LIVE_PARTNER_URL=https://wakir-orbit:8443 \
   python -m pytest \
@@ -673,29 +673,29 @@ rollback und Bug-Report.
 Orbit-VM auf den frischen OS-Install zurueck (Wakir-Side bleibt
 unbeeintraechtigt).
 
-## 9. Cross-Review-Trail (Sprint-10 Tag-1)
+## 9. Cross-Review-Trail
 
 | Zone | Counterparty | Was |
 |---|---|---|
 | Zone A | Reza (Wirelang) | Federation-Bundle-Endpoint-URL-Shape-Konsens mit PR #51 Adapter (Root-Path vs. ``/bundle``-Suffix) |
 | Zone B | Reza (NATS-Schema) | per-org Marker-Stack-Bucket-Family bleibt unveraendert (Orbit-VM hat eigenen NATS-JetStream) |
-| Zone C | Tomás (OTS / Image-Pipeline) | Quadlet-:Z-Disziplin + Image-Pin-Disziplin im neuen Orbit-Side-Set; Tag-9 SELinux-Lane + Quadlet-Lint garantieren das strukturell |
+| Zone C | Tomás (OTS / Image-Pipeline) | Quadlet-:Z-Disziplin + Image-Pin-Disziplin im neuen Orbit-Side-Set; SELinux-Lane + Quadlet-Lint garantieren das strukturell |
 | Zone D | Reza (V-904 Identity-Bridge) | nicht in Pilot-Scope (Phase-3) |
 | Zone X | Amara (QA / Mutation-Test) | Mutation-Equivalence-Job-Inventar `KNOWN_QUADLETS` erweitern um Orbit-Side-Substitution; Tag-9-Lane sollte Orbit-Stage automatisch finden (Lint-Skript wurde erweitert) |
 
 Aisha protokolliert Konsens-Zeitpunkte. Bei Bring-up-Block: Spawn-
 Return mit Diagnose an Kai (Outbox-Rapport-Pfad).
 
-## 10. Was Sprint-10-Tag-1 NICHT abdeckt (Open-Items)
+## 10. Was NICHT abdeckt (Open-Items)
 
 - **AR-Decision-Slot 2026-05-15 Trust-Domain-Naming:** Variante-C
   (`wakir.test` + `orbit.test`) ist Default; AR-Final-Entscheidung
   pending.
 - **Bootstrap-Switch fuer rueckwirkende `federates_with`-Aenderung
   auf der Wakir-Side:** §5.3 verlangt aktuell einen Edit von Hand der
-  `spire-server-wakir.conf`. Sprint-10-Tag-2+ kann das via
+  `spire-server-wakir.conf`. kann das via
   `WAKIR_PEER_SIDE`-Env-Var automatisieren.
-- **Reza PR #51 Adapter-URL-Shape:** Adapter pinnt
+- **PR #51 Adapter-URL-Shape:** Adapter pinnt
   `https://spire-server-<side>:8443/bundle`; SPIRE-Server-
   `https_spiffe`-Profil serviert den Bundle am Root-Pfad. Der Smoke
   testet beide Pfade (root + `/bundle`-Suffix) als Toleranz. Zone-A
@@ -713,7 +713,7 @@ Return mit Diagnose an Kai (Outbox-Rapport-Pfad).
 Das hermetische Test-Substrate (Compose unter
 `infra/spire/federation/compose/spire-federation.yaml`) bleibt
 unveraendert — es ist die same-host hermetic-Form mit `wakir.test`
-+ `partner.test`. Das Sprint-10-Tag-1 Cross-VM-Setup nutzt
++ `partner.test`. Das Cross-VM-Setup nutzt
 `wakir.test` + `orbit.test` und hat KEIN compose-Pendant — Cross-VM
 ist per Definition kein same-host-compose-Scenario. Die hermetischen
 Tests bleiben fuer die same-host-Posture relevant; der Cross-VM-Pfad
@@ -726,17 +726,16 @@ Drift-Schutz:
   drei Sides (wakir, partner, orbit) — Substitutions-Drift faengt
   schon im PR auf.
 - `tests/infra/test_pilot_bootstrap_side_aware.py` (NEU,
-  Sprint-10 Tag-1) testet die `WAKIR_SIDE`-Env-Var-Hygiene.
+) testet die `WAKIR_SIDE`-Env-Var-Hygiene.
 
 ## 12. Kontakt + Eskalations-Pfad
 
-- **Sprint-10-Tag-1-Owner:** Kai Hoffmann (DevOps), Spawn-Return mit
-  Outbox-Rapport an Priya CTO + cc Mira CEO.
+- **10-Tag-1-Owner:** Kai Hoffmann (DevOps), Spawn-Return mit
+  Outbox-Rapport an CTO + cc Mira CEO.
 - **Cross-Review Zone A:** Reza (Adapter-URL-Konsistenz).
 - **Cross-Review Zone C:** Tomás (Quadlet-:Z + Image-Pin-Disziplin).
 - **Cross-Review Zone X:** Amara (Mutation-Test-Methodik).
-- **Architecture-Frage:** Priya CTO.
+- **Architecture-Frage:** CTO.
 - **Strategie/Naming-Frage:** Mira CEO (Trust-Domain-Naming-Final
   ist AR-Touch).
 
-— Kai

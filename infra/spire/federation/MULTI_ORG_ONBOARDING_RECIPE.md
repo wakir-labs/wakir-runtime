@@ -5,9 +5,9 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 
 # Multi-Org-Onboarding-Recipe — `partner.test` als zweite Trust-Domain auf demselben Proxmox-Host
 
-Status: Phase-2 Sprint-9 Tag-2 (Migrations-Schritt-1b, Multi-Org-
+Status: (Migrations-Schritt-1b, Multi-Org-
 Extension auf `PROXMOX_BRING_UP_RECIPE.md`). Operator-Hand-Pfad
-fuer den Aufsichtsrat. Sandbox-Boundary: dieses Dokument
+fuer den Operator. Sandbox-Boundary: dieses Dokument
 beschreibt was der Operator (Fred) auf dem Proxmox-Host tut; die
 Sandbox fuehrt keinen Live-Bring-up aus
 (`feedback_sandbox_host_trennung.md`).
@@ -15,7 +15,7 @@ Sandbox fuehrt keinen Live-Bring-up aus
 Companion-Artefakte:
 
 - `PROXMOX_BRING_UP_RECIPE.md` — Single-Org-Pilot-Bring-up
-  (Sprint-9 Tag-1, Voraussetzung fuer diese Recipe).
+ (Voraussetzung fuer diese Recipe).
 - `proxmox-bundle-v1.0.tar.gz` — Quadlet-Unit-Bundle, enthaelt
   bereits die `<SIDE>`-Placeholder-Templates fuer beide Sides
   (`wakir.test` + `partner.test`).
@@ -65,7 +65,7 @@ das jeweils importierte foreign-trust-bundle verifiziert.
 | **Single-VM (Default Pilot)** | Beide Sides auf derselben VM, je 0.5 cpu / 256 MiB cgroup-Limit; Network-Bridge isoliert die Sides | Pilot-Phase, einfacher Operator-Hand-Pfad, alle Container auf einem Host; deckt 80% der Multi-Org-Federation-Mechanik ab |
 | **Two-VM (Production-Shadow)** | Eine VM pro Side; Cross-Side ueber Host-Port-Bridge `127.0.0.1:8443/8444` | Production-Shadow, jede Org auf eigener VM (HA-Setup), Cross-Side-Latenz realistisch (Host-Port-Roundtrip statt Bridge-Network-DNS) |
 
-**Default fuer den Pilot:** Single-VM. Two-VM ist Sprint-10+
+**Default fuer den Pilot:** Single-VM. Two-VM ist
 Thema (Production-Shadow-Pilot mit echtem `<FTD-ID>.wakir.dev`-
 Trust-Domain).
 
@@ -80,9 +80,9 @@ Thema** — keine Live-DNS, keine Production-CA.
 
 | Phase | Wer | Wo |
 |---|---|---|
-| Spec/Code-Bauen | Sandbox (Kai, Reza, Tomás) | wakir-runtime-Repo, hermetische Tests |
+| Spec/Code-Bauen | Sandbox | wakir-runtime-Repo, hermetische Tests |
 | Bundle-Tarball-Build | Sandbox | `build-bundle.sh` deterministisch |
-| Image-Pin-Aufloesung | Operator-Hand (Tomás Cross-Review) | `cosign verify` auf Host |
+| Image-Pin-Aufloesung | Operator-Hand (image-pipeline cross-review) | `cosign verify` auf Host |
 | VM-Erstellung / Erweiterung | Operator-Hand (Fred) | Proxmox-Web-UI |
 | Quadlet-Install Partner-Side | Operator-Hand (Fred) | SSH auf VM, `sudo systemctl ...` |
 | Bundle-Cross-Import | Operator-Hand (Fred) | `bin/spire-fed-bundle export/import` |
@@ -157,7 +157,7 @@ qm start 102
 ```
 
 Two-VM erfordert zusaetzliche Port-Bridge-Routen zwischen den
-beiden VMs (host-loopback-only). Dieser Pfad ist Sprint-10+
+beiden VMs (host-loopback-only). Dieser Pfad ist
 Thema und in diesem Recipe nicht weiter ausgefuehrt.
 
 **Snapshot:** `qm snapshot 101 post-multi-org-resource-bump`.
@@ -170,9 +170,9 @@ Auf der VM, im Bundle-Verzeichnis (`/opt/wakir-runtime/`):
 
 ```bash
 # Substituiere den partner-side aus dem Quadlet-Template.
-# Sprint-10 Tag-3 adds <HOST_BUNDLE_BIND>: 127.0.0.1 für die same-host
+# adds <HOST_BUNDLE_BIND>: 127.0.0.1 für die same-host
 # Two-VM Topology (peer fetch geht über die Host-Loopback-Bridge).
-# Für die Cross-VM Topology (Sprint-10 Tag-3+) wird HOST_BUNDLE_BIND
+# Für die Cross-VM Topology wird HOST_BUNDLE_BIND
 # stattdessen 0.0.0.0 — siehe PARTNER_VM_BRING_UP_RECIPE.md §5.
 sudo sed -e 's/<SIDE>/partner/g' \
     -e 's/<HOST_BUNDLE_PORT>/8444/g' \
@@ -276,19 +276,19 @@ journalctl -u wakir-nats-kv-bucket-init.service --since '1 min ago' \
 #   [nats-kv-bucket-provision] org=partner bucket=wakir-marker-stack-partner: created
 ```
 
-**Reza-Tag-2-Erweiterung (Sprint-9 Tag-2):** sobald Reza-PR #25
+**sequence-ledger module:** sobald PR #25
 gemerged ist, provisioniert dieselbe Unit AUCH die per-org
 `wakir-caveat-override-export-sequence-{org_id}`-Bucket-Family:
 
 ```text
-# Erwartet (excerpt nach Reza-Tag-2-Merge):
+# Erwartet (excerpt nach sequence-ledger module):
 #   [nats-kv-bucket-provision] org=acme bucket=wakir-marker-stack-acme: unchanged
 #   [nats-kv-bucket-provision] org=acme bucket=wakir-caveat-override-export-sequence-acme: created
 #   [nats-kv-bucket-provision] org=partner bucket=wakir-marker-stack-partner: created
 #   [nats-kv-bucket-provision] org=partner bucket=wakir-caveat-override-export-sequence-partner: created
 ```
 
-Die Family-Registry ist defensive: solange Reza-Tag-2 nicht
+Die Family-Registry ist defensive: solange sequence-ledger module nicht
 gemerged ist, provisioniert die Unit weiterhin nur die
 `marker-stack`-Family. Cross-Review Zone-B (siehe §6) deckt das
 Konsens-Trail ab.
@@ -405,9 +405,9 @@ Single-Org-Mode (6 Checks) und ignoriert die partner-Units.
 
 | Zone | Counterparty | Was | Status |
 |---|---|---|---|
-| Zone A | Reza (Wirelang) | SPIFFE-Trust-Domain-Literal `partner.test` (hermetic-only; Phase-3a `<FTD-ID>.wakir.dev` nicht Pilot-Scope) | Konsens 2026-05-11 (Sprint-6 Tag-6, Z-A-Marker-Set Aisha) |
-| Zone B | Reza (NATS-Schema) | per-org Multi-Family-Bucket-Provisioning: `wakir-marker-stack-{org_id}` (Sprint-8 Tag-4) + `wakir-caveat-override-export-sequence-{org_id}` (Sprint-9 Tag-2, PR #25); Family-Registry defensive bis Reza-Tag-2-Merge | Cross-Review-Ack Sprint-9 Tag-2 (dieser Recipe); Aisha-Konsens-Marker-Set after PR #25 merge |
-| Zone C | Tomás (OTS / Image-Pipeline) | Cosign-Pin-Resolve fuer SPIRE-Server/Agent + python:3.13-slim (re-use Single-Org-Pilot-Pins) | Konsens 2026-05-07 (Sprint-3 Tomás Zone-C-NATS-Image-Pin-Ack) |
+| Zone A | Reza (Wirelang) | SPIFFE-Trust-Domain-Literal `partner.test` (hermetic-only; Phase-3a `<FTD-ID>.wakir.dev` nicht Pilot-Scope) | Konsens 2026-05-11 (Z-A-Marker-Set Aisha) |
+| Zone B | Reza (NATS-Schema) | per-org Multi-Family-Bucket-Provisioning: `wakir-marker-stack-{org_id}` + `wakir-caveat-override-export-sequence-{org_id}` (PR #25); Family-Registry defensive bis sequence-ledger module | Cross-Review-Ack (dieser Recipe); Aisha-Konsens-Marker-Set after PR #25 merge |
+| Zone C | Tomás (OTS / Image-Pipeline) | Cosign-Pin-Resolve fuer SPIRE-Server/Agent + python:3.13-slim (re-use Single-Org-Pilot-Pins) | Konsens 2026-05-07 (image-pipeline review-NATS-Image-Pin-Ack) |
 | Zone D | Reza (V-904 Identity-Bridge) | nicht in Pilot-Scope (Phase-3) | Reserved |
 
 ## 7. Rollback
@@ -435,9 +435,9 @@ sollte `bin/proxmox-bringup-smoke --org acme` 6/6 PASS bleiben.
 ## 8. Was Multi-Org-Pilot NICHT abdeckt
 
 - **Kein Phase-3a-Production-Trust-Domain.** Wir bleiben auf
-  `partner.test`. Live-`<FTD-ID>.wakir.dev` ist Sprint-10+-Thema.
+  `partner.test`. Live-`<FTD-ID>.wakir.dev` ist iteration-10+-Thema.
 - **Kein Two-VM-Production-Shadow.** Single-VM-Layout deckt den
-  Federation-Pfad ab; Two-VM ist Sprint-10+ paired mit echtem
+  Federation-Pfad ab; Two-VM ist paired mit echtem
   DNS/Production-CA.
 - **Kein SPIFFE-JWT-SVID-NATS-Auth.** Phase-1b NATS bleibt offen
   (loopback-only); Token-Auth ist Phase-2.4-Substrate.
@@ -459,7 +459,7 @@ greift, falls Compose und Quadlet auseinanderdriften).
 Die Multi-Family-Bucket-Registry im `nats-kv-bucket-provision`
 Driver greift auch in der Sandbox (hermetic-Tests
 `tests/orchestrator/test_nats_kv_bucket_provision_multi_family.py`).
-Defensive-Import-Mode: wenn das Reza-Tag-2-Modul nicht da ist,
+Defensive-Import-Mode: wenn das sequence-ledger module nicht da ist,
 provisioniert die Unit nur die marker-stack-Family — kein
 Hard-Failure.
 
@@ -468,11 +468,10 @@ Hard-Failure.
 | Zone | Counterparty | Was |
 |---|---|---|
 | Zone A | Reza (Wirelang) | SPIFFE-Trust-Domain-Literale (`wakir.test` + `partner.test` ok, `wakir.dev` Phase-3) |
-| Zone B | Reza (NATS-Schema) | Multi-Family-Bucket-Provisioning: marker-stack (Sprint-8 Tag-4 owner) + sequence-ledger (Sprint-9 Tag-2 owner) |
+| Zone B | Reza (NATS-Schema) | Multi-Family-Bucket-Provisioning: marker-stack (owner) + sequence-ledger (owner) |
 | Zone C | Tomás (OTS / Image-Pipeline) | Cosign-Pin-Resolve re-use Single-Org-Pilot |
 | Zone D | Reza (V-904 Identity-Bridge) | nicht in Pilot-Scope (Phase-3) |
 
 Aisha protokolliert Konsens-Zeitpunkte. Bei Bring-up-Block:
 Spawn-Return mit Diagnose an Kai (Outbox-Rapport-Pfad).
 
-— Kai

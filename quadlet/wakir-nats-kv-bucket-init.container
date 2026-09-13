@@ -1,19 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-9 Tag-1 — One-shot Quadlet unit that ensures the
+# One-shot Quadlet unit that ensures the
 # per-org NATS-JetStream marker-stack-event buckets exist after the
 # Phase-1b NATS substrate is healthy. Pilot-phase substrate sibling to
-# the Sprint-2 ``scripts/init-nats-buckets.py`` driver, which seeds
+# the ``scripts/init-nats-buckets.py`` driver, which seeds
 # the FIXED Phase-1b seven-bucket inventory. This unit handles the
 # PER-ORG bucket FAMILIES:
-#   - ``wakir-marker-stack-{org_id}`` (Sprint-8 Tag-4 marker-stack
+#   - ``wakir-marker-stack-{org_id}`` (marker-stack
 #     event log, ``wirelang.federation.marker_stack_kv``)
-#   - ``wakir-caveat-override-export-sequence-{org_id}`` (Sprint-9
-#     Tag-2 durable :class:`SequenceNumberLedger`,
+#   - ``wakir-caveat-override-export-sequence-{org_id}`` (
+# durable :class:`SequenceNumberLedger`,
 #     ``wirelang.federation.sequence_number_ledger_kv``)
-# The Tag-2 family is provisioned via the multi-family driver
-# registry; defensive-import: if the Wirelang-side Tag-2 module is
+# The family is provisioned via the multi-family driver
+# registry; defensive-import: if the Wirelang-side module is
 # absent on the deployed tip (PR #25 still under review), the
 # registry stays at marker-stack only and the unit succeeds without
 # touching the ledger bucket family. Cross-Review Zone-B
@@ -49,7 +49,7 @@
 #       /etc/containers/systemd/wakir-nats-kv-bucket-init.container
 #   # Pre-condition: wakir-nats.service must be installed and the
 #   # cluster must be reachable on 127.0.0.1:4222. The wakir-
-#   # orchestrator network sidecar must already exist (the Sprint-6
+#   # orchestrator network sidecar must already exist (the
 #   # Quadlet bundle installs it).
 #   #
 #   # Onboarded-orgs roster (the operator maintains this file):
@@ -74,13 +74,13 @@
 #   journalctl -u wakir-nats-kv-bucket-init.service --since '5 min ago'
 #
 # Expected journal output on success (excerpt, marker-stack only —
-# baseline tip without Reza-Tag-2 module):
+# baseline tip without sequence-ledger module module):
 #
 #   [nats-kv-bucket-provision] org=acme bucket=wakir-marker-stack-acme: created
 #   [nats-kv-bucket-provision] org=orbit bucket=wakir-marker-stack-orbit: created
 #   wakir-nats-kv-bucket-init.service: Deactivated successfully.
 #
-# Expected journal output after Reza-PR #25 merge (multi-family):
+# Expected journal output after PR #25 merge (multi-family):
 #
 #   [nats-kv-bucket-provision] org=acme bucket=wakir-marker-stack-acme: created
 #   [nats-kv-bucket-provision] org=acme bucket=wakir-caveat-override-export-sequence-acme: created
@@ -102,16 +102,16 @@
 #
 # Image-Pin form (Cosign-Digest-Pin Pfad B): the provisioner runs
 # inside the dedicated ``ghcr.io/wakir-labs/wakir-provisioner`` image
-# (Sprint-9 Tag-4, see ``infra/spire/federation/provisioner/``). The
+# (see ``infra/spire/federation/provisioner/``). The
 # image v0.1.2 (BSL-1.1, AR-Decision 2026-05-13; v0.1.1 was the
 # functionally-identical Apache-2.0 predecessor) ships ``nats-py``
-# only — Reza-PR #33's
+# only — PR #33's
 # Wirelang-Import-Disentanglement (PEP-562 lazy ``__getattr__`` on
 # ``wirelang.federation``) shrank the previously-required wheel set
 # from four (``nats-py`` + ``cryptography`` + ``rfc8785`` +
-# ``jsonschema``) down to one. The Tag-1 author-time assumption that
+# ``jsonschema``) down to one. The author-time assumption that
 # ``python:3.13-slim`` already carries ``nats-py`` was incorrect
-# (Mira-Bug-Bilanz 2026-05-13, Bug 6: live-bring-up crashed with
+# (live bring-up bug report 2026-05-13, Bug 6: live-bring-up crashed with
 # ``ModuleNotFoundError: No module named 'cryptography'``). The
 # wakir-provisioner image closes the wheel-availability gap and stays
 # digest-pinned via the same Cross-Review Zone-C workflow as the
@@ -121,7 +121,7 @@
 # rebuild.
 
 [Unit]
-Description=Wakir Phase-2 Sprint-9 Tag-1 per-org NATS-KV bucket provisioner (one-shot)
+Description=Wakir per-org NATS-KV bucket provisioner (one-shot)
 Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/infra/spire/federation/PROXMOX_BRING_UP_RECIPE.md
 After=network-online.target wakir-nats.service
 Wants=network-online.target
@@ -131,7 +131,7 @@ Requires=wakir-nats.service
 ContainerName=wakir-nats-kv-bucket-init
 
 # Image pin: wakir-provisioner v0.1.2 ships ``nats-py`` only at unit
-# start (post Reza-PR #33 Wirelang-Import-Disentanglement; v0.1.0
+# start (post PR #33 Wirelang-Import-Disentanglement; v0.1.0
 # also carried cryptography + rfc8785 + jsonschema for the transitive
 # import chain that no longer fires). v0.1.2 is the AR-Decision
 # 2026-05-13 BSL-1.1 relicense — no functional change vs. v0.1.1;
@@ -150,7 +150,7 @@ Image=ghcr.io/wakir-labs/wakir-provisioner:0.1.2@sha256:9af7ee688aac6b7afd0994b9
 # onboarded-orgs roster from a bind-mounted file. The ``--orgs-file``
 # path resolves inside the container to the bind-mount target.
 #
-# Sprint-9 Tag-7 substance-fix (Bug-17, Mira-Bug-Bilanz 2026-05-14):
+# substance-fix (Bug-17, live bring-up bug report 2026-05-14):
 # the wakir-provisioner Containerfile carries ``ENTRYPOINT
 # ["python3"]``. A leading ``python3`` in this Exec= produced an
 # effective container argv of ``python3 python3 /opt/wakir/bin/...``,
@@ -219,7 +219,7 @@ Type=oneshot
 RemainAfterExit=no
 Restart=on-failure
 RestartSec=10s
-# Sprint-9-Tag-6 Bug 5 substance-fix: the default systemd
+# Bug 5 substance-fix: the default systemd
 # TimeoutStartSec (2 min on most distros, 120s explicit here) is too
 # short for the first bring-up on a cold Pilot-VM. The provisioner
 # image (~131MB) has to be pulled from GHCR on first run, plus the

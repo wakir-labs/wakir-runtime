@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """spire-fed-bundle-rotator — hermetic Cross-Trust-Domain Bundle Auto-
-Rotation CLI for the Phase-2 Sprint-8 Tag-3 federation substrate.
+Rotation CLI for the federation substrate.
 
-Tag-1 + Tag-2 set up static cross-trust-domain bundles:
+ + set up static cross-trust-domain bundles:
 ``spire-fed-bundle export`` produces a single-key JWKS, the peer
 imports it as bootstrap anchor, the agent consumes it. In production
 the SPIRE-Server's CA key rotates (default cadence 24h) and the
@@ -40,7 +40,7 @@ surface asserts this property end-to-end.
 
 Hermetic-fixture-marker invariant: the rotator preserves the
 ``_wakir_hermetic_fixture`` / ``_wakir_trust_domain`` markers from
-the Tag-1 ``spire-fed-bundle`` CLI on the OLD key; the NEW key is
+the ``spire-fed-bundle`` CLI on the OLD key; the NEW key is
 generated with a rotation-counter suffix appended to the ``kid``
 discriminator so the two keys are distinguishable in JWKS-set
 verify.
@@ -48,7 +48,7 @@ verify.
 Cross-trust-domain isolation: rotation of a ``wakir.test`` bundle
 does NOT touch ``partner.test`` bundles. The CLI refuses to operate
 on a bundle whose trust-domain literal does NOT match the
-``--trust-domain`` argument (mirror of Tag-1
+``--trust-domain`` argument (mirror of
 ``spire-fed-bundle import`` trust-domain mismatch guard).
 """
 
@@ -66,7 +66,7 @@ from typing import Any
 
 
 # RFC 7515 §2 ``kid`` opaque; we constrain trust-domain literal shape
-# to match Tag-1 ``spire-fed-bundle``.
+# to match ``spire-fed-bundle``.
 _TRUST_DOMAIN_RE = re.compile(r"^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$")
 
 
@@ -127,7 +127,7 @@ def _format_iso_utc(dt: datetime) -> str:
 def _deterministic_jwk_coord(td: str, axis: str, rotation_counter: int) -> str:
     """Produce a deterministic 32-byte base64url-encoded coordinate.
 
-    Mirrors Tag-1 ``spire_fed_bundle._deterministic_jwk_coord`` but
+    Mirrors ``spire_fed_bundle._deterministic_jwk_coord`` but
     additionally folds the rotation-counter into the seed so each
     rotation generation produces a distinct key.
     """
@@ -193,12 +193,12 @@ def _write_jwks(path: Path, doc: dict[str, Any]) -> None:
 
 def _assert_trust_domain_consistency(doc: dict[str, Any], td: str) -> None:
     """Refuse to operate on a bundle whose hermetic-fixture marker does
-    NOT match ``td``. Mirror of Tag-1 ``spire-fed-bundle import``
+    NOT match ``td``. Mirror of ``spire-fed-bundle import``
     trust-domain mismatch guard, applied to the in-place rotation path.
 
     Live SPIRE-Server JWKS bundles (no hermetic-fixture marker) skip
     this check; the trust-domain literal is then a pure operator
-    assertion as in Tag-1 import.
+    assertion as in import.
     """
     for i, jwk in enumerate(doc["keys"]):
         if not isinstance(jwk, dict):

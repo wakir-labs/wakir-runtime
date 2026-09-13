@@ -1,19 +1,19 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic acceptance tests for the Sprint-8 Tag-2 spire-agent-fed-
+"""Hermetic acceptance tests for the spire-agent-fed-
 attest CLI Mock (``infra/spire/agent/bin/spire_agent_fed_attest.py``).
 
 Asserts:
   * X.509-SVID Mock subcommand emits a SPIFFE-ID under the requested
     trust-domain.
   * JWT-SVID Mock subcommand emits the ``mock-jwt`` auth_mode_marker
-    expected by Reza's RealNatsConnectionAdapter fallback contract.
+    expected by the RealNatsConnectionAdapter fallback contract.
   * Determinism: same inputs yield same outputs (no clock, no random,
     no network).
   * Audience-binding: different audiences yield different JWT-SVID
     seeds (token_hint differs).
   * Trust-domain mismatch guard: requesting a non-Tag-1-federation
-    trust-domain rejects with exit-code 2 (mirror of Tag-1
+    trust-domain rejects with exit-code 2 (mirror of
     spire-fed-bundle convention).
   * Selector validation: malformed selector rejects with ValueError /
     exit-code 2.
@@ -39,7 +39,7 @@ MOD = AGENT_DIR / "bin" / "spire_agent_fed_attest.py"
 
 
 # Add the bin/ directory to sys.path so the module can be imported
-# (mirror of Tag-1 spire-fed-bundle test convention).
+# (mirror of spire-fed-bundle test convention).
 sys.path.insert(0, str(AGENT_DIR / "bin"))
 
 import spire_agent_fed_attest as fed_attest  # noqa: E402
@@ -94,7 +94,7 @@ def test_fetch_x509_determinism() -> None:
 
 
 def test_fetch_x509_cross_trust_domain_yields_different_seeds() -> None:
-    """Selector-to-trust-domain mapping is the key Tag-2 substrate
+    """Selector-to-trust-domain mapping is the key substrate
     invariant: same selector, different trust-domains, different
     SVIDs."""
     wakir = fed_attest.fetch_x509_svid(
@@ -124,7 +124,7 @@ def test_fetch_x509_rejects_non_tag1_trust_domain() -> None:
 
 
 def test_fetch_jwt_emits_mock_jwt_auth_mode_marker() -> None:
-    """JWT-SVID fallback path — this is the shape Reza's
+    """JWT-SVID fallback path — this is the shape the
     RealNatsConnectionAdapter consumes when SPIRE_AGENT_SOCKET=none.
     The auth_mode_marker literal must match the RealAdapter constant."""
     out = fed_attest.fetch_jwt_svid(
@@ -215,7 +215,7 @@ def test_cli_fetch_jwt_returns_mock_jwt_marker() -> None:
 
 
 def test_cli_rejects_unknown_trust_domain_with_exit_2() -> None:
-    """Trust-domain mismatch guard — exit-code 2 mirrors Tag-1
+    """Trust-domain mismatch guard — exit-code 2 mirrors
     spire-fed-bundle convention."""
     rc, _, stderr = _run_cli(
         "fetch-x509",
@@ -226,7 +226,7 @@ def test_cli_rejects_unknown_trust_domain_with_exit_2() -> None:
     )
     # argparse with choices= rejects with exit-code 2 before reaching
     # the body validation — both paths converge to exit-code 2 which
-    # is the intended Tag-1 contract.
+    # is the intended contract.
     assert rc == 2
     assert "example.test" in stderr or "invalid choice" in stderr.lower()
 
@@ -237,7 +237,7 @@ def test_cli_rejects_unknown_trust_domain_with_exit_2() -> None:
 
 
 def test_closed_set_trust_domain_pair() -> None:
-    """The accepted trust-domain set is exactly the Tag-1 federation
+    """The accepted trust-domain set is exactly the federation
     pair. Extending requires a server-side federates_with block, NOT
     a CLI-only change — this guard catches accidental scope-creep."""
     assert fed_attest._TRUST_DOMAINS_TAG1 == frozenset(

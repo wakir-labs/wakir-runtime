@@ -9,17 +9,17 @@
 # Change License: Apache License 2.0.
 #
 # wakir-persona-engine-recovery — Rust-CLI runtime image for the
-# R1..R4 recovery-workflow operator-CLI (Tag-33 Mini-Welle, ADR-0066
-# Welle-7 `recovery_workflow` pre-cutover image, parallel to Welle-1
-# V907-verify, Welle-2 SVID-workload-identity, Welle-3 bridge-audit-
-# writer, Welle-4 state-backing, Welle-5 lifecycle-state-machine and
-# Welle-6 subscribe-loop image-builds).
+# R1..R4 recovery-workflow operator-CLI (ADR-0066
+# wave-7 `recovery_workflow` pre-cutover image, parallel to wave-1
+# V907-verify, wave-2 SVID-workload-identity, wave-3 bridge-audit-
+# writer, wave-4 state-backing, wave-5 lifecycle-state-machine and
+# wave-6 subscribe-loop image-builds).
 #
 # Substrate scope
 # ---------------
 #
 # ADR-0066 (approved 2026-05-17) accelerates Phase-3c to 4 weeks
-# (Option A+). **Welle-7 is `recovery_workflow`**: the final write-
+# (Option A). **wave-7 is `recovery_workflow`**: the final write-
 # side surface scheduled to flip from Python-backend default to
 # Rust-backend default. This image is the substrate the cutover
 # step will pin against in the Quadlet unit and in the
@@ -63,9 +63,9 @@
 # Cross-references
 # ----------------
 #
-# - ADR-0066 §Phase-3c Welle-7 `recovery_workflow` (approved
+# - ADR-0066 §Phase-3c wave-7 `recovery_workflow` (approved
 #   2026-05-17).
-# - ADR-0065 §Welle-7 listing.
+# - ADR-0065 §wave-7 listing.
 # - ADR-0060 — Cosign-Policy on Pilot-Container-Images.
 # - persona-engine-format-spec §3.7.4 — R1..R4 recovery-workflow
 #   contract.
@@ -100,7 +100,7 @@ RUN apt-get update -qq \
 FROM gcr.io/distroless/cc-debian12:nonroot@sha256:DIGEST_PENDING_KAI_REVIEW
 
 LABEL org.opencontainers.image.title="wakir-persona-engine-recovery"
-LABEL org.opencontainers.image.description="Rust-CLI for the persona-engine R1..R4 recovery-workflow operator surface (phase order, 30s budget, per-phase soft-caps, canonical outcome schema). ADR-0066 Welle-7 pre-cutover image (Tag-33 Mini-Welle, 2026-05-18)."
+LABEL org.opencontainers.image.description="Rust-CLI for the persona-engine R1..R4 recovery-workflow operator surface (phase order, 30s budget, per-phase soft-caps, canonical outcome schema). ADR-0066 wave-7 pre-cutover image."
 LABEL org.opencontainers.image.version="0.1.0-pilot"
 LABEL org.opencontainers.image.licenses="BUSL-1.1"
 LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"

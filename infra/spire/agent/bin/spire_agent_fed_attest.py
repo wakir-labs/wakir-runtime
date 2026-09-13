@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic CLI Mock for Sprint-8 Tag-2 SPIRE-Agent-Sidecar cross-trust-
+"""Hermetic CLI Mock for SPIRE-Agent-Sidecar cross-trust-
 domain X.509-SVID issuance patterns.
 
-This module mirrors the Sprint-8 Tag-1 ``spire_fed_bundle.py`` CLI shape
+This module mirrors the ``spire_fed_bundle.py`` CLI shape
 (import-target for tests, thin wrapper exposed as ``spire-agent-fed-
 attest`` shim). It is a Mock/Stub — no live SPIRE-Agent socket is
 contacted, no real X.509 material is produced, no cryptographic
 properties are claimed. The hermetic goal is to assert the
 selector-to-trust-domain mapping pattern and the JWT-SVID fallback path
-that Reza's RealNatsConnectionAdapter consumes
+that the RealNatsConnectionAdapter consumes
 (``SPIRE_AGENT_SOCKET=none`` → ``mock-jwt`` auth_mode).
 
 Two subcommands:
@@ -19,14 +19,14 @@ Two subcommands:
   Mock X.509-SVID descriptor JSON. The selector-to-trust-domain
   mapping is the substrate-level invariant: the same agent can mint
   SVIDs in either trust-domain depending on the selector — this is
-  the Cross-Trust-Domain X.509-SVID-Issuance pattern that Tag-2
+  the Cross-Trust-Domain X.509-SVID-Issuance pattern that
   surfaces hermetically (no real SVID; selector-mapping shape only).
 
 * ``fetch-jwt``: Given a workload selector and an audience, emit a
   deterministic Mock JWT-SVID descriptor JSON. This is the path
-  Reza's RealAdapter consumes when ``SPIRE_AGENT_SOCKET`` is
+  the RealAdapter consumes when ``SPIRE_AGENT_SOCKET`` is
   ``none`` / unset — the adapter falls back to ``auth_mode="mock-
-  jwt"`` and uses a hermetic JWT placeholder. The Tag-2 CLI emits
+  jwt"`` and uses a hermetic JWT placeholder. The CLI emits
   the same shape the adapter expects on the SPIRE-side of the
   fallback boundary, so the end-to-end fallback contract is
   testable hermetically from both ends.
@@ -49,7 +49,7 @@ import sys
 from typing import Any
 
 
-# Trust-domain literals — accepted set is the Tag-1 federation pair.
+# Trust-domain literals — accepted set is the federation pair.
 # Adding more requires a federates_with block on the server side; this
 # Mock keeps the closed-set invariant tested by
 # tests/test_spire_agent_fed_attest_cli.py.
@@ -126,10 +126,10 @@ def fetch_jwt_svid(
 ) -> dict[str, Any]:
     """Mock JWT-SVID descriptor.
 
-    JWT-SVID fallback path — this is the shape Reza's
+    JWT-SVID fallback path — this is the shape the
     RealNatsConnectionAdapter consumes when ``SPIRE_AGENT_SOCKET``
     is unset/none and the adapter falls back to ``auth_mode="mock-
-    jwt"`` (Sprint-8 Tag-1 RealAdapter-Mirror substance).
+    jwt"`` (RealAdapter-Mirror substance).
 
     The audience is part of the seed so different audiences yield
     different Mock tokens (test determinism + audience-binding
@@ -217,7 +217,7 @@ def main(argv: list[str] | None = None) -> int:
             parser.error(f"unknown subcommand {args.cmd!r}")
             return 2
     except ValueError as exc:
-        # Exit-code 2 matches Sprint-8 Tag-1 spire-fed-bundle convention
+        # Exit-code 2 matches spire-fed-bundle convention
         # (trust-domain mismatch guard).
         print(f"spire-agent-fed-attest: error: {exc}", file=sys.stderr)
         return 2

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Hermetic hash-pin form invariants for the wakir-provisioner image's
-build-input requirements file (Phase-2 Sprint-9 Tag-4).
+build-input requirements file.
 
 The Containerfile installs the runtime wheel set with
 ``pip install --require-hashes -r requirements.txt``. After Reza-PR

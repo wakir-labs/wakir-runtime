@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Hermetic Containerfile invariants for the wakir-provisioner image
-(Phase-2 Sprint-9 Tag-4).
+.
 
 The image scope is documented in
 ``infra/spire/federation/provisioner/README.md``. This test suite is
@@ -291,7 +291,7 @@ def test_license_bsl_file_exists_alongside_containerfile() -> None:
 
 
 def test_containerfile_has_no_active_entrypoint() -> None:
-    """Sprint-9 Tag-6 (Bug 6 from Live-Bring-up-2-Bilanz 2026-05-14):
+    """ (Bug 6 from Live-Bring-up-2-Bilanz 2026-05-14):
     the image is STRICTLY caller-driven. No baked ``ENTRYPOINT``.
 
     The v0.1.2 image previously baked ``ENTRYPOINT ["python3"]`` plus
@@ -304,7 +304,7 @@ def test_containerfile_has_no_active_entrypoint() -> None:
     start with ``python3: can't open file
     '/opt/wakir-runtime/python3'``.
 
-    The Tag-6 fix removes both ``ENTRYPOINT`` and ``CMD`` as defence-
+    The fix removes both ``ENTRYPOINT`` and ``CMD`` as defence-
     in-depth: the image MUST not silently re-introduce the doubled-
     interpreter bug for any future caller.
 
@@ -326,7 +326,7 @@ def test_containerfile_has_no_active_entrypoint() -> None:
 
 
 def test_containerfile_has_no_active_cmd() -> None:
-    """Sprint-9 Tag-6: companion to the no-ENTRYPOINT invariant. The
+    """: companion to the no-ENTRYPOINT invariant. The
     image MUST NOT bake a default ``CMD`` either; the bucket-init
     Quadlet is the canonical caller and is explicit about every
     argument including the interpreter."""

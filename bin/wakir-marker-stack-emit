@@ -7,7 +7,7 @@
 # licensed under BUSL-1.1 for consistency with the imported implementation
 # (ADR-0061, Schritt 7 Option A).
 #
-# Sprint-Pengine-7 Tag-5 OI-PILOT-3 — Operator-facing marker-stack
+# OI-PILOT-3 — Operator-facing marker-stack
 # emitter CLI entrypoint. Thin shim over
 # ``wirelang.cli.marker_stack_emit``.
 #

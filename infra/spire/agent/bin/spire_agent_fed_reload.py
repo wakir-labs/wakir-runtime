@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """spire-agent-fed-reload — hermetic Agent-Side Bundle-Cache-Refresh
-Helper for the Phase-2 Sprint-8 Tag-3 federation substrate.
+Helper for the federation substrate.
 
-The Tag-1 + Tag-2 substrate stages a federated peer-bundle in the
+The + substrate stages a federated peer-bundle in the
 agent's ``trust_bundle_path`` (default
 ``/var/lib/spire/bundles/bootstrap.jwks``). When the peer-side
-rotates its CA key (Tag-3 ``spire-fed-bundle-rotator``), the agent
+rotates its CA key (``spire-fed-bundle-rotator``), the agent
 must re-read the bundle file so the new key enters the JWKS-set
 cache. SPIRE-Agent's native ``refresh_hint`` cadence handles this in
 live mode; this helper provides the hermetic substrate for the
@@ -64,7 +64,7 @@ class BundleSnapshot:
     bit-identical bundles share a hash. ``kids`` is the frozenset
     of ``kid`` literals present. ``rotation_counters`` is the
     frozenset of ``_wakir_rotation_counter`` integers present (empty
-    if the bundle has no rotator-marked keys — Tag-1 bundles).
+    if the bundle has no rotator-marked keys — bundles).
     """
 
     content_hash: str

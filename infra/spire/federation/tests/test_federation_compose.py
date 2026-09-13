@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic acceptance tests for the Sprint-8 Tag-1 SPIRE-Federation
+"""Hermetic acceptance tests for the SPIRE-Federation
 substrate (``infra/spire/federation/compose/spire-federation.yaml``).
 
 Pure compose-parse + invariant assertions. No image pull, no
@@ -13,10 +13,10 @@ Asserts:
   * Each service uses the correct hermetic trust-domain via the
     bind-mounted config file (``wakir.test`` / ``partner.test``).
   * Both services share the dedicated ``wakir-federation`` bridge
-    network (NOT the Sprint-6 ``wakir-orchestrator`` network).
+    network (NOT the ``wakir-orchestrator`` network).
   * Both services declare a bundle-endpoint listener at the
     documented loopback host ports (8443 wakir, 8444 partner).
-  * Both services have the Sprint-6 hardening posture (cap_drop: ALL,
+  * Both services have the hardening posture (cap_drop: ALL,
     no-new-privileges, read_only, non-root user, tmpfs for
     /run/spire, healthcheck with the SPIRE-Server self-check
     subcommand).
@@ -80,7 +80,7 @@ def test_image_pin_form(services: dict, svc_name: str) -> None:
     # Image-pin form: ghcr.io/spiffe/spire-server:1.14.6@sha256:<digest>
     # The digest is either a 64-hex literal OR the placeholder token
     # ``DIGEST_PENDING_TOMAS_REVIEW`` (Cosign-Skizze follow-up). Mirror
-    # of the Sprint-6 invariant in test_compose_spire_cosign_pin.py.
+    # of the invariant in test_compose_spire_cosign_pin.py.
     pat = re.compile(
         r"^ghcr\.io/spiffe/spire-server:1\.14\.\d+@sha256:"
         r"(?:DIGEST_PENDING_TOMAS_REVIEW|[0-9a-f]{64})$"
@@ -162,7 +162,7 @@ def test_grpc_ports_no_clash(services: dict) -> None:
 
 
 # ---------------------------------------------------------------------
-# Network isolation from Sprint-6 substrate
+# Network isolation from substrate
 # ---------------------------------------------------------------------
 
 
@@ -212,7 +212,7 @@ def test_wakir_config_federation_block() -> None:
     assert re.search(
         r"federation\s*\{[^}]*bundle_endpoint\s*\{", text, re.DOTALL
     ), "spire-server-wakir.conf must declare a federation { bundle_endpoint { } } block"
-    # Sprint-10 Tag-5 Bug-30/31 substance-fix: ``profile = "https_spiffe"``
+    # Bug-30/31 substance-fix: ``profile = "https_spiffe"``
     # as a flat-attribute inside bundle_endpoint is INVALID HCL for
     # SPIRE 1.14.6 (parser emits ``malformed configuration``). The
     # https_spiffe profile is declared via the named-block syntax on
@@ -239,7 +239,7 @@ def test_partner_config_federation_block() -> None:
     assert re.search(
         r"federation\s*\{[^}]*bundle_endpoint\s*\{", text, re.DOTALL
     ), "spire-server-partner.conf must declare a federation { bundle_endpoint { } } block"
-    # Sprint-10 Tag-5 Bug-30/31: see test_wakir_config_federation_block
+    # Bug-30/31: see test_wakir_config_federation_block
     # for the rationale; named-block syntax instead of flat-attribute.
     assert re.search(
         r'bundle_endpoint_profile\s+"https_spiffe"\s*\{', text
