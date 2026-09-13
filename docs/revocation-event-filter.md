@@ -3,8 +3,8 @@
 **Module:** `wirelang.schemas.capability_policy_nats_kv_backend`
 **Public surface:** `RevocationEventKind`, `ClassifiedRevocationEvent`,
 `RevocationEventClassifier`, `filter_revocation_events`
-**Sprint:** Phase-2 Sprint-6 Tag-3 (consumer-side symmetry to the
-Sprint-6 Tag-1 backend revocation-axis and the Sprint-6 Tag-2
+**Phase:** Phase-2 (consumer-side symmetry to the
+backend revocation-axis and the
 publisher-CLI `revoke` subcommand)
 **Bucket observed:** `wakir-capability-policies` (read-only watch-stream
 consumer; this surface does NOT write)
@@ -13,19 +13,19 @@ consumer; this surface does NOT write)
 
 ## Purpose
 
-This surface is the **consumer side** of the Phase-2 Sprint-6
+This surface is the **consumer side** of the Phase-2
 capability-policy revocation axis. The earlier two halves of the axis
 are write-side:
 
-- **Sprint-6 Tag-1 (backend):** `CapabilityPolicy.revoked_at` +
+- **(backend):** `CapabilityPolicy.revoked_at` +
   `revocation_reason` fields; `CapabilityPolicyRevocationConflict` on
   the CAS-pin write path; gate decisions of source
   `DecisionSource.POLICY_REVOKED` for `as_of >= revoked_at`.
-- **Sprint-6 Tag-2 (publisher-CLI):** `wakir-schema-registry revoke`
+- **(publisher-CLI):** `wakir-schema-registry revoke`
   subcommand operator surface for applying a revocation (see
   `docs/publisher-cli-revoke.md`).
 
-Tag-3 closes the asymmetry on the **audit-consumer side**. A downstream
+closes the asymmetry on the **audit-consumer side**. A downstream
 observer watches the `wakir-capability-policies` bucket and needs to
 answer **"WHICH watch-event was a revocation, and what kind?"** without
 re-implementing the prior-state comparison logic per consumer. The
@@ -35,7 +35,7 @@ Three operator use-cases motivate the surface:
 
 1. **BREACH-detection:** A `REVOCATION_MONOTONIC_BREACH` on the
    watch-stream is a witness of substrate corruption or out-of-band
-   tampering (the backend-write invariants from Sprint-6 Tag-1 forbid
+   tampering (the backend-write invariants forbid
    apparent un-revokes and forbid advanced / retreated `revoked_at`
    instants on CAS-pin writes). Operators want an explicit signal, not
    a per-consumer ad-hoc comparison.
@@ -226,7 +226,7 @@ same internal state.
 
 A breach is a witness of substrate corruption or out-of-band tampering
 (both transitions — apparent un-revoke and `revoked_at` advance/retreat
-— are forbidden by the Sprint-6 Tag-1 backend write invariants on the
+— are forbidden by the backend write invariants on the
 CAS-pin path). Operators typically want a separate alert path for this
 kind:
 
@@ -361,37 +361,37 @@ per-task classifiers.
 
 ## Cross-references
 
-### Tag-1 / Tag-2 / Tag-3 pattern lineage
+### pattern lineage
 
-This Tag-3 consumer-side filter is the third side of the Sprint-6
+This consumer-side filter is the third side of the
 revocation triangle. The other two sides are write-side and are
 documented separately:
 
-- **Sprint-6 Tag-1 backend revocation axis:**
+- **backend revocation axis:**
   `wirelang/schemas/capability_policy_nats_kv_backend.py` —
   `CapabilityPolicyRevocationConflict`, `put_with_revision` Gate 3
   (revocation-monotonic). Spec: `wirelang/specs/schema-registry-spec.md`
   v0.16.0 entry.
-- **Sprint-6 Tag-2 publisher-CLI revoke:** see `docs/publisher-cli-revoke.md`
+- **publisher-CLI revoke:** see `docs/publisher-cli-revoke.md`
   (operator manpage for the `wakir-schema-registry revoke` subcommand).
 
-### Sprint-5 Tag-5 watch-stream foundation
+### watch-stream foundation
 
 The async generator pattern of `filter_revocation_events` mirrors the
-Sprint-5 Tag-5 `CapabilityPolicyWatchEvent` async-iter contract.
+`CapabilityPolicyWatchEvent` async-iter contract.
 `filter_revocation_events` is a pure-wrapping consumer of that contract
 — it does NOT replace it. Operators who need the raw event stream
-(without classification) should use `backend.watch()` directly.
+(without classification) should use `backend.watch` directly.
 
 ### Implementation cross-references
 
 - `wirelang/schemas/capability_policy_nats_kv_backend.py` — the
   `RevocationEventKind`, `ClassifiedRevocationEvent`,
   `RevocationEventClassifier`, `filter_revocation_events` definitions.
-- `wirelang/tests/test_revocation_event_filter.py` — Sprint-6 Tag-3
+- `wirelang/tests/test_revocation_event_filter.py` —
   hermetic tests (T-CPP-REVF-01..12 + 2 aux probes).
 - `wirelang/specs/schema-registry-spec.md` v0.18.0 — canonical
-  spec-text surface entry for Tag-3.
+  spec-text surface entry.
 
 ### V-907 and SPIFFE-ID-Binding cross-context
 
@@ -400,11 +400,11 @@ container-identity-substrate work. Revocation-event classification is
 a consumer-side observation contract on the capability-policy bucket;
 it is independent of SPIFFE-ID-binding and of V-907 persona-hash
 audit-anker semantics. The Z-A consensus protocol and the
-SPIFFE-ID-Binding spec-section (Sprint-6 Tag-4 Item 2) live on a
+SPIFFE-ID-Binding spec-section (Item 2) live on a
 parallel axis.
 
 ---
 
-*Sprint-6 Tag-3 (implementation) + Sprint-6 Tag-4 (this manpage) —
-Reza Tehrani (dev-engineering-2 / wirelang). Spec v0.18.0
+*(implementation) + (this manpage) —
+protocol engineering. Spec v0.18.0
 capability-policy revocation-event-filter consumer-side surface.*

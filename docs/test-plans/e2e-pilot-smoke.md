@@ -1,13 +1,12 @@
-# Sprint-QA-Tag-15 — E2E-Pilot-Smoke-Suite Test-Plan
+# E2E Pilot-Smoke-Suite Test Plan
 
 | Field | Value |
 |---|---|
-| Owner | Amara Osei (QA) |
+| Owner | QA engineering |
 | Date drafted | 2026-05-16 |
-| Sprint | Sprint-QA-Tag-15 |
 | Baseline-PR | wakir-runtime PR #42 (disposable-VM E2E-Acceptance-Gate) |
 | Companion-PR | wakir-runtime PR #76 (CI-Live-VM-Acceptance-Wrapper) |
-| Cross-Review | Tomas (Zone M, container-substrate), Selin (Zone M, persona-engine), Reza (Zone M, bridge-forward schema), Kai (Zone M, wrapper-test), Henrik (Zone N, quality-gate boundary) |
+| Cross-Review | dev engineering (Zone M, container-substrate), persona-engine engineering (Zone M, persona-engine), protocol engineering (Zone M, bridge-forward schema), infrastructure engineering (Zone M, wrapper-test), internal audit (Zone N, quality-gate boundary) |
 
 ## 1. Goal
 
@@ -15,7 +14,7 @@ Extend the existing hermetic E2E-Acceptance-Gate harness so it
 exercises the **Pilot-Phase-1b substance** as well as the
 already-covered bootstrap/substrate-substance:
 
-* Tomas-Persona-Container lifecycle invariants — the FSM walks the
+* Persona-Container lifecycle invariants — the FSM walks the
   spec-canonical 6-state path on a real spawn → engineering-output →
   despawn cycle, and rejects every off-axis transition the
   spec marks invalid.
@@ -23,15 +22,15 @@ already-covered bootstrap/substrate-substance:
   pin computed against a frontmatter-only digest matches the
   pin the running container re-computes against the bind-mounted
   axis-A file.
-* Doppelbetrieb-Bridge consistency — Pre-Framework-Tomás output and
-  the wakir-Tomás container output land in the bridge-audit
+* Doppelbetrieb-Bridge consistency — the pre-framework engineering agent output and
+  the wakir-runtime engineering container output land in the bridge-audit
   double-sink, the Doppelbetrieb-Score-CLI ingests both, and the
   four-axis verdict mapping is exhaustive and total over the
   documented score-space.
 * Bug-42 symptom regression — the NATS-subscribe-loop in the
   async-real engine actually receives a published auftrag on the
   canonical subject and emits an output (this is the symptom
-  Sprint-Pengine-12 Bug-41 fixed; we encode it as a
+  Bug-41 fixed; we encode it as a
   regression-test so it cannot silently regress under future
   engine refactors).
 * Bug-vector mapping for all seven `feedback_live_bringup_sandbox_gap`
@@ -70,8 +69,8 @@ What this suite **does** run:
 | TV-PIL-FSM-01 | FSM has six states matching spec §3.3 | `lifecycle_state_machine.py` |
 | TV-PIL-FSM-02 | FSM 9 valid transitions match spec §3.3 | `lifecycle_state_machine.py` |
 | TV-PIL-FSM-03 | Full pilot lifecycle path `uninst → spawning → running → despawning → uninst` is walkable end-to-end and emits 4 transition-records in order | `LifecycleStateMachine` |
-| TV-PIL-FSM-04 | Spec-canonical invalid transitions (`uninst → running`, `running → uninst`, `recovered → migrated`, ...) all raise `InvalidTransitionError` and leave state unchanged | `LifecycleStateMachine.transition_to` |
-| TV-PIL-FSM-05 | Recovery path `uninst → recovered → running` is walkable (parity with Sprint-Pengine recovery-drill semantics) | `LifecycleStateMachine` |
+| TV-PIL-FSM-04 | Spec-canonical invalid transitions (`uninst → running`, `running → uninst`, `recovered → migrated`,...) all raise `InvalidTransitionError` and leave state unchanged | `LifecycleStateMachine.transition_to` |
+| TV-PIL-FSM-05 | Recovery path `uninst → recovered → running` is walkable (parity with the engine recovery-drill semantics) | `LifecycleStateMachine` |
 | TV-PIL-FSM-06 | Engineering-output emission is FSM-state-gated: only `running` accepts an engineering-output event | source-level audit + state-machine semantics |
 | TV-PIL-V907-01 | `compute_v907_pin` returns `sha256:<64-hex>` with stable byte-prefix length | `v907_verify.compute_v907_pin` |
 | TV-PIL-V907-02 | Build-time pin computed at the source-tree axis-A matches the runtime-attest pin computed against the same bytes loaded from `/etc/wakir/persona/<slug>.md` (simulated via tmp-file copy) | `v907_verify.verify_v907_pin` |
@@ -106,22 +105,22 @@ separate pytest entry.
 
 ## 4. Cross-Review surface
 
-* **Zone M — Tomas (Engineering Matrix-Lead):** TV-PIL-WRAP-01..05
-  exercise Kai-owned wrapper-substance and Tomas-owned acceptance-
-  script semantics. Tomas is the substrate-source-of-truth for the
+* **Zone M — dev engineering:** TV-PIL-WRAP-01..05
+  exercise infrastructure-owned wrapper substance and dev-engineering-owned acceptance-
+  script semantics. dev engineering is the substrate-source-of-truth for the
   acceptance lane and reviews the wrapper-coverage-audit add-ons.
-* **Zone M — Selin (Persona-Engine):** TV-PIL-FSM-01..06 +
+* **Zone M — persona-engine engineering:** TV-PIL-FSM-01..06 +
   TV-PIL-V907-01..04 + TV-PIL-BUG42-01..04 exercise persona-engine
-  semantics. Selin reviews the FSM-state-transition assert set and
+  semantics. persona-engine engineering reviews the FSM-state-transition assert set and
   the subscribe-loop fake-iterator wiring.
-* **Zone M — Reza (Wirelang):** TV-PIL-BUG42-02..03 + TV-PIL-DOP-04
+* **Zone M — protocol engineering:** TV-PIL-BUG42-02..03 + TV-PIL-DOP-04
   exercise schema-id constants and the Doppelbetrieb score-schema.
-  Reza reviews schema-id constant pin.
-* **Zone M — Kai (Container substrate):** TV-PIL-WRAP-01..05 are
-  source-level audits of Kai's wrapper. Kai reviews.
-* **Zone N — Henrik (Internal Audit):** the three Quality-Gate docs
+  protocol engineering reviews schema-id constant pin.
+* **Zone M — infrastructure engineering (Container substrate):** TV-PIL-WRAP-01..05 are
+  source-level audits of infrastructure engineering's wrapper. infrastructure engineering reviews.
+* **Zone N — internal audit:** the three Quality-Gate docs
   in `docs/quality-gates/` are the QA-side phase-gate criteria;
-  Henrik reviews for ADR-consistency and audit-trail-coupling
+  internal audit reviews for ADR-consistency and audit-trail-coupling
   (which test-evidence items his quarterly audit-sample consumes
   vs. which are pure QA-evidence).
 
@@ -130,9 +129,7 @@ separate pytest entry.
 All vectors run hermetically with:
 
 ```
-pip install -e .
+pip install -e.
 pytest tests/infra/test_pilot_phase_e2e_smoke.py \
        tests/infra/test_ci_live_vm_wrapper_coverage_audit.py
 ```
-
-— Amara

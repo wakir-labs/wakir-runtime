@@ -5,7 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # External-Verifier Conformance Guide — wakir-wat-manifest-v1
 
-Status: Phase-2 Sprint-6 Tag-6 (2026-05-12).
+Status: Phase-2 (2026-05-12).
 Schema: `wirelang/schemas/wakir-wat-manifest-v1.json`, `$id` pinned to
 `https://wakir.dev/wirelang/schema/wakir-wat-manifest-v1/0.2.0`.
 
@@ -84,7 +84,7 @@ python scripts/external_verifier_validation.py --skip-hyperjump
 python scripts/external_verifier_validation.py --vectors my-vectors.json
 ```
 
-## §3 — The vector-set surface (Sprint-6 Tag-1)
+## §3 — The vector-set surface
 
 31 vectors today: 9 accept + 22 reject. Coverage by category:
 
@@ -135,8 +135,7 @@ check:
      "results": [
        { "name": "v1-minimal-string-leaves",
          "expect": "accept", "verdict": "accept",
-         "matched": true, "errors": [] },
-       ...
+         "matched": true, "errors": [] },...
      ]
    }
    ```
@@ -167,7 +166,7 @@ A third-party verifier claiming v1 conformance MAY publish:
 ```text
 This verifier conforms to wakir-wat-manifest-v1 schema-version
 0.2.0 ($id https://wakir.dev/wirelang/schema/wakir-wat-manifest-v1/0.2.0)
-against the Sprint-6 Tag-1 conformance vector set (31 vectors, sha256:
+against the published conformance vector set (31 vectors, sha256:
 <sha-of-test-vectors.json>). All 31 vectors produce the verdict
 declared in the `expect` field.
 
@@ -205,7 +204,7 @@ These are not part of the schema-correctness conformance contract,
 but a verifier that lands on the floor without them is a
 schema-syntax validator, not a manifest verifier.
 
-## §7 — Real-cohort driver-mode (Sprint-6 Tag-2)
+## §7 — Real-cohort driver-mode
 
 The synthetic vector set in §3 pins schema-correctness. The
 **real-cohort driver-mode** pins the same schema *and* the rest of the
@@ -229,15 +228,15 @@ fed through every configured schema validator (§1) plus the in-tree
 `verify_real_manifest_file` pipeline. Expected footer:
 
 ```
-real-tv2 cross-tool parity OK (4 vectors, 3 validators: ...)
+real-tv2 cross-tool parity OK (4 vectors, 3 validators:...)
 verify_real_manifest_file pipeline OK (4 hour-receipts, all green)
 ```
 
 ### §7.2 — Signature-aware driver (`--verify-signature`)
 
-Sprint-6 Tag-2 adds `--verify-signature` to the `--real-tvN` driver.
+adds `--verify-signature` to the `--real-tvN` driver.
 The production aggregator does not yet emit signed manifests
-(Sprint-5 Tag-5 open-item); the driver fills the gap by hand-signing
+(open-item); the driver fills the gap by hand-signing
 in-memory deep-copies of every hour-receipt with a fresh ephemeral
 Ed25519 keypair, writing them to a tmp directory next to byte-for-byte
 copies of the `root.bin` + `root.bin.ots` side-files, then re-running
@@ -273,7 +272,7 @@ external-verifier substrate: a third-party can verify our published
 hour-receipts with a single CLI invocation that exercises every gate
 (schema-file parity across three validators + integrity rebuild +
 OTS-anchor side-files + signature). When the production aggregator
-gains its own signing branch (Sprint-6+ follow-up), the driver becomes
+gains its own signing branch (follow-up), the driver becomes
 a no-op wrapper that just points at the on-disk signed manifests
 directly; the signature-gate code path is identical.
 
@@ -286,33 +285,33 @@ Misuse guards:
 
 ## §8 — Change log
 
-| Schema version | Sprint                  | Substance                                              |
+| Schema version | Phase                   | Substance                                              |
 |----------------|-------------------------|--------------------------------------------------------|
-| 0.1.0          | Phase-1b Sprint-2 Tag-6 | Initial formal v1 schema-file                          |
-| 0.2.0          | Phase-2 Sprint-5 Tag-1  | Additive signature-slot (Ed25519)                      |
-| 0.2.0          | Phase-2 Sprint-6 Tag-1  | Test-vector set 17→31; fastjsonschema 3rd pole;        |
+| 0.1.0          | Phase-1b | Initial formal v1 schema-file                          |
+| 0.2.0          | Phase-2 | Additive signature-slot (Ed25519)                      |
+| 0.2.0          | Phase-2 | Test-vector set 17→31; fastjsonschema 3rd pole;        |
 |                |                         | schema-file `examples`; conformance guide              |
-| 0.2.0          | Phase-2 Sprint-6 Tag-2  | `--real-tvN --verify-signature` driver-mode;           |
+| 0.2.0          | Phase-2 | `--real-tvN --verify-signature` driver-mode;           |
 |                |                         | `stage_signed_cohort` helper; signature_status pin     |
-| 0.2.0          | Phase-2 Sprint-6 Tag-6  | Fourth validator pole `@hyperjump/json-schema`;        |
+| 0.2.0          | Phase-2 | Fourth validator pole `@hyperjump/json-schema`;        |
 |                |                         | JS-family witness now two-deep (ajv + hyperjump)       |
 
-The 0.2.0 schema number remains pinned at 0.2.0 because the Sprint-6
+The 0.2.0 schema number remains pinned at 0.2.0 because the
 changes are additive to the schema-correctness substrate (more
 witnesses, more vectors, more verifier-pipeline coverage), not to the
 schema's accept/reject contract. A wire-form-breaking change requires
 a $id bump to 0.3.0 and a parallel schema-file under the new version
 path.
 
-## §9 — Fourth-pole expansion (Sprint-6 Tag-6)
+## §9 — Fourth-pole expansion
 
-Sprint-6 Tag-6 extended the cross-tool parity surface from three to
+extended the cross-tool parity surface from three to
 four validators by adding `@hyperjump/json-schema` under
 [`tooling/external-verifier-hyperjump/`](../tooling/external-verifier-hyperjump/).
 
 ### §9.1 — Why Hyperjump and not Rust/Go/Java
 
-The original Sprint-6 Tag-6 mandate targeted a Rust, Go, or Java
+The original mandate targeted a Rust, Go, or Java
 fourth pole for **second-language-family witness** beyond Python and
 JS. Pragmatic substitution was forced by sandbox-host environment
 constraints: none of `cargo`, `rustc`, `go`, or `java` are present on
@@ -346,7 +345,7 @@ following trade-off:
 | `scripts/external_verifier_validation.py::run_python_validator`                              | python-jsonschema              | `--node-only`         | (always available)       |
 | `scripts/external_verifier_validation.py::run_node_validator`                                | ajv                            | `--python-only`       | `--require-node`         |
 | `scripts/external_verifier_validation.py::run_fastjsonschema_validator`                      | fastjsonschema                 | `--skip-fastjsonschema` | `--require-fastjsonschema` |
-| `scripts/external_verifier_validation.py::run_hyperjump_validator` *(Sprint-6 Tag-6)*        | hyperjump                      | `--skip-hyperjump`    | `--require-hyperjump`    |
+| `scripts/external_verifier_validation.py::run_hyperjump_validator` **        | hyperjump                      | `--skip-hyperjump`    | `--require-hyperjump`    |
 
 Each `run_*_validator` returns either a uniform report dict (matching
 the JSON shape in §4) or `None`. The N-way comparator
@@ -368,5 +367,3 @@ Re-opened as an operator-host / Phase-1c task. Acceptance criteria:
    `tests/wat/test_external_verifier_parity.py` (skip-guard +
    accept-vector pin + pairwise parity pin + N-way parity bump from
    four to five validators).
-
-— Tomás
