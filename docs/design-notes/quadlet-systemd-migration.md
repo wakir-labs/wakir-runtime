@@ -1,21 +1,21 @@
-# Quadlet / systemd Migration Skizze — alternativer Container-Lifecycle für Phase-2/3
+# Quadlet / systemd migration sketch — alternative container lifecycle
 
-**Status:** Skizze (design-only). Not a migration decision. Not a
-Phase-2-Sprint-5 commitment to switch lifecycle managers. This document
+**Status:** design note only. Not a migration decision and not a
+commitment to switch lifecycle managers. This document
 captures the Quadlet/systemd shape so the operator-side has a
 documented alternative to `docker compose` for atomic-host targets.
 
-**Authoring context:** Phase-2 Sprint-5 Tag-4 (2026-05-11). Owner:
-DevOps / Container-Orchestration side. Box: 60 min. β-push (doc).
+**Authoring context:** first pass 2026-05-11, container-orchestration
+side.
 
 **Cross-Review-Status:** Z-A / Z-B / Z-C / Z-D non-touched. This
-skizze does not edit container identity (Z-A), NATS schema (Z-B),
+sketch does not edit container identity (Z-A), NATS schema (Z-B),
 image-pin pipeline (Z-C), or Phala-Cloud bridge (Z-D). It is a
 lifecycle-manager-shape document with no behavior change.
 
 ---
 
-## 1 / Why this skizze exists
+## 1 / Why this sketch exists
 
 ### 1.1 Operator-side host-OS reality
 
@@ -52,7 +52,7 @@ section uses `docker compose -f compose/nats.yaml up -d`). Quadlet
 is the **alternative** for operators who prefer host-native systemd
 integration.
 
-### 1.3 What this skizze is NOT
+### 1.3 What this sketch is NOT
 
 - **Not a migration commitment.** The compose file stays. Tests
   continue to assert against `compose/nats.yaml`. No deletion of the
@@ -72,8 +72,8 @@ integration.
 
 ### 2.1 Direct translation of the NATS service
 
-The NATS service in `compose/nats.yaml` declares (Sprint-4 Tag-3
-digest-pin state, unchanged):
+The NATS service in `compose/nats.yaml` declares (digest-pin state at
+the time of writing, unchanged):
 
 - Image: `nats:2.11-alpine@sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00`
 - Command: `--jetstream --store_dir=/data/jetstream --http_port=8222 --name=wakir-nats-phase1`
@@ -91,7 +91,7 @@ operator host):
 
 ```ini
 # /etc/containers/systemd/wakir-nats.container
-# Phase-2 Quadlet skizze — host-native lifecycle for the Phase-1b
+# Phase-2 Quadlet sketch — host-native lifecycle for the Phase-1b
 # NATS-JetStream substrate (mirror of compose/nats.yaml).
 # SPDX-License-Identifier: Apache-2.0
 
@@ -276,7 +276,7 @@ systemd generator that already runs on the host.
 
 `docker compose` works on atomic hosts via `podman compose`. The
 translation tax is real but small for one or two services. Leaving
-it at compose-only is a defensible choice — this skizze does not
+it at compose-only is a defensible choice — this sketch does not
 recommend deletion of `compose/nats.yaml`. Quadlet is an
 **alternative path documented**, not a forced migration.
 
@@ -306,7 +306,7 @@ revisit at Phase-3 cluster-design time**.
 - Tests in `tests/orchestrator/test_compose_nats.py` continue to
   assert against the compose file.
 - Operator-side host uses `podman compose -f compose/nats.yaml up -d`.
-- Quadlet skizze (this document) is reference material for operators
+- Quadlet sketch (this document) is reference material for operators
   who want host-native systemd integration but is not committed as
   a runnable unit file.
 
@@ -337,15 +337,15 @@ or C, owner DevOps-side with Operator-Hand approval.**
 
 ---
 
-## 6 / Open items (Phase-2 Sprint-5 Tag-4 box-end + Phase-2 Sprint-6 Tag-1 update)
+## 6 / Open items (first pass plus second-pass update)
 
 - **OI-Q1 (still open):** validate the Quadlet shape against a live
-  atomic host (Bluefin or Silverblue VM). This skizze is paper-form
-  + Sprint-6 Tag-1 committed-runnable-file-form; the live-smoke test
+  atomic host (Bluefin or Silverblue VM). This sketch is paper form
+  plus committed-runnable-file form from the second pass; the live-smoke test
   on a real atomic host is still operator-hand per ADR-0051
   CEO-Sandbox-vs-Host-Operations-Trennung (no host-podman-socket
   access from sandbox). Estimated effort: 30-min operator box.
-- **OI-Q2 (resolved Sprint-6 Tag-1):** Quadlet directive names
+- **OI-Q2 (resolved in the second pass):** Quadlet directive names
   verified against Podman 5.8.2 (`podman --version` on the
   authoring host, 2026-05-11) and against the upstream
   `podman-systemd.unit(5)` man-page (docs.podman.io, fetched
@@ -356,7 +356,7 @@ or C, owner DevOps-side with Operator-Hand approval.**
   `HealthStartPeriod`, `PodmanArgs`) is current in Podman 5.x —
   no renames detected from the 4.4-doc-form. No directive deprecation
   flagged in the upstream 5.x docs as of fetch time.
-- **OI-Q3 (partially resolved Sprint-6 Tag-1):** the **runnable
+- **OI-Q3 (partially resolved in the second pass):** the **runnable
   Scenario-B dual-track skeleton** is now committed
   (`quadlet/wakir-nats.container` + sidecar `.network`/`.volume`
   units + `tests/orchestrator/test_quadlet_nats.py` parity tests
@@ -370,7 +370,7 @@ or C, owner DevOps-side with Operator-Hand approval.**
   Phase-3-trigger decision and stays operator-hand / CEO-side.
 - **OI-Q4 (deferred to Phase-3):** if Quadlet becomes primary at
   Phase-3, the `tests/orchestrator/test_compose_nats.py` contract
-  assertions need a Quadlet-equivalent refactor. The Sprint-6 Tag-1
+  assertions need a Quadlet-equivalent refactor. The second-pass
   parity-test surface (`test_quadlet_nats.py`) is a partial-credit
   starting point — it currently asserts Quadlet-against-compose
   drift, not compose-against-Quadlet drift. A Phase-3 flip would
@@ -384,26 +384,26 @@ or C, owner DevOps-side with Operator-Hand approval.**
 - **`date -Iseconds`:** 2026-05-11T21:51:59+02:00 (P5 local).
 - **Worktree:** `agents-workspaces/kai/wakir-runtime` (ADR-0049-
   konform, eigener Klon).
-- **Branch:** `kai/phase-2-sprint-5-tag-4-quadlet-systemd-skizze`,
-  forked from Sprint-5 Tag-3 tip `83d3b0e`.
+- **Branch:** `kai/phase-2-sprint-5-tag-4-quadlet-systemd-sketch`,
+  forked from `83d3b0e`.
 - **Source-of-truth for compose-shape:** `compose/nats.yaml` at
-  Sprint-5 Tag-3 tip `83d3b0e` (digest-pin
+  `83d3b0e` (digest-pin
   `sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00`
-  preserved byte-precise in §2.1 Quadlet skizze).
-- **Tool-Verifikation (P7) — Tag-4 baseline + Sprint-6 Tag-1 update:**
+  preserved byte-precise in §2.1 Quadlet sketch).
+- **Tool verification (P7) — first-pass baseline plus second-pass update:**
   - Quadlet directives `Image=`, `Exec=`, `PublishPort=`, `Volume=`,
     `Network=`, `DropCapability=`, `NoNewPrivileges=`, `HealthCmd=`,
     `HealthInterval=`, `HealthTimeout=`, `HealthRetries=`,
     `HealthStartPeriod=`, `PodmanArgs=` are documented in the
     Podman 4.4+ Quadlet man-page (`podman-systemd.unit(5)`).
-    **Sprint-6 Tag-1 verification:** the directive surface is also
+    **Second-pass verification:** the directive surface is also
     current in Podman 5.8.2 (verified via `podman --version` on
     authoring host plus docs.podman.io live-fetch 2026-05-11).
     No directive renames detected from 4.x baseline. **OI-Q2
     resolved.**
   - `podman generate systemd` deprecation status: deprecated as of
-    Podman 4.6 release notes (2023). P2-stamp at Tag-4: cited from
-    memory; Sprint-6 Tag-1 not re-verified live (no behavior change
+    Podman 4.6 release notes (2023). P2 stamp in the first pass: cited from
+    memory; not re-verified live in the second pass (no behavior change
     in this box — the dual-track does not use `podman generate
     systemd` anywhere).
 - **Vermutungs-Kennzeichnung (P2):**
@@ -415,18 +415,18 @@ or C, owner DevOps-side with Operator-Hand approval.**
     fork) shipping state is conjecture-pending if the operator-side
     host uses a non-stock uBlue variant.
   - Quadlet `HealthCmd=` semantics: documented and directive-name-
-    verified against Podman 5.8.2 in Sprint-6 Tag-1; runtime
+    verified against Podman 5.8.2 in the second pass; runtime
     behavior (probe execution + Podman healthcheck integration) is
     still not live-tested in sandbox — remains OI-Q1 for operator-
     hand live-host verification.
 
-- **Sprint-6 Tag-1 stamp:**
+- **Second-pass stamp:**
   - **`date -Iseconds`:** 2026-05-11T22:38:02+02:00 (box-start).
   - **Worktree:** `/tmp/kai-sprint-6-quadlet-dual-track` (own clone
     via `git worktree add` from `agents-workspaces/kai/wakir-runtime`,
     ADR-0049-konform).
   - **Branch:** `kai/phase-2-sprint-6-tag-1-quadlet-dual-track`,
-    forked from Sprint-5 Tag-5 tip `fd0cc9e`.
+    forked from `fd0cc9e`.
   - **Sandbox-Trennung:** no host-podman-socket access from sandbox
     (CEO-side operative directive 2026-05-11 / ADR-0051 rejected). Directive
     verification is doc-form against `podman --version 5.8.2`
@@ -437,15 +437,15 @@ or C, owner DevOps-side with Operator-Hand approval.**
 
 ## 8 / Schluss
 
-This skizze documents the Quadlet/systemd alternative lifecycle
+This sketch documents the Quadlet/systemd alternative lifecycle
 shape for the Phase-1b NATS-JetStream substrate, alongside the
 existing `compose/nats.yaml` primary contract surface.
 
-**Tag-4 deliverable (2026-05-11 21:51 CEST):** design-form skizze,
+**First-pass deliverable (2026-05-11):** design-form sketch,
 no runnable `.container` file committed. Recommendation Scenario A
 (stay on compose) for Phase-2 default.
 
-**Sprint-6 Tag-1 update (2026-05-11 ~22:55 CEST):** **Scenario B
+**Second-pass update (2026-05-11):** **Scenario B
 dual-track upgraded to committed-runnable-file form.** The
 `quadlet/` directory now contains the runnable unit-file trio
 (`wakir-nats.container`, `wakir-orchestrator.network`,
@@ -462,4 +462,3 @@ No Z-A / Z-B / Z-C / Z-D cross-review touchpoints. No image-pin
 change (byte-precise mirror of compose), no schema change, no
 identity change, no Phala touch.
 
-— Kai (Tag-4 author; Sprint-6 Tag-1 update author)

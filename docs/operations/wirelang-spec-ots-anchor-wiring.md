@@ -6,8 +6,8 @@ Copyright (c) 2026 Wakir Labs contributors
 # Wirelang-Spec OTS-Anchor Wiring
 
 **Status:** audit-only stub, pre-activation-probe added.
-**Cutover gate:** 2026-06-09.
-**AR-authorisation required:** yes.
+**Activation gate:** 2026-06-09.
+**Maintainer authorisation required:** yes.
 **Owner:** protocol engineering.
 **Mirror-twin:** the manifest-hash anchor (`docs/operations/manifest-hash-ots-anchor-wiring.md`).
 
@@ -205,7 +205,7 @@ section moves, the mirror moves with it.
 
 ## 7. Operator-Hand cutover (shared with the mirror runbook)
 
-Cutover-day procedure (2026-06-09):
+Activation-day procedure (2026-06-09):
 
 1. Operator pulls the latest `main`, confirms aggregate
    `PROBE-READY` on both pipelines via the most recent CI run.
