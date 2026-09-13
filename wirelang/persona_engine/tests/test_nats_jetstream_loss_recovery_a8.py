@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""A8 — NATS-JetStream-Loss-Recovery hermetic test coverage (Tag-46).
+"""A8 — NATS-JetStream-Loss-Recovery hermetic test coverage.
 
 Auftrag-Anker
 -------------
 
-Tag-45 Amara Coverage-Audit pinned five PARTIAL failure-modes (see
+QA Coverage-Audit pinned five PARTIAL failure-modes (see
 ``docs/quality-gates/pre-mortem-failure-mode-coverage.md`` §4). The
 A8 entry is
 
@@ -16,7 +16,7 @@ smoke (``tests/phase_3c/test_welle_4_cutover_smoke.py``) covering
 the state-backing layer-switch shape but **not** the persistence-
 loss failure-mode itself.
 
-This Tag-46 file is the named follow-up test that lifts A8 from
+This file is the named follow-up test that lifts A8 from
 PARTIAL to COVERED. It does not depend on a live NATS-JetStream
 server. Instead it injects in-memory stubs at the same seam the
 production ``NatsKvPersonaStateBackingAsync`` /

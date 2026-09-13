@@ -8,7 +8,7 @@ Change Date: 2030-05-15. Change License: Apache License 2.0.
 
 # Wakir Persona-Engine — Manifest 0.5.1-pre-cutover
 
-**Tag-48 (2026-05-19). Bridge-audit-writer wire-in as the 10th BackendDecision record. Strict superset of 0.5.0-pre-cutover (Tag-45).**
+**2026-05-19. Bridge-audit-writer wire-in as the 10th BackendDecision record. Strict superset of 0.5.0-pre-cutover.**
 
 This manifest is the single source of truth for the
 0.5.1-pre-cutover engine release: which BackendDecision records the
@@ -18,17 +18,17 @@ substrates, and which sequence the engine follows from
 `engine.__init__` to the first BackendDecision audit emission.
 
 The manifest is intentionally **machine-readable** for the
-hermetic Tag-48 integrity tests (see
+hermetic integrity tests (see
 `wirelang/tests/persona_engine/test_manifest_0_5_1_pre_cutover.py`)
 and the cross-substrate parity gate
 (`.github/workflows/cross-substrate-parity-gate.yml`).
 
-> **Spec cross-reference (Tag-50, v0.4.2).** This manifest's §2
+> **Spec cross-reference (v0.4.2).** This manifest's §2
 > ENV-flag schema is the authoritative companion to
 > `wirelang/specs/wirelang-spec-v0-4-2.md` §4.1. The two surfaces
 > are kept consistent by the hermetic test suite
 > `tests/specs/test_wirelang_spec_v0_4_2_drift_s4_reconciliation.py`
-> (Tag-50). The `WAKIR_*_BACKEND` selector-ENV naming (no `_PE_`
+> The `WAKIR_*_BACKEND` selector-ENV naming (no `_PE_`
 > infix) and the ten-record boot fan-out ordering are normative
 > here; v0.4.2 §4.1 documents the same reality and treats this
 > manifest plus the Pin-Pack-0.5.1 YAML as the single source of
@@ -36,9 +36,9 @@ and the cross-substrate parity gate
 
 > **Scope discipline (ADR-0036 / ADR-0043 / ADR-0065 / ADR-0066)** —
 > this file documents the engine wiring. It does **not** modify
-> persona definitions (Aisha-Domäne), WAT-core logic (Tomás-Domäne),
-> identity-substrate design (Reza-Domäne), or container-infra
-> beyond the Containerfile version bump (Kai-Domäne).
+> persona definitions (HR-Domäne), WAT-core logic (WAT-Domäne),
+> identity-substrate design (protocol-Domäne), or container-infra
+> beyond the Containerfile version bump (infra-Domäne).
 
 ---
 
@@ -50,7 +50,7 @@ backend module that the engine resolves via
 `wirelang.persona_engine.rust_backend_switch.resolve_*`. The previous
 0.5.0-pre-cutover manifest held back the 10th component
 (`bridge-audit-writer`) as an enum-defined-but-unwired scaffold;
-Tag-48 closes the wire-in by extending the engine.py boot fan-out
+A later revision closes the wire-in by extending the engine.py boot fan-out
 to consult :func:`resolve_bridge_audit_writer_backend` after
 `resolve_federation_resolver_backend` and before opening the
 `persona_engine.boot` OTel span.
@@ -71,7 +71,7 @@ to consult :func:`resolve_bridge_audit_writer_backend` after
 V-907 (record #4) is the **most critical** integrity anchor: any
 byte-drift between Python authority and Rust pendant would silently
 corrupt the WAT-audit substrate. The bridge-diff oracle (record #5)
-is the Phase-3a Doppelbetrieb comparison gate. The new Tag-48
+is the Phase-3a Doppelbetrieb comparison gate. The new
 addition (record #10) closes the Doppelbetrieb-Shadow envelope
 side of the same loop — the writer-half completes the
 diff-oracle/replay-oracle/writer-oracle triangle the Phase-3b
@@ -134,7 +134,7 @@ flip a single knob for slow CI lanes.
   resolves to `rust`. A `rust` selector with no binary path falls
   back to the PATH lookup (`persona-engine-<component>` literal).
 
-### 2.5 Tag-48 Wire-In Closeout
+### 2.5 Wire-In Closeout
 
 `WAKIR_BRIDGE_AUDIT_WRITER_BACKEND` is no longer held back. The
 Stage-1 boot fan-out consults
@@ -143,7 +143,7 @@ BackendDecision record per cold-start. Operators flipping the
 selector to `rust` before the
 ``wakir-persona-engine-bridge-audit-writer`` binary is installed on
 the carrier image will observe a `binary_missing` fallback in the
-audit substrate — identical posture to the Tag-25 ADR-0065 Welle-2
+audit substrate — identical posture to the ADR-0065 Welle-2
 precondition signal that landed when SVID-workload-identity was
 wired in but the Rust crate had not yet shipped.
 
@@ -151,7 +151,7 @@ wired in but the Rust crate had not yet shipped.
 
 ## 3. Cross-Language Pin-Pack Map (15 Phase-3a Crates @ 0.1.0)
 
-The Tag-48 0.5.1-pre-cutover engine pins **all fifteen** Phase-3a
+The 0.5.1-pre-cutover engine pins **all fifteen** Phase-3a
 Rust crates at version `0.1.0` (unchanged from 0.5.0-pre-cutover —
 no crate-version bump in this release; the wire-in is engine-only).
 The pin pack lives at
@@ -169,10 +169,10 @@ machine-readable counterpart to the table below.
 | 7 | `persona-engine-anchor-emitter` | 0.1.0 | record #7 |
 | 8 | `persona-engine-svid-workload-identity` | 0.1.0 | record #8 |
 | 9 | `persona-engine-federation-resolver` | 0.1.0 | record #9 |
-| 10 | `persona-engine-bridge-audit-writer` | 0.1.0 | record #10 (Tag-48 wire-in) |
+| 10 | `persona-engine-bridge-audit-writer` | 0.1.0 | record #10 (wire-in) |
 | 11 | `persona-engine-bridge-audit-replay` | 0.1.0 | replay-side oracle |
 | 12 | `persona-engine-anchor-submit-worker` | 0.1.0 | WAT-spool sibling |
-| 13 | `persona-engine-frontmatter-parser` | 0.1.0 | Tag-34 parser substrate |
+| 13 | `persona-engine-frontmatter-parser` | 0.1.0 | parser substrate |
 | 14 | `persona-engine-bridge-forward` | 0.1.0 | Python ↔ Rust forward pipe |
 | 15 | `persona-engine-federation-frame-parser` | 0.1.0 | federation-frame oracle |
 
@@ -222,7 +222,7 @@ PersonaEngine.__init__()
 │  • build_anchor_emitter(...)                               │
 │  • build_svid_workload_resolver(...)                       │
 │  • build_federation_resolver(...)                          │
-│  • build_bridge_audit_writer(...)  ← Tag-48 sibling slot   │
+│  • build_bridge_audit_writer(...)  ← sibling slot   │
 └───────────────────────────────────────────────────────────┘
         │
         ▼
@@ -284,9 +284,9 @@ only observable post-rotation drift is the appearance of a tenth
 
 ---
 
-## 6. Cutover Readiness Checklist (Operator-Hand, Tag-48)
+## 6. Cutover Readiness Checklist (Operator-Hand)
 
-Selin's pre-cutover deliverables (this manifest closes the engine
+The engine-side pre-cutover deliverables (this manifest closes the engine
 side at 10 records). Cross-team gates listed for completeness; not
 all are owned by the persona-engine box.
 
@@ -297,16 +297,16 @@ all are owned by the persona-engine box.
 - [x] Boot-sequence diagram + invariant list (§4, ten-record edition).
 - [x] Containerfile.real bumped to `0.5.1-pre-cutover` image tag.
 - [x] Backward-compatibility statement (§5).
-- [x] Hermetic manifest-integrity tests (15+) in
+- [x] Hermetic manifest-integrity tests (15) in
       `wirelang/tests/persona_engine/test_manifest_0_5_1_pre_cutover.py`.
-- [x] Hermetic wire-in tests (15+) in
+- [x] Hermetic wire-in tests (15) in
       `wirelang/tests/persona_engine/test_bridge_audit_writer_wire_in_tag48.py`.
 - [ ] Cross-substrate-parity-gate green on PR (CI).
 - [ ] Operator-hand live-VM rotation from `0.5.0-pre-cutover` to
-      `0.5.1-pre-cutover` (Kai / Operator-Hand, Tag-49).
-- [ ] OTS-anchor of the manifest hash via WAT spool (Tomás,
+      `0.5.1-pre-cutover` (the infra side / Operator-Hand).
+- [ ] OTS-anchor of the manifest hash via WAT spool (the WAT side,
       Zone-K cross-review preceding).
 
 ---
 
-*Selin Çelik — Persona-Engine-Engineer, Tag-48 wire-in 2026-05-19.*
+*Persona-Engine-Engineer, wire-in 2026-05-19.*

@@ -8,7 +8,7 @@ established in ``wirelang/tests/conftest.py``. The hook is duplicated
 discovery branches: ``wirelang/tests/conftest.py`` does not apply to
 test files under ``wirelang/persona_engine/tests/``.
 
-Rationale (Tag-46): the Tag-46 Selin auftrag named
+Rationale: the assignment named
 ``wirelang/persona_engine/tests/test_nats_jetstream_loss_recovery_a8.py``
 as the file path. Adding the asyncio-runner here keeps the auftrag's
 path-anchor stable while preserving the pure-stdlib posture (no
@@ -27,7 +27,7 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers",
         "asyncio: run the test coroutine with asyncio.run "
-        "(Tag-46 A8 hermetic JetStream-loss tests).",
+        "(A8 hermetic JetStream-loss tests).",
     )
 
 

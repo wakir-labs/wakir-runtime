@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Deterministic-Diff-Engine for the Doppelbetrieb-Shadow bridge.
 
-Sprint-Pengine-15-Mini (ADR-0063 §Folgeartefakte Item 2).
+ADR-0063 §Folgeartefakte, item 2.
 
 During the Phase-3a Doppelbetrieb-Bridge window (~4 weeks, KW 27-31)
 the Python persona-engine and the Rust persona-engine run in parallel.

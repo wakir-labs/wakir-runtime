@@ -8,7 +8,7 @@ Change Date: 2030-05-15. Change License: Apache License 2.0.
 
 # Wakir Persona-Engine — Manifest 0.5.0-pre-cutover
 
-**Tag-45 (2026-05-18). Engine-Konsolidierung vor Phase-3a/3b Doppelbetrieb-Cutover.**
+**2026-05-18. Engine-Konsolidierung vor Phase-3a/3b Doppelbetrieb-Cutover.**
 
 This manifest is the single source of truth for the
 0.5.0-pre-cutover engine release: which BackendDecision records the
@@ -18,16 +18,16 @@ substrates, and which sequence the engine follows from
 `engine.__init__` to the first BackendDecision audit emission.
 
 The manifest is intentionally **machine-readable** for the
-hermetic Tag-45 integrity tests (see
+hermetic integrity tests (see
 `wirelang/tests/persona_engine/test_manifest_0_5_0_pre_cutover.py`)
 and the cross-substrate parity gate
 (`.github/workflows/cross-substrate-parity-gate.yml`).
 
 > **Scope discipline (ADR-0036 / ADR-0043 / ADR-0065)** — this file
 > documents the engine wiring. It does **not** modify persona
-> definitions (Aisha-Domäne), WAT-core logic (Tomás-Domäne),
-> identity-substrate design (Reza-Domäne), or container-infra
-> beyond the Containerfile version bump (Kai-Domäne).
+> definitions (HR-Domäne), WAT-core logic (WAT-Domäne),
+> identity-substrate design (protocol-Domäne), or container-infra
+> beyond the Containerfile version bump (infra-Domäne).
 
 ---
 
@@ -38,7 +38,7 @@ records per cold-start, in the order below. Each record names one
 backend module that the engine resolves via
 `wirelang.persona_engine.rust_backend_switch.resolve_*`. The 10th
 component — `bridge-audit-writer` — is **enum-defined but not yet
-wired into the boot sequence** (held back for Tag-46/47; see
+wired into the boot sequence** (held back; see
 §5 Backward-Compatibility).
 
 | # | Component | Python Authority | Rust Pendant (Crate) | Cross-Lang Fixtures |
@@ -119,13 +119,13 @@ flip a single knob for slow CI lanes.
 10th-record extension but is not consulted during 0.5.0-pre-cutover
 boot. The enum (`BridgeAuditWriterBackend`) and the resolver are
 present in `rust_backend_switch.py` so that the wire-in is a single
-engine.py change in Tag-46/47.
+engine.py change.
 
 ---
 
 ## 3. Cross-Language Pin-Pack Map (15 Phase-3a Crates @ 0.1.0)
 
-The Tag-45 pre-cutover engine pins **all fifteen** Phase-3a Rust
+The pre-cutover engine pins **all fifteen** Phase-3a Rust
 crates at version `0.1.0`. The pin pack lives at
 `infra/persona-engine/pin-pack-0.5.0-pre-cutover.yaml` and is the
 machine-readable counterpart to the table below.
@@ -144,7 +144,7 @@ machine-readable counterpart to the table below.
 | 10 | `persona-engine-bridge-audit-writer` | 0.1.0 | held back (§5) |
 | 11 | `persona-engine-bridge-audit-replay` | 0.1.0 | replay-side oracle |
 | 12 | `persona-engine-anchor-submit-worker` | 0.1.0 | WAT-spool sibling |
-| 13 | `persona-engine-frontmatter-parser` | 0.1.0 | Tag-34 parser substrate |
+| 13 | `persona-engine-frontmatter-parser` | 0.1.0 | parser substrate |
 | 14 | `persona-engine-bridge-forward` | 0.1.0 | Python ↔ Rust forward pipe |
 | 15 | `persona-engine-federation-frame-parser` | 0.1.0 | federation-frame oracle |
 
@@ -232,7 +232,7 @@ PersonaEngine.__init__()
 - The 10th BackendDecision record (`bridge-audit-writer`) is
   **held back** intentionally — wiring it would change the
   boot-fingerprint and break the Phase-3a parity gate just before
-  cutover. Tag-46/47 will add it post-cutover behind a feature
+  cutover. A later revision adds it post-cutover behind a feature
   flag.
 - The Containerfile image-tag bumps from `0.5.0-pilot` to
   `0.5.0-pre-cutover`. The on-disk layout, entrypoint symlink, and
@@ -247,9 +247,9 @@ rotating the Quadlet image tag; no ENV-file edit required.
 
 ---
 
-## 6. Cutover Readiness Checklist (Operator-Hand, Tag-46)
+## 6. Cutover Readiness Checklist (Operator-Hand)
 
-Selin's pre-cutover deliverables (this manifest closes the engine
+The engine-side pre-cutover deliverables (this manifest closes the engine
 side). Cross-team gates listed for completeness; not all are owned
 by the persona-engine box.
 
@@ -260,14 +260,14 @@ by the persona-engine box.
 - [x] Boot-sequence diagram + invariant list (§4).
 - [x] Containerfile.real bumped to `0.5.0-pre-cutover` image tag.
 - [x] Backward-compatibility statement (§5).
-- [x] Hermetic manifest-integrity tests (15+) in
+- [x] Hermetic manifest-integrity tests (15) in
       `wirelang/tests/persona_engine/test_manifest_0_5_0_pre_cutover.py`.
 - [ ] Cross-substrate-parity-gate green on PR (CI).
 - [ ] Operator-hand live-VM rotation from `0.5.0-pilot` to
-      `0.5.0-pre-cutover` (Kai / Operator-Hand, Tag-46).
-- [ ] OTS-anchor of the manifest hash via WAT spool (Tomás,
+      `0.5.0-pre-cutover` (the infra side / Operator-Hand).
+- [ ] OTS-anchor of the manifest hash via WAT spool (the WAT side,
       Zone-K cross-review preceding).
 
 ---
 
-*Selin Çelik — Persona-Engine-Engineer, Tag-45 closeout 2026-05-18.*
+*Persona-Engine-Engineer, closeout 2026-05-18.*
