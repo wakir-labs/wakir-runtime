@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 """Cross-persona verify-bridge: HTTPS-transport → AIP-doc verify.
 
-This module is the Phase-1b Tag-9 bridge between the HTTPS transport
-layer (Tag-8 :class:`~wirelang.identity.aip_https_backend.HTTPSDocumentTransport`),
+This module is the bridge between the HTTPS transport
+layer (:class:`~wirelang.identity.aip_https_backend.HTTPSDocumentTransport`),
 the AIP-document signature helpers (:mod:`wirelang.identity.aip_signing`),
-and the JCS / schema validation indirections introduced by Tag-9.
+and the JCS / schema validation indirections it introduced.
 
 The bridge exposes a single public entry point::
 
@@ -21,7 +21,7 @@ Design rationale
 
 1. **Result-type, not exceptions.** Federation resolvers iterate over
    trust-anchor candidates and want a per-candidate boolean without
-   try/except scaffolding. Tag-7 :class:`FederationResolver` and
+   try/except scaffolding. :class:`FederationResolver` and
    future WAT-side consumers compose more cleanly against
    ``if r.ok: ...`` than against ``except VerifyError: ...``.
 2. **Single source of verification truth.** The bridge wires the
@@ -41,7 +41,8 @@ Out of scope
   a stub transport that implements the duck-typed protocol).
 - ETag / Cache-Control honouring (the bridge calls ``transport.get``
   with no ``if_none_match``; cache-tier wrapping is the caller's
-  responsibility, mirroring Tag-8's separation of concerns).
+  responsibility, mirroring the signing layer's separation of
+  concerns).
 - Federation-document or DID-document verify (the bridge today
   targets AIP-documents; same shape extends trivially via a
   different ``schema_name``).
@@ -49,8 +50,8 @@ Out of scope
 References
 ----------
 
-- Tag-8 outbox spec (wirelang-eng workspace, 2026-05-06).
-- Tag-9 outbox spec (wirelang-eng workspace, 2026-05-07).
+- outbox spec (wirelang-eng workspace, 2026-05-06).
+- outbox spec (wirelang-eng workspace, 2026-05-07).
 - AIP draft: <https://datatracker.ietf.org/doc/html/draft-prakash-aip-00>
 - RFC 8785 JCS: <https://datatracker.ietf.org/doc/html/rfc8785>
 """
@@ -85,7 +86,7 @@ __all__ = [
 class TransportResponse(Protocol):
     """Minimal response shape consumed by the bridge.
 
-    Compatible with Tag-8 :class:`HTTPSDocumentResponse` (which
+    Compatible with :class:`HTTPSDocumentResponse` (which
     exposes ``body`` and ``body_bytes``) and with simple test stubs.
     """
 
@@ -96,7 +97,7 @@ class TransportResponse(Protocol):
 class DocumentTransport(Protocol):
     """Minimal transport shape consumed by the bridge.
 
-    Compatible with Tag-8 :class:`HTTPSDocumentTransport.get`. Test
+    Compatible with :class:`HTTPSDocumentTransport.get`. Test
     stubs implement ``get(uri)`` directly without subclassing.
     """
 
@@ -176,7 +177,7 @@ def verify_from_transport(
 ) -> VerifyResult:
     """Fetch ``doc_id`` via ``transport`` and run the AIP-verify pipeline.
 
-    Pipeline (Tag-9 spec § 2.4):
+    Pipeline (spec § 2.4):
 
     1. ``transport.get(doc_id)`` — any exception → ``transport-failed``.
     2. JSON parse via ``json.loads(resp.body_bytes)`` if the transport
@@ -213,7 +214,7 @@ def verify_from_transport(
     # 1. Transport
     try:
         resp = transport.get(doc_id)
-    except Exception as exc:  # transport may raise any exception
+    except Exception as exc: # transport may raise any exception
         return VerifyResult(
             ok=False,
             document=None,
@@ -275,7 +276,7 @@ def verify_from_transport(
                 False, None, None, doc_id,
                 VerifyError("schema-failed", str(exc), exc),
             )
-        raise  # programmer error -- let it propagate
+        raise # programmer error -- let it propagate
 
     # 4. ID sanity
     if body.get("id") != doc_id:
@@ -399,14 +400,14 @@ def make_https_aip_verify_fn(
     """Build a ``verify_fn`` callable compatible with
     :class:`wirelang.identity.aip_https_backend.HTTPSAipResolver`.
 
-    PS-7-Wiring (Tag-10): the Tag-8 :class:`HTTPSAipResolver` accepts
+    PS-7-Wiring: the class:`HTTPSAipResolver` accepts
     a caller-supplied ``verify_fn`` of shape
     ``(uri, body_bytes, body) -> AIPDocumentLike``; this factory
-    returns a closure that runs the full Tag-9 verify pipeline against
+    returns a closure that runs the full verify pipeline against
     the supplied (already-fetched) body.
 
     The closure raises (instead of returning a :class:`VerifyResult`)
-    so it slots into the Tag-8 :class:`HTTPSAipResolver` exception-flow
+    so it slots into the class:`HTTPSAipResolver` exception-flow
     contract; failures surface as :class:`VerifyError`-tagged
     :class:`RuntimeError` exceptions whose ``args[0]`` is a
     :class:`VerifyError`. Callers needing the result-type API call
@@ -433,7 +434,7 @@ def make_https_aip_verify_fn(
             self._body = body
             self._body_bytes = body_bytes
 
-        def get(self, uri: str):  # noqa: ARG002 -- uri is captured upstream
+        def get(self, uri: str): # noqa: ARG002 -- uri is captured upstream
             return _FetchedResponse(body=self._body, body_bytes=self._body_bytes)
 
     @dataclass(frozen=True)
@@ -456,9 +457,9 @@ def make_https_aip_verify_fn(
             raise RuntimeError(result.error)
         # Return the parsed body; downstream consumers wrap it into
         # an AIPDocumentLike via project_aip_document, but the
-        # production verify_fn (Phase-1a Tag-21) returned just the
+        # production verify_fn returned just the
         # parsed body too.
-        return result.document  # type: ignore[return-value]
+        return result.document # type: ignore[return-value]
 
     return _verify_fn
 
@@ -469,7 +470,7 @@ def _default_pubkey_resolver(body: dict) -> bytes:
     Phase-1b convention: the first ``public_keys`` entry is the
     AIP-signing key. A future enhancement matches the
     ``document_signature.kid`` against ``public_keys[*].kid``; for
-    Tag-9 the simple "first entry" convention matches the existing
+    the simple "first entry" convention matches the existing
     Phase-1a generator.
     """
     pks = body.get("public_keys")

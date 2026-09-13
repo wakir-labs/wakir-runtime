@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""SVID-Workload-Identity canonical-snapshot helpers (Tag-33 Mini-Welle).
+"""SVID-Workload-Identity canonical-snapshot helpers.
 
 This module is the **Python authority** for the
 ``SvidWorkloadIdentitySnapshot`` cross-lang wire-shape. It pins the
@@ -12,7 +12,7 @@ DER bind-state SHA-256).
 Why a separate canonical-snapshot module?
 -----------------------------------------
 
-The Sprint-Pengine-9 :mod:`wirelang.persona_engine.svid_workload_identity`
+The :mod:`wirelang.persona_engine.svid_workload_identity`
 module is the *gRPC fetch path* (BUSL-1.1; engine-side caller for
 the SPIRE Workload-API). That module produces an in-memory
 :class:`SvidFetchResult` per RPC round-trip. The wire-shape of that
@@ -20,13 +20,13 @@ the SPIRE Workload-API). That module produces an in-memory
 by the engine boot path as a Python object, not serialised onto a
 wire.
 
-Tag-33 introduces a canonical *snapshot* form for **operator audit**
+This module introduces a canonical *snapshot* form for **operator audit**
 and **cross-lang parity**: a stable, JCS-canonical byte representation
 of the set of currently-bound SVIDs in a persona-engine boot state,
 suitable for:
 
 - WAT-anchor pipeline -- hash an SVID-binding snapshot per boot for
-  per-persona attestation (Zone-L cross-review surface with Tomás).
+  per-persona attestation (Zone-L cross-review surface with the WAT track).
 - Cross-lang parity -- the future Rust pendant in
   ``wirelang-rust/crates/persona-engine-svid-workload-identity``
   (currently a probe skeleton) MUST reproduce the same JCS bytes
@@ -39,15 +39,15 @@ suitable for:
 Apache-2.0 license posture
 --------------------------
 
-The Sprint-Pengine-9 fetch path is **BUSL-1.1** because it embeds
+The gRPC fetch path is **BUSL-1.1** because it embeds
 the engine-side gRPC client (commercial-use-restricted under
 ADR-0060 commercial-licensing). The canonical-snapshot helpers are
 **Apache-2.0** so downstream re-implementers (Rust pendant, audit
 tooling, third-party verifiers) can reuse the same JCS-canonical
 serialisation contract without inheriting the BUSL restriction.
-This is the same sibling-pattern Reza established for
+This is the same sibling-pattern used for
 ``federation_resolver_canonical`` (Apache-2.0) vs.
-``federation_resolver`` (BUSL-1.1) on Tag-24.
+``federation_resolver`` (BUSL-1.1).
 
 Schema
 ------
@@ -100,8 +100,8 @@ byte-level cross-lang pin. Both
 substrate -- a future
 ``wirelang-rust/crates/persona-engine-svid-workload-identity/tests/
 svid_workload_cross_lang_fixture_test.rs`` (Rust) consume the same
-vectors. The Tag-33 PR pins the Python side; the Rust side reserves
-the same fixture path for the upcoming Sprint-Pengine-12 cutover.
+vectors. The PR pins the Python side; the Rust side reserves
+the same fixture path for the Rust cutover.
 
 Resolution semantics
 --------------------
@@ -134,28 +134,28 @@ Schema-parity table (Python <-> Rust pendant slot)
 
 ::
 
-    Python                                              <-> Rust
-    ------                                              ---     ----
-    SVID_WORKLOAD_IDENTITY_SCHEMA                       SVID_WORKLOAD_IDENTITY_SCHEMA
-    HASH_PREFIX                                         HASH_PREFIX
-    SHA256_HEX_LEN                                      SHA256_HEX_LEN
-    BIND_STATE_PREFIX                                   BIND_STATE_PREFIX
-    SvidWorkloadBinding {                               struct SvidWorkloadBinding {
-      bind_state_sha256,                                  bind_state_sha256,
-      expired,                                            expired,
-      not_after_utc,                                      not_after_utc,
-      org_id,                                             org_id,
-      persona_id,                                         persona_id,
-      spiffe_id,                                          spiffe_id,
-    }                                                   }
-    SvidWorkloadIdentitySnapshot {                      struct SvidWorkloadIdentitySnapshot {
-      bindings: Vec<SvidWorkloadBinding>,                 bindings: Vec<SvidWorkloadBinding>,
-      schema,                                             schema,
-    }                                                   }
-    InMemorySvidWorkloadRegistry                        InMemorySvidWorkloadRegistry
-    .register(binding)                                  .register(binding)
-    .snapshot() -> Snapshot                             .snapshot() -> Snapshot
-    .resolve(org_id, persona_id, now_utc) -> Option     .resolve(org_id, persona_id, now_utc) -> Option
+    Python <-> Rust
+    ------ --- ----
+    SVID_WORKLOAD_IDENTITY_SCHEMA SVID_WORKLOAD_IDENTITY_SCHEMA
+    HASH_PREFIX HASH_PREFIX
+    SHA256_HEX_LEN SHA256_HEX_LEN
+    BIND_STATE_PREFIX BIND_STATE_PREFIX
+    SvidWorkloadBinding { struct SvidWorkloadBinding {
+      bind_state_sha256, bind_state_sha256,
+      expired, expired,
+      not_after_utc, not_after_utc,
+      org_id, org_id,
+      persona_id, persona_id,
+      spiffe_id, spiffe_id,
+    } }
+    SvidWorkloadIdentitySnapshot { struct SvidWorkloadIdentitySnapshot {
+      bindings: Vec<SvidWorkloadBinding>, bindings: Vec<SvidWorkloadBinding>,
+      schema, schema,
+    } }
+    InMemorySvidWorkloadRegistry InMemorySvidWorkloadRegistry
+    .register(binding) .register(binding)
+    .snapshot() -> Snapshot .snapshot() -> Snapshot
+    .resolve(org_id, persona_id, now_utc) -> Option .resolve(org_id, persona_id, now_utc) -> Option
 
 References (URL-200-stamped 2026-05-18):
 
@@ -207,7 +207,7 @@ SPIFFE_ID_TEMPLATE = "spiffe://wakir.{org_id}/persona/{persona_id}"
 
 class SvidWorkloadIdentityError(ValueError):
     """Raised when an SVID-workload-identity binding violates the
-    Tag-33 shape pre-conditions."""
+    shape pre-conditions."""
 
 
 # ---------------------------------------------------------------------
@@ -308,7 +308,7 @@ def _validate_bind_state_sha256(value: str) -> None:
 
 def _validate_binding(binding: SvidWorkloadBinding) -> None:
     """Raise :class:`SvidWorkloadIdentityError` if ``binding`` violates
-    Tag-33 shape pre-conditions.
+    shape pre-conditions.
 
     Checks:
 
@@ -359,7 +359,7 @@ def _validate_binding(binding: SvidWorkloadBinding) -> None:
 class SvidWorkloadRegistry(Protocol):
     """Minimal shape every SVID-workload registry implementation honours.
 
-    The Phase-Tag-33 in-memory reference implementation
+    The Phase-in-memory reference implementation
     :class:`InMemorySvidWorkloadRegistry` satisfies this Protocol. A
     future production implementation backed by NATS-KV or a remote
     registry MAY substitute as long as the three methods below carry
@@ -483,7 +483,7 @@ class InMemorySvidWorkloadRegistry:
         # Materialise expired against now_utc for caller consistency.
         return SvidWorkloadBinding(
             bind_state_sha256=chosen.bind_state_sha256,
-            expired=False,  # in-window by construction
+            expired=False, # in-window by construction
             not_after_utc=chosen.not_after_utc,
             org_id=chosen.org_id,
             persona_id=chosen.persona_id,

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Real SPIFFE Workload API adapter — wirelang-side surface mirror stub.
 
-Phase: Phase-2 Sprint-6 Tag-7 (Adapter-Slot-2 mirror stub).
+Scope: adapter slot 2, mirror stub.
 Status: surface-level Protocol-adoption stub WITHOUT functional
 ``spiffe``-PyPI-backed implementation. The actual upstream-backed
 implementation is gated on:
@@ -10,10 +10,10 @@ implementation is gated on:
    "Gating" below). The adapter constructor refuses instantiation
    when the flag is absent so a misconfigured persona-container
    cannot accidentally hit a live SPIRE agent during unit tests.
-2. Kai's DevOps-track SPIRE-server / SPIRE-agent / NATS-JWT
-   ``user_jwt_cb`` integration landing at Phase-2c (Sprint-6 Tag-7+
-   or later — see ``wirelang/specs/identity-substrate.md`` §5.7 for
-   the wirelang-side surface and Kai's runbook for the operator-side
+2. the DevOps track's SPIRE-server / SPIRE-agent / NATS-JWT
+   ``user_jwt_cb`` integration landing at Phase-2c or later (see
+   ``wirelang/specs/identity-substrate.md`` §5.7 for the wirelang-side
+   surface and the DevOps-track runbook for the operator-side
    topology).
 3. Upstream ``spiffe`` PyPI package being installed in the
    persona-container environment. The adapter does NOT depend on
@@ -25,27 +25,27 @@ implementation is gated on:
 Purpose
 =======
 
-Sprint-6 Tag-4..5 introduced the :class:`SpiffeWorkloadApiAdapter`
+This module introduced the :class:`SpiffeWorkloadApiAdapter`
 Protocol surface and the deterministic in-process
-:class:`MockSpiffeWorkloadApiAdapter`. This Tag-7 mirror stub adds
+:class:`MockSpiffeWorkloadApiAdapter`. This mirror stub adds
 the **second adapter slot** that will eventually carry the
-upstream-``spiffe``-PyPI-backed implementation, paired with Kai's
-SPIRE-sidecar work at Phase-2c+ (Sprint-7 or later).
+upstream-``spiffe``-PyPI-backed implementation, paired with the DevOps track's
+SPIRE-sidecar work at Phase-2c+ (or later).
 
 The stub deliberately:
 
-- Adopts the Tag-4 Protocol surface verbatim
+- Adopts the Protocol surface verbatim
   (``fetch_jwt_svid`` / ``fetch_x509_svid``) so a downstream type
   checker can verify protocol-conformance.
 - Carries the same four-class error hierarchy
   (``SpiffeAdapterError`` / ``SpiffeAdapterUnavailable`` /
   ``SpiffeAdapterAttestationFailed`` / ``SpiffeAdapterAudienceRejected``)
   via re-export from :mod:`wirelang.adapters.spiffe_workload_api`.
-- Refuses to dispatch real Workload-API calls in this Tag-7 box —
+- Refuses to dispatch real Workload-API calls in this box —
   all method bodies raise :class:`NotImplementedError` with a clear
-  "Tag-7+ / Phase-2c" marker pointing at the implementation slot
-  and the cross-reference to Kai's track.
-- Carries explicit ``TODO(reza-tag-7-plus)`` markers at every site
+  "deferred to Phase-2c" marker pointing at the implementation slot
+  and the cross-reference to the DevOps track.
+- Carries explicit ``TODO(spire-live)`` markers at every site
   where the real upstream call will land, so the implementation
   slot is searchable and audit-able from grep alone.
 
@@ -67,10 +67,10 @@ path WITHOUT a live SPIRE agent can set the flag and rely on the
 ``NotImplementedError`` raise to confirm the adapter is wired
 correctly into the orchestrator's adapter-selection codepath.
 
-TODO list (cross-reference to Kai's SPIRE-sidecar track)
+TODO list (cross-reference to the DevOps track's SPIRE-sidecar track)
 ========================================================
 
-- **TODO(reza-tag-7-plus)** — Wire ``fetch_jwt_svid(audience)`` to
+- **TODO(spire-live)** — Wire ``fetch_jwt_svid(audience)`` to
   the upstream ``spiffe.workload_api.WorkloadApiClient.fetch_jwt_svid()``
   call. The upstream method returns a
   ``spiffe.svid.jwt_svid.JwtSvid`` value object; this adapter MUST
@@ -79,39 +79,39 @@ TODO list (cross-reference to Kai's SPIRE-sidecar track)
   ``wirelang/specs/identity-substrate.md`` §5.5, persona-container
   code MUST NOT depend on upstream value-object types.
 
-- **TODO(reza-tag-7-plus)** — Wire ``fetch_x509_svid()`` to the
+- **TODO(spire-live)** — Wire ``fetch_x509_svid()`` to the
   upstream ``WorkloadApiClient.fetch_x509_svid()`` call. The
-  X509-SVID path is Phase-2c+ surface (the Tag-4 stub already has
-  the value-object shape, but the mock at Tag-5 leaves it
+  X509-SVID path is Phase-2c+ surface (the stub already has
+  the value-object shape, but the mock leaves it
   ``NotImplementedError``).
 
-- **TODO(reza-tag-7-plus)** — Map upstream exceptions
+- **TODO(spire-live)** — Map upstream exceptions
   (``spiffe.errors.X509SvidError``, ``WorkloadApiError``,
   socket-level ``ConnectionRefusedError``, etc.) onto the four
   wirelang error-classes per the Z-A-Ack 2026-05-11 §7
   containment contract.
 
-- **TODO(reza-tag-7-plus)** — Inject the workload-socket path
+- **TODO(spire-live)** — Inject the workload-socket path
   through the constructor (default-pinned to the SPIRE-agent
   convention ``/tmp/spire-agent/public/api.sock`` but
-  operator-overridable for Kai's containerised topology).
+  operator-overridable for the operator's containerised topology).
 
-- **TODO(kai-cross-reference)** — The wirelang-side adapter
-  expects Kai's SPIRE-sidecar to expose the Workload-API socket at
-  the path supplied via the constructor. See Kai's
-  Phase-2.3+ runbook for the sidecar topology and the
+- **TODO(devops-cross-reference)** — The wirelang-side adapter
+  expects the DevOps track's SPIRE-sidecar to expose the Workload-API socket at
+  the path supplied via the constructor. See the DevOps-track
+  runbook for the sidecar topology and the
   workload-attestation policy that maps the persona-container's
   Kubernetes / podman attributes onto a SPIFFE-ID.
 
-- **TODO(reza-tag-7-plus)** — Add a Phase-2c
+- **TODO(spire-live)** — Add a Phase-2c
   ``test_real_spiffe_workload_api_adapter.py`` test module that
   exercises the gate-flag refusal path (``WAKIR_SPIRE_LIVE`` not
   set ⇒ ``RuntimeError`` on construction) and the
   ``NotImplementedError`` raise on each method when the gate IS
   set but the upstream library is absent.
 
-- **TODO(reza-tag-7-plus)** — Coordinate the audience-validation
-  semantics with Kai. The Tag-4 mock raises
+- **TODO(spire-live)** — Coordinate the audience-validation
+  semantics with the DevOps track. The mock raises
   :class:`SpiffeAdapterAudienceRejected` when the operator
   configures ``permitted_audiences``; the real adapter MUST mirror
   this contract by validating the returned JWT-SVID's ``aud``
@@ -123,15 +123,15 @@ Cross-references
 - ``wirelang/specs/identity-substrate.md`` §5.5 — adapter-layer
   indirection constraint.
 - ``wirelang/specs/identity-substrate.md`` §5.7 — implementation
-  cross-references (wirelang-side stub, Kai DevOps-track owner-items,
+  cross-references (wirelang-side stub, DevOps-track owner-items,
   Phase-3 wirelang-roadmap slots).
 - Z-A-Ack 2026-05-11 §3 — PyPI-package-name correction (``spiffe``,
   NOT ``py-spiffe``).
 - Z-A-Ack 2026-05-11 §7 — adapter-layer agreement; upstream
   breaking changes are Z-A re-consensus triggers.
-- :mod:`wirelang.adapters.spiffe_workload_api` — Tag-4 Protocol
-  surface and Tag-5 mock implementation that this stub mirrors.
-- Kai's Phase-2.3+ SPIRE-sidecar runbook (operator-side topology).
+- :mod:`wirelang.adapters.spiffe_workload_api` — Protocol
+  surface and mock implementation that this stub mirrors.
+- the DevOps track's SPIRE-sidecar runbook (operator-side topology).
 """
 
 from __future__ import annotations
@@ -167,25 +167,24 @@ closed.
 DEFAULT_WORKLOAD_API_SOCKET = "/tmp/spire-agent/public/api.sock"
 """Default Workload-API socket path (SPIRE-agent convention).
 
-Operators with a containerised SPIRE-sidecar topology (Kai's
-Phase-2.3+ track) MUST override this through the constructor.
+Operators with a containerised SPIRE-sidecar topology MUST override
+this through the constructor.
 """
 
 
 # ---------------------------------------------------------------------------
-# Real adapter (Tag-7 stub; functional impl deferred to Phase-2c)
+# Real adapter (stub; functional impl deferred to Phase-2c)
 # ---------------------------------------------------------------------------
 
 
 class RealSpiffeWorkloadApiAdapter:
     """Real upstream-``spiffe``-PyPI-backed SPIFFE Workload API adapter.
 
-    Phase-2 Sprint-6 Tag-7 — mirror-stub for the Tag-4 Protocol
-    surface. Functional implementation deferred to Phase-2c (paired
-    with Kai's SPIRE-sidecar work). The constructor refuses
+    Mirror stub for the Protocol surface. Functional implementation deferred to Phase-2c (paired
+    with the DevOps track's SPIRE-sidecar work). The constructor refuses
     instantiation unless ``WAKIR_SPIRE_LIVE=1`` is set in the
     process environment; method bodies raise
-    :class:`NotImplementedError` with a Tag-7+ marker.
+    :class:`NotImplementedError` with a marker.
 
     Type-conforming to :class:`SpiffeWorkloadApiAdapter` Protocol
     (verified at import time via the static-type check below;
@@ -230,7 +229,7 @@ class RealSpiffeWorkloadApiAdapter:
                 f"module docstring for the full contract."
             )
         self._workload_socket_path = workload_socket_path
-        # TODO(reza-tag-7-plus): lazy-import the upstream ``spiffe``
+        # TODO(spire-live): lazy-import the upstream ``spiffe``
         # PyPI package here and construct a
         # ``spiffe.workload_api.WorkloadApiClient`` instance bound
         # to ``self._workload_socket_path``. Keep the import inside
@@ -239,7 +238,7 @@ class RealSpiffeWorkloadApiAdapter:
         # ``ModuleNotFoundError`` surfaces at construction time
         # (clear failure) rather than on the first method call
         # (confusing failure).
-        self._client = None  # placeholder for upstream client handle.
+        self._client = None # placeholder for upstream client handle.
 
     @property
     def workload_socket_path(self) -> str:
@@ -255,11 +254,11 @@ class RealSpiffeWorkloadApiAdapter:
     ) -> JwtSvid:
         """Fetch a JWT-SVID for the given audience.
 
-        Sprint-6 Tag-7 stub: raises :class:`NotImplementedError`.
-        Implementation deferred to Phase-2c paired with Kai's
+        stub: raises :class:`NotImplementedError`.
+        Implementation deferred to Phase-2c paired with the DevOps track's
         SPIRE-sidecar integration.
 
-        TODO(reza-tag-7-plus): wire the upstream
+        TODO(spire-live): wire the upstream
         ``WorkloadApiClient.fetch_jwt_svid(audience, ...)`` call;
         translate the returned ``spiffe.svid.jwt_svid.JwtSvid`` into
         the wirelang-owned :class:`JwtSvid` shape; map upstream
@@ -268,8 +267,8 @@ class RealSpiffeWorkloadApiAdapter:
         """
         raise NotImplementedError(
             "RealSpiffeWorkloadApiAdapter.fetch_jwt_svid is not yet "
-            "implemented. Phase-2c surface; paired with Kai's "
-            "SPIRE-sidecar work at Sprint-6 Tag-7+ / Phase-2c. See "
+            "implemented. Phase-2c surface; paired with the DevOps track's "
+            "SPIRE-sidecar work. See "
             "wirelang/adapters/real_spiffe_workload_api.py module "
             "docstring TODO list and "
             "wirelang/specs/identity-substrate.md §5.7."
@@ -282,26 +281,26 @@ class RealSpiffeWorkloadApiAdapter:
     ) -> X509Svid:
         """Fetch an X509-SVID.
 
-        Sprint-6 Tag-7 stub: raises :class:`NotImplementedError`.
+        stub: raises :class:`NotImplementedError`.
         Implementation deferred to Phase-2c.
 
-        TODO(reza-tag-7-plus): wire the upstream
+        TODO(spire-live): wire the upstream
         ``WorkloadApiClient.fetch_x509_svid(...)`` call; translate
         the returned upstream X509-SVID into the wirelang-owned
         :class:`X509Svid` shape.
         """
         raise NotImplementedError(
             "RealSpiffeWorkloadApiAdapter.fetch_x509_svid is not yet "
-            "implemented. Phase-2c surface; paired with Kai's "
+            "implemented. Phase-2c surface; paired with the DevOps track's "
             "SPIRE-sidecar work."
         )
 
     async def close(self) -> None:
         """Release the upstream Workload-API client.
 
-        Sprint-6 Tag-7 stub: no-op (no underlying client to release).
+        stub: no-op (no underlying client to release).
 
-        TODO(reza-tag-7-plus): call the upstream client's
+        TODO(spire-live): call the upstream client's
         ``close()`` / ``__aexit__`` path here so persona-container
         lifecycle code can manage adapter resources deterministically.
         """
@@ -333,4 +332,4 @@ __all__ = [
 
 _RealSpiffeWorkloadApiAdapter_protocol_conformance_check: type[
     SpiffeWorkloadApiAdapter
-] = RealSpiffeWorkloadApiAdapter  # type: ignore[assignment]
+] = RealSpiffeWorkloadApiAdapter # type: ignore[assignment]

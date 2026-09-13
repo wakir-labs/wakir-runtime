@@ -47,17 +47,17 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 from . import _jcs_pure
 
 
-# Resolver indirection (Tag-9 Phase-1b): production deployments
+# Resolver indirection (Phase-1b): production deployments
 # install the ``rfc8785`` PyPI package and we delegate to it; sandbox
 # environments that lack the package fall back to the pure-Python
 # canonicaliser in :mod:`wirelang.identity._jcs_pure`. The two paths
 # produce byte-identical output for the Phase-1b document shape;
-# cross-equivalence is verified by the Tag-9 test suite.
+# cross-equivalence is verified by the test suite.
 try:
     import rfc8785 as _rfc8785_lib
 
     _HAS_RFC8785 = True
-except ImportError:  # pragma: no cover -- exercised when rfc8785 absent
+except ImportError: # pragma: no cover -- exercised when rfc8785 absent
     _rfc8785_lib = None
     _HAS_RFC8785 = False
 

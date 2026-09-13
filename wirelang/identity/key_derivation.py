@@ -64,7 +64,7 @@ from cryptography.hazmat.primitives.serialization import (
 # in the unassigned range (>= 0x80000000) until/unless Wakir registers a
 # coin type officially. Treating this as an internal constant means we do
 # not block on external registration.
-WAKIR_COIN_TYPE: int = 0x57414B49  # ASCII 'WAKI', within hardened range
+WAKIR_COIN_TYPE: int = 0x57414B49 # ASCII 'WAKI', within hardened range
 # ---------------------------------------------------------------------------
 
 HARDENED_OFFSET: int = 0x8000_0000
@@ -85,8 +85,8 @@ SECP256K1_N: int = (
 class _ExtendedKey:
     """Internal carrier for an extended (private-key, chain-code) pair."""
 
-    private_key: bytes  # 32 bytes
-    chain_code: bytes  # 32 bytes
+    private_key: bytes # 32 bytes
+    chain_code: bytes # 32 bytes
 
 
 def _hmac_sha512(key: bytes, data: bytes) -> bytes:

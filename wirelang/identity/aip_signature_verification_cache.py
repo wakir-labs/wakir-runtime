@@ -1,16 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Phase-2 Sprint-4 Tag-5 AIP-document signature-verification cache tier.
+"""AIP-document signature-verification cache tier.
 
-This module ships a stateful caching tier on top of the Sprint-4 Tag-1
-AIP-document signing primitive (:func:`wirelang.identity.verify_aip_signature`).
-The Tag-1 verifier is pure and stateless; production verifier paths
+This module ships a stateful caching tier on top of the AIP-document signing primitive (:func:`wirelang.identity.verify_aip_signature`).
+The verifier is pure and stateless; production verifier paths
 that re-validate the same ``(document, signature, public_key)`` triple
 multiple times pay the JCS-canonicalisation + SHA-256 + Ed25519
-signature cost on every call. The Sprint-4 Tag-5 cache tier short-
+signature cost on every call. The cache tier short-
 circuits that cost while preserving byte-equal outcomes (a cache hit
 is indistinguishable from a fresh verify).
 
-Phase-2 Sprint-4 Tag-5 boundary
+boundary
 -------------------------------
 
 This module deliberately does NOT:
@@ -20,15 +19,14 @@ This module deliberately does NOT:
   single source of truth for cryptographic correctness. On cache
   miss the cache calls the verifier verbatim and records the result.
 * Cache transport-fetch outputs. :class:`AipFetchResult` byte-anchors
-  (``jcs_sha256_hex``) are produced by the Sprint-4 Tag-4
-  ``aip_document_transport_fetch`` layer; the V-908
+  (``jcs_sha256_hex``) are produced by the ``aip_document_transport_fetch`` layer; the V-908
   ``HTTPSAipResolverCache`` lives one layer up for the federation
   pipeline and caches *documents*, not signature-verify outcomes.
 * Persist across process boundaries. The cache is an in-process,
   bounded LRU with TTL-based invalidation. Distributed-cache
   contracts (Redis / NATS-KV / etc.) are Phase-3 slots.
 * Mutate :func:`wirelang.identity.sign_aip_document` or the underlying
-  AIP-document signing primitive in any way. Tag-5 is read-side only.
+  AIP-document signing primitive in any way. This module is read-side only.
 
 Cache-key construction
 ----------------------
@@ -38,7 +36,7 @@ The cache key is constructed from the byte-deterministic inputs to a
 
 1. ``jcs_sha256_hex`` of the AIP-document body (with the
    ``document_signature`` slot removed before JCS-canonicalisation —
-   identical to the Sprint-4 Tag-4 ``_jcs_anchor_hex`` recomputation).
+   identical to the ``_jcs_anchor_hex`` recomputation).
 2. The signature ``alg`` (currently ``"Ed25519"``; future-proof
    for additional curves).
 3. The signature ``kid`` string (binds the key-identifier into the
@@ -104,32 +102,31 @@ order is insertion-order — a cache *hit* does NOT promote the entry
 in the LRU order (this matches the V-908 ``HTTPSAipResolverCache``
 semantics for byte-consistency across the Identity-Substrate cache
 tiers). If callers want hit-promotion semantics they should
-construct a separate cache tier; the Tag-5 default keeps the
+construct a separate cache tier; the default keeps the
 contract minimal.
 
 Cross-Review-Zone-1 (Identity-Substrate) — non-touched
 ------------------------------------------------------
 
-The Sprint-4 Tag-5 cache tier touches NONE of the four
-Z-1-K-Sprint-4 consensus points:
+The cache tier touches NONE of the four
+Z-1-K consensus points:
 
-* Z-1-K-Sprint-4-1 (kid-Resolver-Shape) — non-touched; the cache
+* Z-1-K-1 (kid-Resolver-Shape) — non-touched; the cache
   composes ``verify_aip_signature`` directly with an explicit
   ``pub_key`` argument supplied by the caller. The kid-resolver
   (§5.9) feeds the public key to the caller, who then composes the
   cache; the cache does not import ``kid_resolver`` or invoke it.
-* Z-1-K-Sprint-4-2 (JCS-Resolver-Lock) — non-touched; the cache
+* Z-1-K-2 (JCS-Resolver-Lock) — non-touched; the cache
   re-uses the ``aip_signing._jcs_canonicalize`` resolver-indirection
-  byte-identical (the cache-key construction re-uses the Tag-4
-  ``_jcs_anchor_hex`` helper to compute the body digest, which in
+  byte-identical (the cache-key construction re-uses the ``_jcs_anchor_hex`` helper to compute the body digest, which in
   turn delegates to ``aip_signing._jcs_canonicalize``).
-* Z-1-K-Sprint-4-3 (Curve-Choice = Ed25519) — non-touched; the cache
+* Z-1-K-3 (Curve-Choice = Ed25519) — non-touched; the cache
   is curve-agnostic by construction (the ``alg`` field is included
   in the cache key but the cache does not enforce a curve choice).
-* Z-1-K-Sprint-4-4 (STRICT-Mode-Activation-Owner) — non-touched;
+* Z-1-K-4 (STRICT-Mode-Activation-Owner) — non-touched;
   the cache does NOT make a policy decision. It memoises the
   Boolean outcome of the verifier; the caller's STRICT-mode policy
-  (Sprint-4 Tag-1 ``VerifyMode.STRICT``) is upstream and unchanged.
+  (``VerifyMode.STRICT``) is upstream and unchanged.
 
 See ``wirelang/specs/schema-registry-spec.md`` §5.11 for the
 operational contract and §6.8 for the test inventory.
@@ -211,8 +208,8 @@ def _jcs_body_digest_hex(aip_doc: dict) -> str:
 
     Byte-identical to :func:`wirelang.identity.aip_document_transport_fetch._jcs_anchor_hex`
     in shape and output; reimplemented locally to avoid an
-    import-time dependency between the two modules (the Tag-4 module
-    is the transport-fetch layer; the Tag-5 module is the verify
+    import-time dependency between the two modules (the module
+    is the transport-fetch layer; the module is the verify
     cache; they are siblings, not a stack).
 
     The ``document_signature`` slot is removed from a deep copy so

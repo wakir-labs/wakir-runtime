@@ -1,17 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""``bridge-forward subscribe-loop-summary`` CLI — Sprint-Bridge-Forward-CLI-MINI.
+"""``bridge-forward subscribe-loop-summary`` CLI.
 
 Operator-facing probe surface that emits a single-shot snapshot of
 subscribe-loop telemetry keyed by subject-pattern. Companion to
-:mod:`wirelang.cli.bridge_forward` (Sprint-10 Tag-6 publisher).
+:mod:`wirelang.cli.bridge_forward` (publisher).
 
 Substance scope
 ---------------
 
 One subcommand: ``subscribe-loop-summary``. Emits a JSON object (or
-human-readable line) with exactly the five keys defined by Amara PR
-#116 §5 substance-bestaetigungs-item:
+human-readable line) with exactly the five keys defined by PR #116 §5:
 
 - ``subject_pattern`` (str) — the NATS subject pattern the
   subscribe-loop is bound to, e.g.
@@ -45,18 +44,18 @@ this CLI WITHOUT importing ``nats-py``:
 
 The Live-NATS path (``--live --nats-url ...``) is implemented as a
 lazy-imported probe against JetStream stream-info + consumer-info. It
-is NOT covered by these hermetic tests; it ships behind the Operator-
-Hand-Live-VM Acceptance-Gate (Amara TV-LVD).
+is NOT covered by these hermetic tests; it ships behind the
+operator-hand live-VM acceptance gate.
 
 Spec-Anker
 ----------
 
-- ``wirelang/specs/bridge-forward-pipe-v1.md`` (Sprint-10 Tag-6)
+- ``wirelang/specs/bridge-forward-pipe-v1.md``
 - ``wirelang/persona_engine/nats_subscribe_loop.py`` (subscribe-loop
-  ground truth — owner Selin OI-PEFR-3)
-- Amara PR #116 §5 (CLI-Substance-Bestaetigung, Reza primary owner)
+  ground truth — OI-PEFR-3)
+- PR #116 §5 (CLI substance confirmation)
 - ADR-0058 (Wakir-Runtime + Wirelang protocol-layer)
-- Selin Sprint-Pengine-13 Bug-42 (subscribe-loop inventory trigger)
+- Bug-42 (subscribe-loop inventory trigger)
 """
 
 from __future__ import annotations
@@ -79,7 +78,7 @@ from typing import Any, Callable, Mapping, Optional, TextIO
 #: convention; single source of truth — keep in sync with the spec.
 SUBSCRIBE_LOOP_SUMMARY_SCHEMA = "wakir.bridge.subscribe-loop-summary/1"
 
-#: The five required keys per Amara PR #116 §5.
+#: The five required keys per PR #116 §5.
 REQUIRED_SUMMARY_KEYS = (
     "subject_pattern",
     "current_lag_seconds",
@@ -255,12 +254,12 @@ def live_snapshot_probe(
     stream_name: Optional[str] = None,
     consumer_name: Optional[str] = None,
     timeout_seconds: float = 5.0,
-) -> dict:  # pragma: no cover - exercised by Operator-Hand-Live-VM
+) -> dict: # pragma: no cover - exercised by Operator-Hand-Live-VM
     """Live JetStream probe — lazy-imports ``nats-py``.
 
     Returns a snapshot dict with the five contract keys. This path is
     NOT exercised by the hermetic test suite; the Operator-Hand-Live-VM
-    smoke (Amara TV-LVD) covers it.
+    smoke covers it.
 
     Behaviour:
 
@@ -277,7 +276,7 @@ def live_snapshot_probe(
     """
     import asyncio
 
-    import nats  # type: ignore
+    import nats # type: ignore
 
     async def _probe() -> dict:
         token = os.environ.get("WAKIR_NATS_TOKEN") or None
@@ -559,7 +558,7 @@ def main(
             file=sys.stderr,
         )
         return 1
-    except Exception as exc:  # pragma: no cover - live-mode catch-all
+    except Exception as exc: # pragma: no cover - live-mode catch-all
         print(
             f"[wakir-bridge subscribe-loop-summary] ERROR: "
             f"live probe failed: {exc!r}",

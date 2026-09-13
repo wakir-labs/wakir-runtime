@@ -1,9 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
-"""AIP-document ``kid`` → Ed25519 public-key resolver (Phase-2 Sprint-4 Tag-3).
+"""AIP-document ``kid`` → Ed25519 public-key resolver.
 
 This module is the Identity-Substrate kid-resolver for the Phase-2
-schema-registry-entry-signing layer (Sprint-4 Tag-1,
-:mod:`wirelang.schemas.entry_signing`). It binds a free-form ``kid``
+schema-registry-entry-signing layer (:mod:`wirelang.schemas.entry_signing`). It binds a free-form ``kid``
 string carried on a signature block to the 32-byte raw Ed25519 public
 key stored under the matching ``public_keys`` entry of an AIP document.
 
@@ -12,13 +11,13 @@ Design contract (spec §5.9):
 1. **Lookup target:** the resolver iterates ``aip_doc["public_keys"]``
    and matches on the ``kid`` field of each entry. The AIP-document
    JSON-Schema (``wirelang/schemas/aip-document.json``) defines this
-   field as ``kid`` (not ``id``); the Z-1-K-Sprint-4-1 consensus marker
+   field as ``kid`` (not ``id``); the Z-1-K-1 consensus marker
    captures the resolver contract under the placeholder phrasing
    "public_keys[i].id", which refers byte-accurately to the same
    ``kid``-typed identifier on each ``public_keys`` entry. See spec
-   §5.9 "Phase-2 Sprint-4 Tag-3 byte-accuracy note".
+   §5.9 "byte-accuracy note".
 2. **Algorithm filter:** only ``alg == "Ed25519"`` entries are
-   considered (the two-curve-stack consensus marker Z-1-K-Sprint-4-3
+   considered (the two-curve-stack consensus marker Z-1-K-3
    reserves secp256k1 for Biscuit-capability-token-burst-layer). An
    entry with ``alg == "secp256k1"`` is invisible to this resolver.
 3. **Validity-window filter:** if the entry carries a ``validafter`` /
@@ -33,7 +32,7 @@ Design contract (spec §5.9):
    not forbid duplicates at write time; the resolver enforces
    single-match at read time.
 
-Phase-2 Sprint-4 Tag-3 boundary (spec §5.9 boundary block):
+boundary (spec §5.9 boundary block):
 
 - This module ships the pure resolver function only. It does NOT
   fetch the AIP document from a transport (``did:web`` / ``aip:web``);
@@ -47,12 +46,12 @@ Phase-2 Sprint-4 Tag-3 boundary (spec §5.9 boundary block):
 
 Cross-Review-Zone-1 (Identity-Substrate) closure:
 
-- Z-1-K-Sprint-4-1 (kid-Resolver-Shape) is closed by this module.
-- Z-1-K-Sprint-4-2 (JCS-Resolver-Lock) is non-touched here (resolver
+- Z-1-K-1 (kid-Resolver-Shape) is closed by this module.
+- Z-1-K-2 (JCS-Resolver-Lock) is non-touched here (resolver
   does not canonicalise).
-- Z-1-K-Sprint-4-3 (Curve-Choice = Ed25519 for Identity-Document
+- Z-1-K-3 (Curve-Choice = Ed25519 for Identity-Document
   layer) is reinforced: secp256k1 entries are filtered out.
-- Z-1-K-Sprint-4-4 (STRICT-Mode-Activation-Owner) is non-touched here
+- Z-1-K-4 (STRICT-Mode-Activation-Owner) is non-touched here
   (resolver is policy-agnostic; the caller drives ``VerifyMode``).
 
 References:
@@ -61,7 +60,7 @@ References:
 - AIP draft section 2.3 (``public_keys`` field shape):
   <https://datatracker.ietf.org/doc/html/draft-prakash-aip-00>.
 - Schema-registry spec §5.8 (entry-signing layer).
-- Z-1-Sprint-4-Anhang consensus marker
+- Z-1 consensus annex consensus marker
   (``agents-workspaces/hr/outbox/2026-05-11-cross-review-zone-1-konsens-marker-final.md``).
 """
 
@@ -100,10 +99,10 @@ class KidResolverError(Exception):
 
 
 SUPPORTED_ALG: str = "Ed25519"
-"""Identity-document layer curve per Z-1-K-Sprint-4-3 consensus."""
+"""Identity-document layer curve per Z-1-K-3 consensus."""
 
 _ED25519_KEY_LEN: int = 32
-_ED25519_KEY_HEX_LEN: int = 64  # 32 bytes = 64 hex chars
+_ED25519_KEY_HEX_LEN: int = 64 # 32 bytes = 64 hex chars
 
 
 # ---------------------------------------------------------------------------
@@ -226,7 +225,7 @@ def resolve_kid(
 
     idx, entry = matches[0]
 
-    # Algorithm filter — Z-1-K-Sprint-4-3 (Identity-Document layer is
+    # Algorithm filter — Z-1-K-3 (Identity-Document layer is
     # Ed25519-only; secp256k1 entries belong to the capability-token
     # burst layer).
     alg = entry.get("alg")
@@ -234,7 +233,7 @@ def resolve_kid(
         raise KidResolverError(
             f"public_keys[{idx}] alg is not {SUPPORTED_ALG!r}: "
             f"alg={alg!r}; resolver is Identity-Document-layer "
-            f"(Z-1-K-Sprint-4-3 two-curve-stack)"
+            f"(Z-1-K-3 two-curve-stack)"
         )
 
     # Required field: key_hex.

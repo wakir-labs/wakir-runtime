@@ -1,43 +1,42 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Phase-2 Sprint-4 Tag-4 AIP-document transport-fetch.
+"""AIP-document transport-fetch.
 
-This module is the Phase-2 follow-up to the Sprint-4 Tag-3
-``kid_resolver`` boundary statement: "the resolver does NOT fetch
-the AIP document over transport". Tag-4 plugs that gap with a thin
+This module is the Phase-2 follow-up to the ``kid_resolver`` boundary statement: "the resolver does NOT fetch
+the AIP document over transport". This module plugs that gap with a thin
 composition layer that:
 
-1.  Maps an ``aip:web:host/path`` identifier to a canonical
+1. Maps an ``aip:web:host/path`` identifier to a canonical
     ``https://host/.well-known/aip/<path>.json`` URL (the Wakir
     convention; see ``wirelang/tests/test_layer_3_capability_token.py``
     ``aip_document_ref = "https://wakir.dev/.well-known/aip/<persona>.json"``
     for the reference shape).
-2.  Fetches the body via the Phase-1b V-908 HTTPS-transport layer
+2. Fetches the body via the Phase-1b V-908 HTTPS-transport layer
     (``wirelang.identity.aip_https_backend.HTTPSDocumentTransport``).
-3.  Optionally cross-checks the document against a Wakir-style DNS
+3. Optionally cross-checks the document against a Wakir-style DNS
     TXT anchor record at ``_wakir-aip.<host>`` (V-908 §3.4 federation
     pattern extended from FTD to AIP-document; same shape
     ``v=1; sha256=<64-hex>`` over ``SHA-256(JCS(body without
     document_signature))``).
-4.  Returns the verified body alongside its JCS byte-anchor for
+4. Returns the verified body alongside its JCS byte-anchor for
     direct hand-off to :func:`wirelang.identity.resolve_kid`.
 
-Phase-2 Sprint-4 Tag-4 boundary
+boundary
 -------------------------------
 
 This module deliberately does NOT:
 
 * Validate the AIP document's ``document_signature`` slot. Establishing
   AIP-document signing-trust is the caller's responsibility — see
-  :func:`wirelang.identity.verify_aip_signature`. The Tag-4 fetch
+  :func:`wirelang.identity.verify_aip_signature`. The fetch
   layer is byte-orthogonal to the signing trust layer.
 * Validate the AIP document against the JSON Schema. Schema-validation
   belongs to the Phase-1a ``aip_resolver`` (sandbox-restricted to
-  ``rfc8785`` + ``jsonschema`` paths). Tag-4 returns the parsed body
+  ``rfc8785`` + ``jsonschema`` paths). This module returns the parsed body
   unchanged and lets the caller drive schema-validation.
 * Mutate the schema-registry backend surface. ``NatsKvSchemaRegistry``
   is unchanged; no new method, no new envelope.
 * Cache the result. The V-908 ``HTTPSAipResolverCache`` already exists
-  in the HTTPS backend for the federation pipeline; Tag-4 is a stateless
+  in the HTTPS backend for the federation pipeline; This module is a stateless
   pure-composition layer. Production callers compose with the existing
   cache or roll a tier on top.
 
@@ -65,30 +64,29 @@ reuse :func:`wirelang.identity.dns_anchor.parse_anchor` verbatim.
 V-908 spec cross-references
 ---------------------------
 
-* V-908 §3.3 (HTTPS transport) — fully delegated to the Tag-8
-  ``HTTPSDocumentTransport`` (no new transport invariants here).
+* V-908 §3.3 (HTTPS transport) — fully delegated to the ``HTTPSDocumentTransport`` (no new transport invariants here).
 * V-908 §3.4 (DNS anchor) — extended in shape from FTD-doc to
   AIP-doc; the TXT-record format and trust-model are byte-identical.
-* Schema-Registry spec §5.10 (Phase-2 Sprint-4 Tag-4 follow-up to
-  §5.9 ``kid_resolver``) — documents the Tag-4 composition layer and
-  the Tag-4 boundary statements (above).
+* Schema-Registry spec §5.10 (follow-up to
+  §5.9 ``kid_resolver``) — documents the composition layer and
+  the boundary statements (above).
 
 Cross-Review-Zone-1 (Identity-Substrate) — non-touched
 ------------------------------------------------------
 
-Tag-4 closes the Z-1-Sprint-4-Anhang follow-up slot
+closes the Z-1 consensus annex follow-up slot
 "AIP-document transport-fetch" without touching any of the four
-Z-1-K-Sprint-4 consensus points:
+Z-1-K consensus points:
 
-* Z-1-K-Sprint-4-1 (kid-Resolver-Shape) — non-touched; Tag-3 closed it.
-  Tag-4 feeds the resolver, does not modify its surface.
-* Z-1-K-Sprint-4-2 (JCS-Resolver-Lock) — non-touched; this module
+* Z-1-K-1 (kid-Resolver-Shape) — non-touched; This module closed it.
+  feeds the resolver, does not modify its surface.
+* Z-1-K-2 (JCS-Resolver-Lock) — non-touched; this module
   consumes ``aip_signing._jcs_canonicalize`` byte-identical (no new
   JCS path).
-* Z-1-K-Sprint-4-3 (Curve-Choice = Ed25519) — non-touched; this layer
+* Z-1-K-3 (Curve-Choice = Ed25519) — non-touched; this layer
   is curve-agnostic (it fetches a document, not a key).
-* Z-1-K-Sprint-4-4 (STRICT-Mode-Activation-Owner) — non-touched;
-  ``anchor_required`` is the Tag-4 hard-vs-soft toggle and is
+* Z-1-K-4 (STRICT-Mode-Activation-Owner) — non-touched;
+  ``anchor_required`` is the hard-vs-soft toggle and is
   independent of the schema-registry-signing STRICT toggle.
 """
 
@@ -118,12 +116,12 @@ from .dns_anchor import (
 
 
 class AipDocumentTransportError(Exception):
-    """Base class for Tag-4 AIP-document transport-fetch failures.
+    """Base class for AIP-document transport-fetch failures.
 
     Subclasses distinguish parse-side errors (URL scheme) from
     cross-check errors (DNS-anchor mismatch). Transport-level failures
     propagate unchanged as :class:`HTTPSBackendError` subclasses; the
-    Tag-4 layer does NOT wrap them so callers retain typed access to
+    layer does NOT wrap them so callers retain typed access to
     the V-908 §3.3 invariants.
     """
 
@@ -131,7 +129,7 @@ class AipDocumentTransportError(Exception):
 class AipUrlSchemeError(AipDocumentTransportError):
     """The ``aip_id`` is not a parseable AIP identifier.
 
-    Tag-4 accepts two shapes:
+    accepts two shapes:
 
     * ``aip:web:host[:port]/path`` (the Wakir-canonical form).
     * ``https://host[:port]/path`` (a pre-resolved HTTPS URL, returned
@@ -148,7 +146,7 @@ class AipDnsAnchorMismatchError(AipDocumentTransportError):
     available, the expected and observed fingerprint hex strings.
     The federation resolver in V-908 §4.1 step 3 raises a similar
     typed error on FTD-side anchor mismatches; this is the AIP-side
-    analog for Phase-2 Tag-4.
+    analog for the transport-fetch layer.
 
     Raised when:
 
@@ -181,7 +179,7 @@ class AipDnsAnchorMismatchError(AipDocumentTransportError):
 
 @dataclass(frozen=True)
 class AipFetchResult:
-    """The outcome of a successful Tag-4 AIP-document fetch.
+    """The outcome of a successful AIP-document fetch.
 
     Attributes:
         aip_id: the input AIP identifier (``aip:web:...`` or pre-resolved
@@ -224,7 +222,7 @@ class AipFetchResult:
 
 #: The Wakir-canonical AIP-document path-prefix under the well-known
 #: namespace. Per RFC 8615 the ``.well-known`` registry is the right
-#: home for under-host identity documents; the Tag-4 ``aip`` subspace
+#: home for under-host identity documents; the ``aip`` subspace
 #: is the Wakir convention (V-908 §3.4 sibling).
 WELL_KNOWN_AIP_PREFIX: str = "/.well-known/aip/"
 
@@ -328,15 +326,14 @@ def _jcs_anchor_hex(aip_doc: dict) -> str:
 
     The JCS canonicaliser is the resolver-indirected one used by
     :mod:`wirelang.identity.aip_signing`; we import it lazily to avoid
-    a circular module dependency at import time and to keep the Tag-4
-    module importable in the sandbox build (where ``rfc8785`` is
+    a circular module dependency at import time and to keep the module importable in the sandbox build (where ``rfc8785`` is
     absent — the pure-Python fallback is exercised instead).
     """
     # Lazy import: aip_signing imports a small graph; keeping the
     # dependency import-time-lazy avoids a chain where any consumer of
     # aip_document_transport_fetch pays the aip_signing import cost
     # whether or not they touch the anchor path.
-    from .aip_signing import _jcs_canonicalize  # noqa: WPS437 -- internal-use OK
+    from .aip_signing import _jcs_canonicalize # noqa: WPS437 -- internal-use OK
 
     body = copy.deepcopy(aip_doc)
     body.pop("document_signature", None)
@@ -359,9 +356,8 @@ def fetch_aip_document(
 ) -> AipFetchResult:
     """Fetch and (optionally) DNS-anchor-cross-check an AIP document.
 
-    This is the single public entry point for Phase-2 Sprint-4 Tag-4
-    AIP-document transport-fetch. The function composes the V-908
-    HTTPS-transport layer (Tag-8 ``HTTPSDocumentTransport``) with the
+    This is the single public entry point for AIP-document transport-fetch. The function composes the V-908
+    HTTPS-transport layer (``HTTPSDocumentTransport``) with the
     V-908 DNS-anchor lookup (``dns_anchor.fetch_anchor``) and returns
     a typed :class:`AipFetchResult` ready for kid-resolver consumption.
 
@@ -397,7 +393,7 @@ def fetch_aip_document(
             anchor cross-check failed (absent, malformed, or fingerprint
             mismatch).
         HTTPSBackendError (or subclass): any V-908 §3.3 transport-level
-            failure. Tag-4 does NOT wrap these; the caller retains
+            failure. This module does NOT wrap these; the caller retains
             typed access (e.g. ``HTTPSStatusError.status == 404``).
     """
     url, host = aip_web_to_https_url(aip_id)
@@ -407,7 +403,7 @@ def fetch_aip_document(
     # ------------------------------------------------------------------
     response: HTTPSDocumentResponse = transport.get(url)
     if not isinstance(response.body, dict):
-        # The Tag-8 transport already parses JSON and raises
+        # The transport already parses JSON and raises
         # HTTPSPayloadError on a non-parseable body; we additionally
         # guard against a parseable-but-non-object body (e.g. a JSON
         # array at the root). AIP documents are objects per the

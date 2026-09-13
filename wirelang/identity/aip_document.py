@@ -131,7 +131,7 @@ def generate_aip_document(
         "document_signature": {
             "alg": "Ed25519",
             "kid": "biscuit-root-1",
-            "signature": "00" * 64,  # placeholder; caller MUST replace.
+            "signature": "00" * 64, # placeholder; caller MUST replace.
         },
         "verification_methods": [
             {

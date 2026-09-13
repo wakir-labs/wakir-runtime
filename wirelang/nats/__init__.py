@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Wirelang NATS transport-binding helpers.
 
-Phase-1b Sprint-2 Tag-1 introduces ``subject_mapping``: a deterministic
+This module introduces ``subject_mapping``: a deterministic
 build/parse/validate utility for the Wakir NATS subject convention
 defined in ``specs/nats-subject-mapping-v1.md``.
 

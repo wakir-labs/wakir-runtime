@@ -3,7 +3,7 @@
 transport substrate.
 
 This module is the operational counterpart of
-``specs/nats-subject-mapping-v1.md`` (Phase-1b Sprint-2 Tag-1, S2-Item
+``specs/nats-subject-mapping-v1.md`` (S2-Item
 I-1). It provides deterministic build / parse / validate helpers for
 the canonical subject form
 
@@ -100,8 +100,8 @@ RESERVED_EVENT_TYPES: dict[str, Tuple[str, ...]] = {
         "meta.vocabulary.bumped",
         "meta.capability.issued",
     ),
-    "treasury": (),  # reserved, not yet wired
-    "comms": (),     # reserved, not yet wired
+    "treasury": (), # reserved, not yet wired
+    "comms": (), # reserved, not yet wired
 }
 
 #: Schema-Registry inventory hint (§8). Maps domain × event_type-prefix
@@ -113,7 +113,7 @@ _SCHEMA_INVENTORY = {
     "federation.ftd": "https://wakir.dev/wirelang/schema/federation-trust-document/0.1.0",
     "federation.peer": "https://wakir.dev/wirelang/schema/federation-trust-document/0.1.0",
     "federation.route": "https://wakir.dev/wirelang/schema/federation-trust-document/0.1.0",
-    "wat.audit": None,        # Tomás-owner schema, no Wirelang authoritative hint
+    "wat.audit": None, # WAT-owned schema, no Wirelang authoritative hint
     "wat.leaf": None,
     "agent.task": "https://wakir.dev/wirelang/schema/layer-2-semantic/0.1.0",
     "meta.schema": "https://wakir.dev/wirelang/schema/layer-2-semantic/0.1.0",
@@ -214,7 +214,7 @@ def build_subject(
         warnings.warn(
             f"domain {domain!r} is not in the §4 reserved list "
             f"{RESERVED_DOMAINS}; accepting for forward-compatibility "
-            f"(R5). Phase-1b Sprint-2 Tag-1 may tighten to hard-reject "
+            f"(R5). This module may tighten to hard-reject "
             f"in v1.1.",
             stacklevel=2,
         )
@@ -269,18 +269,18 @@ def parse_subject(subject: str) -> SubjectV1:
     # (including additional dots inside event_type). To recover the
     # four logical anchors, walk the tokens deterministically:
     #
-    #   wakir . <env> . <domain> . <event_type ...> [. <sub_id>]
+    # wakir . <env> . <domain> . <event_type ...> [. <sub_id>]
     #
     # We know:
-    #   - tokens[0] == "wakir"
-    #   - tokens[1] ∈ RESERVED_ENVS
-    #   - tokens[2] is the domain
-    #   - tokens[3:] is event_type [+ optional sub_id]
+    # - tokens[0] == "wakir"
+    # - tokens[1] ∈ RESERVED_ENVS
+    # - tokens[2] is the domain
+    # - tokens[3:] is event_type [+ optional sub_id]
     #
     # We disambiguate the optional sub_id by looking at:
-    #   (a) last token is a recognised persona-slug, OR
-    #   (b) tokens >= 5 with last token matching _SUB_ID_RE and a
-    #       known event_type prefix at tokens[3..-1].
+    # (a) last token is a recognised persona-slug, OR
+    # (b) tokens >= 5 with last token matching _SUB_ID_RE and a
+    # known event_type prefix at tokens[3..-1].
     #
     # For determinism we use a simple, conservative rule: if the
     # last token can be interpreted as a sub_id under §6 anchors
@@ -294,7 +294,7 @@ def parse_subject(subject: str) -> SubjectV1:
     env = tokens[1]
     domain = tokens[2]
 
-    if env not in RESERVED_ENVS:  # belt-and-braces, regex already enforces
+    if env not in RESERVED_ENVS: # belt-and-braces, regex already enforces
         raise SubjectFormatError(
             f"R1: env must be one of {RESERVED_ENVS}, got {env!r}"
         )
@@ -566,7 +566,7 @@ def schema_for_subject(subject: str) -> Optional[str]:
     ``schemaid`` carry for this subject?
 
     Returns None when the subject does not have a Wirelang-authoritative
-    schema (e.g. WAT-domain events owned by Tomás).
+    schema (e.g. WAT-domain events owned by the WAT track).
     """
 
     parsed = parse_subject(subject)

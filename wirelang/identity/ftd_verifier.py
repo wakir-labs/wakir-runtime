@@ -404,7 +404,7 @@ def _jcs_canonicalise(obj: object) -> bytes:
     fallback implements them per RFC 8785 section 3 anyway.
     """
     try:
-        import rfc8785  # noqa: F401  -- production path
+        import rfc8785 # noqa: F401 -- production path
     except ImportError:
         return _local_jcs(obj)
     import rfc8785
@@ -941,20 +941,20 @@ def _select_valid_issuer_keys(
     """Return the subset of ``raw_keys`` whose validity window includes ``now``."""
     out: list[ValidIssuerKey] = []
     for entry in raw_keys:
-        valid_from = _parse_rfc3339(entry["valid_from"])  # type: ignore[arg-type]
+        valid_from = _parse_rfc3339(entry["valid_from"]) # type: ignore[arg-type]
         valid_until_raw = entry.get("valid_until")
         valid_until: Optional[datetime] = None
         if valid_until_raw is not None:
-            valid_until = _parse_rfc3339(valid_until_raw)  # type: ignore[arg-type]
+            valid_until = _parse_rfc3339(valid_until_raw) # type: ignore[arg-type]
         if now < valid_from:
             continue
         if valid_until is not None and now >= valid_until:
             continue
         out.append(
             ValidIssuerKey(
-                kid=entry["kid"],  # type: ignore[arg-type]
-                public_key_hex=entry["public_key"],  # type: ignore[arg-type]
-                purpose=entry["purpose"],  # type: ignore[arg-type]
+                kid=entry["kid"], # type: ignore[arg-type]
+                public_key_hex=entry["public_key"], # type: ignore[arg-type]
+                purpose=entry["purpose"], # type: ignore[arg-type]
                 valid_from=valid_from,
                 valid_until=valid_until,
             )

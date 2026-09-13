@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 #
-# Wirelang NATS-Connect-Retry-Layer (Phase-2 Sprint-9 Tag-5).
+# Wirelang NATS-Connect-Retry-Layer.
 # Licensed under the Business Source License 1.1; Change Date
 # 2030-05-13, Change License Apache-2.0 (per ADR-0059).
 """NATS-connect retry layer for the Pilot-VM live-bring-up
-discrepancy resolution (Sprint-9 Tag-5).
+discrepancy resolution.
 
 Context
 =======
@@ -13,8 +13,7 @@ Context
 The Phase-1b Pilot-VM live-bring-up (2026-05-13) reported a smoke-
 test result that oscillated between 2/6 and 4/6 PASS across
 back-to-back invocations of ``bin/proxmox-bringup-smoke``. The
-Mira-Bug-Bilanz (``2026-05-13-pilot-bringup-bug-bilanz.md``)
-listed four candidate race conditions:
+bring-up bug review listed four candidate race conditions:
 
 1. **JWT-Auth-Timing-Race** — NATS-connect issued before the
    SPIRE-agent has produced a JWT-SVID. The
@@ -56,9 +55,9 @@ checks that flip:
 Hypothesis 3 (socket-permission-drift) is **not** the dominant
 factor: the bug bilanz reports the agent is crash-loop-inactive,
 not socket-permission-failing — when the agent is dead the socket
-does not exist at all (clean FAIL), no race window. Kai Sprint-9
-Tag-5 (Bug-7) owns the primary resolution; this retry-layer is
-defence-in-depth so the smoke-test stops oscillating once Kai's
+does not exist at all (clean FAIL), no race window. Bug-7 on the
+DevOps track owns the primary resolution; this retry-layer is
+defence-in-depth so the smoke-test stops oscillating once that
 fix lands and the agent is healthy.
 
 The retry layer this module implements
@@ -89,7 +88,7 @@ that:
 The retry layer is **opt-in**: existing callers of
 ``RealNatsConnectionAdapter.connect()`` are unaffected. The smoke-
 test and the bucket-init driver are the two known callers that
-opt in via :func:`connect_with_retry` (see Sprint-9 Tag-5 PR).
+opt in via :func:`connect_with_retry` (see PR).
 
 Hermetic-test surface
 =====================
@@ -109,9 +108,8 @@ This module does not open a NATS socket, does not import
 ``nats-py`` eagerly, and does not contact the SPIRE Workload-API.
 It is a pure orchestration layer on top of the existing
 :mod:`wirelang.adapters.real_nats_adapter.adapter` surface. The
-hermetic tests run inside the Mira sandbox per ADR-0051
-(rejected; operative Mira-Hand-Regel: ``claude-dev`` has NO host
-podman-socket access).
+hermetic tests run inside the build sandbox per ADR-0051
+(``claude-dev`` has NO host podman-socket access).
 """
 
 from __future__ import annotations
@@ -147,7 +145,7 @@ from .adapter import (
 #: Five entries → six attempts (one initial + five retries).
 #: Total worst-case sleep (without jitter): 7.75s. Total with
 #: ±20% jitter upper bound: 9.3s. The schedule is biased toward
-#: short early backoffs because the dominant Sprint-9 Tag-5 race
+#: short early backoffs because the dominant race
 #: windows (SVID-cold-start, JetStream-stream-init) clear inside
 #: the first second on a healthy host; the long tail covers
 #: SPIRE-server-restart loops where the agent comes back after a
@@ -169,21 +167,21 @@ DEFAULT_JWT_CACHE_WAIT_SECONDS: float = 1.0
 
 #: Reason codes the retry layer attaches to attempt records.
 #:
-#: ``"tcp-unreachable"``       — :class:`NatsAdapterUnavailable`
-#:                                surfaced from the adapter's
-#:                                pre-connect reachability probe.
-#: ``"nats-py-connect-fail"``  — :class:`NatsAdapterUnavailable`
-#:                                surfaced from the nats-py
-#:                                upstream connect-error mapping.
-#: ``"auth-rejected"``         — :class:`NatsAdapterAuthenticationError`
-#:                                surfaced from the nats-py auth-
-#:                                keyword mapping.
-#: ``"jwt-cache-cold"``        — :class:`NatsJwtCallbackCacheEmpty`
-#:                                or the retry layer's own cache-
-#:                                ready poll exhausted its budget.
-#: ``"unknown-transient"``     — any other :class:`NatsAdapterError`
-#:                                subclass; retried defensively.
-#: ``"success"``               — adapter.connect() completed.
+#: ``"tcp-unreachable"`` — :class:`NatsAdapterUnavailable`
+#: surfaced from the adapter's
+#: pre-connect reachability probe.
+#: ``"nats-py-connect-fail"`` — :class:`NatsAdapterUnavailable`
+#: surfaced from the nats-py
+#: upstream connect-error mapping.
+#: ``"auth-rejected"`` — :class:`NatsAdapterAuthenticationError`
+#: surfaced from the nats-py auth-
+#: keyword mapping.
+#: ``"jwt-cache-cold"`` — :class:`NatsJwtCallbackCacheEmpty`
+#: or the retry layer's own cache-
+#: ready poll exhausted its budget.
+#: ``"unknown-transient"`` — any other :class:`NatsAdapterError`
+#: subclass; retried defensively.
+#: ``"success"`` — adapter.connect() completed.
 REASON_TCP_UNREACHABLE = "tcp-unreachable"
 REASON_NATS_PY_CONNECT_FAIL = "nats-py-connect-fail"
 REASON_AUTH_REJECTED = "auth-rejected"
@@ -346,7 +344,7 @@ def classify_failure(exc: BaseException) -> str:
         return REASON_NATS_PY_CONNECT_FAIL
     # Cooperate with the callback skizze's NatsJwtCallbackCacheEmpty
     # without importing the module. The class name is stable
-    # (Sprint-6 Tag-10) and the message carries the marker.
+    # and the message carries the marker.
     cls_name = type(exc).__name__
     if cls_name == "NatsJwtCallbackCacheEmpty":
         return REASON_JWT_CACHE_COLD
@@ -550,7 +548,7 @@ async def connect_with_retry(
         attempt_start = _clock()
         try:
             await connect()
-        except BaseException as exc:  # noqa: BLE001
+        except BaseException as exc: # noqa: BLE001
             reason = classify_failure(exc)
             elapsed = _clock() - attempt_start
             if reason == REASON_UNKNOWN_TRANSIENT and not isinstance(
@@ -614,7 +612,7 @@ async def connect_with_retry(
 
     # Unreachable: the loop always returns inside its body.
     # Defensive return for type-checkers.
-    return log  # pragma: no cover
+    return log # pragma: no cover
 
 
 # ---------------------------------------------------------------------------
