@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Hermetic tests for ``wirelang.identity.aip_https_backend`` (V-908 PS-6).
 
-Phase-1b Tag-8 production-form tests. The module under test is
-``wirelang/identity/aip_https_backend.py`` (Tag-8 PS-6 HTTPS-backend
+Phase-1b production-form tests. The module under test is
+``wirelang/identity/aip_https_backend.py`` (PS-6 HTTPS-backend
 for AIP-document fetch, V-908 §3.3).
 
 All tests are hermetic: a fake ``urlopen`` is injected into
@@ -13,7 +13,7 @@ ETag round-trip) plus the
 :class:`~wirelang.identity.federation_resolver.AIPResolverLike`
 composition layer.
 
-The Phase-1a Tag-21 ``aip_resolver`` requires ``rfc8785`` and
+The Phase-1a ``aip_resolver`` requires ``rfc8785`` and
 ``jsonschema`` which are not installed in the project sandbox. We
 therefore inject a stub ``verify_fn`` for the
 :class:`HTTPSAipResolver` composition tests; the verify contract
@@ -81,7 +81,7 @@ HTTPSTransportError = _mod.HTTPSTransportError
 
 
 class _FakeHeaders(dict):
-    """Mapping-shaped HTTPMessage stand-in.
+    """Mapping-shaped HTTPMessage stand-.
 
     urllib's response exposes headers via an HTTPMessage which behaves
     like a case-insensitive Mapping. The transport's
@@ -127,7 +127,7 @@ class _FakeUrlopen:
     """Programmable urlopen replacement for the transport tests.
 
     Each call consumes the next response from the FIFO ``script`` --
-    a list of either :class:`_FakeResponse` (success) or ``Exception``
+    a list of either:class:`_FakeResponse` (success) or ``Exception``
     instances (raised). Calls are recorded on ``calls`` for assertion.
     """
 

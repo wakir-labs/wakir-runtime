@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""TV-W-2 capability-token multi-step pin-pack builder (Phase-1b Tag-16).
+"""TV-W-2 capability-token multi-step pin-pack builder (Phase-1b).
 
 Implements the deterministic builder for the TV-W-2 vector specified
 in ``wirelang/specs/wirelang-tv-strategy.md`` §2 and pin-stabilised by
@@ -31,7 +31,7 @@ Determinism notes:
 - Ed25519 (RFC 8032) signatures are deterministic-k; signature
   bytes are byte-stable across re-runs.
 - Caveat-set hashes follow §4-CSC from the Phase-2 vocabulary and
-  are computed via :mod:`wirelang.canonical.caveat_set`. Producer
+  are computed via:mod:`wirelang.canonical.caveat_set`. Producer
   caveat-emission order is deliberately *unsorted* in this builder
   so the §4-CSC sort step is exercised on the production side.
 - Verifier traces are JCS-canonicalised; the top-level pin-pack
@@ -138,7 +138,7 @@ CONTEXT_AUDIENCE: dict = {
 
 
 # ---------------------------------------------------------------------------
-# JCS resolver indirection (Tag-9)
+# JCS resolver indirection
 # ---------------------------------------------------------------------------
 
 
@@ -166,7 +166,7 @@ def _derive_chain_seed(label: bytes, parent_seed: bytes) -> bytes:
     Biscuit append-block chain without standing up a full BIP-32
     tree. The construction is::
 
-        SHA-256( b"tv-w-2-chain|" + label + b"|" + parent_seed )
+        SHA-256( b"tv-w-2-chain|" + label + b"|" + parent_seed)
 
     The label disambiguates each chain-step so two consumers that
     share a parent seed but address different chain positions cannot

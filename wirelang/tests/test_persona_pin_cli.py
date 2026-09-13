@@ -1,11 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Operator CLI test pack for ``wakir-persona pin`` (Phase-1b
-Sprint-6 Tag-4).
+"""Operator CLI test pack for ``wakir-persona pin`` (Phase-1b).
 
-Covers the ``pin`` subcommand declared in :mod:`wirelang.persona.cli`.
+Covers the ``pin`` subcommand declared :mod:`wirelang.persona.cli`.
 The subcommand is a minimal-footprint shell-pipeline wrapper around
 :func:`wirelang.persona.persona_canonical_form.read_canonical_subset`
-plus :func:`wirelang.persona.compute_persona_hash_from_canonical` —
+plus:func:`wirelang.persona.compute_persona_hash_from_canonical` —
 strict subset of ``inspect`` (no JSON envelope, no canonical-subset
 echo) optimised for ``pin=$(wakir-persona pin file.md)`` capture.
 
@@ -91,7 +90,7 @@ V8_FIXTURE = FIXTURE_DIR / "v8-persona-pre-framework.md"
 V9_FIXTURE = FIXTURE_DIR / "v9-persona-framework-native.md"
 
 # Cross-language byte-fixture root — same path the Rust test pack
-# loads via `include_str!`. The Sprint-6 Tag-4 byte-identity contract
+# loads via `include_str!`. The byte-identity contract
 # pins V1 + V9 stdout on both sides.
 RUST_FIXTURE_DIR = (
     Path(__file__).resolve().parents[2]
@@ -284,7 +283,7 @@ def test_pin_v9_stdout_byte_identical_to_frozen_fixture(
     capsys: pytest.CaptureFixture[str],
 ):
     """V9 pin-stdout matches ``v9-pin.expected.txt`` byte-for-byte.
-    Byte-identity anchor in the V-907-anchor pin-pack (Tag-4 entry).
+    Byte-identity anchor in the V-907-anchor pin-pack (entry).
     """
     rc = main(["pin", str(V9_FIXTURE), "--quiet"])
     captured = capsys.readouterr()

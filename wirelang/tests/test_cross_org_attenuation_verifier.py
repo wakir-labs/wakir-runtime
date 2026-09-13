@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 """Determinism tests for the Cross-Org Capability-Attenuation-Chain-Verifier.
 
-Sprint-8 Tag-2 (Reza, 2026-05-13). Tests the three-detector
+Tests the three-detector
 hardening module
 :mod:`wirelang.federation.cross_org_attenuation_verifier` that
-composes on top of the Sprint-2 Tag-5 N3 chain walker.
+composes on top of the N3 chain walker.
 
 Test inventory (T-CO-01..T-CO-09; all deterministic):
 
@@ -22,7 +22,7 @@ Test inventory (T-CO-01..T-CO-09; all deterministic):
   empty verifier expectation -> accept.
 - T-CO-07: Detector 3 — chain length exceeds cross_org_max_hops
   -> CrossOrgChainLengthLimitError.
-- T-CO-08: Determinism — repeated verify() calls with identical
+- T-CO-08: Determinism — repeated verify calls with identical
   inputs yield byte-identical accept verdicts / identical error
   types and messages.
 - T-CO-09: Detector ordering invariant — when multiple detectors
@@ -471,7 +471,7 @@ def test_t_co_09_detector_ordering_invariant():
 
 
 def test_t_co_aux_convenience_fn_parity():
-    """The :func:`verify_cross_org_attenuation` convenience wrapper
+    """The:func:`verify_cross_org_attenuation` convenience wrapper
     MUST produce an identical verdict to the class-form verifier."""
     n3_verdict = _make_n3_verdict([(_FTD_CTX, _FTD_HOP_A)])
     issuer = [CaveatExpectation("peer_org", (_FTD_HOP_A,))]

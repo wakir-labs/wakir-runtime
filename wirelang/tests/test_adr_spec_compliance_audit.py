@@ -1,19 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Hermetic tests for the Tag-54 ADR Spec-Compliance Audit.
+"""Hermetic tests for the ADR Spec-Compliance Audit.
 
-Re-Dispatch nach Quota-Hit 2026-05-19 ~03:20 CEST. The Tag-54 audit
+Re-Dispatch nach Quota-Hit 2026-05-19 ~03:20 CEST. The audit
 report
 (``docs/archive/evidence/audits/adr-spec-compliance-audit-2026-05-19.md``)
 documents drift between ADR-cited Wirelang substrate surfaces and
-the working-copy at main-tip ``f713e75`` (Tag-53 PR #345).
+the working-copy at main-tip ``f713e75`` (PR #345).
 
 The tests in this module pin the audit's verdict by re-checking
 each MATCH / DRIFT claim against the working-copy. If a future
-substrate change resolves a DRIFT (e.g. the Phase-3c cutover lands
+substrate change resolves a DRIFT (e.g. The Phase-3c cutover lands
 ``persona_engine_py_legacy/``), the corresponding test fails fast
 so the report can be re-baselined.
 
-Test inventory (T-ADR-S-01..15, ≥10 required by Mira-Auftrag):
+Test inventory (T-ADR-S-01..15, ≥10 required by the assignment):
 
 - T-ADR-S-01: Audit report exists at the canonical path.
 - T-ADR-S-02: Audit report cites the correct main-tip commit.
@@ -99,7 +99,7 @@ def test_t_adr_s_01_audit_report_exists() -> None:
 
 
 def test_t_adr_s_02_audit_cites_correct_main_tip() -> None:
-    """T-ADR-S-02: audit report cites Tag-53 PR #345 hotfix commit."""
+    """T-ADR-S-02: audit report cites PR #345 hotfix commit."""
     text = _audit_text()
     assert "f713e75" in text, "audit report must cite main-tip commit"
     assert "#345" in text or "Tag-53" in text, (
@@ -268,7 +268,7 @@ def test_t_adr_s_14_persona_engine_format_spec_present() -> None:
     spec = SPEC_DIR / "persona-engine-format-spec.md"
     assert spec.exists()
     head = spec.read_text(encoding="utf-8")[:2000]
-    # ADR-0058 cited v1.0; main-tip is v1.2.0 (frontmatter) per Tag-4
+    # ADR-0058 cited v1.0; main-tip is v1.2.0 (frontmatter) per
     m = re.search(r"^version:\s*([0-9]+\.[0-9]+(?:\.[0-9]+)?)", head, re.MULTILINE)
     assert m is not None, "persona-engine-format-spec must declare version"
     version = m.group(1)

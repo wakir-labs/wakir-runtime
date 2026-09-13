@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Cross-lang parity tests for the persona-engine V-907-verify
-canonical-trace (Tag-35 Mini-Welle Phase-3a Python-sync, 12. Modul).
+canonical-trace (Mini-wave Phase-3a Python-sync, 12. Modul).
 
-This file is the Python half of the cross-lang fixture pin pair.  The
+This file is the Python half of the cross-lang fixture pin pair. The
 Rust half lives at
 ``wirelang-rust/crates/persona-engine-v907-verify/tests/cross_lang_fixture_test.rs``
 and consumes the same authoritative fixture file at
@@ -65,10 +65,10 @@ from typing import Any, Dict
 import pytest
 
 # Cross-lang parity needs PyYAML + rfc8785 to build the canonical-trace
-# from a markdown input.  The shadow-CI lane runs without either wheel
+# from a markdown input. The shadow-CI lane runs without either wheel
 # (see `wirelang/persona/persona_canonical_form.py` resolver docstring);
 # skip the entire suite on that lane via the same `importorskip` pattern
-# already established in the Tag-34 sibling test
+# already established in the sibling test
 # (`test_frontmatter_parser_cross_lang_parity.py`).
 pytest.importorskip("yaml")
 pytest.importorskip("rfc8785")
@@ -91,9 +91,9 @@ from wirelang.persona_engine.v907_verify_canonical import (
 )
 
 
-# Historical V-907 pin pack anchor for SAMPLE_AXIS_A_MIN.  This hex is
+# Historical V-907 pin pack anchor for SAMPLE_AXIS_A_MIN. This hex is
 # also pinned in the Rust crate's smoke test as `PIN_AXIS_A_MIN` (full
-# form `"sha256:" + this_hex`).  Tag-35 binds the new canonical-trace
+# form `"sha256:" + this_hex`). binds the new canonical-trace
 # surface to the same V-907 ground truth.
 PERSONA_HASH_PIN_SAMPLE_AXIS_A_MIN = (
     "cf66fbc5e02ebee97726d5903460e1c3b2b20d1e10db6db1083bceb62ede6e39"

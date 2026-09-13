@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tag-62 — Engine 0.5.3 final-bump consistency pin (Selin, Persona-Engine).
+"""— Engine 0.5.3 final-bump consistency pin.
 
-The Tag-62 (2026-05-19) bump promotes the engine from
-``0.5.3-rc1`` (Tag-58, PR #372) to ``0.5.3`` final by dropping the
+The (2026-05-19) bump promotes the engine from
+``0.5.3-rc1`` (PR #372) to ``0.5.3`` final by dropping the
 rc1-suffix. It is a strict-superset, manifest-and-metadata-only
-release-candidate promotion before the KW-24 cutover-T0 window
+release-candidate promotion before the calendar week 24 cutover-T0 window
 (2026-06-08/09). Substrate is byte-stable vs. rc1: no record
 added/renamed, no ENV-flag flipped, no crate version bumped, no
-V-907-baseline refresh (the Tag-59 seal at
+V-907-baseline refresh (the seal at
 ``wirelang/persona_engine/v907-hash-baseline.json`` survives
 unchanged — the V-907 composite hash is byte-bounded to manifest §1
 + pin-pack ``boot_wired_crates`` + engine.py resolver-block).
@@ -22,18 +22,18 @@ Four authority surfaces stamped at 0.5.3
    final-release-notes file.
 2. ``wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md``
    §0 Version Header — rewritten to record 0.5.3 final as the
-   active version. A new §0.1 Tag-58 history sub-section preserves
+   active version. A new §0.1 history sub-section preserves
    the rc1 substrate as historical context.
 3. ``wirelang/persona_engine/cli.py`` line 3 — module docstring
-   carries ``(v0.5.3)`` (one of the Tag-59 hot-fix drift sites).
+   carries ``(v0.5.3)`` (one of the hot-fix drift sites).
 4. ``wirelang/persona_engine/engine_async.py`` line 96 —
-   ``ASYNC_ENGINE_VERSION = "0.5.3"`` (the second Tag-59 hot-fix
+   ``ASYNC_ENGINE_VERSION = "0.5.3"`` (the second hot-fix
    site).
 
 Plus the supporting surfaces:
 
 * ``wirelang/persona_engine/engine.py`` line 84 — canonical-anchor
-  import comment narrates ``Tag-62 canonical anchor (0.5.3, rc1
+  import comment narrates ``canonical anchor (0.5.3, rc1
   dropped)``.
 * ``docs/persona-engine/0-5-3-final-release-notes.md`` — fresh
   public-facing release notes with five canonical sections.
@@ -45,16 +45,16 @@ Plus the supporting surfaces:
   tag58/59/60 hermetic-test fixtures).
   ``EXPECTED_ACTIVE_VERSION`` bumped to ``0.5.3``.
 
-Tag-60 drift-coverage scanner contract
+drift-coverage scanner contract
 --------------------------------------
 
-The Tag-60 scanner (``scan_engine_version_drift.py``) must cover
-this Tag-62 bump. Verification:
+The scanner (``scan_engine_version_drift.py``) must cover
+this bump. Verification:
 
 * ``ACTIVE_VERSION`` equals the bumped ``__version__``.
 * ``0.5.3-rc1`` is in ``STALE_VERSIONS`` (it is now a hunted stale).
 * A hermetic scan over the repo emits zero un-allowlisted findings.
-* The allowlist registers v907-hash-baseline.json (the Tag-59 seal
+* The allowlist registers v907-hash-baseline.json (the seal
   that legitimately keeps rc1 in its engine_version field).
 
 Hermetic envelope
@@ -64,15 +64,14 @@ Hermetic envelope
 * No filesystem writes outside ``tmp_path``.
 * Deterministic — no clock-sensitive assertions.
 
-Scope discipline (Selin, ADR-0036/0043/0065/0066)
+Scope discipline
 -------------------------------------------------
-This file does **not** modify persona definitions (Aisha-Domäne,
-ADR-0043), WAT-core / V-907 logic (Tomás-Domäne, Zone-K),
-identity-substrate design (Reza-Domäne, Zone-L), or container-infra
-(Kai-Domäne, Zone-J). The Tag-59 V-907 hash-pin baseline seal at
+This file does **not** modify persona definitions, WAT-core / V-907 logic,
+identity-substrate design, or container-infra
+The V-907 hash-pin baseline seal at
 ``v907-hash-baseline.json`` is explicitly NOT refreshed by this
-bump; refresh requires Selin-Hand + Tomás Zone-K cross-review per
-the Tag-59 seal contract.
+bump; refresh requires the engine zone-Hand + the engineering zone Zone-K cross-review per
+the seal contract.
 """
 
 from __future__ import annotations
@@ -146,7 +145,7 @@ def _extract_assignment_literal(source: str, symbol: str) -> str:
 
 @pytest.fixture(scope="module")
 def scanner_module():
-    """Import the Tag-60 drift scanner by file-path (not via package)."""
+    """Import the drift scanner by file-path (not via package)."""
     spec = importlib.util.spec_from_file_location(
         "scan_engine_version_drift_tag62_fixture", SCANNER_PATH
     )
@@ -165,7 +164,7 @@ def scanner_module():
 
 
 def test_t01_version_module_pins_0_5_3_final() -> None:
-    """The Tag-62 canonical anchor module must pin exactly ``0.5.3``."""
+    """the canonical anchor module must pin exactly ``0.5.3``."""
     assert VERSION_MODULE_PATH.is_file(), (
         f"canonical version anchor module missing: {VERSION_MODULE_PATH}"
     )
@@ -244,7 +243,7 @@ def test_t04_public_import_surface_yields_bumped_version() -> None:
 
 
 def test_t05_manifest_section_zero_records_engine_version() -> None:
-    """The Tag-52 manifest §0 must record engine version 0.5.3 as active."""
+    """the manifest §0 must record engine version 0.5.3 as active."""
     source = _read(MANIFEST_PATH)
     assert "## 0. Version Header" in source, (
         "Manifest §0 Version Header section missing"
@@ -284,14 +283,14 @@ def test_t06_manifest_section_zero_lists_four_authority_paths() -> None:
 
 
 # ===========================================================================
-# Surface 2c — Manifest §0.1 history sub-section preserves Tag-58 rc1.
+# Surface 2c — Manifest §0.1 history sub-section preserves rc1.
 # ===========================================================================
 
 
 def test_t07_manifest_section_zero_dot_one_preserves_rc1_history() -> None:
-    """The §0.1 sub-section must narrate the Tag-58 rc1 substrate."""
+    """The §0.1 sub-section must narrate the rc1 substrate."""
     source = _read(MANIFEST_PATH)
-    # Either ###/## numbering is acceptable; the Tag-62 author chose ###.
+    # Either ###/## numbering is acceptable; the author chose ###.
     assert (
         "### 0.1" in source or "## 0.1" in source
     ), "Manifest §0.1 Tag-58 history sub-section missing"
@@ -314,8 +313,8 @@ def test_t07_manifest_section_zero_dot_one_preserves_rc1_history() -> None:
 def test_t08_cli_module_docstring_carries_bumped_version() -> None:
     """``cli.py`` line 3 module docstring must say ``v0.5.3`` (not rc1).
 
-    This is one of the four Tag-59 hot-fix drift sites the Tag-60
-    scanner is wired to catch. The Tag-62 bump mirrors the canonical
+    This is one of the four hot-fix drift sites the
+    scanner is wired to catch. The bump mirrors the canonical
     anchor at this site.
     """
     source = _read(CLI_PATH)
@@ -345,7 +344,7 @@ def test_t08_cli_module_docstring_carries_bumped_version() -> None:
 def test_t09_engine_async_async_engine_version_literal() -> None:
     """``engine_async.py`` line 96 must pin ``ASYNC_ENGINE_VERSION = "0.5.3"``.
 
-    Second of the four Tag-59 hot-fix drift sites. Tag-62 mirrors the
+    Second of the four hot-fix drift sites. mirrors the
     canonical anchor here.
     """
     source = _read(ENGINE_ASYNC_PATH)
@@ -368,9 +367,9 @@ def test_t09_engine_async_async_engine_version_literal() -> None:
 
 
 def test_t10_engine_py_canonical_anchor_import_comment() -> None:
-    """``engine.py:84`` comment must reference the Tag-62 0.5.3 bump.
+    """``engine.py:84`` comment must reference the 0.5.3 bump.
 
-    Third of the four Tag-59 hot-fix drift sites — the comment on
+    Third of the four hot-fix drift sites — the comment on
     the canonical-anchor import line.
     """
     source = _read(ENGINE_PATH)
@@ -378,7 +377,7 @@ def test_t10_engine_py_canonical_anchor_import_comment() -> None:
         "from .__version__ import ENGINE_VERSION" in source
     ), "engine.py must import ENGINE_VERSION from __version__ (canonical)"
     # The comment on the import line should reference 0.5.3 and the
-    # Tag-62 bump (rc1 dropped). Be tolerant of whitespace.
+    # bump (rc1 dropped). Be tolerant of whitespace.
     import_line = next(
         (
             line
@@ -423,7 +422,7 @@ def test_t12_final_release_notes_has_h1_and_five_sections() -> None:
     required_sections = (
         "## 1. Scope",
         "## 2. Carry-Forward",
-        "## 3. G5-PRE-CUTOVER-READY",  # Tag-62 spec'd sub-name
+        "## 3. G5-PRE-CUTOVER-READY",  # spec'd sub-name
         "## 4. Pre-Cutover Gate-Map",
         "## 5. Operator-Hand Items",
     )
@@ -445,7 +444,7 @@ def test_t13_final_release_notes_records_g5_compositum_achievement() -> None:
         "final release-notes does not record the G5-PRE-CUTOVER-READY "
         "compositum verdict from Tag-61 PR #391"
     )
-    # PR #391 is the substrate authority for the Tag-62 promotion.
+    # PR #391 is the substrate authority for the promotion.
     assert "#391" in source, (
         "final release-notes does not reference Tag-61 PR #391 as the "
         "upstream authority for the rc1 → final promotion"
@@ -460,7 +459,7 @@ def test_t13_final_release_notes_records_g5_compositum_achievement() -> None:
 def test_t14_drift_scanner_active_version_mirrors_canonical_anchor(
     scanner_module,
 ) -> None:
-    """Tag-60 scanner ``ACTIVE_VERSION`` must equal canonical ``__version__``."""
+    """scanner ``ACTIVE_VERSION`` must equal canonical ``__version__``."""
     spec = importlib.util.spec_from_file_location(
         "persona_engine_version_tag62_fixture", VERSION_MODULE_PATH
     )
@@ -486,13 +485,13 @@ def test_t14_drift_scanner_active_version_mirrors_canonical_anchor(
 def test_t15_drift_scanner_hunts_rc1_as_stale_literal(
     scanner_module,
 ) -> None:
-    """Tag-62 extension: ``0.5.3-rc1`` joins the hunted ``STALE_VERSIONS``."""
+    """extension: ``0.5.3-rc1`` joins the hunted ``STALE_VERSIONS``."""
     assert PREDECESSOR_VERSION in scanner_module.STALE_VERSIONS, (
         f"Tag-62 scanner extension missing — {PREDECESSOR_VERSION!r} "
         f"is not in STALE_VERSIONS={scanner_module.STALE_VERSIONS!r}"
     )
-    # Longest-first invariant must still hold (Tag-60 test_03 also
-    # asserts this; mirrored here for Tag-62-local sanity).
+    # Longest-first invariant must still hold (test_03 also
+    # asserts this; mirrored here for -local sanity).
     stale_by_len = sorted(
         scanner_module.STALE_VERSIONS, key=len, reverse=True
     )
@@ -510,7 +509,7 @@ def test_t15_drift_scanner_hunts_rc1_as_stale_literal(
 def test_t16_drift_scanner_hermetic_scan_emits_zero_unallowlisted_findings(
     scanner_module,
 ) -> None:
-    """Run the Tag-60 scanner over the real repo; expect zero un-allowlisted."""
+    """Run the scanner over the real repo; expect zero un-allowlisted."""
     allowlist = scanner_module.load_allowlist(ALLOWLIST_PATH)
     result = scanner_module.scan_repo(REPO_ROOT, allowlist)
     if result.findings:
@@ -552,10 +551,10 @@ def test_t17_drift_scanner_allowlist_covers_v907_baseline_seal(
 
 
 def test_t18_v907_baseline_seal_unchanged_engine_version_metadata() -> None:
-    """The Tag-59 V-907 baseline seal preserves engine_version = rc1.
+    """the V-907 baseline seal preserves engine_version = rc1.
 
-    Refresh requires Selin-Hand + Tomás Zone-K cross-review per the
-    Tag-59 seal contract. The Tag-62 final-bump explicitly does not
+    Refresh requires the engine zone-Hand + the engineering zone Zone-K cross-review per the
+    seal contract. The final-bump explicitly does not
     exercise that authority — the §0 version-header rewrite is
     outside the V-907 byte-bounded slice (manifest §1 + pin-pack
     boot_wired_crates + engine.py resolver-block).
@@ -650,23 +649,23 @@ def test_t22_no_stale_version_literal_in_active_authority_surfaces() -> None:
 
 
 # ===========================================================================
-# Cross-zone scope discipline — No Aisha/Tomás/Reza/Kai-domain touches.
+# Cross-zone scope discipline — No the org zone/the engineering zone/the protocol zone/the infrastructure zone-domain touches.
 # ===========================================================================
 
 
 def test_t23_tag62_bump_does_not_touch_cross_zone_substrate() -> None:
     """Cross-zone protection: the V-907 baseline is unchanged; the
     pin-pack YAML is unchanged; no persona-definition files are
-    referenced as Tag-62-modified.
+    referenced as -modified.
 
-    This test is a soft sanity check that the Tag-62 bump-spec stays
-    inside Selin's domain. The V-907 baseline file's engine_version
-    metadata legitimately holds the rc1 literal (Tag-59 seal). The
+    This test is a soft sanity check that the bump-spec stays
+    inside the engine zone's domain. The V-907 baseline file's engine_version
+    metadata legitimately holds the rc1 literal (seal). The
     pin-pack YAML is referenced as carry-forward — its filename in
     the manifest §0 authority list is the 0.5.2-final-pre-cutover
     name, unchanged from rc1 (the YAML body stays sealed).
     """
-    # Check the pin-pack YAML filename in §0 stays at the Tag-52 name.
+    # Check the pin-pack YAML filename in §0 stays at the name.
     manifest = _read(MANIFEST_PATH)
     section_zero_idx = manifest.index("## 0. Version Header")
     section_one_idx = manifest.index("## 1. Component Inventory")
@@ -686,11 +685,11 @@ def test_t23_tag62_bump_does_not_touch_cross_zone_substrate() -> None:
 
 
 def test_t24_allowlist_schema_version_bumped_to_2() -> None:
-    """The Tag-62 allowlist-extension bumps ``_schema.version`` to 2 (or later).
+    """the allowlist-extension bumps ``_schema.version`` to 2 (or later).
 
-    Tag-67 refresh: the Tag-62 contract was that the schema reaches
-    version 2; subsequent refreshes (Tag-67 bumped to 3) preserve the
-    Tag-62 invariant as ``>= 2`` since the v2 surface (0.5.3-rc1 in
+    refresh: the contract was that the schema reaches
+    version 2; subsequent refreshes (bumped to 3) preserve the
+    invariant as ``>= 2`` since the v2 surface (0.5.3-rc1 in
     STALE_VERSIONS) is byte-stable across the v2 -> v3 transition.
     """
     allowlist_data = json.loads(_read(ALLOWLIST_PATH))
@@ -702,12 +701,12 @@ def test_t24_allowlist_schema_version_bumped_to_2() -> None:
 
 
 # ===========================================================================
-# Drift-scanner allowlist invariant — Tag tag bumped to Tag-62.
+# Drift-scanner allowlist invariant — Tag tag bumped to.
 # ===========================================================================
 
 
 def test_t25_allowlist_tag_field_records_tag62() -> None:
-    """The Tag-62 allowlist-extension records ``_schema.tag`` = Tag-62."""
+    """the allowlist-extension records ``_schema.tag`` =."""
     allowlist_data = json.loads(_read(ALLOWLIST_PATH))
     schema_tag = allowlist_data.get("_schema", {}).get("tag", "")
     assert "Tag-62" in schema_tag, (

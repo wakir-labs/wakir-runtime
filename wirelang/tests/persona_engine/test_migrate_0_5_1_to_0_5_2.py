@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic Tag-53 tests for the 0.5.1 -> 0.5.2-final migration helper.
+"""Hermetic tests for the 0.5.1 -> 0.5.2-final migration helper.
 
 These tests exercise the Python helper module
 ``scripts/persona-engine/migrate_0_5_1_to_0_5_2_helpers.py`` and
@@ -9,13 +9,13 @@ the Bash wrapper script
 read-only sub-commands; the ``--apply`` paths mutate a Live-VM
 and are not exercised in the hermetic suite).
 
-Why a separate Tag-53 test suite?
+Why a separate test suite?
 ---------------------------------
 
-The Tag-52 manifest-integrity suite
+The manifest-integrity suite
 (``test_manifest_0_5_2_final_pre_cutover.py``) verifies that the
 manifest, pin-pack, and Containerfile.real are byte-stable
-vs. 0.5.1-pre-cutover. The Tag-53 helper *consumes* those
+vs. 0.5.1-pre-cutover. The helper *consumes* those
 artefacts to produce an operator-facing rotation plan; verifying
 the helper requires:
 
@@ -479,7 +479,7 @@ def test_18_bash_wrapper_rotation_plan_json(repo_root: pathlib.Path) -> None:
     parsed = json.loads(result.stdout)
     assert isinstance(parsed, list)
     assert len(parsed) == 6
-    # The custom quadlet path is baked in.
+    # The custom quadlet path is baked .
     assert all(
         "/tmp/wakir-engine.container" in str(step) for step in parsed[:3]
     ), parsed

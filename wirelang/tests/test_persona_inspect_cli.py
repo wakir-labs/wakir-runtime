@@ -1,11 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Operator CLI test pack for ``wakir-persona inspect`` (Phase-1b
-Sprint-6 Tag-3).
+"""Operator CLI test pack for ``wakir-persona inspect`` (Phase-1b).
 
 Covers the ``inspect`` subcommand declared in
 :mod:`wirelang.persona.cli`. The subcommand is a thin wrapper around
 :func:`wirelang.persona.persona_canonical_form.read_canonical_subset`
-plus :func:`wirelang.persona.compute_persona_hash_from_canonical`.
+plus:func:`wirelang.persona.compute_persona_hash_from_canonical`.
 
 Inspect posture (vs. migrate / validate)
 ========================================
@@ -19,7 +18,7 @@ Inspect posture (vs. migrate / validate)
   a ``PersonaInspectReport`` = ``{canonical_subset, persona_hash,
   report_schema_version}`` on stdout. Failure on this surface means
   the file is unreadable as a canonical subset (missing front-matter,
-  schema_version unsupported, ...) -> exit 1.
+  schema_version unsupported,...) -> exit 1.
 
 Coverage
 ========
@@ -82,7 +81,7 @@ V8_FIXTURE = FIXTURE_DIR / "v8-persona-pre-framework.md"
 V9_FIXTURE = FIXTURE_DIR / "v9-persona-framework-native.md"
 
 # Cross-language byte-fixture root — same path the Rust test pack
-# loads via `include_str!`. The Sprint-6 Tag-3 byte-identity contract
+# loads via `include_str!`. The byte-identity contract
 # pins V1 + V9 stdout on both sides.
 RUST_FIXTURE_DIR = (
     Path(__file__).resolve().parents[2]
@@ -376,7 +375,7 @@ def test_inspect_persona_hash_matches_migrate_emit_hash_v9(
 def test_migrate_subcommand_still_works_after_inspect_added(
     capsys: pytest.CaptureFixture[str],
 ):
-    """Sprint-6 Tag-3 must not regress the migrate subcommand."""
+    """ must not regress the migrate subcommand."""
     rc = main(["migrate", str(V9_FIXTURE), "--quiet"])
     captured = capsys.readouterr()
     assert rc == 0
@@ -387,7 +386,7 @@ def test_migrate_subcommand_still_works_after_inspect_added(
 def test_validate_subcommand_still_works_after_inspect_added(
     capsys: pytest.CaptureFixture[str],
 ):
-    """Sprint-6 Tag-3 must not regress the validate subcommand."""
+    """ must not regress the validate subcommand."""
     rc = main(["validate", str(V9_FIXTURE), "--quiet"])
     captured = capsys.readouterr()
     assert rc == 0

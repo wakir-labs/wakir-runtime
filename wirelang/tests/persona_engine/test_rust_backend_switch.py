@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
-"""Hermetic tests for the Tag-17 Rust-backend production-default switch.
+"""Hermetic tests for the Rust-backend production-default switch.
 
-Substance anchor: :mod:`wirelang.persona_engine.rust_backend_switch`.
+Substance anchor::mod:`wirelang.persona_engine.rust_backend_switch`.
 
 100% hermetic: no real Rust binary, no real NATS, no network, no time
 sources beyond ``time.perf_counter`` for latency measurement.
@@ -10,21 +10,21 @@ suite runs in any CI sandbox.
 
 Coverage map (15 hermetic vectors, ≥12 required):
 
-1.  ``WAKIR_RECOVERY_BACKEND`` unset → python default + passthrough log.
-2.  ``WAKIR_STATE_BACKING_BACKEND`` unset → python default + passthrough.
-3.  ``WAKIR_RECOVERY_BACKEND=python`` (explicit) → python + decision
+1. ``WAKIR_RECOVERY_BACKEND`` unset → python default + passthrough log.
+2. ``WAKIR_STATE_BACKING_BACKEND`` unset → python default + passthrough.
+3. ``WAKIR_RECOVERY_BACKEND=python`` (explicit) → python + decision
     fallback_reason="explicit_python".
-4.  ``WAKIR_RECOVERY_BACKEND=rust`` + binary available → rust chosen.
-5.  ``WAKIR_RECOVERY_BACKEND=rust`` + binary missing → graceful
+4. ``WAKIR_RECOVERY_BACKEND=rust`` + binary available → rust chosen.
+5. ``WAKIR_RECOVERY_BACKEND=rust`` + binary missing → graceful
     fallback to python, fallback_reason="binary_missing".
-6.  ``WAKIR_STATE_BACKING_BACKEND=rust_inmemory`` + binary available →
+6. ``WAKIR_STATE_BACKING_BACKEND=rust_inmemory`` + binary available →
     rust_inmemory chosen.
-7.  ``WAKIR_STATE_BACKING_BACKEND=rust_natskv`` + binary available →
+7. ``WAKIR_STATE_BACKING_BACKEND=rust_natskv`` + binary available →
     rust_natskv chosen.
-8.  ``WAKIR_STATE_BACKING_BACKEND=rust_inmemory`` + binary not
+8. ``WAKIR_STATE_BACKING_BACKEND=rust_inmemory`` + binary not
     executable → graceful fallback to python,
     fallback_reason="binary_not_executable".
-9.  Env validation: unknown ``WAKIR_RECOVERY_BACKEND`` value raises
+9. Env validation: unknown ``WAKIR_RECOVERY_BACKEND`` value raises
     BackendSwitchValidationError.
 10. Env validation: unknown ``WAKIR_STATE_BACKING_BACKEND`` value
     raises BackendSwitchValidationError.
@@ -38,7 +38,7 @@ Coverage map (15 hermetic vectors, ≥12 required):
     RustBackendError(reason="exit_nonzero").
 15. Subprocess-bridge state-backing: bad_json raises
     RustBackendError(reason="bad_json").
-16. Subprocess-bridge recovery runner: run() success returns parsed
+16. Subprocess-bridge recovery runner: run success returns parsed
     envelope.
 17. Subprocess-bridge recovery runner: exit_nonzero raises
     RustBackendError.
@@ -46,13 +46,13 @@ Coverage map (15 hermetic vectors, ≥12 required):
 19. Resolution latency is recorded (non-negative microseconds).
 20. ``WAKIR_RUST_BACKEND_TIMEOUT_S`` parsing — default / valid /
     invalid / negative paths.
-21. Tag-25 (ADR-0065 Welle-2 precondition) SVID-Workload-Identity
+21. (ADR-0065 wave 2 precondition) SVID-Workload-Identity
     resolver — 12 new vectors SVID01..SVID12 covering env-unset
     default / explicit python / rust+available / rust+missing
-    (Welle-2 signal) / rust+non-executable / unknown-validation /
+    (wave 2 signal) / rust+non-executable / unknown-validation /
     empty-string / default-bin / bin-override / per-decision-logging
     / auftrag-alias / enum-consistency.
-22. Tag-30 Federation-Resolver — 12 new vectors FR01..FR12 covering
+22. Federation-Resolver — 12 new vectors FR01..FR12 covering
     env-unset default / explicit python / rust+available / rust+missing
     / rust+non-executable / unknown-validation / empty-string /
     default-bin / bin-override / per-decision-logging / auftrag-alias /
@@ -60,7 +60,7 @@ Coverage map (15 hermetic vectors, ≥12 required):
     five cross-lang fixtures from PR #188
     (``tests/fixtures/federation-resolver-cross-lang/fixtures.json``).
 
-Total: 44 hermetic vectors (>=10 required for Tag-30 alone).
+Total: 44 hermetic vectors (>=10 required for alone).
 """
 
 from __future__ import annotations
@@ -207,7 +207,7 @@ def _stub_snapshot() -> PersonaStateSnapshot:
 
 
 def test_recovery_unset_defaults_to_rust_with_graceful_python_fallback():
-    """Tag-80 Welle-7 Cutover: env-unset defaults to rust, graceful
+    """wave 7 cutover: env-unset defaults to rust, graceful
     fallback to python on Sandbox-CI without rust binary."""
     env: dict = {}
     chosen, decision = resolve_recovery_backend(env=env)
@@ -225,7 +225,7 @@ def test_recovery_unset_defaults_to_rust_with_graceful_python_fallback():
 
 
 def test_state_backing_unset_defaults_to_rust_natskv_with_graceful_python_fallback():
-    """Tag-80 Welle-4 Cutover: env-unset defaults to rust_natskv,
+    """wave 4 cutover: env-unset defaults to rust_natskv,
     graceful fallback to python on Sandbox-CI without rust binary."""
     env: dict = {}
     chosen, decision = resolve_state_backing_backend(env=env)
@@ -726,7 +726,7 @@ def test_log_backend_decision_writes_sink():
 
 
 def test_empty_string_env_defaults_to_rust_with_graceful_python_fallback():
-    """Tag-80 Welle-7 Cutover: empty-string env defaults to rust."""
+    """wave 7 cutover: empty-string env defaults to rust."""
     chosen, decision = resolve_recovery_backend(
         env={RECOVERY_BACKEND_ENV: ""}
     )
@@ -736,41 +736,41 @@ def test_empty_string_env_defaults_to_rust_with_graceful_python_fallback():
 
 
 # ===========================================================================
-# Tag-18 — FSM backend switch (3rd production-default switch component).
+# — FSM backend switch (3rd production-default switch component).
 # ===========================================================================
 #
 # Coverage map (≥10 required, 13 supplied):
 #
-#   F1.  WAKIR_FSM_BACKEND unset → python default + passthrough log.
-#   F2.  WAKIR_FSM_BACKEND=python (explicit) → python + decision
-#        fallback_reason="explicit_python".
-#   F3.  WAKIR_FSM_BACKEND=rust + binary available → rust chosen.
-#   F4.  WAKIR_FSM_BACKEND=rust + binary missing → graceful fallback
-#        to python, fallback_reason="binary_missing".
-#   F5.  WAKIR_FSM_BACKEND=rust + binary not executable → fallback,
-#        fallback_reason="binary_not_executable".
-#   F6.  Env validation: unknown WAKIR_FSM_BACKEND value raises
-#        BackendSwitchValidationError.
-#   F7.  Spec-§3.3 parity: subprocess-bridge FSM exposes all six
-#        states.
-#   F8.  Spec-§3.3 parity: subprocess-bridge FSM exposes all nine
-#        valid transitions.
-#   F9.  RustSubprocessFsm: every valid transition accepted via
-#        stub-invoker — exercises all 9 edges byte-paritätisch zur
-#        Python lifecycle_state_machine.
-#   F10. RustSubprocessFsm: invalid transition rejected (Rust binary
-#        returns accepted=false, reason=not_in_valid_transitions)
-#        raises InvalidTransitionError.
-#   F11. RustSubprocessFsm: unknown target state rejected raises
-#        UnknownStateError.
-#   F12. RustSubprocessFsm: exit_nonzero raises RustBackendError.
-#   F13. build_fsm: PYTHON returns LifecycleStateMachine,
-#        RUST returns RustSubprocessFsm with default-bin-path.
-#   F14. Default-binary-path resolves to DEFAULT_RUST_FSM_BIN when
-#        env-var unset.
-#   F15. Per-decision logging emits structured JSON line to log_sink
-#        for the FSM domain.
-#   F16. RustSubprocessFsm constructor rejects unknown initial state.
+# F1. WAKIR_FSM_BACKEND unset → python default + passthrough log.
+# F2. WAKIR_FSM_BACKEND=python (explicit) → python + decision
+# fallback_reason="explicit_python".
+# F3. WAKIR_FSM_BACKEND=rust + binary available → rust chosen.
+# F4. WAKIR_FSM_BACKEND=rust + binary missing → graceful fallback
+# to python, fallback_reason="binary_missing".
+# F5. WAKIR_FSM_BACKEND=rust + binary not executable → fallback,
+# fallback_reason="binary_not_executable".
+# F6. Env validation: unknown WAKIR_FSM_BACKEND value raises
+# BackendSwitchValidationError.
+# F7. Spec-§3.3 parity: subprocess-bridge FSM exposes all six
+# states.
+# F8. Spec-§3.3 parity: subprocess-bridge FSM exposes all nine
+# valid transitions.
+# F9. RustSubprocessFsm: every valid transition accepted via
+# stub-invoker — exercises all 9 edges byte-paritätisch zur
+# Python lifecycle_state_machine.
+# F10. RustSubprocessFsm: invalid transition rejected (Rust binary
+# returns accepted=false, reason=not_in_valid_transitions)
+# raises InvalidTransitionError.
+# F11. RustSubprocessFsm: unknown target state rejected raises
+# UnknownStateError.
+# F12. RustSubprocessFsm: exit_nonzero raises RustBackendError.
+# F13. build_fsm: PYTHON returns LifecycleStateMachine,
+# RUST returns RustSubprocessFsm with default-bin-path.
+# F14. Default-binary-path resolves to DEFAULT_RUST_FSM_BIN when
+# env-var unset.
+# F15. Per-decision logging emits structured JSON line to log_sink
+# for the FSM domain.
+# F16. RustSubprocessFsm constructor rejects unknown initial state.
 
 
 def _make_fsm_invoker(
@@ -808,7 +808,7 @@ def _make_fsm_invoker(
 
 
 def test_fsm_unset_defaults_to_rust_with_graceful_python_fallback():
-    """Tag-80 Welle-5 Cutover: env-unset defaults to rust, graceful
+    """wave 5 cutover: env-unset defaults to rust, graceful
     fallback to python on Sandbox-CI without rust binary."""
     env: dict = {}
     chosen, decision = resolve_fsm_backend(env=env)
@@ -1123,7 +1123,7 @@ def test_fsm_per_decision_logging_writes_sink():
     parsed = json.loads(line)
     assert parsed["msg"] == "backend-decision"
     assert parsed["domain"] == "fsm"
-    # Tag-80 Welle-5 Cutover: default flipped to rust, graceful
+    # wave 5 cutover: default flipped to rust, graceful
     # fallback to python on Sandbox-CI without rust binary.
     assert parsed["requested_backend"] == "rust"
     assert parsed["chosen_backend"] == "python"
@@ -1151,7 +1151,7 @@ def test_rust_fsm_constructor_rejects_unknown_initial_state():
 
 
 def test_fsm_empty_string_env_defaults_to_rust_with_graceful_python_fallback():
-    """Tag-80 Welle-5 Cutover: empty-string env defaults to rust."""
+    """wave 5 cutover: empty-string env defaults to rust."""
     chosen, decision = resolve_fsm_backend(env={FSM_BACKEND_ENV: ""})
     assert chosen is FsmBackend.PYTHON  # graceful fallback
     assert decision.requested_backend == "rust"
@@ -1159,43 +1159,43 @@ def test_fsm_empty_string_env_defaults_to_rust_with_graceful_python_fallback():
 
 
 # ===========================================================================
-# Tag-19 — V-907 Verify Production-Default Switch (4th component).
+# — V-907 Verify Production-Default Switch (4th component).
 # ===========================================================================
 #
 # Coverage map (17 hermetic vectors, ≥10 required):
 #
-#   V1.  WAKIR_V907_VERIFY_BACKEND unset → rust default + graceful
-#        python fallback when binary missing (Tag-80 Welle-1 Cutover).
-#   V2.  Explicit python → fallback_reason=explicit_python.
-#   V3.  rust requested + binary available → rust chosen.
-#   V4.  rust requested + binary missing → graceful fallback python,
-#        fallback_reason="binary_missing".
-#   V5.  rust requested + binary not executable → graceful fallback,
-#        fallback_reason="binary_not_executable".
-#   V6.  Unknown env value raises BackendSwitchValidationError.
-#   V7.  Empty-string env defaults to python.
-#   V8.  RustSubprocessV907Verify.compute_pin returns byte-identical
-#        pin for the trivial persona-v1 vector (via stub-invoker).
-#   V9.  RustSubprocessV907Verify across nine pin-pack vectors:
-#        every vector produces a byte-identical "sha256:<64hex>" pin
-#        (stub-invoker echoes the Python authority's output, so any
-#        wire-format drift fails the parity gate in CI).
-#   V10. RustSubprocessV907Verify.verify_pin with matching expected_pin
-#        returns matched=True; with mismatched expected_pin raises
-#        PersonaHashDriftError.
-#   V11. RustSubprocessV907Verify.compute_pin surfaces compute_error
-#        as PersonaHashComputeError (invalid persona — no front-matter).
-#   V12. RustSubprocessV907Verify exit_nonzero (no drift envelope)
-#        raises RustBackendError(reason="exit_nonzero").
-#   V13. RustSubprocessV907Verify bad_json raises
-#        RustBackendError(reason="bad_json").
-#   V14. build_v907_verify(PYTHON) returns adapter exposing
-#        compute_pin + verify_pin matching the Rust bridge shape.
-#   V15. build_v907_verify(RUST) returns RustSubprocessV907Verify
-#        with the right bin path.
-#   V16. Default binary path when env-var unset.
-#   V17. Per-decision logging emits structured JSON line to log_sink
-#        for the v907_verify domain.
+# V1. WAKIR_V907_VERIFY_BACKEND unset → rust default + graceful
+# python fallback when binary missing (wave 1 cutover).
+# V2. Explicit python → fallback_reason=explicit_python.
+# V3. rust requested + binary available → rust chosen.
+# V4. rust requested + binary missing → graceful fallback python,
+# fallback_reason="binary_missing".
+# V5. rust requested + binary not executable → graceful fallback,
+# fallback_reason="binary_not_executable".
+# V6. Unknown env value raises BackendSwitchValidationError.
+# V7. Empty-string env defaults to python.
+# V8. RustSubprocessV907Verify.compute_pin returns byte-identical
+# pin for the trivial persona-v1 vector (via stub-invoker).
+# V9. RustSubprocessV907Verify across nine pin-pack vectors:
+# every vector produces a byte-identical "sha256:<64hex>" pin
+# (stub-invoker echoes the Python authority's output, so any
+# wire-format drift fails the parity gate in CI).
+# V10. RustSubprocessV907Verify.verify_pin with matching expected_pin
+# returns matched=True; with mismatched expected_pin raises
+# PersonaHashDriftError.
+# V11. RustSubprocessV907Verify.compute_pin surfaces compute_error
+# as PersonaHashComputeError (invalid persona — no front-matter).
+# V12. RustSubprocessV907Verify exit_nonzero (no drift envelope)
+# raises RustBackendError(reason="exit_nonzero").
+# V13. RustSubprocessV907Verify bad_json raises
+# RustBackendError(reason="bad_json").
+# V14. build_v907_verify(PYTHON) returns adapter exposing
+# compute_pin + verify_pin matching the Rust bridge shape.
+# V15. build_v907_verify(RUST) returns RustSubprocessV907Verify
+# with the right bin path.
+# V16. Default binary path when env-var unset.
+# V17. Per-decision logging emits structured JSON line to log_sink
+# for the v907_verify domain.
 #
 # All vectors are 100% hermetic: subprocess invocations target a
 # stub-invoker injection seam. No real Rust binary, no NATS, no
@@ -1291,7 +1291,7 @@ def _make_v907_invoker_via_python_authority():
     """Build a stub subprocess-invoker that echoes the Python authority.
 
     Decodes the JSON-stdin, dispatches the op, calls into the actual
-    Python :mod:`wirelang.persona_engine.v907_verify` to produce the
+    Python:mod:`wirelang.persona_engine.v907_verify` to produce the
     pin, and encodes the response with the same wire-shape that the
     Rust CLI would emit. This is the byte-parity gate: any deviation
     between the bridge's expectations and the v907-verify module's
@@ -1384,12 +1384,12 @@ def _make_v907_static_invoker(*, pin: str, mode: str = "real"):
 
 # ---------------------------------------------------------------------------
 # Vector V1 — WAKIR_V907_VERIFY_BACKEND unset → rust default + graceful
-# python fallback when binary missing (Tag-80 Welle-1 Cutover).
+# python fallback when binary missing (wave 1 cutover).
 # ---------------------------------------------------------------------------
 
 
 def test_v907_verify_unset_defaults_to_rust_with_graceful_python_fallback():
-    """Tag-80 Welle-1 Cutover: env-unset defaults to ``rust`` now.
+    """wave 1 cutover: env-unset defaults to ``rust`` now.
 
     Without the rust binary on disk (Sandbox-CI posture) the
     graceful-fallback path chooses python and surfaces
@@ -1500,7 +1500,7 @@ def test_v907_verify_validation_rejects_unknown():
 
 
 def test_v907_verify_empty_string_env_defaults_to_rust_with_graceful_python_fallback():
-    """Tag-80 Welle-1 Cutover: empty-string env defaults to rust now.
+    """wave 1 cutover: empty-string env defaults to rust now.
 
     Same graceful-fallback semantics as the env-unset path — without
     the rust binary, ``chosen`` resolves to python with
@@ -1552,7 +1552,7 @@ def test_rust_v907_verify_all_nine_pin_pack_vectors_byte_identical():
     For each vector the test:
 
     1. Computes the pin via the Python authority
-       (:func:`wirelang.persona_engine.v907_verify.compute_v907_pin`).
+       :func:`wirelang.persona_engine.v907_verify.compute_v907_pin`).
     2. Computes the pin via the subprocess-bridge using a stub-invoker
        that delegates to the same Python authority (so the wire-format
        and bridge envelope are the only variables under test).
@@ -1779,7 +1779,7 @@ def test_v907_verify_per_decision_logging_writes_sink():
     parsed = json.loads(line)
     assert parsed["msg"] == "backend-decision"
     assert parsed["domain"] == "v907_verify"
-    # Tag-80 Welle-1 Cutover: default flipped to rust, graceful
+    # wave 1 cutover: default flipped to rust, graceful
     # fallback to python when binary missing on Sandbox-CI.
     assert parsed["requested_backend"] == "rust"
     assert parsed["chosen_backend"] == "python"
@@ -1787,39 +1787,39 @@ def test_v907_verify_per_decision_logging_writes_sink():
 
 
 # ===========================================================================
-# Tag-20 Mini-Welle — Bridge-Diff Rust production-default switch.
+# Mini-wave — Bridge-Diff Rust production-default switch.
 # ===========================================================================
 #
 # Coverage map (12 hermetic vectors, ≥10 required per task spec):
 #
-#   B1.  WAKIR_BRIDGE_DIFF_BACKEND unset → python default + passthrough
-#        log (backend-python-default-passthrough).
-#   B2.  WAKIR_BRIDGE_DIFF_BACKEND=python (explicit) → python +
-#        fallback_reason="explicit_python".
-#   B3.  WAKIR_BRIDGE_DIFF_BACKEND=rust + binary available → rust chosen.
-#   B4.  WAKIR_BRIDGE_DIFF_BACKEND=rust + binary missing → graceful
-#        fallback to python, fallback_reason="binary_missing"
-#        (backend-rust-binary-missing-fallback).
-#   B5.  WAKIR_BRIDGE_DIFF_BACKEND=rust + binary not executable → graceful
-#        fallback to python, fallback_reason="binary_not_executable".
-#   B6.  Env validation: unknown WAKIR_BRIDGE_DIFF_BACKEND value raises
-#        BackendSwitchValidationError.
-#   B7.  RustSubprocessBridgeDiff.jcs_hash byte-identical to Python
-#        authority (stub-invoker delegates to bridge_audit_diff_engine)
-#        (backend-rust-diff-byte-identical).
-#   B8.  RustSubprocessBridgeDiff.diff_envelopes + compare across
-#        all six cross-lang field-pin vectors: byte-identical hash AND
-#        byte-identical field-path entries (sort + RFC-6901 escapes)
-#        (all-6-Cross-Lang-Field-Pins-rust-verified per PR #166).
-#   B9.  RustSubprocessBridgeDiff: exit_nonzero raises
-#        RustBackendError(reason="exit_nonzero").
-#   B10. RustSubprocessBridgeDiff: bad_json raises
-#        RustBackendError(reason="bad_json").
-#   B11. build_bridge_diff(PYTHON) returns adapter exposing same method
-#        set; build_bridge_diff(RUST) returns subprocess bridge.
-#   B12. Per-decision logging emits structured JSON line + default
-#        binary path resolves to /opt/wakir/bin/wakir-persona-engine-
-#        bridge-diff when env unset.
+# B1. WAKIR_BRIDGE_DIFF_BACKEND unset → python default + passthrough
+# log (backend-python-default-passthrough).
+# B2. WAKIR_BRIDGE_DIFF_BACKEND=python (explicit) → python +
+# fallback_reason="explicit_python".
+# B3. WAKIR_BRIDGE_DIFF_BACKEND=rust + binary available → rust chosen.
+# B4. WAKIR_BRIDGE_DIFF_BACKEND=rust + binary missing → graceful
+# fallback to python, fallback_reason="binary_missing"
+# (backend-rust-binary-missing-fallback).
+# B5. WAKIR_BRIDGE_DIFF_BACKEND=rust + binary not executable → graceful
+# fallback to python, fallback_reason="binary_not_executable".
+# B6. Env validation: unknown WAKIR_BRIDGE_DIFF_BACKEND value raises
+# BackendSwitchValidationError.
+# B7. RustSubprocessBridgeDiff.jcs_hash byte-identical to Python
+# authority (stub-invoker delegates to bridge_audit_diff_engine)
+# (backend-rust-diff-byte-identical).
+# B8. RustSubprocessBridgeDiff.diff_envelopes + compare across
+# all six cross-lang field-pin vectors: byte-identical hash AND
+# byte-identical field-path entries (sort + RFC-6901 escapes)
+# (all-6-Cross-Lang-Field-Pins-rust-verified per PR #166).
+# B9. RustSubprocessBridgeDiff: exit_nonzero raises
+# RustBackendError(reason="exit_nonzero").
+# B10. RustSubprocessBridgeDiff: bad_json raises
+# RustBackendError(reason="bad_json").
+# B11. build_bridge_diff(PYTHON) returns adapter exposing same method
+# set; build_bridge_diff(RUST) returns subprocess bridge.
+# B12. Per-decision logging emits structured JSON line + default
+# binary path resolves to /opt/wakir/bin/wakir-persona-engine-
+# bridge-diff when env unset.
 #
 # Total: 12 hermetic vectors (≥10 required per task spec).
 #
@@ -2060,7 +2060,7 @@ def test_bridge_diff_validation_rejects_unknown():
 def test_rust_bridge_diff_jcs_hash_byte_identical_to_python_authority():
     """The subprocess-bridge must produce byte-identical jcs_hash output
     against the Python authority. Uses the stub-invoker that delegates
-    to :func:`bridge_audit_diff_engine.jcs_hash` so the wire-format and
+    to:func:`bridge_audit_diff_engine.jcs_hash` so the wire-format and
     the bridge envelope are the only variables under test."""
     from wirelang.persona_engine.bridge_audit_diff_engine import jcs_hash
 
@@ -2070,7 +2070,7 @@ def test_rust_bridge_diff_jcs_hash_byte_identical_to_python_authority():
         timeout_s=1.0,
         subprocess_invoker=invoker,
     )
-    # Empty envelope (matches the Tag-17/Phase-3a cross-lang pin t1).
+    # Empty envelope (matches the/Phase-3a cross-lang pin t1).
     py_hash = jcs_hash({})
     rust_hash = bridge.jcs_hash({})
     assert rust_hash == py_hash
@@ -2281,30 +2281,30 @@ def test_bridge_diff_per_decision_logging_writes_sink_and_default_bin_path():
 
 
 # ===========================================================================
-# Tag-22 Mini-Welle — Subscribe-Loop production-default switch tests
+# Mini-wave — Subscribe-Loop production-default switch tests
 # ---------------------------------------------------------------------------
 # Coverage map (15 hermetic vectors for the subscribe-loop component):
 #
-#   SL1  WAKIR_SUBSCRIBE_LOOP_BACKEND unset → python default passthrough.
-#   SL2  explicit "python" value passthrough + fallback_reason flag.
-#   SL3  rust + binary available → rust chosen.
-#   SL4  rust + binary missing → graceful fallback to python.
-#   SL5  rust + binary not-executable → graceful fallback to python.
-#   SL6  unknown env-var value raises BackendSwitchValidationError.
-#   SL7  empty-string env value defaults to python.
-#   SL8  all five cross-lang ack-record fixtures rust-verified
-#        (byte-identical JCS bytes + SHA-256 hex against the Python
-#        authority via the stub-invoker delegation).
-#   SL9  hash_record() roundtrip on a pre-built record matches
-#        serialize_ack() output byte-for-byte.
-#   SL10 subprocess exit_nonzero → RustBackendError(exit_nonzero).
-#   SL11 subprocess bad JSON → RustBackendError(bad_json).
-#   SL12 build_subscribe_loop(PYTHON / RUST) returns matching surface.
-#   SL13 default binary path resolves to
-#        /opt/wakir/bin/wakir-persona-engine-subscribe-loop.
-#   SL14 per-decision logging emits one structured JSON line.
-#   SL15 _select_subscribe_loop_backend auftrag-alias dispatches
-#        identically to resolve_subscribe_loop_backend.
+# SL1 WAKIR_SUBSCRIBE_LOOP_BACKEND unset → python default passthrough.
+# SL2 explicit "python" value passthrough + fallback_reason flag.
+# SL3 rust + binary available → rust chosen.
+# SL4 rust + binary missing → graceful fallback to python.
+# SL5 rust + binary not-executable → graceful fallback to python.
+# SL6 unknown env-var value raises BackendSwitchValidationError.
+# SL7 empty-string env value defaults to python.
+# SL8 all five cross-lang ack-record fixtures rust-verified
+# (byte-identical JCS bytes + SHA-256 hex against the Python
+# authority via the stub-invoker delegation).
+# SL9 hash_record roundtrip on a pre-built record matches
+# serialize_ack output byte-for-byte.
+# SL10 subprocess exit_nonzero → RustBackendError(exit_nonzero).
+# SL11 subprocess bad JSON → RustBackendError(bad_json).
+# SL12 build_subscribe_loop(PYTHON / RUST) returns matching surface.
+# SL13 default binary path resolves to
+# /opt/wakir/bin/wakir-persona-engine-subscribe-loop.
+# SL14 per-decision logging emits one structured JSON line.
+# SL15 _select_subscribe_loop_backend auftrag-alias dispatches
+# identically to resolve_subscribe_loop_backend.
 #
 # Plus: SL16 client-side validation (invalid outcome / frame_index)
 # rejects without spawning a subprocess.
@@ -2393,7 +2393,7 @@ def _make_subscribe_loop_invoker_via_python_authority():
 
 
 def test_subscribe_loop_unset_defaults_to_rust_with_graceful_python_fallback():
-    """Tag-80 Welle-6 Cutover: env-unset defaults to rust, graceful
+    """wave 6 cutover: env-unset defaults to rust, graceful
     fallback to python on Sandbox-CI without rust binary."""
     env: dict[str, str] = {}
     chosen, decision = resolve_subscribe_loop_backend(env=env)
@@ -2501,7 +2501,7 @@ def test_subscribe_loop_validation_rejects_unknown():
 
 
 def test_subscribe_loop_empty_string_env_defaults_to_rust_with_graceful_python_fallback():
-    """Tag-80 Welle-6 Cutover: empty-string env defaults to rust."""
+    """wave 6 cutover: empty-string env defaults to rust."""
     env = {SUBSCRIBE_LOOP_BACKEND_ENV: ""}
     chosen, decision = resolve_subscribe_loop_backend(env=env)
     assert chosen is SubscribeLoopBackend.PYTHON  # graceful fallback
@@ -2603,7 +2603,7 @@ def test_rust_subscribe_loop_all_five_cross_lang_ack_fixtures_byte_identical():
 
 
 # ---------------------------------------------------------------------------
-# Vector SL9 — hash_record() roundtrip matches serialize_ack() byte-for-byte.
+# Vector SL9 — hash_record roundtrip matches serialize_ack byte-for-byte.
 # ---------------------------------------------------------------------------
 
 
@@ -2772,7 +2772,7 @@ def test_subscribe_loop_per_decision_logging_writes_sink():
     parsed = json.loads(line)
     assert parsed["msg"] == "backend-decision"
     assert parsed["domain"] == "subscribe_loop"
-    # Tag-80 Welle-6 Cutover: default flipped to rust, graceful
+    # wave 6 cutover: default flipped to rust, graceful
     # fallback to python on Sandbox-CI without rust binary.
     assert parsed["requested_backend"] == "rust"
     assert parsed["chosen_backend"] == "python"
@@ -2789,9 +2789,9 @@ def test_subscribe_loop_per_decision_logging_writes_sink():
 def test_select_subscribe_loop_backend_alias_dispatches_identically(
     tmp_path: Path,
 ):
-    """The Tag-22 auftrag spec names the resolver
+    """the auftrag spec names the resolver
     ``_select_subscribe_loop_backend``; the module exposes that name as
-    an alias of :func:`resolve_subscribe_loop_backend`. Both must return
+    an alias of:func:`resolve_subscribe_loop_backend`. Both must return
     the same value-pair for the same input env."""
     # Unset env path.
     chosen_a, decision_a = _select_subscribe_loop_backend(env={})
@@ -2877,40 +2877,40 @@ def test_rust_subscribe_loop_client_side_validation_rejects_bad_inputs():
 
 
 # ===========================================================================
-# Tag-23 Mini-Welle vectors — anchor-emitter production-default switch
+# Mini-wave vectors — anchor-emitter production-default switch
 # (7th and final Phase-3b BackendDecision component).
 #
 # Coverage map for the anchor-emitter switch (AE1..AE13, 13 vectors,
 # ≥10 required):
 #
-#   AE1  WAKIR_ANCHOR_EMITTER_BACKEND unset → python default + decision.
-#   AE2  WAKIR_ANCHOR_EMITTER_BACKEND=python (explicit) → python +
-#        fallback_reason="explicit_python".
-#   AE3  WAKIR_ANCHOR_EMITTER_BACKEND=rust + binary available → rust
-#        chosen.
-#   AE4  WAKIR_ANCHOR_EMITTER_BACKEND=rust + binary missing →
-#        graceful fallback to python, fallback_reason="binary_missing".
-#   AE5  WAKIR_ANCHOR_EMITTER_BACKEND=rust + binary not-executable →
-#        graceful fallback to python,
-#        fallback_reason="binary_not_executable".
-#   AE6  unknown env-var value raises BackendSwitchValidationError.
-#   AE7  empty-string env value defaults to python.
-#   AE8  all five cross-lang anchor-envelope fixtures rust-verified
-#        (byte-identical JCS bytes + envelope-hash + payload-hash
-#        against the Python authority via the stub-invoker delegation).
-#   AE9  hash_anchor() roundtrip on a pre-built envelope matches
-#        serialize_anchor() output byte-for-byte.
-#   AE10 subprocess exit_nonzero → RustBackendError(exit_nonzero).
-#   AE11 subprocess bad JSON → RustBackendError(bad_json).
-#   AE12 build_anchor_emitter(PYTHON / RUST) returns matching surface
-#        plus fixture-pinned Python-path roundtrip.
-#   AE13 default binary path resolves to
-#        /opt/wakir/bin/wakir-persona-engine-anchor-emitter +
-#        per-decision logging emits one structured JSON line +
-#        _select_anchor_emitter_backend auftrag-alias dispatches
-#        identically to resolve_anchor_emitter_backend +
-#        client-side validation (empty event_id / bad timestamp)
-#        rejects without spawning a subprocess.
+# AE1 WAKIR_ANCHOR_EMITTER_BACKEND unset → python default + decision.
+# AE2 WAKIR_ANCHOR_EMITTER_BACKEND=python (explicit) → python +
+# fallback_reason="explicit_python".
+# AE3 WAKIR_ANCHOR_EMITTER_BACKEND=rust + binary available → rust
+# chosen.
+# AE4 WAKIR_ANCHOR_EMITTER_BACKEND=rust + binary missing →
+# graceful fallback to python, fallback_reason="binary_missing".
+# AE5 WAKIR_ANCHOR_EMITTER_BACKEND=rust + binary not-executable →
+# graceful fallback to python,
+# fallback_reason="binary_not_executable".
+# AE6 unknown env-var value raises BackendSwitchValidationError.
+# AE7 empty-string env value defaults to python.
+# AE8 all five cross-lang anchor-envelope fixtures rust-verified
+# (byte-identical JCS bytes + envelope-hash + payload-hash
+# against the Python authority via the stub-invoker delegation).
+# AE9 hash_anchor roundtrip on a pre-built envelope matches
+# serialize_anchor output byte-for-byte.
+# AE10 subprocess exit_nonzero → RustBackendError(exit_nonzero).
+# AE11 subprocess bad JSON → RustBackendError(bad_json).
+# AE12 build_anchor_emitter(PYTHON / RUST) returns matching surface
+# plus fixture-pinned Python-path roundtrip.
+# AE13 default binary path resolves to
+# /opt/wakir/bin/wakir-persona-engine-anchor-emitter +
+# per-decision logging emits one structured JSON line +
+# _select_anchor_emitter_backend auftrag-alias dispatches
+# identically to resolve_anchor_emitter_backend +
+# client-side validation (empty event_id / bad timestamp)
+# rejects without spawning a subprocess.
 #
 # Total: 13 hermetic vectors (≥10 required).
 # ===========================================================================
@@ -3215,7 +3215,7 @@ def test_rust_anchor_emitter_all_five_cross_lang_fixtures_byte_identical():
 
 
 # ---------------------------------------------------------------------------
-# Vector AE9 — hash_anchor() roundtrip matches serialize_anchor() bytes.
+# Vector AE9 — hash_anchor roundtrip matches serialize_anchor bytes.
 # ---------------------------------------------------------------------------
 
 
@@ -3360,7 +3360,7 @@ def test_anchor_emitter_default_bin_and_logging_and_alias_and_validation(
        the env-var is unset.
     2. Per-decision logging emits exactly one structured JSON line.
     3. The ``_select_anchor_emitter_backend`` auftrag-alias dispatches
-       identically to :func:`resolve_anchor_emitter_backend`.
+       identically to:func:`resolve_anchor_emitter_backend`.
     4. Client-side validation short-circuits on bad input
        (empty event_id, malformed timestamp_utc) without spawning a
        subprocess.
@@ -3395,7 +3395,7 @@ def test_anchor_emitter_default_bin_and_logging_and_alias_and_validation(
     assert parsed["resolution_latency_us"] >= 0
     assert chosen is AnchorEmitterBackend.PYTHON
 
-    # (3) Auftrag-alias dispatches identically — unset env path.
+    # (3) assignment-alias dispatches identically — unset env path.
     chosen_a, decision_a = _select_anchor_emitter_backend(env={})
     chosen_b, decision_b = resolve_anchor_emitter_backend(env={})
     assert chosen_a is chosen_b
@@ -3403,7 +3403,7 @@ def test_anchor_emitter_default_bin_and_logging_and_alias_and_validation(
     assert decision_a.requested_backend == decision_b.requested_backend
     assert decision_a.chosen_backend == decision_b.chosen_backend
     assert decision_a.fallback_reason == decision_b.fallback_reason
-    # Auftrag-alias dispatches identically — rust + missing-binary path.
+    # assignment-alias dispatches identically — rust + missing-binary path.
     missing = tmp_path / "does-not-exist"
     env = {
         ANCHOR_EMITTER_BACKEND_ENV: "rust",
@@ -3453,34 +3453,34 @@ def test_anchor_emitter_default_bin_and_logging_and_alias_and_validation(
 
 
 # ---------------------------------------------------------------------------
-# Tag-25 Mini-Welle — SVID-Workload-Identity backend resolver
-# (ADR-0065 Welle-2 precondition).
+# Mini-wave — SVID-Workload-Identity backend resolver
+# (ADR-0065 wave 2 precondition).
 #
 # Coverage map (12 hermetic vectors, >=10 required by auftrag):
 #
-#   SVID01 unset env -> python default, no fallback_reason, no bin_path.
-#   SVID02 explicit "python" -> python + fallback_reason="explicit_python".
-#   SVID03 "rust" + available binary -> rust chosen, bin_path resolved.
-#   SVID04 "rust" + missing binary -> graceful python fallback,
-#          fallback_reason="binary_missing" (ADR-0065 Welle-2 signal).
-#   SVID05 "rust" + non-executable file -> python fallback,
-#          fallback_reason="binary_not_executable".
-#   SVID06 unknown env value -> BackendSwitchValidationError.
-#   SVID07 empty-string env -> python default (no error).
-#   SVID08 default bin path resolves to the canonical
-#          /opt/wakir/bin/wakir-persona-engine-svid-workload-identity.
-#   SVID09 RUST_SVID_WORKLOAD_IDENTITY_BIN_ENV override is respected.
-#   SVID10 per-decision logging emits exactly one structured JSON line
-#          to log_sink, with domain="svid_workload_identity".
-#   SVID11 _select_svid_workload_identity_backend auftrag-alias dispatches
-#          identically to resolve_svid_workload_identity_backend.
-#   SVID12 enum + valid-value tuple consistency
-#          (closed-set: ("python", "rust")).
+# SVID01 unset env -> python default, no fallback_reason, no bin_path.
+# SVID02 explicit "python" -> python + fallback_reason="explicit_python".
+# SVID03 "rust" + available binary -> rust chosen, bin_path resolved.
+# SVID04 "rust" + missing binary -> graceful python fallback,
+# fallback_reason="binary_missing" (ADR-0065 wave 2 signal).
+# SVID05 "rust" + non-executable file -> python fallback,
+# fallback_reason="binary_not_executable".
+# SVID06 unknown env value -> BackendSwitchValidationError.
+# SVID07 empty-string env -> python default (no error).
+# SVID08 default bin path resolves to the canonical
+# /opt/wakir/bin/wakir-persona-engine-svid-workload-identity.
+# SVID09 RUST_SVID_WORKLOAD_IDENTITY_BIN_ENV override is respected.
+# SVID10 per-decision logging emits exactly one structured JSON line
+# to log_sink, with domain="svid_workload_identity".
+# SVID11 _select_svid_workload_identity_backend auftrag-alias dispatches
+# identically to resolve_svid_workload_identity_backend.
+# SVID12 enum + valid-value tuple consistency
+# (closed-set: ("python", "rust")).
 # ---------------------------------------------------------------------------
 
 
 def test_svid_workload_identity_unset_defaults_to_rust_with_graceful_python_fallback():
-    """SVID01 — Tag-80 Welle-2: env-unset defaults to ``rust`` now.
+    """SVID01 — wave 2: env-unset defaults to ``rust`` now.
 
     Sandbox-CI ohne rust-Binary → graceful fallback python mit
     fallback_reason="binary_missing".
@@ -3526,7 +3526,7 @@ def test_svid_workload_identity_rust_with_missing_binary_graceful_fallback(
 ):
     """SVID04 — ``rust`` + missing binary => python fallback.
 
-    This is the **ADR-0065 Welle-2 precondition signal**: operators
+    This is the **ADR-0065 wave 2 precondition signal**: operators
     flipping the env-var before the Rust crate ships will observe
     ``fallback_reason="binary_missing"`` in the audit substrate.
     """
@@ -3572,7 +3572,7 @@ def test_svid_workload_identity_validation_rejects_unknown():
 
 
 def test_svid_workload_identity_empty_string_env_defaults_to_rust_with_graceful_python_fallback():
-    """SVID07 — Tag-80 Welle-2: empty-string env defaults to rust.
+    """SVID07 — wave 2: empty-string env defaults to rust.
 
     Same graceful-fallback semantics as the env-unset path.
     """
@@ -3584,7 +3584,7 @@ def test_svid_workload_identity_empty_string_env_defaults_to_rust_with_graceful_
 
 
 def test_svid_workload_identity_default_binary_path_when_env_unset():
-    """SVID08 — default bin path resolves to the canonical Welle-2 path."""
+    """SVID08 — default bin path resolves to the canonical wave 2 path."""
     from wirelang.persona_engine.rust_backend_switch import (
         _resolve_svid_workload_identity_bin,
     )
@@ -3619,7 +3619,7 @@ def test_svid_workload_identity_per_decision_logging_writes_sink():
     parsed = json.loads(line)
     assert parsed["msg"] == "backend-decision"
     assert parsed["domain"] == "svid_workload_identity"
-    # Tag-80 Welle-2 Cutover: default flipped to rust, graceful
+    # wave 2 cutover: default flipped to rust, graceful
     # fallback to python on Sandbox-CI without rust binary.
     assert parsed["requested_backend"] == "rust"
     assert parsed["chosen_backend"] == "python"
@@ -3635,7 +3635,7 @@ def test_svid_workload_identity_auftrag_alias_dispatches_identically(
     Covers two surfaces:
       (a) env-unset python path.
       (b) ``rust`` + missing-binary graceful-fallback path (the
-          ADR-0065 Welle-2 precondition signal).
+          ADR-0065 wave 2 precondition signal).
     """
     # (a) Unset env path.
     chosen_a, decision_a = _select_svid_workload_identity_backend(env={})
@@ -3685,31 +3685,31 @@ def test_svid_workload_identity_enum_and_valid_values_consistency():
 
 
 # ---------------------------------------------------------------------------
-# Tag-30 Mini-Welle — Federation-Resolver backend resolver
+# Mini-wave — Federation-Resolver backend resolver
 # (9. BackendDecision per boot; byte-cross-lang parity against
 # PR #188 fixtures).
 #
 # Coverage map (12 hermetic vectors, >=10 required by auftrag):
 #
-#   FR01 unset env -> python default, no fallback_reason, no bin_path.
-#   FR02 explicit "python" -> python + fallback_reason="explicit_python".
-#   FR03 "rust" + available binary -> rust chosen, bin_path resolved.
-#   FR04 "rust" + missing binary -> graceful python fallback,
-#        fallback_reason="binary_missing".
-#   FR05 "rust" + non-executable file -> python fallback,
-#        fallback_reason="binary_not_executable".
-#   FR06 unknown env value -> BackendSwitchValidationError.
-#   FR07 empty-string env -> python default (no error).
-#   FR08 default bin path resolves to the canonical
-#        /opt/wakir/bin/wakir-persona-engine-federation-resolver.
-#   FR09 RUST_FEDERATION_RESOLVER_BIN_ENV override is respected.
-#   FR10 per-decision logging emits exactly one structured JSON line
-#        to log_sink, with domain="federation_resolver".
-#   FR11 _select_federation_resolver_backend auftrag-alias dispatches
-#        identically to resolve_federation_resolver_backend.
-#   FR12 enum + valid-value tuple consistency
-#        (closed-set: ("python", "rust")) AND byte-parity verification
-#        against the five PR #188 cross-lang resolver-snapshot fixtures.
+# FR01 unset env -> python default, no fallback_reason, no bin_path.
+# FR02 explicit "python" -> python + fallback_reason="explicit_python".
+# FR03 "rust" + available binary -> rust chosen, bin_path resolved.
+# FR04 "rust" + missing binary -> graceful python fallback,
+# fallback_reason="binary_missing".
+# FR05 "rust" + non-executable file -> python fallback,
+# fallback_reason="binary_not_executable".
+# FR06 unknown env value -> BackendSwitchValidationError.
+# FR07 empty-string env -> python default (no error).
+# FR08 default bin path resolves to the canonical
+# /opt/wakir/bin/wakir-persona-engine-federation-resolver.
+# FR09 RUST_FEDERATION_RESOLVER_BIN_ENV override is respected.
+# FR10 per-decision logging emits exactly one structured JSON line
+# to log_sink, with domain="federation_resolver".
+# FR11 _select_federation_resolver_backend auftrag-alias dispatches
+# identically to resolve_federation_resolver_backend.
+# FR12 enum + valid-value tuple consistency
+# (closed-set: ("python", "rust")) AND byte-parity verification
+# against the five PR #188 cross-lang resolver-snapshot fixtures.
 # ---------------------------------------------------------------------------
 
 
@@ -3808,7 +3808,7 @@ def test_federation_resolver_empty_string_env_defaults_to_python():
 
 
 def test_federation_resolver_default_binary_path_when_env_unset():
-    """FR08 — default bin path resolves to the canonical Tag-30 path."""
+    """FR08 — default bin path resolves to the canonical path."""
     from wirelang.persona_engine.rust_backend_switch import (
         _resolve_federation_resolver_bin,
     )

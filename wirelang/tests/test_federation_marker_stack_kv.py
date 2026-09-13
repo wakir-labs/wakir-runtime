@@ -1,20 +1,20 @@
 # SPDX-License-Identifier: BUSL-1.1
 """Hermetic tests for the Wirelang persistent marker-stack NATS-KV
-backend (Sprint-8 Tag-4).
+backend.
 
 Tests the persistent tier
 :mod:`wirelang.federation.marker_stack_kv` against an in-memory
-mock that mirrors the Sprint-5 Tag-2 ``_MockKv`` shape with an
+mock that mirrors the ``_MockKv`` shape with an
 additional ``create`` contract for append-only semantics.
 
 Test inventory (15 tests):
 
 - T-MSK-01: ``put_marker_stack`` + ``get_marker_stack`` round-trip
-  re-constitutes the byte-identical :class:`MarkerStack`.
+  re-constitutes the byte-identical:class:`MarkerStack`.
 - T-MSK-02: ``get_marker_stack`` on an unknown token-id returns
   ``None``.
 - T-MSK-03: append-only invariant — two writers attempting the
-  same sequence raise :class:`MarkerStackConcurrencyConflictError`.
+  same sequence raise:class:`MarkerStackConcurrencyConflictError`.
 - T-MSK-04: ``expected_next_sequence`` mismatch raises
   :class:`MarkerStackConcurrencyConflictError` without bucket I/O.
 - T-MSK-05: cross-org boundary — Org-A backend refuses reads /
@@ -27,8 +27,8 @@ Test inventory (15 tests):
 - T-MSK-08: ``watch_marker_stack`` yields events filtered to the
   requested token-id only.
 - T-MSK-09: reducer-integration — a stack read from the bucket
-  feeds :func:`reduce_marker_stack` to a byte-identical
-  ``CompositionVerdict`` as the in-memory Tag-3 path.
+  feeds:func:`reduce_marker_stack` to a byte-identical
+  ``CompositionVerdict`` as the in-memory path.
 - T-MSK-10: poisoned envelope raises
   :class:`MarkerStackEnvelopeError` from ``get_marker_stack``.
 - T-MSK-11: per-org bucket isolation — two backends with
@@ -41,7 +41,7 @@ Test inventory (15 tests):
 - T-MSK-14: key derivation is bijective for valid inputs;
   malformed inputs raise ``ValueError``.
 - T-MSK-15: ``put_marker_stack`` rejects naive datetimes on
-  ``appended_at`` with :class:`MarkerStackArgumentError`.
+  ``appended_at`` with:class:`MarkerStackArgumentError`.
 """
 
 from __future__ import annotations
@@ -88,7 +88,7 @@ from wirelang.federation.marker_stack_kv import (
 
 
 # ---------------------------------------------------------------------------
-# Mock KV (mirrors Sprint-5 Tag-2 shape; adds ``create`` contract)
+# Mock KV (mirrors shape; adds ``create`` contract)
 # ---------------------------------------------------------------------------
 
 
@@ -176,7 +176,7 @@ class _MockKv:
 
     async def watchall(self) -> _MockWatcher:
         w = _MockWatcher()
-        # nats-py watchall() replays the bucket's current state to
+        # nats-py watchall replays the bucket's current state to
         # the watcher before the live tail; mirror that contract.
         for key in sorted(self.store.keys()):
             entry = self.store[key]
@@ -305,7 +305,7 @@ def test_t_msk_03_concurrent_create_conflict():
             appended_at=_T1,
         )
         # Bypass the backend's pre-read by writing the same KV
-        # key directly so the second writer's create() hits a
+        # key directly so the second writer's create hits a
         # populated slot. This simulates a racing writer that
         # appended after our pre-read but before our create.
         # We simulate by re-using the backend with an
@@ -508,7 +508,7 @@ def test_t_msk_08_watch_stream_filters_by_token_id():
             appended_at=_T1,
         )
         # Open the watcher — it now contains both pre-existing
-        # entries (the mock pushes them as the put() side-effect).
+        # entries (the mock pushes them as the put side-effect).
         # Drain three updates from the queue, accepting only the
         # tok-target one.
         watcher = await backend.watch_marker_stack(

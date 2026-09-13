@@ -1,22 +1,22 @@
 # SPDX-License-Identifier: Apache-2.0
 """Hermetic tests for the capability-policy revocation-event-filter
-surface (Phase-2 Sprint-6 Tag-3, consumer-side symmetry to Sprint-6
-Tag-1 backend revocation-axis).
+surface (Phase-2, consumer-side symmetry to
+backend revocation-axis).
 
 Tested surfaces on
 :mod:`wirelang.schemas.capability_policy_nats_kv_backend`:
 
-- :class:`RevocationEventKind` (6 enum members — Sprint-6 Tag-9 added
+-:class:`RevocationEventKind` (6 enum members — added
   ``EXPLICIT_UNREVOKE``)
-- :class:`ClassifiedRevocationEvent` (frozen dataclass)
-- :class:`RevocationEventClassifier` (stateful classifier; Sprint-6
-  Tag-9 extended with operator-deliberate-unrevoke marker logic)
-- :class:`UnrevokeAuditMarker` (Sprint-6 Tag-9, attached to the
+-:class:`ClassifiedRevocationEvent` (frozen dataclass)
+-:class:`RevocationEventClassifier` (stateful classifier;
+  extended with operator-deliberate-unrevoke marker logic)
+-:class:`UnrevokeAuditMarker` (attached to the
   envelope by the publisher-CLI ``unrevoke`` subcommand)
-- :func:`filter_revocation_events` (async generator; Sprint-6 Tag-9
+-:func:`filter_revocation_events` (async generator;
   default kinds set extended with ``EXPLICIT_UNREVOKE``)
 
-The consumer-side surface mirrors the Sprint-6 Tag-1 backend write
+The consumer-side surface mirrors the backend write
 invariants: once a key is revoked, subsequent PUTs MUST preserve
 ``revoked_at`` byte-equally; an apparent un-revoke or an advanced /
 retreated ``revoked_at`` is a witness of substrate corruption or
@@ -25,8 +25,8 @@ The classifier is an observation layer, not an enforcement layer:
 it surfaces the kind for the consumer to act on, it does not raise
 on breach.
 
-Test inventory (T-CPP-REVF-01..12 from Sprint-6 Tag-3, T-CPP-REVF-13..19
-added Sprint-6 Tag-9 + 2 aux probes):
+Test inventory (T-CPP-REVF-01..12 , T-CPP-REVF-13..19
+added + 2 aux probes):
 
 - T-CPP-REVF-01: classify(PUT, no-prior, revoked_at=None)
   -> NOT_REVOCATION_RELATED.
@@ -45,7 +45,7 @@ added Sprint-6 Tag-9 + 2 aux probes):
   classified against fresh no-prior).
 - T-CPP-REVF-08: classify(PURGE, any prior) -> KEY_REMOVED (parallel
   to DELETE).
-- T-CPP-REVF-09: seed_from_records(...) primes the classifier's state;
+- T-CPP-REVF-09: seed_from_records...) primes the classifier's state;
   subsequent PUT with same revoked_at is REVOCATION_REFRESH (no
   unwarranted TRANSITION on first event for a seeded key).
 - T-CPP-REVF-10: classify(PUT, prior=None, key_had_prior_state=True)
@@ -57,34 +57,34 @@ added Sprint-6 Tag-9 + 2 aux probes):
 - T-CPP-REVF-12: classify(PUT) with record=None raises
   CapabilityPolicyEnvelopeError (defensive invariant; would not
   normally occur because the decoder rejects it earlier).
-- T-CPP-REVF-13 (Sprint-6 Tag-9, positive): classify(PUT, prior-
+- T-CPP-REVF-13 (positive): classify(PUT, prior-
   revoked X, revoked_at=None, marker.previous_revoked_at=X) ->
   EXPLICIT_UNREVOKE (operator-deliberate gesture authenticated by
   the matching marker; classifier advances per-key state to None).
-- T-CPP-REVF-14 (Sprint-6 Tag-9, negative — mismatched marker):
+- T-CPP-REVF-14 (negative — mismatched marker):
   classify(PUT, prior-revoked X, revoked_at=None,
   marker.previous_revoked_at=Y != X) -> REVOCATION_MONOTONIC_BREACH
   (marker references a prior instant the classifier never observed;
   cannot authenticate the gesture; falls through to BREACH).
-- T-CPP-REVF-15 (Sprint-6 Tag-9, negative — no marker):
+- T-CPP-REVF-15 (negative — no marker):
   classify(PUT, prior-revoked, revoked_at=None, marker=None) ->
   REVOCATION_MONOTONIC_BREACH (unmarked unrevoke is structurally
   indistinguishable from out-of-band tampering; the louder kind
-  wins by safe default — preserves Sprint-6 Tag-3 T-CPP-REVF-05).
-- T-CPP-REVF-16 (Sprint-6 Tag-9, marker ignored on non-unrevoke
+  wins by safe default — preserves T-CPP-REVF-05).
+- T-CPP-REVF-16 (marker ignored on non-unrevoke
   shape): CapabilityPolicyRecord constructor rejects a marker on a
   still-revoked policy (revoked_at != None + marker -> validation
   error), so the marker is structurally suppressed on
   REVOCATION_REFRESH / REVOCATION_TRANSITION shapes.
-- T-CPP-REVF-17 (Sprint-6 Tag-9, default kinds include
+- T-CPP-REVF-17 (default kinds include
   EXPLICIT_UNREVOKE): filter_revocation_events with kinds=None
   surfaces EXPLICIT_UNREVOKE alongside TRANSITION / REFRESH /
   BREACH; NOT_REVOCATION_RELATED and KEY_REMOVED still filtered.
-- T-CPP-REVF-18 (Sprint-6 Tag-9, envelope round-trip with marker):
+- T-CPP-REVF-18 (envelope round-trip with marker):
   _record_to_envelope / _envelope_to_record preserve the
   unrevoke_audit_marker byte-equally.
-- T-CPP-REVF-19 (Sprint-6 Tag-9, envelope back-compat):
-  _envelope_to_record on a pre-Tag-9 envelope (no
+- T-CPP-REVF-19 (envelope back-compat):
+  _envelope_to_record on a pre-envelope (no
   unrevoke_audit_marker key) decodes byte-equally with
   unrevoke_audit_marker=None.
 - T-CPP-REVF-aux-async-gen: filter_revocation_events yields only
@@ -291,7 +291,7 @@ def test_classify_put_prior_revoked_to_none_is_monotonic_breach():
     """T-CPP-REVF-05: PUT, prior-revoked, revoked_at=None
     -> REVOCATION_MONOTONIC_BREACH (apparent un-revoke).
 
-    Backend invariants from Sprint-6 Tag-1 forbid this write; observing
+    Backend invariants from forbid this write; observing
     it on the watch-stream is a witness of substrate corruption or
     out-of-band tampering. The classifier surfaces the kind without
     raising.
@@ -321,8 +321,8 @@ def test_classify_put_prior_revoked_different_revoked_at_is_breach():
     -> REVOCATION_MONOTONIC_BREACH (advance or retreat).
 
     Both advance (revoked_at strictly later than prior) and retreat
-    (revoked_at strictly earlier than prior) are forbidden by Sprint-6
-    Tag-1 backend invariants. The classifier treats them
+    (revoked_at strictly earlier than prior) are forbidden by
+    backend invariants. The classifier treats them
     identically: any non-equal incoming revoked_at against a prior
     revocation is a breach.
     """
@@ -424,7 +424,7 @@ def test_classify_purge_drops_key_like_delete():
 
 
 def test_seed_from_records_primes_classifier_state():
-    """T-CPP-REVF-09: seed_from_records(...) primes the per-key state
+    """T-CPP-REVF-09: seed_from_records...) primes the per-key state
     map. A subsequent PUT with same revoked_at is REVOCATION_REFRESH,
     not REVOCATION_TRANSITION (the seed represents the prior state).
     """
@@ -486,7 +486,7 @@ def test_prior_revoked_at_distinguishes_absent_from_unrevoked():
     instant), not membership. A key that was observed as unrevoked
     has prior_revoked_at=None on the next event; a key that was never
     observed also has prior_revoked_at=None. The classifier's
-    known_keys() distinguishes the two cases.
+    known_keys distinguishes the two cases.
     """
     classifier = RevocationEventClassifier()
     record_unrevoked = _make_record(revoked_at=None)
@@ -628,8 +628,8 @@ def test_filter_revocation_events_default_kinds_surface_revocation_axis():
     """T-CPP-REVF-aux-default-kinds: when kinds=None, the default
     surfaces REVOCATION_TRANSITION + REVOCATION_REFRESH +
     REVOCATION_MONOTONIC_BREACH + EXPLICIT_UNREVOKE (the four
-    revocation-axis kinds — three from Sprint-6 Tag-3 plus the
-    Sprint-6 Tag-9 operator-deliberate-unrevoke kind).
+    revocation-axis kinds — three from plus the
+     operator-deliberate-unrevoke kind).
     NOT_REVOCATION_RELATED and KEY_REMOVED are filtered out by
     default.
     """
@@ -701,7 +701,7 @@ def test_filter_revocation_events_rejects_bad_kinds_argument():
 
 
 # ---------------------------------------------------------------------------
-# Sprint-6 Tag-9: EXPLICIT_UNREVOKE classifier-extension tests
+#: EXPLICIT_UNREVOKE classifier-extension tests
 # ---------------------------------------------------------------------------
 
 
@@ -724,7 +724,7 @@ def test_classify_put_prior_revoked_marker_match_is_explicit_unrevoke():
     classifier.classify(_put_event(record_revoked, revision=1))
     assert classifier.last_revoked_at(record_revoked.key) == _REVOKED_AT_A
 
-    # Operator-deliberate unrevoke via the Sprint-6 Tag-7 subcommand:
+    # Operator-deliberate unrevoke via the subcommand:
     # marker present, previous_revoked_at matches.
     marker = UnrevokeAuditMarker(
         unrevoke_reason="false-positive audit, restore",
@@ -790,11 +790,11 @@ def test_classify_put_prior_revoked_no_marker_is_breach_preserved():
     """T-CPP-REVF-15: PUT, prior-revoked, revoked_at=None,
     unrevoke_audit_marker=None -> REVOCATION_MONOTONIC_BREACH.
 
-    Regression guard on Sprint-6 Tag-3 T-CPP-REVF-05 semantics: a
+    Regression guard on T-CPP-REVF-05 semantics: a
     marker-less unrevoke shape is structurally indistinguishable
     from out-of-band tampering and must continue to surface as
-    BREACH. The Sprint-6 Tag-9 EXPLICIT_UNREVOKE kind is opt-in via
-    the marker; absence preserves Sprint-6 Tag-3 behaviour
+    BREACH. The EXPLICIT_UNREVOKE kind is opt-in via
+    the marker; absence preserves behaviour
     byte-equally.
     """
     classifier = RevocationEventClassifier()
@@ -926,17 +926,17 @@ def test_envelope_round_trip_preserves_unrevoke_audit_marker():
 
 
 def test_envelope_back_compat_without_marker_key():
-    """T-CPP-REVF-19: _envelope_to_record on a pre-Sprint-6 Tag-9
+    """T-CPP-REVF-19: _envelope_to_record on a pre-
     envelope (no ``unrevoke_audit_marker`` key) decodes byte-equally
     with ``unrevoke_audit_marker=None``.
 
-    This is the backward-compatibility invariant: any pre-Tag-9
-    write path (publish, revoke, replication, Sprint-6 Tag-1..8
+    This is the backward-compatibility invariant: any pre-
+    write path (publish, revoke, replication,..8
     paths) produced envelopes without the key, and the decoder
     treats absence as "no marker" without raising.
     """
-    # Sprint-6 Tag-7 unrevoke would NOT have written this shape
-    # (Tag-7 wrote the un-revoked record without a marker; this
+    # unrevoke would NOT have written this shape
+    # (wrote the un-revoked record without a marker; this
     # test pins that the decoder accepts the historical shape).
     record_legacy = _make_record(
         revoked_at=_REVOKED_AT_A,

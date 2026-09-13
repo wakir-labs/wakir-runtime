@@ -1,16 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Hermetic tests for the Tag-55 ADR-Errata addendum (ERR-S1..S6).
+"""Hermetic tests for the ADR-Errata addendum (ERR-S1..S6).
 
-The Tag-54 ADR Spec-Compliance Audit (PR #349, Reza) flagged six
+The ADR Spec-Compliance Audit (PR #349, the protocol zone) flagged six
 path-typo / file-rename drifts in corp-internal ADRs (0034, 0052,
-0062, 0064). Tag-55 records the corrected canonical citations in
+0062, 0064). records the corrected canonical citations in
 ``docs/decisions/adr-errata-tag-55-path-typo-fixes.md``.
 
 This module pins the errata claims against the runtime working-copy.
 Each test verifies one statement in the errata document so that if
 the substrate ever moves again the corresponding test fails fast.
 
-Test inventory (T-ERR-01..11, ≥10 required by Mira-Auftrag):
+Test inventory (T-ERR-01..11, ≥10 required by the assignment):
 
 - T-ERR-01: Errata addendum file exists at the canonical path.
 - T-ERR-02: Errata addendum lists all six ERR-IDs (S1..S6).
@@ -29,7 +29,7 @@ Test inventory (T-ERR-01..11, ≥10 required by Mira-Auftrag):
   ``llm_call_shim.py`` __all__ export list.
 - T-ERR-10: ERR-S6 ``anthropic_messages_hook_phase_3_stub`` symbol
   present in ``llm_call_shim.py`` __all__ export list.
-- T-ERR-11: Errata addendum cross-references the Tag-54 audit
+- T-ERR-11: Errata addendum cross-references the audit
   report by canonical path.
 
 The tests are static (no network, no engine boot, no NATS).
@@ -227,12 +227,12 @@ def test_t_err_10_anthropic_phase_3_stub_exported() -> None:
 
 
 # --------------------------------------------------------------------- #
-# T-ERR-11 — cross-reference to Tag-54 audit report
+# T-ERR-11 — cross-reference to audit report
 # --------------------------------------------------------------------- #
 
 
 def test_t_err_11_errata_cross_refs_audit_report() -> None:
-    """T-ERR-11: errata addendum cites the Tag-54 audit report path."""
+    """T-ERR-11: errata addendum cites the audit report path."""
     text = _errata_text()
     assert AUDIT_REPORT_REL in text, (
         "errata addendum must cross-reference the Tag-54 audit report "

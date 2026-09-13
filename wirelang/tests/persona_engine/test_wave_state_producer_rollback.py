@@ -2,15 +2,15 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreEnd
-"""Tag-70 - Welle-2 Doppelbetrieb-Sealing + Rollback-Writer (Selin).
+"""- wave 2 Doppelbetrieb-Sealing + Rollback-Writer.
 
-Tag-69 (PR #438) shipped the Welle-1 producer-path
-(``handle_cutover_event``, ``handle_sign_off_event``). Tag-70
+PR #438 shipped the wave 1 producer-path
+(``handle_cutover_event``, ``handle_sign_off_event``).
 extends the producer-substrate with:
 
-* **Welle-2 Doppelbetrieb-Sealing** sign-off variant
+* **wave 2 Doppelbetrieb-Sealing** sign-off variant
   (``handle_welle_2_sealing_event``) per plan-doc §2.3 -- the
-  KW-24 Mi legacy-vs-new dual-write window closure. Welle-2
+  calendar week 24 Mi legacy-vs-new dual-write window closure. wave 2
   sign-off additionally requires the
   ``doppelbetrieb_sealed_marker_status == "sealed"`` precondition
   (refusal-to-write otherwise).
@@ -28,15 +28,14 @@ No network. No NATS, no SPIRE, no gRPC. No subprocess. Pure
 in-process file I/O against ``tmp_path`` fixtures. The producer-
 substrate is stdlib-only.
 
-Scope discipline (Selin)
+Scope discipline
 ------------------------
 
-This test does NOT modify persona definitions (Aisha-Domaene,
-ADR-0043), WAT-core logic (Tomas-Domaene, Zone-K),
-identity-substrate design (Reza-Domaene, Zone-L), or
-container-infra (Kai-Domaene, Zone-J). It pins the Tag-70 add-on
-producer-substrate (persona-engine domain, Selin) and reuses the
-Tag-67 schema-pin verbatim (no schema changes).
+This test does NOT modify persona definitions, WAT-core logic,
+identity-substrate design, or
+container-infra. It pins the add-on
+producer-substrate (persona-engine domain, the engine zone) and reuses the
+schema-pin verbatim (no schema changes).
 """
 
 from __future__ import annotations
@@ -70,7 +69,7 @@ from wirelang.persona_engine.welle_state_producer import (
 
 
 # ---------------------------------------------------------------------------
-# Helpers (mirror tag-69 layout; Welle-N parametric stubs).
+# Helpers (mirror tag-69 layout; wave N parametric stubs).
 # ---------------------------------------------------------------------------
 
 
@@ -129,22 +128,22 @@ class _RecordingEmitter:
 
 
 # ---------------------------------------------------------------------------
-# Public-API surface invariants (Tag-70 add-ons).
+# Public-API surface invariants (add-ons).
 # ---------------------------------------------------------------------------
 
 
 def test_tag70_module_exposes_new_public_constants():
-    """Tag-70 adds three new public literals."""
+    """adds three new public literals."""
     assert ROLLBACK_MARKER_AUTHORIZED == "rollback-authorized"
     assert DOPPELBETRIEB_SEALED == "sealed"
     assert DOPPELBETRIEB_SEALED_WELLEN == frozenset({2})
 
 
 def test_tag70_allowed_transitions_unchanged_from_tag69():
-    """Tag-70 must NOT silently extend the lifecycle-state-machine.
+    """must NOT silently extend the lifecycle-state-machine.
 
     Rollback already had its three transitions in
-    ALLOWED_TRANSITIONS (Tag-69). Tag-70 only adds *handlers*,
+    ALLOWED_TRANSITIONS. only adds *handlers*,
     not new transitions.
     """
     assert ALLOWED_TRANSITIONS == frozenset(
@@ -159,7 +158,7 @@ def test_tag70_allowed_transitions_unchanged_from_tag69():
 
 
 # ---------------------------------------------------------------------------
-# Welle-2 Doppelbetrieb-Sealing sign-off (plan-doc §2.3).
+# wave 2 Doppelbetrieb-Sealing sign-off (plan-doc §2.3).
 # ---------------------------------------------------------------------------
 
 
@@ -324,7 +323,7 @@ def test_rollback_pending_to_rolled_back(tmp_path):
 
 
 def test_rollback_in_progress_to_rolled_back(tmp_path):
-    """Plan-doc §3.1: in-progress -> rolled-back (mid-Welle rollback)."""
+    """Plan-doc §3.1: in-progress -> rolled-back (mid-wave rollback)."""
     state_dir = tmp_path / "state"
     target = _seed_pending(state_dir, 4)
     producer = WelleStateProducer(state_dir=state_dir)
@@ -377,7 +376,7 @@ def test_rollback_signed_off_to_rolled_back(tmp_path):
 
 
 def test_rollback_refused_without_authority_marker(tmp_path):
-    """Tag-70 §2.4: rollback-marker authority is mandatory."""
+    """§2.4: rollback-marker authority is mandatory."""
     state_dir = tmp_path / "state"
     _seed_pending(state_dir, 1)
     producer = WelleStateProducer(state_dir=state_dir)
@@ -450,7 +449,7 @@ def test_rollback_is_terminal_no_state_change_on_further_events(tmp_path):
     )
     on_disk_after_rollback = target.read_bytes()
 
-    # Cutover after rollback => idempotent no-op (NOT a state change).
+    # cutover after rollback => idempotent no-op (NOT a state change).
     record = producer.handle_cutover_event(
         welle_number=2, cutover_iso="2026-06-10T12:00:00Z"
     )
@@ -494,7 +493,7 @@ def test_rollback_refused_with_bad_iso(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Audit-record emit-contract (Tag-70 add-ons).
+# Audit-record emit-contract (add-ons).
 # ---------------------------------------------------------------------------
 
 
@@ -581,7 +580,7 @@ def test_welle_2_sealing_leaves_no_temp_files_on_success(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Cross-Welle parametric coverage (rollback works on all seven Wellen).
+# Cross-wave parametric coverage (rollback works on all seven waves).
 # ---------------------------------------------------------------------------
 
 
@@ -605,15 +604,15 @@ def test_rollback_works_for_all_seven_wellen_from_pending(
 
 
 # ---------------------------------------------------------------------------
-# Schema-pin compliance (Tag-70 must NOT introduce new state-file keys).
+# Schema-pin compliance (must NOT introduce new state-file keys).
 # ---------------------------------------------------------------------------
 
 
 def test_rollback_does_not_add_schema_keys(tmp_path):
     """The rolled-back state-file MUST share key-set with pending stub.
 
-    Tag-70 add-ons must not silently extend the schema -- the
-    schema is the Tag-67 pin.
+    add-ons must not silently extend the schema -- the
+    schema is the pin.
     """
     state_dir = tmp_path / "state"
     target = _seed_pending(state_dir, 1)

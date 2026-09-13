@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Self-migration cross-version roundtrip test pack (Phase-1b Sprint-2 Tag-2, S2-T1-04).
+"""Self-migration cross-version roundtrip test pack (Phase-1b, S2-T1-04).
 
-Coverage map (Sprint-2-Tag-2 auftrag)
+Coverage map ( auftrag)
 =====================================
 
 Phase-1b carries a single registered migration step (``V0ToV1Step``).
@@ -25,7 +25,7 @@ until then the cross-version roundtrip surface is:
 - **caller-pin form acceptance:** a *correct* pin in either bare-hex
   or full ``sha256:`` form passes the determinism check.
 
-M-3 anchor (Tag-4-Skizze §4.4): migration is **not** required to be
+M-3 anchor (-sketch §4.4): migration is **not** required to be
 invertible. There is intentionally no ``v1 -> v0`` test in this
 pack — adding one would constitute a v_n+1 -> v_n step that violates
 A-2 additiv-only-forward-compat. The ``v1 -> v1`` idempotence test
@@ -104,7 +104,7 @@ def _v0_dict_aligned_with_v9() -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------
-# A. v0 -> v1 single-step pin equivalence (re-anchor of Tag-1)
+# A. v0 -> v1 single-step pin equivalence (re-anchor of)
 # ---------------------------------------------------------------
 
 def test_v0_to_v1_single_step_matches_v9_pin():
@@ -129,7 +129,7 @@ def test_v1_to_v1_idempotence_via_path():
 
 def test_v1_to_v1_idempotence_via_dict():
     """Same as the path-based idempotence, but with a dict input."""
-    # Build a v1 dict by migrating v8 once, then feed the result back in.
+    # Build a v1 dict by migrating v8 once, then feed the result back .
     v1_dict = migrate_persona(_v8_path())
     out = migrate_persona(v1_dict, target_schema_version="persona-v1")
     assert out["schema_version"] == "persona-v1"

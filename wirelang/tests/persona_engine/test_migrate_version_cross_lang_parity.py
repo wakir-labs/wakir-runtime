@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Cross-lang parity tests for the persona-engine migrate-version
-canonical-trace (Tag-38 Phase-3a Python-sync, 15. Modul — closes
+canonical-trace (Phase-3a Python-sync, 15. Modul — closes
 the Phase-3a-Foundation sweep).
 
-This file is the Python half of the cross-lang fixture pin pair.  The
+This file is the Python half of the cross-lang fixture pin pair. The
 Rust half lives at
 ``wirelang-rust/crates/persona-engine-migrate-version/tests/cross_lang_fixture_test.rs``
 and consumes the same authoritative fixture file at
@@ -34,12 +34,12 @@ Test taxonomy
   structure pin.
 - T09 — Cross-lang fixture per-vector pin (parametrised over all
   six fixtures): byte-for-byte parity with the JSON fixture
-  file's pinned values.  This is the core trace-hash byte-parity
+  file's pinned values. This is the core trace-hash byte-parity
   test.
 - T10 — Decision-order pin: when ``from_version`` is not in
   KNOWN_ENGINE_VERSIONS AND ``to_version`` is also unknown, the
   failure_mode is ``UnknownFromVersion`` (the from-check fires
-  first).  The contract is documented in
+  first). The contract is documented in
   :func:`build_migrate_version_decision_trace`.
 - T11 — Major-bump-required field is meaningful only when BOTH
   versions parse cleanly; on parse-failure it is ``False``
@@ -68,11 +68,11 @@ Major-bump-disallowed branch — structural unreachability
 
 The ``MajorVersionBumpDisallowed`` failure mode is currently
 structurally unreachable from the closed KNOWN_ENGINE_VERSIONS
-set (all entries share major ``0``).  The wire-string constant is
+set (all entries share major ``0``). The wire-string constant is
 nonetheless pinned in T03; an integration test would activate it
 only after a major version is added to the closed set (a
-coordinated three-place edit per :data:`KNOWN_ENGINE_VERSIONS`
-docstring).  This is the same posture the live :class:`Migrate
+coordinated three-place edit :data:`KNOWN_ENGINE_VERSIONS`
+docstring). This is the same posture the live:class:`Migrate
 VersionWorkflow.__init__` carries — the error class is defined
 and tested in unit tests but not exercised by any production
 inputs today.
@@ -91,7 +91,7 @@ import pytest
 # `wirelang/persona/persona_canonical_form.py` resolver docstring);
 # skip the entire suite on that lane via the same `importorskip`
 # pattern already established in the sibling cross-lang test suites
-# (Tag-34..Tag-37).
+# ..).
 pytest.importorskip("rfc8785")
 
 from wirelang.persona_engine.migrate_version import (
@@ -121,7 +121,7 @@ from wirelang.persona_engine.migrate_version_canonical import (
 # Fixture file resolver.
 # ---------------------------------------------------------------------------
 
-#: Hops from this file to the repo root.  Same pattern as every
+#: Hops from this file to the repo root. Same pattern as every
 #: other Phase-3a cross-lang Python suite.
 _HOPS_TO_REPO_ROOT = 4
 
@@ -380,7 +380,7 @@ def test_t11_major_bump_required_true_on_cross_major_parsed():
 
     The trace itself shows ``major_bump_required=True`` even though
     the closed-set check rejects this combination (the closed set
-    has only major-0 entries today).  This is operator-readable
+    has only major-0 entries today). This is operator-readable
     diagnostic data: a future operator who adds ``1.0.0-pilot`` to
     KNOWN_ENGINE_VERSIONS will see the bump-required signal
     immediately.

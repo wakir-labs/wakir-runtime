@@ -2,17 +2,17 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreEnd
-"""Tag-69 - Welle-1 State-File Producer implementation pin (Selin).
+"""- wave 1 State-File Producer implementation pin.
 
-Tag-68 (PR #433) shipped the Producer-Wiring-Plan-doc + render-stub
-in doc-form-only. Tag-69 implements the producer-substrate per
+PR #433 shipped the Producer-Wiring-Plan-doc + render-stub
+in doc-form-only. implements the producer-substrate per
 plan-doc §5.1: the engine-side writer-path for
 ``state/welle-N.json`` rollup-files with the
 ``pending -> in-progress -> signed-off`` lifecycle.
 
-This test-suite pins the **Welle-1 first-fire** path as the
-canonical reference (per Mira-Auftrag) and adds parametric
-cross-coverage for all seven Wellen at the public-API boundary.
+This test-suite pins the **wave 1 first-fire** path as the
+canonical reference (per the assignment) and adds parametric
+cross-coverage for all seven waves at the public-API boundary.
 The substrate under test lives at
 ``wirelang/persona_engine/welle_state_producer.py``.
 
@@ -21,18 +21,18 @@ Coverage scope
 
 * Public-API surface (constants, classes, functions, errors).
 * ``WelleStateProducer.handle_cutover_event`` -- the §2.1
-  Cutover-T0 transition pending -> in-progress for Welle-1.
+  cutover-T0 transition pending -> in-progress for wave 1.
 * ``WelleStateProducer.handle_sign_off_event`` -- the §2.2
-  Sign-Off transition in-progress -> signed-off for Welle-1.
+  Sign-Off transition in-progress -> signed-off for wave 1.
 * Idempotency on retried double-fire (no-op when already in
   target-state).
 * Forbidden-transition guards (plan-doc §3.2).
 * Time-invariant enforcement (plan-doc §3.4):
   cutover_iso <= signoff_iso whenever both non-empty.
-* Welle-3 + Welle-7 pre-auditor-guard (plan-doc §2.2 extra-guard).
+* wave 3 + wave 7 pre-auditor-guard (plan-doc §2.2 extra-guard).
 * Audit-record emit-contract (canonical JSON bytes, sort_keys).
 * Atomic-write semantics (no temp-files survive after success).
-* Schema-pin compliance (output byte-equivalent to Tag-67 schema).
+* Schema-pin compliance (output byte-equivalent to schema).
 * Path-traversal defence.
 * Bridge-Audit-Writer adapter (no circular import).
 
@@ -42,16 +42,15 @@ Hermetic envelope
 No network. No NATS, no SPIRE, no gRPC. No subprocess. Pure
 in-process file I/O against ``tmp_path`` fixtures.
 
-Scope discipline (Selin)
+Scope discipline
 ------------------------
 
-This test does NOT modify persona definitions (Aisha-Domaene,
-ADR-0043), WAT-core logic (Tomas-Domaene, Zone-K),
-identity-substrate design (Reza-Domaene, Zone-L), or
-container-infra (Kai-Domaene, Zone-J). It pins the Tag-69
-producer-substrate (persona-engine domain, Selin) which is
+This test does NOT modify persona definitions, WAT-core logic,
+identity-substrate design, or
+container-infra. It pins the
+producer-substrate (persona-engine domain, the engine zone) which is
 prescriptive of the writer-set and descriptive of the schema
-(no schema changes vs. Tag-67 pin).
+(no schema changes vs. pin).
 """
 
 from __future__ import annotations
@@ -105,7 +104,7 @@ CANONICAL_KW_ANCHOR = {
 
 
 def _pending_stub(welle_number: int) -> dict:
-    """Synthesise a canonical pending-status stub for welle-N."""
+    """Synthesise a canonical pending-status stub for wave N."""
     return {
         "welle_number": welle_number,
         "schema_version": SCHEMA_VERSION_PIN,
@@ -154,7 +153,7 @@ class _RecordingEmitter:
 
 
 def test_module_exposes_schema_pin_constants():
-    """The producer-substrate pins the Tag-67 schema literals."""
+    """The producer-substrate pins the schema literals."""
     assert SCHEMA_VERSION_PIN == "tag-67-v1"
     assert PHASE_LITERAL == "phase-3-marathon"
     assert STATUS_PENDING == "pending"
@@ -187,7 +186,7 @@ def test_allowed_transitions_match_plan_doc_section_3_1():
 
 
 # ---------------------------------------------------------------------------
-# Welle-1 Cutover-T0: pending -> in-progress.
+# wave 1 cutover-T0: pending -> in-progress.
 # ---------------------------------------------------------------------------
 
 
@@ -240,7 +239,7 @@ def test_welle_1_cutover_is_idempotent_on_double_fire(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Welle-1 Sign-Off: in-progress -> signed-off.
+# wave 1 Sign-Off: in-progress -> signed-off.
 # ---------------------------------------------------------------------------
 
 
@@ -331,7 +330,7 @@ def test_sign_off_from_pending_is_rejected(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Welle-3 + Welle-7 pre-auditor-guard (plan-doc §2.2).
+# wave 3 + wave 7 pre-auditor-guard (plan-doc §2.2).
 # ---------------------------------------------------------------------------
 
 
@@ -371,7 +370,7 @@ def test_welle_3_and_7_sign_off_requires_designated_pre_auditor(
 
 
 def test_non_guarded_wellen_do_not_require_pre_auditor(tmp_path):
-    """Welle-1, 2, 4, 5, 6 sign off without the pre-auditor field."""
+    """wave 1, 2, 4, 5, 6 sign off without the pre-auditor field."""
     for welle_number in [1, 2, 4, 5, 6]:
         state_dir = tmp_path / f"state-{welle_number}"
         _seed_pending(state_dir, welle_number)
@@ -427,7 +426,7 @@ def test_signoff_before_cutover_is_rejected(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Welle-number validation.
+# wave-number validation.
 # ---------------------------------------------------------------------------
 
 
@@ -448,7 +447,7 @@ def test_invalid_welle_number_is_rejected(invalid, tmp_path):
 
 
 def test_post_write_state_file_has_all_required_keys(tmp_path):
-    """After a cutover-write, all nine Tag-67 schema keys are present."""
+    """After a cutover-write, all nine schema keys are present."""
     state_dir = tmp_path / "state"
     target = _seed_pending(state_dir, 1)
     producer = WelleStateProducer(state_dir=state_dir)
@@ -473,8 +472,8 @@ def test_post_write_state_file_has_all_required_keys(tmp_path):
 
 
 def test_post_write_state_file_passes_amara_tag_67_verifier(tmp_path):
-    """Producer output is byte-shape-equivalent to Tag-67 schema."""
-    # Import the Tag-67 verifier's --rollup checker as a module
+    """Producer output is byte-shape-equivalent to schema."""
+    # Import the verifier's --rollup checker as a module
     # (stdlib-only, no subprocess per hermetic envelope).
     import importlib.util
     import sys as _sys
@@ -587,7 +586,7 @@ def test_audit_record_to_json_bytes_is_canonical(tmp_path):
 
 
 def test_default_emitter_is_no_op(tmp_path):
-    """Default emitter swallows records (Tag-69+ wiring overrides)."""
+    """Default emitter swallows records (+ wiring overrides)."""
     state_dir = tmp_path / "state"
     _seed_pending(state_dir, 1)
     producer = WelleStateProducer(state_dir=state_dir)
@@ -624,7 +623,7 @@ def test_audit_record_emitter_from_bridge_writer_adapts_correctly():
 
 
 # ---------------------------------------------------------------------------
-# Parametric cross-coverage: all seven Wellen at the boundary.
+# Parametric cross-coverage: all seven waves at the boundary.
 # ---------------------------------------------------------------------------
 
 

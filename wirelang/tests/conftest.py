@@ -4,10 +4,10 @@
 Loads the three Layer-0/1/2 JSON-Schema documents and the example frames,
 and exposes them as pytest fixtures consumed by the per-layer test modules.
 
-Sandbox-CI note (Tag-11)
+Sandbox-CI note
 ------------------------
 
-The validator fixtures lazy-import :mod:`jsonschema` via
+The validator fixtures lazy-import:mod:`jsonschema` via
 :func:`pytest.importorskip`. When ``jsonschema`` is not installed (the
 sandbox-CI baseline), the validator-consuming tests are skipped, while
 the schema-loading and pure-Python-fallback tests still run. This keeps
@@ -27,7 +27,7 @@ import pytest
 
 
 # ---------------------------------------------------------------------------
-# Asyncio test support (Sprint-Pengine-10 OI-PEFR-6/7 hermetic tests).
+# Asyncio test support (-Pengine-10 OI-PEFR-6/7 hermetic tests).
 #
 # We do NOT depend on pytest-asyncio (Bug-34c structural-fix discipline:
 # the test surface stays pure-stdlib + pytest). Instead we register a

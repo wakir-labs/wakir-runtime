@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Cross-lang parity tests for the persona-engine subscribe-loop ack-record.
 
-The Python module under test (:mod:`wirelang.persona_engine.subscribe_ack`)
+The Python module under test :mod:`wirelang.persona_engine.subscribe_ack`)
 is BUSL-1.1; this test file is Apache-2.0 so downstream re-implementers
 can re-use the same fixture vectors.
 
@@ -18,7 +18,7 @@ Test taxonomy
   constant regardless of caller input.
 - T04 — Validation: invalid outcome strings raise
   :class:`InvalidOutcomeError`; negative / non-int frame_index
-  raises :class:`InvalidFrameIndexError`.
+  raises:class:`InvalidFrameIndexError`.
 - T05 — Determinism: two builds of the same input produce
   byte-identical canonical output (the JCS-canonical form is
   deterministic).
@@ -32,11 +32,11 @@ Test taxonomy
 - T09 — Sensitivity: changing ``auftrag_id`` / ``persona_id`` /
   ``frame_index`` / ``subject`` flips the outer hash; changing
   the schema (via direct dataclass construction) flips it too.
-- T10 — Burst monotonicity: :func:`build_ack_burst` accepts
+- T10 — Burst monotonicity::func:`build_ack_burst` accepts
   0,1,2,...,N-1 and rejects any other shape.
-- T11 — Burst serialisation: :func:`serialize_ack_burst` produces
+- T11 — Burst serialisation::func:`serialize_ack_burst` produces
   one byte-vector per record in input order.
-- T12 — Engine-side helper: :func:`ack_record_from_parsed` builds
+- T12 — Engine-side helper::func:`ack_record_from_parsed` builds
   a malformed-frame record when ``parsed=None`` and a populated
   record when given a duck-typed object.
 - T13 — Subject-wildcard preservation: the record's ``subject``
@@ -678,7 +678,7 @@ def test_t16_cross_lang_fixture_byte_parity(fixture_name: str) -> None:
 
 
 def test_t17_fixture_outcomes_cover_required_subset() -> None:
-    """The Sprint-Auftrag requires five distinct sub-cases:
+    """The -assignment requires five distinct sub-cases:
     empty-frame, single-payload, multi-record-batch, error-frame,
     large-payload. We pin them to specific outcome strings so the
     cross-lang diff engine has predictable category coverage.

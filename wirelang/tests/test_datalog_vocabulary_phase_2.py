@@ -177,7 +177,7 @@ def datalog_caveat_validator_v02():
         schema = json.load(fh)
     _Draft202012Validator.check_schema(schema)
     # Sanity: this test module assumes v0.2.1 schema (post-ADR-0052
-    # Class-P-Promotion of `caveat_hash`; Sprint-6 Tag-8 ratification).
+    # Class-P-Promotion of `caveat_hash`; ratification).
     # Pre-ADR-0052 the assertion pinned ``/0.2.0``; the promotion bump
     # is additive and is exercised by the dedicated T-V0.2.1-* probes
     # below.
@@ -281,7 +281,7 @@ def test_t_v021_02_schema_rejects_caveat_hash_with_uppercase_hex(
     The dedicated pattern arm pins ``[0-9a-f]`` so a producer cannot
     smuggle a mixed-case or upper-case hex literal past the schema.
     Lower-case hex is the canonical pre-image form computed by
-    :func:`canonical_caveat_set_hash` (returning :class:`bytes`,
+    :func:`canonical_caveat_set_hash` (returning:class:`bytes`,
     rendered via ``.hex()`` which is lower-case in Python).
     """
     upper_hex = "A" * 64

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Parity tests for the persona-state KV constants-only shim
-(Sprint-Pengine-7 Tag-5 OI-PILOT-2 + Reza Cross-Review Zone-B B-5).
+(-Pengine-7 OI-PILOT-2 + the protocol zone Cross-Review Zone-B B-5).
 
 The shim ``wirelang.persona.persona_state_kv_constants`` is the
 crypto-free import surface for the provisioner driver
@@ -9,7 +9,7 @@ crypto-free import surface for the provisioner driver
 byte-equal to the corresponding names in the full module
 ``wirelang.persona.persona_state_kv``; otherwise a drift in the
 shim silently breaks the persona-state bucket provisioning on the
-wakir-provisioner image (Tag-4 Bug-6 pattern, recurrence avoidance).
+wakir-provisioner image (Bug-6 pattern, recurrence avoidance).
 
 The tests below run in the hermetic test environment where
 ``rfc8785`` IS installed, so both modules import cleanly. The
@@ -113,7 +113,7 @@ def test_constants_shim_imports_without_rfc8785_or_cryptography() -> None:
     finder-blocked MUST succeed and expose the three driver-facing
     names.
 
-    This is the Sprint-Pengine-7 Tag-5 Reza-Cross-Review Zone-B B-5
+    This is the -Pengine-7 the protocol zone-Cross-Review Zone-B B-5
     acceptance: the persona-state family populates on the wakir-
     provisioner image (wheel-set without ``rfc8785``).
     """
@@ -165,9 +165,9 @@ def test_provisioner_with_constants_shim_lists_three_families() -> None:
     persona-state family alongside marker-stack and sequence-ledger
     (family-count = 3).
 
-    This re-asserts the Tag-5 expected end-state described in
+    This re-asserts the expected end-state described in
     ``test_identity_lazy_crypto_imports.test_bucket_provisioner_module_imports_crypto_free``
-    (Kai-Drift-Guard, ``family_count >= 2 and family_count <= 3``)
+
     on the strict-equality axis once the shim is in tree.
     """
     rc, out, err = _run_isolated(

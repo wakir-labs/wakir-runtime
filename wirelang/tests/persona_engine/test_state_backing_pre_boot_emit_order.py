@@ -1,42 +1,42 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tag-57 — ``state_backing`` pre-boot emit-order pin (Selin, Persona-Engine).
+"""— ``state_backing`` pre-boot emit-order pin.
 
 The 0.5.2-final engine wires **ten** BackendDecision records into the
 canonical boot fan-out (manifest §1, pin-pack ``boot_wired_crates``
-record #1–#10). Nine of those records emit *inside* :meth:`boot` —
+record #1–#10). Nine of those records emit *inside*:meth:`boot` —
 they are the explicit ``resolve_*_backend`` calls in
 ``PersonaEngine.boot``. **One** of them — ``state_backing`` —
-emits *before* :meth:`boot` is ever called, from the
-:meth:`__init__` → :meth:`_select_state_backing` →
+emits *before*:meth:`boot` is ever called, from the
+:meth:`__init__` →:meth:`_select_state_backing` →
 :func:`resolve_state_backing_backend` path.
 
-That asymmetry has been a Source-of-Truth in the Tag-51 resilience
+That asymmetry has been a Source-of-Truth in the resilience
 suite (``test_stage_1_fan_out_records_emit_in_canonical_order``)
-since the 0.5.1-pre-cutover wire-in, but only as a side-effect of
-a 30+ scenario fan-out matrix. The Tag-56 0.5.2-final
+since the 0.5.1-pre-cutover wire-, but only as a side-effect of
+a 30+ scenario fan-out matrix. The 0.5.2-final
 production-readiness audit (PR #362, ``a7e8878``) flagged
 **Finding D** (emit-order pin): the pre-boot ``state_backing``
 emit MUST be pinned as a *single-purpose* hermetic test so any
 future refactor that accidentally moves the resolver into
-:meth:`boot` (or another resolver out of :meth:`boot`) fails a
+:meth:`boot` (or another resolver out of:meth:`boot`) fails a
 test whose name and intent are unambiguous.
 
 This file is that pin.
 
 The ten records, in canonical emit order:
 
-  0. ``state_backing``        — emitted inside ``__init__``
+  0. ``state_backing`` — emitted inside ``__init__``
                                 (``_select_state_backing``).
-  1. ``recovery``             — emitted in ``boot``.
-  2. ``fsm``                  — emitted in ``boot``.
-  3. ``v907_verify``          — emitted in ``boot``.
-  4. ``bridge_diff``          — emitted in ``boot``.
-  5. ``subscribe_loop``       — emitted in ``boot``.
-  6. ``anchor_emitter``       — emitted in ``boot``.
+  1. ``recovery`` — emitted in ``boot``.
+  2. ``fsm`` — emitted in ``boot``.
+  3. ``v907_verify`` — emitted in ``boot``.
+  4. ``bridge_diff`` — emitted in ``boot``.
+  5. ``subscribe_loop`` — emitted in ``boot``.
+  6. ``anchor_emitter`` — emitted in ``boot``.
   7. ``svid_workload_identity`` — emitted in ``boot``.
-  8. ``federation_resolver``  — emitted in ``boot``.
-  9. ``bridge_audit_writer``  — emitted in ``boot``.
+  8. ``federation_resolver`` — emitted in ``boot``.
+  9. ``bridge_audit_writer`` — emitted in ``boot``.
 
 Note that the manifest §1 / pin-pack record numbering (where
 ``state_backing`` is *record #2*) describes the *wire-in order*
@@ -52,11 +52,11 @@ Hermetic envelope
 * No filesystem writes outside ``tmp_path``.
 * Deterministic — no clock-sensitive assertions.
 
-Scope discipline (Selin)
+Scope discipline
 ------------------------
-This file does **not** modify persona definitions (Aisha-Domäne),
-WAT-core logic (Tomás-Domäne, Zone-K), identity-substrate design
-(Reza-Domäne, Zone-L), or container-infra (Kai-Domäne, Zone-J).
+This file does **not** modify persona definitions,
+WAT-core logic, identity-substrate design
+or container-infra.
 It only exercises the existing Python authority + Stage-0
 (``__init__``) + Stage-1 (``boot``) emit substrate.
 """
@@ -88,7 +88,7 @@ from wirelang.persona_engine.v907_verify import V907VerifyResult
 # Canonical 10-record emit order (this is the *invariant under test*).
 # ---------------------------------------------------------------------------
 
-# state_backing is at index 0 — it emits inside __init__, BEFORE boot().
+# state_backing is at index 0 — it emits inside __init__, BEFORE boot.
 EXPECTED_EMIT_ORDER = [
     "state_backing",
     "recovery",
@@ -103,7 +103,7 @@ EXPECTED_EMIT_ORDER = [
 ]
 
 PRE_BOOT_DOMAIN = "state_backing"
-BOOT_DOMAINS = EXPECTED_EMIT_ORDER[1:]  # the nine that emit in boot()
+BOOT_DOMAINS = EXPECTED_EMIT_ORDER[1:]  # the nine that emit in boot
 TOTAL_DECISION_COUNT = len(EXPECTED_EMIT_ORDER)  # 10
 
 # Pin-pack on disk — used to assert the boot-wired-crates set contains
@@ -131,7 +131,7 @@ MANIFEST_PATH = (
 def _env_contract(tmp_path: Path) -> EnvContract:
     """A minimal EnvContract for hermetic engine construction.
 
-    Mirrors the Tag-51 resilience-suite shape (same persona/org slug
+    Mirrors the resilience-suite shape (same persona/org slug
     pattern, same axis-A/axis-C file scaffolding). The axis-A file
     must exist for V-907 pin computation; the actual verify call is
     monkeypatched away in this suite so the bytes do not matter.
@@ -204,7 +204,7 @@ def _decision_domains_in_order(log_sink: io.StringIO) -> list[str]:
 @pytest.fixture(autouse=True)
 def _stub_v907_pin(monkeypatch: pytest.MonkeyPatch) -> None:
     """Skip the real V-907 pin compute — touches axis-A bytes only and
-    is not the subject of this suite. Tag-51 resilience-suite parity."""
+    is not the subject of this suite. resilience-suite parity."""
 
     def _stub(
         persona_id: str,
@@ -224,7 +224,7 @@ def _stub_v907_pin(monkeypatch: pytest.MonkeyPatch) -> None:
 def _stub_svid_probe(monkeypatch: pytest.MonkeyPatch) -> None:
     """SVID probe is hermetic-fenced (socket missing on test box).
 
-    Tag-51 resilience-suite parity. Required because ``boot()`` calls
+    resilience-suite parity. Required because ``boot()`` calls
     into the SVID-substrate before completing the fan-out, and the
     emit-order assertions require ``boot()`` to run to completion.
     """
@@ -248,7 +248,7 @@ def _stub_svid_probe(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 # ---------------------------------------------------------------------------
-# T-01 — state_backing emit happens BEFORE boot() is ever called.
+# T-01 — state_backing emit happens BEFORE boot is ever called.
 # ---------------------------------------------------------------------------
 
 
@@ -264,7 +264,7 @@ def test_01_state_backing_emits_before_boot_is_called(tmp_path: Path) -> None:
     this test also fails (>1 decision record after ``__init__``).
     """
     eng, log_sink = _make_engine(tmp_path)
-    # Critical: boot() has NOT been called yet.
+    # Critical: boot has NOT been called yet.
     assert not hasattr(eng, "_recovery_backend_decision"), (
         "Pre-condition: boot() must not have run yet (no boot-fan-out "
         "decision attributes should exist on the engine)."
@@ -279,7 +279,7 @@ def test_01_state_backing_emits_before_boot_is_called(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# T-02 — the OTHER nine resolvers emit only INSIDE boot().
+# T-02 — the OTHER nine resolvers emit only INSIDE boot.
 # ---------------------------------------------------------------------------
 
 
@@ -402,7 +402,7 @@ def test_06_pre_boot_record_carries_full_audit_shape(tmp_path: Path) -> None:
     structured fields as the nine boot-side records. Operators parse
     this audit substrate by field name, not by line offset — a drift
     in the field set would break downstream consumers (cutover-script
-    Welle-2 stanza, Doppelbetrieb diff oracle, boot-self-test pin).
+    wave 2 stanza, Doppelbetrieb diff oracle, boot-self-test pin).
     """
     eng, log_sink = _make_engine(tmp_path)
     records = _decision_records(log_sink)
@@ -554,7 +554,7 @@ def test_09_boot_attribute_population_matches_emit_order(
 
 
 # ---------------------------------------------------------------------------
-# T-10 — pre-boot record retained even when boot() raises.
+# T-10 — pre-boot record retained even when boot raises.
 # ---------------------------------------------------------------------------
 
 

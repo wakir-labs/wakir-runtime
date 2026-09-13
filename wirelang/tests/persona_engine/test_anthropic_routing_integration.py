@@ -2,21 +2,21 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Hermetic tests for anthropic-call production-mode routing integration.
 
-ADR-0064 Phase-2b — Sprint Tag-15 mini-welle.
+ADR-0064 Phase-2b — mini-wave.
 
 Test coverage matrix:
 
-1.  ``read_production_routing_mode``: default + all four modes + unknown
-2.  ``static`` mode is a no-op: tier comes from persona-def, no router
+1. ``read_production_routing_mode``: default + all four modes + unknown
+2. ``static`` mode is a no-op: tier comes from persona-def, no router
     is invoked, jsonl sink disabled by default → no I/O
-3.  ``heuristic`` mode, very-short prose → Haiku class
-4.  ``heuristic`` mode, audit-persona override → Opus class
-5.  ``heuristic`` mode, very-long prompt → Opus class
-6.  ``heuristic`` mode, code-heavy mid-length → Sonnet class
-7.  ``llm_classifier`` mode: above-threshold classifier → honoured
-8.  ``llm_classifier_fallback_heuristic``: classifier raises → fallback
+3. ``heuristic`` mode, very-short prose → Haiku class
+4. ``heuristic`` mode, audit-persona override → Opus class
+5. ``heuristic`` mode, very-long prompt → Opus class
+6. ``heuristic`` mode, code-heavy mid-length → Sonnet class
+7. ``llm_classifier`` mode: above-threshold classifier → honoured
+8. ``llm_classifier_fallback_heuristic``: classifier raises → fallback
     to heuristic decision; ``used_fallback`` + ``fallback_reason`` set
-9.  Metric-emission disabled (env unset) → no file written; decision
+9. Metric-emission disabled (env unset) → no file written; decision
     still returned correctly
 10. Metric-emission enabled → JSONL line written with all required
     fields; multiple calls append, byte-stable key ordering

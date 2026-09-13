@@ -1,19 +1,19 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic tests for the Sprint-Pengine-12 Bug-41 CLI-async-wrap.
+"""Hermetic tests for the -Pengine-12 Bug-41 CLI-async-wrap.
 
 Substance under test
 --------------------
 
-``wirelang.persona_engine.cli.run_spawn`` was rewritten in Sprint-
+``wirelang.persona_engine.cli.run_spawn`` was rewritten in -
 Pengine-12 so that:
 
 1. When ``WAKIR_SUBSCRIBE_ENV`` is unset (or empty) the legacy sync-
    engine path is taken (backward-compat with the v0.4.1-pilot
    container behaviour).
 2. When ``WAKIR_SUBSCRIBE_ENV`` is set to a non-empty value the CLI
-   dispatches to the asyncio path which boots :class:`AsyncPersonaEngine`,
-   constructs a :class:`NatsSubscribeLoop` bound to the canonical
+   dispatches to the asyncio path which boots:class:`AsyncPersonaEngine`,
+   constructs a:class:`NatsSubscribeLoop` bound to the canonical
    ``wakir.<env>.agent.agent.task.assigned.<persona-slug>`` subject,
    logs a ``cli-async-dispatch`` record, and (when ``--one-shot`` is
    not passed) waits for SIGTERM / SIGINT via the engine's stop-event.
@@ -166,7 +166,7 @@ def test_run_spawn_async_missing_nats_servers_returns_env_misconfig(
     """If the async path is triggered in *live* mode (no --one-shot)
     but WAKIR_NATS_SERVERS is empty we cannot bind the subscribe-loop
     — bail with ENV_MISCONFIG so the operator sees a clear remediation
-    instead of a silent retry loop on connect(). The --one-shot path
+    instead of a silent retry loop on connect. The --one-shot path
     tolerates the empty value (see test 3) because it skips the run-
     loop entirely."""
     axis_a = _write_axis_a(tmp_path)
@@ -238,7 +238,7 @@ async def test_run_spawn_async_wires_subscribe_loop_with_canonical_subject(
     assert "cli-async-dispatch" in log
     # Canonical subject must be in the dispatch log.
     assert "wakir.dev.agent.agent.task.assigned.tomas" in log
-    # Engine version must be the Tag-62 rc1-suffix-drop final.
+    # Engine version must be the rc1-suffix-drop final.
     assert "0.5.3" in log
 
 
@@ -262,7 +262,7 @@ async def test_run_spawn_async_run_until_signal_terminates_on_stop(
     monkeypatch.setenv("WAKIR_ORG_ID", "acme")
     monkeypatch.setenv("WAKIR_PERSONA_AXIS_A_PATH", str(axis_a))
     # Provide a URL so the live-mode validation passes; the actual
-    # nats.connect() is patched out below.
+    # nats.connect is patched out below.
     monkeypatch.setenv("WAKIR_NATS_SERVERS", "nats://hermetic:4222")
     monkeypatch.setenv(SUBSCRIBE_ENV_VAR, "dev")
 
@@ -279,7 +279,7 @@ async def test_run_spawn_async_run_until_signal_terminates_on_stop(
 
     # Force the state-backing to fence in-memory by making the live
     # NATS-KV connect raise the standard backing-error. The engine
-    # already handles this path (Sprint-Pengine-8 fence pattern).
+    # already handles this path (-Pengine-8 fence pattern).
     async def _fake_connect(self):
         raise sb.PersonaStateBackingError(
             "hermetic-test: NATS-KV unavailable"
@@ -304,7 +304,7 @@ async def test_run_spawn_async_run_until_signal_terminates_on_stop(
             raise AssertionError("engine never reached stop_event-ready state")
 
         # Shim ``import nats`` to raise ImportError so the _live_runner
-        # exits cleanly before connect() (parity with the engine's
+        # exits cleanly before connect (parity with the engine's
         # fence-on-import-error pattern).
         original_import = __import__
 
@@ -341,7 +341,7 @@ async def test_run_spawn_async_run_until_signal_terminates_on_stop(
 async def test_run_spawn_async_subscribe_loop_config_matches_env(
     tmp_path, monkeypatch, capsys,
 ):
-    """The :class:`SubscribeLoopConfig` constructed by the CLI must
+    """The:class:`SubscribeLoopConfig` constructed by the CLI must
     carry the env-tag from WAKIR_SUBSCRIBE_ENV and the persona-slug
     from the EnvContract (i.e. either --persona-slug or
     WAKIR_PERSONA_ID). Asserted via the log line ``cli-async-dispatch``
@@ -387,7 +387,7 @@ async def test_run_spawn_async_subscribe_loop_config_matches_env(
 
 
 def test_cli_parser_spawn_signature_unchanged():
-    """Quadlet contract guarantee: the Sprint-Pengine-12 CLI keeps the
+    """Quadlet contract guarantee: the -Pengine-12 CLI keeps the
     same argparse surface as Pengine-11. The async-wrap is env-var
     gated so we MUST NOT add a flag (Quadlet ``Exec=`` line stays
     byte-stable)."""

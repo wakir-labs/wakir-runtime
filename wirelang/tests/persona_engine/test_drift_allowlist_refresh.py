@@ -4,19 +4,19 @@
 # Licensed under the Business Source License 1.1; see
 # wirelang/persona_engine/LICENSE-BSL.md.
 # Change Date: 2030-05-15. Change License: Apache License 2.0.
-"""Tag-67 — Engine-Version-Drift-Allowlist refresh audit pin (Selin).
+"""— Engine-Version-Drift-Allowlist refresh audit pin.
 
 Trigger event
 -------------
-Tag-60 (PR #384) introduced the engine-version-drift scanner +
-JSON allowlist. Tag-62 (PR #399) extended the hunted
+PR #384 introduced the engine-version-drift scanner +
+JSON allowlist. PR #399 extended the hunted
 STALE_VERSIONS set with ``0.5.3-rc1`` after the rc1-suffix-drop
 final-bump to ``0.5.3`` and registered the legitimate
-rc1-surviving artefacts. Tag-63 (post-#399) added the
-production-readiness audit report + Tag-63 test + Tag-59 V-907
+rc1-surviving artefacts. (post-#399) added the
+production-readiness audit report + test + V-907
 hash-pin test as additional allowlist entries.
 
-Tag-67 is the **refresh audit**: a post-Final-Bump verification
+is the **refresh audit**: a post-Final-Bump verification
 that
 
 * every allowlisted file still exists,
@@ -24,22 +24,22 @@ that
   the entry claims (audit-loop — no entry has been silently
   emptied),
 * the schema metadata (version, tag, audit_history) reflects the
-  Tag-67 refresh,
+  refresh,
 * the ``never_allowlistable`` guard explicitly enumerates the
-  five surfaces the Tag-59 Hot-Fix #381 sweep taught are NEVER
+  five surfaces the Hot-Fix #381 sweep taught are NEVER
   legitimate stale-literal carriers,
 * the drift scanner exits 0 against the refreshed allowlist on
-  the current main tip (post Tag-62 + Tag-63 substrate).
+  the current main tip (post + substrate).
 
 What this test pins
 -------------------
-* Schema version bumped to 3 (Tag-67).
-* Schema tag string mentions Tag-67.
+* Schema version bumped to 3.
+* Schema tag string mentions.
 * Audit history declares the four chronological entries
-  Tag-60 -> Tag-62 -> Tag-63 -> Tag-67.
+  -> -> ->.
 * ``never_allowlistable`` enumerates engine.py + engine_async.py
   + cli.py + __init__.py + __version__.py as the five
-  active-version-literal surfaces (Tag-60 Allowlist-Waechter-
+  active-version-literal surfaces (Allowlist-Waechter-
   Disziplin).
 * Every entry path still points at an existing file.
 * Every entry path's file still contains at least one occurrence
@@ -48,10 +48,10 @@ What this test pins
 * The five ``never_allowlistable`` surfaces never appear as
   allowlist entries (defence in depth).
 * The drift scanner exits 0 against the refreshed allowlist.
-* The Tag-58 historical fixture (``test_engine_0_5_3_rc1_release_notes.py``)
+* the historical fixture (``test_engine_0_5_3_rc1_release_notes.py``)
   still carries ``RC1_VERSION = "0.5.3-rc1"``.
 * The V-907 baseline file still carries the sealed
-  ``engine_version: "0.5.3-rc1"`` literal (Tag-59 seal contract).
+  ``engine_version: "0.5.3-rc1"`` literal (seal contract).
 * ``__version__.__version__`` is ``"0.5.3"`` (active version
   literal correctness).
 * The scanner's ``ACTIVE_VERSION`` constant is ``"0.5.3"``
@@ -63,12 +63,11 @@ Hermetic envelope
 * No subprocess outside an in-process scanner import.
 * Pure file inspection + JSON parse + scanner module call.
 
-Scope discipline (Selin)
+Scope discipline
 ------------------------
-This test does NOT modify persona definitions (Aisha-Domaene,
-ADR-0043), WAT-core logic (Tomas-Domaene, Zone-K),
-identity-substrate design (Reza-Domaene, Zone-L), or
-container-infra (Kai-Domaene, Zone-J).
+This test does NOT modify persona definitions, WAT-core logic,
+identity-substrate design, or
+container-infra.
 """
 
 from __future__ import annotations
@@ -104,7 +103,7 @@ TAG58_RC1_TEST_PATH = (
     / "test_engine_0_5_3_rc1_release_notes.py"
 )
 
-# The four stale literals the Tag-60+Tag-62 scanner hunts.
+# The four stale literals the+scanner hunts.
 STALE_LITERALS = (
     "0.5.0-pilot",
     "0.5.1-pre-cutover",
@@ -112,7 +111,7 @@ STALE_LITERALS = (
     "0.5.3-rc1",
 )
 
-# Surfaces that must NEVER appear as allowlist entries (Tag-60
+# Surfaces that must NEVER appear as allowlist entries (
 # Allowlist-Waechter-Disziplin: a stale literal on these surfaces is
 # ALWAYS a bug, never a legitimate exception).
 NEVER_ALLOWLISTABLE_PATHS = (
@@ -125,7 +124,7 @@ NEVER_ALLOWLISTABLE_PATHS = (
 
 # Surfaces that ARE allowlistable but only with the
 # manifest-historical-comment category (single comment line, never an
-# active claim). Tag-67 keeps this list explicit so a future regression
+# active claim). keeps this list explicit so a future regression
 # that adds a non-comment rc1 mention to engine.py would still trip the
 # scanner.
 COMMENT_ONLY_ALLOWLISTED_PATHS = (
@@ -174,14 +173,14 @@ def test_t01_allowlist_path_exists():
 
 
 def test_t02_allowlist_schema_version_bumped_to_three(allowlist_doc):
-    """Tag-67 bumps the allowlist _schema.version from 2 to 3."""
+    """bumps the allowlist _schema.version from 2 to 3."""
     assert allowlist_doc["_schema"]["version"] == 3, (
         "Tag-67 refresh must bump _schema.version to 3"
     )
 
 
 def test_t03_allowlist_schema_tag_mentions_tag_67(allowlist_doc):
-    """The schema tag field names Tag-67 as the current refresh anchor."""
+    """The schema tag field names as the current refresh anchor."""
     tag_field = allowlist_doc["_schema"]["tag"]
     assert "Tag-67" in tag_field, (
         f"Tag-67 refresh: _schema.tag must mention Tag-67, got {tag_field!r}"
@@ -189,7 +188,7 @@ def test_t03_allowlist_schema_tag_mentions_tag_67(allowlist_doc):
 
 
 def test_t04_allowlist_audit_history_has_four_entries(allowlist_doc):
-    """The audit_history array declares Tag-60, Tag-62, Tag-63, Tag-67."""
+    """The audit_history array declares,,,."""
     history = allowlist_doc["_schema"]["audit_history"]
     assert isinstance(history, list)
     tags = [h["tag"] for h in history]
@@ -211,7 +210,7 @@ def test_t05_audit_history_entries_carry_required_fields(allowlist_doc):
 def test_t06_never_allowlistable_enumerates_five_surfaces(allowlist_doc):
     """_schema.never_allowlistable lists the five active-version-literal surfaces.
 
-    These are the surfaces the Tag-59 Hot-Fix #381 sweep proved are
+    These are the surfaces the Hot-Fix #381 sweep proved are
     ALWAYS active-version-literal carriers: engine.py / engine_async.py
     / cli.py / __init__.py / __version__.py. A stale literal on any of
     these surfaces is ALWAYS a regression, never a legitimate exception.
@@ -242,7 +241,7 @@ def test_t07_every_entry_path_exists():
 def test_t08_every_entry_path_still_carries_a_stale_literal():
     """Audit-loop: no entry has been silently emptied of stale content.
 
-    Tag-67 refresh contract: every allowlisted file MUST still contain
+    refresh contract: every allowlisted file MUST still contain
     at least one occurrence of at least one STALE_LITERALS literal.
     If an upstream rewrite removed all stale literals from a path, the
     allowlist entry has become obsolete and SHOULD be removed in a
@@ -267,11 +266,11 @@ def test_t08_every_entry_path_still_carries_a_stale_literal():
 def test_t09_never_allowlistable_surfaces_are_not_allowlisted(allowlist_doc):
     """Defence in depth: the never_allowlistable paths are NEVER entries.
 
-    Tag-67 enforces that if engine.py / engine_async.py / cli.py /
+    enforces that if engine.py / engine_async.py / cli.py /
     __init__.py / __version__.py ever appear as an allowlist entry
     with a category OTHER THAN manifest-historical-comment (engine.py)
     or manifest-historical-comment+historical-migration-narrative
-    (__version__.py), this test fails. The Tag-59 Hot-Fix proved these
+    (__version__.py), this test fails. The Hot-Fix proved these
     surfaces must stay scanner-bounded.
     """
     entries_by_path = {e["path"]: e for e in allowlist_doc["entries"]}
@@ -314,12 +313,12 @@ def test_t10_comment_only_surfaces_have_correct_category(allowlist_doc):
 def test_t11_v907_baseline_still_sealed_at_rc1():
     """The V-907 baseline file still pins engine_version = '0.5.3-rc1'.
 
-    Tag-59 seal contract: the v907-hash-baseline.json engine_version
+    seal contract: the v907-hash-baseline.json engine_version
     literal is intentionally preserved at 0.5.3-rc1 even after the
-    Tag-62 rc1-suffix-drop, because the V-907 composite_hash is
+    rc1-suffix-drop, because the V-907 composite_hash is
     byte-bounded to manifest Section 1 + pin-pack boot_wired_crates +
     engine.py resolver-block and is unchanged by metadata-only
-    version-header rewrites. Refresh requires Selin-Hand + Tomas
+    version-header rewrites. Refresh requires the engine zone-Hand + the engineering zone
     Zone-K cross-review.
     """
     data = json.loads(V907_BASELINE_PATH.read_text(encoding="utf-8"))
@@ -342,7 +341,7 @@ def test_t12_active_version_is_zero_five_three(scanner):
 def test_t13_version_module_active_literal_is_zero_five_three():
     """__version__.__version__ is the rc1-suffix-drop literal '0.5.3'.
 
-    Tag-67 lockstep check: the active version literal must match the
+    lockstep check: the active version literal must match the
     scanner's ACTIVE_VERSION constant. If these ever drift apart, the
     drift scanner will start flagging itself.
     """
@@ -358,8 +357,8 @@ def test_t13_version_module_active_literal_is_zero_five_three():
 
 
 def test_t14_scanner_exits_zero_on_refreshed_allowlist(scanner, capsys):
-    """A full repo scan against the Tag-67 refreshed allowlist exits 0."""
-    # main() returns the would-be exit code without raising SystemExit.
+    """A full repo scan against the refreshed allowlist exits 0."""
+    # main returns the would-be exit code without raising SystemExit.
     rc = scanner.main([])
     capsys.readouterr()  # drain captured output
     assert rc == 0, (
@@ -369,11 +368,11 @@ def test_t14_scanner_exits_zero_on_refreshed_allowlist(scanner, capsys):
 
 
 def test_t15_tag58_historical_fixture_still_carries_rc1_constant():
-    """The Tag-58 historical fixture preserves RC1_VERSION = '0.5.3-rc1'.
+    """the historical fixture preserves RC1_VERSION = '0.5.3-rc1'.
 
-    Tag-67 refresh: the Tag-58 release-notes test is a frozen anchor
+    refresh: the release-notes test is a frozen anchor
     of the prior tag's contract; the EXPECTED/RC1 version literal must
-    survive the Tag-62 final-bump as a historical fixture for the
+    survive the final-bump as a historical fixture for the
     rc1-surviving artefact (rc1 release-notes file under
     docs/persona-engine/, the rc1-bearing v907-hash-baseline.json).
     """
@@ -388,8 +387,8 @@ def test_t15_tag58_historical_fixture_still_carries_rc1_constant():
 def test_t16_no_legitimate_category_typo_in_refresh(allowlist_doc, scanner):
     """Every category string in the refreshed allowlist is in LEGITIMATE_CATEGORIES.
 
-    The scanner's load_allowlist() would reject typos at exit-code 2,
-    but Tag-67 adds an explicit in-test pin so a regression that
+    The scanner's load_allowlist would reject typos at exit-code 2,
+    but adds an explicit in-test pin so a regression that
     relaxes the scanner check still trips here.
     """
     legitimate = scanner.LEGITIMATE_CATEGORIES
@@ -402,13 +401,13 @@ def test_t16_no_legitimate_category_typo_in_refresh(allowlist_doc, scanner):
 
 
 def test_t17_entry_count_is_twenty_seven_post_refresh(allowlist_doc):
-    """Tag-67 refresh: 26 carried forward + 1 new entry (this test).
+    """refresh: 26 carried forward + 1 new entry (this test).
 
-    The audit conclusion (documented in the audit_history Tag-67 note):
+    The audit conclusion (documented in the audit_history note):
     every 0.5.3-rc1-bearing entry remains legitimately stale per the
-    Tag-59 V-907 seal + historical-narrative + negative-assertion
+    V-907 seal + historical-narrative + negative-assertion
     fixture rationale. No entry is removed. One entry is added for the
-    Tag-67 refresh-audit test itself (this file), which legitimately
+    refresh-audit test itself (this file), which legitimately
     carries the four STALE_LITERALS as negative-assertion fixtures.
     """
     entries = allowlist_doc["entries"]
@@ -436,8 +435,8 @@ def test_t19_scanner_strict_mode_still_exits_one_with_allowlisted_findings(
 ):
     """Strict mode informs the operator the allowlist is non-empty.
 
-    Tag-60 contract: --strict exits 1 if any allowlisted finding
-    survives, signalling that the substrate is not pristine. Tag-67
+    contract: --strict exits 1 if any allowlisted finding
+    survives, signalling that the substrate is not pristine.
     pins this contract so a future refactor that relaxes strict-mode
     semantics is caught.
     """

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for the SPIFFE Workload API mock adapter (Sprint-6 Tag-5).
+"""Tests for the SPIFFE Workload API mock adapter.
 
 The mock implementation is hermetic: no network calls, no FS reads.
 These tests pin the deterministic-output contract and the four

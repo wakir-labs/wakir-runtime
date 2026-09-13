@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
-"""Hermetic tests for the Sprint-7 Pfad-B Tag-6 live HTTPS fetcher
-(:mod:`wirelang.federation.spire_fed_bundle_live_https_fetcher`).
+"""Hermetic tests for the Pfad-B live HTTPS fetcher
+:mod:`wirelang.federation.spire_fed_bundle_live_https_fetcher`).
 
 Hermeticity model
 =================
@@ -8,10 +8,10 @@ Hermeticity model
 These tests are **fully hermetic** — they do NOT depend on a live
 SPIRE-Server, on the wakir-pilot/wakir-orbit VMs, on podman, or on
 any operator-hand artefact. The wire-protocol surface (HTTPS GET
-against a TLS endpoint) is stood up via :class:`http.server.
+against a TLS endpoint) is stood up via:class:`http.server.
 ThreadingHTTPServer` bound to loopback on an ephemeral port. The
 TLS layer is provisioned with a self-signed cert generated in-test
-via :mod:`cryptography`'s X.509 surface (already a project
+via:mod:`cryptography`'s X.509 surface (already a project
 dependency, see `pyproject.toml` ``dependencies`` list).
 
 Mutation-Coverage matrix (Zone-Q-style)
@@ -22,19 +22,19 @@ that triggers it) and at least one negative test (a wire shape that
 bypasses it but still surfaces a structurally distinct outcome):
 
 +----------------------------+--------------------+------------------------+
-| Error class                | Positive test      | Negative complement    |
+| Error class | Positive test | Negative complement |
 +============================+====================+========================+
-| ``UnpinnedTrustDomainError``| T-LIVE-HTTPS-03    | T-LIVE-HTTPS-01,02     |
+| ``UnpinnedTrustDomainError``| T-LIVE-HTTPS-03 | T-LIVE-HTTPS-01,02 |
 +----------------------------+--------------------+------------------------+
-| ``UrlTrustDomainMismatchError``| T-LIVE-HTTPS-04| T-LIVE-HTTPS-01        |
+| ``UrlTrustDomainMismatchError``| T-LIVE-HTTPS-04| T-LIVE-HTTPS-01 |
 +----------------------------+--------------------+------------------------+
-| ``LiveBundleFetchError``   | T-LIVE-HTTPS-05    | T-LIVE-HTTPS-01        |
+| ``LiveBundleFetchError`` | T-LIVE-HTTPS-05 | T-LIVE-HTTPS-01 |
 +----------------------------+--------------------+------------------------+
-| ``LiveBundleHttpStatusError``| T-LIVE-HTTPS-06,07| T-LIVE-HTTPS-01        |
+| ``LiveBundleHttpStatusError``| T-LIVE-HTTPS-06,07| T-LIVE-HTTPS-01 |
 +----------------------------+--------------------+------------------------+
-| ``LiveBundleTimeoutError`` | T-LIVE-HTTPS-08    | T-LIVE-HTTPS-01        |
+| ``LiveBundleTimeoutError`` | T-LIVE-HTTPS-08 | T-LIVE-HTTPS-01 |
 +----------------------------+--------------------+------------------------+
-| ``LiveBundleTlsError``     | T-LIVE-HTTPS-09    | T-LIVE-HTTPS-01,02     |
+| ``LiveBundleTlsError`` | T-LIVE-HTTPS-09 | T-LIVE-HTTPS-01,02 |
 +----------------------------+--------------------+------------------------+
 
 Posture-validation gate (ValueError on ambiguous TLS posture) has
@@ -45,7 +45,7 @@ Live-Integration opt-in
 
 The test ``T-LIVE-INT`` is skipped by default. Set the env-var
 ``WAKIR_LIVE_PARTNER_URL`` to a SPIRE-Server bundle endpoint URL
-(e.g. ``https://wakir-orbit:8443``) to opt in. The live test
+(e.g. ``https://wakir-orbit:8443``) to opt . The live test
 exercises only the happy-path against a real SPIRE-Server; the
 hermetic suite covers every fail-closed gate.
 """

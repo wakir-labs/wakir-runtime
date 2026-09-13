@@ -1,33 +1,33 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tag-9 pure-Python fallback test suite.
+"""pure-Python fallback test suite.
 
 Cross-equivalence tests (against ``rfc8785`` / ``jsonschema`` PyPI
 packages) are gated by ``pytest.importorskip`` so the suite stays
 green in the hermetic sandbox. The hermetic tests fully exercise the
 fallback paths without external dependencies.
 
-Test inventory (Tag-9 spec § 1.5 + § 2.5):
+Test inventory (spec § 1.5 + § 2.5):
 
 JCS:
-  1-4   Cross-equivalence vs rfc8785 on AIP-document samples.
-  5     Hermetic: nested object + array layout.
-  6     Hermetic: keys sorted by UTF-16 code units (ASCII-superset).
-  7     Hermetic: control-character escapes.
-  8     Hermetic: refusal of unsupported types.
-  9     Hermetic: integer canonical form.
-  10    Hermetic: bool / null serialisation.
+  1-4 Cross-equivalence vs rfc8785 on AIP-document samples.
+  5 Hermetic: nested object + array layout.
+  6 Hermetic: keys sorted by UTF-16 code units (ASCII-superset).
+  7 Hermetic: control-character escapes.
+  8 Hermetic: refusal of unsupported types.
+  9 Hermetic: integer canonical form.
+  10 Hermetic: bool / null serialisation.
 
 Schema:
   11-14 Cross-equivalence vs jsonschema on AIP-document samples.
-  15    Hermetic: missing required field rejected.
-  16    Hermetic: wrong type rejected.
-  17    Hermetic: pattern check rejects mismatched value.
-  18    Hermetic: additionalProperties=false rejected extras.
-  19    Hermetic: format=uri structural check.
-  20    Hermetic: unsupported keyword raises NotImplementedError.
+  15 Hermetic: missing required field rejected.
+  16 Hermetic: wrong type rejected.
+  17 Hermetic: pattern check rejects mismatched value.
+  18 Hermetic: additionalProperties=false rejected extras.
+  19 Hermetic: format=uri structural check.
+  20 Hermetic: unsupported keyword raises NotImplementedError.
 
 Resolver indirection:
-  21    aip_signing roundtrip with ``rfc8785`` patched to None.
+  21 aip_signing roundtrip with ``rfc8785`` patched to None.
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ from wirelang.identity import _jcs_pure, _schema_pure
 
 # ---------------------------------------------------------------------------
 # Sample AIP-document bodies (small, hand-rolled so we don't rely on
-# the Tag-2/12 generator output here — those tests live next door).
+# the/12 generator output here — those tests live next door).
 # ---------------------------------------------------------------------------
 
 
@@ -402,7 +402,7 @@ def test_aip_signing_works_with_pure_python_fallback_only(monkeypatch: pytest.Mo
 
 # ---------------------------------------------------------------------------
 # Bonus: the pure-python JCS path MUST produce byte-identical output to
-# the path through ftd_verifier._local_jcs (the original Tag-6 in-tree
+# the path through ftd_verifier._local_jcs (the original in-tree
 # canonicaliser). This anchors the lift-and-extract refactor.
 # ---------------------------------------------------------------------------
 

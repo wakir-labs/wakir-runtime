@@ -1,23 +1,23 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic tests for Tag-41 Bug-42 publish/subscribe surface contract.
+"""Hermetic tests for Bug-42 publish/subscribe surface contract.
 
 These tests close out the Bug-42 substrate-drift identified in
-Mira's Tag-41 brief: the existing Sprint-Pengine-13 substrate
+the CEO's brief: the existing -Pengine-13 substrate
 shipped the subscribe-mode resolver but did NOT enforce the
 spec wirelang-spec-v0-2 §13.2 compatibility matrix at bring-up.
 A broken-pipe pair (core publisher + jetstream-pull subscriber)
-silently dropped messages even though the Sprint-13 substrate
+silently dropped messages even though the substrate
 named the failure mode.
 
-Tag-41 fix
+fix
 ----------
-- :mod:`wirelang.persona_engine.publish_mode_contract` declares the
+-:mod:`wirelang.persona_engine.publish_mode_contract` declares the
   publish-mode constants, the compatibility matrix, and the
   :func:`require_compatible` gate.
-- :mod:`wirelang.persona_engine.cli` calls ``require_compatible`` at
+-:mod:`wirelang.persona_engine.cli` calls ``require_compatible`` at
   bring-up; broken-pipe pairs exit with EXIT_ENV_MISCONFIG.
-- :mod:`wirelang.cli.bridge_forward` exposes ``--publish-mode``
+-:mod:`wirelang.cli.bridge_forward` exposes ``--publish-mode``
   (Adapter B substrate) so operators can rewrite producers to
   ``js.publish`` against a captured JetStream stream.
 
@@ -25,7 +25,7 @@ Tests below cover:
 
 - §1 mode-constant invariants + compatibility-matrix correctness
   (eight pairs × verdict shape)
-- §2 :func:`require_compatible` raises :class:`SurfaceMismatchError`
+- §2:func:`require_compatible` raises:class:`SurfaceMismatchError`
   on broken pairs and tolerates fan-out only with explicit opt-in
 - §3 env-var resolver parses ``WAKIR_NATS_PUBLISH_MODE`` defaults
   and rejects unknown values
@@ -76,7 +76,7 @@ from wirelang.persona_engine.publish_mode_contract import (
 
 
 def test_constants_match_spec_string_literals():
-    """Tag-41 string-literal contract — spec §13.1 mode strings.
+    """string-literal contract — spec §13.1 mode strings.
 
     These literals are operator-facing (env-vars, CLI flags, runbook
     docs). Any drift requires an explicit ADR/spec patch.
@@ -177,7 +177,7 @@ def test_require_compatible_accepts_hard_yes_pairs():
 def test_require_compatible_raises_on_broken_pipe():
     """F-1 broken pipe (core publisher + jetstream-pull subscriber).
 
-    This is the exact Bug-42 silent-drop scenario the Tag-41 fix
+    This is the exact Bug-42 silent-drop scenario the fix
     intercepts at bring-up.
     """
     with pytest.raises(SurfaceMismatchError) as excinfo:
@@ -286,7 +286,7 @@ def _run_bridge_forward(argv, *, env=None) -> tuple[int, str, str]:
 
 
 def test_bridge_forward_jetstream_publish_mode_requires_stream(tmp_path: Path):
-    """Tag-41 Adapter-B contract — --publish-mode jetstream needs --jetstream-stream.
+    """Adapter-B contract — --publish-mode jetstream needs --jetstream-stream.
 
     Operator dry-run skips the live path so we exercise the live-path
     branch by NOT passing --dry-run; the resolver should fail-fast
@@ -308,11 +308,11 @@ def test_bridge_forward_jetstream_publish_mode_requires_stream(tmp_path: Path):
 
 
 def test_bridge_forward_dry_run_emits_publish_mode_trailer(tmp_path: Path):
-    """Tag-41 dry-run records the operator's publish-mode declaration.
+    """dry-run records the operator's publish-mode declaration.
 
     Trailing comment line lets operators audit what surface they
     would have hit in live mode. Envelope position (line 1) is
-    preserved for Sprint-10 byte-stable test parity.
+    preserved for byte-stable test parity.
     """
     prompt_file = tmp_path / "p.txt"
     prompt_file.write_text("hello", encoding="utf-8")
@@ -327,9 +327,9 @@ def test_bridge_forward_dry_run_emits_publish_mode_trailer(tmp_path: Path):
     ])
     assert rc == 0
     lines = out.strip().split("\n")
-    # Line 0: subject comment (Sprint-10 contract).
+    # Line 0: subject comment ( contract).
     assert lines[0].startswith("# subject:")
-    # Line 1: envelope (Sprint-10 byte-stable position).
+    # Line 1: envelope ( byte-stable position).
     envelope = json.loads(lines[1])
     assert envelope["persona_id"] == "tomas"
     # Trailer: publish_mode comment.

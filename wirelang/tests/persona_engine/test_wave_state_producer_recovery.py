@@ -2,30 +2,30 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreEnd
-"""Tag-75 - Welle-7 Final-Sealing Producer (Selin, persona-engine).
+"""- wave 7 Final-Sealing Producer.
 
-Tag-69 (PR #438) shipped Welle-1 producer-path. Tag-70 (PR #444) shipped
-Welle-2 Doppelbetrieb-Sealing + Rollback-Writer. Tag-71 (PR #451) wired
-the top-level handlers + Welle-3 Bridge-Audit sign-off shorthand
-(Pre-Auditor-Guarded). Tag-72 (PR #458) added the Welle-4 State-Backing
-sign-off shorthand. Tag-73 (PR #465) added the Welle-5 Capability-Token
-sign-off shorthand. Tag-74 (PR #472) added the Welle-6 Cross-Substrate-
-Parity sign-off shorthand + W5-anchor-fix. Tag-75 (this PR) closes the
-producer-substrate by adding the **Welle-7 Final-Sealing sign-off**
+PR #438 shipped wave 1 producer-path. PR #444 shipped
+wave 2 Doppelbetrieb-Sealing + Rollback-Writer. PR #451 wired
+the top-level handlers + wave 3 Bridge-Audit sign-off shorthand
+(Pre-Auditor-Guarded). PR #458 added the wave 4 State-Backing
+sign-off shorthand. PR #465 added the wave 5 Capability-Token
+sign-off shorthand. PR #472 added the wave 6 Cross-Substrate-
+Parity sign-off shorthand + W5-anchor-fix. This change closes the
+producer-substrate by adding the **wave 7 Final-Sealing sign-off**
 shorthand:
 
-* Welle-7 is the **terminal** Welle of the Phase-3c-Welle-Marathon
-  (KW-27, Cutover-Mittwoch 2026-07-01, Sign-off-Freitag 2026-07-03 per
+* wave 7 is the **terminal** wave of the Phase-3c-wave-Marathon
+  (calendar week 27, cutover-Mittwoch 2026-07-01, Sign-off-Freitag 2026-07-03 per
   ``docs/quality-gates/pre-cutover-acceptance-run-order.md`` §3 table).
-* Welle-7 sign-off triggers the downstream
+* wave 7 sign-off triggers the downstream
   ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7`` marker (per
   ``docs/quality-gates/phase-3c-doppel-welle-6-7.md`` §4.1
   ``test_dw_ac_6_7_p3m_welle_7_sign_off_triggers_phase_3_complete_marker``).
-* Welle-7 carries **two** hot-spot axes: it is both Pre-Auditor-Guarded
-  (Henrik-cannot-self-sign-off, analog Welle-3) AND Final-Sealing-Marker-
+* wave 7 carries **two** hot-spot axes: it is both Pre-Auditor-Guarded
+   AND Final-Sealing-Marker-
   Guarded (Phase-3-Marathon-Schluss-Acceptance verdict).
 
-Scope (Tag-75)
+Scope
 --------------
 
 One new producer-method:
@@ -36,9 +36,9 @@ One new producer-method:
   ``pre_auditor_decision == "designated"`` AND
   ``final_sealing_marker_status == "confirmed"``. Audit-record carries
   ``trigger="final-sealing"`` (the sixth disjoint trigger-family,
-  disjoint from Welle-2 ``"sealing"``, Welle-3/non-7 vanilla
-  ``"sign-off"``, Welle-4 ``"snapshot-restore"``, Welle-5
-  ``"capability-token-rotation"``, and Welle-6
+  disjoint from wave 2 ``"sealing"``, wave 3/non-7 vanilla
+  ``"sign-off"``, wave 4 ``"snapshot-restore"``, wave 5
+  ``"capability-token-rotation"``, and wave 6
   ``"cross-substrate-parity"``).
 
 One new top-level handler in ``wirelang.persona_engine.engine``:
@@ -56,16 +56,15 @@ Hermetic envelope
 
 No network. No NATS, no SPIRE, no gRPC. No subprocess. Pure in-process
 file I/O against ``tmp_path`` fixtures. Mirrors the
-Tag-69/70/71/72/73/74 producer-test conventions verbatim.
+/70/71/72/73/74 producer-test conventions verbatim.
 
-Scope discipline (Selin)
+Scope discipline
 ------------------------
 
-This test does NOT modify persona definitions (Aisha-Domaene,
-ADR-0043), WAT-core logic (Tomas-Domaene, Zone-K), Phase-3-COMPLETE-
+This test does NOT modify persona definitions, WAT-core logic, Phase-3-COMPLETE-
 marker emission (audit-trail-consumer territory; this test pins the
 engine-side ``WelleAuditRecord`` only), or container-infra
-(Kai-Domaene, Zone-J). It pins the Tag-75 Welle-7 sign-off shorthand;
+It pins the wave 7 sign-off shorthand;
 the schema-pin is unchanged (final-sealing-iso lives in the audit-
 stream, not in the state-file).
 """
@@ -113,11 +112,11 @@ from wirelang.persona_engine.welle_state_producer import (
 
 
 # ---------------------------------------------------------------------------
-# Helpers (mirror Tag-69/70/71/72/73/74 layout).
+# Helpers (mirror /70/71/72/73/74 layout).
 # ---------------------------------------------------------------------------
 
 
-# Post Tag-74 reconciliation. Welle-7 is KW-27 per the canonical
+# Post reconciliation. wave 7 is calendar week 27 per the canonical
 # pre-cutover-acceptance-run-order.md §3 table (line 98).
 CANONICAL_KW_ANCHOR = {
     1: "KW-22",
@@ -192,22 +191,22 @@ class _RecordingEmitter:
 
 
 # ---------------------------------------------------------------------------
-# (1) Public-API surface invariants for Welle-7 (Tag-75).
+# (1) Public-API surface invariants for wave 7.
 # ---------------------------------------------------------------------------
 
 
 def test_welle_7_is_final_sealing_guarded_constant_pin():
-    """Welle-7 MUST be in FINAL_SEALING_GUARDED_WELLEN (Tag-75 §2.8)."""
+    """wave 7 MUST be in FINAL_SEALING_GUARDED_WELLEN (§2.8)."""
     assert 7 in FINAL_SEALING_GUARDED_WELLEN
-    # Welle-7 is the ONLY final-sealing-guarded Welle.
+    # wave 7 is the ONLY final-sealing-guarded wave.
     assert FINAL_SEALING_GUARDED_WELLEN == frozenset({7})
 
 
 def test_welle_7_is_pre_auditor_guarded_constant_pin():
-    """Welle-7 MUST be pre-auditor-guarded (Henrik-cannot-self-sign-off).
+    """wave 7 MUST be pre-auditor-guarded.
 
-    The Welle-7 sign-off carries BOTH the pre-auditor guard (analog
-    Welle-3 Bridge-Audit) and the final-sealing-marker guard
+    The wave 7 sign-off carries BOTH the pre-auditor guard (analog
+    wave 3 Bridge-Audit) and the final-sealing-marker guard
     (Phase-3-Marathon-Schluss-Acceptance). The two guards are
     independent; both MUST hold for a successful sign-off.
     """
@@ -219,7 +218,7 @@ def test_welle_7_is_pre_auditor_guarded_constant_pin():
 def test_final_sealing_confirmed_literal_is_canonical():
     """The marker authority literal MUST be exactly "confirmed".
 
-    Mirrors the design of :data:`DOPPELBETRIEB_SEALED` ("sealed"),
+    Mirrors the design of:data:`DOPPELBETRIEB_SEALED` ("sealed"),
     :data:`SNAPSHOT_RESTORE_VERIFIED` ("restored"),
     :data:`CAPABILITY_TOKEN_ROTATED` ("rotated"),
     :data:`CROSS_SUBSTRATE_PARITY_VERIFIED` ("verified"), and
@@ -227,22 +226,22 @@ def test_final_sealing_confirmed_literal_is_canonical():
     literal is an audit-trail anchor; any drift breaks the operator-
     curated marker contract.
 
-    Critically, ``"confirmed"`` is DISTINCT from Welle-2's ``"sealed"``
-    (two distinct sealing concepts: Welle-2 closes the legacy-dual-write
-    window; Welle-7 closes the entire Phase-3c-Marathon).
+    Critically, ``"confirmed"`` is DISTINCT from wave 2's ``"sealed"``
+    (two distinct sealing concepts: wave 2 closes the legacy-dual-write
+    window; wave 7 closes the entire Phase-3c-Marathon).
     """
     assert FINAL_SEALING_CONFIRMED == "confirmed"
     assert FINAL_SEALING_CONFIRMED != DOPPELBETRIEB_SEALED
 
 
 def test_engine_module_exposes_welle_7_handler():
-    """Tag-75: engine.py MUST expose ``handle_welle_7_signoff_event``."""
+    """: engine.py MUST expose ``handle_welle_7_signoff_event``."""
     assert hasattr(engine_mod, "handle_welle_7_signoff_event")
     assert callable(engine_mod.handle_welle_7_signoff_event)
 
 
 def test_engine_async_module_exposes_welle_7_handler():
-    """Tag-75: engine_async.py MUST expose the async wrapper as coroutine."""
+    """: engine_async.py MUST expose the async wrapper as coroutine."""
     assert hasattr(engine_async_mod, "handle_welle_7_signoff_event")
     assert inspect.iscoroutinefunction(
         engine_async_mod.handle_welle_7_signoff_event
@@ -257,15 +256,15 @@ def test_sync_welle_7_handler_is_not_a_coroutine():
 
 
 # ---------------------------------------------------------------------------
-# (2) Six-marker-family disjointness — Welle-7 hot-spot pin.
+# (2) Six-marker-family disjointness — wave 7 hot-spot pin.
 # ---------------------------------------------------------------------------
 
 
 def test_welle_7_final_sealing_disjoint_from_other_marker_guarded_sets():
-    """Welle-7 final-sealing MUST be disjoint from the other 4 marker sets.
+    """wave 7 final-sealing MUST be disjoint from the other 4 marker sets.
 
     The pre-auditor guard intentionally OVERLAPS with the final-sealing
-    guard at Welle-7 (Welle-7 is in BOTH families; that's the Tag-75
+    guard at wave 7 (wave 7 is in BOTH families; that's the
     hot-spot-axis pin). The four OTHER marker families (sealing,
     snapshot-restore, capability-token-rotation, cross-substrate-parity)
     MUST be disjoint from final-sealing.
@@ -285,12 +284,12 @@ def test_welle_7_final_sealing_disjoint_from_other_marker_guarded_sets():
 
 
 def test_welle_7_pre_auditor_guard_intentionally_overlaps_final_sealing():
-    """Welle-7 is in BOTH pre-auditor-guarded AND final-sealing-guarded sets.
+    """wave 7 is in BOTH pre-auditor-guarded AND final-sealing-guarded sets.
 
-    This is the Tag-75 hot-spot-axis pin: Welle-7 carries two guards
+    This is the hot-spot-axis pin: wave 7 carries two guards
     simultaneously (Pre-Auditor + Final-Sealing-Marker). The triggers
-    are distinct (Welle-3 pre-auditor sign-off has
-    ``trigger="sign-off"``; Welle-7 has ``trigger="final-sealing"``);
+    are distinct (wave 3 pre-auditor sign-off has
+    ``trigger="sign-off"``; wave 7 has ``trigger="final-sealing"``);
     the audit-trail disambiguates via the trigger-literal.
     """
     welle_7_intersection = (
@@ -300,7 +299,7 @@ def test_welle_7_pre_auditor_guard_intentionally_overlaps_final_sealing():
 
 
 def test_six_marker_families_pairwise_disjoint_modulo_w7_overlap():
-    """Five marker-families MUST be Welle-pairwise-disjoint EXCEPT for the
+    """Five marker-families MUST be wave-pairwise-disjoint EXCEPT for the
     intentional W7 overlap between pre-auditor and final-sealing.
 
     The six families:
@@ -313,7 +312,7 @@ def test_six_marker_families_pairwise_disjoint_modulo_w7_overlap():
 
     Across the six families there are C(6,2) = 15 pairs. 14 pairs MUST
     be disjoint. The one EXCEPTION is the pre-auditor x final-sealing
-    pair at Welle-7 (intentional, Tag-75 hot-spot-axis pin).
+    pair at wave 7 (intentional, hot-spot-axis pin).
     """
     families = {
         "sealing": DOPPELBETRIEB_SEALED_WELLEN,
@@ -346,9 +345,9 @@ def test_six_marker_families_pairwise_disjoint_modulo_w7_overlap():
 def test_six_marker_family_union_covers_wellen_2_through_7():
     """The union of all six marker-families MUST be exactly {2,3,4,5,6,7}.
 
-    Welle-1 is the only Welle without a marker-family (Cutover-T0
+    wave 1 is the only wave without a marker-family (cutover-T0
     first-fire; vanilla sign-off path uses ``handle_sign_off_event``).
-    Welle-7 is double-counted in two families (pre-auditor + final-
+    wave 7 is double-counted in two families (pre-auditor + final-
     sealing), but the union absorbs the duplicate.
     """
     union = (
@@ -383,7 +382,7 @@ def test_producer_welle_7_signoff_happy_path(tmp_path):
     assert on_disk["status"] == STATUS_SIGNED_OFF
     assert on_disk["welle_number"] == 7
     assert on_disk["signoff_iso"] == "2026-07-03T15:00:00Z"
-    # Cutover-iso preserved.
+    # cutover-iso preserved.
     assert on_disk["cutover_iso"] == "2026-07-01T08:00:00Z"
 
     assert record.welle_number == 7
@@ -426,7 +425,7 @@ def test_producer_welle_7_signoff_refused_with_empty_final_sealing_marker(
 
 
 def test_producer_welle_7_signoff_refused_with_welle_2_sealed_literal(tmp_path):
-    """Welle-2's ``"sealed"`` MUST NOT authorise the Welle-7 final-sealing.
+    """wave 2's ``"sealed"`` MUST NOT authorise the wave 7 final-sealing.
 
     The two literals are intentionally distinct; passing ``"sealed"``
     where ``"confirmed"`` is required MUST be refused. This pins the
@@ -447,11 +446,11 @@ def test_producer_welle_7_signoff_refused_with_welle_2_sealed_literal(tmp_path):
 def test_producer_welle_7_signoff_refused_without_pre_auditor_decision(
     tmp_path,
 ):
-    """Welle-7 sign-off MUST refuse if pre_auditor_decision is missing.
+    """wave 7 sign-off MUST refuse if pre_auditor_decision is missing.
 
     The pre-auditor guard fires earlier than the final-sealing-marker
     guard in the refusal chain. With both preconditions violated, the
-    producer raises :class:`PreAuditorGuardError` (not
+    producer raises:class:`PreAuditorGuardError` (not
     :class:`FinalSealingError`). This pins the refusal-order to be
     deterministic for audit-trail forensics.
     """
@@ -472,8 +471,8 @@ def test_producer_welle_7_signoff_refused_with_undesignated_pre_auditor(
 ):
     """A non-"designated" pre_auditor_decision MUST raise PreAuditorGuardError.
 
-    Mirrors the Welle-3 pre-auditor-guard test from Tag-71. This pins
-    the symmetric pre-auditor enforcement across Welle-3 and Welle-7.
+    Mirrors the wave 3 pre-auditor-guard test . This pins
+    the symmetric pre-auditor enforcement across wave 3 and wave 7.
     """
     state_dir = tmp_path / "state"
     _seed_in_progress(state_dir, 7, "2026-07-01T08:00:00Z")
@@ -546,8 +545,8 @@ def test_producer_welle_7_signoff_idempotent_still_enforces_pre_auditor_guard(
     """Stricter-idempotency: a retry without pre-auditor MUST be refused
     EVEN IF the state-file already reports signed-off.
 
-    This is the Welle-7-specific stricter-idempotency contract pinned
-    in the handler docstring; it differs from Welle-2/4/5/6 idempotency
+    This is the wave 7 specific stricter-idempotency contract pinned
+    in the handler docstring; it differs from wave 2/4/5/6 idempotency
     (which short-circuit before marker-validation).
     """
     state_dir = tmp_path / "state"
@@ -632,7 +631,7 @@ def test_producer_welle_7_signoff_refused_from_rolled_back(tmp_path):
 
 
 def test_producer_welle_7_signoff_time_invariant_cutover_le_signoff(tmp_path):
-    """Plan-doc §3.4 time-invariant MUST hold across the Welle-7 path."""
+    """Plan-doc §3.4 time-invariant MUST hold across the wave 7 path."""
     state_dir = tmp_path / "state"
     _seed_in_progress(state_dir, 7, "2026-07-03T15:00:00Z")
     producer = WelleStateProducer(state_dir=state_dir)
@@ -647,7 +646,7 @@ def test_producer_welle_7_signoff_time_invariant_cutover_le_signoff(tmp_path):
 
 
 def test_producer_welle_7_signoff_atomic_write_no_partial_state(tmp_path):
-    """On a successful Welle-7 sign-off the on-disk file MUST be fully written."""
+    """On a successful wave 7 sign-off the on-disk file MUST be fully written."""
     state_dir = tmp_path / "state"
     target = _seed_in_progress(state_dir, 7, "2026-07-01T08:00:00Z")
     producer = WelleStateProducer(state_dir=state_dir)
@@ -812,17 +811,16 @@ def test_async_handle_welle_7_signoff_event_refuses_without_pre_auditor(
 
 
 # ---------------------------------------------------------------------------
-# (6) Cross-state interactions: rollback after Welle-7 sign-off.
+# (6) Cross-state interactions: rollback after wave 7 sign-off.
 # ---------------------------------------------------------------------------
 
 
 def test_welle_7_can_be_rolled_back_post_sign_off(tmp_path):
-    """After a Welle-7 sign-off the ``signed-off -> rolled-back`` MUST hold.
+    """After a wave 7 sign-off the ``signed-off -> rolled-back`` MUST hold.
 
-    Forensic note: a Welle-7 rollback AFTER the Phase-3-COMPLETE-marker
+    Forensic note: a wave 7 rollback AFTER the Phase-3-COMPLETE-marker
     has been emitted is a substrate-level Phase-3-COMPLETE-marker
-    inversion event. The audit-trail consumer (Henrik Internal Audit
-    Zone-N) treats this as an S0 Phase-3-Marathon-Schluss-Acceptance
+    inversion event. The audit-trail consumer treats this as an S0 Phase-3-Marathon-Schluss-Acceptance
     inversion; this producer-substrate ONLY records the rollback
     transition itself (rollback-marker-authority + state-machine
     transition). The marker-inversion semantics live at the consumer
@@ -854,7 +852,7 @@ def test_welle_7_can_be_rolled_back_post_sign_off(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# (7) Six-marker-family trigger pairwise-distinct (Tag-75 hot-spot axis).
+# (7) Six-marker-family trigger pairwise-distinct (hot-spot axis).
 # ---------------------------------------------------------------------------
 
 
@@ -864,23 +862,23 @@ def test_marker_family_triggers_are_pairwise_distinct_across_six_families(
     """Across the six marker-guarded sign-off paths the audit-trigger
     MUST be a distinct literal per family.
 
-    Family A (Welle-2 Doppelbetrieb-Sealing)        -> trigger="sealing"
-    Family B (Welle-3 Pre-Auditor Bridge-Audit)     -> trigger="sign-off"
-    Family C (Welle-4 Snapshot-Restore)             -> trigger="snapshot-restore"
-    Family D (Welle-5 Capability-Token)             -> trigger="capability-token-rotation"
-    Family E (Welle-6 Cross-Substrate-Parity)       -> trigger="cross-substrate-parity"
-    Family F (Welle-7 Final-Sealing)                -> trigger="final-sealing"
+    Family A (wave 2 Doppelbetrieb-Sealing) -> trigger="sealing"
+    Family B (wave 3 Pre-Auditor Bridge-Audit) -> trigger="sign-off"
+    Family C (wave 4 Snapshot-Restore) -> trigger="snapshot-restore"
+    Family D (wave 5 Capability-Token) -> trigger="capability-token-rotation"
+    Family E (wave 6 Cross-Substrate-Parity) -> trigger="cross-substrate-parity"
+    Family F (wave 7 Final-Sealing) -> trigger="final-sealing"
 
-    The Welle-7 final-sealing family is DISTINCT from the Welle-3
-    pre-auditor family even though both Wellen are pre-auditor-guarded;
-    Welle-7's downstream consumer fires the
+    The wave 7 final-sealing family is DISTINCT from the wave 3
+    pre-auditor family even though both waves are pre-auditor-guarded;
+    wave 7's downstream consumer fires the
     ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7`` marker which depends on
-    the disjoint trigger-literal to route correctly. Henrik Internal
+    the disjoint trigger-literal to route correctly. internal audit Internal
     Audit relies on this 6-family disjointness when reconciling
-    rollback decisions against the Tomas-Tag-56-Rollback-Workflow
+    rollback decisions against the engineering zone--Rollback-Workflow
     J2..J8 envelope catalog.
     """
-    # Family A: Welle-2 sealing.
+    # Family A: wave 2 sealing.
     state_dir_2 = tmp_path / "state_2"
     _seed_in_progress(state_dir_2, 2, "2026-06-10T08:00:00Z")
     rec_2 = engine_mod.handle_welle_sealing_event(
@@ -889,7 +887,7 @@ def test_marker_family_triggers_are_pairwise_distinct_across_six_families(
         sign_off_marker_status=STATUS_SIGNED_OFF,
         doppelbetrieb_sealed_marker_status=DOPPELBETRIEB_SEALED,
     )
-    # Family B: Welle-3 pre-auditor.
+    # Family B: wave 3 pre-auditor.
     state_dir_3 = tmp_path / "state_3"
     _seed_in_progress(state_dir_3, 3, "2026-06-17T08:00:00Z")
     rec_3 = engine_mod.handle_welle_3_signoff_event(
@@ -898,7 +896,7 @@ def test_marker_family_triggers_are_pairwise_distinct_across_six_families(
         sign_off_marker_status=STATUS_SIGNED_OFF,
         pre_auditor_decision="designated",
     )
-    # Family C: Welle-4 snapshot-restore.
+    # Family C: wave 4 snapshot-restore.
     state_dir_4 = tmp_path / "state_4"
     _seed_in_progress(state_dir_4, 4, "2026-06-24T08:00:00Z")
     rec_4 = engine_mod.handle_welle_4_signoff_event(
@@ -907,7 +905,7 @@ def test_marker_family_triggers_are_pairwise_distinct_across_six_families(
         sign_off_marker_status=STATUS_SIGNED_OFF,
         snapshot_restore_marker_status=SNAPSHOT_RESTORE_VERIFIED,
     )
-    # Family D: Welle-5 capability-token.
+    # Family D: wave 5 capability-token.
     state_dir_5 = tmp_path / "state_5"
     _seed_in_progress(state_dir_5, 5, "2026-06-24T08:00:00Z")
     rec_5 = engine_mod.handle_welle_5_signoff_event(
@@ -916,7 +914,7 @@ def test_marker_family_triggers_are_pairwise_distinct_across_six_families(
         sign_off_marker_status=STATUS_SIGNED_OFF,
         capability_token_rotation_marker_status=CAPABILITY_TOKEN_ROTATED,
     )
-    # Family E: Welle-6 cross-substrate-parity.
+    # Family E: wave 6 cross-substrate-parity.
     state_dir_6 = tmp_path / "state_6"
     _seed_in_progress(state_dir_6, 6, "2026-07-01T08:00:00Z")
     rec_6 = engine_mod.handle_welle_6_signoff_event(
@@ -925,7 +923,7 @@ def test_marker_family_triggers_are_pairwise_distinct_across_six_families(
         sign_off_marker_status=STATUS_SIGNED_OFF,
         cross_substrate_parity_marker_status=CROSS_SUBSTRATE_PARITY_VERIFIED,
     )
-    # Family F: Welle-7 final-sealing (Tag-75, this PR).
+    # Family F: wave 7 final-sealing (this PR).
     state_dir_7 = tmp_path / "state_7"
     _seed_in_progress(state_dir_7, 7, "2026-07-01T08:00:00Z")
     rec_7 = engine_mod.handle_welle_7_signoff_event(
@@ -974,11 +972,11 @@ def test_marker_family_triggers_are_pairwise_distinct_across_six_families(
 
 
 def test_welle_7_final_sealing_trigger_disjoint_from_welle_2_sealing_literal():
-    """The Welle-2 ``"sealing"`` and Welle-7 ``"final-sealing"`` literals
+    """The wave 2 ``"sealing"`` and wave 7 ``"final-sealing"`` literals
     MUST NOT collide.
 
-    Both Wellen carry a sealing-semantics (Welle-2 closes legacy<->new
-    dual-write; Welle-7 closes Phase-3c-Marathon), but the audit-trail
+    Both waves carry a sealing-semantics (wave 2 closes legacy<->new
+    dual-write; wave 7 closes Phase-3c-Marathon), but the audit-trail
     trigger-literals are DISTINCT to disambiguate the bridge-audit-
     writer routing.
     """
@@ -989,14 +987,14 @@ def test_welle_7_final_sealing_trigger_disjoint_from_welle_2_sealing_literal():
 
 
 # ---------------------------------------------------------------------------
-# (8) Audit-record byte-canonical JSON for the Welle-7 record.
+# (8) Audit-record byte-canonical JSON for the wave 7 record.
 # ---------------------------------------------------------------------------
 
 
 def test_welle_7_audit_record_canonical_json_bytes(tmp_path):
-    """The Welle-7 audit-record's canonical-JSON bytes MUST sort keys + UTF-8.
+    """The wave 7 audit-record's canonical-JSON bytes MUST sort keys + UTF-8.
 
-    Mirrors the Tag-69+ audit-record-emitter contract: downstream
+    Mirrors the+ audit-record-emitter contract: downstream
     bridge-audit-writer hashing depends on byte-stable canonical JSON.
     """
     state_dir = tmp_path / "state"
@@ -1033,7 +1031,7 @@ def test_welle_7_audit_record_canonical_json_bytes(tmp_path):
 
 
 def test_final_sealing_error_inherits_from_welle_producer_error():
-    """All Welle-N marker-guard errors MUST share a common parent.
+    """All wave N marker-guard errors MUST share a common parent.
 
     This lets callers ``except WelleProducerError`` once and catch any
     marker-guard refusal without needing to enumerate the six family-

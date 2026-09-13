@@ -2,10 +2,10 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Determinism tests for ``wirelang.schemas.publisher_cli`` capability flags.
 
-Phase-2 Sprint-5 Tag-1 — Publisher-CLI ``--sign`` / ``--gate`` /
+Phase-2 — Publisher-CLI ``--sign`` / ``--gate`` /
 ``--capability-registry`` end-to-end integration.
 
-The Sprint-5 Tag-1 test inventory pins:
+The test inventory pins:
 
 - T-SR-PUB-CG-01: capability-registry JSON loader — happy path
   (single allow-all policy) round-trips to a ``CapabilityPolicyRegistry``
@@ -13,7 +13,7 @@ The Sprint-5 Tag-1 test inventory pins:
 - T-SR-PUB-CG-02: ``--sign`` happy path (LWW publish) — receipt
   ``signed=True``, ``kid=<value>``, ``gate_decision=None``; entry on
   the bucket is the signed entry's underlying ``SchemaRegistryEntry``;
-  signature is produced by the Sprint-4 Tag-1 ``sign_entry`` primitive
+  signature is produced by the ``sign_entry`` primitive
   (verified by re-running ``verify_entry_signature`` over the rebuilt
   pair).
 - T-SR-PUB-CG-03: ``--sign --gate`` happy path — receipt has both
@@ -35,14 +35,14 @@ The Sprint-5 Tag-1 test inventory pins:
   is "dry-run"; ``signed=True``; ``gate_decision`` reflects the
   allow; no bucket touch even on the publish path; deny on dry-run
   also returns exit 7.
-- T-SR-PUB-CG-10: pre-Sprint-5 publish path receipt-shape compat —
+- T-SR-PUB-CG-10: pre- publish path receipt-shape compat —
   a bare publish (no sign / no gate flags) emits a receipt whose
   ``signed`` / ``kid`` / ``gate_decision`` fields are the default-off
   values (``False`` / ``None`` / ``None``); the rest of the receipt
   is byte-equal to a fresh JCS canonicalisation of the same fields.
 
 The tests inject the same ``_MockKvCas`` in-memory backend pattern
-used by the original Sprint-3 Tag-5 inventory.
+used by the original inventory.
 
 Hermetic
 --------
@@ -89,7 +89,7 @@ from wirelang.schemas.registry_nats_kv_backend import (
 
 
 # ---------------------------------------------------------------------------
-# In-memory KV mock (CAS-aware), mirroring the Sprint-3 Tag-5 pattern.
+# In-memory KV mock (CAS-aware), mirroring the pattern.
 # ---------------------------------------------------------------------------
 
 
@@ -363,8 +363,8 @@ class TestTSRPUBCG01CapabilityRegistryLoader:
 class TestTSRPUBCG02SignHappyPath:
     """T-SR-PUB-CG-02: ``--sign`` produces a signed entry; the receipt
     reflects ``signed=True`` and the kid; the bucket contains the
-    underlying entry (signature is not put on the bucket — Sprint-5
-    Tag-1 boundary).
+    underlying entry (signature is not put on the bucket —
+    boundary).
     """
 
     def test_sign_lww_publish(self, tmp_path):
@@ -810,7 +810,7 @@ class TestTSRPUBCG09DryRunSignGate:
 
 
 class TestTSRPUBCG10ReceiptShapeCompat:
-    """Pre-Sprint-5 callers that omit the capability flags must see a
+    """Pre- callers that omit the capability flags must see a
     receipt whose new fields are at their default-off values; the
     JSON-serialised key-set must include the new fields (additive
     minor receipt-shape change).
@@ -834,7 +834,7 @@ class TestTSRPUBCG10ReceiptShapeCompat:
         assert receipt["signed"] is False
         assert receipt["kid"] is None
         assert receipt["gate_decision"] is None
-        # All pre-Sprint-5 fields are still present.
+        # All pre- fields are still present.
         for k in (
             "mode",
             "key",

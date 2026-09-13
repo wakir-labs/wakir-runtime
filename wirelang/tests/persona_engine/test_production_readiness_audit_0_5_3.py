@@ -1,24 +1,24 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic Tag-63 production-readiness-audit companion tests.
+"""Hermetic production-readiness-audit companion tests.
 
-These tests encode the numeric and string assertions of the Tag-63
+These tests encode the numeric and string assertions of the
 post-Final-Bump production-readiness audit report
 (``reports/audit/persona-engine-0-5-3-production-readiness-2026-05-19.md``)
 as executable invariants. A divergence between the audit report and
 the substrate trips the suite in the next CI cycle.
 
-The audit covers seven dimensions of the ``0.5.3`` (Tag-62 final-
+The audit covers seven dimensions of the ``0.5.3`` (final-
 bump, PR #399) engine release substrate; each dimension has a
 dedicated test class (D1..D7). Total test count: 18 (≥15 required
-by the Tag-63 dispatch).
+by the dispatch).
 
 100% hermetic: pytest-only, no network, no subprocess, no Rust
 build, no engine boot, no NATS. Pure file inspection + YAML parse +
 source-grep.
 
-Relationship to Tag-56 audit suite
-(``test_production_readiness_audit_0_5_2.py``): this Tag-63 suite
+Relationship to audit suite
+(``test_production_readiness_audit_0_5_2.py``): this suite
 is the post-Final-Bump counterpart. Audit pattern and dimension
 list are deliberately byte-stable; assertions diverge only where
 the 0.5.3 final-bump introduced a metadata change (version
@@ -41,7 +41,7 @@ yaml = pytest.importorskip(
 )
 
 # ---------------------------------------------------------------------------
-# Anchors — same anchoring strategy as the Tag-56 audit + the new Tag-62
+# Anchors — same anchoring strategy as the audit + the new
 # surfaces (release-notes, __version__.py, v907-hash-baseline.json).
 # ---------------------------------------------------------------------------
 
@@ -197,12 +197,12 @@ V907_SAMPLE_AXIS_A_DIGEST = (
     "sha256:cf66fbc5e02ebee97726d5903460e1c3b2b20d1e10db6db1083bceb62ede6e39"
 )
 
-# Tag-59 V-907 composite-hash seal (audit Dimension 5).
+# V-907 composite-hash seal (audit Dimension 5).
 V907_COMPOSITE_SEAL = (
     "a529d7d1b85ee33c61755cef7cb21793ff0ecf87d2efc5b9267f58526c818857"
 )
 
-# Canonical Tag-62 final-bump engine version literal (cross-cutting).
+# Canonical final-bump engine version literal (cross-cutting).
 CANONICAL_ENGINE_VERSION = "0.5.3"
 
 
@@ -256,13 +256,13 @@ def cargo_workspace_source():
 
 @pytest.fixture(scope="module")
 def manifest_source():
-    """Source-text of the Tag-52 manifest with the Tag-62 §0 rewrite."""
+    """Source-text of the manifest with the §0 rewrite."""
     return MANIFEST_PATH.read_text(encoding="utf-8")
 
 
 @pytest.fixture(scope="module")
 def v907_baseline():
-    """Parsed V-907 composite-hash baseline JSON (Tag-59 seal)."""
+    """Parsed V-907 composite-hash baseline JSON (seal)."""
     return json.loads(V907_BASELINE_PATH.read_text(encoding="utf-8"))
 
 
@@ -314,9 +314,9 @@ class Test10BackendDecisions:
 
     def test_d1_manifest_table_has_10_inventory_rows(self, manifest_source):
         """Manifest §1 must contain a contiguous 1..10 numbered table
-        (the BackendDecision inventory). The §0 Tag-62 rewrite did not
+        (the BackendDecision inventory). The §0 rewrite did not
         change this — the §1 body is byte-stable carry-forward from
-        Tag-52."""
+        the previous manifest revision."""
         rows_1_to_10 = re.findall(
             r"^\|\s*(\d+)\s*\|", manifest_source, re.MULTILINE
         )
@@ -368,7 +368,7 @@ class Test15CratePinPack:
     ):
         """The pin-pack ``invariants:`` block must declare the six audit-
         anchored numeric and string invariants. Carry-forward from
-        Tag-52; the pin-pack YAML was not refreshed for 0.5.3 final."""
+        the pin-pack YAML was not refreshed for 0.5.3 final."""
         inv = pin_pack["invariants"]
         assert inv["total_wired_crates"] == 10
         assert inv["total_pin_pack_crates"] == 15
@@ -405,7 +405,7 @@ class TestEnvFlagConsistency:
         self, pin_pack, rust_switch_py_source
     ):
         """No flag in the wired set may carry the legacy ``_PE_`` infix;
-        the Tag-51 legacy migration-detector must be defined with the
+        the legacy migration-detector must be defined with the
         warn-no-fallback posture; the cross-backend timeout flag must
         be defined."""
         for c in pin_pack["boot_wired_crates"]:
@@ -476,7 +476,7 @@ class TestFsmStateDiagram:
 
 class TestV907PinStability:
     """Audit Dimension 5: V-907 4-crate substrate + ground-truth digest
-    + Tag-59 composite-hash seal byte-stability."""
+    + composite-hash seal byte-stability."""
 
     def test_d5_v907_substrate_four_crates_exist(self):
         """The four V-907-substrate crates must all exist on-disk."""
@@ -501,14 +501,14 @@ class TestV907PinStability:
     def test_d5_v907_composite_seal_unchanged_post_final_bump(
         self, v907_baseline
     ):
-        """The Tag-59 V-907 composite-hash seal must be unchanged
+        """the V-907 composite-hash seal must be unchanged
         post-Final-Bump. The 0.5.3 §0 version-header is outside the
         V-907-bounded byte-range (manifest §1 + pin-pack
         boot_wired_crates + engine.py resolver-block); therefore the
         composite hash is mathematically unaffected. The baseline
         retains ``engine_version: "0.5.3-rc1"`` by design (refresh
-        requires Selin-Hand + Tomás-Zone-K cross-review per the
-        Tag-59 seal contract → OPEN-K3)."""
+        requires the engine zone-Hand + the engineering zone-Zone-K cross-review per the
+        seal contract → OPEN-K3)."""
         assert v907_baseline["composite_hash"] == V907_COMPOSITE_SEAL, (
             f"V-907 composite-hash drift: "
             f"{v907_baseline['composite_hash']} vs. {V907_COMPOSITE_SEAL}"
@@ -565,20 +565,20 @@ class TestContainerfileLayers:
             f"Containerfile layer-count drift: {counts} vs. {expected}"
         )
         # Per-instruction-class totals sum to 21 (1+7+7+3+1+1+1). The
-        # Tag-63 audit-report §3.6 prose-summary "20 instructions" is
+        # audit-report §3.6 prose-summary "20 instructions" is
         # a documented-once minor arithmetic typo carried over from the
-        # Tag-56 report; the canonical machine-readable count is the
+        # report; the canonical machine-readable count is the
         # per-class table above, which this test pins.
         assert sum(counts.values()) == 21
 
     def test_d6_image_version_label_is_carry_forward_tag52_marker(
         self, containerfile_source
     ):
-        """The OCI image-version label is the Tag-52 carry-forward marker
-        ``0.5.2-final-pre-cutover``. The 0.5.3 final-bump (Tag-62) is
+        """The OCI image-version label is the carry-forward marker
+        ``0.5.2-final-pre-cutover``. The 0.5.3 final-bump is
         manifest-and-metadata-only and does NOT refresh the
-        Containerfile label — that refresh is a Kai-Zone-J gate in the
-        KW-24 cutover image-build pipeline (OPEN-J3)."""
+        Containerfile label — that refresh is a the infrastructure zone-Zone-J gate in the
+        calendar week 24 cutover image-build pipeline (OPEN-J3)."""
         m = re.search(
             r'LABEL\s+org\.opencontainers\.image\.version="([^"]+)"',
             containerfile_source,
@@ -642,13 +642,13 @@ class TestCargoWorkspace:
 
 # ---------------------------------------------------------------------------
 # Cross-cutting — audit-report presence + 0.5.3 version anchor +
-# Tag-57 carry-forward evidence (2 tests).
+# carry-forward evidence (2 tests).
 # ---------------------------------------------------------------------------
 
 
 def test_cross_audit_report_present_at_canonical_path_with_verdict():
-    """The Tag-63 audit report must exist at its canonical path and
-    declare the Tag-63 verdict PRODUCTION-READY-WITH-OPEN."""
+    """the audit report must exist at its canonical path and
+    declare the verdict PRODUCTION-READY-WITH-OPEN."""
     assert AUDIT_REPORT_PATH.exists(), (
         f"Audit report missing at {AUDIT_REPORT_PATH}"
     )
@@ -662,15 +662,15 @@ def test_cross_audit_report_present_at_canonical_path_with_verdict():
 
 
 def test_cross_0_5_3_engine_version_anchor_consistent_across_surfaces():
-    """The Tag-62 final-bump engine version literal ``0.5.3`` must be
+    """the final-bump engine version literal ``0.5.3`` must be
     consistent across the four canonical surfaces: __version__.py,
     engine.py import comment, engine_async.py ASYNC_ENGINE_VERSION,
     cli.py module docstring. Plus the manifest §0 Version Header and
     the release-notes anchor file must declare the same literal.
 
-    This is the cross-cutting Tag-62 invariant the Tag-60 drift-
+    This is the cross-cutting invariant the drift-
     scanner (`tooling/ci/scan_engine_version_drift.py`) was wired to
-    catch; this audit re-asserts it as a Tag-63 hermetic invariant.
+    catch; this audit re-asserts it as a hermetic invariant.
     """
     version_py = VERSION_PY_PATH.read_text(encoding="utf-8")
     assert f'__version__ = "{CANONICAL_ENGINE_VERSION}"' in version_py, (
@@ -679,7 +679,7 @@ def test_cross_0_5_3_engine_version_anchor_consistent_across_surfaces():
 
     engine_py = ENGINE_PY_PATH.read_text(encoding="utf-8")
     # engine.py imports ENGINE_VERSION from __version__ — the import
-    # comment line is the Tag-62 anchor that the drift-scanner watches.
+    # comment line is the anchor that the drift-scanner watches.
     assert "from .__version__ import ENGINE_VERSION" in engine_py, (
         "engine.py missing the canonical-anchor import"
     )
@@ -704,7 +704,7 @@ def test_cross_0_5_3_engine_version_anchor_consistent_across_surfaces():
     )
 
     manifest = MANIFEST_PATH.read_text(encoding="utf-8")
-    # Manifest §0 Version Header (Tag-62 rewrite) must record 0.5.3 as
+    # Manifest §0 Version Header (rewrite) must record 0.5.3 as
     # the active engine version.
     assert "Tag-62" in manifest, "Manifest §0 missing Tag-62 marker"
     assert (

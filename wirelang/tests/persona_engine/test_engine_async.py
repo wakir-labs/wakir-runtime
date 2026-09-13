@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BUSL-1.1
-"""Sprint-Pengine-9 OI-PEFR-3 tests: AsyncPersonaEngine wrapper.
+"""-Pengine-9 OI-PEFR-3 tests: AsyncPersonaEngine wrapper.
 
 The async engine inherits the boot/spawn semantics from the sync
 engine but runs natively on asyncio. Tests cover:
@@ -7,7 +7,7 @@ engine but runs natively on asyncio. Tests cover:
   - Boot path: V-907 verify + SVID probe + async state-backing attach.
   - Spawn path: FSM transitions + first audit-annotation emission.
   - Run loop: heartbeat task, drill task, subscribe task.
-  - Stop semantics: request_stop() cancels all background tasks.
+  - Stop semantics: request_stop cancels all background tasks.
   - In-memory fence: empty WAKIR_NATS_SERVERS -> InMemory fallback.
 """
 
@@ -362,7 +362,7 @@ def test_async_despawn_clean_completes(tmp_path):
 
 
 def test_async_engine_version_constant():
-    # Sprint-Pengine-10 bump: 0.3.0-pilot -> 0.4.0-pilot for the NATS-
+    # -Pengine-10 bump: 0.3.0-pilot -> 0.4.0-pilot for the NATS-
     # subscribe-loop substrate + LLM-Call-Shim addition. The async
     # engine remains a strict superset of 0.3.0-pilot.
     assert ASYNC_ENGINE_VERSION == "0.5.3"

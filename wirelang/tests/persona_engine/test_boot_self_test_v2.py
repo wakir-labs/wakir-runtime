@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tag-50 hermetic suite for the Persona-Engine Boot Self-Test **v2**.
+"""hermetic suite for the Persona-Engine Boot Self-Test **v2**.
 
 Re-runs every check in ``scripts/persona-engine/boot-self-test-v2.py``
-under pytest so CI enforces the same Tag-50 invariants the operator
-runs by hand during cutover. The v2 script extends the Tag-48 self-
+under pytest so CI enforces the same invariants the operator
+runs by hand during cutover. The v2 script extends the self-
 test (``boot-self-test.py``) with:
 
   * 15-Crate Cross-Lang-Pin Coverage live in Boot.
@@ -25,7 +25,7 @@ Hermetic envelope
   ``pin-pack-0.5.1-pre-cutover.yaml`` from the repo.
 * Deterministic.
 
-Test inventory (>= 15 required per Tag-50 brief)
+Test inventory (>= 15 required per brief)
 -------------------------------------------------
 
 The suite delegates to the 22 checks the v2 script defines plus
@@ -110,7 +110,7 @@ def test_v2_script_present_and_executable():
 
 
 def test_v2_script_check_count_at_least_fifteen(boot_self_test_v2_module):
-    """Tag-50 brief floor: >= 15 hermetic checks."""
+    """brief floor: >= 15 hermetic checks."""
     checks = boot_self_test_v2_module.CHECKS
     assert (
         len(checks) >= 15
@@ -120,7 +120,7 @@ def test_v2_script_check_count_at_least_fifteen(boot_self_test_v2_module):
 def test_v2_script_full_run_passes(
     boot_self_test_v2_module, clean_wakir_env
 ):
-    """End-to-end: invoke run_self_test() and assert all checks pass."""
+    """End-to-end: invoke run_self_test and assert all checks pass."""
     report = boot_self_test_v2_module.run_self_test()
     failing = [c.name for c in report.checks if not c.passed]
     assert report.passed, f"failing checks: {failing}"
@@ -183,7 +183,7 @@ def test_v2_script_via_subprocess_exit_code(clean_wakir_env):
 
 
 def test_v2_script_manifest_version_constant(boot_self_test_v2_module):
-    """Pin the manifest-version constant to the Tag-48 anchor."""
+    """Pin the manifest-version constant to the anchor."""
     assert (
         boot_self_test_v2_module.EXPECTED_MANIFEST_VERSION
         == "0.5.1-pre-cutover"
@@ -191,14 +191,14 @@ def test_v2_script_manifest_version_constant(boot_self_test_v2_module):
 
 
 def test_v2_script_total_pin_pack_crates_fifteen(boot_self_test_v2_module):
-    """Tag-50 brief: 15-crate cardinality is canonical."""
+    """brief: 15-crate cardinality is canonical."""
     assert (
         boot_self_test_v2_module.EXPECTED_TOTAL_PIN_PACK_CRATES == 15
     )
 
 
 def test_v2_script_boot_wired_pinpack_decadent(boot_self_test_v2_module):
-    """10 boot-wired pin-pack entries — Tag-48 anchor preserved."""
+    """10 boot-wired pin-pack entries — anchor preserved."""
     assert len(boot_self_test_v2_module.EXPECTED_PIN_PACK_BOOT_WIRED) == 10
 
 

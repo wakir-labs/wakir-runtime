@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BUSL-1.1
-"""Tests for the Phase-2 Sprint-7 Tag-5 UnrevokeAuditMarker
+"""Tests for the Phase-2 UnrevokeAuditMarker
 cross-org export surface
 (``wirelang.federation.unrevoke_audit_marker_cross_org_export``).
 
@@ -46,7 +46,7 @@ Test inventory (T-UMCX-01..07):
   anchored to a different attestation has a distinct identity.
 
 All tests are hermetic: no network, no FS. The exporter consumes
-a constructed :class:`MultiOrgRouteAttestation` and a constructed
+a constructed:class:`MultiOrgRouteAttestation` and a constructed
 :class:`UnrevokeAuditMarker`.
 
 ADR-0050 Tool-Surface-Stempel: Read, Edit, Write, Bash. No
@@ -259,8 +259,8 @@ def test_export_honours_pluggable_classifier():
 def test_subclass_declaring_raw_narrative_field_is_rejected():
     """T-UMCX-05 raw-narrative-leak: a subclass that declares a
     ``unrevoke_reason`` attribute (bypassing the exporter) is
-    rejected by :class:`ExportedUnrevokeAuditMarker.__post_init__`
-    via :class:`RawNarrativeLeakError`.
+    rejected :class:`ExportedUnrevokeAuditMarker.__post_init__`
+    via:class:`RawNarrativeLeakError`.
 
     The exporter never emits raw narrative; this gate protects
     against a constructor-bypass call path.

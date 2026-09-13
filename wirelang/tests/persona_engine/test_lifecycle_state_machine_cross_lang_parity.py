@@ -3,7 +3,7 @@
 """Cross-lang parity tests for the persona-engine lifecycle-state-machine.
 
 The Python module under test
-(:mod:`wirelang.persona_engine.lifecycle_state_machine_canonical`) is
+:mod:`wirelang.persona_engine.lifecycle_state_machine_canonical`) is
 Apache-2.0; this test file is Apache-2.0 so downstream re-implementers
 can re-use the same fixture vectors.
 

@@ -12,9 +12,9 @@ Verifies:
   too few shares to combine, corrupted share.
 
 Note:
-- We import :mod:`shamir_mnemonic` directly only for the canonical
+- We import:mod:`shamir_mnemonic` directly only for the canonical
   test-vector verification. The Wakir wrapper API is exercised
-  through :mod:`wirelang.identity.shamir_split`.
+  through:mod:`wirelang.identity.shamir_split`.
 """
 
 from __future__ import annotations

@@ -2,22 +2,22 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Hermetic tests for the classifier-decision-cache + production wiring.
 
-ADR-0064 Phase-2c production-wiring — Sprint Tag-16 mini-welle.
+ADR-0064 Phase-2c production-wiring — mini-wave.
 
 Test coverage matrix:
 
-1.  ``read_cache_ttl_seconds``: default, parse, clamp, unparseable
-2.  ``derive_task_hash``: deterministic + sensitive to every input
-3.  ``ClassifierDecisionCache``: enabled / disabled flag honours TTL=0
-4.  Cache lookup miss → store → hit (deterministic round-trip)
-5.  Cache TTL expiry: fake-clock advance evicts entry and reports
+1. ``read_cache_ttl_seconds``: default, parse, clamp, unparseable
+2. ``derive_task_hash``: deterministic + sensitive to every input
+3. ``ClassifierDecisionCache``: enabled / disabled flag honours TTL=0
+4. Cache lookup miss → store → hit (deterministic round-trip)
+5. Cache TTL expiry: fake-clock advance evicts entry and reports
     ``"expired"`` cache-event
-6.  Cache lookup sink captures the structured-JSON event envelope
+6. Cache lookup sink captures the structured-JSON event envelope
     (hit, miss, disabled, expired)
-7.  Cache disabled (TTL=0) → store is a no-op + lookup returns None
-8.  Task-hash includes persona-def pin → persona-def change
+7. Cache disabled (TTL=0) → store is a no-op + lookup returns None
+8. Task-hash includes persona-def pin → persona-def change
     invalidates the cache
-9.  ``classify`` via mock-haiku-backend yields the expected tier-class
+9. ``classify`` via mock-haiku-backend yields the expected tier-class
     for representative prompt shapes (production-wiring contract)
 10. ``classify`` via mock-haiku-backend yields the expected
     sonnet-class for code-heavy mid-length prompts

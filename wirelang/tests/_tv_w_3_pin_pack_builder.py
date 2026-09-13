@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""TV-W-3 federation-resolver-roundtrip pin-pack builder (Phase-1b Tag-17).
+"""TV-W-3 federation-resolver-roundtrip pin-pack builder (Phase-1b).
 
 Implements the deterministic builder for the TV-W-3 vector specified
 in ``wirelang/specs/wirelang-tv-strategy.md`` §3.
@@ -40,7 +40,7 @@ Hermetic vs live boundary:
   bundles in ``fixtures/tv-w-3/replay/`` are produced (and refreshed)
   by this builder; the bundle's ``captured-at.txt`` records the
   generation timestamp for the §3.4-A5 freshness check.
-- Live mode is opt-in via ``WIRELANG_LIVE_FEDERATION=1``. The Tag-17
+- Live mode is opt-in via ``WIRELANG_LIVE_FEDERATION=1``. The
   scope ships the trace generator side; live execution requires
   externally-published DNS / HTTPS infrastructure and is not exercised
   in CI lanes (operator-on-demand, mirroring WAT public-OTS).
@@ -133,7 +133,7 @@ TV_W_3_ISSUER_KID: str = "federated-issuer-1"
 
 
 # ---------------------------------------------------------------------------
-# JCS resolver indirection (Tag-9)
+# JCS resolver indirection
 # ---------------------------------------------------------------------------
 
 
@@ -208,7 +208,7 @@ def _sign_ftd_body(body: dict, ftd_root_priv32: bytes) -> dict:
 
     Returns the now-signed body (mutated). The signing input is
     SHA-256(JCS(body without document_signature)); identical
-    construction to :func:`compute_ftd_fingerprint_from_body` so the
+    construction to:func:`compute_ftd_fingerprint_from_body` so the
     DNS-anchor fingerprint equals the SHA-256 of the same JCS bytes.
     """
     jcs = _make_jcs_canonicalize()
@@ -303,7 +303,7 @@ class _FakeAIPResolver:
     fixture path we instead model the post-Phase-1a-verify surface and
     let the federation cross-checks (steps 4 and 7) do their work.
     The hermetic AIP-body is itself signed via the production
-    :func:`sign_aip_document` so the signature is real and the Tag-9
+    :func:`sign_aip_document` so the signature is real and the
     ``verify_from_transport`` step (consumer side) still exercises a
     real Ed25519 verify.
     """
@@ -329,7 +329,7 @@ class _PipelineArtefacts:
     """Internal artefacts produced by one pipeline run.
 
     Held in-process; the public pin-pack is the projection of these
-    artefacts into deterministic JSON via :func:`build_pin_pack`.
+    artefacts into deterministic JSON via:func:`build_pin_pack`.
     """
 
     ftd_body_signed: dict
@@ -384,15 +384,15 @@ def _run_pipeline(*, seed_hex: str = TV_W_3_TEST_SEED_HEX) -> _PipelineArtefacts
     aip_body_bytes = jcs(aip_body)
 
     # 4. Build hermetic DNS resolver (TXT-record carries the recomputed
-    #    fingerprint).
+    # fingerprint).
     dns_anchor_payload = _txt_anchor_payload(ftd_fingerprint)
     dns = _FakeTxtResolver(
         {f"_wakir-ftd.{TV_W_3_DOMAIN}": (dns_anchor_payload,)},
     )
 
     # 5. AIP resolver stub. ``jcs_sha256`` is recomputed from the
-    #    canonical bytes WITHOUT the document_signature, mirroring the
-    #    Phase-1a resolver's contract.
+    # canonical bytes WITHOUT the document_signature, mirroring the
+    # Phase-1a resolver's contract.
     aip_unsigned = copy.deepcopy(aip_body)
     aip_unsigned.pop("document_signature", None)
     aip_jcs_sha256 = hashlib.sha256(jcs(aip_unsigned)).hexdigest()
@@ -416,11 +416,11 @@ def _run_pipeline(*, seed_hex: str = TV_W_3_TEST_SEED_HEX) -> _PipelineArtefacts
     )
 
     # 7. verify_from_transport over the AIP body bytes (consumer side
-    #    integrity gate). We do an in-tree verify against the resolved
-    #    biscuit-root pubkey rather than re-stamping the bridge here:
-    #    the bridge's role in this trace is to confirm that the body
-    #    bytes the federation pipeline saw are the same bytes that a
-    #    downstream consumer would verify.
+    # integrity gate). We do an in-tree verify against the resolved
+    # biscuit-root pubkey rather than re-stamping the bridge here:
+    # the bridge's role in this trace is to confirm that the body
+    # bytes the federation pipeline saw are the same bytes that a
+    # downstream consumer would verify.
     sig_ok = verify_aip_signature(
         aip_body,
         aip_body["document_signature"],
@@ -534,10 +534,10 @@ def export_replay_bundle(
 
     Layout:
 
-    ``dns/_wakir-ftd.<domain>.txt``  -- raw TXT record (one line).
-    ``https/<aip_id>.json``          -- AIP body bytes (signed).
-    ``https/<ftd_id>.json``          -- FTD body bytes (signed).
-    ``captured-at.txt``              -- ISO-8601 UTC timestamp.
+    ``dns/_wakir-ftd.<domain>.txt`` -- raw TXT record (one line).
+    ``https/<aip_id>.json`` -- AIP body bytes (signed).
+    ``https/<ftd_id>.json`` -- FTD body bytes (signed).
+    ``captured-at.txt`` -- ISO-8601 UTC timestamp.
 
     The TXT and JSON files are JCS-canonical / spec-canonical so a
     downstream live-mode test can replay them byte-stable. The

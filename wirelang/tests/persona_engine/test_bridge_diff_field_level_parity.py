@@ -2,12 +2,12 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Cross-language Field-Level Diff parity pins between Python and Rust.
 
-Tag-17 Mini-Welle, Phase-3a-Python-Sync-Erweiterung — sister to the
+Mini-wave, Phase-3a-Python-Sync-Erweiterung — sister to the
 Rust-side cross-language test ``persona-engine-bridge-diff/tests/
-cross_lang_field_diff_test.rs``. Sprint-Pengine-15 (PR #106) and
-Sprint-Bridge-Diff-Engine-Rust-MINI (PR #131) shipped
+cross_lang_field_diff_test.rs``. -Pengine-15 (PR #106) and
+-Bridge-Diff-Engine-Rust-MINI (PR #131) shipped
 ``bridge_audit_diff_engine.py`` and the ``persona-engine-bridge-diff``
-crate respectively. Tomás's Bridge-Audit-Roundtrip-E2E (PR #156)
+crate respectively. The engineering zone's Bridge-Audit-Roundtrip-E2E (PR #156)
 pinned three Stream-Hash anchors between the two. This module pins
 the next layer down: **per-field-level diff output** — same record
 on both sides MUST produce identical RFC-6901 field-paths in the
@@ -20,9 +20,9 @@ For each fixture below, both the Python ``diff_envelopes()`` helper
 and the Rust ``persona_engine_bridge_diff::diff_envelopes()`` helper
 MUST emit the same sequence of ``(path, kind_as_str)`` tuples (sorted
 by path) when fed the same A/B envelope pair. The Python side asserts
-this directly against the frozen pins in :data:`CROSS_LANG_PIN_TABLE`.
+this directly against the frozen pins :data:`CROSS_LANG_PIN_TABLE`.
 The Rust side reads ``cross_lang_field_diff_fixtures.json`` (emitted
-by :func:`test_15_emit_fixture_file_for_rust_cross_lang_test`) and
+:func:`test_15_emit_fixture_file_for_rust_cross_lang_test`) and
 asserts the same pins.
 
 A future regression in either implementation's walker, RFC-6901
@@ -32,27 +32,27 @@ test failure on whichever side drifted first.
 Coverage map (10 tests)
 -----------------------
 
-1.  Baseline: identical records yield empty diff (Pin-0).
-2.  Nested-object value drift at ``/a/b/c`` (Pin-1).
-3.  Array-with-index-pinning: middle-element drift (Pin-2).
-4.  null-vs-missing distinction: ``None``-valued key on one side
+1. Baseline: identical records yield empty diff (Pin-0).
+2. Nested-object value drift at ``/a/b/c`` (Pin-1).
+3. Array-with-index-pinning: middle-element drift (Pin-2).
+4. null-vs-missing distinction: ``None``-valued key on one side
     surfaces as ``only-in-a`` (Pin-3).
-5.  Empty-array vs absent-key: ``[]`` on one side, key absent on
+5. Empty-array vs absent-key: ``[]`` on one side, key absent on
     the other (Pin-4).
-6.  Special-chars in keys + multi-field drift: ``/`` and ``~``
+6. Special-chars in keys + multi-field drift: ``/`` and ``~``
     escapes plus nested-array drift (Pin-5).
-7.  Diff entries sorted by path: ordering is deterministic and
+7. Diff entries sorted by path: ordering is deterministic and
     lexicographic across all fixtures.
-8.  ``DiffKind.value`` alphabet matches the Rust ``DiffKind::as_str()``
+8. ``DiffKind.value`` alphabet matches the Rust ``DiffKind::as_str()``
     output one-to-one.
-9.  JCS hash determinism for each fixture matches Python ``jcs_hash``
+9. JCS hash determinism for each fixture matches Python ``jcs_hash``
     pins (cross-checked with Rust ``jcs_hash`` via the existing
     bridge-diff smoke-test pin anchor pattern).
 10. Fixture file written to disk is byte-stable across runs (the Rust
     test loads it; instability here would silently invalidate the
     Rust assertions).
 
-The fixture file lives at::
+The fixture file lives ::
 
     wirelang-rust/crates/persona-engine-bridge-diff/tests/
         cross_lang_field_diff_fixtures.json
@@ -127,11 +127,11 @@ FIXTURE_PIN_5_B: Mapping[str, Any] = {
 
 
 # Each row pins, for one fixture pair:
-#   - the expected sequence of (path, DiffKind.value) tuples after
-#     diff_envelopes(A, B) sorted by path,
-#   - the expected JCS hash of A and B (frozen 2026-05-17 from the
-#     Python jcs_hash output, identical to the Rust serde_jcs +
-#     sha2::Sha256 output for the same envelope).
+# - the expected sequence of (path, DiffKind.value) tuples after
+# diff_envelopes(A, B) sorted by path,
+# - the expected JCS hash of A and B (frozen 2026-05-17 from the
+# Python jcs_hash output, identical to the Rust serde_jcs +
+# sha2::Sha256 output for the same envelope).
 CROSS_LANG_PIN_TABLE: Sequence[Mapping[str, Any]] = (
     {
         "pin_id": "pin-0-identical",
@@ -222,8 +222,8 @@ CROSS_LANG_PIN_TABLE: Sequence[Mapping[str, Any]] = (
 # Resolve the fixture file path RELATIVE to the test file so the
 # emitter test runs from any pytest cwd. The layout is::
 #
-#   <workspace-root>/wirelang/tests/persona_engine/<this-file>.py
-#   <workspace-root>/wirelang-rust/crates/persona-engine-bridge-diff/tests/
+# <workspace-root>/wirelang/tests/persona_engine/<this-file>.py
+# <workspace-root>/wirelang-rust/crates/persona-engine-bridge-diff/tests/
 #
 # so ``wirelang/`` is ``parents[2]`` and the workspace root is its
 # ``.parent``. We use ``.resolve()`` so symlinks (e.g. git worktrees)
@@ -252,7 +252,7 @@ FIXTURE_FILE_PATH = _RUST_CRATE_TESTS / "cross_lang_field_diff_fixtures.json"
     ids=[row["pin_id"] for row in CROSS_LANG_PIN_TABLE],
 )
 def test_01_through_06_field_level_pins(pin: Mapping[str, Any]) -> None:
-    """Each pin in :data:`CROSS_LANG_PIN_TABLE` round-trips through
+    """Each pin :data:`CROSS_LANG_PIN_TABLE` round-trips through
     Python ``diff_envelopes`` to the exact expected entries.
 
     This is the core cross-lang contract on the Python side. The

@@ -4,7 +4,7 @@
 These tests cover two phases of the ``caveat_hash(self_hash)`` Class-P
 promotion path:
 
-Phase A (substrate readiness, T-CHP-01..06 + aux, Sprint-2 Tag-2):
+Phase A (substrate readiness, T-CHP-01..06 + aux,):
   Verifier-side algorithm "extract self_hash, recompute over the
   surrounding caveat-set excluding the predicate, compare" defined on
   top of §4-CSC. Recomputation is idempotent and order-independent
@@ -15,7 +15,7 @@ Phase A (substrate readiness, T-CHP-01..06 + aux, Sprint-2 Tag-2):
   predicate that *names the very same hash* — because the predicate
   itself is excluded from the recomputation.
 
-Phase B (ratified-promotion, T-CHP-07..11, Sprint-6 Tag-8):
+Phase B (ratified-promotion, T-CHP-07..11,):
   ADR-0052 (approved 2026-05-12) ratified Option B — promotion as a
   v0.2.0 → v0.2.1 schema patch. These additional tests pin the
   ratified surface end-to-end: the dedicated pattern-arm admits
@@ -216,11 +216,11 @@ def test_chp_aux_canonical_bytes_are_deterministic_under_dedup() -> None:
 
 
 # ===========================================================================
-# Phase B — ADR-0052 ratified-promotion tests (Sprint-6 Tag-8)
+# Phase B — ADR-0052 ratified-promotion tests
 # ===========================================================================
 #
 # These tests anchor the v0.2.0 → v0.2.1 schema bump. They are the
-# Mira-Trigger-pflichtige acceptance for Tag-8: schema admits the
+# operator-Trigger-pflichtige acceptance : schema admits the
 # canonical literal, the TV-W-2 golden pin-pack hash recomputes
 # byte-equal, the residual Class-P reservation (`persona_pin`)
 # still bites, and the v0.2.1 ratification surface is materialised.
@@ -256,7 +256,7 @@ def test_chp_07_tv_w_2_pin_pack_hash_golden_matches() -> None:
     builder still computes the same caveat-set hashes per §4-CSC
     because the recompute algorithm excludes ``caveat_hash`` from
     the input set. This test is therefore a pin-stability beleg in
-    the strict sense: the bytes that were pinned at Tag-16 are the
+    the strict sense: the bytes that were pinned at are the
     bytes that are still pinned post-promotion.
     """
     with _TV_W_2_PIN_PACK_PATH.open("r", encoding="utf-8") as fh:

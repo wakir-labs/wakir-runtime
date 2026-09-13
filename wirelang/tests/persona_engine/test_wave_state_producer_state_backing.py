@@ -2,16 +2,16 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreEnd
-"""Tag-72 - Welle-4 State-Backing Producer + Top-Level Handler (Selin).
+"""- wave 4 State-Backing Producer + Top-Level Handler.
 
-Tag-69 (PR #438) shipped the Welle-1 producer-path. Tag-70 (PR #444)
-shipped Welle-2 Doppelbetrieb-Sealing + Rollback-Writer. Tag-71
-(PR #451) wired the top-level handlers + Welle-3 Bridge-Audit sign-off
-shorthand. Tag-72 (this PR) adds the **Welle-4 State-Backing sign-off**
-shorthand (KW-25 Mo) with the snapshot-restore-marker precondition
-(Tomas-Tag-56-Rollback-Workflow §J4).
+PR #438 shipped the wave 1 producer-path. PR #444
+shipped wave 2 Doppelbetrieb-Sealing + Rollback-Writer.
+(PR #451) wired the top-level handlers + wave 3 Bridge-Audit sign-off
+shorthand. This change adds the **wave 4 State-Backing sign-off**
+shorthand (calendar week 25 Mo) with the snapshot-restore-marker precondition
 
-Scope (Tag-72)
+
+Scope
 --------------
 
 One new producer-method:
@@ -20,14 +20,14 @@ One new producer-method:
   in-progress -> signed-off transition gated by two markers:
   ``sign_off_marker_status == "signed-off"`` AND
   ``snapshot_restore_marker_status == "restored"``. Audit-record
-  carries ``trigger="snapshot-restore"`` (disambiguates from Welle-2
+  carries ``trigger="snapshot-restore"`` (disambiguates from wave 2
   ``trigger="sealing"`` and vanilla ``trigger="sign-off"``).
 
 One new top-level handler in ``wirelang.persona_engine.engine``:
 
 * ``handle_welle_4_signoff_event`` -- delegates to the producer
   method above with ``welle_number=4`` hard-coded (State-Backing
-  Welle, KW-25 Mo).
+  wave, calendar week 25 Mo).
 
 And one async wrapper in ``wirelang.persona_engine.engine_async``:
 
@@ -37,29 +37,27 @@ And one async wrapper in ``wirelang.persona_engine.engine_async``:
 Pre-boot Backend-Decision-Order verification
 --------------------------------------------
 
-Welle-4 binds the ``state_backing`` rust<->python BackendDecision
-(per the Tag-57 emit-order-pin, the 10-BackendDecision-Manifest-Parity
-contract). This test-suite pins the Welle-4 <-> state_backing binding
+wave 4 binds the ``state_backing`` rust<->python BackendDecision
+(per the emit-order-pin, the 10-BackendDecision-Manifest-Parity
+contract). This test-suite pins the wave 4 <-> state_backing binding
 at the structural level (``SNAPSHOT_RESTORE_GUARDED_WELLEN == {4}``)
 without coupling to the rust_backend_switch substrate directly --
-the binding-check is the state-file conventions verifier's job,
+The binding-check is the state-file conventions verifier's job,
 not the producer-substrate's.
 
 Hermetic envelope
 -----------------
 
 No network. No NATS, no SPIRE, no gRPC. No subprocess. Pure in-process
-file I/O against ``tmp_path`` fixtures. Mirrors the Tag-69 / Tag-70 /
-Tag-71 producer-test conventions verbatim.
+file I/O against ``tmp_path`` fixtures. Mirrors the / /
+producer-test conventions verbatim.
 
-Scope discipline (Selin)
+Scope discipline
 ------------------------
 
-This test does NOT modify persona definitions (Aisha-Domaene,
-ADR-0043), WAT-core logic (Tomas-Domaene, Zone-K), identity-substrate
-design (Reza-Domaene, Zone-L), or container-infra (Kai-Domaene,
-Zone-J). It pins the Tag-72 add-on Welle-4 sign-off shorthand and
-reuses the Tag-67 schema-pin verbatim (no schema changes; the
+This test does NOT modify persona definitions, WAT-core logic, identity-substrate
+design, or container-infra. It pins the add-on wave 4 sign-off shorthand and
+reuses the schema-pin verbatim (no schema changes; the
 snapshot-restore-iso lives in the audit-stream, not in the
 state-file).
 """
@@ -96,7 +94,7 @@ from wirelang.persona_engine.welle_state_producer import (
 
 
 # ---------------------------------------------------------------------------
-# Helpers (mirror Tag-69 / Tag-70 / Tag-71 layout).
+# Helpers (mirror / / layout).
 # ---------------------------------------------------------------------------
 
 
@@ -175,23 +173,23 @@ class _RecordingEmitter:
 
 
 def test_welle_4_is_snapshot_restore_guarded_constant_pin():
-    """Welle-4 MUST be in SNAPSHOT_RESTORE_GUARDED_WELLEN (Tag-72 §2.5).
+    """wave 4 MUST be in SNAPSHOT_RESTORE_GUARDED_WELLEN (§2.5).
 
-    This pins the precondition that the Tag-72 Welle-4 sign-off
+    This pins the precondition that the wave 4 sign-off
     shorthand depends on (snapshot-restore-marker gate; the 10th
-    pre-boot BackendDecision binds to Welle-4 per the
-    Tag-57-emit-order-pin).
+    pre-boot BackendDecision binds to wave 4 per the
+    -emit-order-pin).
     """
     assert 4 in SNAPSHOT_RESTORE_GUARDED_WELLEN
-    # Welle-4 is the ONLY snapshot-restore-guarded Welle.
+    # wave 4 is the ONLY snapshot-restore-guarded wave.
     assert SNAPSHOT_RESTORE_GUARDED_WELLEN == frozenset({4})
 
 
 def test_welle_4_disjoint_from_other_marker_guarded_welle_sets():
-    """Welle-4 MUST NOT overlap with the other marker-guarded sets.
+    """wave 4 MUST NOT overlap with the other marker-guarded sets.
 
     Each marker-guard family (sealing for W2, pre-auditor for W3/W7,
-    snapshot-restore for W4) MUST be disjoint -- a single Welle
+    snapshot-restore for W4) MUST be disjoint -- a single wave
     cannot have two simultaneous marker-families without ambiguating
     the audit-stream trigger field.
     """
@@ -206,7 +204,7 @@ def test_welle_4_disjoint_from_other_marker_guarded_welle_sets():
 def test_snapshot_restore_verified_literal_is_canonical():
     """The marker authority literal MUST be exactly "restored".
 
-    Mirrors the design of :data:`DOPPELBETRIEB_SEALED` ("sealed") and
+    Mirrors the design of:data:`DOPPELBETRIEB_SEALED` ("sealed") and
     :data:`ROLLBACK_MARKER_AUTHORIZED` ("rollback-authorized"). The
     literal is an audit-trail anchor; any drift breaks the
     operator-curated marker contract.
@@ -215,13 +213,13 @@ def test_snapshot_restore_verified_literal_is_canonical():
 
 
 def test_engine_module_exposes_welle_4_handler():
-    """Tag-72: engine.py MUST expose ``handle_welle_4_signoff_event``."""
+    """: engine.py MUST expose ``handle_welle_4_signoff_event``."""
     assert hasattr(engine_mod, "handle_welle_4_signoff_event")
     assert callable(engine_mod.handle_welle_4_signoff_event)
 
 
 def test_engine_async_module_exposes_welle_4_handler():
-    """Tag-72: engine_async.py MUST expose the async wrapper as coroutine."""
+    """: engine_async.py MUST expose the async wrapper as coroutine."""
     assert hasattr(engine_async_mod, "handle_welle_4_signoff_event")
     assert inspect.iscoroutinefunction(
         engine_async_mod.handle_welle_4_signoff_event
@@ -255,7 +253,7 @@ def test_producer_welle_4_signoff_happy_path(tmp_path):
     assert on_disk["status"] == STATUS_SIGNED_OFF
     assert on_disk["welle_number"] == 4
     assert on_disk["signoff_iso"] == "2026-06-16T15:00:00Z"
-    # Cutover-iso preserved.
+    # cutover-iso preserved.
     assert on_disk["cutover_iso"] == "2026-06-16T08:00:00Z"
 
     assert record.welle_number == 4
@@ -401,12 +399,12 @@ def test_handle_welle_4_signoff_event_uses_noop_emitter_when_none(tmp_path):
 
 
 def test_handle_welle_4_signoff_event_hardcodes_welle_number_4(tmp_path):
-    """The Welle-4 shorthand MUST always write welle-4.json regardless
+    """The wave 4 shorthand MUST always write wave 4.json regardless
     of which other state-files exist in state_dir.
 
-    Sibling welle-3 / welle-5 files MUST remain byte-untouched (the
-    snapshot-restore-marker is Welle-4-specific; misbinding to W3/W5
-    would silently corrupt the cross-Welle ordering invariant).
+    Sibling wave 3 / wave 5 files MUST remain byte-untouched (the
+    snapshot-restore-marker is wave 4 specific; misbinding to W3/W5
+    would silently corrupt the cross-wave ordering invariant).
     """
     state_dir = tmp_path / "state"
     target_3 = _seed_in_progress(state_dir, 3, "2026-06-13T08:00:00Z")
@@ -483,18 +481,17 @@ def test_handlers_preserve_schema_pin_after_welle_4_signoff(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# State-Backing Pre-Boot Order verification (Tag-57 emit-order-pin).
+# State-Backing Pre-Boot Order verification (emit-order-pin).
 # ---------------------------------------------------------------------------
 
 
 def test_welle_4_snapshot_restore_audit_trigger_disambiguates_from_sealing(
     tmp_path,
 ):
-    """The Welle-4 audit-record trigger MUST be "snapshot-restore", not
+    """The wave 4 audit-record trigger MUST be "snapshot-restore", not
     "sign-off" or "sealing".
 
-    This is critical for downstream audit-stream consumers (Henrik
-    Internal Audit) to distinguish the three Welle marker-families
+    This is critical for downstream audit-stream consumers to distinguish the three wave marker-families
     when reconciling rollback-decisions.
     """
     state_dir = tmp_path / "state"
@@ -509,7 +506,7 @@ def test_welle_4_snapshot_restore_audit_trigger_disambiguates_from_sealing(
     )
     assert len(emitter.records) == 1
     assert emitter.records[0].trigger == "snapshot-restore"
-    # Anti-Drift: trigger MUST NOT collide with Welle-2 sealing.
+    # Anti-Drift: trigger MUST NOT collide with wave 2 sealing.
     assert emitter.records[0].trigger != "sealing"
     # Anti-Drift: trigger MUST NOT be the vanilla sign-off literal.
     assert emitter.records[0].trigger != "sign-off"
@@ -518,10 +515,10 @@ def test_welle_4_snapshot_restore_audit_trigger_disambiguates_from_sealing(
 def test_welle_4_state_backing_pre_boot_order_pin_audit_canonical_bytes(
     tmp_path,
 ):
-    """Audit-record canonical-bytes MUST be stable for the Welle-4 path.
+    """Audit-record canonical-bytes MUST be stable for the wave 4 path.
 
     The 10th pre-boot BackendDecision (state_backing rust<->python)
-    binds to Welle-4 per the Tag-57-emit-order-pin. The audit-stream
+    binds to wave 4 per the-emit-order-pin. The audit-stream
     that captures this binding MUST be canonical-byte-stable across
     direct-producer vs. top-level-handler dispatch paths
     (Doppelbetrieb-Vergleich invariant; the dispatch-shim MUST NOT
@@ -598,16 +595,16 @@ def test_async_handle_welle_4_signoff_event_refuses_without_snapshot_marker(
 
 
 # ---------------------------------------------------------------------------
-# Cross-state interactions: rollback after Welle-4 sign-off still allowed.
+# Cross-state interactions: rollback after wave 4 sign-off still allowed.
 # ---------------------------------------------------------------------------
 
 
 def test_welle_4_can_be_rolled_back_post_sign_off(tmp_path):
-    """After a Welle-4 sign-off the post-sign-off rollback transition
+    """After a wave 4 sign-off the post-sign-off rollback transition
     (``signed-off -> rolled-back``) MUST still be available.
 
     This pins plan-doc §3.1 ``signed-off -> rolled-back`` invariant
-    on the Welle-4 substrate -- the snapshot-restore-marker gate does
+    on the wave 4 substrate -- the snapshot-restore-marker gate does
     not change the rollback-substrate's behaviour (rollback is gated
     by its own ``rollback-authorized`` marker).
     """
@@ -641,7 +638,7 @@ def test_welle_4_can_be_rolled_back_post_sign_off(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Marker-family disambiguation: trigger field across the three Welle families.
+# Marker-family disambiguation: trigger field across the three wave families.
 # ---------------------------------------------------------------------------
 
 
@@ -649,15 +646,15 @@ def test_marker_family_triggers_are_pairwise_distinct(tmp_path):
     """Across the three marker-guarded sign-off paths the audit-trigger
     MUST be a distinct literal per family.
 
-    Family A (Welle-2 Doppelbetrieb-Sealing) -> trigger="sealing"
-    Family B (Welle-3/7 Pre-Auditor)          -> trigger="sign-off"
-    Family C (Welle-4 Snapshot-Restore)       -> trigger="snapshot-restore"
+    Family A (wave 2 Doppelbetrieb-Sealing) -> trigger="sealing"
+    Family B (wave 3/7 Pre-Auditor) -> trigger="sign-off"
+    Family C (wave 4 Snapshot-Restore) -> trigger="snapshot-restore"
 
-    Henrik Internal Audit relies on this disambiguation when
+    internal audit Internal Audit relies on this disambiguation when
     reconciling rollback decisions against the
-    Tomas-Tag-56-Rollback-Workflow J2..J8 envelope catalog.
+    the engineering zone--Rollback-Workflow J2..J8 envelope catalog.
     """
-    # Family A: Welle-2 sealing.
+    # Family A: wave 2 sealing.
     state_dir_2 = tmp_path / "state_2"
     _seed_in_progress(state_dir_2, 2, "2026-06-10T08:00:00Z")
     rec_2 = engine_mod.handle_welle_sealing_event(
@@ -666,7 +663,7 @@ def test_marker_family_triggers_are_pairwise_distinct(tmp_path):
         sign_off_marker_status=STATUS_SIGNED_OFF,
         doppelbetrieb_sealed_marker_status=DOPPELBETRIEB_SEALED,
     )
-    # Family B: Welle-3 pre-auditor.
+    # Family B: wave 3 pre-auditor.
     state_dir_3 = tmp_path / "state_3"
     _seed_in_progress(state_dir_3, 3, "2026-06-13T08:00:00Z")
     rec_3 = engine_mod.handle_welle_3_signoff_event(
@@ -675,7 +672,7 @@ def test_marker_family_triggers_are_pairwise_distinct(tmp_path):
         sign_off_marker_status=STATUS_SIGNED_OFF,
         pre_auditor_decision="designated",
     )
-    # Family C: Welle-4 snapshot-restore (Tag-72).
+    # Family C: wave 4 snapshot-restore.
     state_dir_4 = tmp_path / "state_4"
     _seed_in_progress(state_dir_4, 4, "2026-06-16T08:00:00Z")
     rec_4 = engine_mod.handle_welle_4_signoff_event(

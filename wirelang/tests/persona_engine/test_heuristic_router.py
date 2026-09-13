@@ -5,15 +5,15 @@
 All tests are pure-stdlib — no network, no LLM, no NATS. Test
 coverage matrix:
 
-1.  Routing-mode env-var default → static
-2.  Routing-mode env-var explicit static
-3.  Routing-mode env-var explicit heuristic
-4.  Routing-mode env-var unknown value → static (fail-safe)
-5.  Token-length scoring bands (Haiku/Sonnet/Opus thresholds)
-6.  Schema-complexity scoring
-7.  Code-vs-prose scoring
-8.  Persona-role-band: audit → Opus-floor override
-9.  Persona-role-band: routine-comms → Haiku-ceiling override
+1. Routing-mode env-var default → static
+2. Routing-mode env-var explicit static
+3. Routing-mode env-var explicit heuristic
+4. Routing-mode env-var unknown value → static (fail-safe)
+5. Token-length scoring bands (Haiku/Sonnet/Opus thresholds)
+6. Schema-complexity scoring
+7. Code-vs-prose scoring
+8. Persona-role-band: audit → Opus-floor override
+9. Persona-role-band: routine-comms → Haiku-ceiling override
 10. Persona-role-band: engineering → no override
 11. ``route_task`` end-to-end small-prompt → HAIKU
 12. ``route_task`` end-to-end audit-persona forces OPUS

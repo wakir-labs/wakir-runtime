@@ -2,15 +2,15 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreEnd
-"""Tag-71 - engine.py / engine_async.py Top-Level Handler-Wiring + Welle-3 (Selin).
+"""- engine.py / engine_async.py Top-Level Handler-Wiring + wave 3.
 
-Tag-69 (PR #438) shipped the Welle-1 producer-path. Tag-70 (PR #444)
-shipped Welle-2 Doppelbetrieb-Sealing + Rollback-Writer. Tag-71 (this
+PR #438 shipped the wave 1 producer-path. PR #444
+shipped wave 2 Doppelbetrieb-Sealing + Rollback-Writer. (this
 PR) wires the producer-substrate into the engine-side event-dispatch
-surface as top-level free functions and adds the Welle-3 Bridge-Audit
-sign-off shorthand (KW-24 Fr, Pre-Auditor-Gate aktiv).
+surface as top-level free functions and adds the wave 3 Bridge-Audit
+sign-off shorthand (calendar week 24 Fr, Pre-Auditor-Gate aktiv).
 
-Scope (Tag-71)
+Scope
 --------------
 
 Three top-level handlers in ``wirelang.persona_engine.engine``:
@@ -21,7 +21,7 @@ Three top-level handlers in ``wirelang.persona_engine.engine``:
   ``WelleStateProducer.handle_rollback_event``.
 * ``handle_welle_3_signoff_event`` -- delegates to
   ``WelleStateProducer.handle_sign_off_event`` with ``welle_number=3``
-  (Bridge-Audit Welle, pre-auditor-guarded).
+  (Bridge-Audit wave, pre-auditor-guarded).
 
 And three async wrappers in ``wirelang.persona_engine.engine_async``
 that run the sync handlers in the default loop's thread-pool executor.
@@ -30,17 +30,15 @@ Hermetic envelope
 -----------------
 
 No network. No NATS, no SPIRE, no gRPC. No subprocess. Pure in-process
-file I/O against ``tmp_path`` fixtures. Mirrors the Tag-69 / Tag-70
+file I/O against ``tmp_path`` fixtures. Mirrors the /
 producer-test conventions.
 
-Scope discipline (Selin)
+Scope discipline
 ------------------------
 
-This test does NOT modify persona definitions (Aisha-Domaene,
-ADR-0043), WAT-core logic (Tomas-Domaene, Zone-K), identity-substrate
-design (Reza-Domaene, Zone-L), or container-infra (Kai-Domaene,
-Zone-J). It pins the Tag-71 add-on handler-wiring surface and reuses
-the Tag-67 schema-pin verbatim (no schema changes).
+This test does NOT modify persona definitions, WAT-core logic, identity-substrate
+design, or container-infra. It pins the add-on handler-wiring surface and reuses
+the schema-pin verbatim (no schema changes).
 """
 
 from __future__ import annotations
@@ -74,7 +72,7 @@ from wirelang.persona_engine.welle_state_producer import (
 
 
 # ---------------------------------------------------------------------------
-# Helpers (mirror Tag-69 / Tag-70 layout).
+# Helpers (mirror / layout).
 # ---------------------------------------------------------------------------
 
 
@@ -151,7 +149,7 @@ class _RecordingEmitter:
 
 
 def test_engine_module_exposes_top_level_handlers():
-    """Tag-71: engine.py MUST expose the three top-level handlers."""
+    """: engine.py MUST expose the three top-level handlers."""
     assert hasattr(engine_mod, "handle_welle_sealing_event")
     assert hasattr(engine_mod, "handle_welle_rollback_event")
     assert hasattr(engine_mod, "handle_welle_3_signoff_event")
@@ -161,7 +159,7 @@ def test_engine_module_exposes_top_level_handlers():
 
 
 def test_engine_async_module_exposes_top_level_handlers():
-    """Tag-71: engine_async.py MUST expose the three async wrappers."""
+    """: engine_async.py MUST expose the three async wrappers."""
     assert hasattr(engine_async_mod, "handle_welle_sealing_event")
     assert hasattr(engine_async_mod, "handle_welle_rollback_event")
     assert hasattr(engine_async_mod, "handle_welle_3_signoff_event")
@@ -191,16 +189,16 @@ def test_sync_handlers_are_not_coroutine_functions():
 
 
 def test_welle_3_is_pre_auditor_guarded_constant_pin():
-    """Welle-3 MUST be in PRE_AUDITOR_GUARDED_WELLEN (plan-doc §2.2).
+    """wave 3 MUST be in PRE_AUDITOR_GUARDED_WELLEN (plan-doc §2.2).
 
-    This test pins the precondition that the Tag-71 Welle-3 sign-off
-    shorthand depends on (Henrik-cannot-self-sign-off invariant).
+    This test pins the precondition that the wave 3 sign-off
+    shorthand depends on.
     """
     assert 3 in PRE_AUDITOR_GUARDED_WELLEN
 
 
 # ---------------------------------------------------------------------------
-# handle_welle_sealing_event (sync) -- Welle-2 Doppelbetrieb-Sealing.
+# handle_welle_sealing_event (sync) -- wave 2 Doppelbetrieb-Sealing.
 # ---------------------------------------------------------------------------
 
 
@@ -313,7 +311,7 @@ def test_handle_welle_rollback_event_in_progress_to_rolled_back(tmp_path):
     )
     on_disk = json.loads(target.read_text(encoding="utf-8"))
     assert on_disk["status"] == STATUS_ROLLED_BACK
-    # Cutover-iso preserved for forensic audit-trail.
+    # cutover-iso preserved for forensic audit-trail.
     assert on_disk["cutover_iso"] == "2026-06-13T09:00:00Z"
     assert record.prior_status == STATUS_IN_PROGRESS
     assert record.new_status == STATUS_ROLLED_BACK
@@ -355,7 +353,7 @@ def test_handle_welle_rollback_event_idempotent_on_double_fire(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# handle_welle_3_signoff_event (sync) -- Bridge-Audit Welle, KW-24 Fr.
+# handle_welle_3_signoff_event (sync) -- Bridge-Audit wave, calendar week 24 Fr.
 # ---------------------------------------------------------------------------
 
 
@@ -386,7 +384,7 @@ def test_handle_welle_3_signoff_event_happy_path_with_designated_pre_auditor(
 
 
 def test_handle_welle_3_signoff_event_refused_without_pre_auditor(tmp_path):
-    """Welle-3 sign-off refused when pre_auditor_decision is missing."""
+    """wave 3 sign-off refused when pre_auditor_decision is missing."""
     state_dir = tmp_path / "state"
     _seed_in_progress(state_dir, 3, "2026-06-13T08:00:00Z")
     with pytest.raises(PreAuditorGuardError):
@@ -449,10 +447,10 @@ def test_handle_welle_3_signoff_event_idempotent_on_double_fire(tmp_path):
 
 
 def test_handle_welle_3_signoff_event_hardcodes_welle_number_3(tmp_path):
-    """The Welle-3 shorthand MUST always write welle-3.json regardless
+    """The wave 3 shorthand MUST always write wave 3.json regardless
     of which other state-files exist in state_dir."""
     state_dir = tmp_path / "state"
-    # Seed welle-3 plus a sibling (welle-4) that should NOT be touched.
+    # Seed wave 3 plus a sibling (wave 4) that should NOT be touched.
     target_3 = _seed_in_progress(state_dir, 3, "2026-06-13T08:00:00Z")
     target_4 = _seed_in_progress(state_dir, 4, "2026-06-13T08:00:00Z")
     sibling_before = target_4.read_bytes()
@@ -616,7 +614,7 @@ def test_async_handle_welle_rollback_event_refuses_without_authority(tmp_path):
 def test_audit_record_emitted_via_handler_is_canonical_byte_stable(tmp_path):
     """The audit-record canonical-bytes serialisation MUST be stable
     regardless of whether the producer is reached via a direct call or
-    via the Tag-71 top-level handler wrapper. Doppelbetrieb-Vergleich
+    via the top-level handler wrapper. Doppelbetrieb-Vergleich
     invariant: dispatch-shim MUST NOT alter the audit-stream content."""
     state_dir = tmp_path / "state"
     _seed_in_progress(state_dir, 3, "2026-06-13T08:00:00Z")

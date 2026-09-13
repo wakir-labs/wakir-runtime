@@ -2,31 +2,30 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreEnd
-"""Tag-78 - Engine-Migration-Drift audit hermetic test suite (Selin).
+"""- Engine-Migration-Drift audit hermetic test suite.
 
 Pins the contract of ``tooling/audit/audit_engine_migration_drift.py``:
-the audit-only helper that walks the Python Stage-1 authority surface
+The audit-only helper that walks the Python Stage-1 authority surface
 + the Rust Stage-2 plan crate roster + emits a stable JSON drift
 envelope. The tests are pure-stdlib + ``tmp_path`` fixtures; no
 network, no NATS, no subprocess, no git invocation.
 
-The Tag-78 polish-phase test-count target is >= 15. The current
+The polish-phase test-count target is >= 15. The current
 file ships 18 tests across five lemma-families:
 
   * F1 - drift-envelope shape stability (top-level keys + sub-shape).
   * F2 - Python-authority scanner counter accuracy.
   * F3 - Rust-crate parity-anchor extraction accuracy.
   * F4 - cross-side drift classification (D3 dimension).
-  * F5 - Welle-state-machine drift block (D4 dimension).
+  * F5 - wave-state-machine drift block (D4 dimension).
   * F6 - CLI exit-code contract on stale-anchor.
 
-Scope discipline (Selin)
+Scope discipline
 ------------------------
 Audit-only. The tests do NOT exercise any actual migration step, do
 NOT mutate the runtime Python authority, do NOT mutate the runtime
-Rust workspace, do NOT touch persona-definition files (Aisha-
-Domaene), do NOT touch WAT-core (Tomas), do NOT touch identity-
-substrate (Reza), do NOT touch container-infra (Kai).
+Rust workspace, do NOT touch persona-definition files, do NOT touch WAT-core, do NOT touch identity-
+substrate, do NOT touch container-infra.
 """
 
 from __future__ import annotations
@@ -47,7 +46,7 @@ import audit_engine_migration_drift as drift  # noqa: E402
 
 
 # ---------------------------------------------------------------- #
-# Fixture builders                                                 #
+# Fixture builders #
 # ---------------------------------------------------------------- #
 
 
@@ -189,7 +188,7 @@ def hermetic_runtime(tmp_path: Path) -> Path:
 
 
 # ---------------------------------------------------------------- #
-# F1 - drift-envelope shape stability                              #
+# F1 - drift-envelope shape stability #
 # ---------------------------------------------------------------- #
 
 
@@ -198,7 +197,7 @@ class TestDriftEnvelopeShape:
         env = drift.run_audit(runtime_root=hermetic_runtime)
         payload = json.loads(env.to_json())
         # Top-level shape is the public contract; ordering is preserved
-        # in to_json() (json.dumps sort_keys=False on a dataclasses.asdict
+        # in to_json (json.dumps sort_keys=False on a dataclasses.asdict
         # ordered dict).
         assert set(payload.keys()) == {
             "audit_id",
@@ -229,7 +228,7 @@ class TestDriftEnvelopeShape:
 
 
 # ---------------------------------------------------------------- #
-# F2 - Python-authority scanner counter accuracy                   #
+# F2 - Python-authority scanner counter accuracy #
 # ---------------------------------------------------------------- #
 
 
@@ -282,7 +281,7 @@ class TestPythonAuthorityScanner:
 
 
 # ---------------------------------------------------------------- #
-# F3 - Rust-crate parity-anchor extraction                         #
+# F3 - Rust-crate parity-anchor extraction #
 # ---------------------------------------------------------------- #
 
 
@@ -321,7 +320,7 @@ class TestRustCrateAnchorExtractor:
 
 
 # ---------------------------------------------------------------- #
-# F4 - cross-side drift classification                             #
+# F4 - cross-side drift classification #
 # ---------------------------------------------------------------- #
 
 
@@ -335,7 +334,7 @@ class TestDriftClassification:
 
     def test_anchor_emitter_pendant_absent(self, hermetic_runtime: Path) -> None:
         # The fixture's anchor_emitter Python authority has no Rust pendant
-        # crate that declares it. Mirrors the runtime-tip reality at Tag-78.
+        # crate that declares it. Mirrors the runtime-tip reality .
         env = drift.run_audit(runtime_root=hermetic_runtime)
         e = next(e for e in env.drift_map
                  if e.python_authority == "wirelang/persona_engine/anchor_emitter.py")
@@ -367,7 +366,7 @@ class TestDriftClassification:
 
 
 # ---------------------------------------------------------------- #
-# F5 - Welle-state-machine drift block (D4)                        #
+# F5 - wave-state-machine drift block (D4) #
 # ---------------------------------------------------------------- #
 
 
@@ -386,7 +385,7 @@ class TestWelleStateMachineDriftBlock:
     def test_welle_state_machine_pendant_flip_when_rust_anchor_added(
         self, hermetic_runtime: Path
     ) -> None:
-        # Inject a Rust crate that declares the welle-state-producer as
+        # Inject a Rust crate that declares the wave-state-producer as
         # its parity anchor. This is the hypothetical Tag-N+ Stage-2 plan
         # realisation.
         crates = hermetic_runtime / "wirelang-rust" / "crates"
@@ -418,7 +417,7 @@ class TestWelleStateMachineDriftBlock:
 
 
 # ---------------------------------------------------------------- #
-# F6 - CLI exit-code contract                                      #
+# F6 - CLI exit-code contract #
 # ---------------------------------------------------------------- #
 
 

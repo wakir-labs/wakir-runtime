@@ -2,30 +2,30 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreEnd
-"""Tag-74 - Welle-6 Cross-Substrate-Parity Producer + W5-Anchor-Fix (Selin).
+"""- wave 6 Cross-Substrate-Parity Producer + W5-Anchor-Fix.
 
-Tag-69 (PR #438) shipped Welle-1 producer-path. Tag-70 (PR #444) shipped
-Welle-2 Doppelbetrieb-Sealing + Rollback-Writer. Tag-71 (PR #451) wired
-the top-level handlers + Welle-3 Bridge-Audit sign-off shorthand.
-Tag-72 (PR #458) added the Welle-4 State-Backing sign-off shorthand.
-Tag-73 (PR #465) added the Welle-5 Capability-Token sign-off shorthand.
-Tag-74 (this PR) does two things:
+PR #438 shipped wave 1 producer-path. PR #444 shipped
+wave 2 Doppelbetrieb-Sealing + Rollback-Writer. PR #451 wired
+the top-level handlers + wave 3 Bridge-Audit sign-off shorthand.
+PR #458 added the wave 4 State-Backing sign-off shorthand.
+PR #465 added the wave 5 Capability-Token sign-off shorthand.
+This change does two things:
 
-1. **W5-Anchor-Fix:** the Tag-68 render-helper-default mapped Welle-4
-   and Welle-5 to ``KW-25``; the operational Source-of-Truth
+1. **W5-Anchor-Fix:** the render-helper-default mapped wave 4
+   and wave 5 to ``KW-25``; the operational Source-of-Truth
    ``docs/quality-gates/pre-cutover-acceptance-run-order.md`` §3 table
-   places both on ``KW-26`` (Doppel-Welle-4+5 cutover-Mittwoch
-   2026-06-24, sign-off-Freitag 2026-06-26). The Tag-74 fix aligns the
+   places both on ``KW-26`` (dual-run wave-4+5 cutover-Mittwoch
+   2026-06-24, sign-off-Freitag 2026-06-26). The fix aligns the
    helper-default + committed state-files; the reconciliation rule is
-   captured in ``docs/persona-engine/welle-5-kw-anchor-reconciliation-
+   captured in ``docs/persona-engine/wave 5 kw-anchor-reconciliation-
    tag74.md``.
-2. **Welle-6 Cross-Substrate-Parity sign-off** shorthand: a new
+2. **wave 6 Cross-Substrate-Parity sign-off** shorthand: a new
    producer-method + top-level sync/async handler-pair gated by the
    ``cross_substrate_parity_marker_status == "verified"`` precondition.
    Audit-record carries ``trigger="cross-substrate-parity"`` (a fifth
    disjoint trigger family).
 
-Scope (Tag-74)
+Scope
 --------------
 
 One new producer-method:
@@ -35,8 +35,8 @@ One new producer-method:
   ``sign_off_marker_status == "signed-off"`` AND
   ``cross_substrate_parity_marker_status == "verified"``. Audit-record
   carries ``trigger="cross-substrate-parity"`` (disambiguates from
-  Welle-2 ``trigger="sealing"``, Welle-3/7 ``trigger="sign-off"``,
-  Welle-4 ``trigger="snapshot-restore"``, and Welle-5
+  wave 2 ``trigger="sealing"``, wave 3/7 ``trigger="sign-off"``,
+  wave 4 ``trigger="snapshot-restore"``, and wave 5
   ``trigger="capability-token-rotation"``).
 
 One new top-level handler in ``wirelang.persona_engine.engine``:
@@ -56,17 +56,15 @@ Hermetic envelope
 -----------------
 
 No network. No NATS, no SPIRE, no gRPC. No subprocess. Pure in-process
-file I/O against ``tmp_path`` fixtures. Mirrors the Tag-69 / Tag-70 /
-Tag-71 / Tag-72 / Tag-73 producer-test conventions verbatim.
+file I/O against ``tmp_path`` fixtures. Mirrors the / /
+/ / producer-test conventions verbatim.
 
-Scope discipline (Selin)
+Scope discipline
 ------------------------
 
-This test does NOT modify persona definitions (Aisha-Domaene,
-ADR-0043), WAT-core logic (Tomas-Domaene, Zone-K), cross-substrate-
-parity-workflow design (Tomas + Kai joint surface; this test pins the
-engine-side marker-literal contract only), or container-infra
-(Kai-Domaene, Zone-J). It pins the Tag-74 Welle-6 sign-off shorthand
+This test does NOT modify persona definitions, WAT-core logic, cross-substrate-
+parity-workflow design, or container-infra
+It pins the wave 6 sign-off shorthand
 and the W5-anchor-fix engine-side alignment; the schema-pin is
 unchanged (cross-substrate-parity-iso lives in the audit-stream, not
 in the state-file).
@@ -112,11 +110,11 @@ from wirelang.persona_engine.welle_state_producer import (
 
 
 # ---------------------------------------------------------------------------
-# Helpers (mirror Tag-69 / Tag-70 / Tag-71 / Tag-72 / Tag-73 layout).
+# Helpers (mirror / / / / layout).
 # ---------------------------------------------------------------------------
 
 
-# Post Tag-74 reconciliation: W4 and W5 anchor moved KW-25 -> KW-26.
+# Post reconciliation: W4 and W5 anchor moved calendar week 25 -> calendar week 26.
 CANONICAL_KW_ANCHOR = {
     1: "KW-22",
     2: "KW-23",
@@ -203,26 +201,26 @@ def _load_helper_module():
 
 
 # ---------------------------------------------------------------------------
-# (1) Public-API surface invariants for Welle-6 (Tag-74).
+# (1) Public-API surface invariants for wave 6.
 # ---------------------------------------------------------------------------
 
 
 def test_welle_6_is_cross_substrate_parity_guarded_constant_pin():
-    """Welle-6 MUST be in CROSS_SUBSTRATE_PARITY_GUARDED_WELLEN (Tag-74 §2.7).
+    """wave 6 MUST be in CROSS_SUBSTRATE_PARITY_GUARDED_WELLEN (§2.7).
 
-    This pins the precondition that the Tag-74 Welle-6 sign-off
+    This pins the precondition that the wave 6 sign-off
     shorthand depends on (cross-substrate-parity-marker gate per
-    Tomas' ``cross-substrate-parity-gate`` workflow).
+    the engineering zone' ``cross-substrate-parity-gate`` workflow).
     """
     assert 6 in CROSS_SUBSTRATE_PARITY_GUARDED_WELLEN
-    # Welle-6 is the ONLY cross-substrate-parity-guarded Welle.
+    # wave 6 is the ONLY cross-substrate-parity-guarded wave.
     assert CROSS_SUBSTRATE_PARITY_GUARDED_WELLEN == frozenset({6})
 
 
 def test_cross_substrate_parity_verified_literal_is_canonical():
     """The marker authority literal MUST be exactly "verified".
 
-    Mirrors the design of :data:`DOPPELBETRIEB_SEALED` ("sealed"),
+    Mirrors the design of:data:`DOPPELBETRIEB_SEALED` ("sealed"),
     :data:`SNAPSHOT_RESTORE_VERIFIED` ("restored"),
     :data:`CAPABILITY_TOKEN_ROTATED` ("rotated"), and
     :data:`ROLLBACK_MARKER_AUTHORIZED` ("rollback-authorized"). The
@@ -233,13 +231,13 @@ def test_cross_substrate_parity_verified_literal_is_canonical():
 
 
 def test_engine_module_exposes_welle_6_handler():
-    """Tag-74: engine.py MUST expose ``handle_welle_6_signoff_event``."""
+    """: engine.py MUST expose ``handle_welle_6_signoff_event``."""
     assert hasattr(engine_mod, "handle_welle_6_signoff_event")
     assert callable(engine_mod.handle_welle_6_signoff_event)
 
 
 def test_engine_async_module_exposes_welle_6_handler():
-    """Tag-74: engine_async.py MUST expose the async wrapper as coroutine."""
+    """: engine_async.py MUST expose the async wrapper as coroutine."""
     assert hasattr(engine_async_mod, "handle_welle_6_signoff_event")
     assert inspect.iscoroutinefunction(
         engine_async_mod.handle_welle_6_signoff_event
@@ -254,16 +252,16 @@ def test_sync_welle_6_handler_is_not_a_coroutine():
 
 
 # ---------------------------------------------------------------------------
-# (2) Marker-guarded-Wellen-set disjointness (5-family pairwise).
+# (2) Marker-guarded-waves-set disjointness (5-family pairwise).
 # ---------------------------------------------------------------------------
 
 
 def test_welle_6_disjoint_from_other_marker_guarded_welle_sets():
-    """Welle-6 MUST NOT overlap with the other marker-guarded sets.
+    """wave 6 MUST NOT overlap with the other marker-guarded sets.
 
     Each marker-guard family (sealing for W2, pre-auditor for W3/W7,
     snapshot-restore for W4, capability-token-rotation for W5, cross-
-    substrate-parity for W6) MUST be disjoint -- a single Welle cannot
+    substrate-parity for W6) MUST be disjoint -- a single wave cannot
     have two simultaneous marker-families without ambiguating the
     audit-stream trigger field.
     """
@@ -284,9 +282,9 @@ def test_welle_6_disjoint_from_other_marker_guarded_welle_sets():
 def test_all_five_marker_families_pairwise_disjoint():
     """Each pair of marker-guard families MUST be disjoint (5-choose-2 = 10 pairs).
 
-    This is the structural-level pin that no Welle can be claimed by
+    This is the structural-level pin that no wave can be claimed by
     two marker-families simultaneously (audit-trigger disambiguation
-    invariant; Henrik Internal Audit Zone-N relies on this).
+    invariant; internal audit Internal Audit Zone-N relies on this).
     """
     families = {
         "sealing": DOPPELBETRIEB_SEALED_WELLEN,
@@ -309,9 +307,9 @@ def test_all_five_marker_families_pairwise_disjoint():
 def test_marker_family_union_covers_expected_wellen():
     """The union of all five marker-families MUST be exactly {2,3,4,5,6,7}.
 
-    Welle-1 is the only Welle without a marker-family (Cutover-T0
+    wave 1 is the only wave without a marker-family (cutover-T0
     first-fire; vanilla sign-off path uses ``handle_sign_off_event``).
-    All other Wellen carry a marker-family.
+    All other waves carry a marker-family.
     """
     union = (
         DOPPELBETRIEB_SEALED_WELLEN
@@ -343,7 +341,7 @@ def test_producer_welle_6_signoff_happy_path(tmp_path):
     assert on_disk["status"] == STATUS_SIGNED_OFF
     assert on_disk["welle_number"] == 6
     assert on_disk["signoff_iso"] == "2026-07-03T15:00:00Z"
-    # Cutover-iso preserved.
+    # cutover-iso preserved.
     assert on_disk["cutover_iso"] == "2026-07-01T08:00:00Z"
 
     assert record.welle_number == 6
@@ -384,8 +382,8 @@ def test_producer_welle_6_signoff_refused_without_sign_off_marker(tmp_path):
 
     The two marker preconditions are independent: the sign-off-marker
     guard fires before the parity-marker guard. This pins the
-    refusal-order to be identical to the Tag-72 Welle-4 /
-    Tag-73 Welle-5 designs.
+    refusal-order to be identical to the wave 4 /
+    wave 5 designs.
     """
     state_dir = tmp_path / "state"
     _seed_in_progress(state_dir, 6, "2026-07-01T08:00:00Z")
@@ -429,7 +427,7 @@ def test_producer_welle_6_signoff_refused_from_pending(tmp_path):
     """Sign-off from ``pending`` MUST be refused (no cutover yet).
 
     Plan-doc §3.1: the only valid prior state for a sign-off is
-    ``in-progress`` (post-Cutover-T0). ``pending -> signed-off`` is
+    ``in-progress`` (post-cutover-T0). ``pending -> signed-off`` is
     forbidden.
     """
     from wirelang.persona_engine.welle_state_producer import (
@@ -470,7 +468,7 @@ def test_producer_welle_6_signoff_refused_from_rolled_back(tmp_path):
 
 
 def test_producer_welle_6_signoff_time_invariant_cutover_le_signoff(tmp_path):
-    """Plan-doc §3.4 time-invariant MUST hold across the Welle-6 path."""
+    """Plan-doc §3.4 time-invariant MUST hold across the wave 6 path."""
     state_dir = tmp_path / "state"
     _seed_in_progress(state_dir, 6, "2026-07-03T15:00:00Z")
     producer = WelleStateProducer(state_dir=state_dir)
@@ -484,7 +482,7 @@ def test_producer_welle_6_signoff_time_invariant_cutover_le_signoff(tmp_path):
 
 
 def test_producer_welle_6_signoff_atomic_write_no_partial_state(tmp_path):
-    """On a successful Welle-6 sign-off the on-disk file MUST be fully written.
+    """On a successful wave 6 sign-off the on-disk file MUST be fully written.
 
     The producer-substrate uses temp-file + rename(2) for atomic
     writes (plan-doc §3.3). This test verifies the post-write state
@@ -612,12 +610,12 @@ def test_async_handle_welle_6_signoff_event_refuses_without_parity_marker(
 
 
 # ---------------------------------------------------------------------------
-# (6) Cross-state interactions: rollback after Welle-6 sign-off.
+# (6) Cross-state interactions: rollback after wave 6 sign-off.
 # ---------------------------------------------------------------------------
 
 
 def test_welle_6_can_be_rolled_back_post_sign_off(tmp_path):
-    """After a Welle-6 sign-off the ``signed-off -> rolled-back`` MUST hold."""
+    """After a wave 6 sign-off the ``signed-off -> rolled-back`` MUST hold."""
     state_dir = tmp_path / "state"
     target = _seed_in_progress(state_dir, 6, "2026-07-01T08:00:00Z")
     engine_mod.handle_welle_6_signoff_event(
@@ -653,17 +651,17 @@ def test_marker_family_triggers_are_pairwise_distinct_across_five_families(
     """Across the five marker-guarded sign-off paths the audit-trigger
     MUST be a distinct literal per family.
 
-    Family A (Welle-2 Doppelbetrieb-Sealing)   -> trigger="sealing"
-    Family B (Welle-3/7 Pre-Auditor)            -> trigger="sign-off"
-    Family C (Welle-4 Snapshot-Restore)         -> trigger="snapshot-restore"
-    Family D (Welle-5 Capability-Token)         -> trigger="capability-token-rotation"
-    Family E (Welle-6 Cross-Substrate-Parity)   -> trigger="cross-substrate-parity"
+    Family A (wave 2 Doppelbetrieb-Sealing) -> trigger="sealing"
+    Family B (wave 3/7 Pre-Auditor) -> trigger="sign-off"
+    Family C (wave 4 Snapshot-Restore) -> trigger="snapshot-restore"
+    Family D (wave 5 Capability-Token) -> trigger="capability-token-rotation"
+    Family E (wave 6 Cross-Substrate-Parity) -> trigger="cross-substrate-parity"
 
-    Henrik Internal Audit relies on this disambiguation when
+    internal audit Internal Audit relies on this disambiguation when
     reconciling rollback decisions against the
-    Tomas-Tag-56-Rollback-Workflow J2..J8 envelope catalog.
+    the engineering zone--Rollback-Workflow J2..J8 envelope catalog.
     """
-    # Family A: Welle-2 sealing.
+    # Family A: wave 2 sealing.
     state_dir_2 = tmp_path / "state_2"
     _seed_in_progress(state_dir_2, 2, "2026-06-10T08:00:00Z")
     rec_2 = engine_mod.handle_welle_sealing_event(
@@ -672,7 +670,7 @@ def test_marker_family_triggers_are_pairwise_distinct_across_five_families(
         sign_off_marker_status=STATUS_SIGNED_OFF,
         doppelbetrieb_sealed_marker_status=DOPPELBETRIEB_SEALED,
     )
-    # Family B: Welle-3 pre-auditor.
+    # Family B: wave 3 pre-auditor.
     state_dir_3 = tmp_path / "state_3"
     _seed_in_progress(state_dir_3, 3, "2026-06-17T08:00:00Z")
     rec_3 = engine_mod.handle_welle_3_signoff_event(
@@ -681,7 +679,7 @@ def test_marker_family_triggers_are_pairwise_distinct_across_five_families(
         sign_off_marker_status=STATUS_SIGNED_OFF,
         pre_auditor_decision="designated",
     )
-    # Family C: Welle-4 snapshot-restore (Tag-72).
+    # Family C: wave 4 snapshot-restore.
     state_dir_4 = tmp_path / "state_4"
     _seed_in_progress(state_dir_4, 4, "2026-06-24T08:00:00Z")
     rec_4 = engine_mod.handle_welle_4_signoff_event(
@@ -690,7 +688,7 @@ def test_marker_family_triggers_are_pairwise_distinct_across_five_families(
         sign_off_marker_status=STATUS_SIGNED_OFF,
         snapshot_restore_marker_status=SNAPSHOT_RESTORE_VERIFIED,
     )
-    # Family D: Welle-5 capability-token (Tag-73).
+    # Family D: wave 5 capability-token.
     state_dir_5 = tmp_path / "state_5"
     _seed_in_progress(state_dir_5, 5, "2026-06-24T08:00:00Z")
     rec_5 = engine_mod.handle_welle_5_signoff_event(
@@ -699,7 +697,7 @@ def test_marker_family_triggers_are_pairwise_distinct_across_five_families(
         sign_off_marker_status=STATUS_SIGNED_OFF,
         capability_token_rotation_marker_status=CAPABILITY_TOKEN_ROTATED,
     )
-    # Family E: Welle-6 cross-substrate-parity (Tag-74, this PR).
+    # Family E: wave 6 cross-substrate-parity (this PR).
     state_dir_6 = tmp_path / "state_6"
     _seed_in_progress(state_dir_6, 6, "2026-07-01T08:00:00Z")
     rec_6 = engine_mod.handle_welle_6_signoff_event(
@@ -743,34 +741,34 @@ def test_marker_family_triggers_are_pairwise_distinct_across_five_families(
 
 
 # ---------------------------------------------------------------------------
-# (8) W5-Anchor-Fix verification (Tag-74 Teil 1).
+# (8) W5-Anchor-Fix verification (Teil 1).
 # ---------------------------------------------------------------------------
 
 
 def test_w5_anchor_fix_helper_module_maps_welle_5_to_kw_26():
-    """Tag-74 Teil 1 W5-anchor-fix MUST land in the helper-default map.
+    """Teil 1 W5-anchor-fix MUST land in the helper-default map.
 
     The Source-of-Truth ``pre-cutover-acceptance-run-order.md`` §3
-    table (line 96) places Welle-5 on KW-26. The Tag-68 helper-default
-    previously mapped Welle-5 to KW-25; Tag-74 aligns it to KW-26.
+    table (line 96) places wave 5 on calendar week 26. The helper-default
+    previously mapped wave 5 to calendar week 25; aligns it to calendar week 26.
     """
     module = _load_helper_module()
     assert module.CANONICAL_KW_ANCHOR[5] == "KW-26"
 
 
 def test_w5_anchor_fix_helper_module_maps_welle_4_to_kw_26():
-    """Tag-74 Teil 1 W5-anchor-fix folds Welle-4 alignment as well.
+    """Teil 1 W5-anchor-fix folds wave 4 alignment as well.
 
-    The §3 table (line 95) places Welle-4 on KW-26 (Doppel-Welle-4+5).
-    The Tag-68 helper-default previously mapped Welle-4 to KW-25;
-    Tag-74 aligns it to KW-26 in lockstep with the Welle-5 fix.
+    The §3 table (line 95) places wave 4 on calendar week 26 (dual-run wave-4+5).
+    The helper-default previously mapped wave 4 to calendar week 25;
+    aligns it to calendar week 26 in lockstep with the wave 5 fix.
     """
     module = _load_helper_module()
     assert module.CANONICAL_KW_ANCHOR[4] == "KW-26"
 
 
 def test_w5_anchor_fix_reconciliation_doc_committed():
-    """The Tag-74 reconciliation doc MUST exist at the canonical path."""
+    """the reconciliation doc MUST exist at the canonical path."""
     reconciliation_doc = (
         REPO_ROOT
         / "docs"
@@ -783,7 +781,7 @@ def test_w5_anchor_fix_reconciliation_doc_committed():
         "alignment lives in this file."
     )
     body = reconciliation_doc.read_text(encoding="utf-8")
-    # Pin the Source-of-Truth resolution rule and the W4+W5 KW-26 fix.
+    # Pin the Source-of-Truth resolution rule and the W4+W5 calendar week 26 fix.
     assert "pre-cutover-acceptance-run-order.md" in body
     assert "KW-26" in body
     assert "Welle-5" in body or "welle-5" in body
@@ -791,14 +789,14 @@ def test_w5_anchor_fix_reconciliation_doc_committed():
 
 
 # ---------------------------------------------------------------------------
-# (9) Audit-record byte-canonical JSON for the Welle-6 record.
+# (9) Audit-record byte-canonical JSON for the wave 6 record.
 # ---------------------------------------------------------------------------
 
 
 def test_welle_6_audit_record_canonical_json_bytes(tmp_path):
-    """The Welle-6 audit-record's canonical-JSON bytes MUST sort keys + UTF-8.
+    """The wave 6 audit-record's canonical-JSON bytes MUST sort keys + UTF-8.
 
-    Mirrors the Tag-69+ audit-record-emitter contract: downstream
+    Mirrors the+ audit-record-emitter contract: downstream
     bridge-audit-writer hashing depends on byte-stable canonical JSON.
     """
     state_dir = tmp_path / "state"
@@ -834,7 +832,7 @@ def test_welle_6_audit_record_canonical_json_bytes(tmp_path):
 
 
 def test_cross_substrate_parity_error_inherits_from_welle_producer_error():
-    """All Welle-N marker-guard errors MUST share a common parent.
+    """All wave N marker-guard errors MUST share a common parent.
 
     This lets callers ``except WelleProducerError`` once and catch
     any marker-guard refusal without needing to enumerate the five

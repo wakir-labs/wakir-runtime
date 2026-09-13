@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tag-47/48 hermetic suite for the Persona-Engine Boot Self-Test.
+"""/48 hermetic suite for the Persona-Engine Boot Self-Test.
 
 Re-runs every check in ``scripts/persona-engine/boot-self-test.py``
 inside pytest so the CI test runner enforces the same Stage-1 boot
-invariants the operator runs by hand during cutover. Tag-48 promotes
+invariants the operator runs by hand during cutover. promotes
 the script to the 10-record 0.5.1-pre-cutover manifest; the test
 suite tracks the script's CHECKS registry verbatim.
 
@@ -22,7 +22,7 @@ Hermetic envelope
 * Deterministic. The boot-fingerprint check itself is one of the
   invariants we assert.
 
-Test inventory (12+ required per Tag-47 auftrag)
+Test inventory (12+ required per auftrag)
 ------------------------------------------------
 
 The suite delegates to the 20 checks the script defines plus a
@@ -112,7 +112,7 @@ def test_script_present_and_executable():
 
 
 def test_script_check_count_at_least_twelve(boot_self_test_module):
-    """Tag-47 auftrag floor: >= 12 hermetic checks."""
+    """auftrag floor: >= 12 hermetic checks."""
     checks = boot_self_test_module.CHECKS
     assert (
         len(checks) >= 12
@@ -120,7 +120,7 @@ def test_script_check_count_at_least_twelve(boot_self_test_module):
 
 
 def test_script_full_run_passes(boot_self_test_module, clean_wakir_env):
-    """End-to-end: invoke run_self_test() and assert all checks pass."""
+    """End-to-end: invoke run_self_test and assert all checks pass."""
     report = boot_self_test_module.run_self_test()
     failing = [c.name for c in report.checks if not c.passed]
     assert report.passed, f"failing checks: {failing}"
@@ -212,7 +212,7 @@ def test_each_boot_self_test_check_passes(
 
 
 def test_expected_boot_order_has_ten_records(boot_self_test_module):
-    """Script's EXPECTED_BOOT_ORDER constant must list 10 records (Tag-48)."""
+    """Script's EXPECTED_BOOT_ORDER constant must list 10 records."""
     eb = boot_self_test_module.EXPECTED_BOOT_ORDER
     assert len(eb) == 10
     record_nos = [n for n, _, _ in eb]
@@ -228,7 +228,7 @@ def test_expected_pin_pack_boot_wired_aligns(boot_self_test_module):
 
 
 def test_expected_unwired_crate_count(boot_self_test_module):
-    """EXPECTED_PIN_PACK_UNWIRED must list 5 crates (10+5 = 15) in Tag-48."""
+    """EXPECTED_PIN_PACK_UNWIRED must list 5 crates (10+5 = 15) ."""
     assert len(boot_self_test_module.EXPECTED_PIN_PACK_UNWIRED) == 5
 
 
@@ -240,7 +240,7 @@ def test_expected_unwired_crate_count(boot_self_test_module):
 def test_boot_fingerprint_stable_across_two_runs(
     boot_self_test_module, clean_wakir_env
 ):
-    """Two independent run_self_test() calls produce the same fingerprint.
+    """Two independent run_self_test calls produce the same fingerprint.
 
     The fingerprint is internal to the script; we recompute it from
     the report via the helper the script exposes.
@@ -258,7 +258,7 @@ def test_boot_fingerprint_changes_on_env_flip(boot_self_test_module):
     actually captures the requested-backend per-record state via the
     explicit env-dict the resolvers receive.
 
-    Tag-80 Welle-7 Cutover: recovery default is now ``rust``, so
+    wave 7 cutover: recovery default is now ``rust``, so
     flipping recovery to ``rust`` no longer shifts the fingerprint
     (both unset and "rust" produce identical requested_backend).
     Flip to ``python`` instead — explicit-python carries the
@@ -268,7 +268,7 @@ def test_boot_fingerprint_changes_on_env_flip(boot_self_test_module):
     fp_default = boot_self_test_module._compute_boot_fingerprint(env={})
 
     # Flip recovery to explicit "python" — this differs from the
-    # rust-default (now active post-Welle-7) and carries the
+    # rust-default (now active post-wave 7) and carries the
     # explicit_python fallback_reason in the decision record.
     fp_explicit_python = boot_self_test_module._compute_boot_fingerprint(
         env={"WAKIR_RECOVERY_BACKEND": "python"}

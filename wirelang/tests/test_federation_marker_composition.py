@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BUSL-1.1
-"""Tests for Multi-Marker-Policy-Composition (Sprint-8 Tag-3).
+"""Tests for Multi-Marker-Policy-Composition.
 
 Covers reduction-paths for the four marker families
 (``RevokeEvent``, ``UnrevokeEvent``, ``ReIssuanceEvent``,

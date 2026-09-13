@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Operator CLI stderr-Wording-Byte-Parität test pack (Phase-1b Sprint-6
-Tag-6 — Item 1).
+"""Operator CLI stderr-Wording-Byte-Parität test pack (Phase-1b
+— Item 1).
 
 Cross-language byte-parity hardening for the error-path stderr surface
 of the four ``wakir-persona`` subcommands (``migrate``, ``validate``,
@@ -16,14 +16,14 @@ The four subcommands share five error markers. Their cross-language
 parity profile is:
 
 ============= =================================================
-Error marker  Cross-language parity contract
+Error marker Cross-language parity contract
 ============= =================================================
-E1 NOT_FOUND  Byte-equal full stderr line. Python and Rust both
+E1 NOT_FOUND Byte-equal full stderr line. Python and Rust both
               emit ``"wakir-persona: persona-file not found: "
               "<path>\\n"`` from the same pre-existence check.
               The path is the only variable; the format string
               is byte-identical between languages.
-E2 VANISHED   Soft-match: byte-equal prefix
+E2 VANISHED Soft-match: byte-equal prefix
               ``"wakir-persona: persona-file vanished mid-run: "``.
               The body diverges: Python interpolates
               ``FileNotFoundError`` Display (``"[Errno 2] No
@@ -38,17 +38,17 @@ E3 HASH_DRIFT Soft-match: byte-equal prefix
               underlying determinism-error message; cross-lang
               wording is independently maintained and not
               byte-aligned.
-E4 MIG_FAIL   Soft-match: byte-equal prefix
+E4 MIG_FAIL Soft-match: byte-equal prefix
               ``"wakir-persona: migration failed: "``. Body
               wording comes from Python ``PersonaMigrationError``
               ``__str__`` vs. Rust ``MigrationError`` ``Display``
               via the ``migration_msg`` adapter.
-E5 INSP_FAIL  Soft-match: byte-equal prefix
+E5 INSP_FAIL Soft-match: byte-equal prefix
               ``"wakir-persona: inspect failed: "``. Body
               wording: Python ``ValueError`` / ``KeyError``
               ``__str__`` vs. Rust ``ExtractCanonicalSubsetError``
               ``Display``.
-E6 PIN_FAIL   Soft-match: byte-equal prefix
+E6 PIN_FAIL Soft-match: byte-equal prefix
               ``"wakir-persona: pin failed: "``. Same posture
               as E5.
 ============= =================================================
@@ -69,13 +69,13 @@ the same operator-action.
 Cross-Lang-Diff-Pin
 -------------------
 
-The shared anchor strings live in :data:`STDERR_PREFIX_BY_MARKER`
+The shared anchor strings live :data:`STDERR_PREFIX_BY_MARKER`
 below. The sister Rust pack pins the same constants in
 ``stderr_parity_tests::STDERR_PREFIX_BY_MARKER``. Diff is intentional:
 any future wording change has to land in both packs in the same box
 or one of them fails CI immediately.
 
-The Tag-5 ``test_persona_cli_help_text`` pack pinned the *info*
+The ``test_persona_cli_help_text`` pack pinned the *info*
 surface (``--help``); this pack pins the *error* surface.
 """
 
@@ -361,7 +361,7 @@ def test_e6_pin_failure_prefix_match(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 def test_cross_lang_diff_pin_dict_completeness() -> None:
-    """All six markers are present in :data:`STDERR_PREFIX_BY_MARKER`."""
+    """All six markers are present :data:`STDERR_PREFIX_BY_MARKER`."""
     assert set(STDERR_PREFIX_BY_MARKER.keys()) == {
         "E1_NOT_FOUND",
         "E2_VANISHED",

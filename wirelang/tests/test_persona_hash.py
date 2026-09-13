@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""V-907 persona-hash test suite (Phase-1b Sprint-1 Tag-2).
+"""V-907 persona-hash test suite (Phase-1b).
 
 Coverage map
 ------------
@@ -334,7 +334,7 @@ def test_unknown_frontmatter_keys_are_ignored(tmp_path: Path) -> None:
     Forward-compat posture: HR can introduce new fields in a later
     schema revision without forcing a re-pin sweep, *as long as* the
     new field is documented as out-of-canonical-subset. A future
-    strict-mode flag will trip on unknown keys, but that is opt-in.
+    strict-mode flag will trip on unknown keys, but that is opt-.
     """
     base_text = _fixture("v1-persona-ceo.md").read_text(encoding="utf-8")
     fm, body = split_frontmatter(base_text)

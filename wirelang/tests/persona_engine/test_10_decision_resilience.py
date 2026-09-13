@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tag-51 — 10-Decision-Engine-Resilience-Test-Suite (Selin, Persona-Engine).
+"""— 10-Decision-Engine-Resilience-Test-Suite.
 
 The 0.5.1-pre-cutover engine emits **ten** BackendDecision records
-per cold-start (manifest §1, canonical boot-order below). Tag-51
+per cold-start (manifest §1, canonical boot-order below).
 asks: *what happens when one of those decisions crashes*? Each
 decision has three crash-windows worth verifying for production
 robustness:
@@ -39,11 +39,11 @@ Hermetic envelope
 * No filesystem writes outside ``tmp_path``.
 * Deterministic — no clock-sensitive assertions.
 
-Scope discipline (Selin)
+Scope discipline
 ------------------------
-This file does **not** modify persona definitions (Aisha-Domäne),
-WAT-core logic (Tomás-Domäne), identity-substrate design
-(Reza-Domäne), or container-infra (Kai-Domäne). It exercises the
+This file does **not** modify persona definitions,
+WAT-core logic, identity-substrate design
+or container-infra. It exercises the
 existing Python authority + Stage-1 boot fan-out only.
 """
 
@@ -71,7 +71,7 @@ from wirelang.persona_engine.v907_verify import V907VerifyResult
 
 # The engine wraps every Stage-1 resolver in ``except Exception as
 # exc`` and re-raises after emitting the structured audit record.
-# Tag-51 fault injection therefore uses ordinary exception subclasses
+# fault injection therefore uses ordinary exception subclasses
 # — the production error classes (BackendSwitchValidationError /
 # RustBackendError) have positional argument signatures meant for
 # specific call sites and would over-constrain the test surface.
@@ -90,10 +90,10 @@ class InjectedRustBackendFault(RuntimeError):
 # ---------------------------------------------------------------------------
 #
 # Each entry pins:
-#   * domain       — engine-side audit-record domain field
-#   * resolver_fn  — the ``rust_backend_switch.resolve_*`` callable
-#   * attr_pair    — (chosen_backend_attr, decision_attr) on
-#                    ``PersonaEngine`` after a successful resolution
+# * domain — engine-side audit-record domain field
+# * resolver_fn — the ``rust_backend_switch.resolve_*`` callable
+# * attr_pair — (chosen_backend_attr, decision_attr) on
+# ``PersonaEngine`` after a successful resolution
 #
 # Order MUST match the boot fan-out in
 # ``PersonaEngine._boot_internal``'s parent (``PersonaEngine.boot``)
@@ -166,7 +166,7 @@ DECISION_ORDER = [
     ),
 ]
 
-# The nine resolvers invoked by PersonaEngine.boot() (state_backing
+# The nine resolvers invoked by PersonaEngine.boot (state_backing
 # resolves earlier inside __init__).
 BOOT_FAN_OUT_DECISIONS = [
     entry for entry in DECISION_ORDER if entry[0] != "state_backing"
@@ -179,7 +179,7 @@ BOOT_FAN_OUT_DECISIONS = [
 
 
 def _env_contract(tmp_path: Path) -> EnvContract:
-    """A minimal EnvContract suitable for boot()-driven tests.
+    """A minimal EnvContract suitable for boot-driven tests.
 
     The axis-A path must exist for the v907_verify pin computation;
     the v907_verify call itself is monkeypatched in every test that
@@ -232,7 +232,7 @@ def _log_records(log_sink: io.StringIO) -> list[dict]:
 def _stub_v907_pin(monkeypatch: pytest.MonkeyPatch) -> None:
     """Skip the real V-907 pin compute — it touches axis-A bytes only
     and is not the subject of this suite. Every test that triggers
-    boot() lands a deterministic stub pin."""
+    boot lands a deterministic stub pin."""
 
     def _stub(
         persona_id: str,
@@ -298,7 +298,7 @@ def _patch_resolver_to_raise(
     monkeypatch.setattr(
         rust_backend_switch, crash.resolver_name, _raiser
     )
-    # The engine imports the resolvers inline (``from .rust_backend_switch
+    # The engine imports the resolvers inline (``.rust_backend_switch
     # import resolve_*``) so we also patch the binding the engine sees.
     monkeypatch.setattr(
         engine_mod,
@@ -345,7 +345,7 @@ def test_decision_order_matches_manifest_cardinality():
 
 
 def test_boot_fan_out_decisions_are_nine():
-    """The engine boot() method explicitly fans out nine resolvers
+    """The engine boot method explicitly fans out nine resolvers
     (state_backing resolves inside __init__)."""
     assert len(BOOT_FAN_OUT_DECISIONS) == 9, (
         f"boot() fan-out must touch nine resolvers; "
@@ -408,11 +408,11 @@ def test_clean_boot_emits_all_nine_fan_out_decisions(
 # Crash-window matrix — DURING-EMIT (validation-time fault).
 #
 # Inject a BackendSwitchValidationError at the resolver entry; assert:
-#   * engine.boot() raises (does NOT swallow);
-#   * the audit log carries a backend-switch-validation-failed record
-#     for the expected domain;
-#   * the FSM never advanced past uninstantiated;
-#   * no engineering-output event was emitted (bridge_writer is None).
+# * engine.boot raises (does NOT swallow);
+# * the audit log carries a backend-switch-validation-failed record
+# for the expected domain;
+# * the FSM never advanced past uninstantiated;
+# * no engineering-output event was emitted (bridge_writer is None).
 # ---------------------------------------------------------------------------
 
 
@@ -445,7 +445,7 @@ def test_during_emit_crash_aborts_boot_cleanly(
         eng.boot()
 
     # FSM never advanced (audit-log truth, not in-memory truth):
-    # spawn() was never called.
+    # spawn was never called.
     assert eng.fsm.state == "uninstantiated", (
         f"crash in {domain} must not leave FSM advanced; "
         f"got state={eng.fsm.state!r}"
@@ -474,11 +474,11 @@ def test_during_emit_crash_aborts_boot_cleanly(
 #
 # The targeted resolver returned cleanly; the *next* fan-out resolver
 # raises a RustBackendError. Assert:
-#   * boot() raises the downstream exception (NOT the upstream-clean
-#     one);
-#   * the upstream attribute is populated (partial-boot-state truth);
-#   * the FSM did not advance;
-#   * downstream resolvers were never invoked.
+# * boot raises the downstream exception (NOT the upstream-clean
+# one);
+# * the upstream attribute is populated (partial-boot-state truth);
+# * the FSM did not advance;
+# * downstream resolvers were never invoked.
 # ---------------------------------------------------------------------------
 
 
@@ -599,9 +599,9 @@ def test_post_emit_pre_fsm_crash_preserves_partial_state(
 #
 # Inject the same exception into both the targeted resolver AND the
 # resolver immediately after it. Assert:
-#   * boot() raises the FIRST exception (the engine never reaches the
-#     second resolver's body);
-#   * the second resolver's exception is NOT surfaced.
+# * boot raises the FIRST exception (the engine never reaches the
+# second resolver's body);
+# * the second resolver's exception is NOT surfaced.
 # ---------------------------------------------------------------------------
 
 
@@ -679,7 +679,7 @@ def test_idempotent_failure_path_no_engineering_output(
 ):
     """No EngineeringOutputEvent is ever emitted on a failed boot —
     the audit substrate must not record a 'spawn happened' signal
-    when spawn() was never called. This is the Doppelbetrieb-
+    when spawn was never called. This is the Doppelbetrieb-
     Vergleichs-Clock anti-false-positive."""
     eng, log_sink = _make_engine(tmp_path)
     _patch_resolver_to_raise(
@@ -758,7 +758,7 @@ def test_repeated_boot_after_crash_is_safe(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """Calling boot() a second time after a failed first call must
+    """Calling boot a second time after a failed first call must
     not double-attach or corrupt state. The engine is allowed to
     re-raise; the FSM must stay uninstantiated; no bridge_writer
     leaks across calls."""
@@ -784,7 +784,7 @@ def test_clean_recovery_after_validation_error_unwound(
     monkeypatch: pytest.MonkeyPatch,
 ):
     """If the operator's ENV fault is fixed between attempts (test
-    simulates by un-patching the resolver), boot() must succeed on
+    simulates by un-patching the resolver), boot must succeed on
     the next call. No sticky fault state."""
     eng, _log_sink = _make_engine(tmp_path)
 
@@ -802,7 +802,7 @@ def test_clean_recovery_after_validation_error_unwound(
 
     # Operator fixes ENV — restore the real resolver.
     monkeypatch.undo()
-    # Re-stub V-907 + SVID after monkeypatch.undo() so the global
+    # Re-stub V-907 + SVID after monkeypatch.undo so the global
     # autouse stubs still hold for the recovery call.
     from wirelang.persona_engine import (
         svid_workload_identity as svid_mod,  # noqa: F401
@@ -834,7 +834,7 @@ def test_clean_recovery_after_validation_error_unwound(
         engine_mod, "resolve_socket_path", lambda env: "/nonexistent.sock"
     )
 
-    # Fresh engine — boot() should succeed.
+    # Fresh engine — boot should succeed.
     eng2, log_sink2 = _make_engine(tmp_path)
     eng2.boot()
     for _d, _r, (attr, _dec) in BOOT_FAN_OUT_DECISIONS:
@@ -849,7 +849,7 @@ def test_audit_log_records_carry_domain_field_for_every_crash(
 ):
     """Every backend-switch-validation-failed record MUST carry a
     non-empty ``domain`` field. The audit substrate downstream uses
-    this for per-domain failure-rate alarms (Noa's SRE board)."""
+    this for per-domain failure-rate alarms."""
     for crash_domain, resolver_name, _attrs in BOOT_FAN_OUT_DECISIONS:
         eng, log_sink = _make_engine(tmp_path)
         with monkeypatch.context() as m:
@@ -889,7 +889,7 @@ def test_fsm_was_constructed_before_any_decision_resolution(
     tmp_path: Path,
 ):
     """The engine constructs ``self.fsm`` (a Python
-    LifecycleStateMachine instance) inside __init__, BEFORE boot()
+    LifecycleStateMachine instance) inside __init__, BEFORE boot
     runs. This is a load-bearing invariant for the
     Phase-3b cutover: the FSM exists even when every backend
     decision is forced to Python."""
@@ -915,7 +915,7 @@ def test_stage_1_fan_out_records_emit_in_canonical_order(
         for r in records
         if r.get("msg") == "backend-decision"
     ]
-    # state_backing is emitted inside __init__, before boot(): it
+    # state_backing is emitted inside __init__, before boot: it
     # therefore appears FIRST in the log, then the nine boot-fan-out
     # records follow in order.
     expected_order = ["state_backing"] + [

@@ -2,19 +2,19 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreEnd
-"""Tag-77 - cross-Welle handler-integration pins (Selin, persona-engine).
+"""- cross-wave handler-integration pins.
 
-Polish-layer cross-Welle integration tests. The Tag-69..76 producer-
-tests pin each Welle individually + the Tag-76 cross-Welle verifier;
-this Tag-77 file pins the **cross-Welle handler-family pairwise
-disjointness** + the canonical seven-Welle Marathon-trigger-set.
+Polish-layer cross-wave integration tests. The..76 producer-
+tests pin each wave individually + the cross-wave verifier;
+this file pins the **cross-wave handler-family pairwise
+disjointness** + the canonical seven-wave Marathon-trigger-set.
 
-The seven per-Welle trigger-literals are:
+The seven per-wave trigger-literals are:
 
     cutover, sign-off, sealing, snapshot-restore,
     capability-token-rotation, cross-substrate-parity, final-sealing
 
-plus the cross-Welle aggregate trigger:
+plus the cross-wave aggregate trigger:
 
     phase-3-complete-verify
 
@@ -22,26 +22,26 @@ and the rollback trigger:
 
     rollback
 
-This test pins the canonical seven-Welle Marathon-run: it walks
-through Welle-1..7 with the producer-substrate, asserts that every
+This test pins the canonical seven-wave Marathon-run: it walks
+through wave 1..7 with the producer-substrate, asserts that every
 trigger fires exactly once in the expected order, and that the
 trigger-set is pairwise disjoint with every other. It also pins the
-cross-Welle Phase-3-COMPLETE verifier on the post-marathon state-dir
-+ asserts the verifier-record is disjoint from the per-Welle records.
+cross-wave Phase-3-COMPLETE verifier on the post-marathon state-dir
++ asserts the verifier-record is disjoint from the per-wave records.
 
 Hermetic envelope
 -----------------
 
 No network. No NATS, no SPIRE, no gRPC. No subprocess. Pure in-process
-file I/O against ``tmp_path`` fixtures. Mirrors the Tag-69..76
+file I/O against ``tmp_path`` fixtures. Mirrors the..76
 producer-test conventions verbatim.
 
-Scope discipline (Selin)
+Scope discipline
 ------------------------
 
-Cross-Welle integration tests only. This file does NOT modify
+Cross-wave integration tests only. This file does NOT modify
 producer-substrate behaviour, engine.py dispatch, schema-pin
-literals, or any persona-definition (Aisha-Domaene). This file does
+literals, or any persona-definition. This file does
 not couple to NATS / SPIRE / gRPC / WAT-core / identity-substrate /
 container-infra. It is a pure read-against producer + assertions-on-
 audit-records polish layer.
@@ -86,7 +86,7 @@ from wirelang.persona_engine.welle_state_producer import (
 
 # ---------------------------------------------------------------------------
 # Canonical timestamps + KW-anchor mirror (must satisfy verifier monotonicity).
-# Welles 4/5/6 share KW-26; cutover_iso is tolerated equal on (4,5) and (5,6).
+# Welles 4/5/6 share calendar week 26; cutover_iso is tolerated equal on (4,5) and (5,6).
 # ---------------------------------------------------------------------------
 
 
@@ -112,7 +112,7 @@ CANONICAL_SIGNOFF_ISO = {
 }
 
 
-# Per-Welle expected trigger on the green-Marathon walk-through.
+# Per-wave expected trigger on the green-Marathon walk-through.
 EXPECTED_SIGNOFF_TRIGGER = {
     1: "sign-off",
     2: "sealing",
@@ -124,7 +124,7 @@ EXPECTED_SIGNOFF_TRIGGER = {
 }
 
 
-# Disjoint seven-per-Welle trigger-set used on a green Marathon-run.
+# Disjoint seven-per-wave trigger-set used on a green Marathon-run.
 GREEN_MARATHON_TRIGGERS = frozenset({
     "cutover",
     "sign-off",
@@ -137,7 +137,7 @@ GREEN_MARATHON_TRIGGERS = frozenset({
 
 
 # ---------------------------------------------------------------------------
-# Helpers (mirror Tag-69..76 layout verbatim).
+# Helpers (mirror..76 layout verbatim).
 # ---------------------------------------------------------------------------
 
 
@@ -203,9 +203,9 @@ class _RecordingPhase3Emitter:
 def _drive_welle_to_signoff(
     producer: WelleStateProducer, welle_number: int
 ) -> None:
-    """Walk a single Welle pending -> in-progress -> signed-off.
+    """Walk a single wave pending -> in-progress -> signed-off.
 
-    Uses the per-Welle handler family per
+    Uses the per-wave handler family per
     :data:`EXPECTED_SIGNOFF_TRIGGER`. All marker preconditions are set
     to the canonical green values.
     """
@@ -263,7 +263,7 @@ def _drive_welle_to_signoff(
 def _drive_full_marathon(
     state_dir: Path, emitter: _RecordingEmitter
 ) -> WelleStateProducer:
-    """Walk Welle-1..7 to signed-off using the per-Welle handler family."""
+    """Walk wave 1..7 to signed-off using the per-wave handler family."""
     _seed_all_pending(state_dir)
     producer = WelleStateProducer(state_dir=state_dir, audit_emitter=emitter)
     for w in range(1, 8):
@@ -277,15 +277,15 @@ def _drive_full_marathon(
 
 
 def test_per_welle_signoff_trigger_map_is_disjoint_set():
-    """The seven per-Welle sign-off-family triggers are pairwise distinct.
+    """The seven per-wave sign-off-family triggers are pairwise distinct.
 
-    Note: Welle-1 and Welle-3 both carry ``trigger="sign-off"`` (the
+    Note: wave 1 and wave 3 both carry ``trigger="sign-off"`` (the
     vanilla sign-off family). The disjoint **set** therefore has 6
     sign-off-family elements + the implicit ``cutover`` trigger that
-    fires on every Welle = 7 distinct trigger-literals.
+    fires on every wave = 7 distinct trigger-literals.
     """
     family_signoff_triggers = set(EXPECTED_SIGNOFF_TRIGGER.values())
-    # Welle-1 + Welle-3 share "sign-off"; that's by design.
+    # wave 1 + wave 3 share "sign-off"; that's by design.
     assert family_signoff_triggers == {
         "sign-off",
         "sealing",
@@ -323,7 +323,7 @@ def test_rollback_trigger_is_disjoint_from_phase_3_complete_trigger():
 
 
 # ---------------------------------------------------------------------------
-# 2. Cross-Welle Marathon walk-through: every trigger fires exactly once.
+# 2. Cross-wave Marathon walk-through: every trigger fires exactly once.
 # ---------------------------------------------------------------------------
 
 
@@ -351,7 +351,7 @@ def test_green_marathon_emits_one_signoff_record_per_welle(tmp_path):
 
 
 def test_green_marathon_total_record_count_is_fourteen(tmp_path):
-    """Every Welle emits 2 records: cutover + per-family sign-off."""
+    """Every wave emits 2 records: cutover + per-family sign-off."""
     emitter = _RecordingEmitter()
     state_dir = tmp_path / "state"
     _drive_full_marathon(state_dir, emitter)
@@ -367,7 +367,7 @@ def test_green_marathon_record_trigger_set_is_canonical(tmp_path):
 
 
 def test_green_marathon_per_welle_trigger_is_canonical(tmp_path):
-    """Pin trigger-literal on each Welle's sign-off-record (per family)."""
+    """Pin trigger-literal on each wave's sign-off-record (per family)."""
     emitter = _RecordingEmitter()
     state_dir = tmp_path / "state"
     _drive_full_marathon(state_dir, emitter)
@@ -385,18 +385,18 @@ def test_green_marathon_per_welle_trigger_is_canonical(tmp_path):
 
 
 def test_green_marathon_emit_order_matches_welle_number(tmp_path):
-    """Records emit in (cutover, sign-off) pairs per Welle, ascending."""
+    """Records emit in (cutover, sign-off) pairs per wave, ascending."""
     emitter = _RecordingEmitter()
     state_dir = tmp_path / "state"
     _drive_full_marathon(state_dir, emitter)
     welle_order = [r.welle_number for r in emitter.records]
-    # 14 records: w1 cutover, w1 sign-off, w2 cutover, w2 sign-off, ...
+    # 14 records: w1 cutover, w1 sign-off, w2 cutover, w2 sign-off,...
     expected = [w for w in range(1, 8) for _ in range(2)]
     assert welle_order == expected
 
 
 # ---------------------------------------------------------------------------
-# 3. Cross-Welle Phase-3-COMPLETE verifier on the post-marathon state.
+# 3. Cross-wave Phase-3-COMPLETE verifier on the post-marathon state.
 # ---------------------------------------------------------------------------
 
 
@@ -415,7 +415,7 @@ def test_phase_3_complete_verifier_green_on_post_marathon_state(tmp_path):
 
 
 def test_phase_3_complete_record_disjoint_from_per_welle_records(tmp_path):
-    """The cross-Welle audit-record type is disjoint from the per-Welle one."""
+    """The cross-wave audit-record type is disjoint from the per-wave one."""
     emitter = _RecordingEmitter()
     phase3_emitter = _RecordingPhase3Emitter()
     state_dir = tmp_path / "state"
@@ -424,11 +424,11 @@ def test_phase_3_complete_record_disjoint_from_per_welle_records(tmp_path):
         verify_iso="2026-07-03T18:00:00Z",
         phase_3_emitter=phase3_emitter,
     )
-    # All per-Welle records: WelleAuditRecord type.
+    # All per-wave records: WelleAuditRecord type.
     for r in emitter.records:
         assert isinstance(r, WelleAuditRecord)
         assert not isinstance(r, Phase3CompleteAuditRecord)
-    # The cross-Welle record: Phase3CompleteAuditRecord type.
+    # The cross-wave record: Phase3CompleteAuditRecord type.
     assert len(phase3_emitter.records) == 1
     cross_record = phase3_emitter.records[0]
     assert isinstance(cross_record, Phase3CompleteAuditRecord)
@@ -436,7 +436,7 @@ def test_phase_3_complete_record_disjoint_from_per_welle_records(tmp_path):
 
 
 def test_phase_3_complete_record_trigger_disjoint_from_emitted_record_triggers(tmp_path):
-    """No per-Welle audit-record carries the Phase-3-COMPLETE trigger."""
+    """No per-wave audit-record carries the Phase-3-COMPLETE trigger."""
     emitter = _RecordingEmitter()
     phase3_emitter = _RecordingPhase3Emitter()
     state_dir = tmp_path / "state"
@@ -461,9 +461,9 @@ def test_phase_3_complete_to_json_bytes_disjoint_from_welle_audit_json(tmp_path)
     )
     welle_record_bytes = emitter.records[0].to_json_bytes()
     cross_record_bytes = cross_record.to_json_bytes()
-    # Disjoint-key signal: only the cross-Welle record carries
+    # Disjoint-key signal: only the cross-wave record carries
     # ``earliest_cutover_iso`` / ``latest_signoff_iso`` / ``verify_iso`` /
-    # ``verified_wellen``; only the per-Welle record carries
+    # ``verified_wellen``; only the per-wave record carries
     # ``new_status`` / ``prior_status`` / ``welle_number``.
     welle_json = json.loads(welle_record_bytes)
     cross_json = json.loads(cross_record_bytes)
@@ -484,22 +484,22 @@ def test_phase_3_complete_to_json_bytes_disjoint_from_welle_audit_json(tmp_path)
 
 
 # ---------------------------------------------------------------------------
-# 4. Top-level engine.py dispatch: cross-Welle handler-equivalence.
+# 4. Top-level engine.py dispatch: cross-wave handler-equivalence.
 # ---------------------------------------------------------------------------
 
 
 def test_engine_module_exposes_all_seven_handlers():
-    """Every per-Welle family handler is exposed at top-level + the
-    cross-Welle verifier."""
+    """Every per-wave family handler is exposed at top-level + the
+    cross-wave verifier."""
     expected = (
-        "handle_welle_sealing_event",          # Welle-2
-        "handle_welle_rollback_event",         # rollback (any Welle)
-        "handle_welle_4_signoff_event",        # Welle-4 snapshot-restore
-        "handle_welle_5_signoff_event",        # Welle-5 capability-token-rotation
-        "handle_welle_3_signoff_event",        # Welle-3 bridge-audit
-        "handle_welle_6_signoff_event",        # Welle-6 cross-substrate-parity
-        "handle_welle_7_signoff_event",        # Welle-7 final-sealing
-        "handle_phase_3_complete_event",       # cross-Welle aggregate
+        "handle_welle_sealing_event",          # wave 2
+        "handle_welle_rollback_event",         # rollback (any wave)
+        "handle_welle_4_signoff_event",        # wave 4 snapshot-restore
+        "handle_welle_5_signoff_event",        # wave 5 capability-token-rotation
+        "handle_welle_3_signoff_event",        # wave 3 bridge-audit
+        "handle_welle_6_signoff_event",        # wave 6 cross-substrate-parity
+        "handle_welle_7_signoff_event",        # wave 7 final-sealing
+        "handle_phase_3_complete_event",       # cross-wave aggregate
     )
     for name in expected:
         assert hasattr(engine_mod, name), f"engine_mod missing {name!r}"
@@ -540,7 +540,7 @@ def test_sync_and_async_handler_pairs_have_matching_names():
         if name.startswith("handle_")
         and inspect.iscoroutinefunction(getattr(engine_async_mod, name))
     }
-    # The cross-Welle + Welle-N family handlers must be in both sets.
+    # The cross-wave + wave N family handlers must be in both sets.
     required = {
         "handle_welle_sealing_event",
         "handle_welle_rollback_event",
@@ -560,7 +560,7 @@ def test_sync_and_async_handler_pairs_have_matching_names():
 
 
 # ---------------------------------------------------------------------------
-# 5. Cross-Welle rollback-trigger disjointness from green-Marathon families.
+# 5. Cross-wave rollback-trigger disjointness from green-Marathon families.
 # ---------------------------------------------------------------------------
 
 
@@ -598,7 +598,7 @@ def test_rollback_record_disjoint_from_phase_3_complete_record(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 6. Cross-Welle async dispatch parity (sync vs async green Marathon).
+# 6. Cross-wave async dispatch parity (sync vs async green Marathon).
 # ---------------------------------------------------------------------------
 
 
@@ -626,27 +626,27 @@ def test_async_phase_3_complete_dispatch_matches_sync(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 7. Cross-Welle pre-auditor-guard pairwise pin (Welle-3 + Welle-7).
+# 7. Cross-wave pre-auditor-guard pairwise pin (wave 3 + wave 7).
 # ---------------------------------------------------------------------------
 
 
 def test_pre_auditor_guarded_wellen_pair_share_pre_auditor_required(tmp_path):
-    """Welle-3 + Welle-7 are the **only** pre-auditor-guarded sign-off
+    """wave 3 + wave 7 are the **only** pre-auditor-guarded sign-off
     paths; the other five sign-off families MUST NOT require a
-    pre-auditor decision (Henrik-cannot-self-sign-off invariant scope)."""
+    pre-auditor decision."""
     state_dir = tmp_path / "state"
     _seed_all_pending(state_dir)
     emitter = _RecordingEmitter()
     producer = WelleStateProducer(state_dir=state_dir, audit_emitter=emitter)
-    # Drive Welle-1, 2, 4, 5, 6 WITHOUT a pre-auditor decision -- success.
+    # Drive wave 1, 2, 4, 5, 6 WITHOUT a pre-auditor decision -- success.
     for welle_number in (1, 2, 4, 5, 6):
         producer.handle_cutover_event(
             welle_number, CANONICAL_CUTOVER_ISO[welle_number]
         )
         _drive_welle_to_signoff(producer, welle_number)
-    # Welle-3 + Welle-7 are pre-auditor-guarded (we don't drive them here;
-    # the per-Welle producer-tests already pin the refusal-path).
-    # All five other-Welle records must have new_status=signed-off.
+    # wave 3 + wave 7 are pre-auditor-guarded (we don't drive them here;
+    # the per-wave producer-tests already pin the refusal-path).
+    # All five other-wave records must have new_status=signed-off.
     other_welle_records = {
         r.welle_number: r
         for r in emitter.records
@@ -657,28 +657,28 @@ def test_pre_auditor_guarded_wellen_pair_share_pre_auditor_required(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 8. Cross-Welle canonical KW-anchor consistency.
+# 8. Cross-wave canonical KW-anchor consistency.
 # ---------------------------------------------------------------------------
 
 
 def test_canonical_kw_anchor_table_is_consistent_with_verifier_default():
-    """The Tag-77 cross-Welle KW-anchor table must mirror the producer-
-    substrate's :data:`PHASE_3_COMPLETE_CANONICAL_KW_ANCHOR` table."""
+    """the cross-wave KW-anchor table must mirror the producer-
+    substrate's:data:`PHASE_3_COMPLETE_CANONICAL_KW_ANCHOR` table."""
     assert CANONICAL_KW_ANCHOR == PHASE_3_COMPLETE_CANONICAL_KW_ANCHOR
-    # KW-26 shared by Welles 4/5/6 per the Tag-74 reconciliation.
+    # calendar week 26 shared by Welles 4/5/6 per the reconciliation.
     assert (
         CANONICAL_KW_ANCHOR[4]
         == CANONICAL_KW_ANCHOR[5]
         == CANONICAL_KW_ANCHOR[6]
         == "KW-26"
     )
-    # KW-22 for Welle-1; KW-27 for Welle-7 (Marathon-start + Marathon-end).
+    # calendar week 22 for wave 1; calendar week 27 for wave 7 (Marathon-start + Marathon-end).
     assert CANONICAL_KW_ANCHOR[1] == "KW-22"
     assert CANONICAL_KW_ANCHOR[7] == "KW-27"
 
 
 def test_canonical_cutover_iso_satisfies_cross_welle_monotonicity():
-    """The Tag-77 cross-Welle cutover-iso table satisfies the verifier
+    """the cross-wave cutover-iso table satisfies the verifier
     invariant (monotone non-decreasing in welle_number)."""
     sorted_wellen = sorted(CANONICAL_CUTOVER_ISO.keys())
     prior_iso = ""
@@ -692,7 +692,7 @@ def test_canonical_cutover_iso_satisfies_cross_welle_monotonicity():
 
 
 def test_required_wellen_default_covers_all_seven_marathon_wellen():
-    """The cross-Welle verifier default set is the canonical seven-Welle
+    """The cross-wave verifier default set is the canonical seven-wave
     Marathon set."""
     assert PHASE_3_COMPLETE_REQUIRED_WELLEN == frozenset(range(1, 8))
     assert set(EXPECTED_SIGNOFF_TRIGGER.keys()) == set(

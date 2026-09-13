@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Operator CLI test pack (Phase-1b Sprint-2 Tag-3, S2-T1-06).
+"""Operator CLI test pack (Phase-1b, S2-T1-06).
 
 Covers the ``wakir-persona migrate`` entry-point declared in
 ``pyproject.toml`` and implemented in
 :mod:`wirelang.persona.cli`.
 
-The CLI is a thin wrapper over :func:`migrate_persona`; the bulk of
+The CLI is a thin wrapper over:func:`migrate_persona`; the bulk of
 defensive coverage lives in
 ``test_persona_migration_edge_cases.py`` and
 ``test_persona_migration_roundtrip.py``. This pack focuses on the

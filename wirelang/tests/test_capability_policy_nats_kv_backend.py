@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """Hermetic tests for the Wirelang capability-policy NATS-KV backend.
 
-Phase-2 Sprint-5 Tag-2 (S5-2). Tests the persistent-distribution tier
+Phase-2 (S5-2). Tests the persistent-distribution tier
 :mod:`wirelang.schemas.capability_policy_nats_kv_backend` against an
-in-memory mock that mirrors the Sprint-3 Tag-1 schema-registry-backend
+in-memory mock that mirrors the schema-registry-backend
 mock pattern (``tests/test_schema_registry_nats_kv_backend.py``) and
-Kai's Tag-1 mock JetStream surface.
+the infrastructure zone's mock JetStream surface.
 
 Test inventory T-CPP-01..10 + auxiliary probes:
 
@@ -28,7 +28,7 @@ Test inventory T-CPP-01..10 + auxiliary probes:
 - T-CPP-09: a multi-policy-per-issuer bucket round-trips through
   ``snapshot_registry`` into a
   :class:`CapabilityPolicyRegistry` where the gate evaluation
-  (:func:`check_registered_by_capability`) sees both policies and
+  :func:`check_registered_by_capability`) sees both policies and
   allows the union of triples / kids they cover.
 - T-CPP-10: a snapshot is determinism-stable across two back-to-back
   calls (sorted-key list is byte-equal; record list is value-equal).
@@ -40,7 +40,7 @@ Auxiliary probes:
   rejected inputs).
 - T-CPP-aux-envelope-shape: an envelope with malformed
   ``allowed_triples`` (object instead of 2-tuple, missing field,
-  bad type) raises :class:`CapabilityPolicyEnvelopeError`.
+  bad type) raises:class:`CapabilityPolicyEnvelopeError`.
 """
 
 from __future__ import annotations
@@ -413,7 +413,7 @@ def test_t_cpp_07_wrong_schema_field_rejected():
 def test_t_cpp_08_bucket_config_constants_byte_stable():
     """Drift-protection at the test layer.
 
-    The Sprint-5 Tag-2 Kai-side paired-update memo lists these values
+    The infrastructure zone-side paired-update memo lists these values
     byte-precisely. The orchestrator-side ``BucketSpec`` for the 7th
     bucket will mirror them byte-equal; any deviation surfaces as a
     failure on either side first.
@@ -587,7 +587,7 @@ class TestAuxKeyDerivation:
 
 
 class TestAuxEnvelopeShape:
-    """Malformed envelopes raise :class:`CapabilityPolicyEnvelopeError`
+    """Malformed envelopes raise:class:`CapabilityPolicyEnvelopeError`
     with informative messages.
     """
 

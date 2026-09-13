@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic invariant tests for the Sprint-Stability Tag-2
+"""Hermetic invariant tests for the -Stability
 optional-dependency resolver pattern on
 :mod:`wirelang.persona.persona_canonical_form` and
 :mod:`wirelang.persona.persona_hash`.
 
-Background (Sprint-Stability Tag-2, 2026-05-16)
+Background (-Stability, 2026-05-16)
 -----------------------------------------------
 
-PR #85 (Sprint-Stability Tag-1 hot-fix) promoted PyYAML from the
+PR #85 (-Stability hot-fix) promoted PyYAML from the
 ``persona-engine-runtime`` extra to a top-level ``dependencies =``
 entry to close the production-lane ``"persona_canonical_form
 missing"`` build-drift symptom (ADR-0061 §Schritt 10). The fix was
@@ -27,7 +27,7 @@ turned a ``ModuleNotFoundError`` into a misleading
 engine image is mis-built")`` re-raise from the engine-side caller
 (``wirelang/persona_engine/v907_verify.py:109``).
 
-Sprint-Stability Tag-2 (Tomás-Hand, 2026-05-16) inverts the
+-Stability inverts the
 posture:
 
 1. ``persona_canonical_form.py`` and ``persona_hash.py`` switch
@@ -45,7 +45,7 @@ posture:
 
 This test module is the regression canary for the new contract.
 Parity with ``wirelang/tests/test_identity_lazy_crypto_imports.py``
-(Sprint-9 Tag-4 Bug-6 canary for the cryptography-eager-import
+( Bug-6 canary for the cryptography-eager-import
 fix).
 
 What this surface asserts
@@ -67,7 +67,7 @@ What this surface asserts
    and ``canonical_jcs_bytes`` succeed on the production-lane host.
 5. **Error-message shape (with deps absent)**: the engine-side
    caller surfaces an install-hint message that names the
-   ``[persona]`` extra, not the pre-Tag-2 "mis-built engine image"
+   ``[persona]`` extra, not the pre-"mis-built engine image"
    text. We exercise this with a sys.modules-injection-poison trick
    so the test passes regardless of whether yaml/rfc8785 are
    actually installed on the test host.
@@ -93,12 +93,12 @@ import pytest
 
 # ---------------------------------------------------------------------------
 # 1. Module-load shape: persona_canonical_form + persona_hash load on a
-#    minimal-deps host.
+# minimal-deps host.
 # ---------------------------------------------------------------------------
 
 
 def test_persona_canonical_form_module_loads_without_yaml_or_rfc8785_present():
-    """Sprint-Stability Tag-2 contract: the module must be importable
+    """-Stability contract: the module must be importable
     even when ``yaml`` and ``rfc8785`` are absent from sys.modules.
 
     Whether they ARE absent on this test host depends on the lane
@@ -114,7 +114,7 @@ def test_persona_canonical_form_module_loads_without_yaml_or_rfc8785_present():
 
 def test_persona_hash_module_loads_without_rfc8785_present():
     """Companion to the canonical-form test above for the
-    sibling module ``persona_hash`` that also went lazy in Tag-2.
+    sibling module ``persona_hash`` that also went lazy .
     """
     import wirelang.persona.persona_hash as mod  # noqa: F401
 
@@ -125,7 +125,7 @@ def test_persona_hash_module_loads_without_rfc8785_present():
 
 
 def test_dependency_missing_error_is_importable():
-    """The :class:`PersonaCanonicalFormDependencyMissingError`
+    """The:class:`PersonaCanonicalFormDependencyMissingError`
     sentinel-class is the public surface that downstream catchers
     (notably ``wirelang.persona_engine.v907_verify``) rely on to
     distinguish the "missing wheel" failure mode from a generic
@@ -140,7 +140,7 @@ def test_dependency_missing_error_is_importable():
 
 def test_dependency_missing_error_carries_missing_module_attribute():
     """The error object exposes the missing-module name as a public
-    attribute so callers can switch on it (e.g. the engine-side
+    attribute so callers can switch on it (e.g. The engine-side
     caller's install-hint message generator)."""
     from wirelang.persona.persona_canonical_form import (
         PersonaCanonicalFormDependencyMissingError,
@@ -194,17 +194,17 @@ def test_persona_hash_constants_accessible_without_rfc8785():
 
 # ---------------------------------------------------------------------------
 # 4. Function-call shape (with deps present): exercised by the existing
-#    ``test_persona_canonical_form_jcs.py`` and ``test_persona_hash.py``
-#    modules, which gate on ``pytest.importorskip("rfc8785")``. We do
-#    not duplicate them here.
+# ``test_persona_canonical_form_jcs.py`` and ``test_persona_hash.py``
+# modules, which gate on ``pytest.importorskip("rfc8785")``. We do
+# not duplicate them here.
 #
 # 5. Error-message shape (with deps absent): runtime-aware test below.
 # ---------------------------------------------------------------------------
 
 
 def test_parse_frontmatter_raises_dependency_error_when_yaml_absent():
-    """When yaml is unavailable, calling :func:`parse_frontmatter`
-    must raise :class:`PersonaCanonicalFormDependencyMissingError`
+    """When yaml is unavailable, calling:func:`parse_frontmatter`
+    must raise:class:`PersonaCanonicalFormDependencyMissingError`
     with ``missing_module == "yaml"``.
 
     We detect the deps-absent state via the module-level resolver
@@ -274,16 +274,16 @@ def test_compute_persona_hash_from_canonical_raises_dependency_error_when_rfc878
 
 # ---------------------------------------------------------------------------
 # 6. v907_verify integration: the engine-side caller surfaces an
-#    install-hint message that names the [persona] extra (NOT the
-#    pre-Tag-2 misleading "mis-built engine image" text).
+# install-hint message that names the [persona] extra (NOT the
+# pre-misleading "mis-built engine image" text).
 # ---------------------------------------------------------------------------
 
 
 def test_v907_verify_install_hint_surface_when_deps_absent():
-    """Substance contract of Sprint-Stability Tag-2:
+    """Substance contract of -Stability:
     :class:`PersonaHashComputeError` from
     :func:`wirelang.persona_engine.v907_verify.compute_v907_pin`
-    must mention the ``[persona]`` extra and NOT the pre-Tag-2
+    must mention the ``[persona]`` extra and NOT the pre-
     "mis-built engine image" text when the underlying cause is a
     missing wheel."""
     from wirelang.persona.persona_canonical_form import (
@@ -365,7 +365,7 @@ def test_pyproject_persona_extra_carries_pyyaml_and_rfc8785():
 
 
 def test_pyproject_pyyaml_not_in_top_level_dependencies():
-    """Sprint-Stability Tag-2 inverts the PR #85 posture: PyYAML
+    """-Stability inverts the PR #85 posture: PyYAML
     moves OUT of top-level dependencies and INTO the [persona]
     extra. Production-lane CI installs PyYAML explicitly (see
     ``.github/workflows/tests.yml`` ``production-suite`` job), so

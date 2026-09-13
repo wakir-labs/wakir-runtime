@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tag-59 — V-907 Persona-Hash-Pin-Build-Step (Selin, Persona-Engine).
+"""— V-907 Persona-Hash-Pin-Build-Step.
 
-Engine 0.5.3-rc1 (Tag-58, PR #372) is the final Pre-Cutover RC before
-the KW-24 cutover gate opens. The V-907 persona-hash anchor binds
+Engine 0.5.3-rc1 (PR #372) is the final pre-cutover RC before
+the calendar week 24 cutover gate opens. The V-907 persona-hash anchor binds
 three authority surfaces:
 
   1. Manifest §1 — the ten-row component-inventory table
@@ -26,7 +26,7 @@ hermetic against the live tree: it loads the live authority surfaces
 * The slice extractors return non-empty, deterministic bytes.
 * The composite hash matches the baseline (HASH-PIN-INTACT).
 * The baseline JSON contains exactly the expected keys.
-* The baseline pins engine 0.5.3-rc1 (Tag-58 PR #372 carry-forward).
+* The baseline pins engine 0.5.3-rc1 (PR #372 carry-forward).
 * All ten resolver-function names appear in the engine.py slice.
 * The Manifest §1 slice starts with the §1 heading and contains all
   ten component-inventory rows.
@@ -38,13 +38,12 @@ hermetic against the live tree: it loads the live authority surfaces
 * The CI workflow path-filter covers every authority surface.
 
 The test-count is >= 12 (see ADR-0023b V-907-Annex test-floor
-discipline; Tag-58 spec-seal probe set the precedent at 12).
+discipline; spec-seal probe set the precedent at 12).
 
-Scope discipline (Selin, ADR-0036/0043/0065/0066): this file pins
+Scope discipline: this file pins
 the persona-engine CI surface. It does **not** modify persona
-definitions (Aisha-Domäne), WAT-core / V-907 logic (Tomás-Domäne,
-Zone-K), identity-substrate (Reza-Domäne, Zone-L), or container-
-infra (Kai-Domäne, Zone-J). Cross-zone unangetastet.
+definitions, WAT-core / V-907 logic, identity-substrate, or container-
+infra. Cross-zone unangetastet.
 """
 
 from __future__ import annotations
@@ -381,7 +380,7 @@ class WorkflowSurfaceTests(unittest.TestCase):
         text = WORKFLOW_PATH.read_text(encoding="utf-8")
         # The workflow must trigger on edits to:
         # * wirelang/persona_engine/** (covers manifest, engine.py,
-        #   __version__.py, baseline JSON, and all sibling modules)
+        # __version__.py, baseline JSON, and all sibling modules)
         # * docs/persona-engine/** (release-notes)
         # * the dedicated pin-pack-0.5.2-final YAML
         # * the verifier helper

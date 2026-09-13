@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 """Hermetic tests for ``wirelang.identity.aip_document_transport_fetch``.
 
-Phase-2 Sprint-4 Tag-4. Tests cover the URL mapping (aip:web → HTTPS),
+Phase-2. Tests cover the URL mapping (aip:web → HTTPS),
 the V-908 HTTPS-transport composition, the optional DNS-anchor
 cross-check (soft + hard modes), and end-to-end composition with the
-Tag-3 ``kid_resolver``.
+``kid_resolver``.
 
 All tests are hermetic: a fake ``urlopen`` is injected into the
-V-908 :class:`HTTPSDocumentTransport` and a stub
+V-908:class:`HTTPSDocumentTransport` and a stub
 :class:`TxtResolver` is supplied for the DNS-anchor path. No real
 HTTPS calls and no real DNS queries leave the process.
 """
@@ -119,11 +119,11 @@ def _make_response(body: dict | bytes, *, status: int = 200) -> _FakeResponse:
 
 
 class _FakeTxtResolver:
-    """Programmable TxtResolver stand-in.
+    """Programmable TxtResolver stand-.
 
     Maps anchor-host -> list[str] script entries. A list of TXT records
     is returned verbatim; an Exception instance is raised; ``None``
-    triggers a :class:`DnsAnchorError` (no record).
+    triggers a:class:`DnsAnchorError` (no record).
     """
 
     def __init__(self, table: dict[str, object]) -> None:
@@ -231,14 +231,14 @@ def test_T_AIP_FT_01_aip_web_to_https_url_canonical() -> None:
         + "personas/treasury-issuer.json"
     )
 
-    # No-path form → index.json under .well-known/aip/.
+    # No-path form → index.json under.well-known/aip/.
     url2, host2 = aip_web_to_https_url("aip:web:peer-a.example")
     assert host2 == "peer-a.example"
     assert url2 == (
         "https://peer-a.example" + WELL_KNOWN_AIP_PREFIX + "index.json"
     )
 
-    # Trailing .json on persona-path is stripped (canonical form).
+    # Trailing.json on persona-path is stripped (canonical form).
     url3, _ = aip_web_to_https_url("aip:web:wakir.dev/issuer.json")
     assert url3 == (
         "https://wakir.dev" + WELL_KNOWN_AIP_PREFIX + "issuer.json"
@@ -327,8 +327,8 @@ def test_T_AIP_FT_04_fetch_propagates_https_status_error() -> None:
 def test_T_AIP_FT_05_fetch_rejects_non_object_root_body() -> None:
     """A JSON-array root body raises HTTPSPayloadError via the transport.
 
-    The V-908 :class:`HTTPSDocumentTransport` already enforces "body
-    must be a JSON object" at the transport layer; Tag-4's defensive
+    The V-908:class:`HTTPSDocumentTransport` already enforces "body
+    must be a JSON object" at the transport layer; 's defensive
     guard is therefore dead code in the production wire and we test
     the transport's contract here. This pins both invariants in one
     place.

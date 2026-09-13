@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Determinism tests for the schema-registry entry-signing layer.
 
-Phase-2 Sprint-4 Tag-1 inventory: T-SR-SIG-01..12.
+Phase-2 inventory: T-SR-SIG-01..12.
 
 The tests exercise the signing primitive in isolation (no NATS-KV
 backend, no live cluster) using ``cryptography``'s in-memory Ed25519
@@ -145,7 +145,7 @@ def test_t_sr_sig_02_signing_payload_deterministic() -> None:
     digest_a = _canonical_signing_payload(entry_a)
     digest_b = _canonical_signing_payload(entry_b)
     assert digest_a == digest_b
-    # And the envelope bytes are byte-equal too (Tag-1 invariant).
+    # And the envelope bytes are byte-equal too (invariant).
     assert _entry_to_envelope(entry_a) == _entry_to_envelope(entry_b)
 
 
@@ -330,7 +330,7 @@ def test_t_sr_sig_06_envelope_helpers_roundtrip() -> None:
 
 def test_t_sr_sig_07_backward_compat_unsigned_envelope() -> None:
     entry = _make_entry()
-    blob = _entry_to_envelope(entry)  # Tag-1 codec output, no signature
+    blob = _entry_to_envelope(entry)  # codec output, no signature
 
     decoded = envelope_to_signed_entry(blob)
     assert not isinstance(decoded, SignedSchemaRegistryEntry)
@@ -428,7 +428,7 @@ def test_t_sr_sig_11_wrong_key_length() -> None:
 
 
 # ---------------------------------------------------------------------------
-# T-SR-SIG-12: Tag-1 codec parity — signed envelope differs from Tag-1
+# T-SR-SIG-12: codec parity — signed envelope differs from
 # only by the optional signature slot.
 # ---------------------------------------------------------------------------
 
@@ -445,13 +445,13 @@ def test_t_sr_sig_12_tag1_codec_parity() -> None:
     signed_payload = json.loads(signed_blob.decode("utf-8"))
 
     # Stripping the signature slot from the signed envelope MUST yield
-    # exactly the Tag-1 envelope.
+    # exactly the envelope.
     stripped = dict(signed_payload)
     assert "signature" in stripped
     stripped.pop("signature")
     assert stripped == tag1_payload
 
-    # Round-tripping the stripped payload through the Tag-1 decoder
+    # Round-tripping the stripped payload through the decoder
     # recovers the original entry byte-equal.
     stripped_blob = json.dumps(
         stripped, sort_keys=True, separators=(",", ":"), ensure_ascii=False

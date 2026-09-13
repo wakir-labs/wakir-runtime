@@ -152,14 +152,14 @@ def test_engine_despawn_clean_returns_uninstantiated(tmp_path):
 
 @requires_v907_compute_deps
 def test_engine_boot_records_nine_backend_decisions(tmp_path):
-    """Tag-48 wire-in: boot() resolves TEN BackendDecisions in order
+    """wire-: boot resolves TEN BackendDecisions in order
     (recovery + state_backing + fsm + v907_verify + bridge_diff +
     subscribe_loop + anchor_emitter + svid_workload_identity +
     federation_resolver + bridge_audit_writer). Verifies the per-boot
-    Doppelbetrieb-anchor count grew from 9 (Tag-30) to 10 (Tag-48)
+    Doppelbetrieb-anchor count grew from 9 to 10
     with the bridge-audit-writer wire-in — the **10th** production-
     default-switch component. The Phase-3b production-default-switch
-    contract surface is closed at ten components with this wire-in.
+    contract surface is closed at ten components with this wire-.
 
     The function name retains the historical 'nine' marker so the
     CHECKS registry / test discovery stays stable; the substance is
@@ -194,7 +194,7 @@ def test_engine_boot_records_nine_backend_decisions(tmp_path):
     assert (
         engine._subscribe_loop_backend_decision.resolution_latency_us >= 0
     )
-    # Tag-80 Welle-6 Cutover: rust-default + graceful fallback;
+    # wave 6 cutover: rust-default + graceful fallback;
     # bin_path resolved zum default-Pfad statt None.
     assert (
         engine._subscribe_loop_backend_decision.bin_path
@@ -214,7 +214,7 @@ def test_engine_boot_records_nine_backend_decisions(tmp_path):
         engine._svid_workload_identity_backend_decision.domain
         == "svid_workload_identity"
     )
-    # Tag-80 Welle-2 Cutover: default flipped to rust. Sandbox-CI
+    # wave 2 cutover: default flipped to rust. Sandbox-CI
     # ohne rust-Binary → graceful fallback python (chosen_backend
     # still "python"), aber bin_path resolved zum DEFAULT_RUST_*_BIN
     # statt None (Resolver probes den default-Pfad bevor er fallt).
@@ -231,7 +231,7 @@ def test_engine_boot_records_nine_backend_decisions(tmp_path):
         == "/opt/wakir/bin/wakir-persona-engine-svid-workload-identity"
     )
 
-    # Tag-30: 9th BackendDecision record — federation_resolver.
+    #: 9th BackendDecision record — federation_resolver.
     assert (
         engine._federation_resolver_backend_decision.domain
         == "federation_resolver"
@@ -248,7 +248,7 @@ def test_engine_boot_records_nine_backend_decisions(tmp_path):
         engine._federation_resolver_backend_decision.bin_path is None
     )
 
-    # Tag-48: 10th BackendDecision record — bridge_audit_writer.
+    #: 10th BackendDecision record — bridge_audit_writer.
     assert (
         engine._bridge_audit_writer_backend_decision.domain
         == "bridge_audit_writer"
@@ -261,7 +261,7 @@ def test_engine_boot_records_nine_backend_decisions(tmp_path):
         engine._bridge_audit_writer_backend_decision.resolution_latency_us
         >= 0
     )
-    # Tag-80 Welle-3 Cutover: rust-default + graceful fallback;
+    # wave 3 cutover: rust-default + graceful fallback;
     # bin_path resolved zum default-Pfad statt None.
     assert (
         engine._bridge_audit_writer_backend_decision.bin_path

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic tests for the Sprint-10 Tag-6 Bridge-Forward-Pipe publisher CLI.
+"""Hermetic tests for the Bridge-Forward-Pipe publisher CLI.
 
 The CLI is in ``wirelang/cli/bridge_forward.py``. The ``--dry-run`` path
 is fully hermetic (no nats-py import, no network); these tests exercise

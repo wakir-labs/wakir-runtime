@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 """Hermetic tests for the bridge-audit Deterministic-Diff-Engine.
 
-Sprint-Pengine-15-Mini (ADR-0063 §Folgeartefakte Item 2).
+-Pengine-15-Mini (ADR-0063 §Folgeartefakte Item 2).
 
 These tests are 100% hermetic: no filesystem, no network, no time
 sources. Every test fabricates ``DiffInput`` and adapter callables

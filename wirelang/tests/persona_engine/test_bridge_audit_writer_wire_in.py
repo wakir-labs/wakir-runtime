@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tag-48 hermetic suite for the bridge-audit-writer 10th-record wire-in.
+"""hermetic suite for the bridge-audit-writer 10th-record wire-.
 
-These tests pin the byte-shape of the Tag-48 wire-in. The Tag-45
+These tests pin the byte-shape of the wire-. The
 0.5.0-pre-cutover manifest defined the ``BridgeAuditWriterBackend``
 enum and the ``resolve_bridge_audit_writer_backend`` resolver as a
 scaffold but **held them back from the Stage-1 boot fan-out** so the
 Phase-3a Doppelbetrieb boot-fingerprint hash would stay stable
-across the 0.4.2-pilot -> 0.5.0-pre-cutover engine swap. Tag-48
+across the 0.4.2-pilot -> 0.5.0-pre-cutover engine swap.
 promotes the scaffold into a live resolver call and extends the
 manifest to ten boot-wired components.
 
@@ -18,12 +18,12 @@ The 25 tests below cover four planes:
 
 * Resolver-API surface: function imports, enum closure, env-var
   validation rejecting unknown values, default-python posture.
-* Engine boot wire-in: engine.py imports the resolver, the boot
+* Engine boot wire-: engine.py imports the resolver, the boot
   fan-out emits a 10th decision with the bridge_audit_writer domain,
   the 10th decision sits at the tail of the fan-out (not in the
   middle).
 * Manifest/pin-pack consistency: the new 0.5.1-pre-cutover manifest
-  declares the 10th record, the Tag-45 0.5.0 historical anchor
+  declares the 10th record, the 0.5.0 historical anchor
   remains in-tree at byte-stable shape, the bridge-audit-writer
   crate is now in pin-pack ``boot_wired_crates`` (vs. previously
   ``boot_unwired_crates``).
@@ -189,7 +189,7 @@ def test_03_env_var_constants_exposed() -> None:
 
 
 def test_04_clean_env_defaults_to_rust_with_graceful_python_fallback(clean_wakir_env) -> None:
-    """Tag-80 Welle-3 Cutover: clean env yields ``requested='rust'``
+    """wave 3 cutover: clean env yields ``requested='rust'``
     and graceful fallback to ``chosen='python'`` on Sandbox-CI
     without rust binary, with ``fallback_reason='binary_missing'``."""
     from wirelang.persona_engine.rust_backend_switch import (
@@ -293,7 +293,7 @@ def test_09_auftrag_alias_dispatches_to_resolver() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 2. Engine boot wire-in.
+# 2. Engine boot wire-.
 # ---------------------------------------------------------------------------
 
 
@@ -306,7 +306,7 @@ def test_10_engine_imports_resolver(engine_src: str) -> None:
 
 
 def test_11_engine_invokes_resolver_in_boot(engine_src: str) -> None:
-    """engine.py calls the resolver inside the boot() method."""
+    """engine.py calls the resolver inside the boot method."""
     # The call lives between the federation_resolver block and the
     # `Open the persona_engine.boot span` comment marker.
     pattern = re.compile(
@@ -341,7 +341,7 @@ def test_14_stage_1_tenth_decision_domain_is_bridge_audit_writer(
 def test_15_stage_1_first_nine_decisions_match_tag45_order(
     clean_wakir_env,
 ) -> None:
-    """Records 1..9 retain the Tag-45 boot order byte-for-byte."""
+    """Records 1..9 retain the boot order byte-for-byte."""
     decisions, _ = _drive_stage_1()
     first_nine = [d.domain for d in decisions[:9]]
     assert first_nine == [
@@ -388,7 +388,7 @@ def test_17_manifest_declares_ten_record_inventory(manifest_text: str) -> None:
 
 def test_18_legacy_manifest_present(  # noqa: D401
 ) -> None:
-    """The Tag-45 0.5.0 historical anchor remains on disk for the
+    """the 0.5.0 historical anchor remains on disk for the
     Doppelbetrieb regression-comparison baseline.
     """
     assert LEGACY_MANIFEST_PATH.is_file(), (
@@ -419,7 +419,7 @@ def test_19_pin_pack_wires_bridge_audit_writer(pin_pack: dict) -> None:
 
 
 def test_20_pin_pack_unwired_count_is_five(pin_pack: dict) -> None:
-    """Unwired-crate count dropped from 6 (Tag-45) to 5 (Tag-48)."""
+    """Unwired-crate count dropped from 6 to 5."""
     assert len(pin_pack["boot_unwired_crates"]) == 5
 
 
@@ -485,7 +485,7 @@ def test_23_boot_fingerprint_deterministic_across_runs(
 def test_24_boot_fingerprint_extends_when_tenth_record_added(
     clean_wakir_env,
 ) -> None:
-    """The Tag-48 10-record fingerprint differs from the Tag-45 9-record
+    """the 10-record fingerprint differs from the 9-record
     fingerprint (the 10th 4-tuple at the tail shifts the hash).
 
     Establishes that the wire-in is *observable* in the fingerprint —
@@ -500,7 +500,7 @@ def test_24_boot_fingerprint_extends_when_tenth_record_added(
 
 
 def test_25_tenth_record_clean_env_signature(clean_wakir_env) -> None:
-    """Tag-80 Welle-3 Cutover: clean-env 10th record signature is
+    """wave 3 cutover: clean-env 10th record signature is
     ``(bridge_audit_writer, requested=rust, chosen=python via
     graceful fallback, fallback_reason=binary_missing,
     bin_path=DEFAULT_RUST_*)``. Resolver probes default bin-Pfad

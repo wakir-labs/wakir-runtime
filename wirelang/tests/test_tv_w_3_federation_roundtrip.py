@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""TV-W-3 hermetic Federation-Resolver Roundtrip (Phase-1b Tag-17).
+"""TV-W-3 hermetic Federation-Resolver Roundtrip (Phase-1b).
 
 Acceptance criteria (per ``wirelang/specs/wirelang-tv-strategy.md`` §3.4):
 
@@ -24,7 +24,7 @@ Acceptance criteria (per ``wirelang/specs/wirelang-tv-strategy.md`` §3.4):
   the WAT side.
 
 Test classes mirror these criteria. The live-gated tests are skipped
-unless the operator opts in.
+unless the operator opts .
 """
 
 from __future__ import annotations
@@ -539,7 +539,7 @@ class TestBuilderSelfConsistency:
 
     def test_dns_anchor_hash_is_sha256_of_payload(self) -> None:
         """The trace's ``dns_anchor_hash`` field is exactly
-        SHA-256(``dns_anchor_payload``.encode())."""
+        SHA-256(``dns_anchor_payload``.encode)."""
         rebuilt = build_pin_pack(seed_hex=TV_W_3_TEST_SEED_HEX)
         trace = rebuilt["trace_hermetic"]
         expected = hashlib.sha256(

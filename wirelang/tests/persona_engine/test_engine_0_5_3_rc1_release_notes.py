@@ -1,18 +1,18 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tag-58 — Engine 0.5.3-rc1 release-notes historical-fixture pin (Selin).
+"""— Engine 0.5.3-rc1 release-notes historical-fixture pin.
 
-Originally the Tag-58 hermetic consistency pin for the
+Originally the hermetic consistency pin for the
 ``0.5.3-rc1`` four-surface authority bundle
 (``__version__.py`` ↔ manifest §0 ↔ release-notes ↔ test). The
-Tag-62 final-bump (0.5.3-rc1 → 0.5.3 final, rc1-suffix-drop)
+final-bump (0.5.3-rc1 → 0.5.3 final, rc1-suffix-drop)
 promoted that role to the fresh
 ``test_engine_0_5_3_final_bump.py`` pin; this file is
 preserved as the **historical-fixture anchor** for the rc1
-substrate so the rc1 release-notes file and the manifest §0.1 Tag-58
+substrate so the rc1 release-notes file and the manifest §0.1
 history sub-section remain auditable forever.
 
-What this file asserts after Tag-62
+What this file asserts after
 -----------------------------------
 
 1. The rc1 release-notes file (``docs/persona-engine/0-5-3-rc1-
@@ -23,10 +23,10 @@ What this file asserts after Tag-62
    frozen artefact; its content does not migrate with the active
    version).
 3. The rc1 release-notes file carries the five canonical sections
-   (Scope, Carry-Forward, OPEN-Items, Pre-Cutover Gate-Map,
-   Operator-Hand Items) it had at Tag-58 cut.
-4. The Tag-52 manifest preserves a §0.1 sub-section that narrates
-   the Tag-58 rc1 substrate as historical context (the Tag-62
+   (Scope, Carry-Forward, OPEN-Items, pre-cutover Gate-Map,
+   Operator-Hand Items) it had at cut.
+4. The manifest preserves a §0.1 sub-section that narrates
+   the rc1 substrate as historical context (the
    final-bump §0 rewrite explicitly added this sub-section so the
    rc1 → final transition stays auditable).
 5. The manifest §0 (now active 0.5.3 final) references the rc1
@@ -39,12 +39,10 @@ release-notes H1 == test ``EXPECTED_VERSION``) are owned by
 ``test_engine_0_5_3_final_bump.py`` and have been removed
 from this file.
 
-Scope discipline (Selin)
+Scope discipline
 ------------------------
-This file does **not** modify persona definitions (Aisha-Domäne,
-ADR-0043), WAT-core logic (Tomás-Domäne, Zone-K), identity-substrate
-design (Reza-Domäne, Zone-L), or container-infra (Kai-Domäne,
-Zone-J).
+This file does **not** modify persona definitions, WAT-core logic, identity-substrate
+design, or container-infra.
 """
 
 from __future__ import annotations
@@ -69,7 +67,7 @@ RC1_RELEASE_NOTES_PATH = (
     REPO_ROOT / "docs" / "persona-engine" / "0-5-3-rc1-release-notes.md"
 )
 
-# Tag-58 rc1 substrate constants — preserved as historical fixtures.
+# rc1 substrate constants — preserved as historical fixtures.
 RC1_VERSION = "0.5.3-rc1"
 
 
@@ -83,10 +81,10 @@ def _read(path: Path) -> str:
 
 
 def test_t01_rc1_release_notes_file_preserved_as_historical_artefact() -> None:
-    """docs/persona-engine/0-5-3-rc1-release-notes.md is preserved post-Tag-62.
+    """docs/persona-engine/0-5-3-rc1-release-notes.md is preserved post-.
 
     The rc1 release-notes file is the public-facing record of the
-    Tag-58 substrate. Future bumps MUST NOT delete it — they only
+    substrate. Future bumps MUST NOT delete it — they only
     add new release-notes files alongside.
     """
     assert RC1_RELEASE_NOTES_PATH.is_file(), (
@@ -120,7 +118,7 @@ def test_t02_rc1_release_notes_h1_still_pins_rc1_version() -> None:
 
 
 def test_t03_rc1_release_notes_has_five_canonical_sections() -> None:
-    """The rc1 release-notes must keep its Tag-58 five-section shape."""
+    """The rc1 release-notes must keep its five-section shape."""
     source = _read(RC1_RELEASE_NOTES_PATH)
     required_sections = (
         "## 1. Scope",
@@ -142,7 +140,7 @@ def test_t03_rc1_release_notes_has_five_canonical_sections() -> None:
 
 
 def test_t04_rc1_release_notes_marks_tag57_closeouts_and_open_j2() -> None:
-    """rc1 file carries the Tag-57 closeout markers + OPEN-J2 remaining item."""
+    """rc1 file carries the closeout markers + OPEN-J2 remaining item."""
     source = _read(RC1_RELEASE_NOTES_PATH)
     for closed_marker in ("OPEN-K1", "OPEN-K2", "OPEN-J1"):
         assert closed_marker in source, (
@@ -157,12 +155,12 @@ def test_t04_rc1_release_notes_marks_tag57_closeouts_and_open_j2() -> None:
 
 
 # ===========================================================================
-# Test 5 — The rc1 release-notes references the Tag-56/Tag-57 PR substrate.
+# Test 5 — The rc1 release-notes references the/PR substrate.
 # ===========================================================================
 
 
 def test_t05_rc1_release_notes_references_tag56_tag57_pr_substrate() -> None:
-    """rc1 file pins Tag-56 audit (#362) and Tag-57 closeouts (#363/#366/#367)."""
+    """rc1 file pins audit (#362) and closeouts (#363/#366/#367)."""
     source = _read(RC1_RELEASE_NOTES_PATH)
     for pr in ("#362", "#363", "#366", "#367"):
         assert pr in source, (
@@ -171,16 +169,16 @@ def test_t05_rc1_release_notes_references_tag56_tag57_pr_substrate() -> None:
 
 
 # ===========================================================================
-# Test 6 — Tag-52 manifest preserves the §0.1 Tag-58 history sub-section.
+# Test 6 — manifest preserves the §0.1 history sub-section.
 # ===========================================================================
 
 
 def test_t06_manifest_preserves_tag58_history_subsection() -> None:
-    """Manifest §0.1 must narrate the Tag-58 rc1 substrate post-Tag-62 bump.
+    """Manifest §0.1 must narrate the rc1 substrate post-bump.
 
-    The Tag-62 final-bump rewrote §0 to record 0.5.3 final as active.
+    The final-bump rewrote §0 to record 0.5.3 final as active.
     To keep the rc1 substrate auditable, the rewrite added a §0.1
-    Tag-58 history sub-section that preserves the rc1 narrative.
+    history sub-section that preserves the rc1 narrative.
     """
     source = _read(MANIFEST_PATH)
     assert "### 0.1" in source or "## 0.1" in source, (
@@ -205,7 +203,7 @@ def test_t06_manifest_preserves_tag58_history_subsection() -> None:
 
 
 # ===========================================================================
-# Test 7 — Tag-52 manifest §0 active-cell references rc1 as predecessor.
+# Test 7 — manifest §0 active-cell references rc1 as predecessor.
 # ===========================================================================
 
 
@@ -227,10 +225,10 @@ def test_t07_manifest_section_zero_records_rc1_as_predecessor() -> None:
 
 
 def test_t08_rc1_release_notes_pins_scope_discipline_j_k_l() -> None:
-    """rc1 file §1 must declare Aisha/Tomás/Reza/Kai zones out of scope.
+    """rc1 file §1 must declare the org zone/the engineering zone/the protocol zone/the infrastructure zone zones out of scope.
 
     Historical anchor — the scope-discipline contract was already
-    binding at Tag-58 cut and remains visible in the frozen file.
+    binding at cut and remains visible in the frozen file.
     """
     source = _read(RC1_RELEASE_NOTES_PATH)
     lowered = source.lower()
@@ -245,12 +243,12 @@ def test_t08_rc1_release_notes_pins_scope_discipline_j_k_l() -> None:
 
 
 # ===========================================================================
-# Test 9 — rc1 release-notes signed by Selin.
+# Test 9 — rc1 release-notes signed by the engine zone.
 # ===========================================================================
 
 
 def test_t09_rc1_release_notes_signed_by_selin() -> None:
-    """The rc1 file ends with the Selin signature line."""
+    """The rc1 file ends with the engine zone signature line."""
     source = _read(RC1_RELEASE_NOTES_PATH)
     assert "— Selin" in source or "- Selin" in source, (
         "rc1 release-notes missing the Selin signature line"

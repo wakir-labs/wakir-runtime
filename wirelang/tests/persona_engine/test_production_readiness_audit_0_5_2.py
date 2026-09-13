@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic Tag-56 production-readiness-audit companion tests.
+"""Hermetic production-readiness-audit companion tests.
 
-These tests encode the numeric and string assertions of the Tag-56
+These tests encode the numeric and string assertions of the
 production-readiness audit report
 (``docs/archive/evidence/audits/
 persona-engine-0-5-2-production-readiness-2026-05-19.md``)
@@ -11,7 +11,7 @@ the substrate trips the suite in the next CI cycle.
 
 The audit covers seven dimensions of the 0.5.2-final-pre-cutover
 engine release substrate; each dimension has a dedicated test class
-(D1..D7). Total test count: 15 (≥12 required by the Tag-56 dispatch).
+(D1..D7). Total test count: 15 (≥12 required by the dispatch).
 
 100% hermetic: pytest-only, no network, no subprocess, no Rust
 build, no engine boot, no NATS. Pure file inspection + YAML parse +
@@ -32,7 +32,7 @@ yaml = pytest.importorskip(
 )
 
 # ---------------------------------------------------------------------------
-# Anchors — same anchoring strategy as the Tag-52 manifest-integrity tests.
+# Anchors — same anchoring strategy as the manifest-integrity tests.
 # ---------------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -248,7 +248,7 @@ class Test10BackendDecisions:
         self, engine_py_source
     ):
         """engine.py must call every one of the 10 canonical resolver
-        functions at least once. The Tag-51 resilience suite
+        functions at least once. The resilience suite
         (``test_10_decision_resilience.py``) is the source of truth
         for emit ordering; this test only verifies presence + count
         because resolver text-position in source doesn't reflect the
@@ -272,7 +272,7 @@ class Test10BackendDecisions:
             if r + "(" not in engine_py_source:
                 missing.append(r)
         assert not missing, f"Missing resolver call-sites: {missing}"
-        # The Tag-51 resilience suite's BOOT_FAN_OUT_DECISIONS contains
+        # the resilience suite's BOOT_FAN_OUT_DECISIONS contains
         # exactly nine entries (all canonical decisions minus state_backing,
         # which resolves in __init__ pre-boot). This is the manifest-§4
         # invariant: 10 records = 1 (state_backing-in-init) + 9 (boot
@@ -372,7 +372,7 @@ class TestEnvFlagConsistency:
         self, pin_pack, rust_switch_py_source
     ):
         """No flag in the wired set may carry the legacy ``_PE_`` infix;
-        the Tag-51 legacy migration-detector must be defined."""
+        the legacy migration-detector must be defined."""
         for c in pin_pack["boot_wired_crates"]:
             assert "_PE_" not in c["selector_env"], (
                 f"Legacy _PE_ in selector_env: {c['selector_env']}"
@@ -410,7 +410,7 @@ class TestFsmStateDiagram:
         arms = re.findall(
             r"FsmState::(\w+)\s*=>\s*\"(\w+)\"", fsm_lib_rs_source
         )
-        # Filter to lowercase wire-strings only (i.e. the as_wire_str body).
+        # Filter to lowercase wire-strings only (i.e. The as_wire_str body).
         lowercase_arms = [a for a in arms if a[1].islower()]
         # The as_wire_str body has six unique arms; we may also see the
         # mirrored arms in tests (also lowercase), so dedupe.
@@ -481,7 +481,7 @@ class TestContainerfileLayers:
     def test_d6_containerfile_has_canonical_layer_counts(
         self, containerfile_source
     ):
-        """Containerfile.real must contain the canonical Tag-56 instruction
+        """Containerfile.real must contain the canonical instruction
         counts: 1 FROM, 7 LABEL, 7 COPY, 4 RUN, 1 USER, 1 WORKDIR, 1
         ENTRYPOINT."""
         counts = {}
@@ -559,7 +559,7 @@ class TestCargoWorkspace:
         assert m is not None, "[workspace.dependencies] block not found"
         block = m.group(1)
         # Each crate must have a line of the form
-        #   crate = ... "=X.Y.Z" ...
+        # crate =... "=X.Y.Z"...
         # The `"=` marker (equality-pin sigil inside the version string)
         # is the simple and sufficient check.
         for crate in (
@@ -590,7 +590,7 @@ class TestCargoWorkspace:
 
 
 def test_audit_report_present_at_canonical_path():
-    """The Tag-56 audit report must exist at its canonical path."""
+    """the audit report must exist at its canonical path."""
     assert AUDIT_REPORT_PATH.exists(), (
         f"Audit report missing at {AUDIT_REPORT_PATH}"
     )

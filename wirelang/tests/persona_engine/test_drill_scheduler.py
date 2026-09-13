@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BUSL-1.1
-"""Sprint-Pengine-9 OI-PEFR-4 tests: scheduled R1..R4 drills.
+"""-Pengine-9 OI-PEFR-4 tests: scheduled R1..R4 drills.
 
 DrillScheduler invocation paths:
 

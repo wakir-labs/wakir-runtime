@@ -3,9 +3,9 @@
 """Cross-lang parity tests for the persona-engine R1..R4 recovery
 workflow canonical projection.
 
-The Python module under test (:mod:`wirelang.persona_engine.recovery_workflow`)
+The Python module under test :mod:`wirelang.persona_engine.recovery_workflow`)
 is BUSL-1.1; the canonical-projection helper
-(:mod:`wirelang.persona_engine.recovery_workflow_canonical`) and this
+:mod:`wirelang.persona_engine.recovery_workflow_canonical`) and this
 test file are Apache-2.0 so downstream re-implementers can re-use the
 same fixture vectors and the cross-lang contract.
 
@@ -16,7 +16,7 @@ Test taxonomy
   / ``SHA256_HEX_LEN`` match the Rust crate's ``pub const`` items.
 - T02 — Trigger wire-string round-trip: every Python enum member
   emits the wire-string that the Rust sibling parses back, and the
-  three values are exactly the Sprint-Auftrag closed set.
+  three values are exactly the -assignment closed set.
 - T03 — Canonical-dict shape: the projection contains exactly six
   top-level keys (``final_state``, ``phases``, ``schema``,
   ``success``, ``total_elapsed_sec``, ``trigger``) and each phase
@@ -49,7 +49,7 @@ Test taxonomy
 - T12 — Result-driven projection: the
   :func:`recovery_outcome_canonical_dict_from_result` convenience
   wrapper produces the same projection as the field-level helper
-  for a constructed :class:`RecoveryResult`.
+  for a constructed:class:`RecoveryResult`.
 
 Pinning procedure
 -----------------
@@ -57,7 +57,7 @@ Pinning procedure
 If a wire-shape change is intentional:
 
 1. Update both sides (Rust ``recovery_outcome_canonical_value`` and
-   Python :func:`recovery_outcome_canonical_dict`).
+   Python:func:`recovery_outcome_canonical_dict`).
 2. Re-derive the fixture vectors using the snippet documented at the
    top of ``recovery_workflow_canonical.py``.
 3. Update both Python and Rust test suites in the same PR.
@@ -129,7 +129,7 @@ def _load_fixtures() -> Dict[str, Any]:
 
 
 def _make_phase(name: str, term: str, ann: str, *, elapsed: float = 0.0) -> PhaseResult:
-    """Build a :class:`PhaseResult` with the four canonical-projection
+    """Build a:class:`PhaseResult` with the four canonical-projection
     fields populated. ``elapsed`` and ``soft_cap_exceeded`` are
     intentionally left at non-projection defaults; the projection
     helper zeroes them regardless of input."""
@@ -531,8 +531,8 @@ def test_t11_cross_lang_fixture_byte_parity(fixture_name: str) -> None:
 
 
 def test_t12_result_driven_projection_matches_field_level_helper() -> None:
-    """The :func:`recovery_outcome_canonical_dict_from_result` wrapper
-    accepts a :class:`RecoveryResult` and must produce the same
+    """The:func:`recovery_outcome_canonical_dict_from_result` wrapper
+    accepts a:class:`RecoveryResult` and must produce the same
     projection as the field-level helper."""
     phases = (
         _make_phase("R1", "detected", "recovery_trigger_classified=CrashDetected"),

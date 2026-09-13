@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tag-60 — Engine-Version-Drift FULL coverage pin (Selin, Persona-Engine).
+"""— Engine-Version-Drift FULL coverage pin.
 
 Trigger event
 -------------
-Mira's Hot-Fix #381 on Tag-59 had to sweep four drift layers after the
-Tag-58 0.5.3-rc1 bump escaped the existing
+The CEO's Hot-Fix #381 on had to sweep four drift layers after the
+0.5.3-rc1 bump escaped the existing
 ``test_engine_0_5_3_rc1_release_notes.py`` net:
 
 (a) ``wirelang/persona_engine/engine_async.py`` line 96 still carried
@@ -14,12 +14,12 @@ Tag-58 0.5.3-rc1 bump escaped the existing
     ``"CLI entry points for ``persona-engine`` (v0.5.0-pilot)."``.
 (c) Seven hermetic test files carried hardcoded ``"0.5.0-pilot"``
     fixtures that were silently outdated.
-(d) The prior-art release-notes pin (Tag-58) only asserted byte-shape
+(d) The prior-art release-notes pin only asserted byte-shape
     on ``__version__.py`` + ``__init__.py`` + ``engine.py``. It did
     NOT scan ``engine_async.py`` or ``cli.py``, and did NOT scan the
     test corpus for hardcoded stale literals.
 
-Tag-60 closes (a)..(d) with a single hermetic scanner
+closes (a)..(d) with a single hermetic scanner
 (``tooling/ci/scan_engine_version_drift.py``) plus a JSON allowlist
 (``tooling/ci/engine-version-drift-allowlist.json``) for the
 legitimate stale-literal contexts (frozen manifests, migration
@@ -30,9 +30,9 @@ What this test pins
 * The scanner module imports cleanly and exposes the expected public
   API surface.
 * The active version constant matches ``__version__.__version__``.
-* The hunt set is exactly the documented Tag-58/59/62 trigger literals.
+* The hunt set is exactly the documented /59/62 trigger literals.
 * Scan globs cover engine_async.py + cli.py + every persona_engine
-  module + every persona_engine test (the four surfaces the Tag-58
+  module + every persona_engine test (the four surfaces the
   prior-art missed).
 * The allowlist parses, has the schema expected, and covers exactly
   the historical surfaces — no entry is unused.
@@ -46,15 +46,13 @@ Hermetic envelope
 -----------------
 * No network. No NATS, no SPIRE, no gRPC.
 * No subprocess outside of ``python -c`` against the scanner module
-  for CLI-shape probes (a clean stdlib import + main() call).
+  for CLI-shape probes (a clean stdlib import + main call).
 * Pure file inspection of the repo under test.
 
-Scope discipline (Selin)
+Scope discipline
 ------------------------
-This test does NOT modify persona definitions (Aisha-Domaene,
-ADR-0043), WAT-core logic (Tomas-Domaene, Zone-K), identity-substrate
-design (Reza-Domaene, Zone-L), or container-infra (Kai-Domaene,
-Zone-J).
+This test does NOT modify persona definitions, WAT-core logic, identity-substrate
+design, or container-infra.
 
 Negative-assertion fixtures (used by the synthetic-drift positive
 control test — these strings are intentionally present here so the
@@ -63,7 +61,7 @@ scanner-on-itself path exercises the allowlist):
     FIXTURE_STALE_LITERALS = ("0.5.0-pilot", "0.5.1-pre-cutover",
                               "0.5.2-final-pre-cutover", "0.5.3-rc1")
 
-Tag-62 (2026-05-19, Selin) added ``0.5.3-rc1`` to the hunted set
+(2026-05-19, the engine zone) added ``0.5.3-rc1`` to the hunted set
 when the rc1-suffix-drop final-bump promoted ``0.5.3`` to active.
 """
 
@@ -91,7 +89,7 @@ ALLOWLIST_PATH = (
 
 # The four trigger literals (used by the synthetic-drift positive
 # control). Verbatim string declaration — the scanner's allowlist
-# entry for this test file legitimises their presence. Tag-62 added
+# entry for this test file legitimises their presence. added
 # 0.5.3-rc1 to the hunted set after the rc1-suffix-drop final-bump.
 FIXTURE_STALE_LITERALS = (
     "0.5.0-pilot",
@@ -178,10 +176,10 @@ def test_02_active_version_matches_canonical_version_module(
 def test_03_stale_versions_is_exactly_three_trigger_literals(
     scanner_module,
 ) -> None:
-    """The hunt set is exactly the documented Tag-58/59 trigger literals.
+    """The hunt set is exactly the documented /59 trigger literals.
 
-    Function name preserved across Tag-62 for test-id stability;
-    the hunt set is now four literals (rc1 added at Tag-62) but the
+    Function name preserved across for test-id stability;
+    the hunt set is now four literals (rc1 added) but the
     invariant — STALE_VERSIONS mirrors FIXTURE_STALE_LITERALS — is
     unchanged.
     """
@@ -196,7 +194,7 @@ def test_03_stale_versions_is_exactly_three_trigger_literals(
 
 
 def test_04_scan_globs_cover_engine_async_and_cli(scanner_module) -> None:
-    """Scan globs reach the two surfaces the Tag-58 prior-art missed."""
+    """Scan globs reach the two surfaces the prior-art missed."""
     globs = list(scanner_module.SCAN_GLOBS)
     # The persona_engine *.py glob is the umbrella that includes
     # engine_async.py and cli.py.
@@ -217,11 +215,11 @@ def test_04_scan_globs_cover_engine_async_and_cli(scanner_module) -> None:
 
 
 def test_05_scan_globs_cover_persona_engine_test_corpus(scanner_module) -> None:
-    """Scan globs reach the test corpus the Tag-58 prior-art missed."""
+    """Scan globs reach the test corpus the prior-art missed."""
     matches = list(scanner_module.iter_scan_files(REPO_ROOT))
     rels = {p.relative_to(REPO_ROOT).as_posix() for p in matches}
     test_hits = {r for r in rels if r.startswith("wirelang/tests/persona_engine/")}
-    # The Tag-58 hot-fix had to touch seven hardcoded-literal test files;
+    # the hot-fix had to touch seven hardcoded-literal test files;
     # the scanner must see at least that many tests under the glob.
     assert len(test_hits) >= 7, (
         f"scan-globs reach only {len(test_hits)} persona_engine tests; "
@@ -248,7 +246,7 @@ def test_07_allowlist_includes_engine_async_is_NOT_present_active_code(
 ) -> None:
     """``engine_async.py`` MUST NOT be on the allowlist.
 
-    The Tag-59 hot-fix scrubbed the stale ``ASYNC_ENGINE_VERSION``
+    The hot-fix scrubbed the stale ``ASYNC_ENGINE_VERSION``
     literal from this file. The scanner is the guard that the file
     stays clean — adding it to the allowlist would re-open the gap.
     """
@@ -553,7 +551,7 @@ def test_23_allowlist_entry_unused_does_not_exist(
     """Every allowlist path either has scan hits OR is the scanner's self-test fixture.
 
     A presumed-unused allowlist entry is a code-smell — it widens the
-    suppression surface without need. The Tag-60 allowlist is curated
+    suppression surface without need. The allowlist is curated
     so that every entry corresponds to either (a) a real file with
     legitimate stale literals or (b) the scanner's own test fixture
     file (which lists fixture literals for the positive-control test).

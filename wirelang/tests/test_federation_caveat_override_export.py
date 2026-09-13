@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BUSL-1.1
-"""Tests for the Phase-2 Sprint-9 Tag-1 CaveatOverrideEvent
+"""Tests for the Phase-2 CaveatOverrideEvent
 cross-org export surface
 (``wirelang.federation.caveat_override_export``).
 
@@ -24,7 +24,7 @@ Test inventory (T-COX-01..T-COX-13):
 - T-COX-04 bridge-verifier byte-deterministic consumption: an
   exported event constructed by Org-A's exporter is byte-equal
   consumable by Org-B's verifier
-  (:func:`detect_replay`) using a fresh ledger.
+  :func:`detect_replay`) using a fresh ledger.
 
 - T-COX-05 replay-detection within an exporter instance: a
   second export of the same source event at the same
@@ -135,7 +135,7 @@ def _make_event_with_reason(
     # SUBSET_PROPER narrowing semantics: remove entire caveat
     # pairs from the chain (not modify their args). This matches
     # the structural set-of-(predicate, args) classifier in
-    # :func:`_classify_narrowing`.
+    #:func:`_classify_narrowing`.
     original = original or (
         ("scope", ("read",)),
         ("audience", ("alice",)),
@@ -271,7 +271,7 @@ def test_round_trip_byte_equal_event_id_across_exporter_instances():
 
 def test_bridge_verifier_byte_deterministic_consumption():
     """T-COX-04 bridge-verifier: Org-A exporter produces an
-    envelope; Org-B verifier consumes it via :func:`detect_replay`
+    envelope; Org-B verifier consumes it via:func:`detect_replay`
     against a fresh ledger; consumption succeeds (no replay) and
     the verifier-side ledger now records the same sequence.
     """

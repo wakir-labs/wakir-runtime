@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Sprint-8 Tag-1 RealAdapter-Mirror test suite.
+""" RealAdapter-Mirror test suite.
 
 Covers six surfaces:
 
@@ -156,7 +156,7 @@ def test_real_adapter_auth_mode_falls_back_to_mock_jwt_without_spire(
     adapter_b = RealNatsConnectionAdapter(server_url="nats://x:4222")
     assert adapter_b.auth_mode == "mock-jwt"
 
-    # Case C: explicit "  NONE  " (whitespace + casing)
+    # Case C: explicit " NONE " (whitespace + casing)
     monkeypatch.setenv("SPIRE_AGENT_SOCKET", "  NONE  ")
     adapter_c = RealNatsConnectionAdapter(server_url="nats://x:4222")
     assert adapter_c.auth_mode == "mock-jwt"
@@ -183,7 +183,7 @@ def test_real_adapter_auth_mode_falls_back_to_mock_jwt_without_spire(
 def test_real_adapter_live_spiffe_path_is_operator_hand_blocked(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """When auth_mode resolves to "live-spiffe", connect() refuses
+    """When auth_mode resolves to "live-spiffe", connect refuses
     with NatsAdapterAuthenticationError — the live-SPIFFE-JWT path
     is Operator-Hand-blocked per milestone M-2.
 
@@ -226,10 +226,10 @@ def test_real_adapter_status_surface_for_cross_trust_domain_bridge(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The status surface exposes the markers the SpiffeCross-
-    TrustDomainBridge (Sprint-7 Tag-3) needs to audit which auth
-    mode the underlying NATS-connection runs in.
+    TrustDomainBridge needs to audit which auth
+    mode the underlying NATS-connection runs .
 
-    - live_mode_marker pins the Sprint-8 Tag-1 RealAdapter-Mirror
+    - live_mode_marker pins the RealAdapter-Mirror
       identifier (so a bridge audit can confirm the adapter is
       the mirror slot and not a stub).
     - adapter_kind separates "mock" vs "live" so the bridge can

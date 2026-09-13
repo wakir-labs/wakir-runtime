@@ -1,16 +1,16 @@
 # SPDX-License-Identifier: BUSL-1.1
 """Hermetic tests for the multi-org-attestation live-tail replicator.
 
-Phase-2 Sprint-7 Tag-6. Pattern-mirror on the Sprint-6 Tag-6
+Phase-2. Pattern-mirror on the
 capability-policy replication test suite at
-``test_capability_policy_replication.py`` and the Sprint-7 Tag-2
+``test_capability_policy_replication.py`` and the
 multi-org-attestation backend test suite at
 ``test_federation_multi_org_attestation_nats_kv_backend.py``.
 
 Surfaces under test:
 
-- :class:`MultiOrgAttestationReplicator` (full bootstrap +
-  watch-stream composition, via :meth:`run`)
+-:class:`MultiOrgAttestationReplicator` (full bootstrap +
+  watch-stream composition, via:meth:`run`)
 - watch-stream-only run (``bootstrap=False``)
 - filter on the live tail (``events_skipped_by_filter``)
 - conflict policies (SOURCE_WINS / CAS_PIN) and per-policy
@@ -68,7 +68,7 @@ from wirelang.federation.multi_org_attestation_live_tail_replicator import (
 
 
 # ---------------------------------------------------------------------------
-# Mock KV (mirrors the Sprint-7 Tag-2 backend-test mock + Sprint-6 Tag-6
+# Mock KV (mirrors the backend-test mock +
 # capability-policy-replication-test mock — watch + CAS + delete + keys)
 # ---------------------------------------------------------------------------
 
@@ -422,7 +422,7 @@ def test_t_moa_ltr_04_filter_skips_non_matching_events():
 def test_t_moa_ltr_05_source_wins_monotonic_breach_counted():
     """T-MOA-LTR-05: under SOURCE_WINS, a live event that would
     mutate a load-bearing authority anchor on the target is
-    refused by the Tag-2 backend monotonic gate; the counter
+    refused by the backend monotonic gate; the counter
     advances and the target's live record is preserved byte-equal.
     """
     source_kv = _MockKv()
@@ -572,7 +572,7 @@ def test_t_moa_ltr_07_last_revision_monotonic_resume_cursor():
 
     This is the operator-side resume-cursor contract: persist the
     cursor between runs, re-bake it into a Phase-3 ``resume_from``
-    watch-stream open call. Tag-6 itself does NOT wire the cursor
+    watch-stream open call. itself does NOT wire the cursor
     into the open call; this test exercises the tracking contract."""
     source_kv = _MockKv()
     target_kv = _MockKv()
@@ -647,14 +647,14 @@ def test_t_moa_ltr_07_last_revision_monotonic_resume_cursor():
 
 
 # ---------------------------------------------------------------------------
-# T-MOA-LTR-RPL-01..06 — Sprint-9 Tag-3 Teil B detect_replay-callsite-mirror
+# T-MOA-LTR-RPL-01..06 — Teil B detect_replay-callsite-mirror
 # ---------------------------------------------------------------------------
 
 
 def test_t_moa_ltr_rpl_01_default_pass_through_byte_identical_to_tag_6():
     """T-MOA-LTR-RPL-01: with the default no-op replay detector,
-    the replicator's behaviour is byte-identical to Sprint-7
-    Tag-6. A simple put is applied; no replay-drop counters fire.
+    the replicator's behaviour is byte-identical to
+    A simple put is applied; no replay-drop counters fire.
     """
     source_kv = _MockKv()
     target_kv = _MockKv()

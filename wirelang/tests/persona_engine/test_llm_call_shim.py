@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic tests for the LLM-Call-Shim (Sprint-Pengine-10 OI-PEFR-8).
+"""Hermetic tests for the LLM-Call-Shim (-Pengine-10 OI-PEFR-8).
 
 Covers the Phase-2-Stub EchoReflectionLlmHook (deterministic echo
 responder) and the Phase-3 stub raise-fast contract.

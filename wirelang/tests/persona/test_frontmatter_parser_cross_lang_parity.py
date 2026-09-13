@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Cross-lang parity tests for the persona-engine frontmatter-parser
-canonical-trace (Tag-34 Mini-Welle Phase-3a Python-sync, 11. Modul).
+canonical-trace (Mini-wave Phase-3a Python-sync, 11. Modul).
 
 This file is the Python half of the cross-lang fixture pin pair. The
 Rust half lives at
@@ -34,7 +34,7 @@ Test taxonomy
   :func:`wirelang.persona.persona_canonical_form.canonical_jcs_bytes`
   + SHA-256 would produce directly (independent re-derivation).
 - T09 — Error-path traces carry empty ``canonical_subset_jcs_sha256_hex``:
-  the schema-symmetry contract (always emit the key, value is empty
+  The schema-symmetry contract (always emit the key, value is empty
   string on non-``ok`` paths).
 - T10 — V-907 pin pack anchor: the f01 fixture's canonical-subset
   SHA-256 equals the historical ``PERSONA_HASH_PIN_V9``

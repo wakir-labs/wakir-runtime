@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: BUSL-1.1
 """Hermetic tests for the durable NATS-KV-backed
-``SequenceNumberLedger`` (Phase-2 Sprint-9 Tag-2).
+``SequenceNumberLedger`` (Phase-2).
 
-Tests :mod:`wirelang.federation.sequence_number_ledger_kv` against
-an in-memory mock that mirrors the Sprint-8 Tag-4
+Tests:mod:`wirelang.federation.sequence_number_ledger_kv` against
+an in-memory mock that mirrors the
 :class:`_MockKv` shape with an ``update`` CAS-pin extension.
 
 Test inventory (13 tests):
@@ -15,7 +15,7 @@ Test inventory (13 tests):
 - T-SNLK-03: monotonic-invariant — recording 1, then 2, then 5
   succeeds; a_last_seen reports 5.
 - T-SNLK-04: replay-detection — recording an equal-or-less
-  sequence raises :class:`CaveatOverrideExportReplayError` and
+  sequence raises:class:`CaveatOverrideExportReplayError` and
   the cell remains at the prior value.
 - T-SNLK-05: concurrency-conflict — two concurrent updates at the
   same expected revision yield exactly one
@@ -32,13 +32,13 @@ Test inventory (13 tests):
   :class:`SequenceNumberLedgerEnvelopeError` from a_last_seen.
 - T-SNLK-10: foreign-org-id envelope — a cell whose payload
   carries an ``org_id`` different from the bucket's binding
-  raises :class:`SequenceNumberLedgerEnvelopeError`.
+  raises:class:`SequenceNumberLedgerEnvelopeError`.
 - T-SNLK-11: bucket-config / schema constants are byte-stable
   (drift-protection at the test layer).
 - T-SNLK-12: key derivation is bijective for valid inputs;
   malformed inputs raise ``ValueError``.
 - T-SNLK-13: SyncSequenceNumberLedgerAdapter implements the
-  Tag-1 :class:`SequenceNumberLedger` Protocol shape (the three
+  :class:`SequenceNumberLedger` Protocol shape (the three
   methods round-trip end-to-end against the durable backend).
 """
 
@@ -73,7 +73,7 @@ from wirelang.federation.sequence_number_ledger_kv import (
 
 
 # ---------------------------------------------------------------------------
-# Mock KV (mirrors Sprint-8 Tag-4 _MockKv shape; adds ``update`` CAS-pin)
+# Mock KV (mirrors _MockKv shape; adds ``update`` CAS-pin)
 # ---------------------------------------------------------------------------
 
 
@@ -580,7 +580,7 @@ def test_snlk_12_key_derivation_bijective_and_validating() -> None:
 
 def test_snlk_13_sync_adapter_protocol_round_trip() -> None:
     """T-SNLK-13: SyncSequenceNumberLedgerAdapter implements the
-    Tag-1 :class:`SequenceNumberLedger` Protocol shape; the three
+    :class:`SequenceNumberLedger` Protocol shape; the three
     methods round-trip end-to-end against the durable backend.
     """
     durable = _make_ledger("org-a")

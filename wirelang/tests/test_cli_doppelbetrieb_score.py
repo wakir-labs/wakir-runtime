@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic tests for the Sprint-10 Tag-6 Doppelbetrieb-Score CLI.
+"""Hermetic tests for the Doppelbetrieb-Score CLI.
 
 Spec: ``wirelang/specs/bridge-forward-pipe-v1.md`` §6.
 """

@@ -1,21 +1,21 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Sprint-Pengine-11 Bug-40 — SVID full-fetch graceful-fallback tests.
+"""-Pengine-11 Bug-40 — SVID full-fetch graceful-fallback tests.
 
 Background
 ----------
 
 Live-spawn 0.4.0-pilot on wakir-pilot 2026-05-15 ~22:25 CEST crashed
-during engine.boot() because the full SVID fetch raised
+during engine.boot because the full SVID fetch raised
 ``grpc.aio._call.AioRpcError("Broken pipe")``. The boot path caught
 ``SvidFetchError`` and ``ImportError`` only — the gRPC error
 escaped and brought down the container with FSM=uninstantiated.
 
-Sprint-Pengine-11 fix:
+-Pengine-11 fix:
 
 1. ``WorkloadApiClient.fetch_x509_svid`` wraps the gRPC stream
    iteration in a try/except converter that re-raises non-
-   :class:`SvidFetchError` exceptions as :class:`SvidFetchError`
+   :class:`SvidFetchError` exceptions as:class:`SvidFetchError`
    with the original exception preserved as ``__cause__``.
 
 2. ``PersonaEngine.boot`` and ``AsyncPersonaEngine.boot`` broaden
@@ -147,7 +147,7 @@ def listening_uds(tmp_path: Path):
 # Channel + stub factories for the various failure-injection scenarios.
 
 class _FailingChannel:
-    """Channel that exposes a close() method but never gets used by
+    """Channel that exposes a close method but never gets used by
     the failure-injection stubs. The stub raises before the channel
     is consulted."""
 
@@ -216,7 +216,7 @@ def test_workload_api_client_converts_os_broken_pipe_to_svid_fetch_error():
                 await client.fetch_x509_svid(
                     org_id="acme", persona_id="tomas",
                 )
-        # Python auto-promotes OSError(32, ...) to BrokenPipeError.
+        # Python auto-promotes OSError(32,...) to BrokenPipeError.
         assert "Broken pipe" in str(exc_info.value)
         assert isinstance(exc_info.value.__cause__, OSError)
         assert exc_info.value.__cause__.errno == 32
@@ -664,7 +664,7 @@ def test_async_engine_refetch_loop_recovers_mid_run(tmp_path, listening_uds):
 @requires_v907_compute_deps
 def test_async_engine_run_until_signal_includes_refetch_task(tmp_path, listening_uds):
     """run_until_signal must spawn the svid_refetch task as the 4th
-    background task. We exercise via request_stop()."""
+    background task. We exercise via request_stop."""
     sock_path = listening_uds
     sink = io.StringIO()
     env = _make_env(tmp_path, socket_path=sock_path)
@@ -709,7 +709,7 @@ def test_engine_version_bumped_to_0_4_1_pilot():
 
 
 def test_sync_engine_refetch_returns_false_if_boot_never_ran(tmp_path, listening_uds):
-    """attempt_svid_refetch on a fresh engine (no boot()) is a no-op
+    """attempt_svid_refetch on a fresh engine (no boot) is a no-op
     that returns False — there is nothing to retry."""
     sock_path = listening_uds
     sink = io.StringIO()

@@ -2,24 +2,24 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreEnd
-"""Tag-68 - State-File Producer-Wiring-Plan pin (Selin).
+"""- State-File Producer-Wiring-Plan pin.
 
-The Tag-68 deliverable is doc-form-only: a plan-doc
+The deliverable is doc-form-only: a plan-doc
 ``docs/persona-engine/state-file-producer-wiring-plan.md`` plus a
 stdlib-only audit-helper
 ``tooling/ci/render_engine_state_file_stub.py`` that renders the
-Tag-67 canonical pending-status stub for ``state/welle-N.json``.
+canonical pending-status stub for ``state/welle-N.json``.
 
 This hermetic test-suite pins:
 
 * the existence + six-section structure of the plan-doc,
-* the four producer-triggers (Cutover-T0, Sign-Off, Rollback,
+* the four producer-triggers (cutover-T0, Sign-Off, Rollback,
   Phase-3-COMPLETE backfill) are documented with writer-code-path,
 * the lifecycle-state-machine transitions (pending ->
-  in-progress -> signed-off plus rollback fan-in) are explicitly
+  in-progress -> signed-off plus rollback fan-) are explicitly
   pinned,
 * the cross-anchor section maps every writable field to the
-  Tag-67 schema-pin,
+  schema-pin,
 * the sandbox-boundary section enumerates the live-file
   operator-hand-only set,
 * the render-stub helper renders all seven canonical stubs
@@ -28,24 +28,23 @@ This hermetic test-suite pins:
 * the render-stub helper rejects out-of-range kw_anchor,
 * the render-stub CLI exits 0 on valid input and prints the JSON,
 * the render-stub CLI exits non-zero on invalid input,
-* the canonical KW-anchor map matches the Tag-67 stub-state-files,
+* the canonical KW-anchor map matches the stub-state-files,
 * the helper is stdlib-only (no third-party imports leak).
 
 Hermetic envelope
 -----------------
 * No network. No NATS, no SPIRE, no gRPC.
-* No subprocess outside an in-process module-import + CLI-main()
+* No subprocess outside an in-process module-import + CLI-main
   call (the CLI is invoked as a function, not via subprocess).
 * Pure file inspection + JSON parse + module call.
 
-Scope discipline (Selin)
+Scope discipline
 ------------------------
-This test does NOT modify persona definitions (Aisha-Domaene,
-ADR-0043), WAT-core logic (Tomas-Domaene, Zone-K),
-identity-substrate design (Reza-Domaene, Zone-L), or
-container-infra (Kai-Domaene, Zone-J). It pins the Tag-68
-plan-doc + helper-stub which are persona-engine-domain (Selin)
-deliverables that reference the Amara-Tag-67 schema-pin (QA-
+This test does NOT modify persona definitions, WAT-core logic,
+identity-substrate design, or
+container-infra. It pins the
+plan-doc + helper-stub which are persona-engine-domain
+deliverables that reference the QA zone-schema-pin (QA-
 domain) without modifying it.
 """
 
@@ -149,7 +148,7 @@ def test_plan_doc_documents_forbidden_transitions():
 
 
 def test_plan_doc_cross_anchors_tag_67_schema():
-    """Plan-doc §4 references Amara's Tag-67 schema-pin doc."""
+    """Plan-doc §4 references the QA zone's schema-pin doc."""
     text = PLAN_DOC.read_text(encoding="utf-8")
     assert "welle-n-state-file-conventions.md" in text, (
         "plan-doc must cross-anchor to Tag-67 schema-pin doc"
@@ -180,7 +179,7 @@ def test_plan_doc_documents_sandbox_boundary_live_files():
 
 
 def test_plan_doc_marks_tag_68_as_doc_form_only():
-    """Plan-doc §1 declares Tag-68 doc-form-only discipline."""
+    """Plan-doc §1 declares doc-form-only discipline."""
     text = PLAN_DOC.read_text(encoding="utf-8")
     assert "doc-form-only" in text.lower() or "doc form only" in text.lower(), (
         "plan-doc must declare doc-form-only discipline for Tag-68"
@@ -219,7 +218,7 @@ def test_helper_stub_rejects_out_of_range_welle():
 
 
 def test_helper_stub_rejects_out_of_range_kw_anchor():
-    """Helper-stub raises ValueError on KW-anchor outside KW-22..KW-27."""
+    """Helper-stub raises ValueError on KW-anchor outside calendar week 22..calendar week 27."""
     module = _load_helper_module()
     for invalid in ("KW-21", "KW-28", "KW-99", "", "kw-22", "K-22"):
         with pytest.raises(ValueError):
@@ -227,7 +226,7 @@ def test_helper_stub_rejects_out_of_range_kw_anchor():
 
 
 def test_helper_stub_cli_main_valid_input_exits_zero():
-    """Helper-stub CLI main() returns 0 on valid --welle + --kw."""
+    """Helper-stub CLI main returns 0 on valid --wave + --kw."""
     module = _load_helper_module()
     buf = io.StringIO()
     with redirect_stdout(buf):
@@ -241,7 +240,7 @@ def test_helper_stub_cli_main_valid_input_exits_zero():
 
 
 def test_helper_stub_cli_main_invalid_input_exits_nonzero():
-    """Helper-stub CLI main() returns non-zero on invalid input."""
+    """Helper-stub CLI main returns non-zero on invalid input."""
     module = _load_helper_module()
     err_buf = io.StringIO()
     with redirect_stderr(err_buf), redirect_stdout(io.StringIO()):
@@ -296,7 +295,7 @@ def test_helper_stub_is_stdlib_only():
 
 
 def test_helper_stub_render_stub_returns_dict_with_required_keys():
-    """render_stub returns dict with the nine Tag-67 schema keys."""
+    """render_stub returns dict with the nine schema keys."""
     module = _load_helper_module()
     out = module.render_stub(3, "KW-25")
     required_keys = {

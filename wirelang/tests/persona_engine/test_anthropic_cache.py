@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Hermetic tests for the Anthropic prompt-caching helpers
-(Sprint-Pengine-14 OI-PCACHE-1, ADR-0064 Phase-2a).
+(-Pengine-14 OI-PCACHE-1, ADR-0064 Phase-2a).
 
 These tests drive ``wirelang.persona_engine.anthropic_cache`` and the
 ``LlmCallHook.supports_caching`` extension on the Phase-2-Stub
@@ -13,23 +13,23 @@ Vector count
 
 The test surface ships 27 vectors covering:
 
-1.  Cache-Breakpoint placement: system+persona+tools cached, task-payload NOT cached
-2.  V-907 pin in the cache-affinity key (pin change -> different key)
-3.  Cache-TTL env-var honour: default 300 -> "5m"
-4.  Cache-TTL env-var honour: override 600 -> still "5m" slot
-5.  Cache-TTL env-var honour: override 1800 -> "5m" slot upper edge
-6.  Cache-TTL env-var honour: override 1801 -> "1h" slot
-7.  Cache-TTL env-var honour: override 3600 -> "1h" exact
-8.  Cache-TTL env-var honour: override 7200 -> clamped to 3600 ("1h")
-9.  Cache-disabled path: WAKIR_ANTHROPIC_CACHE_TTL_SECONDS=0 -> no cache_control block
+1. Cache-Breakpoint placement: system+persona+tools cached, task-payload NOT cached
+2. V-907 pin in the cache-affinity key (pin change -> different key)
+3. Cache-TTL env-var honour: default 300 -> "5m"
+4. Cache-TTL env-var honour: override 600 -> still "5m" slot
+5. Cache-TTL env-var honour: override 1800 -> "5m" slot upper edge
+6. Cache-TTL env-var honour: override 1801 -> "1h" slot
+7. Cache-TTL env-var honour: override 3600 -> "1h" exact
+8. Cache-TTL env-var honour: override 7200 -> clamped to 3600 ("1h")
+9. Cache-disabled path: WAKIR_ANTHROPIC_CACHE_TTL_SECONDS=0 -> no cache_control block
 10. Cache-disabled path: affinity key still encodes ttl0 for telemetry
 11. Mock-Anthropic-response telemetry parsing: cache_read > 0
 12. Mock-Anthropic-response telemetry parsing: cache_creation > 0
 13. Mock-Anthropic-response telemetry parsing: cache_creation breakdown 5m vs 1h
 14. Mock-Anthropic-response telemetry parsing: missing cache_creation dict -> None
 15. Mock-Anthropic-response telemetry log-format JSON shape
-16. supports_caching() interface: EchoReflectionLlmHook returns False
-17. supports_caching() interface: module-level anthropic_hook_supports_caching True
+16. supports_caching interface: EchoReflectionLlmHook returns False
+17. supports_caching interface: module-level anthropic_hook_supports_caching True
 18. CachedRequestPayload.breakpoint_count cap: <= ANTHROPIC_MAX_CACHE_BREAKPOINTS
 19. Cache-affinity key model-scoping (different model -> different key)
 20. Cache-affinity key persona-scoping (different persona -> different key)
@@ -338,7 +338,7 @@ def test_telemetry_log_line_json_shape_stable():
 
 
 # =====================================================================
-# 16-17. supports_caching() interface
+# 16-17. supports_caching interface
 # =====================================================================
 
 

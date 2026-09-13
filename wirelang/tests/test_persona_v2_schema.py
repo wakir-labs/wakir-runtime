@@ -1,20 +1,20 @@
 # SPDX-License-Identifier: Apache-2.0
-"""persona-v2 (V10) schema validation tests (Phase-1b Sprint-3 Tag-2).
+"""persona-v2 (V10) schema validation tests (Phase-1b).
 
 Coverage map
 ------------
 
 The schema-file ``wirelang/schemas/persona-v2.json`` is authored from
 ``wirelang/specs/persona-schema-v10-migration-vorbereitung.md`` §2
-(Sprint-3 Tag-1 sketch). These tests pin the field-spec at JSON-Schema
+( sketch). These tests pin the field-spec at JSON-Schema
 level and lock the additive-only Default-Lock A-2 contract:
 
 1. **Positive** — minimal v2 input (v1-shape with schema_version lifted)
    validates.
 2. **Positive** — full v2 input (every additive top-level + nested
    identity_pinned field present) validates.
-3. **Positive** — reserved-fields-present-but-empty validates (Sprint-3
-   Tag-1 §2.1.3 reservation discipline).
+3. **Positive** — reserved-fields-present-but-empty validates (
+   §2.1.3 reservation discipline).
 4. **Negative** — schema_version != "persona-v2" rejected (the const
    discriminator that distinguishes v2 from v1).
 5. **Negative** — unknown additionalProperty at top-level rejected
@@ -22,8 +22,8 @@ level and lock the additive-only Default-Lock A-2 contract:
 6. **Negative** — unknown additionalProperty inside identity_pinned
    rejected (additive fields are explicit; no general escape hatch).
 
-The Sprint-3 Tag-N implementation box adds the Cross-Version-Roundtrip
-test pack (~16 tests, 4 classes, per Sprint-3 Tag-1 sketch §4); this
+The Tag-N implementation box adds the Cross-Version-Roundtrip
+test pack (~16 tests, 4 classes, per sketch §4); this
 file covers schema-conformance only.
 """
 
@@ -96,7 +96,7 @@ def test_v2_full_additive_doc_validates(
     schema_validator: jsonschema.Draft202012Validator,
 ) -> None:
     """A v2 doc that exercises every additive field (top-level + nested)
-    validates. Locks §2.1.1 + §2.1.2 of the Sprint-3 Tag-1 sketch."""
+    validates. Locks §2.1.1 + §2.1.2 of the sketch."""
     doc = _minimal_v2_doc()
     doc["model_pin"] = {"family": "claude", "version": "opus-4-7"}
     doc["spawn_constraints"] = {"max_concurrent": 1}

@@ -2,26 +2,26 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreEnd
-"""Tag-76 - Welle-1..7 Production-Bringup-Verifier (Selin, persona-engine).
+"""- wave 1..7 Production-Bringup-Verifier.
 
-Tag-75 (PR #475) shipped Welle-7 producer-path (the **terminal** Welle
-of the Phase-3c-Welle-Marathon). The producer-substrate now covers all
-six per-Welle marker-families (cutover, sealing, snapshot-restore,
+PR #475 shipped wave 7 producer-path (the **terminal** wave
+of the Phase-3c-wave-Marathon). The producer-substrate now covers all
+six per-wave marker-families (cutover, sealing, snapshot-restore,
 capability-token-rotation, cross-substrate-parity, final-sealing) plus
-the disjoint pre-auditor-guard axis on Welle-3/7.
+the disjoint pre-auditor-guard axis on wave 3/7.
 
-Tag-76 (this PR) adds the **cross-Welle Production-Bringup-Verifier**
+This change adds the **cross-wave Production-Bringup-Verifier**
 (the seventh disjoint trigger-family in the audit-stream,
 ``trigger="phase-3-complete-verify"``):
 
 * ``WelleStateProducer.handle_phase_3_complete_event`` -- read-only
-  cross-Welle aggregate verifier. Checks that all required Wellen
+  cross-wave aggregate verifier. Checks that all required waves
   (default ``{1, 2, 3, 4, 5, 6, 7}``) are in canonical signed-off
   State with non-empty ``cutover_iso`` and ``signoff_iso``, and that
-  cross-Welle ``cutover_iso`` ordering is monotone non-decreasing in
-  welle_number. On green: emits a :class:`Phase3CompleteAuditRecord`
-  (cross-Welle aggregate; disjoint from :class:`WelleAuditRecord`).
-  On red: raises :class:`Phase3CompleteVerifierError`.
+  cross-wave ``cutover_iso`` ordering is monotone non-decreasing in
+  welle_number. On green: emits a:class:`Phase3CompleteAuditRecord`
+  (cross-wave aggregate; disjoint :class:`WelleAuditRecord`).
+  On red: raises:class:`Phase3CompleteVerifierError`.
 
 * ``wirelang.persona_engine.engine.handle_phase_3_complete_event`` --
   top-level sync handler.
@@ -32,24 +32,21 @@ Tag-76 (this PR) adds the **cross-Welle Production-Bringup-Verifier**
 The verifier is the **engine-side gate-input** for the downstream
 ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7`` marker emission (per
 ``docs/quality-gates/phase-3c-doppel-welle-6-7.md`` §4.1). The marker
-emission itself is audit-trail-consumer-territory (Henrik Internal
-Audit Zone-N), NOT this verifier's responsibility.
+emission itself is audit-trail-consumer-territory, NOT this verifier's responsibility.
 
 Hermetic envelope
 -----------------
 
 No network. No NATS, no SPIRE, no gRPC. No subprocess. Pure in-process
-file I/O against ``tmp_path`` fixtures. Mirrors the Tag-69..75
+file I/O against ``tmp_path`` fixtures. Mirrors the..75
 producer-test conventions verbatim.
 
-Scope discipline (Selin)
+Scope discipline
 ------------------------
 
-This test does NOT modify persona definitions (Aisha-Domaene,
-ADR-0043), WAT-core logic (Tomas-Domaene, Zone-K), Phase-3-COMPLETE-
+This test does NOT modify persona definitions, WAT-core logic, Phase-3-COMPLETE-
 marker emission (audit-trail-consumer territory; this test pins the
-engine-side verifier-record only), or container-infra (Kai-Domaene,
-Zone-J). It pins the Tag-76 cross-Welle verifier shorthand.
+engine-side verifier-record only), or container-infra. It pins the cross-wave verifier shorthand.
 """
 
 from __future__ import annotations
@@ -87,7 +84,7 @@ from wirelang.persona_engine.welle_state_producer import (
 
 
 # ---------------------------------------------------------------------------
-# Helpers (mirror Tag-69..75 layout).
+# Helpers (mirror..75 layout).
 # ---------------------------------------------------------------------------
 
 
@@ -102,7 +99,7 @@ CANONICAL_KW_ANCHOR = {
 }
 
 
-# Canonical post-cutover-sign-off ISO timestamps per Welle. Monotone
+# Canonical post-cutover-sign-off ISO timestamps per wave. Monotone
 # non-decreasing in welle_number to satisfy the verifier invariant.
 CANONICAL_CUTOVER_ISO = {
     1: "2026-05-27T08:00:00Z",
@@ -201,7 +198,7 @@ def test_phase_3_complete_required_wellen_is_canonical_set():
 
 def test_phase_3_complete_trigger_literal_is_disjoint_constant():
     assert PHASE_3_COMPLETE_TRIGGER == "phase-3-complete-verify"
-    # Disjoint from all per-Welle trigger-literals (the six marker
+    # Disjoint from all per-wave trigger-literals (the six marker
     # families + vanilla sign-off + cutover) by spot-check.
     disjoint_set = {
         "cutover",
@@ -256,7 +253,7 @@ def test_phase_3_complete_verifier_error_inherits_from_welle_producer_error():
 
 
 # ---------------------------------------------------------------------------
-# 2. Happy-path: all 7 Wellen signed-off -> green verdict.
+# 2. Happy-path: all 7 waves signed-off -> green verdict.
 # ---------------------------------------------------------------------------
 
 
@@ -325,14 +322,14 @@ def test_verifier_canonical_json_bytes(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 3. Red verdicts: per-Welle preconditions.
+# 3. Red verdicts: per-wave preconditions.
 # ---------------------------------------------------------------------------
 
 
 def test_verifier_refuses_when_welle_pending(tmp_path):
     state_dir = tmp_path / "state"
     _seed_all_signed_off(state_dir)
-    # Overwrite welle-4 to pending.
+    # Overwrite wave 4 to pending.
     _seed_pending(state_dir, 4)
     producer = WelleStateProducer(state_dir=state_dir)
     with pytest.raises(Phase3CompleteVerifierError) as exc_info:
@@ -423,16 +420,16 @@ def test_verifier_refuses_when_state_file_missing(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 4. Red verdicts: cross-Welle invariants.
+# 4. Red verdicts: cross-wave invariants.
 # ---------------------------------------------------------------------------
 
 
 def test_verifier_refuses_when_cross_welle_cutover_non_monotone(tmp_path):
     state_dir = tmp_path / "state"
     _seed_all_signed_off(state_dir)
-    # Corrupt: Welle-3 cutover BEFORE Welle-1 cutover -> monotonicity
-    # violation between welle-1 and welle-2 (welle-2 ends up earlier
-    # than welle-1's cutover).
+    # Corrupt: wave 3 cutover BEFORE wave 1 cutover -> monotonicity
+    # violation between wave 1 and wave 2 (wave 2 ends up earlier
+    # than wave 1's cutover).
     payload = _signed_off_stub(2)
     payload["cutover_iso"] = "2026-05-01T08:00:00Z"
     (state_dir / "welle-2.json").write_text(
@@ -449,7 +446,7 @@ def test_verifier_refuses_when_cross_welle_cutover_non_monotone(tmp_path):
 def test_verifier_tolerates_equal_cutover_iso_between_welles_4_5_6(tmp_path):
     state_dir = tmp_path / "state"
     _seed_all_signed_off(state_dir)
-    # Welle-4/5/6 share KW-26 per canonical run-order; equal cutover_iso
+    # wave 4/5/6 share calendar week 26 per canonical run-order; equal cutover_iso
     # MUST be tolerated (monotonicity is <=, not <).
     shared_cutover = "2026-06-24T08:00:00Z"
     for w in (4, 5, 6):
@@ -599,7 +596,7 @@ def test_async_handle_phase_3_complete_event_refuses_on_red(tmp_path):
 
 
 def test_phase_3_complete_record_disjoint_from_welle_audit_record_by_trigger():
-    """The cross-Welle aggregate record is distinguished from single-Welle
+    """The cross-wave aggregate record is distinguished from single-wave
     records by trigger-literal."""
     record = Phase3CompleteAuditRecord(
         verdict=PHASE_3_COMPLETE_VERIFIED,
@@ -610,7 +607,7 @@ def test_phase_3_complete_record_disjoint_from_welle_audit_record_by_trigger():
     )
     assert record.trigger == PHASE_3_COMPLETE_TRIGGER
     # The trigger is the seventh disjoint trigger-family. Spot-check
-    # disjointness vs all six per-Welle marker-family trigger-literals.
+    # disjointness vs all six per-wave marker-family trigger-literals.
     per_welle_triggers = {
         "cutover",
         "sign-off",

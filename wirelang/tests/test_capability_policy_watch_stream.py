@@ -1,24 +1,24 @@
 # SPDX-License-Identifier: Apache-2.0
 """Hermetic tests for the Wirelang capability-policy watch-stream surface.
 
-Phase-2 Sprint-5 Tag-5 (S5-5). Tests the additive watch-stream surface
-on :mod:`wirelang.schemas.capability_policy_nats_kv_backend`:
+Phase-2 (S5-5). Tests the additive watch-stream surface
+on:mod:`wirelang.schemas.capability_policy_nats_kv_backend`:
 
-- :class:`CapabilityPolicyWatchOp` / :class:`CapabilityPolicyWatchEvent`
-- :meth:`NatsKvCapabilityPolicyBackend.watch`
-- :func:`open_capability_policy_watch_stream`
-- :class:`LiveCapabilityPolicySnapshot` (``from_backend`` / ``apply`` /
+-:class:`CapabilityPolicyWatchOp` /:class:`CapabilityPolicyWatchEvent`
+-:meth:`NatsKvCapabilityPolicyBackend.watch`
+-:func:`open_capability_policy_watch_stream`
+-:class:`LiveCapabilityPolicySnapshot` (``from_backend`` / ``apply`` /
   ``as_registry`` / ``records``)
-- :func:`_decode_capability_policy_watch_update` poison-handling
+-:func:`_decode_capability_policy_watch_update` poison-handling
 
 The watch-stream lands the Phase-3-reserved live-tail slot for the
-capability-policy backend as a Sprint-5 Tag-5 additive surface. The
-Tag-2 LWW path (``put`` / ``get`` / ``snapshot`` / ``snapshot_registry``)
-and the Tag-4 CAS-pin path (``put_with_revision`` /
-``get_with_revision``) are unaffected; Tag-5 surfaces are purely
+capability-policy backend as a additive surface. The
+LWW path (``put`` / ``get`` / ``snapshot`` / ``snapshot_registry``)
+and the CAS-pin path (``put_with_revision`` /
+``get_with_revision``) are unaffected; surfaces are purely
 additive.
 
-Pattern source: Sprint-3 Tag-4 schema-registry watch-stream in
+Pattern source: schema-registry watch-stream in
 ``wirelang/tests/test_schema_registry_watch_stream.py``. The mock
 shapes mirror that pattern byte-equally: a manually-fed ``_MockWatcher``
 with ``await updates()`` semantics (Shape 2 of the backend's adapter
@@ -46,7 +46,7 @@ Test inventory (T-CPP-WS-01..10 + 2 aux probes):
   the highest revision seen and is monotonic.
 - T-CPP-WS-09: a frozen registry from a watch-fed snapshot exposes
   ``policies_for`` / ``list_issuers`` consistent with the full-snapshot
-  path (Tag-2 cross-reference) and gates byte-identically.
+  path (cross-reference) and gates byte-identically.
 - T-CPP-WS-10: ``open_capability_policy_watch_stream`` rejects a
   non-backend argument with TypeError.
 - T-CPP-WS-aux-async-iter: the watch handle is async-iter compatible
@@ -90,7 +90,7 @@ from wirelang.schemas.registry_nats_kv_backend import (
 
 
 # ---------------------------------------------------------------------------
-# Mock KV with watch surface (mirrors Sprint-3 Tag-4 schema-registry mocks)
+# Mock KV with watch surface (mirrors schema-registry mocks)
 # ---------------------------------------------------------------------------
 
 
@@ -507,7 +507,7 @@ def test_t_cpp_ws_06_poisoned_put_value_raises():
 
 def test_t_cpp_ws_07_unknown_operation_raises():
     """T-CPP-WS-07: an update with an unrecognised ``operation`` kind
-    raises :class:`CapabilityPolicyEnvelopeError`.
+    raises:class:`CapabilityPolicyEnvelopeError`.
     """
     kv = _MockKv()
     backend = NatsKvCapabilityPolicyBackend(kv=kv)
@@ -577,7 +577,7 @@ def test_t_cpp_ws_08_last_revision_monotonic():
 
 def test_t_cpp_ws_09_live_snapshot_gates_consistent_with_full_snapshot():
     """T-CPP-WS-09: a frozen registry from a watch-fed snapshot gates
-    identically to the full-snapshot path against the Sprint-4 Tag-6
+    identically to the full-snapshot path against the
     :func:`check_registered_by_capability` gate. Cross-reference
     T-CPP-04 (full snapshot_registry).
     """
@@ -616,7 +616,7 @@ def test_t_cpp_ws_09_live_snapshot_gates_consistent_with_full_snapshot():
     # Both views carry one policy for the issuer.
     assert len(watch_view.policies_for("wirelang-eng")) == 1
     assert len(full_view.policies_for("wirelang-eng")) == 1
-    # Both views gate identically against the Sprint-4 Tag-6 gate.
+    # Both views gate identically against the gate.
     schema_body = {
         "$id": "https://wakir.dev/wirelang/schemas/wire/layer-1-wire/0.1.0",
         "type": "object",
