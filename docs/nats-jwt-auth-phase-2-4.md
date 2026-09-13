@@ -6,7 +6,7 @@ Python client (`nats-py`). It is the paired companion to:
 
 - `docs/spire-server-phase-2-1.md` (SPIRE-Server sidecar).
 - `docs/spire-agent-phase-2-2.md` (SPIRE-Agent sidecar).
-- `docs/spiffe-jwt-svid-identity.md` (Z-A skizze re-write).
+- `docs/archive/evidence/decisions/spiffe-jwt-svid-identity-sketch.md` (historical design sketch).
 
 **Hermetic-only**: the substrate adds a callback-factory module
 and 20 hermetic tests. No NATS-server is started. No SPIRE-Agent is
@@ -20,7 +20,7 @@ Phase-2.5 Operator-Hand slot (see §6).
 |---|---|---|
 | Substrate-Voraussetzung 1 | `nats-py` exposes `user_jwt_cb` callback (Client-Side) | Verified `nats/aio/client.py` Z. 110, 317, 370, 1666-1668 (see §3.1) |
 | Substrate-Voraussetzung 2 | P7-verified | Confirmed; this runbook §3.1 carries the line-by-line citation |
-| Substrate-Voraussetzung 3 | Z-A re-write `docs/spiffe-jwt-svid-identity.md` §4.2-Punkt-7 + §6 §3 | Cross-referenced (§3.2 below) |
+| Substrate-Voraussetzung 3 | design sketch `docs/archive/evidence/decisions/spiffe-jwt-svid-identity-sketch.md` §4.2-Punkt-7 + §6 §3 | Cross-referenced (§3.2 below) |
 | sketch | NATS-JWT-Auth wire-up between SPIRE-Agent Workload-API and NATS-JetStream client | `scripts/nats_jwt_callback_skizze.py` + this runbook |
 | Mock/Stub `user_jwt_cb` | Path-by-name reference to protocol engineering Mock-Adapter `MockSpiffeWorkloadApiAdapter` | §4 + `scripts/nats_jwt_callback_skizze.py` (`InMemorySvidCache` stub, NOT a wirelang import) |
 | Hermetic tests | No real NATS-server, no real SPIRE-Agent | `tests/orchestrator/test_nats_jwt_auth_phase_2_4.py` (20 tests) |
@@ -137,7 +137,7 @@ ack.md` §4.2):
 > API. The `nats-py` `user_jwt_cb` parameter (NOT the static
 > `user_jwt` string parameter) is the correct integration point.
 
-`docs/spiffe-jwt-svid-identity.md` §4.2-Punkt-7 + §6 §3 document the
+`docs/archive/evidence/decisions/spiffe-jwt-svid-identity-sketch.md` §4.2-Punkt-7 + §6 §3 document the
 same correction and are the upstream reference for substrate.
 
 ### 3.3 Refresh-on-Reconnect contract (substrate)
