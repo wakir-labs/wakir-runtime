@@ -76,7 +76,7 @@ Components:
   - Holds a `JwtSvidCache` populated by a background `WatchJWTSVIDs`
     stream against the Workload-API.
   - Surface: `MockSpiffeWorkloadApiAdapter` (hermetic) + real adapter
-    (protocol engineering when landed).
+    (protocol engineering, once landed).
 - **callback factory** (this skizze): builds the zero-arg
   callable `nats-py` invokes at every CONNECT-frame build.
 - **NATS-JetStream**: configured with JWT-Auth; validates incoming
@@ -184,7 +184,7 @@ Three invariants the callback enforces:
    that cleared the cache), the callback raises
    `NatsJwtCallbackCacheEmpty`. The persona-container boot path
    gates `nats.connect()` on cache-hot status (wirelang-side
-   adapter exposes a "wait for first SVID" surface; does
+   adapter exposes a "wait for first SVID" surface; the stub does
    not).
 3. **Expiry-check is opt-in.** Default `enforce_exp=False` — NATS-
    server validates `exp` server-side. Tests / diagnostic paths
@@ -213,12 +213,10 @@ protocol engineering (`9c94517`) added
 - The tests do NOT `import wirelang.*`; they use the local
   `InMemorySvidCache` stub. Verified by Block-7 test
   `test_path_by_name_pin_for_wirelang_adapter_holds`.
-- **Why path-by-name**: the wirelang adapter is on the protocol track and
-  evolves on a different branch; the branch
-  (`kai/phase-2-sprint-6-tag-10-nats-jwt-auth` forked from
-  `kai/phase-2-sprint-6-tag-9-spire-agent-sidecar` tip `740215b`)
-  does NOT carry protocol engineering's `9c94517` adapter commit. Importing would
-  break the hermetic-skizze constraint.
+- **Why path-by-name**: the wirelang adapter is owned by the protocol
+  track and evolves on a different branch, which does NOT carry the
+  protocol-side adapter commit. Importing it would break the
+  hermetic-sketch constraint.
 
 **Real-world wire-up** (Phase-2.5+ Operator-Hand):
 
