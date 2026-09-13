@@ -534,7 +534,7 @@ def test_tag45_landed_pr_anchors_correct(policy: dict) -> None:
 def test_tag45_sandbox_boundary_stamp_preserved(policy: dict) -> None:
     """The Cosign-Policy file MUST still carry the sandbox-boundary
     stamp after the inventory bump — no ``run_in_sandbox:
-    true`` regression leaked .
+    true`` regression leaked.
 
     Drift-guard: a future PR that accidentally adds a sandbox-side
     cosign invocation hook (``run_in_sandbox: true``) would

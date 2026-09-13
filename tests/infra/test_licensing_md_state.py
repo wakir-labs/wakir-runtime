@@ -14,7 +14,7 @@ section even listed `wat/` as the *only* BSL sub-tree.
 This test suite enforces that LICENSING.md, REUSE.toml, pyproject.toml
 ``license-files`` and the actual on-disk state of the BSL sub-trees
 stay in lock-step. It is the diligence-ready acceptance gate the
-external audit asked .
+external audit asked.
 
 Scope of the assertions (10 vectors):
 
@@ -161,7 +161,7 @@ def test_tv_lms_03_every_on_disk_bsl_subtree_annotated_in_reuse_toml() -> None:
         if glob not in reuse_toml:
             missing.append(glob)
     assert not missing, (
-        f"REUSE.toml is missing BSL glob annotations : {missing}. Each "
+        f"REUSE.toml is missing BSL glob annotations: {missing}. Each "
         f"BSL sub-tree on disk must have a ``[[annotations]] path = "
         f"\"<dir>/**\"`` block with ``SPDX-License-Identifier = "
         f"\"BUSL-1.1\"`` and ``precedence = \"closest\"`` so REUSE scanners "
@@ -194,7 +194,7 @@ def test_tv_lms_04_pyproject_license_files_covers_every_bsl_subtree() -> None:
             continue
         missing.append(license_path)
     assert not missing, (
-        f"pyproject.toml license-files = [...] is missing entries : "
+        f"pyproject.toml license-files = [...] is missing entries: "
         f"{missing}. Each BSL sub-tree's LICENSE-BSL.md must be in the "
         f"license-files list so PEP-639 wheel metadata surfaces the BUSL "
         f"claim to PyPI consumers."

@@ -91,7 +91,7 @@ import pytest
 # `wirelang/persona/persona_canonical_form.py` resolver docstring);
 # skip the entire suite on that lane via the same `importorskip`
 # pattern already established in the sibling cross-lang test suites
-# ..).
+#..).
 pytest.importorskip("rfc8785")
 
 from wirelang.persona_engine.migrate_version import (

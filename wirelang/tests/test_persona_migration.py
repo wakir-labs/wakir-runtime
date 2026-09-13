@@ -20,7 +20,7 @@ Coverage map (-sketch §3.4 edge-cases + V-907 pin-stability)
 
 Each test is hermetic — no network, no shared mutable state. Fixtures
 are file-system reads from ``wirelang/tests/fixtures/persona_definitions/``,
-created .
+created.
 """
 
 from __future__ import annotations

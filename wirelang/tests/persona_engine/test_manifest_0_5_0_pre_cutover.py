@@ -319,7 +319,7 @@ def test_18_pin_pack_invariants_block_matches_reality(pin_pack: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 4. Containerfile.real version-bump tests — retired .
+# 4. Containerfile.real version-bump tests — retired.
 # ---------------------------------------------------------------------------
 #
 # The live Containerfile now references 0.5.1-pre-cutover (10 records,

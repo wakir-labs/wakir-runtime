@@ -495,7 +495,7 @@ def test_tv3_manifest_prev_hour_root_is_null(tmp_path: Path) -> None:
     """TV-3 is by definition single-slot: prev_hour_root must be null.
 
     This pins the contract that TV-3 does NOT thread a prior root —
-    if a future refactor accidentally wires a prev root , the
+    if a future refactor accidentally wires a prev root, the
     behavioural-probe age math would still work, but the gated
     pytest's manifest cross-check would drift. Pin it here so the
     drift surfaces in script tests.

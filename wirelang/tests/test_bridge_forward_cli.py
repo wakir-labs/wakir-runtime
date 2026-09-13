@@ -382,7 +382,7 @@ def test_main_returns_rc_1_on_missing_file(tmp_path):
 
 
 def test_output_is_byte_deterministic_across_repeats(busy_snapshot):
-    """Same fixture , same bytes out — across repeated invocations.
+    """Same fixture, same bytes out — across repeated invocations.
     This is the hermetic-substrate floor that lets PR-bundle merges be
     reproducible across operator hosts."""
     expected_json = format_summary_json(busy_snapshot)

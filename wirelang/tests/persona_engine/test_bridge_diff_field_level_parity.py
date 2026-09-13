@@ -52,7 +52,7 @@ Coverage map (10 tests)
     test loads it; instability here would silently invalidate the
     Rust assertions).
 
-The fixture file lives ::
+The fixture file lives::
 
     wirelang-rust/crates/persona-engine-bridge-diff/tests/
         cross_lang_field_diff_fixtures.json

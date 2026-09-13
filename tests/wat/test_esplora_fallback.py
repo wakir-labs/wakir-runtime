@@ -51,10 +51,10 @@ TV1_HASH = "00000000000000000000ec730435b01d9bdd9de0a10f1a8c4a33ea27e52b2110"
 
 
 class FakeResponse(io.BytesIO):
-    """Minimal stand-in :class:`http.client.HTTPResponse`.
+    """Minimal stand-:class:`http.client.HTTPResponse`.
 
     Implements just the surface ``urllib.request.urlopen`` is used
-    for :func:`wat.anchor.esplora._http_get_text`: a context
+    :func:`wat.anchor.esplora._http_get_text`: a context
     manager with a ``status`` attribute and a ``read()`` method.
     """
 

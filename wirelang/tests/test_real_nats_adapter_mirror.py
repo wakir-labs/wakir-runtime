@@ -227,7 +227,7 @@ def test_real_adapter_status_surface_for_cross_trust_domain_bridge(
 ) -> None:
     """The status surface exposes the markers the SpiffeCross-
     TrustDomainBridge needs to audit which auth
-    mode the underlying NATS-connection runs .
+    mode the underlying NATS-connection runs.
 
     - live_mode_marker pins the RealAdapter-Mirror
       identifier (so a bridge audit can confirm the adapter is

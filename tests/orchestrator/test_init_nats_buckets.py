@@ -694,7 +694,7 @@ def test_t_tag5_05_sixth_bucket_idempotent_replay_marks_unchanged(
 # has the bucket layout ready for the Phase-3 capability-policy-
 # persistence promotion that the Wirelang-side track
 # (Wirelang-track-owned per Persona-Matrix §2) will commit a
-# ``BUCKET_CONFIG`` constant .
+# ``BUCKET_CONFIG`` constant.
 # Until that lands, this is reservation-form (analogous to the
 # 5th-bucket pattern, not the 6th-bucket cross-import-
 # mirror pattern).

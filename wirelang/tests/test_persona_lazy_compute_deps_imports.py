@@ -114,7 +114,7 @@ def test_persona_canonical_form_module_loads_without_yaml_or_rfc8785_present():
 
 def test_persona_hash_module_loads_without_rfc8785_present():
     """Companion to the canonical-form test above for the
-    sibling module ``persona_hash`` that also went lazy .
+    sibling module ``persona_hash`` that also went lazy.
     """
     import wirelang.persona.persona_hash as mod  # noqa: F401
 

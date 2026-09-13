@@ -229,7 +229,7 @@ def test_doppel_welle_4_5_dw_ac_3_rollback_state_backing_partner_stays_rust(
 
     lifecycle_state_machine stays on rust. The two-sided rust →
     one-sided rust transition is what the schema-migration-rollback-
-    plan prepares .
+    plan prepares.
     """
     record = mocked_single_komponente_rollback(
         MODUL_A,

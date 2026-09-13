@@ -479,7 +479,7 @@ def test_18_bash_wrapper_rotation_plan_json(repo_root: pathlib.Path) -> None:
     parsed = json.loads(result.stdout)
     assert isinstance(parsed, list)
     assert len(parsed) == 6
-    # The custom quadlet path is baked .
+    # The custom quadlet path is baked.
     assert all(
         "/tmp/wakir-engine.container" in str(step) for step in parsed[:3]
     ), parsed

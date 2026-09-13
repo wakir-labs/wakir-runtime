@@ -334,7 +334,7 @@ class TestDriftClassification:
 
     def test_anchor_emitter_pendant_absent(self, hermetic_runtime: Path) -> None:
         # The fixture's anchor_emitter Python authority has no Rust pendant
-        # crate that declares it. Mirrors the runtime-tip reality .
+        # crate that declares it. Mirrors the runtime-tip reality.
         env = drift.run_audit(runtime_root=hermetic_runtime)
         e = next(e for e in env.drift_map
                  if e.python_authority == "wirelang/persona_engine/anchor_emitter.py")

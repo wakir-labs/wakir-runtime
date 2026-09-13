@@ -129,7 +129,7 @@ def test_v1_to_v1_idempotence_via_path():
 
 def test_v1_to_v1_idempotence_via_dict():
     """Same as the path-based idempotence, but with a dict input."""
-    # Build a v1 dict by migrating v8 once, then feed the result back .
+    # Build a v1 dict by migrating v8 once, then feed the result back.
     v1_dict = migrate_persona(_v8_path())
     out = migrate_persona(v1_dict, target_schema_version="persona-v1")
     assert out["schema_version"] == "persona-v1"

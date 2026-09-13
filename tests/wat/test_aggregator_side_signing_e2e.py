@@ -364,7 +364,7 @@ def test_aggregator_signing_anchor_chain_rejects_wrong_root(tmp_path: Path) -> N
 
 def test_aggregator_e2e_writes_canonical_block_948183_marker(tmp_path: Path) -> None:
     """The full chain leaves a canonical-block-948183 marker that an
-    external auditor can grep .
+    external auditor can grep.
 
     Property: after running build -> anchor with the block-948183
     fixture, the receipt directory contains the receipt bytes that

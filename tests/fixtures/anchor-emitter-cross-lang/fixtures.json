@@ -1,5 +1,5 @@
 {
-  "_comment": "Cross-lang fixture vectors for the persona-engine anchor-emitter (Phase-3a Item 7 / Tag-18 Python-sync). The 'expected' block is the authoritative cross-lang pin: any drift on either side (Rust crate persona-engine-anchor-emitter or Python wirelang.persona_engine.anchor_emitter) must change every other side too. Derivation procedure documented in tests/wat/test_anchor_emitter_cross_lang_parity.py (Python sibling test) and tests/anchor_emitter_cross_lang_fixture_test.rs (Rust sibling test). Fixtures pinned 2026-05-17.",
+  "_comment": "Cross-lang fixture vectors for the persona-engine anchor-emitter (Phase-3a Item 7 / Python-sync). The 'expected' block is the authoritative cross-lang pin: any drift on either side (Rust crate persona-engine-anchor-emitter or Python wirelang.persona_engine.anchor_emitter) must change every other side too. Derivation procedure documented in tests/wat/test_anchor_emitter_cross_lang_parity.py (Python sibling test) and tests/anchor_emitter_cross_lang_fixture_test.rs (Rust sibling test). Fixtures pinned 2026-05-17.",
   "schema_version": "wakir.wat.anchor-envelope/1",
   "fixtures": [
     {

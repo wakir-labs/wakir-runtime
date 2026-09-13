@@ -17,7 +17,7 @@
 # names from ``scripts/init-nats-buckets.py`` are referenced
 # explicitly somewhere in the compose-file commentary, so a
 # future operator who reads only the compose file knows what
-# buckets the substrate is sized .
+# buckets the substrate is sized.
 # 5. hardening: cap_drop ALL, no-new-privileges, restart-policy
 # present.
 # 6. health-check probe shape (CMD-SHELL + JetStream HTTP endpoint).

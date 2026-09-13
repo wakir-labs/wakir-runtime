@@ -25,7 +25,7 @@ The classifier is an observation layer, not an enforcement layer:
 it surfaces the kind for the consumer to act on, it does not raise
 on breach.
 
-Test inventory (T-CPP-REVF-01..12 , T-CPP-REVF-13..19
+Test inventory (T-CPP-REVF-01..12, T-CPP-REVF-13..19
 added + 2 aux probes):
 
 - T-CPP-REVF-01: classify(PUT, no-prior, revoked_at=None)

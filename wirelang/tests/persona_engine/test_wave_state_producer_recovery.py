@@ -471,7 +471,7 @@ def test_producer_welle_7_signoff_refused_with_undesignated_pre_auditor(
 ):
     """A non-"designated" pre_auditor_decision MUST raise PreAuditorGuardError.
 
-    Mirrors the wave 3 pre-auditor-guard test . This pins
+    Mirrors the wave 3 pre-auditor-guard test. This pins
     the symmetric pre-auditor enforcement across wave 3 and wave 7.
     """
     state_dir = tmp_path / "state"

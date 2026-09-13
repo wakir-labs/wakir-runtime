@@ -731,7 +731,7 @@ def test_sandbox_boundary_stamp_present(policy: dict) -> None:
     # And: the policy YAML, when parsed, does NOT contain any field
     # that asks for a sandbox-side cosign invocation. (The check is
     # negative — we assert no top-level ``run_in_sandbox: true``
-    # leaked .)
+    # leaked.)
     assert "run_in_sandbox" not in policy, (
         "policy must not carry a run_in_sandbox flag — live cosign "
         "is Operator-Hand only"

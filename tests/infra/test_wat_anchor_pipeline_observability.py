@@ -582,7 +582,7 @@ def test_format_value_renders_ints_and_floats() -> None:
     assert obs._format_value(-1) == "-1"
     assert obs._format_value(3.0) == "3"
     assert obs._format_value(0.5) == "0.5"
-    # Bool is an int subclass; defend against truthiness leaking .
+    # Bool is an int subclass; defend against truthiness leaking.
     assert obs._format_value(True) == "1"
     assert obs._format_value(False) == "0"
     # Non-numeric values render as 0 (gauge stays additive).

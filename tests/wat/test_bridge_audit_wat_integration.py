@@ -38,7 +38,7 @@ bridge and the aggregator. So would a JSONL-line-encoding drift.
 
 This module exercises the chain end-to-end so that the
 substrate stays composable with the Phase-1b/2 anchor pipeline
-that has been the WAT contract .
+that has been the WAT contract.
 """
 
 from __future__ import annotations

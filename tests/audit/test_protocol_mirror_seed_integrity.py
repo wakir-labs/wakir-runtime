@@ -85,7 +85,7 @@ def test_seed_file_has_apache_spdx_header(seed_name: str) -> None:
 def test_seed_file_byte_identical_to_runtime_schema(seed_name: str) -> None:
     """The seed is a byte-exact mirror of the runtime schema.
 
-    This is the invariant the mirror exists for: any divergence means a
+    This is the invariant the mirror exists : any divergence means a
     schema landed on one side only, and the cross-repo compatibility
     gate would be comparing against a stale copy.
     """

@@ -107,7 +107,7 @@ def test_env_var_defaults_documented(
     documented behaviour."""
     pattern = rf': "\${{{var}:={re.escape(default)}}}"'
     assert re.search(pattern, script_source), (
-        f"missing default for {var}={default} (looked : {pattern})"
+        f"missing default for {var}={default} (looked: {pattern})"
     )
 
 

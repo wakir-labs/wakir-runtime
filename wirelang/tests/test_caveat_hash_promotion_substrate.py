@@ -220,7 +220,7 @@ def test_chp_aux_canonical_bytes_are_deterministic_under_dedup() -> None:
 # ===========================================================================
 #
 # These tests anchor the v0.2.0 → v0.2.1 schema bump. They are the
-# operator-Trigger-pflichtige acceptance : schema admits the
+# operator-Trigger-pflichtige acceptance: schema admits the
 # canonical literal, the TV-W-2 golden pin-pack hash recomputes
 # byte-equal, the residual Class-P reservation (`persona_pin`)
 # still bites, and the v0.2.1 ratification surface is materialised.

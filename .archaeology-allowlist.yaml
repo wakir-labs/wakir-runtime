@@ -1,0 +1,272 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Allowlist for `tooling/ci/archaeology_lint.py` (ADR-0072 sub-item 4d).
+#
+# Every entry needs `path` and `reason`, plus exactly one of:
+#
+#   pinned_by    the test or tool that nails the literal byte-for-byte.
+#                Removing the literal means changing that pin in the same
+#                commit, so the entry is permanent until the pin changes.
+#
+#   deferred_to  the zone that owns the file. Used where the literal can
+#                only be removed together with a surface this sweep does
+#                not own. Temporary: the lint reports these on every run.
+#
+# An entry with neither, or with both, fails the lint.
+#
+# The enforced vocabulary is narrower than the sweep regex; the reasoning
+# is in the module docstring of the lint.
+
+version: 1
+
+entries:
+
+  # ---------------------------------------------------------------
+  # QA zone — literals this zone's tests pin in other zones' surfaces
+  # ---------------------------------------------------------------
+
+  - path: "tests/fixtures/*-cross-lang/fixtures.json"
+    reason: >-
+      Cross-language fixture vectors. The `_comment` header is written by
+      the derive scripts, and the vectors themselves are compared
+      byte-for-byte by a Python and a Rust test; scrubbing one side
+      desynchronises the generator from its output.
+    pinned_by: "scripts/derive-*-fixtures.py + tests/cli/test_bridge_forward_cross_lang_parity.py"
+
+  - path: "tests/fixtures/schema-registry/**"
+    reason: >-
+      Anchor manifest recorded from a real registry run; the document is
+      hashed into the manifest chain.
+    pinned_by: "tests/wat/test_manifest_v2_audit_trail_kid_resolver.py"
+
+  - path: "tests/fixtures/wat-tv2-real-signed/README.md"
+    reason: >-
+      Provenance note for a real signed WAT test vector; the run it
+      describes is the evidence.
+    pinned_by: "tests/wat/test_tv3_run_persistent_script.py"
+
+  - path: "tests/wat/external_verifier/witness_captures/README.md"
+    reason: >-
+      Provenance note for captured external-verifier witnesses.
+    pinned_by: "tests/wat/test_aggregator_prev_hour_root.py"
+
+  - path: "wirelang/tests/fixtures/tv-w-*/**"
+    reason: >-
+      WAT test-vector pin packs. The pack content is hashed by the
+      identity round-trip vector, so every byte is load-bearing.
+    pinned_by: "wirelang/tests/test_tv_w_1_identity_roundtrip.py"
+
+  - path: "wirelang/tests/test_tv_w_1_identity_roundtrip.py"
+    reason: >-
+      Builds the pin pack in-process and compares it against the committed
+      pack; the spec reference it emits has to match the committed bytes.
+    pinned_by: "wirelang/tests/fixtures/tv-w-1/pin-pack.json"
+
+  - path: "wirelang/tests/_tv_w_*_pin_pack_builder.py"
+    reason: >-
+      Builders that emit the pin packs above; their literals must match
+      the committed packs.
+    pinned_by: "wirelang/tests/test_tv_w_1_identity_roundtrip.py"
+
+  - path: "tests/observability/**"
+    reason: >-
+      Alert names, alert-group names and routing classes shipped in the
+      dashboards and in the notify bridge. The tests assert them verbatim;
+      renaming them is an observability-zone change, not a test change.
+    pinned_by: "dashboards/phase-3-marathon-alerts.yaml + scripts/observability/alert-rule-to-mira-notify-bridge.py"
+
+  - path: "tests/audit/**"
+    reason: >-
+      Audit suites assert spec-document headings and emit document payloads
+      whose `tag` field is part of the anchored record.
+    pinned_by: "wirelang/specs/wirelang-spec-v0-4-*.md + tooling/ots/wirelang-spec-ots-anchor-stub.json"
+
+  - path: "tests/acceptance/phase_3c/**"
+    reason: >-
+      Acceptance criteria are numbered in the gate document and asserted
+      verbatim here; the two move together or not at all.
+    pinned_by: "docs/quality-gates/phase-3c-acceptance-criteria.md"
+
+  - path: "tests/specs/**"
+    reason: >-
+      Spec drift suites assert section shape and signature lines of the
+      Wirelang specs, including a frozen one.
+    pinned_by: "wirelang/specs/wirelang-spec-v0-4-3.md"
+
+  - path: "tests/infra/test_pilot_*"
+    reason: >-
+      Bug numbering from the pilot bring-up is carried in the bootstrap
+      script's own comments, which these tests match with regexes.
+    pinned_by: "scripts/pilot-bootstrap.sh"
+
+  - path: "tests/infra/test_pre_commit_reuse_lint.py"
+    reason: >-
+      Asserts that the pre-commit hook header still carries its audit
+      reference.
+    pinned_by: ".pre-commit-config.yaml"
+
+  - path: "tests/orchestrator/**"
+    reason: >-
+      Marker-stack family names and image-pin rotation identifiers as
+      shipped by the orchestrator scripts.
+    pinned_by: "scripts/init-nats-buckets.py"
+
+  - path: "tests/wat/**"
+    reason: >-
+      Open-item identifiers and defect references carried in the WAT
+      aggregator and manifest-resolver sources.
+    pinned_by: "wat/aggregator.py"
+
+  - path: "tests/cli/test_bridge_forward_cross_lang_parity.py"
+    reason: >-
+      Uppercase persona slugs are negative test vectors for the slug
+      validator — the point of the vector is that the value is rejected.
+    pinned_by: "wirelang/cli/bridge_forward_canonical.py"
+
+  - path: "wirelang/tests/test_cli_bridge_forward.py"
+    reason: >-
+      Prompt payload whose SHA-256 is asserted in the same test; changing
+      the string changes the expected digest.
+    pinned_by: "wirelang/cli/bridge_forward_canonical.py"
+
+  - path: "wirelang/tests/test_cli_mira_dispatch.py"
+    reason: >-
+      Uppercase-slug negative vector, plus the module path of the dispatch
+      CLI itself, whose rename spans two repositories.
+    pinned_by: "wirelang/cli/mira_dispatch.py"
+
+  - path: "wirelang/tests/test_nats_subject_mapping.py"
+    reason: "Uppercase-slug negative vector for the subject mapper."
+    pinned_by: "wirelang/nats/subject_mapping.py"
+
+  - path: "wirelang/tests/test_wirelang_spec_v0_4_integrity.py"
+    reason: >-
+      Asserts which names the spec's signature block is allowed to carry —
+      the check exists precisely to keep that list closed.
+    pinned_by: "wirelang/specs/wirelang-spec-v0-4.md"
+
+  - path: "wirelang/tests/test_publisher_cli_capability_*.py"
+    reason: "Schema titles recorded in the capability bucket under test."
+    pinned_by: "wirelang/publisher/cli.py"
+
+  - path: "wirelang/tests/test_persona_v10_coverage_extension.py"
+    reason: "Persona coverage fixture description, hashed into the v10 pin."
+    pinned_by: "wirelang/persona/coverage.py"
+
+  - path: "wirelang/tests/conftest.py"
+    reason: "Marker description naming the sprint the asyncio marker came from."
+    pinned_by: "pyproject.toml"
+
+  - path: "wirelang/tests/persona_engine/**"
+    reason: >-
+      Engine suites assert manifest sections, release-note headings and
+      drift-allowlist entries verbatim. The literals live in the engine
+      zone's documents; the tests are the pin.
+    deferred_to: "engine zone (persona-engine) — together with the V-907 baseline refresh"
+
+  # ---------------------------------------------------------------
+  # Other zones — documented hand-overs from the four sweeps of W5
+  # ---------------------------------------------------------------
+
+  - path: "wirelang/specs/protocol-mirror-seed/**"
+    reason: >-
+      Byte mirror of the observability dashboards and runbooks, verified
+      by byte equality against the primary. It has to move with the
+      primary, and the primary is mirrored into a second repository.
+    pinned_by: "tests/observability/test_stability_window_doc_mirror_routing.py"
+
+  - path: "wirelang/specs/**"
+    reason: >-
+      Version-history tables and test-count bookkeeping inside normative
+      spec documents, including one under a freeze marker. Editorial work
+      on normative text, explicitly left as work in progress by the
+      protocol sweep.
+    deferred_to: "protocol zone (Wirelang specs)"
+
+  - path: "wirelang-rust/**"
+    reason: >-
+      Hash-pinned persona fixtures, the V-907 pin chain and one persona
+      definition quoted next to its live data value.
+    deferred_to: "engine zone (Rust crates)"
+
+  - path: "wirelang/persona_engine/**"
+    reason: >-
+      V-907 pin chain: baseline, manifest and resolver slice must be
+      refreshed in one authorised step.
+    deferred_to: "engine zone — pending the V-907 baseline refresh session"
+
+  - path: "dashboards/**"
+    reason: >-
+      Alert names and group names consumed by the notify bridge and
+      mirrored into the protocol seed.
+    deferred_to: "observability zone"
+
+  - path: "scripts/observability/**"
+    reason: >-
+      Notify bridge, bilanz generator and probe trackers whose emitted
+      strings are asserted by tests and mirrored into the protocol seed.
+    deferred_to: "observability zone"
+
+  - path: "scripts/persona-engine/**"
+    reason: "Boot self-test baseline string carried in the engine's boot record."
+    pinned_by: "wirelang/tests/persona_engine/test_boot_self_test_v2.py"
+
+  - path: "docs/observability/**"
+    reason: >-
+      Runbooks and catalogues describing the alerts above; they are
+      mirrored into the protocol seed byte-for-byte.
+    deferred_to: "observability zone"
+
+  - path: "docs/persona-engine/**"
+    reason: >-
+      Release notes and the state-file producer plan, whose section shape
+      is asserted by the engine suites.
+    pinned_by: "wirelang/tests/persona_engine/test_state_file_producer_plan.py"
+
+  - path: "docs/quality-gates/**"
+    reason: >-
+      Gate documents whose finding identifiers and acceptance matrices are
+      asserted verbatim by the acceptance suites.
+    pinned_by: "tests/acceptance/phase_3c/_ac_assertions.py + tests/infra/test_phase_2_gate_consistency_audit.py"
+
+  - path: "docs/operations/**"
+    reason: >-
+      One marked addendum heading in the cross-substrate parity runbook,
+      asserted by the parity gate test.
+    pinned_by: "tests/observability/test_cross_substrate_parity_gate.py"
+
+
+
+
+  - path: "tooling/**"
+    reason: >-
+      Drift allowlists, audit helpers and OTS markers whose data fields and
+      signature lines are asserted by the suites that consume them.
+    pinned_by: "wirelang/tests/persona_engine/test_drift_allowlist_refresh.py + tests/audit/test_adr_errata_spec_cross_audit.py"
+
+  - path: "infra/**"
+    reason: "Pin-pack records naming the suite that verifies them."
+    pinned_by: "wirelang/tests/persona_engine/test_bridge_audit_writer_wire_in.py"
+
+  - path: "samples/**"
+    reason: >-
+      Literal render output of the bilanz generator; the samples, the
+      generator and the output schema are one motion across three zones.
+    deferred_to: "observability zone"
+
+
+
+  - path: ".github/workflows/**"
+    reason: >-
+      One step name asserted verbatim by the workflow-hygiene test, so the
+      step cannot be renamed without the test.
+    pinned_by: "tests/observability/test_ots_probe_workflow_hygiene.py"
+
+  - path: ".pre-commit-config.yaml"
+    reason: "Hook header carrying its audit reference."
+    pinned_by: "tests/infra/test_pre_commit_reuse_lint.py"
+
+  - path: "requirements-nats.txt"
+    reason: "Dependency note recording which sprint introduced the pin."
+    deferred_to: "engineering zone (root files)"

@@ -630,7 +630,7 @@ def test_build_gh_cli_get_cmd_embeds_query_in_path():
         query={"per_page": 100, "page": 3},
     )
     # No -f flags (the bug).
-    assert "-f" not in cmd, f"Found regressed -f flag : {cmd}"
+    assert "-f" not in cmd, f"Found regressed -f flag: {cmd}"
     # -X GET present (the fix).
     assert "-X" in cmd and "GET" in cmd
     # Path argument contains the embedded query.

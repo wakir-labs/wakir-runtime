@@ -24,7 +24,7 @@ Acceptance criteria (per ``wirelang/specs/wirelang-tv-strategy.md`` §3.4):
   the WAT side.
 
 Test classes mirror these criteria. The live-gated tests are skipped
-unless the operator opts .
+unless the operator opts.
 """
 
 from __future__ import annotations

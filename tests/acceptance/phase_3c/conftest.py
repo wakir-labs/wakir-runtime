@@ -1358,7 +1358,7 @@ class HenrikCautionIndependentOracleRecord:
     Fields:
 
     * ``oracle_source`` — name of the independent substrate the
-      cross-validation pulls .
+      cross-validation pulls.
     * ``rust_writer_envelope_sha256`` — the wave 3 Rust-writer's
       observed envelope-hash for the validated request.
     * ``independent_oracle_envelope_sha256`` — the independent

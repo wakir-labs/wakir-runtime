@@ -21,7 +21,7 @@ Anchors
   the -Phase-3-Validation-Test-Suite spawn.
 - -Phase-2-Gates-Mini + -Phase-2-Gates-
   Recovery-Mock-Mini — the Phase-2 acceptance
-  reference these skeletons inherit .
+  reference these skeletons inherit.
 
 Scope
 -----

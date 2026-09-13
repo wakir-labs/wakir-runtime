@@ -73,8 +73,8 @@ from wirelang.persona_engine.state_backing import (
 # Section 1 — state-machine-edge-cases
 # ---------------------------------------------------------------------------
 #
-# Cartesian-product oracle: for every , to) pair in STATES x STATES,
-# the transition is accepted iff , to) in VALID_TRANSITIONS. The
+# Cartesian-product oracle: for every, to) pair in STATES x STATES,
+# the transition is accepted iff, to) in VALID_TRANSITIONS. The
 # PARTIAL classification noted that namespace-prefix discipline
 # (AP-4) is a structural arm but not a legality oracle. These tests are
 # the missing legality oracle.
@@ -85,7 +85,7 @@ def _all_pairs() -> List[Tuple[str, str]]:
 
 
 def test_a2_legality_oracle_every_invalid_edge_is_rejected():
-    """For every , to) NOT in VALID_TRANSITIONS, transition_to
+    """For every, to) NOT in VALID_TRANSITIONS, transition_to
     raises InvalidTransitionError and appends an accepted=False
     record. STATES x STATES = 36; VALID_TRANSITIONS = 9; invalid = 27."""
     invalid_pairs = [p for p in _all_pairs() if p not in VALID_TRANSITIONS]
@@ -107,7 +107,7 @@ def test_a2_legality_oracle_every_invalid_edge_is_rejected():
 
 
 def test_a2_legality_oracle_every_valid_edge_advances():
-    """For every , to) IN VALID_TRANSITIONS, transition_to
+    """For every, to) IN VALID_TRANSITIONS, transition_to
     accepts the edge, advances state, and appends accepted=True."""
     for from_state, to_state in VALID_TRANSITIONS:
         m = LifecycleStateMachine("reza", "wakir", initial_state=from_state)
@@ -265,7 +265,7 @@ def test_a2_serialised_writer_lock_emit_under_threading_lock():
 
 
 def test_a2_replay_rejects_accepted_edge_not_in_valid_transitions():
-    """Corrupted history: an accepted record with , to) not in
+    """Corrupted history: an accepted record with, to) not in
     VALID_TRANSITIONS MUST raise on replay."""
     corrupt = [
         TransitionRecord(

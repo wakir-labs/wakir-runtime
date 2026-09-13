@@ -12,7 +12,7 @@ together cause the emitted hour-manifest to carry the optional
 top-level ``signature`` slot populated by
 :func:`wat.identity.manifest_signing.sign_manifest`. This closes
 the production-side of the signing loop whose verifier-side
-landed in and got CLI-exposed .
+landed in and got CLI-exposed.
 
 Coverage matrix
 ---------------

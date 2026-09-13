@@ -233,7 +233,7 @@ def test_t_wat_verify_sig_wire_02_default_off_ignores_slot(
 
     This is the backward-compatibility pin: the 321 pre-existing tests
     must not start running a signature check just because the schema
-    learned an optional slot .
+    learned an optional slot.
     """
     priv, _pub = _fixed_keypair()
     events = [_make_event(1, capref_hash_hex="a" * 64)]

@@ -420,7 +420,7 @@ def test_t_cpp_rev_07_envelope_round_trip_preserves_revocation_fields():
 
 
 def test_t_cpp_rev_08_envelope_back_compat_without_revocation_keys():
-    """T-CPP-REV-08: an envelope ..5 (no
+    """T-CPP-REV-08: an envelope..5 (no
     ``revoked_at`` / ``revocation_reason`` keys) decodes byte-equally
     via the additive decoder to an unrevoked policy.
     """

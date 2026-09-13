@@ -445,7 +445,7 @@ def test_json_report_carries_family_field_in_every_action_record(
             "fixture-family-a",
             "fixture-family-b",
         }
-    # Summary block byte-shape unchanged .
+    # Summary block byte-shape unchanged.
     assert payload["summary"]["created"] == 2
     assert payload["summary"]["total"] == 2
 

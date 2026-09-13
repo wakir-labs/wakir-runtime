@@ -228,7 +228,7 @@ def test_expected_pin_pack_boot_wired_aligns(boot_self_test_module):
 
 
 def test_expected_unwired_crate_count(boot_self_test_module):
-    """EXPECTED_PIN_PACK_UNWIRED must list 5 crates (10+5 = 15) ."""
+    """EXPECTED_PIN_PACK_UNWIRED must list 5 crates (10+5 = 15)."""
     assert len(boot_self_test_module.EXPECTED_PIN_PACK_UNWIRED) == 5
 
 

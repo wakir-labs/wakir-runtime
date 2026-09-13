@@ -275,7 +275,7 @@ def test_tv_lh_13_wat_change_date_concrete() -> None:
     # also be gone — concretely-dated, not formula-dated.
     assert "Four (4) years from" not in text, (
         "wat/LICENSE-BSL.md still carries the legacy formula-form "
-        "Change-Date wording 'Four (4) years ...'. ADR-0061 §4 "
+        "Change-Date wording 'Four (4) years...'. ADR-0061 §4 "
         "requires the concrete date string instead."
     )
 

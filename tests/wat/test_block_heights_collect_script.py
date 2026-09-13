@@ -4,7 +4,7 @@
 
 The script is bash, not python, but its failure modes matter for the
 backfill operator workflow and we want a pytest-runnable regression
-gate so the pending-path bug does not creep back .
+gate so the pending-path bug does not creep back.
 
 Approach: stand up a temporary archive directory with a single fake
 ``.ots`` receipt and shadow the ``ots`` CLI with a small bash mock on

@@ -45,7 +45,7 @@ Live-Integration opt-in
 
 The test ``T-LIVE-INT`` is skipped by default. Set the env-var
 ``WAKIR_LIVE_PARTNER_URL`` to a SPIRE-Server bundle endpoint URL
-(e.g. ``https://wakir-orbit:8443``) to opt . The live test
+(e.g. ``https://wakir-orbit:8443``) to opt. The live test
 exercises only the happy-path against a real SPIRE-Server; the
 hermetic suite covers every fail-closed gate.
 """

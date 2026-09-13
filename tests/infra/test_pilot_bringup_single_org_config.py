@@ -222,7 +222,7 @@ def test_tv_s9t5_04_agent_single_org_insecure_bootstrap_true() -> None:
     ), (
         "single-org agent config MUST declare ``insecure_bootstrap = "
         "true``. The single-org Pilot-VM has no federated-bundles "
-        "volume to source a pre-staged trust-anchor ; the agent "
+        "volume to source a pre-staged trust-anchor; the agent "
         "obtains the local server's trust-bundle via the join-token "
         "attestation handshake instead."
     )

@@ -1270,7 +1270,7 @@ def test_real_manifest_audit_trail_entry_bridges_to_v2_shape(
     assert rc == 0
     payload = json.loads(out)
     # Same twelve keys as the v2-spec audit-trail-entry contract
-    # (bumped 11 -> 12 , additive within
+    # (bumped 11 -> 12, additive within
     # wakir-verify-manifest-v2/0).
     assert set(payload.keys()) == _PINNED_AUDIT_TRAIL_ENTRY_KEYS
     assert payload["kind"] == "wat-tv-pin-pack"

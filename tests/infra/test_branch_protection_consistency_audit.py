@@ -1207,7 +1207,7 @@ def test_bpc_narrow_cohort_is_empty_post_pfad_a() -> None:
         "a documented other-gate-covers-the-missing-slices rationale."
     )
 
-    # Specific regression-target: cross-repo-drift must NOT be back .
+    # Specific regression-target: cross-repo-drift must NOT be back.
     assert (
         "cross-repo-drift-audit.yml" not in _NARROW_COHORT_WORKFLOWS
     ), (

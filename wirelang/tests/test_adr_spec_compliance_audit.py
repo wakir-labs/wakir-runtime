@@ -102,9 +102,7 @@ def test_t_adr_s_02_audit_cites_correct_main_tip() -> None:
     """T-ADR-S-02: audit report cites PR #345 hotfix commit."""
     text = _audit_text()
     assert "f713e75" in text, "audit report must cite main-tip commit"
-    assert "#345" in text or "Tag-53" in text, (
-        "audit report must cite PR #345 lineage"
-    )
+    assert "#345" in text, "audit report must cite PR #345 lineage"
 
 
 def test_t_adr_s_03_audit_cites_v043_freeze_marker() -> None:
