@@ -77,7 +77,7 @@
 #     validate_digest die drei Haupt-Pins als Pflicht behandelt.
 #   - Option-B-Loesung: ``--provisioner-only`` ueberspringt die
 #     Validate-Pflicht und die resolve_group-Calls fuer SPIRE+python.
-#     Nur die wakir-provisioner-Substitution laeuft. the operator's M-3-
+#     Nur die wakir-provisioner-Substitution laeuft. Der M-3-
 #     Live-Trial verifiziert, dass die SPIRE+python-Containerfiles
 #     in skip-cosign-Mode KEINEN @sha256-Placeholder mehr tragen
 #     (sie laufen mit Tag-Referenzen), also entfaellt die
@@ -126,8 +126,8 @@ Without --apply this is a dry-run (no file mutation).
 
 Each digest argument is validated as sha256:<64-hex>.
 
---wakir-provisioner-digest is OPTIONAL in the full path (
- baseline: the operator may not have published the image yet
+--wakir-provisioner-digest is OPTIONAL in the full path
+(baseline: the operator may not have published the image yet
 on first bring-up). Without it, the provisioner Quadlet
 substitution is skipped with a WARN-note; Operator-Hand can
 re-run the resolver with the flag once the image is published.
@@ -224,7 +224,7 @@ else
   validate_digest "--spire-agent-digest"  "$SPIRE_AGENT_DIGEST"
   validate_digest "--python-digest"       "$PYTHON_DIGEST"
 
-  # wakir-provisioner is optional in; validate only if
+  # wakir-provisioner is optional; validate only if
   # supplied.
   if [[ -n "$WAKIR_PROVISIONER_DIGEST" ]]; then
     validate_digest "--wakir-provisioner-digest" "$WAKIR_PROVISIONER_DIGEST"
@@ -257,7 +257,7 @@ declare -a AGENT_FILES=(
   "$ROOT/quadlet/wakir-spire-agent.container"
   "$ROOT/infra/spire/agent/quadlet/wakir-spire-agent-federation.container"
 )
-#: python:3.13-slim is no longer pinned by the
+# python:3.13-slim is no longer pinned by the
 # Quadlet directly; it lives in the wakir-provisioner Containerfile.
 declare -a PYTHON_FILES=(
   "$ROOT/infra/spire/federation/provisioner/Containerfile"
@@ -272,7 +272,7 @@ declare -a WAKIR_PROVISIONER_FILES=(
 # carries ``<image_prefix>@sha256:DIGEST_PENDING_TOMAS_REVIEW``. The
 # match is intentionally directive-agnostic so the SAME function
 # handles both Quadlet ``Image=`` lines and Containerfile ``FROM``
-# lines (: the python pin moved across that boundary).
+# lines (the python pin moved across that boundary).
 resolve_group() {
   local label="$1"
   local image_prefix="$2"   # e.g. ghcr.io/spiffe/spire-server:1.14.6
@@ -447,7 +447,7 @@ resolve_group_tagged() {
 # at tag-only references (no @sha256: placeholder); attempting a
 # substitution here would have been a hard no-op anyway, but the
 # validate-pflicht for the empty digest-vars would have already
-# aborted the script before reaching this point. the operator's M-3 Live-
+# aborted the script before reaching this point. The M-3 Live-
 # Trial (2026-05-15 15:00 CEST) confirms the skip-cosign path keeps
 # bucket-init as the only digest-pinned target.
 if [[ "$PROVISIONER_ONLY" -eq 0 ]]; then

@@ -12,8 +12,8 @@
 # declared in ``quadlet/wakir-persona-tomas.container`` (CLI surface
 # ``spawn`` + ``healthcheck``, Env-var contract per persona-engine-
 # format-spec §"Env var contract") without yet driving real
-# Engineering traffic — the full engine lands on the
-# axis and rotates this image tag to ``0.2.0-pilot``.
+# Engineering traffic — the full engine lands later and rotates
+# this image tag to ``0.2.0-pilot``.
 #
 # Contracts honoured (today, v0.1.0-pilot)
 # ----------------------------------------
@@ -28,7 +28,7 @@
 #         if present; refuses to spawn if either is absent.
 #       - Computes a SHA-256 digest of the axis-A bytes and prints
 #         it as the spawn-time V-907 pin-hash (this is the byte the
-# successor will cross-check against the
+#         successor will cross-check against the
 #         expected pin; the stub only computes + reports).
 #       - Idles on a SIGTERM/SIGINT loop, emitting a single
 #         heartbeat log line every 30s ("substrate-stub heartbeat;
@@ -166,7 +166,7 @@ def _spawn(args: argparse.Namespace) -> int:
             "recovery-workflow-r1-r4",
             "doppelbetrieb-shadow-output-bridging",
         ],
-        "successor": "Sprint-Pengine-8 axis (Selin)",
+        "successor": "full persona-engine (0.2.0-pilot or later)",
     })
 
     # Idle loop — heartbeat every HEARTBEAT_INTERVAL_SEC, exits clean
@@ -246,7 +246,7 @@ def _build_parser() -> argparse.ArgumentParser:
         description=(
             "Wakir persona-engine substrate-stub (ADR-0058 Pilot-Phase "
             "Schritt 9 image-availability gap-closer; full engine on "
-            "the Sprint-Pengine-8 axis)."
+            "the full-engine release)."
         ),
     )
     sub = p.add_subparsers(dest="command", required=True)

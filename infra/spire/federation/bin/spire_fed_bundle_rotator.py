@@ -48,7 +48,7 @@ verify.
 Cross-trust-domain isolation: rotation of a ``wakir.test`` bundle
 does NOT touch ``partner.test`` bundles. The CLI refuses to operate
 on a bundle whose trust-domain literal does NOT match the
-``--trust-domain`` argument (mirror of
+``--trust-domain`` argument (mirror of the
 ``spire-fed-bundle import`` trust-domain mismatch guard).
 """
 
@@ -404,8 +404,8 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="spire-fed-bundle-rotator",
         description=(
             "Cross-Trust-Domain Bundle Auto-Rotation CLI for the Wakir "
-            "SPIRE-Federation-Bundle-Endpoint substrate (Phase-2 Sprint-8 "
-            "Tag-3). Hermetic mode: all timestamps from --now / --issued-"
+            "SPIRE-Federation-Bundle-Endpoint substrate. Hermetic mode: "
+            "all timestamps from --now / --issued-"
             "at arguments; no wall-clock, no random, no network."
         ),
     )

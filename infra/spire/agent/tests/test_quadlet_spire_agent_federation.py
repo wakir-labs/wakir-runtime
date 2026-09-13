@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic Quadlet template parity tests for.
+"""Hermetic Quadlet template parity tests for the SPIRE-Agent federation units.
 
 Asserts the wakir-spire-agent-federation.container template carries
 the byte-precise mirror of compose/spire-agent-federation.yaml
@@ -16,7 +16,7 @@ Asserts:
   * HealthCmd uses the spire-agent self-check subcommand.
   * Volume directives reference the per-side <SIDE> placeholder for
     data, sockets, and bundles volumes.
-  * Network=wakir-federation.network (external from).
+  * Network=wakir-federation.network (external, owned by the server template).
   * After/Requires order the agent unit after the matching <SIDE>
     server unit.
   * Volume sidecar templates exist for data + sockets (and the
@@ -97,7 +97,7 @@ def test_image_pin_form(container_text: str) -> None:
         r"@sha256:([0-9a-f]{64}|DIGEST_PENDING_TOMAS_REVIEW)$"
     )
     assert re.match(pattern, img), (
-        f"Image-pin form must match Tag-1 Cosign-Digest-Pin convention; "
+        f"Image-pin form must match the Cosign-Digest-Pin convention; "
         f"got {img!r}"
     )
 
@@ -157,14 +157,14 @@ def test_volume_directives_reference_side_placeholder(
         r"Volume=wakir-spire-server-federation-<SIDE>-bundles\.volume:/var/lib/spire/bundles:ro",
         container_text,
     ), (
-        "Quadlet must mount Tag-1-owned server-side bundles volume READ-"
+        "Quadlet must mount the server-owned bundles volume READ-"
         "ONLY at /var/lib/spire/bundles"
     )
 
 
 def test_network_external_federation(container_text: str) -> None:
     assert "Network=wakir-federation.network" in container_text, (
-        "Quadlet must join wakir-federation.network (Tag-1-owned)"
+        "Quadlet must join wakir-federation.network (server-owned)"
     )
 
 
@@ -180,9 +180,9 @@ def test_after_and_requires_match_side_server_unit(
     REQUIRE it (compose's depends_on: condition: service_healthy
     equivalent — strict ordering plus restart-on-failure).
 
- Bug 4 fix: the federation server is installed as
+    Bug 4 fix: the federation server is installed as
     ``wakir-spire-server-federation-<SIDE>.service`` (mirror of the
- server template's ContainerName), NOT as the side-only form
+    server template's ContainerName), NOT as the side-only form
     which corresponds to the single-trust-domain stack.
     The agent's After=/Requires= must reference the federation form
     so the dependency resolves at install time.
@@ -239,7 +239,7 @@ def test_agent_template_does_not_redeclare_bundles_volume() -> None:
     ):
         assert not candidate.exists(), (
             "agent Quadlet must NOT redeclare bundles volume sidecar "
-            "(Tag-1 server template owns it)"
+            "(the server template owns it)"
         )
     # Also assert no file named with literal 'spire-agent' and 'bundles'
     # to catch a slightly-different naming-scheme variant.

@@ -15,7 +15,7 @@ Sandbox fuehrt keinen Live-Bring-up aus
 Companion-Artefakte:
 
 - `PROXMOX_BRING_UP_RECIPE.md` — Single-Org-Pilot-Bring-up
- (Voraussetzung fuer diese Recipe).
+  (Voraussetzung fuer diese Recipe).
 - `proxmox-bundle-v1.0.tar.gz` — Quadlet-Unit-Bundle, enthaelt
   bereits die `<SIDE>`-Placeholder-Templates fuer beide Sides
   (`wakir.test` + `partner.test`).
@@ -405,10 +405,10 @@ Single-Org-Mode (6 Checks) und ignoriert die partner-Units.
 
 | Zone | Counterparty | Was | Status |
 |---|---|---|---|
-| Zone A | Reza (Wirelang) | SPIFFE-Trust-Domain-Literal `partner.test` (hermetic-only; Phase-3a `<FTD-ID>.wakir.dev` nicht Pilot-Scope) | Konsens 2026-05-11 (Z-A-Marker-Set Aisha) |
-| Zone B | Reza (NATS-Schema) | per-org Multi-Family-Bucket-Provisioning: `wakir-marker-stack-{org_id}` + `wakir-caveat-override-export-sequence-{org_id}` (PR #25); Family-Registry defensive bis sequence-ledger module | Cross-Review-Ack (dieser Recipe); Aisha-Konsens-Marker-Set after PR #25 merge |
-| Zone C | Tomás (OTS / Image-Pipeline) | Cosign-Pin-Resolve fuer SPIRE-Server/Agent + python:3.13-slim (re-use Single-Org-Pilot-Pins) | Konsens 2026-05-07 (image-pipeline review-NATS-Image-Pin-Ack) |
-| Zone D | Reza (V-904 Identity-Bridge) | nicht in Pilot-Scope (Phase-3) | Reserved |
+| Zone A | Wirelang | SPIFFE-Trust-Domain-Literal `partner.test` (hermetic-only; Phase-3a `<FTD-ID>.wakir.dev` nicht Pilot-Scope) | Konsens 2026-05-11 (Z-A-Marker-Set) |
+| Zone B | NATS-Schema | per-org Multi-Family-Bucket-Provisioning: `wakir-marker-stack-{org_id}` + `wakir-caveat-override-export-sequence-{org_id}` (PR #25); Family-Registry defensive bis sequence-ledger module | Cross-Review-Ack (dieser Recipe); Konsens-Marker-Set after PR #25 merge |
+| Zone C | OTS / Image-Pipeline | Cosign-Pin-Resolve fuer SPIRE-Server/Agent + python:3.13-slim (re-use Single-Org-Pilot-Pins) | Konsens 2026-05-07 (NATS-Image-Pin-Ack) |
+| Zone D | V-904 Identity-Bridge | nicht in Pilot-Scope (Phase-3) | Reserved |
 
 ## 7. Rollback
 
@@ -435,7 +435,7 @@ sollte `bin/proxmox-bringup-smoke --org acme` 6/6 PASS bleiben.
 ## 8. Was Multi-Org-Pilot NICHT abdeckt
 
 - **Kein Phase-3a-Production-Trust-Domain.** Wir bleiben auf
-  `partner.test`. Live-`<FTD-ID>.wakir.dev` ist iteration-10+-Thema.
+  `partner.test`. Live-`<FTD-ID>.wakir.dev` ist ein Folge-Thema.
 - **Kein Two-VM-Production-Shadow.** Single-VM-Layout deckt den
   Federation-Pfad ab; Two-VM ist paired mit echtem
   DNS/Production-CA.
@@ -467,11 +467,11 @@ Hard-Failure.
 
 | Zone | Counterparty | Was |
 |---|---|---|
-| Zone A | Reza (Wirelang) | SPIFFE-Trust-Domain-Literale (`wakir.test` + `partner.test` ok, `wakir.dev` Phase-3) |
-| Zone B | Reza (NATS-Schema) | Multi-Family-Bucket-Provisioning: marker-stack (owner) + sequence-ledger (owner) |
-| Zone C | Tomás (OTS / Image-Pipeline) | Cosign-Pin-Resolve re-use Single-Org-Pilot |
-| Zone D | Reza (V-904 Identity-Bridge) | nicht in Pilot-Scope (Phase-3) |
+| Zone A | Wirelang | SPIFFE-Trust-Domain-Literale (`wakir.test` + `partner.test` ok, `wakir.dev` Phase-3) |
+| Zone B | NATS-Schema | Multi-Family-Bucket-Provisioning: marker-stack (owner) + sequence-ledger (owner) |
+| Zone C | OTS / Image-Pipeline | Cosign-Pin-Resolve re-use Single-Org-Pilot |
+| Zone D | V-904 Identity-Bridge | nicht in Pilot-Scope (Phase-3) |
 
-Aisha protokolliert Konsens-Zeitpunkte. Bei Bring-up-Block:
-Spawn-Return mit Diagnose an Kai (Outbox-Rapport-Pfad).
+Konsens-Zeitpunkte werden protokolliert. Bei Bring-up-Block:
+Bug-Report mit Diagnose an den Infra-Owner.
 

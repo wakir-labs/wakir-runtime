@@ -9,8 +9,8 @@
 # Change License: Apache License 2.0.
 #
 # wakir-persona-engine-state-backing — Rust-CLI runtime image for the
-# NATS-KV Persona-State-Backing operator-CLI (
-# ADR-0066 wave-4 `state_backing` pre-cutover image, parallel to
+# NATS-KV Persona-State-Backing operator-CLI
+# (ADR-0066 wave-4 `state_backing` pre-cutover image, parallel to
 # wave-1 V907-verify, wave-2 SVID-workload-identity, wave-3
 # bridge-audit-writer image-builds).
 #

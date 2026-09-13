@@ -319,7 +319,7 @@ def test_containerfile_has_no_active_entrypoint() -> None:
         if re.match(r"^\s*ENTRYPOINT\b", raw):
             raise AssertionError(
                 f"Containerfile carries active ENTRYPOINT directive: "
-                f"{raw!r}; Sprint-9 Tag-6 contract forbids baked "
+                f"{raw!r}; the provisioner contract forbids baked "
                 f"entrypoints for the wakir-provisioner image (the "
                 f"caller supplies the interpreter)"
             )
@@ -338,7 +338,7 @@ def test_containerfile_has_no_active_cmd() -> None:
         if re.match(r"^\s*CMD\b", raw):
             raise AssertionError(
                 f"Containerfile carries active CMD directive: "
-                f"{raw!r}; Sprint-9 Tag-6 contract forbids baked "
+                f"{raw!r}; the provisioner contract forbids baked "
                 f"default commands for the wakir-provisioner image"
             )
 

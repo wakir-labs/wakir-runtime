@@ -79,7 +79,7 @@ def test_image_pin_form(services: dict, svc_name: str) -> None:
     assert isinstance(img, str), f"{svc_name}.image must be a string"
     # Image-pin form: ghcr.io/spiffe/spire-server:1.14.6@sha256:<digest>
     # The digest is either a 64-hex literal OR the placeholder token
-    # ``DIGEST_PENDING_TOMAS_REVIEW`` (Cosign-Skizze follow-up). Mirror
+    # ``DIGEST_PENDING_TOMAS_REVIEW`` (Cosign follow-up). Mirror
     # of the invariant in test_compose_spire_cosign_pin.py.
     pat = re.compile(
         r"^ghcr\.io/spiffe/spire-server:1\.14\.\d+@sha256:"
@@ -182,7 +182,7 @@ def test_dedicated_federation_network(compose_doc: dict, services: dict) -> None
             f"{svc_name} must attach to wakir-federation, got {svc_nets!r}"
         )
         assert "wakir-orchestrator" not in svc_nets, (
-            f"{svc_name} MUST NOT attach to the Sprint-6 wakir-orchestrator "
+            f"{svc_name} MUST NOT attach to the single-server wakir-orchestrator "
             "network — federation substrate isolation invariant"
         )
 

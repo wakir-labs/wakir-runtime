@@ -26,7 +26,7 @@
 #     (36 hermetic tests pinned-by-reference as the cutover-
 #     window resilience-substrate-pin).
 #   * PR #329 — legacy ``WAKIR_PE_*_BACKEND`` migration-
-#     detector (Reza substrate; warn-no-fallback posture).
+#     detector (identity-substrate; warn-no-fallback posture).
 #
 # 0.5.2-final-pre-cutover is the last pre-cutover image before the
 # Phase-3c cutover window opens in KW 24. Operators rotate via
@@ -92,7 +92,7 @@
 #
 # Substrate scope (0.4.0-pilot)
 # -----------------------------
-# closes the input-side gap discovered during the
+# This release closes the input-side gap discovered during the
 # 0.3.0-pilot Live-Engine-Swap (only heartbeat + spawn-init audit, no
 # task-input plumbing). 0.4.0-pilot wires:
 #
@@ -139,14 +139,14 @@
 # persona-engine-runtime`` extra in pyproject.toml. This Containerfile
 # COPYs the repo tree and runs ``pip install '/opt/wakir-runtime/.
 # [persona-engine-runtime]'`` once. Adding a new runtime dep (e.g. a
-# future opentelemetry-sdk pin from Noa) becomes a pyproject.toml
+# future opentelemetry-sdk pin from SRE) becomes a pyproject.toml
 # edit, not a Containerfile RUN-layer rewrite.
 
 FROM docker.io/library/python:3.13-slim@sha256:9d2e5553305c7c7b0097999bb17187c69b921ccd6bc9d40e4bb5ebe652c00285
 
 # OCI metadata.
 LABEL org.opencontainers.image.title="wakir-persona-engine"
-LABEL org.opencontainers.image.description="Runtime image for the Wakir persona-engine real binary (v0.5.2-final-pre-cutover; final pre-cutover consolidation marker — manifest-and-metadata-only bump from 0.5.1-pre-cutover; strict superset of 0.5.1-pre-cutover with no new BackendDecision record, no flag rename, no flag-default flip, no crate-version bump; absorbs bridge-audit-writer wire-in PR #313, v0.4.2 DRIFT-S4 reconciliation PR #320 (Pin-Pack as SoT for spec §4.1), 10-Decision-Engine-Resilience suite PR #327 (36 hermetic tests pinned-by-reference as the cutover-window resilience-substrate-pin), and legacy WAKIR_PE_*_BACKEND migration-detector PR #329 (Reza substrate, warn-no-fallback posture); 10 BackendDecision components ENV-gated under WAKIR_*_BACKEND, 15-crate Phase-3a cross-lang pin pack anchored at infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml, manifest at wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md)."
+LABEL org.opencontainers.image.description="Runtime image for the Wakir persona-engine real binary (v0.5.2-final-pre-cutover; final pre-cutover consolidation marker — manifest-and-metadata-only bump from 0.5.1-pre-cutover; strict superset of 0.5.1-pre-cutover with no new BackendDecision record, no flag rename, no flag-default flip, no crate-version bump; absorbs bridge-audit-writer wire-in PR #313, v0.4.2 DRIFT-S4 reconciliation PR #320 (Pin-Pack as SoT for spec §4.1), 10-Decision-Engine-Resilience suite PR #327 (36 hermetic tests pinned-by-reference as the cutover-window resilience-substrate-pin), and legacy WAKIR_PE_*_BACKEND migration-detector PR #329 (identity-substrate, warn-no-fallback posture); 10 BackendDecision components ENV-gated under WAKIR_*_BACKEND, 15-crate Phase-3a cross-lang pin pack anchored at infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml, manifest at wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md)."
 LABEL org.opencontainers.image.version="0.5.2-final-pre-cutover"
 LABEL org.opencontainers.image.licenses="BUSL-1.1"
 LABEL org.opencontainers.image.source="https://github.com/wakir-labs/wakir-runtime"

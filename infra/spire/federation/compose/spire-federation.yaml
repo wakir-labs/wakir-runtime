@@ -10,7 +10,7 @@
 # acceptance is the X.509-SVID cross-trust-verify roundtrip per
 # README §3 (Operator-Hand-pendet from the sandbox).
 #
-# This compose unit is SEPARATE from compose/spire.yaml (
+# This compose unit is SEPARATE from compose/spire.yaml (the
 # single-server ``example.test`` substrate) so the two surfaces do not
 # share state, networks, or volumes. substrate keeps its
 # single-server posture for Phase-2.1-Phase-2.6 production-loop, this
@@ -176,7 +176,7 @@ volumes:
 
 networks:
   # Dedicated federation bridge. NOT shared with the
-  # ``wakir-orchestrator`` network of compose/spire.yaml (
+  # ``wakir-orchestrator`` network of compose/spire.yaml (the
   # single-server substrate) — the two surfaces stay isolated. The
   # internal DNS names ``spire-server-wakir`` and
   # ``spire-server-partner`` are how each side reaches the other's

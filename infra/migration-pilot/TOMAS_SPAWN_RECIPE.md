@@ -37,17 +37,17 @@ ADR-0055-Stufe-3-Proxmox-Pattern). Der Spawn nutzt:
 - eine **SPIFFE-SVID** vom Pilot-VM-SPIRE-Server (Trust-Domain
   `wakir.test`, Workload-Identity `spiffe://wakir.test/persona/tomas`),
 - den **NATS-KV-Bucket** `wakir-persona-state-tomas`
- (-Spec §3.4 + §3.7.5 PersonaStateBacking),
-- eine **Quadlet-Unit** `wakir-persona-tomas.service` (-Tag-X
-  Kai-substrate, **noch nicht in main**; bis dahin: manueller
+  (persona-engine format spec §3.4 + §3.7.5 PersonaStateBacking),
+- eine **Quadlet-Unit** `wakir-persona-tomas.service` (Infra-Substrat,
+  **noch nicht in main**; bis dahin: manueller
   podman-Run mit explicit env-vars).
 
-Nach diesem Recipe laufen **parallel** zwei tomas-persona spawn
+Nach diesem Recipe laufen **parallel** zwei Spawns der Pilot-Persona
 (Doppelbetrieb-Modus für die 4-Wochen-Pilot-Phase):
 
 | Spawn | Stelle | Aufträge | Zweck |
 |---|---|---|---|
-| **pre-framework tomas** | Claude-Code-Sandbox auf Mira-Host | regulär Engineering | unverändert produktiv, Engineering läuft weiter |
+| **pre-framework tomas** | Claude-Code-Sandbox auf dem Operator-Host | regulär Engineering | unverändert produktiv, Engineering läuft weiter |
 | **wakir-runtime tomas** | Pilot-VM `wakir.test` Container | gleiche Aufträge als Schatten-Spawn | Vergleichs-Output, 4-Achsen-Score |
 
 Der Bridge-Audit-Writer (PR #19 `2c1f3a6`) schreibt **beide** Outputs
@@ -65,11 +65,11 @@ sein:
 | V2 | Persona-Engine-Format-Spec v1.3 ratifiziert | PR #22 + #26 + #49 merged auf main |
 | V3 | Persona-Converter byte-deterministisch | PR #23 merged, `wakir-persona-convert from-claude` smoke-grün |
 | V4 | Pilot-Export-CLI verfügbar | dieser PR (Schritt 8): `cargo build --release -p persona-pilot-export` grün |
-| V5 | Bridge-Audit-Writer aktiv | PR #19 `2c1f3a6` merged + Quadlet-Sidecar deployed (Kai Tag-N) |
-| V6 | Tomás-Pre-Framework-Spawn unverändert produktiv | aktueller Stand: kein Eingriff erforderlich |
-| V7 | NATS-KV-Bucket-Init-Unit für `wakir-persona-state-tomas` | Kai Quadlet-Substanz Tag-N+ (manueller Bucket-Create-Workaround in §3 unten beschrieben) |
+| V5 | Bridge-Audit-Writer aktiv | PR #19 `2c1f3a6` merged + Quadlet-Sidecar deployed (Infra-Folgeauftrag) |
+| V6 | Pre-Framework-Spawn unverändert produktiv | aktueller Stand: kein Eingriff erforderlich |
+| V7 | NATS-KV-Bucket-Init-Unit für `wakir-persona-state-tomas` | Infra-Folgeauftrag (manueller Bucket-Create-Workaround in §3 unten beschrieben) |
 
-**Wenn V1-V7 nicht alle ✅**: STOP. Nicht weitermachen. Mira melden.
+**Wenn V1-V7 nicht alle ✅**: STOP. Nicht weitermachen. Operator melden.
 
 ## 2. Schritt 8 — Persona-State-Export (Operator-Sandbox-Side)
 
@@ -80,7 +80,7 @@ Auf der **Operator-Sandbox** (nicht auf der Pilot-VM), CWD `/var/home/fred/AI-Co
 cd wakir-runtime/wirelang-rust
 cargo build --release -p persona-pilot-export
 
-# (b) Export-Bundle für Tomás produzieren:
+# (b) Export-Bundle für die Pilot-Persona produzieren:
 export EXPORT_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 mkdir -p /tmp/wakir-pilot-exports
 ./target/release/wakir-persona-pilot-export \
@@ -109,11 +109,11 @@ jq '.schema_version, .persona_id, .v907_persona_hash, .workspace_state_hash, .wo
 ```
 
 **Hinweis zur `persona_id`:** Pre-Framework-Topologie nutzt
-`name: dev-engineering` im Front-Matter (Tomás-Rolle-Slug). Wakir-
+`name: dev-engineering` im Front-Matter (Rollen-Slug). Wakir-
 Persona-v1 wandelt das byte-deterministisch. Der Pilot-Spawn auf der
 Pilot-VM nutzt `persona_id=dev-engineering` als Container-Name-Suffix
 + NATS-KV-Bucket-Suffix; das ist konsistent mit der ADR-0058-§Pilot-
-Phase-Tomás-Bezeichnung.
+Phase-Persona-Bezeichnung.
 
 ## 3. Schritt 9a — Bundle-Transfer + Persona-Files-Staging + NATS-KV-Bucket-Init (Pilot-VM)
 
@@ -140,7 +140,7 @@ sudo install -m 644 /tmp/tomas.md   /etc/wakir/persona/tomas.md
 sudo install -m 644 /tmp/tomas.json /etc/wakir/persona/tomas.json
 rm /tmp/tomas.md /tmp/tomas.json  # cleanup
 
-# (c) Bucket-Create auf der Pilot-VM (vorläufig, bis the
+# (c) Bucket-Create auf der Pilot-VM (vorläufig, bis die
 #     bucket-init-Unit für die persona-state-Family in main ist):
 sudo -u wakir nats kv add wakir-persona-state-dev-engineering \
   --history=10 --max-value-size=65536 --storage=file --replicas=1
@@ -188,7 +188,7 @@ openssl x509 -in /tmp/tomas-svid/svid.0.pem -noout -subject -ext subjectAltName 
 ## 5. Schritt 9c — Persona-Spawn (Container-Start)
 
 **Wichtig:** Quadlet-Unit `wakir-persona-tomas.service` ist noch nicht
-in main (Kai iteration-9-Tag-X impl-axis). Bis dahin: manueller
+in main (Infra-Folgeauftrag). Bis dahin: manueller
 `podman run`-Aufruf mit den Env-Vars die die zukünftige Quadlet-Unit
 setzen wird (siehe persona-engine-format-spec §3.5 `container_bridge`):
 
@@ -240,7 +240,7 @@ sudo -u wakir podman logs wakir-persona-dev-engineering | head -20
 ## 6. Schritt 9d — Marker-Stack-Event (Pilot-Spawn-Signal)
 
 Auf der Operator-Sandbox-Side ein Marker-Stack-Event in den
-`wakir-marker-stack-acme`-Bucket einreichen (-Pattern):
+`wakir-marker-stack-acme`-Bucket einreichen:
 
 ```bash
 cd /var/home/fred/AI-Corp/wakir-runtime
@@ -296,7 +296,7 @@ cd /var/home/fred/AI-Corp/wakir-runtime
   --metadata '{"reason":"<one-liner>","pilot_phase":"aborted"}'
 ```
 
-**Pre-Framework-tomas-persona spawn bleibt unverändert produktiv** — Engineering
+**Pre-Framework-Spawn bleibt unverändert produktiv** — Engineering
 läuft weiter ohne Unterbrechung.
 
 ## 8. Erfolgs-Kriterien (Schritt-9-Done-Definition)
@@ -306,7 +306,7 @@ läuft weiter ohne Unterbrechung.
 - ✅ NATS-KV-Bucket `wakir-persona-state-dev-engineering` hat mindestens 1 spawn-event.
 - ✅ Container-Logs zeigen `v907_pin_verified=true`.
 - ✅ Marker-Stack-Event `tomas-pilot-spawn` im `wakir-marker-stack-acme`-Bucket.
-- ✅ Pre-Framework-tomas-persona spawn unverändert (Engineering läuft parallel).
+- ✅ Pre-Framework-Spawn unverändert (Engineering läuft parallel).
 
 **Wenn alle 6 ✅:** Schritt 9 done. Weiter mit Schritt 10
 (`docs/migration-pilot-validation-phase-setup.md`).
@@ -321,10 +321,10 @@ Während der 4-Wochen-Doppelbetrieb-Phase (ADR-0058 §Phase-2):
 - Täglich (passiv): Marker-Stack-Event-Konsistenz-Check via
   `wakir-marker-stack-verify`.
 
- Tag-N+ Items (Kai/Reza/Selin parallel):
+Folge-Items (parallel):
 
-- Quadlet-Unit `wakir-persona-tomas.service` (Kai impl-axis).
+- Quadlet-Unit `wakir-persona-tomas.service` (Infra).
 - NATS-KV-Bucket-Init-Unit für `wakir-persona-state-*`-Family.
-- `NatsKvPersonaStateBacking` impl (Selin OI-PEF-13).
-- Recovery-Drill-Scheduler (Selin OI-PEF-9 Quadlet-OnCalendar-Timer).
+- `NatsKvPersonaStateBacking` impl (OI-PEF-13).
+- Recovery-Drill-Scheduler (OI-PEF-9 Quadlet-OnCalendar-Timer).
 

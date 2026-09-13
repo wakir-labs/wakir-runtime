@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Hermetic acceptance tests for the ``spire-fed-bundle`` CLI
- (SPIRE-Federation manual bootstrap path).
+(SPIRE-Federation manual bootstrap path).
 
 Roundtrip exercise:
 

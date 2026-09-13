@@ -10,7 +10,7 @@ JWKS document — there is no boolean ``up/down`` answer and no
 ``how-many-keys-active`` answer that a Prometheus scrape or a systemd
 ``ExecStartPost`` probe could consume.
 
- splits this into two artefacts:
+The health surface splits this into two artefacts:
 
   * ``spire_fed_health`` (this module): a tiny HTTP server that
     exposes a ``/health`` endpoint returning a structured JSON
@@ -87,7 +87,7 @@ from typing import Any
 
 
 # Re-use the rotator's parsing primitives via sibling-file load (the
-# bin/ directory has no __init__.py — the Tag-1/ CLIs are loaded
+# bin/ directory has no __init__.py — the sibling CLIs are loaded
 # the same way by the hermetic test surface). This keeps the trust-
 # domain validation and key-status logic single-source-of-truth shared
 # with the rotator, without forcing a package install step.
@@ -379,7 +379,7 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="spire-fed-health",
         description=(
             "Federation-Bundle-Endpoint Health-Check HTTP-server "
-            "(Phase-2 Sprint-8 Tag-4). Reads a JWKS file from disk "
+            "Reads a JWKS file from disk "
             "and exposes /health, /live, /ready over HTTP."
         ),
     )
@@ -401,7 +401,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=0,
         help=(
             "Number of active SPIRE-Agent connections to report. "
-            "Phase-2 Sprint-8 Tag-4: operator-provided integer; "
+            "Operator-provided integer; "
             "Phase-2c+ will be auto-populated from the SPIRE-Agent "
             "Workload-API admin counter."
         ),

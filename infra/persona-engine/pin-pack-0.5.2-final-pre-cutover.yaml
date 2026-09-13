@@ -7,7 +7,7 @@
 # Wakir Persona-Engine — Cross-Language Pin Pack
 # ==============================================
 #
-#. pre-cutover final consolidation marker.
+# Pre-cutover final consolidation marker.
 # 0.5.2-final-pre-cutover is a strict superset of 0.5.1-pre-cutover
 # (PR #313): no crate added, no crate removed, no version
 # bumped. The DRIFT-S4 reconciliation (Pin-Pack as SoT under
@@ -157,7 +157,7 @@ spec_source_of_truth:
   drift_id: DRIFT-S4
   invariant: "Pin-Pack-0.5.2-final-pre-cutover.yaml is the single source of truth for the §4.1 ENV-flag schema. Where spec and Pin-Pack disagree, the spec is wrong and must be patched."
 
-# Legacy-ENV detection hook (Reza / PR #329).
+# Legacy-ENV detection hook (PR #329).
 legacy_env_detection:
   detector_module: wirelang.persona_engine.legacy_env_migration_detector
   legacy_prefix: WAKIR_PE_

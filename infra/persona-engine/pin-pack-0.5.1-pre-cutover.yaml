@@ -7,7 +7,7 @@
 # Wakir Persona-Engine — Cross-Language Pin Pack
 # ==============================================
 #
-#. Phase-3a pre-cutover Rust-crate pin set for
+# Phase-3a pre-cutover Rust-crate pin set for
 # the 0.5.1-pre-cutover engine release — the wire-in of the 10th
 # BackendDecision record (bridge-audit-writer) on top of the
 # 0.5.0-pre-cutover anchor.

@@ -9,8 +9,8 @@ under PSF-2.0 and is reachable via `python3 --version`; the BSL
 header does not extend to the stdlib.
 **Context:** — substrate-gap-closer
 for ADR-0058 Schritt 9 (Pilot-Phase tomas-persona-Spawn). The
-Quadlet `quadlet/wakir-persona-tomas.container` (Selin iteration-
-Pengine-7 OI-PILOT-1) was authored against this image tag
+Quadlet `quadlet/wakir-persona-tomas.container` (OI-PILOT-1)
+was authored against this image tag
 ahead of the binary itself landing; this directory fills the gap.
 
 [cf]: ./Containerfile
@@ -32,7 +32,7 @@ binary that satisfies the Quadlet contract declared in
 The stub computes a deterministic SHA-256 over the axis-A bytes and
 emits it as a stub-flavoured pin-hash (`sha256-stub:...`); it does
 not yet cross-check against the expected V-907 pin (that is a
- axis surface).
+full-engine surface).
 
 The stub idles on a heartbeat loop after spawn and exits clean on
 SIGTERM/SIGINT (so the Quadlet `Restart=on-failure` policy never
@@ -51,7 +51,7 @@ waiting until the engine is real to find out whether the substrate
 is sound.
 
 operator decision 2026-05-15: ship the stub now,
-rotate to the real engine when lands. The
+rotate to the real engine when it lands. The
 4-Wochen-Doppelbetrieb-Clock is qualified accordingly: stub-period
 output is excluded from the 4-Achsen-Score-Bilanz; the clock
 effectively starts when `0.2.0-pilot` lands.
@@ -76,7 +76,7 @@ the Quadlet via the standard `resolve-image-pins-ci` workflow.
 
 ## real-engine image (`0.2.0-pilot`)
 
- lands the **real** engine implementation
+The full-engine release lands the **real** engine implementation
 alongside the stub. The real engine is sourced from
 `wirelang/persona_engine/` (a normal Python package under the
 wakir-runtime tree) and entered via the thin shim
@@ -88,7 +88,7 @@ six deferred surfaces:
    reserved for asyncio-binding).
 2. SPIRE Workload-API probe (`svid_workload_identity.py` — socket-
    presence + SPIFFE-ID-template surface; full grpc SVID fetch
-   reserved for).
+   reserved for a later increment).
 3. Lifecycle state-machine (`lifecycle_state_machine.py` — six states,
    nine transitions, full audit-replay surface).
 4. V-907 pin-verify (`v907_verify.py` — delegates to the existing
@@ -177,7 +177,7 @@ The image-pin lives in:
 The resolver tolerates `DIGEST_PENDING_<TOKEN>` placeholders for the
 digest hex (any uppercase token prefixed with `DIGEST_PENDING_`).
 The persona-engine pin uses `DIGEST_PENDING_KAI_CROSS_REVIEW` to
-keep cross-pair ownership (Kai Zone-J) explicit in the diff history.
+keep cross-pair ownership (Zone-J) explicit in the diff history.
 
 ## Operator local smoke
 

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """spire-fed-metrics — Prometheus-text-format metrics surface for the
- Federation-Bundle-Endpoint substrate.
+Federation-Bundle-Endpoint substrate.
 
 Sibling of ``spire_fed_health``: where the health endpoint answers
 ``up/down/unready`` to a probe, the metrics endpoint exposes Counter
@@ -9,7 +9,7 @@ and Gauge time-series for a Prometheus scrape. The exposition format
 is the Prometheus 0.0.4 text protocol — no client library, no
 external dependency, no protobuf path. Hermetic by construction.
 
-Metric surface (stable for; future evolution
+Metric surface (stable; future evolution
 follows the Prometheus naming/labelling convention):
 
   * ``wakir_federation_bundle_cache_hits_total{trust_domain}``
@@ -373,7 +373,7 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="spire-fed-metrics",
         description=(
             "Federation-Bundle-Endpoint Prometheus-text-format metrics "
-            "surface (Phase-2 Sprint-8 Tag-4). Hosts an in-process "
+            "surface. Hosts an in-process "
             "metric registry; the rotation orchestration calls into "
             "the registry to increment counters."
         ),

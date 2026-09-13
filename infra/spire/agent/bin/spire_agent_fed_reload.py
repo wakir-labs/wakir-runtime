@@ -3,7 +3,7 @@
 """spire-agent-fed-reload — hermetic Agent-Side Bundle-Cache-Refresh
 Helper for the federation substrate.
 
-The + substrate stages a federated peer-bundle in the
+The federation substrate stages a federated peer-bundle in the
 agent's ``trust_bundle_path`` (default
 ``/var/lib/spire/bundles/bootstrap.jwks``). When the peer-side
 rotates its CA key (``spire-fed-bundle-rotator``), the agent
@@ -271,7 +271,7 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="spire-agent-fed-reload",
         description=(
             "Agent-Side Bundle-Cache-Refresh Helper for the Wakir SPIRE-"
-            "Federation substrate (Phase-2 Sprint-8 Tag-3). Hermetic mode: "
+            "Federation substrate. Hermetic mode: "
             "no signal-handler install, no live SPIRE-Agent socket, no "
             "podman. Operator-Hand drives live reload."
         ),

@@ -104,7 +104,7 @@ def fetch_x509_svid(
     """
     if trust_domain not in _TRUST_DOMAINS_TAG1:
         raise ValueError(
-            f"trust_domain {trust_domain!r} not in Tag-1 federation pair "
+            f"trust_domain {trust_domain!r} not in the federation pair "
             f"{sorted(_TRUST_DOMAINS_TAG1)!r}"
         )
     uid, gid, path = _parse_selector(selector)
@@ -140,7 +140,7 @@ def fetch_jwt_svid(
     """
     if trust_domain not in _TRUST_DOMAINS_TAG1:
         raise ValueError(
-            f"trust_domain {trust_domain!r} not in Tag-1 federation pair "
+            f"trust_domain {trust_domain!r} not in the federation pair "
             f"{sorted(_TRUST_DOMAINS_TAG1)!r}"
         )
     if not audience:
@@ -167,7 +167,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="spire-agent-fed-attest",
         description=(
-            "Hermetic Mock CLI for Sprint-8 Tag-2 SPIRE-Agent cross-"
+            "Hermetic Mock CLI for SPIRE-Agent cross-"
             "trust-domain SVID issuance patterns. No live SPIRE-Agent "
             "socket is contacted."
         ),

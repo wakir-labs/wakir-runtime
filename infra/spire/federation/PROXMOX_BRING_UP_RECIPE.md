@@ -230,7 +230,7 @@ skopeo inspect docker://ghcr.io/spiffe/spire-agent:1.14.6 | jq -r '.Digest'
 
 Beide Werte (cosign-Output + skopeo-Output) MUESSEN
 byte-identisch sein. Falls nicht: **STOP**, Cross-Review-Eskalation
-an Tomás. Snapshot zurueckrollen.
+an den Image-Pipeline-Owner. Snapshot zurueckrollen.
 
 ### 3.2 Placeholder-Resolution mit Skript
 
@@ -530,8 +530,7 @@ sudo /opt/wakir-runtime/bin/proxmox-bringup-smoke --org acme
 #   [bringup-smoke] SUMMARY: 6/6 checks PASS
 ```
 
-Bei einem `FAIL`: §7 Rollback und Bug-Report an Kai (Outbox-
-Rapport-Pfad).
+Bei einem `FAIL`: §7 Rollback und Bug-Report an den Infra-Owner.
 
 **Snapshot:**
 
@@ -565,11 +564,11 @@ die VM auf den frischen OS-Install zurueck.
 ## 8. Was Phase-1b-Pilot NICHT abdeckt
 
 - **Kein Phase-3a-Production-Trust-Domain.** Wir bleiben auf
-  `wakir.test`. Live-`<FTD-ID>.wakir.dev` ist iteration-10+-Thema.
+  `wakir.test`. Live-`<FTD-ID>.wakir.dev` ist ein Folge-Thema.
 - **Kein Multi-Org-Federation in diesem Recipe.** Single-Org-
   Pilot mit `acme`-Bucket. Der zweite Pilot-Org-Onboard
   (`partner.test`-Spiegel) ist in `MULTI_ORG_ONBOARDING_RECIPE.md`
- als Erweiterung dokumentiert; die Quadlet-
+  als Erweiterung dokumentiert; die Quadlet-
   Substrate dafuer existiert bereits unter
   `infra/spire/federation/quadlet/` (per-side Templates).
 - **Kein SPIFFE-JWT-SVID-NATS-Auth.** Phase-1b NATS laeuft offen
@@ -598,11 +597,11 @@ ausgerollt wird.
 
 | Zone | Counterparty | Was |
 |---|---|---|
-| Zone A | Reza (Wirelang) | SPIFFE-Trust-Domain-Literal (wakir.test ok, wakir.dev Phase-3) |
-| Zone B | Reza (NATS-Schema) | per-org `wakir-marker-stack-{org_id}` Bucket-Family (owner) |
-| Zone C | Tomás (OTS / Image-Pipeline) | Cosign-Pin-Resolve fuer SPIRE-Server/Agent + python:3.13-slim |
-| Zone D | Reza (V-904 Identity-Bridge) | nicht in Pilot-Scope (Phase-3) |
+| Zone A | Wirelang | SPIFFE-Trust-Domain-Literal (wakir.test ok, wakir.dev Phase-3) |
+| Zone B | NATS-Schema | per-org `wakir-marker-stack-{org_id}` Bucket-Family (owner) |
+| Zone C | OTS / Image-Pipeline | Cosign-Pin-Resolve fuer SPIRE-Server/Agent + python:3.13-slim |
+| Zone D | V-904 Identity-Bridge | nicht in Pilot-Scope (Phase-3) |
 
-Aisha protokolliert Konsens-Zeitpunkte. Bei Bring-up-Block:
-Spawn-Return mit Diagnose an Kai (Outbox-Rapport-Pfad).
+Konsens-Zeitpunkte werden protokolliert. Bei Bring-up-Block:
+Bug-Report mit Diagnose an den Infra-Owner.
 

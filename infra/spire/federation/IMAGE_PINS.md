@@ -27,7 +27,7 @@ in prior upstream releases.
 
 The `python:3.13-slim` image is the BASE LAYER for the
 `wakir-provisioner` image (see
-`infra/spire/federation/provisioner/`). Until the
+`infra/spire/federation/provisioner/`). Before the provisioner image, the
 Quadlet `wakir-nats-kv-bucket-init.container` referenced
 `python:3.13-slim` directly; the author-time assumption that
 the slim image ships `nats-py` was incorrect, and the Pilot-VM
@@ -207,7 +207,7 @@ Library GitHub release notes + Python release notes).
 
 ### 2.5 wakir-provisioner — GHCR Sigstore-keyless resolution
 
-Added in. The `wakir-provisioner` image is
+The `wakir-provisioner` image is
 published by Wakir Labs to GHCR
 (`ghcr.io/wakir-labs/wakir-provisioner`); it is built from
 `infra/spire/federation/provisioner/Containerfile` against the
@@ -258,8 +258,8 @@ at pull time.
 A CI job can run `cosign verify` as a pre-build gate. Sketch:
 
 ```yaml
-#.github/workflows/cosign-verify-federation.yml (
-# follow-up — Operator-Hand activation, gated on image-pipeline review
+# .github/workflows/cosign-verify-federation.yml (follow-up —
+# Operator-Hand activation, gated on image-pipeline review
 # cross-review for the GHCR-network-access policy).
 jobs:
   cosign-verify-spire-images:
@@ -295,7 +295,7 @@ Activation is **gated on image-pipeline cross-review** for two reasons:
 
   * A failing `cosign verify` on a previously-pinned digest is an
     upstream-key-rotation event; the response is NOT "auto-update the
-    pin" but "halt merges + Tomás reviews the upstream signing event".
+    pin" but "halt merges + image-pipeline review of the upstream signing event".
 
 ## 4. Sandbox boundary
 
@@ -310,7 +310,7 @@ is Operator-Hand on a host that has registry network access and the
 ## 5. follow-up
 
 - Added `python:3.13-slim` to the inventory (§1, §2.4) so the
- per-org NATS-KV bucket-init Quadlet stays in scope
+  per-org NATS-KV bucket-init Quadlet stays in scope
   for the Zone-C cross-review.
 - Promoted the §3 CI sketch into a real workflow file at
   `.github/workflows/cosign-verify-images.yml`, gated on
@@ -327,10 +327,10 @@ Driver: live bring-up bug report 2026-05-13, Bug 6
 (`agents-workspaces/mira/outbox/2026-05-13-pilot-bringup-bug-bilanz.md`).
 Pilot-VM bring-up crashed at unit start with
 `ModuleNotFoundError: No module named 'cryptography'` because the
- author-time assumption that `python:3.13-slim` ships `nats-py`
+author-time assumption that `python:3.13-slim` ships `nats-py`
 was incorrect (the slim image ships the CPython stdlib only).
 
- substrate:
+Provisioner substrate:
 
 - Added `ghcr.io/wakir-labs/wakir-provisioner` to the inventory
   (§1, §2.5). The v0.1.0 image carried four wheels (`nats-py`,
@@ -364,17 +364,17 @@ was incorrect (the slim image ships the CPython stdlib only).
   `cosign-verify-images.yml` learnt a third job for the
   `wakir-provisioner` digest cross-check.
 
- coordination (Wirelang-import-disentanglement):
+Cross-team coordination (Wirelang-import-disentanglement):
 
 - The provisioner's `bin/nats_kv_bucket_provision.py` now probes
-  `wirelang.federation.marker_stack_kv_constants` (Reza-target
+  `wirelang.federation.marker_stack_kv_constants` (Wirelang-side target
   name, **assumed**) before falling back to
   `wirelang.federation.marker_stack_kv`. Same shape for
-  `sequence_number_ledger_kv_constants`. If Reza picks a different
+  `sequence_number_ledger_kv_constants`. If the Wirelang side picks a different
   module name, the fallback still works on the baseline tip; the
-  defensive probe is a no-op at that point. Tomás-side flips the
+  defensive probe is a no-op at that point. The provisioner side flips the
   probe target to the actual wirelang-side name in a follow-up commit
-  once Reza-PR lands.
+  once the Wirelang PR lands.
 - The `wakir-provisioner` v0.1.0 image carried `cryptography`
   regardless of the wirelang-side outcome: the image-gap closure
   unblocked the Pilot bring-up the same day. With PR #33

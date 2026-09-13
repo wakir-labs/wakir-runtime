@@ -14,8 +14,8 @@
 # Substrate scope (0.1.0-pilot)
 # -----------------------------
 # This is the **substrate-closer** image for ADR-0058 Schritt 9. The
-# Quadlet ``quadlet/wakir-persona-tomas.container`` (Selin iteration-
-# Pengine-7 OI-PILOT-1) was authored against
+# Quadlet ``quadlet/wakir-persona-tomas.container`` (OI-PILOT-1)
+# was authored against
 # ``ghcr.io/wakir-labs/wakir-persona-engine:0.1.0-pilot`` ahead of the
 # binary itself landing; this image fills the substrate gap so the
 # Pilot-VM can launch the tomas-persona shadow run without further
@@ -33,7 +33,7 @@
 #
 # Why ship the stub
 # -----------------
-# Three options were on the table (Tomás substrate-
+# Three options were on the table (substrate
 # gap-analysis 2026-05-15):
 #
 #   A) Block ADR-0058 Schritt 9 until lands the full
@@ -46,7 +46,7 @@
 #   C) Ship a substrate-stub image now that satisfies the Quadlet
 #      contract (CLI surface, healthcheck, Env-var contract,
 #      Sigstore-keyless-signed digest) and rotate to the real engine
-#      when lands. Cost: the Doppelbetrieb-Vergleich
+#      when the real engine lands. Cost: the Doppelbetrieb-Vergleich
 #      4-Wochen-Clock starts on a stub-engine that emits stub-output
 #      and does not yet drive comparable Engineering traffic.
 #

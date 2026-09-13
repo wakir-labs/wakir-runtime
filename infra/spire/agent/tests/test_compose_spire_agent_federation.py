@@ -12,7 +12,7 @@ Asserts:
     Cosign-Digest-Pin parity (mirror of federation
     server convention).
   * Both agents join the EXTERNAL ``wakir-federation`` bridge network
-    (declared external from federation substrate, NOT
+    (declared external by the federation substrate, NOT
     re-created here).
   * Both agents mount the federated-bundles ingest volume read-only
     (the server-side bundles volume, declared external).
@@ -226,24 +226,24 @@ def test_federation_network_external(compose_doc: dict) -> None:
         "networks.wakir-federation must be declared"
     )
     assert fed.get("external") is True, (
-        "networks.wakir-federation must be EXTERNAL (owned by Sprint-8 "
-        "Tag-1 federation substrate; agent compose does NOT re-create it)"
+        "networks.wakir-federation must be EXTERNAL (owned by the "
+        "federation substrate; agent compose does NOT re-create it)"
     )
     assert fed.get("name") == "wakir-federation"
 
 
 def test_bundles_volumes_external(compose_doc: dict) -> None:
-    """The two federated-bundles volumes are external (owned by).
+    """The two federated-bundles volumes are external (owned by the server substrate).
     The per-side agent-data + agent-sockets volumes are internal
     (owned by this compose unit)."""
     vols = compose_doc.get("volumes") or {}
     wakir_bundles = vols.get("spire_server_wakir_bundles") or {}
     partner_bundles = vols.get("spire_server_partner_bundles") or {}
     assert wakir_bundles.get("external") is True, (
-        "spire_server_wakir_bundles must be external (Tag-1-owned)"
+        "spire_server_wakir_bundles must be external (server-owned)"
     )
     assert partner_bundles.get("external") is True, (
-        "spire_server_partner_bundles must be external (Tag-1-owned)"
+        "spire_server_partner_bundles must be external (server-owned)"
     )
 
     # Per-side data/sockets are internal — assert they exist and do NOT
@@ -257,7 +257,7 @@ def test_bundles_volumes_external(compose_doc: dict) -> None:
         v = vols.get(vol_name)
         assert isinstance(v, dict), f"volume {vol_name} must be declared"
         assert v.get("external") is not True, (
-            f"volume {vol_name} must be internal (Tag-2-owned)"
+            f"volume {vol_name} must be internal (agent-owned)"
         )
 
 

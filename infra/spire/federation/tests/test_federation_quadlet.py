@@ -165,7 +165,7 @@ def test_quadlet_placeholders_preserved(quadlet_text: str) -> None:
     """The template MUST keep the documented placeholders so the
     install-time sed-substitution stays explicit.
 
- adds ``<HOST_BUNDLE_BIND>`` to the placeholder set;
+    The federation-mode increment adds ``<HOST_BUNDLE_BIND>`` to the placeholder set;
     the bootstrap wires it from WAKIR_PILOT_MODE (single-org -> 127.0.0.1,
     federation -> 0.0.0.0).
     """

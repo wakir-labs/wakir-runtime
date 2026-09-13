@@ -20,14 +20,14 @@
 #   WAKIR_ORG_ID              default: acme
 #   WAKIR_TRUST_DOMAIN        default: wakir.test (auto-syncs with
 #                             WAKIR_SIDE when SIDE != wakir and the
-#                             operator did not override; iteration-10-
-# Cross-VM-Federation substance)
+#                             operator did not override; Cross-VM-
+#                             Federation substance)
 #   WAKIR_SIDE                default: wakir  (alt: orbit, partner;
 # substance — selects
 #                             which Quadlet-instance + config-pair
 #                             the bootstrap installs. ``orbit`` is
 #                             the Cross-VM Federation peer-VM.)
-#   WAKIR_PILOT_MODE default: single-org (
+#   WAKIR_PILOT_MODE          default: single-org (
 #                             Bug 7 substance-fix: choose between
 #                             ``single-org`` Phase-1b pilot config
 #                             variants and ``federation`` dual-side
@@ -132,7 +132,7 @@ _resume_cmd() {
 #
 #   wakir   -> spire-server-wakir.conf + spire-agent-wakir.conf
 #              (DEFAULT; the wakir-side Pilot-VM that has shipped
-#              since)
+#              since the first bring-up)
 #   orbit   -> spire-server-orbit.conf + spire-agent-orbit.conf
 # (Cross-VM Federation peer-VM)
 #
@@ -428,8 +428,8 @@ Env vars (see top of script for full list):
   WAKIR_TRUST_DOMAIN        (default: wakir.test; auto-syncs with WAKIR_SIDE)
   WAKIR_SIDE                (default: wakir; alt: orbit, partner)
   WAKIR_PILOT_MODE          (default: single-org; alt: federation)
-  WAKIR_PEER_SIDE (-T3; federation-mode only; e.g. orbit)
-  WAKIR_PEER_HOST (-T3; federation-mode only; peer VM IP)
+  WAKIR_PEER_SIDE           (federation-mode only; e.g. orbit)
+  WAKIR_PEER_HOST           (federation-mode only; peer VM IP)
   WAKIR_SKIP_COSIGN_VERIFY  (default: 0; set 1 for tag-only quick-pilot)
   WAKIR_SKIP_PROMPTS        (default: 0; set 1 for headless / CI)
 EOF
@@ -875,8 +875,8 @@ step_5_image_pins() {
         | jq -r '.Digest // empty' || echo "")
       if [[ -z "$d" ]]; then
         if [[ "$image" == ghcr.io/wakir-labs/wakir-provisioner:* ]]; then
-          # Provisioner remains optional on first bring-up (
-          # baseline) — the image may not yet be published. Log + continue.
+          # Provisioner remains optional on first bring-up — the image
+          # may not yet be published. Log + continue.
           log_note "wakir-provisioner skopeo inspect failed (image may not be published yet); skipping its pin substitution"
           continue
         fi
@@ -1269,7 +1269,7 @@ _wait_for_service_active() {
 _wait_for_workload_api_socket() {
   # Bug-27 fix: SPIRE-Agent ist distroless-Container
   # (ghcr.io/spiffe/spire-agent: nur ``spire-agent``-binary, kein ``test``/
-  # ``sh``/Coreutils). Tomás-Variante via ``podman exec <ctr> test
+  # ``sh``/Coreutils). The variant via ``podman exec <ctr> test
   # -S <path>`` returnt IMMER rc=127 ("executable file 'test' not found
   # in PATH") — Loop läuft 120s leer und meldet "not bound" obwohl Socket
   # längst da ist (Live-Diagnose 2026-05-15 ~01:51 UTC bestätigt).
@@ -1799,16 +1799,16 @@ step_6_quadlet() {
   # which is wired in spire-server-<side>.conf §federates_with and
   # is already covered by Bug-30..32 substance-fixes.
   #
-  # Disagree-note: the operator's Bug-37 brief recommended Option A
-  # (x509pop) — "clean federation-attestation-pattern". Kai-Hand-
+  # Disagree-note: the Bug-37 brief recommended Option A
+  # (x509pop) — "clean federation-attestation-pattern". Infra
   # disagree-note: x509pop is overkill for the wakir-orbit-VM-pair
   # federation pilot because (a) each SPIRE-server attests its OWN
   # agent, NOT the peer agent, so x509pop's cross-trust-domain cert
   # exchange is unused; (b) x509pop adds an Operator-Hand cert+key
   # provisioning step ahead of step-6 which expands the bring-up
   # surface; (c) join-token is the existing-pattern + minimal
-  # delta. Reza-Cross-Review Zone-B is mandatory pre-merge — if
-  # Reza recommends x509pop on identity-substrate grounds, this fix
+  # delta. Identity-substrate cross-review Zone-B is mandatory pre-merge — if
+  # it recommends x509pop on identity-substrate grounds, this fix
   # is one diff-block away from a clean rebase to that pattern.
   local agent_quadlet_dst="${dst}/wakir-spire-agent-${side}.container"
   local agent_already_attested=0
@@ -2042,7 +2042,7 @@ step_8_smoke() {
 # ---------------------------------------------------------------------------
 #
 # Bug-39 is the asymmetric-pilot-topology question: wakir-pilot runs in
-# single-org-mode (one Tomás-persona container, V2-Anchor, no peer),
+# single-org-mode (one pilot-persona container, V2-Anchor, no peer),
 # while wakir-orbit runs in federation-mode against wakir-pilot. The
 # Cross-VM-Federation smoke-test (proxmox-bringup-smoke 8/8 with the
 # federation gates) requires BOTH sides to be in federation-mode.
@@ -2050,7 +2050,7 @@ step_8_smoke() {
 # Two options were considered:
 #
 #   Option A — Pilot-Symmetric: bring wakir-pilot into federation-mode
-#              as well. Risk: the running Tomás-persona container
+#              as well. Risk: the running pilot-persona container
 #              needs a re-spawn after the mode-switch because the
 #              SPIRE-server-federation-${side}.service is a different
 #              unit name and the SPIFFE-ID under federation-mode is
@@ -2195,7 +2195,7 @@ ${_GREEN}${_BOLD}Wakir-Pilot-VM bring-up complete.${_RESET}
 EOF
 }
 
-# substance: only auto-run main when the script is
+# Only auto-run main when the script is
 # executed directly. Sourcing the script (e.g. from a hermetic test
 # that wants to invoke a single function like _install_peer_host_entry)
 # must NOT trigger the full bring-up flow. The ``BASH_SOURCE`` check

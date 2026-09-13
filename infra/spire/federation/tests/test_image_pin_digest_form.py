@@ -207,8 +207,8 @@ def test_image_pins_md_documents_sandbox_boundary() -> None:
 
 
 def test_pinned_tag_matches_documented_baseline() -> None:
-    """The documented pin tag (baseline) is 1.14.6 per +
- acceptance. This test catches accidental tag-drift."""
+    """The documented pin tag (baseline) is 1.14.6 per the federation
+    acceptance. This test catches accidental tag-drift."""
     expected_tag = "1.14.6"
     for path in SERVER_PIN_FILES:
         text = _read(path)

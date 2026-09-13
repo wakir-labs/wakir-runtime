@@ -226,7 +226,7 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="spire-fed-bundle",
         description=(
             "Hermetic Bundle-Export/Import for the Wakir SPIRE-Federation-"
-            "Bundle-Endpoint substrate (Phase-2 Sprint-8 Tag-1)."
+            "Bundle-Endpoint substrate."
         ),
     )
     sub = p.add_subparsers(dest="cmd", required=True)

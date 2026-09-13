@@ -30,8 +30,7 @@
 # the subcommand surface. It is a thin CLI shim over the library
 # crate's `compute_v907_pin` / `verify_v907_pin` API and ships with
 # byte-for-byte cross-language pin parity against the Python
-# reference (anchor pin captured 2026-05-16, smoke-tested locally
-#).
+# reference (anchor pin captured 2026-05-16, smoke-tested locally).
 #
 # Multi-stage build
 # -----------------

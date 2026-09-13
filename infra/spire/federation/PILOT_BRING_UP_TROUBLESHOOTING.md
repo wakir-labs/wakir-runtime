@@ -7,7 +7,7 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 
 Companion document to `wakir-pilot-bootstrap.sh` and
 `PROXMOX_BRING_UP_RECIPE.md`. Captures the diagnose-recipes for the
- live-bring-up bug bundle (Bug 7: SPIRE-Server / SPIRE-
+live-bring-up bug bundle (Bug 7: SPIRE-Server / SPIRE-
 Agent restart-loop on a single-org Phase-1b pilot VM).
 
 Sandbox boundary: every step below is **Operator-Hand on the live VM**.
@@ -19,8 +19,8 @@ here — those require an actual SPIRE container runtime.
 
 ### Symptom
 
-After `wakir-pilot-bootstrap.sh` Phase 6 completes (with the iteration-9-
- Bug 1-5 fixes applied), the smoke-test reports:
+After `wakir-pilot-bootstrap.sh` Phase 6 completes (with the
+Bug 1-5 fixes applied), the smoke-test reports:
 
 ```
 wakir-spire-server-federation-wakir.service: activating (auto-restart) since 4s ago
@@ -101,7 +101,7 @@ If the server comes up `active (running)` and the agent comes up
 `active (running)`, H1 is confirmed and the proper Source-fix is to
 ship a **single-org pilot config variant** that omits the
 `federates_with` block. Tracked as the follow-up
-Source-task (Reza for config-shape spec, Kai for bootstrap template
+source task (identity-substrate for config-shape spec, infra for bootstrap template
 selection).
 
 #### H2. Volume-permission / SELinux issue on Fedora-CoreOS
@@ -230,7 +230,7 @@ SOURCE template level:
   `insecure_bootstrap = true`, and NO `trust_bundle_path`.
   `wakir-pilot-bootstrap.sh` gains the `WAKIR_PILOT_MODE` env-var
   (default `single-org`) that selects between the new single-org
-  configs and the Tag-1/ federation configs.
+  configs and the federation configs.
 
 * **H3 fixed in source.** Server + agent Quadlet templates raised
   `HealthStartPeriod=30s` to `HealthStartPeriod=60s` (cold-start CA-

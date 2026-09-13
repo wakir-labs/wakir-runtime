@@ -9,7 +9,7 @@ Change License: Apache-2.0. Per-wheel licences inside the image
 dependencies — BSD/Apache-2.0) ship in the wheels themselves and
 are reachable via `pip show <pkg>`; the BSL header does not extend
 to those transitive wheels.
-**Context:** — Bug-Fix-wave for the
+**Context:** bug-fix increment for the
 Pilot-VM bring-up regression (live bring-up bug report 2026-05-13, Bug 6).
 **Relicense context:** AR-Decision 2026-05-13 ~14:00 CEST —
 Apache-2.0 → BSL 1.1, consistent with the WAT-Pipeline-Server
@@ -63,7 +63,7 @@ the `nats-py` wheel pin above does.
 The Quadlet was authored against
 `docker.io/library/python:3.13-slim` on the (incorrect) assumption
 that the slim image ships `nats-py` pre-installed. The
- live-bring-up on the Pilot-VM crashed at unit-start with
+first live-bring-up on the Pilot-VM crashed at unit-start with
 `ModuleNotFoundError: cryptography` because the provisioner's
 transitive imports through `wirelang.federation.marker_stack_kv`
 pull in `wirelang.identity` which requires `cryptography`. `nats-py`
@@ -76,11 +76,11 @@ Three resolution options were on the table:
 |---|---|---|
 | **A** Dedicated image (this) | Wheels baked at image build time, hash-pinned, digest-pinned at Quadlet pull time | One supply-chain artifact to provenance; cold-start = single image pull |
 | **B** `ExecStartPre` pip-install | Wheels installed to tmpfs at unit start | Re-introduces a supply-chain network egress on every unit start, breaks `ReadOnly` posture, fails under air-gap |
-| **C** Wirelang-side disentanglement | Refactor `marker_stack_kv` to import its substrate-shaping constants without triggering `wirelang.identity` | Owned by Reza; tidies the codebase but doesn't ship `nats-py` — A is still needed |
+| **C** Wirelang-side disentanglement | Refactor `marker_stack_kv` to import its substrate-shaping constants without triggering `wirelang.identity` | Owned by the Wirelang side; tidies the codebase but doesn't ship `nats-py` — A is still needed |
 
-Mira-recommendation (Bug 6, Bug-Bilanz 2026-05-13) was A + C. This
+The bug-report recommendation (Bug 6, 2026-05-13) was A + C. This
 README + Containerfile is the A track; the C track is the
- Wirelang-import-disentanglement work.
+Wirelang-import-disentanglement work.
 
 ## Build + publish recipe (Operator-Hand)
 
@@ -211,9 +211,9 @@ when chosen consistently. The resolution applies BOTH
 as defence-in-depth:
 
 1. The Quadlet keeps `Exec=python3 /opt/wakir/bin/...` (the
-   edit; the Quadlet stays the canonical caller and is explicit
+   Quadlet-side edit; the Quadlet stays the canonical caller and is explicit
    about which interpreter it wants).
-2. The image drops `ENTRYPOINT` and `CMD` entirely (Tomás-side; the
+2. The image drops `ENTRYPOINT` and `CMD` entirely (image side; the
    image cannot silently re-introduce the doubled-`python3` bug for
    any future caller).
 

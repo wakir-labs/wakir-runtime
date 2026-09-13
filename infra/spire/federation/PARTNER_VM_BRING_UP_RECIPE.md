@@ -12,7 +12,7 @@ was der Operator (Fred) auf dem Proxmox-Host tut; die Sandbox fuehrt
 keinen Live-Bring-up aus (`feedback_sandbox_host_trennung.md`).
 
 **Dogfood-First-Posture (AR-Decision 2026-05-14 19:30 CEST):** das
-M-3 Live-Federation-Trial-Gate aus iteration-7-Closeout §7 wird mit einer
+M-3 Live-Federation-Trial-Gate aus dem Closeout-Dokument §7 wird mit einer
 **zweiten Proxmox-VM** umgesetzt, nicht mit einem externen Partner.
 Beide VMs laufen auf demselben Proxmox-Host, sind ueber eine interne
 Proxmox-Bridge gekoppelt, und gehoeren vollstaendig der Wakir-
@@ -21,8 +21,8 @@ dieses Recipes.
 
 Companion-Artefakte:
 
-- `PROXMOX_BRING_UP_RECIPE.md` — die Wakir-Side-Recipe (
-  Baseline). Dieses Recipe ist der **Spiegel** der Wakir-Side mit
+- `PROXMOX_BRING_UP_RECIPE.md` — die Wakir-Side-Recipe
+  (Baseline). Dieses Recipe ist der **Spiegel** der Wakir-Side mit
   Side=orbit. Lies das Wakir-Side-Recipe zuerst, dann hier den Diff.
 - `wakir-pilot-bootstrap.sh` (patched) — der One-Shot-
   Bootstrap-Skript, jetzt `WAKIR_SIDE=orbit`-aware.
@@ -107,7 +107,7 @@ und Trust-Domain-Migration sind 12+-Items.
 ## 1. Voraussetzung: Wakir-Side-VM steht
 
 Bevor die Orbit-VM hochgebracht wird, MUSS die Wakir-Side-VM den
-9-Tag-9-Smoke vollstaendig bestehen:
+Smoke vollstaendig bestehen:
 
 ```bash
 # Auf der Wakir-VM:
@@ -386,8 +386,7 @@ sudo env \
 **Hinweis:** `WAKIR_PILOT_MODE=federation` ist die Wahl die den
 Bootstrap die Federation-Configs installieren laesst (statt der
 Single-Org-Pilot-Configs). Beide VMs MUESSEN `federation`-Mode
-verwenden, sonst startet der SPIRE-Server nicht (Bug 7 H1,
-).
+verwenden, sonst startet der SPIRE-Server nicht (Bug 7 H1).
 
 ### 5.2 Verifikation
 
@@ -411,8 +410,8 @@ qm snapshot 102 post-spire --description "Orbit-Side SPIRE-Stack laeuft"
 
 ### 5.3 Wakir-Side: Federation-Mode aktivieren (rueckwirkend)
 
-Falls die Wakir-Side aktuell im `single-org`-Mode laeuft (-
-1-Baseline), muss sie auf `federation`-Mode umgestellt werden,
+Falls die Wakir-Side aktuell im `single-org`-Mode laeuft (Single-Org-
+Baseline), muss sie auf `federation`-Mode umgestellt werden,
 damit der `federates_with "orbit.test"`-Block aktiv ist UND der
 Bundle-Endpoint-Host-Bind von `127.0.0.1` auf `0.0.0.0` flippt. Auf
 der Wakir-VM:
@@ -585,7 +584,7 @@ sudo env \
 ```
 
 Wenn BEIDE Sides 8/8 melden: M-3 Live-Federation-Trial-Gate ist
-strukturell **vollstaendig geschlossen**. iteration-7-Closeout §7 ist
+strukturell **vollstaendig geschlossen**. Das Closeout-Dokument §7 ist
 formal abschluss-faehig; Phase-2 ist eroffnungs-faehig.
 
 **Snapshot:**
@@ -597,9 +596,9 @@ qm snapshot 102 post-fed-smoke-clean --description "Orbit-Side 8/8 Federation-Sm
 
 ### 7.3 M-3 Live-Trial Validation (operator-hand path)
 
-Diese Sektion ist die explizite Sequenz die Mira nach dem Merge des
--PR auf den beiden Live-VMs ausfuehrt. Sandbox-Boundary:
-Kai liefert die Substanz (Code, Configs, Tests, Recipe-Update); Mira
+Diese Sektion ist die explizite Sequenz, die der Operator nach dem Merge
+des PR auf den beiden Live-VMs ausfuehrt. Sandbox-Boundary:
+die Sandbox liefert die Substanz (Code, Configs, Tests, Recipe-Update); der Operator
 fuehrt den Live-Trial aus. Erfolgs-Kriterium: 8/8 PASS auf beiden
 Sides + the Live-HTTPS-Adapter-Test (`test_live_int_live_partner_vm`)
 gruen gegen `WAKIR_LIVE_PARTNER_URL=https://wakir-orbit:8443`.
@@ -653,7 +652,7 @@ WAKIR_LIVE_PARTNER_URL=https://wakir-orbit:8443 \
 **Bei Fehler (Bring-up bricht):** SSH-Diagnose-Pfad ist via
 `/home/fred/.ssh/wakir-pilot-vm-diagnose` verfuegbar fuer beide VMs
 (root@192.168.178.191 = wakir-orbit, root@192.168.178.116 = wakir-pilot).
-Live-Diagnose-Logs (analog Bug-26/27/28-Pattern) sammeln, Kai fixt
+Live-Diagnose-Logs (analog Bug-26/27/28-Pattern) sammeln, Infra-Owner fixt
 source.
 
 ## 8. Rollback-Pfad
@@ -677,14 +676,14 @@ unbeeintraechtigt).
 
 | Zone | Counterparty | Was |
 |---|---|---|
-| Zone A | Reza (Wirelang) | Federation-Bundle-Endpoint-URL-Shape-Konsens mit PR #51 Adapter (Root-Path vs. ``/bundle``-Suffix) |
-| Zone B | Reza (NATS-Schema) | per-org Marker-Stack-Bucket-Family bleibt unveraendert (Orbit-VM hat eigenen NATS-JetStream) |
-| Zone C | Tomás (OTS / Image-Pipeline) | Quadlet-:Z-Disziplin + Image-Pin-Disziplin im neuen Orbit-Side-Set; SELinux-Lane + Quadlet-Lint garantieren das strukturell |
-| Zone D | Reza (V-904 Identity-Bridge) | nicht in Pilot-Scope (Phase-3) |
-| Zone X | Amara (QA / Mutation-Test) | Mutation-Equivalence-Job-Inventar `KNOWN_QUADLETS` erweitern um Orbit-Side-Substitution; Tag-9-Lane sollte Orbit-Stage automatisch finden (Lint-Skript wurde erweitert) |
+| Zone A | Wirelang | Federation-Bundle-Endpoint-URL-Shape-Konsens mit PR #51 Adapter (Root-Path vs. ``/bundle``-Suffix) |
+| Zone B | NATS-Schema | per-org Marker-Stack-Bucket-Family bleibt unveraendert (Orbit-VM hat eigenen NATS-JetStream) |
+| Zone C | OTS / Image-Pipeline | Quadlet-:Z-Disziplin + Image-Pin-Disziplin im neuen Orbit-Side-Set; SELinux-Lane + Quadlet-Lint garantieren das strukturell |
+| Zone D | V-904 Identity-Bridge | nicht in Pilot-Scope (Phase-3) |
+| Zone X | QA / Mutation-Test | Mutation-Equivalence-Job-Inventar `KNOWN_QUADLETS` erweitern um Orbit-Side-Substitution; SELinux-Lane sollte Orbit-Stage automatisch finden (Lint-Skript wurde erweitert) |
 
-Aisha protokolliert Konsens-Zeitpunkte. Bei Bring-up-Block: Spawn-
-Return mit Diagnose an Kai (Outbox-Rapport-Pfad).
+Konsens-Zeitpunkte werden protokolliert. Bei Bring-up-Block:
+Bug-Report mit Diagnose an den Infra-Owner.
 
 ## 10. Was NICHT abdeckt (Open-Items)
 
@@ -730,12 +729,11 @@ Drift-Schutz:
 
 ## 12. Kontakt + Eskalations-Pfad
 
-- **10-Tag-1-Owner:** Kai Hoffmann (DevOps), Spawn-Return mit
-  Outbox-Rapport an CTO + cc Mira CEO.
-- **Cross-Review Zone A:** Reza (Adapter-URL-Konsistenz).
-- **Cross-Review Zone C:** Tomás (Quadlet-:Z + Image-Pin-Disziplin).
-- **Cross-Review Zone X:** Amara (Mutation-Test-Methodik).
+- **Owner:** Infra/DevOps, Bericht an CTO + cc CEO.
+- **Cross-Review Zone A:** Wirelang (Adapter-URL-Konsistenz).
+- **Cross-Review Zone C:** Image-Pipeline (Quadlet-:Z + Image-Pin-Disziplin).
+- **Cross-Review Zone X:** QA (Mutation-Test-Methodik).
 - **Architecture-Frage:** CTO.
-- **Strategie/Naming-Frage:** Mira CEO (Trust-Domain-Naming-Final
+- **Strategie/Naming-Frage:** CEO (Trust-Domain-Naming-Final
   ist AR-Touch).
 

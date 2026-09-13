@@ -13,7 +13,7 @@ PASS or the gate fails**.
 
 This closes the sandbox-hermetic-test gap documented in the operator notes
 `feedback_live_bringup_sandbox_gap.md` (2026-05-13): seven substance
-bugs slipped past the hermetic sandbox tests of and
+bugs slipped past the hermetic sandbox tests and
 surfaced only during the Operator-Hand bring-up of 2026-05-13 ~12:45
 CEST.
 
@@ -179,9 +179,9 @@ on each PR touching the bootstrap script. Tracked under
 The harness is **ready to run** as of merge. The first authoritative
 run is gated on:
 
-- Kai-Bug-7 SPIRE-Agent diagnose + fix (Bug 3, 4, 7) merged,
-- Tomás-Image-Pin-Idempotency provisioner merged (stable Bucket-Init),
-- Reza-NATS-Discrepancy + Wirelang-Import-Disentanglement merged (Bug 6),
+- SPIRE-Agent diagnose + fix (Bug 3, 4, 7) merged,
+- Image-Pin-Idempotency provisioner merged (stable Bucket-Init),
+- NATS-Discrepancy + Wirelang-Import-Disentanglement merged (Bug 6),
 - Pilot-VM rolled back to `pre-bring-up` snapshot.
 
 Bring-up-2 from the live bring-up bug report §"Pilot-Phase-Verschiebung" is the

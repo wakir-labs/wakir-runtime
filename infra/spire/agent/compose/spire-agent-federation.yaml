@@ -42,12 +42,12 @@
 #
 #   pytest infra/spire/agent/tests/
 #
-# Image-Tag rationale (mirror of):
+# Image-Tag rationale (mirror of the server compose unit):
 #   Image ``ghcr.io/spiffe/spire-agent`` Tag ``1.14.6`` — version-parity
 #   with SPIRE-Server in `compose/spire-federation.yaml` (upstream
 #   convention: SPIRE-Server and SPIRE-Agent are released as a paired
 #   binary set). Cosign-Digest-Pin form (Pfad B) with the same
-#   placeholder convention as; Operator-Hand substitutes the
+#   placeholder convention as the server; Operator-Hand substitutes the
 #   canonical digest before live bring-up. Cross-Review Zone-C
 #   image-pipeline review.
 #

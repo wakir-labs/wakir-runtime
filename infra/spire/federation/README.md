@@ -199,16 +199,16 @@ accept/reject verdict over a peer SVID. The hermetic test surface in
 `wirelang/tests/test_spiffe_cross_trust_domain_bridge*.py` injects
 Protocol fakes; this substrate is the live impl those Protocols target
 once the live HTTPS-fetch impl lands (Phase-2c follow-up — own Quadlet/
-compose surface, not in scope for).
+compose surface, not in scope here).
 
 ## 5. Cross-Review Gates
 
 | Zone | Counterparty | Item | Status |
 |---|---|---|---|
-| Zone A | Reza (Wirelang) | SPIFFE-trust-domain literal alignment (`wakir.test` + `partner.test` are hermetic-only; Phase-3a production literal `<FTD-ID>.wakir.dev` is unchanged). | hermetic — no Phase-3a literal touched. |
-| Zone B | Reza (NATS-Schema) | None — federation substrate does NOT use NATS. The `multi-org-attestation-nats-kv-backend` is unaffected. | unaffected. |
-| Zone C | Tomás (Container-Image-Pipeline × OTS-Anchoring) | Cosign-Digest-Pin placeholder `DIGEST_PENDING_TOMAS_REVIEW` resolves to the canonical sha256 digest before live bring-up — same Operator-Hand workflow as compose/spire.yaml (Sprint-6 Tag-8 rebase). | Tag-1 hermetic — placeholder preserved. |
-| Zone D | Reza (V-904 Identity-Bridge) | Federation substrate is the V-908 Phase-2-3 surface, not V-904 (Phala-Cloud). No overlap with V-904 Annex Gate. | Not applicable. |
+| Zone A | Wirelang | SPIFFE-trust-domain literal alignment (`wakir.test` + `partner.test` are hermetic-only; Phase-3a production literal `<FTD-ID>.wakir.dev` is unchanged). | hermetic — no Phase-3a literal touched. |
+| Zone B | NATS-Schema | None — federation substrate does NOT use NATS. The `multi-org-attestation-nats-kv-backend` is unaffected. | unaffected. |
+| Zone C | Container-Image-Pipeline × OTS-Anchoring | Cosign-Digest-Pin placeholder `DIGEST_PENDING_TOMAS_REVIEW` resolves to the canonical sha256 digest before live bring-up — same Operator-Hand workflow as compose/spire.yaml (Pfad-B rebase). | hermetic — placeholder preserved. |
+| Zone D | V-904 Identity-Bridge | Federation substrate is the V-908 Phase-2-3 surface, not V-904 (Phala-Cloud). No overlap with V-904 Annex Gate. | Not applicable. |
 
 ## 6. Hermetic test surface
 
@@ -220,7 +220,7 @@ pytest infra/spire/federation/tests/ -v
 Four test files (adds the rotator suite); all hermetic (compose-
 parse + CLI-roundtrip + Quadlet byte-precision parity + rotation-
 lifecycle). None of them touch podman or pull images. The
- acceptance is **green hermetic test surface + this README §7
+The acceptance is **green hermetic test surface + this README §7
 shipped; live cross-trust SVID verify and live rotation drill are
 Operator-Hand-pendet**.
 
@@ -382,7 +382,7 @@ spire-fed-health \
     --agent-connections 3
 ```
 
-The `--agent-connections` value is operator-provided in; Phase-
+The `--agent-connections` value is operator-provided for now; Phase-
 2c+ wires it from the SPIRE-Agent Workload-API admin counter.
 
 ### 8.2 Metrics-endpoint (`spire-fed-metrics`)
@@ -455,13 +455,13 @@ policy).
   Protocol; this substrate provides the listener. The HTTPS-client
   impl that calls into Wirelang's `LiveBridgeResolution` is a separate
   module (likely `wirelang/federation/spire_bundle_endpoint_fetcher.py`)
-  — identity-substrate track, not Kai-track.
+  — identity-substrate track, not infra track.
 * **Refresh-hint cadence tuning** — SPIRE-Server default refresh-hint
   is 5 min; production cadence may be longer to reduce HTTPS-load.
   Phase-3a tune slot.
 * **DataStore migration sqlite3 → postgres** — Phase-3a path.
 * **Trust-Bundle-Rotation drill on the federation surface** —
-  hermetic substrate in place as of (§7). The live-
+  hermetic substrate in place (§7). The live-
   bring-up rotation drill (Operator-Hand on the host SPIRE-Server
   with native `bundle set`) is the next step; the recipe is in §7.
 * **K8s-native equivalent** — Phase-3 Helm-chart for K8s consumers

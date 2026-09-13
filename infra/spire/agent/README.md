@@ -16,25 +16,25 @@ Phase-2.3+ persona-containers will mount read-only.
 
 ## Layer-Wiring
 
- closes the loop between the SPIFFE substrate sprints:
+This substrate closes the loop between the SPIFFE substrate layers:
 
-| iteration / Tag | Substrate | Status |
-|---|---|---|
-| | SPIRE-Agent (single trust-domain `example.test`) | Phase-2.2, in `compose/spire.yaml` |
-| | SPIRE-Federation-Bundle-Endpoint (two SPIRE-Servers) | Phase-2c, in `infra/spire/federation/` |
-| ** (this directory)** | **SPIRE-Agent wired into federation servers** | **Phase-2c, in `infra/spire/agent/`** |
+| Substrate | Status |
+|---|---|
+| SPIRE-Agent (single trust-domain `example.test`) | Phase-2.2, in `compose/spire.yaml` |
+| SPIRE-Federation-Bundle-Endpoint (two SPIRE-Servers) | Phase-2c, in `infra/spire/federation/` |
+| **SPIRE-Agent wired into federation servers (this directory)** | **Phase-2c, in `infra/spire/agent/`** |
 
-After an Operator can mint a workload-X.509-SVID in `wakir.test`
+With it, an operator can mint a workload-X.509-SVID in `wakir.test`
 on the wakir-side agent, present it to a workload connected through
 the partner-side agent, and the partner-side verifies it against the
--federated `wakir.test` trust-bundle. That cross-trust-domain
+federated `wakir.test` trust-bundle. That cross-trust-domain
 roundtrip is the Operator-Hand-pendet acceptance evidence (§3b below).
 
 ## Files
 
 | Path | Role |
 |---|---|
-| `compose/spire-agent-federation.yaml` | Two-agent compose substrate (external network + bundles volumes from). |
+| `compose/spire-agent-federation.yaml` | Two-agent compose substrate (external network + bundles volumes from the federation substrate). |
 | `config/spire-agent-wakir.conf` | `wakir.test` side SPIRE-Agent config. |
 | `config/spire-agent-partner.conf` | `partner.test` side SPIRE-Agent config. |
 | `bin/spire-agent-fed-attest` | Mock CLI for cross-trust-domain SVID issuance + JWT-SVID-fallback. |
@@ -53,7 +53,7 @@ roundtrip is the Operator-Hand-pendet acceptance evidence (§3b below).
 ## 1. Compose substrate
 
 Two SPIRE-Agent containers on the **external** `wakir-federation`
-bridge network (-owned). Each agent reads the **external**
+bridge network (owned by the federation substrate). Each agent reads the **external**
 side-specific `wakir-spire-server-<SIDE>-bundles` volume read-only for
 the bootstrap trust-bundle ingest, and writes its Workload-API socket
 to a per-side **internal** `wakir-spire-agent-<SIDE>-sockets` volume.
@@ -109,7 +109,7 @@ podman compose -f compose/spire-federation.yaml down -v
 
 The `-v` drops the internal named volumes (agent data + sockets); the
 **external** federation network + bundles volumes are NOT touched by
-the agent compose unit (lifecycle-isolated, Tag-1-owned).
+the agent compose unit (lifecycle-isolated, owned by the federation substrate).
 
 ## 3. Cross-trust-domain X.509-SVID issuance
 
@@ -178,10 +178,10 @@ The `Federated Bundles` block in the output is the
 acceptance proof: the agent has consumed the federated peer-bundle and
 can present cross-trust-verifiable X.509-SVIDs to partner-side workloads.
 
-## 4. JWT-SVID Fallback Path (Reza-RealAdapter Anbindung)
+## 4. JWT-SVID Fallback Path (RealAdapter Anbindung)
 
-the `RealNatsConnectionAdapter` (
-`wirelang/adapters/real_nats_adapter/`) consumes a SPIRE-Workload-API
+the `RealNatsConnectionAdapter`
+(`wirelang/adapters/real_nats_adapter/`) consumes a SPIRE-Workload-API
 JWT-SVID for NATS-JWT-Auth. When the operator disables SPIFFE substrate
 (or in dev-mode without SPIRE) the adapter falls back to
 `auth_mode="mock-jwt"`:
@@ -191,7 +191,7 @@ JWT-SVID for NATS-JWT-Auth. When the operator disables SPIFFE substrate
 | unset / empty / `"none"` | `"mock-jwt"` | Hermetic Mock (wirelang-side) |
 | valid unix-socket path | `"live-spiffe"` | SPIRE-Agent Workload-API |
 
- produces the **SPIRE-Agent side** of the `"live-spiffe"` path
+This substrate produces the **SPIRE-Agent side** of the `"live-spiffe"` path
 (`/run/spire/agent-sockets/api.sock` from the
 `wakir-spire-agent-<SIDE>-sockets` volume). The `mock-jwt` path is
 exercised in test by both ends — the `spire-agent-fed-attest fetch-jwt`
@@ -246,10 +246,10 @@ evidence.
 
 | Zone | Counterparty | Item | Status |
 |---|---|---|---|
-| Zone A | Reza (Wirelang) | SPIFFE-trust-domain literals (`wakir.test`/`partner.test`) match federation pair. Workload-API socket-path follows SPIFFE-spec canonical `/run/spire/agent-sockets/api.sock`. | inherits Zone-A ack (no new literal). |
-| Zone B | Reza (NATS-Schema) | None — agent substrate does NOT use NATS. | unaffected. |
-| Zone C | Tomás (Container-Image-Pipeline × OTS-Anchoring) | Cosign-Digest-Pin placeholder `DIGEST_PENDING_TOMAS_REVIEW` resolves to canonical sha256 digest before live bring-up — same workflow as Tag-1 federation server (Sprint-8 Tag-1 README §5 inherits). | Tag-2 inherits Tag-1 Zone-C ack (image-pin form parity). |
-| Zone D | Reza (V-904 Identity-Bridge) | Federation-agent substrate is V-908 Phase-2-3 surface, not V-904 (Phala-Cloud). | Not applicable. |
+| Zone A | Wirelang | SPIFFE-trust-domain literals (`wakir.test`/`partner.test`) match federation pair. Workload-API socket-path follows SPIFFE-spec canonical `/run/spire/agent-sockets/api.sock`. | inherits Zone-A ack (no new literal). |
+| Zone B | NATS-Schema | None — agent substrate does NOT use NATS. | unaffected. |
+| Zone C | Container-Image-Pipeline × OTS-Anchoring | Cosign-Digest-Pin placeholder `DIGEST_PENDING_TOMAS_REVIEW` resolves to canonical sha256 digest before live bring-up — same workflow as the federation server (federation README §5 inherits). | inherits the federation Zone-C ack (image-pin form parity). |
+| Zone D | V-904 Identity-Bridge | Federation-agent substrate is V-908 Phase-2-3 surface, not V-904 (Phala-Cloud). | Not applicable. |
 
 ## 7. Hermetic test surface
 
@@ -276,7 +276,7 @@ Five test files, **77 tests, all green** (adds 14 reload tests):
   unit ordering, per-side volume references, no bundles-volume re-
   declaration).
 * `test_spire_agent_fed_reload.py` — 14 reload-helper invariants
- (: snapshot determinism, change-detection vs. rotator
+  (snapshot determinism, change-detection vs. rotator
   output, cron-cycle step, SIGHUP-style immediate trigger, race-
   condition recovery, cross-trust-domain isolation, CLI shape).
 
@@ -286,7 +286,7 @@ per ADR-0051**.
 
 ## 8. Bundle-Cache-Refresh
 
-The substrate adds the agent-side counterpart to the
+The reload helper adds the agent-side counterpart to the
 server-side `spire-fed-bundle-rotator`. When the peer-side rotates
 its CA key, the federated bundle file under the agent's
 `trust_bundle_path` changes; the agent must re-read the file so the
@@ -315,8 +315,8 @@ podman kill --signal HUP wakir-spire-agent-partner
 
 # For background steady-state, wire the helper into a Quadlet
 # .timer unit (1h cadence; the cron-cycle step_loop is the loop
-# body). Quadlet.timer wiring is the Phase-3 follow-up
-# ships the CLI surface; the.timer template is scope.
+# body). Quadlet .timer wiring is the Phase-3 follow-up: this increment
+# ships the CLI surface; the .timer template is follow-up scope.
 ```
 
 ### Race-condition-safety
@@ -371,7 +371,7 @@ the read after the operator's atomic-rename completes.
   needs the NATS-server-side JWT-callback impl. Phase-2.4 surface
   (separate from this substrate).
 * **Trust-Bundle-Rotation drill on the federation-agent surface** —
-  hermetic substrate in place as of (§8). The live-
+  hermetic substrate in place (§8). The live-
   bring-up rotation drill (Operator-Hand SIGHUP + Quadlet .timer
   wiring for the cron-cycle) is the follow-up; the §8
   recipe is the canonical workflow.

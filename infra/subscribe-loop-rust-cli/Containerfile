@@ -9,8 +9,8 @@
 # Change License: Apache License 2.0.
 #
 # wakir-persona-engine-subscribe-loop — Rust-CLI runtime image for
-# the NATS-JetStream subscribe-loop operator-CLI (
-# ADR-0066 wave-6 `subscribe_loop` pre-cutover image, parallel to
+# the NATS-JetStream subscribe-loop operator-CLI
+# (ADR-0066 wave-6 `subscribe_loop` pre-cutover image, parallel to
 # wave-1 V907-verify, wave-2 SVID-workload-identity, wave-3
 # bridge-audit-writer, wave-4 state-backing and wave-5 lifecycle-
 # state-machine image-builds).

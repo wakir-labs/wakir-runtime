@@ -12,8 +12,8 @@ Asserts:
     no network).
   * Audience-binding: different audiences yield different JWT-SVID
     seeds (token_hint differs).
-  * Trust-domain mismatch guard: requesting a non-Tag-1-federation
-    trust-domain rejects with exit-code 2 (mirror of
+  * Trust-domain mismatch guard: requesting a non-federation
+    trust-domain rejects with exit-code 2 (mirror of the
     spire-fed-bundle convention).
   * Selector validation: malformed selector rejects with ValueError /
     exit-code 2.
@@ -112,7 +112,7 @@ def test_fetch_x509_cross_trust_domain_yields_different_seeds() -> None:
 
 
 def test_fetch_x509_rejects_non_tag1_trust_domain() -> None:
-    with pytest.raises(ValueError, match="not in Tag-1 federation pair"):
+    with pytest.raises(ValueError, match="not in the federation pair"):
         fed_attest.fetch_x509_svid(
             "1000:1000:/usr/bin/wirelang", "example.test"
         )
@@ -134,7 +134,7 @@ def test_fetch_jwt_emits_mock_jwt_auth_mode_marker() -> None:
     )
     assert out["auth_mode_marker"] == "mock-jwt", (
         "JWT-SVID Mock must carry auth_mode_marker='mock-jwt' to match "
-        "Reza's RealNatsConnectionAdapter SPIRE_AGENT_SOCKET=none fallback"
+        "the RealNatsConnectionAdapter SPIRE_AGENT_SOCKET=none fallback"
     )
     assert out["audience"] == "nats://wakir-orchestrator"
 
@@ -243,7 +243,7 @@ def test_closed_set_trust_domain_pair() -> None:
     assert fed_attest._TRUST_DOMAINS_TAG1 == frozenset(
         {"wakir.test", "partner.test"}
     ), (
-        "Tag-1 federation pair must be exactly {wakir.test, partner.test}; "
-        "adding more trust-domains requires Cross-Review with Reza and "
+        "federation pair must be exactly {wakir.test, partner.test}; "
+        "adding more trust-domains requires identity-substrate cross-review and "
         "a server-side federates_with block first"
     )
