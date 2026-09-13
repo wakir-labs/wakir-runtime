@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Async PersonaEngine wrapper (Sprint-Pengine-9 OI-PEFR-3).
+"""Async PersonaEngine wrapper (OI-PEFR-3).
 
 The synchronous :class:`wirelang.persona_engine.engine.PersonaEngine`
-keeps the v0.2.0-pilot run-until-signal loop semantics. Sprint-
-Pengine-10 will introduce a NATS-subscribe-based auftrags-pipeline
+keeps the v0.2.0-pilot run-until-signal loop semantics. A later
+revision introduces a NATS-subscribe-based auftrags-pipeline
 that requires asyncio at the orchestration layer; this module is
 the preparation surface for that pipeline.
 
@@ -20,7 +20,7 @@ thread-pool hop. The run loop wires:
   - Heartbeat task (audit-annotation emission, parity with sync).
   - Recovery drill scheduler task (OI-PEFR-4 ``DrillScheduler``).
   - NATS-subscribe task (placeholder; full subscribe logic lands
-    in Sprint-Pengine-10).
+    ).
   - Signal-handler task (SIGTERM / SIGINT -> graceful shutdown).
 
 Determinism
@@ -111,7 +111,7 @@ from .v907_verify import (
 
 ASYNC_ENGINE_VERSION = "0.5.3"
 ASYNC_ENGINE_VARIANT = "real-async"
-DEFAULT_SVID_REFETCH_INTERVAL_SEC = 300  # 5 min — Sprint-Pengine-11 Bug-40
+DEFAULT_SVID_REFETCH_INTERVAL_SEC = 300  # 5 min — Bug-40
 
 
 def _utc_now_rfc3339() -> str:
@@ -141,7 +141,7 @@ class _AsyncBackingSyncShim(PersonaStateBacking):
         # use run_coroutine_threadsafe (it would deadlock). Use
         # asyncio.ensure_future + spinning the loop — but the async
         # despawn path is async-native, so this shim is only hit when
-        # legacy sync callers reach down into it. For Sprint-Pengine-9
+        # legacy sync callers reach down into it. E-9
         # we route everything through the async path.
         if asyncio.get_event_loop_policy().get_event_loop() is self._loop:
             raise RuntimeError(
@@ -178,12 +178,12 @@ class AsyncEngineTasks:
     heartbeat: Optional[asyncio.Task] = None
     drill: Optional[asyncio.Task] = None
     subscribe: Optional[asyncio.Task] = None
-    # Sprint-Pengine-11 Bug-40 — full-SVID-fetch refetch background task.
+    # Bug-40 — full-SVID-fetch refetch background task.
     svid_refetch: Optional[asyncio.Task] = None
 
 
 class AsyncPersonaEngine:
-    """Async-native PersonaEngine orchestrator (Sprint-Pengine-9 OI-PEFR-3).
+    """Async-native PersonaEngine orchestrator (OI-PEFR-3).
 
     Lifecycle:
 
@@ -212,7 +212,7 @@ class AsyncPersonaEngine:
         subscribe_runner: Optional[Callable[[], Any]] = None,
         subscribe_env: Optional[str] = None,
         llm_hook: Optional[LlmCallHook] = None,
-        # Sprint-Pengine-11 Bug-40 — background SVID-refetch loop.
+        # Bug-40 — background SVID-refetch loop.
         svid_refetch_interval_sec: int = DEFAULT_SVID_REFETCH_INTERVAL_SEC,
     ) -> None:
         self.env = env_contract
@@ -231,7 +231,7 @@ class AsyncPersonaEngine:
         self.v907_result: Optional[V907VerifyResult] = None
         self.svid_probe: Optional[SvidProbeResult] = None
         self.svid_fetch: Optional[SvidFetchResult] = None
-        # Sprint-Pengine-11 Bug-40 — graceful-fallback state (parity
+        # Bug-40 — graceful-fallback state (parity
         # with the sync engine fields).
         self.svid_full_fetch_fenced: bool = False
         self.svid_full_fetch_fence_reason: Optional[str] = None
@@ -239,15 +239,15 @@ class AsyncPersonaEngine:
         # Hermetic-test factory hooks (parity with sync engine).
         self._svid_channel_factory = None
         self._svid_stub_factory = None
-        # User-supplied drill / subscribe runners (Sprint-Pengine-10
-        # fills these in; for Sprint-Pengine-9 they are optional).
+        # User-supplied drill / subscribe runners (the drill and
+        # subscribe paths fill these in; otherwise they are optional).
         self._drill_runner = drill_runner
         self._subscribe_runner = subscribe_runner
         self._stop_event: Optional[asyncio.Event] = None
         self.tasks = AsyncEngineTasks()
         self._fenced_to_in_memory = False
         self._in_memory_fallback: Optional[PersonaStateBacking] = None
-        # Sprint-Pengine-10 OI-PEFR-6 + OI-PEFR-8: subscribe-loop wiring.
+        # OI-PEFR-6 + OI-PEFR-8: subscribe-loop wiring.
         # ``subscribe_env`` defaults to env var WAKIR_ENV (or "dev").
         # ``llm_hook`` defaults to the Phase-2 EchoReflectionLlmHook.
         self._subscribe_env: str = (
@@ -287,7 +287,7 @@ class AsyncPersonaEngine:
     ) -> NatsSubscribeLoop:
         """Wire a hermetic-mode subscribe-loop driven by ``msg_iter``.
 
-        This is the Sprint-Pengine-10 OI-PEFR-6 surface that tests +
+        This is the OI-PEFR-6 surface that tests +
         the live-NATS runner share. The engine constructs the
         :class:`NatsSubscribeLoop` from the bridge_writer (must be
         set; call after :meth:`spawn`) + the configured LLM hook.
@@ -380,7 +380,7 @@ class AsyncPersonaEngine:
             "socket_connectable": self.svid_probe.socket_connectable,
             "expected_spiffe_id": self.svid_probe.expected_spiffe_id,
         })
-        # Sprint-Pengine-11 Bug-40 graceful-fallback hardening:
+        # Bug-40 graceful-fallback hardening:
         # any non-V907 failure during full SVID-fetch fences the
         # engine to socket-probe-only mode and lets boot continue.
         # The ``_svid_refetch_loop`` background task will retry
@@ -517,7 +517,7 @@ class AsyncPersonaEngine:
     # ------------------------------------------------------------------
 
     # ------------------------------------------------------------------
-    # Sprint-Pengine-11 Bug-40 — graceful-fallback refetch.
+    # Bug-40 — graceful-fallback refetch.
     # ------------------------------------------------------------------
 
     async def attempt_svid_refetch(self) -> bool:
@@ -595,7 +595,7 @@ class AsyncPersonaEngine:
                     pass
                 # Only retry while we are fenced. A future enhancement
                 # may also re-pull SVIDs proactively near not-after,
-                # but for Sprint-Pengine-11 the recovery path is the
+                # but for the recovery path is the
                 # explicit goal.
                 if self.svid_full_fetch_fenced:
                     try:
@@ -701,7 +701,7 @@ class AsyncPersonaEngine:
         self.tasks.subscribe = asyncio.create_task(
             self._subscribe_loop(), name="async-engine-subscribe",
         )
-        # Sprint-Pengine-11 Bug-40 — SVID-refetch background loop.
+        # Bug-40 — SVID-refetch background loop.
         self.tasks.svid_refetch = asyncio.create_task(
             self._svid_refetch_loop(), name="async-engine-svid-refetch",
         )
@@ -773,7 +773,7 @@ class AsyncPersonaEngine:
 
     def _sync_backing_view(self) -> PersonaStateBacking:
         """Return a sync :class:`PersonaStateBacking` for the despawn-
-        clean workflow (which is sync-only for Sprint-Pengine-9).
+        clean workflow (which is sync-only).
 
         If the engine fenced to in-memory we return the in-memory
         fallback directly; otherwise we wrap the async backing in
@@ -789,7 +789,7 @@ class AsyncPersonaEngine:
 
 
 # ---------------------------------------------------------------------------
-# Tag-71 (Selin): Top-level async Welle-N event-handler wiring.
+# (the persona-engine side): Top-level async Welle-N event-handler wiring.
 #
 # Async wrappers around the sync top-level handlers in ``engine.py``. The
 # producer-substrate is stdlib filesystem-only (no network, no NATS, no
@@ -799,7 +799,7 @@ class AsyncPersonaEngine:
 # :func:`asyncio.get_running_loop().run_in_executor` so the event loop
 # is not blocked by file I/O.
 #
-# Scope discipline (Selin)
+# Scope discipline (the persona-engine side)
 # ------------------------
 # Same dispatch-only contract as the sync side. No engine-state coupling.
 # Welle-3 pre-auditor gate enforced by the underlying sync handler via
@@ -989,10 +989,10 @@ async def handle_welle_7_signoff_event(
 
     Runs the sync handler in the default loop's thread-pool executor so
     file I/O does not block the event loop. The Welle-7 Final-Sealing
-    sign-off is the terminal Phase-3c-Welle-Marathon sign-off
+    sign-off is the terminal Phase-3c wave sequence sign-off
     (KW-27 per ``docs/quality-gates/pre-cutover-acceptance-run-order.md``
     §3 + ``docs/quality-gates/phase-3c-doppel-welle-6-7.md`` §4
-    Phase-3-Marathon-Schluss-Acceptance). All three preconditions
+    Phase-3 closing acceptance). All three preconditions
     (sign-off-marker, pre-auditor-decision, final-sealing-marker) are
     enforced by the underlying producer-substrate.
 
@@ -1022,13 +1022,13 @@ async def handle_phase_3_complete_event(
     required_wellen: frozenset = PHASE_3_COMPLETE_REQUIRED_WELLEN,
     phase_3_emitter: Optional[Phase3CompleteAuditEmitter] = None,
 ) -> Phase3CompleteAuditRecord:
-    """Async wrapper around :func:`engine.handle_phase_3_complete_event` (Tag-76).
+    """Async wrapper around :func:`engine.handle_phase_3_complete_event`.
 
     Runs the sync handler in the default loop's thread-pool executor so
     the cross-Welle file I/O (7 state-file reads + shape-validation +
     cross-Welle monotonicity check) does not block the event loop.
 
-    The Tag-76 Phase-3-COMPLETE Production-Bringup-Verifier is the
+    The Phase-3-COMPLETE Production-Bringup-Verifier is the
     engine-side gate-input for the
     ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7`` marker emission (per
     ``docs/quality-gates/phase-3c-doppel-welle-6-7.md`` §4.1). The
@@ -1037,8 +1037,8 @@ async def handle_phase_3_complete_event(
     :class:`Phase3CompleteVerifierError` on red.
 
     Read-only: the handler does not mutate any Welle-State-File. The
-    marker-emit itself is audit-trail-consumer-territory (Henrik
-    Internal Audit Zone-N), NOT this handler's responsibility.
+    marker-emit itself is audit-trail-consumer-territory (internal audit
+    Zone-N), NOT this handler's responsibility.
 
     Args:
         state_dir: Directory containing ``state/welle-{1..7}.json``.

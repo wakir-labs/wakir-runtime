@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""PersonaEngine orchestrator (Sprint-Pengine-8, v0.2.0-pilot).
+"""PersonaEngine orchestrator (v0.2.0-pilot).
 
 Wires the six subsystems imported from this package into the
 spawn-session control flow:
@@ -13,7 +13,7 @@ spawn-session control flow:
   6. ``recovery_workflow`` + ``despawn_clean`` — R1..R4 / P1..P4.
 
 The engine is **synchronous** for v0.2.0-pilot; async-orchestration
-(asyncio + grpcio for SVID-fetch) lands on Sprint-Pengine-9.
+(asyncio + grpcio for SVID-fetch) lands.
 
 Env-var contract (spec §"Env var contract")
 -------------------------------------------
@@ -89,11 +89,11 @@ from .v907_verify import (
 )
 
 
-from .__version__ import ENGINE_VERSION  # Tag-62 canonical anchor (0.5.3, rc1 dropped)
+from .__version__ import ENGINE_VERSION  # canonical anchor (0.5.3, rc1 dropped)
 ENGINE_VARIANT = "real"
 DEFAULT_PERSONA_DEF_DIR = Path("/etc/wakir/persona")
 DEFAULT_HEARTBEAT_INTERVAL_SEC = 30
-DEFAULT_SVID_REFETCH_INTERVAL_SEC = 300  # 5 min — Sprint-Pengine-11 Bug-40
+DEFAULT_SVID_REFETCH_INTERVAL_SEC = 300  # 5 min — Bug-40
 
 
 # ---------------------------------------------------------------------------
@@ -211,7 +211,7 @@ class PersonaEngine:
         self.log_sink = log_sink
         self.heartbeat_interval_sec = heartbeat_interval_sec
         self.session_id = str(uuid.uuid4())
-        # Observability facade. Sprint-SRE Tag-15 instrumentation seam;
+        # Observability facade. instrumentation seam;
         # if no facade is injected, construct a structured-log-only
         # default that reuses the engine's existing log_sink (so the
         # audit substrate already in use stays populated).
@@ -234,7 +234,7 @@ class PersonaEngine:
         self.v907_result: Optional[V907VerifyResult] = None
         self.svid_probe: Optional[SvidProbeResult] = None
         self.svid_fetch: Optional[SvidFetchResult] = None
-        # Sprint-Pengine-11 Bug-40 — graceful-fallback state.
+        # Bug-40 — graceful-fallback state.
         # When the full SVID-fetch fails at boot the engine fences to
         # socket-probe-only mode (parity with the Pengine-8 NATS-py-
         # fence-to-in-memory pattern) and records the fence reason so
@@ -246,7 +246,7 @@ class PersonaEngine:
         self._svid_channel_factory = None
         self._svid_stub_factory = None
         self._stop_requested = False
-        # Sprint-SRE Tag-15 — spawn-latency timer. Started at boot() entry,
+        # — spawn-latency timer. Started at boot() entry,
         # stopped at the first engineering-output emit inside spawn().
         # Stays None until boot() runs so observability records a clean
         # "no spawn-latency" signal if boot fails before the timer starts.
@@ -307,12 +307,12 @@ class PersonaEngine:
         )
 
     def _select_state_backing(self) -> PersonaStateBacking:
-        # Tag-17: ENV-gated Rust-backend switch
+        # ENV-gated Rust-backend switch
         # (WAKIR_STATE_BACKING_BACKEND). Default is python (current
         # behaviour, opt-in switch). Rust-bound values fall back
         # gracefully to python when the binary is unavailable; the
         # per-decision audit-log surfaces both the request and the
-        # actually-chosen backend. Tag-17 substance: production-
+        # actually-chosen backend. substance: production-
         # default switch, no disruptive migration.
         from .rust_backend_switch import (
             StateBackingBackend,
@@ -733,7 +733,7 @@ class PersonaEngine:
             )
             raise
 
-        # SVID workload-API probe (boot-gate; Sprint-Pengine-9 keeps
+        # SVID workload-API probe (boot-gate; keeps
         # this as the fast pre-fetch gate).
         socket_path = resolve_socket_path(
             {"SPIFFE_ENDPOINT_SOCKET": self.env.spiffe_endpoint_socket}
@@ -750,12 +750,12 @@ class PersonaEngine:
             "socket_connectable": self.svid_probe.socket_connectable,
             "expected_spiffe_id": self.svid_probe.expected_spiffe_id,
         })
-        # Sprint-Pengine-9 OI-PEFR-2: full SVID-fetch over gRPC once
+        # OI-PEFR-2: full SVID-fetch over gRPC once
         # the boot-gate probe confirmed the socket is connectable.
         # Failures are logged WARN and the engine continues; the
         # probe alone is sufficient for the boot-go-no-go decision.
         #
-        # Sprint-Pengine-11 Bug-40 graceful-fallback hardening:
+        # Bug-40 graceful-fallback hardening:
         # the SPIRE-Agent can return any of grpc.aio.AioRpcError,
         # grpc.RpcError, asyncio.TimeoutError, or — under certain
         # SPIRE-1.14 selector-mismatch conditions — a generic
@@ -835,7 +835,7 @@ class PersonaEngine:
         Returns ``False`` if the fetch still fails (emits a WARN
         with the new failure reason; the engine stays fenced).
 
-        This is the sync-engine retry hook for Sprint-Pengine-11
+        This is the sync-engine retry hook
         Bug-40. The AsyncPersonaEngine drives this in a background
         task; the sync engine relies on the operator (or a future
         signal-driven refetch trigger) to invoke it.
@@ -1019,15 +1019,15 @@ class PersonaEngine:
 
 
 # ---------------------------------------------------------------------------
-# Tag-71 (Selin): Top-level Welle-N event-handler wiring.
+# (the persona-engine side): Top-level Welle-N event-handler wiring.
 #
 # These free functions are the engine-side event-dispatch surface for the
-# Tag-68 Producer-Wiring-Plan. They construct a stateless
+# Producer-Wiring-Plan. They construct a stateless
 # :class:`WelleStateProducer` per call and delegate to the producer-substrate
-# (Tag-69 Welle-1, Tag-70 Welle-2 sealing + rollback, Tag-71 Welle-3
+# (Welle-1, Welle-2 sealing + rollback, Welle-3
 # Bridge-Audit sign-off with pre-auditor gate).
 #
-# Scope discipline (Selin)
+# Scope discipline (the persona-engine side)
 # ------------------------
 # Top-level dispatch only -- no engine-state coupling. The producer is
 # stateless across handler invocations (see plan-doc §3.3), so a fresh
@@ -1042,20 +1042,20 @@ class PersonaEngine:
 # pre-auditor gate is enforced by the producer (Welle-3 is in
 # :data:`PRE_AUDITOR_GUARDED_WELLEN`).
 #
-# ``handle_welle_4_signoff_event`` (Tag-72) is a Welle-4-pinned
+# ``handle_welle_4_signoff_event`` is a Welle-4-pinned
 # shorthand (State-Backing Welle, KW-25 Mo) that hard-codes
 # ``welle_number=4`` and delegates to
 # :meth:`WelleStateProducer.handle_welle_4_signoff_event` with the
 # snapshot-restore-marker gate.
 #
-# ``handle_welle_5_signoff_event`` (Tag-73) is a Welle-5-pinned
+# ``handle_welle_5_signoff_event`` is a Welle-5-pinned
 # shorthand (Capability-Token Welle, KW-26 per ``pre-cutover-acceptance-
-# run-order.md`` post Tag-74 reconciliation, Reza-Zone-L) that hard-
+# run-order.md`` post reconciliation, Zone-L) that hard-
 # codes ``welle_number=5`` and delegates to
 # :meth:`WelleStateProducer.handle_welle_5_signoff_event` with the
 # capability-token-rotation-marker gate.
 #
-# ``handle_welle_6_signoff_event`` (Tag-74, this PR) is a Welle-6-pinned
+# ``handle_welle_6_signoff_event`` (this PR) is a Welle-6-pinned
 # shorthand (Cross-Substrate-Parity-Welle) that hard-codes
 # ``welle_number=6`` and delegates to
 # :meth:`WelleStateProducer.handle_welle_6_signoff_event` with the
@@ -1113,7 +1113,7 @@ def handle_welle_rollback_event(
     rollback_marker_status: str,
     audit_emitter: Optional[AuditRecordEmitter] = None,
 ) -> WelleAuditRecord:
-    """Top-level dispatch for the Welle-N Rollback-Writer (Tag-70 §2.4).
+    """Top-level dispatch for the Welle-N Rollback-Writer (§2.4).
 
     Covers the three plan-doc §3.1 rollback transitions
     (``pending -> rolled-back``, ``in-progress -> rolled-back``,
@@ -1154,13 +1154,13 @@ def handle_welle_4_signoff_event(
     snapshot_restore_marker_status: str,
     audit_emitter: Optional[AuditRecordEmitter] = None,
 ) -> WelleAuditRecord:
-    """Top-level dispatch for the Welle-4 State-Backing sign-off (Tag-72).
+    """Top-level dispatch for the Welle-4 State-Backing sign-off.
 
     Welle-4 is the State-Backing Welle (KW-25 Mo). The 10th pre-boot
     BackendDecision (``state_backing`` rust<->python switch,
-    Tag-57-emit-order-pin) flips during this Welle; the sign-off is
+    -emit-order-pin) flips during this Welle; the sign-off is
     gated by the snapshot-restore-marker precondition
-    (Tomas-Tag-56-Rollback-Workflow §J4).
+    (WAT- -Rollback-Workflow §J4).
 
     Args:
         state_dir: Directory containing ``state/welle-4.json``.
@@ -1199,10 +1199,10 @@ def handle_welle_5_signoff_event(
     capability_token_rotation_marker_status: str,
     audit_emitter: Optional[AuditRecordEmitter] = None,
 ) -> WelleAuditRecord:
-    """Top-level dispatch for the Welle-5 Capability-Token sign-off (Tag-73).
+    """Top-level dispatch for the Welle-5 Capability-Token sign-off.
 
     Welle-5 is the Capability-Token Welle (KW-25 Fr 2026-06-19,
-    Reza-Zone-L). The capability-token enforce-mode flip from audit-
+    Zone-L). The capability-token enforce-mode flip from audit-
     only-mode to enforce-mode happens during this Welle (per
     kw-24-welle-1-7-acceptance-criteria §5 probes W5-S1..S4); the
     sign-off is gated by the capability-token-rotation-marker
@@ -1249,13 +1249,13 @@ def handle_welle_3_signoff_event(
     pre_auditor_decision: Optional[str] = None,
     audit_emitter: Optional[AuditRecordEmitter] = None,
 ) -> WelleAuditRecord:
-    """Top-level dispatch for the Welle-3 Bridge-Audit sign-off (Tag-71).
+    """Top-level dispatch for the Welle-3 Bridge-Audit sign-off.
 
-    Welle-3 is the Bridge-Audit Welle (KW-24 Fr per the Tag-66 Welle-3
+    Welle-3 is the Bridge-Audit Welle (KW-24 Fr per the Welle-3
     Pre-Auditor-Designation anchor). The sign-off is gated by the
     pre-auditor-decision precondition: Welle-3 is in
     :data:`PRE_AUDITOR_GUARDED_WELLEN`, so the producer requires
-    ``pre_auditor_decision == "designated"`` (Henrik-cannot-self-sign-
+    ``pre_auditor_decision == "designated"`` (audit-cannot-self-sign-
     off invariant; plan-doc §2.2).
 
     Args:
@@ -1293,15 +1293,15 @@ def handle_welle_6_signoff_event(
     cross_substrate_parity_marker_status: str,
     audit_emitter: Optional[AuditRecordEmitter] = None,
 ) -> WelleAuditRecord:
-    """Top-level dispatch for the Welle-6 Cross-Substrate-Parity sign-off (Tag-74).
+    """Top-level dispatch for the Welle-6 Cross-Substrate-Parity sign-off.
 
     Welle-6 is the Cross-Substrate-Parity-Welle (KW-26 per the engine-
     side helper-default; ``docs/quality-gates/pre-cutover-acceptance-
-    run-order.md`` §3 lists Welle-6 on KW-27 -- see the Tag-74
+    run-order.md`` §3 lists Welle-6 on KW-27 -- see the
     reconciliation doc ``docs/persona-engine/welle-5-kw-anchor-
     reconciliation-tag74.md``). The sign-off is gated by the cross-
     substrate-parity-marker precondition (cosign ↔ quadlet ↔ backend-
-    switch parity across the three artefact-substrates, per Tomas'
+    switch parity across the three artefact-substrates, per the WAT side'
     ``cross-substrate-parity-gate`` workflow).
 
     Args:
@@ -1311,7 +1311,7 @@ def handle_welle_6_signoff_event(
             ``"signed-off"`` (refusal-to-write otherwise).
         cross_substrate_parity_marker_status: Cross-substrate-parity
             marker; must be exactly ``"verified"`` (refusal-to-write
-            otherwise). The marker is operator-curated by Tomas'
+            otherwise). The marker is operator-curated by the WAT side'
             ``cross-substrate-parity-gate`` workflow.
         audit_emitter: Optional audit-record sink; defaults to no-op.
 
@@ -1344,20 +1344,20 @@ def handle_welle_7_signoff_event(
     final_sealing_marker_status: str,
     audit_emitter: Optional[AuditRecordEmitter] = None,
 ) -> WelleAuditRecord:
-    """Top-level dispatch for the Welle-7 Final-Sealing sign-off (Tag-75).
+    """Top-level dispatch for the Welle-7 Final-Sealing sign-off.
 
     Welle-7 is the Final-Sealing-Welle (terminal Welle of the Phase-3c-
-    Welle-Marathon, KW-27 per
+    wave sequence, KW-27 per
     ``docs/quality-gates/pre-cutover-acceptance-run-order.md`` §3 +
     ``docs/quality-gates/phase-3c-doppel-welle-6-7.md`` §4 Phase-3-
-    Marathon-Schluss-Acceptance). The sign-off is gated by three
+    closing acceptance). The sign-off is gated by three
     preconditions:
 
     * the standard sign-off-marker companion guard,
     * the pre-auditor guard (Welle-7 is in
-      :data:`PRE_AUDITOR_GUARDED_WELLEN`, Henrik-cannot-self-sign-off
+      :data:`PRE_AUDITOR_GUARDED_WELLEN`, audit-cannot-self-sign-off
       invariant; mirrors Welle-3),
-    * the final-sealing-marker (Tag-75 §2.8; operator-curated
+    * the final-sealing-marker (§2.8; operator-curated
       ``state/welle-7-final-sealing.json``).
 
     The downstream audit-trail consumer fires the
@@ -1375,11 +1375,11 @@ def handle_welle_7_signoff_event(
             ``"signed-off"`` (refusal-to-write otherwise).
         pre_auditor_decision: Designated-pre-auditor decision-literal;
             must be ``"designated"`` (Welle-7 is pre-auditor-guarded
-            per the Henrik-cannot-self-sign-off invariant).
+            per the audit-cannot-self-sign-off invariant).
         final_sealing_marker_status: Final-sealing marker; must be
             exactly ``"confirmed"`` (refusal-to-write otherwise). The
-            marker is operator-curated by the Phase-3-Marathon-Schluss-
-            Acceptance verdict workflow.
+            marker is operator-curated by the Phase-3 closing-
+            acceptance verdict workflow.
         audit_emitter: Optional audit-record sink; defaults to no-op.
 
     Returns:
@@ -1402,12 +1402,12 @@ def handle_welle_7_signoff_event(
 
 
 # ---------------------------------------------------------------------------
-# Tag-76 (Selin): Phase-3-COMPLETE cross-Welle Production-Bringup-Verifier.
+# (the persona-engine side): Phase-3-COMPLETE cross-Welle Production-Bringup-Verifier.
 #
-# After Welle-7 sign-off (terminal Welle of the Phase-3c-Welle-Marathon),
+# After Welle-7 sign-off (terminal Welle of the Phase-3c wave sequence),
 # the engine-side cross-Welle verifier checks that all 7 Welle-State-Files
 # report canonical post-cutover-sign-off-State. Only then may the
-# downstream audit-trail consumer (Henrik Internal Audit Zone-N) fire
+# downstream audit-trail consumer (internal audit Zone-N) fire
 # the ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7`` marker per
 # docs/quality-gates/phase-3c-doppel-welle-6-7.md §4.1.
 #
@@ -1424,7 +1424,7 @@ def handle_phase_3_complete_event(
     required_wellen: frozenset = PHASE_3_COMPLETE_REQUIRED_WELLEN,
     phase_3_emitter: Optional[Phase3CompleteAuditEmitter] = None,
 ) -> Phase3CompleteAuditRecord:
-    """Top-level dispatch for the Phase-3-COMPLETE cross-Welle verifier (Tag-76).
+    """Top-level dispatch for the Phase-3-COMPLETE cross-Welle verifier.
 
     Verifies that **all 7** Welle-State-Files (``state/welle-{1..7}.json``)
     are in canonical post-cutover-sign-off-State. On a green verdict
@@ -1436,7 +1436,7 @@ def handle_phase_3_complete_event(
     refusal-errors during file-loading).
 
     The Phase-3-COMPLETE marker emission itself is NOT this handler's
-    responsibility (audit-trail-consumer-territory; Henrik Internal
+    responsibility (audit-trail-consumer-territory; the internal auditor Internal
     Audit Zone-N). This handler is the **engine-side gate-input**: a
     successful return means the engine has verified all 7 Wellen are
     in canonical signed-off state; the consumer may then emit the
