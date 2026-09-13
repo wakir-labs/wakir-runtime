@@ -165,7 +165,7 @@
       "reason": "Tag-63 post-Final-Bump production-readiness audit. Pins the Tag-52 manifest filename + Tag-52 pin-pack filename as the active substrate (intentional carry-forward under the 0.5.3 final manifest-and-metadata-only bump per Tag-62 release-notes Section 1 'No pin-pack YAML refresh'). Asserts the V-907 baseline engine_version: '0.5.3-rc1' is the intentional Tag-59-seal-contract-protected literal (OPEN-K3). The 0.5.1-pre-cutover reference is the pin-pack invariants.byte_stable_versus carry-forward. All stale literals are legitimate."
     },
     {
-      "path": "reports/audit/persona-engine-0-5-3-production-readiness-2026-05-19.md",
+      "path": "docs/archive/evidence/audits/persona-engine-0-5-3-production-readiness-2026-05-19.md",
       "categories": ["historical-migration-narrative", "historical-manifest", "v907-baseline-pin"],
       "reason": "Tag-63 audit report; narrates the 0.5.2-final-pre-cutover -> 0.5.3-rc1 -> 0.5.3 final progression as audit context plus the OPEN-K3 V-907-baseline carry-forward literal and OPEN-J3 Containerfile label carry-forward literal."
     },
